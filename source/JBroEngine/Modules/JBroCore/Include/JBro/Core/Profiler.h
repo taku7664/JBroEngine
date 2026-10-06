@@ -4,6 +4,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -22,10 +24,10 @@ namespace JBro
         // 리터럴을 그대로 든다. 복사하지 않으므로 살아 있는 글자여야 한다.
         const char* name = nullptr;
         // 몇 겹 안인가. 0 이 가장 바깥이다.
-        std::uint32_t depth = 0;
+        UInt32 depth = 0;
         // 이 프레임에 이 구간이 돈 횟수와 그 합.
-        std::uint32_t callCount = 0;
-        std::uint64_t totalNanoseconds = 0;
+        UInt32 callCount = 0;
+        UInt64 totalNanoseconds = 0;
     };
 
     namespace Profiler
@@ -36,8 +38,8 @@ namespace JBro
         inline constexpr std::size_t MaxDepth = 16;
 
         // **꺼져 있으면 아무것도 하지 않는다.** 기본은 꺼짐이다 - 게임 실행이 재는 값이 아니다.
-        void SetEnabled(bool enabled);
-        bool IsEnabled();
+        void SetEnabled(Bool enabled);
+        Bool IsEnabled();
 
         // 프레임의 처음과 끝. `EndFrame` 이 이번 프레임의 결과를 읽을 수 있는 자리로 옮긴다.
         void BeginFrame();
@@ -50,7 +52,7 @@ namespace JBro
         std::size_t GetCount();
         const ProfileSample* GetAt(std::size_t index);
         // 프레임 전체의 시간. 구간의 합과 견주면 재지 못한 몫이 보인다.
-        std::uint64_t GetFrameNanoseconds();
+        UInt64 GetFrameNanoseconds();
     }
 
     // 스스로 닫는 구간이다. 중간에 돌아 나가는 길이 생겨도 짝이 어긋나지 않는다.

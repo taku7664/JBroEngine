@@ -12,6 +12,8 @@
 #include <imgui.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -63,7 +65,7 @@ namespace JBro
         }
 
         // 대소문자를 가리지 않는 부분 일치. 계층의 검색과 같은 규칙이다.
-        bool ContainsFold(const char* text, const String& needle)
+        Bool ContainsFold(const char* text, const String& needle)
         {
             if (needle.size() == 0)
             {
@@ -109,13 +111,13 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelLog, "Log");
     }
 
-    bool LogPanel::OnCreate(EditorApplication& editor)
+    Bool LogPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
     }
 
-    bool LogPanel::Passes(const LogEntry& entry) const
+    Bool LogPanel::Passes(const LogEntry& entry) const
     {
         const std::size_t level = static_cast<std::size_t>(entry.level);
         if (level >= sizeof(m_levels) / sizeof(m_levels[0]) || false == m_levels[level])
@@ -135,7 +137,7 @@ namespace JBro
         }
         // 새 줄이 왔을 때만 바닥으로 따라간다. 판번호가 그대로면 사람이 스크롤한 자리를
         // 그대로 둔다 - 매 프레임 바닥으로 끌면 위로 올려 읽을 수가 없다.
-        const std::uint64_t revision = Log::GetRevision();
+        const UInt64 revision = Log::GetRevision();
         if (revision != m_seenRevision)
         {
             m_seenRevision = revision;

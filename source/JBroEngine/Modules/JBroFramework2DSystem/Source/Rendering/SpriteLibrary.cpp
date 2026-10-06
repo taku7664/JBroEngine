@@ -2,12 +2,15 @@
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr std::uint32_t SlotMask = (1u << 28) - 1;
+        constexpr UInt32 SlotMask = (1u << 28) - 1;
     }
 
     void SpriteLibrary::Initialize(AssetSystem* assets, Renderer* renderer)
@@ -34,14 +37,14 @@ namespace JBro
         m_renderer = nullptr;
     }
 
-    bool SpriteLibrary::EnsureTexture(AssetHandle textureAsset, AssetHandle& rendererTexture)
+    Bool SpriteLibrary::EnsureTexture(AssetHandle textureAsset, AssetHandle& rendererTexture)
     {
         const TextureData* texture = m_assets->GetTexture(textureAsset);
         if (texture == nullptr)
         {
             return false;
         }
-        const std::uint32_t slot = textureAsset.index & SlotMask;
+        const UInt32 slot = textureAsset.index & SlotMask;
         if (slot >= m_textures.Size())
         {
             // 에셋 풀은 자라도 여기서 자라는 것은 첫 만남 때 한 번이다 - 프레임마다가 아니다.
@@ -53,7 +56,7 @@ namespace JBro
         pixels.size = static_cast<std::uint32_t>(texture->pixels.Size());
         const Extent2D extent{texture->width, texture->height};
 
-        const bool sameAsset = entry.asset.generation == textureAsset.generation && entry.asset.index == textureAsset.index;
+        const Bool sameAsset = entry.asset.generation == textureAsset.generation && entry.asset.index == textureAsset.index;
         if (sameAsset && entry.rendererTexture.generation == 0 && entry.failedGeneration == texture->pixelGeneration)
         {
             return false;
@@ -98,7 +101,7 @@ namespace JBro
         return true;
     }
 
-    bool SpriteLibrary::Resolve(AssetHandle spriteAsset, std::uint32_t frameIndex, AssetHandle& rendererTexture, float uvRect[4],
+    Bool SpriteLibrary::Resolve(AssetHandle spriteAsset, UInt32 frameIndex, AssetHandle& rendererTexture, Float uvRect[4],
         SpriteFrameView* frameView)
     {
         if (m_assets == nullptr || m_renderer == nullptr || uvRect == nullptr)
@@ -120,10 +123,10 @@ namespace JBro
         {
             return false;
         }
-        const std::size_t clamped = frameIndex < sprite->frames.Size() ? frameIndex : sprite->frames.Size() - 1;
+        const std::size_t clamped = frameIndex < sprite->frames.Size() ? static_cast<std::size_t>(frameIndex.Get()) : sprite->frames.Size() - 1;
         const SpriteFrame& frame = sprite->frames[clamped];
-        const float width = static_cast<float>(texture->width);
-        const float height = static_cast<float>(texture->height);
+        const Float width = static_cast<float>(texture->width);
+        const Float height = static_cast<float>(texture->height);
         rendererTexture = uploaded;
         uvRect[0] = static_cast<float>(frame.x) / width;
         uvRect[1] = static_cast<float>(frame.y) / height;
@@ -132,7 +135,7 @@ namespace JBro
         if (frameView != nullptr)
         {
             // 로드가 이미 바로잡은 값이다. 그래도 0 나누기는 여기서 한 번 더 막는다.
-            const float pixelsPerUnit = sprite->options.pixelsPerUnit > 0.0f
+            const Float pixelsPerUnit = sprite->options.pixelsPerUnit > 0.0f
                 ? sprite->options.pixelsPerUnit : DefaultPixelsPerUnit;
             frameView->widthUnits = static_cast<float>(frame.width) / pixelsPerUnit;
             frameView->heightUnits = static_cast<float>(frame.height) / pixelsPerUnit;
@@ -145,9 +148,9 @@ namespace JBro
         return true;
     }
 
-    std::uint32_t SpriteLibrary::GetUploadedTextureCount() const
+    UInt32 SpriteLibrary::GetUploadedTextureCount() const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (std::size_t index = 0; index < m_textures.Size(); ++index)
         {
             count += m_textures[index].rendererTexture.generation != 0 ? 1u : 0u;

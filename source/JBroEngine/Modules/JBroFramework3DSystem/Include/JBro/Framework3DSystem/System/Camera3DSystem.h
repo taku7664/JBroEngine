@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -13,12 +15,12 @@ namespace JBro::System
     class Camera3DSystem final : public GameSystem
     {
     public:
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
         void SetRenderWorld(RenderWorld3D* renderWorld);
         void ExtractRenderWorld(Canvas& canvas);
 
     protected:
-        void OnUpdate(Canvas& canvas, float deltaTime) override;
+        void OnUpdate(Canvas& canvas, Float deltaTime) override;
 
     private:
         RenderWorld3D* m_renderWorld = nullptr;

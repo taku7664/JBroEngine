@@ -4,6 +4,9 @@
 
 #include <cstring>
 #include <iostream>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
@@ -42,9 +45,9 @@ namespace
         }
 
         char text[16];
-        const std::uint32_t written = WebSocket::Base64Encode(reinterpret_cast<const std::uint8_t*>("Man"), 3, text, sizeof(text));
+        const JBro::UInt32 written = WebSocket::Base64Encode(reinterpret_cast<const std::uint8_t*>("Man"), 3, text, sizeof(text));
         Check(written == 4 && 0 == std::memcmp(text, "TWFu", 4), "base64('Man') is 'TWFu'");
-        const std::uint32_t padded = WebSocket::Base64Encode(reinterpret_cast<const std::uint8_t*>("Ma"), 2, text, sizeof(text));
+        const JBro::UInt32 padded = WebSocket::Base64Encode(reinterpret_cast<const std::uint8_t*>("Ma"), 2, text, sizeof(text));
         Check(padded == 4 && 0 == std::memcmp(text, "TWE=", 4), "base64('Ma') pads once");
         Check(0 == WebSocket::Base64Encode(reinterpret_cast<const std::uint8_t*>("Man"), 3, text, 3), "a short buffer is refused");
     }
@@ -70,14 +73,14 @@ namespace
     void TestHandshakeRoundTrip()
     {
         char request[512];
-        const std::uint32_t requestLength = WebSocket::BuildClientHandshakeRequest(
+        const JBro::UInt32 requestLength = WebSocket::BuildClientHandshakeRequest(
             "example.com", 7777, "dGhlIHNhbXBsZSBub25jZQ==", request, sizeof(request));
         Check(requestLength > 0, "the request is built");
         Check(nullptr != std::strstr(request, "Host: example.com:7777\r\n"), "with the host header");
         Check(nullptr != std::strstr(request, "Sec-WebSocket-Protocol: binary\r\n"), "asking for the binary subprotocol");
 
         // 절반만 왔을 때는 더 달라고 한다.
-        std::uint32_t consumed = 0;
+        JBro::UInt32 consumed = 0;
         WebSocket::ServerHandshakeRequest parsed;
         Check(WebSocket::ParseServerHandshake(reinterpret_cast<const std::uint8_t*>(request), requestLength / 2, consumed, parsed)
                 == WebSocket::ParseResult::NeedMoreData,
@@ -90,7 +93,7 @@ namespace
         Check(parsed.wantsBinarySubprotocol, "and the subprotocol wish");
 
         char response[512];
-        const std::uint32_t responseLength = WebSocket::BuildServerHandshakeResponse(parsed, response, sizeof(response));
+        const JBro::UInt32 responseLength = WebSocket::BuildServerHandshakeResponse(parsed, response, sizeof(response));
         Check(responseLength > 0, "the response is built");
         Check(nullptr != std::strstr(response, "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"), "with the accept key");
         Check(WebSocket::ParseClientHandshakeResponse(reinterpret_cast<const std::uint8_t*>(response), responseLength, consumed,
@@ -109,10 +112,10 @@ namespace
             "a plain GET is not a websocket upgrade");
     }
 
-    void CheckHeaderRoundTrip(std::uint64_t length, bool mask, std::uint32_t expectedHeaderLength)
+    void CheckHeaderRoundTrip(JBro::UInt64 length, JBro::Bool mask, JBro::UInt32 expectedHeaderLength)
     {
         std::uint8_t header[WebSocket::MaxFrameHeaderBytes];
-        const std::uint32_t written = WebSocket::EncodeFrameHeader(WebSocket::Opcode::Binary, true, length, mask, 0xA1B2C3D4u, header);
+        const JBro::UInt32 written = WebSocket::EncodeFrameHeader(WebSocket::Opcode::Binary, true, length, mask, 0xA1B2C3D4u, header);
         Check(written == expectedHeaderLength, "the header length matches the payload length class");
         WebSocket::FrameHeader decoded;
         Check(WebSocket::DecodeFrameHeader(header, written, decoded) == WebSocket::ParseResult::Ok, "and decodes");
@@ -164,7 +167,7 @@ namespace
     }
 }
 
-int RunWebSocketProtocolTests()
+JBro::Int32 RunWebSocketProtocolTests()
 {
     try
     {

@@ -1,6 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
@@ -13,18 +16,18 @@ namespace JBro::System
     {
     public:
         // 변환(100)·물리(200)·카메라(300)·추출(400) 뒤, 네트워크 송신(500) 앞이다. 그 프레임의 최종 위치로 소리를 옮긴다.
-        static constexpr int ExecutionOrder = 450;
+        static constexpr Int32 ExecutionOrder = 450;
 
         explicit Audio2DSystem(AudioSystem& audio);
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
         // 게임이 멈출 때 부른다. 소스의 보이스를 멈추고 상태를 처음으로 되돌린다.
         void ReleaseAllSources(Canvas& canvas);
 
     protected:
-        void OnUpdate(Canvas& canvas, float deltaTime) override;
+        void OnUpdate(Canvas& canvas, Float deltaTime) override;
 
     private:
         AudioSystem& m_audio;
-        bool m_warnedListeners = false;
+        Bool m_warnedListeners = false;
     };
 }

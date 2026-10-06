@@ -1,6 +1,7 @@
 ﻿#include <JBro/Reflection/ScalarCodec.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -9,13 +10,13 @@ namespace JBro
         constexpr char TrueText[] = "true";
         constexpr char FalseText[] = "false";
 
-        bool BoolToText(
+        Bool BoolToText(
             const void* value,
             char* buffer,
             std::size_t capacity,
             std::size_t& required) noexcept
         {
-            const bool state = *static_cast<const bool*>(value);
+            const Bool state = *static_cast<const bool*>(value);
             const char* text = state ? TrueText : FalseText;
             const std::size_t length = state ? sizeof(TrueText) - 1 : sizeof(FalseText) - 1;
             required = length;
@@ -27,7 +28,7 @@ namespace JBro
             return true;
         }
 
-        bool BoolFromText(void* value, const char* text, std::size_t length) noexcept
+        Bool BoolFromText(void* value, const char* text, std::size_t length) noexcept
         {
             if (text == nullptr)
             {
@@ -49,7 +50,7 @@ namespace JBro
             return false;
         }
 
-        bool BoolEquals(const void* left, const void* right) noexcept
+        Bool BoolEquals(const void* left, const void* right) noexcept
         {
             return *static_cast<const bool*>(left) == *static_cast<const bool*>(right);
         }

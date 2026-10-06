@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::EditorShortcuts
 {
@@ -42,7 +43,7 @@ namespace JBro::EditorShortcuts
         return Names[index < static_cast<std::size_t>(EditorShortcut::Count) ? index : 0];
     }
 
-    bool CanExecute(const EditorApplication& editor, EditorShortcut id)
+    Bool CanExecute(const EditorApplication& editor, EditorShortcut id)
     {
         const EditorActionInfo* action = Find(id);
         return action != nullptr && EditorActionUi::CanExecute(*action, Context(editor));
@@ -54,7 +55,7 @@ namespace JBro::EditorShortcuts
         return action != nullptr ? EditorActionUi::WhyBlocked(*action, Context(editor)) : nullptr;
     }
 
-    bool Execute(EditorApplication& editor, EditorShortcut id)
+    Bool Execute(EditorApplication& editor, EditorShortcut id)
     {
         const EditorActionInfo* action = Find(id);
         EditorActionContext context = Context(editor);

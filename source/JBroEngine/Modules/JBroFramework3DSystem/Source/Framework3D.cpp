@@ -15,6 +15,9 @@
 #include <cmath>
 #include <new>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -23,7 +26,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool Framework3D::Initialize(const FrameworkContext& context)
+    Bool Framework3D::Initialize(const FrameworkContext& context)
     {
         if (m_initialized
             || context.time == nullptr
@@ -68,7 +71,7 @@ namespace JBro
         return true;
     }
 
-    bool Framework3D::BindScriptContexts() noexcept
+    Bool Framework3D::BindScriptContexts() noexcept
     {
         if (false == m_initialized)
         {
@@ -118,12 +121,12 @@ namespace JBro
         m_renderWorld.BeginFrame();
         // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-242). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
         // 한 프레임 진행은 3D 에 켤 스크립트·물리가 아직 없어 시간만 한 스텝 간다.
-        const bool simulating = m_simulationEnabled || m_context.time->IsStepFrame();
+        const Bool simulating = m_simulationEnabled || m_context.time->IsStepFrame();
         if (simulating)
         {
             RunFixedSteps();
         }
-        m_canvas->GetSystems().Update(*m_canvas, simulating ? m_context.time->GetFrameTime().deltaTime : 0.0f);
+        m_canvas->GetSystems().Update(*m_canvas, simulating ? m_context.time->GetFrameTime().deltaTime : Float(0.0f));
         m_canvas->FlushPendingDestroy();
         m_renderWorld.EndFrame();
     }
@@ -240,7 +243,7 @@ namespace JBro
         }
     }
 
-    void Framework3D::SetSimulationEnabled(bool enabled)
+    void Framework3D::SetSimulationEnabled(Bool enabled)
     {
         m_simulationEnabled = enabled;
         if (m_canvas.Get() == nullptr)
@@ -262,7 +265,7 @@ namespace JBro
     {
         System::TimeSystem& time = *m_context.time;
         const FrameTime& frame = time.GetFrameTime();
-        for (std::uint32_t step = 0; step < frame.fixedStepCount; ++step)
+        for (UInt32 step = 0; step < frame.fixedStepCount; ++step)
         {
             time.BeginFixedStep();
             m_canvas->GetSystems().FixedUpdate(*m_canvas, frame.fixedDeltaTime);

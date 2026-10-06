@@ -34,6 +34,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 가이드 포커스 2~5 단계(D-251, `tasks/guide-focus-plan.md` §3): 부모부터 여는 걸음, 막과 애니메이션, 표식, 가이드.
 //
@@ -42,7 +46,7 @@
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -67,7 +71,7 @@ namespace
         QuietLog& operator=(const QuietLog&) = delete;
 
     private:
-        bool m_previous = true;
+        JBro::Bool m_previous = true;
     };
 
     using JBro::EditorGuideFocus;
@@ -76,7 +80,7 @@ namespace
     using JBro::GuideFocusTarget;
     using JBro::Rect;
 
-    constexpr float Frame = 1.0f / 60.0f;
+    constexpr JBro::Float Frame = 1.0f / 60.0f;
 
     const GuideFocusTarget A{ JBro::MakeNameId("test.a"), 0 };
     const GuideFocusTarget B{ JBro::MakeNameId("test.b"), 0 };
@@ -96,13 +100,13 @@ namespace
     // 그리는 쪽처럼 한 프레임을 돈다. `openA` 등은 그 칸이 열려 있는가이고, `obey` 면 열어 달라는 칸을 연다.
     struct Drawer
     {
-        bool openA = false;
-        bool openB = false;
-        bool drawC = true;
-        bool activateC = false;
-        bool obey = true;
+        JBro::Bool openA = false;
+        JBro::Bool openB = false;
+        JBro::Bool drawC = true;
+        JBro::Bool activateC = false;
+        JBro::Bool obey = true;
 
-        void Frame(EditorGuideFocus& focus, float dt = ::Frame)
+        void Frame(EditorGuideFocus& focus, JBro::Float dt = ::Frame)
         {
             focus.BeginFrame();
             if (obey && focus.ShouldOpen(A))
@@ -124,11 +128,11 @@ namespace
 
     Rect Padded(const Rect& rect)
     {
-        const float pad = EditorGuideFocus::HolePadding;
+        const JBro::Float pad = EditorGuideFocus::HolePadding;
         return Rect{ { rect.min.x - pad, rect.min.y - pad }, { rect.max.x + pad, rect.max.y + pad } };
     }
 
-    bool SameRect(const Rect& a, const Rect& b)
+    JBro::Bool SameRect(const Rect& a, const Rect& b)
     {
         return a.min.x == b.min.x && a.min.y == b.min.y && a.max.x == b.max.x && a.max.y == b.max.y;
     }
@@ -142,14 +146,14 @@ namespace
         Drawer drawer;
         drawer.obey = false;
         // 구멍이 넓은 데서 좁혀 오는 동안은 열지 않는다.
-        for (int frame = 0; frame < 5; ++frame)
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
         {
             drawer.Frame(focus);
         }
         Check(false == focus.IsHoleSettled(), "the hole is still closing in from its wide start after five frames");
         Check(false == focus.ShouldOpen(A), "nothing is opened while the hole is still on its way");
 
-        float waited = 0.0f;
+        JBro::Float waited = 0.0f;
         while (false == focus.IsHoleSettled() && waited < 2.0f)
         {
             drawer.Frame(focus);
@@ -159,7 +163,7 @@ namespace
         Check(SameRect(focus.GetHoleRect(), Padded(RectA)), "settled means exactly on the level, with its padding");
         Check(false == focus.ShouldOpen(A), "settling alone does not open it - the eye needs a moment on it");
 
-        float dwelled = 0.0f;
+        JBro::Float dwelled = 0.0f;
         while (false == focus.ShouldOpen(A) && dwelled < 2.0f)
         {
             drawer.Frame(focus);
@@ -186,7 +190,7 @@ namespace
         drawer.openA = true;
         drawer.Frame(focus);
         Check(focus.GetLevel() == 1, "an already open level is walked through without dwelling");
-        for (int frame = 0; frame < 180; ++frame)
+        for (JBro::Int32 frame = 0; frame < 180; ++frame)
         {
             drawer.Frame(focus);
         }
@@ -196,7 +200,7 @@ namespace
         drawer.openB = true;
         drawer.Frame(focus);
         Check(focus.GetLevel() == 2, "when the user opens it the walk goes on to the target");
-        for (int frame = 0; frame < 60; ++frame)
+        for (JBro::Int32 frame = 0; frame < 60; ++frame)
         {
             drawer.Frame(focus);
         }
@@ -235,14 +239,14 @@ namespace
         drawer.openA = true;
         drawer.openB = true;
         drawer.drawC = false;
-        float waited = 0.0f;
+        JBro::Float waited = 0.0f;
         while (waited < EditorGuideFocus::BrokenSeconds - 0.1f)
         {
             drawer.Frame(focus);
             waited += Frame;
         }
         Check(false == focus.IsBroken(), "a target missing for less than the limit is not broken yet");
-        for (int frame = 0; frame < 10; ++frame)
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
         {
             drawer.Frame(focus);
         }
@@ -361,7 +365,7 @@ namespace
         Check(focus.Begin(ThreeLevels()), "the focus must start");
         Drawer drawer;
         drawer.obey = false;
-        for (int frame = 0; frame < 120; ++frame)
+        for (JBro::Int32 frame = 0; frame < 120; ++frame)
         {
             drawer.Frame(focus);
         }
@@ -380,7 +384,7 @@ namespace
         focus.FilterInput({ events, 2 }, out);
         Check(out.Size() == 2 && out[0].x == 900.0f, "a paused gate lets a press anywhere through, to answer the modal");
 
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             drawer.Frame(focus);
         }
@@ -424,7 +428,7 @@ namespace
         return search.found;
     }
 
-    bool OpenEditor(JBro::EditorApplication& editor, const char* projectName, HWND& hwnd)
+    JBro::Bool OpenEditor(JBro::EditorApplication& editor, const char* projectName, HWND& hwnd)
     {
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
@@ -440,22 +444,22 @@ namespace
         Check(editor.EnableEditorUi({ 64, 48 }), "the editor UI must turn on");
         hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be found");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
         return true;
     }
 
-    void Tick(JBro::EditorApplication& editor, int frames)
+    void Tick(JBro::EditorApplication& editor, JBro::Int32 frames)
     {
-        for (int frame = 0; frame < frames; ++frame)
+        for (JBro::Int32 frame = 0; frame < frames; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick");
         }
     }
 
-    void ClickAt(JBro::EditorApplication& editor, HWND hwnd, int x, int y)
+    void ClickAt(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 x, JBro::Int32 y)
     {
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
         Tick(editor, 1);
@@ -466,9 +470,9 @@ namespace
     }
 
     // 구멍이 지금 칸에 닿을 때까지 돈다.
-    bool WaitUntilSettled(JBro::EditorApplication& editor, std::uint32_t level)
+    JBro::Bool WaitUntilSettled(JBro::EditorApplication& editor, JBro::UInt32 level)
     {
-        for (int frame = 0; frame < 240; ++frame)
+        for (JBro::Int32 frame = 0; frame < 240; ++frame)
         {
             const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
             if (focus.GetLevel() == level && focus.IsHoleSettled())
@@ -480,7 +484,7 @@ namespace
         return false;
     }
 
-    void HoleCenter(const JBro::EditorGuideFocus& focus, int& x, int& y)
+    void HoleCenter(const JBro::EditorGuideFocus& focus, JBro::Int32& x, JBro::Int32& y)
     {
         const Rect& hole = focus.GetHoleRect();
         x = static_cast<int>((hole.min.x + hole.max.x) * 0.5f);
@@ -489,7 +493,7 @@ namespace
 
     // 말풍선의 단추 줄의 높이를 찾는다. 줄의 맨 왼쪽에는 늘 단추가 있다 - 그 자리를 아래에서 위로 훑어 처음 걸리는 높이다.
     // 창의 크기에서 셈하지 않는다: 자동 크기는 한 프레임 늦어 내용이 바뀐 프레임에는 단추가 창 크기 밖에 있다.
-    bool FindBalloonButtonRow(JBro::EditorApplication& editor, HWND hwnd, const ImGuiWindow*& balloon, float& y)
+    JBro::Bool FindBalloonButtonRow(JBro::EditorApplication& editor, HWND hwnd, const ImGuiWindow*& balloon, JBro::Float& y)
     {
         // 말풍선은 구멍이 자리 잡은 뒤 옆에서 미끄러져 들어온다(0.22 초). 멈춘 뒤에 잰다.
         Tick(editor, 20);
@@ -498,8 +502,8 @@ namespace
         {
             return false;
         }
-        const float x = balloon->Pos.x + 24.0f;
-        for (float probe = balloon->Pos.y + balloon->Size.y + 40.0f; probe > balloon->Pos.y; probe -= 4.0f)
+        const JBro::Float x = balloon->Pos.x + 24.0f;
+        for (JBro::Float probe = balloon->Pos.y + balloon->Size.y + 40.0f; probe > balloon->Pos.y; probe -= 4.0f)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(probe)));
             Tick(editor, 1);
@@ -514,17 +518,17 @@ namespace
 
     // 단추 줄을 오른쪽 끝부터 훑어, 누를 수 있는 단추 가운데 오른쪽에서 `skip` 개를 지난 것을 누른다
     // (0 이면 맨 오른쪽 - 다음이 있으면 다음이다). 회색 단추는 세지 않는다.
-    bool ClickBalloonButtonFromRight(JBro::EditorApplication& editor, HWND hwnd, int skip)
+    JBro::Bool ClickBalloonButtonFromRight(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 skip)
     {
         const ImGuiWindow* balloon = nullptr;
-        float y = 0.0f;
+        JBro::Float y = 0.0f;
         if (false == FindBalloonButtonRow(editor, hwnd, balloon, y))
         {
             return false;
         }
         ImGuiID last = 0;
-        int seen = -1;
-        for (float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
+        JBro::Int32 seen = -1;
+        for (JBro::Float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
             Tick(editor, 1);
@@ -548,15 +552,15 @@ namespace
     }
 
     // 단추 줄을 오른쪽 끝부터 훑어 처음 걸리는 단추가 회색인지 본다(다음이 막혔는가).
-    bool RightmostBalloonButtonIsDisabled(JBro::EditorApplication& editor, HWND hwnd)
+    JBro::Bool RightmostBalloonButtonIsDisabled(JBro::EditorApplication& editor, HWND hwnd)
     {
         const ImGuiWindow* balloon = nullptr;
-        float y = 0.0f;
+        JBro::Float y = 0.0f;
         if (false == FindBalloonButtonRow(editor, hwnd, balloon, y))
         {
             return false;
         }
-        for (float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
+        for (JBro::Float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
             Tick(editor, 1);
@@ -569,7 +573,7 @@ namespace
         return false;
     }
 
-    bool ClickBalloonRightmostButton(JBro::EditorApplication& editor, HWND hwnd)
+    JBro::Bool ClickBalloonRightmostButton(JBro::EditorApplication& editor, HWND hwnd)
     {
         return ClickBalloonButtonFromRight(editor, hwnd, 0);
     }
@@ -579,7 +583,7 @@ namespace
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
-        int slot = 0;
+        JBro::Int32 slot = 0;
         const ImGuiID pushed = ImHashData(&slot, sizeof(slot), window->ID);
         return ImHashStr(typeName, 0, pushed);
     }
@@ -635,11 +639,11 @@ namespace
         // 값 칸을 두 번 눌러 글자 입력으로 바꾸고 Esc 를 누른다. 편집 취소이지 가이드 끝내기가 아니다.
         {
             const Rect& field = editor.GetGuideFocus().GetHoleRect();
-            const int fx = static_cast<int>(field.max.x - 40.0f);
-            const int fy = static_cast<int>((field.min.y + field.max.y) * 0.5f);
+            const JBro::Int32 fx = static_cast<int>(field.max.x - 40.0f);
+            const JBro::Int32 fy = static_cast<int>((field.min.y + field.max.y) * 0.5f);
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(fx, fy));
             Tick(editor, 1);
-            for (int press = 0; press < 2; ++press)
+            for (JBro::Int32 press = 0; press < 2; ++press)
             {
                 PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(fx, fy));
                 Tick(editor, 1);
@@ -661,8 +665,8 @@ namespace
         Check(editor.GetGuideFocus().IsKeyboardAllowed(), "the add step lets the keyboard through - the list has a search box");
         Check(WaitUntilSettled(editor, 1), "the hole must reach the add component box");
 
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(editor.GetGuideFocus(), x, y);
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 2);
@@ -732,8 +736,8 @@ namespace
         Check(editor.GetGuideFocus().GetLevel() == 0, "a menu is never opened for the user");
         Check(ImGui::GetCurrentContext()->OpenPopupStack.Size == 0, "no menu popup is open");
 
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(editor.GetGuideFocus(), x, y);
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 2);
@@ -746,8 +750,8 @@ namespace
                 && hole.max.y <= menu->Pos.y + menu->Size.y + EditorGuideFocus::HolePadding + 1.0f,
             "the hole sits inside the open menu");
         // 메뉴의 첫 항목(새 프로젝트)은 구멍 밖이다. 눌리지 않아야 한다.
-        const float firstItemY = menu->Pos.y + ImGui::GetStyle().WindowPadding.y + ImGui::GetFrameHeight() * 0.5f;
-        const float menuX = menu->Pos.x + menu->Size.x * 0.5f;
+        const JBro::Float firstItemY = menu->Pos.y + ImGui::GetStyle().WindowPadding.y + ImGui::GetFrameHeight() * 0.5f;
+        const JBro::Float menuX = menu->Pos.x + menu->Size.x * 0.5f;
         Check(firstItemY < hole.min.y, "the first item of the menu is above the hole, or the next check proves nothing");
         Check(false == editor.GetGuideFocus().IsAllowed({ menuX, firstItemY }),
             "the other items of the menu the user opened are not pressable");
@@ -793,7 +797,7 @@ namespace
             JBro::Canvas* canvas = editor.GetCanvas();
             Check(canvas != nullptr, "the canvas must be open");
             const std::size_t before = editor.GetObjectIds().GetCount();
-            for (int index = 0; index < 40; ++index)
+            for (JBro::Int32 index = 0; index < 40; ++index)
             {
                 Check(canvas->CreateObject("Untracked") != nullptr, "an untracked object must be made");
             }
@@ -821,7 +825,7 @@ namespace
         // 되돌아갈 단계를 두지 않은 가이드다. 두 단계 모두 없는 것을 가리킨다.
         JBro::Guide guide;
         guide.id = "test.broken";
-        for (int index = 0; index < 2; ++index)
+        for (JBro::Int32 index = 0; index < 2; ++index)
         {
             JBro::GuideStep step;
             step.path.Push(JBro::GuideFocusTargets::Panel("Inspector"));
@@ -889,7 +893,7 @@ namespace
         editor.GetGuide().Stop(editor.GetGuideFocus());
     }
 
-    bool NeverDone(JBro::EditorApplication&, JBro::GuideStepMemo&)
+    JBro::Bool NeverDone(JBro::EditorApplication&, JBro::GuideStepMemo&)
     {
         return false;
     }
@@ -917,7 +921,7 @@ namespace
             JBro::GuideStep second;
             second.path.Push(JBro::GuideFocusTargets::Panel("Inspector"));
             second.end = JBro::GuideStepEnd::Condition;
-            second.condition = JBro::Delegate<bool(JBro::EditorApplication&, JBro::GuideStepMemo&)>::Bind<&NeverDone>();
+            second.condition = JBro::Delegate<JBro::Bool(JBro::EditorApplication&, JBro::GuideStepMemo&)>::Bind<&NeverDone>();
             second.canGoBack = false;
             guide.steps.Add(std::move(second));
         }
@@ -967,12 +971,12 @@ namespace
         }
         JBro::Guide guide;
         guide.id = "test.manual_next";
-        for (int index = 0; index < 2; ++index)
+        for (JBro::Int32 index = 0; index < 2; ++index)
         {
             JBro::GuideStep step;
             step.path.Push(JBro::GuideFocusTargets::Panel(index == 0 ? "Hierarchy" : "Inspector"));
             step.end = JBro::GuideStepEnd::Condition;
-            step.condition = JBro::Delegate<bool(JBro::EditorApplication&, JBro::GuideStepMemo&)>::Bind<&NeverDone>();
+            step.condition = JBro::Delegate<JBro::Bool(JBro::EditorApplication&, JBro::GuideStepMemo&)>::Bind<&NeverDone>();
             step.canGoNext = true;
             guide.steps.Add(std::move(step));
         }
@@ -1147,7 +1151,7 @@ namespace
 
     struct Answer
     {
-        bool close = false;
+        JBro::Bool close = false;
     };
 
     class AnswerPopup final : public JBro::EditorPopup
@@ -1216,12 +1220,12 @@ namespace
 {
     // ── 글자로 적힌 가이드(D-267) ─────────────────────────────────────
 
-    bool ParseGuide(const char* text, JBro::OwnerPtr<JBro::LoadedGuide>& out, JBro::String& error)
+    JBro::Bool ParseGuide(const char* text, JBro::OwnerPtr<JBro::LoadedGuide>& out, JBro::String& error)
     {
         return JBro::EditorGuides::Parse(text, std::strlen(text), out, error);
     }
 
-    bool Contains(const JBro::String& text, const char* part)
+    JBro::Bool Contains(const JBro::String& text, const char* part)
     {
         return text.find(part) != JBro::String::npos;
     }
@@ -1347,7 +1351,7 @@ namespace
         return OneStepGuide(step);
     }
 
-    void RightClickAt(JBro::EditorApplication& editor, HWND hwnd, int x, int y)
+    void RightClickAt(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 x, JBro::Int32 y)
     {
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
         Tick(editor, 1);
@@ -1357,23 +1361,23 @@ namespace
         Tick(editor, 1);
     }
 
-    bool HoleInsideWindow(const JBro::EditorGuideFocus& focus, const ImGuiWindow* window)
+    JBro::Bool HoleInsideWindow(const JBro::EditorGuideFocus& focus, const ImGuiWindow* window)
     {
         const Rect& hole = focus.GetHoleRect();
-        const float pad = EditorGuideFocus::HolePadding + 1.0f;
+        const JBro::Float pad = EditorGuideFocus::HolePadding + 1.0f;
         return window != nullptr && hole.min.x >= window->Pos.x - pad && hole.min.y >= window->Pos.y - pad
             && hole.max.x <= window->Pos.x + window->Size.x + pad && hole.max.y <= window->Pos.y + window->Size.y + pad;
     }
 
     // 우클릭 메뉴를 연 뒤 구멍이 그 안의 삭제로 옮겨 가고, 누르면 지워지고, 확인을 기다린다.
-    void FinishDeleteThroughTheMenu(JBro::EditorApplication& editor, HWND hwnd, JBro::GameObject* object, std::uint32_t menuLevel)
+    void FinishDeleteThroughTheMenu(JBro::EditorApplication& editor, HWND hwnd, JBro::GameObject* object, JBro::UInt32 menuLevel)
     {
         const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
         Check(WaitUntilSettled(editor, menuLevel), "the hole must reach the object");
         Tick(editor, 60);
         Check(focus.GetLevel() == menuLevel, "the menu is never opened for the user - they right-click");
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         // 왼쪽 단추로 누르는 것은 우클릭 메뉴를 열지 않는다.
         ClickAt(editor, hwnd, x, y);
@@ -1386,8 +1390,8 @@ namespace
         const ImGuiWindow* menu = ImGui::GetCurrentContext()->OpenPopupStack[0].Window;
         Check(HoleInsideWindow(focus, menu), "the hole sits on an item of the open menu");
         // 메뉴의 첫 항목(오브젝트 추가)은 구멍 밖이다. 눌리지 않는다.
-        const float firstItemY = menu->Pos.y + ImGui::GetStyle().WindowPadding.y + ImGui::GetFrameHeight() * 0.5f;
-        const float menuX = menu->Pos.x + menu->Size.x * 0.5f;
+        const JBro::Float firstItemY = menu->Pos.y + ImGui::GetStyle().WindowPadding.y + ImGui::GetFrameHeight() * 0.5f;
+        const JBro::Float menuX = menu->Pos.x + menu->Size.x * 0.5f;
         Check(firstItemY < focus.GetHoleRect().min.y, "the first item is above Delete, or the next check proves nothing");
         Check(false == focus.IsAllowed({ menuX, firstItemY }), "the other items of the object's menu are covered");
 
@@ -1511,8 +1515,8 @@ namespace
         // 계층의 검색 칸에 아무 이름과도 맞지 않는 글자를 친다. 줄이 모두 가려진다.
         const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
         Check(hierarchy != nullptr, "the layers window must be there");
-        const int searchX = static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
-        const int searchY = static_cast<int>(hierarchy->Pos.y + hierarchy->TitleBarHeight + ImGui::GetStyle().WindowPadding.y
+        const JBro::Int32 searchX = static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
+        const JBro::Int32 searchY = static_cast<int>(hierarchy->Pos.y + hierarchy->TitleBarHeight + ImGui::GetStyle().WindowPadding.y
             + ImGui::GetFrameHeight() * 0.5f);
         ClickAt(editor, hwnd, searchX, searchY);
         for (const wchar_t letter : { L'q', L'z', L'x' })
@@ -1570,8 +1574,8 @@ namespace
 
         const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
         Check(WaitUntilSettled(editor, 0), "the hole must reach the Edit menu");
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 2);
@@ -1637,7 +1641,7 @@ namespace
     class ProbeCommand final : public JBro::EditorCommand
     {
     public:
-        ProbeCommand(const char* name, JBro::EditorObjectId subject, bool succeeds)
+        ProbeCommand(const char* name, JBro::EditorObjectId subject, JBro::Bool succeeds)
             : m_name(name)
             , m_subject(subject)
             , m_succeeds(succeeds)
@@ -1645,14 +1649,14 @@ namespace
         }
         const char* GetName() const override { return m_name; }
         JBro::EditorObjectId GetSubject() const override { return m_subject; }
-        bool Execute() override { return m_succeeds; }
+        JBro::Bool Execute() override { return m_succeeds; }
         void Undo() override {}
         void Redo() override {}
 
     private:
         const char* m_name = nullptr;
         JBro::EditorObjectId m_subject = JBro::InvalidEditorObjectId;
-        bool m_succeeds = true;
+        JBro::Bool m_succeeds = true;
     };
 
     // 실행 기록은 실행한 것만 적고(실패·되돌리기·다시하기는 아니다), 오래된 것은 밀려나며, 밀려난 것을 묻으면 거짓이다.
@@ -1673,8 +1677,8 @@ namespace
         Check(commands.Undo() && commands.Redo(), "undo and redo work");
         Check(commands.GetExecuteCount() == 2, "undo and redo are not executions - a guide must not count a redo as the user doing it again");
 
-        const std::uint64_t history = JBro::EditorCommandManager::ExecutedHistory;
-        for (std::uint64_t index = 0; index < history; ++index)
+        const JBro::UInt64 history = JBro::EditorCommandManager::ExecutedHistory;
+        for (JBro::UInt64 index = 0; index < history; ++index)
         {
             commands.Execute(JBro::MakeOwnerPtr<ProbeCommand>("C", 33, true));
         }
@@ -1686,7 +1690,7 @@ namespace
 
     // 메뉴에서 연 항목을 누르는 데까지 몬다. 구멍이 `menuLevel` 칸(사용자가 우클릭할 자리)에 서면 `x`,`y` 를 우클릭하고,
     // 메뉴가 열려 구멍이 항목으로 옮겨 가면 누른다. 자리를 주지 않으면 구멍 가운데를 우클릭한다.
-    void RightClickMenuAndPress(JBro::EditorApplication& editor, HWND hwnd, std::uint32_t menuLevel, int x = -1, int y = -1)
+    void RightClickMenuAndPress(JBro::EditorApplication& editor, HWND hwnd, JBro::UInt32 menuLevel, JBro::Int32 x = -1, JBro::Int32 y = -1)
     {
         const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
         Check(WaitUntilSettled(editor, menuLevel), "the hole must reach the place to right-click");
@@ -2108,7 +2112,7 @@ namespace
     void SendAll(JBro::Network::IStreamSocket& socket, const JBro::String& text, Pump&& pump)
     {
         std::size_t offset = 0;
-        for (int round = 0; round < 2000 && offset < text.size(); ++round)
+        for (JBro::Int32 round = 0; round < 2000 && offset < text.size(); ++round)
         {
             std::size_t sent = 0;
             const JBro::Network::SocketIo io = socket.Send(text.data() + offset, text.size() - offset, sent);
@@ -2123,7 +2127,7 @@ namespace
     }
 
     // 받은 것을 `buffer` 에 모은다. 상대가 닫았으면 참이다.
-    bool Drain(JBro::Network::IStreamSocket& socket, JBro::String& buffer)
+    JBro::Bool Drain(JBro::Network::IStreamSocket& socket, JBro::String& buffer)
     {
         char chunk[4096];
         while (true)
@@ -2143,7 +2147,7 @@ namespace
     template <typename Pump>
     JBro::String ReadReply(JBro::Network::IStreamSocket& socket, JBro::String& buffer, Pump&& pump)
     {
-        for (int round = 0; round < 2000; ++round)
+        for (JBro::Int32 round = 0; round < 2000; ++round)
         {
             Drain(socket, buffer);
             const std::size_t end = buffer.find("\n...\n");
@@ -2159,7 +2163,7 @@ namespace
         return JBro::String();
     }
 
-    bool StartsWith(const JBro::String& text, const char* head)
+    JBro::Bool StartsWith(const JBro::String& text, const char* head)
     {
         return text.rfind(head, 0) == 0;
     }
@@ -2250,8 +2254,8 @@ namespace
         SendAll(*flood, floodText, pump);
         reply = ReadReply(*flood, floodBuffer, pump);
         Check(StartsWith(reply, "error: the message is too long"), "a message without an end is refused");
-        bool closed = false;
-        for (int round = 0; round < 10 && false == closed; ++round)
+        JBro::Bool closed = false;
+        for (JBro::Int32 round = 0; round < 10 && false == closed; ++round)
         {
             pump();
             closed = Drain(*flood, floodBuffer);
@@ -2314,7 +2318,7 @@ namespace
             Check(editor.Tick(Frame), "the editor must tick");
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         };
-        for (int round = 0; round < 200 && client->GetState() == JBro::Network::ConnectionState::Connecting; ++round)
+        for (JBro::Int32 round = 0; round < 200 && client->GetState() == JBro::Network::ConnectionState::Connecting; ++round)
         {
             pump();
         }
@@ -2376,7 +2380,7 @@ namespace
         return JBro::MakeStableTypeId("Component::SpriteRenderer2D");
     }
 
-    bool HasComponentOfType(const JBro::GameObject& object, JBro::ComponentTypeId typeId)
+    JBro::Bool HasComponentOfType(const JBro::GameObject& object, JBro::ComponentTypeId typeId)
     {
         for (const auto& slot : object.GetComponents())
         {
@@ -2433,8 +2437,8 @@ namespace
         Check(false == focus.IsKeyboardAllowed(), "pointing at one item closes the search box - typing would filter it away");
 
         Check(WaitUntilSettled(editor, 1), "the hole must reach the add box");
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 2);
@@ -2494,9 +2498,9 @@ namespace
         Tick(editor, 5);
         const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
         Check(balloon != nullptr, "the balloon must be up");
-        const float plainHeight = balloon->Size.y;
-        int x = 0;
-        int y = 0;
+        const JBro::Float plainHeight = balloon->Size.y;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 2);
@@ -2555,21 +2559,21 @@ namespace
         const JBro::ComponentTypeInfo* type = JBro::ComponentRegistry::Get().Find(SpriteType());
         Check(type != nullptr, "the sprite type must be registered");
         const char* category = type->category != nullptr ? type->category : JBro::ComponentCategory::Default;
-        const std::uint32_t last = path.count - 1;
+        const JBro::UInt32 last = path.count - 1;
         Check(path.count >= 5 && path.targets[last] == JBro::GuideFocusTargets::ComponentListItem(SpriteType())
                 && path.targets[last - 1] == JBro::GuideFocusTargets::ComponentCategoryMenu(category) && path.open[last - 1] == GuideFocusOpen::User
                 && path.targets[last - 2] == JBro::GuideFocusTargets::Action("component.add") && path.open[last - 2] == GuideFocusOpen::User,
             "the object's menu, its add submenu, the sprite's group and the item, each opened by the user");
 
         // 줄을 우클릭해 메뉴를 열고, 하위 메뉴와 갈래를 차례로 올려 연다(메뉴 안의 하위 메뉴는 올리면 열린다).
-        const std::uint32_t menuLevel = last - 3;
+        const JBro::UInt32 menuLevel = last - 3;
         Check(WaitUntilSettled(editor, menuLevel), "the hole must reach the object's row");
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         RightClickAt(editor, hwnd, x, y);
         Tick(editor, 2);
-        for (std::uint32_t level = menuLevel + 1; level < last; ++level)
+        for (JBro::UInt32 level = menuLevel + 1; level < last; ++level)
         {
             Check(WaitUntilSettled(editor, level), "the hole moves onto the next submenu");
             HoleCenter(focus, x, y);
@@ -2596,7 +2600,7 @@ namespace
         GuideFocusPath path;
         Check(path.Push(A), "the path must take one level");
         Check(focus.Begin(path), "the focus must start");
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             focus.BeginFrame();
             focus.Report(A, RectA, false, true, false, true, nullptr, true);
@@ -2610,14 +2614,14 @@ namespace
     }
 
     // 사람처럼 끈다 - 올려 두고, 누르고, 몇 번에 나눠 옮기고, 놓는다.
-    void DragAt(JBro::EditorApplication& editor, HWND hwnd, int x, int y, int dx, int dy)
+    void DragAt(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 x, JBro::Int32 y, JBro::Int32 dx, JBro::Int32 dy)
     {
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
         Tick(editor, 2);
         PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));
         Tick(editor, 1);
-        constexpr int Steps = 6;
-        for (int step = 1; step <= Steps; ++step)
+        constexpr JBro::Int32 Steps = 6;
+        for (JBro::Int32 step = 1; step <= Steps; ++step)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x + dx * step / Steps, y + dy * step / Steps));
             Tick(editor, 1);
@@ -2657,7 +2661,7 @@ namespace
         Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
         const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
         const GuideFocusPath& path = focus.GetPath();
-        const std::uint32_t translate = static_cast<std::uint32_t>(JBro::GizmoMode::Translate);
+        const JBro::UInt32 translate = static_cast<std::uint32_t>(JBro::GizmoMode::Translate);
         Check(path.count == 3 && path.targets[0] == JBro::GuideFocusTargets::Panel("CanvasView")
                 && path.targets[1] == JBro::GuideFocusTargets::GizmoModeButton(translate) && path.open[1] == GuideFocusOpen::User
                 && path.targets[2] == JBro::GuideFocusTargets::GizmoHandle(translate, static_cast<std::uint32_t>(JBro::GizmoAxis::Free)),
@@ -2668,9 +2672,9 @@ namespace
 
         JBro::Component::Transform2D* transform = TransformOf(editor, *object);
         Check(transform != nullptr, "the object must have a transform");
-        const float beforeX = transform->position.x;
-        int x = 0;
-        int y = 0;
+        const JBro::Float beforeX = transform->position.x;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         DragAt(editor, hwnd, x, y, 60, 0);
         Check(transform->position.x > beforeX + 0.01f, "dragging the handle in the hole moves the object");
@@ -2705,17 +2709,17 @@ namespace
         Check(WaitUntilSettled(editor, 1), "the hole must reach the Rotate button");
         Tick(editor, 40);
         Check(focus.GetLevel() == 1, "the button is not pressed for the user - they press it");
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         ClickAt(editor, hwnd, x, y);
         Check(WaitUntilSettled(editor, 2), "pressing Rotate moves the hole onto the ring");
         Check(focus.IsHoleRound(), "the ring is a round hole");
 
         JBro::Component::Transform2D* transform = TransformOf(editor, *object);
-        const float before = transform->GetRotationRadian().Get();
+        const JBro::Float before = transform->GetRotationRadian().Get();
         HoleCenter(focus, x, y);
-        const int ring = static_cast<int>(JBro::GizmoModel::RingRadiusPixels);
+        const JBro::Int32 ring = static_cast<int>(JBro::GizmoModel::RingRadiusPixels);
         DragAt(editor, hwnd, x + ring, y, -ring, -ring);
         Check(std::fabs(transform->GetRotationRadian().Get() - before) > 0.05f, "dragging along the ring turns the object");
         Check(editor.GetGuide().IsConfirming(), "and the step is done");
@@ -2771,8 +2775,8 @@ namespace
                 && path.targets[2] == JBro::GuideFocusTargets::PolygonPoint(2),
             "the canvas view, Edit Collider the user turns on, and point 2");
         Check(WaitUntilSettled(editor, 1), "the hole must reach Edit Collider");
-        int x = 0;
-        int y = 0;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
         HoleCenter(focus, x, y);
         ClickAt(editor, hwnd, x, y);
         Check(WaitUntilSettled(editor, 2), "turning it on moves the hole onto the point");
@@ -2904,7 +2908,7 @@ namespace
         Check(first != nullptr && second != nullptr && first != second, "two colliders must attach");
         // 첫째를 폴리곤으로 두어 줄을 늘린다 - 둘째의 줄이 인스펙터 밖으로 밀려나야 굴리기가 드러난다.
         first->shape = JBro::Component::ColliderShape2D::Polygon;
-        for (int point = 0; point < 40; ++point)
+        for (JBro::Int32 point = 0; point < 40; ++point)
         {
             first->points.Add({ static_cast<float>(point), 0.0f });
         }
@@ -2915,7 +2919,7 @@ namespace
         const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
         Check(WaitUntilSettled(editor, 2), "the hole must settle on one shape row");
         const Rect settled = focus.GetHoleRect();
-        for (int frame = 0; frame < 60; ++frame)
+        for (JBro::Int32 frame = 0; frame < 60; ++frame)
         {
             Tick(editor, 1);
             Check(focus.GetLevel() == 2 && focus.IsHoleSettled(), "and stay there instead of going back and forth");
@@ -2956,7 +2960,7 @@ namespace
         Tick(editor, 20);
         const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
         Check(balloon != nullptr && balloon->WasActive, "the balloon must be up");
-        const float blockedHeight = balloon->Size.y;
+        const JBro::Float blockedHeight = balloon->Size.y;
         collider->shape = JBro::Component::ColliderShape2D::Polygon;
         Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "an empty polygon edits the box's four corners, so point 3 is there");
         Tick(editor, 5);
@@ -2995,7 +2999,7 @@ namespace
         // 막은 둥근 구멍의 네 귀퉁이를 다시 칠한다 - 글자를 읽지 못하는 것처럼 픽셀도 못 읽으니 막 창의 꼭짓점 수로 본다.
         const ImGuiWindow* veil = ImGui::FindWindowByName("##guide_focus_veil");
         Check(veil != nullptr, "the veil must be drawn");
-        const int roundVertices = veil->DrawList->VtxBuffer.Size;
+        const JBro::Int32 roundVertices = veil->DrawList->VtxBuffer.Size;
         editor.GetGuide().Stop(editor.GetGuideFocus());
         Check(JBro::EditorActions::AddComponent(editor, *object, JBro::MakeStableTypeId("Component::SpriteRenderer2D")), "a sprite goes on");
         editor.SetSelectedObject(nullptr);
@@ -3007,7 +3011,7 @@ namespace
     }
 }
 
-int RunEditorGuideTests()
+JBro::Int32 RunEditorGuideTests()
 {
     TestAClosedLevelOpensOnlyAfterTheHoleSettlesAndDwells();
     TestALevelTheUserOpensWaitsForTheUser();

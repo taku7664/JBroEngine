@@ -17,6 +17,8 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
@@ -26,7 +28,7 @@ namespace
         layer.SetOpacity(0.5f);
     };
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -178,13 +180,13 @@ namespace
         void OnEnabled() override   { ++enabled; }
         void OnDisabled() override  { ++disabled; }
 
-        int attached = 0;
-        int detached = 0;
-        int enabled = 0;
-        int disabled = 0;
+        JBro::Int32 attached = 0;
+        JBro::Int32 detached = 0;
+        JBro::Int32 enabled = 0;
+        JBro::Int32 disabled = 0;
         JBro::InstanceId ownerAtAttach = JBro::InvalidInstanceId;
         JBro::InstanceId idAtAttach = JBro::InvalidInstanceId;
-        int* detachedObserver = nullptr;
+        JBro::Int32* detachedObserver = nullptr;
     };
 
     void TestComponentLifecycleHooks()
@@ -205,7 +207,7 @@ namespace
         probe->SetEnabled(true);
         Check(probe->enabled == 1, "re-enabling must run the enable hook");
 
-        int detachedSeen = 0;
+        JBro::Int32 detachedSeen = 0;
         probe->detachedObserver = &detachedSeen;
         Check(canvas.DetachComponent(object, probe),
             "detaching an attached component must succeed");
@@ -456,7 +458,7 @@ namespace
     }
 }
 
-int RunCanvasFoundationTests()
+JBro::Int32 RunCanvasFoundationTests()
 {
     TestObjectComponentSkeletonCompiles();
     TestFramework2DBootstraps();

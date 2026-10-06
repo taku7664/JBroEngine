@@ -9,23 +9,25 @@
 #include <JBro/Types/Table.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
     struct ReplicationServerDiagnostics
     {
-        std::uint32_t objects = 0;
-        std::uint32_t clients = 0;
-        std::uint32_t lastSnapshotEntries = 0;
-        std::uint32_t lastSnapshotBytes = 0;
+        UInt32 objects = 0;
+        UInt32 clients = 0;
+        UInt32 lastSnapshotEntries = 0;
+        UInt32 lastSnapshotBytes = 0;
         // 이번 스텝에 모든 클라이언트에게 보낸 델타 바이트 합.
-        std::uint32_t lastDeltaBytes = 0;
+        UInt32 lastDeltaBytes = 0;
         // 전체 스냅숏을 보낸 횟수(기준이 없거나 이력에서 밀렸다).
-        std::uint32_t fullSnapshotsSent = 0;
+        UInt32 fullSnapshotsSent = 0;
         // 델타가 상한을 넘어 보내지 못한 틱 수.
-        std::uint32_t oversizedTicks = 0;
+        UInt32 oversizedTicks = 0;
         // 이번 스텝에 실제로 인코드한 횟수. 클라이언트 수가 아니라 **서로 다른 기준의 수**다.
-        std::uint32_t lastDeltaEncodes = 0;
+        UInt32 lastDeltaEncodes = 0;
     };
 
     // 서버 쪽 복제(network-plan §2.6). 고정 스텝마다 등록된 풀을 스냅숏으로 찍고, 새 오브젝트는 스폰을, 사라진 오브젝트는 소멸을
@@ -43,11 +45,11 @@ namespace JBro::Network
         // 한 고정 스텝. 시뮬레이션 뒤, 트랜스포트 `Update` 전에 부른다(송신 시스템 자리).
         void Step(ReplicationTick tick);
         // 트랜스포트에서 꺼낸 메시지 가운데 복제 것이면 처리하고 참을 돌려준다.
-        bool HandleMessage(const MessageView& view);
+        Bool HandleMessage(const MessageView& view);
 
         const ReplicationServerDiagnostics& GetDiagnostics() const;
         NetworkObjectId FindNetworkId(InstanceId object) const;
-        std::uint32_t GetObjectCount() const;
+        UInt32 GetObjectCount() const;
 
     private:
         struct ObjectRecord
@@ -55,8 +57,8 @@ namespace JBro::Network
             NetworkObjectId id = InvalidNetworkObjectId;
             InstanceId instance = InvalidInstanceId;
             SpawnDesc desc;
-            bool seen = false;
-            bool isNew = false;
+            Bool seen = false;
+            Bool isNew = false;
         };
 
         struct ClientState
@@ -64,9 +66,9 @@ namespace JBro::Network
             ConnectionId connection = InvalidConnectionId;
             ReplicationTick ackedTick = NoBaselineTick;
             ReplicationTick lastSentTick = 0;
-            bool hasSent = false;
+            Bool hasSent = false;
             // 이번 스텝에서 이미 보냈는가. 같은 기준을 ack 한 클라이언트끼리 인코드를 나눠 쓰기 위한 표시다.
-            bool sentThisStep = false;
+            Bool sentThisStep = false;
         };
 
         class PoolVisitor final : public IReplicatedPoolVisitor
@@ -95,10 +97,10 @@ namespace JBro::Network
         ReplicationConfig m_config;
 
         Array<IReplicatedPool*> m_pools;
-        Array<std::uint32_t> m_typeSizes;
+        Array<UInt32> m_typeSizes;
 
         Array<ObjectRecord> m_objects;
-        Table<InstanceId, std::uint32_t> m_objectIndex;
+        Table<InstanceId, UInt32> m_objectIndex;
         NetworkObjectId m_nextObjectId = 1;
 
         SnapshotHistory m_history;

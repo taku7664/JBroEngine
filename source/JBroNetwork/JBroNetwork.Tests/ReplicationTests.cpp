@@ -10,6 +10,10 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
@@ -19,11 +23,11 @@ namespace
     // 복제되는 상태 하나. 부착 단계의 Transform2D 어댑터가 실을 것과 닮게 두 값이다.
     struct State
     {
-        float x = 0.0f;
-        float y = 0.0f;
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
     };
 
-    constexpr std::uint32_t StateBytes = sizeof(State);
+    constexpr JBro::UInt32 StateBytes = sizeof(State);
 
     // 클라이언트 한 벌: 트랜스포트·호스트·풀·복제.
     struct Client
@@ -33,7 +37,7 @@ namespace
         FakeReplicatedPool pool;
         ReplicationClient replication;
 
-        Client(MemorySocketProvider& provider, ManualClock& clock, const JBro::Uuid& prefab, std::uint32_t elementBytes,
+        Client(MemorySocketProvider& provider, ManualClock& clock, const JBro::Uuid& prefab, JBro::UInt32 elementBytes,
             const ReplicationConfig& config)
             : transport(provider, clock)
             , host(prefab)
@@ -48,10 +52,10 @@ namespace
         {
             transport.Update();
             MessageView views[64];
-            std::uint32_t got = 0;
+            JBro::UInt32 got = 0;
             while ((got = transport.TakeMessages(views, 64)) > 0)
             {
-                for (std::uint32_t index = 0; index < got; ++index)
+                for (JBro::UInt32 index = 0; index < got; ++index)
                 {
                     replication.HandleMessage(views[index]);
                 }
@@ -59,7 +63,7 @@ namespace
             replication.Apply(1.0f);
         }
 
-        bool IsUdpRoute() const
+        JBro::Bool IsUdpRoute() const
         {
             ReliableDiagnostics diagnostics;
             return transport.GetReliableDiagnostics(ServerConnectionId, diagnostics) && diagnostics.route == OrderedRoute::Udp;
@@ -78,7 +82,7 @@ namespace
         ReplicationServer replication;
         Client client;
         ReplicationTick tick = 1;
-        std::uint32_t rounds = 0;
+        JBro::UInt32 rounds = 0;
 
         explicit World(const LossyConfig* lossy = nullptr, const ReplicationConfig& replicationConfig = {})
             : config(replicationConfig)
@@ -100,12 +104,12 @@ namespace
 
         void Connect(Client& who)
         {
-            for (int round = 0; round < 400; ++round)
+            for (JBro::Int32 round = 0; round < 400; ++round)
             {
                 RoundWithoutStep(&who);
                 ReliableDiagnostics diagnostics;
-                bool serverUdp = false;
-                for (std::uint32_t at = 0; at < server.GetConnectionCount(); ++at)
+                JBro::Bool serverUdp = false;
+                for (JBro::UInt32 at = 0; at < server.GetConnectionCount(); ++at)
                 {
                     if (server.GetReliableDiagnostics(server.GetConnectionAt(at), diagnostics) && diagnostics.route == OrderedRoute::Udp)
                     {
@@ -124,10 +128,10 @@ namespace
         {
             server.Update();
             MessageView views[64];
-            std::uint32_t got = 0;
+            JBro::UInt32 got = 0;
             while ((got = server.TakeMessages(views, 64)) > 0)
             {
-                for (std::uint32_t index = 0; index < got; ++index)
+                for (JBro::UInt32 index = 0; index < got; ++index)
                 {
                     replication.HandleMessage(views[index]);
                 }
@@ -153,9 +157,9 @@ namespace
             RoundWithoutStep(extra);
         }
 
-        void Populate(std::uint32_t count)
+        void Populate(JBro::UInt32 count)
         {
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (JBro::UInt32 index = 0; index < count; ++index)
             {
                 State state;
                 state.x = static_cast<float>(index);
@@ -164,9 +168,9 @@ namespace
             }
         }
 
-        void Mutate(std::uint32_t count, float delta)
+        void Mutate(JBro::UInt32 count, JBro::Float delta)
         {
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (JBro::UInt32 index = 0; index < count; ++index)
             {
                 FakeReplicatedPool::Record* record = serverPool.Find(1 + index);
                 if (nullptr == record)
@@ -181,13 +185,13 @@ namespace
         }
 
         // 클라이언트의 풀이 서버의 풀과 같은가. 오브젝트마다 서버 식별자 → 네트워크 식별자 → 클라이언트 지역 식별자를 거친다.
-        bool Converged(Client& who) const
+        JBro::Bool Converged(Client& who) const
         {
             if (who.host.SpawnedCount() != replication.GetObjectCount() || who.pool.LiveCount() != replication.GetObjectCount())
             {
                 return false;
             }
-            for (std::uint32_t index = 0; index < 100000; ++index)
+            for (JBro::UInt32 index = 0; index < 100000; ++index)
             {
                 FakeReplicatedPool::Record* serverRecord = const_cast<FakeReplicatedPool&>(serverPool).Find(1 + index);
                 if (nullptr == serverRecord)
@@ -224,12 +228,12 @@ namespace
         World world;
         world.Connect(world.client);
         world.Populate(50);
-        for (int round = 0; round < 30; ++round)
+        for (JBro::Int32 round = 0; round < 30; ++round)
         {
             world.Mutate(10, 1.0f);
             world.Round();
         }
-        for (int round = 0; round < 40; ++round)
+        for (JBro::Int32 round = 0; round < 40; ++round)
         {
             world.Round();
         }
@@ -254,13 +258,13 @@ namespace
         World world(&lossy);
         world.Connect(world.client);
         world.Populate(50);
-        for (int round = 0; round < 60; ++round)
+        for (JBro::Int32 round = 0; round < 60; ++round)
         {
             world.Mutate(10, 0.25f);
             world.Round();
         }
-        bool converged = false;
-        for (int round = 0; round < 400 && false == converged; ++round)
+        JBro::Bool converged = false;
+        for (JBro::Int32 round = 0; round < 400 && false == converged; ++round)
         {
             world.Round();
             converged = world.Converged(world.client);
@@ -297,16 +301,16 @@ namespace
         world.Connect(world.client);
         world.Populate(50);
         // 스폰은 신뢰 UDP 다. 혼잡 창이 16 에서 시작해 ack 마다 하나씩 커지므로 자리 잡을 시간을 준다.
-        for (int round = 0; round < 60; ++round)
+        for (JBro::Int32 round = 0; round < 60; ++round)
         {
             world.Round();
         }
         Check(world.client.host.SpawnedCount() == 50, "fifty live");
-        for (std::uint32_t index = 0; index < 10; ++index)
+        for (JBro::UInt32 index = 0; index < 10; ++index)
         {
             world.serverPool.Remove(1 + index);
         }
-        for (int round = 0; round < 40; ++round)
+        for (JBro::Int32 round = 0; round < 40; ++round)
         {
             world.Round();
         }
@@ -322,7 +326,7 @@ namespace
         World world;
         world.Connect(world.client);
         world.Populate(30);
-        for (int round = 0; round < 20; ++round)
+        for (JBro::Int32 round = 0; round < 20; ++round)
         {
             world.Mutate(5, 1.0f);
             world.Round();
@@ -330,12 +334,12 @@ namespace
         Client joiner(world.provider, world.clock, world.prefab, StateBytes, world.config);
         Check(joiner.transport.Connect("memory", 5000), "the joiner connects");
         world.Connect(joiner);
-        for (int round = 0; round < 10; ++round)
+        for (JBro::Int32 round = 0; round < 10; ++round)
         {
             world.Mutate(5, 1.0f);
             world.Round(&joiner);
         }
-        for (int round = 0; round < 60; ++round)
+        for (JBro::Int32 round = 0; round < 60; ++round)
         {
             world.Round(&joiner);
         }
@@ -351,11 +355,11 @@ namespace
         World world;
         world.Connect(world.client);
         world.Populate(50);
-        for (std::uint32_t index = 0; index < 5; ++index)
+        for (JBro::UInt32 index = 0; index < 5; ++index)
         {
             world.serverHost.ExcludeFromReplication(1 + index);
         }
-        for (int round = 0; round < 60; ++round)
+        for (JBro::Int32 round = 0; round < 60; ++round)
         {
             world.Round();
         }
@@ -370,7 +374,7 @@ namespace
         World world;
         world.Connect(world.client);
         world.Populate(3);
-        for (int round = 0; round < 4; ++round)
+        for (JBro::Int32 round = 0; round < 4; ++round)
         {
             world.Mutate(3, 1.0f);
             world.Round();
@@ -402,7 +406,7 @@ namespace
         world.Connect(third);
 
         // 셋이 모두 붙고 같은 틱을 ack 할 때까지 돌린다.
-        for (int round = 0; round < 40; ++round)
+        for (JBro::Int32 round = 0; round < 40; ++round)
         {
             world.Mutate(4, 0.5f);
             world.replication.Step(world.tick++);
@@ -428,7 +432,7 @@ namespace
         world.Populate(4);
 
         // 간격을 재려면 스냅숏이 둘 이상 와야 한다. 시계는 라운드마다 5 ms 씩 간다.
-        for (int round = 0; round < 12; ++round)
+        for (JBro::Int32 round = 0; round < 12; ++round)
         {
             world.Mutate(4, 1.0f);
             world.Round();
@@ -440,7 +444,7 @@ namespace
         const ReplicationTick before = world.client.replication.GetDiagnostics().latestTick;
         world.Mutate(4, 1.0f);
         world.replication.Step(world.tick++);
-        for (int round = 0; round < 12; ++round)
+        for (JBro::Int32 round = 0; round < 12; ++round)
         {
             world.PumpServer();
             world.client.Pump();
@@ -470,7 +474,7 @@ namespace
         Check(nullptr != quietSpawned, "the quiet world replicated too");
         const FakeReplicatedPool::Record* quietRecord = quiet.client.pool.Find(quietSpawned->local);
         Check(nullptr != quietRecord, "and has a record");
-        const std::uint32_t applies = quietRecord->applyCount;
+        const JBro::UInt32 applies = quietRecord->applyCount;
         quiet.client.replication.Apply();
         quiet.client.replication.Apply();
         Check(quietRecord->applyCount == applies, "with one snapshot and a still clock, Apply does nothing");
@@ -485,15 +489,15 @@ namespace
         world.Connect(world.client);
         world.Populate(2000);
         // 2000 개의 스폰이 신뢰 UDP 로 다 건너갈 때까지 기다린다. 측정은 그 뒤 정상 상태에서 한다.
-        for (int round = 0; round < 600 && world.client.host.SpawnedCount() < 2000; ++round)
+        for (JBro::Int32 round = 0; round < 600 && world.client.host.SpawnedCount() < 2000; ++round)
         {
             world.Round();
         }
         Check(world.client.host.SpawnedCount() == 2000, "all 2000 objects spawned before measuring");
         const auto start = std::chrono::steady_clock::now();
-        std::uint64_t deltaBytes = 0;
-        constexpr int Steps = 60;
-        for (int round = 0; round < Steps; ++round)
+        JBro::UInt64 deltaBytes = 0;
+        constexpr JBro::Int32 Steps = 60;
+        for (JBro::Int32 round = 0; round < Steps; ++round)
         {
             world.Mutate(200, 0.5f);
             world.Round();
@@ -506,7 +510,7 @@ namespace
             << " ms (" << totalMilliseconds / Steps << " ms per step incl. both transports), snapshot "
             << server.lastSnapshotEntries << " entries / " << server.lastSnapshotBytes << " bytes, delta avg "
             << deltaBytes / Steps << " bytes\n";
-        for (int round = 0; round < 6; ++round)
+        for (JBro::Int32 round = 0; round < 6; ++round)
         {
             world.Round();
         }
@@ -517,7 +521,7 @@ namespace
     }
 }
 
-int RunReplicationTests()
+JBro::Int32 RunReplicationTests()
 {
     try
     {

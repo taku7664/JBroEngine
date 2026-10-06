@@ -3,6 +3,7 @@
 #include <JBro/Editor/EditorCommand.h>
 
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -35,7 +36,7 @@ namespace JBro
         ~CreateAssetFolderCommand() override;
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -52,14 +53,14 @@ namespace JBro
         MoveAssetCommand(EditorApplication& editor, String fromRelative, String toRelative);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
         const String& GetTarget() const;
 
     private:
-        bool MoveTo(const String& fromRelative, const String& toRelative);
+        Bool MoveTo(const String& fromRelative, const String& toRelative);
 
         EditorApplication* m_editor = nullptr;
         String m_from;
@@ -74,7 +75,7 @@ namespace JBro
         ~DeleteAssetCommand() override;
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 

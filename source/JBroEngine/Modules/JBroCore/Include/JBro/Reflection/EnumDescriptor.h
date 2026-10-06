@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -59,7 +61,7 @@ namespace JBro
                 EnumNames result;
                 result.names = Table::Names;
                 result.count = static_cast<std::uint32_t>(Count);
-                result.ToIndex = [](const void* value) noexcept -> std::int32_t
+                result.ToIndex = [](const void* value) noexcept -> Int32
                 {
                     const E held = *static_cast<const E*>(value);
                     for (std::size_t i = 0; i < Count; ++i)
@@ -72,7 +74,7 @@ namespace JBro
                     // 이름 없는 값이다. 지어내지 않는다.
                     return -1;
                 };
-                result.FromIndex = [](void* value, std::int32_t index) noexcept
+                result.FromIndex = [](void* value, Int32 index) noexcept
                 {
                     if (index < 0 || static_cast<std::size_t>(index) >= Count)
                     {
@@ -90,7 +92,7 @@ namespace JBro
                     const void* value,
                     char* buffer,
                     std::size_t capacity,
-                    std::size_t& required) noexcept -> bool
+                    std::size_t& required) noexcept -> Bool
                 {
                     const E held = *static_cast<const E*>(value);
                     for (std::size_t i = 0; i < Count; ++i)
@@ -113,7 +115,7 @@ namespace JBro
                     required = 0;
                     return false;
                 };
-                result.FromText = [](void* value, const char* text, std::size_t length) noexcept -> bool
+                result.FromText = [](void* value, const char* text, std::size_t length) noexcept -> Bool
                 {
                     if (text == nullptr || length == 0)
                     {
@@ -135,7 +137,7 @@ namespace JBro
                     // 첫 번째 값으로 떨어뜨리면 지워진 enum 값이 조용히 다른 것이 된다.
                     return false;
                 };
-                result.Equals = [](const void* left, const void* right) noexcept -> bool
+                result.Equals = [](const void* left, const void* right) noexcept -> Bool
                 {
                     return *static_cast<const E*>(left) == *static_cast<const E*>(right);
                 };

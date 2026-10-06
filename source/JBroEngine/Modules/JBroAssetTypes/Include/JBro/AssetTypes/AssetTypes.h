@@ -3,6 +3,10 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Uuid.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 에셋을 가리키는 값 타입만 둔다. 로드·캐시를 소유하는 `AssetSystem` 은 엔진 계층(JBroAsset)이며
 // 스크립트 표면에 나타나지 않는다(D-50). 컴포넌트 공개 필드가 참조하므로 이 헤더는 프렐류드를 탄다.
@@ -17,8 +21,8 @@ namespace JBro
     // 이번 실행에서의 위치. 저장하지 않는다.
     struct AssetHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
     };
 
     // 에셋의 종류다. 파일에는 이름으로 적히므로(`AssetTypeRules`) 순서를 바꿔도 파일이 깨지지 않는다.
@@ -57,29 +61,29 @@ namespace JBro
     };
 
     // 스프라이트 PPU 의 기본이자, 0 이하·비유한으로 적힌 값을 대신하는 값이다(D-117·D-119). 한 곳에만 있다.
-    inline constexpr float DefaultPixelsPerUnit = 100.0f;
+    inline constexpr Float DefaultPixelsPerUnit = 100.0f;
 
     // `.jmeta` 의 `Sprite.ImportOptions` 블록이다. 리플렉션으로 읽고 쓴다.
     struct SpriteImportOptions
     {
         SpriteSliceType sliceType = SpriteSliceType::None;
         // CellCount 일 때
-        std::uint32_t rowCount = 1;
-        std::uint32_t columnCount = 1;
+        UInt32 rowCount = 1;
+        UInt32 columnCount = 1;
         // CellSize 일 때(픽셀)
-        std::uint32_t cellWidth = 32;
-        std::uint32_t cellHeight = 32;
+        UInt32 cellWidth = 32;
+        UInt32 cellHeight = 32;
         // 공용 - 바깥 여백과 셀 사이 간격(픽셀)
-        std::uint32_t marginX = 0;
-        std::uint32_t marginY = 0;
-        std::uint32_t gapX = 0;
-        std::uint32_t gapY = 0;
+        UInt32 marginX = 0;
+        UInt32 marginY = 0;
+        UInt32 gapX = 0;
+        UInt32 gapY = 0;
         // 프레임 안의 피벗(0..1)
-        float pivotX = 0.5f;
-        float pivotY = 0.5f;
+        Float pivotX = 0.5f;
+        Float pivotY = 0.5f;
         // 한 유닛에 드는 픽셀 수다(D-117). 프로젝트 기본값은 없다 - 에셋이 전부 말한다. 0 이하나 비유한으로 적힌 값은
         // 로드 때 `DefaultPixelsPerUnit` 으로 바로잡는다.
-        float pixelsPerUnit = DefaultPixelsPerUnit;
+        Float pixelsPerUnit = DefaultPixelsPerUnit;
     };
 
     // 텍스처를 어떻게 샘플링하는가(D-117). `Nearest` 는 텍셀 그대로(픽셀 아트), `Linear` 는 이웃과 섞는다.
@@ -116,13 +120,13 @@ namespace JBro
     {
         AudioImportMode mode = AudioImportMode::Decompressed;
         // 파일의 크기 보정(트림, 0..4, D-205)이다. 녹음마다 다른 크기를 여기서 한 번 맞추면 컴포넌트의 `volume` 은 연출에만 쓴다.
-        float gain = 1.0f;
+        Float gain = 1.0f;
         // 모노로 줄인다(채널 평균, D-231). 공간화하는 소리는 채널이 하나면 된다 - 메모리와 믹스가 채널 수만큼 준다.
-        bool mono = false;
+        Bool mono = false;
         // 이 소리가 동시에 울릴 수 있는 수다(0 이면 제한 없음, D-231). 넘치면 가장 오래된 것을 짧게 줄여 끄고 새것을 튼다.
-        std::int32_t maxInstances = 0;
+        Int32 maxInstances = 0;
         // 이 소리를 다시 틀 수 있기까지의 초다(0 이면 끔, D-231). 그 안에 온 재생은 버린다 - 한 프레임에 몰린 발소리·피격음.
-        float cooldown = 0.0f;
+        Float cooldown = 0.0f;
     };
 
     // `.jmeta` 의 `Font.ImportOptions` 블록이다(D-200, text-plan §4.1). 글자 크기는 컴포넌트의 몫이고(`Text2D::fontSize`,
@@ -147,16 +151,16 @@ namespace JBro
 
     struct FontImportOptions
     {
-        float          pixelsPerUnit = DefaultPixelsPerUnit;
+        Float          pixelsPerUnit = DefaultPixelsPerUnit;
         TextureFilter  filter = TextureFilter::Default;
         FontRenderMode renderMode = FontRenderMode::Bitmap;
         // `Sdf` 에서만 쓴다. 거리장을 뜨는 em 픽셀 크기와, 글리프 둘레에 두는 퍼짐(픽셀)이다. 외곽선은 퍼짐보다 굵어질 수 없다.
         // 로드가 8~256, 1~32 로 자른다.
-        std::uint32_t  sdfSize = 48;
-        std::uint32_t  sdfSpread = 8;
+        UInt32  sdfSize = 48;
+        UInt32  sdfSpread = 8;
         FontPrewarm    prewarm = FontPrewarm::None;
         // `Bitmap` 을 미리 뜰 em 픽셀 크기다. 비트맵은 크기마다 따로 뜨므로 이 크기의 글자만 미리 선다. `Sdf` 는 `sdfSize` 로 뜬다.
-        std::uint32_t  prewarmSize = 32;
+        UInt32  prewarmSize = 32;
     };
 
     // 폰트 패밀리의 네 칸이다(D-225). 칸마다 Font 에셋의 아이디이고, 빈 칸은 그리는 쪽이 Regular 로 대신한다(가짜 굵게는 없다).
@@ -178,12 +182,12 @@ namespace JBro
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.
     struct SpriteFrame
     {
-        std::uint32_t x = 0;
-        std::uint32_t y = 0;
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
-        float pivotX = 0.5f;
-        float pivotY = 0.5f;
+        UInt32 x = 0;
+        UInt32 y = 0;
+        UInt32 width = 0;
+        UInt32 height = 0;
+        Float pivotX = 0.5f;
+        Float pivotY = 0.5f;
     };
 
     // 레지스트리가 아는 에셋 하나의 읽기 전용 요약이다. 경로는 에셋 폴더 기준 상대경로이고 구분자는 `/` 다.

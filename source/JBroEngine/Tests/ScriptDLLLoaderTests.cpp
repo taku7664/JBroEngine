@@ -25,10 +25,14 @@
 #include <cwchar>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -47,7 +51,7 @@ namespace
     struct EventLog
     {
         Event values[16]{};
-        std::uint32_t count = 0;
+        JBro::UInt32 count = 0;
 
         void Add(Event event)
         {
@@ -59,8 +63,8 @@ namespace
 
     struct ProbeExtension
     {
-        std::uint32_t AbiVersion = 7;
-        std::uint32_t value = 42;
+        JBro::UInt32 AbiVersion = 7;
+        JBro::UInt32 value = 42;
     };
 
     constexpr JBro::ScriptContextTypeId ProbeContextTypeId =
@@ -69,20 +73,20 @@ namespace
     struct ModuleProbe
     {
         EventLog* events = nullptr;
-        bool loadResult = true;
-        std::uint32_t loadCalls = 0;
-        std::uint32_t unloadCalls = 0;
+        JBro::Bool loadResult = true;
+        JBro::UInt32 loadCalls = 0;
+        JBro::UInt32 unloadCalls = 0;
         JBro::SystemContext receivedSystems;
         JBro::ServiceContext receivedServices;
         ProbeExtension receivedExtension;
-        bool receivedExtensionBlock = false;
+        JBro::Bool receivedExtensionBlock = false;
     };
 
     ModuleProbe* g_moduleProbe = nullptr;
     JBro::ScriptContextRequirement g_requirements[1]{};
     JBro::ScriptModuleApi g_api{};
 
-    bool LoadProbeModule(const JBro::ScriptModuleLoadContext* context) noexcept
+    JBro::Bool LoadProbeModule(const JBro::ScriptModuleLoadContext* context) noexcept
     {
         if (g_moduleProbe == nullptr || context == nullptr)
         {
@@ -114,8 +118,8 @@ namespace
     }
 
     const JBro::ScriptModuleApi* GetProbeApi(
-        std::uint32_t,
-        std::uint32_t) noexcept
+        JBro::UInt32,
+        JBro::UInt32) noexcept
     {
         return &g_api;
     }
@@ -128,7 +132,7 @@ namespace
         {
         }
 
-        bool Initialize(const JBro::JMemoryContext&) override
+        JBro::Bool Initialize(const JBro::JMemoryContext&) override
         {
             return true;
         }
@@ -160,16 +164,16 @@ namespace
             return {};
         }
 
-        void WaitForEvents(std::uint32_t) override
+        void WaitForEvents(JBro::UInt32) override
         {
         }
 
-        bool ShouldClose(JBro::WindowHandle) const override
+        JBro::Bool ShouldClose(JBro::WindowHandle) const override
         {
             return false;
         }
 
-        bool GetWindowState(JBro::WindowHandle, JBro::WindowState&) const override
+        JBro::Bool GetWindowState(JBro::WindowHandle, JBro::WindowState&) const override
         {
             return false;
         }
@@ -213,10 +217,10 @@ namespace
             ++unloadCalls;
         }
 
-        bool allowLoad = true;
-        bool exposeEntryPoint = true;
-        std::uint32_t loadCalls = 0;
-        std::uint32_t unloadCalls = 0;
+        JBro::Bool allowLoad = true;
+        JBro::Bool exposeEntryPoint = true;
+        JBro::UInt32 loadCalls = 0;
+        JBro::UInt32 unloadCalls = 0;
 
     private:
         EventLog& m_events;
@@ -479,7 +483,7 @@ namespace
         }
     };
 
-    std::uint32_t CountShadowLibraries(const ProbeFiles& files)
+    JBro::UInt32 CountShadowLibraries(const ProbeFiles& files)
     {
         wchar_t pattern[MAX_PATH + 64]{};
         Check(swprintf_s(
@@ -497,7 +501,7 @@ namespace
             return 0;
         }
 
-        std::uint32_t count = 1;
+        JBro::UInt32 count = 1;
         while (FindNextFileW(search, &entry) != FALSE)
         {
             ++count;
@@ -550,7 +554,7 @@ namespace
         Check(CopyFileW(files.sourcePath, files.dllPath, TRUE) != FALSE,
             "built probe DLL must copy into a Korean path");
 
-        const int utf8Length = WideCharToMultiByte(
+        const JBro::Int32 utf8Length = WideCharToMultiByte(
             CP_UTF8, WC_ERR_INVALID_CHARS, files.dllPath, -1,
             nullptr, 0, nullptr, nullptr);
         Check(utf8Length > 0,
@@ -591,6 +595,7 @@ namespace
             "real script DLL must load from a Korean UTF-8 path");
         Check(CountShadowLibraries(files) == 1,
             "a loaded script module must own exactly one shadow DLL");
+        // DLL 의 extern "C" 내보내기와 같은 원시 시그니처다(경계, D-290).
         using ReadBool = bool (*)() noexcept;
         using ReadU32 = std::uint32_t (*)() noexcept;
         using ReadAddress = std::uintptr_t (*)() noexcept;
@@ -749,12 +754,12 @@ namespace
     class ScriptedFramework final : public JBro::IFramework
     {
     public:
-        bool Initialize(const JBro::FrameworkContext&) override
+        JBro::Bool Initialize(const JBro::FrameworkContext&) override
         {
             return true;
         }
 
-        bool BindScriptContexts() noexcept override
+        JBro::Bool BindScriptContexts() noexcept override
         {
             // 공통 컨텍스트는 호스트의 것이다(D-242) - 시계·난수를 호스트가 묶었다. 프레임워크는 제 블록만 낸다.
             m_frameworkSystems.Physics2D = reinterpret_cast<JBro::System::IPhysics2DSystem*>(
@@ -796,16 +801,16 @@ namespace
         }
 
         const JBro::EngineInstance* host = nullptr;
-        bool bound = false;
-        int shutdowns = 0;
-        int unbindCount = 0;
-        bool unbindSawLoadedModule = false;
+        JBro::Bool bound = false;
+        JBro::Int32 shutdowns = 0;
+        JBro::Int32 unbindCount = 0;
+        JBro::Bool unbindSawLoadedModule = false;
 
     private:
         JBro::Framework2DServiceContext   m_frameworkServices;
         JBro::Framework2DSystemContext    m_frameworkSystems;
         JBro::ScriptContextBlock          m_blocks[2];
-        std::uint32_t                     m_blockCount = 0;
+        JBro::UInt32                     m_blockCount = 0;
     };
 
     void TestHostOpensAProjectWithItsScriptModule()
@@ -1009,7 +1014,7 @@ namespace
     }
 }
 
-int RunScriptDLLLoaderTests()
+JBro::Int32 RunScriptDLLLoaderTests()
 {
     TestRejectsInvalidModuleAbiBeforeCallingModule();
     TestTheLoadContextNeedsEveryHostTable();

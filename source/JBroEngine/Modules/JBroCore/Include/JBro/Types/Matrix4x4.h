@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <cstdint>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 // 4x4 행렬 값 타입이다. 배치는 `values[row * 4 + column]` 이고 열 벡터를 쓴다(`x' = row0 · v`).
 // 이 배치는 GPU 상수 버퍼로 그대로 올라가므로 렌더러·셰이더와의 계약이다 - 바꾸면 백엔드 셋이
@@ -13,7 +15,7 @@ namespace JBro
 {
     struct Matrix4x4
     {
-        float values[16] = {
+        Float values[16] = {
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, 0.0f,
@@ -24,12 +26,12 @@ namespace JBro
     inline Matrix4x4 MultiplyMatrix4x4(const Matrix4x4& left, const Matrix4x4& right)
     {
         Matrix4x4 result;
-        for (std::uint32_t row = 0; row < 4; ++row)
+        for (UInt32 row = 0; row < 4; ++row)
         {
-            for (std::uint32_t column = 0; column < 4; ++column)
+            for (UInt32 column = 0; column < 4; ++column)
             {
-                float value = 0.0f;
-                for (std::uint32_t element = 0; element < 4; ++element)
+                Float value = 0.0f;
+                for (UInt32 element = 0; element < 4; ++element)
                 {
                     value += left.values[row * 4 + element] * right.values[element * 4 + column];
                 }

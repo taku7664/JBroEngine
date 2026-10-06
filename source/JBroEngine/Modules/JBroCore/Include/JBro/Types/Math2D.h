@@ -5,10 +5,12 @@
 #include <JBro/Types/Size.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
-    struct Vector2  { float x = 0.0f; float y = 0.0f; };
+    struct Vector2  { Float x = 0.0f; Float y = 0.0f; };
 
     // 축에 나란한 사각형이다. `min` 은 성분마다의 최솟값, `max` 는 최댓값이다.
     //
@@ -21,8 +23,8 @@ namespace JBro
         Vector2 min;
         Vector2 max;
 
-        constexpr float Width() const noexcept { return max.x - min.x; }
-        constexpr float Height() const noexcept { return max.y - min.y; }
+        constexpr Float Width() const noexcept { return max.x - min.x; }
+        constexpr Float Height() const noexcept { return max.y - min.y; }
         constexpr Size GetSize() const noexcept { return Size(Width(), Height()); }
         constexpr Vector2 Center() const noexcept
         {
@@ -30,20 +32,20 @@ namespace JBro
         }
 
         // 넓이나 높이가 0 이하다. 뒤집힌 사각형도 여기에 걸린다.
-        constexpr bool IsEmpty() const noexcept
+        constexpr Bool IsEmpty() const noexcept
         {
             return max.x <= min.x || max.y <= min.y;
         }
 
         // 경계에 놓인 점도 담은 것으로 본다. 맞닿은 두 사각형이 같은 점을 담게 되지만,
         // 담지 않는 것으로 하면 넓이 0 인 사각형이 자기 점조차 담지 못한다.
-        constexpr bool Contains(const Vector2& point) const noexcept
+        constexpr Bool Contains(const Vector2& point) const noexcept
         {
             return point.x >= min.x && point.x <= max.x
                 && point.y >= min.y && point.y <= max.y;
         }
 
-        constexpr bool Contains(const Rect& other) const noexcept
+        constexpr Bool Contains(const Rect& other) const noexcept
         {
             return other.min.x >= min.x && other.max.x <= max.x
                 && other.min.y >= min.y && other.max.y <= max.y;
@@ -51,7 +53,7 @@ namespace JBro
 
         // 맞닿기만 한 것도 겹친 것으로 본다. 넓이 0 인 질의 사각형이 아무것도 못 맞히는 일을
         // 막는다 - 물리의 점 질의가 그 모양이다.
-        constexpr bool Intersects(const Rect& other) const noexcept
+        constexpr Bool Intersects(const Rect& other) const noexcept
         {
             return min.x <= other.max.x && max.x >= other.min.x
                 && min.y <= other.max.y && max.y >= other.min.y;
@@ -67,8 +69,8 @@ namespace JBro
     // 가운데와 크기로 만든다. 카메라·화면 영역이 이 모양이다.
     inline constexpr Rect MakeRectFromCenter(const Vector2& center, const Size& size) noexcept
     {
-        const float halfWidth = size.width * 0.5f;
-        const float halfHeight = size.height * 0.5f;
+        const Float halfWidth = size.width * 0.5f;
+        const Float halfHeight = size.height * 0.5f;
         return Rect{
             Vector2{ center.x - halfWidth, center.y - halfHeight },
             Vector2{ center.x + halfWidth, center.y + halfHeight } };
@@ -118,7 +120,7 @@ namespace JBro
     }
 
     // 네 방향으로 넓힌다. 음수를 넘기면 줄어들고, 많이 줄이면 뒤집힌다.
-    inline constexpr Rect ExpandRect(const Rect& rect, float margin) noexcept
+    inline constexpr Rect ExpandRect(const Rect& rect, Float margin) noexcept
     {
         return Rect{
             Vector2{ rect.min.x - margin, rect.min.y - margin },
@@ -127,9 +129,9 @@ namespace JBro
 
     struct Matrix3x2
     {
-        float m11 = 1.0f; float m12 = 0.0f;
-        float m21 = 0.0f; float m22 = 1.0f;
-        float m31 = 0.0f; float m32 = 0.0f;
+        Float m11 = 1.0f; Float m12 = 0.0f;
+        Float m21 = 0.0f; Float m22 = 1.0f;
+        Float m31 = 0.0f; Float m32 = 0.0f;
     };
 
     inline Matrix3x2 MakeTransformMatrix2D(
@@ -137,8 +139,8 @@ namespace JBro
         Radian rotation,
         const Vector2& scale)
     {
-        const float cosine = std::cos(rotation.Get());
-        const float sine = std::sin(rotation.Get());
+        const Float cosine = std::cos(rotation.Get());
+        const Float sine = std::sin(rotation.Get());
 
         Matrix3x2 result;
         result.m11 = cosine * scale.x;

@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
@@ -40,12 +44,12 @@ namespace JBro
         m_order = order;
     }
 
-    bool Layer::IsVisible() const
+    Bool Layer::IsVisible() const
     {
         return m_visible;
     }
 
-    void Layer::SetVisible(bool visible)
+    void Layer::SetVisible(Bool visible)
     {
         m_visible = visible;
     }
@@ -80,21 +84,21 @@ namespace JBro
         m_blend = blend;
     }
 
-    float Layer::GetOpacity() const
+    Float Layer::GetOpacity() const
     {
         return m_opacity;
     }
 
-    void Layer::SetOpacity(float opacity)
+    void Layer::SetOpacity(Float opacity)
     {
         if (false == std::isfinite(opacity))
         {
             return;
         }
-        m_opacity = std::clamp(opacity, 0.0f, 1.0f);
+        m_opacity = JBro::Clamp(opacity, 0.0f, 1.0f);
     }
 
-    bool Layer::NeedsComposite() const
+    Bool Layer::NeedsComposite() const
     {
         return m_blend != LayerBlend::Normal || m_opacity < 1.0f;
     }
@@ -109,12 +113,12 @@ namespace JBro
         m_sourceAsset = asset;
     }
 
-    float Layer::GetParallax() const
+    Float Layer::GetParallax() const
     {
         return m_parallax;
     }
 
-    void Layer::SetParallax(float factor)
+    void Layer::SetParallax(Float factor)
     {
         if (false == std::isfinite(factor) || factor < 0.0f)
         {
@@ -157,15 +161,15 @@ namespace JBro
         }
     }
 
-    bool ParseLayerBlend(const char* name, LayerBlend& blend)
+    Bool ParseLayerBlend(const char* name, LayerBlend& blend)
     {
         if (name == nullptr)
         {
             return false;
         }
-        for (std::uint32_t at = 0; at < LayerBlendCount; ++at)
+        for (UInt32 at = 0; at < LayerBlendCount; ++at)
         {
-            const LayerBlend candidate = static_cast<LayerBlend>(at);
+            const LayerBlend candidate = static_cast<LayerBlend>(at.Get());
             if (std::strcmp(name, LayerBlendName(candidate)) == 0)
             {
                 blend = candidate;

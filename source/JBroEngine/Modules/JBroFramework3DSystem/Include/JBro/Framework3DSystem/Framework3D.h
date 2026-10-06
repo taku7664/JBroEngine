@@ -13,6 +13,8 @@
 #include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
 #include <JBro/Framework3DSystem/System/Transform3DSystem.h>
 #include <JBro/Host/IFramework.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -22,13 +24,13 @@ namespace JBro
     {
     public:
         ~Framework3D() override;
-        bool Initialize(const FrameworkContext& context) override;
-        bool BindScriptContexts() noexcept override;
+        Bool Initialize(const FrameworkContext& context) override;
+        Bool BindScriptContexts() noexcept override;
         void UnbindScriptContexts() noexcept override;
         JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept override;
         void Update() override;
         // 3D 에 스크립트·물리 시스템은 아직 없다. 지금 세우는 것은 소리뿐이다(D-197).
-        void SetSimulationEnabled(bool enabled) override;
+        void SetSimulationEnabled(Bool enabled) override;
         RenderResult Render() override;
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         RenderResult RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail) override;
@@ -50,13 +52,13 @@ namespace JBro
         Array<AssetHandle> m_canvasAssets;
         RenderWorld3D m_renderWorld;
         MeshLibrary m_meshes;
-        bool m_initialized = false;
-        bool m_simulationEnabled = true;
+        Bool m_initialized = false;
+        Bool m_simulationEnabled = true;
         // 스크립트에 건네는 3D 컨텍스트다(D-224). 2D 의 `Framework2D` 와 같은 자리다.
         Framework3DSystemContext m_scriptSystems;
         Framework3DServiceContext m_scriptServices;
         ScriptContextBlock m_scriptBlocks[2] = {};
-        std::uint32_t m_scriptBlockCount = 0;
+        UInt32 m_scriptBlockCount = 0;
     };
 
     IFramework* CreateFramework3D();

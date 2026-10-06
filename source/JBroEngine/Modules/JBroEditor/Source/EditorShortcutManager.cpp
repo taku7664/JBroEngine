@@ -3,12 +3,15 @@
 #include <JBro/Core/Yaml.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool IsBlank(const char* text)
+        Bool IsBlank(const char* text)
         {
             return text == nullptr || text[0] == '\0';
         }
@@ -23,7 +26,7 @@ namespace JBro
             buffer[used + copied] = '\0';
         }
 
-        bool IsModifierKey(ImGuiKey key)
+        Bool IsModifierKey(ImGuiKey key)
         {
             return (key >= ImGuiKey_LeftCtrl && key <= ImGuiKey_RightSuper)
                 || (key >= ImGuiKey_ReservedForModCtrl && key <= ImGuiKey_ReservedForModSuper);
@@ -32,7 +35,7 @@ namespace JBro
         // 단축키가 될 수 있는 키다. 키보드 키와 **마우스 엄지 버튼 둘**(`MouseX1`·`MouseX2`)이다(D-258).
         // 왼쪽·오른쪽·가운데 버튼은 고르기·메뉴·팬이 쓰고, 게임패드는 게임의 것이라 빠진다.
         // 잡기(`CaptureBinding`)와 읽기(`Parse`)가 이 한 판정을 쓴다 - 둘이 갈리면 잡은 키가 다음 실행에 사라진다.
-        bool IsBindableKey(ImGuiKey key)
+        Bool IsBindableKey(ImGuiKey key)
         {
             if (key == ImGuiKey_MouseX1 || key == ImGuiKey_MouseX2)
             {
@@ -41,7 +44,7 @@ namespace JBro
             return key >= ImGuiKey_NamedKey_BEGIN && key < ImGuiKey_GamepadStart && false == IsModifierKey(key);
         }
 
-        bool Pressed(const EditorShortcutBinding& binding)
+        Bool Pressed(const EditorShortcutBinding& binding)
         {
             if (false == binding.IsSet())
             {
@@ -55,7 +58,7 @@ namespace JBro
             return ImGui::IsKeyPressed(binding.key, false);
         }
 
-        bool SameScope(const String& a, const String& b)
+        Bool SameScope(const String& a, const String& b)
         {
             return a == b;
         }
@@ -104,12 +107,12 @@ namespace JBro
         }
     }
 
-    std::uint32_t EditorShortcutManager::GetCount() const
+    UInt32 EditorShortcutManager::GetCount() const
     {
         return static_cast<std::uint32_t>(m_entries.Size());
     }
 
-    EditorShortcutView EditorShortcutManager::GetAt(std::uint32_t index) const
+    EditorShortcutView EditorShortcutManager::GetAt(UInt32 index) const
     {
         if (index >= m_entries.Size())
         {
@@ -124,7 +127,7 @@ namespace JBro
         return entry != nullptr ? ToView(*entry) : EditorShortcutView{};
     }
 
-    bool EditorShortcutManager::CanExecute(const char* id, const EditorApplication& editor) const
+    Bool EditorShortcutManager::CanExecute(const char* id, const EditorApplication& editor) const
     {
         const Entry* entry = FindEntry(id);
         return entry != nullptr && entry->handler->CanExecute(editor);
@@ -140,7 +143,7 @@ namespace JBro
         return entry->handler->WhyBlocked(editor);
     }
 
-    bool EditorShortcutManager::Execute(const char* id, EditorApplication& editor)
+    Bool EditorShortcutManager::Execute(const char* id, EditorApplication& editor)
     {
         Entry* entry = FindEntry(id);
         if (entry == nullptr || false == entry->handler->CanExecute(editor))
@@ -150,7 +153,7 @@ namespace JBro
         return entry->handler->Execute(editor);
     }
 
-    bool EditorShortcutManager::SetBinding(const char* id, std::uint32_t slot, const EditorShortcutBinding& binding)
+    Bool EditorShortcutManager::SetBinding(const char* id, UInt32 slot, const EditorShortcutBinding& binding)
     {
         Entry* entry = FindEntry(id);
         if (entry == nullptr || slot > 1)
@@ -164,7 +167,7 @@ namespace JBro
             return true;
         }
         // 기본값으로 돌아왔으면 사용자의 것이 아니다 - 적어 두면 기본값을 고칠 때 이 사람만 옛 값에 묶인다.
-        const bool isDefault = next[0] == entry->defaults[0] && next[1] == entry->defaults[1];
+        const Bool isDefault = next[0] == entry->defaults[0] && next[1] == entry->defaults[1];
         Override* existing = FindOverride(id);
         if (isDefault)
         {
@@ -191,7 +194,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorShortcutManager::ResetBinding(const char* id)
+    Bool EditorShortcutManager::ResetBinding(const char* id)
     {
         Entry* entry = FindEntry(id);
         if (entry == nullptr)
@@ -215,7 +218,7 @@ namespace JBro
         ++m_revision;
     }
 
-    std::uint64_t EditorShortcutManager::GetRevision() const
+    UInt64 EditorShortcutManager::GetRevision() const
     {
         return m_revision;
     }
@@ -223,24 +226,24 @@ namespace JBro
     void EditorShortcutManager::FindConflicts(Array<ShortcutConflict>& out) const
     {
         out.Clear();
-        for (std::uint32_t first = 0; first < m_entries.Size(); ++first)
+        for (UInt32 first = 0; first < m_entries.Size(); ++first)
         {
             const Entry& a = *m_entries[first];
-            for (std::uint32_t second = first + 1; second < m_entries.Size(); ++second)
+            for (UInt32 second = first + 1; second < m_entries.Size(); ++second)
             {
                 const Entry& b = *m_entries[second];
-                const bool same = SameScope(a.scope, b.scope);
+                const Bool same = SameScope(a.scope, b.scope);
                 // 서로 다른 두 패널은 동시에 포커스를 가질 수 없어 겹쳐도 부딪히지 않는다.
-                const bool aShadowsB = false == a.scope.IsEmpty() && b.scope.IsEmpty() && a.blocksGlobal;
-                const bool bShadowsA = false == b.scope.IsEmpty() && a.scope.IsEmpty() && b.blocksGlobal;
+                const Bool aShadowsB = false == a.scope.IsEmpty() && b.scope.IsEmpty() && a.blocksGlobal;
+                const Bool bShadowsA = false == b.scope.IsEmpty() && a.scope.IsEmpty() && b.blocksGlobal;
                 if (false == same && false == aShadowsB && false == bShadowsA)
                 {
                     continue;
                 }
-                bool found = false;
-                for (std::uint32_t slotA = 0; slotA < 2 && false == found; ++slotA)
+                Bool found = false;
+                for (UInt32 slotA = 0; slotA < 2 && false == found; ++slotA)
                 {
-                    for (std::uint32_t slotB = 0; slotB < 2 && false == found; ++slotB)
+                    for (UInt32 slotB = 0; slotB < 2 && false == found; ++slotB)
                     {
                         if (false == a.bindings[slotA].IsSet() || a.bindings[slotA] != b.bindings[slotB])
                         {
@@ -274,7 +277,7 @@ namespace JBro
         for (const Override& entry : m_overrides)
         {
             writer.BeginMap(entry.id.c_str());
-            for (std::uint32_t slot = 0; slot < 2; ++slot)
+            for (UInt32 slot = 0; slot < 2; ++slot)
             {
                 writer.WriteString(SlotKeys[slot], Describe(entry.bindings[slot]).value);
             }
@@ -318,19 +321,19 @@ namespace JBro
         return id;
     }
 
-    void EditorShortcutManager::Read(const YamlDocument& document, std::uint32_t root)
+    void EditorShortcutManager::Read(const YamlDocument& document, UInt32 root)
     {
         m_overrides.Clear();
-        const std::uint32_t map = document.Find(root, "Shortcuts");
+        const UInt32 map = document.Find(root, "Shortcuts");
         // 지금 이름으로 적힌 줄을 먼저 읽는다. 옛 이름과 새 이름이 둘 다 있으면 새 이름이 이긴다.
-        for (int pass = 0; pass < 2 && map != YamlDocument::InvalidNode && document.GetKind(map) == YamlKind::Map; ++pass)
+        for (Int32 pass = 0; pass < 2 && map != YamlDocument::InvalidNode && document.GetKind(map) == YamlKind::Map; ++pass)
         {
             for (std::size_t index = 0; index < document.GetCount(map); ++index)
             {
                 const char* written = document.GetKey(map, index);
                 const char* id = RenamedId(written);
-                const bool renamed = id != written;
-                const std::uint32_t value = document.GetValue(map, index);
+                const Bool renamed = id != written;
+                const UInt32 value = document.GetValue(map, index);
                 if (renamed != (pass == 1) || IsBlank(id) || value == YamlDocument::InvalidNode
                     || document.GetKind(value) != YamlKind::Map)
                 {
@@ -338,8 +341,8 @@ namespace JBro
                 }
                 Override read;
                 read.id = id;
-                bool ok = true;
-                for (std::uint32_t slot = 0; slot < 2 && ok; ++slot)
+                Bool ok = true;
+                for (UInt32 slot = 0; slot < 2 && ok; ++slot)
                 {
                     String text;
                     // 없는 자리는 빈 조합이다 - 사용자가 지운 자리를 적을 때 빈 글자로 적는다.
@@ -366,17 +369,17 @@ namespace JBro
         m_focusedScope = IsBlank(scope) ? nullptr : scope;
     }
 
-    void EditorShortcutManager::SetSuspended(bool suspended)
+    void EditorShortcutManager::SetSuspended(Bool suspended)
     {
         m_suspended = suspended;
     }
 
-    bool EditorShortcutManager::IsSuspended() const
+    Bool EditorShortcutManager::IsSuspended() const
     {
         return m_suspended;
     }
 
-    bool EditorShortcutManager::MatchesSearch(
+    Bool EditorShortcutManager::MatchesSearch(
         const char* query, const char* label, const char* category, const EditorShortcutView& view)
     {
         if (IsBlank(query))
@@ -422,18 +425,18 @@ namespace JBro
             || contains(Describe(view.secondary).value);
     }
 
-    std::uint32_t EditorShortcutManager::ProcessInput(EditorApplication& editor, bool typing, bool gameInput)
+    UInt32 EditorShortcutManager::ProcessInput(EditorApplication& editor, Bool typing, Bool gameInput)
     {
         if (m_suspended)
         {
             return 0;
         }
-        std::uint32_t executed = 0;
+        UInt32 executed = 0;
         // 포커스 범위의 것이 실행되며 막은 조합. 그 프레임의 전역 것은 이 조합을 건너뛴다.
         EditorShortcutBinding blocked;
         if (m_focusedScope != nullptr)
         {
-            bool done = false;
+            Bool done = false;
             for (std::size_t index = 0; index < m_entries.Size() && false == done; ++index)
             {
                 Entry& entry = *m_entries[index];
@@ -441,7 +444,7 @@ namespace JBro
                 {
                     continue;
                 }
-                for (std::uint32_t slot = 0; slot < 2 && false == done; ++slot)
+                for (UInt32 slot = 0; slot < 2 && false == done; ++slot)
                 {
                     // 글자를 견주는 것은 눌린 조합이 있을 때뿐이다 - 매 프레임 견주지 않는다.
                     if (false == Pressed(entry.bindings[slot]) || std::strcmp(entry.scope.c_str(), m_focusedScope) != 0
@@ -466,7 +469,7 @@ namespace JBro
             {
                 continue;
             }
-            for (std::uint32_t slot = 0; slot < 2; ++slot)
+            for (UInt32 slot = 0; slot < 2; ++slot)
             {
                 if (false == Pressed(entry.bindings[slot]) || (blocked.IsSet() && entry.bindings[slot] == blocked)
                     || false == entry.handler->CanExecute(editor))
@@ -505,7 +508,7 @@ namespace JBro
         return text;
     }
 
-    bool EditorShortcutManager::Parse(const char* text, EditorShortcutBinding& out)
+    Bool EditorShortcutManager::Parse(const char* text, EditorShortcutBinding& out)
     {
         out = EditorShortcutBinding{};
         if (IsBlank(text))
@@ -541,9 +544,9 @@ namespace JBro
             }
             cursor = plus + 1;
         }
-        for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key)
+        for (Int32 key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key)
         {
-            const ImGuiKey candidate = static_cast<ImGuiKey>(key);
+            const ImGuiKey candidate = static_cast<ImGuiKey>(key.Get());
             if (IsBindableKey(candidate) && std::strcmp(ImGui::GetKeyName(candidate), cursor) == 0)
             {
                 parsed.key = candidate;
@@ -554,12 +557,12 @@ namespace JBro
         return false;
     }
 
-    bool EditorShortcutManager::CaptureBinding(EditorShortcutBinding& out)
+    Bool EditorShortcutManager::CaptureBinding(EditorShortcutBinding& out)
     {
         const ImGuiIO& io = ImGui::GetIO();
-        for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key)
+        for (Int32 key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key)
         {
-            const ImGuiKey candidate = static_cast<ImGuiKey>(key);
+            const ImGuiKey candidate = static_cast<ImGuiKey>(key.Get());
             if (false == IsBindableKey(candidate) || false == ImGui::IsKeyPressed(candidate, false))
             {
                 continue;
@@ -638,7 +641,7 @@ namespace JBro
         return view;
     }
 
-    bool EditorShortcutManager::Allowed(const Entry& entry, bool typing, bool gameInput) const
+    Bool EditorShortcutManager::Allowed(const Entry& entry, Bool typing, Bool gameInput) const
     {
         if (typing && false == entry.whileTyping)
         {

@@ -1,10 +1,12 @@
-#include <JBro/Task/Task.h>
+﻿#include <JBro/Task/Task.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    Task::Task(String name, std::uint32_t numSubTasks)
+    Task::Task(String name, UInt32 numSubTasks)
         : m_name(std::move(name))
         , m_numSubTasks(numSubTasks)
     {
@@ -17,17 +19,17 @@ namespace JBro
         return m_name;
     }
 
-    std::uint32_t Task::GetNumSubTasks() const
+    UInt32 Task::GetNumSubTasks() const
     {
         return m_numSubTasks;
     }
 
-    std::uint32_t Task::GetSucceededSubTasks() const
+    UInt32 Task::GetSucceededSubTasks() const
     {
         return m_succeededSubTasks.load(std::memory_order_acquire);
     }
 
-    std::uint32_t Task::GetFailedSubTasks() const
+    UInt32 Task::GetFailedSubTasks() const
     {
         return m_failedSubTasks.load(std::memory_order_acquire);
     }
@@ -37,7 +39,7 @@ namespace JBro
         return m_state.load(std::memory_order_acquire);
     }
 
-    bool Task::IsFinished() const
+    Bool Task::IsFinished() const
     {
         const TaskState state = GetState();
         return state == TaskState::Completed || state == TaskState::Failed || state == TaskState::Canceled;
@@ -48,7 +50,7 @@ namespace JBro
         m_cancelRequested.store(true, std::memory_order_release);
     }
 
-    bool Task::IsCancelRequested() const
+    Bool Task::IsCancelRequested() const
     {
         return m_cancelRequested.load(std::memory_order_acquire);
     }
@@ -68,7 +70,7 @@ namespace JBro
     {
     }
 
-    bool Task::ClaimSubTask()
+    Bool Task::ClaimSubTask()
     {
         std::uint32_t reported = m_reportedSubTasks.load(std::memory_order_relaxed);
         while (reported < m_numSubTasks)
@@ -81,7 +83,7 @@ namespace JBro
         return false;
     }
 
-    bool Task::SucceedSubTask()
+    Bool Task::SucceedSubTask()
     {
         if (false == ClaimSubTask())
         {
@@ -91,7 +93,7 @@ namespace JBro
         return true;
     }
 
-    bool Task::FailSubTask(std::uint32_t subTask, const char* reason)
+    Bool Task::FailSubTask(UInt32 subTask, const char* reason)
     {
         if (false == ClaimSubTask())
         {

@@ -4,6 +4,8 @@
 #include <JBro/RHI/RHI.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -29,23 +31,23 @@ namespace JBro::Widget
 
     // ── 단추 ────────────────────────────────────────────────────────────────
     // 글자 단추다. 눌렸으면 참이다.
-    bool Button(const char* label);
+    Bool Button(const char* label);
     // 앞에 아이콘이 붙은 글자 단추다(D-278). **Id 는 글자 단추와 같다**(이름 그대로) - 아이콘을 붙여도 시험·가이드가
     // 찾던 Id 가 바뀌지 않는다. 아이콘은 잉크로 글자와 같은 높이에 놓는다. `icon` 이 널이면 `Button(label)` 이다.
-    bool Button(const char* label, const char* icon);
+    Bool Button(const char* label, const char* icon);
     // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
-    bool SelectableRow(const char* label, bool selected);
+    Bool SelectableRow(const char* label, Bool selected);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
     // 붉게(`Error`), 저장·만들기처럼 그 자리의 주된 확인은 푸르게(`Success`) 선다 -
     // `Info` 는 보통 단추와 같다. **지우기가 그만두기와 똑같이 생기면 손이 먼저 움직인다.**
     //
     // 회색일 때 까닭을 띄우는 것은 메뉴 항목과 같다(`disabledReason`).
-    bool ActionButton(const char* label, Severity severity = Severity::Info,
-        bool enabled = true, const char* disabledReason = nullptr,
+    Bool ActionButton(const char* label, Severity severity = Severity::Info,
+        Bool enabled = true, const char* disabledReason = nullptr,
         const ImVec2& size = ImVec2(0.0f, 0.0f));
     // 보이지 않는 누름 자리다. 그림·칸 위를 누르게 할 때 쓴다. 받을 단추를 고를 수 있다 -
     // 캔버스 뷰는 가운데 단추로 끌어 옮긴다.
-    bool HitArea(const char* id, const ImVec2& size,
+    Bool HitArea(const char* id, const ImVec2& size,
         ImGuiButtonFlags buttons = ImGuiButtonFlags_MouseButtonLeft);
 
     // ── 메뉴 ────────────────────────────────────────────────────────────────
@@ -57,24 +59,24 @@ namespace JBro::Widget
     //
     // `icon` 을 주면 이름 앞의 아이콘 칸에 그린다(D-278). 한 메뉴에서 하나라도 아이콘이 있으면 ImGui 가 모든 항목에 그 칸을
     // 두어 이름이 같은 자리에서 시작한다. 아이콘은 글자처럼 그리지 않고 잉크로 칸 한가운데 놓는다(`DrawGlyphCentered`).
-    bool MenuItem(const char* label, const char* shortcut = nullptr, bool enabled = true,
+    Bool MenuItem(const char* label, const char* shortcut = nullptr, Bool enabled = true,
         const char* disabledReason = nullptr, const char* icon = nullptr);
 
     // 방금 그린 항목이 회색일 때 그 까닭을 띄운다. 메뉴 항목이 아닌 것(단추·칸)도
     // 같은 수를 쓸 수 있도록 따로 낸다. `disabled` 가 거짓이거나 까닭이 없으면 아무 일도 없다.
-    void DisabledReason(bool disabled, const char* reason);
+    void DisabledReason(Bool disabled, const char* reason);
     // 켜고 끄는 항목이다. 바뀌었으면 참이고 `checked` 가 새 값이다.
-    bool MenuToggle(const char* label, bool& checked, bool enabled = true);
+    Bool MenuToggle(const char* label, Bool& checked, Bool enabled = true);
 
     // 메뉴 막대와 하위 메뉴다. 연 것만 닫는다 - 거짓일 때 `End*` 를 부르면 ImGui 가 단언한다.
-    bool BeginMenuBar();
+    Bool BeginMenuBar();
     void EndMenuBar();
-    bool BeginMenu(const char* label, bool enabled = true);
+    Bool BeginMenu(const char* label, Bool enabled = true);
     void EndMenu();
 
     // 우클릭 메뉴다. 열렸으면 참이고, 그때만 `EndContextMenu` 를 부른다.
     // `ofWindow` 가 참이면 항목이 아니라 창의 빈 곳에 붙는다(항목 위에서는 열리지 않는다).
-    bool BeginContextMenu(const char* id, bool ofWindow = false);
+    Bool BeginContextMenu(const char* id, Bool ofWindow = false);
     void EndContextMenu();
 
     // **부르는 쪽이 여는 우클릭 메뉴**다(D-170). 창 메뉴(`ofWindow`)는 그 자리에 위젯이 있으면
@@ -82,35 +84,35 @@ namespace JBro::Widget
     // **오브젝트의 한가운데를 우클릭하면 메뉴가 열리지 않았다**. 열 때를 부르는 쪽이 정하고
     // (끌지 않은 오른쪽 버튼), 여기서는 열려 있을 때만 그린다.
     void OpenContextMenu(const char* id);
-    bool BeginOpenedContextMenu(const char* id);
+    Bool BeginOpenedContextMenu(const char* id);
     // 묻는 창이다. `OpenModal` 로 열고, `BeginModal` 이 참일 때만 `EndModal` 을 부른다.
     void OpenModal(const char* id);
-    bool BeginModal(const char* id);
+    Bool BeginModal(const char* id);
     void CloseModal();
     void EndModal();
 
     // ── 칸 ──────────────────────────────────────────────────────────────────
     // **필드 표 안에서 접는 마디**다. `Widget::Tree` 는 고름·올려놓음 배경을 줄 왼쪽 끝부터
     // 칠해, 목록 행에 놓으면 손잡이와 번호를 덮는다 - 인스펙터의 중첩 필드는 이것을 쓴다.
-    bool FoldNode(const char* label, ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_None);
+    Bool FoldNode(const char* label, ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_None);
     // 트리 마디를 닫는다. `Tree`·`TreeBegin` 이 참을 돌려줬을 때만 부른다.
     void TreePop();
     // 접는 머리다. 펼쳐져 있으면 참이다. `allowOverlap` 이면 머리 위에 얹은 단추(컴포넌트 머리의 메뉴 단추)가
     // 마우스를 받는다 - 아니면 머리가 늘 먼저 가져간다.
-    bool CollapsingSection(const char* title, bool defaultOpen = true, bool allowOverlap = false);
+    Bool CollapsingSection(const char* title, Bool defaultOpen = true, Bool allowOverlap = false);
     // RHI 텍스처를 붙인다. `uvMin`·`uvMax` 로 텍스처의 일부(시트의 한 칸)만 보일 수 있다.
     void Image(TextureHandle texture, const ImVec2& size,
         const ImVec2& uvMin = ImVec2(0.0f, 0.0f), const ImVec2& uvMax = ImVec2(1.0f, 1.0f));
     // `width`×`height` 그림을 `box` 안에 비율을 지켜 가장 크게 넣은 크기다(D-159). 크기를 모르면(0) 칸 그대로다.
     // 그림을 칸에 늘여 붙이면 픽셀 아트가 찌그러진다 - 미리보기·아이콘·뷰어가 모두 이것을 쓴다.
-    ImVec2 FitInside(std::uint32_t width, std::uint32_t height, const ImVec2& box);
+    ImVec2 FitInside(UInt32 width, UInt32 height, const ImVec2& box);
 
     // ── 탭 ──────────────────────────────────────────────────────────────────
     // 탭 줄이다. `BeginTabs` 가 참일 때만 `EndTabs` 를 부른다.
-    bool BeginTabs(const char* id);
+    Bool BeginTabs(const char* id);
     void EndTabs();
     // 탭 하나다. `open` 을 주면 닫기 단추가 서고, 눌리면 거짓이 된다. 앞에 있으면 참이고
     // 그때만 `EndTab` 을 부른다. `select` 가 참이면 이번 프레임에 앞으로 꺼낸다.
-    bool BeginTab(const char* label, bool* open = nullptr, bool select = false);
+    Bool BeginTab(const char* label, Bool* open = nullptr, Bool select = false);
     void EndTab();
 }

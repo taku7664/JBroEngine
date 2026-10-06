@@ -15,22 +15,26 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
     namespace
     {
         // 같은 레이어의 스크립트보다 먼저 받는다(`AddSystemInputHandler` 는 같은 순서면 시스템이 먼저다).
-        constexpr std::int32_t ButtonInputOrder = 0;
+        constexpr Int32 ButtonInputOrder = 0;
 
-        bool Apply(const Matrix3x2& m, float x, float y, float& outX, float& outY)
+        Bool Apply(const Matrix3x2& m, Float x, Float y, Float& outX, Float& outY)
         {
             outX = x * m.m11 + y * m.m21 + m.m31;
             outY = x * m.m12 + y * m.m22 + m.m32;
             return std::isfinite(outX) && std::isfinite(outY);
         }
 
-        bool Invert(const Matrix3x2& m, Matrix3x2& inverse)
+        Bool Invert(const Matrix3x2& m, Matrix3x2& inverse)
         {
             const double determinant = static_cast<double>(m.m11) * m.m22 - static_cast<double>(m.m12) * m.m21;
             if (determinant == 0.0 || false == std::isfinite(determinant))
@@ -46,7 +50,7 @@ namespace JBro::System
             return true;
         }
 
-        bool IsScreenLayer(const Layer& layer)
+        Bool IsScreenLayer(const Layer& layer)
         {
             return layer.GetSpace() == LayerSpace::Screen;
         }
@@ -69,7 +73,7 @@ namespace JBro::System
         }
     }
 
-    int Button2DSystem::GetExecutionOrder() const
+    Int32 Button2DSystem::GetExecutionOrder() const
     {
         // 갱신 훅은 쓰지 않는다 - 일은 입력 체인(`OnInput`) 안에서 한다.
         return 150;
@@ -115,14 +119,14 @@ namespace JBro::System
         m_hookTargets.Clear();
     }
 
-    bool Button2DSystem::PixelToLayer(const Layer& layer, float pixelX, float pixelY, Vector2& point) const
+    Bool Button2DSystem::PixelToLayer(const Layer& layer, Float pixelX, Float pixelY, Vector2& point) const
     {
         if (IsScreenLayer(layer))
         {
             return ScreenPixelToLayer(layer.GetScaleMode(), m_screen, pixelX, pixelY, point.x, point.y);
         }
-        float nx = 0.0f;
-        float ny = 0.0f;
+        Float nx = 0.0f;
+        Float ny = 0.0f;
         RenderCamera2D camera;
         CameraView2D view;
         if (m_canvas == nullptr || false == ScreenPixelToNormalized(m_screen, pixelX, pixelY, nx, ny)
@@ -138,8 +142,8 @@ namespace JBro::System
             return false;
         }
         // **패럴랙스 레이어는 그려진 만큼 옮겨진 자리에서 누른다**(D-286). 그리기와 같은 함수로 잰 양을 빼서 오브젝트의 월드로 돌린다.
-        float offsetX = 0.0f;
-        float offsetY = 0.0f;
+        Float offsetX = 0.0f;
+        Float offsetY = 0.0f;
         if (layer.GetParallax() != 1.0f && ComputeParallaxOffset2D(view.view, layer.GetParallax(), offsetX, offsetY))
         {
             point.x -= offsetX;
@@ -148,7 +152,7 @@ namespace JBro::System
         return true;
     }
 
-    bool Button2DSystem::LayerToPixel(const Layer& layer, Vector2 point, float& pixelX, float& pixelY) const
+    Bool Button2DSystem::LayerToPixel(const Layer& layer, Vector2 point, Float& pixelX, Float& pixelY) const
     {
         if (IsScreenLayer(layer))
         {
@@ -161,10 +165,10 @@ namespace JBro::System
         {
             return false;
         }
-        float vx = 0.0f;
-        float vy = 0.0f;
-        float offsetX = 0.0f;
-        float offsetY = 0.0f;
+        Float vx = 0.0f;
+        Float vy = 0.0f;
+        Float offsetX = 0.0f;
+        Float offsetY = 0.0f;
         if (layer.GetParallax() != 1.0f && ComputeParallaxOffset2D(view.view, layer.GetParallax(), offsetX, offsetY))
         {
             point.x += offsetX;
@@ -177,21 +181,21 @@ namespace JBro::System
         return NormalizedToScreenPixel(m_screen, vx / view.halfWidth, vy / view.halfHeight, pixelX, pixelY);
     }
 
-    bool Button2DSystem::ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const
+    Bool Button2DSystem::ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const
     {
         const GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
         const Layer* layer = found != nullptr ? found->GetLayer() : nullptr;
         return layer != nullptr && PixelToLayer(*layer, pixel.x, pixel.y, point);
     }
 
-    bool Button2DSystem::LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const
+    Bool Button2DSystem::LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const
     {
         const GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
         const Layer* layer = found != nullptr ? found->GetLayer() : nullptr;
         return layer != nullptr && LayerToPixel(*layer, point, pixel.x, pixel.y);
     }
 
-    bool Button2DSystem::IsPointerOverButton() const
+    Bool Button2DSystem::IsPointerOverButton() const
     {
         return m_pointerOver;
     }
@@ -226,7 +230,7 @@ namespace JBro::System
         return pointer;
     }
 
-    bool Button2DSystem::HitTest(const Component::Button2D& button, GameObject& owner, const Layer& layer, const Pointer& pointer) const
+    Bool Button2DSystem::HitTest(const Component::Button2D& button, GameObject& owner, const Layer& layer, const Pointer& pointer) const
     {
         const auto* transform = m_canvas->FindComponentRaw<Component::Transform2D>(&owner);
         if (transform == nullptr || false == transform->worldValid)
@@ -235,21 +239,21 @@ namespace JBro::System
         }
         Vector2 point;
         Matrix3x2 inverse;
-        float localX = 0.0f;
-        float localY = 0.0f;
+        Float localX = 0.0f;
+        Float localY = 0.0f;
         if (false == PixelToLayer(layer, pointer.x, pointer.y, point) || false == Invert(transform->world, inverse)
             || false == Apply(inverse, point.x, point.y, localX, localY))
         {
             return false;
         }
-        const float halfWidth = std::fabs(button.size.x) * 0.5f;
-        const float halfHeight = std::fabs(button.size.y) * 0.5f;
+        const Float halfWidth = std::fabs(button.size.x) * 0.5f;
+        const Float halfHeight = std::fabs(button.size.y) * 0.5f;
         return std::fabs(localX - button.offset.x) <= halfWidth && std::fabs(localY - button.offset.y) <= halfHeight;
     }
 
     void Button2DSystem::RefreshScriptKeys()
     {
-        const std::uint64_t revision = m_canvas->GetScriptOrderRevision();
+        const UInt64 revision = m_canvas->GetScriptOrderRevision();
         if (revision == m_scriptRevision)
         {
             return;
@@ -322,9 +326,9 @@ namespace JBro::System
         // 1. 포인터 아래의 가장 위 버튼, 그리고 지난 프레임의 호버·누름 오브젝트를 찾는다. 이번 프레임의 `clicked` 는 여기서 지운다.
         GameObject* top = nullptr;
         Component::Button2D* topButton = nullptr;
-        bool topScreen = false;
+        Bool topScreen = false;
         LayerOrder topLayer = 0;
-        std::int32_t topOrder = 0;
+        Int32 topOrder = 0;
         GameObject* hoveredBefore = nullptr;
         GameObject* pressedBefore = nullptr;
         m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
@@ -351,12 +355,12 @@ namespace JBro::System
             {
                 return;
             }
-            const bool screen = IsScreenLayer(*layer);
+            const Bool screen = IsScreenLayer(*layer);
             const auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(owner);
-            const std::int32_t order = sprite != nullptr ? sprite->renderOrder : 0;
-            const bool above = top == nullptr || (screen != topScreen ? screen
-                : layer->GetOrder() != topLayer ? layer->GetOrder() > topLayer
-                : order >= topOrder);
+            const Int32 order = sprite != nullptr ? sprite->renderOrder : Int32(0);
+            const Bool above = top == nullptr || (screen != topScreen ? screen
+                : layer->GetOrder() != topLayer ? Bool(layer->GetOrder() > topLayer)
+                : Bool(order >= topOrder));
             if (above)
             {
                 top = owner;

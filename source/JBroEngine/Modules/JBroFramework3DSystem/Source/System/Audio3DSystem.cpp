@@ -10,6 +10,10 @@
 #include <JBro/Types/Math3D.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -39,7 +43,7 @@ namespace JBro::System
     {
     }
 
-    int Audio3DSystem::GetExecutionOrder() const
+    Int32 Audio3DSystem::GetExecutionOrder() const
     {
         return ExecutionOrder;
     }
@@ -52,11 +56,11 @@ namespace JBro::System
         });
     }
 
-    void Audio3DSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void Audio3DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         // 듣는 자리: 첫 활성 리스너, 없으면 게임 카메라(`primary` 먼저), 그것도 없으면 원점에서 -Z 를 본다.
         const Component::Transform3D* listener = nullptr;
-        std::uint32_t listeners = 0;
+        UInt32 listeners = 0;
         canvas.ForEach<Component::AudioListener3D>([&](Component::AudioListener3D& candidate)
         {
             if (false == candidate.IsActiveComponent())
@@ -76,7 +80,7 @@ namespace JBro::System
         }
         if (listener == nullptr)
         {
-            bool primaryFound = false;
+            Bool primaryFound = false;
             canvas.ForEach<Component::Camera3D>([&](Component::Camera3D& camera)
             {
                 if (primaryFound || false == camera.IsActiveComponent())

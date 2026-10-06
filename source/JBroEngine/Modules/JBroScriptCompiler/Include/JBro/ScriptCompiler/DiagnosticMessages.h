@@ -6,6 +6,7 @@
 #include <JBro/Types/Table.h>
 
 #include <string_view>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -24,7 +25,7 @@ namespace JBro::ScriptCompiler
     public:
         // 폴백을 같이 읽는다. 현재 로케일 파일을 읽지 못하면 false 다.
         // 폴백 파일이 없는 것은 실패로 치지 않는다. `directory` 는 UTF-8 경로다.
-        bool Load(const char* directory, const char* locale, const char* fallbackLocale);
+        Bool Load(const char* directory, const char* locale, const char* fallbackLocale);
 
         // 현재 로케일 → 폴백 → nullptr 순이다.
         const char* Find(const char* key) const;

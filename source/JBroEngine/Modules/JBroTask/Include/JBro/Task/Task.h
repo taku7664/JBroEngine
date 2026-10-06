@@ -6,6 +6,8 @@
 
 #include <atomic>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 태스크 관리자의 일 한 덩어리다(D-209). 기존 엔진 `Engine/Core/Task` 의 `CTask` 자리이고 접두사만 뗐다.
 //
@@ -33,7 +35,7 @@ namespace JBro
     // 하위 작업 하나가 왜 실패했는지다. 예: 어느 파일을 못 읽었는지.
     struct TaskFailure
     {
-        std::uint32_t subTask = 0;
+        UInt32 subTask = 0;
         String reason;
     };
 
@@ -42,9 +44,9 @@ namespace JBro
     struct TaskResult
     {
         TaskState state = TaskState::Pending;
-        std::uint32_t numSubTasks = 0;
-        std::uint32_t succeededSubTasks = 0;
-        std::uint32_t failedSubTasks = 0;
+        UInt32 numSubTasks = 0;
+        UInt32 succeededSubTasks = 0;
+        UInt32 failedSubTasks = 0;
         ArrayView<const TaskFailure> failures;
     };
 
@@ -53,23 +55,23 @@ namespace JBro
     public:
         // `numSubTasks` 는 진행률의 분모다. 리소스 40 개를 읽는 태스크는 40 을 넣어 `0/40` 에서 시작한다 -
         // 등록하는 쪽이 개수를 미리 안다. 0 이면 할 일이 없는 태스크이고 `0/0` 으로 끝난다.
-        explicit Task(String name, std::uint32_t numSubTasks = 1);
+        explicit Task(String name, UInt32 numSubTasks = 1);
         virtual ~Task();
         Task(const Task&) = delete;
         Task& operator=(const Task&) = delete;
 
         const String& GetName() const;
-        std::uint32_t GetNumSubTasks() const;
+        UInt32 GetNumSubTasks() const;
         // 아래 셋은 워커가 올리는 원자 값이라 메인 스레드가 언제 읽어도 된다(현황표).
-        std::uint32_t GetSucceededSubTasks() const;
-        std::uint32_t GetFailedSubTasks() const;
+        UInt32 GetSucceededSubTasks() const;
+        UInt32 GetFailedSubTasks() const;
         TaskState GetState() const;
-        bool IsFinished() const;
+        Bool IsFinished() const;
 
         // 취소 표시만 한다. 아직 시작하지 않았으면 `Run` 을 부르지 않고 `Canceled` 로 끝나고, 돌고 있으면
         // 본문이 `IsCancelRequested` 를 보고 멈춰야 한다. 어느 스레드에서 불러도 된다.
         void RequestCancel();
-        bool IsCancelRequested() const;
+        Bool IsCancelRequested() const;
 
         // 끝난 뒤(`IsFinished`)에 메인 스레드에서만 읽는다. 끝나기 전에는 실패 목록을 워커가 쓰고 있다.
         TaskResult GetResult() const;
@@ -83,17 +85,17 @@ namespace JBro
         virtual void OnFinished(const TaskResult& result);
 
         // 알린 수가 `numSubTasks` 를 넘으면 세지 않고 거짓이다. `Run` 안에서만 부른다.
-        bool SucceedSubTask();
-        bool FailSubTask(std::uint32_t subTask, const char* reason);
+        Bool SucceedSubTask();
+        Bool FailSubTask(UInt32 subTask, const char* reason);
 
     private:
         friend class TaskGroup;
         friend class TaskManager;
 
-        bool ClaimSubTask();
+        Bool ClaimSubTask();
 
         String m_name;
-        std::uint32_t m_numSubTasks = 1;
+        UInt32 m_numSubTasks = 1;
         std::atomic<std::uint32_t> m_succeededSubTasks = 0;
         std::atomic<std::uint32_t> m_failedSubTasks = 0;
         // 알린 수의 합이다. 넘치는 알림을 거르는 데만 쓴다.

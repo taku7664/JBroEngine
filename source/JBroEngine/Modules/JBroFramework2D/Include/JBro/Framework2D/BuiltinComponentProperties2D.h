@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Types/Bool.h>
+
 namespace JBro::Component
 {
     // 2D 빌트인 컴포넌트의 프로퍼티 표를 빌트인 보관함에 넣는다(D-56 계획서 §8.4).
@@ -10,5 +12,5 @@ namespace JBro::Component
     //
     // 두 번 불러도 된다. 처음 한 번만 실제로 등록하고 그 뒤로는 곧바로 true 다.
     // 프레임 루프에서 부르는 함수가 아니다.
-    bool RegisterBuiltinComponentProperties2D();
+    Bool RegisterBuiltinComponentProperties2D();
 }

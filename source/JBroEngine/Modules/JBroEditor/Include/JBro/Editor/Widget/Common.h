@@ -3,6 +3,9 @@
 #include <imgui.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 // 에디터 공용 위젯 계층이다(ProjectRule §11, D-78).
 //
@@ -21,12 +24,12 @@ namespace JBro::Widget
         Error
     };
 
-    bool IsEmptyText(const char* text);
+    Bool IsEmptyText(const char* text);
     ImVec4 SeverityColor(Severity severity);
     // 심각도의 아이콘이다(`check-circle`·`alert`·`close-circle`·`information`, D-278). 예전에는 `[!]` 같은 글자로 대신했다.
     const char* SeverityIcon(Severity severity);
-    ImVec4 WithAlpha(ImVec4 color, float alpha);
-    ImVec4 ScaleColor(ImVec4 color, float scale);
+    ImVec4 WithAlpha(ImVec4 color, Float alpha);
+    ImVec4 ScaleColor(ImVec4 color, Float scale);
     // 빈 글자면 아무것도 하지 않는다. 부르는 쪽이 분기하지 않아도 되게.
     void HoveredTooltip(const char* text, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 
@@ -35,7 +38,7 @@ namespace JBro::Widget
     // 누를 때가 아니라 뗄 때 고르는 자리(계층·캔버스 뷰)가 이것을 묻는다 - 끌어다
     // 놓은 것을 "제자리를 클릭했다" 로 세면, 끌고 나서 손을 뗄 때마다 선택이 바뀐다.
     // ImGui 의 임계값을 그대로 쓴다.
-    bool MouseWasDragged(ImGuiMouseButton button);
+    Bool MouseWasDragged(ImGuiMouseButton button);
 
     // 도구 줄에서 단추 무리를 가르는 **세로 줄**이다. 앞뒤 간격까지 함께 둔다 -
     // 부르는 쪽마다 `SameLine` 의 간격을 따로 정하면 도구 줄마다 폭이 달라진다.
@@ -68,23 +71,23 @@ namespace JBro::Widget
         void Pop();
 
     private:
-        int m_vars = 0;
-        int m_colors = 0;
+        Int32 m_vars = 0;
+        Int32 m_colors = 0;
     };
 
     class DisableScope
     {
     public:
-        explicit DisableScope(bool disable = true);
+        explicit DisableScope(Bool disable = true);
         ~DisableScope();
 
         DisableScope(const DisableScope&) = delete;
         DisableScope& operator=(const DisableScope&) = delete;
 
-        bool IsDisabled() const;
+        Bool IsDisabled() const;
 
     private:
-        bool m_disabled = false;
+        Bool m_disabled = false;
     };
 
     // 값이 유효하지 않은 칸에 빨간 테두리를 두른다.
@@ -95,14 +98,14 @@ namespace JBro::Widget
     class InvalidScope
     {
     public:
-        explicit InvalidScope(bool invalid = true);
+        explicit InvalidScope(Bool invalid = true);
         ~InvalidScope();
 
         InvalidScope(const InvalidScope&) = delete;
         InvalidScope& operator=(const InvalidScope&) = delete;
 
     private:
-        bool m_invalid = false;
+        Bool m_invalid = false;
     };
 
     // `ImGui::PushID` 를 짝 맞춰 빼 준다.
@@ -110,7 +113,7 @@ namespace JBro::Widget
     {
     public:
         explicit IdScope(const char* id);
-        explicit IdScope(int id);
+        explicit IdScope(Int32 id);
         explicit IdScope(const void* id);
         ~IdScope();
 

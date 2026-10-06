@@ -1,4 +1,5 @@
 ﻿#include "D3D11Device.h"
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -36,7 +37,7 @@ namespace JBro::Internal
             return D3D11_CULL_BACK;
         }
 
-        constexpr std::uint32_t MaxInputElements = 32;
+        constexpr UInt32 MaxInputElements = 32;
     }
 
     GraphicsPipelineHandle D3D11Device::CreateGraphicsPipeline(const GraphicsPipelineDesc& desc)
@@ -54,8 +55,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxGraphicsPipelines;
-        for (std::uint32_t at = 0; at < MaxGraphicsPipelines; ++at)
+        UInt32 index = MaxGraphicsPipelines;
+        for (UInt32 at = 0; at < MaxGraphicsPipelines; ++at)
         {
             if (false == m_graphicsPipelines[at].occupied)
             {
@@ -80,11 +81,11 @@ namespace JBro::Internal
 
         // 정점 배치. 의미소는 `ATTRIBUTEn` 이고 n 이 `shaderLocation` 이다 - 셰이더가 그렇게 적혀 있다.
         D3D11_INPUT_ELEMENT_DESC elements[MaxInputElements] = {};
-        std::uint32_t elementCount = 0;
-        for (std::uint32_t slot = 0; slot < desc.vertexBuffers.size; ++slot)
+        UInt32 elementCount = 0;
+        for (UInt32 slot = 0; slot < desc.vertexBuffers.size; ++slot)
         {
             const VertexBufferLayoutDesc& layout = desc.vertexBuffers.data[slot];
-            for (std::uint32_t at = 0; at < layout.attributes.size; ++at)
+            for (UInt32 at = 0; at < layout.attributes.size; ++at)
             {
                 if (elementCount >= MaxInputElements)
                 {
@@ -144,7 +145,7 @@ namespace JBro::Internal
             blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
             blend.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
         }
-        for (std::uint32_t at = 1; at < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; ++at)
+        for (UInt32 at = 1; at < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; ++at)
         {
             blend.RenderTarget[at] = blend.RenderTarget[0];
         }
@@ -206,7 +207,7 @@ namespace JBro::Internal
         {
             return;
         }
-        const std::uint32_t generation = state.generation + 1;
+        const UInt32 generation = state.generation + 1;
         state = {};
         state.generation = generation;
     }

@@ -2,6 +2,7 @@
 
 #include <JBro/Runtime/GameObjectHandle.h>
 #include <JBro/Types/Math2D.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Service
 {
@@ -13,8 +14,8 @@ namespace JBro::Service
     class Screen2DService
     {
     public:
-        bool ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const;
-        bool LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const;
-        bool IsPointerOverButton() const;
+        Bool ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const;
+        Bool LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const;
+        Bool IsPointerOverButton() const;
     };
 }

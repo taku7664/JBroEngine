@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstring>
 #include <string_view>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -96,11 +98,11 @@ namespace JBro
             ++m_revision;
             return;
         }
-        bool changed = false;
+        Bool changed = false;
         for (HeldTable& table : m_tables)
         {
             const StringTableData* data = m_assets->GetStringTable(table.handle);
-            const std::uint32_t generation = data != nullptr ? data->dataGeneration : 0;
+            const UInt32 generation = data != nullptr ? data->dataGeneration : UInt32(0);
             if (generation != table.dataGeneration)
             {
                 table.dataGeneration = generation;
@@ -113,7 +115,7 @@ namespace JBro
         }
     }
 
-    std::uint32_t GameLocalization::GetTableCount() const
+    UInt32 GameLocalization::GetTableCount() const
     {
         return static_cast<std::uint32_t>(m_tables.Size());
     }
@@ -139,7 +141,7 @@ namespace JBro
         return m_locale.size();
     }
 
-    bool GameLocalization::SetLocale(const char* locale) noexcept
+    Bool GameLocalization::SetLocale(const char* locale) noexcept
     {
         if (locale == nullptr || locale[0] == 0)
         {
@@ -182,7 +184,7 @@ namespace JBro
         out.Resize(static_cast<std::size_t>(last - out.begin()));
     }
 
-    bool GameLocalization::FindIn(const String& locale, std::string_view key, const char*& text, std::size_t& textLength) const
+    Bool GameLocalization::FindIn(const String& locale, std::string_view key, const char*& text, std::size_t& textLength) const
     {
         if (locale.empty() || m_assets == nullptr)
         {
@@ -205,7 +207,7 @@ namespace JBro
         return false;
     }
 
-    bool GameLocalization::Find(const char* key, std::size_t keyLength, const char*& text, std::size_t& textLength) const noexcept
+    Bool GameLocalization::Find(const char* key, std::size_t keyLength, const char*& text, std::size_t& textLength) const noexcept
     {
         text = nullptr;
         textLength = 0;
@@ -221,7 +223,7 @@ namespace JBro
         return m_fallback != m_locale && FindIn(m_fallback, name, text, textLength);
     }
 
-    std::uint32_t GameLocalization::GetRevision() const noexcept
+    UInt32 GameLocalization::GetRevision() const noexcept
     {
         return m_revision;
     }

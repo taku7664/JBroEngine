@@ -7,6 +7,8 @@
 #include <atomic>
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -30,7 +32,7 @@ namespace JBro::Internal
                 }
             }
 
-            bool Open(const AudioOutputDesc& desc)
+            Bool Open(const AudioOutputDesc& desc)
             {
                 ma_device_config config = ma_device_config_init(ma_device_type_playback);
                 // 이름을 받았으면 그 장치를 찾는다. 장치 목록은 컨텍스트가 들고 있으므로 장치가 사는 동안 컨텍스트도 산다.
@@ -44,7 +46,7 @@ namespace JBro::Internal
                     m_contextReady = true;
                     ma_device_info* playback = nullptr;
                     ma_uint32 playbackCount = 0;
-                    bool found = false;
+                    Bool found = false;
                     if (ma_context_get_devices(&m_context, &playback, &playbackCount, nullptr, nullptr) == MA_SUCCESS)
                     {
                         for (ma_uint32 index = 0; index < playbackCount; ++index)
@@ -88,7 +90,7 @@ namespace JBro::Internal
                 return true;
             }
 
-            bool Start(AudioRenderCallback callback, void* user) override
+            Bool Start(AudioRenderCallback callback, void* user) override
             {
                 if (false == m_initialized || callback == nullptr)
                 {
@@ -119,27 +121,27 @@ namespace JBro::Internal
                 m_callback.store(nullptr, std::memory_order_release);
             }
 
-            bool IsRunning() const override
+            Bool IsRunning() const override
             {
                 return m_running.load(std::memory_order_acquire);
             }
 
-            bool IsLost() const override
+            Bool IsLost() const override
             {
                 return m_lost.load(std::memory_order_acquire);
             }
 
-            bool IsWaitingForUserGesture() const override
+            Bool IsWaitingForUserGesture() const override
             {
                 return m_waitingForGesture.load(std::memory_order_relaxed);
             }
 
-            std::uint32_t GetSampleRate() const override
+            UInt32 GetSampleRate() const override
             {
                 return m_initialized ? m_device.sampleRate : 0;
             }
 
-            std::uint32_t GetChannels() const override
+            UInt32 GetChannels() const override
             {
                 return m_initialized ? m_device.playback.channels : 0;
             }
@@ -198,9 +200,9 @@ namespace JBro::Internal
             }
 
             ma_context m_context = {};
-            bool m_contextReady = false;
+            Bool m_contextReady = false;
             ma_device m_device = {};
-            bool m_initialized = false;
+            Bool m_initialized = false;
             std::atomic<bool> m_running{false};
             std::atomic<bool> m_lost{false};
             mutable std::atomic<bool> m_nameStale{false};
@@ -231,7 +233,7 @@ namespace JBro::Internal
         return OwnerPtr<IAudioOutput>(std::move(output));
     }
 
-    std::uint32_t EnumerateMiniaudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    UInt32 EnumerateMiniaudioOutputs(AudioDeviceInfo* devices, UInt32 capacity)
     {
         ma_context context;
         if (ma_context_init(nullptr, 0, nullptr, &context) != MA_SUCCESS)
@@ -240,7 +242,7 @@ namespace JBro::Internal
         }
         ma_device_info* playback = nullptr;
         ma_uint32 playbackCount = 0;
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         if (ma_context_get_devices(&context, &playback, &playbackCount, nullptr, nullptr) == MA_SUCCESS)
         {
             count = playbackCount;

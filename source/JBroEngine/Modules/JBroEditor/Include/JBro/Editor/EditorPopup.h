@@ -3,13 +3,16 @@
 #include <JBro/Core/Core.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     class EditorApplication;
 
     // 팝업을 밖에서 가리키는 번호다. 포인터를 들고 있으면 닫힌 뒤에 헛돈다(D-72 와 같은 이유).
-    using PopupHandle = std::uint64_t;
+    using PopupHandle = UInt64;
     inline constexpr PopupHandle InvalidPopupHandle = 0;
 
     // 모달 팝업 하나다. 기존 엔진 `ImPopupDesc` + `CImPopupWindow` 를 옮겼다 - 핸들, 같은 Id 의
@@ -38,16 +41,16 @@ namespace JBro
             return nullptr;
         }
         // 거짓이면 제목줄의 X 가 없어 코드(`Close`)로만 닫힌다 - 진행 표시 같은 것.
-        virtual bool HasCloseButton() const
+        virtual Bool HasCloseButton() const
         {
             return true;
         }
         // 처음 뜰 때의 크기. 0 이면 내용에 맞춘다.
-        virtual float GetInitialWidth() const
+        virtual Float GetInitialWidth() const
         {
             return 0.0f;
         }
-        virtual float GetInitialHeight() const
+        virtual Float GetInitialHeight() const
         {
             return 0.0f;
         }
@@ -70,7 +73,7 @@ namespace JBro
             m_open = false;
         }
 
-        bool IsAlive() const
+        Bool IsAlive() const
         {
             return m_open;
         }
@@ -83,9 +86,9 @@ namespace JBro
     private:
         friend class EditorApplication;
         PopupHandle m_handle = InvalidPopupHandle;
-        bool m_open = true;
+        Bool m_open = true;
         // 한 번이라도 그려졌는가. `OpenPopup` 을 부를 때와 `OnEnter` 를 부를 때를 가른다.
-        bool m_shown = false;
+        Bool m_shown = false;
         // 그려진 프레임 수(몇까지만 센다). 내용에 맞추는 크기는 첫 몇 프레임에 선다 - 그동안은 가운데에 붙들어 둔다.
         std::uint8_t m_framesShown = 0;
     };

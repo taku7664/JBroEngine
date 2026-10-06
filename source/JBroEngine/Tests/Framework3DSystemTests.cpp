@@ -18,17 +18,20 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 // 3D 프레임워크의 수학·시스템·브리지를 렌더러 없이 잰다(framework3d-plan §2.5). 픽셀은
 // `MeshPixelTests` 가 본다.
 namespace JBro::Internal
 {
-    bool BuildCamera3D(const RenderCamera3D& source, const Extent2D& extent, CameraParams& result);
+    Bool BuildCamera3D(const RenderCamera3D& source, const Extent2D& extent, CameraParams& result);
 }
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -37,17 +40,17 @@ namespace
         }
     }
 
-    bool Near(float left, float right, float tolerance = 0.0005f)
+    JBro::Bool Near(JBro::Float left, JBro::Float right, JBro::Float tolerance = 0.0005f)
     {
         return std::fabs(left - right) <= tolerance;
     }
 
-    constexpr float HalfPi = 1.57079632679f;
+    constexpr JBro::Float HalfPi = 1.57079632679f;
 
     // **오른손 규칙.** Y 축으로 +90도 돌리면 +X 가 -Z 로 간다. 이것이 틀리면 카메라가 뒤를 본다.
     void TestQuaternionsRotateRightHanded()
     {
-        const JBro::Quaternion quarter = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, HalfPi);
+        const JBro::Quaternion quarter = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, JBro::Radian(HalfPi));
         const JBro::Vector3 turned = JBro::Rotate(quarter, {1.0f, 0.0f, 0.0f});
         Check(JBro::NearlyEqual(turned, {0.0f, 0.0f, -1.0f}),
             "a quarter turn about +Y must take +X to -Z");
@@ -74,7 +77,7 @@ namespace
     // TRS 는 스케일 → 회전 → 이동 순이고, 뷰는 카메라 TRS 의 역이다.
     void TestMatricesFollowTheRendererConvention()
     {
-        const JBro::Quaternion quarter = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, HalfPi);
+        const JBro::Quaternion quarter = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, JBro::Radian(HalfPi));
         const JBro::Matrix4x4 world = JBro::MakeTransformMatrix3D({1.0f, 2.0f, 3.0f}, quarter, {2.0f, 2.0f, 2.0f});
         JBro::Vector3 moved;
         Check(JBro::TransformPoint(world, {1.0f, 0.0f, 0.0f}, moved), "a point must transform");
@@ -126,11 +129,11 @@ namespace
         auto* lonerLocal = canvas.AttachComponent<JBro::Component::Transform3D>(loner);
         Check(parentLocal != nullptr && childLocal != nullptr && lonerLocal != nullptr, "transforms must attach");
         parentLocal->position = {1.0f, 0.0f, 0.0f};
-        parentLocal->rotation = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, HalfPi);
+        parentLocal->rotation = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, JBro::Radian(HalfPi));
         parentLocal->scale = {2.0f, 2.0f, 2.0f};
         childLocal->position = {1.0f, 0.0f, 0.0f};
         childLocal->scale = {0.5f, 0.5f, 0.5f};
-        childLocal->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, HalfPi);
+        childLocal->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(HalfPi));
         child->SetParent(parent);
         lonerLocal->position = {5.0f, 6.0f, 7.0f};
 
@@ -271,7 +274,7 @@ namespace
 
         // 용량을 넘으면 세기만 한다.
         world.BeginFrame();
-        for (int index = 0; index < 6; ++index)
+        for (JBro::Int32 index = 0; index < 6; ++index)
         {
             world.SubmitMesh(world.GetMeshCount() > 0 ? world.GetMesh(0) : JBro::MeshRenderItem{});
         }
@@ -309,7 +312,7 @@ namespace
     }
 }
 
-int RunFramework3DSystemTests()
+JBro::Int32 RunFramework3DSystemTests()
 {
     TestQuaternionsRotateRightHanded();
     TestMatricesFollowTheRendererConvention();

@@ -12,6 +12,10 @@
 #include <iostream>
 #include <stdexcept>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 태스크 관리자 JBroTask 의 테스트(D-209). todo.md "그 밖의 공용" 의 완료 조건을 하나씩 잰다:
 // 병렬 묶음이 여러 워커에서 실제로 동시에 도는가, 순서 묶음은 앞이 끝나기 전에 다음이 시작하지 않는가,
@@ -30,7 +34,7 @@ namespace
     using JBro::TaskState;
     using Clock = std::chrono::steady_clock;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -41,7 +45,7 @@ namespace
 
     // 워커에서 기다리는 자리가 영원히 멈추지 않게 한다. 넘기면 거짓이고, 테스트가 그것을 실패로 본다.
     template<typename Predicate>
-    bool SpinUntil(Predicate&& predicate, int milliseconds = 10000)
+    JBro::Bool SpinUntil(Predicate&& predicate, JBro::Int32 milliseconds = 10000)
     {
         const Clock::time_point deadline = Clock::now() + std::chrono::milliseconds(milliseconds);
         while (false == predicate())
@@ -67,24 +71,24 @@ namespace
         std::atomic<bool> ranOnMain = false;
         std::atomic<bool> ranOnWorker = false;
         std::atomic<bool> timedOut = false;
-        int finished = 0;
-        int finishedOffMain = 0;
-        int groupFinished = 0;
-        int groupFinishedOffMain = 0;
+        JBro::Int32 finished = 0;
+        JBro::Int32 finishedOffMain = 0;
+        JBro::Int32 groupFinished = 0;
+        JBro::Int32 groupFinishedOffMain = 0;
         // 묶음의 콜백이 불렸을 때 이미 불린 태스크 콜백 수다.
-        int tasksFinishedBeforeGroup = -1;
+        JBro::Int32 tasksFinishedBeforeGroup = -1;
         TaskState lastState = TaskState::Pending;
-        std::uint32_t lastSucceeded = 0;
-        std::uint32_t lastFailed = 0;
+        JBro::UInt32 lastSucceeded = 0;
+        JBro::UInt32 lastFailed = 0;
         char lastReason[128] = {};
-        std::uint32_t lastReasonSubTask = 0;
-        std::uint32_t lastFailureCount = 0;
+        JBro::UInt32 lastReasonSubTask = 0;
+        JBro::UInt32 lastFailureCount = 0;
     };
 
-    void EnterRun(Journal& journal, int index)
+    void EnterRun(Journal& journal, JBro::Int32 index)
     {
         ++journal.runs;
-        const int now = ++journal.running;
+        const JBro::Int32 now = ++journal.running;
         int seen = journal.maxRunning.load();
         while (now > seen && false == journal.maxRunning.compare_exchange_weak(seen, now))
         {
@@ -155,7 +159,7 @@ namespace
     class BarrierTask final : public Task
     {
     public:
-        BarrierTask(Journal& journal, std::atomic<int>& arrived, int expected)
+        BarrierTask(Journal& journal, std::atomic<int>& arrived, JBro::Int32 expected)
             : Task("barrier")
             , m_journal(journal)
             , m_arrived(arrived)
@@ -183,14 +187,14 @@ namespace
     private:
         Journal& m_journal;
         std::atomic<int>& m_arrived;
-        int m_expected;
+        JBro::Int32 m_expected;
     };
 
     // 잠깐 도는 태스크다. 순서 묶음에서 겹치면 maxRunning 이 1 을 넘는다.
     class SleepTask final : public Task
     {
     public:
-        SleepTask(Journal& journal, int index, int milliseconds)
+        SleepTask(Journal& journal, JBro::Int32 index, JBro::Int32 milliseconds)
             : Task("sleep")
             , m_journal(journal)
             , m_index(index)
@@ -216,8 +220,8 @@ namespace
 
     private:
         Journal& m_journal;
-        int m_index;
-        int m_milliseconds;
+        JBro::Int32 m_index;
+        JBro::Int32 m_milliseconds;
     };
 
     // 하위 작업 N 개를 하나씩 끝낸다. gate 가 있으면 메인이 gate 를 올릴 때마다 하나씩만 나아간다.
@@ -225,8 +229,8 @@ namespace
     class SubTaskLoader final : public Task
     {
     public:
-        SubTaskLoader(Journal& journal, std::uint32_t count, std::atomic<std::uint32_t>* gate,
-            std::uint32_t failA, std::uint32_t failB)
+        SubTaskLoader(Journal& journal, JBro::UInt32 count, std::atomic<std::uint32_t>* gate,
+            JBro::UInt32 failA, JBro::UInt32 failB)
             : Task("loader", count)
             , m_journal(journal)
             , m_gate(gate)
@@ -239,7 +243,7 @@ namespace
         void Run() override
         {
             EnterRun(m_journal, -1);
-            for (std::uint32_t i = 0; i < GetNumSubTasks(); ++i)
+            for (JBro::UInt32 i = 0; i < GetNumSubTasks(); ++i)
             {
                 if (m_gate != nullptr && false == SpinUntil([this, i] { return m_gate->load() > i; }))
                 {
@@ -249,7 +253,7 @@ namespace
                 if (i == m_failA || i == m_failB)
                 {
                     char reason[64];
-                    sprintf_s(reason, "cannot read sheet_%u.png", i);
+                    sprintf_s(reason, "cannot read sheet_%u.png", i.Get());
                     FailSubTask(i, reason);
                 }
                 else
@@ -268,13 +272,13 @@ namespace
         }
 
     public:
-        bool m_overReportRejected = false;
+        JBro::Bool m_overReportRejected = false;
 
     private:
         Journal& m_journal;
         std::atomic<std::uint32_t>* m_gate;
-        std::uint32_t m_failA;
-        std::uint32_t m_failB;
+        JBro::UInt32 m_failA;
+        JBro::UInt32 m_failB;
     };
 
     // 취소 표시를 볼 때까지 하위 작업을 하나씩 끝낸다. 한 번은 반드시 돈다.
@@ -293,7 +297,7 @@ namespace
         {
             EnterRun(m_journal, -1);
             m_started = true;
-            for (std::uint32_t i = 0; i < GetNumSubTasks(); ++i)
+            for (JBro::UInt32 i = 0; i < GetNumSubTasks(); ++i)
             {
                 if (IsCancelRequested())
                 {
@@ -365,7 +369,7 @@ namespace
         wchar_t* m_out;
     };
 
-    TaskManagerDesc Workers(std::uint32_t count)
+    TaskManagerDesc Workers(JBro::UInt32 count)
     {
         TaskManagerDesc desc;
         desc.workerCount = count;
@@ -373,7 +377,7 @@ namespace
         return desc;
     }
 
-    TaskManagerDesc MainThreadOnly(float budgetMs = 1000.0f)
+    TaskManagerDesc MainThreadOnly(JBro::Float budgetMs = 1000.0f)
     {
         TaskManagerDesc desc;
         desc.useWorkers = false;
@@ -382,7 +386,7 @@ namespace
     }
 
     // 끝날 때까지 Update 를 돈다. 시간 안에 끝나지 않으면 거짓이다.
-    bool PumpUntilFinished(TaskManager& manager, TaskGroupId id)
+    JBro::Bool PumpUntilFinished(TaskManager& manager, TaskGroupId id)
     {
         return SpinUntil([&] {
             manager.Update();
@@ -401,7 +405,7 @@ namespace
         Check(manager.UsesWorkers() && manager.GetWorkerCount() == 4, "it must hold the four workers it was asked for");
 
         OwnerPtr<RecordingGroup> group = JBro::MakeOwnerPtr<RecordingGroup>(journal, "parallel", TaskGroupOrder::Parallel);
-        for (int i = 0; i < 4; ++i)
+        for (JBro::Int32 i = 0; i < 4; ++i)
         {
             group->Add(JBro::MakeOwnerPtr<BarrierTask>(journal, arrived, 4));
         }
@@ -422,7 +426,7 @@ namespace
     void CheckSequentialGroup(TaskManager& manager, Journal& journal)
     {
         OwnerPtr<RecordingGroup> group = JBro::MakeOwnerPtr<RecordingGroup>(journal, "sequential", TaskGroupOrder::Sequential);
-        for (int i = 0; i < 6; ++i)
+        for (JBro::Int32 i = 0; i < 6; ++i)
         {
             group->Add(JBro::MakeOwnerPtr<SleepTask>(journal, i, 3));
         }
@@ -430,7 +434,7 @@ namespace
         Check(PumpUntilFinished(manager, id), "the sequential group must finish");
         Check(journal.runs.load() == 6, "every task of the sequential group must run");
         Check(journal.maxRunning.load() == 1, "no task of a sequential group may start before the one before it ends");
-        for (int i = 0; i < 6; ++i)
+        for (JBro::Int32 i = 0; i < 6; ++i)
         {
             Check(journal.startOrder[i].load() == i, "a sequential group must start its tasks in the order they were added");
         }
@@ -462,13 +466,13 @@ namespace
         const Task& task = manager.FindGroup(id)->GetTaskAt(0);
         Check(task.GetNumSubTasks() == 40 && task.GetSucceededSubTasks() == 0 && task.GetFailedSubTasks() == 0,
             "a task of forty sub-tasks must start at 0/40");
-        std::uint32_t lastDone = 0;
-        for (std::uint32_t step = 1; step <= 40; ++step)
+        JBro::UInt32 lastDone = 0;
+        for (JBro::UInt32 step = 1; step <= 40; ++step)
         {
             gate = step;
             Check(SpinUntil([&] { return task.GetSucceededSubTasks() + task.GetFailedSubTasks() >= step; }),
                 "each opened step must be counted");
-            const std::uint32_t done = task.GetSucceededSubTasks() + task.GetFailedSubTasks();
+            const JBro::UInt32 done = task.GetSucceededSubTasks() + task.GetFailedSubTasks();
             Check(done == step, "the count must rise one sub-task at a time, never ahead of the work");
             Check(done > lastDone, "the count must only rise");
             lastDone = done;
@@ -542,7 +546,7 @@ namespace
         TaskManager manager;
         Check(manager.Initialize(MainThreadOnly(0.0f)), "the manager must start");
         OwnerPtr<TaskGroup> group = JBro::MakeOwnerPtr<TaskGroup>("three");
-        for (int i = 0; i < 3; ++i)
+        for (JBro::Int32 i = 0; i < 3; ++i)
         {
             group->Add(JBro::MakeOwnerPtr<SleepTask>(journal, i, 0));
         }
@@ -555,7 +559,7 @@ namespace
         manager.Shutdown();
     }
 
-    void TestCancelEndsTasksAsCanceled(bool workers)
+    void TestCancelEndsTasksAsCanceled(JBro::Bool workers)
     {
         Journal journal;
         journal.mainThread = std::this_thread::get_id();
@@ -609,7 +613,7 @@ namespace
         manager.Shutdown();
     }
 
-    void TestShutdownWaitsAndDrains(bool workers)
+    void TestShutdownWaitsAndDrains(JBro::Bool workers)
     {
         Journal journal;
         journal.mainThread = std::this_thread::get_id();
@@ -619,7 +623,7 @@ namespace
             Check(manager.Initialize(workers ? Workers(1) : MainThreadOnly()), "the manager must start");
             OwnerPtr<RecordingGroup> group = JBro::MakeOwnerPtr<RecordingGroup>(journal, "shutdown", TaskGroupOrder::Parallel);
             group->Add(JBro::MakeOwnerPtr<CancelAwareTask>(journal, started));
-            for (int i = 0; i < 3; ++i)
+            for (JBro::Int32 i = 0; i < 3; ++i)
             {
                 group->Add(JBro::MakeOwnerPtr<SleepTask>(journal, i, 0));
             }
@@ -701,9 +705,9 @@ namespace
     struct ChainReport
     {
         TaskGroupId next = JBro::InvalidTaskGroupId;
-        bool waited = false;
-        int finishedAfterWait = 0;
-        bool nextStillListed = false;
+        JBro::Bool waited = false;
+        JBro::Int32 finishedAfterWait = 0;
+        JBro::Bool nextStillListed = false;
     };
 
     class SubmitFromCallbackTask final : public Task
@@ -767,7 +771,7 @@ namespace
     class ThrowingCallbackTask final : public Task
     {
     public:
-        explicit ThrowingCallbackTask(int& calls)
+        explicit ThrowingCallbackTask(JBro::Int32& calls)
             : Task("throws in callback")
             , m_calls(calls)
         {
@@ -785,7 +789,7 @@ namespace
         }
 
     private:
-        int& m_calls;
+        JBro::Int32& m_calls;
     };
 
     // 콜백이 던져도 같은 콜백이 두 번 불리지 않고, 남은 콜백은 다음 Update 에서 불리며, 묶음은 끝난다.
@@ -793,7 +797,7 @@ namespace
     {
         Journal journal;
         journal.mainThread = std::this_thread::get_id();
-        int throwerCalls = 0;
+        JBro::Int32 throwerCalls = 0;
         TaskManager manager;
         Check(manager.Initialize(MainThreadOnly()), "the manager must start");
         OwnerPtr<RecordingGroup> group = JBro::MakeOwnerPtr<RecordingGroup>(journal, "throws", TaskGroupOrder::Parallel);
@@ -801,7 +805,7 @@ namespace
         group->Add(JBro::MakeOwnerPtr<SleepTask>(journal, 0, 0));
         group->Add(JBro::MakeOwnerPtr<SleepTask>(journal, 1, 0));
         const TaskGroupId id = manager.Submit(std::move(group));
-        bool threw = false;
+        JBro::Bool threw = false;
         try
         {
             manager.Update();
@@ -822,7 +826,7 @@ namespace
     class FlagTask final : public Task
     {
     public:
-        FlagTask(int& finished, std::thread::id& callbackThread)
+        FlagTask(JBro::Int32& finished, std::thread::id& callbackThread)
             : Task("flag")
             , m_finished(finished)
             , m_callbackThread(callbackThread)
@@ -841,7 +845,7 @@ namespace
         }
 
     private:
-        int& m_finished;
+        JBro::Int32& m_finished;
         std::thread::id& m_callbackThread;
     };
 
@@ -865,7 +869,7 @@ namespace
         config.audioEnabled = false;
         config.networkEnabled = false;
         config.tasks.workerCount = 2;
-        int finished = 0;
+        JBro::Int32 finished = 0;
         std::thread::id callbackThread;
         {
             JBro::EngineInstance engine;
@@ -895,7 +899,7 @@ namespace
     }
 }
 
-int RunTaskManagerTests()
+JBro::Int32 RunTaskManagerTests()
 {
     try
     {

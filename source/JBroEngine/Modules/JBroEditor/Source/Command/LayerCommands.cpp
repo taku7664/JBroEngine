@@ -8,13 +8,15 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
     namespace
     {
         // 캔버스가 든 레이어 목록에서 그 레이어가 몇 번째인가. 없으면 거짓이다.
-        bool FindLayerIndex(Canvas& canvas, LayerId layer, std::size_t& index)
+        Bool FindLayerIndex(Canvas& canvas, LayerId layer, std::size_t& index)
         {
             for (std::size_t at = 0; at < canvas.GetLayerCount(); ++at)
             {
@@ -56,7 +58,7 @@ namespace JBro
         return "Create Layer";
     }
 
-    bool CreateLayerCommand::Execute()
+    Bool CreateLayerCommand::Execute()
     {
         Layer& made = m_canvas->CreateLayer(m_name.c_str());
         m_layerId = made.GetId();
@@ -136,7 +138,7 @@ namespace JBro
         return "Delete Layer";
     }
 
-    bool DeleteLayerCommand::Execute()
+    Bool DeleteLayerCommand::Execute()
     {
         if (false == m_captured)
         {
@@ -201,7 +203,7 @@ namespace JBro
         return "Move Layer";
     }
 
-    bool MoveLayerCommand::Execute()
+    Bool MoveLayerCommand::Execute()
     {
         // 제자리로 옮기는 것은 편집이 아니다. 스택에 올리면 Ctrl+Z 가 헛걸음한다.
         if (false == m_captured || m_from == m_to)
@@ -248,7 +250,7 @@ namespace JBro
         return "Rename Layer";
     }
 
-    bool RenameLayerCommand::Execute()
+    Bool RenameLayerCommand::Execute()
     {
         if (false == m_captured || m_before == m_after)
         {
@@ -279,13 +281,13 @@ namespace JBro
         }
     }
 
-    bool RenameLayerCommand::CanMerge(const EditorCommand& newer) const
+    Bool RenameLayerCommand::CanMerge(const EditorCommand& newer) const
     {
         const auto* other = dynamic_cast<const RenameLayerCommand*>(&newer);
         return other != nullptr && other->m_canvas == m_canvas && other->m_layerId == m_layerId;
     }
 
-    bool RenameLayerCommand::TryMerge(const EditorCommand& newer)
+    Bool RenameLayerCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {
@@ -333,7 +335,7 @@ namespace JBro
         return "Change Layer Space";
     }
 
-    void SetLayerSpaceCommand::Apply(bool after)
+    void SetLayerSpaceCommand::Apply(Bool after)
     {
         Layer* layer = m_canvas->FindLayer(m_layerId);
         if (layer == nullptr)
@@ -354,7 +356,7 @@ namespace JBro
         }
     }
 
-    bool SetLayerSpaceCommand::Execute()
+    Bool SetLayerSpaceCommand::Execute()
     {
         if (false == m_captured || (m_spaceBefore == m_spaceAfter && m_modeBefore == m_modeAfter && m_after.IsEmpty()))
         {
@@ -380,7 +382,7 @@ namespace JBro
 
     // ── SetLayerCompositeCommand ─────────────────────────────────────────
 
-    SetLayerCompositeCommand::SetLayerCompositeCommand(Canvas& canvas, LayerId layer, LayerBlend blend, float opacity)
+    SetLayerCompositeCommand::SetLayerCompositeCommand(Canvas& canvas, LayerId layer, LayerBlend blend, Float opacity)
         : m_canvas(&canvas)
         , m_layerId(layer)
         , m_blendAfter(blend)
@@ -405,7 +407,7 @@ namespace JBro
         return "Set Layer Blend";
     }
 
-    bool SetLayerCompositeCommand::Execute()
+    Bool SetLayerCompositeCommand::Execute()
     {
         if (false == m_captured || (m_blendBefore == m_blendAfter && m_opacityBefore == m_opacityAfter)
             || m_canvas->FindLayer(m_layerId) == nullptr)
@@ -426,13 +428,13 @@ namespace JBro
         Apply(m_blendAfter, m_opacityAfter);
     }
 
-    bool SetLayerCompositeCommand::CanMerge(const EditorCommand& newer) const
+    Bool SetLayerCompositeCommand::CanMerge(const EditorCommand& newer) const
     {
         const auto* other = dynamic_cast<const SetLayerCompositeCommand*>(&newer);
         return other != nullptr && other->m_canvas == m_canvas && other->m_layerId == m_layerId;
     }
 
-    bool SetLayerCompositeCommand::TryMerge(const EditorCommand& newer)
+    Bool SetLayerCompositeCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {
@@ -445,7 +447,7 @@ namespace JBro
         return true;
     }
 
-    void SetLayerCompositeCommand::Apply(LayerBlend blend, float opacity)
+    void SetLayerCompositeCommand::Apply(LayerBlend blend, Float opacity)
     {
         if (Layer* layer = m_canvas->FindLayer(m_layerId))
         {
@@ -473,7 +475,7 @@ namespace JBro
         return "Link Layer Asset";
     }
 
-    bool SetLayerSourceAssetCommand::Execute()
+    Bool SetLayerSourceAssetCommand::Execute()
     {
         Layer* layer = m_captured ? m_canvas->FindLayer(m_layerId) : nullptr;
         if (layer == nullptr || m_before == m_after)
@@ -515,7 +517,7 @@ namespace JBro
         return "Add Layer From Asset";
     }
 
-    bool AddLayerFromAssetCommand::Execute()
+    Bool AddLayerFromAssetCommand::Execute()
     {
         if (m_captured)
         {
@@ -626,7 +628,7 @@ namespace JBro
 
     // ── SetLayerParallaxCommand ──────────────────────────────────────────
 
-    SetLayerParallaxCommand::SetLayerParallaxCommand(Canvas& canvas, LayerId layer, float factor)
+    SetLayerParallaxCommand::SetLayerParallaxCommand(Canvas& canvas, LayerId layer, Float factor)
         : m_canvas(&canvas)
         , m_layerId(layer)
     {
@@ -649,7 +651,7 @@ namespace JBro
         return "Set Layer Parallax";
     }
 
-    bool SetLayerParallaxCommand::Execute()
+    Bool SetLayerParallaxCommand::Execute()
     {
         Layer* layer = m_captured ? m_canvas->FindLayer(m_layerId) : nullptr;
         if (layer == nullptr || m_before == m_after)
@@ -676,13 +678,13 @@ namespace JBro
         }
     }
 
-    bool SetLayerParallaxCommand::CanMerge(const EditorCommand& newer) const
+    Bool SetLayerParallaxCommand::CanMerge(const EditorCommand& newer) const
     {
         const auto* other = dynamic_cast<const SetLayerParallaxCommand*>(&newer);
         return other != nullptr && other->m_canvas == m_canvas && other->m_layerId == m_layerId;
     }
 
-    bool SetLayerParallaxCommand::TryMerge(const EditorCommand& newer)
+    Bool SetLayerParallaxCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {
@@ -694,7 +696,7 @@ namespace JBro
 
     // ── SetLayerVisibleCommand ───────────────────────────────────────────
 
-    SetLayerVisibleCommand::SetLayerVisibleCommand(Canvas& canvas, LayerId layer, bool visible)
+    SetLayerVisibleCommand::SetLayerVisibleCommand(Canvas& canvas, LayerId layer, Bool visible)
         : m_canvas(&canvas)
         , m_layerId(layer)
         , m_after(visible)
@@ -713,7 +715,7 @@ namespace JBro
         return "Show Layer";
     }
 
-    bool SetLayerVisibleCommand::Execute()
+    Bool SetLayerVisibleCommand::Execute()
     {
         if (false == m_captured || m_before == m_after)
         {
@@ -780,9 +782,9 @@ namespace JBro
         return "Move To Layer";
     }
 
-    bool SetObjectLayerCommand::Apply(LayerId layer)
+    Bool SetObjectLayerCommand::Apply(LayerId layer)
     {
-        bool any = false;
+        Bool any = false;
         for (std::size_t index = 0; index < m_before.Size(); ++index)
         {
             if (GameObject* object = m_registry->Resolve(m_before[index].objectId))
@@ -796,14 +798,14 @@ namespace JBro
         return any;
     }
 
-    bool SetObjectLayerCommand::Execute()
+    Bool SetObjectLayerCommand::Execute()
     {
         if (false == m_captured)
         {
             return false;
         }
         // 이미 그 레이어에 다 있으면 편집이 아니다.
-        bool alreadyThere = true;
+        Bool alreadyThere = true;
         for (std::size_t index = 0; index < m_before.Size(); ++index)
         {
             if (m_before[index].layer != m_after)

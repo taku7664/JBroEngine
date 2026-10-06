@@ -3,6 +3,7 @@
 #include <JBro/Runtime/IRandomSystem.h>
 
 #include <cstdint>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -18,18 +19,18 @@ namespace JBro::System
         RandomSystem();
 
         // 0 이면 새 씨앗을 뽑는다. 어느 쪽이든 씨앗을 로그에 남긴다. 에디터는 재생을 시작할 때마다, 게임은 켤 때 한 번 부른다.
-        void Reseed(std::uint64_t configuredSeed);
+        void Reseed(UInt64 configuredSeed);
         // 시계와 기계의 엔트로피에서 뽑는다. 0 은 주지 않는다 - 0 은 "새로 뽑아라" 의 뜻이다.
-        static std::uint64_t MakeEntropySeed();
+        static UInt64 MakeEntropySeed();
 
-        std::uint32_t NextUInt32() override;
-        std::uint64_t GetSeed() const override;
-        void SetSeed(std::uint64_t seed) override;
+        UInt32 NextUInt32() override;
+        UInt64 GetSeed() const override;
+        void SetSeed(UInt64 seed) override;
         RandomState GetState() const override;
         void SetState(const RandomState& state) override;
 
     private:
         RandomStream m_stream;
-        std::uint64_t m_seed = 0;
+        UInt64 m_seed = 0;
     };
 }

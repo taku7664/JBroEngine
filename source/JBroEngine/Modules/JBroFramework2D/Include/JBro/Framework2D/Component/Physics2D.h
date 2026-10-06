@@ -13,6 +13,9 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Component
 {
@@ -42,17 +45,28 @@ namespace JBro
     // 고르는 칸을 그린다. 정수와 저절로 오가므로 스크립트는 `collider->layer = 1u << 3;` 처럼 쓴다.
     struct PhysicsLayerMask
     {
-        std::uint32_t bits = 0;
+        UInt32 bits = 0;
 
         constexpr PhysicsLayerMask() = default;
+        constexpr PhysicsLayerMask(UInt32 value)
+            : bits(value)
+        {
+        }
+
+        // 리터럴(`0x4u`)에서 바로 온다. `UInt32` 생성자만 있으면 `uint32` → `UInt32` → 마스크로 사용자 변환이 둘이다.
         constexpr PhysicsLayerMask(std::uint32_t value)
             : bits(value)
         {
         }
 
-        constexpr operator std::uint32_t() const
+        constexpr operator UInt32() const
         {
             return bits;
+        }
+
+        friend constexpr bool operator==(PhysicsLayerMask left, PhysicsLayerMask right)
+        {
+            return left.bits == right.bits;
         }
     };
 
@@ -76,7 +90,7 @@ namespace JBro
     };
 
     // 프로젝트가 담는 물리 레이어 수다. 비트 하나가 레이어 하나다.
-    inline constexpr std::uint32_t PhysicsLayerCount = 32;
+    inline constexpr UInt32 PhysicsLayerCount = 32;
 }
 
 namespace JBro::System
@@ -92,14 +106,14 @@ namespace JBro::Component
     {
         Vector2  forceAtCenter;
         Vector2  forceAtPoints;
-        float forceMoment = 0.0f;
-        float torque = 0.0f;
+        Float forceMoment = 0.0f;
+        Float torque = 0.0f;
         Vector2  impulseAtCenter;
         Vector2  impulseAtPoints;
-        float impulseMoment = 0.0f;
-        float angularImpulse = 0.0f;
+        Float impulseMoment = 0.0f;
+        Float angularImpulse = 0.0f;
         // 잠든 몸을 깨운다(D-229).
-        bool  wake = false;
+        Bool  wake = false;
     };
 
     class Rigidbody2D final : public ComponentBase
@@ -121,17 +135,17 @@ namespace JBro::Component
         // 속도는 시뮬레이션이 매 프레임 다시 쓴다. 저장하면 씬을 열 때마다
         // 물체가 저장된 순간의 속도로 튀어 나간다.
         JBRO_FIELD(Vector2,  linearVelocity,  NoSerialize());
-        JBRO_FIELD(float, angularVelocity, NoSerialize()) = 0.0f;
-        JBRO_FIELD(float, mass,          Range(0, 1000)) = 1.0f;
-        JBRO_FIELD(float, gravityScale)  = 1.0f;
-        JBRO_FIELD(float, linearDamping) = 0.0f;
-        JBRO_FIELD(float, angularDamping) = 0.0f;
-        JBRO_FIELD(bool,  fixedRotation) = false;
+        JBRO_FIELD(Float, angularVelocity, NoSerialize()) = 0.0f;
+        JBRO_FIELD(Float, mass,          Range(0, 1000)) = 1.0f;
+        JBRO_FIELD(Float, gravityScale)  = 1.0f;
+        JBRO_FIELD(Float, linearDamping) = 0.0f;
+        JBRO_FIELD(Float, angularDamping) = 0.0f;
+        JBRO_FIELD(Bool,  fixedRotation) = false;
         // 축 고정(D-227). 그 축으로는 중력·힘·접촉 어느 것으로도 움직이지 않는다.
-        JBRO_FIELD(bool,  freezePositionX) = false;
-        JBRO_FIELD(bool,  freezePositionY) = false;
+        JBRO_FIELD(Bool,  freezePositionX) = false;
+        JBRO_FIELD(Bool,  freezePositionY) = false;
         // 멈춰 있으면 잠들 수 있는가(D-229). 잠든 몸은 계산에서 빠지고, 닿거나 힘을 받으면 깬다.
-        JBRO_FIELD(bool,  canSleep) = true;
+        JBRO_FIELD(Bool,  canSleep) = true;
 
         // 힘·토크는 다음 고정 스텝 한 번 동안 가해지고, 충격량은 그 스텝이 시작할 때 속도를 바꾼다(D-227). 월드 좌표다.
         // Dynamic 이 아니면 물리가 버린다.
@@ -144,7 +158,7 @@ namespace JBro::Component
             m_pending.forceAtPoints = { m_pending.forceAtPoints.x + force.x, m_pending.forceAtPoints.y + force.y };
             m_pending.forceMoment += worldPoint.x * force.y - worldPoint.y * force.x;
         }
-        void AddTorque(float torque)
+        void AddTorque(Float torque)
         {
             m_pending.torque += torque;
         }
@@ -157,7 +171,7 @@ namespace JBro::Component
             m_pending.impulseAtPoints = { m_pending.impulseAtPoints.x + impulse.x, m_pending.impulseAtPoints.y + impulse.y };
             m_pending.impulseMoment += worldPoint.x * impulse.y - worldPoint.y * impulse.x;
         }
-        void AddAngularImpulse(float impulse)
+        void AddAngularImpulse(Float impulse)
         {
             m_pending.angularImpulse += impulse;
         }
@@ -166,7 +180,7 @@ namespace JBro::Component
         {
             m_pending.wake = true;
         }
-        bool IsSleeping() const
+        Bool IsSleeping() const
         {
             return m_sleeping;
         }
@@ -184,7 +198,7 @@ namespace JBro::Component
         // 저장하지 않고 인스펙터에도 없다 - 스크립트가 쌓고 물리가 가져가는 한 스텝짜리 값이다.
         PendingForces2D m_pending;
         // 물리 시스템이 고정 스텝마다 쓴다.
-        bool            m_sleeping = false;
+        Bool            m_sleeping = false;
     };
 
     class Collider2D final : public ComponentBase
@@ -205,20 +219,20 @@ namespace JBro::Component
         JBRO_FIELD(ColliderShape2D, shape) = ColliderShape2D::Box;
         JBRO_FIELD(Vector2,  offset);
         JBRO_FIELD(Vector2,  size) { 1.0f, 1.0f };
-        JBRO_FIELD(float, radius) = 0.5f;
-        JBRO_FIELD(bool,  isTrigger) = false;
+        JBRO_FIELD(Float, radius) = 0.5f;
+        JBRO_FIELD(Bool,  isTrigger) = false;
         // Polygon 의 꼭짓점이다(D-199). 오브젝트 로컬이고 offset 을 더한 뒤 트랜스폼의 크기를 곱한다. 오목해도 되고
         // 감긴 방향은 상관없다 - 물리 커널이 정리해 볼록 조각으로 나눈다. 자기 교차하면 그 콜라이더는 충돌하지 않는다.
         JBRO_FIELD(Array<Vector2>, points);
         // Chain 이 끝과 처음을 잇는가(D-229). Chain 은 points 를 이은 선분 모음이고 두께와 질량이 없으며 두 면 모두에서 부딪힌다 -
         // 오목 폴리곤을 조각으로 나눈 바닥과 달리 이음매에서 걸리지 않는다. 포인트가 없으면 `size.x` 폭의 가로 선분이다.
-        JBRO_FIELD(bool, loop) = false;
+        JBRO_FIELD(Bool, loop) = false;
         // 한 방향 발판(D-233). 오브젝트의 위(+y) 쪽에서 오는 것만 막는다 - 밑에서 뛰어오르거나 옆에서 들어오면 지나가고, 지나가는
         // 동안에는 닿은 것도 아니다(훅이 없다). 닿기 시작할 때 방향을 보고 떨어질 때까지 그대로다.
-        JBRO_FIELD(bool, oneWay) = false;
+        JBRO_FIELD(Bool, oneWay) = false;
         // 표면 성질과 충돌 거르기는 도형의 것이다(D-199 (4)). 두 도형의 마찰은 기하 평균, 반발은 큰 쪽으로 섞는다.
-        JBRO_FIELD(float, friction, Range(0, 2)) = 0.6f;
-        JBRO_FIELD(float, restitution, Range(0, 1)) = 0.0f;
+        JBRO_FIELD(Float, friction, Range(0, 2)) = 0.6f;
+        JBRO_FIELD(Float, restitution, Range(0, 1)) = 0.0f;
         // 두 콜라이더는 (A.layer & B.mask) 와 (B.layer & A.mask) 가 모두 0 이 아니고, 프로젝트의 레이어 충돌 표가 두 레이어를
         // 떼어 두지 않았을 때만 만난다(D-233). 비트 i 의 이름은 프로젝트 설정의 물리 레이어 i 번째다.
         JBRO_FIELD(PhysicsLayerMask, layer) = 0x00000001u;
@@ -247,15 +261,15 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, anchor);
         JBRO_FIELD(Vector2, connectedAnchor);
         // 참이면 조인트가 처음 이어지는 순간 두 앵커 사이의 거리를 distance 에 적는다.
-        JBRO_FIELD(bool, autoDistance) = true;
-        JBRO_FIELD(float, distance, Range(0, 1000)) = 1.0f;
+        JBRO_FIELD(Bool, autoDistance) = true;
+        JBRO_FIELD(Float, distance, Range(0, 1000)) = 1.0f;
         // 참이면 밧줄이다: distance 보다 멀어지지만 않게 하고 가까워지는 것은 막지 않는다.
-        JBRO_FIELD(bool, maxDistanceOnly) = false;
+        JBRO_FIELD(Bool, maxDistanceOnly) = false;
         // 0 보다 크면 용수철이다(초당 떨림 수). 0 이면 단단하다. 밧줄에는 쓰지 않는다.
-        JBRO_FIELD(float, frequency, Range(0, 30)) = 0.0f;
-        JBRO_FIELD(float, dampingRatio, Range(0, 1)) = 0.0f;
+        JBRO_FIELD(Float, frequency, Range(0, 30)) = 0.0f;
+        JBRO_FIELD(Float, dampingRatio, Range(0, 1)) = 0.0f;
         // 거짓이면 이은 두 오브젝트의 콜라이더가 서로 부딪히지 않는다.
-        JBRO_FIELD(bool, collideConnected) = false;
+        JBRO_FIELD(Bool, collideConnected) = false;
     };
 
     // **경첩 조인트**(D-233, 기존 엔진 `HingeJoint2D`). 두 몸이 한 점을 함께 쓰고 그 둘레로 돈다. 각도는 도(°)이고, 한계는
@@ -279,15 +293,15 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, anchor);
         JBRO_FIELD(Vector2, connectedAnchor);
         // 참이면 조인트가 처음 이어지는 순간 anchor 가 놓인 자리를 상대의 로컬(없으면 월드)로 connectedAnchor 에 적는다.
-        JBRO_FIELD(bool, autoConnectedAnchor) = true;
-        JBRO_FIELD(bool, useLimits) = false;
+        JBRO_FIELD(Bool, autoConnectedAnchor) = true;
+        JBRO_FIELD(Bool, useLimits) = false;
         JBRO_FIELD(Degree, lowerAngle, Range(-360, 360)) = -45.0f;
         JBRO_FIELD(Degree, upperAngle, Range(-360, 360)) = 45.0f;
         // 모터는 이 오브젝트를 상대에 대해 motorSpeed(도/초)로 돌린다. 그러려고 쓸 수 있는 가장 큰 토크가 maxMotorTorque 다.
-        JBRO_FIELD(bool, useMotor) = false;
+        JBRO_FIELD(Bool, useMotor) = false;
         JBRO_FIELD(Degree, motorSpeed) = 0.0f;
-        JBRO_FIELD(float, maxMotorTorque, Range(0, 100000)) = 1000.0f;
-        JBRO_FIELD(bool, collideConnected) = false;
+        JBRO_FIELD(Float, maxMotorTorque, Range(0, 100000)) = 1000.0f;
+        JBRO_FIELD(Bool, collideConnected) = false;
     };
 }
 
@@ -303,7 +317,7 @@ namespace JBro
     };
 
     // 질의가 모든 레이어를 본다(콜라이더의 `layer` 비트와 AND 해서 0 이 아니면 대상이다).
-    inline constexpr std::uint32_t AllPhysicsLayers = 0xFFFFFFFFu;
+    inline constexpr UInt32 AllPhysicsLayers = 0xFFFFFFFFu;
 
     // 반직선·스윕 질의의 결과다(physics-plan §4 의 6, 기존 엔진 `RaycastHit2D`). 스윕에서 "어디까지 갈 수 있는가" 가
     // 거리라서 접촉과 따로 둔다. normal 은 맞은 표면의 바깥(쏜 쪽을 향한다)이다. 출발부터 겹쳐 있으면 distance 0,
@@ -314,6 +328,6 @@ namespace JBro
         Component::BodyType2D bodyType = Component::BodyType2D::Static;
         Vector2 point;
         Vector2 normal;
-        float distance = 0.0f;
+        Float distance = 0.0f;
     };
 }

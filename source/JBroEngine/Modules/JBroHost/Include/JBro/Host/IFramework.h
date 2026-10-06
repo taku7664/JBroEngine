@@ -5,6 +5,9 @@
 #include <JBro/Core/Core.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -44,16 +47,16 @@ namespace JBro
         // 그 텍스처의 크기. 0 이면 아무것도 하지 않는다.
         Extent2D extent;
         // 화면 한가운데가 보는 월드 좌표.
-        float centerX = 0.0f;
-        float centerY = 0.0f;
+        Float centerX = 0.0f;
+        Float centerY = 0.0f;
         // 화면 **세로 절반**이 담는 월드 길이다. 게임 카메라의 `orthographicSize` 와 같은 뜻이라
         // 두 화면의 배율을 같은 수로 견줄 수 있다.
-        float orthographicSize = 5.0f;
-        float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
+        Float orthographicSize = 5.0f;
+        Float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
         // 참이면 화면 레이어만 그린다(UI 보기, D-237). 가운데·크기는 기준 픽셀이다. 거짓이면 월드 레이어만 그린다.
-        bool screenSpace = false;
+        Bool screenSpace = false;
         // 스크립트의 디버그 선을 이 뷰에 그릴지다(D-243). 캔버스 뷰는 기본으로 그린다.
-        bool debugDraw = true;
+        Bool debugDraw = true;
         // 캔버스 뷰에서 **들어가 있는 오브젝트**다(D-157, D-252). 있으면 장면 위에 반투명 흰 막을 덮고 이 오브젝트와
         // 그 자손만 막 위에 다시 그린다 - 무엇을 고치는 중인지가 화면에서 보인다. 없으면 막이 없다. 2D 만 읽는다.
         InstanceId focusObject = InvalidInstanceId;
@@ -61,7 +64,7 @@ namespace JBro
         // 둘레를 노란 2 픽셀 선으로 덧그린다(기존 `COutlineRenderer2D`). 배열은 부르는 쪽이 이 프레임의 그리기가 끝날 때까지 든다.
         // 두 텍스처는 `target` 과 같은 크기·포맷이고 `RenderTarget | Sampled` 다. 하나라도 비면 외곽선이 없다. 2D 만 읽는다.
         const InstanceId* selection = nullptr;
-        std::uint32_t selectionCount = 0;
+        UInt32 selectionCount = 0;
         TextureHandle outlineMask;
         TextureHandle outlineScratch;
 
@@ -69,14 +72,14 @@ namespace JBro
         //
         // 3D 의 편집 카메라는 **바라보는 점 둘레를 도는** 카메라다(궤도 카메라). 2D 처럼
         // 평면을 밀고 당기는 것으로는 뒤를 볼 수 없다. 2D 는 이 값들을 읽지 않는다.
-        float centerZ = 0.0f;
+        Float centerZ = 0.0f;
         // 바라보는 점에서 떨어진 거리. 휠이 이것을 바꾼다.
-        float distance = 12.0f;
+        Float distance = 12.0f;
         // 그 점 둘레의 각(도). 가로 회전과 세로 회전이다.
-        float yawDegrees = 40.0f;
-        float pitchDegrees = -25.0f;
+        Float yawDegrees = 40.0f;
+        Float pitchDegrees = -25.0f;
         // 세로 화각(도). 직교가 아니라 원근이다 - 3D 는 깊이가 보여야 한다.
-        float verticalFieldOfView = 60.0f;
+        Float verticalFieldOfView = 60.0f;
     };
 
     // **레이어 썸네일 하나**(D-288, 기존 `ImEditor::RenderLayerThumbnails`). 그 레이어만 켠 게임 화면의 축소판이다 - 게임 카메라·패럴랙스는 그대로이고,
@@ -87,7 +90,7 @@ namespace JBro
         TextureHandle target;
         Extent2D extent;
         LayerId layer = InvalidLayerId;
-        float clearColor[4] = {0.08f, 0.09f, 0.11f, 1.0f};
+        Float clearColor[4] = {0.08f, 0.09f, 0.11f, 1.0f};
     };
 
     struct FrameworkContext
@@ -119,10 +122,10 @@ namespace JBro
     public:
         virtual ~IFramework() = default;
 
-        virtual bool Initialize(const FrameworkContext& context) = 0;
+        virtual Bool Initialize(const FrameworkContext& context) = 0;
         // Host activates only its successfully opened project, never standalone previews.
         // Hooks must not throw; unbinding precedes destruction of borrowed systems.
-        virtual bool BindScriptContexts() noexcept = 0;
+        virtual Bool BindScriptContexts() noexcept = 0;
         virtual void UnbindScriptContexts() noexcept = 0;
         // 스크립트 DLL 이 요구하는, 이 프레임워크만의 컨텍스트 블록이다(D-37).
         // 호스트는 BindScriptContexts 뒤에 이것을 읽어 DLL 로 넘긴다. 돌려준 배열과
@@ -142,7 +145,7 @@ namespace JBro
         // **게임을 돌릴 것인가**(D-131). 거짓이면 스크립트·물리·네트워크는 서고,
         // 트랜스폼과 추출은 그대로 돈다 - 편집 중에도 화면은 나와야 하기 때문이다.
         // 게임 실행은 늘 참이고 에디터만 이것을 끈다. 프로젝트를 열 때 한 번 더 적용된다.
-        virtual void SetSimulationEnabled(bool enabled)
+        virtual void SetSimulationEnabled(Bool enabled)
         {
             (void)enabled;
         }

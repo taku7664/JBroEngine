@@ -4,6 +4,9 @@
 #include <JBro/Task/TaskGroup.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -16,11 +19,11 @@ namespace JBro::Widget
     // `done`·`total` 은 하위 작업을 태스크마다 더한 것이고, 빈 묶음은 `0 / 0` 이다.
     struct TaskGroupSummary
     {
-        bool found = false;
-        std::uint32_t done = 0;
-        std::uint32_t total = 0;
-        std::uint32_t failed = 0;
-        std::uint32_t taskCount = 0;
+        Bool found = false;
+        UInt32 done = 0;
+        UInt32 total = 0;
+        UInt32 failed = 0;
+        UInt32 taskCount = 0;
         TaskState state = TaskState::Pending;
         const char* nameKey = nullptr;
     };
@@ -41,30 +44,30 @@ namespace JBro::Widget
 
         TaskProgress& Bar();
         TaskProgress& Circle();
-        TaskProgress& TaskList(bool show = true);
+        TaskProgress& TaskList(Bool show = true);
         // 바는 폭·높이(0 이면 남은 폭·한 줄 높이), 원은 `x` 가 지름이다.
         TaskProgress& Size(ImVec2 size);
         // 목록이 이보다 길면 이만큼만 보이고 굴린다.
-        TaskProgress& MaxRows(std::uint32_t rows);
+        TaskProgress& MaxRows(UInt32 rows);
 
         // 묶음이 없으면 아무것도 그리지 않고 거짓이다.
-        bool Draw() const;
-        bool operator()() const;
+        Bool Draw() const;
+        Bool operator()() const;
 
     private:
         const TaskManager& m_tasks;
         TaskGroupId m_group = InvalidTaskGroupId;
-        bool m_circle = false;
-        bool m_list = false;
+        Bool m_circle = false;
+        Bool m_list = false;
         ImVec2 m_size = ImVec2(0.0f, 0.0f);
-        std::uint32_t m_maxRows = 8;
+        UInt32 m_maxRows = 8;
     };
 
     // 상태 표시줄의 도는 묶음 한 칸이다(13 번). 스피너·묶음 이름·짧은 로딩 바·그 밖에 도는 묶음 수(`+N`)를 한 줄에 그린다.
     // 한 칸 전체가 누를 자리이고 누르면 참이다. 묶음이 없으면 아무것도 그리지 않고 거짓이다.
-    bool TaskStatusItem(const TaskManager& tasks, TaskGroupId group, std::uint32_t othersRunning, float barWidth);
+    Bool TaskStatusItem(const TaskManager& tasks, TaskGroupId group, UInt32 othersRunning, Float barWidth);
     // 상태 표시줄의 마지막 알림 글자다. 남은 폭의 오른쪽 끝에 무게 색으로 그린다. 누르면 참이다.
-    bool StatusMessage(const char* text, Severity severity);
+    Bool StatusMessage(const char* text, Severity severity);
     // 태스크 목록 창의 묶음 한 칸이다. 묶음 이름과 로딩 바, 그 아래 태스크 목록이다. 묶음이 없으면 거짓이다.
-    bool TaskGroupSection(const TaskManager& tasks, TaskGroupId group);
+    Bool TaskGroupSection(const TaskManager& tasks, TaskGroupId group);
 }

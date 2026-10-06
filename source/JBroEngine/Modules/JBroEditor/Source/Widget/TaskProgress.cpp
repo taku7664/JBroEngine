@@ -9,6 +9,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -19,7 +23,7 @@ namespace JBro::Widget
             return Loc::TextOr(key.c_str(), key.c_str());
         }
 
-        float Fraction(std::uint32_t done, std::uint32_t total)
+        Float Fraction(UInt32 done, UInt32 total)
         {
             return total == 0 ? 1.0f : static_cast<float>(done) / static_cast<float>(total);
         }
@@ -53,13 +57,13 @@ namespace JBro::Widget
                 CheckMark(0.0f, color);
                 return;
             }
-            const float side = ImGui::GetFrameHeight();
+            const Float side = ImGui::GetFrameHeight();
             const ImVec2 origin = ImGui::GetCursorScreenPos();
             ImGui::Dummy(ImVec2(side, side));
             ImDrawList* draw = ImGui::GetWindowDrawList();
             const ImU32 packed = ImGui::GetColorU32(color);
             const ImVec2 center(origin.x + side * 0.5f, origin.y + side * 0.5f);
-            const float r = side * 0.5f - ImGui::GetStyle().FramePadding.y;
+            const Float r = side * 0.5f - ImGui::GetStyle().FramePadding.y;
             if (state == TaskState::Failed)
             {
                 draw->AddLine(ImVec2(center.x - r * 0.7f, center.y - r * 0.7f), ImVec2(center.x + r * 0.7f, center.y + r * 0.7f), packed, 2.0f);
@@ -75,7 +79,7 @@ namespace JBro::Widget
             }
         }
 
-        void DrawCircle(float fraction, float diameter, const char* overlay)
+        void DrawCircle(Float fraction, Float diameter, const char* overlay)
         {
             if (diameter <= 0.0f)
             {
@@ -84,12 +88,12 @@ namespace JBro::Widget
             const ImVec2 origin = ImGui::GetCursorScreenPos();
             ImGui::Dummy(ImVec2(diameter, diameter));
             ImDrawList* draw = ImGui::GetWindowDrawList();
-            const float thickness = std::max(2.0f, diameter * 0.08f);
-            const float radius = diameter * 0.5f - thickness * 0.5f;
+            const Float thickness = JBro::Max(2.0f, diameter * 0.08f);
+            const Float radius = diameter * 0.5f - thickness * 0.5f;
             const ImVec2 center(origin.x + diameter * 0.5f, origin.y + diameter * 0.5f);
             draw->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_FrameBg), 0, thickness);
-            const float start = -IM_PI * 0.5f;
-            draw->PathArcTo(center, radius, start, start + IM_PI * 2.0f * std::clamp(fraction, 0.0f, 1.0f), 48);
+            const Float start = -IM_PI * 0.5f;
+            draw->PathArcTo(center, radius, start, start + IM_PI * 2.0f * JBro::Clamp(fraction, 0.0f, 1.0f), 48);
             draw->PathStroke(ImGui::GetColorU32(ImGuiCol_PlotHistogram), ImDrawFlags_None, thickness);
             const ImVec2 textSize = ImGui::CalcTextSize(overlay);
             draw->AddText(ImVec2(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f),
@@ -109,7 +113,7 @@ namespace JBro::Widget
         summary.state = found->GetState();
         summary.nameKey = found->GetName().c_str();
         summary.taskCount = found->GetTaskCount();
-        for (std::uint32_t index = 0; index < summary.taskCount; ++index)
+        for (UInt32 index = 0; index < summary.taskCount; ++index)
         {
             const Task& task = found->GetTaskAt(index);
             summary.total += task.GetNumSubTasks();
@@ -137,7 +141,7 @@ namespace JBro::Widget
         return *this;
     }
 
-    TaskProgress& TaskProgress::TaskList(bool show)
+    TaskProgress& TaskProgress::TaskList(Bool show)
     {
         m_list = show;
         return *this;
@@ -149,13 +153,13 @@ namespace JBro::Widget
         return *this;
     }
 
-    TaskProgress& TaskProgress::MaxRows(std::uint32_t rows)
+    TaskProgress& TaskProgress::MaxRows(UInt32 rows)
     {
-        m_maxRows = rows > 0 ? rows : 1;
+        m_maxRows = rows > 0 ? rows : UInt32(1);
         return *this;
     }
 
-    bool TaskProgress::Draw() const
+    Bool TaskProgress::Draw() const
     {
         const TaskGroupSummary summary = SummarizeTaskGroup(m_tasks, m_group);
         if (false == summary.found)
@@ -165,25 +169,25 @@ namespace JBro::Widget
         const TaskGroup& group = *m_tasks.FindGroup(m_group);
         ImGui::PushID(static_cast<int>(m_group & 0x7FFFFFFF));
         char overlay[48];
-        std::snprintf(overlay, sizeof(overlay), "%u / %u", summary.done, summary.total);
-        const float fraction = Fraction(summary.done, summary.total);
+        std::snprintf(overlay, sizeof(overlay), "%u / %u", summary.done.Get(), summary.total.Get());
+        const Float fraction = Fraction(summary.done, summary.total);
         if (m_circle)
         {
             DrawCircle(fraction, m_size.x, overlay);
         }
         else
         {
-            const float width = m_size.x > 0.0f ? m_size.x : -FLT_MIN;
+            const Float width = m_size.x > 0.0f ? m_size.x : -FLT_MIN;
             ImGui::ProgressBar(fraction, ImVec2(width, m_size.y), overlay);
         }
         if (m_list && summary.taskCount > 0)
         {
-            const float rowHeight = ImGui::GetFrameHeightWithSpacing();
-            const float rows = static_cast<float>(std::min(summary.taskCount, m_maxRows));
+            const Float rowHeight = ImGui::GetFrameHeightWithSpacing();
+            const Float rows = static_cast<float>(std::min(summary.taskCount, m_maxRows));
             if (ImGui::BeginChild("##TaskList", ImVec2(0.0f, rows * rowHeight), ImGuiChildFlags_None))
             {
-                const float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
-                for (std::uint32_t index = 0; index < summary.taskCount; ++index)
+                const Float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+                for (UInt32 index = 0; index < summary.taskCount; ++index)
                 {
                     const Task& task = group.GetTaskAt(index);
                     const TaskState state = task.GetState();
@@ -194,9 +198,9 @@ namespace JBro::Widget
                     ImGui::TextColored(StateColor(state), "%s", Translate(task.GetName()));
                     char count[32];
                     std::snprintf(count, sizeof(count), "%u/%u",
-                        task.GetSucceededSubTasks() + task.GetFailedSubTasks(), task.GetNumSubTasks());
-                    const float countWidth = ImGui::CalcTextSize(count).x;
-                    ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - countWidth));
+                        (task.GetSucceededSubTasks() + task.GetFailedSubTasks()).Get(), (task.GetNumSubTasks()).Get());
+                    const Float countWidth = ImGui::CalcTextSize(count).x;
+                    ImGui::SameLine(JBro::Max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - countWidth));
                     ImGui::TextDisabled("%s", count);
                     ImGui::PopID();
                 }
@@ -207,12 +211,12 @@ namespace JBro::Widget
         return true;
     }
 
-    bool TaskProgress::operator()() const
+    Bool TaskProgress::operator()() const
     {
         return Draw();
     }
 
-    bool TaskStatusItem(const TaskManager& tasks, TaskGroupId group, std::uint32_t othersRunning, float barWidth)
+    Bool TaskStatusItem(const TaskManager& tasks, TaskGroupId group, UInt32 othersRunning, Float barWidth)
     {
         const TaskGroupSummary summary = SummarizeTaskGroup(tasks, group);
         if (false == summary.found)
@@ -229,26 +233,26 @@ namespace JBro::Widget
         if (othersRunning > 0)
         {
             ImGui::SameLine();
-            ImGui::TextDisabled("+%u", othersRunning);
+            ImGui::TextDisabled("+%u", static_cast<unsigned>(othersRunning));
         }
         ImGui::EndGroup();
         return ImGui::IsItemClicked(ImGuiMouseButton_Left);
     }
 
-    bool StatusMessage(const char* text, Severity severity)
+    Bool StatusMessage(const char* text, Severity severity)
     {
         if (IsEmptyText(text))
         {
             return false;
         }
-        const float width = ImGui::CalcTextSize(text).x;
-        ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - width));
+        const Float width = ImGui::CalcTextSize(text).x;
+        ImGui::SameLine(JBro::Max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - width));
         ImGui::AlignTextToFramePadding();
         ImGui::TextColored(SeverityColor(severity), "%s", text);
         return ImGui::IsItemClicked(ImGuiMouseButton_Left);
     }
 
-    bool TaskGroupSection(const TaskManager& tasks, TaskGroupId group)
+    Bool TaskGroupSection(const TaskManager& tasks, TaskGroupId group)
     {
         const TaskGroupSummary summary = SummarizeTaskGroup(tasks, group);
         if (false == summary.found)

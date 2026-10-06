@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
@@ -8,9 +10,9 @@ namespace JBro::System
     class Transform3DSystem final : public GameSystem
     {
     public:
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
 
     protected:
-        void OnUpdate(Canvas& canvas, float deltaTime) override;
+        void OnUpdate(Canvas& canvas, Float deltaTime) override;
     };
 }

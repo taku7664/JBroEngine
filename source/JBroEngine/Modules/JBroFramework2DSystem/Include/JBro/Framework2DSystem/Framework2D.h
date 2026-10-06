@@ -20,6 +20,8 @@
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
 #include <JBro/Types/Table.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -31,12 +33,12 @@ namespace JBro
     {
     public:
         ~Framework2D() override;
-        bool Initialize(const FrameworkContext& context) override;
-        bool BindScriptContexts() noexcept override;
+        Bool Initialize(const FrameworkContext& context) override;
+        Bool BindScriptContexts() noexcept override;
         void UnbindScriptContexts() noexcept override;
         void Update() override;
         JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept override;
-        void SetSimulationEnabled(bool enabled) override;
+        void SetSimulationEnabled(Bool enabled) override;
         void SetScreenSpace(const ScreenSpaceFrame& frame) override;
         const ScreenSpaceFrame& GetScreenSpace() const;
         RenderResult Render() override;
@@ -47,23 +49,23 @@ namespace JBro
         void CollectCanvasAssetIds(Array<AssetId>& ids) override;
 
         // 물리의 좁은 판정을 나눌 워커 수(D-223). 호스트가 프로젝트를 연 뒤 `ResolvePhysicsWorkerCount` 로 푼 값을 넘긴다.
-        void           SetPhysicsWorkerCount(std::uint32_t count);
+        void           SetPhysicsWorkerCount(UInt32 count);
         // 물리 레이어 충돌 표를 캔버스의 물리에 넘긴다(D-233). 행 i 의 비트 j 는 레이어 i 와 j 가 서로 지나간다.
-        void           SetPhysicsIgnoredLayers(const std::uint32_t (&rows)[32]);
-        std::uint32_t  GetPhysicsWorkerCount();
+        void           SetPhysicsIgnoredLayers(const UInt32 (&rows)[32]);
+        UInt32  GetPhysicsWorkerCount();
         Canvas*        GetCanvas();
         RenderWorld2D* GetRenderWorld();
         SpriteLibrary* GetSpriteLibrary();
         Layer*         CreateLayer(const char* name = nullptr);
-        bool           DestroyLayer(LayerId layer);
-        bool           MoveLayer(LayerId layer, std::size_t newIndex);
+        Bool           DestroyLayer(LayerId layer);
+        Bool           MoveLayer(LayerId layer, std::size_t newIndex);
         Layer2D*       GetLayer2D(LayerId layer);
 
     private:
         void CreateDefaultSystems();
         void RunFixedSteps();
         // 멈춘 게임의 한 프레임 진행(D-242)에서 그 프레임만 스크립트·물리를 켰다 끈다. 오디오·네트워크는 건드리지 않는다.
-        void SetSteppedSystemsEnabled(bool enabled);
+        void SetSteppedSystemsEnabled(Bool enabled);
         // 지금 정해져 있는 값을 시스템들에 먹인다. 시스템이 선 뒤와 값이 바뀔 때 부른다.
         void ApplySimulationEnabled();
 
@@ -84,10 +86,10 @@ namespace JBro
         Framework2DSystemContext  m_scriptSystems;
         Framework2DServiceContext m_scriptServices;
         ScriptContextBlock        m_scriptBlocks[2];
-        std::uint32_t             m_scriptBlockCount = 0;
-        bool             m_initialized      = false;
+        UInt32             m_scriptBlockCount = 0;
+        Bool             m_initialized      = false;
         // 게임을 돌릴 것인가(D-131). 게임 실행은 손대지 않으므로 기본이 참이다.
-        bool             m_simulationEnabled = true;
+        Bool             m_simulationEnabled = true;
     };
 
     IFramework* CreateFramework2D();

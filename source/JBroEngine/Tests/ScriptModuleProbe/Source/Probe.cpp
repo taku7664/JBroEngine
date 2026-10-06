@@ -56,7 +56,7 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
 
     bool g_loaded = false;
 
-    bool LoadModule(const JBro::ScriptModuleLoadContext* context) noexcept
+    JBro::Bool LoadModule(const JBro::ScriptModuleLoadContext* context) noexcept
     {
         if (context == nullptr
             || false == JBro::ValidateScriptModuleLoadContext(*context))

@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 // 화면 가장자리에서 가려지는 띠의 두께다(표면 픽셀).
 //
@@ -17,13 +19,13 @@ namespace JBro
 {
     struct SafeAreaInsets
     {
-        float left = 0.0f;
-        float top = 0.0f;
-        float right = 0.0f;
-        float bottom = 0.0f;
+        Float left = 0.0f;
+        Float top = 0.0f;
+        Float right = 0.0f;
+        Float bottom = 0.0f;
 
         // 하나라도 0 이 아닌가. 데스크톱에서는 늘 거짓이라 계산을 통째로 건너뛸 수 있다.
-        constexpr bool IsAny() const noexcept
+        constexpr Bool IsAny() const noexcept
         {
             return left > 0.0f || top > 0.0f || right > 0.0f || bottom > 0.0f;
         }

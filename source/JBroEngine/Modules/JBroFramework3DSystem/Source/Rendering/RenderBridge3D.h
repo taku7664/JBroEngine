@@ -2,6 +2,7 @@
 
 #include <JBro/Host/IFramework.h>
 #include <JBro/Types/Size.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -17,7 +18,7 @@ namespace JBro
     namespace Internal
     {
         // 카메라 값을 렌더러의 `CameraParams`(뷰·투영·뷰포트·클리어 색)로. 값이 말이 안 되면 거짓.
-        bool BuildCamera3D(const RenderCamera3D& source, const Extent2D& extent, CameraParams& result);
+        Bool BuildCamera3D(const RenderCamera3D& source, const Extent2D& extent, CameraParams& result);
         // 렌더 월드를 뷰 하나로 렌더러에 넘긴다. 2D 의 `SubmitRenderWorld2D` 와 같은 계약이다.
         // `debugDraw` 가 있으면 월드 텍스트 뒤에 디버그 선을 그린다(D-243). 선은 프레임의 성패에 들지 않는다.
         RenderResult SubmitRenderWorld3D(const RenderWorld3D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw);

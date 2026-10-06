@@ -4,6 +4,8 @@
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Component
 {
@@ -38,12 +40,12 @@ namespace JBro::Component
 
         JBRO_FIELD(CameraProjection3D, projection) = CameraProjection3D::Perspective;
         // 세로 시야각(도). 원근 투영에서만 쓴다.
-        JBRO_FIELD(float, verticalFieldOfView, Range(1, 179)) = 60.0f;
+        JBRO_FIELD(Float, verticalFieldOfView, Range(1, 179)) = 60.0f;
         // 직교 투영의 세로 절반 크기(월드 단위). 2D 와 같은 뜻이다.
-        JBRO_FIELD(float, orthographicSize) = 10.0f;
-        JBRO_FIELD(float, nearPlane) = 0.1f;
-        JBRO_FIELD(float, farPlane)  = 1000.0f;
+        JBRO_FIELD(Float, orthographicSize) = 10.0f;
+        JBRO_FIELD(Float, nearPlane) = 0.1f;
+        JBRO_FIELD(Float, farPlane)  = 1000.0f;
         JBRO_FIELD(Color, clearColor) { 0.08f, 0.09f, 0.11f, 1.0f };
-        JBRO_FIELD(bool,  primary) = false;
+        JBRO_FIELD(Bool,  primary) = false;
     };
 }

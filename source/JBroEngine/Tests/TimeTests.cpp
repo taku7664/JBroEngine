@@ -16,10 +16,14 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -28,7 +32,7 @@ namespace
         }
     }
 
-    bool Near(double left, double right, double tolerance = 1e-6)
+    JBro::Bool Near(double left, double right, double tolerance = 1e-6)
     {
         return std::fabs(left - right) <= tolerance;
     }
@@ -58,8 +62,8 @@ namespace
     void TestStreamMatchesTheReferenceSequence()
     {
         JBro::RandomStream stream(42u, 54u);
-        const std::uint32_t expected[] = {0xa15c02b7u, 0x7b47f409u, 0xba1d3330u, 0x83d2f293u, 0xbfa4784bu, 0xcbed606eu};
-        for (std::uint32_t value : expected)
+        const JBro::UInt32 expected[] = {0xa15c02b7u, 0x7b47f409u, 0xba1d3330u, 0x83d2f293u, 0xbfa4784bu, 0xcbed606eu};
+        for (JBro::UInt32 value : expected)
         {
             Check(stream.NextUInt32() == value, "PCG32 must reproduce the reference demo sequence for seed 42, stream 54");
         }
@@ -70,23 +74,23 @@ namespace
         JBro::RandomStream first(7u);
         JBro::RandomStream second(7u);
         JBro::RandomStream otherStream(7u, 1u);
-        bool differs = false;
-        for (int i = 0; i < 16; ++i)
+        JBro::Bool differs = false;
+        for (JBro::Int32 i = 0; i < 16; ++i)
         {
-            const std::uint32_t a = first.NextUInt32();
+            const JBro::UInt32 a = first.NextUInt32();
             Check(a == second.NextUInt32(), "the same seed must give the same numbers");
             differs = differs || a != otherStream.NextUInt32();
         }
         Check(differs, "another stream number must give another sequence");
 
         const JBro::RandomState saved = first.GetState();
-        std::uint32_t drawn[5];
-        for (std::uint32_t& value : drawn)
+        JBro::UInt32 drawn[5];
+        for (JBro::UInt32& value : drawn)
         {
             value = first.NextUInt32();
         }
         first.SetState(saved);
-        for (std::uint32_t value : drawn)
+        for (JBro::UInt32 value : drawn)
         {
             Check(first.NextUInt32() == value, "restoring the state must replay the same numbers");
         }
@@ -98,30 +102,30 @@ namespace
     void TestIntegerRangeCoversBothEnds()
     {
         JBro::RandomStream stream(99u);
-        bool seen[5] = {};
-        for (int i = 0; i < 10000; ++i)
+        JBro::Bool seen[5] = {};
+        for (JBro::Int32 i = 0; i < 10000; ++i)
         {
-            const std::int32_t value = stream.Range(3, 7);
+            const JBro::Int32 value = stream.Range(3, 7);
             Check(value >= 3 && value <= 7, "Range(3, 7) must stay inside 3..7");
             seen[value - 3] = true;
         }
-        for (bool hit : seen)
+        for (JBro::Bool hit : seen)
         {
             Check(hit, "every value of 3..7 must come up, both ends included");
         }
-        for (int i = 0; i < 1000; ++i)
+        for (JBro::Int32 i = 0; i < 1000; ++i)
         {
-            const std::int32_t swapped = stream.Range(7, 3);
+            const JBro::Int32 swapped = stream.Range(7, 3);
             Check(swapped >= 3 && swapped <= 7, "a reversed range must be swapped, not fail");
         }
         Check(stream.Range(5, 5) == 5, "an empty width is its one value");
-        const std::int32_t low = std::numeric_limits<std::int32_t>::min();
-        const std::int32_t high = std::numeric_limits<std::int32_t>::max();
-        bool negative = false;
-        bool positive = false;
-        for (int i = 0; i < 64; ++i)
+        const JBro::Int32 low = std::numeric_limits<std::int32_t>::min();
+        const JBro::Int32 high = std::numeric_limits<std::int32_t>::max();
+        JBro::Bool negative = false;
+        JBro::Bool positive = false;
+        for (JBro::Int32 i = 0; i < 64; ++i)
         {
-            const std::int32_t value = stream.Range(low, high);
+            const JBro::Int32 value = stream.Range(low, high);
             negative = negative || value < 0;
             positive = positive || value > 0;
         }
@@ -132,14 +136,14 @@ namespace
     void TestIntegerRangeIsUnbiased()
     {
         JBro::RandomStream stream(2026u);
-        std::uint32_t counts[10] = {};
-        constexpr int Draws = 100000;
-        for (int i = 0; i < Draws; ++i)
+        JBro::UInt32 counts[10] = {};
+        constexpr JBro::Int32 Draws = 100000;
+        for (JBro::Int32 i = 0; i < Draws; ++i)
         {
             ++counts[stream.Range(0, 9)];
         }
         double chiSquare = 0.0;
-        for (std::uint32_t count : counts)
+        for (JBro::UInt32 count : counts)
         {
             const double difference = static_cast<double>(count) - Draws / 10.0;
             chiSquare += difference * difference / (Draws / 10.0);
@@ -153,9 +157,9 @@ namespace
     {
         struct Scripted
         {
-            std::uint32_t values[2] = {0u, 1u};
-            std::uint32_t next = 0;
-            std::uint32_t operator()()
+            JBro::UInt32 values[2] = {0u, 1u};
+            JBro::UInt32 next = 0;
+            JBro::UInt32 operator()()
             {
                 return values[next++];
             }
@@ -168,13 +172,13 @@ namespace
     void TestFloatRangeIsHalfOpen()
     {
         JBro::RandomStream stream(5u);
-        for (int i = 0; i < 10000; ++i)
+        for (JBro::Int32 i = 0; i < 10000; ++i)
         {
-            const float value = stream.Value();
+            const JBro::Float value = stream.Value();
             Check(value >= 0.0f && value < 1.0f, "Value() must stay in [0, 1)");
-            const float ranged = stream.Range(1.0f, 2.0f);
+            const JBro::Float ranged = stream.Range(1.0f, 2.0f);
             Check(ranged >= 1.0f && ranged < 2.0f, "Range(1, 2) must stay in [1, 2)");
-            const float swapped = stream.Range(2.0f, 1.0f);
+            const JBro::Float swapped = stream.Range(2.0f, 1.0f);
             Check(swapped >= 1.0f && swapped < 2.0f, "a reversed float range must be swapped");
         }
         Check(stream.Range(2.0f, 2.0f) == 2.0f, "an empty float range is its one value");
@@ -182,22 +186,22 @@ namespace
         // 위 24 비트가 모두 1 이면 값은 1 - 2^-24 이다. 한 ulp 폭에 곱하면 반올림이 max 에 닿는다 - 그때 끝을 열어 둔다.
         struct AllOnes
         {
-            std::uint32_t operator()()
+            JBro::UInt32 operator()()
             {
                 return 0xFFFFFFFFu;
             }
         };
         AllOnes ones;
         Check(JBro::RandomMapping::Value(ones) < 1.0f, "the largest draw must stay below one");
-        const float max = std::nextafter(1.0f, 2.0f);
+        const JBro::Float max = std::nextafter(1.0f, 2.0f);
         Check(JBro::RandomMapping::RangeFloat(ones, 1.0f, max) < max, "a draw rounded up to max must be pulled back below it");
     }
 
     void TestChance()
     {
         JBro::RandomStream stream(11u);
-        int hits = 0;
-        for (int i = 0; i < 100000; ++i)
+        JBro::Int32 hits = 0;
+        for (JBro::Int32 i = 0; i < 100000; ++i)
         {
             Check(false == stream.Chance(0.0f), "a zero chance is never true");
             Check(stream.Chance(1.0f), "a chance of one is always true");
@@ -208,7 +212,7 @@ namespace
 
     // ── TimeSystem ───────────────────────────────────────────────────────
 
-    constexpr float Sixtieth = 1.0f / 60.0f;
+    constexpr JBro::Float Sixtieth = 1.0f / 60.0f;
 
     void TestOneFrameIsOneFixedStep()
     {
@@ -247,7 +251,7 @@ namespace
         Check(Near(frame.unscaledDeltaTime, 0.25), "a five-second hitch must be cut to the 0.25 s ceiling");
         Check(frame.fixedStepCount == 4, "at most four steps run in one frame");
         Check(frame.deltaTime < 5.0f * Sixtieth, "the steps that did not run must not count as game time");
-        for (std::uint32_t i = 0; i < frame.fixedStepCount; ++i)
+        for (JBro::UInt32 i = 0; i < frame.fixedStepCount; ++i)
         {
             time.BeginFixedStep();
         }
@@ -422,12 +426,12 @@ namespace
             fixedDelta = -1.0f;
         }
 
-        int updates = 0;
-        int fixedUpdates = 0;
-        float updateDelta = -1.0f;
-        float fixedDelta = -1.0f;
-        bool updateInFixedStep = true;
-        bool fixedInFixedStep = false;
+        JBro::Int32 updates = 0;
+        JBro::Int32 fixedUpdates = 0;
+        JBro::Float updateDelta = -1.0f;
+        JBro::Float fixedDelta = -1.0f;
+        JBro::Bool updateInFixedStep = true;
+        JBro::Bool fixedInFixedStep = false;
         double fixedTime = -1.0;
     };
 
@@ -499,12 +503,12 @@ namespace
 
     void TestRandomServiceUsesTheEngineStream()
     {
-        const bool echo = JBro::Log::GetEchoToConsole();
+        const JBro::Bool echo = JBro::Log::GetEchoToConsole();
         JBro::Log::SetEchoToConsole(false);
         JBro::System::RandomSystem random;
         random.Reseed(0);
         Check(random.GetSeed() != 0, "a zero seed asks for a fresh one, never zero itself");
-        const std::uint64_t logged = JBro::Log::GetCount();
+        const JBro::UInt64 logged = JBro::Log::GetCount();
         random.Reseed(1234u);
         JBro::Log::SetEchoToConsole(echo);
         Check(random.GetSeed() == 1234u, "a configured seed is used as it is");
@@ -514,7 +518,7 @@ namespace
         const JBro::Service::RandomService& service = JBro::GetServiceContext().Random;
         service.SetSeed(42u);
         JBro::RandomStream reference(42u);
-        for (int i = 0; i < 8; ++i)
+        for (JBro::Int32 i = 0; i < 8; ++i)
         {
             Check(service.Range(0, 1000) == reference.Range(0, 1000), "the service must map the engine stream exactly like RandomStream");
         }
@@ -528,13 +532,13 @@ namespace
         Check(firstCopy.NextUInt32() == second.NextUInt32(), "a stream made from a fixed seed is itself fixed");
 
         const JBro::RandomState saved = service.GetState();
-        const float a = service.Value();
+        const JBro::Float a = service.Value();
         service.SetState(saved);
         Check(service.Value() == a, "the engine state can be saved and restored");
     }
 }
 
-int RunTimeTests()
+JBro::Int32 RunTimeTests()
 {
     try
     {

@@ -4,6 +4,9 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -13,22 +16,22 @@ namespace JBro::Service
     {
     public:
         // Replaces hit. A miss or an unavailable system clears the previous result.
-        bool Raycast(Vector2 origin, Vector2 direction, float distance, RaycastHit2D& hit,
-            std::uint32_t layerMask = AllPhysicsLayers) const;
-        void RaycastAll(Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits,
-            std::uint32_t layerMask = AllPhysicsLayers) const;
+        Bool Raycast(Vector2 origin, Vector2 direction, Float distance, RaycastHit2D& hit,
+            UInt32 layerMask = AllPhysicsLayers) const;
+        void RaycastAll(Vector2 origin, Vector2 direction, Float distance, Array<RaycastHit2D>& hits,
+            UInt32 layerMask = AllPhysicsLayers) const;
 
         // Replaces results with unique object handles. Reserve before repeated queries.
         // An unavailable system clears results without releasing the caller's capacity.
         void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
-            std::uint32_t layerMask = AllPhysicsLayers) const;
-        GameObjectHandle OverlapPoint(Vector2 point, std::uint32_t layerMask = AllPhysicsLayers) const;
-        void OverlapCircle(Vector2 center, float radius, Array<GameObjectHandle>& results,
-            std::uint32_t layerMask = AllPhysicsLayers) const;
+            UInt32 layerMask = AllPhysicsLayers) const;
+        GameObjectHandle OverlapPoint(Vector2 point, UInt32 layerMask = AllPhysicsLayers) const;
+        void OverlapCircle(Vector2 center, Float radius, Array<GameObjectHandle>& results,
+            UInt32 layerMask = AllPhysicsLayers) const;
 
-        bool CircleCast(Vector2 origin, float radius, Vector2 direction, float distance, RaycastHit2D& hit,
-            std::uint32_t layerMask = AllPhysicsLayers) const;
-        bool BoxCast(Vector2 center, Vector2 halfExtents, float angle, Vector2 direction, float distance,
-            RaycastHit2D& hit, std::uint32_t layerMask = AllPhysicsLayers) const;
+        Bool CircleCast(Vector2 origin, Float radius, Vector2 direction, Float distance, RaycastHit2D& hit,
+            UInt32 layerMask = AllPhysicsLayers) const;
+        Bool BoxCast(Vector2 center, Vector2 halfExtents, Float angle, Vector2 direction, Float distance,
+            RaycastHit2D& hit, UInt32 layerMask = AllPhysicsLayers) const;
     };
 }

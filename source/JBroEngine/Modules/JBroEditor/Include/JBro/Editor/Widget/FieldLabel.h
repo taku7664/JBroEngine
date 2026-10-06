@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Widget
 {
@@ -15,9 +16,9 @@ namespace JBro::Widget
         explicit FieldLabel(const char* text);
 
         FieldLabel& Tooltip(const char* text);
-        FieldLabel& Required(bool required = true);
-        FieldLabel& Invalid(bool invalid = true);
-        FieldLabel& Disabled(bool disabled = true);
+        FieldLabel& Required(Bool required = true);
+        FieldLabel& Invalid(Bool invalid = true);
+        FieldLabel& Disabled(Bool disabled = true);
 
         void Draw() const;
         void operator()() const;
@@ -25,9 +26,9 @@ namespace JBro::Widget
     private:
         const char* m_text = nullptr;
         const char* m_tooltip = nullptr;
-        bool m_required = false;
-        bool m_invalid = false;
-        bool m_disabled = false;
+        Bool m_required = false;
+        Bool m_invalid = false;
+        Bool m_disabled = false;
     };
 
     // 구역을 가르는 머리다. 제목이 비면 그냥 선이다.
@@ -37,8 +38,8 @@ namespace JBro::Widget
         explicit SectionHeader(const char* title);
 
         SectionHeader& Description(const char* text);
-        SectionHeader& SpacingBefore(bool spacing = true);
-        SectionHeader& SpacingAfter(bool spacing = true);
+        SectionHeader& SpacingBefore(Bool spacing = true);
+        SectionHeader& SpacingAfter(Bool spacing = true);
 
         void Draw() const;
         void operator()() const;
@@ -46,8 +47,8 @@ namespace JBro::Widget
     private:
         const char* m_title = nullptr;
         const char* m_description = nullptr;
-        bool m_spacingBefore = false;
-        bool m_spacingAfter = true;
+        Bool m_spacingBefore = false;
+        Bool m_spacingAfter = true;
     };
 
     // 무엇이 잘못됐는지 한 줄로 말한다. 무게에 따라 색과 머리글자가 달라진다.
@@ -56,7 +57,7 @@ namespace JBro::Widget
     public:
         ValidationMessage(Severity severity, const char* text);
 
-        ValidationMessage& Wrapped(bool wrapped = true);
+        ValidationMessage& Wrapped(Bool wrapped = true);
 
         void Draw() const;
         void operator()() const;
@@ -64,6 +65,6 @@ namespace JBro::Widget
     private:
         Severity m_severity = Severity::Info;
         const char* m_text = nullptr;
-        bool m_wrapped = true;
+        Bool m_wrapped = true;
     };
 }

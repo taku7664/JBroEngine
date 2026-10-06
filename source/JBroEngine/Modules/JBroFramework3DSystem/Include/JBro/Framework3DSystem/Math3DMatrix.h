@@ -5,6 +5,9 @@
 
 #include <cmath>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 // `Matrix4x4`(JBroCore 소유)를 3D 값에서 만드는 함수다. 컴포넌트 라이브러리에는 두지 않는다 -
 // 이 함수들은 좌표계와 깊이 범위를 전제하고, 그 규약은 시스템 단계의 것이다(framework3d-plan §2.2).
@@ -16,9 +19,9 @@ namespace JBro
     // 회전(단위 사원수) 3x3 을 4x4 의 왼쪽 위에 놓는다.
     inline Matrix4x4 MakeRotationMatrix(const Quaternion& q)
     {
-        const float xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
-        const float xy = q.x * q.y, xz = q.x * q.z, yz = q.y * q.z;
-        const float wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
+        const Float xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
+        const Float xy = q.x * q.y, xz = q.x * q.z, yz = q.y * q.z;
+        const Float wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
         return {{
             1.0f - 2.0f * (yy + zz), 2.0f * (xy - wz),        2.0f * (xz + wy),        0.0f,
             2.0f * (xy + wz),        1.0f - 2.0f * (xx + zz), 2.0f * (yz - wx),        0.0f,
@@ -31,7 +34,7 @@ namespace JBro
         const Vector3& position, const Quaternion& rotation, const Vector3& scale)
     {
         Matrix4x4 result = MakeRotationMatrix(rotation);
-        for (std::uint32_t row = 0; row < 3; ++row)
+        for (UInt32 row = 0; row < 3; ++row)
         {
             result.values[row * 4 + 0] *= scale.x;
             result.values[row * 4 + 1] *= scale.y;
@@ -56,8 +59,8 @@ namespace JBro
     }
 
     // 원근 투영. 세로 시야각은 라디안, 깊이 0..1, -Z 를 본다. 값이 말이 안 되면 거짓이다.
-    inline bool MakePerspectiveMatrix(
-        float verticalFieldOfViewRadians, float aspect, float nearPlane, float farPlane, Matrix4x4& out)
+    inline Bool MakePerspectiveMatrix(
+        Float verticalFieldOfViewRadians, Float aspect, Float nearPlane, Float farPlane, Matrix4x4& out)
     {
         if (false == std::isfinite(verticalFieldOfViewRadians) || verticalFieldOfViewRadians <= 0.0f
             || verticalFieldOfViewRadians >= 3.14159265f
@@ -67,8 +70,8 @@ namespace JBro
         {
             return false;
         }
-        const float focal = 1.0f / std::tan(verticalFieldOfViewRadians * 0.5f);
-        const float depth = nearPlane - farPlane;
+        const Float focal = 1.0f / std::tan(verticalFieldOfViewRadians * 0.5f);
+        const Float depth = nearPlane - farPlane;
         out = {{
             focal / aspect, 0.0f,  0.0f,             0.0f,
             0.0f,           focal, 0.0f,             0.0f,
@@ -78,8 +81,8 @@ namespace JBro
     }
 
     // 직교 투영. `halfHeight` 는 세로 절반 크기(월드 단위). 깊이는 -Z 방향으로 near..far 를 0..1 로.
-    inline bool MakeOrthographicMatrix(
-        float halfHeight, float aspect, float nearPlane, float farPlane, Matrix4x4& out)
+    inline Bool MakeOrthographicMatrix(
+        Float halfHeight, Float aspect, Float nearPlane, Float farPlane, Matrix4x4& out)
     {
         if (false == std::isfinite(halfHeight) || halfHeight <= 0.0f
             || false == std::isfinite(aspect) || aspect <= 0.0f
@@ -88,8 +91,8 @@ namespace JBro
         {
             return false;
         }
-        const float halfWidth = halfHeight * aspect;
-        const float depth = farPlane - nearPlane;
+        const Float halfWidth = halfHeight * aspect;
+        const Float depth = farPlane - nearPlane;
         out = {{
             1.0f / halfWidth, 0.0f,              0.0f,          0.0f,
             0.0f,             1.0f / halfHeight, 0.0f,          0.0f,
@@ -99,13 +102,13 @@ namespace JBro
     }
 
     // 점 하나를 행렬로 옮긴다(w 나눗셈 포함). 테스트와 기즈모가 쓴다.
-    inline bool TransformPoint(const Matrix4x4& matrix, const Vector3& point, Vector3& out)
+    inline Bool TransformPoint(const Matrix4x4& matrix, const Vector3& point, Vector3& out)
     {
-        const float* m = matrix.values;
-        const float x = m[0] * point.x + m[1] * point.y + m[2] * point.z + m[3];
-        const float y = m[4] * point.x + m[5] * point.y + m[6] * point.z + m[7];
-        const float z = m[8] * point.x + m[9] * point.y + m[10] * point.z + m[11];
-        const float w = m[12] * point.x + m[13] * point.y + m[14] * point.z + m[15];
+        const Float* m = matrix.values;
+        const Float x = m[0] * point.x + m[1] * point.y + m[2] * point.z + m[3];
+        const Float y = m[4] * point.x + m[5] * point.y + m[6] * point.z + m[7];
+        const Float z = m[8] * point.x + m[9] * point.y + m[10] * point.z + m[11];
+        const Float w = m[12] * point.x + m[13] * point.y + m[14] * point.z + m[15];
         if (w == 0.0f || false == std::isfinite(w))
         {
             return false;

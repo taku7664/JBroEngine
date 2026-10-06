@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -186,11 +187,11 @@ namespace JBro
     // 이름은 열거자 이름 그대로이고, 읽을 때는 기존 엔진의 옛 이름(`Num0`·`LeftCtrl`·`Equals`·`Grave`·`Numpad0` 따위)도 받는다.
     // 모르는 값이면 이름은 빈 글자, 찾기는 거짓이다.
     const char* GetKeyName(Key key);
-    bool FindKeyByName(const char* name, Key& key);
+    Bool FindKeyByName(const char* name, Key& key);
     const char* GetMouseButtonName(MouseButton button);
-    bool FindMouseButtonByName(const char* name, MouseButton& button);
+    Bool FindMouseButtonByName(const char* name, MouseButton& button);
     const char* GetGamepadButtonName(GamepadButton button);
-    bool FindGamepadButtonByName(const char* name, GamepadButton& button);
+    Bool FindGamepadButtonByName(const char* name, GamepadButton& button);
     const char* GetGamepadAxisName(GamepadAxis axis);
-    bool FindGamepadAxisByName(const char* name, GamepadAxis& axis);
+    Bool FindGamepadAxisByName(const char* name, GamepadAxis& axis);
 }

@@ -8,6 +8,8 @@
 
 #include <cstdint>
 #include <string_view>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -32,16 +34,16 @@ namespace JBro
         void SetFallbackLocale(const char* locale);
         const String& GetFallbackLocale() const;
         void Refresh();
-        std::uint32_t GetTableCount() const;
+        UInt32 GetTableCount() const;
 
         // 이 구현을 가리키는 블록이다. 주소가 바뀌지 않으므로 엔진이 한 번 묶는다.
         const LocalizationSystemContext& GetSystemContext() const;
         const LocalizationServiceContext& GetServiceContext() const;
 
         std::size_t GetLocale(char* buffer, std::size_t capacity) const noexcept override;
-        bool SetLocale(const char* locale) noexcept override;
-        bool Find(const char* key, std::size_t keyLength, const char*& text, std::size_t& textLength) const noexcept override;
-        std::uint32_t GetRevision() const noexcept override;
+        Bool SetLocale(const char* locale) noexcept override;
+        Bool Find(const char* key, std::size_t keyLength, const char*& text, std::size_t& textLength) const noexcept override;
+        UInt32 GetRevision() const noexcept override;
 
         // 호스트 쪽 편의다. `GetLocale` 과 같되 버퍼가 없다.
         const String& GetLocaleName() const;
@@ -52,21 +54,21 @@ namespace JBro
         struct HeldTable
         {
             AssetHandle handle;
-            std::uint32_t dataGeneration = 0;
+            UInt32 dataGeneration = 0;
         };
 
         void ReleaseTables();
         void Gather();
-        bool FindIn(const String& locale, std::string_view key, const char*& text, std::size_t& textLength) const;
+        Bool FindIn(const String& locale, std::string_view key, const char*& text, std::size_t& textLength) const;
 
         AssetSystem* m_assets = nullptr;
         const AssetRegistry* m_registry = nullptr;
-        std::uint64_t m_registryRevision = 0;
-        bool m_gathered = false;
+        UInt64 m_registryRevision = 0;
+        Bool m_gathered = false;
         Array<HeldTable> m_tables;
         String m_locale;
         String m_fallback;
-        std::uint32_t m_revision = 1;
+        UInt32 m_revision = 1;
         LocalizationSystemContext m_systemContext;
         LocalizationServiceContext m_serviceContext;
     };

@@ -13,6 +13,11 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -36,13 +41,13 @@ namespace JBro::Widget
         return *this;
     }
 
-    SearchBox& SearchBox::Width(float width)
+    SearchBox& SearchBox::Width(Float width)
     {
         m_width = width;
         return *this;
     }
 
-    SearchBox& SearchBox::ShowClear(bool show)
+    SearchBox& SearchBox::ShowClear(Bool show)
     {
         m_showClear = show;
         return *this;
@@ -60,18 +65,18 @@ namespace JBro::Widget
         return *this;
     }
 
-    bool SearchBox::Draw() const
+    Bool SearchBox::Draw() const
     {
-        bool changed = false;
+        Bool changed = false;
         ImGui::PushID(m_id != nullptr ? m_id : "##search_box");
 
-        const bool drawClear = m_showClear && m_text.size() > 0;
-        const float clearWidth = drawClear ? ImGui::GetFrameHeight() : 0.0f;
-        const float full =
-            m_width != 0.0f ? m_width : ImGui::GetContentRegionAvail().x;
-        const float fieldWidth = drawClear
-            ? std::max(1.0f, full - clearWidth - ImGui::GetStyle().ItemSpacing.x)
-            : std::max(1.0f, full);
+        const Bool drawClear = m_showClear && m_text.size() > 0;
+        const Float clearWidth = drawClear ? ImGui::GetFrameHeight() : 0.0f;
+        const Float full =
+            m_width != 0.0f ? m_width : Float(ImGui::GetContentRegionAvail().x);
+        const Float fieldWidth = drawClear
+            ? JBro::Max(1.0f, full - clearWidth - ImGui::GetStyle().ItemSpacing.x)
+            : JBro::Max(1.0f, full);
 
         char buffer[SearchCapacity] = {};
         const std::size_t copied =
@@ -80,17 +85,17 @@ namespace JBro::Widget
 
         // **칸 안 왼쪽에 돋보기가 선다**(D-278). 글자가 그 뒤에서 시작하도록 칸의 가로 여백을 아이콘 폭만큼 늘린다.
         const ImVec2 padding = ImGui::GetStyle().FramePadding;
-        const float iconSpace = ImGui::GetTextLineHeight();
+        const Float iconSpace = ImGui::GetTextLineHeight();
         ImGui::SetNextItemWidth(fieldWidth);
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(padding.x + iconSpace, padding.y));
-        const bool edited = ImGui::InputTextWithHint("##input",
+        const Bool edited = ImGui::InputTextWithHint("##input",
             m_hint != nullptr ? m_hint : Loc::TextOr(LocKeys::CommonSearch, "Search"),
             buffer, sizeof(buffer), m_flags);
         ImGui::PopStyleVar();
         {
             const ImVec2 fieldMin = ImGui::GetItemRectMin();
             const ImVec2 fieldMax = ImGui::GetItemRectMax();
-            const float iconLeft = fieldMin.x + padding.x * 0.5f;
+            const Float iconLeft = fieldMin.x + padding.x * 0.5f;
             DrawGlyphCentered(Icons::Search, ImVec2(iconLeft, fieldMin.y), ImVec2(iconLeft + iconSpace, fieldMax.y),
                 ImGui::GetColorU32(ImGuiCol_TextDisabled));
         }
@@ -119,7 +124,7 @@ namespace JBro::Widget
         return changed;
     }
 
-    bool SearchBox::operator()() const
+    Bool SearchBox::operator()() const
     {
         return Draw();
     }
@@ -141,7 +146,7 @@ namespace JBro::Widget
         return *this;
     }
 
-    StatusBadge& StatusBadge::MinWidth(float width)
+    StatusBadge& StatusBadge::MinWidth(Float width)
     {
         m_minWidth = width;
         return *this;
@@ -153,7 +158,7 @@ namespace JBro::Widget
         const ImGuiStyle& style = ImGui::GetStyle();
         const ImVec2 textSize = ImGui::CalcTextSize(text);
         // 글자 앞에 단계 아이콘이 선다(D-278). 글줄 높이의 정사각형과 그 뒤 여백만큼 넓다.
-        const float iconWidth = textSize.y + style.ItemInnerSpacing.x;
+        const Float iconWidth = textSize.y + style.ItemInnerSpacing.x;
         const ImVec2 size(
             std::max(m_minWidth, iconWidth + textSize.x + style.FramePadding.x * 2.0f),
             textSize.y + style.FramePadding.y * 2.0f);
@@ -202,13 +207,13 @@ namespace JBro::Widget
         return *this;
     }
 
-    IconButton& IconButton::Selected(bool selected)
+    IconButton& IconButton::Selected(Bool selected)
     {
         m_selected = selected;
         return *this;
     }
 
-    IconButton& IconButton::Disabled(bool disabled)
+    IconButton& IconButton::Disabled(Bool disabled)
     {
         m_disabled = disabled;
         return *this;
@@ -220,7 +225,7 @@ namespace JBro::Widget
         return *this;
     }
 
-    bool IconButton::Draw() const
+    Bool IconButton::Draw() const
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
         StyleScope style;
@@ -233,9 +238,9 @@ namespace JBro::Widget
                 ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive));
         }
         // 아이콘 칸은 줄 높이의 정사각형이다. 글자가 붙으면 그 뒤로 글자 폭과 여백만큼 늘린다.
-        const float square = ImGui::GetFrameHeight();
-        const bool hasCaption = m_caption != nullptr && *m_caption != '\0';
-        const float captionWidth = hasCaption
+        const Float square = ImGui::GetFrameHeight();
+        const Bool hasCaption = m_caption != nullptr && *m_caption != '\0';
+        const Float captionWidth = hasCaption
             ? ImGui::CalcTextSize(m_caption).x + ImGui::GetStyle().FramePadding.x
             : 0.0f;
         ImVec2 size = m_size;
@@ -247,7 +252,7 @@ namespace JBro::Widget
         {
             size.y = square;
         }
-        bool clicked = false;
+        Bool clicked = false;
         {
             DisableScope disable(m_disabled);
             // 이름 없이 단추를 그리고 그 위에 아이콘을 얹는다. ImGui 가 이름을 그리면 줄 상자로 맞춰 처진다(D-277).
@@ -255,14 +260,14 @@ namespace JBro::Widget
             const ImVec2 min = ImGui::GetItemRectMin();
             const ImVec2 max = ImGui::GetItemRectMax();
             const ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
-            const float iconRight = hasCaption ? min.x + square : max.x;
+            const Float iconRight = hasCaption ? min.x + square : Float(max.x);
             if (m_icon != nullptr)
             {
                 DrawGlyphCentered(m_icon, min, ImVec2(iconRight, max.y), color);
             }
             if (hasCaption)
             {
-                const float textY = min.y + (max.y - min.y - ImGui::GetTextLineHeight()) * 0.5f;
+                const Float textY = min.y + (max.y - min.y - ImGui::GetTextLineHeight()) * 0.5f;
                 ImGui::GetWindowDrawList()->AddText(ImVec2(iconRight, textY), color, m_caption);
             }
         }
@@ -274,19 +279,22 @@ namespace JBro::Widget
         return clicked && false == m_disabled;
     }
 
-    bool IconButton::operator()() const
+    Bool IconButton::operator()() const
     {
         return Draw();
     }
 
-    bool Checkbox(const char* id, bool& value)
+    Bool Checkbox(const char* id, Bool& value)
     {
-        return ImGui::Checkbox(id != nullptr ? id : "##check", &value);
+        bool raw = value;
+        const bool changed = ImGui::Checkbox(id != nullptr ? id : "##check", &raw);
+        value = raw;
+        return changed;
     }
 
-    bool LayerMaskField(const char* id, ArrayView<const char* const> names, std::uint32_t& mask)
+    Bool LayerMaskField(const char* id, ArrayView<const char* const> names, UInt32& mask)
     {
-        const auto nameOf = [&](std::uint32_t bit, char* buffer, std::size_t capacity) -> const char* {
+        const auto nameOf = [&](UInt32 bit, char* buffer, std::size_t capacity) -> const char* {
             if (bit < names.Size() && names[bit] != nullptr && names[bit][0] != '\0')
             {
                 return names[bit];
@@ -306,14 +314,14 @@ namespace JBro::Widget
         else
         {
             std::size_t used = 0;
-            for (std::uint32_t bit = 0; bit < 32 && used + 1 < sizeof(preview); ++bit)
+            for (UInt32 bit = 0; bit < 32 && used + 1 < sizeof(preview); ++bit)
             {
                 if ((mask & (1u << bit)) == 0u)
                 {
                     continue;
                 }
                 char number[8];
-                const int wrote = std::snprintf(preview + used, sizeof(preview) - used, used == 0 ? "%s" : ", %s",
+                const Int32 wrote = std::snprintf(preview + used, sizeof(preview) - used, used == 0 ? "%s" : ", %s",
                     nameOf(bit, number, sizeof(number)));
                 if (wrote < 0)
                 {
@@ -323,7 +331,7 @@ namespace JBro::Widget
             }
         }
 
-        bool changed = false;
+        Bool changed = false;
         ImGui::SetNextItemWidth(-FLT_MIN);
         if (ImGui::BeginCombo(id != nullptr ? id : "##layers", preview))
         {
@@ -340,10 +348,10 @@ namespace JBro::Widget
                 mask = 0u;
             }
             ImGui::Separator();
-            for (std::uint32_t bit = 0; bit < 32; ++bit)
+            for (UInt32 bit = 0; bit < 32; ++bit)
             {
-                const bool named = bit < names.Size() && names[bit] != nullptr && names[bit][0] != '\0';
-                bool on = (mask & (1u << bit)) != 0u;
+                const Bool named = bit < names.Size() && names[bit] != nullptr && names[bit][0] != '\0';
+                Bool on = (mask & (1u << bit)) != 0u;
                 // 이름 없는 레이어는 켜져 있을 때만 보인다 - 서른두 줄을 늘 늘어놓지 않는다.
                 if (false == named && false == on)
                 {
@@ -351,7 +359,10 @@ namespace JBro::Widget
                 }
                 char number[8];
                 ImGui::PushID(static_cast<int>(bit));
-                if (ImGui::Checkbox(nameOf(bit, number, sizeof(number)), &on))
+                bool rawOn = on;
+                const bool toggled = ImGui::Checkbox(nameOf(bit, number, sizeof(number)), &rawOn);
+                on = rawOn;
+                if (toggled)
                 {
                     mask = on ? (mask | (1u << bit)) : (mask & ~(1u << bit));
                     changed = true;
@@ -363,11 +374,11 @@ namespace JBro::Widget
         return changed;
     }
 
-    bool ObjectField(const char* id, ArrayView<const char* const> names, int& chosen, DragKind dropKind,
-        std::uint64_t& dropped)
+    Bool ObjectField(const char* id, ArrayView<const char* const> names, Int32& chosen, DragKind dropKind,
+        UInt64& dropped)
     {
         dropped = 0;
-        bool changed = FilterCombo(id != nullptr ? id : "##object", names, chosen)
+        Bool changed = FilterCombo(id != nullptr ? id : "##object", names, chosen)
             .EmptyText(Loc::TextOr(LocKeys::InspectorObjectMissing, "Missing object"))
             .ShowFilter(true)
             .Draw();
@@ -382,14 +393,24 @@ namespace JBro::Widget
         return changed;
     }
 
-    bool ColorField(const char* id, float rgba[4])
+    Bool ColorField(const char* id, Float rgba[4])
     {
-        return ImGui::ColorEdit4(id != nullptr ? id : "##color", rgba,
+        // ImGui 는 float[4] 를 받는다. 떠서 넘기고 바뀌었을 때만 되돌려 쓴다.
+        float raw[4] = {rgba[0], rgba[1], rgba[2], rgba[3]};
+        const bool changed = ImGui::ColorEdit4(id != nullptr ? id : "##color", raw,
             ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+        if (changed)
+        {
+            for (int channel = 0; channel < 4; ++channel)
+            {
+                rgba[channel] = raw[channel];
+            }
+        }
+        return changed;
     }
 
-    bool ScalarRunField(const char* id, float* values, int count, float speed,
-        bool hasRange, float rangeMin, float rangeMax)
+    Bool ScalarRunField(const char* id, Float* values, Int32 count, Float speed,
+        Bool hasRange, Float rangeMin, Float rangeMax)
     {
         const char* label = id != nullptr ? id : "##run";
         if (hasRange)
@@ -400,9 +421,9 @@ namespace JBro::Widget
         return ImGui::DragScalarN(label, ImGuiDataType_Float, values, count, speed);
     }
 
-    bool Splitter(
-        const char* id, bool vertical, float thickness, float* size,
-        float minSize, float maxSize)
+    Bool Splitter(
+        const char* id, Bool vertical, Float thickness, Float* size,
+        Float minSize, Float maxSize)
     {
         if (size == nullptr)
         {
@@ -415,8 +436,8 @@ namespace JBro::Widget
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         ImGui::InvisibleButton("##splitter", handleSize);
 
-        const bool hovered = ImGui::IsItemHovered();
-        const bool active = ImGui::IsItemActive();
+        const Bool hovered = ImGui::IsItemHovered();
+        const Bool active = ImGui::IsItemActive();
         if (hovered || active)
         {
             ImGui::SetMouseCursor(vertical
@@ -424,11 +445,11 @@ namespace JBro::Widget
                 : ImGuiMouseCursor_ResizeNS);
         }
 
-        bool changed = false;
+        Bool changed = false;
         if (active)
         {
             const ImVec2 delta = ImGui::GetIO().MouseDelta;
-            const float moved = vertical ? delta.x : delta.y;
+            const Float moved = vertical ? delta.x : delta.y;
             if (moved != 0.0f)
             {
                 *size = std::clamp(*size + moved, minSize, maxSize);
@@ -448,7 +469,7 @@ namespace JBro::Widget
         return changed;
     }
 
-    bool NameListEdit(const char* id, String& buffer, float lines)
+    Bool NameListEdit(const char* id, String& buffer, Float lines)
     {
         // **글자 칸이 이미 하는 일이다.** `String` 과 ImGui 의 `char` 버퍼 사이를 옮겨
         // 담는 것도, 여러 줄로 서는 것도, 아무도 치지 않았을 때 값을 그대로 두는 것도

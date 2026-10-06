@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
@@ -21,10 +23,10 @@ namespace JBro::Widget
         // 그 자리의 폭을 준다 - 다 쓰면 옆의 것(행 끝의 삭제 표시)이 밀려난다(D-89).
         explicit FormLayout(
             const char* id,
-            float spacing = 4.0f,
+            Float spacing = 4.0f,
             ImVec2 padding = ImVec2(2.0f, 1.0f),
-            float labelWidth = 0.0f,
-            float width = 0.0f);
+            Float labelWidth = 0.0f,
+            Float width = 0.0f);
         ~FormLayout();
 
         FormLayout(const FormLayout&) = delete;
@@ -102,18 +104,18 @@ namespace JBro::Widget
             Open();
         }
 
-        bool IsOpen() const;
+        Bool IsOpen() const;
 
     private:
         void Open();
         void Close();
 
         const char* m_id = nullptr;
-        bool m_open = false;
-        float m_spacing = 0.0f;
+        Bool m_open = false;
+        Float m_spacing = 0.0f;
         ImVec2 m_padding;
-        float m_labelWidth = 0.0f;
-        float m_width = 0.0f;
+        Float m_labelWidth = 0.0f;
+        Float m_width = 0.0f;
         ImVec2 m_rowMin;
         ImVec2 m_rowMax;
         StyleScope m_style;

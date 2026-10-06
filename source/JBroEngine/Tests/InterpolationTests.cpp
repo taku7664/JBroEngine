@@ -5,10 +5,13 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -17,7 +20,7 @@ namespace
         }
     }
 
-    bool Near(float left, float right, float tolerance = 0.0005f)
+    JBro::Bool Near(JBro::Float left, JBro::Float right, JBro::Float tolerance = 0.0005f)
     {
         return std::fabs(left - right) <= tolerance;
     }
@@ -57,11 +60,11 @@ namespace
     // 목표에 닿지 않고 남는다 - 화면에서 1 픽셀씩 밀린 채 멈추는 종류의 결함이다.
     void TestEveryKindStartsAtZeroAndEndsAtOne()
     {
-        for (int index = 0; index < static_cast<int>(JBro::EaseKind::Count); ++index)
+        for (JBro::Int32 index = 0; index < static_cast<int>(JBro::EaseKind::Count); ++index)
         {
-            const JBro::EaseKind kind = static_cast<JBro::EaseKind>(index);
-            const float atZero = JBro::Ease(kind, 0.0f);
-            const float atOne = JBro::Ease(kind, 1.0f);
+            const JBro::EaseKind kind = static_cast<JBro::EaseKind>(index.Get());
+            const JBro::Float atZero = JBro::Ease(kind, 0.0f);
+            const JBro::Float atOne = JBro::Ease(kind, 1.0f);
             if (false == Near(atZero, 0.0f) || false == Near(atOne, 1.0f))
             {
                 std::cout << "  " << NameOf(kind) << ": 0 -> " << atZero << ", 1 -> " << atOne << '\n';
@@ -75,9 +78,9 @@ namespace
     // 여기에 무엇이라도 섞이면 "곡선 없음" 을 고를 수 없게 된다.
     void TestLinearIsIdentity()
     {
-        for (int step = 0; step <= 20; ++step)
+        for (JBro::Int32 step = 0; step <= 20; ++step)
         {
-            const float t = static_cast<float>(step) / 20.0f;
+            const JBro::Float t = static_cast<float>(step) / 20.0f;
             Check(Near(JBro::Ease(JBro::EaseKind::Linear, t), t), "linear returns the progress unchanged");
         }
     }
@@ -86,9 +89,9 @@ namespace
     // 자르지 않으면 `Expo` 가 크게 튄다.
     void TestProgressIsClamped()
     {
-        for (int index = 0; index < static_cast<int>(JBro::EaseKind::Count); ++index)
+        for (JBro::Int32 index = 0; index < static_cast<int>(JBro::EaseKind::Count); ++index)
         {
-            const JBro::EaseKind kind = static_cast<JBro::EaseKind>(index);
+            const JBro::EaseKind kind = static_cast<JBro::EaseKind>(index.Get());
             Check(Near(JBro::Ease(kind, -3.0f), JBro::Ease(kind, 0.0f)), "progress below zero is clamped to zero");
             Check(Near(JBro::Ease(kind, 7.5f), JBro::Ease(kind, 1.0f)), "progress above one is clamped to one");
         }
@@ -109,11 +112,11 @@ namespace
 
         for (const auto& pair : pairs)
         {
-            for (int step = 0; step <= 20; ++step)
+            for (JBro::Int32 step = 0; step <= 20; ++step)
             {
-                const float t = static_cast<float>(step) / 20.0f;
-                const float out = JBro::Ease(pair[1], t);
-                const float mirrored = 1.0f - JBro::Ease(pair[0], 1.0f - t);
+                const JBro::Float t = static_cast<float>(step) / 20.0f;
+                const JBro::Float out = JBro::Ease(pair[1], t);
+                const JBro::Float mirrored = 1.0f - JBro::Ease(pair[0], 1.0f - t);
                 Check(Near(out, mirrored), "an out curve is its in curve mirrored");
             }
         }
@@ -145,10 +148,10 @@ namespace
         };
         for (const JBro::EaseKind kind : kinds)
         {
-            float previous = JBro::Ease(kind, 0.0f);
-            for (int step = 1; step <= 200; ++step)
+            JBro::Float previous = JBro::Ease(kind, 0.0f);
+            for (JBro::Int32 step = 1; step <= 200; ++step)
             {
-                const float value = JBro::Ease(kind, static_cast<float>(step) / 200.0f);
+                const JBro::Float value = JBro::Ease(kind, static_cast<float>(step) / 200.0f);
                 if (value < previous - 0.0001f)
                 {
                     std::cout << "  " << NameOf(kind) << " went from " << previous << " to " << value << '\n';
@@ -163,11 +166,11 @@ namespace
     // 누군가 결과를 잘라 버리면 이 시험이 잡는다.
     void TestBackAndElasticLeaveTheUnitRange()
     {
-        bool backWentBelowZero = false;
-        bool elasticWentAboveOne = false;
-        for (int step = 0; step <= 200; ++step)
+        JBro::Bool backWentBelowZero = false;
+        JBro::Bool elasticWentAboveOne = false;
+        for (JBro::Int32 step = 0; step <= 200; ++step)
         {
-            const float t = static_cast<float>(step) / 200.0f;
+            const JBro::Float t = static_cast<float>(step) / 200.0f;
             if (JBro::Ease(JBro::EaseKind::BackIn, t) < -0.001f)
             {
                 backWentBelowZero = true;
@@ -185,11 +188,11 @@ namespace
     // 이것이 없으면 `Bounce` 는 그냥 또 하나의 완만한 곡선일 뿐이다.
     void TestBounceActuallyBounces()
     {
-        int descents = 0;
-        float previous = JBro::Ease(JBro::EaseKind::BounceOut, 0.0f);
-        for (int step = 1; step <= 400; ++step)
+        JBro::Int32 descents = 0;
+        JBro::Float previous = JBro::Ease(JBro::EaseKind::BounceOut, 0.0f);
+        for (JBro::Int32 step = 1; step <= 400; ++step)
         {
-            const float value = JBro::Ease(JBro::EaseKind::BounceOut, static_cast<float>(step) / 400.0f);
+            const JBro::Float value = JBro::Ease(JBro::EaseKind::BounceOut, static_cast<float>(step) / 400.0f);
             if (value < previous - 0.001f)
             {
                 ++descents;
@@ -205,9 +208,9 @@ namespace
     void TestUnknownKindFallsBackToLinear()
     {
         const JBro::EaseKind unknown = static_cast<JBro::EaseKind>(200);
-        for (int step = 0; step <= 10; ++step)
+        for (JBro::Int32 step = 0; step <= 10; ++step)
         {
-            const float t = static_cast<float>(step) / 10.0f;
+            const JBro::Float t = static_cast<float>(step) / 10.0f;
             Check(Near(JBro::Ease(unknown, t), t), "an unknown kind behaves as linear");
         }
     }
@@ -227,8 +230,8 @@ namespace
     void TestItReachesTheTarget()
     {
         JBro::SpringDamper damper;
-        float value = 0.0f;
-        for (int frame = 0; frame < 600; ++frame)
+        JBro::Float value = 0.0f;
+        for (JBro::Int32 frame = 0; frame < 600; ++frame)
         {
             value = damper.Update(value, 10.0f, 0.2f, 1.0f / 60.0f);
         }
@@ -241,8 +244,8 @@ namespace
     void TestItNeverOvershoots()
     {
         JBro::SpringDamper damper;
-        float value = 0.0f;
-        for (int frame = 0; frame < 600; ++frame)
+        JBro::Float value = 0.0f;
+        for (JBro::Int32 frame = 0; frame < 600; ++frame)
         {
             value = damper.Update(value, 10.0f, 0.2f, 1.0f / 60.0f);
             Check(value <= 10.0f + 0.0001f, "the value never passes its target from below");
@@ -250,7 +253,7 @@ namespace
 
         damper.Reset();
         value = 10.0f;
-        for (int frame = 0; frame < 600; ++frame)
+        for (JBro::Int32 frame = 0; frame < 600; ++frame)
         {
             value = damper.Update(value, -5.0f, 0.2f, 1.0f / 60.0f);
             Check(value >= -5.0f - 0.0001f, "nor from above");
@@ -262,15 +265,15 @@ namespace
     void TestItIsIndependentOfTheFrameRate()
     {
         JBro::SpringDamper coarse;
-        float coarseValue = 0.0f;
-        for (int frame = 0; frame < 30; ++frame)
+        JBro::Float coarseValue = 0.0f;
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             coarseValue = coarse.Update(coarseValue, 10.0f, 0.5f, 1.0f / 30.0f);
         }
 
         JBro::SpringDamper fine;
-        float fineValue = 0.0f;
-        for (int frame = 0; frame < 120; ++frame)
+        JBro::Float fineValue = 0.0f;
+        for (JBro::Int32 frame = 0; frame < 120; ++frame)
         {
             fineValue = fine.Update(fineValue, 10.0f, 0.5f, 1.0f / 120.0f);
         }
@@ -283,7 +286,7 @@ namespace
     {
         JBro::SpringDamper damper;
         damper.velocity = 3.0f;
-        const float result = damper.Update(2.0f, 10.0f, 0.2f, 0.0f);
+        const JBro::Float result = damper.Update(2.0f, 10.0f, 0.2f, 0.0f);
         Check(Near(result, 2.0f), "a zero delta leaves the value alone");
         Check(Near(damper.velocity, 3.0f), "and leaves the speed alone");
         Check(Near(damper.Update(2.0f, 10.0f, 0.2f, -1.0f), 2.0f), "a negative delta does nothing either");
@@ -291,7 +294,7 @@ namespace
         // **이미 목표에 앉아 있는데 델타가 0 인 경우가 가장 위험하다.** 지나침을 막는 자리가
         // 남은 거리를 델타로 나누므로, 막지 않으면 0 을 0 으로 나눠 속도가 수가 아니게 된다.
         JBro::SpringDamper settled;
-        const float stayed = settled.Update(5.0f, 5.0f, 0.2f, 0.0f);
+        const JBro::Float stayed = settled.Update(5.0f, 5.0f, 0.2f, 0.0f);
         Check(Near(stayed, 5.0f), "sitting on the target with no time passing keeps the value");
         Check(settled.velocity == settled.velocity, "and the speed is still a number, not a NaN");
         Check(std::isfinite(settled.velocity), "and it is finite");
@@ -309,10 +312,10 @@ namespace
     void TestSmoothTimeMeansHowLongItTakes()
     {
         JBro::SpringDamper damper;
-        float value = 0.0f;
-        const float smoothTime = 0.5f;
-        const int framesForOneSmoothTime = 30;      // 60 분의 1 초로 0.5 초
-        for (int frame = 0; frame < framesForOneSmoothTime; ++frame)
+        JBro::Float value = 0.0f;
+        const JBro::Float smoothTime = 0.5f;
+        const JBro::Int32 framesForOneSmoothTime = 30;      // 60 분의 1 초로 0.5 초
+        for (JBro::Int32 frame = 0; frame < framesForOneSmoothTime; ++frame)
         {
             value = damper.Update(value, 10.0f, smoothTime, 1.0f / 60.0f);
         }
@@ -321,8 +324,8 @@ namespace
 
         // 절반의 시간을 주면 절반보다 덜 간다.
         JBro::SpringDamper quicker;
-        float quickValue = 0.0f;
-        for (int frame = 0; frame < framesForOneSmoothTime; ++frame)
+        JBro::Float quickValue = 0.0f;
+        for (JBro::Int32 frame = 0; frame < framesForOneSmoothTime; ++frame)
         {
             quickValue = quicker.Update(quickValue, 10.0f, smoothTime / 2.0f, 1.0f / 60.0f);
         }
@@ -334,7 +337,7 @@ namespace
     {
         JBro::SpringDamper damper;
         damper.velocity = 99.0f;
-        const float result = damper.Update(0.0f, 7.0f, 0.0f, 1.0f / 60.0f);
+        const JBro::Float result = damper.Update(0.0f, 7.0f, 0.0f, 1.0f / 60.0f);
         Check(Near(result, 7.0f), "a zero smooth time puts the value on the target");
         Check(Near(damper.velocity, 0.0f), "and clears the speed so the next frame does not drift");
     }
@@ -344,9 +347,9 @@ namespace
     {
         JBro::SpringDamper unlimited;
         JBro::SpringDamper limited;
-        float unlimitedValue = 0.0f;
-        float limitedValue = 0.0f;
-        for (int frame = 0; frame < 10; ++frame)
+        JBro::Float unlimitedValue = 0.0f;
+        JBro::Float limitedValue = 0.0f;
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
         {
             unlimitedValue = unlimited.Update(unlimitedValue, 100.0f, 0.3f, 1.0f / 60.0f);
             limitedValue = limited.Update(limitedValue, 100.0f, 0.3f, 1.0f / 60.0f, 5.0f);
@@ -364,11 +367,11 @@ namespace
         JBro::SpringDamper axisY;
 
         JBro::Vector2 current{0.0f, 0.0f};
-        float scalarX = 0.0f;
-        float scalarY = 0.0f;
+        JBro::Float scalarX = 0.0f;
+        JBro::Float scalarY = 0.0f;
         const JBro::Vector2 target{10.0f, -4.0f};
 
-        for (int frame = 0; frame < 60; ++frame)
+        for (JBro::Int32 frame = 0; frame < 60; ++frame)
         {
             current = vectorDamper.Update(current, target, 0.25f, 1.0f / 60.0f);
             scalarX = axisX.Update(scalarX, target.x, 0.25f, 1.0f / 60.0f);
@@ -383,7 +386,7 @@ namespace
         goal.x = 1.0f;
         goal.y = 2.0f;
         goal.z = 3.0f;
-        for (int frame = 0; frame < 300; ++frame)
+        for (JBro::Int32 frame = 0; frame < 300; ++frame)
         {
             point = spatial.Update(point, goal, 0.2f, 1.0f / 60.0f);
         }
@@ -394,7 +397,7 @@ namespace
         // 가릴 수 없다 - 축 하나를 빠뜨려도 시험이 통과해 버린다.
         JBro::SpringDamper3D running;
         JBro::Vector3 moving{0.0f, 0.0f, 0.0f};
-        for (int frame = 0; frame < 5; ++frame)
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
         {
             moving = running.Update(moving, goal, 0.5f, 1.0f / 60.0f);
         }
@@ -423,7 +426,7 @@ namespace
     }
 }
 
-int RunInterpolationTests()
+JBro::Int32 RunInterpolationTests()
 {
     try
     {

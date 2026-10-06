@@ -6,6 +6,8 @@
 
 #include <cstring>
 #include <iostream>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
@@ -14,9 +16,9 @@ namespace
 {
     // 양쪽을 몇 번 돌려 파이프를 비운다. 인메모리 파이프는 한 번의 Update 로 한 홉만 나아간다.
     // 시계도 조금씩 돌린다 - 신뢰 UDP 의 지연 ack 와 RTO 는 시간이 흘러야 움직인다.
-    void Pump(Transport& a, Transport& b, ManualClock& clock, int rounds = 8)
+    void Pump(Transport& a, Transport& b, ManualClock& clock, JBro::Int32 rounds = 8)
     {
-        for (int round = 0; round < rounds; ++round)
+        for (JBro::Int32 round = 0; round < rounds; ++round)
         {
             a.Update();
             b.Update();
@@ -35,17 +37,17 @@ namespace
     struct EventLog
     {
         NetworkEvent events[64];
-        std::uint32_t count = 0;
+        JBro::UInt32 count = 0;
 
         void Drain(Transport& transport)
         {
             count += transport.TakeEvents(events + count, 64 - count);
         }
 
-        std::uint32_t CountKind(NetworkEventKind kind) const
+        JBro::UInt32 CountKind(NetworkEventKind kind) const
         {
-            std::uint32_t total = 0;
-            for (std::uint32_t index = 0; index < count; ++index)
+            JBro::UInt32 total = 0;
+            for (JBro::UInt32 index = 0; index < count; ++index)
             {
                 if (events[index].kind == kind)
                 {
@@ -57,7 +59,7 @@ namespace
 
         const NetworkEvent* Find(NetworkEventKind kind) const
         {
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (JBro::UInt32 index = 0; index < count; ++index)
             {
                 if (events[index].kind == kind)
                 {
@@ -102,7 +104,7 @@ namespace
         Pump(server, client, clock);
 
         MessageView views[4];
-        const std::uint32_t received = server.TakeMessages(views, 4);
+        const JBro::UInt32 received = server.TakeMessages(views, 4);
         Check(received == 1, "the server takes exactly one message");
         Check(views[0].connection == ServerConnectionId + 1, "from connection 2");
         Check(views[0].messageId == 7, "with the message id it was sent with");
@@ -111,15 +113,15 @@ namespace
         Check(views[0].size == sizeof(hello), "and the size");
         Check(0 == std::memcmp(views[0].data, hello, sizeof(hello)), "and the bytes");
 
-        const std::uint32_t reply = 0xCAFEF00D;
+        const JBro::UInt32 reply = 0xCAFEF00D;
         Check(server.Broadcast(9, &reply, sizeof(reply)), "the server broadcasts");
         Pump(server, client, clock);
-        const std::uint32_t clientReceived = client.TakeMessages(views, 4);
+        const JBro::UInt32 clientReceived = client.TakeMessages(views, 4);
         Check(clientReceived == 1, "the client takes the broadcast");
         Check(views[0].connection == ServerConnectionId, "from the server");
         Check(views[0].messageId == 9, "with its id");
         Check(views[0].channel == NetChannel::ReliableOrdered, "on the default channel");
-        std::uint32_t decoded = 0;
+        JBro::UInt32 decoded = 0;
         std::memcpy(&decoded, views[0].data, sizeof(decoded));
         Check(decoded == reply, "and the payload intact");
 
@@ -153,7 +155,7 @@ namespace
         MessageView views[4];
         Check(server.TakeMessages(views, 4) == 1, "and arrives - the lazy buffers are the same buffers");
 
-        const std::uint32_t reserved = server.GetReservedBytes();
+        const JBro::UInt32 reserved = server.GetReservedBytes();
         server.Close();
         Check(server.GetReservedBytes() < reserved / 16u, "closing gives the budget back");
         EventLog events;
@@ -178,13 +180,13 @@ namespace
         Check(client.Connect("memory", 7811), "the client connects");
         Pump(server, client, clock);
 
-        const std::uint32_t reserved = server.GetReservedBytes();
+        const JBro::UInt32 reserved = server.GetReservedBytes();
         // 슬롯 수의 몇 배가 되는 서로 다른 ID 로 보낸다. 표가 키마다 자란다면 여기서 자랐을 것이다.
-        std::uint32_t delivered = 0;
+        JBro::UInt32 delivered = 0;
         MessageView views[64];
         for (MessageId id = 1; id <= 300; ++id)
         {
-            const std::uint32_t body = id;
+            const JBro::UInt32 body = id;
             Check(client.Send(ServerConnectionId, id, &body, sizeof(body), NetChannel::UnreliableSequenced),
                 "every message id is accepted");
             Pump(server, client, clock, 2);
@@ -194,7 +196,7 @@ namespace
         Check(server.GetReservedBytes() == reserved, "the shared budget did not move");
 
         // 같은 ID 의 역전은 여전히 버린다(고정 슬롯이 그 ID 를 들고 있는 동안).
-        const std::uint32_t newest = 0xABCD;
+        const JBro::UInt32 newest = 0xABCD;
         Check(client.Send(ServerConnectionId, 300, &newest, sizeof(newest), NetChannel::UnreliableSequenced), "a newer one goes");
         Pump(server, client, clock, 2);
         Check(server.TakeMessages(views, 64) == 1, "and arrives once");
@@ -210,7 +212,7 @@ namespace
         Transport second(provider, clock);
         Check(server.Listen(7831), "the server listens");
         Check(first.Connect("memory", 7831), "the first client connects");
-        for (int round = 0; round < 8; ++round)
+        for (JBro::Int32 round = 0; round < 8; ++round)
         {
             server.Update();
             first.Update();
@@ -220,9 +222,9 @@ namespace
         Check(second.Connect("memory", 7831), "the second client starts connecting");
         server.Update();
 
-        const std::uint32_t payload = 0x1234;
+        const JBro::UInt32 payload = 0x1234;
         Check(server.Broadcast(31, &payload, sizeof(payload)), "the broadcast goes out");
-        for (int round = 0; round < 8; ++round)
+        for (JBro::Int32 round = 0; round < 8; ++round)
         {
             server.Update();
             first.Update();
@@ -249,15 +251,15 @@ namespace
         Pump(server, client, clock);
 
         std::uint8_t payload[20000];
-        for (std::uint32_t index = 0; index < sizeof(payload); ++index)
+        for (JBro::UInt32 index = 0; index < sizeof(payload); ++index)
         {
             payload[index] = static_cast<std::uint8_t>(index * 7 + 3);
         }
         Check(client.Send(ServerConnectionId, 21, payload, sizeof(payload)), "a 20000 byte message is accepted");
 
         MessageView view;
-        std::uint32_t got = 0;
-        for (int round = 0; round < 200 && 0 == got; ++round)
+        JBro::UInt32 got = 0;
+        for (JBro::Int32 round = 0; round < 200 && 0 == got; ++round)
         {
             Pump(server, client, clock, 1);
             got = server.TakeMessages(&view, 1);
@@ -327,7 +329,7 @@ namespace
         {
             Check(client.Connect("memory", 3), "connect");
         }
-        for (int round = 0; round < 8; ++round)
+        for (JBro::Int32 round = 0; round < 8; ++round)
         {
             server.Update();
             for (Transport& client : clients)
@@ -338,9 +340,9 @@ namespace
         Check(server.GetConnectionCount() == 4, "all four connected regardless of the queue");
 
         NetworkEvent events[8];
-        std::uint32_t first = server.TakeEvents(events, 8);
+        JBro::UInt32 first = server.TakeEvents(events, 8);
         Check(first == 2, "only two events fit");
-        std::uint32_t second = server.TakeEvents(events, 8);
+        JBro::UInt32 second = server.TakeEvents(events, 8);
         Check(second == 1, "then the overflow marker follows");
         Check(events[0].kind == NetworkEventKind::Overflow, "and it is an Overflow");
         Check(server.TakeEvents(events, 8) == 0, "and nothing more");
@@ -401,10 +403,10 @@ namespace
 
         std::uint16_t expected = 1;
         MessageView views[2];
-        for (int round = 0; round < 6; ++round)
+        for (JBro::Int32 round = 0; round < 6; ++round)
         {
-            const std::uint32_t got = server.TakeMessages(views, 2);
-            for (std::uint32_t index = 0; index < got; ++index)
+            const JBro::UInt32 got = server.TakeMessages(views, 2);
+            for (JBro::UInt32 index = 0; index < got; ++index)
             {
                 Check(views[index].messageId == expected, "messages arrive in order without gaps");
                 ++expected;
@@ -440,7 +442,7 @@ namespace
     }
 }
 
-int RunTransportTests()
+JBro::Int32 RunTransportTests()
 {
     try
     {

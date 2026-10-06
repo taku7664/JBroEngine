@@ -18,10 +18,14 @@ namespace Spv
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -32,22 +36,22 @@ namespace
 
     struct Vertex
     {
-        float x = 0.0f;
-        float y = 0.0f;
-        float u = 0.0f;
-        float v = 0.0f;
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
+        JBro::Float u = 0.0f;
+        JBro::Float v = 0.0f;
     };
 
     // 백버퍼는 BGRA8 이다.
     struct Pixel
     {
-        float r = 0.0f;
-        float g = 0.0f;
-        float b = 0.0f;
+        JBro::Float r = 0.0f;
+        JBro::Float g = 0.0f;
+        JBro::Float b = 0.0f;
     };
 
-    Pixel ReadPixel(const JBro::Array<std::byte>& image, std::uint32_t rowPitch,
-        std::uint32_t x, std::uint32_t y)
+    Pixel ReadPixel(const JBro::Array<std::byte>& image, JBro::UInt32 rowPitch,
+        JBro::UInt32 x, JBro::UInt32 y)
     {
         const std::size_t offset = static_cast<std::size_t>(y) * rowPitch
             + static_cast<std::size_t>(x) * 4;
@@ -59,12 +63,12 @@ namespace
         return pixel;
     }
 
-    bool Near(float a, float b)
+    JBro::Bool Near(JBro::Float a, JBro::Float b)
     {
         return std::fabs(a - b) < 0.02f;
     }
 
-    constexpr std::uint32_t SurfaceSize = 64;
+    constexpr JBro::UInt32 SurfaceSize = 64;
 
     // 좌상 빨강, 우상 초록, 좌하 파랑, 우하 하양. 넷이 모두 다르므로
     // 뒤집히거나 밀린 것도 드러난다.
@@ -92,14 +96,14 @@ namespace
         JBro::BufferHandle vertexBuffer;
         JBro::BufferHandle indexBuffer;
         JBro::GraphicsPipelineHandle pipeline;
-        bool platformOpen = false;
-        bool rhiOpen = false;
+        JBro::Bool platformOpen = false;
+        JBro::Bool rhiOpen = false;
 
         // 이 기계에 D3D12 가 없으면 false 다. 그 경우 테스트는 건너뛴다.
-        bool Open(const char* title);
+        JBro::Bool Open(const char* title);
         // 여기까지 오는 동안 검증 레이어가 한 마디도 하지 않아야 한다.
         void CheckValidationStayedQuiet(const char* what) const;
-        bool BeginPass(JBro::IRHICommandContext& commands, const JBro::BeginFrameResult& begun);
+        JBro::Bool BeginPass(JBro::IRHICommandContext& commands, const JBro::BeginFrameResult& begun);
         void Close();
     };
 
@@ -136,7 +140,7 @@ namespace
     }
 
     template <typename TModule>
-    bool Probe<TModule>::Open(const char* title)
+    JBro::Bool Probe<TModule>::Open(const char* title)
     {
         JBro::JMemoryContext memory;
         Check(platform.Initialize(memory), "the platform must initialize");
@@ -244,7 +248,7 @@ namespace
     }
 
     template <typename TModule>
-    bool Probe<TModule>::BeginPass(
+    JBro::Bool Probe<TModule>::BeginPass(
         JBro::IRHICommandContext& commands,
         const JBro::BeginFrameResult& begun)
     {
@@ -275,7 +279,7 @@ namespace
         {
             return;
         }
-        const std::uint32_t errors = device->GetValidationErrorCount();
+        const JBro::UInt32 errors = device->GetValidationErrorCount();
         if (errors != 0)
         {
             std::cout << "  the debug layer reported " << errors << " error(s) during "
@@ -445,7 +449,7 @@ namespace
         Check(commands.DrawIndexedInstanced(12, 1, 0, 0, 0),
             "the over-long draw must go through, because nothing on our side checks it");
 
-        const std::uint32_t reported = probe.device->GetValidationErrorCount();
+        const JBro::UInt32 reported = probe.device->GetValidationErrorCount();
         std::cout << "  the debug layer caught " << reported
             << " problem(s) in a deliberately wrong draw" << std::endl;
         Check(reported > 0,
@@ -475,7 +479,7 @@ namespace
         // **두 프레임을 돈다.** 한 프레임만 돌면 추적하는 상태가 실제와 어긋나도
         // 드러나지 않는다 - 어긋난 값을 읽는 것은 다음 프레임의 첫 패스이기 때문이다.
         JBro::BeginFrameResult begun = {};
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             begun = probe.device->BeginFrame(probe.swapchain);
             Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
@@ -630,8 +634,8 @@ namespace
         // 한 프레임이 쓸 수 있는 수는 백엔드의 사정이라 여기서 알 수 없다. 두 프레임을
         // 합쳐 한 프레임 몫보다 확실히 많이 그리는 것으로 충분하다 — 되감지 않으면
         // 둘째 프레임 도중에 자리가 떨어진다.
-        constexpr std::uint32_t DrawsPerFrame = 400;
-        for (std::uint32_t frame = 0; frame < 2; ++frame)
+        constexpr JBro::UInt32 DrawsPerFrame = 400;
+        for (JBro::UInt32 frame = 0; frame < 2; ++frame)
         {
             const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
             Check(begun.status == JBro::FrameStatus::Ready, "each frame must begin");
@@ -643,7 +647,7 @@ namespace
             Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
                 "the indices must bind");
 
-            for (std::uint32_t draw = 0; draw < DrawsPerFrame; ++draw)
+            for (JBro::UInt32 draw = 0; draw < DrawsPerFrame; ++draw)
             {
                 Check(commands.SetTexture(0, probe.texture), "the texture must bind");
                 Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
@@ -680,7 +684,7 @@ namespace
         Check(blue.IsValid() && probe.device->WriteTexture(blue, 0,
             {reinterpret_cast<const std::byte*>(BlueTexels), sizeof(BlueTexels)}), "the blue texture must upload");
 
-        for (int order = 0; order < 2; ++order)
+        for (JBro::Int32 order = 0; order < 2; ++order)
         {
             // 0: 네 색 다음 파랑 - 파랑이 남는다. 1: 파랑 다음 네 색 - 네 색이 남는다.
             const JBro::TextureHandle first = order == 0 ? probe.texture : blue;
@@ -693,7 +697,7 @@ namespace
             Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0), "the vertices must bind");
             Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0), "the indices must bind");
             Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
-            for (int repeat = 0; repeat < 3; ++repeat)
+            for (JBro::Int32 repeat = 0; repeat < 3; ++repeat)
             {
                 // 같은 것을 세 번 - 재사용 길을 밟게 한다.
                 Check(commands.SetTexture(0, first) && commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
@@ -766,7 +770,7 @@ namespace
     }
 }
 
-int RunTextureBindingTests()
+JBro::Int32 RunTextureBindingTests()
 {
     RunTextureBindingTestsOn<JBro::D3D12RHIModule>();
     RunTextureBindingTestsOn<JBro::VulkanRHIModule>();

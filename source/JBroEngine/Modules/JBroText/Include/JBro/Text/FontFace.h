@@ -5,6 +5,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 폰트 face 하나다(D-200, text-plan §4.1). TTF·OTF(CFF) 바이트를 복사해 들고 stb_truetype 으로 읽는다.
 //
@@ -15,7 +19,7 @@
 // 폰트는 프로젝트 에셋이라 믿는 입력으로 본다. stb 는 망가진 표를 끝까지 검사하지 않는다.
 namespace JBro::Text
 {
-    using GlyphIndex = std::uint32_t;
+    using GlyphIndex = UInt32;
 
     // 폰트에 없는 글자다. 모든 폰트의 0 번 글리프는 .notdef 다.
     inline constexpr GlyphIndex MissingGlyph = 0;
@@ -23,29 +27,29 @@ namespace JBro::Text
     // 가로쓰기 세로 치수(hhea). ascent 는 양수, descent 는 음수다.
     struct FontMetrics
     {
-        std::int32_t unitsPerEm = 0;
-        std::int32_t ascent = 0;
-        std::int32_t descent = 0;
-        std::int32_t lineGap = 0;
+        Int32 unitsPerEm = 0;
+        Int32 ascent = 0;
+        Int32 descent = 0;
+        Int32 lineGap = 0;
     };
 
     // 글리프 외곽선의 상자다. 공백처럼 그릴 것이 없으면 empty 이고 나머지는 0 이다.
     struct GlyphBox
     {
-        std::int32_t minX = 0;
-        std::int32_t minY = 0;
-        std::int32_t maxX = 0;
-        std::int32_t maxY = 0;
-        bool         empty = true;
+        Int32 minX = 0;
+        Int32 minY = 0;
+        Int32 maxX = 0;
+        Int32 maxY = 0;
+        Bool         empty = true;
     };
 
     // 한 크기로 래스터화한 글리프 비트맵의 자리다(픽셀). left·top 은 기준선 위 원점에서 비트맵 왼쪽 위까지이고 top 은 위쪽이 양수다.
     struct GlyphBitmapBox
     {
-        std::int32_t left = 0;
-        std::int32_t top = 0;
-        std::int32_t width = 0;
-        std::int32_t height = 0;
+        Int32 left = 0;
+        Int32 top = 0;
+        Int32 width = 0;
+        Int32 height = 0;
     };
 
     class FontFace final
@@ -62,39 +66,39 @@ namespace JBro::Text
         FontFace& operator=(const FontFace&) = delete;
 
         // 바이트를 복사해 face 를 연다. faceIndex 는 TTC 안의 번호다. 실패하면 거짓이고 아무것도 들지 않는다.
-        bool Load(ArrayView<const std::byte> bytes, std::uint32_t faceIndex = 0);
+        Bool Load(ArrayView<const std::byte> bytes, UInt32 faceIndex = 0);
         void Unload();
-        bool IsLoaded() const;
+        Bool IsLoaded() const;
 
         // 코드포인트의 글리프다. 없으면 MissingGlyph.
         GlyphIndex FindGlyph(char32_t codepoint) const;
 
         const FontMetrics& GetMetrics() const;
-        std::int32_t GetAdvance(GlyphIndex glyph) const;
+        Int32 GetAdvance(GlyphIndex glyph) const;
         // 두 글리프 사이의 커닝이다. GPOS 쌍 조정을 먼저, 없으면 kern 표를 본다. 대개 음수다.
-        std::int32_t GetKerning(GlyphIndex left, GlyphIndex right) const;
+        Int32 GetKerning(GlyphIndex left, GlyphIndex right) const;
         // 결합 표시를 받침에 붙이는 자리다(GPOS mark-to-base, 확장 조회 포함). 찾으면 받침 원점에서 표시 원점까지의 거리(폰트 단위,
         // y 위쪽)이고 참이다. 폰트에 그 짝의 앵커가 없으면 거짓이다.
-        bool GetMarkAttachment(GlyphIndex base, GlyphIndex mark, std::int32_t& dx, std::int32_t& dy) const;
+        Bool GetMarkAttachment(GlyphIndex base, GlyphIndex mark, Int32& dx, Int32& dy) const;
         // **옛한글 자모를 한 음절로 모은다**(D-238). 한 음절의 자모 글리프(첫소리·가운뎃소리·끝소리 차례)를 폰트 GSUB 의 `hang` 문자 체계
         // `ljmo`·`vjmo`·`tjmo` 조회로 제자리에서 바꾼다. 조회는 목록 차례로 한 번씩 음절 전체를 돈다(OpenType 의 적용 순서).
         // 읽는 형식은 단일 치환(1)·연쇄 문맥 형식 3(6)·확장(7)이고, 연쇄 문맥 형식 1·2 와 조회 플래그의 건너뛰기는 읽지 않는다.
         // 바뀐 가운뎃소리·끝소리는 대개 전진 폭이 0 이라 앞 글자 위에 겹친다. 폰트에 그 기능이 없으면 거짓이고 글리프를 건드리지 않는다.
         // 받은 음절에는 조회를 다 건다 - 현대 자모만의 음절을 음절 글자로 합칠지는 부르는 쪽(`TextLayout`)이 먼저 가른다.
-        bool ShapeHangulJamo(GlyphIndex* glyphs, std::size_t count) const;
-        bool HasHangulJamoShaping() const;
+        Bool ShapeHangulJamo(GlyphIndex* glyphs, std::size_t count) const;
+        Bool HasHangulJamoShaping() const;
         GlyphBox GetGlyphBox(GlyphIndex glyph) const;
 
         // em 픽셀 크기 pixelSize 로 그린 글리프의 비트맵 자리를 잰다. 그릴 것이 없으면 크기가 0 이다.
-        bool MeasureGlyphBitmap(GlyphIndex glyph, float pixelSize, GlyphBitmapBox& box) const;
+        Bool MeasureGlyphBitmap(GlyphIndex glyph, Float pixelSize, GlyphBitmapBox& box) const;
         // box(MeasureGlyphBitmap 이 잰 것) 크기의 커버리지(한 채널, 0~255)를 coverage 에 그린다. 행 간격은 stride 바이트다.
         // 처음 보는 글리프에서만 부른다 - stb 가 안에서 힙을 쓴다(프레임 규칙은 아틀라스의 캐시가 지킨다).
-        bool RasterizeGlyph(GlyphIndex glyph, float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, std::int32_t stride) const;
+        Bool RasterizeGlyph(GlyphIndex glyph, Float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, Int32 stride) const;
         // em 픽셀 크기 pixelSize 로 부호 있는 거리장(SDF)을 그린다(text-plan §3.5). 사방에 spread 픽셀을 둘러 box 가 그만큼 크다.
         // 값은 외곽선에서 128 이고 바깥으로 1 픽셀마다 128/spread 씩 줄어 spread 픽셀 밖에서 0 이다(안쪽은 같은 비율로 늘어 255 에서 멈춘다).
         // distances 는 box.width * box.height 로 다시 잡는다. 그릴 것이 없으면(공백) 참이고 box 가 0 이다.
         // 처음 보는 글리프에서만 부른다 - stb 가 안에서 힙을 쓴다.
-        bool RasterizeGlyphSdf(GlyphIndex glyph, float pixelSize, std::int32_t spread, GlyphBitmapBox& box,
+        Bool RasterizeGlyphSdf(GlyphIndex glyph, Float pixelSize, Int32 spread, GlyphBitmapBox& box,
             Array<std::uint8_t>& distances) const;
 
     private:
@@ -105,7 +109,7 @@ namespace JBro::Text
 
         Array<std::byte> m_bytes;
         FontMetrics      m_metrics;
-        bool             m_loaded = false;
+        Bool             m_loaded = false;
         // GSUB 표의 자리(없으면 0)와, 옛한글 자모 기능이 부르는 조회 번호(목록 차례)다. 불러올 때 한 번 모은다.
         std::size_t           m_gsub = 0;
         Array<std::uint16_t>  m_jamoLookups;

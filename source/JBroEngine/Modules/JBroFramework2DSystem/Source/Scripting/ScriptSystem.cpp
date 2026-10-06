@@ -7,10 +7,14 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <algorithm>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
-    int ScriptSystem::GetExecutionOrder() const
+    Int32 ScriptSystem::GetExecutionOrder() const
     {
         // 변환이 선 뒤, 렌더 추출 전이다. 스크립트가 그 프레임의 위치를 보고 고칠 수 있어야 한다.
         return 200;
@@ -47,7 +51,7 @@ namespace JBro::System
         return m_rebuildCount;
     }
 
-    bool ScriptSystem::IsScript(const ComponentBase* component) const
+    Bool ScriptSystem::IsScript(const ComponentBase* component) const
     {
         if (component == nullptr || m_scriptKeys.IsEmpty())
         {
@@ -91,7 +95,7 @@ namespace JBro::System
 
     void ScriptSystem::EnsureOrder(Canvas& canvas)
     {
-        const std::uint64_t revision = canvas.GetScriptOrderRevision();
+        const UInt64 revision = canvas.GetScriptOrderRevision();
         if (revision == m_builtRevision)
         {
             return;
@@ -240,7 +244,7 @@ namespace JBro::System
         SortInputChain();
     }
 
-    void ScriptSystem::AddSystemInputHandler(IInputHandler& handler, const char* layer, std::int32_t order)
+    void ScriptSystem::AddSystemInputHandler(IInputHandler& handler, const char* layer, Int32 order)
     {
         for (const InputEntry& existing : m_systemHandlers)
         {
@@ -285,9 +289,9 @@ namespace JBro::System
     {
         for (InputEntry& entry : m_inputChain)
         {
-            entry.priority = m_input != nullptr ? m_input->GetLayerPriority(entry.layer, entry.layerText) : 0;
+            entry.priority = m_input != nullptr ? m_input->GetLayerPriority(entry.layer, entry.layerText) : UInt32(0);
         }
-        m_inputLayerRevision = m_input != nullptr ? m_input->GetLayerRevision() : 0;
+        m_inputLayerRevision = m_input != nullptr ? m_input->GetLayerRevision() : UInt64(0);
         // 같은 레이어에서는 `Order` 가 큰 것이 먼저, 그것도 같으면 시스템이 먼저고 그다음 실행 순서다. 등록 순(기존 엔진)은 로드 순서에 따라 흔들린다.
         std::sort(m_inputChain.begin(), m_inputChain.end(), [](const InputEntry& left, const InputEntry& right)
         {
@@ -299,11 +303,11 @@ namespace JBro::System
             {
                 return left.order > right.order;
             }
-            const bool leftSystem = left.ordered == SystemHandlerSlot;
-            const bool rightSystem = right.ordered == SystemHandlerSlot;
+            const Bool leftSystem = left.ordered == SystemHandlerSlot;
+            const Bool rightSystem = right.ordered == SystemHandlerSlot;
             if (leftSystem != rightSystem)
             {
-                return leftSystem;
+                return leftSystem.Get();
             }
             return left.ordered < right.ordered;
         });
@@ -342,7 +346,7 @@ namespace JBro::System
         m_input->EndDispatch();
     }
 
-    void ScriptSystem::OnUpdate(Canvas& canvas, float)
+    void ScriptSystem::OnUpdate(Canvas& canvas, Float)
     {
         EnsureOrder(canvas);
         m_lastUpdateCount = 0;
@@ -383,7 +387,7 @@ namespace JBro::System
         }
     }
 
-    void ScriptSystem::OnFixedUpdate(Canvas& canvas, float)
+    void ScriptSystem::OnFixedUpdate(Canvas& canvas, Float)
     {
         // 고정 스텝은 세워 둔 순서를 그대로 쓴다. 다만 **헌 목록은 쓰지 않는다** -
         // Framework 가 스텝마다 파괴를 흘리므로(D-45), 앞 스텝에서 지운 스크립트를

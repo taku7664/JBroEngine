@@ -3,12 +3,16 @@
 #include <charconv>
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool Fail(YamlError& error, std::size_t line, const char* message)
+        Bool Fail(YamlError& error, std::size_t line, const char* message)
         {
             error.line = line;
             error.message = message;
@@ -21,7 +25,7 @@ namespace JBro
             std::size_t indent = 0;
             const char* begin = nullptr;
             const char* end = nullptr;
-            bool        hasTab = false;
+            Bool        hasTab = false;
         };
 
         Line SplitLine(const char* begin, const char* end)
@@ -48,13 +52,13 @@ namespace JBro
             return line;
         }
 
-        bool IsBlankOrComment(const Line& line)
+        Bool IsBlankOrComment(const Line& line)
         {
             return line.begin == line.end || *line.begin == '#';
         }
 
         // 따옴표를 벗긴다. 짝이 맞지 않으면 false.
-        bool Unquote(String& value)
+        Bool Unquote(String& value)
         {
             if (value.size() < 2)
             {
@@ -75,7 +79,7 @@ namespace JBro
 
         // "Key: value" 에서 키와 값을 가른다. 콜론 뒤에 공백이 있거나 줄이 끝나야 키다.
         // 값 안의 콜론(`C:/path`)을 키 구분자로 착각하지 않기 위해서다.
-        bool SplitKey(const char* begin, const char* end, String& key, String& value, bool& hasValue)
+        Bool SplitKey(const char* begin, const char* end, String& key, String& value, Bool& hasValue)
         {
             for (const char* cursor = begin; cursor < end; ++cursor)
             {
@@ -83,7 +87,7 @@ namespace JBro
                 {
                     continue;
                 }
-                const bool endsLine = (cursor + 1 == end);
+                const Bool endsLine = (cursor + 1 == end);
                 if (false == endsLine && cursor[1] != ' ')
                 {
                     continue;
@@ -108,7 +112,7 @@ namespace JBro
         }
     }
 
-    std::uint32_t YamlDocument::AddNode(YamlKind kind, std::size_t line)
+    UInt32 YamlDocument::AddNode(YamlKind kind, std::size_t line)
     {
         Node node;
         node.kind = kind;
@@ -117,7 +121,7 @@ namespace JBro
         return static_cast<std::uint32_t>(m_nodes.Size() - 1);
     }
 
-    bool YamlDocument::IsValid(std::uint32_t node) const
+    Bool YamlDocument::IsValid(UInt32 node) const
     {
         return node != InvalidNode && node < m_nodes.Size();
     }
@@ -128,7 +132,7 @@ namespace JBro
         m_root = InvalidNode;
     }
 
-    bool YamlDocument::Parse(const char* text, std::size_t length, YamlError& error)
+    Bool YamlDocument::Parse(const char* text, std::size_t length, YamlError& error)
     {
         Clear();
         error.line = 0;
@@ -142,7 +146,7 @@ namespace JBro
         struct Open
         {
             std::size_t   indent = 0;
-            std::uint32_t node = InvalidNode;
+            UInt32 node = InvalidNode;
         };
         Array<Open> open;
 
@@ -180,19 +184,19 @@ namespace JBro
                 open.Resize(open.Size() - 1);
             }
 
-            const bool isItem = (*line.begin == '-')
+            const Bool isItem = (*line.begin == '-')
                 && (line.begin + 1 == line.end || line.begin[1] == ' ');
 
             // 빈 컨테이너 표기. 부모가 방금 열어 둔 블록의 실제 종류를 여기서 정한다.
-            const bool isEmptySequence = (line.end - line.begin == 2)
+            const Bool isEmptySequence = (line.end - line.begin == 2)
                 && line.begin[0] == '[' && line.begin[1] == ']';
-            const bool isEmptyMap = (line.end - line.begin == 2)
+            const Bool isEmptyMap = (line.end - line.begin == 2)
                 && line.begin[0] == '{' && line.begin[1] == '}';
 
             if (open.Size() == 0)
             {
                 // 첫 내용 줄이 문서의 뿌리를 정한다.
-                const std::uint32_t root = AddNode(isItem ? YamlKind::Sequence : YamlKind::Map, lineNumber);
+                const UInt32 root = AddNode(isItem ? YamlKind::Sequence : YamlKind::Map, lineNumber);
                 m_root = root;
                 Open first;
                 first.indent = line.indent;
@@ -201,7 +205,7 @@ namespace JBro
             }
 
             // 값으로 받는다. 아래에서 AddNode 가 배열을 다시 잡으면 참조가 죽는다.
-            const std::uint32_t blockNode = open[open.Size() - 1].node;
+            const UInt32 blockNode = open[open.Size() - 1].node;
             const std::size_t   blockIndent = open[open.Size() - 1].indent;
 
             if (isEmptySequence || isEmptyMap)
@@ -236,7 +240,7 @@ namespace JBro
                 if (itemBegin == line.end)
                 {
                     // 대시만 있다. 아래 줄들이 이 항목의 내용이다.
-                    const std::uint32_t child = AddNode(YamlKind::Map, lineNumber);
+                    const UInt32 child = AddNode(YamlKind::Map, lineNumber);
                     m_nodes[blockNode].children.Add(child);
                     Open inner;
                     // 내용은 이 대시보다 깊은 어느 깊이에도 올 수 있다. 다음 줄이 정한다.
@@ -252,11 +256,11 @@ namespace JBro
 
                 String key;
                 String value;
-                bool hasValue = false;
+                Bool hasValue = false;
                 if (SplitKey(itemBegin, line.end, key, value, hasValue))
                 {
                     // `- Key: value` — 맵을 담은 항목이고 첫 키가 여기 있다.
-                    const std::uint32_t child = AddNode(YamlKind::Map, lineNumber);
+                    const UInt32 child = AddNode(YamlKind::Map, lineNumber);
                     m_nodes[blockNode].children.Add(child);
                     Open inner;
                     inner.indent = line.indent + static_cast<std::size_t>(itemBegin - line.begin);
@@ -269,14 +273,14 @@ namespace JBro
                     }
                     if (hasValue)
                     {
-                        const std::uint32_t scalar = AddNode(YamlKind::Scalar, lineNumber);
+                        const UInt32 scalar = AddNode(YamlKind::Scalar, lineNumber);
                         m_nodes[scalar].text = std::move(value);
                         m_nodes[child].keys.Add(std::move(key));
                         m_nodes[child].children.Add(scalar);
                     }
                     else
                     {
-                        const std::uint32_t nested = AddNode(YamlKind::Map, lineNumber);
+                        const UInt32 nested = AddNode(YamlKind::Map, lineNumber);
                         m_nodes[child].keys.Add(std::move(key));
                         m_nodes[child].children.Add(nested);
                         Open deeper;
@@ -297,7 +301,7 @@ namespace JBro
                 {
                     return Fail(error, lineNumber, "a quoted value is not closed");
                 }
-                const std::uint32_t scalar = AddNode(YamlKind::Scalar, lineNumber);
+                const UInt32 scalar = AddNode(YamlKind::Scalar, lineNumber);
                 m_nodes[scalar].text = std::move(item);
                 m_nodes[blockNode].children.Add(scalar);
                 if (lineEnd >= length)
@@ -310,7 +314,7 @@ namespace JBro
             // 키가 있는 줄이다.
             String key;
             String value;
-            bool hasValue = false;
+            Bool hasValue = false;
             if (false == SplitKey(line.begin, line.end, key, value, hasValue))
             {
                 return Fail(error, lineNumber, "this line is neither a key nor a sequence entry");
@@ -331,11 +335,11 @@ namespace JBro
                 return Fail(error, lineNumber, "a quoted value is not closed");
             }
 
-            const std::uint32_t owner = open[open.Size() - 1].node;
+            const UInt32 owner = open[open.Size() - 1].node;
             if (hasValue)
             {
                 // `Key: []` 와 `Key: {}` 는 한 줄로 끝나는 빈 컨테이너다.
-                std::uint32_t child = InvalidNode;
+                UInt32 child = InvalidNode;
                 if (value == "[]")
                 {
                     child = AddNode(YamlKind::Sequence, lineNumber);
@@ -355,7 +359,7 @@ namespace JBro
             else
             {
                 // 값이 없다. 아래 줄들이 이 키의 내용이고, 맵인지 시퀀스인지는 그때 정해진다.
-                const std::uint32_t child = AddNode(YamlKind::Map, lineNumber);
+                const UInt32 child = AddNode(YamlKind::Map, lineNumber);
                 m_nodes[owner].keys.Add(std::move(key));
                 m_nodes[owner].children.Add(child);
                 Open inner;
@@ -377,22 +381,22 @@ namespace JBro
         return true;
     }
 
-    std::uint32_t YamlDocument::GetRoot() const
+    UInt32 YamlDocument::GetRoot() const
     {
         return m_root;
     }
 
-    std::size_t YamlDocument::GetLine(std::uint32_t node) const
+    std::size_t YamlDocument::GetLine(UInt32 node) const
     {
         return IsValid(node) ? m_nodes[node].line : 0;
     }
 
-    YamlKind YamlDocument::GetKind(std::uint32_t node) const
+    YamlKind YamlDocument::GetKind(UInt32 node) const
     {
         return IsValid(node) ? m_nodes[node].kind : YamlKind::Scalar;
     }
 
-    const char* YamlDocument::GetText(std::uint32_t node) const
+    const char* YamlDocument::GetText(UInt32 node) const
     {
         if (false == IsValid(node) || m_nodes[node].kind != YamlKind::Scalar)
         {
@@ -401,7 +405,7 @@ namespace JBro
         return m_nodes[node].text.c_str();
     }
 
-    std::size_t YamlDocument::GetCount(std::uint32_t node) const
+    std::size_t YamlDocument::GetCount(UInt32 node) const
     {
         if (false == IsValid(node) || m_nodes[node].kind == YamlKind::Scalar)
         {
@@ -410,7 +414,7 @@ namespace JBro
         return m_nodes[node].children.Size();
     }
 
-    std::uint32_t YamlDocument::GetElement(std::uint32_t node, std::size_t index) const
+    UInt32 YamlDocument::GetElement(UInt32 node, std::size_t index) const
     {
         if (false == IsValid(node) || m_nodes[node].kind != YamlKind::Sequence)
         {
@@ -423,7 +427,7 @@ namespace JBro
         return m_nodes[node].children[index];
     }
 
-    const char* YamlDocument::GetKey(std::uint32_t node, std::size_t index) const
+    const char* YamlDocument::GetKey(UInt32 node, std::size_t index) const
     {
         if (false == IsValid(node) || m_nodes[node].kind != YamlKind::Map)
         {
@@ -436,7 +440,7 @@ namespace JBro
         return m_nodes[node].keys[index].c_str();
     }
 
-    std::uint32_t YamlDocument::GetValue(std::uint32_t node, std::size_t index) const
+    UInt32 YamlDocument::GetValue(UInt32 node, std::size_t index) const
     {
         if (false == IsValid(node) || m_nodes[node].kind != YamlKind::Map)
         {
@@ -449,7 +453,7 @@ namespace JBro
         return m_nodes[node].children[index];
     }
 
-    std::uint32_t YamlDocument::Find(std::uint32_t node, const char* key) const
+    UInt32 YamlDocument::Find(UInt32 node, const char* key) const
     {
         if (false == IsValid(node) || m_nodes[node].kind != YamlKind::Map || key == nullptr)
         {
@@ -466,9 +470,9 @@ namespace JBro
         return InvalidNode;
     }
 
-    bool YamlDocument::FindScalar(std::uint32_t node, const char* key, String& result) const
+    Bool YamlDocument::FindScalar(UInt32 node, const char* key, String& result) const
     {
-        const std::uint32_t found = Find(node, key);
+        const UInt32 found = Find(node, key);
         if (false == IsValid(found) || m_nodes[found].kind != YamlKind::Scalar)
         {
             return false;
@@ -477,7 +481,7 @@ namespace JBro
         return true;
     }
 
-    bool YamlDocument::FindBool(std::uint32_t node, const char* key, bool& result) const
+    Bool YamlDocument::FindBool(UInt32 node, const char* key, Bool& result) const
     {
         String text;
         if (false == FindScalar(node, key, text))
@@ -497,7 +501,7 @@ namespace JBro
         return false;
     }
 
-    bool YamlDocument::FindFloat(std::uint32_t node, const char* key, float& result) const
+    Bool YamlDocument::FindFloat(UInt32 node, const char* key, Float& result) const
     {
         String text;
         if (false == FindScalar(node, key, text))
@@ -516,7 +520,7 @@ namespace JBro
         return true;
     }
 
-    bool YamlDocument::FindInt(std::uint32_t node, const char* key, std::int64_t& result) const
+    Bool YamlDocument::FindInt(UInt32 node, const char* key, Int64& result) const
     {
         String text;
         if (false == FindScalar(node, key, text))
@@ -542,7 +546,7 @@ namespace JBro
 
     // -----------------------------------------------------------------------
 
-    String FormatFloat(float value)
+    String FormatFloat(Float value)
     {
         // 로캘을 타지 않고, 되읽으면 같은 값이 나오는 가장 짧은 표기다.
         char buffer[64];
@@ -611,17 +615,17 @@ namespace JBro
         WriteKeyLine(key, text);
     }
 
-    void YamlWriter::WriteBool(const char* key, bool value)
+    void YamlWriter::WriteBool(const char* key, Bool value)
     {
         WriteKeyLine(key, value ? "true" : "false");
     }
 
-    void YamlWriter::WriteFloat(const char* key, float value)
+    void YamlWriter::WriteFloat(const char* key, Float value)
     {
         WriteKeyLine(key, FormatFloat(value).c_str());
     }
 
-    void YamlWriter::WriteInt(const char* key, std::int64_t value)
+    void YamlWriter::WriteInt(const char* key, Int64 value)
     {
         char buffer[32];
         const std::to_chars_result written = std::to_chars(buffer, buffer + sizeof(buffer), value);
@@ -655,12 +659,12 @@ namespace JBro
         m_text.append("\n", 1);
     }
 
-    void YamlWriter::WriteFloatItem(float value)
+    void YamlWriter::WriteFloatItem(Float value)
     {
         WriteStringItem(FormatFloat(value).c_str());
     }
 
-    void YamlWriter::WriteIntItem(std::int64_t value)
+    void YamlWriter::WriteIntItem(Int64 value)
     {
         char buffer[32];
         const std::to_chars_result written = std::to_chars(buffer, buffer + sizeof(buffer), value);
@@ -719,7 +723,7 @@ namespace JBro
 
     void YamlWriter::EndMap()
     {
-        const bool wrote = m_blocks.Size() > 0 && m_blocks[m_blocks.Size() - 1].wrote;
+        const Bool wrote = m_blocks.Size() > 0 && m_blocks[m_blocks.Size() - 1].wrote;
         if (m_blocks.Size() > 0)
         {
             m_blocks.Resize(m_blocks.Size() - 1);
@@ -737,7 +741,7 @@ namespace JBro
 
     void YamlWriter::EndSequence()
     {
-        const bool wrote = m_blocks.Size() > 0 && m_blocks[m_blocks.Size() - 1].wrote;
+        const Bool wrote = m_blocks.Size() > 0 && m_blocks[m_blocks.Size() - 1].wrote;
         if (m_blocks.Size() > 0)
         {
             m_blocks.Resize(m_blocks.Size() - 1);

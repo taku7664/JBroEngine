@@ -3,6 +3,10 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/Types/Size.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -17,10 +21,10 @@ namespace JBro
 
     struct BufferHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
 
-        constexpr bool IsValid() const noexcept
+        constexpr Bool IsValid() const noexcept
         {
             return generation != 0;
         }
@@ -30,10 +34,10 @@ namespace JBro
 
     struct TextureHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
 
-        constexpr bool IsValid() const noexcept
+        constexpr Bool IsValid() const noexcept
         {
             return generation != 0;
         }
@@ -43,10 +47,10 @@ namespace JBro
 
     struct SwapchainHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
 
-        constexpr bool IsValid() const noexcept
+        constexpr Bool IsValid() const noexcept
         {
             return generation != 0;
         }
@@ -56,10 +60,10 @@ namespace JBro
 
     struct GraphicsPipelineHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
 
-        constexpr bool IsValid() const noexcept
+        constexpr Bool IsValid() const noexcept
         {
             return generation != 0;
         }
@@ -69,10 +73,10 @@ namespace JBro
 
     struct SamplerHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
 
-        constexpr bool IsValid() const noexcept
+        constexpr Bool IsValid() const noexcept
         {
             return generation != 0;
         }
@@ -230,28 +234,28 @@ namespace JBro
 
     struct ClearColor
     {
-        float red = 0.0f;
-        float green = 0.0f;
-        float blue = 0.0f;
-        float alpha = 1.0f;
+        Float red = 0.0f;
+        Float green = 0.0f;
+        Float blue = 0.0f;
+        Float alpha = 1.0f;
     };
 
     struct Viewport
     {
-        float x = 0.0f;
-        float y = 0.0f;
-        float width = 0.0f;
-        float height = 0.0f;
-        float minDepth = 0.0f;
-        float maxDepth = 1.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
+        Float width = 0.0f;
+        Float height = 0.0f;
+        Float minDepth = 0.0f;
+        Float maxDepth = 1.0f;
     };
 
     struct ScissorRect
     {
-        std::int32_t left = 0;
-        std::int32_t top = 0;
-        std::int32_t right = 0;
-        std::int32_t bottom = 0;
+        Int32 left = 0;
+        Int32 top = 0;
+        Int32 right = 0;
+        Int32 bottom = 0;
     };
 
     struct BufferDesc
@@ -264,9 +268,9 @@ namespace JBro
     struct TextureDesc
     {
         Extent2D extent;
-        std::uint32_t depthOrLayers = 1;
-        std::uint32_t mipLevels = 1;
-        std::uint32_t sampleCount = 1;
+        UInt32 depthOrLayers = 1;
+        UInt32 mipLevels = 1;
+        UInt32 sampleCount = 1;
         TextureFormat format = TextureFormat::Unknown;
         TextureUsage usage = TextureUsage::None;
     };
@@ -296,19 +300,19 @@ namespace JBro
     struct ShaderBytecode
     {
         const void* data = nullptr;
-        std::uint32_t size = 0;
+        UInt32 size = 0;
     };
 
     struct VertexAttributeDesc
     {
-        std::uint32_t shaderLocation = 0;
-        std::uint32_t offset = 0;
+        UInt32 shaderLocation = 0;
+        UInt32 offset = 0;
         VertexFormat format = VertexFormat::Float2;
     };
 
     struct VertexBufferLayoutDesc
     {
-        std::uint32_t stride = 0;
+        UInt32 stride = 0;
         VertexStepMode stepMode = VertexStepMode::Vertex;
         JArrayView<VertexAttributeDesc> attributes;
     };
@@ -323,20 +327,20 @@ namespace JBro
         // 깊이 첨부가 있는 패스에 들어가는 파이프라인은 `depthFormat` 이 그 첨부와 같아야 한다 - 세 API 모두
         // 포맷을 파이프라인에 굽는다. 시험·쓰기는 그것과 별개다: 깊이가 달린 패스 위에 그리되 깊이를 보지도
         // 쓰지도 않는 것(2D 스프라이트가 3D 위에 얹힐 때)이 이 둘을 끈다. 포맷이 없으면 둘은 뜻이 없다.
-        bool depthTest = true;
-        bool depthWrite = true;
+        Bool depthTest = true;
+        Bool depthWrite = true;
         PrimitiveTopology topology = PrimitiveTopology::TriangleList;
         BlendMode blend = BlendMode::Opaque;
         CullMode cull = CullMode::Back;
         ShaderStage pushConstantStages = ShaderStage::Vertex;
-        std::uint32_t pushConstantBytes = 0;
+        UInt32 pushConstantBytes = 0;
         // 이 파이프라인이 픽셀 셰이더에서 읽는 텍스처와 샘플러의 수다.
         // `t0..t(N-1)`, `s0..s(N-1)` 에 순서대로 묶인다.
         //
         // **개수를 파이프라인이 미리 말해야 한다.** 백엔드가 이것으로 루트 시그니처를 만들고,
         // 그것은 파이프라인과 함께 만들어져 바뀌지 않는다. 그리기 직전에 알 수 있는 값이 아니다.
-        std::uint32_t sampledTextureCount = 0;
-        std::uint32_t samplerCount = 0;
+        UInt32 sampledTextureCount = 0;
+        UInt32 samplerCount = 0;
     };
 
     struct SwapchainDesc
@@ -364,7 +368,7 @@ namespace JBro
         StoreOperation depthStoreOperation = StoreOperation::Store;
         LoadOperation stencilLoadOperation = LoadOperation::Load;
         StoreOperation stencilStoreOperation = StoreOperation::Store;
-        float clearDepth = 1.0f;
+        Float clearDepth = 1.0f;
         std::uint8_t clearStencil = 0;
     };
 
@@ -379,42 +383,42 @@ namespace JBro
     public:
         virtual ~IRHICommandContext() = default;
 
-        virtual bool BeginRenderPass(const RenderPassDesc& desc) = 0;
+        virtual Bool BeginRenderPass(const RenderPassDesc& desc) = 0;
         virtual void EndRenderPass() = 0;
         virtual void SetViewport(const Viewport& viewport) = 0;
         virtual void SetScissor(const ScissorRect& scissor) = 0;
-        virtual bool SetGraphicsPipeline(GraphicsPipelineHandle pipeline) = 0;
-        virtual bool SetVertexBuffer(
-            std::uint32_t slot,
+        virtual Bool SetGraphicsPipeline(GraphicsPipelineHandle pipeline) = 0;
+        virtual Bool SetVertexBuffer(
+            UInt32 slot,
             BufferHandle buffer,
-            std::uint32_t stride,
+            UInt32 stride,
             std::size_t offset) = 0;
-        virtual bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) = 0;
-        virtual bool SetGraphicsConstants(JArrayView<std::byte> data) = 0;
+        virtual Bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) = 0;
+        virtual Bool SetGraphicsConstants(JArrayView<std::byte> data) = 0;
         // 슬롯에 텍스처와 샘플러를 묶는다. 슬롯 번호는 셰이더의 `t`/`s` 레지스터 번호다.
         // 파이프라인이 선언한 개수를 넘는 슬롯은 거절한다 — 루트 시그니처에 자리가 없다.
         //
         // 그리기 직전까지 기억만 하고, 실제 묶는 것은 드로우 호출에서 한 번에 한다.
         // 한 드로우에 필요한 것이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있다.
-        virtual bool SetTexture(std::uint32_t slot, TextureHandle texture) = 0;
-        virtual bool SetSampler(std::uint32_t slot, SamplerHandle sampler) = 0;
-        virtual bool DrawIndexedInstanced(
-            std::uint32_t indexCount,
-            std::uint32_t instanceCount,
-            std::uint32_t firstIndex,
-            std::int32_t baseVertex,
-            std::uint32_t firstInstance) = 0;
+        virtual Bool SetTexture(UInt32 slot, TextureHandle texture) = 0;
+        virtual Bool SetSampler(UInt32 slot, SamplerHandle sampler) = 0;
+        virtual Bool DrawIndexedInstanced(
+            UInt32 indexCount,
+            UInt32 instanceCount,
+            UInt32 firstIndex,
+            Int32 baseVertex,
+            UInt32 firstInstance) = 0;
         // **렌더 타깃 하나를 다른 렌더 타깃으로 통째로 복사한다**(D-283). 레이어 합성이 아래 그림을 읽는 블렌드(오버레이 등)에서 쓴다.
         // 둘은 같은 크기·같은 포맷이어야 하고 패스 밖에서만 부른다. 원본은 백버퍼여도 되고, 대상은 `RenderTarget` 으로 만든 텍스처다.
         // 상태(배리어·레이아웃)는 백엔드가 맞춘다 - `Sampled` 로 만든 대상은 다음 패스에서 곧바로 읽을 수 있다. 조건이 맞지 않으면 거짓이고
         // 아무것도 기록하지 않는다.
-        virtual bool CopyTexture(TextureHandle source, TextureHandle destination) = 0;
+        virtual Bool CopyTexture(TextureHandle source, TextureHandle destination) = 0;
     };
 
     struct FrameContext
     {
-        std::uint64_t serial = 0;
-        std::uint32_t slot = 0;
+        UInt64 serial = 0;
+        UInt32 slot = 0;
         TextureHandle backBuffer;
         IRHICommandContext* commands = nullptr;
     };
@@ -427,7 +431,7 @@ namespace JBro
 
     struct RHIDeviceCreateInfo
     {
-        bool enableValidation = false;
+        Bool enableValidation = false;
     };
 
     // 읽어 온 이미지의 모양이다. 목적지에는 행 패딩 없이 빽빽하게 쓴다 —
@@ -436,8 +440,8 @@ namespace JBro
     {
         Extent2D      extent;
         TextureFormat format = TextureFormat::Unknown;
-        std::uint32_t rowPitch = 0;
-        std::uint32_t writtenBytes = 0;
+        UInt32 rowPitch = 0;
+        UInt32 writtenBytes = 0;
     };
 
     class IRHIDevice
@@ -447,7 +451,7 @@ namespace JBro
 
         virtual BufferHandle CreateBuffer(const BufferDesc& desc) = 0;
         virtual void DestroyBuffer(BufferHandle buffer) = 0;
-        virtual bool WriteBuffer(
+        virtual Bool WriteBuffer(
             BufferHandle buffer,
             std::size_t offset,
             JArrayView<std::byte> data) = 0;
@@ -457,23 +461,23 @@ namespace JBro
         // GPU 쪽 행 정렬은 백엔드의 사정이다(`ReadTexture` 와 같은 계약이다).
         //
         // **GPU 가 끝날 때까지 기다린다.** 로드 경로이고 프레임 안에서는 거절한다.
-        virtual bool WriteTexture(
+        virtual Bool WriteTexture(
             TextureHandle texture,
-            std::uint32_t mipLevel,
+            UInt32 mipLevel,
             JArrayView<std::byte> data) = 0;
         // 텍스처 한 면의 **사각형 하나**만 올린다(글리프 아틀라스의 새 칸, text-plan §3.6). data 는 사각형 왼쪽 위 텍셀부터이고
         // 행 간격은 rowPitch 바이트다 - 큰 CPU 페이지의 한 조각을 옮겨 담지 않고 그대로 넘길 수 있다. 사각형이 텍스처 밖으로 나가면
         // 거절한다. `WriteTexture` 처럼 GPU 를 기다리고 프레임 안에서는 거절한다. 구현하지 않은 백엔드는 거짓이고, 부르는 쪽은 그때
         // 전체를 올린다.
-        virtual bool WriteTextureRegion(
+        virtual Bool WriteTextureRegion(
             TextureHandle texture,
-            std::uint32_t mipLevel,
-            std::uint32_t x,
-            std::uint32_t y,
-            std::uint32_t width,
-            std::uint32_t height,
+            UInt32 mipLevel,
+            UInt32 x,
+            UInt32 y,
+            UInt32 width,
+            UInt32 height,
             JArrayView<std::byte> data,
-            std::uint32_t rowPitch)
+            UInt32 rowPitch)
         {
             (void)texture;
             (void)mipLevel;
@@ -492,7 +496,7 @@ namespace JBro
 
         virtual SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) = 0;
         virtual void DestroySwapchain(SwapchainHandle swapchain) = 0;
-        virtual bool ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent) = 0;
+        virtual Bool ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent) = 0;
 
         virtual BeginFrameResult BeginFrame(SwapchainHandle swapchain) = 0;
         virtual FrameStatus EndFrame(const FrameContext& frame) = 0;
@@ -505,7 +509,7 @@ namespace JBro
         //
         // 기본 구현은 false 다. 읽기 경로가 없는 백엔드도 있을 수 있고, 없는 것과
         // 실패한 것을 호출부가 구분할 필요는 없다 — 둘 다 "읽지 못했다"이다.
-        virtual bool ReadTexture(
+        virtual Bool ReadTexture(
             TextureHandle texture,
             std::byte* destination,
             std::size_t destinationSize,
@@ -525,7 +529,7 @@ namespace JBro
         // `WriteBuffer` 는 매핑된 메모리에 그냥 memcpy 이고 기다려 주지 않는다.
         // 나누는 자리는 프레임 슬롯이다(`FrameContext::slot`). 그 슬롯의 지난
         // 프레임이 끝났다는 것은 `BeginFrame` 이 이미 보장한다.
-        virtual std::uint32_t GetFramesInFlight() const
+        virtual UInt32 GetFramesInFlight() const
         {
             return 1;
         }
@@ -538,7 +542,7 @@ namespace JBro
         // 픽셀만 보아서는 그 차이를 볼 수 없고, 검증 레이어만이 말해 준다.
         //
         // 검증을 켜지 않았거나 백엔드가 그런 것을 갖고 있지 않으면 0 이다.
-        virtual std::uint32_t GetValidationErrorCount() const
+        virtual UInt32 GetValidationErrorCount() const
         {
             return 0;
         }

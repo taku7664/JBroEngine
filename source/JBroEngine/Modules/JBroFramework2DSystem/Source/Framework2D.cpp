@@ -24,6 +24,9 @@
 #include <cmath>
 #include <new>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -43,7 +46,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool Framework2D::Initialize(const FrameworkContext& context)
+    Bool Framework2D::Initialize(const FrameworkContext& context)
     {
         if (m_initialized || context.time == nullptr
             || (context.renderer != nullptr && false == context.renderer->IsInitialized()))
@@ -63,7 +66,7 @@ namespace JBro
         }
         try
         {
-            const auto capacity = context.renderer != nullptr ? context.renderer->GetSpriteSubmissionLimit() : 0;
+            const auto capacity = context.renderer != nullptr ? context.renderer->GetSpriteSubmissionLimit() : UInt32(0);
             if (false == m_renderWorld.ReserveSprites(capacity))
             {
                 Shutdown();
@@ -95,7 +98,7 @@ namespace JBro
         return true;
     }
 
-    bool Framework2D::BindScriptContexts() noexcept
+    Bool Framework2D::BindScriptContexts() noexcept
     {
         if (false == m_initialized)
         {
@@ -176,8 +179,8 @@ namespace JBro
             }
         }
         // **한 프레임 진행**(D-242). 멈춘 동안 이 프레임만 게임이 돈다: 스크립트·물리를 켰다가 끝에 다시 끈다.
-        const bool stepping = false == m_simulationEnabled && m_context.time->IsStepFrame();
-        const bool simulating = m_simulationEnabled || stepping;
+        const Bool stepping = false == m_simulationEnabled && m_context.time->IsStepFrame();
+        const Bool simulating = m_simulationEnabled || stepping;
         if (stepping)
         {
             SetSteppedSystemsEnabled(true);
@@ -204,7 +207,7 @@ namespace JBro
         }
         {
             const ProfileScope scope("Systems");
-            m_canvas->GetSystems().Update(*m_canvas, simulating ? time.deltaTime : 0.0f);
+            m_canvas->GetSystems().Update(*m_canvas, simulating ? time.deltaTime : Float(0.0f));
         }
         m_canvas->FlushPendingDestroy();
         if (stepping)
@@ -214,7 +217,7 @@ namespace JBro
         m_renderWorld.EndFrame();
     }
 
-    void Framework2D::SetPhysicsWorkerCount(std::uint32_t count)
+    void Framework2D::SetPhysicsWorkerCount(UInt32 count)
     {
         if (m_canvas.Get() == nullptr)
         {
@@ -226,7 +229,7 @@ namespace JBro
         }
     }
 
-    void Framework2D::SetPhysicsIgnoredLayers(const std::uint32_t (&rows)[32])
+    void Framework2D::SetPhysicsIgnoredLayers(const UInt32 (&rows)[32])
     {
         static_assert(PhysicsLayerCount == 32, "the framework passes one row per physics layer");
         if (m_canvas.Get() == nullptr)
@@ -239,14 +242,14 @@ namespace JBro
         }
     }
 
-    std::uint32_t Framework2D::GetPhysicsWorkerCount()
+    UInt32 Framework2D::GetPhysicsWorkerCount()
     {
         if (m_canvas.Get() == nullptr)
         {
             return 0;
         }
         System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>();
-        return physics != nullptr ? physics->GetWorkerCount() : 0;
+        return physics != nullptr ? physics->GetWorkerCount() : UInt32(0);
     }
 
     void Framework2D::SetScreenSpace(const ScreenSpaceFrame& frame)
@@ -259,7 +262,7 @@ namespace JBro
         return m_screenSpace;
     }
 
-    void Framework2D::SetSimulationEnabled(bool enabled)
+    void Framework2D::SetSimulationEnabled(Bool enabled)
     {
         m_simulationEnabled = enabled;
         ApplySimulationEnabled();
@@ -421,7 +424,7 @@ namespace JBro
         }
     }
 
-    bool Framework2D::DestroyLayer(LayerId layer)
+    Bool Framework2D::DestroyLayer(LayerId layer)
     {
         if (false == m_initialized || m_canvas.Get() == nullptr)
         {
@@ -435,7 +438,7 @@ namespace JBro
         return true;
     }
 
-    bool Framework2D::MoveLayer(LayerId layer, std::size_t newIndex)
+    Bool Framework2D::MoveLayer(LayerId layer, std::size_t newIndex)
     {
         if (false == m_initialized || m_canvas.Get() == nullptr)
         {
@@ -518,7 +521,7 @@ namespace JBro
         // 몇 스텝을 돌지는 시계가 정했다(누산·상한·타임스케일·한 프레임 진행, D-242).
         System::TimeSystem& time = *m_context.time;
         const FrameTime& frame = time.GetFrameTime();
-        for (std::uint32_t step = 0; step < frame.fixedStepCount; ++step)
+        for (UInt32 step = 0; step < frame.fixedStepCount; ++step)
         {
             time.BeginFixedStep();
             m_canvas->GetSystems().FixedUpdate(*m_canvas, frame.fixedDeltaTime);
@@ -528,7 +531,7 @@ namespace JBro
         time.EndFixedSteps();
     }
 
-    void Framework2D::SetSteppedSystemsEnabled(bool enabled)
+    void Framework2D::SetSteppedSystemsEnabled(Bool enabled)
     {
         SystemScheduler& systems = m_canvas->GetSystems();
         if (System::ScriptSystem* scripts = systems.FindSystem<System::ScriptSystem>())

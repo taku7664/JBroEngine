@@ -1,6 +1,10 @@
-#include <JBro/Editor/EditorSpriteContours.h>
+﻿#include <JBro/Editor/EditorSpriteContours.h>
 
 #include <JBro/Asset/Asset.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -41,7 +45,7 @@ namespace JBro
         return nullptr;
     }
 
-    bool EditorSpriteContours::Build(
+    Bool EditorSpriteContours::Build(
         AssetHandle texture, const SpriteFrame& frame, Entry& entry)
     {
         if (frame.width == 0 || frame.height == 0)
@@ -61,36 +65,36 @@ namespace JBro
             return false;
         }
 
-        const std::uint32_t longest =
+        const UInt32 longest =
             frame.width > frame.height ? frame.width : frame.height;
-        std::uint32_t step = 1;
+        UInt32 step = 1;
         while (longest / step > MaxSide)
         {
             ++step;
         }
-        const std::uint32_t columns = frame.width / step > 0 ? frame.width / step : 1;
-        const std::uint32_t rows = frame.height / step > 0 ? frame.height / step : 1;
+        const UInt32 columns = frame.width / step > 0 ? frame.width / step : UInt32(1);
+        const UInt32 rows = frame.height / step > 0 ? frame.height / step : UInt32(1);
 
         // 줄인 칸의 알파 마스크다. 한 칸이라도 불투명한 픽셀을 담고 있으면 그 칸은 있는 것이다 -
         // 가운데 픽셀만 보면 가는 선이 통째로 사라진다.
         Array<std::uint8_t> mask;
         mask.Resize(static_cast<std::size_t>(columns) * rows);
         const std::byte* pixels = data->pixels.Data();
-        for (std::uint32_t row = 0; row < rows; ++row)
+        for (UInt32 row = 0; row < rows; ++row)
         {
-            for (std::uint32_t column = 0; column < columns; ++column)
+            for (UInt32 column = 0; column < columns; ++column)
             {
                 std::uint8_t present = 0;
-                for (std::uint32_t inner = 0; inner < step && present == 0; ++inner)
+                for (UInt32 inner = 0; inner < step && present == 0; ++inner)
                 {
-                    const std::uint32_t sourceY = frame.y + row * step + inner;
+                    const UInt32 sourceY = frame.y + row * step + inner;
                     if (sourceY >= frame.y + frame.height)
                     {
                         break;
                     }
-                    for (std::uint32_t across = 0; across < step; ++across)
+                    for (UInt32 across = 0; across < step; ++across)
                     {
-                        const std::uint32_t sourceX = frame.x + column * step + across;
+                        const UInt32 sourceX = frame.x + column * step + across;
                         if (sourceX >= frame.x + frame.width)
                         {
                             break;
@@ -111,9 +115,9 @@ namespace JBro
 
         // 불투명한 칸의 네 변 중 **이웃이 없는 쪽**만 남긴다. 칸 밖은 없는 것으로 본다 -
         // 그림이 칸 가장자리까지 차 있으면 그 변이 곧 경계다.
-        const float cellWidth = 1.0f / static_cast<float>(columns);
-        const float cellHeight = 1.0f / static_cast<float>(rows);
-        const auto filled = [&](std::int64_t column, std::int64_t row) {
+        const Float cellWidth = 1.0f / static_cast<float>(columns);
+        const Float cellHeight = 1.0f / static_cast<float>(rows);
+        const auto filled = [&](Int64 column, Int64 row) {
             if (column < 0 || row < 0 || column >= static_cast<std::int64_t>(columns)
                 || row >= static_cast<std::int64_t>(rows))
             {
@@ -122,18 +126,18 @@ namespace JBro
             return mask[static_cast<std::size_t>(row) * columns
                 + static_cast<std::size_t>(column)] != 0;
         };
-        for (std::uint32_t row = 0; row < rows; ++row)
+        for (UInt32 row = 0; row < rows; ++row)
         {
-            for (std::uint32_t column = 0; column < columns; ++column)
+            for (UInt32 column = 0; column < columns; ++column)
             {
                 if (false == filled(column, row))
                 {
                     continue;
                 }
-                const float left = static_cast<float>(column) * cellWidth;
-                const float right = left + cellWidth;
-                const float top = static_cast<float>(row) * cellHeight;
-                const float bottom = top + cellHeight;
+                const Float left = static_cast<float>(column) * cellWidth;
+                const Float right = left + cellWidth;
+                const Float top = static_cast<float>(row) * cellHeight;
+                const Float bottom = top + cellHeight;
                 if (false == filled(column, static_cast<std::int64_t>(row) - 1))
                 {
                     entry.segments.Add(Segment{left, top, right, top});

@@ -16,12 +16,14 @@
 #include "Panel/CanvasViewPanel.h"
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool IsEmptyName(const char* name)
+        Bool IsEmptyName(const char* name)
         {
             return name == nullptr || name[0] == '\0';
         }
@@ -31,7 +33,7 @@ namespace JBro
         // 막은 조건이 여럿이면 **먼저 풀어야 하는 것**을 말한다(D-181). 프로젝트가 없는데 "시뮬레이션을 멈추세요" 라고 하면
         // 멈출 것을 찾다 끝난다.
 
-        bool HasCanvas(const EditorActionContext& context)
+        Bool HasCanvas(const EditorActionContext& context)
         {
             return context.editor->GetCanvas() != nullptr;
         }
@@ -57,7 +59,7 @@ namespace JBro
             return context.object != nullptr ? context.object : context.editor->GetSelectedObject();
         }
 
-        bool CanSave(const EditorActionContext& context)
+        Bool CanSave(const EditorActionContext& context)
         {
             // **돌고 있는 동안은 저장하지 않는다.** 게임이 만든 상태가 파일이 된다.
             return HasCanvas(context) && false == context.editor->IsSimulationPlaying();
@@ -67,13 +69,13 @@ namespace JBro
             return false == HasCanvas(context) ? NoProject()
                 : Loc::TextOr(LocKeys::PopupSaveBlockedWhilePlaying, "stop the simulation before saving");
         }
-        bool DoSave(EditorActionContext& context)
+        Bool DoSave(EditorActionContext& context)
         {
             context.editor->RequestSaveCanvas();
             return true;
         }
 
-        bool CanUndo(const EditorActionContext& context)
+        Bool CanUndo(const EditorActionContext& context)
         {
             return context.editor->GetCommands().CanUndo();
         }
@@ -81,11 +83,11 @@ namespace JBro
         {
             return Loc::TextOr(LocKeys::BlockedNothingToUndo, "there is nothing to undo");
         }
-        bool DoUndo(EditorActionContext& context)
+        Bool DoUndo(EditorActionContext& context)
         {
             return context.editor->GetCommands().Undo();
         }
-        bool CanRedo(const EditorActionContext& context)
+        Bool CanRedo(const EditorActionContext& context)
         {
             return context.editor->GetCommands().CanRedo();
         }
@@ -93,12 +95,12 @@ namespace JBro
         {
             return Loc::TextOr(LocKeys::BlockedNothingToRedo, "there is nothing to redo");
         }
-        bool DoRedo(EditorActionContext& context)
+        Bool DoRedo(EditorActionContext& context)
         {
             return context.editor->GetCommands().Redo();
         }
 
-        bool CanCreate(const EditorActionContext& context)
+        Bool CanCreate(const EditorActionContext& context)
         {
             return HasCanvas(context);
         }
@@ -106,7 +108,7 @@ namespace JBro
         {
             return NoProject();
         }
-        bool DoCreate(EditorActionContext& context)
+        Bool DoCreate(EditorActionContext& context)
         {
             // 오브젝트 메뉴에서는 그 오브젝트의 자식이고(`자식 오브젝트 추가`), 다른 자리에서는 뿌리다.
             GameObject* parent = context.menu == EditorActionMenu::Object ? context.object : nullptr;
@@ -115,12 +117,12 @@ namespace JBro
 
         // **부모가 없으면 오브젝트 메뉴에 항목 자체를 내지 않는다.** 회색으로 두면 무엇을 해야 켜지는지 알 수 없고,
         // 뿌리 오브젝트에는 영영 켜지지 않는다.
-        bool ShowUnparent(const EditorActionContext& context)
+        Bool ShowUnparent(const EditorActionContext& context)
         {
             const GameObject* target = Target(context);
             return context.menu != EditorActionMenu::Object || (target != nullptr && target->GetParent() != nullptr);
         }
-        bool CanUnparent(const EditorActionContext& context)
+        Bool CanUnparent(const EditorActionContext& context)
         {
             const GameObject* target = Target(context);
             return target != nullptr && target->GetParent() != nullptr;
@@ -130,12 +132,12 @@ namespace JBro
             return Target(context) == nullptr ? NothingSelected()
                 : Loc::TextOr(LocKeys::BlockedNoParent, "the object has no parent");
         }
-        bool DoUnparent(EditorActionContext& context)
+        Bool DoUnparent(EditorActionContext& context)
         {
             return EditorActions::Unparent(*context.editor, *Target(context));
         }
 
-        bool CanCopy(const EditorActionContext& context)
+        Bool CanCopy(const EditorActionContext& context)
         {
             return context.editor->GetSelectionCount() != 0;
         }
@@ -143,12 +145,12 @@ namespace JBro
         {
             return NothingSelected();
         }
-        bool DoCopy(EditorActionContext& context)
+        Bool DoCopy(EditorActionContext& context)
         {
             return context.editor->CopySelection();
         }
 
-        bool CanPaste(const EditorActionContext& context)
+        Bool CanPaste(const EditorActionContext& context)
         {
             return HasCanvas(context) && context.editor->HasClipboard();
         }
@@ -156,7 +158,7 @@ namespace JBro
         {
             return false == HasCanvas(context) ? NoProject() : ClipboardEmpty();
         }
-        bool DoPaste(EditorActionContext& context)
+        Bool DoPaste(EditorActionContext& context)
         {
             // 빈자리의 붙여넣기는 뿌리에 붙는다. 고른 것 밑이 아니다.
             if (context.menu == EditorActionMenu::Background)
@@ -166,7 +168,7 @@ namespace JBro
             return context.editor->PasteClipboard();
         }
 
-        bool CanPasteAsChild(const EditorActionContext& context)
+        Bool CanPasteAsChild(const EditorActionContext& context)
         {
             // 자식으로 붙이려면 들어갈 곳이 있어야 한다. 줄에서 연 메뉴는 그 줄이 곧 부모다.
             return CanPaste(context) && Target(context) != nullptr;
@@ -180,7 +182,7 @@ namespace JBro
             }
             return NothingSelected();
         }
-        bool DoPasteAsChild(EditorActionContext& context)
+        Bool DoPasteAsChild(EditorActionContext& context)
         {
             // **고른 것 안으로 붙인다**(D-166, 기존 `PasteObjectsAsChild`).
             if (context.object != nullptr)
@@ -190,7 +192,7 @@ namespace JBro
             return context.editor->PasteClipboard(true);
         }
 
-        bool CanDelete(const EditorActionContext& context)
+        Bool CanDelete(const EditorActionContext& context)
         {
             // 줄에서 연 메뉴는 그 오브젝트를 지운다.
             if (context.object != nullptr)
@@ -216,7 +218,7 @@ namespace JBro
             }
             return NothingSelected();
         }
-        bool DoDelete(EditorActionContext& context)
+        Bool DoDelete(EditorActionContext& context)
         {
             if (context.object != nullptr)
             {
@@ -225,7 +227,7 @@ namespace JBro
             return EditorActions::DeleteSelection(*context.editor);
         }
 
-        bool CanPlay(const EditorActionContext& context)
+        Bool CanPlay(const EditorActionContext& context)
         {
             return HasCanvas(context);
         }
@@ -233,12 +235,12 @@ namespace JBro
         {
             return NoProject();
         }
-        bool DoPlay(EditorActionContext& context)
+        Bool DoPlay(EditorActionContext& context)
         {
             context.editor->ToggleSimulation();
             return true;
         }
-        bool CanPause(const EditorActionContext& context)
+        Bool CanPause(const EditorActionContext& context)
         {
             return context.editor->IsSimulationPlaying();
         }
@@ -246,12 +248,12 @@ namespace JBro
         {
             return Loc::TextOr(LocKeys::BlockedNotPlaying, "the simulation is not running");
         }
-        bool DoPause(EditorActionContext& context)
+        Bool DoPause(EditorActionContext& context)
         {
             context.editor->SetSimulationPaused(false == context.editor->IsSimulationPaused());
             return true;
         }
-        bool CanStep(const EditorActionContext& context)
+        Bool CanStep(const EditorActionContext& context)
         {
             // 도는 게임은 한 프레임씩 나아갈 것이 없다 - 멈춘 동안만이다.
             return context.editor->IsSimulationPlaying() && context.editor->IsSimulationPaused();
@@ -265,14 +267,14 @@ namespace JBro
             }
             return Loc::TextOr(LocKeys::BlockedNotPaused, "pause the simulation to step one frame");
         }
-        bool DoStep(EditorActionContext& context)
+        Bool DoStep(EditorActionContext& context)
         {
             context.editor->StepSimulation();
             return true;
         }
 
         // **게임 빌드**(D-232). 저장된 프로젝트로 빌드한다 - 파일로 연 프로젝트여야 하고 돌고 있지 않아야 한다.
-        bool CanBuildGame(const EditorActionContext& context)
+        Bool CanBuildGame(const EditorActionContext& context)
         {
             return false == context.editor->GetProjectFilePath().empty() && false == context.editor->IsSimulationPlaying();
         }
@@ -284,7 +286,7 @@ namespace JBro
             }
             return Loc::TextOr(LocKeys::PopupSaveBlockedWhilePlaying, "stop the simulation before saving");
         }
-        bool DoBuildGame(EditorActionContext& context)
+        Bool DoBuildGame(EditorActionContext& context)
         {
             GameBuildReport report;
             context.editor->BuildGameForProject(report);
@@ -292,14 +294,14 @@ namespace JBro
             return true;
         }
 
-        constexpr EditorShortcutBinding Bind(ImGuiKey key, bool control = false, bool shift = false)
+        constexpr EditorShortcutBinding Bind(ImGuiKey key, Bool control = false, Bool shift = false)
         {
             return EditorShortcutBinding{key, control, shift, false};
         }
 
         EditorActionInfo Action(const char* name, const char* labelKey, const char* fallback, const char* categoryKey,
-            std::uint32_t menus, bool (*can)(const EditorActionContext&), const char* (*why)(const EditorActionContext&),
-            bool (*execute)(EditorActionContext&))
+            UInt32 menus, Bool (*can)(const EditorActionContext&), const char* (*why)(const EditorActionContext&),
+            Bool (*execute)(EditorActionContext&))
         {
             EditorActionInfo info;
             info.name = name;
@@ -322,7 +324,7 @@ namespace JBro
                 : m_name(name)
             {
             }
-            bool CanExecute(const EditorApplication& editor) const override
+            Bool CanExecute(const EditorApplication& editor) const override
             {
                 const EditorActionInfo* action = EditorActionRegistry::Get().Find(m_name);
                 EditorActionContext context = MakeContext(editor);
@@ -334,7 +336,7 @@ namespace JBro
                 EditorActionContext context = MakeContext(editor);
                 return action != nullptr ? EditorActionUi::WhyBlocked(*action, context) : nullptr;
             }
-            bool Execute(EditorApplication& editor) override
+            Bool Execute(EditorApplication& editor) override
             {
                 const EditorActionInfo* action = EditorActionRegistry::Get().Find(m_name);
                 EditorActionContext context = MakeContext(editor);
@@ -354,7 +356,7 @@ namespace JBro
         };
 
         // 컴포넌트 메뉴 표에 올리는 그리기다. `user` 가 행동 이름이다.
-        bool DrawComponentAction(const ComponentMenuContext& menu)
+        Bool DrawComponentAction(const ComponentMenuContext& menu)
         {
             const char* name = static_cast<const char*>(menu.user);
             const EditorActionInfo* action = EditorActionRegistry::Get().Find(name);
@@ -368,7 +370,7 @@ namespace JBro
             context.componentPointer = menu.component;
             context.placement = menu.placement;
             context.menu = EditorActionMenu::Component;
-            const bool ran = EditorActionUi::DrawItem(name, context);
+            const Bool ran = EditorActionUi::DrawItem(name, context);
             return false == (ran && action->mayRemoveObject);
         }
     }
@@ -379,7 +381,7 @@ namespace JBro
         return registry;
     }
 
-    bool EditorActionRegistry::Register(const EditorActionInfo& info)
+    Bool EditorActionRegistry::Register(const EditorActionInfo& info)
     {
         if (IsEmptyName(info.name) || info.Execute == nullptr || Find(info.name) != nullptr)
         {
@@ -397,7 +399,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorActionRegistry::Unregister(const char* name)
+    Bool EditorActionRegistry::Unregister(const char* name)
     {
         if (IsEmptyName(name))
         {
@@ -430,19 +432,19 @@ namespace JBro
         return nullptr;
     }
 
-    std::uint32_t EditorActionRegistry::GetCount() const
+    UInt32 EditorActionRegistry::GetCount() const
     {
         return static_cast<std::uint32_t>(m_actions.Size());
     }
 
-    const EditorActionInfo& EditorActionRegistry::GetAt(std::uint32_t index) const
+    const EditorActionInfo& EditorActionRegistry::GetAt(UInt32 index) const
     {
         return m_actions[index];
     }
 
     void RegisterBuiltinEditorActions()
     {
-        static bool registered = false;
+        static Bool registered = false;
         if (registered)
         {
             return;
@@ -574,7 +576,7 @@ namespace JBro
             context.panel = panels.IsEmpty() ? nullptr : panels[0];
         }
 
-        bool CanExecute(const EditorActionInfo& action, const EditorActionContext& context)
+        Bool CanExecute(const EditorActionInfo& action, const EditorActionContext& context)
         {
             if (context.editor == nullptr)
             {
@@ -606,7 +608,7 @@ namespace JBro
             return action.WhyBlocked != nullptr && resolved.editor != nullptr ? action.WhyBlocked(resolved) : nullptr;
         }
 
-        bool Execute(const EditorActionInfo& action, EditorActionContext& context)
+        Bool Execute(const EditorActionInfo& action, EditorActionContext& context)
         {
             if (false == CanExecute(action, context))
             {
@@ -616,7 +618,7 @@ namespace JBro
             return action.Execute(context);
         }
 
-        const char* Label(const EditorActionInfo& action, std::uint32_t menu)
+        const char* Label(const EditorActionInfo& action, UInt32 menu)
         {
             if (menu == EditorActionMenu::Object && action.objectMenuLabelKey != nullptr)
             {
@@ -630,7 +632,7 @@ namespace JBro
             return EditorShortcutManager::Describe(editor.GetShortcuts().Find(action.name).primary);
         }
 
-        bool DrawItem(const char* name, EditorActionContext& context, const char* label, const char* icon)
+        Bool DrawItem(const char* name, EditorActionContext& context, const char* label, const char* icon)
         {
             const EditorActionInfo* action = EditorActionRegistry::Get().Find(name);
             if (action == nullptr || context.editor == nullptr)
@@ -644,19 +646,19 @@ namespace JBro
             }
             // **글자도 할 수 있는지도 표에서 온다**(D-132·D-228). 메뉴에 박아 두면 키를 바꿨을 때 화면만 옛 글자로 남는다.
             // 잠긴 까닭도 같은 표에서 온다(D-181). 항목마다 가이드의 행동 이름을 단다(D-268) - 행동 이름이 곧 표식이다.
-            const bool enabled = CanExecute(*action, context);
+            const Bool enabled = CanExecute(*action, context);
             const EditorShortcutText keys = Keys(*context.editor, *action);
             Widget::SetNextItemTarget(GuideFocusTargets::Action(action->name));
-            const bool chosen = Widget::MenuItem(label != nullptr ? label : Label(*action, context.menu), keys.value, enabled,
+            const Bool chosen = Widget::MenuItem(label != nullptr ? label : Label(*action, context.menu), keys.value, enabled,
                 enabled ? nullptr : WhyBlocked(*action, context), icon != nullptr ? icon : action->icon);
             return chosen && Execute(*action, context);
         }
 
-        bool DrawExtensions(std::uint32_t menu, EditorActionContext& context)
+        Bool DrawExtensions(UInt32 menu, EditorActionContext& context)
         {
             const EditorActionRegistry& actions = EditorActionRegistry::Get();
-            bool separated = false;
-            for (std::uint32_t index = 0; index < actions.GetCount(); ++index)
+            Bool separated = false;
+            for (UInt32 index = 0; index < actions.GetCount(); ++index)
             {
                 const EditorActionInfo& action = actions.GetAt(index);
                 if (action.placedByEditor || (action.menus & menu) == 0 || action.componentType != InvalidComponentTypeId)
@@ -689,7 +691,7 @@ namespace JBro
         void RegisterShortcuts(EditorShortcutManager& shortcuts)
         {
             const EditorActionRegistry& actions = EditorActionRegistry::Get();
-            for (std::uint32_t index = 0; index < actions.GetCount(); ++index)
+            for (UInt32 index = 0; index < actions.GetCount(); ++index)
             {
                 const EditorActionInfo& action = actions.GetAt(index);
                 EditorShortcutDesc desc;
@@ -710,7 +712,7 @@ namespace JBro
         void RegisterComponentMenus(ComponentMenuTable& menus)
         {
             const EditorActionRegistry& actions = EditorActionRegistry::Get();
-            for (std::uint32_t index = 0; index < actions.GetCount(); ++index)
+            for (UInt32 index = 0; index < actions.GetCount(); ++index)
             {
                 const EditorActionInfo& action = actions.GetAt(index);
                 if ((action.menus & EditorActionMenu::Component) == 0)

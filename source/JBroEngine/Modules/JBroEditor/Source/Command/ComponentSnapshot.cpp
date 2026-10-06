@@ -4,6 +4,8 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -14,7 +16,7 @@ namespace JBro
         //
         // **하나라도 못 뜨면 거짓이다.** 처음에는 컨테이너를 건너뛰고 읽기에 실패한 값을
         // 빼고도 성공이라 말했다 - 되살린 컴포넌트에서 그 값만 기본값이 되고 아무도 모른다.
-        bool CaptureValues(
+        Bool CaptureValues(
             const PropertyTable& table,
             void* owner,
             ComponentBase& component,
@@ -22,7 +24,7 @@ namespace JBro
             SetPropertyCommand::Path& path,
             Array<ComponentValue>& out)
         {
-            for (std::uint32_t index = 0; index < table.count; ++index)
+            for (UInt32 index = 0; index < table.count; ++index)
             {
                 const PropertyInfo& property = table.properties[index];
                 if (property.type == nullptr || property.Address == nullptr
@@ -46,7 +48,7 @@ namespace JBro
 
                 path.indices[path.depth] = index;
                 ++path.depth;
-                bool captured = true;
+                Bool captured = true;
                 if (property.type->fields != nullptr)
                 {
                     captured = CaptureValues(*property.type->fields, address, component,
@@ -72,7 +74,7 @@ namespace JBro
         }
     }
 
-    bool CaptureComponent(ComponentBase& component, ComponentSnapshot& out)
+    Bool CaptureComponent(ComponentBase& component, ComponentSnapshot& out)
     {
         const ComponentTypeId typeId = component.GetTypeId();
         const PropertyTable* table = PropertyRegistry::Lookup(typeId);
@@ -87,7 +89,7 @@ namespace JBro
         return CaptureValues(*table, &component, component, typeId, path, out.values);
     }
 
-    bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot)
+    Bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot)
     {
         if (component.GetTypeId() != snapshot.typeId)
         {

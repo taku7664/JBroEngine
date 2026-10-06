@@ -11,10 +11,13 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -25,17 +28,17 @@ namespace
     class SafeTarget final : public JBro::EnableSafeFromThis<SafeTarget>
     {
     public:
-        explicit SafeTarget(int value)
+        explicit SafeTarget(JBro::Int32 value)
             : Value(value)
         {
         }
 
-        int Value = 0;
+        JBro::Int32 Value = 0;
     };
 
     struct RegistryTarget
     {
-        int Value = 0;
+        JBro::Int32 Value = 0;
     };
 
     struct AllocationProbe
@@ -78,7 +81,7 @@ namespace
             return JBro::MakeStableTypeId(StaticTypeName());
         }
 
-        int Value = 0;
+        JBro::Int32 Value = 0;
     };
 
     void TestSafePtrExpiresWithOwner()
@@ -97,18 +100,18 @@ namespace
 
     void TestInstanceIdGeneratorSequenceAndOverflow()
     {
-        constexpr std::uint64_t SequenceMask = (1ull << 12) - 1;
-        constexpr std::uint64_t SessionMask = (1ull << 10) - 1;
+        constexpr JBro::UInt64 SequenceMask = (1ull << 12) - 1;
+        constexpr JBro::UInt64 SessionMask = (1ull << 10) - 1;
 
         JBro::InstanceIdGenerator generator;
         generator.BeginFrame();
         const JBro::InstanceId first = generator.Generate();
-        const std::uint64_t firstTimestamp = first >> 22;
-        const std::uint64_t firstSession = (first >> 12) & SessionMask;
+        const JBro::UInt64 firstTimestamp = first >> 22;
+        const JBro::UInt64 firstSession = (first >> 12) & SessionMask;
         Check((first & SequenceMask) == 0, "first id in a frame must start at sequence zero");
 
         JBro::InstanceId previous = first;
-        for (std::uint64_t sequence = 1; sequence < 4096; ++sequence)
+        for (JBro::UInt64 sequence = 1; sequence < 4096; ++sequence)
         {
             const JBro::InstanceId id = generator.Generate();
             Check(id > previous, "ids must be strictly increasing");
@@ -134,7 +137,7 @@ namespace
         Check(first != nullptr, "pool must create its first object");
         JBro::SafePtr<SafeTarget> firstSafe = first->SafeFromThis();
 
-        for (int value = 2; value <= 200; ++value)
+        for (JBro::Int32 value = 2; value <= 200; ++value)
         {
             Check(pool.Create(value) != nullptr, "pool must grow across multiple chunks");
         }
@@ -144,7 +147,7 @@ namespace
         Check(first->Value == 1, "pool growth must not move or overwrite the first object");
 
         std::size_t visited = 0;
-        bool firstAddressPreserved = false;
+        JBro::Bool firstAddressPreserved = false;
         pool.ForEachLive([&visited, &firstAddressPreserved, first](SafeTarget& target)
         {
             ++visited;
@@ -176,7 +179,7 @@ namespace
 
         {
             JBro::TObjectPool<SafeTarget> pool(allocator);
-            for (int value = 0; value < 200; ++value)
+            for (JBro::Int32 value = 0; value < 200; ++value)
             {
                 Check(pool.Create(value) != nullptr,
                     "custom-allocator pool must create every object");
@@ -211,7 +214,7 @@ namespace
                 "reserving must take its control blocks up front too");
 
             SafeTarget* spawned[128] = {};
-            int seed = 0;
+            JBro::Int32 seed = 0;
             for (auto& slot : spawned)
             {
                 slot = pool.Create(seed++);
@@ -359,7 +362,7 @@ namespace
             parent->GetComponents<TestComponent>();
         Check(all.Size() == 2, "GetComponents must return every matching component");
         std::size_t visited = 0;
-        int total = 0;
+        JBro::Int32 total = 0;
         canvas.ForEach<TestComponent>([&visited, &total](TestComponent& component)
         {
             ++visited;
@@ -418,7 +421,7 @@ namespace
     }
 }
 
-int RunReferenceSafetyTests()
+JBro::Int32 RunReferenceSafetyTests()
 {
     TestSafePtrExpiresWithOwner();
     TestInstanceIdGeneratorSequenceAndOverflow();

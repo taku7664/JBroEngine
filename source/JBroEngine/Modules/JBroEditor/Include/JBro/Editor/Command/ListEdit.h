@@ -9,6 +9,9 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -31,29 +34,29 @@ namespace JBro
 
         Kind kind = Kind::SetElement;
         // SetElement·Remove·Move 가 가리키는 원소 번호다.
-        std::uint32_t index = 0;
+        UInt32 index = 0;
         // Move 의 목적지다. 목록 위젯이 이미 보정한 원소 번호다(슬롯 번호가 아니다).
-        std::uint32_t to = 0;
+        UInt32 to = 0;
         // SetElement 의 값이다. `deltaCount` 가 0 이 아니면 숫자 원소에 더할 델타이고,
         // 0 이면 `text` 를 코덱으로 그대로 쓴다(bool·enum·문자열처럼 델타가 없는 값).
-        std::uint32_t deltaCount = 0;
-        float delta[ScalarRun::MaxCount] = {};
+        UInt32 deltaCount = 0;
+        Float delta[ScalarRun::MaxCount] = {};
         String text;
 
         // SetElement 가 **원소 안에서** 내려갈 필드 번호다(D-89). 비어 있으면 원소 자체가
         // 잎사귀다. 필드를 가진 구조체 원소는 한 줄로 그리지 못하므로 필드마다 따로 고치고,
         // 그 필드를 여기 적는다. 컴포넌트 안의 길(`SetPropertyCommand::Path`)은 목록에서
         // 멈추므로 이 길은 그것과 따로 센다.
-        static constexpr std::uint32_t MaxFieldDepth = 4;
-        std::uint32_t fieldPath[MaxFieldDepth] = {};
-        std::uint32_t fieldDepth = 0;
+        static constexpr UInt32 MaxFieldDepth = 4;
+        UInt32 fieldPath[MaxFieldDepth] = {};
+        UInt32 fieldDepth = 0;
     };
 
     // 배열 하나에 편집을 적용한다. **그 배열에 맞지 않는 편집이면 거짓이다** -
     // 원소가 모자라거나, 필드 길이 원소에 맞지 않거나, 델타 개수가 잎사귀의 숫자 수와 다르거나,
     // 글자를 받지 못하는 잎사귀(안쪽 배열·표, 필드를 더 가진 구조체)다.
     // 거짓일 때 배열이 반쯤 바뀌어 있을 수 있으니 부르는 쪽이 되돌린다.
-    bool ApplyListEdit(const TypeDescriptor& arrayType, void* array, const ListEdit& edit);
+    Bool ApplyListEdit(const TypeDescriptor& arrayType, void* array, const ListEdit& edit);
 
     // 대상마다 편집을 **차례대로 다시 적용하고** 그 결과를 한 되돌리기로 묶는다.
     //

@@ -1,6 +1,9 @@
 ﻿#include <JBro/Runtime/TimeService.h>
 
 #include <JBro/Runtime/SystemContext.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -15,18 +18,18 @@ namespace JBro::Service
         }
     }
 
-    float TimeService::DeltaTime() const
+    Float TimeService::DeltaTime() const
     {
         const FrameTime& time = CurrentTime();
         return time.inFixedStep ? time.fixedDeltaTime : time.deltaTime;
     }
 
-    float TimeService::UnscaledDeltaTime() const
+    Float TimeService::UnscaledDeltaTime() const
     {
         return CurrentTime().unscaledDeltaTime;
     }
 
-    float TimeService::FixedDeltaTime() const
+    Float TimeService::FixedDeltaTime() const
     {
         return CurrentTime().fixedDeltaTime;
     }
@@ -47,33 +50,33 @@ namespace JBro::Service
         return CurrentTime().fixedTime;
     }
 
-    std::uint64_t TimeService::FrameCount() const
+    UInt64 TimeService::FrameCount() const
     {
         return CurrentTime().frameCount;
     }
 
-    float TimeService::TimeScale() const
+    Float TimeService::TimeScale() const
     {
         return CurrentTime().timeScale;
     }
 
-    bool TimeService::SetTimeScale(float scale) const
+    Bool TimeService::SetTimeScale(Float scale) const
     {
         System::ITimeSystem* system = GetSystemContext().Time;
         return system != nullptr && system->SetTimeScale(scale);
     }
 
-    bool TimeService::IsInFixedStep() const
+    Bool TimeService::IsInFixedStep() const
     {
         return CurrentTime().inFixedStep;
     }
 
-    float TimeService::FixedStepAlpha() const
+    Float TimeService::FixedStepAlpha() const
     {
         return CurrentTime().fixedStepAlpha;
     }
 
-    bool TimeService::IsPaused() const
+    Bool TimeService::IsPaused() const
     {
         return CurrentTime().paused;
     }

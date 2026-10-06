@@ -4,6 +4,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -30,10 +32,10 @@ namespace JBro
     };
 
     // 코덱이 내놓는 글자를 받아 온다. 버퍼가 모자라면 필요한 만큼 잡고 한 번 더 묻는다.
-    bool ReflectedValueToText(const ValueCodec& codec, const void* value, String& text);
+    Bool ReflectedValueToText(const ValueCodec& codec, const void* value, String& text);
 
     // 값 하나를 적는다. `key` 가 nullptr 이면 시퀀스 항목 자리다.
-    bool WriteReflectedValue(
+    Bool WriteReflectedValue(
         YamlWriter& writer,
         const char* key,
         const TypeDescriptor& type,
@@ -41,9 +43,9 @@ namespace JBro
         ReflectedYamlError& error);
 
     // 값 하나를 읽는다. **읽히지 않는 값을 기본값으로 대신하지 않는다** - 실패다.
-    bool ReadReflectedValue(
+    Bool ReadReflectedValue(
         const YamlDocument& document,
-        std::uint32_t node,
+        UInt32 node,
         const TypeDescriptor& type,
         void* value,
         ReflectedYamlError& error);
@@ -52,9 +54,9 @@ namespace JBro
     // (컴포넌트의 `Type`·`IsEnabled` 처럼 표가 아니라 파일 형식이 정한 키다).
     //
     // **파일에 있는데 표에 없는 키는 실패다.** 조용히 버리면 그 값이 사라지고 아무도 모른다.
-    bool ReadReflectedFields(
+    Bool ReadReflectedFields(
         const YamlDocument& document,
-        std::uint32_t node,
+        UInt32 node,
         const PropertyTable& table,
         void* value,
         const char* const* skip,

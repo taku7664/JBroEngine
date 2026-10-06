@@ -3,6 +3,7 @@
 #include <JBro/Editor/EditorGuideFocus.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Widget
 {
@@ -29,14 +30,14 @@ namespace JBro::Widget
         void OpenIfGuided(const GuideFocusTarget& target);
         // 방금 그린 항목(`GetItemRect`)을 알린다. 지금 칸인데 잘려 있으면 그 자리로 굴린다.
         // 회색 항목이면 `enabled` 를 거짓으로, 그 까닭(툴팁의 글자)을 함께 넘긴다 - 말풍선이 왜 안 눌리는지 적는다.
-        void ReportLastItem(const GuideFocusTarget& target, bool opened, bool activated,
-            bool enabled = true, const char* disabledReason = nullptr);
+        void ReportLastItem(const GuideFocusTarget& target, Bool opened, Bool activated,
+            Bool enabled = true, const char* disabledReason = nullptr);
     }
 
     // 항목 하나가 아닌 자리(표의 한 줄·패널 창·캔버스 뷰의 그림)를 알린다. 대상이 비었으면 아무 일도 없다.
     // `round` 면 구멍이 이 사각형에 내접하는 원이다(캔버스 뷰의 점 - 기즈모 가운데·회전 고리·폴리곤 포인트).
     void ReportGuideTarget(const GuideFocusTarget& target, const ImVec2& min, const ImVec2& max,
-        bool opened, bool activated, bool round = false);
+        Bool opened, Bool activated, Bool round = false);
 
     // 말풍선에 적을 것이다. 글자는 이미 번역된 것이다(§11.2).
     struct GuideFocusBalloon
@@ -53,10 +54,10 @@ namespace JBro::Widget
         const char* backLabel = nullptr;
         const char* nextLabel = nullptr;
         // 이전 단추를 두었지만 지금은 못 누를 때(첫 단계) 회색으로 두고 까닭을 띄운다(§11.1).
-        bool backEnabled = true;
+        Bool backEnabled = true;
         const char* backDisabledReason = nullptr;
         // 다음도 같다(오브젝트를 고르지 않았다).
-        bool nextEnabled = true;
+        Bool nextEnabled = true;
         const char* nextDisabledReason = nullptr;
     };
 

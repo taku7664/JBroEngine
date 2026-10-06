@@ -11,6 +11,10 @@
 #include <JBro/Types/Table.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -31,35 +35,35 @@ namespace JBro::System
     class Text3DSystem final : public GameSystem, public TextSystemBase
     {
     public:
-        static constexpr int ExecutionOrder = 410; // 메시(400) 뒤
+        static constexpr Int32 ExecutionOrder = 410; // 메시(400) 뒤
 
         ~Text3DSystem() override;
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
 
         void SetRenderWorld(RenderWorld3D* renderWorld);
         // 폰트를 읽을 에셋 시스템과 페이지를 올릴 렌더러다. 둘 중 하나가 없으면 텍스트를 그리지 않는다.
         void SetResources(AssetSystem* assets, Renderer* renderer, TaskManager* tasks = nullptr);
 
         // 마지막으로 레이아웃한 블록 사각형이다(유닛, 오브젝트 로컬 XY). 아직 없으면 거짓이다.
-        bool GetLocalBounds(InstanceId text, float& minX, float& minY, float& maxX, float& maxY) const;
+        Bool GetLocalBounds(InstanceId text, Float& minX, Float& minY, Float& maxX, Float& maxY) const;
         // 쓸 수 있는 폰트가 없어 그리지 못하는 텍스트인가.
-        bool IsMissingFont(InstanceId text) const;
+        Bool IsMissingFont(InstanceId text) const;
         const TextLibrary& GetLibrary() const;
         // 지난 프레임에 렌더 월드의 텍스트 용량을 넘어 그리지 못한 글자 수다.
-        std::uint32_t GetDroppedGlyphCount() const;
-        std::uint64_t GetRelayoutCount() const;
-        std::uint32_t GetCachedTextCount() const;
+        UInt32 GetDroppedGlyphCount() const;
+        UInt64 GetRelayoutCount() const;
+        UInt32 GetCachedTextCount() const;
 
     protected:
-        void OnUpdate(Canvas& canvas, float deltaTime) override;
+        void OnUpdate(Canvas& canvas, Float deltaTime) override;
         void OnShutdown(Canvas& canvas) override;
 
     private:
         struct Entry
         {
             TextBlock     block;
-            bool          warnedMissingFont = false;
-            std::uint64_t lastSeenFrame = 0;
+            Bool          warnedMissingFont = false;
+            UInt64 lastSeenFrame = 0;
         };
 
         static TextBlockSettings SettingsOf(const Component::Text3D& text);
@@ -70,10 +74,10 @@ namespace JBro::System
         TextLibrary              m_library;
         Table<InstanceId, Entry> m_entries;
         Array<InstanceId>        m_scratchUnseen;
-        std::uint64_t            m_frame = 0;
-        std::uint64_t            m_relayouts = 0;
-        std::uint32_t            m_droppedGlyphsThisFrame = 0;
-        std::uint32_t            m_droppedGlyphs = 0;
-        bool                     m_warnedDroppedGlyphs = false;
+        UInt64            m_frame = 0;
+        UInt64            m_relayouts = 0;
+        UInt32            m_droppedGlyphsThisFrame = 0;
+        UInt32            m_droppedGlyphs = 0;
+        Bool                     m_warnedDroppedGlyphs = false;
     };
 }

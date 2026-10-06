@@ -14,6 +14,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 가이드 포커스 1 단계(D-251, `tasks/guide-focus-plan.md` §3): 모델과 입력 문.
 //
@@ -21,7 +25,7 @@
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -43,7 +47,7 @@ namespace
         return path;
     }
 
-    InputEvent Move(float x, float y)
+    InputEvent Move(JBro::Float x, JBro::Float y)
     {
         InputEvent event;
         event.kind = InputEventKind::MouseMove;
@@ -60,7 +64,7 @@ namespace
         return event;
     }
 
-    InputEvent KeyEvent(InputEventKind kind, JBro::Key key, bool repeat = false)
+    InputEvent KeyEvent(InputEventKind kind, JBro::Key key, JBro::Bool repeat = false)
     {
         InputEvent event;
         event.kind = kind;
@@ -69,7 +73,7 @@ namespace
         return event;
     }
 
-    InputEvent Touch(InputEventKind kind, std::uint32_t pointer, float x, float y)
+    InputEvent Touch(InputEventKind kind, JBro::UInt32 pointer, JBro::Float x, JBro::Float y)
     {
         InputEvent event;
         event.kind = kind;
@@ -92,7 +96,7 @@ namespace
         return out;
     }
 
-    bool HasKind(const JBro::Array<InputEvent>& events, InputEventKind kind)
+    JBro::Bool HasKind(const JBro::Array<InputEvent>& events, InputEventKind kind)
     {
         for (const InputEvent& event : events)
         {
@@ -113,7 +117,7 @@ namespace
     {
         GuideFocusPath path;
         Check(false == path.Push({}), "a target with no name points at nothing and must be refused");
-        for (std::uint32_t index = 0; index < GuideFocusPath::Capacity; ++index)
+        for (JBro::UInt32 index = 0; index < GuideFocusPath::Capacity; ++index)
         {
             Check(path.Push({ JBro::MakeNameId("test.level"), index }), "a path takes up to its capacity");
         }
@@ -136,7 +140,7 @@ namespace
         Check(focus.Begin(OneStepPath()), "the focus must start");
         Check(focus.GetAllowedRectCount() == 0, "nothing is allowed until the drawer says where the hole is");
         Check(false == focus.IsAllowed({ 150.0f, 120.0f }), "so not even the middle of the screen");
-        for (std::uint32_t index = 0; index < EditorGuideFocus::AllowedRectCapacity; ++index)
+        for (JBro::UInt32 index = 0; index < EditorGuideFocus::AllowedRectCapacity; ++index)
         {
             Check(focus.AddAllowedRect(Hole), "the allowed area takes up to its capacity");
         }
@@ -362,11 +366,11 @@ namespace
     class CountingShortcut final : public JBro::IEditorShortcutHandler
     {
     public:
-        explicit CountingShortcut(int& calls)
+        explicit CountingShortcut(JBro::Int32& calls)
             : m_calls(calls)
         {
         }
-        bool Execute(JBro::EditorApplication& editor) override
+        JBro::Bool Execute(JBro::EditorApplication& editor) override
         {
             (void)editor;
             ++m_calls;
@@ -374,12 +378,12 @@ namespace
         }
 
     private:
-        int& m_calls;
+        JBro::Int32& m_calls;
     };
 
     void TestTheEditorFeedsImGuiOnlyWhatTheGateLetsThrough()
     {
-        constexpr float Frame = 1.0f / 60.0f;
+        constexpr JBro::Float Frame = 1.0f / 60.0f;
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
@@ -393,12 +397,12 @@ namespace
         Check(editor.EnableEditorUi({ 64, 48 }), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be found");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
-        int calls = 0;
+        JBro::Int32 calls = 0;
         JBro::EditorShortcutDesc desc;
         desc.id = "test.guide_focus_probe";
         desc.labelKey = desc.id;
@@ -421,8 +425,8 @@ namespace
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
         const ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        const int insideX = static_cast<int>(inspector->Pos.x + inspector->Size.x * 0.5f);
-        const int insideY = static_cast<int>(inspector->Pos.y + inspector->Size.y * 0.5f);
+        const JBro::Int32 insideX = static_cast<int>(inspector->Pos.x + inspector->Size.x * 0.5f);
+        const JBro::Int32 insideY = static_cast<int>(inspector->Pos.y + inspector->Size.y * 0.5f);
         Check(focus.IsAllowed({ static_cast<float>(insideX), static_cast<float>(insideY) }),
             "the inspector the editor drew is the allowed area");
         Check(false == focus.IsAllowed({ 40.0f, 40.0f }), "and the top left of the editor is not");
@@ -477,7 +481,7 @@ namespace
     }
 }
 
-int RunEditorGuideFocusTests()
+JBro::Int32 RunEditorGuideFocusTests()
 {
     TestAPathRefusesWhatItCannotHold();
     TestAllowedRectsStartEmptyAndHaveACapacity();

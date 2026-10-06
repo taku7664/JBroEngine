@@ -7,23 +7,27 @@
 #include <JBro/Types/NameTable.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
     namespace
     {
-        float Finite(float value, float fallback)
+        Float Finite(Float value, Float fallback)
         {
             return std::isfinite(value) ? value : fallback;
         }
 
-        std::uint8_t ClampPriority(std::int32_t priority)
+        std::uint8_t ClampPriority(Int32 priority)
         {
             if (priority < 0)
             {
                 return 0;
             }
-            return static_cast<std::uint8_t>(priority > 255 ? 255 : priority);
+            return static_cast<std::uint8_t>(priority > 255 ? Int32(255) : priority);
         }
 
         AudioClipDesc DescribeClip(const AudioData& data)
@@ -62,7 +66,7 @@ namespace JBro::System
         Shutdown();
     }
 
-    bool AudioSystem::Initialize(AudioMixer& mixer, AssetSystem* assets)
+    Bool AudioSystem::Initialize(AudioMixer& mixer, AssetSystem* assets)
     {
         if (m_initialized || false == mixer.IsInitialized())
         {
@@ -121,7 +125,7 @@ namespace JBro::System
         m_initialized = false;
     }
 
-    bool AudioSystem::IsInitialized() const
+    Bool AudioSystem::IsInitialized() const
     {
         return m_initialized;
     }
@@ -146,7 +150,7 @@ namespace JBro::System
         m_mixer->SetBusVolume(AudioMasterBus, 1.0f);
         m_mixer->SetBusEffects(AudioMasterBus, AudioBusEffects{});
         const NameId master = MakeNameId(AudioMasterBusName);
-        for (std::uint32_t index = 0; index < buses.size; ++index)
+        for (UInt32 index = 0; index < buses.size; ++index)
         {
             const AudioBusConfig& config = buses.data[index];
             if (config.name == InvalidNameId || config.name == master || m_buses.Contains(config.name))
@@ -241,7 +245,7 @@ namespace JBro::System
         }
     }
 
-    std::uint64_t AudioSystem::KeyOf(AssetHandle handle)
+    UInt64 AudioSystem::KeyOf(AssetHandle handle)
     {
         return (static_cast<std::uint64_t>(handle.generation) << 32) | handle.index;
     }
@@ -257,7 +261,7 @@ namespace JBro::System
         {
             return;
         }
-        const std::uint64_t key = KeyOf(handle);
+        const UInt64 key = KeyOf(handle);
         if (const ClipEntry* entry = m_clips.Find(key))
         {
             // 믹서가 그 클립의 보이스를 멈춘 뒤에 돌아온다. 그 뒤에 에셋 시스템이 자료를 푼다.
@@ -277,7 +281,7 @@ namespace JBro::System
         {
             return {};
         }
-        const std::uint64_t key = KeyOf(handle);
+        const UInt64 key = KeyOf(handle);
         if (const ClipEntry* entry = m_clips.Find(key))
         {
             if (m_mixer->IsClipRegistered(entry->clip))
@@ -340,26 +344,26 @@ namespace JBro::System
         return AudioMasterBus;
     }
 
-    void AudioSystem::SetListener(const float position[3], const float forward[3], const float up[3], float planarDepth,
-        float deltaTime)
+    void AudioSystem::SetListener(const float position[3], const float forward[3], const float up[3], Float planarDepth,
+        Float deltaTime)
     {
         if (false == m_initialized || position == nullptr)
         {
             return;
         }
-        m_planarDepth = planarDepth > 0.0f && std::isfinite(planarDepth) ? planarDepth : 0.0f;
+        m_planarDepth = planarDepth > 0.0f && std::isfinite(planarDepth) ? planarDepth : Float(0.0f);
         m_mixer->SetListener(position, forward, up);
         // 리스너의 속도는 도플러에만 쓰인다. 첫 프레임과 순간 이동(시간 0)은 0 이다.
         float velocity[3] = {0.0f, 0.0f, 0.0f};
         if (m_listenerPlaced && deltaTime > 0.0f && std::isfinite(deltaTime))
         {
-            for (int axis = 0; axis < 3; ++axis)
+            for (Int32 axis = 0; axis < 3; ++axis)
             {
                 velocity[axis] = (position[axis] - m_listenerPosition[axis]) / deltaTime;
             }
         }
         m_mixer->SetListenerVelocity(velocity);
-        for (int axis = 0; axis < 3; ++axis)
+        for (Int32 axis = 0; axis < 3; ++axis)
         {
             m_listenerPosition[axis] = position[axis];
         }
@@ -374,13 +378,13 @@ namespace JBro::System
         out[2] = Finite(position[2], 0.0f) - m_planarDepth;
     }
 
-    float AudioSystem::WidenDistance(float distance) const
+    Float AudioSystem::WidenDistance(Float distance) const
     {
         // 깊이만큼 멀어진 것을 보정한다: 평면에서 d 만큼 떨어진 소리는 실제로 sqrt(d² + 깊이²) 에 있다.
-        return m_planarDepth > 0.0f ? std::sqrt(distance * distance + m_planarDepth * m_planarDepth) : distance;
+        return m_planarDepth > 0.0f ? Float(std::sqrt(distance * distance + m_planarDepth * m_planarDepth)) : distance;
     }
 
-    void AudioSystem::StopVoice(Component::AudioSource& source, float fadeOutSeconds)
+    void AudioSystem::StopVoice(Component::AudioSource& source, Float fadeOutSeconds)
     {
         if (source.runtime.voice.IsSet())
         {
@@ -430,7 +434,7 @@ namespace JBro::System
         source.state = runtime.voice.IsSet() ? Component::AudioSourceState::Playing : Component::AudioSourceState::Finished;
     }
 
-    void AudioSystem::UpdateSource(Component::AudioSource& source, bool active, const float position[3], float deltaTime)
+    void AudioSystem::UpdateSource(Component::AudioSource& source, Bool active, const float position[3], Float deltaTime)
     {
         if (false == m_initialized)
         {
@@ -457,7 +461,7 @@ namespace JBro::System
             // 도플러를 쓰는 소스만 속도를 잰다. 첫 프레임(보이스 없음)은 0 이다.
             if (source.doppler > 0.0f && runtime.voice.IsSet() && deltaTime > 0.0f && std::isfinite(deltaTime))
             {
-                for (int axis = 0; axis < 3; ++axis)
+                for (Int32 axis = 0; axis < 3; ++axis)
                 {
                     velocity[axis] = (position[axis] - runtime.position[axis]) / deltaTime;
                 }
@@ -479,11 +483,11 @@ namespace JBro::System
             }
         }
         // 클립이 바뀌었다. 재생 중이었으면 새 클립으로 잇고, 아니면 다음 시작이 새 클립을 쓴다.
-        const bool clipChanged = source.clip.index != runtime.playingClip.index
+        const Bool clipChanged = source.clip.index != runtime.playingClip.index
             || source.clip.generation != runtime.playingClip.generation;
         if (clipChanged)
         {
-            const bool wasPlaying = runtime.voice.IsSet();
+            const Bool wasPlaying = runtime.voice.IsSet();
             StopVoice(source, 0.0f);
             runtime.playingClip = source.clip;
             if (source.state == Component::AudioSourceState::NoClip)
@@ -503,7 +507,7 @@ namespace JBro::System
             }
         }
 
-        const bool autoStart = source.playOnStart && false == runtime.playOnStartUsed && false == runtime.stoppedByScript;
+        const Bool autoStart = source.playOnStart && false == runtime.playOnStartUsed && false == runtime.stoppedByScript;
         if (runtime.playRequested || autoStart)
         {
             runtime.playRequested = false;
@@ -516,13 +520,13 @@ namespace JBro::System
             return;
         }
         // 재생 중에 바뀔 수 있는 값만 민다(miniaudio 의 원자 변수). 바뀌지 않았으면 부르지 않는다.
-        const float volume = Finite(source.volume, 1.0f);
+        const Float volume = Finite(source.volume, 1.0f);
         if (volume != runtime.lastVolume)
         {
             m_mixer->SetVolume(runtime.voice, volume);
             runtime.lastVolume = volume;
         }
-        const float pitch = Finite(source.pitch, 1.0f);
+        const Float pitch = Finite(source.pitch, 1.0f);
         if (pitch != runtime.lastPitch)
         {
             m_mixer->SetPitch(runtime.voice, pitch);
@@ -539,8 +543,8 @@ namespace JBro::System
             runtime.lastBus = source.bus;
             runtime.busGeneration = m_busGeneration;
         }
-        const float lowPass = Finite(source.lowPass, 0.0f);
-        const float highPass = Finite(source.highPass, 0.0f);
+        const Float lowPass = Finite(source.lowPass, 0.0f);
+        const Float highPass = Finite(source.highPass, 0.0f);
         if (lowPass != runtime.lastLowPass || highPass != runtime.lastHighPass)
         {
             m_mixer->SetVoiceFilter(runtime.voice, lowPass, highPass);
@@ -569,7 +573,7 @@ namespace JBro::System
         m_listenerPlaced = false;
     }
 
-    bool AudioSystem::PlayPreview(AssetHandle clip, bool loop)
+    Bool AudioSystem::PlayPreview(AssetHandle clip, Bool loop)
     {
         StopPreview();
         const AudioClipHandle registered = AcquireClip(clip);
@@ -598,7 +602,7 @@ namespace JBro::System
         m_previewClip = {};
     }
 
-    bool AudioSystem::IsPreviewPlaying() const
+    Bool AudioSystem::IsPreviewPlaying() const
     {
         return m_initialized && m_mixer->IsAlive(m_preview);
     }
@@ -641,7 +645,7 @@ namespace JBro::System
         return m_serviceContext;
     }
 
-    void AudioSystem::PlayOneShot(AssetHandle clip, AudioBusName bus, float volume, float pitch)
+    void AudioSystem::PlayOneShot(AssetHandle clip, AudioBusName bus, Float volume, Float pitch)
     {
         const AudioClipHandle registered = AcquireClip(clip);
         if (false == registered.IsSet())
@@ -658,7 +662,7 @@ namespace JBro::System
         m_mixer->Play(play);
     }
 
-    void AudioSystem::PlayOneShotAt(AssetHandle clip, AudioBusName bus, float volume, float x, float y, float z)
+    void AudioSystem::PlayOneShotAt(AssetHandle clip, AudioBusName bus, Float volume, Float x, Float y, Float z)
     {
         const AudioClipHandle registered = AcquireClip(clip);
         if (false == registered.IsSet())
@@ -690,7 +694,7 @@ namespace JBro::System
         source.runtime.stoppedByScript = false;
     }
 
-    void AudioSystem::StopSource(Component::AudioSource& source, float fadeOutSeconds)
+    void AudioSystem::StopSource(Component::AudioSource& source, Float fadeOutSeconds)
     {
         if (false == m_initialized)
         {
@@ -724,7 +728,7 @@ namespace JBro::System
         }
     }
 
-    bool AudioSystem::IsSourcePlaying(const Component::AudioSource& source) const
+    Bool AudioSystem::IsSourcePlaying(const Component::AudioSource& source) const
     {
         if (false == m_initialized)
         {
@@ -752,7 +756,7 @@ namespace JBro::System
         source.state = Component::AudioSourceState::Idle;
     }
 
-    void AudioSystem::SetBusVolume(AudioBusName bus, float volume)
+    void AudioSystem::SetBusVolume(AudioBusName bus, Float volume)
     {
         if (m_initialized)
         {
@@ -760,12 +764,12 @@ namespace JBro::System
         }
     }
 
-    float AudioSystem::GetBusVolume(AudioBusName bus) const
+    Float AudioSystem::GetBusVolume(AudioBusName bus) const
     {
-        return m_initialized ? m_mixer->GetBusVolume(ResolveControlBus(bus)) : 0.0f;
+        return m_initialized ? m_mixer->GetBusVolume(ResolveControlBus(bus)) : Float(0.0f);
     }
 
-    void AudioSystem::SetBusMuted(AudioBusName bus, bool muted)
+    void AudioSystem::SetBusMuted(AudioBusName bus, Bool muted)
     {
         if (m_initialized)
         {
@@ -773,7 +777,7 @@ namespace JBro::System
         }
     }
 
-    bool AudioSystem::IsBusMuted(AudioBusName bus) const
+    Bool AudioSystem::IsBusMuted(AudioBusName bus) const
     {
         return m_initialized && m_mixer->IsBusMuted(ResolveControlBus(bus));
     }
@@ -796,7 +800,7 @@ namespace JBro::System
         StopGameSounds();
     }
 
-    void AudioSystem::FadeBusVolume(AudioBusName bus, float volume, float seconds)
+    void AudioSystem::FadeBusVolume(AudioBusName bus, Float volume, Float seconds)
     {
         if (m_initialized)
         {
@@ -804,7 +808,7 @@ namespace JBro::System
         }
     }
 
-    void AudioSystem::SetBusSolo(AudioBusName bus, bool solo)
+    void AudioSystem::SetBusSolo(AudioBusName bus, Bool solo)
     {
         if (false == m_initialized || bus.IsMaster())
         {
@@ -824,14 +828,14 @@ namespace JBro::System
         }
     }
 
-    bool AudioSystem::IsBusSolo(AudioBusName bus) const
+    Bool AudioSystem::IsBusSolo(AudioBusName bus) const
     {
         return m_initialized && false == bus.IsMaster() && m_soloBuses.Contains(bus.id);
     }
 
-    float AudioSystem::GetBusPeak(AudioBusName bus) const
+    Float AudioSystem::GetBusPeak(AudioBusName bus) const
     {
-        return m_initialized ? m_mixer->GetBusPeak(ResolveBus(bus)) : 0.0f;
+        return m_initialized ? m_mixer->GetBusPeak(ResolveBus(bus)) : Float(0.0f);
     }
 
     void AudioSystem::SetDeviceControl(IAudioDeviceControl* control)
@@ -839,7 +843,7 @@ namespace JBro::System
         m_deviceControl = control;
     }
 
-    void AudioSystem::SetWindowFocused(bool focused)
+    void AudioSystem::SetWindowFocused(Bool focused)
     {
         if (m_focused == focused)
         {
@@ -852,12 +856,12 @@ namespace JBro::System
         }
     }
 
-    std::uint32_t AudioSystem::GetOutputDeviceCount()
+    UInt32 AudioSystem::GetOutputDeviceCount()
     {
-        return m_deviceControl != nullptr ? m_deviceControl->RefreshOutputDevices() : 0;
+        return m_deviceControl != nullptr ? m_deviceControl->RefreshOutputDevices() : UInt32(0);
     }
 
-    const char* AudioSystem::GetOutputDeviceName(std::uint32_t index) const
+    const char* AudioSystem::GetOutputDeviceName(UInt32 index) const
     {
         return m_deviceControl != nullptr ? m_deviceControl->GetOutputDeviceName(index) : "";
     }
@@ -867,17 +871,17 @@ namespace JBro::System
         return m_deviceControl != nullptr ? m_deviceControl->GetCurrentOutputDevice() : "";
     }
 
-    bool AudioSystem::SetOutputDevice(const char* name)
+    Bool AudioSystem::SetOutputDevice(const char* name)
     {
         return m_deviceControl != nullptr && m_deviceControl->SelectOutputDevice(name);
     }
 
-    bool AudioSystem::IsWaitingForUserGesture() const
+    Bool AudioSystem::IsWaitingForUserGesture() const
     {
         return m_deviceControl != nullptr && m_deviceControl->IsWaitingForUserGesture();
     }
 
-    void AudioSystem::SetMuteWhenUnfocused(bool mute)
+    void AudioSystem::SetMuteWhenUnfocused(Bool mute)
     {
         m_muteWhenUnfocused = mute;
         if (m_initialized)
@@ -887,7 +891,7 @@ namespace JBro::System
         }
     }
 
-    bool AudioSystem::IsMuteWhenUnfocused() const
+    Bool AudioSystem::IsMuteWhenUnfocused() const
     {
         return m_muteWhenUnfocused;
     }

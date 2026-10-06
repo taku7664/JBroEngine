@@ -8,6 +8,10 @@
 #include <JBro/Types/Math2D.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -17,11 +21,11 @@ namespace JBro
     {
         GameObject* owner            = nullptr;
         Matrix3x2   view;
-        float       orthographicSize = 10.0f;
-        float       pixelsPerUnit = 100.0f;
+        Float       orthographicSize = 10.0f;
+        Float       pixelsPerUnit = 100.0f;
         Component::CameraProjection2D projection = Component::CameraProjection2D::Orthographic;
-        float       nearPlane = -100.0f;
-        float       farPlane = 100.0f;
+        Float       nearPlane = -100.0f;
+        Float       farPlane = 100.0f;
         Color       clearColor{ 1.0f, 1.0f, 1.0f, 1.0f };
     };
 
@@ -35,52 +39,52 @@ namespace JBro
         // 렌더러가 발급한 텍스처와 그 안의 칸이다(D-113). 추출 단계에서 `SpriteLibrary` 가 스프라이트 에셋에서 풀어 넣는다.
         // 텍스처가 비어 있으면 흰색이라 틴트만 보인다.
         AssetHandle   texture;
-        float         uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+        Float         uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
         // 텍스처의 샘플러다(D-117). 텍스처가 없으면 뜻이 없다.
         TextureFilter filter = TextureFilter::Nearest;
         AssetHandle   material;
         Color         tint{ 1.0f, 1.0f, 1.0f, 1.0f };
         Vector2          pivot;
         Vector2          size;
-        std::int32_t  renderOrder = 0;
+        Int32  renderOrder = 0;
         // 텍스처 알파를 거리장으로 읽는 SDF 글자다(4 단계). 참이면 외곽선 색과 외곽선이 끝나는 거리값을 쓴다. 렌더러 패킷과 같은 정규화
         // 정수다(`SpriteSubmit`) - 아이템을 정렬 뒤 옮기는 비용을 스프라이트에 물리지 않는다.
-        bool          sdfText = false;
+        Bool          sdfText = false;
         std::uint16_t outlineEdge = 32768; // 0..1 을 65535 로. 32768 은 0.5(외곽선 없음)
         std::uint8_t  outlineColor[4] = { 0, 0, 0, 0 };
         // 화면 레이어의 것이다(D-237). 참이면 좌표는 기준 해상도의 픽셀이고 월드 뷰 뒤의 화면 뷰에 그려진다.
-        bool          screenSpace = false;
+        Bool          screenSpace = false;
         ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
         // 레이어를 얹는 방식이다(D-279). `Normal` 이 아니거나 불투명도가 1 보다 작으면 브리지가 그 레이어를 렌더러의 묶음으로 낸다.
         LayerBlend    layerBlend = LayerBlend::Normal;
-        float         layerOpacity = 1.0f;
+        Float         layerOpacity = 1.0f;
         // 레이어의 패럴랙스 계수다(D-286). 게임 화면을 그릴 때 브리지가 이 아이템을 `카메라 위치 x (1 - 계수)` 만큼 옮긴다.
-        float         layerParallax = 1.0f;
+        Float         layerParallax = 1.0f;
     };
 
     // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).
     struct SpriteSortKey
     {
         // [63:48] layerOrder | [47:16] 부호 없는 순서로 옮긴 renderOrder | [15:0] 예약
-        std::uint64_t key = 0;
-        std::uint32_t index = 0;
+        UInt64 key = 0;
+        UInt32 index = 0;
     };
 
     class RenderWorld2D
     {
     public:
-        bool ReserveSprites(std::size_t capacity);
+        Bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
         // 켜져 있지만 값이 잘못되어 건너뛴 카메라 수다(D-239). 게임 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
-        void SetUnusableCameraCount(std::uint32_t count);
-        std::uint32_t GetUnusableCameraCount() const;
+        void SetUnusableCameraCount(UInt32 count);
+        UInt32 GetUnusableCameraCount() const;
         // 화면 레이어의 기준이다(D-237). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.
         void SetScreenSpace(const ScreenSpaceFrame& frame);
         const ScreenSpaceFrame& GetScreenSpace() const;
         std::size_t GetScreenSpriteCount() const;
         // Reserve outside frame processing. Full storage rejects submissions without allocation.
-        bool SubmitSprite(const SpriteRenderItem& item);
+        Bool SubmitSprite(const SpriteRenderItem& item);
         void Sort();
         void EndFrame();
 
@@ -95,11 +99,11 @@ namespace JBro
         const SpriteRenderItem* GetSubmittedSprites() const;
 
     private:
-        static std::uint64_t MakeSortKey(const SpriteRenderItem& item);
+        static UInt64 MakeSortKey(const SpriteRenderItem& item);
 
         RenderCamera2D          m_camera;
-        bool                    m_hasCamera = false;
-        std::uint32_t           m_unusableCameras = 0;
+        Bool                    m_hasCamera = false;
+        UInt32           m_unusableCameras = 0;
         ScreenSpaceFrame        m_screen;
         std::size_t             m_screenSprites = 0;
         Array<SpriteRenderItem> m_sprites;

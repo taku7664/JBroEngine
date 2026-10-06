@@ -7,6 +7,10 @@
 #include <JBro/Types/String.h>
 
 #include <cstddef>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -20,9 +24,9 @@ namespace JBro
     struct WindowDesc
     {
         JStringView title;
-        std::uint32_t width = 1280;
-        std::uint32_t height = 720;
-        bool visible = true;
+        UInt32 width = 1280;
+        UInt32 height = 720;
+        Bool visible = true;
     };
 
     struct WindowHandle
@@ -44,9 +48,9 @@ namespace JBro
     struct WindowState
     {
         // Client area in surface pixels, not the outer window rectangle.
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
-        bool minimized = false;
+        UInt32 width = 0;
+        UInt32 height = 0;
+        Bool minimized = false;
         // 가장자리에서 가려지는 띠다(표면 픽셀, D-249). 노치·홈 표시줄이 있는 기기만 채운다 -
         // **데스크톱은 전부 0 이고, 0 이면 안쪽 영역이 창 전체와 같다.** 기기를 돌리면 값이
         // 바뀌므로 플랫폼은 프레임마다 지금 값을 넣는다.
@@ -63,14 +67,14 @@ namespace JBro
         const char* defaultFileName = nullptr;
         const char* initialDirectory = nullptr;
         // 참이면 저장 대화상자(덮어쓰기 확인), 거짓이면 열기 대화상자(있는 파일만).
-        bool save = false;
+        Bool save = false;
         // 참이면 파일이 아니라 **폴더**를 고른다(D-160, 기존 `ShowOpenFolderDialog`). 필터와 `save` 는 보지 않는다.
-        bool pickFolder = false;
+        Bool pickFolder = false;
     };
 
     // 폴더 열거의 방문자다. `relativeUtf8Path` 는 열거를 시작한 폴더 기준 상대경로이고 구분자는 `/` 다.
     // 폴더에 대해 거짓을 돌려주면 그 아래로 내려가지 않는다. 파일에 대한 반환값은 뜻이 없다.
-    using DirectoryVisitor = bool (*)(const char* relativeUtf8Path, bool isDirectory, void* user);
+    using DirectoryVisitor = Bool (*)(const char* relativeUtf8Path, Bool isDirectory, void* user);
 
     // 감시 중인 폴더에서 일어난 일이다(D-117·D-121). `Overflow` 는 OS 나 버퍼가 알림을 버렸다는 뜻이라 받는 쪽이 전부
     // 다시 봐야 한다. 경로는 감시 폴더 기준 상대경로(UTF-8, `/`)이고, `Renamed` 만 `oldPath` 가 있다.
@@ -86,14 +90,14 @@ namespace JBro
     // ── 오디오 출력 (D-197·D-198) ─────────────────────────────────────────────────────────────
     // 장치가 **당겨 가는** 모양이다. 오디오 스레드가 이 함수를 불러 인터리브 f32 `frameCount` 프레임을 채우게 한다.
     // 함수 포인터와 사용자 자료만 건너간다(POD). 믹서는 이 모양을 알지 않는다 - 호스트가 둘을 잇는다.
-    using AudioRenderCallback = void (*)(void* user, float* output, std::uint32_t frameCount);
+    using AudioRenderCallback = void (*)(void* user, float* output, UInt32 frameCount);
 
     struct AudioOutputDesc
     {
-        std::uint32_t sampleRate = 48000;
-        std::uint32_t channels = 2;
+        UInt32 sampleRate = 48000;
+        UInt32 channels = 2;
         // 한 번에 당기는 프레임 수다. 0 이면 장치의 기본(보통 10 ms 안팎)이다. 작을수록 지연이 줄고 끊길 위험이 는다.
-        std::uint32_t periodFrames = 0;
+        UInt32 periodFrames = 0;
         // 열 장치의 이름(UTF-8, `EnumerateAudioOutputs` 의 것)이다(D-203). 비우면 시스템 기본 장치이고, 기본 장치는 사용자가
         // 바꾸면 따라간다. 이름의 장치가 없으면 열지 않는다(null) - 기본으로 떨어질지는 부르는 쪽이 정한다.
         const char* deviceName = nullptr;
@@ -103,7 +107,7 @@ namespace JBro
     struct AudioDeviceInfo
     {
         char name[256] = {};
-        bool isDefault = false;
+        Bool isDefault = false;
     };
 
     // 출력 장치 하나다. 만든 쪽(호스트)이 소유한다. **메인 스레드에서 만들고 멈추고 없앤다.** 콜백은 장치의 스레드에서
@@ -112,22 +116,22 @@ namespace JBro
     {
     public:
         virtual ~IAudioOutput() = default;
-        virtual bool Start(AudioRenderCallback callback, void* user) = 0;
+        virtual Bool Start(AudioRenderCallback callback, void* user) = 0;
         virtual void Stop() = 0;
-        virtual bool IsRunning() const = 0;
+        virtual Bool IsRunning() const = 0;
         // 장치가 실제로 받아들인 형식이다. 요청과 다를 수 있다 - 믹서는 이 값으로 만든다.
-        virtual std::uint32_t GetSampleRate() const = 0;
-        virtual std::uint32_t GetChannels() const = 0;
+        virtual UInt32 GetSampleRate() const = 0;
+        virtual UInt32 GetChannels() const = 0;
         // 사람이 읽는 장치 이름(UTF-8). 로그와 에디터가 쓴다. 기본 장치가 바뀌어 따라갔으면 새 이름이다.
         virtual const char* GetDeviceName() const = 0;
         // 장치가 스스로 멈췄다(뽑힘·드라이버 오류, D-203). 그 뒤로는 콜백이 오지 않는다 - 호스트가 닫고 다시 연다.
-        virtual bool IsLost() const
+        virtual Bool IsLost() const
         {
             return false;
         }
         // 브라우저가 사용자의 첫 누름·키 입력 전까지 소리를 막고 있다(자동 재생 정책, D-203). miniaudio 가 그 입력에서
         // 스스로 푼다 - 게임은 "눌러서 시작" 같은 안내를 띄우면 된다. 데스크톱은 늘 거짓이다.
-        virtual bool IsWaitingForUserGesture() const
+        virtual Bool IsWaitingForUserGesture() const
         {
             return false;
         }
@@ -150,9 +154,9 @@ namespace JBro
         virtual ~IFileStream() = default;
         // 읽은 바이트 수다. 끝이면 0 이다.
         virtual std::size_t Read(void* buffer, std::size_t bytes) = 0;
-        virtual bool Seek(std::int64_t offset, FileSeekOrigin origin) = 0;
-        virtual std::int64_t Tell() const = 0;
-        virtual std::int64_t GetSize() const = 0;
+        virtual Bool Seek(Int64 offset, FileSeekOrigin origin) = 0;
+        virtual Int64 Tell() const = 0;
+        virtual Int64 GetSize() const = 0;
     };
 
     // 워커에서 메인 스레드로 값으로 건너가는 POD 다. 할당도 참조도 들지 않는다 - `SafePtr` 는 메인 스레드 전용이다.
@@ -183,11 +187,11 @@ namespace JBro
         {
         }
         // Main-thread only. Waits up to the timeout; externally paced platforms may return early.
-        virtual void WaitForEvents(std::uint32_t timeoutMilliseconds) = 0;
+        virtual void WaitForEvents(UInt32 timeoutMilliseconds) = 0;
         // A close request does not destroy the surface. The host drains GPU work first.
-        virtual bool ShouldClose(WindowHandle window) const = 0;
+        virtual Bool ShouldClose(WindowHandle window) const = 0;
         // Main-thread only. False means unavailable/invalid; zero extent cannot render.
-        virtual bool GetWindowState(WindowHandle window, WindowState& state) const = 0;
+        virtual Bool GetWindowState(WindowHandle window, WindowState& state) const = 0;
         // Windows loads a disposable sibling copy so the source path remains replaceable.
         virtual DynamicLibrary LoadDynamicLibrary(const char* utf8Path) = 0;
         virtual void* GetSymbol(DynamicLibrary library, const char* name) = 0;
@@ -198,14 +202,14 @@ namespace JBro
         // 없는 파일·열 수 없는 파일은 거짓이고 `contents` 는 손대지 않는다. **기본은 "파일 시스템이 없다"** - 테스트의
         // 가짜 플랫폼과 아직 붙이지 않은 플랫폼이 그것이다. 파일을 읽는 플랫폼은 다섯을 함께 덮어쓴다.
         // **`ReadWholeFile` 은 어느 스레드에서 불러도 된다**(D-236) - 에셋 로드가 워커에서 부른다. 플랫폼의 다른 상태를 만지지 않는다.
-        virtual bool ReadWholeFile(const char* utf8Path, Array<std::byte>& contents)
+        virtual Bool ReadWholeFile(const char* utf8Path, Array<std::byte>& contents)
         {
             (void)utf8Path;
             (void)contents;
             return false;
         }
         // 덮어쓴다. 부모 폴더는 만들지 않는다. 쓰기가 없는 플랫폼(패키지 안의 에셋)은 거짓이다.
-        virtual bool WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents)
+        virtual Bool WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents)
         {
             (void)utf8Path;
             (void)contents;
@@ -213,7 +217,7 @@ namespace JBro
         }
         // 파일을 옮긴다. 목적지가 있으면 덮어쓴다. 같은 볼륨이면 이름만 바뀌므로 원자적이다 - 임시 파일에 쓰고
         // 이것으로 바꿔치기하면 쓰다 만 파일이 남지 않는다. 감시가 없는 플랫폼처럼 기본은 없다.
-        virtual bool MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path)
+        virtual Bool MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path)
         {
             (void)fromUtf8Path;
             (void)toUtf8Path;
@@ -221,33 +225,33 @@ namespace JBro
         }
         // 파일을 마지막으로 고친 때(유닉스 초). 에셋 브라우저가 "수정한 날짜" 로 늘어놓고
         // 보여 주는 데 쓴다(D-196, 기존 `AssetBrowserUtils::FileTimeToTimeT`). 없거나 읽지 못하면 거짓이다.
-        virtual bool GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const
+        virtual Bool GetFileWriteTime(const char* utf8Path, Int64& outUnixSeconds) const
         {
             (void)utf8Path;
             outUnixSeconds = 0;
             return false;
         }
-        virtual bool FileExists(const char* utf8Path) const
+        virtual Bool FileExists(const char* utf8Path) const
         {
             (void)utf8Path;
             return false;
         }
         // 폴더를 만든다(중간 폴더도 함께). **이미 있으면 참이다** - 부르는 쪽이 "있는가" 를
         // 먼저 묻고 만들면 그 사이에 생긴 경우를 다루지 못한다(D-139).
-        virtual bool CreateDirectoryAt(const char* utf8Path)
+        virtual Bool CreateDirectoryAt(const char* utf8Path)
         {
             (void)utf8Path;
             return false;
         }
         // 파일 하나를 지운다. 없으면 거짓이다 - "지웠다" 와 "없었다" 를 같게 보면
         // 부르는 쪽이 지워졌다고 믿는다.
-        virtual bool DeleteFileAt(const char* utf8Path)
+        virtual Bool DeleteFileAt(const char* utf8Path)
         {
             (void)utf8Path;
             return false;
         }
         // 폴더와 그 아래를 통째로 지운다. **되돌릴 수 없다** - 부르는 쪽이 먼저 물어야 한다.
-        virtual bool DeleteDirectoryAt(const char* utf8Path)
+        virtual Bool DeleteDirectoryAt(const char* utf8Path)
         {
             (void)utf8Path;
             return false;
@@ -271,24 +275,24 @@ namespace JBro
         // **OS 의 기본 프로그램에게 넘긴다**(기존 `File::OpenFile`). 엔진이 모르는 파일을
         // 에셋 브라우저에서 두 번 눌렀을 때 쓴다 - 탐색기로 보여 주는 `RevealInFileBrowser`
         // 와 짝이고, 성격이 같아 나란히 둔다.
-        virtual bool OpenPathWithShell(const char* utf8Path)
+        virtual Bool OpenPathWithShell(const char* utf8Path)
         {
             (void)utf8Path;
             return false;
         }
-        virtual bool RevealInFileBrowser(const char* utf8Path)
+        virtual Bool RevealInFileBrowser(const char* utf8Path)
         {
             (void)utf8Path;
             return false;
         }
-        virtual bool DirectoryExists(const char* utf8Path) const
+        virtual Bool DirectoryExists(const char* utf8Path) const
         {
             (void)utf8Path;
             return false;
         }
         // `utf8Root` 아래를 깊이 우선으로 돈다. 폴더를 먼저 알리고, 방문자가 참을 돌려주면 그 아래로 내려간다.
         // 폴더가 없거나 열거가 없는 플랫폼이면 거짓이다.
-        virtual bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user)
+        virtual Bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user)
         {
             (void)utf8Root;
             (void)visitor;
@@ -298,7 +302,7 @@ namespace JBro
 
         // 폴더 하나를 재귀로 감시한다(D-117·D-121). OS 감시를 워커가 돌리고 이벤트를 쌓는다. 다시 부르면 전 감시를
         // 닫는다. 폴더가 없거나 감시가 없는 플랫폼이면 거짓이다 - 기본은 없다.
-        virtual bool WatchDirectory(const char* utf8Root)
+        virtual Bool WatchDirectory(const char* utf8Root)
         {
             (void)utf8Root;
             return false;
@@ -306,12 +310,12 @@ namespace JBro
         virtual void StopWatching() {}
         // 감시가 걸려 있고 워커가 살아 있는가. 워커가 죽으면 `Overflow` 하나 뒤로 아무것도 오지 않으므로 받는 쪽은
         // 이것으로 다시 걸지 말지 정한다.
-        virtual bool IsWatching() const
+        virtual Bool IsWatching() const
         {
             return false;
         }
         // 쌓인 이벤트를 꺼낸다. **메인 스레드가 프레임 밖에서 부른다.** 채운 개수를 돌려주고, 남은 것은 다음에 이어진다.
-        virtual std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity)
+        virtual UInt32 TakeFileEvents(FileEvent* events, UInt32 capacity)
         {
             (void)events;
             (void)capacity;
@@ -321,7 +325,7 @@ namespace JBro
         // **막힌다.** 사용자가 고르거나 취소할 때까지 돌아오지 않는다. 프레임 밖에서 부른다.
         // 고르면 참이고 `outPath` 에 UTF-8 경로가 온다. 취소하거나 이 플랫폼에 대화상자가
         // 없으면 거짓이다 - 기본은 없다. 에디터 저장 메뉴가 부른다.
-        virtual bool ShowFileDialog(WindowHandle owner, const FileDialogDesc& desc, String& outPath)
+        virtual Bool ShowFileDialog(WindowHandle owner, const FileDialogDesc& desc, String& outPath)
         {
             (void)owner;
             (void)desc;
@@ -357,7 +361,7 @@ namespace JBro
         }
         // 출력 장치들의 이름을 `capacity` 개까지 채우고 모두 몇 개인지 돌려준다(D-203). 장치를 여는 일은 하지 않는다.
         // 몇 ms 가 걸리므로 목록을 여는 순간에만 부른다.
-        virtual std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+        virtual UInt32 EnumerateAudioOutputs(AudioDeviceInfo* devices, UInt32 capacity)
         {
             (void)devices;
             (void)capacity;
@@ -365,7 +369,7 @@ namespace JBro
         }
         // 지난번 물은 뒤로 출력 장치가 꽂히거나 빠지거나 기본이 바뀌었는가(D-206). 참을 돌려주면 표지를 내린다. 처음 부를 때
         // 감시를 켠다(그 호출은 거짓이다). 호스트가 "고른 장치가 다시 꽂혔나" 를 목록을 매번 읽지 않고 알려고 쓴다.
-        virtual bool TakeAudioDevicesChanged()
+        virtual Bool TakeAudioDevicesChanged()
         {
             return false;
         }
@@ -373,14 +377,14 @@ namespace JBro
         // ── 게임패드 (D-214) ────────────────────────────────────────────────────────────────────
         // 자리(0..3) 하나의 지금 상태다. 연결되어 있지 않으면 비우고 거짓이다. 빈 자리를 묻는 것이 비싸므로(XInput 은 수 ms)
         // 부르는 쪽이 빈 자리는 가끔만 묻는다. 기본은 "이 플랫폼에는 없다" 다.
-        virtual bool PollGamepad(std::uint32_t slot, GamepadRawState& state)
+        virtual Bool PollGamepad(UInt32 slot, GamepadRawState& state)
         {
             (void)slot;
             state = {};
             return false;
         }
         // 두 모터의 세기(0..1)다. 낮은 쪽이 왼쪽(큰 모터)이다. 없는 자리면 아무 일도 하지 않는다.
-        virtual void SetGamepadVibration(std::uint32_t slot, float low, float high)
+        virtual void SetGamepadVibration(UInt32 slot, Float low, Float high)
         {
             (void)slot;
             (void)low;

@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/Command/CompoundCommand.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -9,7 +10,7 @@ namespace JBro
     {
     }
 
-    bool CompoundCommand::Add(OwnerPtr<EditorCommand> command)
+    Bool CompoundCommand::Add(OwnerPtr<EditorCommand> command)
     {
         if (m_executed || command.Get() == nullptr)
         {
@@ -29,7 +30,7 @@ namespace JBro
         return m_name;
     }
 
-    bool CompoundCommand::Execute()
+    Bool CompoundCommand::Execute()
     {
         if (m_commands.IsEmpty())
         {
@@ -70,7 +71,7 @@ namespace JBro
         }
     }
 
-    bool CompoundCommand::CanMerge(const EditorCommand& newer) const
+    Bool CompoundCommand::CanMerge(const EditorCommand& newer) const
     {
         const auto* other = dynamic_cast<const CompoundCommand*>(&newer);
         if (other == nullptr || other->m_commands.Size() != m_commands.Size())
@@ -87,7 +88,7 @@ namespace JBro
         return true;
     }
 
-    bool CompoundCommand::TryMerge(const EditorCommand& newer)
+    Bool CompoundCommand::TryMerge(const EditorCommand& newer)
     {
         // **먼저 전부 물어본다.** 합치다 중간에 거절당하면 절반만 합쳐진
         // 상태로 남고, 그것을 되돌릴 방법이 없다.

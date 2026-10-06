@@ -32,6 +32,11 @@
 #include <cmath>
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
@@ -41,9 +46,9 @@ namespace JBro
         // 둘이 섞이면 레이어 위에 오브젝트를 놓은 것이 레이어 순서 바꾸기가 된다.
         // 행에서 "앞에" / "뒤에" 로 치는 위아래 띠의 몫이다. 기존 엔진과 같은 값이다 -
         // 가운데 절반은 "자식으로" 가 된다.
-        constexpr float DropEdgeRatio = 0.25f;
+        constexpr Float DropEdgeRatio = 0.25f;
 
-        bool ContainsFold(const char* text, const String& needle)
+        Bool ContainsFold(const char* text, const String& needle)
         {
             if (needle.size() == 0)
             {
@@ -81,7 +86,7 @@ namespace JBro
         }
 
         // 끌어 온 것을 이 부모 밑에 넣을 수 있는가. 자기 자신과 자기 자손은 안 된다.
-        bool CanReparent(const GameObject* dragged, const GameObject* newParent)
+        Bool CanReparent(const GameObject* dragged, const GameObject* newParent)
         {
             if (dragged == nullptr)
             {
@@ -108,13 +113,13 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelHierarchy, "Hierarchy");
     }
 
-    bool HierarchyPanel::OnCreate(EditorApplication& editor)
+    Bool HierarchyPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
     }
 
-    bool HierarchyPanel::Matches(const GameObject& object) const
+    Bool HierarchyPanel::Matches(const GameObject& object) const
     {
         if (m_filter.size() == 0)
         {
@@ -182,7 +187,7 @@ namespace JBro
         if (Widget::BeginContextMenu("##HierarchyMenu", true))
         {
             // 빈자리의 메뉴는 캔버스 뷰의 것과 **같은 한 벌**이다(D-132).
-            bool changed = EditorActions::DrawBackgroundMenu(*m_editor);
+            Bool changed = EditorActions::DrawBackgroundMenu(*m_editor);
             ImGui::Separator();
             if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyAddLayer, "Add Layer"), nullptr, true, nullptr, Icons::Plus))
             {
@@ -211,7 +216,7 @@ namespace JBro
             Widget::TreeDrawContext canvasRow;
             Widget::TreeBegin("##canvas", canvasFlags, &canvasRow);
             Widget::TreeEnd();
-            const bool canvasClicked = ImGui::IsItemClicked();
+            const Bool canvasClicked = ImGui::IsItemClicked();
             if (canvasRow.IsVisible)
             {
                 // 이름은 파일 이름이다. 아직 저장한 적이 없으면 그렇다고 말한다 -
@@ -254,7 +259,7 @@ namespace JBro
         // 사각형이 뒤집혀 받는 자리가 아예 생기지 않는다. 실제로 그랬고, 그래서
         // 부모 해제가 되지 않았다. 남은 높이가 0 일 수도 있으므로 한 줄은 보장한다.
         // **레이어 에셋을 빈자리에 놓으면 맨 위에 새 레이어로 들어온다**(D-287, 기존 `LayerTool` 의 레이어 에셋 드롭). 에셋을 끄는 동안에도 받는 자리를 편다.
-        const bool assetDrag = Widget::IsDragging(Widget::DragKind::Asset);
+        const Bool assetDrag = Widget::IsDragging(Widget::DragKind::Asset);
         if (m_dragActive || assetDrag)
         {
             const ImVec2 available = ImGui::GetContentRegionAvail();
@@ -350,8 +355,8 @@ namespace JBro
         Widget::TreeDrawContext row;
         Widget::SetNextItemTarget(GuideFocusTargets::HierarchyLayer(layerId));
         // 줄은 썸네일 높이(글자 두 줄)다(D-288, 기존 `ImLayerHeader`).
-        const float thumbnailHeight = std::floor(ImGui::GetTextLineHeight() * 2.0f);
-        const bool opened = Widget::TreeBegin("##layer", flags, &row, thumbnailHeight);
+        const Float thumbnailHeight = std::floor(ImGui::GetTextLineHeight() * 2.0f);
+        const Bool opened = Widget::TreeBegin("##layer", flags, &row, thumbnailHeight);
         Widget::TreeEnd();
         // **레이어 줄을 누르면 그 레이어를 고른다**(D-279, 기존 `LayerTool` 의 `SelectLayer`). 인스펙터가 레이어의 값을 보이고,
         // 새 오브젝트와 붙여넣기가 그 레이어로 간다. 오브젝트 줄과 같이 **뗄 때** 고른다 - 누르자마자 고르면 줄을 끌어 차례를
@@ -370,7 +375,7 @@ namespace JBro
             Widget::Text(layer.GetName());
             Widget::EndDragSource();
         }
-        const bool alive = DrawLayerContextMenu(layer);
+        const Bool alive = DrawLayerContextMenu(layer);
         DrawLayerDropTarget(layer, index, row.RowRect);
 
         if (alive && row.IsVisible)
@@ -382,9 +387,9 @@ namespace JBro
             TextureHandle thumbnail;
             Extent2D thumbnailExtent;
             const ProjectFile& project = m_editor->GetProjectFile();
-            float aspect = project.resolutionHeight != 0
+            Float aspect = project.resolutionHeight != 0
                 ? static_cast<float>(project.resolutionWidth) / static_cast<float>(project.resolutionHeight) : 16.0f / 9.0f;
-            const bool hasThumbnail = m_editor->GetLayerThumbnail(layerId, thumbnail, thumbnailExtent);
+            const Bool hasThumbnail = m_editor->GetLayerThumbnail(layerId, thumbnail, thumbnailExtent);
             if (hasThumbnail && thumbnailExtent.height != 0)
             {
                 aspect = static_cast<float>(thumbnailExtent.width) / static_cast<float>(thumbnailExtent.height);
@@ -422,7 +427,7 @@ namespace JBro
 
             ImGui::SetCursorScreenPos(cursor);
             // **눈 표시는 줄의 오른쪽 끝이다.** 기존 엔진도 같은 자리에 두었다. 오브젝트 줄과 같은 함수다.
-            const bool visible = layer.IsVisible();
+            const Bool visible = layer.IsVisible();
             if (Widget::RowEyeToggle(row, "##eye", visible,
                     Loc::TextOr(LocKeys::HierarchyLayerVisible, "show this layer")))
             {
@@ -435,7 +440,7 @@ namespace JBro
         {
             // 이 레이어에 속한 뿌리만 그린다. **자리 번호는 캔버스의 뿌리 차례 그대로**다 -
             // 레이어 안에서 센 번호를 넘기면 옮기기가 다른 오브젝트 자리로 간다.
-            bool any = false;
+            Bool any = false;
             for (std::size_t at = 0; at < m_roots.Size(); ++at)
             {
                 GameObject* root = m_roots[at];
@@ -483,10 +488,10 @@ namespace JBro
         {
             // 레이어끼리는 위 절반이 **앞(위)**, 아래 절반이 뒤다. 화면의 위가 앞이므로
             // 캔버스의 번호로는 위쪽이 더 큰 번호다.
-            const float height = (std::max)(1.0f, rowRect.Max.y - rowRect.Min.y);
-            const float local = std::clamp(
+            const Float height = (std::max)(1.0f, rowRect.Max.y - rowRect.Min.y);
+            const Float local = JBro::Clamp(
                 (ImGui::GetIO().MousePos.y - rowRect.Min.y) / height, 0.0f, 1.0f);
-            const bool above = local < 0.5f;
+            const Bool above = local < 0.5f;
             const Widget::DropPayload payload =
                 Widget::AcceptDrop(Widget::DragKind::HierarchyLayer, Widget::DropFeedback::None);
             if (payload)
@@ -523,7 +528,7 @@ namespace JBro
         Widget::EndDropTarget();
     }
 
-    bool HierarchyPanel::DrawLayerContextMenu(Layer& layer)
+    Bool HierarchyPanel::DrawLayerContextMenu(Layer& layer)
     {
         Canvas* canvas = m_editor->GetCanvas();
         if (false == Widget::BeginContextMenu("##LayerMenu"))
@@ -531,7 +536,7 @@ namespace JBro
             return true;
         }
         const LayerId layerId = layer.GetId();
-        bool alive = true;
+        Bool alive = true;
 
         // 이름 고치기는 팝업 안의 글자 칸이다. 줄 위에서 바로 고치게 하면 그 줄의
         // 클릭·끌기와 뒤섞인다.
@@ -545,7 +550,7 @@ namespace JBro
         // `IsItemDeactivatedAfterEdit`). 글자마다 내면 이름을 열 자 고친 것을 되돌리는 데
         // 실행 취소가 열 번 들고, 커맨드 병합은 마우스를 누른 채일 때만 일어나므로
         // 타이핑에는 걸리지 않는다. 인스펙터의 오브젝트 이름 칸이 이미 이 수를 쓴다.
-        const bool renamed = Widget::TextField("##layerName", m_renameText)
+        const Bool renamed = Widget::TextField("##layerName", m_renameText)
             .Width(180.0f)
             .CommitOnFinish()
             .Draw();
@@ -558,7 +563,7 @@ namespace JBro
         ImGui::Separator();
         // **화면 레이어**(D-237). 켜고 끄면 루트의 자리가 게임 화면에서 보이던 곳에 남는다(`MakeLayerSpaceCommand`).
         {
-            const bool screen = layer.GetSpace() == LayerSpace::Screen;
+            const Bool screen = layer.GetSpace() == LayerSpace::Screen;
             const char* toggle = screen ? Loc::TextOr(LocKeys::HierarchyLayerToWorld, "Make World Layer")
                                         : Loc::TextOr(LocKeys::HierarchyLayerScreen, "Make Screen Layer");
             if (Widget::MenuItem(toggle))
@@ -575,12 +580,12 @@ namespace JBro
             {
                 Widget::Text(Loc::TextOr(LocKeys::HierarchyLayerScaleMode, "Scale Mode"));
                 const char* const modes[] = { "FixedHeight", "FixedWidth", "Contain", "ConstantPixel" };
-                int current = static_cast<int>(layer.GetScaleMode());
+                Int32 current = static_cast<int>(layer.GetScaleMode());
                 if (Widget::FilterCombo("##scaleMode", ArrayView<const char* const>(modes, 4), current).ShowFilter(false).Width(180.0f).Draw()
                     && current >= 0)
                 {
                     if (OwnerPtr<EditorCommand> command = m_editor->MakeLayerSpaceCommand(
-                            layerId, LayerSpace::Screen, static_cast<ScreenScaleMode>(current)))
+                            layerId, LayerSpace::Screen, static_cast<ScreenScaleMode>(current.Get())))
                     {
                         m_editor->GetCommands().Execute(std::move(command));
                     }
@@ -608,7 +613,7 @@ namespace JBro
             {
                 m_editor->SaveLayerAsAsset(layerId, "");
             }
-            const bool canDelete = canvas->GetLayerCount() > 1;
+            const Bool canDelete = canvas->GetLayerCount() > 1;
             if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer"),
                     nullptr, canDelete,
                     Loc::TextOr(LocKeys::BlockedLastLayer, "a canvas needs at least one layer"), Icons::Delete))
@@ -668,8 +673,8 @@ namespace JBro
             return;
         }
 
-        const float height = (std::max)(1.0f, rowRect.Max.y - rowRect.Min.y);
-        const float local = std::clamp(
+        const Float height = (std::max)(1.0f, rowRect.Max.y - rowRect.Min.y);
+        const Float local = JBro::Clamp(
             (ImGui::GetIO().MousePos.y - rowRect.Min.y) / height, 0.0f, 1.0f);
         DropWhere where = DropWhere::Into;
         if (local < DropEdgeRatio)
@@ -776,7 +781,7 @@ namespace JBro
         if (oldParent == parent)
         {
             std::size_t own = 0;
-            const bool found = parent != nullptr
+            const Bool found = parent != nullptr
                 ? parent->FindChildIndex(dragged, own)
                 : canvas->FindRootIndex(dragged, own);
             if (found && own < target)
@@ -833,7 +838,7 @@ namespace JBro
         const NameId rowName = GuideFocusTargets::HierarchyObject(0).name;
         const NameId menuName = GuideFocusTargets::HierarchyObjectMenu(0).name;
         const GuideFocusPath& path = focus->GetPath();
-        for (std::uint32_t index = 0; index < path.count; ++index)
+        for (UInt32 index = 0; index < path.count; ++index)
         {
             const GuideFocusTarget& target = path.targets[index];
             if (target.name != rowName && target.name != menuName)
@@ -846,8 +851,8 @@ namespace JBro
                 continue;
             }
             // 줄과 그 줄의 메뉴는 같은 오브젝트다. 한 번만 든다.
-            bool known = false;
-            for (std::uint32_t row = 0; row < m_guideRowCount; ++row)
+            Bool known = false;
+            for (UInt32 row = 0; row < m_guideRowCount; ++row)
             {
                 if (m_guideRows[row].object == object)
                 {
@@ -863,9 +868,9 @@ namespace JBro
         }
     }
 
-    std::uint64_t HierarchyPanel::FindGuideRow(const GameObject& object) const
+    UInt64 HierarchyPanel::FindGuideRow(const GameObject& object) const
     {
-        for (std::uint32_t row = 0; row < m_guideRowCount; ++row)
+        for (UInt32 row = 0; row < m_guideRowCount; ++row)
         {
             if (m_guideRows[row].object == &object)
             {
@@ -875,7 +880,7 @@ namespace JBro
         return 0;
     }
 
-    bool HierarchyPanel::IsOnRevealPath(const GameObject& object) const
+    Bool HierarchyPanel::IsOnRevealPath(const GameObject& object) const
     {
         const GameObject* target = m_reveal.TryGet();
         if (target == nullptr)
@@ -894,7 +899,7 @@ namespace JBro
         return false;
     }
 
-    bool HierarchyPanel::DrawObjectContextMenu(GameObject& object)
+    Bool HierarchyPanel::DrawObjectContextMenu(GameObject& object)
     {
         if (false == Widget::BeginContextMenu("##ObjectMenu"))
         {
@@ -902,7 +907,7 @@ namespace JBro
         }
         // 항목은 공용 한 벌이다(D-132·D-170). 캔버스 뷰에서 오브젝트를 우클릭한 자리가
         // 같은 것을 쓴다.
-        const bool alive = EditorActions::DrawObjectMenu(*m_editor, object);
+        const Bool alive = EditorActions::DrawObjectMenu(*m_editor, object);
         Widget::EndContextMenu();
         return alive;
     }
@@ -928,7 +933,7 @@ namespace JBro
 
         // **개수는 지금 재 둔다.** 아래에서 우클릭 메뉴가 이 오브젝트를 지울 수 있고,
         // 그 뒤에 배열을 다시 읽으면 죽은 자리를 읽는다.
-        const bool hasChildren = object.GetChildren().Size() != 0;
+        const Bool hasChildren = object.GetChildren().Size() != 0;
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow
             | ImGuiTreeNodeFlags_SpanAvailWidth
             | ImGuiTreeNodeFlags_DefaultOpen;
@@ -958,13 +963,13 @@ namespace JBro
         // 나중에 눈 표시나 배지를 같은 줄에 얹을 자리가 이것이다.
         Widget::TreeDrawContext row;
         // 가이드 포커스의 경로에 든 줄만 알린다(D-251). 번호는 프레임 첫머리에 풀어 둔 것이다(`CollectGuideRows`).
-        const std::uint64_t guideId = FindGuideRow(object);
-        const bool guided = guideId != 0;
+        const UInt64 guideId = FindGuideRow(object);
+        const Bool guided = guideId != 0;
         if (guided)
         {
             Widget::SetNextItemTarget(GuideFocusTargets::HierarchyObject(guideId));
         }
-        const bool opened = Widget::TreeBegin("##node", flags, &row);
+        const Bool opened = Widget::TreeBegin("##node", flags, &row);
         Widget::TreeEnd();
         if (guided)
         {
@@ -983,8 +988,8 @@ namespace JBro
         // **줄에 대한 판단은 여기서 다 한다.** 아래에서 이름을 그리면 ImGui 의
         // "마지막 항목" 이 그 글자로 바뀌어, 줄의 빈 곳을 누른 것이 줄을 누른 것으로
         // 세지 않는다.
-        const bool rowHovered = ImGui::IsItemHovered();
-        const bool rowToggled = ImGui::IsItemToggledOpen();
+        const Bool rowHovered = ImGui::IsItemHovered();
+        const Bool rowToggled = ImGui::IsItemToggledOpen();
         DrawDragSource(object);
         if (false == DrawObjectContextMenu(object))
         {
@@ -1059,7 +1064,7 @@ namespace JBro
             }
             ImGui::SetCursorScreenPos(cursor);
             // **캔버스 뷰에서만 감추는 눈이다**(D-163, 기존 레이어 창의 `EditorHidden`). 게임 뷰와 게임에는 그대로 나온다.
-            const bool shown = false == object.IsEditorHidden();
+            const Bool shown = false == object.IsEditorHidden();
             if (Widget::RowEyeToggle(row, "##eye", shown,
                     Loc::TextOr(LocKeys::HierarchyObjectHidden, "hide or show in the canvas view")))
             {

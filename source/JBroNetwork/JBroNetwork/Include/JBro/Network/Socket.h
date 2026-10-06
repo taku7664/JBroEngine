@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 소켓 경계다(network-plan §2.3). 네트워크는 소켓을 직접 열지 않고 `ISocketProvider` 로 받는다.
 // 독립 개발 단계에서는 테스트가 인메모리 provider 와 Winsock 을 직접 감싼 provider 를 넘기고,
@@ -17,16 +19,16 @@ namespace JBro::Network
     // 불투명 엔드포인트. sockaddr_in / in6 를 담을 만큼의 POD 다. 배운 상대 주소로 되돌려 보내는 데 쓴다.
     struct Endpoint
     {
-        static constexpr std::uint32_t Capacity = 28;
+        static constexpr UInt32 Capacity = 28;
         std::uint8_t data[Capacity] = {};
-        std::uint32_t length = 0;
+        UInt32 length = 0;
 
-        bool IsValid() const
+        Bool IsValid() const
         {
             return 0 != length;
         }
 
-        bool Equals(const Endpoint& other) const
+        Bool Equals(const Endpoint& other) const
         {
             if (length != other.length)
             {
@@ -53,10 +55,10 @@ namespace JBro::Network
         virtual ~IStreamSocket() = default;
 
         // 접속을 시작한다. 결과는 `GetState` 가 `Connecting` 에서 `Connected` 나 `Disconnected` 로 바뀌는 것으로 안다.
-        virtual bool Connect(const char* host, std::uint16_t port) = 0;
-        virtual bool Listen(std::uint16_t port) = 0;
+        virtual Bool Connect(const char* host, std::uint16_t port) = 0;
+        virtual Bool Listen(std::uint16_t port) = 0;
         // 같은 기계에서 오는 접속만 받는다(127.0.0.1). 에디터 제어 포트처럼 밖에 열면 안 되는 서버가 쓴다(D-270).
-        virtual bool ListenLoopback(std::uint16_t port) = 0;
+        virtual Bool ListenLoopback(std::uint16_t port) = 0;
         // 기다리는 접속이 있으면 그 소켓을, 없으면 null 을 돌려준다. Listen 한 소켓에서만 뜻이 있다.
         virtual OwnerPtr<IStreamSocket> Accept() = 0;
         virtual ConnectionState GetState() const = 0;
@@ -73,14 +75,14 @@ namespace JBro::Network
         virtual ~IDatagramSocket() = default;
 
         // 소켓을 만들고 논블로킹으로 둔다. 바인드하지 않는다(클라이언트는 첫 SendTo 에서 임시 포트를 받는다).
-        virtual bool Open() = 0;
+        virtual Bool Open() = 0;
         // 서버가 포트를 잡는다. 0 이면 임시 포트다.
-        virtual bool Bind(std::uint16_t port) = 0;
-        virtual bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) = 0;
+        virtual Bool Bind(std::uint16_t port) = 0;
+        virtual Bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) = 0;
         virtual SocketIo SendTo(const Endpoint& to, const void* data, std::size_t size) = 0;
         virtual SocketIo ReceiveFrom(void* buffer, std::size_t capacity, std::size_t& outReceived, Endpoint& outFrom) = 0;
         virtual void Close() = 0;
-        virtual bool IsOpen() const = 0;
+        virtual Bool IsOpen() const = 0;
     };
 
     // WebRTC 피어 연결 하나(network-plan §2.7). 데이터 채널을 `NetChannelCount` 개 열고 채널 열거형과 1:1 로 쓴다.
@@ -88,7 +90,7 @@ namespace JBro::Network
     struct PeerConnectionDesc
     {
         // 제안을 만드는 쪽이 참이다.
-        bool initiator = false;
+        Bool initiator = false;
         // ICE 서버 목록. `stun:` / `turn:` URL 을 널 문자로 구분해 이어 붙인 UTF-8 이고 마지막은 널 둘이다.
         const char* iceServers = nullptr;
     };
@@ -100,9 +102,9 @@ namespace JBro::Network
 
         virtual ConnectionState GetState() const = 0;
         // 상대에게 전달할 시그널 바이트를 꺼낸다. 없으면 0.
-        virtual std::uint32_t TakeSignal(void* buffer, std::uint32_t capacity) = 0;
+        virtual UInt32 TakeSignal(void* buffer, UInt32 capacity) = 0;
         // 상대에게서 받은 시그널 바이트를 넣는다.
-        virtual bool PushSignal(const void* data, std::uint32_t size) = 0;
+        virtual Bool PushSignal(const void* data, UInt32 size) = 0;
         virtual SocketIo Send(NetChannel channel, const void* data, std::size_t size) = 0;
         virtual SocketIo Receive(NetChannel& outChannel, void* buffer, std::size_t capacity, std::size_t& outReceived) = 0;
         virtual void Close() = 0;

@@ -1,6 +1,10 @@
 ﻿#include "D3D12Device.h"
 
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -34,7 +38,7 @@ namespace JBro::Internal
         // 깊이 첨부의 시작 접근. 색과 다른 점은 클리어 값이 깊이·스텐실이라는 것뿐이다.
         D3D12_RENDER_PASS_BEGINNING_ACCESS BuildDepthBeginningAccess(
             LoadOperation operation,
-            float clearDepth,
+            Float clearDepth,
             std::uint8_t clearStencil)
         {
             D3D12_RENDER_PASS_BEGINNING_ACCESS access = {};
@@ -65,7 +69,7 @@ namespace JBro::Internal
             return access;
         }
 
-        bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
+        Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
@@ -75,7 +79,7 @@ namespace JBro::Internal
         D3D12Device& device,
         ID3D12GraphicsCommandList& commandList,
         ID3D12GraphicsCommandList4* commandList4,
-        bool nativeRenderPasses)
+        Bool nativeRenderPasses)
     {
         m_device = &device;
         m_commandList = &commandList;
@@ -84,11 +88,11 @@ namespace JBro::Internal
         m_discardAtEndCount = 0;
         m_activePushConstantCount = 0;
         m_activePipeline = {};
-        for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
+        for (UInt32 index = 0; index < MaxBoundTextures; ++index)
         {
             m_pendingTextures[index] = {};
         }
-        for (std::uint32_t index = 0; index < MaxBoundSamplers; ++index)
+        for (UInt32 index = 0; index < MaxBoundSamplers; ++index)
         {
             m_pendingSamplers[index] = {};
         }
@@ -108,11 +112,11 @@ namespace JBro::Internal
         m_samplerTableCursor = 0;
         m_boundTextureTable = {};
         m_boundSamplerTable = {};
-        for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
+        for (UInt32 index = 0; index < MaxBoundTextures; ++index)
         {
             m_pendingTextures[index] = {};
         }
-        for (std::uint32_t index = 0; index < MaxBoundSamplers; ++index)
+        for (UInt32 index = 0; index < MaxBoundSamplers; ++index)
         {
             m_pendingSamplers[index] = {};
         }
@@ -120,12 +124,12 @@ namespace JBro::Internal
         m_pipelineActive = false;
     }
 
-    bool D3D12CommandContext::IsRenderPassActive() const
+    Bool D3D12CommandContext::IsRenderPassActive() const
     {
         return m_renderPassActive;
     }
 
-    bool D3D12CommandContext::BeginRenderPass(const RenderPassDesc& desc)
+    Bool D3D12CommandContext::BeginRenderPass(const RenderPassDesc& desc)
     {
 
         if (m_device == nullptr
@@ -142,9 +146,9 @@ namespace JBro::Internal
         // 색 첨부들 + 깊이 하나. 깊이는 마지막 칸이다.
         D3D12_RESOURCE_BARRIER barriers[MaxColorAttachments + 1] = {};
         D3D12_CPU_DESCRIPTOR_HANDLE descriptors[MaxColorAttachments] = {};
-        std::uint32_t barrierCount = 0;
+        UInt32 barrierCount = 0;
 
-        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
             if (false == m_device->ResolveRenderTarget(desc.colorAttachments.data[index].texture, bindings[index]))
             {
@@ -176,7 +180,7 @@ namespace JBro::Internal
             }
         }
 
-        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
             if (*bindings[index].state != D3D12_RESOURCE_STATE_RENDER_TARGET)
             {
@@ -199,7 +203,7 @@ namespace JBro::Internal
         // 샘플링도 되는 렌더 타깃은 패스가 끝나면 셰이더 읽기 상태로 되돌려야 한다.
         // 에디터가 게임 화면을 텍스처에 그려 놓고 같은 프레임에 그것을 읽는 길이 이것이다.
         m_sampledAtEndCount = 0;
-        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
             if (bindings[index].sampled)
             {
@@ -210,7 +214,7 @@ namespace JBro::Internal
         if (m_nativeRenderPasses)
         {
             D3D12_RENDER_PASS_RENDER_TARGET_DESC renderTargets[MaxColorAttachments] = {};
-            for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+            for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
             {
                 renderTargets[index].cpuDescriptor = descriptors[index];
                 renderTargets[index].BeginningAccess = BuildBeginningAccess(
@@ -251,7 +255,7 @@ namespace JBro::Internal
                     depthDesc->clearDepth, depthDesc->clearStencil, 0, nullptr);
             }
 
-            for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+            for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
             {
                 const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
                 if (attachment.loadOperation == LoadOperation::Clear)
@@ -279,7 +283,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
+    Bool D3D12CommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
     {
         D3D12RenderTargetBinding from;
         D3D12RenderTargetBinding to;
@@ -296,7 +300,7 @@ namespace JBro::Internal
             return false;
         }
         D3D12_RESOURCE_BARRIER barriers[2] = {};
-        std::uint32_t barrierCount = 0;
+        UInt32 barrierCount = 0;
         const auto transition = [&](D3D12RenderTargetBinding& binding, D3D12_RESOURCE_STATES state) {
             if (*binding.state == state)
             {
@@ -334,7 +338,7 @@ namespace JBro::Internal
         }
         else
         {
-            for (std::uint32_t index = 0; index < m_discardAtEndCount; ++index)
+            for (UInt32 index = 0; index < m_discardAtEndCount; ++index)
             {
                 m_commandList->DiscardResource(m_discardAtEnd[index], nullptr);
             }
@@ -345,8 +349,8 @@ namespace JBro::Internal
         if (m_sampledAtEndCount != 0)
         {
             D3D12_RESOURCE_BARRIER barriers[MaxColorAttachments] = {};
-            std::uint32_t barrierCount = 0;
-            for (std::uint32_t index = 0; index < m_sampledAtEndCount; ++index)
+            UInt32 barrierCount = 0;
+            for (UInt32 index = 0; index < m_sampledAtEndCount; ++index)
             {
                 D3D12RenderTargetBinding& binding = m_sampledAtEnd[index];
                 if (*binding.state == D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
@@ -406,7 +410,7 @@ namespace JBro::Internal
         m_commandList->RSSetScissorRects(1, &nativeScissor);
     }
 
-    bool D3D12CommandContext::SetGraphicsPipeline(GraphicsPipelineHandle pipeline)
+    Bool D3D12CommandContext::SetGraphicsPipeline(GraphicsPipelineHandle pipeline)
     {
         if (false == m_renderPassActive || m_device == nullptr || m_commandList == nullptr)
         {
@@ -428,11 +432,11 @@ namespace JBro::Internal
         // 앞의 테이블 번호가 더 이상 같은 자리를 뜻하지 않는다. 걸려 있던 테이블도 새 루트에는 없는 것이다.
         m_boundTextureTable = {};
         m_boundSamplerTable = {};
-        for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
+        for (UInt32 index = 0; index < MaxBoundTextures; ++index)
         {
             m_pendingTextures[index] = {};
         }
-        for (std::uint32_t index = 0; index < MaxBoundSamplers; ++index)
+        for (UInt32 index = 0; index < MaxBoundSamplers; ++index)
         {
             m_pendingSamplers[index] = {};
         }
@@ -440,7 +444,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::SetTexture(std::uint32_t slot, TextureHandle texture)
+    Bool D3D12CommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
         {
@@ -461,7 +465,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::SetSampler(std::uint32_t slot, SamplerHandle sampler)
+    Bool D3D12CommandContext::SetSampler(UInt32 slot, SamplerHandle sampler)
     {
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
         {
@@ -480,18 +484,18 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::FindStagedTable(const StagedTable* tables, std::uint32_t tableCount,
-        const D3D12_CPU_DESCRIPTOR_HANDLE* keys, std::uint32_t count, D3D12_GPU_DESCRIPTOR_HANDLE& table) const
+    Bool D3D12CommandContext::FindStagedTable(const StagedTable* tables, UInt32 tableCount,
+        const D3D12_CPU_DESCRIPTOR_HANDLE* keys, UInt32 count, D3D12_GPU_DESCRIPTOR_HANDLE& table) const
     {
-        for (std::uint32_t index = 0; index < tableCount; ++index)
+        for (UInt32 index = 0; index < tableCount; ++index)
         {
             const StagedTable& candidate = tables[index];
             if (candidate.count != count)
             {
                 continue;
             }
-            bool same = true;
-            for (std::uint32_t slot = 0; slot < count && same; ++slot)
+            Bool same = true;
+            for (UInt32 slot = 0; slot < count && same; ++slot)
             {
                 same = candidate.keys[slot].ptr == keys[slot].ptr;
             }
@@ -504,8 +508,8 @@ namespace JBro::Internal
         return false;
     }
 
-    void D3D12CommandContext::RememberStagedTable(StagedTable* tables, std::uint32_t& tableCount,
-        std::uint32_t& cursor, const D3D12_CPU_DESCRIPTOR_HANDLE* keys, std::uint32_t count,
+    void D3D12CommandContext::RememberStagedTable(StagedTable* tables, UInt32& tableCount,
+        UInt32& cursor, const D3D12_CPU_DESCRIPTOR_HANDLE* keys, UInt32 count,
         D3D12_GPU_DESCRIPTOR_HANDLE table)
     {
         // 꽉 차면 가장 오래된 자리부터 돌려 쓴다.
@@ -514,19 +518,19 @@ namespace JBro::Internal
         tableCount = tableCount < CachedTables ? tableCount + 1 : CachedTables;
         entry.count = count;
         entry.table = table;
-        for (std::uint32_t slot = 0; slot < MaxBoundTextures; ++slot)
+        for (UInt32 slot = 0; slot < MaxBoundTextures; ++slot)
         {
             entry.keys[slot] = slot < count ? keys[slot] : D3D12_CPU_DESCRIPTOR_HANDLE{};
         }
     }
 
-    bool D3D12CommandContext::BindPendingDescriptors()
+    Bool D3D12CommandContext::BindPendingDescriptors()
     {
         if (m_activePipeline.sampledTextureCount != 0)
         {
             // 선언한 자리가 하나라도 비어 있으면 그리지 않는다. 빈 칸을 그냥 두면
             // 셰이더가 남의 디스크립터를 읽고, 그것은 화면에 조용히 틀린 그림으로 나온다.
-            for (std::uint32_t index = 0; index < m_activePipeline.sampledTextureCount; ++index)
+            for (UInt32 index = 0; index < m_activePipeline.sampledTextureCount; ++index)
             {
                 if (m_pendingTextures[index].ptr == 0)
                 {
@@ -555,7 +559,7 @@ namespace JBro::Internal
 
         if (m_activePipeline.samplerCount != 0)
         {
-            for (std::uint32_t index = 0; index < m_activePipeline.samplerCount; ++index)
+            for (UInt32 index = 0; index < m_activePipeline.samplerCount; ++index)
             {
                 if (m_pendingSamplers[index].ptr == 0)
                 {
@@ -584,10 +588,10 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::SetVertexBuffer(
-        std::uint32_t slot,
+    Bool D3D12CommandContext::SetVertexBuffer(
+        UInt32 slot,
         BufferHandle buffer,
-        std::uint32_t stride,
+        UInt32 stride,
         std::size_t offset)
     {
         D3D12BufferBinding binding;
@@ -602,8 +606,8 @@ namespace JBro::Internal
             return false;
         }
 
-        const std::uint64_t remainingSize = binding.size - offset;
-        const std::uint32_t viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
+        const UInt64 remainingSize = binding.size - offset;
+        const UInt32 viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
             ? (std::numeric_limits<std::uint32_t>::max)()
             : static_cast<std::uint32_t>(remainingSize);
         D3D12_VERTEX_BUFFER_VIEW view = {};
@@ -614,7 +618,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::SetIndexBuffer(
+    Bool D3D12CommandContext::SetIndexBuffer(
         BufferHandle buffer,
         IndexFormat format,
         std::size_t offset)
@@ -630,8 +634,8 @@ namespace JBro::Internal
             return false;
         }
 
-        const std::uint64_t remainingSize = binding.size - offset;
-        const std::uint32_t viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
+        const UInt64 remainingSize = binding.size - offset;
+        const UInt32 viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
             ? (std::numeric_limits<std::uint32_t>::max)()
             : static_cast<std::uint32_t>(remainingSize);
         D3D12_INDEX_BUFFER_VIEW view = {};
@@ -644,7 +648,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::SetGraphicsConstants(JArrayView<std::byte> data)
+    Bool D3D12CommandContext::SetGraphicsConstants(JArrayView<std::byte> data)
     {
         if (false == m_renderPassActive
             || false == m_pipelineActive
@@ -665,12 +669,12 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12CommandContext::DrawIndexedInstanced(
-        std::uint32_t indexCount,
-        std::uint32_t instanceCount,
-        std::uint32_t firstIndex,
-        std::int32_t baseVertex,
-        std::uint32_t firstInstance)
+    Bool D3D12CommandContext::DrawIndexedInstanced(
+        UInt32 indexCount,
+        UInt32 instanceCount,
+        UInt32 firstIndex,
+        Int32 baseVertex,
+        UInt32 firstInstance)
     {
         if (false == m_renderPassActive
             || false == m_pipelineActive

@@ -20,6 +20,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -106,7 +109,7 @@ namespace JBro
             { EditMenu, GuideRoute::EditMenu, MenuObject::Optional },
             { FileMenu, GuideRoute::MainMenu, MenuObject::Forbidden },
         };
-        constexpr std::uint32_t MenuRouteCount = sizeof(MenuRoutes) / sizeof(MenuRoutes[0]);
+        constexpr UInt32 MenuRouteCount = sizeof(MenuRoutes) / sizeof(MenuRoutes[0]);
 
         // 커맨드가 다룬 오브젝트가 단계의 오브젝트와 어떤 사이여야 끝인가.
         enum class Subject : std::uint8_t
@@ -167,15 +170,15 @@ namespace JBro
         const GuideActionInfo* action = nullptr;
         ObjectRef objectRef = ObjectRef::None;
         InstanceId objectId = InvalidInstanceId;
-        std::uint32_t refStep = 0;
-        bool hasComponent = false;
+        UInt32 refStep = 0;
+        Bool hasComponent = false;
         ComponentTypeId componentType = 0;
-        bool hasField = false;
+        Bool hasField = false;
         NameId fieldName = InvalidNameId;
         // 필드 이름의 원문이다. 값을 읽을 길(`SetPropertyCommand::MakeFieldPath`)을 이 이름으로 짓는다.
         String fieldText;
         // `Value`(D-273): 이 값이 되기 전에는 다음이 막힌다. 가이드 문서는 읽고 나면 없으므로 펴서 든다.
-        bool hasValue = false;
+        Bool hasValue = false;
         Array<ValuePiece> value;
         // 말풍선에 보일 값이다(`[1, 2]` 처럼 한 줄로).
         String valueShown;
@@ -183,29 +186,29 @@ namespace JBro
         // 까닭에 값을 끼워 적는 자리다. `NextBlocked` 가 이것을 가리켜 돌려준다.
         char reason[256] = {};
         // 폴리곤 포인트의 번호(반례 ⑦). 적지 않으면 첫 포인트다.
-        std::uint32_t pointIndex = 0;
-        bool routeFixed = false;
+        UInt32 pointIndex = 0;
+        Bool routeFixed = false;
         GuideRoute fixedRoute = GuideRoute::Hierarchy;
 
         // 단계에 들어설 때 찾은 오브젝트와 그 에디터 번호다. 번호를 따로 든다 - 지우는 일을 판정할 때 오브젝트는 이미 없다.
         SafePtr<GameObject> object;
-        std::uint64_t objectEditorId = 0;
-        std::uint32_t routeIndex = 0;
+        UInt64 objectEditorId = 0;
+        UInt32 routeIndex = 0;
 
         // 글자의 원본이다. `GuideText` 가 가리킨다.
         String texts[6];
 
-        bool BuildPath(EditorApplication& editor, GuideFocusPath& path);
-        bool NextRoute(EditorApplication& editor, GuideFocusPath& path);
+        Bool BuildPath(EditorApplication& editor, GuideFocusPath& path);
+        Bool NextRoute(EditorApplication& editor, GuideFocusPath& path);
         void OnEnter(EditorApplication& editor, GuideStepMemo& memo);
-        bool Condition(EditorApplication& editor, GuideStepMemo& memo);
+        Bool Condition(EditorApplication& editor, GuideStepMemo& memo);
         const char* NextBlocked(EditorApplication& editor);
-        std::uint64_t Result(EditorApplication& editor, GuideStepMemo& memo);
+        UInt64 Result(EditorApplication& editor, GuideStepMemo& memo);
 
     private:
-        bool ResolveObject(EditorApplication& editor);
-        bool TryRoute(EditorApplication& editor, std::uint32_t index, GuideFocusPath& path);
-        bool CommandRan(EditorApplication& editor, GuideStepMemo& memo);
+        Bool ResolveObject(EditorApplication& editor);
+        Bool TryRoute(EditorApplication& editor, UInt32 index, GuideFocusPath& path);
+        Bool CommandRan(EditorApplication& editor, GuideStepMemo& memo);
     };
 
     namespace
@@ -226,44 +229,44 @@ namespace JBro
             ObjectParam object = ObjectParam::None;
             // 오브젝트 인자의 이름이다. 자식을 만드는 일은 `Parent` 로 적는 것이 읽기 쉽다.
             const char* objectKey = "Object";
-            bool takesComponent = false;
-            bool takesField = false;
+            Bool takesComponent = false;
+            Bool takesField = false;
             // `Point`(폴리곤 포인트 번호)를 받는가.
-            bool takesPoint = false;
+            Bool takesPoint = false;
             // 적힌 컴포넌트를 목록의 항목(`GuideFocusTargets::ComponentListItem`)으로 가리키는가. 그러면 그 단계는 키보드를 닫는다.
-            bool pointsAtListItem = false;
-            bool keyboard = false;
-            bool canGoNext = false;
+            Bool pointsAtListItem = false;
+            Bool keyboard = false;
+            Bool canGoNext = false;
             // 끝나며 오브젝트를 남기는가(D-269). 커맨드로 끝나면 그 커맨드가 다룬 오브젝트, 선택이면 끝날 때 선택된 오브젝트다.
-            bool leavesObject = false;
+            Bool leavesObject = false;
             // ── 메뉴 항목이 아닌 행동 ──
             GuideRoute routes[2] = {};
-            std::uint32_t routeCount = 0;
+            UInt32 routeCount = 0;
             GuideStepEnd end = GuideStepEnd::NextButton;
-            bool (*build)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&) = nullptr;
+            Bool (*build)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&) = nullptr;
             void (*enter)(GuideStepBinding&, EditorApplication&, GuideStepMemo&) = nullptr;
-            bool (*done)(GuideStepBinding&, EditorApplication&, GuideStepMemo&) = nullptr;
+            Bool (*done)(GuideStepBinding&, EditorApplication&, GuideStepMemo&) = nullptr;
             const char* (*blocked)(GuideStepBinding&, EditorApplication&) = nullptr;
         };
 
         // ── 판단의 조각 ──────────────────────────────────────────────
 
-        std::uint64_t TrackedId(EditorApplication& editor, GameObject* object)
+        UInt64 TrackedId(EditorApplication& editor, GameObject* object)
         {
-            return object != nullptr ? editor.GetObjectIds().Track(object) : 0;
+            return object != nullptr ? editor.GetObjectIds().Track(object) : InvalidEditorObjectId;
         }
 
-        std::uint64_t SelectedObjectId(EditorApplication& editor)
+        UInt64 SelectedObjectId(EditorApplication& editor)
         {
             return TrackedId(editor, editor.GetSelectedObject());
         }
 
-        bool Is2D(EditorApplication& editor)
+        Bool Is2D(EditorApplication& editor)
         {
             return editor.GetFrameworkKind() != FrameworkKind::Framework3D;
         }
 
-        bool HasComponent(const GameObject& object, ComponentTypeId typeId)
+        Bool HasComponent(const GameObject& object, ComponentTypeId typeId)
         {
             for (const auto& slot : object.GetComponents())
             {
@@ -283,13 +286,13 @@ namespace JBro
         // ── 메뉴의 길 ─────────────────────────────────────────────
 
         // 메뉴를 여는 데까지의 경로다. 끝의 항목은 부르는 쪽이 붙인다.
-        bool BuildMenuEntry(const MenuRoute& entry, EditorApplication& editor, GameObject* target, GuideFocusPath& path)
+        Bool BuildMenuEntry(const MenuRoute& entry, EditorApplication& editor, GameObject* target, GuideFocusPath& path)
         {
             switch (entry.menu)
             {
             case ObjectMenu:
             {
-                const std::uint64_t id = TrackedId(editor, target);
+                const UInt64 id = TrackedId(editor, target);
                 if (entry.route == GuideRoute::Hierarchy)
                 {
                     // 조상 줄은 기구가 펴고, 그 줄에서는 사용자가 우클릭해 메뉴를 연다.
@@ -335,7 +338,7 @@ namespace JBro
 
         // ── object.select ────────────────────────────────────────────
 
-        bool BuildSelect(GuideStepBinding& binding, EditorApplication& editor, GuideRoute route, GuideFocusPath& path)
+        Bool BuildSelect(GuideStepBinding& binding, EditorApplication& editor, GuideRoute route, GuideFocusPath& path)
         {
             GameObject* target = binding.object.TryGet();
             if (route == GuideRoute::Hierarchy)
@@ -361,9 +364,9 @@ namespace JBro
 
         // 들어설 때와 다른 오브젝트가 선택됐다(정해 둔 오브젝트가 있으면 그것이). 추가한 오브젝트는 곧 선택되므로 추가해도 넘어간다.
         // 선택은 커맨드가 아니라 실행 기록에 남지 않는다 - 그래서 이 행동은 판정을 따로 둔다.
-        bool DoneSelect(GuideStepBinding& binding, EditorApplication& editor, GuideStepMemo& memo)
+        Bool DoneSelect(GuideStepBinding& binding, EditorApplication& editor, GuideStepMemo& memo)
         {
-            const std::uint64_t now = SelectedObjectId(editor);
+            const UInt64 now = SelectedObjectId(editor);
             if (now == 0 || now == memo.values[0])
             {
                 return false;
@@ -391,7 +394,7 @@ namespace JBro
 
         // 선택한 오브젝트의 컴포넌트와 필드다. 정해 두지 않았으면 첫 컴포넌트의 맨 위 필드다 - 2D 면 `Transform2D.position`,
         // 3D 면 `Transform3D` 의 것이라 두 프레임워크에서 같은 가이드가 돈다.
-        bool BuildField(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        Bool BuildField(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
         {
             if (GameObject* target = binding.object.TryGet())
             {
@@ -416,7 +419,7 @@ namespace JBro
             {
                 return false;
             }
-            for (std::uint32_t index = 0; index < table->count; ++index)
+            for (UInt32 index = 0; index < table->count; ++index)
             {
                 const PropertyInfo& property = table->properties[index];
                 // 인스펙터가 그리지 않는 필드는 가리킬 수 없다(`DrawFieldsInto` 와 같은 거르기).
@@ -446,7 +449,7 @@ namespace JBro
         // (`SetPropertyCommand::ReadValue`)으로 글자로 읽고, 가이드에 적은 YAML 과 같은 모양의 조각으로 펴서 견준다.
         // enum 은 이름(`Polygon`), bool 은 `true`, `Vector2` 는 칸의 차례열이다.
 
-        void FlattenValue(const YamlDocument& document, std::uint32_t node, Array<ValuePiece>& out)
+        void FlattenValue(const YamlDocument& document, UInt32 node, Array<ValuePiece>& out)
         {
             switch (document.GetKind(node))
             {
@@ -475,10 +478,10 @@ namespace JBro
         // 말풍선에 보일 한 줄이다. 차례열은 `[1, 2]`, 맵은 `{x: 1}`.
         String ShowValue(const Array<ValuePiece>& pieces)
         {
-            constexpr std::uint32_t MaxDepth = 16;
+            constexpr UInt32 MaxDepth = 16;
             char closers[MaxDepth] = {};
-            std::uint32_t depth = 0;
-            bool comma = false;
+            UInt32 depth = 0;
+            Bool comma = false;
             String shown;
             for (const ValuePiece& piece : pieces)
             {
@@ -528,7 +531,7 @@ namespace JBro
         }
 
         // 두 칸이 같은가. 둘 다 숫자로 끝까지 읽히면 허용 오차 안이면 같다 - 실수를 글자로 견주면 쓴 자리 수가 달라 어긋난다.
-        bool ScalarsMatch(const String& want, const String& have, double tolerance)
+        Bool ScalarsMatch(const String& want, const String& have, double tolerance)
         {
             if (want == have)
             {
@@ -538,11 +541,11 @@ namespace JBro
             char* haveEnd = nullptr;
             const double wanted = std::strtod(want.c_str(), &wantEnd);
             const double held = std::strtod(have.c_str(), &haveEnd);
-            const bool numbers = wantEnd != want.c_str() && *wantEnd == '\0' && haveEnd != have.c_str() && *haveEnd == '\0';
+            const Bool numbers = wantEnd != want.c_str() && *wantEnd == '\0' && haveEnd != have.c_str() && *haveEnd == '\0';
             return numbers && std::fabs(wanted - held) <= tolerance;
         }
 
-        bool PiecesMatch(const Array<ValuePiece>& want, const Array<ValuePiece>& have, double tolerance)
+        Bool PiecesMatch(const Array<ValuePiece>& want, const Array<ValuePiece>& have, double tolerance)
         {
             if (want.Size() != have.Size())
             {
@@ -567,7 +570,7 @@ namespace JBro
         }
 
         // 필드의 지금 값을 조각으로 편다. 잎사귀(코덱이 있는 값)는 글자 하나이고, 숫자 묶음·컨테이너는 `Value:` 아래의 YAML 이다.
-        bool ReadFieldPieces(ComponentBase& component, ComponentTypeId typeId, const SetPropertyCommand::Path& path, Array<ValuePiece>& out)
+        Bool ReadFieldPieces(ComponentBase& component, ComponentTypeId typeId, const SetPropertyCommand::Path& path, Array<ValuePiece>& out)
         {
             void* address = nullptr;
             const TypeDescriptor* type = nullptr;
@@ -588,7 +591,7 @@ namespace JBro
             {
                 return false;
             }
-            const std::uint32_t node = document.Find(document.GetRoot(), "Value");
+            const UInt32 node = document.Find(document.GetRoot(), "Value");
             if (node == YamlDocument::InvalidNode)
             {
                 return false;
@@ -598,7 +601,7 @@ namespace JBro
         }
 
         // 고른 오브젝트의 그 필드가 적힌 값인가. 오브젝트·컴포넌트·필드는 `BuildField` 가 가리킨 것과 같다.
-        bool FieldHoldsValue(GuideStepBinding& binding, EditorApplication& editor)
+        Bool FieldHoldsValue(GuideStepBinding& binding, EditorApplication& editor)
         {
             GameObject* object = editor.GetSelectedObject();
             if (object == nullptr || object->GetComponents().Size() == 0)
@@ -643,7 +646,7 @@ namespace JBro
         //
         // 손잡이와 포인트는 **고른 오브젝트** 위에 선다. 적힌 오브젝트가 있으면 그것 하나만 고른다(편집 메뉴와 같다) - 여럿을 고른 채면
         // 기즈모가 함께 옮긴다. 3D 의 캔버스 뷰는 아직 가리키지 않는다(손잡이의 자리를 알리는 것은 2D 뷰다).
-        bool SelectForCanvasTool(GuideStepBinding& binding, EditorApplication& editor)
+        Bool SelectForCanvasTool(GuideStepBinding& binding, EditorApplication& editor)
         {
             if (GameObject* target = binding.object.TryGet())
             {
@@ -653,7 +656,7 @@ namespace JBro
         }
 
         // 모드 단추(사용자가 누른다, 이미 그 모드면 지나간다) → 손잡이.
-        bool BuildGizmo(GizmoMode mode, GizmoAxis axis, GuideStepBinding& binding, EditorApplication& editor, GuideFocusPath& path)
+        Bool BuildGizmo(GizmoMode mode, GizmoAxis axis, GuideStepBinding& binding, EditorApplication& editor, GuideFocusPath& path)
         {
             return SelectForCanvasTool(binding, editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
                 && path.Push(GuideFocusTargets::GizmoModeButton(static_cast<std::uint32_t>(mode)), GuideFocusOpen::User)
@@ -661,23 +664,23 @@ namespace JBro
         }
 
         // 옮기기는 가운데 손잡이(화면 평면으로 옮긴다), 돌리기는 고리(2D 는 Z 축 하나), 크기는 가운데(균등).
-        bool BuildMove(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        Bool BuildMove(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
         {
             return BuildGizmo(GizmoMode::Translate, GizmoAxis::Free, binding, editor, path);
         }
 
-        bool BuildRotate(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        Bool BuildRotate(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
         {
             return BuildGizmo(GizmoMode::Rotate, GizmoAxis::Z, binding, editor, path);
         }
 
-        bool BuildScale(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        Bool BuildScale(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
         {
             return BuildGizmo(GizmoMode::Scale, GizmoAxis::Free, binding, editor, path);
         }
 
         // `콜라이더 편집` 단추(켜져 있으면 지나간다) → 그 포인트.
-        bool BuildPointMove(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        Bool BuildPointMove(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
         {
             return SelectForCanvasTool(binding, editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
                 && path.Push(GuideFocusTargets::ColliderEditButton(), GuideFocusOpen::User)
@@ -717,7 +720,7 @@ namespace JBro
         }
 
         GuideActionInfo CanvasToolAction(const char* name, const char* summary, const char* command,
-            bool (*build)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&))
+            Bool (*build)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&))
         {
             GuideActionInfo info;
             info.name = name;
@@ -766,7 +769,7 @@ namespace JBro
         }
 
         GuideActionInfo MenuAction(const char* name, const char* summary, std::uint8_t extraMenus, const char* command,
-            Subject subject, ObjectParam object, const char* objectKey = "Object", bool leavesObject = false)
+            Subject subject, ObjectParam object, const char* objectKey = "Object", Bool leavesObject = false)
         {
             GuideActionInfo info;
             info.name = name;
@@ -781,7 +784,7 @@ namespace JBro
             return info;
         }
 
-        const GuideActionInfo* Actions(std::uint32_t& count)
+        const GuideActionInfo* Actions(UInt32& count)
         {
             // 메뉴 위치를 행동 표에서 받는다. 에디터 없이 가이드를 읽는 자리(시험·목록)에서도 표가 서 있어야 한다.
             RegisterBuiltinEditorActions();
@@ -872,9 +875,9 @@ namespace JBro
 
         const GuideActionInfo* FindAction(const char* name)
         {
-            std::uint32_t count = 0;
+            UInt32 count = 0;
             const GuideActionInfo* actions = Actions(count);
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 if (std::strcmp(actions[index].name, name) == 0)
                 {
@@ -885,13 +888,13 @@ namespace JBro
         }
 
         // 행동이 갈 수 있는 길의 수와 그 이름이다. 메뉴 항목이면 메뉴 표에서, 아니면 행동이 적은 것에서 온다.
-        std::uint32_t RouteCount(const GuideActionInfo& action)
+        UInt32 RouteCount(const GuideActionInfo& action)
         {
             if (action.build != nullptr)
             {
                 return action.routeCount;
             }
-            std::uint32_t count = 0;
+            UInt32 count = 0;
             for (const MenuRoute& entry : MenuRoutes)
             {
                 count += (action.menus & entry.menu) != 0 ? 1 : 0;
@@ -900,7 +903,7 @@ namespace JBro
         }
 
         // `index` 번째 길이다. 메뉴 항목이면 메뉴 표의 칸을 `entry` 에 준다.
-        GuideRoute RouteAt(const GuideActionInfo& action, std::uint32_t index, const MenuRoute** entry)
+        GuideRoute RouteAt(const GuideActionInfo& action, UInt32 index, const MenuRoute** entry)
         {
             if (action.build != nullptr)
             {
@@ -924,9 +927,9 @@ namespace JBro
             return GuideRoute::Hierarchy;
         }
 
-        bool CanGoBy(const GuideActionInfo& action, GuideRoute route)
+        Bool CanGoBy(const GuideActionInfo& action, GuideRoute route)
         {
-            for (std::uint32_t index = 0; index < RouteCount(action); ++index)
+            for (UInt32 index = 0; index < RouteCount(action); ++index)
             {
                 const MenuRoute* entry = nullptr;
                 if (RouteAt(action, index, &entry) == route)
@@ -954,7 +957,7 @@ namespace JBro
 
     // ── 단계의 판단 ──────────────────────────────────────────────────
 
-    bool GuideStepBinding::ResolveObject(EditorApplication& editor)
+    JBro::Bool GuideStepBinding::ResolveObject(EditorApplication& editor)
     {
         object = {};
         objectEditorId = 0;
@@ -990,7 +993,7 @@ namespace JBro
         return objectRef == ObjectRef::None;
     }
 
-    bool GuideStepBinding::TryRoute(EditorApplication& editor, std::uint32_t index, GuideFocusPath& path)
+    JBro::Bool GuideStepBinding::TryRoute(EditorApplication& editor, JBro::UInt32 index, GuideFocusPath& path)
     {
         path = {};
         const MenuRoute* entry = nullptr;
@@ -1009,7 +1012,7 @@ namespace JBro
         }
         else
         {
-            const bool given = target != nullptr;
+            const JBro::Bool given = target != nullptr;
             if ((entry->object == MenuObject::Required && false == given)
                 || (entry->object == MenuObject::Forbidden && given))
             {
@@ -1019,7 +1022,7 @@ namespace JBro
             {
                 return false;
             }
-            const bool toListItem = action->pointsAtListItem && hasComponent;
+            const JBro::Bool toListItem = action->pointsAtListItem && hasComponent;
             if (entry->menu != InspectorAdd)
             {
                 // 연 메뉴의 그 항목이다. 목록 항목까지 가면 그 항목은 하위 메뉴라 사용자가 연다.
@@ -1048,7 +1051,7 @@ namespace JBro
         return true;
     }
 
-    bool GuideStepBinding::BuildPath(EditorApplication& editor, GuideFocusPath& path)
+    JBro::Bool GuideStepBinding::BuildPath(EditorApplication& editor, GuideFocusPath& path)
     {
         if (false == ResolveObject(editor))
         {
@@ -1056,7 +1059,7 @@ namespace JBro
                 action->name, static_cast<unsigned long long>(objectId));
             return false;
         }
-        for (std::uint32_t index = 0; index < RouteCount(*action); ++index)
+        for (JBro::UInt32 index = 0; index < RouteCount(*action); ++index)
         {
             if (TryRoute(editor, index, path))
             {
@@ -1066,9 +1069,9 @@ namespace JBro
         return false;
     }
 
-    bool GuideStepBinding::NextRoute(EditorApplication& editor, GuideFocusPath& path)
+    JBro::Bool GuideStepBinding::NextRoute(EditorApplication& editor, GuideFocusPath& path)
     {
-        for (std::uint32_t index = routeIndex + 1; index < RouteCount(*action); ++index)
+        for (JBro::UInt32 index = routeIndex + 1; index < RouteCount(*action); ++index)
         {
             if (TryRoute(editor, index, path))
             {
@@ -1096,12 +1099,12 @@ namespace JBro
 
     // 들어선 뒤 실행된 커맨드 가운데 이 행동의 커맨드가 이 단계의 오브젝트에 일어났는가. 새로 실행된 것만 훑는다 - 커맨드가
     // 실행된 프레임에만 글자를 견주고, 매 프레임에는 수 하나를 견준다.
-    bool GuideStepBinding::CommandRan(EditorApplication& editor, GuideStepMemo& memo)
+    JBro::Bool GuideStepBinding::CommandRan(EditorApplication& editor, GuideStepMemo& memo)
     {
         EditorCommandManager& commands = editor.GetCommands();
-        const std::uint64_t count = commands.GetExecuteCount();
-        const std::uint64_t targetId = objectEditorId;
-        for (std::uint64_t serial = memo.values[1] + 1; serial <= count; ++serial)
+        const JBro::UInt64 count = commands.GetExecuteCount();
+        const JBro::UInt64 targetId = objectEditorId;
+        for (JBro::UInt64 serial = memo.values[1] + 1; serial <= count; ++serial)
         {
             EditorCommandManager::ExecutedCommand ran;
             if (false == commands.GetExecuted(serial, ran) || ran.name == nullptr
@@ -1109,7 +1112,7 @@ namespace JBro
             {
                 continue;
             }
-            bool matches = true;
+            JBro::Bool matches = true;
             switch (action->subject)
             {
             case Subject::Any:
@@ -1143,7 +1146,7 @@ namespace JBro
         return false;
     }
 
-    bool GuideStepBinding::Condition(EditorApplication& editor, GuideStepMemo& memo)
+    JBro::Bool GuideStepBinding::Condition(EditorApplication& editor, GuideStepMemo& memo)
     {
         if (action->done != nullptr)
         {
@@ -1157,7 +1160,7 @@ namespace JBro
         return action->blocked != nullptr ? action->blocked(*this, editor) : nullptr;
     }
 
-    std::uint64_t GuideStepBinding::Result(EditorApplication& editor, GuideStepMemo& memo)
+    JBro::UInt64 GuideStepBinding::Result(EditorApplication& editor, GuideStepMemo& memo)
     {
         if (false == action->leavesObject)
         {
@@ -1177,7 +1180,7 @@ namespace JBro
         const YamlDocument& document;
         String& error;
 
-        bool Fail(std::uint32_t node, const char* format, const char* detail = "")
+        JBro::Bool Fail(JBro::UInt32 node, const char* format, const char* detail = "")
         {
             char message[256] = {};
             std::snprintf(message, sizeof(message), format, detail);
@@ -1187,12 +1190,12 @@ namespace JBro
             return false;
         }
 
-        bool CheckKeys(std::uint32_t node, const char* const* allowed, std::size_t allowedCount)
+        JBro::Bool CheckKeys(JBro::UInt32 node, const char* const* allowed, std::size_t allowedCount)
         {
             for (std::size_t index = 0; index < document.GetCount(node); ++index)
             {
                 const char* key = document.GetKey(node, index);
-                bool known = false;
+                JBro::Bool known = false;
                 for (std::size_t check = 0; check < allowedCount; ++check)
                 {
                     known = known || std::strcmp(key, allowed[check]) == 0;
@@ -1207,9 +1210,9 @@ namespace JBro
 
         // `Key` · `String` · `Loc` 세 줄로 적힌 글자다. 셋 다 있어야 한다 - 키만 있으면 표에 없을 때 보일 것이 없고,
         // 원문만 있으면 나중에 옮길 자리가 없고, 로케일이 없으면 원문을 언제 보일지 모른다.
-        bool ReadText(std::uint32_t parent, const char* name, String* out)
+        JBro::Bool ReadText(JBro::UInt32 parent, const char* name, String* out)
         {
-            const std::uint32_t node = document.Find(parent, name);
+            const JBro::UInt32 node = document.Find(parent, name);
             if (node == YamlDocument::InvalidNode)
             {
                 return Fail(parent, "missing '%s'", name);
@@ -1223,7 +1226,7 @@ namespace JBro
             {
                 return false;
             }
-            for (int index = 0; index < 3; ++index)
+            for (JBro::Int32 index = 0; index < 3; ++index)
             {
                 if (false == document.FindScalar(node, keys[index], out[index]) || out[index].empty())
                 {
@@ -1233,9 +1236,9 @@ namespace JBro
             return true;
         }
 
-        bool ReadBool(std::uint32_t step, const char* key, bool& value)
+        JBro::Bool ReadBool(JBro::UInt32 step, const char* key, JBro::Bool& value)
         {
-            const std::uint32_t node = document.Find(step, key);
+            const JBro::UInt32 node = document.Find(step, key);
             if (node != YamlDocument::InvalidNode && false == document.FindBool(step, key, value))
             {
                 return Fail(node, "'%s' must be true or false", key);
@@ -1243,7 +1246,7 @@ namespace JBro
             return true;
         }
 
-        bool ReadObject(std::uint32_t node, const GuideActionInfo& action, GuideStepBinding& binding,
+        JBro::Bool ReadObject(JBro::UInt32 node, const GuideActionInfo& action, GuideStepBinding& binding,
             const Array<String>& stepIds, const Array<const GuideActionInfo*>& stepActions)
         {
             // 오브젝트 인자는 행동이 정한 이름 하나로만 받는다. 다른 이름으로 적으면 모르는 키다.
@@ -1311,11 +1314,11 @@ namespace JBro
 
         // `Value`·`Tolerance`(D-273)와, 컴포넌트를 적었으면 그 필드가 정말 있는가다. 적은 값이 그 필드의 타입으로 읽히는지도
         // 여기서 본다 - 못 읽히는 값을 들이면 다음이 영영 풀리지 않는다.
-        bool ReadValue(std::uint32_t node, const GuideActionInfo& action, GuideStepBinding& binding)
+        JBro::Bool ReadValue(JBro::UInt32 node, const GuideActionInfo& action, GuideStepBinding& binding)
         {
-            const std::uint32_t valueNode = document.Find(node, "Value");
+            const JBro::UInt32 valueNode = document.Find(node, "Value");
             String tolerance;
-            const bool hasTolerance = document.FindScalar(node, "Tolerance", tolerance);
+            const JBro::Bool hasTolerance = document.FindScalar(node, "Tolerance", tolerance);
             if (valueNode != YamlDocument::InvalidNode)
             {
                 if (false == action.takesField)
@@ -1355,7 +1358,7 @@ namespace JBro
                 return true;
             }
             const PropertyInfo* property = nullptr;
-            for (std::uint32_t index = 0; index < table->count && property == nullptr; ++index)
+            for (JBro::UInt32 index = 0; index < table->count && property == nullptr; ++index)
             {
                 const PropertyInfo& candidate = table->properties[index];
                 if (candidate.name == binding.fieldName && candidate.type != nullptr && candidate.Address != nullptr)
@@ -1393,7 +1396,7 @@ namespace JBro
             return true;
         }
 
-        bool ReadStep(std::uint32_t node, LoadedGuide& loaded, Array<String>& stepIds, Array<const GuideActionInfo*>& stepActions)
+        JBro::Bool ReadStep(JBro::UInt32 node, LoadedGuide& loaded, Array<String>& stepIds, Array<const GuideActionInfo*>& stepActions)
         {
             if (document.GetKind(node) != YamlKind::Map)
             {
@@ -1465,7 +1468,7 @@ namespace JBro
             }
             if (document.FindScalar(node, "Via", value) && value != "auto")
             {
-                bool found = false;
+                JBro::Bool found = false;
                 for (GuideRoute route : { GuideRoute::Hierarchy, GuideRoute::CanvasView, GuideRoute::EditMenu,
                          GuideRoute::Inspector, GuideRoute::MainMenu })
                 {
@@ -1486,7 +1489,7 @@ namespace JBro
             step.end = action->end;
             if (document.FindScalar(node, "End", value))
             {
-                const bool hasDone = action->done != nullptr || action->command != nullptr;
+                const JBro::Bool hasDone = action->done != nullptr || action->command != nullptr;
                 if (value == "next")
                 {
                     step.end = GuideStepEnd::NextButton;
@@ -1524,7 +1527,7 @@ namespace JBro
             if (false == retreat.empty())
             {
                 // 되돌아갈 단계는 **앞 단계**여야 한다 - 뒤로 "되돌아가면" 건너뛰기와 구분되지 않는다.
-                bool earlier = false;
+                JBro::Bool earlier = false;
                 for (std::size_t index = 0; index < stepIds.Size(); ++index)
                 {
                     if (stepIds[index] == retreat)
@@ -1551,12 +1554,12 @@ namespace JBro
             GuideStepBinding* raw = binding.Get();
             step.title = { raw->texts[0].c_str(), raw->texts[1].c_str(), raw->texts[2].c_str() };
             step.body = { raw->texts[3].c_str(), raw->texts[4].c_str(), raw->texts[5].c_str() };
-            step.buildPath = Delegate<bool(EditorApplication&, GuideFocusPath&)>::Bind<&GuideStepBinding::BuildPath>(raw);
-            step.nextRoute = Delegate<bool(EditorApplication&, GuideFocusPath&)>::Bind<&GuideStepBinding::NextRoute>(raw);
+            step.buildPath = Delegate<JBro::Bool(EditorApplication&, GuideFocusPath&)>::Bind<&GuideStepBinding::BuildPath>(raw);
+            step.nextRoute = Delegate<JBro::Bool(EditorApplication&, GuideFocusPath&)>::Bind<&GuideStepBinding::NextRoute>(raw);
             step.onEnter = Delegate<void(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::OnEnter>(raw);
             if (action->done != nullptr || action->command != nullptr)
             {
-                step.condition = Delegate<bool(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::Condition>(raw);
+                step.condition = Delegate<JBro::Bool(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::Condition>(raw);
             }
             if (action->blocked != nullptr)
             {
@@ -1564,7 +1567,7 @@ namespace JBro
             }
             if (action->leavesObject)
             {
-                step.result = Delegate<std::uint64_t(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::Result>(raw);
+                step.result = Delegate<JBro::UInt64(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::Result>(raw);
             }
             stepIds.Add(std::move(id));
             stepActions.Add(action);
@@ -1573,9 +1576,9 @@ namespace JBro
             return true;
         }
 
-        bool Read(LoadedGuide& loaded)
+        JBro::Bool Read(LoadedGuide& loaded)
         {
-            const std::uint32_t root = document.GetRoot();
+            const JBro::UInt32 root = document.GetRoot();
             if (root == YamlDocument::InvalidNode || document.GetKind(root) != YamlKind::Map)
             {
                 return Fail(root, "a guide must be a map");
@@ -1593,7 +1596,7 @@ namespace JBro
             {
                 return false;
             }
-            const std::uint32_t steps = document.Find(root, "Steps");
+            const JBro::UInt32 steps = document.Find(root, "Steps");
             if (steps == YamlDocument::InvalidNode || document.GetKind(steps) != YamlKind::Sequence || document.GetCount(steps) == 0)
             {
                 return Fail(root, "a guide needs at least one step under 'Steps'");
@@ -1615,7 +1618,7 @@ namespace JBro
 
     namespace EditorGuides
     {
-        bool Parse(const char* text, std::size_t length, OwnerPtr<LoadedGuide>& out, String& error)
+        JBro::Bool Parse(const char* text, std::size_t length, OwnerPtr<LoadedGuide>& out, String& error)
         {
             YamlDocument document;
             YamlError yamlError;
@@ -1651,9 +1654,9 @@ namespace JBro
             writer.WriteString("Via", "auto (default: the first route that can be drawn, others if it breaks) or one route name");
             writer.EndMap();
             writer.BeginSequence("Actions");
-            std::uint32_t count = 0;
+            JBro::UInt32 count = 0;
             const GuideActionInfo* actions = Actions(count);
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (JBro::UInt32 index = 0; index < count; ++index)
             {
                 const GuideActionInfo& action = actions[index];
                 writer.BeginMap(nullptr);
@@ -1678,13 +1681,13 @@ namespace JBro
                 }
                 writer.BeginSequence("Via");
                 GuideRoute written[MenuRouteCount] = {};
-                std::uint32_t writtenCount = 0;
-                for (std::uint32_t route = 0; route < RouteCount(action); ++route)
+                JBro::UInt32 writtenCount = 0;
+                for (JBro::UInt32 route = 0; route < RouteCount(action); ++route)
                 {
                     const MenuRoute* entry = nullptr;
                     const GuideRoute name = RouteAt(action, route, &entry);
-                    bool seen = false;
-                    for (std::uint32_t check = 0; check < writtenCount; ++check)
+                    JBro::Bool seen = false;
+                    for (JBro::UInt32 check = 0; check < writtenCount; ++check)
                     {
                         seen = seen || written[check] == name;
                     }

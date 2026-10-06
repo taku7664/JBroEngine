@@ -5,6 +5,8 @@
 #include <cassert>
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -13,10 +15,10 @@ namespace JBro
 
     struct InstanceHandle                    // 8B. 이번 실행에서의 위치
     {
-        std::uint32_t Slot = 0;
-        std::uint32_t Gen  = 0;
+        UInt32 Slot = 0;
+        UInt32 Gen  = 0;
 
-        constexpr bool IsSet() const
+        constexpr Bool IsSet() const
         {
             return Slot != 0 && Gen != 0;
         }
@@ -56,7 +58,7 @@ namespace JBro
             InstanceId objectId,
             InstanceId componentId,
             RefCategory category);
-        bool PatchInstanceRefCache(
+        Bool PatchInstanceRefCache(
             InstanceRef& reference,
             RefCategory category);
     }
@@ -81,7 +83,7 @@ namespace JBro
         T*   Get() const;                    // 무효면 nullptr
         T*   operator->() const;             // Get() 과 같음 + Debug assert
         T&   operator*()  const;
-        bool IsValid() const;
+        Bool IsValid() const;
         void Clear();
         explicit operator bool() const;      // "설정됨" 만. 해석하지 않음
         bool operator==(const Ref& rhs) const;
@@ -136,7 +138,7 @@ namespace JBro
     }
 
     template<typename T>
-    bool Ref<T>::IsValid() const
+    Bool Ref<T>::IsValid() const
     {
         return Get() != nullptr;
     }

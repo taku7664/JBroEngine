@@ -55,21 +55,25 @@ namespace JBro::Spv
 #include <cmath>
 #include <limits>
 #include <new>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
         // API 마다 읽는 바이트코드가 다르다. D3D12 는 DXIL, D3D11 은 DXBC, Vulkan 은 SPIR-V 다.
-        std::uint8_t ToUnorm8(float value) noexcept
+        std::uint8_t ToUnorm8(Float value) noexcept
         {
-            const float clamped = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+            const Float clamped = value < 0.0f ? Float(0.0f) : (value > 1.0f ? Float(1.0f) : value);
             return static_cast<std::uint8_t>(clamped * 255.0f + 0.5f);
         }
 
-        std::uint16_t ToUnorm16(float value) noexcept
+        std::uint16_t ToUnorm16(Float value) noexcept
         {
-            const float clamped = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+            const Float clamped = value < 0.0f ? Float(0.0f) : (value > 1.0f ? Float(1.0f) : value);
             return static_cast<std::uint16_t>(clamped * 65535.0f + 0.5f);
         }
 
@@ -90,12 +94,12 @@ namespace JBro
         Matrix4x4 Multiply(const Matrix4x4& left, const Matrix4x4& right)
         {
             Matrix4x4 result;
-            for (std::uint32_t row = 0; row < 4; ++row)
+            for (UInt32 row = 0; row < 4; ++row)
             {
-                for (std::uint32_t column = 0; column < 4; ++column)
+                for (UInt32 column = 0; column < 4; ++column)
                 {
-                    float value = 0.0f;
-                    for (std::uint32_t element = 0; element < 4; ++element)
+                    Float value = 0.0f;
+                    for (UInt32 element = 0; element < 4; ++element)
                     {
                         value += left.values[row * 4 + element]
                             * right.values[element * 4 + column];
@@ -112,7 +116,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool Renderer::Initialize(IRHIModule& rhi, const RendererConfig& config)
+    Bool Renderer::Initialize(IRHIModule& rhi, const RendererConfig& config)
     {
         if (m_device != nullptr
             || rhi.GetApi() != config.api
@@ -269,7 +273,7 @@ namespace JBro
         m_rhi = nullptr;
     }
 
-    AssetHandle Renderer::RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<std::uint32_t> indices)
+    AssetHandle Renderer::RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices)
     {
         if (m_device == nullptr || m_frameActive
             || vertices.data == nullptr || vertices.size == 0
@@ -278,7 +282,7 @@ namespace JBro
             return {};
         }
         // 색인이 정점 밖을 가리키면 GPU 가 쓰레기를 읽는다. 여기서 거절한다.
-        for (std::uint32_t index = 0; index < indices.size; ++index)
+        for (UInt32 index = 0; index < indices.size; ++index)
         {
             if (indices.data[index] >= vertices.size)
             {
@@ -298,7 +302,7 @@ namespace JBro
         MeshResource resource;
         resource.vertexBuffer = m_device->CreateBuffer(vertexDesc);
         resource.indexBuffer = m_device->CreateBuffer(indexDesc);
-        const bool written = resource.vertexBuffer.IsValid() && resource.indexBuffer.IsValid()
+        const Bool written = resource.vertexBuffer.IsValid() && resource.indexBuffer.IsValid()
             && m_device->WriteBuffer(resource.vertexBuffer, 0,
                 {reinterpret_cast<const std::byte*>(vertices.data),
                     static_cast<std::uint32_t>(vertexDesc.size)})
@@ -358,9 +362,9 @@ namespace JBro
         resource.occupied = false;
     }
 
-    std::uint32_t Renderer::GetMeshCount() const
+    UInt32 Renderer::GetMeshCount() const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (std::size_t slot = 0; slot < m_meshResources.Size(); ++slot)
         {
             if (m_meshResources[slot].occupied)
@@ -423,7 +427,7 @@ namespace JBro
         return AssetHandle{static_cast<std::uint32_t>(m_textureResources.Size() - 1), resource.generation};
     }
 
-    bool Renderer::UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8)
+    Bool Renderer::UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8)
     {
         const TextureResource* resource = FindTexture(texture);
         if (resource == nullptr || m_frameActive || rgba8.data == nullptr
@@ -434,8 +438,8 @@ namespace JBro
         return m_device->WriteTexture(resource->texture, 0, rgba8);
     }
 
-    bool Renderer::UpdateTextureRegion(AssetHandle texture, std::uint32_t x, std::uint32_t y, std::uint32_t width,
-        std::uint32_t height, JArrayView<std::byte> rgba8, std::uint32_t rowPitch)
+    Bool Renderer::UpdateTextureRegion(AssetHandle texture, UInt32 x, UInt32 y, UInt32 width,
+        UInt32 height, JArrayView<std::byte> rgba8, UInt32 rowPitch)
     {
         const TextureResource* resource = FindTexture(texture);
         // 텍스처 밖·짧은 행 간격은 백엔드가 거절한다(RHI 계약, D-216) - 여기서 한 번 더 재지 않는다.
@@ -464,9 +468,9 @@ namespace JBro
         resource.occupied = false;
     }
 
-    std::uint32_t Renderer::GetTextureCount() const
+    UInt32 Renderer::GetTextureCount() const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (std::size_t slot = 0; slot < m_textureResources.Size(); ++slot)
         {
             count += m_textureResources[slot].occupied ? 1u : 0u;
@@ -521,7 +525,7 @@ namespace JBro
         m_meshResources.Clear();
     }
 
-    bool Renderer::AcquireDepthTarget(const Extent2D& extent, TextureHandle& depth)
+    Bool Renderer::AcquireDepthTarget(const Extent2D& extent, TextureHandle& depth)
     {
         for (DepthTarget& slot : m_depthTargets)
         {
@@ -671,7 +675,7 @@ namespace JBro
         return FrameStatus::Ready;
     }
 
-    bool Renderer::BeginView(const CameraParams& camera)
+    Bool Renderer::BeginView(const CameraParams& camera)
     {
         if (false == m_frameActive || m_activeView != InvalidViewIndex)
         {
@@ -696,12 +700,12 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::SubmitSprite(const SpriteSubmit& item)
+    Bool Renderer::SubmitSprite(const SpriteSubmit& item)
     {
         return SubmitSprites({&item, 1});
     }
 
-    bool Renderer::SubmitSprites(JArrayView<SpriteSubmit> items)
+    Bool Renderer::SubmitSprites(JArrayView<SpriteSubmit> items)
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex)
         {
@@ -726,12 +730,12 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::SubmitMesh(const MeshSubmit& item)
+    Bool Renderer::SubmitMesh(const MeshSubmit& item)
     {
         return SubmitMeshes({&item, 1});
     }
 
-    bool Renderer::SubmitMeshes(JArrayView<MeshSubmit> items)
+    Bool Renderer::SubmitMeshes(JArrayView<MeshSubmit> items)
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex)
         {
@@ -756,12 +760,12 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::SubmitWorldText(const WorldTextSubmit& item)
+    Bool Renderer::SubmitWorldText(const WorldTextSubmit& item)
     {
         return SubmitWorldTexts({&item, 1});
     }
 
-    bool Renderer::SubmitWorldTexts(JArrayView<WorldTextSubmit> items)
+    Bool Renderer::SubmitWorldTexts(JArrayView<WorldTextSubmit> items)
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex)
         {
@@ -786,7 +790,7 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::BeginLayer(CompositeBlend blend, float opacity)
+    Bool Renderer::BeginLayer(CompositeBlend blend, Float opacity)
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex || m_openLayerGroup != NoLayerGroup)
         {
@@ -818,7 +822,7 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::EndLayer()
+    Bool Renderer::EndLayer()
     {
         if (false == m_frameActive || m_openLayerGroup == NoLayerGroup)
         {
@@ -829,7 +833,7 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::EndView()
+    Bool Renderer::EndView()
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex)
         {
@@ -851,7 +855,7 @@ namespace JBro
             return FrameStatus::InvalidState;
         }
 
-        bool recorded = false;
+        Bool recorded = false;
         try
         {
             recorded = RecordViews();
@@ -891,7 +895,7 @@ namespace JBro
         // 카메라" 가 아니고, 기록 조건도 다르다 - 게임 뷰가 닫혀 `recordViews` 가 꺼진
         // 프레임에도 편집 화면은 그려지므로(RecordViews 가 같은 규칙으로 통과시킨다),
         // 편집 카메라는 그 깃발과 무관하게 든다.
-        bool tookGameCamera = false;
+        Bool tookGameCamera = false;
         for (std::size_t index = 0; index < m_views.Size(); ++index)
         {
             if (m_views[index].camera.target.IsValid())
@@ -916,7 +920,7 @@ namespace JBro
         return status;
     }
 
-    bool Renderer::SetFrameOverlay(FrameOverlay overlay, void* user)
+    Bool Renderer::SetFrameOverlay(FrameOverlay overlay, void* user)
     {
         if (m_frameActive)
         {
@@ -927,7 +931,7 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::HasFrameOverlay() const
+    Bool Renderer::HasFrameOverlay() const
     {
         return m_frameOverlay != nullptr;
     }
@@ -949,7 +953,7 @@ namespace JBro
         return m_device;
     }
 
-    bool Renderer::ReadBackBuffer(
+    Bool Renderer::ReadBackBuffer(
         std::byte* destination,
         std::size_t destinationSize,
         TextureReadback& result)
@@ -975,7 +979,7 @@ namespace JBro
         }
     }
 
-    bool Renderer::ResizeSurface(const Extent2D& extent)
+    Bool Renderer::ResizeSurface(const Extent2D& extent)
     {
         if (m_device == nullptr
             || false == m_swapchain.IsValid()
@@ -1004,7 +1008,7 @@ namespace JBro
         return m_lastStats;
     }
 
-    bool Renderer::GetLastViewCamera(CameraParams& camera) const
+    Bool Renderer::GetLastViewCamera(CameraParams& camera) const
     {
         if (false == m_hasLastViewCamera)
         {
@@ -1014,7 +1018,7 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::GetLastEditorViewCamera(CameraParams& camera) const
+    Bool Renderer::GetLastEditorViewCamera(CameraParams& camera) const
     {
         if (false == m_hasLastEditorViewCamera)
         {
@@ -1024,12 +1028,12 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::IsDeviceLost() const
+    Bool Renderer::IsDeviceLost() const
     {
         return m_device != nullptr && m_device->GetStatus() == FrameStatus::DeviceLost;
     }
 
-    bool Renderer::IsInitialized() const
+    Bool Renderer::IsInitialized() const
     {
         return m_device != nullptr;
     }
@@ -1039,12 +1043,12 @@ namespace JBro
         return m_config.surfaceExtent;
     }
 
-    std::uint32_t Renderer::GetSpriteSubmissionLimit() const
+    UInt32 Renderer::GetSpriteSubmissionLimit() const
     {
-        return m_device != nullptr ? m_config.maxSpriteSubmissions : 0;
+        return m_device != nullptr ? m_config.maxSpriteSubmissions : UInt32(0);
     }
 
-    bool Renderer::RecordViews()
+    Bool Renderer::RecordViews()
     {
         if (m_frame.commands == nullptr)
         {
@@ -1056,7 +1060,7 @@ namespace JBro
         // **자기 타깃을 든 뷰는 여기 해당하지 않는다**(D-130). 이 값은 **프레임 타깃**에
         // 대한 것이고, 편집 화면은 자기 텍스처에 그린다 - 게임 뷰를 닫아 두었다고
         // 편집 화면까지 멈추면 안 된다.
-        bool anyRecorded = false;
+        Bool anyRecorded = false;
         for (std::size_t index = 0; index < m_views.Size(); ++index)
         {
             if (m_frameTarget.recordViews || m_views[index].camera.target.IsValid())
@@ -1076,7 +1080,7 @@ namespace JBro
         }
 
         // 뷰가 갈 곳과 그 크기다. 타깃을 안 준 프레임은 백버퍼로 간다.
-        const bool frameToTexture = m_frameTarget.texture.IsValid();
+        const Bool frameToTexture = m_frameTarget.texture.IsValid();
         const TextureHandle frameTexture =
             frameToTexture ? m_frameTarget.texture : m_frame.backBuffer;
         const Extent2D frameExtent = GetFrameExtent();
@@ -1088,7 +1092,7 @@ namespace JBro
         for (std::size_t index = 0; index < m_views.Size(); ++index)
         {
             const ViewPacket& view = m_views[index];
-            const bool ownTarget = view.camera.target.IsValid();
+            const Bool ownTarget = view.camera.target.IsValid();
             // 프레임 타깃으로 가는 뷰만 이 프레임의 opt-in 을 따른다(D-63·D-130).
             if (false == ownTarget && false == m_frameTarget.recordViews)
             {
@@ -1104,7 +1108,7 @@ namespace JBro
             const TextureHandle target = ownTarget ? view.camera.target : frameTexture;
             const Extent2D extent = ownTarget ? view.camera.targetExtent : frameExtent;
 
-            bool alreadyCleared = false;
+            Bool alreadyCleared = false;
             for (std::size_t at = 0; at < m_clearedTargetCount; ++at)
             {
                 if (m_clearedTargets[at] == target)
@@ -1127,8 +1131,8 @@ namespace JBro
                 viewport.height = static_cast<float>(extent.height);
             }
 
-            const float right = viewport.x + viewport.width;
-            const float bottom = viewport.y + viewport.height;
+            const Float right = viewport.x + viewport.width;
+            const Float bottom = viewport.y + viewport.height;
             if (viewport.x < 0.0f
                 || viewport.y < 0.0f
                 || right > static_cast<float>(extent.width)
@@ -1141,7 +1145,7 @@ namespace JBro
             }
 
             // **뷰를 통째로 얹는 경우**(D-280, 3D 레이어). 그릴 곳이 타깃이 아니라 레이어 텍스처다. 텍스처가 아직 없는 크기면 그대로 그린다.
-            const bool wantsComposite = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
+            const Bool wantsComposite = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
             TextureHandle viewLayer;
             if (wantsComposite)
             {
@@ -1156,7 +1160,7 @@ namespace JBro
                     ++m_currentStats.uncompositedLayerCount;
                 }
             }
-            const bool composited = viewLayer.IsValid();
+            const Bool composited = viewLayer.IsValid();
             if (composited && false == alreadyCleared)
             {
                 // 이 타깃의 첫 뷰다. 레이어 텍스처에 그리더라도 타깃은 지워야 지난 프레임이 비치지 않는다.
@@ -1206,7 +1210,7 @@ namespace JBro
                     ++m_currentStats.viewsWithoutDepthCount;
                 }
             }
-            const bool withDepth = depthAttachment.texture.IsValid();
+            const Bool withDepth = depthAttachment.texture.IsValid();
             if (withDepth)
             {
                 depthAttachment.depthLoadOperation = LoadOperation::Clear;
@@ -1239,8 +1243,8 @@ namespace JBro
                     sizeof(viewProjection.values)};
                 // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
                 // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다. 스프라이트만 있는 뷰는 예전처럼 한 번만 묶는다.
-                const bool overDepth = withDepth;
-                const auto bindShading = [&](bool sdf) {
+                const Bool overDepth = withDepth;
+                const auto bindShading = [&](Bool sdf) {
                     const GraphicsPipelineHandle pipeline = sdf
                         ? (overDepth ? m_sdfTextOverDepthPipeline : m_sdfTextPipeline)
                         : (overDepth ? m_spriteOverDepthPipeline : m_spritePipeline);
@@ -1253,7 +1257,7 @@ namespace JBro
                             0)
                         && m_frame.commands->SetGraphicsConstants(constants);
                 };
-                const bool firstSdf = view.spriteRunCount != 0 && m_spriteRuns[view.spriteRunOffset].sdf;
+                const Bool firstSdf = view.spriteRunCount != 0 && m_spriteRuns[view.spriteRunOffset].sdf;
                 if (false == bindShading(firstSdf)
                     || false == m_frame.commands->SetVertexBuffer(
                         0,
@@ -1267,11 +1271,11 @@ namespace JBro
                 {
                     return false;
                 }
-                bool boundSdf = firstSdf;
+                Bool boundSdf = firstSdf;
                 // **레이어 묶음은 제 텍스처에 그렸다 얹는다**(D-279). 묶음에 들어가면 타깃의 패스를 닫고 레이어 텍스처를 투명하게 지운
                 // 패스를 열고, 나오면 그 텍스처를 타깃에 얹는다. 패스를 바꾸면 묶어 둔 것이 풀리므로 다시 묶는다. 깊이가 달린 뷰는
                 // 패스를 끊으면 깊이를 다시 실어야 해서 묶음을 보지 않는다.
-                const auto bindAll = [&](bool sdf) {
+                const auto bindAll = [&](Bool sdf) {
                     return bindShading(sdf)
                         && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
                         && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0);
@@ -1292,15 +1296,15 @@ namespace JBro
                     m_frame.commands->SetScissor(scissor);
                     return true;
                 };
-                std::uint32_t activeGroup = NoLayerGroup;
+                UInt32 activeGroup = NoLayerGroup;
                 // 텍스처가 없어 그대로 그리는 묶음이다. 묶음 하나가 구간 여럿이어도 한 번만 센다.
-                std::uint32_t plainGroup = NoLayerGroup;
+                UInt32 plainGroup = NoLayerGroup;
                 TextureHandle layerTexture;
-                bool rebind = false;
-                for (std::uint32_t runIndex = 0; runIndex < view.spriteRunCount; ++runIndex)
+                Bool rebind = false;
+                for (UInt32 runIndex = 0; runIndex < view.spriteRunCount; ++runIndex)
                 {
                     const SpriteRun& run = m_spriteRuns[view.spriteRunOffset + runIndex];
-                    const std::uint32_t group = withDepth || composited ? NoLayerGroup : run.layerGroup;
+                    const UInt32 group = withDepth || composited ? NoLayerGroup : run.layerGroup;
                     if (group != activeGroup)
                     {
                         if (activeGroup != NoLayerGroup)
@@ -1377,7 +1381,7 @@ namespace JBro
                 if (withDepth || composited)
                 {
                     // 3D 뷰와 통째로 얹는 뷰의 묶음은 그대로 그렸다. 그렇다고 센다.
-                    for (std::uint32_t at = 0; at < view.layerGroupCount; ++at)
+                    for (UInt32 at = 0; at < view.layerGroupCount; ++at)
                     {
                         const LayerGroup& group = m_layerGroups[view.layerGroupOffset + at];
                         if (group.endSprite > group.firstSprite)
@@ -1404,7 +1408,7 @@ namespace JBro
                     return false;
                 }
                 // 메시 종류마다 한 드로우다(D-110). 업로드가 같은 메시를 이어 놓았다.
-                for (std::uint32_t at = 0; at < view.runCount; ++at)
+                for (UInt32 at = 0; at < view.runCount; ++at)
                 {
                     const MeshRun& run = m_meshRuns[view.runOffset + at];
                     const MeshResource* mesh = FindMesh(run.mesh);
@@ -1444,7 +1448,7 @@ namespace JBro
                 {
                     return false;
                 }
-                for (std::uint32_t runIndex = 0; runIndex < view.worldTextRunCount; ++runIndex)
+                for (UInt32 runIndex = 0; runIndex < view.worldTextRunCount; ++runIndex)
                 {
                     const SpriteRun& run = m_worldTextRuns[view.worldTextRunOffset + runIndex];
                     if (false == m_frame.commands->SetTexture(0, run.texture)
@@ -1480,16 +1484,16 @@ namespace JBro
         return true;
     }
 
-    bool Renderer::RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent)
+    Bool Renderer::RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent)
     {
         // 화면을 덮는 사각형 하나씩 두 번이다(D-276). 단위 쿼드를 두 배로 펴서 쓴다 - 정점 버퍼를 따로 두지 않는다.
         struct OutlineConstants
         {
-            float color[4];
-            float params[4];
+            Float color[4];
+            Float params[4];
         };
         OutlineConstants constants = {};
-        for (int channel = 0; channel < 4; ++channel)
+        for (Int32 channel = 0; channel < 4; ++channel)
         {
             constants.color[channel] = camera.outlineColor[channel];
         }
@@ -1501,7 +1505,7 @@ namespace JBro
         const ScissorRect scissor = {0, 0, static_cast<std::int32_t>(extent.width), static_cast<std::int32_t>(extent.height)};
 
         const auto pass = [&](TextureHandle output, LoadOperation load, GraphicsPipelineHandle pipeline,
-                              TextureHandle first, TextureHandle second) {
+                              TextureHandle first, TextureHandle second) -> Bool {
             ColorAttachmentDesc color;
             color.texture = output;
             color.loadOperation = load;
@@ -1515,7 +1519,7 @@ namespace JBro
             }
             m_frame.commands->SetViewport(viewport);
             m_frame.commands->SetScissor(scissor);
-            const bool drawn = m_frame.commands->SetGraphicsPipeline(pipeline)
+            const Bool drawn = m_frame.commands->SetGraphicsPipeline(pipeline)
                 && m_frame.commands->SetGraphicsConstants(bytes)
                 && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
                 && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
@@ -1531,13 +1535,13 @@ namespace JBro
             && pass(target, LoadOperation::Load, m_outlineCompositePipeline, camera.outlineScratch, camera.outlineMask);
     }
 
-    bool Renderer::RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
+    Bool Renderer::RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
         const Viewport& viewport, const ScissorRect& scissor)
     {
         // 화면을 덮는 사각형 하나다. 레이어 텍스처는 미리 곱한 색이라 `Layer*` 블렌드로 얹고, 불투명도는 색과 알파에 함께 곱한다.
         // 아래 그림을 읽는 블렌드는 타깃을 복사해 두고, 셰이더가 둘을 섞어 그 자리를 덮어쓴다(D-283).
-        const std::uint32_t blend = static_cast<std::uint32_t>(group.blend);
-        GraphicsPipelineHandle pipeline = m_layerCompositePipelines[blend < FirstBackdropBlend ? blend : 0];
+        const UInt32 blend = static_cast<std::uint32_t>(group.blend);
+        GraphicsPipelineHandle pipeline = m_layerCompositePipelines[blend < FirstBackdropBlend ? blend : UInt32(0)];
         TextureHandle backdrop;
         if (blend >= FirstBackdropBlend && blend < CompositeBlendCount)
         {
@@ -1553,7 +1557,7 @@ namespace JBro
                 ++m_currentStats.uncompositedLayerCount;
             }
         }
-        const float constants[4] = {
+        const Float constants[4] = {
             group.opacity, backdrop.IsValid() ? static_cast<float>(blend - FirstBackdropBlend) : 0.0f, 0.0f, 0.0f};
         ColorAttachmentDesc color;
         color.texture = target;
@@ -1678,7 +1682,7 @@ namespace JBro
         m_layerTargetWantCount = 0;
     }
 
-    bool Renderer::CreateBuiltinSpriteResources()
+    Bool Renderer::CreateBuiltinSpriteResources()
     {
         if (m_device == nullptr
             || m_config.maxSpriteSubmissions == 0
@@ -1688,7 +1692,7 @@ namespace JBro
             return false;
         }
 
-        constexpr float vertices[] = {
+        constexpr Float vertices[] = {
             -0.5f, -0.5f,
             -0.5f, 0.5f,
             0.5f, 0.5f,
@@ -1728,7 +1732,7 @@ namespace JBro
             * sizeof(GpuSpriteInstance);
         instanceBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
         instanceBufferDesc.memory = MemoryType::Upload;
-        for (std::uint32_t index = 0; index < m_config.maxFramesInFlight; ++index)
+        for (UInt32 index = 0; index < m_config.maxFramesInFlight; ++index)
         {
             m_spriteInstanceBuffers[index] = m_device->CreateBuffer(instanceBufferDesc);
             if (false == m_spriteInstanceBuffers[index].IsValid())
@@ -1813,7 +1817,7 @@ namespace JBro
         }
         BufferDesc textBufferDesc = instanceBufferDesc;
         textBufferDesc.size = static_cast<std::size_t>(m_config.maxSpriteSubmissions) * sizeof(GpuTextInstance);
-        for (std::uint32_t index = 0; index < m_config.maxFramesInFlight; ++index)
+        for (UInt32 index = 0; index < m_config.maxFramesInFlight; ++index)
         {
             m_textInstanceBuffers[index] = m_device->CreateBuffer(textBufferDesc);
             if (false == m_textInstanceBuffers[index].IsValid())
@@ -1911,7 +1915,7 @@ namespace JBro
         return m_layerBackdropPipeline.IsValid();
     }
 
-    bool Renderer::CreateBuiltinMeshResources()
+    Bool Renderer::CreateBuiltinMeshResources()
     {
         if (m_device == nullptr
             || m_config.maxMeshSubmissions == 0
@@ -1924,7 +1928,7 @@ namespace JBro
         instanceBufferDesc.size = static_cast<std::size_t>(m_config.maxMeshSubmissions) * sizeof(GpuMeshInstance);
         instanceBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
         instanceBufferDesc.memory = MemoryType::Upload;
-        for (std::uint32_t slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
+        for (UInt32 slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
         {
             m_meshInstanceBuffers[slot] = m_device->CreateBuffer(instanceBufferDesc);
             if (false == m_meshInstanceBuffers[slot].IsValid())
@@ -1986,7 +1990,7 @@ namespace JBro
         }
     }
 
-    bool Renderer::UploadMeshInstances()
+    Bool Renderer::UploadMeshInstances()
     {
         // **뷰 안에서 같은 메시를 모은다**(D-110). 메시 슬롯 번호로 세고(계수 정렬) 그 자리에 흩뿌리므로
         // 제출 순서와 무관하게 O(n) 이고, 같은 메시 안에서는 제출 순서가 지켜진다. 메시 종류마다 드로우
@@ -2001,7 +2005,7 @@ namespace JBro
         {
             return false;
         }
-        std::uint32_t written = 0;
+        UInt32 written = 0;
         for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
         {
             ViewPacket& view = m_views[viewIndex];
@@ -2015,8 +2019,8 @@ namespace JBro
             {
                 m_meshHistogram[slot] = 0;
             }
-            const std::uint32_t end = view.meshOffset + view.meshCount;
-            for (std::uint32_t at = view.meshOffset; at < end; ++at)
+            const UInt32 end = view.meshOffset + view.meshCount;
+            for (UInt32 at = view.meshOffset; at < end; ++at)
             {
                 const AssetHandle handle = m_meshes[at].mesh;
                 if (FindMesh(handle) == nullptr)
@@ -2029,10 +2033,10 @@ namespace JBro
                 ++m_meshHistogram[handle.index];
             }
             // 개수를 시작 자리로 바꾸고, 종류마다 드로우 구간을 하나 낸다.
-            std::uint32_t cursor = written;
+            UInt32 cursor = written;
             for (std::size_t slot = 0; slot < slotCount; ++slot)
             {
-                const std::uint32_t count = m_meshHistogram[slot];
+                const UInt32 count = m_meshHistogram[slot];
                 m_meshHistogram[slot] = cursor;
                 if (count != 0)
                 {
@@ -2045,7 +2049,7 @@ namespace JBro
                     cursor += count;
                 }
             }
-            for (std::uint32_t at = view.meshOffset; at < end; ++at)
+            for (UInt32 at = view.meshOffset; at < end; ++at)
             {
                 const MeshSubmit& mesh = m_meshes[at];
                 if (FindMesh(mesh.mesh) == nullptr)
@@ -2078,7 +2082,7 @@ namespace JBro
                 static_cast<std::uint32_t>(byteSize)});
     }
 
-    bool Renderer::CreateBuiltinWorldTextResources()
+    Bool Renderer::CreateBuiltinWorldTextResources()
     {
         // 상한 0 은 월드 텍스트를 쓰지 않는 렌더러다. 버퍼와 파이프라인을 만들지 않는다.
         if (m_config.maxWorldTextSubmissions == 0)
@@ -2094,7 +2098,7 @@ namespace JBro
         instanceBufferDesc.size = static_cast<std::size_t>(m_config.maxWorldTextSubmissions) * sizeof(GpuWorldTextInstance);
         instanceBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
         instanceBufferDesc.memory = MemoryType::Upload;
-        for (std::uint32_t slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
+        for (UInt32 slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
         {
             m_worldTextInstanceBuffers[slot] = m_device->CreateBuffer(instanceBufferDesc);
             if (false == m_worldTextInstanceBuffers[slot].IsValid())
@@ -2161,7 +2165,7 @@ namespace JBro
         }
     }
 
-    bool Renderer::UploadWorldTextInstances()
+    Bool Renderer::UploadWorldTextInstances()
     {
         // 제출 번호가 인스턴스 번호다. 순서는 프레임워크가 정한 뒤→앞 그대로이고, 텍스처·샘플러가 같은 이웃만 묶는다.
         m_worldTextRuns.Clear();
@@ -2186,13 +2190,13 @@ namespace JBro
             view.worldTextRunOffset = static_cast<std::uint32_t>(m_worldTextRuns.Size());
             view.worldTextRunCount = 0;
             SpriteRun* last = nullptr;
-            const std::uint32_t end = view.worldTextOffset + view.worldTextCount;
-            for (std::uint32_t index = view.worldTextOffset; index < end; ++index)
+            const UInt32 end = view.worldTextOffset + view.worldTextCount;
+            for (UInt32 index = view.worldTextOffset; index < end; ++index)
             {
                 const WorldTextSubmit& item = m_worldTexts[index];
                 GpuWorldTextInstance& instance = m_gpuWorldTextInstances[index];
                 instance.world = item.world;
-                for (int channel = 0; channel < 4; ++channel)
+                for (Int32 channel = 0; channel < 4; ++channel)
                 {
                     instance.fill[channel] = ToUnorm8(item.tint[channel]);
                     instance.uvRect[channel] = ToUnorm16(item.uvRect[channel]);
@@ -2318,7 +2322,7 @@ namespace JBro
         }
     }
 
-    bool Renderer::UploadSpriteInstances()
+    Bool Renderer::UploadSpriteInstances()
     {
         // 한 번에 크기를 잡고 자리에 바로 쓴다. 항목마다 `Add` 를 부르면 60000 개에서 0.3ms 가 그 호출에
         // 들어갔다(D-110 실측) - 인스턴스 자료 자체를 옮기는 memcpy 의 세 배다.
@@ -2343,47 +2347,47 @@ namespace JBro
         // 정렬은 프레임워크의 일이다. 빈 핸들은 흰색이고, 죽은 핸들도 흰색으로 그리되 센다.
         // 묶음 비교는 텍스처·샘플러 핸들을 64 비트 둘로 접어 한다.
         m_spriteRuns.Clear();
-        const std::uint64_t whiteKey = (static_cast<std::uint64_t>(m_whiteTexture.index) << 32) | m_whiteTexture.generation;
-        const std::uint64_t nearestKey =
+        const UInt64 whiteKey = (static_cast<std::uint64_t>(m_whiteTexture.index) << 32) | m_whiteTexture.generation;
+        const UInt64 nearestKey =
             (static_cast<std::uint64_t>(m_nearestSampler.index) << 32) | m_nearestSampler.generation;
-        const std::uint64_t linearKey =
+        const UInt64 linearKey =
             (static_cast<std::uint64_t>(m_linearSampler.index) << 32) | m_linearSampler.generation;
         for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
         {
             ViewPacket& view = m_views[viewIndex];
             view.spriteRunOffset = static_cast<std::uint32_t>(m_spriteRuns.Size());
             view.spriteRunCount = 0;
-            std::uint64_t lastTextureKey = 0;
-            std::uint64_t lastSamplerKey = 0;
+            UInt64 lastTextureKey = 0;
+            UInt64 lastSamplerKey = 0;
             SpriteRun* last = nullptr;
             // 묶음은 스프라이트 번호 순이다. 지나간 묶음을 넘기며 이 스프라이트가 든 묶음을 찾는다(D-279).
-            std::uint32_t groupCursor = view.layerGroupOffset;
-            const std::uint32_t groupEnd = view.layerGroupOffset + view.layerGroupCount;
-            const std::uint32_t viewEnd = view.spriteOffset + view.spriteCount;
-            for (std::uint32_t index = view.spriteOffset; index < viewEnd; ++index)
+            UInt32 groupCursor = view.layerGroupOffset;
+            const UInt32 groupEnd = view.layerGroupOffset + view.layerGroupCount;
+            const UInt32 viewEnd = view.spriteOffset + view.spriteCount;
+            for (UInt32 index = view.spriteOffset; index < viewEnd; ++index)
             {
                 const SpriteSubmit& item = source[index];
                 while (groupCursor < groupEnd && index >= m_layerGroups[groupCursor].endSprite)
                 {
                     ++groupCursor;
                 }
-                const std::uint32_t layerGroup = groupCursor < groupEnd && index >= m_layerGroups[groupCursor].firstSprite
+                const UInt32 layerGroup = groupCursor < groupEnd && index >= m_layerGroups[groupCursor].firstSprite
                     ? groupCursor : NoLayerGroup;
-                const bool sdf = item.shading == SpriteShading::SdfText;
+                const Bool sdf = item.shading == SpriteShading::SdfText;
                 if (sdf)
                 {
                     // SDF 텍스트는 제 버퍼의 같은 번호 칸에 쓴다. 올릴 구간을 넓혀 둔다.
                     GpuTextInstance& text = textDestination[index];
                     text.world = item.world;
-                    for (int channel = 0; channel < 4; ++channel)
+                    for (Int32 channel = 0; channel < 4; ++channel)
                     {
                         text.fill[channel] = ToUnorm8(item.tint[channel]);
                         text.uvRect[channel] = ToUnorm16(item.uvRect[channel]);
                         text.outline[channel] = item.outlineColor[channel];
                     }
                     text.params[0] = item.outlineEdge;
-                    m_gpuTextFirst = index < m_gpuTextFirst ? index : m_gpuTextFirst;
-                    m_gpuTextEnd = index + 1 > m_gpuTextEnd ? index + 1 : m_gpuTextEnd;
+                    m_gpuTextFirst = index < m_gpuTextFirst ? static_cast<std::size_t>(index) : m_gpuTextFirst;
+                    m_gpuTextEnd = index + 1 > m_gpuTextEnd ? static_cast<std::size_t>(index + 1) : m_gpuTextEnd;
                 }
                 else
                 {
@@ -2401,7 +2405,7 @@ namespace JBro
                 }
 
                 TextureHandle texture = m_whiteTexture;
-                std::uint64_t textureKey = whiteKey;
+                UInt64 textureKey = whiteKey;
                 if (item.texture.generation != 0)
                 {
                     const TextureResource* resource = FindTexture(item.texture);
@@ -2415,8 +2419,8 @@ namespace JBro
                         ++m_currentStats.staleTextureSpriteCount;
                     }
                 }
-                const bool linear = item.filter == SpriteFilter::Linear;
-                const std::uint64_t samplerKey = linear ? linearKey : nearestKey;
+                const Bool linear = item.filter == SpriteFilter::Linear;
+                const UInt64 samplerKey = linear ? linearKey : nearestKey;
                 if (last != nullptr && lastTextureKey == textureKey && lastSamplerKey == samplerKey && last->sdf == sdf
                     && last->layerGroup == layerGroup)
                 {

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/RHI/RHI.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -16,12 +17,12 @@ namespace JBro
     // 하지 않으므로, 늦게 부르면 "검증을 켰는데 조용하다" 는 잘못된 안심만 남는다.
     //
     // false 는 이 기계에 디버그 레이어가 없다는 뜻이다(Windows 의 그래픽 도구 기능).
-    bool EnableD3D12ValidationForProcess();
+    Bool EnableD3D12ValidationForProcess();
 
     class D3D12RHIModule final : public IRHIModule
     {
     public:
-        bool Initialize(const JMemoryContext& memory) override;
+        Bool Initialize(const JMemoryContext& memory) override;
         void Shutdown() override;
         GraphicsApi GetApi() const override;
         IRHIDevice* CreateDevice(const RHIDeviceCreateInfo& createInfo) override;
@@ -29,6 +30,6 @@ namespace JBro
 
     private:
         Internal::D3D12Device* m_activeDevice = nullptr;
-        bool m_initialized = false;
+        Bool m_initialized = false;
     };
 }

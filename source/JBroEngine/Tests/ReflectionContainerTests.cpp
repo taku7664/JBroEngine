@@ -6,13 +6,17 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 컨테이너를 **타입을 모른 채** 만지는 길이다. 인스펙터와 직렬화가 이 길만 써야
 // `Array<Vector2>` 라는 것을 아무도 몰라도 된다(D-56).
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -24,7 +28,7 @@ namespace
     // **쉼표가 든 타입은 별칭을 거쳐야 한다.** `JBRO_FIELD(Table<K, V>, name)` 은
     // 전처리기가 쉼표에서 인자를 갈라 세 개로 본다 - 매크로의 한계이고, 별칭
     // 하나면 끝나므로 매크로를 괄호로 복잡하게 만들지 않는다.
-    using CountTable = JBro::Table<JBro::String, std::int32_t>;
+    using CountTable = JBro::Table<JBro::String, JBro::Int32>;
 
     // 배열을 필드로 든 타입. 컴파일이 되는 것 자체가 절반이다 -
     // `TypeDescriptorOf` 특수화가 없으면 필드 선언에서 멈춘다.
@@ -38,13 +42,13 @@ namespace
 
         JBRO_REFLECT_BODY(ArrayHolder)
 
-        JBRO_FIELD(JBro::Array<float>, points);
+        JBRO_FIELD(JBro::Array<JBro::Float>, points);
         JBRO_FIELD(CountTable, counts);
     };
 
     const JBro::PropertyInfo& FieldOf(const JBro::PropertyTable& table, const char* name)
     {
-        for (std::uint32_t index = 0; index < table.count; ++index)
+        for (JBro::UInt32 index = 0; index < table.count; ++index)
         {
             const char* found =
                 JBro::NameTable::Get().Resolve(table.properties[index].name);
@@ -59,8 +63,8 @@ namespace
 
     void TestAnArrayCanBeWorkedWithoutKnowingItsType()
     {
-        JBro::Array<float> points;
-        const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<JBro::Array<float>>::Get();
+        JBro::Array<JBro::Float> points;
+        const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<JBro::Array<JBro::Float>>::Get();
         Check(type.arrayOps != nullptr, "an array type must carry array ops");
         Check(type.element != nullptr, "and must say what it holds");
         Check(std::strcmp(JBro::NameTable::Get().Resolve(type.element->typeName),
@@ -106,7 +110,7 @@ namespace
         Check(ops.GetSize(erased) == 0, "clearing empties it");
     }
 
-    bool NamesAre(const JBro::Array<JBro::String>& names, const char* const expected[4])
+    JBro::Bool NamesAre(const JBro::Array<JBro::String>& names, const char* const expected[4])
     {
         if (names.Size() != 4)
         {
@@ -161,9 +165,9 @@ namespace
 
     void TestATableCanBeWalkedWithoutKnowingItsType()
     {
-        JBro::Table<JBro::String, std::int32_t> counts;
+        JBro::Table<JBro::String, JBro::Int32> counts;
         const JBro::TypeDescriptor& type =
-            JBro::TypeDescriptorOf<JBro::Table<JBro::String, std::int32_t>>::Get();
+            JBro::TypeDescriptorOf<JBro::Table<JBro::String, JBro::Int32>>::Get();
         Check(type.tableOps != nullptr, "a table type must carry table ops");
         Check(type.key != nullptr && type.value != nullptr,
             "and must say what it maps to what");
@@ -207,8 +211,8 @@ namespace
         *static_cast<std::int32_t*>(ops.FindValue(erased, key)) = 9;
 
         // **슬롯은 조밀하지 않다.** 훑는 쪽은 커서만 따라간다.
-        int seen = 0;
-        int total = 0;
+        JBro::Int32 seen = 0;
+        JBro::Int32 total = 0;
         for (std::size_t slot = ops.BeginSlot(erased);
             slot != JBro::TableOps::InvalidSlot;
             slot = ops.NextSlot(erased, slot))
@@ -263,7 +267,7 @@ namespace
     }
 }
 
-int RunReflectionContainerTests()
+JBro::Int32 RunReflectionContainerTests()
 {
     TestAnArrayCanBeWorkedWithoutKnowingItsType();
     TestAnArrayMovesElementsWithoutKnowingItsType();

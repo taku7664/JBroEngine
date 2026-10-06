@@ -1,6 +1,7 @@
 ﻿#include <JBro/Runtime/Component.h>
 
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -35,7 +36,7 @@ namespace JBro
         return m_owner.TryGet();
     }
 
-    bool ComponentBase::IsActiveComponent() const
+    Bool ComponentBase::IsActiveComponent() const
     {
         GameObject* owner = m_owner.TryGet();
         return m_enabled && owner != nullptr && owner->IsActiveInHierarchy();
@@ -57,12 +58,12 @@ namespace JBro
     {
     }
 
-    bool ComponentBase::IsEnabled() const
+    Bool ComponentBase::IsEnabled() const
     {
         return m_enabled;
     }
 
-    void ComponentBase::SetEnabled(bool enabled)
+    void ComponentBase::SetEnabled(Bool enabled)
     {
         if (m_enabled == enabled)
         {

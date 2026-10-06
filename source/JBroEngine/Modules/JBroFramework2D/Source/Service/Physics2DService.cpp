@@ -2,11 +2,14 @@
 
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/System/IPhysics2DSystem.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
-    bool Physics2DService::Raycast(
-        Vector2 origin, Vector2 direction, float distance, RaycastHit2D& hit, std::uint32_t layerMask) const
+    Bool Physics2DService::Raycast(
+        Vector2 origin, Vector2 direction, Float distance, RaycastHit2D& hit, UInt32 layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)
@@ -18,7 +21,7 @@ namespace JBro::Service
     }
 
     void Physics2DService::RaycastAll(
-        Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits, std::uint32_t layerMask) const
+        Vector2 origin, Vector2 direction, Float distance, Array<RaycastHit2D>& hits, UInt32 layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)
@@ -30,7 +33,7 @@ namespace JBro::Service
     }
 
     void Physics2DService::OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
-        std::uint32_t layerMask) const
+        UInt32 layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)
@@ -41,7 +44,7 @@ namespace JBro::Service
         physics->OverlapBox(area, results, layerMask);
     }
 
-    GameObjectHandle Physics2DService::OverlapPoint(Vector2 point, std::uint32_t layerMask) const
+    GameObjectHandle Physics2DService::OverlapPoint(Vector2 point, UInt32 layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)
@@ -51,8 +54,8 @@ namespace JBro::Service
         return physics->OverlapPoint(point, layerMask);
     }
 
-    void Physics2DService::OverlapCircle(Vector2 center, float radius, Array<GameObjectHandle>& results,
-        std::uint32_t layerMask) const
+    void Physics2DService::OverlapCircle(Vector2 center, Float radius, Array<GameObjectHandle>& results,
+        UInt32 layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)
@@ -63,8 +66,8 @@ namespace JBro::Service
         physics->OverlapCircle(center, radius, results, layerMask);
     }
 
-    bool Physics2DService::CircleCast(Vector2 origin, float radius, Vector2 direction, float distance,
-        RaycastHit2D& hit, std::uint32_t layerMask) const
+    Bool Physics2DService::CircleCast(Vector2 origin, Float radius, Vector2 direction, Float distance,
+        RaycastHit2D& hit, UInt32 layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)
@@ -75,8 +78,8 @@ namespace JBro::Service
         return physics->CircleCast(origin, radius, direction, distance, hit, layerMask);
     }
 
-    bool Physics2DService::BoxCast(Vector2 center, Vector2 halfExtents, float angle, Vector2 direction, float distance,
-        RaycastHit2D& hit, std::uint32_t layerMask) const
+    Bool Physics2DService::BoxCast(Vector2 center, Vector2 halfExtents, Float angle, Vector2 direction, Float distance,
+        RaycastHit2D& hit, UInt32 layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)

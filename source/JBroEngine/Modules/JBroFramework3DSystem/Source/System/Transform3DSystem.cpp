@@ -4,6 +4,8 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
@@ -44,12 +46,12 @@ namespace JBro::System
         }
     }
 
-    int Transform3DSystem::GetExecutionOrder() const
+    Int32 Transform3DSystem::GetExecutionOrder() const
     {
         return 100;
     }
 
-    void Transform3DSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void Transform3DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         (void)deltaTime;
         canvas.ForEach<Component::Transform3D>([](Component::Transform3D& transform)

@@ -8,6 +8,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Package
 {
@@ -18,18 +20,18 @@ namespace JBro::Package
     class PackageWriter final
     {
     public:
-        explicit PackageWriter(std::uint64_t key);
+        explicit PackageWriter(UInt64 key);
 
         // 블롭을 더한다. `Record` 는 `blob` 을 무시한다. 같은 (id, kind) 가 이미 있거나, id 가 비었거나, 경로가 너무 길면 거짓이다.
-        bool Add(const Entry& entry, ArrayView<const std::byte> blob);
-        std::uint32_t GetEntryCount() const;
+        Bool Add(const Entry& entry, ArrayView<const std::byte> blob);
+        UInt32 GetEntryCount() const;
         // 모은 것을 파일 모양으로 만든다. 부를 때마다 처음부터 다시 만든다.
         void Build(Array<std::byte>& file) const;
         // `Build` 한 것을 플랫폼으로 쓴다. 실패하면 거짓이고 `error` 에 영어 글자다.
-        bool Save(IPlatform& platform, const char* utf8Path, String& error) const;
+        Bool Save(IPlatform& platform, const char* utf8Path, String& error) const;
 
     private:
-        std::uint64_t m_key = 0;
+        UInt64 m_key = 0;
         Array<Entry> m_entries;
         // 블롭 평문이다. 항목의 `offset` 은 여기 안의 자리이고, `Build` 가 파일 자리로 바꾼다.
         Array<std::byte> m_blobs;

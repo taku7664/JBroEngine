@@ -15,12 +15,14 @@
 #include <iostream>
 #include <stdexcept>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 // 제어 포트(D-270)가 **이 기계 밖에서는 닿지 않는지** 실제 에디터로 잰다. 글의 형식과 명령은 `EditorGuideTests.cpp` 가 잰다.
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -30,7 +32,7 @@ namespace
     }
 
     // 이 기계의 루프백이 아닌 IPv4 주소를 찾는다. 망이 없으면 거짓이다.
-    bool FindExternalAddress(char* out, std::size_t capacity)
+    JBro::Bool FindExternalAddress(char* out, std::size_t capacity)
     {
         char host[256] = {};
         if (0 != gethostname(host, sizeof(host)))
@@ -45,7 +47,7 @@ namespace
         {
             return false;
         }
-        bool found = false;
+        JBro::Bool found = false;
         for (addrinfo* entry = list; entry != nullptr && false == found; entry = entry->ai_next)
         {
             const auto* address = reinterpret_cast<const sockaddr_in*>(entry->ai_addr);
@@ -119,7 +121,7 @@ namespace
     }
 }
 
-int RunEditorControlPortTests()
+JBro::Int32 RunEditorControlPortTests()
 {
     try
     {

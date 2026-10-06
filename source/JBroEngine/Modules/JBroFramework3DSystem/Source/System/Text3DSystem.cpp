@@ -10,6 +10,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::System
 {
@@ -18,7 +23,7 @@ namespace JBro::System
         m_library.Shutdown();
     }
 
-    int Text3DSystem::GetExecutionOrder() const
+    Int32 Text3DSystem::GetExecutionOrder() const
     {
         return ExecutionOrder;
     }
@@ -34,14 +39,14 @@ namespace JBro::System
         m_library.Initialize(assets, renderer, tasks);
     }
 
-    bool Text3DSystem::GetLocalBounds(InstanceId text, float& minX, float& minY, float& maxX, float& maxY) const
+    Bool Text3DSystem::GetLocalBounds(InstanceId text, Float& minX, Float& minY, Float& maxX, Float& maxY) const
     {
         const Entry* entry = m_entries.Find(text);
         if (entry == nullptr || false == entry->block.GetBounds(minX, minY, maxX, maxY))
         {
             return false;
         }
-        const float ppu = entry->block.GetPixelsPerUnit();
+        const Float ppu = entry->block.GetPixelsPerUnit();
         minX /= ppu;
         minY /= ppu;
         maxX /= ppu;
@@ -49,7 +54,7 @@ namespace JBro::System
         return true;
     }
 
-    bool Text3DSystem::IsMissingFont(InstanceId text) const
+    Bool Text3DSystem::IsMissingFont(InstanceId text) const
     {
         const Entry* entry = m_entries.Find(text);
         return entry != nullptr && entry->warnedMissingFont;
@@ -60,17 +65,17 @@ namespace JBro::System
         return m_library;
     }
 
-    std::uint32_t Text3DSystem::GetDroppedGlyphCount() const
+    UInt32 Text3DSystem::GetDroppedGlyphCount() const
     {
         return m_droppedGlyphs;
     }
 
-    std::uint64_t Text3DSystem::GetRelayoutCount() const
+    UInt64 Text3DSystem::GetRelayoutCount() const
     {
         return m_relayouts;
     }
 
-    std::uint32_t Text3DSystem::GetCachedTextCount() const
+    UInt32 Text3DSystem::GetCachedTextCount() const
     {
         return static_cast<std::uint32_t>(m_entries.Size());
     }
@@ -109,9 +114,9 @@ namespace JBro::System
             return;
         }
         const TextBlock& block = entry.block;
-        const float ppu = block.GetPixelsPerUnit();
-        const bool outlined = block.IsSdf() && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f;
-        const float outlineChannels[4] = { text.outlineColor.R, text.outlineColor.G, text.outlineColor.B, text.outlineColor.A };
+        const Float ppu = block.GetPixelsPerUnit();
+        const Bool outlined = block.IsSdf() && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f;
+        const Float outlineChannels[4] = { text.outlineColor.R, text.outlineColor.G, text.outlineColor.B, text.outlineColor.A };
         for (const GlyphQuad& quad : block.GetQuads())
         {
             const AssetHandle page = m_library.GetPageTexture(block.GetFont(quad.face), quad.page);
@@ -130,14 +135,14 @@ namespace JBro::System
             item.width = quad.width / ppu;
             item.height = quad.height / ppu;
             item.texture = page;
-            for (int channel = 0; channel < 4; ++channel)
+            for (Int32 channel = 0; channel < 4; ++channel)
             {
                 item.uvRect[channel] = quad.uvRect[channel];
             }
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
-            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
-            item.layerParallax = layer != nullptr ? layer->GetParallax() : 1.0f;
+            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
+            item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
             item.tint = text.color;
             if (quad.hasTint)
             {
@@ -148,13 +153,13 @@ namespace JBro::System
             if (block.IsSdf())
             {
                 item.sdf = true;
-                for (int channel = 0; channel < 4; ++channel)
+                for (Int32 channel = 0; channel < 4; ++channel)
                 {
                     item.outlineColor[channel] =
-                        static_cast<std::uint8_t>(std::lround(std::clamp(outlineChannels[channel], 0.0f, 1.0f) * 255.0f));
+                        static_cast<std::uint8_t>(std::lround(JBro::Clamp(outlineChannels[channel], 0.0f, 1.0f) * 255.0f));
                 }
-                const float edge = outlined ? SdfOutlineEdge(text.outlineWidth, quad.sdfPerTextPixel, block.GetSdfSpread()) : 0.5f;
-                item.outlineEdge = static_cast<std::uint16_t>(std::lround(std::clamp(edge, 0.0f, 1.0f) * 65535.0f));
+                const Float edge = outlined ? SdfOutlineEdge(text.outlineWidth, quad.sdfPerTextPixel, block.GetSdfSpread()) : Float(0.5f);
+                item.outlineEdge = static_cast<std::uint16_t>(std::lround(JBro::Clamp(edge, 0.0f, 1.0f) * 65535.0f));
             }
             if (false == m_renderWorld->SubmitText(item))
             {
@@ -170,7 +175,7 @@ namespace JBro::System
             [](const Entry& entry) { return entry.lastSeenFrame; });
     }
 
-    void Text3DSystem::OnUpdate(Canvas& canvas, float)
+    void Text3DSystem::OnUpdate(Canvas& canvas, Float)
     {
         if (m_renderWorld == nullptr)
         {

@@ -9,6 +9,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 컴포넌트 밖에 사는 글자(D-200 (1), text-plan §3.1·§4.3).
 //
@@ -29,10 +31,10 @@ namespace JBro
 {
     struct TextId
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0; // 0 은 칸이 없다는 뜻이다(빈 글자)
+        UInt32 index = 0;
+        UInt32 generation = 0; // 0 은 칸이 없다는 뜻이다(빈 글자)
 
-        bool IsValid() const
+        Bool IsValid() const
         {
             return generation != 0;
         }
@@ -49,17 +51,17 @@ namespace JBro
         // 새 칸을 만들어 글자를 넣는다.
         TextId Create(const char* utf8, std::size_t length);
         // 칸의 글자를 바꾼다. 칸이 없으면(무효·이미 돌려준 것) 거짓이다.
-        bool Set(TextId id, const char* utf8, std::size_t length);
+        Bool Set(TextId id, const char* utf8, std::size_t length);
         // id 가 가리키는 칸이 살아 있으면 그 칸에, 아니면 새 칸에 쓰고 id 를 고친다. 코덱과 서비스가 쓰는 길이다.
         void Assign(TextId& id, const char* utf8, std::size_t length);
         void Destroy(TextId id);
 
-        bool IsAlive(TextId id) const;
+        Bool IsAlive(TextId id) const;
         // 칸의 글자다. 칸이 없으면 빈 글자다. 다음 쓰기까지 유효하다.
         ArrayView<const char> GetText(TextId id) const;
         // 칸의 판번호다. 쓸 때마다 오르고 1 부터다. 칸이 없으면 0 이다.
-        std::uint32_t GetRevision(TextId id) const;
-        std::uint32_t GetLiveCount() const;
+        UInt32 GetRevision(TextId id) const;
+        UInt32 GetLiveCount() const;
         // 모든 칸을 버린다. 테스트와 프로젝트 닫기가 쓴다 - 컴포넌트가 들고 있는 번호는 그 뒤 무효가 된다.
         void Clear();
 
@@ -67,17 +69,17 @@ namespace JBro
         struct Slot
         {
             String        text;
-            std::uint32_t generation = 1;
-            std::uint32_t revision = 0;
-            bool          occupied = false;
+            UInt32 generation = 1;
+            UInt32 revision = 0;
+            Bool          occupied = false;
         };
 
         const Slot* Find(TextId id) const;
         Slot* Find(TextId id);
 
         Array<Slot>          m_slots;
-        Array<std::uint32_t> m_free;
-        std::uint32_t        m_live = 0;
+        Array<UInt32> m_free;
+        UInt32        m_live = 0;
     };
 
     // 파일과 인스펙터에는 글자로, 복사는 글자째로(위 설명).

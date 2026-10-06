@@ -7,6 +7,10 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 글리프 아틀라스(D-200, text-plan §5 의 2 단계)의 CPU 쪽 테스트다. GPU 는 쓰지 않는다.
 namespace
@@ -14,7 +18,7 @@ namespace
     using namespace JBro;
     using namespace JBro::Text;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -32,13 +36,13 @@ namespace
         return face;
     }
 
-    std::uint8_t AlphaAt(const GlyphAtlas& atlas, std::uint32_t page, std::uint32_t x, std::uint32_t y)
+    std::uint8_t AlphaAt(const GlyphAtlas& atlas, JBro::UInt32 page, JBro::UInt32 x, JBro::UInt32 y)
     {
         const ArrayView<const std::byte> pixels = atlas.GetPagePixels(page);
         return static_cast<std::uint8_t>(pixels[(static_cast<std::size_t>(y) * atlas.GetPageSize() + x) * 4 + 3]);
     }
 
-    std::uint8_t RedAt(const GlyphAtlas& atlas, std::uint32_t page, std::uint32_t x, std::uint32_t y)
+    std::uint8_t RedAt(const GlyphAtlas& atlas, JBro::UInt32 page, JBro::UInt32 x, JBro::UInt32 y)
     {
         const ArrayView<const std::byte> pixels = atlas.GetPagePixels(page);
         return static_cast<std::uint8_t>(pixels[(static_cast<std::size_t>(y) * atlas.GetPageSize() + x) * 4 + 0]);
@@ -51,7 +55,7 @@ namespace
         const GlyphBox outline = face.GetGlyphBox(a);
         GlyphBitmapBox box;
         Check(face.MeasureGlyphBitmap(a, 32.0f, box), "A measures at 32 px");
-        const float scale = 32.0f / 1000.0f;
+        const JBro::Float scale = 32.0f / 1000.0f;
         // 비트맵은 외곽선을 픽셀 격자로 넓힌 것이다(바깥쪽 올림).
         Check(box.top == static_cast<std::int32_t>(std::ceil(outline.maxY * scale)), "the bitmap top is the rounded-up outline top");
         Check(box.left == static_cast<std::int32_t>(std::floor(outline.minX * scale)), "the bitmap left is the rounded-down outline left");
@@ -76,12 +80,12 @@ namespace
         Check(atlas.GetPagePixels(0).Size() == static_cast<std::size_t>(1024) * 1024 * 4, "a page is 1024x1024 RGBA8");
 
         // 칸 안에는 커버리지가, 칸 밖(틈)에는 투명한 흰색이 있다.
-        std::uint32_t covered = 0;
-        const std::uint32_t right = static_cast<std::uint32_t>(glyph.x) + glyph.width;
-        const std::uint32_t bottom = static_cast<std::uint32_t>(glyph.y) + glyph.height;
-        for (std::uint32_t y = glyph.y; y < bottom; ++y)
+        JBro::UInt32 covered = 0;
+        const JBro::UInt32 right = static_cast<std::uint32_t>(glyph.x) + glyph.width;
+        const JBro::UInt32 bottom = static_cast<std::uint32_t>(glyph.y) + glyph.height;
+        for (JBro::UInt32 y = glyph.y; y < bottom; ++y)
         {
-            for (std::uint32_t x = glyph.x; x < right; ++x)
+            for (JBro::UInt32 x = glyph.x; x < right; ++x)
             {
                 covered += AlphaAt(atlas, 0, x, y) > 128 ? 1u : 0u;
                 Check(RedAt(atlas, 0, x, y) == 255, "glyph pixels are white so the tint is the text colour");
@@ -121,8 +125,8 @@ namespace
         const FontFace face = LoadTestFont();
         GlyphAtlas atlas;
         const GlyphIndex a = face.FindGlyph(U'A');
-        constexpr std::uint32_t Size = 48;
-        constexpr std::uint32_t Spread = 8;
+        constexpr JBro::UInt32 Size = 48;
+        constexpr JBro::UInt32 Spread = 8;
 
         GlyphBitmapBox bitmap;
         Check(face.MeasureGlyphBitmap(a, static_cast<float>(Size), bitmap), "A measures at 48 px");
@@ -141,8 +145,8 @@ namespace
             "the cell's corners are past the spread, at zero");
         std::uint8_t highest = 0;
         std::uint8_t lowest = 255;
-        const std::uint32_t row = static_cast<std::uint32_t>(sdf.y) + sdf.height * 3 / 4;
-        for (std::uint32_t x = sdf.x; x < static_cast<std::uint32_t>(sdf.x) + sdf.width; ++x)
+        const JBro::UInt32 row = static_cast<std::uint32_t>(sdf.y) + sdf.height * 3 / 4;
+        for (JBro::UInt32 x = sdf.x; x < static_cast<std::uint32_t>(sdf.x) + sdf.width; ++x)
         {
             highest = std::max(highest, AlphaAt(atlas, 0, x, row));
             lowest = std::min(lowest, AlphaAt(atlas, 0, x, row));
@@ -187,7 +191,7 @@ namespace
         Check(ascii.Prewarm(face, PrewarmSet::Ascii, 32, 0) == 0, "prewarming twice adds nothing");
 
         GlyphAtlas korean;
-        const std::uint32_t warmed = korean.Prewarm(face, PrewarmSet::Ksx1001, 48, 8);
+        const JBro::UInt32 warmed = korean.Prewarm(face, PrewarmSet::Ksx1001, 48, 8);
         std::cout << "  [measure] KS X 1001 prewarm of the test font: " << warmed << " SDF glyphs on " << korean.GetPageCount()
                   << " page(s)" << std::endl;
         Check(warmed == 95 + 29, "the Korean set adds the font's 29 syllables to ASCII");
@@ -227,7 +231,7 @@ namespace
             {
                 const AtlasGlyph* b = atlas.Find(32, face.FindGlyph(syllables[right]));
                 // 이웃 칸 사이에 한 픽셀 틈이 있다. Linear 샘플링이 옆 칸 가장자리를 읽지 않게 하는 틈이다.
-                const bool apart = a->page != b->page
+                const JBro::Bool apart = a->page != b->page
                     || a->x + a->width + 1 <= b->x || b->x + b->width + 1 <= a->x
                     || a->y + a->height + 1 <= b->y || b->y + b->height + 1 <= a->y;
                 Check(apart, "cells never overlap and keep a one-pixel gap");
@@ -258,7 +262,7 @@ namespace
     void TestABakedAtlasRestores()
     {
         const FontFace face = LoadTestFont();
-        const std::uint64_t hash = GlyphAtlas::HashFontSource(reinterpret_cast<const std::byte*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR));
+        const JBro::UInt64 hash = GlyphAtlas::HashFontSource(reinterpret_cast<const std::byte*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR));
         BakedAtlasStamp stamp;
         stamp.sourceHash = hash;
         stamp.set = PrewarmSet::Ksx1001;
@@ -268,7 +272,7 @@ namespace
         warmed.Prewarm(face, PrewarmSet::Ksx1001, 48, 8);
         Array<std::byte> baked;
         warmed.Bake(stamp, baked);
-        const std::uint32_t bakedGlyphs = warmed.GetGlyphCount();
+        const JBro::UInt32 bakedGlyphs = warmed.GetGlyphCount();
         Check(baked.Size() < static_cast<std::size_t>(warmed.GetPageCount()) * warmed.GetPageSize() * warmed.GetPageSize() * 2,
             "a baked page keeps one channel, not four");
 
@@ -276,8 +280,8 @@ namespace
         Check(restored.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size()), stamp), "a baked atlas restores");
         Check(restored.GetPageCount() == warmed.GetPageCount() && restored.GetGlyphCount() == warmed.GetGlyphCount(),
             "with the same pages and cells");
-        bool samePixels = true;
-        for (std::uint32_t page = 0; page < warmed.GetPageCount(); ++page)
+        JBro::Bool samePixels = true;
+        for (JBro::UInt32 page = 0; page < warmed.GetPageCount(); ++page)
         {
             const ArrayView<const std::byte> a = warmed.GetPagePixels(page);
             const ArrayView<const std::byte> b = restored.GetPagePixels(page);
@@ -299,7 +303,7 @@ namespace
             "a new cell after restoring goes where it would have gone");
 
         // 표지·잘림·겹친 칸.
-        const std::uint32_t kept = restored.GetGlyphCount();
+        const JBro::UInt32 kept = restored.GetGlyphCount();
         BakedAtlasStamp other = stamp;
         other.sourceHash ^= 1;
         Check(false == restored.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size()), other) && restored.GetGlyphCount() == kept,
@@ -330,7 +334,7 @@ namespace
     }
 }
 
-int RunGlyphAtlasTests()
+JBro::Int32 RunGlyphAtlasTests()
 {
     try
     {

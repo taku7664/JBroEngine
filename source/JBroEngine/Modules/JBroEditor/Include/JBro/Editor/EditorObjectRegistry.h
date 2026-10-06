@@ -2,6 +2,8 @@
 
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafePtr.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -17,7 +19,7 @@ namespace JBro
     // 기존 엔진은 파일 직렬화용 GUID 가 이미 있어서 커맨드마다 그것으로 다시 찾았다.
     // 여기에는 그런 것이 없으므로 에디터가 자기 번호를 매긴다 - **저장 파일에는
     // 나가지 않는다.** 편집하는 동안만 사는 값이다.
-    using EditorObjectId = std::uint64_t;
+    using EditorObjectId = UInt64;
     inline constexpr EditorObjectId InvalidEditorObjectId = 0;
 
     class EditorObjectRegistry
@@ -28,7 +30,7 @@ namespace JBro
         // 번호로 찾는다. 사라졌거나 모르는 번호면 nullptr 이다.
         GameObject* Resolve(EditorObjectId id) const;
         // 되살린 오브젝트를 옛 번호에 다시 건다. 삭제를 되돌릴 때 쓴다.
-        bool Rebind(EditorObjectId id, GameObject* object);
+        Bool Rebind(EditorObjectId id, GameObject* object);
         void Clear();
         std::size_t GetCount() const;
 

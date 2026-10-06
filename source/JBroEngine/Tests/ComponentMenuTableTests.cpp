@@ -5,6 +5,10 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 컴포넌트별 우클릭 항목의 표(D-220, todo "에디터 공용 기반" 8 번).
 //
@@ -13,7 +17,7 @@
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -38,7 +42,7 @@ namespace
         QuietLog& operator=(const QuietLog&) = delete;
 
     private:
-        bool m_previous = true;
+        JBro::Bool m_previous = true;
     };
 
     using JBro::ComponentMenuContext;
@@ -51,28 +55,28 @@ namespace
     // 훅이 불린 기록이다. 훅은 함수 포인터라 상태를 `user` 로 받는다.
     struct Call
     {
-        int tag = 0;
-        std::uint32_t ordinal = 0;
-        float cursorY = 0.0f;
+        JBro::Int32 tag = 0;
+        JBro::UInt32 ordinal = 0;
+        JBro::Float cursorY = 0.0f;
     };
 
     struct Recorder
     {
         Call calls[16];
-        int count = 0;
+        JBro::Int32 count = 0;
         // 참이면 훅이 거짓을 돌려준다(대상을 지운 것처럼).
-        bool failTag2 = false;
+        JBro::Bool failTag2 = false;
         // 훅 안에서 표를 바꾸려 해 본다.
         ComponentMenuTable* table = nullptr;
-        bool registerResult = true;
-        std::uint32_t unregisterResult = 99;
-        bool drawingSeen = false;
+        JBro::Bool registerResult = true;
+        JBro::UInt32 unregisterResult = 99;
+        JBro::Bool drawingSeen = false;
     };
 
     struct Slot
     {
         Recorder* recorder = nullptr;
-        int tag = 0;
+        JBro::Int32 tag = 0;
     };
 
     void Record(const ComponentMenuContext& context)
@@ -89,7 +93,7 @@ namespace
         ++recorder.count;
     }
 
-    bool DrawOk(const ComponentMenuContext& context)
+    JBro::Bool DrawOk(const ComponentMenuContext& context)
     {
         Record(context);
         Slot* slot = static_cast<Slot*>(context.user);
@@ -97,13 +101,13 @@ namespace
     }
 
     // 함수가 다르면 같은 등록자가 같은 타입에 여럿 걸 수 있다.
-    bool DrawOther(const ComponentMenuContext& context)
+    JBro::Bool DrawOther(const ComponentMenuContext& context)
     {
         Record(context);
         return true;
     }
 
-    bool DrawMeddling(const ComponentMenuContext& context)
+    JBro::Bool DrawMeddling(const ComponentMenuContext& context)
     {
         Record(context);
         Recorder& recorder = *static_cast<Slot*>(context.user)->recorder;
@@ -113,7 +117,7 @@ namespace
         return true;
     }
 
-    ComponentMenuContext ContextFor(ComponentTypeId typeId, std::uint32_t ordinal = 0)
+    ComponentMenuContext ContextFor(ComponentTypeId typeId, JBro::UInt32 ordinal = 0)
     {
         ComponentMenuContext context;
         context.address.typeId = typeId;
@@ -143,20 +147,20 @@ namespace
         Stage(const Stage&) = delete;
         Stage& operator=(const Stage&) = delete;
 
-        bool Draw(ComponentMenuTable& table, const ComponentMenuContext& context, bool separatorFirst = false)
+        JBro::Bool Draw(ComponentMenuTable& table, const ComponentMenuContext& context, JBro::Bool separatorFirst = false)
         {
             ImGui::NewFrame();
             ImGui::Begin("Menu");
             cursorBefore = ImGui::GetCursorPosY();
-            const bool result = table.DrawItems(context, separatorFirst);
+            const JBro::Bool result = table.DrawItems(context, separatorFirst);
             cursorAfter = ImGui::GetCursorPosY();
             ImGui::End();
             ImGui::Render();
             return result;
         }
 
-        float cursorBefore = 0.0f;
-        float cursorAfter = 0.0f;
+        JBro::Float cursorBefore = 0.0f;
+        JBro::Float cursorAfter = 0.0f;
 
     private:
         ImGuiContext* m_context = nullptr;
@@ -166,7 +170,7 @@ namespace
     {
         const QuietLog quiet;
         ComponentMenuTable table;
-        int owner = 0;
+        JBro::Int32 owner = 0;
         Check(false == table.Register(JBro::InvalidComponentTypeId, &DrawOther, &owner),
             "an entry without a type must be refused");
         Check(false == table.Register(TypeA, nullptr, &owner), "an entry without a function must be refused");
@@ -177,7 +181,7 @@ namespace
         Check(false == table.Register(TypeA, &DrawOther, &owner),
             "the same type, function and owner twice would show one item twice");
         Check(table.Register(TypeA, &DrawOk, &owner), "another function of the same owner is a different item");
-        int other = 0;
+        JBro::Int32 other = 0;
         Check(table.Register(TypeA, &DrawOther, &other), "the same function of another owner is a different item");
         Check(table.Count(TypeA) == 3, "three distinct entries must be kept");
     }
@@ -187,8 +191,8 @@ namespace
         Stage stage;
         ComponentMenuTable table;
         Recorder recorder;
-        int ownerA = 0;
-        int ownerB = 0;
+        JBro::Int32 ownerA = 0;
+        JBro::Int32 ownerB = 0;
         Slot slot1{ &recorder, 1 };
         Slot slot2{ &recorder, 2 };
         Slot slot3{ &recorder, 3 };
@@ -215,8 +219,8 @@ namespace
         Stage stage;
         ComponentMenuTable table;
         Recorder recorder;
-        int ownerA = 0;
-        int ownerB = 0;
+        JBro::Int32 ownerA = 0;
+        JBro::Int32 ownerB = 0;
         Slot slot1{ &recorder, 1 };
         Slot slot2{ &recorder, 2 };
         Slot slot3{ &recorder, 3 };
@@ -242,12 +246,12 @@ namespace
         Stage stage;
         ComponentMenuTable table;
         Recorder recorder;
-        int owner = 0;
+        JBro::Int32 owner = 0;
         Slot slot1{ &recorder, 1 };
         table.Register(TypeA, &DrawOk, &owner, &slot1);
 
         stage.Draw(table, ContextFor(TypeA));
-        const float plain = recorder.calls[0].cursorY;
+        const JBro::Float plain = recorder.calls[0].cursorY;
         stage.Draw(table, ContextFor(TypeA), true);
         Check(recorder.count == 2 && recorder.calls[1].cursorY > plain,
             "asked for, a separator goes in front of the first item");
@@ -263,8 +267,8 @@ namespace
         ComponentMenuTable table;
         Recorder recorder;
         recorder.failTag2 = true;
-        int owner = 0;
-        int other = 0;
+        JBro::Int32 owner = 0;
+        JBro::Int32 other = 0;
         Slot slot1{ &recorder, 1 };
         Slot slot2{ &recorder, 2 };
         Slot slot3{ &recorder, 3 };
@@ -283,8 +287,8 @@ namespace
         Stage stage;
         ComponentMenuTable table;
         Recorder recorder;
-        int ownerA = 0;
-        int ownerB = 0;
+        JBro::Int32 ownerA = 0;
+        JBro::Int32 ownerB = 0;
         Slot slot1{ &recorder, 1 };
         Slot slot2{ &recorder, 2 };
         Slot slot3{ &recorder, 3 };
@@ -328,7 +332,7 @@ namespace
     }
 }
 
-int RunComponentMenuTableTests()
+JBro::Int32 RunComponentMenuTableTests()
 {
     TestBadEntriesAreRefused();
     TestItemsDrawInRegistrationOrderWithTheirOwnUser();

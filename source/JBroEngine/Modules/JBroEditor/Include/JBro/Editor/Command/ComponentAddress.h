@@ -4,6 +4,8 @@
 #include <JBro/Runtime/Component.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -25,23 +27,23 @@ namespace JBro
     {
         EditorObjectId objectId = InvalidEditorObjectId;
         ComponentTypeId typeId = 0;
-        std::uint32_t ordinal = 0;
+        UInt32 ordinal = 0;
 
-        bool Equals(const ComponentAddress& other) const;
+        Bool Equals(const ComponentAddress& other) const;
     };
 
     // 오브젝트에서 그 자리의 컴포넌트를 찾는다. 없으면 nullptr 이다.
     ComponentBase* FindComponentAt(GameObject& object, ComponentTypeId typeId,
-        std::uint32_t ordinal);
+        UInt32 ordinal);
     // 컴포넌트가 같은 타입 중 몇 번째인지. 그 오브젝트에 없으면 거짓이다.
-    bool FindComponentOrdinal(const GameObject& object, const ComponentBase& component,
-        std::uint32_t& ordinal);
+    Bool FindComponentOrdinal(const GameObject& object, const ComponentBase& component,
+        UInt32& ordinal);
 
     // 번호로 오브젝트를 찾고 그 자리의 컴포넌트를 찾는다. 어느 쪽이든 없으면 nullptr 이다.
     ComponentBase* ResolveComponent(const EditorObjectRegistry& registry,
         const ComponentAddress& address);
     // 오브젝트에 붙은 컴포넌트의 주소를 만든다. 오브젝트에 번호가 없으면 매긴다.
     // 그 오브젝트에 붙어 있지 않으면 거짓이다.
-    bool MakeComponentAddress(EditorObjectRegistry& registry, GameObject& object,
+    Bool MakeComponentAddress(EditorObjectRegistry& registry, GameObject& object,
         const ComponentBase& component, ComponentAddress& address);
 }

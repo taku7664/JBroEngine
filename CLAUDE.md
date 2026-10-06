@@ -32,6 +32,8 @@
   직렬화는 YAML 또는 바이너리 우선
 - `std::vector` / `std::unordered_map` / `std::string` 대신 JBro 값 타입을 쓰고,
   `std::make_unique` 대신 `MakeOwnerPtr`를 쓴다
+- 수와 참거짓은 `Float`·`Int32`·`Int64`·`UInt32`·`UInt64`·`Bool` 로 적는다. 원시 `float`·`int`·`bool` 은 경계(서드파티·GPU·오디오 버퍼·
+  표준 라이브러리 인자·진입점)에만 남긴다. 리플렉션은 원시 타입을 받지 않는다(`ProjectRule.md` §10.5, D-290)
 - 제어문 본문을 같은 줄에 쓰지 않는다. `if (x) return;` 같은 한 줄 제어문을 만들지 않는다
 - `SafePtr`는 메인 스레드 전용이다. 워커 태스크에 캡처하거나 워커에서 참조 카운트를 바꾸지 않는다
 - 한글 주석이 들어간 신규 헤더·소스는 UTF-8 BOM으로 저장한다

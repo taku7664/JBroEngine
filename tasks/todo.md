@@ -2938,9 +2938,51 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-290. 엔진 코드의 수와 참거짓은 엔진 값 타입(`Float`·`Int32`·`Int64`·`UInt32`·`UInt64`·`Bool`)으로 적는다 - 원시 타입은 경계에만 남기고, 숫자 칸은 `DragField<T>`·`SliderField<T>` 하나씩이다.**
+  (2026-10-06, 사용자 지시: "DragValue<Int>랑 DragValue<Float>로 바꿔. 내부에서 constexpr로 분기 … 받는 타입은 오롯이 엔진 구현 타입", 이어서 리플렉션과 컴포넌트가 전부
+  원시 타입이고 `Float`·`Int` 를 쓰는 곳이 Types 밖에 두 곳뿐인 것을 보고 "왜 이렇게 타입을 안지키는거야 … 이럴거면 타입 왜만드냐", 범위는 "왠만하면 바꿀 때 다 바꾸면 좋겠다",
+  폭은 그대로(32 비트 필드는 `Int32`). 이름은 `DragValue` 대신 `DragField` - `Widget::SetDragValue`·`AcceptDropValue` 가 끌어 놓기의 값을 뜻해 헷갈리고, 위젯 계층은 `…Field` 로 끝난다.
+  `InputBox<T>` 는 하지 않기로 했다(글자 칸은 `TextField` 하나이고 숫자 타자 칸은 `DragField` 가 이미 한다).
+  Updates: D-289(▲▼ 는 그대로, 위젯 이름과 타입이 바뀐다), D-249(`Size`·`SizeU`·`SizeI` 의 성분이 `Float`·`UInt32`·`Int32`), D-247(각도 ↔ `Float` 변환 방향), D-241(수학 값 타입의 성분).)
+  **규칙.** `ProjectRule.md` §10.5(수 타입과 경계)와 §11.1(숫자 칸). 원시 타입이 남는 자리는 값 타입·컨테이너의 구현 자체, 서드파티 API(ImGui 의 `bool*`·`float[4]`·콜백, stb,
+  miniaudio, D3D·Vulkan 의 출력 매개변수와 핸들, CRT 훅, Winsock), GPU 로 그대로 가는 배치(SPIR-V 낱말), 오디오 샘플 버퍼, 표준 라이브러리 인자(`from_chars`·`atomic` 기대값·
+  `chrono::duration`·분포·`countr_zero`), 진입점, 게임 DLL 의 `extern "C"` 내보내기, C++ 규칙이 `bool` 을 요구하는 비교 연산자 반환과 `explicit operator bool`, 열거형 밑 타입이다.
+  식 안의 명시적 변환(`static_cast<float>(x)`)은 그대로 둔다 - 결과는 곧바로 엔진 타입에 담긴다.
+  **위젯.** `Widget::DragField<T>`·`SliderField<T>`(`Scalar.h`). `T` 는 `FieldNumber` concept(`Float`·`Int32`·`Int64`·`UInt32`·`UInt64`)이고 값은 생성자로 받아 CTAD 로 타입이 정해진다
+  (`DragField("##count", count).Range(0, 10)()`). 범위는 `std::type_identity_t<T>` 로 받아 `0.0f` 리터럴이 추론을 흔들지 않는다. 타입마다 다른 ImGui 자료형(`S32`·`S64`·`U32`·`U64`·`Float`)·
+  기본 형식(`%d`·`%lld`·`%u`·`%llu`·`%.2f`)·기본 끌기 속도는 `if constexpr` 로 가르고, `Format` 은 `Float` 에만 있다(`requires`). 다섯 타입을 `Scalar.cpp` 에서 명시적으로 인스턴스화한다.
+  ▲▼ 의 한 칸은 위젯이 엔진 값에 직접 더하고, 부호 없는 값은 0 아래로 감기지 않는다. 옛 `DragInt`·`DragFloat`·`SliderInt`·`SliderFloat` 은 지웠고, 원시 `int` 로 옮겨 담아
+  넘기던 호출(해상도·고정 스텝·물리 워커·프레임 번호)은 엔진 타입 필드를 바로 잡는다.
+  **리플렉션.** `TypeDescriptorOf` 는 엔진 값 타입을 원시 타입의 이름(`float`·`int32`…)과 코덱으로 등록하고(값 타입은 원시 값 하나의 standard-layout 이라 객체와 첫 멤버가 포인터 상호 변환된다),
+  같은 폭의 원시 타입은 **일부러 등록하지 않는다** - 저장 파일 형식은 그대로이고 `JBRO_FIELD(float, …)` 는 컴파일이 멈춘다.
+  **값 타입 보강(실측으로 드러난 것).** 바꾸는 중에 기존 값 타입이 조용히 틀리던 자리가 나왔다.
+  (1) `Int32 * 0.5f` 가 실수를 정수로 잘라 0 이었고 `count < 0.5f` 가 `count < 0` 이었다 → 정수 강타입과 실수를 섞으면 실수로 계산한다.
+  (2) `uint64 * UInt32` 가 32 비트로 잘렸다(PCG32 의 곱) → 더 넓은 원시 정수와 섞으면 넓은 쪽으로 받는다. 같은 폭·좁은 리터럴은 강타입 폭 그대로다.
+  (3) 부호가 다른 정수 비교 → `std::cmp_less` 따위로 값을 비교한다. 범위 없는 열거형(`ImGuiKey`, 플래그)과 문자 타입도 정수처럼 섞인다.
+  (4) 비트 연산(`&`·`|`·`^`·`~`·시프트)과 `constexpr` 대입이 없었다. (5) `UInt32` → `UInt64` 같은 값을 잃지 않는 넓히기와 `Int32` → `Float` 가 암시로 되지 않았다.
+  (6) 원시 값을 받는 대입 연산자(`Float::operator=(float)`, `IntegerType::operator=(T)`)가 암시 생성자와 겹쳐 `angle = radian`·`UInt64 = UInt32` 를 모호하게 했다 → 지웠다(생성자가 그 일을 한다).
+  (7) 각도 ↔ `Float` 양방향 암시는 비교를 모호하게 한다 → 각도 → `Float` 만 암시, `Float` → 각도는 명시(`Radian(x)`).
+  (8) `Log::Write` 가 C 가변 인자라 `Float` 를 넘기면 `%f` 가 쓰레기를 읽었다 → 템플릿으로 감싸 원시 값으로 내려 준다. `snprintf` 류 49 곳은 `.Get()` 으로 넘긴다
+  (다시 빌드한 C4477 경고로 찾았다 - 그대로 두었으면 `.jproject` 에 버전과 해상도가 쓰레기로 적혔다). ImGui 의 형식 함수는 컴파일러가 검사하지 않아 손으로 찾았다(2 곳).
+  (9) `Range(3, 7)` 이 `Int32`·`Float` 판 사이에서 모호하다 → `RandomService`·`RandomStream` 에 `int`·`float` 짝을 두었다. `RandomService::UInt32()` 는 이름이 타입과 같아 클래스 안의 타입은 `JBro::UInt32` 로 적는다.
+  `JBro::Min`·`Max`·`Clamp`(`Types/ValueMath.h`)를 새로 두었다 - 엔진 타입과 리터럴이 섞여도 엔진 타입으로 돌려준다.
+  **DLL 반환 규약.** `Float`·`Bool`·정수 강타입은 생성자가 있는 클래스라 MSVC x64 가 **반환값을 메모리로** 넘긴다(원시 `float` 은 XMM0, `bool` 은 AL).
+  시험이 시험 DLL 의 `extern "C" float JBroScriptProbe_GetDeltaTime()` 을 `JBro::Float (*)()` 로 불러 크래시가 났다(전체 시험이 `ScriptDLLLoaderTests` 에서 종료 코드 139).
+  `extern "C"` 내보내기와 그것을 `GetProcAddress` 로 받는 포인터 타입은 원시 시그니처로 맞추고, 호스트와 게임 DLL 이 같은 헤더로 나누는 함수 표는 그대로 엔진 타입이다.
+  옛 헤더로 빌드한 게임 DLL 은 반환 규약이 달라 실리면 깨지므로 `ScriptModuleAbiVersion` 을 1 → 2 로 올려 싣지 않는다.
+  **범위.** 엔진 모듈 전부와 시험, 별도 프로젝트 `JBroNetwork`(엔진 Core 헤더를 그대로 쓰므로 같이 옮겼다). 코드(주석·문자열 제외)에 남은 원시 수 타입 토큰은 약 9,500 개에서 1,623 개다 -
+  그중 955 개가 식 안의 명시적 변환, 142 개가 표준 템플릿 인자, 48 개가 `sizeof`, 나머지가 위에 적은 경계다. 오디오 믹서(DSP)는 샘플 버퍼가 miniaudio 와 나누는 원시 배열이라
+  버퍼·위치 배열·스펙트럼·파형은 `float` 이고, 믹서 API 의 볼륨 같은 값은 `Float` 다.
+  **검증.** 솔루션 전체 다시 빌드, 위젯 시험 `TestEveryNumberTypeSpinsTheSameWay`(실수 `Step`·부호 없는 바닥·64 비트) 와 `static_assert` 로 원시 `float`·`int`·`double`·`std::uint32_t` 가
+  숫자 칸에 닿지 않는 것. 음성 컴파일(스크래치 `cl /Zs`): `JBRO_FIELD(Float, …)` 는 통과, `float`·`int`·`bool` 은 `TypeDescriptorOf.h` 의 static_assert 로 실패.
+  변이: 부호 없는 바닥을 빼면 시험이 잡는다. `Int64` 를 ImGui `S32` 로 그리는 변이는 **살아남는다** - 리틀 엔디언이라 위쪽 32 비트가 그대로 남아 값은 맞고, 보이는 숫자만 틀린다(화면 글자를 읽는 시험이 없다).
+  전체 시험은 `TestNewProjectCreatesAndOpensIt`(main 에서도 실패하는 팝업 가운데 정렬, 따로 맡김)를 뺀 나머지로 돌렸다.
+  첫 전체 시험은 `the size the view actually had` 에서 실패했다 - 시험이 `snprintf("%g", movedSize)`(`Float`)로 기대값을 만들고 있었다. C4477 을 고친 뒤 통과한다.
+  네트워크 프로젝트 시험(`JBroNetwork.Tests`)은 `all network tests passed`.
+
 - **D-289. 숫자 칸의 한 칸씩 올리고 내리기는 칸 안 오른쪽 끝에 위아래로 쌓은 ▲▼ 다 - 칸 옆의 −/+ 단추 둘을 없앤다.**
   (2026-10-06, 사용자 지시: "오른쪽에 - + 있는데, 그냥 인풋박스 내부 오른쪽 끝에 △▽ … 가로로 나열하지 말고 세로로 나열". Updates: D-278(숫자 칸 −/+ 아이콘 자리가 없어진다).)
-  **모양.** `Widget::DragInt`·`DragFloat` 가 칸을 준 폭 그대로(폭이 없으면 남은 폭 전부) 그리고, 칸 오른쪽 끝 폭 0.7 줄 높이의 세로 띠를 위아래 반으로 갈라
+  **모양.** `Widget::DragInt`·`DragFloat`(D-290 에서 `DragField<T>` 하나가 되었다)가 칸을 준 폭 그대로(폭이 없으면 남은 폭 전부) 그리고, 칸 오른쪽 끝 폭 0.7 줄 높이의 세로 띠를 위아래 반으로 갈라
   위는 ▲, 아래는 ▼ 를 그린다. 삼각형은 그리기 목록으로 직접 그린다(아이콘 글꼴을 타지 않는다). 평소에는 흐린 글자색, 마우스가 올라가면 그 반쪽이 단추 색으로 칠해지고
   삼각형이 글자색이 된다. 누르고 있으면 반복한다(`ImGuiItemFlags_ButtonRepeat`, ImGui `InputInt` 의 −/+ 와 같은 반복). 키보드 이동과 Tab 은 화살표를 건너뛰고 칸이 받는다.
   **겹침.** 칸을 `SetNextItemAllowOverlap` 으로 그린 뒤 화살표를 `ItemAdd`·`ButtonBehavior` 로 칸 위에 얹는다 - 배치를 밀지 않으므로 뒤에 `SameLine` 을 이어도 그대로다.

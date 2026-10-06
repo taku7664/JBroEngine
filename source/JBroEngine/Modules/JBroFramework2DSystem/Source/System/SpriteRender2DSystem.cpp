@@ -3,10 +3,13 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
-    int SpriteRender2DSystem::GetExecutionOrder() const
+    Int32 SpriteRender2DSystem::GetExecutionOrder() const
     {
         return 400;
     }
@@ -53,12 +56,12 @@ namespace JBro::System
             item.screenSpace = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
             item.scaleMode = layer != nullptr ? layer->GetScaleMode() : ScreenScaleMode::FixedHeight;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
-            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
-            item.layerParallax = layer != nullptr ? layer->GetParallax() : 1.0f;
+            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
+            item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
             // 해석 패스가 채운 에셋 핸들을 렌더러 텍스처와 칸으로 푼다. 이 시점은 렌더러 프레임 밖(Update)이라
             // 처음 만난 텍스처의 업로드가 여기서 일어난다. 풀리지 않으면 흰색이다.
             SpriteFrameView frame;
-            bool resolved = m_spriteLibrary != nullptr && sprite.sprite.generation != 0
+            Bool resolved = m_spriteLibrary != nullptr && sprite.sprite.generation != 0
                 && m_spriteLibrary->Resolve(sprite.sprite, sprite.frameIndex, item.texture, item.uvRect, &frame);
             if (false == resolved)
             {
@@ -91,7 +94,7 @@ namespace JBro::System
         });
     }
 
-    void SpriteRender2DSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void SpriteRender2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         (void)deltaTime;
         ExtractRenderWorld(canvas);

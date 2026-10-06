@@ -6,13 +6,17 @@
 
 #include <cmath>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
         // 임포트 경로라 할당은 miniaudio 기본(CRT)을 쓴다 - 프레임 규칙의 대상이 아니다.
-        bool Open(JArrayView<std::byte> encoded, ma_decoder& decoder, const AudioDecodeTarget& target = {})
+        Bool Open(JArrayView<std::byte> encoded, ma_decoder& decoder, const AudioDecodeTarget& target = {})
         {
             if (encoded.data == nullptr || encoded.size == 0)
             {
@@ -25,7 +29,7 @@ namespace JBro
             return ma_decoder_init_memory(encoded.data, encoded.size, &config, &decoder) == MA_SUCCESS;
         }
 
-        bool ReadFormat(ma_decoder& decoder, AudioFormat& format)
+        Bool ReadFormat(ma_decoder& decoder, AudioFormat& format)
         {
             ma_format sampleFormat = ma_format_unknown;
             ma_uint32 channels = 0;
@@ -41,7 +45,7 @@ namespace JBro
         }
     }
 
-    bool ProbeAudio(JArrayView<std::byte> encoded, AudioFormat& format)
+    Bool ProbeAudio(JArrayView<std::byte> encoded, AudioFormat& format)
     {
         ma_decoder decoder;
         if (false == Open(encoded, decoder))
@@ -49,7 +53,7 @@ namespace JBro
             return false;
         }
         AudioFormat probed;
-        bool ok = ReadFormat(decoder, probed);
+        Bool ok = ReadFormat(decoder, probed);
         ma_uint64 frames = 0;
         if (ok && (ma_decoder_get_length_in_pcm_frames(&decoder, &frames) != MA_SUCCESS || frames == 0))
         {
@@ -77,7 +81,7 @@ namespace JBro
         return true;
     }
 
-    bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<float>& pcm, const AudioDecodeTarget& target)
+    Bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<float>& pcm, const AudioDecodeTarget& target)
     {
         ma_decoder decoder;
         if (false == Open(encoded, decoder, target))
@@ -125,7 +129,7 @@ namespace JBro
         return true;
     }
 
-    void ComputeAudioPeaks(const float* pcm, std::uint64_t frameCount, std::uint32_t channels, std::uint32_t buckets,
+    void ComputeAudioPeaks(const float* pcm, UInt64 frameCount, UInt32 channels, UInt32 buckets,
         Array<float>& peaks)
     {
         peaks.Clear();
@@ -134,25 +138,25 @@ namespace JBro
             return;
         }
         peaks.Resize(buckets);
-        for (std::uint32_t bucket = 0; bucket < buckets; ++bucket)
+        for (UInt32 bucket = 0; bucket < buckets; ++bucket)
         {
             peaks[bucket] = 0.0f;
         }
-        for (std::uint64_t frame = 0; frame < frameCount; ++frame)
+        for (UInt64 frame = 0; frame < frameCount; ++frame)
         {
-            const std::uint32_t bucket = static_cast<std::uint32_t>(frame * buckets / frameCount);
-            for (std::uint32_t channel = 0; channel < channels; ++channel)
+            const UInt32 bucket = static_cast<std::uint32_t>(frame * buckets / frameCount);
+            for (UInt32 channel = 0; channel < channels; ++channel)
             {
-                const float magnitude = std::fabs(pcm[frame * channels + channel]);
+                const Float magnitude = std::fabs(pcm[frame * channels + channel]);
                 if (magnitude > peaks[bucket])
                 {
-                    peaks[bucket] = magnitude > 1.0f ? 1.0f : magnitude;
+                    peaks[bucket] = magnitude > 1.0f ? Float(1.0f) : magnitude;
                 }
             }
         }
     }
 
-    bool ComputeAudioPeaks(JArrayView<std::byte> encoded, std::uint32_t buckets, Array<float>& peaks)
+    Bool ComputeAudioPeaks(JArrayView<std::byte> encoded, UInt32 buckets, Array<float>& peaks)
     {
         AudioFormat format;
         if (buckets == 0 || false == ProbeAudio(encoded, format))
@@ -166,13 +170,13 @@ namespace JBro
         }
         Array<float> result;
         result.Resize(buckets);
-        for (std::uint32_t bucket = 0; bucket < buckets; ++bucket)
+        for (UInt32 bucket = 0; bucket < buckets; ++bucket)
         {
             result[bucket] = 0.0f;
         }
         float scratch[4096];
         const ma_uint64 chunk = sizeof(scratch) / sizeof(float) / format.channels;
-        std::uint64_t frame = 0;
+        UInt64 frame = 0;
         for (;;)
         {
             ma_uint64 read = 0;
@@ -182,13 +186,13 @@ namespace JBro
             }
             for (ma_uint64 index = 0; index < read && frame < format.frameCount; ++index, ++frame)
             {
-                const std::uint32_t bucket = static_cast<std::uint32_t>(frame * buckets / format.frameCount);
-                for (std::uint32_t channel = 0; channel < format.channels; ++channel)
+                const UInt32 bucket = static_cast<std::uint32_t>(frame * buckets / format.frameCount);
+                for (UInt32 channel = 0; channel < format.channels; ++channel)
                 {
-                    const float magnitude = std::fabs(scratch[index * format.channels + channel]);
+                    const Float magnitude = std::fabs(scratch[index * format.channels + channel]);
                     if (magnitude > result[bucket])
                     {
-                        result[bucket] = magnitude > 1.0f ? 1.0f : magnitude;
+                        result[bucket] = magnitude > 1.0f ? Float(1.0f) : magnitude;
                     }
                 }
             }
@@ -204,11 +208,11 @@ namespace JBro
         ma_vfs_callbacks callbacks = {};
         OwnerPtr<IFileStream> file;
         ma_decoder decoder = {};
-        bool open = false;
+        Bool open = false;
         AudioFormat format;
         // `SetMono` 뒤에 참이다. 디코더는 파일의 채널(`nativeChannels`)로 풀고 `Read` 가 평균한다.
-        bool mono = false;
-        std::uint32_t nativeChannels = 0;
+        Bool mono = false;
+        UInt32 nativeChannels = 0;
 
         static IFileStream* StreamOf(ma_vfs* vfs)
         {
@@ -255,14 +259,14 @@ namespace JBro
 
         static ma_result OnTell(ma_vfs*, ma_vfs_file file, ma_int64* cursor)
         {
-            const std::int64_t at = static_cast<IFileStream*>(file)->Tell();
+            const Int64 at = static_cast<IFileStream*>(file)->Tell();
             *cursor = at;
             return at >= 0 ? MA_SUCCESS : MA_ERROR;
         }
 
         static ma_result OnInfo(ma_vfs*, ma_vfs_file file, ma_file_info* info)
         {
-            const std::int64_t size = static_cast<IFileStream*>(file)->GetSize();
+            const Int64 size = static_cast<IFileStream*>(file)->GetSize();
             info->sizeInBytes = size > 0 ? static_cast<ma_uint64>(size) : 0;
             return size >= 0 ? MA_SUCCESS : MA_ERROR;
         }
@@ -275,7 +279,7 @@ namespace JBro
         Close();
     }
 
-    bool AudioFileDecoder::Open(OwnerPtr<IFileStream> file, const char* path)
+    Bool AudioFileDecoder::Open(OwnerPtr<IFileStream> file, const char* path)
     {
         Close();
         if (file.Get() == nullptr)
@@ -324,7 +328,7 @@ namespace JBro
         m_state = nullptr;
     }
 
-    bool AudioFileDecoder::IsOpen() const
+    Bool AudioFileDecoder::IsOpen() const
     {
         return m_state.Get() != nullptr && m_state->open;
     }
@@ -345,7 +349,7 @@ namespace JBro
         m_state->format.channels = 1;
     }
 
-    std::uint64_t AudioFileDecoder::CountFrames()
+    UInt64 AudioFileDecoder::CountFrames()
     {
         if (false == IsOpen())
         {
@@ -356,11 +360,11 @@ namespace JBro
             return m_state->format.frameCount;
         }
         float scratch[4096];
-        const std::uint64_t chunk = sizeof(scratch) / sizeof(float) / m_state->format.channels;
-        std::uint64_t frames = 0;
+        const UInt64 chunk = sizeof(scratch) / sizeof(float) / m_state->format.channels;
+        UInt64 frames = 0;
         for (;;)
         {
-            const std::uint64_t read = Read(scratch, chunk);
+            const UInt64 read = Read(scratch, chunk);
             if (read == 0)
             {
                 break;
@@ -372,7 +376,7 @@ namespace JBro
         return frames;
     }
 
-    std::uint64_t AudioFileDecoder::Read(float* out, std::uint64_t frames)
+    UInt64 AudioFileDecoder::Read(float* out, UInt64 frames)
     {
         if (false == IsOpen() || out == nullptr || frames == 0)
         {
@@ -390,23 +394,23 @@ namespace JBro
         }
         // 파일의 채널로 조금씩 풀어 평균한다. 칸은 스택에 있다 - 스트리머 스레드가 부르는 자리다.
         float native[4096];
-        const std::uint32_t channels = m_state->nativeChannels;
-        const std::uint64_t chunk = sizeof(native) / sizeof(float) / channels;
-        const float scale = 1.0f / static_cast<float>(channels);
-        std::uint64_t done = 0;
+        const UInt32 channels = m_state->nativeChannels;
+        const UInt64 chunk = sizeof(native) / sizeof(float) / channels;
+        const Float scale = 1.0f / static_cast<float>(channels);
+        UInt64 done = 0;
         while (done < frames)
         {
-            const std::uint64_t want = frames - done < chunk ? frames - done : chunk;
+            const UInt64 want = frames - done < chunk ? frames - done : chunk;
             ma_uint64 read = 0;
             const ma_result result = ma_decoder_read_pcm_frames(&m_state->decoder, native, want, &read);
             if ((result != MA_SUCCESS && result != MA_AT_END) || read == 0)
             {
                 break;
             }
-            for (std::uint64_t frame = 0; frame < read; ++frame)
+            for (UInt64 frame = 0; frame < read; ++frame)
             {
-                float sum = 0.0f;
-                for (std::uint32_t channel = 0; channel < channels; ++channel)
+                Float sum = 0.0f;
+                for (UInt32 channel = 0; channel < channels; ++channel)
                 {
                     sum += native[frame * channels + channel];
                 }
@@ -421,14 +425,14 @@ namespace JBro
         return done;
     }
 
-    bool AudioFileDecoder::Seek(std::uint64_t frame)
+    Bool AudioFileDecoder::Seek(UInt64 frame)
     {
         return IsOpen() && ma_decoder_seek_to_pcm_frame(&m_state->decoder, frame) == MA_SUCCESS;
     }
 
-    bool ComputeAudioPeaks(AudioFileDecoder& decoder, std::uint32_t buckets, Array<float>& peaks)
+    Bool ComputeAudioPeaks(AudioFileDecoder& decoder, UInt32 buckets, Array<float>& peaks)
     {
-        const std::uint64_t frames = decoder.CountFrames();
+        const UInt64 frames = decoder.CountFrames();
         const AudioFormat format = decoder.GetFormat();
         if (buckets == 0 || frames == 0 || format.channels == 0)
         {
@@ -436,29 +440,29 @@ namespace JBro
         }
         Array<float> result;
         result.Resize(buckets);
-        for (std::uint32_t bucket = 0; bucket < buckets; ++bucket)
+        for (UInt32 bucket = 0; bucket < buckets; ++bucket)
         {
             result[bucket] = 0.0f;
         }
         float scratch[4096];
-        const std::uint64_t chunk = sizeof(scratch) / sizeof(float) / format.channels;
-        std::uint64_t frame = 0;
+        const UInt64 chunk = sizeof(scratch) / sizeof(float) / format.channels;
+        UInt64 frame = 0;
         for (;;)
         {
-            const std::uint64_t read = decoder.Read(scratch, chunk);
+            const UInt64 read = decoder.Read(scratch, chunk);
             if (read == 0)
             {
                 break;
             }
-            for (std::uint64_t index = 0; index < read && frame < frames; ++index, ++frame)
+            for (UInt64 index = 0; index < read && frame < frames; ++index, ++frame)
             {
-                const std::uint32_t bucket = static_cast<std::uint32_t>(frame * buckets / frames);
-                for (std::uint32_t channel = 0; channel < format.channels; ++channel)
+                const UInt32 bucket = static_cast<std::uint32_t>(frame * buckets / frames);
+                for (UInt32 channel = 0; channel < format.channels; ++channel)
                 {
-                    const float magnitude = std::fabs(scratch[index * format.channels + channel]);
+                    const Float magnitude = std::fabs(scratch[index * format.channels + channel]);
                     if (magnitude > result[bucket])
                     {
-                        result[bucket] = magnitude > 1.0f ? 1.0f : magnitude;
+                        result[bucket] = magnitude > 1.0f ? Float(1.0f) : magnitude;
                     }
                 }
             }

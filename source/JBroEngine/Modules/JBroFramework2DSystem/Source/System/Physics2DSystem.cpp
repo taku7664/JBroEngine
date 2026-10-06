@@ -17,12 +17,17 @@
 #include <cstring>
 #include <limits>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::System
 {
     namespace
     {
-        constexpr float DirectionEpsilonSquared = 0.000000000001f;
+        constexpr Float DirectionEpsilonSquared = 0.000000000001f;
 
         Physics2D::BodyType ToKernel(Component::BodyType2D type)
         {
@@ -40,7 +45,7 @@ namespace JBro::System
         // 값이 바뀌었는지 보는 지문이다. 같은 값이면 같은 수가 나와, 매 스텝 도형을 다시 만들지 않게 한다.
         struct Fingerprint
         {
-            std::uint64_t value = 14695981039346656037ull;
+            UInt64 value = 14695981039346656037ull;
 
             void Mix(const void* data, std::size_t size)
             {
@@ -52,10 +57,10 @@ namespace JBro::System
                 }
             }
 
-            void Mix(float number)
+            void Mix(Float number)
             {
                 // -0 과 +0 은 같은 값이다. 비트로 섞으면 달라 보여 도형을 괜히 다시 만든다.
-                const float normalized = number == 0.0f ? 0.0f : number;
+                const Float normalized = number == 0.0f ? Float(0.0f) : number;
                 Mix(&normalized, sizeof(normalized));
             }
 
@@ -66,7 +71,7 @@ namespace JBro::System
             }
         };
 
-        float MaxAbs(Vector2 scale)
+        Float MaxAbs(Vector2 scale)
         {
             return std::fmax(std::fabs(scale.x), std::fabs(scale.y));
         }
@@ -90,9 +95,9 @@ namespace JBro::System
         Physics2D::ConvexPolygon BoxPolygon(const Vector2 corners[4])
         {
             Physics2D::ConvexPolygon polygon;
-            const float cross = (corners[1].x - corners[0].x) * (corners[2].y - corners[1].y)
+            const Float cross = (corners[1].x - corners[0].x) * (corners[2].y - corners[1].y)
                 - (corners[1].y - corners[0].y) * (corners[2].x - corners[1].x);
-            for (std::uint32_t i = 0; i < 4; ++i)
+            for (UInt32 i = 0; i < 4; ++i)
             {
                 polygon.points[i] = cross >= 0.0f ? corners[i] : corners[3 - i];
             }
@@ -123,7 +128,7 @@ namespace JBro::System
             outline.Clear();
             if (collider.points.IsEmpty())
             {
-                const float half = collider.size.x * 0.5f;
+                const Float half = collider.size.x * 0.5f;
                 outline.Add(Bake({ -half, 0.0f }, collider.offset, scale));
                 outline.Add(Bake({ half, 0.0f }, collider.offset, scale));
                 return;
@@ -153,7 +158,7 @@ namespace JBro::System
         }
 
         // 이미 있는 도형의 모양을 콜라이더에 맞춘다. 만들 때와 같은 갈래다. 틀린 외곽선이면 false 이고 모양은 그대로다.
-        bool Reshape(Physics2D::World& world, Physics2D::ShapeId shape, const Component::Collider2D& collider, Vector2 scale,
+        Bool Reshape(Physics2D::World& world, Physics2D::ShapeId shape, const Component::Collider2D& collider, Vector2 scale,
             Array<Vector2>& outline)
         {
             if (collider.shape == Component::ColliderShape2D::Circle)
@@ -190,7 +195,7 @@ namespace JBro::System
         }
 
         // 콜라이더 모양의 지문. 크기(트랜스폼)를 섞는 것은 크기를 도형에 미리 곱해 두기 때문이다.
-        std::uint64_t ShapeSignature(const Component::Collider2D& collider, Vector2 scale)
+        UInt64 ShapeSignature(const Component::Collider2D& collider, Vector2 scale)
         {
             Fingerprint print;
             const std::uint8_t shape = static_cast<std::uint8_t>(collider.shape);
@@ -206,7 +211,7 @@ namespace JBro::System
             print.Mix(collider.restitution);
             print.Mix(&collider.layer, sizeof(collider.layer));
             print.Mix(&collider.mask, sizeof(collider.mask));
-            const std::uint64_t count = collider.points.Size();
+            const UInt64 count = collider.points.Size();
             print.Mix(&count, sizeof(count));
             for (const Vector2& point : collider.points)
             {
@@ -215,7 +220,7 @@ namespace JBro::System
             return print.value;
         }
 
-        std::uint64_t BodyParameters(const Component::Rigidbody2D* body)
+        UInt64 BodyParameters(const Component::Rigidbody2D* body)
         {
             Fingerprint print;
             if (body == nullptr)
@@ -240,18 +245,18 @@ namespace JBro::System
             Physics2D::BodyId   body;
             Physics2D::BodyType type = Physics2D::BodyType::Static;
             InstanceId          rigidbody = InvalidInstanceId;
-            std::uint64_t       parameters = 0;
+            UInt64       parameters = 0;
             // 지난 스텝에 이쪽에서 쓴 값. 스크립트나 에디터가 그 사이 바꿨는지를 이것과 견주어 안다.
             Vector2                writtenPosition;
             // `Transform2D` 의 회전을 되비추므로 **같은 단위(라디안)** 다(D-248).
             Radian              writtenRotation = 0.0f;
             Vector2                writtenVelocity;
-            float               writtenAngularVelocity = 0.0f;
+            Float               writtenAngularVelocity = 0.0f;
             // 정적인 몸을 마지막으로 옮겨 둔 월드 자리.
             Vector2                pushedPosition;
             // 커널에 밀어 넣은 값이라 **커널의 단위(라디안)** 다.
             Radian              pushedAngle = 0.0f;
-            bool                seen = false;
+            Bool                seen = false;
             // 이번 스텝 안에서만 유효하다. 동기화마다 다시 잡는다.
             GameObject*             object = nullptr;
             Component::Transform2D* transform = nullptr;
@@ -266,10 +271,10 @@ namespace JBro::System
             // 스크립트에 넘길 값(handle)과 호스트가 부를 자리(SafePtr) 둘 다 든다. 오브젝트가 사라지면 둘 다 죽는다.
             GameObjectHandle   owner;
             SafePtr<GameObject> ownerObject;
-            std::uint64_t      signature = 0;
+            UInt64      signature = 0;
             // 트리거 여부가 바뀌면 도형을 새로 만든다(훅의 종류가 바뀐다). 나머지는 제자리에서 바꾼다.
-            bool               isTrigger = false;
-            bool               seen = false;
+            Bool               isTrigger = false;
+            Bool               seen = false;
         };
 
         // 조인트 컴포넌트 하나의 연결이다(D-233). 두 몸의 오브젝트가 바뀌면 새로 만들고, 성질만 바뀌면 제자리에서 바꾼다.
@@ -278,24 +283,24 @@ namespace JBro::System
             Physics2D::JointId joint;
             InstanceId         bodyObject = InvalidInstanceId;
             InstanceId         connectedObject = InvalidInstanceId;
-            std::uint64_t      signature = 0;
+            UInt64      signature = 0;
             // 경첩의 기준 각(커널의 B - A, 라디안). 처음 이어질 때 정하고 몸이 다시 만들어져도 그대로 쓴다.
             Radian             referenceAngle = 0.0f;
-            bool               hinge = false;
-            bool               seen = false;
+            Bool               hinge = false;
+            Bool               seen = false;
         };
 
         struct PieceCache
         {
-            std::uint64_t                   signature = 0;
-            bool                            built = false;
+            UInt64                   signature = 0;
+            Bool                            built = false;
             Array<Physics2D::ConvexPolygon> pieces;
         };
 
         Physics2D::World              world;
         // 커널에 마지막으로 먹인 워커 수. 요청이 같으면 다시 먹이지 않는다 - 스레드가 없는 빌드에서 커널이 0 을 돌려줘도
         // 스텝마다 풀을 세웠다 허무는 일이 없게 한다.
-        std::uint32_t                 appliedWorkers = 0;
+        UInt32                 appliedWorkers = 0;
         Table<InstanceId, BodyLink>   bodies;
         Table<InstanceId, ShapeLink>  shapes;
         Table<InstanceId, JointLink>  joints;
@@ -313,7 +318,7 @@ namespace JBro::System
         // 움직였을 때만 다시 만든다 - 프레임 경로에 dynamic_cast 를 두지 않는다(§9).
         Array<GameScriptBase*>        collectedScripts;
         Array<const ComponentBase*>   scriptKeys;
-        std::uint64_t                 scriptRevision = std::numeric_limits<std::uint64_t>::max();
+        UInt64                 scriptRevision = std::numeric_limits<std::uint64_t>::max();
         Array<GameScript2D*>          hookTargets;
 
         const Array<Physics2D::ConvexPolygon>& PiecesFor(const Component::Collider2D& collider, Vector2 scale)
@@ -325,7 +330,7 @@ namespace JBro::System
                 pieces.TryAdd(id, PieceCache{});
                 cache = pieces.Find(id);
             }
-            const std::uint64_t signature = ShapeSignature(collider, scale);
+            const UInt64 signature = ShapeSignature(collider, scale);
             if (false == cache->built || cache->signature != signature)
             {
                 cache->signature = signature;
@@ -337,7 +342,7 @@ namespace JBro::System
             return cache->pieces;
         }
 
-        bool IsScript(const ComponentBase* component) const
+        Bool IsScript(const ComponentBase* component) const
         {
             return component != nullptr
                 && std::binary_search(scriptKeys.begin(), scriptKeys.end(), component);
@@ -351,7 +356,7 @@ namespace JBro::System
 
     Physics2DSystem::~Physics2DSystem() = default;
 
-    int Physics2DSystem::GetExecutionOrder() const
+    Int32 Physics2DSystem::GetExecutionOrder() const
     {
         return 200;
     }
@@ -366,17 +371,17 @@ namespace JBro::System
         return m_gravity;
     }
 
-    void Physics2DSystem::SetWorkerCount(std::uint32_t count)
+    void Physics2DSystem::SetWorkerCount(UInt32 count)
     {
         m_workerCount = count;
     }
 
-    void Physics2DSystem::SetIgnoredLayers(const std::uint32_t (&rows)[PhysicsLayerCount])
+    void Physics2DSystem::SetIgnoredLayers(const UInt32 (&rows)[PhysicsLayerCount])
     {
         std::memcpy(m_ignoredLayers, rows, sizeof(m_ignoredLayers));
     }
 
-    std::uint32_t Physics2DSystem::GetWorkerCount() const
+    UInt32 Physics2DSystem::GetWorkerCount() const
     {
         return m_state->world.GetWorkerCount();
     }
@@ -421,21 +426,21 @@ namespace JBro::System
             Physics2D::Pose                 pose;
         };
 
-        bool NormalizeDirection(Vector2& direction)
+        Bool NormalizeDirection(Vector2& direction)
         {
-            const float lengthSquared = direction.x * direction.x + direction.y * direction.y;
+            const Float lengthSquared = direction.x * direction.x + direction.y * direction.y;
             if (lengthSquared <= DirectionEpsilonSquared)
             {
                 return false;
             }
-            const float inverse = 1.0f / std::sqrt(lengthSquared);
+            const Float inverse = 1.0f / std::sqrt(lengthSquared);
             direction = { direction.x * inverse, direction.y * inverse };
             return true;
         }
     }
 
     template<typename Fn>
-    void Physics2DSystem::ForEachQueryShape(std::uint32_t layerMask, const Rect& area, Fn&& visit) const
+    void Physics2DSystem::ForEachQueryShape(UInt32 layerMask, const Rect& area, Fn&& visit) const
     {
         m_lastQueryColliders = 0;
         if (m_canvas == nullptr)
@@ -464,11 +469,11 @@ namespace JBro::System
             // 질의 영역과 겹치는지만 본다. 콜라이더가 많은 캔버스에서 먼 것들이 값을 치르지 않는다.
             {
                 const Vector2 magnitude{ std::fabs(objectPose.scale.x), std::fabs(objectPose.scale.y) };
-                const float largest = std::fmax(magnitude.x, magnitude.y);
+                const Float largest = std::fmax(magnitude.x, magnitude.y);
                 const auto halfDiagonal = [&](Vector2 size) {
                     return 0.5f * std::sqrt(size.x * size.x * magnitude.x * magnitude.x + size.y * size.y * magnitude.y * magnitude.y);
                 };
-                float reach = 0.0f;
+                Float reach = 0.0f;
                 switch (collider.shape)
                 {
                 case Component::ColliderShape2D::Circle:
@@ -480,7 +485,7 @@ namespace JBro::System
                     {
                         reach = collider.shape == Component::ColliderShape2D::Chain
                             ? 0.5f * std::fabs(collider.size.x) * magnitude.x
-                            : halfDiagonal(collider.size);
+                            : Float(halfDiagonal(collider.size));
                     }
                     for (const Vector2& point : collider.points)
                     {
@@ -556,14 +561,14 @@ namespace JBro::System
     namespace
     {
         // 원(반지름 radius)을 from 에서 direction 으로 distance 만큼 민 자리를 감싸는 상자다. 반직선은 반지름 0 이다.
-        Rect SweptArea(Vector2 from, Vector2 direction, float distance, float radius)
+        Rect SweptArea(Vector2 from, Vector2 direction, Float distance, Float radius)
         {
             const Vector2 to{ from.x + direction.x * distance, from.y + direction.y * distance };
             return { { std::fmin(from.x, to.x) - radius, std::fmin(from.y, to.y) - radius },
                 { std::fmax(from.x, to.x) + radius, std::fmax(from.y, to.y) + radius } };
         }
 
-        RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vector2 point, Vector2 normal, float distance)
+        RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vector2 point, Vector2 normal, Float distance)
         {
             RaycastHit2D hit;
             hit.other = owner->GetScriptHandle();
@@ -587,8 +592,8 @@ namespace JBro::System
             results.Add(owner->GetScriptHandle());
         }
 
-        bool RayShape(const QueryShape& shape, Vector2 origin, Vector2 direction, float maxDistance,
-            float& distance, Vector2& normal)
+        Bool RayShape(const QueryShape& shape, Vector2 origin, Vector2 direction, Float maxDistance,
+            Float& distance, Vector2& normal)
         {
             return shape.circle != nullptr
                 ? Physics2D::RaycastCircle(*shape.circle, shape.pose, origin, direction, maxDistance, distance, normal)
@@ -596,18 +601,18 @@ namespace JBro::System
         }
     }
 
-    bool Physics2DSystem::Raycast(
-        Vector2 origin, Vector2 direction, float distance, RaycastHit2D& hit, std::uint32_t layerMask) const
+    Bool Physics2DSystem::Raycast(
+        Vector2 origin, Vector2 direction, Float distance, RaycastHit2D& hit, UInt32 layerMask) const
     {
         hit = {};
         if (m_canvas == nullptr || distance < 0.0f || false == NormalizeDirection(direction))
         {
             return false;
         }
-        bool found = false;
+        Bool found = false;
         ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
-            float candidate = 0.0f;
+            Float candidate = 0.0f;
             Vector2 normal;
             if (RayShape(shape, origin, direction, distance, candidate, normal)
                 && (false == found || candidate < hit.distance))
@@ -621,7 +626,7 @@ namespace JBro::System
     }
 
     void Physics2DSystem::RaycastAll(
-        Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits, std::uint32_t layerMask) const
+        Vector2 origin, Vector2 direction, Float distance, Array<RaycastHit2D>& hits, UInt32 layerMask) const
     {
         hits.Clear();
         if (m_canvas == nullptr || distance < 0.0f || false == NormalizeDirection(direction))
@@ -633,7 +638,7 @@ namespace JBro::System
         std::size_t currentIndex = 0;
         ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
-            float candidate = 0.0f;
+            Float candidate = 0.0f;
             Vector2 normal;
             if (false == RayShape(shape, origin, direction, distance, candidate, normal))
             {
@@ -660,7 +665,7 @@ namespace JBro::System
     }
 
     void Physics2DSystem::OverlapBox(
-        const Rect& area, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
+        const Rect& area, Array<GameObjectHandle>& results, UInt32 layerMask) const
     {
         results.Clear();
         Physics2D::ConvexPolygon box;
@@ -672,7 +677,7 @@ namespace JBro::System
         const Physics2D::Pose identity;
         ForEachQueryShape(layerMask, area, [&](const QueryShape& shape)
         {
-            const bool overlaps = shape.circle != nullptr
+            const Bool overlaps = shape.circle != nullptr
                 ? Physics2D::OverlapPolygonAndCircle(box, identity, *shape.circle, shape.pose)
                 : Physics2D::OverlapPolygons(box, identity, *shape.polygon, shape.pose);
             if (overlaps)
@@ -682,7 +687,7 @@ namespace JBro::System
         });
     }
 
-    GameObjectHandle Physics2DSystem::OverlapPoint(Vector2 point, std::uint32_t layerMask) const
+    GameObjectHandle Physics2DSystem::OverlapPoint(Vector2 point, UInt32 layerMask) const
     {
         GameObjectHandle found;
         ForEachQueryShape(layerMask, Rect{ point, point }, [&](const QueryShape& shape)
@@ -691,7 +696,7 @@ namespace JBro::System
             {
                 return;
             }
-            const bool inside = shape.circle != nullptr
+            const Bool inside = shape.circle != nullptr
                 ? Physics2D::ContainsPoint(*shape.circle, shape.pose, point)
                 : Physics2D::ContainsPoint(*shape.polygon, shape.pose, point);
             if (inside)
@@ -703,7 +708,7 @@ namespace JBro::System
     }
 
     void Physics2DSystem::OverlapCircle(
-        Vector2 center, float radius, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
+        Vector2 center, Float radius, Array<GameObjectHandle>& results, UInt32 layerMask) const
     {
         results.Clear();
         if (radius < 0.0f)
@@ -716,7 +721,7 @@ namespace JBro::System
         const Physics2D::Pose identity;
         ForEachQueryShape(layerMask, SweptArea(center, { 1.0f, 0.0f }, 0.0f, radius), [&](const QueryShape& shape)
         {
-            const bool overlaps = shape.circle != nullptr
+            const Bool overlaps = shape.circle != nullptr
                 ? Physics2D::OverlapCircles(probe, identity, *shape.circle, shape.pose)
                 : Physics2D::OverlapPolygonAndCircle(*shape.polygon, shape.pose, probe, identity);
             if (overlaps)
@@ -726,20 +731,20 @@ namespace JBro::System
         });
     }
 
-    bool Physics2DSystem::CircleCast(Vector2 origin, float radius, Vector2 direction, float distance,
-        RaycastHit2D& hit, std::uint32_t layerMask) const
+    Bool Physics2DSystem::CircleCast(Vector2 origin, Float radius, Vector2 direction, Float distance,
+        RaycastHit2D& hit, UInt32 layerMask) const
     {
         hit = {};
         if (m_canvas == nullptr || distance < 0.0f || radius < 0.0f || false == NormalizeDirection(direction))
         {
             return false;
         }
-        bool found = false;
+        Bool found = false;
         ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, radius), [&](const QueryShape& shape)
         {
-            float candidate = 0.0f;
+            Float candidate = 0.0f;
             Vector2 normal;
-            const bool touched = shape.circle != nullptr
+            const Bool touched = shape.circle != nullptr
                 ? Physics2D::CastCircle(origin, radius, direction, distance, *shape.circle, shape.pose, candidate, normal)
                 : Physics2D::CastCircle(origin, radius, direction, distance, *shape.polygon, shape.pose, candidate, normal);
             if (touched && (false == found || candidate < hit.distance))
@@ -756,8 +761,8 @@ namespace JBro::System
         return found;
     }
 
-    bool Physics2DSystem::BoxCast(Vector2 center, Vector2 halfExtents, float angle, Vector2 direction, float distance,
-        RaycastHit2D& hit, std::uint32_t layerMask) const
+    Bool Physics2DSystem::BoxCast(Vector2 center, Vector2 halfExtents, Float angle, Vector2 direction, Float distance,
+        RaycastHit2D& hit, UInt32 layerMask) const
     {
         hit = {};
         if (m_canvas == nullptr || distance < 0.0f || halfExtents.x < 0.0f || halfExtents.y < 0.0f
@@ -772,12 +777,12 @@ namespace JBro::System
         box.points[3] = { -halfExtents.x, halfExtents.y };
         box.count = 4;
         const Physics2D::Pose start{ center, Physics2D::Rotation::FromAngle(angle) };
-        bool found = false;
+        Bool found = false;
         ForEachQueryShape(layerMask, SweptArea(center, direction, distance, std::sqrt(halfExtents.x * halfExtents.x + halfExtents.y * halfExtents.y)), [&](const QueryShape& shape)
         {
-            float candidate = 0.0f;
+            Float candidate = 0.0f;
             Vector2 normal;
-            const bool touched = shape.circle != nullptr
+            const Bool touched = shape.circle != nullptr
                 ? Physics2D::CastPolygon(box, start, direction, distance, *shape.circle, shape.pose, candidate, normal)
                 : Physics2D::CastPolygon(box, start, direction, distance, *shape.polygon, shape.pose, candidate, normal);
             if (false == touched || (found && candidate >= hit.distance))
@@ -791,16 +796,16 @@ namespace JBro::System
             {
                 // 상자에서 법선의 반대쪽으로 가장 나온 점들(면이 닿으면 그 면의 가운데)이 닿은 자리다.
                 const Physics2D::Pose at{ moved, start.rotation };
-                float lowest = 0.0f;
+                Float lowest = 0.0f;
                 Vector2 corners[4];
-                for (std::uint32_t k = 0; k < 4; ++k)
+                for (UInt32 k = 0; k < 4; ++k)
                 {
                     corners[k] = Physics2D::TransformPoint(at, box.points[k]);
-                    const float along = corners[k].x * normal.x + corners[k].y * normal.y;
-                    lowest = k == 0 ? along : std::fmin(lowest, along);
+                    const Float along = corners[k].x * normal.x + corners[k].y * normal.y;
+                    lowest = k == 0 ? along : Float(std::fmin(lowest, along));
                 }
                 Vector2 sum;
-                int count = 0;
+                Int32 count = 0;
                 for (const Vector2& corner : corners)
                 {
                     if (corner.x * normal.x + corner.y * normal.y <= lowest + Physics2D::LinearSlop)
@@ -830,7 +835,7 @@ namespace JBro::System
         m_state = MakeOwnerPtr<State>();
     }
 
-    void Physics2DSystem::OnFixedUpdate(Canvas& canvas, float fixedDeltaTime)
+    void Physics2DSystem::OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime)
     {
         if (fixedDeltaTime <= 0.0f)
         {
@@ -884,7 +889,7 @@ namespace JBro::System
             const Physics2D::BodyType type =
                 rigidbody != nullptr ? ToKernel(rigidbody->bodyType) : Physics2D::BodyType::Static;
             const InstanceId rigidbodyId = rigidbody != nullptr ? rigidbody->GetInstanceId() : InvalidInstanceId;
-            const std::uint64_t parameters = BodyParameters(rigidbody);
+            const UInt64 parameters = BodyParameters(rigidbody);
 
             // 종류가 바뀌면 바디를 다시 만든다. 질량·감쇠·고정 같은 성질은 제자리에서 바꾼다(D-227) - 다시 만들면 닿아 있던
             // 쌍이 끝나고 다시 시작한다.
@@ -982,11 +987,11 @@ namespace JBro::System
                 const Vector2 center = world.GetWorldCenter(link->body);
                 const Vector2 force{ pending.forceAtCenter.x + pending.forceAtPoints.x,
                     pending.forceAtCenter.y + pending.forceAtPoints.y };
-                const float torque = pending.torque + pending.forceMoment
+                const Float torque = pending.torque + pending.forceMoment
                     - (center.x * pending.forceAtPoints.y - center.y * pending.forceAtPoints.x);
                 const Vector2 impulse{ pending.impulseAtCenter.x + pending.impulseAtPoints.x,
                     pending.impulseAtCenter.y + pending.impulseAtPoints.y };
-                const float angularImpulse = pending.angularImpulse + pending.impulseMoment
+                const Float angularImpulse = pending.angularImpulse + pending.impulseMoment
                     - (center.x * pending.impulseAtPoints.y - center.y * pending.impulseAtPoints.x);
                 if (force.x != 0.0f || force.y != 0.0f)
                 {
@@ -1040,7 +1045,7 @@ namespace JBro::System
             }
             Internal::ObjectPose pose;
             Internal::CalculateObjectPose(canvas, object, pose);
-            const std::uint64_t signature = ShapeSignature(collider, pose.scale);
+            const UInt64 signature = ShapeSignature(collider, pose.scale);
 
             const InstanceId colliderId = collider.GetInstanceId();
             State::ShapeLink* link = state.shapes.Find(colliderId);
@@ -1174,16 +1179,16 @@ namespace JBro::System
         };
         const auto localToWorld = [&](Physics2D::BodyId body, Vector2 local) {
             const Vector2 origin = world.GetPosition(body);
-            const float angle = world.GetAngle(body);
-            const float c = std::cos(angle);
-            const float s = std::sin(angle);
+            const Float angle = world.GetAngle(body);
+            const Float c = std::cos(angle);
+            const Float s = std::sin(angle);
             return Vector2{ origin.x + c * local.x - s * local.y, origin.y + s * local.x + c * local.y };
         };
         const auto worldToLocal = [&](Physics2D::BodyId body, Vector2 point) {
             const Vector2 origin = world.GetPosition(body);
-            const float angle = world.GetAngle(body);
-            const float c = std::cos(angle);
-            const float s = std::sin(angle);
+            const Float angle = world.GetAngle(body);
+            const Float c = std::cos(angle);
+            const Float s = std::sin(angle);
             const Vector2 d{ point.x - origin.x, point.y - origin.y };
             return Vector2{ c * d.x + s * d.y, -s * d.x + c * d.y };
         };
@@ -1191,10 +1196,10 @@ namespace JBro::System
             return Vector2{ value.x * scale.x, value.y * scale.y };
         };
         const auto unscaled = [](Vector2 value, Vector2 scale) {
-            return Vector2{ scale.x != 0.0f ? value.x / scale.x : 0.0f, scale.y != 0.0f ? value.y / scale.y : 0.0f };
+            return Vector2{ scale.x != 0.0f ? value.x / scale.x : Float(0.0f), scale.y != 0.0f ? value.y / scale.y : Float(0.0f) };
         };
         // 조인트 하나를 맞춘다. 두 몸이 없으면 연결을 두지 않는다(보이지 않은 연결은 아래에서 지운다).
-        const auto syncJoint = [&](ComponentBase& component, GameObjectHandle connected, bool hinge,
+        const auto syncJoint = [&](ComponentBase& component, GameObjectHandle connected, Bool hinge,
                                    const auto& configure, const auto& signatureOf, const auto& create, const auto& update) {
             if (false == component.IsActiveComponent())
             {
@@ -1218,7 +1223,7 @@ namespace JBro::System
             const Physics2D::BodyId otherBody = other != nullptr ? other->body : Physics2D::BodyId{};
             const InstanceId componentId = component.GetInstanceId();
             State::JointLink* link = state.joints.Find(componentId);
-            const bool fresh = link == nullptr;
+            const Bool fresh = link == nullptr;
             if (fresh)
             {
                 // 처음 이어진다. 자동 설정(거리·상대 앵커)을 여기서 한 번 적는다.
@@ -1228,8 +1233,8 @@ namespace JBro::System
                 link = state.joints.Find(componentId);
             }
             link->seen = true;
-            const std::uint64_t signature = signatureOf(ownPose.scale, otherPose.scale);
-            const bool sameBodies = world.IsValid(link->joint) && link->bodyObject == object->GetInstanceId()
+            const UInt64 signature = signatureOf(ownPose.scale, otherPose.scale);
+            const Bool sameBodies = world.IsValid(link->joint) && link->bodyObject == object->GetInstanceId()
                 && link->connectedObject == connectedId && link->hinge == hinge;
             if (sameBodies)
             {
@@ -1244,7 +1249,7 @@ namespace JBro::System
             if (fresh || link->bodyObject != object->GetInstanceId() || link->connectedObject != connectedId)
             {
                 // 경첩의 한계는 이어지는 순간의 상대 각도를 0 으로 잰다.
-                const Radian angleA = world.GetAngle(own->body);
+                const Radian angleA(world.GetAngle(own->body));
                 const Radian angleB = other != nullptr ? Radian(world.GetAngle(other->body)) : Radian(0.0f);
                 link->referenceAngle = angleB - angleA;
             }
@@ -1266,7 +1271,7 @@ namespace JBro::System
                 def.length = std::fmax(joint.distance, 0.0f);
                 def.maxLengthOnly = joint.maxDistanceOnly;
                 def.hertz = std::fmax(joint.frequency, 0.0f);
-                def.dampingRatio = std::clamp(joint.dampingRatio, 0.0f, 1.0f);
+                def.dampingRatio = JBro::Clamp(joint.dampingRatio, 0.0f, 1.0f);
                 def.collideConnected = joint.collideConnected;
                 return def;
             };
@@ -1382,7 +1387,7 @@ namespace JBro::System
                 continue;
             }
             const Vector2 origin = world.GetPosition(link.body);
-            const Radian angle = world.GetAngle(link.body);
+            const Radian angle(world.GetAngle(link.body));
 
             Vector2 localPosition = origin;
             Radian localRotation = angle;
@@ -1392,11 +1397,11 @@ namespace JBro::System
             {
                 // 월드 자리를 부모 행렬의 역으로 로컬에 되돌린다(찌그러진 행렬에도 맞다). 각도는 회전의 합이므로 부모 각도를 빼면 된다.
                 const Matrix3x2& m = parentPose.matrix;
-                const float determinant = m.m11 * m.m22 - m.m12 * m.m21;
+                const Float determinant = m.m11 * m.m22 - m.m12 * m.m21;
                 if (determinant != 0.0f)
                 {
-                    const float dx = origin.x - m.m31;
-                    const float dy = origin.y - m.m32;
+                    const Float dx = origin.x - m.m31;
+                    const Float dy = origin.y - m.m32;
                     localPosition = {
                         (dx * m.m22 - dy * m.m21) / determinant,
                         (dy * m.m11 - dx * m.m12) / determinant };
@@ -1436,7 +1441,7 @@ namespace JBro::System
             return;
         }
 
-        const std::uint64_t revision = canvas.GetScriptOrderRevision();
+        const UInt64 revision = canvas.GetScriptOrderRevision();
         if (revision != state.scriptRevision)
         {
             canvas.CollectScripts(state.collectedScripts);
@@ -1453,7 +1458,7 @@ namespace JBro::System
         }
 
         // 콜라이더 아이디 → 오브젝트. 이번 스텝에 지운 콜라이더는 떠나보낸 연결에서 찾는다(끝 이벤트가 그것이다).
-        const auto ownerOf = [&state](std::uint64_t colliderId) -> const State::ShapeLink*
+        const auto ownerOf = [&state](UInt64 colliderId) -> const State::ShapeLink*
         {
             if (const State::ShapeLink* live = state.shapes.Find(static_cast<InstanceId>(colliderId)))
             {
@@ -1473,7 +1478,7 @@ namespace JBro::System
 
         // 훅이 오브젝트를 지워도 지나간 객체 위에서 다음 훅이 불리지 않게, 발송 내내 파괴를 미룬다(§8).
         Canvas::IterationGuard guard(canvas);
-        const auto deliver = [&](GameObject* self, const Collision2D& hit, Phase phase, bool trigger)
+        const auto deliver = [&](GameObject* self, const Collision2D& hit, Phase phase, Bool trigger)
         {
             if (self == nullptr || false == self->IsActiveInHierarchy())
             {

@@ -19,22 +19,26 @@
 #include <JBro/Editor/LocalizationKeys.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     // 버스마다 미터와 솔로다(D-203). 미터는 봉우리를 잡고 초당 1.5 씩 내린다 - 한 블록만 보면 읽을 새가 없다.
-    void StatsPanel::DrawAudioMeters(System::AudioSystem& audio, float masterPeak)
+    void StatsPanel::DrawAudioMeters(System::AudioSystem& audio, Float masterPeak)
     {
-        const auto hold = [](float& shown, float now) {
-            const float fallen = shown - 1.5f * ImGui::GetIO().DeltaTime;
-            shown = now > fallen ? now : (fallen > 0.0f ? fallen : 0.0f);
+        const auto hold = [](Float& shown, Float now) {
+            const Float fallen = shown - 1.5f * ImGui::GetIO().DeltaTime;
+            shown = now > fallen ? now : (fallen > 0.0f ? fallen : Float(0.0f));
         };
         Widget::FormLayout meters("##audioMeters");
         hold(m_masterLevel, masterPeak);
         meters.Row([] { Widget::Text(AudioMasterBusName); },
             [&] { Widget::LevelMeter("##master", m_masterLevel); });
         const JArrayView<AudioBusConfig> buses = audio.GetBusConfigs();
-        for (std::uint32_t index = 0; index < buses.size && index < MaxMeteredBuses; ++index)
+        for (UInt32 index = 0; index < buses.size && index < MaxMeteredBuses; ++index)
         {
             const AudioBusConfig& config = buses.data[index];
             AudioBusName name;
@@ -44,7 +48,7 @@ namespace JBro
             meters.Row([&config] { Widget::Text(NameTable::Get().Resolve(config.name)); },
                 [&] {
                     ImGui::PushID(static_cast<int>(index));
-                    bool solo = audio.IsBusSolo(name);
+                    Bool solo = audio.IsBusSolo(name);
                     // 칸 앞의 헤드폰이 무엇을 켜는 칸인지 말한다(D-278).
                     Widget::InlineIcon(Icons::Solo);
                     if (Widget::Checkbox("##solo", solo))
@@ -70,13 +74,13 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelStats, "Stats");
     }
 
-    bool StatsPanel::OnCreate(EditorApplication& editor)
+    Bool StatsPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
     }
 
-    void StatsPanel::OnUpdate(float deltaTime)
+    void StatsPanel::OnUpdate(Float deltaTime)
     {
         // **닫혀 있어도 센다.** 패널을 열어 본 순간의 숫자가 그 순간부터 모은 것이면
         // 열어 보는 행위가 측정을 바꾼다.
@@ -91,19 +95,19 @@ namespace JBro
 
     void StatsPanel::OnDraw()
     {
-        float total = 0.0f;
-        for (int index = 0; index < m_filledSamples; ++index)
+        Float total = 0.0f;
+        for (Int32 index = 0; index < m_filledSamples; ++index)
         {
             total += m_samples[index];
         }
-        const float average = m_filledSamples > 0
+        const Float average = m_filledSamples > 0
             ? total / static_cast<float>(m_filledSamples)
-            : 0.0f;
+            : Float(0.0f);
 
         Widget::TextF(Loc::TextOr(LocKeys::StatsFrameTime, "frame %.2f ms"),
             average * 1000.0f);
         Widget::TextF(Loc::TextOr(LocKeys::StatsPerSecond, "%.0f per second"),
-            average > 0.0f ? 1.0f / average : 0.0f);
+            average > 0.0f ? 1.0f / average : Float(0.0f));
         ImGui::Separator();
         Widget::TextF(Loc::TextOr(LocKeys::StatsFrameCount, "frames %llu"),
             static_cast<unsigned long long>(m_frames));
@@ -228,7 +232,7 @@ namespace JBro
             if (Widget::Tree(Loc::TextOr(LocKeys::StatsPools, "component pools"),
                     ImGuiTreeNodeFlags_DefaultOpen))
             {
-                bool any = false;
+                Bool any = false;
                 canvas->ForEachComponentPool([&](const Canvas::ComponentPoolUsage& usage) {
                     any = true;
                     const char* typeName = NameTable::Get().Resolve(usage.typeId);

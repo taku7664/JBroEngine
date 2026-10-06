@@ -3,6 +3,8 @@
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -15,9 +17,9 @@ namespace JBro
     class ConfirmPopup final : public EditorPopup
     {
     public:
-        static constexpr int Cancelled = -1;
+        static constexpr Int32 Cancelled = -1;
 
-        using Answer = void (*)(EditorApplication& editor, int choice, void* user);
+        using Answer = void (*)(EditorApplication& editor, Int32 choice, void* user);
 
         // `second`·`third` 는 널이면 그리지 않는다. `id` 가 널이면 제목이 곧 아이디다.
         ConfirmPopup(const char* title, const char* message,
@@ -31,7 +33,7 @@ namespace JBro
         void OnExit(EditorApplication& editor) override;
 
     private:
-        void Choose(EditorApplication& editor, int choice);
+        void Choose(EditorApplication& editor, Int32 choice);
 
         String m_title;
         String m_message;
@@ -44,6 +46,6 @@ namespace JBro
         String m_id;
         Answer m_answer = nullptr;
         void* m_user = nullptr;
-        bool m_answered = false;
+        Bool m_answered = false;
     };
 }

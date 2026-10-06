@@ -1,9 +1,11 @@
 ﻿#include <JBro/Editor/Widget/FormLayout.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
     FormLayout::FormLayout(
-        const char* id, float spacing, ImVec2 padding, float labelWidth, float width)
+        const char* id, Float spacing, ImVec2 padding, Float labelWidth, Float width)
         : m_id(id)
         , m_spacing(spacing)
         , m_padding(padding)
@@ -50,7 +52,7 @@ namespace JBro::Widget
         m_open = false;
     }
 
-    bool FormLayout::IsOpen() const
+    Bool FormLayout::IsOpen() const
     {
         return m_open;
     }

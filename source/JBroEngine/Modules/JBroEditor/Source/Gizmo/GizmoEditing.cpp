@@ -12,6 +12,8 @@
 
 #include <cmath>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -39,13 +41,13 @@ namespace JBro
             return "position";
         }
 
-        float SafeDivide(float value, float divisor)
+        Float SafeDivide(Float value, Float divisor)
         {
             return std::fabs(divisor) > 1.0e-6f ? value / divisor : value;
         }
 
         // 부모의 월드 회전·스케일. 부모가 없거나 트랜스폼이 없으면 항등이다.
-        void ParentFrame(Canvas& canvas, GameObject& object, bool planar, Quaternion& rotation, Vector3& scale)
+        void ParentFrame(Canvas& canvas, GameObject& object, Bool planar, Quaternion& rotation, Vector3& scale)
         {
             rotation = {};
             scale = {1.0f, 1.0f, 1.0f};
@@ -71,7 +73,7 @@ namespace JBro
         }
     }
 
-    bool GizmoEditing::ReadSubject(EditorApplication& editor, GameObject& object, GizmoSubject& subject)
+    Bool GizmoEditing::ReadSubject(EditorApplication& editor, GameObject& object, GizmoSubject& subject)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -101,7 +103,7 @@ namespace JBro
         return false;
     }
 
-    bool GizmoEditing::CollectTarget(EditorApplication& editor, GameObject& object, Target& target) const
+    Bool GizmoEditing::CollectTarget(EditorApplication& editor, GameObject& object, Target& target) const
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -144,7 +146,7 @@ namespace JBro
         return false;
     }
 
-    bool GizmoEditing::Begin(EditorApplication& editor, GizmoMode mode, const GizmoSubject& primaryStart)
+    Bool GizmoEditing::Begin(EditorApplication& editor, GizmoMode mode, const GizmoSubject& primaryStart)
     {
         m_targets.Clear();
         m_mode = mode;
@@ -260,7 +262,7 @@ namespace JBro
                 continue;
             }
             String after;
-            const bool read = SetPropertyCommand::ReadValue(*component, target.address.typeId, target.path, after);
+            const Bool read = SetPropertyCommand::ReadValue(*component, target.address.typeId, target.path, after);
             // 위젯이 쓴 값을 도로 되돌려 놓는다. 쓰는 것은 커맨드의 몫이다 - 그래야 되돌리기가 무엇을
             // 되돌리는지 하나로 남는다.
             SetPropertyCommand::ApplyValue(*component, target.address.typeId, target.path, target.before);

@@ -11,10 +11,14 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -101,12 +105,12 @@ namespace
     class PhysicsQueryProbe final : public JBro::System::IPhysics2DSystem
     {
     public:
-        mutable int raycastCalls = 0;
-        mutable int overlapCalls = 0;
-        bool hasHit = true;
+        mutable JBro::Int32 raycastCalls = 0;
+        mutable JBro::Int32 overlapCalls = 0;
+        JBro::Bool hasHit = true;
 
-        bool Raycast(JBro::Vector2 origin, JBro::Vector2 direction, float distance,
-            JBro::RaycastHit2D& hit, std::uint32_t layerMask) const override
+        JBro::Bool Raycast(JBro::Vector2 origin, JBro::Vector2 direction, JBro::Float distance,
+            JBro::RaycastHit2D& hit, JBro::UInt32 layerMask) const override
         {
             ++raycastCalls;
             Check(origin.x == 1.0f && origin.y == 2.0f
@@ -123,7 +127,7 @@ namespace
         }
 
         void OverlapBox(const JBro::Rect& area,
-            JBro::Array<JBro::GameObjectHandle>& results, std::uint32_t layerMask) const override
+            JBro::Array<JBro::GameObjectHandle>& results, JBro::UInt32 layerMask) const override
         {
             ++overlapCalls;
             Check(area.min.x == 1.0f && area.min.y == 2.0f
@@ -135,30 +139,30 @@ namespace
         }
 
         // 늘어난 질의는 서비스가 인자를 그대로 넘기는지만 센다.
-        void RaycastAll(JBro::Vector2, JBro::Vector2, float distance, JBro::Array<JBro::RaycastHit2D>& hits,
-            std::uint32_t layerMask) const override
+        void RaycastAll(JBro::Vector2, JBro::Vector2, JBro::Float distance, JBro::Array<JBro::RaycastHit2D>& hits,
+            JBro::UInt32 layerMask) const override
         {
             ++otherCalls;
             lastMask = layerMask;
             lastDistance = distance;
             hits.Clear();
         }
-        JBro::GameObjectHandle OverlapPoint(JBro::Vector2, std::uint32_t layerMask) const override
+        JBro::GameObjectHandle OverlapPoint(JBro::Vector2, JBro::UInt32 layerMask) const override
         {
             ++otherCalls;
             lastMask = layerMask;
             return {};
         }
-        void OverlapCircle(JBro::Vector2, float radius, JBro::Array<JBro::GameObjectHandle>& results,
-            std::uint32_t layerMask) const override
+        void OverlapCircle(JBro::Vector2, JBro::Float radius, JBro::Array<JBro::GameObjectHandle>& results,
+            JBro::UInt32 layerMask) const override
         {
             ++otherCalls;
             lastMask = layerMask;
             lastDistance = radius;
             results.Clear();
         }
-        bool CircleCast(JBro::Vector2, float radius, JBro::Vector2, float, JBro::RaycastHit2D& hit,
-            std::uint32_t layerMask) const override
+        JBro::Bool CircleCast(JBro::Vector2, JBro::Float radius, JBro::Vector2, JBro::Float, JBro::RaycastHit2D& hit,
+            JBro::UInt32 layerMask) const override
         {
             ++otherCalls;
             lastMask = layerMask;
@@ -167,8 +171,8 @@ namespace
             hit.distance = 1.5f;
             return true;
         }
-        bool BoxCast(JBro::Vector2, JBro::Vector2 halfExtents, float angle, JBro::Vector2, float,
-            JBro::RaycastHit2D& hit, std::uint32_t layerMask) const override
+        JBro::Bool BoxCast(JBro::Vector2, JBro::Vector2 halfExtents, JBro::Float angle, JBro::Vector2, JBro::Float,
+            JBro::RaycastHit2D& hit, JBro::UInt32 layerMask) const override
         {
             ++otherCalls;
             lastMask = layerMask;
@@ -178,9 +182,9 @@ namespace
             return true;
         }
 
-        mutable int otherCalls = 0;
-        mutable std::uint32_t lastMask = 0;
-        mutable float lastDistance = 0.0f;
+        mutable JBro::Int32 otherCalls = 0;
+        mutable JBro::UInt32 lastMask = 0;
+        mutable JBro::Float lastDistance = 0.0f;
     };
 
     void TestPhysicsServiceBinding()
@@ -276,7 +280,7 @@ namespace
     }
 }
 
-int RunContextBoundaryTests()
+JBro::Int32 RunContextBoundaryTests()
 {
     TestContextLayoutsAndBinding();
     TestPhysicsServiceBinding();

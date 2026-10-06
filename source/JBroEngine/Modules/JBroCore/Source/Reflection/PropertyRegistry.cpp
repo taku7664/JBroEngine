@@ -1,4 +1,5 @@
 ﻿#include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -31,12 +32,12 @@ namespace JBro
         g_boundScriptProperties = registry;
     }
 
-    bool PropertyRegistry::RegisterBuiltin(NameId typeName, const PropertyTable& table)
+    Bool PropertyRegistry::RegisterBuiltin(NameId typeName, const PropertyTable& table)
     {
         return Builtin().Register(typeName, table);
     }
 
-    bool PropertyRegistry::RegisterScript(NameId typeName, const PropertyTable& table)
+    Bool PropertyRegistry::RegisterScript(NameId typeName, const PropertyTable& table)
     {
         // 빌트인이 가진 이름이면 거절한다. 넣어 두어 봐야 Lookup 이 빌트인 쪽을 주므로,
         // 스크립트 작성자는 자기 필드가 왜 안 보이는지 알 길이 없다.
@@ -62,7 +63,7 @@ namespace JBro
         return Lookup(MakeNameId(typeName));
     }
 
-    bool PropertyRegistry::Register(NameId typeName, const PropertyTable& table)
+    Bool PropertyRegistry::Register(NameId typeName, const PropertyTable& table)
     {
         if (typeName == InvalidNameId)
         {

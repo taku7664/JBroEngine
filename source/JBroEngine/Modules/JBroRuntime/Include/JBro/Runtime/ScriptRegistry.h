@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <new>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -23,7 +26,7 @@ namespace JBro
         NameId       layer = InvalidNameId;
         // 없는 레이어를 경고할 때만 쓴다. 타입을 정의한 모듈(DLL 이면 그 DLL)의 상수를 가리킨다.
         const char*  layerText = nullptr;
-        std::int32_t order = 0;
+        Int32 order = 0;
     };
 
     template<typename T>
@@ -53,8 +56,8 @@ namespace JBro
     {
         NameId          name = InvalidNameId;
         ComponentTypeId typeId = InvalidComponentTypeId;
-        std::uint32_t   size = 0;
-        std::uint32_t   alignment = 0;
+        UInt32   size = 0;
+        UInt32   alignment = 0;
         // 호스트가 준 자리에 제자리 생성한다. storage 는 alignment 로 정렬돼 있고
         // 최소 size 바이트다. 실패하면 nullptr 을 돌려준다.
         GameScriptBase* (*Construct)(void* storage) noexcept = nullptr;
@@ -81,7 +84,7 @@ namespace JBro
         static void Bind(ScriptRegistry* registry);
 
         // 같은 이름이 이미 있으면 거절한다. 조용히 덮으면 어느 DLL 의 타입인지 알 수 없다.
-        bool Register(const ScriptTypeInfo& info);
+        Bool Register(const ScriptTypeInfo& info);
         // 모듈이 내려갈 때 그 모듈이 등록한 타입을 전부 지운다. 남겨 두면
         // 사라진 코드의 함수 포인터를 들고 있게 된다.
         void Clear();
@@ -132,7 +135,7 @@ namespace JBro
     // 이름을 표에 넣어 둔다. 호스트가 그 이름으로 스크립트를 붙일 수 있으려면
     // 원문도 필요하다.
     template<typename T>
-    bool RegisterScriptType()
+    Bool RegisterScriptType()
     {
         NameTable::Get().Intern(T::StaticTypeName());
         return ScriptRegistry::Get().Register(MakeScriptTypeInfo<T>());

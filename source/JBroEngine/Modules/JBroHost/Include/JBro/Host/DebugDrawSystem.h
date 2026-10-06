@@ -4,6 +4,8 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -24,10 +26,10 @@ namespace JBro::System
     class DebugDrawSystem final : public IDebugDrawSystem
     {
     public:
-        static constexpr std::uint32_t DefaultCapacity = 16384;
+        static constexpr UInt32 DefaultCapacity = 16384;
 
         // 용량을 잡는다. 시계가 있으면 고정 스텝 안에서 그린 선을 알아보고 게임 시간으로 줄인다. 없으면(시험) 모두 한 프레임짜리처럼 산다.
-        bool Initialize(std::uint32_t capacity, const TimeSystem* time);
+        Bool Initialize(UInt32 capacity, const TimeSystem* time);
         void Shutdown();
 
         // 프레임을 연다. **시계가 프레임을 연 뒤, 프레임워크가 갱신하기 전**에 부른다 - 지난 프레임의 선을 이번 프레임의 시간으로 거둔다.
@@ -35,31 +37,31 @@ namespace JBro::System
         // 모두 지운다. 에디터가 재생을 시작하고 멈출 때 부른다.
         void Clear();
 
-        std::uint32_t AddLines(const DebugLine* lines, std::uint32_t count) override;
+        UInt32 AddLines(const DebugLine* lines, UInt32 count) override;
 
-        std::uint32_t GetLineCount() const;
-        const DebugLine& GetLine(std::uint32_t index) const;
-        std::uint32_t GetCapacity() const;
+        UInt32 GetLineCount() const;
+        const DebugLine& GetLine(UInt32 index) const;
+        UInt32 GetCapacity() const;
         // 이번 프레임(마지막 `BeginFrame` 뒤)에 용량이 차서 버린 선과 값이 틀려 버린 선이다.
-        std::uint32_t GetDroppedCount() const;
-        std::uint32_t GetRejectedCount() const;
+        UInt32 GetDroppedCount() const;
+        UInt32 GetRejectedCount() const;
 
         // 게임 뷰(게임 실행의 백버퍼, 에디터의 게임 뷰)에 그릴지다. 저장은 늘 한다 - 끄고 켜도 선이 사라지지 않는다.
-        void SetGameViewVisible(bool visible);
-        bool IsGameViewVisible() const;
+        void SetGameViewVisible(Bool visible);
+        Bool IsGameViewVisible() const;
 
     private:
         struct Entry
         {
             DebugLine line;
-            bool fromFixedStep = false;
+            Bool fromFixedStep = false;
         };
 
         Array<Entry> m_entries;
         const TimeSystem* m_time = nullptr;
-        std::uint32_t m_capacity = 0;
-        std::uint32_t m_dropped = 0;
-        std::uint32_t m_rejected = 0;
-        bool m_gameViewVisible = false;
+        UInt32 m_capacity = 0;
+        UInt32 m_dropped = 0;
+        UInt32 m_rejected = 0;
+        Bool m_gameViewVisible = false;
     };
 }

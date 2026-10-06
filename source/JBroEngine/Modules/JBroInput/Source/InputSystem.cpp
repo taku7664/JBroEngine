@@ -7,6 +7,11 @@
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::System
 {
@@ -95,8 +100,8 @@ namespace JBro::System
         // 지난 프레임에 뗀 손가락은 한 번 나왔으니 지운다. 남은 손가락은 움직이기 전까지 가만히 있다.
         {
             TouchState& touch = m_frame.touch;
-            std::uint32_t kept = 0;
-            for (std::uint32_t index = 0; index < touch.count; ++index)
+            UInt32 kept = 0;
+            for (UInt32 index = 0; index < touch.count; ++index)
             {
                 if (touch.points[index].IsActive())
                 {
@@ -105,7 +110,7 @@ namespace JBro::System
                     ++kept;
                 }
             }
-            for (std::uint32_t index = kept; index < MaxTouches; ++index)
+            for (UInt32 index = kept; index < MaxTouches; ++index)
             {
                 touch.points[index] = {};
             }
@@ -122,13 +127,13 @@ namespace JBro::System
 
         if (events.data != nullptr)
         {
-            for (std::uint32_t index = 0; index < events.size; ++index)
+            for (UInt32 index = 0; index < events.size; ++index)
             {
                 Fold(events.data[index], mapping);
             }
         }
         // 스크립트가 만든 손가락은 플랫폼의 것 뒤에 접는다. 자리는 이미 게임 화면 픽셀이다.
-        for (std::uint32_t index = 0; index < m_injectedCount; ++index)
+        for (UInt32 index = 0; index < m_injectedCount; ++index)
         {
             const InjectedTouch& injected = m_injected[index];
             FoldTouch(injected.id, injected.x, injected.y, injected.phase);
@@ -152,7 +157,7 @@ namespace JBro::System
         m_dispatch.m_pendingConsumed = 0;
     }
 
-    bool InputSystem::Deliver(IInputHandler& handler)
+    Bool InputSystem::Deliver(IInputHandler& handler)
     {
         m_dispatch.m_pendingConsumed = 0;
         const InputResult result = handler.OnInput(m_dispatch);
@@ -187,7 +192,7 @@ namespace JBro::System
         }
         else
         {
-            for (std::uint32_t index = 0; index < layers.size; ++index)
+            for (UInt32 index = 0; index < layers.size; ++index)
             {
                 m_layers.Add(layers.data[index]);
             }
@@ -196,7 +201,7 @@ namespace JBro::System
         ++m_layerRevision;
     }
 
-    std::uint32_t InputSystem::GetLayerPriority(NameId layer, const char* text)
+    UInt32 InputSystem::GetLayerPriority(NameId layer, const char* text)
     {
         for (std::size_t index = 0; index < m_layers.Size(); ++index)
         {
@@ -225,7 +230,7 @@ namespace JBro::System
     void InputSystem::ResetActions()
     {
         // 경고 기억은 남긴다 - 같은 프로젝트에서 같은 실수를 재생마다 다시 말하지 않는다.
-        const std::uint32_t warnedCount = m_actions.warnedCount;
+        const UInt32 warnedCount = m_actions.warnedCount;
         InputActionId warned[8] = {};
         static_assert(sizeof(warned) == sizeof(m_actions.warned));
         std::memcpy(warned, m_actions.warned, sizeof(warned));
@@ -234,9 +239,9 @@ namespace JBro::System
         std::memcpy(m_actions.warned, warned, sizeof(warned));
     }
 
-    bool InputSystem::SetActionSetEnabled(NameId set, bool enabled) noexcept
+    Bool InputSystem::SetActionSetEnabled(NameId set, Bool enabled) noexcept
     {
-        const int index = m_actions.FindSet(set);
+        const Int32 index = m_actions.FindSet(set);
         if (index < 0)
         {
             // 세트 이름을 잘못 적었다. 매 프레임 부르는 스크립트도 있으니 이름마다 한 번만 말한다(경고 경로, 콜드).
@@ -247,7 +252,7 @@ namespace JBro::System
             }
             return false;
         }
-        const std::uint32_t bit = 1u << static_cast<std::uint32_t>(index);
+        const UInt32 bit = 1u << static_cast<std::uint32_t>(index);
         if (enabled)
         {
             m_actions.activeSets |= bit;
@@ -259,15 +264,15 @@ namespace JBro::System
         return true;
     }
 
-    bool InputSystem::IsActionSetEnabled(NameId set) const noexcept
+    Bool InputSystem::IsActionSetEnabled(NameId set) const noexcept
     {
-        const int index = m_actions.FindSet(set);
+        const Int32 index = m_actions.FindSet(set);
         return index >= 0 && m_actions.IsSetActive(static_cast<std::uint32_t>(index));
     }
 
     InputActionDesc* InputSystem::FindLiveAction(InputActionId action)
     {
-        for (std::uint32_t index = 0; index < m_actions.count && index < MaxInputActions; ++index)
+        for (UInt32 index = 0; index < m_actions.count && index < MaxInputActions; ++index)
         {
             if (m_actions.actions[index].name == action)
             {
@@ -277,13 +282,13 @@ namespace JBro::System
         return nullptr;
     }
 
-    std::uint32_t InputSystem::GetActionBindingCount(InputActionId action) const noexcept
+    UInt32 InputSystem::GetActionBindingCount(InputActionId action) const noexcept
     {
         const InputActionDesc* desc = m_actions.Find(action);
         return desc != nullptr ? desc->bindingCount : 0;
     }
 
-    bool InputSystem::GetActionBinding(InputActionId action, std::uint32_t index, InputBinding& out) const noexcept
+    Bool InputSystem::GetActionBinding(InputActionId action, UInt32 index, InputBinding& out) const noexcept
     {
         const InputActionDesc* desc = m_actions.Find(action);
         if (desc == nullptr || index >= desc->bindingCount)
@@ -294,7 +299,7 @@ namespace JBro::System
         return true;
     }
 
-    bool InputSystem::SetActionBinding(InputActionId action, std::uint32_t index, const InputBinding& binding) noexcept
+    Bool InputSystem::SetActionBinding(InputActionId action, UInt32 index, const InputBinding& binding) noexcept
     {
         InputActionDesc* desc = FindLiveAction(action);
         if (desc == nullptr || index > desc->bindingCount || index >= MaxInputBindingsPerAction)
@@ -309,7 +314,7 @@ namespace JBro::System
         return true;
     }
 
-    bool InputSystem::RemoveActionBinding(InputActionId action, std::uint32_t index) noexcept
+    Bool InputSystem::RemoveActionBinding(InputActionId action, UInt32 index) noexcept
     {
         InputActionDesc* desc = FindLiveAction(action);
         if (desc == nullptr || index >= desc->bindingCount)
@@ -317,7 +322,7 @@ namespace JBro::System
             return false;
         }
         // 뒤의 것을 당긴다. 설정 화면이 보이는 차례를 지킨다.
-        for (std::uint32_t at = index; at + 1 < desc->bindingCount; ++at)
+        for (UInt32 at = index; at + 1 < desc->bindingCount; ++at)
         {
             desc->bindings[at] = desc->bindings[at + 1];
         }
@@ -325,7 +330,7 @@ namespace JBro::System
         return true;
     }
 
-    bool InputSystem::ResetActionBindings(InputActionId action) noexcept
+    Bool InputSystem::ResetActionBindings(InputActionId action) noexcept
     {
         InputActionDesc* desc = FindLiveAction(action);
         const InputActionDesc* original = m_projectActions.Find(action);
@@ -340,13 +345,13 @@ namespace JBro::System
 
     void InputSystem::ResetAllActionBindings() noexcept
     {
-        for (std::uint32_t index = 0; index < m_actions.count && index < MaxInputActions; ++index)
+        for (UInt32 index = 0; index < m_actions.count && index < MaxInputActions; ++index)
         {
             ResetActionBindings(m_actions.actions[index].name);
         }
     }
 
-    bool InputSystem::WriteBindingOverrides(char* buffer, std::size_t capacity, std::size_t& outSize) const noexcept
+    Bool InputSystem::WriteBindingOverrides(char* buffer, std::size_t capacity, std::size_t& outSize) const noexcept
     {
         // 설정 화면에서 저장할 때 부르는 콜드 경로다. 글자를 만들고 그 바이트만 넘긴다.
         String text;
@@ -363,7 +368,7 @@ namespace JBro::System
         return true;
     }
 
-    bool InputSystem::ReadBindingOverrides(const char* text, std::size_t length) noexcept
+    Bool InputSystem::ReadBindingOverrides(const char* text, std::size_t length) noexcept
     {
         return System::ReadBindingOverrides(text, length, m_actions);
     }
@@ -373,7 +378,7 @@ namespace JBro::System
         return m_actions;
     }
 
-    std::uint64_t InputSystem::GetLayerRevision() const
+    UInt64 InputSystem::GetLayerRevision() const
     {
         return m_layerRevision;
     }
@@ -428,8 +433,8 @@ namespace JBro::System
 
         case InputEventKind::MouseMove:
         {
-            const float x = (event.x - mapping.originX) * mapping.scaleX;
-            const float y = (event.y - mapping.originY) * mapping.scaleY;
+            const Float x = (event.x - mapping.originX) * mapping.scaleX;
+            const Float y = (event.y - mapping.originY) * mapping.scaleY;
             // 첫 위치는 이동이 아니다. (0, 0) 에서 거기까지 뛴 것으로 세면 첫 프레임에 화면이 튄다.
             if (m_frame.mouse.hasPosition)
             {
@@ -481,8 +486,8 @@ namespace JBro::System
                 : event.kind == InputEventKind::TouchMoved ? TouchPhase::Moved
                 : event.kind == InputEventKind::TouchEnded ? TouchPhase::Ended : TouchPhase::Cancelled;
             // 자리 없는 떼기(NaN)는 그대로 넘긴다. 매핑해도 NaN 이고, 접는 쪽이 마지막 자리를 남긴다.
-            const float x = (event.x - mapping.originX) * mapping.scaleX;
-            const float y = (event.y - mapping.originY) * mapping.scaleY;
+            const Float x = (event.x - mapping.originX) * mapping.scaleX;
+            const Float y = (event.y - mapping.originY) * mapping.scaleY;
             FoldTouch(event.codePoint, x, y, phase);
             break;
         }
@@ -492,35 +497,35 @@ namespace JBro::System
     namespace
     {
         // 둥근 데드존이다(기존 엔진과 같다): 길이가 데드존 안이면 0, 밖이면 데드존..1 을 0..1 로 편다. 방향은 그대로다.
-        void ApplyStickDeadzone(float rawX, float rawY, float deadzone, float& x, float& y)
+        void ApplyStickDeadzone(Float rawX, Float rawY, Float deadzone, Float& x, Float& y)
         {
-            const float length = std::sqrt(rawX * rawX + rawY * rawY);
+            const Float length = std::sqrt(rawX * rawX + rawY * rawY);
             if (length <= deadzone || length <= 0.0f)
             {
                 x = 0.0f;
                 y = 0.0f;
                 return;
             }
-            const float clamped = length > 1.0f ? 1.0f : length;
-            const float scale = ((clamped - deadzone) / (1.0f - deadzone)) / length;
+            const Float clamped = length > 1.0f ? Float(1.0f) : length;
+            const Float scale = ((clamped - deadzone) / (1.0f - deadzone)) / length;
             x = rawX * scale;
             y = rawY * scale;
         }
 
-        float ApplyTriggerThreshold(float raw, float threshold)
+        Float ApplyTriggerThreshold(Float raw, Float threshold)
         {
             if (raw <= threshold)
             {
                 return 0.0f;
             }
-            const float value = (raw - threshold) / (1.0f - threshold);
-            return value > 1.0f ? 1.0f : value;
+            const Float value = (raw - threshold) / (1.0f - threshold);
+            return value > 1.0f ? Float(1.0f) : value;
         }
     }
 
     void InputSystem::FoldGamepads(const GamepadRawState (&raw)[MaxGamepads])
     {
-        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        for (UInt32 slot = 0; slot < MaxGamepads; ++slot)
         {
             GamepadState& pad = m_frame.gamepads[slot];
             const GamepadRawState& source = raw[slot];
@@ -531,7 +536,7 @@ namespace JBro::System
                 {
                     Release(button);
                 }
-                for (float& axis : pad.axes)
+                for (Float& axis : pad.axes)
                 {
                     axis = 0.0f;
                 }
@@ -544,7 +549,7 @@ namespace JBro::System
             pad.connected = true;
             for (std::size_t index = 0; index < GamepadButtonCount; ++index)
             {
-                const bool down = (source.buttons & (1u << index)) != 0;
+                const Bool down = (source.buttons & (1u << index)) != 0;
                 if (down)
                 {
                     Press(pad.buttons[index]);
@@ -569,7 +574,7 @@ namespace JBro::System
         }
     }
 
-    void InputSystem::PollGamepads(IPlatform& platform, float deltaTime)
+    void InputSystem::PollGamepads(IPlatform& platform, Float deltaTime)
     {
         if (false == m_focused)
         {
@@ -577,7 +582,7 @@ namespace JBro::System
             return;
         }
         GamepadRawState raw[MaxGamepads];
-        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        for (UInt32 slot = 0; slot < MaxGamepads; ++slot)
         {
             // 빈 자리는 가끔만 묻는다. 꽂으면 길어야 그만큼 뒤에 보인다(60 fps 에서 2 초).
             if (false == m_frame.gamepads[slot].connected && m_gamepadRecheck[slot] > 0)
@@ -593,7 +598,7 @@ namespace JBro::System
         }
         FoldGamepads(raw);
 
-        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        for (UInt32 slot = 0; slot < MaxGamepads; ++slot)
         {
             Vibration& vibration = m_vibration[slot];
             if (vibration.timed)
@@ -626,7 +631,7 @@ namespace JBro::System
     {
         GamepadRawState none[MaxGamepads];
         FoldGamepads(none);
-        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        for (UInt32 slot = 0; slot < MaxGamepads; ++slot)
         {
             Vibration& vibration = m_vibration[slot];
             // 포커스를 잃으면 폴링을 멈춘다 - 모터는 직접 멈춰야 한다(알트탭한 뒤에도 울리던 것을 기존 엔진이 고쳤다).
@@ -640,7 +645,7 @@ namespace JBro::System
         }
     }
 
-    float InputSystem::GetAppliedVibration(std::uint32_t slot, bool high) const
+    Float InputSystem::GetAppliedVibration(UInt32 slot, Bool high) const
     {
         if (slot >= MaxGamepads)
         {
@@ -649,30 +654,30 @@ namespace JBro::System
         return high ? m_vibration[slot].appliedHigh : m_vibration[slot].appliedLow;
     }
 
-    void InputSystem::SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) noexcept
+    void InputSystem::SetGamepadVibration(UInt32 slot, Float low, Float high, Float seconds) noexcept
     {
         if (slot >= MaxGamepads)
         {
             return;
         }
         Vibration& vibration = m_vibration[slot];
-        vibration.low = std::clamp(low, 0.0f, 1.0f);
-        vibration.high = std::clamp(high, 0.0f, 1.0f);
+        vibration.low = JBro::Clamp(low, 0.0f, 1.0f);
+        vibration.high = JBro::Clamp(high, 0.0f, 1.0f);
         vibration.timed = seconds > 0.0f;
         vibration.remaining = seconds;
     }
 
-    void InputSystem::SetGamepadDeadzones(float stick, float trigger) noexcept
+    void InputSystem::SetGamepadDeadzones(Float stick, Float trigger) noexcept
     {
-        m_stickDeadzone = std::clamp(stick, 0.0f, 0.95f);
-        m_triggerThreshold = std::clamp(trigger, 0.0f, 0.95f);
+        m_stickDeadzone = JBro::Clamp(stick, 0.0f, 0.95f);
+        m_triggerThreshold = JBro::Clamp(trigger, 0.0f, 0.95f);
     }
 
-    void InputSystem::FoldTouch(std::uint32_t id, float x, float y, TouchPhase phase)
+    void InputSystem::FoldTouch(UInt32 id, Float x, Float y, TouchPhase phase)
     {
         TouchState& touch = m_frame.touch;
         TouchPoint* point = nullptr;
-        for (std::uint32_t index = 0; index < touch.count; ++index)
+        for (UInt32 index = 0; index < touch.count; ++index)
         {
             if (touch.points[index].id == id && touch.points[index].IsActive())
             {
@@ -731,7 +736,7 @@ namespace JBro::System
         }
     }
 
-    void InputSystem::InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept
+    void InputSystem::InjectTouch(UInt32 id, Float x, Float y, TouchPhase phase) noexcept
     {
         // `Stationary` 는 접는 쪽이 무시한다(닿아 있는 손가락은 저절로 가만히 있다).
         if (m_injectedCount >= MaxInjectedTouches)
@@ -745,7 +750,7 @@ namespace JBro::System
     void InputSystem::ReleaseAll()
     {
         // 창이 포커스를 잃으면 닿아 있던 손가락은 시스템이 가져간 것이다.
-        for (std::uint32_t index = 0; index < m_frame.touch.count; ++index)
+        for (UInt32 index = 0; index < m_frame.touch.count; ++index)
         {
             if (m_frame.touch.points[index].IsActive())
             {

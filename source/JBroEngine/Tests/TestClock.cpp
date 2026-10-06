@@ -3,6 +3,7 @@
 #include <JBro/Runtime/SystemContext.h>
 
 #include <stdexcept>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Testing
 {
@@ -33,7 +34,7 @@ namespace JBro::Testing
         context.time = &clock;
     }
 
-    void Tick(IFramework& framework, float deltaTime)
+    void Tick(IFramework& framework, Float deltaTime)
     {
         if (false == SharedClock().BeginFrame(deltaTime))
         {

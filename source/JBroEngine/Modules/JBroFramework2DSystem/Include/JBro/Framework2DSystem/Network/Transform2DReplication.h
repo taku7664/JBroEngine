@@ -5,6 +5,7 @@
 #include <JBro/Types/Math2D.h>
 
 #include <type_traits>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -12,7 +13,7 @@ namespace JBro
     struct Transform2DWire
     {
         Vector2 position;
-        float rotation = 0.0f;
+        Float rotation = 0.0f;
         Vector2 scale{ 1.0f, 1.0f };
     };
 
@@ -29,7 +30,7 @@ namespace JBro
         }
 
         // `from` 이 있으면 두 스냅숏 사이를 `alpha` 로 보간한다(network-plan §2.6). 없으면 그대로 둔다.
-        static void Unpack(const Transform2DWire* from, const Transform2DWire& to, float alpha, Component::Transform2D& transform)
+        static void Unpack(const Transform2DWire* from, const Transform2DWire& to, Float alpha, Component::Transform2D& transform)
         {
             if (nullptr == from || alpha >= 1.0f)
             {
@@ -38,7 +39,7 @@ namespace JBro
                 transform.scale = to.scale;
                 return;
             }
-            const float t = alpha < 0.0f ? 0.0f : alpha;
+            const Float t = alpha < 0.0f ? Float(0.0f) : alpha;
             transform.position = { from->position.x + (to.position.x - from->position.x) * t,
                 from->position.y + (to.position.y - from->position.y) * t };
             transform.SetRotationRadian(Radian(from->rotation + (to.rotation - from->rotation) * t));

@@ -2,12 +2,13 @@
 
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Types/Table.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Package
 {
     namespace
     {
-        bool IsHex(char value)
+        Bool IsHex(char value)
         {
             return (value >= '0' && value <= '9') || (value >= 'a' && value <= 'f') || (value >= 'A' && value <= 'F');
         }
@@ -54,7 +55,7 @@ namespace JBro::Package
         out.Clear();
         LooseAssetSource loose;
         loose.Bind(&platform, assetRoot);
-        Table<AssetId, bool> seen;
+        Table<AssetId, Bool> seen;
         const auto visit = [&](const AssetId& id) {
             if (seen.Contains(id) || nullptr == registry.Find(id))
             {

@@ -4,6 +4,10 @@
 #include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -22,9 +26,9 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDestroy() override;
-        void OnUpdate(float deltaTime) override;
+        void OnUpdate(Float deltaTime) override;
         void OnDraw() override;
 
     private:
@@ -34,19 +38,19 @@ namespace JBro
         };
 
         void DrawShortcuts();
-        void DrawShortcutRow(std::uint32_t index, const EditorShortcutView& view);
+        void DrawShortcutRow(UInt32 index, const EditorShortcutView& view);
         // 잡는 중이면 이번 프레임에 눌린 키를 본다. Esc 는 취소, 다른 키는 그 조합이 된다.
         void UpdateCapture();
-        void StartCapture(const char* id, std::uint32_t slot);
+        void StartCapture(const char* id, UInt32 slot);
         void StopCapture();
-        static void AnswerResetAll(EditorApplication& editor, int choice, void* user);
+        static void AnswerResetAll(EditorApplication& editor, Int32 choice, void* user);
 
         EditorApplication* m_editor = nullptr;
         Page m_page = Page::Shortcuts;
         String m_search;
         // 잡고 있는 단축키의 저장 이름과 자리. 이름이 비면 잡고 있지 않다 - 번호가 아니라 이름으로 든다(등록이 풀려 번호가 밀려도 맞다).
         String m_captureId;
-        std::uint32_t m_captureSlot = 0;
+        UInt32 m_captureSlot = 0;
         // 한 프레임에 한 번 채운다. 늘 같은 배열을 다시 쓴다.
         Array<ShortcutConflict> m_conflicts;
     };

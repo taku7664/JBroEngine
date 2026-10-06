@@ -7,6 +7,10 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -61,10 +65,10 @@ namespace JBro
     struct ProjectBuildSettings
     {
         String        productName;
-        bool          enableWindows = true;
-        bool          enableWeb = false;
-        bool          enableAndroid = false;
-        bool          enableIOS = false;
+        Bool          enableWindows = true;
+        Bool          enableWeb = false;
+        Bool          enableAndroid = false;
+        Bool          enableIOS = false;
         String        outputDirectory = "Dist/Games";
         String        startupCanvas;
         Array<String> buildCanvases;
@@ -72,7 +76,7 @@ namespace JBro
         String        scriptOutputLibraryPath = "GameScript.dll";
         // 물리 스레드(D-223). Workers 일 때만 physicsWorkers 를 쓴다. 스레드가 없는 플랫폼(웹)은 무엇이든 메인 한 스레드다.
         PhysicsThreadMode physicsThreadMode = PhysicsThreadMode::Auto;
-        std::uint32_t     physicsWorkers = 0;
+        UInt32     physicsWorkers = 0;
     };
 
     // 오디오 버스 하나다(D-197). 키는 기존 엔진과 같다 - `AudioBuses` 아래 `- Name:`·`Volume:` 의 맵 시퀀스다.
@@ -81,7 +85,7 @@ namespace JBro
     {
         String name;
         // 시작 음량이다(0..1). 스크립트가 바꾸면 그쪽이 이긴다.
-        float volume = 1.0f;
+        Float volume = 1.0f;
         // 이펙트 사슬(D-202). 기본값과 다른 칸만 파일에 적힌다(`LowPass:`·`HighPass:`·`EchoDelay:`·`EchoFeedback:`·`EchoMix:`·
         // `ReverbRoom:`·`ReverbDamping:`·`ReverbMix:`) - 기존 엔진의 파일은 이 키가 없어도 바이트 하나 바뀌지 않는다.
         AudioBusEffects effects;
@@ -89,11 +93,11 @@ namespace JBro
         String parent;
         // 센드(`Send:`·`SendLevel:`)다. 받는 버스 이름과 양(0..1). 비우거나 양이 0 이면 적지 않는다.
         String send;
-        float sendLevel = 0.0f;
+        Float sendLevel = 0.0f;
         // 더킹(`DuckBy:`·`DuckAmount:`·`DuckRelease:`, D-205). 비우거나 양이 0 이면 적지 않는다.
         String duckBy;
-        float duckAmount = 0.0f;
-        float duckRelease = 0.3f;
+        Float duckAmount = 0.0f;
+        Float duckRelease = 0.3f;
     };
 
     // 입력 바인딩 하나다(D-214). 키는 기존 엔진과 같다 - `Source:`·`Code:`·`GamepadIndex:`(-1 이면 적지 않는다)·
@@ -102,7 +106,7 @@ namespace JBro
     {
         InputBindingSource source = InputBindingSource::Key;
         std::uint16_t code = 0;
-        int gamepad = -1;
+        Int32 gamepad = -1;
         InputComposite composite = InputComposite::None;
     };
 
@@ -126,7 +130,7 @@ namespace JBro
 
     struct ProjectFile
     {
-        std::uint32_t version = 1;
+        UInt32 version = 1;
         // 이 프로젝트를 여는 엔진 버전이다(`EngineVersion`). **없으면 파일이 거절된다**(D-99) -
         // 런처가 이 값으로 어느 엔진 설치를 띄울지 고르므로, 비어 있으면 고를 수가 없다.
         String        engineVersion;
@@ -134,20 +138,20 @@ namespace JBro
         // 정해 두면 3D 프로젝트가 조용히 2D 로 열리고, 그 화면은 비어 있다.
         FrameworkKind framework = FrameworkKind::Framework2D;
         String        rootPath = ".";
-        std::uint32_t resolutionWidth = 1920;
-        std::uint32_t resolutionHeight = 1080;
+        UInt32 resolutionWidth = 1920;
+        UInt32 resolutionHeight = 1080;
         // 텍스처 샘플링의 프로젝트 기본(`TextureFilter: Nearest|Linear`, D-117). 텍스처의 임포트 옵션이 덮어쓴다.
         // 2D 픽셀 아트가 기본 대상이라 `Nearest` 다. `Default` 는 파일에 적을 수 없다.
         TextureFilter textureFilter = TextureFilter::Nearest;
-        bool          debugModeEnabled = false;
+        Bool          debugModeEnabled = false;
         // 시간(D-242). 고정 스텝 하나의 길이(`FixedDeltaTime`, 0.001~1 초)·한 프레임의 스텝 상한(`MaxFixedSteps`, 1~64)·한 프레임 델타의
         // 상한(`MaxDeltaTime`, 0 초과 10 이하)이다. 범위를 벗어나면 파일이 거절된다. 기본값이면 파일에 적지 않는다.
-        float         fixedDeltaTime = 1.0f / 60.0f;
-        std::uint32_t maxFixedSteps = 4;
-        float         maxDeltaTime = 0.25f;
+        Float         fixedDeltaTime = 1.0f / 60.0f;
+        UInt32 maxFixedSteps = 4;
+        Float         maxDeltaTime = 0.25f;
         // 엔진 난수 흐름의 씨앗(`RandomSeed`, D-242)이다. 0 이면 재생마다 새로 뽑고 그 수를 로그에 남긴다 - 그 수를 여기 적으면 같은
         // 수열을 다시 본다. 0 이면 적지 않는다.
-        std::uint64_t randomSeed = 0;
+        UInt64 randomSeed = 0;
         // 에디터가 스크립트를 빌드해 내놓는 자리다. 프로젝트 루트 기준 상대경로다.
         String        scriptSourceDirectory = "Contents";
         String        scriptOutputLibraryPath = "x64/Debug/GameScript.dll";
@@ -158,10 +162,10 @@ namespace JBro
         // 한 사람이라 프로젝트에 두어도 어긋나지 않고, 둘 곳을 따로 만들면 그 파일의 자리를
         // 또 정해야 한다.
         String        editorLocale;
-        float         canvasViewCameraX = 0.0f;
-        float         canvasViewCameraY = 0.0f;
+        Float         canvasViewCameraX = 0.0f;
+        Float         canvasViewCameraY = 0.0f;
         // 0 이면 적힌 적이 없다는 뜻이다. 화면 세로 절반이 담는 월드 길이라 0 일 수 없다.
-        float         canvasViewCameraSize = 0.0f;
+        Float         canvasViewCameraSize = 0.0f;
         // 에셋 폴더다(`AssetDirectory`). 프로젝트 루트 기준 상대경로이고 레지스트리가 이 아래를 스캔한다(D-111).
         // 기존 엔진에는 이 키가 없었다 - 코드 기본값 `Assets` 였다.
         String        assetDirectory = "Contents/Assets";
@@ -176,7 +180,7 @@ namespace JBro
         // 과 같은 까닭으로 프로젝트에 둔다 - 그 이름의 장치가 없는 기계에서는 기본으로 연다.
         String        audioOutputDevice;
         // 창이 포커스를 잃으면 소리를 끈다(`AudioMuteWhenUnfocused`). 스크립트가 옵션 화면에서 바꿀 수 있다.
-        bool          audioMuteWhenUnfocused = false;
+        Bool          audioMuteWhenUnfocused = false;
         // 프로젝트의 폰트 목록이다(`Fonts`, 폰트 에셋 아이디의 시퀀스, D-200 (6)). 순서가 있다: 첫 폰트는 `fontId` 가 빈
         // 텍스트의 기본 폰트이고, 목록 전체가 글자가 없을 때 차례로 찾아보는 폴백이다. 비어 있으면 `fontId` 가 빈 텍스트는
         // 그리지 않는다.
@@ -213,16 +217,16 @@ namespace JBro
     struct ProjectFileError
     {
         // 0 이면 파일 자체를 열지 못한 것이다.
-        std::uint32_t line = 0;
+        UInt32 line = 0;
         String        message;
         // `CreateProjectFile` 만 채운다.
         ProjectCreateFailure createFailure = ProjectCreateFailure::None;
     };
 
     // 파일에서 읽는다. 실패하면 result 는 손대지 않고 error 를 채운다.
-    bool LoadProjectFile(IPlatform& platform, const char* utf8Path, ProjectFile& result, ProjectFileError& error);
+    Bool LoadProjectFile(IPlatform& platform, const char* utf8Path, ProjectFile& result, ProjectFileError& error);
     // 이미 읽어 둔 내용에서 읽는다. 테스트와 에디터의 미리보기가 쓴다.
-    bool ParseProjectFile(
+    Bool ParseProjectFile(
         const char* text,
         std::size_t length,
         ProjectFile& result,
@@ -238,7 +242,7 @@ namespace JBro
     // 아는 키가 원문에 없으면 **맨 뒤에 더한다**. `Build:` 아래의 키는 그 블록 끝에 더하고,
     // 블록 자체가 없으면 블록째 더한다. 시퀀스 키 가운데 `AssetIgnorePatterns`·`AudioBuses`·`Fonts` 는 머리줄에서
     // 통째로 새로 적고 원문의 항목 줄을 버린다. `BuildCanvases` 는 손대지 않는다.
-    bool WriteProjectFileText(
+    Bool WriteProjectFileText(
         const ProjectFile& project,
         const char* originalText,
         std::size_t originalLength,
@@ -247,21 +251,21 @@ namespace JBro
 
     // 위의 글자를 파일에 쓴다. **바꿔치기다**(D-124) - `<파일>.tmp` 에 먼저 쓰고 옮긴다.
     // 쓰다 만 파일로 프로젝트를 잃지 않는다.
-    bool SaveProjectFile(IPlatform& platform, const char* utf8Path, const ProjectFile& project,
+    Bool SaveProjectFile(IPlatform& platform, const char* utf8Path, const ProjectFile& project,
         ProjectFileError& error);
 
     // **새 프로젝트를 세운다**(D-160, 기존 `CProjectManager::CreateProject`). `<parentFolder>/<name>/` 에
     // `<name>.jproject` 와 에셋 폴더(`AssetDirectory` 기본값)를 만든다. 이름은 파일 이름이 될 수 있어야 하고,
     // **그 폴더가 이미 있으면 거절한다** - 남의 파일 위에 프로젝트를 덮어 세우지 않는다. 쓴 파일은 다시 읽어
     // 열리는 것까지 확인한다. 성공하면 `outProjectFilePath` 에 프로젝트 파일 경로가 온다.
-    bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
+    Bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
         FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
         ProjectFileError& error);
 
     // 프로젝트의 액션을 입력 시스템의 고정 표로 옮긴다(D-214). 이름과 세트 이름은 이름표에 넣는다 - 없는 이름의 경고가 이름으로 말한다.
     // 표는 고정 크기다: 액션 64·바인딩 8·세트 32 를 넘는 것은 버리고 거짓을 돌려준다(파일은 그대로라 되살릴 수 있다).
     // 세트가 넘친 액션은 통째로 버린다 - `Default` 에 넣으면 끄려던 액션이 늘 켜져 있다.
-    bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out);
+    Bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out);
 
     // 프로젝트 루트와 합쳐 실제로 로드할 스크립트 DLL 경로를 만든다.
     // 절대경로면 그대로 두고, 상대경로면 프로젝트 파일이 있는 폴더 기준으로 붙인다.

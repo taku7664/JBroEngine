@@ -1,17 +1,20 @@
 ﻿#include <JBro/Host/TimeSystem.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
-    bool TimeSystem::IsValid(const TimeSettings& settings)
+    Bool TimeSystem::IsValid(const TimeSettings& settings)
     {
         return std::isfinite(settings.fixedDeltaTime) && settings.fixedDeltaTime >= 0.001f && settings.fixedDeltaTime <= 1.0f
             && settings.maxFixedSteps >= 1 && settings.maxFixedSteps <= 64
             && std::isfinite(settings.maxDeltaTime) && settings.maxDeltaTime > 0.0f && settings.maxDeltaTime <= 10.0f;
     }
 
-    bool TimeSystem::Configure(const TimeSettings& settings)
+    Bool TimeSystem::Configure(const TimeSettings& settings)
     {
         if (false == IsValid(settings))
         {
@@ -28,13 +31,13 @@ namespace JBro::System
         return m_settings;
     }
 
-    bool TimeSystem::BeginFrame(float rawDeltaTime)
+    Bool TimeSystem::BeginFrame(Float rawDeltaTime)
     {
         if (false == std::isfinite(rawDeltaTime) || rawDeltaTime < 0.0f)
         {
             return false;
         }
-        const float unscaled = rawDeltaTime > m_settings.maxDeltaTime ? m_settings.maxDeltaTime : rawDeltaTime;
+        const Float unscaled = rawDeltaTime > m_settings.maxDeltaTime ? m_settings.maxDeltaTime : rawDeltaTime;
         const double fixed = m_settings.fixedDeltaTime;
         ++m_time.frameCount;
         m_time.unscaledDeltaTime = unscaled;
@@ -45,7 +48,7 @@ namespace JBro::System
         m_stepRequested = false;
 
         double delta = 0.0;
-        std::uint32_t steps = 0;
+        UInt32 steps = 0;
         if (m_time.stepFrame)
         {
             // 한 프레임 진행은 누산기를 건드리지 않고 정확히 한 스텝이다. 게임 시간도 그만큼만 간다.
@@ -94,7 +97,7 @@ namespace JBro::System
         m_time.inFixedStep = false;
     }
 
-    void TimeSystem::SetPaused(bool paused)
+    void TimeSystem::SetPaused(Bool paused)
     {
         m_time.paused = paused;
         if (false == paused)
@@ -103,7 +106,7 @@ namespace JBro::System
         }
     }
 
-    bool TimeSystem::IsPaused() const
+    Bool TimeSystem::IsPaused() const
     {
         return m_time.paused;
     }
@@ -116,12 +119,12 @@ namespace JBro::System
         }
     }
 
-    bool TimeSystem::IsStepFrame() const
+    Bool TimeSystem::IsStepFrame() const
     {
         return m_time.stepFrame;
     }
 
-    bool TimeSystem::IsSimulating() const
+    Bool TimeSystem::IsSimulating() const
     {
         return false == m_time.paused || m_time.stepFrame;
     }
@@ -145,7 +148,7 @@ namespace JBro::System
         return m_time;
     }
 
-    bool TimeSystem::SetTimeScale(float scale)
+    Bool TimeSystem::SetTimeScale(Float scale)
     {
         if (false == std::isfinite(scale) || scale < 0.0f || scale > 100.0f)
         {

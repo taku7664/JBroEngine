@@ -8,6 +8,7 @@
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Component
 {
@@ -19,13 +20,13 @@ namespace JBro::Component
     // 변수는 번역 단위마다 따로 생기지 않으므로 "한 번만 등록" 계약은 그대로다.
     //
     // 두 번 불러도 된다. 프레임 루프에서 부르는 함수가 아니다.
-    inline bool RegisterBuiltinComponentProperties3D()
+    inline Bool RegisterBuiltinComponentProperties3D()
     {
-        static const bool registered = []
+        static const Bool registered = []
         {
             // && 로 엮지 않는다. 하나가 실패하면 뒤의 것이 아예 등록되지 않고,
             // 그러면 첫 실패 하나가 인스펙터에서 여러 컴포넌트를 통째로 지운다.
-            bool all = true;
+            Bool all = true;
             all = RegisterBuiltinProperties<Transform3D>()    && all;
             all = RegisterBuiltinProperties<Camera3D>()       && all;
             all = RegisterBuiltinProperties<MeshRenderer3D>() && all;

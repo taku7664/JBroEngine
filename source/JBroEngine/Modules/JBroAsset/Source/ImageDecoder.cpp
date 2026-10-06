@@ -13,10 +13,12 @@
 #define STBI_NO_STDIO
 #define STBI_NO_FAILURE_STRINGS
 #include <stb_image.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
-    bool DecodeImage(JArrayView<std::byte> encoded, DecodedImage& result)
+    Bool DecodeImage(JArrayView<std::byte> encoded, DecodedImage& result)
     {
         if (encoded.data == nullptr || encoded.size == 0
             || encoded.size > static_cast<std::uint32_t>(std::numeric_limits<int>::max()))

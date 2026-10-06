@@ -90,6 +90,7 @@ using ProbeLocalizationInterface = JBro::System::ILocalization;
 #endif
 
 #include <type_traits>
+#include <JBro/Types/Float.h>
 
 namespace
 {
@@ -120,7 +121,7 @@ namespace
     private:
         GameObjectHandle           m_target;
         Ref<Component::Transform2D> m_transform;
-        float                      m_elapsed = 0.0f;
+        JBro::Float                      m_elapsed = 0.0f;
     };
 
     // 스크립트가 보는 참조의 형태를 고정한다(D-5, D-44).

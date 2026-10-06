@@ -2,6 +2,10 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 크기 값 타입이다. **위치가 아니라 넓이와 높이를 담는다.**
 //
@@ -25,7 +29,7 @@ namespace JBro
         constexpr SizeT(T w, T h) noexcept : width(w), height(h) {}
 
         // 넓이나 높이가 0 이면 그리지도 재지도 못한다. 나누기 전에 이것으로 막는다.
-        constexpr bool IsEmpty() const noexcept
+        constexpr Bool IsEmpty() const noexcept
         {
             return width <= T{} || height <= T{};
         }
@@ -36,7 +40,7 @@ namespace JBro
         }
 
         // 가로세로비다. **높이가 0 이면 0 을 돌려준다** - 나누어 무한을 만들지 않는다.
-        constexpr float AspectRatio() const noexcept
+        constexpr Float AspectRatio() const noexcept
         {
             if (height == T{})
             {
@@ -104,11 +108,11 @@ namespace JBro
     };
 
     // 월드·화면의 실수 크기다. 이름이 없는 `Size` 는 이것을 뜻한다.
-    using Size = SizeT<float>;
+    using Size = SizeT<Float>;
     // 텍스처·창처럼 픽셀 개수로 세는 크기다.
-    using SizeU = SizeT<std::uint32_t>;
+    using SizeU = SizeT<UInt32>;
     // 음수가 뜻을 갖는 픽셀 크기다(차이·여백).
-    using SizeI = SizeT<std::int32_t>;
+    using SizeI = SizeT<Int32>;
 
     // DLL 경계를 넘는 자리에 쓰이므로 배치가 두 스칼라와 같아야 한다(§ POD 규칙).
     static_assert(sizeof(Size) == sizeof(float) * 2);

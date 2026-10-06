@@ -17,10 +17,12 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -31,8 +33,8 @@ namespace
     class Probe final : public JBro::EnableSafeFromThis<Probe>
     {
     public:
-        explicit Probe(int value) : Value(value) {}
-        int Value = 0;
+        explicit Probe(JBro::Int32 value) : Value(value) {}
+        JBro::Int32 Value = 0;
     };
 
     // 청크가 여러 개가 되도록 키운 뒤, 슬롯을 뒤섞어 파괴·재생성한다.
@@ -42,7 +44,7 @@ namespace
         JBro::TObjectPool<Probe, 8> pool(JBro::CreateDefaultAllocator());
 
         JBro::Array<Probe*> live;
-        for (int value = 0; value < 500; ++value)
+        for (JBro::Int32 value = 0; value < 500; ++value)
         {
             Probe* created = pool.Create(value);
             Check(created != nullptr, "pool must create across many chunks");
@@ -83,7 +85,7 @@ namespace
         Check(false == pool.Destroy(nullptr), "a null pointer must be rejected");
 
         // 빈 자리를 다시 채운다.
-        for (int value = 1000; value < 1250; ++value)
+        for (JBro::Int32 value = 1000; value < 1250; ++value)
         {
             Check(pool.Create(value) != nullptr, "freed slots must be reusable");
         }
@@ -124,7 +126,7 @@ namespace
     // 오브젝트 생성 순서가 아니다. 그래서 부착 순서를 뒤집어야 flush 순서가 뒤집힌다.
     // 부모를 나중에 부착하면 부모가 나중에 큐에 들어가고 먼저 flush 되어,
     // 큐에 남은 자식 항목이 이미 만료된 경로를 밟는다. 한쪽만 돌리면 그 경로는 실행되지 않는다.
-    void RunDeferredDestroyWithQueuedPair(bool attachParentLast, const char* label)
+    void RunDeferredDestroyWithQueuedPair(JBro::Bool attachParentLast, const char* label)
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::GameObject* parent = canvas.CreateObject("parent");
@@ -318,7 +320,7 @@ namespace
     }
 }
 
-int RunCoreModelStressTests()
+JBro::Int32 RunCoreModelStressTests()
 {
     TestPoolAddressLookupAcrossManyChunks();
     TestControlBlockWithLiveReferenceIsNotRecycled();

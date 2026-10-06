@@ -1,4 +1,6 @@
 ﻿#include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -10,7 +12,7 @@ namespace JBro
         {
             return nullptr;
         }
-        for (std::uint32_t index = 0; index < context.ExtensionCount; ++index)
+        for (UInt32 index = 0; index < context.ExtensionCount; ++index)
         {
             if (context.Extensions[index].TypeId == typeId)
             {
@@ -20,7 +22,7 @@ namespace JBro
         return nullptr;
     }
 
-    bool ValidateScriptModuleLoadContext(
+    Bool ValidateScriptModuleLoadContext(
         const ScriptModuleLoadContext& context) noexcept
     {
         if (context.AbiVersion != ScriptModuleLoadContextAbiVersion
@@ -39,7 +41,7 @@ namespace JBro
             return false;
         }
 
-        for (std::uint32_t index = 0; index < context.ExtensionCount; ++index)
+        for (UInt32 index = 0; index < context.ExtensionCount; ++index)
         {
             const ScriptContextBlock& block = context.Extensions[index];
             if (block.TypeId == 0 || block.AbiVersion == 0
@@ -47,7 +49,7 @@ namespace JBro
             {
                 return false;
             }
-            for (std::uint32_t earlier = 0; earlier < index; ++earlier)
+            for (UInt32 earlier = 0; earlier < index; ++earlier)
             {
                 if (context.Extensions[earlier].TypeId == block.TypeId)
                 {
@@ -58,7 +60,7 @@ namespace JBro
         return true;
     }
 
-    bool BindScriptModuleContexts(
+    Bool BindScriptModuleContexts(
         const ScriptModuleLoadContext& context) noexcept
     {
         if (false == ValidateScriptModuleLoadContext(context))

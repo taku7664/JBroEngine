@@ -4,6 +4,9 @@
 #include <JBro/InputTypes/InputState.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -64,7 +67,7 @@ namespace JBro
         }
 
         // 게임패드 자리(0..3)다. 범위 밖이면 빈 패드다.
-        const GamepadState& Gamepad(std::uint32_t index) const
+        const GamepadState& Gamepad(UInt32 index) const
         {
             if (m_frame == nullptr || index >= MaxGamepads || IsConsumed(InputDevice::Gamepad))
             {
@@ -85,17 +88,17 @@ namespace JBro
         // 이름 붙인 입력이다(D-214). 소비된 장치의 바인딩은 빠진다 - 위에서 마우스를 가져갔으면 마우스로 묶은 액션도 아래에서는 0 이다.
         // 프로젝트에 없는 이름이면 0 이고 한 번 경고가 남는다.
         InputActionValue Action(InputActionId action) const;
-        bool IsActionDown(InputActionId action) const;
-        bool IsActionPressed(InputActionId action) const;
-        bool IsActionReleased(InputActionId action) const;
-        float GetActionFloat(InputActionId action) const;
+        Bool IsActionDown(InputActionId action) const;
+        Bool IsActionPressed(InputActionId action) const;
+        Bool IsActionReleased(InputActionId action) const;
+        Float GetActionFloat(InputActionId action) const;
         InputVector2 GetActionVector(InputActionId action) const;
 
         // 이 장치를 아래 핸들러와 폴링에게 빈 장치로 보이게 한다. 이 핸들러 자신은 계속 읽을 수 있다 -
         // 소비는 아래로 내려가는 것이지 지금 읽는 것을 지우는 일이 아니다.
         void Consume(InputDevice device)
         {
-            const std::uint32_t bit = DeviceBit(device);
+            const UInt32 bit = DeviceBit(device);
             m_pendingConsumed |= bit;
         }
 
@@ -105,7 +108,7 @@ namespace JBro
         }
 
         // 위의 핸들러가 이미 가져간 장치인가.
-        bool IsConsumed(InputDevice device) const
+        Bool IsConsumed(InputDevice device) const
         {
             return (m_consumed & DeviceBit(device)) != 0;
         }
@@ -113,14 +116,14 @@ namespace JBro
     private:
         friend class System::InputSystem;
 
-        static constexpr std::uint32_t AllDevices =
+        static constexpr UInt32 AllDevices =
             (1u << static_cast<std::uint32_t>(InputDevice::Count)) - 1u;
 
         InputView() = default;
 
-        static constexpr std::uint32_t DeviceBit(InputDevice device)
+        static constexpr UInt32 DeviceBit(InputDevice device)
         {
-            const std::uint32_t index = static_cast<std::uint32_t>(device);
+            const UInt32 index = static_cast<std::uint32_t>(device);
             if (index >= static_cast<std::uint32_t>(InputDevice::Count))
             {
                 return 0;
@@ -132,8 +135,8 @@ namespace JBro
         // 호스트의 액션 표다. 없으면 모든 액션이 0 이다.
         InputActionMap* m_actions = nullptr;
         // 위에서 가져간 것. 이 핸들러가 읽을 때 빈 장치로 보인다.
-        std::uint32_t m_consumed = 0;
+        UInt32 m_consumed = 0;
         // 이 핸들러가 이번에 가져간 것. 핸들러가 돌아온 뒤 `m_consumed` 에 합쳐진다.
-        std::uint32_t m_pendingConsumed = 0;
+        UInt32 m_pendingConsumed = 0;
     };
 }

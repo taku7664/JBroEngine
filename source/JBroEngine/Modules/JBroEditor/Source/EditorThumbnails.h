@@ -1,10 +1,12 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -27,10 +29,10 @@ namespace JBro
     {
     public:
         // 긴 변의 최대 픽셀이다.
-        static constexpr std::uint32_t MaxSide = 128;
+        static constexpr UInt32 MaxSide = 128;
         // 한 프레임에 새로 만드는 개수다. 나머지는 다음 프레임에 만들어진다 -
         // 폴더를 열자마자 백 장을 올리면 그 프레임이 눈에 띄게 멈춘다.
-        static constexpr std::uint32_t MaxNewPerFrame = 4;
+        static constexpr UInt32 MaxNewPerFrame = 4;
 
         void Initialize(IRHIDevice& device, AssetSystem& assets);
         void Shutdown();
@@ -42,36 +44,36 @@ namespace JBro
         // `maxSide` 는 긴 변의 한계다. 목록의 칸은 `MaxSide` 로, 스프라이트 뷰어의 시트는
         // 더 크게 묻는다(D-155) - 크기마다 따로 든다. 칸을 고르려면 칸의 경계가 보여야 하는데,
         // 128 로 줄인 시트에서는 32 픽셀짜리 칸이 몇 픽셀로 뭉친다.
-        TextureHandle Get(AssetId asset, std::uint32_t maxSide = MaxSide);
+        TextureHandle Get(AssetId asset, UInt32 maxSide = MaxSide);
         // 그 그림의 원본 크기다. 아직 만들지 않았으면 거짓이다.
-        bool GetSourceSize(AssetId asset, std::uint32_t& width, std::uint32_t& height) const;
+        Bool GetSourceSize(AssetId asset, UInt32& width, UInt32& height) const;
         // 다시 읽힌 에셋의 그림을 버린다. 다음에 물으면 새로 만든다.
         void Invalidate(AssetId asset);
         void Clear();
 
-        std::uint32_t GetCount() const { return static_cast<std::uint32_t>(m_entries.Size()); }
+        UInt32 GetCount() const { return static_cast<std::uint32_t>(m_entries.Size()); }
 
     private:
         struct Entry
         {
             AssetId asset;
-            std::uint32_t maxSide = MaxSide;
+            UInt32 maxSide = MaxSide;
             // 원본 그림의 크기다. 시트 위에 칸을 그을 때 픽셀 자리를 화면 자리로 바꾸는 데 쓴다.
-            std::uint32_t sourceWidth = 0;
-            std::uint32_t sourceHeight = 0;
+            UInt32 sourceWidth = 0;
+            UInt32 sourceHeight = 0;
             TextureHandle texture;
             // 만들 때 본 픽셀 세대다. 에셋이 제자리에서 다시 읽히면 이 값이 달라진다.
-            std::uint32_t pixelGeneration = 0;
+            UInt32 pixelGeneration = 0;
             // 만들려다 실패했는가. 실패한 것을 프레임마다 다시 만들려 들면 목록이 멈춘다.
-            bool failed = false;
+            Bool failed = false;
         };
 
-        Entry* Find(AssetId asset, std::uint32_t maxSide);
-        bool Build(AssetId asset, Entry& entry);
+        Entry* Find(AssetId asset, UInt32 maxSide);
+        Bool Build(AssetId asset, Entry& entry);
 
         IRHIDevice* m_device = nullptr;
         AssetSystem* m_assets = nullptr;
         Array<Entry> m_entries;
-        std::uint32_t m_budget = 0;
+        UInt32 m_budget = 0;
     };
 }

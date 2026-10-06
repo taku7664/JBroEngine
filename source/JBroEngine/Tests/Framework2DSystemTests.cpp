@@ -17,10 +17,13 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -28,7 +31,7 @@ namespace
         }
     }
 
-    bool NearlyEqual(float left, float right)
+    JBro::Bool NearlyEqual(JBro::Float left, JBro::Float right)
     {
         return std::fabs(left - right) <= 0.0001f;
     }
@@ -221,12 +224,12 @@ namespace
         Check(NearlyEqual(body->linearVelocity.y, -4.905f), "gravity must update velocity");
         // 커널은 고정 스텝을 넷으로 나눠 적분한다(D-199). 서브스텝 h 마다 속도를 먼저 올리고 옮기므로
         // 위치는 -g·h²·(1 + 2 + 3 + 4) 다. 한 번에 옮기던 옛 값(-2.4525)보다 참값 -g·t²/2 = -1.226 에 가깝다.
-        const float subStep = 0.5f / 4.0f;
+        const JBro::Float subStep = 0.5f / 4.0f;
         Check(NearlyEqual(transform->position.y, -9.81f * subStep * subStep * 10.0f), "velocity must update position");
         Check(false == transform->worldValid, "physics movement must invalidate the world transform");
 
         body->SetEnabled(false);
-        const float disabledPosition = transform->position.y;
+        const JBro::Float disabledPosition = transform->position.y;
         system.FixedUpdate(canvas, 0.5f);
         Check(
             NearlyEqual(transform->position.y, disabledPosition),
@@ -375,7 +378,7 @@ namespace
         sprites.Update(canvas, 0.0f);
         cameras.SetRenderWorld(&world);
         sprites.SetRenderWorld(&world);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             world.BeginFrame();
             transforms.Update(canvas, 0.0f);
@@ -514,13 +517,13 @@ namespace
     void TestDeepHierarchyLookupBudget()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        constexpr int Depth = 8;
-        constexpr int Chains = 25;
+        constexpr JBro::Int32 Depth = 8;
+        constexpr JBro::Int32 Chains = 25;
 
-        for (int chain = 0; chain < Chains; ++chain)
+        for (JBro::Int32 chain = 0; chain < Chains; ++chain)
         {
             JBro::GameObject* parent = nullptr;
-            for (int level = 0; level < Depth; ++level)
+            for (JBro::Int32 level = 0; level < Depth; ++level)
             {
                 JBro::GameObject* object = canvas.CreateObject("node");
                 // Transform 을 마지막에 붙여 스캔이 가장 멀리 가게 만든다.
@@ -595,8 +598,8 @@ namespace
 
         // 부호 있는 renderOrder 가 0 을 건너도 순서가 유지되어야 한다(키 패킹 검증).
         renderWorld.BeginFrame();
-        const std::int32_t orders[] = {2147483647, 0, -2147483647 - 1, -1};
-        for (std::int32_t order : orders)
+        const JBro::Int32 orders[] = {2147483647, 0, -2147483647 - 1, -1};
+        for (JBro::Int32 order : orders)
         {
             JBro::SpriteRenderItem item;
             item.owner = first;
@@ -641,7 +644,7 @@ namespace
     }
 }
 
-int RunFramework2DSystemTests()
+JBro::Int32 RunFramework2DSystemTests()
 {
     TestTransformHierarchyPropagation();
     TestDisablingAParentTransformSkipsTheSubtreeInsteadOfMovingIt();

@@ -8,6 +8,8 @@
 
 #include <charconv>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::Internal
 {
@@ -36,7 +38,7 @@ namespace JBro::Internal
         static const ValueCodec codec = [] {
             ValueCodec made;
             made.ToText = [](const void* value, char* buffer, std::size_t capacity,
-                std::size_t& required) noexcept -> bool {
+                std::size_t& required) noexcept -> Bool {
                 const InstanceId objectId = static_cast<const GameObjectHandle*>(value)->GetInstanceId();
                 char local[32];
                 std::size_t length = 0;
@@ -46,7 +48,7 @@ namespace JBro::Internal
                     if (remap != nullptr && remap->toIndex != nullptr)
                     {
                         // 이 캔버스에 없는 오브젝트(지워졌다)를 가리키면 빈 참조로 적는다.
-                        const std::int64_t index = remap->toIndex(remap->user, objectId);
+                        const Int64 index = remap->toIndex(remap->user, objectId);
                         if (index >= 0)
                         {
                             length = static_cast<std::size_t>(std::to_chars(local, local + sizeof(local), index).ptr - local);
@@ -67,7 +69,7 @@ namespace JBro::Internal
                 buffer[length] = '\0';
                 return true;
             };
-            made.FromText = [](void* value, const char* text, std::size_t length) noexcept -> bool {
+            made.FromText = [](void* value, const char* text, std::size_t length) noexcept -> Bool {
                 if (text == nullptr)
                 {
                     return false;
@@ -80,7 +82,7 @@ namespace JBro::Internal
                 }
                 if (text[0] == '@')
                 {
-                    InstanceId objectId = InvalidInstanceId;
+                    std::uint64_t objectId = InvalidInstanceId.Get();
                     const auto parsed = std::from_chars(text + 1, text + length, objectId);
                     if (parsed.ec != std::errc() || parsed.ptr != text + length)
                     {
@@ -104,7 +106,7 @@ namespace JBro::Internal
                 handle = GameObjectHandleAccess::FromId(remap->toObjectId(remap->user, index));
                 return true;
             };
-            made.Equals = [](const void* left, const void* right) noexcept -> bool {
+            made.Equals = [](const void* left, const void* right) noexcept -> Bool {
                 return static_cast<const GameObjectHandle*>(left)->GetInstanceId()
                     == static_cast<const GameObjectHandle*>(right)->GetInstanceId();
             };

@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -17,7 +18,7 @@ namespace JBro
         static AssetId BuiltinCubeId();
 
         // 빌트인 도형을 렌더러에 올린다. 렌더러가 없으면(테스트) 표만 비어 있고 참이다.
-        bool Initialize(Renderer* renderer);
+        Bool Initialize(Renderer* renderer);
         void Shutdown();
 
         // 아이디로 핸들을 찾는다. 모르면 빈 핸들이다.

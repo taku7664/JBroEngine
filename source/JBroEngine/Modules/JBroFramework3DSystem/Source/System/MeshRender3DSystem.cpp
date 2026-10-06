@@ -7,10 +7,12 @@
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
-    int MeshRender3DSystem::GetExecutionOrder() const
+    Int32 MeshRender3DSystem::GetExecutionOrder() const
     {
         return 400;
     }
@@ -67,13 +69,13 @@ namespace JBro::System
             item.tint = renderer.tint;
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
-            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
-            item.layerParallax = layer != nullptr ? layer->GetParallax() : 1.0f;
+            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
+            item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
             m_renderWorld->SubmitMesh(item);
         });
     }
 
-    void MeshRender3DSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void MeshRender3DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         (void)deltaTime;
         ExtractRenderWorld(canvas);

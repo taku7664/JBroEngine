@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -18,7 +19,7 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Bottom; }
 

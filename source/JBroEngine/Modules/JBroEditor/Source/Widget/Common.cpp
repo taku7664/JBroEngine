@@ -6,6 +6,10 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -13,10 +17,10 @@ namespace JBro::Widget
     {
         constexpr ImVec4 InvalidBorderColor = EditorTheme::Danger;
         // 도구 줄 구분선의 앞뒤 간격. 단추 사이 기본 간격보다 넓어야 무리가 갈린 것으로 읽힌다.
-        constexpr float ToolBarSeparatorSpacing = 12.0f;
+        constexpr Float ToolBarSeparatorSpacing = 12.0f;
     }
 
-    bool IsEmptyText(const char* text)
+    Bool IsEmptyText(const char* text)
     {
         return text == nullptr || text[0] == '\0';
     }
@@ -54,17 +58,17 @@ namespace JBro::Widget
         }
     }
 
-    ImVec4 WithAlpha(ImVec4 color, float alpha)
+    ImVec4 WithAlpha(ImVec4 color, Float alpha)
     {
         color.w = alpha;
         return color;
     }
 
-    ImVec4 ScaleColor(ImVec4 color, float scale)
+    ImVec4 ScaleColor(ImVec4 color, Float scale)
     {
-        color.x = std::clamp(color.x * scale, 0.0f, 1.0f);
-        color.y = std::clamp(color.y * scale, 0.0f, 1.0f);
-        color.z = std::clamp(color.z * scale, 0.0f, 1.0f);
+        color.x = JBro::Clamp(color.x * scale, 0.0f, 1.0f);
+        color.y = JBro::Clamp(color.y * scale, 0.0f, 1.0f);
+        color.z = JBro::Clamp(color.z * scale, 0.0f, 1.0f);
         return color;
     }
 
@@ -82,12 +86,12 @@ namespace JBro::Widget
         }
     }
 
-    bool MouseWasDragged(ImGuiMouseButton button)
+    Bool MouseWasDragged(ImGuiMouseButton button)
     {
         // `GetMouseDragDelta` 는 누른 자리에서의 거리이고 **놓는 프레임까지 살아 있다**.
         // `IsMouseDragging` 은 누르고 있는 동안만 참이라 뗄 때 묻는 자리에는 맞지 않는다.
         const ImVec2 delta = ImGui::GetMouseDragDelta(button, 0.0f);
-        const float threshold = ImGui::GetIO().MouseDragThreshold;
+        const Float threshold = ImGui::GetIO().MouseDragThreshold;
         return (delta.x * delta.x + delta.y * delta.y) > (threshold * threshold);
     }
 
@@ -117,7 +121,7 @@ namespace JBro::Widget
         Pop();
     }
 
-    DisableScope::DisableScope(bool disable)
+    DisableScope::DisableScope(Bool disable)
         : m_disabled(disable)
     {
         if (m_disabled)
@@ -134,12 +138,12 @@ namespace JBro::Widget
         }
     }
 
-    bool DisableScope::IsDisabled() const
+    Bool DisableScope::IsDisabled() const
     {
         return m_disabled;
     }
 
-    InvalidScope::InvalidScope(bool invalid)
+    InvalidScope::InvalidScope(Bool invalid)
         : m_invalid(invalid)
     {
         if (m_invalid)
@@ -163,7 +167,7 @@ namespace JBro::Widget
         ImGui::PushID(id);
     }
 
-    IdScope::IdScope(int id)
+    IdScope::IdScope(Int32 id)
     {
         ImGui::PushID(id);
     }

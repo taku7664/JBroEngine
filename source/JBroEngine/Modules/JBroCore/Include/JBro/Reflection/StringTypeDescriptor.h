@@ -6,6 +6,7 @@
 #include <JBro/Types/String.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -19,7 +20,7 @@ namespace JBro
         static const ValueCodec codec = [] {
             ValueCodec made;
             made.ToText = [](const void* value, char* buffer, std::size_t capacity,
-                std::size_t& required) noexcept -> bool {
+                std::size_t& required) noexcept -> Bool {
                 const String& text = *static_cast<const String*>(value);
                 required = text.size() + 1;
                 if (buffer == nullptr || capacity < required)
@@ -33,7 +34,7 @@ namespace JBro
                 return true;
             };
             made.FromText = [](void* value, const char* text,
-                std::size_t length) noexcept -> bool {
+                std::size_t length) noexcept -> Bool {
                 if (text == nullptr)
                 {
                     return false;
@@ -49,7 +50,7 @@ namespace JBro
                     return false;
                 }
             };
-            made.Equals = [](const void* left, const void* right) noexcept -> bool {
+            made.Equals = [](const void* left, const void* right) noexcept -> Bool {
                 return *static_cast<const String*>(left)
                     == *static_cast<const String*>(right);
             };

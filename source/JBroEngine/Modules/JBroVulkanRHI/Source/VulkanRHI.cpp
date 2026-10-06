@@ -3,10 +3,11 @@
 #include "VulkanDevice.h"
 
 #include <new>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
-    bool VulkanRHIModule::Initialize(const JMemoryContext& memory)
+    Bool VulkanRHIModule::Initialize(const JMemoryContext& memory)
     {
         static_cast<void>(memory);
         if (m_initialized || m_activeDevice != nullptr)

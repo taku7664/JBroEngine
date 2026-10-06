@@ -5,6 +5,7 @@
 #include <JBro/Types/Math2D.h>
 
 #include <cstdint>
+#include <JBro/Types/UInt.h>
 
 // 2D 물리 커널의 브로드페이즈다(D-199, physics-plan §3.4). 기존 엔진의 x 축 쓸기(sweep-and-prune)를
 // 조각 단위 상자로 옮겼다.
@@ -13,8 +14,8 @@ namespace JBro::Physics2D
     struct ProxyPair
     {
         // 입력 배열의 번호. 언제나 first < second 다.
-        std::uint32_t first = 0;
-        std::uint32_t second = 0;
+        UInt32 first = 0;
+        UInt32 second = 0;
     };
 
     // 매 스텝 도는 자리다. 스크래치를 멤버로 두어 용량이 찬 뒤로는 할당하지 않는다.
@@ -29,7 +30,7 @@ namespace JBro::Physics2D
         struct Proxy
         {
             Rect          box;
-            std::uint32_t index = 0;
+            UInt32 index = 0;
         };
 
         Array<Proxy> m_sorted;

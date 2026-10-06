@@ -7,6 +7,9 @@
 #include <JBro/Types/NameTable.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -27,9 +30,9 @@ namespace JBro
     struct GuideFocusTarget
     {
         NameId name = InvalidNameId;
-        std::uint64_t key = 0;
+        UInt64 key = 0;
 
-        constexpr bool IsValid() const noexcept { return name != InvalidNameId; }
+        constexpr Bool IsValid() const noexcept { return name != InvalidNameId; }
         constexpr bool operator==(const GuideFocusTarget& other) const noexcept
         {
             return name == other.name && key == other.key;
@@ -44,36 +47,36 @@ namespace JBro
         // 메뉴 막대의 메뉴와 그 항목. 이름은 로컬라이징 키에서 따온다(`menu.file`, `menu.build_game`).
         GuideFocusTarget Menu(const char* name);
         // 계층의 레이어 줄과 오브젝트 줄.
-        GuideFocusTarget HierarchyLayer(std::uint64_t layerId);
-        GuideFocusTarget HierarchyObject(std::uint64_t editorObjectId);
+        GuideFocusTarget HierarchyLayer(UInt64 layerId);
+        GuideFocusTarget HierarchyObject(UInt64 editorObjectId);
         // 인스펙터의 컴포넌트 머리, 그 컴포넌트의 맨 위 필드 줄, 컴포넌트 추가 칸.
-        GuideFocusTarget InspectorComponent(std::uint64_t componentTypeId);
-        GuideFocusTarget InspectorField(std::uint64_t componentTypeId, NameId fieldName);
+        GuideFocusTarget InspectorComponent(UInt64 componentTypeId);
+        GuideFocusTarget InspectorField(UInt64 componentTypeId, NameId fieldName);
         GuideFocusTarget InspectorAddComponent();
         // **행동 하나를 부르는 메뉴 항목**이다(D-267). 이름은 가이드의 행동 이름(`object.delete`)이다. 같은 행동이 여러 메뉴에
         // 있어도(계층·캔버스 뷰의 우클릭 메뉴, 편집 메뉴) 한 번에 열린 메뉴는 하나라 이름 하나로 가리킨다.
         GuideFocusTarget Action(const char* name);
         // 계층의 오브젝트 줄에서 연 **우클릭 메뉴**다. 줄과 자리는 같지만 열림이 다르다 - 줄의 열림은 자식 마디가 펼쳐졌는가이고,
         // 이것의 열림은 그 줄의 우클릭 메뉴가 떠 있는가다.
-        GuideFocusTarget HierarchyObjectMenu(std::uint64_t editorObjectId);
+        GuideFocusTarget HierarchyObjectMenu(UInt64 editorObjectId);
         // 캔버스 뷰에 그려진 오브젝트다. 자리는 화면에 비친 오브젝트의 사각형이고, 열림은 그 오브젝트의 우클릭 메뉴가 떠 있는가다.
-        GuideFocusTarget CanvasViewObject(std::uint64_t editorObjectId);
+        GuideFocusTarget CanvasViewObject(UInt64 editorObjectId);
         // 계층 창과 캔버스 뷰의 **빈자리 우클릭 메뉴**다(D-268). 자리는 그 창(캔버스 뷰는 그림)이고, 열림은 빈자리 메뉴가
         // 떠 있는가다 - 오브젝트 줄이나 오브젝트를 우클릭해 연 메뉴는 이것이 아니다.
         GuideFocusTarget HierarchyBackground();
         GuideFocusTarget CanvasViewBackground();
         // **컴포넌트 목록의 항목**이다(반례 ④). 인스펙터의 컴포넌트 추가 칸이 연 목록과 오브젝트 메뉴의 `컴포넌트 추가` 하위 메뉴가
         // 같은 이름을 단다 - 한 번에 열린 목록은 하나다. `key` 는 타입 번호(`ComponentTypeId`)다.
-        GuideFocusTarget ComponentListItem(std::uint64_t componentTypeId);
+        GuideFocusTarget ComponentListItem(UInt64 componentTypeId);
         // 오브젝트 메뉴의 `컴포넌트 추가` 안에 있는 **갈래 하위 메뉴**다. `key` 는 번역하지 않은 갈래 이름(`Rendering`)의 `MakeNameId` 다.
         GuideFocusTarget ComponentCategoryMenu(const char* category);
         // **캔버스 뷰의 도구와 그림 위의 점**(반례 ⑦). 기즈모 모드 단추(`이동`·`회전`·`크기`, 열림은 그 모드가 켜져 있는가),
         // 기즈모 손잡이(모드와 축 - `GizmoMode`·`GizmoAxis` 의 값), `콜라이더 편집` 단추(열림은 편집이 켜져 있는가),
         // 편집 중인 폴리곤의 포인트(번호). 손잡이와 포인트는 캔버스 뷰가 집기에 쓰는 화면 자리를 그대로 알린다.
-        GuideFocusTarget GizmoModeButton(std::uint32_t mode);
-        GuideFocusTarget GizmoHandle(std::uint32_t mode, std::uint32_t axis);
+        GuideFocusTarget GizmoModeButton(UInt32 mode);
+        GuideFocusTarget GizmoHandle(UInt32 mode, UInt32 axis);
         GuideFocusTarget ColliderEditButton();
-        GuideFocusTarget PolygonPoint(std::uint32_t index);
+        GuideFocusTarget PolygonPoint(UInt32 index);
     }
 
     // 경로의 한 칸을 누가 여는가.
@@ -88,17 +91,17 @@ namespace JBro
     // 대상에 이르는 경로다. **부모부터 적는다** - 패널, 그 안의 헤더, 그 안의 필드. 마지막 칸이 대상이다.
     struct GuideFocusPath
     {
-        static constexpr std::uint32_t Capacity = 8;
+        static constexpr UInt32 Capacity = 8;
 
         GuideFocusTarget targets[Capacity] = {};
         GuideFocusOpen open[Capacity] = {};
-        std::uint32_t count = 0;
+        UInt32 count = 0;
 
         // 가득 찼거나 대상이 비었으면 거짓이다. 조용히 잘라 내면 엉뚱한 부모에서 멈춘다.
-        bool Push(const GuideFocusTarget& target, GuideFocusOpen opener = GuideFocusOpen::Auto);
-        bool IsEmpty() const noexcept { return count == 0; }
+        Bool Push(const GuideFocusTarget& target, GuideFocusOpen opener = GuideFocusOpen::Auto);
+        Bool IsEmpty() const noexcept { return count == 0; }
         // 경로의 몇 번째인가. 없으면 `count`.
-        std::uint32_t Find(const GuideFocusTarget& target) const noexcept;
+        UInt32 Find(const GuideFocusTarget& target) const noexcept;
     };
 
     // 말풍선에서 사람이 고른 것이다.
@@ -113,18 +116,18 @@ namespace JBro
     class EditorGuideFocus
     {
     public:
-        static constexpr std::uint32_t AllowedRectCapacity = 16;
-        static constexpr std::uint32_t PopupCapacity = 8;
+        static constexpr UInt32 AllowedRectCapacity = 16;
+        static constexpr UInt32 PopupCapacity = 8;
         // 구멍이 닿은 뒤 스스로 열기 전에 머무는 시간(초). 어디로 들어가는지 볼 틈이다.
-        static constexpr float DwellSeconds = 0.35f;
+        static constexpr Float DwellSeconds = 0.35f;
         // 지금 칸이 이만큼 한 번도 그려지지 않으면 경로가 끊긴 것이다(오브젝트가 지워졌다, 컴포넌트가 없다).
-        static constexpr float BrokenSeconds = 0.5f;
+        static constexpr Float BrokenSeconds = 0.5f;
         // 막이 나타나고 사라지는 시간(초). 알림과 같다.
-        static constexpr float FadeSeconds = 0.18f;
+        static constexpr Float FadeSeconds = 0.18f;
         // 구멍이 대상보다 넓은 여백(픽셀). 테두리가 대상의 글자를 덮지 않는다.
-        static constexpr float HolePadding = 4.0f;
+        static constexpr Float HolePadding = 4.0f;
         // 회색 항목의 까닭을 베껴 두는 칸(널 문자 포함). 넘치면 자른다.
-        static constexpr std::uint32_t DisabledReasonCapacity = 192;
+        static constexpr UInt32 DisabledReasonCapacity = 192;
 
         EditorGuideFocus() = default;
         EditorGuideFocus(const EditorGuideFocus&) = delete;
@@ -135,22 +138,22 @@ namespace JBro
         // 경로가 비었으면 거짓이고 아무것도 바꾸지 않는다. 이미 켜져 있으면 새 경로로 처음부터 다시 간다 -
         // 구멍은 지난 자리에서 새 대상으로 옮겨 간다.
         // 허용 영역은 비운 채로 시작한다 - 그리는 쪽이 대상을 알리기 전에는 어디도 누를 수 없다.
-        bool Begin(const GuideFocusPath& path);
+        Bool Begin(const GuideFocusPath& path);
         void End();
-        bool IsActive() const noexcept { return m_active; }
+        Bool IsActive() const noexcept { return m_active; }
         const GuideFocusPath& GetPath() const noexcept { return m_path; }
 
         // ── 허용 영역 ─────────────────────────────────────────────
         //
         // `Update` 가 프레임마다 다시 채운다(대상 · 이 경로에서 열린 팝업 · 말풍선). 시험과 특별한 자리는 직접 더한다.
         void ClearAllowedRects() noexcept;
-        bool AddAllowedRect(const Rect& rect);
-        std::uint32_t GetAllowedRectCount() const noexcept { return m_allowedCount; }
-        const Rect& GetAllowedRect(std::uint32_t index) const;
-        bool IsAllowed(const Vector2& point) const noexcept;
+        Bool AddAllowedRect(const Rect& rect);
+        UInt32 GetAllowedRectCount() const noexcept { return m_allowedCount; }
+        const Rect& GetAllowedRect(UInt32 index) const;
+        Bool IsAllowed(const Vector2& point) const noexcept;
         // 글자 칸에 이름을 치는 단계처럼 키보드를 쓰는 단계만 켠다. 시작할 때 꺼진다.
-        void SetKeyboardAllowed(bool allowed) noexcept { m_keyboardAllowed = allowed; }
-        bool IsKeyboardAllowed() const noexcept { return m_keyboardAllowed; }
+        void SetKeyboardAllowed(Bool allowed) noexcept { m_keyboardAllowed = allowed; }
+        Bool IsKeyboardAllowed() const noexcept { return m_keyboardAllowed; }
 
         // ── 입력 문 ───────────────────────────────────────────────
         //
@@ -168,18 +171,18 @@ namespace JBro
         //  - 멈춘 동안(`SetPaused`)은 꺼진 것과 같이 그대로 넘긴다.
         void FilterInput(JArrayView<InputEvent> events, Array<InputEvent>& out);
         // Esc 가 눌렸는지 돌려주고 지운다.
-        bool ConsumeSkipRequest() noexcept;
+        Bool ConsumeSkipRequest() noexcept;
         // 지난 프레임에 글자 칸이 입력을 받고 있었는가(ImGui 의 `WantTextInput`). **키보드를 허용한 단계에서 글자를 치는 중이면
         // Esc 는 그 칸의 것이다** - 편집을 취소하려고 누른 Esc 가 가이드를 통째로 끝내면 안 된다. 칸을 떠난 뒤의 Esc 는 다시 건너뛰기다.
-        void SetTextInputActive(bool active) noexcept { m_textInputActive = active; }
+        void SetTextInputActive(Bool active) noexcept { m_textInputActive = active; }
 
         // **모달이 떠 있는 동안 막을 걷는다**(D-251 (7)). 경로는 그대로 두고, 입력은 막지 않고, 막은 사라진다.
         // 모달은 사용자가 답해야 하는 것이라 막으면 에디터가 멈춘 것처럼 보인다. 풀리면 그 자리에서 잇는다.
-        void SetPaused(bool paused) noexcept;
-        bool IsPaused() const noexcept { return m_paused; }
+        void SetPaused(Bool paused) noexcept;
+        Bool IsPaused() const noexcept { return m_paused; }
 
         // ImGui 가 "마우스 없음" 으로 읽는 자리다(`-FLT_MAX`).
-        static constexpr float HiddenPointer = -3.402823466e+38f;
+        static constexpr Float HiddenPointer = -3.402823466e+38f;
 
         // ── 한 프레임의 보고 ──────────────────────────────────────
         //
@@ -191,132 +194,132 @@ namespace JBro
         // 모델이 베껴 든다 - 부르는 쪽의 글자는 이 프레임만 산다.
         // `round` 면 구멍이 사각형이 아니라 그 사각형에 내접하는 원이다(반례 ⑦) - 캔버스 뷰의 점(기즈모 가운데·회전 고리·폴리곤 포인트·
         // 그릴 것이 없는 오브젝트)은 사각형으로 뚫으면 둘레의 그림까지 드러난다.
-        void Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated,
-            bool enabled = true, const char* disabledReason = nullptr, bool round = false);
+        void Report(const GuideFocusTarget& target, const Rect& rect, Bool opened, Bool visible, Bool activated,
+            Bool enabled = true, const char* disabledReason = nullptr, Bool round = false);
         // 이 경로가 켜진 뒤에 열린 팝업(메뉴·콤보·우클릭 메뉴)이다. 열린 차례대로 알린다.
         //
         // **누가 열었는지로 가른다.** 경로의 중간 칸(메뉴 머리)이 연 팝업은 그 안의 다음 칸만 누를 수 있고 나머지는 막이 덮는다 -
         // 통째로 열면 `파일` 메뉴의 다른 항목이 눌린다. 경로 끝의 대상이 연 팝업(콤보의 목록·우클릭 메뉴)은 통째로 열린다 -
         // 그 안에서 고르는 것이 그 단계의 일이고, 목록의 항목에는 표식이 없다.
         void ReportPopup(const Rect& rect);
-        std::uint32_t GetPopupCount() const noexcept { return m_popupCount; }
-        const Rect& GetPopup(std::uint32_t index) const;
+        UInt32 GetPopupCount() const noexcept { return m_popupCount; }
+        const Rect& GetPopup(UInt32 index) const;
         // 이 팝업을 누를 수 있고 막을 뚫는가. 경로 끝에 닿았고, **그 팝업이 대상을 품지 않을 때**다 - 대상을 품은 팝업은 경로의
         // 메뉴이고(대상이 그 안의 항목이다), 품지 않은 팝업은 대상이 연 것이다(콤보의 목록은 트리거 밖에 뜬다).
         // 열린 차례로 가르지 않는다: ImGui 는 팝업 창을 연 다음 프레임에야 그리므로 차례가 한 프레임 어긋난다.
-        bool IsPopupOpen(std::uint32_t index) const noexcept;
+        Bool IsPopupOpen(UInt32 index) const noexcept;
         // 말풍선의 자리다. 그 단추(다음·건너뛰기)는 늘 누를 수 있다.
         void ReportBalloon(const Rect& rect);
         // 이 대상을 이번 프레임에 열어야 하는가. 지나온 칸은 열린 채로 두고, 머묾이 끝난 지금 칸을 연다.
-        bool ShouldOpen(const GuideFocusTarget& target) const noexcept;
+        Bool ShouldOpen(const GuideFocusTarget& target) const noexcept;
         // 이 대상이 지금 칸인가. 잘려 있는지는 그리는 쪽이 알고, 잘려 있으면 그 자리로 굴린다.
-        bool ShouldScrollTo(const GuideFocusTarget& target) const noexcept;
+        Bool ShouldScrollTo(const GuideFocusTarget& target) const noexcept;
         // 머묾이 끝나 이 칸을 열어 달라고 하는 중인가. 패널처럼 `SetNextItemOpen` 으로 열 수 없는 것은
         // 부르는 쪽(에디터)이 이것을 보고 앞으로 꺼낸다.
-        bool IsOpenRequested(const GuideFocusTarget& target) const noexcept;
+        Bool IsOpenRequested(const GuideFocusTarget& target) const noexcept;
         // 팝업 기준선. 켜진 뒤 첫 프레임에 그리는 쪽이 그때 열려 있던 팝업의 수를 적는다 - 그보다 뒤에 열린 것만 허용한다.
-        bool NeedsPopupBaseline() const noexcept { return m_active && false == m_popupBaselineSet; }
-        void SetPopupBaseline(std::uint32_t openPopups) noexcept;
-        std::uint32_t GetPopupBaseline() const noexcept { return m_popupBaseline; }
+        Bool NeedsPopupBaseline() const noexcept { return m_active && false == m_popupBaselineSet; }
+        void SetPopupBaseline(UInt32 openPopups) noexcept;
+        UInt32 GetPopupBaseline() const noexcept { return m_popupBaseline; }
 
         // 보고를 보고 한 프레임을 나아간다. 꺼져 있어도 부른다 - 막이 사라지는 동안 알파가 내려간다.
-        void Update(float deltaTime);
+        void Update(Float deltaTime);
 
         // ── 그리는 쪽이 읽는 것 ───────────────────────────────────
         //
         // 지금 가리키는 칸의 번호다. 경로 끝에 닿으면 `count - 1` 이다.
-        std::uint32_t GetLevel() const noexcept { return m_level; }
+        UInt32 GetLevel() const noexcept { return m_level; }
         // 막의 짙기(0..1). 나타나고 사라지는 동안 움직인다. 0 이면 그리지 않는다.
-        float GetVeilAlpha() const noexcept { return m_veilAlpha; }
+        Float GetVeilAlpha() const noexcept { return m_veilAlpha; }
         // 구멍이 있는가(지금 칸을 한 번이라도 보았는가)와 지금 구멍의 자리(애니메이션 중인 자리)다.
-        bool HasHole() const noexcept { return m_holeKnown; }
+        Bool HasHole() const noexcept { return m_holeKnown; }
         // 지금 칸이 둥근 대상인가(`Report` 의 `round`). 막은 구멍 사각형에 내접하는 원만 뚫는다.
-        bool IsHoleRound() const noexcept { return m_holeRound; }
+        Bool IsHoleRound() const noexcept { return m_holeRound; }
         const Rect& GetHoleRect() const noexcept { return m_hole; }
         // 구멍이 지금 칸의 자리에 닿았는가.
-        bool IsHoleSettled() const noexcept { return m_holeSettled; }
+        Bool IsHoleSettled() const noexcept { return m_holeSettled; }
         // 테두리가 숨 쉬는 박자(0..1).
-        float GetPulse() const noexcept;
+        Float GetPulse() const noexcept;
         // 구멍이 대상에 들어와 자리 잡은 뒤로 흐른 시간이다. 말풍선이 미끄러져 들어오는 데 쓴다.
-        float GetSettledSeconds() const noexcept { return m_settledSeconds; }
+        Float GetSettledSeconds() const noexcept { return m_settledSeconds; }
         // 경로 끝의 대상에 닿았는가.
-        bool IsAtTarget() const noexcept;
+        Bool IsAtTarget() const noexcept;
         // 경로 끝의 대상이 눌렸는가. 읽으면 지운다.
-        bool ConsumeActivated() noexcept;
+        Bool ConsumeActivated() noexcept;
         // 지금 칸이 `BrokenSeconds` 동안 그려지지 않아 경로가 끊겼다. 로그는 한 번 남긴다.
-        bool IsBroken() const noexcept { return m_broken; }
+        Bool IsBroken() const noexcept { return m_broken; }
         // 지금 칸이 그려지지 않은 채 흐른 시간이다(그려지면 0). 끊겼다고 보기 전에 알아야 하는 쪽이 쓴다 - 해낸 일이 대상을
         // 없앤 것(지웠다)은 끊긴 것이 아니다.
-        float GetUnseenSeconds() const noexcept { return m_unseen; }
+        Float GetUnseenSeconds() const noexcept { return m_unseen; }
         // **지금 칸이 회색이라 누를 수 없는가**(반례 ⑥). 이번 프레임에 그려진 지금 칸이 꺼져 있을 때다 - 말풍선이 그 까닭을 적는다.
         // 구멍만 뚫고 기다리면 사용자는 왜 안 눌리는지 모른다. 까닭을 받지 못했으면 빈 글자다.
-        bool IsCurrentDisabled() const noexcept;
+        Bool IsCurrentDisabled() const noexcept;
         const char* GetDisabledReason() const noexcept { return m_disabledReason; }
 
     private:
-        bool IsPointerAllowed() const noexcept;
+        Bool IsPointerAllowed() const noexcept;
         void ResetPointerState() noexcept;
         // 그대로 넘기는 이벤트로 눌린 것과 자리를 센다.
         void TrackPassed(const InputEvent& event) noexcept;
-        void EnterLevel(std::uint32_t level) noexcept;
+        void EnterLevel(UInt32 level) noexcept;
 
         struct Seen
         {
             Rect rect;
-            bool seen = false;
-            bool opened = false;
-            bool visible = false;
-            bool activated = false;
-            bool enabled = true;
-            bool round = false;
+            Bool seen = false;
+            Bool opened = false;
+            Bool visible = false;
+            Bool activated = false;
+            Bool enabled = true;
+            Bool round = false;
         };
         // 지금 칸이 꺼져 있을 때 받은 까닭이다. 지금 칸의 보고가 올 때마다 다시 쓴다.
         char m_disabledReason[DisabledReasonCapacity] = {};
 
         GuideFocusPath m_path;
         Rect m_allowed[AllowedRectCapacity] = {};
-        std::uint32_t m_allowedCount = 0;
-        bool m_active = false;
-        bool m_paused = false;
-        bool m_keyboardAllowed = false;
-        bool m_skipRequested = false;
-        bool m_textInputActive = false;
+        UInt32 m_allowedCount = 0;
+        Bool m_active = false;
+        Bool m_paused = false;
+        Bool m_keyboardAllowed = false;
+        Bool m_skipRequested = false;
+        Bool m_textInputActive = false;
 
         // 이번 프레임의 보고.
         Seen m_seen[GuideFocusPath::Capacity] = {};
         Rect m_popups[PopupCapacity] = {};
-        std::uint32_t m_popupCount = 0;
+        UInt32 m_popupCount = 0;
         Rect m_balloon;
-        bool m_balloonSeen = false;
-        std::uint32_t m_popupBaseline = 0;
-        bool m_popupBaselineSet = false;
+        Bool m_balloonSeen = false;
+        UInt32 m_popupBaseline = 0;
+        Bool m_popupBaselineSet = false;
 
         // 걸음.
-        std::uint32_t m_level = 0;
+        UInt32 m_level = 0;
         // 머묾이 끝나 열어 달라고 한 칸. 없으면 `Capacity`.
-        std::uint32_t m_openRequest = GuideFocusPath::Capacity;
-        float m_dwell = 0.0f;
-        float m_unseen = 0.0f;
-        bool m_broken = false;
-        bool m_activated = false;
+        UInt32 m_openRequest = GuideFocusPath::Capacity;
+        Float m_dwell = 0.0f;
+        Float m_unseen = 0.0f;
+        Bool m_broken = false;
+        Bool m_activated = false;
 
         // 그림.
         Rect m_hole;
         Rect m_holeTarget;
-        bool m_holeKnown = false;
-        bool m_holeRound = false;
-        bool m_holeSettled = false;
-        float m_settledSeconds = 0.0f;
-        float m_veilAlpha = 0.0f;
-        float m_time = 0.0f;
+        Bool m_holeKnown = false;
+        Bool m_holeRound = false;
+        Bool m_holeSettled = false;
+        Float m_settledSeconds = 0.0f;
+        Float m_veilAlpha = 0.0f;
+        Float m_time = 0.0f;
 
         // 마지막으로 본 실제 마우스 자리다. 막이 켜지기 전에 본 것도 쓴다.
         Vector2 m_pointer;
-        bool m_pointerKnown = false;
+        Bool m_pointerKnown = false;
         // 마지막으로 넘긴 위치가 화면 밖이다.
-        bool m_pointerHidden = false;
+        Bool m_pointerHidden = false;
         // 누름을 넘긴 버튼(`MouseButton` 차례의 비트)과 터치(포인터 번호 32 미만의 비트)다.
-        std::uint32_t m_passedButtons = 0;
-        std::uint32_t m_passedTouches = 0;
+        UInt32 m_passedButtons = 0;
+        UInt32 m_passedTouches = 0;
     };
 }

@@ -1,12 +1,13 @@
 ﻿#include <JBro/Runtime/DebugLineBatch.h>
 
 #include <JBro/Runtime/SystemContext.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Internal
 {
     namespace
     {
-        std::uint8_t ToByte(float channel)
+        std::uint8_t ToByte(Float channel)
         {
             if (false == (channel > 0.0f))
             {
@@ -20,7 +21,7 @@ namespace JBro::Internal
         }
     }
 
-    DebugLineBatch::DebugLineBatch(const Color& color, float duration, float thickness)
+    DebugLineBatch::DebugLineBatch(const Color& color, Float duration, Float thickness)
     {
         m_style.color[0] = ToByte(color.R);
         m_style.color[1] = ToByte(color.G);
@@ -35,7 +36,7 @@ namespace JBro::Internal
         Flush();
     }
 
-    void DebugLineBatch::Add(float fromX, float fromY, float fromZ, float toX, float toY, float toZ)
+    void DebugLineBatch::Add(Float fromX, Float fromY, Float fromZ, Float toX, Float toY, Float toZ)
     {
         if (m_count == Capacity)
         {

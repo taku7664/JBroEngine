@@ -14,13 +14,16 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/Float.h>
 
 namespace
 {
     using namespace JBro;
     using namespace JBro::ScriptCompiler;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -409,7 +412,7 @@ namespace
     }
 }
 
-int RunScriptCompilerLexerTests()
+JBro::Int32 RunScriptCompilerLexerTests()
 {
     TestReservedWordsAreKeywordsAndContextualWordsAreNames();
     TestNewlinesEndStatementsOutsideBrackets();

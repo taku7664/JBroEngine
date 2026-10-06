@@ -3,6 +3,7 @@
 #include <JBro/AudioTypes/BuiltinAudioComponents.h>
 #include <JBro/AudioTypes/Internal/SystemContext.h>
 #include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Component
 {
@@ -16,9 +17,9 @@ namespace JBro::Component
         ComponentBase::OnDetached();
     }
 
-    bool RegisterBuiltinAudioComponentProperties()
+    Bool RegisterBuiltinAudioComponentProperties()
     {
-        static const bool registered = RegisterBuiltinProperties<AudioSource>();
+        static const Bool registered = RegisterBuiltinProperties<AudioSource>();
         return registered;
     }
 }

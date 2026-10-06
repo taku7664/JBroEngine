@@ -2,10 +2,11 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Network::Testing
 {
-    inline void Check(bool condition, const char* message)
+    inline void Check(Bool condition, const char* message)
     {
         if (false == condition)
         {

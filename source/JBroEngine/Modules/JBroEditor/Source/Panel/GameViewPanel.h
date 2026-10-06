@@ -2,6 +2,8 @@
 
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/RHI/RHI.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -19,12 +21,12 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
 
     private:
         // 그림 왼쪽 위에 상태를 적는다. 재생 중인지 정지인지, 그릴 것이 없으면 왜인지.
-        void DrawStatusOverlay(float left, float top, bool hasImage) const;
+        void DrawStatusOverlay(Float left, Float top, Bool hasImage) const;
 
         EditorApplication* m_editor = nullptr;
     };

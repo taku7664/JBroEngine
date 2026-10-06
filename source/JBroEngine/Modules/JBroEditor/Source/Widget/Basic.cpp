@@ -10,6 +10,9 @@
 #include <imgui_internal.h>
 
 #include <cstdarg>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -55,15 +58,15 @@ namespace JBro::Widget
         va_end(args);
     }
 
-    bool Button(const char* label)
+    Bool Button(const char* label)
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        const bool pressed = ImGui::Button(label);
+        const Bool pressed = ImGui::Button(label);
         Internal::ReportLastItem(target, false, pressed);
         return pressed;
     }
 
-    bool Button(const char* label, const char* icon)
+    Bool Button(const char* label, const char* icon)
     {
         if (icon == nullptr)
         {
@@ -73,9 +76,9 @@ namespace JBro::Widget
         const ImGuiStyle& style = ImGui::GetStyle();
         const char* labelEnd = ImGui::FindRenderedTextEnd(label);
         const ImVec2 textSize = ImGui::CalcTextSize(label, labelEnd);
-        const float lineHeight = ImGui::GetTextLineHeight();
-        const float iconWidth = lineHeight + style.ItemInnerSpacing.x;
-        bool pressed = false;
+        const Float lineHeight = ImGui::GetTextLineHeight();
+        const Float iconWidth = lineHeight + style.ItemInnerSpacing.x;
+        Bool pressed = false;
         {
             // 이름은 ImGui 가 그리지 않게 하고(Id 만 받는다) 아이콘과 이름을 직접 그린다.
             StyleScope hidden;
@@ -85,7 +88,7 @@ namespace JBro::Widget
         const ImVec2 min = ImGui::GetItemRectMin();
         const ImVec2 max = ImGui::GetItemRectMax();
         const ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
-        const float lineTop = min.y + (max.y - min.y - lineHeight) * 0.5f;
+        const Float lineTop = min.y + (max.y - min.y - lineHeight) * 0.5f;
         const ImVec2 iconMin(min.x + style.FramePadding.x, lineTop);
         DrawGlyphCentered(icon, iconMin, ImVec2(iconMin.x + lineHeight, lineTop + lineHeight), color);
         ImGui::GetWindowDrawList()->AddText(ImVec2(iconMin.x + iconWidth, lineTop), color, label, labelEnd);
@@ -93,16 +96,16 @@ namespace JBro::Widget
         return pressed;
     }
 
-    bool SelectableRow(const char* label, bool selected)
+    Bool SelectableRow(const char* label, Bool selected)
     {
         return ImGui::Selectable(label, selected);
     }
 
-    bool ActionButton(const char* label, Severity severity, bool enabled,
+    Bool ActionButton(const char* label, Severity severity, Bool enabled,
         const char* disabledReason, const ImVec2& size)
     {
         // `Info` 는 테마의 단추 그대로다 - 모든 단추가 물들면 무게가 뜻을 잃는다.
-        const bool tinted = severity != Severity::Info;
+        const Bool tinted = severity != Severity::Info;
         if (tinted)
         {
             const ImVec4 base = SeverityColor(severity);
@@ -114,7 +117,7 @@ namespace JBro::Widget
         {
             ImGui::BeginDisabled();
         }
-        const bool clicked = ImGui::Button(label, size);
+        const Bool clicked = ImGui::Button(label, size);
         if (false == enabled)
         {
             ImGui::EndDisabled();
@@ -127,18 +130,18 @@ namespace JBro::Widget
         return clicked;
     }
 
-    bool HitArea(const char* id, const ImVec2& size, ImGuiButtonFlags buttons)
+    Bool HitArea(const char* id, const ImVec2& size, ImGuiButtonFlags buttons)
     {
         // 크기가 0 이면 ImGui 가 단언한다. 접힌 칸에서도 죽지 않게 한 픽셀은 둔다.
         const ImVec2 safe(size.x > 1.0f ? size.x : 1.0f, size.y > 1.0f ? size.y : 1.0f);
         return ImGui::InvisibleButton(id, safe, buttons);
     }
 
-    bool MenuItem(const char* label, const char* shortcut, bool enabled,
+    Bool MenuItem(const char* label, const char* shortcut, Bool enabled,
         const char* disabledReason, const char* icon)
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        bool chosen = false;
+        Bool chosen = false;
         if (icon == nullptr)
         {
             chosen = ImGui::MenuItem(label, shortcut, false, enabled);
@@ -151,9 +154,9 @@ namespace JBro::Widget
             const ImVec2 rowMin = ImGui::GetCursorScreenPos();
             chosen = ImGui::MenuItemEx(label, IconSlot, shortcut, false, enabled);
             const ImGuiWindow* window = ImGui::GetCurrentWindow();
-            const float slotLeft = rowMin.x + window->DC.MenuColumns.OffsetIcon;
-            const float slotWidth = ImGui::CalcTextSize(IconSlot).x;
-            const float lineHeight = ImGui::GetTextLineHeight();
+            const Float slotLeft = rowMin.x + window->DC.MenuColumns.OffsetIcon;
+            const Float slotWidth = ImGui::CalcTextSize(IconSlot).x;
+            const Float lineHeight = ImGui::GetTextLineHeight();
             DrawGlyphCentered(icon, ImVec2(slotLeft, rowMin.y), ImVec2(slotLeft + slotWidth, rowMin.y + lineHeight),
                 ImGui::GetColorU32(enabled ? ImGuiCol_Text : ImGuiCol_TextDisabled));
         }
@@ -162,7 +165,7 @@ namespace JBro::Widget
         return chosen;
     }
 
-    void DisabledReason(bool disabled, const char* reason)
+    void DisabledReason(Bool disabled, const char* reason)
     {
         if (false == disabled || reason == nullptr || reason[0] == '\0')
         {
@@ -172,12 +175,12 @@ namespace JBro::Widget
         HoveredTooltip(reason, ImGuiHoveredFlags_AllowWhenDisabled);
     }
 
-    bool MenuToggle(const char* label, bool& checked, bool enabled)
+    Bool MenuToggle(const char* label, Bool& checked, Bool enabled)
     {
         return ImGui::MenuItem(label, nullptr, &checked, enabled);
     }
 
-    bool BeginMenuBar()
+    Bool BeginMenuBar()
     {
         return ImGui::BeginMenuBar();
     }
@@ -196,7 +199,7 @@ namespace JBro::Widget
         ImGui::EndMenuBar();
     }
 
-    bool BeginMenu(const char* label, bool enabled)
+    Bool BeginMenu(const char* label, Bool enabled)
     {
         // 메뉴는 사용자가 연다(ImGui 에 메뉴를 코드로 여는 길이 없다). 열렸는지만 알린다 - 열린 뒤에도
         // ImGui 가 마지막 항목을 메뉴 머리로 되돌려 두므로 그 사각형이 머리의 것이다.
@@ -211,7 +214,7 @@ namespace JBro::Widget
         ImGui::EndMenu();
     }
 
-    bool BeginContextMenu(const char* id, bool ofWindow)
+    Bool BeginContextMenu(const char* id, Bool ofWindow)
     {
         if (ofWindow)
         {
@@ -231,7 +234,7 @@ namespace JBro::Widget
         ImGui::OpenPopup(id);
     }
 
-    bool BeginOpenedContextMenu(const char* id)
+    Bool BeginOpenedContextMenu(const char* id)
     {
         return ImGui::BeginPopup(id);
     }
@@ -241,7 +244,7 @@ namespace JBro::Widget
         ImGui::OpenPopup(id);
     }
 
-    bool BeginModal(const char* id)
+    Bool BeginModal(const char* id)
     {
         // 크기는 내용이 정한다. 고정 크기면 번역된 문구가 길 때 잘린다.
         return ImGui::BeginPopupModal(id, nullptr, ImGuiWindowFlags_AlwaysAutoResize);
@@ -257,7 +260,7 @@ namespace JBro::Widget
         ImGui::EndPopup();
     }
 
-    bool FoldNode(const char* label, ImGuiTreeNodeFlags flags)
+    Bool FoldNode(const char* label, ImGuiTreeNodeFlags flags)
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
         Internal::OpenIfGuided(target);
@@ -271,7 +274,7 @@ namespace JBro::Widget
         ImGui::TreePop();
     }
 
-    bool CollapsingSection(const char* title, bool defaultOpen, bool allowOverlap)
+    Bool CollapsingSection(const char* title, Bool defaultOpen, Bool allowOverlap)
     {
         // **머리는 파랑이 아니다.** `ImGuiCol_Header` 는 고른 줄과 접기 머리가 함께 쓰는
         // 색인데, 파랑은 고른 것의 색이다 - 늘 서 있는 컴포넌트 머리가 그 색을 쓰면
@@ -303,19 +306,19 @@ namespace JBro::Widget
         ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(texture)), size, uvMin, uvMax);
     }
 
-    ImVec2 FitInside(std::uint32_t width, std::uint32_t height, const ImVec2& box)
+    ImVec2 FitInside(UInt32 width, UInt32 height, const ImVec2& box)
     {
         if (width == 0 || height == 0 || box.x <= 0.0f || box.y <= 0.0f)
         {
             return box;
         }
-        const float scaleX = box.x / static_cast<float>(width);
-        const float scaleY = box.y / static_cast<float>(height);
-        const float scale = scaleX < scaleY ? scaleX : scaleY;
+        const Float scaleX = box.x / static_cast<float>(width);
+        const Float scaleY = box.y / static_cast<float>(height);
+        const Float scale = scaleX < scaleY ? scaleX : scaleY;
         return ImVec2(static_cast<float>(width) * scale, static_cast<float>(height) * scale);
     }
 
-    bool BeginTabs(const char* id)
+    Bool BeginTabs(const char* id)
     {
         return ImGui::BeginTabBar(id, ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_FittingPolicyScroll);
     }
@@ -325,12 +328,18 @@ namespace JBro::Widget
         ImGui::EndTabBar();
     }
 
-    bool BeginTab(const char* label, bool* open, bool select)
+    Bool BeginTab(const char* label, Bool* open, Bool select)
     {
         // 탭은 "연다" 가 곧 앞으로 꺼내는 것이다.
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        const bool guided = target.IsValid() && GetGuideFocus() != nullptr && GetGuideFocus()->ShouldOpen(target);
-        const bool front = ImGui::BeginTabItem(label, open, (select || guided) ? ImGuiTabItemFlags_SetSelected : 0);
+        const Bool guided = target.IsValid() && GetGuideFocus() != nullptr && GetGuideFocus()->ShouldOpen(target);
+        bool rawOpen = open != nullptr ? open->Get() : true;
+        const Bool front = ImGui::BeginTabItem(label, open != nullptr ? &rawOpen : nullptr,
+            (select || guided) ? ImGuiTabItemFlags_SetSelected : 0);
+        if (open != nullptr)
+        {
+            *open = rawOpen;
+        }
         Internal::ReportLastItem(target, front, ImGui::IsItemClicked());
         return front;
     }

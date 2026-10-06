@@ -2,6 +2,9 @@
 
 #include <cmath>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
@@ -10,23 +13,23 @@ namespace JBro::Network
         // RTO 하한은 로컬에서도 스팸을 막고, 상한 너머의 죽은 연결은 세션 타임아웃이 처리한다.
         constexpr double MinRtoMilliseconds = 50.0;
         constexpr double MaxRtoMilliseconds = 2000.0;
-        constexpr std::uint32_t MinCwnd = 4;
-        constexpr std::uint32_t MaxCwnd = 256;
+        constexpr UInt32 MinCwnd = 4;
+        constexpr UInt32 MaxCwnd = 256;
         // 편승 못한 ack 를 따로 내보내기까지 기다리는 창. 최소 RTO 보다 짧아 재전송 전에 도착한다.
         constexpr double AckDelayMilliseconds = 25.0;
         // 새로 받은 뒤 standalone ack 를 되풀이하는 횟수. 30% 유실에서 ack 셋이 다 사라질 확률은 3% 다.
-        constexpr std::uint32_t AckRepeats = 2;
+        constexpr UInt32 AckRepeats = 2;
         // 재전송 백오프 상한(2^3 = 8 배). 기존 엔진의 64 배는 죽은 링크에는 알맞지만 유실이 이어지는 링크에서는 복구를 수십 초로
         // 늘였다 - 죽은 링크는 세션 타임아웃이 끊는다.
-        constexpr std::uint32_t MaxBackoffShift = 3;
+        constexpr UInt32 MaxBackoffShift = 3;
 
-        double BackoffFactor(std::uint32_t sends)
+        double BackoffFactor(UInt32 sends)
         {
-            const std::uint32_t shift = sends > 0 ? (sends - 1 < MaxBackoffShift ? sends - 1 : MaxBackoffShift) : 0;
+            const UInt32 shift = sends > 0 ? (sends - 1 < MaxBackoffShift ? sends - 1 : UInt32(MaxBackoffShift)) : UInt32(0);
             return static_cast<double>(1u << shift);
         }
 
-        UdpProto::DatagramHeader MakeReliableHeader(std::uint32_t seq, MessageId messageId, NetChannel channel)
+        UdpProto::DatagramHeader MakeReliableHeader(UInt32 seq, MessageId messageId, NetChannel channel)
         {
             UdpProto::DatagramHeader header;
             header.flags = UdpProto::FlagReliable;
@@ -45,7 +48,7 @@ namespace JBro::Network
         m_sendQueue.Reset(config.sendQueueBytes);
         m_unacked.Resize(AckWindow);
         m_reassembly.Resize(config.reassemblySlots);
-        const std::uint32_t maxFragments = (config.maxMessageBytes + UdpProto::MaxPayloadBytes - 1) / UdpProto::MaxPayloadBytes;
+        const UInt32 maxFragments = (config.maxMessageBytes + UdpProto::MaxPayloadBytes - 1) / UdpProto::MaxPayloadBytes;
         for (Reassembly& slot : m_reassembly)
         {
             slot.bytes.Resize(config.maxMessageBytes);
@@ -56,7 +59,7 @@ namespace JBro::Network
         Clear();
     }
 
-    void ReliableEndpoint::SetSequenceOriginForTests(std::uint32_t origin)
+    void ReliableEndpoint::SetSequenceOriginForTests(UInt32 origin)
     {
         m_nextSeq = origin;
         m_recvNext = origin;
@@ -95,14 +98,14 @@ namespace JBro::Network
         }
     }
 
-    bool ReliableEndpoint::IsReady() const
+    Bool ReliableEndpoint::IsReady() const
     {
         return m_ready;
     }
 
     // ── 송신 ────────────────────────────────────────────────────────────────────────────────────
 
-    bool ReliableEndpoint::PushUnit(const QueuedUnit& unit, const std::uint8_t* payload)
+    Bool ReliableEndpoint::PushUnit(const QueuedUnit& unit, const std::uint8_t* payload)
     {
         if (m_sendQueue.Free() < sizeof(QueuedUnit) + unit.size)
         {
@@ -117,7 +120,7 @@ namespace JBro::Network
         return true;
     }
 
-    bool ReliableEndpoint::SendReliable(NetChannel channel, MessageId messageId, const void* data, std::uint32_t size,
+    Bool ReliableEndpoint::SendReliable(NetChannel channel, MessageId messageId, const void* data, UInt32 size,
         double nowMilliseconds, IDatagramEmitter& emitter)
     {
         if (false == m_ready || size > m_config.maxMessageBytes)
@@ -139,16 +142,16 @@ namespace JBro::Network
         else
         {
             // 조각마다 전송 단위 하나. 전부 들어갈 자리를 먼저 본다 - 반만 넣으면 상대가 영원히 기다린다.
-            const std::uint32_t count = (size + UdpProto::MaxPayloadBytes - 1) / UdpProto::MaxPayloadBytes;
+            const UInt32 count = (size + UdpProto::MaxPayloadBytes - 1) / UdpProto::MaxPayloadBytes;
             if (m_sendQueue.Free() < count * sizeof(QueuedUnit) + size)
             {
                 return false;
             }
-            const std::uint32_t msgSeq = m_nextMsgSeq++;
-            for (std::uint32_t index = 0; index < count; ++index)
+            const UInt32 msgSeq = m_nextMsgSeq++;
+            for (UInt32 index = 0; index < count; ++index)
             {
-                const std::uint32_t offset = index * UdpProto::MaxPayloadBytes;
-                const std::uint32_t chunk = (size - offset < UdpProto::MaxPayloadBytes) ? (size - offset) : UdpProto::MaxPayloadBytes;
+                const UInt32 offset = index * UdpProto::MaxPayloadBytes;
+                const UInt32 chunk = (size - offset < UdpProto::MaxPayloadBytes) ? (size - offset) : UdpProto::MaxPayloadBytes;
                 QueuedUnit unit;
                 unit.channel = channel;
                 unit.messageId = messageId;
@@ -164,7 +167,7 @@ namespace JBro::Network
         return true;
     }
 
-    ReliableEndpoint::Outbound& ReliableEndpoint::SlotFor(std::uint32_t seq)
+    ReliableEndpoint::Outbound& ReliableEndpoint::SlotFor(UInt32 seq)
     {
         return m_unacked[seq % AckWindow];
     }
@@ -199,7 +202,7 @@ namespace JBro::Network
             }
             QueuedUnit unit;
             m_sendQueue.Read(&unit, sizeof(QueuedUnit));
-            const std::uint32_t seq = m_nextSeq++;
+            const UInt32 seq = m_nextSeq++;
             Outbound& outbound = SlotFor(seq);
             outbound.used = true;
             outbound.seq = seq;
@@ -232,7 +235,7 @@ namespace JBro::Network
 
     // ── 수신 ────────────────────────────────────────────────────────────────────────────────────
 
-    ReliableEndpoint::Reassembly* ReliableEndpoint::FindReassembly(std::uint32_t msgSeq)
+    ReliableEndpoint::Reassembly* ReliableEndpoint::FindReassembly(UInt32 msgSeq)
     {
         for (Reassembly& slot : m_reassembly)
         {
@@ -268,9 +271,9 @@ namespace JBro::Network
         return nullptr;
     }
 
-    std::uint32_t ReliableEndpoint::FreeOrderedCount() const
+    UInt32 ReliableEndpoint::FreeOrderedCount() const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (const OrderedEntry& entry : m_ordered)
         {
             if (false == entry.used)
@@ -281,7 +284,7 @@ namespace JBro::Network
         return count;
     }
 
-    void ReliableEndpoint::ReleaseReassembly(std::int32_t slot)
+    void ReliableEndpoint::ReleaseReassembly(Int32 slot)
     {
         if (slot >= 0 && static_cast<std::size_t>(slot) < m_reassembly.Size())
         {
@@ -290,21 +293,21 @@ namespace JBro::Network
     }
 
     void ReliableEndpoint::OnReliableReceived(const UdpProto::DatagramHeader& header, const std::uint8_t* payload,
-        std::uint32_t size, double nowMilliseconds, IReliableReceiver& receiver)
+        UInt32 size, double nowMilliseconds, IReliableReceiver& receiver)
     {
         if (false == m_ready || size > UdpProto::MaxPayloadBytes)
         {
             return;
         }
-        const std::uint32_t seq = header.seq;
+        const UInt32 seq = header.seq;
         // 창 밖 순번은 보내는 쪽 규칙 위반이다. ack 도 하지 않는다. 비교는 순번이 한 바퀴 돌아도 맞는 부호 있는 거리다.
-        const std::int32_t distance = SeqDistance(seq, m_recvNext);
+        const Int32 distance = SeqDistance(seq, m_recvNext);
         if (distance >= static_cast<std::int32_t>(AckWindow))
         {
             return;
         }
         // dedup. 이미 받은 것은 전달하지 않지만 상대에게 받았다고는 알린다(재전송 억제).
-        const bool duplicate = distance < 0 || (distance > 0 && 0 != (m_aheadBits & (1u << (distance - 1))));
+        const Bool duplicate = distance < 0 || (distance > 0 && 0 != (m_aheadBits & (1u << (distance - 1))));
         if (duplicate)
         {
             if (false == m_ackPending)
@@ -316,8 +319,8 @@ namespace JBro::Network
         }
 
         // 받아 둘 자리를 먼저 확인한다. 없으면 ack 없이 버린다 - 그것이 역압이다.
-        const bool isFragment = 0 != (header.flags & UdpProto::FlagFragment);
-        const bool ordered = header.channel != NetChannel::ReliableUnordered;
+        const Bool isFragment = 0 != (header.flags & UdpProto::FlagFragment);
+        const Bool ordered = header.channel != NetChannel::ReliableUnordered;
         Reassembly* reassembly = nullptr;
         if (isFragment)
         {
@@ -328,7 +331,7 @@ namespace JBro::Network
             }
             // 마지막이 아닌 조각은 꽉 차 있어야 한다. 짧은 중간 조각을 받아들이면 조립 버퍼 가운데가 비고,
             // 슬롯을 다시 쓸 때 `have` 만 지우므로 그 자리에 앞 메시지의 바이트가 남은 채 위로 올라간다.
-            const bool lastFragment = header.fragIndex + 1 == header.fragCount;
+            const Bool lastFragment = header.fragIndex + 1 == header.fragCount;
             if (false == lastFragment && size != UdpProto::MaxPayloadBytes)
             {
                 return;
@@ -391,7 +394,7 @@ namespace JBro::Network
             }
             if (0 == reassembly->have[header.fragIndex])
             {
-                const std::uint32_t offset = static_cast<std::uint32_t>(header.fragIndex) * UdpProto::MaxPayloadBytes;
+                const UInt32 offset = static_cast<std::uint32_t>(header.fragIndex) * UdpProto::MaxPayloadBytes;
                 if (offset + size > reassembly->bytes.Size())
                 {
                     return;
@@ -413,7 +416,7 @@ namespace JBro::Network
                 return;
             }
             // 완성. 순서 무관이면 바로, 아니면 마지막 조각의 순번으로 줄에 세운다.
-            const std::int32_t slotIndex = static_cast<std::int32_t>(reassembly - m_reassembly.Data());
+            const Int32 slotIndex = static_cast<std::int32_t>(reassembly - m_reassembly.Data());
             if (reassembly->channel == NetChannel::ReliableUnordered)
             {
                 receiver.Deliver(reassembly->channel, reassembly->messageId, reassembly->bytes.Data(), reassembly->totalSize);
@@ -498,7 +501,7 @@ namespace JBro::Network
 
     // ── ACK ─────────────────────────────────────────────────────────────────────────────────────
 
-    void ReliableEndpoint::OnAck(std::uint32_t ackBase, std::uint32_t ackBits, double nowMilliseconds)
+    void ReliableEndpoint::OnAck(UInt32 ackBase, UInt32 ackBits, double nowMilliseconds)
     {
         if (false == m_ready)
         {
@@ -508,15 +511,15 @@ namespace JBro::Network
         // 앞선 패킷의 ack 가 유실된 뒤 뒤따르는 누적 ack 가 그것까지 덮으면, 앞선 패킷의 "왕복" 은 유실된 ack 를 기다린 시간이다.
         // 그것을 표본으로 삼으면 RTO 가 커지고, 커진 RTO 가 더 큰 표본을 허용하는 되먹임으로 상한까지 달린다 - 30% 유실에서 그렇게 멈췼다.
         double sampleSent = -1.0;
-        std::uint32_t sampleSeq = 0;
-        bool acked = false;
+        UInt32 sampleSeq = 0;
+        Bool acked = false;
         for (Outbound& slot : m_unacked)
         {
             if (false == slot.used)
             {
                 continue;
             }
-            bool covered = slot.seq < ackBase;
+            Bool covered = slot.seq < ackBase;
             if (false == covered && slot.seq > ackBase && slot.seq - ackBase - 1 < AckWindow)
             {
                 covered = 0 != (ackBits & (1u << (slot.seq - ackBase - 1)));
@@ -544,9 +547,9 @@ namespace JBro::Network
         }
         // 빠른 재전송: 이 ack 가 확인한 가장 큰 순번보다 앞선 것이 아직 남아 있으면 그것은 잃었을 가능성이 크다(TCP 의 중복 ack 판정).
         // RTO 를 기다리지 않고 다음 틱에 다시 보낸다. 한 번만 - 그 뒤는 RTO 가 맡는다.
-        std::uint32_t highestCovered = ackBase;
-        bool anyCovered = ackBase > 0;
-        for (std::uint32_t bit = 0; bit < AckWindow; ++bit)
+        UInt32 highestCovered = ackBase;
+        Bool anyCovered = ackBase > 0;
+        for (UInt32 bit = 0; bit < AckWindow; ++bit)
         {
             if (0 != (ackBits & (1u << bit)))
             {
@@ -599,7 +602,7 @@ namespace JBro::Network
         {
             return;
         }
-        bool retransmitted = false;
+        Bool retransmitted = false;
         for (Outbound& slot : m_unacked)
         {
             if (false == slot.used)
@@ -655,12 +658,12 @@ namespace JBro::Network
 
     // ── 진단 ────────────────────────────────────────────────────────────────────────────────────
 
-    std::uint32_t ReliableEndpoint::UnackedCount() const
+    UInt32 ReliableEndpoint::UnackedCount() const
     {
         return m_unackedCount;
     }
 
-    std::uint32_t ReliableEndpoint::QueuedCount() const
+    UInt32 ReliableEndpoint::QueuedCount() const
     {
         return m_queuedUnits;
     }
@@ -675,17 +678,17 @@ namespace JBro::Network
         return m_srtt;
     }
 
-    std::uint32_t ReliableEndpoint::CongestionWindow() const
+    UInt32 ReliableEndpoint::CongestionWindow() const
     {
         return m_cwnd;
     }
 
-    std::uint32_t ReliableEndpoint::PiggybackAcks() const
+    UInt32 ReliableEndpoint::PiggybackAcks() const
     {
         return m_piggybackAcks;
     }
 
-    std::uint32_t ReliableEndpoint::StandaloneAcks() const
+    UInt32 ReliableEndpoint::StandaloneAcks() const
     {
         return m_standaloneAcks;
     }

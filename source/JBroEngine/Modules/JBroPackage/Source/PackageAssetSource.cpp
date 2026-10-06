@@ -1,6 +1,8 @@
 ﻿#include <JBro/Package/PackageAssetSource.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Package
 {
@@ -14,14 +16,14 @@ namespace JBro::Package
     {
     }
 
-    bool PackageAssetSource::Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const
+    Bool PackageAssetSource::Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const
     {
         out.Clear();
         const Entry* entry = m_package.Find(record.id, static_cast<BlobKind>(blob));
         return entry != nullptr && m_package.ReadBlob(*entry, out);
     }
 
-    bool PackageAssetSource::Has(const AssetRecord& record, AssetBlob blob) const
+    Bool PackageAssetSource::Has(const AssetRecord& record, AssetBlob blob) const
     {
         return m_package.Find(record.id, static_cast<BlobKind>(blob)) != nullptr;
     }
@@ -50,11 +52,11 @@ namespace JBro::Package
         return entry != nullptr ? m_package.OpenBlobStream(*entry) : OwnerPtr<IFileStream>{};
     }
 
-    std::uint32_t FillRegistry(const PackageReader& package, AssetRegistry& registry)
+    UInt32 FillRegistry(const PackageReader& package, AssetRegistry& registry)
     {
         registry.Clear();
-        std::uint32_t count = 0;
-        for (std::uint32_t row = 0; row < package.GetEntryCount(); ++row)
+        UInt32 count = 0;
+        for (UInt32 row = 0; row < package.GetEntryCount(); ++row)
         {
             const Entry& entry = package.GetEntry(row);
             // 한 에셋의 블롭은 이어져 있다. 첫 줄에서 한 번 등록한다.

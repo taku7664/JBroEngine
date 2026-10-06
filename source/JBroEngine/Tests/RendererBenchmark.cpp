@@ -23,16 +23,21 @@ namespace Spv
 #include <cstring>
 #include <iostream>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 // 렌더러 벤치마크(D-110). 테스트가 아니라 잣대다 - `JBRO_BENCH=1` 로 실행할 때만 돈다. 세 백엔드에 같은 장면을
 // 던져 프레임 벽시계 시간을 잰다(`Immediate` 제시, 1280x720 오프스크린 타깃). 숫자는 기계마다 다르므로 서로
 // 비교할 때만 뜻이 있다: 백엔드 사이, 그리고 고치기 전과 뒤.
 namespace
 {
-    constexpr std::uint32_t TargetWidth = 1280;
-    constexpr std::uint32_t TargetHeight = 720;
-    constexpr int WarmupFrames = 10;
-    constexpr int MeasuredFrames = 120;
+    constexpr JBro::UInt32 TargetWidth = 1280;
+    constexpr JBro::UInt32 TargetHeight = 720;
+    constexpr JBro::Int32 WarmupFrames = 10;
+    constexpr JBro::Int32 MeasuredFrames = 120;
 
     struct Timing
     {
@@ -41,7 +46,7 @@ namespace
         // 프레임 안의 두 토막: 제출(BeginFrame 뒤 뷰 제출까지)과 기록·제시(EndFrame).
         double submitMilliseconds = 0.0;
         double endFrameMilliseconds = 0.0;
-        bool valid = false;
+        JBro::Bool valid = false;
     };
 
     template <typename TModule>
@@ -52,9 +57,9 @@ namespace
         JBro::Renderer renderer;
         JBro::WindowHandle window;
         JBro::TextureHandle target;
-        bool ready = false;
+        JBro::Bool ready = false;
 
-        bool Open()
+        JBro::Bool Open()
         {
             JBro::JMemoryContext memory;
             if (false == platform.Initialize(memory))
@@ -124,7 +129,7 @@ namespace
             auto millis = [](Clock::time_point from, Clock::time_point to) {
                 return std::chrono::duration<double, std::milli>(to - from).count();
             };
-            for (int frame = 0; frame < WarmupFrames + MeasuredFrames; ++frame)
+            for (JBro::Int32 frame = 0; frame < WarmupFrames + MeasuredFrames; ++frame)
             {
                 const auto start = Clock::now();
                 JBro::FrameTarget frameTarget;
@@ -179,15 +184,15 @@ namespace
     }
 
     // 화면에 흩어진 작은 스프라이트 N 개. 겹치지 않아 채우기 비용은 작고, 제출·업로드·인스턴스 경로가 재진다.
-    void BuildSprites(JBro::Array<JBro::SpriteSubmit>& sprites, std::uint32_t count)
+    void BuildSprites(JBro::Array<JBro::SpriteSubmit>& sprites, JBro::UInt32 count)
     {
         sprites.Clear();
-        const std::uint32_t columns = static_cast<std::uint32_t>(std::sqrt(static_cast<float>(count))) + 1;
-        const float aspect = static_cast<float>(TargetWidth) / TargetHeight;
-        for (std::uint32_t index = 0; index < count; ++index)
+        const JBro::UInt32 columns = static_cast<std::uint32_t>(std::sqrt(static_cast<float>(count))) + 1;
+        const JBro::Float aspect = static_cast<float>(TargetWidth) / TargetHeight;
+        for (JBro::UInt32 index = 0; index < count; ++index)
         {
             JBro::SpriteSubmit sprite;
-            const float cell = 2.0f / columns;
+            const JBro::Float cell = 2.0f / columns;
             sprite.world.linear[0] = cell * 0.8f * aspect;
             sprite.world.linear[3] = cell * 0.8f;
             sprite.world.translation[0] = (-1.0f + cell * (0.5f + index % columns)) * aspect;
@@ -200,16 +205,16 @@ namespace
     }
 
     // 격자에 놓인 정육면체 N 개. `meshes` 를 번갈아 써서 같은 메시가 이어지는 길이를 조절한다.
-    void BuildCubes(JBro::Array<JBro::MeshSubmit>& cubes, std::uint32_t count, const JBro::AssetHandle* meshes,
-        std::uint32_t meshCount)
+    void BuildCubes(JBro::Array<JBro::MeshSubmit>& cubes, JBro::UInt32 count, const JBro::AssetHandle* meshes,
+        JBro::UInt32 meshCount)
     {
         cubes.Clear();
-        const std::uint32_t columns = static_cast<std::uint32_t>(std::sqrt(static_cast<float>(count))) + 1;
-        for (std::uint32_t index = 0; index < count; ++index)
+        const JBro::UInt32 columns = static_cast<std::uint32_t>(std::sqrt(static_cast<float>(count))) + 1;
+        for (JBro::UInt32 index = 0; index < count; ++index)
         {
             JBro::MeshSubmit cube;
-            const float x = (static_cast<float>(index % columns) - columns * 0.5f) * 1.5f;
-            const float y = (static_cast<float>(index / columns) - columns * 0.5f) * 1.5f;
+            const JBro::Float x = (static_cast<float>(index % columns) - columns * 0.5f) * 1.5f;
+            const JBro::Float y = (static_cast<float>(index / columns) - columns * 0.5f) * 1.5f;
             cube.world = JBro::MakeTransformMatrix3D({x, y, 0.0f},
                 JBro::FromAxisAngle({0.3f, 1.0f, 0.2f}, 0.01f * index), {1.0f, 1.0f, 1.0f});
             cube.mesh = meshes[index % meshCount];
@@ -222,21 +227,21 @@ namespace
 
     struct Vertex
     {
-        float x = 0.0f;
-        float y = 0.0f;
-        float u = 0.0f;
-        float v = 0.0f;
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
+        JBro::Float u = 0.0f;
+        JBro::Float v = 0.0f;
     };
 
     // 텍스처 셰이더는 DXIL 과 SPIR-V 로만 구웠다. D3D11 은 SM 5.0 헤더가 없어 그 장면을 건너뛴다.
     template <typename TModule>
-    constexpr bool HasTexturedShader()
+    constexpr JBro::Bool HasTexturedShader()
     {
         return false == std::is_same_v<TModule, JBro::D3D11RHIModule>;
     }
 
     template <typename TModule>
-    constexpr bool IsVulkan()
+    constexpr JBro::Bool IsVulkan()
     {
         return std::is_same_v<TModule, JBro::VulkanRHIModule>;
     }
@@ -284,17 +289,17 @@ namespace
                 {
                     return false;
                 }
-                constexpr std::uint32_t Batch = 64;
-                for (std::uint32_t offset = 0; offset < sprites.Size(); offset += Batch)
+                constexpr JBro::UInt32 Batch = 64;
+                for (JBro::UInt32 offset = 0; offset < sprites.Size(); offset += Batch)
                 {
-                    const std::uint32_t count = static_cast<std::uint32_t>(
-                        (std::min)(static_cast<std::size_t>(Batch), sprites.Size() - offset));
+                    const JBro::UInt32 count = static_cast<std::uint32_t>(
+                        JBro::Min(static_cast<std::size_t>(Batch), sprites.Size() - offset));
                     if (false == renderer.SubmitSprites({sprites.Data() + offset, count}))
                     {
                         return false;
                     }
                 }
-                return renderer.EndView();
+                return renderer.EndView().Get();
             }));
         }
 
@@ -310,14 +315,14 @@ namespace
             using Clock = std::chrono::steady_clock;
             // 한 번은 페이지 전체, 한 번은 새 칸 크기(64 x 64)의 사각형만 올린다.
             const std::size_t cornerOffset = (static_cast<std::size_t>(512) * 1024 + 512) * 4;
-            for (int mode = 0; mode < 2; ++mode)
+            for (JBro::Int32 mode = 0; mode < 2; ++mode)
             {
             double upload = 0.0;
             double worst = 0.0;
-            for (int frame = 0; frame < WarmupFrames + MeasuredFrames; ++frame)
+            for (JBro::Int32 frame = 0; frame < WarmupFrames + MeasuredFrames; ++frame)
             {
                 const auto start = Clock::now();
-                const bool sent = mode == 0
+                const JBro::Bool sent = mode == 0
                     ? renderer.UpdateTexture(atlas, {page.Data(), static_cast<std::uint32_t>(page.Size())})
                     : renderer.UpdateTextureRegion(atlas, 512, 512, 64, 64,
                           {page.Data() + cornerOffset, static_cast<std::uint32_t>(page.Size() - cornerOffset)}, 1024 * 4);
@@ -338,9 +343,9 @@ namespace
                 {
                     break;
                 }
-                for (std::uint32_t offset = 0; offset < sprites.Size(); offset += 64)
+                for (JBro::UInt32 offset = 0; offset < sprites.Size(); offset += 64)
                 {
-                    const std::uint32_t count = static_cast<std::uint32_t>((std::min)(static_cast<std::size_t>(64), sprites.Size() - offset));
+                    const JBro::UInt32 count = static_cast<std::uint32_t>(JBro::Min(static_cast<std::size_t>(64), sprites.Size() - offset));
                     renderer.SubmitSprites({sprites.Data() + offset, count});
                 }
                 renderer.EndView();
@@ -362,7 +367,7 @@ namespace
                 renderer.RegisterTexture({2, 2}, {texels, 16}), renderer.RegisterTexture({2, 2}, {texels, 16})};
             JBro::Array<JBro::SpriteSubmit> sprites;
             BuildSprites(sprites, 60000);
-            for (std::uint32_t index = 0; index < sprites.Size(); ++index)
+            for (JBro::UInt32 index = 0; index < sprites.Size(); ++index)
             {
                 sprites[index].texture = textures[(index / 100) % 2];
             }
@@ -372,17 +377,17 @@ namespace
                 {
                     return false;
                 }
-                constexpr std::uint32_t Batch = 64;
-                for (std::uint32_t offset = 0; offset < sprites.Size(); offset += Batch)
+                constexpr JBro::UInt32 Batch = 64;
+                for (JBro::UInt32 offset = 0; offset < sprites.Size(); offset += Batch)
                 {
-                    const std::uint32_t count = static_cast<std::uint32_t>(
-                        (std::min)(static_cast<std::size_t>(Batch), sprites.Size() - offset));
+                    const JBro::UInt32 count = static_cast<std::uint32_t>(
+                        JBro::Min(static_cast<std::size_t>(Batch), sprites.Size() - offset));
                     if (false == renderer.SubmitSprites({sprites.Data() + offset, count}))
                     {
                         return false;
                     }
                 }
-                return renderer.EndView();
+                return renderer.EndView().Get();
             }));
             renderer.UnregisterTexture(textures[0]);
             renderer.UnregisterTexture(textures[1]);
@@ -398,8 +403,8 @@ namespace
             const JBro::MeshVertex vertices[3] = {
                 {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}, {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
                 {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
-            const std::uint32_t indices[3] = {0, 2, 1};
-            for (int extra = 1; extra < 4; ++extra)
+            const JBro::UInt32 indices[3] = {0, 2, 1};
+            for (JBro::Int32 extra = 1; extra < 4; ++extra)
             {
                 meshes[extra] = renderer.RegisterMesh({vertices, 3}, {indices, 3});
             }
@@ -410,23 +415,23 @@ namespace
                 {
                     return false;
                 }
-                constexpr std::uint32_t Batch = 64;
-                for (std::uint32_t offset = 0; offset < cubes.Size(); offset += Batch)
+                constexpr JBro::UInt32 Batch = 64;
+                for (JBro::UInt32 offset = 0; offset < cubes.Size(); offset += Batch)
                 {
-                    const std::uint32_t count = static_cast<std::uint32_t>(
-                        (std::min)(static_cast<std::size_t>(Batch), cubes.Size() - offset));
+                    const JBro::UInt32 count = static_cast<std::uint32_t>(
+                        JBro::Min(static_cast<std::size_t>(Batch), cubes.Size() - offset));
                     if (false == renderer.SubmitMeshes({cubes.Data() + offset, count}))
                     {
                         return false;
                     }
                 }
-                return renderer.EndView();
+                return renderer.EndView().Get();
             };
             BuildCubes(cubes, 16000, meshes, 1);
             Print(name, "meshes 16000 (one mesh)", bench.Measure(record));
             BuildCubes(cubes, 16000, meshes, 4);
             Print(name, "meshes 16000 (four meshes interleaved)", bench.Measure(record));
-            for (int extra = 1; extra < 4; ++extra)
+            for (JBro::Int32 extra = 1; extra < 4; ++extra)
             {
                 renderer.UnregisterMesh(meshes[extra]);
             }
@@ -497,10 +502,10 @@ namespace
                 JBro::TextureHandle textures[2];
                 JBro::SamplerHandle sampler;
                 JBro::TextureHandle target;
-                bool alternate = false;
+                JBro::Bool alternate = false;
             } overlay = {pipeline, vertexBuffer, indexBuffer, {textures[0], textures[1]}, sampler, bench.target, false};
             renderer.SetFrameOverlay(
-                [](JBro::IRHICommandContext& commands, JBro::TextureHandle, std::uint32_t, void* user) {
+                [](JBro::IRHICommandContext& commands, JBro::TextureHandle, JBro::UInt32, void* user) -> JBro::Bool {
                     const Overlay& o = *static_cast<const Overlay*>(user);
                     JBro::ColorAttachmentDesc attachment;
                     attachment.texture = o.target;
@@ -518,9 +523,9 @@ namespace
                     viewport.height = static_cast<float>(TargetHeight);
                     commands.SetViewport(viewport);
                     commands.SetScissor({0, 0, static_cast<std::int32_t>(TargetWidth), static_cast<std::int32_t>(TargetHeight)});
-                    for (std::uint32_t draw = 0; draw < 1000; ++draw)
+                    for (JBro::UInt32 draw = 0; draw < 1000; ++draw)
                     {
-                        if (false == commands.SetTexture(0, o.textures[o.alternate ? draw & 1 : 0])
+                        if (false == commands.SetTexture(0, o.textures[o.alternate ? draw & 1 : JBro::UInt32(0)])
                             || false == commands.SetSampler(0, o.sampler)
                             || false == commands.DrawIndexedInstanced(6, 1, 0, 0, 0))
                         {
@@ -547,10 +552,10 @@ namespace
     }
 }
 
-int RunRendererBenchmark()
+JBro::Int32 RunRendererBenchmark()
 {
     std::printf("renderer benchmark: %dx%d offscreen target, %d frames after %d warm-up, immediate present\n",
-        TargetWidth, TargetHeight, MeasuredFrames, WarmupFrames);
+        TargetWidth.Get(), TargetHeight.Get(), MeasuredFrames.Get(), WarmupFrames.Get());
     RunBackend<JBro::D3D12RHIModule>("D3D12");
     RunBackend<JBro::D3D11RHIModule>("D3D11");
     RunBackend<JBro::VulkanRHIModule>("Vulkan");

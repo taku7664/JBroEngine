@@ -8,13 +8,17 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 터치(D-214, input-plan §4 의 7). 기존 엔진의 규칙(뗀 프레임에도 한 번 나온다, 포커스를 잃으면 취소)을 잇는다.
 namespace
 {
     using namespace JBro;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -29,7 +33,7 @@ namespace
         return {events, Count};
     }
 
-    InputEvent TouchEvent(InputEventKind kind, std::uint32_t id, float x, float y)
+    InputEvent TouchEvent(InputEventKind kind, JBro::UInt32 id, JBro::Float x, JBro::Float y)
     {
         InputEvent event;
         event.kind = kind;
@@ -86,7 +90,7 @@ namespace
         Check(touch.Get(0).phase == TouchPhase::Began && touch.Get(0).x == 6.0f, "touch down and a move in one frame is a touch down at the new place");
 
         // 떼기의 자리를 모르면(NaN) 마지막 자리를 남긴다.
-        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const JBro::Float nan = std::numeric_limits<float>::quiet_NaN();
         const InputEvent lifted[] = { TouchEvent(InputEventKind::TouchEnded, 1, nan, nan) };
         input.BeginFrame(View(lifted));
         Check(touch.Get(0).phase == TouchPhase::Ended && touch.Get(0).x == 6.0f, "a lift without a place keeps the last place");
@@ -96,7 +100,7 @@ namespace
     {
         System::InputSystem input;
         InputEvent many[MaxTouches + 2];
-        for (std::uint32_t index = 0; index < MaxTouches + 2; ++index)
+        for (JBro::UInt32 index = 0; index < MaxTouches + 2; ++index)
         {
             many[index] = TouchEvent(InputEventKind::TouchBegan, 100 + index, 1.0f, 1.0f);
         }
@@ -170,9 +174,9 @@ namespace
         SendMessageW(native, WM_POINTERDOWN, MAKEWPARAM(4242, 0), 0);
         SendMessageW(native, WM_POINTERUP, MAKEWPARAM(4242, 0), 0);
         const JArrayView<InputEvent> events = platform.GetInputEvents();
-        bool sawDown = false;
-        bool sawUp = false;
-        for (std::uint32_t index = 0; index < events.size; ++index)
+        JBro::Bool sawDown = false;
+        JBro::Bool sawUp = false;
+        for (JBro::UInt32 index = 0; index < events.size; ++index)
         {
             sawDown = sawDown || events.data[index].kind == InputEventKind::TouchBegan;
             if (events.data[index].kind == InputEventKind::TouchEnded)
@@ -189,7 +193,7 @@ namespace
 
 }
 
-int RunInputTouchTests()
+JBro::Int32 RunInputTouchTests()
 {
     TestATouchLivesThroughItsPhases();
     TestTouchesInOneFrameAndStrangers();

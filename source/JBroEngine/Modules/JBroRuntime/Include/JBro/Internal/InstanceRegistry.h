@@ -7,6 +7,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -16,9 +19,9 @@ namespace JBro::Internal
     {
         void* user = nullptr;
         // 쓰기: 오브젝트 번호를 파일 안 번호로. 이 캔버스에 없으면 -1.
-        std::int64_t (*toIndex)(void* user, InstanceId objectId) = nullptr;
+        Int64 (*toIndex)(void* user, InstanceId objectId) = nullptr;
         // 읽기: 파일 안 번호를 오브젝트 번호로. 없으면 InvalidInstanceId.
-        InstanceId (*toObjectId)(void* user, std::int64_t index) = nullptr;
+        InstanceId (*toObjectId)(void* user, Int64 index) = nullptr;
     };
 
     // 프로세스에서 활성화된 실 객체를 슬롯·세대로 찾는 메인 스레드 전용 레지스트리.
@@ -39,7 +42,7 @@ namespace JBro::Internal
             InstanceId componentId,
             RefCategory category,
             void* pointer);
-        bool Unregister(InstanceHandle handle);
+        Bool Unregister(InstanceHandle handle);
 
         void* Resolve(InstanceHandle handle, RefCategory category) const;
         ResolvedInstance Resolve(
@@ -70,9 +73,9 @@ namespace JBro::Internal
             void* Pointer = nullptr;
             InstanceId ObjectId = InvalidInstanceId;
             InstanceId ComponentId = InvalidInstanceId;
-            std::uint32_t Generation = 1;
+            UInt32 Generation = 1;
             RefCategory Category = RefCategory::Object;
-            bool Alive = false;
+            Bool Alive = false;
         };
 
         InstanceRegistry();
@@ -81,11 +84,11 @@ namespace JBro::Internal
             InstanceId objectId,
             InstanceId componentId,
             RefCategory category);
-        static std::uint32_t NextGeneration(std::uint32_t generation);
+        static UInt32 NextGeneration(UInt32 generation);
 
         Array<Entry> m_entries;
-        Array<std::uint32_t> m_freeSlots;
-        Table<InstanceId, std::uint32_t> m_idToSlot;
+        Array<UInt32> m_freeSlots;
+        Table<InstanceId, UInt32> m_idToSlot;
         std::size_t m_liveCount = 0;
         mutable std::size_t m_persistentLookupCount = 0;
         // 맨 뒤에 둔다 - 옛 DLL 이 앞 멤버의 자리를 그대로 본다.

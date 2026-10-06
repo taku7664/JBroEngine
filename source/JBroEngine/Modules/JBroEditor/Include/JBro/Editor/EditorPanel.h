@@ -2,6 +2,8 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Types/Uuid.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -87,13 +89,13 @@ namespace JBro
         // 창이 정하고, 기본은 단추가 있는 쪽이다 - 도크 뿌리창만 그것을 끈다.
         // 닫을 수 없어야 하는 패널이 있고, 모두에 일률적으로 다는 것은 그
         // 구분을 지우는 것이다.
-        virtual bool HasCloseButton() const
+        virtual Bool HasCloseButton() const
         {
             return true;
         }
 
         // 에디터가 들일 때 한 번. 거짓을 돌려주면 패널이 붙지 않는다.
-        virtual bool OnCreate(EditorApplication& editor)
+        virtual Bool OnCreate(EditorApplication& editor)
         {
             (void)editor;
             return true;
@@ -102,7 +104,7 @@ namespace JBro
         virtual void OnDestroy() {}
         // 매 프레임 그리기 전에. **닫혀 있어도 돈다** - 보이지 않아도 해야 하는
         // 일이 있다(파일 감시, 빌드 진행 같은 것).
-        virtual void OnUpdate(float deltaTime)
+        virtual void OnUpdate(Float deltaTime)
         {
             (void)deltaTime;
         }
@@ -112,7 +114,7 @@ namespace JBro
         // 창의 메뉴바 안에서 부른다. 에디터가 `BeginMenuBar` 를 열어 두었으므로
         // 여기서 다시 열지 않는다. `HasMenuBar` 가 참일 때만 불린다.
         virtual void OnMenuBar() {}
-        virtual bool HasMenuBar() const
+        virtual Bool HasMenuBar() const
         {
             return false;
         }
@@ -122,11 +124,11 @@ namespace JBro
         }
 
         // 닫은 패널은 그리지 않지만 파기하지도 않는다 - 다시 열면 그대로 이어진다.
-        bool IsOpen() const
+        Bool IsOpen() const
         {
             return m_open;
         }
-        void SetOpen(bool open)
+        void SetOpen(Bool open)
         {
             m_open = open;
         }
@@ -139,29 +141,29 @@ namespace JBro
             m_open = true;
             m_focusRequested = true;
         }
-        bool TakeFocusRequest()
+        Bool TakeFocusRequest()
         {
-            const bool requested = m_focusRequested;
+            const Bool requested = m_focusRequested;
             m_focusRequested = false;
             return requested;
         }
 
         // 이 프레임에 이 패널(또는 그 안의 자식 창)이 키보드 포커스를 가졌는가. 에디터가 창을 열 때마다 적는다 -
         // 그리지 않은 프레임(닫힘·다른 탭에 가림)은 거짓이다. 게임 뷰가 이것으로 게임 입력을 켠다(D-214).
-        bool IsFocused() const
+        Bool IsFocused() const
         {
             return m_focused;
         }
-        void SetFocused(bool focused)
+        void SetFocused(Bool focused)
         {
             m_focused = focused;
         }
         // 지난 프레임에 내용이 그려졌는가 - 닫혀 있거나 다른 탭 뒤에 가려졌으면 거짓이다. 에디터가 창을 열 때마다 적는다.
-        bool IsVisible() const
+        Bool IsVisible() const
         {
             return m_visible;
         }
-        void SetVisible(bool visible)
+        void SetVisible(Bool visible)
         {
             m_visible = visible;
         }
@@ -179,11 +181,11 @@ namespace JBro
         Uuid m_id;
         const char* m_dockArea = MainDockArea;
         // 메인 도크가 아닌 도크의 패널을 그 도크 공간에 붙였는가. 처음 그릴 때 한 번 붙이고 그 뒤로는 사람이 옮긴 자리를 지킨다.
-        bool m_placed = false;
-        bool m_open = true;
-        bool m_focusRequested = false;
-        bool m_focused = false;
-        bool m_visible = false;
+        Bool m_placed = false;
+        Bool m_open = true;
+        Bool m_focusRequested = false;
+        Bool m_focused = false;
+        Bool m_visible = false;
     };
 
     // **종류마다 하나인 패널**이다(D-284). 다시 만들면 있던 것이 앞으로 오고, 닫으면 숨는다.

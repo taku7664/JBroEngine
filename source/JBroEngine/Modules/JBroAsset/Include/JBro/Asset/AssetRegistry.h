@@ -7,6 +7,8 @@
 
 #include <string_view>
 #include <JBro/Types/Table.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -29,24 +31,24 @@ namespace JBro
         // `.` 으로 시작하는 폴더는 이것과 무관하게 언제나 건너뛴다.
         JArrayView<String> ignorePatterns;
         // 참이면 메타가 없는 파일에 메타를 만든다. **에디터만 참으로 준다** - 게임 실행은 파일을 새로 쓰지 않는다.
-        bool createMissingMeta = false;
+        Bool createMissingMeta = false;
     };
 
     struct AssetScanReport
     {
-        std::uint32_t registered = 0;
-        std::uint32_t metaCreated = 0;
+        UInt32 registered = 0;
+        UInt32 metaCreated = 0;
         // 확장자로 타입을 알 수 없어 건너뛴 파일이다.
-        std::uint32_t unknownType = 0;
+        UInt32 unknownType = 0;
         // 메타는 없고 만들지도 않기로 해서 건너뛴 파일이다.
-        std::uint32_t missingMeta = 0;
+        UInt32 missingMeta = 0;
         // 짝 파일이 없는 메타다. 등록하지 않는다.
-        std::uint32_t orphanMeta = 0;
+        UInt32 orphanMeta = 0;
         // 읽히지 않은 메타다. 그 파일은 등록하지 않는다.
-        std::uint32_t invalidMeta = 0;
+        UInt32 invalidMeta = 0;
         // 이미 다른 파일이 쓰는 아이디를 든 메타다. 뒤에 온 파일은 등록하지 않는다.
-        std::uint32_t duplicateId = 0;
-        std::uint32_t ignored = 0;
+        UInt32 duplicateId = 0;
+        UInt32 ignored = 0;
     };
 
     // 에셋 메타데이터 보관소다. 로드·캐시 소유는 `AssetSystem` 이 따로 가진다(D-50).
@@ -59,13 +61,13 @@ namespace JBro
     {
     public:
         // `assetRoot` 아래를 스캔해 등록한다. 이전 내용은 비운다. 폴더가 없으면 false 다. 파일은 플랫폼이 연다(D-112).
-        bool Scan(IPlatform& platform, const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report);
+        Bool Scan(IPlatform& platform, const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report);
 
         // 스캔 없이 하나를 넣는다. 같은 아이디나 같은 (경로, 타입)이 있으면 false 다.
-        bool Register(const AssetRecord& record);
-        bool Unregister(AssetId id);
+        Bool Register(const AssetRecord& record);
+        Bool Unregister(AssetId id);
         // 파일이 옮겨졌다. 그 경로의 레코드(이미지면 Texture 와 Sprite 둘)의 경로만 바꾼다. 아이디는 그대로다.
-        bool Rename(std::string_view oldRelativePath, std::string_view newRelativePath);
+        Bool Rename(std::string_view oldRelativePath, std::string_view newRelativePath);
         void Clear();
 
         const AssetRecord* Find(AssetId id) const;
@@ -74,25 +76,25 @@ namespace JBro
         // 경로로 찾는다. 이미지면 Texture 레코드다.
         const AssetRecord* FindByPath(std::string_view relativePath) const;
         // `Find` 와 같되 값 타입 요약으로 준다. 없으면 false 다.
-        bool GetMetadata(AssetId id, AssetMetadata& metadata) const;
+        Bool GetMetadata(AssetId id, AssetMetadata& metadata) const;
 
         std::size_t GetCount() const;
         const AssetRecord& GetRecord(std::size_t index) const;
         // 내용이 바뀔 때마다 오르는 번호다. 프로세스 안의 모든 레지스트리가 한 줄로 세므로 표를 통째로 바꿔 끼워도
         // 같은 번호가 다시 나오지 않는다. 에디터가 목록을 다시 모을지 이것으로 정한다 - 프레임마다 전부 걷지 않게.
-        std::uint64_t GetRevision() const;
+        UInt64 GetRevision() const;
 
         // 파일 이름·상대경로에 대한 무시 패턴 판정이다. 스캔과 파일 감시가 같은 것을 쓴다.
-        static bool MatchesIgnorePattern(std::string_view relativePath, JArrayView<String> patterns);
+        static Bool MatchesIgnorePattern(std::string_view relativePath, JArrayView<String> patterns);
 
     private:
         // 레코드는 배열에 살고 두 표가 자리를 가리킨다. 지울 때는 끝을 당겨 채우고 그 자리의 표를 고친다.
         void Touch();
 
-        std::uint64_t m_revision = 0;
+        UInt64 m_revision = 0;
         Array<AssetRecord> m_records;
-        Table<AssetId, std::uint32_t> m_byId;
-        Table<String, std::uint32_t> m_byPath;
+        Table<AssetId, UInt32> m_byId;
+        Table<String, UInt32> m_byPath;
         // 주인 → 그 주인을 가리키는 레코드의 아이디들. 시트가 Sprite 여럿을 낳아도 같은 모양이다.
         Table<AssetId, Array<AssetId>> m_byOwner;
     };

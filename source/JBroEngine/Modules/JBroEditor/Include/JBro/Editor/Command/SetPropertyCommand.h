@@ -5,6 +5,8 @@
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -28,14 +30,14 @@ namespace JBro
         //
         // 이름이 아니라 인덱스인 이유는 커맨드마다 문자열을 잡지 않기 위해서이고,
         // 표의 순서는 타입이 살아 있는 동안 바뀌지 않는다.
-        static constexpr std::uint32_t MaxDepth = 4;
+        static constexpr UInt32 MaxDepth = 4;
 
         struct Path
         {
-            std::uint32_t indices[MaxDepth] = {};
-            std::uint32_t depth = 0;
+            UInt32 indices[MaxDepth] = {};
+            UInt32 depth = 0;
 
-            bool Equals(const Path& other) const;
+            Bool Equals(const Path& other) const;
         };
 
         SetPropertyCommand(
@@ -48,11 +50,11 @@ namespace JBro
         const char* GetName() const override;
         // 값을 바꾼 컴포넌트의 오브젝트다(D-268). 기즈모로 옮기기·폴리곤 포인트 옮기기가 이것으로 끝난다(반례 ⑦).
         EditorObjectId GetSubject() const override { return m_address.objectId; }
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
-        bool CanMerge(const EditorCommand& newer) const override;
-        bool TryMerge(const EditorCommand& newer) override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
 
         // 길을 따라 잎사귀의 주소와 타입을 찾는다. 잎사귀는 코덱을 가진 값, **컨테이너**(D-86),
         // **한 줄 숫자 묶음**(`Vector2`·`Color`·`Rect`, D-89) 셋이고, 뒤의 둘의 글자는 전체를 담은
@@ -60,7 +62,7 @@ namespace JBro
         // 처음에는 가지로 보고 거절해, 인스펙터가 커밋하지 못하고 위젯이 쓴 값이 그대로 남았다.
         // 중간이 사라졌거나 잎사귀가 아니면 거짓이다. **스냅샷을 뜨고 되살리는 쪽도 같은 길을 쓴다** -
         // 두 군데가 따로 걸어 내려가면 한쪽만 고쳐지는 날이 온다.
-        static bool ResolveLeaf(
+        static Bool ResolveLeaf(
             ComponentBase& component,
             ComponentTypeId typeId,
             const Path& path,
@@ -69,24 +71,24 @@ namespace JBro
 
         // 맨 위 필드의 이름으로 길을 만든다(D-165). 기즈모와 프레임 고르기처럼 **정해진 필드 하나**를 고치는 자리가 쓴다.
         // 그 타입에 그 이름이 없으면 거짓이다.
-        static bool MakeFieldPath(ComponentTypeId typeId, const char* name, Path& path);
+        static Bool MakeFieldPath(ComponentTypeId typeId, const char* name, Path& path);
 
         // 현재 값을 글자로 읽는다. 편집 전 값을 잡아 두는 데 쓴다.
-        static bool ReadValue(
+        static Bool ReadValue(
             ComponentBase& component,
             ComponentTypeId typeId,
             const Path& path,
             String& text);
         // 글자를 써 넣는다. 되살리기가 스냅샷을 되돌릴 때도 이 길이다.
         // 글자로 통째 쓰는 값은 전부 되거나 하나도 안 된다 - 못 읽으면 쓰기 전 상태로 돌려놓는다.
-        static bool ApplyValue(
+        static Bool ApplyValue(
             ComponentBase& component,
             ComponentTypeId typeId,
             const Path& path,
             const String& text);
 
     private:
-        bool WriteValue(const String& value);
+        Bool WriteValue(const String& value);
 
         EditorObjectRegistry* m_registry = nullptr;
         ComponentAddress m_address;

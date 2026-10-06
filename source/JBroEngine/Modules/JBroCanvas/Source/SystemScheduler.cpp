@@ -3,6 +3,9 @@
 #include <JBro/Core/Profiler.h>
 
 #include <algorithm>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -11,7 +14,7 @@ namespace JBro
         class ExecutionScope
         {
         public:
-            explicit ExecutionScope(bool& executing) : m_executing(executing)
+            explicit ExecutionScope(Bool& executing) : m_executing(executing)
             {
                 if (m_executing)
                 {
@@ -24,7 +27,7 @@ namespace JBro
                 m_executing = false;
             }
         private:
-            bool& m_executing;
+            Bool& m_executing;
         };
     }
 
@@ -54,7 +57,7 @@ namespace JBro
         m_initialized = true;
     }
 
-    void SystemScheduler::FixedUpdate(Canvas& canvas, float fixedDeltaTime)
+    void SystemScheduler::FixedUpdate(Canvas& canvas, Float fixedDeltaTime)
     {
         if (false == m_initialized)
         {
@@ -70,7 +73,7 @@ namespace JBro
         }
     }
 
-    void SystemScheduler::Update(Canvas& canvas, float deltaTime)
+    void SystemScheduler::Update(Canvas& canvas, Float deltaTime)
     {
         if (false == m_initialized)
         {
@@ -128,8 +131,8 @@ namespace JBro
         std::sort(m_systems.begin(), m_systems.end(),
             [](const Entry& left, const Entry& right)
         {
-            const int leftOrder = left.system->GetExecutionOrder();
-            const int rightOrder = right.system->GetExecutionOrder();
+            const Int32 leftOrder = left.system->GetExecutionOrder();
+            const Int32 rightOrder = right.system->GetExecutionOrder();
             return leftOrder == rightOrder
                 ? left.registrationOrder < right.registrationOrder
                 : leftOrder < rightOrder;

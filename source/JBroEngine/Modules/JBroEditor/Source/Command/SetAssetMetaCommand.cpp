@@ -4,6 +4,7 @@
 #include <JBro/Platform/Platform.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -19,7 +20,7 @@ namespace JBro
         return "Edit Import Options";
     }
 
-    bool SetAssetMetaCommand::Execute()
+    Bool SetAssetMetaCommand::Execute()
     {
         if (m_target.platform == nullptr || m_target.metaPath.empty() || m_oldText == m_newText)
         {
@@ -38,13 +39,13 @@ namespace JBro
         Write(m_newText);
     }
 
-    bool SetAssetMetaCommand::CanMerge(const EditorCommand& newer) const
+    Bool SetAssetMetaCommand::CanMerge(const EditorCommand& newer) const
     {
         const auto* other = dynamic_cast<const SetAssetMetaCommand*>(&newer);
         return other != nullptr && other->m_target.metaPath == m_target.metaPath;
     }
 
-    bool SetAssetMetaCommand::TryMerge(const EditorCommand& newer)
+    Bool SetAssetMetaCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {
@@ -59,7 +60,7 @@ namespace JBro
         return m_target.metaPath;
     }
 
-    bool SetAssetMetaCommand::Write(const String& text)
+    Bool SetAssetMetaCommand::Write(const String& text)
     {
         JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(text.data());

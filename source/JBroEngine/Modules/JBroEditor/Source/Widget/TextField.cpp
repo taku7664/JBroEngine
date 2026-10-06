@@ -3,6 +3,9 @@
 #include <JBro/Types/Array.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::Widget
 {
@@ -32,10 +35,10 @@ namespace JBro::Widget
         }
 
         // 여러 줄 칸의 높이다. 글자 줄 수를 따라 늘되 `minimum` 아래로는 줄지 않고, 너무 길면 칸 안에서 굴린다.
-        float MultilineHeightInLines(const String& text, float minimum)
+        Float MultilineHeightInLines(const String& text, Float minimum)
         {
-            constexpr float MaximumLines = 16.0f;
-            float lines = 1.0f;
+            constexpr Float MaximumLines = 16.0f;
+            Float lines = 1.0f;
             for (const char c : text)
             {
                 if (c == '\n')
@@ -71,38 +74,38 @@ namespace JBro::Widget
         return *this;
     }
 
-    TextField& TextField::Multiline(bool multiline, float lines)
+    TextField& TextField::Multiline(Bool multiline, Float lines)
     {
         m_multiline = multiline;
         m_lines = lines;
         return *this;
     }
 
-    TextField& TextField::CommitOnEnter(bool commit)
+    TextField& TextField::CommitOnEnter(Bool commit)
     {
         m_commitOnEnter = commit;
         return *this;
     }
 
-    TextField& TextField::CommitOnFinish(bool commit)
+    TextField& TextField::CommitOnFinish(Bool commit)
     {
         m_commitOnFinish = commit;
         return *this;
     }
 
-    TextField& TextField::Invalid(bool invalid)
+    TextField& TextField::Invalid(Bool invalid)
     {
         m_invalid = invalid;
         return *this;
     }
 
-    TextField& TextField::Width(float width)
+    TextField& TextField::Width(Float width)
     {
         m_width = width;
         return *this;
     }
 
-    bool TextField::Draw() const
+    Bool TextField::Draw() const
     {
         if (m_multiline && m_maxLength == 0)
         {
@@ -130,7 +133,7 @@ namespace JBro::Widget
             flags |= ImGuiInputTextFlags_EnterReturnsTrue;
         }
 
-        bool changed = false;
+        Bool changed = false;
         const char* id = m_id != nullptr ? m_id : "##text";
         if (m_multiline)
         {
@@ -158,7 +161,7 @@ namespace JBro::Widget
         return changed;
     }
 
-    bool TextField::DrawGrowable() const
+    Bool TextField::DrawGrowable() const
     {
         Array<char>& buffer = GrowableBuffer();
         buffer.Resize(m_text.size() + 1);
@@ -168,8 +171,8 @@ namespace JBro::Widget
         // 여러 줄 칸에서 Enter 는 줄바꿈이다. `CommitOnEnter` 는 여기서 쓰지 않는다 - 확정은 `CommitOnFinish` 로 한다.
         const ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackResize;
         const char* id = m_id != nullptr ? m_id : "##text";
-        const float width = m_width != 0.0f ? m_width : -FLT_MIN;
-        const bool changed = ImGui::InputTextMultiline(id, buffer.Data(), buffer.Size(),
+        const Float width = m_width != 0.0f ? m_width : Float(-FLT_MIN);
+        const Bool changed = ImGui::InputTextMultiline(id, buffer.Data(), buffer.Size(),
             ImVec2(width, ImGui::GetTextLineHeight() * MultilineHeightInLines(m_text, m_lines)
                 + ImGui::GetStyle().FramePadding.y * 2.0f),
             flags, ResizeBuffer);
@@ -184,7 +187,7 @@ namespace JBro::Widget
         return changed;
     }
 
-    bool TextField::operator()() const
+    Bool TextField::operator()() const
     {
         return Draw();
     }

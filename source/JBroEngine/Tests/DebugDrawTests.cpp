@@ -24,6 +24,10 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 #if defined(_MSC_VER) && defined(_DEBUG)
 #include <crtdbg.h>
@@ -32,7 +36,7 @@
 // 디버그 드로(D-243): 저장소의 수명 셋, 서비스가 도형을 펴는 모양, 두 브리지가 뷰마다 픽셀 두께로 그리는 것을 본다.
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -41,7 +45,7 @@ namespace
         }
     }
 
-    bool Near(double left, double right, double tolerance = 1e-4)
+    JBro::Bool Near(double left, double right, double tolerance = 1e-4)
     {
         return std::fabs(left - right) <= tolerance;
     }
@@ -66,7 +70,7 @@ namespace
         BoundStore& operator=(const BoundStore&) = delete;
     };
 
-    JBro::DebugLine MakeLine(float duration = 0.0f)
+    JBro::DebugLine MakeLine(JBro::Float duration = 0.0f)
     {
         JBro::DebugLine line;
         line.to[0] = 1.0f;
@@ -74,7 +78,7 @@ namespace
         return line;
     }
 
-    constexpr float Sixtieth = 1.0f / 60.0f;
+    constexpr JBro::Float Sixtieth = 1.0f / 60.0f;
 
     // ── 저장소 ───────────────────────────────────────────────────────────
 
@@ -158,7 +162,7 @@ namespace
         store.BeginFrame();
         store.AddLines(&line, 1);
         time.SetPaused(true);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             time.BeginFrame(Sixtieth);
             store.BeginFrame();
@@ -202,7 +206,7 @@ namespace
     }
 
 #if defined(_MSC_VER) && defined(_DEBUG)
-    int g_allocations = 0;
+    JBro::Int32 g_allocations = 0;
     int CountAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
     {
         if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
@@ -233,14 +237,14 @@ namespace
             debug3D.Sphere({0.0f, 0.0f, 0.0f}, 1.0f);
             debug3D.Box({0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});
         };
-        for (int i = 0; i < 30; ++i)
+        for (JBro::Int32 i = 0; i < 30; ++i)
         {
             frame();
         }
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_allocations = 0;
         const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
-        for (int i = 0; i < 120; ++i)
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             frame();
         }
@@ -278,7 +282,7 @@ namespace
         Check(store.GetLineCount() == 32, "a circle is 32 segments");
         Check(Near(store.GetLine(0).from[0], 2.0) && Near(store.GetLine(31).to[0], 2.0, 1e-4) && Near(store.GetLine(31).to[1], 0.0, 1e-4),
             "starting and ending at (r, 0)");
-        for (std::uint32_t index = 0; index < 32; ++index)
+        for (JBro::UInt32 index = 0; index < 32; ++index)
         {
             const JBro::DebugLine& segment = store.GetLine(index);
             Check(Near(std::hypot(segment.to[0], segment.to[1]), 2.0, 1e-4), "every point is on the circle");
@@ -301,7 +305,7 @@ namespace
 
         store.Clear();
         JBro::Vector2 many[200];
-        for (int index = 0; index < 200; ++index)
+        for (JBro::Int32 index = 0; index < 200; ++index)
         {
             many[index] = {static_cast<float>(index), 0.0f};
         }
@@ -331,10 +335,10 @@ namespace
 
         debug.Box({0.0f, 0.0f, 0.0f}, {1.0f, 2.0f, 3.0f});
         Check(store.GetLineCount() == 12, "a box is twelve edges");
-        for (std::uint32_t index = 0; index < 12; ++index)
+        for (JBro::UInt32 index = 0; index < 12; ++index)
         {
             const JBro::DebugLine& edge = store.GetLine(index);
-            const float length = std::sqrt((edge.to[0] - edge.from[0]) * (edge.to[0] - edge.from[0])
+            const JBro::Float length = std::sqrt((edge.to[0] - edge.from[0]) * (edge.to[0] - edge.from[0])
                 + (edge.to[1] - edge.from[1]) * (edge.to[1] - edge.from[1]) + (edge.to[2] - edge.from[2]) * (edge.to[2] - edge.from[2]));
             Check(Near(length, 2.0) || Near(length, 4.0) || Near(length, 6.0), "every edge is along one axis of the box");
         }
@@ -346,7 +350,7 @@ namespace
         store.Clear();
         debug.Circle({0.0f, 0.0f, 5.0f}, {0.0f, 0.0f, 1.0f}, 2.0f);
         Check(store.GetLineCount() == 32, "a circle is 32 segments");
-        for (std::uint32_t index = 0; index < 32; ++index)
+        for (JBro::UInt32 index = 0; index < 32; ++index)
         {
             Check(Near(store.GetLine(index).to[2], 5.0), "lying in the plane its normal says");
         }
@@ -380,17 +384,17 @@ namespace
 
     // ── 픽셀 ─────────────────────────────────────────────────────────────
 
-    constexpr std::uint32_t TargetWidth = 96;
-    constexpr std::uint32_t TargetHeight = 64;
+    constexpr JBro::UInt32 TargetWidth = 96;
+    constexpr JBro::UInt32 TargetHeight = 64;
 
     struct Pixel
     {
-        float r = 0.0f;
-        float g = 0.0f;
-        float b = 0.0f;
+        JBro::Float r = 0.0f;
+        JBro::Float g = 0.0f;
+        JBro::Float b = 0.0f;
     };
 
-    Pixel ReadPixel(const JBro::Array<std::byte>& image, std::uint32_t rowPitch, std::uint32_t x, std::uint32_t y)
+    Pixel ReadPixel(const JBro::Array<std::byte>& image, JBro::UInt32 rowPitch, JBro::UInt32 x, JBro::UInt32 y)
     {
         const auto* bytes = reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(y) * rowPitch + x * 4);
         return {bytes[2] / 255.0f, bytes[1] / 255.0f, bytes[0] / 255.0f};
@@ -407,9 +411,9 @@ namespace
         JBro::TextureHandle target;
         JBro::Array<std::byte> image;
         JBro::TextureReadback readback;
-        bool ready = false;
+        JBro::Bool ready = false;
 
-        bool Open()
+        JBro::Bool Open()
         {
             Check(platform.Initialize(memory), "the platform must initialize");
             if (false == rhi.Initialize(memory))
@@ -474,10 +478,10 @@ namespace
 
         // x 열에서 조건에 맞는 행의 수다.
         template <typename TPredicate>
-        std::uint32_t CountRows(std::uint32_t x, TPredicate predicate) const
+        JBro::UInt32 CountRows(JBro::UInt32 x, TPredicate predicate) const
         {
-            std::uint32_t rows = 0;
-            for (std::uint32_t y = 0; y < TargetHeight; ++y)
+            JBro::UInt32 rows = 0;
+            for (JBro::UInt32 y = 0; y < TargetHeight; ++y)
             {
                 if (predicate(ReadPixel(image, readback.rowPitch, x, y)))
                 {
@@ -503,12 +507,12 @@ namespace
         }
     };
 
-    bool IsRed(const Pixel& pixel)
+    JBro::Bool IsRed(const Pixel& pixel)
     {
         return pixel.r > 0.8f && pixel.g < 0.2f && pixel.b < 0.2f;
     }
 
-    bool IsGreen(const Pixel& pixel)
+    JBro::Bool IsGreen(const Pixel& pixel)
     {
         return pixel.g > 0.8f && pixel.r < 0.2f && pixel.b < 0.2f;
     }
@@ -554,7 +558,7 @@ namespace
         drawFrame();
         stage.RenderGame(framework);
         const auto red = [](const Pixel& pixel) { return IsRed(pixel); };
-        const std::uint32_t gameRows = stage.CountRows(TargetWidth / 2, red);
+        const JBro::UInt32 gameRows = stage.CountRows(TargetWidth / 2, red);
         std::cout << "  a 3 px 2D line covers " << gameRows << " rows in the game view" << std::endl;
         Check(gameRows >= 2 && gameRows <= 4, "a 3 px line must cover about three rows of the game view");
         Check(IsRed(ReadPixel(stage.image, stage.readback.rowPitch, TargetWidth / 2, TargetHeight / 2 - 4)),
@@ -574,7 +578,7 @@ namespace
         view.clearColor[0] = view.clearColor[1] = view.clearColor[2] = 0.0f;
         drawFrame();
         stage.RenderEditor(framework, view);
-        const std::uint32_t editorRows = stage.CountRows(TargetWidth / 2, red);
+        const JBro::UInt32 editorRows = stage.CountRows(TargetWidth / 2, red);
         std::cout << "  the same line covers " << editorRows << " rows in a canvas view zoomed in twice" << std::endl;
         Check(editorRows >= 2 && editorRows <= 4, "zooming the canvas view must not thicken a pixel-width line");
         Check(IsRed(ReadPixel(stage.image, stage.readback.rowPitch, TargetWidth / 2, TargetHeight / 2 - 8)),
@@ -631,9 +635,9 @@ namespace
         stage.RenderGame(framework);
         const Pixel center = ReadPixel(stage.image, stage.readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
         Check(center.b > 0.2f && center.g < 0.2f, "the box in front must hide the line behind it");
-        const std::uint32_t besideColumn = TargetWidth / 2 + 9;
+        const JBro::UInt32 besideColumn = TargetWidth / 2 + 9;
         const auto green = [](const Pixel& pixel) { return IsGreen(pixel); };
-        const std::uint32_t rows = stage.CountRows(besideColumn, green);
+        const JBro::UInt32 rows = stage.CountRows(besideColumn, green);
         std::cout << "  a 4 px 3D line covers " << rows << " rows beside the box" << std::endl;
         Check(rows >= 3 && rows <= 5, "beside the box the 4 px line must cover about four rows");
         Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
@@ -642,7 +646,7 @@ namespace
     }
 }
 
-int RunDebugDrawTests()
+JBro::Int32 RunDebugDrawTests()
 {
     try
     {

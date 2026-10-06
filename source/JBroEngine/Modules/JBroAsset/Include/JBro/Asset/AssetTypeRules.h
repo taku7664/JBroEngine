@@ -4,6 +4,7 @@
 #include <JBro/Types/String.h>
 
 #include <string_view>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -25,15 +26,15 @@ namespace JBro
         AssetType DetectTypeFromPath(std::string_view path) noexcept;
 
         // 이미지 파일이면 참이다. 레지스트리가 `Texture` 옆에 `Sprite` 를 함께 세우는 기준이다.
-        bool IsImageType(AssetType type) noexcept;
+        Bool IsImageType(AssetType type) noexcept;
 
         // 메타 파일의 확장자다(`.jmeta`). 짝 파일 이름 뒤에 그대로 붙는다: `hero.png` -> `hero.png.jmeta`.
         const char* GetMetaExtension() noexcept;
-        bool IsMetaPath(std::string_view path) noexcept;
+        Bool IsMetaPath(std::string_view path) noexcept;
         // 메타를 쓸 때 잠깐 쓰는 임시 파일(`hero.png.jmeta.tmp`)이다. 저장은 여기에 쓰고 바꿔치기한다. 감시가 메타와
         // 같이 무시하고, 스캔은 모르는 확장자라 건너뛴다.
         String MakeMetaScratchPath(std::string_view metaPath);
-        bool IsMetaScratchPath(std::string_view path) noexcept;
+        Bool IsMetaScratchPath(std::string_view path) noexcept;
         String MakeMetaPath(std::string_view path);
     }
 }

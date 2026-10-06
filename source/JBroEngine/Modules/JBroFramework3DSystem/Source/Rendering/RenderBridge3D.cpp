@@ -8,20 +8,24 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
-    bool BuildCamera3D(const RenderCamera3D& source, const Extent2D& extent, CameraParams& result)
+    Bool BuildCamera3D(const RenderCamera3D& source, const Extent2D& extent, CameraParams& result)
     {
         if (extent.width == 0 || extent.height == 0)
         {
             return false;
         }
-        const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-        bool projected = false;
+        const Float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        Bool projected = false;
         if (source.projection == Component::CameraProjection3D::Perspective)
         {
-            const float radians = source.verticalFieldOfView * (3.14159265f / 180.0f);
+            const Float radians = source.verticalFieldOfView * (3.14159265f / 180.0f);
             projected = MakePerspectiveMatrix(radians, aspect, source.nearPlane, source.farPlane,
                 result.projection);
         }
@@ -35,7 +39,7 @@ namespace JBro::Internal
             return false;
         }
         result.view = MakeViewMatrix(source.position, source.rotation);
-        for (float value : result.view.values)
+        for (Float value : result.view.values)
         {
             if (false == std::isfinite(value))
             {
@@ -61,17 +65,17 @@ namespace JBro::Internal
 
         CompositeBlend ToCompositeBlend3D(LayerBlend blend)
         {
-            const std::uint32_t value = static_cast<std::uint32_t>(blend);
-            return value < CompositeBlendCount ? static_cast<CompositeBlend>(value) : CompositeBlend::Normal;
+            const UInt32 value = static_cast<std::uint32_t>(blend);
+            return value < CompositeBlendCount ? static_cast<CompositeBlend>(value.Get()) : CompositeBlend::Normal;
         }
 
         // 모아 둔 메시를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가 같은 목록을 쓴다.
         // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 게임 뷰는 보지 않는다.
-        bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, bool editorView, std::uint16_t layerOrder)
+        Bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, Bool editorView, std::uint16_t layerOrder)
         {
             constexpr std::size_t BatchSize = 64;
             MeshSubmit batch[BatchSize];
-            bool accepted = world.GetDroppedMeshCount() == 0;
+            Bool accepted = world.GetDroppedMeshCount() == 0;
             std::size_t next = 0;
             while (next < world.GetMeshCount())
             {
@@ -109,9 +113,9 @@ namespace JBro::Internal
 
         // 3D 텍스트의 글자를 이 뷰의 카메라로 뒤→앞으로 늘어놓는다(D-222). 같은 텍스트의 글자는 한 자리(오브젝트 위치)라 거리가 같으므로
         // 낸 순서가 남는다. 카메라마다 한 번이다 - 레이어마다 다시 정렬하지 않고 이 차례에서 그 레이어 것만 고른다(D-280).
-        void SortWorldTexts(const RenderWorld3D& world, bool editorView, const Vector3& cameraPosition)
+        void SortWorldTexts(const RenderWorld3D& world, Bool editorView, const Vector3& cameraPosition)
         {
-            Array<std::uint32_t>& order = world.GetTextOrderScratch();
+            Array<UInt32>& order = world.GetTextOrderScratch();
             order.Clear();
             for (std::size_t index = 0; index < world.GetTextCount(); ++index)
             {
@@ -122,16 +126,16 @@ namespace JBro::Internal
                 }
                 order.Add(static_cast<std::uint32_t>(index));
             }
-            const auto distance = [&](std::uint32_t index) {
+            const auto distance = [&](UInt32 index) {
                 const Vector3& position = world.GetText(index).position;
-                const float dx = position.x - cameraPosition.x;
-                const float dy = position.y - cameraPosition.y;
-                const float dz = position.z - cameraPosition.z;
+                const Float dx = position.x - cameraPosition.x;
+                const Float dy = position.y - cameraPosition.y;
+                const Float dz = position.z - cameraPosition.z;
                 return dx * dx + dy * dy + dz * dz;
             };
-            std::sort(order.Data(), order.Data() + order.Size(), [&](std::uint32_t left, std::uint32_t right) {
-                const float leftDistance = distance(left);
-                const float rightDistance = distance(right);
+            std::sort(order.Data(), order.Data() + order.Size(), [&](UInt32 left, UInt32 right) {
+                const Float leftDistance = distance(left);
+                const Float rightDistance = distance(right);
                 if (leftDistance != rightDistance)
                 {
                     return leftDistance > rightDistance;
@@ -142,16 +146,16 @@ namespace JBro::Internal
 
         // 정렬해 둔 글자 중 이 레이어의 것을 낸다. 빌보드는 오브젝트 회전 대신 카메라 회전을 쓴다 - 판의 +Z 가 카메라 쪽이고 가로가
         // 카메라의 오른쪽이다.
-        bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, const Quaternion& cameraRotation, std::uint16_t layerOrder)
+        Bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, const Quaternion& cameraRotation, std::uint16_t layerOrder)
         {
-            const Array<std::uint32_t>& order = world.GetTextOrderScratch();
+            const Array<UInt32>& order = world.GetTextOrderScratch();
             constexpr std::size_t BatchSize = 64;
             WorldTextSubmit batch[BatchSize];
-            bool accepted = world.GetDroppedTextCount() == 0;
+            Bool accepted = world.GetDroppedTextCount() == 0;
             std::size_t next = 0;
             while (next < order.Size())
             {
-                std::uint32_t count = 0;
+                UInt32 count = 0;
                 while (count < BatchSize && next < order.Size())
                 {
                     const WorldTextRenderItem& item = world.GetText(order[next]);
@@ -173,7 +177,7 @@ namespace JBro::Internal
                     submit.tint[1] = item.tint.G;
                     submit.tint[2] = item.tint.B;
                     submit.tint[3] = item.tint.A;
-                    for (int channel = 0; channel < 4; ++channel)
+                    for (Int32 channel = 0; channel < 4; ++channel)
                     {
                         submit.uvRect[channel] = item.uvRect[channel];
                         submit.outlineColor[channel] = item.outlineColor[channel];
@@ -202,32 +206,32 @@ namespace JBro::Internal
         // 텍스처가 비면 흰색이라 틴트가 선의 색이다. 사각형의 x 축은 선(길이만큼), y 축은 선과 시선에 모두 수직인 쪽(그 거리에서
         // 픽셀 두께만큼)이다 - 그래서 어느 쪽에서 봐도 선이 납작해지지 않는다.
         void PushDebugLines3D(const System::DebugDrawSystem& debugDraw, Renderer& renderer, const RenderCamera3D& camera,
-            float viewportHeight)
+            Float viewportHeight)
         {
-            const bool perspective = camera.projection == Component::CameraProjection3D::Perspective;
-            const float halfFieldTangent = std::tan(camera.verticalFieldOfView * (3.14159265f / 180.0f) * 0.5f);
+            const Bool perspective = camera.projection == Component::CameraProjection3D::Perspective;
+            const Float halfFieldTangent = std::tan(camera.verticalFieldOfView * (3.14159265f / 180.0f) * 0.5f);
             const Vector3 forward = Rotate(camera.rotation, Vector3{0.0f, 0.0f, -1.0f});
-            constexpr std::uint32_t BatchSize = 64;
+            constexpr UInt32 BatchSize = 64;
             WorldTextSubmit batch[BatchSize];
-            std::uint32_t count = 0;
-            const std::uint32_t lineCount = debugDraw.GetLineCount();
-            for (std::uint32_t index = 0; index < lineCount; ++index)
+            UInt32 count = 0;
+            const UInt32 lineCount = debugDraw.GetLineCount();
+            for (UInt32 index = 0; index < lineCount; ++index)
             {
                 const DebugLine& line = debugDraw.GetLine(index);
                 const Vector3 from{line.from[0], line.from[1], line.from[2]};
                 const Vector3 to{line.to[0], line.to[1], line.to[2]};
                 const Vector3 along = Subtract(to, from);
-                const float length = Length(along);
+                const Float length = Length(along);
                 if (false == (length > 0.0f))
                 {
                     continue;
                 }
                 const Vector3 center = Scale(Add(from, to), 0.5f);
                 const Vector3 toCenter = Subtract(center, camera.position);
-                float worldPerPixel = 2.0f * camera.orthographicSize / viewportHeight;
+                Float worldPerPixel = 2.0f * camera.orthographicSize / viewportHeight;
                 if (perspective)
                 {
-                    const float depth = Dot(toCenter, forward);
+                    const Float depth = Dot(toCenter, forward);
                     // 카메라 뒤나 가까운 면 안쪽의 선은 그리지 않는다 - 두께가 정해지지 않는다.
                     if (depth <= camera.nearPlane)
                     {
@@ -246,7 +250,7 @@ namespace JBro::Internal
                 const Vector3 normal = Normalize(Cross(along, side));
                 WorldTextSubmit& quad = batch[count];
                 quad = WorldTextSubmit{};
-                float* matrix = quad.world.values;
+                Float* matrix = quad.world.values;
                 matrix[0] = along.x;
                 matrix[4] = along.y;
                 matrix[8] = along.z;
@@ -263,7 +267,7 @@ namespace JBro::Internal
                 matrix[13] = 0.0f;
                 matrix[14] = 0.0f;
                 matrix[15] = 1.0f;
-                for (int channel = 0; channel < 4; ++channel)
+                for (Int32 channel = 0; channel < 4; ++channel)
                 {
                     quad.tint[channel] = static_cast<float>(line.color[channel]) / 255.0f;
                 }
@@ -288,9 +292,9 @@ namespace JBro::Internal
         // 블렌드나 불투명도가 걸린 레이어만 그 뷰를 제 텍스처에 그려 얹는다(`CameraParams::composite`). 대상을 지우는 것은 첫 뷰다.
         // 그릴 것이 없으면 뷰 하나로 지우기만 한다. 디버그 선은 맨 위 레이어의 뷰에 얹는다 - 그 뷰가 얹는 뷰면 따로 하나 더 연다.
         // `onlyLayer` 가 0 이상이면 그 레이어 차례 하나만 블렌드 없이 그린다(썸네일, D-288).
-        bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, bool editorView,
+        Bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, Bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
-            const RenderCamera3D& lineCamera, float viewportHeight, std::int32_t onlyLayer = -1)
+            const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1)
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
@@ -322,7 +326,7 @@ namespace JBro::Internal
             std::sort(orders.Data(), orders.Data() + orders.Size());
             SortWorldTexts(world, editorView, cameraPosition);
 
-            const auto findBlend = [&](std::uint16_t order, LayerBlend& blend, float& opacity, float& parallax) {
+            const auto findBlend = [&](std::uint16_t order, LayerBlend& blend, Float& opacity, Float& parallax) {
                 for (std::size_t index = 0; index < world.GetMeshCount(); ++index)
                 {
                     if (world.GetMesh(index).layerOrder == order)
@@ -345,17 +349,17 @@ namespace JBro::Internal
                 }
             };
 
-            bool accepted = true;
-            bool linesDrawn = debugDraw == nullptr;
+            Bool accepted = true;
+            Bool linesDrawn = debugDraw == nullptr;
             for (std::size_t at = 0; at < orders.Size(); ++at)
             {
                 LayerBlend blend = LayerBlend::Normal;
-                float opacity = 1.0f;
-                float parallax = 1.0f;
+                Float opacity = 1.0f;
+                Float parallax = 1.0f;
                 findBlend(orders[at], blend, opacity, parallax);
                 CameraParams layerCamera = camera;
                 layerCamera.composite = onlyLayer >= 0 ? CompositeBlend::Normal : ToCompositeBlend3D(blend);
-                layerCamera.compositeOpacity = onlyLayer >= 0 ? 1.0f : opacity;
+                layerCamera.compositeOpacity = onlyLayer >= 0 ? Float(1.0f) : opacity;
                 // **패럴랙스는 그 레이어 뷰의 카메라 위치만 계수배다**(D-286, 기존 `ApplyLayerSpace`). 회전과 투영은 그대로다. 게임 화면만이다 -
                 // 캔버스 뷰는 배치하는 자리라 걸지 않는다.
                 if (false == editorView && parallax != 1.0f)
@@ -368,7 +372,7 @@ namespace JBro::Internal
                 }
                 accepted = PushMeshes(world, renderer, editorView, orders[at]) && accepted;
                 accepted = PushWorldTexts(world, renderer, cameraRotation, orders[at]) && accepted;
-                const bool plain = onlyLayer >= 0 || (blend == LayerBlend::Normal && opacity >= 1.0f);
+                const Bool plain = onlyLayer >= 0 || (blend == LayerBlend::Normal && opacity >= 1.0f);
                 if (at + 1 == orders.Size() && plain && false == linesDrawn)
                 {
                     PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
@@ -410,7 +414,7 @@ namespace JBro::Internal
         //
         // 궤도 카메라다: 바라보는 점 둘레를 도는 자리에 선다. 각에서 방향을 내고,
         // 그 방향의 반대로 `distance` 만큼 물러난 곳이 카메라 자리다.
-        constexpr float Degrees = 3.14159265f / 180.0f;
+        constexpr Float Degrees = 3.14159265f / 180.0f;
         RenderCamera3D editor;
         editor.projection = Component::CameraProjection3D::Perspective;
         editor.verticalFieldOfView = view.verticalFieldOfView;
@@ -433,7 +437,7 @@ namespace JBro::Internal
         }
         parameters.target = view.target;
         parameters.targetExtent = view.extent;
-        const bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
+        const Bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
             view.debugDraw ? debugDraw : nullptr, editor, static_cast<float>(view.extent.height));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
@@ -446,14 +450,14 @@ namespace JBro::Internal
         }
         const RenderCamera3D* camera = world.GetCamera();
         CameraParams parameters;
-        const bool drawable = camera != nullptr && BuildCamera3D(*camera, thumbnail.extent, parameters);
+        const Bool drawable = camera != nullptr && BuildCamera3D(*camera, thumbnail.extent, parameters);
         if (false == drawable)
         {
             parameters = CameraParams{};
         }
         parameters.target = thumbnail.target;
         parameters.targetExtent = thumbnail.extent;
-        for (int channel = 0; channel < 4; ++channel)
+        for (Int32 channel = 0; channel < 4; ++channel)
         {
             parameters.clearColor[channel] = thumbnail.clearColor[channel];
         }
@@ -462,7 +466,7 @@ namespace JBro::Internal
             // 그릴 카메라가 없다. 바탕만 지운다.
             return renderer.BeginView(parameters) && renderer.EndView() ? RenderResult::Submitted : RenderResult::Failed;
         }
-        const bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation, nullptr, *camera,
+        const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation, nullptr, *camera,
             static_cast<float>(thumbnail.extent.height), static_cast<std::int32_t>(layerOrder));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
@@ -479,8 +483,8 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool showLines = debugDraw != nullptr && debugDraw->IsGameViewVisible();
-        const bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
+        const Bool showLines = debugDraw != nullptr && debugDraw->IsGameViewVisible();
+        const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
             showLines ? debugDraw : nullptr, *camera, static_cast<float>(renderer.GetFrameExtent().height));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }

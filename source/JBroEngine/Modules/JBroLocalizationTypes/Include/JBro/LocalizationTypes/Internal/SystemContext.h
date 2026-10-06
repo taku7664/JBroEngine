@@ -5,16 +5,17 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    inline constexpr std::uint32_t LocalizationSystemContextAbiVersion = 1;
+    inline constexpr UInt32 LocalizationSystemContextAbiVersion = 1;
 
     // 게임 문자열 조회 인터페이스 묶음이다(D-226). 호스트가 소유한 구현을 가리킨다.
     // 세이브처럼 D-37 확장 블록으로 넘긴다 - Runtime 이 로컬라이징 모듈을 알 필요가 없다. 서비스 구현과 텍스트 시스템만 읽는다.
     struct LocalizationSystemContext
     {
-        std::uint32_t AbiVersion = LocalizationSystemContextAbiVersion;
+        UInt32 AbiVersion = LocalizationSystemContextAbiVersion;
         System::ILocalization* Localization = nullptr;
     };
 

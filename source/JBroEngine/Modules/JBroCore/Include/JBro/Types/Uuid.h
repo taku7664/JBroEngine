@@ -4,6 +4,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -18,14 +20,14 @@ namespace JBro
     // 빌트인 이름에서 만든 아이디와 임포트 때 뽑은 아이디가 겹치지 않는다.
     struct Uuid
     {
-        std::uint64_t high = 0;
-        std::uint64_t low = 0;
+        UInt64 high = 0;
+        UInt64 low = 0;
 
         // 32 자리 16 진수(하이픈 없음)와 그 뒤의 NUL 을 담는 길이다.
         static constexpr std::size_t TextLength = 32;
         static constexpr std::size_t TextCapacity = TextLength + 1;
 
-        constexpr bool IsNull() const noexcept
+        constexpr Bool IsNull() const noexcept
         {
             return high == 0 && low == 0;
         }
@@ -54,11 +56,11 @@ namespace JBro
 
         // 32 자리 소문자 16 진수로 적는다. `buffer` 는 `TextCapacity` 이상이어야 하고 NUL 로 끝낸다.
         // 모자라면 false 다.
-        bool ToText(char* buffer, std::size_t capacity) const noexcept;
+        Bool ToText(char* buffer, std::size_t capacity) const noexcept;
 
         // 32 자리 16 진수(대소문자 무관)를 읽는다. 8-4-4-4-12 하이픈 표기도 받는다. 그 외는 false 이고
         // `result` 를 건드리지 않는다.
-        static bool Parse(const char* text, std::size_t length, Uuid& result) noexcept;
+        static Bool Parse(const char* text, std::size_t length, Uuid& result) noexcept;
     };
 
     static_assert(sizeof(Uuid) == 16, "a uuid is exactly two 64-bit words");

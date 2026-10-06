@@ -7,6 +7,8 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 에셋을 워커에서 디코드해 싣는 로드 묶음이다(D-236). 캔버스를 열 때 그 캔버스가 쓰는 에셋을 여기로 보내면, 파일 읽기와
 // 디코드는 워커가 하고 풀에 넣는 것은 메인 스레드의 콜백이 한다(`Log`·`SafePtr` 는 메인 전용). 끝나면 부르는 쪽이 바인딩한다 -
@@ -25,12 +27,12 @@ namespace JBro
         // 워커로 실은 에셋마다 참조 하나다. 바인딩한 뒤 `AssetSystem::ReleaseAll` 로 놓는다 - 그 전에 놓으면
         // `CollectUnused` 가 바인딩 전에 내릴 수 있다.
         Array<AssetHandle> held;
-        std::uint32_t failed = 0;
+        UInt32 failed = 0;
         // 처음 실패한 것의 사유다(어느 파일을 왜 못 읽었는지). 알림 한 줄에 쓴다.
         String firstFailure;
         // 묶음의 `OnFinished` 가 불렸다. 취소로 끝나도 참이다.
-        bool finished = false;
-        bool canceled = false;
+        Bool finished = false;
+        Bool canceled = false;
     };
 
     // `ids` 가운데 워커로 갈 수 있는 것(텍스처·오디오, 스프라이트는 주인 텍스처)을 태스크 하나씩으로 묶어 병렬로 제출한다.

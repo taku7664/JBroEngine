@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/EditorObjectRegistry.h>
 
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -41,7 +42,7 @@ namespace JBro
         return nullptr;
     }
 
-    bool EditorObjectRegistry::Rebind(EditorObjectId id, GameObject* object)
+    Bool EditorObjectRegistry::Rebind(EditorObjectId id, GameObject* object)
     {
         if (id == InvalidEditorObjectId || object == nullptr)
         {

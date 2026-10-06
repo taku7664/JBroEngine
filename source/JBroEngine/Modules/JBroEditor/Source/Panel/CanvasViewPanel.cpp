@@ -42,6 +42,11 @@
 #include <cstdio>
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
@@ -49,37 +54,37 @@ namespace JBro
     {
         // 화면 세로 절반이 담는 월드 길이의 한계다. 아래로는 한 화면이 2 cm, 위로는
         // 한 화면이 2 km 쯤 된다. 끝을 두지 않으면 휠 한 번에 0 이나 무한으로 간다.
-        constexpr float MinOrthographicSize = 0.01f;
+        constexpr Float MinOrthographicSize = 0.01f;
         // UI 보기는 기준 픽셀이라 4K 기준(세로 절반 1080)도 담아야 한다.
-        constexpr float MaxOrthographicSize = 20000.0f;
+        constexpr Float MaxOrthographicSize = 20000.0f;
         // 휠 한 칸의 배율. 1.1 은 열 칸에 약 2.6 배라 손에 붙는다.
-        constexpr float ZoomStep = 1.1f;
+        constexpr Float ZoomStep = 1.1f;
         // 트랜스폼만 있는(그림이 없는) 오브젝트가 화면에서 차지하는 크기다. 이것이 없으면
         // 빈 오브젝트를 클릭으로 고를 수 없다.
-        constexpr float EmptyObjectHalfSize = 0.25f;
+        constexpr Float EmptyObjectHalfSize = 0.25f;
         // 격자의 칸이 화면에서 이보다 촘촘해지면 한 단계 굵은 칸으로 넘어간다.
-        constexpr float MinGridPixels = 8.0f;
+        constexpr Float MinGridPixels = 8.0f;
         // 3D 궤도 카메라의 한계. 세로 각은 수직을 넘지 않는다 - 넘으면 화면이 뒤집힌다.
-        constexpr float MinPitchDegrees = -89.0f;
-        constexpr float MaxPitchDegrees = 89.0f;
-        constexpr float MinDistance = 0.1f;
-        constexpr float MaxDistance = 5000.0f;
+        constexpr Float MinPitchDegrees = -89.0f;
+        constexpr Float MaxPitchDegrees = 89.0f;
+        constexpr Float MinDistance = 0.1f;
+        constexpr Float MaxDistance = 5000.0f;
         // 끈 픽셀 하나가 도는 각(도).
-        constexpr float OrbitDegreesPerPixel = 0.4f;
+        constexpr Float OrbitDegreesPerPixel = 0.4f;
         // 그리는 카메라가 가려는 카메라를 따라가는 빠르기다(D-252, 기존 `CAMERA_SMOOTH_SPEED`). 한 프레임에 남은 거리의
         // `1 - e^(-빠르기 x 델타)` 만큼 간다 - 프레임 빠르기가 달라도 같은 시간에 같은 만큼 간다. 10 이면 0.3 초에 95% 다.
-        constexpr float CameraSmoothSpeed = 10.0f;
+        constexpr Float CameraSmoothSpeed = 10.0f;
         // 남은 거리가 배율의 이만큼보다 작으면 붙인다. 지수로 다가가면 영영 닿지 않아 상태 글자의 숫자가 끝없이 떨린다.
-        constexpr float CameraSnapFraction = 0.0005f;
+        constexpr Float CameraSnapFraction = 0.0005f;
         // 두 번 눌러 들어간 오브젝트가 화면에서 차지하는 몫이다(D-252, 기존 `FOCUS_PADDING`). 세로 절반이 오브젝트 반지름의
         // 2.5 배라 오브젝트가 화면 높이의 40% 쯤이고, 둘레의 형제가 흰 막 너머로 조금 보인다.
-        constexpr float FocusPadding = 2.5f;
+        constexpr Float FocusPadding = 2.5f;
         // 점만 한 오브젝트로 들어가도 이보다 당기지 않는다. 기존 엔진과 같은 값이다.
-        constexpr float MinFocusSize = 0.5f;
+        constexpr Float MinFocusSize = 0.5f;
 
         // 숫자를 몇 칸마다 붙일지(D-275). 칸 사이가 `needed` 픽셀이 될 때까지 1·2·5·10·20·50 … 으로 늘린다.
         // 배율에만 달렸다 - 화면이 어디를 보든 같은 값이다.
-        long long ChooseLabelStride(float pixelsPerStep, float needed)
+        long long ChooseLabelStride(Float pixelsPerStep, Float needed)
         {
             if (false == (pixelsPerStep > 0.0f))
             {
@@ -101,14 +106,14 @@ namespace JBro
         }
 
         // 이 배율에서 쓸 격자 간격(월드 단위). 1·2·5·10·20·50 … 으로 올라간다.
-        float ChooseGridStep(float worldPerPixel)
+        Float ChooseGridStep(Float worldPerPixel)
         {
-            float step = 0.001f;
+            Float step = 0.001f;
             while (step / worldPerPixel < MinGridPixels)
             {
                 // 1 → 2 → 5 → 10 의 되풀이다. 열 배마다 같은 모양이 돌아온다.
-                const float decade = std::pow(10.0f, std::floor(std::log10(step) + 0.5f));
-                const float ratio = step / decade;
+                const Float decade = std::pow(10.0f, std::floor(std::log10(step) + 0.5f));
+                const Float ratio = step / decade;
                 if (ratio < 1.5f)
                 {
                     step = decade * 2.0f;
@@ -141,18 +146,18 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelCanvasView, "Canvas");
     }
 
-    bool CanvasViewPanel::Is3D() const
+    Bool CanvasViewPanel::Is3D() const
     {
         return m_editor != nullptr && m_editor->GetFrameworkKind() == FrameworkKind::Framework3D;
     }
 
-    bool CanvasViewPanel::OnCreate(EditorApplication& editor)
+    Bool CanvasViewPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         // **보던 자리에서 이어 본다**(D-146). 프로젝트 파일에 적힌 값이 있으면 그것으로 시작한다.
-        float centerX = 0.0f;
-        float centerY = 0.0f;
-        float size = 0.0f;
+        Float centerX = 0.0f;
+        Float centerY = 0.0f;
+        Float size = 0.0f;
         editor.GetSessionCamera(centerX, centerY, size);
         if (size > 0.0f)
         {
@@ -171,12 +176,12 @@ namespace JBro
             return static_cast<CanvasViewPanel*>(context.panel);
         }
 
-        bool SetTranslate(EditorActionContext& context);
-        bool SetRotate(EditorActionContext& context);
-        bool SetScale(EditorActionContext& context);
+        Bool SetTranslate(EditorActionContext& context);
+        Bool SetRotate(EditorActionContext& context);
+        Bool SetScale(EditorActionContext& context);
 
         // 폴리곤이 아니면 회색이다. 숨기면 이 기능이 있는지 알 수 없다(D-181).
-        bool CanEditPoints(const EditorActionContext& context)
+        Bool CanEditPoints(const EditorActionContext& context)
         {
             const auto* collider = static_cast<const Component::Collider2D*>(context.componentPointer);
             return collider != nullptr && PolygonEditModel::EditsPoints(*collider);
@@ -190,12 +195,12 @@ namespace JBro
     // 패널 밖의 할 일이 패널의 상태를 고친다. 행동 표의 함수 포인터는 멤버가 아니라서 이 친구가 다리를 놓는다.
     struct CanvasViewPanelActions
     {
-        static bool SetMode(EditorActionContext& context, GizmoMode mode)
+        static Bool SetMode(EditorActionContext& context, GizmoMode mode)
         {
             ActionPanel(context)->m_gizmoMode = mode;
             return true;
         }
-        static bool EditPoints(EditorActionContext& context)
+        static Bool EditPoints(EditorActionContext& context)
         {
             // 값도 슬롯도 바꾸지 않는다. 편집 도구를 켜고, 콜라이더가 여럿이면 누른 것을 고친다.
             CanvasViewPanel* panel = ActionPanel(context);
@@ -207,19 +212,19 @@ namespace JBro
 
     namespace
     {
-        bool SetTranslate(EditorActionContext& context)
+        Bool SetTranslate(EditorActionContext& context)
         {
             return CanvasViewPanelActions::SetMode(context, GizmoMode::Translate);
         }
-        bool SetRotate(EditorActionContext& context)
+        Bool SetRotate(EditorActionContext& context)
         {
             return CanvasViewPanelActions::SetMode(context, GizmoMode::Rotate);
         }
-        bool SetScale(EditorActionContext& context)
+        Bool SetScale(EditorActionContext& context)
         {
             return CanvasViewPanelActions::SetMode(context, GizmoMode::Scale);
         }
-        bool EditPoints(EditorActionContext& context)
+        Bool EditPoints(EditorActionContext& context)
         {
             return CanvasViewPanelActions::EditPoints(context);
         }
@@ -236,7 +241,7 @@ namespace JBro
             const char* labelKey;
             const char* fallback;
             ImGuiKey key;
-            bool (*execute)(EditorActionContext&);
+            Bool (*execute)(EditorActionContext&);
         };
         const Row rows[] = {
             {"canvas_view.gizmo_translate", LocKeys::GizmoTranslate, "Move", ImGuiKey_W, &SetTranslate},
@@ -270,7 +275,7 @@ namespace JBro
         actions.Register(points);
     }
 
-    void CanvasViewPanel::SetCamera(float centerX, float centerY, float orthographicSize)
+    void CanvasViewPanel::SetCamera(Float centerX, Float centerY, Float orthographicSize)
     {
         if (false == std::isfinite(centerX) || false == std::isfinite(centerY)
             || false == std::isfinite(orthographicSize) || orthographicSize <= 0.0f)
@@ -285,13 +290,13 @@ namespace JBro
         m_goalSize = m_orthographicSize;
     }
 
-    void CanvasViewPanel::FollowCameraGoal(float deltaSeconds)
+    void CanvasViewPanel::FollowCameraGoal(Float deltaSeconds)
     {
         // 3D 의 궤도 카메라는 따라가지 않는다. 맞추기가 바라보는 점만 옮기므로 곧바로 맞춘다.
-        const float remainingX = m_goalX - m_centerX;
-        const float remainingY = m_goalY - m_centerY;
-        const float remainingSize = m_goalSize - m_orthographicSize;
-        const float snap = m_goalSize * CameraSnapFraction;
+        const Float remainingX = m_goalX - m_centerX;
+        const Float remainingY = m_goalY - m_centerY;
+        const Float remainingSize = m_goalSize - m_orthographicSize;
+        const Float snap = m_goalSize * CameraSnapFraction;
         if (Is3D()
             || (std::fabs(remainingX) <= snap && std::fabs(remainingY) <= snap && std::fabs(remainingSize) <= snap))
         {
@@ -301,22 +306,22 @@ namespace JBro
             return;
         }
         // 한 프레임이 길게 멈췄다 와도 한 번에 건너뛰지 않고, 0 델타에도 조금은 간다.
-        const float delta = std::clamp(deltaSeconds, 0.001f, 0.1f);
-        const float step = 1.0f - std::exp(-CameraSmoothSpeed * delta);
+        const Float delta = JBro::Clamp(deltaSeconds, 0.001f, 0.1f);
+        const Float step = 1.0f - std::exp(-CameraSmoothSpeed * delta);
         m_centerX += remainingX * step;
         m_centerY += remainingY * step;
         m_orthographicSize += remainingSize * step;
     }
 
-    void CanvasViewPanel::WorldToScreen(const ViewRect& rect, float worldX, float worldY,
-        float& screenX, float& screenY) const
+    void CanvasViewPanel::WorldToScreen(const ViewRect& rect, Float worldX, Float worldY,
+        Float& screenX, Float& screenY) const
     {
         // **엔진이 그린 화면의 크기로 센다**(D-150). 패널 크기로 세면 월드 원점이 패널
         // 한가운데라고 여기게 되는데, 실제로는 텍스처 한가운데다.
-        const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
-        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
-        const float halfHeight = m_orthographicSize;
-        const float halfWidth = drawHeight > 0.0f
+        const Float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+        const Float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+        const Float halfHeight = m_orthographicSize;
+        const Float halfWidth = drawHeight > 0.0f
             ? halfHeight * drawWidth / drawHeight
             : halfHeight;
         // 월드는 위가 +y, 화면은 아래가 +y 다.
@@ -324,20 +329,20 @@ namespace JBro
         screenY = rect.top - (worldY - m_centerY) / halfHeight * drawHeight * 0.5f + drawHeight * 0.5f;
     }
 
-    void CanvasViewPanel::ScreenToWorld(const ViewRect& rect, float screenX, float screenY,
-        float& worldX, float& worldY) const
+    void CanvasViewPanel::ScreenToWorld(const ViewRect& rect, Float screenX, Float screenY,
+        Float& worldX, Float& worldY) const
     {
         ScreenToWorldWith(rect, m_centerX, m_centerY, m_orthographicSize, screenX, screenY, worldX, worldY);
     }
 
-    void CanvasViewPanel::ScreenToWorldWith(const ViewRect& rect, float centerX, float centerY, float orthographicSize,
-        float screenX, float screenY, float& worldX, float& worldY)
+    void CanvasViewPanel::ScreenToWorldWith(const ViewRect& rect, Float centerX, Float centerY, Float orthographicSize,
+        Float screenX, Float screenY, Float& worldX, Float& worldY)
     {
         // `WorldToScreen` 의 거꾸로다. 같은 크기로 세지 않으면 누른 자리와 잡히는 자리가 갈린다.
-        const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
-        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
-        const float halfHeight = orthographicSize;
-        const float halfWidth = drawHeight > 0.0f
+        const Float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+        const Float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+        const Float halfHeight = orthographicSize;
+        const Float halfWidth = drawHeight > 0.0f
             ? halfHeight * drawWidth / drawHeight
             : halfHeight;
         if (drawWidth <= 0.0f || drawHeight <= 0.0f)
@@ -352,7 +357,7 @@ namespace JBro
             - (screenY - rect.top - drawHeight * 0.5f) / (drawHeight * 0.5f) * halfHeight;
     }
 
-    void CanvasViewPanel::SetScreenView(bool screen)
+    void CanvasViewPanel::SetScreenView(Bool screen)
     {
         if (screen == m_screenView || Is3D())
         {
@@ -364,7 +369,7 @@ namespace JBro
             const ScreenSpaceFrame frame = m_editor->GetGameScreenSpace();
             m_otherCenterX = 0.0f;
             m_otherCenterY = 0.0f;
-            m_otherSize = screen ? std::max(frame.referenceHeight, 1.0f) * 0.55f : 5.0f;
+            m_otherSize = screen ? JBro::Max(frame.referenceHeight, 1.0f) * 0.55f : Float(5.0f);
             m_otherCameraSet = true;
         }
         // 두 보기는 단위가 다르다(유닛과 기준 픽셀). 한쪽에서 다른 쪽으로 날아가 보이면 뜻이 없어 곧바로 맞춘다.
@@ -377,10 +382,10 @@ namespace JBro
         m_screenView = screen;
     }
 
-    bool CanvasViewPanel::InViewSpace(const GameObject& object) const
+    Bool CanvasViewPanel::InViewSpace(const GameObject& object) const
     {
         const Layer* layer = object.GetLayer();
-        const bool screen = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
+        const Bool screen = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
         return screen == m_screenView;
     }
 
@@ -388,17 +393,17 @@ namespace JBro
     {
         // **기준 사각형**(D-237). 화면 레이어의 1 유닛이 기준 해상도의 1 픽셀이라, 게임 화면의 가장자리가 어디인지 이 선이 보인다.
         const ScreenSpaceFrame frame = m_editor->GetGameScreenSpace();
-        float x0 = 0.0f;
-        float y0 = 0.0f;
-        float x1 = 0.0f;
-        float y1 = 0.0f;
+        Float x0 = 0.0f;
+        Float y0 = 0.0f;
+        Float x1 = 0.0f;
+        Float y1 = 0.0f;
         WorldToScreen(rect, -frame.referenceWidth * 0.5f, frame.referenceHeight * 0.5f, x0, y0);
         WorldToScreen(rect, frame.referenceWidth * 0.5f, -frame.referenceHeight * 0.5f, x1, y1);
         ImDrawList* draw = ImGui::GetWindowDrawList();
         draw->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(120, 200, 255, 200), 0.0f, 0, 1.5f);
         char label[96] = {};
         std::snprintf(label, sizeof(label), "%s %.0f x %.0f", Loc::TextOr(LocKeys::CanvasViewReferenceRect, "Reference resolution"),
-            frame.referenceWidth, frame.referenceHeight);
+            frame.referenceWidth.Get(), frame.referenceHeight.Get());
         draw->AddText(ImVec2(x0 + 4.0f, y0 + 4.0f), IM_COL32(120, 200, 255, 220), label);
     }
 
@@ -477,8 +482,8 @@ namespace JBro
         {
             // 텍스처는 요청보다 크다(64 의 배수로 올려 잡았다). 왼쪽 위에서 패널 크기만큼만
             // 잘라 쓴다 - 늘려 붙이면 같은 장면이 미세하게 찌그러진다.
-            const float u = available.x / static_cast<float>(extent.width);
-            const float v = available.y / static_cast<float>(extent.height);
+            const Float u = available.x / static_cast<float>(extent.width);
+            const Float v = available.y / static_cast<float>(extent.height);
             draw->AddImage(
                 static_cast<ImTextureID>(EditorUI::ToTextureId(texture)),
                 ImVec2(rect.left, rect.top),
@@ -502,7 +507,7 @@ namespace JBro
             ImGuiButtonFlags_MouseButtonLeft
                 | ImGuiButtonFlags_MouseButtonRight
                 | ImGuiButtonFlags_MouseButtonMiddle);
-        const bool hovered = ImGui::IsItemHovered();
+        const Bool hovered = ImGui::IsItemHovered();
 
         draw->PushClipRect(
             ImVec2(rect.left, rect.top),
@@ -565,7 +570,7 @@ namespace JBro
         constexpr std::size_t MaxLocales = 32;
         const char* names[MaxLocales] = {};
         const String current = m_editor->GetPreviewLocale();
-        int chosen = -1;
+        Int32 chosen = -1;
         const std::size_t count = std::min(locales.Size(), MaxLocales);
         for (std::size_t index = 0; index < count; ++index)
         {
@@ -612,7 +617,7 @@ namespace JBro
         // 눌러도 아무 일이 없으면 고장과 구분되지 않는다.
         ImGui::SameLine(0.0f, 6.0f);
         {
-            const bool world = m_gizmoSpace == GizmoSpace::World;
+            const Bool world = m_gizmoSpace == GizmoSpace::World;
             const char* name = world
                 ? Loc::TextOr(LocKeys::GizmoSpaceWorld, "World")
                 : Loc::TextOr(LocKeys::GizmoSpaceLocal, "Local");
@@ -718,13 +723,13 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::HandleCameraInput(const ViewRect& rect, bool hovered)
+    void CanvasViewPanel::HandleCameraInput(const ViewRect& rect, Bool hovered)
     {
         const ImGuiIO& io = ImGui::GetIO();
         // **입력 자리의 hover 로는 잴 수 없다**(D-179). 기즈모 손잡이가 그것을 가리므로,
         // 오브젝트의 한가운데에 마우스를 두면 **휠이 먹지 않고 화면도 끌리지 않았다**.
         (void)hovered;
-        const bool pointerHere = PointerInView(rect);
+        const Bool pointerHere = PointerInView(rect);
 
         // **끌던 것은 마우스가 밖으로 나가도 이어진다.** 화면 가장자리까지 옮기려면
         // 그 바깥으로 나가게 되는데, 거기서 멈추면 끌기가 끊어진다.
@@ -750,11 +755,11 @@ namespace JBro
                 {
                     // 끈 픽셀을 월드 길이로 바꾼다. **그린 화면의 크기로 센다**(D-150) -
                     // 다른 크기로 세면 끈 만큼 움직이지 않아 그림이 손을 따라오지 않는다.
-                    const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
-                    const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+                    const Float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+                    const Float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
                     // 가려는 카메라를 민다(D-252). 그림은 손을 조금 늦게 따라온다 - 기존 캔버스 뷰의 느낌이다.
-                    const float halfHeight = m_goalSize;
-                    const float halfWidth = drawHeight > 0.0f
+                    const Float halfHeight = m_goalSize;
+                    const Float halfWidth = drawHeight > 0.0f
                         ? halfHeight * drawWidth / drawHeight
                         : halfHeight;
                     if (drawWidth > 0.0f && drawHeight > 0.0f)
@@ -791,21 +796,21 @@ namespace JBro
         // **마우스 아래의 월드 점을 붙잡고 줌한다.** 가운데를 기준으로 줌하면 보던 것이
         // 화면 밖으로 밀려나 다시 찾아가야 한다.
         // 붙잡는 점은 **가려는 카메라**에서 잰다(D-252). 따라가는 도중에 거듭 돌려도 칸마다 같은 점을 붙잡는다.
-        float anchorX = 0.0f;
-        float anchorY = 0.0f;
+        Float anchorX = 0.0f;
+        Float anchorY = 0.0f;
         ScreenToWorldWith(rect, m_goalX, m_goalY, m_goalSize, io.MousePos.x, io.MousePos.y, anchorX, anchorY);
-        const float factor = std::pow(ZoomStep, -io.MouseWheel);
-        const float next = std::clamp(
+        const Float factor = std::pow(ZoomStep, -io.MouseWheel);
+        const Float next = std::clamp(
             m_goalSize * factor, MinOrthographicSize, MaxOrthographicSize);
-        const float applied = next / m_goalSize;
+        const Float applied = next / m_goalSize;
         m_goalSize = next;
         m_goalX = anchorX + (m_goalX - anchorX) * applied;
         m_goalY = anchorY + (m_goalY - anchorY) * applied;
     }
 
-    float CanvasViewPanel::GridStep(const ViewRect& rect) const
+    Float CanvasViewPanel::GridStep(const ViewRect& rect) const
     {
-        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+        const Float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
         if (false == (drawHeight > 0.0f))
         {
             return 0.0f;
@@ -819,18 +824,18 @@ namespace JBro
         {
             return;
         }
-        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
-        const float worldPerPixel = (m_orthographicSize * 2.0f) / drawHeight;
-        const float step = GridStep(rect);
+        const Float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+        const Float worldPerPixel = (m_orthographicSize * 2.0f) / drawHeight;
+        const Float step = GridStep(rect);
         if (false == std::isfinite(step) || step <= 0.0f)
         {
             return;
         }
 
-        float minX = 0.0f;
-        float minY = 0.0f;
-        float maxX = 0.0f;
-        float maxY = 0.0f;
+        Float minX = 0.0f;
+        Float minY = 0.0f;
+        Float maxX = 0.0f;
+        Float maxY = 0.0f;
         ScreenToWorld(rect, rect.left, rect.top + rect.height, minX, minY);
         ScreenToWorld(rect, rect.left + rect.width, rect.top, maxX, maxY);
 
@@ -842,8 +847,8 @@ namespace JBro
 
         // 칸이 너무 많으면 그리지 않는다. 화면 가득한 선은 정보가 아니라 잡음이고,
         // 드로우 목록만 불린다.
-        const float columns = (maxX - minX) / step;
-        const float rows = (maxY - minY) / step;
+        const Float columns = (maxX - minX) / step;
+        const Float rows = (maxY - minY) / step;
         if (columns > 4096.0f || rows > 4096.0f)
         {
             return;
@@ -853,21 +858,21 @@ namespace JBro
         // 바뀌면 그 셈이 다시 시작된다. 기존 엔진의 캔버스 뷰도 이 숫자를 적었다.
         const ImU32 labelColor = IM_COL32(185, 195, 210, 210);
         ImFont* labelFont = ImGui::GetFont();
-        const float labelSize = ImGui::GetFontSize() * 0.8f;
+        const Float labelSize = ImGui::GetFontSize() * 0.8f;
         // 숫자는 테두리 안쪽에 붙인다. X 는 아래, Y 는 왼쪽 - 기존과 같은 자리다.
-        const float labelBottom = rect.top + rect.height - labelSize - 2.0f;
-        const float labelLeft = rect.left + 3.0f;
+        const Float labelBottom = rect.top + rect.height - labelSize - 2.0f;
+        const Float labelLeft = rect.left + 3.0f;
 
         // **픽셀로 읽을 때는 에셋 PPU 의 기본값을 곱한다**(D-184). 유닛으로 읽을 때는 1 이다 -
         // 곱하는 값만 달라지고 자리를 잡는 셈은 그대로라, 두 모드가 따로 어긋날 자리가 없다.
-        const float rulerScale = m_rulerInPixels ? DefaultPixelsPerUnit : 1.0f;
+        const Float rulerScale = m_rulerInPixels ? DefaultPixelsPerUnit : Float(1.0f);
 
         // **숫자를 붙일 선은 월드의 칸 번호로 고른다**(D-275). 예전에는 화면 왼쪽의 첫 선부터 앞 숫자와 겹치면 건너뛰어,
         // 화면을 조금만 옮겨도 숫자가 붙는 선이 바뀌었다(4 → 2 → 4). 이제 배율로만 간격(1·2·5·10… 칸)을 정하고,
         // 번호가 그 배수인 선에만 붙인다 - 0 은 늘 들어가고, 옮겨도 같은 선에 같은 숫자다.
-        const float pixelsPerStep = step / worldPerPixel;
+        const Float pixelsPerStep = step / worldPerPixel;
         // 숫자의 폭은 자리에 따라 달라 기준 글자로 잰다. 다섯 자리와 부호가 들어간다.
-        const float labelWidth = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, "-00000").x;
+        const Float labelWidth = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, "-00000").x;
         const long long strideX = ChooseLabelStride(pixelsPerStep, labelWidth + 24.0f);
         const long long strideY = ChooseLabelStride(pixelsPerStep, labelSize * 2.2f);
         m_gridLabelsX.Clear();
@@ -878,12 +883,12 @@ namespace JBro
         const long long lastX = static_cast<long long>(std::floor(maxX / step));
         for (long long index = firstX; index <= lastX; ++index)
         {
-            const float x = static_cast<float>(index) * step;
-            float screenX = 0.0f;
-            float unused = 0.0f;
+            const Float x = static_cast<float>(index) * step;
+            Float screenX = 0.0f;
+            Float unused = 0.0f;
             WorldToScreen(rect, x, 0.0f, screenX, unused);
             // 열 칸마다 한 줄은 진하게. 눈금을 세지 않아도 배율이 읽힌다.
-            const bool tenth = index % 10 == 0;
+            const Bool tenth = index % 10 == 0;
             draw->AddLine(ImVec2(screenX, rect.top), ImVec2(screenX, rect.top + rect.height),
                 tenth ? strong : line);
 
@@ -892,7 +897,7 @@ namespace JBro
                 continue;
             }
             char text[32] = {};
-            std::snprintf(text, sizeof(text), "%.4g", x * rulerScale);
+            std::snprintf(text, sizeof(text), "%.4g", (x * rulerScale).Get());
             const ImVec2 extent = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, text);
             draw->AddText(labelFont, labelSize, ImVec2(screenX - extent.x * 0.5f, labelBottom), labelColor, text);
             m_gridLabelsX.Add(x);
@@ -901,11 +906,11 @@ namespace JBro
         const long long lastY = static_cast<long long>(std::floor(maxY / step));
         for (long long index = firstY; index <= lastY; ++index)
         {
-            const float y = static_cast<float>(index) * step;
-            float screenY = 0.0f;
-            float unused = 0.0f;
+            const Float y = static_cast<float>(index) * step;
+            Float screenY = 0.0f;
+            Float unused = 0.0f;
             WorldToScreen(rect, 0.0f, y, unused, screenY);
-            const bool tenth = index % 10 == 0;
+            const Bool tenth = index % 10 == 0;
             draw->AddLine(ImVec2(rect.left, screenY), ImVec2(rect.left + rect.width, screenY),
                 tenth ? strong : line);
 
@@ -915,21 +920,21 @@ namespace JBro
                 continue;
             }
             char text[32] = {};
-            std::snprintf(text, sizeof(text), "%.4g", y * rulerScale);
+            std::snprintf(text, sizeof(text), "%.4g", (y * rulerScale).Get());
             draw->AddText(labelFont, labelSize,
                 ImVec2(labelLeft, screenY - labelSize * 0.5f), labelColor, text);
         }
 
         // 원점의 두 축. 어디가 (0,0) 인지 화면에서 바로 보여야 한다.
-        float originX = 0.0f;
-        float originY = 0.0f;
+        Float originX = 0.0f;
+        Float originY = 0.0f;
         WorldToScreen(rect, 0.0f, 0.0f, originX, originY);
         draw->AddLine(ImVec2(rect.left, originY), ImVec2(rect.left + rect.width, originY), axisX, 1.5f);
         draw->AddLine(ImVec2(originX, rect.top), ImVec2(originX, rect.top + rect.height), axisY, 1.5f);
     }
 
-    bool CanvasViewPanel::GetWorldBounds(const GameObject& object,
-        float& minX, float& minY, float& maxX, float& maxY, bool* drewNothing) const
+    Bool CanvasViewPanel::GetWorldBounds(const GameObject& object,
+        Float& minX, Float& minY, Float& maxX, Float& maxY, Bool* drewNothing) const
     {
         Canvas* canvas = m_editor->GetCanvas();
         if (canvas == nullptr)
@@ -952,16 +957,16 @@ namespace JBro
 
         // 오브젝트 로컬(유닛)의 사각형을 월드로 옮겨 감싼다. **회전도 따른다** - 예전에는 크기만 곱해, 돌린 스프라이트와
         // 글자의 모서리를 눌러도 잡히지 않았다(text-plan §7). 결과는 돌린 사각형을 감싸는 축 정렬 사각형이다.
-        bool hasBox = false;
-        const auto enclose = [&](float localMinX, float localMinY, float localMaxX, float localMaxY) {
-            const float xs[2] = { localMinX, localMaxX };
-            const float ys[2] = { localMinY, localMaxY };
-            for (const float x : xs)
+        Bool hasBox = false;
+        const auto enclose = [&](Float localMinX, Float localMinY, Float localMaxX, Float localMaxY) {
+            const Float xs[2] = { localMinX, localMaxX };
+            const Float ys[2] = { localMinY, localMaxY };
+            for (const Float x : xs)
             {
-                for (const float y : ys)
+                for (const Float y : ys)
                 {
-                    const float wx = x * world.m11 + y * world.m21 + world.m31;
-                    const float wy = x * world.m12 + y * world.m22 + world.m32;
+                    const Float wx = x * world.m11 + y * world.m21 + world.m31;
+                    const Float wy = x * world.m12 + y * world.m22 + world.m32;
                     if (false == hasBox)
                     {
                         minX = wx;
@@ -988,10 +993,10 @@ namespace JBro
             // 실제 크기는 스프라이트의 칸 픽셀을 그 에셋의 PPU 로 나눈 값이고, 그리는 쪽도
             // 그렇게 푼다(D-117). 선언된 `size` 를 대신 쓰면 집는 칸이 그림과 어긋나,
             // 눈에 보이는 그림의 가장자리를 눌러도 잡히지 않는다.
-            float widthUnits = sprite->size.x;
-            float heightUnits = sprite->size.y;
-            float pivotX = sprite->pivot.x;
-            float pivotY = sprite->pivot.y;
+            Float widthUnits = sprite->size.x;
+            Float heightUnits = sprite->size.y;
+            Float pivotX = sprite->pivot.x;
+            Float pivotY = sprite->pivot.y;
             const AssetSystem* assets = m_editor->GetAssetSystem();
             const SpriteData* data =
                 assets != nullptr ? assets->GetSprite(sprite->sprite) : nullptr;
@@ -1001,14 +1006,14 @@ namespace JBro
                 // 칸 번호가 넘치면 마지막 칸이다. 그리는 쪽(`SpriteLibrary::Resolve`)과 같다.
                 const std::size_t frameIndex =
                     sprite->frameIndex < data->frames.Size()
-                        ? sprite->frameIndex
+                        ? static_cast<std::size_t>(sprite->frameIndex.Get())
                         : data->frames.Size() - 1;
                 const SpriteFrame& frame = data->frames[frameIndex];
                 if (sprite->sizeMode == Component::SpriteSizeMode::FromSprite)
                 {
                     // 화면 레이어는 PPU 대신 픽셀이다 - 그리는 쪽과 같다(D-237).
                     const Layer* layer = object.GetLayer();
-                    const float ppu = layer != nullptr && layer->GetSpace() == LayerSpace::Screen ? 1.0f : data->options.pixelsPerUnit;
+                    const Float ppu = layer != nullptr && layer->GetSpace() == LayerSpace::Screen ? Float(1.0f) : data->options.pixelsPerUnit;
                     widthUnits = static_cast<float>(frame.width) / ppu;
                     heightUnits = static_cast<float>(frame.height) / ppu;
                 }
@@ -1034,10 +1039,10 @@ namespace JBro
             canvas->FindComponentsRaw<Component::Text2D>(&mutableObject, m_textScratch);
             for (Component::Text2D* text : m_textScratch)
             {
-                float localMinX = 0.0f;
-                float localMinY = 0.0f;
-                float localMaxX = 0.0f;
-                float localMaxY = 0.0f;
+                Float localMinX = 0.0f;
+                Float localMinY = 0.0f;
+                Float localMaxX = 0.0f;
+                Float localMaxY = 0.0f;
                 if (false == texts->GetLocalBounds(text->GetInstanceId(), localMinX, localMinY, localMaxX, localMaxY))
                 {
                     continue;
@@ -1052,7 +1057,7 @@ namespace JBro
         }
 
         // 그릴 것이 없으면(빈 오브젝트, 폰트 없는 텍스트) 월드 원점 둘레의 작은 상자다. 크기·회전과 무관하게 같은 크기로 잡힌다.
-        const bool empty = false == hasBox || maxX - minX < 0.001f || maxY - minY < 0.001f;
+        const Bool empty = false == hasBox || maxX - minX < 0.001f || maxY - minY < 0.001f;
         if (empty)
         {
             minX = center.x - EmptyObjectHalfSize;
@@ -1112,7 +1117,7 @@ namespace JBro
             {
                 return;
             }
-            const float thickness = m_editor->IsSelected(&object) ? 2.0f : 1.0f;
+            const Float thickness = m_editor->IsSelected(&object) ? 2.0f : 1.0f;
             canvas->FindComponentsRaw<Component::DistanceJoint2D>(&object, m_distanceJointScratch);
             for (Component::DistanceJoint2D* joint : m_distanceJointScratch)
             {
@@ -1205,8 +1210,8 @@ namespace JBro
             const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
             pose.cosine = std::cos(angle.Get());
             pose.sine = std::sin(angle.Get());
-            const bool isSelected = m_editor->IsSelected(&object);
-            const float thickness = isSelected ? 2.0f : 1.0f;
+            const Bool isSelected = m_editor->IsSelected(&object);
+            const Float thickness = isSelected ? 2.0f : 1.0f;
 
             for (Component::Collider2D* collider : m_colliderScratch)
             {
@@ -1223,14 +1228,14 @@ namespace JBro
                     // 원은 한 축으로만 커져도 원으로 남는다(물리가 그렇게 다룬다).
                     // 그러니 **더 큰 쪽**으로 잰다 - 작은 쪽으로 재면 그림보다 작은 원이 되어
                     // 실제로 부딪히는 자리를 가린다.
-                    const float scaleX = std::fabs(pose.scale.x);
-                    const float scaleY = std::fabs(pose.scale.y);
-                    const float radius = collider->radius * (scaleX > scaleY ? scaleX : scaleY);
+                    const Float scaleX = std::fabs(pose.scale.x);
+                    const Float scaleY = std::fabs(pose.scale.y);
+                    const Float radius = collider->radius * (scaleX > scaleY ? scaleX : scaleY);
                     const Vector2 middle = LocalToScreen(rect, pose, collider->offset, {});
-                    float edgeX = 0.0f;
-                    float edgeY = 0.0f;
-                    float centerX = 0.0f;
-                    float centerY = 0.0f;
+                    Float edgeX = 0.0f;
+                    Float edgeY = 0.0f;
+                    Float centerX = 0.0f;
+                    Float centerY = 0.0f;
                     ScreenToWorld(rect, middle.x, middle.y, centerX, centerY);
                     WorldToScreen(rect, centerX + radius, centerY, edgeX, edgeY);
                     draw->AddCircle(ImVec2(middle.x, middle.y), edgeX - middle.x, color, 48, thickness);
@@ -1246,25 +1251,25 @@ namespace JBro
                         { collider->size.x * 0.5f * pose.scale.x, collider->size.y * 0.5f * pose.scale.y });
                     const Vector2 a = capsule.points[0];
                     const Vector2 b = capsule.points[1];
-                    const float length = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+                    const Float length = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
                     const Vector2 axis = length > 0.0f ? Vector2{ (b.x - a.x) / length, (b.y - a.y) / length } : Vector2{ 1.0f, 0.0f };
                     const Vector2 side{ -axis.y, axis.x };
-                    constexpr int ArcSegments = 16;
+                    constexpr Int32 ArcSegments = 16;
                     m_screenScratch.Clear();
                     // b 쪽 반원(옆 -side 에서 축 방향을 지나 +side), 이어서 a 쪽 반원. 두 반원 사이의 곧은 변은 닫는 선이다.
-                    for (int end = 0; end < 2; ++end)
+                    for (Int32 end = 0; end < 2; ++end)
                     {
                         const Vector2 cap = end == 0 ? b : a;
-                        const float start = end == 0 ? -0.5f * Pi : 0.5f * Pi;
-                        for (int k = 0; k <= ArcSegments; ++k)
+                        const Float start = end == 0 ? -0.5f * Pi : 0.5f * Pi;
+                        for (Int32 k = 0; k <= ArcSegments; ++k)
                         {
-                            const float turn = start + Pi * static_cast<float>(k) / static_cast<float>(ArcSegments);
-                            const float c = std::cos(turn) * capsule.radius;
-                            const float s = std::sin(turn) * capsule.radius;
+                            const Float turn = start + Pi * static_cast<float>(k) / static_cast<float>(ArcSegments);
+                            const Float c = std::cos(turn) * capsule.radius;
+                            const Float s = std::sin(turn) * capsule.radius;
                             const Vector2 local{ cap.x + axis.x * c + side.x * s, cap.y + axis.y * c + side.y * s };
                             // 캡슐은 크기와 offset 을 이미 곱한 바디 로컬이다. 돌리고 옮기기만 한다.
-                            const float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
-                            const float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
+                            const Float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
+                            const Float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
                             Vector2 screen;
                             WorldToScreen(rect, worldX, worldY, screen.x, screen.y);
                             m_screenScratch.Add(screen);
@@ -1310,14 +1315,14 @@ namespace JBro
                         for (const Physics2D::ConvexPolygon& convex : pieces.pieces)
                         {
                             ImVec2 corners[Physics2D::MaxPolygonVertices];
-                            for (std::uint32_t k = 0; k < convex.count; ++k)
+                            for (UInt32 k = 0; k < convex.count; ++k)
                             {
                                 // 조각은 크기와 offset 을 이미 곱한 바디 로컬이다. 돌리고 옮기기만 한다.
                                 const Vector2 local = convex.points[k];
-                                const float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
-                                const float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
-                                float screenX = 0.0f;
-                                float screenY = 0.0f;
+                                const Float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
+                                const Float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
+                                Float screenX = 0.0f;
+                                Float screenY = 0.0f;
                                 WorldToScreen(rect, worldX, worldY, screenX, screenY);
                                 corners[k] = ImVec2(screenX, screenY);
                             }
@@ -1342,10 +1347,10 @@ namespace JBro
     Vector2 CanvasViewPanel::LocalToScreen(const ViewRect& rect, const PolygonPose& pose, Vector2 offset, Vector2 local) const
     {
         // 콜라이더의 점은 오브젝트 로컬이다. offset 을 더하고, 커지고, 돌고, 옮겨진다(물리와 같은 순서).
-        const float x = (local.x + offset.x) * pose.scale.x;
-        const float y = (local.y + offset.y) * pose.scale.y;
-        const float worldX = pose.center.x + x * pose.cosine - y * pose.sine;
-        const float worldY = pose.center.y + x * pose.sine + y * pose.cosine;
+        const Float x = (local.x + offset.x) * pose.scale.x;
+        const Float y = (local.y + offset.y) * pose.scale.y;
+        const Float worldX = pose.center.x + x * pose.cosine - y * pose.sine;
+        const Float worldY = pose.center.y + x * pose.sine + y * pose.cosine;
         Vector2 screen;
         WorldToScreen(rect, worldX, worldY, screen.x, screen.y);
         return screen;
@@ -1353,20 +1358,20 @@ namespace JBro
 
     Vector2 CanvasViewPanel::ScreenToLocal(const ViewRect& rect, const PolygonPose& pose, Vector2 offset, Vector2 screen) const
     {
-        float worldX = 0.0f;
-        float worldY = 0.0f;
+        Float worldX = 0.0f;
+        Float worldY = 0.0f;
         ScreenToWorld(rect, screen.x, screen.y, worldX, worldY);
-        const float dx = worldX - pose.center.x;
-        const float dy = worldY - pose.center.y;
-        const float x = dx * pose.cosine + dy * pose.sine;
-        const float y = -dx * pose.sine + dy * pose.cosine;
+        const Float dx = worldX - pose.center.x;
+        const Float dy = worldY - pose.center.y;
+        const Float x = dx * pose.cosine + dy * pose.sine;
+        const Float y = -dx * pose.sine + dy * pose.cosine;
         // 크기가 0 인 축은 되돌릴 수 없다. 그 축은 움직이지 않은 것으로 둔다.
-        const float localX = pose.scale.x != 0.0f ? x / pose.scale.x : 0.0f;
-        const float localY = pose.scale.y != 0.0f ? y / pose.scale.y : 0.0f;
+        const Float localX = pose.scale.x != 0.0f ? x / pose.scale.x : Float(0.0f);
+        const Float localY = pose.scale.y != 0.0f ? y / pose.scale.y : Float(0.0f);
         return { localX - offset.x, localY - offset.y };
     }
 
-    bool CanvasViewPanel::ProjectWorldToScreen(float worldX, float worldY, float& screenX, float& screenY) const
+    Bool CanvasViewPanel::ProjectWorldToScreen(Float worldX, Float worldY, Float& screenX, Float& screenY) const
     {
         if (false == m_hasLastRect)
         {
@@ -1380,11 +1385,11 @@ namespace JBro
     {
         // 지문: 꼭짓점·offset·크기·size. 물리의 어댑터와 같은 판단을 하되 그 코드를 끌어오지 않는다 - 에디터는
         // 시스템이 돌지 않는 편집 중에도 그린다.
-        std::uint64_t signature = 14695981039346656037ull;
-        const auto mix = [&signature](float value)
+        UInt64 signature = 14695981039346656037ull;
+        const auto mix = [&signature](Float value)
         {
-            const float normalized = value == 0.0f ? 0.0f : value;
-            std::uint32_t bits = 0;
+            const Float normalized = value == 0.0f ? Float(0.0f) : value;
+            UInt32 bits = 0;
             std::memcpy(&bits, &normalized, sizeof(bits));
             signature ^= bits;
             signature *= 1099511628211ull;
@@ -1423,7 +1428,7 @@ namespace JBro
         return *cache;
     }
 
-    bool CanvasViewPanel::FindPolygonTarget(PolygonTarget& target)
+    Bool CanvasViewPanel::FindPolygonTarget(PolygonTarget& target)
     {
         target = {};
         Canvas* canvas = m_editor->GetCanvas();
@@ -1496,7 +1501,7 @@ namespace JBro
         Component::Collider2D* collider = static_cast<Component::Collider2D*>(component);
         collider->points = after;
         String text;
-        const bool read = SetPropertyCommand::ReadValue(*component, address.typeId, path, text);
+        const Bool read = SetPropertyCommand::ReadValue(*component, address.typeId, path, text);
         SetPropertyCommand::ApplyValue(*component, address.typeId, path, before);
         if (false == read || text == before)
         {
@@ -1510,7 +1515,7 @@ namespace JBro
     {
         const ImGuiIO& io = ImGui::GetIO();
         PolygonTarget target;
-        const bool hasTarget = FindPolygonTarget(target);
+        const Bool hasTarget = FindPolygonTarget(target);
         if (m_vertexDragging && (false == hasTarget || false == target.address.Equals(m_dragAddress)))
         {
             // 끌던 콜라이더가 사라졌거나 다른 것을 골랐다. 남은 것이 있으면 끌기 전 값으로 되돌린다.
@@ -1541,7 +1546,7 @@ namespace JBro
             }
             collider.points = m_dragPoints;
             char id[32];
-            std::snprintf(id, sizeof(id), "##vertex_%u", m_dragVertex);
+            std::snprintf(id, sizeof(id), "##vertex_%u", m_dragVertex.Get());
             if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 Widget::OverlayHandle(id, true, true, false);
@@ -1575,8 +1580,8 @@ namespace JBro
         if (m_polygonHover.kind == PolygonEditModel::HitKind::Vertex)
         {
             char id[32];
-            std::snprintf(id, sizeof(id), "##vertex_%u", m_polygonHover.index);
-            const bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            std::snprintf(id, sizeof(id), "##vertex_%u", m_polygonHover.index.Get());
+            const Bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
             Widget::OverlayHandle(id, true, pressed, pressed);
             if (pressed)
             {
@@ -1594,7 +1599,7 @@ namespace JBro
         }
         else if (m_polygonHover.kind == PolygonEditModel::HitKind::Edge)
         {
-            const bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            const Bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
             Widget::OverlayHandle("##edge_insert", true, false, pressed);
             if (pressed)
             {
@@ -1616,8 +1621,8 @@ namespace JBro
         // **포인트를 가이드 포커스에 알린다**(반례 ⑦). 자리는 집기가 쓰는 화면 점이고 구멍은 둥글다. 눌림은 그 포인트를 잡은 프레임이다.
         if (const EditorGuideFocus* focus = Widget::GetGuideFocus(); focus != nullptr && focus->IsActive())
         {
-            constexpr float PointHoleRadius = 9.0f;
-            const bool grabbedNow = m_vertexDragging && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            constexpr Float PointHoleRadius = 9.0f;
+            const Bool grabbedNow = m_vertexDragging && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
             for (std::size_t index = 0; index < m_screenScratch.Size(); ++index)
             {
                 const Vector2 p = m_screenScratch[index];
@@ -1634,7 +1639,7 @@ namespace JBro
         const ImU32 hotColor = IM_COL32(255, 255, 255, 255);
         const ImU32 insertColor = IM_COL32(140, 230, 100, 230);
         const ImU32 shadow = IM_COL32(0, 0, 0, 120);
-        constexpr float HandleRadius = 3.5f;
+        constexpr Float HandleRadius = 3.5f;
         const std::size_t count = m_screenScratch.Size();
         const std::size_t edges = PolygonEditModel::IsClosedOutline(collider) ? count : (count > 0 ? count - 1 : 0);
         for (std::size_t index = 0; count >= 2 && index < edges; ++index)
@@ -1646,7 +1651,7 @@ namespace JBro
         for (std::size_t index = 0; index < count; ++index)
         {
             const Vector2 p = m_screenScratch[index];
-            const bool hot = (m_vertexDragging && index == m_dragVertex)
+            const Bool hot = (m_vertexDragging && index == m_dragVertex)
                 || (m_polygonHover.kind == PolygonEditModel::HitKind::Vertex && index == m_polygonHover.index);
             draw->AddCircleFilled(ImVec2(p.x + 1.0f, p.y + 1.0f), HandleRadius, shadow);
             draw->AddCircleFilled(ImVec2(p.x, p.y), HandleRadius, hot ? hotColor : handleColor);
@@ -1659,7 +1664,7 @@ namespace JBro
         }
     }
 
-    bool CanvasViewPanel::DrawVertexMenu(const ViewRect& rect)
+    Bool CanvasViewPanel::DrawVertexMenu(const ViewRect& rect)
     {
         // 버텍스 위에서 우클릭하면 그 버텍스의 메뉴다. 캔버스의 오브젝트 메뉴 대신 연다.
         if (PointerInView(rect) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && false == m_panMoved)
@@ -1693,8 +1698,8 @@ namespace JBro
         if (collider != nullptr)
         {
             PolygonEditModel::SeedPoints(*collider, m_outlineScratch);
-            const std::uint32_t minimum = PolygonEditModel::MinPointCount(*collider);
-            const bool removable = m_outlineScratch.Size() > minimum;
+            const UInt32 minimum = PolygonEditModel::MinPointCount(*collider);
+            const Bool removable = m_outlineScratch.Size() > minimum;
             const char* why = minimum < PolygonEditModel::MinVertexCount
                 ? Loc::TextOr(LocKeys::CanvasViewPointDeleteMinChain, "a chain needs at least two points")
                 : Loc::TextOr(LocKeys::CanvasViewPointDeleteMin, "a polygon needs at least three points");
@@ -1730,18 +1735,18 @@ namespace JBro
         for (std::size_t index = 0; index < selected.Size(); ++index)
         {
             GameObject* object = selected[index];
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            Float minX = 0.0f;
+            Float minY = 0.0f;
+            Float maxX = 0.0f;
+            Float maxY = 0.0f;
             if (object == nullptr || false == InViewSpace(*object) || false == GetWorldBounds(*object, minX, minY, maxX, maxY))
             {
                 continue;
             }
-            float x0 = 0.0f;
-            float y0 = 0.0f;
-            float x1 = 0.0f;
-            float y1 = 0.0f;
+            Float x0 = 0.0f;
+            Float y0 = 0.0f;
+            Float x1 = 0.0f;
+            Float y1 = 0.0f;
             WorldToScreen(rect, minX, maxY, x0, y0);
             WorldToScreen(rect, maxX, minY, x1, y1);
             // **주된 것은 더 밝다.** 여럿 골랐을 때 어느 것이 인스펙터에 있는지가
@@ -1756,20 +1761,20 @@ namespace JBro
     }
 
     GameObject* CanvasViewPanel::PickAt(
-        const ViewRect& rect, float screenX, float screenY) const
+        const ViewRect& rect, Float screenX, Float screenY) const
     {
         Canvas* canvas = m_editor->GetCanvas();
         if (canvas == nullptr)
         {
             return nullptr;
         }
-        float worldX = 0.0f;
-        float worldY = 0.0f;
+        Float worldX = 0.0f;
+        Float worldY = 0.0f;
         ScreenToWorld(rect, screenX, screenY, worldX, worldY);
 
         // **작은 것이 이긴다.** 큰 배경 위에 놓인 작은 오브젝트를 집을 수 있어야 한다.
         GameObject* best = nullptr;
-        float bestArea = 0.0f;
+        Float bestArea = 0.0f;
         canvas->ForEachObject([&](GameObject& object)
         {
             // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-237).
@@ -1777,10 +1782,10 @@ namespace JBro
             {
                 return;
             }
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            Float minX = 0.0f;
+            Float minY = 0.0f;
+            Float maxX = 0.0f;
+            Float maxY = 0.0f;
             if (false == GetWorldBounds(object, minX, minY, maxX, maxY))
             {
                 return;
@@ -1789,7 +1794,7 @@ namespace JBro
             {
                 return;
             }
-            const float area = (maxX - minX) * (maxY - minY);
+            const Float area = (maxX - minX) * (maxY - minY);
             if (best == nullptr || area < bestArea)
             {
                 best = &object;
@@ -1799,7 +1804,7 @@ namespace JBro
         return best;
     }
 
-    bool CanvasViewPanel::PointerInView(const ViewRect& rect) const
+    Bool CanvasViewPanel::PointerInView(const ViewRect& rect) const
     {
         // **입력 자리의 hover 로는 잴 수 없다**(D-179, D-170 과 같은 까닭). 그것은 기즈모를
         // 그리기 **전에** 재는 값이라, 손잡이가 앞 프레임부터 hover 를 쥐고 있으면 거짓이다 -
@@ -1812,7 +1817,7 @@ namespace JBro
             return false;
         }
         const ImVec2 mouse = ImGui::GetIO().MousePos;
-        const bool inside = mouse.x >= rect.left && mouse.x < rect.left + rect.width
+        const Bool inside = mouse.x >= rect.left && mouse.x < rect.left + rect.width
             && mouse.y >= rect.top && mouse.y < rect.top + rect.height;
         return inside
             && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
@@ -1848,8 +1853,8 @@ namespace JBro
         // 고른 것과 편집 카메라의 자리는 화면만 보고는 알 수 없다 - 배율을 얼마나 당겨 두었는지,
         // 여럿 골랐는지 하나 골랐는지가 인스펙터를 봐야 드러났다.
         ImDrawList* draw = ImGui::GetWindowDrawList();
-        float y = rect.top + 8.0f;
-        const float x = rect.left + 8.0f;
+        Float y = rect.top + 8.0f;
+        const Float x = rect.left + 8.0f;
         const auto line = [&](const char* text, ImU32 color)
         {
             const ImVec2 extent = ImGui::CalcTextSize(text);
@@ -1875,9 +1880,9 @@ namespace JBro
         {
             // **-0.00 은 0 이다.** 부호 있는 0 이 화면에 나오면 어딘가 틀린 것처럼 읽힌다
             // (격자 라벨도 같은 이유로 고쳤다, D-162).
-            const auto tidy = [](float value)
+            const auto tidy = [](Float value)
             {
-                return value > -0.005f && value < 0.005f ? 0.0f : value;
+                return value > -0.005f && value < 0.005f ? Float(0.0f) : value;
             };
             std::snprintf(text, sizeof(text),
                 Loc::TextOr(LocKeys::CanvasViewCameraFormat, "camera (%.2f, %.2f) size %.2f"),
@@ -1897,7 +1902,7 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::HandlePicking(const ViewRect& rect, bool hovered)
+    void CanvasViewPanel::HandlePicking(const ViewRect& rect, Bool hovered)
     {
         // 기즈모를 잡고 있는 중이면 고르지 않는다. 손잡이를 놓는 것이 빈 곳을 누른 것이
         // 되면 끌 때마다 선택이 풀린다.
@@ -1905,7 +1910,7 @@ namespace JBro
         // 기즈모를 건드릴 때마다 선택이 바뀌면 여럿 골라 놓고 옮길 수 없다.
         // **손잡이 위에서 두 번 눌러도 들어간다**(D-179). `hovered` 로 재면 오브젝트의
         // 한가운데 - 늘 기즈모가 있는 자리 - 에서는 두 번 누르기가 없는 일이 된다.
-        const bool pointerHere = PointerInView(rect);
+        const Bool pointerHere = PointerInView(rect);
         if (pointerHere && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
         {
             m_doubleClick = true;
@@ -1966,7 +1971,7 @@ namespace JBro
         // **붙이고 떼는 단위도 자손까지다**(D-254, 기존 `CollectSubtree`). 들어가 있는 오브젝트 자신은 그것 하나다.
         if (io.KeyCtrl || io.KeyShift)
         {
-            const bool alone = picked == GetFocus();
+            const Bool alone = picked == GetFocus();
             if (m_editor->IsSelected(picked))
             {
                 if (alone)
@@ -2017,7 +2022,7 @@ namespace JBro
 
     void CanvasViewPanel::StepInto(GameObject& object)
     {
-        const std::uint64_t id = m_editor->GetObjectIds().Track(&object);
+        const UInt64 id = m_editor->GetObjectIds().Track(&object);
         if (id == m_focus)
         {
             // 이미 그 안이다. 오브젝트에 다시 맞춘다 - 제자리로 돌아오려는 손짓이다(기존 `OnDoubleClick`).
@@ -2040,7 +2045,7 @@ namespace JBro
             return nullptr;
         }
         GameObject* parent = focus->GetParent();
-        m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : 0;
+        m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : InvalidEditorObjectId;
         // 그 층에서 들어가기 직전에 보던 자리로 돌아간다. 적힌 것은 한 번 쓰고 버린다(D-257).
         // 적힌 것이 없으면(계층 창에서 곧장 깊이 들어왔다) 나온 오브젝트를 비춘다.
         if (false == TakeCamera(m_focus))
@@ -2065,7 +2070,7 @@ namespace JBro
         m_cameraMemos.TryAdd(m_focus, memo);
     }
 
-    bool CanvasViewPanel::TakeCamera(std::uint64_t context)
+    Bool CanvasViewPanel::TakeCamera(UInt64 context)
     {
         const CameraMemo* found = m_cameraMemos.Find(context);
         if (found == nullptr)
@@ -2084,7 +2089,7 @@ namespace JBro
         return true;
     }
 
-    void CanvasViewPanel::HandleBoxSelect(const ViewRect& rect, bool hovered)
+    void CanvasViewPanel::HandleBoxSelect(const ViewRect& rect, Bool hovered)
     {
         // 기즈모를 잡고 있으면 상자를 시작하지 않는다. 손잡이를 끄는 것이 곧 상자가 되면
         // 옮길 때마다 선택이 통째로 바뀐다.
@@ -2099,7 +2104,7 @@ namespace JBro
         {
             // **임계값을 넘어야 시작한다.** 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가
             // 되어, 무언가를 고르려던 손짓이 선택을 푸는 손짓이 된다.
-            const bool startable = PointerInView(rect)
+            const Bool startable = PointerInView(rect)
                 && m_gizmoState.hovered == GizmoAxis::None
                 && ImGui::IsMouseDown(ImGuiMouseButton_Left)
                 && Widget::MouseWasDragged(ImGuiMouseButton_Left);
@@ -2118,10 +2123,10 @@ namespace JBro
         }
 
         const ImVec2 current = io.MousePos;
-        const float left = (std::min)(m_boxStart.x, current.x);
-        const float right = (std::max)(m_boxStart.x, current.x);
-        const float top = (std::min)(m_boxStart.y, current.y);
-        const float bottom = (std::max)(m_boxStart.y, current.y);
+        const Float left = (std::min)(m_boxStart.x, current.x);
+        const Float right = (std::max)(m_boxStart.x, current.x);
+        const Float top = (std::min)(m_boxStart.y, current.y);
+        const Float bottom = (std::max)(m_boxStart.y, current.y);
 
         ImDrawList* draw = ImGui::GetWindowDrawList();
         draw->AddRectFilled(ImVec2(left, top), ImVec2(right, bottom),
@@ -2144,10 +2149,10 @@ namespace JBro
         {
             return;
         }
-        float worldLeft = 0.0f;
-        float worldTop = 0.0f;
-        float worldRight = 0.0f;
-        float worldBottom = 0.0f;
+        Float worldLeft = 0.0f;
+        Float worldTop = 0.0f;
+        Float worldRight = 0.0f;
+        Float worldBottom = 0.0f;
         ScreenToWorld(rect, left, bottom, worldLeft, worldBottom);
         ScreenToWorld(rect, right, top, worldRight, worldTop);
 
@@ -2159,10 +2164,10 @@ namespace JBro
             {
                 return;
             }
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            Float minX = 0.0f;
+            Float minY = 0.0f;
+            Float maxX = 0.0f;
+            Float maxY = 0.0f;
             if (false == GetWorldBounds(object, minX, minY, maxX, maxY))
             {
                 return;
@@ -2294,17 +2299,17 @@ namespace JBro
         {
             return;
         }
-        float minX = 0.0f;
-        float minY = 0.0f;
-        float maxX = 0.0f;
-        float maxY = 0.0f;
-        bool any = false;
+        Float minX = 0.0f;
+        Float minY = 0.0f;
+        Float maxX = 0.0f;
+        Float maxY = 0.0f;
+        Bool any = false;
         auto include = [&](const GameObject& object)
         {
-            float x0 = 0.0f;
-            float y0 = 0.0f;
-            float x1 = 0.0f;
-            float y1 = 0.0f;
+            Float x0 = 0.0f;
+            Float y0 = 0.0f;
+            Float x1 = 0.0f;
+            Float y1 = 0.0f;
             if (false == GetWorldBounds(object, x0, y0, x1, y1))
             {
                 return;
@@ -2350,13 +2355,13 @@ namespace JBro
         FrameBounds(minX, minY, maxX, maxY);
     }
 
-    void CanvasViewPanel::FrameBounds(float minX, float minY, float maxX, float maxY)
+    void CanvasViewPanel::FrameBounds(Float minX, Float minY, Float maxX, Float maxY)
     {
         m_goalX = (minX + maxX) * 0.5f;
         m_goalY = (minY + maxY) * 0.5f;
         // 가장자리에 붙지 않게 조금 넓게 잡는다.
-        const float halfHeight = (maxY - minY) * 0.5f * 1.2f;
-        const float halfWidth = (maxX - minX) * 0.5f * 1.2f;
+        const Float halfHeight = (maxY - minY) * 0.5f * 1.2f;
+        const Float halfWidth = (maxX - minX) * 0.5f * 1.2f;
         m_goalSize = std::clamp(
             (std::max)(halfHeight, halfWidth * 0.75f),
             MinOrthographicSize, MaxOrthographicSize);
@@ -2378,23 +2383,23 @@ namespace JBro
         const NameId kind = GuideFocusTargets::CanvasViewObject(0).name;
         const NameId handleKind = GuideFocusTargets::GizmoHandle(0, 0).name;
         const NameId pointKind = GuideFocusTargets::PolygonPoint(0).name;
-        for (std::uint32_t index = 0; index < path.count; ++index)
+        for (UInt32 index = 0; index < path.count; ++index)
         {
             const GuideFocusTarget& target = path.targets[index];
             if ((target.name == handleKind || target.name == pointKind) && focus->ShouldScrollTo(target))
             {
                 // 손잡이와 포인트는 고른 오브젝트 위에 선다. 그 오브젝트가 화면 밖이면 카메라를 그리로 옮긴다 - 그래야 그려진다.
                 GameObject* selected = m_editor->GetSelectedObject();
-                float minX = 0.0f;
-                float minY = 0.0f;
-                float maxX = 0.0f;
-                float maxY = 0.0f;
+                Float minX = 0.0f;
+                Float minY = 0.0f;
+                Float maxX = 0.0f;
+                Float maxY = 0.0f;
                 if (selected != nullptr && InViewSpace(*selected) && GetWorldBounds(*selected, minX, minY, maxX, maxY))
                 {
-                    float x0 = 0.0f;
-                    float y0 = 0.0f;
-                    float x1 = 0.0f;
-                    float y1 = 0.0f;
+                    Float x0 = 0.0f;
+                    Float y0 = 0.0f;
+                    Float x1 = 0.0f;
+                    Float y1 = 0.0f;
                     WorldToScreen(rect, minX, maxY, x0, y0);
                     WorldToScreen(rect, maxX, minY, x1, y1);
                     if (x1 < rect.left || x0 > rect.left + rect.width || y1 < rect.top || y0 > rect.top + rect.height)
@@ -2422,32 +2427,32 @@ namespace JBro
                 }
                 continue;
             }
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            Float minX = 0.0f;
+            Float minY = 0.0f;
+            Float maxX = 0.0f;
+            Float maxY = 0.0f;
             // 스프라이트·글자가 있으면 그 사각형이고, 없으면 오브젝트의 점 둘레다 - 점은 둥글게 뚫는다.
-            bool point = false;
+            Bool point = false;
             if (false == GetWorldBounds(*object, minX, minY, maxX, maxY, &point))
             {
                 continue;
             }
-            float x0 = 0.0f;
-            float y0 = 0.0f;
-            float x1 = 0.0f;
-            float y1 = 0.0f;
+            Float x0 = 0.0f;
+            Float y0 = 0.0f;
+            Float x1 = 0.0f;
+            Float y1 = 0.0f;
             WorldToScreen(rect, minX, maxY, x0, y0);
             WorldToScreen(rect, maxX, minY, x1, y1);
             // 뷰 밖으로 삐져나간 몫은 자른다. 구멍이 이웃 패널까지 뚫리면 그쪽도 눌린다.
             const ImVec2 min((std::max)(x0, rect.left), (std::max)(y0, rect.top));
             const ImVec2 max((std::min)(x1, rect.left + rect.width), (std::min)(y1, rect.top + rect.height));
-            const bool onScreen = min.x < max.x && min.y < max.y;
+            const Bool onScreen = min.x < max.x && min.y < max.y;
             if (false == onScreen && focus->ShouldScrollTo(target))
             {
                 // 화면 밖이다. 카메라를 그리로 옮긴다 - 카메라가 따라가는 동안 구멍도 따라온다.
                 FrameBounds(minX, minY, maxX, maxY);
             }
-            const bool menuOpen = m_contextObject.TryGet() == object;
+            const Bool menuOpen = m_contextObject.TryGet() == object;
             if (onScreen)
             {
                 Widget::ReportGuideTarget(target, min, max, menuOpen, false, point);
@@ -2460,16 +2465,16 @@ namespace JBro
     }
 
     void CanvasViewPanel::IncludeTreeBounds(const GameObject& object,
-        float& minX, float& minY, float& maxX, float& maxY, bool& any) const
+        Float& minX, Float& minY, Float& maxX, Float& maxY, Bool& any) const
     {
         if (object.IsEditorHidden())
         {
             return;
         }
-        float x0 = 0.0f;
-        float y0 = 0.0f;
-        float x1 = 0.0f;
-        float y1 = 0.0f;
+        Float x0 = 0.0f;
+        Float y0 = 0.0f;
+        Float x1 = 0.0f;
+        Float y1 = 0.0f;
         if (GetWorldBounds(object, x0, y0, x1, y1))
         {
             minX = any ? (std::min)(minX, x0) : x0;
@@ -2491,11 +2496,11 @@ namespace JBro
     {
         // **자손까지 담는다.** 그림 없는 묶음 오브젝트로 들어가면 제 몸은 점이라, 제 몸만 재면 화면이 빈 곳으로 당겨진다.
         // 기존 엔진은 오브젝트 자신의 스프라이트만 재서 그렇게 되었다.
-        float minX = 0.0f;
-        float minY = 0.0f;
-        float maxX = 0.0f;
-        float maxY = 0.0f;
-        bool any = false;
+        Float minX = 0.0f;
+        Float minY = 0.0f;
+        Float maxX = 0.0f;
+        Float maxY = 0.0f;
+        Bool any = false;
         IncludeTreeBounds(object, minX, minY, maxX, maxY, any);
         if (false == any || Is3D())
         {
@@ -2503,11 +2508,11 @@ namespace JBro
         }
         m_goalX = (minX + maxX) * 0.5f;
         m_goalY = (minY + maxY) * 0.5f;
-        const float halfExtent = (std::max)(maxX - minX, maxY - minY) * 0.5f;
+        const Float halfExtent = (std::max)(maxX - minX, maxY - minY) * 0.5f;
         m_goalSize = std::clamp(halfExtent * FocusPadding, MinFocusSize, MaxOrthographicSize);
     }
 
-    bool CanvasViewPanel::MakeGizmoCamera(const ViewRect& rect, GizmoCamera& camera) const
+    Bool CanvasViewPanel::MakeGizmoCamera(const ViewRect& rect, GizmoCamera& camera) const
     {
         if (Is3D())
         {
@@ -2535,15 +2540,15 @@ namespace JBro
 
         // 2D 는 우리가 카메라를 다 안다. 엔진이 캔버스 뷰를 그릴 때 쓰는 것과 같은 식이다.
         // **크기는 그린 화면의 것이다**(D-150) - 3D 가 텍스처 크기를 쓰는 것과 같은 이유다.
-        const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
-        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
-        const float halfHeight = m_orthographicSize;
-        const float halfWidth = drawHeight > 0.0f
+        const Float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+        const Float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+        const Float halfHeight = m_orthographicSize;
+        const Float halfWidth = drawHeight > 0.0f
             ? halfHeight * drawWidth / drawHeight
             : halfHeight;
-        constexpr float NearPlane = -100.0f;
-        constexpr float FarPlane = 100.0f;
-        constexpr float Depth = FarPlane - NearPlane;
+        constexpr Float NearPlane = -100.0f;
+        constexpr Float FarPlane = 100.0f;
+        constexpr Float Depth = FarPlane - NearPlane;
         const Matrix4x4 view{{
             1.0f, 0.0f, 0.0f, -m_centerX,
             0.0f, 1.0f, 0.0f, -m_centerY,
@@ -2572,24 +2577,24 @@ namespace JBro
         // 간격은 2D 와 같은 눈금(1·2·5·10 …)을 쓴다. 다만 배율을 직교 크기가 아니라
         // **바라보는 점에서 한 단위가 몇 픽셀로 보이는지**로 잰다 - 원근에서는 거리가
         // 배율이고, 그 거리는 바라보는 점의 것을 대표로 삼는다.
-        float centerScreenX = 0.0f;
-        float centerScreenY = 0.0f;
-        float unitScreenX = 0.0f;
-        float unitScreenY = 0.0f;
+        Float centerScreenX = 0.0f;
+        Float centerScreenY = 0.0f;
+        Float unitScreenX = 0.0f;
+        Float unitScreenY = 0.0f;
         if (false == GizmoModel::Project(camera, look, centerScreenX, centerScreenY)
             || false == GizmoModel::Project(
                 camera, Vector3{look.x + 1.0f, look.y, look.z}, unitScreenX, unitScreenY))
         {
             return;
         }
-        const float dx = unitScreenX - centerScreenX;
-        const float dy = unitScreenY - centerScreenY;
-        const float pixelsPerUnit = std::sqrt(dx * dx + dy * dy);
+        const Float dx = unitScreenX - centerScreenX;
+        const Float dy = unitScreenY - centerScreenY;
+        const Float pixelsPerUnit = std::sqrt(dx * dx + dy * dy);
         if (false == std::isfinite(pixelsPerUnit) || pixelsPerUnit <= 0.001f)
         {
             return;
         }
-        const float step = ChooseGridStep(1.0f / pixelsPerUnit);
+        const Float step = ChooseGridStep(1.0f / pixelsPerUnit);
         if (false == std::isfinite(step) || step <= 0.0f)
         {
             return;
@@ -2597,10 +2602,10 @@ namespace JBro
 
         // **끝이 있는 격자다.** 평면은 지평선까지 이어지지만, 거기까지 선을 그으면
         // 먼 쪽이 한 덩어리로 뭉쳐 잡음이 된다. 바라보는 점 둘레의 칸만 그린다.
-        constexpr int HalfLines = 20;
-        const float half = step * static_cast<float>(HalfLines);
-        const float baseX = std::floor(look.x / step) * step;
-        const float baseZ = std::floor(look.z / step) * step;
+        constexpr Int32 HalfLines = 20;
+        const Float half = step * static_cast<float>(HalfLines);
+        const Float baseX = std::floor(look.x / step) * step;
+        const Float baseZ = std::floor(look.z / step) * step;
 
         ImDrawList* draw = ImGui::GetWindowDrawList();
         const ImU32 line = IM_COL32(255, 255, 255, 18);
@@ -2610,21 +2615,21 @@ namespace JBro
 
         // 한 선을 토막 내어 잇는다. **양 끝만 투영하면 안 된다** - 선이 카메라 평면을
         // 가로지르면 한쪽 끝이 뒤에 있어 투영이 없고, 그러면 선 전체가 사라진다.
-        constexpr int Segments = 16;
-        auto drawWorldLine = [&](const Vector3& from, const Vector3& to, ImU32 color, float thickness)
+        constexpr Int32 Segments = 16;
+        auto drawWorldLine = [&](const Vector3& from, const Vector3& to, ImU32 color, Float thickness)
         {
-            float previousX = 0.0f;
-            float previousY = 0.0f;
-            bool hasPrevious = false;
-            for (int index = 0; index <= Segments; ++index)
+            Float previousX = 0.0f;
+            Float previousY = 0.0f;
+            Bool hasPrevious = false;
+            for (Int32 index = 0; index <= Segments; ++index)
             {
-                const float t = static_cast<float>(index) / static_cast<float>(Segments);
+                const Float t = static_cast<float>(index) / static_cast<float>(Segments);
                 const Vector3 point{
                     from.x + (to.x - from.x) * t,
                     from.y + (to.y - from.y) * t,
                     from.z + (to.z - from.z) * t};
-                float x = 0.0f;
-                float y = 0.0f;
+                Float x = 0.0f;
+                Float y = 0.0f;
                 if (false == GizmoModel::Project(camera, point, x, y))
                 {
                     hasPrevious = false;
@@ -2640,14 +2645,14 @@ namespace JBro
             }
         };
 
-        for (int index = -HalfLines; index <= HalfLines; ++index)
+        for (Int32 index = -HalfLines; index <= HalfLines; ++index)
         {
-            const float offset = step * static_cast<float>(index);
-            const float x = baseX + offset;
-            const float z = baseZ + offset;
+            const Float offset = step * static_cast<float>(index);
+            const Float x = baseX + offset;
+            const Float z = baseZ + offset;
             // 열 칸마다 한 줄은 진하게. 2D 와 같은 규칙이라 배율이 같은 방식으로 읽힌다.
-            const bool tenthX = std::fabs(std::fmod(x / step, 10.0f)) < 0.001f;
-            const bool tenthZ = std::fabs(std::fmod(z / step, 10.0f)) < 0.001f;
+            const Bool tenthX = std::fabs(std::fmod(x / step, 10.0f)) < 0.001f;
+            const Bool tenthZ = std::fabs(std::fmod(z / step, 10.0f)) < 0.001f;
             drawWorldLine(Vector3{x, 0.0f, baseZ - half}, Vector3{x, 0.0f, baseZ + half},
                 tenthX ? strong : line, 1.0f);
             drawWorldLine(Vector3{baseX - half, 0.0f, z}, Vector3{baseX + half, 0.0f, z},
@@ -2691,8 +2696,8 @@ namespace JBro
                 continue;
             }
             const Vector3 at = transform->worldValid ? transform->worldPosition : transform->position;
-            float x = 0.0f;
-            float y = 0.0f;
+            Float x = 0.0f;
+            Float y = 0.0f;
             if (false == GizmoModel::Project(camera, at, x, y))
             {
                 continue;
@@ -2700,12 +2705,12 @@ namespace JBro
             const ImU32 color = object == primary
                 ? IM_COL32(255, 168, 64, 255)
                 : IM_COL32(255, 168, 64, 140);
-            constexpr float Half = 6.0f;
+            constexpr Float Half = 6.0f;
             draw->AddRect(ImVec2(x - Half, y - Half), ImVec2(x + Half, y + Half), color, 0.0f, 0, 1.5f);
         }
     }
 
-    void CanvasViewPanel::HandlePicking3D(const ViewRect& rect, bool hovered)
+    void CanvasViewPanel::HandlePicking3D(const ViewRect& rect, Bool hovered)
     {
         if (false == PointerInView(rect) || m_gizmoState.dragging || m_editing.IsActive()
             || m_gizmoState.hovered != GizmoAxis::None)
@@ -2728,9 +2733,9 @@ namespace JBro
         // 오브젝트의 자리를 화면으로 투영해 마우스와의 거리를 잰다 - 이것이 3D 에서
         // "눌러서 고르기" 가 실제로 하는 일에 가장 가깝고, 짐작한 상자보다 덜 틀린다.
         const ImGuiIO& io = ImGui::GetIO();
-        constexpr float PickRadius = 18.0f;
+        constexpr Float PickRadius = 18.0f;
         GameObject* best = nullptr;
-        float bestDistance = PickRadius * PickRadius;
+        Float bestDistance = PickRadius * PickRadius;
         // **3D 텍스트는 글자 블록으로 고른다**(D-222). 크기를 아는 유일한 3D 그림이다 - 블록의 네 모서리를 화면으로 투영한 사각형 안을 누르면
         // 그 텍스트다(자리 투영보다 먼저 이긴다). 빌보드의 모서리는 편집 카메라의 오른쪽·위 축으로 편다(그린 것과 같은 카메라).
         System::Text3DSystem* texts = canvas->GetSystems().FindSystem<System::Text3DSystem>();
@@ -2743,16 +2748,16 @@ namespace JBro
             cameraRight = Vector3{drawn.view.values[0], drawn.view.values[1], drawn.view.values[2]};
             cameraUp = Vector3{drawn.view.values[4], drawn.view.values[5], drawn.view.values[6]};
         }
-        const auto insideText = [&](GameObject& object, const Component::Transform3D& transform) -> bool {
+        const auto insideText = [&](GameObject& object, const Component::Transform3D& transform) -> Bool {
             if (texts == nullptr)
             {
                 return false;
             }
             Component::Text3D* text = canvas->FindComponentRaw<Component::Text3D>(&object);
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            Float minX = 0.0f;
+            Float minY = 0.0f;
+            Float maxX = 0.0f;
+            Float maxY = 0.0f;
             if (text == nullptr || false == text->visible
                 || false == texts->GetLocalBounds(text->GetInstanceId(), minX, minY, maxX, maxY))
             {
@@ -2761,13 +2766,13 @@ namespace JBro
             const Vector3 origin = transform.worldValid ? transform.worldPosition : transform.position;
             const Quaternion rotation = transform.worldValid ? transform.worldRotation : transform.rotation;
             const Vector3 scale = transform.worldValid ? transform.worldScale : transform.scale;
-            const bool billboard = text->facing == Component::TextFacing3D::Billboard;
+            const Bool billboard = text->facing == Component::TextFacing3D::Billboard;
             const Vector3 axisX = billboard ? Scale(cameraRight, scale.x) : Rotate(rotation, Vector3{scale.x, 0.0f, 0.0f});
             const Vector3 axisY = billboard ? Scale(cameraUp, scale.y) : Rotate(rotation, Vector3{0.0f, scale.y, 0.0f});
-            float screenMinX = 0.0f;
-            float screenMinY = 0.0f;
-            float screenMaxX = 0.0f;
-            float screenMaxY = 0.0f;
+            Float screenMinX = 0.0f;
+            Float screenMinY = 0.0f;
+            Float screenMaxX = 0.0f;
+            Float screenMaxY = 0.0f;
             if (false == GizmoModel::ProjectPlaneRect(camera, origin, axisX, axisY, minX, minY, maxX, maxY, screenMinX,
                     screenMinY, screenMaxX, screenMaxY))
             {
@@ -2796,15 +2801,15 @@ namespace JBro
                 return;
             }
             const Vector3 at = transform->worldValid ? transform->worldPosition : transform->position;
-            float x = 0.0f;
-            float y = 0.0f;
+            Float x = 0.0f;
+            Float y = 0.0f;
             if (false == GizmoModel::Project(camera, at, x, y))
             {
                 return;
             }
-            const float dx = x - io.MousePos.x;
-            const float dy = y - io.MousePos.y;
-            const float distance = dx * dx + dy * dy;
+            const Float dx = x - io.MousePos.x;
+            const Float dy = y - io.MousePos.y;
+            const Float distance = dx * dx + dy * dy;
             if (distance < bestDistance)
             {
                 best = &object;
@@ -2854,7 +2859,7 @@ namespace JBro
         }
         GameObject* selected = m_editor->GetSelectedObject();
         GizmoSubject subject;
-        const bool hasSubject = selected != nullptr
+        const Bool hasSubject = selected != nullptr
             && GizmoEditing::ReadSubject(*m_editor, *selected, subject);
         if (false == hasSubject && false == m_gizmoState.dragging)
         {
@@ -2889,9 +2894,9 @@ namespace JBro
         // **격자 스냅**(D-282). 붙는 간격은 지금 보이는 격자의 칸이다 - 줌하면 칸이 바뀌고 붙는 자리도 따라 바뀐다.
         // 격자를 감춰도 같은 칸에 붙는다. Ctrl 은 끄는 동안만 반대로 한다(켜져 있으면 풀고, 꺼져 있으면 붙인다).
         // 같은 단추가 돌리기도 15 도씩 끊는다(사용자 결정) - 기존 엔진은 Shift 로 따로 켰다.
-        const bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
+        const Bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
         const Widget::GizmoOutput output = Widget::Gizmo(m_gizmoMode, camera, shown, m_gizmoState, true,
-            snapping ? GridStep(rect) : 0.0f, snapping ? GizmoModel::RotationSnapRadians : 0.0f);
+            snapping ? GridStep(rect) : Float(0.0f), snapping ? GizmoModel::RotationSnapRadians : Float(0.0f));
         if (output.dragStarted)
         {
             if (false == m_editing.Begin(*m_editor, m_gizmoMode, shown))

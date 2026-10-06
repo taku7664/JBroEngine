@@ -6,26 +6,29 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr std::uint32_t TouchBitCount = 32;
+        constexpr UInt32 TouchBitCount = 32;
         // 구멍이 새 자리로 따라가는 빠르기다(지수 접근의 비율). 알림 더미가 따라가는 빠르기와 같다.
-        constexpr float HoleFollowRate = 14.0f;
+        constexpr Float HoleFollowRate = 14.0f;
         // 이만큼 가까워지면 닿은 것으로 본다(픽셀).
-        constexpr float HoleSettleDistance = 1.0f;
+        constexpr Float HoleSettleDistance = 1.0f;
         // 처음 뜰 때 구멍은 대상보다 이만큼 넓은 데서 좁혀 들어온다(픽셀). 어디를 보라는지 눈이 따라간다.
-        constexpr float HoleIntroSpread = 160.0f;
-        constexpr float PulsePeriod = 1.2f;
+        constexpr Float HoleIntroSpread = 160.0f;
+        constexpr Float PulsePeriod = 1.2f;
 
-        std::uint32_t ButtonBit(MouseButton button)
+        UInt32 ButtonBit(MouseButton button)
         {
             return 1u << static_cast<std::uint32_t>(button);
         }
 
-        InputEvent MakeMove(float x, float y)
+        InputEvent MakeMove(Float x, Float y)
         {
             InputEvent move;
             move.kind = InputEventKind::MouseMove;
@@ -34,22 +37,22 @@ namespace JBro
             return move;
         }
 
-        Rect Inflate(const Rect& rect, float by)
+        Rect Inflate(const Rect& rect, Float by)
         {
             return Rect{ { rect.min.x - by, rect.min.y - by }, { rect.max.x + by, rect.max.y + by } };
         }
 
-        float Towards(float value, float target, float blend)
+        Float Towards(Float value, Float target, Float blend)
         {
             return value + (target - value) * blend;
         }
 
-        float Farthest(const Rect& a, const Rect& b)
+        Float Farthest(const Rect& a, const Rect& b)
         {
-            const float dx0 = std::fabs(a.min.x - b.min.x);
-            const float dy0 = std::fabs(a.min.y - b.min.y);
-            const float dx1 = std::fabs(a.max.x - b.max.x);
-            const float dy1 = std::fabs(a.max.y - b.max.y);
+            const Float dx0 = std::fabs(a.min.x - b.min.x);
+            const Float dy0 = std::fabs(a.min.y - b.min.y);
+            const Float dx1 = std::fabs(a.max.x - b.max.x);
+            const Float dy1 = std::fabs(a.max.y - b.max.y);
             return std::fmax(std::fmax(dx0, dy0), std::fmax(dx1, dy1));
         }
     }
@@ -66,22 +69,22 @@ namespace JBro
             return { MakeNameId(name), 0 };
         }
 
-        GuideFocusTarget HierarchyLayer(std::uint64_t layerId)
+        GuideFocusTarget HierarchyLayer(UInt64 layerId)
         {
             return { MakeNameId("hierarchy.layer"), layerId };
         }
 
-        GuideFocusTarget HierarchyObject(std::uint64_t editorObjectId)
+        GuideFocusTarget HierarchyObject(UInt64 editorObjectId)
         {
             return { MakeNameId("hierarchy.object"), editorObjectId };
         }
 
-        GuideFocusTarget InspectorComponent(std::uint64_t componentTypeId)
+        GuideFocusTarget InspectorComponent(UInt64 componentTypeId)
         {
             return { MakeNameId("inspector.component"), componentTypeId };
         }
 
-        GuideFocusTarget InspectorField(std::uint64_t componentTypeId, NameId fieldName)
+        GuideFocusTarget InspectorField(UInt64 componentTypeId, NameId fieldName)
         {
             // 타입과 필드 이름을 한 열쇠로 섞는다. 같은 이름의 필드가 다른 컴포넌트에도 있다(`position`).
             return { MakeNameId("inspector.field"), (componentTypeId * 0x100000001B3ull) ^ fieldName };
@@ -97,12 +100,12 @@ namespace JBro
             return { MakeNameId("action"), MakeNameId(name) };
         }
 
-        GuideFocusTarget HierarchyObjectMenu(std::uint64_t editorObjectId)
+        GuideFocusTarget HierarchyObjectMenu(UInt64 editorObjectId)
         {
             return { MakeNameId("hierarchy.object_menu"), editorObjectId };
         }
 
-        GuideFocusTarget CanvasViewObject(std::uint64_t editorObjectId)
+        GuideFocusTarget CanvasViewObject(UInt64 editorObjectId)
         {
             return { MakeNameId("canvas_view.object"), editorObjectId };
         }
@@ -117,7 +120,7 @@ namespace JBro
             return { MakeNameId("canvas_view.background"), 0 };
         }
 
-        GuideFocusTarget ComponentListItem(std::uint64_t componentTypeId)
+        GuideFocusTarget ComponentListItem(UInt64 componentTypeId)
         {
             return { MakeNameId("component.list_item"), componentTypeId };
         }
@@ -127,12 +130,12 @@ namespace JBro
             return { MakeNameId("component.category_menu"), MakeNameId(category) };
         }
 
-        GuideFocusTarget GizmoModeButton(std::uint32_t mode)
+        GuideFocusTarget GizmoModeButton(UInt32 mode)
         {
             return { MakeNameId("canvas_view.gizmo_mode"), mode };
         }
 
-        GuideFocusTarget GizmoHandle(std::uint32_t mode, std::uint32_t axis)
+        GuideFocusTarget GizmoHandle(UInt32 mode, UInt32 axis)
         {
             return { MakeNameId("canvas_view.gizmo_handle"), (static_cast<std::uint64_t>(mode) << 8) | axis };
         }
@@ -142,13 +145,13 @@ namespace JBro
             return { MakeNameId("canvas_view.edit_collider"), 0 };
         }
 
-        GuideFocusTarget PolygonPoint(std::uint32_t index)
+        GuideFocusTarget PolygonPoint(UInt32 index)
         {
             return { MakeNameId("canvas_view.polygon_point"), index };
         }
     }
 
-    bool GuideFocusPath::Push(const GuideFocusTarget& target, GuideFocusOpen opener)
+    Bool GuideFocusPath::Push(const GuideFocusTarget& target, GuideFocusOpen opener)
     {
         if (false == target.IsValid() || count >= Capacity)
         {
@@ -160,9 +163,9 @@ namespace JBro
         return true;
     }
 
-    std::uint32_t GuideFocusPath::Find(const GuideFocusTarget& target) const noexcept
+    UInt32 GuideFocusPath::Find(const GuideFocusTarget& target) const noexcept
     {
-        for (std::uint32_t index = 0; index < count; ++index)
+        for (UInt32 index = 0; index < count; ++index)
         {
             if (targets[index] == target)
             {
@@ -172,7 +175,7 @@ namespace JBro
         return count;
     }
 
-    bool EditorGuideFocus::Begin(const GuideFocusPath& path)
+    Bool EditorGuideFocus::Begin(const GuideFocusPath& path)
     {
         if (path.IsEmpty())
         {
@@ -208,7 +211,7 @@ namespace JBro
         // 구멍도 남긴다 - 막이 사라지는 동안 그 자리에 뚫려 있어야 한다.
     }
 
-    void EditorGuideFocus::EnterLevel(std::uint32_t level) noexcept
+    void EditorGuideFocus::EnterLevel(UInt32 level) noexcept
     {
         m_level = level;
         m_openRequest = GuideFocusPath::Capacity;
@@ -219,7 +222,7 @@ namespace JBro
         m_settledSeconds = 0.0f;
     }
 
-    void EditorGuideFocus::SetPaused(bool paused) noexcept
+    void EditorGuideFocus::SetPaused(Bool paused) noexcept
     {
         m_paused = m_active && paused;
     }
@@ -229,7 +232,7 @@ namespace JBro
         m_allowedCount = 0;
     }
 
-    bool EditorGuideFocus::AddAllowedRect(const Rect& rect)
+    Bool EditorGuideFocus::AddAllowedRect(const Rect& rect)
     {
         if (m_allowedCount >= AllowedRectCapacity)
         {
@@ -240,15 +243,15 @@ namespace JBro
         return true;
     }
 
-    const Rect& EditorGuideFocus::GetAllowedRect(std::uint32_t index) const
+    const Rect& EditorGuideFocus::GetAllowedRect(UInt32 index) const
     {
         assert(index < m_allowedCount);
         return m_allowed[index];
     }
 
-    bool EditorGuideFocus::IsAllowed(const Vector2& point) const noexcept
+    Bool EditorGuideFocus::IsAllowed(const Vector2& point) const noexcept
     {
-        for (std::uint32_t index = 0; index < m_allowedCount; ++index)
+        for (UInt32 index = 0; index < m_allowedCount; ++index)
         {
             // **오른쪽과 아래 끝은 담지 않는다**(픽셀처럼 반열린 칸). `Rect::Contains` 는 끝을 담는데, 그러면 허용한 창의 바로
             // 아래 한 줄이 이웃한 창의 것인데도 열린다 - 말풍선 밑 한 줄에서 캔버스 뷰가 올림 색을 띠었다.
@@ -262,7 +265,7 @@ namespace JBro
         return false;
     }
 
-    bool EditorGuideFocus::IsPointerAllowed() const noexcept
+    Bool EditorGuideFocus::IsPointerAllowed() const noexcept
     {
         return m_pointerKnown && IsAllowed(m_pointer);
     }
@@ -308,9 +311,9 @@ namespace JBro
         }
     }
 
-    bool EditorGuideFocus::ConsumeSkipRequest() noexcept
+    Bool EditorGuideFocus::ConsumeSkipRequest() noexcept
     {
-        const bool requested = m_skipRequested;
+        const Bool requested = m_skipRequested;
         m_skipRequested = false;
         return requested;
     }
@@ -327,7 +330,7 @@ namespace JBro
                 out.Add(MakeMove(m_pointer.x, m_pointer.y));
             }
             m_pointerHidden = false;
-            for (std::uint32_t index = 0; index < events.size; ++index)
+            for (UInt32 index = 0; index < events.size; ++index)
             {
                 TrackPassed(events.data[index]);
                 out.Add(events.data[index]);
@@ -335,7 +338,7 @@ namespace JBro
             return;
         }
 
-        for (std::uint32_t index = 0; index < events.size; ++index)
+        for (UInt32 index = 0; index < events.size; ++index)
         {
             const InputEvent& event = events.data[index];
             switch (event.kind)
@@ -460,14 +463,14 @@ namespace JBro
         m_balloonSeen = false;
     }
 
-    void EditorGuideFocus::Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated,
-        bool enabled, const char* disabledReason, bool round)
+    void EditorGuideFocus::Report(const GuideFocusTarget& target, const Rect& rect, Bool opened, Bool visible, Bool activated,
+        Bool enabled, const char* disabledReason, Bool round)
     {
         if (false == m_active)
         {
             return;
         }
-        const std::uint32_t index = m_path.Find(target);
+        const UInt32 index = m_path.Find(target);
         // 같은 대상이 한 프레임에 두 번 그려지면 먼저 그린 것을 쓴다 - 대상 이름이 겹친 것이고, 앞의 것이 위에 있다.
         if (index >= m_path.count || m_seen[index].seen)
         {
@@ -487,7 +490,7 @@ namespace JBro
         }
     }
 
-    bool EditorGuideFocus::IsCurrentDisabled() const noexcept
+    Bool EditorGuideFocus::IsCurrentDisabled() const noexcept
     {
         // 그려지지 않은 칸은 `BeginFrame` 이 켜진 것으로 비워 둔다 - 지난 프레임의 회색을 끌고 오지 않는다.
         return m_active && m_level < m_path.count && false == m_seen[m_level].enabled;
@@ -503,15 +506,15 @@ namespace JBro
         ++m_popupCount;
     }
 
-    const Rect& EditorGuideFocus::GetPopup(std::uint32_t index) const
+    const Rect& EditorGuideFocus::GetPopup(UInt32 index) const
     {
         assert(index < m_popupCount);
         return m_popups[index];
     }
 
-    bool EditorGuideFocus::IsPopupOpen(std::uint32_t index) const noexcept
+    Bool EditorGuideFocus::IsPopupOpen(UInt32 index) const noexcept
     {
-        const bool atTarget = m_path.count > 0 && m_level + 1 == m_path.count;
+        const Bool atTarget = m_path.count > 0 && m_level + 1 == m_path.count;
         if (false == m_active || false == atTarget || index >= m_popupCount)
         {
             return false;
@@ -531,19 +534,19 @@ namespace JBro
         m_balloonSeen = true;
     }
 
-    void EditorGuideFocus::SetPopupBaseline(std::uint32_t openPopups) noexcept
+    void EditorGuideFocus::SetPopupBaseline(UInt32 openPopups) noexcept
     {
         m_popupBaseline = openPopups;
         m_popupBaselineSet = true;
     }
 
-    bool EditorGuideFocus::ShouldOpen(const GuideFocusTarget& target) const noexcept
+    Bool EditorGuideFocus::ShouldOpen(const GuideFocusTarget& target) const noexcept
     {
         if (false == m_active || m_paused)
         {
             return false;
         }
-        const std::uint32_t index = m_path.Find(target);
+        const UInt32 index = m_path.Find(target);
         if (index >= m_path.count)
         {
             return false;
@@ -552,40 +555,40 @@ namespace JBro
         return index < m_level || index == m_openRequest;
     }
 
-    bool EditorGuideFocus::ShouldScrollTo(const GuideFocusTarget& target) const noexcept
+    Bool EditorGuideFocus::ShouldScrollTo(const GuideFocusTarget& target) const noexcept
     {
         return m_active && false == m_paused && m_path.Find(target) == m_level;
     }
 
-    bool EditorGuideFocus::IsOpenRequested(const GuideFocusTarget& target) const noexcept
+    Bool EditorGuideFocus::IsOpenRequested(const GuideFocusTarget& target) const noexcept
     {
         return m_active && false == m_paused && m_openRequest < m_path.count && m_path.Find(target) == m_openRequest;
     }
 
-    bool EditorGuideFocus::IsAtTarget() const noexcept
+    Bool EditorGuideFocus::IsAtTarget() const noexcept
     {
         return m_active && m_path.count > 0 && m_level + 1 == m_path.count && m_holeSettled;
     }
 
-    bool EditorGuideFocus::ConsumeActivated() noexcept
+    Bool EditorGuideFocus::ConsumeActivated() noexcept
     {
-        const bool activated = m_activated;
+        const Bool activated = m_activated;
         m_activated = false;
         return activated;
     }
 
-    float EditorGuideFocus::GetPulse() const noexcept
+    Float EditorGuideFocus::GetPulse() const noexcept
     {
         return 0.5f + 0.5f * std::sin(m_time * (2.0f * Pi / PulsePeriod));
     }
 
-    void EditorGuideFocus::Update(float deltaTime)
+    void EditorGuideFocus::Update(Float deltaTime)
     {
-        const float dt = deltaTime > 0.0f ? deltaTime : 0.0f;
+        const Float dt = deltaTime > 0.0f ? deltaTime : Float(0.0f);
         m_time += dt;
 
-        const bool shown = m_active && false == m_paused;
-        const float fadeStep = dt / FadeSeconds;
+        const Bool shown = m_active && false == m_paused;
+        const Float fadeStep = dt / FadeSeconds;
         m_veilAlpha = shown ? std::fmin(1.0f, m_veilAlpha + fadeStep) : std::fmax(0.0f, m_veilAlpha - fadeStep);
         if (false == m_veilAlpha > 0.0f)
         {
@@ -598,7 +601,7 @@ namespace JBro
         }
 
         // 지나온 칸이 닫혔다(사용자가 메뉴를 닫았다). 그 칸으로 돌아간다 - 그 안의 대상은 이제 그려지지 않는다.
-        for (std::uint32_t index = 0; index < m_level; ++index)
+        for (UInt32 index = 0; index < m_level; ++index)
         {
             if (m_seen[index].seen && false == m_seen[index].opened)
             {
@@ -607,11 +610,11 @@ namespace JBro
             }
         }
 
-        const std::uint32_t current = m_level;
+        const UInt32 current = m_level;
         const Seen& seen = m_seen[current];
-        const bool leaf = current + 1 == m_path.count;
+        const Bool leaf = current + 1 == m_path.count;
         Rect allowedTarget;
-        bool hasAllowedTarget = false;
+        Bool hasAllowedTarget = false;
         if (seen.seen)
         {
             m_unseen = 0.0f;
@@ -624,7 +627,7 @@ namespace JBro
                 m_hole = Inflate(m_holeTarget, HoleIntroSpread);
                 m_holeKnown = true;
             }
-            const float blend = 1.0f - std::exp(-HoleFollowRate * dt);
+            const Float blend = 1.0f - std::exp(-HoleFollowRate * dt);
             m_hole.min.x = Towards(m_hole.min.x, m_holeTarget.min.x, blend);
             m_hole.min.y = Towards(m_hole.min.y, m_holeTarget.min.y, blend);
             m_hole.max.x = Towards(m_hole.max.x, m_holeTarget.max.x, blend);
@@ -638,7 +641,7 @@ namespace JBro
             {
                 m_holeSettled = false;
             }
-            m_settledSeconds = m_holeSettled ? m_settledSeconds + dt : 0.0f;
+            m_settledSeconds = m_holeSettled ? m_settledSeconds + dt : Float(0.0f);
 
             if (false == leaf)
             {
@@ -680,7 +683,7 @@ namespace JBro
         {
             AddAllowedRect(allowedTarget);
         }
-        for (std::uint32_t index = 0; index < m_popupCount; ++index)
+        for (UInt32 index = 0; index < m_popupCount; ++index)
         {
             if (IsPopupOpen(index))
             {

@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/Command/CanvasCommands.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -16,7 +17,7 @@ namespace JBro
         return "Set Canvas Background";
     }
 
-    bool SetCanvasBackgroundCommand::Execute()
+    Bool SetCanvasBackgroundCommand::Execute()
     {
         if (m_canvas == nullptr)
         {
@@ -39,7 +40,7 @@ namespace JBro
         Execute();
     }
 
-    bool SetCanvasBackgroundCommand::CanMerge(const EditorCommand& newer) const
+    Bool SetCanvasBackgroundCommand::CanMerge(const EditorCommand& newer) const
     {
         // **같은 캔버스의 같은 편집만** 합친다. 타입이 다르면 다른 일이고, 캔버스가
         // 다르면 되살릴 값이 남의 것이 된다.
@@ -47,7 +48,7 @@ namespace JBro
         return other != nullptr && other->m_canvas == m_canvas;
     }
 
-    bool SetCanvasBackgroundCommand::TryMerge(const EditorCommand& newer)
+    Bool SetCanvasBackgroundCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {

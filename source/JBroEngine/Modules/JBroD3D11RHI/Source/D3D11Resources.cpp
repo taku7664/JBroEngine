@@ -1,6 +1,8 @@
 ﻿#include "D3D11Device.h"
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -26,7 +28,7 @@ namespace JBro::Internal
         return DXGI_FORMAT_UNKNOWN;
     }
 
-    std::uint32_t PixelSize(TextureFormat format)
+    UInt32 PixelSize(TextureFormat format)
     {
         switch (format)
         {
@@ -46,17 +48,17 @@ namespace JBro::Internal
 
     namespace
     {
-        bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
+        Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
 
-        bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
+        Bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
 
-        constexpr std::uint32_t TextureUsageMask =
+        constexpr UInt32 TextureUsageMask =
             static_cast<std::uint32_t>(TextureUsage::Sampled)
             | static_cast<std::uint32_t>(TextureUsage::RenderTarget)
             | static_cast<std::uint32_t>(TextureUsage::DepthStencil)
@@ -80,8 +82,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxBuffers;
-        for (std::uint32_t at = 0; at < MaxBuffers; ++at)
+        UInt32 index = MaxBuffers;
+        for (UInt32 at = 0; at < MaxBuffers; ++at)
         {
             if (false == m_buffers[at].occupied)
             {
@@ -94,7 +96,7 @@ namespace JBro::Internal
             return {};
         }
         D3D11_BUFFER_DESC native = {};
-        const bool constant = HasBufferUsage(desc.usage, BufferUsage::Constant);
+        const Bool constant = HasBufferUsage(desc.usage, BufferUsage::Constant);
         native.ByteWidth = constant ? RoundUpTo16(desc.size) : static_cast<UINT>(desc.size);
         // 전부 DEFAULT 다. 쓰기는 `UpdateSubresource` 로 간다 - 드라이버가 이름을 바꿔 준다.
         native.Usage = D3D11_USAGE_DEFAULT;
@@ -133,12 +135,12 @@ namespace JBro::Internal
             return;
         }
         // 컨텍스트가 아직 쓰고 있어도 참조 계수가 지킨다. 바로 놓는다.
-        const std::uint32_t generation = state.generation + 1;
+        const UInt32 generation = state.generation + 1;
         state = {};
         state.generation = generation;
     }
 
-    bool D3D11Device::WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data)
+    Bool D3D11Device::WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data)
     {
         ID3D11Buffer* native = nullptr;
         BufferDesc desc;
@@ -183,7 +185,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11Device::ResolveBuffer(BufferHandle buffer, ID3D11Buffer*& native, BufferDesc& desc)
+    Bool D3D11Device::ResolveBuffer(BufferHandle buffer, ID3D11Buffer*& native, BufferDesc& desc)
     {
         if (buffer.index >= MaxBuffers)
         {
@@ -203,9 +205,9 @@ namespace JBro::Internal
 
     TextureHandle D3D11Device::CreateTexture(const TextureDesc& desc)
     {
-        const std::uint32_t usages = static_cast<std::uint32_t>(desc.usage);
-        const bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
-        const bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
+        const UInt32 usages = static_cast<std::uint32_t>(desc.usage);
+        const Bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
+        const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == nullptr || m_frameActive
             || desc.extent.width == 0 || desc.extent.height == 0
             || desc.depthOrLayers == 0 || desc.mipLevels == 0 || desc.sampleCount != 1
@@ -217,8 +219,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t slot = MaxTextures;
-        for (std::uint32_t at = 0; at < MaxTextures; ++at)
+        UInt32 slot = MaxTextures;
+        for (UInt32 at = 0; at < MaxTextures; ++at)
         {
             if (false == m_textures[at].occupied)
             {
@@ -256,7 +258,7 @@ namespace JBro::Internal
             state.texture.Reset();
             return {};
         }
-        bool viewsMade = true;
+        Bool viewsMade = true;
         if (renderTarget)
         {
             viewsMade = SUCCEEDED(m_device->CreateRenderTargetView(state.texture.Get(), nullptr, &state.renderTargetView));
@@ -271,7 +273,7 @@ namespace JBro::Internal
         }
         if (false == viewsMade)
         {
-            const std::uint32_t generation = state.generation;
+            const UInt32 generation = state.generation;
             state = {};
             state.generation = generation;
             return {};
@@ -287,7 +289,7 @@ namespace JBro::Internal
         {
             return;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return;
@@ -297,19 +299,19 @@ namespace JBro::Internal
         {
             return;
         }
-        const std::uint32_t generation = state.generation + 1;
+        const UInt32 generation = state.generation + 1;
         state = {};
         state.generation = generation;
     }
 
-    bool D3D11Device::WriteTexture(TextureHandle texture, std::uint32_t mipLevel, JArrayView<std::byte> data)
+    Bool D3D11Device::WriteTexture(TextureHandle texture, UInt32 mipLevel, JArrayView<std::byte> data)
     {
         if (m_context == nullptr || m_frameActive || false == texture.IsValid() || texture.index < TextureResourceBase
             || data.data == nullptr || data.size == 0)
         {
             return false;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -320,9 +322,9 @@ namespace JBro::Internal
         {
             return false;
         }
-        const std::uint32_t width = (std::max)(1u, state.desc.extent.width >> mipLevel);
-        const std::uint32_t height = (std::max)(1u, state.desc.extent.height >> mipLevel);
-        const std::uint32_t pixelSize = PixelSize(state.desc.format);
+        const UInt32 width = (std::max)(1u, state.desc.extent.width >> mipLevel);
+        const UInt32 height = (std::max)(1u, state.desc.extent.height >> mipLevel);
+        const UInt32 pixelSize = PixelSize(state.desc.format);
         const std::size_t rowPitch = static_cast<std::size_t>(width) * pixelSize;
         if (pixelSize == 0 || data.size != rowPitch * height)
         {
@@ -333,15 +335,15 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11Device::WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
-        std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch)
+    Bool D3D11Device::WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
+        UInt32 width, UInt32 height, JArrayView<std::byte> data, UInt32 rowPitch)
     {
         if (m_context == nullptr || m_frameActive || false == texture.IsValid() || texture.index < TextureResourceBase
             || data.data == nullptr || width == 0 || height == 0)
         {
             return false;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -352,9 +354,9 @@ namespace JBro::Internal
         {
             return false;
         }
-        const std::uint32_t levelWidth = (std::max)(1u, state.desc.extent.width >> mipLevel);
-        const std::uint32_t levelHeight = (std::max)(1u, state.desc.extent.height >> mipLevel);
-        const std::uint32_t pixelSize = PixelSize(state.desc.format);
+        const UInt32 levelWidth = (std::max)(1u, state.desc.extent.width >> mipLevel);
+        const UInt32 levelHeight = (std::max)(1u, state.desc.extent.height >> mipLevel);
+        const UInt32 pixelSize = PixelSize(state.desc.format);
         const std::size_t rowBytes = static_cast<std::size_t>(width) * pixelSize;
         if (pixelSize == 0 || x + width > levelWidth || y + height > levelHeight || rowPitch < rowBytes
             || data.size < static_cast<std::size_t>(rowPitch) * (height - 1) + rowBytes)
@@ -372,7 +374,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11Device::ResolveRenderTargetView(TextureHandle texture, ID3D11RenderTargetView*& view)
+    Bool D3D11Device::ResolveRenderTargetView(TextureHandle texture, ID3D11RenderTargetView*& view)
     {
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
         {
@@ -380,7 +382,7 @@ namespace JBro::Internal
         }
         if (texture.index < TextureResourceBase)
         {
-            const std::uint32_t index = texture.index - BackBufferTextureBase;
+            const UInt32 index = texture.index - BackBufferTextureBase;
             if (index >= MaxSwapchains)
             {
                 return false;
@@ -394,7 +396,7 @@ namespace JBro::Internal
             view = state.backBufferView.Get();
             return true;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -408,13 +410,13 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11Device::ResolveDepthStencilView(TextureHandle texture, ID3D11DepthStencilView*& view)
+    Bool D3D11Device::ResolveDepthStencilView(TextureHandle texture, ID3D11DepthStencilView*& view)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase)
         {
             return false;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -428,13 +430,13 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11Device::ResolveShaderResourceView(TextureHandle texture, ID3D11ShaderResourceView*& view)
+    Bool D3D11Device::ResolveShaderResourceView(TextureHandle texture, ID3D11ShaderResourceView*& view)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase)
         {
             return false;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -456,8 +458,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxSamplers;
-        for (std::uint32_t at = 0; at < MaxSamplers; ++at)
+        UInt32 index = MaxSamplers;
+        for (UInt32 at = 0; at < MaxSamplers; ++at)
         {
             if (false == m_samplers[at].occupied)
             {
@@ -470,8 +472,8 @@ namespace JBro::Internal
             return {};
         }
         D3D11_SAMPLER_DESC native = {};
-        const bool minLinear = desc.minFilter == FilterMode::Linear;
-        const bool magLinear = desc.magFilter == FilterMode::Linear;
+        const Bool minLinear = desc.minFilter == FilterMode::Linear;
+        const Bool magLinear = desc.magFilter == FilterMode::Linear;
         native.Filter = minLinear
             ? (magLinear ? D3D11_FILTER_MIN_MAG_MIP_LINEAR : D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR)
             : (magLinear ? D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT : D3D11_FILTER_MIN_MAG_MIP_POINT);
@@ -502,12 +504,12 @@ namespace JBro::Internal
         {
             return;
         }
-        const std::uint32_t generation = state.generation + 1;
+        const UInt32 generation = state.generation + 1;
         state = {};
         state.generation = generation;
     }
 
-    bool D3D11Device::ResolveSampler(SamplerHandle sampler, ID3D11SamplerState*& native)
+    Bool D3D11Device::ResolveSampler(SamplerHandle sampler, ID3D11SamplerState*& native)
     {
         if (sampler.index >= MaxSamplers)
         {

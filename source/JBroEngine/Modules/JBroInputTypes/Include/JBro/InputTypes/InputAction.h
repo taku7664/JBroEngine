@@ -5,6 +5,10 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -58,13 +62,13 @@ namespace JBro
         std::uint16_t code = 0;
     };
 
-    inline constexpr std::uint32_t MaxInputBindingsPerAction = 8;
-    inline constexpr std::uint32_t MaxInputActions = 64;
+    inline constexpr UInt32 MaxInputBindingsPerAction = 8;
+    inline constexpr UInt32 MaxInputActions = 64;
 
     // 액션 세트다(D-214). 액션마다 세트 하나에 속하고, 꺼진 세트의 액션은 0 으로 읽힌다 - 걷기·차량·메뉴가 같은 키를
     // 다른 뜻으로 쓴다. 세트는 장치를 막지도 소비하지도 않는다. 막는 것은 레이어 체인뿐이다.
     // 세트를 적지 않은 액션은 `Default` 이고, `Default` 만 켜진 채로 시작한다.
-    inline constexpr std::uint32_t MaxInputActionSets = 32;
+    inline constexpr UInt32 MaxInputActionSets = 32;
     inline constexpr NameId DefaultInputActionSet = MakeNameId("Default");
 
     struct InputActionDesc
@@ -80,20 +84,20 @@ namespace JBro
     // 프로젝트의 액션 전부다. 호스트가 프로젝트를 열 때 채우고 프레임 경로에서는 읽기만 한다.
     struct InputActionMap
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         InputActionDesc actions[MaxInputActions] = {};
         // 세트 이름이다. 0 은 늘 `Default` 다.
-        std::uint32_t setCount = 1;
+        UInt32 setCount = 1;
         NameId sets[MaxInputActionSets] = {DefaultInputActionSet};
         // 켜진 세트의 비트다(자리 i 가 비트 i). 전환은 이 값 하나를 바꾸는 일이다.
-        std::uint32_t activeSets = 1;
+        UInt32 activeSets = 1;
         // 없는 이름을 물은 것을 한 번만 말하려고 기억해 둔다. 가득 차면 더는 말하지 않는다.
-        std::uint32_t warnedCount = 0;
+        UInt32 warnedCount = 0;
         InputActionId warned[8] = {};
 
         const InputActionDesc* Find(InputActionId name) const
         {
-            for (std::uint32_t index = 0; index < count && index < MaxInputActions; ++index)
+            for (UInt32 index = 0; index < count && index < MaxInputActions; ++index)
             {
                 if (actions[index].name == name)
                 {
@@ -104,9 +108,9 @@ namespace JBro
         }
 
         // 세트의 자리다. 없으면 -1.
-        int FindSet(NameId name) const
+        Int32 FindSet(NameId name) const
         {
-            for (std::uint32_t index = 0; index < setCount && index < MaxInputActionSets; ++index)
+            for (UInt32 index = 0; index < setCount && index < MaxInputActionSets; ++index)
             {
                 if (sets[index] == name)
                 {
@@ -116,7 +120,7 @@ namespace JBro
             return -1;
         }
 
-        bool IsSetActive(std::uint32_t set) const
+        Bool IsSetActive(UInt32 set) const
         {
             return set < MaxInputActionSets && ((activeSets >> set) & 1u) != 0;
         }
@@ -124,20 +128,20 @@ namespace JBro
 
     struct InputVector2
     {
-        float x = 0.0f;
-        float y = 0.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
     };
 
     // 한 액션의 이번 프레임 값이다. 종류와 무관하게 다 채운다: Bool 은 x 가 0 또는 1, Float 은 x, Vector2 는 x·y.
     struct InputActionValue
     {
-        float x = 0.0f;
-        float y = 0.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
         // 지금 눌려 있는가(Float·Vector2 는 0 이 아닌가).
-        bool down = false;
+        Bool down = false;
         // 이번 프레임에 눌렸는가·떼졌는가. 버튼 바인딩에서만 온다 - 축은 문턱을 넘은 순간을 세지 않는다.
-        bool pressed = false;
-        bool released = false;
+        Bool pressed = false;
+        Bool released = false;
     };
 
     static_assert(std::is_trivially_copyable_v<InputActionMap>, "InputActionMap crosses the game DLL boundary");

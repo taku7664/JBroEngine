@@ -3,6 +3,7 @@
 #include <JBro/Runtime/ITextSystem.h>
 
 #include <cstdint>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -11,8 +12,8 @@ namespace JBro
     class TextSystemBase : public System::ITextSystem
     {
     public:
-        void SetText(TextId& text, const char* utf8, std::uint32_t length) override;
-        std::uint32_t GetTextLength(const TextId& text) const override;
-        std::uint32_t CopyText(const TextId& text, char* buffer, std::uint32_t capacity) const override;
+        void SetText(TextId& text, const char* utf8, UInt32 length) override;
+        UInt32 GetTextLength(const TextId& text) const override;
+        UInt32 CopyText(const TextId& text, char* buffer, UInt32 capacity) const override;
     };
 }

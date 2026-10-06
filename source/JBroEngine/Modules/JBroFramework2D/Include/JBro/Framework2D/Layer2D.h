@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -8,10 +9,10 @@ namespace JBro
     class Layer2D final
     {
     public:
-        bool ForcesOwnTexture() const;
-        void SetForceOwnTexture(bool enabled);
+        Bool ForcesOwnTexture() const;
+        void SetForceOwnTexture(Bool enabled);
 
     private:
-        bool      m_forceOwnTexture = false;
+        Bool      m_forceOwnTexture = false;
     };
 }

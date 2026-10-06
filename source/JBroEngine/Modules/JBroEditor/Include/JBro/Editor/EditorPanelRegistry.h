@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -18,7 +20,7 @@ namespace JBro
         // 소속 도크다. 표에 오른 도크여야 한다.
         const char* dockArea = MainDockArea;
         // 에디터 UI 를 켤 때 만들어 두는가. 고유 도구 창은 참이고, 무엇을 열지 정해야 서는 비고유 패널은 거짓이다.
-        bool createWithUi = false;
+        Bool createWithUi = false;
         OwnerPtr<EditorPanel> (*Create)() = nullptr;
     };
 
@@ -46,16 +48,16 @@ namespace JBro
         static EditorPanelRegistry& Get();
 
         // 이름이 비었거나 겹치면 거절한다.
-        bool RegisterDockArea(const EditorDockAreaInfo& info);
+        Bool RegisterDockArea(const EditorDockAreaInfo& info);
         const EditorDockAreaInfo* FindDockArea(const char* name) const;
-        std::uint32_t GetDockAreaCount() const;
-        const EditorDockAreaInfo& GetDockAreaAt(std::uint32_t index) const;
+        UInt32 GetDockAreaCount() const;
+        const EditorDockAreaInfo& GetDockAreaAt(UInt32 index) const;
 
         // 이름이 비었거나 겹치거나, 만드는 함수가 없거나, 모르는 도크를 말하면 거절한다.
-        bool Register(const EditorPanelTypeInfo& info);
+        Bool Register(const EditorPanelTypeInfo& info);
         const EditorPanelTypeInfo* Find(const char* name) const;
-        std::uint32_t GetCount() const;
-        const EditorPanelTypeInfo& GetAt(std::uint32_t index) const;
+        UInt32 GetCount() const;
+        const EditorPanelTypeInfo& GetAt(UInt32 index) const;
 
     private:
         Array<EditorPanelTypeInfo> m_types;
@@ -65,10 +67,10 @@ namespace JBro
     // 패널 종류 하나를 표에 올린다. 이름은 `T::TypeName`, 고유인지는 `T` 가 상속한 쪽(`UniquePanel`·`InstancePanel`)이 정한다.
     // 만드는 함수가 이 자리에서 만들어진다.
     template <typename T>
-    bool RegisterEditorPanelType(bool createWithUi, const char* dockArea = MainDockArea)
+    Bool RegisterEditorPanelType(Bool createWithUi, const char* dockArea = MainDockArea)
     {
-        constexpr bool unique = std::is_base_of_v<UniquePanel, T>;
-        constexpr bool instance = std::is_base_of_v<InstancePanel, T>;
+        constexpr Bool unique = std::is_base_of_v<UniquePanel, T>;
+        constexpr Bool instance = std::is_base_of_v<InstancePanel, T>;
         static_assert(unique != instance, "a panel type derives from exactly one of UniquePanel and InstancePanel");
 
         EditorPanelTypeInfo info;

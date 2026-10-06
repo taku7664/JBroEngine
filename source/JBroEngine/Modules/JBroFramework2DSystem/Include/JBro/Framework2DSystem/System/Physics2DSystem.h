@@ -5,6 +5,10 @@
 #include <JBro/Canvas/GameSystem.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafePtr.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -27,28 +31,28 @@ namespace JBro::System
         Physics2DSystem();
         ~Physics2DSystem() override;
 
-        int  GetExecutionOrder() const override;
+        Int32  GetExecutionOrder() const override;
         void SetGravity(Vector2 gravity);
         Vector2 GetGravity() const;
         // 좁은 판정을 나눌 물리 전용 워커 수(D-223). 다음 고정 스텝에서 커널에 먹인다. 0 이면 메인 한 스레드다.
-        void          SetWorkerCount(std::uint32_t count);
-        std::uint32_t GetWorkerCount() const;
+        void          SetWorkerCount(UInt32 count);
+        UInt32 GetWorkerCount() const;
         // 레이어 충돌 표(D-233). 비트 j 가 선 행 i 는 레이어 i 와 j 가 서로 지나간다. 다음 고정 스텝부터 먹는다.
-        void SetIgnoredLayers(const std::uint32_t (&rows)[PhysicsLayerCount]);
+        void SetIgnoredLayers(const UInt32 (&rows)[PhysicsLayerCount]);
 
-        bool Raycast(Vector2 origin, Vector2 direction, float distance, RaycastHit2D& hit,
-            std::uint32_t layerMask) const override;
-        void RaycastAll(Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits,
-            std::uint32_t layerMask) const override;
+        Bool Raycast(Vector2 origin, Vector2 direction, Float distance, RaycastHit2D& hit,
+            UInt32 layerMask) const override;
+        void RaycastAll(Vector2 origin, Vector2 direction, Float distance, Array<RaycastHit2D>& hits,
+            UInt32 layerMask) const override;
         void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
-            std::uint32_t layerMask) const override;
-        GameObjectHandle OverlapPoint(Vector2 point, std::uint32_t layerMask) const override;
-        void OverlapCircle(Vector2 center, float radius, Array<GameObjectHandle>& results,
-            std::uint32_t layerMask) const override;
-        bool CircleCast(Vector2 origin, float radius, Vector2 direction, float distance, RaycastHit2D& hit,
-            std::uint32_t layerMask) const override;
-        bool BoxCast(Vector2 center, Vector2 halfExtents, float angle, Vector2 direction, float distance,
-            RaycastHit2D& hit, std::uint32_t layerMask) const override;
+            UInt32 layerMask) const override;
+        GameObjectHandle OverlapPoint(Vector2 point, UInt32 layerMask) const override;
+        void OverlapCircle(Vector2 center, Float radius, Array<GameObjectHandle>& results,
+            UInt32 layerMask) const override;
+        Bool CircleCast(Vector2 origin, Float radius, Vector2 direction, Float distance, RaycastHit2D& hit,
+            UInt32 layerMask) const override;
+        Bool BoxCast(Vector2 center, Vector2 halfExtents, Float angle, Vector2 direction, Float distance,
+            RaycastHit2D& hit, UInt32 layerMask) const override;
 
         // 커널에 올라간 바디와 도형의 수. 동기화가 만들고 지우는 것을 테스트가 붙잡는 손잡이다.
         std::size_t GetBodyCount() const;
@@ -59,7 +63,7 @@ namespace JBro::System
 
     protected:
         void OnInitialize (Canvas& canvas) override;
-        void OnFixedUpdate(Canvas& canvas, float fixedDeltaTime) override;
+        void OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime) override;
         void OnShutdown   (Canvas& canvas) override;
 
     private:
@@ -70,13 +74,13 @@ namespace JBro::System
         // 켜진 콜라이더의 도형마다(폴리곤은 볼록 조각마다) 부른다. 모든 질의가 이 한 길로 도형을 본다 - 충돌과 같은 조각이다.
         template<typename Fn>
         // 질의 영역(area, 월드 축 정렬 상자)과 겹칠 수 있는 콜라이더의 조각만 부른다(D-234). 경계는 도형을 굽기 전에 원으로 어림한다.
-        void ForEachQueryShape(std::uint32_t layerMask, const Rect& area, Fn&& visit) const;
+        void ForEachQueryShape(UInt32 layerMask, const Rect& area, Fn&& visit) const;
 
         Canvas*         m_canvas = nullptr;
         Vector2            m_gravity{ 0.0f, -9.81f };
-        std::uint32_t   m_workerCount = 0;
+        UInt32   m_workerCount = 0;
         mutable std::size_t m_lastQueryColliders = 0;
-        std::uint32_t   m_ignoredLayers[PhysicsLayerCount] = {};
+        UInt32   m_ignoredLayers[PhysicsLayerCount] = {};
         OwnerPtr<State> m_state;
     };
 }

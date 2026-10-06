@@ -3,6 +3,7 @@
 #include <JBro/Core/RandomStream.h>
 
 #include <cstdint>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -14,10 +15,10 @@ namespace JBro::System
     public:
         virtual ~IRandomSystem() = default;
 
-        virtual std::uint32_t NextUInt32() = 0;
+        virtual UInt32 NextUInt32() = 0;
         // 지금 흐름을 세운 씨앗이다. 로그에 남은 이 수를 프로젝트의 `RandomSeed` 에 적으면 같은 수열을 다시 본다.
-        virtual std::uint64_t GetSeed() const = 0;
-        virtual void SetSeed(std::uint64_t seed) = 0;
+        virtual UInt64 GetSeed() const = 0;
+        virtual void SetSeed(UInt64 seed) = 0;
         virtual RandomState GetState() const = 0;
         virtual void SetState(const RandomState& state) = 0;
     };

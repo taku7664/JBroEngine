@@ -3,15 +3,17 @@
 #include <JBro/LocalizationTypes/Internal/SystemContext.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
-    bool LocalizationService::IsReady() const
+    Bool LocalizationService::IsReady() const
     {
         return GetLocalizationSystems().Localization != nullptr;
     }
 
-    bool LocalizationService::SetLocale(const char* locale) const
+    Bool LocalizationService::SetLocale(const char* locale) const
     {
         System::ILocalization* localization = GetLocalizationSystems().Localization;
         return localization != nullptr && localization->SetLocale(locale);
@@ -38,7 +40,7 @@ namespace JBro::Service
         return out;
     }
 
-    bool LocalizationService::TryGetText(const char* key, String& out) const
+    Bool LocalizationService::TryGetText(const char* key, String& out) const
     {
         out.clear();
         const System::ILocalization* localization = GetLocalizationSystems().Localization;
@@ -67,9 +69,9 @@ namespace JBro::Service
         return key != nullptr ? String(key) : String();
     }
 
-    std::uint32_t LocalizationService::GetRevision() const
+    UInt32 LocalizationService::GetRevision() const
     {
         const System::ILocalization* localization = GetLocalizationSystems().Localization;
-        return localization != nullptr ? localization->GetRevision() : 0;
+        return localization != nullptr ? localization->GetRevision() : UInt32(0);
     }
 }

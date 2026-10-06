@@ -9,6 +9,10 @@
 
 #include <cstdio>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -21,7 +25,7 @@ namespace JBro
         // **커맨드는 `Vector2` 인지 `Vector3` 인지 모른다.** 잎사귀가 내놓는 필드를 앞에서부터
         // 채우므로 둘 다 맞는다 - 타입을 견주기 시작하면 프레임워크가 늘 때마다 여기가 는다.
         void WriteSpawnPosition(
-            ComponentBase& component, ComponentTypeId typeId, const float (&position)[3])
+            ComponentBase& component, ComponentTypeId typeId, const Float (&position)[3])
         {
             SetPropertyCommand::Path path;
             void* address = nullptr;
@@ -32,8 +36,8 @@ namespace JBro
             {
                 return;
             }
-            const std::uint32_t count = type->fields->count < 3u ? type->fields->count : 3u;
-            for (std::uint32_t index = 0; index < count; ++index)
+            const UInt32 count = type->fields->count < 3u ? type->fields->count : UInt32(3u);
+            for (UInt32 index = 0; index < count; ++index)
             {
                 const PropertyInfo& field = type->fields->properties[index];
                 if (field.Address == nullptr || field.type == nullptr
@@ -42,7 +46,7 @@ namespace JBro
                     continue;
                 }
                 char text[32] = {};
-                const int written = std::snprintf(
+                const Int32 written = std::snprintf(
                     text, sizeof(text), "%g", static_cast<double>(position[index]));
                 if (written <= 0)
                 {
@@ -60,7 +64,7 @@ namespace JBro
         const char* name,
         EditorObjectId parentId,
         const char* defaultComponent,
-        const float* position,
+        const Float* position,
         LayerId layer)
         : m_canvas(&canvas)
         , m_registry(&registry)
@@ -83,7 +87,7 @@ namespace JBro
         return "Create Object";
     }
 
-    bool CreateObjectCommand::Create()
+    Bool CreateObjectCommand::Create()
     {
         GameObject* object = m_canvas->CreateObject(m_name.c_str());
         if (object == nullptr)
@@ -132,7 +136,7 @@ namespace JBro
         return m_registry->Rebind(m_objectId, object);
     }
 
-    bool CreateObjectCommand::Execute()
+    Bool CreateObjectCommand::Execute()
     {
         return Create();
     }
@@ -181,7 +185,7 @@ namespace JBro
         return "Delete Object";
     }
 
-    bool DeleteObjectCommand::Execute()
+    Bool DeleteObjectCommand::Execute()
     {
         if (false == m_captured || m_tree.objects.IsEmpty())
         {
@@ -236,7 +240,7 @@ namespace JBro
         return "Paste Objects";
     }
 
-    bool PasteObjectsCommand::Paste()
+    Bool PasteObjectsCommand::Paste()
     {
         if (m_trees.IsEmpty())
         {
@@ -276,7 +280,7 @@ namespace JBro
         }
     }
 
-    bool PasteObjectsCommand::Execute()
+    Bool PasteObjectsCommand::Execute()
     {
         return Paste();
     }
@@ -330,7 +334,7 @@ namespace JBro
         }
     }
 
-    bool RenameObjectCommand::Execute()
+    Bool RenameObjectCommand::Execute()
     {
         if (false == m_captured || m_before == m_after)
         {
@@ -350,7 +354,7 @@ namespace JBro
         Apply(m_after);
     }
 
-    bool RenameObjectCommand::CanMerge(const EditorCommand& newer) const
+    Bool RenameObjectCommand::CanMerge(const EditorCommand& newer) const
     {
         // **같은 오브젝트를 잇달아 고치는 중일 때만 합친다.** 다른 오브젝트로 옮겨 갔는데
         // 합치면 그 이름이 되돌리기에서 사라진다.
@@ -358,7 +362,7 @@ namespace JBro
         return other != nullptr && other->m_objectId == m_objectId;
     }
 
-    bool RenameObjectCommand::TryMerge(const EditorCommand& newer)
+    Bool RenameObjectCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {
@@ -370,7 +374,7 @@ namespace JBro
     }
 
     ObjectToggleCommand::ObjectToggleCommand(EditorObjectRegistry& registry,
-        const Array<EditorObjectId>& objects, bool after, Getter getter, Setter setter)
+        const Array<EditorObjectId>& objects, Bool after, Getter getter, Setter setter)
         : m_registry(&registry)
         , m_getter(getter)
         , m_setter(setter)
@@ -389,7 +393,7 @@ namespace JBro
         }
     }
 
-    void ObjectToggleCommand::Apply(bool value)
+    void ObjectToggleCommand::Apply(Bool value)
     {
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
         {
@@ -401,10 +405,10 @@ namespace JBro
     }
 
     SetObjectActiveCommand::SetObjectActiveCommand(EditorObjectRegistry& registry,
-        const Array<EditorObjectId>& objects, bool active)
+        const Array<EditorObjectId>& objects, Bool active)
         : ObjectToggleCommand(registry, objects, active,
             [](const GameObject& object) { return object.IsActiveSelf(); },
-            [](GameObject& object, bool value) { object.SetActive(value); })
+            [](GameObject& object, Bool value) { object.SetActive(value); })
     {
     }
 
@@ -414,10 +418,10 @@ namespace JBro
     }
 
     SetObjectEditorHiddenCommand::SetObjectEditorHiddenCommand(EditorObjectRegistry& registry,
-        const Array<EditorObjectId>& objects, bool hidden)
+        const Array<EditorObjectId>& objects, Bool hidden)
         : ObjectToggleCommand(registry, objects, hidden,
             [](const GameObject& object) { return object.IsEditorHidden(); },
-            [](GameObject& object, bool value) { object.SetEditorHidden(value); })
+            [](GameObject& object, Bool value) { object.SetEditorHidden(value); })
     {
     }
 
@@ -426,14 +430,14 @@ namespace JBro
         return "Hide in Canvas View";
     }
 
-    bool ObjectToggleCommand::Execute()
+    Bool ObjectToggleCommand::Execute()
     {
         if (m_objects.IsEmpty())
         {
             return false;
         }
         // 이미 다 그 값이면 바뀌는 것이 없다. 빈 칸을 쌓아 두면 되돌리기가 한 번 헛돈다.
-        bool changes = false;
+        Bool changes = false;
         for (std::size_t index = 0; index < m_before.Size(); ++index)
         {
             if ((m_before[index] != 0) != m_after)
@@ -466,7 +470,7 @@ namespace JBro
     }
 
     SetComponentEnabledCommand::SetComponentEnabledCommand(EditorObjectRegistry& registry,
-        const ComponentAddress& address, bool enabled)
+        const ComponentAddress& address, Bool enabled)
         : m_registry(&registry)
         , m_address(address)
         , m_after(enabled)
@@ -485,7 +489,7 @@ namespace JBro
         return "Set Component Enabled";
     }
 
-    void SetComponentEnabledCommand::Apply(bool enabled)
+    void SetComponentEnabledCommand::Apply(Bool enabled)
     {
         if (ComponentBase* component = ResolveComponent(*m_registry, m_address))
         {
@@ -493,7 +497,7 @@ namespace JBro
         }
     }
 
-    bool SetComponentEnabledCommand::Execute()
+    Bool SetComponentEnabledCommand::Execute()
     {
         if (false == m_captured || m_before == m_after)
         {

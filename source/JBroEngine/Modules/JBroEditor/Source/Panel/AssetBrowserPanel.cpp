@@ -25,6 +25,11 @@
 #include <algorithm>
 #include <cstring>
 #include <ctime>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
@@ -80,13 +85,13 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelAssets, "Assets");
     }
 
-    bool AssetBrowserPanel::OnCreate(EditorApplication& editor)
+    Bool AssetBrowserPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
     }
 
-    bool AssetBrowserPanel::IsInside(const String& path, const String& folder)
+    Bool AssetBrowserPanel::IsInside(const String& path, const String& folder)
     {
         if (folder.empty())
         {
@@ -119,12 +124,12 @@ namespace JBro
             });
     }
 
-    AssetBrowserPanel::Columns AssetBrowserPanel::ListColumns(float width)
+    AssetBrowserPanel::Columns AssetBrowserPanel::ListColumns(Float width)
     {
         // 종류와 날짜는 폭이 정해진 글자다. 이름은 남는 자리를 가지되 너무 좁아지지 않는다.
-        constexpr float TypeWidth = 90.0f;
-        constexpr float ModifiedWidth = 130.0f;
-        const float name = width * 0.4f > 140.0f ? width * 0.4f : 140.0f;
+        constexpr Float TypeWidth = 90.0f;
+        constexpr Float ModifiedWidth = 130.0f;
+        const Float name = width * 0.4f > 140.0f ? width * 0.4f : Float(140.0f);
         Columns columns;
         columns.type = name;
         columns.modified = name + TypeWidth;
@@ -135,9 +140,9 @@ namespace JBro
     void AssetBrowserPanel::DrawListHeader()
     {
         const ImVec2 start = ImGui::GetCursorScreenPos();
-        const float width = ImGui::GetContentRegionAvail().x;
+        const Float width = ImGui::GetContentRegionAvail().x;
         const Columns columns = ListColumns(width - m_rowTextOffset);
-        const float x = start.x + m_rowTextOffset;
+        const Float x = start.x + m_rowTextOffset;
         ImGui::SetCursorScreenPos(ImVec2(x, start.y));
         Widget::HintText(Loc::TextOr(LocKeys::AssetsColumnName, "Name"));
         ImGui::SetCursorScreenPos(ImVec2(x + columns.type, start.y));
@@ -193,7 +198,7 @@ namespace JBro
             // 조상 폴더까지 전부 등록한다 - 파일이 깊이 있어도 중간 폴더가 나무에 있어야 한다.
             for (String folder = entry.folder; false == folder.empty(); folder = ParentOf(folder))
             {
-                bool known = false;
+                Bool known = false;
                 for (std::size_t at = 0; at < m_folders.Size() && false == known; ++at)
                 {
                     known = m_folders[at] == folder;
@@ -212,7 +217,7 @@ namespace JBro
         // 오른쪽 칸이 영원히 비어 있고 왜 그런지 화면에서 알 수 없다.
         if (false == m_openFolder.empty())
         {
-            bool alive = false;
+            Bool alive = false;
             for (std::size_t index = 0; index < m_folders.Size() && false == alive; ++index)
             {
                 alive = m_folders[index] == m_openFolder;
@@ -224,7 +229,7 @@ namespace JBro
         }
     }
 
-    bool AssetBrowserPanel::FolderHasMatch(const String& folder) const
+    Bool AssetBrowserPanel::FolderHasMatch(const String& folder) const
     {
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
@@ -250,7 +255,7 @@ namespace JBro
         {
             // 꾸러미에는 여럿이 줄로 갈려 들어 있다. 하나든 여럿이든 같은 길로 푼다.
             std::size_t start = 0;
-            bool failed = false;
+            Bool failed = false;
             while (start <= bundle.size())
             {
                 const std::size_t breakAt = bundle.View().find('\n', start);
@@ -295,7 +300,7 @@ namespace JBro
         }
     }
 
-    bool AssetBrowserPanel::IsSelected(const String& path) const
+    Bool AssetBrowserPanel::IsSelected(const String& path) const
     {
         for (std::size_t index = 0; index < m_selection.Size(); ++index)
         {
@@ -377,7 +382,7 @@ namespace JBro
         }
         // **한 번 지운 것은 한 번에 되돌아온다**(D-191). 파일마다 커맨드를 쌓으면
         // 다섯 개를 지운 뒤 Ctrl+Z 를 다섯 번 눌러야 한다.
-        const bool failed = false == m_editor->DeleteAssets(targets);
+        const Bool failed = false == m_editor->DeleteAssets(targets);
         if (failed)
         {
             m_message = Loc::TextOr(LocKeys::AssetsDeleteFailed, "that could not be deleted");
@@ -424,7 +429,7 @@ namespace JBro
         // **붙이는 도중에 목록이 바뀐다.** 하나씩 옮기거나 복사할 때마다 레지스트리를
         // 다시 훑으므로, 클립보드를 먼저 베껴 두고 그 사본으로 돈다.
         Array<String> sources = m_fileClipboard;
-        bool failed = false;
+        Bool failed = false;
         for (std::size_t index = 0; index < sources.Size(); ++index)
         {
             const String& source = sources[index];
@@ -433,9 +438,9 @@ namespace JBro
             {
                 continue;
             }
-            const bool moved = m_clipboardIsCut
+            const Bool moved = m_clipboardIsCut
                 ? m_editor->MoveAsset(source.c_str(), folder.c_str())
-                : false == m_editor->CopyAssetInto(source.c_str(), folder.c_str()).empty();
+                : Bool(false == m_editor->CopyAssetInto(source.c_str(), folder.c_str()).empty());
             if (false == moved)
             {
                 failed = true;
@@ -466,7 +471,7 @@ namespace JBro
         {
             m_pressedPath = entry.record->relativePath;
         }
-        const bool clicked = ImGui::IsItemHovered()
+        const Bool clicked = ImGui::IsItemHovered()
             && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
             && false == Widget::MouseWasDragged(ImGuiMouseButton_Left)
             && m_pressedPath == entry.record->relativePath;
@@ -588,9 +593,9 @@ namespace JBro
     void AssetBrowserPanel::DrawFileTile(const Entry& entry)
     {
         ImGui::PushID(entry.record->relativePath.c_str());
-        const float side = m_iconSize;
+        const Float side = m_iconSize;
         // 이름 한 줄의 자리를 밑에 둔다. 이름이 없으면 무엇을 고르는지 그림만으로 가려야 한다.
-        const float labelHeight = ImGui::GetTextLineHeight();
+        const Float labelHeight = ImGui::GetTextLineHeight();
         const ImVec2 cell(side, side + labelHeight + 6.0f);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
 
@@ -611,8 +616,8 @@ namespace JBro
         if (thumbnail.IsValid())
         {
             // 칸 가운데에 비율을 지켜 넣는다(D-159). 늘여 붙이면 가로로 긴 시트가 찌그러진다.
-            std::uint32_t sourceWidth = 0;
-            std::uint32_t sourceHeight = 0;
+            UInt32 sourceWidth = 0;
+            UInt32 sourceHeight = 0;
             m_editor->GetAssetSourceSize(entry.record->id, sourceWidth, sourceHeight);
             const ImVec2 box(imageMax.x - imageMin.x, imageMax.y - imageMin.y);
             const ImVec2 fitted = Widget::FitInside(sourceWidth, sourceHeight, box);
@@ -681,7 +686,7 @@ namespace JBro
 
     void AssetBrowserPanel::DrawFolderTree(const String& folder)
     {
-        const bool searching = m_filter.size() > 0;
+        const Bool searching = m_filter.size() > 0;
         for (std::size_t index = 0; index < m_folders.Size(); ++index)
         {
             const String& child = m_folders[index];
@@ -697,9 +702,9 @@ namespace JBro
                 flags |= ImGuiTreeNodeFlags_Selected;
             }
             Widget::TreeDrawContext row;
-            const bool opened = Widget::TreeBegin("##folder", flags, &row);
+            const Bool opened = Widget::TreeBegin("##folder", flags, &row);
             Widget::TreeEnd();
-            const bool clicked = ImGui::IsItemClicked() && false == ImGui::IsItemToggledOpen();
+            const Bool clicked = ImGui::IsItemClicked() && false == ImGui::IsItemToggledOpen();
             DrawFolderDropTarget(child);
             DrawEntryMenu(child, true);
             if (row.IsVisible)
@@ -758,7 +763,7 @@ namespace JBro
     void AssetBrowserPanel::DrawContents()
     {
         // 지금 연 폴더의 하위 폴더를 먼저, 그다음 파일을.
-        const bool searching = m_filter.size() > 0;
+        const Bool searching = m_filter.size() > 0;
         for (std::size_t index = 0; index < m_folders.Size(); ++index)
         {
             const String& child = m_folders[index];
@@ -773,7 +778,7 @@ namespace JBro
                 ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
                     | ImGuiTreeNodeFlags_SpanAvailWidth, &row);
             Widget::TreeEnd();
-            const bool clicked = ImGui::IsItemClicked();
+            const Bool clicked = ImGui::IsItemClicked();
             DrawFolderDropTarget(child);
             DrawEntryMenu(child, true);
             if (row.IsVisible)
@@ -792,8 +797,8 @@ namespace JBro
             ImGui::PopID();
         }
 
-        bool any = false;
-        bool headed = false;
+        Bool any = false;
+        Bool headed = false;
         std::size_t drawnTiles = 0;
         // 이번 프레임에 그린 차례를 새로 모은다. 범위 선택이 이 차례를 쓴다.
         m_visible.Clear();
@@ -801,9 +806,9 @@ namespace JBro
         {
             const Entry& entry = m_entries[index];
             // 찾는 중이면 폴더를 가리지 않는다 - 어디에 있든 걸린 것을 보여 주는 쪽이 찾는 일이다.
-            const bool here = searching
+            const Bool here = searching
                 ? IsInside(entry.folder, m_openFolder)
-                : entry.folder == m_openFolder;
+                : Bool(entry.folder == m_openFolder);
             if (false == here || false == Widget::MatchesFilter(entry.name, m_filter.c_str()))
             {
                 continue;
@@ -813,7 +818,7 @@ namespace JBro
             if (m_iconView)
             {
                 // 칸은 오른쪽으로 흐르다 자리가 모자라면 다음 줄로 간다.
-                const float remaining = ImGui::GetContentRegionAvail().x;
+                const Float remaining = ImGui::GetContentRegionAvail().x;
                 if (drawnTiles > 0 && remaining >= m_iconSize)
                 {
                     ImGui::SameLine(0.0f, 4.0f);
@@ -891,7 +896,7 @@ namespace JBro
         }
     }
 
-    void AssetBrowserPanel::DrawEntryMenu(const String& relativePath, bool isFolder)
+    void AssetBrowserPanel::DrawEntryMenu(const String& relativePath, Bool isFolder)
     {
         if (false == Widget::BeginContextMenu("##AssetMenu"))
         {
@@ -957,14 +962,14 @@ namespace JBro
             // 그림이면 뷰어에서 열 수 있다. 그림이 아니면 항목을 잠근다 - 숨기면 그런 창이
             // 있다는 것조차 알 수 없다.
             const AssetRecord* record = m_editor->GetAssetRegistry().FindByPath(relativePath.c_str());
-            const bool image = record != nullptr && AssetTypeRules::IsImageType(record->type);
+            const Bool image = record != nullptr && AssetTypeRules::IsImageType(record->type);
             if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsOpenInSpriteViewer,
                     "Open in Sprite Viewer"), nullptr, image))
             {
                 m_editor->OpenSpriteViewer(record->id);
             }
             // 캔버스면 그것을 **편집하러 연다**(D-174). 지금 캔버스의 내용이 그것으로 바뀐다.
-            const bool canvas = record != nullptr && record->type == AssetType::Canvas;
+            const Bool canvas = record != nullptr && record->type == AssetType::Canvas;
             if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsOpenCanvas, "Open Canvas"),
                     nullptr, canvas))
             {
@@ -1003,7 +1008,7 @@ namespace JBro
         ImGui::Spacing();
         Widget::TextField("##newName", m_nameBuffer).Width(260.0f).Draw();
         ImGui::Spacing();
-        const bool valid = false == m_nameBuffer.empty();
+        const Bool valid = false == m_nameBuffer.empty();
         {
             Widget::DisableScope disabled(false == valid);
             if (Widget::ActionButton(Loc::TextOr(LocKeys::CommonOk, "OK"),
@@ -1037,7 +1042,7 @@ namespace JBro
             return;
         }
         // **되돌릴 수 없다.** 그러니 무엇을 지우는지 보여 주고 묻는다.
-        const bool many = false == m_pendingIsFolder && m_selection.Size() > 1;
+        const Bool many = false == m_pendingIsFolder && m_selection.Size() > 1;
         if (many)
         {
             Widget::TextF(Loc::TextOr(LocKeys::AssetsDeleteManyAsk, "delete these %d assets?"),
@@ -1171,11 +1176,11 @@ namespace JBro
             EnumNames names;
             names.names = sortNames;
             names.count = 3;
-            names.ToIndex = [](const void* value) noexcept -> std::int32_t {
+            names.ToIndex = [](const void* value) noexcept -> Int32 {
                 return static_cast<std::int32_t>(*static_cast<const SortMode*>(value));
             };
-            names.FromIndex = [](void* value, std::int32_t index) noexcept {
-                *static_cast<SortMode*>(value) = static_cast<SortMode>(index);
+            names.FromIndex = [](void* value, Int32 index) noexcept {
+                *static_cast<SortMode*>(value) = static_cast<SortMode>(index.Get());
             };
             if (Widget::EnumCombo("##sort", names, &m_sortMode, 120.0f))
             {
@@ -1213,8 +1218,8 @@ namespace JBro
         }
 
         // **두 칸이다.** 왼쪽은 폴더 나무, 오른쪽은 지금 연 폴더의 내용.
-        const float available = ImGui::GetContentRegionAvail().x;
-        const float treeWidth = std::clamp(m_treeWidth, 80.0f, (std::max)(80.0f, available - 120.0f));
+        const Float available = ImGui::GetContentRegionAvail().x;
+        const Float treeWidth = JBro::Clamp(m_treeWidth, 80.0f, JBro::Max(80.0f, available - 120.0f));
         if (ImGui::BeginChild("##tree", ImVec2(treeWidth, 0.0f), ImGuiChildFlags_Borders))
         {
             // 뿌리 줄. 여기에 놓으면 에셋 폴더의 맨 위로 옮긴다.
@@ -1227,7 +1232,7 @@ namespace JBro
             Widget::TreeDrawContext rootRow;
             Widget::TreeBegin("##root", rootFlags, &rootRow);
             Widget::TreeEnd();
-            const bool rootClicked = ImGui::IsItemClicked();
+            const Bool rootClicked = ImGui::IsItemClicked();
             DrawFolderDropTarget(String());
             if (rootRow.IsVisible)
             {
@@ -1247,7 +1252,7 @@ namespace JBro
 
         ImGui::SameLine(0.0f, 0.0f);
         Widget::Splitter("##assetSplit", true, 4.0f, &m_treeWidth,
-            80.0f, (std::max)(120.0f, available - 120.0f));
+            80.0f, JBro::Max(120.0f, available - 120.0f));
         ImGui::SameLine(0.0f, 0.0f);
 
         if (ImGui::BeginChild("##contents", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))

@@ -5,10 +5,13 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -22,25 +25,25 @@ namespace
     struct FakeComponentBase
     {
         virtual ~FakeComponentBase() = default;
-        int baseField = 0;
+        JBro::Int32 baseField = 0;
     };
 
     struct Probe final : FakeComponentBase
     {
-        float speed = 5.0f;
-        int   health = 100;
-        bool  visible = true;
+        JBro::Float speed = 5.0f;
+        JBro::Int32   health = 100;
+        JBro::Bool  visible = true;
 
     private:
         // private 이어도 클래스 안에서 접근자를 만들면 잡힌다.
-        float secret = 1.5f;
+        JBro::Float secret = 1.5f;
 
     public:
         static void* SecretAddress(void* owner) noexcept
         {
             return &(static_cast<Probe*>(owner)->secret);
         }
-        float GetSecret() const
+        JBro::Float GetSecret() const
         {
             return secret;
         }
@@ -53,14 +56,14 @@ namespace
             && codec.Equals != nullptr && codec.Assign != nullptr,
             "a scalar codec must fill every entry");
 
-        float value = 12.5f;
+        JBro::Float value = 12.5f;
         char buffer[32] = {};
         std::size_t required = 0;
         Check(codec.ToText(&value, buffer, sizeof(buffer), required),
             "a value must fit a generous buffer");
         Check(required > 0 && required < sizeof(buffer), "the written length must be reported");
 
-        float restored = 0.0f;
+        JBro::Float restored = 0.0f;
         Check(codec.FromText(&restored, buffer, required), "the written text must read back");
         Check(codec.Equals(&value, &restored), "a round trip must land on the same value");
     }
@@ -70,7 +73,7 @@ namespace
         const JBro::ValueCodec& codec = JBro::GetScalarCodec<int>();
 
         // 버퍼가 모자라면 쓰지 않고, 필요한 크기를 알려 준다.
-        int value = 123456;
+        JBro::Int32 value = 123456;
         char tiny[2] = {};
         std::size_t required = 0;
         Check(false == codec.ToText(&value, tiny, sizeof(tiny), required),
@@ -78,7 +81,7 @@ namespace
         Check(required == 6, "the refusal must still report the size the caller needs");
 
         // 남는 글자가 있으면 실패다. "12abc" 를 12 로 받아들이지 않는다.
-        int parsed = -1;
+        JBro::Int32 parsed = -1;
         Check(false == codec.FromText(&parsed, "12abc", 5),
             "trailing text must fail rather than parse a prefix");
         Check(parsed == -1, "a failed parse must not touch the value");
@@ -89,14 +92,14 @@ namespace
     void TestBoolCodecUsesWords()
     {
         const JBro::ValueCodec& codec = JBro::GetBoolCodec();
-        bool value = true;
+        JBro::Bool value = true;
         char buffer[8] = {};
         std::size_t required = 0;
         Check(codec.ToText(&value, buffer, sizeof(buffer), required), "true must write");
         Check(required == 4 && std::memcmp(buffer, "true", 4) == 0,
             "a bool must be written as a word, not as a digit");
 
-        bool restored = false;
+        JBro::Bool restored = false;
         Check(codec.FromText(&restored, "false", 5), "false must read");
         Check(restored == false, "false must read back as false");
         // 표기를 하나로 두는지 본다.
@@ -151,7 +154,7 @@ namespace
     }
 }
 
-int RunReflectionShapeTests()
+JBro::Int32 RunReflectionShapeTests()
 {
     TestScalarCodecRoundTrip();
     TestCodecRefusesRatherThanGuessing();

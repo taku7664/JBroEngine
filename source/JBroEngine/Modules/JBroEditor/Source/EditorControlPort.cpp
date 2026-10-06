@@ -7,6 +7,7 @@
 #include <JBro/Network/Socket.h>
 
 #include <string_view>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -19,7 +20,7 @@ namespace JBro
         String outbox;
         std::size_t sent = 0;
         // 답을 다 보내면 끊는다(너무 긴 글·접속이 너무 많음).
-        bool closeAfterSend = false;
+        Bool closeAfterSend = false;
     };
 
     namespace
@@ -27,9 +28,9 @@ namespace JBro
         constexpr std::string_view EndLine = "...";
 
         // 받은 글에서 끝 표시(`...` 한 줄)까지를 떼어 명령과 본문으로 나눈다. 아직 끝나지 않았으면 거짓이다.
-        bool TakeMessage(String& inbox, String& command, String& body)
+        Bool TakeMessage(String& inbox, String& command, String& body)
         {
-            bool haveCommand = false;
+            Bool haveCommand = false;
             std::size_t bodyStart = 0;
             std::size_t lineStart = 0;
             while (true)
@@ -153,7 +154,7 @@ namespace JBro
         Close();
     }
 
-    bool EditorControlPort::Open(Network::ISocketProvider& provider, std::uint16_t port)
+    Bool EditorControlPort::Open(Network::ISocketProvider& provider, std::uint16_t port)
     {
         Close();
         OwnerPtr<Network::IStreamSocket> listener = provider.CreateStreamSocket();
@@ -181,7 +182,7 @@ namespace JBro
         m_port = 0;
     }
 
-    bool EditorControlPort::IsOpen() const noexcept
+    Bool EditorControlPort::IsOpen() const noexcept
     {
         return m_listener.Get() != nullptr;
     }
@@ -231,9 +232,9 @@ namespace JBro
         }
     }
 
-    bool EditorControlPort::Serve(Client& client, EditorApplication& editor)
+    Bool EditorControlPort::Serve(Client& client, EditorApplication& editor)
     {
-        bool peerClosed = false;
+        Bool peerClosed = false;
         char buffer[4096];
         while (false == client.closeAfterSend)
         {

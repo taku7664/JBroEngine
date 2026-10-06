@@ -1,17 +1,21 @@
 ﻿#include "D3D11Device.h"
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
     namespace
     {
-        bool HasStage(ShaderStage stages, ShaderStage stage)
+        Bool HasStage(ShaderStage stages, ShaderStage stage)
         {
             return (static_cast<std::uint8_t>(stages) & static_cast<std::uint8_t>(stage)) != 0;
         }
 
-        bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
+        Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
@@ -33,7 +37,7 @@ namespace JBro::Internal
         m_pipelineActive = false;
     }
 
-    bool D3D11CommandContext::BeginRenderPass(const RenderPassDesc& desc)
+    Bool D3D11CommandContext::BeginRenderPass(const RenderPassDesc& desc)
     {
         if (m_device == nullptr || m_context == nullptr || m_renderPassActive
             || desc.colorAttachments.data == nullptr || desc.colorAttachments.size == 0
@@ -42,7 +46,7 @@ namespace JBro::Internal
             return false;
         }
         ID3D11RenderTargetView* views[MaxColorAttachments] = {};
-        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
             if (false == m_device->ResolveRenderTargetView(desc.colorAttachments.data[index].texture, views[index]))
             {
@@ -79,7 +83,7 @@ namespace JBro::Internal
                 m_context->RSSetViewports(1, &viewport);
             }
         }
-        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
             const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
             if (attachment.loadOperation == LoadOperation::Clear)
@@ -99,7 +103,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11CommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
+    Bool D3D11CommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
     {
         ID3D11RenderTargetView* fromView = nullptr;
         ID3D11RenderTargetView* toView = nullptr;
@@ -169,7 +173,7 @@ namespace JBro::Internal
         m_context->RSSetScissorRects(1, &native);
     }
 
-    bool D3D11CommandContext::SetGraphicsPipeline(GraphicsPipelineHandle pipeline)
+    Bool D3D11CommandContext::SetGraphicsPipeline(GraphicsPipelineHandle pipeline)
     {
         if (false == m_renderPassActive || m_device == nullptr)
         {
@@ -196,10 +200,10 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11CommandContext::SetVertexBuffer(
-        std::uint32_t slot,
+    Bool D3D11CommandContext::SetVertexBuffer(
+        UInt32 slot,
         BufferHandle buffer,
-        std::uint32_t stride,
+        UInt32 stride,
         std::size_t offset)
     {
         ID3D11Buffer* native = nullptr;
@@ -213,11 +217,12 @@ namespace JBro::Internal
             return false;
         }
         const UINT nativeOffset = static_cast<UINT>(offset);
-        m_context->IASetVertexBuffers(slot, 1, &native, &stride, &nativeOffset);
+        const UINT nativeStride = stride;
+        m_context->IASetVertexBuffers(slot, 1, &native, &nativeStride, &nativeOffset);
         return true;
     }
 
-    bool D3D11CommandContext::SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset)
+    Bool D3D11CommandContext::SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset)
     {
         ID3D11Buffer* native = nullptr;
         BufferDesc desc;
@@ -234,7 +239,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11CommandContext::SetGraphicsConstants(JArrayView<std::byte> data)
+    Bool D3D11CommandContext::SetGraphicsConstants(JArrayView<std::byte> data)
     {
         if (false == m_renderPassActive || false == m_pipelineActive
             || data.size != m_activePushConstantBytes || (data.size != 0 && data.data == nullptr))
@@ -269,7 +274,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11CommandContext::SetTexture(std::uint32_t slot, TextureHandle texture)
+    Bool D3D11CommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
         ID3D11ShaderResourceView* view = nullptr;
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
@@ -281,7 +286,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11CommandContext::SetSampler(std::uint32_t slot, SamplerHandle sampler)
+    Bool D3D11CommandContext::SetSampler(UInt32 slot, SamplerHandle sampler)
     {
         ID3D11SamplerState* native = nullptr;
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
@@ -293,12 +298,12 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11CommandContext::DrawIndexedInstanced(
-        std::uint32_t indexCount,
-        std::uint32_t instanceCount,
-        std::uint32_t firstIndex,
-        std::int32_t baseVertex,
-        std::uint32_t firstInstance)
+    Bool D3D11CommandContext::DrawIndexedInstanced(
+        UInt32 indexCount,
+        UInt32 instanceCount,
+        UInt32 firstIndex,
+        Int32 baseVertex,
+        UInt32 firstInstance)
     {
         if (false == m_renderPassActive || false == m_pipelineActive || indexCount == 0 || instanceCount == 0)
         {

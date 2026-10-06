@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <string_view>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -64,7 +65,7 @@ namespace JBro
 
         constexpr char MetaExtension[] = ".jmeta";
 
-        bool EqualsIgnoringCase(std::string_view left, const char* right) noexcept
+        Bool EqualsIgnoringCase(std::string_view left, const char* right) noexcept
         {
             const std::size_t length = std::strlen(right);
             if (left.size() != length)
@@ -194,7 +195,7 @@ namespace JBro
             return ParseTypeName(std::string_view(buffer + last - 1, length - last + 1));
         }
 
-        bool IsImageType(AssetType type) noexcept
+        Bool IsImageType(AssetType type) noexcept
         {
             return type == AssetType::Texture;
         }
@@ -204,7 +205,7 @@ namespace JBro
             return MetaExtension;
         }
 
-        bool IsMetaPath(std::string_view path) noexcept
+        Bool IsMetaPath(std::string_view path) noexcept
         {
             return EqualsIgnoringCase(ExtensionOf(path), MetaExtension);
         }
@@ -216,7 +217,7 @@ namespace JBro
             return result;
         }
 
-        bool IsMetaScratchPath(std::string_view path) noexcept
+        Bool IsMetaScratchPath(std::string_view path) noexcept
         {
             if (false == EqualsIgnoringCase(ExtensionOf(path), ".tmp"))
             {

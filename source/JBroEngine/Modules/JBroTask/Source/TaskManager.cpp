@@ -4,6 +4,9 @@
 #include <cwchar>
 #include <exception>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -14,11 +17,11 @@ namespace JBro
     namespace
     {
         // 디버거의 스레드 목록에서 워커를 알아보게 한다. 이름을 붙이지 못해도 워커는 그대로 돈다.
-        void NameWorkerThread(std::uint32_t index)
+        void NameWorkerThread(UInt32 index)
         {
 #if defined(_WIN32)
             wchar_t name[32];
-            std::swprintf(name, 32, L"JBro Task Worker %u", index + 1);
+            std::swprintf(name, 32, L"JBro Task Worker %u", (index + 1).Get());
             (void)SetThreadDescription(GetCurrentThread(), name);
 #else
             (void)index;
@@ -29,7 +32,7 @@ namespace JBro
         class CallbackScope
         {
         public:
-            explicit CallbackScope(std::uint32_t& depth)
+            explicit CallbackScope(UInt32& depth)
                 : m_depth(depth)
             {
                 ++m_depth;
@@ -42,7 +45,7 @@ namespace JBro
             CallbackScope& operator=(const CallbackScope&) = delete;
 
         private:
-            std::uint32_t& m_depth;
+            UInt32& m_depth;
         };
     }
 
@@ -53,7 +56,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool TaskManager::Initialize(const TaskManagerDesc& desc)
+    Bool TaskManager::Initialize(const TaskManagerDesc& desc)
     {
         if (m_initialized)
         {
@@ -70,14 +73,14 @@ namespace JBro
         m_initialized = true;
         if (m_useWorkers)
         {
-            std::uint32_t count = desc.workerCount;
+            UInt32 count = desc.workerCount;
             if (count == 0)
             {
                 const unsigned int cores = std::thread::hardware_concurrency();
                 count = cores > 1 ? cores - 1 : 1;
             }
             m_workers.Reserve(count);
-            for (std::uint32_t i = 0; i < count; ++i)
+            for (UInt32 i = 0; i < count; ++i)
             {
                 m_workers.Emplace([this, i] { WorkerLoop(i); });
             }
@@ -131,17 +134,17 @@ namespace JBro
         m_initialized = false;
     }
 
-    bool TaskManager::IsInitialized() const
+    Bool TaskManager::IsInitialized() const
     {
         return m_initialized;
     }
 
-    bool TaskManager::UsesWorkers() const
+    Bool TaskManager::UsesWorkers() const
     {
         return m_useWorkers;
     }
 
-    std::uint32_t TaskManager::GetWorkerCount() const
+    UInt32 TaskManager::GetWorkerCount() const
     {
         return static_cast<std::uint32_t>(m_workers.Size());
     }
@@ -157,9 +160,9 @@ namespace JBro
         submitted.m_submitted = true;
         submitted.m_id = m_nextGroupId++;
         // 워커가 볼 연결을 큐에 넣기 전에 적는다. 큐의 잠금이 이 쓰기를 워커에게 넘긴다.
-        const std::uint32_t count = submitted.GetTaskCount();
-        const bool sequential = submitted.m_order == TaskGroupOrder::Sequential;
-        for (std::uint32_t i = 0; i < count; ++i)
+        const UInt32 count = submitted.GetTaskCount();
+        const Bool sequential = submitted.m_order == TaskGroupOrder::Sequential;
+        for (UInt32 i = 0; i < count; ++i)
         {
             Task& task = *submitted.m_tasks[i];
             task.m_group = &submitted;
@@ -179,7 +182,7 @@ namespace JBro
         }
         {
             std::lock_guard lock(m_mutex);
-            for (std::uint32_t i = 0; i < count; ++i)
+            for (UInt32 i = 0; i < count; ++i)
             {
                 m_ready.Add(submitted.m_tasks[i].Get());
             }
@@ -210,7 +213,7 @@ namespace JBro
         }
     }
 
-    bool TaskManager::Wait(TaskGroupId id)
+    Bool TaskManager::Wait(TaskGroupId id)
     {
         if (false == m_initialized)
         {
@@ -259,17 +262,17 @@ namespace JBro
         return nullptr;
     }
 
-    std::uint32_t TaskManager::GetGroupCount() const
+    UInt32 TaskManager::GetGroupCount() const
     {
         return static_cast<std::uint32_t>(m_groups.Size());
     }
 
-    const TaskGroup& TaskManager::GetGroupAt(std::uint32_t index) const
+    const TaskGroup& TaskManager::GetGroupAt(UInt32 index) const
     {
         return *m_groups[index];
     }
 
-    void TaskManager::WorkerLoop(std::uint32_t index)
+    void TaskManager::WorkerLoop(UInt32 index)
     {
         NameWorkerThread(index);
         {
@@ -303,7 +306,7 @@ namespace JBro
         if (false == task.IsCancelRequested())
         {
             task.m_state.store(TaskState::Running, std::memory_order_release);
-            bool threw = false;
+            Bool threw = false;
             String message;
             try
             {
@@ -319,11 +322,11 @@ namespace JBro
                 threw = true;
                 message = "unknown exception";
             }
-            const std::uint32_t num = task.m_numSubTasks;
+            const UInt32 num = task.m_numSubTasks;
             if (threw)
             {
                 // 던진 자리는 아직 알리지 않은 첫 하위 작업으로 적는다. 다 알린 뒤에 던졌으면 수는 늘리지 않고 사유만 남긴다.
-                const std::uint32_t subTask = task.m_reportedSubTasks.load(std::memory_order_relaxed);
+                const UInt32 subTask = task.m_reportedSubTasks.load(std::memory_order_relaxed);
                 if (false == task.FailSubTask(subTask, message.c_str()))
                 {
                     TaskFailure& failure = task.m_failures.Emplace();
@@ -334,7 +337,7 @@ namespace JBro
             }
             else
             {
-                const std::uint32_t reported = task.m_reportedSubTasks.load(std::memory_order_relaxed);
+                const UInt32 reported = task.m_reportedSubTasks.load(std::memory_order_relaxed);
                 if (task.IsCancelRequested() && reported < num)
                 {
                     finalState = TaskState::Canceled;
@@ -395,7 +398,7 @@ namespace JBro
         return task;
     }
 
-    void TaskManager::RunOnMainThread(bool unlimited)
+    void TaskManager::RunOnMainThread(Bool unlimited)
     {
         using Clock = std::chrono::steady_clock;
         const Clock::time_point start = Clock::now();
@@ -457,7 +460,7 @@ namespace JBro
         }
         m_groupsMayBeReady = false;
         // 콜백이 새 묶음을 제출하면 배열이 자란다. 그래서 번호로 돌고 매번 다시 꺼낸다.
-        for (std::uint32_t i = 0; i < m_groups.Size(); ++i)
+        for (UInt32 i = 0; i < m_groups.Size(); ++i)
         {
             TaskGroup& group = *m_groups[i];
             if (group.m_finished || group.m_finishedTasks != group.GetTaskCount())
@@ -481,7 +484,7 @@ namespace JBro
 
     void TaskManager::TrimFinishedGroups()
     {
-        std::uint32_t finished = 0;
+        UInt32 finished = 0;
         for (const OwnerPtr<TaskGroup>& group : m_groups)
         {
             if (group->m_finished)
@@ -489,7 +492,7 @@ namespace JBro
                 ++finished;
             }
         }
-        for (std::uint32_t i = 0; i < m_groups.Size() && finished > m_desc.keptFinishedGroups;)
+        for (UInt32 i = 0; i < m_groups.Size() && finished > m_desc.keptFinishedGroups;)
         {
             if (m_groups[i]->m_finished)
             {

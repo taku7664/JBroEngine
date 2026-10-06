@@ -7,6 +7,8 @@
 #include <JBro/Types/Table.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
@@ -22,12 +24,12 @@ namespace JBro::Network
     // 비신뢰 채널의 수신 손실률 표본. 순번은 연결별로 이어지므로 빈 곳이 유실 추정치다.
     struct UdpReceiveStats
     {
-        bool hasSample = false;
-        std::uint32_t firstSeq = 0;
-        std::uint32_t maxSeq = 0;
-        std::uint64_t received = 0;
+        Bool hasSample = false;
+        UInt32 firstSeq = 0;
+        UInt32 maxSeq = 0;
+        UInt64 received = 0;
 
-        void Accumulate(std::uint32_t seq)
+        void Accumulate(UInt32 seq)
         {
             if (false == hasSample)
             {
@@ -48,7 +50,7 @@ namespace JBro::Network
             {
                 return -1.0;
             }
-            const std::uint64_t expected = static_cast<std::uint64_t>(maxSeq - firstSeq) + 1u;
+            const UInt64 expected = static_cast<std::uint64_t>(maxSeq - firstSeq) + 1u;
             if (received >= expected)
             {
                 return 0.0;
@@ -62,22 +64,22 @@ namespace JBro::Network
     // 상대 엔드포인트를 배운다. 클라이언트는 토큰을 받은 뒤 서버 엔드포인트로 보낸다.
     struct UdpPeer
     {
-        bool tokenSet = false;
-        std::uint64_t token = 0;
+        Bool tokenSet = false;
+        UInt64 token = 0;
         Endpoint endpoint;
         // 비신뢰 순번 공간(손실 지표·Sequenced).
-        std::uint32_t sendSeq = 0;
+        UInt32 sendSeq = 0;
         // 메시지 ID 별 최근 순번(UnreliableSequenced 의 역전 폐기). 메시지 ID 는 **상대가 고르는 값**이므로
         // 키마다 자라는 표를 두지 않는다 - 매번 다른 ID 로 보내면 연결 하나가 6 만 항목까지 자라고 수신 경로에서
         // 할당이 일어난다. 대신 ID 로 고른 고정 슬롯을 쓰고, 두 ID 가 같은 슬롯에 오면 나중 것이 자리를 가진다.
         // 그때 잃는 것은 역전 폐기 한 번이지 정확성이 아니다 - 비신뢰 채널은 원래 순서를 약속하지 않는다.
-        static constexpr std::uint32_t SequencedSlotCount = 64;
+        static constexpr UInt32 SequencedSlotCount = 64;
 
         struct SequencedSlot
         {
             MessageId messageId = 0;
-            std::uint32_t seq = 0;
-            bool used = false;
+            UInt32 seq = 0;
+            Bool used = false;
         };
 
         SequencedSlot sequenced[SequencedSlotCount];
@@ -87,13 +89,13 @@ namespace JBro::Network
         OrderedRoute route = OrderedRoute::Undecided;
         double readyMilliseconds = 0.0;
         // 클라이언트: 서버에서 데이터그램이 하나라도 왔다. 그 전까지는 punch 를 되풀이한다.
-        bool punchConfirmed = false;
+        Bool punchConfirmed = false;
         double lastPunchMilliseconds = 0.0;
         // 전송로 확정 전의 사용자 `ReliableOrdered`. [uint16 msgId][uint32 size][payload] 레코드다.
         ByteRing backlog;
-        std::uint32_t backlogCount = 0;
+        UInt32 backlogCount = 0;
 
-        bool IsReady() const
+        Bool IsReady() const
         {
             return tokenSet && endpoint.IsValid();
         }

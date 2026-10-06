@@ -4,6 +4,7 @@
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Component
 {
@@ -31,6 +32,6 @@ namespace JBro::Component
         JBRO_FIELD(AssetId,     materialId);
         JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값"));
         JBRO_FIELD(Color,       tint) { 1.0f, 1.0f, 1.0f, 1.0f };
-        JBRO_FIELD(bool,        visible) = true;
+        JBRO_FIELD(Bool,        visible) = true;
     };
 }

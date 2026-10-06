@@ -3,6 +3,8 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Table.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -26,7 +28,7 @@ namespace JBro
         // **폴백도 같이 읽는다.** 현재 로케일에 없는 키가 폴백에는 있을 수 있고,
         // 그때 키를 그대로 내보내는 것보다 다른 언어로라도 보여 주는 편이 낫다.
         // 파일은 플랫폼이 연다(D-112).
-        bool Load(IPlatform& platform, const char* directory, const char* locale, const char* fallback);
+        Bool Load(IPlatform& platform, const char* directory, const char* locale, const char* fallback);
         void Clear();
 
         // 키를 찾는다. 현재 로케일 → 폴백 → nullptr 순이다.
@@ -39,17 +41,17 @@ namespace JBro
         const String& GetFallbackLocale() const;
         std::size_t GetCount() const;
         // 읽을 때마다 오른다. 글꼴이나 배치를 다시 재야 하는 쪽이 본다.
-        std::uint64_t GetRevision() const;
+        UInt64 GetRevision() const;
 
     private:
-        bool LoadFile(IPlatform& platform, const char* directory, const char* locale,
+        Bool LoadFile(IPlatform& platform, const char* directory, const char* locale,
             Table<String, String>& out) const;
 
         Table<String, String> m_entries;
         Table<String, String> m_fallbackEntries;
         String m_locale;
         String m_fallbackLocale;
-        std::uint64_t m_revision = 0;
+        UInt64 m_revision = 0;
     };
 
     namespace Loc

@@ -1,6 +1,9 @@
 ﻿#include <JBro/Package/PackageReader.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Package
 {
@@ -19,15 +22,15 @@ namespace JBro::Package
         class BlobStream final : public IFileStream
         {
         public:
-            BlobStream(OwnerPtr<IFileStream> file, std::uint64_t begin, std::uint64_t size, std::uint64_t key)
+            BlobStream(OwnerPtr<IFileStream> file, UInt64 begin, UInt64 size, UInt64 key)
                 : m_file(std::move(file)), m_begin(begin), m_size(size), m_key(key)
             {
             }
 
             std::size_t Read(void* buffer, std::size_t bytes) override
             {
-                const std::uint64_t left = m_size - m_position;
-                const std::size_t wanted = static_cast<std::size_t>(bytes < left ? bytes : left);
+                const UInt64 left = m_size - m_position;
+                const std::size_t wanted = static_cast<std::size_t>(bytes < left ? UInt64(bytes) : left);
                 if (wanted == 0 || false == m_file->Seek(static_cast<std::int64_t>(m_begin + m_position), FileSeekOrigin::Begin))
                 {
                     return 0;
@@ -38,9 +41,9 @@ namespace JBro::Package
                 return read;
             }
 
-            bool Seek(std::int64_t offset, FileSeekOrigin origin) override
+            Bool Seek(Int64 offset, FileSeekOrigin origin) override
             {
-                std::int64_t base = 0;
+                Int64 base = 0;
                 if (origin == FileSeekOrigin::Current)
                 {
                     base = static_cast<std::int64_t>(m_position);
@@ -49,7 +52,7 @@ namespace JBro::Package
                 {
                     base = static_cast<std::int64_t>(m_size);
                 }
-                const std::int64_t target = base + offset;
+                const Int64 target = base + offset;
                 if (target < 0 || target > static_cast<std::int64_t>(m_size))
                 {
                     return false;
@@ -58,25 +61,25 @@ namespace JBro::Package
                 return true;
             }
 
-            std::int64_t Tell() const override
+            Int64 Tell() const override
             {
                 return static_cast<std::int64_t>(m_position);
             }
 
-            std::int64_t GetSize() const override
+            Int64 GetSize() const override
             {
                 return static_cast<std::int64_t>(m_size);
             }
 
         private:
             OwnerPtr<IFileStream> m_file;
-            std::uint64_t m_begin = 0;
-            std::uint64_t m_size = 0;
-            std::uint64_t m_key = 0;
-            std::uint64_t m_position = 0;
+            UInt64 m_begin = 0;
+            UInt64 m_size = 0;
+            UInt64 m_key = 0;
+            UInt64 m_position = 0;
         };
 
-        bool ReadAt(IFileStream& file, std::uint64_t offset, void* buffer, std::size_t size)
+        Bool ReadAt(IFileStream& file, UInt64 offset, void* buffer, std::size_t size)
         {
             if (false == file.Seek(static_cast<std::int64_t>(offset), FileSeekOrigin::Begin))
             {
@@ -86,7 +89,7 @@ namespace JBro::Package
         }
     }
 
-    bool PackageReader::Open(IPlatform& platform, const char* utf8Path, String& error)
+    Bool PackageReader::Open(IPlatform& platform, const char* utf8Path, String& error)
     {
         Close();
         OwnerPtr<IFileStream> file = platform.OpenFileStream(utf8Path);
@@ -95,7 +98,7 @@ namespace JBro::Package
             error = "the package file could not be opened";
             return false;
         }
-        const std::int64_t fileSize = file->GetSize();
+        const Int64 fileSize = file->GetSize();
         std::byte header[HeaderSize] = {};
         if (fileSize < static_cast<std::int64_t>(HeaderSize) || false == ReadAt(*file, 0, header, HeaderSize))
         {
@@ -108,14 +111,14 @@ namespace JBro::Package
             return false;
         }
         const std::byte* at = header + sizeof(Magic);
-        const auto version = Take<std::uint32_t>(at);
-        const auto headerSize = Take<std::uint32_t>(at);
-        const auto entryCount = Take<std::uint32_t>(at);
-        (void)Take<std::uint32_t>(at);
-        const auto indexOffset = Take<std::uint64_t>(at);
-        const auto indexSize = Take<std::uint64_t>(at);
-        const auto indexHash = Take<std::uint64_t>(at);
-        const auto key = Take<std::uint64_t>(at);
+        const auto version = Take<UInt32>(at);
+        const auto headerSize = Take<UInt32>(at);
+        const auto entryCount = Take<UInt32>(at);
+        (void)Take<UInt32>(at);
+        const auto indexOffset = Take<UInt64>(at);
+        const auto indexSize = Take<UInt64>(at);
+        const auto indexHash = Take<UInt64>(at);
+        const auto key = Take<UInt64>(at);
         if (version != FormatVersion || headerSize != HeaderSize)
         {
             error = "the package was written by another format version";
@@ -146,7 +149,7 @@ namespace JBro::Package
         entries.Reserve(entryCount);
         const std::byte* cursor = index.Data();
         const std::byte* end = index.Data() + index.Size();
-        for (std::uint32_t row = 0; row < entryCount; ++row)
+        for (UInt32 row = 0; row < entryCount; ++row)
         {
             if (static_cast<std::size_t>(end - cursor) < RecordFixedSize)
             {
@@ -154,17 +157,17 @@ namespace JBro::Package
                 return false;
             }
             Entry entry;
-            entry.id.high = Take<std::uint64_t>(cursor);
-            entry.id.low = Take<std::uint64_t>(cursor);
+            entry.id.high = Take<UInt64>(cursor);
+            entry.id.low = Take<UInt64>(cursor);
             entry.type = static_cast<AssetType>(Take<std::uint16_t>(cursor));
             const auto kind = Take<std::uint8_t>(cursor);
             (void)Take<std::uint8_t>(cursor);
-            const auto pathLength = Take<std::uint32_t>(cursor);
-            entry.owner.high = Take<std::uint64_t>(cursor);
-            entry.owner.low = Take<std::uint64_t>(cursor);
-            entry.offset = Take<std::uint64_t>(cursor);
-            entry.size = Take<std::uint64_t>(cursor);
-            entry.hash = Take<std::uint64_t>(cursor);
+            const auto pathLength = Take<UInt32>(cursor);
+            entry.owner.high = Take<UInt64>(cursor);
+            entry.owner.low = Take<UInt64>(cursor);
+            entry.offset = Take<UInt64>(cursor);
+            entry.size = Take<UInt64>(cursor);
+            entry.hash = Take<UInt64>(cursor);
             if (kind >= BlobKindCount || pathLength > MaxPathBytes || static_cast<std::size_t>(end - cursor) < pathLength)
             {
                 error = "the package index holds a record this reader does not understand";
@@ -173,8 +176,8 @@ namespace JBro::Package
             entry.kind = static_cast<BlobKind>(kind);
             entry.path.assign(reinterpret_cast<const char*>(cursor), pathLength);
             cursor += pathLength;
-            const bool record = entry.kind == BlobKind::Record;
-            const bool placed = record
+            const Bool record = entry.kind == BlobKind::Record;
+            const Bool placed = record
                 ? entry.offset == 0 && entry.size == 0
                 : entry.offset >= HeaderSize && entry.offset % BlobAlignment == 0 && entry.offset <= indexOffset
                     && entry.size <= indexOffset - entry.offset;
@@ -202,7 +205,7 @@ namespace JBro::Package
         m_file = std::move(file);
         m_key = key;
         m_entries = std::move(entries);
-        for (std::uint32_t row = 0; row < m_entries.Size(); ++row)
+        for (UInt32 row = 0; row < m_entries.Size(); ++row)
         {
             if (row == 0 || m_entries[row - 1].id != m_entries[row].id)
             {
@@ -222,29 +225,29 @@ namespace JBro::Package
         m_firstById.Clear();
     }
 
-    bool PackageReader::IsOpen() const
+    Bool PackageReader::IsOpen() const
     {
         return m_file.Get() != nullptr;
     }
 
-    std::uint32_t PackageReader::GetEntryCount() const
+    UInt32 PackageReader::GetEntryCount() const
     {
         return static_cast<std::uint32_t>(m_entries.Size());
     }
 
-    const Entry& PackageReader::GetEntry(std::uint32_t index) const
+    const Entry& PackageReader::GetEntry(UInt32 index) const
     {
         return m_entries[index];
     }
 
     const Entry* PackageReader::Find(AssetId id, BlobKind kind) const
     {
-        const std::uint32_t* first = m_firstById.Find(id);
+        const UInt32* first = m_firstById.Find(id);
         if (first == nullptr)
         {
             return nullptr;
         }
-        for (std::uint32_t row = *first; row < m_entries.Size() && m_entries[row].id == id; ++row)
+        for (UInt32 row = *first; row < m_entries.Size() && m_entries[row].id == id; ++row)
         {
             if (m_entries[row].kind == kind)
             {
@@ -254,7 +257,7 @@ namespace JBro::Package
         return nullptr;
     }
 
-    bool PackageReader::ReadBlob(const Entry& entry, Array<std::byte>& out) const
+    Bool PackageReader::ReadBlob(const Entry& entry, Array<std::byte>& out) const
     {
         out.Clear();
         if (m_file.Get() == nullptr || entry.kind == BlobKind::Record)

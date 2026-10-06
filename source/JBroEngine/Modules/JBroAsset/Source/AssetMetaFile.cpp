@@ -5,19 +5,22 @@
 #include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/ReflectedYaml.h>
 #include <JBro/Platform/Platform.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool Fail(AssetMetaError& error, std::size_t line, const char* message)
+        Bool Fail(AssetMetaError& error, std::size_t line, const char* message)
         {
             error.line = line;
             error.message = message;
             return false;
         }
 
-        bool ReadId(const YamlDocument& document, std::uint32_t node, const char* key, AssetId& result)
+        Bool ReadId(const YamlDocument& document, UInt32 node, const char* key, AssetId& result)
         {
             String text;
             if (false == document.FindScalar(node, key, text))
@@ -28,15 +31,15 @@ namespace JBro
         }
 
         // `owner` 맵의 `ImportOptions` 를 표로 읽는다. 맵이나 블록이 없으면 `present` 가 거짓이고 참이다.
-        bool ReadOptions(const YamlDocument& document, std::uint32_t owner, const TypeDescriptor& descriptor,
-            void* options, bool& present, AssetMetaError& error)
+        Bool ReadOptions(const YamlDocument& document, UInt32 owner, const TypeDescriptor& descriptor,
+            void* options, Bool& present, AssetMetaError& error)
         {
             present = false;
             if (owner == YamlDocument::InvalidNode || document.GetKind(owner) != YamlKind::Map)
             {
                 return true;
             }
-            const std::uint32_t block = document.Find(owner, "ImportOptions");
+            const UInt32 block = document.Find(owner, "ImportOptions");
             if (block == YamlDocument::InvalidNode)
             {
                 return true;
@@ -61,16 +64,16 @@ namespace JBro
             return true;
         }
 
-        bool Interpret(const YamlDocument& document, AssetMetaFile& result, AssetMetaError& error)
+        Bool Interpret(const YamlDocument& document, AssetMetaFile& result, AssetMetaError& error)
         {
-            const std::uint32_t root = document.GetRoot();
+            const UInt32 root = document.GetRoot();
             if (root == YamlDocument::InvalidNode || document.GetKind(root) != YamlKind::Map)
             {
                 return Fail(error, 1, "an asset meta file is a map");
             }
 
             AssetMetaFile parsed;
-            std::int64_t version = 1;
+            Int64 version = 1;
             if (document.Find(root, "Version") != YamlDocument::InvalidNode
                 && false == document.FindInt(root, "Version", version))
             {
@@ -98,7 +101,7 @@ namespace JBro
                 return Fail(error, document.GetLine(document.Find(root, "Type")), "Type is not a name this engine knows");
             }
 
-            const std::uint32_t sprite = document.Find(root, "Sprite");
+            const UInt32 sprite = document.Find(root, "Sprite");
             if (AssetTypeRules::IsImageType(parsed.type))
             {
                 if (sprite == YamlDocument::InvalidNode || document.GetKind(sprite) != YamlKind::Map
@@ -113,7 +116,7 @@ namespace JBro
             }
 
             // 임포트 옵션 블록. 있으면 전부 읽혀야 한다.
-            const std::uint32_t texture = document.Find(root, "Texture");
+            const UInt32 texture = document.Find(root, "Texture");
             if (false == ReadOptions(document, texture, TypeDescriptorOf<TextureImportOptions>::Get(),
                     &parsed.textureOptions, parsed.hasTextureOptions, error))
             {
@@ -124,25 +127,25 @@ namespace JBro
             {
                 return false;
             }
-            const std::uint32_t audio = document.Find(root, "Audio");
+            const UInt32 audio = document.Find(root, "Audio");
             if (false == ReadOptions(document, audio, TypeDescriptorOf<AudioImportOptions>::Get(),
                     &parsed.audioOptions, parsed.hasAudioOptions, error))
             {
                 return false;
             }
-            const std::uint32_t font = document.Find(root, "Font");
+            const UInt32 font = document.Find(root, "Font");
             if (false == ReadOptions(document, font, TypeDescriptorOf<FontImportOptions>::Get(),
                     &parsed.fontOptions, parsed.hasFontOptions, error))
             {
                 return false;
             }
-            const std::uint32_t family = document.Find(root, "FontFamily");
+            const UInt32 family = document.Find(root, "FontFamily");
             if (false == ReadOptions(document, family, TypeDescriptorOf<FontFamilyOptions>::Get(),
                     &parsed.fontFamilyOptions, parsed.hasFontFamilyOptions, error))
             {
                 return false;
             }
-            const std::uint32_t strings = document.Find(root, "StringTable");
+            const UInt32 strings = document.Find(root, "StringTable");
             if (false == ReadOptions(document, strings, TypeDescriptorOf<StringTableOptions>::Get(),
                     &parsed.stringTableOptions, parsed.hasStringTableOptions, error))
             {
@@ -154,7 +157,7 @@ namespace JBro
         }
     }
 
-    bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error)
+    Bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error)
     {
         YamlDocument document;
         YamlError yamlError;
@@ -166,7 +169,7 @@ namespace JBro
     }
 
     // 파일은 플랫폼이 연다(D-112). 엔진 모듈은 파일을 직접 열지 않는다.
-    bool LoadAssetMetaFile(IPlatform& platform, const char* utf8Path, AssetMetaFile& result, AssetMetaError& error)
+    Bool LoadAssetMetaFile(IPlatform& platform, const char* utf8Path, AssetMetaFile& result, AssetMetaError& error)
     {
         Array<std::byte> contents;
         if (false == platform.ReadWholeFile(utf8Path, contents))
@@ -176,9 +179,9 @@ namespace JBro
         return ParseAssetMetaFile(reinterpret_cast<const char*>(contents.Data()), contents.Size(), result, error);
     }
 
-    bool FormatAssetMetaFile(const AssetMetaFile& meta, String& text)
+    Bool FormatAssetMetaFile(const AssetMetaFile& meta, String& text)
     {
-        const bool image = AssetTypeRules::IsImageType(meta.type);
+        const Bool image = AssetTypeRules::IsImageType(meta.type);
         if (meta.id.IsNull() || meta.type == AssetType::Unknown || (image && meta.spriteId.IsNull()))
         {
             // 읽는 쪽이 거절할 것을 적지 않는다.
@@ -270,7 +273,7 @@ namespace JBro
         return text;
     }
 
-    bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta)
+    Bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta)
     {
         String text;
         if (false == FormatAssetMetaFile(meta, text))

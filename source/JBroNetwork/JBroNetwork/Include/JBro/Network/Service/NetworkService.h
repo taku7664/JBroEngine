@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -14,17 +16,17 @@ namespace JBro::Service
     {
     public:
         // 메시지 ID 는 1..0xFDFF 다. 0xFE00~ 은 복제, 0xFF00~ 은 세션이 쓴다. 채널은 의도만 말한다 - UDP 가 없으면 WS 로 간다.
-        bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, std::uint32_t size,
+        Bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, UInt32 size,
             Network::NetChannel channel = Network::NetChannel::ReliableOrdered) const;
         // 서버 전용.
-        bool Broadcast(Network::MessageId messageId, const void* data, std::uint32_t size,
+        Bool Broadcast(Network::MessageId messageId, const void* data, UInt32 size,
             Network::NetChannel channel = Network::NetChannel::ReliableOrdered) const;
         // 이번 프레임의 게임 메시지. 뷰는 다음 프레임까지만 유효하다.
-        std::uint32_t TakeMessages(Network::MessageView* messages, std::uint32_t capacity) const;
+        UInt32 TakeMessages(Network::MessageView* messages, UInt32 capacity) const;
 
         // POD 메시지 편의. 호스트와 DLL 이 다른 컴파일러일 수 있어 직렬화는 memcpy(LE 고정)이고 타입은 POD 여야 한다.
         template <typename T>
-        bool Send(Network::ConnectionId connection, Network::MessageId messageId, const T& message,
+        Bool Send(Network::ConnectionId connection, Network::MessageId messageId, const T& message,
             Network::NetChannel channel = Network::NetChannel::ReliableOrdered) const
         {
             static_assert(std::is_trivially_copyable_v<T>, "network messages must be POD - the DLL boundary rule");
@@ -32,7 +34,7 @@ namespace JBro::Service
         }
 
         template <typename T>
-        bool Broadcast(Network::MessageId messageId, const T& message,
+        Bool Broadcast(Network::MessageId messageId, const T& message,
             Network::NetChannel channel = Network::NetChannel::ReliableOrdered) const
         {
             static_assert(std::is_trivially_copyable_v<T>, "network messages must be POD - the DLL boundary rule");
@@ -42,6 +44,6 @@ namespace JBro::Service
         // 복제 표. 없으면 `InvalidNetworkObjectId` / `InvalidInstanceId`.
         Network::NetworkObjectId FindNetworkId(InstanceId object) const;
         InstanceId FindLocalObject(Network::NetworkObjectId id) const;
-        bool HasAuthority(InstanceId object) const;
+        Bool HasAuthority(InstanceId object) const;
     };
 }

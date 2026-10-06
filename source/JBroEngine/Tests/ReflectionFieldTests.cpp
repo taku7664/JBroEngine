@@ -4,10 +4,14 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -21,21 +25,21 @@ namespace
     struct FakeComponentBase
     {
         virtual ~FakeComponentBase() = default;
-        int baseField = 0;
+        JBro::Int32 baseField = 0;
     };
 
     class Probe final : public FakeComponentBase
     {
         JBRO_REFLECT_BODY(Probe)
 
-        JBRO_FIELD(int, FieldRows, Range(4, 40) | Category("Field")) = 20;
-        JBRO_FIELD(float, DropSeconds, Name("낙하 간격") | Tooltip("한 칸 떨어지는 데 걸리는 시간")) = 0.5f;
-        JBRO_FIELD(float, Elapsed, NoSerialize()) = 0.0f;
-        JBRO_FIELD(bool, Paused, ReadOnly()) = false;
+        JBRO_FIELD(JBro::Int32, FieldRows, Range(4, 40) | Category("Field")) = 20;
+        JBRO_FIELD(JBro::Float, DropSeconds, Name("낙하 간격") | Tooltip("한 칸 떨어지는 데 걸리는 시간")) = 0.5f;
+        JBRO_FIELD(JBro::Float, Elapsed, NoSerialize()) = 0.0f;
+        JBRO_FIELD(JBro::Bool, Paused, ReadOnly()) = false;
         JBRO_FIELD(double, Plain) = 1.25;
-        JBRO_FIELD(float, RangeOnly, Range(0, 1)) = 0.5f;
-        JBRO_FIELD(int, Hidden, Category("Debug") | NoSerialize()) = 0;
-        JBRO_FIELD(int, Locked, Category("Debug") | ReadOnly() | Tooltip("고칠 수 없다")) = 0;
+        JBRO_FIELD(JBro::Float, RangeOnly, Range(0, 1)) = 0.5f;
+        JBRO_FIELD(JBro::Int32, Hidden, Category("Debug") | NoSerialize()) = 0;
+        JBRO_FIELD(JBro::Int32, Locked, Category("Debug") | ReadOnly() | Tooltip("고칠 수 없다")) = 0;
     };
 
     // 필드가 하나도 없는 타입도 표를 물어볼 수 있어야 한다.
@@ -51,9 +55,9 @@ namespace
     {
         JBRO_REFLECT_BODY(GapProbe)
 
-        JBRO_FIELD(int, First) = 0;
-        static constexpr int Intruder = __COUNTER__;
-        JBRO_FIELD(int, Second) = 0;
+        JBRO_FIELD(JBro::Int32, First) = 0;
+        static constexpr JBro::Int32 Intruder = __COUNTER__;
+        JBRO_FIELD(JBro::Int32, Second) = 0;
     };
 
     static_assert(JBro::Detail::CountFields<GapProbe>() == 1,
@@ -82,7 +86,7 @@ namespace
 
         // 선언 순서가 곧 인스펙터 순서다. 기존 엔진은 이것을 손으로 유지했다.
         const char* const expected[] = { "FieldRows", "DropSeconds", "Elapsed", "Paused", "Plain", "RangeOnly", "Hidden", "Locked" };
-        for (std::uint32_t i = 0; i < table.count; ++i)
+        for (JBro::UInt32 i = 0; i < table.count; ++i)
         {
             const char* actual = JBro::NameTable::Get().Resolve(table.properties[i].name);
             Check(std::strcmp(actual, expected[i]) == 0,
@@ -115,7 +119,7 @@ namespace
         Check(table.properties[4].type->size == sizeof(double), "double must report its own size");
 
         // 코덱이 있어야 저장이 된다. 스칼라는 전부 붙어 있어야 한다.
-        for (std::uint32_t i = 0; i < table.count; ++i)
+        for (JBro::UInt32 i = 0; i < table.count; ++i)
         {
             Check(table.properties[i].type->codec != nullptr,
                 "every scalar field must carry a codec, or it cannot be saved");
@@ -216,7 +220,7 @@ namespace
     }
 }
 
-int RunReflectionFieldTests()
+JBro::Int32 RunReflectionFieldTests()
 {
     TestTableHasEveryFieldInOrder();
     TestAccessorReachesTheFieldPastTheVtable();

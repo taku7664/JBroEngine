@@ -5,6 +5,10 @@
 
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -19,20 +23,20 @@ namespace JBro::Widget
         SearchBox(const char* id, String& text);
 
         SearchBox& Hint(const char* text);
-        SearchBox& Width(float width);
-        SearchBox& ShowClear(bool show = true);
+        SearchBox& Width(Float width);
+        SearchBox& ShowClear(Bool show = true);
         SearchBox& ClearTooltip(const char* text);
         SearchBox& Flags(ImGuiInputTextFlags flags);
 
-        bool Draw() const;
-        bool operator()() const;
+        Bool Draw() const;
+        Bool operator()() const;
 
     private:
         const char* m_id = nullptr;
         String& m_text;
         const char* m_hint = nullptr;
-        float m_width = 0.0f;
-        bool m_showClear = true;
+        Float m_width = 0.0f;
+        Bool m_showClear = true;
         const char* m_clearTooltip = nullptr;
         ImGuiInputTextFlags m_flags = ImGuiInputTextFlags_None;
     };
@@ -49,7 +53,7 @@ namespace JBro::Widget
     // 이라는 약속과 그 약속을 지키는 `SplitLines` / `JoinLines` 뿐이다.
     //
     // 돌려주는 값: 참이면 버퍼가 바뀌었다. `SplitLines` 로 목록을 다시 만든다.
-    bool NameListEdit(const char* id, String& buffer, float lines = 4.0f);
+    Bool NameListEdit(const char* id, String& buffer, Float lines = 4.0f);
     // 버퍼를 줄 단위로 가른다. 빈 줄은 버린다 - 사람이 엔터를 한 번 더 친 것이
     // 이름 없는 항목이 되면 안 된다.
     void SplitLines(const String& buffer, Array<String>& out);
@@ -64,7 +68,7 @@ namespace JBro::Widget
 
         StatusBadge& Level(Severity severity);
         StatusBadge& Tooltip(const char* text);
-        StatusBadge& MinWidth(float width);
+        StatusBadge& MinWidth(Float width);
 
         void Draw() const;
         void operator()() const;
@@ -73,7 +77,7 @@ namespace JBro::Widget
         const char* m_text = nullptr;
         const char* m_tooltip = nullptr;
         Severity m_severity = Severity::Info;
-        float m_minWidth = 0.0f;
+        Float m_minWidth = 0.0f;
     };
 
     // 아이콘 하나짜리 단추다(도구 막대의 단추). `JBro::Icons` 의 글리프를 넘긴다(D-96, D-278).
@@ -91,12 +95,12 @@ namespace JBro::Widget
 
         IconButton& Tooltip(const char* text);
         IconButton& Size(ImVec2 size);
-        IconButton& Selected(bool selected = true);
-        IconButton& Disabled(bool disabled = true);
+        IconButton& Selected(Bool selected = true);
+        IconButton& Disabled(Bool disabled = true);
         IconButton& Caption(const char* text);
 
-        bool Draw() const;
-        bool operator()() const;
+        Bool Draw() const;
+        Bool operator()() const;
 
     private:
         const char* m_id = nullptr;
@@ -104,39 +108,39 @@ namespace JBro::Widget
         const char* m_tooltip = nullptr;
         const char* m_caption = nullptr;
         ImVec2 m_size = ImVec2(0.0f, 0.0f);
-        bool m_selected = false;
-        bool m_disabled = false;
+        Bool m_selected = false;
+        Bool m_disabled = false;
     };
 
     // 켜기 칸. 인스펙터의 bool 잎사귀와 컴포넌트 `사용` 칸이 이것이다(§11.1).
-    bool Checkbox(const char* id, bool& value);
+    Bool Checkbox(const char* id, Bool& value);
 
     // 레이어 비트 묶음을 이름으로 고르는 칸이다(D-233). `names` 는 비트마다 하나(32 개)이고 빈 이름의 비트는 켜져 있을 때만
     // `#번호` 로 보인다. 펼치면 "모두"·"없음" 과 레이어마다 켜기 칸이 있다. 닫힌 칸은 켜진 이름들을 잇는다.
-    bool LayerMaskField(const char* id, ArrayView<const char* const> names, std::uint32_t& mask);
+    Bool LayerMaskField(const char* id, ArrayView<const char* const> names, UInt32& mask);
 
     // 오브젝트 하나를 고르는 칸이다(D-233). 검색되는 목록에서 고르거나, 하이어라키의 줄을 끌어 놓는다. `dropKind` 끌기로
     // 놓이면 그 꾸러미(8 바이트 번호)를 `dropped` 에 담고 참을 돌려준다 - 고른 번호(`chosen`)는 그대로다.
-    bool ObjectField(const char* id, ArrayView<const char* const> names, int& chosen, DragKind dropKind,
-        std::uint64_t& dropped);
+    Bool ObjectField(const char* id, ArrayView<const char* const> names, Int32& chosen, DragKind dropKind,
+        UInt64& dropped);
 
     // 색 하나. 견본과 고르개가 붙는다 - 숫자 네 개가 아니라 색이다(§11.3).
-    bool ColorField(const char* id, float rgba[4]);
+    Bool ColorField(const char* id, Float rgba[4]);
 
     // 한 줄에 칸 여럿의 실수 묶음(`Vector2`·`Rect`). 칸마다 번호를 쌓으므로 첫 칸의 Id 는
     // `PushID(0)` 아래다. 범위를 주면 슬라이더, 아니면 끌기다.
-    bool ScalarRunField(const char* id, float* values, int count, float speed,
-        bool hasRange, float rangeMin, float rangeMax);
+    Bool ScalarRunField(const char* id, Float* values, Int32 count, Float speed,
+        Bool hasRange, Float rangeMin, Float rangeMax);
 
     // 두 칸 사이를 끌어 나누는 손잡이다. `size` 를 직접 고쳐 준다.
     //
     // ImGui 에는 이것이 없다 - `SameLine` 과 보이지 않는 버튼으로 매번 손으로
     // 만들게 되어 있고, 그러면 화면마다 굵기와 색이 달라진다.
-    bool Splitter(
+    Bool Splitter(
         const char* id,
-        bool vertical,
-        float thickness,
-        float* size,
-        float minSize,
-        float maxSize);
+        Bool vertical,
+        Float thickness,
+        Float* size,
+        Float minSize,
+        Float maxSize);
 }

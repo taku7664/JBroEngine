@@ -6,6 +6,9 @@
 #include <imgui_internal.h>
 
 #include <cstdio>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -28,37 +31,37 @@ namespace JBro::Widget
         }
 
         // 제목 줄 오른쪽에 닫기 표시와 횟수가 설 자리.
-        float TitleReserve()
+        Float TitleReserve()
         {
             return ImGui::GetFontSize() * 3.0f;
         }
 
-        float MessageWrapWidth(const NotificationStackStyle& style)
+        Float MessageWrapWidth(const NotificationStackStyle& style)
         {
             return style.width - style.accentWidth - style.padding * 2.0f;
         }
 
         // 제목 앞의 단계 아이콘 자리다(D-278). 글줄 높이의 정사각형과 그 뒤 여백.
-        float TitleIconWidth()
+        Float TitleIconWidth()
         {
             return ImGui::GetTextLineHeight() + ImGui::GetStyle().ItemInnerSpacing.x;
         }
 
         // 제목은 앞의 아이콘과 오른쪽의 닫기 표시·횟수 자리를 비켜 줄을 바꾼다.
-        float TitleWrapWidth(const NotificationStackStyle& style)
+        Float TitleWrapWidth(const NotificationStackStyle& style)
         {
             return MessageWrapWidth(style) - TitleReserve() - TitleIconWidth();
         }
 
-        float TitleHeight(const NotificationView& view, const NotificationStackStyle& style)
+        Float TitleHeight(const NotificationView& view, const NotificationStackStyle& style)
         {
             return ImGui::CalcTextSize(view.title, nullptr, false, TitleWrapWidth(style)).y;
         }
     }
 
-    float NotificationHeight(const NotificationView& view, const NotificationStackStyle& style)
+    Float NotificationHeight(const NotificationView& view, const NotificationStackStyle& style)
     {
-        float height = style.padding * 2.0f + TitleHeight(view, style);
+        Float height = style.padding * 2.0f + TitleHeight(view, style);
         if (false == IsEmptyText(view.message))
         {
             const ImVec2 size = ImGui::CalcTextSize(view.message, nullptr, false, MessageWrapWidth(style));
@@ -70,24 +73,24 @@ namespace JBro::Widget
     NotificationHandle NotificationStack(EditorNotifications& notifications, const NotificationStackStyle& style)
     {
         NotificationHandle activated = InvalidNotificationHandle;
-        const std::uint32_t count = notifications.GetVisibleCount();
+        const UInt32 count = notifications.GetVisibleCount();
         if (count == 0)
         {
             return activated;
         }
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
-        const float right = viewport->WorkPos.x + viewport->WorkSize.x - style.margin;
-        const float bottom = viewport->WorkPos.y + viewport->WorkSize.y - style.margin - style.bottomInset;
+        const Float right = viewport->WorkPos.x + viewport->WorkSize.x - style.margin;
+        const Float bottom = viewport->WorkPos.y + viewport->WorkSize.y - style.margin - style.bottomInset;
 
         // **가장 새 것부터 바닥에 쌓는다.** 사라지는 것은 남은 몫만큼만 높이를 차지해, 위의 것들이
         // 뚝 떨어지지 않고 내려온다. 들어오는 것은 처음부터 제 높이를 차지한다 - 그래야 새 알림이 올 때
         // 앞의 것들이 위로 올라간다.
-        float stacked = 0.0f;
-        for (std::uint32_t reversed = 0; reversed < count; ++reversed)
+        Float stacked = 0.0f;
+        for (UInt32 reversed = 0; reversed < count; ++reversed)
         {
-            const std::uint32_t index = count - 1 - reversed;
+            const UInt32 index = count - 1 - reversed;
             const NotificationView measured = notifications.GetVisible(index);
-            const float height = NotificationHeight(measured, style);
+            const Float height = NotificationHeight(measured, style);
             notifications.ReportLayout(measured.handle, style.width, stacked);
             stacked += (height + style.spacing) * measured.space;
 
@@ -112,7 +115,7 @@ namespace JBro::Widget
             constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav
                 | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoScrollWithMouse;
-            const bool open = ImGui::Begin(name, nullptr, flags);
+            const Bool open = ImGui::Begin(name, nullptr, flags);
             if (open)
             {
                 // **모든 창 위에 선다.** 도크의 창을 누르면 그 창이 앞으로 오는데, 알림이 그 뒤로 숨으면
@@ -123,14 +126,14 @@ namespace JBro::Widget
                 drawList->AddRectFilled(origin, ImVec2(origin.x + style.accentWidth, origin.y + height),
                     ImGui::GetColorU32(accent), 6.0f, ImDrawFlags_RoundCornersLeft);
 
-                bool hovered = false;
+                Bool hovered = false;
                 if (false == view.leaving)
                 {
                     // 상자 전체가 손짓을 받는다. 닫기 표시가 그 위에 겹쳐 설 수 있게 겹침을 연다.
                     ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
                     ImGui::SetNextItemAllowOverlap();
                     ImGui::InvisibleButton("##body", ImVec2(style.width, height));
-                    const bool active = ImGui::IsItemActive();
+                    const Bool active = ImGui::IsItemActive();
                     // **상자 창 단위로 잰다.** 본문 단추로 재면 닫기 표시를 누르는 동안 본문이 올려진 것이 아니게
                     // 되고, 그러면 닫기 표시가 사라져 떼는 프레임에 눌림이 서지 않는다.
                     hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) || active;
@@ -156,16 +159,16 @@ namespace JBro::Widget
                     notifications.SetHovered(view.handle, hovered);
                 }
 
-                const float left = style.accentWidth + style.padding;
+                const Float left = style.accentWidth + style.padding;
                 // 제목 앞에 단계 아이콘을 단계 색으로 둔다(D-278). 색 막대만으로는 무슨 알림인지 한눈에 갈리지 않는다.
                 ImGui::SetCursorPos(ImVec2(left, style.padding));
                 {
                     const ImVec2 iconMin = ImGui::GetCursorScreenPos();
-                    const float lineHeight = ImGui::GetTextLineHeight();
+                    const Float lineHeight = ImGui::GetTextLineHeight();
                     DrawGlyphCentered(SeverityIcon(ToSeverity(view.level)), iconMin,
                         ImVec2(iconMin.x + lineHeight, iconMin.y + lineHeight), ImGui::GetColorU32(accent));
                 }
-                const float titleLeft = left + TitleIconWidth();
+                const Float titleLeft = left + TitleIconWidth();
                 ImGui::SetCursorPos(ImVec2(titleLeft, style.padding));
                 ImGui::PushTextWrapPos(titleLeft + TitleWrapWidth(style));
                 ImGui::TextColored(accent, "%s", view.title);
@@ -173,11 +176,11 @@ namespace JBro::Widget
                 if (view.count > 1)
                 {
                     ImGui::SetCursorPos(ImVec2(style.width - style.padding - TitleReserve(), style.padding));
-                    ImGui::TextDisabled("x%u", view.count);
+                    ImGui::TextDisabled("x%u", static_cast<unsigned>(view.count));
                 }
                 if (hovered)
                 {
-                    const float closeSize = ImGui::GetTextLineHeight();
+                    const Float closeSize = ImGui::GetTextLineHeight();
                     ImGui::SetCursorPos(ImVec2(style.width - style.padding - closeSize, style.padding));
                     if (TextButton(Icons::Xmark, ImVec2(closeSize, closeSize)))
                     {

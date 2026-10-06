@@ -1,10 +1,12 @@
 ﻿#include "D3D11Device.h"
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
-    bool D3D11Device::Initialize(const RHIDeviceCreateInfo& createInfo)
+    Bool D3D11Device::Initialize(const RHIDeviceCreateInfo& createInfo)
     {
         if (m_device != nullptr)
         {
@@ -121,7 +123,7 @@ namespace JBro::Internal
         return &state;
     }
 
-    bool D3D11Device::BuildBackBuffer(D3D11SwapchainState& state)
+    Bool D3D11Device::BuildBackBuffer(D3D11SwapchainState& state)
     {
         state.backBuffer.Reset();
         state.backBufferView.Reset();
@@ -151,8 +153,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxSwapchains;
-        for (std::uint32_t at = 0; at < MaxSwapchains; ++at)
+        UInt32 index = MaxSwapchains;
+        for (UInt32 at = 0; at < MaxSwapchains; ++at)
         {
             if (false == m_swapchains[at].occupied)
             {
@@ -209,14 +211,14 @@ namespace JBro::Internal
         {
             m_context->ClearState();
         }
-        const std::uint32_t generation = state->generation + 1;
-        const std::uint32_t backBufferGeneration = state->backBufferGeneration + 1;
+        const UInt32 generation = state->generation + 1;
+        const UInt32 backBufferGeneration = state->backBufferGeneration + 1;
         *state = {};
         state->generation = generation;
         state->backBufferGeneration = backBufferGeneration;
     }
 
-    bool D3D11Device::ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent)
+    Bool D3D11Device::ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent)
     {
         D3D11SwapchainState* state = FindSwapchain(swapchain);
         if (state == nullptr || m_frameActive || extent.width == 0 || extent.height == 0)
@@ -289,7 +291,7 @@ namespace JBro::Internal
         {
             m_context->CopyResource(state.presentedCopy.Get(), state.backBuffer.Get());
         }
-        const bool vsync = state.desc.presentMode == PresentMode::VSync;
+        const Bool vsync = state.desc.presentMode == PresentMode::VSync;
         const UINT presentFlags = (false == vsync && m_tearingSupported) ? DXGI_PRESENT_ALLOW_TEARING : 0;
         const HRESULT result = state.swapchain->Present(vsync ? 1 : 0, presentFlags);
         if (result == DXGI_ERROR_DEVICE_REMOVED || result == DXGI_ERROR_DEVICE_RESET)
@@ -336,18 +338,18 @@ namespace JBro::Internal
         m_context->Flush();
     }
 
-    std::uint32_t D3D11Device::GetFramesInFlight() const
+    UInt32 D3D11Device::GetFramesInFlight() const
     {
         return 1;
     }
 
-    std::uint32_t D3D11Device::GetValidationErrorCount() const
+    UInt32 D3D11Device::GetValidationErrorCount() const
     {
         if (m_infoQueue == nullptr)
         {
             return 0;
         }
-        std::uint32_t errors = 0;
+        UInt32 errors = 0;
         const UINT64 count = m_infoQueue->GetNumStoredMessages();
         for (UINT64 index = 0; index < count; ++index)
         {
@@ -379,7 +381,7 @@ namespace JBro::Internal
         return errors;
     }
 
-    bool D3D11Device::ResolveReadableTexture(TextureHandle texture, ID3D11Texture2D*& resource, TextureDesc& desc)
+    Bool D3D11Device::ResolveReadableTexture(TextureHandle texture, ID3D11Texture2D*& resource, TextureDesc& desc)
     {
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
         {
@@ -387,7 +389,7 @@ namespace JBro::Internal
         }
         if (texture.index < TextureResourceBase)
         {
-            const std::uint32_t index = texture.index - BackBufferTextureBase;
+            const UInt32 index = texture.index - BackBufferTextureBase;
             if (index >= MaxSwapchains)
             {
                 return false;
@@ -405,7 +407,7 @@ namespace JBro::Internal
             desc.usage = TextureUsage::RenderTarget;
             return true;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -420,7 +422,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D11Device::ReadTexture(
+    Bool D3D11Device::ReadTexture(
         TextureHandle texture,
         std::byte* destination,
         std::size_t destinationSize,
@@ -438,7 +440,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        const std::uint32_t pixelSize = PixelSize(desc.format);
+        const UInt32 pixelSize = PixelSize(desc.format);
         if (pixelSize == 0 || desc.format == TextureFormat::D32Float || desc.depthOrLayers != 1)
         {
             return false;
@@ -470,7 +472,7 @@ namespace JBro::Internal
             return false;
         }
         const auto* rows = static_cast<const std::byte*>(mapped.pData);
-        for (std::uint32_t y = 0; y < desc.extent.height; ++y)
+        for (UInt32 y = 0; y < desc.extent.height; ++y)
         {
             std::memcpy(destination + y * tightRowPitch, rows + static_cast<std::size_t>(y) * mapped.RowPitch,
                 tightRowPitch);

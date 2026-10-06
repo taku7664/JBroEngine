@@ -7,6 +7,11 @@
 #include <bit>
 #include <cfloat>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Physics2D
 {
@@ -14,15 +19,15 @@ namespace JBro::Physics2D
 
     namespace
     {
-        constexpr float Pi = 3.14159265358979323846f;
+        constexpr Float Pi = 3.14159265358979323846f;
         // Baumgarte 계수와 위치 보정 한 번의 상한. Box2D 와 같은 값이다.
-        constexpr float PositionCorrectionFactor = 0.2f;
-        constexpr float MaxLinearCorrection = 0.2f;
+        constexpr Float PositionCorrectionFactor = 0.2f;
+        constexpr Float MaxLinearCorrection = 0.2f;
         // 한 서브스텝에 움직일 수 있는 거리와 각도. 넘으면 속도를 줄인다 - 폭주를 막는 안전망이지 판정이 아니다.
-        constexpr float MaxTranslationPerSubStep = 2.0f;
-        constexpr float MaxRotationPerSubStep = 0.25f * Pi;
+        constexpr Float MaxTranslationPerSubStep = 2.0f;
+        constexpr Float MaxRotationPerSubStep = 0.25f * Pi;
         // 한 방향 발판이 막는 법선의 부채꼴(위에서 60° 안, cos 60°).
-        constexpr float OneWayCosine = 0.5f;
+        constexpr Float OneWayCosine = 0.5f;
 
         Vector2 Tangent(Vector2 normal)
         {
@@ -31,7 +36,7 @@ namespace JBro::Physics2D
 
         // 방향 d 로 본 역질량. 축을 고정하면 그 축의 성분이 빠진다(고정하지 않으면 inverseMass 와 같다).
         template <typename TBody>
-        float InverseMassAlong(const TBody& body, Vector2 d)
+        Float InverseMassAlong(const TBody& body, Vector2 d)
         {
             return d.x * d.x * body.inverseMassAxes.x + d.y * d.y * body.inverseMassAxes.y;
         }
@@ -70,20 +75,20 @@ namespace JBro::Physics2D
         }
 
         // 색 하나가 이보다 작으면 나누지 않는다. 워커를 깨우는 값이 푸는 값보다 크다.
-        constexpr std::uint32_t MinParallelContactsPerColor = 32;
-        constexpr std::uint32_t MinContactsPerChunk = 8;
-        constexpr std::uint32_t OverflowColor = 64;
+        constexpr UInt32 MinParallelContactsPerColor = 32;
+        constexpr UInt32 MinContactsPerChunk = 8;
+        constexpr UInt32 OverflowColor = 64;
         // 풀 접촉이 이보다 적으면 색칠하지 않고 열쇠 순서 그대로 한 스레드에서 푼다. 색 순서는 쌓인 더미에서 수렴이 느리다
         // (10 층 더미가 5 초 안에 잠들지 못하고 옆으로 밀렸다) - 나눠 풀 이득이 있는 큰 장면에서만 쓴다. 워커 수가 아니라 접촉
         // 수로 정하므로 결과는 워커 수와 관계없이 같다.
-        constexpr std::uint32_t ColoredSolveThreshold = 512;
+        constexpr UInt32 ColoredSolveThreshold = 512;
 
         // 이보다 적은 후보는 나누지 않는다. 워커를 깨우고 모으는 비용이 판정보다 크다.
-        constexpr std::uint32_t MinParallelCandidates = 64;
-        constexpr std::uint32_t MinCandidatesPerChunk = 16;
+        constexpr UInt32 MinParallelCandidates = 64;
+        constexpr UInt32 MinCandidatesPerChunk = 16;
 
-        bool IsLess(std::uint32_t a0, std::uint32_t a1, std::uint32_t a2, std::uint32_t a3,
-            std::uint32_t b0, std::uint32_t b1, std::uint32_t b2, std::uint32_t b3)
+        Bool IsLess(UInt32 a0, UInt32 a1, UInt32 a2, UInt32 a3,
+            UInt32 b0, UInt32 b1, UInt32 b2, UInt32 b3)
         {
             if (a0 != b0)
             {
@@ -101,14 +106,14 @@ namespace JBro::Physics2D
         }
     }
 
-    std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads)
+    UInt32 RecommendWorkerCount(UInt32 work, UInt32 hardwareThreads)
     {
         // 1024 조각 아래는 나눗셈이 이미 0 이다(따로 거르던 조건은 뮤테이션으로 지워도 같아 뺐다).
         if (hardwareThreads <= 1)
         {
             return 0;
         }
-        const std::uint32_t cap = std::min(hardwareThreads - 1, 4u);
+        const UInt32 cap = JBro::Min(hardwareThreads - 1, 4u);
         return std::min(work / 1024, cap);
     }
 
@@ -121,7 +126,7 @@ namespace JBro::Physics2D
 
     World::~World() = default;
 
-    void World::SetWorkerCount(std::uint32_t count)
+    void World::SetWorkerCount(UInt32 count)
     {
         count = std::min(count, MaxWorkerCount);
         if (count == 0)
@@ -141,9 +146,9 @@ namespace JBro::Physics2D
         }
     }
 
-    std::uint32_t World::GetWorkerCount() const
+    UInt32 World::GetWorkerCount() const
     {
-        return m_workers.Get() != nullptr ? m_workers->GetWorkerCount() : 0;
+        return m_workers.Get() != nullptr ? m_workers->GetWorkerCount() : UInt32(0);
     }
 
     StepStats World::GetLastStepStats() const
@@ -203,7 +208,7 @@ namespace JBro::Physics2D
 
     BodyId World::CreateBody(const BodyDef& def)
     {
-        std::uint32_t index = 0;
+        UInt32 index = 0;
         if (false == m_freeBodies.IsEmpty())
         {
             index = m_freeBodies.Last();
@@ -216,7 +221,7 @@ namespace JBro::Physics2D
         }
 
         Body& body = m_bodies[index];
-        const std::uint32_t generation = body.generation;
+        const UInt32 generation = body.generation;
         body = Body{};
         body.generation = generation;
         body.alive = true;
@@ -247,7 +252,7 @@ namespace JBro::Physics2D
         {
             return;
         }
-        for (const std::uint32_t shapeIndex : body->shapes)
+        for (const UInt32 shapeIndex : body->shapes)
         {
             Shape& shape = m_shapes[shapeIndex];
             shape.alive = false;
@@ -257,7 +262,7 @@ namespace JBro::Physics2D
         }
         body->shapes.Clear();
         // 이 몸에 걸린 조인트는 함께 사라진다. 상대 몸은 깨운다(DestroyJoint 가 한다).
-        for (std::uint32_t j = 0; j < m_joints.Size(); ++j)
+        for (UInt32 j = 0; j < m_joints.Size(); ++j)
         {
             const Joint& joint = m_joints[j];
             if (joint.alive && (joint.bodyA == id.index || joint.bodyB == id.index))
@@ -270,19 +275,19 @@ namespace JBro::Physics2D
         m_freeBodies.Add(id.index);
     }
 
-    bool World::IsValid(BodyId body) const
+    Bool World::IsValid(BodyId body) const
     {
         return FindBody(body) != nullptr;
     }
 
-    bool World::IsValid(ShapeId shape) const
+    Bool World::IsValid(ShapeId shape) const
     {
         return FindShape(shape) != nullptr;
     }
 
-    ShapeId World::AddShape(std::uint32_t bodyIndex, const ShapeDef& def)
+    ShapeId World::AddShape(UInt32 bodyIndex, const ShapeDef& def)
     {
-        std::uint32_t index = 0;
+        UInt32 index = 0;
         if (false == m_freeShapes.IsEmpty())
         {
             index = m_freeShapes.Last();
@@ -349,7 +354,7 @@ namespace JBro::Physics2D
         return id;
     }
 
-    ShapeId World::CreateCapsuleShape(BodyId bodyId, Vector2 localA, Vector2 localB, float radius, const ShapeDef& def)
+    ShapeId World::CreateCapsuleShape(BodyId bodyId, Vector2 localA, Vector2 localB, Float radius, const ShapeDef& def)
     {
         if (FindBody(bodyId) == nullptr || radius <= 0.0f)
         {
@@ -373,7 +378,7 @@ namespace JBro::Physics2D
         return id;
     }
 
-    bool World::BuildChain(ArrayView<const Vector2> points, bool loop, Array<Vector2>& filtered, Array<ChainSegment>& out)
+    Bool World::BuildChain(ArrayView<const Vector2> points, Bool loop, Array<Vector2>& filtered, Array<ChainSegment>& out)
     {
         out.Clear();
         filtered.Clear();
@@ -418,7 +423,7 @@ namespace JBro::Physics2D
         return true;
     }
 
-    ShapeId World::CreateChainShape(BodyId bodyId, ArrayView<const Vector2> localPoints, bool loop, const ShapeDef& def)
+    ShapeId World::CreateChainShape(BodyId bodyId, ArrayView<const Vector2> localPoints, Bool loop, const ShapeDef& def)
     {
         if (FindBody(bodyId) == nullptr)
         {
@@ -436,7 +441,7 @@ namespace JBro::Physics2D
         return id;
     }
 
-    bool World::SetChainGeometry(ShapeId id, ArrayView<const Vector2> localPoints, bool loop)
+    Bool World::SetChainGeometry(ShapeId id, ArrayView<const Vector2> localPoints, Bool loop)
     {
         Shape* shape = FindShape(id);
         if (shape == nullptr || false == BuildChain(localPoints, loop, m_scratchChainPoints, m_scratchSegments))
@@ -473,7 +478,7 @@ namespace JBro::Physics2D
         return PolygonError::None;
     }
 
-    bool World::SetCircleGeometry(ShapeId id, const Circle& localCircle)
+    Bool World::SetCircleGeometry(ShapeId id, const Circle& localCircle)
     {
         Shape* shape = FindShape(id);
         if (shape == nullptr || localCircle.radius <= 0.0f)
@@ -489,7 +494,7 @@ namespace JBro::Physics2D
         return true;
     }
 
-    bool World::SetCapsuleGeometry(ShapeId id, Vector2 localA, Vector2 localB, float radius)
+    Bool World::SetCapsuleGeometry(ShapeId id, Vector2 localA, Vector2 localB, Float radius)
     {
         Shape* shape = FindShape(id);
         if (shape == nullptr || radius <= 0.0f)
@@ -553,7 +558,7 @@ namespace JBro::Physics2D
         UpdateMass(body);
     }
 
-    std::uint32_t World::GetChildCount(ShapeId id) const
+    UInt32 World::GetChildCount(ShapeId id) const
     {
         const Shape* shape = FindShape(id);
         if (shape == nullptr)
@@ -567,7 +572,7 @@ namespace JBro::Physics2D
         return shape->isCircle ? 1u : static_cast<std::uint32_t>(shape->pieces.Size());
     }
 
-    const ChainSegment* World::GetChainChild(ShapeId id, std::uint32_t child) const
+    const ChainSegment* World::GetChainChild(ShapeId id, UInt32 child) const
     {
         const Shape* shape = FindShape(id);
         if (shape == nullptr || false == shape->isChain || child >= shape->segments.Size())
@@ -577,7 +582,7 @@ namespace JBro::Physics2D
         return &shape->segments[child];
     }
 
-    const ConvexPolygon* World::GetPolygonChild(ShapeId id, std::uint32_t child) const
+    const ConvexPolygon* World::GetPolygonChild(ShapeId id, UInt32 child) const
     {
         const Shape* shape = FindShape(id);
         if (shape == nullptr || shape->isCircle || child >= shape->pieces.Size())
@@ -606,7 +611,7 @@ namespace JBro::Physics2D
             // 넓이 비례로 나누기 위해 밀도 1 로 모은 뒤 요청한 질량에 맞춘다.
             Array<MassData>& parts = m_massParts;
             parts.Clear();
-            for (const std::uint32_t shapeIndex : body.shapes)
+            for (const UInt32 shapeIndex : body.shapes)
             {
                 const Shape& shape = m_shapes[shapeIndex];
                 if (shape.isTrigger)
@@ -624,7 +629,7 @@ namespace JBro::Physics2D
                 }
             }
             const MassData combined = CombineMass(parts.View());
-            body.mass = body.requestedMass > 0.0f ? body.requestedMass : 1.0f;
+            body.mass = body.requestedMass > 0.0f ? body.requestedMass : Float(1.0f);
             body.inverseMass = 1.0f / body.mass;
             if (combined.mass > 0.0f)
             {
@@ -639,14 +644,14 @@ namespace JBro::Physics2D
         }
 
         body.coreExtent = 0.0f;
-        for (const std::uint32_t shapeIndex : body.shapes)
+        for (const UInt32 shapeIndex : body.shapes)
         {
             const Shape& shape = m_shapes[shapeIndex];
             if (shape.isTrigger || shape.isChain)
             {
                 continue;
             }
-            const auto keep = [&body](float extent) {
+            const auto keep = [&body](Float extent) {
                 if (extent > 0.0f && (body.coreExtent <= 0.0f || extent < body.coreExtent))
                 {
                     body.coreExtent = extent;
@@ -660,36 +665,36 @@ namespace JBro::Physics2D
             for (const ConvexPolygon& piece : shape.pieces)
             {
                 Vector2 middle;
-                for (std::uint32_t i = 0; i < piece.count; ++i)
+                for (UInt32 i = 0; i < piece.count; ++i)
                 {
                     middle = Add(middle, piece.points[i]);
                 }
                 middle = Scale(middle, 1.0f / static_cast<float>(piece.count));
-                float nearest = piece.count > 2 ? FLT_MAX : 0.0f;
-                for (std::uint32_t i = 0; piece.count > 2 && i < piece.count; ++i)
+                Float nearest = piece.count > 2 ? FLT_MAX : 0.0f;
+                for (UInt32 i = 0; piece.count > 2 && i < piece.count; ++i)
                 {
                     const Vector2 a = piece.points[i];
                     const Vector2 edge = Subtract(piece.points[(i + 1) % piece.count], a);
-                    const float length = Length(edge);
+                    const Float length = Length(edge);
                     if (length > 0.0f)
                     {
                         nearest = std::fmin(nearest, std::fabs(Cross(edge, Subtract(middle, a))) / length);
                     }
                 }
-                keep((nearest == FLT_MAX ? 0.0f : nearest) + piece.radius);
+                keep((nearest == FLT_MAX ? Float(0.0f) : nearest) + piece.radius);
             }
         }
 
         WakeBody(body);
         body.inverseMassAxes = {
-            body.freezePositionX ? 0.0f : body.inverseMass,
-            body.freezePositionY ? 0.0f : body.inverseMass };
+            body.freezePositionX ? Float(0.0f) : body.inverseMass,
+            body.freezePositionY ? Float(0.0f) : body.inverseMass };
 
         // 원점은 그대로 두고 중심을 새 로컬 중심에 맞춘다. 도형을 붙이는 것이 물체를 옮기지 않는다.
         body.center = Add(body.origin, RotateVector(body.rotation, body.localCenter));
     }
 
-    void World::SetTransform(BodyId id, Vector2 position, float angle)
+    void World::SetTransform(BodyId id, Vector2 position, Float angle)
     {
         Body* body = FindBody(id);
         if (body == nullptr)
@@ -709,10 +714,10 @@ namespace JBro::Physics2D
         return body != nullptr ? body->origin : Vector2{};
     }
 
-    float World::GetAngle(BodyId id) const
+    Float World::GetAngle(BodyId id) const
     {
         const Body* body = FindBody(id);
-        return body != nullptr ? body->angle : 0.0f;
+        return body != nullptr ? body->angle : Float(0.0f);
     }
 
     Vector2 World::GetWorldCenter(BodyId id) const
@@ -733,8 +738,8 @@ namespace JBro::Physics2D
         if (body != nullptr && body->type != BodyType::Static)
         {
             body->linearVelocity = {
-                body->freezePositionX ? 0.0f : velocity.x,
-                body->freezePositionY ? 0.0f : velocity.y };
+                body->freezePositionX ? Float(0.0f) : velocity.x,
+                body->freezePositionY ? Float(0.0f) : velocity.y };
             if (velocity.x != 0.0f || velocity.y != 0.0f)
             {
                 WakeBody(*body);
@@ -742,13 +747,13 @@ namespace JBro::Physics2D
         }
     }
 
-    float World::GetAngularVelocity(BodyId id) const
+    Float World::GetAngularVelocity(BodyId id) const
     {
         const Body* body = FindBody(id);
-        return body != nullptr ? body->angularVelocity : 0.0f;
+        return body != nullptr ? body->angularVelocity : Float(0.0f);
     }
 
-    void World::SetAngularVelocity(BodyId id, float velocity)
+    void World::SetAngularVelocity(BodyId id, Float velocity)
     {
         Body* body = FindBody(id);
         if (body != nullptr && body->type != BodyType::Static && false == body->fixedRotation)
@@ -782,8 +787,8 @@ namespace JBro::Physics2D
             body->angularVelocity = 0.0f;
         }
         body->linearVelocity = {
-            body->freezePositionX ? 0.0f : body->linearVelocity.x,
-            body->freezePositionY ? 0.0f : body->linearVelocity.y };
+            body->freezePositionX ? Float(0.0f) : body->linearVelocity.x,
+            body->freezePositionY ? Float(0.0f) : body->linearVelocity.y };
         UpdateMass(*body);
     }
 
@@ -810,7 +815,7 @@ namespace JBro::Physics2D
         body->force = Add(body->force, force);
     }
 
-    void World::ApplyTorque(BodyId id, float torque)
+    void World::ApplyTorque(BodyId id, Float torque)
     {
         Body* body = FindBody(id);
         if (body == nullptr || body->type != BodyType::Dynamic)
@@ -844,7 +849,7 @@ namespace JBro::Physics2D
         body->linearVelocity = Add(body->linearVelocity, Multiply(impulse, body->inverseMassAxes));
     }
 
-    void World::ApplyAngularImpulse(BodyId id, float impulse)
+    void World::ApplyAngularImpulse(BodyId id, Float impulse)
     {
         Body* body = FindBody(id);
         if (body == nullptr || body->type != BodyType::Dynamic)
@@ -861,7 +866,7 @@ namespace JBro::Physics2D
         body.sleepTime = 0.0f;
     }
 
-    void World::SetAwake(BodyId id, bool awake)
+    void World::SetAwake(BodyId id, Bool awake)
     {
         Body* body = FindBody(id);
         if (body == nullptr || body->type == BodyType::Static)
@@ -879,7 +884,7 @@ namespace JBro::Physics2D
         body->sleepTime = m_settings.timeToSleep;
     }
 
-    bool World::IsAwake(BodyId id) const
+    Bool World::IsAwake(BodyId id) const
     {
         const Body* body = FindBody(id);
         return body != nullptr && body->awake;
@@ -913,7 +918,7 @@ namespace JBro::Physics2D
         return m_stayEvents.View();
     }
 
-    void World::Step(float deltaTime)
+    void World::Step(Float deltaTime)
     {
         m_beginEvents.Clear();
         m_endEvents.Clear();
@@ -936,9 +941,9 @@ namespace JBro::Physics2D
             }
             m_lastGravity = m_settings.gravity;
         }
-        const std::uint32_t subSteps = std::max<std::uint32_t>(1u, m_settings.subSteps);
-        const float h = deltaTime / static_cast<float>(subSteps);
-        for (std::uint32_t step = 0; step < subSteps; ++step)
+        const UInt32 subSteps = std::max<UInt32>(1u, m_settings.subSteps);
+        const Float h = deltaTime / static_cast<float>(subSteps);
+        for (UInt32 step = 0; step < subSteps; ++step)
         {
             IntegrateVelocities(h);
             Collide();
@@ -947,7 +952,7 @@ namespace JBro::Physics2D
             PrepareJoints(h);
             WarmStart();
             WarmStartJoints();
-            for (std::uint32_t i = 0; i < m_settings.velocityIterations; ++i)
+            for (UInt32 i = 0; i < m_settings.velocityIterations; ++i)
             {
                 // 조인트를 먼저 푼다. 접촉이 나중에 풀려야 조인트가 몸을 벽 속으로 끌어들이지 못한다.
                 SolveJoints(h);
@@ -955,7 +960,7 @@ namespace JBro::Physics2D
             }
             ApplyRestitution();
             IntegratePositions(h);
-            for (std::uint32_t i = 0; i < m_settings.positionIterations; ++i)
+            for (UInt32 i = 0; i < m_settings.positionIterations; ++i)
             {
                 SolveJointPositions();
                 SolvePositions();
@@ -1003,16 +1008,16 @@ namespace JBro::Physics2D
         return CollidePolygons(shapeA.pieces[candidate.childA], poseA, shapeB.pieces[candidate.childB], poseB);
     }
 
-    void World::CollideCandidates(void* context, std::uint32_t begin, std::uint32_t end)
+    void World::CollideCandidates(void* context, UInt32 begin, UInt32 end)
     {
         World& world = *static_cast<World*>(context);
-        for (std::uint32_t i = begin; i < end; ++i)
+        for (UInt32 i = begin; i < end; ++i)
         {
             world.m_candidateManifolds[i] = world.ComputeManifold(world.m_candidates[i]);
         }
     }
 
-    void World::IntegrateVelocities(float h)
+    void World::IntegrateVelocities(Float h)
     {
         for (Body& body : m_bodies)
         {
@@ -1049,8 +1054,8 @@ namespace JBro::Physics2D
         m_proxies.Clear();
         m_proxyBounds.Clear();
 
-        const float margin = 0.5f * SpeculativeDistance;
-        for (std::uint32_t shapeIndex = 0; shapeIndex < m_shapes.Size(); ++shapeIndex)
+        const Float margin = 0.5f * SpeculativeDistance;
+        for (UInt32 shapeIndex = 0; shapeIndex < m_shapes.Size(); ++shapeIndex)
         {
             const Shape& shape = m_shapes[shapeIndex];
             if (false == shape.alive)
@@ -1059,9 +1064,9 @@ namespace JBro::Physics2D
             }
             const Body& body = m_bodies[shape.body];
             const Pose pose{ body.origin, body.rotation };
-            const std::uint32_t childCount = shape.isChain ? static_cast<std::uint32_t>(shape.segments.Size())
+            const UInt32 childCount = shape.isChain ? static_cast<std::uint32_t>(shape.segments.Size())
                 : shape.isCircle ? 1u : static_cast<std::uint32_t>(shape.pieces.Size());
-            for (std::uint32_t child = 0; child < childCount; ++child)
+            for (UInt32 child = 0; child < childCount; ++child)
             {
                 Rect bounds;
                 if (shape.isChain)
@@ -1101,7 +1106,7 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const bool isTrigger = shapeA->isTrigger || shapeB->isTrigger;
+            const Bool isTrigger = shapeA->isTrigger || shapeB->isTrigger;
             const BodyType typeA = m_bodies[shapeA->body].type;
             const BodyType typeB = m_bodies[shapeB->body].type;
             // 단단한 접촉은 한쪽이라도 움직이는 몸이어야 뜻이 있다. 트리거는 한쪽만 멈춰 있지 않으면 된다.
@@ -1136,8 +1141,8 @@ namespace JBro::Physics2D
                 continue;
             }
             // A 는 체인 > 폴리곤 > 원 차례로 고른다: 체인 판정은 체인이, 폴리곤-원 판정은 폴리곤이 A 다.
-            const int rankA = shapeA->isChain ? 0 : (shapeA->isCircle ? 2 : 1);
-            const int rankB = shapeB->isChain ? 0 : (shapeB->isCircle ? 2 : 1);
+            const Int32 rankA = shapeA->isChain ? 0 : (shapeA->isCircle ? 2 : 1);
+            const Int32 rankB = shapeB->isChain ? 0 : (shapeB->isCircle ? 2 : 1);
             if (rankA > rankB)
             {
                 std::swap(proxyA, proxyB);
@@ -1150,9 +1155,9 @@ namespace JBro::Physics2D
             candidate.isTrigger = isTrigger;
         }
 
-        const std::uint32_t candidateCount = static_cast<std::uint32_t>(m_candidates.Size());
+        const UInt32 candidateCount = static_cast<std::uint32_t>(m_candidates.Size());
         m_candidateManifolds.Resize(candidateCount);
-        const std::uint32_t workers = GetWorkerCount();
+        const UInt32 workers = GetWorkerCount();
         m_lastStats.candidates = candidateCount;
         if (workers == 0 || candidateCount < MinParallelCandidates)
         {
@@ -1162,11 +1167,11 @@ namespace JBro::Physics2D
         {
             ++m_lastStats.parallelSubSteps;
             // 한 스레드에 네 조각쯤 돌아가게 잘라, 판정이 무거운 쌍이 몰려도 남는 스레드가 나머지를 가져간다.
-            const std::uint32_t grain = std::max(MinCandidatesPerChunk, candidateCount / (4 * (workers + 1)));
+            const UInt32 grain = std::max(MinCandidatesPerChunk, candidateCount / (4 * (workers + 1)));
             m_workers->ParallelFor(candidateCount, grain, &World::CollideCandidates, this);
         }
 
-        for (std::uint32_t i = 0; i < candidateCount; ++i)
+        for (UInt32 i = 0; i < candidateCount; ++i)
         {
             const Manifold& manifold = m_candidateManifolds[i];
             if (manifold.count == 0)
@@ -1233,9 +1238,9 @@ namespace JBro::Physics2D
             // 맞춘 것은 지나간다. 남겨 두면 다음 접촉이 그것을 "사라진 접촉" 으로 본다.
             ++previous;
             contact.disabled = old.disabled;
-            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+            for (UInt32 i = 0; i < contact.manifold.count; ++i)
             {
-                for (std::uint32_t j = 0; j < old.manifold.count; ++j)
+                for (UInt32 j = 0; j < old.manifold.count; ++j)
                 {
                     if (old.manifold.points[j].id == contact.manifold.points[i].id)
                     {
@@ -1288,7 +1293,7 @@ namespace JBro::Physics2D
             const Body& b = m_bodies[contact.bodyB];
             const Vector2 normal = contact.manifold.normal;
             const Vector2 tangent = Tangent(normal);
-            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+            for (UInt32 i = 0; i < contact.manifold.count; ++i)
             {
                 const ManifoldPoint& point = contact.manifold.points[i];
                 const Vector2 rA = Subtract(point.point, a.center);
@@ -1298,17 +1303,17 @@ namespace JBro::Physics2D
                 // 현재 깊이 = dot(중심 변위 + 돌아간 팔의 차, n) + base. 시작에서는 manifold 의 깊이와 같다.
                 contact.baseSeparation[i] = point.separation - Dot(Subtract(rB, rA), normal);
 
-                const float rnA = Cross(rA, normal);
-                const float rnB = Cross(rB, normal);
-                const float normalK = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
+                const Float rnA = Cross(rA, normal);
+                const Float rnB = Cross(rB, normal);
+                const Float normalK = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
                     + a.inverseInertia * rnA * rnA + b.inverseInertia * rnB * rnB;
-                contact.normalMass[i] = normalK > 0.0f ? 1.0f / normalK : 0.0f;
+                contact.normalMass[i] = normalK > 0.0f ? 1.0f / normalK : Float(0.0f);
 
-                const float rtA = Cross(rA, tangent);
-                const float rtB = Cross(rB, tangent);
-                const float tangentK = InverseMassAlong(a, tangent) + InverseMassAlong(b, tangent)
+                const Float rtA = Cross(rA, tangent);
+                const Float rtB = Cross(rB, tangent);
+                const Float tangentK = InverseMassAlong(a, tangent) + InverseMassAlong(b, tangent)
                     + a.inverseInertia * rtA * rtA + b.inverseInertia * rtB * rtB;
-                contact.tangentMass[i] = tangentK > 0.0f ? 1.0f / tangentK : 0.0f;
+                contact.tangentMass[i] = tangentK > 0.0f ? 1.0f / tangentK : Float(0.0f);
 
                 const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
@@ -1330,7 +1335,7 @@ namespace JBro::Physics2D
             Body& b = m_bodies[contact.bodyB];
             const Vector2 normal = contact.manifold.normal;
             const Vector2 tangent = Tangent(normal);
-            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+            for (UInt32 i = 0; i < contact.manifold.count; ++i)
             {
                 const Vector2 impulse = Add(
                     Scale(normal, contact.normalImpulse[i]), Scale(tangent, contact.tangentImpulse[i]));
@@ -1339,13 +1344,13 @@ namespace JBro::Physics2D
         }
     }
 
-    void World::SolveVelocities(float h)
+    void World::SolveVelocities(Float h)
     {
         m_solveInverseH = 1.0f / h;
         ForEachColor(&World::SolveVelocityJob, true);
     }
 
-    void World::SolveContactVelocity(Contact& contact, float inverseH)
+    void World::SolveContactVelocity(Contact& contact, Float inverseH)
     {
         {
             Body& a = m_bodies[contact.bodyA];
@@ -1354,36 +1359,36 @@ namespace JBro::Physics2D
             const Vector2 tangent = Tangent(normal);
 
             // 마찰을 먼저 푼다. 한계는 지금까지 쌓인 법선 임펄스의 μ 배다.
-            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+            for (UInt32 i = 0; i < contact.manifold.count; ++i)
             {
                 const Vector2 rA = contact.anchorA[i];
                 const Vector2 rB = contact.anchorB[i];
                 const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                     Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
-                const float speed = Dot(relative, tangent);
-                const float limit = contact.friction * contact.normalImpulse[i];
-                const float old = contact.tangentImpulse[i];
-                const float next = std::clamp(old - contact.tangentMass[i] * speed, -limit, limit);
+                const Float speed = Dot(relative, tangent);
+                const Float limit = contact.friction * contact.normalImpulse[i];
+                const Float old = contact.tangentImpulse[i];
+                const Float next = JBro::Clamp(old - contact.tangentMass[i] * speed, -limit, limit);
                 const Vector2 impulse = Scale(tangent, next - old);
                 contact.tangentImpulse[i] = next;
                 PushVelocity(a, b, rA, rB, impulse);
             }
 
-            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+            for (UInt32 i = 0; i < contact.manifold.count; ++i)
             {
                 const Vector2 rA = contact.anchorA[i];
                 const Vector2 rB = contact.anchorB[i];
                 const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                     Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
-                const float speed = Dot(relative, normal);
+                const Float speed = Dot(relative, normal);
                 // 아직 떨어져 있으면 그 틈만큼은 이 서브스텝에 다가와도 된다(미리 만든 접촉). 박힌 것은 여기서 밀어내지
                 // 않는다 - 속도로 밀면 튀어 오르는 에너지가 생긴다. 위치 보정이 따로 뺀다.
-                const float separation = contact.manifold.points[i].separation;
-                const float bias = separation > 0.0f ? separation * inverseH : 0.0f;
-                const float old = contact.normalImpulse[i];
-                const float next = std::fmax(old - contact.normalMass[i] * (speed + bias), 0.0f);
+                const Float separation = contact.manifold.points[i].separation;
+                const Float bias = separation > 0.0f ? separation * inverseH : Float(0.0f);
+                const Float old = contact.normalImpulse[i];
+                const Float next = std::fmax(old - contact.normalMass[i] * (speed + bias), 0.0f);
                 const Vector2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
                 PushVelocity(a, b, rA, rB, impulse);
@@ -1406,7 +1411,7 @@ namespace JBro::Physics2D
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
             const Vector2 normal = contact.manifold.normal;
-            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+            for (UInt32 i = 0; i < contact.manifold.count; ++i)
             {
                 // 빠르게 다가왔고 실제로 밀어낸 점만 튕긴다.
                 if (contact.approachSpeed[i] > -m_settings.restitutionThreshold || contact.normalImpulse[i] <= 0.0f)
@@ -1418,9 +1423,9 @@ namespace JBro::Physics2D
                 const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                     Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
-                const float speed = Dot(relative, normal);
-                const float old = contact.normalImpulse[i];
-                const float next = std::fmax(
+                const Float speed = Dot(relative, normal);
+                const Float old = contact.normalImpulse[i];
+                const Float next = std::fmax(
                     old - contact.normalMass[i] * (speed + contact.restitution * contact.approachSpeed[i]), 0.0f);
                 const Vector2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
@@ -1431,21 +1436,21 @@ namespace JBro::Physics2D
 
     void World::ColorContacts()
     {
-        const std::uint32_t contactCount = static_cast<std::uint32_t>(m_contacts.Size());
+        const UInt32 contactCount = static_cast<std::uint32_t>(m_contacts.Size());
         m_bodyColors.Resize(m_bodies.Size());
-        for (std::uint64_t& used : m_bodyColors)
+        for (UInt64& used : m_bodyColors)
         {
             used = 0u;
         }
         m_contactColors.Resize(contactCount);
-        std::uint32_t counts[OverflowColor + 1] = {};
-        std::uint32_t solved = 0;
+        UInt32 counts[OverflowColor + 1] = {};
+        UInt32 solved = 0;
         for (const Contact& contact : m_contacts)
         {
             solved += IsSolved(contact) ? 1u : 0u;
         }
-        const bool colored = solved >= ColoredSolveThreshold;
-        for (std::uint32_t i = 0; i < contactCount; ++i)
+        const Bool colored = solved >= ColoredSolveThreshold;
+        for (UInt32 i = 0; i < contactCount; ++i)
         {
             const Contact& contact = m_contacts[i];
             if (false == IsSolved(contact))
@@ -1459,9 +1464,9 @@ namespace JBro::Physics2D
                 ++counts[OverflowColor];
                 continue;
             }
-            const bool dynamicA = m_bodies[contact.bodyA].type == BodyType::Dynamic;
-            const bool dynamicB = m_bodies[contact.bodyB].type == BodyType::Dynamic;
-            std::uint64_t used = 0u;
+            const Bool dynamicA = m_bodies[contact.bodyA].type == BodyType::Dynamic;
+            const Bool dynamicB = m_bodies[contact.bodyB].type == BodyType::Dynamic;
+            UInt64 used = 0u;
             if (dynamicA)
             {
                 used |= m_bodyColors[contact.bodyA];
@@ -1470,10 +1475,10 @@ namespace JBro::Physics2D
             {
                 used |= m_bodyColors[contact.bodyB];
             }
-            const std::uint32_t color = used == ~0ull ? OverflowColor : static_cast<std::uint32_t>(std::countr_one(used));
+            const UInt32 color = used == ~0ull ? OverflowColor : UInt32(static_cast<std::uint32_t>(std::countr_one(used.Get())));
             if (color < OverflowColor)
             {
-                const std::uint64_t bit = 1ull << color;
+                const UInt64 bit = 1ull << color;
                 if (dynamicA)
                 {
                     m_bodyColors[contact.bodyA] |= bit;
@@ -1487,18 +1492,18 @@ namespace JBro::Physics2D
             ++counts[color];
         }
         m_colorStarts[0] = 0;
-        for (std::uint32_t color = 0; color <= OverflowColor; ++color)
+        for (UInt32 color = 0; color <= OverflowColor; ++color)
         {
             m_colorStarts[color + 1] = m_colorStarts[color] + counts[color];
         }
         m_colorOrder.Resize(m_colorStarts[OverflowColor + 1]);
-        std::uint32_t cursor[OverflowColor + 1];
-        for (std::uint32_t color = 0; color <= OverflowColor; ++color)
+        UInt32 cursor[OverflowColor + 1];
+        for (UInt32 color = 0; color <= OverflowColor; ++color)
         {
             cursor[color] = m_colorStarts[color];
         }
         // 색 안에서는 접촉의 열쇠 순서를 지킨다 - 같은 입력이면 늘 같은 순서다.
-        for (std::uint32_t i = 0; i < contactCount; ++i)
+        for (UInt32 i = 0; i < contactCount; ++i)
         {
             const std::uint8_t color = m_contactColors[i];
             if (color != 0xFFu)
@@ -1508,13 +1513,13 @@ namespace JBro::Physics2D
         }
     }
 
-    void World::ForEachColor(ContactJob job, bool allowParallel)
+    void World::ForEachColor(ContactJob job, Bool allowParallel)
     {
-        const std::uint32_t workers = GetWorkerCount();
-        for (std::uint32_t color = 0; color <= OverflowColor; ++color)
+        const UInt32 workers = GetWorkerCount();
+        for (UInt32 color = 0; color <= OverflowColor; ++color)
         {
-            const std::uint32_t begin = m_colorStarts[color];
-            const std::uint32_t count = m_colorStarts[color + 1] - begin;
+            const UInt32 begin = m_colorStarts[color];
+            const UInt32 count = m_colorStarts[color + 1] - begin;
             if (count == 0)
             {
                 continue;
@@ -1523,7 +1528,7 @@ namespace JBro::Physics2D
             if (allowParallel && workers > 0 && color < OverflowColor && count >= MinParallelContactsPerColor)
             {
                 ++m_lastStats.parallelColors;
-                const std::uint32_t grain = std::max(MinContactsPerChunk, count / (4 * (workers + 1)));
+                const UInt32 grain = std::max(MinContactsPerChunk, count / (4 * (workers + 1)));
                 m_workers->ParallelFor(count, grain, job, this);
             }
             else
@@ -1533,43 +1538,43 @@ namespace JBro::Physics2D
         }
     }
 
-    void World::WarmStartJob(void* context, std::uint32_t begin, std::uint32_t end)
+    void World::WarmStartJob(void* context, UInt32 begin, UInt32 end)
     {
         World& world = *static_cast<World*>(context);
-        for (std::uint32_t i = begin; i < end; ++i)
+        for (UInt32 i = begin; i < end; ++i)
         {
             world.WarmStartContact(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]]);
         }
     }
 
-    void World::SolveVelocityJob(void* context, std::uint32_t begin, std::uint32_t end)
+    void World::SolveVelocityJob(void* context, UInt32 begin, UInt32 end)
     {
         World& world = *static_cast<World*>(context);
-        for (std::uint32_t i = begin; i < end; ++i)
+        for (UInt32 i = begin; i < end; ++i)
         {
             world.SolveContactVelocity(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]], world.m_solveInverseH);
         }
     }
 
-    void World::RestitutionJob(void* context, std::uint32_t begin, std::uint32_t end)
+    void World::RestitutionJob(void* context, UInt32 begin, UInt32 end)
     {
         World& world = *static_cast<World*>(context);
-        for (std::uint32_t i = begin; i < end; ++i)
+        for (UInt32 i = begin; i < end; ++i)
         {
             world.ApplyContactRestitution(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]]);
         }
     }
 
-    void World::SolvePositionJob(void* context, std::uint32_t begin, std::uint32_t end)
+    void World::SolvePositionJob(void* context, UInt32 begin, UInt32 end)
     {
         World& world = *static_cast<World*>(context);
-        for (std::uint32_t i = begin; i < end; ++i)
+        for (UInt32 i = begin; i < end; ++i)
         {
             world.SolveContactPosition(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]]);
         }
     }
 
-    void World::IntegratePositions(float h)
+    void World::IntegratePositions(Float h)
     {
         for (Body& body : m_bodies)
         {
@@ -1577,12 +1582,12 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const float translation = Length(body.linearVelocity) * h;
+            const Float translation = Length(body.linearVelocity) * h;
             if (translation > MaxTranslationPerSubStep)
             {
                 body.linearVelocity = Scale(body.linearVelocity, MaxTranslationPerSubStep / translation);
             }
-            const float rotation = std::fabs(body.angularVelocity) * h;
+            const Float rotation = std::fabs(body.angularVelocity) * h;
             if (rotation > MaxRotationPerSubStep)
             {
                 body.angularVelocity *= MaxRotationPerSubStep / rotation;
@@ -1598,10 +1603,10 @@ namespace JBro::Physics2D
         }
     }
 
-    void World::ClampToFirstHit(Body& body, std::uint32_t bodyIndex, Vector2 startCenter)
+    void World::ClampToFirstHit(Body& body, UInt32 bodyIndex, Vector2 startCenter)
     {
         const Vector2 move = Subtract(body.center, startCenter);
-        const float length = Length(move);
+        const Float length = Length(move);
         if (length <= LinearSlop)
         {
             return;
@@ -1611,23 +1616,23 @@ namespace JBro::Physics2D
         const Rotation rotation = Rotation::FromAngle(body.angle);
         const Pose start{ Subtract(startCenter, RotateVector(rotation, body.localCenter)), rotation };
         const Pose end{ Subtract(body.center, RotateVector(rotation, body.localCenter)), rotation };
-        float best = length;
-        bool hit = false;
-        for (const std::uint32_t ownIndex : body.shapes)
+        Float best = length;
+        Bool hit = false;
+        for (const UInt32 ownIndex : body.shapes)
         {
             const Shape& own = m_shapes[ownIndex];
             if (own.isTrigger || own.isChain)
             {
                 continue;
             }
-            const std::uint32_t ownPieces = own.isCircle ? 1u : static_cast<std::uint32_t>(own.pieces.Size());
-            for (std::uint32_t p = 0; p < ownPieces; ++p)
+            const UInt32 ownPieces = own.isCircle ? 1u : static_cast<std::uint32_t>(own.pieces.Size());
+            for (UInt32 p = 0; p < ownPieces; ++p)
             {
                 Rect swept = own.isCircle ? ComputeCircleBounds(own.circle, start) : ComputePolygonBounds(own.pieces[p], start);
                 const Rect finish = own.isCircle ? ComputeCircleBounds(own.circle, end) : ComputePolygonBounds(own.pieces[p], end);
                 swept.min = { std::fmin(swept.min.x, finish.min.x), std::fmin(swept.min.y, finish.min.y) };
                 swept.max = { std::fmax(swept.max.x, finish.max.x), std::fmax(swept.max.y, finish.max.y) };
-                for (std::uint32_t targetIndex = 0; targetIndex < m_shapes.Size(); ++targetIndex)
+                for (UInt32 targetIndex = 0; targetIndex < m_shapes.Size(); ++targetIndex)
                 {
                     const Shape& target = m_shapes[targetIndex];
                     if (false == target.alive || target.isTrigger || target.oneWay || target.body == bodyIndex)
@@ -1644,9 +1649,9 @@ namespace JBro::Physics2D
                         continue;
                     }
                     const Pose targetPose{ other.origin, other.rotation };
-                    const std::uint32_t children = target.isCircle ? 1u
+                    const UInt32 children = target.isCircle ? 1u
                         : static_cast<std::uint32_t>(target.isChain ? target.segments.Size() : target.pieces.Size());
-                    for (std::uint32_t c = 0; c < children; ++c)
+                    for (UInt32 c = 0; c < children; ++c)
                     {
                         ConvexPolygon segment;
                         const ConvexPolygon* piece = nullptr;
@@ -1666,9 +1671,9 @@ namespace JBro::Physics2D
                         {
                             continue;
                         }
-                        float distance = 0.0f;
+                        Float distance = 0.0f;
                         Vector2 normal;
-                        bool found = false;
+                        Bool found = false;
                         if (own.isCircle)
                         {
                             const Vector2 center = TransformPoint(start, own.circle.center);
@@ -1712,24 +1717,24 @@ namespace JBro::Physics2D
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
             const Vector2 normal = contact.manifold.normal;
-            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+            for (UInt32 i = 0; i < contact.manifold.count; ++i)
             {
                 // 서브스텝 시작 뒤로 돈 만큼 팔을 돌린다.
                 const Vector2 rA = RotateVector(Rotation::FromAngle(a.angle - a.startAngle), contact.anchorA[i]);
                 const Vector2 rB = RotateVector(Rotation::FromAngle(b.angle - b.startAngle), contact.anchorB[i]);
                 const Vector2 moved = Subtract(Subtract(b.center, b.startCenter), Subtract(a.center, a.startCenter));
-                const float separation = Dot(Add(moved, Subtract(rB, rA)), normal) + contact.baseSeparation[i];
+                const Float separation = Dot(Add(moved, Subtract(rB, rA)), normal) + contact.baseSeparation[i];
 
                 // LinearSlop 만큼은 박힌 채 둔다. 0 으로 맞추면 닿았다 떨어졌다 하며 접촉이 끊긴다.
-                const float correction = std::clamp(
+                const Float correction = JBro::Clamp(
                     PositionCorrectionFactor * (separation + LinearSlop), -MaxLinearCorrection, 0.0f);
                 if (correction >= 0.0f)
                 {
                     continue;
                 }
-                const float rnA = Cross(rA, normal);
-                const float rnB = Cross(rB, normal);
-                const float k = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
+                const Float rnA = Cross(rA, normal);
+                const Float rnB = Cross(rB, normal);
+                const Float k = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
                     + a.inverseInertia * rnA * rnA + b.inverseInertia * rnB * rnB;
                 if (k <= 0.0f)
                 {
@@ -1741,11 +1746,11 @@ namespace JBro::Physics2D
         }
     }
 
-    bool World::LayersMeet(std::uint32_t layerA, std::uint32_t layerB) const
+    Bool World::LayersMeet(UInt32 layerA, UInt32 layerB) const
     {
-        for (std::uint32_t bits = layerA; bits != 0u; bits &= bits - 1u)
+        for (UInt32 bits = layerA; bits != 0u; bits &= bits - 1u)
         {
-            const std::uint32_t i = static_cast<std::uint32_t>(std::countr_zero(bits));
+            const UInt32 i = static_cast<std::uint32_t>(std::countr_zero(bits.Get()));
             if ((layerB & ~m_settings.ignoredLayers[i]) != 0u)
             {
                 return true;
@@ -1754,14 +1759,14 @@ namespace JBro::Physics2D
         return false;
     }
 
-    bool World::PassesOneWay(const Contact& contact) const
+    Bool World::PassesOneWay(const Contact& contact) const
     {
         if (contact.isTrigger)
         {
             return false;
         }
         // 법선은 A → B 다. 발판에서 상대로 향하게 돌려 발판의 위와 잰다.
-        const auto passes = [this, &contact](std::uint32_t shapeIndex, bool isA)
+        const auto passes = [this, &contact](UInt32 shapeIndex, Bool isA)
         {
             const Shape& shape = m_shapes[shapeIndex];
             if (false == shape.oneWay)
@@ -1775,7 +1780,7 @@ namespace JBro::Physics2D
         return passes(contact.shapeA, true) || passes(contact.shapeB, false);
     }
 
-    bool World::IsSolved(const Contact& contact) const
+    Bool World::IsSolved(const Contact& contact) const
     {
         if (contact.disabled)
         {
@@ -1790,9 +1795,9 @@ namespace JBro::Physics2D
         return (a.type == BodyType::Dynamic && a.awake) || (b.type == BodyType::Dynamic && b.awake);
     }
 
-    std::uint32_t World::FindIsland(std::uint32_t body)
+    UInt32 World::FindIsland(UInt32 body)
     {
-        std::uint32_t root = body;
+        UInt32 root = body;
         while (m_islandParent[root] != root)
         {
             root = m_islandParent[root];
@@ -1800,19 +1805,19 @@ namespace JBro::Physics2D
         // 길 줄이기.
         while (m_islandParent[body] != root)
         {
-            const std::uint32_t next = m_islandParent[body];
+            const UInt32 next = m_islandParent[body];
             m_islandParent[body] = root;
             body = next;
         }
         return root;
     }
 
-    void World::UpdateSleep(float deltaTime)
+    void World::UpdateSleep(Float deltaTime)
     {
-        const std::uint32_t count = static_cast<std::uint32_t>(m_bodies.Size());
+        const UInt32 count = static_cast<std::uint32_t>(m_bodies.Size());
         m_islandParent.Resize(count);
         m_islandSleepTime.Resize(count);
-        for (std::uint32_t i = 0; i < count; ++i)
+        for (UInt32 i = 0; i < count; ++i)
         {
             m_islandParent[i] = i;
             m_islandSleepTime[i] = FLT_MAX;
@@ -1825,7 +1830,7 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const bool slow = LengthSquared(body.linearVelocity)
+            const Bool slow = LengthSquared(body.linearVelocity)
                     <= m_settings.linearSleepTolerance * m_settings.linearSleepTolerance
                 && std::fabs(body.angularVelocity) <= m_settings.angularSleepTolerance;
             if (false == m_settings.enableSleep || false == body.canSleep || false == slow)
@@ -1851,8 +1856,8 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const std::uint32_t rootA = FindIsland(contact.bodyA);
-            const std::uint32_t rootB = FindIsland(contact.bodyB);
+            const UInt32 rootA = FindIsland(contact.bodyA);
+            const UInt32 rootB = FindIsland(contact.bodyB);
             if (rootA != rootB)
             {
                 m_islandParent[std::max(rootA, rootB)] = std::min(rootA, rootB);
@@ -1870,8 +1875,8 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const std::uint32_t rootA = FindIsland(joint.bodyA);
-            const std::uint32_t rootB = FindIsland(joint.bodyB);
+            const UInt32 rootA = FindIsland(joint.bodyA);
+            const UInt32 rootB = FindIsland(joint.bodyB);
             if (rootA != rootB)
             {
                 m_islandParent[std::max(rootA, rootB)] = std::min(rootA, rootB);
@@ -1879,26 +1884,26 @@ namespace JBro::Physics2D
         }
 
         // 3. 섬마다 가장 짧은 느린 시간. 그것이 timeToSleep 에 이르면 섬이 잠들고, 모자라면 섬이 모두 깬다.
-        for (std::uint32_t i = 0; i < count; ++i)
+        for (UInt32 i = 0; i < count; ++i)
         {
             const Body& body = m_bodies[i];
             if (false == body.alive || body.type == BodyType::Static)
             {
                 continue;
             }
-            const std::uint32_t root = FindIsland(i);
+            const UInt32 root = FindIsland(i);
             m_islandSleepTime[root] = std::fmin(m_islandSleepTime[root], body.sleepTime);
         }
         m_lastStats.awakeBodies = 0;
         m_lastStats.sleepingBodies = 0;
-        for (std::uint32_t i = 0; i < count; ++i)
+        for (UInt32 i = 0; i < count; ++i)
         {
             Body& body = m_bodies[i];
             if (false == body.alive || body.type == BodyType::Static)
             {
                 continue;
             }
-            const bool asleep = m_islandSleepTime[FindIsland(i)] >= m_settings.timeToSleep;
+            const Bool asleep = m_islandSleepTime[FindIsland(i)] >= m_settings.timeToSleep;
             if (asleep)
             {
                 body.awake = false;
@@ -1935,17 +1940,17 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            std::uint32_t deepestIndex = 0;
-            for (std::uint32_t i = 1; i < contact.manifold.count; ++i)
+            UInt32 deepestIndex = 0;
+            for (UInt32 i = 1; i < contact.manifold.count; ++i)
             {
                 if (contact.manifold.points[i].separation < contact.manifold.points[deepestIndex].separation)
                 {
                     deepestIndex = i;
                 }
             }
-            const float deepest = contact.manifold.points[deepestIndex].separation;
+            const Float deepest = contact.manifold.points[deepestIndex].separation;
             // 트리거는 실제로 겹쳐야, 단단한 접촉은 위치 보정이 남기는 LinearSlop 안이면 닿은 것이다.
-            const float limit = contact.isTrigger ? 0.0f : LinearSlop;
+            const Float limit = contact.isTrigger ? Float(0.0f) : LinearSlop;
             if (deepest >= limit)
             {
                 continue;
@@ -1963,7 +1968,7 @@ namespace JBro::Physics2D
             {
                 pair.point = contact.manifold.points[deepestIndex].point;
                 // 쌍은 도형 번호 순으로 적으므로, 번호가 뒤집혔으면 법선도 뒤집어 A→B 를 지킨다.
-                const bool swapped = pair.shapeA != contact.shapeA;
+                const Bool swapped = pair.shapeA != contact.shapeA;
                 pair.normal = swapped
                     ? Vector2{ -contact.manifold.normal.x, -contact.manifold.normal.y }
                     : contact.manifold.normal;

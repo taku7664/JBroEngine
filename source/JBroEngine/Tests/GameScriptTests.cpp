@@ -8,6 +8,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/Int.h>
 
 namespace
 {
@@ -52,8 +53,8 @@ namespace
             ++fixedUpdates;
         }
 
-        int updates = 0;
-        int fixedUpdates = 0;
+        JBro::Int32 updates = 0;
+        JBro::Int32 fixedUpdates = 0;
     };
 
     static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::GameScriptBase>);
@@ -68,7 +69,7 @@ namespace
     static_assert(JBro::Ref<JBro::Component::Collider2D>::Category == JBro::RefCategory::Component);
 }
 
-int RunGameScriptTests()
+JBro::Int32 RunGameScriptTests()
 {
     JBro::Canvas canvas(JBro::CreateDefaultAllocator());
     auto* object = canvas.CreateObject("script owner");

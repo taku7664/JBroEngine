@@ -1,6 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
@@ -11,17 +14,17 @@ namespace JBro::System
     class Audio3DSystem final : public GameSystem
     {
     public:
-        static constexpr int ExecutionOrder = 450;
+        static constexpr Int32 ExecutionOrder = 450;
 
         explicit Audio3DSystem(AudioSystem& audio);
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
         void ReleaseAllSources(Canvas& canvas);
 
     protected:
-        void OnUpdate(Canvas& canvas, float deltaTime) override;
+        void OnUpdate(Canvas& canvas, Float deltaTime) override;
 
     private:
         AudioSystem& m_audio;
-        bool m_warnedListeners = false;
+        Bool m_warnedListeners = false;
     };
 }

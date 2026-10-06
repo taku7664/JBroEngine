@@ -4,6 +4,8 @@
 #include <JBro/Reflection/TypeDescriptor.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -11,7 +13,7 @@ namespace JBro
     {
         // 원소에서 편집이 가리키는 필드까지 내려간다(D-89). 길이 비어 있으면 원소 자체다.
         // 필드가 아닌 것을 지나가려 하거나, 없는 필드를 가리키면 거짓이다.
-        bool ResolveField(
+        Bool ResolveField(
             const TypeDescriptor& element,
             void* address,
             const ListEdit& edit,
@@ -24,7 +26,7 @@ namespace JBro
             }
             const TypeDescriptor* type = &element;
             void* at = address;
-            for (std::uint32_t step = 0; step < edit.fieldDepth; ++step)
+            for (UInt32 step = 0; step < edit.fieldDepth; ++step)
             {
                 if (type->fields == nullptr || edit.fieldPath[step] >= type->fields->count)
                 {
@@ -47,7 +49,7 @@ namespace JBro
             return true;
         }
 
-        bool SetElement(const TypeDescriptor& elementType, void* element, const ListEdit& edit)
+        Bool SetElement(const TypeDescriptor& elementType, void* element, const ListEdit& edit)
         {
             const TypeDescriptor* leafType = nullptr;
             void* address = nullptr;
@@ -69,7 +71,7 @@ namespace JBro
             {
                 return false;
             }
-            for (std::uint32_t at = 0; at < run.count; ++at)
+            for (UInt32 at = 0; at < run.count; ++at)
             {
                 *run.values[at] += edit.delta[at];
             }
@@ -77,7 +79,7 @@ namespace JBro
         }
     }
 
-    bool ApplyListEdit(const TypeDescriptor& arrayType, void* array, const ListEdit& edit)
+    Bool ApplyListEdit(const TypeDescriptor& arrayType, void* array, const ListEdit& edit)
     {
         if (arrayType.arrayOps == nullptr || arrayType.element == nullptr || array == nullptr)
         {
@@ -140,13 +142,13 @@ namespace JBro
             {
                 continue;
             }
-            bool applied = true;
+            Bool applied = true;
             for (std::size_t at = 0; at < edits.Size() && applied; ++at)
             {
                 applied = ApplyListEdit(*type, array, edits[at]);
             }
             String after;
-            const bool read = applied
+            const Bool read = applied
                 && SetPropertyCommand::ReadValue(*component, address.typeId, path, after);
             // **도로 되돌린다.** 쓰는 것은 커맨드의 몫이고, 편집이 중간에 막혔으면 반쯤
             // 바뀐 배열이 남아 있다.

@@ -5,19 +5,21 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
     namespace
     {
-        constexpr std::uint32_t BufferUsageMask =
+        constexpr UInt32 BufferUsageMask =
             static_cast<std::uint32_t>(BufferUsage::Vertex)
             | static_cast<std::uint32_t>(BufferUsage::Index)
             | static_cast<std::uint32_t>(BufferUsage::Constant)
             | static_cast<std::uint32_t>(BufferUsage::CopySource)
             | static_cast<std::uint32_t>(BufferUsage::CopyDestination);
 
-        constexpr std::uint32_t TextureUsageMask =
+        constexpr UInt32 TextureUsageMask =
             static_cast<std::uint32_t>(TextureUsage::Sampled)
             | static_cast<std::uint32_t>(TextureUsage::RenderTarget)
             | static_cast<std::uint32_t>(TextureUsage::DepthStencil)
@@ -25,17 +27,17 @@ namespace JBro::Internal
             | static_cast<std::uint32_t>(TextureUsage::CopySource)
             | static_cast<std::uint32_t>(TextureUsage::CopyDestination);
 
-        bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
+        Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
 
-        bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
+        Bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
 
-        std::uint32_t NextGeneration(std::uint32_t generation)
+        UInt32 NextGeneration(UInt32 generation)
         {
             ++generation;
             if (generation == 0)
@@ -69,7 +71,7 @@ namespace JBro::Internal
         }
 
         // 읽기 경로가 지원하는 포맷의 픽셀 크기다. 0 이면 지원하지 않는 포맷이다.
-        std::uint32_t ReadbackPixelSize(TextureFormat format)
+        UInt32 ReadbackPixelSize(TextureFormat format)
         {
             switch (format)
             {
@@ -86,7 +88,7 @@ namespace JBro::Internal
             }
         }
 
-        bool IsSrgbFormat(TextureFormat format)
+        Bool IsSrgbFormat(TextureFormat format)
         {
             return format == TextureFormat::RGBA8UnormSrgb
                 || format == TextureFormat::BGRA8UnormSrgb;
@@ -128,9 +130,9 @@ namespace JBro::Internal
             return D3D12_RESOURCE_STATE_COMMON;
         }
 
-        bool IsBufferDescValid(const BufferDesc& desc)
+        Bool IsBufferDescValid(const BufferDesc& desc)
         {
-            const std::uint32_t usages = static_cast<std::uint32_t>(desc.usage);
+            const UInt32 usages = static_cast<std::uint32_t>(desc.usage);
             if (desc.size == 0 || usages == 0 || (usages & ~BufferUsageMask) != 0)
             {
                 return false;
@@ -153,12 +155,12 @@ namespace JBro::Internal
             return true;
         }
 
-        bool IsTextureDescValid(const TextureDesc& desc)
+        Bool IsTextureDescValid(const TextureDesc& desc)
         {
-            const std::uint32_t usages = static_cast<std::uint32_t>(desc.usage);
-            const bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
-            const bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
-            const bool storage = HasTextureUsage(desc.usage, TextureUsage::Storage);
+            const UInt32 usages = static_cast<std::uint32_t>(desc.usage);
+            const Bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
+            const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
+            const Bool storage = HasTextureUsage(desc.usage, TextureUsage::Storage);
             if (desc.extent.width == 0
                 || desc.extent.height == 0
                 || desc.depthOrLayers == 0
@@ -192,8 +194,8 @@ namespace JBro::Internal
 
         CollectRetiredResources();
 
-        std::uint32_t slotIndex = MaxBuffers;
-        for (std::uint32_t index = 0; index < MaxBuffers; ++index)
+        UInt32 slotIndex = MaxBuffers;
+        for (UInt32 index = 0; index < MaxBuffers; ++index)
         {
             if (false == m_buffers[index].occupied && m_buffers[index].resource == nullptr)
             {
@@ -206,10 +208,10 @@ namespace JBro::Internal
             return {};
         }
 
-        std::uint64_t resourceSize = static_cast<std::uint64_t>(desc.size);
+        UInt64 resourceSize = static_cast<std::uint64_t>(desc.size);
         if (HasBufferUsage(desc.usage, BufferUsage::Constant))
         {
-            resourceSize = (resourceSize + 255) & ~std::uint64_t{255};
+            resourceSize = (resourceSize + 255) & ~UInt64{255};
         }
 
         D3D12_RESOURCE_DESC resourceDesc = {};
@@ -283,12 +285,12 @@ namespace JBro::Internal
         }
     }
 
-    std::uint32_t D3D12Device::GetFramesInFlight() const
+    UInt32 D3D12Device::GetFramesInFlight() const
     {
         return MaxFramesInFlight;
     }
 
-    std::uint32_t D3D12Device::GetValidationErrorCount() const
+    UInt32 D3D12Device::GetValidationErrorCount() const
     {
         if (m_infoQueue == nullptr)
         {
@@ -304,7 +306,7 @@ namespace JBro::Internal
         // **세기만 하면 쓸모가 없다.** "검증 레이어가 1건 말했다" 만 보고는 무엇이
         // 잘못됐는지 알 수 없고, 알아내려면 다시 재현해서 디버거를 붙여야 한다.
         // 그래서 세면서 함께 찍는다. 검증을 켰을 때만 도는 길이다.
-        for (std::uint32_t index = 0; index < count; ++index)
+        for (UInt32 index = 0; index < count; ++index)
         {
             SIZE_T bytes = 0;
             if (FAILED(m_infoQueue->GetMessage(index, nullptr, &bytes))
@@ -326,7 +328,7 @@ namespace JBro::Internal
         return count;
     }
 
-    bool D3D12Device::WriteBuffer(
+    Bool D3D12Device::WriteBuffer(
         BufferHandle buffer,
         std::size_t offset,
         JArrayView<std::byte> data)
@@ -366,8 +368,8 @@ namespace JBro::Internal
 
         CollectRetiredResources();
 
-        std::uint32_t slotIndex = MaxTextures;
-        for (std::uint32_t index = 0; index < MaxTextures; ++index)
+        UInt32 slotIndex = MaxTextures;
+        for (UInt32 index = 0; index < MaxTextures; ++index)
         {
             if (false == m_textures[index].occupied && m_textures[index].resource == nullptr)
             {
@@ -380,10 +382,10 @@ namespace JBro::Internal
             return {};
         }
 
-        const bool sampled = HasTextureUsage(desc.usage, TextureUsage::Sampled);
-        const bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
-        const bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
-        const bool storage = HasTextureUsage(desc.usage, TextureUsage::Storage);
+        const Bool sampled = HasTextureUsage(desc.usage, TextureUsage::Sampled);
+        const Bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
+        const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
+        const Bool storage = HasTextureUsage(desc.usage, TextureUsage::Storage);
 
         D3D12_RESOURCE_DESC resourceDesc = {};
         resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -511,7 +513,7 @@ namespace JBro::Internal
             return;
         }
 
-        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        const UInt32 slotIndex = texture.index - TextureResourceBase;
         if (slotIndex >= MaxTextures)
         {
             return;
@@ -534,7 +536,7 @@ namespace JBro::Internal
         }
     }
 
-    bool D3D12Device::ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding)
+    Bool D3D12Device::ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding)
     {
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
         {
@@ -543,9 +545,9 @@ namespace JBro::Internal
 
         if (texture.index < TextureResourceBase)
         {
-            const std::uint32_t localIndex = texture.index - BackBufferTextureBase;
-            const std::uint32_t swapchainIndex = localIndex / MaxBackBuffers;
-            const std::uint32_t backBufferIndex = localIndex % MaxBackBuffers;
+            const UInt32 localIndex = texture.index - BackBufferTextureBase;
+            const UInt32 swapchainIndex = localIndex / MaxBackBuffers;
+            const UInt32 backBufferIndex = localIndex % MaxBackBuffers;
             if (swapchainIndex >= MaxSwapchains)
             {
                 return false;
@@ -570,7 +572,7 @@ namespace JBro::Internal
             return true;
         }
 
-        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        const UInt32 slotIndex = texture.index - TextureResourceBase;
         if (slotIndex >= MaxTextures)
         {
             return false;
@@ -592,13 +594,13 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12Device::ResolveDepthStencil(TextureHandle texture, D3D12DepthStencilBinding& binding)
+    Bool D3D12Device::ResolveDepthStencil(TextureHandle texture, D3D12DepthStencilBinding& binding)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase)
         {
             return false;
         }
-        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        const UInt32 slotIndex = texture.index - TextureResourceBase;
         if (slotIndex >= MaxTextures)
         {
             return false;
@@ -617,7 +619,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12Device::ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding)
+    Bool D3D12Device::ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding)
     {
         if (buffer.index >= MaxBuffers)
         {
@@ -644,7 +646,7 @@ namespace JBro::Internal
             return;
         }
 
-        const std::uint64_t completedFence = m_fence->GetCompletedValue();
+        const UInt64 completedFence = m_fence->GetCompletedValue();
         for (D3D12BufferState& state : m_buffers)
         {
             if (false == state.occupied
@@ -697,7 +699,7 @@ namespace JBro::Internal
         }
     }
 
-    void D3D12Device::AssignPendingRetirementFences(std::uint64_t fenceValue)
+    void D3D12Device::AssignPendingRetirementFences(UInt64 fenceValue)
     {
         if (false == m_hasPendingRetirementFence)
         {
@@ -771,7 +773,7 @@ namespace JBro::Internal
         }
     }
 
-    bool D3D12Device::ResolveReadableTexture(
+    Bool D3D12Device::ResolveReadableTexture(
         TextureHandle texture,
         ID3D12Resource*& resource,
         D3D12_RESOURCE_STATES*& state,
@@ -781,9 +783,9 @@ namespace JBro::Internal
         state = nullptr;
         if (texture.index >= BackBufferTextureBase && texture.index < TextureResourceBase)
         {
-            const std::uint32_t offset = texture.index - BackBufferTextureBase;
-            const std::uint32_t swapchainIndex = offset / MaxBackBuffers;
-            const std::uint32_t backBufferIndex = offset % MaxBackBuffers;
+            const UInt32 offset = texture.index - BackBufferTextureBase;
+            const UInt32 swapchainIndex = offset / MaxBackBuffers;
+            const UInt32 backBufferIndex = offset % MaxBackBuffers;
             if (swapchainIndex >= MaxSwapchains)
             {
                 return false;
@@ -810,7 +812,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        const UInt32 slotIndex = texture.index - TextureResourceBase;
         if (slotIndex >= MaxTextures)
         {
             return false;
@@ -828,7 +830,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12Device::ReadTexture(
+    Bool D3D12Device::ReadTexture(
         TextureHandle texture,
         std::byte* destination,
         std::size_t destinationSize,
@@ -853,7 +855,7 @@ namespace JBro::Internal
             return false;
         }
 
-        const std::uint32_t bytesPerPixel = ReadbackPixelSize(desc.format);
+        const UInt32 bytesPerPixel = ReadbackPixelSize(desc.format);
         if (bytesPerPixel == 0 || desc.extent.width == 0 || desc.extent.height == 0)
         {
             return false;
@@ -911,7 +913,7 @@ namespace JBro::Internal
         }
 
         const D3D12_RESOURCE_STATES entryState = *resourceState;
-        const bool needsTransition = entryState != D3D12_RESOURCE_STATE_COPY_SOURCE;
+        const Bool needsTransition = entryState != D3D12_RESOURCE_STATE_COPY_SOURCE;
         if (needsTransition)
         {
             D3D12_RESOURCE_BARRIER barrier = {};
@@ -953,7 +955,7 @@ namespace JBro::Internal
         m_graphicsQueue->ExecuteCommandLists(1, commandLists);
         // 프레임과 같은 계수기에서 값을 받는다. 따로 세면 다음 프레임이 같은 값을 신호해, 아직 도는 프레임의
         // 펜스가 이미 끝난 것으로 읽히고 그 할당자를 되감게 된다.
-        const std::uint64_t fenceValue = m_nextFenceValue++;
+        const UInt64 fenceValue = m_nextFenceValue++;
         m_lastSubmittedFenceValue = fenceValue;
         if (FAILED(m_graphicsQueue->Signal(m_fence.Get(), fenceValue)) || false == WaitForFence(fenceValue))
         {
@@ -970,7 +972,7 @@ namespace JBro::Internal
         const auto* sourceBytes = static_cast<const std::byte*>(mapped);
         const std::size_t copyPerRow =
             (std::min)(tightRowPitch, static_cast<std::size_t>(rowSizeInBytes));
-        for (std::uint32_t row = 0; row < desc.extent.height; ++row)
+        for (UInt32 row = 0; row < desc.extent.height; ++row)
         {
             std::memcpy(
                 destination + static_cast<std::size_t>(row) * tightRowPitch,
@@ -987,7 +989,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12Device::ResolveSampledTexture(
+    Bool D3D12Device::ResolveSampledTexture(
         TextureHandle texture,
         D3D12_CPU_DESCRIPTOR_HANDLE& descriptor)
     {
@@ -1000,7 +1002,7 @@ namespace JBro::Internal
             // 백버퍼다. 렌더 타깃이지 셰이더가 읽는 것이 아니다.
             return false;
         }
-        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        const UInt32 slotIndex = texture.index - TextureResourceBase;
         if (slotIndex >= MaxTextures)
         {
             return false;
@@ -1020,7 +1022,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12Device::ResolveSampler(
+    Bool D3D12Device::ResolveSampler(
         SamplerHandle sampler,
         D3D12_CPU_DESCRIPTOR_HANDLE& descriptor)
     {
@@ -1037,9 +1039,9 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12Device::StageShaderResources(
+    Bool D3D12Device::StageShaderResources(
         const D3D12_CPU_DESCRIPTOR_HANDLE* descriptors,
-        std::uint32_t count,
+        UInt32 count,
         D3D12_GPU_DESCRIPTOR_HANDLE& table)
     {
         if (m_device == nullptr || descriptors == nullptr || count == 0)
@@ -1052,12 +1054,12 @@ namespace JBro::Internal
             return false;
         }
 
-        const std::uint32_t base =
+        const UInt32 base =
             m_activeFrameSlot * ShaderVisibleTexturesPerFrame + m_shaderVisibleTextureCursor;
         D3D12_CPU_DESCRIPTOR_HANDLE destination =
             m_shaderVisibleTextureHeap->GetCPUDescriptorHandleForHeapStart();
         destination.ptr += static_cast<SIZE_T>(base) * m_shaderResourceDescriptorStride;
-        for (std::uint32_t index = 0; index < count; ++index)
+        for (UInt32 index = 0; index < count; ++index)
         {
             m_device->CopyDescriptorsSimple(
                 1,
@@ -1073,9 +1075,9 @@ namespace JBro::Internal
         return true;
     }
 
-    bool D3D12Device::StageSamplers(
+    Bool D3D12Device::StageSamplers(
         const D3D12_CPU_DESCRIPTOR_HANDLE* descriptors,
-        std::uint32_t count,
+        UInt32 count,
         D3D12_GPU_DESCRIPTOR_HANDLE& table)
     {
         if (m_device == nullptr || descriptors == nullptr || count == 0)
@@ -1087,12 +1089,12 @@ namespace JBro::Internal
             return false;
         }
 
-        const std::uint32_t base =
+        const UInt32 base =
             m_activeFrameSlot * ShaderVisibleSamplersPerFrame + m_shaderVisibleSamplerCursor;
         D3D12_CPU_DESCRIPTOR_HANDLE destination =
             m_shaderVisibleSamplerHeap->GetCPUDescriptorHandleForHeapStart();
         destination.ptr += static_cast<SIZE_T>(base) * m_samplerDescriptorStride;
-        for (std::uint32_t index = 0; index < count; ++index)
+        for (UInt32 index = 0; index < count; ++index)
         {
             m_device->CopyDescriptorsSimple(
                 1,
@@ -1114,8 +1116,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t slotIndex = MaxSamplers;
-        for (std::uint32_t index = 0; index < MaxSamplers; ++index)
+        UInt32 slotIndex = MaxSamplers;
+        for (UInt32 index = 0; index < MaxSamplers; ++index)
         {
             if (false == m_samplers[index].occupied)
             {
@@ -1131,7 +1133,7 @@ namespace JBro::Internal
         D3D12_SAMPLER_DESC nativeDesc = {};
         // 확대·축소 필터를 따로 받지만 D3D12 는 둘을 한 값으로 묶는다.
         // 둘이 다르면 축소 쪽을 따른다 — 아틀라스가 뭉개지는 쪽이 더 눈에 띈다.
-        const bool linear = desc.minFilter == FilterMode::Linear
+        const Bool linear = desc.minFilter == FilterMode::Linear
             && desc.magFilter == FilterMode::Linear;
         nativeDesc.Filter = linear
             ? D3D12_FILTER_MIN_MAG_MIP_LINEAR
@@ -1182,9 +1184,9 @@ namespace JBro::Internal
         }
     }
 
-    bool D3D12Device::WriteTexture(
+    Bool D3D12Device::WriteTexture(
         TextureHandle texture,
-        std::uint32_t mipLevel,
+        UInt32 mipLevel,
         JArrayView<std::byte> data)
     {
         // 한 면 전체가 사각형 하나다. 부르는 쪽은 행 패딩 없이 빽빽한 것을 준다 - 그것이 실제 크기와 맞아야 한다(모자란 것을 받아
@@ -1210,8 +1212,8 @@ namespace JBro::Internal
             data, static_cast<std::uint32_t>(rowSizeInBytes));
     }
 
-    bool D3D12Device::WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
-        std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch)
+    Bool D3D12Device::WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
+        UInt32 width, UInt32 height, JArrayView<std::byte> data, UInt32 rowPitch)
     {
         if (m_device == nullptr || m_status == FrameStatus::DeviceLost)
         {
@@ -1232,7 +1234,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        const UInt32 slotIndex = texture.index - TextureResourceBase;
         if (slotIndex >= MaxTextures)
         {
             return false;
@@ -1310,7 +1312,7 @@ namespace JBro::Internal
         }
         upload->Unmap(0, nullptr);
 
-        const std::uint32_t frameSlot = static_cast<std::uint32_t>(
+        const UInt32 frameSlot = static_cast<std::uint32_t>(
             m_nextFenceValue % MaxFramesInFlight);
         // **이 할당자를 쓰던 프레임이 끝나기를 먼저 기다린다.** 아직 GPU 가
         // 그 명령을 읽고 있는데 할당자를 되감으면 디바이스가 통째로 날아간다
@@ -1373,7 +1375,7 @@ namespace JBro::Internal
         ID3D12CommandList* const lists[] = {m_commandList.Get()};
         m_graphicsQueue->ExecuteCommandLists(1, lists);
 
-        const std::uint64_t fenceValue = m_nextFenceValue++;
+        const UInt64 fenceValue = m_nextFenceValue++;
         if (FAILED(m_graphicsQueue->Signal(m_fence.Get(), fenceValue)))
         {
             MarkDeviceLost();

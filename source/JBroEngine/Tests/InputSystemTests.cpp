@@ -8,13 +8,17 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 게임 입력이 플랫폼 이벤트를 프레임 상태로 접는 것을 잰다(D-214, input-plan §4 의 1).
 namespace
 {
     using namespace JBro;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -35,7 +39,7 @@ namespace
     }
 #endif
 
-    InputEvent KeyEvent(InputEventKind kind, Key key, bool repeat = false)
+    InputEvent KeyEvent(InputEventKind kind, Key key, JBro::Bool repeat = false)
     {
         InputEvent event;
         event.kind = kind;
@@ -52,7 +56,7 @@ namespace
         return event;
     }
 
-    InputEvent MoveEvent(float x, float y)
+    InputEvent MoveEvent(JBro::Float x, JBro::Float y)
     {
         InputEvent event;
         event.kind = InputEventKind::MouseMove;
@@ -61,7 +65,7 @@ namespace
         return event;
     }
 
-    InputEvent TextEvent(std::uint32_t codePoint)
+    InputEvent TextEvent(JBro::UInt32 codePoint)
     {
         InputEvent event;
         event.kind = InputEventKind::Text;
@@ -189,7 +193,7 @@ namespace
     {
         System::InputSystem input;
         InputEvent events[MaxTextPerFrame + 4];
-        for (std::uint32_t index = 0; index < MaxTextPerFrame + 4; ++index)
+        for (JBro::UInt32 index = 0; index < MaxTextPerFrame + 4; ++index)
         {
             events[index] = TextEvent(0xAC00u + index);
         }
@@ -331,7 +335,7 @@ namespace
         };
         g_crtAllocations = 0;
         _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountCrtAllocations);
-        for (int frame = 0; frame < 200; ++frame)
+        for (JBro::Int32 frame = 0; frame < 200; ++frame)
         {
             input.BeginFrame(View(events));
             input.BeginFrame({});
@@ -342,7 +346,7 @@ namespace
     }
 }
 
-int RunInputSystemTests()
+JBro::Int32 RunInputSystemTests()
 {
     TestATapInsideOneFrameIsBothPressedAndReleased();
     TestAHeldKeyStaysDownWithoutNewEvents();

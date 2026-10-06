@@ -7,6 +7,9 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -33,7 +36,7 @@ namespace JBro
     // 아무것도 하지 않아도 끝난다. 값의 뜻은 그 단계의 `onEnter` 와 `condition` 이 함께 정한다.
     struct GuideStepMemo
     {
-        std::uint64_t values[4] = {};
+        UInt64 values[4] = {};
     };
 
     // 가이드에 나오는 글자 하나다. **키 · 원문 · 원문의 로케일**을 함께 든다(D-267). 가이드는 코드가 아니라 데이터로도
@@ -52,11 +55,11 @@ namespace JBro
         GuideFocusPath path;
         // 경로를 데이터에서 짓는다(선택한 오브젝트의 첫 컴포넌트처럼). 걸려 있으면 `path` 대신 이것을 단계에 들어갈 때
         // 한 번 부른다. 거짓이면 가리킬 것이 없는 것이라 그 단계를 건너뛴다.
-        Delegate<bool(EditorApplication&, GuideFocusPath&)> buildPath;
+        Delegate<Bool(EditorApplication&, GuideFocusPath&)> buildPath;
         // **경로가 끊기면 다른 길을 짓는다**(D-267). 같은 일에 들어가는 길이 여럿이면(계층 줄의 우클릭 · 캔버스 뷰의 우클릭 ·
         // 편집 메뉴) 하나가 막혀도 다른 길로 데려간다. 참이면 그 길로 다시 가고, 거짓이면 길이 더 없는 것이다 -
         // 그때는 `retreatOnBreak` 와 건너뛰기가 전처럼 이어받는다.
-        Delegate<bool(EditorApplication&, GuideFocusPath&)> nextRoute;
+        Delegate<Bool(EditorApplication&, GuideFocusPath&)> nextRoute;
         // 말풍선의 글자다.
         GuideText title;
         GuideText body;
@@ -64,22 +67,22 @@ namespace JBro
         // 단계에 들어설 때 한 번 부른다(이전으로 돌아와 다시 들어설 때도). 비었으면 적어 둔 값은 전부 0 이다.
         Delegate<void(EditorApplication&, GuideStepMemo&)> onEnter;
         // 적어 둔 값을 고칠 수 있다 - 단계 안에서 기준이 바뀌면(다른 오브젝트를 골랐다) 그 자리에서 다시 잡는다.
-        Delegate<bool(EditorApplication&, GuideStepMemo&)> condition;
+        Delegate<Bool(EditorApplication&, GuideStepMemo&)> condition;
         // **다음을 지금 누를 수 없는 까닭**이다(이미 번역된 글자). 비었거나 nullptr 을 돌려주면 누를 수 있다. 까닭이 있으면
         // 다음은 회색이고 그 까닭을 띄운다(§11.1) - 오브젝트를 고르지 않았는데 값 바꾸기로 넘어가면 가리킬 것이 없다.
         // 해낸 뒤의 확인에는 걸지 않는다.
         Delegate<const char*(EditorApplication&)> nextBlockedReason;
         // **이 단계가 끊기면 돌아갈 단계**다. 음수면 앞으로 건너뛴다. 값 바꾸기 도중에 선택을 비우거나 오브젝트를 지우면 뒤의
         // 단계도 모두 가리킬 것이 없다 - 건너뛰면 가이드가 말없이 끝나므로, 그것을 다시 마련하는 단계로 돌아간다.
-        std::int32_t retreatOnBreak = -1;
+        Int32 retreatOnBreak = -1;
         // **단계가 끝날 때 남기는 오브젝트**(에디터 번호)다(D-269). 뒤 단계가 `$단계Id` 로 받는다 - 가이드를 짓는 때에는 없던 오브젝트
         // (가이드 도중에 만든 것)를 가리키는 길이 이것이다. 0 을 돌려주면 남긴 것이 없다. 비었으면 남기지 않는다.
-        Delegate<std::uint64_t(EditorApplication&, GuideStepMemo&)> result;
+        Delegate<UInt64(EditorApplication&, GuideStepMemo&)> result;
         // **들어서려는데 받을 결과가 비었으면 돌아갈 단계**다(D-269). 그 결과를 남긴 단계로 돌아가 다시 하게 한다 - 앞으로 건너뛰면
         // 가리킬 것이 없는 단계들이 줄줄이 빠져 가이드가 말없이 끝난다. 음수면 전처럼 앞으로 건너뛴다.
-        std::int32_t retreatOnMissing = -1;
+        Int32 retreatOnMissing = -1;
         // 글자를 치는 단계인가(값을 입력한다, 목록을 검색한다).
-        bool keyboard = false;
+        Bool keyboard = false;
 
         // ── 말풍선의 단추 ─────────────────────────────────────
         //
@@ -87,12 +90,12 @@ namespace JBro
         // 되돌아가면 앞뒤가 맞지 않는 단계는 이전을 막는다.
         //
         // 건너뛰기는 가이드를 통째로 끝낸다. **막아도 Esc 는 된다** - 사용자가 빠져나갈 길은 하나 남아 있어야 한다.
-        bool canSkip = true;
+        Bool canSkip = true;
         // 이전은 앞 단계로 돌아간다(가리킬 것이 없는 단계는 건너 더 앞으로 간다). 편집은 되돌리지 않는다 - 그것은 Ctrl+Z 다.
-        bool canGoBack = true;
+        Bool canGoBack = true;
         // 다음을 둔다. `end` 가 `NextButton` 이면 켜지 않아도 늘 있다 - 없으면 그 단계를 나갈 길이 없다.
         // 조건·대상 누름으로 넘어가는 단계에서 켜면 사람이 그것을 하지 않고도 넘어갈 수 있다.
-        bool canGoNext = false;
+        Bool canGoNext = false;
     };
 
     struct Guide
@@ -137,69 +140,69 @@ namespace JBro
 
         // 첫 단계로 들어간다. 단계가 없거나 어느 단계도 가리킬 것이 없으면 거짓이고 켜지 않는다.
         // `guide` 는 끝날 때까지 살아 있어야 한다(내장 가이드는 프로세스와 같이 산다).
-        bool Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus);
+        Bool Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus);
         // 멈추고 가이드 포커스를 끈다.
         void Stop(EditorGuideFocus& focus);
-        bool IsRunning() const noexcept { return m_guide != nullptr; }
+        Bool IsRunning() const noexcept { return m_guide != nullptr; }
         const Guide* GetGuide() const noexcept { return m_guide; }
-        std::uint32_t GetStepIndex() const noexcept { return m_step; }
+        UInt32 GetStepIndex() const noexcept { return m_step; }
         const GuideStep* GetStep() const noexcept;
         // 마지막 단계를 마쳐 끝났는가. 읽으면 지운다 - 에디터가 "마쳤습니다" 알림을 한 번 띄운다.
-        bool ConsumeFinished() noexcept;
+        Bool ConsumeFinished() noexcept;
 
         // 지금 단계의 말풍선에 둘 단추다.
-        bool ShowsSkip() const noexcept;
-        bool ShowsBack() const noexcept;
+        Bool ShowsSkip() const noexcept;
+        Bool ShowsBack() const noexcept;
         // 이전을 두었고 돌아갈 단계가 있다(첫 단계가 아니다).
-        bool CanGoBackNow() const noexcept;
+        Bool CanGoBackNow() const noexcept;
         // 다음을 둔다. 단계가 켰거나, 다음 단추로 끝나는 단계거나, **이전으로 돌아온 단계**다 - 돌아온 단계는 조건이 이미 맞아도
         // 저절로 넘어가지 않고(넘어가면 이전이 고장 난 것처럼 보인다) 다음을 기다린다.
-        bool ShowsNext() const noexcept;
+        Bool ShowsNext() const noexcept;
         // 이전으로 들어온 단계인가.
-        bool IsRevisiting() const noexcept { return m_revisiting; }
+        Bool IsRevisiting() const noexcept { return m_revisiting; }
         // 다음을 지금 누를 수 없는 까닭이다. 누를 수 있으면 nullptr.
         const char* WhyNextBlocked(EditorApplication& editor) const;
         // **마지막 단계를 해냈고 확인을 기다린다.** 조건이나 대상 누름으로 끝나는 마지막 단계는 해내자마자 닫지 않는다 -
         // 사람이 결과를 보고 확인을 눌러야 끝난다. 이때 건너뛰기는 없고(건너뛸 것이 없다) 이전은 단계가 정한 대로다.
-        bool IsConfirming() const noexcept { return m_confirming; }
+        Bool IsConfirming() const noexcept { return m_confirming; }
         // `step` 번째 단계가 끝나며 남긴 오브젝트(에디터 번호)다(D-269). 아직 끝나지 않았거나 남긴 것이 없으면 0 이다.
         // 이 가이드가 켜진 동안만 뜻이 있다 - 켤 때 비운다.
-        std::uint64_t GetResult(std::uint32_t step) const noexcept;
+        UInt64 GetResult(UInt32 step) const noexcept;
 
         // 한 프레임을 나아간다. 가이드 포커스가 꺼졌으면(Esc) 멈춘다. 경로가 끊긴 단계는 로그를 남기고 건너뛴다.
         void Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action);
 
     private:
         // `from` 부터 가리킬 것이 있는 첫 단계로 들어간다. 없으면 끝난 것이다.
-        bool EnterStep(std::uint32_t from, EditorApplication& editor, EditorGuideFocus& focus);
+        Bool EnterStep(UInt32 from, EditorApplication& editor, EditorGuideFocus& focus);
         // 단계 하나에 들어간다. 가리킬 것이 없으면 거짓이고 아무것도 바꾸지 않는다.
-        bool TryEnter(std::uint32_t index, EditorApplication& editor, EditorGuideFocus& focus);
+        Bool TryEnter(UInt32 index, EditorApplication& editor, EditorGuideFocus& focus);
 
         const Guide* m_guide = nullptr;
-        std::uint32_t m_step = 0;
-        bool m_finished = false;
-        bool m_revisiting = false;
-        bool m_confirming = false;
+        UInt32 m_step = 0;
+        Bool m_finished = false;
+        Bool m_revisiting = false;
+        Bool m_confirming = false;
         GuideStepMemo m_memo;
         // 단계마다 남긴 오브젝트다. 켤 때 단계 수만큼 0 으로 잡는다.
-        Array<std::uint64_t> m_results;
+        Array<UInt64> m_results;
     };
 
     // 에디터에 들어 있는 가이드다.
     namespace EditorGuides
     {
-        std::uint32_t GetBuiltinCount();
-        const Guide& GetBuiltin(std::uint32_t index);
+        UInt32 GetBuiltinCount();
+        const Guide& GetBuiltin(UInt32 index);
         // 없으면 nullptr 이다.
         const Guide* FindBuiltin(const char* id);
 
         // 계층에서 오브젝트까지 가는 경로(레이어 창 → 레이어 줄 → 조상 줄들 → 그 줄)를 `path` 뒤에 붙인다.
         // 조상이 경로 용량을 넘으면 거짓이다.
-        bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path);
+        Bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path);
 
         // **글자로 적힌 가이드를 읽는다**(D-267). 형식은 `tasks/guide-focus-plan.md` §2.8.1 다. 모르는 행동·길·키를 만나면
         // 추측하지 않고 줄 번호와 함께 `error` 에 적고 거짓이다(`out` 은 손대지 않는다).
-        bool Parse(const char* text, std::size_t length, OwnerPtr<LoadedGuide>& out, String& error);
+        Bool Parse(const char* text, std::size_t length, OwnerPtr<LoadedGuide>& out, String& error);
 
         // **가이드를 적는 쪽이 쓸 수 있는 행동 목록**이다(D-267). 행동 이름 · 받는 인자 · 들어가는 길 · 끝나는 방식을 적는다.
         // 에디터 안의 에이전트는 이것만 보고 가이드를 짓는다 - 패널의 모양이 바뀌어도 이 목록의 이름은 그대로다.

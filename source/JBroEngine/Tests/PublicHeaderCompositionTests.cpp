@@ -1,13 +1,15 @@
-#include <JBro/ScriptAPI.h>
+﻿#include <JBro/ScriptAPI.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -15,7 +17,7 @@ namespace
         }
     }
 
-    bool IsWhite(const JBro::Color& color)
+    JBro::Bool IsWhite(const JBro::Color& color)
     {
         return color.R == 1.0f
             && color.G == 1.0f
@@ -68,7 +70,7 @@ namespace
     }
 }
 
-int RunPublicHeaderCompositionTests()
+JBro::Int32 RunPublicHeaderCompositionTests()
 {
     TestCanonicalColorComposition();
     TestStringSplitUsesTheCanonicalArray();

@@ -4,6 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Physics2D
 {
@@ -11,49 +14,49 @@ namespace JBro::Physics2D
 
     namespace
     {
-        constexpr float Pi = 3.14159265358979323846f;
+        constexpr Float Pi = 3.14159265358979323846f;
 
         // b 가 a 와 c 를 잇는 직선에서 LinearSlop 안쪽이면 일직선이다. a 와 c 가 같은 점이면
         // b 는 되돌아가는 가시이고 넓이가 없으므로 역시 뺄 점이다.
-        bool IsCollinear(Vector2 a, Vector2 b, Vector2 c)
+        Bool IsCollinear(Vector2 a, Vector2 b, Vector2 c)
         {
             const Vector2 ac = Subtract(c, a);
-            const float acLengthSquared = LengthSquared(ac);
+            const Float acLengthSquared = LengthSquared(ac);
             if (acLengthSquared <= LinearSlop * LinearSlop)
             {
                 return true;
             }
-            const float cross = Cross(ac, Subtract(b, a));
+            const Float cross = Cross(ac, Subtract(b, a));
             return cross * cross <= LinearSlop * LinearSlop * acLengthSquared;
         }
 
         // 반시계에서 b 가 왼쪽으로 꺾이는지 부호로만 본다. 허용 오차로 거르지 않는다 - 거의 일직선인 꼭짓점을
         // 볼록이 아니라고 보면 영영 귀가 되지 못하고, 그렇다고 빼 버리면 그만큼의 얇은 넓이가 사라진다.
-        bool IsConvexTurn(Vector2 a, Vector2 b, Vector2 c)
+        Bool IsConvexTurn(Vector2 a, Vector2 b, Vector2 c)
         {
             return Cross(Subtract(b, a), Subtract(c, b)) > 0.0f;
         }
 
         // 넓이가 사실상 없는 꼭짓점이다. 외곽선 정리(LinearSlop)와 달리, 분해 도중 여기서 빼는 것은 넓이를 잃지 않는다.
-        bool IsDegenerate(Vector2 a, Vector2 b, Vector2 c)
+        Bool IsDegenerate(Vector2 a, Vector2 b, Vector2 c)
         {
-            const float cross = Cross(Subtract(b, a), Subtract(c, b));
+            const Float cross = Cross(Subtract(b, a), Subtract(c, b));
             return std::fabs(cross) <= 1.0e-6f * LengthSquared(Subtract(c, a));
         }
 
-        bool OnSegment(Vector2 a, Vector2 b, Vector2 p)
+        Bool OnSegment(Vector2 a, Vector2 b, Vector2 p)
         {
             return p.x >= std::fmin(a.x, b.x) && p.x <= std::fmax(a.x, b.x)
                 && p.y >= std::fmin(a.y, b.y) && p.y <= std::fmax(a.y, b.y);
         }
 
         // 닿기만 해도 교차로 본다. 이웃하지 않는 두 변이 닿으면 단순 다각형이 아니다.
-        bool SegmentsTouch(Vector2 a, Vector2 b, Vector2 c, Vector2 d)
+        Bool SegmentsTouch(Vector2 a, Vector2 b, Vector2 c, Vector2 d)
         {
-            const float o1 = Cross(Subtract(b, a), Subtract(c, a));
-            const float o2 = Cross(Subtract(b, a), Subtract(d, a));
-            const float o3 = Cross(Subtract(d, c), Subtract(a, c));
-            const float o4 = Cross(Subtract(d, c), Subtract(b, c));
+            const Float o1 = Cross(Subtract(b, a), Subtract(c, a));
+            const Float o2 = Cross(Subtract(b, a), Subtract(d, a));
+            const Float o3 = Cross(Subtract(d, c), Subtract(a, c));
+            const Float o4 = Cross(Subtract(d, c), Subtract(b, c));
             if (((o1 > 0.0f && o2 < 0.0f) || (o1 < 0.0f && o2 > 0.0f))
                 && ((o3 > 0.0f && o4 < 0.0f) || (o3 < 0.0f && o4 > 0.0f)))
             {
@@ -75,15 +78,15 @@ namespace JBro::Physics2D
         }
 
         // 경계를 포함한다. 꼭짓점이 대각선 위에 놓이면 그 대각선은 쓸 수 없다.
-        bool PointInTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+        Bool PointInTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
         {
-            const float d1 = Cross(Subtract(b, a), Subtract(p, a));
-            const float d2 = Cross(Subtract(c, b), Subtract(p, b));
-            const float d3 = Cross(Subtract(a, c), Subtract(p, c));
+            const Float d1 = Cross(Subtract(b, a), Subtract(p, a));
+            const Float d2 = Cross(Subtract(c, b), Subtract(p, b));
+            const Float d3 = Cross(Subtract(a, c), Subtract(p, c));
             return d1 >= 0.0f && d2 >= 0.0f && d3 >= 0.0f;
         }
 
-        bool IsSimple(const Array<Vector2>& points)
+        Bool IsSimple(const Array<Vector2>& points)
         {
             const std::size_t count = points.Size();
             for (std::size_t i = 0; i < count; ++i)
@@ -108,9 +111,9 @@ namespace JBro::Physics2D
 
         using Piece = DecomposeScratch::Piece;
 
-        bool IsConvexRing(const Array<Vector2>& points, const std::uint32_t* ring, std::uint32_t count)
+        Bool IsConvexRing(const Array<Vector2>& points, const UInt32* ring, UInt32 count)
         {
-            for (std::uint32_t i = 0; i < count; ++i)
+            for (UInt32 i = 0; i < count; ++i)
             {
                 const Vector2 a = points[ring[(i + count - 1) % count]];
                 const Vector2 b = points[ring[i]];
@@ -125,20 +128,20 @@ namespace JBro::Physics2D
 
         // a 의 변 (i → j) 와 b 의 변 (j → i) 가 같은 대각선이면 둘을 이어 하나의 고리로 만든다.
         // 상한을 넘거나 볼록이 아니면 false 이고 merged 는 쓰지 않는다.
-        bool TryMerge(const Array<Vector2>& points, const Piece& a, const Piece& b, Piece& merged)
+        Bool TryMerge(const Array<Vector2>& points, const Piece& a, const Piece& b, Piece& merged)
         {
-            for (std::uint32_t ea = 0; ea < a.count; ++ea)
+            for (UInt32 ea = 0; ea < a.count; ++ea)
             {
-                const std::uint32_t i = a.vertices[ea];
-                const std::uint32_t j = a.vertices[(ea + 1) % a.count];
-                for (std::uint32_t eb = 0; eb < b.count; ++eb)
+                const UInt32 i = a.vertices[ea];
+                const UInt32 j = a.vertices[(ea + 1) % a.count];
+                for (UInt32 eb = 0; eb < b.count; ++eb)
                 {
                     if (b.vertices[eb] != j || b.vertices[(eb + 1) % b.count] != i)
                     {
                         continue;
                     }
 
-                    const std::uint32_t total = a.count + b.count - 2;
+                    const UInt32 total = a.count + b.count - 2;
                     if (total > MaxPolygonVertices)
                     {
                         return false;
@@ -146,12 +149,12 @@ namespace JBro::Physics2D
 
                     // j 에서 출발해 a 를 한 바퀴 돌면 i 에서 끝난다. 이어서 b 를 i 다음부터 j 앞까지 돈다.
                     Piece candidate;
-                    for (std::uint32_t k = 0; k < a.count; ++k)
+                    for (UInt32 k = 0; k < a.count; ++k)
                     {
                         candidate.vertices[candidate.count] = a.vertices[(ea + 1 + k) % a.count];
                         ++candidate.count;
                     }
-                    for (std::uint32_t k = 2; k < b.count; ++k)
+                    for (UInt32 k = 2; k < b.count; ++k)
                     {
                         candidate.vertices[candidate.count] = b.vertices[(eb + k) % b.count];
                         ++candidate.count;
@@ -168,24 +171,24 @@ namespace JBro::Physics2D
             return false;
         }
 
-        bool Triangulate(const Array<Vector2>& points, Array<Piece>& pieces, Array<std::uint32_t>& ring)
+        Bool Triangulate(const Array<Vector2>& points, Array<Piece>& pieces, Array<UInt32>& ring)
         {
             ring.Clear();
             ring.Reserve(points.Size());
-            for (std::uint32_t i = 0; i < points.Size(); ++i)
+            for (UInt32 i = 0; i < points.Size(); ++i)
             {
                 ring.Add(i);
             }
 
             while (ring.Size() > 3)
             {
-                bool clipped = false;
+                Bool clipped = false;
                 const std::size_t remaining = ring.Size();
                 for (std::size_t i = 0; i < remaining; ++i)
                 {
-                    const std::uint32_t previous = ring[(i + remaining - 1) % remaining];
-                    const std::uint32_t current = ring[i];
-                    const std::uint32_t next = ring[(i + 1) % remaining];
+                    const UInt32 previous = ring[(i + remaining - 1) % remaining];
+                    const UInt32 current = ring[i];
+                    const UInt32 next = ring[(i + 1) % remaining];
                     const Vector2 a = points[previous];
                     const Vector2 b = points[current];
                     const Vector2 c = points[next];
@@ -203,10 +206,10 @@ namespace JBro::Physics2D
                         continue;
                     }
 
-                    bool isEar = true;
+                    Bool isEar = true;
                     for (std::size_t k = 0; k < remaining; ++k)
                     {
-                        const std::uint32_t other = ring[k];
+                        const UInt32 other = ring[k];
                         if (other == previous || other == current || other == next)
                         {
                             continue;
@@ -253,10 +256,10 @@ namespace JBro::Physics2D
         }
     }
 
-    float SignedArea(ArrayView<const Vector2> points)
+    Float SignedArea(ArrayView<const Vector2> points)
     {
         const std::size_t count = points.Size();
-        float twiceArea = 0.0f;
+        Float twiceArea = 0.0f;
         for (std::size_t i = 0; i < count; ++i)
         {
             twiceArea += Cross(points[i], points[(i + 1) % count]);
@@ -273,7 +276,7 @@ namespace JBro::Physics2D
         // 안쪽이기 때문이다. 고리를 돌며 보므로 끝점과 첫 점이 같은 경우도 같다. (따로 두었던 중복 제거 단계는
         // 뮤테이션으로 지워도 결과가 같아 뺐다, physics-plan §4 의 1 단계.)
         // 하나를 빼면 이웃이 새로 일직선이 될 수 있으므로 더 뺄 것이 없을 때까지 돈다.
-        bool removed = true;
+        Bool removed = true;
         while (removed && out.Size() >= 3)
         {
             removed = false;
@@ -306,7 +309,7 @@ namespace JBro::Physics2D
             return PolygonError::SelfIntersecting;
         }
 
-        const float area = SignedArea(out.View());
+        const Float area = SignedArea(out.View());
         if (std::fabs(area) <= LinearSlop * LinearSlop)
         {
             out.Clear();
@@ -343,7 +346,7 @@ namespace JBro::Physics2D
         if (clean.Size() <= MaxPolygonVertices)
         {
             Piece whole;
-            for (std::uint32_t i = 0; i < clean.Size(); ++i)
+            for (UInt32 i = 0; i < clean.Size(); ++i)
             {
                 whole.vertices[i] = i;
             }
@@ -362,7 +365,7 @@ namespace JBro::Physics2D
             }
 
             // Hertel-Mehlhorn: 대각선 하나를 지워도 볼록이고 상한 안이면 두 조각을 합친다. 합칠 것이 없을 때까지.
-            bool merged = true;
+            Bool merged = true;
             while (merged)
             {
                 merged = false;
@@ -398,7 +401,7 @@ namespace JBro::Physics2D
                 continue;
             }
             ConvexPolygon& polygon = outPieces.Emplace();
-            for (std::uint32_t k = 0; k < piece.count; ++k)
+            for (UInt32 k = 0; k < piece.count; ++k)
             {
                 polygon.points[k] = clean[piece.vertices[k]];
             }
@@ -407,7 +410,7 @@ namespace JBro::Physics2D
         return PolygonError::None;
     }
 
-    MassData ComputePolygonMass(const ConvexPolygon& polygon, float density)
+    MassData ComputePolygonMass(const ConvexPolygon& polygon, Float density)
     {
         MassData result;
         if (polygon.count == 2)
@@ -421,20 +424,20 @@ namespace JBro::Physics2D
 
         // 첫 꼭짓점을 기준으로 부채꼴 삼각형을 더한다(Box2D 와 같은 방식). 볼록이라 모든 삼각형의 부호가 같다.
         const Vector2 origin = polygon.points[0];
-        float area = 0.0f;
+        Float area = 0.0f;
         Vector2 center;
-        float inertiaAboutOrigin = 0.0f;
-        for (std::uint32_t i = 1; i + 1 < polygon.count; ++i)
+        Float inertiaAboutOrigin = 0.0f;
+        for (UInt32 i = 1; i + 1 < polygon.count; ++i)
         {
             const Vector2 e1 = Subtract(polygon.points[i], origin);
             const Vector2 e2 = Subtract(polygon.points[i + 1], origin);
-            const float d = Cross(e1, e2);
-            const float triangleArea = 0.5f * d;
+            const Float d = Cross(e1, e2);
+            const Float triangleArea = 0.5f * d;
             area += triangleArea;
             center.x += triangleArea * (e1.x + e2.x) / 3.0f;
             center.y += triangleArea * (e1.y + e2.y) / 3.0f;
-            const float intx2 = e1.x * e1.x + e2.x * e1.x + e2.x * e2.x;
-            const float inty2 = e1.y * e1.y + e2.y * e1.y + e2.y * e2.y;
+            const Float intx2 = e1.x * e1.x + e2.x * e1.x + e2.x * e2.x;
+            const Float inty2 = e1.y * e1.y + e2.y * e1.y + e2.y * e2.y;
             inertiaAboutOrigin += (0.25f / 3.0f * d) * (intx2 + inty2);
         }
         if (area <= 0.0f)
@@ -451,7 +454,7 @@ namespace JBro::Physics2D
         return result;
     }
 
-    MassData ComputeOutlineMass(ArrayView<const Vector2> ccwPoints, float density)
+    MassData ComputeOutlineMass(ArrayView<const Vector2> ccwPoints, Float density)
     {
         MassData result;
         const std::size_t count = ccwPoints.Size();
@@ -460,21 +463,21 @@ namespace JBro::Physics2D
             return result;
         }
 
-        float twiceArea = 0.0f;
+        Float twiceArea = 0.0f;
         Vector2 weighted;
-        float inertiaSum = 0.0f;
+        Float inertiaSum = 0.0f;
         for (std::size_t i = 0; i < count; ++i)
         {
             const Vector2 p = ccwPoints[i];
             const Vector2 q = ccwPoints[(i + 1) % count];
             // 부호를 버리지 않는다. 오목 도형에서는 원점에서 편 삼각형 일부가 음수여야 넓이가 맞는다.
-            const float cross = Cross(p, q);
+            const Float cross = Cross(p, q);
             twiceArea += cross;
             weighted.x += (p.x + q.x) * cross;
             weighted.y += (p.y + q.y) * cross;
             inertiaSum += cross * (Dot(p, p) + Dot(p, q) + Dot(q, q));
         }
-        const float area = twiceArea * 0.5f;
+        const Float area = twiceArea * 0.5f;
         if (area <= 0.0f)
         {
             return result;
@@ -482,12 +485,12 @@ namespace JBro::Physics2D
 
         result.mass = density * area;
         result.center = { weighted.x / (6.0f * area), weighted.y / (6.0f * area) };
-        const float inertiaAboutOrigin = density * inertiaSum / 12.0f;
+        const Float inertiaAboutOrigin = density * inertiaSum / 12.0f;
         result.inertia = inertiaAboutOrigin - result.mass * LengthSquared(result.center);
         return result;
     }
 
-    MassData ComputeCircleMass(Vector2 center, float radius, float density)
+    MassData ComputeCircleMass(Vector2 center, Float radius, Float density)
     {
         MassData result;
         if (radius <= 0.0f)
@@ -500,33 +503,33 @@ namespace JBro::Physics2D
         return result;
     }
 
-    MassData ComputeCapsuleMass(Vector2 a, Vector2 b, float radius, float density)
+    MassData ComputeCapsuleMass(Vector2 a, Vector2 b, Float radius, Float density)
     {
         MassData result;
         if (radius <= 0.0f)
         {
             return result;
         }
-        const float length = Length(Subtract(b, a));
-        const float circleMass = density * Pi * radius * radius;
-        const float boxMass = density * 2.0f * radius * length;
+        const Float length = Length(Subtract(b, a));
+        const Float circleMass = density * Pi * radius * radius;
+        const Float boxMass = density * 2.0f * radius * length;
         result.mass = circleMass + boxMass;
         result.center = Scale(Add(a, b), 0.5f);
 
         // 두 반원을 합치면 원 하나다. 반원마다 평행축 정리를 두 번 쓴다 - 반원의 중심(지름에서 4r/3π)으로 옮겼다가
         // 직사각형 끝(가운데에서 h)으로 옮긴다: m·((h + c)² - c²) = m·(h² + 2hc).
-        const float half = 0.5f * length;
-        const float centroid = 4.0f * radius / (3.0f * Pi);
-        const float circleInertia = circleMass * (0.5f * radius * radius + half * half + 2.0f * half * centroid);
-        const float boxInertia = boxMass * (4.0f * radius * radius + length * length) / 12.0f;
+        const Float half = 0.5f * length;
+        const Float centroid = 4.0f * radius / (3.0f * Pi);
+        const Float circleInertia = circleMass * (0.5f * radius * radius + half * half + 2.0f * half * centroid);
+        const Float boxInertia = boxMass * (4.0f * radius * radius + length * length) / 12.0f;
         result.inertia = circleInertia + boxInertia;
         return result;
     }
 
     ConvexPolygon MakeCapsuleInBox(Vector2 center, Vector2 halfExtents)
     {
-        const float halfX = std::fabs(halfExtents.x);
-        const float halfY = std::fabs(halfExtents.y);
+        const Float halfX = std::fabs(halfExtents.x);
+        const Float halfY = std::fabs(halfExtents.y);
         ConvexPolygon capsule;
         capsule.count = 2;
         if (halfX >= halfY)

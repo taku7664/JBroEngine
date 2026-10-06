@@ -17,6 +17,11 @@
 #include <JBro/Editor/Widget/Scalar.h>
 
 #include <algorithm>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
@@ -24,11 +29,11 @@ namespace JBro
     {
         // 작은 그림은 키워 보인다. 16 픽셀짜리 시트를 16 픽셀로 보이면 칸을 누를 수 없다.
         // 창에 맞춰 키우되 서른두 배에서 멈춘다 - 그 너머로는 한 픽셀이 칸 하나보다 커진다.
-        constexpr float MaxSheetZoom = 32.0f;
+        constexpr Float MaxSheetZoom = 32.0f;
         // 큰 시트를 줄여 보는 쪽의 한계다(D-185). 기존 엔진과 같은 값이다 - 이보다 줄이면
         // 칸 테두리가 서로 붙어 자른 모양을 볼 수 없다.
-        constexpr float MinSheetZoom = 0.05f;
-        constexpr float PreviewMaxSide = 192.0f;
+        constexpr Float MinSheetZoom = 0.05f;
+        constexpr Float PreviewMaxSide = 192.0f;
     }
 
     const char* SpriteViewerPanel::GetTitle() const
@@ -41,13 +46,13 @@ namespace JBro
         return m_name.empty() ? Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer") : m_name.c_str();
     }
 
-    bool SpriteViewerPanel::OnCreate(EditorApplication& editor)
+    Bool SpriteViewerPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
     }
 
-    void SpriteViewerPanel::OnUpdate(float deltaTime)
+    void SpriteViewerPanel::OnUpdate(Float deltaTime)
     {
         (void)deltaTime;
         // 그리기 전에 지난 프레임에 앞에 있었는지를 받아 둔다. 그리기에서 이번에 앞으로 왔는지 견준다.
@@ -66,7 +71,7 @@ namespace JBro
         m_spriteHandle = {};
     }
 
-    bool SpriteViewerPanel::ResolvePicture(EditorApplication& editor, AssetId asset, AssetId& texture, AssetId& sprite)
+    Bool SpriteViewerPanel::ResolvePicture(EditorApplication& editor, AssetId asset, AssetId& texture, AssetId& sprite)
     {
         if (asset.IsNull())
         {
@@ -98,7 +103,7 @@ namespace JBro
         return false == texture.IsNull() && false == sprite.IsNull();
     }
 
-    bool SpriteViewerPanel::Show(AssetId texture, AssetId sprite)
+    Bool SpriteViewerPanel::Show(AssetId texture, AssetId sprite)
     {
         AssetSystem* assets = m_editor != nullptr ? m_editor->GetAssetSystem() : nullptr;
         if (assets == nullptr)
@@ -136,7 +141,7 @@ namespace JBro
         {
             SelectPicture();
         }
-        const float deltaTime = ImGui::GetIO().DeltaTime;
+        const Float deltaTime = ImGui::GetIO().DeltaTime;
         // **고르는 중이면 위에 말해 준다**(D-165, 기존 `SpriteFramePick`). 누르면 칸이 바로 들어가므로, 보기만 하려던
         // 사람이 모르고 고치지 않게 한 줄로 알리고 그만둘 길을 둔다.
         if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == m_texture)
@@ -154,7 +159,7 @@ namespace JBro
         {
             m_sheetWidth = available.x * 0.6f;
         }
-        const float sheetWidth = std::clamp(m_sheetWidth, 120.0f,
+        const Float sheetWidth = JBro::Clamp(m_sheetWidth, 120.0f,
             (std::max)(120.0f, available.x - 200.0f));
         if (ImGui::BeginChild("##sheet", ImVec2(sheetWidth, 0.0f), ImGuiChildFlags_Borders))
         {
@@ -175,8 +180,8 @@ namespace JBro
     void SpriteViewerPanel::DrawSheet(const ImVec2& area)
     {
         const TextureHandle sheet = m_editor->GetAssetThumbnail(m_texture, SheetMaxSide);
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
+        UInt32 width = 0;
+        UInt32 height = 0;
         if (false == sheet.IsValid() || false == m_editor->GetAssetSourceSize(m_texture, width, height)
             || width == 0 || height == 0)
         {
@@ -186,13 +191,13 @@ namespace JBro
         }
         // **칸에 맞춘 배율이 바닥이다**(D-185). 사람이 확대를 고르지 않았으면 그것을 쓴다 -
         // 처음 열었을 때 시트 전체가 보여야 어디를 볼지 고를 수 있다.
-        const float fitZoom = std::clamp(
+        const Float fitZoom = JBro::Clamp(
             (std::min)(area.x / static_cast<float>(width), area.y / static_cast<float>(height)),
             MinSheetZoom, MaxSheetZoom);
         // 확대 줄. 기존 엔진도 슬라이더와 `창에 맞추기` 단추를 나란히 두었다.
         {
-            float chosen = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
-            if (Widget::SliderFloat("##zoom", chosen, MinSheetZoom, MaxSheetZoom, 160.0f))
+            Float chosen = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
+            if (Widget::SliderField("##zoom", chosen, MinSheetZoom, MaxSheetZoom).Width(160.0f)())
             {
                 m_sheetZoom = chosen;
             }
@@ -207,12 +212,12 @@ namespace JBro
             Widget::Checkbox(Loc::TextOr(LocKeys::SpriteViewerShowPivot, "Show pivot"),
                 m_showPivot);
         }
-        const float zoom = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
+        const Float zoom = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
         const ImVec2 size(static_cast<float>(width) * zoom, static_cast<float>(height) * zoom);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
 
         // 누름 자리를 먼저 두고 그 위에 그림과 격자를 그린다.
-        const bool clicked = Widget::HitArea("##sheetHit", size);
+        const Bool clicked = Widget::HitArea("##sheetHit", size);
         ImDrawList* draw = ImGui::GetWindowDrawList();
         draw->AddImage(static_cast<ImTextureID>(EditorUI::ToTextureId(sheet)), origin,
             ImVec2(origin.x + size.x, origin.y + size.y));
@@ -236,10 +241,10 @@ namespace JBro
         // 마우스가 가리킨 칸을 이 자리에서 정한다(D-185, 기존 `가리킴`). 시트 위에 있지
         // 않으면 없음이다 - 지난 프레임의 값을 들고 있으면 마우스를 뺀 뒤에도 남는다.
         m_hoveredFrame = -1;
-        const bool overSheet = ImGui::IsItemHovered();
+        const Bool overSheet = ImGui::IsItemHovered();
         const ImVec2 mouse = ImGui::GetIO().MousePos;
-        const float hoverX = (mouse.x - origin.x) / zoom;
-        const float hoverY = (mouse.y - origin.y) / zoom;
+        const Float hoverX = (mouse.x - origin.x) / zoom;
+        const Float hoverY = (mouse.y - origin.y) / zoom;
         for (std::size_t index = 0; index < data->frames.Size(); ++index)
         {
             const SpriteFrame& frame = data->frames[index];
@@ -259,16 +264,16 @@ namespace JBro
                 origin.y + static_cast<float>(frame.y) * zoom);
             const ImVec2 max(min.x + static_cast<float>(frame.width) * zoom,
                 min.y + static_cast<float>(frame.height) * zoom);
-            const bool chosen = index == m_frame;
-            const bool hovered = static_cast<int>(index) == m_hoveredFrame;
+            const Bool chosen = index == m_frame;
+            const Bool hovered = static_cast<int>(index) == m_hoveredFrame;
             const ImU32 color = hovered ? hoverColor : (chosen ? chosenColor : cellColor);
             draw->AddRect(min, max, color, 0.0f, 0, (hovered || chosen) ? 2.0f : 1.0f);
             // 피벗은 **칸마다** 다를 수 있다. 시트에서 한눈에 견주려면 다 그려야 한다.
             if (m_showPivot)
             {
-                const float pivotX = min.x + static_cast<float>(frame.width) * frame.pivotX * zoom;
-                const float pivotY = min.y + static_cast<float>(frame.height) * frame.pivotY * zoom;
-                constexpr float Arm = 4.0f;
+                const Float pivotX = min.x + static_cast<float>(frame.width) * frame.pivotX * zoom;
+                const Float pivotY = min.y + static_cast<float>(frame.height) * frame.pivotY * zoom;
+                constexpr Float Arm = 4.0f;
                 draw->AddLine(ImVec2(pivotX - Arm, pivotY), ImVec2(pivotX + Arm, pivotY),
                     chosenColor, 1.5f);
                 draw->AddLine(ImVec2(pivotX, pivotY - Arm), ImVec2(pivotX, pivotY + Arm),
@@ -302,25 +307,25 @@ namespace JBro
         }
     }
 
-    void SpriteViewerPanel::DrawPreview(float deltaTime)
+    void SpriteViewerPanel::DrawPreview(Float deltaTime)
     {
         const AssetSystem* assets = m_editor->GetAssetSystem();
         const SpriteData* data = assets != nullptr ? assets->GetSprite(m_spriteHandle) : nullptr;
         const TextureHandle sheet = m_editor->GetAssetThumbnail(m_texture, SheetMaxSide);
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
-        const bool ready = data != nullptr && false == data->frames.IsEmpty() && sheet.IsValid()
+        UInt32 width = 0;
+        UInt32 height = 0;
+        const Bool ready = data != nullptr && false == data->frames.IsEmpty() && sheet.IsValid()
             && m_editor->GetAssetSourceSize(m_texture, width, height) && width != 0 && height != 0;
 
         if (ready)
         {
-            const std::uint32_t count = static_cast<std::uint32_t>(data->frames.Size());
+            const UInt32 count = static_cast<std::uint32_t>(data->frames.Size());
             if (m_playing && m_framesPerSecond > 0.0f)
             {
                 // 칸 하나의 시간이 쌓이면 넘긴다. 프레임 시간이 길어도 한 번에 여러 칸을 건너뛰어
                 // 재생 속도를 지킨다.
                 m_clock += deltaTime;
-                const float step = 1.0f / m_framesPerSecond;
+                const Float step = 1.0f / m_framesPerSecond;
                 while (m_clock >= step)
                 {
                     m_clock -= step;
@@ -333,8 +338,8 @@ namespace JBro
             }
             // **고른 칸을 크게 본다.** 원래 비율을 지킨다 - 늘여 붙이면 픽셀 아트가 기울어 보인다.
             const SpriteFrame& frame = data->frames[m_frame];
-            const float widthAvailable = ImGui::GetContentRegionAvail().x;
-            const float side = (std::min)(PreviewMaxSide, widthAvailable);
+            const Float widthAvailable = ImGui::GetContentRegionAvail().x;
+            const Float side = (std::min)(PreviewMaxSide, widthAvailable);
             const ImVec2 size = Widget::FitInside(frame.width, frame.height, ImVec2(side, side));
             const ImVec2 uvMin(static_cast<float>(frame.x) / static_cast<float>(width),
                 static_cast<float>(frame.y) / static_cast<float>(height));
@@ -346,9 +351,9 @@ namespace JBro
             if (m_showPivot)
             {
                 ImDrawList* draw = ImGui::GetWindowDrawList();
-                const float pivotX = previewOrigin.x + size.x * frame.pivotX;
-                const float pivotY = previewOrigin.y + size.y * frame.pivotY;
-                constexpr float Arm = 7.0f;
+                const Float pivotX = previewOrigin.x + size.x * frame.pivotX;
+                const Float pivotY = previewOrigin.y + size.y * frame.pivotY;
+                constexpr Float Arm = 7.0f;
                 const ImU32 color = IM_COL32(255, 168, 64, 255);
                 draw->AddLine(ImVec2(pivotX - Arm, pivotY), ImVec2(pivotX + Arm, pivotY), color, 1.5f);
                 draw->AddLine(ImVec2(pivotX, pivotY - Arm), ImVec2(pivotX, pivotY + Arm), color, 1.5f);
@@ -356,15 +361,13 @@ namespace JBro
 
             Widget::FormLayout layout("##playback");
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::SpriteViewerFrame, "Frame")), [&]() {
-                int value = static_cast<int>(m_frame);
-                if (Widget::SliderInt("##frame", value, 0, static_cast<int>(count) - 1))
+                if (Widget::SliderField("##frame", m_frame, 0u, count - 1u)())
                 {
-                    m_frame = static_cast<std::uint32_t>(std::clamp(value, 0, static_cast<int>(count) - 1));
                     m_playing = false;
                 }
             });
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::SpriteViewerFps, "Frames per second")), [&]() {
-                Widget::SliderFloat("##fps", m_framesPerSecond, 1.0f, 60.0f);
+                Widget::SliderField("##fps", m_framesPerSecond, 1.0f, 60.0f)();
             });
             layout.FullRow([&]() {
                 if (Widget::Button(m_playing

@@ -8,6 +8,9 @@
 #include <JBro/Editor/EditorPanel.h>
 
 #include <JBro/Asset/AssetMetaFile.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -45,7 +48,7 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Right; }
 
@@ -56,9 +59,9 @@ namespace JBro
         struct ElementScope
         {
             Array<ListEdit>* edits = nullptr;
-            std::uint32_t index = 0;
-            std::uint32_t fieldPath[ListEdit::MaxFieldDepth] = {};
-            std::uint32_t fieldDepth = 0;
+            UInt32 index = 0;
+            UInt32 fieldPath[ListEdit::MaxFieldDepth] = {};
+            UInt32 fieldDepth = 0;
         };
 
         // 지금 그리는 컴포넌트와, 거기서 여기까지 내려온 길이다. 잎사귀에서
@@ -70,11 +73,11 @@ namespace JBro
             // 이번 프레임의 편집본. 원본은 `EditorApplication::GetSelectedAssetMeta` 다.
             AssetMetaFile* scratch = nullptr;
             // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다.
-            bool spriteBlock = false;
-            bool audioBlock = false;
-            bool fontBlock = false;
-            bool fontFamilyBlock = false;
-            bool stringTableBlock = false;
+            Bool spriteBlock = false;
+            Bool audioBlock = false;
+            Bool fontBlock = false;
+            Bool fontFamilyBlock = false;
+            Bool stringTableBlock = false;
         };
 
         struct Context
@@ -84,7 +87,7 @@ namespace JBro
             ElementScope* element = nullptr;
             // 줄 배치 안에서 열려 있는 트리 마디 수다. 마디가 열린 자리에서는 표를 끊지 못한다 -
             // 표를 닫으면서 마디가 쌓은 Id 를 뺀다.
-            std::uint32_t openTrees = 0;
+            UInt32 openTrees = 0;
             // 컴포넌트의 주인이다. `ComponentBase` 가 주인을 내주는 길은
             // 핸들뿐이고 원시 포인터 쪽은 private 이라, 그리는 쪽이 이미
             // 알고 있는 것을 여기 담아 온다.
@@ -94,7 +97,7 @@ namespace JBro
             SetPropertyCommand::Path path;
             // 가이드 포커스에 필드 줄을 알리는가(D-273). 표식은 타입과 필드 이름뿐이라 같은 타입의 둘째 컴포넌트까지 알리면
             // 같은 대상이 두 자리에 서고, 구멍이 두 줄 사이를 오가며 인스펙터를 끝없이 굴린다. 그 타입의 첫째만 알린다.
-            bool guideTarget = true;
+            Bool guideTarget = true;
         };
 
         // 값 하나를 그린다. 구조를 가진 타입이면 필드를 타고 내려간다.
@@ -105,15 +108,15 @@ namespace JBro
             const PropertyEditInfo* edit,
             Context& context);
         // 한 줄짜리 실수 묶음. 색이면 색 고르개다.
-        bool DrawScalarRun(
+        Bool DrawScalarRun(
             const TypeDescriptor& type,
             const ScalarRun& run,
             const PropertyEditInfo* edit);
         // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것은 아니다. 타입만 보고 정한다.
-        static bool NeedsDescent(const TypeDescriptor& type);
+        static Bool NeedsDescent(const TypeDescriptor& type);
         // 배열 하나를 목록 위젯으로 그린다.
         void DrawArray(
-            const TypeDescriptor& type, void* address, bool editable, Context& context);
+            const TypeDescriptor& type, void* address, Bool editable, Context& context);
         // 목록 원소 하나. 한 줄에 담기면 필드와 같은 잎사귀 규칙으로 한 줄에 그리고,
         // 필드를 가진 구조체면 접기 마디 안에 필드마다 한 줄씩 그린다(D-89).
         void DrawElement(const TypeDescriptor& type, void* address, Context& context);
@@ -121,7 +124,7 @@ namespace JBro
         static void RecordElementEdit(
             const TypeDescriptor& type, void* address, const String& before, Context& context);
         static void RecordElementRun(
-            const ScalarRun& run, const float before[ScalarRun::MaxCount], Context& context);
+            const ScalarRun& run, const Float before[ScalarRun::MaxCount], Context& context);
         static ListEdit MakeElementEdit(const ElementScope& scope);
         // 에셋 칸의 항목(같은 타입의 이름과 아이디)이다. 레지스트리 판번호가 같으면 다시 모으지 않는다.
         struct AssetChoices
@@ -129,8 +132,8 @@ namespace JBro
             AssetType type = AssetType::Unknown;
             // 함께 보이는 둘째 타입이다(`fontId` 가 폰트와 폰트 패밀리를 다 받는다, D-225). 없으면 Unknown.
             AssetType also = AssetType::Unknown;
-            std::uint64_t revision = 0;
-            bool built = false;
+            UInt64 revision = 0;
+            Bool built = false;
             Array<String> names;
             Array<const char*> namePointers;
             Array<AssetId> ids;
@@ -149,7 +152,7 @@ namespace JBro
         // 캔버스의 오브젝트를 고르는 칸이다(D-233). 하이어라키의 줄을 끌어 놓아도 된다.
         void DrawObjectField(const TypeDescriptor& type, void* address, Context& context);
         // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
-        void DrawTextBody(const TypeDescriptor& type, void* address, bool editable, bool multiline, Context& context);
+        void DrawTextBody(const TypeDescriptor& type, void* address, Bool editable, Bool multiline, Context& context);
         // `textKey` 고르기의 이름 뷰다. 매 프레임 채우되 용량은 남긴다.
         Array<const char*> m_keyNames;
         // 오디오 에셋의 형식·길이·파형·미리 듣기(D-197, 기존 `EditorAudioPreview`).
@@ -161,12 +164,12 @@ namespace JBro
             void* address,
             Context& context);
         // 코덱 하나짜리 잎사귀.
-        bool DrawLeaf(
+        Bool DrawLeaf(
             const TypeDescriptor& type,
             void* address,
             const PropertyEditInfo* edit,
             const String& before,
-            bool snapped);
+            Bool snapped);
         // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
         void DrawAddComponent(GameObject& object);
         // 캔버스 자신을 골랐을 때의 화면이다(D-186).
@@ -213,25 +216,25 @@ namespace JBro
         String m_name;
         const GameObject* m_namedObject = nullptr;
         // 지난 프레임에 이름 칸이 글자를 받고 있었는가. 그렇지 않으면 칸의 글자를 다시 든다.
-        bool m_nameEditing = false;
+        Bool m_nameEditing = false;
         // 레이어 이름 칸의 것이다(D-279). 오브젝트 이름 칸과 같은 규칙이다.
         String m_layerName;
         LayerId m_namedLayer = InvalidLayerId;
-        bool m_layerNameEditing = false;
+        Bool m_layerNameEditing = false;
 
         // ── 오디오 미리 듣기(D-197) ──
         // 보고 있는 오디오 에셋과 그 요약이다. 에셋이 바뀌거나 자료가 다시 읽히면(판번호) 다시 잰다 - 파형은 한 번만 푼다.
         AssetId m_audioAsset;
-        std::uint32_t m_audioGeneration = 0;
-        bool m_audioReadable = false;
-        std::uint32_t m_audioSampleRate = 0;
-        std::uint32_t m_audioChannels = 0;
+        UInt32 m_audioGeneration = 0;
+        Bool m_audioReadable = false;
+        UInt32 m_audioSampleRate = 0;
+        UInt32 m_audioChannels = 0;
         double m_audioSeconds = 0.0;
         Array<float> m_audioPeaks;
-        bool m_audioLoop = false;
+        Bool m_audioLoop = false;
         // 이번 프레임에 미리 듣기 칸을 그렸는가. 다른 것을 고르면 다음 프레임에 미리 듣기를 멈춘다 - 반복 재생이
         // 에셋을 떠난 뒤에도 끝없이 울리지 않게.
-        bool m_audioDrawn = false;
+        Bool m_audioDrawn = false;
         // 버스 칸의 항목(첫째가 Master)이다. 프레임마다 프로젝트 목록에서 짓는다 - 설정 창에서 더한 버스가 곧바로 보인다.
         Array<String> m_busNames;
         // 오브젝트 칸의 목록이다(D-233). 0 번은 "없음" 이다.
@@ -239,6 +242,6 @@ namespace JBro
         Array<const char*> m_objectNamePointers;
         Array<InstanceId> m_objectIds;
         Array<const char*> m_busNamePointers;
-        Array<bool> m_busEnabled;
+        Array<Bool> m_busEnabled;
     };
 }

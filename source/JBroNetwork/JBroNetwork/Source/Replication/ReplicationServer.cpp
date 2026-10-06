@@ -3,14 +3,16 @@
 #include <JBro/Network/Internal/UdpDatagram.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
     namespace
     {
-        constexpr std::uint32_t SpawnMessageBytes = 4 + sizeof(SpawnDesc);
-        constexpr std::uint32_t DespawnMessageBytes = 4;
-        constexpr std::uint32_t AckMessageBytes = 4;
+        constexpr UInt32 SpawnMessageBytes = 4 + sizeof(SpawnDesc);
+        constexpr UInt32 DespawnMessageBytes = 4;
+        constexpr UInt32 AckMessageBytes = 4;
     }
 
     ReplicationServer::PoolVisitor::PoolVisitor(ReplicationServer& server, std::uint8_t type, Snapshot& snapshot)
@@ -134,15 +136,15 @@ namespace JBro::Network
             ++index;
         }
         // 새 연결.
-        const std::uint32_t connectionCount = m_transport.GetConnectionCount();
-        for (std::uint32_t at = 0; at < connectionCount; ++at)
+        const UInt32 connectionCount = m_transport.GetConnectionCount();
+        for (UInt32 at = 0; at < connectionCount; ++at)
         {
             const ConnectionId id = m_transport.GetConnectionAt(at);
             if (m_transport.GetConnectionState(id) != ConnectionState::Connected)
             {
                 continue;
             }
-            bool known = false;
+            Bool known = false;
             for (const ClientState& client : m_clients)
             {
                 if (client.connection == id)
@@ -184,7 +186,7 @@ namespace JBro::Network
             }
             const ReplicationTick baselineTick = m_clients[index].ackedTick;
             const Snapshot* baseline = m_history.Find(baselineTick);
-            const std::uint32_t written = DeltaCodec::Encode(baseline, current, m_deltaBuffer.Data(),
+            const UInt32 written = DeltaCodec::Encode(baseline, current, m_deltaBuffer.Data(),
                 static_cast<std::uint32_t>(m_deltaBuffer.Size()), m_removalScratch.Data(),
                 static_cast<std::uint32_t>(m_removalScratch.Size()));
             ++m_diagnostics.lastDeltaEncodes;
@@ -216,7 +218,7 @@ namespace JBro::Network
         }
     }
 
-    bool ReplicationServer::HandleMessage(const MessageView& view)
+    Bool ReplicationServer::HandleMessage(const MessageView& view)
     {
         if (false == IsReplicationMessage(view.messageId))
         {
@@ -232,7 +234,7 @@ namespace JBro::Network
                     continue;
                 }
                 // 뒤로 가는 ACK 는 뒤늦게 온 것이다. 보내지 않은 틱의 ACK 는 거짓말이다.
-                const bool newer = client.ackedTick == NoBaselineTick || acked > client.ackedTick;
+                const Bool newer = client.ackedTick == NoBaselineTick || acked > client.ackedTick;
                 if (newer && client.hasSent && acked <= client.lastSentTick)
                 {
                     client.ackedTick = acked;
@@ -247,7 +249,7 @@ namespace JBro::Network
 
     ReplicationServer::ObjectRecord* ReplicationServer::FindRecord(InstanceId instance)
     {
-        const std::uint32_t* index = m_objectIndex.Find(instance);
+        const UInt32* index = m_objectIndex.Find(instance);
         if (nullptr == index)
         {
             return nullptr;
@@ -320,7 +322,7 @@ namespace JBro::Network
 
     NetworkObjectId ReplicationServer::FindNetworkId(InstanceId object) const
     {
-        const std::uint32_t* index = m_objectIndex.Find(object);
+        const UInt32* index = m_objectIndex.Find(object);
         if (nullptr == index)
         {
             return InvalidNetworkObjectId;
@@ -328,7 +330,7 @@ namespace JBro::Network
         return m_objects[*index].id;
     }
 
-    std::uint32_t ReplicationServer::GetObjectCount() const
+    UInt32 ReplicationServer::GetObjectCount() const
     {
         return static_cast<std::uint32_t>(m_objects.Size());
     }

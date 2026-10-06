@@ -1,10 +1,14 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/IntegerType.h>
 
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -37,7 +41,7 @@ namespace JBro
 
         LogLevel level = LogLevel::Info;
         // 이 줄이 몇 번째로 쌓인 것인가. 고리가 돌아도 이 값은 늘 늘어난다.
-        std::uint64_t serial = 0;
+        UInt64 serial = 0;
         char category[MaxCategory] = {};
         char message[MaxMessage] = {};
     };
@@ -47,11 +51,54 @@ namespace JBro
         // 고리에 남는 줄 수. 넘치면 오래된 것부터 밀린다.
         inline constexpr std::size_t Capacity = 512;
 
-        void Write(LogLevel level, const char* category, const char* format, ...);
+        void WriteFormatted(LogLevel level, const char* category, const char* format, ...);
         void WriteV(LogLevel level, const char* category, const char* format, std::va_list args);
 
+        namespace Detail
+        {
+            template<typename T>
+            struct IsIntegerValue : std::false_type
+            {
+            };
+
+            template<typename U>
+            struct IsIntegerValue<IntegerType<U>> : std::true_type
+            {
+            };
+
+            // **엔진 값 타입은 가변 인자로 그대로 넘기지 않는다.** `Float` 는 `float` 처럼 `double` 로
+            // 올라가지 않아 `%f` 가 쓰레기를 읽는다 - 컴파일러는 클래스라 형식 검사도 하지 않는다(D-290).
+            // 여기서 원시 값으로 내려 준다. 나머지는 그대로 넘긴다.
+            template<typename T>
+            constexpr decltype(auto) ToVarArg(const T& value) noexcept
+            {
+                if constexpr (std::is_same_v<T, Float>)
+                {
+                    return static_cast<double>(value.Get());
+                }
+                else if constexpr (std::is_same_v<T, Bool>)
+                {
+                    return static_cast<int>(value.Get());
+                }
+                else if constexpr (IsIntegerValue<T>::value)
+                {
+                    return value.Get();
+                }
+                else
+                {
+                    return (value);
+                }
+            }
+        }
+
+        template<typename... Args>
+        void Write(LogLevel level, const char* category, const char* format, const Args&... args)
+        {
+            WriteFormatted(level, category, format, Detail::ToVarArg(args)...);
+        }
+
         // 줄이 쌓일 때마다 늘어난다. 로그 창은 이 값이 그대로면 다시 읽지 않는다.
-        std::uint64_t GetRevision();
+        UInt64 GetRevision();
         // 지금 고리에 남아 있는 줄 수(`Capacity` 를 넘지 않는다).
         std::size_t GetCount();
         // `index` 는 0 이 가장 오래된 줄이다. 범위를 넘으면 nullptr 이다.
@@ -60,7 +107,7 @@ namespace JBro
 
         // **콘솔에도 내보낼 것인가.** 게임 실행은 참이 기본이고, 그래야 창 없이 돌릴 때
         // 볼 수 있다. 테스트가 조용히 돌리려고 끄는 자리이기도 하다.
-        void SetEchoToConsole(bool echo);
-        bool GetEchoToConsole();
+        void SetEchoToConsole(Bool echo);
+        Bool GetEchoToConsole();
     }
 }

@@ -5,6 +5,7 @@
 #include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -21,17 +22,17 @@ namespace JBro
     {
     public:
         // 주된 선택의 월드 트랜스폼을 기즈모 대상으로 읽는다. 트랜스폼이 없으면 거짓이다.
-        static bool ReadSubject(EditorApplication& editor, GameObject& object, GizmoSubject& subject);
+        static Bool ReadSubject(EditorApplication& editor, GameObject& object, GizmoSubject& subject);
 
         // 끌기 시작: 대상들의 편집 전 값을 뜬다. 뜬 것이 하나도 없으면 거짓이고 끌기는 시작하지 않는다.
-        bool Begin(EditorApplication& editor, GizmoMode mode, const GizmoSubject& primaryStart);
+        Bool Begin(EditorApplication& editor, GizmoMode mode, const GizmoSubject& primaryStart);
         // 끄는 동안: 주된 것의 지금 값에서 델타를 내어 대상마다 쓴다.
         void Apply(EditorApplication& editor, const GizmoSubject& primaryNow);
         // 놓음: 편집 전 값으로 되돌리고 커맨드 하나로 확정한다. 바뀐 것이 없으면 커맨드도 없다.
         void Commit(EditorApplication& editor);
         void Cancel(EditorApplication& editor);
 
-        bool IsActive() const
+        Bool IsActive() const
         {
             return m_active;
         }
@@ -50,15 +51,15 @@ namespace JBro
             // 부모의 월드 회전·스케일. 월드 델타를 로컬로 옮기는 데 쓴다.
             Quaternion parentRotation;
             Vector3 parentScale = {1.0f, 1.0f, 1.0f};
-            bool planar = false;
+            Bool planar = false;
         };
 
-        bool CollectTarget(EditorApplication& editor, GameObject& object, Target& target) const;
+        Bool CollectTarget(EditorApplication& editor, GameObject& object, Target& target) const;
         void Write(EditorApplication& editor, const Target& target, const GizmoSubject& primaryNow) const;
 
         Array<Target> m_targets;
         GizmoSubject m_primaryStart;
         GizmoMode m_mode = GizmoMode::Translate;
-        bool m_active = false;
+        Bool m_active = false;
     };
 }

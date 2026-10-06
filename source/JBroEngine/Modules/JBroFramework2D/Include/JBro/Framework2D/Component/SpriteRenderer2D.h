@@ -7,6 +7,9 @@
 #include <JBro/Runtime/Component.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Component
 {
@@ -73,8 +76,8 @@ namespace JBro::Component
         JBRO_FIELD(Vector2,  size)  { 1.0f, 1.0f };
         JBRO_FIELD(SpriteFlip,   flip)        = SpriteFlip::None;
         // 시트의 어느 칸인가(D-113). 슬라이싱이 없는 스프라이트는 언제나 0 이고, 넘치면 마지막 칸이다.
-        JBRO_FIELD(std::uint32_t, frameIndex) = 0;
-        JBRO_FIELD(std::int32_t, renderOrder) = 0;
-        JBRO_FIELD(bool,         visible)     = true;
+        JBRO_FIELD(UInt32, frameIndex) = 0;
+        JBRO_FIELD(Int32, renderOrder) = 0;
+        JBRO_FIELD(Bool,         visible)     = true;
     };
 }

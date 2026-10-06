@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Types/IntegerType.h>
 #include <JBro/Types/StrongTypeOps.h>
 
 #include <algorithm>
@@ -14,6 +15,10 @@ class Float
 public:
 	constexpr Float() noexcept = default;
 	constexpr Float(float value) noexcept : Value(value) {}
+	// 정수 강타입에서 바로 온다. 원시 `int` 가 `float` 로 암시 변환되던 것과 같다 -
+	// 없으면 `Int32` → `int` → `float` → `Float` 로 사용자 변환이 둘이라 막힌다(D-290).
+	template<typename U>
+	constexpr Float(IntegerType<U> value) noexcept : Value(static_cast<float>(value.Get())) {}
 
 	constexpr operator float() const noexcept { return Value; }
 	constexpr float Get() const noexcept { return Value; }
@@ -30,16 +35,13 @@ public:
 	bool IsNearlyZero(float epsilon = 0.00001f) const { return std::fabs(Value) <= epsilon; }
 	bool NearlyEquals(float rhs, float epsilon = 0.00001f) const { return std::fabs(Value - rhs) <= epsilon; }
 
-	Float& operator=(float value) noexcept
-	{
-		Value = value;
-		return *this;
-	}
+	// `float` 를 받는 대입을 따로 두지 않는다. 암시 생성자 `Float(float)` 와 복사 대입이 그 일을 하고,
+	// 따로 두면 `angle = radian` 이 `operator=(float)` 와 복사 대입(각도 → Float) 사이에서 모호해진다(D-290).
 
-	Float& operator+=(float rhs) noexcept { Value += rhs; return *this; }
-	Float& operator-=(float rhs) noexcept { Value -= rhs; return *this; }
-	Float& operator*=(float rhs) noexcept { Value *= rhs; return *this; }
-	Float& operator/=(float rhs) noexcept { Value /= rhs; return *this; }
+	constexpr Float& operator+=(float rhs) noexcept { Value += rhs; return *this; }
+	constexpr Float& operator-=(float rhs) noexcept { Value -= rhs; return *this; }
+	constexpr Float& operator*=(float rhs) noexcept { Value *= rhs; return *this; }
+	constexpr Float& operator/=(float rhs) noexcept { Value /= rhs; return *this; }
 
 	friend constexpr Float operator+(Float lhs, Float rhs) noexcept { return Float(lhs.Value + rhs.Value); }
 	friend constexpr Float operator-(Float lhs, Float rhs) noexcept { return Float(lhs.Value - rhs.Value); }

@@ -11,6 +11,8 @@
 #include <new>
 #include <type_traits>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -36,9 +38,9 @@ namespace JBro
 
         template <typename... Args>
         T*     Create(Args&&... args);
-        bool   Destroy(T* value);
+        Bool   Destroy(T* value);
         void   Clear();
-        bool   Reserve(std::size_t requestedCapacity);
+        Bool   Reserve(std::size_t requestedCapacity);
 
         std::size_t GetCapacity()  const;
         std::size_t GetLiveCount() const;
@@ -60,7 +62,7 @@ namespace JBro
         {
             alignas(T) std::byte storage[sizeof(T)];
             SafePtrDetail::ControlBlock* controlBlock = nullptr;
-            bool alive = false;
+            Bool alive = false;
         };
 
         struct Chunk
@@ -192,7 +194,7 @@ namespace JBro
             return std::launder(reinterpret_cast<const T*>(slot.storage));
         }
 
-        bool FindSlot(T* value, std::size_t& outSlotIndex);
+        Bool FindSlot(T* value, std::size_t& outSlotIndex);
         void DestroySlot(Slot& slot);
         ChunkOwner AllocateChunk();
 
@@ -200,7 +202,7 @@ namespace JBro
         Array<ChunkOwner> m_chunks;
         Array<ChunkBound> m_chunkBounds;
         Array<SafePtrDetail::ControlBlock*> m_freeBlocks;
-        Array<std::uint32_t> m_freeSlots;
+        Array<UInt32> m_freeSlots;
         std::size_t m_nextUnusedSlot = 0;
         std::size_t m_liveCount = 0;
         std::size_t m_controlBlockAllocations = 0;
@@ -212,7 +214,7 @@ namespace JBro
     T* TObjectPool<T, ChunkSize>::Create(Args&&... args)
     {
         std::size_t slotIndex = 0;
-        bool reusedSlot = false;
+        Bool reusedSlot = false;
         if (false == m_freeSlots.IsEmpty())
         {
             slotIndex = m_freeSlots.Last();
@@ -261,7 +263,7 @@ namespace JBro
     }
 
     template <typename T, std::size_t ChunkSize>
-    bool TObjectPool<T, ChunkSize>::Destroy(T* value)
+    Bool TObjectPool<T, ChunkSize>::Destroy(T* value)
     {
         std::size_t slotIndex = 0;
         if (value == nullptr || false == FindSlot(value, slotIndex))
@@ -302,7 +304,7 @@ namespace JBro
     }
 
     template <typename T, std::size_t ChunkSize>
-    bool TObjectPool<T, ChunkSize>::Reserve(std::size_t requestedCapacity)
+    Bool TObjectPool<T, ChunkSize>::Reserve(std::size_t requestedCapacity)
     {
         std::size_t requiredChunks = requestedCapacity / ChunkSize;
         if (requestedCapacity % ChunkSize != 0)
@@ -384,7 +386,7 @@ namespace JBro
     // 청크 베이스 주소로 이분 탐색한 뒤 포인터 차로 슬롯을 계산한다. 전 슬롯 선형 탐색이면
     // 오브젝트 하나를 파괴할 때마다 살아 있는 전체를 훑게 된다(§9).
     template <typename T, std::size_t ChunkSize>
-    bool TObjectPool<T, ChunkSize>::FindSlot(T* value, std::size_t& outSlotIndex)
+    Bool TObjectPool<T, ChunkSize>::FindSlot(T* value, std::size_t& outSlotIndex)
     {
         if (value == nullptr || m_chunkBounds.IsEmpty())
         {

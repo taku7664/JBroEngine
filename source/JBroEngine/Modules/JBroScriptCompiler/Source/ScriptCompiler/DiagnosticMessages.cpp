@@ -8,12 +8,14 @@
 #include <iterator>
 #include <string>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::ScriptCompiler
 {
     namespace
     {
-        bool LoadFile(const char* directory, const char* locale, Table<String, String>& out)
+        Bool LoadFile(const char* directory, const char* locale, Table<String, String>& out)
         {
             if (nullptr == directory || nullptr == locale || '\0' == *locale)
             {
@@ -36,7 +38,7 @@ namespace JBro::ScriptCompiler
             {
                 return false;
             }
-            const std::uint32_t entries = document.Find(document.GetRoot(), "Entries");
+            const UInt32 entries = document.Find(document.GetRoot(), "Entries");
             if (YamlDocument::InvalidNode == entries || document.GetKind(entries) != YamlKind::Map)
             {
                 return false;
@@ -45,7 +47,7 @@ namespace JBro::ScriptCompiler
             for (std::size_t index = 0; index < count; ++index)
             {
                 const char* key = document.GetKey(entries, index);
-                const std::uint32_t value = document.GetValue(entries, index);
+                const UInt32 value = document.GetValue(entries, index);
                 if (nullptr == key || YamlDocument::InvalidNode == value)
                 {
                     continue;
@@ -57,7 +59,7 @@ namespace JBro::ScriptCompiler
         }
     }
 
-    bool DiagnosticMessages::Load(const char* directory, const char* locale, const char* fallbackLocale)
+    Bool DiagnosticMessages::Load(const char* directory, const char* locale, const char* fallbackLocale)
     {
         Table<String, String> entries;
         if (false == LoadFile(directory, locale, entries))
@@ -111,7 +113,7 @@ namespace JBro::ScriptCompiler
         {
             const char c = pattern[index];
             // {n} 은 한 자리 숫자만 쓴다. 인자가 열 개를 넘는 메시지는 없다.
-            const bool isPlaceholder = '{' == c && index + 2 < pattern.size()
+            const Bool isPlaceholder = '{' == c && index + 2 < pattern.size()
                 && pattern[index + 1] >= '0' && pattern[index + 1] <= '9' && '}' == pattern[index + 2];
             if (false == isPlaceholder)
             {

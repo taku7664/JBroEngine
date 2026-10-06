@@ -3,6 +3,7 @@
 #include <JBro/Runtime/TextStore.h>
 
 #include <cstdint>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -17,10 +18,10 @@ namespace JBro::System
         virtual ~ITextSystem() = default;
 
         // 글자를 바꾼다. 호스트가 바이트를 복사한다. 다음 프레임의 레이아웃에 보인다.
-        virtual void SetText(TextId& text, const char* utf8, std::uint32_t length) = 0;
+        virtual void SetText(TextId& text, const char* utf8, UInt32 length) = 0;
         // 글자의 바이트 수다(끝의 0 은 세지 않는다).
-        virtual std::uint32_t GetTextLength(const TextId& text) const = 0;
+        virtual UInt32 GetTextLength(const TextId& text) const = 0;
         // 글자를 buffer 에 복사하고 끝에 0 을 둔다. 모자라면 자른다. 복사한 바이트 수(0 제외)다.
-        virtual std::uint32_t CopyText(const TextId& text, char* buffer, std::uint32_t capacity) const = 0;
+        virtual UInt32 CopyText(const TextId& text, char* buffer, UInt32 capacity) const = 0;
     };
 }

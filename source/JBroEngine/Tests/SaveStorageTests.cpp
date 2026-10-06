@@ -10,6 +10,9 @@
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 세이브 저장소(D-218). 기존 엔진 `CSaveStorage` 를 옮기며 고친 것(바꿔 넣는 쓰기·예약 이름·DLL 힙)을 잰다.
 namespace
@@ -17,7 +20,7 @@ namespace
     namespace fs = std::filesystem;
     using namespace JBro;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -55,7 +58,7 @@ namespace
     class FlakyFilePlatform final : public IPlatform
     {
     public:
-        bool Initialize(const JMemoryContext&) override
+        JBro::Bool Initialize(const JMemoryContext&) override
         {
             return true;
         }
@@ -87,16 +90,16 @@ namespace
             return {};
         }
 
-        void WaitForEvents(std::uint32_t) override
+        void WaitForEvents(JBro::UInt32) override
         {
         }
 
-        bool ShouldClose(WindowHandle) const override
+        JBro::Bool ShouldClose(WindowHandle) const override
         {
             return false;
         }
 
-        bool GetWindowState(WindowHandle, WindowState&) const override
+        JBro::Bool GetWindowState(WindowHandle, WindowState&) const override
         {
             return false;
         }
@@ -115,7 +118,7 @@ namespace
         {
         }
 
-        bool WriteWholeFile(const char* path, JArrayView<std::byte> contents) override
+        JBro::Bool WriteWholeFile(const char* path, JArrayView<std::byte> contents) override
         {
             if (failWriteHalfway)
             {
@@ -126,22 +129,22 @@ namespace
             return inner.WriteWholeFile(path, contents);
         }
 
-        bool MoveFileTo(const char* from, const char* to) override
+        JBro::Bool MoveFileTo(const char* from, const char* to) override
         {
             return false == failMove && inner.MoveFileTo(from, to);
         }
 
-        bool CreateDirectoryAt(const char* path) override
+        JBro::Bool CreateDirectoryAt(const char* path) override
         {
             return inner.CreateDirectoryAt(path);
         }
 
-        bool DeleteFileAt(const char* path) override
+        JBro::Bool DeleteFileAt(const char* path) override
         {
             return inner.DeleteFileAt(path);
         }
 
-        bool FileExists(const char* path) const override
+        JBro::Bool FileExists(const char* path) const override
         {
             return inner.FileExists(path);
         }
@@ -159,10 +162,10 @@ namespace
         }
 
         WindowsPlatform inner;
-        bool failWriteHalfway = false;
-        bool failMove = false;
-        bool shrinkAfterFirstOpen = false;
-        std::uint32_t opens = 0;
+        JBro::Bool failWriteHalfway = false;
+        JBro::Bool failMove = false;
+        JBro::Bool shrinkAfterFirstOpen = false;
+        JBro::UInt32 opens = 0;
     };
 
     void TestAFailedWriteLeavesTheOldSaveAndNoSideFile()
@@ -325,9 +328,9 @@ namespace
     }
 }
 
-int RunSaveStorageTests()
+JBro::Int32 RunSaveStorageTests()
 {
-    const bool echo = Log::GetEchoToConsole();
+    const JBro::Bool echo = Log::GetEchoToConsole();
     Log::SetEchoToConsole(false);
     TestSlotNamesStayInsideTheFolder();
     TestTheFolderIsNamedAfterTheProduct();

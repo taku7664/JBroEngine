@@ -2,6 +2,7 @@
 
 #include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Component
 {
@@ -32,6 +33,6 @@ namespace JBro::Component
         JBRO_FIELD(JBro::Vector3,       worldPosition, NoSerialize() | ReadOnly() | Category("World cache"));
         JBRO_FIELD(JBro::Quaternion, worldRotation, NoSerialize() | ReadOnly() | Category("World cache"));
         JBRO_FIELD(JBro::Vector3,       worldScale,    NoSerialize() | ReadOnly() | Category("World cache")) { 1.0f, 1.0f, 1.0f };
-        JBRO_FIELD(bool,             worldValid,    NoSerialize() | ReadOnly() | Category("World cache")) = false;
+        JBRO_FIELD(Bool,             worldValid,    NoSerialize() | ReadOnly() | Category("World cache")) = false;
     };
 }

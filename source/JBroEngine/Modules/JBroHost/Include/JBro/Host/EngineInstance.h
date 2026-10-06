@@ -12,6 +12,9 @@
 #include <JBro/RHI/RHI.h>
 #include <JBro/Task/TaskManager.h>
 #include <JBro/Types/LinearAllocator.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -56,40 +59,40 @@ namespace JBro
         // 틀린 설정이면 `Initialize` 가 거절한다.
         TimeSettings time;
         // 디버그 선 저장소의 용량이다(D-243). 넘친 선은 버리고 센다.
-        std::uint32_t maxDebugLines = 16384;
+        UInt32 maxDebugLines = 16384;
         // 참이면 게임 뷰의 디버그 선을 프로젝트의 `DebugModeEnabled` 로 정한다(게임 실행). 에디터는 거짓으로 두고 제 토글로 정한다.
-        bool gameDebugDrawFromProject = true;
+        Bool gameDebugDrawFromProject = true;
         // 프레임 임시 메모리 예산이다(D-52). memory.frame 을 직접 채워 주면 그것을 그대로 쓰고,
         // 비어 있으면 호스트가 이 크기로 선형 할당기를 만들어 채운다. 0 이면 만들지 않는다.
         std::size_t frameMemoryBytes = 1u << 20;
-        bool enableValidation = false;
+        Bool enableValidation = false;
         // 참이면 프로젝트를 열 때 메타가 없는 에셋 파일에 `.jmeta` 를 만든다. **에디터만 참이다**(D-111) -
         // 게임 실행은 프로젝트 폴더에 파일을 쓰지 않는다.
-        bool createMissingAssetMeta = false;
+        Bool createMissingAssetMeta = false;
         // 참이면 프로젝트를 열 때 에셋 폴더를 감시하고 `PollAssetChanges` 가 그 변경을 적용한다. **에디터만 참이다**
         // (D-117) - 게임 실행에는 감시가 없다.
-        bool watchAssetDirectory = false;
+        Bool watchAssetDirectory = false;
         // 거짓이면 네트워크를 세우지 않는다. 프레임워크는 복제 시스템을 세우지 않고 스크립트의 네트워크 서비스는 조용히 실패한다.
         // 참이라도 **자원은 잡지 않는다**(D-125). 게임이 `NetworkSessionService::StartServer` / `Connect` 로 켜야
         // 트랜스포트 버퍼와 복제가 서고, `Disconnect` 가 그것을 돌려준다. 그래서 기본값이 참이다 - 스크립트가 켤 대상은
         // 늘 있어야 하기 때문이다.
-        bool networkEnabled = true;
+        Bool networkEnabled = true;
         // 거짓이면 오디오를 세우지 않는다. 소스 컴포넌트는 읽히지만 소리가 나지 않고 스크립트의 오디오 서비스는 조용히
         // 아무 일도 하지 않는다(D-197).
-        bool audioEnabled = true;
+        Bool audioEnabled = true;
         // 참이면 플랫폼의 출력 장치를 연다. **게임 호스트와 에디터만 참이다** - 테스트는 장치 없이 믹서만 세운다.
         // 장치를 열지 못해도(스피커 없음) 엔진은 소리 없이 선다.
-        bool audioDeviceEnabled = false;
+        Bool audioDeviceEnabled = false;
         // 동시에 실제로 섞는 보이스 수다(D-197, 기존 엔진과 같은 64). 살아 있을 수 있는 소리는 그 네 배이고, 넘친 루프는
         // 가상 보이스가 되어 섞는 비용 없이 재생 위치만 센다(D-235). 섞는 수가 차면 우선순위가 낮은 것부터 훔친다.
-        std::uint32_t audioMaxVoices = 64;
+        UInt32 audioMaxVoices = 64;
         // 태스크 관리자의 설정이다(D-209). 워커 수가 0 이면 코어 수에서 정한다.
         TaskManagerDesc tasks;
         // 세이브를 쓰는 폴더다(D-218). 비어 있으면 `<앱 데이터>/<제품명>/Saves` 이고, `editorSaves` 면 `EditorSaves` 다.
         // 시험이 임시 폴더를 준다 - 사용자 폴더에 시험의 세이브가 남지 않는다.
         String saveFolder;
         // 참이면 에디터에서 재생한 게임의 세이브다. 실제 게임의 세이브를 덮지 않게 다른 폴더에 쓴다. **에디터만 참이다.**
-        bool editorSaves = false;
+        Bool editorSaves = false;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -106,9 +109,9 @@ namespace JBro
 
         // Main-thread only. Borrowed modules must outlive this instance.
         // Process resources are initialized once, independently of project sessions.
-        bool Initialize(const EngineConfig& config, IPlatform& platform, IRHIModule& rhi);
+        Bool Initialize(const EngineConfig& config, IPlatform& platform, IRHIModule& rhi);
         // The initially stopped framework object is borrowed until CloseProject returns.
-        bool OpenProject(IFramework& framework);
+        Bool OpenProject(IFramework& framework);
         // 같은 것을 열되 이 프로젝트의 스크립트 DLL 도 함께 싣는다.
         // 경로가 어느 파일에서 오는지는 프로젝트 파일 형식의 문제이고 아직 정해지지 않았다.
         // 호스트는 그저 경로를 받는다 — 그 결정이 나도 이 배선은 그대로다.
@@ -116,10 +119,10 @@ namespace JBro
         // **DLL 을 싣지 못해도 프로젝트는 열린다**(D-98). 아직 한 번도 빌드하지 않은
         // 프로젝트를 열 수 있어야 하기 때문이다. 못 실었다는 사실은
         // `IsScriptModuleLoaded` 와 `GetScriptModuleError` 로 남는다.
-        bool OpenProject(IFramework& framework, const char* scriptModulePath);
+        Bool OpenProject(IFramework& framework, const char* scriptModulePath);
         // `.jproject` 를 읽고 그것이 가리키는 스크립트 모듈까지 실어서 연다.
         // 프로젝트 파일을 읽지 못하면 아무것도 열지 않고 error 를 채운다.
-        bool OpenProjectFile(
+        Bool OpenProjectFile(
             IFramework& framework,
             const char* projectFilePath,
             ProjectFileError& error);
@@ -138,40 +141,40 @@ namespace JBro
         // 게임 화면을 어디에 그릴지다. 비워 두면 백버퍼 - 게임 실행이 그것이다.
         // 에디터는 자기 패널에 붙일 텍스처를 여기에 준다(D-63).
         // 프레임 밖에서만 바꾼다.
-        bool SetGameViewTarget(const FrameTarget& target);
+        Bool SetGameViewTarget(const FrameTarget& target);
 
         // **이번 프레임에 편집 화면을 한 번 더 그린다**(D-130). 캔버스 뷰 패널이 매 프레임
         // 다시 건다 - 그 패널이 그려지지 않는 프레임에는 걸리지 않고, 그리지도 않는다
         // (게임 뷰와 같은 규칙이다, D-63). 프레임 밖에서만 부른다.
-        bool RequestEditorView(const EditorViewDesc& view);
+        Bool RequestEditorView(const EditorViewDesc& view);
         // **이번 프레임에 레이어 썸네일을 그린다**(D-288). 편집 화면 뒤에 그리고, 요청은 한 프레임짜리다. 한 프레임에 `MaxLayerThumbnails` 장까지
         // 받는다 - 에디터가 돌아가며 건다. 썸네일이 실패해도 프레임은 실패하지 않는다(게임 화면이 아니다). 프레임 밖에서만 부른다.
         static constexpr std::size_t MaxLayerThumbnails = 4;
-        bool RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail);
+        Bool RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail);
 
         // **게임을 돌릴 것인가**(D-131). 게임 실행은 늘 참이다. 에디터는 재생을 누르기
         // 전까지 거짓으로 두어 스크립트와 물리가 돌지 않게 한다 - 편집하는 동안 게임이
         // 돌면 방금 놓은 값이 다음 프레임에 덮어써진다.
         //
         // 거짓이어도 **그리기는 그대로 돈다.** 캔버스 뷰도 게임 뷰도 멈춘 장면을 보여야 한다.
-        void SetSimulationEnabled(bool enabled);
+        void SetSimulationEnabled(Bool enabled);
         // **입력을 꺼내 가는 쪽이 있는가**(D-177). 에디터는 자기 UI 에 넣어 주고 스스로 비우므로
         // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
         // 입력이 쌓이기만 한다.
-        void SetInputOwnedByHost(bool owned);
+        void SetInputOwnedByHost(Bool owned);
         // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-214). 다음 `Tick` 이 이것을 접고 비운다.
         // 에디터는 재생 중이고 게임 뷰가 포커스를 가졌을 때만 부르고, 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
         // 한 틱에 여러 번 부르면 이어 붙는다. `mapping` 은 마지막 것을 쓴다.
         void SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping);
         // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-214). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
         // 꺼지면 다음 틱에 눌린 패드 버튼을 떼고 모터를 멈춘다.
-        void SetHostGameInputActive(bool active);
+        void SetHostGameInputActive(Bool active);
         // 게임이 바꾼 입력 상태(켠 액션 세트)를 프로젝트 설정으로 되돌린다(D-214). 에디터가 재생을 멈출 때 부른다.
         void ResetGameInput();
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
-        bool DidGameSubmitLastFrame() const;
-        bool IsSimulationEnabled() const;
+        Bool DidGameSubmitLastFrame() const;
+        Bool IsSimulationEnabled() const;
         // 멈춘 게임을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 멈추지 않았으면 아무 일도 없다.
         void StepSimulation();
         // 재생의 처음으로 되돌린다(D-242): 게임 시간과 타임스케일을 되돌리고 난수 씨앗을 다시 건다(프로젝트의 `RandomSeed`, 0 이면
@@ -183,10 +186,10 @@ namespace JBro
         // 디버그 선 저장소(D-243). 초기화 전이거나 내린 뒤에는 null 이다.
         System::DebugDrawSystem* GetDebugDraw();
         // 게임 뷰에 디버그 선을 그릴지다. 캔버스 뷰는 `EditorViewDesc::debugDraw` 가 정한다.
-        void SetGameDebugDrawVisible(bool visible);
-        bool IsGameDebugDrawVisible() const;
+        void SetGameDebugDrawVisible(Bool visible);
+        Bool IsGameDebugDrawVisible() const;
 
-        bool Tick(float deltaTime);
+        Bool Tick(Float deltaTime);
         void RequestExit();
         // Callback calls defer teardown until that callback returns.
         void Shutdown();
@@ -195,7 +198,7 @@ namespace JBro
         // 게임 문자열 표(D-226). 엔진 수명이고 표는 프로젝트를 열 때 모은다. 에디터의 미리보기 고르기가 로케일을 바꾼다.
         GameLocalization* GetLocalization();
         // 패키지로 연 프로젝트인가(`AssetPackage`, D-232). 참이면 에셋 폴더가 없고 다시 스캔·감시가 없다.
-        bool IsRunningFromPackage() const;
+        Bool IsRunningFromPackage() const;
         // 디스크 스트리밍 오디오의 스트림을 연다(D-232). 믹서의 스트리머 스레드가 부른다 - 패키지로 연 프로젝트는 `jpak:<아이디>` 를 패키지의
         // 창 스트림으로 연다. 어느 스레드에서 불러도 된다.
         OwnerPtr<IFileStream> OpenAudioStream(const char* path);
@@ -204,23 +207,23 @@ namespace JBro
         // 다시 스캔한다. `.jmeta` 의 변경은 무시한다. **프레임 밖에서 부른다.** 돌려주는 값은 아래 요약이다.
         struct AssetChangeSummary
         {
-            std::uint32_t reloaded = 0;
-            std::uint32_t renamed = 0;
-            std::uint32_t removed = 0;
-            bool rescanned = false;
+            UInt32 reloaded = 0;
+            UInt32 renamed = 0;
+            UInt32 removed = 0;
+            Bool rescanned = false;
             // 다시 스캔하려 했는데 폴더를 읽지 못했다. 레지스트리는 전 것을 그대로 둔다.
-            bool rescanFailed = false;
+            Bool rescanFailed = false;
         };
         // 이벤트가 온 뒤 이만큼 조용한 프레임이 지나야 재로드·다시 스캔을 돌린다. 저장 프로그램은 한 번의 저장에 알림을
         // 여러 번 보내고 쓰기가 끝나기 전에도 보내므로, 알림마다 읽으면 잘린 파일을 읽는다. 대량 복사도 하나로 묶인다.
-        static constexpr std::uint32_t AssetQuietFramesBeforeApply = 3;
+        static constexpr UInt32 AssetQuietFramesBeforeApply = 3;
         // 잘린 파일이었을 수 있어 실패한 재로드는 이만큼 다시 해 본다.
-        static constexpr std::uint32_t AssetReloadAttempts = 5;
+        static constexpr UInt32 AssetReloadAttempts = 5;
         AssetChangeSummary PollAssetChanges();
         // 에셋 폴더를 지금 다시 스캔한다. 폴더를 읽지 못하면 거짓이고 레지스트리는 전 것 그대로다.
-        bool RescanAssets();
+        Bool RescanAssets();
         // 프로젝트를 열 때 감시가 섰고 아직 살아 있는가. 거짓이면 폴더 변경이 오지 않는다 - 에디터가 알릴 수 있게 둔다.
-        bool IsWatchingAssets() const;
+        Bool IsWatchingAssets() const;
         // 에셋 폴더의 실제 경로다. 프로젝트 파일이 없으면 비어 있다.
         const String& GetAssetRoot() const { return m_assetRoot; }
         // 프로젝트 파일로 열었을 때 그 에셋 폴더를 스캔한 결과다. 파일 없이 열면 비어 있다.
@@ -239,10 +242,10 @@ namespace JBro
         // 출력 장치다. 장치를 열지 않았거나 못 열었으면 null 이다.
         const IAudioOutput* GetAudioOutput() const;
         // 출력 장치 목록(D-203)이다. 몇 ms 걸리므로 목록을 여는 순간에만 부른다.
-        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity);
+        UInt32 EnumerateAudioOutputs(AudioDeviceInfo* devices, UInt32 capacity);
         // 이 이름의 장치로 바꾼다(비우면 시스템 기본). 그 장치가 없으면 기본으로 연다. 소리는 끊김 없이 이어진다 - 믹서는
         // 그대로이고 장치만 바뀐다. 어느 장치도 열지 못하면 거짓이고, 그 뒤로 2 초마다 다시 시도한다.
-        bool SetAudioOutputDevice(const char* name);
+        Bool SetAudioOutputDevice(const char* name);
         // 고른 장치 이름이다(없는 장치여도 고른 그대로다). 비었으면 시스템 기본이다.
         const char* GetPreferredAudioOutputDevice() const;
         // 대화상자의 주인 창으로 쓴다. 창이 없으면 값이 0 이다.
@@ -257,16 +260,16 @@ namespace JBro
         const ScriptDLLLoader& GetScriptModule() const;
         // 스크립트 DLL 이 실렸는지다. **프로젝트가 열려도 false 일 수 있다**(D-98).
         // 프로젝트 파일이 스크립트를 가리키지 않으면 열려도 false 다.
-        bool IsScriptModuleLoaded() const;
+        Bool IsScriptModuleLoaded() const;
         // 스크립트 DLL 을 싣지 못한 사유다. 실었거나 애초에 가리키지 않았으면 비어 있다.
         const String& GetScriptModuleError() const;
-        bool IsRunning() const;
+        Bool IsRunning() const;
         // Preserved after teardown; Ready/Skipped are non-fatal, other values indicate failure.
         FrameStatus GetLastFrameStatus() const;
 
     private:
         enum class State { Stopped, Initializing, OpeningProject, Running, Ticking, ClosingProject, Stopping };
-        bool TickFrame(float deltaTime);
+        Bool TickFrame(Float deltaTime);
         void ReleaseProject();
         void ReleaseResources();
         // 프로젝트의 버스 목록·장치·포커스 정책을 오디오 시스템에 건다.
@@ -276,13 +279,13 @@ namespace JBro
         // 프로젝트의 고정 스텝·상한을 시계에 건다(D-242).
         void ApplyTimeSettings();
         // 프로젝트의 폴백 로케일을 건다. `resetLocale` 이면 지금 로케일도 프로젝트의 기본으로 되돌린다(D-226).
-        void ApplyLocaleSettings(bool resetLocale);
+        void ApplyLocaleSettings(Bool resetLocale);
         // 프로젝트의 제품명으로 세이브 폴더를 정한다(D-218). 폴더는 처음 쓸 때 만든다.
         void OpenSaveFolder();
         // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
-        bool OpenAudioOutput();
+        Bool OpenAudioOutput();
         // 프레임마다: 장치가 사라졌으면 닫고 다시 연다(D-203). 창 포커스를 오디오 시스템에 알린다.
-        void UpdateAudioDevice(float deltaTime);
+        void UpdateAudioDevice(Float deltaTime);
 
         IPlatform* m_platform = nullptr;
         IFramework* m_framework = nullptr;
@@ -307,22 +310,22 @@ namespace JBro
         // 만질 수 있다.
         OwnerPtr<TaskManager> m_tasks;
         // 장치를 열어야 하는 호스트인가(`audioDeviceEnabled`). 사라진 장치를 다시 열지를 이것이 정한다.
-        bool m_audioDeviceWanted = false;
+        Bool m_audioDeviceWanted = false;
         String m_audioDevicePreference;
-        float m_audioRetrySeconds = 0.0f;
+        Float m_audioRetrySeconds = 0.0f;
         OwnerPtr<System::IAudioDeviceControl> m_audioDevices;
         OwnerPtr<System::InputSystem> m_input;
         // 시계와 난수(D-242). 엔진 수명이고 공통 시스템 컨텍스트가 가리킨다. 스크립트 DLL 이 내려간 뒤에 내린다.
         OwnerPtr<System::TimeSystem> m_time;
         OwnerPtr<System::RandomSystem> m_random;
         OwnerPtr<System::DebugDrawSystem> m_debugDraw;
-        bool m_gameDebugDrawFromProject = true;
+        Bool m_gameDebugDrawFromProject = true;
         // 게임의 세이브(D-218). 엔진 수명이고, 폴더만 프로젝트마다 바뀐다.
         OwnerPtr<SaveStorage> m_save;
         SaveSystemContext m_saveSystemContext;
         SaveServiceContext m_saveServiceContext;
         String m_saveFolderOverride;
-        bool m_editorSaves = false;
+        Bool m_editorSaves = false;
         // 게임 문자열 표(D-226). 세이브처럼 엔진 수명이고 이 모듈 사본에도 묶는다.
         OwnerPtr<GameLocalization> m_localization;
         // 패키지로 연 프로젝트의 것이다(D-232). 에셋 시스템이 내려간 뒤에 내린다.
@@ -339,40 +342,40 @@ namespace JBro
         // 이번 프레임의 편집 화면 요청(D-130). 프레임을 그리고 나면 비운다 - 매 프레임
         // 다시 걸어야 그려진다.
         EditorViewDesc m_editorView;
-        bool m_hasEditorView = false;
+        Bool m_hasEditorView = false;
         LayerThumbnailDesc m_layerThumbnails[MaxLayerThumbnails];
         std::size_t m_layerThumbnailCount = 0;
-        bool m_inputOwnedByHost = false;
-        bool m_hostGameInputActive = false;
+        Bool m_inputOwnedByHost = false;
+        Bool m_hostGameInputActive = false;
         Array<InputEvent> m_hostInput;
         InputSurfaceMapping m_hostInputMapping;
-        bool m_gameSubmittedLastFrame = false;
+        Bool m_gameSubmittedLastFrame = false;
         // 게임을 돌릴 것인가(D-131). 게임 호스트는 손대지 않으므로 기본이 참이다.
-        bool m_simulationEnabled = true;
+        Bool m_simulationEnabled = true;
         State m_state = State::Stopped;
-        bool m_exitRequested = false;
-        bool m_createMissingAssetMeta = false;
-        bool m_watchAssetDirectory = false;
+        Bool m_exitRequested = false;
+        Bool m_createMissingAssetMeta = false;
+        Bool m_watchAssetDirectory = false;
         String m_assetRoot;
         // 감시가 쌓아 둔 것을 프레임마다 여기로 꺼낸다. 스택에 두면 프레임마다 그만큼을 비우게 된다.
         FileEvent m_fileEvents[16];
         struct PendingReload
         {
             AssetId id;
-            std::uint32_t attempts = 0;
+            UInt32 attempts = 0;
         };
         Array<PendingReload> m_pendingReloads;
-        bool m_assetRescanPending = false;
-        bool m_assetOverflowPending = false;
-        std::uint32_t m_assetQuietFrames = 0;
-        bool m_projectCloseRequested = false;
-        bool m_scriptContextsBound = false;
-        bool m_scriptModuleLoaded = false;
+        Bool m_assetRescanPending = false;
+        Bool m_assetOverflowPending = false;
+        UInt32 m_assetQuietFrames = 0;
+        Bool m_projectCloseRequested = false;
+        Bool m_scriptContextsBound = false;
+        Bool m_scriptModuleLoaded = false;
         String m_scriptModuleError;
         FrameStatus m_lastFrameStatus = FrameStatus::Ready;
 
         // 처음 열 때는 비운 채로 시작하고(`initial`), 다시 스캔할 때는 읽지 못하면 전 것을 둔다.
-        bool ScanAssets(bool initial);
+        Bool ScanAssets(Bool initial);
         void QueueReload(AssetId id);
         // 감시 이벤트 하나를 적용하거나 미룬다. 재로드·다시 스캔은 조용해진 뒤 `ApplyPendingAssetChanges` 가 한다.
         void HandleAssetEvent(const FileEvent& event, AssetChangeSummary& summary);

@@ -5,6 +5,10 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 // XInput 은 Windows 에 기본으로 깔린 `xinput9_1_0.dll` 을 쓴다(기존 엔진과 같다). 재배포할 것이 없다.
 #pragma comment(lib, "Xinput9_1_0.lib")
@@ -32,14 +36,14 @@ namespace JBro
             XINPUT_GAMEPAD_RIGHT_THUMB,
         };
 
-        float Stick(SHORT value)
+        Float Stick(SHORT value)
         {
             // -32768 도 -1 로 자른다. 32767 로 나누면 -1.00003 이 된다.
             return std::clamp(static_cast<float>(value) / 32767.0f, -1.0f, 1.0f);
         }
     }
 
-    bool WindowsPlatform::PollGamepad(std::uint32_t slot, GamepadRawState& state)
+    Bool WindowsPlatform::PollGamepad(UInt32 slot, GamepadRawState& state)
     {
         state = {};
         if (slot >= XUSER_MAX_COUNT)
@@ -68,15 +72,15 @@ namespace JBro
         return true;
     }
 
-    void WindowsPlatform::SetGamepadVibration(std::uint32_t slot, float low, float high)
+    void WindowsPlatform::SetGamepadVibration(UInt32 slot, Float low, Float high)
     {
         if (slot >= XUSER_MAX_COUNT)
         {
             return;
         }
         XINPUT_VIBRATION vibration = {};
-        vibration.wLeftMotorSpeed = static_cast<WORD>(std::clamp(low, 0.0f, 1.0f) * 65535.0f);
-        vibration.wRightMotorSpeed = static_cast<WORD>(std::clamp(high, 0.0f, 1.0f) * 65535.0f);
+        vibration.wLeftMotorSpeed = static_cast<WORD>(JBro::Clamp(low, 0.0f, 1.0f) * 65535.0f);
+        vibration.wRightMotorSpeed = static_cast<WORD>(JBro::Clamp(high, 0.0f, 1.0f) * 65535.0f);
         // 없는 자리면 실패를 돌려준다. 그것으로 할 일은 없다.
         XInputSetState(static_cast<DWORD>(slot), &vibration);
     }

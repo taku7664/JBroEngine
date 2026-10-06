@@ -1,4 +1,5 @@
 ﻿#include <JBro/ScriptCompiler/SyntaxTree.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -36,7 +37,7 @@ namespace JBro::ScriptCompiler
         {
             m_children.Add(child);
         }
-        return static_cast<NodeIndex>(m_nodes.Size() - 1);
+        return NodeIndex(static_cast<std::uint32_t>(m_nodes.Size() - 1));
     }
 
     void SyntaxTree::Truncate(std::size_t nodeCount, std::size_t childIndexCount)
@@ -143,7 +144,7 @@ namespace JBro::ScriptCompiler
             if (SyntaxFlagNone != node.Flags)
             {
                 out.Append(" {");
-                bool first = true;
+                Bool first = true;
                 for (const FlagName& flag : FlagNames)
                 {
                     if (0 == (node.Flags & flag.Flag))

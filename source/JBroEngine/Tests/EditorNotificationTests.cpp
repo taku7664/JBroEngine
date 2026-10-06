@@ -17,6 +17,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 우측 하단 알림(todo "에디터 공용 기반" 1 번).
 //
@@ -25,7 +29,7 @@
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -50,7 +54,7 @@ namespace
         QuietLog& operator=(const QuietLog&) = delete;
 
     private:
-        bool m_previous = true;
+        JBro::Bool m_previous = true;
     };
 
     using JBro::EditorNotifications;
@@ -58,12 +62,12 @@ namespace
     using JBro::NotificationHandle;
     using JBro::NotificationLevel;
 
-    constexpr float Frame = 1.0f / 60.0f;
+    constexpr JBro::Float Frame = 1.0f / 60.0f;
 
-    void Run(EditorNotifications& notifications, float seconds)
+    void Run(EditorNotifications& notifications, JBro::Float seconds)
     {
-        const int frames = static_cast<int>(std::ceil(seconds / Frame));
-        for (int frame = 0; frame < frames; ++frame)
+        const JBro::Int32 frames = static_cast<int>(std::ceil(seconds / Frame));
+        for (JBro::Int32 frame = 0; frame < frames; ++frame)
         {
             notifications.Update(Frame);
         }
@@ -73,7 +77,7 @@ namespace
     class CountingAction final : public JBro::NotificationAction
     {
     public:
-        explicit CountingAction(int& calls, JBro::EditorApplication** seen = nullptr)
+        explicit CountingAction(JBro::Int32& calls, JBro::EditorApplication** seen = nullptr)
             : m_calls(calls), m_seen(seen)
         {
         }
@@ -88,11 +92,11 @@ namespace
         }
 
     private:
-        int& m_calls;
+        JBro::Int32& m_calls;
         JBro::EditorApplication** m_seen = nullptr;
     };
 
-    NotificationHandle NotifyWithAction(EditorNotifications& notifications, int& calls, float duration = -1.0f)
+    NotificationHandle NotifyWithAction(EditorNotifications& notifications, JBro::Int32& calls, JBro::Float duration = -1.0f)
     {
         NotificationDesc desc;
         desc.title = "with action";
@@ -104,7 +108,7 @@ namespace
     // 번호가 아니라 핸들로 찾는다. 앞의 것이 빠지면 번호가 밀린다(처음에 번호로 재다 엉뚱한 상자를 쟀다).
     JBro::NotificationView ViewOf(const EditorNotifications& notifications, NotificationHandle handle)
     {
-        for (std::uint32_t index = 0; index < notifications.GetVisibleCount(); ++index)
+        for (JBro::UInt32 index = 0; index < notifications.GetVisibleCount(); ++index)
         {
             const JBro::NotificationView view = notifications.GetVisible(index);
             if (view.handle == handle)
@@ -125,9 +129,9 @@ namespace
         EditorNotifications notifications;
         NotificationHandle handles[7] = {};
         char title[16] = {};
-        for (int index = 0; index < 7; ++index)
+        for (JBro::Int32 index = 0; index < 7; ++index)
         {
-            std::snprintf(title, sizeof(title), "n%d", index);
+            std::snprintf(title, sizeof(title), "n%d", index.Get());
             handles[index] = notifications.Notify(NotificationLevel::Info, title);
             Check(handles[index] != JBro::InvalidNotificationHandle, "a titled notification must be accepted");
         }
@@ -144,8 +148,8 @@ namespace
         notifications.Update(Frame);
         // 사라지는 중인 것은 자리를 비운 것이다 - 다음 것이 곧바로 들어온다.
         Check(notifications.GetPendingCount() == 1, "the first waiting one must come in as soon as a slot frees");
-        bool sixthShown = false;
-        for (std::uint32_t index = 0; index < notifications.GetVisibleCount(); ++index)
+        JBro::Bool sixthShown = false;
+        for (JBro::UInt32 index = 0; index < notifications.GetVisibleCount(); ++index)
         {
             sixthShown = sixthShown || notifications.GetVisible(index).handle == handles[5];
         }
@@ -232,7 +236,7 @@ namespace
     {
         QuietLog quiet;
         EditorNotifications notifications;
-        constexpr float Width = 300.0f;
+        constexpr JBro::Float Width = 300.0f;
         const NotificationHandle left = notifications.Notify(NotificationLevel::Info, "swipe left");
         const NotificationHandle shortOne = notifications.Notify(NotificationLevel::Info, "swipe short");
         const NotificationHandle right = notifications.Notify(NotificationLevel::Info, "swipe right");
@@ -245,7 +249,7 @@ namespace
         notifications.Drag(left, -Width * 0.5f);
         notifications.Release(left);
         Check(false == notifications.IsAlive(left), "dragged half its width and let go, it must leave");
-        const float before = ViewOf(notifications, left).offsetX;
+        const JBro::Float before = ViewOf(notifications, left).offsetX;
         notifications.Update(Frame);
         Check(ViewOf(notifications, left).offsetX < before, "and fly off to the left, the way it was pushed");
 
@@ -296,7 +300,7 @@ namespace
     {
         QuietLog quiet;
         EditorNotifications notifications;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         JBro::EditorApplication* seen = nullptr;
         NotificationDesc desc;
         desc.title = "open the log";
@@ -324,7 +328,7 @@ namespace
         QuietLog quiet;
         EditorNotifications notifications;
         NotificationHandle last = JBro::InvalidNotificationHandle;
-        for (int index = 0; index < 6; ++index)
+        for (JBro::Int32 index = 0; index < 6; ++index)
         {
             last = notifications.Notify(NotificationLevel::Info, "queued");
         }
@@ -372,7 +376,7 @@ namespace
         Check(notifications.GetVisible(0).offsetY == 40.0f, "the first reported place is taken at once");
         notifications.ReportLayout(handle, 300.0f, 140.0f);
         notifications.Update(Frame);
-        const float step = notifications.GetVisible(0).offsetY;
+        const JBro::Float step = notifications.GetVisible(0).offsetY;
         Check(step > 40.0f && step < 140.0f, "a new place must be approached, not jumped to");
         Run(notifications, 1.0f);
         Check(std::fabs(notifications.GetVisible(0).offsetY - 140.0f) < 0.5f, "and reached in the end");
@@ -380,8 +384,8 @@ namespace
 
     // ── 위젯 ───────────────────────────────────────────────────────────
 
-    constexpr float DisplayWidth = 1000.0f;
-    constexpr float DisplayHeight = 700.0f;
+    constexpr JBro::Float DisplayWidth = 1000.0f;
+    constexpr JBro::Float DisplayHeight = 700.0f;
 
     class Stage
     {
@@ -405,7 +409,7 @@ namespace
         Stage& operator=(const Stage&) = delete;
 
         // 한 프레임: 더미를 옮기고, 다른 창 하나와 알림을 그린다. 누른 것을 돌려준다.
-        NotificationHandle Step(EditorNotifications& notifications, bool drawOther = true)
+        NotificationHandle Step(EditorNotifications& notifications, JBro::Bool drawOther = true)
         {
             ImGui::NewFrame();
             if (drawOther)
@@ -421,12 +425,12 @@ namespace
             return clicked;
         }
 
-        void MoveMouse(float x, float y)
+        void MoveMouse(JBro::Float x, JBro::Float y)
         {
             ImGui::GetIO().AddMousePosEvent(x, y);
         }
 
-        void Button(bool down)
+        void Button(JBro::Bool down)
         {
             ImGui::GetIO().AddMouseButtonEvent(0, down);
         }
@@ -442,10 +446,10 @@ namespace
         return ImGui::FindWindowByName(name);
     }
 
-    void Settle(Stage& stage, EditorNotifications& notifications, float seconds)
+    void Settle(Stage& stage, EditorNotifications& notifications, JBro::Float seconds)
     {
-        const int frames = static_cast<int>(std::ceil(seconds / Frame));
-        for (int frame = 0; frame < frames; ++frame)
+        const JBro::Int32 frames = static_cast<int>(std::ceil(seconds / Frame));
+        for (JBro::Int32 frame = 0; frame < frames; ++frame)
         {
             stage.Step(notifications);
         }
@@ -464,12 +468,12 @@ namespace
         Check(box != nullptr && box->Active, "the notification must be drawn as a box");
         Check(std::fabs(box->Pos.x + box->Size.x - (DisplayWidth - style.margin)) < 1.0f, "its right edge sits a margin from the right");
         Check(std::fabs(box->Pos.y + box->Size.y - (DisplayHeight - style.margin)) < 1.0f, "its bottom edge a margin from the bottom");
-        const float restingY = box->Pos.y;
+        const JBro::Float restingY = box->Pos.y;
 
         const NotificationHandle second = notifications.Notify(NotificationLevel::Error, "second", "with a message");
         stage.Step(notifications);
         stage.Step(notifications);
-        const float risingY = BoxOf(first)->Pos.y;
+        const JBro::Float risingY = BoxOf(first)->Pos.y;
         Settle(stage, notifications, 1.0f);
         ImGuiWindow* older = BoxOf(first);
         ImGuiWindow* newer = BoxOf(second);
@@ -490,11 +494,11 @@ namespace
         const NotificationHandle upper = notifications.Notify(NotificationLevel::Info, "upper");
         const NotificationHandle lower = notifications.Notify(NotificationLevel::Info, "lower");
         Settle(stage, notifications, 1.0f);
-        const float raisedY = BoxOf(upper)->Pos.y;
+        const JBro::Float raisedY = BoxOf(upper)->Pos.y;
         notifications.Dismiss(lower);
         // 사라지는 데 걸리는 시간의 절반. 아직 아래 상자가 남아 있다.
-        const int half = static_cast<int>(EditorNotifications::FadeSeconds / Frame / 2.0f);
-        for (int frame = 0; frame < half; ++frame)
+        const JBro::Int32 half = static_cast<int>(EditorNotifications::FadeSeconds / Frame / 2.0f);
+        for (JBro::Int32 frame = 0; frame < half; ++frame)
         {
             stage.Step(notifications);
         }
@@ -528,13 +532,13 @@ namespace
         QuietLog quiet;
         Stage stage;
         EditorNotifications notifications;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         const NotificationHandle handle = NotifyWithAction(notifications, calls);
         Settle(stage, notifications, 0.5f);
         ImGuiWindow* box = BoxOf(handle);
         // 가운데 아래쪽을 누른다 - 오른쪽 위의 닫기 표시를 비킨다.
-        const float x = box->Pos.x + box->Size.x * 0.4f;
-        const float y = box->Pos.y + box->Size.y * 0.7f;
+        const JBro::Float x = box->Pos.x + box->Size.x * 0.4f;
+        const JBro::Float y = box->Pos.y + box->Size.y * 0.7f;
         stage.MoveMouse(x, y);
         stage.Step(notifications);
         Settle(stage, notifications, EditorNotifications::DefaultDuration(NotificationLevel::Info) + 1.0f);
@@ -556,13 +560,13 @@ namespace
         QuietLog quiet;
         Stage stage;
         EditorNotifications notifications;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         const NotificationHandle handle = NotifyWithAction(notifications, calls, 0.0f);
         Settle(stage, notifications, 0.5f);
         ImGuiWindow* box = BoxOf(handle);
-        const float threshold = ImGui::GetIO().MouseDragThreshold;
-        const float x = box->Pos.x + box->Size.x * 0.4f;
-        const float edgeY = box->Pos.y + 1.0f;
+        const JBro::Float threshold = ImGui::GetIO().MouseDragThreshold;
+        const JBro::Float x = box->Pos.x + box->Size.x * 0.4f;
+        const JBro::Float edgeY = box->Pos.y + 1.0f;
         stage.MoveMouse(x, edgeY);
         stage.Step(notifications);
         stage.Button(true);
@@ -580,19 +584,19 @@ namespace
         QuietLog quiet;
         Stage stage;
         EditorNotifications notifications;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         const NotificationHandle handle = NotifyWithAction(notifications, calls);
         Settle(stage, notifications, 0.5f);
         ImGuiWindow* box = BoxOf(handle);
-        const float restX = box->Pos.x;
-        const float x = box->Pos.x + box->Size.x * 0.4f;
-        const float y = box->Pos.y + box->Size.y * 0.7f;
+        const JBro::Float restX = box->Pos.x;
+        const JBro::Float x = box->Pos.x + box->Size.x * 0.4f;
+        const JBro::Float y = box->Pos.y + box->Size.y * 0.7f;
         stage.MoveMouse(x, y);
         stage.Step(notifications);
         stage.Button(true);
         stage.Step(notifications);
-        bool clicked = false;
-        for (int step = 1; step <= 10; ++step)
+        JBro::Bool clicked = false;
+        for (JBro::Int32 step = 1; step <= 10; ++step)
         {
             stage.MoveMouse(x - 20.0f * static_cast<float>(step), y);
             clicked = stage.Step(notifications) != JBro::InvalidNotificationHandle || clicked;
@@ -613,7 +617,7 @@ namespace
         QuietLog quiet;
         Stage stage;
         EditorNotifications notifications;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         NotificationDesc desc;
         desc.title = "close me";
         desc.durationSeconds = 0.0f;
@@ -622,9 +626,9 @@ namespace
         Settle(stage, notifications, 0.5f);
         ImGuiWindow* box = BoxOf(handle);
         const JBro::Widget::NotificationStackStyle style;
-        const float closeSize = ImGui::GetTextLineHeight();
-        const float x = box->Pos.x + box->Size.x - style.padding - closeSize * 0.5f;
-        const float y = box->Pos.y + style.padding + closeSize * 0.5f;
+        const JBro::Float closeSize = ImGui::GetTextLineHeight();
+        const JBro::Float x = box->Pos.x + box->Size.x - style.padding - closeSize * 0.5f;
+        const JBro::Float y = box->Pos.y + style.padding + closeSize * 0.5f;
         stage.MoveMouse(x, y);
         stage.Step(notifications);
         stage.Step(notifications);
@@ -684,12 +688,12 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick");
         }
 
-        int calls = 0;
+        JBro::Int32 calls = 0;
         JBro::EditorApplication* seen = nullptr;
         NotificationDesc desc;
         desc.level = NotificationLevel::Success;
@@ -697,7 +701,7 @@ namespace
         desc.durationSeconds = 0.0f;
         desc.action = JBro::MakeOwnerPtr<CountingAction>(calls, &seen);
         const NotificationHandle handle = editor.GetNotifications().Notify(std::move(desc));
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick");
         }
@@ -716,8 +720,8 @@ namespace
         const ImVector<ImGuiWindow*>& windows = ImGui::GetCurrentContext()->Windows;
         Check(windows[windows.Size - 1] == box, "in front of the docked panels");
 
-        const int x = static_cast<int>(box->Pos.x + box->Size.x * 0.4f);
-        const int y = static_cast<int>(box->Pos.y + box->Size.y * 0.7f);
+        const JBro::Int32 x = static_cast<int>(box->Pos.x + box->Size.x * 0.4f);
+        const JBro::Int32 y = static_cast<int>(box->Pos.y + box->Size.y * 0.7f);
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
         Check(editor.Tick(Frame), "the editor must tick");
         PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));
@@ -731,7 +735,7 @@ namespace
     }
 }
 
-int RunEditorNotificationTests()
+JBro::Int32 RunEditorNotificationTests()
 {
     TestOnlyFiveShowAndTheRestWaitInOrder();
     TestAnUntitledNotificationIsRefused();

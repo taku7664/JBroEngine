@@ -2,6 +2,7 @@
 
 #include <JBro/SaveTypes/System/ISaveStorage.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -23,22 +24,22 @@ namespace JBro
         SaveStorage& operator=(const SaveStorage&) = delete;
 
         // 저장 폴더를 정한다. 폴더는 처음 쓸 때 만든다. 다시 부르면 뿌리를 옮긴다(에디터가 다른 프로젝트를 연다). 빈 경로면 거짓이다.
-        bool Open(const char* folder);
+        Bool Open(const char* folder);
         void Close();
         const String& GetFolder() const;
 
         // `<앱 데이터>/<제품명>/Saves`(에디터는 `EditorSaves`)다. 제품명은 파일 이름에 쓸 수 있게 다듬고, 비었으면
         // `JBroEngine-Unnamed` 다 - 이름 없이 돌려 본 세이브가 실제 게임의 것과 섞이지 않는다. 앱 데이터 폴더가 없으면 빈 글자다.
-        static String MakeFolder(const char* userDataFolder, const char* productName, bool editor);
-        static bool IsValidSlotName(const char* slot);
+        static String MakeFolder(const char* userDataFolder, const char* productName, Bool editor);
+        static Bool IsValidSlotName(const char* slot);
 
-        bool IsReady() const noexcept override;
-        bool Write(const char* slot, const void* data, std::size_t size) noexcept override;
-        bool GetSize(const char* slot, std::size_t& outSize) const noexcept override;
-        bool Read(const char* slot, void* buffer, std::size_t capacity, std::size_t& outSize) const noexcept override;
-        bool Exists(const char* slot) const noexcept override;
-        bool Remove(const char* slot) noexcept override;
-        bool Flush() noexcept override;
+        Bool IsReady() const noexcept override;
+        Bool Write(const char* slot, const void* data, std::size_t size) noexcept override;
+        Bool GetSize(const char* slot, std::size_t& outSize) const noexcept override;
+        Bool Read(const char* slot, void* buffer, std::size_t capacity, std::size_t& outSize) const noexcept override;
+        Bool Exists(const char* slot) const noexcept override;
+        Bool Remove(const char* slot) noexcept override;
+        Bool Flush() noexcept override;
 
     private:
         // 이름을 검사하고 파일 경로를 만든다. 거절하면 빈 글자이고 한 번 경고한다.
@@ -46,6 +47,6 @@ namespace JBro
 
         IPlatform& m_platform;
         String m_folder;
-        bool m_ready = false;
+        Bool m_ready = false;
     };
 }

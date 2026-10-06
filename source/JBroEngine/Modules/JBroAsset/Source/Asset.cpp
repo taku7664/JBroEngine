@@ -17,12 +17,16 @@
 #include <cstring>
 #include <string_view>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr AssetHandle MakeHandle(AssetType type, std::uint32_t slotIndex, std::uint32_t generation) noexcept
+        constexpr AssetHandle MakeHandle(AssetType type, UInt32 slotIndex, UInt32 generation) noexcept
         {
             AssetHandle handle;
             handle.index = (static_cast<std::uint32_t>(type) << 28) | slotIndex;
@@ -30,7 +34,7 @@ namespace JBro
             return handle;
         }
 
-        bool EndsWith(std::string_view text, std::string_view suffix) noexcept
+        Bool EndsWith(std::string_view text, std::string_view suffix) noexcept
         {
             return text.size() >= suffix.size()
                 && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
@@ -43,7 +47,7 @@ namespace JBro
         {
             const NameId uuidName = NameTable::Get().Intern("JBro.Uuid");
             const NameId handleName = NameTable::Get().Intern("JBro.AssetHandle");
-            for (std::uint32_t i = 0; i < table.count; ++i)
+            for (UInt32 i = 0; i < table.count; ++i)
             {
                 const PropertyInfo& idProperty = table.properties[i];
                 if (idProperty.type == nullptr || idProperty.type->typeName != uuidName)
@@ -56,7 +60,7 @@ namespace JBro
                     continue;
                 }
                 const std::string_view handleFieldName = idName.substr(0, idName.size() - 2);
-                for (std::uint32_t j = 0; j < table.count; ++j)
+                for (UInt32 j = 0; j < table.count; ++j)
                 {
                     const PropertyInfo& handleProperty = table.properties[j];
                     if (handleProperty.type == nullptr || handleProperty.type->typeName != handleName
@@ -71,7 +75,7 @@ namespace JBro
         }
     }
 
-    bool AssetSystem::Initialize(const JMemoryContext&)
+    Bool AssetSystem::Initialize(const JMemoryContext&)
     {
         return true;
     }
@@ -104,7 +108,7 @@ namespace JBro
         return m_source;
     }
 
-    bool AssetSystem::ReadSourceByPath(std::string_view relativePath, Array<std::byte>& out) const
+    Bool AssetSystem::ReadSourceByPath(std::string_view relativePath, Array<std::byte>& out) const
     {
         out.Clear();
         const AssetRecord* record = m_registry != nullptr ? m_registry->FindByPath(relativePath) : nullptr;
@@ -114,7 +118,7 @@ namespace JBro
     void AssetSystem::Unbind()
     {
         // 믹서가 빌려 쓰는 오디오 자료를 풀기 전에 알린다.
-        for (std::uint32_t index = 0; index < m_audio.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_audio.slots.Size(); ++index)
         {
             NotifyAudioRelease(index);
         }
@@ -133,7 +137,7 @@ namespace JBro
         m_source = nullptr;
     }
 
-    bool AssetSystem::IsBound() const
+    Bool AssetSystem::IsBound() const
     {
         return m_platform != nullptr && m_registry != nullptr;
     }
@@ -154,7 +158,7 @@ namespace JBro
         {
             return nullptr;
         }
-        const std::uint32_t slotIndex = handle.index & SlotMask;
+        const UInt32 slotIndex = handle.index & SlotMask;
         if (slotIndex >= pool.slots.Size())
         {
             return nullptr;
@@ -172,7 +176,7 @@ namespace JBro
     template <typename TData>
     AssetHandle AssetSystem::Occupy(Pool<TData>& pool, AssetType type, AssetId id, TData&& data)
     {
-        std::uint32_t slotIndex = 0;
+        UInt32 slotIndex = 0;
         if (false == pool.freeList.IsEmpty())
         {
             slotIndex = pool.freeList.Pop();
@@ -195,7 +199,7 @@ namespace JBro
     }
 
     template <typename TData>
-    void AssetSystem::Vacate(Pool<TData>& pool, std::uint32_t slotIndex)
+    void AssetSystem::Vacate(Pool<TData>& pool, UInt32 slotIndex)
     {
         Slot<TData>& slot = pool.slots[slotIndex];
         m_loaded.Remove(slot.id);
@@ -240,7 +244,7 @@ namespace JBro
         return AssetTypeRules::MakeMetaPath(SourcePathOf(record));
     }
 
-    bool AssetSystem::ReadTexture(const AssetRecord& record, TextureData& data)
+    Bool AssetSystem::ReadTexture(const AssetRecord& record, TextureData& data)
     {
         // 메타를 먼저 본다. 읽히지 않는 메타면 디코드는 헛일이다.
         if (false == ReadTextureOptions(record, data.options))
@@ -280,7 +284,7 @@ namespace JBro
         return true;
     }
 
-    bool DecodeAssetFile(const IAssetSource& source, AssetDecodeJob& job)
+    Bool DecodeAssetFile(const IAssetSource& source, AssetDecodeJob& job)
     {
         job.decoded = false;
         job.failure.clear();
@@ -324,7 +328,7 @@ namespace JBro
                 const AudioFormat format = decoder.GetFormat();
                 read.sampleRate = format.sampleRate;
                 // 모노면 믹서의 스트리머가 연 디코더에 `SetMono` 를 건다 - 클립의 채널 1 이 그 신호다(D-231).
-                read.channels = read.options.mono ? 1 : format.channels;
+                read.channels = read.options.mono ? UInt32(1) : format.channels;
                 read.frameCount = format.frameCount;
                 read.streamPath = job.streamPath;
                 job.decoded = true;
@@ -343,7 +347,7 @@ namespace JBro
             AudioDecodeTarget target;
             target.sampleRate = job.audioSampleRate;
             target.mono = read.options.mono;
-            const bool decoded = read.options.mode == AudioImportMode::Streaming
+            const Bool decoded = read.options.mode == AudioImportMode::Streaming
                 ? ProbeAudio(view, format)
                 : DecodeAudio(view, format, read.pcm, target);
             if (false == decoded)
@@ -357,7 +361,7 @@ namespace JBro
             }
             read.sampleRate = format.sampleRate;
             // `Streaming` 은 보이스마다 여는 디코더가 클립의 채널로 푼다 - 모노면 1 로 알린다(D-231).
-            read.channels = read.options.mono ? 1 : format.channels;
+            read.channels = read.options.mono ? UInt32(1) : format.channels;
             read.frameCount = format.frameCount;
             job.decoded = true;
             return true;
@@ -366,7 +370,7 @@ namespace JBro
         return false;
     }
 
-    bool AssetSystem::ReadMeta(const AssetRecord& record, AssetMetaFile& meta)
+    Bool AssetSystem::ReadMeta(const AssetRecord& record, AssetMetaFile& meta)
     {
         const AssetId key = record.owner.IsNull() ? record.id : record.owner;
         if (const AssetMetaFile* cached = m_metaCache.Find(key))
@@ -407,7 +411,7 @@ namespace JBro
     }
 
     // 옵션은 메타 파서 하나가 읽는다(D-120). 블록이 없으면 기본값이고, 있는데 읽히지 않으면 실패다 - 파서가 그 규칙이다.
-    bool AssetSystem::ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options)
+    Bool AssetSystem::ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options)
     {
         AssetMetaFile meta;
         if (false == ReadMeta(record, meta))
@@ -423,7 +427,7 @@ namespace JBro
         return true;
     }
 
-    bool AssetSystem::ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options)
+    Bool AssetSystem::ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options)
     {
         AssetMetaFile meta;
         if (false == ReadMeta(record, meta))
@@ -434,7 +438,7 @@ namespace JBro
         return true;
     }
 
-    bool AssetSystem::ReadAudio(const AssetRecord& record, AudioData& data)
+    Bool AssetSystem::ReadAudio(const AssetRecord& record, AudioData& data)
     {
         AssetMetaFile meta;
         if (false == ReadMeta(record, meta))
@@ -464,7 +468,7 @@ namespace JBro
         return true;
     }
 
-    bool AssetSystem::PrepareDecode(AssetId id, AssetDecodeJob& job)
+    Bool AssetSystem::PrepareDecode(AssetId id, AssetDecodeJob& job)
     {
         if (false == IsBound() || id.IsNull() || m_source == nullptr || false == m_source->CanReadOnWorkers())
         {
@@ -556,7 +560,7 @@ namespace JBro
         return handle;
     }
 
-    bool AssetSystem::ReadFont(const AssetRecord& record, FontData& data)
+    Bool AssetSystem::ReadFont(const AssetRecord& record, FontData& data)
     {
         AssetMetaFile meta;
         if (false == ReadMeta(record, meta))
@@ -599,11 +603,11 @@ namespace JBro
         {
             options.filter = TextureFilter::Linear;
         }
-        options.sdfSize = options.sdfSize < 8 ? 8 : (options.sdfSize > 256 ? 256 : options.sdfSize);
-        options.sdfSpread = options.sdfSpread < 1 ? 1 : (options.sdfSpread > 32 ? 32 : options.sdfSpread);
+        options.sdfSize = JBro::Clamp(options.sdfSize, 8u, 256u);
+        options.sdfSpread = JBro::Clamp(options.sdfSpread, 1u, 32u);
     }
 
-    bool AssetSystem::ReadFontFamily(const AssetRecord& record, FontFamilyData& data)
+    Bool AssetSystem::ReadFontFamily(const AssetRecord& record, FontFamilyData& data)
     {
         AssetMetaFile meta;
         if (false == ReadMeta(record, meta))
@@ -645,7 +649,7 @@ namespace JBro
         }
     }
 
-    bool AssetSystem::ReadStringTable(const AssetRecord& record, StringTableData& data)
+    Bool AssetSystem::ReadStringTable(const AssetRecord& record, StringTableData& data)
     {
         AssetMetaFile meta;
         if (false == ReadMeta(record, meta))
@@ -666,12 +670,12 @@ namespace JBro
             Log::Write(LogLevel::Warning, "asset", "a string table could not be read (line %zu): %s", error.line, error.message.c_str());
             return false;
         }
-        const std::uint32_t root = document.GetRoot();
+        const UInt32 root = document.GetRoot();
         if (document.GetKind(root) == YamlKind::Map)
         {
             for (std::size_t index = 0; index < document.GetCount(root); ++index)
             {
-                const std::uint32_t value = document.GetValue(root, index);
+                const UInt32 value = document.GetValue(root, index);
                 if (document.GetKind(value) != YamlKind::Scalar)
                 {
                     continue;
@@ -701,7 +705,7 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
-    void AssetSystem::NotifyAudioRelease(std::uint32_t slotIndex)
+    void AssetSystem::NotifyAudioRelease(UInt32 slotIndex)
     {
         if (m_audioRelease == nullptr || slotIndex >= m_audio.slots.Size())
         {
@@ -714,7 +718,7 @@ namespace JBro
         }
     }
 
-    bool AssetSystem::ComputeAudioPeaks(AssetHandle handle, std::uint32_t buckets, Array<float>& peaks)
+    Bool AssetSystem::ComputeAudioPeaks(AssetHandle handle, UInt32 buckets, Array<float>& peaks)
     {
         const AudioData* data = GetAudio(handle);
         if (data == nullptr)
@@ -748,7 +752,7 @@ namespace JBro
         m_audioReleaseUser = callback != nullptr ? user : nullptr;
     }
 
-    void AssetSystem::SetAudioDecodeSampleRate(std::uint32_t sampleRate)
+    void AssetSystem::SetAudioDecodeSampleRate(UInt32 sampleRate)
     {
         m_audioDecodeSampleRate = sampleRate;
     }
@@ -772,7 +776,7 @@ namespace JBro
     void AssetSystem::SetProjectFonts(ArrayView<const AssetId> fonts)
     {
         // 같은 목록이면 판번호를 올리지 않는다. 설정을 저장할 때마다 부르므로, 올리면 모든 텍스트가 다시 레이아웃된다.
-        bool same = fonts.Size() == m_projectFonts.Size();
+        Bool same = fonts.Size() == m_projectFonts.Size();
         for (std::size_t index = 0; same && index < fonts.Size(); ++index)
         {
             same = fonts[index] == m_projectFonts[index];
@@ -794,12 +798,12 @@ namespace JBro
         return ArrayView<const AssetId>(m_projectFonts.Data(), m_projectFonts.Size());
     }
 
-    std::uint32_t AssetSystem::GetProjectFontsRevision() const
+    UInt32 AssetSystem::GetProjectFontsRevision() const
     {
         return m_projectFontsRevision;
     }
 
-    bool AssetSystem::BuildSprite(const AssetRecord& record, SpriteData& data)
+    Bool AssetSystem::BuildSprite(const AssetRecord& record, SpriteData& data)
     {
         SpriteData built;
         if (false == ReadSpriteOptions(record, built.options))
@@ -1030,7 +1034,7 @@ namespace JBro
         return loaded != nullptr ? *loaded : AssetHandle{};
     }
 
-    bool AssetSystem::IsLoaded(AssetHandle handle) const
+    Bool AssetSystem::IsLoaded(AssetHandle handle) const
     {
         return FindSlot(m_textures, handle, AssetType::Texture) != nullptr
             || FindSlot(m_sprites, handle, AssetType::Sprite) != nullptr
@@ -1040,7 +1044,7 @@ namespace JBro
             || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr;
     }
 
-    std::uint32_t AssetSystem::GetReferenceCount(AssetHandle handle) const
+    UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
     {
         if (const Slot<TextureData>* texture = FindSlot(m_textures, handle, AssetType::Texture))
         {
@@ -1081,7 +1085,7 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
-    bool AssetSystem::ReloadInPlace(AssetId id)
+    Bool AssetSystem::ReloadInPlace(AssetId id)
     {
         if (false == IsBound())
         {
@@ -1179,7 +1183,7 @@ namespace JBro
         return false;
     }
 
-    std::uint32_t AssetSystem::ReloadAllInPlace()
+    UInt32 AssetSystem::ReloadAllInPlace()
     {
         // 먼저 아이디를 모은다. 재로드는 표를 바꾸지 않지만, 도는 동안 표를 만지지 않는 쪽이 안전하다.
         Array<AssetId> ids;
@@ -1188,7 +1192,7 @@ namespace JBro
         {
             ids.Add(it->KeyValue);
         }
-        std::uint32_t reloaded = 0;
+        UInt32 reloaded = 0;
         for (std::size_t index = 0; index < ids.Size(); ++index)
         {
             if (ReloadInPlace(ids[index]))
@@ -1199,11 +1203,11 @@ namespace JBro
         return reloaded;
     }
 
-    std::uint32_t AssetSystem::CollectUnused()
+    UInt32 AssetSystem::CollectUnused()
     {
-        std::uint32_t freed = 0;
+        UInt32 freed = 0;
         // 패밀리가 맨 먼저다. 그것이 놓는 폰트가 뒤의 순회에서 0 이 될 수 있다.
-        for (std::uint32_t index = 0; index < m_fontFamilies.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_fontFamilies.slots.Size(); ++index)
         {
             Slot<FontFamilyData>& slot = m_fontFamilies.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
@@ -1214,7 +1218,7 @@ namespace JBro
             }
         }
         // 스프라이트가 먼저다. 그것이 놓는 텍스처가 두 번째 순회에서 0 이 될 수 있다.
-        for (std::uint32_t index = 0; index < m_sprites.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_sprites.slots.Size(); ++index)
         {
             Slot<SpriteData>& slot = m_sprites.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
@@ -1224,7 +1228,7 @@ namespace JBro
                 ++freed;
             }
         }
-        for (std::uint32_t index = 0; index < m_textures.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_textures.slots.Size(); ++index)
         {
             Slot<TextureData>& slot = m_textures.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
@@ -1233,7 +1237,7 @@ namespace JBro
                 ++freed;
             }
         }
-        for (std::uint32_t index = 0; index < m_audio.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_audio.slots.Size(); ++index)
         {
             Slot<AudioData>& slot = m_audio.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
@@ -1243,7 +1247,7 @@ namespace JBro
                 ++freed;
             }
         }
-        for (std::uint32_t index = 0; index < m_fonts.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_fonts.slots.Size(); ++index)
         {
             Slot<FontData>& slot = m_fonts.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
@@ -1252,7 +1256,7 @@ namespace JBro
                 ++freed;
             }
         }
-        for (std::uint32_t index = 0; index < m_stringTables.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_stringTables.slots.Size(); ++index)
         {
             Slot<StringTableData>& slot = m_stringTables.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
@@ -1264,18 +1268,18 @@ namespace JBro
         return freed;
     }
 
-    std::uint32_t AssetSystem::GetLoadedCount() const
+    UInt32 AssetSystem::GetLoadedCount() const
     {
         return static_cast<std::uint32_t>(m_loaded.Size());
     }
 
-    std::uint32_t AssetSystem::BindComponentAssets(const PropertyTable& table, void* component, Array<AssetHandle>& acquired)
+    UInt32 AssetSystem::BindComponentAssets(const PropertyTable& table, void* component, Array<AssetHandle>& acquired)
     {
         if (component == nullptr)
         {
             return 0;
         }
-        std::uint32_t bound = 0;
+        UInt32 bound = 0;
         ForEachAssetField(table, [&](const PropertyInfo& idProperty, const PropertyInfo& handleProperty) {
             const AssetId id = *static_cast<const AssetId*>(idProperty.ConstAddress(component));
             AssetHandle& target = *static_cast<AssetHandle*>(handleProperty.Address(component));

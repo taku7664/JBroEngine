@@ -4,6 +4,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <JBro/Types/Int.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
@@ -53,14 +54,14 @@ namespace
         Check(a->SendTo(nobody, "x", 1) == SocketIo::Ok, "sending to nobody still returns Ok");
         Endpoint target;
         a->Resolve("memory", 9001, target);
-        for (int index = 0; index < 5; ++index)
+        for (JBro::Int32 index = 0; index < 5; ++index)
         {
             Check(a->SendTo(target, &index, sizeof(index)) == SocketIo::Ok, "send");
         }
         std::uint8_t buffer[16];
         std::size_t received = 0;
         Endpoint from;
-        int count = 0;
+        JBro::Int32 count = 0;
         while (b->ReceiveFrom(buffer, sizeof(buffer), received, from) == SocketIo::Ok)
         {
             ++count;
@@ -81,7 +82,7 @@ namespace
     }
 }
 
-int RunMemorySocketTests()
+JBro::Int32 RunMemorySocketTests()
 {
     try
     {

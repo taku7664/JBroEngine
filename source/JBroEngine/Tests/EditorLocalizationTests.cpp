@@ -13,6 +13,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 화면에 나오는 글자를 키로 다루는 표다(ProjectRule §11.2).
 //
@@ -25,7 +28,7 @@ namespace
     JBro::WindowsPlatform& Platform()
     {
         static JBro::WindowsPlatform platform;
-        static bool initialized = false;
+        static JBro::Bool initialized = false;
         if (false == initialized)
         {
             JBro::JMemoryContext memory;
@@ -34,7 +37,7 @@ namespace
         return platform;
     }
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -201,7 +204,7 @@ namespace
         return conversions;
     }
 
-    bool ReadEntries(const char* path, JBro::YamlDocument& document, std::uint32_t& entries)
+    JBro::Bool ReadEntries(const char* path, JBro::YamlDocument& document, JBro::UInt32& entries)
     {
         std::ifstream file(path, std::ios::binary);
         if (false == file.is_open())
@@ -226,8 +229,8 @@ namespace
     {
         JBro::YamlDocument korean;
         JBro::YamlDocument english;
-        std::uint32_t koreanEntries = 0;
-        std::uint32_t englishEntries = 0;
+        JBro::UInt32 koreanEntries = 0;
+        JBro::UInt32 englishEntries = 0;
         if (false == ReadEntries("Localization/ko-KR.yaml", korean, koreanEntries)
             || false == ReadEntries("Localization/en-US.yaml", english, englishEntries))
         {
@@ -240,7 +243,7 @@ namespace
         for (std::size_t index = 0; index < count; ++index)
         {
             const char* key = korean.GetKey(koreanEntries, index);
-            const std::uint32_t other = english.Find(englishEntries, key);
+            const JBro::UInt32 other = english.Find(englishEntries, key);
             Check(other != 0, "every Korean key must have an English entry");
             const char* koreanText = korean.GetText(korean.GetValue(koreanEntries, index));
             const char* englishText = english.GetText(other);
@@ -263,7 +266,7 @@ namespace
     }
 
     // 한 줄에서 `inline constexpr const char* Name = "key";` 의 둘을 꺼낸다.
-    bool ParseKeyLine(const std::string& line, std::string& name, std::string& key)
+    JBro::Bool ParseKeyLine(const std::string& line, std::string& name, std::string& key)
     {
         const std::size_t star = line.find("const char* ");
         const std::size_t equals = line.find(" = \"", star);
@@ -318,8 +321,8 @@ namespace
         // ① 선언한 키는 두 로케일 모두에 있어야 한다.
         JBro::YamlDocument korean;
         JBro::YamlDocument english;
-        std::uint32_t koreanEntries = 0;
-        std::uint32_t englishEntries = 0;
+        JBro::UInt32 koreanEntries = 0;
+        JBro::UInt32 englishEntries = 0;
         if (false == ReadEntries("Localization/ko-KR.yaml", korean, koreanEntries)
             || false == ReadEntries("Localization/en-US.yaml", english, englishEntries))
         {
@@ -341,7 +344,7 @@ namespace
         for (std::size_t index = 0; index < count; ++index)
         {
             const char* key = korean.GetKey(koreanEntries, index);
-            bool found = false;
+            JBro::Bool found = false;
             for (const auto& [name, declaredKey] : declared)
             {
                 found = found || declaredKey == key;
@@ -406,7 +409,7 @@ namespace
     }
 }
 
-int RunEditorLocalizationTests()
+JBro::Int32 RunEditorLocalizationTests()
 {
     TestTheTableFindsAndFallsBack();
     TestAFailedLoadLeavesTheOldTableStanding();

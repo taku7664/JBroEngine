@@ -21,10 +21,14 @@
 
 #include <chrono>
 #include <cstdio>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    constexpr std::uint32_t SkippedFrameWaitMilliseconds = 16;
+    constexpr JBro::UInt32 SkippedFrameWaitMilliseconds = 16;
 
     // 실행 인자는 와이드로 받아 UTF-8 로 바꾼다. 좁은 `main` 의 인자는 ANSI 라 한글 경로가 깨진다(D-112).
     JBro::String ToUtf8(const wchar_t* wide)
@@ -34,7 +38,7 @@ namespace
         {
             return result;
         }
-        const int length = WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
+        const JBro::Int32 length = WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
         if (length <= 1)
         {
             return result;
@@ -56,8 +60,8 @@ namespace
         JBro::Array<std::byte> text;
         // 패키지로 연 게임은 캔버스도 패키지에서 읽는다(D-232). 경로는 에셋 폴더 기준이다.
         const JBro::AssetSystem* assets = engine.GetAssetSystem();
-        const bool read = engine.IsRunningFromPackage()
-            ? assets != nullptr && assets->ReadSourceByPath(path, text)
+        const JBro::Bool read = engine.IsRunningFromPackage()
+            ? JBro::Bool(assets != nullptr && assets->ReadSourceByPath(path, text))
             : platform.ReadWholeFile(path.c_str(), text);
         if (false == read)
         {
@@ -79,7 +83,7 @@ namespace
     }
 
     template <typename TFramework>
-    int RunGameHost(const JBro::GameHostArguments& arguments)
+    JBro::Int32 RunGameHost(const JBro::GameHostArguments& arguments)
     {
         JBro::EngineConfig config;
         // 게임은 소리를 낸다(D-197). 장치가 없으면 소리 없이 돈다.
@@ -106,12 +110,12 @@ namespace
             return 2;
         }
 
-        int result = 0;
+        JBro::Int32 result = 0;
         try
         {
             TFramework framework;
             JBro::EngineInstance engine;
-            bool opened = engine.Initialize(config, platform, rhi);
+            JBro::Bool opened = engine.Initialize(config, platform, rhi);
             if (opened)
             {
                 // 인자가 없으면 실행 파일 옆의 프로젝트다 - 게임 빌드가 내놓은 폴더를 두 번 눌러 띄운다(D-232).
@@ -130,7 +134,7 @@ namespace
                     if (false == opened)
                     {
                         std::printf("error: the project could not be opened: %s (line %u: %s)\n",
-                            projectFile.c_str(), error.line, error.message.c_str());
+                            projectFile.c_str(), error.line.Get(), error.message.c_str());
                     }
                     else
                     {
@@ -139,7 +143,7 @@ namespace
                         framework.SetPhysicsWorkerCount(
                             JBro::ResolvePhysicsWorkerCount(platform, engine.GetProjectFile(), projectFile.c_str()));
                         // 레이어 충돌 표도 프로젝트 설정대로다(D-233).
-                        std::uint32_t ignoredLayers[32] = {};
+                        JBro::UInt32 ignoredLayers[32] = {};
                         JBro::ResolvePhysicsIgnoredLayers(engine.GetProjectFile(), ignoredLayers);
                         framework.SetPhysicsIgnoredLayers(ignoredLayers);
 #endif
@@ -195,7 +199,7 @@ int wmain(int argc, wchar_t** argv)
 {
     JBro::Array<JBro::String> utf8;
     JBro::Array<const char*> pointers;
-    for (int index = 0; index < argc; ++index)
+    for (JBro::Int32 index = 0; index < argc; ++index)
     {
         utf8.Add(ToUtf8(argv[index]));
     }

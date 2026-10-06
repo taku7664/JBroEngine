@@ -7,6 +7,8 @@
 #include <JBro/Editor/Widget/TextField.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
@@ -22,7 +24,7 @@ namespace JBro::Widget
         return *this;
     }
 
-    PathField& PathField::Invalid(bool invalid)
+    PathField& PathField::Invalid(Bool invalid)
     {
         m_invalid = invalid;
         return *this;
@@ -35,12 +37,12 @@ namespace JBro::Widget
         // **단추는 폴더 그림이다.** 기존은 "찾아보기" 글자였는데 넓은 빌드 설정 창에서였다. 오른쪽 도크처럼 좁은 칸에서는
         // 글자 단추가 칸을 먹어 경로가 몇 글자만 보이고 단추마저 잘렸다(실제 에디터에서 그랬다). 이름은 툴팁이 말한다.
         const ImGuiStyle& style = ImGui::GetStyle();
-        const float buttonWidth = ImGui::GetFrameHeight();
-        const float available = ImGui::GetContentRegionAvail().x;
-        const float fieldWidth = available - buttonWidth - style.ItemInnerSpacing.x;
+        const Float buttonWidth = ImGui::GetFrameHeight();
+        const Float available = ImGui::GetContentRegionAvail().x;
+        const Float fieldWidth = available - buttonWidth - style.ItemInnerSpacing.x;
 
         TextField field("##value", m_path);
-        field.Width(fieldWidth > 1.0f ? fieldWidth : 1.0f).Invalid(m_invalid);
+        field.Width(fieldWidth > 1.0f ? fieldWidth : Float(1.0f)).Invalid(m_invalid);
         if (m_hint != nullptr)
         {
             field.Hint(m_hint);

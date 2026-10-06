@@ -6,6 +6,8 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 패널·툴·게임이 한 번에 등록하는 태스크 묶음이다(D-208·D-209). 기존 엔진 `CTaskGroup` 자리다.
 //
@@ -14,7 +16,7 @@
 // 여기서는 제출하는 순간 태스크 수가 굳고, 관리자는 그 뒤에만 완료를 판정한다.
 namespace JBro
 {
-    using TaskGroupId = std::uint64_t;
+    using TaskGroupId = UInt64;
     inline constexpr TaskGroupId InvalidTaskGroupId = 0;
 
     // 묶음 안의 태스크를 어떻게 돌리는가. 태스크 사이의 개별 의존은 두지 않는다 - 묶음을 나누거나
@@ -36,17 +38,17 @@ namespace JBro
         TaskGroup& operator=(const TaskGroup&) = delete;
 
         // 제출하기 전에만 더할 수 있다. 제출한 뒤이거나 비어 있는 포인터면 거짓이다.
-        bool Add(OwnerPtr<Task> task);
+        Bool Add(OwnerPtr<Task> task);
 
         const String& GetName() const;
         TaskGroupOrder GetOrder() const;
         // 제출하기 전에는 `InvalidTaskGroupId` 다.
         TaskGroupId GetId() const;
-        std::uint32_t GetTaskCount() const;
-        const Task& GetTaskAt(std::uint32_t index) const;
-        bool IsSubmitted() const;
+        UInt32 GetTaskCount() const;
+        const Task& GetTaskAt(UInt32 index) const;
+        Bool IsSubmitted() const;
         // 모든 태스크의 `OnFinished` 와 이 묶음의 `OnFinished` 가 불린 뒤에 참이다.
-        bool IsFinished() const;
+        Bool IsFinished() const;
         // 현황표의 한 줄이다. 끝나기 전에는 하나라도 시작했으면 `Running`, 아니면 `Pending` 이다. 끝난 뒤에는
         // 하나라도 실패했으면 `Failed`, 아니면 하나라도 취소되었으면 `Canceled`, 아니면 `Completed` 다.
         TaskState GetState() const;
@@ -65,8 +67,8 @@ namespace JBro
         TaskGroupId m_id = InvalidTaskGroupId;
         // 메인 스레드만 만진다. 워커는 제출 때 떠 둔 raw 포인터(`Task::m_next`, 관리자의 큐)만 본다.
         Array<OwnerPtr<Task>> m_tasks;
-        std::uint32_t m_finishedTasks = 0;
-        bool m_submitted = false;
-        bool m_finished = false;
+        UInt32 m_finishedTasks = 0;
+        Bool m_submitted = false;
+        Bool m_finished = false;
     };
 }

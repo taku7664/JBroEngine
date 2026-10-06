@@ -23,10 +23,14 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -70,14 +74,14 @@ namespace
     //   · 코덱이 내놓는 글자가 스택 버퍼보다 긴 경우
     struct PartlySaved
     {
-        float kept = 0.0f;
-        float dropped = 0.0f;
+        JBro::Float kept = 0.0f;
+        JBro::Float dropped = 0.0f;
     };
 
     // 128자 버퍼보다 긴 글자를 내놓는다. 문자열 필드가 생기면 실제로 밟게 될 길이다.
     struct LongText
     {
-        int unused = 0;
+        JBro::Int32 unused = 0;
     };
 
     constexpr std::size_t LongTextLength = 300;
@@ -114,7 +118,7 @@ namespace JBro
             {
                 ValueCodec result;
                 result.ToText = [](
-                    const void*, char* buffer, std::size_t capacity, std::size_t& required) noexcept -> bool
+                    const void*, char* buffer, std::size_t capacity, std::size_t& required) noexcept -> Bool
                 {
                     required = LongTextLength;
                     if (buffer == nullptr || capacity < LongTextLength)
@@ -127,8 +131,8 @@ namespace JBro
                     }
                     return true;
                 };
-                result.FromText = [](void*, const char*, std::size_t) noexcept { return true; };
-                result.Equals = [](const void*, const void*) noexcept { return true; };
+                result.FromText = [](void*, const char*, std::size_t) noexcept -> JBro::Bool { return true; };
+                result.Equals = [](const void*, const void*) noexcept -> JBro::Bool { return true; };
                 result.Assign = [](void*, const void*) noexcept {};
                 return result;
             }();
@@ -184,7 +188,7 @@ namespace
         }
     };
 
-    using ListedCounts = JBro::Table<JBro::String, std::int32_t>;
+    using ListedCounts = JBro::Table<JBro::String, JBro::Int32>;
     using ListedColors = JBro::Array<JBro::Color>;
 
     // 컨테이너를 든 컴포넌트다. 빌트인 컴포넌트에는 아직 컨테이너 필드가 없어서
@@ -208,15 +212,15 @@ namespace
         JBRO_FIELD(ListedCounts, counts);
     };
 
-    std::uint32_t FindComponent(
+    JBro::UInt32 FindComponent(
         const JBro::YamlDocument& document,
-        std::uint32_t object,
+        JBro::UInt32 object,
         const char* typeName)
     {
-        const std::uint32_t components = document.Find(object, "Components");
+        const JBro::UInt32 components = document.Find(object, "Components");
         for (std::size_t i = 0; i < document.GetCount(components); ++i)
         {
-            const std::uint32_t component = document.GetElement(components, i);
+            const JBro::UInt32 component = document.GetElement(components, i);
             JBro::String type;
             if (document.FindScalar(component, "Type", type) && type == typeName)
             {
@@ -281,28 +285,28 @@ namespace
             Check(false, "the saved shape must be the one that was agreed");
         }
 
-        const std::uint32_t root = document.GetRoot();
-        std::int64_t version = 0;
+        const JBro::UInt32 root = document.GetRoot();
+        JBro::Int64 version = 0;
         Check(document.FindInt(root, "Version", version) && version == 1,
             "a saved canvas must say what it is");
 
-        const std::uint32_t objects = document.Find(root, "Objects");
+        const JBro::UInt32 objects = document.Find(root, "Objects");
         Check(document.GetCount(objects) == 1, "the one object must be there");
 
-        const std::uint32_t saved = document.GetElement(objects, 0);
+        const JBro::UInt32 saved = document.GetElement(objects, 0);
         JBro::String name;
         Check(document.FindScalar(saved, "Name", name) && name == "Player",
             "the object's name must survive");
-        std::int64_t parent = 0;
+        JBro::Int64 parent = 0;
         Check(document.FindInt(saved, "ParentIndex", parent) && parent == -1,
             "an object with no parent hangs from nothing");
 
-        const std::uint32_t component = FindComponent(document, saved, "Component::Transform2D");
+        const JBro::UInt32 component = FindComponent(document, saved, "Component::Transform2D");
         Check(component != JBro::YamlDocument::InvalidNode,
             "the component must be saved under its own type name");
 
         // 좌표는 이름 없이 나열된다. 씬 파일에서 가장 흔한 값이라 그 모양을 고정한다.
-        const std::uint32_t position = document.Find(component, "position");
+        const JBro::UInt32 position = document.Find(component, "position");
         Check(document.GetKind(position) == JBro::YamlKind::Sequence,
             "a position is written as a plain list, the way the old engine writes it");
         Check(document.GetCount(position) == 2, "with one entry per axis");
@@ -311,7 +315,7 @@ namespace
         Check(std::strcmp(document.GetText(document.GetElement(position, 1)), "-2.25") == 0,
             "the y must come second and keep its sign");
 
-        float rotation = 0.0f;
+        JBro::Float rotation = 0.0f;
         Check(document.FindFloat(component, "rotation", rotation) && rotation == 0.75f,
             "a scalar field is written under its own name");
     }
@@ -336,11 +340,11 @@ namespace
 
         JBro::YamlDocument document;
         Reopen(Save(canvas), document);
-        const std::uint32_t saved =
+        const JBro::UInt32 saved =
             document.GetElement(document.Find(document.GetRoot(), "Objects"), 0);
 
         // 월드 캐시는 저작 값에서 다시 계산된다. 파일에 두 벌을 만들지 않는다.
-        const std::uint32_t written = FindComponent(document, saved, "Component::Transform2D");
+        const JBro::UInt32 written = FindComponent(document, saved, "Component::Transform2D");
         Check(document.Find(written, "position") != JBro::YamlDocument::InvalidNode,
             "the authored value must be there");
         Check(document.Find(written, "worldPosition") == JBro::YamlDocument::InvalidNode,
@@ -349,7 +353,7 @@ namespace
             "the world cache must not be written");
 
         // 에셋은 영속 식별자만 나간다. 핸들은 이번 실행에서의 자리다.
-        const std::uint32_t renderer = FindComponent(document, saved, "Component::SpriteRenderer2D");
+        const JBro::UInt32 renderer = FindComponent(document, saved, "Component::SpriteRenderer2D");
         JBro::String idText;
         char expected[JBro::Uuid::TextCapacity];
         Check(JBro::Uuid::FromName("sprite/42").ToText(expected, sizeof(expected)), "the id has a text form");
@@ -359,10 +363,10 @@ namespace
             "the runtime handle must not be written");
 
         // 시뮬레이션이 다시 쓰는 값도 나가지 않는다.
-        const std::uint32_t rigid = FindComponent(document, saved, "Component::Rigidbody2D");
+        const JBro::UInt32 rigid = FindComponent(document, saved, "Component::Rigidbody2D");
         Check(document.Find(rigid, "linearVelocity") == JBro::YamlDocument::InvalidNode,
             "a simulated value must not be restored from a file");
-        float mass = 0.0f;
+        JBro::Float mass = 0.0f;
         Check(document.FindFloat(rigid, "mass", mass) && mass == 2.0f,
             "an authored value must still be saved");
     }
@@ -382,13 +386,13 @@ namespace
 
         JBro::YamlDocument document;
         Reopen(Save(canvas), document);
-        const std::uint32_t objects = document.Find(document.GetRoot(), "Objects");
+        const JBro::UInt32 objects = document.Find(document.GetRoot(), "Objects");
         Check(document.GetCount(objects) == 3, "every object must be saved");
 
         for (std::size_t i = 0; i < document.GetCount(objects); ++i)
         {
-            const std::uint32_t object = document.GetElement(objects, i);
-            std::int64_t parentIndex = 0;
+            const JBro::UInt32 object = document.GetElement(objects, i);
+            JBro::Int64 parentIndex = 0;
             Check(document.FindInt(object, "ParentIndex", parentIndex),
                 "every object must say where it hangs");
             Check(parentIndex == -1 || static_cast<std::size_t>(parentIndex) < i,
@@ -397,10 +401,10 @@ namespace
 
         // 관계 자체가 맞는지도 본다. 순서만 맞고 가리키는 곳이 틀릴 수 있다.
         JBro::String name;
-        const std::uint32_t first = document.GetElement(objects, 0);
+        const JBro::UInt32 first = document.GetElement(objects, 0);
         Check(document.FindScalar(first, "Name", name) && name == "Parent",
             "the root must be written first");
-        std::int64_t index = 0;
+        JBro::Int64 index = 0;
         Check(document.FindInt(document.GetElement(objects, 1), "ParentIndex", index) && index == 0,
             "the child must point at the root");
         Check(document.FindInt(document.GetElement(objects, 2), "ParentIndex", index) && index == 1,
@@ -420,7 +424,7 @@ namespace
 
         JBro::YamlDocument document;
         Reopen(Save(canvas), document);
-        const std::uint32_t saved =
+        const JBro::UInt32 saved =
             document.GetElement(document.Find(document.GetRoot(), "Objects"), 0);
         Check(document.GetCount(document.Find(saved, "Components")) == 5,
             "every attached component must reach the file");
@@ -440,14 +444,14 @@ namespace
         }
 
         // enum 은 숫자가 아니라 이름으로 적힌다.
-        const std::uint32_t camera = FindComponent(document, saved, "Component::Camera2D");
+        const JBro::UInt32 camera = FindComponent(document, saved, "Component::Camera2D");
         JBro::String projection;
         Check(document.FindScalar(camera, "projection", projection)
             && projection == "Orthographic",
             "an enum field must be saved as its name");
 
         // 색도 좌표처럼 이름 없이 나열된다.
-        const std::uint32_t clear = document.Find(camera, "clearColor");
+        const JBro::UInt32 clear = document.Find(camera, "clearColor");
         Check(document.GetKind(clear) == JBro::YamlKind::Sequence, "a color is a plain list");
         Check(document.GetCount(clear) == 4, "with one entry per channel");
     }
@@ -461,16 +465,16 @@ namespace
 
         JBro::YamlDocument document;
         Reopen(Save(canvas), document);
-        const std::uint32_t layers = document.Find(document.GetRoot(), "Layers");
+        const JBro::UInt32 layers = document.Find(document.GetRoot(), "Layers");
         Check(document.GetKind(layers) == JBro::YamlKind::Sequence, "layers come out as a list");
         Check(document.GetCount(layers) >= 2, "the default layer and the new one must both be there");
 
-        bool foundHidden = false;
+        JBro::Bool foundHidden = false;
         for (std::size_t i = 0; i < document.GetCount(layers); ++i)
         {
-            const std::uint32_t layer = document.GetElement(layers, i);
+            const JBro::UInt32 layer = document.GetElement(layers, i);
             JBro::String name;
-            bool visible = true;
+            JBro::Bool visible = true;
             if (document.FindScalar(layer, "Name", name) && name == "Background")
             {
                 Check(document.FindBool(layer, "Visible", visible), "a layer must say if it shows");
@@ -492,16 +496,16 @@ namespace
 
         JBro::YamlDocument document;
         Reopen(Save(canvas), document);
-        const std::uint32_t saved =
+        const JBro::UInt32 saved =
             document.GetElement(document.Find(document.GetRoot(), "Objects"), 0);
-        const std::uint32_t written =
+        const JBro::UInt32 written =
             FindComponent(document, saved, "Component::TestRegistered");
         Check(written != JBro::YamlDocument::InvalidNode, "the component must be saved");
 
-        const std::uint32_t partly = document.Find(written, "partly");
+        const JBro::UInt32 partly = document.Find(written, "partly");
         Check(document.GetKind(partly) == JBro::YamlKind::Map,
             "a struct that is not a plain list comes out with named members");
-        float kept = 0.0f;
+        JBro::Float kept = 0.0f;
         Check(document.FindFloat(partly, "kept", kept) && kept == 1.25f,
             "the member that saves must be there");
         Check(document.Find(partly, "dropped") == JBro::YamlDocument::InvalidNode,
@@ -517,9 +521,9 @@ namespace
 
         JBro::YamlDocument document;
         Reopen(Save(canvas), document);
-        const std::uint32_t saved =
+        const JBro::UInt32 saved =
             document.GetElement(document.Find(document.GetRoot(), "Objects"), 0);
-        const std::uint32_t written =
+        const JBro::UInt32 written =
             FindComponent(document, saved, "Component::TestRegistered");
 
         // 스택 버퍼는 128자다. 그보다 긴 값을 만나면 필요한 만큼 잡고 다시 물어야 하고,
@@ -555,7 +559,7 @@ namespace
 
         JBro::YamlDocument document;
         Reopen(Save(canvas), document);
-        const std::uint32_t objects = document.Find(document.GetRoot(), "Objects");
+        const JBro::UInt32 objects = document.Find(document.GetRoot(), "Objects");
         Check(objects != JBro::YamlDocument::InvalidNode,
             "an empty canvas must still say it has no objects");
         Check(document.GetKind(objects) == JBro::YamlKind::Sequence,
@@ -566,7 +570,7 @@ namespace
         canvas.CreateObject("Bare");
         JBro::YamlDocument second;
         Reopen(Save(canvas), second);
-        const std::uint32_t bare =
+        const JBro::UInt32 bare =
             second.GetElement(second.Find(second.GetRoot(), "Objects"), 0);
         Check(second.GetKind(second.Find(bare, "Components")) == JBro::YamlKind::Sequence,
             "an object with no components must still carry an empty list");
@@ -576,7 +580,7 @@ namespace
     // 읽기
     // -----------------------------------------------------------------------
 
-    bool Load(JBro::Canvas& canvas, const JBro::String& text, JBro::CanvasFileError& error);
+    JBro::Bool Load(JBro::Canvas& canvas, const JBro::String& text, JBro::CanvasFileError& error);
     void LoadOrFail(JBro::Canvas& canvas, const JBro::String& text);
 
     // **에디터에서 감춘 오브젝트는 파일에 남고, 게임으로 묶을 때는 빠진다**(D-163, 사용자 결정 2026-09-22).
@@ -594,7 +598,7 @@ namespace
         Check(saved.find("Flags: 1") != JBro::String::npos, "the editor's save writes the flag");
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, saved);
-        int hiddenCount = 0;
+        JBro::Int32 hiddenCount = 0;
         reopened.ForEachObject([&](JBro::GameObject& object)
         {
             if (object.IsEditorHidden())
@@ -611,7 +615,7 @@ namespace
         Check(packed.find("Flags") == JBro::String::npos, "and leaves the editor-only flag out");
     }
 
-    bool Load(JBro::Canvas& canvas, const JBro::String& text, JBro::CanvasFileError& error)
+    JBro::Bool Load(JBro::Canvas& canvas, const JBro::String& text, JBro::CanvasFileError& error)
     {
         return JBro::ReadCanvasText(canvas, text.c_str(), text.size(), error);
     }
@@ -662,7 +666,7 @@ namespace
                 && listed->colors[1].A < 0.51f,
             "with their members in place");
         Check(listed->counts.Size() == 2, "both counts must come back");
-        const std::int32_t* arrows = listed->counts.Find(JBro::String("arrows"));
+        const JBro::Int32* arrows = listed->counts.Find(JBro::String("arrows"));
         Check(arrows != nullptr && *arrows == 30, "each under its own key");
     }
 
@@ -1236,7 +1240,7 @@ namespace
 
         JBro::Canvas loaded(JBro::CreateDefaultAllocator());
         LoadOrFail(loaded, text);
-        int found = 0;
+        JBro::Int32 found = 0;
         loaded.ForEach<JBro::Component::Collider2D>([&found](JBro::Component::Collider2D& collider)
         {
             ++found;
@@ -1318,7 +1322,7 @@ namespace
     }
 }
 
-int RunCanvasFileTests()
+JBro::Int32 RunCanvasFileTests()
 {
     TestACanvasWithOneObjectSaves();
     TestWhatIsNotSavedStaysOut();

@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -68,7 +69,7 @@ namespace JBro::ScriptCompiler
 
         const Array<Diagnostic>& GetItems() const noexcept { return m_items; }
         std::size_t GetCount() const noexcept { return m_items.Size(); }
-        bool HasErrors() const noexcept;
+        Bool HasErrors() const noexcept;
         void Clear() noexcept { m_items.Clear(); }
 
     private:

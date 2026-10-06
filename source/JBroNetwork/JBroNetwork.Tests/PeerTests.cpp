@@ -7,6 +7,9 @@
 
 #include <cstring>
 #include <iostream>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
@@ -17,7 +20,7 @@ namespace
     void RelaySignals(Transport& a, ConnectionId aId, Transport& b, ConnectionId bId)
     {
         std::uint8_t signal[64];
-        std::uint32_t size = 0;
+        JBro::UInt32 size = 0;
         while ((size = a.TakePeerSignal(aId, signal, sizeof(signal))) > 0)
         {
             Check(b.PushPeerSignal(bId, signal, size), "the peer accepts the signal");
@@ -43,8 +46,8 @@ namespace
         Check(host.GetConnectionKind(guest) == ConnectionKind::Peer && client.GetConnectionKind(ServerConnectionId) == ConnectionKind::Peer,
             "both are peer connections");
 
-        bool ready = false;
-        for (int round = 0; round < 40 && false == ready; ++round)
+        JBro::Bool ready = false;
+        for (JBro::Int32 round = 0; round < 40 && false == ready; ++round)
         {
             RelaySignals(client, ServerConnectionId, host, guest);
             host.Update();
@@ -55,14 +58,14 @@ namespace
         }
         Check(ready, "hello crosses the data channel and both sides are Connected");
         NetworkEvent events[8];
-        std::uint32_t got = host.TakeEvents(events, 8);
+        JBro::UInt32 got = host.TakeEvents(events, 8);
         Check(got == 1 && events[0].kind == NetworkEventKind::Connected, "the host saw Connected");
         got = client.TakeEvents(events, 8);
         Check(got == 1 && events[0].kind == NetworkEventKind::Connected, "the client saw Connected");
 
         const NetChannel channels[4] = { NetChannel::ReliableOrdered, NetChannel::ReliableUnordered, NetChannel::Unreliable,
             NetChannel::UnreliableSequenced };
-        for (std::uint32_t index = 0; index < 4; ++index)
+        for (JBro::UInt32 index = 0; index < 4; ++index)
         {
             Check(client.Send(ServerConnectionId, static_cast<MessageId>(10 + index), &index, sizeof(index), channels[index]),
                 "the client sends on each channel");
@@ -74,34 +77,34 @@ namespace
         MessageView views[8];
         got = host.TakeMessages(views, 8);
         Check(got == 4, "the host receives four");
-        for (std::uint32_t index = 0; index < got; ++index)
+        for (JBro::UInt32 index = 0; index < got; ++index)
         {
-            const std::uint32_t which = views[index].messageId - 10;
+            const JBro::UInt32 which = views[index].messageId - 10;
             Check(which < 4 && views[index].channel == channels[which], "each on the channel it was sent on");
         }
         got = client.TakeMessages(views, 8);
         Check(got == 4, "the client receives four");
-        for (std::uint32_t index = 0; index < got; ++index)
+        for (JBro::UInt32 index = 0; index < got; ++index)
         {
-            const std::uint32_t which = views[index].messageId - 20;
+            const JBro::UInt32 which = views[index].messageId - 20;
             Check(which < 4 && views[index].channel == channels[which], "each on the channel it was sent on");
         }
 
         // 순서 보장 300 개는 순서대로 전부.
-        for (std::uint32_t value = 0; value < 300; ++value)
+        for (JBro::UInt32 value = 0; value < 300; ++value)
         {
             Check(client.Send(ServerConnectionId, 1, &value, sizeof(value)), "ordered send");
         }
-        std::uint32_t expected = 0;
-        for (int round = 0; round < 20 && expected < 300; ++round)
+        JBro::UInt32 expected = 0;
+        for (JBro::Int32 round = 0; round < 20 && expected < 300; ++round)
         {
             host.Update();
             client.Update();
             while ((got = host.TakeMessages(views, 8)) > 0)
             {
-                for (std::uint32_t index = 0; index < got; ++index)
+                for (JBro::UInt32 index = 0; index < got; ++index)
                 {
-                    std::uint32_t value = 0;
+                    JBro::UInt32 value = 0;
                     std::memcpy(&value, views[index].data, sizeof(value));
                     Check(value == expected, "ordered arrives in order");
                     ++expected;
@@ -142,7 +145,7 @@ namespace
         Check(host.HostPeers(), "host");
         const ConnectionId guest = host.AcceptPeer();
         Check(client.ConnectPeer(), "connect");
-        for (int round = 0; round < 40; ++round)
+        for (JBro::Int32 round = 0; round < 40; ++round)
         {
             RelaySignals(client, ServerConnectionId, host, guest);
             host.Update();
@@ -150,19 +153,19 @@ namespace
             clock.Advance(5.0);
         }
         Check(host.GetConnectionState(guest) == ConnectionState::Connected, "connected");
-        std::uint32_t reliable = 0;
-        std::uint32_t unreliable = 0;
+        JBro::UInt32 reliable = 0;
+        JBro::UInt32 unreliable = 0;
         MessageView views[16];
-        for (std::uint32_t value = 0; value < 200; ++value)
+        for (JBro::UInt32 value = 0; value < 200; ++value)
         {
             client.Send(ServerConnectionId, 1, &value, sizeof(value), NetChannel::ReliableUnordered);
             client.Send(ServerConnectionId, 2, &value, sizeof(value), NetChannel::Unreliable);
             host.Update();
             client.Update();
-            std::uint32_t got = 0;
+            JBro::UInt32 got = 0;
             while ((got = host.TakeMessages(views, 16)) > 0)
             {
-                for (std::uint32_t index = 0; index < got; ++index)
+                for (JBro::UInt32 index = 0; index < got; ++index)
                 {
                     if (views[index].messageId == 1)
                     {
@@ -227,15 +230,15 @@ namespace
     {
         Room room;
         room.host.Join(42);
-        for (int round = 0; round < 30 && false == room.host.HasRole(); ++round)
+        for (JBro::Int32 round = 0; round < 30 && false == room.host.HasRole(); ++round)
         {
             room.Round();
         }
         Check(room.host.HasRole() && room.host.IsHost(), "the first joiner is the host");
         Check(room.hostPeers.GetRole() == NetworkRole::Server && room.hostPeers.IsListening(), "and its peer transport hosts");
         room.guest.Join(42);
-        bool connected = false;
-        for (int round = 0; round < 80 && false == connected; ++round)
+        JBro::Bool connected = false;
+        for (JBro::Int32 round = 0; round < 80 && false == connected; ++round)
         {
             room.Round();
             connected = room.hostPeers.GetConnectionCount() == 1
@@ -247,7 +250,7 @@ namespace
         Check(room.host.FindPeerConnection(1) == room.hostPeers.GetConnectionAt(0), "the host maps peer 1 to that connection");
         Check(room.server.GetRoomCount() == 1 && room.server.GetMemberCount(42) == 1, "the server holds one room with one member");
 
-        const std::uint32_t value = 77;
+        const JBro::UInt32 value = 77;
         Check(room.guestPeers.Send(ServerConnectionId, 5, &value, sizeof(value), NetChannel::Unreliable), "the guest sends over the peer");
         room.Round();
         MessageView view;
@@ -259,8 +262,8 @@ namespace
         // 참가자가 떠난다.
         room.guestSignaling.Close();
         room.guestPeers.Close();
-        bool gone = false;
-        for (int round = 0; round < 40 && false == gone; ++round)
+        JBro::Bool gone = false;
+        for (JBro::Int32 round = 0; round < 40 && false == gone; ++round)
         {
             room.Round();
             gone = room.hostPeers.GetConnectionCount() == 0 && room.server.GetMemberCount(42) == 0;
@@ -285,7 +288,7 @@ namespace
     }
 }
 
-int RunPeerTests()
+JBro::Int32 RunPeerTests()
 {
     try
     {

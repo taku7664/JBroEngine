@@ -5,6 +5,8 @@
 #include <JBro/Platform/Platform.h>
 
 #include <string_view>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -16,7 +18,7 @@ namespace JBro
         }
 
         // `*` 는 아무 글자 여럿(구분자 포함), `?` 는 한 글자다. 대소문자를 가리지 않는다.
-        bool GlobMatches(std::string_view pattern, std::string_view text) noexcept
+        Bool GlobMatches(std::string_view pattern, std::string_view text) noexcept
         {
             std::size_t p = 0;
             std::size_t t = 0;
@@ -63,7 +65,7 @@ namespace JBro
             Array<String> files;
         };
 
-        bool CollectEntry(const char* relativeUtf8Path, bool isDirectory, void* user)
+        Bool CollectEntry(const char* relativeUtf8Path, Bool isDirectory, void* user)
         {
             ScanListing& listing = *static_cast<ScanListing*>(user);
             if (isDirectory)
@@ -87,10 +89,10 @@ namespace JBro
         }
     }
 
-    bool AssetRegistry::MatchesIgnorePattern(std::string_view relativePath, JArrayView<String> patterns)
+    Bool AssetRegistry::MatchesIgnorePattern(std::string_view relativePath, JArrayView<String> patterns)
     {
         const std::string_view fileName = FileNameOf(relativePath);
-        for (std::uint32_t index = 0; index < patterns.size; ++index)
+        for (UInt32 index = 0; index < patterns.size; ++index)
         {
             const String& pattern = patterns.data[index];
             if (pattern.empty())
@@ -105,7 +107,7 @@ namespace JBro
         return false;
     }
 
-    bool AssetRegistry::Scan(IPlatform& platform, const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report)
+    Bool AssetRegistry::Scan(IPlatform& platform, const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report)
     {
         Clear();
         report = {};
@@ -120,7 +122,7 @@ namespace JBro
         {
             return false;
         }
-        Table<String, bool> present;
+        Table<String, Bool> present;
         for (std::size_t index = 0; index < listing.files.Size(); ++index)
         {
             present.TryAdd(listing.files[index], true);
@@ -215,7 +217,7 @@ namespace JBro
         return true;
     }
 
-    std::uint64_t AssetRegistry::GetRevision() const
+    UInt64 AssetRegistry::GetRevision() const
     {
         return m_revision;
     }
@@ -223,11 +225,11 @@ namespace JBro
     void AssetRegistry::Touch()
     {
         // 메인 스레드 전용이다(레지스트리는 편집 시점에만 바뀐다).
-        static std::uint64_t s_next = 0;
+        static UInt64 s_next = 0;
         m_revision = ++s_next;
     }
 
-    bool AssetRegistry::Register(const AssetRecord& record)
+    Bool AssetRegistry::Register(const AssetRecord& record)
     {
         if (record.id.IsNull() || record.type == AssetType::Unknown || record.relativePath.empty())
         {
@@ -238,12 +240,12 @@ namespace JBro
             return false;
         }
         // 경로 표는 Texture(또는 이미지가 아닌 것)만 가리킨다. Sprite 는 같은 경로의 두 번째 레코드라 아이디로만 찾는다.
-        const bool ownsPath = record.owner.IsNull();
+        const Bool ownsPath = record.owner.IsNull();
         if (ownsPath && m_byPath.Contains(record.relativePath))
         {
             return false;
         }
-        const std::uint32_t index = static_cast<std::uint32_t>(m_records.Size());
+        const UInt32 index = static_cast<std::uint32_t>(m_records.Size());
         m_records.Add(record);
         m_byId.TryAdd(record.id, index);
         if (ownsPath)
@@ -267,14 +269,14 @@ namespace JBro
         return true;
     }
 
-    bool AssetRegistry::Unregister(AssetId id)
+    Bool AssetRegistry::Unregister(AssetId id)
     {
-        const std::uint32_t* found = m_byId.Find(id);
+        const UInt32* found = m_byId.Find(id);
         if (found == nullptr)
         {
             return false;
         }
-        const std::uint32_t index = *found;
+        const UInt32 index = *found;
         const AssetRecord removed = m_records[index];
         m_byId.Remove(id);
         if (removed.owner.IsNull())
@@ -297,7 +299,7 @@ namespace JBro
                 m_byOwner.Remove(removed.owner);
             }
         }
-        const std::uint32_t last = static_cast<std::uint32_t>(m_records.Size() - 1);
+        const UInt32 last = static_cast<std::uint32_t>(m_records.Size() - 1);
         if (index != last)
         {
             m_records[index] = m_records[last];
@@ -320,7 +322,7 @@ namespace JBro
         return true;
     }
 
-    bool AssetRegistry::Rename(std::string_view oldRelativePath, std::string_view newRelativePath)
+    Bool AssetRegistry::Rename(std::string_view oldRelativePath, std::string_view newRelativePath)
     {
         const String oldKey(oldRelativePath);
         const String newKey(newRelativePath);
@@ -328,12 +330,12 @@ namespace JBro
         {
             return false;
         }
-        const std::uint32_t* found = m_byPath.Find(oldKey);
+        const UInt32* found = m_byPath.Find(oldKey);
         if (found == nullptr)
         {
             return false;
         }
-        const std::uint32_t index = *found;
+        const UInt32 index = *found;
         m_byPath.Remove(oldKey);
         m_records[index].relativePath = newKey;
         m_byPath.TryAdd(newKey, index);
@@ -371,17 +373,17 @@ namespace JBro
 
     const AssetRecord* AssetRegistry::Find(AssetId id) const
     {
-        const std::uint32_t* found = m_byId.Find(id);
+        const UInt32* found = m_byId.Find(id);
         return found == nullptr ? nullptr : &m_records[*found];
     }
 
     const AssetRecord* AssetRegistry::FindByPath(std::string_view relativePath) const
     {
-        const std::uint32_t* found = m_byPath.Find(String(relativePath));
+        const UInt32* found = m_byPath.Find(String(relativePath));
         return found == nullptr ? nullptr : &m_records[*found];
     }
 
-    bool AssetRegistry::GetMetadata(AssetId id, AssetMetadata& metadata) const
+    Bool AssetRegistry::GetMetadata(AssetId id, AssetMetadata& metadata) const
     {
         const AssetRecord* record = Find(id);
         if (record == nullptr)

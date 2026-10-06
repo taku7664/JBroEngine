@@ -2,6 +2,7 @@
 
 #include <JBro/Host/IFramework.h>
 #include <JBro/Host/TimeSystem.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Testing
 {
@@ -16,5 +17,5 @@ namespace JBro::Testing
     void AttachClock(FrameworkContext& context, const TimeSettings& settings);
 
     // 시계를 연 뒤 프레임워크를 한 프레임 돌린다. 호스트의 `TickFrame` 과 같은 순서다.
-    void Tick(IFramework& framework, float deltaTime);
+    void Tick(IFramework& framework, Float deltaTime);
 }

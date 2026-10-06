@@ -17,6 +17,10 @@
 #endif
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 2D 물리 어댑터(`System::Physics2DSystem`) 테스트(D-199·D-207, physics-plan §4 의 4 단계).
 // 캔버스를 세우고 컴포넌트만으로 장면을 짠 뒤 시스템을 스텝한다. 커널 자체의 정확성은 Physics2D*Tests 가 잰다 -
@@ -31,10 +35,10 @@ namespace
     using JBro::Component::Rigidbody2D;
     using JBro::Component::Transform2D;
 
-    constexpr float Frame = 1.0f / 60.0f;
-    constexpr float Slop = 0.005f;
+    constexpr JBro::Float Frame = 1.0f / 60.0f;
+    constexpr JBro::Float Slop = 0.005f;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -43,7 +47,7 @@ namespace
         }
     }
 
-    bool Near(float actual, float expected, float tolerance)
+    JBro::Bool Near(JBro::Float actual, JBro::Float expected, JBro::Float tolerance)
     {
         return std::fabs(actual - expected) <= tolerance;
     }
@@ -97,12 +101,12 @@ namespace
             ++triggerExit;
         }
 
-        int collisionEnter = 0;
-        int collisionStay = 0;
-        int collisionExit = 0;
-        int triggerEnter = 0;
-        int triggerStay = 0;
-        int triggerExit = 0;
+        JBro::Int32 collisionEnter = 0;
+        JBro::Int32 collisionStay = 0;
+        JBro::Int32 collisionExit = 0;
+        JBro::Int32 triggerEnter = 0;
+        JBro::Int32 triggerStay = 0;
+        JBro::Int32 triggerExit = 0;
         JBro::Collision2D lastEnter;
         JBro::Collision2D lastStay;
         JBro::Collision2D lastExit;
@@ -148,10 +152,10 @@ namespace
             return canvas.AttachComponent<ContactProbe>(object);
         }
 
-        void Run(float seconds)
+        void Run(JBro::Float seconds)
         {
-            const int steps = static_cast<int>(seconds / Frame + 0.5f);
-            for (int i = 0; i < steps; ++i)
+            const JBro::Int32 steps = static_cast<int>(seconds / Frame + 0.5f);
+            for (JBro::Int32 i = 0; i < steps; ++i)
             {
                 physics.FixedUpdate(canvas, Frame);
             }
@@ -396,7 +400,7 @@ namespace
         polygon->shape = ColliderShape2D::Polygon;
         polygon->points = UOutline();
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
-        const std::uint32_t all = JBro::AllPhysicsLayers;
+        const JBro::UInt32 all = JBro::AllPhysicsLayers;
 
         JBro::Array<JBro::RaycastHit2D> hits;
         queries.RaycastAll({ 0, 0 }, { 1, 0 }, 15, hits, all);
@@ -462,7 +466,7 @@ namespace
     }
 
 #if defined(_MSC_VER) && defined(_DEBUG)
-    int g_allocations = 0;
+    JBro::Int32 g_allocations = 0;
     int CountAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
     {
         if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
@@ -496,7 +500,7 @@ namespace
         JBro::Array<JBro::GameObjectHandle> found;
         hits.Reserve(16);
         found.Reserve(16);
-        const auto step = [&](int i)
+        const auto step = [&](JBro::Int32 i)
         {
             animated->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
             scene.physics.FixedUpdate(scene.canvas, Frame);
@@ -504,14 +508,14 @@ namespace
             queries.RaycastAll({ -10, 0.25f }, { 1, 0 }, 30, hits, JBro::AllPhysicsLayers);
             queries.OverlapCircle({ 6, 1 }, 1.5f, found, JBro::AllPhysicsLayers);
         };
-        for (int i = 0; i < 120; ++i)
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             step(i);
         }
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_allocations = 0;
         const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
-        for (int i = 0; i < 120; ++i)
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             step(i);
         }
@@ -535,7 +539,7 @@ namespace
         scene.Run(0.5f);
         Check(probe->collisionEnter == 1, "the box lands once");
 
-        for (int i = 0; i < 60; ++i)
+        for (JBro::Int32 i = 0; i < 60; ++i)
         {
             collider->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
             scene.physics.FixedUpdate(scene.canvas, Frame);
@@ -587,7 +591,7 @@ namespace
 
         JBro::GameObject* children[2] = {};
         JBro::GameObject* parents[2] = { skewed, mirrored };
-        for (int i = 0; i < 2; ++i)
+        for (JBro::Int32 i = 0; i < 2; ++i)
         {
             children[i] = scene.canvas.CreateObject(i == 0 ? "skewedChild" : "mirroredChild");
             children[i]->SetParent(parents[i]);
@@ -599,7 +603,7 @@ namespace
         }
         scene.Run(0.5f);
 
-        for (int i = 0; i < 2; ++i)
+        for (JBro::Int32 i = 0; i < 2; ++i)
         {
             const Transform2D* local = scene.TransformOf(children[i]);
             Check(Near(local->GetRotationRadian(), 0.3f, 1.0e-4f), i == 0
@@ -618,15 +622,15 @@ namespace
         JBro::GameObject* parallelBoxes[60] = {};
         Scene* scenes[2] = { &serial, &parallel };
         JBro::GameObject** boxes[2] = { serialBoxes, parallelBoxes };
-        for (int s = 0; s < 2; ++s)
+        for (JBro::Int32 s = 0; s < 2; ++s)
         {
             Scene& scene = *scenes[s];
             JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
             scene.Box(ground, { 80, 1 });
-            for (int i = 0; i < 60; ++i)
+            for (JBro::Int32 i = 0; i < 60; ++i)
             {
-                const float x = -30.0f + static_cast<float>(i % 30) * 2.0f;
-                const float y = 0.5f + static_cast<float>(i / 30) * 1.0f;
+                const JBro::Float x = -30.0f + static_cast<float>(i % 30) * 2.0f;
+                const JBro::Float y = 0.5f + static_cast<float>(i / 30) * 1.0f;
                 boxes[s][i] = scene.Object("box", { x, y });
                 scene.Box(boxes[s][i], { 1, 1 });
                 scene.Dynamic(boxes[s][i]);
@@ -639,7 +643,7 @@ namespace
 #if !defined(__EMSCRIPTEN__)
         Check(parallel.physics.GetWorkerCount() == 3, "and then the kernel runs three workers");
 #endif
-        for (int i = 0; i < 60; ++i)
+        for (JBro::Int32 i = 0; i < 60; ++i)
         {
             const JBro::Vector2 a = serial.TransformOf(serialBoxes[i])->position;
             const JBro::Vector2 b = parallel.TransformOf(parallelBoxes[i])->position;
@@ -661,7 +665,7 @@ namespace
         polygon->points = UOutline();
         JBro::GameObject* off = scene.Object("off", { 9, 0 });
         scene.Box(off, { 1, 1 })->SetEnabled(false);
-        const std::uint32_t uPieces = static_cast<std::uint32_t>(UOutline().Size() - 2);
+        const JBro::UInt32 uPieces = static_cast<std::uint32_t>(UOutline().Size() - 2);
         Check(JBro::CountPhysicsWork(scene.canvas) == 2 + uPieces,
             "a box and a circle count one each, the U its points less two, the disabled one nothing");
     }
@@ -802,7 +806,7 @@ namespace
 
         JBro::RaycastHit2D hit;
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
-        const float stretchedX = scene.TransformOf(stretched)->position.x;
+        const JBro::Float stretchedX = scene.TransformOf(stretched)->position.x;
         Check(queries.Raycast({ stretchedX + 3.0f, 0.5f }, { -1, 0 }, 10, hit, JBro::AllPhysicsLayers)
             && hit.other.GetInstanceId() == stretched->GetInstanceId() && Near(hit.distance, 1.5f, 1.0e-3f),
             "and it is 3 long, not the unit circle it was stretched from");
@@ -901,12 +905,12 @@ namespace
             ContactProbe* boxProbe = scene.Probe(box);
             scene.Run(0.2f);
             Check(boxProbe->collisionEnter == 1, "the box lands");
-            const int staysAfterLanding = boxProbe->collisionStay;
+            const JBro::Int32 staysAfterLanding = boxProbe->collisionStay;
             scene.Run(0.2f);
             Check(boxProbe->collisionStay >= staysAfterLanding + 10, "while it settles it hears a stay every fixed step");
             Check(Near(boxProbe->lastStay.normal.y, -1.0f, 1.0e-3f), "each stay carries the box's own normal");
             scene.Run(2.0f);
-            const int staysAsleep = boxProbe->collisionStay;
+            const JBro::Int32 staysAsleep = boxProbe->collisionStay;
             scene.Run(0.5f);
             Check(boxProbe->collisionStay == staysAsleep, "once it sleeps the stays stop");
             Check(boxProbe->collisionExit == 0, "and it never left");
@@ -925,7 +929,7 @@ namespace
             body->gravityScale = 0.0f;
             body->canSleep = false;
             ContactProbe* ballProbe = scene.Probe(ball);
-            for (int i = 0; i < 10; ++i)
+            for (JBro::Int32 i = 0; i < 10; ++i)
             {
                 scene.physics.FixedUpdate(scene.canvas, Frame);
             }
@@ -979,7 +983,7 @@ namespace
     void TestTheLayerTableReachesTheKernel()
     {
         Scene scene;
-        std::uint32_t rows[JBro::PhysicsLayerCount] = {};
+        JBro::UInt32 rows[JBro::PhysicsLayerCount] = {};
         rows[1] = 1u << 2;
         rows[2] = 1u << 1;
         scene.physics.SetIgnoredLayers(rows);
@@ -1002,13 +1006,13 @@ namespace
     {
         using JBro::Component::DistanceJoint2D;
         using JBro::Component::HingeJoint2D;
-        const float degree = 3.14159265f / 180.0f;
+        const JBro::Float degree = 3.14159265f / 180.0f;
         {
             // 막대는 크기 (2, 1) 의 상자 하나이고 왼쪽 끝(로컬 -0.5, 크기를 곱해 -1)을 (2, 1) 의 핀에 건다. 20° 기울어 시작하므로
             // 한계 [-30°, 10°] 는 그 자리를 0 으로 잰다 - 떨어지면 20 - 30 = -10° 에서 선다. 한계가 비대칭이라 부호가 뒤집히면
             // 다른 각에서 선다.
             Scene scene;
-            const float start = 20.0f * degree;
+            const JBro::Float start = 20.0f * degree;
             JBro::GameObject* rod = scene.Object("rod", { 2.0f + std::cos(start), 1.0f + std::sin(start) });
             scene.TransformOf(rod)->SetRotationRadian(JBro::Radian(start));
             scene.TransformOf(rod)->scale = { 2, 1 };
@@ -1147,9 +1151,9 @@ namespace
     void TestQueriesSkipFarColliders()
     {
         Scene scene;
-        for (int x = 0; x < 10; ++x)
+        for (JBro::Int32 x = 0; x < 10; ++x)
         {
-            for (int y = 0; y < 10; ++y)
+            for (JBro::Int32 y = 0; y < 10; ++y)
             {
                 JBro::GameObject* object = scene.Object("cell", { 3.0f * static_cast<float>(x), 3.0f * static_cast<float>(y) });
                 if ((x + y) % 2 == 0)
@@ -1190,7 +1194,7 @@ namespace
     }
 }
 
-int RunPhysics2DSystemTests()
+JBro::Int32 RunPhysics2DSystemTests()
 {
     TestAFallingBoxLandsAndBothScriptsHearIt();
     TestAConcavePolygonColliderHoldsWhatFallsOnAndIntoIt();

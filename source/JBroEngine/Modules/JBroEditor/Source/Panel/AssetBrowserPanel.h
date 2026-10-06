@@ -4,6 +4,10 @@
 
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -33,7 +37,7 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Bottom; }
 
@@ -46,7 +50,7 @@ namespace JBro
             const char* name = nullptr;
             // 파일을 마지막으로 고친 때(유닉스 초)와 그것을 적은 글자(D-196). 레지스트리가 바뀔
             // 때만 모은다 - 매 프레임 날짜를 글자로 짓지 않는다(§7).
-            std::int64_t modified = 0;
+            Int64 modified = 0;
             String modifiedText;
             // 아이디의 글자(32 자리). 기존 목록의 넷째 열이다.
             String idText;
@@ -63,11 +67,11 @@ namespace JBro
         // 목록 보기의 열이 줄 안에서 시작하는 자리(왼쪽에서의 거리)다. 머리줄과 줄이 함께 쓴다.
         struct Columns
         {
-            float type = 0.0f;
-            float modified = 0.0f;
-            float id = 0.0f;
+            Float type = 0.0f;
+            Float modified = 0.0f;
+            Float id = 0.0f;
         };
-        static Columns ListColumns(float width);
+        static Columns ListColumns(Float width);
         void SortEntries();
         void DrawListHeader();
 
@@ -76,7 +80,7 @@ namespace JBro
         void DrawFolderTree(const String& folder);
         // 오른쪽 칸. 지금 연 폴더의 하위 폴더와 파일.
         void DrawContents();
-        bool FolderHasMatch(const String& folder) const;
+        Bool FolderHasMatch(const String& folder) const;
         void DrawFile(const Entry& entry);
         // 아이콘 보기의 칸 하나다(D-147). 그림과 이름이 세로로 선다.
         void DrawFileTile(const Entry& entry);
@@ -84,7 +88,7 @@ namespace JBro
         // 고르는 법이 달라지면 같은 창이 둘로 나뉜다.
         void HandleEntryInput(const Entry& entry);
         // 고른 것들. 상대경로로 기억한다 - 레코드 포인터는 다시 훑으면 다른 것을 가리킨다.
-        bool IsSelected(const String& path) const;
+        Bool IsSelected(const String& path) const;
         void SelectOnly(const String& path);
         void ToggleSelected(const String& path);
         // 닻에서 이 줄까지. **이번 프레임에 그린 순서**를 쓴다 - 사람이 보는 순서가 그것이다.
@@ -109,7 +113,7 @@ namespace JBro
         void DrawBreadcrumb();
         // 빈자리·줄의 우클릭 메뉴. 같은 항목을 쓴다.
         void DrawBackgroundMenu();
-        void DrawEntryMenu(const String& relativePath, bool isFolder);
+        void DrawEntryMenu(const String& relativePath, Bool isFolder);
         // 이름 바꾸기와 삭제는 물어보고 한다. 삭제는 되돌릴 수 없다.
         void DrawRenamePopup();
         void DrawDeletePopup();
@@ -118,29 +122,29 @@ namespace JBro
         void DrawFolderDropTarget(const String& folder);
         void AcceptLayerDrop(const String& folder);
         // 이 폴더가 저 폴더의 안인가(자기 자신 포함). 폴더를 자기 안으로 옮기지 못하게 한다.
-        static bool IsInside(const String& path, const String& folder);
+        static Bool IsInside(const String& path, const String& folder);
 
         EditorApplication* m_editor = nullptr;
         String m_filter;
         Array<Entry> m_entries;
         // 마지막으로 모은 레지스트리 판번호다. 같으면 다시 모으지 않는다.
-        std::uint64_t m_collectedRevision = 0;
-        bool m_collected = false;
+        UInt64 m_collectedRevision = 0;
+        Bool m_collected = false;
         // 모든 폴더(조상 포함)의 상대경로. 정렬돼 있고 겹치지 않는다.
         Array<String> m_folders;
         // 오른쪽 칸이 보여 주는 폴더. 빈 글자면 에셋 폴더의 뿌리다.
         String m_openFolder;
         // 왼쪽 칸의 폭. 사람이 끌어 옮길 수 있다.
-        float m_treeWidth = 200.0f;
+        Float m_treeWidth = 200.0f;
         // 아이콘으로 볼 것인가. 기존 엔진도 두 보기를 오갔다 - 그림을 고르는 일에는
         // 이름보다 그림이 빠르고, 이름을 훑는 일에는 목록이 빠르다.
-        bool m_iconView = false;
+        Bool m_iconView = false;
         // 아이콘 한 칸의 변 길이(픽셀)다.
-        float m_iconSize = 72.0f;
+        Float m_iconSize = 72.0f;
         SortMode m_sortMode = SortMode::Name;
         // 줄의 글자가 시작하는 자리가 줄 왼쪽에서 얼마나 떨어졌는가. 머리줄이 같은 자리에서
         // 시작하도록 지난 프레임의 줄에서 잰다(트리 줄은 화살표 몫만큼 안으로 들어간다).
-        float m_rowTextOffset = 0.0f;
+        Float m_rowTextOffset = 0.0f;
 
         // 고른 파일들의 상대경로다. 폴더는 여기 들어오지 않는다.
         Array<String> m_selection;
@@ -154,17 +158,17 @@ namespace JBro
         // 잘라내거나 복사해 둔 파일들의 상대경로다(D-182). 비어 있으면 붙여넣기가 잠긴다.
         Array<String> m_fileClipboard;
         // 참이면 잘라내기다 - 붙이면 옮기고 클립보드를 비운다.
-        bool m_clipboardIsCut = false;
+        Bool m_clipboardIsCut = false;
 
         // 물어보는 중인 것. 비어 있으면 묻지 않는다.
         String m_pending;
-        bool m_pendingIsFolder = false;
+        Bool m_pendingIsFolder = false;
         String m_nameBuffer;
         // 이번 프레임에 열어야 할 팝업. ImGui 는 메뉴 안에서 `OpenPopup` 을 부르면
         // 그 메뉴가 닫히며 함께 닫히므로, 메뉴 밖에서 한 번 더 연다.
-        bool m_openRename = false;
-        bool m_openDelete = false;
-        bool m_openNewFolder = false;
+        Bool m_openRename = false;
+        Bool m_openDelete = false;
+        Bool m_openNewFolder = false;
         String m_message;
     };
 }

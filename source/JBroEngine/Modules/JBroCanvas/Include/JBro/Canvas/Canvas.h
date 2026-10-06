@@ -19,6 +19,8 @@
 #include <cstddef>
 #include <type_traits>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -41,7 +43,7 @@ namespace JBro
         // 되살리기용이다(D-233): 지운 오브젝트를 되돌릴 때 옛 오브젝트 번호를 다시 쓴다 - 그 오브젝트를 가리키던 참조 필드가
         // 그대로 이어진다. 그 번호가 살아 있으면(다른 오브젝트가 쓴다) 새 번호를 받는다.
         GameObject* CreateObject(const char* name, InstanceId preferredId);
-        bool        DestroyObject(GameObject* object);
+        Bool        DestroyObject(GameObject* object);
         std::size_t GetObjectCount() const;
 
         // **캔버스를 비운다**(D-174). 오브젝트를 모두 없애고 레이어를 기본 하나로 되돌린다.
@@ -50,7 +52,7 @@ namespace JBro
         // 캔버스 파일을 **다른 것으로 갈아 끼우는 자리**가 쓴다. `ReadCanvasText` 는 빈 캔버스에만
         // 들어가므로(섞으면 무엇이 파일에서 온 것인지 알 수 없다), 다른 캔버스를 열려면 먼저
         // 이것을 부른다. 순회 중이면 거짓이다 - 도는 배열을 그 자리에서 비울 수 없다.
-        bool Clear();
+        Bool Clear();
 
         template<typename Fn>
         void ForEachObject(Fn&& function);
@@ -66,21 +68,21 @@ namespace JBro
         // 빼고, 새로 뿌리가 된 것을 뒤에 붙인다. 한 번 자리를 잡은 것은 그대로 둔다.
         void        GetRootObjects(Array<GameObject*>& result);
         // 뿌리들 사이에서 몇 번째인가. 뿌리가 아니면 거짓이다.
-        bool        FindRootIndex(const GameObject* object, std::size_t& index);
+        Bool        FindRootIndex(const GameObject* object, std::size_t& index);
         // 뿌리들 사이의 자리를 옮긴다. 끝을 넘으면 맨 뒤로 간다. 뿌리가 아니면 거짓이다.
-        bool        SetRootIndex(GameObject* object, std::size_t index);
+        Bool        SetRootIndex(GameObject* object, std::size_t index);
 
         // 순회 중 요청된 파괴를 실제로 수행한다(D-45). Framework 가 FixedUpdate 묶음 뒤와
         // Update 뒤 두 지점에서 부른다. 순회 중에 부르면 아무 일도 하지 않는다.
         void        FlushPendingDestroy();
         std::size_t GetPendingDestroyCount() const;
-        bool        IsIterating() const;
+        Bool        IsIterating() const;
 
         // 레이어
         Layer&      CreateLayer(const char* name = nullptr);
-        bool        DestroyLayer(LayerId layer);
-        bool        MoveLayer(LayerId layer, std::size_t newIndex);
-        bool        SetObjectLayer(GameObject* object, LayerId layer);
+        Bool        DestroyLayer(LayerId layer);
+        Bool        MoveLayer(LayerId layer, std::size_t newIndex);
+        Bool        SetObjectLayer(GameObject* object, LayerId layer);
         Layer*      FindLayer(LayerId layer);
         std::size_t GetLayerCount() const;
 
@@ -116,7 +118,7 @@ namespace JBro
         T* AttachComponent(GameObject* owner);
 
         template<typename T>
-        bool DetachComponent(GameObject* owner, T* component);
+        Bool DetachComponent(GameObject* owner, T* component);
 
         template<typename T>
         T* FindComponentRaw(GameObject* owner);
@@ -154,7 +156,7 @@ namespace JBro
         //
         // 오르는 자리는 D-45 가 이름을 댄 것들이다 - 스크립트 부착·분리, `SetParent`,
         // 컴포넌트 자리 이동, 레이어 생성·파괴·이동, 오브젝트의 레이어 변경, 오브젝트 파괴.
-        std::uint64_t GetScriptOrderRevision() const;
+        UInt64 GetScriptOrderRevision() const;
 
         // 순회 깊이를 세는 가드. live 배열이 순회 중에 흔들리면 바깥 순회가 무효화되므로,
         // 깊이가 0 이 아닌 동안의 파괴 요청은 큐로 간다(§8, 구 엔진 ScriptIterationGuard).
@@ -190,11 +192,11 @@ namespace JBro
         struct IComponentBucket
         {
             virtual ~IComponentBucket() = default;
-            virtual bool Destroy(ComponentBase* component) = 0;
+            virtual Bool Destroy(ComponentBase* component) = 0;
             // 스크립트 풀만 자기 원소를 여기에 쏟는다. 나머지는 아무 일도 하지 않는다.
             virtual void AppendScripts(Array<GameScriptBase*>& results) = 0;
             // 파괴할 때 실행 목록을 헌 것으로 표시할지 가른다. 타입은 컴파일 타임에 안다.
-            virtual bool HoldsScripts() const = 0;
+            virtual Bool HoldsScripts() const = 0;
             // 이 풀의 타입이 입력 핸들러인 스크립트이면 그 썽크다(D-214). 아니면 비어 있다.
             virtual ScriptInputBinding GetInputBinding() const = 0;
             // 풀의 쓰임새. 통계가 이것만 묻는다.
@@ -210,7 +212,7 @@ namespace JBro
             {
             }
 
-            bool Destroy(ComponentBase* component) override
+            Bool Destroy(ComponentBase* component) override
             {
                 return Pool.Destroy(static_cast<T*>(component));
             }
@@ -230,7 +232,7 @@ namespace JBro
                 }
             }
 
-            bool HoldsScripts() const override
+            Bool HoldsScripts() const override
             {
                 return std::is_base_of_v<GameScriptBase, T>;
             }
@@ -266,12 +268,12 @@ namespace JBro
         template<typename T>
         TComponentBucket<T>* FindBucket();
 
-        bool DestroyComponent(ComponentBase* component);
-        bool RegisterComponentInstance(
+        Bool DestroyComponent(ComponentBase* component);
+        Bool RegisterComponentInstance(
             GameObject* owner,
             ComponentBase* component,
             RefCategory category);
-        bool UnregisterComponentInstance(ComponentBase* component);
+        Bool UnregisterComponentInstance(ComponentBase* component);
         SafePtr<Layer> FindLayerReference(LayerId layer);
         // m_layers 의 순서가 바뀌는 모든 지점에서 부른다. 레이어의 순서 캐시를 갱신하는
         // 유일한 주체다(D-46).
@@ -281,10 +283,10 @@ namespace JBro
         void MarkScriptOrderDirty();
         static void MarkScriptOrderDirtyFromObject(Canvas* canvas);
 
-        bool DestroyObjectNow(GameObject* object);
-        bool DestroyComponentNow(ComponentBase* component);
+        Bool DestroyObjectNow(GameObject* object);
+        Bool DestroyComponentNow(ComponentBase* component);
         // GameObject::RequestDestroy 가 건너오는 지점. GameObject 헤더는 Canvas 정의를 알지 않는다.
-        static bool DestroyObjectFromHandle(Canvas* canvas, GameObject* object);
+        static Bool DestroyObjectFromHandle(Canvas* canvas, GameObject* object);
         static InstanceId GenerateCanvasInstanceId();
 
         JAllocator                                      m_allocator;
@@ -306,7 +308,7 @@ namespace JBro
         Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;
         std::size_t                                     m_iterationDepth = 0;
         // 0 은 "아직 아무것도 본 적 없음" 을 뜻하는 쪽이 쓰므로 1 에서 시작한다.
-        std::uint64_t                                   m_scriptOrderRevision = 1;
+        UInt64                                   m_scriptOrderRevision = 1;
         SystemScheduler m_systems;
     };
 
@@ -393,7 +395,7 @@ namespace JBro
     }
 
     template<typename T>
-    bool Canvas::DetachComponent(GameObject* owner, T* component)
+    Bool Canvas::DetachComponent(GameObject* owner, T* component)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         if (owner == nullptr

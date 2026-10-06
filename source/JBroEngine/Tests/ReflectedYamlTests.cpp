@@ -9,6 +9,10 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 리플렉션이 설명하는 값을 **타입을 모른 채** YAML 로 쓰고 읽는다(D-86).
 //
@@ -17,7 +21,7 @@
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -29,13 +33,13 @@ namespace
     // 맵으로 적히는 구조체다. 한 필드는 저장에서 빠진다 - 원소 안에서도 그래야 한다.
     struct Pair
     {
-        float kept = 0.0f;
-        float dropped = 0.0f;
+        JBro::Float kept = 0.0f;
+        JBro::Float dropped = 0.0f;
     };
 
-    using FloatList = JBro::Array<float>;
+    using FloatList = JBro::Array<JBro::Float>;
     using Rows = JBro::Array<FloatList>;
-    using Counts = JBro::Table<JBro::String, std::int32_t>;
+    using Counts = JBro::Table<JBro::String, JBro::Int32>;
     using Named = JBro::Table<JBro::String, FloatList>;
 }
 
@@ -61,9 +65,9 @@ namespace JBro
 
 namespace
 {
-    bool Near(float value, float expected)
+    JBro::Bool Near(JBro::Float value, JBro::Float expected)
     {
-        const float delta = value - expected;
+        const JBro::Float delta = value - expected;
         return delta > -0.0001f && delta < 0.0001f;
     }
 
@@ -79,7 +83,7 @@ namespace
         return writer.GetText();
     }
 
-    bool ReadAs(const JBro::String& text, const JBro::TypeDescriptor& type, void* value,
+    JBro::Bool ReadAs(const JBro::String& text, const JBro::TypeDescriptor& type, void* value,
         JBro::ReflectedYamlError& error)
     {
         JBro::YamlDocument document;
@@ -90,7 +94,7 @@ namespace
                 << parseError.line << ": " << parseError.message.c_str() << std::endl;
             Check(false, "what was written must parse");
         }
-        const std::uint32_t node = document.Find(document.GetRoot(), "Value");
+        const JBro::UInt32 node = document.Find(document.GetRoot(), "Value");
         Check(node != JBro::YamlDocument::InvalidNode, "the value must be where it was written");
         return JBro::ReadReflectedValue(document, node, type, value, error);
     }
@@ -118,7 +122,7 @@ namespace
         const JBro::String text = WriteAs(type, &written);
 
         FloatList read;
-        for (int index = 0; index < 9; ++index)
+        for (JBro::Int32 index = 0; index < 9; ++index)
         {
             read.Add(99.0f);
         }
@@ -246,7 +250,7 @@ namespace
         ReadBack(text, type, &read);
         Check(read.Size() == 3, "reading must leave exactly the written entries");
         Check(read.Find(JBro::String("stale")) == nullptr, "dropping what was there");
-        const std::int32_t* found = read.Find(JBro::String("alpha"));
+        const JBro::Int32* found = read.Find(JBro::String("alpha"));
         Check(found != nullptr && *found == 2, "and carry each value with its key");
     }
 
@@ -322,7 +326,7 @@ namespace
     }
 }
 
-int RunReflectedYamlTests()
+JBro::Int32 RunReflectedYamlTests()
 {
     TestAnArrayOfNumbersGoesThereAndBack();
     TestAnEmptyArrayStaysEmpty();

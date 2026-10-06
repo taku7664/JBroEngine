@@ -4,6 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -19,7 +22,7 @@ namespace JBro
     {
         // 글자로 쓴다. 버퍼가 모자라면 false 를 돌려주고 required 에 필요한 크기를 적는다.
         // 경계를 넘으므로 호출자가 버퍼를 소유한다 — 문자열을 돌려주지 않는다.
-        bool (*ToText)(
+        Bool (*ToText)(
             const void* value,
             char* buffer,
             std::size_t capacity,
@@ -27,10 +30,10 @@ namespace JBro
 
         // 글자에서 읽는다. 못 읽으면 value 를 건드리지 않고 false 다.
         // 예외는 DLL 경계를 넘지 않는다.
-        bool (*FromText)(void* value, const char* text, std::size_t length) noexcept = nullptr;
+        Bool (*FromText)(void* value, const char* text, std::size_t length) noexcept = nullptr;
 
         // 같은 값인지 본다. 인스펙터의 "기본값으로 되돌리기" 와 undo 의 변경 판정이 쓴다.
-        bool (*Equals)(const void* left, const void* right) noexcept = nullptr;
+        Bool (*Equals)(const void* left, const void* right) noexcept = nullptr;
 
         // 복사한다. **memcpy 로 대신하지 않는다** — String 처럼 내용이 밖에 있는 타입은
         // 얕은 복사가 되어 먼저 죽는 쪽이 남은 쪽을 망가뜨린다.
@@ -43,10 +46,10 @@ namespace JBro
     struct EnumNames
     {
         const char* const* names = nullptr;
-        std::uint32_t      count = 0;
+        UInt32      count = 0;
         // 현재 값 → 이름 배열 인덱스. 맞는 것이 없으면 -1.
-        std::int32_t (*ToIndex)(const void* value) noexcept = nullptr;
-        void         (*FromIndex)(void* value, std::int32_t index) noexcept = nullptr;
+        Int32 (*ToIndex)(const void* value) noexcept = nullptr;
+        void         (*FromIndex)(void* value, Int32 index) noexcept = nullptr;
     };
 
     // Ref<T> 가 무엇을 가리키는지. 에디터의 드롭 대상 필터와 참조 수집이 쓴다.
@@ -55,7 +58,7 @@ namespace JBro
         // 가리키는 대상 타입의 이름. 오브젝트·컴포넌트·스크립트·에셋 무엇이든 이름으로 건다.
         NameId targetType = InvalidNameId;
         // 에셋을 가리킬 때만 유효하다. 0 이면 제한 없음.
-        std::uint32_t expectedAssetKind = 0;
+        UInt32 expectedAssetKind = 0;
     };
 
     // 배열의 타입소거 조작. 저장소 레이아웃을 직렬화기가 직접 캐스팅하지 않게 한다.
@@ -64,8 +67,8 @@ namespace JBro
         std::size_t (*GetSize)(const void* array) noexcept = nullptr;
         void*       (*GetElement)(void* array, std::size_t index) noexcept = nullptr;
         const void* (*GetConstElement)(const void* array, std::size_t index) noexcept = nullptr;
-        bool        (*AddDefault)(void* array) noexcept = nullptr;
-        bool        (*RemoveAt)(void* array, std::size_t index) noexcept = nullptr;
+        Bool        (*AddDefault)(void* array) noexcept = nullptr;
+        Bool        (*RemoveAt)(void* array, std::size_t index) noexcept = nullptr;
         // `from` 의 원소를 빼서 `to` 에 끼운다. `to` 는 **뺀 뒤의 번호**다 - 끝나면 그 원소가
         // `to` 에 있다. 사이의 원소는 순서를 지키며 한 칸씩 밀린다. 둘 중 하나라도 끝을 넘으면
         // 거짓이고 배열은 그대로다.
@@ -73,7 +76,7 @@ namespace JBro
         // 원소 타입을 아는 쪽이 옮긴다. 처음에는 부르는 쪽이 원소 코덱의 `Assign` 을 빌려
         // 밀었는데, 필드로 말하는 타입(`Vector2`·`Color`·사용자 구조체)에는 코덱이 없어 옮기지
         // 못했다(D-89). 옮기다 원소의 이동이 던지면 거짓이고, 그때 배열은 반쯤 밀려 있을 수 있다.
-        bool        (*Move)(void* array, std::size_t from, std::size_t to) noexcept = nullptr;
+        Bool        (*Move)(void* array, std::size_t from, std::size_t to) noexcept = nullptr;
         void        (*Clear)(void* array) noexcept = nullptr;
     };
 
@@ -94,9 +97,9 @@ namespace JBro
         void*       (*GetValueAt)(void* table, std::size_t slot) noexcept = nullptr;
 
         // 키는 Key 타입 객체의 주소다. 이미 있는 키면 InsertDefault 는 아무것도 하지 않는다.
-        bool  (*ContainsKey)(const void* table, const void* key) noexcept = nullptr;
-        bool  (*InsertDefault)(void* table, const void* key) noexcept = nullptr;
-        bool  (*RemoveKey)(void* table, const void* key) noexcept = nullptr;
+        Bool  (*ContainsKey)(const void* table, const void* key) noexcept = nullptr;
+        Bool  (*InsertDefault)(void* table, const void* key) noexcept = nullptr;
+        Bool  (*RemoveKey)(void* table, const void* key) noexcept = nullptr;
         // 슬롯 커서는 삽입 한 번에 무효가 되므로, 방금 넣은 자리를 다시 잡으려면 이쪽을 쓴다.
         void* (*FindValue)(void* table, const void* key) noexcept = nullptr;
 
@@ -109,9 +112,9 @@ namespace JBro
         // 넘겼는데, 그러면 소유를 날 포인터로 들고 다니게 되고(§14) 이 바닥 계층이 소유 도구를
         // 끌어와야 할 이유도 없다. 만들고 지우는 코드는 여전히 이 표를 등록한 모듈 안에 있다.
         // 만들기가 실패하면(키 타입의 생성자가 던지면) 거짓이고 자리에는 아무것도 없다.
-        bool (*ConstructKey)(void* storage) noexcept = nullptr;
+        Bool (*ConstructKey)(void* storage) noexcept = nullptr;
         void (*DestructKey)(void* key) noexcept = nullptr;
-        bool (*ConstructValue)(void* storage) noexcept = nullptr;
+        Bool (*ConstructValue)(void* storage) noexcept = nullptr;
         void (*DestructValue)(void* value) noexcept = nullptr;
 
         void  (*Clear)(void* table) noexcept = nullptr;
@@ -128,16 +131,16 @@ namespace JBro
     struct TypeDescriptor
     {
         NameId        typeName  = InvalidNameId;   // "float", "JBro.Vector2", "Ref<Sprite>"
-        std::uint32_t size      = 0;
-        std::uint32_t alignment = 0;
+        UInt32 size      = 0;
+        UInt32 alignment = 0;
         // 참고용이다. 복사는 언제나 codec->Assign 을 거친다.
-        bool          triviallyCopyable = false;
+        Bool          triviallyCopyable = false;
 
         // 저장 파일에 필드를 **이름 없이 나열한다**. `Vector2` 는 `- 1.5` / `- 2` 로 적힌다.
         // 좌표와 색은 씬 파일에서 압도적으로 흔해서 이름을 붙이면 파일이 세 배로 길어지고,
         // 기존 엔진도 같은 모양으로 적는다. 대가는 **필드 선언 순서가 파일 형식이 된다**는 것이다 —
         // 그래서 이 표시는 필드가 늘지 않는 타입에만 붙인다(`Vector2`, `Color`, `Matrix3x2` 같은 것).
-        bool          writeFieldsAsSequence = false;
+        Bool          writeFieldsAsSequence = false;
 
         // 구조는 ops 의 존재로 드러난다. 별도 Kind 축을 두지 않는다.
         const ArrayOps* arrayOps = nullptr;   // != nullptr 이면 element 가 유효

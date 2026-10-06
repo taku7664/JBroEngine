@@ -11,6 +11,9 @@
 #include <JBro/Types/Table.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -45,7 +48,7 @@ namespace JBro::System
         //   BeginDispatch() → 켜진 핸들러마다 Deliver() → EndDispatch()
         // `Deliver` 가 참이면 그 핸들러가 `Block` 한 것이고, 부르는 쪽은 거기서 멈춘다. 멈추지 않아도 아래는 빈 입력만 본다.
         void BeginDispatch();
-        bool Deliver(IInputHandler& handler);
+        Bool Deliver(IInputHandler& handler);
         // 체인을 닫는다. 폴링(`Service::InputService`)이 보는 남은 입력이 여기서 정해진다.
         void EndDispatch();
 
@@ -53,9 +56,9 @@ namespace JBro::System
         void SetLayerOrder(JArrayView<NameId> layers);
         // 레이어의 순위다. 작을수록 먼저다. 없는 레이어는 맨 아래(레이어 수)이고 이름마다 한 번 경고한다 -
         // `text` 는 그 경고에만 쓴다. 체인을 세울 때(콜드 경로)만 부른다.
-        std::uint32_t GetLayerPriority(NameId layer, const char* text);
+        UInt32 GetLayerPriority(NameId layer, const char* text);
         // 레이어 순서가 바뀔 때마다 오른다. 체인을 들고 있는 쪽이 이 값으로 다시 줄 세울지 안다.
-        std::uint64_t GetLayerRevision() const;
+        UInt64 GetLayerRevision() const;
 
         // 프로젝트의 액션 표다(D-214). 표를 복사해 두고, 체인과 폴링의 뷰가 이것을 읽는다. 없는 이름의 경고 기억도 여기서 지운다.
         // 프로젝트의 표를 따로 들어 두고, 게임이 바꾼 것(켠 세트·리바인딩)은 `ResetActions` 가 이 표로 되돌린다.
@@ -63,16 +66,16 @@ namespace JBro::System
         const InputActionMap& GetActionMap() const;
         // 게임이 바꾼 액션 상태를 프로젝트의 표로 되돌린다. 에디터가 재생을 멈출 때 부른다 - 다음 재생이 지난 재생의 세트로 시작하지 않는다.
         void ResetActions();
-        bool SetActionSetEnabled(NameId set, bool enabled) noexcept override;
-        bool IsActionSetEnabled(NameId set) const noexcept override;
-        std::uint32_t GetActionBindingCount(InputActionId action) const noexcept override;
-        bool GetActionBinding(InputActionId action, std::uint32_t index, InputBinding& out) const noexcept override;
-        bool SetActionBinding(InputActionId action, std::uint32_t index, const InputBinding& binding) noexcept override;
-        bool RemoveActionBinding(InputActionId action, std::uint32_t index) noexcept override;
-        bool ResetActionBindings(InputActionId action) noexcept override;
+        Bool SetActionSetEnabled(NameId set, Bool enabled) noexcept override;
+        Bool IsActionSetEnabled(NameId set) const noexcept override;
+        UInt32 GetActionBindingCount(InputActionId action) const noexcept override;
+        Bool GetActionBinding(InputActionId action, UInt32 index, InputBinding& out) const noexcept override;
+        Bool SetActionBinding(InputActionId action, UInt32 index, const InputBinding& binding) noexcept override;
+        Bool RemoveActionBinding(InputActionId action, UInt32 index) noexcept override;
+        Bool ResetActionBindings(InputActionId action) noexcept override;
         void ResetAllActionBindings() noexcept override;
-        bool WriteBindingOverrides(char* buffer, std::size_t capacity, std::size_t& outSize) const noexcept override;
-        bool ReadBindingOverrides(const char* text, std::size_t length) noexcept override;
+        Bool WriteBindingOverrides(char* buffer, std::size_t capacity, std::size_t& outSize) const noexcept override;
+        Bool ReadBindingOverrides(const char* text, std::size_t length) noexcept override;
 
         // ── 게임패드 (D-214) ──
         // 날 상태 네 자리를 이번 프레임으로 접는다: 둥근 데드존과 트리거 문턱, 누름·뗌 수(지난 폴링과 견준다), 빠진 패드는
@@ -80,23 +83,23 @@ namespace JBro::System
         void FoldGamepads(const GamepadRawState (&raw)[MaxGamepads]);
         // 플랫폼에서 읽어 접고 진동을 적용한다. 빈 자리는 `GamepadRecheckFrames` 프레임마다만 묻는다 - 빈 자리를 묻는 것이
         // 비싸다. 창이 포커스를 잃었으면 읽지 않고 `ReleaseGamepads` 한다.
-        void PollGamepads(IPlatform& platform, float deltaTime);
+        void PollGamepads(IPlatform& platform, Float deltaTime);
         // 게임이 게임패드를 받지 않는다(포커스 잃음, 에디터의 게임 뷰 밖, 내려감): 눌린 것을 떼고 축을 0 으로, 모터를 멈춘다.
         void ReleaseGamepads(IPlatform& platform);
         // 이번 프레임에 모터에 건 값이다(시험이 본다).
-        float GetAppliedVibration(std::uint32_t slot, bool high) const;
-        static constexpr std::uint32_t GamepadRecheckFrames = 120;
+        Float GetAppliedVibration(UInt32 slot, Bool high) const;
+        static constexpr UInt32 GamepadRecheckFrames = 120;
 
-        void SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) noexcept override;
-        void SetGamepadDeadzones(float stick, float trigger) noexcept override;
-        void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept override;
+        void SetGamepadVibration(UInt32 slot, Float low, Float high, Float seconds) noexcept override;
+        void SetGamepadDeadzones(Float stick, Float trigger) noexcept override;
+        void InjectTouch(UInt32 id, Float x, Float y, TouchPhase phase) noexcept override;
 
     private:
         InputActionDesc* FindLiveAction(InputActionId action);
         void Fold(const InputEvent& event, const InputSurfaceMapping& mapping);
         void ReleaseAll();
         // 손가락 하나를 접는다. `x`·`y` 는 이미 게임 화면 픽셀이다.
-        void FoldTouch(std::uint32_t id, float x, float y, TouchPhase phase);
+        void FoldTouch(UInt32 id, Float x, Float y, TouchPhase phase);
 
         InputFrame m_frame;
         InputView m_residual;
@@ -106,35 +109,35 @@ namespace JBro::System
         InputActionMap m_projectActions;
         Table<NameId, std::uint8_t> m_warnedSets;
         // 창이 포커스를 가졌는가. 게임패드는 이벤트가 아니라서 포커스를 따로 기억한다.
-        bool m_focused = true;
-        float m_stickDeadzone = 0.24f;
-        float m_triggerThreshold = 0.12f;
-        std::uint32_t m_gamepadRecheck[MaxGamepads] = {};
+        Bool m_focused = true;
+        Float m_stickDeadzone = 0.24f;
+        Float m_triggerThreshold = 0.12f;
+        UInt32 m_gamepadRecheck[MaxGamepads] = {};
         struct Vibration
         {
-            float low = 0.0f;
-            float high = 0.0f;
+            Float low = 0.0f;
+            Float high = 0.0f;
             // 0 보다 크면 남은 초다. 0 이하이면 멈추라고 할 때까지 돈다.
-            float remaining = 0.0f;
-            bool timed = false;
-            float appliedLow = 0.0f;
-            float appliedHigh = 0.0f;
+            Float remaining = 0.0f;
+            Bool timed = false;
+            Float appliedLow = 0.0f;
+            Float appliedHigh = 0.0f;
         };
         Vibration m_vibration[MaxGamepads];
         // 스크립트가 만든 손가락이다. 다음 `BeginFrame` 이 플랫폼의 이벤트 뒤에 접는다.
         struct InjectedTouch
         {
-            std::uint32_t id = 0;
-            float x = 0.0f;
-            float y = 0.0f;
+            UInt32 id = 0;
+            Float x = 0.0f;
+            Float y = 0.0f;
             TouchPhase phase = TouchPhase::Began;
         };
-        static constexpr std::uint32_t MaxInjectedTouches = 16;
+        static constexpr UInt32 MaxInjectedTouches = 16;
         InjectedTouch m_injected[MaxInjectedTouches];
-        std::uint32_t m_injectedCount = 0;
+        UInt32 m_injectedCount = 0;
         Array<NameId> m_layers;
         Table<NameId, std::uint8_t> m_warnedLayers;
-        std::uint64_t m_layerRevision = 1;
+        UInt64 m_layerRevision = 1;
         InputSystemContext m_systemContext;
         InputServiceContext m_serviceContext;
     };

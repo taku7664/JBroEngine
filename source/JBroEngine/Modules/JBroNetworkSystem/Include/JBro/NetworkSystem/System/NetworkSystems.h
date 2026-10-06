@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -14,10 +16,10 @@ namespace JBro::System
     {
     public:
         explicit NetworkReceiveSystem(NetworkHost& host);
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
 
     protected:
-        void OnFixedUpdate(Canvas& canvas, float fixedDeltaTime) override;
+        void OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime) override;
 
     private:
         NetworkHost& m_host;
@@ -28,10 +30,10 @@ namespace JBro::System
     {
     public:
         explicit NetworkSendSystem(NetworkHost& host);
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
 
     protected:
-        void OnFixedUpdate(Canvas& canvas, float fixedDeltaTime) override;
+        void OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime) override;
 
     private:
         NetworkHost& m_host;

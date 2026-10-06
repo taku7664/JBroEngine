@@ -9,6 +9,8 @@
 #include <type_traits>
 #include <typeinfo>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -22,8 +24,8 @@ namespace JBro
         T* FindSystem();
 
         void Initialize (Canvas& canvas);
-        void FixedUpdate(Canvas& canvas, float fixedDeltaTime);
-        void Update     (Canvas& canvas, float deltaTime);
+        void FixedUpdate(Canvas& canvas, Float fixedDeltaTime);
+        void Update     (Canvas& canvas, Float deltaTime);
         void Shutdown   (Canvas& canvas);
 
         void RemoveAllSystems(Canvas& canvas);
@@ -66,8 +68,8 @@ namespace JBro
         }
 
         Array<Entry> m_systems;
-        bool m_initialized = false;
-        bool m_executing = false;
+        Bool m_initialized = false;
+        Bool m_executing = false;
     };
 
     template<typename T, typename... Args>

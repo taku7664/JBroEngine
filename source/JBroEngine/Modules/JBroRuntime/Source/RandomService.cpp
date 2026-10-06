@@ -1,6 +1,10 @@
 ﻿#include <JBro/Runtime/RandomService.h>
 
 #include <JBro/Runtime/SystemContext.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -18,50 +22,50 @@ namespace JBro::Service
         {
             System::IRandomSystem* system = GetSystemContext().Random;
 
-            std::uint32_t operator()()
+            UInt32 operator()()
             {
                 return system != nullptr ? system->NextUInt32() : FallbackStream().NextUInt32();
             }
         };
     }
 
-    std::uint32_t RandomService::UInt32() const
+    JBro::UInt32 RandomService::UInt32() const
     {
         EngineBits bits;
         return bits();
     }
 
-    float RandomService::Value() const
+    Float RandomService::Value() const
     {
         EngineBits bits;
         return RandomMapping::Value(bits);
     }
 
-    std::int32_t RandomService::Range(std::int32_t min, std::int32_t max) const
+    Int32 RandomService::Range(Int32 min, Int32 max) const
     {
         EngineBits bits;
         return RandomMapping::RangeInt(bits, min, max);
     }
 
-    float RandomService::Range(float min, float max) const
+    Float RandomService::Range(Float min, Float max) const
     {
         EngineBits bits;
         return RandomMapping::RangeFloat(bits, min, max);
     }
 
-    bool RandomService::Chance(float probability) const
+    Bool RandomService::Chance(Float probability) const
     {
         EngineBits bits;
         return RandomMapping::Chance(bits, probability);
     }
 
-    std::uint64_t RandomService::GetSeed() const
+    UInt64 RandomService::GetSeed() const
     {
         const System::IRandomSystem* system = GetSystemContext().Random;
-        return system != nullptr ? system->GetSeed() : 0;
+        return system != nullptr ? system->GetSeed() : UInt64(0);
     }
 
-    void RandomService::SetSeed(std::uint64_t seed) const
+    void RandomService::SetSeed(UInt64 seed) const
     {
         System::IRandomSystem* system = GetSystemContext().Random;
         if (system != nullptr)
@@ -92,10 +96,10 @@ namespace JBro::Service
     RandomStream RandomService::MakeStream() const
     {
         EngineBits bits;
-        const std::uint64_t seedHigh = bits();
-        const std::uint64_t seed = (seedHigh << 32) | bits();
-        const std::uint64_t streamHigh = bits();
-        const std::uint64_t stream = (streamHigh << 32) | bits();
+        const UInt64 seedHigh = bits();
+        const UInt64 seed = (seedHigh << 32) | bits();
+        const UInt64 streamHigh = bits();
+        const UInt64 stream = (streamHigh << 32) | bits();
         return RandomStream(seed, stream);
     }
 }

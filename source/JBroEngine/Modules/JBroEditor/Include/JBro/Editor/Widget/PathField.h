@@ -3,6 +3,7 @@
 #include <JBro/Editor/Widget/Common.h>
 
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Widget
 {
@@ -14,9 +15,9 @@ namespace JBro::Widget
     struct PathFieldResult
     {
         // 글자를 고쳤다.
-        bool edited = false;
+        Bool edited = false;
         // "찾아보기" 를 눌렀다.
-        bool browse = false;
+        Bool browse = false;
     };
 
     class PathField
@@ -25,7 +26,7 @@ namespace JBro::Widget
         PathField(const char* id, String& path);
 
         PathField& Hint(const char* text);
-        PathField& Invalid(bool invalid = true);
+        PathField& Invalid(Bool invalid = true);
 
         PathFieldResult Draw() const;
 
@@ -33,6 +34,6 @@ namespace JBro::Widget
         const char* m_id = nullptr;
         String& m_path;
         const char* m_hint = nullptr;
-        bool m_invalid = false;
+        Bool m_invalid = false;
     };
 }

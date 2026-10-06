@@ -1,12 +1,14 @@
 ﻿#include <JBro/Core/Profiler.h>
 
 #include <chrono>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Profiler
 {
     namespace
     {
-        std::uint64_t NowNanoseconds()
+        UInt64 NowNanoseconds()
         {
             const auto now = std::chrono::steady_clock::now().time_since_epoch();
             return static_cast<std::uint64_t>(
@@ -16,7 +18,7 @@ namespace JBro::Profiler
         struct Open
         {
             std::size_t sample = 0;
-            std::uint64_t startedAt = 0;
+            UInt64 startedAt = 0;
         };
 
         struct State
@@ -30,10 +32,10 @@ namespace JBro::Profiler
             Open stack[MaxDepth];
             std::size_t depth = 0;
 
-            std::uint64_t frameStartedAt = 0;
-            std::uint64_t frameNanoseconds = 0;
-            bool enabled = false;
-            bool inFrame = false;
+            UInt64 frameStartedAt = 0;
+            UInt64 frameNanoseconds = 0;
+            Bool enabled = false;
+            Bool inFrame = false;
         };
 
         State& Get()
@@ -43,7 +45,7 @@ namespace JBro::Profiler
         }
     }
 
-    void SetEnabled(bool enabled)
+    void SetEnabled(Bool enabled)
     {
         State& state = Get();
         if (state.enabled == enabled)
@@ -63,7 +65,7 @@ namespace JBro::Profiler
         }
     }
 
-    bool IsEnabled()
+    Bool IsEnabled()
     {
         return Get().enabled;
     }
@@ -113,7 +115,7 @@ namespace JBro::Profiler
             return;
         }
 
-        const std::uint32_t depth = static_cast<std::uint32_t>(state.depth);
+        const UInt32 depth = static_cast<std::uint32_t>(state.depth);
         // 같은 이름·같은 겹이면 한 줄로 합친다. 이름은 리터럴이라 주소 비교로 끝난다.
         std::size_t found = state.buildingCount;
         for (std::size_t index = 0; index < state.buildingCount; ++index)
@@ -185,7 +187,7 @@ namespace JBro::Profiler
         return &state.finished[index];
     }
 
-    std::uint64_t GetFrameNanoseconds()
+    UInt64 GetFrameNanoseconds()
     {
         return Get().frameNanoseconds;
     }

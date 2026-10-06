@@ -3,6 +3,7 @@
 #include <JBro/Editor/EditorApplication.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -27,7 +28,7 @@ namespace JBro
         return "Create Folder";
     }
 
-    bool CreateAssetFolderCommand::Execute()
+    Bool CreateAssetFolderCommand::Execute()
     {
         return m_editor != nullptr && m_editor->CreateAssetFolderNow(m_relativePath.c_str());
     }
@@ -75,13 +76,13 @@ namespace JBro
         return m_to;
     }
 
-    bool MoveAssetCommand::MoveTo(const String& fromRelative, const String& toRelative)
+    Bool MoveAssetCommand::MoveTo(const String& fromRelative, const String& toRelative)
     {
         return m_editor != nullptr
             && m_editor->MoveAssetPathNow(fromRelative.c_str(), toRelative.c_str());
     }
 
-    bool MoveAssetCommand::Execute()
+    Bool MoveAssetCommand::Execute()
     {
         return MoveTo(m_from, m_to);
     }
@@ -115,7 +116,7 @@ namespace JBro
         return "Delete Asset";
     }
 
-    bool DeleteAssetCommand::Execute()
+    Bool DeleteAssetCommand::Execute()
     {
         if (m_editor == nullptr)
         {

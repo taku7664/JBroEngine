@@ -11,10 +11,13 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -32,7 +35,7 @@ namespace
 
     const JBro::PropertyInfo& Field(const JBro::PropertyTable& table, const char* name)
     {
-        for (std::uint32_t i = 0; i < table.count; ++i)
+        for (JBro::UInt32 i = 0; i < table.count; ++i)
         {
             if (std::strcmp(JBro::NameTable::Get().Resolve(table.properties[i].name), name) == 0)
             {
@@ -96,7 +99,7 @@ namespace
         Check(position.type->fields->count == 3, "Vector3 has three members");
 
         const char* const axes[] = { "x", "y", "z" };
-        for (std::uint32_t i = 0; i < 3; ++i)
+        for (JBro::UInt32 i = 0; i < 3; ++i)
         {
             Check(std::strcmp(JBro::NameTable::Get().Resolve(
                     position.type->fields->properties[i].name), axes[i]) == 0,
@@ -107,7 +110,7 @@ namespace
         // 한 축에 쓴 값이 다른 축을 덮는다.
         JBro::Component::Transform3D transform;
         void* address = position.Address(&transform);
-        for (std::uint32_t i = 0; i < 3; ++i)
+        for (JBro::UInt32 i = 0; i < 3; ++i)
         {
             const JBro::PropertyInfo& axis = position.type->fields->properties[i];
             Check(axis.type->codec->FromText(axis.Address(address), "1", 1), "an axis must be writable");
@@ -125,7 +128,7 @@ namespace
 
         // 오일러각으로 저장하면 짐벌락과 각도 규약이 파일 형식에 들어온다.
         const char* const components[] = { "x", "y", "z", "w" };
-        for (std::uint32_t i = 0; i < 4; ++i)
+        for (JBro::UInt32 i = 0; i < 4; ++i)
         {
             Check(std::strcmp(JBro::NameTable::Get().Resolve(
                     rotation.type->fields->properties[i].name), components[i]) == 0,
@@ -220,7 +223,7 @@ namespace
         Check(clearColor.type->fields->count == 4, "a color has four channels");
 
         const char* const channels[] = { "R", "G", "B", "A" };
-        for (std::uint32_t i = 0; i < 4; ++i)
+        for (JBro::UInt32 i = 0; i < 4; ++i)
         {
             const JBro::PropertyInfo& channel = clearColor.type->fields->properties[i];
             Check(std::strcmp(JBro::NameTable::Get().Resolve(channel.name), channels[i]) == 0,
@@ -317,10 +320,10 @@ namespace
 
     // 필드를 타고 끝까지 내려가면 반드시 코덱을 만나야 한다. 그러지 않는 잎사귀가
     // 하나라도 있으면 그 값은 저장할 방법이 없다 — 직렬화기를 쓰기 전에 여기서 안다.
-    void WalkEveryLeaf(const JBro::PropertyTable& table, const char* owner, int depth)
+    void WalkEveryLeaf(const JBro::PropertyTable& table, const char* owner, JBro::Int32 depth)
     {
         Check(depth < 8, "a type must not contain itself");
-        for (std::uint32_t i = 0; i < table.count; ++i)
+        for (JBro::UInt32 i = 0; i < table.count; ++i)
         {
             const JBro::TypeDescriptor* type = table.properties[i].type;
             Check(type != nullptr, "every property must name a type");
@@ -376,7 +379,7 @@ namespace
     }
 }
 
-int RunBuiltinComponentPropertyTests()
+JBro::Int32 RunBuiltinComponentPropertyTests()
 {
     TestEveryBuiltinComponentIsThere();
     TestEvery3DBuiltinComponentIsThere();

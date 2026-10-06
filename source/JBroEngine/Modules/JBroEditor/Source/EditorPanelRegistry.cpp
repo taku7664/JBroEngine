@@ -16,12 +16,14 @@
 #include "Panel/StatsPanel.h"
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool IsEmptyName(const char* name)
+        Bool IsEmptyName(const char* name)
         {
             return name == nullptr || name[0] == '\0';
         }
@@ -42,7 +44,7 @@ namespace JBro
         return registry;
     }
 
-    bool EditorPanelRegistry::RegisterDockArea(const EditorDockAreaInfo& info)
+    Bool EditorPanelRegistry::RegisterDockArea(const EditorDockAreaInfo& info)
     {
         if (IsEmptyName(info.name) || FindDockArea(info.name) != nullptr)
         {
@@ -68,17 +70,17 @@ namespace JBro
         return nullptr;
     }
 
-    std::uint32_t EditorPanelRegistry::GetDockAreaCount() const
+    UInt32 EditorPanelRegistry::GetDockAreaCount() const
     {
         return static_cast<std::uint32_t>(m_areas.Size());
     }
 
-    const EditorDockAreaInfo& EditorPanelRegistry::GetDockAreaAt(std::uint32_t index) const
+    const EditorDockAreaInfo& EditorPanelRegistry::GetDockAreaAt(UInt32 index) const
     {
         return m_areas[index];
     }
 
-    bool EditorPanelRegistry::Register(const EditorPanelTypeInfo& info)
+    Bool EditorPanelRegistry::Register(const EditorPanelTypeInfo& info)
     {
         if (IsEmptyName(info.name) || info.Create == nullptr || Find(info.name) != nullptr
             || FindDockArea(info.dockArea) == nullptr)
@@ -105,19 +107,19 @@ namespace JBro
         return nullptr;
     }
 
-    std::uint32_t EditorPanelRegistry::GetCount() const
+    UInt32 EditorPanelRegistry::GetCount() const
     {
         return static_cast<std::uint32_t>(m_types.Size());
     }
 
-    const EditorPanelTypeInfo& EditorPanelRegistry::GetAt(std::uint32_t index) const
+    const EditorPanelTypeInfo& EditorPanelRegistry::GetAt(UInt32 index) const
     {
         return m_types[index];
     }
 
     void RegisterBuiltinEditorPanelTypes()
     {
-        static bool registered = false;
+        static Bool registered = false;
         if (registered)
         {
             return;

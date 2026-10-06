@@ -26,17 +26,21 @@
 #include <iostream>
 #include <stdexcept>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 에디터 로딩(공용 기반 4 번, D-217)과 상태 표시줄(13 번)의 테스트다(D-236).
 // 캔버스를 열면 에셋은 워커로 가고 캔버스는 곧바로 선다 - 그림은 로드가 끝난 틱에 붙는다. 실패는 알림이 되고,
 // 닫기는 도는 로드를 취소하고 기다린다. 상태 표시줄은 창 바닥 한 줄이고, 도는 묶음을 누르면 태스크 목록이 펼쳐진다.
 namespace
 {
-    constexpr std::uint32_t WindowWidth = 640;
-    constexpr std::uint32_t WindowHeight = 480;
-    constexpr float Frame = 1.0f / 60.0f;
+    constexpr JBro::UInt32 WindowWidth = 640;
+    constexpr JBro::UInt32 WindowHeight = 480;
+    constexpr JBro::Float Frame = 1.0f / 60.0f;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -87,7 +91,7 @@ namespace
         return search.found;
     }
 
-    void ClickAt(JBro::EditorApplication& editor, HWND hwnd, int x, int y)
+    void ClickAt(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 x, JBro::Int32 y)
     {
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
         Check(editor.Tick(Frame), "the editor must tick");
@@ -97,7 +101,7 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
     }
 
-    bool IsWindowActive(const char* name)
+    JBro::Bool IsWindowActive(const char* name)
     {
         ImGuiWindow* window = ImGui::FindWindowByName(name);
         return window != nullptr && window->Active;
@@ -126,7 +130,7 @@ namespace
             projectPath = project.generic_string();
         }
 
-        void WritePng(bool valid)
+        void WritePng(JBro::Bool valid)
         {
             std::ofstream file(png, std::ios::binary | std::ios::trunc);
             if (valid)
@@ -213,8 +217,8 @@ namespace
         Check(assets != nullptr && assets->GetLoadedCount() == 0, "nothing is loaded before the canvas opens");
 
         editor.RequestOpenCanvas("Scenes/Opening.jcanvas");
-        bool sawLoading = false;
-        for (int frame = 0; frame < 20 && (frame == 0 || editor.IsCanvasLoading()); ++frame)
+        JBro::Bool sawLoading = false;
+        for (JBro::Int32 frame = 0; frame < 20 && (frame == 0 || editor.IsCanvasLoading()); ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while the canvas loads");
             if (editor.IsCanvasLoading())
@@ -238,7 +242,7 @@ namespace
         Check(editor.OpenProjectFile(probe.projectPath.c_str(), error), "the probe project opens again");
         Check(editor.IsCanvasLoading(), "opening the project starts loading the canvas from last time");
         const JBro::TaskGroupId broken = editor.GetCanvasLoadGroup();
-        for (int frame = 0; frame < 20 && editor.IsCanvasLoading(); ++frame)
+        for (JBro::Int32 frame = 0; frame < 20 && editor.IsCanvasLoading(); ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while the broken canvas loads");
         }
@@ -321,7 +325,7 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
         Check(editor.Tick(Frame), "the editor must tick");
 
-        const float displayHeight = ImGui::GetIO().DisplaySize.y;
+        const JBro::Float displayHeight = ImGui::GetIO().DisplaySize.y;
         ImGuiWindow* bar = ImGui::FindWindowByName("##EditorStatusBar");
         ImGuiWindow* root = ImGui::FindWindowByName("##EditorRoot");
         Check(bar != nullptr && root != nullptr, "the status bar and the root dock are windows");
@@ -339,7 +343,7 @@ namespace
         const JBro::TaskGroupId id = tasks->Submit(std::move(group));
         Check(editor.Tick(Frame), "the editor must tick with a running group");
         // 상태 표시줄이 읽는 셈이다. 하위 작업 셋 가운데 하나를 알리고 기다리는 중이다.
-        for (int frame = 0; frame < 600 && JBro::Widget::SummarizeTaskGroup(*tasks, id).done == 0; ++frame)
+        for (JBro::Int32 frame = 0; frame < 600 && JBro::Widget::SummarizeTaskGroup(*tasks, id).done == 0; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while the gate starts");
         }
@@ -351,14 +355,14 @@ namespace
         Check(false == JBro::Widget::SummarizeTaskGroup(*tasks, JBro::TaskGroupId{987654321}).found,
             "a group nobody knows is not found");
 
-        const int barY = static_cast<int>(bar->Pos.y + bar->Size.y * 0.5f);
+        const JBro::Int32 barY = static_cast<int>(bar->Pos.y + bar->Size.y * 0.5f);
         ClickAt(editor, hwnd, 16, barY);
         Check(IsWindowActive("##EditorTaskList"), "clicking the running group opens the task list");
         ImGuiWindow* list = ImGui::FindWindowByName("##EditorTaskList");
         Check(list->Pos.y + list->Size.y <= bar->Pos.y + 1.0f, "the list opens above the status bar");
 
         release = true;
-        for (int frame = 0; frame < 600 && false == tasks->FindGroup(id)->IsFinished(); ++frame)
+        for (JBro::Int32 frame = 0; frame < 600 && false == tasks->FindGroup(id)->IsFinished(); ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while the group ends");
         }
@@ -392,7 +396,7 @@ namespace
     }
 }
 
-int RunEditorLoadingTests()
+JBro::Int32 RunEditorLoadingTests()
 {
     try
     {

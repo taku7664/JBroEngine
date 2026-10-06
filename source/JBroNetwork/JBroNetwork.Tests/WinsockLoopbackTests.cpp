@@ -11,6 +11,9 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
@@ -19,7 +22,7 @@ namespace
 {
     // 실제 소켓은 시간이 걸린다. 조건이 참이 되거나 시한이 지날 때까지 양쪽을 돌린다.
     template <typename Predicate>
-    bool PumpUntil(Transport& a, Transport& b, Predicate&& done, int timeoutMilliseconds = 5000)
+    JBro::Bool PumpUntil(Transport& a, Transport& b, Predicate&& done, JBro::Int32 timeoutMilliseconds = 5000)
     {
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMilliseconds);
         while (std::chrono::steady_clock::now() < deadline)
@@ -46,8 +49,8 @@ namespace
 
         // 포트가 다른 것에 잡혀 있을 수 있다. 몇 개를 시도한다.
         std::uint16_t port = 27717;
-        bool listening = false;
-        for (int attempt = 0; attempt < 16 && false == listening; ++attempt)
+        JBro::Bool listening = false;
+        for (JBro::Int32 attempt = 0; attempt < 16 && false == listening; ++attempt)
         {
             listening = server.Listen(static_cast<std::uint16_t>(port + attempt));
             if (listening)
@@ -59,9 +62,9 @@ namespace
         Check(client.Connect("127.0.0.1", port), "the client connects to loopback");
 
         NetworkEvent events[8];
-        std::uint32_t serverEvents = 0;
-        std::uint32_t clientEvents = 0;
-        const bool connected = PumpUntil(server, client, [&]()
+        JBro::UInt32 serverEvents = 0;
+        JBro::UInt32 clientEvents = 0;
+        const JBro::Bool connected = PumpUntil(server, client, [&]()
         {
             serverEvents += server.TakeEvents(events + serverEvents, 8 - serverEvents);
             clientEvents += client.TakeEvents(events, 8);
@@ -77,7 +80,7 @@ namespace
         const char text[] = "over real sockets";
         Check(client.Send(ServerConnectionId, 5, text, sizeof(text)), "the client sends");
         MessageView view;
-        const bool received = PumpUntil(server, client, [&]()
+        const JBro::Bool received = PumpUntil(server, client, [&]()
         {
             return server.TakeMessages(&view, 1) == 1;
         });
@@ -86,13 +89,13 @@ namespace
             "intact");
 
         std::uint8_t big[40000];
-        for (std::uint32_t index = 0; index < sizeof(big); ++index)
+        for (JBro::UInt32 index = 0; index < sizeof(big); ++index)
         {
             big[index] = static_cast<std::uint8_t>(index * 13);
         }
         Check(server.Send(clientOnServer, 6, big, sizeof(big)), "the server sends 40000 bytes");
         MessageView bigView;
-        const bool bigReceived = PumpUntil(server, client, [&]()
+        const JBro::Bool bigReceived = PumpUntil(server, client, [&]()
         {
             return client.TakeMessages(&bigView, 1) == 1;
         });
@@ -100,7 +103,7 @@ namespace
         Check(bigView.size == sizeof(big) && 0 == std::memcmp(bigView.data, big, sizeof(big)), "whole and in order");
 
         server.CloseConnection(clientOnServer);
-        const bool closed = PumpUntil(server, client, [&]()
+        const JBro::Bool closed = PumpUntil(server, client, [&]()
         {
             return client.GetRole() == NetworkRole::None;
         });
@@ -108,7 +111,7 @@ namespace
     }
 
     // 이 기계의 루프백이 아닌 IPv4 주소를 찾는다. 망이 없으면 거짓이다.
-    bool FindExternalAddress(char* out, std::size_t capacity)
+    JBro::Bool FindExternalAddress(char* out, std::size_t capacity)
     {
         char host[256] = {};
         if (0 != gethostname(host, sizeof(host)))
@@ -123,7 +126,7 @@ namespace
         {
             return false;
         }
-        bool found = false;
+        JBro::Bool found = false;
         for (addrinfo* entry = list; entry != nullptr && false == found; entry = entry->ai_next)
         {
             const auto* address = reinterpret_cast<const sockaddr_in*>(entry->ai_addr);
@@ -148,9 +151,9 @@ namespace
         return socket.GetState();
     }
 
-    JBro::OwnerPtr<IStreamSocket> OpenListener(Native::WinsockSocketProvider& provider, bool loopback, std::uint16_t first, std::uint16_t& port)
+    JBro::OwnerPtr<IStreamSocket> OpenListener(Native::WinsockSocketProvider& provider, JBro::Bool loopback, std::uint16_t first, std::uint16_t& port)
     {
-        for (int attempt = 0; attempt < 16; ++attempt)
+        for (JBro::Int32 attempt = 0; attempt < 16; ++attempt)
         {
             JBro::OwnerPtr<IStreamSocket> socket = provider.CreateStreamSocket();
             port = static_cast<std::uint16_t>(first + attempt);
@@ -202,8 +205,8 @@ namespace
         Transport nobody(provider, clock);
         Check(client.Connect("127.0.0.1", 1), "connecting to port 1 starts");
         NetworkEvent event;
-        std::uint32_t count = 0;
-        const bool refused = PumpUntil(client, nobody, [&]()
+        JBro::UInt32 count = 0;
+        const JBro::Bool refused = PumpUntil(client, nobody, [&]()
         {
             count = client.TakeEvents(&event, 1);
             return count == 1;
@@ -214,7 +217,7 @@ namespace
     }
 }
 
-int RunWinsockLoopbackTests()
+JBro::Int32 RunWinsockLoopbackTests()
 {
     try
     {

@@ -3,6 +3,8 @@
 #include <JBro/Network/Replication/Snapshot.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 델타 메시지의 와이어(LE):
 //   [tick:4][baselineTick:4][changed:2][removed:2]
@@ -11,9 +13,9 @@
 // 기준(baseline)은 클라이언트가 마지막으로 ACK 한 스냅숏이다. `NoBaselineTick` 이면 전체 스냅숏이고 removed 는 없다.
 namespace JBro::Network::DeltaCodec
 {
-    inline constexpr std::uint32_t HeaderBytes = 12;
-    inline constexpr std::uint32_t ChangedEntryHeaderBytes = 5;
-    inline constexpr std::uint32_t RemovedEntryBytes = 5;
+    inline constexpr UInt32 HeaderBytes = 12;
+    inline constexpr UInt32 ChangedEntryHeaderBytes = 5;
+    inline constexpr UInt32 RemovedEntryBytes = 5;
 
     struct DeltaHeader
     {
@@ -31,15 +33,15 @@ namespace JBro::Network::DeltaCodec
 
     // 기준과 현재의 차이를 쓴다. 기준이 null 이면 전체다. 들어가지 않으면 0 이다.
     // `removalScratch` 는 현재에는 없고 기준에만 있는 항목을 모아 두는 자리다(항목 수만큼).
-    std::uint32_t Encode(const Snapshot* baseline, const Snapshot& current, std::uint8_t* out, std::uint32_t capacity,
-        Removal* removalScratch, std::uint32_t removalCapacity);
+    UInt32 Encode(const Snapshot* baseline, const Snapshot& current, std::uint8_t* out, UInt32 capacity,
+        Removal* removalScratch, UInt32 removalCapacity);
 
     // 델타를 기준에 얹어 `out` 을 만든다. `out` 은 이미 `Begin(tick)` 된 빈 스냅숏이어야 하고 기준과 다른 저장소여야 한다.
     // 헤더의 기준 틱과 `baseline` 의 틱이 맞지 않으면 거짓이다. 지운 항목은 `removals` 에 적는다.
     // `changedScratch` 는 changed 항목의 위치를 모아 두는 자리다(항목 수만큼).
-    bool Decode(const std::uint8_t* data, std::uint32_t size, const std::uint32_t* typeSizes, std::uint8_t typeCount,
-        const Snapshot* baseline, Snapshot& out, DeltaHeader& outHeader, Removal* removals, std::uint32_t removalCapacity,
-        std::uint32_t& outRemovalCount, const std::uint8_t** changedScratch, std::uint32_t changedCapacity);
+    Bool Decode(const std::uint8_t* data, UInt32 size, const UInt32* typeSizes, std::uint8_t typeCount,
+        const Snapshot* baseline, Snapshot& out, DeltaHeader& outHeader, Removal* removals, UInt32 removalCapacity,
+        UInt32& outRemovalCount, const std::uint8_t** changedScratch, UInt32 changedCapacity);
 
-    bool ReadHeader(const std::uint8_t* data, std::uint32_t size, DeltaHeader& outHeader);
+    Bool ReadHeader(const std::uint8_t* data, UInt32 size, DeltaHeader& outHeader);
 }

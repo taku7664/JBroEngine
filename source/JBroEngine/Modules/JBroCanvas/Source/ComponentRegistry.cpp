@@ -1,6 +1,7 @@
 ﻿#include <JBro/Canvas/ComponentRegistry.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -10,7 +11,7 @@ namespace JBro
         return registry;
     }
 
-    bool ComponentRegistry::Register(const ComponentTypeInfo& info)
+    Bool ComponentRegistry::Register(const ComponentTypeInfo& info)
     {
         if (info.name == InvalidNameId
             || info.typeId == InvalidComponentTypeId
@@ -72,7 +73,7 @@ namespace JBro
         return types;
     }
 
-    bool ComponentRegistry::CanAttach(const GameObject& object, NameId name) const
+    Bool ComponentRegistry::CanAttach(const GameObject& object, NameId name) const
     {
         const ComponentTypeInfo* info = Find(name);
         if (info == nullptr)

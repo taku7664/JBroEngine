@@ -5,6 +5,10 @@
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 2D 물리 커널의 도형 기하 테스트(D-199, physics-plan §4 의 1 단계).
 // 기존 엔진의 오목 폴리곤 결함 중 기하에서 나온 것(절댓값 넓이의 관성, 일직선 점에서 멈추는 귀 자르기,
@@ -18,7 +22,7 @@ namespace
     using JBro::Physics2D::MassData;
     using JBro::Physics2D::PolygonError;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -27,7 +31,7 @@ namespace
         }
     }
 
-    bool Near(float actual, float expected, float tolerance)
+    JBro::Bool Near(JBro::Float actual, JBro::Float expected, JBro::Float tolerance)
     {
         return std::fabs(actual - expected) <= tolerance;
     }
@@ -48,18 +52,18 @@ namespace
         return { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
     }
 
-    bool IsStrictlyConvexCcw(const ConvexPolygon& polygon)
+    JBro::Bool IsStrictlyConvexCcw(const ConvexPolygon& polygon)
     {
         if (polygon.count < 3 || polygon.count > JBro::Physics2D::MaxPolygonVertices)
         {
             return false;
         }
-        for (std::uint32_t i = 0; i < polygon.count; ++i)
+        for (JBro::UInt32 i = 0; i < polygon.count; ++i)
         {
             const Vector2 a = polygon.points[(i + polygon.count - 1) % polygon.count];
             const Vector2 b = polygon.points[i];
             const Vector2 c = polygon.points[(i + 1) % polygon.count];
-            const float cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+            const JBro::Float cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
             if (cross <= 0.0f)
             {
                 return false;
@@ -68,9 +72,9 @@ namespace
         return true;
     }
 
-    float PieceAreaSum(const Array<ConvexPolygon>& pieces)
+    JBro::Float PieceAreaSum(const Array<ConvexPolygon>& pieces)
     {
-        float sum = 0.0f;
+        JBro::Float sum = 0.0f;
         for (const ConvexPolygon& piece : pieces)
         {
             sum += JBro::Physics2D::SignedArea(ArrayView<const Vector2>(piece.points, piece.count));
@@ -78,7 +82,7 @@ namespace
         return sum;
     }
 
-    MassData PieceMass(const Array<ConvexPolygon>& pieces, float density)
+    MassData PieceMass(const Array<ConvexPolygon>& pieces, JBro::Float density)
     {
         Array<MassData> parts;
         for (const ConvexPolygon& piece : pieces)
@@ -89,9 +93,9 @@ namespace
     }
 
     // 짝홀 규칙. 외곽선이 시계든 반시계든 같다.
-    bool PointInOutline(Vector2 point, const Array<Vector2>& outline)
+    JBro::Bool PointInOutline(Vector2 point, const Array<Vector2>& outline)
     {
-        bool inside = false;
+        JBro::Bool inside = false;
         const std::size_t count = outline.Size();
         for (std::size_t i = 0, j = count - 1; i < count; j = i++)
         {
@@ -106,9 +110,9 @@ namespace
         return inside;
     }
 
-    bool PointInPiece(Vector2 point, const ConvexPolygon& piece)
+    JBro::Bool PointInPiece(Vector2 point, const ConvexPolygon& piece)
     {
-        for (std::uint32_t i = 0; i < piece.count; ++i)
+        for (JBro::UInt32 i = 0; i < piece.count; ++i)
         {
             const Vector2 a = piece.points[i];
             const Vector2 b = piece.points[(i + 1) % piece.count];
@@ -133,15 +137,15 @@ namespace
             low = { std::fmin(low.x, point.x), std::fmin(low.y, point.y) };
             high = { std::fmax(high.x, point.x), std::fmax(high.y, point.y) };
         }
-        constexpr int Steps = 41;
-        for (int ix = 0; ix < Steps; ++ix)
+        constexpr JBro::Int32 Steps = 41;
+        for (JBro::Int32 ix = 0; ix < Steps; ++ix)
         {
-            for (int iy = 0; iy < Steps; ++iy)
+            for (JBro::Int32 iy = 0; iy < Steps; ++iy)
             {
                 const Vector2 point = {
                     low.x + (high.x - low.x) * (static_cast<float>(ix) + 0.3819660f) / Steps,
                     low.y + (high.y - low.y) * (static_cast<float>(iy) + 0.2360680f) / Steps };
-                int covering = 0;
+                JBro::Int32 covering = 0;
                 for (const ConvexPolygon& piece : pieces)
                 {
                     if (PointInPiece(point, piece))
@@ -155,7 +159,7 @@ namespace
                         << " times; pieces:\n";
                     for (const ConvexPolygon& piece : pieces)
                     {
-                        for (std::uint32_t k = 0; k < piece.count; ++k)
+                        for (JBro::UInt32 k = 0; k < piece.count; ++k)
                         {
                             std::cout << " (" << piece.points[k].x << ", " << piece.points[k].y << ")";
                         }
@@ -178,7 +182,7 @@ namespace
         {
             Check(IsStrictlyConvexCcw(piece), message);
         }
-        const float expected = std::fabs(JBro::Physics2D::SignedArea(View(outline)));
+        const JBro::Float expected = std::fabs(JBro::Physics2D::SignedArea(View(outline)));
         Check(Near(PieceAreaSum(pieces), expected, expected * 1.0e-4f + 1.0e-5f), message);
         CheckCoverage(outline, pieces, message);
     }
@@ -195,8 +199,8 @@ namespace
         Check(Near(mass.center.x, 1.5f, 1.0e-5f), "the centroid is on the symmetry axis");
         Check(Near(mass.center.y, 9.5f / 7.0f, 1.0e-5f), "and at y = 9.5 / 7, inside the notch");
         // 3x3 정사각형(중심 관성 13.5) 에서 1x2 홈(중심 관성 5/6) 을 빼고 평행축 정리로 합친 값.
-        const float cy = 9.5f / 7.0f;
-        const float expected = (13.5f + 9.0f * (1.5f - cy) * (1.5f - cy))
+        const JBro::Float cy = 9.5f / 7.0f;
+        const JBro::Float expected = (13.5f + 9.0f * (1.5f - cy) * (1.5f - cy))
             - (5.0f / 6.0f + 2.0f * (2.0f - cy) * (2.0f - cy));
         Check(Near(mass.inertia, expected, 1.0e-4f), "the inertia about the centroid is the analytic value");
 
@@ -248,9 +252,9 @@ namespace
 
         // 8 점을 넘는 볼록 다각형은 상한 때문에 나뉘지만, 조각마다 여전히 볼록이고 넓이가 남는다.
         Array<Vector2> circle;
-        for (int i = 0; i < 20; ++i)
+        for (JBro::Int32 i = 0; i < 20; ++i)
         {
-            const float angle = 6.2831853f * static_cast<float>(i) / 20.0f;
+            const JBro::Float angle = 6.2831853f * static_cast<float>(i) / 20.0f;
             circle.Add({ std::cos(angle), std::sin(angle) });
         }
         CheckDecomposition(circle, "a 20-gon splits into convex pieces of at most eight points");
@@ -323,22 +327,22 @@ namespace
     // 손으로 고른 도형이 놓치는 배치를 훑는다. 씨앗이 고정이라 실패는 다시 난다.
     void TestRandomStarPolygonsDecomposeWithoutLoss()
     {
-        std::uint32_t state = 0x12345678u;
+        JBro::UInt32 state = 0x12345678u;
         const auto next = [&state]()
         {
             state = state * 1664525u + 1013904223u;
             return static_cast<float>(state >> 8) / static_cast<float>(1u << 24);
         };
 
-        int concaveCount = 0;
-        for (int shape = 0; shape < 200; ++shape)
+        JBro::Int32 concaveCount = 0;
+        for (JBro::Int32 shape = 0; shape < 200; ++shape)
         {
-            const int count = 5 + static_cast<int>(next() * 20.0f);
+            const JBro::Int32 count = 5 + static_cast<int>(next() * 20.0f);
             Array<Vector2> outline;
-            for (int i = 0; i < count; ++i)
+            for (JBro::Int32 i = 0; i < count; ++i)
             {
-                const float angle = 6.2831853f * (static_cast<float>(i) + 0.8f * next()) / static_cast<float>(count);
-                const float radius = 0.3f + 2.0f * next();
+                const JBro::Float angle = 6.2831853f * (static_cast<float>(i) + 0.8f * next()) / static_cast<float>(count);
+                const JBro::Float radius = 0.3f + 2.0f * next();
                 outline.Add({ radius * std::cos(angle), radius * std::sin(angle) });
             }
 
@@ -356,7 +360,7 @@ namespace
 
             Array<Vector2> clean;
             JBro::Physics2D::CleanPolygon(View(outline), clean);
-            const float expected = JBro::Physics2D::SignedArea(clean.View());
+            const JBro::Float expected = JBro::Physics2D::SignedArea(clean.View());
             if (false == Near(PieceAreaSum(pieces), expected, expected * 1.0e-4f))
             {
                 std::cout << "random shape " << shape << ": " << clean.Size() << " points, " << pieces.Size()
@@ -394,7 +398,7 @@ namespace
     }
 }
 
-int RunPhysics2DGeometryTests()
+JBro::Int32 RunPhysics2DGeometryTests()
 {
     TestOutlineMassOfTheUMatchesTheAnalyticValue();
     TestPieceMassEqualsOutlineMass();

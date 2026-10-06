@@ -6,6 +6,11 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -30,7 +35,7 @@ namespace JBro::Widget
             }
         }
 
-        ImU32 AxisColor(GizmoAxis axis, bool highlighted)
+        ImU32 AxisColor(GizmoAxis axis, Bool highlighted)
         {
             if (highlighted)
             {
@@ -51,58 +56,58 @@ namespace JBro::Widget
 
         // **손잡이를 가이드 포커스에 알린다**(반례 ⑦). 자리는 집기(`GizmoModel::Pick`)가 쓰는 모양 그대로다 - 축은 선분을 집는 거리만큼
         // 부풀린 사각형, 가운데와 회전 고리는 둥근 구멍이다. 눌림은 그 손잡이로 끌기를 시작한 프레임이다.
-        void ReportHandles(GizmoMode mode, const GizmoHandleShape* handles, std::uint32_t count, const GizmoOutput& output)
+        void ReportHandles(GizmoMode mode, const GizmoHandleShape* handles, UInt32 count, const GizmoOutput& output)
         {
             const EditorGuideFocus* focus = GetGuideFocus();
             if (focus == nullptr || false == focus->IsActive())
             {
                 return;
             }
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 const GizmoHandleShape& handle = handles[index];
                 const GuideFocusTarget target = GuideFocusTargets::GizmoHandle(static_cast<std::uint32_t>(mode),
                     static_cast<std::uint32_t>(handle.axis));
                 ImVec2 min;
                 ImVec2 max;
-                bool round = true;
+                Bool round = true;
                 if (handle.ring)
                 {
                     min = ImVec2(handle.ringX[0], handle.ringY[0]);
                     max = min;
-                    for (std::uint32_t point = 1; point < GizmoHandleShape::RingPoints; ++point)
+                    for (UInt32 point = 1; point < GizmoHandleShape::RingPoints; ++point)
                     {
-                        min = ImVec2((std::min)(min.x, handle.ringX[point]), (std::min)(min.y, handle.ringY[point]));
-                        max = ImVec2((std::max)(max.x, handle.ringX[point]), (std::max)(max.y, handle.ringY[point]));
+                        min = ImVec2(JBro::Min(min.x, handle.ringX[point]), JBro::Min(min.y, handle.ringY[point]));
+                        max = ImVec2(JBro::Max(max.x, handle.ringX[point]), JBro::Max(max.y, handle.ringY[point]));
                     }
                 }
                 else if (handle.axis == GizmoAxis::Free)
                 {
-                    const float radius = GizmoModel::CenterRadiusPixels + 3.0f;
+                    const Float radius = GizmoModel::CenterRadiusPixels + 3.0f;
                     min = ImVec2(handle.x0 - radius, handle.y0 - radius);
                     max = ImVec2(handle.x0 + radius, handle.y0 + radius);
                 }
                 else
                 {
-                    const float pad = GizmoModel::PickDistancePixels;
+                    const Float pad = GizmoModel::PickDistancePixels;
                     min = ImVec2((std::min)(handle.x0, handle.x1) - pad, (std::min)(handle.y0, handle.y1) - pad);
                     max = ImVec2((std::max)(handle.x0, handle.x1) + pad, (std::max)(handle.y0, handle.y1) + pad);
                     round = false;
                 }
-                const bool activated = output.dragStarted && output.axis == handle.axis;
+                const Bool activated = output.dragStarted && output.axis == handle.axis;
                 ReportGuideTarget(target, min, max, false, activated, round);
             }
         }
 
-        void DrawHandle(ImDrawList& draw, GizmoMode mode, const GizmoHandleShape& handle, bool highlighted)
+        void DrawHandle(ImDrawList& draw, GizmoMode mode, const GizmoHandleShape& handle, Bool highlighted)
         {
             const ImU32 color = AxisColor(handle.axis, highlighted);
-            const float thickness = highlighted ? 3.0f : 2.0f;
+            const Float thickness = highlighted ? 3.0f : 2.0f;
             if (handle.ring)
             {
-                for (std::uint32_t index = 0; index < GizmoHandleShape::RingPoints; ++index)
+                for (UInt32 index = 0; index < GizmoHandleShape::RingPoints; ++index)
                 {
-                    const std::uint32_t next = (index + 1) % GizmoHandleShape::RingPoints;
+                    const UInt32 next = (index + 1) % GizmoHandleShape::RingPoints;
                     draw.AddLine(ImVec2(handle.ringX[index], handle.ringY[index]),
                         ImVec2(handle.ringX[next], handle.ringY[next]), color, thickness);
                 }
@@ -110,7 +115,7 @@ namespace JBro::Widget
             }
             if (handle.axis == GizmoAxis::Free)
             {
-                const float radius = GizmoModel::CenterRadiusPixels;
+                const Float radius = GizmoModel::CenterRadiusPixels;
                 const ImVec2 center(handle.x0, handle.y0);
                 if (mode == GizmoMode::Scale)
                 {
@@ -127,23 +132,23 @@ namespace JBro::Widget
             const ImVec2 to(handle.x1, handle.y1);
             draw.AddLine(from, to, color, thickness);
             // 끝: 이동은 화살촉, 크기는 상자.
-            const float dx = to.x - from.x;
-            const float dy = to.y - from.y;
-            const float length = ImSqrt(dx * dx + dy * dy);
+            const Float dx = to.x - from.x;
+            const Float dy = to.y - from.y;
+            const Float length = ImSqrt(dx * dx + dy * dy);
             if (length < 1.0f)
             {
                 return;
             }
-            const float ux = dx / length;
-            const float uy = dy / length;
+            const Float ux = dx / length;
+            const Float uy = dy / length;
             if (mode == GizmoMode::Scale)
             {
-                constexpr float half = 5.0f;
+                constexpr Float half = 5.0f;
                 draw.AddRectFilled(ImVec2(to.x - half, to.y - half), ImVec2(to.x + half, to.y + half), color);
             }
             else
             {
-                constexpr float size = 10.0f;
+                constexpr Float size = 10.0f;
                 const ImVec2 base(to.x - ux * size, to.y - uy * size);
                 const ImVec2 side(-uy * size * 0.5f, ux * size * 0.5f);
                 draw.AddTriangleFilled(to, ImVec2(base.x + side.x, base.y + side.y),
@@ -153,7 +158,7 @@ namespace JBro::Widget
     }
 
     GizmoOutput Gizmo(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
-        GizmoState& state, bool interactive, float snapStep, float snapRadians)
+        GizmoState& state, Bool interactive, Float snapStep, Float snapRadians)
     {
         GizmoOutput output;
         output.subject = subject;
@@ -165,7 +170,7 @@ namespace JBro::Widget
             return output;
         }
         const ImVec2 mouse = ImGui::GetIO().MousePos;
-        const bool mouseInside = mouse.x >= camera.left && mouse.x < camera.left + camera.width
+        const Bool mouseInside = mouse.x >= camera.left && mouse.x < camera.left + camera.width
             && mouse.y >= camera.top && mouse.y < camera.top + camera.height;
 
         if (state.dragging)
@@ -197,7 +202,7 @@ namespace JBro::Widget
         }
         else
         {
-            const bool canHover = interactive && mouseInside
+            const Bool canHover = interactive && mouseInside
                 && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
             state.hovered = canHover ? GizmoModel::Pick(mode, camera, subject, mouse.x, mouse.y) : GizmoAxis::None;
             output.hovered = state.hovered != GizmoAxis::None;
@@ -223,12 +228,12 @@ namespace JBro::Widget
 
         // 그리기는 끌기 중이면 결과 위치에, 아니면 대상 위치에.
         GizmoHandleShape handles[GizmoModel::MaxHandles];
-        const std::uint32_t count = GizmoModel::BuildHandles(mode, camera, output.subject, handles);
+        const UInt32 count = GizmoModel::BuildHandles(mode, camera, output.subject, handles);
         ImDrawList* draw = ImGui::GetWindowDrawList();
         const GizmoAxis highlighted = state.dragging ? state.drag.axis : state.hovered;
         draw->PushClipRect(ImVec2(camera.left, camera.top),
             ImVec2(camera.left + camera.width, camera.top + camera.height), true);
-        for (std::uint32_t index = 0; index < count; ++index)
+        for (UInt32 index = 0; index < count; ++index)
         {
             DrawHandle(*draw, mode, handles[index], handles[index].axis == highlighted);
         }
@@ -237,7 +242,7 @@ namespace JBro::Widget
         return output;
     }
 
-    void OverlayHandle(const char* id, bool hovered, bool holding, bool pressed)
+    void OverlayHandle(const char* id, Bool hovered, Bool holding, Bool pressed)
     {
         ImGuiWindow* window = ImGui::GetCurrentWindow();
         if (window == nullptr)
@@ -266,7 +271,7 @@ namespace JBro::Widget
         }
     }
 
-    bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel)
+    Bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel)
     {
         const GizmoMode before = mode;
         const char* labels[3] = {translateLabel, rotateLabel, scaleLabel};
@@ -274,14 +279,14 @@ namespace JBro::Widget
         // 단추의 Id 다. 글자가 없으니 번역이 바뀌어도 같은 Id 다.
         const char* ids[3] = {"##gizmo_translate", "##gizmo_rotate", "##gizmo_scale"};
         const GizmoMode modes[3] = {GizmoMode::Translate, GizmoMode::Rotate, GizmoMode::Scale};
-        for (int index = 0; index < 3; ++index)
+        for (Int32 index = 0; index < 3; ++index)
         {
             if (index != 0)
             {
                 ImGui::SameLine();
             }
-            const bool selected = mode == modes[index];
-            const bool pressed = IconButton(ids[index], icons[index]).Selected(selected).Tooltip(labels[index]).Draw();
+            const Bool selected = mode == modes[index];
+            const Bool pressed = IconButton(ids[index], icons[index]).Selected(selected).Tooltip(labels[index]).Draw();
             // 가이드가 모드 단추를 가리킬 수 있다(반례 ⑦). 열림은 그 모드가 켜져 있는가다 - 켜져 있으면 다음 칸(손잡이)으로 간다.
             Internal::ReportLastItem(GuideFocusTargets::GizmoModeButton(static_cast<std::uint32_t>(modes[index])),
                 pressed || mode == modes[index], pressed);

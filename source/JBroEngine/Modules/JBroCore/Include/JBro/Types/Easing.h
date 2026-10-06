@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <cstdint>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -38,8 +39,8 @@ namespace JBro
     //
     // 모르는 값이 오면 `Linear` 로 본다 - 파일에서 읽은 열거형이 범위를 벗어날 수 있고,
     // 그때 화면이 멈추는 것보다 곧게 움직이는 편이 낫다.
-    float Ease(EaseKind kind, float t) noexcept;
+    Float Ease(EaseKind kind, Float t) noexcept;
 
     // 두 값 사이를 고른 모양으로 오간다. `Ease` 를 부른 뒤 섞는 것과 같다.
-    float EaseBetween(EaseKind kind, float from, float to, float t) noexcept;
+    Float EaseBetween(EaseKind kind, Float from, Float to, Float t) noexcept;
 }

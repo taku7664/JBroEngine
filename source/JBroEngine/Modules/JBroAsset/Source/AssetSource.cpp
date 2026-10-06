@@ -4,6 +4,8 @@
 #include <JBro/Platform/Platform.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -12,7 +14,7 @@ namespace JBro
         constexpr char CookedTextureMagic[4] = { 'J', 'T', 'E', 'X' };
     }
 
-    void WriteCookedTexture(std::uint32_t width, std::uint32_t height, const std::byte* rgba, Array<std::byte>& out)
+    void WriteCookedTexture(UInt32 width, UInt32 height, const std::byte* rgba, Array<std::byte>& out)
     {
         const std::size_t pixels = static_cast<std::size_t>(width) * height * 4;
         out.Resize(CookedTextureHeaderSize + pixels);
@@ -26,7 +28,7 @@ namespace JBro
         }
     }
 
-    bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info)
+    Bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info)
     {
         if (bytes.Size() < CookedTextureHeaderSize || std::memcmp(bytes.Data(), CookedTextureMagic, sizeof(CookedTextureMagic)) != 0)
         {
@@ -61,7 +63,7 @@ namespace JBro
         return path;
     }
 
-    bool LooseAssetSource::Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const
+    Bool LooseAssetSource::Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const
     {
         out.Clear();
         if (m_platform == nullptr)
@@ -80,7 +82,7 @@ namespace JBro
         return false;
     }
 
-    bool LooseAssetSource::Has(const AssetRecord& record, AssetBlob blob) const
+    Bool LooseAssetSource::Has(const AssetRecord& record, AssetBlob blob) const
     {
         (void)record;
         return blob == AssetBlob::Source || blob == AssetBlob::Meta;

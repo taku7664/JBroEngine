@@ -9,6 +9,8 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 #if defined(JBRO_TEST_REF_GAMEOBJECT_LEAK)
 JBro::Ref<JBro::GameObject> forbiddenGameObjectReference;
@@ -34,7 +36,7 @@ namespace
     {
     };
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -78,7 +80,7 @@ namespace
     }
 }
 
-int RunScriptApiPreludeTests()
+JBro::Int32 RunScriptApiPreludeTests()
 {
     TestScriptPreludeSurface();
     std::cout << "Script API prelude tests passed.\n";

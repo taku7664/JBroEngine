@@ -8,17 +8,18 @@
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Component
 {
-    bool RegisterBuiltinComponentTypes3D()
+    Bool RegisterBuiltinComponentTypes3D()
     {
-        static const bool registered = []
+        static const Bool registered = []
         {
             // && 로 엮지 않는다. 하나가 실패하면 뒤의 것이 아예 등록되지 않고,
             // 그러면 첫 실패 하나가 여러 컴포넌트를 씬에서 통째로 지운다.
             // 2D 쪽과 같은 갈래·다중성을 쓴다(D-180).
-            bool all = true;
+            Bool all = true;
             all = RegisterComponentType<Transform3D>(
                       ComponentCategory::Transform, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Camera3D>(

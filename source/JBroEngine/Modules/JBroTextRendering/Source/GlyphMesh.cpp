@@ -2,16 +2,19 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    std::uint32_t GlyphPixelSize(float fontSize)
+    UInt32 GlyphPixelSize(Float fontSize)
     {
         const long rounded = std::isfinite(fontSize) ? std::lround(fontSize) : 0;
         return static_cast<std::uint32_t>(std::clamp<long>(rounded, 1, static_cast<long>(Text::GlyphAtlas::MaxPixelSize)));
     }
 
-    void BuildGlyphQuads(const Text::TextLayout& layout, const FontView* views, std::uint32_t viewCount,
+    void BuildGlyphQuads(const Text::TextLayout& layout, const FontView* views, UInt32 viewCount,
         const GlyphMeshOptions& options, Array<GlyphQuad>& out)
     {
         out.Clear();
@@ -19,23 +22,23 @@ namespace JBro
         {
             return;
         }
-        const float clipLeft = layout.GetMinX();
-        const float clipRight = layout.GetMaxX();
-        const float clipBottom = layout.GetMinY();
-        const float clipTop = layout.GetMaxY();
+        const Float clipLeft = layout.GetMinX();
+        const Float clipRight = layout.GetMaxX();
+        const Float clipBottom = layout.GetMinY();
+        const Float clipTop = layout.GetMaxY();
         for (const Text::PositionedGlyph& glyph : layout.GetGlyphs())
         {
             // 글리프는 그것을 고른 face 의 아틀라스에 든다. 폴백 폰트의 글자는 그 폰트의 페이지로 그린다.
-            const std::uint32_t faceIndex = glyph.face < viewCount ? glyph.face : 0;
+            const UInt32 faceIndex = glyph.face < viewCount ? glyph.face : 0;
             const FontView& glyphFont = views[faceIndex];
             if (glyphFont.atlas == nullptr || glyphFont.face == nullptr)
             {
                 continue;
             }
-            const float pageSize = static_cast<float>(glyphFont.atlas->GetPageSize());
+            const Float pageSize = static_cast<float>(glyphFont.atlas->GetPageSize());
             // 글자마다 크기가 다를 수 있다(리치 텍스트). SDF 는 거리장 한 벌을 그 크기로 키우고, 비트맵은 그 정수 크기로 뜬다.
-            const float glyphSize = glyph.size > 0.0f ? glyph.size : 1.0f;
-            const float cellScale = options.sdf ? glyphSize / static_cast<float>(options.sdfSize) : 1.0f;
+            const Float glyphSize = glyph.size > 0.0f ? glyph.size : Float(1.0f);
+            const Float cellScale = options.sdf ? glyphSize / static_cast<float>(options.sdfSize) : Float(1.0f);
             Text::AtlasGlyph cell;
             const Text::AtlasError placed = options.sdf
                 ? glyphFont.atlas->EnsureSdf(*glyphFont.face, options.sdfSize, options.sdfSpread, glyph.glyph, cell)
@@ -45,20 +48,20 @@ namespace JBro
                 continue;
             }
             GlyphQuad quad;
-            const float originX = options.pixelSnap ? std::round(glyph.x) : glyph.x;
-            const float originY = options.pixelSnap ? std::round(glyph.y) : glyph.y;
+            const Float originX = options.pixelSnap ? Float(std::round(glyph.x)) : glyph.x;
+            const Float originY = options.pixelSnap ? Float(std::round(glyph.y)) : glyph.y;
             quad.left = originX + static_cast<float>(cell.left) * cellScale;
             quad.top = originY + static_cast<float>(cell.top) * cellScale;
             quad.width = static_cast<float>(cell.width) * cellScale;
             quad.height = static_cast<float>(cell.height) * cellScale;
-            float u0 = static_cast<float>(cell.x) / pageSize;
-            float v0 = static_cast<float>(cell.y) / pageSize;
-            float u1 = static_cast<float>(cell.x + cell.width) / pageSize;
-            float v1 = static_cast<float>(cell.y + cell.height) / pageSize;
+            Float u0 = static_cast<float>(cell.x) / pageSize;
+            Float v0 = static_cast<float>(cell.y) / pageSize;
+            Float u1 = static_cast<float>(cell.x + cell.width) / pageSize;
+            Float v1 = static_cast<float>(cell.y + cell.height) / pageSize;
             if (options.clip)
             {
-                float right = quad.left + quad.width;
-                float bottom = quad.top - quad.height;
+                Float right = quad.left + quad.width;
+                Float bottom = quad.top - quad.height;
                 if (right <= clipLeft || quad.left >= clipRight || bottom >= clipTop || quad.top <= clipBottom)
                 {
                     continue;
@@ -92,11 +95,11 @@ namespace JBro
             quad.uvRect[3] = v1 - v0;
             quad.page = cell.page;
             quad.face = static_cast<std::uint8_t>(faceIndex);
-            quad.sdfPerTextPixel = options.sdf ? static_cast<float>(options.sdfSize) / glyphSize : 1.0f;
+            quad.sdfPerTextPixel = options.sdf ? static_cast<float>(options.sdfSize) / glyphSize : Float(1.0f);
             if (glyph.hasColor)
             {
                 quad.hasTint = true;
-                for (int channel = 0; channel < 4; ++channel)
+                for (Int32 channel = 0; channel < 4; ++channel)
                 {
                     quad.tint[channel] = static_cast<std::uint8_t>((glyph.color >> (channel * 8)) & 0xFFu);
                 }
@@ -105,14 +108,14 @@ namespace JBro
         }
     }
 
-    float SdfOutlineEdge(float outlineWidth, float sdfPerTextPixel, std::uint32_t sdfSpread)
+    Float SdfOutlineEdge(Float outlineWidth, Float sdfPerTextPixel, UInt32 sdfSpread)
     {
         if (false == (outlineWidth > 0.0f) || sdfSpread <= 1)
         {
             return 0.5f;
         }
-        const float spread = static_cast<float>(sdfSpread);
-        const float width = std::min(outlineWidth * sdfPerTextPixel, spread - 1.0f);
+        const Float spread = static_cast<float>(sdfSpread);
+        const Float width = std::min(outlineWidth * sdfPerTextPixel, spread - 1.0f);
         return 0.5f - width * (0.5f / spread);
     }
 }

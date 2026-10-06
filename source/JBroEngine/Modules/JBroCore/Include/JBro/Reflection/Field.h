@@ -9,6 +9,8 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -111,15 +113,15 @@ namespace JBro
         const char* displayName = nullptr;
         const char* tooltip     = nullptr;
         const char* category    = nullptr;
-        bool        hasRange    = false;
-        float       rangeMin    = 0.0f;
-        float       rangeMax    = 0.0f;
-        bool        editable    = true;
-        bool        serialize   = true;
+        Bool        hasRange    = false;
+        Float       rangeMin    = 0.0f;
+        Float       rangeMax    = 0.0f;
+        Bool        editable    = true;
+        Bool        serialize   = true;
 
         // 편집 메타데이터가 하나라도 있는지. 없으면 PropertyInfo::edit 를 nullptr 로 두어
         // 게임 빌드가 이 필드의 표시 이름·툴팁을 통째로 건너뛴다.
-        constexpr bool HasEditInfo() const
+        constexpr Bool HasEditInfo() const
         {
             return displayName != nullptr
                 || tooltip     != nullptr
@@ -171,7 +173,7 @@ namespace JBro
             return attributes;
         }
 
-        constexpr FieldAttributes Range(float minimum, float maximum)
+        constexpr FieldAttributes Range(Float minimum, Float maximum)
         {
             FieldAttributes attributes;
             attributes.hasRange = true;
@@ -264,7 +266,7 @@ namespace JBro
         // 쓰면 번호에 구멍이 나고, 세는 쪽은 거기서 멈춘다 — **뒤의 필드가 조용히 사라진다.**
         // 그래서 멈춘 자리 뒤로 여덟 칸을 더 확인하고, 뭔가 있으면 시끄럽게 실패한다.
         template <typename T, std::size_t Start, std::size_t Probe = 1>
-        constexpr bool HasGapAfter()
+        constexpr Bool HasGapAfter()
         {
             if constexpr (Probe > 8)
             {
@@ -392,9 +394,11 @@ namespace JBro
 
 // 필드를 선언하면서 동시에 등록한다. 기본값은 매크로 밖에 쓴다:
 //
-//     JBRO_FIELD(int, FieldRows, Range(4, 40) | Category("Field")) = 20;
-//     JBRO_FIELD(float, Elapsed, NoSerialize()) = 0.0f;
-//     JBRO_FIELD(float, Speed) = 1.0f;
+//     JBRO_FIELD(Int32, FieldRows, Range(4, 40) | Category("Field")) = 20;
+//     JBRO_FIELD(Float, Elapsed, NoSerialize()) = 0.0f;
+//     JBRO_FIELD(Float, Speed) = 1.0f;
+//
+// **타입은 엔진 값 타입이다**(D-290). `float`·`int`·`bool` 은 등록되지 않아 여기서 컴파일이 멈춘다.
 //
 // **이 매크로가 선언한 필드는 public 이다.** 대부분의 필드는 값이 곧 뜻이라 감출 것이 없고,
 // 인스펙터에 나오는 값이 클래스 밖에서 안 보이면 앞뒤가 맞지 않는다.

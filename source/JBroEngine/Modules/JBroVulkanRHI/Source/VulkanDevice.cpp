@@ -1,6 +1,9 @@
 ﻿#include "VulkanDevice.h"
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -23,7 +26,7 @@ namespace JBro::Internal
             return VK_FALSE;
         }
 
-        bool HasLayer(const char* name)
+        Bool HasLayer(const char* name)
         {
             std::uint32_t count = 0;
             if (vk.vkEnumerateInstanceLayerProperties(&count, nullptr) != VK_SUCCESS || count == 0 || count > 256)
@@ -35,7 +38,7 @@ namespace JBro::Internal
             {
                 return false;
             }
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 if (std::strcmp(layers[index].layerName, name) == 0)
                 {
@@ -45,7 +48,7 @@ namespace JBro::Internal
             return false;
         }
 
-        bool HasInstanceExtension(const char* name)
+        Bool HasInstanceExtension(const char* name)
         {
             std::uint32_t count = 0;
             if (vk.vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr) != VK_SUCCESS || count == 0
@@ -58,7 +61,7 @@ namespace JBro::Internal
             {
                 return false;
             }
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 if (std::strcmp(extensions[index].extensionName, name) == 0)
                 {
@@ -68,7 +71,7 @@ namespace JBro::Internal
             return false;
         }
 
-        bool HasDeviceExtension(VkPhysicalDevice device, const char* name)
+        Bool HasDeviceExtension(VkPhysicalDevice device, const char* name)
         {
             std::uint32_t count = 0;
             if (vk.vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS || count == 0)
@@ -86,7 +89,7 @@ namespace JBro::Internal
             {
                 return false;
             }
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 if (std::strcmp(extensions[index].extensionName, name) == 0)
                 {
@@ -116,8 +119,8 @@ namespace JBro::Internal
             {
                 return VK_PRESENT_MODE_FIFO_KHR;
             }
-            bool mailbox = false;
-            for (std::uint32_t index = 0; index < count; ++index)
+            Bool mailbox = false;
+            for (UInt32 index = 0; index < count; ++index)
             {
                 if (modes[index] == VK_PRESENT_MODE_IMMEDIATE_KHR)
                 {
@@ -129,7 +132,7 @@ namespace JBro::Internal
         }
     }
 
-    std::uint32_t VulkanNextGeneration(std::uint32_t generation)
+    UInt32 VulkanNextGeneration(UInt32 generation)
     {
         ++generation;
         if (generation == 0)
@@ -146,7 +149,7 @@ namespace JBro::Internal
 
     // ── 초기화 ──────────────────────────────────────────────────────────────
 
-    bool VulkanDevice::Initialize(const RHIDeviceCreateInfo& createInfo)
+    Bool VulkanDevice::Initialize(const RHIDeviceCreateInfo& createInfo)
     {
         if (m_device != VK_NULL_HANDLE || m_instance != VK_NULL_HANDLE)
         {
@@ -163,7 +166,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::CreateInstance(bool validation)
+    Bool VulkanDevice::CreateInstance(Bool validation)
     {
         std::uint32_t apiVersion = VK_API_VERSION_1_0;
         if (vk.vkEnumerateInstanceVersion(&apiVersion) != VK_SUCCESS || apiVersion < VK_API_VERSION_1_3)
@@ -171,10 +174,10 @@ namespace JBro::Internal
             return false;
         }
         const char* extensions[4] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
-        std::uint32_t extensionCount = 2;
+        UInt32 extensionCount = 2;
         const char* layers[1] = {};
-        std::uint32_t layerCount = 0;
-        const bool debugUtils = validation && HasInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        UInt32 layerCount = 0;
+        const Bool debugUtils = validation && HasInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         if (debugUtils)
         {
             extensions[extensionCount++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
@@ -221,7 +224,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::PickPhysicalDevice()
+    Bool VulkanDevice::PickPhysicalDevice()
     {
         std::uint32_t count = 0;
         VkPhysicalDevice devices[16];
@@ -239,9 +242,9 @@ namespace JBro::Internal
         }
         // 외장을 먼저, 그다음 아무것이나. 조건은 넷이다: 1.3, 동적 렌더링, synchronization2, 제시 가능한 그래픽 큐.
         VkPhysicalDevice chosen = VK_NULL_HANDLE;
-        std::uint32_t chosenFamily = 0;
-        bool chosenDiscrete = false;
-        for (std::uint32_t index = 0; index < count; ++index)
+        UInt32 chosenFamily = 0;
+        Bool chosenDiscrete = false;
+        for (UInt32 index = 0; index < count; ++index)
         {
             VkPhysicalDeviceProperties properties = {};
             vk.vkGetPhysicalDeviceProperties(devices[index], &properties);
@@ -266,8 +269,8 @@ namespace JBro::Internal
                 familyCount = 16;
             }
             vk.vkGetPhysicalDeviceQueueFamilyProperties(devices[index], &familyCount, families);
-            std::uint32_t family = familyCount;
-            for (std::uint32_t at = 0; at < familyCount; ++at)
+            UInt32 family = familyCount;
+            for (UInt32 at = 0; at < familyCount; ++at)
             {
                 if ((families[at].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0
                     && vk.vkGetPhysicalDeviceWin32PresentationSupportKHR(devices[index], at) == VK_TRUE)
@@ -280,7 +283,7 @@ namespace JBro::Internal
             {
                 continue;
             }
-            const bool discrete = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+            const Bool discrete = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
             if (chosen == VK_NULL_HANDLE || (discrete && false == chosenDiscrete))
             {
                 chosen = devices[index];
@@ -298,7 +301,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::CreateLogicalDevice()
+    Bool VulkanDevice::CreateLogicalDevice()
     {
         const float priority = 1.0f;
         VkDeviceQueueCreateInfo queue = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
@@ -347,7 +350,7 @@ namespace JBro::Internal
         return vk.vkCreateFence(m_device, &fence, nullptr, &m_oneShotFence) == VK_SUCCESS;
     }
 
-    bool VulkanDevice::CreateFrameSlots()
+    Bool VulkanDevice::CreateFrameSlots()
     {
         for (VulkanFrameSlot& slot : m_slots)
         {
@@ -415,36 +418,36 @@ namespace JBro::Internal
         m_commandContext.Reset();
         if (m_device != VK_NULL_HANDLE)
         {
-            for (std::uint32_t index = 0; index < MaxBuffers; ++index)
+            for (UInt32 index = 0; index < MaxBuffers; ++index)
             {
                 if (m_buffers[index].occupied)
                 {
                     DestroyBuffer(BufferHandle{index, m_buffers[index].generation});
                 }
             }
-            for (std::uint32_t index = 0; index < MaxTextures; ++index)
+            for (UInt32 index = 0; index < MaxTextures; ++index)
             {
                 if (m_textures[index].occupied)
                 {
                     DestroyTexture(TextureHandle{TextureResourceBase + index, m_textures[index].generation});
                 }
             }
-            for (std::uint32_t index = 0; index < MaxSamplers; ++index)
+            for (UInt32 index = 0; index < MaxSamplers; ++index)
             {
                 if (m_samplers[index].occupied)
                 {
                     DestroySampler(SamplerHandle{index, m_samplers[index].generation});
                 }
             }
-            for (std::uint32_t index = 0; index < MaxGraphicsPipelines; ++index)
+            for (UInt32 index = 0; index < MaxGraphicsPipelines; ++index)
             {
                 if (m_graphicsPipelines[index].occupied)
                 {
                     DestroyGraphicsPipeline(GraphicsPipelineHandle{index, m_graphicsPipelines[index].generation});
                 }
             }
-            FlushRetired(~std::uint64_t{0});
-            for (std::uint32_t index = 0; index < MaxSwapchains; ++index)
+            FlushRetired(~UInt64{0});
+            for (UInt32 index = 0; index < MaxSwapchains; ++index)
             {
                 if (m_swapchains[index].occupied)
                 {
@@ -492,7 +495,7 @@ namespace JBro::Internal
 
     // ── 미룬 파기 ───────────────────────────────────────────────────────────
 
-    void VulkanDevice::Retire(VulkanRetiredObject::Kind kind, std::uint64_t handle)
+    void VulkanDevice::Retire(VulkanRetiredObject::Kind kind, UInt64 handle)
     {
         if (handle == 0)
         {
@@ -506,7 +509,7 @@ namespace JBro::Internal
             {
                 vk.vkDeviceWaitIdle(m_device);
             }
-            FlushRetired(m_frameActive ? m_frameSerial - 1 : ~std::uint64_t{0});
+            FlushRetired(m_frameActive ? m_frameSerial - 1 : ~UInt64{0});
             if (m_retiredCount == MaxRetired)
             {
                 return;
@@ -521,36 +524,36 @@ namespace JBro::Internal
         switch (object.kind)
         {
         case Kind::Buffer:
-            vk.vkDestroyBuffer(m_device, reinterpret_cast<VkBuffer>(object.handle), nullptr);
+            vk.vkDestroyBuffer(m_device, reinterpret_cast<VkBuffer>(object.handle.Get()), nullptr);
             break;
         case Kind::Image:
-            vk.vkDestroyImage(m_device, reinterpret_cast<VkImage>(object.handle), nullptr);
+            vk.vkDestroyImage(m_device, reinterpret_cast<VkImage>(object.handle.Get()), nullptr);
             break;
         case Kind::ImageView:
-            vk.vkDestroyImageView(m_device, reinterpret_cast<VkImageView>(object.handle), nullptr);
+            vk.vkDestroyImageView(m_device, reinterpret_cast<VkImageView>(object.handle.Get()), nullptr);
             break;
         case Kind::Sampler:
-            vk.vkDestroySampler(m_device, reinterpret_cast<VkSampler>(object.handle), nullptr);
+            vk.vkDestroySampler(m_device, reinterpret_cast<VkSampler>(object.handle.Get()), nullptr);
             break;
         case Kind::Pipeline:
-            vk.vkDestroyPipeline(m_device, reinterpret_cast<VkPipeline>(object.handle), nullptr);
+            vk.vkDestroyPipeline(m_device, reinterpret_cast<VkPipeline>(object.handle.Get()), nullptr);
             break;
         case Kind::PipelineLayout:
-            vk.vkDestroyPipelineLayout(m_device, reinterpret_cast<VkPipelineLayout>(object.handle), nullptr);
+            vk.vkDestroyPipelineLayout(m_device, reinterpret_cast<VkPipelineLayout>(object.handle.Get()), nullptr);
             break;
         case Kind::DescriptorSetLayout:
-            vk.vkDestroyDescriptorSetLayout(m_device, reinterpret_cast<VkDescriptorSetLayout>(object.handle), nullptr);
+            vk.vkDestroyDescriptorSetLayout(m_device, reinterpret_cast<VkDescriptorSetLayout>(object.handle.Get()), nullptr);
             break;
         case Kind::Memory:
-            vk.vkFreeMemory(m_device, reinterpret_cast<VkDeviceMemory>(object.handle), nullptr);
+            vk.vkFreeMemory(m_device, reinterpret_cast<VkDeviceMemory>(object.handle.Get()), nullptr);
             break;
         }
     }
 
-    void VulkanDevice::FlushRetired(std::uint64_t completedSerial)
+    void VulkanDevice::FlushRetired(UInt64 completedSerial)
     {
-        std::uint32_t kept = 0;
-        for (std::uint32_t index = 0; index < m_retiredCount; ++index)
+        UInt32 kept = 0;
+        for (UInt32 index = 0; index < m_retiredCount; ++index)
         {
             // 이번 프레임(m_frameSerial) 에 은퇴한 것은 그 프레임이 끝나야 지운다. 완료 번호가 은퇴 번호 이상이면 끝난 것이다.
             if (m_retired[index].serial <= completedSerial)
@@ -567,7 +570,7 @@ namespace JBro::Internal
 
     // ── 한 번짜리 명령 ──────────────────────────────────────────────────────
 
-    bool VulkanDevice::BeginOneShot()
+    Bool VulkanDevice::BeginOneShot()
     {
         if (m_device == VK_NULL_HANDLE || m_oneShotActive || m_frameActive)
         {
@@ -587,7 +590,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::EndOneShot()
+    Bool VulkanDevice::EndOneShot()
     {
         if (false == m_oneShotActive)
         {
@@ -617,7 +620,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        return vk.vkWaitForFences(m_device, 1, &m_oneShotFence, VK_TRUE, ~std::uint64_t{0}) == VK_SUCCESS;
+        return vk.vkWaitForFences(m_device, 1, &m_oneShotFence, VK_TRUE, ~UInt64{0}) == VK_SUCCESS;
     }
 
     void VulkanDevice::TransitionImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect,
@@ -695,7 +698,7 @@ namespace JBro::Internal
 
     void VulkanDevice::ReleaseSwapchainImages(VulkanSwapchainState& state)
     {
-        for (std::uint32_t index = 0; index < MaxSwapchainImages; ++index)
+        for (UInt32 index = 0; index < MaxSwapchainImages; ++index)
         {
             if (state.views[index] != VK_NULL_HANDLE)
             {
@@ -724,7 +727,7 @@ namespace JBro::Internal
         state.imageCount = 0;
     }
 
-    bool VulkanDevice::BuildSwapchain(VulkanSwapchainState& state, VkSwapchainKHR old)
+    Bool VulkanDevice::BuildSwapchain(VulkanSwapchainState& state, VkSwapchainKHR old)
     {
         VkSurfaceCapabilitiesKHR caps = {};
         if (vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, state.surface, &caps) != VK_SUCCESS)
@@ -747,8 +750,8 @@ namespace JBro::Internal
             return false;
         }
         const VkFormat wanted = ToVulkanFormat(state.desc.format);
-        bool supported = false;
-        for (std::uint32_t index = 0; index < formatCount; ++index)
+        Bool supported = false;
+        for (UInt32 index = 0; index < formatCount; ++index)
         {
             supported = supported || formats[index].format == wanted;
         }
@@ -778,7 +781,7 @@ namespace JBro::Internal
                 return false;
             }
         }
-        std::uint32_t imageCount = state.desc.bufferCount;
+        UInt32 imageCount = state.desc.bufferCount;
         if (imageCount < caps.minImageCount)
         {
             imageCount = caps.minImageCount;
@@ -828,7 +831,7 @@ namespace JBro::Internal
             return false;
         }
         state.imageCount = actualCount;
-        for (std::uint32_t index = 0; index < actualCount; ++index)
+        for (UInt32 index = 0; index < actualCount; ++index)
         {
             VkImageViewCreateInfo view = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
             view.image = state.images[index];
@@ -868,8 +871,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxSwapchains;
-        for (std::uint32_t at = 0; at < MaxSwapchains; ++at)
+        UInt32 index = MaxSwapchains;
+        for (UInt32 at = 0; at < MaxSwapchains; ++at)
         {
             if (false == m_swapchains[at].occupied)
             {
@@ -908,8 +911,8 @@ namespace JBro::Internal
                 vk.vkDestroySwapchainKHR(m_device, state.swapchain, nullptr);
             }
             vk.vkDestroySurfaceKHR(m_instance, state.surface, nullptr);
-            const std::uint32_t generation = state.generation;
-            const std::uint32_t backBufferGeneration = state.backBufferGeneration;
+            const UInt32 generation = state.generation;
+            const UInt32 backBufferGeneration = state.backBufferGeneration;
             state = {};
             state.generation = generation;
             state.backBufferGeneration = backBufferGeneration;
@@ -918,14 +921,14 @@ namespace JBro::Internal
         // 슬롯 수는 스왑체인의 요청을 따른다. 프레임 슬롯은 디바이스 것이라 스왑체인이 하나도 없을 때만 바꾼다 -
         // 부르는 쪽은 `GetFramesInFlight()` 로 슬롯 배열을 잡으므로 살아 있는 동안 바뀌면 안 된다. 바뀌면 지금
         // 슬롯 번호도 그 안으로 접는다.
-        bool anotherLives = false;
-        for (std::uint32_t at = 0; at < MaxSwapchains; ++at)
+        Bool anotherLives = false;
+        for (UInt32 at = 0; at < MaxSwapchains; ++at)
         {
             anotherLives = anotherLives || (at != index && m_swapchains[at].occupied);
         }
         if (false == anotherLives)
         {
-            m_slotCount = desc.maxFramesInFlight > MaxFramesInFlight ? MaxFramesInFlight : desc.maxFramesInFlight;
+            m_slotCount = desc.maxFramesInFlight > MaxFramesInFlight ? MaxFramesInFlight : UInt32(desc.maxFramesInFlight);
             m_slot %= m_slotCount;
         }
         state.occupied = true;
@@ -949,14 +952,14 @@ namespace JBro::Internal
         {
             vk.vkDestroySurfaceKHR(m_instance, state->surface, nullptr);
         }
-        const std::uint32_t generation = VulkanNextGeneration(state->generation);
-        const std::uint32_t backBufferGeneration = VulkanNextGeneration(state->backBufferGeneration);
+        const UInt32 generation = VulkanNextGeneration(state->generation);
+        const UInt32 backBufferGeneration = VulkanNextGeneration(state->backBufferGeneration);
         *state = {};
         state->generation = generation;
         state->backBufferGeneration = backBufferGeneration;
     }
 
-    bool VulkanDevice::ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent)
+    Bool VulkanDevice::ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent)
     {
         VulkanSwapchainState* state = FindSwapchain(swapchain);
         if (state == nullptr || m_frameActive || extent.width == 0 || extent.height == 0)
@@ -965,7 +968,7 @@ namespace JBro::Internal
         }
         // 옛 이미지를 쓰는 프레임이 끝나야 한다. 크기 바꾸기는 드물어 여기서 기다린다.
         vk.vkDeviceWaitIdle(m_device);
-        FlushRetired(~std::uint64_t{0});
+        FlushRetired(~UInt64{0});
         ReleaseSwapchainImages(*state);
         state->desc.extent = extent;
         const VkSwapchainKHR old = state->swapchain;
@@ -1014,7 +1017,7 @@ namespace JBro::Internal
         }
         VulkanFrameSlot& slot = m_slots[m_slot];
         // 이 슬롯의 지난 프레임이 끝나야 그 명령 버퍼와 풀을 다시 쓴다. 그 뒤로는 그 프레임까지의 은퇴 객체를 지울 수 있다.
-        if (vk.vkWaitForFences(m_device, 1, &slot.fence, VK_TRUE, ~std::uint64_t{0}) != VK_SUCCESS)
+        if (vk.vkWaitForFences(m_device, 1, &slot.fence, VK_TRUE, ~UInt64{0}) != VK_SUCCESS)
         {
             MarkDeviceLost();
             result.status = FrameStatus::DeviceLost;
@@ -1041,7 +1044,7 @@ namespace JBro::Internal
             return result;
         }
         std::uint32_t imageIndex = 0;
-        const VkResult acquired = vk.vkAcquireNextImageKHR(m_device, state->swapchain, ~std::uint64_t{0},
+        const VkResult acquired = vk.vkAcquireNextImageKHR(m_device, state->swapchain, ~UInt64{0},
             slot.imageAvailable, VK_NULL_HANDLE, &imageIndex);
         if (acquired == VK_ERROR_DEVICE_LOST)
         {
@@ -1080,7 +1083,7 @@ namespace JBro::Internal
         return result;
     }
 
-    FrameStatus VulkanDevice::SubmitAndPresent(bool present)
+    FrameStatus VulkanDevice::SubmitAndPresent(Bool present)
     {
         VulkanSwapchainState& state = m_swapchains[m_activeSwapchainIndex];
         VulkanFrameSlot& slot = m_slots[m_slot];
@@ -1213,19 +1216,19 @@ namespace JBro::Internal
         FlushRetired(m_completedSerial);
     }
 
-    std::uint32_t VulkanDevice::GetFramesInFlight() const
+    UInt32 VulkanDevice::GetFramesInFlight() const
     {
         return m_slotCount;
     }
 
-    std::uint32_t VulkanDevice::GetValidationErrorCount() const
+    UInt32 VulkanDevice::GetValidationErrorCount() const
     {
         return m_validationErrors;
     }
 
     // ── 되읽기 ──────────────────────────────────────────────────────────────
 
-    bool VulkanDevice::ResolveReadableImage(TextureHandle texture, VkImage& image, VkImageLayout*& layout,
+    Bool VulkanDevice::ResolveReadableImage(TextureHandle texture, VkImage& image, VkImageLayout*& layout,
         TextureDesc& desc)
     {
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
@@ -1234,7 +1237,7 @@ namespace JBro::Internal
         }
         if (texture.index < TextureResourceBase)
         {
-            const std::uint32_t index = texture.index - BackBufferTextureBase;
+            const UInt32 index = texture.index - BackBufferTextureBase;
             if (index >= MaxSwapchains)
             {
                 return false;
@@ -1253,7 +1256,7 @@ namespace JBro::Internal
             desc.usage = TextureUsage::RenderTarget;
             return true;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -1269,7 +1272,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::ReadTexture(
+    Bool VulkanDevice::ReadTexture(
         TextureHandle texture,
         std::byte* destination,
         std::size_t destinationSize,
@@ -1288,7 +1291,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        const std::uint32_t pixelSize = VulkanPixelSize(desc.format);
+        const UInt32 pixelSize = VulkanPixelSize(desc.format);
         if (pixelSize == 0 || desc.format == TextureFormat::D32Float || desc.depthOrLayers != 1)
         {
             return false;
@@ -1306,7 +1309,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        bool ok = BeginOneShot();
+        Bool ok = BeginOneShot();
         if (ok)
         {
             // 아직 아무 레이아웃도 아니면(그린 적 없는 텍스처) 내용도 없다. 그래도 읽기는 성립한다 - 값이 무엇이든.

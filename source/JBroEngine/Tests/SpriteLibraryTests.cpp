@@ -22,12 +22,16 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
     namespace fs = std::filesystem;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -58,7 +62,7 @@ namespace
         file.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
     }
 
-    bool SameHandle(JBro::AssetHandle a, JBro::AssetHandle b)
+    JBro::Bool SameHandle(JBro::AssetHandle a, JBro::AssetHandle b)
     {
         return a.index == b.index && a.generation == b.generation;
     }
@@ -123,7 +127,7 @@ namespace
         JBro::SpriteLibrary library;
         library.Initialize(&assets, &renderer);
         JBro::AssetHandle texture;
-        float uv[4] = {9.0f, 9.0f, 9.0f, 9.0f};
+        JBro::Float uv[4] = {9.0f, 9.0f, 9.0f, 9.0f};
         Check(false == library.Resolve(JBro::AssetHandle{}, 0, texture, uv), "an empty handle does not resolve");
         Check(false == library.Resolve(JBro::AssetHandle{5, 5}, 0, texture, uv) && uv[0] == 9.0f,
             "a handle that is not loaded does not resolve and leaves the outputs alone");
@@ -284,7 +288,7 @@ namespace
             JBro::Array<std::byte> image;
             image.Resize(64 * 64 * 4);
             JBro::TextureReadback readback;
-            const auto paint = [&](std::uint32_t x, std::uint32_t y, float& r, float& g, float& b) {
+            const auto paint = [&](JBro::UInt32 x, JBro::UInt32 y, JBro::Float& r, JBro::Float& g, JBro::Float& b) {
                 JBro::Testing::Tick(framework, 1.0f / 60.0f);
                 Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the framework frame must begin");
                 Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit the hero");
@@ -296,9 +300,9 @@ namespace
                 g = px[1] / 255.0f;
                 r = px[2] / 255.0f;
             };
-            float r = 0.0f;
-            float g = 0.0f;
-            float b = 0.0f;
+            JBro::Float r = 0.0f;
+            JBro::Float g = 0.0f;
+            JBro::Float b = 0.0f;
             paint(32, 24, r, g, b);
             Check(r < 0.05f && g > 0.95f, "with the project's Nearest the seam pixel is pure green");
             paint(8, 8, r, g, b);
@@ -327,7 +331,7 @@ namespace
     }
 }
 
-int RunSpriteLibraryTests()
+JBro::Int32 RunSpriteLibraryTests()
 {
     TestTheLibraryUploadsOnceAndFollowsFrames();
     std::cout << "Sprite library tests passed.\n";

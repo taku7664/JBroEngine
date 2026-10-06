@@ -3,6 +3,8 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 // 캔버스 뷰 폴리곤 편집의 모델 테스트(physics-plan §4 의 5 단계). 화면 없이 잰다.
 namespace
@@ -11,7 +13,7 @@ namespace
     using JBro::Vector2;
     using JBro::PolygonEditModel::HitKind;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -112,7 +114,7 @@ namespace
     }
 }
 
-int RunPolygonEditModelTests()
+JBro::Int32 RunPolygonEditModelTests()
 {
     TestChainPointEditing();
     TestPickPrefersAVertexOverItsEdges();

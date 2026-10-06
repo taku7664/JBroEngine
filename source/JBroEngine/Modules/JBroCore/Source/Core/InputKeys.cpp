@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <JBro/Types/Bool.h>
 
 // 이름 표는 열거자 차례 그대로다(D-214). 열거자를 더하거나 빼면 아래 static_assert 가 운다 - 차례를 바꾸는 것은
 // 잡지 못하므로 테스트(`InputActionTests`)가 이름마다 되돌아오는지 잰다.
@@ -216,7 +217,7 @@ namespace JBro
         }
 
         template<typename Enum, std::size_t Count>
-        bool Find(const char* const (&names)[Count], const char* name, Enum& value)
+        Bool Find(const char* const (&names)[Count], const char* name, Enum& value)
         {
             if (name == nullptr)
             {
@@ -239,7 +240,7 @@ namespace JBro
         return NameOf(KeyNames, key);
     }
 
-    bool FindKeyByName(const char* name, Key& key)
+    Bool FindKeyByName(const char* name, Key& key)
     {
         if (Find(KeyNames, name, key))
         {
@@ -265,7 +266,7 @@ namespace JBro
         return NameOf(MouseButtonNames, button);
     }
 
-    bool FindMouseButtonByName(const char* name, MouseButton& button)
+    Bool FindMouseButtonByName(const char* name, MouseButton& button)
     {
         return Find(MouseButtonNames, name, button);
     }
@@ -275,7 +276,7 @@ namespace JBro
         return NameOf(GamepadButtonNames, button);
     }
 
-    bool FindGamepadButtonByName(const char* name, GamepadButton& button)
+    Bool FindGamepadButtonByName(const char* name, GamepadButton& button)
     {
         return Find(GamepadButtonNames, name, button);
     }
@@ -285,7 +286,7 @@ namespace JBro
         return NameOf(GamepadAxisNames, axis);
     }
 
-    bool FindGamepadAxisByName(const char* name, GamepadAxis& axis)
+    Bool FindGamepadAxisByName(const char* name, GamepadAxis& axis)
     {
         return Find(GamepadAxisNames, name, axis);
     }

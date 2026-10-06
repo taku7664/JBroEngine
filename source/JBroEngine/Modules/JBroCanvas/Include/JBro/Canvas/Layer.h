@@ -3,12 +3,15 @@
 #include <JBro/Types/Uuid.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     // 레이어의 영속 식별자다. 단조 증가하며 재사용하지 않고, 직렬화되는 값이다(D-46).
     // 합성 순서와는 다른 개념이다 — 순서는 Canvas 안의 위치이고 이동으로 바뀌지만 이 값은 불변이다.
-    using LayerId = std::uint32_t;
+    using LayerId = UInt32;
     inline constexpr LayerId InvalidLayerId = static_cast<LayerId>(-1);
 
     // 합성 순서. 렌더 정렬 키의 최상위 필드라 매 오브젝트가 읽는다.
@@ -50,11 +53,11 @@ namespace JBro
         ColorBurn,
         Difference,
     };
-    inline constexpr std::uint32_t LayerBlendCount = 13;
+    inline constexpr UInt32 LayerBlendCount = 13;
 
     // 파일과 인스펙터의 이름이다. 모르는 이름은 거짓이고 결과를 건드리지 않는다.
     const char* LayerBlendName(LayerBlend blend);
-    bool ParseLayerBlend(const char* name, LayerBlend& blend);
+    Bool ParseLayerBlend(const char* name, LayerBlend& blend);
 
     class Layer final
     {
@@ -70,8 +73,8 @@ namespace JBro
         LayerOrder GetOrder() const;
 
         // false 는 렌더만 끈다. 시뮬레이션은 계속한다.
-        bool IsVisible() const;
-        void SetVisible(bool visible);
+        Bool IsVisible() const;
+        void SetVisible(Bool visible);
 
         LayerSpace GetSpace() const;
         void SetSpace(LayerSpace space);
@@ -81,16 +84,16 @@ namespace JBro
         LayerBlend GetBlend() const;
         void SetBlend(LayerBlend blend);
         // 0..1 로 자른다. 유한하지 않은 값은 받지 않는다(그대로 둔다).
-        float GetOpacity() const;
-        void SetOpacity(float opacity);
+        Float GetOpacity() const;
+        void SetOpacity(Float opacity);
         // 제 텍스처에 그려 얹어야 하는가 - 블렌드가 `Normal` 이 아니거나 불투명도가 1 보다 작다.
-        bool NeedsComposite() const;
+        Bool NeedsComposite() const;
 
         // **패럴랙스 계수**(D-286, 기존 `ParallaxFactor`). 이 레이어를 그리는 카메라의 위치만 이 배가 된다 - 1 은 카메라와 같이, 0.5 는 절반 빠르기의
         // 원경, 0 은 월드 원점에 붙는다. 회전·줌은 그대로라 0 도 화면 고정이 아니다(화면 고정은 화면 레이어다). 화면 레이어는 보지 않는다.
         // 게임 화면에만 걸리고 캔버스 뷰는 보지 않는다. 0 보다 작거나 유한하지 않은 값은 받지 않는다.
-        float GetParallax() const;
-        void SetParallax(float factor);
+        Float GetParallax() const;
+        void SetParallax(Float factor);
 
         // **이 레이어가 어느 레이어 에셋(`.jlayer`)에서 왔는가**(D-287, 기존 `SourceAssetGuid`). 정체 표시일 뿐이다 - 내용은 캔버스에 따로 살고, 레이어를
         // 고쳐도 그 파일은 그대로다. 비어 있으면 캔버스 안에서만 사는 레이어다. 캔버스 파일의 `SourceAsset` 으로 적는다.
@@ -105,12 +108,12 @@ namespace JBro
         LayerId    m_id = InvalidLayerId;
         LayerOrder m_order = 0;
         char       m_name[64]{};
-        bool       m_visible = true;
+        Bool       m_visible = true;
         LayerSpace m_space = LayerSpace::World;
         ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
         LayerBlend m_blend = LayerBlend::Normal;
-        float      m_opacity = 1.0f;
-        float      m_parallax = 1.0f;
+        Float      m_opacity = 1.0f;
+        Float      m_parallax = 1.0f;
         Uuid       m_sourceAsset;
     };
 }

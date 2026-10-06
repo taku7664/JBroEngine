@@ -4,6 +4,8 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/NameTable.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -14,9 +16,9 @@ namespace JBro
     // `spawnWorldPos`·`layer`). 비워 두면 원점이고, 레이어는 `ResolveTargetLayer` 가 정한다.
     struct ObjectPlacement
     {
-        bool hasPosition = false;
+        Bool hasPosition = false;
         // 앞에서부터 트랜스폼의 `position` 에 들어간다. 2D 면 앞의 둘만 쓰인다.
-        float position[3] = {};
+        Float position[3] = {};
         LayerId layer = InvalidLayerId;
     };
 
@@ -46,13 +48,13 @@ namespace JBro
         LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent);
 
         // 컴포넌트 하나를 붙인다(D-180). 붙일 수 없는 타입이면 아무 일도 하지 않고 거짓이다.
-        bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName);
+        Bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName);
         // 부모를 떼어 뿌리 맨 뒤로 올린다. 이미 뿌리면 거짓이다.
-        bool Unparent(EditorApplication& editor, GameObject& object);
+        Bool Unparent(EditorApplication& editor, GameObject& object);
         // 고른 것을 지운다. **맨 위 것들만** 지운다 - 부모를 지우면 자식은 따라 사라지므로
         // 둘 다 대상으로 삼으면 이미 없는 것을 한 번 더 지우려 든다.
-        bool DeleteSelection(EditorApplication& editor);
-        bool DeleteObject(EditorApplication& editor, GameObject& object);
+        Bool DeleteSelection(EditorApplication& editor);
+        Bool DeleteObject(EditorApplication& editor, GameObject& object);
 
         // **붙일 수 있는 컴포넌트 목록**이다(D-180). 인스펙터의 드롭다운과 오브젝트 메뉴의
         // `컴포넌트 추가` 가 같은 목록을 본다 - 한쪽에만 회색 규칙이 있으면, 목록에서 막힌
@@ -70,13 +72,13 @@ namespace JBro
             // 같은 갈래의 번역하지 않은 이름(`Rendering`)이다. 가이드 포커스 표식이 쓴다 - 번역된 이름은 언어마다 바뀐다.
             Array<const char*> categories;
             // 거짓이면 이미 붙어 있어 더 붙일 수 없다.
-            Array<bool>        addable;
+            Array<Bool>        addable;
         };
         void BuildAddComponentList(const GameObject& object, AddComponentList& out);
 
         // 이미 열려 있는 메뉴 안에 `컴포넌트 추가` 하위 메뉴를 그린다(D-180, 기존
         // `DrawAddComponentMenu`). 붙였으면 참이다.
-        bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object);
+        Bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object);
 
         // 오브젝트 하나를 두고 여는 메뉴 한 벌이다(D-170). 계층의 줄과 캔버스 뷰에서
         // 오브젝트를 우클릭한 자리가 같은 것을 쓴다 - 기존 엔진도 두 화면의 메뉴가 같다.
@@ -85,14 +87,14 @@ namespace JBro
         // **거짓이면 그 오브젝트가 더 이상 없을 수 있다.** 삭제·붙여넣기·부모 해제가
         // 계층을 그 자리에서 바꾸므로, 부르는 쪽은 그 프레임에 그 오브젝트를 더 그리지 않는다.
         // 메뉴를 열지 못했으면(우클릭이 아니면) 참이다.
-        bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
+        Bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
             const ObjectPlacement& placement = {});
 
         // 빈자리(계층의 배경, 캔버스 뷰의 빈 곳)에서 여는 메뉴 한 벌이다.
         // `추가`·`붙여넣기` 로, 둘 다 뿌리에 붙는다. **무언가 바뀌었으면 참이다** -
         // 부르는 쪽은 그 프레임에 그 오브젝트를 더 그리지 않는다.
         // `placement` 로 캔버스 뷰가 **오른쪽 단추를 누른 자리**를 넘긴다(D-168).
-        bool DrawBackgroundMenu(EditorApplication& editor,
+        Bool DrawBackgroundMenu(EditorApplication& editor,
             const ObjectPlacement& placement = {});
     }
 }

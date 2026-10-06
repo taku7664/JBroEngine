@@ -10,6 +10,11 @@
 #include <cctype>
 #include <cfloat>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -28,7 +33,7 @@ namespace JBro::Widget
         // 갈래 이름을 견준다. 같은 글자면 같은 갈래다 - 부르는 쪽이 같은 포인터를
         // 넘긴다는 보장이 없고(로컬라이징을 거치면 매 프레임 다른 버퍼일 수 있다),
         // 포인터로 견주면 갈래마다 제목줄이 겹쳐 뜬다.
-        bool SameGroup(const char* left, const char* right)
+        Bool SameGroup(const char* left, const char* right)
         {
             if (left == right)
             {
@@ -42,7 +47,7 @@ namespace JBro::Widget
         }
     }
 
-    bool MatchesFilter(const char* text, const char* filter)
+    Bool MatchesFilter(const char* text, const char* filter)
     {
         if (filter == nullptr || filter[0] == '\0')
         {
@@ -60,7 +65,7 @@ namespace JBro::Widget
         }
         for (std::size_t start = 0; start + filterLength <= textLength; ++start)
         {
-            bool matched = true;
+            Bool matched = true;
             for (std::size_t at = 0; at < filterLength; ++at)
             {
                 if (Lower(text[start + at]) != Lower(filter[at]))
@@ -77,7 +82,7 @@ namespace JBro::Widget
         return false;
     }
 
-    FilterCombo::FilterCombo(const char* id, ArrayView<const char* const> items, int& currentIndex)
+    FilterCombo::FilterCombo(const char* id, ArrayView<const char* const> items, Int32& currentIndex)
         : m_id(id)
         , m_items(items)
         , m_currentIndex(currentIndex)
@@ -102,7 +107,7 @@ namespace JBro::Widget
         return *this;
     }
 
-    FilterCombo& FilterCombo::ShowFilter(bool show)
+    FilterCombo& FilterCombo::ShowFilter(Bool show)
     {
         m_showFilter = show;
         return *this;
@@ -114,7 +119,7 @@ namespace JBro::Widget
         return *this;
     }
 
-    FilterCombo& FilterCombo::ItemEnabled(ArrayView<const bool> enabled)
+    FilterCombo& FilterCombo::ItemEnabled(ArrayView<const Bool> enabled)
     {
         m_enabled = enabled;
         return *this;
@@ -126,36 +131,36 @@ namespace JBro::Widget
         return *this;
     }
 
-    FilterCombo& FilterCombo::ItemTargets(NameId name, ArrayView<const std::uint64_t> keys)
+    FilterCombo& FilterCombo::ItemTargets(NameId name, ArrayView<const UInt64> keys)
     {
         m_targetName = name;
         m_targetKeys = keys;
         return *this;
     }
 
-    FilterCombo& FilterCombo::Width(float width)
+    FilterCombo& FilterCombo::Width(Float width)
     {
         m_width = width;
         return *this;
     }
 
-    FilterCombo& FilterCombo::MaxVisibleItems(int count)
+    FilterCombo& FilterCombo::MaxVisibleItems(Int32 count)
     {
         m_maxVisibleItems = count;
         return *this;
     }
 
-    bool FilterCombo::Draw() const
+    Bool FilterCombo::Draw() const
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        const int itemCount = static_cast<int>(m_items.Size());
+        const Int32 itemCount = static_cast<int>(m_items.Size());
         // 갈래는 항목과 길이가 맞을 때만 쓴다. 어긋난 배열을 읽으면 그 자리에서 죽는다.
-        const bool hasGroups = m_groups.Size() == m_items.Size() && m_items.Size() > 0;
-        const bool hasEnabled = m_enabled.Size() == m_items.Size();
-        const bool hasTargets = m_targetName != InvalidNameId && m_targetKeys.Size() == m_items.Size();
+        const Bool hasGroups = m_groups.Size() == m_items.Size() && m_items.Size() > 0;
+        const Bool hasEnabled = m_enabled.Size() == m_items.Size();
+        const Bool hasTargets = m_targetName != InvalidNameId && m_targetKeys.Size() == m_items.Size();
         // **제목줄도 자리를 먹는다.** 항목 수만으로 팝업 높이를 잡으면 갈래가 붙는 만큼
         // 목록이 창 밖으로 흘러 마지막 갈래가 잘린다.
-        int groupCount = 0;
+        Int32 groupCount = 0;
         if (hasGroups)
         {
             for (std::size_t at = 0; at < m_groups.Size(); ++at)
@@ -166,9 +171,9 @@ namespace JBro::Widget
                 }
             }
         }
-        const bool manyGroups = groupCount > 1;
+        const Bool manyGroups = groupCount > 1;
 
-        const bool hasCurrent = m_currentIndex >= 0 && m_currentIndex < itemCount
+        const Bool hasCurrent = m_currentIndex >= 0 && m_currentIndex < itemCount
             && m_items[static_cast<std::size_t>(m_currentIndex)] != nullptr;
         const char* preview = hasCurrent
             ? m_items[static_cast<std::size_t>(m_currentIndex)]
@@ -189,26 +194,26 @@ namespace JBro::Widget
         const ImGuiID countKey = ImHashStr("##count", 0, comboId);
         if (storage->GetInt(countKey, -1) != itemCount)
         {
-            float widest = 0.0f;
+            Float widest = 0.0f;
             for (const char* item : m_items)
             {
                 if (item != nullptr)
                 {
-                    widest = std::max(widest, ImGui::CalcTextSize(item).x);
+                    widest = JBro::Max(widest, ImGui::CalcTextSize(item).x);
                 }
             }
             storage->SetFloat(widestKey, widest);
             storage->SetInt(countKey, itemCount);
         }
-        float popupWidth = std::max(ImGui::CalcTextSize(preview).x, storage->GetFloat(widestKey, 0.0f));
-        popupWidth = std::max(
+        Float popupWidth = std::max(ImGui::CalcTextSize(preview).x, storage->GetFloat(widestKey, 0.0f));
+        popupWidth = JBro::Max(
             popupWidth + style.FramePadding.x * 4.0f + style.ScrollbarSize,
             ImGui::CalcItemWidth());
-        const int maxVisible = std::clamp(m_maxVisibleItems, 1, DefaultMaxVisibleItems);
+        const Int32 maxVisible = JBro::Clamp(m_maxVisibleItems, 1, DefaultMaxVisibleItems);
         // 보이는 줄은 항목 여덟에 **갈래 제목줄까지**다. 제목줄을 빼고 재면 갈래가 붙는
         // 만큼 팝업이 예산을 넘어, 창 아래에 열렸을 때 마지막 갈래가 화면 밖으로 나간다.
-        const int headingLines = manyGroups ? groupCount : 0;
-        const float popupMaxHeight = (m_showFilter ? ImGui::GetFrameHeightWithSpacing() : 0.0f)
+        const Int32 headingLines = manyGroups ? groupCount : Int32(0);
+        const Float popupMaxHeight = (m_showFilter ? ImGui::GetFrameHeightWithSpacing() : 0.0f)
             + ImGui::GetTextLineHeightWithSpacing()
                 * static_cast<float>(maxVisible + headingLines)
             + style.WindowPadding.y * 2.0f;
@@ -218,7 +223,7 @@ namespace JBro::Widget
         // **트리거는 열기 전에 알린다.** 열린 뒤에는 지금 창이 팝업이라 트리거의 자리를 잴 수 없다. 열림은 목록이 떠 있는가다 -
         // 가이드가 목록의 항목까지 가리키면(반례 ④) 목록이 뜬 것을 보고 한 칸 들어간다. 팝업 이름은 `BeginCombo` 가 짓는 것과 같다.
         const ImVec2 frameMin = ImGui::GetCursorScreenPos();
-        const bool listOpen = ImGui::IsPopupOpen(ImHashStr("##ComboPopup", 0, comboId), ImGuiPopupFlags_None);
+        const Bool listOpen = ImGui::IsPopupOpen(ImHashStr("##ComboPopup", 0, comboId), ImGuiPopupFlags_None);
         ReportGuideTarget(target, frameMin,
             ImVec2(frameMin.x + ImGui::CalcItemWidth(), frameMin.y + ImGui::GetFrameHeight()), listOpen, false);
         if (false == ImGui::BeginCombo(id, preview))
@@ -226,7 +231,7 @@ namespace JBro::Widget
             return false;
         }
 
-        bool enterPressed = false;
+        Bool enterPressed = false;
         if (m_showFilter)
         {
             if (ImGui::IsWindowAppearing())
@@ -252,11 +257,11 @@ namespace JBro::Widget
             g_filter[0] = '\0';
         }
 
-        int chosen = -1;
-        int firstEnabled = -1;
-        bool drewAny = false;
+        Int32 chosen = -1;
+        Int32 firstEnabled = -1;
+        Bool drewAny = false;
         const char* drawnGroup = nullptr;
-        for (int index = 0; index < itemCount; ++index)
+        for (Int32 index = 0; index < itemCount; ++index)
         {
             const std::size_t at = static_cast<std::size_t>(index);
             const char* item = m_items[at];
@@ -272,15 +277,15 @@ namespace JBro::Widget
                 drawnGroup = m_groups[at];
             }
             drewAny = true;
-            const bool enabled = false == hasEnabled || m_enabled[at];
+            const Bool enabled = false == hasEnabled || m_enabled[at];
             if (enabled && firstEnabled < 0)
             {
                 firstEnabled = index;
             }
             ImGui::PushID(index);
-            const bool selected = index == m_currentIndex;
+            const Bool selected = index == m_currentIndex;
             ImGui::BeginDisabled(false == enabled);
-            const bool pressed = ImGui::Selectable(item, selected) && enabled;
+            const Bool pressed = ImGui::Selectable(item, selected) && enabled;
             if (pressed)
             {
                 chosen = index;
@@ -326,7 +331,7 @@ namespace JBro::Widget
         return true;
     }
 
-    bool FilterCombo::operator()() const
+    Bool FilterCombo::operator()() const
     {
         return Draw();
     }

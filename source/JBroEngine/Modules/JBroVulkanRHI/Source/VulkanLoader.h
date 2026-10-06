@@ -11,6 +11,7 @@
 #define NOMINMAX
 #endif
 #include <vulkan/vulkan.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Internal
 {
@@ -125,9 +126,9 @@ namespace JBro::Internal
     extern VulkanFunctions vk;
 
     // `vulkan-1.dll` 을 열고 전역 함수를 싣는다. 실패하면 false 고 표는 비어 있다. 여러 번 불러도 된다.
-    bool LoadVulkanLibrary();
+    Bool LoadVulkanLibrary();
     void UnloadVulkanLibrary();
     // 전부 실려야 true 다. 디버그 함수는 확장이 없으면 null 로 남고 그것은 실패가 아니다.
-    bool LoadVulkanInstanceFunctions(VkInstance instance);
-    bool LoadVulkanDeviceFunctions(VkDevice device);
+    Bool LoadVulkanInstanceFunctions(VkInstance instance);
+    Bool LoadVulkanDeviceFunctions(VkDevice device);
 }

@@ -13,6 +13,11 @@
 #include <bit>
 #include <cmath>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::System
 {
@@ -21,7 +26,7 @@ namespace JBro::System
         m_library.Shutdown();
     }
 
-    int Text2DSystem::GetExecutionOrder() const
+    Int32 Text2DSystem::GetExecutionOrder() const
     {
         return ExecutionOrder;
     }
@@ -37,14 +42,14 @@ namespace JBro::System
         m_library.Initialize(assets, renderer, tasks);
     }
 
-    bool Text2DSystem::GetLocalBounds(InstanceId text, float& minX, float& minY, float& maxX, float& maxY) const
+    Bool Text2DSystem::GetLocalBounds(InstanceId text, Float& minX, Float& minY, Float& maxX, Float& maxY) const
     {
         const Entry* entry = m_entries.Find(text);
         if (entry == nullptr || false == entry->block.GetBounds(minX, minY, maxX, maxY))
         {
             return false;
         }
-        const float ppu = entry->screenSpace ? 1.0f : entry->block.GetPixelsPerUnit();
+        const Float ppu = entry->screenSpace ? Float(1.0f) : entry->block.GetPixelsPerUnit();
         minX /= ppu;
         minY /= ppu;
         maxX /= ppu;
@@ -52,28 +57,28 @@ namespace JBro::System
         return true;
     }
 
-    float Text2DSystem::GetLaidOutFontSize(InstanceId text) const
+    Float Text2DSystem::GetLaidOutFontSize(InstanceId text) const
     {
         const Entry* entry = m_entries.Find(text);
-        float minX = 0.0f;
-        float minY = 0.0f;
-        float maxX = 0.0f;
-        float maxY = 0.0f;
-        return entry != nullptr && entry->block.GetBounds(minX, minY, maxX, maxY) ? entry->block.GetFittedSize() : 0.0f;
+        Float minX = 0.0f;
+        Float minY = 0.0f;
+        Float maxX = 0.0f;
+        Float maxY = 0.0f;
+        return entry != nullptr && entry->block.GetBounds(minX, minY, maxX, maxY) ? entry->block.GetFittedSize() : Float(0.0f);
     }
 
-    bool Text2DSystem::IsMissingFont(InstanceId text) const
+    Bool Text2DSystem::IsMissingFont(InstanceId text) const
     {
         const Entry* entry = m_entries.Find(text);
         return entry != nullptr && entry->warnedMissingFont;
     }
 
-    std::uint32_t Text2DSystem::GetDroppedGlyphCount() const
+    UInt32 Text2DSystem::GetDroppedGlyphCount() const
     {
         return m_droppedGlyphs;
     }
 
-    void Text2DSystem::SetAtlasPageLimit(std::uint32_t pages)
+    void Text2DSystem::SetAtlasPageLimit(UInt32 pages)
     {
         m_library.SetPageLimit(pages);
     }
@@ -83,12 +88,12 @@ namespace JBro::System
         return m_library;
     }
 
-    std::uint64_t Text2DSystem::GetRelayoutCount() const
+    UInt64 Text2DSystem::GetRelayoutCount() const
     {
         return m_relayouts;
     }
 
-    std::uint32_t Text2DSystem::GetCachedTextCount() const
+    UInt32 Text2DSystem::GetCachedTextCount() const
     {
         return static_cast<std::uint32_t>(m_entries.Size());
     }
@@ -131,9 +136,9 @@ namespace JBro::System
             return;
         }
         const TextBlock& block = entry.block;
-        const float ppu = entry.screenSpace ? 1.0f : block.GetPixelsPerUnit();
+        const Float ppu = entry.screenSpace ? Float(1.0f) : block.GetPixelsPerUnit();
         // 외곽선 폭(글자 픽셀)의 문턱은 글자마다다 - 리치 텍스트의 `<size>` 가 섞이면 거리장 픽셀 / 글자 픽셀이 글자마다 다르다.
-        const bool outlined = block.IsSdf() && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f;
+        const Bool outlined = block.IsSdf() && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f;
         for (const GlyphQuad& quad : block.GetQuads())
         {
             const AssetHandle page = m_library.GetPageTexture(block.GetFont(quad.face), quad.page);
@@ -149,8 +154,8 @@ namespace JBro::System
             item.screenSpace = entry.screenSpace;
             item.scaleMode = layer != nullptr ? layer->GetScaleMode() : ScreenScaleMode::FixedHeight;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
-            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
-            item.layerParallax = layer != nullptr ? layer->GetParallax() : 1.0f;
+            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
+            item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
             // 글리프 쿼드의 왼쪽 위를 오브젝트 로컬에 두고(피벗 {0, 1}), 오브젝트 월드로 옮긴다.
             Matrix3x2 local;
             local.m31 = quad.left / ppu;
@@ -176,13 +181,13 @@ namespace JBro::System
             {
                 item.sdfText = true;
                 item.filter = TextureFilter::Linear;
-                const float channels[4] = { text.outlineColor.R, text.outlineColor.G, text.outlineColor.B, text.outlineColor.A };
-                for (int channel = 0; channel < 4; ++channel)
+                const Float channels[4] = { text.outlineColor.R, text.outlineColor.G, text.outlineColor.B, text.outlineColor.A };
+                for (Int32 channel = 0; channel < 4; ++channel)
                 {
-                    item.outlineColor[channel] = static_cast<std::uint8_t>(std::lround(std::clamp(channels[channel], 0.0f, 1.0f) * 255.0f));
+                    item.outlineColor[channel] = static_cast<std::uint8_t>(std::lround(JBro::Clamp(channels[channel], 0.0f, 1.0f) * 255.0f));
                 }
-                const float outlineEdge = outlined ? SdfOutlineEdge(text.outlineWidth, quad.sdfPerTextPixel, block.GetSdfSpread()) : 0.5f;
-                item.outlineEdge = static_cast<std::uint16_t>(std::lround(std::clamp(outlineEdge, 0.0f, 1.0f) * 65535.0f));
+                const Float outlineEdge = outlined ? SdfOutlineEdge(text.outlineWidth, quad.sdfPerTextPixel, block.GetSdfSpread()) : Float(0.5f);
+                item.outlineEdge = static_cast<std::uint16_t>(std::lround(JBro::Clamp(outlineEdge, 0.0f, 1.0f) * 65535.0f));
             }
             if (false == m_renderWorld->SubmitSprite(item))
             {
@@ -198,7 +203,7 @@ namespace JBro::System
             [](const Entry& entry) { return entry.lastSeenFrame; });
     }
 
-    void Text2DSystem::OnUpdate(Canvas& canvas, float)
+    void Text2DSystem::OnUpdate(Canvas& canvas, Float)
     {
         if (m_renderWorld == nullptr)
         {

@@ -2,12 +2,13 @@
 #include <JBro/Types/Uuid.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
     namespace
     {
-        bool UuidToText(
+        Bool UuidToText(
             const void* value,
             char* buffer,
             std::size_t capacity,
@@ -28,7 +29,7 @@ namespace JBro
             return true;
         }
 
-        bool UuidFromText(void* value, const char* text, std::size_t length) noexcept
+        Bool UuidFromText(void* value, const char* text, std::size_t length) noexcept
         {
             Uuid parsed;
             if (false == Uuid::Parse(text, length, parsed))
@@ -39,7 +40,7 @@ namespace JBro
             return true;
         }
 
-        bool UuidEquals(const void* left, const void* right) noexcept
+        Bool UuidEquals(const void* left, const void* right) noexcept
         {
             return *static_cast<const Uuid*>(left) == *static_cast<const Uuid*>(right);
         }

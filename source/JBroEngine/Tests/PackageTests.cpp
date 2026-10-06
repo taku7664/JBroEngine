@@ -30,6 +30,10 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 에셋 패키지 `.jpak`(D-232, package-plan 1 단계): 왕복·정렬·난독화·깨진 파일 거절·창 스트림.
 namespace
@@ -38,7 +42,7 @@ namespace
     using namespace JBro;
     using namespace JBro::Package;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -81,7 +85,7 @@ namespace
         file.write(reinterpret_cast<const char*>(bytes.Data()), static_cast<std::streamsize>(bytes.Size()));
     }
 
-    bool Contains(const Array<std::byte>& haystack, const char* needle)
+    JBro::Bool Contains(const Array<std::byte>& haystack, const char* needle)
     {
         const std::size_t length = std::strlen(needle);
         for (std::size_t at = 0; at + length <= haystack.Size(); ++at)
@@ -122,12 +126,12 @@ namespace
     }
 
     // 16 비트 모노 WAV, 0 부터 오르는 표본이다.
-    Array<std::byte> MakeWav(std::uint32_t frames)
+    Array<std::byte> MakeWav(JBro::UInt32 frames)
     {
         Array<std::byte> bytes;
-        const std::uint32_t dataBytes = frames * 2;
+        const JBro::UInt32 dataBytes = frames * 2;
         bytes.Resize(44 + dataBytes);
-        const auto put32 = [&](std::size_t at, std::uint32_t value) { std::memcpy(bytes.Data() + at, &value, 4); };
+        const auto put32 = [&](std::size_t at, JBro::UInt32 value) { std::memcpy(bytes.Data() + at, &value, 4); };
         const auto put16 = [&](std::size_t at, std::uint16_t value) { std::memcpy(bytes.Data() + at, &value, 2); };
         std::memcpy(bytes.Data(), "RIFF", 4);
         put32(4, 36 + dataBytes);
@@ -141,7 +145,7 @@ namespace
         put16(34, 16);
         std::memcpy(bytes.Data() + 36, "data", 4);
         put32(40, dataBytes);
-        for (std::uint32_t frame = 0; frame < frames; ++frame)
+        for (JBro::UInt32 frame = 0; frame < frames; ++frame)
         {
             const auto sample = static_cast<std::int16_t>(frame * 3);
             std::memcpy(bytes.Data() + 44 + frame * 2, &sample, 2);
@@ -154,16 +158,16 @@ namespace
     Array<std::byte> RewriteIndex(const Array<std::byte>& file, TChange change)
     {
         Array<std::byte> copy = file;
-        std::uint64_t indexOffset = 0;
-        std::uint64_t indexSize = 0;
-        std::uint64_t key = 0;
+        JBro::UInt64 indexOffset = 0;
+        JBro::UInt64 indexSize = 0;
+        JBro::UInt64 key = 0;
         std::memcpy(&indexOffset, copy.Data() + 24, 8);
         std::memcpy(&indexSize, copy.Data() + 32, 8);
         std::memcpy(&key, copy.Data() + 48, 8);
         std::byte* index = copy.Data() + indexOffset;
         Obfuscate(key, indexOffset, index, static_cast<std::size_t>(indexSize));
         change(index);
-        const std::uint64_t hash = JBro::Package::Hash(index, static_cast<std::size_t>(indexSize));
+        const JBro::UInt64 hash = JBro::Package::Hash(index, static_cast<std::size_t>(indexSize));
         std::memcpy(copy.Data() + 40, &hash, 8);
         Obfuscate(key, indexOffset, index, static_cast<std::size_t>(indexSize));
         return copy;
@@ -439,7 +443,7 @@ namespace
             options.gameHostPath = Utf8(root / "FakeHost.exe");
             options.physicsWorkers = 0;
             GameBuildReport report;
-            const bool built = BuildGame(platform, engine.GetProjectFile(), projectUtf8.c_str(), options, report);
+            const JBro::Bool built = BuildGame(platform, engine.GetProjectFile(), projectUtf8.c_str(), options, report);
             if (false == built)
             {
                 std::cout << "  build error: " << report.error.c_str() << '\n';
@@ -582,11 +586,11 @@ namespace
         PackageReader reader;
         Check(reader.Open(platform, path.c_str(), error), "the package opens");
         Check(reader.GetEntryCount() == 5, "every record is in the index");
-        for (std::uint32_t row = 1; row < reader.GetEntryCount(); ++row)
+        for (JBro::UInt32 row = 1; row < reader.GetEntryCount(); ++row)
         {
             Check(EntryLess(reader.GetEntry(row - 1), reader.GetEntry(row)), "the index is in id and kind order");
         }
-        for (std::uint32_t row = 0; row < reader.GetEntryCount(); ++row)
+        for (JBro::UInt32 row = 0; row < reader.GetEntryCount(); ++row)
         {
             const Entry& entry = reader.GetEntry(row);
             Check(entry.kind == BlobKind::Record || entry.offset % BlobAlignment == 0, "every blob starts on 16 bytes");
@@ -626,7 +630,7 @@ namespace
         // 블롭 한 바이트를 바꾸면 그 블롭만 읽히지 않는다.
         {
             Check(reader.Open(platform, path.c_str(), error), "the package opens again");
-            const std::uint64_t at = reader.Find(texture, BlobKind::CookedTexture)->offset;
+            const JBro::UInt64 at = reader.Find(texture, BlobKind::CookedTexture)->offset;
             reader.Close();
             Array<std::byte> damaged = file;
             damaged[static_cast<std::size_t>(at + 5)] ^= std::byte{0x40};
@@ -669,7 +673,7 @@ namespace
         {
             const Array<std::byte> repeated = RewriteIndex(file, [](std::byte* index) {
                 // 둘째 줄의 아이디와 종류를 첫 줄의 것으로 덮는다(아이디 16 바이트, 종류는 18 번째).
-                const std::uint32_t firstPath = [&] { std::uint32_t length = 0; std::memcpy(&length, index + 20, 4); return length; }();
+                const JBro::UInt32 firstPath = [&] { JBro::UInt32 length = 0; std::memcpy(&length, index + 20, 4); return length; }();
                 std::byte* second = index + RecordFixedSize + firstPath;
                 std::memcpy(second, index, 16);
                 second[18] = index[18];
@@ -681,11 +685,11 @@ namespace
                 std::byte* row = index;
                 for (;;)
                 {
-                    std::uint32_t length = 0;
+                    JBro::UInt32 length = 0;
                     std::memcpy(&length, row + 20, 4);
                     if (row[18] != std::byte{ 0 })
                     {
-                        const std::uint64_t huge = 1ull << 40;
+                        const JBro::UInt64 huge = 1ull << 40;
                         std::memcpy(row + 48, &huge, 8);
                         return;
                     }
@@ -725,7 +729,7 @@ namespace
     }
 }
 
-int RunPackageTests()
+JBro::Int32 RunPackageTests()
 {
     try
     {

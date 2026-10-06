@@ -4,6 +4,7 @@
 #include <JBro/Types/String.h>
 
 #include <cstddef>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::System
 {
@@ -17,5 +18,5 @@ namespace JBro::System
 
     // 글자를 읽어 `live` 의 바인딩을 바꾼다. 줄 하나가 틀리면 그 액션은 그대로 두고 나머지를 읽으며, 거짓을 돌려주고 줄마다 한 번 경고한다.
     // 프로젝트에 없는 액션(지운 액션)은 조용히 건너뛴다 - 옛 세이브가 새 게임에서 열려도 된다.
-    bool ReadBindingOverrides(const char* text, std::size_t length, InputActionMap& live);
+    Bool ReadBindingOverrides(const char* text, std::size_t length, InputActionMap& live);
 }

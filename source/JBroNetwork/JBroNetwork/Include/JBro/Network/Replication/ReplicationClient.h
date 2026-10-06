@@ -9,18 +9,21 @@
 #include <JBro/Types/Table.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
     struct ReplicationClientDiagnostics
     {
-        std::uint32_t objects = 0;
+        UInt32 objects = 0;
         ReplicationTick latestTick = 0;
-        bool hasSnapshot = false;
+        Bool hasSnapshot = false;
         // 기준이 없거나 낡아서 버린 델타.
-        std::uint32_t droppedDeltas = 0;
-        std::uint32_t appliedDeltas = 0;
-        std::uint32_t fullSnapshotsReceived = 0;
+        UInt32 droppedDeltas = 0;
+        UInt32 appliedDeltas = 0;
+        UInt32 fullSnapshotsReceived = 0;
     };
 
     // 클라이언트 쪽 복제. 스폰·소멸을 받아 호스트로 오브젝트를 만들고 없애며, 델타를 기준에 얹어 스냅숏을 되살리고 ACK 한다.
@@ -38,22 +41,22 @@ namespace JBro::Network
         // 서버와 같은 순서로 등록한다.
         std::uint8_t RegisterPool(IReplicatedPool& pool);
 
-        bool HandleMessage(const MessageView& view);
+        Bool HandleMessage(const MessageView& view);
         // 매 프레임 부른다. 보간 계수는 스스로 정한다.
         void Apply();
         // `alpha` 를 직접 주는 자리. 테스트와, 시각을 스스로 아는 호출자를 위한 것이다.
-        void Apply(float alpha);
+        void Apply(Float alpha);
 
         const ReplicationClientDiagnostics& GetDiagnostics() const;
         InstanceId FindLocal(NetworkObjectId id) const;
-        std::uint32_t GetObjectCount() const;
+        UInt32 GetObjectCount() const;
 
     private:
         void HandleSpawn(const MessageView& view);
         void HandleDespawn(const MessageView& view);
         void HandleDelta(const MessageView& view);
         void ApplyObjectFromLatest(NetworkObjectId id, InstanceId local);
-        void ApplySnapshots(float alpha);
+        void ApplySnapshots(Float alpha);
         void SendAck(ReplicationTick tick);
 
         Transport& m_transport;
@@ -61,20 +64,20 @@ namespace JBro::Network
         ReplicationConfig m_config;
 
         Array<IReplicatedPool*> m_pools;
-        Array<std::uint32_t> m_typeSizes;
+        Array<UInt32> m_typeSizes;
 
         Table<NetworkObjectId, InstanceId> m_objects;
         SnapshotHistory m_history;
         ReplicationTick m_latestTick = 0;
         ReplicationTick m_previousTick = NoBaselineTick;
-        bool m_hasLatest = false;
-        bool m_dirty = false;
+        Bool m_hasLatest = false;
+        Bool m_dirty = false;
         // 스냅숏이 온 시각과 그 간격의 이동 평균(ms). 둘 다 0 이면 아직 모른다.
         double m_lastSnapshotMilliseconds = 0.0;
         double m_snapshotIntervalMilliseconds = 0.0;
 
         Array<DeltaCodec::Removal> m_removals;
-        std::uint32_t m_removalCount = 0;
+        UInt32 m_removalCount = 0;
         Array<const std::uint8_t*> m_changedScratch;
         ReplicationClientDiagnostics m_diagnostics;
     };

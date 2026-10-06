@@ -8,6 +8,8 @@
 #include <JBro/Types/TextOptions.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Component
 {
@@ -61,24 +63,24 @@ namespace JBro::Component
         JBRO_FIELD(TextId, textKey);
         JBRO_FIELD(AssetId, fontId);
         JBRO_FIELD(AssetHandle, font, NoSerialize() | ReadOnly() | Tooltip("fontId 에서 해석된 값"));
-        JBRO_FIELD(float, fontSize, Range(1, 512)) = 32.0f;
+        JBRO_FIELD(Float, fontSize, Range(1, 512)) = 32.0f;
         // 글자 픽셀이다. 0 이면 그 방향으로 제한이 없다.
-        JBRO_FIELD(float, boxWidth, Range(0, 100000)) = 0.0f;
-        JBRO_FIELD(float, boxHeight, Range(0, 100000)) = 0.0f;
+        JBRO_FIELD(Float, boxWidth, Range(0, 100000)) = 0.0f;
+        JBRO_FIELD(Float, boxHeight, Range(0, 100000)) = 0.0f;
         JBRO_FIELD(TextOverflow, overflow) = TextOverflow::Wrap;
         JBRO_FIELD(TextWrapMode, wrapMode) = TextWrapMode::Word;
         // 3D 의 글자는 대개 오브젝트 자리에 가운데로 선다.
         JBRO_FIELD(TextAlignX, alignX) = TextAlignX::Center;
         JBRO_FIELD(TextAlignY, alignY) = TextAlignY::Middle;
-        JBRO_FIELD(float, lineSpacing, Range(0, 10)) = 1.0f;
-        JBRO_FIELD(float, letterSpacing) = 0.0f;
+        JBRO_FIELD(Float, lineSpacing, Range(0, 10)) = 1.0f;
+        JBRO_FIELD(Float, letterSpacing) = 0.0f;
         JBRO_FIELD(Color, color) = { 1.0f, 1.0f, 1.0f, 1.0f };
-        JBRO_FIELD(bool, visible) = true;
+        JBRO_FIELD(Bool, visible) = true;
         JBRO_FIELD(TextFacing3D, facing) = TextFacing3D::Transform;
         // 외곽선이다(폰트가 `Sdf` 일 때만). 폭은 글자 픽셀이다 - `Text2D` 와 같다.
         JBRO_FIELD(Color, outlineColor) = { 0.0f, 0.0f, 0.0f, 1.0f };
-        JBRO_FIELD(float, outlineWidth, Range(0, 64)) = 0.0f;
+        JBRO_FIELD(Float, outlineWidth, Range(0, 64)) = 0.0f;
         // **리치 텍스트**다(D-221). `Text2D::richText` 와 같은 태그를 읽는다.
-        JBRO_FIELD(bool, richText) = false;
+        JBRO_FIELD(Bool, richText) = false;
     };
 }

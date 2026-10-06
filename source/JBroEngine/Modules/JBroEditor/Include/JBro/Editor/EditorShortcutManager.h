@@ -8,6 +8,8 @@
 #include <imgui.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -21,11 +23,11 @@ namespace JBro
     struct EditorShortcutBinding
     {
         ImGuiKey key = ImGuiKey_None;
-        bool control = false;
-        bool shift = false;
-        bool alt = false;
+        Bool control = false;
+        Bool shift = false;
+        Bool alt = false;
 
-        bool IsSet() const
+        Bool IsSet() const
         {
             return key != ImGuiKey_None;
         }
@@ -55,7 +57,7 @@ namespace JBro
         IEditorShortcutHandler& operator=(const IEditorShortcutHandler&) = delete;
 
         // 지금 할 수 있는가. 거짓이면 눌러도 하지 않고, 같은 키의 전역 단축키를 막지도 않는다.
-        virtual bool CanExecute(const EditorApplication& editor) const
+        virtual Bool CanExecute(const EditorApplication& editor) const
         {
             (void)editor;
             return true;
@@ -66,10 +68,10 @@ namespace JBro
             (void)editor;
             return nullptr;
         }
-        virtual bool Execute(EditorApplication& editor) = 0;
+        virtual Bool Execute(EditorApplication& editor) = 0;
     };
 
-    using ShortcutHandle = std::uint64_t;
+    using ShortcutHandle = UInt64;
     inline constexpr ShortcutHandle InvalidShortcutHandle = 0;
 
     struct EditorShortcutDesc
@@ -88,11 +90,11 @@ namespace JBro
         EditorShortcutBinding secondary;
         // 패널 범위일 때만 뜻이 있다: 이것이 실행되면 **같은 조합의 전역 단축키는 그 프레임에 돌지 않는다**.
         // 거짓이면 둘 다 돈다.
-        bool blocksGlobal = true;
+        Bool blocksGlobal = true;
         // 글자 칸에 타자를 치는 중에도 도는가. 기본은 거짓이다 - 이름을 고치다 Ctrl+Z 를 누르면 글자를 되돌려야 한다.
-        bool whileTyping = false;
+        Bool whileTyping = false;
         // 재생 중 게임이 키를 받는 동안에도 도는가(D-214). 재생 제어만 참이다.
-        bool duringGame = false;
+        Bool duringGame = false;
         OwnerPtr<IEditorShortcutHandler> handler;
     };
 
@@ -109,9 +111,9 @@ namespace JBro
         EditorShortcutBinding secondary;
         EditorShortcutBinding defaultPrimary;
         EditorShortcutBinding defaultSecondary;
-        bool blocksGlobal = true;
+        Bool blocksGlobal = true;
         // 사용자가 기본값에서 바꿨는가.
-        bool customized = false;
+        Bool customized = false;
     };
 
     enum class ShortcutConflictKind : std::uint8_t
@@ -125,8 +127,8 @@ namespace JBro
     struct ShortcutConflict
     {
         // `GetAt` 의 번호. `Shadows` 면 `first` 가 패널 범위, `second` 가 전역이다.
-        std::uint32_t first = 0;
-        std::uint32_t second = 0;
+        UInt32 first = 0;
+        UInt32 second = 0;
         ShortcutConflictKind kind = ShortcutConflictKind::Clash;
         EditorShortcutBinding binding;
     };
@@ -150,29 +152,29 @@ namespace JBro
         // 등록을 푼다. 사용자가 바꾼 조합은 **남긴다** - 외부 에디터가 빠졌다 다시 붙어도 그 사람의 키가 그대로다.
         void Unregister(ShortcutHandle handle);
 
-        std::uint32_t GetCount() const;
-        EditorShortcutView GetAt(std::uint32_t index) const;
+        UInt32 GetCount() const;
+        EditorShortcutView GetAt(UInt32 index) const;
         // 이름으로 찾는다. 없으면 `handle` 이 `InvalidShortcutHandle` 인 값이다.
         EditorShortcutView Find(const char* id) const;
-        bool CanExecute(const char* id, const EditorApplication& editor) const;
+        Bool CanExecute(const char* id, const EditorApplication& editor) const;
         const char* WhyBlocked(const char* id, const EditorApplication& editor) const;
-        bool Execute(const char* id, EditorApplication& editor);
+        Bool Execute(const char* id, EditorApplication& editor);
 
         // ── 사용자가 바꾸는 것 ────────────────────────────────────────
         //
         // `slot` 0 은 첫째, 1 은 둘째 조합이다. 비어 있는 조합을 주면 그 자리를 비운다. 모르는 이름이면 거짓이다.
-        bool SetBinding(const char* id, std::uint32_t slot, const EditorShortcutBinding& binding);
-        bool ResetBinding(const char* id);
+        Bool SetBinding(const char* id, UInt32 slot, const EditorShortcutBinding& binding);
+        Bool ResetBinding(const char* id);
         void ResetAll();
         // 사용자의 조합이 바뀔 때마다 오른다. 에디터는 이 값이 바뀌면 설정 파일을 다시 쓴다.
-        std::uint64_t GetRevision() const;
+        UInt64 GetRevision() const;
         // 겹치는 조합을 모두 적는다(설정 화면이 보이는 목록). 같은 짝은 한 번만.
         void FindConflicts(Array<ShortcutConflict>& out) const;
 
         // 사용자가 바꾼 조합만 쓴다(`Shortcuts:` 아래). 등록이 풀린 이름의 것도 쓴다.
         void Write(YamlWriter& writer) const;
         // `Shortcuts:` 맵을 읽어 사용자 조합을 통째로 바꾼다. 읽지 못한 줄은 건너뛴다.
-        void Read(const YamlDocument& document, std::uint32_t root);
+        void Read(const YamlDocument& document, UInt32 root);
         // 바뀐 행동 이름이면 지금 이름을, 아니면 받은 것을 돌려준다(D-284). `Read` 가 옛 파일을 옮길 때 쓴다.
         static const char* RenamedId(const char* id);
 
@@ -181,24 +183,24 @@ namespace JBro
         // 이번 프레임에 포커스를 가진 패널의 `GetTitle()`. 없으면 nullptr.
         void SetFocusedScope(const char* scope);
         // **멈춤.** 키매핑 설정이 새 키를 잡는 동안 참이다 - 그 사이 누른 Ctrl+S 가 저장하면 안 되고 새 조합이 되어야 한다.
-        void SetSuspended(bool suspended);
-        bool IsSuspended() const;
+        void SetSuspended(Bool suspended);
+        Bool IsSuspended() const;
         // 눌린 것을 찾아 한다. 포커스 범위의 것이 먼저 돌고, 그것이 실행되면(`blocksGlobal`) 같은 조합의 전역 것은 돌지 않는다.
         // 범위마다 한 프레임에 하나다. 실행한 것의 수를 돌려준다.
-        std::uint32_t ProcessInput(EditorApplication& editor, bool typing, bool gameInput);
+        UInt32 ProcessInput(EditorApplication& editor, Bool typing, Bool gameInput);
 
         // ── 키 ────────────────────────────────────────────────────
         //
         // `Ctrl+Shift+Z` 같은 글자. 키 이름은 ImGui 가 준다(Space 를 누르면 `Space`, 엄지 버튼은 `MouseX1`). 비어 있으면 빈 글자다.
         static EditorShortcutText Describe(const EditorShortcutBinding& binding);
         // `Describe` 의 거꾸로. 빈 글자는 빈 조합이고 참이다. 모르는 키 이름이면 거짓이다.
-        static bool Parse(const char* text, EditorShortcutBinding& out);
+        static Bool Parse(const char* text, EditorShortcutBinding& out);
         // **검색.** `query` 가 번역된 이름·무리 이름·저장 이름·지금 조합 글자(`Ctrl+Z`) 어디에든 들어 있으면 참이다. 영문은 대소문자를
         // 가리지 않는다. 빈 검색어는 모두 맞는다. 설정 화면이 줄마다 부른다.
-        static bool MatchesSearch(const char* query, const char* label, const char* category, const EditorShortcutView& view);
+        static Bool MatchesSearch(const char* query, const char* label, const char* category, const EditorShortcutView& view);
         // **이번 프레임에 눌린 키를 조합으로 잡는다** - 키매핑 설정에서 "키를 누르세요" 칸이 쓴다. 조합키만 눌렸으면 거짓이다.
         // 엄지 버튼도 잡는다. 칸을 누른 왼쪽 버튼은 잡지 않는다.
-        static bool CaptureBinding(EditorShortcutBinding& out);
+        static Bool CaptureBinding(EditorShortcutBinding& out);
 
     private:
         struct Entry
@@ -210,9 +212,9 @@ namespace JBro
             String scope;
             EditorShortcutBinding defaults[2];
             EditorShortcutBinding bindings[2];
-            bool blocksGlobal = true;
-            bool whileTyping = false;
-            bool duringGame = false;
+            Bool blocksGlobal = true;
+            Bool whileTyping = false;
+            Bool duringGame = false;
             OwnerPtr<IEditorShortcutHandler> handler;
         };
         // 사용자가 바꾼 조합. 등록되지 않은 이름의 것도 남긴다.
@@ -227,14 +229,14 @@ namespace JBro
         Override* FindOverride(const char* id);
         void Apply(Entry& entry) const;
         EditorShortcutView ToView(const Entry& entry) const;
-        bool Allowed(const Entry& entry, bool typing, bool gameInput) const;
+        Bool Allowed(const Entry& entry, Bool typing, Bool gameInput) const;
 
         Array<OwnerPtr<Entry>> m_entries;
         Array<Override> m_overrides;
         // 패널이 든 글자를 가리킨다. 매 프레임 `ProcessInput` 바로 앞에 다시 받으므로 그 사이에만 쓴다(프레임마다 글자를 복사하지 않는다).
         const char* m_focusedScope = nullptr;
         ShortcutHandle m_nextHandle = 1;
-        std::uint64_t m_revision = 0;
-        bool m_suspended = false;
+        UInt64 m_revision = 0;
+        Bool m_suspended = false;
     };
 }

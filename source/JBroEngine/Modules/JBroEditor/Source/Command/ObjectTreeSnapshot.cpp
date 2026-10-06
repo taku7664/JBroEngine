@@ -8,17 +8,20 @@
 #include <JBro/Types/NameTable.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    bool ObjectTreeSnapshot::Capture(EditorObjectRegistry& registry, GameObject& root)
+    Bool ObjectTreeSnapshot::Capture(EditorObjectRegistry& registry, GameObject& root)
     {
         objects.Clear();
         return CaptureInto(registry, root, -1);
     }
 
-    bool ObjectTreeSnapshot::CaptureInto(
-        EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex)
+    Bool ObjectTreeSnapshot::CaptureInto(
+        EditorObjectRegistry& registry, GameObject& object, Int64 parentIndex)
     {
         ObjectSnapshotEntry entry;
         entry.id = registry.Track(&object);
@@ -49,7 +52,7 @@ namespace JBro
             entry.components.Add(std::move(captured));
         }
 
-        const std::int64_t self = static_cast<std::int64_t>(objects.Size());
+        const Int64 self = static_cast<std::int64_t>(objects.Size());
         objects.Add(std::move(entry));
 
         const Array<SafePtr<GameObject>>& children = object.GetChildren();
@@ -66,8 +69,8 @@ namespace JBro
         return true;
     }
 
-    bool ObjectTreeSnapshot::Restore(
-        Canvas& canvas, EditorObjectRegistry& registry, GameObject* outerParent, bool rebind)
+    Bool ObjectTreeSnapshot::Restore(
+        Canvas& canvas, EditorObjectRegistry& registry, GameObject* outerParent, Bool rebind)
     {
         // 만든 것을 순서대로 들고 있는다. 부모는 늘 먼저 나오므로 앞에서부터
         // 만들면 붙일 자리가 이미 있다.
@@ -136,7 +139,7 @@ namespace JBro
     {
         // **나무 안의 참조는 나무 안의 새 오브젝트로 옮긴다**(D-233). 붙여넣은 조인트가 원본의 상대를 붙잡지 않고 함께 붙여넣은
         // 상대를 잡는다. 나무 밖을 가리키는 참조는 그대로 둔다. 맨 위 필드만 본다 - 참조 필드를 가진 컴포넌트가 그렇게 선언한다.
-        bool moved = false;
+        Bool moved = false;
         for (std::size_t index = 0; index < objects.Size(); ++index)
         {
             moved = moved || objects[index].sourceInstanceId != objects[index].instanceId;
@@ -156,7 +159,7 @@ namespace JBro
                 {
                     continue;
                 }
-                for (std::uint32_t p = 0; p < table->count; ++p)
+                for (UInt32 p = 0; p < table->count; ++p)
                 {
                     const PropertyInfo& property = table->properties[p];
                     if (property.type == nullptr || property.type->typeName != handleType || property.Address == nullptr)
@@ -177,7 +180,7 @@ namespace JBro
         }
     }
 
-    bool ObjectTreeSnapshot::DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const
+    Bool ObjectTreeSnapshot::DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const
     {
         if (objects.IsEmpty())
         {
@@ -190,7 +193,7 @@ namespace JBro
         }
         // 자식은 캔버스가 함께 지운다. 스냅샷에는 그 자식들도 들어 있으므로
         // 되살릴 때 나무가 통째로 돌아온다.
-        const bool destroyed = canvas.DestroyObject(object);
+        const Bool destroyed = canvas.DestroyObject(object);
         canvas.FlushPendingDestroy();
         return destroyed;
     }

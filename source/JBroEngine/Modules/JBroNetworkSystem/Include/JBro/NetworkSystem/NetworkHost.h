@@ -12,6 +12,8 @@
 #include <JBro/Types/SafePtr.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -45,7 +47,7 @@ namespace JBro
         // 복제가 설 때 그대로 넘긴다. 프레임워크가 캔버스를 묶은 직후 부른다. 자리가 없으면 0xFF.
         std::uint8_t RegisterPool(Network::IReplicatedPool& pool);
         // 복제가 서 있는가. 역할이 없으면 거짓이다 - 테스트와 진단이 본다.
-        bool IsReplicating() const;
+        Bool IsReplicating() const;
 
         // 프레임 밖. 소켓을 돌리고 메시지를 가른다.
         void Update();
@@ -57,29 +59,29 @@ namespace JBro
         Network::Transport& GetTransport();
         const NetworkSystemContext& GetSystemContext() const;
         const NetworkServiceContext& GetServiceContext() const;
-        bool HasSockets() const;
+        Bool HasSockets() const;
 
         // ── INetworkSystem ──
-        bool StartServer(std::uint16_t port) override;
-        bool Connect(const char* host, std::uint16_t port) override;
+        Bool StartServer(std::uint16_t port) override;
+        Bool Connect(const char* host, std::uint16_t port) override;
         void Disconnect() override;
         Network::NetworkRole GetRole() const override;
-        bool IsConnected() const override;
-        std::uint32_t GetConnectionCount() const override;
-        Network::ConnectionId GetConnectionAt(std::uint32_t index) const override;
+        Bool IsConnected() const override;
+        UInt32 GetConnectionCount() const override;
+        Network::ConnectionId GetConnectionAt(UInt32 index) const override;
         double GetRoundTripMilliseconds(Network::ConnectionId connection) const override;
         double GetUdpLossRate(Network::ConnectionId connection) const override;
-        bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, std::uint32_t size,
+        Bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, UInt32 size,
             Network::NetChannel channel) override;
-        bool Broadcast(Network::MessageId messageId, const void* data, std::uint32_t size, Network::NetChannel channel) override;
-        std::uint32_t TakeEvents(Network::NetworkEvent* events, std::uint32_t capacity) override;
-        std::uint32_t TakeMessages(Network::MessageView* messages, std::uint32_t capacity) override;
+        Bool Broadcast(Network::MessageId messageId, const void* data, UInt32 size, Network::NetChannel channel) override;
+        UInt32 TakeEvents(Network::NetworkEvent* events, UInt32 capacity) override;
+        UInt32 TakeMessages(Network::MessageView* messages, UInt32 capacity) override;
         Network::NetworkObjectId FindNetworkId(InstanceId object) const override;
         InstanceId FindLocalObject(Network::NetworkObjectId id) const override;
-        bool HasAuthority(InstanceId object) const override;
+        Bool HasAuthority(InstanceId object) const override;
 
         // ── IReplicationHost ──
-        bool DescribeObject(InstanceId object, Network::SpawnDesc& outDesc) override;
+        Bool DescribeObject(InstanceId object, Network::SpawnDesc& outDesc) override;
         InstanceId SpawnObject(Network::NetworkObjectId id, const Network::SpawnDesc& desc) override;
         void DespawnObject(InstanceId object) override;
 
@@ -109,9 +111,9 @@ namespace JBro
         Network::ReplicationTick m_tick = 1;
         // 이번 프레임의 게임 메시지. 뷰는 트랜스포트의 수신 저장소를 가리키고 다음 `Update` 까지 산다.
         Array<Network::MessageView> m_gameMessages;
-        std::uint32_t m_gameMessagesTaken = 0;
+        UInt32 m_gameMessagesTaken = 0;
         // 이번 프레임에 자리가 없어 버린 게임 메시지가 있었다. 다음 `TakeEvents` 가 `Overflow` 로 알린다.
-        bool m_overflowPending = false;
+        Bool m_overflowPending = false;
         NetworkSystemContext m_systemContext;
         NetworkServiceContext m_serviceContext;
     };

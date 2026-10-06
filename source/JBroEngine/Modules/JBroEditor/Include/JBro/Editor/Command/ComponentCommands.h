@@ -7,6 +7,7 @@
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Types/NameTable.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -36,7 +37,7 @@ namespace JBro
             const ComponentSnapshot& values);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -44,7 +45,7 @@ namespace JBro
         ComponentBase* GetComponent() const;
 
     private:
-        bool Attach();
+        Bool Attach();
 
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
@@ -52,8 +53,8 @@ namespace JBro
         NameId m_typeName = InvalidNameId;
         // 붙이면서 써 넣을 값이다. 비어 있으면 맨 컴포넌트를 붙인다.
         ComponentSnapshot m_values;
-        bool m_hasValues = false;
-        bool m_added = false;
+        Bool m_hasValues = false;
+        Bool m_added = false;
     };
 
     // 컴포넌트 하나를 뗀다. 되돌리면 다시 붙이고 값을 도로 써 넣는다.
@@ -70,12 +71,12 @@ namespace JBro
             ComponentBase* component);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
     private:
-        bool Detach();
+        Bool Detach();
 
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
@@ -87,7 +88,7 @@ namespace JBro
         // 앞서 쌓인 커맨드의 "몇 번째" 가 다른 컴포넌트를 가리킨다.
         std::size_t m_slotIndex = 0;
         // 값을 다 떴는가. 못 떴으면 떼지 않는다.
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 
     // 이미 붙어 있는 컴포넌트에 떠 둔 값을 덮어쓴다(D-167, `컴포넌트 값 붙여넣기`).
@@ -106,18 +107,18 @@ namespace JBro
             const ComponentSnapshot& values);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
     private:
-        bool Apply(const ComponentSnapshot& values);
+        Bool Apply(const ComponentSnapshot& values);
 
         EditorObjectRegistry* m_registry = nullptr;
         ComponentAddress m_address;
         ComponentSnapshot m_values;
         ComponentSnapshot m_before;
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 
     // 컴포넌트 슬롯 하나를 다른 자리로 옮긴다(기존 엔진 `CReorderComponentCommand`). 되돌리면
@@ -136,12 +137,12 @@ namespace JBro
             std::size_t toSlot);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
     private:
-        bool Move(std::size_t from, std::size_t to);
+        Bool Move(std::size_t from, std::size_t to);
 
         EditorObjectRegistry* m_registry = nullptr;
         EditorObjectId m_objectId = InvalidEditorObjectId;

@@ -11,6 +11,8 @@
 #include <imgui.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -24,7 +26,7 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelShortcuts, "Shortcuts");
     }
 
-    bool ShortcutPanel::OnCreate(EditorApplication& editor)
+    Bool ShortcutPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         // 늘 보는 창이 아니다. 창 메뉴에서 열어 본다.
@@ -39,15 +41,15 @@ namespace JBro
             return;
         }
         const EditorShortcutManager& shortcuts = m_editor->GetShortcuts();
-        const std::uint32_t count = shortcuts.GetCount();
+        const UInt32 count = shortcuts.GetCount();
 
         // **무리는 처음 나온 차례대로 모은다.** 전역 것이 먼저 등록되고 패널 것이 나중에 온다 - 등록 차례로만 그리면
         // 같은 무리가 두 번 나뉘어 나온다. 목록은 열두어 줄이라 두 겹으로 돌아도 가볍다.
-        for (std::uint32_t head = 0; head < count; ++head)
+        for (UInt32 head = 0; head < count; ++head)
         {
             const EditorShortcutView first = shortcuts.GetAt(head);
-            bool seen = false;
-            for (std::uint32_t before = 0; before < head && false == seen; ++before)
+            Bool seen = false;
+            for (UInt32 before = 0; before < head && false == seen; ++before)
             {
                 seen = std::strcmp(shortcuts.GetAt(before).categoryKey, first.categoryKey) == 0;
             }
@@ -60,7 +62,7 @@ namespace JBro
                 ImGui::Spacing();
             }
             Widget::SectionHeader(Loc::TextOr(first.categoryKey, first.categoryKey)).Draw();
-            for (std::uint32_t index = head; index < count; ++index)
+            for (UInt32 index = head; index < count; ++index)
             {
                 const EditorShortcutView info = shortcuts.GetAt(index);
                 if (std::strcmp(info.categoryKey, first.categoryKey) != 0)

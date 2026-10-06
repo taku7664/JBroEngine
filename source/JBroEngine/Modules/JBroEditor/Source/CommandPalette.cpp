@@ -12,12 +12,15 @@
 
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool OpenPalette(EditorActionContext& context)
+        Bool OpenPalette(EditorActionContext& context)
         {
             return context.editor->OpenPopup(MakeOwnerPtr<CommandPalettePopup>()) != InvalidPopupHandle;
         }
@@ -38,12 +41,12 @@ namespace JBro
         return PopupId;
     }
 
-    float CommandPalettePopup::GetInitialWidth() const
+    Float CommandPalettePopup::GetInitialWidth() const
     {
         return 520.0f;
     }
 
-    float CommandPalettePopup::GetInitialHeight() const
+    Float CommandPalettePopup::GetInitialHeight() const
     {
         return 420.0f;
     }
@@ -52,7 +55,7 @@ namespace JBro
     {
         out.Clear();
         const EditorActionRegistry& actions = EditorActionRegistry::Get();
-        for (std::uint32_t index = 0; index < actions.GetCount(); ++index)
+        for (UInt32 index = 0; index < actions.GetCount(); ++index)
         {
             const EditorActionInfo& action = actions.GetAt(index);
             if (action.componentType != InvalidComponentTypeId || std::strcmp(action.name, CommandPalettePopup::PopupId) == 0)
@@ -115,7 +118,7 @@ namespace JBro
             char label[160] = {};
             std::snprintf(label, sizeof(label), "%s: %s", Translate(action->categoryKey),
                 EditorActionUi::Label(*action, EditorActionMenu::None));
-            const bool enabled = EditorActionUi::CanExecute(*action, context);
+            const Bool enabled = EditorActionUi::CanExecute(*action, context);
             const EditorShortcutText keys = EditorActionUi::Keys(editor, *action);
             Widget::SetNextItemTarget(GuideFocusTargets::Action(action->name));
             if (Widget::MenuItem(label, keys.value, enabled, enabled ? nullptr : EditorActionUi::WhyBlocked(*action, context),

@@ -12,13 +12,17 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 namespace
 {
     using namespace JBro;
     using namespace JBro::ScriptCompiler;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -81,12 +85,12 @@ namespace
     }
 
     // 에러가 정확히 하나이고 그 종류와 줄·열이 기대와 같은지 본다.
-    void CheckOneError(const std::string& text, DiagnosticCode code, std::uint32_t line, std::uint32_t column,
+    void CheckOneError(const std::string& text, DiagnosticCode code, JBro::UInt32 line, JBro::UInt32 column,
         const char* message)
     {
         ParseResult result(text);
         const Array<Diagnostic>& items = result.Diagnostics.GetItems();
-        const bool matches = items.Size() == 1 && items[0].Code == code
+        const JBro::Bool matches = items.Size() == 1 && items[0].Code == code
             && items[0].Range.Begin.Line == line && items[0].Range.Begin.Column == column;
         if (false == matches)
         {
@@ -712,7 +716,7 @@ namespace
     }
 }
 
-int RunScriptCompilerParserTests()
+JBro::Int32 RunScriptCompilerParserTests()
 {
     TestEmptyFile();
     TestTypeDeclarationsAndFields();

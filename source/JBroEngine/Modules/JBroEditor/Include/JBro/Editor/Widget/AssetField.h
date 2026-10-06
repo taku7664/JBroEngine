@@ -4,6 +4,8 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/ArrayView.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
@@ -26,11 +28,11 @@ namespace JBro::Widget
 
         AssetField& NoneText(const char* text);
         AssetField& MissingText(const char* text);
-        AssetField& AllowClear(bool allow = true);
-        AssetField& Width(float width);
+        AssetField& AllowClear(Bool allow = true);
+        AssetField& Width(Float width);
 
-        bool Draw() const;
-        bool operator()() const;
+        Bool Draw() const;
+        Bool operator()() const;
 
     private:
         const char* m_id = nullptr;
@@ -39,7 +41,7 @@ namespace JBro::Widget
         AssetId& m_value;
         const char* m_noneText = nullptr;
         const char* m_missingText = nullptr;
-        float m_width = 0.0f;
-        bool m_allowClear = true;
+        Float m_width = 0.0f;
+        Bool m_allowClear = true;
     };
 }

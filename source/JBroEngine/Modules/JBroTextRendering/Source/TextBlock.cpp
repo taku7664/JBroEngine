@@ -6,28 +6,32 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
     namespace
     {
-        void Mix(std::uint64_t& key, std::uint64_t value)
+        void Mix(UInt64& key, UInt64 value)
         {
             std::size_t seed = static_cast<std::size_t>(key);
             HashCombine(seed, static_cast<std::size_t>(value));
             key = static_cast<std::uint64_t>(seed);
         }
 
-        std::uint64_t Bits(float value)
+        UInt64 Bits(Float value)
         {
             return std::bit_cast<std::uint32_t>(value);
         }
     }
 
-    std::uint64_t TextBlock::MakeOptionsKey(const TextBlockSettings& settings)
+    UInt64 TextBlock::MakeOptionsKey(const TextBlockSettings& settings)
     {
         // 크기는 값 그대로 넣는다. SDF 는 소수 크기로 레이아웃하므로 반올림한 픽셀이 같아도 다시 해야 한다.
-        std::uint64_t key = Bits(settings.fontSize);
+        UInt64 key = Bits(settings.fontSize);
         Mix(key, Bits(settings.boxWidth));
         Mix(key, Bits(settings.boxHeight));
         Mix(key, static_cast<std::uint64_t>(settings.overflow));
@@ -44,8 +48,8 @@ namespace JBro
         return key;
     }
 
-    bool TextBlock::GatherFonts(TextLibrary& library, const TextBlockSettings& settings, AssetHandle* handles, FontView* views,
-        std::uint32_t& count, StyleFaces& styles) const
+    Bool TextBlock::GatherFonts(TextLibrary& library, const TextBlockSettings& settings, AssetHandle* handles, FontView* views,
+        UInt32& count, StyleFaces& styles) const
     {
         styles = {};
         // **`fontId` 가 비면 프로젝트의 첫 폰트다**(D-200 (6)). 아이디를 적었는데 그 폰트가 없으면 대신 기본 폰트로 그리지 않는다 -
@@ -59,7 +63,7 @@ namespace JBro
         }
         // **패밀리면 Regular 가 기본 face 이고 나머지 칸이 스타일 face 다**(D-225). Regular 칸이 비면 처음 찬 칸이 기본이다.
         AssetHandle family[4];
-        const bool isFamily = library.GetFamilyFonts(primary, family);
+        const Bool isFamily = library.GetFamilyFonts(primary, family);
         if (isFamily)
         {
             primary = AssetHandle{};
@@ -89,8 +93,8 @@ namespace JBro
                     continue;
                 }
                 // 같은 폰트가 이미 모였으면 그 번호를 쓴다(Regular 와 같은 폰트를 굵게 칸에 둔 패밀리).
-                std::uint32_t found = count;
-                for (std::uint32_t face = 0; face < count; ++face)
+                UInt32 found = count;
+                for (UInt32 face = 0; face < count; ++face)
                 {
                     if (handles[face].index == font.index && handles[face].generation == font.generation)
                     {
@@ -114,8 +118,8 @@ namespace JBro
         for (std::size_t index = 0; index < project.Size() && count < MaxFaces; ++index)
         {
             const AssetHandle fallback = project[index];
-            bool already = false;
-            for (std::uint32_t face = 0; face < count; ++face)
+            Bool already = false;
+            for (UInt32 face = 0; face < count; ++face)
             {
                 already = already || (handles[face].index == fallback.index && handles[face].generation == fallback.generation);
             }
@@ -151,21 +155,21 @@ namespace JBro
         return key;
     }
 
-    std::uint32_t TextBlock::LocalizationRevision(const TextBlockSettings& settings)
+    UInt32 TextBlock::LocalizationRevision(const TextBlockSettings& settings)
     {
         if (TextStore::Get().GetText(settings.textKey).Size() == 0)
         {
             return 0;
         }
         const System::ILocalization* localization = GetLocalizationSystems().Localization;
-        return localization != nullptr ? localization->GetRevision() : 0;
+        return localization != nullptr ? localization->GetRevision() : UInt32(0);
     }
 
     TextBlock::UpdateResult TextBlock::Update(TextLibrary& library, const TextBlockSettings& settings)
     {
         AssetHandle handles[MaxFaces];
         FontView views[MaxFaces];
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         StyleFaces styles;
         if (false == GatherFonts(library, settings, handles, views, count, styles))
         {
@@ -176,7 +180,7 @@ namespace JBro
             return UpdateResult::NoFont;
         }
         const TextStore& store = TextStore::Get();
-        bool stale = m_text.index != settings.text.index
+        Bool stale = m_text.index != settings.text.index
             || m_text.generation != settings.text.generation
             || m_textRevision != store.GetRevision(settings.text)
             || m_textKey.index != settings.textKey.index
@@ -186,7 +190,7 @@ namespace JBro
             || m_fontCount != count
             || m_optionsKey != MakeOptionsKey(settings)
             || m_styles.bold != styles.bold || m_styles.italic != styles.italic || m_styles.boldItalic != styles.boldItalic;
-        for (std::uint32_t face = 0; false == stale && face < count; ++face)
+        for (UInt32 face = 0; false == stale && face < count; ++face)
         {
             stale = m_fonts[face].index != handles[face].index
                 || m_fonts[face].generation != handles[face].generation
@@ -202,22 +206,22 @@ namespace JBro
     }
 
     void TextBlock::Relayout(const TextBlockSettings& settings, const AssetHandle* handles, const FontView* views,
-        std::uint32_t count, const StyleFaces& styles)
+        UInt32 count, const StyleFaces& styles)
     {
         const FontView& font = views[0];
         // **SDF 는 크기를 반올림하지 않는다**(4 단계). 거리장 한 벌을 키우고 줄이므로 크기가 조금씩 바뀌는 연출(트윈)에 새 글리프가
         // 생기지 않는다 - 비트맵은 정수 크기마다 새로 떠 아틀라스가 크기 수만큼 자랐다(text-plan §7).
-        const bool sdf = font.renderMode == FontRenderMode::Sdf;
-        const float maxSize = static_cast<float>(Text::GlyphAtlas::MaxPixelSize);
-        const auto sizeOf = [&](float requested) {
-            return sdf ? std::clamp(std::isfinite(requested) ? requested : 1.0f, 1.0f, maxSize)
-                       : static_cast<float>(GlyphPixelSize(requested));
+        const Bool sdf = font.renderMode == FontRenderMode::Sdf;
+        const Float maxSize = static_cast<float>(Text::GlyphAtlas::MaxPixelSize);
+        const auto sizeOf = [&](Float requested) {
+            return sdf ? JBro::Clamp(std::isfinite(requested) ? requested : Float(1.0f), 1.0f, maxSize)
+                       : Float(static_cast<float>(GlyphPixelSize(requested)));
         };
-        float layoutSize = sizeOf(settings.fontSize);
+        Float layoutSize = sizeOf(settings.fontSize);
         Text::LayoutOptions options;
         options.fontSize = layoutSize;
-        options.boxWidth = std::max(0.0f, settings.boxWidth);
-        options.boxHeight = std::max(0.0f, settings.boxHeight);
+        options.boxWidth = JBro::Max(0.0f, settings.boxWidth);
+        options.boxHeight = JBro::Max(0.0f, settings.boxHeight);
         options.overflow = settings.overflow;
         options.wrapMode = settings.wrapMode;
         options.alignX = settings.alignX;
@@ -238,7 +242,7 @@ namespace JBro
         m_textKeyRevision = TextStore::Get().GetRevision(settings.textKey);
         m_localizationRevision = LocalizationRevision(settings);
         m_fontCount = count;
-        for (std::uint32_t face = 0; face < count; ++face)
+        for (UInt32 face = 0; face < count; ++face)
         {
             m_fonts[face] = handles[face];
             m_fontGenerations[face] = views[face].dataGeneration;
@@ -253,18 +257,18 @@ namespace JBro
         m_hasBounds = false;
 
         const Text::FontFace* faces[MaxFaces] = {};
-        for (std::uint32_t face = 0; face < count; ++face)
+        for (UInt32 face = 0; face < count; ++face)
         {
             faces[face] = views[face].face;
         }
         const ArrayView<const Text::FontFace* const> faceView(faces, count);
         const ArrayView<const char> utf8 = ResolveText(settings);
         // 자동 크기는 상자가 있을 때만 뜻이 있다. 크기를 먼저 찾고, 그 크기로 레이아웃이 남는다.
-        const bool fitToBox = settings.autoSize && (options.boxWidth > 0.0f || options.boxHeight > 0.0f);
+        const Bool fitToBox = settings.autoSize && (options.boxWidth > 0.0f || options.boxHeight > 0.0f);
         Text::LayoutError built = Text::LayoutError::None;
         if (fitToBox)
         {
-            float chosen = layoutSize;
+            Float chosen = layoutSize;
             built = m_layout.BuildToFit(utf8, faceView, options, sizeOf(std::min(settings.minFontSize, settings.maxFontSize)),
                 sizeOf(std::max(settings.minFontSize, settings.maxFontSize)), sdf ? 0.0f : 1.0f, chosen);
             layoutSize = chosen;
@@ -294,17 +298,17 @@ namespace JBro
         return ArrayView<const GlyphQuad>(m_quads.Data(), m_quads.Size());
     }
 
-    AssetHandle TextBlock::GetFont(std::uint32_t face) const
+    AssetHandle TextBlock::GetFont(UInt32 face) const
     {
         return face < m_fontCount ? m_fonts[face] : AssetHandle{};
     }
 
-    std::uint32_t TextBlock::GetFontCount() const
+    UInt32 TextBlock::GetFontCount() const
     {
         return m_fontCount;
     }
 
-    float TextBlock::GetPixelsPerUnit() const
+    Float TextBlock::GetPixelsPerUnit() const
     {
         return m_pixelsPerUnit;
     }
@@ -314,22 +318,22 @@ namespace JBro
         return m_filter;
     }
 
-    bool TextBlock::IsSdf() const
+    Bool TextBlock::IsSdf() const
     {
         return m_sdf;
     }
 
-    std::uint32_t TextBlock::GetSdfSpread() const
+    UInt32 TextBlock::GetSdfSpread() const
     {
         return m_sdfSpread;
     }
 
-    float TextBlock::GetFittedSize() const
+    Float TextBlock::GetFittedSize() const
     {
         return m_fittedSize;
     }
 
-    bool TextBlock::GetBounds(float& minX, float& minY, float& maxX, float& maxY) const
+    Bool TextBlock::GetBounds(Float& minX, Float& minY, Float& maxX, Float& maxY) const
     {
         if (false == m_hasBounds)
         {

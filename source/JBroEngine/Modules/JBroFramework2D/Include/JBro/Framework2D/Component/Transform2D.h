@@ -3,6 +3,7 @@
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Component
 {
@@ -74,6 +75,6 @@ namespace JBro::Component
         // 인스펙터에는 도로 보인다 - 그것은 코덱이 할 일이다(D-248).
         JBRO_FIELD(Radian,    worldRotation, NoSerialize() | ReadOnly() | Category("World cache")) = 0.0f;
         JBRO_FIELD(Vector2,      worldScale,    NoSerialize() | ReadOnly() | Category("World cache")) { 1.0f, 1.0f };
-        JBRO_FIELD(bool,      worldValid,    NoSerialize() | ReadOnly() | Category("World cache")) = false;
+        JBRO_FIELD(Bool,      worldValid,    NoSerialize() | ReadOnly() | Category("World cache")) = false;
     };
 }

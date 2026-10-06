@@ -14,6 +14,8 @@
 #include <fstream>
 #include <string_view>
 #include <system_error>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 // Windows 의 파일 시스템이다(D-112). `fopen` 류는 UTF-8 경로를 ANSI 로 읽어 한글 폴더에서 조용히 실패하므로
 // 경로는 `filesystem::path` 의 UTF-8 생성자를 거쳐 와이드로 넘긴다.
@@ -48,7 +50,7 @@ namespace JBro
             return String(reinterpret_cast<const char*>(text.data()), text.size());
         }
 
-        bool Walk(const fs::path& root, const fs::path& directory, DirectoryVisitor visitor, void* user)
+        Bool Walk(const fs::path& root, const fs::path& directory, DirectoryVisitor visitor, void* user)
         {
             std::error_code errorCode;
             fs::directory_iterator iterator(directory, fs::directory_options::skip_permission_denied, errorCode);
@@ -84,7 +86,7 @@ namespace JBro
         }
     }
 
-    bool WindowsPlatform::ReadWholeFile(const char* utf8Path, Array<std::byte>& contents)
+    Bool WindowsPlatform::ReadWholeFile(const char* utf8Path, Array<std::byte>& contents)
     {
         std::ifstream file(ToPath(utf8Path), std::ios::binary | std::ios::ate);
         if (false == file.is_open())
@@ -138,7 +140,7 @@ namespace JBro
                 return total;
             }
 
-            bool Seek(std::int64_t offset, FileSeekOrigin origin) override
+            Bool Seek(Int64 offset, FileSeekOrigin origin) override
             {
                 LARGE_INTEGER distance;
                 distance.QuadPart = offset;
@@ -147,7 +149,7 @@ namespace JBro
                 return FALSE != SetFilePointerEx(m_file, distance, nullptr, method);
             }
 
-            std::int64_t Tell() const override
+            Int64 Tell() const override
             {
                 LARGE_INTEGER zero;
                 zero.QuadPart = 0;
@@ -159,7 +161,7 @@ namespace JBro
                 return position.QuadPart;
             }
 
-            std::int64_t GetSize() const override
+            Int64 GetSize() const override
             {
                 LARGE_INTEGER size;
                 return FALSE != GetFileSizeEx(m_file, &size) ? size.QuadPart : -1;
@@ -187,7 +189,7 @@ namespace JBro
         return OwnerPtr<IFileStream>(MakeOwnerPtr<WindowsFileStream>(file));
     }
 
-    bool WindowsPlatform::WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents)
+    Bool WindowsPlatform::WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents)
     {
         std::ofstream file(ToPath(utf8Path), std::ios::binary | std::ios::trunc);
         if (false == file.is_open())
@@ -201,7 +203,7 @@ namespace JBro
         return file.good();
     }
 
-    bool WindowsPlatform::MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path)
+    Bool WindowsPlatform::MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path)
     {
         const fs::path from = ToPath(fromUtf8Path);
         const fs::path to = ToPath(toUtf8Path);
@@ -212,7 +214,7 @@ namespace JBro
         return MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
     }
 
-    bool WindowsPlatform::CreateDirectoryAt(const char* utf8Path)
+    Bool WindowsPlatform::CreateDirectoryAt(const char* utf8Path)
     {
         const fs::path path = ToPath(utf8Path);
         if (path.empty())
@@ -226,7 +228,7 @@ namespace JBro
         return (false == static_cast<bool>(errorCode)) && fs::is_directory(path, errorCode);
     }
 
-    bool WindowsPlatform::DeleteFileAt(const char* utf8Path)
+    Bool WindowsPlatform::DeleteFileAt(const char* utf8Path)
     {
         const fs::path path = ToPath(utf8Path);
         std::error_code errorCode;
@@ -237,7 +239,7 @@ namespace JBro
         return fs::remove(path, errorCode) && (false == static_cast<bool>(errorCode));
     }
 
-    bool WindowsPlatform::DeleteDirectoryAt(const char* utf8Path)
+    Bool WindowsPlatform::DeleteDirectoryAt(const char* utf8Path)
     {
         const fs::path path = ToPath(utf8Path);
         std::error_code errorCode;
@@ -254,7 +256,7 @@ namespace JBro
         // **경로 길이를 정해 두지 않는다.** `MAX_PATH` 로 잘라 두면 깊은 폴더에 설치한 사람의
         // 에디터가 글자 표를 못 찾는다 - 모자라면 버퍼를 늘려 다시 묻는다.
         std::wstring buffer(512, L'\0');
-        for (int attempt = 0; attempt < 5; ++attempt)
+        for (Int32 attempt = 0; attempt < 5; ++attempt)
         {
             const DWORD written = GetModuleFileNameW(
                 nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
@@ -300,7 +302,7 @@ namespace JBro
         return ToUtf8(path);
     }
 
-    bool WindowsPlatform::GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const
+    Bool WindowsPlatform::GetFileWriteTime(const char* utf8Path, Int64& outUnixSeconds) const
     {
         outUnixSeconds = 0;
         const fs::path path = ToPath(utf8Path);
@@ -321,7 +323,7 @@ namespace JBro
         return true;
     }
 
-    bool WindowsPlatform::OpenPathWithShell(const char* utf8Path)
+    Bool WindowsPlatform::OpenPathWithShell(const char* utf8Path)
     {
         const fs::path path = ToPath(utf8Path);
         if (path.empty())
@@ -334,7 +336,7 @@ namespace JBro
         return reinterpret_cast<INT_PTR>(result) > 32;
     }
 
-    bool WindowsPlatform::RevealInFileBrowser(const char* utf8Path)
+    Bool WindowsPlatform::RevealInFileBrowser(const char* utf8Path)
     {
         const fs::path path = ToPath(utf8Path);
         std::error_code errorCode;
@@ -343,7 +345,7 @@ namespace JBro
             return false;
         }
         // 파일이면 그 파일을 고른 채로, 폴더면 그 폴더를 연다.
-        const bool isFile = fs::is_regular_file(path, errorCode);
+        const Bool isFile = fs::is_regular_file(path, errorCode);
         std::wstring parameters;
         if (isFile)
         {
@@ -363,19 +365,19 @@ namespace JBro
         return reinterpret_cast<INT_PTR>(result) > 32;
     }
 
-    bool WindowsPlatform::FileExists(const char* utf8Path) const
+    Bool WindowsPlatform::FileExists(const char* utf8Path) const
     {
         std::error_code errorCode;
         return fs::is_regular_file(ToPath(utf8Path), errorCode);
     }
 
-    bool WindowsPlatform::DirectoryExists(const char* utf8Path) const
+    Bool WindowsPlatform::DirectoryExists(const char* utf8Path) const
     {
         std::error_code errorCode;
         return fs::is_directory(ToPath(utf8Path), errorCode);
     }
 
-    bool WindowsPlatform::EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user)
+    Bool WindowsPlatform::EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user)
     {
         if (visitor == nullptr)
         {

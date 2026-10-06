@@ -5,6 +5,7 @@
 #include <JBro/Runtime/ScriptRegistry.h>
 
 #include <type_traits>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -41,7 +42,7 @@ namespace JBro
     // 2D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다. `GameScriptBase` 에서 바로 파생한 타입은 여기서
     // 컴파일이 실패한다 - 통과시키면 물리가 그 객체를 `GameScript2D` 로 불러 정의되지 않은 동작이 된다.
     template<typename T>
-    bool RegisterScriptType2D()
+    Bool RegisterScriptType2D()
     {
         static_assert(std::is_base_of_v<GameScript2D, T>,
             "a 2D script must derive from JBro::GameScript2D, not GameScriptBase");

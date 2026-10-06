@@ -5,6 +5,8 @@
 #include <exception>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/Ref.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -90,7 +92,7 @@ namespace JBro
         return type;
     }
 
-    bool NetworkHost::IsReplicating() const
+    Bool NetworkHost::IsReplicating() const
     {
         return nullptr != m_server.Get() || nullptr != m_client.Get();
     }
@@ -157,10 +159,10 @@ namespace JBro
         m_gameMessages.Clear();
         m_gameMessagesTaken = 0;
         Network::MessageView views[64];
-        std::uint32_t got = 0;
+        UInt32 got = 0;
         while ((got = m_transport.TakeMessages(views, 64)) > 0)
         {
-            for (std::uint32_t index = 0; index < got; ++index)
+            for (UInt32 index = 0; index < got; ++index)
             {
                 const Network::MessageView& view = views[index];
                 if (Network::IsReplicationMessage(view.messageId))
@@ -223,7 +225,7 @@ namespace JBro
         return m_serviceContext;
     }
 
-    bool NetworkHost::HasSockets() const
+    Bool NetworkHost::HasSockets() const
     {
         return nullptr != m_provider;
     }
@@ -233,7 +235,7 @@ namespace JBro
     // 켜는 두 자리는 예산을 잡는 자리이기도 하다(D-125). 컨테이너가 던지면 그것이 **스크립트 DLL 이 부른
     // 서비스 호출을 타고 경계를 넘는다** - 경계를 넘는 것은 POD 뿐이라는 규칙에 어긋나므로 여기서 멈춘다.
     // 게임에는 "켜지 못했다" 로 보이고, 반쯤 선 상태는 남기지 않는다.
-    bool NetworkHost::StartServer(std::uint16_t port)
+    Bool NetworkHost::StartServer(std::uint16_t port)
     {
         try
         {
@@ -251,7 +253,7 @@ namespace JBro
         }
     }
 
-    bool NetworkHost::Connect(const char* host, std::uint16_t port)
+    Bool NetworkHost::Connect(const char* host, std::uint16_t port)
     {
         try
         {
@@ -280,7 +282,7 @@ namespace JBro
         return m_transport.GetRole();
     }
 
-    bool NetworkHost::IsConnected() const
+    Bool NetworkHost::IsConnected() const
     {
         if (m_transport.GetRole() == Network::NetworkRole::Server)
         {
@@ -289,12 +291,12 @@ namespace JBro
         return m_transport.GetConnectionState(Network::ServerConnectionId) == Network::ConnectionState::Connected;
     }
 
-    std::uint32_t NetworkHost::GetConnectionCount() const
+    UInt32 NetworkHost::GetConnectionCount() const
     {
         return m_transport.GetConnectionCount();
     }
 
-    Network::ConnectionId NetworkHost::GetConnectionAt(std::uint32_t index) const
+    Network::ConnectionId NetworkHost::GetConnectionAt(UInt32 index) const
     {
         return m_transport.GetConnectionAt(index);
     }
@@ -309,7 +311,7 @@ namespace JBro
         return m_transport.GetUdpLossRate(connection);
     }
 
-    bool NetworkHost::Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, std::uint32_t size,
+    Bool NetworkHost::Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, UInt32 size,
         Network::NetChannel channel)
     {
         if (Network::IsReplicationMessage(messageId))
@@ -319,7 +321,7 @@ namespace JBro
         return m_transport.Send(connection, messageId, data, size, channel);
     }
 
-    bool NetworkHost::Broadcast(Network::MessageId messageId, const void* data, std::uint32_t size, Network::NetChannel channel)
+    Bool NetworkHost::Broadcast(Network::MessageId messageId, const void* data, UInt32 size, Network::NetChannel channel)
     {
         if (Network::IsReplicationMessage(messageId))
         {
@@ -328,9 +330,9 @@ namespace JBro
         return m_transport.Broadcast(messageId, data, size, channel);
     }
 
-    std::uint32_t NetworkHost::TakeEvents(Network::NetworkEvent* events, std::uint32_t capacity)
+    UInt32 NetworkHost::TakeEvents(Network::NetworkEvent* events, UInt32 capacity)
     {
-        std::uint32_t taken = m_transport.TakeEvents(events, capacity);
+        UInt32 taken = m_transport.TakeEvents(events, capacity);
         if (m_overflowPending && taken < capacity)
         {
             Network::NetworkEvent& event = events[taken++];
@@ -341,9 +343,9 @@ namespace JBro
         return taken;
     }
 
-    std::uint32_t NetworkHost::TakeMessages(Network::MessageView* messages, std::uint32_t capacity)
+    UInt32 NetworkHost::TakeMessages(Network::MessageView* messages, UInt32 capacity)
     {
-        std::uint32_t taken = 0;
+        UInt32 taken = 0;
         while (taken < capacity && m_gameMessagesTaken < m_gameMessages.Size())
         {
             messages[taken++] = m_gameMessages[m_gameMessagesTaken++];
@@ -369,7 +371,7 @@ namespace JBro
         return m_client->FindLocal(id);
     }
 
-    bool NetworkHost::HasAuthority(InstanceId object) const
+    Bool NetworkHost::HasAuthority(InstanceId object) const
     {
         (void)object;
         // 서버가 모든 권한을 갖는다. 소유 위임과 예측은 열어 둔 것이다(network-plan §3-7).
@@ -378,7 +380,7 @@ namespace JBro
 
     // ── IReplicationHost ────────────────────────────────────────────────────────────────────────
 
-    bool NetworkHost::DescribeObject(InstanceId object, Network::SpawnDesc& outDesc)
+    Bool NetworkHost::DescribeObject(InstanceId object, Network::SpawnDesc& outDesc)
     {
         (void)object;
         // 프리팹으로 만드는 길은 열어 둔 것이다. 지금은 빈 오브젝트를 만들고 어댑터가 상태를 입히며 컴포넌트를 붙인다.

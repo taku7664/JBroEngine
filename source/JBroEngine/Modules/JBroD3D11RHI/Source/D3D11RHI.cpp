@@ -3,10 +3,11 @@
 #include "D3D11Device.h"
 
 #include <new>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
-    bool D3D11RHIModule::Initialize(const JMemoryContext& memory)
+    Bool D3D11RHIModule::Initialize(const JMemoryContext& memory)
     {
         static_cast<void>(memory);
         if (m_initialized || m_activeDevice != nullptr)

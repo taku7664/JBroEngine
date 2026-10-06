@@ -3,10 +3,13 @@
 #include <imgui.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    bool EditorCommandManager::Execute(OwnerPtr<EditorCommand> command,
+    Bool EditorCommandManager::Execute(OwnerPtr<EditorCommand> command,
         const char* documentKey)
     {
         if (command.Get() == nullptr || false == command->Execute())
@@ -46,13 +49,13 @@ namespace JBro
         }
     }
 
-    bool EditorCommandManager::ContinuesDrag()
+    Bool EditorCommandManager::ContinuesDrag()
     {
         // ImGui 컨텍스트가 없으면(창 없는 테스트) 드래그도 없다. 커맨드마다 따로 쌓인다.
         ImGuiContext* context = ImGui::GetCurrentContext();
-        const bool mouseDown =
+        const Bool mouseDown =
             context != nullptr && ImGui::IsMouseDown(ImGuiMouseButton_Left);
-        const float downDuration = context != nullptr
+        const Float downDuration = context != nullptr
             ? ImGui::GetIO().MouseDownDuration[ImGuiMouseButton_Left]
             : -1.0f;
 
@@ -64,7 +67,7 @@ namespace JBro
         }
         m_lastMouseDownDuration = downDuration;
 
-        const bool continues = mouseDown && m_mergingDrag;
+        const Bool continues = mouseDown && m_mergingDrag;
         // 드래그 중 첫 커맨드면 다음 프레임부터 그것에 합친다.
         m_mergingDrag = mouseDown;
         return continues;
@@ -85,7 +88,7 @@ namespace JBro
         m_undo.Add(std::move(entry));
     }
 
-    bool EditorCommandManager::Undo()
+    Bool EditorCommandManager::Undo()
     {
         if (m_undo.IsEmpty())
         {
@@ -102,7 +105,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorCommandManager::Redo()
+    Bool EditorCommandManager::Redo()
     {
         if (m_redo.IsEmpty())
         {
@@ -129,12 +132,12 @@ namespace JBro
         m_savedCanvasRevision = 0;
     }
 
-    bool EditorCommandManager::CanUndo() const
+    Bool EditorCommandManager::CanUndo() const
     {
         return false == m_undo.IsEmpty();
     }
 
-    bool EditorCommandManager::CanRedo() const
+    Bool EditorCommandManager::CanRedo() const
     {
         return false == m_redo.IsEmpty();
     }
@@ -154,12 +157,12 @@ namespace JBro
         m_savedCanvasRevision = m_canvasRevision;
     }
 
-    bool EditorCommandManager::IsDirty() const
+    Bool EditorCommandManager::IsDirty() const
     {
         return m_canvasRevision != m_savedCanvasRevision;
     }
 
-    std::uint64_t EditorCommandManager::GetRevision() const
+    UInt64 EditorCommandManager::GetRevision() const
     {
         return m_revision;
     }
@@ -172,7 +175,7 @@ namespace JBro
         ++m_executeCount;
     }
 
-    bool EditorCommandManager::GetExecuted(std::uint64_t serial, ExecutedCommand& out) const noexcept
+    Bool EditorCommandManager::GetExecuted(UInt64 serial, ExecutedCommand& out) const noexcept
     {
         if (serial == 0 || serial > m_executeCount || m_executeCount - serial >= ExecutedHistory)
         {

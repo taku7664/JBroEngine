@@ -7,6 +7,8 @@
 
 #include <atomic>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 구현은 miniaudio 의 `ma_device`(WASAPI) 다(D-197). 플랫폼은 그것을 내어 줄 뿐이다 - 믹싱은 엔진의 `AudioMixer` 가 한다.
 namespace JBro
@@ -109,7 +111,7 @@ namespace JBro
             if (SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
                     reinterpret_cast<void**>(&enumerator))))
             {
-                const bool registered = SUCCEEDED(enumerator->RegisterEndpointNotificationCallback(&m_notifier));
+                const Bool registered = SUCCEEDED(enumerator->RegisterEndpointNotificationCallback(&m_notifier));
                 WaitForSingleObject(m_stop, INFINITE);
                 if (registered)
                 {
@@ -132,7 +134,7 @@ namespace JBro
         std::thread m_thread;
     };
 
-    bool WindowsPlatform::TakeAudioDevicesChanged()
+    Bool WindowsPlatform::TakeAudioDevicesChanged()
     {
         if (m_audioWatch.Get() == nullptr)
         {
@@ -147,7 +149,7 @@ namespace JBro
         return Internal::CreateMiniaudioOutput(desc);
     }
 
-    std::uint32_t WindowsPlatform::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    UInt32 WindowsPlatform::EnumerateAudioOutputs(AudioDeviceInfo* devices, UInt32 capacity)
     {
         return Internal::EnumerateMiniaudioOutputs(devices, capacity);
     }

@@ -4,6 +4,9 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 // 오디오의 값 타입이다(D-197). 스크립트가 보는 층(Tier S)이라 컴포넌트·서비스가 이것을 쓰고, 엔진의 믹서(`JBroAudio`)도
 // 같은 타입으로 말한다. **장치·믹서·miniaudio 는 여기 나타나지 않는다.**
@@ -14,10 +17,10 @@ namespace JBro
     // 스크립트에 나가지 않는다(D-197). 컴포넌트의 시스템 전용 필드가 든다.
     struct AudioVoiceHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
 
-        constexpr bool IsSet() const
+        constexpr Bool IsSet() const
         {
             return generation != 0;
         }
@@ -26,10 +29,10 @@ namespace JBro
     // 믹서에 등록된 클립 하나다. 에셋의 PCM·압축 바이트를 빌려 가리킨다.
     struct AudioClipHandle
     {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
+        UInt32 index = 0;
+        UInt32 generation = 0;
 
-        constexpr bool IsSet() const
+        constexpr Bool IsSet() const
         {
             return generation != 0;
         }
@@ -41,7 +44,7 @@ namespace JBro
     inline constexpr AudioBusId AudioEditorPreviewBus = 1;
     inline constexpr AudioBusId AudioFirstProjectBus = 2;
     // 버스는 사람이 손으로 관리하는 카테고리라 이 정도면 넉넉하다(기존 엔진 `MAX_AUDIO_BUSES` 16 + 예약 둘).
-    inline constexpr std::uint32_t AudioMaxBuses = 18;
+    inline constexpr UInt32 AudioMaxBuses = 18;
     // 센드가 없다는 표지다.
     inline constexpr AudioBusId AudioNoBus = 0xFF;
     // 예약 이름이다. 빈 이름도 Master 다.
@@ -67,43 +70,43 @@ namespace JBro
     struct AudioBusEffects
     {
         // 이 위의 소리를 깎는다(Hz). 0 이면 끈다. 800 쯤이면 벽 너머처럼 들린다.
-        float lowPassHz = 0.0f;
+        Float lowPassHz = 0.0f;
         // 이 아래의 소리를 깎는다(Hz). 0 이면 끈다. 라디오·전화 소리.
-        float highPassHz = 0.0f;
+        Float highPassHz = 0.0f;
         // 메아리의 간격(초, 0.01..2)·되먹임(0..0.95)·섞는 양(0..1, 0 이면 끔).
-        float echoDelay = 0.25f;
-        float echoFeedback = 0.35f;
-        float echoMix = 0.0f;
+        Float echoDelay = 0.25f;
+        Float echoFeedback = 0.35f;
+        Float echoMix = 0.0f;
         // 잔향의 방 크기(0..1)·고음 흡수(0..1)·섞는 양(0..1, 0 이면 끔).
-        float reverbRoom = 0.6f;
-        float reverbDamping = 0.5f;
-        float reverbMix = 0.0f;
+        Float reverbRoom = 0.6f;
+        Float reverbDamping = 0.5f;
+        Float reverbMix = 0.0f;
         // 필터를 거친 원음이 남는 양(0..1)이다. 메아리·잔향은 이것과 무관하게 더해진다. 센드를 받아 잔향만 내는 버스는 0 이다.
-        float dry = 1.0f;
+        Float dry = 1.0f;
 
         // ── D-210 에서 더한 칸들. 모두 기본값이면 꺼져 있다 ──
         // 3 대역 EQ(dB, -24..24, 0 이면 그 대역은 끔). 낮은 선반·가운데 봉우리·높은 선반이고 주파수는 Hz 다.
-        float eqLowHz = 200.0f;
-        float eqLowGain = 0.0f;
-        float eqMidHz = 1000.0f;
-        float eqMidGain = 0.0f;
-        float eqHighHz = 5000.0f;
-        float eqHighGain = 0.0f;
+        Float eqLowHz = 200.0f;
+        Float eqLowGain = 0.0f;
+        Float eqMidHz = 1000.0f;
+        Float eqMidGain = 0.0f;
+        Float eqHighHz = 5000.0f;
+        Float eqHighGain = 0.0f;
         // 디스토션: 세기(0..1, 0 이면 끔)와 섞는 양(0..1). 무전기·확성기·거친 기타.
-        float distortion = 0.0f;
-        float distortionMix = 1.0f;
+        Float distortion = 0.0f;
+        Float distortionMix = 1.0f;
         // 코러스: 섞는 양(0..1, 0 이면 끔)·흔드는 빠르기(Hz)·깊이(ms, 0..8). 소리를 두껍게, 물속처럼.
-        float chorusMix = 0.0f;
-        float chorusRate = 0.8f;
-        float chorusDepth = 3.0f;
+        Float chorusMix = 0.0f;
+        Float chorusRate = 0.8f;
+        Float chorusDepth = 3.0f;
         // 피치 시프트(반음, -12..12, 0 이면 끔). 빠르기는 그대로 두고 음높이만 옮긴다 - 괴물 목소리·다람쥐 목소리.
-        float pitchShift = 0.0f;
+        Float pitchShift = 0.0f;
         // 컴프레서: 비율(1 이면 끔, 1..20)·문턱(dB)·어택과 릴리스(초)·메이크업 게인(dB). 폭발음과 대사의 크기 차를 줄인다.
-        float compRatio = 1.0f;
-        float compThreshold = -18.0f;
-        float compAttack = 0.01f;
-        float compRelease = 0.15f;
-        float compMakeup = 0.0f;
+        Float compRatio = 1.0f;
+        Float compThreshold = -18.0f;
+        Float compAttack = 0.01f;
+        Float compRelease = 0.15f;
+        Float compMakeup = 0.0f;
 
         bool operator==(const AudioBusEffects& other) const = default;
     };

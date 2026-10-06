@@ -4,6 +4,7 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <cstdio>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -16,7 +17,7 @@ namespace JBro
         }
     }
 
-    bool GameObjectHandle::IsValid() const
+    Bool GameObjectHandle::IsValid() const
     {
         return Resolve() != nullptr;
     }
@@ -38,7 +39,7 @@ namespace JBro
         m_cached = {};
     }
 
-    void GameObjectHandle::SetActive(bool active)
+    void GameObjectHandle::SetActive(Bool active)
     {
         GameObject* object = Resolve();
         if (object == nullptr)
@@ -49,7 +50,7 @@ namespace JBro
         object->SetActive(active);
     }
 
-    bool GameObjectHandle::IsActive() const
+    Bool GameObjectHandle::IsActive() const
     {
         GameObject* object = Resolve();
         if (object == nullptr)

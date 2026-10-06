@@ -6,6 +6,8 @@
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -27,7 +29,7 @@ namespace JBro
         CreateLayerCommand(Canvas& canvas, const char* name);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -48,7 +50,7 @@ namespace JBro
         DeleteLayerCommand(Canvas& canvas, EditorObjectRegistry& registry, LayerId layer);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -60,18 +62,18 @@ namespace JBro
         LayerId m_layerId = InvalidLayerId;
         String m_name;
         std::size_t m_index = 0;
-        bool m_visible = true;
+        Bool m_visible = true;
         // 되살릴 때 화면 레이어였는지도 같이 뜬다(D-237).
         LayerSpace m_space = LayerSpace::World;
         ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
         // 블렌드와 불투명도도 같이 뜬다(D-279). 안 뜨면 되돌린 레이어가 보통 레이어로 돌아온다.
         LayerBlend m_blend = LayerBlend::Normal;
-        float m_opacity = 1.0f;
-        float m_parallax = 1.0f;
+        Float m_opacity = 1.0f;
+        Float m_parallax = 1.0f;
         // 원본 에셋 표시도 같이 뜬다(D-287) - 기존 엔진은 레이어 삭제를 되돌리면 이것을 잃었다.
         Uuid m_sourceAsset;
         Array<EditorObjectId> m_objects;
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 
     class MoveLayerCommand final : public EditorCommand
@@ -80,7 +82,7 @@ namespace JBro
         MoveLayerCommand(Canvas& canvas, LayerId layer, std::size_t newIndex);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -89,7 +91,7 @@ namespace JBro
         LayerId m_layerId = InvalidLayerId;
         std::size_t m_from = 0;
         std::size_t m_to = 0;
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 
     class RenameLayerCommand final : public EditorCommand
@@ -98,20 +100,20 @@ namespace JBro
         RenameLayerCommand(Canvas& canvas, LayerId layer, const char* name);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
         // 이름 칸에 타자를 치는 동안 프레임마다 커맨드가 생긴다. 같은 레이어면 합친다.
-        bool CanMerge(const EditorCommand& newer) const override;
-        bool TryMerge(const EditorCommand& newer) override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
 
     private:
         Canvas* m_canvas = nullptr;
         LayerId m_layerId = InvalidLayerId;
         String m_before;
         String m_after;
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 
     // **레이어의 공간과 맞춤 방식을 바꾼다**(D-237). 월드↔화면을 오가면 그 레이어 루트의 자리를 함께 옮긴다 - 화면에서 보이던 자리가 그대로 남게
@@ -123,20 +125,20 @@ namespace JBro
         struct RootMove
         {
             EditorObjectId object = 0;
-            float x = 0.0f;
-            float y = 0.0f;
+            Float x = 0.0f;
+            Float y = 0.0f;
         };
 
         SetLayerSpaceCommand(Canvas& canvas, EditorObjectRegistry& registry, LayerId layer, LayerSpace space, ScreenScaleMode scaleMode,
             const Array<RootMove>& moves);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
     private:
-        void Apply(bool after);
+        void Apply(Bool after);
 
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
@@ -147,7 +149,7 @@ namespace JBro
         ScreenScaleMode m_modeAfter = ScreenScaleMode::FixedHeight;
         Array<RootMove> m_after;
         Array<RootMove> m_before;
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 
     // **레이어의 블렌드와 불투명도를 바꾼다**(D-279). 인스펙터의 블렌드 칸과 불투명도 슬라이더가 낸다. 슬라이더를 끄는 동안
@@ -155,46 +157,46 @@ namespace JBro
     class SetLayerCompositeCommand final : public EditorCommand
     {
     public:
-        SetLayerCompositeCommand(Canvas& canvas, LayerId layer, LayerBlend blend, float opacity);
+        SetLayerCompositeCommand(Canvas& canvas, LayerId layer, LayerBlend blend, Float opacity);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
-        bool CanMerge(const EditorCommand& newer) const override;
-        bool TryMerge(const EditorCommand& newer) override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
 
     private:
-        void Apply(LayerBlend blend, float opacity);
+        void Apply(LayerBlend blend, Float opacity);
 
         Canvas* m_canvas = nullptr;
         LayerId m_layerId = InvalidLayerId;
         LayerBlend m_blendBefore = LayerBlend::Normal;
         LayerBlend m_blendAfter = LayerBlend::Normal;
-        float m_opacityBefore = 1.0f;
-        float m_opacityAfter = 1.0f;
-        bool m_captured = false;
+        Float m_opacityBefore = 1.0f;
+        Float m_opacityAfter = 1.0f;
+        Bool m_captured = false;
     };
 
     // **레이어의 패럴랙스 계수를 바꾼다**(D-286). 인스펙터의 끄는 칸이 낸다 - 같은 레이어끼리 합쳐 끌기 하나가 되돌리기 하나다.
     class SetLayerParallaxCommand final : public EditorCommand
     {
     public:
-        SetLayerParallaxCommand(Canvas& canvas, LayerId layer, float factor);
+        SetLayerParallaxCommand(Canvas& canvas, LayerId layer, Float factor);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
-        bool CanMerge(const EditorCommand& newer) const override;
-        bool TryMerge(const EditorCommand& newer) override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
 
     private:
         Canvas* m_canvas = nullptr;
         LayerId m_layerId = InvalidLayerId;
-        float m_before = 1.0f;
-        float m_after = 1.0f;
-        bool m_captured = false;
+        Float m_before = 1.0f;
+        Float m_after = 1.0f;
+        Bool m_captured = false;
     };
 
     // **레이어의 원본 에셋 표시를 바꾼다**(D-287). 레이어를 에셋으로 저장하면 그 레이어가 그 파일에서 온 것으로 표시된다 - 되돌리면 표시만 빠지고
@@ -205,7 +207,7 @@ namespace JBro
         SetLayerSourceAssetCommand(Canvas& canvas, LayerId layer, const Uuid& asset);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -214,7 +216,7 @@ namespace JBro
         LayerId m_layerId = InvalidLayerId;
         Uuid m_before;
         Uuid m_after;
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 
     // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣는다**(D-287, 기존 `CAddLayerFromAssetCommand`). 파일의 글자는 만들 때 떠 둔다 - 파일이 그 사이에
@@ -226,7 +228,7 @@ namespace JBro
         AddLayerFromAssetCommand(Canvas& canvas, EditorObjectRegistry& registry, const String& text, const Uuid& asset);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -243,34 +245,34 @@ namespace JBro
         LayerId m_layerId = InvalidLayerId;
         String m_error;
         // 처음 실행 뒤에 뜬다 - 레이어의 값(레이어 에셋 글자의 레이어 노드)과 자리, 뿌리 나무들.
-        bool m_captured = false;
+        Bool m_captured = false;
         std::size_t m_index = 0;
         String m_name;
-        bool m_visible = true;
+        Bool m_visible = true;
         LayerSpace m_space = LayerSpace::World;
         ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
         LayerBlend m_blend = LayerBlend::Normal;
-        float m_opacity = 1.0f;
-        float m_parallax = 1.0f;
+        Float m_opacity = 1.0f;
+        Float m_parallax = 1.0f;
         Array<ObjectTreeSnapshot> m_trees;
     };
 
     class SetLayerVisibleCommand final : public EditorCommand
     {
     public:
-        SetLayerVisibleCommand(Canvas& canvas, LayerId layer, bool visible);
+        SetLayerVisibleCommand(Canvas& canvas, LayerId layer, Bool visible);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
     private:
         Canvas* m_canvas = nullptr;
         LayerId m_layerId = InvalidLayerId;
-        bool m_before = true;
-        bool m_after = true;
-        bool m_captured = false;
+        Bool m_before = true;
+        Bool m_after = true;
+        Bool m_captured = false;
     };
 
     // 오브젝트를 다른 레이어로 옮긴다. **자식도 함께 간다** - 자식은 부모의 레이어를
@@ -285,7 +287,7 @@ namespace JBro
             LayerId layer);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -296,7 +298,7 @@ namespace JBro
             LayerId layer = InvalidLayerId;
         };
 
-        bool Apply(LayerId layer);
+        Bool Apply(LayerId layer);
 
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
@@ -304,6 +306,6 @@ namespace JBro
         LayerId m_after = InvalidLayerId;
         // 부분 트리의 오브젝트마다 원래 레이어. 되돌리면 저마다 제 레이어로 간다.
         Array<Placement> m_before;
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 }

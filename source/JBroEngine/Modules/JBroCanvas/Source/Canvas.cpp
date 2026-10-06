@@ -5,6 +5,8 @@
 
 #include <cassert>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -71,7 +73,7 @@ namespace JBro
         }
 
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
-        const bool reuse = preferredId != InvalidInstanceId
+        const Bool reuse = preferredId != InvalidInstanceId
             && registry.Resolve(preferredId, InvalidInstanceId, RefCategory::Object).Pointer == nullptr;
         const InstanceId instanceId = reuse ? preferredId : GenerateCanvasInstanceId();
         const InstanceHandle handle = registry.Register(
@@ -102,7 +104,7 @@ namespace JBro
         return object;
     }
 
-    bool Canvas::DestroyObject(GameObject* object)
+    Bool Canvas::DestroyObject(GameObject* object)
     {
         if (object == nullptr
             || object->m_canvas != this
@@ -126,7 +128,7 @@ namespace JBro
         return DestroyObjectNow(object);
     }
 
-    bool Canvas::DestroyObjectNow(GameObject* object)
+    Bool Canvas::DestroyObjectNow(GameObject* object)
     {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         if (registry.Resolve(object->m_handle, RefCategory::Object) != object)
@@ -188,7 +190,7 @@ namespace JBro
         return m_objects->GetLiveCount();
     }
 
-    bool Canvas::Clear()
+    Bool Canvas::Clear()
     {
         // **도는 중에는 비우지 않는다**(D-174). 지금 도는 배열을 그 자리에서 비우면
         // 바깥 순회가 죽은 자리를 읽는다(§8 과 같은 규칙).
@@ -272,7 +274,7 @@ namespace JBro
         }
     }
 
-    bool Canvas::FindRootIndex(const GameObject* object, std::size_t& index)
+    Bool Canvas::FindRootIndex(const GameObject* object, std::size_t& index)
     {
         if (object == nullptr || object->GetParent() != nullptr)
         {
@@ -291,7 +293,7 @@ namespace JBro
         return false;
     }
 
-    bool Canvas::SetRootIndex(GameObject* object, std::size_t index)
+    Bool Canvas::SetRootIndex(GameObject* object, std::size_t index)
     {
         std::size_t current = 0;
         if (false == FindRootIndex(object, current))
@@ -331,7 +333,7 @@ namespace JBro
         return result;
     }
 
-    bool Canvas::DestroyLayer(LayerId layer)
+    Bool Canvas::DestroyLayer(LayerId layer)
     {
         if (m_layers.Size() <= 1)
         {
@@ -388,7 +390,7 @@ namespace JBro
         return true;
     }
 
-    bool Canvas::MoveLayer(LayerId layer, std::size_t newIndex)
+    Bool Canvas::MoveLayer(LayerId layer, std::size_t newIndex)
     {
         const std::size_t index = m_layers.IndexOfBy(
             [layer](const OwnerPtr<Layer>& item)
@@ -407,7 +409,7 @@ namespace JBro
         return true;
     }
 
-    bool Canvas::SetObjectLayer(GameObject* object, LayerId layer)
+    Bool Canvas::SetObjectLayer(GameObject* object, LayerId layer)
     {
         if (object == nullptr || object->GetCanvas() != this)
         {
@@ -503,7 +505,7 @@ namespace JBro
         m_backgroundColor = color;
     }
 
-    bool Canvas::DestroyComponent(ComponentBase* component)
+    Bool Canvas::DestroyComponent(ComponentBase* component)
     {
         if (component == nullptr)
         {
@@ -529,7 +531,7 @@ namespace JBro
         return DestroyComponentNow(component);
     }
 
-    bool Canvas::DestroyComponentNow(ComponentBase* component)
+    Bool Canvas::DestroyComponentNow(ComponentBase* component)
     {
         GameObject* owner = component->GetOwnerObject();
         if (owner == nullptr || owner->GetCanvas() != this)
@@ -577,7 +579,7 @@ namespace JBro
         return (*scriptPool)->Destroy(static_cast<GameScriptBase*>(component));
     }
 
-    bool Canvas::RegisterComponentInstance(
+    Bool Canvas::RegisterComponentInstance(
         GameObject* owner,
         ComponentBase* component,
         RefCategory category)
@@ -597,7 +599,7 @@ namespace JBro
         return true;
     }
 
-    bool Canvas::UnregisterComponentInstance(ComponentBase* component)
+    Bool Canvas::UnregisterComponentInstance(ComponentBase* component)
     {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         if (false == registry.Unregister(component->GetHandle()))
@@ -633,7 +635,7 @@ namespace JBro
         MarkScriptOrderDirty();
     }
 
-    std::uint64_t Canvas::GetScriptOrderRevision() const
+    UInt64 Canvas::GetScriptOrderRevision() const
     {
         return m_scriptOrderRevision;
     }
@@ -652,7 +654,7 @@ namespace JBro
         canvas->MarkScriptOrderDirty();
     }
 
-    bool Canvas::IsIterating() const
+    Bool Canvas::IsIterating() const
     {
         return m_iterationDepth != 0;
     }
@@ -812,7 +814,7 @@ namespace JBro
         }
     }
 
-    bool Canvas::DestroyObjectFromHandle(Canvas* canvas, GameObject* object)
+    Bool Canvas::DestroyObjectFromHandle(Canvas* canvas, GameObject* object)
     {
         if (canvas == nullptr)
         {

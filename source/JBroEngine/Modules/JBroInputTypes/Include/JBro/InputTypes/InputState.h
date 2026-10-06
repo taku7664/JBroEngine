@@ -5,6 +5,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -16,7 +19,7 @@ namespace JBro
     inline constexpr std::size_t KeyCount = static_cast<std::size_t>(Key::Count);
     inline constexpr std::size_t MouseButtonCount = static_cast<std::size_t>(MouseButton::Count);
     // 한 프레임에 싣는 글자 수다. 넘치면 버린다 - 붙여넣기나 IME 가 한꺼번에 쏟아 내는 것을 막는다.
-    inline constexpr std::uint32_t MaxTextPerFrame = 32;
+    inline constexpr UInt32 MaxTextPerFrame = 32;
 
     // 키 하나·버튼 하나의 상태다.
     //
@@ -25,7 +28,7 @@ namespace JBro
     // 않는다 - 두 시점 모두 "안 눌림" 이기 때문이다. 수는 255 에서 멈춘다.
     struct ButtonState
     {
-        bool down = false;
+        Bool down = false;
         std::uint8_t pressCount = 0;
         std::uint8_t releaseCount = 0;
     };
@@ -36,10 +39,10 @@ namespace JBro
         // 이번 프레임의 마지막 키 이벤트가 알려 준 조합 키다.
         KeyModifiers modifiers = KeyModifierNone;
         // 이번 프레임에 들어온 글자(유니코드 코드포인트)를 들어온 순서대로 둔다. 키와 별개다(D-62).
-        std::uint32_t textLength = 0;
-        std::uint32_t text[MaxTextPerFrame] = {};
+        UInt32 textLength = 0;
+        UInt32 text[MaxTextPerFrame] = {};
 
-        bool IsDown(Key key) const
+        Bool IsDown(Key key) const
         {
             const std::size_t index = static_cast<std::size_t>(key);
             if (index >= KeyCount)
@@ -50,7 +53,7 @@ namespace JBro
         }
 
         // 이번 프레임에 한 번이라도 눌렀다. 자동 반복은 누름이 아니다.
-        bool IsPressed(Key key) const
+        Bool IsPressed(Key key) const
         {
             const std::size_t index = static_cast<std::size_t>(key);
             if (index >= KeyCount)
@@ -61,7 +64,7 @@ namespace JBro
         }
 
         // 이번 프레임에 한 번이라도 뗐다. 창이 포커스를 잃은 프레임에는 눌려 있던 것이 모두 뗀 것이다.
-        bool IsReleased(Key key) const
+        Bool IsReleased(Key key) const
         {
             const std::size_t index = static_cast<std::size_t>(key);
             if (index >= KeyCount)
@@ -71,13 +74,13 @@ namespace JBro
             return keys[index].releaseCount > 0;
         }
 
-        std::uint32_t GetTextLength() const
+        UInt32 GetTextLength() const
         {
             return textLength;
         }
 
         // 범위를 벗어나면 0 이다.
-        std::uint32_t GetText(std::uint32_t index) const
+        UInt32 GetText(UInt32 index) const
         {
             if (index >= textLength || index >= MaxTextPerFrame)
             {
@@ -92,18 +95,18 @@ namespace JBro
         ButtonState buttons[MouseButtonCount] = {};
         // 위치를 한 번이라도 받았는가. 받기 전의 (0, 0) 은 위치가 아니다.
         // 막힌 장치(`InputView::Consume`)도 거짓이다 - 아래 핸들러가 구석을 가리킨다고 믿으면 안 된다.
-        bool hasPosition = false;
+        Bool hasPosition = false;
         // 게임 화면 픽셀이다. 에디터의 게임 뷰처럼 창 안의 일부에 그려질 때는 그 사각형을 벗겨 낸 값이다.
-        float x = 0.0f;
-        float y = 0.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
         // 이번 프레임의 이동 합이다.
-        float deltaX = 0.0f;
-        float deltaY = 0.0f;
+        Float deltaX = 0.0f;
+        Float deltaY = 0.0f;
         // 이번 프레임의 휠 칸 수 합이다. 세로는 위로 굴리면 양수다.
-        float wheelX = 0.0f;
-        float wheelY = 0.0f;
+        Float wheelX = 0.0f;
+        Float wheelY = 0.0f;
 
-        bool IsDown(MouseButton button) const
+        Bool IsDown(MouseButton button) const
         {
             const std::size_t index = static_cast<std::size_t>(button);
             if (index >= MouseButtonCount)
@@ -113,7 +116,7 @@ namespace JBro
             return buttons[index].down;
         }
 
-        bool IsPressed(MouseButton button) const
+        Bool IsPressed(MouseButton button) const
         {
             const std::size_t index = static_cast<std::size_t>(button);
             if (index >= MouseButtonCount)
@@ -123,7 +126,7 @@ namespace JBro
             return buttons[index].pressCount > 0;
         }
 
-        bool IsReleased(MouseButton button) const
+        Bool IsReleased(MouseButton button) const
         {
             const std::size_t index = static_cast<std::size_t>(button);
             if (index >= MouseButtonCount)
@@ -141,12 +144,12 @@ namespace JBro
 
     struct GamepadState
     {
-        bool connected = false;
+        Bool connected = false;
         ButtonState buttons[GamepadButtonCount] = {};
         // 데드존을 지난 값이다. 스틱은 -1..1(위가 +), 트리거는 0..1.
-        float axes[GamepadAxisCount] = {};
+        Float axes[GamepadAxisCount] = {};
 
-        bool IsDown(GamepadButton button) const
+        Bool IsDown(GamepadButton button) const
         {
             const std::size_t index = static_cast<std::size_t>(button);
             if (index >= GamepadButtonCount)
@@ -156,7 +159,7 @@ namespace JBro
             return buttons[index].down;
         }
 
-        bool IsPressed(GamepadButton button) const
+        Bool IsPressed(GamepadButton button) const
         {
             const std::size_t index = static_cast<std::size_t>(button);
             if (index >= GamepadButtonCount)
@@ -166,7 +169,7 @@ namespace JBro
             return buttons[index].pressCount > 0;
         }
 
-        bool IsReleased(GamepadButton button) const
+        Bool IsReleased(GamepadButton button) const
         {
             const std::size_t index = static_cast<std::size_t>(button);
             if (index >= GamepadButtonCount)
@@ -176,7 +179,7 @@ namespace JBro
             return buttons[index].releaseCount > 0;
         }
 
-        float GetAxis(GamepadAxis axis) const
+        Float GetAxis(GamepadAxis axis) const
         {
             const std::size_t index = static_cast<std::size_t>(axis);
             if (index >= GamepadAxisCount)
@@ -203,27 +206,27 @@ namespace JBro
     struct TouchPoint
     {
         // 플랫폼이 준 포인터 번호다. 손가락이 닿아 있는 동안 같다.
-        std::uint32_t id = 0;
+        UInt32 id = 0;
         // 게임 화면 픽셀이다(마우스와 같은 매핑).
-        float x = 0.0f;
-        float y = 0.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
         TouchPhase phase = TouchPhase::Ended;
 
-        bool IsActive() const
+        Bool IsActive() const
         {
             return phase == TouchPhase::Began || phase == TouchPhase::Moved || phase == TouchPhase::Stationary;
         }
     };
 
-    inline constexpr std::uint32_t MaxTouches = 10;
+    inline constexpr UInt32 MaxTouches = 10;
 
     struct TouchState
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         TouchPoint points[MaxTouches] = {};
 
         // 범위를 벗어나면 뗀 빈 점이다.
-        const TouchPoint& Get(std::uint32_t index) const
+        const TouchPoint& Get(UInt32 index) const
         {
             static constexpr TouchPoint none{};
             if (index >= count || index >= MaxTouches)

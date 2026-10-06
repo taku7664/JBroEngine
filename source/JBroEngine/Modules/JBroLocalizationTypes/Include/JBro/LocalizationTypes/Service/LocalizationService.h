@@ -3,6 +3,8 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -16,16 +18,16 @@ namespace JBro::Service
     class LocalizationService
     {
     public:
-        bool IsReady() const;
+        Bool IsReady() const;
 
         // 로케일을 바꾼다. 화면의 `textKey` 텍스트는 다음 그리기에 새 로케일로 바뀐다. 빈 이름은 거짓이다.
-        bool SetLocale(const char* locale) const;
+        Bool SetLocale(const char* locale) const;
         String GetLocale() const;
         // 키의 글자다. 지금 로케일에도 폴백 로케일에도 없으면 키 그대로다 - 빠진 번역이 화면에서 보인다.
         String GetText(const char* key) const;
         // 찾으면 참이고 `out` 에 글자다. 없으면 거짓이고 `out` 은 빈다.
-        bool TryGetText(const char* key, String& out) const;
+        Bool TryGetText(const char* key, String& out) const;
         // 찾는 결과가 바뀔 때마다 오른다. 조립한 글자를 들고 있는 스크립트가 다시 만들지 이것으로 정한다. 호스트가 없으면 0 이다.
-        std::uint32_t GetRevision() const;
+        UInt32 GetRevision() const;
     };
 }

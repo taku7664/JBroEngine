@@ -2,21 +2,22 @@
 #include <stdlib.h>
 
 #include <iostream>
+#include <JBro/Types/Int.h>
 
-int RunWebSocketProtocolTests();
-int RunMemorySocketTests();
-int RunTransportTests();
-int RunSessionTests();
-int RunReliableUdpTests();
-int RunReplicationTests();
-int RunPeerTests();
-int RunWinsockLoopbackTests();
+JBro::Int32 RunWebSocketProtocolTests();
+JBro::Int32 RunMemorySocketTests();
+JBro::Int32 RunTransportTests();
+JBro::Int32 RunSessionTests();
+JBro::Int32 RunReliableUdpTests();
+JBro::Int32 RunReplicationTests();
+JBro::Int32 RunPeerTests();
+JBro::Int32 RunWinsockLoopbackTests();
 
 int main()
 {
     // 단언이 대화상자를 띄우면 사람 없이 도는 자리에서 영원히 멈춘다. 엔진 테스트와 같은 처리다.
     _set_error_mode(_OUT_TO_STDERR);
-    for (int report : { _CRT_WARN, _CRT_ERROR, _CRT_ASSERT })
+    for (JBro::Int32 report : { _CRT_WARN, _CRT_ERROR, _CRT_ASSERT })
     {
         _CrtSetReportMode(report, _CRTDBG_MODE_FILE);
         _CrtSetReportFile(report, _CRTDBG_FILE_STDERR);

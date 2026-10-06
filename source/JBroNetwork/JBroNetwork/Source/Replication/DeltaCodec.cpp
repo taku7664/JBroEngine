@@ -3,12 +3,14 @@
 #include <JBro/Network/Internal/UdpDatagram.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network::DeltaCodec
 {
     namespace
     {
-        constexpr std::uint64_t EndKey = ~static_cast<std::uint64_t>(0);
+        constexpr UInt64 EndKey = ~static_cast<std::uint64_t>(0);
 
         void WriteHeader(std::uint8_t* out, const DeltaHeader& header)
         {
@@ -18,7 +20,7 @@ namespace JBro::Network::DeltaCodec
             UdpProto::WriteU16(out + 10, header.removedCount);
         }
 
-        bool SameBytes(const Snapshot& a, const SnapshotEntry& ea, const Snapshot& b, const SnapshotEntry& eb)
+        Bool SameBytes(const Snapshot& a, const SnapshotEntry& ea, const Snapshot& b, const SnapshotEntry& eb)
         {
             if (ea.size != eb.size)
             {
@@ -28,7 +30,7 @@ namespace JBro::Network::DeltaCodec
         }
     }
 
-    bool ReadHeader(const std::uint8_t* data, std::uint32_t size, DeltaHeader& outHeader)
+    Bool ReadHeader(const std::uint8_t* data, UInt32 size, DeltaHeader& outHeader)
     {
         if (size < HeaderBytes)
         {
@@ -41,8 +43,8 @@ namespace JBro::Network::DeltaCodec
         return true;
     }
 
-    std::uint32_t Encode(const Snapshot* baseline, const Snapshot& current, std::uint8_t* out, std::uint32_t capacity,
-        Removal* removalScratch, std::uint32_t removalCapacity)
+    UInt32 Encode(const Snapshot* baseline, const Snapshot& current, std::uint8_t* out, UInt32 capacity,
+        Removal* removalScratch, UInt32 removalCapacity)
     {
         if (capacity < HeaderBytes)
         {
@@ -51,17 +53,17 @@ namespace JBro::Network::DeltaCodec
         DeltaHeader header;
         header.tick = current.Tick();
         header.baselineTick = (nullptr != baseline && baseline->IsValid()) ? baseline->Tick() : NoBaselineTick;
-        std::uint32_t written = HeaderBytes;
-        std::uint32_t removed = 0;
-        std::uint32_t changed = 0;
+        UInt32 written = HeaderBytes;
+        UInt32 removed = 0;
+        UInt32 changed = 0;
 
-        const std::uint32_t baseCount = (nullptr != baseline && baseline->IsValid()) ? baseline->EntryCount() : 0;
-        std::uint32_t b = 0;
-        std::uint32_t c = 0;
+        const UInt32 baseCount = (nullptr != baseline && baseline->IsValid()) ? baseline->EntryCount() : UInt32(0);
+        UInt32 b = 0;
+        UInt32 c = 0;
         while (b < baseCount || c < current.EntryCount())
         {
-            const std::uint64_t keyBase = b < baseCount ? SnapshotKey(baseline->EntryAt(b)) : EndKey;
-            const std::uint64_t keyCurrent = c < current.EntryCount() ? SnapshotKey(current.EntryAt(c)) : EndKey;
+            const UInt64 keyBase = b < baseCount ? SnapshotKey(baseline->EntryAt(b)) : EndKey;
+            const UInt64 keyCurrent = c < current.EntryCount() ? SnapshotKey(current.EntryAt(c)) : EndKey;
             if (keyBase < keyCurrent)
             {
                 // 기준에는 있고 지금은 없다 - 떨어진 컴포넌트다.
@@ -76,7 +78,7 @@ namespace JBro::Network::DeltaCodec
                 continue;
             }
             const SnapshotEntry& entry = current.EntryAt(c);
-            bool write = true;
+            Bool write = true;
             if (keyBase == keyCurrent)
             {
                 write = false == SameBytes(*baseline, baseline->EntryAt(b), current, entry);
@@ -101,7 +103,7 @@ namespace JBro::Network::DeltaCodec
         {
             return 0;
         }
-        for (std::uint32_t index = 0; index < removed; ++index)
+        for (UInt32 index = 0; index < removed; ++index)
         {
             UdpProto::WriteU32(out + written, removalScratch[index].object);
             out[written + 4] = removalScratch[index].type;
@@ -113,16 +115,16 @@ namespace JBro::Network::DeltaCodec
         return written;
     }
 
-    bool Decode(const std::uint8_t* data, std::uint32_t size, const std::uint32_t* typeSizes, std::uint8_t typeCount,
-        const Snapshot* baseline, Snapshot& out, DeltaHeader& outHeader, Removal* removals, std::uint32_t removalCapacity,
-        std::uint32_t& outRemovalCount, const std::uint8_t** changedScratch, std::uint32_t changedCapacity)
+    Bool Decode(const std::uint8_t* data, UInt32 size, const UInt32* typeSizes, std::uint8_t typeCount,
+        const Snapshot* baseline, Snapshot& out, DeltaHeader& outHeader, Removal* removals, UInt32 removalCapacity,
+        UInt32& outRemovalCount, const std::uint8_t** changedScratch, UInt32 changedCapacity)
     {
         outRemovalCount = 0;
         if (false == ReadHeader(data, size, outHeader))
         {
             return false;
         }
-        const bool full = outHeader.baselineTick == NoBaselineTick;
+        const Bool full = outHeader.baselineTick == NoBaselineTick;
         if (false == full && (nullptr == baseline || false == baseline->IsValid() || baseline->Tick() != outHeader.baselineTick))
         {
             return false;
@@ -132,8 +134,8 @@ namespace JBro::Network::DeltaCodec
             return false;
         }
         // 1) changed 항목의 위치를 걷는다. 크기는 타입이 정한다.
-        std::uint32_t offset = HeaderBytes;
-        for (std::uint32_t index = 0; index < outHeader.changedCount; ++index)
+        UInt32 offset = HeaderBytes;
+        for (UInt32 index = 0; index < outHeader.changedCount; ++index)
         {
             if (size - offset < ChangedEntryHeaderBytes)
             {
@@ -144,7 +146,7 @@ namespace JBro::Network::DeltaCodec
             {
                 return false;
             }
-            const std::uint32_t entrySize = typeSizes[type];
+            const UInt32 entrySize = typeSizes[type];
             if (size - offset < ChangedEntryHeaderBytes + entrySize)
             {
                 return false;
@@ -157,7 +159,7 @@ namespace JBro::Network::DeltaCodec
         {
             return false;
         }
-        for (std::uint32_t index = 0; index < outHeader.removedCount; ++index)
+        for (UInt32 index = 0; index < outHeader.removedCount; ++index)
         {
             removals[index].object = UdpProto::ReadU32(data + offset);
             removals[index].type = data[offset + 4];
@@ -166,14 +168,14 @@ namespace JBro::Network::DeltaCodec
         outRemovalCount = outHeader.removedCount;
 
         // 3) 기준 ∪ changed − removed 를 키 오름차순으로 합친다. changed 가 기준을 덮는다.
-        const std::uint32_t baseCount = full ? 0 : baseline->EntryCount();
-        std::uint32_t b = 0;
-        std::uint32_t c = 0;
-        std::uint32_t r = 0;
+        const UInt32 baseCount = full ? UInt32(0) : baseline->EntryCount();
+        UInt32 b = 0;
+        UInt32 c = 0;
+        UInt32 r = 0;
         while (b < baseCount || c < outHeader.changedCount)
         {
-            const std::uint64_t keyBase = b < baseCount ? SnapshotKey(baseline->EntryAt(b)) : EndKey;
-            std::uint64_t keyChanged = EndKey;
+            const UInt64 keyBase = b < baseCount ? SnapshotKey(baseline->EntryAt(b)) : EndKey;
+            UInt64 keyChanged = EndKey;
             if (c < outHeader.changedCount)
             {
                 keyChanged = SnapshotKey(UdpProto::ReadU32(changedScratch[c]), changedScratch[c][4]);
@@ -197,7 +199,7 @@ namespace JBro::Network::DeltaCodec
             {
                 ++r;
             }
-            const bool removed = r < outRemovalCount && SnapshotKey(removals[r].object, removals[r].type) == keyBase;
+            const Bool removed = r < outRemovalCount && SnapshotKey(removals[r].object, removals[r].type) == keyBase;
             if (false == removed)
             {
                 const SnapshotEntry& entry = baseline->EntryAt(b);

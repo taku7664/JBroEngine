@@ -7,12 +7,15 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
     namespace fs = std::filesystem;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -33,7 +36,7 @@ namespace
         JBro::Array<JBro::String> directories;
     };
 
-    bool Visit(const char* relative, bool isDirectory, void* user)
+    JBro::Bool Visit(const char* relative, JBro::Bool isDirectory, void* user)
     {
         Seen& seen = *static_cast<Seen*>(user);
         if (isDirectory)
@@ -46,7 +49,7 @@ namespace
         return true;
     }
 
-    bool Has(const JBro::Array<JBro::String>& list, const char* value)
+    JBro::Bool Has(const JBro::Array<JBro::String>& list, const char* value)
     {
         for (std::size_t index = 0; index < list.Size(); ++index)
         {
@@ -63,7 +66,7 @@ namespace
     {
         JBro::Array<JBro::FileEvent> events;
 
-        bool Has(JBro::FileEventKind kind, const char* path, const char* oldPath) const
+        JBro::Bool Has(JBro::FileEventKind kind, const char* path, const char* oldPath) const
         {
             for (std::size_t at = 0; at < events.Size(); ++at)
             {
@@ -78,14 +81,14 @@ namespace
     };
 
     // 지정한 종류와 경로가 올 때까지 꺼내 모은다. OS 알림은 비동기라 잠깐 기다린다.
-    bool WaitForEvent(JBro::WindowsPlatform& platform, EventLog& log, JBro::FileEventKind kind, const char* path,
+    JBro::Bool WaitForEvent(JBro::WindowsPlatform& platform, EventLog& log, JBro::FileEventKind kind, const char* path,
         const char* oldPath = nullptr)
     {
         JBro::FileEvent events[32];
-        for (int attempt = 0; attempt < 300; ++attempt)
+        for (JBro::Int32 attempt = 0; attempt < 300; ++attempt)
         {
-            const std::uint32_t taken = platform.TakeFileEvents(events, 32);
-            for (std::uint32_t at = 0; at < taken; ++at)
+            const JBro::UInt32 taken = platform.TakeFileEvents(events, 32);
+            for (JBro::UInt32 at = 0; at < taken; ++at)
             {
                 log.events.Add(events[at]);
             }
@@ -216,7 +219,7 @@ namespace
     }
 }
 
-int RunPlatformFileTests()
+JBro::Int32 RunPlatformFileTests()
 {
     TestTheWindowsFileSystemRoundTrips();
     TestTheWindowsFileWatcherReportsChanges();

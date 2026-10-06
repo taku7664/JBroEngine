@@ -9,6 +9,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Package
 {
@@ -20,15 +22,15 @@ namespace JBro::Package
     class PackageReader final
     {
     public:
-        bool Open(IPlatform& platform, const char* utf8Path, String& error);
+        Bool Open(IPlatform& platform, const char* utf8Path, String& error);
         void Close();
-        bool IsOpen() const;
+        Bool IsOpen() const;
 
-        std::uint32_t GetEntryCount() const;
-        const Entry& GetEntry(std::uint32_t index) const;
+        UInt32 GetEntryCount() const;
+        const Entry& GetEntry(UInt32 index) const;
         const Entry* Find(AssetId id, BlobKind kind) const;
         // 블롭을 풀어 `out` 에 둔다. 해시가 틀리거나 파일을 읽지 못하면 거짓이고 `out` 은 빈다.
-        bool ReadBlob(const Entry& entry, Array<std::byte>& out) const;
+        Bool ReadBlob(const Entry& entry, Array<std::byte>& out) const;
         // 블롭 하나만 보이는 스트림이다(자기 파일 핸들). 범위 밖은 읽지 않는다. 해시는 보지 않는다 - 흘려 읽는 쪽(디스크 스트리밍 오디오)이 쓴다.
         // 어느 스레드에서 열어도 되고, 연 스레드만 쓴다.
         OwnerPtr<IFileStream> OpenBlobStream(const Entry& entry) const;
@@ -38,9 +40,9 @@ namespace JBro::Package
         IPlatform* m_platform = nullptr;
         String m_path;
         OwnerPtr<IFileStream> m_file;
-        std::uint64_t m_key = 0;
+        UInt64 m_key = 0;
         Array<Entry> m_entries;
         // 에셋마다 첫 블롭의 번호다. 색인은 (id, kind) 차례라 한 에셋의 블롭이 이어진다.
-        Table<AssetId, std::uint32_t> m_firstById;
+        Table<AssetId, UInt32> m_firstById;
     };
 }

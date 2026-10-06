@@ -3,6 +3,8 @@
 #include <JBro/Core/Core.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -15,9 +17,9 @@ namespace JBro
         InstanceId Generate();            // 실질 비용은 ++m_sequence
 
     private:
-        std::uint64_t m_cachedMs = 0;
-        std::uint32_t m_session  = 0;     // 프로세스 시작 시 1회 난수
-        std::uint32_t m_sequence = 0;
-        bool          m_sessionInitialized = false;
+        UInt64 m_cachedMs = 0;
+        UInt32 m_session  = 0;     // 프로세스 시작 시 1회 난수
+        UInt32 m_sequence = 0;
+        Bool          m_sessionInitialized = false;
     };
 }

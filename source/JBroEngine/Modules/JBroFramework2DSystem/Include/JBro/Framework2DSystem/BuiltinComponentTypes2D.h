@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Types/Bool.h>
+
 namespace JBro::Component
 {
     // 2D 빌트인 컴포넌트를 이름으로 붙일 수 있게 `ComponentRegistry` 에 넣는다.
@@ -9,5 +11,5 @@ namespace JBro::Component
     // 그것은 Tier E 다(D-42). 그래서 그 둘을 다 보는 이 모듈에 있다.
     //
     // 두 번 불러도 된다. 프레임 루프에서 부르는 함수가 아니다.
-    bool RegisterBuiltinComponentTypes2D();
+    Bool RegisterBuiltinComponentTypes2D();
 }

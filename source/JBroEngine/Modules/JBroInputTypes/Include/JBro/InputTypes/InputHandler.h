@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -53,13 +54,13 @@ namespace JBro
     // **등록하지 않는다.** 엔진이 스크립트 타입에서 이 믹스인을 컴파일 타임에 알아보고 체인에 세운다.
     // 레이어 순서는 프로젝트가 정하고(위가 먼저), 같은 레이어에서는 `Order` 가 큰 것이 먼저다.
     // 없는 레이어 이름은 맨 아래로 가고 한 번 경고가 남는다.
-    template<InputLayerName Layer = InputLayerName("Game"), int Order = 0>
+    template<InputLayerName Layer = InputLayerName("Game"), Int32 Order = 0>
     class InputHandler : public IInputHandler
     {
     public:
         static constexpr const char* InputLayerText = Layer.value;
         static constexpr NameId InputLayerId = MakeNameId(Layer.value);
-        static constexpr std::int32_t InputOrder = Order;
+        static constexpr Int32 InputOrder = Order;
 
     protected:
         ~InputHandler() = default;

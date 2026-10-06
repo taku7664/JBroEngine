@@ -15,6 +15,10 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 텍스트 커널 1 단계(D-200, text-plan §5)의 테스트다. 기대값은 fontTools 로 시험 폰트를 따로 읽어 뽑았다
 // (Tests/Data/Fonts/README.md). 레이아웃은 fontSize 1000 으로 돌려 픽셀이 곧 폰트 단위가 되게 한다 - 숫자를 그대로 대조한다.
@@ -23,7 +27,7 @@ namespace
     using namespace JBro;
     using namespace JBro::Text;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -32,7 +36,7 @@ namespace
         }
     }
 
-    bool Near(float actual, float expected)
+    JBro::Bool Near(JBro::Float actual, JBro::Float expected)
     {
         return std::fabs(actual - expected) <= 0.01f;
     }
@@ -45,7 +49,7 @@ namespace
     FontFace LoadTestFont()
     {
         FontFace face;
-        const bool loaded = face.Load(ArrayView<const std::byte>(
+        const JBro::Bool loaded = face.Load(ArrayView<const std::byte>(
             reinterpret_cast<const std::byte*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR)));
         Check(loaded, "the test font loads");
         return face;
@@ -60,7 +64,7 @@ namespace
     }
 
     // 줄마다 글리프 수를 모아 기대와 비교한다.
-    bool LineCounts(const TextLayout& layout, std::initializer_list<std::uint32_t> expected)
+    JBro::Bool LineCounts(const TextLayout& layout, std::initializer_list<JBro::UInt32> expected)
     {
         const ArrayView<const LineInfo> lines = layout.GetLines();
         if (lines.Size() != expected.size())
@@ -68,7 +72,7 @@ namespace
             return false;
         }
         std::size_t index = 0;
-        for (const std::uint32_t count : expected)
+        for (const JBro::UInt32 count : expected)
         {
             if (lines[index].glyphCount != count)
             {
@@ -190,12 +194,12 @@ namespace
         Check(widened.GetKerning(widened.FindGlyph(U'A'), widened.FindGlyph(U'V')) == -15
                 && widened.GetKerning(widened.FindGlyph(U'T'), widened.FindGlyph(U'o')) == -74,
             "kerning behind an X placement is read");
-        std::uint32_t kerned = 0;
+        JBro::UInt32 kerned = 0;
         for (char32_t left = 0x21; left <= 0x7E; ++left)
         {
             for (char32_t right = 0x21; right <= 0x7E; ++right)
             {
-                const std::int32_t expected = original.GetKerning(original.FindGlyph(left), original.FindGlyph(right));
+                const JBro::Int32 expected = original.GetKerning(original.FindGlyph(left), original.FindGlyph(right));
                 kerned += expected != 0 ? 1u : 0u;
                 if (extension.GetKerning(extension.FindGlyph(left), extension.FindGlyph(right)) != expected
                     || widened.GetKerning(widened.FindGlyph(left), widened.FindGlyph(right)) != expected)
@@ -223,8 +227,8 @@ namespace
             "the extension-wrapped mark font loads");
         const GlyphIndex acute = marks.FindGlyph(U'\u0301');
         Check(acute != MissingGlyph && marks.GetAdvance(acute) == 0, "the combining acute is in the font and has no advance");
-        std::int32_t dx = 0;
-        std::int32_t dy = 0;
+        JBro::Int32 dx = 0;
+        JBro::Int32 dy = 0;
         Check(marks.GetMarkAttachment(marks.FindGlyph(U'A'), acute, dx, dy) && dx == 504 && dy == 200,
             "the acute sits on A at the anchor difference");
         Check(marks.GetMarkAttachment(marks.FindGlyph(U'e'), acute, dx, dy) && dx == 477 && dy == 200,
@@ -241,8 +245,8 @@ namespace
         const LayoutOptions options = Unscaled();
         // AV 는 커닝 쌍이다(-15). 표시가 끼어도 V 는 A 와 커닝한다.
         Check(layout.Build(Utf8("AV"), faces, options) == LayoutError::None, "AV lays out");
-        const float bAfterA = layout.GetGlyphs()[1].x;
-        const float plainWidth = layout.GetLines()[0].width;
+        const JBro::Float bAfterA = layout.GetGlyphs()[1].x;
+        const JBro::Float plainWidth = layout.GetLines()[0].width;
         Check(Near(bAfterA, 608.0f - 15.0f), "the subset keeps the A-V kerning");
         Check(layout.Build(Utf8("A\xCC\x81" "V"), faces, options) == LayoutError::None, "A + acute + V lays out");
         Check(layout.GetGlyphs().Size() == 3 && layout.GetGlyphs()[1].glyph == acute, "the mark is its own glyph");
@@ -259,7 +263,7 @@ namespace
 
         // 앵커가 없는 받침에서는 받침의 끝이다. 표시가 둘이면 같은 받침에 붙는다(mark-to-mark 는 읽지 않는다).
         Check(layout.Build(Utf8("B\xCC\x81\xCC\x81"), faces, options) == LayoutError::None, "B + two acutes lays out");
-        const float bAdvance = static_cast<float>(marks.GetAdvance(marks.FindGlyph(U'B')));
+        const JBro::Float bAdvance = static_cast<float>(marks.GetAdvance(marks.FindGlyph(U'B')));
         Check(layout.GetGlyphs().Size() == 3 && Near(layout.GetGlyphs()[1].x, bAdvance) && Near(layout.GetGlyphs()[1].y, layout.GetGlyphs()[0].y),
             "without an anchor the mark stands at the end of its base");
         Check(Near(layout.GetGlyphs()[2].x, bAdvance), "a second mark attaches to the same base");
@@ -487,7 +491,7 @@ namespace
         // 자동 크기는 태그 크기도 같은 비로 줄인다: 상자 폭 608 에 `A<size=2000>A</size>` 는 608 x 3 = 1824 폭이라 1/3 로 준다.
         LayoutOptions fit = options;
         fit.boxWidth = 608.0f;
-        float chosen = 0.0f;
+        JBro::Float chosen = 0.0f;
         Check(layout.BuildToFit(Utf8("A<size=2000>A</size>"), faces, fit, 10.0f, 1000.0f, 0.0f, chosen) == LayoutError::None,
             "a sized text fits its box");
         Check(chosen < 340.0f && chosen > 320.0f && Near(layout.GetGlyphs()[1].size, chosen * 2.0f),
@@ -584,7 +588,7 @@ namespace
         TextLayout layout;
         LayoutOptions options = Unscaled();
         options.overflow = Overflow::Wrap;
-        float chosen = 0.0f;
+        JBro::Float chosen = 0.0f;
 
         // 한 줄 높이의 상자: 폭이 정한다(5.255 s ≤ 5255 → 1000).
         options.boxWidth = 5255.0f;
@@ -733,8 +737,8 @@ namespace
         const FontFace* faces[] = { &face };
         TextLayout layout;
         LayoutOptions options = Unscaled();
-        const float width = 608.0f - 15.0f + 575.0f;
-        const float lineHeight = 1160.0f + 288.0f;
+        const JBro::Float width = 608.0f - 15.0f + 575.0f;
+        const JBro::Float lineHeight = 1160.0f + 288.0f;
 
         Check(layout.Build(Utf8("AV"), faces, options) == LayoutError::None, "baseline-left lays out");
         Check(Near(layout.GetGlyphs()[0].y, 0.0f) && Near(layout.GetMaxY(), 1160.0f) && Near(layout.GetMinY(), -288.0f),
@@ -837,7 +841,7 @@ namespace
         Check(layout.Build(Utf8("hello world hello world 한글 세계"), faces, options) == LayoutError::None, "a long text lays out");
         const std::size_t reserved = layout.GetReservedCapacity();
         Check(reserved > 0, "a long text reserves storage");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(layout.Build(Utf8("hello world"), faces, options) == LayoutError::None, "a shorter text lays out");
             // 새 배열로 갈아 끼웠다면 짧은 글에 맞는 더 작은 용량이 남는다. 주소 비교로는 이것을 잡지 못했다
@@ -849,7 +853,7 @@ namespace
     }
 }
 
-int RunTextLayoutTests()
+JBro::Int32 RunTextLayoutTests()
 {
     try
     {

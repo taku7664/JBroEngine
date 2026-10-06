@@ -7,10 +7,13 @@
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -19,7 +22,7 @@ namespace
         }
     }
 
-    bool Parse(const char* text, JBro::ProjectFile& result, JBro::ProjectFileError& error)
+    JBro::Bool Parse(const char* text, JBro::ProjectFile& result, JBro::ProjectFileError& error)
     {
         return JBro::ParseProjectFile(text, std::strlen(text), result, error);
     }
@@ -81,7 +84,7 @@ namespace
         JBro::String text(RequiredKeys);
         text.append(LegacyProject);
         // 인자 평가 순서는 정해져 있지 않다. 먼저 돌리고 나서 물어본다.
-        const bool parsed = Parse(text.c_str(), project, error);
+        const JBro::Bool parsed = Parse(text.c_str(), project, error);
         if (false == parsed)
         {
             std::cout << "  project parse failed at line " << error.line
@@ -234,7 +237,7 @@ namespace
     // 파일이 없으면 건너뛰되 조용히 지나가지 않는다 — 이 기계에만 있는 파일이다.
     // 이 기계의 사용자 폴더 이름에 한글이 들어 있다. 환경 변수는 와이드로 받아 UTF-8 로 바꾼다 - 플랫폼의 경로는
     // UTF-8 이고(D-112), 좁은 `USERPROFILE` 은 ANSI 라 그대로 넘기면 없는 파일이 된다.
-    bool UserProfileUtf8(JBro::String& out)
+    JBro::Bool UserProfileUtf8(JBro::String& out)
     {
         wchar_t* profile = nullptr;
         std::size_t length = 0;
@@ -924,7 +927,7 @@ namespace
                 && reread.physicsIgnoredLayerPairs.Size() == 2,
             "and they read back");
 
-        std::uint32_t rows[32] = {};
+        JBro::UInt32 rows[32] = {};
         JBro::ResolvePhysicsIgnoredLayers(reread, rows);
         Check(rows[0] == (1u << 2) && rows[2] == 1u && rows[1] == (1u << 1) && rows[3] == 0u,
             "the pairs become a symmetric table");
@@ -949,7 +952,7 @@ namespace
     }
 }
 
-int RunProjectFileTests()
+JBro::Int32 RunProjectFileTests()
 {
     TestTheTimeSettings();
     TestThePhysicsThreadsSetting();

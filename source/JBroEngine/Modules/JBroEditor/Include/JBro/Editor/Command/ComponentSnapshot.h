@@ -5,6 +5,7 @@
 #include <JBro/Runtime/Component.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -27,7 +28,7 @@ namespace JBro
     struct ComponentSnapshot
     {
         ComponentTypeId typeId = 0;
-        bool enabled = true;
+        Bool enabled = true;
         Array<ComponentValue> values;
     };
 
@@ -36,8 +37,8 @@ namespace JBro
     // **프로퍼티를 등록하지 않은 타입이거나, 저장할 값 중 하나라도 글자로 뜨지 못하면
     // 거짓이다.** 되살려도 그 값이 비므로, 뜨지 못한 것을 뜬 척하면 부르는 쪽이
     // 성공했다고 말하며 값을 잃는다(D-76). 컨테이너도 통째로 뜬다(D-86).
-    bool CaptureComponent(ComponentBase& component, ComponentSnapshot& out);
+    Bool CaptureComponent(ComponentBase& component, ComponentSnapshot& out);
 
     // 떠 둔 값을 컴포넌트에 도로 써 넣는다. 켜짐 여부까지 되돌린다.
-    bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot);
+    Bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot);
 }

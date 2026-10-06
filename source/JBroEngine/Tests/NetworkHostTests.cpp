@@ -10,10 +10,14 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -21,7 +25,7 @@ namespace
         }
     }
 
-    bool NearlyEqual(float left, float right)
+    JBro::Bool NearlyEqual(JBro::Float left, JBro::Float right)
     {
         return std::fabs(left - right) <= 0.0001f;
     }
@@ -84,7 +88,7 @@ namespace
         return found;
     }
 
-    bool Matches(Side& server, Side& client, JBro::GameObject* serverObject)
+    JBro::Bool Matches(Side& server, Side& client, JBro::GameObject* serverObject)
     {
         JBro::Component::Transform2D* mine = server.canvas.FindComponentRaw<JBro::Component::Transform2D>(serverObject);
         JBro::Component::Transform2D* theirs = FindReplica(server, client, serverObject);
@@ -110,9 +114,9 @@ namespace
         Check(server.host.GetRole() == JBro::Network::NetworkRole::Server, "roles are taken");
         Check(false == client.host.HasAuthority(0) && server.host.HasAuthority(0), "only the server has authority");
 
-        constexpr int Count = 20;
+        constexpr JBro::Int32 Count = 20;
         JBro::GameObject* objects[Count] = {};
-        for (int index = 0; index < Count; ++index)
+        for (JBro::Int32 index = 0; index < Count; ++index)
         {
             objects[index] = server.canvas.CreateObject("replicated");
             JBro::Component::Transform2D* transform = server.canvas.AttachComponent<JBro::Component::Transform2D>(objects[index]);
@@ -128,7 +132,7 @@ namespace
             {
                 return false;
             }
-            for (int index = 0; index < Count; ++index)
+            for (JBro::Int32 index = 0; index < Count; ++index)
             {
                 if (false == Matches(server, client, objects[index]))
                 {
@@ -138,8 +142,8 @@ namespace
             return true;
         };
 
-        bool done = false;
-        for (int round = 0; round < 600 && false == done; ++round)
+        JBro::Bool done = false;
+        for (JBro::Int32 round = 0; round < 600 && false == done; ++round)
         {
             server.Frame();
             client.Frame();
@@ -150,13 +154,13 @@ namespace
         Check(client.host.IsConnected() && server.host.GetConnectionCount() == 1, "one connection, ready on both sides");
 
         // 값이 바뀌면 따라온다.
-        for (int index = 0; index < Count; ++index)
+        for (JBro::Int32 index = 0; index < Count; ++index)
         {
             JBro::Component::Transform2D* transform = server.canvas.FindComponentRaw<JBro::Component::Transform2D>(objects[index]);
             transform->position.x += 100.0f;
         }
         done = false;
-        for (int round = 0; round < 200 && false == done; ++round)
+        for (JBro::Int32 round = 0; round < 200 && false == done; ++round)
         {
             server.Frame();
             client.Frame();
@@ -168,8 +172,8 @@ namespace
         // 서버에서 없어지면 클라이언트에서도 없어진다.
         server.canvas.DestroyObject(objects[Count - 1]);
         server.canvas.FlushPendingDestroy();
-        bool despawned = false;
-        for (int round = 0; round < 200 && false == despawned; ++round)
+        JBro::Bool despawned = false;
+        for (JBro::Int32 round = 0; round < 200 && false == despawned; ++round)
         {
             server.Frame();
             client.Frame();
@@ -179,15 +183,15 @@ namespace
         Check(despawned, "the despawn reaches the client canvas");
 
         // 게임 메시지는 복제와 섞이지 않고 따로 꺼내진다.
-        const std::uint32_t payload = 0xBEEF;
+        const JBro::UInt32 payload = 0xBEEF;
         Check(client.host.Send(JBro::Network::ServerConnectionId, 12, &payload, sizeof(payload), JBro::Network::NetChannel::ReliableOrdered),
             "a game message goes out");
         Check(false == client.host.Send(JBro::Network::ServerConnectionId, JBro::Network::ReplicationDeltaMessage, &payload, sizeof(payload),
                   JBro::Network::NetChannel::ReliableOrdered),
             "but the replication range is refused");
         JBro::Network::MessageView view;
-        std::uint32_t got = 0;
-        for (int round = 0; round < 50 && 0 == got; ++round)
+        JBro::UInt32 got = 0;
+        for (JBro::Int32 round = 0; round < 50 && 0 == got; ++round)
         {
             server.Frame();
             client.Frame();
@@ -209,7 +213,7 @@ namespace
 
         Check(false == side.host.IsReplicating(), "binding a canvas does not build replication");
         Check(side.host.GetTransport().GetReservedBytes() == 0, "and the transport holds no buffers");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             side.Frame();
         }
@@ -255,7 +259,7 @@ namespace
     }
 }
 
-int RunNetworkHostTests()
+JBro::Int32 RunNetworkHostTests()
 {
     try
     {

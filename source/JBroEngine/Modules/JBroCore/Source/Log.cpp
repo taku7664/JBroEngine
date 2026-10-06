@@ -2,6 +2,9 @@
 
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Log
 {
@@ -13,9 +16,9 @@ namespace JBro::Log
             // 다음에 쓸 자리. 한 바퀴 돌면 가장 오래된 줄을 덮는다.
             std::size_t next = 0;
             std::size_t count = 0;
-            std::uint64_t revision = 0;
-            std::uint64_t serial = 0;
-            bool echo = true;
+            UInt64 revision = 0;
+            UInt64 serial = 0;
+            Bool echo = true;
         };
 
         Ring& Get()
@@ -73,7 +76,7 @@ namespace JBro::Log
         {
             // `vsnprintf` 는 잘려도 늘 널로 끝낸다. 잘린 것은 그 자리에서 알린다 -
             // 조용히 자르면 뒷말이 없어진 줄을 원문으로 읽게 된다.
-            const int written = std::vsnprintf(
+            const Int32 written = std::vsnprintf(
                 entry.message, LogEntry::MaxMessage, format, args);
             if (written < 0)
             {
@@ -105,7 +108,7 @@ namespace JBro::Log
         }
     }
 
-    void Write(LogLevel level, const char* category, const char* format, ...)
+    void WriteFormatted(LogLevel level, const char* category, const char* format, ...)
     {
         std::va_list args;
         va_start(args, format);
@@ -113,7 +116,7 @@ namespace JBro::Log
         va_end(args);
     }
 
-    std::uint64_t GetRevision()
+    UInt64 GetRevision()
     {
         return Get().revision;
     }
@@ -146,12 +149,12 @@ namespace JBro::Log
         ++ring.revision;
     }
 
-    void SetEchoToConsole(bool echo)
+    void SetEchoToConsole(Bool echo)
     {
         Get().echo = echo;
     }
 
-    bool GetEchoToConsole()
+    Bool GetEchoToConsole()
     {
         return Get().echo;
     }

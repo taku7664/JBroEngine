@@ -1,6 +1,9 @@
 ﻿#include <JBro/InputTypes/Service/InputService.h>
 
 #include <JBro/InputTypes/Internal/SystemContext.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -25,12 +28,12 @@ namespace JBro::Service
         return GetView().Mouse();
     }
 
-    const GamepadState& InputService::Gamepad(std::uint32_t slot) const
+    const GamepadState& InputService::Gamepad(UInt32 slot) const
     {
         return GetView().Gamepad(slot);
     }
 
-    void InputService::SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) const
+    void InputService::SetGamepadVibration(UInt32 slot, Float low, Float high, Float seconds) const
     {
         if (System::IInputSystem* input = GetInputSystems().Input)
         {
@@ -38,7 +41,7 @@ namespace JBro::Service
         }
     }
 
-    void InputService::StopGamepadVibration(std::uint32_t slot) const
+    void InputService::StopGamepadVibration(UInt32 slot) const
     {
         SetGamepadVibration(slot, 0.0f, 0.0f, 0.0f);
     }
@@ -48,7 +51,7 @@ namespace JBro::Service
         return GetView().Touch();
     }
 
-    void InputService::InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) const
+    void InputService::InjectTouch(UInt32 id, Float x, Float y, TouchPhase phase) const
     {
         if (System::IInputSystem* input = GetInputSystems().Input)
         {
@@ -56,49 +59,49 @@ namespace JBro::Service
         }
     }
 
-    bool InputService::EnableActionSet(NameId set) const
+    Bool InputService::EnableActionSet(NameId set) const
     {
         System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->SetActionSetEnabled(set, true);
     }
 
-    bool InputService::DisableActionSet(NameId set) const
+    Bool InputService::DisableActionSet(NameId set) const
     {
         System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->SetActionSetEnabled(set, false);
     }
 
-    bool InputService::IsActionSetEnabled(NameId set) const
+    Bool InputService::IsActionSetEnabled(NameId set) const
     {
         const System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->IsActionSetEnabled(set);
     }
 
-    std::uint32_t InputService::GetActionBindingCount(InputActionId action) const
+    UInt32 InputService::GetActionBindingCount(InputActionId action) const
     {
         const System::IInputSystem* input = GetInputSystems().Input;
-        return input != nullptr ? input->GetActionBindingCount(action) : 0;
+        return input != nullptr ? input->GetActionBindingCount(action) : UInt32(0);
     }
 
-    bool InputService::GetActionBinding(InputActionId action, std::uint32_t index, InputBinding& out) const
+    Bool InputService::GetActionBinding(InputActionId action, UInt32 index, InputBinding& out) const
     {
         const System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->GetActionBinding(action, index, out);
     }
 
-    bool InputService::SetActionBinding(InputActionId action, std::uint32_t index, const InputBinding& binding) const
+    Bool InputService::SetActionBinding(InputActionId action, UInt32 index, const InputBinding& binding) const
     {
         System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->SetActionBinding(action, index, binding);
     }
 
-    bool InputService::RemoveActionBinding(InputActionId action, std::uint32_t index) const
+    Bool InputService::RemoveActionBinding(InputActionId action, UInt32 index) const
     {
         System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->RemoveActionBinding(action, index);
     }
 
-    bool InputService::ResetActionBindings(InputActionId action) const
+    Bool InputService::ResetActionBindings(InputActionId action) const
     {
         System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->ResetActionBindings(action);
@@ -117,7 +120,7 @@ namespace JBro::Service
         return JBro::CaptureBinding(GetView(), out);
     }
 
-    bool InputService::WriteBindingOverrides(String& out) const
+    Bool InputService::WriteBindingOverrides(String& out) const
     {
         out.clear();
         const System::IInputSystem* input = GetInputSystems().Input;
@@ -141,13 +144,13 @@ namespace JBro::Service
         return true;
     }
 
-    bool InputService::ReadBindingOverrides(const String& text) const
+    Bool InputService::ReadBindingOverrides(const String& text) const
     {
         System::IInputSystem* input = GetInputSystems().Input;
         return input != nullptr && input->ReadBindingOverrides(text.data(), text.size());
     }
 
-    void InputService::SetGamepadDeadzones(float stick, float trigger) const
+    void InputService::SetGamepadDeadzones(Float stick, Float trigger) const
     {
         if (System::IInputSystem* input = GetInputSystems().Input)
         {

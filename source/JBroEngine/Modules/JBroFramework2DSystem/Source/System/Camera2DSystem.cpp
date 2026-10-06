@@ -8,12 +8,16 @@
 
 #include <cmath>
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
     namespace
     {
-        bool TryInvert(const Matrix3x2& world, Matrix3x2& view)
+        Bool TryInvert(const Matrix3x2& world, Matrix3x2& view)
         {
             const double determinant = static_cast<double>(world.m11) * world.m22
                 - static_cast<double>(world.m12) * world.m21;
@@ -40,7 +44,7 @@ namespace JBro::System
         }
     }
 
-    int Camera2DSystem::GetExecutionOrder() const
+    Int32 Camera2DSystem::GetExecutionOrder() const
     {
         return 300;
     }
@@ -57,7 +61,7 @@ namespace JBro::System
             return;
         }
         RenderCamera2D camera;
-        std::uint32_t unusable = 0;
+        UInt32 unusable = 0;
         if (SelectCamera(canvas, camera, &unusable))
         {
             m_renderWorld->SetCamera(camera);
@@ -72,7 +76,7 @@ namespace JBro::System
         m_warnedUnusable = unusable;
     }
 
-    bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result, std::uint32_t* unusable)
+    Bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result, UInt32* unusable)
     {
         // **`primary` 가 먼저고, 하나도 없으면 첫 활성 카메라로 그린다**(D-187).
         //
@@ -80,8 +84,8 @@ namespace JBro::System
         // 사람에게는 검은 화면과 "카메라가 없습니다" 만 남는데, 카메라는 분명히 거기
         // 있으므로 무엇이 잘못됐는지 화면에서 알 길이 없다(실제 에디터에서 그랬다).
         // 기존 엔진도 지정이 없으면 첫 활성 카메라로 떨어졌다.
-        bool selected = false;
-        bool hasFallback = false;
+        Bool selected = false;
+        Bool hasFallback = false;
         RenderCamera2D fallback;
         canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera)
         {
@@ -138,7 +142,7 @@ namespace JBro::System
         return selected;
     }
 
-    void Camera2DSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void Camera2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         (void)deltaTime;
         ExtractRenderWorld(canvas);

@@ -1,7 +1,9 @@
-#include "EditorThumbnails.h"
+﻿#include "EditorThumbnails.h"
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Log.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -38,7 +40,7 @@ namespace JBro
         m_entries.Clear();
     }
 
-    EditorThumbnails::Entry* EditorThumbnails::Find(AssetId asset, std::uint32_t maxSide)
+    EditorThumbnails::Entry* EditorThumbnails::Find(AssetId asset, UInt32 maxSide)
     {
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
@@ -68,8 +70,8 @@ namespace JBro
         }
     }
 
-    bool EditorThumbnails::GetSourceSize(
-        AssetId asset, std::uint32_t& width, std::uint32_t& height) const
+    Bool EditorThumbnails::GetSourceSize(
+        AssetId asset, UInt32& width, UInt32& height) const
     {
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
@@ -84,7 +86,7 @@ namespace JBro
         return false;
     }
 
-    bool EditorThumbnails::Build(AssetId asset, Entry& entry)
+    Bool EditorThumbnails::Build(AssetId asset, Entry& entry)
     {
         // **에셋을 잠깐만 든다.** 그림을 만들고 나면 픽셀은 GPU 에 있으므로, 들고 있을 이유가
         // 없다 - 계속 잡고 있으면 `CollectUnused` 가 영영 내리지 못한다.
@@ -103,25 +105,25 @@ namespace JBro
 
         // 긴 변이 `MaxSide` 를 넘으면 정수 배로 건너뛴다. 가중 평균이 아니라 건너뛰기다 -
         // 픽셀 아트의 또렷한 가장자리가 평균에 뭉개지면 그림을 알아보기 어려워진다.
-        const std::uint32_t longest = data->width > data->height ? data->width : data->height;
+        const UInt32 longest = data->width > data->height ? data->width : data->height;
         entry.sourceWidth = data->width;
         entry.sourceHeight = data->height;
-        std::uint32_t step = 1;
+        UInt32 step = 1;
         while (longest / step > entry.maxSide)
         {
             ++step;
         }
-        const std::uint32_t width = data->width / step > 0 ? data->width / step : 1;
-        const std::uint32_t height = data->height / step > 0 ? data->height / step : 1;
+        const UInt32 width = data->width / step > 0 ? data->width / step : UInt32(1);
+        const UInt32 height = data->height / step > 0 ? data->height / step : UInt32(1);
 
         Array<std::byte> pixels;
         pixels.Resize(static_cast<std::size_t>(width) * height * 4);
         const std::byte* source = data->pixels.Data();
-        for (std::uint32_t y = 0; y < height; ++y)
+        for (UInt32 y = 0; y < height; ++y)
         {
             const std::size_t sourceRow = static_cast<std::size_t>(y) * step * data->width;
             const std::size_t targetRow = static_cast<std::size_t>(y) * width;
-            for (std::uint32_t x = 0; x < width; ++x)
+            for (UInt32 x = 0; x < width; ++x)
             {
                 const std::size_t from = (sourceRow + static_cast<std::size_t>(x) * step) * 4;
                 const std::size_t to = (targetRow + x) * 4;
@@ -155,7 +157,7 @@ namespace JBro
         return true;
     }
 
-    TextureHandle EditorThumbnails::Get(AssetId asset, std::uint32_t maxSide)
+    TextureHandle EditorThumbnails::Get(AssetId asset, UInt32 maxSide)
     {
         if (m_device == nullptr || m_assets == nullptr || asset.IsNull())
         {

@@ -4,6 +4,7 @@
 #include <JBro/Types/String.h>
 
 #include <cstddef>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Service
 {
@@ -19,15 +20,15 @@ namespace JBro::Service
     class SaveService
     {
     public:
-        bool IsReady() const;
+        Bool IsReady() const;
 
-        bool WriteBytes(const char* slot, const void* data, std::size_t size) const;
-        bool WriteText(const char* slot, const String& text) const;
+        Bool WriteBytes(const char* slot, const void* data, std::size_t size) const;
+        Bool WriteText(const char* slot, const String& text) const;
         // 없거나 읽지 못하면 거짓이고 `out` 은 빈다.
-        bool ReadBytes(const char* slot, Array<std::byte>& out) const;
-        bool ReadText(const char* slot, String& out) const;
-        bool Exists(const char* slot) const;
-        bool Remove(const char* slot) const;
-        bool Flush() const;
+        Bool ReadBytes(const char* slot, Array<std::byte>& out) const;
+        Bool ReadText(const char* slot, String& out) const;
+        Bool Exists(const char* slot) const;
+        Bool Remove(const char* slot) const;
+        Bool Flush() const;
     };
 }

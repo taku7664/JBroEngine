@@ -1,10 +1,12 @@
 ﻿#include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 
 #include <new>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    bool RenderWorld3D::ReserveMeshes(std::size_t capacity)
+    Bool RenderWorld3D::ReserveMeshes(std::size_t capacity)
     {
         try
         {
@@ -18,7 +20,7 @@ namespace JBro
         return true;
     }
 
-    bool RenderWorld3D::ReserveTexts(std::size_t capacity)
+    Bool RenderWorld3D::ReserveTexts(std::size_t capacity)
     {
         try
         {
@@ -42,7 +44,7 @@ namespace JBro
         m_droppedTextCount = 0;
     }
 
-    bool RenderWorld3D::SubmitText(const WorldTextRenderItem& item)
+    Bool RenderWorld3D::SubmitText(const WorldTextRenderItem& item)
     {
         if (m_texts.Size() >= m_texts.Capacity())
         {
@@ -68,7 +70,7 @@ namespace JBro
         return m_texts[index];
     }
 
-    Array<std::uint32_t>& RenderWorld3D::GetTextOrderScratch() const
+    Array<UInt32>& RenderWorld3D::GetTextOrderScratch() const
     {
         return m_textOrder;
     }
@@ -84,7 +86,7 @@ namespace JBro
         m_hasCamera = true;
     }
 
-    bool RenderWorld3D::SubmitMesh(const MeshRenderItem& item)
+    Bool RenderWorld3D::SubmitMesh(const MeshRenderItem& item)
     {
         // 용량은 초기화 때 렌더러의 한도로 잡았다. 넘치면 세기만 하고 버린다 -
         // 매 프레임 경로에서 힙을 늘리지 않는다(§9).

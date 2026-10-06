@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -53,7 +54,7 @@ namespace JBro
         return m_hasValues ? "Paste Component" : "Add Component";
     }
 
-    bool AddComponentCommand::Attach()
+    Bool AddComponentCommand::Attach()
     {
         const ComponentTypeInfo* info = FindType(m_typeName);
         GameObject* object = m_registry->Resolve(m_address.objectId);
@@ -93,7 +94,7 @@ namespace JBro
         return true;
     }
 
-    bool AddComponentCommand::Execute()
+    Bool AddComponentCommand::Execute()
     {
         return Attach();
     }
@@ -168,7 +169,7 @@ namespace JBro
         return "Remove Component";
     }
 
-    bool RemoveComponentCommand::Detach()
+    Bool RemoveComponentCommand::Detach()
     {
         const ComponentTypeInfo* info = FindType(m_typeName);
         GameObject* object = m_registry->Resolve(m_address.objectId);
@@ -185,7 +186,7 @@ namespace JBro
         return info->Detach(*m_canvas, object, component);
     }
 
-    bool RemoveComponentCommand::Execute()
+    Bool RemoveComponentCommand::Execute()
     {
         if (false == m_captured)
         {
@@ -255,7 +256,7 @@ namespace JBro
         return "Paste Component Values";
     }
 
-    bool PasteComponentValuesCommand::Apply(const ComponentSnapshot& values)
+    Bool PasteComponentValuesCommand::Apply(const ComponentSnapshot& values)
     {
         GameObject* object = m_registry->Resolve(m_address.objectId);
         if (object == nullptr)
@@ -271,7 +272,7 @@ namespace JBro
         return ApplyComponent(*component, values);
     }
 
-    bool PasteComponentValuesCommand::Execute()
+    Bool PasteComponentValuesCommand::Execute()
     {
         if (false == m_captured || m_values.typeId != m_address.typeId)
         {
@@ -310,7 +311,7 @@ namespace JBro
         return "Move Component";
     }
 
-    bool MoveComponentCommand::Move(std::size_t from, std::size_t to)
+    Bool MoveComponentCommand::Move(std::size_t from, std::size_t to)
     {
         GameObject* object = m_registry->Resolve(m_objectId);
         if (object == nullptr || from == to)
@@ -330,7 +331,7 @@ namespace JBro
         return object->SetComponentIndex(component, to);
     }
 
-    bool MoveComponentCommand::Execute()
+    Bool MoveComponentCommand::Execute()
     {
         return Move(m_from, m_to);
     }

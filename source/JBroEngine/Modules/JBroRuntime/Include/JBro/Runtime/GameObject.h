@@ -18,6 +18,8 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -37,9 +39,9 @@ namespace JBro
     // 오브젝트 플래그의 비트다(D-163). 캔버스 파일에 `Flags` 로 적힌다.
     // `EditorHidden` 은 **에디터의 캔버스 뷰에서만** 감춘다(기존 엔진 `ObjectFlag_EditorHidden`) - 게임 뷰와 게임 실행은
     // 보지 않고, 게임으로 묶을 때(패킹) 파일에서 뺀다.
-    inline constexpr std::uint32_t ObjectFlagEditorHidden = 1u << 0;
+    inline constexpr UInt32 ObjectFlagEditorHidden = 1u << 0;
     // 패킹할 때 지우는 비트들이다. 에디터에서만 뜻이 있다.
-    inline constexpr std::uint32_t EditorOnlyObjectFlags = ObjectFlagEditorHidden;
+    inline constexpr UInt32 EditorOnlyObjectFlags = ObjectFlagEditorHidden;
 
     // TObjectPool 이 소유하는 주소 안정 객체. Transform 은 멤버가 아니라 컴포넌트다.
     class GameObject final : public EnableSafeFromThis<GameObject>
@@ -65,19 +67,19 @@ namespace JBro
         //
         // 없는 자식이면 거짓이다. `index` 가 끝을 넘으면 맨 뒤로 간다 -
         // 부르는 쪽이 개수를 먼저 세지 않아도 되게.
-        bool SetChildIndex(GameObject* child, std::size_t index);
+        Bool SetChildIndex(GameObject* child, std::size_t index);
         // 몇 번째 자식인가. 자식이 아니면 거짓이다.
-        bool FindChildIndex(const GameObject* child, std::size_t& index) const;
+        Bool FindChildIndex(const GameObject* child, std::size_t& index) const;
 
         // 레이어 소속. 인덱스 조회는 O(1)이다.
         Layer*        GetLayer() const;
-        std::uint32_t GetLayerId() const;
+        UInt32 GetLayerId() const;
 
         // 활성 상태. IsActiveInHierarchy 는 캐시를 읽으므로 O(1) 이다 —
         // 컴포넌트 활성 게이트가 매 프레임 이것을 부르기 때문이다(§9, D-54).
-        bool IsActiveSelf() const;
-        bool IsActiveInHierarchy() const;
-        void SetActive(bool active);
+        Bool IsActiveSelf() const;
+        Bool IsActiveInHierarchy() const;
+        void SetActive(Bool active);
 
         // 태그·플래그(B10)
         // 태그는 정수로 산다(D-51). 문자열은 NameTable 에만 있고 여기서는 되찾아 줄 뿐이다.
@@ -85,13 +87,13 @@ namespace JBro
         void          SetTag(const char* tag);
         NameId        GetTagId() const;
         void          SetTagId(NameId tag);
-        std::uint32_t GetFlags() const;
-        void          SetFlags(std::uint32_t flags);
-        bool IsEditorHidden() const
+        UInt32 GetFlags() const;
+        void          SetFlags(UInt32 flags);
+        Bool IsEditorHidden() const
         {
             return m_flags.HasAll(ObjectFlagEditorHidden);
         }
-        void SetEditorHidden(bool hidden)
+        void SetEditorHidden(Bool hidden)
         {
             m_flags.SetTo(ObjectFlagEditorHidden, hidden);
         }
@@ -106,9 +108,9 @@ namespace JBro
         // 없는 컴포넌트면 거짓이다. `index` 가 끝을 넘으면 맨 뒤로 간다.
         // **스크립트 실행 순서가 이 자리를 따른다**(D-45, A3). 그래서 자리를 옮기면
         // Canvas 의 실행 목록을 헌 것으로 표시한다.
-        bool SetComponentIndex(const ComponentBase* component, std::size_t index);
+        Bool SetComponentIndex(const ComponentBase* component, std::size_t index);
         // 몇 번째 슬롯인가(타입을 가리지 않는다). 붙어 있지 않으면 거짓이다.
-        bool FindComponentIndex(const ComponentBase* component, std::size_t& index) const;
+        Bool FindComponentIndex(const ComponentBase* component, std::size_t& index) const;
 
         template<typename T>
         Ref<T> GetComponent() const;
@@ -123,7 +125,7 @@ namespace JBro
         // Canvas 는 오브젝트를 소유하는 실행 계층이고 이 헤더는 스크립트가 링크하는 계층이다.
         // 정의를 끌어오면 그 경계가 무너지므로, 파괴 호출만 함수 포인터로 건너간다.
         // 소유자 포인터는 불완전 타입이어도 되고, 그 정체는 Canvas 가 friend 로 직접 본다.
-        using DestroyFunction = bool (*)(Canvas* canvas, GameObject* object);
+        using DestroyFunction = Bool (*)(Canvas* canvas, GameObject* object);
         // 같은 이유로 건너가는 두 번째 통지다. 부모가 바뀌거나 컴포넌트 자리가 바뀌면
         // 스크립트 실행 순서가 달라지므로(D-45) Canvas 의 목록을 헌 것으로 표시해야 한다.
         using ScriptOrderDirtyFunction = void (*)(Canvas* canvas);
@@ -135,11 +137,11 @@ namespace JBro
             DestroyFunction destroyFunction,
             ScriptOrderDirtyFunction scriptOrderDirtyFunction);
         void MarkScriptOrderDirty();
-        void SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex);
+        void SetLayer(SafePtr<Layer> layer, UInt32 layerIndex);
         void AttachComponent(ComponentBase* component);
-        bool DetachComponent(ComponentBase* component);
+        Bool DetachComponent(ComponentBase* component);
         InstanceRef FindComponentReference(ComponentTypeId typeId) const;
-        bool RequestDestroy();
+        Bool RequestDestroy();
         void RefreshActiveInHierarchy();
 
         InstanceId                   m_instanceId = InvalidInstanceId;
@@ -151,13 +153,13 @@ namespace JBro
         Array<SafePtr<GameObject>>    m_children;
         Array<ComponentSlot> m_components;
         SafePtr<Layer>                m_layer;
-        std::uint32_t                 m_layerIndex = 0;
+        UInt32                 m_layerIndex = 0;
         // **안에서만 `BitFlag` 다**(D-249). 내주는 것은 생 정수 그대로다 - 캔버스 파일에 숫자로
         // 적히고 스크립트 경계를 건너므로, 바꾸면 저장 파일과 사용자 코드가 함께 바뀐다.
         BitFlag                       m_flags;
-        bool                          m_destroying = false;
-        bool                          m_active = true;
-        bool                          m_activeInHierarchy = true;
+        Bool                          m_destroying = false;
+        Bool                          m_active = true;
+        Bool                          m_activeInHierarchy = true;
         NameId                        m_tag = InvalidNameId;
     };
 

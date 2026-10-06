@@ -7,6 +7,10 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 2D 물리 커널의 좁은 판정과 브로드페이즈 테스트(D-199, physics-plan §4 의 2 단계).
 // 기존 엔진의 오목 폴리곤 결함 중 판정에서 나온 것(도형 중심으로 법선 뒤집기, 통짜 오목 도형 클리핑,
@@ -23,7 +27,7 @@ namespace
     using JBro::Physics2D::Pose;
     using JBro::Physics2D::ProxyPair;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -32,17 +36,17 @@ namespace
         }
     }
 
-    bool Near(float actual, float expected, float tolerance)
+    JBro::Bool Near(JBro::Float actual, JBro::Float expected, JBro::Float tolerance)
     {
         return std::fabs(actual - expected) <= tolerance;
     }
 
-    bool NearVector(Vector2 actual, Vector2 expected, float tolerance)
+    JBro::Bool NearVector(Vector2 actual, Vector2 expected, JBro::Float tolerance)
     {
         return Near(actual.x, expected.x, tolerance) && Near(actual.y, expected.y, tolerance);
     }
 
-    Pose At(float x, float y, float angle = 0.0f)
+    Pose At(JBro::Float x, JBro::Float y, JBro::Float angle = 0.0f)
     {
         Pose pose;
         pose.position = { x, y };
@@ -50,7 +54,7 @@ namespace
         return pose;
     }
 
-    ConvexPolygon MakeBox(float halfWidth, float halfHeight)
+    ConvexPolygon MakeBox(JBro::Float halfWidth, JBro::Float halfHeight)
     {
         ConvexPolygon box;
         box.points[0] = { -halfWidth, -halfHeight };
@@ -98,7 +102,7 @@ namespace
         Check(left.Size() == 1, "the box against the left inner wall touches one piece");
         Check(NearVector(left[0].normal, { 1, 0 }, 1.0e-5f), "and is pushed right, out of the wall");
         Check(left[0].count == 2, "a face against a face gives two points");
-        for (std::uint32_t i = 0; i < left[0].count; ++i)
+        for (JBro::UInt32 i = 0; i < left[0].count; ++i)
         {
             Check(Near(left[0].points[i].separation, -0.02f, 1.0e-4f), "each 0.02 deep");
             Check(Near(left[0].points[i].point.x, 0.99f, 1.0e-4f), "halfway between the wall and the box face");
@@ -122,7 +126,7 @@ namespace
             { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
         const Array<ConvexPolygon> pieces = Decompose(u);
         const ConvexPolygon box = MakeBox(0.3f, 0.3f);
-        int touched = 0;
+        JBro::Int32 touched = 0;
         for (const ConvexPolygon& piece : pieces)
         {
             const Manifold forward = JBro::Physics2D::CollidePolygons(piece, At(0, 0), box, At(1.28f, 2.0f));
@@ -145,7 +149,7 @@ namespace
             MakeBox(0.5f, 0.5f), At(0, 0.49f), MakeBox(10.0f, 0.5f), At(0, -0.5f));
         Check(resting.count == 2, "a small box on a wide floor rests on two points");
         Check(NearVector(resting.normal, { 0, -1 }, 1.0e-5f), "and the normal still points from A to B");
-        for (std::uint32_t i = 0; i < resting.count; ++i)
+        for (JBro::UInt32 i = 0; i < resting.count; ++i)
         {
             // 바닥의 윗면(길이 20)이 상자의 밑면(길이 1)으로 잘려야 한다. 자르지 않으면 점이 바닥 끝 x = ±10 에 선다.
             Check(resting.points[i].point.x >= -0.5f - 1.0e-4f && resting.points[i].point.x <= 0.5f + 1.0e-4f,
@@ -154,7 +158,7 @@ namespace
 
         // 돌린 상자(A)의 모서리가 바닥(B)에 박히면 덜 박힌 쪽은 바닥의 윗면이라 B 가 기준면을 낸다.
         // 그래도 법선은 A→B, 즉 아래다. 위의 경우들은 두 쪽의 깊이가 같아 늘 A 가 기준이었다.
-        const float halfDiagonal = std::sqrt(0.5f);
+        const JBro::Float halfDiagonal = std::sqrt(0.5f);
         const Manifold flipped = JBro::Physics2D::CollidePolygons(
             MakeBox(0.5f, 0.5f), At(0, halfDiagonal - 0.01f, 0.78539816f), MakeBox(5.0f, 0.5f), At(0, -0.5f));
         Check(flipped.count == 1, "the corner touches at one point");
@@ -172,9 +176,9 @@ namespace
 
         Circle circle;
         circle.radius = 0.3f;
-        bool sawFloor = false;
-        bool sawWall = false;
-        int count = 0;
+        JBro::Bool sawFloor = false;
+        JBro::Bool sawWall = false;
+        JBro::Int32 count = 0;
         for (const ConvexPolygon& piece : pieces)
         {
             const Manifold manifold =
@@ -244,7 +248,7 @@ namespace
     {
         const ConvexPolygon box = MakeBox(0.5f, 0.5f);
         const ConvexPolygon floor = MakeBox(5.0f, 0.5f);
-        const float gap = 0.5f * JBro::Physics2D::SpeculativeDistance;
+        const JBro::Float gap = 0.5f * JBro::Physics2D::SpeculativeDistance;
         const Manifold near = JBro::Physics2D::CollidePolygons(floor, At(0, -0.5f), box, At(0, 0.5f + gap));
         Check(near.count == 2, "a box hovering within the speculative distance already has contacts");
         Check(Near(near.points[0].separation, gap, 1.0e-5f), "with the gap as positive separation");
@@ -269,8 +273,8 @@ namespace
         const Manifold moved = JBro::Physics2D::CollidePolygons(floor, At(0, -0.5f), box, At(0.01f, 0.485f, 0.002f));
         Check(first.count == 2 && moved.count == 2, "both steps rest on two points");
         Check(first.points[0].id != first.points[1].id, "the two points have different ids");
-        const bool sameOrder = first.points[0].id == moved.points[0].id && first.points[1].id == moved.points[1].id;
-        const bool swapped = first.points[0].id == moved.points[1].id && first.points[1].id == moved.points[0].id;
+        const JBro::Bool sameOrder = first.points[0].id == moved.points[0].id && first.points[1].id == moved.points[1].id;
+        const JBro::Bool swapped = first.points[0].id == moved.points[1].id && first.points[1].id == moved.points[0].id;
         Check(sameOrder || swapped, "a small slide keeps both ids");
     }
 
@@ -279,7 +283,7 @@ namespace
     {
         const ConvexPolygon box = MakeBox(0.5f, 0.5f);
         const ConvexPolygon floor = MakeBox(5.0f, 0.5f);
-        const float halfDiagonal = std::sqrt(0.5f);
+        const JBro::Float halfDiagonal = std::sqrt(0.5f);
         const Manifold corner = JBro::Physics2D::CollidePolygons(
             floor, At(0, -0.5f), box, At(0, halfDiagonal - 0.01f, 0.78539816f));
         Check(corner.count == 1, "one corner, one point");
@@ -304,7 +308,7 @@ namespace
     // **브로드페이즈는 모든 쌍 비교와 같은 답을 같은 순서로 낸다.**
     void TestSweepAndPruneMatchesBruteForce()
     {
-        std::uint32_t state = 0x9E3779B9u;
+        JBro::UInt32 state = 0x9E3779B9u;
         const auto next = [&state]()
         {
             state = state * 1664525u + 1013904223u;
@@ -313,15 +317,15 @@ namespace
 
         JBro::Physics2D::SweepAndPrune broadPhase;
         Array<ProxyPair> pairs;
-        for (int round = 0; round < 20; ++round)
+        for (JBro::Int32 round = 0; round < 20; ++round)
         {
             Array<Rect> boxes;
-            const int count = 1 + static_cast<int>(next() * 60.0f);
-            for (int i = 0; i < count; ++i)
+            const JBro::Int32 count = 1 + static_cast<int>(next() * 60.0f);
+            for (JBro::Int32 i = 0; i < count; ++i)
             {
                 const Vector2 min = { next() * 20.0f, next() * 20.0f };
                 // 한 줄로 늘어선 경우(같은 x)도 섞는다.
-                const float x = (i % 5 == 0) ? 3.0f : min.x;
+                const JBro::Float x = (i % 5 == 0) ? JBro::Float(3.0f) : min.x;
                 boxes.Add({ { x, min.y }, { x + next() * 3.0f, min.y + next() * 3.0f } });
             }
             boxes.Add({ { std::numeric_limits<float>::quiet_NaN(), 0 }, { 1, 1 } });
@@ -329,9 +333,9 @@ namespace
             broadPhase.FindPairs(boxes.View(), pairs);
 
             Array<ProxyPair> expected;
-            for (std::uint32_t i = 0; i < boxes.Size(); ++i)
+            for (JBro::UInt32 i = 0; i < boxes.Size(); ++i)
             {
-                for (std::uint32_t j = i + 1; j < boxes.Size(); ++j)
+                for (JBro::UInt32 j = i + 1; j < boxes.Size(); ++j)
                 {
                     const Rect& a = boxes[i];
                     const Rect& b = boxes[j];
@@ -359,13 +363,13 @@ namespace
     }
 
     // 조각 전부에 쏘아 가장 가까운 것을 고른다. 어댑터의 Raycast 가 하는 일과 같다.
-    bool RaycastPieces(const Array<ConvexPolygon>& pieces, Vector2 origin, Vector2 direction, float maxDistance,
-        float& distance, Vector2& normal)
+    JBro::Bool RaycastPieces(const Array<ConvexPolygon>& pieces, Vector2 origin, Vector2 direction, JBro::Float maxDistance,
+        JBro::Float& distance, Vector2& normal)
     {
-        bool hit = false;
+        JBro::Bool hit = false;
         for (const ConvexPolygon& piece : pieces)
         {
-            float candidate = 0.0f;
+            JBro::Float candidate = 0.0f;
             Vector2 candidateNormal;
             if (JBro::Physics2D::RaycastPolygon(piece, At(0, 0), origin, direction, maxDistance, candidate, candidateNormal)
                 && (false == hit || candidate < distance))
@@ -383,7 +387,7 @@ namespace
     void TestRaycasts()
     {
         const ConvexPolygon box = MakeBox(1.0f, 1.0f);
-        float distance = 0.0f;
+        JBro::Float distance = 0.0f;
         Vector2 normal;
         Check(JBro::Physics2D::RaycastPolygon(box, At(3, 0), { 0, 0 }, { 1, 0 }, 10.0f, distance, normal),
             "a ray along x hits a box ahead");
@@ -470,7 +474,7 @@ namespace
     void TestSweeps()
     {
         const ConvexPolygon target = MakeBox(1.0f, 1.0f);
-        float distance = 0.0f;
+        JBro::Float distance = 0.0f;
         Vector2 normal;
 
         // 원: 면, 모서리, 출발부터 겹침, 빗나감, 거리 모자람, 원 대 원.
@@ -518,8 +522,8 @@ namespace
         const Array<Vector2> u = {
             { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
         const Array<ConvexPolygon> pieces = Decompose(u);
-        bool hit = false;
-        float closest = 100.0f;
+        JBro::Bool hit = false;
+        JBro::Float closest = 100.0f;
         Vector2 closestNormal;
         for (const ConvexPolygon& piece : pieces)
         {
@@ -536,7 +540,7 @@ namespace
     }
 
     // **캡슐(physics-plan §4 의 7).** 가로 캡슐: 코어 (-1, 0)-(1, 0), 반지름 0.5. 값은 손으로 푼 것이다.
-    ConvexPolygon MakeCapsule(Vector2 a, Vector2 b, float radius)
+    ConvexPolygon MakeCapsule(Vector2 a, Vector2 b, JBro::Float radius)
     {
         ConvexPolygon capsule;
         capsule.points[0] = a;
@@ -563,14 +567,14 @@ namespace
         Check(Near(mass.mass, 2.0f + 3.14159265f * 0.25f, 1.0e-5f) && NearVector(mass.center, {}, 1.0e-6f),
             "a two-point piece weighs as a capsule: a 2 x 1 middle and a circle");
         Array<Vector2> outline;
-        constexpr int Segments = 2000;
-        for (int end = 0; end < 2; ++end)
+        constexpr JBro::Int32 Segments = 2000;
+        for (JBro::Int32 end = 0; end < 2; ++end)
         {
-            const float cx = end == 0 ? 1.0f : -1.0f;
-            const float start = end == 0 ? -1.5707963f : 1.5707963f;
-            for (int k = 0; k <= Segments; ++k)
+            const JBro::Float cx = end == 0 ? 1.0f : -1.0f;
+            const JBro::Float start = end == 0 ? -1.5707963f : 1.5707963f;
+            for (JBro::Int32 k = 0; k <= Segments; ++k)
             {
-                const float turn = start + 3.14159265f * static_cast<float>(k) / static_cast<float>(Segments);
+                const JBro::Float turn = start + 3.14159265f * static_cast<float>(k) / static_cast<float>(Segments);
                 outline.Add({ cx + 0.5f * std::cos(turn), 0.5f * std::sin(turn) });
             }
         }
@@ -610,7 +614,7 @@ namespace
         manifold = JBro::Physics2D::CollidePolygons(ground, At(0, 0), standing, At(1.3f, 1.3f));
         Check(manifold.count == 0, "a capsule end beside a box corner, 0.024 away, does not touch");
         manifold = JBro::Physics2D::CollidePolygons(ground, At(0, 0), standing, At(1.25f, 1.25f));
-        const float diagonal = std::sqrt(0.5f);
+        const JBro::Float diagonal = std::sqrt(0.5f);
         Check(manifold.count == 1 && NearVector(manifold.normal, { diagonal, diagonal }, 1.0e-5f)
             && Near(manifold.points[0].separation, 0.25f * std::sqrt(2.0f) - 0.4f, 1.0e-5f),
             "moved in, it touches the corner once, pushed out along the diagonal");
@@ -637,7 +641,7 @@ namespace
         Check(NearVector(bounds.min, { -1.5f, -0.5f }, 0.0f) && NearVector(bounds.max, { 1.5f, 0.5f }, 0.0f),
             "the bounds include the thickness");
 
-        float distance = 0.0f;
+        JBro::Float distance = 0.0f;
         Vector2 normal;
         Check(JBro::Physics2D::RaycastPolygon(capsule, At(0, 0), { 0, 5 }, { 0, -1 }, 10, distance, normal)
             && Near(distance, 4.5f, 1.0e-5f) && NearVector(normal, { 0, 1 }, 1.0e-6f), "a ray down hits the side");
@@ -734,7 +738,7 @@ namespace
         const Pose around = At(0.3f, 0.3f);
         const Manifold byTop = JBro::Physics2D::CollideChainSegmentAndCircle(top, At(0, 0), ball, around);
         const Manifold byWall = JBro::Physics2D::CollideChainSegmentAndCircle(wall, At(0, 0), ball, around);
-        const float d = std::sqrt(0.5f);
+        const JBro::Float d = std::sqrt(0.5f);
         Check(byTop.count == 1 && NearVector(byTop.normal, { d, d }, 1.0e-4f), "the flat segment owns the corner, pushing along the diagonal");
         Check(byWall.count == 0, "and the wall below lets it go, so the corner pushes once");
 
@@ -750,13 +754,13 @@ namespace
         const Pose below = At(0.4f, -0.1f);
         const Manifold belowTop = JBro::Physics2D::CollideChainSegmentAndCircle(sharpTop, At(0, 0), ball, below);
         const Manifold belowSlant = JBro::Physics2D::CollideChainSegmentAndCircle(slant, At(0, 0), ball, below);
-        const float reach = std::sqrt(0.4f * 0.4f + 0.1f * 0.1f);
+        const JBro::Float reach = std::sqrt(0.4f * 0.4f + 0.1f * 0.1f);
         Check(belowTop.count == 0 && belowSlant.count == 1 && NearVector(belowSlant.normal, { 0.4f / reach, -0.1f / reach }, 1.0e-4f),
             "below a sharp corner the slanted wall owns it, and it still pushes once");
 
         // 모서리에 면으로 기댄 가파른 판자: 판자의 면 법선은 윗면보다 아래로 기울었지만 맞는 법선이다. 윗면이 받는다.
         // (판자 아래 끝은 벽 면에도 닿는다. 그것은 다른 곳의 접촉이라 여기서 보지 않는다.)
-        const float angle = -0.20135792f;
+        const JBro::Float angle = -0.20135792f;
         const Vector2 facing{ std::cos(angle), std::sin(angle) };
         const Vector2 along{ -std::sin(angle), std::cos(angle) };
         const Pose leaning = At(0.04f * facing.x + 0.3f * along.x, 0.04f * facing.y + 0.3f * along.y, angle);
@@ -767,7 +771,7 @@ namespace
     }
 }
 
-int RunPhysics2DCollisionTests()
+JBro::Int32 RunPhysics2DCollisionTests()
 {
     TestABoxInTheNotchOfAUIsPushedOutOfTheWall();
     TestSwappingTheShapesFlipsOnlyTheNormal();

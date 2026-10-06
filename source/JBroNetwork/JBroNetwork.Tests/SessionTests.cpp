@@ -6,15 +6,17 @@
 
 #include <cstring>
 #include <iostream>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
 
 namespace
 {
-    void Pump(Transport& a, Transport& b, ManualClock& clock, int rounds = 8)
+    void Pump(Transport& a, Transport& b, ManualClock& clock, JBro::Int32 rounds = 8)
     {
-        for (int round = 0; round < rounds; ++round)
+        for (JBro::Int32 round = 0; round < rounds; ++round)
         {
             a.Update();
             b.Update();
@@ -22,14 +24,14 @@ namespace
         }
     }
 
-    std::uint32_t Drain(Transport& transport, NetworkEvent* out, std::uint32_t capacity)
+    JBro::UInt32 Drain(Transport& transport, NetworkEvent* out, JBro::UInt32 capacity)
     {
         return transport.TakeEvents(out, capacity);
     }
 
-    const NetworkEvent* Find(const NetworkEvent* events, std::uint32_t count, NetworkEventKind kind)
+    const NetworkEvent* Find(const NetworkEvent* events, JBro::UInt32 count, NetworkEventKind kind)
     {
-        for (std::uint32_t index = 0; index < count; ++index)
+        for (JBro::UInt32 index = 0; index < count; ++index)
         {
             if (events[index].kind == kind)
             {
@@ -56,9 +58,9 @@ namespace
         Check(server.GetConnectionCount() == 1, "though the server already holds the socket");
         Check(server.GetConnectionState(server.GetConnectionAt(0)) == ConnectionState::Connecting, "as Connecting");
         Pump(server, client, clock);
-        const std::uint32_t serverCount = Drain(server, events, 8);
+        const JBro::UInt32 serverCount = Drain(server, events, 8);
         Check(serverCount == 1 && events[0].kind == NetworkEventKind::Connected, "then the server sees Connected");
-        const std::uint32_t clientCount = Drain(client, events, 8);
+        const JBro::UInt32 clientCount = Drain(client, events, 8);
         Check(clientCount == 1 && events[0].kind == NetworkEventKind::Connected, "and so does the client");
         Check(server.GetConnectionState(server.GetConnectionAt(0)) == ConnectionState::Connected, "and the state follows");
     }
@@ -76,7 +78,7 @@ namespace
         Check(client.Connect("memory", 11), "connect");
         Pump(server, client, clock, 12);
         NetworkEvent events[8];
-        const std::uint32_t clientCount = Drain(client, events, 8);
+        const JBro::UInt32 clientCount = Drain(client, events, 8);
         const NetworkEvent* rejected = Find(events, clientCount, NetworkEventKind::Disconnected);
         Check(nullptr != rejected, "the client is told it was disconnected");
         Check(rejected->reason == DisconnectReason::VersionMismatch, "because the versions differ");
@@ -126,7 +128,7 @@ namespace
 
         clock.Advance(5001.0);
         server.Update();
-        const std::uint32_t count = Drain(server, events, 8);
+        const JBro::UInt32 count = Drain(server, events, 8);
         const NetworkEvent* timedOut = Find(events, count, NetworkEventKind::Disconnected);
         Check(nullptr != timedOut, "the server drops the silent client");
         Check(timedOut->reason == DisconnectReason::Timeout, "as a timeout");
@@ -167,7 +169,7 @@ namespace
 
         client.SetFragmentBytesForTests(5);
         std::uint8_t payload[103];
-        for (std::uint32_t index = 0; index < sizeof(payload); ++index)
+        for (JBro::UInt32 index = 0; index < sizeof(payload); ++index)
         {
             payload[index] = static_cast<std::uint8_t>(index ^ 0x5A);
         }
@@ -175,7 +177,7 @@ namespace
         Check(client.Send(ServerConnectionId, 78, payload, 3), "and a small one that still splits the header");
         Pump(server, client, clock);
         MessageView views[4];
-        const std::uint32_t got = server.TakeMessages(views, 4);
+        const JBro::UInt32 got = server.TakeMessages(views, 4);
         Check(got == 2, "both arrive as whole messages");
         Check(views[0].messageId == 77 && views[0].size == sizeof(payload), "the first has its id and size");
         Check(0 == std::memcmp(views[0].data, payload, sizeof(payload)), "and its bytes");
@@ -198,17 +200,17 @@ namespace
         Drain(client, events, 8);
         client.Close();
         Check(client.GetRole() == NetworkRole::None, "closing clears the role");
-        const std::uint32_t clientCount = Drain(client, events, 8);
+        const JBro::UInt32 clientCount = Drain(client, events, 8);
         Check(clientCount == 1 && events[0].kind == NetworkEventKind::Disconnected && events[0].reason == DisconnectReason::Normal,
             "the client reports its own close");
         Pump(server, client, clock);
-        const std::uint32_t serverCount = Drain(server, events, 8);
+        const JBro::UInt32 serverCount = Drain(server, events, 8);
         const NetworkEvent* gone = Find(events, serverCount, NetworkEventKind::Disconnected);
         Check(nullptr != gone && gone->reason == DisconnectReason::Normal, "the server sees a normal disconnect");
     }
 }
 
-int RunSessionTests()
+JBro::Int32 RunSessionTests()
 {
     try
     {

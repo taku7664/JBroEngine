@@ -1,10 +1,13 @@
 ﻿#include "VulkanDevice.h"
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
     namespace
     {
-        bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
+        Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
@@ -63,7 +66,7 @@ namespace JBro::Internal
         m_pipelineActive = false;
     }
 
-    bool VulkanCommandContext::BeginRenderPass(const RenderPassDesc& desc)
+    Bool VulkanCommandContext::BeginRenderPass(const RenderPassDesc& desc)
     {
         if (m_device == nullptr || m_commands == VK_NULL_HANDLE || m_renderPassActive
             || desc.colorAttachments.data == nullptr || desc.colorAttachments.size == 0
@@ -72,7 +75,7 @@ namespace JBro::Internal
             return false;
         }
         VulkanDevice::AttachmentView colors[MaxColorAttachments];
-        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
             if (false == m_device->ResolveAttachment(desc.colorAttachments.data[index].texture, colors[index])
                 || colors[index].aspect != VK_IMAGE_ASPECT_COLOR_BIT)
@@ -93,7 +96,7 @@ namespace JBro::Internal
         // 렌더 영역은 첨부 크기다. 첫 색 첨부의 크기를 쓴다 - 첨부들은 같은 크기여야 한다.
         const VkExtent2D extent = colors[0].extent;
         m_sampledAtEndCount = 0;
-        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
             const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
             VulkanDevice::AttachmentView& view = colors[index];
@@ -148,7 +151,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
+    Bool VulkanCommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
     {
         VulkanDevice::AttachmentView from;
         VulkanDevice::AttachmentView to;
@@ -192,7 +195,7 @@ namespace JBro::Internal
         }
         vk.vkCmdEndRendering(m_commands);
         // Sampled 로 만든 색 첨부는 다음 패스가 읽을 수 있게 돌려 놓는다.
-        for (std::uint32_t index = 0; index < m_sampledAtEndCount; ++index)
+        for (UInt32 index = 0; index < m_sampledAtEndCount; ++index)
         {
             VulkanDevice::AttachmentView view;
             if (m_device->ResolveAttachment(m_sampledAtEnd[index], view))
@@ -233,15 +236,15 @@ namespace JBro::Internal
             return;
         }
         VkRect2D native = {};
-        const std::int32_t left = scissor.left < 0 ? 0 : scissor.left;
-        const std::int32_t top = scissor.top < 0 ? 0 : scissor.top;
+        const Int32 left = scissor.left < 0 ? Int32(0) : scissor.left;
+        const Int32 top = scissor.top < 0 ? Int32(0) : scissor.top;
         native.offset = {left, top};
         native.extent.width = scissor.right > left ? static_cast<std::uint32_t>(scissor.right - left) : 0;
         native.extent.height = scissor.bottom > top ? static_cast<std::uint32_t>(scissor.bottom - top) : 0;
         vk.vkCmdSetScissor(m_commands, 0, 1, &native);
     }
 
-    bool VulkanCommandContext::SetGraphicsPipeline(GraphicsPipelineHandle pipeline)
+    Bool VulkanCommandContext::SetGraphicsPipeline(GraphicsPipelineHandle pipeline)
     {
         if (false == m_renderPassActive || m_device == nullptr)
         {
@@ -268,10 +271,10 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::SetVertexBuffer(
-        std::uint32_t slot,
+    Bool VulkanCommandContext::SetVertexBuffer(
+        UInt32 slot,
         BufferHandle buffer,
-        std::uint32_t stride,
+        UInt32 stride,
         std::size_t offset)
     {
         VkBuffer native = VK_NULL_HANDLE;
@@ -290,7 +293,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset)
+    Bool VulkanCommandContext::SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset)
     {
         VkBuffer native = VK_NULL_HANDLE;
         BufferDesc desc;
@@ -306,7 +309,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::SetGraphicsConstants(JArrayView<std::byte> data)
+    Bool VulkanCommandContext::SetGraphicsConstants(JArrayView<std::byte> data)
     {
         if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
             || data.size != m_activePipeline->pushConstantBytes || (data.size != 0 && data.data == nullptr))
@@ -322,7 +325,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::SetTexture(std::uint32_t slot, TextureHandle texture)
+    Bool VulkanCommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
         VkImageView view = VK_NULL_HANDLE;
         if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
@@ -338,7 +341,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::SetSampler(std::uint32_t slot, SamplerHandle sampler)
+    Bool VulkanCommandContext::SetSampler(UInt32 slot, SamplerHandle sampler)
     {
         VkSampler native = VK_NULL_HANDLE;
         if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
@@ -354,7 +357,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::BindPendingDescriptors()
+    Bool VulkanCommandContext::BindPendingDescriptors()
     {
         if (m_activePipeline->setLayout == VK_NULL_HANDLE)
         {
@@ -365,14 +368,14 @@ namespace JBro::Internal
             return true;
         }
         // 파이프라인이 선언한 자리가 다 채워져야 한다. 빈 디스크립터는 검증 오류다.
-        for (std::uint32_t slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
+        for (UInt32 slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
         {
             if (m_pendingTextures[slot] == VK_NULL_HANDLE)
             {
                 return false;
             }
         }
-        for (std::uint32_t slot = 0; slot < m_activePipeline->samplerCount; ++slot)
+        for (UInt32 slot = 0; slot < m_activePipeline->samplerCount; ++slot)
         {
             if (m_pendingSamplers[slot] == VK_NULL_HANDLE)
             {
@@ -398,8 +401,8 @@ namespace JBro::Internal
         RememberSet(set);
         VkDescriptorImageInfo images[MaxBoundTextures + MaxBoundSamplers] = {};
         VkWriteDescriptorSet writes[MaxBoundTextures + MaxBoundSamplers] = {};
-        std::uint32_t writeCount = 0;
-        for (std::uint32_t slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
+        UInt32 writeCount = 0;
+        for (UInt32 slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
         {
             images[writeCount].imageView = m_pendingTextures[slot];
             images[writeCount].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -412,7 +415,7 @@ namespace JBro::Internal
             write.pImageInfo = &images[writeCount];
             ++writeCount;
         }
-        for (std::uint32_t slot = 0; slot < m_activePipeline->samplerCount; ++slot)
+        for (UInt32 slot = 0; slot < m_activePipeline->samplerCount; ++slot)
         {
             images[writeCount].sampler = m_pendingSamplers[slot];
             VkWriteDescriptorSet& write = writes[writeCount];
@@ -431,21 +434,21 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanCommandContext::FindCachedSet(VkDescriptorSet& set) const
+    Bool VulkanCommandContext::FindCachedSet(VkDescriptorSet& set) const
     {
-        for (std::uint32_t index = 0; index < m_cachedSetCount; ++index)
+        for (UInt32 index = 0; index < m_cachedSetCount; ++index)
         {
             const CachedSet& candidate = m_cachedSets[index];
             if (candidate.layout != m_activePipeline->setLayout)
             {
                 continue;
             }
-            bool same = true;
-            for (std::uint32_t slot = 0; slot < m_activePipeline->sampledTextureCount && same; ++slot)
+            Bool same = true;
+            for (UInt32 slot = 0; slot < m_activePipeline->sampledTextureCount && same; ++slot)
             {
                 same = candidate.views[slot] == m_pendingTextures[slot];
             }
-            for (std::uint32_t slot = 0; slot < m_activePipeline->samplerCount && same; ++slot)
+            for (UInt32 slot = 0; slot < m_activePipeline->samplerCount && same; ++slot)
             {
                 same = candidate.samplers[slot] == m_pendingSamplers[slot];
             }
@@ -466,22 +469,22 @@ namespace JBro::Internal
         m_cachedSetCount = m_cachedSetCount < CachedSets ? m_cachedSetCount + 1 : CachedSets;
         entry.layout = m_activePipeline->setLayout;
         entry.set = set;
-        for (std::uint32_t slot = 0; slot < MaxBoundTextures; ++slot)
+        for (UInt32 slot = 0; slot < MaxBoundTextures; ++slot)
         {
             entry.views[slot] = slot < m_activePipeline->sampledTextureCount ? m_pendingTextures[slot] : VK_NULL_HANDLE;
         }
-        for (std::uint32_t slot = 0; slot < MaxBoundSamplers; ++slot)
+        for (UInt32 slot = 0; slot < MaxBoundSamplers; ++slot)
         {
             entry.samplers[slot] = slot < m_activePipeline->samplerCount ? m_pendingSamplers[slot] : VK_NULL_HANDLE;
         }
     }
 
-    bool VulkanCommandContext::DrawIndexedInstanced(
-        std::uint32_t indexCount,
-        std::uint32_t instanceCount,
-        std::uint32_t firstIndex,
-        std::int32_t baseVertex,
-        std::uint32_t firstInstance)
+    Bool VulkanCommandContext::DrawIndexedInstanced(
+        UInt32 indexCount,
+        UInt32 instanceCount,
+        UInt32 firstIndex,
+        Int32 baseVertex,
+        UInt32 firstInstance)
     {
         if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
             || indexCount == 0 || instanceCount == 0 || false == BindPendingDescriptors())

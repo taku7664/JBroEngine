@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Package
 {
@@ -20,17 +22,17 @@ namespace JBro::Package
             Put(out, &value, sizeof(value));
         }
 
-        std::uint64_t Align(std::uint64_t value)
+        UInt64 Align(UInt64 value)
         {
             return (value + BlobAlignment - 1) / BlobAlignment * BlobAlignment;
         }
     }
 
-    PackageWriter::PackageWriter(std::uint64_t key) : m_key(key)
+    PackageWriter::PackageWriter(UInt64 key) : m_key(key)
     {
     }
 
-    bool PackageWriter::Add(const Entry& entry, ArrayView<const std::byte> blob)
+    Bool PackageWriter::Add(const Entry& entry, ArrayView<const std::byte> blob)
     {
         if (entry.id.IsNull() || entry.path.size() > MaxPathBytes || static_cast<std::uint8_t>(entry.kind) >= BlobKindCount)
         {
@@ -64,7 +66,7 @@ namespace JBro::Package
         return true;
     }
 
-    std::uint32_t PackageWriter::GetEntryCount() const
+    UInt32 PackageWriter::GetEntryCount() const
     {
         return static_cast<std::uint32_t>(m_entries.Size());
     }
@@ -84,7 +86,7 @@ namespace JBro::Package
             {
                 continue;
             }
-            const std::uint64_t at = Align(file.Size());
+            const UInt64 at = Align(file.Size());
             file.Resize(static_cast<std::size_t>(at));
             if (entry.size > 0)
             {
@@ -95,7 +97,7 @@ namespace JBro::Package
         }
         // 빈 자리(정렬 틈)는 0 이다. 섞지 않는다 - 읽는 쪽이 보지 않는다.
 
-        const std::uint64_t indexOffset = file.Size();
+        const UInt64 indexOffset = file.Size();
         Array<std::byte> index;
         for (const Entry& entry : sorted)
         {
@@ -112,7 +114,7 @@ namespace JBro::Package
             PutValue(index, entry.hash);
             Put(index, entry.path.data(), entry.path.size());
         }
-        const std::uint64_t indexHash = Hash(index.Data(), index.Size());
+        const UInt64 indexHash = Hash(index.Data(), index.Size());
         Obfuscate(m_key, indexOffset, index.Data(), index.Size());
         Put(file, index.Data(), index.Size());
 
@@ -130,7 +132,7 @@ namespace JBro::Package
         std::memcpy(file.Data(), header.Data(), HeaderSize);
     }
 
-    bool PackageWriter::Save(IPlatform& platform, const char* utf8Path, String& error) const
+    Bool PackageWriter::Save(IPlatform& platform, const char* utf8Path, String& error) const
     {
         Array<std::byte> file;
         Build(file);

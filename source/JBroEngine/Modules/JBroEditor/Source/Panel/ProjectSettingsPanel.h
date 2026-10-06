@@ -5,6 +5,8 @@
 #include <JBro/Platform/Platform.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -26,7 +28,7 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Right; }
 
@@ -37,7 +39,7 @@ namespace JBro
         // 경로 값 한 줄: 글자 칸과 "찾아보기"(D-164, 기존 `DrawReadOnlyPathWithFolderBrowse`). 고른 경로는 프로젝트
         // 폴더(`assetRelative` 면 에셋 폴더) 기준 상대경로로 편집본에 들어간다. `filterPattern` 이 없으면 폴더를 고른다.
         void DrawPathValue(const char* id, String& value, const char* filterName = nullptr,
-            const char* filterPattern = nullptr, bool assetRelative = false);
+            const char* filterPattern = nullptr, Bool assetRelative = false);
 
         // 입력 갈래(D-214): 레이어 순서와 액션·바인딩을 고친다.
         void DrawInputSettings();
@@ -51,14 +53,14 @@ namespace JBro
         ProjectFile m_draft;
         // 어느 프로젝트의 값을 담고 있는가. 프로젝트가 바뀌면 다시 읽는다.
         String m_loadedPath;
-        bool m_loaded = false;
+        Bool m_loaded = false;
         // **무시 패턴을 고치는 버퍼**(D-189). 여러 줄 칸은 편집하는 동안 버퍼가
         // 프레임을 넘어 살아 있어야 한다 - 매 프레임 목록에서 새로 지으면 커서가 풀린다.
         // 창을 열 때 한 번 채우고, 그 뒤로는 이쪽이 원본이고 목록이 파생이다.
         String m_ignorePatterns;
         // 저장한 뒤 남기는 한 줄. 성공과 실패를 같은 자리에서 말한다.
         String m_message;
-        bool m_messageIsError = false;
+        Bool m_messageIsError = false;
         // 버스 고르기 목록의 이름들이다. 그릴 때마다 다시 채우되 자리는 재사용한다.
         Array<const char*> m_busChoices;
         // 폰트 칸의 고를 거리(레지스트리의 폰트 에셋)다. 레지스트리의 판번호가 바뀔 때만 다시 모은다 - 인스펙터의
@@ -67,14 +69,14 @@ namespace JBro
         Array<String> m_fontNames;
         Array<const char*> m_fontNamePointers;
         Array<AssetId> m_fontIds;
-        std::uint64_t m_fontChoicesRevision = 0;
-        bool m_fontChoicesBuilt = false;
+        UInt64 m_fontChoicesRevision = 0;
+        Bool m_fontChoicesBuilt = false;
         // 바인딩 `Code` 고르기 목록이다. 그릴 때마다 다시 채우되 자리는 재사용한다.
         Array<const char*> m_inputCodeChoices;
         // 출력 장치 목록(D-203). 창을 열 때와 "새로 고침" 에서만 읽는다 - 읽는 데 몇 ms 걸린다.
-        static constexpr std::uint32_t MaxAudioDevices = 32;
+        static constexpr UInt32 MaxAudioDevices = 32;
         AudioDeviceInfo m_audioDevices[MaxAudioDevices];
-        std::uint32_t m_audioDeviceCount = 0;
-        bool m_audioDevicesListed = false;
+        UInt32 m_audioDeviceCount = 0;
+        Bool m_audioDevicesListed = false;
     };
 }

@@ -3,14 +3,18 @@
 #include <JBro/Host/TimeSystem.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
     namespace
     {
-        bool IsFinite(const DebugLine& line)
+        Bool IsFinite(const DebugLine& line)
         {
-            for (int axis = 0; axis < 3; ++axis)
+            for (Int32 axis = 0; axis < 3; ++axis)
             {
                 if (false == std::isfinite(line.from[axis]) || false == std::isfinite(line.to[axis]))
                 {
@@ -21,7 +25,7 @@ namespace JBro::System
         }
     }
 
-    bool DebugDrawSystem::Initialize(std::uint32_t capacity, const TimeSystem* time)
+    Bool DebugDrawSystem::Initialize(UInt32 capacity, const TimeSystem* time)
     {
         Shutdown();
         m_entries.Reserve(capacity);
@@ -45,14 +49,14 @@ namespace JBro::System
         m_rejected = 0;
         const FrameTime* time = m_time != nullptr ? &m_time->GetFrameTime() : nullptr;
         // 게임이 멈춘 프레임(한 프레임 진행이 아닌)은 아무것도 거두지 않는다. 스크립트가 다시 그리지 않으므로 거두면 멈춘 화면이 빈다.
-        const bool simulating = m_time == nullptr || m_time->IsSimulating();
-        const float delta = time != nullptr ? time->deltaTime : 0.0f;
-        const bool fixedStepsRun = time == nullptr || time->fixedStepCount > 0;
-        std::uint32_t kept = 0;
-        for (std::uint32_t index = 0; index < m_entries.Size(); ++index)
+        const Bool simulating = m_time == nullptr || m_time->IsSimulating();
+        const Float delta = time != nullptr ? time->deltaTime : Float(0.0f);
+        const Bool fixedStepsRun = time == nullptr || time->fixedStepCount > 0;
+        UInt32 kept = 0;
+        for (UInt32 index = 0; index < m_entries.Size(); ++index)
         {
             Entry& entry = m_entries[index];
-            bool keep = false;
+            Bool keep = false;
             if (entry.line.duration > 0.0f)
             {
                 entry.line.duration -= delta;
@@ -86,15 +90,15 @@ namespace JBro::System
         m_rejected = 0;
     }
 
-    std::uint32_t DebugDrawSystem::AddLines(const DebugLine* lines, std::uint32_t count)
+    UInt32 DebugDrawSystem::AddLines(const DebugLine* lines, UInt32 count)
     {
         if (lines == nullptr)
         {
             return 0;
         }
-        const bool inFixedStep = m_time != nullptr && m_time->GetFrameTime().inFixedStep;
-        std::uint32_t accepted = 0;
-        for (std::uint32_t index = 0; index < count; ++index)
+        const Bool inFixedStep = m_time != nullptr && m_time->GetFrameTime().inFixedStep;
+        UInt32 accepted = 0;
+        for (UInt32 index = 0; index < count; ++index)
         {
             const DebugLine& line = lines[index];
             if (false == IsFinite(line))
@@ -110,8 +114,8 @@ namespace JBro::System
             }
             Entry entry;
             entry.line = line;
-            entry.line.thickness = line.thickness < 0.25f ? 0.25f : (line.thickness > 64.0f ? 64.0f : line.thickness);
-            entry.line.duration = line.duration > 0.0f ? line.duration : 0.0f;
+            entry.line.thickness = line.thickness < 0.25f ? Float(0.25f) : (line.thickness > 64.0f ? Float(64.0f) : line.thickness);
+            entry.line.duration = line.duration > 0.0f ? line.duration : Float(0.0f);
             entry.fromFixedStep = inFixedStep;
             m_entries.Add(entry);
             ++accepted;
@@ -119,37 +123,37 @@ namespace JBro::System
         return accepted;
     }
 
-    std::uint32_t DebugDrawSystem::GetLineCount() const
+    UInt32 DebugDrawSystem::GetLineCount() const
     {
         return static_cast<std::uint32_t>(m_entries.Size());
     }
 
-    const DebugLine& DebugDrawSystem::GetLine(std::uint32_t index) const
+    const DebugLine& DebugDrawSystem::GetLine(UInt32 index) const
     {
         return m_entries[index].line;
     }
 
-    std::uint32_t DebugDrawSystem::GetCapacity() const
+    UInt32 DebugDrawSystem::GetCapacity() const
     {
         return m_capacity;
     }
 
-    std::uint32_t DebugDrawSystem::GetDroppedCount() const
+    UInt32 DebugDrawSystem::GetDroppedCount() const
     {
         return m_dropped;
     }
 
-    std::uint32_t DebugDrawSystem::GetRejectedCount() const
+    UInt32 DebugDrawSystem::GetRejectedCount() const
     {
         return m_rejected;
     }
 
-    void DebugDrawSystem::SetGameViewVisible(bool visible)
+    void DebugDrawSystem::SetGameViewVisible(Bool visible)
     {
         m_gameViewVisible = visible;
     }
 
-    bool DebugDrawSystem::IsGameViewVisible() const
+    Bool DebugDrawSystem::IsGameViewVisible() const
     {
         return m_gameViewVisible;
     }

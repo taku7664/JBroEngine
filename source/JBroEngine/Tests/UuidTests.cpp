@@ -5,10 +5,12 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -20,8 +22,8 @@ namespace
     // **난수 아이디는 버전 4 이고 서로 다르다.** 같은 값이 두 번 나오면 임포트 둘이 한 에셋이 된다.
     void TestGeneratedIdsAreDistinctVersionFour()
     {
-        JBro::Table<JBro::Uuid, int> seen;
-        for (int index = 0; index < 4096; ++index)
+        JBro::Table<JBro::Uuid, JBro::Int32> seen;
+        for (JBro::Int32 index = 0; index < 4096; ++index)
         {
             const JBro::Uuid id = JBro::Uuid::Generate();
             Check(false == id.IsNull(), "a generated id is never null");
@@ -99,7 +101,7 @@ namespace
     }
 }
 
-int RunUuidTests()
+JBro::Int32 RunUuidTests()
 {
     TestGeneratedIdsAreDistinctVersionFour();
     TestNamedIdsAreStableAndNeverCollideWithGeneratedOnes();

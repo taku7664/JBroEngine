@@ -30,6 +30,10 @@
 #include <initializer_list>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 글자로 쓰기를 거부하는 값이다. 스냅샷이 이런 값을 만나면 **캡처가 실패해야** 한다 -
 // 처음에는 그 값만 조용히 빼고 성공이라 말했다(D-76 과 같은 구멍).
@@ -37,14 +41,14 @@ namespace
 {
     struct Stubborn
     {
-        int unused = 0;
+        JBro::Int32 unused = 0;
     };
 
     // 그 값을 **구조체 안에** 품는다. 캡처는 필드를 타고 내려가므로, 안쪽에서 난
     // 실패를 바깥이 버리면 뿌리에서만 막는 검사를 빠져나간다.
     struct Burrow
     {
-        float depth = 0.0f;
+        JBro::Float depth = 0.0f;
         Stubborn stubborn;
     };
 
@@ -52,7 +56,7 @@ namespace
     // 다섯째 칸에 잎사귀를 둔다.
     struct Den
     {
-        float warmth = 0.0f;
+        JBro::Float warmth = 0.0f;
     };
 
     struct Warren
@@ -74,11 +78,11 @@ namespace
     // 안에 구조체(`Den`)와 배열이 하나씩 있다.
     struct Beacon
     {
-        float range = 0.0f;
-        bool lit = false;
+        JBro::Float range = 0.0f;
+        JBro::Bool lit = false;
         JBro::Color tint{};
         Den den;
-        JBro::Array<float> pulses;
+        JBro::Array<JBro::Float> pulses;
     };
 
     template <auto Member, typename Owner>
@@ -105,13 +109,13 @@ namespace JBro
             static const ValueCodec codec = []
             {
                 ValueCodec result;
-                result.ToText = [](const void*, char*, std::size_t, std::size_t& required) noexcept
+                result.ToText = [](const void*, char*, std::size_t, std::size_t& required) noexcept -> JBro::Bool
                 {
                     required = 0;
                     return false;
                 };
-                result.FromText = [](void*, const char*, std::size_t) noexcept { return true; };
-                result.Equals = [](const void*, const void*) noexcept { return true; };
+                result.FromText = [](void*, const char*, std::size_t) noexcept -> JBro::Bool { return true; };
+                result.Equals = [](const void*, const void*) noexcept -> JBro::Bool { return true; };
                 result.Assign = [](void*, const void*) noexcept {};
                 return result;
             }();
@@ -210,7 +214,7 @@ namespace JBro
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -244,9 +248,9 @@ namespace
             "the builtin 2D component types must register");
     }
 
-    std::uint32_t FieldIndex(const JBro::PropertyTable& table, const char* name)
+    JBro::UInt32 FieldIndex(const JBro::PropertyTable& table, const char* name)
     {
-        for (std::uint32_t index = 0; index < table.count; ++index)
+        for (JBro::UInt32 index = 0; index < table.count; ++index)
         {
             const char* found =
                 JBro::NameTable::Get().Resolve(table.properties[index].name);
@@ -267,7 +271,7 @@ namespace
         return *table;
     }
 
-    JBro::SetPropertyCommand::Path PathTo(std::uint32_t first)
+    JBro::SetPropertyCommand::Path PathTo(JBro::UInt32 first)
     {
         JBro::SetPropertyCommand::Path path;
         path.indices[0] = first;
@@ -275,7 +279,7 @@ namespace
         return path;
     }
 
-    JBro::SetPropertyCommand::Path PathTo(std::uint32_t first, std::uint32_t second)
+    JBro::SetPropertyCommand::Path PathTo(JBro::UInt32 first, JBro::UInt32 second)
     {
         JBro::SetPropertyCommand::Path path = PathTo(first);
         path.indices[1] = second;
@@ -292,9 +296,9 @@ namespace
         return address;
     }
 
-    bool NearlyEqual(float value, float expected)
+    JBro::Bool NearlyEqual(JBro::Float value, JBro::Float expected)
     {
-        const float delta = value - expected;
+        const JBro::Float delta = value - expected;
         return delta > -0.0001f && delta < 0.0001f;
     }
 
@@ -368,7 +372,7 @@ namespace
         JBro::ComponentBase* component = transform;
         const JBro::ComponentTypeId typeId = component->GetTypeId();
 
-        const std::uint32_t rotation = FieldIndex(TransformTable(), "rotation");
+        const JBro::UInt32 rotation = FieldIndex(TransformTable(), "rotation");
         const JBro::SetPropertyCommand::Path path = PathTo(rotation);
 
         transform->SetRotationRadian(JBro::Radian(0.5f));
@@ -387,7 +391,7 @@ namespace
         Check(NearlyEqual(transform->GetRotationRadian(), 1.5f), "and redo must do it again");
 
         // 한 칸 더 내려간 잎사귀도 같은 길이다.
-        const std::uint32_t position = FieldIndex(TransformTable(), "position");
+        const JBro::UInt32 position = FieldIndex(TransformTable(), "position");
         const JBro::SetPropertyCommand::Path deep = PathTo(position, 1);
         transform->position = {0.0f, 2.0f};
         JBro::String nested;
@@ -413,7 +417,7 @@ namespace
         JBro::ComponentBase* component = transform;
         const JBro::ComponentTypeId typeId = component->GetTypeId();
 
-        const std::uint32_t world = FieldIndex(TransformTable(), "world");
+        const JBro::UInt32 world = FieldIndex(TransformTable(), "world");
         const JBro::SetPropertyCommand::Path branch = PathTo(world);
 
         void* address = nullptr;
@@ -497,8 +501,8 @@ namespace
         const JBro::ComponentAddress firstAddress = AddressOf(ids, *first, *firstTransform);
         const JBro::ComponentAddress secondAddress = AddressOf(ids, *second, *secondTransform);
 
-        const std::uint32_t rotation = FieldIndex(TransformTable(), "rotation");
-        const std::uint32_t position = FieldIndex(TransformTable(), "position");
+        const JBro::UInt32 rotation = FieldIndex(TransformTable(), "rotation");
+        const JBro::UInt32 position = FieldIndex(TransformTable(), "position");
         const JBro::SetPropertyCommand::Path rotationPath = PathTo(rotation);
         const JBro::SetPropertyCommand::Path positionY = PathTo(position, 1);
 
@@ -822,7 +826,7 @@ namespace
         first->radius = 1.5f;
         second->radius = 4.5f;
 
-        std::uint32_t ordinal = 99;
+        JBro::UInt32 ordinal = 99;
         Check(JBro::FindComponentOrdinal(*object, *second, ordinal),
             "the second one must be findable");
         Check(ordinal == 1, "and must be the second of its kind");
@@ -856,12 +860,12 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::GameObject* object = canvas.CreateObject("Subject");
         JBro::ComponentBase* slots[4] = {};
-        for (int index = 0; index < 4; ++index)
+        for (JBro::Int32 index = 0; index < 4; ++index)
         {
             slots[index] = canvas.AttachComponent<JBro::Component::Collider2D>(object);
             Check(slots[index] != nullptr, "four colliders must attach");
         }
-        auto expect = [&](const int order[4], const char* message) {
+        auto expect = [&](const JBro::Int32 order[4], const char* message) {
             for (std::size_t at = 0; at < 4; ++at)
             {
                 std::size_t found = 99;
@@ -870,19 +874,19 @@ namespace
             }
         };
 
-        const int start[4] = {0, 1, 2, 3};
+        const JBro::Int32 start[4] = {0, 1, 2, 3};
         expect(start, "they sit in the order they were attached");
 
         Check(object->SetComponentIndex(slots[0], 2), "moving the first back must work");
-        const int movedBack[4] = {1, 2, 0, 3};
+        const JBro::Int32 movedBack[4] = {1, 2, 0, 3};
         expect(movedBack, "and slide the ones between forward, leaving the last alone");
 
         Check(object->SetComponentIndex(slots[3], 1), "moving the last forward must work");
-        const int movedForward[4] = {1, 3, 2, 0};
+        const JBro::Int32 movedForward[4] = {1, 3, 2, 0};
         expect(movedForward, "and push the ones between back");
 
         Check(object->SetComponentIndex(slots[1], 99), "an index past the end is the end");
-        const int toEnd[4] = {3, 2, 0, 1};
+        const JBro::Int32 toEnd[4] = {3, 2, 0, 1};
         expect(toEnd, "so it lands last");
 
         JBro::GameObject* stranger = canvas.CreateObject("Stranger");
@@ -909,7 +913,7 @@ namespace
             canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object),
             canvas.AttachComponent<JBro::Component::Collider2D>(object),
         };
-        auto expect = [&](const int order[3], const char* message) {
+        auto expect = [&](const JBro::Int32 order[3], const char* message) {
             for (std::size_t at = 0; at < 3; ++at)
             {
                 std::size_t found = 99;
@@ -919,10 +923,10 @@ namespace
 
         Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveComponentCommand>(ids, id, 2, 0)),
             "moving the last slot to the front must go through");
-        const int moved[3] = {2, 0, 1};
+        const JBro::Int32 moved[3] = {2, 0, 1};
         expect(moved, "and put it first, sliding the others back");
         Check(commands.Undo(), "undo must run");
-        const int start[3] = {0, 1, 2};
+        const JBro::Int32 start[3] = {0, 1, 2};
         expect(start, "and restore the attach order");
         Check(commands.Redo(), "redo must run");
         expect(moved, "and move it again");
@@ -1069,7 +1073,7 @@ namespace
         // 값으로 가려낸다. 되살린 것은 주소가 새것이라 포인터로는 알아볼 수 없다.
         std::size_t untouched = 0;
         std::size_t reverted = 0;
-        for (std::uint32_t ordinal = 0; ordinal < 2; ++ordinal)
+        for (JBro::UInt32 ordinal = 0; ordinal < 2; ++ordinal)
         {
             auto* collider = static_cast<JBro::Component::Collider2D*>(
                 JBro::FindComponentAt(*object, type, ordinal));
@@ -1116,8 +1120,8 @@ namespace
     // ── 컨테이너 ─────────────────────────────────────────────────────────
 
     using StockColors = JBro::Array<JBro::Color>;
-    using StockCounts = JBro::Table<JBro::String, std::int32_t>;
-    using StockSamples = JBro::Array<float>;
+    using StockCounts = JBro::Table<JBro::String, JBro::Int32>;
+    using StockSamples = JBro::Array<JBro::Float>;
 
     // 컨테이너를 든 컴포넌트다. 빌트인 컴포넌트에는 아직 컨테이너 필드가 없다(D-86).
     class Stocked final : public JBro::ComponentBase
@@ -1173,7 +1177,7 @@ namespace
 
         JBRO_REFLECT_BODY(Obstinate)
 
-        JBRO_FIELD(float, speed) = 1.0f;
+        JBRO_FIELD(JBro::Float, speed) = 1.0f;
         JBRO_FIELD(Stubborn, stubborn);
     };
 
@@ -1260,7 +1264,7 @@ namespace
         Check(stocked != nullptr, what);
         Check(stocked->colors.Size() == 2 && NearlyEqual(stocked->colors[1].A, 0.5f),
             "the colors must come back whole");
-        const std::int32_t* arrows = stocked->counts.Find(JBro::String("arrows"));
+        const JBro::Int32* arrows = stocked->counts.Find(JBro::String("arrows"));
         Check(stocked->counts.Size() == 2 && arrows != nullptr && *arrows == 30,
             "the table must come back with each value under its key");
         Check(stocked->samples.Size() == SampleCount
@@ -1440,7 +1444,7 @@ namespace
 
     // ── 목록 편집 ────────────────────────────────────────────────────────
 
-    JBro::ListEdit SetElement(std::uint32_t index, float delta)
+    JBro::ListEdit SetElement(JBro::UInt32 index, JBro::Float delta)
     {
         JBro::ListEdit edit;
         edit.kind = JBro::ListEdit::Kind::SetElement;
@@ -1450,7 +1454,7 @@ namespace
         return edit;
     }
 
-    JBro::ListEdit MoveElement(std::uint32_t from, std::uint32_t to)
+    JBro::ListEdit MoveElement(JBro::UInt32 from, JBro::UInt32 to)
     {
         JBro::ListEdit edit;
         edit.kind = JBro::ListEdit::Kind::Move;
@@ -1459,14 +1463,14 @@ namespace
         return edit;
     }
 
-    bool FloatsAre(const JBro::Array<float>& values, std::initializer_list<float> expected)
+    JBro::Bool FloatsAre(const JBro::Array<JBro::Float>& values, std::initializer_list<JBro::Float> expected)
     {
         if (values.Size() != expected.size())
         {
             return false;
         }
         std::size_t at = 0;
-        for (float value : expected)
+        for (JBro::Float value : expected)
         {
             if (false == NearlyEqual(values[at], value))
             {
@@ -1559,13 +1563,13 @@ namespace
             "and a move from past the end is still refused");
     }
 
-    JBro::ListEdit FieldEdit(std::uint32_t index, std::initializer_list<std::uint32_t> fields)
+    JBro::ListEdit FieldEdit(JBro::UInt32 index, std::initializer_list<JBro::UInt32> fields)
     {
         Check(fields.size() <= JBro::ListEdit::MaxFieldDepth, "the test must name a path that fits");
         JBro::ListEdit edit;
         edit.kind = JBro::ListEdit::Kind::SetElement;
         edit.index = index;
-        for (std::uint32_t field : fields)
+        for (JBro::UInt32 field : fields)
         {
             edit.fieldPath[edit.fieldDepth] = field;
             ++edit.fieldDepth;
@@ -1574,7 +1578,7 @@ namespace
     }
 
     JBro::ListEdit FieldDelta(
-        std::uint32_t index, std::initializer_list<std::uint32_t> fields, float delta)
+        JBro::UInt32 index, std::initializer_list<JBro::UInt32> fields, JBro::Float delta)
     {
         JBro::ListEdit edit = FieldEdit(index, fields);
         edit.deltaCount = 1;
@@ -1589,12 +1593,12 @@ namespace
         using Beacons = JBro::Array<Beacon>;
         const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<Beacons>::Get();
         const JBro::PropertyTable& fields = *JBro::TypeDescriptorOf<Beacon>::Get().fields;
-        const std::uint32_t range = FieldIndex(fields, "range");
-        const std::uint32_t lit = FieldIndex(fields, "lit");
-        const std::uint32_t tint = FieldIndex(fields, "tint");
-        const std::uint32_t den = FieldIndex(fields, "den");
-        const std::uint32_t pulses = FieldIndex(fields, "pulses");
-        const std::uint32_t warmth =
+        const JBro::UInt32 range = FieldIndex(fields, "range");
+        const JBro::UInt32 lit = FieldIndex(fields, "lit");
+        const JBro::UInt32 tint = FieldIndex(fields, "tint");
+        const JBro::UInt32 den = FieldIndex(fields, "den");
+        const JBro::UInt32 pulses = FieldIndex(fields, "pulses");
+        const JBro::UInt32 warmth =
             FieldIndex(*JBro::TypeDescriptorOf<Den>::Get().fields, "warmth");
 
         Beacons beacons;
@@ -1723,7 +1727,7 @@ namespace
     // 숫자가 아닌 원소는 글자를 그대로 쓰고, 숫자 묶음은 개수가 맞아야 한다.
     void TestAListEditRespectsWhatTheElementIs()
     {
-        using Flags = JBro::Array<bool>;
+        using Flags = JBro::Array<JBro::Bool>;
         const JBro::TypeDescriptor& flagType = JBro::TypeDescriptorOf<Flags>::Get();
         Flags flags;
         flags.Add(false);
@@ -2296,7 +2300,7 @@ namespace
     }
 }
 
-int RunEditorObjectCommandTests()
+JBro::Int32 RunEditorObjectCommandTests()
 {
     TestObjectNumbersAreStableAndNeverInvented();
     TestPathsOfDifferentDepthAreDifferentPaths();

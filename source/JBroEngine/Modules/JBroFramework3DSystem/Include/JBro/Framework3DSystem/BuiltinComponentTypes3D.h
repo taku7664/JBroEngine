@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Types/Bool.h>
+
 namespace JBro::Component
 {
     // 3D 빌트인 컴포넌트를 이름으로 붙일 수 있게 `ComponentRegistry` 에 넣는다.
@@ -9,5 +11,5 @@ namespace JBro::Component
     // 붙이는 함수는 `Canvas` 를 보아야 하고 그것은 Tier E 다(D-42). 2D 쪽과 같은 갈림이다.
     //
     // 두 번 불러도 된다. 프레임 루프에서 부르는 함수가 아니다.
-    bool RegisterBuiltinComponentTypes3D();
+    Bool RegisterBuiltinComponentTypes3D();
 }

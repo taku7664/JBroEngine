@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network::Testing
 {
@@ -18,9 +20,9 @@ namespace JBro::Network::Testing
         // 사본을 한 번 더 보낼 확률 [0,1).
         double duplicateRate = 0.0;
         // 홀드백 큐 깊이. 0 이면 FIFO(순서 유지), 크면 큐 안의 임의 원소를 내보내 순서를 뒤섞는다.
-        std::uint32_t reorderDepth = 0;
+        UInt32 reorderDepth = 0;
         // 0 은 1 로 올린다. 같은 시드는 같은 유실 무늬다.
-        std::uint32_t seed = 1;
+        UInt32 seed = 1;
     };
 
     // 테스트 전용 데코레이터. 안쪽 `IDatagramSocket` 위에 결정론적 유실·중복·재정렬을 얹는다. 루프백은 사실상 무손실이라
@@ -29,12 +31,12 @@ namespace JBro::Network::Testing
     class LossyDatagramSocket final : public IDatagramSocket
     {
     public:
-        static constexpr std::uint32_t MaxDatagramBytes = 1500;
+        static constexpr UInt32 MaxDatagramBytes = 1500;
 
         LossyDatagramSocket(OwnerPtr<IDatagramSocket> inner, const LossyConfig& config)
             : m_inner(std::move(inner))
             , m_config(config)
-            , m_state(0 == config.seed ? 1u : config.seed)
+            , m_state(0 == config.seed ? UInt32(1u) : config.seed)
         {
             m_pending.Resize(config.reorderDepth + 2);
         }
@@ -44,17 +46,17 @@ namespace JBro::Network::Testing
             Flush();
         }
 
-        bool Open() override
+        Bool Open() override
         {
             return nullptr != m_inner.Get() && m_inner->Open();
         }
 
-        bool Bind(std::uint16_t port) override
+        Bool Bind(std::uint16_t port) override
         {
             return nullptr != m_inner.Get() && m_inner->Bind(port);
         }
 
-        bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) override
+        Bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) override
         {
             return nullptr != m_inner.Get() && m_inner->Resolve(host, port, outEndpoint);
         }
@@ -77,7 +79,7 @@ namespace JBro::Network::Testing
             }
         }
 
-        bool IsOpen() const override
+        Bool IsOpen() const override
         {
             return nullptr != m_inner.Get() && m_inner->IsOpen();
         }
@@ -103,7 +105,7 @@ namespace JBro::Network::Testing
             // 깊이를 넘는 만큼 내보낸다. 깊이 0 이면 앞에서부터, 아니면 임의 원소다.
             while (m_pendingCount > m_config.reorderDepth)
             {
-                const std::uint32_t index = (0 == m_config.reorderDepth) ? 0 : NextIndex(m_pendingCount);
+                const UInt32 index = (0 == m_config.reorderDepth) ? UInt32(0) : NextIndex(m_pendingCount);
                 FlushOne(index);
             }
             return SocketIo::Ok;
@@ -118,17 +120,17 @@ namespace JBro::Network::Testing
             }
         }
 
-        std::uint32_t DroppedCount() const
+        UInt32 DroppedCount() const
         {
             return m_dropped;
         }
 
-        std::uint32_t DuplicatedCount() const
+        UInt32 DuplicatedCount() const
         {
             return m_duplicated;
         }
 
-        std::uint32_t ReorderedCount() const
+        UInt32 ReorderedCount() const
         {
             return m_reordered;
         }
@@ -137,7 +139,7 @@ namespace JBro::Network::Testing
         struct Pending
         {
             Endpoint to;
-            std::uint32_t size = 0;
+            UInt32 size = 0;
             std::uint8_t bytes[MaxDatagramBytes] = {};
         };
 
@@ -156,7 +158,7 @@ namespace JBro::Network::Testing
             }
         }
 
-        void FlushOne(std::uint32_t index)
+        void FlushOne(UInt32 index)
         {
             if (index >= m_pendingCount)
             {
@@ -168,16 +170,16 @@ namespace JBro::Network::Testing
             }
             const Pending& pending = m_pending[index];
             m_inner->SendTo(pending.to, pending.bytes, pending.size);
-            for (std::uint32_t at = index; at + 1 < m_pendingCount; ++at)
+            for (UInt32 at = index; at + 1 < m_pendingCount; ++at)
             {
                 m_pending[at] = m_pending[at + 1];
             }
             --m_pendingCount;
         }
 
-        std::uint32_t NextU32()
+        UInt32 NextU32()
         {
-            std::uint32_t x = m_state;
+            UInt32 x = m_state;
             x ^= x << 13;
             x ^= x >> 17;
             x ^= x << 5;
@@ -190,18 +192,18 @@ namespace JBro::Network::Testing
             return static_cast<double>(NextU32() >> 8) * (1.0 / 16777216.0);
         }
 
-        std::uint32_t NextIndex(std::uint32_t count)
+        UInt32 NextIndex(UInt32 count)
         {
             return NextU32() % count;
         }
 
         OwnerPtr<IDatagramSocket> m_inner;
         LossyConfig m_config;
-        std::uint32_t m_state = 1;
+        UInt32 m_state = 1;
         Array<Pending> m_pending;
-        std::uint32_t m_pendingCount = 0;
-        std::uint32_t m_dropped = 0;
-        std::uint32_t m_duplicated = 0;
-        std::uint32_t m_reordered = 0;
+        UInt32 m_pendingCount = 0;
+        UInt32 m_dropped = 0;
+        UInt32 m_duplicated = 0;
+        UInt32 m_reordered = 0;
     };
 }

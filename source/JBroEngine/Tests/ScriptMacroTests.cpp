@@ -1,4 +1,5 @@
 ﻿#include <JBro/Script/Macros.h>
+#include <JBro/Types/Int.h>
 
 // This translation unit intentionally includes no other headers: the marker is standalone.
 namespace ScriptMacroProbe
@@ -8,7 +9,7 @@ namespace ScriptMacroProbe
     JBRO_SCRIPT(ForwardDeclared)
     {
     public:
-        constexpr int Value() const
+        constexpr JBro::Int32 Value() const
         {
             return 17;
         }
@@ -20,7 +21,7 @@ namespace ScriptMacroProbe
 
     JBRO_SCRIPT(DefaultAccess)
     {
-        int privateByDefault = 0;
+        JBro::Int32 privateByDefault = 0;
     };
 
     template<typename T>

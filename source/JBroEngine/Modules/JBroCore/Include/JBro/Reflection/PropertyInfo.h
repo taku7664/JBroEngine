@@ -4,6 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -17,10 +20,10 @@ namespace JBro
         const char* displayName = nullptr;
         const char* tooltip     = nullptr;
         const char* category    = nullptr;
-        bool        hasRange = false;
-        float       rangeMin = 0.0f;
-        float       rangeMax = 0.0f;
-        bool        editable = true;
+        Bool        hasRange = false;
+        Float       rangeMin = 0.0f;
+        Float       rangeMax = 0.0f;
+        Bool        editable = true;
     };
 
     // 필드 하나의 명세다(D-56 계획서 §8.3).
@@ -41,7 +44,7 @@ namespace JBro
         const void* (*ConstAddress)(const void* owner) noexcept = nullptr;
 
         // false 면 인스펙터에는 나오되 저장 파일에는 쓰지 않는다(런타임 전용 값).
-        bool serialize = true;
+        Bool serialize = true;
         const PropertyEditInfo* edit = nullptr;
     };
 
@@ -49,7 +52,7 @@ namespace JBro
     struct PropertyTable
     {
         const PropertyInfo* properties = nullptr;
-        std::uint32_t       count = 0;
+        UInt32       count = 0;
     };
 
     // 이 구조체들은 호스트와 게임 DLL 사이를 넘는다. POD 이고 함수 포인터만 담는다.

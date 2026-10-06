@@ -9,6 +9,9 @@
 #include <JBro/Types/TextOptions.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 // 텍스트 한 덩어리의 레이아웃 캐시다(D-222). 2D `Text2D` 와 3D `Text3D` 가 같이 쓴다 - 컴포넌트는 제 필드로 `TextBlockSettings` 를
 // 채우고, 시스템은 매 프레임 `Update` 를 부른다. 글자·폰트·옵션·아틀라스가 바뀌었을 때만 다시 레이아웃하고, 결과는 글자 픽셀의 쿼드다.
@@ -54,27 +57,27 @@ namespace JBro
         TextId           textKey;
         AssetId          fontId;
         AssetHandle      font;             // fontId 에서 해석된 것(Font 또는 FontFamily, D-225). fontId 가 비면 프로젝트의 첫 폰트를 쓴다(D-213)
-        float            fontSize = 32.0f; // em 크기(글자 픽셀)
-        float            boxWidth = 0.0f;  // 글자 픽셀. 0 이면 그 방향으로 제한이 없다
-        float            boxHeight = 0.0f;
+        Float            fontSize = 32.0f; // em 크기(글자 픽셀)
+        Float            boxWidth = 0.0f;  // 글자 픽셀. 0 이면 그 방향으로 제한이 없다
+        Float            boxHeight = 0.0f;
         Text::Overflow   overflow = Text::Overflow::Wrap;
         Text::WrapMode   wrapMode = Text::WrapMode::Word;
         Text::AlignX     alignX = Text::AlignX::Left;
         Text::AlignY     alignY = Text::AlignY::Baseline;
-        float            lineSpacing = 1.0f;
-        float            letterSpacing = 0.0f;
-        bool             autoSize = false;
-        float            minFontSize = 8.0f;
-        float            maxFontSize = 72.0f;
-        bool             pixelSnap = false;
-        bool             richText = false;
+        Float            lineSpacing = 1.0f;
+        Float            letterSpacing = 0.0f;
+        Bool             autoSize = false;
+        Float            minFontSize = 8.0f;
+        Float            maxFontSize = 72.0f;
+        Bool             pixelSnap = false;
+        Bool             richText = false;
     };
 
     class TextBlock final
     {
     public:
         // 한 텍스트가 쓰는 face 의 최대 수다: 자기 폰트 하나와 프로젝트 폴백들.
-        static constexpr std::uint32_t MaxFaces = 8;
+        static constexpr UInt32 MaxFaces = 8;
 
         enum class UpdateResult : std::uint8_t
         {
@@ -88,18 +91,18 @@ namespace JBro
 
         ArrayView<const GlyphQuad> GetQuads() const;
         // 쿼드의 `face` 번호가 가리키는 폰트다. 페이지 텍스처는 `TextLibrary::GetPageTexture(GetFont(face), page)` 다.
-        AssetHandle GetFont(std::uint32_t face) const;
-        std::uint32_t GetFontCount() const;
-        float GetPixelsPerUnit() const;
+        AssetHandle GetFont(UInt32 face) const;
+        UInt32 GetFontCount() const;
+        Float GetPixelsPerUnit() const;
         TextureFilter GetFilter() const;
-        bool IsSdf() const;
-        std::uint32_t GetSdfSpread() const;
+        Bool IsSdf() const;
+        UInt32 GetSdfSpread() const;
         // 마지막으로 레이아웃한 글자 크기(em 픽셀)다. 자동 크기면 찾은 크기다.
-        float GetFittedSize() const;
+        Float GetFittedSize() const;
         // 블록 사각형(글자 픽셀, 정렬 기준점 원점, y 위쪽)이다. 레이아웃이 없으면 거짓이다.
-        bool GetBounds(float& minX, float& minY, float& maxX, float& maxY) const;
+        Bool GetBounds(Float& minX, Float& minY, Float& maxX, Float& maxY) const;
 
-        static std::uint64_t MakeOptionsKey(const TextBlockSettings& settings);
+        static UInt64 MakeOptionsKey(const TextBlockSettings& settings);
 
     private:
         // faces 안에서 굵게·기울임·굵은 기울임 face 의 번호다(패밀리일 때, D-225). 없으면 `Text::LayoutOptions::NoStyleFace` 다.
@@ -110,36 +113,36 @@ namespace JBro
             std::uint16_t boldItalic = Text::LayoutOptions::NoStyleFace;
         };
 
-        bool GatherFonts(TextLibrary& library, const TextBlockSettings& settings, AssetHandle* handles, FontView* views,
-            std::uint32_t& count, StyleFaces& styles) const;
-        void Relayout(const TextBlockSettings& settings, const AssetHandle* handles, const FontView* views, std::uint32_t count,
+        Bool GatherFonts(TextLibrary& library, const TextBlockSettings& settings, AssetHandle* handles, FontView* views,
+            UInt32& count, StyleFaces& styles) const;
+        void Relayout(const TextBlockSettings& settings, const AssetHandle* handles, const FontView* views, UInt32 count,
             const StyleFaces& styles);
 
         // 보일 글자다. 키가 있으면 표에서 찾은 것(없으면 키), 없으면 `text` 의 것이다. 찾은 글자는 호스트 메모리를 가리키므로 곧바로 쓴다.
         static ArrayView<const char> ResolveText(const TextBlockSettings& settings);
-        static std::uint32_t LocalizationRevision(const TextBlockSettings& settings);
+        static UInt32 LocalizationRevision(const TextBlockSettings& settings);
 
         // 이 캐시를 만든 입력이다. 하나라도 다르면 다시 레이아웃한다.
         TextId           m_text;
-        std::uint32_t    m_textRevision = 0;
+        UInt32    m_textRevision = 0;
         TextId           m_textKey;
-        std::uint32_t    m_textKeyRevision = 0;
+        UInt32    m_textKeyRevision = 0;
         // 키가 있을 때만 본다. 키가 없으면 0 이다 - 로케일이 바뀌어도 키 없는 텍스트는 다시 레이아웃하지 않는다.
-        std::uint32_t    m_localizationRevision = 0;
+        UInt32    m_localizationRevision = 0;
         // 앞이 기본 폰트, 뒤가 폴백이다.
         AssetHandle      m_fonts[MaxFaces];
-        std::uint32_t    m_fontGenerations[MaxFaces] = {};
-        std::uint32_t    m_atlasGenerations[MaxFaces] = {};
-        std::uint32_t    m_fontCount = 0;
-        std::uint64_t    m_optionsKey = 0;
+        UInt32    m_fontGenerations[MaxFaces] = {};
+        UInt32    m_atlasGenerations[MaxFaces] = {};
+        UInt32    m_fontCount = 0;
+        UInt64    m_optionsKey = 0;
         StyleFaces       m_styles;
         Text::TextLayout m_layout;
         Array<GlyphQuad> m_quads;
-        float            m_pixelsPerUnit = DefaultPixelsPerUnit;
+        Float            m_pixelsPerUnit = DefaultPixelsPerUnit;
         TextureFilter    m_filter = TextureFilter::Nearest;
-        bool             m_sdf = false;
-        std::uint32_t    m_sdfSpread = 8;
-        float            m_fittedSize = 0.0f;
-        bool             m_hasBounds = false;
+        Bool             m_sdf = false;
+        UInt32    m_sdfSpread = 8;
+        Float            m_fittedSize = 0.0f;
+        Bool             m_hasBounds = false;
     };
 }

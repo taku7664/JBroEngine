@@ -1,6 +1,8 @@
 ﻿#include <JBro/Internal/InstanceRegistry.h>
 
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -42,7 +44,7 @@ namespace JBro::Internal
             return {};
         }
 
-        std::uint32_t slot = 0;
+        UInt32 slot = 0;
         if (false == m_freeSlots.IsEmpty())
         {
             slot = m_freeSlots.Last();
@@ -60,7 +62,7 @@ namespace JBro::Internal
             m_entries.Add({});
         }
 
-        bool inserted = false;
+        Bool inserted = false;
         try
         {
             inserted = m_idToSlot.TryAdd(persistentId, slot);
@@ -86,7 +88,7 @@ namespace JBro::Internal
         return {slot, entry.Generation};
     }
 
-    bool InstanceRegistry::Unregister(InstanceHandle handle)
+    Bool InstanceRegistry::Unregister(InstanceHandle handle)
     {
         if (false == handle.IsSet() || handle.Slot >= m_entries.Size())
         {
@@ -143,7 +145,7 @@ namespace JBro::Internal
             return {};
         }
 
-        const std::uint32_t* slot = m_idToSlot.Find(persistentId);
+        const UInt32* slot = m_idToSlot.Find(persistentId);
         if (slot == nullptr || *slot >= m_entries.Size())
         {
             return {};
@@ -209,7 +211,7 @@ namespace JBro::Internal
         return objectId;
     }
 
-    std::uint32_t InstanceRegistry::NextGeneration(std::uint32_t generation)
+    UInt32 InstanceRegistry::NextGeneration(UInt32 generation)
     {
         ++generation;
         if (generation == 0)
@@ -232,7 +234,7 @@ namespace JBro::Internal
         return InstanceRegistry::Get().Resolve(objectId, componentId, category);
     }
 
-    bool PatchInstanceRefCache(
+    Bool PatchInstanceRefCache(
         InstanceRef& reference,
         RefCategory category)
     {

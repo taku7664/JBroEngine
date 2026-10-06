@@ -17,10 +17,13 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -83,7 +86,7 @@ namespace
         }
         Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit),
             "preview destruction must not unbind the active project");
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             Check(engine.Tick(1.0f / 60.0f), "real host must present across all in-flight slots");
         }
@@ -143,7 +146,7 @@ namespace
 
             // 원본을 다시 쓰면 재로드된다. OS 알림은 비동기라 잠깐 기다린다.
             const auto pollUntil = [&](auto&& condition) {
-                for (int attempt = 0; attempt < 300; ++attempt)
+                for (JBro::Int32 attempt = 0; attempt < 300; ++attempt)
                 {
                     engine.PollAssetChanges();
                     if (condition())
@@ -214,7 +217,7 @@ namespace
         Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
             && hit.other.GetInstanceId() == nextSprite->GetInstanceId(),
             "retained service access must follow a reopened project");
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             Check(engine.Tick(1.0f / 60.0f), "reopened real project must present across in-flight slots");
         }
@@ -260,7 +263,7 @@ namespace
         rendererConfig.validation = false;
         Check(renderer.Initialize(rhi, rendererConfig), "D3D12 renderer must initialize");
 
-        for (std::uint32_t frameIndex = 0; frameIndex < 6; ++frameIndex)
+        for (JBro::UInt32 frameIndex = 0; frameIndex < 6; ++frameIndex)
         {
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready,
                 "D3D12 renderer must begin every frame slot cycle");
@@ -320,7 +323,7 @@ namespace
             auto* spriteObject = canvas->CreateObject("sprite");
             canvas->AttachComponent<JBro::Component::Transform2D>(spriteObject);            auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
             sprite->size = {5.0f, 5.0f};
-            for (int frame = 0; frame < 6; ++frame)
+            for (JBro::Int32 frame = 0; frame < 6; ++frame)
             {
                 JBro::Testing::Tick(framework, 1.0f / 60.0f);
                 Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "D3D12 framework frame must begin");
@@ -443,7 +446,7 @@ namespace
         const JBro::TextureHandle texture = device->CreateTexture(textureDesc);
         Check(texture.IsValid(), "the probe texture must be created");
 
-        for (int round = 0; round < 2; ++round)
+        for (JBro::Int32 round = 0; round < 2; ++round)
         {
             const JBro::BeginFrameResult begun = device->BeginFrame(swapchain);
             Check(begun.status == JBro::FrameStatus::Ready, "each frame must begin");
@@ -478,7 +481,7 @@ namespace
     }
 }
 
-int RunD3D12SmokeTests()
+JBro::Int32 RunD3D12SmokeTests()
 {
     TestD3D12AnAbortedFrameRollsTrackedStatesBack();
     TestD3D12ResourceHandleLifecycle();

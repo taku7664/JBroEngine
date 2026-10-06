@@ -5,6 +5,8 @@
 #include <JBro/Network/Types.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -16,29 +18,29 @@ namespace JBro::System
         virtual ~INetworkSystem() = default;
 
         // ── 세션 ──
-        virtual bool StartServer(std::uint16_t port) = 0;
-        virtual bool Connect(const char* host, std::uint16_t port) = 0;
+        virtual Bool StartServer(std::uint16_t port) = 0;
+        virtual Bool Connect(const char* host, std::uint16_t port) = 0;
         virtual void Disconnect() = 0;
         virtual Network::NetworkRole GetRole() const = 0;
         // 서버는 듣고 있는가, 클라이언트는 hello 가 끝났는가.
-        virtual bool IsConnected() const = 0;
-        virtual std::uint32_t GetConnectionCount() const = 0;
-        virtual Network::ConnectionId GetConnectionAt(std::uint32_t index) const = 0;
+        virtual Bool IsConnected() const = 0;
+        virtual UInt32 GetConnectionCount() const = 0;
+        virtual Network::ConnectionId GetConnectionAt(UInt32 index) const = 0;
         virtual double GetRoundTripMilliseconds(Network::ConnectionId connection) const = 0;
         virtual double GetUdpLossRate(Network::ConnectionId connection) const = 0;
 
         // ── 메시지 ──
-        virtual bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, std::uint32_t size,
+        virtual Bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, UInt32 size,
             Network::NetChannel channel) = 0;
-        virtual bool Broadcast(Network::MessageId messageId, const void* data, std::uint32_t size, Network::NetChannel channel) = 0;
+        virtual Bool Broadcast(Network::MessageId messageId, const void* data, UInt32 size, Network::NetChannel channel) = 0;
         // 이번 프레임에 도착한 게임 메시지(복제 것은 뺀 것)를 꺼낸다. 뷰는 다음 프레임까지만 유효하다.
-        virtual std::uint32_t TakeEvents(Network::NetworkEvent* events, std::uint32_t capacity) = 0;
-        virtual std::uint32_t TakeMessages(Network::MessageView* messages, std::uint32_t capacity) = 0;
+        virtual UInt32 TakeEvents(Network::NetworkEvent* events, UInt32 capacity) = 0;
+        virtual UInt32 TakeMessages(Network::MessageView* messages, UInt32 capacity) = 0;
 
         // ── 복제 ──
         virtual Network::NetworkObjectId FindNetworkId(InstanceId object) const = 0;
         virtual InstanceId FindLocalObject(Network::NetworkObjectId id) const = 0;
         // 서버는 모든 오브젝트에 권한이 있고, 클라이언트는 아무것에도 없다(예측·소유 위임은 열어 둔 것).
-        virtual bool HasAuthority(InstanceId object) const = 0;
+        virtual Bool HasAuthority(InstanceId object) const = 0;
     };
 }

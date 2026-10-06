@@ -5,6 +5,8 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -63,7 +65,7 @@ namespace JBro
         return "Move In Hierarchy";
     }
 
-    bool MoveInHierarchyCommand::Capture(Placement& placement) const
+    Bool MoveInHierarchyCommand::Capture(Placement& placement) const
     {
         GameObject* object = m_registry->Resolve(m_objectId);
         if (object == nullptr)
@@ -94,7 +96,7 @@ namespace JBro
         return true;
     }
 
-    bool MoveInHierarchyCommand::ComputeWorldStay(
+    Bool MoveInHierarchyCommand::ComputeWorldStay(
         GameObject& object, GameObject* newParent, Placement& placement) const
     {
         Component::Transform2D* transform = FindTransform(*m_canvas, object);
@@ -135,8 +137,8 @@ namespace JBro
             transform->worldPosition.y - parentTransform->worldPosition.y};
         // `worldRotation` 은 도다(D-247). 삼각함수는 라디안을 받으므로 타입이 바꿔 준다.
         const Radian angle = -parentTransform->worldRotation;
-        const float cosine = std::cos(angle.Get());
-        const float sine = std::sin(angle.Get());
+        const Float cosine = std::cos(angle.Get());
+        const Float sine = std::sin(angle.Get());
         const Vector2 rotated{
             offset.x * cosine - offset.y * sine,
             offset.x * sine + offset.y * cosine};
@@ -160,7 +162,7 @@ namespace JBro
         return true;
     }
 
-    bool MoveInHierarchyCommand::Apply(const Placement& placement)
+    Bool MoveInHierarchyCommand::Apply(const Placement& placement)
     {
         GameObject* object = m_registry->Resolve(m_objectId);
         if (object == nullptr)
@@ -197,7 +199,7 @@ namespace JBro
         return true;
     }
 
-    bool MoveInHierarchyCommand::Execute()
+    Bool MoveInHierarchyCommand::Execute()
     {
         if (false == m_captured)
         {

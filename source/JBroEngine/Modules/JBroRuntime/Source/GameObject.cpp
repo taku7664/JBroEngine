@@ -1,6 +1,8 @@
 ﻿#include <JBro/Runtime/GameObject.h>
 
 #include <JBro/Runtime/GameObjectHandle.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -91,22 +93,22 @@ namespace JBro
         return m_layer.TryGet();
     }
 
-    std::uint32_t GameObject::GetLayerId() const
+    UInt32 GameObject::GetLayerId() const
     {
         return m_layerIndex;
     }
 
-    bool GameObject::IsActiveSelf() const
+    Bool GameObject::IsActiveSelf() const
     {
         return m_active;
     }
 
-    bool GameObject::IsActiveInHierarchy() const
+    Bool GameObject::IsActiveInHierarchy() const
     {
         return m_activeInHierarchy;
     }
 
-    void GameObject::SetActive(bool active)
+    void GameObject::SetActive(Bool active)
     {
         if (m_active == active)
         {
@@ -121,7 +123,7 @@ namespace JBro
     void GameObject::RefreshActiveInHierarchy()
     {
         const GameObject* parent = m_parent.TryGet();
-        const bool resolved = m_active && (parent == nullptr || parent->m_activeInHierarchy);
+        const Bool resolved = m_active && (parent == nullptr || parent->m_activeInHierarchy);
         if (m_activeInHierarchy == resolved)
         {
             return;
@@ -157,12 +159,12 @@ namespace JBro
         m_tag = tag;
     }
 
-    std::uint32_t GameObject::GetFlags() const
+    UInt32 GameObject::GetFlags() const
     {
         return m_flags.Get();
     }
 
-    void GameObject::SetFlags(std::uint32_t flags)
+    void GameObject::SetFlags(UInt32 flags)
     {
         m_flags.Set(flags);
     }
@@ -199,7 +201,7 @@ namespace JBro
         m_scriptOrderDirtyFunction(m_canvas);
     }
 
-    void GameObject::SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex)
+    void GameObject::SetLayer(SafePtr<Layer> layer, UInt32 layerIndex)
     {
         m_layer = std::move(layer);
         m_layerIndex = layerIndex;
@@ -226,7 +228,7 @@ namespace JBro
         component->SetOwner(this);
     }
 
-    bool GameObject::FindChildIndex(const GameObject* child, std::size_t& index) const
+    Bool GameObject::FindChildIndex(const GameObject* child, std::size_t& index) const
     {
         for (std::size_t at = 0; at < m_children.Size(); ++at)
         {
@@ -239,7 +241,7 @@ namespace JBro
         return false;
     }
 
-    bool GameObject::SetChildIndex(GameObject* child, std::size_t index)
+    Bool GameObject::SetChildIndex(GameObject* child, std::size_t index)
     {
         std::size_t from = 0;
         if (child == nullptr || false == FindChildIndex(child, from))
@@ -273,7 +275,7 @@ namespace JBro
         return true;
     }
 
-    bool GameObject::FindComponentIndex(const ComponentBase* component, std::size_t& index) const
+    Bool GameObject::FindComponentIndex(const ComponentBase* component, std::size_t& index) const
     {
         if (component == nullptr)
         {
@@ -290,7 +292,7 @@ namespace JBro
         return false;
     }
 
-    bool GameObject::SetComponentIndex(const ComponentBase* component, std::size_t index)
+    Bool GameObject::SetComponentIndex(const ComponentBase* component, std::size_t index)
     {
         std::size_t from = 0;
         if (false == FindComponentIndex(component, from))
@@ -325,7 +327,7 @@ namespace JBro
         return true;
     }
 
-    bool GameObject::DetachComponent(ComponentBase* component)
+    Bool GameObject::DetachComponent(ComponentBase* component)
     {
         if (component == nullptr)
         {
@@ -366,7 +368,7 @@ namespace JBro
         return {};
     }
 
-    bool GameObject::RequestDestroy()
+    Bool GameObject::RequestDestroy()
     {
         if (m_canvas == nullptr || m_destroyFunction == nullptr)
         {

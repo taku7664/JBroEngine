@@ -3,6 +3,8 @@
 #include <JBro/Core/Log.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -12,7 +14,7 @@ namespace JBro
         class DrawScope
         {
         public:
-            explicit DrawScope(std::uint32_t& depth)
+            explicit DrawScope(UInt32& depth)
                 : m_depth(depth)
             {
                 ++m_depth;
@@ -25,11 +27,11 @@ namespace JBro
             DrawScope& operator=(const DrawScope&) = delete;
 
         private:
-            std::uint32_t& m_depth;
+            UInt32& m_depth;
         };
     }
 
-    bool ComponentMenuTable::Register(ComponentTypeId typeId, ComponentMenuDraw draw,
+    Bool ComponentMenuTable::Register(ComponentTypeId typeId, ComponentMenuDraw draw,
         ComponentMenuOwner owner, void* user)
     {
         if (typeId == InvalidComponentTypeId || draw == nullptr || owner == nullptr)
@@ -60,7 +62,7 @@ namespace JBro
         return true;
     }
 
-    std::uint32_t ComponentMenuTable::Unregister(ComponentMenuOwner owner)
+    UInt32 ComponentMenuTable::Unregister(ComponentMenuOwner owner)
     {
         if (m_drawDepth > 0)
         {
@@ -75,7 +77,7 @@ namespace JBro
             }));
     }
 
-    bool ComponentMenuTable::Has(ComponentTypeId typeId) const
+    Bool ComponentMenuTable::Has(ComponentTypeId typeId) const
     {
         for (const Entry& entry : m_entries)
         {
@@ -87,9 +89,9 @@ namespace JBro
         return false;
     }
 
-    std::uint32_t ComponentMenuTable::Count(ComponentTypeId typeId) const
+    UInt32 ComponentMenuTable::Count(ComponentTypeId typeId) const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (const Entry& entry : m_entries)
         {
             if (entry.typeId == typeId)
@@ -100,7 +102,7 @@ namespace JBro
         return count;
     }
 
-    bool ComponentMenuTable::DrawItems(const ComponentMenuContext& context, bool separatorFirst)
+    Bool ComponentMenuTable::DrawItems(const ComponentMenuContext& context, Bool separatorFirst)
     {
         const DrawScope scope(m_drawDepth);
         ComponentMenuContext itemContext = context;
@@ -111,7 +113,7 @@ namespace JBro
             {
                 continue;
             }
-            const bool first = previousOwner == nullptr;
+            const Bool first = previousOwner == nullptr;
             if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))
             {
                 ImGui::Separator();
@@ -126,7 +128,7 @@ namespace JBro
         return true;
     }
 
-    bool ComponentMenuTable::IsDrawing() const
+    Bool ComponentMenuTable::IsDrawing() const
     {
         return m_drawDepth > 0;
     }

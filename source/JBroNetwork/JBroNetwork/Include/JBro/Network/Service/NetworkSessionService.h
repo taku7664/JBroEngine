@@ -3,6 +3,8 @@
 #include <JBro/Network/Types.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -11,20 +13,20 @@ namespace JBro::Service
     class NetworkSessionService
     {
     public:
-        bool StartServer(std::uint16_t port) const;
+        Bool StartServer(std::uint16_t port) const;
         // `host` 는 `ws://` 접두를 받는다. 결과는 `TakeEvents` 의 `Connected` / `Disconnected` 로 온다.
-        bool Connect(const char* host, std::uint16_t port) const;
+        Bool Connect(const char* host, std::uint16_t port) const;
         void Disconnect() const;
 
         Network::NetworkRole GetRole() const;
-        bool IsConnected() const;
-        std::uint32_t GetConnectionCount() const;
-        Network::ConnectionId GetConnectionAt(std::uint32_t index) const;
+        Bool IsConnected() const;
+        UInt32 GetConnectionCount() const;
+        Network::ConnectionId GetConnectionAt(UInt32 index) const;
         // 아직 재지 않았거나 모르면 -1.
         double GetRoundTripMilliseconds(Network::ConnectionId connection) const;
         // 표본이 없거나 UDP 가 없으면 -1.
         double GetUdpLossRate(Network::ConnectionId connection) const;
         // 채운 개수. 남은 것은 다음에 이어진다.
-        std::uint32_t TakeEvents(Network::NetworkEvent* events, std::uint32_t capacity) const;
+        UInt32 TakeEvents(Network::NetworkEvent* events, UInt32 capacity) const;
     };
 }

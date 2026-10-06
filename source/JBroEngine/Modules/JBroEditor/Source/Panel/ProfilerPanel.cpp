@@ -7,6 +7,9 @@
 #include <JBro/Editor/Widget/Common.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -16,7 +19,7 @@ namespace JBro
         // 대략 열 프레임에 걸쳐 따라간다.
         constexpr double Smoothing = 0.1;
 
-        double ToMilliseconds(std::uint64_t nanoseconds)
+        double ToMilliseconds(UInt64 nanoseconds)
         {
             return static_cast<double>(nanoseconds) / 1000000.0;
         }
@@ -32,7 +35,7 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelProfiler, "Profiler");
     }
 
-    bool ProfilerPanel::OnCreate(EditorApplication& editor)
+    Bool ProfilerPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         // 늘 보는 창이 아니다. 창 메뉴에서 열어 본다.
@@ -46,7 +49,7 @@ namespace JBro
         Profiler::SetEnabled(false);
     }
 
-    void ProfilerPanel::OnUpdate(float deltaTime)
+    void ProfilerPanel::OnUpdate(Float deltaTime)
     {
         (void)deltaTime;
         // **창이 보일 때만 잰다.** 닫아 둔 창을 위해 매 프레임 시계를 읽을 이유가 없다.
@@ -70,7 +73,7 @@ namespace JBro
             }
             const double now = ToMilliseconds(sample->totalNanoseconds);
             Smoothed& row = m_rows[index];
-            const bool same = row.name == sample->name && row.depth == sample->depth;
+            const Bool same = row.name == sample->name && row.depth == sample->depth;
             row.name = sample->name;
             row.depth = sample->depth;
             const double calls = static_cast<double>(sample->callCount);
@@ -136,7 +139,7 @@ namespace JBro
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             // 겹은 들여쓰기로 보인다. 나무를 그리지 않아도 안팎이 읽힌다.
-            const float indent = static_cast<float>(row.depth) * 14.0f;
+            const Float indent = static_cast<float>(row.depth) * 14.0f;
             if (indent > 0.0f)
             {
                 ImGui::Indent(indent);

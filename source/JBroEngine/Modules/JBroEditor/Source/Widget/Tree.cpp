@@ -2,6 +2,8 @@
 #include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Widget/Button.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 // **기존 엔진 `Application/Editor/ImItem/ImTree.cpp` 를 그대로 옮긴 것이다.**
 // 이름과 네임스페이스만 바꾸었다 - 그리는 규칙은 눈으로 맞춰 깎은 값이라
@@ -24,7 +26,7 @@ namespace JBro::Widget
 
         ImVector<TreeCursorRestore> g_cursorRestoreStack;
 
-        void TreeNodeStoreStackData(ImGuiTreeNodeFlags flags, float x1)
+        void TreeNodeStoreStackData(ImGuiTreeNodeFlags flags, Float x1)
         {
             ImGuiContext& g = *GImGui;
             ImGuiWindow* window = g.CurrentWindow;
@@ -36,8 +38,8 @@ namespace JBro::Widget
             treeNodeData->ItemFlags = g.LastItemData.ItemFlags;
             treeNodeData->NavRect = g.LastItemData.NavRect;
 
-            const bool drawLines = (flags & (ImGuiTreeNodeFlags_DrawLinesFull | ImGuiTreeNodeFlags_DrawLinesToNodes)) != 0;
-            treeNodeData->DrawLinesX1 = drawLines ? (x1 + g.FontSize * 0.5f + g.Style.FramePadding.x) : +FLT_MAX;
+            const Bool drawLines = (flags & (ImGuiTreeNodeFlags_DrawLinesFull | ImGuiTreeNodeFlags_DrawLinesToNodes)) != 0;
+            treeNodeData->DrawLinesX1 = drawLines ? (x1 + g.FontSize * 0.5f + g.Style.FramePadding.x) : Float(+FLT_MAX);
             treeNodeData->DrawLinesTableColumn = (drawLines && g.CurrentTable) ? (ImGuiTableColumnIdx)g.CurrentTable->CurrentColumn : -1;
             treeNodeData->DrawLinesToNodesY2 = -FLT_MAX;
 
@@ -48,17 +50,17 @@ namespace JBro::Widget
             }
         }
 
-        bool TreeRender(
+        Bool TreeRender(
             ImGuiID id,
             ImGuiTreeNodeFlags flags,
             const char* label,
             const char* label_end,
             TreeDrawContext* outContext,
-            bool renderDefaultText,
-            float minContentHeight);
+            Bool renderDefaultText,
+            Float minContentHeight);
     }
 
-    bool Tree(const char* label, ImGuiTreeNodeFlags flags)
+    Bool Tree(const char* label, ImGuiTreeNodeFlags flags)
     {
         ImGuiWindow* window = GetCurrentWindow();
         if (window->SkipItems)
@@ -68,16 +70,16 @@ namespace JBro::Widget
         const ImGuiID id = window->GetID(label);
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
         Internal::OpenIfGuided(target);
-        const bool isOpen = TreeRender(id, flags, label, nullptr, nullptr, true, 0.0f);
+        const Bool isOpen = TreeRender(id, flags, label, nullptr, nullptr, true, 0.0f);
         Internal::ReportLastItem(target, isOpen, ImGui::IsItemClicked());
         return isOpen;
     }
 
-    bool TreeBegin(
+    Bool TreeBegin(
         const char* idText,
         ImGuiTreeNodeFlags flags,
         TreeDrawContext* outContext,
-        float minContentHeight)
+        Float minContentHeight)
     {
         ImGuiWindow* window = GetCurrentWindow();
         if (window->SkipItems)
@@ -95,7 +97,7 @@ namespace JBro::Widget
         TreeDrawContext context;
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
         Internal::OpenIfGuided(target);
-        const bool isOpen = TreeRender(id, flags, idLabel, nullptr, &context, false, minContentHeight);
+        const Bool isOpen = TreeRender(id, flags, idLabel, nullptr, &context, false, minContentHeight);
         // 잎사귀는 열 것이 없다. 열린 것으로 알리면 안쪽 칸을 기다리지 않고 지나간다 - 잎사귀가 경로의 끝이다.
         Internal::ReportLastItem(target, isOpen, ImGui::IsItemClicked());
 
@@ -123,14 +125,14 @@ namespace JBro::Widget
 
     namespace
     {
-        bool TreeRender(
+        Bool TreeRender(
             ImGuiID id,
             ImGuiTreeNodeFlags flags,
             const char* label,
             const char* label_end,
             TreeDrawContext* outContext,
-            bool renderDefaultText,
-            float minContentHeight)
+            Bool renderDefaultText,
+            Float minContentHeight)
         {
 
             ImGuiWindow* window = GetCurrentWindow();
@@ -147,8 +149,8 @@ namespace JBro::Widget
             ImGuiContext& g = *GImGui;
             const ImGuiStyle& style = g.Style;
 
-            const bool display_frame = (flags & ImGuiTreeNodeFlags_Framed) != 0;
-            const bool use_frame_padding = (display_frame || (flags & ImGuiTreeNodeFlags_FramePadding));
+            const Bool display_frame = (flags & ImGuiTreeNodeFlags_Framed) != 0;
+            const Bool use_frame_padding = (display_frame || (flags & ImGuiTreeNodeFlags_FramePadding));
             const ImVec2 padding = use_frame_padding
                 ? style.FramePadding
                 : ImVec2(style.FramePadding.x, ImMin(window->DC.CurrLineTextBaseOffset, style.FramePadding.y));
@@ -164,28 +166,28 @@ namespace JBro::Widget
 
             ImVec2 content_size = label_size;
             // 썸네일 등 한 줄보다 높은 컨텐츠를 위해 행 높이를 키운다(frame_height 가 이 값을 따라간다).
-            content_size.y = ImMax(content_size.y, minContentHeight);
+            content_size.y = ImMax(content_size.y, minContentHeight.Get());
 
-            const float text_offset_x = g.FontSize + (display_frame ? padding.x * 2.5f : padding.x * 1.5f);
-            const float text_offset_y = use_frame_padding
+            const Float text_offset_x = g.FontSize + (display_frame ? padding.x * 2.5f : padding.x * 1.5f);
+            const Float text_offset_y = use_frame_padding
                 ? ImMax(style.FramePadding.y, window->DC.CurrLineTextBaseOffset)
                 : window->DC.CurrLineTextBaseOffset;
 
-            const float text_width = renderDefaultText
+            const Float text_width = renderDefaultText
                 ? g.FontSize + content_size.x + padding.x * 2.0f
                 : g.FontSize + padding.x * 2.0f;
 
-            const float frame_height = ImMax(label_size.y, content_size.y) + padding.y * 2.0f + 3.0f;
+            const Float frame_height = ImMax(label_size.y, content_size.y) + padding.y * 2.0f + 3.0f;
 
-            const bool span_all_columns =
+            const Bool span_all_columns =
                 (flags & ImGuiTreeNodeFlags_SpanAllColumns) != 0 && (g.CurrentTable != NULL);
 
-            const bool span_all_columns_label =
+            const Bool span_all_columns_label =
                 (flags & ImGuiTreeNodeFlags_LabelSpanAllColumns) != 0 && (g.CurrentTable != NULL);
 
-            const float tree_depth_indent_compensation = static_cast<float>(ImMax(window->DC.TreeDepth, 0)) * style.IndentSpacing * 0.5f;
-            const float row_cursor_x = window->DC.CursorPos.x - tree_depth_indent_compensation;
-            const float row_cursor_y = window->DC.CursorPos.y;
+            const Float tree_depth_indent_compensation = static_cast<float>(ImMax(window->DC.TreeDepth, 0)) * style.IndentSpacing * 0.5f;
+            const Float row_cursor_x = window->DC.CursorPos.x - tree_depth_indent_compensation;
+            const Float row_cursor_y = window->DC.CursorPos.y;
 
             ImRect frame_bb;
 
@@ -198,7 +200,7 @@ namespace JBro::Widget
 
             if (display_frame)
             {
-                const float outer_extend = IM_TRUNC(window->WindowPadding.x * 0.5f);
+                const Float outer_extend = IM_TRUNC(window->WindowPadding.x * 0.5f);
                 frame_bb.Min.x -= outer_extend;
                 frame_bb.Max.x += outer_extend;
             }
@@ -207,7 +209,7 @@ namespace JBro::Widget
                 row_cursor_x + text_offset_x,
                 frame_bb.Min.y + (frame_height - content_size.y) * 0.5f
             );
-            const float arrow_center_y = frame_bb.Min.y + frame_height * 0.5f;
+            const Float arrow_center_y = frame_bb.Min.y + frame_height * 0.5f;
 
             if (!renderDefaultText)
             {
@@ -231,7 +233,7 @@ namespace JBro::Widget
                 : frame_bb.Max.x;
             interact_bb.Max.y = frame_bb.Max.y;
 
-            const float min_interact_width = g.FontSize + padding.x * 2.0f;
+            const Float min_interact_width = g.FontSize + padding.x * 2.0f;
             if (interact_bb.Max.x < interact_bb.Min.x + min_interact_width)
             {
                 interact_bb.Max.x = interact_bb.Min.x + min_interact_width;
@@ -242,7 +244,7 @@ namespace JBro::Widget
                 ? g.NextItemData.StorageId
                 : id;
 
-            bool is_open = TreeNodeUpdateNextOpen(storage_id, flags);
+            Bool is_open = TreeNodeUpdateNextOpen(storage_id, flags);
             bool selected = (flags & ImGuiTreeNodeFlags_Selected) != 0;
 
             if (outContext)
@@ -254,11 +256,11 @@ namespace JBro::Widget
                 outContext->IsVisible = false;
             }
 
-            bool is_visible;
+            Bool is_visible;
             if (span_all_columns || span_all_columns_label)
             {
-                const float backup_clip_rect_min_x = window->ClipRect.Min.x;
-                const float backup_clip_rect_max_x = window->ClipRect.Max.x;
+                const Float backup_clip_rect_min_x = window->ClipRect.Min.x;
+                const Float backup_clip_rect_max_x = window->ClipRect.Max.x;
 
                 window->ClipRect.Min.x = window->ParentWorkRect.Min.x;
                 window->ClipRect.Max.x = window->ParentWorkRect.Max.x;
@@ -276,14 +278,14 @@ namespace JBro::Widget
             g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_HasDisplayRect;
             g.LastItemData.DisplayRect = frame_bb;
 
-            bool store_tree_node_stack_data = false;
+            Bool store_tree_node_stack_data = false;
 
             if ((flags & ImGuiTreeNodeFlags_DrawLinesMask_) == 0)
             {
                 flags |= g.Style.TreeLinesFlags;
             }
 
-            const bool draw_tree_lines =
+            const Bool draw_tree_lines =
                 (flags & (ImGuiTreeNodeFlags_DrawLinesFull | ImGuiTreeNodeFlags_DrawLinesToNodes)) &&
                 (frame_bb.Min.y < window->ClipRect.Max.y) &&
                 (g.Style.TreeLinesSize > 0.0f);
@@ -301,7 +303,7 @@ namespace JBro::Widget
                 }
             }
 
-            const bool is_leaf = (flags & ImGuiTreeNodeFlags_Leaf) != 0;
+            const Bool is_leaf = (flags & ImGuiTreeNodeFlags_Leaf) != 0;
 
             if (!is_visible)
             {
@@ -368,18 +370,18 @@ namespace JBro::Widget
                 button_flags |= ImGuiButtonFlags_PressedOnDragDropHold;
             }
 
-            const float arrow_hit_x1 =
+            const Float arrow_hit_x1 =
                 (text_pos.x - text_offset_x) - style.TouchExtraPadding.x;
 
-            const float arrow_hit_x2 =
+            const Float arrow_hit_x2 =
                 (text_pos.x - text_offset_x) +
                 (g.FontSize + padding.x * 2.0f) +
                 style.TouchExtraPadding.x;
 
-            const bool is_mouse_x_over_arrow =
+            const Bool is_mouse_x_over_arrow =
                 (g.IO.MousePos.x >= arrow_hit_x1 && g.IO.MousePos.x < arrow_hit_x2);
 
-            const bool is_multi_select =
+            const Bool is_multi_select =
                 (g.LastItemData.ItemFlags & ImGuiItemFlags_IsMultiSelect) != 0;
 
             if (is_multi_select)
@@ -407,7 +409,7 @@ namespace JBro::Widget
                 button_flags |= ImGuiButtonFlags_NoNavFocus;
             }
 
-            const bool was_selected = selected;
+            const Bool was_selected = selected;
 
             if (is_multi_select)
             {
@@ -429,15 +431,15 @@ namespace JBro::Widget
 
             bool hovered = false;
             bool held = false;
-            bool pressed = ButtonBehavior(interact_bb, id, &hovered, &held, button_flags);
+            Bool pressed = ButtonBehavior(interact_bb, id, &hovered, &held, button_flags);
 
             // 렌더링용 hover는 full row 기준.
             // 클릭/토글 판정은 위의 ButtonBehavior(interact_bb) 기준.
-            const bool row_hovered =
+            const Bool row_hovered =
                 window == g.HoveredWindow &&
                 IsMouseHoveringRect(frame_bb.Min, frame_bb.Max, false);
 
-            bool toggled = false;
+            Bool toggled = false;
 
             if (!is_leaf)
             {
@@ -560,8 +562,8 @@ namespace JBro::Widget
                     }
                     else if (!is_leaf)
                     {
-                        const float arrow_scale = 1.0f;
-                        const float arrow_pos_y = arrow_center_y - g.FontSize * 0.5f * arrow_scale;
+                        const Float arrow_scale = 1.0f;
+                        const Float arrow_pos_y = arrow_center_y - g.FontSize * 0.5f * arrow_scale;
                         RenderArrow(
                             window->DrawList,
                             ImVec2(text_pos.x - text_offset_x + padding.x, arrow_pos_y),
@@ -619,8 +621,8 @@ namespace JBro::Widget
                     }
                     else if (!is_leaf)
                     {
-                        const float arrow_scale = 0.70f;
-                        const float arrow_pos_y = arrow_center_y - g.FontSize * 0.5f * arrow_scale;
+                        const Float arrow_scale = 0.70f;
+                        const Float arrow_pos_y = arrow_center_y - g.FontSize * 0.5f * arrow_scale;
                         RenderArrow(
                             window->DrawList,
                             ImVec2(text_pos.x - text_offset_x + padding.x, arrow_pos_y),
@@ -682,14 +684,14 @@ namespace JBro::Widget
         }
     }
 
-    bool RowEyeToggle(const TreeDrawContext& row, const char* id, bool shown, const char* tooltip)
+    Bool RowEyeToggle(const TreeDrawContext& row, const char* id, Bool shown, const char* tooltip)
     {
         const ImVec2 cursor = ImGui::GetCursorScreenPos();
         // 눈 칸은 줄 높이의 정사각형이다. 기존 레이어 창과 같은 자리(오른쪽 끝)다.
-        const float height = row.RowRect.Max.y - row.RowRect.Min.y;
+        const Float height = row.RowRect.Max.y - row.RowRect.Min.y;
         ImGui::SetCursorScreenPos(ImVec2(row.RowRect.Max.x - height, row.RowRect.Min.y));
         ImGui::PushID(id);
-        const bool pressed = TextButton(shown ? Icons::Eye : Icons::EyeSlash, ImVec2(height, height));
+        const Bool pressed = TextButton(shown ? Icons::Eye : Icons::EyeSlash, ImVec2(height, height));
         ImGui::PopID();
         HoveredTooltip(tooltip);
         ImGui::SetCursorScreenPos(cursor);

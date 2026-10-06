@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <new>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -25,7 +26,7 @@ namespace JBro
         ReleaseChunks();
     }
 
-    bool ScriptPool::Initialize(const ScriptTypeInfo& type, JAllocator allocator, std::size_t chunkSize)
+    Bool ScriptPool::Initialize(const ScriptTypeInfo& type, JAllocator allocator, std::size_t chunkSize)
     {
         if (m_initialized
             || type.size == 0
@@ -78,7 +79,7 @@ namespace JBro
         return m_chunks[chunkIndex].memory + withinChunk * m_slotStride;
     }
 
-    bool ScriptPool::GrowOneChunk()
+    Bool ScriptPool::GrowOneChunk()
     {
         const std::size_t bytes = m_slotStride * m_chunkSize;
         void* memory = m_allocator.allocate(m_allocator.userData, bytes, m_type.alignment);
@@ -121,7 +122,7 @@ namespace JBro
         }
 
         std::size_t slotIndex = 0;
-        const bool reused = false == m_freeSlots.IsEmpty();
+        const Bool reused = false == m_freeSlots.IsEmpty();
         if (reused)
         {
             slotIndex = m_freeSlots.Last();
@@ -188,7 +189,7 @@ namespace JBro
         return script;
     }
 
-    bool ScriptPool::Destroy(GameScriptBase* script)
+    Bool ScriptPool::Destroy(GameScriptBase* script)
     {
         if (script == nullptr)
         {

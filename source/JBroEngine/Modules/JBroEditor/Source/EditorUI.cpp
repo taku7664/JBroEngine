@@ -22,6 +22,10 @@ namespace JBro::Spv
 
 #include <cstddef>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -36,7 +40,7 @@ namespace JBro
 
         TextureHandle FromTextureId(ImTextureID id)
         {
-            const std::uint64_t packed = static_cast<std::uint64_t>(id);
+            const UInt64 packed = static_cast<std::uint64_t>(id);
             TextureHandle handle;
             handle.index = static_cast<std::uint32_t>(packed & 0xffffffffull);
             handle.generation = static_cast<std::uint32_t>(packed >> 32);
@@ -121,7 +125,7 @@ namespace JBro
             }
         }
 
-        int ToImGuiMouseButton(MouseButton button)
+        Int32 ToImGuiMouseButton(MouseButton button)
         {
             switch (button)
             {
@@ -136,10 +140,10 @@ namespace JBro
 
         struct alignas(4) UIPushConstants
         {
-            float scaleX = 0.0f;
-            float scaleY = 0.0f;
-            float translateX = 0.0f;
-            float translateY = 0.0f;
+            Float scaleX = 0.0f;
+            Float scaleY = 0.0f;
+            Float translateX = 0.0f;
+            Float translateY = 0.0f;
         };
     }
 
@@ -148,7 +152,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool EditorUI::Initialize(IRHIDevice& device, TextureFormat backBufferFormat, GraphicsApi api)
+    Bool EditorUI::Initialize(IRHIDevice& device, TextureFormat backBufferFormat, GraphicsApi api)
     {
         if (m_initialized)
         {
@@ -283,7 +287,7 @@ namespace JBro
         {
             m_device->DestroyGraphicsPipeline(m_pipeline);
             m_device->DestroySampler(m_sampler);
-            for (std::uint32_t slot = 0; slot < MaxFrameSlots; ++slot)
+            for (UInt32 slot = 0; slot < MaxFrameSlots; ++slot)
             {
                 m_device->DestroyBuffer(m_vertices[slot]);
                 m_device->DestroyBuffer(m_indices[slot]);
@@ -291,7 +295,7 @@ namespace JBro
         }
         m_pipeline = {};
         m_sampler = {};
-        for (std::uint32_t slot = 0; slot < MaxFrameSlots; ++slot)
+        for (UInt32 slot = 0; slot < MaxFrameSlots; ++slot)
         {
             m_vertices[slot] = {};
             m_indices[slot] = {};
@@ -305,7 +309,7 @@ namespace JBro
         m_initialized = false;
     }
 
-    bool EditorUI::IsInitialized() const
+    Bool EditorUI::IsInitialized() const
     {
         return m_initialized;
     }
@@ -326,7 +330,7 @@ namespace JBro
         m_device = nullptr;
         m_pipeline = {};
         m_sampler = {};
-        for (std::uint32_t slot = 0; slot < MaxFrameSlots; ++slot)
+        for (UInt32 slot = 0; slot < MaxFrameSlots; ++slot)
         {
             m_vertices[slot] = {};
             m_indices[slot] = {};
@@ -339,12 +343,12 @@ namespace JBro
         m_initialized = false;
     }
 
-    std::uint64_t EditorUI::ToTextureId(TextureHandle handle)
+    UInt64 EditorUI::ToTextureId(TextureHandle handle)
     {
         return (static_cast<std::uint64_t>(handle.generation) << 32) | handle.index;
     }
 
-    bool EditorUI::PushInput(JArrayView<InputEvent> events)
+    Bool EditorUI::PushInput(JArrayView<InputEvent> events)
     {
         if (false == m_initialized)
         {
@@ -353,7 +357,7 @@ namespace JBro
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
         ImGuiIO& io = ImGui::GetIO();
 
-        for (std::uint32_t index = 0; index < events.size; ++index)
+        for (UInt32 index = 0; index < events.size; ++index)
         {
             const InputEvent& event = events.data[index];
             switch (event.kind)
@@ -361,7 +365,7 @@ namespace JBro
             case InputEventKind::KeyDown:
             case InputEventKind::KeyUp:
             {
-                const bool down = event.kind == InputEventKind::KeyDown;
+                const Bool down = event.kind == InputEventKind::KeyDown;
                 // **조합키는 키 자체와 따로 알려 줘야 한다.** ImGui 는 Ctrl+C 를
                 // 판단할 때 이 상태를 보지, 좌우 Ctrl 키의 눌림을 보지 않는다.
                 io.AddKeyEvent(ImGuiMod_Ctrl, (event.modifiers & KeyModifierControl) != 0);
@@ -387,7 +391,7 @@ namespace JBro
             case InputEventKind::MouseButtonDown:
             case InputEventKind::MouseButtonUp:
             {
-                const int button = ToImGuiMouseButton(event.button);
+                const Int32 button = ToImGuiMouseButton(event.button);
                 if (button >= 0)
                 {
                     io.AddMouseButtonEvent(
@@ -410,7 +414,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorUI::WantsMouse() const
+    Bool EditorUI::WantsMouse() const
     {
         if (false == m_initialized)
         {
@@ -420,7 +424,7 @@ namespace JBro
         return ImGui::GetIO().WantCaptureMouse;
     }
 
-    bool EditorUI::WantsKeyboard() const
+    Bool EditorUI::WantsKeyboard() const
     {
         if (false == m_initialized)
         {
@@ -430,7 +434,7 @@ namespace JBro
         return ImGui::GetIO().WantCaptureKeyboard;
     }
 
-    bool EditorUI::BeginFrame(const Extent2D& displaySize, float deltaTime)
+    Bool EditorUI::BeginFrame(const Extent2D& displaySize, Float deltaTime)
     {
         if (false == m_initialized || m_frameOpen)
         {
@@ -451,7 +455,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorUI::EndFrame()
+    Bool EditorUI::EndFrame()
     {
         if (false == m_initialized || false == m_frameOpen)
         {
@@ -470,7 +474,7 @@ namespace JBro
         return ReserveBuffers();
     }
 
-    bool EditorUI::UploadDrawData(std::uint32_t slot)
+    Bool EditorUI::UploadDrawData(UInt32 slot)
     {
         const ImDrawData* drawData = ImGui::GetDrawData();
         if (drawData == nullptr || drawData->TotalVtxCount == 0)
@@ -494,7 +498,7 @@ namespace JBro
         // 드로우마다 바인딩이 바뀐다.
         std::size_t vertexOffset = 0;
         std::size_t indexOffset = 0;
-        for (int listIndex = 0; listIndex < drawData->CmdListsCount; ++listIndex)
+        for (Int32 listIndex = 0; listIndex < drawData->CmdListsCount; ++listIndex)
         {
             const ImDrawList* list = drawData->CmdLists[listIndex];
             const std::size_t listVertexBytes =
@@ -516,7 +520,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorUI::ProcessTextureRequests()
+    Bool EditorUI::ProcessTextureRequests()
     {
         ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
         for (ImTextureData* texture : platformIO.Textures)
@@ -541,7 +545,7 @@ namespace JBro
                     : TextureHandle{};
 
                 // 크기가 달라졌으면 새로 만든다. 같은 크기면 자리를 그대로 쓴다.
-                bool needsCreate = false == handle.IsValid();
+                Bool needsCreate = false == handle.IsValid();
                 if (handle.IsValid() && texture->Status == ImTextureStatus_WantCreate)
                 {
                     needsCreate = true;
@@ -594,8 +598,8 @@ namespace JBro
         return true;
     }
 
-    bool EditorUI::EnsureBuffers(
-        std::uint32_t slot, std::size_t vertexBytes, std::size_t indexBytes)
+    Bool EditorUI::EnsureBuffers(
+        UInt32 slot, std::size_t vertexBytes, std::size_t indexBytes)
     {
         // 프레임마다 다시 만들지 않는다. 늘어날 때만 새로 잡는다 —
         // UI 정점 수는 프레임마다 출렁이므로 딱 맞게 잡으면 매번 다시 만들게 된다.
@@ -634,7 +638,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorUI::ReserveBuffers()
+    Bool EditorUI::ReserveBuffers()
     {
         const ImDrawData* drawData = ImGui::GetDrawData();
         if (drawData == nullptr || drawData->TotalVtxCount == 0)
@@ -646,7 +650,7 @@ namespace JBro
             static_cast<std::size_t>(drawData->TotalVtxCount) * sizeof(ImDrawVert);
         const std::size_t indexBytes =
             static_cast<std::size_t>(drawData->TotalIdxCount) * sizeof(ImDrawIdx);
-        for (std::uint32_t slot = 0; slot < m_frameSlots; ++slot)
+        for (UInt32 slot = 0; slot < m_frameSlots; ++slot)
         {
             if (false == EnsureBuffers(slot, vertexBytes, indexBytes))
             {
@@ -656,7 +660,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorUI::Draw(IRHICommandContext& commands, std::uint32_t frameSlot)
+    Bool EditorUI::Draw(IRHICommandContext& commands, UInt32 frameSlot)
     {
         m_lastDrawCount = 0;
         if (frameSlot >= m_frameSlots)
@@ -725,12 +729,12 @@ namespace JBro
         }
 
         const ImVec2 clipOffset = drawData->DisplayPos;
-        std::uint32_t globalVertexOffset = 0;
-        std::uint32_t globalIndexOffset = 0;
-        for (int listIndex = 0; listIndex < drawData->CmdListsCount; ++listIndex)
+        UInt32 globalVertexOffset = 0;
+        UInt32 globalIndexOffset = 0;
+        for (Int32 listIndex = 0; listIndex < drawData->CmdListsCount; ++listIndex)
         {
             const ImDrawList* list = drawData->CmdLists[listIndex];
-            for (int commandIndex = 0; commandIndex < list->CmdBuffer.Size; ++commandIndex)
+            for (Int32 commandIndex = 0; commandIndex < list->CmdBuffer.Size; ++commandIndex)
             {
                 const ImDrawCmd& command = list->CmdBuffer[commandIndex];
                 if (command.UserCallback != nullptr)

@@ -6,6 +6,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 리바인딩 글자(D-218). 설정 화면에서 가끔 부르는 콜드 경로라 `String` 을 만든다.
 namespace JBro::System
@@ -16,7 +18,7 @@ namespace JBro::System
         const char* const CompositeNames[] = {"None", "Up", "Down", "Left", "Right"};
         const char* const StickNames[] = {"Left", "Right"};
 
-        bool IsPlainName(const char* name)
+        Bool IsPlainName(const char* name)
         {
             if (name == nullptr || name[0] == '\0' || name[0] == ' ')
             {
@@ -30,7 +32,7 @@ namespace JBro::System
             for (std::size_t index = 0; index < length; ++index)
             {
                 const char c = name[index];
-                const bool allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+                const Bool allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
                     || c == '_' || c == '-' || c == '.' || c == ' ';
                 if (false == allowed)
                 {
@@ -58,13 +60,13 @@ namespace JBro::System
             return nullptr;
         }
 
-        bool SameBindings(const InputActionDesc& a, const InputActionDesc& b)
+        Bool SameBindings(const InputActionDesc& a, const InputActionDesc& b)
         {
             if (a.bindingCount != b.bindingCount)
             {
                 return false;
             }
-            for (std::uint32_t index = 0; index < a.bindingCount && index < MaxInputBindingsPerAction; ++index)
+            for (UInt32 index = 0; index < a.bindingCount && index < MaxInputBindingsPerAction; ++index)
             {
                 const InputBinding& x = a.bindings[index];
                 const InputBinding& y = b.bindings[index];
@@ -89,7 +91,7 @@ namespace JBro::System
         }
 
         template<std::size_t Count>
-        bool FindName(const char* const (&names)[Count], const String& word, std::uint8_t& out)
+        Bool FindName(const char* const (&names)[Count], const String& word, std::uint8_t& out)
         {
             for (std::size_t index = 0; index < Count; ++index)
             {
@@ -102,7 +104,7 @@ namespace JBro::System
             return false;
         }
 
-        bool ParseCode(InputBindingSource source, const String& word, std::uint16_t& code)
+        Bool ParseCode(InputBindingSource source, const String& word, std::uint16_t& code)
         {
             switch (source)
             {
@@ -161,7 +163,7 @@ namespace JBro::System
         }
 
         // `원천 코드 [방향] [@패드]` 하나다.
-        bool ParseBinding(const char* begin, const char* end, InputBinding& out)
+        Bool ParseBinding(const char* begin, const char* end, InputBinding& out)
         {
             out = InputBinding{};
             String words[4];
@@ -203,8 +205,8 @@ namespace JBro::System
             {
                 return false;
             }
-            bool sawComposite = false;
-            bool sawPad = false;
+            Bool sawComposite = false;
+            Bool sawPad = false;
             for (std::size_t index = 2; index < count; ++index)
             {
                 const String& word = words[index];
@@ -230,7 +232,7 @@ namespace JBro::System
         }
 
         // 한 줄의 값(따옴표 안)을 바인딩 목록으로 읽는다.
-        bool ParseBindings(const char* begin, const char* end, InputBinding (&out)[MaxInputBindingsPerAction], std::uint32_t& count)
+        Bool ParseBindings(const char* begin, const char* end, InputBinding (&out)[MaxInputBindingsPerAction], UInt32& count)
         {
             count = 0;
             Trim(begin, end);
@@ -269,7 +271,7 @@ namespace JBro::System
     void WriteBindingOverrides(const InputActionMap& live, const InputActionMap& project, String& out)
     {
         out.clear();
-        for (std::uint32_t index = 0; index < live.count && index < MaxInputActions; ++index)
+        for (UInt32 index = 0; index < live.count && index < MaxInputActions; ++index)
         {
             const InputActionDesc& action = live.actions[index];
             const InputActionDesc* original = project.Find(action.name);
@@ -286,7 +288,7 @@ namespace JBro::System
             }
             out += name;
             out += ": \"";
-            for (std::uint32_t at = 0; at < action.bindingCount && at < MaxInputBindingsPerAction; ++at)
+            for (UInt32 at = 0; at < action.bindingCount && at < MaxInputBindingsPerAction; ++at)
             {
                 const InputBinding& binding = action.bindings[at];
                 const char* code = CodeName(binding);
@@ -318,14 +320,14 @@ namespace JBro::System
         }
     }
 
-    bool ReadBindingOverrides(const char* text, std::size_t length, InputActionMap& live)
+    Bool ReadBindingOverrides(const char* text, std::size_t length, InputActionMap& live)
     {
         if (text == nullptr)
         {
             return length == 0;
         }
-        bool complete = true;
-        std::uint32_t lineNumber = 0;
+        Bool complete = true;
+        UInt32 lineNumber = 0;
         const char* at = text;
         const char* const end = text + length;
         while (at < end)
@@ -370,7 +372,7 @@ namespace JBro::System
             std::memcpy(name, nameBegin, nameLength);
             const InputActionId id = MakeNameId(name);
             InputActionDesc* action = nullptr;
-            for (std::uint32_t index = 0; index < live.count && index < MaxInputActions; ++index)
+            for (UInt32 index = 0; index < live.count && index < MaxInputActions; ++index)
             {
                 if (live.actions[index].name == id)
                 {
@@ -384,7 +386,7 @@ namespace JBro::System
                 continue;
             }
             InputBinding bindings[MaxInputBindingsPerAction] = {};
-            std::uint32_t count = 0;
+            UInt32 count = 0;
             if (false == ParseBindings(colon + 1, finish, bindings, count))
             {
                 complete = false;
@@ -394,7 +396,7 @@ namespace JBro::System
             }
             // 수 뒤의 칸은 읽는 곳이 없다(평가·쓰기·되돌리기 모두 수까지만 본다).
             action->bindingCount = static_cast<std::uint8_t>(count);
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 action->bindings[index] = bindings[index];
             }

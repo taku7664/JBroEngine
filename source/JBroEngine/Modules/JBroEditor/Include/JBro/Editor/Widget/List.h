@@ -15,6 +15,10 @@
 #include <cstdio>
 #include <type_traits>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -37,8 +41,8 @@ namespace JBro::Widget
     struct ListReorderPayload
     {
         // 목록 몸통 창의 Id 다.
-        std::uint32_t owner = 0;
-        int index = -1;
+        UInt32 owner = 0;
+        Int32 index = -1;
     };
 
     // 맨 아래 "추가" 자리를 부르는 쪽이 그리지 않을 때 쓰는 빈 표시다.
@@ -56,10 +60,10 @@ namespace JBro::Widget
     namespace Detail
     {
         template <typename TGet, typename TSet>
-        void CarryRowState(const char* label, int from, int to, TGet&& get, TSet&& set)
+        void CarryRowState(const char* label, Int32 from, Int32 to, TGet&& get, TSet&& set)
         {
             ImGuiWindow* window = ImGui::GetCurrentWindow();
-            const auto keyOf = [&](int row) {
+            const auto keyOf = [&](Int32 row) {
                 return ImHashStr(label, 0, ImHashData(&row, sizeof(row), window->ID));
             };
             if (from == to)
@@ -67,8 +71,8 @@ namespace JBro::Widget
                 return;
             }
             const auto moved = get(keyOf(from));
-            const int step = from < to ? 1 : -1;
-            for (int at = from; at != to; at += step)
+            const Int32 step = from < to ? 1 : -1;
+            for (Int32 at = from; at != to; at += step)
             {
                 set(keyOf(at), get(keyOf(at + step)));
             }
@@ -77,13 +81,13 @@ namespace JBro::Widget
 
         template <typename TGet, typename TSet, typename TValue>
         void DropRowState(
-            const char* label, int index, int count, TValue cleared, TGet&& get, TSet&& set)
+            const char* label, Int32 index, Int32 count, TValue cleared, TGet&& get, TSet&& set)
         {
             ImGuiWindow* window = ImGui::GetCurrentWindow();
-            const auto keyOf = [&](int row) {
+            const auto keyOf = [&](Int32 row) {
                 return ImHashStr(label, 0, ImHashData(&row, sizeof(row), window->ID));
             };
-            for (int at = index; at + 1 < count; ++at)
+            for (Int32 at = index; at + 1 < count; ++at)
             {
                 set(keyOf(at), get(keyOf(at + 1)));
             }
@@ -94,36 +98,36 @@ namespace JBro::Widget
         }
     }
 
-    inline void CarryRowInt(const char* label, int from, int to)
+    inline void CarryRowInt(const char* label, Int32 from, Int32 to)
     {
         ImGuiStorage* storage = ImGui::GetStateStorage();
         Detail::CarryRowState(label, from, to,
             [&](ImGuiID key) { return storage->GetInt(key, 0); },
-            [&](ImGuiID key, int value) { storage->SetInt(key, value); });
+            [&](ImGuiID key, Int32 value) { storage->SetInt(key, value); });
     }
 
-    inline void DropRowInt(const char* label, int index, int count)
+    inline void DropRowInt(const char* label, Int32 index, Int32 count)
     {
         ImGuiStorage* storage = ImGui::GetStateStorage();
         Detail::DropRowState(label, index, count, 0,
             [&](ImGuiID key) { return storage->GetInt(key, 0); },
-            [&](ImGuiID key, int value) { storage->SetInt(key, value); });
+            [&](ImGuiID key, Int32 value) { storage->SetInt(key, value); });
     }
 
-    inline void CarryRowFloat(const char* label, int from, int to, float fallback)
+    inline void CarryRowFloat(const char* label, Int32 from, Int32 to, Float fallback)
     {
         ImGuiStorage* storage = ImGui::GetStateStorage();
         Detail::CarryRowState(label, from, to,
             [&](ImGuiID key) { return storage->GetFloat(key, fallback); },
-            [&](ImGuiID key, float value) { storage->SetFloat(key, value); });
+            [&](ImGuiID key, Float value) { storage->SetFloat(key, value); });
     }
 
-    inline void DropRowFloat(const char* label, int index, int count, float fallback)
+    inline void DropRowFloat(const char* label, Int32 index, Int32 count, Float fallback)
     {
         ImGuiStorage* storage = ImGui::GetStateStorage();
         Detail::DropRowState(label, index, count, fallback,
             [&](ImGuiID key) { return storage->GetFloat(key, fallback); },
-            [&](ImGuiID key, float value) { storage->SetFloat(key, value); });
+            [&](ImGuiID key, Float value) { storage->SetFloat(key, value); });
     }
 
     // **저장소를 모르는 목록이다**(ProjectRule §11.1).
@@ -142,37 +146,37 @@ namespace JBro::Widget
     // 돌려주는 값: 참이면 추가·삭제·재정렬 또는 행 편집으로 무언가 바뀌었다.
     template <typename TDrawRow, typename TAdd, typename TRemove, typename TMove,
         typename TDrawAddRow = NoAddRow>
-    bool ListVirtual(
+    Bool ListVirtual(
         const char* id,
-        int count,
+        Int32 count,
         TDrawRow&& drawRow,
         TAdd&& addElement,
         TRemove&& removeElement,
         TMove&& moveElement,
-        std::uint32_t flags = ListFlagsNone,
+        UInt32 flags = ListFlagsNone,
         TDrawAddRow&& drawAddRow = NoAddRow{})
     {
-        constexpr bool hasCustomAddRow =
+        constexpr Bool hasCustomAddRow =
             false == std::is_same_v<std::decay_t<TDrawAddRow>, NoAddRow>;
 
         ImGuiStyle& style = ImGui::GetStyle();
-        const bool readOnly = (flags & ListFlagsReadOnly) != 0;
+        const Bool readOnly = (flags & ListFlagsReadOnly) != 0;
         // 읽기 전용이면 당연히 재정렬도 안 되고, 재정렬 금지면 편집만 열어 둔다.
-        const bool reorderable =
+        const Bool reorderable =
             (false == readOnly) && ((flags & ListFlagsNoReorder) == 0);
 
         // 번호 칸의 폭. 자릿수가 늘어도 내용 시작이 흔들리지 않도록 **가장 긴 번호**
         // 기준으로 한 번 재서 모든 행에 같은 폭을 쓴다(행마다 재면 9→10 에서 칸이 튄다).
-        const bool showIndex = (flags & ListFlagsShowIndex) != 0;
-        float indexWidth = 0.0f;
+        const Bool showIndex = (flags & ListFlagsShowIndex) != 0;
+        Float indexWidth = 0.0f;
         if (showIndex)
         {
             char widest[16] = {};
-            std::snprintf(widest, sizeof(widest), "[%d]", count > 0 ? count - 1 : 0);
+            std::snprintf(widest, sizeof(widest), "[%d]", (count > 0 ? count - 1 : Int32(0)).Get());
             indexWidth = ImGui::CalcTextSize(widest).x + style.ItemSpacing.x;
         }
 
-        bool changed = false;
+        Bool changed = false;
         ImGui::PushID(id);
 
         // 행 간격을 최소로. 목록은 빽빽해야 한눈에 들어온다.
@@ -188,25 +192,25 @@ namespace JBro::Widget
         // 글꼴이 없는 기계에서는 네모로 나온다. 폭은 고정이다.
         constexpr const char* RowHandleGlyph = Icons::GripLines;
         constexpr const char* RowRemoveGlyph = Icons::Xmark;
-        constexpr float RowHandleWidth = 14.0f;
-        constexpr float RowRemoveWidth = 22.0f;
-        constexpr float SlotHeight = 3.0f;
+        constexpr Float RowHandleWidth = 14.0f;
+        constexpr Float RowRemoveWidth = 22.0f;
+        constexpr Float SlotHeight = 3.0f;
         // 이 목록의 몸통이다. 꾸러미가 이 목록의 행에서 왔는지를 이것으로 가린다.
-        const std::uint32_t owner = ImGui::GetCurrentWindow()->ID;
+        const UInt32 owner = ImGui::GetCurrentWindow()->ID;
         ListReorderPayload dragging;
-        const bool draggingOwnRow =
+        const Bool draggingOwnRow =
             ReadDropValue(PeekDrag(DragKind::ListReorder), dragging) && dragging.owner == owner;
 
-        int removeIndex = -1;
-        int moveFrom = -1;
-        int moveTo = -1;
+        Int32 removeIndex = -1;
+        Int32 moveFrom = -1;
+        Int32 moveTo = -1;
 
-        auto drawDropSlot = [&](int slotIndex) {
+        auto drawDropSlot = [&](Int32 slotIndex) {
             StyleScope slotStyle;
             slotStyle.PushVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));
             // 행 사이의 얇은 빈 자리. 여기에 떨어뜨리면 그 자리로 옮긴다.
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
-            const float width = ImGui::GetContentRegionAvail().x;
+            const Float width = ImGui::GetContentRegionAvail().x;
             ImGui::PushID(slotIndex);
             ImGui::InvisibleButton("##slot", ImVec2(width, SlotHeight));
             // **남의 목록 행이나 다른 종류(에셋 등)를 끌고 지나갈 때는 받지도 긋지도 않는다.**
@@ -229,7 +233,7 @@ namespace JBro::Widget
             ImGui::PopID();
         };
 
-        for (int index = 0; index < count; ++index)
+        for (Int32 index = 0; index < count; ++index)
         {
             // 재정렬을 안 받으면 떨어뜨릴 자리 자체를 두지 않는다.
             if (reorderable)
@@ -240,8 +244,8 @@ namespace JBro::Widget
             ImGui::PushID(index);
 
             const ImVec2 avail = ImGui::GetContentRegionAvail();
-            const float frameHeight = ImGui::GetFrameHeight();
-            const float contentWidth =
+            const Float frameHeight = ImGui::GetFrameHeight();
+            const Float contentWidth =
                 avail.x - RowHandleWidth - RowRemoveWidth - indexWidth - 8.0f;
             const ImVec2 bodyStart = ImGui::GetCursorPos();
 
@@ -251,8 +255,8 @@ namespace JBro::Widget
             // 구조체 원소의 둘째 줄부터는 손잡이 자리를 눌러도 끌리지 않았다.
             ImGuiStorage* rowHeights = ImGui::GetStateStorage();
             const ImGuiID rowHeightKey = ImGui::GetID("##row_height");
-            const float rowHeight = rowHeights->GetFloat(rowHeightKey, frameHeight);
-            const float rowTop = ImGui::GetCursorScreenPos().y;
+            const Float rowHeight = rowHeights->GetFloat(rowHeightKey, frameHeight);
+            const Float rowTop = ImGui::GetCursorScreenPos().y;
 
             // **손잡이만 잡아야 끌린다.** 행 전체를 끌리게 두면 안의 글자 칸을
             // 고치려고 누른 것이 끌기로 바뀐다.
@@ -300,14 +304,14 @@ namespace JBro::Widget
                 // 글자 기준선을 세우는 것이고, 손잡이를 그릴 때 이미 세워졌다.
                 // 같은 줄에서 Y 를 건드리면 번호만 아래로 밀린다.
                 char text[16] = {};
-                std::snprintf(text, sizeof(text), "[%d]", index);
-                const float startX = ImGui::GetCursorPosX();
+                std::snprintf(text, sizeof(text), "[%d]", index.Get());
+                const Float startX = ImGui::GetCursorPosX();
                 ImGui::TextDisabled("%s", text);
                 ImGui::SameLine(0.0f, 0.0f);
                 ImGui::SetCursorPosX(startX + indexWidth);
             }
 
-            const float contentStartX = ImGui::GetCursorPosX();
+            const Float contentStartX = ImGui::GetCursorPosX();
             ImGui::BeginGroup();
             ImGui::PushItemWidth(contentWidth);
             if (readOnly)
@@ -321,7 +325,7 @@ namespace JBro::Widget
             }
             ImGui::PopItemWidth();
             ImGui::EndGroup();
-            float rowBottom = ImGui::GetItemRectMax().y;
+            Float rowBottom = ImGui::GetItemRectMax().y;
 
             if (false == readOnly)
             {
@@ -342,7 +346,7 @@ namespace JBro::Widget
             // 이 행이 실제로 쓴 높이다. 다음 프레임의 배경과 끌기 자리가 이만큼 된다.
             // 내용의 끝으로 재고 배경 자리로 재지 않는다 - 배경으로 재면 한 번 늘어난
             // 높이가 마디를 접은 뒤에도 줄지 않는다.
-            const float drawnHeight = rowBottom - rowTop;
+            const Float drawnHeight = rowBottom - rowTop;
             rowHeights->SetFloat(rowHeightKey,
                 drawnHeight > frameHeight ? drawnHeight : frameHeight);
             ImGui::PopID();
@@ -372,7 +376,7 @@ namespace JBro::Widget
             // **슬롯 번호는 "이 원소 앞" 을 뜻한다.** 원본을 먼저 빼내므로 뒤로
             // 옮길 때는 목표가 한 칸 당겨진다 - 보정을 여기서 끝내고 콜백에는
             // 최종 원소 번호만 넘긴다. 콜백마다 같은 실수를 반복하지 않도록.
-            int target = moveTo;
+            Int32 target = moveTo;
             if (moveFrom < target)
             {
                 --target;
@@ -387,8 +391,8 @@ namespace JBro::Widget
             if constexpr (hasCustomAddRow)
             {
                 // 보통 행과 같은 자리에 오도록 손잡이 폭만큼 들여쓴다.
-                const float addAvail = ImGui::GetContentRegionAvail().x;
-                const float addContent = addAvail - RowHandleWidth - RowRemoveWidth - 8.0f;
+                const Float addAvail = ImGui::GetContentRegionAvail().x;
+                const Float addContent = addAvail - RowHandleWidth - RowRemoveWidth - 8.0f;
                 ImGui::Dummy(ImVec2(ImGui::CalcTextSize(RowHandleGlyph).x, 0.0f));
                 ImGui::SameLine();
                 ImGui::PushItemWidth(addContent);
@@ -421,19 +425,19 @@ namespace JBro::Widget
 
     // `Array<T>` 를 위한 얇은 덮개다. 그리는 일은 전부 위쪽이 한다.
     template <typename T, typename TDrawRow>
-    bool List(
+    Bool List(
         const char* id,
         Array<T>& items,
         TDrawRow&& drawRow,
         T defaultValue = T{},
-        std::uint32_t flags = ListFlagsNone)
+        UInt32 flags = ListFlagsNone)
     {
         return ListVirtual(id, static_cast<int>(items.Size()),
             // 행 편집은 변경으로 세지 않는다 - 추가·삭제·재정렬만 본다.
             // 기존 엔진과 같은 계약이다.
-            [&](int index) -> bool { drawRow(items[static_cast<std::size_t>(index)], index); return false; },
+            [&](Int32 index) -> Bool { drawRow(items[static_cast<std::size_t>(index)], index); return false; },
             [&]() { items.Add(defaultValue); },
-            [&](int index) {
+            [&](Int32 index) {
                 for (std::size_t at = static_cast<std::size_t>(index) + 1;
                     at < items.Size(); ++at)
                 {
@@ -441,11 +445,11 @@ namespace JBro::Widget
                 }
                 items.Resize(items.Size() - 1);
             },
-            [&](int fromIndex, int toIndex) {
+            [&](Int32 fromIndex, Int32 toIndex) {
                 T moved = std::move(items[static_cast<std::size_t>(fromIndex)]);
                 if (fromIndex < toIndex)
                 {
-                    for (int at = fromIndex; at < toIndex; ++at)
+                    for (Int32 at = fromIndex; at < toIndex; ++at)
                     {
                         items[static_cast<std::size_t>(at)] =
                             std::move(items[static_cast<std::size_t>(at) + 1]);
@@ -453,7 +457,7 @@ namespace JBro::Widget
                 }
                 else
                 {
-                    for (int at = fromIndex; at > toIndex; --at)
+                    for (Int32 at = fromIndex; at > toIndex; --at)
                     {
                         items[static_cast<std::size_t>(at)] =
                             std::move(items[static_cast<std::size_t>(at) - 1]);

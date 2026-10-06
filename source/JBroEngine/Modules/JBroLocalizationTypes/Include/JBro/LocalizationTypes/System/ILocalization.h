@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -21,11 +23,11 @@ namespace JBro::System
         virtual std::size_t GetLocale(char* buffer, std::size_t capacity) const noexcept = 0;
         // 로케일을 바꾼다. 표에 없는 로케일도 받는다(그때는 폴백만 찾힌다). 곧바로 찾는 결과가 바뀌고 판번호가 오른다.
         // 빈 이름이나 null 은 거절한다.
-        virtual bool SetLocale(const char* locale) noexcept = 0;
+        virtual Bool SetLocale(const char* locale) noexcept = 0;
         // 키의 글자다. 찾으면 참이고 `text` 는 호스트 메모리를 가리킨다 - 다음 `SetLocale`·표 재로드까지만 유효하므로 곧바로 복사한다.
-        virtual bool Find(const char* key, std::size_t keyLength, const char*& text, std::size_t& textLength) const noexcept = 0;
+        virtual Bool Find(const char* key, std::size_t keyLength, const char*& text, std::size_t& textLength) const noexcept = 0;
         // 찾는 결과가 바뀔 때마다 오른다(로케일 변경·표 재로드·표 추가와 삭제). 1 부터다. 텍스트 시스템이 다시 레이아웃할지 이것으로 정한다.
-        virtual std::uint32_t GetRevision() const noexcept = 0;
+        virtual UInt32 GetRevision() const noexcept = 0;
 
     protected:
         ~ILocalization() = default;

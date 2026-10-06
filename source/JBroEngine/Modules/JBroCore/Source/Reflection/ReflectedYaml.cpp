@@ -9,20 +9,22 @@
 
 #include <algorithm>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool Fail(ReflectedYamlError& error, const char* message)
+        Bool Fail(ReflectedYamlError& error, const char* message)
         {
             error.message = message;
             return false;
         }
 
-        bool ReadLeaf(
+        Bool ReadLeaf(
             const YamlDocument& document,
-            std::uint32_t node,
+            UInt32 node,
             const TypeDescriptor& type,
             void* value,
             ReflectedYamlError& error)
@@ -40,9 +42,9 @@ namespace JBro
             return true;
         }
 
-        bool ReadPacked(
+        Bool ReadPacked(
             const YamlDocument& document,
-            std::uint32_t node,
+            UInt32 node,
             const TypeDescriptor& type,
             void* value,
             ReflectedYamlError& error)
@@ -56,7 +58,7 @@ namespace JBro
             {
                 return Fail(error, "this list does not have one entry per member");
             }
-            for (std::uint32_t i = 0; i < type.fields->count; ++i)
+            for (UInt32 i = 0; i < type.fields->count; ++i)
             {
                 const PropertyInfo& field = type.fields->properties[i];
                 error.fieldName = NameTable::Get().Resolve(field.name);
@@ -113,7 +115,7 @@ namespace JBro
             ScopedKey& operator=(const ScopedKey&) = delete;
         };
 
-        bool WriteArray(
+        Bool WriteArray(
             YamlWriter& writer,
             const char* key,
             const TypeDescriptor& type,
@@ -146,7 +148,7 @@ namespace JBro
         // **키 글자 순으로 적는다.** 슬롯 순서는 넣은 내력에 따라 달라지므로 그대로 적으면
         // 내용이 같은 두 표가 다른 글자가 된다 - 되돌리기가 바뀌지 않은 것을 바뀌었다고 보고,
         // 저장 파일도 괜히 달라진다.
-        bool WriteTable(
+        Bool WriteTable(
             YamlWriter& writer,
             const char* key,
             const TypeDescriptor& type,
@@ -211,9 +213,9 @@ namespace JBro
         }
 
         // **있던 원소를 버리고 파일의 것으로 채운다.** 되돌리기가 원소 수까지 되살려야 한다.
-        bool ReadArray(
+        Bool ReadArray(
             const YamlDocument& document,
-            std::uint32_t node,
+            UInt32 node,
             const TypeDescriptor& type,
             void* value,
             ReflectedYamlError& error)
@@ -249,9 +251,9 @@ namespace JBro
             return true;
         }
 
-        bool ReadTable(
+        Bool ReadTable(
             const YamlDocument& document,
-            std::uint32_t node,
+            UInt32 node,
             const TypeDescriptor& type,
             void* value,
             ReflectedYamlError& error)
@@ -272,9 +274,9 @@ namespace JBro
             ops.Clear(value);
             for (std::size_t index = 0; index < document.GetCount(node); ++index)
             {
-                const std::uint32_t entry = document.GetElement(node, index);
+                const UInt32 entry = document.GetElement(node, index);
                 String keyText;
-                const std::uint32_t valueNode = document.GetKind(entry) == YamlKind::Map
+                const UInt32 valueNode = document.GetKind(entry) == YamlKind::Map
                     ? document.Find(entry, "Value") : YamlDocument::InvalidNode;
                 if (valueNode == YamlDocument::InvalidNode
                     || false == document.FindScalar(entry, "Key", keyText)
@@ -313,7 +315,7 @@ namespace JBro
     }
 
     // 코덱이 required 를 정확히 적어 주기로 되어 있으므로 두 번이면 끝난다.
-    bool ReflectedValueToText(const ValueCodec& codec, const void* value, String& text)
+    Bool ReflectedValueToText(const ValueCodec& codec, const void* value, String& text)
     {
         if (codec.ToText == nullptr)
         {
@@ -350,7 +352,7 @@ namespace JBro
         return true;
     }
 
-    bool WriteReflectedValue(
+    Bool WriteReflectedValue(
         YamlWriter& writer,
         const char* key,
         const TypeDescriptor& type,
@@ -371,7 +373,7 @@ namespace JBro
             {
                 // 시퀀스 항목 자리면(배열의 원소) 대시만 있는 줄 아래에 적힌다.
                 writer.BeginSequence(key);
-                for (std::uint32_t i = 0; i < type.fields->count; ++i)
+                for (UInt32 i = 0; i < type.fields->count; ++i)
                 {
                     const PropertyInfo& field = type.fields->properties[i];
                     String text;
@@ -390,7 +392,7 @@ namespace JBro
             }
 
             writer.BeginMap(key);
-            for (std::uint32_t i = 0; i < type.fields->count; ++i)
+            for (UInt32 i = 0; i < type.fields->count; ++i)
             {
                 const PropertyInfo& field = type.fields->properties[i];
                 if (false == field.serialize || field.type == nullptr)
@@ -427,9 +429,9 @@ namespace JBro
         return true;
     }
 
-    bool ReadReflectedFields(
+    Bool ReadReflectedFields(
         const YamlDocument& document,
-        std::uint32_t node,
+        UInt32 node,
         const PropertyTable& table,
         void* value,
         const char* const* skip,
@@ -443,7 +445,7 @@ namespace JBro
         for (std::size_t i = 0; i < document.GetCount(node); ++i)
         {
             const char* key = document.GetKey(node, i);
-            bool skipped = false;
+            Bool skipped = false;
             for (std::size_t s = 0; s < skipCount; ++s)
             {
                 if (std::strcmp(key, skip[s]) == 0)
@@ -459,7 +461,7 @@ namespace JBro
 
             const NameId name = MakeNameId(key);
             const PropertyInfo* property = nullptr;
-            for (std::uint32_t p = 0; p < table.count; ++p)
+            for (UInt32 p = 0; p < table.count; ++p)
             {
                 if (table.properties[p].name == name)
                 {
@@ -489,9 +491,9 @@ namespace JBro
         return true;
     }
 
-    bool ReadReflectedValue(
+    Bool ReadReflectedValue(
         const YamlDocument& document,
-        std::uint32_t node,
+        UInt32 node,
         const TypeDescriptor& type,
         void* value,
         ReflectedYamlError& error)

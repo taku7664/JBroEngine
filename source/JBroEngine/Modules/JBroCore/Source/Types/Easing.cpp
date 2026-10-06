@@ -1,24 +1,25 @@
 ﻿#include <JBro/Types/Easing.h>
 
 #include <cmath>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr float Pi = 3.14159265358979323846f;
+        constexpr Float Pi = 3.14159265358979323846f;
 
         // Penner 관행의 상수들이다. `Back` 이 얼마나 되돌아갔다 가는지, `Elastic` 이 몇 번 떠는지,
         // `Bounce` 가 몇 번 튀는지를 정한다. 널리 쓰이는 값이라 그대로 둔다.
-        constexpr float BackC1 = 1.70158f;
-        constexpr float BackC3 = BackC1 + 1.0f;
-        constexpr float BackC2 = BackC1 * 1.525f;
-        constexpr float ElasticC4 = (2.0f * Pi) / 3.0f;
-        constexpr float ElasticC5 = (2.0f * Pi) / 4.5f;
-        constexpr float BounceN1 = 7.5625f;
-        constexpr float BounceD1 = 2.75f;
+        constexpr Float BackC1 = 1.70158f;
+        constexpr Float BackC3 = BackC1 + 1.0f;
+        constexpr Float BackC2 = BackC1 * 1.525f;
+        constexpr Float ElasticC4 = (2.0f * Pi) / 3.0f;
+        constexpr Float ElasticC5 = (2.0f * Pi) / 4.5f;
+        constexpr Float BounceN1 = 7.5625f;
+        constexpr Float BounceD1 = 2.75f;
 
-        float BounceOut(float t) noexcept
+        Float BounceOut(Float t) noexcept
         {
             if (t < 1.0f / BounceD1)
             {
@@ -26,20 +27,20 @@ namespace JBro
             }
             if (t < 2.0f / BounceD1)
             {
-                const float shifted = t - 1.5f / BounceD1;
+                const Float shifted = t - 1.5f / BounceD1;
                 return BounceN1 * shifted * shifted + 0.75f;
             }
             if (t < 2.5f / BounceD1)
             {
-                const float shifted = t - 2.25f / BounceD1;
+                const Float shifted = t - 2.25f / BounceD1;
                 return BounceN1 * shifted * shifted + 0.9375f;
             }
-            const float shifted = t - 2.625f / BounceD1;
+            const Float shifted = t - 2.625f / BounceD1;
             return BounceN1 * shifted * shifted + 0.984375f;
         }
     }
 
-    float Ease(EaseKind kind, float t) noexcept
+    Float Ease(EaseKind kind, Float t) noexcept
     {
         // 부르는 쪽이 경과 시간을 길이로 나누다 보면 마지막 프레임에 1 을 넘는다. 여기서 한 번만 자른다.
         if (t <= 0.0f)
@@ -177,7 +178,7 @@ namespace JBro
         }
     }
 
-    float EaseBetween(EaseKind kind, float from, float to, float t) noexcept
+    Float EaseBetween(EaseKind kind, Float from, Float to, Float t) noexcept
     {
         return from + (to - from) * Ease(kind, t);
     }

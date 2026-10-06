@@ -6,6 +6,10 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::System
 {
@@ -19,7 +23,7 @@ namespace JBro::System
     class ScriptSystem final : public GameSystem
     {
     public:
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
 
         // 한 프레임에서 실제로 돈 스크립트 수다. 순서 계약을 테스트가 붙잡는 손잡이다.
         std::size_t GetLastUpdateCount() const;
@@ -38,13 +42,13 @@ namespace JBro::System
         std::size_t GetInputHandlerCount() const;
         // **엔진 시스템도 체인에 선다**(D-236). 버튼 시스템이 `"UI"` 레이어에서 포인터를 소비하는 길이다. 스크립트와 같은 규칙으로
         // 줄 서고(레이어 순위, `order` 내림차순), 같은 자리면 스크립트보다 먼저다. 시스템이 살아 있는 동안만 둔다 - 내릴 때 뺀다.
-        void AddSystemInputHandler(IInputHandler& handler, const char* layer, std::int32_t order);
+        void AddSystemInputHandler(IInputHandler& handler, const char* layer, Int32 order);
         void RemoveSystemInputHandler(IInputHandler& handler);
 
     protected:
         void OnInitialize (Canvas& canvas) override;
-        void OnFixedUpdate(Canvas& canvas, float fixedDeltaTime) override;
-        void OnUpdate     (Canvas& canvas, float deltaTime) override;
+        void OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime) override;
+        void OnUpdate     (Canvas& canvas, Float deltaTime) override;
         void OnShutdown   (Canvas& canvas) override;
 
     private:
@@ -52,7 +56,7 @@ namespace JBro::System
         {
             GameScriptBase* script = nullptr;
             InstanceId      instanceId = InvalidInstanceId;
-            bool            started = false;
+            Bool            started = false;
         };
 
         // **구 엔진과 같은 깊이 우선 순회다**(D-45, A3).
@@ -67,7 +71,7 @@ namespace JBro::System
         void EnsureOrder(Canvas& canvas);
         void Rebuild(Canvas& canvas);
         void AppendScripts(GameObject& object);
-        bool IsScript(const ComponentBase* component) const;
+        Bool IsScript(const ComponentBase* component) const;
         void BuildInputChain(Canvas& canvas);
         void SortInputChain();
 
@@ -88,24 +92,24 @@ namespace JBro::System
         struct InputEntry
         {
             // `m_ordered` 의 자리. 시작했는지·켜졌는지는 부르기 직전에 거기서 읽는다.
-            std::uint32_t  ordered = 0;
+            UInt32  ordered = 0;
             IInputHandler* handler = nullptr;
             NameId         layer = InvalidNameId;
             const char*    layerText = nullptr;
-            std::uint32_t  priority = 0;
-            std::int32_t   order = 0;
+            UInt32  priority = 0;
+            Int32   order = 0;
         };
         // `ordered` 가 이것이면 시스템 핸들러다 - 시작 훅과 켜짐을 보지 않는다.
-        static constexpr std::uint32_t SystemHandlerSlot = 0xFFFFFFFFu;
+        static constexpr UInt32 SystemHandlerSlot = 0xFFFFFFFFu;
         InputSystem*                 m_input = nullptr;
         Array<InputEntry>            m_inputChain;
         Array<InputEntry>            m_systemHandlers;
-        std::uint64_t                m_inputLayerRevision = 0;
+        UInt64                m_inputLayerRevision = 0;
         // 이미 OnCreate/OnStart 를 받은 스크립트다. 재생성된 슬롯과 헷갈리지 않도록
         // 주소가 아니라 InstanceId 로 기억한다. 훑는 것은 재구축 때뿐이다.
         Array<InstanceId>            m_started;
         std::size_t                  m_lastUpdateCount = 0;
         std::size_t                  m_rebuildCount = 0;
-        std::uint64_t                m_builtRevision = 0;
+        UInt64                m_builtRevision = 0;
     };
 }

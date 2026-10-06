@@ -5,6 +5,7 @@
 #include <JBro/Runtime/Ref.h>
 
 #include <type_traits>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -21,12 +22,12 @@ namespace JBro
     public:
         GameObjectHandle() = default;
 
-        bool IsValid() const;
+        Bool IsValid() const;
         explicit operator bool() const;
 
         void Destroy();
-        void SetActive(bool active);
-        bool IsActive() const;
+        void SetActive(Bool active);
+        Bool IsActive() const;
 
         template<typename T>
         Ref<T> GetComponent() const;

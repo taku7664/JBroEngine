@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Types/Color.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -21,11 +22,11 @@ namespace JBro
         SetCanvasBackgroundCommand(Canvas& canvas, const Color& color);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
-        bool CanMerge(const EditorCommand& newer) const override;
-        bool TryMerge(const EditorCommand& newer) override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
 
     private:
         Canvas* m_canvas = nullptr;

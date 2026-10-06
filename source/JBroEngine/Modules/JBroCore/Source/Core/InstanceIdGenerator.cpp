@@ -2,16 +2,17 @@
 
 #include <chrono>
 #include <random>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr std::uint64_t TimestampMask = (1ull << 42) - 1;
-        constexpr std::uint64_t SessionMask = (1ull << 10) - 1;
-        constexpr std::uint32_t SequenceCapacity = 1u << 12;
+        constexpr UInt64 TimestampMask = (1ull << 42) - 1;
+        constexpr UInt64 SessionMask = (1ull << 10) - 1;
+        constexpr UInt32 SequenceCapacity = 1u << 12;
 
-        std::uint32_t GenerateSessionRandom()
+        UInt32 GenerateSessionRandom()
         {
             std::random_device source;
             std::mt19937 engine(source());
@@ -21,7 +22,7 @@ namespace JBro
             return distribution(engine);
         }
 
-        std::uint64_t CurrentMilliseconds()
+        UInt64 CurrentMilliseconds()
         {
             using namespace std::chrono;
             return static_cast<std::uint64_t>(
@@ -31,7 +32,7 @@ namespace JBro
 
     void InstanceIdGenerator::BeginFrame()
     {
-        const std::uint64_t currentMs = CurrentMilliseconds();
+        const UInt64 currentMs = CurrentMilliseconds();
         if (currentMs > m_cachedMs)
         {
             m_cachedMs = currentMs;
@@ -62,9 +63,9 @@ namespace JBro
             m_sequence = 0;
         }
 
-        const std::uint64_t timestamp = m_cachedMs & TimestampMask;
-        const std::uint64_t session = m_session & SessionMask;
-        const std::uint64_t sequence = m_sequence++;
+        const UInt64 timestamp = m_cachedMs & TimestampMask;
+        const UInt64 session = m_session & SessionMask;
+        const UInt64 sequence = m_sequence++;
         return (timestamp << 22) | (session << 12) | sequence;
     }
 }

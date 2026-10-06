@@ -31,6 +31,10 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 #if defined(_MSC_VER) && defined(_DEBUG)
 #include <crtdbg.h>
@@ -43,10 +47,10 @@ namespace
     namespace fs = std::filesystem;
     using namespace JBro;
 
-    constexpr std::uint32_t Rate = 48000;
-    constexpr float Pi = 3.14159265358979f;
+    constexpr JBro::UInt32 Rate = 48000;
+    constexpr JBro::Float Pi = 3.14159265358979f;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -69,12 +73,12 @@ namespace
     }
 
     // 16 비트 스테레오 WAV. 진폭 0.5, 440 Hz. `right` 가 0 이상이면 오른쪽만 그 진폭이다.
-    Array<std::uint8_t> MakeWav(std::uint32_t frames, float amplitude = 0.5f, float right = -1.0f)
+    Array<std::uint8_t> MakeWav(JBro::UInt32 frames, JBro::Float amplitude = 0.5f, JBro::Float right = -1.0f)
     {
         Array<std::uint8_t> bytes;
-        const std::uint32_t dataBytes = frames * 4;
+        const JBro::UInt32 dataBytes = frames * 4;
         bytes.Resize(44 + dataBytes);
-        auto put32 = [&](std::size_t at, std::uint32_t value) { std::memcpy(bytes.Data() + at, &value, 4); };
+        auto put32 = [&](std::size_t at, JBro::UInt32 value) { std::memcpy(bytes.Data() + at, &value, 4); };
         auto put16 = [&](std::size_t at, std::uint16_t value) { std::memcpy(bytes.Data() + at, &value, 2); };
         std::memcpy(bytes.Data(), "RIFF", 4);
         put32(4, 36 + dataBytes);
@@ -88,9 +92,9 @@ namespace
         put16(34, 16);
         std::memcpy(bytes.Data() + 36, "data", 4);
         put32(40, dataBytes);
-        for (std::uint32_t frame = 0; frame < frames; ++frame)
+        for (JBro::UInt32 frame = 0; frame < frames; ++frame)
         {
-            const float value = amplitude * std::sin(2.0f * Pi * 440.0f * static_cast<float>(frame) / Rate);
+            const JBro::Float value = amplitude * std::sin(2.0f * Pi * 440.0f * static_cast<float>(frame) / Rate);
             const std::int16_t sample = static_cast<std::int16_t>(value * 32767.0f);
             const std::int16_t rightSample = right >= 0.0f
                 ? static_cast<std::int16_t>(value / amplitude * right * 32767.0f) : sample;
@@ -102,24 +106,24 @@ namespace
 
     struct Peaks
     {
-        float left = 0.0f;
-        float right = 0.0f;
+        JBro::Float left = 0.0f;
+        JBro::Float right = 0.0f;
     };
 
-    Peaks RenderPeaks(AudioMixer& mixer, std::uint32_t frames)
+    Peaks RenderPeaks(AudioMixer& mixer, JBro::UInt32 frames)
     {
         Array<float> buffer;
         buffer.Resize(static_cast<std::size_t>(frames) * 2);
-        std::uint32_t done = 0;
+        JBro::UInt32 done = 0;
         while (done < frames)
         {
-            const std::uint32_t chunk = frames - done < 480 ? frames - done : 480;
+            const JBro::UInt32 chunk = frames - done < 480 ? frames - done : JBro::UInt32(480);
             mixer.Render(buffer.Data() + static_cast<std::size_t>(done) * 2, chunk);
             done += chunk;
         }
         Peaks peaks;
         // 페이드·시작 경계를 피하려고 뒤쪽 절반만 본다.
-        for (std::uint32_t frame = frames / 2; frame < frames; ++frame)
+        for (JBro::UInt32 frame = frames / 2; frame < frames; ++frame)
         {
             peaks.left = std::fmax(peaks.left, std::fabs(buffer[frame * 2]));
             peaks.right = std::fmax(peaks.right, std::fabs(buffer[frame * 2 + 1]));
@@ -311,7 +315,7 @@ namespace
 
     struct ReleaseProbe
     {
-        std::uint32_t calls = 0;
+        JBro::UInt32 calls = 0;
         AssetHandle last;
         static void OnRelease(void* user, AssetHandle handle)
         {
@@ -373,7 +377,7 @@ namespace
         // 그래서 `JBRO_AUDIO_DEVICE_TEST=1` 일 때만 돈다(장치 쪽을 고친 뒤에 켜고 돌린다).
         char* enabled = nullptr;
         std::size_t enabledLength = 0;
-        const bool wanted = _dupenv_s(&enabled, &enabledLength, "JBRO_AUDIO_DEVICE_TEST") == 0 && enabled != nullptr
+        const JBro::Bool wanted = _dupenv_s(&enabled, &enabledLength, "JBRO_AUDIO_DEVICE_TEST") == 0 && enabled != nullptr
             && enabled[0] == '1';
         std::free(enabled);
         if (false == wanted)
@@ -405,11 +409,11 @@ namespace
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        const std::uint64_t pulled = mixer.GetStats().renderedFrames;
+        const JBro::UInt64 pulled = mixer.GetStats().renderedFrames;
         std::cout << "  the device " << output->GetDeviceName() << " pulled " << pulled << " frames in about 0.1 s" << std::endl;
         // 목록의 이름으로 그 장치를 연다(D-203). 없는 이름은 열지 않는다 - 기본으로 떨어질지는 호스트가 정한다.
         AudioDeviceInfo devices[16];
-        const std::uint32_t deviceCount = platform.EnumerateAudioOutputs(devices, 16);
+        const JBro::UInt32 deviceCount = platform.EnumerateAudioOutputs(devices, 16);
         std::cout << "  output devices on this machine: " << deviceCount << std::endl;
         Check(deviceCount >= 1, "a machine with a default device lists at least one device");
         AudioOutputDesc named;
@@ -426,7 +430,7 @@ namespace
         platform.TakeAudioDevicesChanged();
         Check(pulled > 0, "the device pulls frames from the mixer");
         output->Stop();
-        const std::uint64_t afterStop = mixer.GetStats().renderedFrames;
+        const JBro::UInt64 afterStop = mixer.GetStats().renderedFrames;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         Check(mixer.GetStats().renderedFrames == afterStop, "after Stop returns the device no longer calls the mixer");
         output = nullptr;
@@ -435,21 +439,21 @@ namespace
     }
 
     // ── 디스크 스트리밍 (D-203) ──
-    bool OpenStreamForTest(void* user, const char* path, AudioFileDecoder& decoder)
+    JBro::Bool OpenStreamForTest(void* user, const char* path, AudioFileDecoder& decoder)
     {
         return decoder.Open(static_cast<IPlatform*>(user)->OpenFileStream(path), path);
     }
 
     // 왼쪽 채널을 장치처럼 조금씩 당겨 모은다(`PacedWindowPeaks` 와 같은 속도).
-    Array<float> PacedSamples(AudioMixer& mixer, std::uint32_t frames)
+    Array<float> PacedSamples(AudioMixer& mixer, JBro::UInt32 frames)
     {
         Array<float> samples;
         samples.Reserve(frames);
         float buffer[480 * 2];
-        for (std::uint32_t done = 0; done < frames; done += 480)
+        for (JBro::UInt32 done = 0; done < frames; done += 480)
         {
             mixer.Render(buffer, 480);
-            for (std::uint32_t frame = 0; frame < 480; ++frame)
+            for (JBro::UInt32 frame = 0; frame < 480; ++frame)
             {
                 samples.Add(buffer[frame * 2]);
             }
@@ -459,17 +463,17 @@ namespace
     }
 
     // 소리를 장치처럼 조금씩 당기되 스트리머가 따라올 틈을 준다(실시간의 약 10 배). 창마다의 최대 크기를 모은다.
-    Array<float> PacedWindowPeaks(AudioMixer& mixer, std::uint32_t windows, std::uint32_t windowFrames)
+    Array<float> PacedWindowPeaks(AudioMixer& mixer, JBro::UInt32 windows, JBro::UInt32 windowFrames)
     {
         Array<float> peaks;
         float buffer[480 * 2];
-        for (std::uint32_t window = 0; window < windows; ++window)
+        for (JBro::UInt32 window = 0; window < windows; ++window)
         {
-            float peak = 0.0f;
-            for (std::uint32_t done = 0; done < windowFrames; done += 480)
+            JBro::Float peak = 0.0f;
+            for (JBro::UInt32 done = 0; done < windowFrames; done += 480)
             {
                 mixer.Render(buffer, 480);
-                for (float sample : buffer)
+                for (JBro::Float sample : buffer)
                 {
                     peak = std::fmax(peak, std::fabs(sample));
                 }
@@ -529,8 +533,8 @@ namespace
         Check(looping.IsSet(), "a disk stream starts");
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
         const Array<float> windows = PacedWindowPeaks(mixer, 30, 4800);
-        float quietest = 1.0f;
-        for (float peak : windows)
+        JBro::Float quietest = 1.0f;
+        for (JBro::Float peak : windows)
         {
             quietest = std::fmin(quietest, peak);
         }
@@ -542,12 +546,12 @@ namespace
         // 창의 봉우리는 10 ms 의 빈틈을 못 본다. 이음매를 지나는 1.2 초의 샘플에서 가장 긴 무음과 가장 큰 튐을 잰다
         // (1 초에 440 주기라 파일은 끊김 없이 이어진다 - 0.5 사인의 샘플 사이 변화는 0.029 를 넘지 않는다).
         const Array<float> seam = PacedSamples(mixer, Rate * 12 / 10);
-        std::uint32_t silentRun = 0;
-        std::uint32_t longestSilence = 0;
-        float largestJump = 0.0f;
+        JBro::UInt32 silentRun = 0;
+        JBro::UInt32 longestSilence = 0;
+        JBro::Float largestJump = 0.0f;
         for (std::size_t index = 1; index < seam.Size(); ++index)
         {
-            silentRun = std::fabs(seam[index]) < 0.02f ? silentRun + 1 : 0;
+            silentRun = std::fabs(seam[index]) < 0.02f ? silentRun + 1 : JBro::UInt32(0);
             longestSilence = silentRun > longestSilence ? silentRun : longestSilence;
             largestJump = std::fmax(largestJump, std::fabs(seam[index] - seam[index - 1]));
         }
@@ -584,7 +588,7 @@ namespace
         audio.PlayOneShot(theme, AudioBusName{}, 1.0f, 1.0f);
         Check(mixer.GetStats().activeStreams == 1, "a disk-streamed asset plays through the audio system");
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        const float trimmedPeak = PacedWindowPeaks(mixer, 2, 4800)[1];
+        const JBro::Float trimmedPeak = PacedWindowPeaks(mixer, 2, 4800)[1];
         Check(std::fabs(trimmedPeak - 0.25f) < 0.04f, "and it is heard at the asset's trim");
         // 흘려 읽는 중에 내려도 멈추지 않고 끝난다.
         audio.Shutdown();
@@ -623,7 +627,7 @@ namespace
             canvas = framework.GetCanvas();
         }
 
-        Component::AudioSource* AddSource(const char* name, float x, bool loop, GameObject** out = nullptr)
+        Component::AudioSource* AddSource(const char* name, JBro::Float x, JBro::Bool loop, GameObject** out = nullptr)
         {
             GameObject* object = canvas->CreateObject(name);
             auto* transform = canvas->AttachComponent<Component::Transform2D>(object);
@@ -638,11 +642,11 @@ namespace
             return source;
         }
 
-        void Frame(std::uint32_t renderFrames = 800)
+        void Frame(JBro::UInt32 renderFrames = 800)
         {
             JBro::Testing::Tick(framework, 1.0f / 60.0f);
             audio.Update();
-            mixer.Render(scratch, renderFrames > 800 ? 800 : renderFrames);
+            mixer.Render(scratch, renderFrames > 800 ? JBro::UInt32(800) : renderFrames);
         }
 
         void Close()
@@ -709,7 +713,7 @@ namespace
         Check(decoded != nullptr && decoded->sampleRate == 44100 && decoded->channels == 1,
             "a worker decodes a decompressed clip at the mixer rate and in mono");
         Check(decoded->frameCount >= 4408 && decoded->frameCount <= 4412, "and its length scales with the rate");
-        float peak = 0.0f;
+        JBro::Float peak = 0.0f;
         for (std::size_t frame = 0; frame < decoded->pcm.Size(); ++frame)
         {
             peak = std::fmax(peak, std::fabs(decoded->pcm[frame]));
@@ -767,8 +771,8 @@ namespace
             "a decompressed clip is decoded at the mixer rate and in mono");
         Check(decoded->frameCount >= 4408 && decoded->frameCount <= 4412 && decoded->pcm.Size() == decoded->frameCount,
             "its length scales with the rate (0.1 s is 4410 frames)");
-        float peak = 0.0f;
-        std::uint32_t crossings = 0;
+        JBro::Float peak = 0.0f;
+        JBro::UInt32 crossings = 0;
         for (std::size_t frame = 0; frame < decoded->pcm.Size(); ++frame)
         {
             peak = std::fmax(peak, std::fabs(decoded->pcm[frame]));
@@ -783,7 +787,7 @@ namespace
         Check(crossings >= 86 && crossings <= 90, "the pitch survives resampling (440 Hz is 88 crossings in 0.1 s)");
 
         // 동시 수 2 가 에셋에서 믹서까지 간다.
-        for (int burst = 0; burst < 6; ++burst)
+        for (JBro::Int32 burst = 0; burst < 6; ++burst)
         {
             audio.PlayOneShot(blip, AudioBusName{}, 1.0f, 1.0f);
         }
@@ -796,7 +800,7 @@ namespace
         shortOptions.cooldown = 0.25f;
         EditAudioMeta(fixture, "blip.wav.jmeta", shortOptions);
         Check(fixture.assets.ReloadInPlace(fixture.shortId), "the clip reloads with a cooldown");
-        const std::uint64_t throttledBefore = mixer.GetStats().voicesThrottled;
+        const JBro::UInt64 throttledBefore = mixer.GetStats().voicesThrottled;
         audio.PlayOneShot(blip, AudioBusName{}, 1.0f, 1.0f);
         audio.PlayOneShot(blip, AudioBusName{}, 1.0f, 1.0f);
         Check(mixer.GetStats().voicesThrottled == throttledBefore + 1, "the asset's cooldown reaches the mixer");
@@ -896,10 +900,10 @@ namespace
         scene.Frame();
         Check(once->state == Component::AudioSourceState::Playing, "playOnStart starts the source on the first frame");
         Check(RenderPeaks(scene.mixer, 2400).left > 0.3f, "and it is heard");
-        const std::uint64_t started = scene.mixer.GetStats().voicesStarted;
+        const JBro::UInt64 started = scene.mixer.GetStats().voicesStarted;
         // 0.1 초짜리가 끝난다. 끝난 뒤에는 다시 울리지 않는다(기존 엔진 단계 3 의 반례).
         RenderPeaks(scene.mixer, Rate / 5);
-        for (int frame = 0; frame < 5; ++frame)
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
         {
             scene.Frame();
         }
@@ -934,7 +938,7 @@ namespace
         Check(looping->state == Component::AudioSourceState::Playing, "playing again re-arms playOnStart");
 
         // 오브젝트를 지우면 제 보이스도 멈춘다.
-        const std::uint32_t before = scene.mixer.GetStats().activeVoices;
+        const JBro::UInt32 before = scene.mixer.GetStats().activeVoices;
         Check(before >= 1, "the looping source is sounding");
         scene.canvas->DestroyObject(themeObject);
         scene.canvas->FlushPendingDestroy();
@@ -950,7 +954,7 @@ namespace
         music->bus = AudioBusName::FromText("Music");
         scene.framework.BindCanvasAssets();
         scene.Frame();
-        const float onMusic = RenderPeaks(scene.mixer, 4800).left;
+        const JBro::Float onMusic = RenderPeaks(scene.mixer, 4800).left;
         Check(std::fabs(onMusic - 0.25f) < 0.04f, "a source on the Music bus (0.5) is heard at half its level");
 
         // 재생 중에 버스를 바꾸면 곧바로 옮겨 간다(D-198).
@@ -960,7 +964,7 @@ namespace
             "moving it to SFX (1.0) while playing is heard at once");
 
         // 목록에 없는 이름은 Master 로 가고 경고는 한 번이다.
-        const std::uint64_t logBefore = Log::GetRevision();
+        const JBro::UInt64 logBefore = Log::GetRevision();
         music->bus = AudioBusName::FromText("Nowhere");
         scene.Frame();
         scene.Frame();
@@ -1070,11 +1074,11 @@ namespace
 
         // 소스의 저역 통과: 440 Hz 사인을 100 Hz 로 깎으면 크게 준다.
         const AudioBusName stepsName = AudioBusName::FromText("Steps");
-        const float open = scene.audio.GetBusPeak(stepsName);
+        const JBro::Float open = scene.audio.GetBusPeak(stepsName);
         source->lowPass = 100.0f;
         scene.Frame();
         RenderPeaks(mixer, 9600);
-        const float muffled = scene.audio.GetBusPeak(stepsName);
+        const JBro::Float muffled = scene.audio.GetBusPeak(stepsName);
         std::cout << "  a source low-pass at 100 Hz: " << open << " -> " << muffled << '\n';
         Check(muffled < open * 0.3f, "a source's low-pass cuts it while it plays");
         source->lowPass = 0.0f;
@@ -1130,7 +1134,7 @@ namespace
     }
 
 #if defined(_MSC_VER) && defined(_DEBUG)
-    int g_allocations = 0;
+    JBro::Int32 g_allocations = 0;
     int CountAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
     {
         if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
@@ -1146,7 +1150,7 @@ namespace
     {
         Scene scene;
         scene.Open();
-        for (int index = 0; index < 8; ++index)
+        for (JBro::Int32 index = 0; index < 8; ++index)
         {
             Component::AudioSource* source = scene.AddSource("loop", static_cast<float>(index), true);
             source->spatial = (index % 2) == 0;
@@ -1154,7 +1158,7 @@ namespace
             source->bus = AudioBusName::FromText((index % 3) == 0 ? "Music" : "SFX");
         }
         scene.framework.BindCanvasAssets();
-        for (int frame = 0; frame < 10; ++frame)
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
         {
             scene.Frame();
         }
@@ -1162,7 +1166,7 @@ namespace
         g_allocations = 0;
         const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
         // 프레임워크 갱신 전체를 잰다 - 오디오 2D 시스템의 리스너·카메라 찾기와 위치 읽기가 그 안에 있다.
-        for (int frame = 0; frame < 120; ++frame)
+        for (JBro::Int32 frame = 0; frame < 120; ++frame)
         {
             scene.canvas->ForEach<Component::Transform2D>([&](Component::Transform2D& transform)
             {
@@ -1178,9 +1182,9 @@ namespace
     }
 }
 
-int RunAudioIntegrationTests()
+JBro::Int32 RunAudioIntegrationTests()
 {
-    const bool echo = JBro::Log::GetEchoToConsole();
+    const JBro::Bool echo = JBro::Log::GetEchoToConsole();
     JBro::Log::SetEchoToConsole(false);
     try
     {

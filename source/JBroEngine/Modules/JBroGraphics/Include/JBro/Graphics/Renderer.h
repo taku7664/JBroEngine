@@ -6,6 +6,9 @@
 #include <JBro/Types/Matrix4x4.h>
 
 #include <cstddef>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -19,14 +22,14 @@ namespace JBro
         std::uint8_t backBufferCount = 3;
         std::uint8_t maxFramesInFlight = 2;
         // 3D 는 그릴 것이 있는 레이어마다 뷰 하나다(D-280). 에디터는 게임 뷰와 캔버스 뷰가 함께 쓴다.
-        std::uint32_t maxViews = 64;
-        std::uint32_t maxSpriteSubmissions = 65536;
-        std::uint32_t maxMeshSubmissions = 16384;
+        UInt32 maxViews = 64;
+        UInt32 maxSpriteSubmissions = 65536;
+        UInt32 maxMeshSubmissions = 16384;
         // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-222).
-        std::uint32_t maxWorldTextSubmissions = 16384;
+        UInt32 maxWorldTextSubmissions = 16384;
         // 한 프레임의 레이어 묶음(`BeginLayer`) 상한이다(D-279). 뷰마다 합성하는 레이어 수의 합이다.
-        std::uint32_t maxLayerGroups = 256;
-        bool validation = false;
+        UInt32 maxLayerGroups = 256;
+        Bool validation = false;
     };
 
     // 이번 프레임의 뷰를 어디에 그릴지다. 비워 두면 스왑체인 백버퍼다.
@@ -44,7 +47,7 @@ namespace JBro
         // 거짓이면 이 프레임의 뷰를 기록하지 않는다. 게임 뷰 렌더는 **매 프레임 opt-in**
         // 이다(D-63) - 에디터의 게임 뷰 패널이 그려지지 않는 프레임에는 텍스처를 건드리지
         // 않고, 다시 보일 때 마지막 그림에서 이어진다. 제출된 뷰는 `skippedViewCount` 로 센다.
-        bool recordViews = true;
+        Bool recordViews = true;
     };
 
     // 뷰를 모두 기록한 뒤, 프레임을 닫기 전에 불린다. 에디터 UI 가 백버퍼에
@@ -56,10 +59,10 @@ namespace JBro
     // `frameSlot` 은 이 프레임이 쓰는 슬롯이다. 매 프레임 덮어쓰는 자원을
     // 가진 쪽은 이것으로 갈라 써야 한다 - 그 슬롯의 지난 프레임이 끝났다는 것은
     // 이미 보장되어 있고, 하나로 두면 아직 읽는 중인 것을 덮어쓴다.
-    using FrameOverlay = bool (*)(
+    using FrameOverlay = Bool (*)(
         IRHICommandContext& commands,
         TextureHandle backBuffer,
-        std::uint32_t frameSlot,
+        UInt32 frameSlot,
         void* user);
 
     // 레이어를 아래에 얹는 방식이다(D-279). `Renderer::BeginLayer` 와 `CameraParams::composite` 가 받는다. 캔버스의 `LayerBlend` 와 같은 넷이고,
@@ -82,15 +85,15 @@ namespace JBro
         ColorBurn,
         Difference,
     };
-    inline constexpr std::uint32_t CompositeBlendCount = 13;
+    inline constexpr UInt32 CompositeBlendCount = 13;
     // 이 차례부터는 아래 그림을 읽는다.
-    inline constexpr std::uint32_t FirstBackdropBlend = 4;
+    inline constexpr UInt32 FirstBackdropBlend = 4;
 
     struct CameraParams
     {
         Matrix4x4 view;
         Matrix4x4 projection;
-        float clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        Float clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         Viewport viewport;
         AssetHandle postProcessProfile;
         // **이 뷰만 다른 곳에 그린다**(D-130). 비어 있으면 프레임의 타깃이다.
@@ -110,15 +113,15 @@ namespace JBro
         // 회전·텍스처 알파·틴트를 가리지 않고 그림의 실제 픽셀 바로 바깥이다. 셋 중 하나라도 비면 덧그리지 않는다.
         TextureHandle outlineMask;
         TextureHandle outlineScratch;
-        float outlineColor[4] = {1.0f, 1.0f, 0.0f, 1.0f};
-        std::uint32_t outlineWidth = 0;
+        Float outlineColor[4] = {1.0f, 1.0f, 0.0f, 1.0f};
+        UInt32 outlineWidth = 0;
 
         // **이 뷰 전체를 제 텍스처에 그려 얹는다**(D-280, 3D 레이어). `Normal` 이고 1 이면 타깃에 바로 그린다. 텍스처는 투명하게 지우고,
         // 다 그린 뒤 `BeginLayer` 의 묶음과 같은 `Layer*` 블렌드와 불투명도로 타깃에 얹는다. 3D 레이어는 레이어마다 뷰 하나다 - 메시·월드
         // 텍스트는 깊이 패스 안에 있어 뷰 중간에 묶음을 끊을 수 없고, 깊이는 뷰마다 지우므로 뒤에 낸 레이어가 늘 위다(포토샵의 레이어).
         // 이 뷰 안의 스프라이트 묶음은 보지 않는다.
         CompositeBlend composite = CompositeBlend::Normal;
-        float compositeOpacity = 1.0f;
+        Float compositeOpacity = 1.0f;
     };
 
     // 2D 스프라이트의 월드 변환이다. 열 벡터 규약의 2x3 아핀 여섯 값과 깊이 하나를 담는다(D-54).
@@ -127,9 +130,9 @@ namespace JBro
     // 4x4 로 넘길 때 사라지던 것은 항상 같던 z 행과 w 행뿐이다.
     struct SpriteTransform2D
     {
-        float linear[4] = {1.0f, 0.0f, 0.0f, 1.0f};
-        float translation[2] = {0.0f, 0.0f};
-        float depth = 0.0f;
+        Float linear[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+        Float translation[2] = {0.0f, 0.0f};
+        Float depth = 0.0f;
     };
 
     enum class SpriteFilter : std::uint8_t
@@ -155,9 +158,9 @@ namespace JBro
         // 렌더러가 `RegisterTexture` 로 발급한 텍스처다. 비어 있으면 1x1 흰색이라 틴트만 보인다.
         AssetHandle texture;
         AssetHandle material;
-        float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         // 텍스처의 어느 부분인가: uMin, vMin, uScale, vScale. 기본은 전체다. 시트의 한 칸이 이것으로 온다(D-113).
-        float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+        Float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
         SpriteFilter filter = SpriteFilter::Nearest;
         SpriteShading shading = SpriteShading::Sprite;
         // `SdfText` 에서만 읽는다. 외곽선이 끝나는 거리값(0..1 을 65535 로, 32768 은 0.5 라 외곽선이 없다)과 외곽선 색(0..255)이다.
@@ -175,7 +178,7 @@ namespace JBro
         Matrix4x4 world;
         AssetHandle mesh;
         AssetHandle material;
-        float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     };
 
     // **월드 텍스트**(D-222). 3D 뷰에 놓는 글자 사각형 하나다. 스프라이트와 같은 단위 쿼드(-0.5..0.5)를 `world`(행 우선 4x4, 열 벡터)로
@@ -185,11 +188,11 @@ namespace JBro
     {
         Matrix4x4 world;
         AssetHandle texture;
-        float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-        float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+        Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        Float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
         SpriteFilter filter = SpriteFilter::Linear;
         // 참이면 텍스처 알파를 거리장으로 읽고 채우기와 외곽선을 한 번에 합성한다(`SpriteShading::SdfText` 와 같은 셈).
-        bool sdf = false;
+        Bool sdf = false;
         std::uint16_t outlineEdge = 32768;
         std::uint8_t outlineColor[4] = {0, 0, 0, 0};
     };
@@ -198,34 +201,34 @@ namespace JBro
     // (framework3d-plan §2.4). 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
     struct MeshVertex
     {
-        float position[3] = {0.0f, 0.0f, 0.0f};
-        float normal[3] = {0.0f, 0.0f, 1.0f};
+        Float position[3] = {0.0f, 0.0f, 0.0f};
+        Float normal[3] = {0.0f, 0.0f, 1.0f};
     };
 
     struct RendererFrameStats
     {
-        std::uint32_t viewCount = 0;
-        std::uint32_t spriteCount = 0;
-        std::uint32_t meshCount = 0;
-        std::uint32_t droppedViewCount = 0;
+        UInt32 viewCount = 0;
+        UInt32 spriteCount = 0;
+        UInt32 meshCount = 0;
+        UInt32 droppedViewCount = 0;
         // 타깃이 뷰 기록을 끈 프레임에 제출된 뷰다. 버린 것이 아니라 그리지 않기로 한 것이다.
-        std::uint32_t skippedViewCount = 0;
-        std::uint32_t droppedSpriteCount = 0;
-        std::uint32_t droppedMeshCount = 0;
-        std::uint32_t worldTextCount = 0;
-        std::uint32_t droppedWorldTextCount = 0;
+        UInt32 skippedViewCount = 0;
+        UInt32 droppedSpriteCount = 0;
+        UInt32 droppedMeshCount = 0;
+        UInt32 worldTextCount = 0;
+        UInt32 droppedWorldTextCount = 0;
         // 유효하지 않은(빈 것이 아니라 죽은) 텍스처 핸들을 든 스프라이트다. 흰색으로 그리고 센다.
-        std::uint32_t staleTextureSpriteCount = 0;
+        UInt32 staleTextureSpriteCount = 0;
         // 제 텍스처에 그려 얹은 레이어 묶음이다(D-279).
-        std::uint32_t compositedLayerCount = 0;
+        UInt32 compositedLayerCount = 0;
         // 얹을 텍스처가 아직 없어 그대로 그린 묶음이다. 그 크기의 텍스처는 다음 프레임을 열 때 생긴다 - 디바이스는 프레임 안에서
         // 자원을 만들지 않는다. 깊이가 달린 뷰(3D)의 묶음도 여기 든다.
-        std::uint32_t uncompositedLayerCount = 0;
+        UInt32 uncompositedLayerCount = 0;
         // 묶음 상한(`RendererConfig::maxLayerGroups`)을 넘어 묶지 못한 것이다. 그 스프라이트는 그대로 그려진다.
-        std::uint32_t droppedLayerCount = 0;
+        UInt32 droppedLayerCount = 0;
         // 깊이 텍스처가 아직 없어 메시·월드 텍스트를 빼고 그린 뷰다(D-288). 처음 보는 크기의 뷰(편집 화면·레이어 썸네일)이고, 그 크기의 깊이는
         // 다음 프레임을 열 때 생긴다.
-        std::uint32_t viewsWithoutDepthCount = 0;
+        UInt32 viewsWithoutDepthCount = 0;
     };
 
     class Renderer final
@@ -238,75 +241,75 @@ namespace JBro
         Renderer(Renderer&&) = delete;
         Renderer& operator=(Renderer&&) = delete;
 
-        bool Initialize(IRHIModule& rhi, const RendererConfig& config);
+        Bool Initialize(IRHIModule& rhi, const RendererConfig& config);
         void Shutdown();
 
         // 타깃을 비우면 백버퍼에 그린다.
         FrameStatus BeginFrame(const FrameTarget& target = {});
-        bool BeginView(const CameraParams& camera);
-        bool SubmitSprite(const SpriteSubmit& item);
-        bool SubmitSprites(JArrayView<SpriteSubmit> items);
-        bool SubmitMesh(const MeshSubmit& item);
-        bool SubmitMeshes(JArrayView<MeshSubmit> items);
-        bool SubmitWorldText(const WorldTextSubmit& item);
-        bool SubmitWorldTexts(JArrayView<WorldTextSubmit> items);
+        Bool BeginView(const CameraParams& camera);
+        Bool SubmitSprite(const SpriteSubmit& item);
+        Bool SubmitSprites(JArrayView<SpriteSubmit> items);
+        Bool SubmitMesh(const MeshSubmit& item);
+        Bool SubmitMeshes(JArrayView<MeshSubmit> items);
+        Bool SubmitWorldText(const WorldTextSubmit& item);
+        Bool SubmitWorldTexts(JArrayView<WorldTextSubmit> items);
         // **레이어 하나를 제 텍스처에 그려 얹는다**(D-279, 기존 `Render2DPipeline` 의 레이어 경로). 이 뒤로 `EndLayer` 까지 낸
         // 스프라이트는 투명하게 지운 텍스처에 보통 알파로 그려지고, 그 텍스처가 한 장으로 `blend` 와 `opacity` 로 뷰의 타깃에 얹힌다 -
         // 레이어 안의 스프라이트끼리는 서로 비치지 않고 레이어 전체가 한 번에 옅어진다. 뷰 안에서만 열고, 겹쳐 열지 않는다.
         // `Normal` 이고 불투명도 1 인 레이어는 열 필요가 없다(열어도 그림은 같고 텍스처만 든다). `EndView` 는 열린 것을 닫는다.
         // 깊이가 달린 뷰(메시·월드 텍스트가 있는 3D 뷰)에서는 묶음을 보지 않고 그대로 그린다.
-        bool BeginLayer(CompositeBlend blend, float opacity);
-        bool EndLayer();
+        Bool BeginLayer(CompositeBlend blend, Float opacity);
+        Bool EndLayer();
 
         // 메시 지오메트리를 GPU 에 올리고 `MeshSubmit::mesh` 에 넣을 핸들을 준다. 프레임 밖에서만
         // 부른다. 빈 배열·너무 큰 배열·프레임 안이면 빈 핸들이다.
         // **핸들 모양이 `AssetHandle` 인 것은 `MeshSubmit` 이 그 타입이기 때문이다.** 발급자가 렌더러라는
         // 것은 `MeshLibrary`(Framework3DSystem)만 안다 - `AssetSystem` 이 실제로 로드하게 되면 그쪽이
         // 발급한다(`[가정]`, framework3d-plan §2.3).
-        AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<std::uint32_t> indices);
+        AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices);
         void UnregisterMesh(AssetHandle mesh);
-        std::uint32_t GetMeshCount() const;
+        UInt32 GetMeshCount() const;
         // RGBA8 픽셀(왼쪽 위 원점, 행마다 `width * 4` 바이트)을 GPU 에 올리고 `SpriteSubmit::texture` 에 넣을 핸들을
         // 준다. 프레임 밖에서만 부른다. 크기가 0 이거나 바이트 수가 맞지 않거나 프레임 안이면 빈 핸들이다(D-113).
         // 발급자가 렌더러라는 것은 `SpriteLibrary`(Framework2DSystem)만 안다 - `MeshLibrary` 와 같다.
         AssetHandle RegisterTexture(const Extent2D& extent, JArrayView<std::byte> rgba8);
         // 같은 크기의 새 픽셀로 갈아 끼운다(에셋의 in-place 재로드). 크기가 다르면 거짓이다 - 새로 등록한다.
-        bool UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8);
+        Bool UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8);
         // 사각형 하나만 갈아 끼운다(글리프 아틀라스의 새 칸). rgba8 은 사각형 왼쪽 위 텍셀부터이고 행 간격은 rowPitch 바이트다.
         // 백엔드가 못 하면 거짓이다 - 부르는 쪽은 `UpdateTexture` 로 전체를 올린다.
-        bool UpdateTextureRegion(AssetHandle texture, std::uint32_t x, std::uint32_t y, std::uint32_t width, std::uint32_t height,
-            JArrayView<std::byte> rgba8, std::uint32_t rowPitch);
+        Bool UpdateTextureRegion(AssetHandle texture, UInt32 x, UInt32 y, UInt32 width, UInt32 height,
+            JArrayView<std::byte> rgba8, UInt32 rowPitch);
         void UnregisterTexture(AssetHandle texture);
-        std::uint32_t GetTextureCount() const;
-        bool EndView();
+        UInt32 GetTextureCount() const;
+        Bool EndView();
         FrameStatus EndFrame();
         void AbortFrame();
 
-        bool ResizeSurface(const Extent2D& extent);
+        Bool ResizeSurface(const Extent2D& extent);
         RendererFrameStats GetLastFrameStats() const;
         // 마지막으로 기록된 프레임의 첫 뷰 카메라다. 에디터의 기즈모가 화면과 월드를 잇는 데 쓴다(D-109) -
         // UI 는 엔진 프레임보다 먼저 만들어지므로 한 프레임 전의 카메라다. 뷰를 기록한 프레임이 아직 없으면 거짓이다.
-        bool GetLastViewCamera(CameraParams& camera) const;
+        Bool GetLastViewCamera(CameraParams& camera) const;
         // 마지막으로 기록된 **편집 뷰**(자기 타깃을 든 뷰)의 카메라다(D-140).
         //
         // 3D 의 기즈모가 화면과 월드를 이으려면 이번 프레임의 뷰-투영이 필요한데, 2D 처럼
         // 나눗셈 하나로 되지 않는다. **에디터가 같은 행렬을 한 번 더 세우면 둘로 갈려**,
         // 한쪽만 고쳐졌을 때 손잡이가 그림과 다른 자리에 선다 - 그리는 쪽이 쓴 것을 그대로 내준다.
         // 편집 뷰를 기록한 프레임이 아직 없으면 거짓이다.
-        bool GetLastEditorViewCamera(CameraParams& camera) const;
+        Bool GetLastEditorViewCamera(CameraParams& camera) const;
 
         // 프레임을 닫기 전에 부를 것을 건다. **프레임 밖에서만 바꾼다** -
         // 프레임 중간에 바뀌면 이미 기록한 것과 어긋난다. nullptr 이면 뗀다.
-        bool SetFrameOverlay(FrameOverlay overlay, void* user);
-        bool HasFrameOverlay() const;
+        Bool SetFrameOverlay(FrameOverlay overlay, void* user);
+        Bool HasFrameOverlay() const;
 
         // 렌더러가 만든 디바이스다. **리소스를 만들고 지우는 데만 쓴다** -
         // 에디터가 게임 뷰 텍스처와 자기 UI 파이프라인을 만들려면 이것이 필요하다.
         // 프레임을 여닫는 것은 여전히 렌더러의 일이다.
         IRHIDevice* GetDevice() const;
 
-        bool IsDeviceLost() const;
-        bool IsInitialized() const;
+        Bool IsDeviceLost() const;
+        Bool IsInitialized() const;
         // 창(스왑체인)의 크기다. 프레임이 텍스처로 가는 동안에도 이것은 창이다.
         Extent2D GetSurfaceExtent() const;
         // **이번 프레임이 실제로 그려지는 크기다.** 타깃을 준 프레임은 그
@@ -319,44 +322,44 @@ namespace JBro
         // 백버퍼 포맷이다. 백버퍼에 얹혀 그리는 파이프라인은 이것과 같아야
         // 만들어진다 - 렌더 타깃 포맷은 파이프라인을 만들 때 굳는다.
         TextureFormat GetBackBufferFormat() const;
-        std::uint32_t GetSpriteSubmissionLimit() const;
+        UInt32 GetSpriteSubmissionLimit() const;
         // 마지막으로 제시한 백버퍼를 CPU 로 읽는다. **진단과 테스트 경로다** —
         // GPU 를 기다리므로 프레임 안에서 부를 수 없고 매 프레임 경로도 아니다.
-        bool ReadBackBuffer(std::byte* destination, std::size_t destinationSize, TextureReadback& result);
+        Bool ReadBackBuffer(std::byte* destination, std::size_t destinationSize, TextureReadback& result);
 
     private:
         struct ViewPacket
         {
             CameraParams camera;
-            std::uint32_t spriteOffset = 0;
-            std::uint32_t spriteCount = 0;
-            std::uint32_t meshOffset = 0;
-            std::uint32_t meshCount = 0;
+            UInt32 spriteOffset = 0;
+            UInt32 spriteCount = 0;
+            UInt32 meshOffset = 0;
+            UInt32 meshCount = 0;
             // 이 뷰의 메시 드로우 묶음(`m_meshRuns`)이 시작하는 자리와 개수. 업로드가 채운다.
-            std::uint32_t runOffset = 0;
-            std::uint32_t runCount = 0;
+            UInt32 runOffset = 0;
+            UInt32 runCount = 0;
             // 이 뷰의 스프라이트 드로우 묶음(`m_spriteRuns`). 텍스처·샘플러가 같은 연속 구간 하나가 묶음 하나다.
-            std::uint32_t spriteRunOffset = 0;
-            std::uint32_t spriteRunCount = 0;
+            UInt32 spriteRunOffset = 0;
+            UInt32 spriteRunCount = 0;
             // 이 뷰의 월드 텍스트(`m_worldTexts`)와 그 드로우 묶음(`m_worldTextRuns`). 묶음은 텍스처·샘플러가 같은 연속 구간이다.
-            std::uint32_t worldTextOffset = 0;
-            std::uint32_t worldTextCount = 0;
-            std::uint32_t worldTextRunOffset = 0;
-            std::uint32_t worldTextRunCount = 0;
+            UInt32 worldTextOffset = 0;
+            UInt32 worldTextCount = 0;
+            UInt32 worldTextRunOffset = 0;
+            UInt32 worldTextRunCount = 0;
             // 이 뷰의 레이어 묶음(`m_layerGroups`)이다. 스프라이트 번호 순이다.
-            std::uint32_t layerGroupOffset = 0;
-            std::uint32_t layerGroupCount = 0;
+            UInt32 layerGroupOffset = 0;
+            UInt32 layerGroupCount = 0;
         };
 
-        static constexpr std::uint32_t NoLayerGroup = 0xFFFFFFFFu;
+        static constexpr UInt32 NoLayerGroup = 0xFFFFFFFFu;
 
         // `BeginLayer`·`EndLayer` 사이에 낸 스프라이트 번호 구간 [first, end) 과 얹는 방식이다.
         struct LayerGroup
         {
-            std::uint32_t firstSprite = 0;
-            std::uint32_t endSprite = 0;
+            UInt32 firstSprite = 0;
+            UInt32 endSprite = 0;
             CompositeBlend blend = CompositeBlend::Normal;
-            float opacity = 1.0f;
+            Float opacity = 1.0f;
         };
 
         // 레이어를 그려 둘 텍스처다. 뷰의 타깃 크기마다 하나이고 백버퍼 포맷이다. 프레임 안에서는 만들 수 없으므로, 기록 중에
@@ -372,7 +375,7 @@ namespace JBro
             TextureHandle texture;
             Extent2D extent;
             LayerTargetRole role = LayerTargetRole::Layer;
-            std::uint32_t idleFrames = 0;
+            UInt32 idleFrames = 0;
         };
         struct LayerTargetWant
         {
@@ -380,7 +383,7 @@ namespace JBro
             LayerTargetRole role = LayerTargetRole::Layer;
         };
         static constexpr std::size_t MaxLayerTargets = 8;
-        static constexpr std::uint32_t LayerTargetIdleFrames = 300;
+        static constexpr UInt32 LayerTargetIdleFrames = 300;
 
         // 같은 텍스처와 샘플러로 그리는 스프라이트의 연속 구간이다(D-113). 순서는 제출 순서 그대로다 - 정렬은
         // 프레임워크의 일이고, 여기서는 이웃이 같으면 묶는 것만 한다.
@@ -388,12 +391,12 @@ namespace JBro
         {
             TextureHandle texture;
             SamplerHandle sampler;
-            std::uint32_t firstInstance = 0;
-            std::uint32_t instanceCount = 0;
+            UInt32 firstInstance = 0;
+            UInt32 instanceCount = 0;
             // SDF 텍스트 구간이면 참이다. 인스턴스는 텍스트 버퍼의 같은 번호에 있다.
-            bool sdf = false;
+            Bool sdf = false;
             // 이 구간이 든 레이어 묶음(`m_layerGroups` 의 자리)이다. 묶음 경계에서 구간이 끊긴다.
-            std::uint32_t layerGroup = NoLayerGroup;
+            UInt32 layerGroup = NoLayerGroup;
         };
 
         // 같은 메시를 그리는 인스턴스들의 연속 구간이다(D-110). 업로드가 뷰 안에서 메시별로 모아 놓으므로
@@ -401,8 +404,8 @@ namespace JBro
         struct MeshRun
         {
             AssetHandle mesh;
-            std::uint32_t firstInstance = 0;
-            std::uint32_t instanceCount = 0;
+            UInt32 firstInstance = 0;
+            UInt32 instanceCount = 0;
         };
 
         // 이 멤버 순서가 정점 속성 오프셋이고 BuiltinSprite.hlsl 의 ABI 다.
@@ -452,7 +455,7 @@ namespace JBro
         struct GpuMeshInstance
         {
             Matrix4x4 world;
-            float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         };
         static_assert(sizeof(MeshVertex) == 24, "mesh vertex stride is part of the shader ABI");
         static_assert(offsetof(MeshVertex, normal) == 12, "attribute 1 reads the normal from offset 12");
@@ -480,9 +483,9 @@ namespace JBro
         {
             BufferHandle vertexBuffer;
             BufferHandle indexBuffer;
-            std::uint32_t indexCount = 0;
-            std::uint32_t generation = 1;
-            bool occupied = false;
+            UInt32 indexCount = 0;
+            UInt32 generation = 1;
+            Bool occupied = false;
         };
 
         // 올라간 텍스처 하나. 핸들의 index 가 이 배열의 자리고 generation 이 재사용을 가른다(`MeshResource` 와 같다).
@@ -490,8 +493,8 @@ namespace JBro
         {
             TextureHandle texture;
             Extent2D extent;
-            std::uint32_t generation = 1;
-            bool occupied = false;
+            UInt32 generation = 1;
+            Bool occupied = false;
         };
 
         // 깊이 텍스처 하나. **크기마다 하나**다 - 한 프레임에 크기가 다른 뷰(게임 뷰·편집 화면·레이어 썸네일, D-288)가 섞여도 서로 밀어내지 않는다.
@@ -500,26 +503,26 @@ namespace JBro
         {
             TextureHandle texture;
             Extent2D extent;
-            std::uint32_t idleFrames = 0;
+            UInt32 idleFrames = 0;
         };
         static constexpr std::size_t MaxDepthTargets = 4;
-        static constexpr std::uint32_t DepthTargetIdleFrames = 300;
+        static constexpr UInt32 DepthTargetIdleFrames = 300;
 
-        static constexpr std::uint32_t InvalidViewIndex = 0xFFFFFFFFu;
-        static constexpr std::uint32_t MaxFrameSlots = 3;
+        static constexpr UInt32 InvalidViewIndex = 0xFFFFFFFFu;
+        static constexpr UInt32 MaxFrameSlots = 3;
 
-        bool CreateBuiltinSpriteResources();
+        Bool CreateBuiltinSpriteResources();
         void DestroyBuiltinSpriteResources();
-        bool UploadSpriteInstances();
-        bool CreateBuiltinMeshResources();
+        Bool UploadSpriteInstances();
+        Bool CreateBuiltinMeshResources();
         void DestroyBuiltinMeshResources();
-        bool UploadMeshInstances();
-        bool CreateBuiltinWorldTextResources();
+        Bool UploadMeshInstances();
+        Bool CreateBuiltinWorldTextResources();
         void DestroyBuiltinWorldTextResources();
-        bool UploadWorldTextInstances();
+        Bool UploadWorldTextInstances();
         void DestroyMeshResources();
         // `extent` 크기의 깊이 텍스처를 준다. 없으면 만든다 - 프레임 밖에서만 부른다.
-        bool AcquireDepthTarget(const Extent2D& extent, TextureHandle& depth);
+        Bool AcquireDepthTarget(const Extent2D& extent, TextureHandle& depth);
         // 프레임 안에서 `extent` 크기의 깊이 텍스처를 찾는다. 없으면 바람으로 적어 두고(다음 `BeginFrame` 이 만든다) 빈 핸들을 준다.
         TextureHandle FindDepthTarget(const Extent2D& extent);
         // 프레임을 열기 전에 지난 프레임이 바란 깊이 텍스처를 만들고 오래 안 쓴 것을 놓는다.
@@ -528,7 +531,7 @@ namespace JBro
         const MeshResource* FindMesh(AssetHandle mesh) const;
         const TextureResource* FindTexture(AssetHandle texture) const;
         void DestroyTextureResources();
-        bool RecordViews();
+        Bool RecordViews();
         void ResetSubmissionStorage();
 
         RendererConfig m_config;
@@ -566,10 +569,10 @@ namespace JBro
         // 선택 외곽선의 두 패스다(D-276). 가로로 키우기(덮어쓰기)와 세로로 키워 둘레만 칠하기(알파 섞기).
         GraphicsPipelineHandle m_outlineGrowPipeline;
         GraphicsPipelineHandle m_outlineCompositePipeline;
-        bool RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent);
+        Bool RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent);
         // 레이어 텍스처를 타깃에 얹는다(D-279). 타깃의 패스를 `Load` 로 열고 열린 채로 돌려준다 - 뒤의 구간이 이어 그린다.
         // 아래 그림을 읽는 블렌드(D-283)는 먼저 타깃을 복사해 둔다 - 부를 때 패스가 닫혀 있어야 한다. 복사할 자리가 아직 없으면 표준으로 얹는다.
-        bool RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
+        Bool RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
             const Viewport& viewport, const ScissorRect& scissor);
         // 이 크기·쓰임의 텍스처다. 없으면 바라는 것으로 적고 빈 핸들이다.
         TextureHandle FindLayerTarget(const Extent2D& extent, LayerTargetRole role = LayerTargetRole::Layer);
@@ -581,7 +584,7 @@ namespace JBro
         // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
         GraphicsPipelineHandle m_layerBackdropPipeline;
         Array<LayerGroup> m_layerGroups;
-        std::uint32_t m_openLayerGroup = NoLayerGroup;
+        UInt32 m_openLayerGroup = NoLayerGroup;
         LayerTarget m_layerTargets[MaxLayerTargets];
         LayerTargetWant m_layerTargetWants[MaxLayerTargets];
         std::size_t m_layerTargetWantCount = 0;
@@ -609,7 +612,7 @@ namespace JBro
         TextureHandle m_clearedTargets[MaxClearedTargets];
         std::size_t m_clearedTargetCount = 0;
         // 뷰마다 메시 슬롯별 개수를 세는 작업 배열. 크기는 등록된 메시 슬롯 수다.
-        Array<std::uint32_t> m_meshHistogram;
+        Array<UInt32> m_meshHistogram;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
         GraphicsPipelineHandle m_meshPipeline;
         DepthTarget m_depthTargets[MaxDepthTargets];
@@ -619,11 +622,11 @@ namespace JBro
         RendererFrameStats m_lastStats;
         CameraParams m_lastViewCamera;
         CameraParams m_lastEditorViewCamera;
-        bool m_hasLastEditorViewCamera = false;
-        bool m_hasLastViewCamera = false;
+        Bool m_hasLastEditorViewCamera = false;
+        Bool m_hasLastViewCamera = false;
         // EndFrame 이 프레임 컨텍스트를 비우므로 읽기 경로를 위해 따로 기억한다.
         TextureHandle m_lastPresentedBackBuffer;
-        std::uint32_t m_activeView = InvalidViewIndex;
-        bool m_frameActive = false;
+        UInt32 m_activeView = InvalidViewIndex;
+        Bool m_frameActive = false;
     };
 }

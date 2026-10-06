@@ -24,21 +24,25 @@
 #include <imgui.h>
 
 #include <cstdio>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
     namespace
     {
         // 물리 워커 수의 상한이다. 커널의 `Physics2D::MaxWorkerCount` 와 같다(D-223).
-        constexpr int MaxPhysicsWorkers = 16;
+        constexpr UInt32 MaxPhysicsWorkers = 16;
     }
 
     namespace
     {
         // 해상도의 한계다. 0 은 그릴 화면이 없다는 뜻이고, 위쪽은 사람이 실수로
         // 자릿수를 하나 더 치는 것을 막는 값이다.
-        constexpr int MinResolution = 16;
-        constexpr int MaxResolution = 16384;
+        constexpr UInt32 MinResolution = 16;
+        constexpr UInt32 MaxResolution = 16384;
     }
 
     const char* ProjectSettingsPanel::GetTitle() const
@@ -51,7 +55,7 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelProjectSettings, "Project Settings");
     }
 
-    bool ProjectSettingsPanel::OnCreate(EditorApplication& editor)
+    Bool ProjectSettingsPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         // 늘 보는 창이 아니다. 창 메뉴에서 열어 본다.
@@ -99,7 +103,7 @@ namespace JBro
     }
 
     void ProjectSettingsPanel::DrawPathValue(const char* id, String& value, const char* filterName,
-        const char* filterPattern, bool assetRelative)
+        const char* filterPattern, Bool assetRelative)
     {
         const Widget::PathFieldResult result = Widget::PathField(id, value).Draw();
         if (false == result.browse)
@@ -132,7 +136,7 @@ namespace JBro
         // 세트 칸이 비었을 때 흐리게 보이는 이름이다. 세트 이름은 데이터라 번역하지 않는다.
         constexpr const char* DefaultInputActionSetName = "Default";
 
-        bool IsGamepadSource(InputBindingSource source)
+        Bool IsGamepadSource(InputBindingSource source)
         {
             return source == InputBindingSource::GamepadButton || source == InputBindingSource::GamepadAxis
                 || source == InputBindingSource::GamepadStick;
@@ -188,7 +192,7 @@ namespace JBro
             "The languages of the string tables (.jstrings). The game starts in DefaultLocale; a key missing from the current language's tables is looked up in FallbackLocale's."));
         // 순서가 기본값(첫 언어)을 정하므로 폰트와 같은 목록 위젯이다. 새 줄은 빈 이름으로 시작한다.
         Widget::List("##locales", m_draft.locales,
-            [&](String& locale, int) { Widget::TextField("##locale", locale).Hint("ko-KR").Draw(); },
+            [&](String& locale, Int32) { Widget::TextField("##locale", locale).Hint("ko-KR").Draw(); },
             String(), Widget::ListFlagsShowIndex);
         // 기본·폴백은 목록에서 고른다. 목록에 없는 이름이 적혀 있으면(손으로 고친 파일) 비어 보이고 그대로 남는다.
         constexpr std::size_t MaxLocales = 32;
@@ -199,7 +203,7 @@ namespace JBro
             names[index] = m_draft.locales[index].c_str();
         }
         const auto pick = [&](const char* id, String& value) {
-            int current = -1;
+            Int32 current = -1;
             for (std::size_t index = 0; index < count; ++index)
             {
                 if (m_draft.locales[index] == value)
@@ -232,7 +236,7 @@ namespace JBro
                 "The names colliders' layer and mask fields pick from. The number in front is the bit"));
             {
                 Widget::FormLayout layout("##physicsLayers");
-                for (std::uint32_t index = 0; index < PhysicsLayerCount; ++index)
+                for (UInt32 index = 0; index < PhysicsLayerCount; ++index)
                 {
                     char label[8];
                     std::snprintf(label, sizeof(label), "%u", static_cast<unsigned>(index));
@@ -247,16 +251,16 @@ namespace JBro
         {
             Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsPhysicsMatrixHelp,
                 "Clear a box to let two layers pass through each other. Only named layers are shown"));
-            std::uint32_t named[PhysicsLayerCount] = {};
-            std::uint32_t namedCount = 0;
-            for (std::uint32_t index = 0; index < PhysicsLayerCount; ++index)
+            UInt32 named[PhysicsLayerCount] = {};
+            UInt32 namedCount = 0;
+            for (UInt32 index = 0; index < PhysicsLayerCount; ++index)
             {
                 if (false == m_draft.physicsLayers[index].empty())
                 {
                     named[namedCount++] = index;
                 }
             }
-            const auto findPair = [&](std::uint32_t first, std::uint32_t second) -> std::size_t {
+            const auto findPair = [&](UInt32 first, UInt32 second) -> std::size_t {
                 for (std::size_t at = 0; at < m_draft.physicsIgnoredLayerPairs.Size(); ++at)
                 {
                     const ProjectLayerPair& pair = m_draft.physicsIgnoredLayerPairs[at];
@@ -269,13 +273,13 @@ namespace JBro
             };
             {
                 Widget::FormLayout layout("##physicsMatrix");
-                for (std::uint32_t row = 0; row < namedCount; ++row)
+                for (UInt32 row = 0; row < namedCount; ++row)
                 {
-                    const std::uint32_t first = named[row];
+                    const UInt32 first = named[row];
                     Widget::IdScope rowScope(static_cast<int>(first));
                     layout.Row([&] { Widget::Text(m_draft.physicsLayers[first].c_str()); }, [&] {
                         // 삼각형이다: 행의 레이어와 그 뒤의 레이어들만 칸이 있고, 앞의 자리는 빈 칸으로 줄을 맞춘다.
-                        for (std::uint32_t column = 0; column < namedCount; ++column)
+                        for (UInt32 column = 0; column < namedCount; ++column)
                         {
                             if (column > 0)
                             {
@@ -286,9 +290,9 @@ namespace JBro
                                 ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()));
                                 continue;
                             }
-                            const std::uint32_t second = named[column];
+                            const UInt32 second = named[column];
                             const std::size_t found = findPair(first, second);
-                            bool collide = found == static_cast<std::size_t>(-1);
+                            Bool collide = found == static_cast<std::size_t>(-1);
                             Widget::IdScope cellScope(static_cast<int>(second));
                             if (Widget::Checkbox("##meet", collide))
                             {
@@ -336,7 +340,7 @@ namespace JBro
             {
                 String& layer = m_draft.inputLayers[index];
                 ImGui::PushID(static_cast<int>(index));
-                bool duplicate = false;
+                Bool duplicate = false;
                 for (std::size_t other = 0; other < index; ++other)
                 {
                     duplicate = duplicate || m_draft.inputLayers[other] == layer;
@@ -396,12 +400,12 @@ namespace JBro
                 }
             }
             String name;
-            for (int suffix = 1;; ++suffix)
+            for (Int32 suffix = 1;; ++suffix)
             {
                 char text[24] = {};
-                std::snprintf(text, sizeof(text), "Layer %d", suffix);
+                std::snprintf(text, sizeof(text), "Layer %d", suffix.Get());
                 name = text;
-                bool taken = false;
+                Bool taken = false;
                 for (const String& layer : m_draft.inputLayers)
                 {
                     taken = taken || layer == name;
@@ -421,14 +425,14 @@ namespace JBro
         {
             Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsInputNoActions, "No actions"));
         }
-        bool tooMany = m_draft.inputActions.Size() > MaxInputActions;
+        Bool tooMany = m_draft.inputActions.Size() > MaxInputActions;
         std::size_t removeAction = static_cast<std::size_t>(-1);
         for (std::size_t index = 0; index < m_draft.inputActions.Size(); ++index)
         {
             ProjectInputAction& action = m_draft.inputActions[index];
             tooMany = tooMany || action.bindings.Size() > MaxInputBindingsPerAction;
             ImGui::PushID(static_cast<int>(index));
-            bool duplicate = false;
+            Bool duplicate = false;
             for (std::size_t other = 0; other < index; ++other)
             {
                 duplicate = duplicate || m_draft.inputActions[other].name == action.name;
@@ -451,10 +455,10 @@ namespace JBro
                         });
                     layout.Row([] { Widget::Text("Type"); },
                         [&] {
-                            int current = static_cast<int>(action.type);
+                            Int32 current = static_cast<int>(action.type);
                             if (Widget::FilterCombo("##type", InputActionTypeChoices, current).ShowFilter(false).Draw())
                             {
-                                action.type = static_cast<InputActionType>(current);
+                                action.type = static_cast<InputActionType>(current.Get());
                             }
                         });
                     layout.Row([] { Widget::Text("Set"); },
@@ -473,11 +477,11 @@ namespace JBro
                         Widget::FormLayout layout("##binding");
                         layout.Row([] { Widget::Text("Source"); },
                             [&] {
-                                int current = static_cast<int>(binding.source);
+                                Int32 current = static_cast<int>(binding.source);
                                 if (Widget::FilterCombo("##source", InputBindingSourceChoices, current).ShowFilter(false).Draw())
                                 {
                                     // 원천이 바뀌면 앞의 값은 다른 목록의 번호다. 첫 항목으로 돌린다.
-                                    binding.source = static_cast<InputBindingSource>(current);
+                                    binding.source = static_cast<InputBindingSource>(current.Get());
                                     binding.code = binding.source == InputBindingSource::Key
                                         ? static_cast<std::uint16_t>(Key::Space) : 0;
                                 }
@@ -486,8 +490,8 @@ namespace JBro
                             [&] {
                                 FillInputCodeChoices(binding.source);
                                 // 키 목록은 `Unknown` 을 빼고 시작하므로 번호가 하나 밀린다.
-                                const int offset = binding.source == InputBindingSource::Key ? 1 : 0;
-                                int current = static_cast<int>(binding.code) - offset;
+                                const Int32 offset = binding.source == InputBindingSource::Key ? 1 : 0;
+                                Int32 current = static_cast<int>(binding.code) - offset;
                                 if (Widget::FilterCombo("##code", {m_inputCodeChoices.Data(), m_inputCodeChoices.Size()}, current)
                                         .ShowFilter(binding.source == InputBindingSource::Key).Draw())
                                 {
@@ -498,7 +502,7 @@ namespace JBro
                         {
                             layout.Row([] { Widget::Text("GamepadIndex"); },
                                 [&] {
-                                    Widget::DragInt("##pad").Range(-1, 3).Draw(binding.gamepad);
+                                    Widget::DragField("##pad", binding.gamepad).Range(-1, 3)();
                                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsInputAnyGamepad,
                                         "-1 means any connected gamepad"));
                                 });
@@ -507,10 +511,10 @@ namespace JBro
                         {
                             layout.Row([] { Widget::Text("Composite"); },
                                 [&] {
-                                    int current = static_cast<int>(binding.composite);
+                                    Int32 current = static_cast<int>(binding.composite);
                                     if (Widget::FilterCombo("##composite", InputCompositeChoices, current).ShowFilter(false).Draw())
                                     {
-                                        binding.composite = static_cast<InputComposite>(current);
+                                        binding.composite = static_cast<InputComposite>(current.Get());
                                     }
                                 });
                         }
@@ -555,12 +559,12 @@ namespace JBro
         if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddAction, "Add Action"), Icons::Plus))
         {
             String name;
-            for (int suffix = 1;; ++suffix)
+            for (Int32 suffix = 1;; ++suffix)
             {
                 char text[24] = {};
-                std::snprintf(text, sizeof(text), "Action%d", suffix);
+                std::snprintf(text, sizeof(text), "Action%d", suffix.Get());
                 name = text;
-                bool taken = false;
+                Bool taken = false;
                 for (const ProjectInputAction& existing : m_draft.inputActions)
                 {
                     taken = taken || existing.name == name;
@@ -622,28 +626,20 @@ namespace JBro
                 [] { Widget::Text("ResolutionWidth"); },
                 [&]
                 {
-                    int value = static_cast<int>(m_draft.resolutionWidth);
-                    if (Widget::DragInt("##width").Range(MinResolution, MaxResolution).Draw(value))
-                    {
-                        m_draft.resolutionWidth = static_cast<std::uint32_t>(value);
-                    }
+                    Widget::DragField("##width", m_draft.resolutionWidth).Range(MinResolution, MaxResolution)();
                 });
             layout.Row(
                 [] { Widget::Text("ResolutionHeight"); },
                 [&]
                 {
-                    int value = static_cast<int>(m_draft.resolutionHeight);
-                    if (Widget::DragInt("##height").Range(MinResolution, MaxResolution).Draw(value))
-                    {
-                        m_draft.resolutionHeight = static_cast<std::uint32_t>(value);
-                    }
+                    Widget::DragField("##height", m_draft.resolutionHeight).Range(MinResolution, MaxResolution)();
                 });
             layout.Row(
                 [] { Widget::Text("TextureFilter"); },
                 [&]
                 {
                     // 둘뿐이다(`Default` 는 텍스처의 임포트 옵션에만 있다, D-117).
-                    bool linear = m_draft.textureFilter == TextureFilter::Linear;
+                    Bool linear = m_draft.textureFilter == TextureFilter::Linear;
                     if (Widget::Checkbox("##filter", linear))
                     {
                         m_draft.textureFilter =
@@ -661,7 +657,7 @@ namespace JBro
                 [] { Widget::Text("FixedDeltaTime"); },
                 [&]
                 {
-                    Widget::DragFloat("##fixedDelta").Range(0.001f, 1.0f).Speed(0.0005f).Format("%.4f").Draw(m_draft.fixedDeltaTime);
+                    Widget::DragField("##fixedDelta", m_draft.fixedDeltaTime).Range(0.001f, 1.0f).Speed(0.0005f).Format("%.4f")();
                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsFixedDeltaTime,
                         "the length of one fixed step in seconds; physics and OnFixedUpdate run at this interval"));
                 });
@@ -669,11 +665,7 @@ namespace JBro
                 [] { Widget::Text("MaxFixedSteps"); },
                 [&]
                 {
-                    int value = static_cast<int>(m_draft.maxFixedSteps);
-                    if (Widget::DragInt("##maxFixedSteps").Range(1, 64).Draw(value))
-                    {
-                        m_draft.maxFixedSteps = static_cast<std::uint32_t>(value);
-                    }
+                    Widget::DragField("##maxFixedSteps", m_draft.maxFixedSteps).Range(1u, 64u)();
                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsMaxFixedSteps,
                         "the most fixed steps one frame runs; past it the game slows down instead of catching up"));
                 });
@@ -681,7 +673,7 @@ namespace JBro
                 [] { Widget::Text("MaxDeltaTime"); },
                 [&]
                 {
-                    Widget::DragFloat("##maxDelta").Range(0.001f, 10.0f).Speed(0.005f).Format("%.3f").Draw(m_draft.maxDeltaTime);
+                    Widget::DragField("##maxDelta", m_draft.maxDeltaTime).Range(0.001f, 10.0f).Speed(0.005f).Format("%.3f")();
                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsMaxDeltaTime,
                         "the longest frame delta in seconds; a frame after a window drag or a breakpoint is cut to this"));
                 });
@@ -724,7 +716,7 @@ namespace JBro
                     }
                     // 고르는 목록은 공용 콤보다(§11.1). 패널이 `BeginCombo` 로 직접 그리지 않는다.
                     Array<const char*> names;
-                    int current = -1;
+                    Int32 current = -1;
                     for (std::size_t index = 0; index < locales.Size(); ++index)
                     {
                         names.Add(locales[index].c_str());
@@ -783,7 +775,7 @@ namespace JBro
         // 출력 장치와 포커스 정책(D-203). 장치 목록은 창을 열 때 한 번 읽는다.
         if (false == m_audioDevicesListed)
         {
-            const std::uint32_t found = m_editor->EnumerateAudioOutputs(m_audioDevices, MaxAudioDevices);
+            const UInt32 found = m_editor->EnumerateAudioOutputs(m_audioDevices, MaxAudioDevices);
             m_audioDeviceCount = found < MaxAudioDevices ? found : MaxAudioDevices;
             m_audioDevicesListed = true;
         }
@@ -793,8 +785,8 @@ namespace JBro
                 [&] {
                     m_busChoices.Clear();
                     m_busChoices.Add(Loc::TextOr(LocKeys::ProjectSettingsAudioDefaultDevice, "System default"));
-                    int current = m_draft.audioOutputDevice.empty() ? 0 : -1;
-                    for (std::uint32_t index = 0; index < m_audioDeviceCount; ++index)
+                    Int32 current = m_draft.audioOutputDevice.empty() ? 0 : -1;
+                    for (UInt32 index = 0; index < m_audioDeviceCount; ++index)
                     {
                         m_busChoices.Add(m_audioDevices[index].name);
                         if (m_draft.audioOutputDevice == m_audioDevices[index].name)
@@ -836,7 +828,7 @@ namespace JBro
             {
                 ProjectAudioBus& bus = m_draft.audioBuses[index];
                 ImGui::PushID(static_cast<int>(index));
-                bool duplicate = bus.name == "Master";
+                Bool duplicate = bus.name == "Master";
                 for (std::size_t other = 0; other < index; ++other)
                 {
                     duplicate = duplicate || m_draft.audioBuses[other].name == bus.name;
@@ -853,7 +845,7 @@ namespace JBro
                             }
                         },
                         [&] {
-                            Widget::SliderFloat("##volume", bus.volume, 0.0f, 1.0f);
+                            Widget::SliderField("##volume", bus.volume, 0.0f, 1.0f)();
                             ImGui::SameLine();
                             if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsAudioRemoveBus, "Remove"),
                                     Widget::Severity::Error))
@@ -871,11 +863,11 @@ namespace JBro
                         // 사슬의 차례대로 늘어놓는다(D-210). 켜는 칸에는 무엇이 끄는 값인지 알린다.
                         const char* zeroOff = Loc::TextOr(LocKeys::ProjectSettingsAudioEffectOff, "0 turns it off");
                         const char* oneOff = Loc::TextOr(LocKeys::ProjectSettingsAudioEffectRatioOff, "1 turns it off");
-                        const auto slider = [&](const char* name, const char* id, float& value, float low, float high,
+                        const auto slider = [&](const char* name, const char* id, Float& value, Float low, Float high,
                                                 const char* offHint) {
                             effects.Row([name] { Widget::Text(name); },
                                 [&value, id, low, high, offHint] {
-                                    Widget::SliderFloat(id, value, low, high);
+                                    Widget::SliderField(id, value, low, high)();
                                     if (offHint != nullptr)
                                     {
                                         Widget::HoveredTooltip(offHint);
@@ -922,7 +914,7 @@ namespace JBro
                             [&] {
                                 m_busChoices.Clear();
                                 m_busChoices.Add(AudioMasterBusName);
-                                int current = 0;
+                                Int32 current = 0;
                                 for (std::size_t other = 0; other < index; ++other)
                                 {
                                     m_busChoices.Add(m_draft.audioBuses[other].name.c_str());
@@ -944,7 +936,7 @@ namespace JBro
                             [&] {
                                 m_busChoices.Clear();
                                 m_busChoices.Add(Loc::TextOr(LocKeys::ProjectSettingsAudioNoSend, "None"));
-                                int current = 0;
+                                Int32 current = 0;
                                 for (std::size_t other = 0; other < m_draft.audioBuses.Size(); ++other)
                                 {
                                     if (other == index)
@@ -971,13 +963,13 @@ namespace JBro
                                     "Also sends this bus to another bus, e.g. a shared reverb bus with Dry 0"));
                             });
                         routing.Row([] { Widget::Text("SendLevel"); },
-                            [&] { Widget::SliderFloat("##sendLevel", bus.sendLevel, 0.0f, 1.0f); });
+                            [&] { Widget::SliderField("##sendLevel", bus.sendLevel, 0.0f, 1.0f)(); });
                         // 더킹(D-205): 고른 버스에 소리가 있는 동안 이 버스가 물러선다.
                         routing.Row([] { Widget::Text("DuckBy"); },
                             [&] {
                                 m_busChoices.Clear();
                                 m_busChoices.Add(Loc::TextOr(LocKeys::ProjectSettingsAudioNoSend, "None"));
-                                int current = 0;
+                                Int32 current = 0;
                                 for (std::size_t other = 0; other < m_draft.audioBuses.Size(); ++other)
                                 {
                                     if (other == index)
@@ -1004,9 +996,9 @@ namespace JBro
                                     "While that bus sounds, this one steps back (e.g. music under dialogue)"));
                             });
                         routing.Row([] { Widget::Text("DuckAmount"); },
-                            [&] { Widget::SliderFloat("##duckAmount", bus.duckAmount, 0.0f, 1.0f); });
+                            [&] { Widget::SliderField("##duckAmount", bus.duckAmount, 0.0f, 1.0f)(); });
                         routing.Row([] { Widget::Text("DuckRelease"); },
-                            [&] { Widget::SliderFloat("##duckRelease", bus.duckRelease, 0.01f, 3.0f); });
+                            [&] { Widget::SliderField("##duckRelease", bus.duckRelease, 0.01f, 3.0f)(); });
                     }
                     Widget::TreePop();
                 }
@@ -1021,12 +1013,12 @@ namespace JBro
         {
             // 겹치지 않는 이름으로 시작한다. 바로 고쳐 쓰면 된다.
             String name;
-            for (int suffix = 1;; ++suffix)
+            for (Int32 suffix = 1;; ++suffix)
             {
                 char text[24] = {};
-                std::snprintf(text, sizeof(text), "Bus %d", suffix);
+                std::snprintf(text, sizeof(text), "Bus %d", suffix.Get());
                 name = text;
-                bool taken = false;
+                Bool taken = false;
                 for (std::size_t index = 0; index < m_draft.audioBuses.Size(); ++index)
                 {
                     taken = taken || m_draft.audioBuses[index].name == name;
@@ -1050,7 +1042,7 @@ namespace JBro
         // 새 줄은 빈 아이디로 시작하고, 고르지 않은 줄은 저장할 때 빠진다.
         RefreshFontChoices();
         Widget::List("##fonts", m_draft.fonts,
-            [&](AssetId& font, int) {
+            [&](AssetId& font, Int32) {
                 Widget::AssetField("##font",
                     ArrayView<const char* const>(m_fontNamePointers.Data(), m_fontNamePointers.Size()),
                     ArrayView<const AssetId>(m_fontIds.Data(), m_fontIds.Size()), font)
@@ -1098,13 +1090,13 @@ namespace JBro
                         Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsAuto, "Auto"),
                         Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsSingle, "Single thread"),
                         Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsWorkers, "Set worker count")};
-                    int current = static_cast<int>(m_draft.build.physicsThreadMode);
+                    Int32 current = static_cast<int>(m_draft.build.physicsThreadMode);
                     if (Widget::FilterCombo("##physicsThreads", ArrayView<const char* const>(choices, 3), current)
                             .ShowFilter(false)
                             .Draw()
                         && current >= 0)
                     {
-                        m_draft.build.physicsThreadMode = static_cast<PhysicsThreadMode>(current);
+                        m_draft.build.physicsThreadMode = static_cast<PhysicsThreadMode>(current.Get());
                         if (m_draft.build.physicsThreadMode == PhysicsThreadMode::Workers && m_draft.build.physicsWorkers == 0)
                         {
                             m_draft.build.physicsWorkers = 1;
@@ -1115,7 +1107,7 @@ namespace JBro
                     ImGui::SameLine();
                     if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsPhysicsRecommend, "Use Recommended")))
                     {
-                        const std::uint32_t recommended = m_editor->RecommendPhysicsWorkers();
+                        const UInt32 recommended = m_editor->RecommendPhysicsWorkers();
                         m_draft.build.physicsThreadMode =
                             recommended == 0 ? PhysicsThreadMode::Single : PhysicsThreadMode::Workers;
                         m_draft.build.physicsWorkers = recommended;
@@ -1128,11 +1120,7 @@ namespace JBro
                 layout.Row(
                     [] { Widget::Text("PhysicsWorkers"); },
                     [&] {
-                        int value = static_cast<int>(m_draft.build.physicsWorkers);
-                        if (Widget::DragInt("##physicsWorkers").Range(1, MaxPhysicsWorkers).Draw(value))
-                        {
-                            m_draft.build.physicsWorkers = static_cast<std::uint32_t>(value);
-                        }
+                        Widget::DragField("##physicsWorkers", m_draft.build.physicsWorkers).Range(1u, MaxPhysicsWorkers)();
                     });
             }
         }

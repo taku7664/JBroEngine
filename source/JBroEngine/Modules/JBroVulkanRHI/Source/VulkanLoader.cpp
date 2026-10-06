@@ -1,4 +1,5 @@
 ﻿#include "VulkanLoader.h"
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Internal
 {
@@ -9,7 +10,7 @@ namespace JBro::Internal
         HMODULE g_library = nullptr;
     }
 
-    bool LoadVulkanLibrary()
+    Bool LoadVulkanLibrary()
     {
         if (g_library != nullptr)
         {
@@ -28,7 +29,7 @@ namespace JBro::Internal
             UnloadVulkanLibrary();
             return false;
         }
-        bool complete = true;
+        Bool complete = true;
 #define JBRO_VULKAN_LOAD(name)                                                                                 \
         vk.name = reinterpret_cast<PFN_##name>(vk.vkGetInstanceProcAddr(nullptr, #name));                     \
         complete = complete && vk.name != nullptr;
@@ -52,13 +53,13 @@ namespace JBro::Internal
         vk = {};
     }
 
-    bool LoadVulkanInstanceFunctions(VkInstance instance)
+    Bool LoadVulkanInstanceFunctions(VkInstance instance)
     {
         if (instance == VK_NULL_HANDLE || vk.vkGetInstanceProcAddr == nullptr)
         {
             return false;
         }
-        bool complete = true;
+        Bool complete = true;
 #define JBRO_VULKAN_LOAD(name)                                                                                 \
         vk.name = reinterpret_cast<PFN_##name>(vk.vkGetInstanceProcAddr(instance, #name));                    \
         complete = complete && vk.name != nullptr;
@@ -71,13 +72,13 @@ namespace JBro::Internal
         return complete;
     }
 
-    bool LoadVulkanDeviceFunctions(VkDevice device)
+    Bool LoadVulkanDeviceFunctions(VkDevice device)
     {
         if (device == VK_NULL_HANDLE || vk.vkGetDeviceProcAddr == nullptr)
         {
             return false;
         }
-        bool complete = true;
+        Bool complete = true;
 #define JBRO_VULKAN_LOAD(name)                                                                                 \
         vk.name = reinterpret_cast<PFN_##name>(vk.vkGetDeviceProcAddr(device, #name));                        \
         complete = complete && vk.name != nullptr;

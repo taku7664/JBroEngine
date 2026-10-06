@@ -2,6 +2,8 @@
 #include <JBro/Network/Peer/Signaling.h>
 #include <JBro/Network/Service/NetworkService.h>
 #include <JBro/Network/Service/NetworkSessionService.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -15,13 +17,13 @@ namespace JBro::Service
 
     // ── NetworkSessionService ───────────────────────────────────────────────────────────────────
 
-    bool NetworkSessionService::StartServer(std::uint16_t port) const
+    Bool NetworkSessionService::StartServer(std::uint16_t port) const
     {
         System::INetworkSystem* network = Network();
         return nullptr != network && network->StartServer(port);
     }
 
-    bool NetworkSessionService::Connect(const char* host, std::uint16_t port) const
+    Bool NetworkSessionService::Connect(const char* host, std::uint16_t port) const
     {
         System::INetworkSystem* network = Network();
         return nullptr != network && network->Connect(host, port);
@@ -42,19 +44,19 @@ namespace JBro::Service
         return nullptr != network ? network->GetRole() : Network::NetworkRole::None;
     }
 
-    bool NetworkSessionService::IsConnected() const
+    Bool NetworkSessionService::IsConnected() const
     {
         System::INetworkSystem* network = Network();
         return nullptr != network && network->IsConnected();
     }
 
-    std::uint32_t NetworkSessionService::GetConnectionCount() const
+    UInt32 NetworkSessionService::GetConnectionCount() const
     {
         System::INetworkSystem* network = Network();
-        return nullptr != network ? network->GetConnectionCount() : 0;
+        return nullptr != network ? network->GetConnectionCount() : UInt32(0);
     }
 
-    Network::ConnectionId NetworkSessionService::GetConnectionAt(std::uint32_t index) const
+    Network::ConnectionId NetworkSessionService::GetConnectionAt(UInt32 index) const
     {
         System::INetworkSystem* network = Network();
         return nullptr != network ? network->GetConnectionAt(index) : Network::InvalidConnectionId;
@@ -72,15 +74,15 @@ namespace JBro::Service
         return nullptr != network ? network->GetUdpLossRate(connection) : -1.0;
     }
 
-    std::uint32_t NetworkSessionService::TakeEvents(Network::NetworkEvent* events, std::uint32_t capacity) const
+    UInt32 NetworkSessionService::TakeEvents(Network::NetworkEvent* events, UInt32 capacity) const
     {
         System::INetworkSystem* network = Network();
-        return nullptr != network ? network->TakeEvents(events, capacity) : 0;
+        return nullptr != network ? network->TakeEvents(events, capacity) : UInt32(0);
     }
 
     // ── NetworkService ──────────────────────────────────────────────────────────────────────────
 
-    bool NetworkService::Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, std::uint32_t size,
+    Bool NetworkService::Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, UInt32 size,
         Network::NetChannel channel) const
     {
         System::INetworkSystem* network = Network();
@@ -92,7 +94,7 @@ namespace JBro::Service
         return network->Send(connection, messageId, data, size, channel);
     }
 
-    bool NetworkService::Broadcast(Network::MessageId messageId, const void* data, std::uint32_t size, Network::NetChannel channel) const
+    Bool NetworkService::Broadcast(Network::MessageId messageId, const void* data, UInt32 size, Network::NetChannel channel) const
     {
         System::INetworkSystem* network = Network();
         if (nullptr == network || Network::IsSignalingMessage(messageId) || Network::IsReplicationMessage(messageId)
@@ -103,10 +105,10 @@ namespace JBro::Service
         return network->Broadcast(messageId, data, size, channel);
     }
 
-    std::uint32_t NetworkService::TakeMessages(Network::MessageView* messages, std::uint32_t capacity) const
+    UInt32 NetworkService::TakeMessages(Network::MessageView* messages, UInt32 capacity) const
     {
         System::INetworkSystem* network = Network();
-        return nullptr != network ? network->TakeMessages(messages, capacity) : 0;
+        return nullptr != network ? network->TakeMessages(messages, capacity) : UInt32(0);
     }
 
     Network::NetworkObjectId NetworkService::FindNetworkId(InstanceId object) const
@@ -121,7 +123,7 @@ namespace JBro::Service
         return nullptr != network ? network->FindLocalObject(id) : InvalidInstanceId;
     }
 
-    bool NetworkService::HasAuthority(InstanceId object) const
+    Bool NetworkService::HasAuthority(InstanceId object) const
     {
         System::INetworkSystem* network = Network();
         return nullptr != network && network->HasAuthority(object);

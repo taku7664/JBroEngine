@@ -3,6 +3,10 @@
 #include <JBro/Core/RandomStream.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -20,19 +24,30 @@ namespace JBro::Service
     class RandomService
     {
     public:
-        std::uint32_t UInt32() const;
+        // 이 함수의 이름이 타입 이름과 같아 클래스 안에서 `UInt32` 는 이 함수를 가리킨다. 타입은 `JBro::UInt32` 로 적는다.
+        JBro::UInt32 UInt32() const;
         // [0, 1) 이다.
-        float Value() const;
+        Float Value() const;
         // [min, max] 의 정수다. min 이 크면 둘을 바꾼다.
-        std::int32_t Range(std::int32_t min, std::int32_t max) const;
+        Int32 Range(Int32 min, Int32 max) const;
         // [min, max) 의 실수다. min 이 크면 둘을 바꾼다.
-        float Range(float min, float max) const;
+        Float Range(Float min, Float max) const;
+        // **리터럴로 부르는 자리.** `Range(3, 7)` 은 `Int32` 와 `Float` 둘 다 사용자 변환 하나로 닿아 모호하다 -
+        // 원시 정수·실수를 받는 짝을 두어 정확히 맞게 한다(D-290).
+        Int32 Range(int min, int max) const
+        {
+            return Range(Int32(min), Int32(max));
+        }
+        Float Range(float min, float max) const
+        {
+            return Range(Float(min), Float(max));
+        }
         // 참일 확률이 p 다.
-        bool Chance(float probability) const;
+        Bool Chance(Float probability) const;
 
-        std::uint64_t GetSeed() const;
+        UInt64 GetSeed() const;
         // 흐름을 이 씨앗으로 다시 세운다.
-        void SetSeed(std::uint64_t seed) const;
+        void SetSeed(UInt64 seed) const;
         RandomState GetState() const;
         void SetState(const RandomState& state) const;
         // 엔진 흐름에서 씨앗과 흐름 번호를 뽑아 새 흐름을 만든다. 엔진 흐름을 두 번 뽑는다.

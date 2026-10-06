@@ -5,6 +5,8 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -24,12 +26,12 @@ namespace JBro::Widget
         // 짝 레코드다(그림의 Sprite). 없으면 비어 있다.
         AssetId paired;
         // 뒤따르는 상대경로 묶음(줄바꿈으로 갈림, 끝에 0)의 바이트 수다.
-        std::uint32_t pathBytes = 0;
+        UInt32 pathBytes = 0;
     };
 
     // 끌기 시작(`BeginDragSource` 가 참일 때)에서 부른다. `paths` 는 줄바꿈으로 갈린 상대경로 묶음이다.
     void SetAssetDragPayload(AssetId primary, AssetId paired, const String& paths);
     // 받는 자리 안(`BeginDropTarget` 이 참일 때)에서 부른다. 놓였으면 참이다.
     // `paths` 를 주면 상대경로 묶음도 준다. 위에 있는 동안은 받는 자리를 옅게 칠한다.
-    bool AcceptAssetDrop(AssetDragHeader& header, String* paths = nullptr);
+    Bool AcceptAssetDrop(AssetDragHeader& header, String* paths = nullptr);
 }

@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -14,14 +15,14 @@ namespace JBro
     //    `RaycastHit2D` 가 되었다 - `IPhysics2DSystem` 의 가상 함수 표가 바뀌었다(physics-plan §4 의 6).
     // 4: 텍스트 슬롯이 차원 무관 `ITextSystem`(TextId 로 받는다)이 되었다 - 가상 함수 표가 바뀌었다(D-224).
     // 5: 화면 역투영과 버튼 상태의 슬롯이 붙었다(D-237).
-    inline constexpr std::uint32_t Framework2DSystemContextAbiVersion = 5;
+    inline constexpr UInt32 Framework2DSystemContextAbiVersion = 5;
 
     // 차원별 시스템 인터페이스 묶음. 공통 SystemContext 는 Framework 타입을 알지 않으므로
     // 이 블록이 D-37 확장 Context 로 전달된다. 사용자에게 공개하지 않기 위해 Internal 경계에 둔다.
     // 서비스 구현만 읽으며, 대상의 수명은 소유하지 않는다.
     struct Framework2DSystemContext
     {
-        std::uint32_t AbiVersion = Framework2DSystemContextAbiVersion;
+        UInt32 AbiVersion = Framework2DSystemContextAbiVersion;
         System::IPhysics2DSystem* Physics2D = nullptr;
         System::ITextSystem*      Text2D = nullptr;
         System::IScreen2DSystem*  Screen2D = nullptr;

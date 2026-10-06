@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -28,7 +31,7 @@ namespace JBro
         {
         }
 
-        std::uint32_t ElementBytes() const override
+        UInt32 ElementBytes() const override
         {
             return static_cast<std::uint32_t>(sizeof(Wire));
         }
@@ -43,7 +46,7 @@ namespace JBro
             });
         }
 
-        bool Apply(InstanceId object, const std::uint8_t* from, const std::uint8_t* to, float alpha) override
+        Bool Apply(InstanceId object, const std::uint8_t* from, const std::uint8_t* to, Float alpha) override
         {
             GameObject* owner = Resolve(object);
             if (nullptr == owner)

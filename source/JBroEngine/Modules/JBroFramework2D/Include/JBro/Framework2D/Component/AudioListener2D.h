@@ -2,6 +2,7 @@
 
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Component
 {
@@ -26,6 +27,6 @@ namespace JBro::Component
 
         // 좌우로 이만큼 떨어진 소리가 한쪽으로 크게(약 45°) 기운다(월드 단위). 작을수록 가까운 소리도 한쪽 귀로 쏠린다.
         // 화면 폭의 절반쯤이 자연스럽다.
-        JBRO_FIELD(float, panDistance, Range(0.1f, 1000.0f)) = 5.0f;
+        JBRO_FIELD(Float, panDistance, Range(0.1f, 1000.0f)) = 5.0f;
     };
 }

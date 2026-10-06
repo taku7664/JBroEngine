@@ -2,6 +2,9 @@
 
 #include <JBro/Core/Profiler.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -18,9 +21,9 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDestroy() override;
-        void OnUpdate(float deltaTime) override;
+        void OnUpdate(Float deltaTime) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Bottom; }
 
@@ -30,7 +33,7 @@ namespace JBro
         struct Smoothed
         {
             const char* name = nullptr;
-            std::uint32_t depth = 0;
+            UInt32 depth = 0;
             // **횟수도 눌러야 한다**(D-249). 고정 스텝은 프레임마다 도는 것이 아니라서
             // 그때그때 값을 그대로 보이면 50Hz 를 200fps 로 돌릴 때 네 프레임 중 셋이 0 으로
             // 찍히고, 읽는 사람은 그 시스템이 안 도는 줄로 안다. 그래서 실수로 들고 평균한다.

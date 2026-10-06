@@ -20,12 +20,15 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
     namespace fs = std::filesystem;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -65,7 +68,7 @@ namespace
         file.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
     }
 
-    bool PixelIs(const JBro::TextureData& texture, std::uint32_t x, std::uint32_t y,
+    JBro::Bool PixelIs(const JBro::TextureData& texture, JBro::UInt32 x, JBro::UInt32 y,
         unsigned r, unsigned g, unsigned b, unsigned a)
     {
         const std::size_t offset = (static_cast<std::size_t>(y) * texture.width + x) * 4;
@@ -573,12 +576,12 @@ namespace
         {
         }
 
-        bool Read(const JBro::AssetRecord& record, JBro::AssetBlob blob, JBro::Array<std::byte>& out) const override
+        JBro::Bool Read(const JBro::AssetRecord& record, JBro::AssetBlob blob, JBro::Array<std::byte>& out) const override
         {
             return m_inner.Read(record, blob, out);
         }
 
-        bool Has(const JBro::AssetRecord& record, JBro::AssetBlob blob) const override
+        JBro::Bool Has(const JBro::AssetRecord& record, JBro::AssetBlob blob) const override
         {
             return m_inner.Has(record, blob);
         }
@@ -689,7 +692,7 @@ namespace
     }
 }
 
-int RunAssetSystemTests()
+JBro::Int32 RunAssetSystemTests()
 {
     TestTheFrameworkBindsItsCanvasAssets();
     TestTheDecoderReadsPngAndRefusesGarbage();

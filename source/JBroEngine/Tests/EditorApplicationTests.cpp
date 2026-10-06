@@ -80,6 +80,11 @@
 #include <stdexcept>
 #include <thread>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 // 필드의 종류가 섞인 목록 원소다. 한 줄 숫자 묶음으로 읽히지 않으므로 접기 마디 안에 필드마다
 // 한 줄씩 그린다(D-89). 저장하지 않는 필드가 하나 있다 - 목록은 전체의 글자로 되돌리므로 그
@@ -88,11 +93,11 @@ namespace
 {
     struct Signal
     {
-        float strength = 0.0f;
-        bool on = false;
-        float echo = 0.0f;
+        JBro::Float strength = 0.0f;
+        JBro::Bool on = false;
+        JBro::Float echo = 0.0f;
         // 원소 안의 배열이다. 이번에는 개수만 보여 주고 목록으로 그리지 않는다(D-89).
-        JBro::Array<float> taps;
+        JBro::Array<JBro::Float> taps;
     };
 
     // 구조체 필드 안에 든 구조체 원소 목록이다. 인스펙터는 이 필드를 트리 마디로 타고 내려가므로
@@ -158,10 +163,10 @@ namespace
 {
     // 에디터 창 크기다. **패널 넷이 들어갈 만큼은 되어야 한다** - 너무 좁으면
     // 가운데가 거의 남지 않아, 게임 화면이 제대로 와도 화면의 몇 퍼센트가 안 된다.
-    constexpr std::uint32_t WindowWidth = 640;
-    constexpr std::uint32_t WindowHeight = 480;
+    constexpr JBro::UInt32 WindowWidth = 640;
+    constexpr JBro::UInt32 WindowHeight = 480;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -208,14 +213,14 @@ namespace
     // 에디터 오버레이가 백버퍼를 지우는 색이다(0.09, 0.09, 0.11). 패널이 덮은
     // 자리는 이 색이 아니다. **밝기로 재면 안 된다** - ImGui 의 창 배경은
     // 오버레이가 지운 색보다 오히려 어둡다.
-    constexpr int ClearRed = 23;
-    constexpr int ClearGreen = 23;
-    constexpr int ClearBlue = 28;
+    constexpr JBro::Int32 ClearRed = 23;
+    constexpr JBro::Int32 ClearGreen = 23;
+    constexpr JBro::Int32 ClearBlue = 28;
 
-    bool DiffersFromClear(const unsigned char* pixel)
+    JBro::Bool DiffersFromClear(const unsigned char* pixel)
     {
-        const auto apart = [](unsigned char got, int want) {
-            const int gap = static_cast<int>(got) - want;
+        const auto apart = [](unsigned char got, JBro::Int32 want) {
+            const JBro::Int32 gap = static_cast<int>(got) - want;
             return gap > 4 || gap < -4;
         };
         return apart(pixel[0], ClearBlue)
@@ -233,8 +238,8 @@ namespace
     //
     // BMP 인 이유는 **의존성이 없어서다.** 헤더 54바이트에 아래에서 위로 쌓은
     // 픽셀이 전부라, 이미지 라이브러리를 들이지 않고 쓸 수 있다.
-    void SaveScreenshot(JBro::Renderer& renderer, std::uint32_t width,
-        std::uint32_t height, const char* suffix)
+    void SaveScreenshot(JBro::Renderer& renderer, JBro::UInt32 width,
+        JBro::UInt32 height, const char* suffix)
     {
         // `getenv` 는 MSVC 가 안전하지 않다고 막는다. 우리가 놓아 주는 쪽을 쓴다.
         char* directory = nullptr;
@@ -269,12 +274,12 @@ namespace
             return;
         }
 
-        const std::uint32_t rowBytes = width * 3;
-        const std::uint32_t padding = (4 - (rowBytes % 4)) % 4;
-        const std::uint32_t pixelBytes = (rowBytes + padding) * height;
-        const std::uint32_t fileBytes = 54 + pixelBytes;
+        const JBro::UInt32 rowBytes = width * 3;
+        const JBro::UInt32 padding = (4 - (rowBytes % 4)) % 4;
+        const JBro::UInt32 pixelBytes = (rowBytes + padding) * height;
+        const JBro::UInt32 fileBytes = 54 + pixelBytes;
 
-        auto put32 = [&](std::uint32_t value) {
+        auto put32 = [&](JBro::UInt32 value) {
             const char bytes[4] = {
                 static_cast<char>(value & 0xFF),
                 static_cast<char>((value >> 8) & 0xFF),
@@ -307,11 +312,11 @@ namespace
 
         const char zero[4] = {};
         // BMP 는 아래에서 위로 쌓는다. 읽어 온 것은 위에서 아래이므로 거꾸로 돈다.
-        for (std::uint32_t y = height; y > 0; --y)
+        for (JBro::UInt32 y = height; y > 0; --y)
         {
             const std::byte* row = image.Data()
                 + static_cast<std::size_t>(y - 1) * readback.rowPitch;
-            for (std::uint32_t x = 0; x < width; ++x)
+            for (JBro::UInt32 x = 0; x < width; ++x)
             {
                 const auto* pixel = reinterpret_cast<const unsigned char*>(row + x * 4);
                 // **되읽은 것은 BGRA 다**(백버퍼가 `BGRA8Unorm` 이고, 위쪽
@@ -333,7 +338,7 @@ namespace
     }
 
     // 백버퍼를 그대로 받아 온다. 두 프레임을 견주려면 센 값이 아니라 픽셀이 필요하다.
-    void ReadBackBufferInto(JBro::Renderer& renderer, std::uint32_t width, std::uint32_t height,
+    void ReadBackBufferInto(JBro::Renderer& renderer, JBro::UInt32 width, JBro::UInt32 height,
         JBro::Array<std::byte>& image, JBro::TextureReadback& readback)
     {
         image.Resize(static_cast<std::size_t>(width) * height * 4);
@@ -345,12 +350,12 @@ namespace
     // 묻는 자리에 쓴다 - 겹쳐 그리는 것이 실제로 화면에 닿았음은 이것으로 드러난다.
     std::size_t CountDifferingPixels(const JBro::Array<std::byte>& first,
         const JBro::Array<std::byte>& second, const JBro::TextureReadback& readback,
-        std::uint32_t width, std::uint32_t height)
+        JBro::UInt32 width, JBro::UInt32 height)
     {
         std::size_t differing = 0;
-        for (std::uint32_t y = 0; y < height; ++y)
+        for (JBro::UInt32 y = 0; y < height; ++y)
         {
-            for (std::uint32_t x = 0; x < width; ++x)
+            for (JBro::UInt32 x = 0; x < width; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -371,12 +376,12 @@ namespace
     // 바뀐 것까지 차이에 섞여, 정작 재려던 자리가 그대로여도 검사가 통과한다.
     std::size_t CountDifferingPixelsIn(const JBro::Array<std::byte>& first,
         const JBro::Array<std::byte>& second, const JBro::TextureReadback& readback,
-        std::uint32_t left, std::uint32_t top, std::uint32_t right, std::uint32_t bottom)
+        JBro::UInt32 left, JBro::UInt32 top, JBro::UInt32 right, JBro::UInt32 bottom)
     {
         std::size_t differing = 0;
-        for (std::uint32_t y = top; y < bottom; ++y)
+        for (JBro::UInt32 y = top; y < bottom; ++y)
         {
-            for (std::uint32_t x = left; x < right; ++x)
+            for (JBro::UInt32 x = left; x < right; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -395,12 +400,12 @@ namespace
 
     struct PixelBox
     {
-        int minX = 1 << 30;
-        int minY = 1 << 30;
-        int maxX = -1;
-        int maxY = -1;
+        JBro::Int32 minX = 1 << 30;
+        JBro::Int32 minY = 1 << 30;
+        JBro::Int32 maxX = -1;
+        JBro::Int32 maxY = -1;
 
-        bool IsEmpty() const { return maxX < minX || maxY < minY; }
+        JBro::Bool IsEmpty() const { return maxX < minX || maxY < minY; }
     };
 
     // 화면에서 조건에 맞는 픽셀이 차지한 사각형이다. **겹쳐 그린 것이 그림과 같은 자리에
@@ -413,13 +418,13 @@ namespace
         // **재는 자리를 좁힌다.** 같은 색이 다른 창에도 있다(인스펙터의 강조 같은 것) -
         // 화면 전체를 재면 그것들까지 한 상자에 들어온다.
         PixelBox box;
-        const std::uint32_t left = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.x));
-        const std::uint32_t top = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.y));
-        const std::uint32_t right = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.x));
-        const std::uint32_t bottom = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.y));
-        for (std::uint32_t y = top; y < bottom; ++y)
+        const JBro::UInt32 left = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.x));
+        const JBro::UInt32 top = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.y));
+        const JBro::UInt32 right = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.x));
+        const JBro::UInt32 bottom = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.y));
+        for (JBro::UInt32 y = top; y < bottom; ++y)
         {
-            for (std::uint32_t x = left; x < right; ++x)
+            for (JBro::UInt32 x = left; x < right; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -429,17 +434,17 @@ namespace
                 {
                     continue;
                 }
-                box.minX = (std::min)(box.minX, static_cast<int>(x));
-                box.minY = (std::min)(box.minY, static_cast<int>(y));
-                box.maxX = (std::max)(box.maxX, static_cast<int>(x));
-                box.maxY = (std::max)(box.maxY, static_cast<int>(y));
+                box.minX = JBro::Min(box.minX, static_cast<int>(x));
+                box.minY = JBro::Min(box.minY, static_cast<int>(y));
+                box.maxX = JBro::Max(box.maxX, static_cast<int>(x));
+                box.maxY = JBro::Max(box.maxY, static_cast<int>(y));
             }
         }
         return box;
     }
 
-    std::size_t CountPaintedPixels(JBro::Renderer& renderer, std::uint32_t width,
-        std::uint32_t height)
+    std::size_t CountPaintedPixels(JBro::Renderer& renderer, JBro::UInt32 width,
+        JBro::UInt32 height)
     {
         JBro::Array<std::byte> image;
         image.Resize(static_cast<std::size_t>(width) * height * 4);
@@ -447,9 +452,9 @@ namespace
         Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback),
             "the editor window must read back");
         std::size_t painted = 0;
-        for (std::uint32_t y = 0; y < height; ++y)
+        for (JBro::UInt32 y = 0; y < height; ++y)
         {
-            for (std::uint32_t x = 0; x < width; ++x)
+            for (JBro::UInt32 x = 0; x < width; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -466,7 +471,7 @@ namespace
     const JBro::PropertyInfo* FindProperty(
         const JBro::PropertyTable& table, const char* name)
     {
-        for (std::uint32_t index = 0; index < table.count; ++index)
+        for (JBro::UInt32 index = 0; index < table.count; ++index)
         {
             const char* found =
                 JBro::NameTable::Get().Resolve(table.properties[index].name);
@@ -483,7 +488,7 @@ namespace
     class CountingPanel final : public JBro::UniquePanel
     {
     public:
-        explicit CountingPanel(const char* title, bool createSucceeds = true)
+        explicit CountingPanel(const char* title, JBro::Bool createSucceeds = true)
             : m_title(title)
             , m_createSucceeds(createSucceeds)
         {
@@ -493,7 +498,7 @@ namespace
         {
             return m_title;
         }
-        bool OnCreate(JBro::EditorApplication&) override
+        JBro::Bool OnCreate(JBro::EditorApplication&) override
         {
             ++createCalls;
             return m_createSucceeds;
@@ -507,7 +512,7 @@ namespace
             }
             ++destroyOrder;
         }
-        void OnUpdate(float deltaTime) override
+        void OnUpdate(JBro::Float deltaTime) override
         {
             ++updates;
             lastDelta = deltaTime;
@@ -520,25 +525,25 @@ namespace
         // **거절당한 패널은 AddPanel 안에서 죽는다**(OwnerPtr 를 값으로 받는다).
         // 그래서 부름 횟수는 인스턴스가 아니라 여기 센다 - 죽은 것을 들여다보면
         // 테스트가 저 자신의 버그를 재게 된다.
-        static int createCalls;
-        static int destroyCalls;
-        static int destroyOrder;
+        static JBro::Int32 createCalls;
+        static JBro::Int32 destroyCalls;
+        static JBro::Int32 destroyOrder;
         // **먼저 떠난 쪽의 제목**이다. Shutdown 은 패널을 지우므로 그 뒤에
         // 인스턴스를 들여다볼 수 없다 - 제목은 문자열 리터럴이라 살아남는다.
         static const char* firstDestroyed;
 
-        int updates = 0;
-        int draws = 0;
-        float lastDelta = 0.0f;
+        JBro::Int32 updates = 0;
+        JBro::Int32 draws = 0;
+        JBro::Float lastDelta = 0.0f;
 
     private:
         const char* m_title = nullptr;
-        bool m_createSucceeds = true;
+        JBro::Bool m_createSucceeds = true;
     };
 
-    int CountingPanel::createCalls = 0;
-    int CountingPanel::destroyCalls = 0;
-    int CountingPanel::destroyOrder = 0;
+    JBro::Int32 CountingPanel::createCalls = 0;
+    JBro::Int32 CountingPanel::destroyCalls = 0;
+    JBro::Int32 CountingPanel::destroyOrder = 0;
     const char* CountingPanel::firstDestroyed = nullptr;
 
     // **레지스트리는 들일 수 없는 것을 들이지 않는다.** ImGui 는 창을 제목으로
@@ -587,7 +592,7 @@ namespace
         Check(editor.GetPanelCount() == builtin, "neither may land in the list");
 
         // **`OnCreate` 가 실패하면 들이지 않는다.**
-        const int asked = CountingPanel::createCalls;
+        const JBro::Int32 asked = CountingPanel::createCalls;
         Check(nullptr == editor.AddPanel(
                 JBro::MakeOwnerPtr<CountingPanel>("Never Ready", false)),
             "a panel that cannot start must be refused");
@@ -606,7 +611,7 @@ namespace
         Check(editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("Counting Later")),
             "a second panel must be taken too");
 
-        const int leaving = CountingPanel::destroyCalls;
+        const JBro::Int32 leaving = CountingPanel::destroyCalls;
         CountingPanel::destroyOrder = 0;
         CountingPanel::firstDestroyed = nullptr;
         editor.Shutdown();
@@ -643,8 +648,8 @@ namespace
         Check(editor.AddPanel(std::move(owned)), "the counting panel must be taken");
         Check(panel->IsOpen(), "a new panel starts open");
 
-        constexpr float Delta = 1.0f / 60.0f;
-        for (int frame = 0; frame < 3; ++frame)
+        constexpr JBro::Float Delta = 1.0f / 60.0f;
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Delta), "the editor must tick");
         }
@@ -652,9 +657,9 @@ namespace
         Check(panel->draws == 3, "and draws once a frame");
         Check(panel->lastDelta > 0.0f, "and is told how long the frame was");
 
-        const int drawsWhenClosed = panel->draws;
+        const JBro::Int32 drawsWhenClosed = panel->draws;
         panel->SetOpen(false);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Delta), "the editor must keep ticking");
         }
@@ -678,7 +683,7 @@ namespace
         {
             return TypeName;
         }
-        bool OnCreate(JBro::EditorApplication& editor) override
+        JBro::Bool OnCreate(JBro::EditorApplication& editor) override
         {
             m_editor = &editor;
             return true;
@@ -701,16 +706,16 @@ namespace
             }
         }
 
-        static int destroyCalls;
-        static bool stillListedAfterClose;
-        int draws = 0;
-        bool closeWhileDrawing = false;
+        static JBro::Int32 destroyCalls;
+        static JBro::Bool stillListedAfterClose;
+        JBro::Int32 draws = 0;
+        JBro::Bool closeWhileDrawing = false;
 
     private:
         JBro::EditorApplication* m_editor = nullptr;
     };
-    int InstanceProbePanel::destroyCalls = 0;
-    bool InstanceProbePanel::stillListedAfterClose = false;
+    JBro::Int32 InstanceProbePanel::destroyCalls = 0;
+    JBro::Bool InstanceProbePanel::stillListedAfterClose = false;
 
     // **고유 패널과 비고유 패널**(D-284). 고유 패널은 다시 만들면 있던 것이 앞으로 오고 닫으면 숨는다. 비고유 패널은
     // 만들 때마다 새로 서고 닫으면 파기된다 - 그리는 중에 닫혀도 그 프레임이 끝난 뒤에. 찾기는 둘이 같은 API 다.
@@ -740,7 +745,7 @@ namespace
             return;
         }
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        constexpr float Delta = 1.0f / 60.0f;
+        constexpr JBro::Float Delta = 1.0f / 60.0f;
         const char* const builtins[] = {
             "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
             "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
@@ -782,7 +787,7 @@ namespace
         Check(editor.FindPanel(second->GetId()) == second, "finding by id gives that one");
         Check(editor.FindPanels("Inspector", found) == 1 && found[0] == inspector, "a unique type lists its one panel");
 
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Delta), "the editor must tick with two instance panels");
         }
@@ -797,12 +802,12 @@ namespace
         }
 
         // 그리는 중에 닫힌 비고유 패널은 그 프레임이 끝난 뒤에 파기된다.
-        const int destroyedBefore = InstanceProbePanel::destroyCalls;
+        const JBro::Int32 destroyedBefore = InstanceProbePanel::destroyCalls;
         const JBro::Uuid secondId = second->GetId();
         second->RequestFocus();
         Check(editor.Tick(Delta), "the editor must tick");
         second->closeWhileDrawing = true;
-        for (int frame = 0; frame < 3 && editor.FindPanel(secondId) != nullptr; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3 && editor.FindPanel(secondId) != nullptr; ++frame)
         {
             Check(editor.Tick(Delta), "the editor must tick while the panel closes itself");
         }
@@ -839,10 +844,10 @@ namespace
         HWND window = FindOwnEditorWindow();
         Check(window != nullptr, "the editor window must be findable");
 
-        constexpr float Delta = 1.0f / 60.0f;
+        constexpr JBro::Float Delta = 1.0f / 60.0f;
         // 먼저 기본 배치를 잡게 둔다. 그 뒤에 붙는 패널은 도크에 들어가지 않고
         // 떠 있으므로 제 제목줄과 X 를 갖는다.
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Delta), "the editor must tick");
         }
@@ -850,7 +855,7 @@ namespace
         auto owned = JBro::MakeOwnerPtr<CountingPanel>("Closable");
         CountingPanel* panel = owned.Get();
         Check(editor.AddPanel(std::move(owned)), "the panel must be taken");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Delta), "the editor must tick");
         }
@@ -865,10 +870,10 @@ namespace
         // 그때는 조용히 지나가는 것보다 이 테스트가 우는 편이 낫다.
         const ImGuiStyle& style = ImGui::GetStyle();
         const ImRect titleBar = floating->TitleBarRect();
-        const float buttonSize = ImGui::GetFontSize();
-        const int x = static_cast<int>(
+        const JBro::Float buttonSize = ImGui::GetFontSize();
+        const JBro::Int32 x = static_cast<int>(
             titleBar.Max.x - style.FramePadding.x - buttonSize * 0.5f);
-        const int y = static_cast<int>(titleBar.GetCenter().y);
+        const JBro::Int32 y = static_cast<int>(titleBar.GetCenter().y);
 
         // 가리키고, 누르고, 뗀다. ImGui 는 지난 프레임에 무엇 위에 있었는지로
         // 이번 프레임의 눌림을 정하므로 각각 한 프레임씩 준다.
@@ -885,7 +890,7 @@ namespace
         Check(false == panel->IsOpen(),
             "clicking the title bar X must close the panel");
 
-        const int drawsWhenClosed = panel->draws;
+        const JBro::Int32 drawsWhenClosed = panel->draws;
         Check(editor.Tick(Delta), "the editor must tick");
         Check(panel->draws == drawsWhenClosed, "and it must stay closed");
 
@@ -900,10 +905,10 @@ namespace
     // "지금 무엇 위인가" 를 물어보면 자리가 나온다 - 글꼴이나 줄 간격이 바뀌어도
     // 견디고, 못 찾으면 조용히 통과하는 대신 운다.
 
-    constexpr float Frame = 1.0f / 60.0f;
+    constexpr JBro::Float Frame = 1.0f / 60.0f;
 
 
-    ImGuiID PushedId(ImGuiID seed, int value)
+    ImGuiID PushedId(ImGuiID seed, JBro::Int32 value)
     {
         // `ImGui::PushID(int)` 와 같은 계산이다.
         return ImHashData(&value, sizeof(value), seed);
@@ -923,7 +928,7 @@ namespace
     // 창을 `"Inspector"` 로 찾는 것은 여전히 옳다. 실제 이름은
     // `"인스펙터###Inspector"` 지만 `ImHashStr` 이 `###` 에서 해시를 다시 세므로
     // 둘이 같은 값이다 - 번역해도 창의 정체가 그대로인 이유가 이것이다.
-    ImGuiID InspectorFieldId(int slot, std::uint32_t field, const char* label)
+    ImGuiID InspectorFieldId(JBro::Int32 slot, JBro::UInt32 field, const char* label)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
@@ -953,22 +958,22 @@ namespace
 
     struct Spot
     {
-        int x = 0;
-        int y = 0;
-        bool disabled = false;
+        JBro::Int32 x = 0;
+        JBro::Int32 y = 0;
+        JBro::Bool disabled = false;
     };
 
     // **인스펙터를 굴려 가며 찾는다.** 컴포넌트가 쌓이면 목록이 패널 아래로 밀리는데,
     // 잘려 나간 자리는 가리켜도 올라오지 않는다 - 굴리지 않으면 "그런 항목이 없다" 와
     // "화면 밖에 있다" 를 구별하지 못한다.
     template <typename TScan>
-    bool ScrollingInInspector(JBro::EditorApplication& editor, TScan&& scan)
+    JBro::Bool ScrollingInInspector(JBro::EditorApplication& editor, TScan&& scan)
     {
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        const float step = inspector->Size.y * 0.5f;
-        float scroll = inspector->Scroll.y;
-        for (int pass = 0; pass < 32; ++pass)
+        const JBro::Float step = inspector->Size.y * 0.5f;
+        JBro::Float scroll = inspector->Scroll.y;
+        for (JBro::Int32 pass = 0; pass < 32; ++pass)
         {
             if (scan())
             {
@@ -986,15 +991,15 @@ namespace
         return false;
     }
 
-    bool ScanInspector(
+    JBro::Bool ScanInspector(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
         // **값 칸**이다. 왼쪽 칸은 라벨이 차지하므로 그쪽을 훑으면 위젯을 못 만난다.
-        const int x = static_cast<int>(window->Pos.x + window->Size.x * 0.65f);
-        const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
-        for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 3)
+        const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * 0.65f);
+        const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
+        for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 3)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1009,7 +1014,7 @@ namespace
         return false;
     }
 
-    bool FindInspectorItem(
+    JBro::Bool FindInspectorItem(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
     {
         return ScrollingInInspector(editor, [&]() {
@@ -1018,16 +1023,16 @@ namespace
     }
 
     void DragFrom(
-        JBro::EditorApplication& editor, HWND hwnd, const Spot& spot, int toX)
+        JBro::EditorApplication& editor, HWND hwnd, const Spot& spot, JBro::Int32 toX)
     {
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
         Check(editor.Tick(Frame), "the editor must tick");
         PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(spot.x, spot.y));
         Check(editor.Tick(Frame), "the editor must tick");
-        constexpr int Steps = 8;
-        for (int step = 1; step <= Steps; ++step)
+        constexpr JBro::Int32 Steps = 8;
+        for (JBro::Int32 step = 1; step <= Steps; ++step)
         {
-            const int x = spot.x + (toX - spot.x) * step / Steps;
+            const JBro::Int32 x = spot.x + (toX - spot.x) * step / Steps;
             PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x, spot.y));
             Check(editor.Tick(Frame), "the editor must tick mid-drag");
         }
@@ -1080,9 +1085,9 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick after letting the modifier go");
     }
 
-    std::uint32_t FieldIndexOf(const JBro::PropertyTable& table, const char* name)
+    JBro::UInt32 FieldIndexOf(const JBro::PropertyTable& table, const char* name)
     {
-        for (std::uint32_t index = 0; index < table.count; ++index)
+        for (JBro::UInt32 index = 0; index < table.count; ++index)
         {
             const char* found =
                 JBro::NameTable::Get().Resolve(table.properties[index].name);
@@ -1097,7 +1102,7 @@ namespace
 
     // ── 목록 편집 ────────────────────────────────────────────────────────
 
-    using Weights = JBro::Array<float>;
+    using Weights = JBro::Array<JBro::Float>;
 
     // 배열을 든 컴포넌트다. 빌트인에는 아직 배열 필드가 없다(D-86).
     class Weighted final : public JBro::ComponentBase
@@ -1137,18 +1142,18 @@ namespace
 
     // 인스펙터 안의 `n` 번째 목록 몸통이다. 컴포넌트 하나가 목록을 여럿 들면 몸통도 여럿이고,
     // 화면 위에서 아래로 센다 - 창 목록의 차례는 만들어진 차례라 믿지 않는다.
-    ImGuiWindow* FindListBodyAt(int n)
+    ImGuiWindow* FindListBodyAt(JBro::Int32 n)
     {
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
         ImGuiWindow* bodies[8] = {};
-        int count = 0;
+        JBro::Int32 count = 0;
         for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
         {
             if (window->ParentWindow == inspector
                 && std::strstr(window->Name, "##list_body") != nullptr && count < 8)
             {
-                int at = count++;
+                JBro::Int32 at = count++;
                 while (at > 0 && bodies[at - 1]->Pos.y > window->Pos.y)
                 {
                     bodies[at] = bodies[at - 1];
@@ -1161,12 +1166,12 @@ namespace
     }
 
     // `window` 를 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
-    bool FindItemInWindow(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window,
-        ImGuiID target, int x, Spot& spot)
+    JBro::Bool FindItemInWindow(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window,
+        ImGuiID target, JBro::Int32 x, Spot& spot)
     {
         Check(window != nullptr, "the window this test looks in must exist");
-        const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
-        for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
+        const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
+        for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1181,11 +1186,11 @@ namespace
     }
 
     // `window` 를 여러 x 에서 훑는다. 한 칸짜리 위젯(켜기 칸)은 한 x 로는 빗나간다.
-    bool FindItemAnywhereInWindow(JBro::EditorApplication& editor, HWND hwnd,
+    JBro::Bool FindItemAnywhereInWindow(JBro::EditorApplication& editor, HWND hwnd,
         ImGuiWindow* window, ImGuiID target, Spot& spot)
     {
         Check(window != nullptr, "the window this test looks in must exist");
-        for (float fraction = 0.05f; fraction < 0.95f; fraction += 0.05f)
+        for (JBro::Float fraction = 0.05f; fraction < 0.95f; fraction += 0.05f)
         {
             if (FindItemInWindow(editor, hwnd, window, target,
                     static_cast<int>(window->Pos.x + window->Size.x * fraction), spot))
@@ -1199,19 +1204,19 @@ namespace
     // **캔버스 뷰 도구 막대의 단추를 찾는다**(D-278). 아이콘 단추는 줄 높이의 정사각형이라, 창 폭의 5% 간격으로 훑는
     // `FindItemAnywhereInWindow` 는 사이로 빗나간다(로컬·월드 단추를 못 찾았다). 맨 앞의 이동 단추로 막대의 높이를 찾고
     // 그 줄만 촘촘히 훑는다.
-    bool FindToolBarButton(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window, ImGuiID target, Spot& spot)
+    JBro::Bool FindToolBarButton(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window, ImGuiID target, Spot& spot)
     {
         Check(window != nullptr, "the window this test looks in must exist");
         Spot first;
-        const int firstX = static_cast<int>(window->Pos.x + ImGui::GetStyle().WindowPadding.x + ImGui::GetFrameHeight() * 0.5f);
+        const JBro::Int32 firstX = static_cast<int>(window->Pos.x + ImGui::GetStyle().WindowPadding.x + ImGui::GetFrameHeight() * 0.5f);
         if (false == FindItemInWindow(editor, hwnd, window, LabelId(window->ID, "##gizmo_translate"), firstX, first))
         {
             return false;
         }
         // 처음 닿은 y 는 단추의 윗변이다. 조금 내려 줄의 안쪽을 훑는다.
-        const int y = first.y + 4;
-        const int right = static_cast<int>(window->Pos.x + window->Size.x);
-        for (int x = static_cast<int>(window->Pos.x); x < right; x += 3)
+        const JBro::Int32 y = first.y + 4;
+        const JBro::Int32 right = static_cast<int>(window->Pos.x + window->Size.x);
+        for (JBro::Int32 x = static_cast<int>(window->Pos.x); x < right; x += 3)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1234,11 +1239,11 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
         PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(from.x, from.y));
         Check(editor.Tick(Frame), "the editor must tick");
-        constexpr int Steps = 12;
-        for (int step = 1; step <= Steps; ++step)
+        constexpr JBro::Int32 Steps = 12;
+        for (JBro::Int32 step = 1; step <= Steps; ++step)
         {
-            const int x = from.x + (to.x - from.x) * step / Steps;
-            const int y = from.y + (to.y - from.y) * step / Steps;
+            const JBro::Int32 x = from.x + (to.x - from.x) * step / Steps;
+            const JBro::Int32 y = from.y + (to.y - from.y) * step / Steps;
             PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick mid-drag");
         }
@@ -1249,13 +1254,13 @@ namespace
     }
 
     // 목록 몸통을 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
-    bool ScanListBody(
-        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
+    JBro::Bool ScanListBody(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, JBro::Int32 x, Spot& spot)
     {
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the list must have its body");
-        const int bottom = static_cast<int>(body->Pos.y + body->Size.y);
-        for (int y = static_cast<int>(body->Pos.y); y < bottom; y += 2)
+        const JBro::Int32 bottom = static_cast<int>(body->Pos.y + body->Size.y);
+        for (JBro::Int32 y = static_cast<int>(body->Pos.y); y < bottom; y += 2)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1269,8 +1274,8 @@ namespace
         return false;
     }
 
-    bool FindListItem(
-        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
+    JBro::Bool FindListItem(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, JBro::Int32 x, Spot& spot)
     {
         return ScrollingInInspector(editor, [&]() {
             return ScanListBody(editor, hwnd, target, x, spot);
@@ -1279,17 +1284,17 @@ namespace
 
     // 좁은 항목(행 끝의 삭제 표시)은 한 줄로 훑으면 빗나간다. 몸통의 오른쪽 끝 띠를
     // 위쪽 몇 줄만 격자로 훑는다.
-    bool ScanListBodyNearRightEdge(
-        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int rows, Spot& spot)
+    JBro::Bool ScanListBodyNearRightEdge(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, JBro::Int32 rows, Spot& spot)
     {
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the list must have its body");
-        const int right = static_cast<int>(body->Pos.x + body->Size.x);
-        const int top = static_cast<int>(body->Pos.y);
-        const int bottom = top + static_cast<int>(ImGui::GetFrameHeight()) * rows + 8;
-        for (int y = top; y < bottom; y += 2)
+        const JBro::Int32 right = static_cast<int>(body->Pos.x + body->Size.x);
+        const JBro::Int32 top = static_cast<int>(body->Pos.y);
+        const JBro::Int32 bottom = top + static_cast<int>(ImGui::GetFrameHeight()) * rows + 8;
+        for (JBro::Int32 y = top; y < bottom; y += 2)
         {
-            for (int x = right - 40; x < right; x += 3)
+            for (JBro::Int32 x = right - 40; x < right; x += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1304,8 +1309,8 @@ namespace
         return false;
     }
 
-    bool FindListItemNearRightEdge(
-        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int rows, Spot& spot)
+    JBro::Bool FindListItemNearRightEdge(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, JBro::Int32 rows, Spot& spot)
     {
         return ScrollingInInspector(editor, [&]() {
             return ScanListBodyNearRightEdge(editor, hwnd, target, rows, spot);
@@ -1343,24 +1348,24 @@ namespace
         auto* a = canvas->AttachComponent<Weighted>(alpha);
         auto* b = canvas->AttachComponent<Weighted>(beta);
         Check(a != nullptr && b != nullptr, "both must hold a list");
-        for (float value : {1.0f, 100.0f, 3.0f})
+        for (JBro::Float value : {1.0f, 100.0f, 3.0f})
         {
             a->weights.Add(value);
         }
-        for (float value : {10.0f, 20.0f, 30.0f, 40.0f})
+        for (JBro::Float value : {10.0f, 20.0f, 30.0f, 40.0f})
         {
             b->weights.Add(value);
         }
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the inspector must draw the list");
-        const int middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
+        const JBro::Int32 middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
         std::size_t undo = editor.GetCommands().GetUndoCount();
 
         // 둘째 원소를 끈다. 둘 다 같은 만큼 움직여야 한다 - 모이면 뭉갠 것이다.
@@ -1368,7 +1373,7 @@ namespace
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 1), "##value"), middle, spot),
             "the second element must be on the list");
         DragFrom(editor, hwnd, spot, spot.x + 80);
-        const float moved = a->weights[1] - 100.0f;
+        const JBro::Float moved = a->weights[1] - 100.0f;
         Check(moved > 0.05f, "dragging an element must move it");
         // **끈 만큼 움직여야 한다.** 도달한 값 자체를 델타로 삼아도 둘이 같은 만큼
         // 움직이는 것은 맞으므로, 크기까지 봐야 가려진다.
@@ -1430,7 +1435,7 @@ namespace
         // 표시의 밝은 픽셀 위아래를 재고 가운데가 반 픽셀 안인지 본다. 올려놓은 삭제 표시는 색이 바뀌어 재지 않는다.
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must draw the list before it is read");
             }
@@ -1445,12 +1450,12 @@ namespace
             {
                 return pixel[0] > 80 && pixel[1] > 80 && pixel[2] > 80;
             };
-            const float left = listBody->Pos.x;
-            const float right = listBody->Pos.x + listBody->Size.x;
-            const float centerX = left + listBody->Size.x * 0.5f;
-            int measuredRows = 0;
-            int y = static_cast<int>(listBody->Pos.y);
-            const int bottom = static_cast<int>(listBody->Pos.y + listBody->Size.y);
+            const JBro::Float left = listBody->Pos.x;
+            const JBro::Float right = listBody->Pos.x + listBody->Size.x;
+            const JBro::Float centerX = left + listBody->Size.x * 0.5f;
+            JBro::Int32 measuredRows = 0;
+            JBro::Int32 y = static_cast<int>(listBody->Pos.y);
+            const JBro::Int32 bottom = static_cast<int>(listBody->Pos.y + listBody->Size.y);
             while (y < bottom)
             {
                 // 값 칸의 숫자가 있는 줄 하나를 찾는다.
@@ -1462,8 +1467,8 @@ namespace
                     continue;
                 }
                 // 숫자의 가로획 사이에 빈 픽셀 줄이 한둘 낄 수 있다 - 세 줄까지 비어도 같은 줄로 본다.
-                int runEnd = y + 1;
-                for (int probe = y + 1; probe < bottom && probe <= runEnd + 3; ++probe)
+                JBro::Int32 runEnd = y + 1;
+                for (JBro::Int32 probe = y + 1; probe < bottom && probe <= runEnd + 3; ++probe)
                 {
                     if (false == MeasurePixels(image, readback,
                         ImRect(centerX - 20.0f, static_cast<float>(probe), centerX + 20.0f, static_cast<float>(probe + 1)),
@@ -1472,7 +1477,7 @@ namespace
                         runEnd = probe + 1;
                     }
                 }
-                const float textMiddle = (y + runEnd - 1) * 0.5f;
+                const JBro::Float textMiddle = (y + runEnd - 1) * 0.5f;
                 const ImRect band(0.0f, static_cast<float>(y - 6), 0.0f, static_cast<float>(runEnd + 6));
                 const PixelBox grip = MeasurePixels(image, readback,
                     ImRect(left, band.Min.y, left + 24.0f, band.Max.y), bright);
@@ -1480,10 +1485,10 @@ namespace
                     ImRect(right - 30.0f, band.Min.y, right, band.Max.y), bright);
                 if (false == grip.IsEmpty() && false == mark.IsEmpty())
                 {
-                    const float gripMiddle = (grip.minY + grip.maxY) * 0.5f;
-                    const float markMiddle = (mark.minY + mark.maxY) * 0.5f;
+                    const JBro::Float gripMiddle = (grip.minY + grip.maxY) * 0.5f;
+                    const JBro::Float markMiddle = (mark.minY + mark.maxY) * 0.5f;
                     std::printf("  [measure] list row digits y %d..%d, grip %d..%d, x mark %d..%d\n",
-                        y, runEnd - 1, grip.minY, grip.maxY, mark.minY, mark.maxY);
+                        y.Get(), (runEnd - 1).Get(), grip.minY.Get(), grip.maxY.Get(), mark.minY.Get(), mark.maxY.Get());
                     Check(gripMiddle >= textMiddle - 0.5f && gripMiddle <= textMiddle + 0.5f,
                         "the list's grip must sit level with the row's value");
                     Check(markMiddle >= textMiddle - 0.5f && markMiddle <= textMiddle + 0.5f,
@@ -1532,14 +1537,14 @@ namespace
         collider->shape = JBro::Component::ColliderShape2D::Polygon;
         collider->points = { {-1.0f, -1.0f}, {1.0f, -1.0f}, {0.0f, 1.0f} };
         editor.SetSelectedObject(cup);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the inspector must draw the collider's points as a list");
-        const int middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
+        const JBro::Int32 middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
         std::size_t undo = editor.GetCommands().GetUndoCount();
 
         Spot spot;
@@ -1606,18 +1611,18 @@ namespace
 
         // 목록 앞뒤의 필드다. 목록이 표를 끊으므로 앞 조각과 뒤 조각의 라벨 칸이 맞아야 한다 -
         // 앞 라벨을 뒤 라벨보다 길게 두어, 뒤 조각이 제 라벨에 맞추면 값 칸이 어긋나게 한다.
-        JBRO_FIELD(float, leadingLonger) = 0.0f;
+        JBRO_FIELD(JBro::Float, leadingLonger) = 0.0f;
         JBRO_FIELD(Signals, signals);
-        JBRO_FIELD(float, trailing) = 0.0f;
+        JBRO_FIELD(JBro::Float, trailing) = 0.0f;
         JBRO_FIELD(Relay, relay);
     };
 
     // 한 줄에서 `target` 이 가리켜지는 가장 왼쪽 x 다. 못 찾으면 -1.
-    int LeftEdgeOf(JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int y)
+    JBro::Int32 LeftEdgeOf(JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, JBro::Int32 y)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
-        for (int x = static_cast<int>(window->Pos.x);
+        for (JBro::Int32 x = static_cast<int>(window->Pos.x);
              x < static_cast<int>(window->Pos.x + window->Size.x); ++x)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
@@ -1631,10 +1636,10 @@ namespace
     }
 
     // 목록 몸통을 여러 x 에서 훑는다. 접기 마디의 이름표나 칸 둘로 나뉜 줄은 한 x 로는 빗나간다.
-    bool FindListItemAnywhere(
+    JBro::Bool FindListItemAnywhere(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
     {
-        for (float fraction = 0.10f; fraction < 0.95f; fraction += 0.05f)
+        for (JBro::Float fraction = 0.10f; fraction < 0.95f; fraction += 0.05f)
         {
             ImGuiWindow* body = FindListBody();
             Check(body != nullptr, "the list must have its body");
@@ -1686,7 +1691,7 @@ namespace
         b->signals.Add(Signal{0.0f, true, 5.0f});
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -1700,7 +1705,7 @@ namespace
         Check(FindListItemAnywhere(editor, hwnd, node, spot),
             "the second element must be drawn as a node that can be opened");
         ClickAt(editor, hwnd, spot);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the list must grow to show the fields");
         }
@@ -1717,11 +1722,11 @@ namespace
             "the opened element must show its strength field");
         // **값이 읽힐 만큼 넓어야 한다.** 목록을 값 칸 안에 두었을 때는 펼친 원소의 필드 표가 또
         // 라벨 칸을 가져, 값이 몇 픽셀만 남았다(`100` 이 `1` 로 보였다).
-        int strengthRight = -1;
+        JBro::Int32 strengthRight = -1;
         {
             ImGuiWindow* list = FindListBody();
-            int hovered = 0;
-            for (int x = static_cast<int>(list->Pos.x);
+            JBro::Int32 hovered = 0;
+            for (JBro::Int32 x = static_cast<int>(list->Pos.x);
                  x < static_cast<int>(list->Pos.x + list->Size.x); x += 2)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, spot.y));
@@ -1738,7 +1743,7 @@ namespace
         }
         std::size_t undo = editor.GetCommands().GetUndoCount();
         DragFrom(editor, hwnd, spot, spot.x + 60);
-        const float moved = a->signals[1].strength - 100.0f;
+        const JBro::Float moved = a->signals[1].strength - 100.0f;
         Check(moved > 0.05f, "dragging a field inside an element must move it");
         Check(moved < 5.0f, "by the distance dragged, not by the value it reached");
         Check(b->signals[1].strength > 50.0f + moved - 0.01f
@@ -1859,7 +1864,7 @@ namespace
         b->signals.Add(Signal{0.0f, false, 5.0f});
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -1883,7 +1888,7 @@ namespace
         Check(FindListItemAnywhere(editor, hwnd, LabelId(PushedId(body->ID, 1), "Signal"), node),
             "the second element must be drawn as a node");
         ClickAt(editor, hwnd, node);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the list must grow to show the fields");
         }
@@ -1903,7 +1908,7 @@ namespace
         Check(rowStates->GetInt(LabelId(PushedId(body->ID, 0), "Signal"), 0) == 1
                 && rowStates->GetInt(LabelId(PushedId(body->ID, 1), "Signal"), 0) == 0,
             "and the opened node must travel with its element to the first row");
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the moved row must settle");
         }
@@ -1962,7 +1967,7 @@ namespace
         Check(FindListItemAnywhere(editor, hwnd, LabelId(PushedId(body->ID, 1), "Signal"), node),
             "the second element must show its node");
         ClickAt(editor, hwnd, node);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the list must grow to show the fields");
         }
@@ -1981,8 +1986,8 @@ namespace
         editor.Shutdown();
     }
 
-    using Flags = JBro::Array<bool>;
-    using Counts = JBro::Array<int>;
+    using Flags = JBro::Array<JBro::Bool>;
+    using Counts = JBro::Array<JBro::Int32>;
     using Tones = JBro::Array<Tone>;
 
     // 원소가 실수가 아닌 목록 셋이다. 켜기 칸·정수 끌기·enum 콤보는 각각 다른 위젯이고,
@@ -2039,19 +2044,19 @@ namespace
         auto* a = canvas->AttachComponent<Toggled>(alpha);
         auto* b = canvas->AttachComponent<Toggled>(beta);
         Check(a != nullptr && b != nullptr, "both must hold the three lists");
-        for (bool flag : {false, false})
+        for (JBro::Bool flag : {false, false})
         {
             a->flags.Add(flag);
         }
-        for (bool flag : {true, false, false})
+        for (JBro::Bool flag : {true, false, false})
         {
             b->flags.Add(flag);
         }
-        for (int count : {3, 7})
+        for (JBro::Int32 count : {3, 7})
         {
             a->counts.Add(count);
         }
-        for (int count : {30, 70, 0})
+        for (JBro::Int32 count : {30, 70, 0})
         {
             b->counts.Add(count);
         }
@@ -2065,7 +2070,7 @@ namespace
         }
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -2120,7 +2125,7 @@ namespace
                 LabelId(PushedId(popup->ID, 2), "High"), item),
             "the combo must list the tone by its name");
         ClickAt(editor, hwnd, item);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick so the combo can close");
         }
@@ -2145,16 +2150,16 @@ namespace
     // 파괴되므로 자기 멤버로 세면 닫힌 뒤에는 읽을 수 없다.
     struct PopupCounts
     {
-        int enters = 0;
-        int draws = 0;
-        int exits = 0;
-        bool closeOnDraw = false;
+        JBro::Int32 enters = 0;
+        JBro::Int32 draws = 0;
+        JBro::Int32 exits = 0;
+        JBro::Bool closeOnDraw = false;
     };
 
     class ProbePopup final : public JBro::EditorPopup
     {
     public:
-        ProbePopup(const char* id, PopupCounts& counts, bool closable = true)
+        ProbePopup(const char* id, PopupCounts& counts, JBro::Bool closable = true)
             : m_id(id)
             , m_counts(&counts)
             , m_closable(closable)
@@ -2171,7 +2176,7 @@ namespace
             return m_id;
         }
 
-        bool HasCloseButton() const override
+        JBro::Bool HasCloseButton() const override
         {
             return m_closable;
         }
@@ -2199,7 +2204,7 @@ namespace
     private:
         const char* m_id = nullptr;
         PopupCounts* m_counts = nullptr;
-        bool m_closable = true;
+        JBro::Bool m_closable = true;
     };
 
     ImGuiWindow* FindPopupWindow()
@@ -2240,7 +2245,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -2259,7 +2264,7 @@ namespace
                 && editor.IsPopupOpenById("first") && false == editor.IsPopupOpenById("third"),
             "both must count as open while one waits");
 
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick with a popup up");
         }
@@ -2275,7 +2280,7 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick after the close request");
         Check(first.exits == 1, "closing must call the exit hook once");
         Check(false == editor.IsPopupOpen(firstHandle), "and the handle must be dead");
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick so the second can show");
         }
@@ -2285,7 +2290,7 @@ namespace
 
         // 팝업이 스스로 닫는다.
         second.closeOnDraw = true;
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while the popup closes itself");
         }
@@ -2312,12 +2317,12 @@ namespace
     struct DialogProbe
     {
         JBro::String path;
-        int calls = 0;
-        bool save = false;
-        bool pickFolder = false;
+        JBro::Int32 calls = 0;
+        JBro::Bool save = false;
+        JBro::Bool pickFolder = false;
         JBro::String defaultFileName;
 
-        static bool Answer(const JBro::FileDialogDesc& desc, JBro::String& outPath, void* user)
+        static JBro::Bool Answer(const JBro::FileDialogDesc& desc, JBro::String& outPath, void* user)
         {
             DialogProbe& probe = *static_cast<DialogProbe*>(user);
             ++probe.calls;
@@ -2418,7 +2423,7 @@ namespace
         Check(dialog.calls == 2, "a new project must ask again");
         Check(editor.GetCanvasPath().empty() && false == editor.IsPopupOpenById("save_failed"),
             "and a cancelled dialog must leave no path and no complaint");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must keep ticking after the cancel");
         }
@@ -2432,7 +2437,7 @@ namespace
         editor.RequestSaveCanvas();
         Check(editor.Tick(Frame), "the editor must tick through the second failing save");
         Check(FindPopupWindow() != nullptr, "and the popup must be on screen");
-        int popups = 0;
+        JBro::Int32 popups = 0;
         for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
         {
             if (std::strstr(window->Name, "###popup_") != nullptr && window->Active)
@@ -2448,17 +2453,17 @@ namespace
 
     // 그 자리 둘레의 픽셀에서 붉은 기운을 잰다. 백버퍼는 BGRA 다.
     // 글자가 섞이므로 한 점이 아니라 작은 사각형의 평균을 본다.
-    int RednessAt(const JBro::Array<std::byte>& image, const JBro::TextureReadback& readback,
+    JBro::Int32 RednessAt(const JBro::Array<std::byte>& image, const JBro::TextureReadback& readback,
         const Spot& spot)
     {
         long long redness = 0;
-        int counted = 0;
-        for (int dy = -4; dy <= 4; ++dy)
+        JBro::Int32 counted = 0;
+        for (JBro::Int32 dy = -4; dy <= 4; ++dy)
         {
-            for (int dx = -10; dx <= 10; ++dx)
+            for (JBro::Int32 dx = -10; dx <= 10; ++dx)
             {
-                const int x = spot.x + dx;
-                const int y = spot.y + dy;
+                const JBro::Int32 x = spot.x + dx;
+                const JBro::Int32 y = spot.y + dy;
                 if (x < 0 || y < 0)
                 {
                     continue;
@@ -2471,7 +2476,7 @@ namespace
                 }
                 const auto* pixel = reinterpret_cast<const unsigned char*>(image.Data() + offset);
                 // 빨강에서 파랑과 초록의 큰 쪽을 뺀다. 테마의 회색 단추는 0 근처다.
-                const int other = pixel[0] > pixel[1] ? pixel[0] : pixel[1];
+                const JBro::Int32 other = pixel[0] > pixel[1] ? pixel[0] : pixel[1];
                 redness += static_cast<int>(pixel[2]) - other;
                 ++counted;
             }
@@ -2532,7 +2537,7 @@ namespace
         Check(transform != nullptr && sprite != nullptr, "both components must attach");
         JBro::GameObject* chosen[] = {alpha};
         editor.SelectObjects({chosen, 1});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -2559,7 +2564,7 @@ namespace
             "and offer to move it down");
         const std::size_t undo = editor.GetCommands().GetUndoCount();
         ClickAt(editor, hwnd, item);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the inspector must redraw after the move");
         }
@@ -3139,7 +3144,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -3153,7 +3158,7 @@ namespace
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
         camera->primary = true;
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with a camera");
         }
@@ -3162,7 +3167,7 @@ namespace
         // **`primary` 를 꺼도 살아 있으면 계속 그린다**(D-187). 지정이 없으면 첫 활성
         // 카메라로 떨어진다 - 카메라가 있는데 검은 화면이 나오는 것이 그전의 문제였다.
         camera->primary = false;
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the camera no longer primary");
         }
@@ -3171,7 +3176,7 @@ namespace
 
         // 컴포넌트를 끄면 그제야 낼 것이 없다.
         camera->SetEnabled(false);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the camera was turned off");
         }
@@ -3216,7 +3221,7 @@ namespace
         {
             hierarchy->SetOpen(false);
         }
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -3229,7 +3234,7 @@ namespace
         JBro::EditorPanel* panel = editor.FindPanel("Game");
         Check(panel != nullptr, "the game view panel must be registered");
         panel->SetOpen(false);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick with the panel closed");
         }
@@ -3240,7 +3245,7 @@ namespace
             "and the texture must be kept so the picture can continue later");
 
         panel->SetOpen(true);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick with the panel open again");
         }
@@ -3284,7 +3289,7 @@ namespace
         b->position = JBro::Vector2{50.0f, 7.0f};
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -3298,12 +3303,12 @@ namespace
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
         Spot spot;
-        bool found = false;
-        for (float fraction = 0.40f; fraction < 0.95f && false == found; fraction += 0.05f)
+        JBro::Bool found = false;
+        for (JBro::Float fraction = 0.40f; fraction < 0.95f && false == found; fraction += 0.05f)
         {
-            const int x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
-            const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
-            for (int y = static_cast<int>(window->Pos.y); y < bottom && false == found; y += 3)
+            const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
+            const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
+            for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom && false == found; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -3319,7 +3324,7 @@ namespace
 
         const std::size_t undo = editor.GetCommands().GetUndoCount();
         DragFrom(editor, hwnd, spot, spot.x + 60);
-        const float moved = a->position.x;
+        const JBro::Float moved = a->position.x;
         Check(moved > 0.05f, "dragging the x field must move the position");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "and leave one thing to undo");
         Check(b->position.x > 50.0f + moved - 0.01f && b->position.x < 50.0f + moved + 0.01f,
@@ -3366,7 +3371,7 @@ namespace
         b->points.Add(JBro::Vector2{0.0f, 0.0f});
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -3377,8 +3382,8 @@ namespace
         const ImGuiID firstField =
             PushedId(LabelId(PushedId(body->ID, 1), "##value"), 0);
         Spot spot;
-        bool found = false;
-        for (float fraction = 0.25f; fraction < 0.75f && false == found; fraction += 0.05f)
+        JBro::Bool found = false;
+        for (JBro::Float fraction = 0.25f; fraction < 0.75f && false == found; fraction += 0.05f)
         {
             found = FindListItem(editor, hwnd, firstField,
                 static_cast<int>(body->Pos.x + body->Size.x * fraction), spot);
@@ -3387,7 +3392,7 @@ namespace
         const std::size_t undo = editor.GetCommands().GetUndoCount();
         DragFrom(editor, hwnd, spot, spot.x + 60);
 
-        const float moved = a->points[1].x - 100.0f;
+        const JBro::Float moved = a->points[1].x - 100.0f;
         Check(moved > 0.05f, "dragging the field must move it");
         // **끈 만큼 움직여야 한다.** 도달한 값 자체를 델타로 삼으면 둘 다 같은 만큼
         // 움직이긴 하지만 백 넘게 튄다.
@@ -3442,7 +3447,7 @@ namespace
         Check(body != nullptr, "the heavy object must have a body");
         editor.SetSelectedObject(object);
 
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -3456,7 +3461,7 @@ namespace
 
         // ── 고치면 커맨드가 된다. 드래그 하나가 되돌리기 하나다. ──────────
         transform->SetRotationRadian(JBro::Radian(0.0f));
-        const std::uint32_t rotation = FieldIndexOf(*transformTable, "rotation");
+        const JBro::UInt32 rotation = FieldIndexOf(*transformTable, "rotation");
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
                 InspectorFieldId(0, rotation, "##value"), spot),
@@ -3470,7 +3475,7 @@ namespace
         Check(editor.GetCommands().GetUndoCount() == before + 1,
             "and a whole drag must leave exactly one thing to undo");
 
-        const float dragged = transform->GetRotationRadian();
+        const JBro::Float dragged = transform->GetRotationRadian();
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(transform->GetRotationRadian() < 0.0001f && transform->GetRotationRadian() > -0.0001f,
             "and put the value back where the drag started");
@@ -3482,7 +3487,7 @@ namespace
         //
         // `world` 는 파생값이라 `ReadOnly` 다. 잠그지 않으면 사용자가 고쳐도
         // 다음 프레임이 덮어써, 고장 난 것처럼 보인다.
-        const std::uint32_t world = FieldIndexOf(*transformTable, "world");
+        const JBro::UInt32 world = FieldIndexOf(*transformTable, "world");
         Spot lockedSpot;
         Check(FindInspectorItem(editor, hwnd,
                 InspectorFieldId(0, world, "world"), lockedSpot),
@@ -3496,11 +3501,11 @@ namespace
         // 픽셀당 0.01 씩 움직일 뿐이라, 같은 거리를 끌어도 근처에도 못 간다.
         body->mass = 1.0f;
         editor.SetSelectedObject(heavy);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the inspector must switch over");
         }
-        const std::uint32_t mass = FieldIndexOf(*bodyTable, "mass");
+        const JBro::UInt32 mass = FieldIndexOf(*bodyTable, "mass");
         Spot massSpot;
         Check(FindInspectorItem(editor, hwnd, InspectorFieldId(0, mass, "##value"), massSpot),
             "the mass row must be in the inspector");
@@ -3511,7 +3516,7 @@ namespace
 
         // 인스펙터가 가장 많이 보이는 자리다. 여기서 한 장 남긴다.
         editor.SetSelectedObject(object);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle before the shot");
         }
@@ -3525,7 +3530,7 @@ namespace
         if (JBro::EditorPanel* profiler = editor.FindPanel("Profiler"))
         {
             profiler->SetOpen(true);
-            for (int frame = 0; frame < 6; ++frame)
+            for (JBro::Int32 frame = 0; frame < 6; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick with the profiler open");
             }
@@ -3578,7 +3583,7 @@ namespace
         Check(sprite != nullptr, "the subject must have a sprite renderer");
         editor.SetSelectedObject(object);
 
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -3586,7 +3591,7 @@ namespace
         const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
             JBro::NameTable::Get().Intern("Component::SpriteRenderer2D"));
         Check(table != nullptr, "the sprite renderer must have registered its properties");
-        const std::uint32_t spriteId = FieldIndexOf(*table, "spriteId");
+        const JBro::UInt32 spriteId = FieldIndexOf(*table, "spriteId");
 
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
@@ -3655,12 +3660,12 @@ namespace
 
         // 재생 전에는 게임 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
         // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다.
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
         game->RequestFocus();
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the game view");
         }
@@ -3674,7 +3679,7 @@ namespace
 
         Check(editor.StartSimulation(), "the simulation must start");
         game->RequestFocus();
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the playing editor must settle");
         }
@@ -3695,7 +3700,7 @@ namespace
 
         // 인스펙터로 옮기면 누르고 있던 W 는 떼어지고, 거기서 친 키는 게임에 가지 않는다.
         inspector->RequestFocus();
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick after moving the focus");
         }
@@ -3716,7 +3721,7 @@ namespace
     }
 
     // 아래(프로젝트 파일 테스트 옆)에 있다.
-    bool WriteTextFile(const JBro::String& path, const char* text);
+    JBro::Bool WriteTextFile(const JBro::String& path, const char* text);
 
     // 2x2 RGBA PNG. AssetSystemTests 와 같은 바이트다 - 레지스트리가 스프라이트로 등록하고
     // 에셋 시스템이 실제로 디코드해야 핸들이 선다.
@@ -3792,7 +3797,7 @@ namespace
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the hero must have a sprite renderer");
         editor.SetSelectedObject(object);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -3851,10 +3856,10 @@ namespace
         fs::create_directories(root / "Assets" / "sound", ignored);
         {
             // 0.5 초 16 비트 스테레오 440 Hz.
-            constexpr std::uint32_t rate = 48000;
-            constexpr std::uint32_t frames = rate / 2;
+            constexpr JBro::UInt32 rate = 48000;
+            constexpr JBro::UInt32 frames = rate / 2;
             std::vector<std::uint8_t> wav(44 + frames * 4);
-            auto put32 = [&](std::size_t at, std::uint32_t value) { std::memcpy(wav.data() + at, &value, 4); };
+            auto put32 = [&](std::size_t at, JBro::UInt32 value) { std::memcpy(wav.data() + at, &value, 4); };
             auto put16 = [&](std::size_t at, std::uint16_t value) { std::memcpy(wav.data() + at, &value, 2); };
             std::memcpy(wav.data(), "RIFF", 4);
             put32(4, 36 + frames * 4);
@@ -3868,7 +3873,7 @@ namespace
             put16(34, 16);
             std::memcpy(wav.data() + 36, "data", 4);
             put32(40, frames * 4);
-            for (std::uint32_t frame = 0; frame < frames; ++frame)
+            for (JBro::UInt32 frame = 0; frame < frames; ++frame)
             {
                 const std::int16_t sample = static_cast<std::int16_t>(
                     16000.0 * std::sin(2.0 * 3.14159265358979 * 440.0 * frame / rate));
@@ -3921,11 +3926,11 @@ namespace
         const auto findButton = [&](ImGuiID target, Spot& found) {
             ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
             Check(window != nullptr, "the inspector must have a window");
-            const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
-            for (const float fraction : {0.40f, 0.45f, 0.50f, 0.55f})
+            const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
+            for (const JBro::Float fraction : {0.40f, 0.45f, 0.50f, 0.55f})
             {
-                const int x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
-                for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 4)
+                const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
+                for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 4)
                 {
                     PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                     Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -3944,7 +3949,7 @@ namespace
 
         // ── 미리 듣기 ──
         editor.SetSelectedAsset(blip->id);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the audio asset");
         }
@@ -3977,7 +3982,7 @@ namespace
         auto* source = canvas->AttachComponent<JBro::Component::AudioSource>(object);
         Check(source != nullptr, "the speaker must have an audio source");
         editor.SetSelectedObject(object);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the speaker");
         }
@@ -4097,7 +4102,7 @@ namespace
         Check(settings != nullptr, "the settings panel exists");
         settings->SetOpen(true);
         settings->RequestFocus();
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the settings open");
         }
@@ -4106,18 +4111,18 @@ namespace
         ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
         Check(window != nullptr, "the project settings must have a window");
         // 액션마다 마디를 연다. Id 는 창 → 액션 번호 → `###action`(이름을 고쳐도 같은 마디다).
-        for (int action = 0; action < 2; ++action)
+        for (JBro::Int32 action = 0; action < 2; ++action)
         {
             const ImGuiID seed = ImHashData(&action, sizeof(action), window->ID);
             window->StateStorage.SetInt(LabelId(seed, "###action"), 1);
         }
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw the open input folds");
         }
         // 입력 갈래는 창의 아래쪽이다. 끝까지 내려서 찍는다.
         ImGui::SetScrollY(window, window->ScrollMax.y);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw the scrolled settings");
         }
@@ -4146,7 +4151,7 @@ namespace
                         "      - Source: Key\n        Code: Space\n") != JBro::String::npos,
             "the edited bindings reach the file, and a pad index of -1 is not written");
         Check(text.find("InputLayers:\n  - UI\n  - Game\n") != JBro::String::npos, "the layer order stays");
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw the saved settings");
         }
@@ -4227,7 +4232,7 @@ namespace
         settings->SetOpen(true);
         settings->RequestFocus();
         stats->SetOpen(true);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the settings open");
         }
@@ -4238,13 +4243,13 @@ namespace
         // 버스마다 두 마디를 연 채로 둔다. 마디의 Id 는 창 → 버스 번호 → 번역된 제목이다.
         const char* effects = JBro::Loc::TextOr(JBro::LocKeys::ProjectSettingsAudioEffects, "Effects");
         const char* routing = JBro::Loc::TextOr(JBro::LocKeys::ProjectSettingsAudioRouting, "Routing");
-        for (int bus = 0; bus < 3; ++bus)
+        for (JBro::Int32 bus = 0; bus < 3; ++bus)
         {
             const ImGuiID seed = ImHashData(&bus, sizeof(bus), window->ID);
             window->StateStorage.SetInt(LabelId(seed, effects), 1);
             window->StateStorage.SetInt(LabelId(seed, routing), 1);
         }
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw the open audio folds");
         }
@@ -4300,7 +4305,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -4338,7 +4343,7 @@ namespace
             tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
             tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the tab");
             }
@@ -4352,10 +4357,10 @@ namespace
             ImGuiWindow* tree = FindChildWindow(assets, "##tree");
             Check(tree != nullptr, "the folder tree pane must exist");
             const ImGuiID artRow = LabelId(LabelId(tree->ID, "art"), "##folder");
-            bool foundFolder = false;
-            const int x = static_cast<int>(tree->Pos.x + 40.0f);
-            const int bottom = static_cast<int>(tree->Pos.y + tree->Size.y);
-            for (int y = static_cast<int>(tree->Pos.y); y < bottom && false == foundFolder; y += 3)
+            JBro::Bool foundFolder = false;
+            const JBro::Int32 x = static_cast<int>(tree->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<int>(tree->Pos.y + tree->Size.y);
+            for (JBro::Int32 y = static_cast<int>(tree->Pos.y); y < bottom && false == foundFolder; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for the folder");
@@ -4368,13 +4373,13 @@ namespace
             }
             Check(foundFolder, "the art folder must be a row in the tree");
             ClickAt(editor, hwnd, spot);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the folder");
             }
         }
 
-        bool found = false;
+        JBro::Bool found = false;
         {
             assets = ImGui::FindWindowByName("Assets");
             Check(assets != nullptr, "the asset browser must still have a window");
@@ -4382,9 +4387,9 @@ namespace
             Check(contents != nullptr, "the contents pane must exist");
             // 줄의 Id: 자식 창 → PushID("art/hero.png") → "##file".
             const ImGuiID heroRow = LabelId(LabelId(contents->ID, "art/hero.png"), "##file");
-            const int x = static_cast<int>(contents->Pos.x + 40.0f);
-            const int bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
-            for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
+            const JBro::Int32 x = static_cast<int>(contents->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
+            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -4417,7 +4422,7 @@ namespace
             JBro::TextureReadback readback;
             ReadBackBufferInto(*shotRenderer, 1024, 768, asList, readback);
             ClickAt(editor, hwnd, iconButton);
-            for (int frame = 0; frame < 4; ++frame)
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
             {
                 // 그림은 프레임마다 몇 개씩만 올라간다. 몇 프레임 돌려 채운다.
                 Check(editor.Tick(Frame), "the editor must settle on the icon view");
@@ -4434,7 +4439,7 @@ namespace
             SaveScreenshot(*shotRenderer, 1024, 768, "assets_icons");
             // 목록으로 되돌린다. 아래의 검사들은 줄을 짚는다.
             ClickAt(editor, hwnd, iconButton);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle back on the list");
             }
@@ -4442,10 +4447,10 @@ namespace
             ImGuiWindow* contents = FindChildWindow(assets, "##contents");
             Check(contents != nullptr, "the contents pane must still exist");
             const ImGuiID heroRow = LabelId(LabelId(contents->ID, "art/hero.png"), "##file");
-            bool againFound = false;
-            const int x = static_cast<int>(contents->Pos.x + 40.0f);
-            const int bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
-            for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == againFound; y += 3)
+            JBro::Bool againFound = false;
+            const JBro::Int32 x = static_cast<int>(contents->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
+            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == againFound; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking again");
@@ -4463,7 +4468,7 @@ namespace
         Check(editor.GetSelectedObject() == nullptr, "and no object");
         Check(editor.GetSelectedAssetMeta() != nullptr && false == editor.GetSelectedAssetMeta()->hasSpriteOptions,
             "the meta is read and has no sprite options yet");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the asset");
         }
@@ -4478,7 +4483,7 @@ namespace
         // 인스펙터의 둘째 블록(Sprite)의 `pixelsPerUnit`. 컴포넌트와 같은 Id 사슬이되 표 이름이 "##import" 다.
         const JBro::TypeDescriptor& spriteOptions = JBro::TypeDescriptorOf<JBro::SpriteImportOptions>::Get();
         Check(spriteOptions.fields != nullptr, "sprite import options have a property table");
-        const std::uint32_t ppu = FieldIndexOf(*spriteOptions.fields, "pixelsPerUnit");
+        const JBro::UInt32 ppu = FieldIndexOf(*spriteOptions.fields, "pixelsPerUnit");
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
         const ImGuiID ppuField = LabelId(
@@ -4534,8 +4539,8 @@ namespace
             std::ofstream png(root / "Assets" / "art" / "villain.png", std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
-        bool registered = false;
-        for (int attempt = 0; attempt < 300 && false == registered; ++attempt)
+        JBro::Bool registered = false;
+        for (JBro::Int32 attempt = 0; attempt < 300 && false == registered; ++attempt)
         {
             Check(editor.Tick(Frame), "the editor must tick while the watcher catches up");
             registered = editor.GetAssetRegistry().FindByPath("art/villain.png") != nullptr;
@@ -4565,7 +4570,7 @@ namespace
         {
             // 한글 음절은 만 개가 넘는다. 매번 다른 것을 고르면 아틀라스가
             // 계속 자란다 - ASCII 는 이미 구워져 있어서 이 길을 열지 못한다.
-            const int syllable = 0xAC00 + (m_frame * 37) % 11172;
+            const JBro::Int32 syllable = 0xAC00 + (m_frame * 37) % 11172;
             ++m_frame;
             char utf8[4] = {};
             utf8[0] = static_cast<char>(0xE0 | (syllable >> 12));
@@ -4575,7 +4580,7 @@ namespace
         }
 
     private:
-        int m_frame = 0;
+        JBro::Int32 m_frame = 0;
     };
 
     // **글꼴 아틀라스가 갱신되어도 디바이스가 살아 있어야 한다.**
@@ -4604,7 +4609,7 @@ namespace
         Check(editor.AddPanel(JBro::MakeOwnerPtr<NewGlyphEveryFrame>()),
             "the glyph panel must be taken");
 
-        for (int frame = 0; frame < 300; ++frame)
+        for (JBro::Int32 frame = 0; frame < 300; ++frame)
         {
             if (false == editor.Tick(1.0f / 60.0f))
             {
@@ -4749,15 +4754,15 @@ namespace
         editor.AddToSelection(stranger);
         tops = editor.GetTopLevelSelectedObjects();
         Check(tops.Size() == 2, "an unrelated object stands on its own");
-        const bool hasRoot = tops[0] == root || tops[1] == root;
-        const bool hasStranger = tops[0] == stranger || tops[1] == stranger;
+        const JBro::Bool hasRoot = tops[0] == root || tops[1] == root;
+        const JBro::Bool hasStranger = tops[0] == stranger || tops[1] == stranger;
         Check(hasRoot && hasStranger, "and both of those are the targets");
 
         // 부모를 선택에서 빼면 자식이 다시 최상위가 된다.
         editor.RemoveFromSelection(root);
         tops = editor.GetTopLevelSelectedObjects();
         Check(tops.Size() == 2, "dropping the parent puts the child back in charge");
-        const bool hasChild = tops[0] == child || tops[1] == child;
+        const JBro::Bool hasChild = tops[0] == child || tops[1] == child;
         Check(hasChild, "the child is a target again");
 
         editor.Shutdown();
@@ -4813,7 +4818,7 @@ namespace
         Check(editor.GetSelectionCount() == 3, "three must be chosen");
         Check(editor.GetSelectedObject() == alpha, "and the first leads");
 
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -4821,7 +4826,7 @@ namespace
         const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
             JBro::NameTable::Get().Intern("Component::Transform2D"));
         Check(table != nullptr, "the transform must have registered its properties");
-        const std::uint32_t rotation = FieldIndexOf(*table, "rotation");
+        const JBro::UInt32 rotation = FieldIndexOf(*table, "rotation");
 
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
@@ -4831,7 +4836,7 @@ namespace
         const std::size_t before = editor.GetCommands().GetUndoCount();
         DragFrom(editor, hwnd, spot, spot.x + 100);
 
-        const float moved = alphaTransform->GetRotationRadian();
+        const JBro::Float moved = alphaTransform->GetRotationRadian();
         Check(moved > 0.5f, "the one the inspector shows must move");
         Check(editor.GetCommands().GetUndoCount() == before + 1,
             "and the whole drag over three objects must leave one thing to undo");
@@ -4898,14 +4903,14 @@ namespace
 
         JBro::GameObject* chosen[] = {parent, child};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
         const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
             JBro::NameTable::Get().Intern("Component::Transform2D"));
-        const std::uint32_t rotation = FieldIndexOf(*table, "rotation");
+        const JBro::UInt32 rotation = FieldIndexOf(*table, "rotation");
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
                 InspectorFieldId(0, rotation, "##value"), spot),
@@ -4968,7 +4973,7 @@ namespace
 
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -4976,7 +4981,7 @@ namespace
         const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
             JBro::NameTable::Get().Intern("Component::Collider2D"));
         Check(table != nullptr, "the collider must have registered its properties");
-        const std::uint32_t radius = FieldIndexOf(*table, "radius");
+        const JBro::UInt32 radius = FieldIndexOf(*table, "radius");
 
         // **둘째** 콜라이더의 반지름 칸을 찾는다. 슬롯 1 이다.
         Spot spot;
@@ -4986,7 +4991,7 @@ namespace
 
         DragFrom(editor, hwnd, spot, spot.x + 60);
 
-        const float moved = alphaSecond->radius - 2.0f;
+        const JBro::Float moved = alphaSecond->radius - 2.0f;
         Check(moved > 0.05f, "the second collider of the shown object must move");
         Check(betaSecond->radius > 4.0f + moved - 0.01f
                 && betaSecond->radius < 4.0f + moved + 0.01f,
@@ -5058,7 +5063,7 @@ namespace
         Check(world->edit != nullptr && false == world->edit->editable,
             "and the inspector must not offer to change it - the next frame overwrites it");
 
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f), "the editor must tick with a selection");
         }
@@ -5275,7 +5280,7 @@ namespace
 
         // 창을 가득 채운 패널 한가운데를 가리킨다. ImGui 는 지난 프레임에 무엇
         // 위에 있었는지로 이번 프레임의 가져감을 정하므로 몇 프레임 돌린다.
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(WindowWidth / 2, WindowHeight / 2)) != 0,
                 "the pointer must post");
@@ -5302,8 +5307,8 @@ namespace
         // 지금 폴더에서 한 번, 엉뚱한 폴더에서 한 번. 두 번의 결과가 같아야 한다.
         JBro::String here;
         JBro::String elsewhere;
-        bool hereIcons = false;
-        bool elsewhereIcons = false;
+        JBro::Bool hereIcons = false;
+        JBro::Bool elsewhereIcons = false;
         // **읽은 글자는 전역 표에 남는다.** 그래서 글자만 보면 둘째 에디터가 표를 못 찾아도
         // 앞의 것이 읽어 둔 한국어가 나온다 - 폴더를 실제로 찾았는지는 그 안의 언어 수로 본다.
         std::size_t hereLocales = 0;
@@ -5383,7 +5388,7 @@ namespace
             JBro::LocKeys::MenuFile, JBro::LocKeys::MenuEdit, JBro::LocKeys::MenuWindow};
         const char* const english[] = {"File", "Edit", "Window"};
         const char* labels[3] = {};
-        for (int index = 0; index < 3; ++index)
+        for (JBro::Int32 index = 0; index < 3; ++index)
         {
             labels[index] = JBro::Loc::Text(keys[index]);
             if (std::strcmp(labels[index], english[index]) == 0
@@ -5399,7 +5404,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND window = FindOwnEditorWindow();
         Check(window != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick");
         }
@@ -5412,7 +5417,7 @@ namespace
         ImGuiWindow* main = ImGui::FindWindowByName("###MainDock");
         Check(main != nullptr, "and its main dock");
 
-        bool found[3] = {};
+        JBro::Bool found[3] = {};
         ImGuiWindow* const bars[2] = {root, main};
         for (ImGuiWindow* barWindow : bars)
         {
@@ -5420,13 +5425,13 @@ namespace
             // 제 이름으로 Id 를 받는다.
             const ImGuiID bar = LabelId(barWindow->ID, "##MenuBar");
             const ImRect rect = barWindow->MenuBarRect();
-            const int y = static_cast<int>(rect.GetCenter().y);
-            for (int x = static_cast<int>(rect.Min.x);
+            const JBro::Int32 y = static_cast<int>(rect.GetCenter().y);
+            for (JBro::Int32 x = static_cast<int>(rect.Min.x);
                 x < static_cast<int>(rect.Max.x) && x < 400; x += 4)
             {
                 PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
-                for (int index = 0; index < 3; ++index)
+                for (JBro::Int32 index = 0; index < 3; ++index)
                 {
                     if (ImGui::GetHoveredID() == LabelId(bar, labels[index]))
                     {
@@ -5462,7 +5467,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}),
             "the UI must start before any project is opened");
 
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f), "the empty editor must keep ticking");
         }
@@ -5507,8 +5512,8 @@ namespace
         Check(false == editor.EnableEditorUi({0, 0}), "a game view with no size is refused");
 
         // 게임 뷰는 창과 다른 크기다. 비율이 다르면 패널 안에서 레터박스가 된다.
-        constexpr std::uint32_t GameWidth = 64;
-        constexpr std::uint32_t GameHeight = 48;
+        constexpr JBro::UInt32 GameWidth = 64;
+        constexpr JBro::UInt32 GameHeight = 48;
         Check(editor.EnableEditorUi({GameWidth, GameHeight}), "the editor UI must turn on");
         Check(editor.IsEditorUiEnabled(), "and say so");
         Check(editor.GetGameViewTexture().IsValid(), "with a game view to draw into");
@@ -5539,7 +5544,7 @@ namespace
         }
 
         // 새 창은 ImGui 가 크기를 재는 동안 감춰진다. 몇 프레임 돌린 뒤에 본다.
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f), "the editor must keep ticking with its UI on");
         }
@@ -5554,9 +5559,9 @@ namespace
 
         std::size_t painted = 0;
         std::size_t bright = 0;
-        for (std::uint32_t y = 0; y < WindowHeight; ++y)
+        for (JBro::UInt32 y = 0; y < WindowHeight; ++y)
         {
-            for (std::uint32_t x = 0; x < WindowWidth; ++x)
+            for (JBro::UInt32 x = 0; x < WindowWidth; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -5577,13 +5582,13 @@ namespace
         // 카메라가 지운 초록이 화면에 있어야 한다. 게임 -> 텍스처 -> 패널로
         // 이어지는 길 어디가 끊겨도 이 숫자가 0 이 된다.
         std::size_t gamePixels = 0;
-        std::uint32_t gameMinX = WindowWidth;
-        std::uint32_t gameMaxX = 0;
-        std::uint32_t gameMinY = WindowHeight;
-        std::uint32_t gameMaxY = 0;
-        for (std::uint32_t y = 0; y < WindowHeight; ++y)
+        JBro::UInt32 gameMinX = WindowWidth;
+        JBro::UInt32 gameMaxX = 0;
+        JBro::UInt32 gameMinY = WindowHeight;
+        JBro::UInt32 gameMaxY = 0;
+        for (JBro::UInt32 y = 0; y < WindowHeight; ++y)
         {
-            for (std::uint32_t x = 0; x < WindowWidth; ++x)
+            for (JBro::UInt32 x = 0; x < WindowWidth; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -5614,10 +5619,10 @@ namespace
 
         // **모양이 지켜져야 한다.** 패널에 늘려 붙이면 픽셀 수는 오히려 늘어나서
         // 넓이만 세는 검사는 통과한다 - 게임이 에디터 창 모양대로 찌그러진 채로.
-        const float boxWidth = static_cast<float>(gameMaxX - gameMinX + 1);
-        const float boxHeight = static_cast<float>(gameMaxY - gameMinY + 1);
-        const float shown = boxWidth / boxHeight;
-        const float wanted =
+        const JBro::Float boxWidth = static_cast<float>(gameMaxX - gameMinX + 1);
+        const JBro::Float boxHeight = static_cast<float>(gameMaxY - gameMinY + 1);
+        const JBro::Float shown = boxWidth / boxHeight;
+        const JBro::Float wanted =
             static_cast<float>(GameWidth) / static_cast<float>(GameHeight);
         std::cout << "  the game view is " << boxWidth << "x" << boxHeight
             << " (ratio " << shown << ", wanted " << wanted << ")" << std::endl;
@@ -5674,7 +5679,7 @@ namespace
         project3D.framework = JBro::FrameworkKind::Framework3D;
         project3D.graphicsApi = JBro::GraphicsApi::D3D12;
         Check(editor.OpenProject(project3D), "editor must open a 3D project");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f),
                 "a 3D project must keep ticking even though its renderer submits nothing");
@@ -5704,7 +5709,7 @@ namespace
         return path;
     }
 
-    bool WriteTextFile(const JBro::String& path, const char* text)
+    JBro::Bool WriteTextFile(const JBro::String& path, const char* text)
     {
         std::FILE* file = nullptr;
         if (fopen_s(&file, path.c_str(), "wb") != 0 || file == nullptr)
@@ -5970,7 +5975,7 @@ namespace
         editor.SetSelectedObject(box);
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must exist");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle before the gizmo appears");
         }
@@ -5994,14 +5999,14 @@ namespace
         // 창이 포커스를 받았어야 핫키가 먹는다.
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
         Check(editor.Tick(Frame), "the editor must tick with the mouse away");
-        const int framesBeforeE = ImGui::GetFrameCount();
-        const bool canvasFocusedBeforeE = ImGui::GetCurrentContext()->NavWindow != nullptr
+        const JBro::Int32 framesBeforeE = ImGui::GetFrameCount();
+        const JBro::Bool canvasFocusedBeforeE = ImGui::GetCurrentContext()->NavWindow != nullptr
             && std::strstr(ImGui::GetCurrentContext()->NavWindow->Name, "CanvasView") != nullptr;
         PostMessageW(hwnd, WM_KEYDOWN, 'E', 0);
         Check(editor.Tick(Frame), "the editor must tick with E down");
         PostMessageW(hwnd, WM_KEYUP, 'E', 0);
         Check(editor.Tick(Frame), "the editor must tick with E up");
-        const int framesAcrossE = ImGui::GetFrameCount() - framesBeforeE;
+        const JBro::Int32 framesAcrossE = ImGui::GetFrameCount() - framesBeforeE;
         if (false == FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_z"), spot))
         {
             ImGuiWindow* focused = ImGui::GetCurrentContext()->NavWindow;
@@ -6049,7 +6054,7 @@ namespace
         Check(childTransform != nullptr, "the child needs a transform");
         child->SetParent(parent);
         editor.SetSelectedObject(child);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the child");
         }
@@ -6112,7 +6117,7 @@ namespace
 
         // 빌드 캔버스를 만들어 저장한다. 에디터가 캔버스 파일을 쓰는 길 그대로다.
         JBro::Canvas* canvas = editor.GetCanvas();
-        for (int i = 0; i < 1100; ++i)
+        for (JBro::Int32 i = 0; i < 1100; ++i)
         {
             JBro::GameObject* box = canvas->CreateObject("Box");
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
@@ -6122,18 +6127,18 @@ namespace
         JBro::CanvasFileError canvasError;
         const JBro::String canvasPath = TempPath("JBroPhysicsThreadsProbe\\Scenes\\Pile.jcanvas");
         Check(editor.SaveCanvas(canvasPath.c_str(), canvasError), "the build canvas must save");
-        const std::uint32_t expected = JBro::Physics2D::RecommendWorkerCount(1100, std::thread::hardware_concurrency());
+        const JBro::UInt32 expected = JBro::Physics2D::RecommendWorkerCount(1100, std::thread::hardware_concurrency());
         Check(editor.RecommendPhysicsWorkers() == expected, "the recommendation counts the 1100 colliders on disk");
 
         auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics2DSystem>();
         Check(physics != nullptr, "the 2D framework has a physics system");
         const auto workersInPlay = [&]() {
             Check(editor.StartSimulation(), "play must start");
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick while playing");
             }
-            const std::uint32_t workers = physics->GetWorkerCount();
+            const JBro::UInt32 workers = physics->GetWorkerCount();
             editor.StopSimulation();
             Check(editor.Tick(Frame), "the editor must tick after play");
             return workers;
@@ -6171,7 +6176,7 @@ namespace
 
         JBro::Canvas* canvas = editor.GetCanvas();
         const auto place = [&](const char* tag, JBro::Vector2 position, JBro::Vector2 size,
-                               JBro::Component::ColliderShape2D shape, bool dynamic) {
+                               JBro::Component::ColliderShape2D shape, JBro::Bool dynamic) {
             JBro::GameObject* object = canvas->CreateObject(tag);
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
             Check(transform != nullptr, "each object needs a transform");
@@ -6196,7 +6201,7 @@ namespace
         Check(boxTransform->position.y == 3.0f, "nothing falls while the editor is stopped");
 
         Check(editor.StartSimulation(), "play must start");
-        for (int frame = 0; frame < 180; ++frame)
+        for (JBro::Int32 frame = 0; frame < 180; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while playing");
         }
@@ -6206,7 +6211,7 @@ namespace
         editor.StopSimulation();
         JBro::Array<JBro::GameObject*> roots;
         canvas->GetRootObjects(roots);
-        bool boxBack = false;
+        JBro::Bool boxBack = false;
         for (JBro::GameObject* root : roots)
         {
             if (std::strcmp(root->GetTag(), "Box") == 0)
@@ -6255,7 +6260,7 @@ namespace
 
         Check(editor.StartSimulation(), "play must start");
         Check(editor.GetRandomSeed() != 0, "play seeds the random stream");
-        for (int frame = 0; frame < 10; ++frame)
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while playing");
         }
@@ -6267,12 +6272,12 @@ namespace
 
         editor.SetSimulationPaused(true);
         Check(editor.Tick(Frame), "the editor must tick while paused");
-        const float pausedAt = transform->position.y;
+        const JBro::Float pausedAt = transform->position.y;
         Check(editor.Tick(Frame) && transform->position.y == pausedAt, "a paused game does not move");
         Check(JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::StepFrame), "a paused game can step");
         Check(JBro::EditorShortcuts::Execute(editor, JBro::EditorShortcut::StepFrame), "the step runs from the shortcut table");
         Check(editor.Tick(Frame), "the stepped frame ticks");
-        const float steppedTo = transform->position.y;
+        const JBro::Float steppedTo = transform->position.y;
         Check(steppedTo < pausedAt, "one step moves the falling box");
         Check(editor.GetFrameTime()->stepFrame && editor.GetFrameTime()->fixedStepCount == 1, "by exactly one fixed step");
         Check(editor.Tick(Frame) && transform->position.y == steppedTo, "and the frame after it is paused again");
@@ -6327,7 +6332,7 @@ namespace
         Check(editor.StartSimulation(), "play must start");
         Check(editor.IsSimulationPlaying(), "and say so");
         Check(gameView->IsOpen(), "starting play must bring the game view back");
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick after play started");
         }
@@ -6420,7 +6425,7 @@ namespace
         finger->SetParent(hand);
         handTransform->position = JBro::Vector2{0.0f, -3.0f};
         fingerTransform->position = JBro::Vector2{0.0f, -1.0f};
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -6430,14 +6435,14 @@ namespace
         // 월드 원점과 배율은 캔버스 뷰에게 묻는다. 창 가운데를 원점으로, 픽셀을 손으로
         // 세던 것은 탭 줄과 도구 줄 몫만큼 어긋나 여유가 몇 px 뿐이었고, 테마의 간격 하나만
         // 바뀌어도 상자가 엉뚱한 자리를 쓸고 갔다.
-        float centerX = 0.0f;
-        float centerY = 0.0f;
-        float unitX = 0.0f;
-        float unitY = 0.0f;
+        JBro::Float centerX = 0.0f;
+        JBro::Float centerY = 0.0f;
+        JBro::Float unitX = 0.0f;
+        JBro::Float unitY = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, centerX, centerY)
                 && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
             "the canvas view must map world points to the screen");
-        const float pixelsPerUnit = unitX - centerX;
+        const JBro::Float pixelsPerUnit = unitX - centerX;
         Check(pixelsPerUnit > 1.0f, "one world unit must be some pixels wide");
 
         // x -1..1 은 상자 안이고, y 4 는 위로 한참 벗어나 상자 밖이다.
@@ -6497,7 +6502,7 @@ namespace
         {
             gameView->SetOpen(false);
         }
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -6524,7 +6529,7 @@ namespace
         editor.SetSelectedObject(box);
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the selection");
         }
@@ -6699,7 +6704,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -6716,7 +6721,7 @@ namespace
             tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
             tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the tab");
             }
@@ -6726,9 +6731,9 @@ namespace
 
         // 왼쪽 나무에서 `art` 를 연다.
         const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
-            const int x = static_cast<int>(pane->Pos.x + 40.0f);
-            const int bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
-            for (int y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            const JBro::Int32 x = static_cast<int>(pane->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
+            for (JBro::Int32 y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for a row");
@@ -6749,7 +6754,7 @@ namespace
             Check(findRow(tree, LabelId(LabelId(tree->ID, "art"), "##folder"), folder),
                 "the art folder must be a row in the tree");
             ClickAt(editor, hwnd, folder);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the folder");
             }
@@ -6768,7 +6773,7 @@ namespace
         // **닻에서 누른 줄까지.** a 를 누르고 c 를 Shift 로 누르면 a·b·c 가 고른 것이다.
         ClickAt(editor, hwnd, first);
         ClickAtWith(editor, hwnd, third, ImGuiMod_Shift);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the range");
         }
@@ -6779,7 +6784,7 @@ namespace
         PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(third.x, third.y));
         Check(editor.Tick(Frame), "the editor must tick on the right press");
         PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(third.x, third.y));
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the menu open");
         }
@@ -6792,7 +6797,7 @@ namespace
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, deleteLabel), deleteItem),
             "the menu must have a delete item");
         ClickAt(editor, hwnd, deleteItem);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the question open");
         }
@@ -6816,8 +6821,8 @@ namespace
             JBro::Array<std::byte> shot;
             JBro::TextureReadback readback;
             ReadBackBufferInto(*renderer, 1024, 768, shot, readback);
-            const int onDelete = RednessAt(shot, readback, confirm);
-            const int onCancel = RednessAt(shot, readback, keep);
+            const JBro::Int32 onDelete = RednessAt(shot, readback, confirm);
+            const JBro::Int32 onCancel = RednessAt(shot, readback, keep);
             std::cout << "  the delete button reads " << onDelete << " red against "
                       << onCancel << " on cancel" << std::endl;
             Check(onDelete > onCancel + 12,
@@ -6825,7 +6830,7 @@ namespace
         }
 
         ClickAt(editor, hwnd, confirm);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the delete");
         }
@@ -6932,14 +6937,14 @@ namespace
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the hero must have a sprite renderer");
         editor.SetSelectedObject(object);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
         // 에셋 창을 앞으로 꺼내고, 뿌리 폴더(처음 열린 자리)에서 hero.png 줄을 찾는다.
         ImGui::SetWindowFocus("Assets");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the asset tab");
         }
@@ -6948,10 +6953,10 @@ namespace
         Check(contents != nullptr, "the contents pane must exist");
         const ImGuiID heroRow = LabelId(LabelId(contents->ID, "hero.png"), "##file");
         Spot from;
-        bool found = false;
-        const int x = static_cast<int>(contents->Pos.x + 40.0f);
-        const int bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
-        for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
+        JBro::Bool found = false;
+        const JBro::Int32 x = static_cast<int>(contents->Pos.x + 40.0f);
+        const JBro::Int32 bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
+        for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking for the row");
@@ -6988,8 +6993,8 @@ namespace
             contents = FindChildWindow(assets, "##contents");
             const ImGuiID subRow = LabelId(LabelId(contents->ID, "sub"), "##sub");
             Spot folder;
-            bool foundFolder = false;
-            for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == foundFolder; y += 3)
+            JBro::Bool foundFolder = false;
+            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == foundFolder; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for the folder");
@@ -7007,7 +7012,7 @@ namespace
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(folder.x, folder.y));
             Check(editor.Tick(Frame), "the editor must tick");
             PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(folder.x, folder.y));
-            for (int frame = 0; frame < 5; ++frame)
+            for (JBro::Int32 frame = 0; frame < 5; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick while the button is held");
             }
@@ -7021,7 +7026,7 @@ namespace
         // **그림 줄을 두 번 누르면 스프라이트 뷰어가 열린다**(D-155·D-159). 실제 에디터에서 열리지 않았다.
         // 사람처럼 누른다: 누름마다 몇 프레임을 들고, 두 번째 누름은 창이 받는 모양대로 `WM_LBUTTONDBLCLK` 다.
         {
-            for (int frame = 0; frame < 30; ++frame)
+            for (JBro::Int32 frame = 0; frame < 30; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must wait out the double-click time");
             }
@@ -7030,9 +7035,9 @@ namespace
             contents = FindChildWindow(assets, "##contents");
             const ImGuiID innerRow = LabelId(LabelId(contents->ID, "sub/inner.png"), "##file");
             // **줄의 가운데를 누른다.** 호버가 잡힌 구간의 한가운데를 쓴다.
-            int firstY = -1;
-            int lastY = -1;
-            for (int y = static_cast<int>(contents->Pos.y); y < bottom; y += 2)
+            JBro::Int32 firstY = -1;
+            JBro::Int32 lastY = -1;
+            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom; y += 2)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for the picture row");
@@ -7058,12 +7063,12 @@ namespace
             for (const UINT press : {static_cast<UINT>(WM_LBUTTONDOWN), static_cast<UINT>(WM_LBUTTONDBLCLK)})
             {
                 PostMessageW(hwnd, press, MK_LBUTTON, MAKELPARAM(inner.x, inner.y));
-                for (int frame = 0; frame < 3; ++frame)
+                for (JBro::Int32 frame = 0; frame < 3; ++frame)
                 {
                     Check(editor.Tick(Frame), "the editor must tick while the button is held");
                 }
                 PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(inner.x, inner.y));
-                for (int frame = 0; frame < 2; ++frame)
+                for (JBro::Int32 frame = 0; frame < 2; ++frame)
                 {
                     Check(editor.Tick(Frame), "the editor must tick on the release");
                 }
@@ -7117,7 +7122,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         const JBro::AssetRecord* firstHero = editor.GetAssetRegistry().FindByPath("hero.png");
         Check(firstHero != nullptr, "the first project has its picture");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -7127,7 +7132,7 @@ namespace
         Check(editor.OpenProjectFile(secondPath.c_str(), error), "the second project opens");
         const JBro::AssetRecord* secondHero = editor.GetAssetRegistry().FindByPath("hero.png");
         Check(secondHero != nullptr, "the second project has its own picture");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle in the second project");
         }
@@ -7215,7 +7220,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -7227,7 +7232,7 @@ namespace
         Check(editor.OpenSpriteViewer(heroTexture), "an image opens in the sprite viewer");
         Check(editor.OpenSpriteViewer(heroTexture), "opening it again only brings its tab forward");
         Check(editor.GetSpriteViewerTabCount() == 1, "so there is still one tab");
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the viewer");
         }
@@ -7259,7 +7264,7 @@ namespace
         }
         // 옵션 칸은 인스펙터와 같은 것을 고친다 - 연 그림이 고른 에셋이다.
         Check(editor.GetSelectedAsset() == heroTexture, "opening the viewer selects the picture");
-        std::uint32_t frameIndex = 99;
+        JBro::UInt32 frameIndex = 99;
         Check(editor.GetSpriteViewerFrame(frameIndex) && frameIndex == 0, "the first frame is shown");
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
@@ -7299,10 +7304,10 @@ namespace
             JBro::Renderer* renderer = editor.GetRenderer();
             Check(renderer != nullptr, "the editor must expose its renderer");
             // 재는 칸: 시트 자식 창에서 확대 줄을 끝 자리다.
-            const std::uint32_t sheetLeft = static_cast<std::uint32_t>(sheet->Pos.x);
-            const std::uint32_t sheetTop = static_cast<std::uint32_t>(sheet->Pos.y) + 30;
-            const std::uint32_t sheetRight = static_cast<std::uint32_t>(sheet->Pos.x + sheet->Size.x);
-            const std::uint32_t sheetBottom = static_cast<std::uint32_t>(sheet->Pos.y + sheet->Size.y);
+            const JBro::UInt32 sheetLeft = static_cast<std::uint32_t>(sheet->Pos.x);
+            const JBro::UInt32 sheetTop = static_cast<std::uint32_t>(sheet->Pos.y) + 30;
+            const JBro::UInt32 sheetRight = static_cast<std::uint32_t>(sheet->Pos.x + sheet->Size.x);
+            const JBro::UInt32 sheetBottom = static_cast<std::uint32_t>(sheet->Pos.y + sheet->Size.y);
             // 마우스를 시트 밖으로 치운다. 가리킨 칸의 강조가 차이에 섞이지 않게.
             const auto park = [&]() {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0,
@@ -7320,10 +7325,10 @@ namespace
             // **칸을 찾아서 가리킨다.** 시트 그림은 자식 창의 왼육에 그려지고 크기는
             // 그림과 배율이 정하므로, 자리를 짐작하면 빈 곳을 가리키게 된다(처음에
             // 그래서 가리킴 검사가 늘 0 이었다). 뷰어가 알면 그때 멈춘다.
-            bool foundCell = false;
-            for (std::uint32_t y = sheetTop; y + 4 < sheetBottom && false == foundCell; y += 6)
+            JBro::Bool foundCell = false;
+            for (JBro::UInt32 y = sheetTop; y + 4 < sheetBottom && false == foundCell; y += 6)
             {
-                for (std::uint32_t x = sheetLeft; x + 4 < sheetRight && false == foundCell; x += 6)
+                for (JBro::UInt32 x = sheetLeft; x + 4 < sheetRight && false == foundCell; x += 6)
                 {
                     PostMessageW(hwnd, WM_MOUSEMOVE, 0,
                         MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
@@ -7384,13 +7389,13 @@ namespace
         // **메인 탭 뒤로 가려져 있어도 열면 앞으로 나온다**(D-159). 가려진 창에 탭만 더하면 두 번 누르기가
         // 아무 일도 하지 않은 것처럼 보였다(실제 에디터에서 그랬다).
         ImGui::SetWindowFocus(mainDock->Name);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must bring the main dock forward");
         }
         Check(false == viewer->DockTabIsVisible, "the main dock tab now hides the viewer");
         Check(editor.OpenSpriteViewer(heroTexture), "the picture opens again");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the viewer");
         }
@@ -7437,7 +7442,7 @@ namespace
             Check(editor.BeginSpriteFramePick(heroSprite, address), "a pick starts on the hero's sprite");
             Check(editor.IsSpriteFramePickFor(address) && editor.GetSpriteFramePickTexture() == heroTexture,
                 "for that renderer, in the tab of the picture the sprite comes from");
-            for (int frame = 0; frame < 4; ++frame)
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must draw the viewer while picking");
             }
@@ -7474,7 +7479,7 @@ namespace
             }
             Check(editor.OpenSpriteViewer(villain->id), "a second picture opens");
             Check(editor.GetSpriteViewerTabCount() == 2, "in a viewer panel of its own");
-            for (int frame = 0; frame < 4; ++frame)
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the second viewer");
             }
@@ -7508,7 +7513,7 @@ namespace
                 "the hero's panel is still the one that opens for the hero");
         }
         const JBro::AssetHandle held = assets->Find(heroSprite);
-        const std::uint32_t heldCount = assets->GetReferenceCount(held);
+        const JBro::UInt32 heldCount = assets->GetReferenceCount(held);
         Check(heldCount >= 1, "the open tab holds the sprite");
         editor.CloseProject();
         Check(editor.GetSpriteViewerTabCount() == 0, "closing the project closes the viewer's tabs");
@@ -7565,7 +7570,7 @@ namespace
         Check(editor.Tick(Frame), "the editor must settle");
 
         editor.RequestNewProject();
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick through the folder dialog");
         }
@@ -7574,7 +7579,7 @@ namespace
         {
             // **팝업은 화면 가운데에 선다.** 폭을 고정하고 높이를 내용에 맞추자 첫 프레임에 높이를 몰라 맨 위에
             // 붙었다(실제 에디터에서 그랬다). 가운데에 붙드는 몇 프레임이 지난 뒤에 잰다 - 그 뒤에도 가운데여야 한다.
-            for (int frame = 0; frame < 6; ++frame)
+            for (JBro::Int32 frame = 0; frame < 6; ++frame)
             {
                 Check(editor.Tick(Frame), "the popup must settle");
             }
@@ -7588,8 +7593,8 @@ namespace
             }
             Check(popupWindow != nullptr, "the popup must have a window");
             const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-            const float middleY = popupWindow->Pos.y + popupWindow->Size.y * 0.5f;
-            const float middleX = popupWindow->Pos.x + popupWindow->Size.x * 0.5f;
+            const JBro::Float middleY = popupWindow->Pos.y + popupWindow->Size.y * 0.5f;
+            const JBro::Float middleX = popupWindow->Pos.x + popupWindow->Size.x * 0.5f;
             Check(std::fabs(middleY - center.y) < 4.0f && std::fabs(middleX - center.x) < 4.0f,
                 "the popup stands in the middle of the screen");
             Check(std::fabs(popupWindow->Size.x - 460.0f) < 1.0f, "at the width it asked for");
@@ -7604,7 +7609,7 @@ namespace
         io.AddKeyEvent(ImGuiKey_Enter, true);
         Check(editor.Tick(Frame), "the editor must see Enter");
         io.AddKeyEvent(ImGuiKey_Enter, false);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must switch to the new project");
         }
@@ -7623,7 +7628,7 @@ namespace
             struct Delivered
             {
                 JBro::String path;
-                int calls = 0;
+                JBro::Int32 calls = 0;
             } delivered;
             const JBro::String projectFolder = TempPath("JBroNewProjectProbe\\Parent\\Space Game");
             dialog.path = projectFolder;
@@ -7660,7 +7665,7 @@ namespace
             "and a name that cannot be a folder is refused as such");
         Check(editor.CreateProject(dialog.path.c_str(), "Deep Space", JBro::FrameworkKind::Framework3D, &failure),
             "a 3D project is made");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must switch again");
         }
@@ -7787,7 +7792,7 @@ namespace
         Check(editor.Tick(Frame), "the editor must settle");
 
         editor.RequestImportAsset("art");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick through the import");
         }
@@ -7851,7 +7856,7 @@ namespace
         armTransform->position = JBro::Vector2{-2.0f, -2.0f};
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -7860,9 +7865,9 @@ namespace
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
         const ImGuiID canvasId = LabelId(view->ID, "##canvas");
-        const int probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-        int top = -1;
-        for (int y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
+        const JBro::Int32 probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+        JBro::Int32 top = -1;
+        for (JBro::Int32 y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(probeX, y));
             Check(editor.Tick(Frame), "the editor must tick while looking for the picture");
@@ -7875,10 +7880,10 @@ namespace
         Check(top >= 0, "the picture must be under the tool bar");
         // 월드 원점은 **그린 화면(텍스처)의 한가운데**다(D-150). 세로 절반이 5 유닛이다.
         const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
-        const float left = view->ContentRegionRect.Min.x;
-        const float originX = left + static_cast<float>(drawn.width) * 0.5f;
-        const float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
-        const float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
+        const JBro::Float left = view->ContentRegionRect.Min.x;
+        const JBro::Float originX = left + static_cast<float>(drawn.width) * 0.5f;
+        const JBro::Float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
+        const JBro::Float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
         Spot onBody;
         onBody.x = static_cast<int>(originX);
         onBody.y = static_cast<int>(originY);
@@ -7890,7 +7895,7 @@ namespace
         empty.y = static_cast<int>(originY + pixelsPerUnit * 3.0f);
         const auto waitOutDoubleClick = [&]() {
             // 다음 누름이 두 번 누르기로 읽히지 않게 시간을 둔다.
-            for (int frame = 0; frame < 30; ++frame)
+            for (JBro::Int32 frame = 0; frame < 30; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must wait out the double-click time");
             }
@@ -7902,13 +7907,13 @@ namespace
         Check(editor.IsSelected(arm) && editor.GetSelectionCount() == 2, "and the body's children come with it");
         waitOutDoubleClick();
         // **들어가면 카메라가 그리로 간다**(D-252). 누를 자리는 카메라가 다 온 뒤 다시 잰다.
-        const auto spotAt = [&](float worldX, float worldY) {
-            for (int frame = 0; frame < 90; ++frame)
+        const auto spotAt = [&](JBro::Float worldX, JBro::Float worldY) {
+            for (JBro::Int32 frame = 0; frame < 90; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must let the camera arrive");
             }
-            float x = 0.0f;
-            float y = 0.0f;
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must map world to screen");
             Spot spot;
             spot.x = static_cast<int>(x);
@@ -7951,20 +7956,20 @@ namespace
         {
             ClickAt(editor, hwnd, onBody);
             Check(editor.GetSelectedObject() == body, "the body must be selected so its gizmo is there");
-            float centerX = 0.0f;
-            float centerY = 0.0f;
-            float before = 0.0f;
+            JBro::Float centerX = 0.0f;
+            JBro::Float centerY = 0.0f;
+            JBro::Float before = 0.0f;
             editor.GetCanvasViewCamera(centerX, centerY, before);
             Check(before > 0.0f, "the canvas view must report its camera");
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(onBody.x, onBody.y));
             Check(editor.Tick(Frame), "the editor must tick with the pointer on the handle");
             PostMessageW(hwnd, WM_MOUSEWHEEL,
                 MAKEWPARAM(0, static_cast<WORD>(WHEEL_DELTA)), MAKELPARAM(onBody.x, onBody.y));
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick after the wheel");
             }
-            float after = 0.0f;
+            JBro::Float after = 0.0f;
             editor.GetCanvasViewCamera(centerX, centerY, after);
             Check(after < before,
                 "a wheel notch over the gizmo must still zoom the canvas view in");
@@ -8027,16 +8032,16 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
         const auto settle = [&]() {
             // 따라가는 카메라가 다 오고, 두 번 누르기의 시간도 지나간다.
-            for (int frame = 0; frame < 90; ++frame)
+            for (JBro::Int32 frame = 0; frame < 90; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle");
             }
         };
         settle();
 
-        const auto spotAt = [&](float worldX, float worldY) {
-            float x = 0.0f;
-            float y = 0.0f;
+        const auto spotAt = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must map world to screen");
             ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
             Check(view != nullptr && view->ContentRegionRect.Contains(ImVec2(x, y)),
@@ -8047,10 +8052,10 @@ namespace
             return spot;
         };
         const auto unitPixels = [&]() {
-            float x0 = 0.0f;
-            float y0 = 0.0f;
-            float x1 = 0.0f;
-            float y1 = 0.0f;
+            JBro::Float x0 = 0.0f;
+            JBro::Float y0 = 0.0f;
+            JBro::Float x1 = 0.0f;
+            JBro::Float y1 = 0.0f;
             Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, x0, y0)
                     && editor.CanvasViewWorldToScreen(1.0f, 0.0f, x1, y1),
                 "the canvas view must map world to screen");
@@ -8061,10 +8066,10 @@ namespace
         // 두 칸의 색을 읽는다. 몸은 가운데의 기즈모를 피해 왼쪽 아래를, 이웃은 몸과 겹치지 않는 오른쪽을 본다. 둘 다 격자의 축 선(y = 0)을 비킨다.
         struct Colors
         {
-            int bodyRed = 0;
-            int bodyBlue = 0;
-            int neighbourRed = 0;
-            int neighbourGreen = 0;
+            JBro::Int32 bodyRed = 0;
+            JBro::Int32 bodyBlue = 0;
+            JBro::Int32 neighbourRed = 0;
+            JBro::Int32 neighbourGreen = 0;
         };
         const auto readColors = [&]() {
             const Spot onBody = spotAt(-0.5f, -0.5f);
@@ -8089,15 +8094,15 @@ namespace
         const Colors before = readColors();
         Check(before.bodyBlue > 200 && before.bodyRed < 60, "the body starts out blue");
         Check(before.neighbourRed > 200 && before.neighbourGreen < 60, "the neighbour starts out red");
-        const float unitBefore = unitPixels();
+        const JBro::Float unitBefore = unitPixels();
 
         // 두 번 눌러 몸 안으로 들어간다.
         const Spot onBody = spotAt(-0.5f, -0.5f);
         ClickAt(editor, hwnd, onBody);
         ClickAt(editor, hwnd, onBody);
-        float goalX = 0.0f;
-        float goalY = 0.0f;
-        float goalSize = 0.0f;
+        JBro::Float goalX = 0.0f;
+        JBro::Float goalY = 0.0f;
+        JBro::Float goalSize = 0.0f;
         editor.GetCanvasViewCamera(goalX, goalY, goalSize);
         // 몸은 반지름이 1 이라 세로 절반은 그 2.5 배다(기존 `FOCUS_PADDING`). 가려는 카메라는 누른 그 프레임에 거기다.
         Check(std::fabs(goalX) < 0.01f && std::fabs(goalY) < 0.01f && std::fabs(goalSize - 2.5f) < 0.01f,
@@ -8105,9 +8110,9 @@ namespace
         // **그리는 카메라는 아직 가는 중이다.** 곧바로 가 있으면 스무딩이 없는 것이다. 목표는 뗀 프레임의 뒤쪽에서 바뀌므로
         // 한 프레임을 더 그린 뒤에 잰다.
         Check(editor.Tick(Frame), "the editor must draw a frame toward the goal");
-        const float unitMoving = unitPixels();
+        const JBro::Float unitMoving = unitPixels();
         settle();
-        const float unitAfter = unitPixels();
+        const JBro::Float unitAfter = unitPixels();
         Check(unitMoving > unitBefore + 1.0f && unitMoving < unitAfter - 1.0f,
             "the drawn camera glides toward the goal instead of jumping there");
         Check(std::fabs(unitAfter - unitBefore * 5.0f / 2.5f) < 1.0f, "and it arrives at the framed size");
@@ -8144,9 +8149,9 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick with the pointer inside");
         PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, static_cast<WORD>(WHEEL_DELTA)), MAKELPARAM(zoomAt.x, zoomAt.y));
         settle();
-        float insideX = 0.0f;
-        float insideY = 0.0f;
-        float insideSize = 0.0f;
+        JBro::Float insideX = 0.0f;
+        JBro::Float insideY = 0.0f;
+        JBro::Float insideSize = 0.0f;
         editor.GetCanvasViewCamera(insideX, insideY, insideSize);
         Check(insideSize < 2.4f, "a wheel notch inside must zoom in");
 
@@ -8171,9 +8176,9 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick with the pointer at the root");
         PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, static_cast<WORD>(-WHEEL_DELTA)), MAKELPARAM(rootZoom.x, rootZoom.y));
         settle();
-        float rootX = 0.0f;
-        float rootY = 0.0f;
-        float rootSize = 0.0f;
+        JBro::Float rootX = 0.0f;
+        JBro::Float rootY = 0.0f;
+        JBro::Float rootSize = 0.0f;
         editor.GetCanvasViewCamera(rootX, rootY, rootSize);
         Check(rootSize > 5.2f, "a wheel notch at the root must zoom out");
         const Spot backIn = spotAt(-0.5f, -0.5f);
@@ -8222,7 +8227,7 @@ namespace
             JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
             Check(made != nullptr, "the create action must make an object");
             JBro::Canvas* canvas = editor.GetCanvas();
-            const bool has = kind == JBro::FrameworkKind::Framework3D
+            const JBro::Bool has = kind == JBro::FrameworkKind::Framework3D
                 ? canvas->FindComponentRaw<JBro::Component::Transform3D>(made) != nullptr
                 : canvas->FindComponentRaw<JBro::Component::Transform2D>(made) != nullptr;
             Check(has, "a created object carries its framework's transform");
@@ -8234,7 +8239,7 @@ namespace
                 canvas->GetRootObjects(roots);
                 again = roots.Size() > 0 ? roots[0] : nullptr;
             }
-            const bool hasAgain = again != nullptr && (kind == JBro::FrameworkKind::Framework3D
+            const JBro::Bool hasAgain = again != nullptr && (kind == JBro::FrameworkKind::Framework3D
                 ? canvas->FindComponentRaw<JBro::Component::Transform3D>(again) != nullptr
                 : canvas->FindComponentRaw<JBro::Component::Transform2D>(again) != nullptr);
             Check(hasAgain, "and the redone object has it too");
@@ -8325,7 +8330,7 @@ namespace
         // 이름이 바뀌어 빠지는 것까지 막는다 - 둘 다 이 규칙이 실제로 깨졌던 자리다.
         for (const char* name : {"EditorActions.cpp", "EditorApplication.cpp"})
         {
-            bool seen = false;
+            JBro::Bool seen = false;
             for (const fs::path& source : sources)
             {
                 seen = seen || source.filename() == name;
@@ -8395,7 +8400,7 @@ namespace
         // 해석은 커맨드가 돌 때 따라 도는데(D-115) 여기서는 값을 손으로 놓았다.
         // 다시 훑으면 해석도 함께 돈다.
         Check(editor.RescanAssets(), "the registry must rescan so the handle resolves");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -8406,14 +8411,14 @@ namespace
         Check(view != nullptr, "the canvas view must have a window");
         // 월드 원점과 배율은 캔버스 뷰에게 묻는다. 창 가운데를 원점으로, 창 높이로 배율을 어림하던 것은 탭 줄과
         // 도구 줄 몫만큼 어긋나 여유가 몇 px 뿐이었고, 창 바닥에 상태 표시줄이 서며(D-236) 뷰가 짧아지자 그림 밖을 눌렀다.
-        float centerX = 0.0f;
-        float centerY = 0.0f;
-        float unitX = 0.0f;
-        float unitY = 0.0f;
+        JBro::Float centerX = 0.0f;
+        JBro::Float centerY = 0.0f;
+        JBro::Float unitX = 0.0f;
+        JBro::Float unitY = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, centerX, centerY)
                 && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
             "the canvas view must map world points to the screen");
-        const float pixelsPerUnit = unitX - centerX;
+        const JBro::Float pixelsPerUnit = unitX - centerX;
         Check(pixelsPerUnit > 1.0f, "one world unit must be some pixels wide");
 
         Spot inside;
@@ -8424,7 +8429,7 @@ namespace
 
         // **고른 것의 테두리는 그림의 모양을 따른다**(D-149). 모양을 재는 데 한 프레임이
         // 더 걸리므로(프레임마다 몇 개로 막혀 있다) 몇 번 더 돌린 뒤에 묻는다.
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the selection");
         }
@@ -8455,9 +8460,9 @@ namespace
             const PixelBox picture = MeasurePixels(frameImage, readback, area,
                 [](const unsigned char* p) {
                     // 읽어 온 픽셀은 BGRA 다.
-                    const int blue = p[0];
-                    const int green = p[1];
-                    const int red = p[2];
+                    const JBro::Int32 blue = p[0];
+                    const JBro::Int32 green = p[1];
+                    const JBro::Int32 red = p[2];
                     return (red > 180 && green < 60 && blue < 60)
                         || (green > 180 && red < 60 && blue < 60)
                         || (blue > 180 && red < 60 && green < 60);
@@ -8478,7 +8483,7 @@ namespace
                 << " y " << outline.minY << ".." << outline.maxY << std::endl;
             // 선 두께(1.5px)와 가장자리의 반투명 픽셀만큼은 어긋난다. 그보다 크게 벌어지면
             // 겹쳐 그리는 좌표가 그림과 다른 기준으로 세어진 것이다.
-            constexpr int Tolerance = 5;
+            constexpr JBro::Int32 Tolerance = 5;
             Check(std::abs(outline.minX - picture.minX) <= Tolerance
                     && std::abs(outline.maxX - picture.maxX) <= Tolerance
                     && std::abs(outline.minY - picture.minY) <= Tolerance
@@ -8561,7 +8566,7 @@ namespace
         label->fontSize = 100.0f;
         JBro::TextStore::Get().Assign(label->text, "AB", 2);
         editor.SetSelectedObject(object);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -8572,7 +8577,7 @@ namespace
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
         Check(texts->IsMissingFont(label->GetInstanceId()), "a text with no font is reported as missing one");
-        const float withWarning = inspector->ContentSize.y;
+        const JBro::Float withWarning = inspector->ContentSize.y;
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
             SaveScreenshot(*shotRenderer, 1024, 768, "text_no_font");
@@ -8580,30 +8585,30 @@ namespace
 
         label->fontId = fontAsset;
         Check(editor.RescanAssets(), "the rescan resolves the font handle");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the font");
         }
         Check(label->font.generation != 0, "the font id resolves to a handle");
         Check(false == texts->IsMissingFont(label->GetInstanceId()), "and the text is no longer missing a font");
-        const float withoutWarning = inspector->ContentSize.y;
+        const JBro::Float withoutWarning = inspector->ContentSize.y;
         std::cout << "  [measure] inspector height with the warning " << withWarning << ", without " << withoutWarning
                   << std::endl;
         Check(withWarning > withoutWarning + 4.0f, "the warning line is gone once the font is there");
 
         // ── 캔버스 뷰에서 고르기 ─────────────────────────────────────────
-        float minX = 0.0f;
-        float minY = 0.0f;
-        float maxX = 0.0f;
-        float maxY = 0.0f;
+        JBro::Float minX = 0.0f;
+        JBro::Float minY = 0.0f;
+        JBro::Float maxX = 0.0f;
+        JBro::Float maxY = 0.0f;
         Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the text has a block");
         std::cout << "  [measure] text block " << minX << ".." << maxX << " x " << minY << ".." << maxY << std::endl;
         // 오브젝트를 두 배로 키워 고른다. 블록은 오브젝트 로컬이라 캔버스 뷰가 크기를 곱해야 그림과 맞는다.
-        constexpr float Scale = 2.0f;
+        constexpr JBro::Float Scale = 2.0f;
         transform->scale = JBro::Vector2{Scale, Scale};
         // 블록의 오른쪽 가까이다. 크기를 곱하지 않은 블록이라면 그 밖이다.
-        const float pickX = (minX + (maxX - minX) * 0.8f) * Scale;
-        const float pickY = (minY + maxY) * 0.5f * Scale;
+        const JBro::Float pickX = (minX + (maxX - minX) * 0.8f) * Scale;
+        const JBro::Float pickY = (minY + maxY) * 0.5f * Scale;
         // 빈 오브젝트의 기본 상자(반폭 0.25) 밖이어야 이 검사가 텍스트의 사각형을 잰다.
         Check(pickX > 0.3f, "the middle of the text is outside the empty-object box");
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
@@ -8613,9 +8618,9 @@ namespace
         Check(editor.Tick(Frame), "and once more so the world scale is current");
         // 월드 원점은 **그린 화면(텍스처)의 한가운데**다(D-150). 툴바 아래에서 그림이 시작하는 줄을 먼저 찾는다.
         const ImGuiID canvasId = LabelId(view->ID, "##canvas");
-        const int probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-        int top = -1;
-        for (int y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
+        const JBro::Int32 probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+        JBro::Int32 top = -1;
+        for (JBro::Int32 y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(probeX, y));
             Check(editor.Tick(Frame), "the editor must tick while looking for the picture");
@@ -8627,16 +8632,16 @@ namespace
         }
         Check(top >= 0, "the picture must be under the tool bar");
         const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
-        const float originX = view->ContentRegionRect.Min.x + static_cast<float>(drawn.width) * 0.5f;
-        const float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
-        const float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
+        const JBro::Float originX = view->ContentRegionRect.Min.x + static_cast<float>(drawn.width) * 0.5f;
+        const JBro::Float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
+        const JBro::Float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
         Spot onText;
         onText.x = static_cast<int>(originX + pickX * pixelsPerUnit);
         onText.y = static_cast<int>(originY - pickY * pixelsPerUnit);
         ClickAt(editor, hwnd, onText);
         Check(editor.GetSelectedObject() == object, "clicking the letters picks the text object");
         // 다음 누름이 두 번 누르기(들어가기)로 읽히지 않게 시간을 둔다.
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must wait out the double-click time");
         }
@@ -8646,7 +8651,7 @@ namespace
         belowText.y = static_cast<int>(originY - (minY * Scale - 0.5f) * pixelsPerUnit);
         ClickAt(editor, hwnd, belowText);
         Check(editor.GetSelectedObject() == nullptr, "and half a unit below the block picks nothing");
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must wait out the double-click time");
         }
@@ -8657,7 +8662,7 @@ namespace
         leftOfBlock.y = static_cast<int>(originY - 0.1f * pixelsPerUnit);
         ClickAt(editor, hwnd, leftOfBlock);
         Check(editor.GetSelectedObject() == nullptr, "just left of the block is not the text, even inside the empty-object box");
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must wait out the double-click time");
         }
@@ -8675,7 +8680,7 @@ namespace
         // 돌리기 전의 사각형은 원점 오른쪽에만 있으므로, 왼쪽 위를 눌러 잡히면 회전을 따른 것이다.
         transform->SetRotationRadian(JBro::Radian(1.5707963f));
         editor.ClearSelection();
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the turned text");
         }
@@ -8689,7 +8694,7 @@ namespace
 
         // ── 여러 줄 글자 칸 ──────────────────────────────────────────────
         editor.SetSelectedObject(object);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the label");
         }
@@ -8710,7 +8715,7 @@ namespace
         };
         const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
         ClickAt(editor, hwnd, textSpot);
-        for (int frame = 0; frame < 6 && ImGui::GetActiveID() != textField; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6 && ImGui::GetActiveID() != textField; ++frame)
         {
             Check(editor.Tick(Frame), "the text field must take focus");
         }
@@ -8741,7 +8746,7 @@ namespace
         Check(textNow() == "AB", "undo brings the old text back");
         Check(editor.GetCommands().Redo(), "and redo the new one");
         Check(textNow() == "ABC\nD", "redo writes the lines again");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after redo");
         }
@@ -8749,7 +8754,7 @@ namespace
         {
             SaveScreenshot(*shotRenderer, 1024, 768, "text_inspector");
         }
-        float twoLineMinY = 0.0f;
+        JBro::Float twoLineMinY = 0.0f;
         Check(texts->GetLocalBounds(label->GetInstanceId(), minX, twoLineMinY, maxX, maxY), "the text has a block");
         Check(twoLineMinY < minY - 0.5f, "the second line grows the block downwards");
 
@@ -8757,13 +8762,13 @@ namespace
         // 1023 바이트로 잘린 글자가 저장된다.
         const std::string longText(1500, 'a');
         JBro::TextStore::Get().Assign(label->text, longText.c_str(), longText.size());
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must show the long text");
         }
         Check(FindInspectorItem(editor, hwnd, textField, textSpot), "the text row is still in the inspector");
         ClickAt(editor, hwnd, textSpot);
-        for (int frame = 0; frame < 6 && ImGui::GetActiveID() != textField; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6 && ImGui::GetActiveID() != textField; ++frame)
         {
             Check(editor.Tick(Frame), "the text field must take focus again");
         }
@@ -8782,9 +8787,9 @@ namespace
         // ── 폰트 임포트 옵션 ─────────────────────────────────────────────
         // 지금 글자(긴 줄)의 블록을 다시 잰다. 앞에서 잰 값은 짧은 글자의 것이다.
         Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the long text has a block");
-        const float boundsBefore = maxX;
+        const JBro::Float boundsBefore = maxX;
         editor.SetSelectedAsset(fontAsset);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the font asset");
         }
@@ -8799,7 +8804,7 @@ namespace
         const std::size_t undoOptions = editor.GetCommands().GetUndoCount();
         // 끌기 한 픽셀이 0.01 이다. 멀리 끌어야 글자 폭이 반올림보다 크게 달라진다.
         DragFrom(editor, hwnd, ppuSpot, ppuSpot.x + 400);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the drag");
         }
@@ -8816,7 +8821,7 @@ namespace
                 && std::fabs(maxX - boundsBefore) > boundsBefore * 0.01f,
             "the text is laid out again at the new pixels-per-unit");
         Check(editor.GetCommands().Undo(), "the options edit must undo");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the undo");
         }
@@ -8828,12 +8833,12 @@ namespace
     }
 
     // 창을 굴려 가며 찾는다. 설정 창은 한 화면보다 길어 아래쪽 단추는 굴려야 보인다.
-    bool FindItemScrolling(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window, ImGuiID target, int x,
+    JBro::Bool FindItemScrolling(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window, ImGuiID target, JBro::Int32 x,
         Spot& spot)
     {
         Check(window != nullptr, "the window this test looks in must exist");
-        const float step = window->Size.y * 0.6f;
-        for (float scroll = 0.0f; scroll <= window->ScrollMax.y + step; scroll += step)
+        const JBro::Float step = window->Size.y * 0.6f;
+        for (JBro::Float scroll = 0.0f; scroll <= window->ScrollMax.y + step; scroll += step)
         {
             ImGui::SetScrollY(window, scroll);
             Check(editor.Tick(Frame), "the editor must tick after scrolling");
@@ -8896,7 +8901,7 @@ namespace
         Check(settings != nullptr, "the settings panel exists");
         settings->SetOpen(true);
         settings->RequestFocus();
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the settings open");
         }
@@ -8908,7 +8913,7 @@ namespace
         label += "###ProjectSettings";
         ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
         Check(window != nullptr, "the project settings must have a window");
-        const int buttonX = static_cast<int>(window->ContentRegionRect.Min.x + 12.0f);
+        const JBro::Int32 buttonX = static_cast<int>(window->ContentRegionRect.Min.x + 12.0f);
 
         // 폰트 목록은 공용 목록 위젯이라 제 자식 창(`##list_body`) 안에 선다. 줄의 Id 는 그 창 → 줄 번호 → `##font` 다.
         ImGuiWindow* list = FindChildWindow(window, "##list_body");
@@ -8924,8 +8929,8 @@ namespace
         const ImGuiID row = LabelId(PushedId(list->ID, 0), "##font");
         Spot field;
         // 칸은 값 열의 왼쪽에 서고 오른쪽에 단추 둘이 붙는다. 창 폭에 따라 자리가 달라 몇 x 를 본다.
-        bool foundField = false;
-        for (float fraction = 0.35f; fraction < 0.8f && false == foundField; fraction += 0.15f)
+        JBro::Bool foundField = false;
+        for (JBro::Float fraction = 0.35f; fraction < 0.8f && false == foundField; fraction += 0.15f)
         {
             foundField = FindItemScrolling(editor, hwnd, window, row,
                 static_cast<int>(window->Pos.x + window->Size.x * fraction), field);
@@ -8951,7 +8956,7 @@ namespace
                 LabelId(window->ID, JBro::Loc::TextOr(JBro::LocKeys::ProjectSettingsSave, "Save")), buttonX, save),
             "the settings show a Save button");
         ClickAt(editor, hwnd, save);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after saving");
         }
@@ -8970,10 +8975,10 @@ namespace
         }
         Check(false == texts->IsMissingFont(caption->GetInstanceId()),
             "and the caption with no fontId now draws with it, without reopening the project");
-        float minX = 0.0f;
-        float minY = 0.0f;
-        float maxX = 0.0f;
-        float maxY = 0.0f;
+        JBro::Float minX = 0.0f;
+        JBro::Float minY = 0.0f;
+        JBro::Float maxX = 0.0f;
+        JBro::Float maxY = 0.0f;
         Check(texts->GetLocalBounds(caption->GetInstanceId(), minX, minY, maxX, maxY) && maxX > minX,
             "the caption has a laid-out block");
 
@@ -8986,7 +8991,7 @@ namespace
         reopened->AttachComponent<JBro::Component::Transform2D>(again);
         auto* second = reopened->AttachComponent<JBro::Component::Text2D>(again);
         JBro::TextStore::Get().Assign(second->text, "A", 1);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the reopened project");
         }
@@ -9018,9 +9023,9 @@ namespace
             "AssetDirectory: Assets\n"),
             "the test must be able to write its own project file");
 
-        float movedX = 0.0f;
-        float movedY = 0.0f;
-        float movedSize = 0.0f;
+        JBro::Float movedX = 0.0f;
+        JBro::Float movedY = 0.0f;
+        JBro::Float movedSize = 0.0f;
         {
             JBro::EditorApplication editor;
             JBro::EditorApplicationConfig config;
@@ -9036,7 +9041,7 @@ namespace
             JBro::ProjectFileError error;
             Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
             Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle");
             }
@@ -9044,12 +9049,12 @@ namespace
             Check(hwnd != nullptr, "the editor window must be findable");
             ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
             Check(view != nullptr, "the canvas view must have a window");
-            const int x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-            const int y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+            const JBro::Int32 x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+            const JBro::Int32 y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick");
             PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, WHEEL_DELTA), MAKELPARAM(x, y));
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle after the wheel");
             }
@@ -9065,7 +9070,7 @@ namespace
         Check(text.find("CanvasViewCameraSize") != std::string::npos,
             "closing the editor must write where the view was looking");
         char expected[64] = {};
-        std::snprintf(expected, sizeof(expected), "CanvasViewCameraSize: %g", movedSize);
+        std::snprintf(expected, sizeof(expected), "CanvasViewCameraSize: %g", movedSize.Get());
         Check(text.find(expected) != std::string::npos,
             "and it must be the size the view actually had");
 
@@ -9088,10 +9093,10 @@ namespace
             "AssetDirectory: Assets\n"),
             "the test must be able to write its own project file");
 
-        float savedX = 0.0f;
-        float savedY = 0.0f;
-        float savedSize = 0.0f;
-        float savedInspectorWidth = 0.0f;
+        JBro::Float savedX = 0.0f;
+        JBro::Float savedY = 0.0f;
+        JBro::Float savedSize = 0.0f;
+        JBro::Float savedInspectorWidth = 0.0f;
         {
             JBro::EditorApplication editor;
             JBro::EditorApplicationConfig config;
@@ -9106,7 +9111,7 @@ namespace
             JBro::ProjectFileError error;
             Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
             Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle");
             }
@@ -9126,12 +9131,12 @@ namespace
             Check(hwnd != nullptr, "the editor window must be findable");
             ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
             Check(view != nullptr, "the canvas view must have a window");
-            const int x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-            const int y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+            const JBro::Int32 x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+            const JBro::Int32 y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick");
             PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, WHEEL_DELTA), MAKELPARAM(x, y));
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle after the wheel");
             }
@@ -9146,7 +9151,7 @@ namespace
             const ImVec2 nodeSize = inspector->DockNode->Size;
             ImGui::DockBuilderSetNodeSize(inspector->DockNode->ID,
                 ImVec2(nodeSize.x * 0.5f, nodeSize.y));
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle after the resize");
             }
@@ -9210,7 +9215,7 @@ namespace
             JBro::ProjectFileError error;
             Check(editor.OpenProjectFile(projectPath.c_str(), error), "the project must open again");
             Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle");
             }
@@ -9219,9 +9224,9 @@ namespace
             JBro::Canvas* canvas = editor.GetCanvas();
             Check(canvas != nullptr && canvas->GetObjectCount() == 1,
                 "the canvas from last time is open, with what was in it");
-            float x = 0.0f;
-            float y = 0.0f;
-            float size = 0.0f;
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            JBro::Float size = 0.0f;
             editor.GetCanvasViewCamera(x, y, size);
             Check(std::fabs(size - savedSize) < 0.001f,
                 "and the canvas view starts where it was left");
@@ -9256,20 +9261,20 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        for (int index = 0; index < 3; ++index)
+        for (JBro::Int32 index = 0; index < 3; ++index)
         {
             JBro::GameObject* object = canvas->CreateObject("Counted");
             Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
                 "each probe object needs a transform");
         }
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
         // 통계는 아래 독의 탭이다. 앞으로 꺼내야 그려진다.
         ImGui::SetWindowFocus("Stats");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the stats tab");
         }
@@ -9319,7 +9324,7 @@ namespace
 
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -9383,16 +9388,16 @@ namespace
         // 4 x 2 상자: 코어 (-1, 0)-(1, 0), 반지름 1.
         collider->shape = JBro::Component::ColliderShape2D::Capsule;
         collider->size = {4.0f, 2.0f};
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr && view->DrawList != nullptr, "the canvas view must have drawn");
 
-        const auto drawnNear = [&](float worldX, float worldY) {
-            float x = 0.0f;
-            float y = 0.0f;
+        const auto drawnNear = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must map world to screen");
             for (const ImDrawVert& vertex : view->DrawList->VtxBuffer)
             {
@@ -9404,10 +9409,10 @@ namespace
             return false;
         };
         // 화면에서 1 유닛이 여러 픽셀이어야 가를 수 있다.
-        float x0 = 0.0f;
-        float y0 = 0.0f;
-        float x1 = 0.0f;
-        float y1 = 0.0f;
+        JBro::Float x0 = 0.0f;
+        JBro::Float y0 = 0.0f;
+        JBro::Float x1 = 0.0f;
+        JBro::Float y1 = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, x0, y0) && editor.CanvasViewWorldToScreen(1.0f, 0.0f, x1, y1)
             && std::fabs(x1 - x0) > 12.0f, "a unit must span enough pixels to tell a corner from an arc");
 
@@ -9448,16 +9453,16 @@ namespace
 
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
 
-        const auto at = [&](float worldX, float worldY) {
-            float x = 0.0f;
-            float y = 0.0f;
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
             Spot spot;
             spot.x = static_cast<int>(std::lround(x));
@@ -9575,34 +9580,34 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         // 숫자가 촘촘해 건너뛰어야 하는 배율이다. 간격 0.5 의 칸이 화면에서 몇십 픽셀이라 숫자는 몇 칸마다 하나다.
-        const auto labelsAt = [&](float centerX) {
+        const auto labelsAt = [&](JBro::Float centerX) {
             editor.SetCanvasViewCamera(centerX, 0.0f, 11.0f);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must draw the grid");
             }
-            JBro::Array<float> labels;
+            JBro::Array<JBro::Float> labels;
             editor.GetCanvasViewGridLabelsX(labels);
             return labels;
         };
-        const JBro::Array<float> base = labelsAt(0.0f);
+        const JBro::Array<JBro::Float> base = labelsAt(0.0f);
         Check(base.Size() >= 3, "the grid must label several lines");
         Check(base.Size() >= 2 && base[1] - base[0] > 0.0f, "and the labels go left to right");
-        const float spacing = base.Size() >= 2 ? base[1] - base[0] : 0.0f;
-        bool zeroLabelled = false;
+        const JBro::Float spacing = base.Size() >= 2 ? base[1] - base[0] : JBro::Float(0.0f);
+        JBro::Bool zeroLabelled = false;
         for (std::size_t index = 0; index < base.Size(); ++index)
         {
             zeroLabelled = zeroLabelled || base[index] == 0.0f;
         }
         Check(zeroLabelled, "the origin always carries a number");
 
-        for (const float offset : {0.13f, 0.41f, 0.77f, 1.3f, -0.6f})
+        for (const JBro::Float offset : {0.13f, 0.41f, 0.77f, 1.3f, -0.6f})
         {
-            const JBro::Array<float> moved = labelsAt(offset);
+            const JBro::Array<JBro::Float> moved = labelsAt(offset);
             // 겹치는 구간의 숫자는 모두 같은 간격의 배수다 - 첫 선이 어디서 보이든 같은 선에 붙는다.
             for (std::size_t index = 0; index < moved.Size(); ++index)
             {
-                const float ratio = moved[index] / spacing;
+                const JBro::Float ratio = moved[index] / spacing;
                 Check(std::fabs(ratio - std::round(ratio)) < 0.001f,
                     "panning by part of a cell keeps the numbers on the same lines");
             }
@@ -9631,7 +9636,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -9661,14 +9666,14 @@ namespace
         // **눈금 숫자가 있는 자리만 잰다.** 창 전체로 재면 단추 글자가 `유닛` 에서 `픽셀` 로
         // 바뀐 것까지 섞여 들어와, 정작 눈금이 그대로여도 검사가 통과한다(처음에 그랬다).
         // X 숫자는 뷰 아래쪽 한 줄, Y 숫자는 왼쪽 한 칸이다.
-        const std::uint32_t viewLeft = static_cast<std::uint32_t>(view->Pos.x);
-        const std::uint32_t viewRight = static_cast<std::uint32_t>(view->Pos.x + view->Size.x);
-        const std::uint32_t viewBottom = static_cast<std::uint32_t>(view->Pos.y + view->Size.y);
+        const JBro::UInt32 viewLeft = static_cast<std::uint32_t>(view->Pos.x);
+        const JBro::UInt32 viewRight = static_cast<std::uint32_t>(view->Pos.x + view->Size.x);
+        const JBro::UInt32 viewBottom = static_cast<std::uint32_t>(view->Pos.y + view->Size.y);
         const std::size_t alongX = CountDifferingPixelsIn(inUnits, inPixels, readback,
-            viewLeft, viewBottom > 22 ? viewBottom - 22 : 0, viewRight, viewBottom);
+            viewLeft, viewBottom > 22 ? viewBottom - 22 : JBro::UInt32(0), viewRight, viewBottom);
         // 세로 줄은 **툴바 아래부터** 잰다. 툴바까지 넣으면 단추가 다시 칠해진 픽셀이
         // 섞여 들어와, y 숫자가 그대로여도 이 수가 천을 넘는다(처음에 그랬다).
-        const std::uint32_t belowToolBar = static_cast<std::uint32_t>(view->Pos.y) + 100;
+        const JBro::UInt32 belowToolBar = static_cast<std::uint32_t>(view->Pos.y) + 100;
         const std::size_t alongY = CountDifferingPixelsIn(inUnits, inPixels, readback,
             viewLeft, belowToolBar, viewLeft + 36,
             viewBottom > 24 ? viewBottom - 24 : belowToolBar);
@@ -9721,7 +9726,7 @@ namespace
         Check(canvas != nullptr, "the probe canvas must exist");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -9792,7 +9797,7 @@ namespace
             ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
             Check(view != nullptr, "the canvas view must have a window");
             canvas->SetBackgroundColor(JBro::Color{0.05f, 0.05f, 0.05f, 1.0f});
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the dark background");
             }
@@ -9801,7 +9806,7 @@ namespace
             JBro::TextureReadback readback;
             ReadBackBufferInto(*renderer, 1024, 768, dark, readback);
             canvas->SetBackgroundColor(JBro::Color{0.9f, 0.1f, 0.1f, 1.0f});
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the red background");
             }
@@ -9859,7 +9864,7 @@ namespace
         editor.SetSelectedObject(alpha);
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -9878,7 +9883,7 @@ namespace
         // 아직 활성이 아닐 때 보낸 글자는 아무 데도 가지 않는다 - 그러면 실패가 "이름이
         // 바뀌지 않았다" 로만 보여 어디서 어긋났는지 알 수 없다(한 번 그렇게 흔들렸다).
         const ImGuiID nameId = LabelId(header, "##name");
-        for (int frame = 0; frame < 6 && ImGui::GetActiveID() != nameId; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6 && ImGui::GetActiveID() != nameId; ++frame)
         {
             Check(editor.Tick(Frame), "the field must take focus");
         }
@@ -9886,7 +9891,7 @@ namespace
             "clicking the name field must make it the field that takes the keys");
         // 흔들림을 가르는 값이다(실패할 때만 찍는다). 틱이 ImGui 프레임을 돌리지 않았는지,
         // 도착한 키가 버려졌는지를 여기서 가른다.
-        const int framesBeforeTyping = ImGui::GetFrameCount();
+        const JBro::Int32 framesBeforeTyping = ImGui::GetFrameCount();
         // 커서를 끝에 두고 친다. 누른 자리에 따라 글자가 가운데 끼면 무엇이 붙었는지 흐려진다.
         PostMessageW(hwnd, WM_KEYDOWN, VK_END, 0);
         Check(editor.Tick(Frame), "the editor must tick");
@@ -9925,7 +9930,7 @@ namespace
         // 둘을 골라 둔다. 하나만 꺼지면 나머지는 화면에서 그대로라 무엇이 바뀌었는지 알 수 없다.
         editor.SetSelectedObject(alpha);
         editor.AddToSelection(beta);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the pair");
         }
@@ -9960,12 +9965,12 @@ namespace
                                  static_cast<UINT>(WM_LBUTTONDBLCLK)})
         {
             PostMessageW(hwnd, press, MK_LBUTTON, MAKELPARAM(spot.x, spot.y));
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick while the button is held");
             }
             PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(spot.x, spot.y));
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick on the release");
             }
@@ -9975,7 +9980,7 @@ namespace
     // 열어 달라고 넘어온 경로를 받아 적는 자리다. 진짜로 메모장을 띄울 수는 없다.
     JBro::String g_openedPath;
 
-    bool RecordOpenedPath(const char* utf8Path, void* user)
+    JBro::Bool RecordOpenedPath(const char* utf8Path, void* user)
     {
         (void)user;
         g_openedPath = utf8Path != nullptr ? utf8Path : "";
@@ -10042,7 +10047,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -10059,7 +10064,7 @@ namespace
             tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
             tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the tab");
             }
@@ -10067,9 +10072,9 @@ namespace
         }
 
         const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
-            const int x = static_cast<int>(pane->Pos.x + 40.0f);
-            const int bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
-            for (int y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            const JBro::Int32 x = static_cast<int>(pane->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
+            for (JBro::Int32 y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for a row");
@@ -10089,7 +10094,7 @@ namespace
             Check(findRow(tree, LabelId(LabelId(tree->ID, "art"), "##folder"), folder),
                 "the art folder must be a row in the tree");
             ClickAt(editor, hwnd, folder);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle in the folder");
             }
@@ -10099,10 +10104,10 @@ namespace
         const auto order = [&]() {
             ImGuiWindow* pane = FindChildWindow(ImGui::FindWindowByName("Assets"), "##contents");
             Check(pane != nullptr, "the contents pane must exist");
-            struct Row { char tag; int y; };
+            struct Row { char tag; JBro::Int32 y; };
             Row rows[4] = {{'a', 0}, {'b', 0}, {'c', 0}, {'m', 0}};
             const char* paths[4] = {"art/a.png", "art/b.png", "art/c.png", "art/m.hlsl"};
-            for (int index = 0; index < 4; ++index)
+            for (JBro::Int32 index = 0; index < 4; ++index)
             {
                 Spot spot;
                 Check(findRow(pane, LabelId(LabelId(pane->ID, paths[index]), "##file"), spot),
@@ -10118,7 +10123,7 @@ namespace
             return text;
         };
         // 콤보를 눌러 열고, 그 안에서 차례 번호의 줄을 눌러 고른다.
-        const auto chooseSort = [&](int index, const char* label) {
+        const auto chooseSort = [&](JBro::Int32 index, const char* label) {
             ImGuiWindow* window = ImGui::FindWindowByName("Assets");
             Spot combo;
             Check(FindItemAnywhereInWindow(editor, hwnd, window, LabelId(window->ID, "##sort"), combo),
@@ -10138,7 +10143,7 @@ namespace
                       LabelId(PushedId(popup->ID, index), label), item),
                 "the sort list must offer that choice by its name");
             ClickAt(editor, hwnd, item);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle after choosing");
             }
@@ -10164,25 +10169,25 @@ namespace
             ReadBackBufferInto(*renderer, 1600, 900, shot, readback);
             // `findRow` 는 줄을 처음 가리킨 **윗가장자리**를 돌려준다. 글자는 줄 가운데에 있으므로
             // 거기서 한 줄 높이만큼 아래로 잰다(처음에 위아래로 재어 글자를 비껴갔다).
-            const int rowHeight = static_cast<int>(ImGui::GetFrameHeight());
-            const auto pixelAt = [&](int x, int y) {
+            const JBro::Int32 rowHeight = static_cast<int>(ImGui::GetFrameHeight());
+            const auto pixelAt = [&](JBro::Int32 x, JBro::Int32 y) {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
                 return reinterpret_cast<const unsigned char*>(shot.Data() + offset);
             };
             // **그 줄의 배경과 견준다.** 날짜와 아이디는 흐린 글자라 밝기 문턱 하나로는 거의 잡히지
             // 않았다(26 픽셀). 줄 맨 윗줄은 글자가 닿지 않으므로 거기가 배경이다.
-            const auto litIn = [&](float from, float to) {
-                const int left = static_cast<int>(pane->Pos.x + pane->Size.x * from);
-                const int right = static_cast<int>(pane->Pos.x + pane->Size.x * to);
+            const auto litIn = [&](JBro::Float from, JBro::Float to) {
+                const JBro::Int32 left = static_cast<int>(pane->Pos.x + pane->Size.x * from);
+                const JBro::Int32 right = static_cast<int>(pane->Pos.x + pane->Size.x * to);
                 const unsigned char* background = pixelAt(left, row.y);
                 std::size_t lit = 0;
-                for (int y = row.y; y <= row.y + rowHeight; ++y)
+                for (JBro::Int32 y = row.y; y <= row.y + rowHeight; ++y)
                 {
-                    for (int x = left; x < right; ++x)
+                    for (JBro::Int32 x = left; x < right; ++x)
                     {
                         const unsigned char* pixel = pixelAt(x, y);
-                        const int difference = std::abs(pixel[0] - background[0])
+                        const JBro::Int32 difference = std::abs(pixel[0] - background[0])
                             + std::abs(pixel[1] - background[1])
                             + std::abs(pixel[2] - background[2]);
                         if (difference > 90)
@@ -10265,7 +10270,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -10283,7 +10288,7 @@ namespace
             tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
             tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle on the tab");
             }
@@ -10294,9 +10299,9 @@ namespace
 
         // 줄은 왼쪽 나무(`##tree`)와 오른쪽 목록(`##contents`) 안에 있고, 각자 제 아이디를 쓴다.
         const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
-            const int x = static_cast<int>(pane->Pos.x + 40.0f);
-            const int bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
-            for (int y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            const JBro::Int32 x = static_cast<int>(pane->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
+            for (JBro::Int32 y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for a row");
@@ -10318,7 +10323,7 @@ namespace
             Check(findRow(tree, LabelId(LabelId(tree->ID, "notes"), "##folder"), folder),
                 "the notes folder must be a row in the tree");
             ClickAt(editor, hwnd, folder);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle in the folder");
             }
@@ -10330,7 +10335,7 @@ namespace
         Check(findRow(contents, LabelId(LabelId(contents->ID, "notes/tint.hlsl"), "##file"), note),
             "the shader must be a row in the folder");
         DoubleClickAt(editor, hwnd, note);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the double click");
         }
@@ -10348,7 +10353,7 @@ namespace
             Check(findRow(tree, LabelId(LabelId(tree->ID, "elsewhere"), "##folder"), away),
                 "the other folder must be a row in the tree");
             ClickAt(editor, hwnd, away);
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must settle in the other folder");
             }
@@ -10363,7 +10368,7 @@ namespace
 
         editor.SetSelectedAsset(JBro::AssetId{});
         editor.RevealAssetInBrowser(image->id);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after being asked to find it");
         }
@@ -10607,7 +10612,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
         JBro::Canvas* canvas = editor.GetCanvas();
         const JBro::LayerId layerId = canvas->GetDefaultLayer();
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -10684,7 +10689,7 @@ namespace
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::GameObject* probe = canvas->CreateObject("Probe");
         const JBro::LayerId glowId = canvas->CreateLayer("Glow").GetId();
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -10900,7 +10905,7 @@ namespace
         JBro::TextureHandle texture;
         JBro::Extent2D extent;
         Check(false == editor.GetLayerThumbnail(propsId, texture, extent), "nothing is drawn before the hierarchy draws");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
         }
@@ -10926,7 +10931,7 @@ namespace
         Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
         Check(false == editor.GetLayerThumbnail(propsId, texture, extent), "a deleted layer has no thumbnail");
         Check(editor.GetCommands().Undo(), "and comes back");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
         }
@@ -10939,7 +10944,7 @@ namespace
         Check(editor.StartSimulation(), "play must start");
         Check(editor.Tick(1.0f / 60.0f), "the editor must tick while playing");
         editor.StopSimulation();
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f), "the editor must tick after play with thumbnails up");
         }
@@ -10960,7 +10965,7 @@ namespace
         hierarchy->SetOpen(false);
         Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
         Check(editor.GetLayerThumbnail(restoredId, texture, extent), "a closed hierarchy keeps its thumbnails for a while");
-        for (int frame = 0; frame < 125; ++frame)
+        for (JBro::Int32 frame = 0; frame < 125; ++frame)
         {
             editor.Tick(1.0f / 60.0f);
         }
@@ -10989,7 +10994,7 @@ namespace
             chain[depth++] = walk;
         }
         // `ImGui::PushID(int)` 와 같은 계산이다. 레이어 줄은 아이디를 정수로 쌓는다.
-        const int layerId = static_cast<int>(object->GetLayerId());
+        const JBro::Int32 layerId = static_cast<int>(object->GetLayerId());
         ImGuiID seed = LabelId(PushedId(window->ID, layerId), "##layer");
         for (std::size_t step = depth; step > 0; --step)
         {
@@ -11001,15 +11006,15 @@ namespace
     }
 
     // 계층 창을 위아래로 훑어 그 줄이 가리켜지는 자리를 찾는다.
-    bool FindHierarchyRow(
+    JBro::Bool FindHierarchyRow(
         JBro::EditorApplication& editor, HWND hwnd, const JBro::GameObject* object, Spot& spot)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Hierarchy");
         Check(window != nullptr, "the hierarchy must have a window");
         const ImGuiID target = HierarchyRowId(object);
-        const int x = static_cast<int>(window->Pos.x + window->Size.x * 0.5f);
-        const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
-        for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
+        const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * 0.5f);
+        const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
+        for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -11055,19 +11060,19 @@ namespace
         transform->SetRotation(JBro::Degree(45.0f));
         editor.SetSelectedObject(square);
         editor.SetCanvasViewCamera(0.0f, 0.0f, 3.0f);
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
-        float originX = 0.0f;
-        float originY = 0.0f;
-        float unitX = 0.0f;
-        float unitY = 0.0f;
+        JBro::Float originX = 0.0f;
+        JBro::Float originY = 0.0f;
+        JBro::Float unitX = 0.0f;
+        JBro::Float unitY = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY)
                 && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
             "the canvas view must map world to screen");
-        const float pixelsPerUnit = unitX - originX;
+        const JBro::Float pixelsPerUnit = unitX - originX;
         Check(pixelsPerUnit > 40.0f, "the square must be large on screen");
 
         JBro::Renderer* renderer = editor.GetRenderer();
@@ -11077,9 +11082,9 @@ namespace
         ReadBackBufferInto(*renderer, 800, 600, image, readback);
         SaveScreenshot(*renderer, 800, 600, "selection_outline");
         // 바이트는 파랑·초록·빨강 순서다. 화면 위가 +y 가 아니라 아래가 +y 다.
-        const auto at = [&](float worldX, float worldY) {
-            const int x = static_cast<int>(originX + worldX * pixelsPerUnit);
-            const int y = static_cast<int>(originY - worldY * pixelsPerUnit);
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            const JBro::Int32 x = static_cast<int>(originX + worldX * pixelsPerUnit);
+            const JBro::Int32 y = static_cast<int>(originY - worldY * pixelsPerUnit);
             const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4;
             return reinterpret_cast<const unsigned char*>(image.Data() + offset);
         };
@@ -11088,12 +11093,12 @@ namespace
             return pixel[2] > 200 && pixel[1] > 120 && pixel[1] < 210 && pixel[0] < 130;
         };
         // 선은 1~2 픽셀이라 한 점만 집으면 반올림으로 빗나간다. 둘레 몇 픽셀 안에 그 색이 있는지 본다.
-        const auto nearby = [&](float worldX, float worldY, int reach, auto matches) {
-            const int cx = static_cast<int>(originX + worldX * pixelsPerUnit);
-            const int cy = static_cast<int>(originY - worldY * pixelsPerUnit);
-            for (int dy = -reach; dy <= reach; ++dy)
+        const auto nearby = [&](JBro::Float worldX, JBro::Float worldY, JBro::Int32 reach, auto matches) {
+            const JBro::Int32 cx = static_cast<int>(originX + worldX * pixelsPerUnit);
+            const JBro::Int32 cy = static_cast<int>(originY - worldY * pixelsPerUnit);
+            for (JBro::Int32 dy = -reach; dy <= reach; ++dy)
             {
-                for (int dx = -reach; dx <= reach; ++dx)
+                for (JBro::Int32 dx = -reach; dx <= reach; ++dx)
                 {
                     const std::size_t offset = static_cast<std::size_t>(cy + dy) * readback.rowPitch
                         + static_cast<std::size_t>(cx + dx) * 4;
@@ -11108,14 +11113,14 @@ namespace
 
         // 마름모의 오른쪽 아래 변은 원점에서 대각선으로 1 유닛이다. 그 바로 바깥(1 픽셀 남짓)이 노란 선이다.
         // 위쪽 두 대각선에는 로컬 축 기즈모의 화살표가 놓이므로 피한다.
-        const float diagonal = 0.70710678f;
-        const float justOutside = 1.0f + 1.2f / pixelsPerUnit;
+        const JBro::Float diagonal = 0.70710678f;
+        const JBro::Float justOutside = 1.0f + 1.2f / pixelsPerUnit;
         Check(nearby(diagonal * justOutside, -diagonal * justOutside, 1, yellow),
             "the outline hugs the rotated square just outside its edge");
         // 변에서 안쪽은 흰 사각형 그대로이고, 변에서 멀리 떨어진 바깥(그러나 바운드 사각형 안)은 노랗지 않다.
         const unsigned char* inside = at(diagonal * 0.6f, -diagonal * 0.6f);
         Check(inside[0] > 200 && inside[1] > 200 && inside[2] > 200, "inside the square stays white");
-        const float farOutside = 1.0f + 12.0f / pixelsPerUnit;
+        const JBro::Float farOutside = 1.0f + 12.0f / pixelsPerUnit;
         Check(false == nearby(diagonal * farOutside, -diagonal * farOutside, 2, yellow),
             "and the outline is a thin line, not the whole bounding box");
         // 바운드 사각형도 선다. 마름모를 감싸는 축 정렬 사각형의 오른쪽 변은 x = √2 다 - 마름모의 꼭짓점이 닿는 높이(y = 0)는 피한다.
@@ -11123,7 +11128,7 @@ namespace
 
         // 고르지 않으면 외곽선이 없다.
         editor.ClearSelection();
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw without a selection");
         }
@@ -11163,7 +11168,7 @@ namespace
         canvas->FindComponentRaw<JBro::Component::Transform2D>(body)->position = JBro::Vector2{3.0f, 1.0f};
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -11175,15 +11180,15 @@ namespace
         Check(editor.GetCanvasViewFocus() == body, "double-clicking the row steps the canvas view inside the body");
         Check(editor.GetSelectedObject() == body && editor.GetSelectionCount() == 1,
             "and selects that one row, not its children");
-        float goalX = 0.0f;
-        float goalY = 0.0f;
-        float goalSize = 0.0f;
+        JBro::Float goalX = 0.0f;
+        JBro::Float goalY = 0.0f;
+        JBro::Float goalSize = 0.0f;
         editor.GetCanvasViewCamera(goalX, goalY, goalSize);
         Check(std::fabs(goalX - 3.0f) < 0.3f && std::fabs(goalY - 1.0f) < 0.3f,
             "and the canvas view camera heads for the body");
 
         // 한 번 누르기는 들어가지 않는다.
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must wait out the double-click time");
         }
@@ -11241,7 +11246,7 @@ namespace
         sprite->tint = {1.0f, 0.0f, 0.0f, 1.0f};
         sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
         sprite->size = {3.0f, 3.0f};
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -11263,9 +11268,9 @@ namespace
             JBro::Array<std::byte> image;
             JBro::TextureReadback readback;
             ReadBackBufferInto(*renderer, 1024, 768, image, readback);
-            const float frameHeight = ImGui::GetFrameHeight();
-            const float rowTop = static_cast<float>(row.y);
-            const float eyeLeft = layers->WorkRect.Max.x - frameHeight;
+            const JBro::Float frameHeight = ImGui::GetFrameHeight();
+            const JBro::Float rowTop = static_cast<float>(row.y);
+            const JBro::Float eyeLeft = layers->WorkRect.Max.x - frameHeight;
             const auto bright = [](const unsigned char* pixel)
             {
                 return pixel[0] > 150 && pixel[1] > 150 && pixel[2] > 150;
@@ -11275,9 +11280,9 @@ namespace
             const PixelBox icon = MeasurePixels(image, readback,
                 ImRect(eyeLeft, rowTop, layers->WorkRect.Max.x, rowTop + frameHeight), bright);
             Check(false == text.IsEmpty() && false == icon.IsEmpty(), "the row must show its name and its eye");
-            const float textMiddle = (text.minY + text.maxY) * 0.5f;
-            const float iconMiddle = (icon.minY + icon.maxY) * 0.5f;
-            std::printf("  [measure] row name y %d..%d, eye y %d..%d\n", text.minY, text.maxY, icon.minY, icon.maxY);
+            const JBro::Float textMiddle = (text.minY + text.maxY) * 0.5f;
+            const JBro::Float iconMiddle = (icon.minY + icon.maxY) * 0.5f;
+            std::printf("  [measure] row name y %d..%d, eye y %d..%d\n", text.minY.Get(), text.maxY.Get(), icon.minY.Get(), icon.maxY.Get());
             Check(iconMiddle >= textMiddle - 0.5f && iconMiddle <= textMiddle + 0.5f,
                 "the row's eye must sit level with the row's name, not below it");
         }
@@ -11286,7 +11291,7 @@ namespace
         ClickAt(editor, hwnd, eye);
         Check(red->IsEditorHidden(), "clicking the row's eye hides the object in the canvas view");
         Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw the hidden state");
         }
@@ -11298,8 +11303,8 @@ namespace
         Check(view != nullptr, "the canvas view must have a window");
         // 오브젝트의 자리는 캔버스 뷰에게 묻는다. 창 한가운데에서 픽셀을 손으로 더하면
         // 탭 줄과 도구 줄 몫만큼 어긋나, 테마의 간격이 바뀔 때마다 그림 밖을 누른다.
-        float middleX = 0.0f;
-        float middleY = 0.0f;
+        JBro::Float middleX = 0.0f;
+        JBro::Float middleY = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, middleX, middleY),
             "the canvas view must map the world origin to the screen");
         Spot middle;
@@ -11310,7 +11315,7 @@ namespace
 
         Check(editor.GetCommands().Undo(), "hiding undoes");
         Check(false == red->IsEditorHidden(), "and the object is back");
-        for (int frame = 0; frame < 30; ++frame)
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must wait out the double-click time");
         }
@@ -11340,7 +11345,7 @@ namespace
         {
             canvasView->SetOpen(false);
         }
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must show the game view");
         }
@@ -11377,7 +11382,7 @@ namespace
         JBro::GameObject* alpha = canvas->CreateObject("Alpha");
         JBro::GameObject* beta = canvas->CreateObject("Beta");
         JBro::GameObject* gamma = canvas->CreateObject("Gamma");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -11395,7 +11400,7 @@ namespace
         Check(FindHierarchyRow(editor, hwnd, beta, next), "Beta must have a row");
         // **줄 높이는 이웃한 두 줄의 간격으로 잰다.** 글꼴과 여백에 따라 달라지는
         // 값이라 상수로 두면 글꼴이 바뀌는 날 조용히 다른 띠를 겨냥하게 된다.
-        const int pitch = next.y - to.y;
+        const JBro::Int32 pitch = next.y - to.y;
         Check(pitch > 4, "two rows must be more than a few pixels apart");
 
         // ── 형제로 끼우기: Alpha 줄의 **위쪽 띠**에 놓으면 그 앞에 간다. ───────
@@ -11431,7 +11436,7 @@ namespace
         //
         // 이 자리가 죽어 있었다. `ImGui::Dummy` 에 음수 폭을 넘겨 사각형이 뒤집혀
         // 있었고, 그래서 부모를 뗄 방법이 끌어 놓기로는 없었다.
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the reparent");
         }
@@ -11492,7 +11497,7 @@ namespace
 
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the family");
         }
@@ -11543,13 +11548,13 @@ namespace
         Check(canvas->SetObjectLayer(badge, uiId), "the badge goes on the layer");
         auto* place = canvas->AttachComponent<JBro::Component::Transform2D>(badge);
         place->position = {5.0f, 0.0f};
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
         // 월드 (5, 0) 은 카메라(세로 절반 5, 64 x 48)의 x 0.75 자리다. 기준 1920 x 1080 FixedHeight 에서 그 자리는 (540, 0) 이다.
-        const auto closeTo = [](float a, float b) { return std::fabs(a - b) < 0.01f; };
+        const auto closeTo = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.01f; };
         JBro::OwnerPtr<JBro::EditorCommand> toScreen = editor.MakeLayerSpaceCommand(uiId, JBro::LayerSpace::Screen, JBro::ScreenScaleMode::FixedHeight);
         Check(toScreen.Get() != nullptr && editor.GetCommands().Execute(std::move(toScreen)), "the layer becomes a screen layer");
         Check(ui.GetSpace() == JBro::LayerSpace::Screen && closeTo(place->position.x, 540.0f) && closeTo(place->position.y, 0.0f),
@@ -11567,20 +11572,20 @@ namespace
 
         // 고른 오브젝트의 공간으로 캔버스 뷰가 따라간다.
         editor.SetSelectedObject(badge);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor ticks with the badge picked");
         }
         Check(editor.IsCanvasViewScreenSpace(), "picking an object on a screen layer turns the canvas view to UI");
         editor.SetSelectedObject(eye);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor ticks with the camera picked");
         }
         Check(false == editor.IsCanvasViewScreenSpace(), "and picking a world object turns it back");
 
         // 화면 → 월드도 보이던 자리를 지킨다.
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor settles the screen place");
         }
@@ -11613,7 +11618,7 @@ namespace
         Check(canvas->SetObjectLayer(hill, farLayer.GetId()), "the hill goes on the parallax layer");
         auto* hillPlace = canvas->AttachComponent<JBro::Component::Transform2D>(hill);
         hillPlace->position = {1.0f, 0.0f};
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor settles the moved camera");
         }
@@ -11662,7 +11667,7 @@ namespace
         Check(editor.GetSelectedAsset() == record->id, "and selected");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the table");
         }
@@ -11682,7 +11687,7 @@ namespace
         const JBro::Array<JBro::String>& keys = editor.GetStringKeys();
         Check(keys.Size() == 1 && keys[0] == "probe.key", "the inspector's key picker lists the tables' keys");
         editor.SetSelectedAsset(tableId);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the first table again");
         }
@@ -11696,10 +11701,10 @@ namespace
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
         const ImGuiID combo = LabelId(view->ID, "##previewLocale");
-        bool found = false;
-        for (float fraction = 0.05f; fraction < 1.0f && false == found; fraction += 0.02f)
+        JBro::Bool found = false;
+        for (JBro::Float fraction = 0.05f; fraction < 1.0f && false == found; fraction += 0.02f)
         {
-            for (int y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y) + 64 && false == found; y += 4)
+            for (JBro::Int32 y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y) + 64 && false == found; y += 4)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(view->Pos.x + view->Size.x * fraction), y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -11773,7 +11778,7 @@ namespace
             "the stale object needs a transform");
         editor.SetSelectedObject(stale);
         editor.RequestOpenCanvas(first.c_str());
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the open request");
         }
@@ -11793,7 +11798,7 @@ namespace
             "saving the canvas must go through");
 
         editor.RequestOpenCanvas(second.c_str());
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the second canvas");
         }
@@ -11809,7 +11814,7 @@ namespace
         Check(canvas->GetObjectCount() == 2, "so the second canvas now holds two");
         Check(editor.GetCommands().IsDirty(), "which leaves the canvas unsaved");
         editor.RequestOpenCanvas(first.c_str());
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle while it asks");
         }
@@ -11818,7 +11823,7 @@ namespace
 
         // 그만두면 아무 일도 없다.
         editor.AnswerCanvasSwitch(JBro::ConfirmPopup::Cancelled);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the cancel");
         }
@@ -11826,12 +11831,12 @@ namespace
 
         // 저장하지 않고 열기를 고르면 그때 바뀐다.
         editor.RequestOpenCanvas(first.c_str());
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle while it asks again");
         }
         editor.AnswerCanvasSwitch(1);
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after opening anyway");
         }
@@ -11840,7 +11845,7 @@ namespace
             "and the new canvas starts with nothing to save");
 
         editor.RequestOpenCanvas(second.c_str());
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the second canvas again");
         }
@@ -11848,7 +11853,7 @@ namespace
             "the object that was never saved is gone, as the question warned");
 
         editor.RequestOpenCanvas(first.c_str());
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle back on the first canvas");
         }
@@ -11988,7 +11993,7 @@ namespace
         // 어느 축을 쓰는지가 손잡이의 자리로 드러난다.
         transform->SetRotation(JBro::Degree(90.0f));
         editor.SetSelectedObject(target);
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -11998,8 +12003,8 @@ namespace
         // 기즈모의 한가운데는 오브젝트의 자리, 곧 월드 원점이다. 그 자리는 캔버스 뷰에게
         // 묻는다 - 훑어 찾으면 오브젝트에 닿기만 한 자리를 한가운데로 쓰게 되어, 축을 따라
         // 놓인 손잡이가 그 줄에 없다.
-        float originX = 0.0f;
-        float originY = 0.0f;
+        JBro::Float originX = 0.0f;
+        JBro::Float originY = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY),
             "the canvas view must map the world origin to the screen");
         Spot origin;
@@ -12007,8 +12012,8 @@ namespace
         origin.y = static_cast<int>(originY);
 
         // ── 로컬: 오른쪽에는 손잡이가 없다. 끌어도 오브젝트는 그 자리다. ──────
-        const float startX = transform->position.x;
-        const float startY = transform->position.y;
+        const JBro::Float startX = transform->position.x;
+        const JBro::Float startY = transform->position.y;
         Spot from;
         from.x = origin.x + 45;
         from.y = origin.y;
@@ -12025,7 +12030,7 @@ namespace
         Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, localLabel), button),
             "the toolbar must offer the local/world toggle");
         ClickAt(editor, hwnd, button);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the toggle");
         }
@@ -12039,7 +12044,7 @@ namespace
         // 앞의 끌기는 손잡이를 못 잡아 **사각 선택**이 되었고, 그래서 고른 것이 풀렸다.
         // 기즈모는 고른 것이 있어야 뜬다.
         editor.SetSelectedObject(target);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the object chosen again");
         }
@@ -12084,35 +12089,35 @@ namespace
         transform->position = JBro::Vector2{0.33f, 0.27f};
         editor.SetSelectedObject(target);
         editor.SetCanvasViewCamera(0.0f, 0.0f, 3.0f);
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
-        const float step = editor.GetCanvasViewGridStep();
+        const JBro::Float step = editor.GetCanvasViewGridStep();
         Check(step > 0.0f, "the canvas view must report its grid step");
-        const auto onGrid = [step](float value) {
-            const float steps = value / step;
+        const auto onGrid = [step](JBro::Float value) {
+            const JBro::Float steps = value / step;
             return std::fabs(steps - std::round(steps)) < 1.0e-3f;
         };
         Check(false == onGrid(transform->position.x) && false == onGrid(transform->position.y), "the object starts off the grid");
-        float originX = 0.0f;
-        float originY = 0.0f;
-        float unitX = 0.0f;
-        float unitY = 0.0f;
+        JBro::Float originX = 0.0f;
+        JBro::Float originY = 0.0f;
+        JBro::Float unitX = 0.0f;
+        JBro::Float unitY = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY) && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
             "the canvas view must map world to screen");
-        const float pixelsPerUnit = unitX - originX;
+        const JBro::Float pixelsPerUnit = unitX - originX;
         Check(pixelsPerUnit > 10.0f, "the canvas view must show the world large enough to drag in");
         // 끌기는 마우스를 정수 픽셀로 옮기므로, 붙이지 않았다면 놓인 자리는 시작 + 픽셀 / 배율이다. 붙였으면 거기서 가장 가까운 격자점이다 -
         // 아무 격자점이 아니다. 칸의 절반에 붙여도 "격자 위다" 는 우연히 맞을 수 있다.
-        const auto nearest = [step](float value) {
+        const auto nearest = [step](JBro::Float value) {
             return std::round(value / step) * step;
         };
 
         // 기즈모의 가운데를 잡아 끈다. `ctrl` 이면 끄는 내내 Ctrl 을 누르고 있다.
-        const auto drag = [&](float grabWorldX, float grabWorldY, int dx, int dy, bool ctrl) {
-            float x = 0.0f;
-            float y = 0.0f;
+        const auto drag = [&](JBro::Float grabWorldX, JBro::Float grabWorldY, JBro::Int32 dx, JBro::Int32 dy, JBro::Bool ctrl) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(grabWorldX, grabWorldY, x, y), "the canvas view must map the grab point");
             Spot from;
             from.x = static_cast<int>(std::lround(x));
@@ -12128,8 +12133,8 @@ namespace
             tick("the editor must tick");
             PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(from.x, from.y));
             tick("the editor must tick");
-            constexpr int Steps = 12;
-            for (int index = 1; index <= Steps; ++index)
+            constexpr JBro::Int32 Steps = 12;
+            for (JBro::Int32 index = 1; index <= Steps; ++index)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(from.x + dx * index / Steps, from.y + dy * index / Steps));
                 tick("the editor must tick mid-drag");
@@ -12144,11 +12149,11 @@ namespace
         };
         // 끌 때마다 정말 움직였는지 본다. 손잡이를 놓치면 위치가 그대로라 "격자 위다" 가 거짓으로 맞는다.
         // 방향은 번갈아 바꾼다 - 한쪽으로만 밀면 오브젝트가 화면 밖으로 나가 손잡이를 잡을 수 없다.
-        const auto moved = [&](float fromX, float fromY) {
+        const auto moved = [&](JBro::Float fromX, JBro::Float fromY) {
             return std::fabs(transform->position.x - fromX) > step * 0.5f || std::fabs(transform->position.y - fromY) > step * 0.5f;
         };
-        float lastX = 0.0f;
-        float lastY = 0.0f;
+        JBro::Float lastX = 0.0f;
+        JBro::Float lastY = 0.0f;
         const auto remember = [&]() {
             lastX = transform->position.x;
             lastY = transform->position.y;
@@ -12169,7 +12174,7 @@ namespace
             "the toolbar must offer grid snap");
         ClickAt(editor, hwnd, button);
         editor.SetSelectedObject(target);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the toggle");
         }
@@ -12181,9 +12186,9 @@ namespace
         drag(transform->position.x, transform->position.y, -83, 47, false);
         Check(moved(lastX, lastY), "the snapped drag still moves the object");
         Check(onGrid(transform->position.x) && onGrid(transform->position.y), "with snap on the centre handle lands on a grid point");
-        const float dropX = lastX - 83.0f / pixelsPerUnit;
-        const float dropY = lastY - 47.0f / pixelsPerUnit;
-        const auto nearestHalf = [step](float value) {
+        const JBro::Float dropX = lastX - 83.0f / pixelsPerUnit;
+        const JBro::Float dropY = lastY - 47.0f / pixelsPerUnit;
+        const auto nearestHalf = [step](JBro::Float value) {
             return std::round(value / (step * 0.5f)) * (step * 0.5f);
         };
         Check(std::fabs(nearest(dropX) - nearestHalf(dropX)) > step * 0.25f || std::fabs(nearest(dropY) - nearestHalf(dropY)) > step * 0.25f,
@@ -12208,14 +12213,14 @@ namespace
         Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_grid_snap"), on), "the snap button must still be there");
         ClickAt(editor, hwnd, on);
         editor.SetSelectedObject(target);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after turning snap off");
         }
         remember();
         drag(transform->position.x, transform->position.y, 83, -47, false);
         Check(moved(lastX, lastY), "the drag with snap off must catch the centre handle");
-        const float offY = transform->position.y;
+        const JBro::Float offY = transform->position.y;
         Check(false == onGrid(transform->position.x) && false == onGrid(offY), "turned off, the drag lands anywhere again");
         // 가운데 손잡이를 피해 x 축 손잡이의 중간쯤(45 픽셀)을 잡는다.
         remember();
@@ -12232,18 +12237,18 @@ namespace
         Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##gizmo_rotate"), rotateButton), "the toolbar must offer the rotate gizmo");
         ClickAt(editor, hwnd, rotateButton);
         editor.SetSelectedObject(target);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle in rotate mode");
         }
         // 고리의 오른쪽 끝을 잡아 40 도쯤(왼쪽 14, 위 39 픽셀) 돌린다.
-        const float ringWorld = JBro::GizmoModel::RingRadiusPixels / pixelsPerUnit;
-        const float startAngle = transform->GetRotation();
+        const JBro::Float ringWorld = JBro::GizmoModel::RingRadiusPixels / pixelsPerUnit;
+        const JBro::Float startAngle = transform->GetRotation();
         drag(transform->position.x + ringWorld, transform->position.y, -14, -39, false);
-        const float snappedTurn = transform->GetRotation() - startAngle;
+        const JBro::Float snappedTurn = transform->GetRotation() - startAngle;
         Check(std::fabs(snappedTurn - 45.0f) < 0.01f, "with snap on, about 40 degrees on the ring turns exactly 45");
         drag(transform->position.x + ringWorld, transform->position.y, -14, -39, true);
-        const float looseTurn = transform->GetRotation() - startAngle - snappedTurn;
+        const JBro::Float looseTurn = transform->GetRotation() - startAngle - snappedTurn;
         Check(looseTurn > 30.0f && looseTurn < 50.0f && std::fabs(looseTurn - std::round(looseTurn / 15.0f) * 15.0f) > 1.0f,
             "holding Ctrl turns by the mouse, not in 15 degree steps");
 
@@ -12351,7 +12356,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다(게임 입력 테스트와 같다).
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -12364,7 +12369,7 @@ namespace
             JBro::EditorPanel* panel = editor.FindPanel(title);
             Check(panel != nullptr, "the panel to focus must exist");
             panel->RequestFocus();
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick while focusing");
             }
@@ -12420,7 +12425,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on again");
         Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").primary == JBro::EditorShortcutBinding{ImGuiKey_T},
             "and the user's remap is still there");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle again");
         }
@@ -12456,7 +12461,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -12464,7 +12469,7 @@ namespace
         Check(settings != nullptr, "the editor settings panel must exist");
         Check(false == settings->IsOpen(), "it starts closed");
         settings->RequestFocus();
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while opening the settings");
         }
@@ -12487,7 +12492,7 @@ namespace
                 "the shortcut row must offer the button");
             return spot;
         };
-        const auto chord = [&](ImGuiKey key, bool control) {
+        const auto chord = [&](ImGuiKey key, JBro::Bool control) {
             ImGuiIO& io = ImGui::GetIO();
             io.AddKeyEvent(ImGuiMod_Ctrl, control);
             io.AddKeyEvent(key, true);
@@ -12517,7 +12522,7 @@ namespace
         Check(false == shortcuts.IsSuspended(), "closing the settings lets go of the keys");
 
         settings->RequestFocus();
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while reopening the settings");
         }
@@ -12554,14 +12559,14 @@ namespace
         // ── 검색: 걸린 줄만 남는다. 줄이 줄어든 만큼 목록의 높이가 준다. ─────
         moveAway();
         ImGuiWindow* page = FindActiveWindowContaining("/##settings_page_");
-        const float fullHeight = page->ContentSize.y;
+        const JBro::Float fullHeight = page->ContentSize.y;
         Spot search;
         Check(FindItemAnywhereInWindow(editor, hwnd, page,
                   LabelId(LabelId(page->ID, "##shortcut_search"), "##input"), search),
             "the page must offer a search box");
         ClickAt(editor, hwnd, search);
         ImGui::GetIO().AddInputCharactersUTF8("F5");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while searching");
         }
@@ -12595,7 +12600,7 @@ namespace
 
     private:
         JBro::String m_text;
-        bool m_focusField = false;
+        JBro::Bool m_focusField = false;
     };
 
     // **글자 칸에 타자를 치는 중에는 Ctrl+Z 가 씬을 되돌리지 않고, Ctrl+S 는 저장한다**(D-132, 관리자로 옮긴 뒤에도).
@@ -12617,7 +12622,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -12629,7 +12634,7 @@ namespace
         Check(editor.AddPanel(std::move(owned)), "the typing probe must be taken");
         probe->RequestFocus();
         probe->FocusField();
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while focusing the field");
         }
@@ -12652,7 +12657,7 @@ namespace
         // 칸을 떠나면 같은 Ctrl+Z 가 되돌린다 - 앞의 검사가 키가 안 닿아서 통과한 것이 아니라는 뜻이다.
         JBro::EditorPanel* hierarchy = editor.FindPanel("Hierarchy");
         hierarchy->RequestFocus();
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick while leaving the field");
         }
@@ -12670,15 +12675,15 @@ namespace
     // 훅이 무엇을 받았는지 적는다. 훅은 함수 포인터라 상태를 전역에 둔다.
     struct ComponentHookProbe
     {
-        int calls = 0;
+        JBro::Int32 calls = 0;
         JBro::ComponentAddress last;
-        bool componentMatches = false;
-        bool placementSeen = false;
-        bool returnValue = true;
+        JBro::Bool componentMatches = false;
+        JBro::Bool placementSeen = false;
+        JBro::Bool returnValue = true;
     };
     ComponentHookProbe g_componentHook;
 
-    bool ProbeComponentHook(const JBro::ComponentMenuContext& context)
+    JBro::Bool ProbeComponentHook(const JBro::ComponentMenuContext& context)
     {
         ++g_componentHook.calls;
         g_componentHook.last = context.address;
@@ -12703,7 +12708,7 @@ namespace
         {
             return "Object Menu Probe";
         }
-        bool OnCreate(JBro::EditorApplication& editor) override
+        JBro::Bool OnCreate(JBro::EditorApplication& editor) override
         {
             m_editor = &editor;
             return true;
@@ -12758,18 +12763,18 @@ namespace
             m_close = true;
         }
 
-        int draws = 0;
-        bool lastResult = true;
+        JBro::Int32 draws = 0;
+        JBro::Bool lastResult = true;
         // 참이면 오브젝트 메뉴 대신 빈자리 메뉴를 그린다.
-        bool background = false;
-        bool pinned = false;
+        JBro::Bool background = false;
+        JBro::Bool pinned = false;
         std::string drawnText;
 
     private:
         JBro::EditorApplication* m_editor = nullptr;
         JBro::GameObject* m_target = nullptr;
-        bool m_open = false;
-        bool m_close = false;
+        JBro::Bool m_open = false;
+        JBro::Bool m_close = false;
     };
 
     const char* ComponentLine(JBro::ComponentTypeId typeId)
@@ -12810,7 +12815,7 @@ namespace
         Check(canvas->AttachComponent<JBro::Component::Collider2D>(other) != nullptr, "the other object has a collider");
         const JBro::ComponentTypeId colliderType = first->GetTypeId();
 
-        int owner = 0;
+        JBro::Int32 owner = 0;
         g_componentHook = {};
         Check(editor.GetComponentMenus().Register(colliderType, &ProbeComponentHook, &owner),
             "the probe hook must be taken");
@@ -12819,13 +12824,13 @@ namespace
         Check(editor.AddPanel(std::move(panel)), "the menu probe panel must be taken");
         JBro::GameObject* one[] = {probe};
         editor.SelectObjects({one, 1});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
         menuProbe->Open();
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the menu must open");
         }
@@ -12841,7 +12846,7 @@ namespace
             "a component type without hooks must not get a line");
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), spot),
             "the second collider must get its own line, numbered");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the submenu must open on hover");
         }
@@ -12854,7 +12859,7 @@ namespace
 
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), spot),
             "the first collider line carries the bare type name");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the submenu must open on hover");
         }
@@ -12862,7 +12867,7 @@ namespace
         Check(menuProbe->lastResult, "the menu stays true while the hooks keep their target");
 
         g_componentHook.returnValue = false;
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick with a failing hook");
         }
@@ -12873,7 +12878,7 @@ namespace
         // 여럿을 고르면 공통 항목만 선다.
         JBro::GameObject* both[] = {probe, other};
         editor.SelectObjects({both, 2});
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick after selecting both");
         }
@@ -12885,7 +12890,7 @@ namespace
         // 실제 계층의 우클릭 메뉴도 같은 줄을 세운다.
         menuProbe->Close();
         editor.SelectObjects({one, 1});
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the probe menu must close");
         }
@@ -12932,24 +12937,24 @@ namespace
         editor.SelectObjects({one, 1});
         Check(editor.CopySelection(), "something must be on the clipboard so the paste rows are live");
         // 처음 몇 프레임은 도킹 배치가 포커스를 옮기며 열린 팝업을 닫는다.
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
-        auto drawMenu = [&](bool background) {
+        auto drawMenu = [&](JBro::Bool background) {
             menuProbe->background = background;
             menuProbe->drawnText.clear();
             menuProbe->Open();
             // 첫 프레임의 팝업은 아직 크기가 없어 항목이 잘린다. 크기가 잡힌 뒤의 글자를 받는다.
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the probe menu must open");
             }
             Check(menuProbe->draws > 0 && false == menuProbe->drawnText.empty(), "the probe menu must be drawn");
             const std::string text = menuProbe->drawnText;
             menuProbe->Close();
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(editor.Tick(Frame), "the probe menu must close");
             }
@@ -12996,14 +13001,14 @@ namespace
     // 행동 표에 올리는 시험용 행동의 할 일이다(D-284). 몇 번 불렸는지와 받은 문맥을 센다.
     struct ActionProbe
     {
-        int runs = 0;
-        std::uint32_t menu = 0;
+        JBro::Int32 runs = 0;
+        JBro::UInt32 menu = 0;
         JBro::GameObject* object = nullptr;
         JBro::ComponentTypeId componentType = 0;
     };
     ActionProbe g_actionProbe;
 
-    bool RunActionProbe(JBro::EditorActionContext& context)
+    JBro::Bool RunActionProbe(JBro::EditorActionContext& context)
     {
         ++g_actionProbe.runs;
         g_actionProbe.menu = context.menu;
@@ -13129,15 +13134,15 @@ namespace
         Check(editor.AddPanel(std::move(panel)) != nullptr, "the menu probe panel must be taken");
         JBro::GameObject* one[] = {probe};
         editor.SelectObjects({one, 1});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
-        const auto openMenu = [&](bool background) {
+        const auto openMenu = [&](JBro::Bool background) {
             menuProbe->background = background;
             menuProbe->Open();
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the probe menu must open");
             }
@@ -13147,7 +13152,7 @@ namespace
         };
         const auto closeMenu = [&]() {
             menuProbe->Close();
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(editor.Tick(Frame), "the probe menu must close");
             }
@@ -13188,7 +13193,7 @@ namespace
             JBro::MakeStableTypeId(JBro::Component::Transform2D::StaticTypeName())));
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, transformLine), spot),
             "a component type with an action gets its line in the object menu");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the submenu must open on hover");
         }
@@ -13215,7 +13220,7 @@ namespace
             "the probe actions must come off the table");
     }
 
-    bool PaletteHas(const JBro::Array<const JBro::EditorActionInfo*>& list, const char* name)
+    JBro::Bool PaletteHas(const JBro::Array<const JBro::EditorActionInfo*>& list, const char* name)
     {
         for (const JBro::EditorActionInfo* action : list)
         {
@@ -13284,7 +13289,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -13294,7 +13299,7 @@ namespace
 
         const auto open = [&]() {
             Check(editor.GetShortcuts().Execute(JBro::CommandPalettePopup::PopupId, editor), "the palette action must run");
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the palette must open");
             }
@@ -13313,7 +13318,7 @@ namespace
         Check(FindItemAnywhereInWindow(editor, hwnd, palette, LabelId(palette->ID, undoLabel), spot),
             "the palette lists undo under its category");
         ClickAt(editor, hwnd, spot);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick after the click");
         }
@@ -13379,13 +13384,13 @@ namespace
         Check(transform != nullptr && first != nullptr && second != nullptr, "the probe needs three components");
         const JBro::ComponentTypeId colliderType = first->GetTypeId();
 
-        int owner = 0;
+        JBro::Int32 owner = 0;
         g_componentHook = {};
         Check(editor.GetComponentMenus().Register(colliderType, &ProbeComponentHook, &owner),
             "the probe hook must be taken");
         JBro::GameObject* one[] = {probe};
         editor.SelectObjects({one, 1});
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -13398,7 +13403,7 @@ namespace
         Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 1), ComponentLine(colliderType)), header),
             "the first collider header must be in the inspector");
         ClickAt(editor, hwnd, header);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the section must fold");
         }
@@ -13424,8 +13429,8 @@ namespace
         Check(ImGui::GetCurrentContext()->HoveredId != removeId,
             "after a hook that may have changed the slots, the rest of the header menu must wait for the next frame");
         g_componentHook.returnValue = true;
-        bool back = false;
-        for (int frame = 0; frame < 4 && false == back; ++frame)
+        JBro::Bool back = false;
+        for (JBro::Int32 frame = 0; frame < 4 && false == back; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick");
             back = ImGui::GetCurrentContext()->HoveredId == removeId;
@@ -13437,12 +13442,12 @@ namespace
         SaveScreenshot(*editor.GetRenderer(), 1024, 768, "component_menu_inspector");
         // 항목을 누르면 메뉴가 닫힌다(창에 포커스가 없어 Esc 는 닿지 않는다).
         ClickAt(editor, hwnd, item);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the menu must close");
         }
 
-        const int callsBefore = g_componentHook.calls;
+        const JBro::Int32 callsBefore = g_componentHook.calls;
         Check(FindInspectorItem(editor, hwnd,
                 LabelId(PushedId(inspector->ID, 0), ComponentLine(transform->GetTypeId())), header),
             "the transform header must be in the inspector");
@@ -13505,7 +13510,7 @@ namespace
 
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -13513,9 +13518,9 @@ namespace
         Check(view != nullptr, "the canvas view must have a window");
         const ImGuiID vertex = LabelId(view->ID, "##vertex_1");
 
-        const auto at = [&](float worldX, float worldY) {
-            float x = 0.0f;
-            float y = 0.0f;
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
             Spot spot;
             spot.x = static_cast<int>(std::lround(x));
@@ -13552,7 +13557,7 @@ namespace
         Spot item;
         ImGuiWindow* menu = nullptr;
         ImGuiWindow* submenu = nullptr;
-        bool shot = false;
+        JBro::Bool shot = false;
         const auto pickSecond = [&]() {
             Check(FindHierarchyRow(editor, hwnd, cup, row), "the cup's row must be in the hierarchy");
             RightClickAt(editor, hwnd, row);
@@ -13560,7 +13565,7 @@ namespace
             Check(menu != nullptr, "right-clicking the row must open the object menu");
             Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), line),
                 "the second collider must have its line");
-            for (int frame = 0; frame < 3; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 Check(editor.Tick(Frame), "the submenu must open on hover");
             }
@@ -13575,7 +13580,7 @@ namespace
                 SaveScreenshot(*editor.GetRenderer(), 1280, 720, "component_menu_submenu");
             }
             ClickAt(editor, hwnd, item);
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(editor.Tick(Frame), "the menu must close");
             }
@@ -13621,7 +13626,7 @@ namespace
         Check(menu != nullptr, "the object menu must open again");
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), line),
             "the first collider must have its line");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the submenu must open on hover");
         }
@@ -13675,7 +13680,7 @@ namespace
         camera->orthographicSize = 0.0f;
         JBro::GameObject* chosen[] = {eye};
         editor.SelectObjects({chosen, 1});
-        for (int frame = 0; frame < 5; ++frame)
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
         {
             Check(editor.Tick(Frame), "a camera that cannot draw must not stop the editor");
         }
@@ -13686,7 +13691,7 @@ namespace
         camera->nearPlane = 50.0f;
         camera->farPlane = 10.0f;
         camera->orthographicSize = 4.0f;
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "a backwards depth range must not stop the editor either");
         }
@@ -13694,7 +13699,7 @@ namespace
 
         camera->nearPlane = -100.0f;
         camera->farPlane = 100.0f;
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick with the fixed camera");
         }
@@ -13704,7 +13709,7 @@ namespace
 
         camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
         camera->pixelsPerUnit = 16.0f;
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "a pixel perfect camera must draw in the editor");
         }
@@ -13715,8 +13720,8 @@ namespace
                 && screen.areaX + screen.areaWidth <= screen.targetWidth + 0.001f
                 && screen.areaY + screen.areaHeight <= screen.targetHeight + 0.001f,
             "the game screen frame carries the letterbox rectangle, inside the game view");
-        const float aspect = screen.areaWidth / screen.areaHeight;
-        const float reference = screen.referenceWidth / screen.referenceHeight;
+        const JBro::Float aspect = screen.areaWidth / screen.areaHeight;
+        const JBro::Float reference = screen.referenceWidth / screen.referenceHeight;
         Check(std::fabs(aspect - reference) < 0.02f, "the rectangle keeps the reference resolution's shape");
         // `JBRO_EDITOR_SHOT` 이 있을 때만 찍는다. 인스펙터의 투영 안내 줄을 사람이 본다.
         SaveScreenshot(*editor.GetRenderer(), 1280, 720, "pixel_perfect_camera");
@@ -13729,7 +13734,7 @@ namespace
         Check(canvas->SetObjectLayer(badge, ui.GetId()), "the badge goes on the layer");
         auto* badgePlace = canvas->AttachComponent<JBro::Component::Transform2D>(badge);
         badgePlace->position = {1.0f, 0.5f};
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with the moved camera");
         }
@@ -13769,7 +13774,7 @@ namespace
         // **집는 칸을 넉넉히 키운다.** 뷰의 한가운데는 툴바 높이만큼 창의 한가운데와
         // 어긋나 있어서, 빈 오브젝트의 기본 칸으로는 그 차이에 빗나간다.
         transform->scale = JBro::Vector2{8.0f, 8.0f};
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -13778,18 +13783,18 @@ namespace
         Check(view != nullptr, "the canvas view must have a window");
         // 월드 원점이 그림의 어디로 가는지는 캔버스 뷰에게 묻는다. 창 가운데는 탭 줄과
         // 도구 줄 몫만큼 어긋나 있어, 창 좌표로 짐작하면 테마의 간격이 바뀔 때마다 빗나간다.
-        float originX = 0.0f;
-        float originY = 0.0f;
+        JBro::Float originX = 0.0f;
+        JBro::Float originY = 0.0f;
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY),
             "the canvas view must map the world origin to the screen");
 
-        const auto rightClick = [&](int x, int y) {
+        const auto rightClick = [&](JBro::Int32 x, JBro::Int32 y) {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick before the right press");
             PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick on the right press");
             PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(x, y));
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick after the right release");
             }
@@ -13817,7 +13822,7 @@ namespace
 
         const std::size_t before = canvas->GetObjectCount();
         ClickAt(editor, hwnd, item);
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the delete");
         }
@@ -13864,7 +13869,7 @@ namespace
         JBro::GameObject* beta = canvas->CreateObject("Beta");
         JBro::GameObject* gamma = canvas->CreateObject("Gamma");
         JBro::GameObject* delta = canvas->CreateObject("Delta");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
@@ -13910,7 +13915,7 @@ namespace
     }
 }
 
-int RunEditorApplicationTests()
+JBro::Int32 RunEditorApplicationTests()
 {
     TestEditorProjectSessions();
     TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D12);

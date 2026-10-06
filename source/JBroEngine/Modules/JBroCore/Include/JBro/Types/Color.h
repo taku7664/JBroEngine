@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <type_traits>
+#include <JBro/Types/Float.h>
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Color ─ 엔진 공통 RGBA 색
@@ -25,17 +26,17 @@ namespace JBro
 {
 struct Color
 {
-	float R = 0.0f;
-	float G = 0.0f;
-	float B = 0.0f;
-	float A = 1.0f;
+	Float R = 0.0f;
+	Float G = 0.0f;
+	Float B = 0.0f;
+	Float A = 1.0f;
 
 	// 연속된 4채널의 시작 주소. RHI / ImGui / 상수버퍼로 넘길 때 쓴다.
-	float*       Data()       noexcept { return &R; }
-	const float* Data() const noexcept { return &R; }
+	Float*       Data()       noexcept { return &R; }
+	const Float* Data() const noexcept { return &R; }
 
-	float&       operator[](std::size_t index)       noexcept { return Data()[index]; }
-	const float& operator[](std::size_t index) const noexcept { return Data()[index]; }
+	Float&       operator[](std::size_t index)       noexcept { return Data()[index]; }
+	const Float& operator[](std::size_t index) const noexcept { return Data()[index]; }
 
 	friend bool operator==(const Color& lhs, const Color& rhs) noexcept
 	{

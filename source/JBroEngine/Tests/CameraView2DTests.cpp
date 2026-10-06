@@ -10,13 +10,17 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 2D 카메라가 화면에 무엇을 보이는지(D-239). 장치 없이 계산만 잰다 - 그리기와 역투영이 같은 함수를 쓰는지는
 // `RendererContractTests` 의 PixelPerfect 절이 가짜 장치로 잰다.
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -25,12 +29,12 @@ namespace
         }
     }
 
-    bool Close(float a, float b)
+    JBro::Bool Close(JBro::Float a, JBro::Float b)
     {
         return std::fabs(a - b) < 0.0001f;
     }
 
-    JBro::ScreenSpaceFrame Frame(float refW, float refH, float targetW, float targetH)
+    JBro::ScreenSpaceFrame Frame(JBro::Float refW, JBro::Float refH, JBro::Float targetW, JBro::Float targetH)
     {
         JBro::ScreenSpaceFrame frame;
         frame.referenceWidth = refW;
@@ -43,7 +47,7 @@ namespace
     void TestThePixelPerfectAreaIsAnIntegerScaleInTheMiddle()
     {
         JBro::ScreenArea area;
-        float scale = 0.0f;
+        JBro::Float scale = 0.0f;
         Check(JBro::ComputePixelPerfectArea(Frame(320.0f, 180.0f, 1280.0f, 720.0f), area, scale)
                 && Close(scale, 4.0f) && Close(area.x, 0.0f) && Close(area.y, 0.0f)
                 && Close(area.width, 1280.0f) && Close(area.height, 720.0f),
@@ -99,16 +103,16 @@ namespace
                 && Close(extent.halfWidth, 480.0f) && Close(extent.halfHeight, 270.0f),
             "one pixel per unit counts the drawn rectangle's pixels");
 
-        float x = 0.0f;
-        float y = 0.0f;
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
         Check(JBro::ScreenPixelToNormalized(frame, 500.0f, 350.0f, x, y) && Close(x, 0.0f) && Close(y, 0.0f),
             "the middle of the rectangle is the middle of the view");
         Check(JBro::ScreenPixelToNormalized(frame, 20.0f, 80.0f, x, y) && Close(x, -1.0f) && Close(y, 1.0f),
             "its top-left corner is (-1, 1)");
         Check(JBro::ScreenPixelToNormalized(frame, 10.0f, 350.0f, x, y) && x < -1.0f,
             "a pixel on the bar lies outside the view");
-        float pixelX = 0.0f;
-        float pixelY = 0.0f;
+        JBro::Float pixelX = 0.0f;
+        JBro::Float pixelY = 0.0f;
         Check(JBro::NormalizedToScreenPixel(frame, 1.0f, -1.0f, pixelX, pixelY)
                 && Close(pixelX, 980.0f) && Close(pixelY, 620.0f),
             "and back: (1, -1) is the rectangle's bottom-right corner");
@@ -128,7 +132,7 @@ namespace
     void TestOnlyDrawableCamerasAreDrawable()
     {
         using JBro::Component::CameraProjection2D;
-        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const JBro::Float nan = std::numeric_limits<float>::quiet_NaN();
         Check(JBro::IsDrawableCamera2D(Camera(CameraProjection2D::Orthographic)), "a sane orthographic camera draws");
         Check(JBro::IsDrawableCamera2D(Camera(CameraProjection2D::PixelPerfect)), "a sane pixel perfect camera draws");
 
@@ -214,7 +218,7 @@ namespace
         transforms.Update(canvas, 0.0f);
 
         JBro::RenderCamera2D chosen;
-        std::uint32_t unusable = 0;
+        JBro::UInt32 unusable = 0;
         Check(JBro::System::Camera2DSystem::SelectCamera(canvas, chosen, &unusable) && chosen.owner == spare
                 && Close(chosen.orthographicSize, 3.0f),
             "a primary camera that cannot draw is passed over for the next one");
@@ -237,7 +241,7 @@ namespace
     }
 }
 
-int RunCameraView2DTests()
+JBro::Int32 RunCameraView2DTests()
 {
     TestThePixelPerfectAreaIsAnIntegerScaleInTheMiddle();
     TestTheScreenAreaDrivesExtentsAndPointers();

@@ -8,6 +8,9 @@
 
 #include <cstring>
 #include <iostream>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 using namespace JBro::Network;
 using namespace JBro::Network::Testing;
@@ -22,10 +25,10 @@ namespace
         Transport server;
         Transport client;
         ConnectionId clientOnServer = InvalidConnectionId;
-        std::uint32_t rounds = 0;
+        JBro::UInt32 rounds = 0;
 
         explicit Pair(const LossyConfig* lossy = nullptr, const TransportConfig& serverConfig = {},
-            const TransportConfig& clientConfig = {}, bool clientHasUdp = true)
+            const TransportConfig& clientConfig = {}, JBro::Bool clientHasUdp = true)
             : server(provider, clock, serverConfig)
             , client(provider, clock, clientConfig)
         {
@@ -49,7 +52,7 @@ namespace
 
         void ConnectBoth()
         {
-            for (int round = 0; round < 40 && InvalidConnectionId == clientOnServer; ++round)
+            for (JBro::Int32 round = 0; round < 40 && InvalidConnectionId == clientOnServer; ++round)
             {
                 Round();
                 if (server.GetConnectionCount() > 0
@@ -70,7 +73,7 @@ namespace
             ReliableDiagnostics serverSide;
             ReliableDiagnostics clientSide;
             // 유실 아래에서는 첫 punch 가 사라질 수 있다. 되풀이 punch(100ms) 가 몇 번 돌 시간을 준다.
-            for (int round = 0; round < 400; ++round)
+            for (JBro::Int32 round = 0; round < 400; ++round)
             {
                 Round();
                 server.GetReliableDiagnostics(clientOnServer, serverSide);
@@ -88,11 +91,11 @@ namespace
     // 상대가 보낸 바이트를 믿지 않는 자리들. 여기 있는 것은 정상 상대라면 만들지 않는 데이터그램이다.
     struct CollectingReceiver final : public IReliableReceiver
     {
-        std::uint32_t count = 0;
-        std::uint32_t lastSize = 0;
+        JBro::UInt32 count = 0;
+        JBro::UInt32 lastSize = 0;
         std::uint8_t last[UdpProto::MaxPayloadBytes * 4] = {};
 
-        void Deliver(NetChannel channel, MessageId messageId, const std::uint8_t* payload, std::uint32_t size) override
+        void Deliver(NetChannel channel, MessageId messageId, const std::uint8_t* payload, JBro::UInt32 size) override
         {
             (void)channel;
             (void)messageId;
@@ -105,7 +108,7 @@ namespace
         }
     };
 
-    UdpProto::DatagramHeader FragmentHeader(std::uint32_t seq, std::uint32_t msgSeq, std::uint16_t index, std::uint16_t count)
+    UdpProto::DatagramHeader FragmentHeader(JBro::UInt32 seq, JBro::UInt32 msgSeq, std::uint16_t index, std::uint16_t count)
     {
         UdpProto::DatagramHeader header;
         header.flags = UdpProto::FlagReliable | UdpProto::FlagFragment;
@@ -127,12 +130,12 @@ namespace
         header.seq = 1;
         header.msgId = 7;
         const std::uint8_t body[] = { 1, 2, 3 };
-        const std::uint32_t written = UdpProto::Encode(header, body, sizeof(body), buffer);
+        const JBro::UInt32 written = UdpProto::Encode(header, body, sizeof(body), buffer);
         Check(written > 0, "a well formed datagram encodes");
 
         UdpProto::DatagramHeader parsed;
         const std::uint8_t* payload = nullptr;
-        std::uint32_t payloadSize = 0;
+        JBro::UInt32 payloadSize = 0;
         Check(UdpProto::Decode(buffer, written, parsed, payload, payloadSize), "and decodes");
 
         // 채널 바이트는 토큰 8 바이트와 플래그 1 바이트 뒤다.
@@ -174,7 +177,7 @@ namespace
         ReliableEndpoint endpoint;
         endpoint.Reset(config);
         // 랩 직전으로 순번 공간을 옮긴다.
-        const std::uint32_t start = 0xFFFFFFFEu;
+        const JBro::UInt32 start = 0xFFFFFFFEu;
         endpoint.SetSequenceOriginForTests(start);
         CollectingReceiver receiver;
 
@@ -195,7 +198,7 @@ namespace
         endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
         Check(receiver.count == 3, "and when the gap fills, both come up in order");
 
-        for (std::uint32_t step = 3; step < 6; ++step)
+        for (JBro::UInt32 step = 3; step < 6; ++step)
         {
             header.seq = start + step;
             endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
@@ -218,13 +221,13 @@ namespace
         header.msgId = 321;
         const std::uint8_t payload[3] = { 1, 2, 3 };
         std::uint8_t wire[UdpProto::MaxDatagramBytes];
-        const std::uint32_t written = UdpProto::Encode(header, payload, 3, wire);
+        const JBro::UInt32 written = UdpProto::Encode(header, payload, 3, wire);
         Check(written == UdpProto::HeaderBytes(header.flags) + 3, "the size is the header for these flags plus the payload");
         Check(written == 14 + 8 + 8 + 2 + 3, "which is 35 bytes here");
 
         UdpProto::DatagramHeader decoded;
         const std::uint8_t* body = nullptr;
-        std::uint32_t bodySize = 0;
+        JBro::UInt32 bodySize = 0;
         Check(UdpProto::Decode(wire, written, decoded, body, bodySize), "it decodes");
         Check(decoded.token == header.token && decoded.flags == header.flags && decoded.channel == header.channel
                 && decoded.seq == 77 && decoded.ackBase == 70 && decoded.ackBits == 0xF0F0 && decoded.msgSeq == 9
@@ -237,7 +240,7 @@ namespace
 
         UdpProto::DatagramHeader plain;
         plain.msgId = 5;
-        const std::uint32_t plainSize = UdpProto::Encode(plain, nullptr, 0, wire);
+        const JBro::UInt32 plainSize = UdpProto::Encode(plain, nullptr, 0, wire);
         Check(plainSize == 16, "an unreliable datagram carries only the 14 byte prefix and the message id");
     }
 
@@ -253,23 +256,23 @@ namespace
         Check(pair.server.GetReliableDiagnostics(pair.clientOnServer, diagnostics) && diagnostics.udpReady,
             "the server learned the client's endpoint from the punch");
 
-        const std::uint32_t value = 42;
+        const JBro::UInt32 value = 42;
         Check(pair.client.Send(ServerConnectionId, 3, &value, sizeof(value), NetChannel::Unreliable), "send unreliable");
         Check(pair.client.Send(ServerConnectionId, 4, &value, sizeof(value), NetChannel::UnreliableSequenced), "send sequenced");
         Check(pair.client.Send(ServerConnectionId, 5, &value, sizeof(value), NetChannel::ReliableUnordered), "send unordered");
         Check(pair.client.Send(ServerConnectionId, 6, &value, sizeof(value), NetChannel::ReliableOrdered), "send ordered");
-        for (int round = 0; round < 4; ++round)
+        for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();
         }
         MessageView views[8];
-        const std::uint32_t got = pair.server.TakeMessages(views, 8);
+        const JBro::UInt32 got = pair.server.TakeMessages(views, 8);
         Check(got == 4, "all four arrive");
-        bool sawUnreliable = false;
-        bool sawSequenced = false;
-        bool sawUnordered = false;
-        bool sawOrdered = false;
-        for (std::uint32_t index = 0; index < got; ++index)
+        JBro::Bool sawUnreliable = false;
+        JBro::Bool sawSequenced = false;
+        JBro::Bool sawUnordered = false;
+        JBro::Bool sawOrdered = false;
+        for (JBro::UInt32 index = 0; index < got; ++index)
         {
             sawUnreliable = sawUnreliable || (views[index].messageId == 3 && views[index].channel == NetChannel::Unreliable);
             sawSequenced = sawSequenced || (views[index].messageId == 4 && views[index].channel == NetChannel::UnreliableSequenced);
@@ -282,22 +285,22 @@ namespace
 
     struct OrderedOutcome
     {
-        std::uint32_t rounds = 0;
-        std::uint32_t dropped = 0;
-        std::uint32_t duplicated = 0;
-        std::uint32_t reordered = 0;
+        JBro::UInt32 rounds = 0;
+        JBro::UInt32 dropped = 0;
+        JBro::UInt32 duplicated = 0;
+        JBro::UInt32 reordered = 0;
     };
 
     // 유실·중복·재정렬 아래에서 `count` 개의 순서 보장 메시지를 보내고, 순서대로 정확히 한 번 도착하는지 본다.
-    OrderedOutcome RunOrderedUnderLoss(const LossyConfig& lossy, std::uint32_t count)
+    OrderedOutcome RunOrderedUnderLoss(const LossyConfig& lossy, JBro::UInt32 count)
     {
         Pair pair(&lossy);
         pair.ConnectBoth();
         pair.WaitForUdp();
-        std::uint32_t sent = 0;
-        std::uint32_t expected = 0;
+        JBro::UInt32 sent = 0;
+        JBro::UInt32 expected = 0;
         MessageView views[64];
-        for (std::uint32_t round = 0; round < 40000 && expected < count; ++round)
+        for (JBro::UInt32 round = 0; round < 40000 && expected < count; ++round)
         {
             while (sent < count)
             {
@@ -308,10 +311,10 @@ namespace
                 ++sent;
             }
             pair.Round();
-            const std::uint32_t got = pair.server.TakeMessages(views, 64);
-            for (std::uint32_t index = 0; index < got; ++index)
+            const JBro::UInt32 got = pair.server.TakeMessages(views, 64);
+            for (JBro::UInt32 index = 0; index < got; ++index)
             {
-                std::uint32_t value = 0;
+                JBro::UInt32 value = 0;
                 std::memcpy(&value, views[index].data, sizeof(value));
                 Check(views[index].channel == NetChannel::ReliableOrdered, "ordered arrives as ordered");
                 Check(value == expected, "ordered messages arrive in order, exactly once, with nothing skipped");
@@ -373,24 +376,24 @@ namespace
         Pair pair(&lossy);
         pair.ConnectBoth();
         pair.WaitForUdp();
-        constexpr std::uint32_t Count = 200;
+        constexpr JBro::UInt32 Count = 200;
         std::uint8_t seen[Count] = {};
-        std::uint32_t sent = 0;
-        std::uint32_t received = 0;
-        bool outOfOrder = false;
-        std::uint32_t last = 0;
+        JBro::UInt32 sent = 0;
+        JBro::UInt32 received = 0;
+        JBro::Bool outOfOrder = false;
+        JBro::UInt32 last = 0;
         MessageView views[64];
-        for (std::uint32_t round = 0; round < 40000 && received < Count; ++round)
+        for (JBro::UInt32 round = 0; round < 40000 && received < Count; ++round)
         {
             while (sent < Count && pair.client.Send(ServerConnectionId, 2, &sent, sizeof(sent), NetChannel::ReliableUnordered))
             {
                 ++sent;
             }
             pair.Round();
-            const std::uint32_t got = pair.server.TakeMessages(views, 64);
-            for (std::uint32_t index = 0; index < got; ++index)
+            const JBro::UInt32 got = pair.server.TakeMessages(views, 64);
+            for (JBro::UInt32 index = 0; index < got; ++index)
             {
-                std::uint32_t value = 0;
+                JBro::UInt32 value = 0;
                 std::memcpy(&value, views[index].data, sizeof(value));
                 Check(value < Count, "values are the ones sent");
                 Check(0 == seen[value], "no message arrives twice");
@@ -418,16 +421,16 @@ namespace
         Pair pair(&lossy);
         pair.ConnectBoth();
         pair.WaitForUdp();
-        constexpr std::uint32_t Size = 20000;
+        constexpr JBro::UInt32 Size = 20000;
         std::uint8_t payload[Size];
-        for (std::uint32_t index = 0; index < Size; ++index)
+        for (JBro::UInt32 index = 0; index < Size; ++index)
         {
             payload[index] = static_cast<std::uint8_t>(index * 31 + 7);
         }
-        std::uint32_t sent = 0;
-        std::uint32_t received = 0;
+        JBro::UInt32 sent = 0;
+        JBro::UInt32 received = 0;
         MessageView view;
-        for (std::uint32_t round = 0; round < 40000 && received < 3; ++round)
+        for (JBro::UInt32 round = 0; round < 40000 && received < 3; ++round)
         {
             while (sent < 3)
             {
@@ -457,7 +460,7 @@ namespace
         Pair pair;
         pair.ConnectBoth();
         pair.WaitForUdp();
-        std::uint32_t sent = 0;
+        JBro::UInt32 sent = 0;
         while (sent < 500 && pair.client.Send(ServerConnectionId, 1, &sent, sizeof(sent)))
         {
             ++sent;
@@ -468,11 +471,11 @@ namespace
         Check(diagnostics.unacked <= diagnostics.congestionWindow, "in flight never exceeds the congestion window");
         Check(diagnostics.unacked <= ReliableEndpoint::AckWindow, "nor the ack window");
         Check(diagnostics.queued > 0, "the rest waits in the queue");
-        std::uint32_t received = 0;
-        std::uint32_t expected = 0;
+        JBro::UInt32 received = 0;
+        JBro::UInt32 expected = 0;
         MessageView views[64];
-        std::uint32_t largestWindow = 0;
-        for (std::uint32_t round = 0; round < 4000 && received < 500; ++round)
+        JBro::UInt32 largestWindow = 0;
+        for (JBro::UInt32 round = 0; round < 4000 && received < 500; ++round)
         {
             pair.Round();
             pair.client.GetReliableDiagnostics(ServerConnectionId, diagnostics);
@@ -481,10 +484,10 @@ namespace
             {
                 largestWindow = diagnostics.congestionWindow;
             }
-            const std::uint32_t got = pair.server.TakeMessages(views, 64);
-            for (std::uint32_t index = 0; index < got; ++index)
+            const JBro::UInt32 got = pair.server.TakeMessages(views, 64);
+            for (JBro::UInt32 index = 0; index < got; ++index)
             {
-                std::uint32_t value = 0;
+                JBro::UInt32 value = 0;
                 std::memcpy(&value, views[index].data, sizeof(value));
                 Check(value == expected, "in order");
                 ++expected;
@@ -508,15 +511,15 @@ namespace
         pair.ConnectBoth();
         pair.WaitForUdp();
         // 1) 순수 비신뢰: 잃은 것은 그대로 잃고, 도착률은 주입한 유실률 근처다.
-        std::uint32_t plainReceived = 0;
+        JBro::UInt32 plainReceived = 0;
         MessageView views[64];
-        for (std::uint32_t value = 0; value < 500; ++value)
+        for (JBro::UInt32 value = 0; value < 500; ++value)
         {
             pair.client.Send(ServerConnectionId, 7, &value, sizeof(value), NetChannel::Unreliable);
             pair.Round();
             plainReceived += pair.server.TakeMessages(views, 64);
         }
-        for (int round = 0; round < 8; ++round)
+        for (JBro::Int32 round = 0; round < 8; ++round)
         {
             pair.Round();
             plainReceived += pair.server.TakeMessages(views, 64);
@@ -527,22 +530,22 @@ namespace
         Check(loss > 0.15 && loss < 0.45, "the measured loss rate is near the injected 30%");
 
         // 2) Sequenced: 재정렬로 뒤늦게 온 것은 버려져, 보이는 값은 언제나 커진다.
-        std::uint32_t sequencedReceived = 0;
-        std::uint32_t lastSequenced = 0;
-        bool sequencedMonotonic = true;
-        for (std::uint32_t value = 0; value < 500; ++value)
+        JBro::UInt32 sequencedReceived = 0;
+        JBro::UInt32 lastSequenced = 0;
+        JBro::Bool sequencedMonotonic = true;
+        for (JBro::UInt32 value = 0; value < 500; ++value)
         {
             pair.client.Send(ServerConnectionId, 8, &value, sizeof(value), NetChannel::UnreliableSequenced);
             pair.Round();
-            const std::uint32_t got = pair.server.TakeMessages(views, 64);
-            for (std::uint32_t index = 0; index < got; ++index)
+            const JBro::UInt32 got = pair.server.TakeMessages(views, 64);
+            for (JBro::UInt32 index = 0; index < got; ++index)
             {
                 // 1) 의 마지막 몇 개가 재정렬 큐에 남아 있다가 지금 나온다. 이 채널의 메시지만 본다.
                 if (views[index].messageId != 8)
                 {
                     continue;
                 }
-                std::uint32_t seen = 0;
+                JBro::UInt32 seen = 0;
                 std::memcpy(&seen, views[index].data, sizeof(seen));
                 if (sequencedReceived > 0 && seen <= lastSequenced)
                 {
@@ -563,7 +566,7 @@ namespace
         Pair pair(nullptr, {}, {}, false);
         pair.ConnectBoth();
         ReliableDiagnostics clientSide;
-        for (int round = 0; round < 4; ++round)
+        for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();
         }
@@ -573,25 +576,25 @@ namespace
         pair.server.GetReliableDiagnostics(pair.clientOnServer, serverSide);
         Check(serverSide.route == OrderedRoute::Undecided, "the server is still waiting for a punch");
 
-        const std::uint32_t values[3] = { 10, 20, 30 };
-        for (std::uint32_t value : values)
+        const JBro::UInt32 values[3] = { 10, 20, 30 };
+        for (JBro::UInt32 value : values)
         {
             Check(pair.server.Send(pair.clientOnServer, 1, &value, sizeof(value)), "the server queues ordered messages");
         }
         MessageView views[8];
         Check(pair.client.TakeMessages(views, 8) == 0, "nothing arrives while the route is undecided");
         pair.clock.Advance(2001.0);
-        for (int round = 0; round < 4; ++round)
+        for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();
         }
         pair.server.GetReliableDiagnostics(pair.clientOnServer, serverSide);
         Check(serverSide.route == OrderedRoute::WebSocket, "after the wait the server settles on WS");
-        const std::uint32_t got = pair.client.TakeMessages(views, 8);
+        const JBro::UInt32 got = pair.client.TakeMessages(views, 8);
         Check(got == 3, "the backlog is flushed");
-        for (std::uint32_t index = 0; index < got; ++index)
+        for (JBro::UInt32 index = 0; index < got; ++index)
         {
-            std::uint32_t value = 0;
+            JBro::UInt32 value = 0;
             std::memcpy(&value, views[index].data, sizeof(value));
             Check(value == values[index], "in the order it was queued");
             Check(views[index].channel == NetChannel::ReliableOrdered, "over the reliable WS channel");
@@ -606,16 +609,16 @@ namespace
         noUdp.udpEnabled = false;
         Pair pair(nullptr, noUdp, {});
         pair.ConnectBoth();
-        const std::uint32_t value = 99;
+        const JBro::UInt32 value = 99;
         Check(pair.client.Send(ServerConnectionId, 1, &value, sizeof(value)), "the client queues an ordered message");
         MessageView view;
-        for (int round = 0; round < 4; ++round)
+        for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();
         }
         Check(pair.server.TakeMessages(&view, 1) == 0, "it waits for the route");
         pair.clock.Advance(2001.0);
-        for (int round = 0; round < 4; ++round)
+        for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();
         }
@@ -624,7 +627,7 @@ namespace
         pair.client.GetReliableDiagnostics(ServerConnectionId, diagnostics);
         Check(diagnostics.route == OrderedRoute::WebSocket && false == diagnostics.udpReady, "the client settled on WS");
         Check(pair.server.Send(pair.clientOnServer, 2, &value, sizeof(value), NetChannel::Unreliable), "the server sends unreliable");
-        for (int round = 0; round < 4; ++round)
+        for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();
         }
@@ -633,7 +636,7 @@ namespace
     }
 }
 
-int RunReliableUdpTests()
+JBro::Int32 RunReliableUdpTests()
 {
     try
     {

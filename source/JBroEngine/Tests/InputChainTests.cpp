@@ -23,13 +23,16 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 // 입력 레이어 체인과 블로킹을 잰다(D-214, input-plan §4 의 3).
 namespace
 {
     using namespace JBro;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -50,7 +53,7 @@ namespace
     }
 #endif
 
-    Array<int> g_dispatchLog;
+    Array<JBro::Int32> g_dispatchLog;
 
     // 핸들러 프로브의 몸이다. 레이어·순서는 아래 파생 타입의 상속 줄이 정한다.
     class HandlerProbe : public GameScript2D
@@ -74,13 +77,13 @@ namespace
             return block ? InputResult::Block : InputResult::Pass;
         }
 
-        int mark = 0;
-        bool block = false;
-        bool takeMouse = false;
+        JBro::Int32 mark = 0;
+        JBro::Bool block = false;
+        JBro::Bool takeMouse = false;
         GameScriptBase* disableTarget = nullptr;
-        bool sawW = false;
-        bool sawMouse = false;
-        bool sawMouseAfterConsume = false;
+        JBro::Bool sawW = false;
+        JBro::Bool sawMouse = false;
+        JBro::Bool sawMouseAfterConsume = false;
     };
 
 #define JBRO_TEST_HANDLER(Name, Layer, Order)                                        \
@@ -137,10 +140,10 @@ namespace
             fixedSawW = GetInputServices().Input.Keyboard().IsDown(Key::W);
         }
 
-        bool sawW = false;
-        bool sawMouse = false;
-        int fixedSteps = 0;
-        bool fixedSawW = false;
+        JBro::Bool sawW = false;
+        JBro::Bool sawMouse = false;
+        JBro::Int32 fixedSteps = 0;
+        JBro::Bool fixedSawW = false;
     };
 
     InputEvent Held(Key key)
@@ -183,7 +186,7 @@ namespace
         }
 
         template<typename T>
-        T* Add(int mark)
+        T* Add(JBro::Int32 mark)
         {
             GameObject* object = canvas.CreateObject("probe");
             T* script = canvas.AttachComponent<T>(object);
@@ -403,7 +406,7 @@ namespace
 
         g_crtAllocations = 0;
         _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountCrtAllocations);
-        for (int frame = 0; frame < 200; ++frame)
+        for (JBro::Int32 frame = 0; frame < 200; ++frame)
         {
             rig.input.BeginFrame(HeldWAndMouse);
             rig.scripts.DispatchInput(rig.canvas);
@@ -491,14 +494,14 @@ namespace
             ++clicks;
         }
 
-        int enters = 0;
-        int exits = 0;
-        int downs = 0;
-        int ups = 0;
-        int clicks = 0;
+        JBro::Int32 enters = 0;
+        JBro::Int32 exits = 0;
+        JBro::Int32 downs = 0;
+        JBro::Int32 ups = 0;
+        JBro::Int32 clicks = 0;
     };
 
-    InputEvent MouseAt(float x, float y)
+    InputEvent MouseAt(JBro::Float x, JBro::Float y)
     {
         InputEvent event;
         event.kind = InputEventKind::MouseMove;
@@ -515,7 +518,7 @@ namespace
         return event;
     }
 
-    InputEvent Touch(InputEventKind kind, float x, float y)
+    InputEvent Touch(InputEventKind kind, JBro::Float x, JBro::Float y)
     {
         InputEvent event;
         event.kind = kind;
@@ -663,7 +666,7 @@ namespace
         Check(false == playButton->hovered, "nor just past the bottom");
 
         // 역투영 서비스: 화면 레이어는 기준 픽셀, 월드 레이어는 월드 좌표다. 거꾸로도 같은 자리다.
-        const auto closeTo = [](float a, float b) { return std::fabs(a - b) < 0.001f; };
+        const auto closeTo = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.001f; };
         Vector2 point;
         Check(screen.ScreenToLayer({150.0f, 25.0f}, play->GetScriptHandle(), point) && closeTo(point.x, 50.0f) && closeTo(point.y, 25.0f),
             "a pixel lands on the screen layer in reference pixels");
@@ -681,9 +684,9 @@ namespace
     }
 }
 
-int RunInputChainTests()
+JBro::Int32 RunInputChainTests()
 {
-    const bool echo = Log::GetEchoToConsole();
+    const JBro::Bool echo = Log::GetEchoToConsole();
     Log::SetEchoToConsole(false);
     TestHandlersRunInLayerThenOrderThenExecutionOrder();
     TestAScriptJoinsTheChainAfterItStarts();

@@ -5,6 +5,8 @@
 #include <JBro/Types/Array.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -16,7 +18,7 @@ namespace JBro
         // 슬롯 이름의 바이트 상한이다. 경로 전체가 Windows 의 짧은 경로 한도에 닿지 않게 한다.
         constexpr std::size_t MaxSlotBytes = 128;
 
-        bool EndsWith(const char* text, std::size_t length, const char* suffix)
+        Bool EndsWith(const char* text, std::size_t length, const char* suffix)
         {
             const std::size_t suffixLength = std::strlen(suffix);
             return length >= suffixLength && std::memcmp(text + length - suffixLength, suffix, suffixLength) == 0;
@@ -28,7 +30,7 @@ namespace JBro
         }
 
         // `CON`·`NUL`·`COM1` 따위는 확장자를 붙여도(`nul.txt`) 장치다. 쓰면 오류 없이 사라진다.
-        bool IsReservedDeviceName(const char* slot, std::size_t length)
+        Bool IsReservedDeviceName(const char* slot, std::size_t length)
         {
             std::size_t stem = 0;
             while (stem < length && slot[stem] != '.')
@@ -67,7 +69,7 @@ namespace JBro
     {
     }
 
-    bool SaveStorage::Open(const char* folder)
+    Bool SaveStorage::Open(const char* folder)
     {
         Close();
         if (folder == nullptr || folder[0] == '\0')
@@ -96,7 +98,7 @@ namespace JBro
         return m_folder;
     }
 
-    String SaveStorage::MakeFolder(const char* userDataFolder, const char* productName, bool editor)
+    String SaveStorage::MakeFolder(const char* userDataFolder, const char* productName, Bool editor)
     {
         if (userDataFolder == nullptr || userDataFolder[0] == '\0')
         {
@@ -109,7 +111,7 @@ namespace JBro
         for (char& c : product)
         {
             const unsigned char byte = static_cast<unsigned char>(c);
-            const bool allowed = byte >= 0x80 || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+            const Bool allowed = byte >= 0x80 || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
                 || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == ' ';
             if (false == allowed)
             {
@@ -135,7 +137,7 @@ namespace JBro
         return folder;
     }
 
-    bool SaveStorage::IsValidSlotName(const char* slot)
+    Bool SaveStorage::IsValidSlotName(const char* slot)
     {
         if (slot == nullptr || slot[0] == '\0')
         {
@@ -193,12 +195,12 @@ namespace JBro
         return path;
     }
 
-    bool SaveStorage::IsReady() const noexcept
+    Bool SaveStorage::IsReady() const noexcept
     {
         return m_ready;
     }
 
-    bool SaveStorage::Write(const char* slot, const void* data, std::size_t size) noexcept
+    Bool SaveStorage::Write(const char* slot, const void* data, std::size_t size) noexcept
     {
         const String path = ResolveSlot(slot);
         // 플랫폼의 쓰기는 32 비트 길이를 받는다. 4 GiB 를 넘는 세이브는 쓰지 않는다.
@@ -230,7 +232,7 @@ namespace JBro
         return true;
     }
 
-    bool SaveStorage::GetSize(const char* slot, std::size_t& outSize) const noexcept
+    Bool SaveStorage::GetSize(const char* slot, std::size_t& outSize) const noexcept
     {
         outSize = 0;
         const String path = ResolveSlot(slot);
@@ -243,7 +245,7 @@ namespace JBro
         {
             return false;
         }
-        const std::int64_t size = stream->GetSize();
+        const Int64 size = stream->GetSize();
         if (size < 0)
         {
             return false;
@@ -252,7 +254,7 @@ namespace JBro
         return true;
     }
 
-    bool SaveStorage::Read(const char* slot, void* buffer, std::size_t capacity, std::size_t& outSize) const noexcept
+    Bool SaveStorage::Read(const char* slot, void* buffer, std::size_t capacity, std::size_t& outSize) const noexcept
     {
         outSize = 0;
         const String path = ResolveSlot(slot);
@@ -265,7 +267,7 @@ namespace JBro
         {
             return false;
         }
-        const std::int64_t size = stream->GetSize();
+        const Int64 size = stream->GetSize();
         if (size < 0 || static_cast<std::uint64_t>(size) > capacity || (buffer == nullptr && size > 0))
         {
             return false;
@@ -284,13 +286,13 @@ namespace JBro
         return true;
     }
 
-    bool SaveStorage::Exists(const char* slot) const noexcept
+    Bool SaveStorage::Exists(const char* slot) const noexcept
     {
         const String path = ResolveSlot(slot);
         return false == path.empty() && m_platform.FileExists(path.c_str());
     }
 
-    bool SaveStorage::Remove(const char* slot) noexcept
+    Bool SaveStorage::Remove(const char* slot) noexcept
     {
         const String path = ResolveSlot(slot);
         if (path.empty())
@@ -304,7 +306,7 @@ namespace JBro
         return m_platform.DeleteFileAt(path.c_str());
     }
 
-    bool SaveStorage::Flush() noexcept
+    Bool SaveStorage::Flush() noexcept
     {
         // 데스크톱은 `MoveFileTo` 가 쓰기를 디스크까지 밀었다(`MOVEFILE_WRITE_THROUGH`). 웹이 서면 여기서 IndexedDB 로 넘긴다.
         return m_ready;

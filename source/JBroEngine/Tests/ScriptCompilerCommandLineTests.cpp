@@ -18,13 +18,15 @@
 #include <string>
 
 #include <Windows.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
     using namespace JBro;
     using namespace JBro::ScriptCompiler;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -53,7 +55,7 @@ namespace
         {
             return std::string();
         }
-        const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+        const JBro::Int32 size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
         std::string result(static_cast<std::size_t>(size), '\0');
         WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), size, nullptr, nullptr);
         return result;
@@ -90,7 +92,7 @@ namespace
     RunResult Run(const std::filesystem::path& executable, const std::wstring& arguments, const std::filesystem::path& scratch,
         const std::filesystem::path& workingDirectory = std::filesystem::path())
     {
-        static int counter = 0;
+        static JBro::Int32 counter = 0;
         ++counter;
         const std::filesystem::path outPath = scratch / (L"out" + std::to_wstring(counter) + L".txt");
         const std::filesystem::path errPath = scratch / (L"err" + std::to_wstring(counter) + L".txt");
@@ -283,7 +285,7 @@ namespace
 
             std::smatch match;
             const std::string line = result.Out.substr(0, result.Out.size() - 1);
-            const bool matched = std::regex_match(line, match, std::regex(MsCompilePattern));
+            const JBro::Bool matched = std::regex_match(line, match, std::regex(MsCompilePattern));
             Check(matched, "the line matches the $msCompile problem matcher");
             Check(match[1].str() == ToUtf8(std::filesystem::absolute(bad).lexically_normal().native()),
                 "the matcher reads the absolute path, which $msCompile requires");
@@ -339,7 +341,7 @@ namespace
     }
 }
 
-int RunScriptCompilerCommandLineTests()
+JBro::Int32 RunScriptCompilerCommandLineTests()
 {
     TestNumbersAreStableAndUnique();
     TestTranslationTablesHoldDiagnosticAndCommandLineKeys();

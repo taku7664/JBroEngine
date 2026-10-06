@@ -1,5 +1,9 @@
 ﻿#pragma once
 
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+
 namespace JBro
 {
     class Canvas;
@@ -12,23 +16,23 @@ namespace JBro
         virtual ~GameSystem() = default;
 
         void Initialize (Canvas& canvas);
-        void FixedUpdate(Canvas& canvas, float fixedDeltaTime);
-        void Update     (Canvas& canvas, float deltaTime);
+        void FixedUpdate(Canvas& canvas, Float fixedDeltaTime);
+        void Update     (Canvas& canvas, Float deltaTime);
         void Shutdown   (Canvas& canvas);
 
-        bool IsInitialized() const;
-        bool IsEnabled()     const;
-        void SetEnabled(bool enabled);
-        virtual int GetExecutionOrder() const;
+        Bool IsInitialized() const;
+        Bool IsEnabled()     const;
+        void SetEnabled(Bool enabled);
+        virtual Int32 GetExecutionOrder() const;
 
     protected:
         virtual void OnInitialize (Canvas& canvas);
-        virtual void OnFixedUpdate(Canvas& canvas, float fixedDeltaTime);
-        virtual void OnUpdate     (Canvas& canvas, float deltaTime);
+        virtual void OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime);
+        virtual void OnUpdate     (Canvas& canvas, Float deltaTime);
         virtual void OnShutdown   (Canvas& canvas);
 
     private:
-        bool m_initialized = false;
-        bool m_enabled     = true;
+        Bool m_initialized = false;
+        Bool m_enabled     = true;
     };
 }

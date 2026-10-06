@@ -2,6 +2,8 @@
 
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -16,13 +18,13 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetId() const override;
-        float GetInitialWidth() const override;
+        Float GetInitialWidth() const override;
         void OnDraw(EditorApplication& editor) override;
 
     private:
         String m_parentFolder;
         String m_name;
         String m_error;
-        int m_framework = 0;
+        Int32 m_framework = 0;
     };
 }

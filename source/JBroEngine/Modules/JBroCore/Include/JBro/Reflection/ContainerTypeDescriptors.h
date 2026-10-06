@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <memory>
 #include <utility>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -39,7 +40,7 @@ namespace JBro
                 const Array<T>* self = static_cast<const Array<T>*>(array);
                 return index < self->Size() ? &(*self)[index] : nullptr;
             };
-            made.AddDefault = [](void* array) noexcept -> bool {
+            made.AddDefault = [](void* array) noexcept -> Bool {
                 // 자리를 못 잡는 것은 실패다. `Add` 가 던지면 여기서 멈춘다 -
                 // 이 함수들은 `noexcept` 라 밖으로 새어 나가면 프로세스가 죽는다.
                 try
@@ -52,7 +53,7 @@ namespace JBro
                     return false;
                 }
             };
-            made.RemoveAt = [](void* array, std::size_t index) noexcept -> bool {
+            made.RemoveAt = [](void* array, std::size_t index) noexcept -> Bool {
                 Array<T>* self = static_cast<Array<T>*>(array);
                 if (index >= self->Size())
                 {
@@ -67,7 +68,7 @@ namespace JBro
                 self->Resize(self->Size() - 1);
                 return true;
             };
-            made.Move = [](void* array, std::size_t from, std::size_t to) noexcept -> bool {
+            made.Move = [](void* array, std::size_t from, std::size_t to) noexcept -> Bool {
                 Array<T>* self = static_cast<Array<T>*>(array);
                 if (from >= self->Size() || to >= self->Size())
                 {
@@ -141,7 +142,7 @@ namespace JBro
                 TableType* self = static_cast<TableType*>(table);
                 return self->IsSlotOccupied(slot) ? &self->ValueAt(slot) : nullptr;
             };
-            made.ContainsKey = [](const void* table, const void* key) noexcept -> bool {
+            made.ContainsKey = [](const void* table, const void* key) noexcept -> Bool {
                 if (key == nullptr)
                 {
                     return false;
@@ -149,7 +150,7 @@ namespace JBro
                 return static_cast<const TableType*>(table)
                     ->Find(*static_cast<const Key*>(key)) != nullptr;
             };
-            made.InsertDefault = [](void* table, const void* key) noexcept -> bool {
+            made.InsertDefault = [](void* table, const void* key) noexcept -> Bool {
                 if (key == nullptr)
                 {
                     return false;
@@ -164,7 +165,7 @@ namespace JBro
                     return false;
                 }
             };
-            made.RemoveKey = [](void* table, const void* key) noexcept -> bool {
+            made.RemoveKey = [](void* table, const void* key) noexcept -> Bool {
                 if (key == nullptr)
                 {
                     return false;
@@ -183,7 +184,7 @@ namespace JBro
             //
             // 처음에는 키를 만드는 함수가 값 자리에 들어가 있었다 - 값을 만들라고 부르면 키
             // 크기의 객체가 나왔고, 테스트도 그 이름으로 키를 만들어 드러나지 않았다(D-86).
-            made.ConstructKey = [](void* storage) noexcept -> bool {
+            made.ConstructKey = [](void* storage) noexcept -> Bool {
                 if (storage == nullptr)
                 {
                     return false;
@@ -204,7 +205,7 @@ namespace JBro
                     std::destroy_at(static_cast<Key*>(key));
                 }
             };
-            made.ConstructValue = [](void* storage) noexcept -> bool {
+            made.ConstructValue = [](void* storage) noexcept -> Bool {
                 if (storage == nullptr)
                 {
                     return false;

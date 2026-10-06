@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/Button.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Widget
 {
@@ -21,19 +22,19 @@ namespace JBro::Widget
         return *this;
     }
 
-    FieldLabel& FieldLabel::Required(bool required)
+    FieldLabel& FieldLabel::Required(Bool required)
     {
         m_required = required;
         return *this;
     }
 
-    FieldLabel& FieldLabel::Invalid(bool invalid)
+    FieldLabel& FieldLabel::Invalid(Bool invalid)
     {
         m_invalid = invalid;
         return *this;
     }
 
-    FieldLabel& FieldLabel::Disabled(bool disabled)
+    FieldLabel& FieldLabel::Disabled(Bool disabled)
     {
         m_disabled = disabled;
         return *this;
@@ -78,13 +79,13 @@ namespace JBro::Widget
         return *this;
     }
 
-    SectionHeader& SectionHeader::SpacingBefore(bool spacing)
+    SectionHeader& SectionHeader::SpacingBefore(Bool spacing)
     {
         m_spacingBefore = spacing;
         return *this;
     }
 
-    SectionHeader& SectionHeader::SpacingAfter(bool spacing)
+    SectionHeader& SectionHeader::SpacingAfter(Bool spacing)
     {
         m_spacingAfter = spacing;
         return *this;
@@ -125,7 +126,7 @@ namespace JBro::Widget
     {
     }
 
-    ValidationMessage& ValidationMessage::Wrapped(bool wrapped)
+    ValidationMessage& ValidationMessage::Wrapped(Bool wrapped)
     {
         m_wrapped = wrapped;
         return *this;

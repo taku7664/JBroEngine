@@ -6,6 +6,9 @@
 #include <cstring>
 #include <mutex>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // Windows 의 폴더 감시다(D-117·D-121). `ReadDirectoryChangesW` 를 워커 스레드가 돌리고, 이벤트는 경로 글자만 든
 // POD(`FileEvent`)로 고정 크기 고리 버퍼에 쌓는다. 워커는 할당도 `SafePtr` 도 만지지 않는다 - 메인 스레드가
@@ -18,7 +21,7 @@ namespace JBro
 {
     struct FileWatcher
     {
-        static constexpr std::uint32_t Capacity = 256;
+        static constexpr UInt32 Capacity = 256;
         static constexpr DWORD BufferBytes = 64 * 1024;
 
         HANDLE directory = INVALID_HANDLE_VALUE;
@@ -28,16 +31,16 @@ namespace JBro
 
         std::mutex mutex;
         FileEvent ring[Capacity] = {};
-        std::uint32_t head = 0;
-        std::uint32_t count = 0;
-        bool overflowed = false;
+        UInt32 head = 0;
+        UInt32 count = 0;
+        Bool overflowed = false;
         // 워커가 비정상으로 끝났다. 한 번 `Overflow` 로 알리고 그 뒤로는 아무것도 오지 않는다 - 받는 쪽이 다시 스캔하고
         // 감시를 다시 걸 수 있게. 정상 멈춤은 이것을 세우지 않는다.
-        bool dead = false;
+        Bool dead = false;
         // RENAMED_OLD_NAME 은 NEW_NAME 과 짝이다. 앞것을 들고 있다가 뒷것이 오면 하나로 낸다. 넘침으로 뒷것을 잃었을 수
         // 있으면 버린다 - 안 그러면 무관한 다음 이름 바꾸기와 짝지어진다.
         char pendingOldName[FileEvent::MaxPathBytes] = {};
-        bool hasPendingOldName = false;
+        Bool hasPendingOldName = false;
 
         alignas(DWORD) unsigned char buffer[BufferBytes] = {};
         OVERLAPPED overlapped = {};
@@ -68,7 +71,7 @@ namespace JBro
 
         // 다음 알림을 건다. **첫 요청은 `WatchDirectory` 가 워커를 띄우기 전에 건다** - 워커가 늦게 걸면 그 사이의
         // 변경을 놓친다(처음에는 감시 직후 만든 파일이 오지 않았다).
-        bool Issue()
+        Bool Issue()
         {
             overlapped = {};
             overlapped.hEvent = readyEvent;
@@ -110,21 +113,21 @@ namespace JBro
         }
 
         // 와이드 이름을 UTF-8 로, 구분자를 `/` 로. 버퍼에 안 들어가면 거짓이다 - 그 이벤트는 넘침으로 센다.
-        static bool ToUtf8(const wchar_t* name, std::size_t length, char* out, std::size_t capacity)
+        static Bool ToUtf8(const wchar_t* name, std::size_t length, char* out, std::size_t capacity)
         {
             if (length == 0)
             {
                 out[0] = '\0';
                 return true;
             }
-            const int written = WideCharToMultiByte(CP_UTF8, 0, name, static_cast<int>(length),
+            const Int32 written = WideCharToMultiByte(CP_UTF8, 0, name, static_cast<int>(length),
                 out, static_cast<int>(capacity - 1), nullptr, nullptr);
             if (written <= 0)
             {
                 return false;
             }
             out[written] = '\0';
-            for (int at = 0; at < written; ++at)
+            for (Int32 at = 0; at < written; ++at)
             {
                 if (out[at] == '\\')
                 {
@@ -250,7 +253,7 @@ namespace JBro
             {
                 return {};
             }
-            const int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, nullptr, 0);
+            const Int32 length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, nullptr, 0);
             if (length <= 0)
             {
                 return {};
@@ -262,7 +265,7 @@ namespace JBro
         }
     }
 
-    bool WindowsPlatform::WatchDirectory(const char* utf8Root)
+    Bool WindowsPlatform::WatchDirectory(const char* utf8Root)
     {
         // 새 감시가 서지 못하면 전 감시도 없다 - "다시 부르면 전 것을 닫는다" 는 계약이고, 실패 뒤에 옛 폴더를 계속
         // 보는 것은 부르는 쪽이 바란 것이 아니다.
@@ -298,7 +301,7 @@ namespace JBro
         m_fileWatcher = {};
     }
 
-    bool WindowsPlatform::IsWatching() const
+    Bool WindowsPlatform::IsWatching() const
     {
         const FileWatcher* watcher = m_fileWatcher.Get();
         if (watcher == nullptr)
@@ -309,7 +312,7 @@ namespace JBro
         return false == watcher->dead;
     }
 
-    std::uint32_t WindowsPlatform::TakeFileEvents(FileEvent* events, std::uint32_t capacity)
+    UInt32 WindowsPlatform::TakeFileEvents(FileEvent* events, UInt32 capacity)
     {
         FileWatcher* watcher = m_fileWatcher.Get();
         if (watcher == nullptr || events == nullptr || capacity == 0)
@@ -317,7 +320,7 @@ namespace JBro
             return 0;
         }
         std::lock_guard<std::mutex> lock(watcher->mutex);
-        std::uint32_t taken = 0;
+        UInt32 taken = 0;
         while (taken < capacity && watcher->count > 0)
         {
             events[taken++] = watcher->ring[watcher->head];

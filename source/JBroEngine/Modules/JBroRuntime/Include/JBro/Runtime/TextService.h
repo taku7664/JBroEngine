@@ -5,6 +5,8 @@
 
 #include <cstdint>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -18,7 +20,7 @@ namespace JBro::Service
     {
     public:
         // 글자를 바꾼다. 호스트가 바이트를 복사하므로 호출이 끝나면 버퍼를 다시 써도 된다.
-        bool SetText(Ref<TComponent> text, const char* utf8, std::uint32_t length) const
+        Bool SetText(Ref<TComponent> text, const char* utf8, UInt32 length) const
         {
             System::ITextSystem* system = TDerived::GetTextSystem();
             TComponent* component = text.Get();
@@ -31,7 +33,7 @@ namespace JBro::Service
         }
 
         // 0 으로 끝나는 글자를 받는다.
-        bool SetText(Ref<TComponent> text, const char* utf8) const
+        Bool SetText(Ref<TComponent> text, const char* utf8) const
         {
             const std::size_t length = utf8 != nullptr ? std::strlen(utf8) : 0;
             if (length > 0xFFFFFFFFu)
@@ -42,7 +44,7 @@ namespace JBro::Service
         }
 
         // 게임 문자열 표의 키를 바꾼다(D-226). 빈 키를 주면 `text` 의 글자로 돌아간다. 글자 칸은 `text` 와 같은 길로 호스트가 복사한다.
-        bool SetTextKey(Ref<TComponent> text, const char* key) const
+        Bool SetTextKey(Ref<TComponent> text, const char* key) const
         {
             System::ITextSystem* system = TDerived::GetTextSystem();
             TComponent* component = text.Get();
@@ -55,7 +57,7 @@ namespace JBro::Service
             return true;
         }
 
-        std::uint32_t GetTextLength(Ref<TComponent> text) const
+        UInt32 GetTextLength(Ref<TComponent> text) const
         {
             System::ITextSystem* system = TDerived::GetTextSystem();
             const TComponent* component = text.Get();
@@ -67,7 +69,7 @@ namespace JBro::Service
         }
 
         // buffer 에 복사하고 끝에 0 을 둔다. 모자라면 자른다. 복사한 바이트 수(0 제외)다.
-        std::uint32_t CopyText(Ref<TComponent> text, char* buffer, std::uint32_t capacity) const
+        UInt32 CopyText(Ref<TComponent> text, char* buffer, UInt32 capacity) const
         {
             if (buffer == nullptr || capacity == 0)
             {

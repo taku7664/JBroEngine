@@ -5,6 +5,10 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 게임패드(D-214, input-plan §4 의 6). 플랫폼은 날 상태만 주고, 데드존·누름·빈 자리 재확인·진동 만료는 입력 시스템이 한다 -
 // 그래서 가짜 플랫폼으로 잰다. 이 기계에 패드가 꽂혀 있지 않아도 돈다.
@@ -12,7 +16,7 @@ namespace
 {
     using namespace JBro;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -24,7 +28,7 @@ namespace
     class GamepadPlatform final : public IPlatform
     {
     public:
-        bool Initialize(const JMemoryContext&) override
+        JBro::Bool Initialize(const JMemoryContext&) override
         {
             return true;
         }
@@ -56,16 +60,16 @@ namespace
             return {};
         }
 
-        void WaitForEvents(std::uint32_t) override
+        void WaitForEvents(JBro::UInt32) override
         {
         }
 
-        bool ShouldClose(WindowHandle) const override
+        JBro::Bool ShouldClose(WindowHandle) const override
         {
             return false;
         }
 
-        bool GetWindowState(WindowHandle, WindowState&) const override
+        JBro::Bool GetWindowState(WindowHandle, WindowState&) const override
         {
             return false;
         }
@@ -84,14 +88,14 @@ namespace
         {
         }
 
-        bool PollGamepad(std::uint32_t slot, GamepadRawState& state) override
+        JBro::Bool PollGamepad(JBro::UInt32 slot, GamepadRawState& state) override
         {
             ++polls[slot];
             state = pads[slot];
             return state.connected;
         }
 
-        void SetGamepadVibration(std::uint32_t slot, float low, float high) override
+        void SetGamepadVibration(JBro::UInt32 slot, JBro::Float low, JBro::Float high) override
         {
             ++vibrationCalls;
             motorLow[slot] = low;
@@ -99,10 +103,10 @@ namespace
         }
 
         GamepadRawState pads[MaxGamepads] = {};
-        std::uint32_t polls[MaxGamepads] = {};
-        std::uint32_t vibrationCalls = 0;
-        float motorLow[MaxGamepads] = {};
-        float motorHigh[MaxGamepads] = {};
+        JBro::UInt32 polls[MaxGamepads] = {};
+        JBro::UInt32 vibrationCalls = 0;
+        JBro::Float motorLow[MaxGamepads] = {};
+        JBro::Float motorHigh[MaxGamepads] = {};
     };
 
     std::uint16_t Bit(GamepadButton button)
@@ -110,7 +114,7 @@ namespace
         return static_cast<std::uint16_t>(1u << static_cast<std::uint32_t>(button));
     }
 
-    void Frame(System::InputSystem& input, GamepadPlatform& platform, float deltaTime = 1.0f / 60.0f)
+    void Frame(System::InputSystem& input, GamepadPlatform& platform, JBro::Float deltaTime = 1.0f / 60.0f)
     {
         input.BeginFrame({});
         input.PollGamepads(platform, deltaTime);
@@ -157,7 +161,7 @@ namespace
         raw.axes[static_cast<std::size_t>(GamepadAxis::RightTrigger)] = 1.0f;
         Frame(input, platform);
         Check(std::fabs(pad.GetAxis(GamepadAxis::LeftX) - 1.0f) < 1.0e-5f, "a full push reads 1");
-        const float expected = -(0.62f - 0.24f) / (1.0f - 0.24f);
+        const JBro::Float expected = -(0.62f - 0.24f) / (1.0f - 0.24f);
         Check(std::fabs(pad.GetAxis(GamepadAxis::RightY) - expected) < 1.0e-5f, "a partial push is spread past the deadzone");
         Check(std::fabs(pad.GetAxis(GamepadAxis::RightTrigger) - 1.0f) < 1.0e-5f, "a full trigger reads 1");
 
@@ -191,8 +195,8 @@ namespace
         GamepadPlatform platform;
         platform.pads[0].connected = true;
         // 물은 뒤 `GamepadRecheckFrames` 프레임을 건너뛰므로 한 주기는 그보다 한 프레임 길다. 두 주기 + 한 프레임이면 세 번이다.
-        const std::uint32_t frames = (System::InputSystem::GamepadRecheckFrames + 1) * 2 + 1;
-        for (std::uint32_t frame = 0; frame < frames; ++frame)
+        const JBro::UInt32 frames = (System::InputSystem::GamepadRecheckFrames + 1) * 2 + 1;
+        for (JBro::UInt32 frame = 0; frame < frames; ++frame)
         {
             Frame(input, platform);
         }
@@ -201,7 +205,7 @@ namespace
 
         // 꽂으면 늦어도 한 주기 안에 보인다.
         platform.pads[3].connected = true;
-        for (std::uint32_t frame = 0; frame <= System::InputSystem::GamepadRecheckFrames; ++frame)
+        for (JBro::UInt32 frame = 0; frame <= System::InputSystem::GamepadRecheckFrames; ++frame)
         {
             Frame(input, platform);
         }
@@ -216,7 +220,7 @@ namespace
         input.SetGamepadVibration(0, 0.5f, 1.0f, 0.1f);
         Frame(input, platform, 0.05f);
         Check(platform.motorLow[0] == 0.5f && platform.motorHigh[0] == 1.0f, "the motors turn with the asked strength");
-        const std::uint32_t callsAfterStart = platform.vibrationCalls;
+        const JBro::UInt32 callsAfterStart = platform.vibrationCalls;
         Frame(input, platform, 0.02f);
         Check(platform.vibrationCalls == callsAfterStart, "an unchanged vibration is not sent again");
         Frame(input, platform, 0.05f);
@@ -246,7 +250,7 @@ namespace
         platform.pads[0] = {};
         Frame(input, platform);
         platform.pads[0].connected = true;
-        for (std::uint32_t frame = 0; frame <= System::InputSystem::GamepadRecheckFrames; ++frame)
+        for (JBro::UInt32 frame = 0; frame <= System::InputSystem::GamepadRecheckFrames; ++frame)
         {
             Frame(input, platform);
         }
@@ -319,8 +323,8 @@ namespace
         GamepadRawState state;
         state.connected = true;
         Check(false == platform.PollGamepad(9, state) && false == state.connected, "a slot past the four is refused and cleared");
-        std::uint32_t connected = 0;
-        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        JBro::UInt32 connected = 0;
+        for (JBro::UInt32 slot = 0; slot < MaxGamepads; ++slot)
         {
             if (platform.PollGamepad(slot, state))
             {
@@ -333,7 +337,7 @@ namespace
     }
 }
 
-int RunInputGamepadTests()
+JBro::Int32 RunInputGamepadTests()
 {
     TestButtonsPressHoldAndRelease();
     TestSticksAndTriggersPassTheirDeadzones();

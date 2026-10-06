@@ -6,6 +6,10 @@
 #include <JBro/Types/NameTable.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -27,7 +31,7 @@ namespace JBro::Widget
     class FilterCombo
     {
     public:
-        FilterCombo(const char* id, ArrayView<const char* const> items, int& currentIndex);
+        FilterCombo(const char* id, ArrayView<const char* const> items, Int32& currentIndex);
 
         // 현재 번호가 범위 밖일 때 트리거에 보일 글.
         FilterCombo& EmptyText(const char* text);
@@ -36,7 +40,7 @@ namespace JBro::Widget
         // 항목이 하나도 없을 때 팝업 안에 보일 글. 기본은 로컬라이징된 "일치하는 항목이 없습니다".
         FilterCombo& NoItemsText(const char* text);
         // 거짓이면 검색 칸을 그리지 않는다. 항목이 몇 개뿐인 enum 에는 검색이 소음이다.
-        FilterCombo& ShowFilter(bool show = true);
+        FilterCombo& ShowFilter(Bool show = true);
         // 항목마다 붙는 갈래 이름이다(D-180, 기존 엔진의 컴포넌트 갈래 메뉴).
         // 주면 갈래가 바뀌는 자리마다 제목줄이 들어간다 - 같은 갈래끼리 이미 모여
         // 있어야 하고, 항목 배열과 길이가 같아야 한다. 길이가 다르면 무시한다.
@@ -47,39 +51,39 @@ namespace JBro::Widget
         // 거짓인 항목은 회색으로 보이고 골라지지 않는다. 목록에서 아예 빼지 않는
         // 이유는, 없는 것과 지금 못 고르는 것이 다르기 때문이다 - 사용자가 찾던
         // 이름이 사라지면 어디에 있는지를 다시 찾게 된다.
-        FilterCombo& ItemEnabled(ArrayView<const bool> enabled);
+        FilterCombo& ItemEnabled(ArrayView<const Bool> enabled);
         // 못 고르는 항목에 마우스를 올렸을 때 뜨는 까닭이다.
         FilterCombo& DisabledTooltip(const char* text);
         // **항목마다 가이드 포커스 표식을 단다**(반례 ④). `i` 번 항목의 표식은 `{ name, keys[i] }` 다. 항목 배열과 길이가 같아야 하고,
         // 다르면 무시한다. 가이드가 목록의 한 항목을 가리킬 수 있다 - 없으면 목록을 통째로 열 수밖에 없다.
-        FilterCombo& ItemTargets(NameId name, ArrayView<const std::uint64_t> keys);
-        FilterCombo& Width(float width);
+        FilterCombo& ItemTargets(NameId name, ArrayView<const UInt64> keys);
+        FilterCombo& Width(Float width);
         // 스크롤 없이 보이는 최대 줄 수. 1~8 로 자른다.
-        FilterCombo& MaxVisibleItems(int count);
+        FilterCombo& MaxVisibleItems(Int32 count);
 
-        bool Draw() const;
-        bool operator()() const;
+        Bool Draw() const;
+        Bool operator()() const;
 
-        static constexpr int DefaultMaxVisibleItems = 8;
+        static constexpr Int32 DefaultMaxVisibleItems = 8;
 
     private:
         const char* m_id = nullptr;
         ArrayView<const char* const> m_items;
-        int& m_currentIndex;
+        Int32& m_currentIndex;
         ArrayView<const char* const> m_groups;
-        ArrayView<const bool> m_enabled;
-        ArrayView<const std::uint64_t> m_targetKeys;
+        ArrayView<const Bool> m_enabled;
+        ArrayView<const UInt64> m_targetKeys;
         NameId m_targetName = InvalidNameId;
         const char* m_emptyText = nullptr;
         const char* m_filterHint = nullptr;
         const char* m_noItemsText = nullptr;
         const char* m_disabledTooltip = nullptr;
-        float m_width = 0.0f;
-        int m_maxVisibleItems = DefaultMaxVisibleItems;
-        bool m_showFilter = true;
+        Float m_width = 0.0f;
+        Int32 m_maxVisibleItems = DefaultMaxVisibleItems;
+        Bool m_showFilter = true;
     };
 
     // 대소문자를 가리지 않는 부분 일치다. 빈 필터는 모두에 맞는다. 위젯 밖에서도
     // (에셋 브라우저의 이름 걸러내기) 같은 규칙을 써야 하므로 공개한다.
-    bool MatchesFilter(const char* text, const char* filter);
+    Bool MatchesFilter(const char* text, const char* filter);
 }

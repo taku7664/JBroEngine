@@ -5,10 +5,13 @@
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
-    int Camera3DSystem::GetExecutionOrder() const
+    Int32 Camera3DSystem::GetExecutionOrder() const
     {
         return 300;
     }
@@ -24,7 +27,7 @@ namespace JBro::System
         {
             return;
         }
-        bool selected = false;
+        Bool selected = false;
         canvas.ForEach<Component::Camera3D>([&](Component::Camera3D& camera)
         {
             if (selected || false == camera.primary || false == camera.IsActiveComponent())
@@ -52,7 +55,7 @@ namespace JBro::System
         });
     }
 
-    void Camera3DSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void Camera3DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         (void)deltaTime;
         ExtractRenderWorld(canvas);

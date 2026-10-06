@@ -6,6 +6,9 @@
 
 #include <cstdint>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network::Testing
 {
@@ -13,25 +16,25 @@ namespace JBro::Network::Testing
     class FakeReplicatedPool final : public IReplicatedPool
     {
     public:
-        static constexpr std::uint32_t MaxElementBytes = 64;
+        static constexpr UInt32 MaxElementBytes = 64;
 
         struct Record
         {
             InstanceId object = InvalidInstanceId;
             std::uint8_t bytes[MaxElementBytes] = {};
-            float lastAlpha = -1.0f;
-            bool lastHadFrom = false;
-            std::uint32_t applyCount = 0;
+            Float lastAlpha = -1.0f;
+            Bool lastHadFrom = false;
+            UInt32 applyCount = 0;
         };
 
-        FakeReplicatedPool(std::uint32_t elementBytes, std::uint32_t capacity)
+        FakeReplicatedPool(UInt32 elementBytes, UInt32 capacity)
             : m_elementBytes(elementBytes)
         {
             m_records.Reserve(capacity);
             m_index.Reserve(capacity);
         }
 
-        std::uint32_t ElementBytes() const override
+        UInt32 ElementBytes() const override
         {
             return m_elementBytes;
         }
@@ -44,7 +47,7 @@ namespace JBro::Network::Testing
             }
         }
 
-        bool Apply(InstanceId object, const std::uint8_t* from, const std::uint8_t* to, float alpha) override
+        Bool Apply(InstanceId object, const std::uint8_t* from, const std::uint8_t* to, Float alpha) override
         {
             Record& record = GetOrCreate(object);
             std::memcpy(record.bytes, to, m_elementBytes);
@@ -69,7 +72,7 @@ namespace JBro::Network::Testing
 
         Record* Find(InstanceId object)
         {
-            const std::uint32_t* index = m_index.Find(object);
+            const UInt32* index = m_index.Find(object);
             if (nullptr == index)
             {
                 return nullptr;
@@ -79,12 +82,12 @@ namespace JBro::Network::Testing
 
         void Remove(InstanceId object)
         {
-            const std::uint32_t* found = m_index.Find(object);
+            const UInt32* found = m_index.Find(object);
             if (nullptr == found)
             {
                 return;
             }
-            const std::uint32_t index = *found;
+            const UInt32 index = *found;
             m_index.Remove(object);
             const std::size_t last = m_records.Size() - 1;
             if (index != last)
@@ -95,7 +98,7 @@ namespace JBro::Network::Testing
             m_records.RemoveAt(last);
         }
 
-        std::uint32_t LiveCount() const
+        UInt32 LiveCount() const
         {
             return static_cast<std::uint32_t>(m_records.Size());
         }
@@ -114,9 +117,9 @@ namespace JBro::Network::Testing
             return record;
         }
 
-        std::uint32_t m_elementBytes;
+        UInt32 m_elementBytes;
         Array<Record> m_records;
-        Table<InstanceId, std::uint32_t> m_index;
+        Table<InstanceId, UInt32> m_index;
     };
 
     // 가짜 호스트. 서버에서는 모든 오브젝트를 같은 프리팹으로 설명하고(제외 목록은 뺀다), 클라이언트에서는 지역 식별자를 발급한다.
@@ -145,7 +148,7 @@ namespace JBro::Network::Testing
             m_excluded.InsertOrAssign(object, true);
         }
 
-        bool DescribeObject(InstanceId object, SpawnDesc& outDesc) override
+        Bool DescribeObject(InstanceId object, SpawnDesc& outDesc) override
         {
             if (nullptr != m_excluded.Find(object))
             {
@@ -195,12 +198,12 @@ namespace JBro::Network::Testing
             return nullptr;
         }
 
-        std::uint32_t SpawnedCount() const
+        UInt32 SpawnedCount() const
         {
             return static_cast<std::uint32_t>(m_spawned.Size());
         }
 
-        std::uint32_t DespawnCount() const
+        UInt32 DespawnCount() const
         {
             return m_despawnCount;
         }
@@ -208,9 +211,9 @@ namespace JBro::Network::Testing
     private:
         Uuid m_prefab;
         Array<FakeReplicatedPool*> m_pools;
-        Table<InstanceId, bool> m_excluded;
+        Table<InstanceId, Bool> m_excluded;
         Array<Spawned> m_spawned;
         InstanceId m_nextLocal = 1000;
-        std::uint32_t m_despawnCount = 0;
+        UInt32 m_despawnCount = 0;
     };
 }

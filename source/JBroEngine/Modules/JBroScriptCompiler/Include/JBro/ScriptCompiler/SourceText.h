@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -14,9 +15,9 @@ namespace JBro::ScriptCompiler
     // 편집기에 넘길 때 바꿔야 한다 - 그 변환은 `jbroc --lsp` 를 만들 때 한다.
     struct SourceLocation
     {
-        std::uint32_t Offset = 0;
-        std::uint32_t Line = 1;
-        std::uint32_t Column = 1;
+        UInt32 Offset = 0;
+        UInt32 Line = 1;
+        UInt32 Column = 1;
     };
 
     // [Begin, End) 다. End 는 마지막 글자의 다음 자리다.

@@ -1,4 +1,5 @@
-#include <JBro/ScriptCompiler/Diagnostic.h>
+﻿#include <JBro/ScriptCompiler/Diagnostic.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -26,7 +27,7 @@ namespace JBro::ScriptCompiler
         return diagnostic;
     }
 
-    bool DiagnosticList::HasErrors() const noexcept
+    Bool DiagnosticList::HasErrors() const noexcept
     {
         for (const Diagnostic& diagnostic : m_items)
         {

@@ -3,10 +3,11 @@
 #include "D3D12Device.h"
 
 #include <new>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
-    bool EnableD3D12ValidationForProcess()
+    Bool EnableD3D12ValidationForProcess()
     {
         Microsoft::WRL::ComPtr<ID3D12Debug> debugController;
         if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
@@ -22,7 +23,7 @@ namespace JBro
         return true;
     }
 
-    bool D3D12RHIModule::Initialize(const JMemoryContext& memory)
+    Bool D3D12RHIModule::Initialize(const JMemoryContext& memory)
     {
         static_cast<void>(memory);
         if (m_initialized || m_activeDevice != nullptr)

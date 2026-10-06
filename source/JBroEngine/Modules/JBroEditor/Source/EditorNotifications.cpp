@@ -4,12 +4,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
     namespace
     {
-        bool IsBlank(const char* text)
+        Bool IsBlank(const char* text)
         {
             return text == nullptr || text[0] == '\0';
         }
@@ -40,27 +44,27 @@ namespace JBro
         }
 
         // 들어오는 상자가 옆에서 미끄러져 오는 거리. 폭을 아직 모르면(처음 그리기 전) 이만큼이다.
-        constexpr float FallbackSlide = 64.0f;
+        constexpr Float FallbackSlide = 64.0f;
         // 쌓인 자리를 따라가는 빠르기(초당). 클수록 빨리 선다.
-        constexpr float StackFollowRate = 14.0f;
+        constexpr Float StackFollowRate = 14.0f;
         // 끌다 놓았는데 못 미쳤을 때 제자리로 돌아가는 빠르기(초당).
-        constexpr float SnapBackRate = 18.0f;
+        constexpr Float SnapBackRate = 18.0f;
 
-        float EaseOut(float t)
+        Float EaseOut(Float t)
         {
-            const float inverse = 1.0f - t;
+            const Float inverse = 1.0f - t;
             return 1.0f - inverse * inverse * inverse;
         }
 
         // 목표 쪽으로 한 걸음. 프레임 시간이 길어도 넘어가지 않는다.
-        float Approach(float value, float target, float rate, float deltaTime)
+        Float Approach(Float value, Float target, Float rate, Float deltaTime)
         {
-            const float step = std::min(1.0f, rate * deltaTime);
+            const Float step = JBro::Min(1.0f, rate * deltaTime);
             return value + (target - value) * step;
         }
     }
 
-    float EditorNotifications::DefaultDuration(NotificationLevel level)
+    Float EditorNotifications::DefaultDuration(NotificationLevel level)
     {
         // 경고와 오류는 더 오래 둔다 - 무엇이 잘못됐는지 읽고 무엇을 할지 정할 시간이 필요하다.
         switch (level)
@@ -102,7 +106,7 @@ namespace JBro
         }
         m_lastTitle = desc.title;
         m_lastLevel = desc.level;
-        const float duration = desc.durationSeconds < 0.0f ? DefaultDuration(desc.level) : desc.durationSeconds;
+        const Float duration = desc.durationSeconds < 0.0f ? DefaultDuration(desc.level) : desc.durationSeconds;
         if (desc.writeLog)
         {
             WriteLog(desc.level, desc.title, desc.message);
@@ -165,26 +169,26 @@ namespace JBro
         }
     }
 
-    bool EditorNotifications::IsAlive(NotificationHandle handle) const
+    Bool EditorNotifications::IsAlive(NotificationHandle handle) const
     {
         const Entry* entry = Find(handle);
         return entry != nullptr && entry->phase != Phase::Leaving;
     }
 
-    void EditorNotifications::Update(float deltaTime)
+    void EditorNotifications::Update(Float deltaTime)
     {
-        const float dt = std::isfinite(deltaTime) && deltaTime > 0.0f ? deltaTime : 0.0f;
+        const Float dt = std::isfinite(deltaTime) && deltaTime > 0.0f ? deltaTime : Float(0.0f);
 
         for (std::size_t index = 0; index < m_entries.Size();)
         {
             Entry& entry = *m_entries[index];
-            const float slide = entry.width > 0.0f ? entry.width : FallbackSlide;
+            const Float slide = entry.width > 0.0f ? entry.width : FallbackSlide;
             switch (entry.phase)
             {
             case Phase::Waiting:
                 break;
             case Phase::Entering:
-                entry.presence = std::min(1.0f, entry.presence + dt / FadeSeconds);
+                entry.presence = JBro::Min(1.0f, entry.presence + dt / FadeSeconds);
                 if (false == entry.dragging)
                 {
                     entry.offsetX = (1.0f - EaseOut(entry.presence)) * slide;
@@ -211,7 +215,7 @@ namespace JBro
                 }
                 break;
             case Phase::Leaving:
-                entry.presence = std::max(0.0f, entry.presence - dt / FadeSeconds);
+                entry.presence = JBro::Max(0.0f, entry.presence - dt / FadeSeconds);
                 entry.offsetX += entry.leaveDirection * slide * dt / FadeSeconds;
                 if (entry.presence <= 0.0f)
                 {
@@ -228,7 +232,7 @@ namespace JBro
         }
 
         // 빈 자리만큼 기다리던 것을 온 차례대로 들인다. 들어오는 첫 모습은 옆에 비켜선 채 투명하다.
-        std::uint32_t onScreen = CountOnScreen();
+        UInt32 onScreen = CountOnScreen();
         for (OwnerPtr<Entry>& owned : m_entries)
         {
             if (onScreen >= MaxVisible)
@@ -247,9 +251,9 @@ namespace JBro
         }
     }
 
-    std::uint32_t EditorNotifications::GetVisibleCount() const
+    UInt32 EditorNotifications::GetVisibleCount() const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (const OwnerPtr<Entry>& owned : m_entries)
         {
             if (owned->phase != Phase::Waiting)
@@ -260,10 +264,10 @@ namespace JBro
         return count;
     }
 
-    NotificationView EditorNotifications::GetVisible(std::uint32_t index) const
+    NotificationView EditorNotifications::GetVisible(UInt32 index) const
     {
         NotificationView view;
-        std::uint32_t seen = 0;
+        UInt32 seen = 0;
         for (const OwnerPtr<Entry>& owned : m_entries)
         {
             const Entry& entry = *owned;
@@ -285,17 +289,17 @@ namespace JBro
             view.offsetY = entry.offsetY;
             view.alpha = EaseOut(entry.presence);
             view.timed = entry.duration > 0.0f;
-            view.remainingFraction = view.timed ? entry.remaining / entry.duration : 1.0f;
+            view.remainingFraction = view.timed ? entry.remaining / entry.duration : Float(1.0f);
             view.leaving = entry.phase == Phase::Leaving;
-            view.space = view.leaving ? entry.presence : 1.0f;
+            view.space = view.leaving ? entry.presence : Float(1.0f);
             return view;
         }
         return view;
     }
 
-    std::uint32_t EditorNotifications::GetPendingCount() const
+    UInt32 EditorNotifications::GetPendingCount() const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (const OwnerPtr<Entry>& owned : m_entries)
         {
             if (owned->phase == Phase::Waiting)
@@ -306,7 +310,7 @@ namespace JBro
         return count;
     }
 
-    void EditorNotifications::ReportLayout(NotificationHandle handle, float width, float targetOffsetY)
+    void EditorNotifications::ReportLayout(NotificationHandle handle, Float width, Float targetOffsetY)
     {
         Entry* entry = Find(handle);
         if (entry == nullptr || entry->phase == Phase::Waiting)
@@ -327,7 +331,7 @@ namespace JBro
         }
     }
 
-    void EditorNotifications::SetHovered(NotificationHandle handle, bool hovered)
+    void EditorNotifications::SetHovered(NotificationHandle handle, Bool hovered)
     {
         Entry* entry = Find(handle);
         if (entry != nullptr)
@@ -336,7 +340,7 @@ namespace JBro
         }
     }
 
-    void EditorNotifications::Drag(NotificationHandle handle, float dragX)
+    void EditorNotifications::Drag(NotificationHandle handle, Float dragX)
     {
         Entry* entry = Find(handle);
         if (entry == nullptr || entry->phase == Phase::Waiting || entry->phase == Phase::Leaving)
@@ -355,7 +359,7 @@ namespace JBro
             return;
         }
         entry->dragging = false;
-        const float width = entry->width > 0.0f ? entry->width : FallbackSlide;
+        const Float width = entry->width > 0.0f ? entry->width : FallbackSlide;
         if (std::fabs(entry->offsetX) >= width * SwipeDismissFraction)
         {
             StartLeaving(*entry, entry->offsetX < 0.0f ? -1.0f : 1.0f);
@@ -401,7 +405,7 @@ namespace JBro
         return nullptr;
     }
 
-    void EditorNotifications::StartLeaving(Entry& entry, float direction)
+    void EditorNotifications::StartLeaving(Entry& entry, Float direction)
     {
         if (entry.phase == Phase::Leaving)
         {
@@ -413,10 +417,10 @@ namespace JBro
         entry.hovered = false;
     }
 
-    std::uint32_t EditorNotifications::CountOnScreen() const
+    UInt32 EditorNotifications::CountOnScreen() const
     {
         // 사라지는 중인 것은 세지 않는다 - 그 자리는 이미 비었고, 다음 것이 곧바로 들어온다.
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (const OwnerPtr<Entry>& owned : m_entries)
         {
             if (owned->phase == Phase::Entering || owned->phase == Phase::Shown)

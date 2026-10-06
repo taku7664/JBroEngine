@@ -31,6 +31,9 @@
 #include <cstdio>
 #include <new>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -44,14 +47,14 @@ namespace JBro
             {
             }
 
-            std::uint32_t RefreshOutputDevices() override
+            UInt32 RefreshOutputDevices() override
             {
                 m_count = m_engine.EnumerateAudioOutputs(m_devices, MaxDevices);
                 m_count = m_count < MaxDevices ? m_count : MaxDevices;
                 return m_count;
             }
 
-            const char* GetOutputDeviceName(std::uint32_t index) const override
+            const char* GetOutputDeviceName(UInt32 index) const override
             {
                 return index < m_count ? m_devices[index].name : "";
             }
@@ -62,22 +65,22 @@ namespace JBro
                 return output != nullptr ? output->GetDeviceName() : "";
             }
 
-            bool SelectOutputDevice(const char* name) override
+            Bool SelectOutputDevice(const char* name) override
             {
                 return m_engine.SetAudioOutputDevice(name);
             }
 
-            bool IsWaitingForUserGesture() const override
+            Bool IsWaitingForUserGesture() const override
             {
                 const IAudioOutput* output = m_engine.GetAudioOutput();
                 return output != nullptr && output->IsWaitingForUserGesture();
             }
 
         private:
-            static constexpr std::uint32_t MaxDevices = 32;
+            static constexpr UInt32 MaxDevices = 32;
             EngineInstance& m_engine;
             AudioDeviceInfo m_devices[MaxDevices];
-            std::uint32_t m_count = 0;
+            UInt32 m_count = 0;
         };
     }
 
@@ -88,7 +91,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
+    Bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
         IRHIModule& rhi)
     {
         if (m_state != State::Stopped || false == System::TimeSystem::IsValid(config.time))
@@ -186,7 +189,7 @@ namespace JBro
             if (config.audioEnabled)
             {
                 AudioMixerDesc mixerDesc;
-                mixerDesc.maxAudibleVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
+                mixerDesc.maxAudibleVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : UInt32(64);
                 mixerDesc.maxVoices = mixerDesc.maxAudibleVoices * 4;
                 // 디스크 스트리밍의 파일은 플랫폼이 연다(D-203). 스트리머 스레드에서 불린다 - `OpenFileStream` 은 어느
                 // 스레드에서 불러도 된다.
@@ -255,12 +258,12 @@ namespace JBro
         return true;
     }
 
-    bool EngineInstance::OpenProject(IFramework& framework)
+    Bool EngineInstance::OpenProject(IFramework& framework)
     {
         return OpenProject(framework, nullptr);
     }
 
-    bool EngineInstance::OpenProjectFile(
+    Bool EngineInstance::OpenProjectFile(
         IFramework& framework,
         const char* projectFilePath,
         ProjectFileError& error)
@@ -361,7 +364,7 @@ namespace JBro
         return true;
     }
 
-    bool EngineInstance::ScanAssets(bool initial)
+    Bool EngineInstance::ScanAssets(Bool initial)
     {
         AssetScanOptions scanOptions;
         scanOptions.ignorePatterns.data = m_project.assetIgnorePatterns.Data();
@@ -390,7 +393,7 @@ namespace JBro
         return true;
     }
 
-    bool EngineInstance::RescanAssets()
+    Bool EngineInstance::RescanAssets()
     {
         if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound() || m_package)
         {
@@ -399,7 +402,7 @@ namespace JBro
         return ScanAssets(false);
     }
 
-    bool EngineInstance::IsWatchingAssets() const
+    Bool EngineInstance::IsWatchingAssets() const
     {
         return m_platform != nullptr && m_platform->IsWatching();
     }
@@ -429,10 +432,10 @@ namespace JBro
         // 메타의 변경은 우리가 쓴 것이거나 사용자가 손으로 고친 것이다. 전자는 이미 적용됐고, 후자는 다음 로드가
         // 본다 - 자기 반향으로 재로드를 돌리지 않는다(D-117). 이름 바꾸기는 **양쪽이 다 메타일 때만** 건너뛴다 -
         // 한쪽만 메타면 에셋 파일이 생기거나 없어진 것이라 다시 본다.
-        const bool pathIsMeta = AssetTypeRules::IsMetaPath(event.path) || AssetTypeRules::IsMetaScratchPath(event.path);
+        const Bool pathIsMeta = AssetTypeRules::IsMetaPath(event.path) || AssetTypeRules::IsMetaScratchPath(event.path);
         if (event.kind == FileEventKind::Renamed)
         {
-            const bool oldIsMeta = AssetTypeRules::IsMetaPath(event.oldPath)
+            const Bool oldIsMeta = AssetTypeRules::IsMetaPath(event.oldPath)
                 || AssetTypeRules::IsMetaScratchPath(event.oldPath);
             if (pathIsMeta && oldIsMeta)
             {
@@ -500,7 +503,7 @@ namespace JBro
             String newSource = m_assets->GetAssetRoot();
             newSource.push_back('/');
             newSource.append(event.path);
-            const bool carried = m_platform->MoveFileTo(m_assets->GetMetaPath(*record).c_str(),
+            const Bool carried = m_platform->MoveFileTo(m_assets->GetMetaPath(*record).c_str(),
                 AssetTypeRules::MakeMetaPath(newSource).c_str());
             if (carried && m_assetRegistry.Rename(event.oldPath, event.path))
             {
@@ -543,7 +546,7 @@ namespace JBro
         for (std::size_t index = 0; index < m_pendingReloads.Size(); ++index)
         {
             PendingReload pending = m_pendingReloads[index];
-            const bool loaded = m_assets->IsLoaded(m_assets->Find(pending.id));
+            const Bool loaded = m_assets->IsLoaded(m_assets->Find(pending.id));
             if (false == loaded)
             {
                 continue;
@@ -569,24 +572,24 @@ namespace JBro
         {
             return summary;
         }
-        bool any = false;
+        Bool any = false;
         for (;;)
         {
-            const std::uint32_t taken = m_platform->TakeFileEvents(
+            const UInt32 taken = m_platform->TakeFileEvents(
                 m_fileEvents, static_cast<std::uint32_t>(std::size(m_fileEvents)));
             if (taken == 0)
             {
                 break;
             }
             any = true;
-            for (std::uint32_t at = 0; at < taken; ++at)
+            for (UInt32 at = 0; at < taken; ++at)
             {
                 HandleAssetEvent(m_fileEvents[at], summary);
             }
         }
         // 조용해진 뒤에 적용한다 - 저장이 끝나기 전의 알림과 대량 복사의 한 파일마다를 하나로 묶는다.
-        m_assetQuietFrames = any ? 0 : m_assetQuietFrames + 1;
-        const bool pending = m_assetRescanPending || m_assetOverflowPending || false == m_pendingReloads.IsEmpty();
+        m_assetQuietFrames = any ? UInt32(0) : m_assetQuietFrames + 1;
+        const Bool pending = m_assetRescanPending || m_assetOverflowPending || false == m_pendingReloads.IsEmpty();
         if (pending && m_assetQuietFrames >= AssetQuietFramesBeforeApply)
         {
             ApplyPendingAssetChanges(summary);
@@ -609,7 +612,7 @@ namespace JBro
         return m_project;
     }
 
-    bool EngineInstance::OpenProject(IFramework& framework, const char* scriptModulePath)
+    Bool EngineInstance::OpenProject(IFramework& framework, const char* scriptModulePath)
     {
         if (m_state != State::Running || m_framework != nullptr || m_exitRequested)
         {
@@ -621,7 +624,7 @@ namespace JBro
         m_lastFrameStatus = FrameStatus::InvalidState;
         m_scriptModuleLoaded = false;
         m_scriptModuleError.clear();
-        bool initialized = false;
+        Bool initialized = false;
         try
         {
             m_assets = MakeOwnerPtr<AssetSystem>();
@@ -745,7 +748,7 @@ namespace JBro
         }
     }
 
-    bool EngineInstance::Tick(float deltaTime)
+    Bool EngineInstance::Tick(Float deltaTime)
     {
         if (m_state != State::Running)
         {
@@ -777,7 +780,7 @@ namespace JBro
         return m_state == State::Running;
     }
 
-    bool EngineInstance::TickFrame(float deltaTime)
+    Bool EngineInstance::TickFrame(Float deltaTime)
     {
         // 프레임의 구간을 나눠 잰다(D-138). 꺼져 있으면 이 줄들은 값이 없는 호출이다.
         Profiler::BeginFrame();
@@ -903,12 +906,12 @@ namespace JBro
         if (m_audioMixer.Get() != nullptr && m_audioDeviceWanted && m_audioOutput.Get() == nullptr
             && false == m_audioSilentBuffer.IsEmpty() && std::isfinite(deltaTime) && deltaTime > 0.0f)
         {
-            const float seconds = deltaTime < 0.25f ? deltaTime : 0.25f;
-            std::uint32_t frames = static_cast<std::uint32_t>(seconds * static_cast<float>(m_audioMixer->GetSampleRate()));
-            const std::uint32_t chunk = static_cast<std::uint32_t>(m_audioSilentBuffer.Size() / m_audioMixer->GetChannels());
+            const Float seconds = deltaTime < 0.25f ? deltaTime : Float(0.25f);
+            UInt32 frames = static_cast<std::uint32_t>(seconds * static_cast<float>(m_audioMixer->GetSampleRate()));
+            const UInt32 chunk = static_cast<std::uint32_t>(m_audioSilentBuffer.Size() / m_audioMixer->GetChannels());
             while (frames > 0)
             {
-                const std::uint32_t count = frames < chunk ? frames : chunk;
+                const UInt32 count = frames < chunk ? frames : chunk;
                 m_audioMixer->Render(m_audioSilentBuffer.Data(), count);
                 frames -= count;
             }
@@ -927,7 +930,7 @@ namespace JBro
         // 프레임을 그대로 연다 - 그러지 않으면 프로젝트를 닫아 둔 에디터가
         // 검은 창이 된다. 최소화와 프로젝트 정리 중은 여전히 건너뛴다:
         // 그릴 표면이 없거나, 지금 내려가는 중이다.
-        const bool nothingToDraw =
+        const Bool nothingToDraw =
             m_framework == nullptr && false == m_renderer->HasFrameOverlay();
         if (nothingToDraw || m_projectCloseRequested
             || windowState.minimized || windowState.width == 0 || windowState.height == 0)
@@ -1009,7 +1012,7 @@ namespace JBro
         // **오버레이가 걸려 있으면 버리지 않는다.** 에디터에서는 게임 화면이
         // 텍스처로 가서 백버퍼에 낼 것이 없는 것이 정상이고, 그 프레임을 버리면
         // 에디터 UI 까지 같이 사라진다 - 화면이 통째로 멈춘 것처럼 보인다.
-        const bool nothingToShow = renderResult == RenderResult::NothingToSubmit
+        const Bool nothingToShow = renderResult == RenderResult::NothingToSubmit
             && false == m_renderer->HasFrameOverlay();
         if (nothingToShow || m_projectCloseRequested)
         {
@@ -1027,7 +1030,7 @@ namespace JBro
         return endStatus == FrameStatus::Ready || endStatus == FrameStatus::Skipped;
     }
 
-    bool EngineInstance::SetGameViewTarget(const FrameTarget& target)
+    Bool EngineInstance::SetGameViewTarget(const FrameTarget& target)
     {
         if (m_state == State::Ticking)
         {
@@ -1037,7 +1040,7 @@ namespace JBro
         return true;
     }
 
-    bool EngineInstance::RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail)
+    Bool EngineInstance::RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail)
     {
         if (m_state == State::Ticking || m_layerThumbnailCount >= MaxLayerThumbnails
             || false == thumbnail.target.IsValid() || thumbnail.extent.width == 0 || thumbnail.extent.height == 0)
@@ -1048,7 +1051,7 @@ namespace JBro
         return true;
     }
 
-    bool EngineInstance::RequestEditorView(const EditorViewDesc& view)
+    Bool EngineInstance::RequestEditorView(const EditorViewDesc& view)
     {
         if (m_state == State::Ticking)
         {
@@ -1102,7 +1105,7 @@ namespace JBro
         }
     }
 
-    void EngineInstance::ApplyLocaleSettings(bool resetLocale)
+    void EngineInstance::ApplyLocaleSettings(Bool resetLocale)
     {
         if (m_localization.Get() == nullptr)
         {
@@ -1127,7 +1130,7 @@ namespace JBro
         return m_localization.Get();
     }
 
-    bool EngineInstance::IsRunningFromPackage() const
+    Bool EngineInstance::IsRunningFromPackage() const
     {
         return m_package.Get() != nullptr;
     }
@@ -1234,7 +1237,7 @@ namespace JBro
         }
     }
 
-    bool EngineInstance::OpenAudioOutput()
+    Bool EngineInstance::OpenAudioOutput()
     {
         if (m_platform == nullptr || m_audioMixer.Get() == nullptr || false == m_audioDeviceWanted)
         {
@@ -1260,7 +1263,7 @@ namespace JBro
         return true;
     }
 
-    bool EngineInstance::SetAudioOutputDevice(const char* name)
+    Bool EngineInstance::SetAudioOutputDevice(const char* name)
     {
         m_audioDevicePreference = name != nullptr ? name : "";
         if (m_audioMixer.Get() == nullptr || false == m_audioDeviceWanted)
@@ -1273,7 +1276,7 @@ namespace JBro
             m_audioOutput->Stop();
             m_audioOutput.Reset();
         }
-        const bool opened = OpenAudioOutput();
+        const Bool opened = OpenAudioOutput();
         m_audioRetrySeconds = opened ? 0.0f : 2.0f;
         // 장치 알림을 켠다(첫 호출은 거짓이다). 고른 장치가 없어 기본으로 열었으면 그 장치가 꽂힐 때 되돌아간다.
         if (m_platform != nullptr && false == m_audioDevicePreference.empty())
@@ -1288,12 +1291,12 @@ namespace JBro
         return m_audioDevicePreference.c_str();
     }
 
-    std::uint32_t EngineInstance::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    UInt32 EngineInstance::EnumerateAudioOutputs(AudioDeviceInfo* devices, UInt32 capacity)
     {
-        return m_platform != nullptr ? m_platform->EnumerateAudioOutputs(devices, capacity) : 0;
+        return m_platform != nullptr ? m_platform->EnumerateAudioOutputs(devices, capacity) : UInt32(0);
     }
 
-    void EngineInstance::UpdateAudioDevice(float deltaTime)
+    void EngineInstance::UpdateAudioDevice(Float deltaTime)
     {
         if (m_audioMixer.Get() == nullptr)
         {
@@ -1303,7 +1306,7 @@ namespace JBro
         if (m_audio.Get() != nullptr && m_platform != nullptr)
         {
             const JArrayView<InputEvent> events = m_platform->GetInputEvents();
-            for (std::uint32_t index = 0; index < events.size; ++index)
+            for (UInt32 index = 0; index < events.size; ++index)
             {
                 const InputEventKind kind = events.data[index].kind;
                 if (kind == InputEventKind::FocusLost || kind == InputEventKind::FocusGained)
@@ -1355,7 +1358,7 @@ namespace JBro
             }
             return;
         }
-        m_audioRetrySeconds -= std::isfinite(deltaTime) && deltaTime > 0.0f ? deltaTime : 0.0f;
+        m_audioRetrySeconds -= std::isfinite(deltaTime) && deltaTime > 0.0f ? deltaTime : Float(0.0f);
         if (m_audioRetrySeconds > 0.0f)
         {
             return;
@@ -1367,7 +1370,7 @@ namespace JBro
         m_audioRetrySeconds = 2.0f;
     }
 
-    bool EngineInstance::DidGameSubmitLastFrame() const
+    Bool EngineInstance::DidGameSubmitLastFrame() const
     {
         return m_gameSubmittedLastFrame;
     }
@@ -1382,17 +1385,17 @@ namespace JBro
         m_hostInput.Append(events.data, events.size);
     }
 
-    void EngineInstance::SetHostGameInputActive(bool active)
+    void EngineInstance::SetHostGameInputActive(Bool active)
     {
         m_hostGameInputActive = active;
     }
 
-    void EngineInstance::SetInputOwnedByHost(bool owned)
+    void EngineInstance::SetInputOwnedByHost(Bool owned)
     {
         m_inputOwnedByHost = owned;
     }
 
-    void EngineInstance::SetSimulationEnabled(bool enabled)
+    void EngineInstance::SetSimulationEnabled(Bool enabled)
     {
         m_simulationEnabled = enabled;
         // 멈춤은 시계가 든다(D-242). 멈춘 동안 게임 델타가 0 이고 고정 스텝이 돌지 않는다 - 두 프레임워크가 같은 규칙을 본다.
@@ -1411,7 +1414,7 @@ namespace JBro
         }
     }
 
-    bool EngineInstance::IsSimulationEnabled() const
+    Bool EngineInstance::IsSimulationEnabled() const
     {
         return m_simulationEnabled;
     }
@@ -1456,7 +1459,7 @@ namespace JBro
         return m_debugDraw.Get();
     }
 
-    void EngineInstance::SetGameDebugDrawVisible(bool visible)
+    void EngineInstance::SetGameDebugDrawVisible(Bool visible)
     {
         if (m_debugDraw.Get() != nullptr)
         {
@@ -1464,7 +1467,7 @@ namespace JBro
         }
     }
 
-    bool EngineInstance::IsGameDebugDrawVisible() const
+    Bool EngineInstance::IsGameDebugDrawVisible() const
     {
         return m_debugDraw.Get() != nullptr && m_debugDraw->IsGameViewVisible();
     }
@@ -1657,7 +1660,7 @@ namespace JBro
         return m_scripts;
     }
 
-    bool EngineInstance::IsScriptModuleLoaded() const
+    Bool EngineInstance::IsScriptModuleLoaded() const
     {
         return m_scriptModuleLoaded;
     }
@@ -1702,7 +1705,7 @@ namespace JBro
         return m_framework;
     }
 
-    bool EngineInstance::IsRunning() const
+    Bool EngineInstance::IsRunning() const
     {
         return (m_state == State::Running || m_state == State::Ticking) && false == m_exitRequested;
     }

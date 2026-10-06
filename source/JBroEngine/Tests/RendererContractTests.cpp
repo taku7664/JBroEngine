@@ -17,6 +17,10 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 #if defined(_MSC_VER) && defined(_DEBUG)
 #include <crtdbg.h>
@@ -25,7 +29,7 @@
 namespace
 {
 #if defined(_MSC_VER) && defined(_DEBUG)
-    int frameAllocations = 0;
+    JBro::Int32 frameAllocations = 0;
     int CountFrameAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
     {
         if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
@@ -51,7 +55,7 @@ namespace
     };
 #endif
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -62,7 +66,7 @@ namespace
     class FakeCommandContext final : public JBro::IRHICommandContext
     {
     public:
-        bool BeginRenderPass(const JBro::RenderPassDesc& desc) override
+        JBro::Bool BeginRenderPass(const JBro::RenderPassDesc& desc) override
         {
             ++beginRenderPassCount;
             // 뷰가 어디로 갔는지는 첨부 텍스처에만 남는다. 카운터만 세면
@@ -88,29 +92,29 @@ namespace
         {
         }
 
-        bool SetGraphicsPipeline(JBro::GraphicsPipelineHandle) override
+        JBro::Bool SetGraphicsPipeline(JBro::GraphicsPipelineHandle) override
         {
             ++setPipelineCount;
             return true;
         }
 
-        bool SetVertexBuffer(
-            std::uint32_t,
+        JBro::Bool SetVertexBuffer(
+            JBro::UInt32,
             JBro::BufferHandle,
-            std::uint32_t,
+            JBro::UInt32,
             std::size_t) override
         {
             ++setVertexBufferCount;
             return true;
         }
 
-        bool SetIndexBuffer(JBro::BufferHandle, JBro::IndexFormat, std::size_t) override
+        JBro::Bool SetIndexBuffer(JBro::BufferHandle, JBro::IndexFormat, std::size_t) override
         {
             ++setIndexBufferCount;
             return true;
         }
 
-        bool SetGraphicsConstants(JBro::JArrayView<std::byte> data) override
+        JBro::Bool SetGraphicsConstants(JBro::JArrayView<std::byte> data) override
         {
             if (data.size == sizeof(viewProjection.values))
             {
@@ -122,30 +126,30 @@ namespace
 
         // 이 가짜는 텍스처를 쓰지 않는다. 받아 두기만 하고 무엇도 그리지 않는다 —
         // 스프라이트 경로는 아직 텍스처를 묶지 않으므로 세어 둘 값도 없다.
-        bool CopyTexture(JBro::TextureHandle, JBro::TextureHandle) override
+        JBro::Bool CopyTexture(JBro::TextureHandle, JBro::TextureHandle) override
         {
             ++copyCount;
             return true;
         }
 
-        std::uint32_t copyCount = 0;
+        JBro::UInt32 copyCount = 0;
 
-        bool SetTexture(std::uint32_t, JBro::TextureHandle) override
+        JBro::Bool SetTexture(JBro::UInt32, JBro::TextureHandle) override
         {
             return true;
         }
 
-        bool SetSampler(std::uint32_t, JBro::SamplerHandle) override
+        JBro::Bool SetSampler(JBro::UInt32, JBro::SamplerHandle) override
         {
             return true;
         }
 
-        bool DrawIndexedInstanced(
-            std::uint32_t,
-            std::uint32_t instanceCount,
-            std::uint32_t,
-            std::int32_t,
-            std::uint32_t firstInstance) override
+        JBro::Bool DrawIndexedInstanced(
+            JBro::UInt32,
+            JBro::UInt32 instanceCount,
+            JBro::UInt32,
+            JBro::Int32,
+            JBro::UInt32 firstInstance) override
         {
             if (drawIndexedInstancedCount < MaxRecordedDraws)
             {
@@ -157,20 +161,20 @@ namespace
 
         struct Draw
         {
-            std::uint32_t instanceCount = 0;
-            std::uint32_t firstInstance = 0;
+            JBro::UInt32 instanceCount = 0;
+            JBro::UInt32 firstInstance = 0;
         };
-        static constexpr std::uint32_t MaxRecordedDraws = 8;
+        static constexpr JBro::UInt32 MaxRecordedDraws = 8;
         Draw draws[MaxRecordedDraws] = {};
 
-        std::uint32_t beginRenderPassCount = 0;
+        JBro::UInt32 beginRenderPassCount = 0;
         JBro::TextureHandle lastColorAttachment;
-        std::uint32_t endRenderPassCount = 0;
-        std::uint32_t setPipelineCount = 0;
-        std::uint32_t setVertexBufferCount = 0;
-        std::uint32_t setIndexBufferCount = 0;
-        std::uint32_t setGraphicsConstantsCount = 0;
-        std::uint32_t drawIndexedInstancedCount = 0;
+        JBro::UInt32 endRenderPassCount = 0;
+        JBro::UInt32 setPipelineCount = 0;
+        JBro::UInt32 setVertexBufferCount = 0;
+        JBro::UInt32 setIndexBufferCount = 0;
+        JBro::UInt32 setGraphicsConstantsCount = 0;
+        JBro::UInt32 drawIndexedInstancedCount = 0;
         JBro::Viewport viewport;
         JBro::Matrix4x4 viewProjection;
     };
@@ -187,7 +191,7 @@ namespace
         {
         }
 
-        bool WriteBuffer(
+        JBro::Bool WriteBuffer(
             JBro::BufferHandle,
             std::size_t,
             JBro::JArrayView<std::byte> data) override
@@ -196,11 +200,11 @@ namespace
             constexpr std::size_t Stride = sizeof(JBro::SpriteTransform2D) + 4 + 8;
             if (data.size >= Stride && data.size % Stride == 0)
             {
-                uploadedInstanceCount = data.size / Stride;
+                uploadedInstanceCount = static_cast<std::uint32_t>(data.size / Stride);
                 std::memcpy(&firstInstanceWorld, data.data, sizeof(firstInstanceWorld));
                 unsigned char tintBytes[4] = {};
                 std::memcpy(tintBytes, data.data + sizeof(JBro::SpriteTransform2D), sizeof(tintBytes));
-                for (int channel = 0; channel < 4; ++channel)
+                for (JBro::Int32 channel = 0; channel < 4; ++channel)
                 {
                     firstInstanceTint[channel] = tintBytes[channel] / 255.0f;
                 }
@@ -219,9 +223,9 @@ namespace
         {
         }
 
-        bool WriteTexture(
+        JBro::Bool WriteTexture(
             JBro::TextureHandle,
-            std::uint32_t,
+            JBro::UInt32,
             JBro::JArrayView<std::byte>) override
         {
             return true;
@@ -260,7 +264,7 @@ namespace
             ++destroySwapchainCount;
         }
 
-        bool ResizeSwapchain(JBro::SwapchainHandle, const JBro::Extent2D& extent) override
+        JBro::Bool ResizeSwapchain(JBro::SwapchainHandle, const JBro::Extent2D& extent) override
         {
             resizedExtent = extent;
             ++resizeSwapchainCount;
@@ -302,32 +306,32 @@ namespace
         }
 
         FakeCommandContext commands;
-        bool resizeSucceeds = true;
+        JBro::Bool resizeSucceeds = true;
         JBro::FrameStatus beginStatus = JBro::FrameStatus::Ready;
         JBro::FrameStatus endStatus = JBro::FrameStatus::Ready;
         JBro::FrameStatus deviceStatus = JBro::FrameStatus::Ready;
         JBro::SwapchainDesc swapchainDesc;
         JBro::Extent2D resizedExtent;
-        std::uint32_t createSwapchainCount = 0;
-        std::uint32_t destroySwapchainCount = 0;
-        std::uint32_t resizeSwapchainCount = 0;
-        std::uint32_t beginFrameCount = 0;
-        std::uint32_t endFrameCount = 0;
-        std::uint32_t abortFrameCount = 0;
-        std::uint32_t waitIdleCount = 0;
-        std::uint32_t writeBufferCount = 0;
-        std::uint32_t createPipelineCount = 0;
-        std::uint32_t destroyPipelineCount = 0;
-        std::uint32_t uploadedInstanceCount = 0;
+        JBro::UInt32 createSwapchainCount = 0;
+        JBro::UInt32 destroySwapchainCount = 0;
+        JBro::UInt32 resizeSwapchainCount = 0;
+        JBro::UInt32 beginFrameCount = 0;
+        JBro::UInt32 endFrameCount = 0;
+        JBro::UInt32 abortFrameCount = 0;
+        JBro::UInt32 waitIdleCount = 0;
+        JBro::UInt32 writeBufferCount = 0;
+        JBro::UInt32 createPipelineCount = 0;
+        JBro::UInt32 destroyPipelineCount = 0;
+        JBro::UInt32 uploadedInstanceCount = 0;
         std::size_t lastInstanceUploadBytes = 0;
         JBro::SpriteTransform2D firstInstanceWorld;
-        float firstInstanceTint[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        JBro::Float firstInstanceTint[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     class FakeModule final : public JBro::IRHIModule
     {
     public:
-        bool Initialize(const JBro::JMemoryContext&) override
+        JBro::Bool Initialize(const JBro::JMemoryContext&) override
         {
             return true;
         }
@@ -356,15 +360,15 @@ namespace
 
         FakeDevice device;
         JBro::RHIDeviceCreateInfo lastCreateInfo;
-        std::uint32_t createDeviceCount = 0;
-        std::uint32_t destroyDeviceCount = 0;
+        JBro::UInt32 createDeviceCount = 0;
+        JBro::UInt32 destroyDeviceCount = 0;
     };
 
     // 소리 없이 열리는 가짜 출력 장치다(D-203). 시험이 `lost` 를 켜서 뽑힌 장치를 흉내 낸다.
     class FakeAudioOutput final : public JBro::IAudioOutput
     {
     public:
-        explicit FakeAudioOutput(int& live) : m_live(live)
+        explicit FakeAudioOutput(JBro::Int32& live) : m_live(live)
         {
             ++m_live;
         }
@@ -372,7 +376,7 @@ namespace
         {
             --m_live;
         }
-        bool Start(JBro::AudioRenderCallback, void*) override
+        JBro::Bool Start(JBro::AudioRenderCallback, void*) override
         {
             running = true;
             return true;
@@ -381,15 +385,15 @@ namespace
         {
             running = false;
         }
-        bool IsRunning() const override
+        JBro::Bool IsRunning() const override
         {
             return running;
         }
-        std::uint32_t GetSampleRate() const override
+        JBro::UInt32 GetSampleRate() const override
         {
             return 48000;
         }
-        std::uint32_t GetChannels() const override
+        JBro::UInt32 GetChannels() const override
         {
             return 2;
         }
@@ -397,16 +401,16 @@ namespace
         {
             return name.c_str();
         }
-        bool IsLost() const override
+        JBro::Bool IsLost() const override
         {
             return lost;
         }
         JBro::String name;
-        bool running = false;
-        bool lost = false;
+        JBro::Bool running = false;
+        JBro::Bool lost = false;
 
     private:
-        int& m_live;
+        JBro::Int32& m_live;
     };
 
     class HostPlatform final : public JBro::IPlatform
@@ -431,35 +435,35 @@ namespace
             lastOutput = output.Get();
             return JBro::OwnerPtr<JBro::IAudioOutput>(std::move(output));
         }
-        std::uint32_t EnumerateAudioOutputs(JBro::AudioDeviceInfo* devices, std::uint32_t capacity) override
+        JBro::UInt32 EnumerateAudioOutputs(JBro::AudioDeviceInfo* devices, JBro::UInt32 capacity) override
         {
             const char* const names[2] = {"Speakers", "Headphones"};
-            for (std::uint32_t index = 0; index < 2 && index < capacity; ++index)
+            for (JBro::UInt32 index = 0; index < 2 && index < capacity; ++index)
             {
                 std::snprintf(devices[index].name, sizeof(devices[index].name), "%s", names[index]);
                 devices[index].isDefault = index == 0;
             }
             return 2;
         }
-        bool TakeAudioDevicesChanged() override
+        JBro::Bool TakeAudioDevicesChanged() override
         {
             ++deviceChecks;
             return std::exchange(devicesChanged, false);
         }
-        int audioOpens = 0;
-        int liveOutputs = 0;
+        JBro::Int32 audioOpens = 0;
+        JBro::Int32 liveOutputs = 0;
         // "Gone" 장치가 다시 꽂혔는가와 그 알림이다(D-206).
-        bool pluggedIn = false;
-        bool devicesChanged = false;
-        int deviceChecks = 0;
+        JBro::Bool pluggedIn = false;
+        JBro::Bool devicesChanged = false;
+        JBro::Int32 deviceChecks = 0;
         // 게임패드 한 자리(0 번)다(D-214).
-        bool PollGamepad(std::uint32_t slot, JBro::GamepadRawState& state) override
+        JBro::Bool PollGamepad(JBro::UInt32 slot, JBro::GamepadRawState& state) override
         {
             state = slot == 0 ? pad : JBro::GamepadRawState{};
             return state.connected;
         }
 
-        void SetGamepadVibration(std::uint32_t slot, float low, float high) override
+        void SetGamepadVibration(JBro::UInt32 slot, JBro::Float low, JBro::Float high) override
         {
             if (slot == 0)
             {
@@ -469,14 +473,14 @@ namespace
         }
 
         JBro::GamepadRawState pad;
-        float motorLow = 0.0f;
-        float motorHigh = 0.0f;
-        bool refuseAudio = false;
+        JBro::Float motorLow = 0.0f;
+        JBro::Float motorHigh = 0.0f;
+        JBro::Bool refuseAudio = false;
         JBro::String lastRequestedDevice;
         FakeAudioOutput* lastOutput = nullptr;
         JBro::Array<JBro::InputEvent> events;
 
-        bool Initialize(const JBro::JMemoryContext&) override
+        JBro::Bool Initialize(const JBro::JMemoryContext&) override
         {
             return true;
         }
@@ -515,14 +519,14 @@ namespace
             view.size = static_cast<std::uint32_t>(events.Size());
             return view;
         }
-        void WaitForEvents(std::uint32_t) override
+        void WaitForEvents(JBro::UInt32) override
         {
         }
-        bool ShouldClose(JBro::WindowHandle) const override
+        JBro::Bool ShouldClose(JBro::WindowHandle) const override
         {
             return closeRequested;
         }
-        bool GetWindowState(JBro::WindowHandle, JBro::WindowState& result) const override
+        JBro::Bool GetWindowState(JBro::WindowHandle, JBro::WindowState& result) const override
         {
             result = state;
             return open;
@@ -540,16 +544,16 @@ namespace
         }
         FakeModule* module = nullptr;
         JBro::WindowState state{320, 180, false};
-        bool open = false;
-        bool closeRequested = false;
-        int pumpCount = 0;
-        int closeCount = 0;
+        JBro::Bool open = false;
+        JBro::Bool closeRequested = false;
+        JBro::Int32 pumpCount = 0;
+        JBro::Int32 closeCount = 0;
     };
 
     class HostFramework final : public JBro::IFramework
     {
     public:
-        bool Initialize(const JBro::FrameworkContext& value) override
+        JBro::Bool Initialize(const JBro::FrameworkContext& value) override
         {
             context = value;
             Check(value.renderer != nullptr && value.renderer->IsInitialized(), "GPU must precede framework init");
@@ -568,7 +572,7 @@ namespace
             }
             return initializeSucceeds;
         }
-        bool BindScriptContexts() noexcept override
+        JBro::Bool BindScriptContexts() noexcept override
         {
             ++contextBinds;
             contextsBound = bindContextsSucceeds;
@@ -631,26 +635,26 @@ namespace
         HostPlatform* platform = nullptr;
         JBro::EngineInstance* engine = nullptr;
         JBro::FrameworkContext context;
-        int updates = 0;
-        int renders = 0;
-        int shutdowns = 0;
-        int contextBinds = 0;
-        int contextUnbinds = 0;
-        int shutdownsAtBind = 0;
-        bool contextsBound = false;
-        bool bindContextsSucceeds = true;
-        bool initializeSucceeds = true;
+        JBro::Int32 updates = 0;
+        JBro::Int32 renders = 0;
+        JBro::Int32 shutdowns = 0;
+        JBro::Int32 contextBinds = 0;
+        JBro::Int32 contextUnbinds = 0;
+        JBro::Int32 shutdownsAtBind = 0;
+        JBro::Bool contextsBound = false;
+        JBro::Bool bindContextsSucceeds = true;
+        JBro::Bool initializeSucceeds = true;
         JBro::RenderResult renderResult = JBro::RenderResult::Submitted;
-        bool submitView = false;
-        bool exitDuringUpdate = false;
-        bool throwDuringUpdate = false;
-        bool throwDuringInitialize = false;
-        bool closeDuringInitialize = false;
-        bool exitDuringInitialize = false;
-        bool closeDuringRender = false;
-        bool exitDuringShutdown = false;
-        bool closeDuringUpdate = false;
-        int shutdownsBeforeUpdate = 0;
+        JBro::Bool submitView = false;
+        JBro::Bool exitDuringUpdate = false;
+        JBro::Bool throwDuringUpdate = false;
+        JBro::Bool throwDuringInitialize = false;
+        JBro::Bool closeDuringInitialize = false;
+        JBro::Bool exitDuringInitialize = false;
+        JBro::Bool closeDuringRender = false;
+        JBro::Bool exitDuringShutdown = false;
+        JBro::Bool closeDuringUpdate = false;
+        JBro::Int32 shutdownsBeforeUpdate = 0;
     };
 
     // 오버레이가 불렸는지, 그때 백버퍼가 무엇이었는지 남긴다.
@@ -749,7 +753,7 @@ namespace
             "failed script context binding must roll back without an unmatched unbind");
         second.bindContextsSucceeds = true;
         second.throwDuringInitialize = true;
-        bool caught = false;
+        JBro::Bool caught = false;
         try
         {
             engine.OpenProject(second);
@@ -792,7 +796,7 @@ namespace
     }
 
     // Existing process-failure tests intentionally close the process if its first project fails.
-    bool InitializeHost(JBro::EngineInstance& engine, const JBro::EngineConfig& config,
+    JBro::Bool InitializeHost(JBro::EngineInstance& engine, const JBro::EngineConfig& config,
         HostPlatform& platform, FakeModule& module, HostFramework& framework)
     {
         if (false == engine.Initialize(config, platform, module))
@@ -834,7 +838,7 @@ namespace
             "a device missing on this machine falls back to the default and keeps the choice");
 
         // 고른 장치가 다시 꽂히면(알림) 되돌아간다. 알림이 없으면 장치를 다시 찾지 않는다(D-206).
-        int opens = platform.audioOpens;
+        JBro::Int32 opens = platform.audioOpens;
         engine.Tick(0.016f);
         Check(platform.audioOpens == opens, "without a device notification the host does not look for the chosen device");
         platform.pluggedIn = true;
@@ -916,7 +920,7 @@ namespace
         Check(framework.context.time != nullptr && framework.context.time->GetSettings().fixedDeltaTime == 0.02f,
             "host must hand the framework its clock with the fixed-step policy (D-242)");
         Check(false == InitializeHost(engine, config, platform, module, framework), "double init must reject without teardown");
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
 #if defined(_MSC_VER) && defined(_DEBUG)
             FrameAllocationProbe probe;
@@ -1000,7 +1004,7 @@ namespace
         framework.exitDuringUpdate = false;
         Check(InitializeHost(engine, config, platform, module, framework), "host must reopen after requested exit");
         framework.throwDuringUpdate = true;
-        bool caught = false;
+        JBro::Bool caught = false;
         try
         {
             engine.Tick(0.016f);
@@ -1068,7 +1072,7 @@ namespace
         auto* object = canvas->CreateObject("sprites");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);        transform->position = {5.0f, 7.0f};
         transform->SetRotationRadian(JBro::Radian(1.57079632679f));
-        for (int index = 0; index < 70; ++index)
+        for (JBro::Int32 index = 0; index < 70; ++index)
         {
             auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
             Check(sprite != nullptr, "integration sprites must attach");
@@ -1105,7 +1109,7 @@ namespace
             "a type lookup must not walk far past the component it wants");
         Check(module.device.uploadedInstanceCount == 70 && module.device.commands.drawIndexedInstancedCount == 1,
             "70 converted packets must become a single GPU instance upload and draw");
-        const auto close = [](float a, float b) { return std::fabs(a - b) < 0.0001f; };
+        const auto close = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.0001f; };
         const auto& world = module.device.firstInstanceWorld;
         Check(close(world.linear[0], 0.0f) && close(world.linear[1], -4.0f)
             && close(world.linear[2], -2.0f) && close(world.linear[3], 0.0f)
@@ -1242,14 +1246,14 @@ namespace
     }
     struct HostOverlayProbe
     {
-        int calls = 0;
+        JBro::Int32 calls = 0;
         JBro::TextureHandle backBuffer;
     };
 
-    bool RecordHostOverlay(
+    JBro::Bool RecordHostOverlay(
         JBro::IRHICommandContext&,
         JBro::TextureHandle backBuffer,
-        std::uint32_t,
+        JBro::UInt32,
         void* user)
     {
         auto* probe = static_cast<HostOverlayProbe*>(user);
@@ -1271,9 +1275,9 @@ namespace
         config.maxMeshSubmissions = 4;
         Check(renderer.Initialize(module, config), "the renderer must initialize");
         const JBro::MeshVertex vertices[3] = {};
-        const std::uint32_t indices[3] = {0, 1, 2};
-        const std::uint32_t outOfRange[3] = {0, 1, 3};
-        const std::uint32_t notTriangles[4] = {0, 1, 2, 0};
+        const JBro::UInt32 indices[3] = {0, 1, 2};
+        const JBro::UInt32 outOfRange[3] = {0, 1, 3};
+        const JBro::UInt32 notTriangles[4] = {0, 1, 2, 0};
         const JBro::AssetHandle mesh = renderer.RegisterMesh({vertices, 3}, {indices, 3});
         Check(mesh.generation != 0, "a sane mesh must register");
         Check(renderer.GetMeshCount() == 1, "and be counted");
@@ -1307,7 +1311,7 @@ namespace
         config.maxMeshSubmissions = 8;
         Check(renderer.Initialize(module, config), "the renderer must initialize");
         const JBro::MeshVertex vertices[3] = {};
-        const std::uint32_t indices[3] = {0, 1, 2};
+        const JBro::UInt32 indices[3] = {0, 1, 2};
         const JBro::AssetHandle first = renderer.RegisterMesh({vertices, 3}, {indices, 3});
         const JBro::AssetHandle second = renderer.RegisterMesh({vertices, 3}, {indices, 3});
         Check(first.generation != 0 && second.generation != 0 && first.index != second.index,
@@ -1316,7 +1320,7 @@ namespace
         stale.generation += 1;
 
         FakeCommandContext& commands = module.device.commands;
-        const std::uint32_t drawsBefore = commands.drawIndexedInstancedCount;
+        const JBro::UInt32 drawsBefore = commands.drawIndexedInstancedCount;
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "a frame must begin");
         JBro::CameraParams camera;
         Check(renderer.BeginView(camera), "a view must open");
@@ -1377,8 +1381,8 @@ namespace
         // ③ 게임이 낼 것이 없는 프레임. 오버레이가 없으면 버린다.
         framework.submitView = false;
         framework.renderResult = JBro::RenderResult::NothingToSubmit;
-        std::uint32_t aborts = module.device.abortFrameCount;
-        std::uint32_t presents = module.device.endFrameCount;
+        JBro::UInt32 aborts = module.device.abortFrameCount;
+        JBro::UInt32 presents = module.device.endFrameCount;
         Check(engine.Tick(0.016f), "an empty frame must not stop the loop");
         Check(module.device.abortFrameCount == aborts + 1
                 && module.device.endFrameCount == presents,
@@ -1405,7 +1409,7 @@ namespace
         framework.renderResult = JBro::RenderResult::Submitted;
         target.recordViews = false;
         Check(engine.SetGameViewTarget(target), "the host must take a target that skips views");
-        const std::uint32_t passes = module.device.commands.beginRenderPassCount;
+        const JBro::UInt32 passes = module.device.commands.beginRenderPassCount;
         presents = module.device.endFrameCount;
         Check(engine.Tick(0.016f), "the frame that skips its views must tick");
         Check(module.device.commands.beginRenderPassCount == passes,
@@ -1462,7 +1466,7 @@ namespace
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(thing) != nullptr
                 && canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(thing) != nullptr, "a sprite to draw");
 
-        const auto close = [](float a, float b) { return std::fabs(a - b) < 0.0001f; };
+        const auto close = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.0001f; };
         const auto renderFrame = [&](const char* what) {
             framework.Update();
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, what);
@@ -1569,7 +1573,7 @@ namespace
 
 }
 
-int RunRendererContractTests()
+JBro::Int32 RunRendererContractTests()
 {
     TestHandlesRemainCompactValues();
     TestRendererCollectsBeforeRecording();

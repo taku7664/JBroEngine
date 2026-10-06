@@ -3,6 +3,8 @@
 #include <JBro/Types/Angle.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 // 3D 수학 값 타입과 hot-path 용 inline 함수다. 리플렉션은 `Math3DReflection.h` 에 따로 있다 -
 // 이 헤더는 매 프레임 경로에 있어 리플렉션 기계를 물고 가면 안 된다(2D 의 `Math2D.h` 와 같다).
@@ -15,9 +17,9 @@ namespace JBro
 {
     struct Vector3
     {
-        float x = 0.0f;
-        float y = 0.0f;
-        float z = 0.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
+        Float z = 0.0f;
     };
 
     // 성분 넷짜리 벡터다(D-250). **`Quaternion` 과 배치는 같지만 뜻이 다르다** - 사원수는 회전이고
@@ -30,18 +32,18 @@ namespace JBro
     // 2D·3D 어느 쪽 것도 아니지만 `Matrix4x4` 와 짝이라 여기 둔다.
     struct Vector4
     {
-        float x = 0.0f;
-        float y = 0.0f;
-        float z = 0.0f;
-        float w = 0.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
+        Float z = 0.0f;
+        Float w = 0.0f;
     };
 
     struct Quaternion
     {
-        float x = 0.0f;
-        float y = 0.0f;
-        float z = 0.0f;
-        float w = 1.0f;
+        Float x = 0.0f;
+        Float y = 0.0f;
+        Float z = 0.0f;
+        Float w = 1.0f;
     };
 
     inline Vector3 Add(const Vector3& left, const Vector3& right)
@@ -54,7 +56,7 @@ namespace JBro
         return {left.x - right.x, left.y - right.y, left.z - right.z};
     }
 
-    inline Vector3 Scale(const Vector3& value, float factor)
+    inline Vector3 Scale(const Vector3& value, Float factor)
     {
         return {value.x * factor, value.y * factor, value.z * factor};
     }
@@ -65,7 +67,7 @@ namespace JBro
         return {left.x * right.x, left.y * right.y, left.z * right.z};
     }
 
-    inline float Dot(const Vector3& left, const Vector3& right)
+    inline Float Dot(const Vector3& left, const Vector3& right)
     {
         return left.x * right.x + left.y * right.y + left.z * right.z;
     }
@@ -78,7 +80,7 @@ namespace JBro
             left.x * right.y - left.y * right.x};
     }
 
-    inline float Length(const Vector3& value)
+    inline Float Length(const Vector3& value)
     {
         return std::sqrt(Dot(value, value));
     }
@@ -86,7 +88,7 @@ namespace JBro
     // 길이가 0 이면 그대로 0 벡터다. 나눗셈으로 NaN 을 만들지 않는다.
     inline Vector3 Normalize(const Vector3& value)
     {
-        const float length = Length(value);
+        const Float length = Length(value);
         if (length <= 0.0f)
         {
             return {};
@@ -96,13 +98,13 @@ namespace JBro
 
     inline Quaternion Normalize(const Quaternion& value)
     {
-        const float length = std::sqrt(
+        const Float length = std::sqrt(
             value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w);
         if (length <= 0.0f)
         {
             return {};
         }
-        const float inverse = 1.0f / length;
+        const Float inverse = 1.0f / length;
         return {value.x * inverse, value.y * inverse, value.z * inverse, value.w * inverse};
     }
 
@@ -137,8 +139,8 @@ namespace JBro
     inline Quaternion FromAxisAngle(const Vector3& axis, Radian angle)
     {
         const Vector3 unit = Normalize(axis);
-        const float half = angle.Get() * 0.5f;
-        const float sine = std::sin(half);
+        const Float half = angle.Get() * 0.5f;
+        const Float sine = std::sin(half);
         return {unit.x * sine, unit.y * sine, unit.z * sine, std::cos(half)};
     }
 
@@ -146,13 +148,13 @@ namespace JBro
     // 사람에게 보여 주는 값으로 쓴다. `[가정]`
     inline Quaternion FromEuler(const Vector3& radians)
     {
-        const Quaternion yaw = FromAxisAngle({0.0f, 1.0f, 0.0f}, radians.y);
-        const Quaternion pitch = FromAxisAngle({1.0f, 0.0f, 0.0f}, radians.x);
-        const Quaternion roll = FromAxisAngle({0.0f, 0.0f, 1.0f}, radians.z);
+        const Quaternion yaw = FromAxisAngle({0.0f, 1.0f, 0.0f}, Radian(radians.y));
+        const Quaternion pitch = FromAxisAngle({1.0f, 0.0f, 0.0f}, Radian(radians.x));
+        const Quaternion roll = FromAxisAngle({0.0f, 0.0f, 1.0f}, Radian(radians.z));
         return Normalize(Multiply(yaw, Multiply(pitch, roll)));
     }
 
-    inline bool NearlyEqual(const Vector3& left, const Vector3& right, float tolerance = 0.0001f)
+    inline Bool NearlyEqual(const Vector3& left, const Vector3& right, Float tolerance = 0.0001f)
     {
         return std::fabs(left.x - right.x) <= tolerance
             && std::fabs(left.y - right.y) <= tolerance
@@ -172,7 +174,7 @@ namespace JBro
         return {left.x - right.x, left.y - right.y, left.z - right.z, left.w - right.w};
     }
 
-    inline Vector4 Scale(const Vector4& value, float factor)
+    inline Vector4 Scale(const Vector4& value, Float factor)
     {
         return {value.x * factor, value.y * factor, value.z * factor, value.w * factor};
     }
@@ -182,19 +184,19 @@ namespace JBro
         return {left.x * right.x, left.y * right.y, left.z * right.z, left.w * right.w};
     }
 
-    inline float Dot(const Vector4& left, const Vector4& right)
+    inline Float Dot(const Vector4& left, const Vector4& right)
     {
         return left.x * right.x + left.y * right.y + left.z * right.z + left.w * right.w;
     }
 
-    inline float Length(const Vector4& value)
+    inline Float Length(const Vector4& value)
     {
         return std::sqrt(Dot(value, value));
     }
 
     inline Vector4 Normalize(const Vector4& value)
     {
-        const float length = Length(value);
+        const Float length = Length(value);
         if (length <= 0.0001f)
         {
             return {};
@@ -222,11 +224,11 @@ namespace JBro
         {
             return {value.x, value.y, value.z};
         }
-        const float inverse = 1.0f / value.w;
+        const Float inverse = 1.0f / value.w;
         return {value.x * inverse, value.y * inverse, value.z * inverse};
     }
 
-    inline bool NearlyEqual(const Vector4& left, const Vector4& right, float tolerance = 0.0001f)
+    inline Bool NearlyEqual(const Vector4& left, const Vector4& right, Float tolerance = 0.0001f)
     {
         return std::fabs(left.x - right.x) <= tolerance
             && std::fabs(left.y - right.y) <= tolerance

@@ -3,6 +3,8 @@
 #include <JBro/Editor/Widget/Common.h>
 
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
@@ -20,34 +22,34 @@ namespace JBro::Widget
         TextField& MaxLength(std::size_t length);
         // 여러 줄 칸이다. `MaxLength` 를 주지 않으면 길이에 끝이 없고, 높이는 글자 줄 수를 따라 `lines` 부터 늘어난다.
         // Enter 는 줄바꿈이라 `CommitOnEnter` 대신 `CommitOnFinish` 로 확정한다.
-        TextField& Multiline(bool multiline = true, float lines = 4.5f);
+        TextField& Multiline(Bool multiline = true, Float lines = 4.5f);
         // 참이면 Enter 를 눌러야 값이 반영된다. 거짓이면 글자마다 반영한다.
-        TextField& CommitOnEnter(bool commit = true);
+        TextField& CommitOnEnter(Bool commit = true);
         // 참이면 **편집이 끝날 때 한 번** 참을 돌려준다(포커스를 잃거나 Enter). 글자는 치는
         // 대로 들어가되 부르는 쪽이 값을 확정하는 시점만 미뤄진다.
         //
         // 값을 커맨드로 남기는 자리가 이것을 쓴다. 글자마다 커맨드를 만들면 되돌리기가
         // 글자 수만큼 필요해지고, 커맨드 병합은 마우스를 누른 채일 때만 일어나므로
         // 타이핑에는 걸리지 않는다.
-        TextField& CommitOnFinish(bool commit = true);
-        TextField& Invalid(bool invalid = true);
-        TextField& Width(float width);
+        TextField& CommitOnFinish(Bool commit = true);
+        TextField& Invalid(Bool invalid = true);
+        TextField& Width(Float width);
 
-        bool Draw() const;
-        bool operator()() const;
+        Bool Draw() const;
+        Bool operator()() const;
 
     private:
-        bool DrawGrowable() const;
+        Bool DrawGrowable() const;
 
         const char* m_id = nullptr;
         String& m_text;
         const char* m_hint = nullptr;
         std::size_t m_maxLength = 0;
-        float m_lines = 4.5f;
-        float m_width = 0.0f;
-        bool m_multiline = false;
-        bool m_commitOnEnter = false;
-        bool m_commitOnFinish = false;
-        bool m_invalid = false;
+        Float m_lines = 4.5f;
+        Float m_width = 0.0f;
+        Bool m_multiline = false;
+        Bool m_commitOnEnter = false;
+        Bool m_commitOnFinish = false;
+        Bool m_invalid = false;
     };
 }

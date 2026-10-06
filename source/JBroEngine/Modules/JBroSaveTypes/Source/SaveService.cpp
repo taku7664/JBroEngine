@@ -1,27 +1,28 @@
 ﻿#include <JBro/SaveTypes/Service/SaveService.h>
 
 #include <JBro/SaveTypes/Internal/SystemContext.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Service
 {
-    bool SaveService::IsReady() const
+    Bool SaveService::IsReady() const
     {
         const System::ISaveStorage* storage = GetSaveSystems().Storage;
         return storage != nullptr && storage->IsReady();
     }
 
-    bool SaveService::WriteBytes(const char* slot, const void* data, std::size_t size) const
+    Bool SaveService::WriteBytes(const char* slot, const void* data, std::size_t size) const
     {
         System::ISaveStorage* storage = GetSaveSystems().Storage;
         return storage != nullptr && storage->Write(slot, data, size);
     }
 
-    bool SaveService::WriteText(const char* slot, const String& text) const
+    Bool SaveService::WriteText(const char* slot, const String& text) const
     {
         return WriteBytes(slot, text.data(), text.size());
     }
 
-    bool SaveService::ReadBytes(const char* slot, Array<std::byte>& out) const
+    Bool SaveService::ReadBytes(const char* slot, Array<std::byte>& out) const
     {
         out.Clear();
         const System::ISaveStorage* storage = GetSaveSystems().Storage;
@@ -42,7 +43,7 @@ namespace JBro::Service
         return true;
     }
 
-    bool SaveService::ReadText(const char* slot, String& out) const
+    Bool SaveService::ReadText(const char* slot, String& out) const
     {
         out.clear();
         Array<std::byte> bytes;
@@ -54,19 +55,19 @@ namespace JBro::Service
         return true;
     }
 
-    bool SaveService::Exists(const char* slot) const
+    Bool SaveService::Exists(const char* slot) const
     {
         const System::ISaveStorage* storage = GetSaveSystems().Storage;
         return storage != nullptr && storage->Exists(slot);
     }
 
-    bool SaveService::Remove(const char* slot) const
+    Bool SaveService::Remove(const char* slot) const
     {
         System::ISaveStorage* storage = GetSaveSystems().Storage;
         return storage != nullptr && storage->Remove(slot);
     }
 
-    bool SaveService::Flush() const
+    Bool SaveService::Flush() const
     {
         System::ISaveStorage* storage = GetSaveSystems().Storage;
         return storage != nullptr && storage->Flush();

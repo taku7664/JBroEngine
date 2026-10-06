@@ -1,9 +1,12 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -26,19 +29,19 @@ namespace JBro
     public:
         // 경계를 재는 해상도의 한계다. 넘으면 정수 배로 건너뛰며 줄여 잰다 - 1024 짜리
         // 그림의 픽셀 경계를 그대로 그리면 선분이 수천 개가 되고, 화면에서는 굵은 띠로 뭉친다.
-        static constexpr std::uint32_t MaxSide = 96;
+        static constexpr UInt32 MaxSide = 96;
         // 이 값보다 옅은 픽셀은 없는 것으로 본다. 0 으로 두면 눈에 보이지 않는 가장자리의
         // 잔여 알파까지 경계가 되어, 윤곽이 그림보다 한 겹 크게 나온다.
         static constexpr std::uint8_t AlphaThreshold = 8;
         // 한 프레임에 새로 재는 개수다. 고른 것이 많아도 그 프레임이 늘어지지 않게 막는다.
-        static constexpr std::uint32_t MaxNewPerFrame = 2;
+        static constexpr UInt32 MaxNewPerFrame = 2;
 
         struct Segment
         {
-            float x0 = 0.0f;
-            float y0 = 0.0f;
-            float x1 = 0.0f;
-            float y1 = 0.0f;
+            Float x0 = 0.0f;
+            Float y0 = 0.0f;
+            Float x1 = 0.0f;
+            Float y1 = 0.0f;
         };
 
         void Initialize(AssetSystem& assets);
@@ -59,20 +62,20 @@ namespace JBro
         {
             AssetHandle texture;
             // 칸의 자리와 크기다. 같은 텍스처라도 칸마다 모양이 다르다.
-            std::uint32_t x = 0;
-            std::uint32_t y = 0;
-            std::uint32_t width = 0;
-            std::uint32_t height = 0;
-            std::uint32_t pixelGeneration = 0;
+            UInt32 x = 0;
+            UInt32 y = 0;
+            UInt32 width = 0;
+            UInt32 height = 0;
+            UInt32 pixelGeneration = 0;
             Array<Segment> segments;
-            bool failed = false;
+            Bool failed = false;
         };
 
         Entry* Find(AssetHandle texture, const SpriteFrame& frame);
-        bool Build(AssetHandle texture, const SpriteFrame& frame, Entry& entry);
+        Bool Build(AssetHandle texture, const SpriteFrame& frame, Entry& entry);
 
         AssetSystem* m_assets = nullptr;
         Array<Entry> m_entries;
-        std::uint32_t m_budget = 0;
+        UInt32 m_budget = 0;
     };
 }

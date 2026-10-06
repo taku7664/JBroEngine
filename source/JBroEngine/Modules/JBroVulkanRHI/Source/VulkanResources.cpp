@@ -1,6 +1,9 @@
 ﻿#include "VulkanDevice.h"
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -26,7 +29,7 @@ namespace JBro::Internal
         return VK_FORMAT_UNDEFINED;
     }
 
-    std::uint32_t VulkanPixelSize(TextureFormat format)
+    UInt32 VulkanPixelSize(TextureFormat format)
     {
         switch (format)
         {
@@ -46,17 +49,17 @@ namespace JBro::Internal
 
     namespace
     {
-        bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
+        Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
 
-        bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
+        Bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
         {
             return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
         }
 
-        constexpr std::uint32_t TextureUsageMask =
+        constexpr UInt32 TextureUsageMask =
             static_cast<std::uint32_t>(TextureUsage::Sampled)
             | static_cast<std::uint32_t>(TextureUsage::RenderTarget)
             | static_cast<std::uint32_t>(TextureUsage::DepthStencil)
@@ -77,18 +80,18 @@ namespace JBro::Internal
 
     // ── 메모리 ──────────────────────────────────────────────────────────────
 
-    bool VulkanDevice::AllocateMemory(const VkMemoryRequirements& requirements, VkMemoryPropertyFlags wanted,
-        VkMemoryPropertyFlags fallback, VkDeviceMemory& memory, bool& hostVisible)
+    Bool VulkanDevice::AllocateMemory(const VkMemoryRequirements& requirements, VkMemoryPropertyFlags wanted,
+        VkMemoryPropertyFlags fallback, VkDeviceMemory& memory, Bool& hostVisible)
     {
         // 자원마다 할당 하나다. 자원 수의 상한(버퍼 1024, 텍스처 512)이 드라이버의 할당 상한(4096) 아래다. `[가정]`
-        for (int pass = 0; pass < 2; ++pass)
+        for (Int32 pass = 0; pass < 2; ++pass)
         {
             const VkMemoryPropertyFlags flags = pass == 0 ? wanted : fallback;
             if (flags == 0)
             {
                 continue;
             }
-            for (std::uint32_t type = 0; type < m_memoryProperties.memoryTypeCount; ++type)
+            for (UInt32 type = 0; type < m_memoryProperties.memoryTypeCount; ++type)
             {
                 if ((requirements.memoryTypeBits & (1u << type)) == 0
                     || (m_memoryProperties.memoryTypes[type].propertyFlags & flags) != flags)
@@ -110,7 +113,7 @@ namespace JBro::Internal
         return false;
     }
 
-    bool VulkanDevice::CreateImage(const VkImageCreateInfo& info, VkImage& image, VkDeviceMemory& memory)
+    Bool VulkanDevice::CreateImage(const VkImageCreateInfo& info, VkImage& image, VkDeviceMemory& memory)
     {
         image = VK_NULL_HANDLE;
         memory = VK_NULL_HANDLE;
@@ -121,7 +124,7 @@ namespace JBro::Internal
         }
         VkMemoryRequirements requirements = {};
         vk.vkGetImageMemoryRequirements(m_device, image, &requirements);
-        bool hostVisible = false;
+        Bool hostVisible = false;
         if (false == AllocateMemory(requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, memory, hostVisible)
             || vk.vkBindImageMemory(m_device, image, memory, 0) != VK_SUCCESS)
         {
@@ -137,7 +140,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::CreateStagingBuffer(VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory, void*& mapped)
+    Bool VulkanDevice::CreateStagingBuffer(VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory, void*& mapped)
     {
         buffer = VK_NULL_HANDLE;
         memory = VK_NULL_HANDLE;
@@ -153,7 +156,7 @@ namespace JBro::Internal
         }
         VkMemoryRequirements requirements = {};
         vk.vkGetBufferMemoryRequirements(m_device, buffer, &requirements);
-        bool hostVisible = false;
+        Bool hostVisible = false;
         const VkMemoryPropertyFlags host = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         if (false == AllocateMemory(requirements, host | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, host, memory, hostVisible)
             || vk.vkBindBufferMemory(m_device, buffer, memory, 0) != VK_SUCCESS
@@ -181,8 +184,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxBuffers;
-        for (std::uint32_t at = 0; at < MaxBuffers; ++at)
+        UInt32 index = MaxBuffers;
+        for (UInt32 at = 0; at < MaxBuffers; ++at)
         {
             if (false == m_buffers[at].occupied)
             {
@@ -224,7 +227,7 @@ namespace JBro::Internal
         const VkMemoryPropertyFlags wanted = desc.memory == MemoryType::Device
             ? host | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
             : host;
-        bool hostVisible = false;
+        Bool hostVisible = false;
         if (false == AllocateMemory(requirements, wanted, host, state.memory, hostVisible)
             || vk.vkBindBufferMemory(m_device, state.buffer, state.memory, 0) != VK_SUCCESS
             || vk.vkMapMemory(m_device, state.memory, 0, VK_WHOLE_SIZE, 0, &state.mapped) != VK_SUCCESS)
@@ -261,12 +264,12 @@ namespace JBro::Internal
         }
         Retire(VulkanRetiredObject::Kind::Buffer, reinterpret_cast<std::uint64_t>(state.buffer));
         Retire(VulkanRetiredObject::Kind::Memory, reinterpret_cast<std::uint64_t>(state.memory));
-        const std::uint32_t generation = VulkanNextGeneration(state.generation);
+        const UInt32 generation = VulkanNextGeneration(state.generation);
         state = {};
         state.generation = generation;
     }
 
-    bool VulkanDevice::WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data)
+    Bool VulkanDevice::WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data)
     {
         if (false == buffer.IsValid() || buffer.index >= MaxBuffers || data.data == nullptr || data.size == 0)
         {
@@ -282,7 +285,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::ResolveBuffer(BufferHandle buffer, VkBuffer& native, BufferDesc& desc)
+    Bool VulkanDevice::ResolveBuffer(BufferHandle buffer, VkBuffer& native, BufferDesc& desc)
     {
         if (false == buffer.IsValid() || buffer.index >= MaxBuffers)
         {
@@ -303,9 +306,9 @@ namespace JBro::Internal
     TextureHandle VulkanDevice::CreateTexture(const TextureDesc& desc)
     {
         const VkFormat format = ToVulkanFormat(desc.format);
-        const bool depth = desc.format == TextureFormat::D32Float;
-        const bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
-        const bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
+        const Bool depth = desc.format == TextureFormat::D32Float;
+        const Bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
+        const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == VK_NULL_HANDLE || m_frameActive
             || desc.extent.width == 0 || desc.extent.height == 0 || desc.extent.width > 16384
             || desc.extent.height > 16384 || desc.depthOrLayers != 1 || desc.mipLevels == 0
@@ -316,8 +319,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxTextures;
-        for (std::uint32_t at = 0; at < MaxTextures; ++at)
+        UInt32 index = MaxTextures;
+        for (UInt32 at = 0; at < MaxTextures; ++at)
         {
             if (false == m_textures[at].occupied)
             {
@@ -395,12 +398,12 @@ namespace JBro::Internal
         Retire(VulkanRetiredObject::Kind::ImageView, reinterpret_cast<std::uint64_t>(state.view));
         Retire(VulkanRetiredObject::Kind::Image, reinterpret_cast<std::uint64_t>(state.image));
         Retire(VulkanRetiredObject::Kind::Memory, reinterpret_cast<std::uint64_t>(state.memory));
-        const std::uint32_t generation = VulkanNextGeneration(state.generation);
+        const UInt32 generation = VulkanNextGeneration(state.generation);
         state = {};
         state.generation = generation;
     }
 
-    bool VulkanDevice::WriteTexture(TextureHandle texture, std::uint32_t mipLevel, JArrayView<std::byte> data)
+    Bool VulkanDevice::WriteTexture(TextureHandle texture, UInt32 mipLevel, JArrayView<std::byte> data)
     {
         if (m_status != FrameStatus::Ready || m_frameActive || false == texture.IsValid()
             || texture.index < TextureResourceBase || texture.index - TextureResourceBase >= MaxTextures
@@ -414,10 +417,10 @@ namespace JBro::Internal
         {
             return false;
         }
-        std::uint32_t width = state.desc.extent.width >> mipLevel;
-        std::uint32_t height = state.desc.extent.height >> mipLevel;
-        width = width == 0 ? 1 : width;
-        height = height == 0 ? 1 : height;
+        UInt32 width = state.desc.extent.width >> mipLevel;
+        UInt32 height = state.desc.extent.height >> mipLevel;
+        width = width == 0 ? UInt32(1) : width;
+        height = height == 0 ? UInt32(1) : height;
         const std::size_t required = static_cast<std::size_t>(width) * height * VulkanPixelSize(state.desc.format);
         if (data.size != required)
         {
@@ -431,7 +434,7 @@ namespace JBro::Internal
             return false;
         }
         std::memcpy(mapped, data.data, required);
-        bool ok = BeginOneShot();
+        Bool ok = BeginOneShot();
         if (ok)
         {
             TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layout,
@@ -458,8 +461,8 @@ namespace JBro::Internal
         return ok;
     }
 
-    bool VulkanDevice::WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
-        std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch)
+    Bool VulkanDevice::WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
+        UInt32 width, UInt32 height, JArrayView<std::byte> data, UInt32 rowPitch)
     {
         if (m_status != FrameStatus::Ready || m_frameActive || false == texture.IsValid()
             || texture.index < TextureResourceBase || texture.index - TextureResourceBase >= MaxTextures
@@ -473,10 +476,10 @@ namespace JBro::Internal
         {
             return false;
         }
-        std::uint32_t levelWidth = state.desc.extent.width >> mipLevel;
-        std::uint32_t levelHeight = state.desc.extent.height >> mipLevel;
-        levelWidth = levelWidth == 0 ? 1 : levelWidth;
-        levelHeight = levelHeight == 0 ? 1 : levelHeight;
+        UInt32 levelWidth = state.desc.extent.width >> mipLevel;
+        UInt32 levelHeight = state.desc.extent.height >> mipLevel;
+        levelWidth = levelWidth == 0 ? UInt32(1) : levelWidth;
+        levelHeight = levelHeight == 0 ? UInt32(1) : levelHeight;
         const std::size_t rowBytes = static_cast<std::size_t>(width) * VulkanPixelSize(state.desc.format);
         if (rowBytes == 0 || x + width > levelWidth || y + height > levelHeight || rowPitch < rowBytes
             || data.size < static_cast<std::size_t>(rowPitch) * (height - 1) + rowBytes)
@@ -492,12 +495,12 @@ namespace JBro::Internal
         {
             return false;
         }
-        for (std::uint32_t row = 0; row < height; ++row)
+        for (UInt32 row = 0; row < height; ++row)
         {
             std::memcpy(static_cast<std::byte*>(mapped) + static_cast<std::size_t>(row) * rowBytes,
                 data.data + static_cast<std::size_t>(row) * rowPitch, rowBytes);
         }
-        bool ok = BeginOneShot();
+        Bool ok = BeginOneShot();
         if (ok)
         {
             TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layout,
@@ -524,7 +527,7 @@ namespace JBro::Internal
         return ok;
     }
 
-    bool VulkanDevice::ResolveAttachment(TextureHandle texture, AttachmentView& view)
+    Bool VulkanDevice::ResolveAttachment(TextureHandle texture, AttachmentView& view)
     {
         view = {};
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
@@ -533,7 +536,7 @@ namespace JBro::Internal
         }
         if (texture.index < TextureResourceBase)
         {
-            const std::uint32_t index = texture.index - BackBufferTextureBase;
+            const UInt32 index = texture.index - BackBufferTextureBase;
             if (index >= MaxSwapchains)
             {
                 return false;
@@ -551,7 +554,7 @@ namespace JBro::Internal
             view.extent = {state.desc.extent.width, state.desc.extent.height};
             return true;
         }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
+        const UInt32 slot = texture.index - TextureResourceBase;
         if (slot >= MaxTextures)
         {
             return false;
@@ -561,7 +564,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        const bool depth = state.desc.format == TextureFormat::D32Float;
+        const Bool depth = state.desc.format == TextureFormat::D32Float;
         if ((depth && false == HasTextureUsage(state.desc.usage, TextureUsage::DepthStencil))
             || (false == depth && false == HasTextureUsage(state.desc.usage, TextureUsage::RenderTarget)))
         {
@@ -576,7 +579,7 @@ namespace JBro::Internal
         return true;
     }
 
-    bool VulkanDevice::ResolveSampledTexture(TextureHandle texture, VkImageView& view)
+    Bool VulkanDevice::ResolveSampledTexture(TextureHandle texture, VkImageView& view)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase
             || texture.index - TextureResourceBase >= MaxTextures)
@@ -603,8 +606,8 @@ namespace JBro::Internal
         {
             return {};
         }
-        std::uint32_t index = MaxSamplers;
-        for (std::uint32_t at = 0; at < MaxSamplers; ++at)
+        UInt32 index = MaxSamplers;
+        for (UInt32 at = 0; at < MaxSamplers; ++at)
         {
             if (false == m_samplers[at].occupied)
             {
@@ -648,12 +651,12 @@ namespace JBro::Internal
             return;
         }
         Retire(VulkanRetiredObject::Kind::Sampler, reinterpret_cast<std::uint64_t>(state.sampler));
-        const std::uint32_t generation = VulkanNextGeneration(state.generation);
+        const UInt32 generation = VulkanNextGeneration(state.generation);
         state = {};
         state.generation = generation;
     }
 
-    bool VulkanDevice::ResolveSampler(SamplerHandle sampler, VkSampler& native)
+    Bool VulkanDevice::ResolveSampler(SamplerHandle sampler, VkSampler& native)
     {
         if (false == sampler.IsValid() || sampler.index >= MaxSamplers)
         {

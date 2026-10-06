@@ -2,6 +2,8 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
@@ -24,7 +26,7 @@ namespace JBro::Widget
         }
     }
 
-    bool BeginDragSource()
+    Bool BeginDragSource()
     {
         // **출처도 기본 표시를 끈다.** ImGui 는 출처의 이 깃발을 받는 쪽 전부에 건다 - 받는 자리가 늘어도
         // 한 곳에서 외곽선이 사라진다. 끌고 있는 동안 다른 창의 탭이 열리지 않게도 한다.
@@ -42,13 +44,13 @@ namespace JBro::Widget
         ImGui::EndDragDropSource();
     }
 
-    bool IsDragging(DragKind kind)
+    Bool IsDragging(DragKind kind)
     {
         const ImGuiPayload* payload = ImGui::GetDragDropPayload();
         return payload != nullptr && payload->IsDataType(NameOf(kind));
     }
 
-    bool IsDraggingAnything()
+    Bool IsDraggingAnything()
     {
         return ImGui::GetDragDropPayload() != nullptr;
     }
@@ -65,7 +67,7 @@ namespace JBro::Widget
         return result;
     }
 
-    bool BeginDropTarget()
+    Bool BeginDropTarget()
     {
         return ImGui::BeginDragDropTarget();
     }
@@ -99,13 +101,13 @@ namespace JBro::Widget
         ImGui::EndDragDropTarget();
     }
 
-    void DrawDropFill(float minX, float minY, float maxX, float maxY)
+    void DrawDropFill(Float minX, Float minY, Float maxX, Float maxY)
     {
         ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(minX, minY), ImVec2(maxX, maxY),
             ImGui::GetColorU32(ImGuiCol_DragDropTargetBg), ImGui::GetStyle().DragDropTargetRounding);
     }
 
-    void DrawDropLine(float minX, float maxX, float y)
+    void DrawDropLine(Float minX, Float maxX, Float y)
     {
         ImGui::GetWindowDrawList()->AddLine(
             ImVec2(minX, y), ImVec2(maxX, y), ImGui::GetColorU32(ImGuiCol_DragDropTarget), 2.0f);

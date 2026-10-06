@@ -4,6 +4,9 @@
 #include <JBro/Types/Math3D.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 // 기즈모의 수학이다(framework3d-plan 4단계, D-109). ImGui 도 컴포넌트도 모른다 - 화면 좌표와 카메라
 // 행렬만 받아 손잡이 모양·집기·끌기를 계산한다. 그래서 창 없이 시험된다.
@@ -47,10 +50,10 @@ namespace JBro
     {
         Matrix4x4 viewProjection;
         Matrix4x4 inverseViewProjection;
-        float left = 0.0f;
-        float top = 0.0f;
-        float width = 0.0f;
-        float height = 0.0f;
+        Float left = 0.0f;
+        Float top = 0.0f;
+        Float width = 0.0f;
+        Float height = 0.0f;
     };
 
     // 기즈모가 붙는 대상이다. 월드 위치·회전과 로컬 스케일 - 손잡이는 월드에 그리고, 스케일은 대상의 축을 따른다.
@@ -59,7 +62,7 @@ namespace JBro
         Vector3 position;
         Quaternion rotation;
         Vector3 scale = {1.0f, 1.0f, 1.0f};
-        bool planar = false;
+        Bool planar = false;
     };
 
     // 끌기 하나의 시작 상태다. 매 프레임 마우스만 새로 받아 `UpdateDrag` 가 결과를 낸다 -
@@ -72,82 +75,82 @@ namespace JBro
         Vector3 axisDirection;
         Vector3 planeNormal;
         Vector3 startHit;
-        float startParameter = 0.0f;
-        float startAngle = 0.0f;
-        float angleSign = 1.0f;
-        float startDistance = 0.0f;
-        float centerX = 0.0f;
-        float centerY = 0.0f;
+        Float startParameter = 0.0f;
+        Float startAngle = 0.0f;
+        Float angleSign = 1.0f;
+        Float startDistance = 0.0f;
+        Float centerX = 0.0f;
+        Float centerY = 0.0f;
     };
 
     // 화면에 그릴 손잡이 하나. 선분(축)·점(가운데)·고리(회전) 셋 중 하나다.
     struct GizmoHandleShape
     {
-        static constexpr std::uint32_t RingPoints = 48;
+        static constexpr UInt32 RingPoints = 48;
 
         GizmoAxis axis = GizmoAxis::None;
-        bool ring = false;
-        float x0 = 0.0f;
-        float y0 = 0.0f;
-        float x1 = 0.0f;
-        float y1 = 0.0f;
-        float ringX[RingPoints] = {};
-        float ringY[RingPoints] = {};
+        Bool ring = false;
+        Float x0 = 0.0f;
+        Float y0 = 0.0f;
+        Float x1 = 0.0f;
+        Float y1 = 0.0f;
+        Float ringX[RingPoints] = {};
+        Float ringY[RingPoints] = {};
     };
 
     class GizmoModel
     {
     public:
-        static constexpr std::uint32_t MaxHandles = 4;
+        static constexpr UInt32 MaxHandles = 4;
         // 화면 픽셀 단위다. 카메라가 얼마나 멀든 손잡이는 같은 크기로 보인다.
-        static constexpr float AxisLengthPixels = 70.0f;
-        static constexpr float CenterRadiusPixels = 7.0f;
-        static constexpr float RingRadiusPixels = 60.0f;
-        static constexpr float PickDistancePixels = 8.0f;
+        static constexpr Float AxisLengthPixels = 70.0f;
+        static constexpr Float CenterRadiusPixels = 7.0f;
+        static constexpr Float RingRadiusPixels = 60.0f;
+        static constexpr Float PickDistancePixels = 8.0f;
 
         // 뷰·투영과 화면 사각형으로 카메라를 만든다. 역행렬이 없으면(특이 행렬) 거짓이다.
-        static bool MakeCamera(const Matrix4x4& view, const Matrix4x4& projection,
-            float left, float top, float width, float height, GizmoCamera& out);
+        static Bool MakeCamera(const Matrix4x4& view, const Matrix4x4& projection,
+            Float left, Float top, Float width, Float height, GizmoCamera& out);
 
         // 월드 점을 화면 픽셀로. 카메라 뒤에 있으면 거짓이다. `depth` 는 NDC z(0..1).
-        static bool Project(const GizmoCamera& camera, const Vector3& world, float& x, float& y, float* depth = nullptr);
+        static Bool Project(const GizmoCamera& camera, const Vector3& world, Float& x, Float& y, Float* depth = nullptr);
 
         // 월드의 평면 사각형(원점에서 `axisX`·`axisY` 로 편 [minX, maxX] x [minY, maxY])의 네 모서리를 화면으로 투영해 감싸는 사각형을 준다
         // (D-222, 3D 텍스트 고르기). 축은 크기까지 곱한 월드 벡터다. 모서리 하나라도 카메라 뒤면 거짓이다.
-        static bool ProjectPlaneRect(const GizmoCamera& camera, const Vector3& origin, const Vector3& axisX, const Vector3& axisY,
-            float minX, float minY, float maxX, float maxY, float& screenMinX, float& screenMinY, float& screenMaxX,
-            float& screenMaxY);
+        static Bool ProjectPlaneRect(const GizmoCamera& camera, const Vector3& origin, const Vector3& axisX, const Vector3& axisY,
+            Float minX, Float minY, Float maxX, Float maxY, Float& screenMinX, Float& screenMinY, Float& screenMaxX,
+            Float& screenMaxY);
         // 화면 픽셀과 NDC 깊이를 월드 점으로.
-        static bool Unproject(const GizmoCamera& camera, float x, float y, float ndcDepth, Vector3& world);
+        static Bool Unproject(const GizmoCamera& camera, Float x, Float y, Float ndcDepth, Vector3& world);
         // 화면 점을 지나는 월드 광선. 직교 카메라면 광선들이 평행하다.
-        static bool MakeRay(const GizmoCamera& camera, float x, float y, Vector3& origin, Vector3& direction);
+        static Bool MakeRay(const GizmoCamera& camera, Float x, Float y, Vector3& origin, Vector3& direction);
 
         // 대상의 로컬 축을 월드 단위 벡터로. `Free` 는 영벡터다.
         static Vector3 AxisDirection(const GizmoSubject& subject, GizmoAxis axis);
 
         // 그릴 손잡이들이다. 보이지 않는 것(카메라를 정면으로 가리키는 축)은 빠진다.
-        static std::uint32_t BuildHandles(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
+        static UInt32 BuildHandles(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
             GizmoHandleShape* out);
         // 마우스 아래의 손잡이. 없으면 `None`. 가운데 손잡이가 축보다 먼저다.
         static GizmoAxis Pick(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
-            float mouseX, float mouseY);
+            Float mouseX, Float mouseY);
 
-        static bool BeginDrag(GizmoMode mode, GizmoAxis axis, const GizmoCamera& camera,
-            const GizmoSubject& subject, float mouseX, float mouseY, GizmoDrag& drag);
+        static Bool BeginDrag(GizmoMode mode, GizmoAxis axis, const GizmoCamera& camera,
+            const GizmoSubject& subject, Float mouseX, Float mouseY, GizmoDrag& drag);
         // 시작 상태와 지금 마우스로 새 대상을 낸다. 광선이 축과 평행해 풀 수 없으면 거짓이고 결과는 시작값이다.
-        static bool UpdateDrag(const GizmoDrag& drag, const GizmoCamera& camera, float mouseX, float mouseY,
+        static Bool UpdateDrag(const GizmoDrag& drag, const GizmoCamera& camera, Float mouseX, Float mouseY,
             GizmoSubject& result);
         // **옮기기의 결과를 격자에 붙인다**(D-282). `UpdateDrag` 가 낸 `result` 의 위치만 고친다 - 이동이 아니거나 `step` 이 0 이하면 그대로다.
         // 가운데 손잡이는 위치의 각 성분을 `step` 의 배수로 붙인다(평면이면 z 는 두고). 축 손잡이는 축이 월드 축과 나란하면 그 성분만
         // 격자선에 붙이고, 돌아간 축이면 격자선이 축 위에 없으므로 **움직인 거리**를 `step` 단위로 끊는다.
-        static void SnapTranslation(const GizmoDrag& drag, float step, GizmoSubject& result);
+        static void SnapTranslation(const GizmoDrag& drag, Float step, GizmoSubject& result);
         // 회전 스냅의 간격이다(D-282). 기존 엔진의 `ROTATE_SNAP_RADIANS` 와 같은 15 도다.
-        static constexpr float RotationSnapRadians = 0.2617993878f;
+        static constexpr Float RotationSnapRadians = 0.2617993878f;
         // **돌리기의 결과를 `stepRadians` 단위로 끊는다**(D-282). 끊는 것은 끌기를 시작한 뒤 **돈 만큼**이다 - 7 도 돌아 있던 것은
         // 22·37 도로 간다(기존 엔진도 돈 양을 끊었다). 회전이 아니거나 `stepRadians` 가 0 이하면 그대로다.
-        static void SnapRotation(const GizmoDrag& drag, float stepRadians, GizmoSubject& result);
+        static void SnapRotation(const GizmoDrag& drag, Float stepRadians, GizmoSubject& result);
 
         // 4x4 역행렬. 특이 행렬이면 거짓이다. 테스트가 직접 쓴다.
-        static bool Invert(const Matrix4x4& matrix, Matrix4x4& out);
+        static Bool Invert(const Matrix4x4& matrix, Matrix4x4& out);
     };
 }

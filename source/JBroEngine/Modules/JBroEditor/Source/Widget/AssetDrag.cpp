@@ -3,6 +3,7 @@
 #include <JBro/Types/Array.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Widget
 {
@@ -20,7 +21,7 @@ namespace JBro::Widget
         SetDragPayload(DragKind::Asset, buffer.Data(), buffer.Size());
     }
 
-    bool AcceptAssetDrop(AssetDragHeader& header, String* paths)
+    Bool AcceptAssetDrop(AssetDragHeader& header, String* paths)
     {
         const DropPayload payload = AcceptDrop(DragKind::Asset);
         if (false == payload.delivered || payload.size < sizeof(AssetDragHeader))

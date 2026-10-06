@@ -10,6 +10,8 @@
 
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -19,19 +21,19 @@ namespace JBro
         // 파일과 같은 걸음으로 쓰고 읽으므로(D-86) 파일에 적히는 모양 그대로다.
         constexpr const char* WholeKey = "Value";
 
-        bool IsContainer(const TypeDescriptor& type)
+        Bool IsContainer(const TypeDescriptor& type)
         {
             return type.arrayOps != nullptr || type.tableOps != nullptr;
         }
 
         // 코덱이 없어도 한 값인 것이다. 인스펙터가 한 줄에 그리는 숫자 묶음이 그렇다(D-89).
-        bool IsWholeValue(const TypeDescriptor& type, void* address)
+        Bool IsWholeValue(const TypeDescriptor& type, void* address)
         {
             ScalarRun run;
             return IsContainer(type) || CollectScalarRun(type, address, run);
         }
 
-        bool WriteWhole(const TypeDescriptor& type, const void* address, String& text)
+        Bool WriteWhole(const TypeDescriptor& type, const void* address, String& text)
         {
             YamlWriter writer;
             ReflectedYamlError error;
@@ -43,7 +45,7 @@ namespace JBro
             return true;
         }
 
-        bool ReadWhole(const TypeDescriptor& type, void* address, const String& text)
+        Bool ReadWhole(const TypeDescriptor& type, void* address, const String& text)
         {
             YamlDocument document;
             YamlError parseError;
@@ -51,7 +53,7 @@ namespace JBro
             {
                 return false;
             }
-            const std::uint32_t node = document.Find(document.GetRoot(), WholeKey);
+            const UInt32 node = document.Find(document.GetRoot(), WholeKey);
             if (node == YamlDocument::InvalidNode)
             {
                 return false;
@@ -61,13 +63,13 @@ namespace JBro
         }
     }
 
-    bool SetPropertyCommand::Path::Equals(const Path& other) const
+    Bool SetPropertyCommand::Path::Equals(const Path& other) const
     {
         if (depth != other.depth)
         {
             return false;
         }
-        for (std::uint32_t step = 0; step < depth; ++step)
+        for (UInt32 step = 0; step < depth; ++step)
         {
             if (indices[step] != other.indices[step])
             {
@@ -77,7 +79,7 @@ namespace JBro
         return true;
     }
 
-    bool SetPropertyCommand::ResolveLeaf(
+    Bool SetPropertyCommand::ResolveLeaf(
         ComponentBase& component,
         ComponentTypeId typeId,
         const Path& path,
@@ -92,7 +94,7 @@ namespace JBro
 
         void* owner = &component;
         const TypeDescriptor* found = nullptr;
-        for (std::uint32_t step = 0; step < path.depth; ++step)
+        for (UInt32 step = 0; step < path.depth; ++step)
         {
             if (table == nullptr || path.indices[step] >= table->count)
             {
@@ -124,7 +126,7 @@ namespace JBro
         return true;
     }
 
-    bool SetPropertyCommand::ApplyValue(
+    Bool SetPropertyCommand::ApplyValue(
         ComponentBase& component,
         ComponentTypeId typeId,
         const Path& path,
@@ -178,7 +180,7 @@ namespace JBro
         return "Set Property";
     }
 
-    bool SetPropertyCommand::Execute()
+    Bool SetPropertyCommand::Execute()
     {
         return WriteValue(m_newValue);
     }
@@ -193,7 +195,7 @@ namespace JBro
         WriteValue(m_newValue);
     }
 
-    bool SetPropertyCommand::CanMerge(const EditorCommand& newer) const
+    Bool SetPropertyCommand::CanMerge(const EditorCommand& newer) const
     {
         // **같은 잎사귀를 이어서 고치는 중일 때만 합친다.** 다른 필드로 옮겨 갔는데
         // 합치면 그 편집이 되돌리기에서 사라진다.
@@ -206,7 +208,7 @@ namespace JBro
             && other->m_path.Equals(m_path);
     }
 
-    bool SetPropertyCommand::TryMerge(const EditorCommand& newer)
+    Bool SetPropertyCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {
@@ -217,14 +219,14 @@ namespace JBro
         return true;
     }
 
-    bool SetPropertyCommand::MakeFieldPath(ComponentTypeId typeId, const char* name, Path& path)
+    Bool SetPropertyCommand::MakeFieldPath(ComponentTypeId typeId, const char* name, Path& path)
     {
         const PropertyTable* table = PropertyRegistry::Lookup(typeId);
         if (table == nullptr || name == nullptr)
         {
             return false;
         }
-        for (std::uint32_t index = 0; index < table->count; ++index)
+        for (UInt32 index = 0; index < table->count; ++index)
         {
             const char* found = NameTable::Get().Resolve(table->properties[index].name);
             if (found != nullptr && std::strcmp(found, name) == 0)
@@ -238,7 +240,7 @@ namespace JBro
         return false;
     }
 
-    bool SetPropertyCommand::ReadValue(
+    Bool SetPropertyCommand::ReadValue(
         ComponentBase& component,
         ComponentTypeId typeId,
         const Path& path,
@@ -259,7 +261,7 @@ namespace JBro
         return WriteWhole(*type, address, text);
     }
 
-    bool SetPropertyCommand::WriteValue(const String& value)
+    Bool SetPropertyCommand::WriteValue(const String& value)
     {
         ComponentBase* component = ResolveComponent(*m_registry, m_address);
         if (component == nullptr)

@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 // 네트워크의 공개 값 타입이다(network-plan §2.1 Types). 기존 엔진 `NetworkTypes.h` 의 열거형과 상수를 접두어만 떼고 잇는다.
 // 여기 있는 것은 전부 POD 다 - 스크립트 DLL 경계와 와이어를 그대로 건넌다.
@@ -10,14 +12,14 @@ namespace JBro::Network
 {
     // ── 연결 식별 ──────────────────────────────────────────────────────────────────────────────
 
-    using ConnectionId = std::uint64_t;
+    using ConnectionId = UInt64;
     inline constexpr ConnectionId InvalidConnectionId = 0;
     // 클라이언트는 자기가 붙은 서버를 이 번호로 가리킨다. 서버가 클라이언트에 주는 번호는 2 부터다.
     inline constexpr ConnectionId ServerConnectionId = 1;
 
     // 세션 와이어 프로토콜 버전. 와이어(hello·프레이밍·데이터그램 헤더)가 바뀌면 올린다.
     // hello 때 양쪽이 교환·검증하고, 다르면 `VersionMismatch` 로 즉시 거부한다.
-    inline constexpr std::uint32_t ProtocolVersion = 1;
+    inline constexpr UInt32 ProtocolVersion = 1;
 
     // ── 열거 ───────────────────────────────────────────────────────────────────────────────────
 
@@ -61,10 +63,10 @@ namespace JBro::Network
         // 유실 허용 + (연결, 메시지 ID)별 순서 역전 폐기.
         UnreliableSequenced
     };
-    inline constexpr std::uint32_t NetChannelCount = 4;
+    inline constexpr UInt32 NetChannelCount = 4;
 
     // 와이어에서 온 채널 바이트는 상대가 쓴 값이다. 게임까지 올리기 전에 여기를 지난다.
-    inline bool IsKnownChannel(NetChannel channel)
+    inline Bool IsKnownChannel(NetChannel channel)
     {
         return static_cast<std::uint8_t>(channel) < NetChannelCount;
     }
@@ -93,7 +95,7 @@ namespace JBro::Network
     {
         ConnectionId connection = InvalidConnectionId;
         const std::uint8_t* data = nullptr;
-        std::uint32_t size = 0;
+        UInt32 size = 0;
         MessageId messageId = RawMessageId;
         NetChannel channel = NetChannel::ReliableOrdered;
     };

@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -23,11 +24,11 @@ namespace JBro
         ScriptPool(const ScriptPool&) = delete;
         ScriptPool& operator=(const ScriptPool&) = delete;
 
-        bool Initialize(const ScriptTypeInfo& type, JAllocator allocator, std::size_t chunkSize = 64);
+        Bool Initialize(const ScriptTypeInfo& type, JAllocator allocator, std::size_t chunkSize = 64);
         void Clear();
 
         GameScriptBase* Create();
-        bool Destroy(GameScriptBase* script);
+        Bool Destroy(GameScriptBase* script);
 
         const ScriptTypeInfo& GetType() const;
         std::size_t GetLiveCount() const;
@@ -50,7 +51,7 @@ namespace JBro
         {
             GameScriptBase*                script = nullptr;
             SafePtrDetail::ControlBlock*   controlBlock = nullptr;
-            bool                           alive = false;
+            Bool                           alive = false;
         };
 
         struct Chunk
@@ -60,7 +61,7 @@ namespace JBro
         };
 
         void* SlotStorage(std::size_t index);
-        bool  GrowOneChunk();
+        Bool  GrowOneChunk();
         void  ReleaseChunks();
 
         ScriptTypeInfo   m_type;
@@ -71,6 +72,6 @@ namespace JBro
         Array<Chunk>     m_chunks;
         Array<SlotInfo>  m_slots;
         Array<std::size_t> m_freeSlots;
-        bool             m_initialized = false;
+        Bool             m_initialized = false;
     };
 }

@@ -7,6 +7,9 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -25,14 +28,14 @@ namespace JBro
     {
         EditorObjectId id = InvalidEditorObjectId;
         String name;
-        bool active = true;
+        Bool active = true;
         // 오브젝트 플래그다(D-163). 없으면 지웠다 되돌린 감춘 오브젝트가 보이는 채로 돌아온다.
-        std::uint32_t flags = 0;
+        UInt32 flags = 0;
         // 어느 레이어에 있었는가(D-168). 없으면 지웠다 되돌린 오브젝트가 기본 레이어로 돌아와,
         // 되돌리기가 레이어를 조용히 바꾼 것이 된다. 그 번호의 레이어가 사라졌으면 기본 레이어다.
         LayerId layer = InvalidLayerId;
         // 이 배열 안에서의 부모 위치다. -1 이면 뜬 나무의 뿌리다.
-        std::int64_t parentIndex = -1;
+        Int64 parentIndex = -1;
         // **오브젝트 번호다**(D-233). 되살릴 때 이 번호를 다시 쓴다 - 지운 오브젝트를 가리키던 참조 필드(조인트의 상대 등)가
         // 되돌리기 뒤에도 이어진다. 붙여넣기는 첫 실행에서 새 번호를 받아 적는다.
         InstanceId instanceId = InvalidInstanceId;
@@ -48,22 +51,22 @@ namespace JBro
 
         // `root` 와 그 아래 전부를 뜬다. 컴포넌트 하나라도 뜨지 못하면 거짓이고, 그때의
         // 내용은 믿지 않는다 - 반쪽 스냅샷으로 지우거나 붙이면 조용히 잃는다.
-        bool Capture(EditorObjectRegistry& registry, GameObject& root);
+        Bool Capture(EditorObjectRegistry& registry, GameObject& root);
 
         // 나무를 다시 만든다. `outerParent` 아래에 뿌리를 두고(널이면 캔버스 뿌리),
         // `rebind` 가 참이면 옛 번호에 다시 걸고(지우기 되돌리기), 거짓이면 새 번호를 받아
         // 항목에 적는다(붙여넣기의 첫 실행). 그 뒤의 다시 하기는 참으로 부른다.
-        bool Restore(
+        Bool Restore(
             Canvas& canvas,
             EditorObjectRegistry& registry,
             GameObject* outerParent,
-            bool rebind);
+            Bool rebind);
 
         // 붙여넣은 나무 안을 가리키는 오브젝트 참조를 새 오브젝트로 옮긴다(D-233).
         void RetargetReferences(const Array<GameObject*>& created) const;
 
         // 뿌리를 번호로 찾아 나무째 지운다. 자식은 캔버스가 함께 지운다.
-        bool DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const;
+        Bool DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const;
 
         EditorObjectId GetRootId() const
         {
@@ -71,6 +74,6 @@ namespace JBro
         }
 
     private:
-        bool CaptureInto(EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex);
+        Bool CaptureInto(EditorObjectRegistry& registry, GameObject& object, Int64 parentIndex);
     };
 }

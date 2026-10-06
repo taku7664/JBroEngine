@@ -18,13 +18,18 @@
 #include <cstddef>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 // 3D 프레임워크가 정육면체 하나를 텍스처에 실제로 그리는지 픽셀로 본다(framework3d-plan §2.5).
 // 스프라이트 픽셀 테스트와 같은 준비다 - 렌더러의 메시 파이프라인, 깊이 텍스처, D3D12 깊이 첨부,
 // 프레임워크의 추출·브리지가 한 줄에 서야 색이 나온다.
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -35,14 +40,14 @@ namespace
 
     struct Pixel
     {
-        float r = 0.0f;
-        float g = 0.0f;
-        float b = 0.0f;
-        float a = 0.0f;
+        JBro::Float r = 0.0f;
+        JBro::Float g = 0.0f;
+        JBro::Float b = 0.0f;
+        JBro::Float a = 0.0f;
     };
 
-    Pixel ReadPixel(const JBro::Array<std::byte>& image, std::uint32_t rowPitch,
-        std::uint32_t x, std::uint32_t y)
+    Pixel ReadPixel(const JBro::Array<std::byte>& image, JBro::UInt32 rowPitch,
+        JBro::UInt32 x, JBro::UInt32 y)
     {
         const std::size_t offset = static_cast<std::size_t>(y) * rowPitch
             + static_cast<std::size_t>(x) * 4;
@@ -55,13 +60,13 @@ namespace
         return pixel;
     }
 
-    bool Near(float a, float b, float tolerance = 0.03f)
+    JBro::Bool Near(JBro::Float a, JBro::Float b, JBro::Float tolerance = 0.03f)
     {
         return std::fabs(a - b) < tolerance;
     }
 
-    constexpr std::uint32_t TargetWidth = 96;
-    constexpr std::uint32_t TargetHeight = 64;
+    constexpr JBro::UInt32 TargetWidth = 96;
+    constexpr JBro::UInt32 TargetHeight = 64;
 
     template <typename TModule>
     struct Stage
@@ -72,9 +77,9 @@ namespace
         JBro::WindowHandle window;
         JBro::Renderer renderer;
         JBro::TextureHandle target;
-        bool ready = false;
+        JBro::Bool ready = false;
 
-        bool Open(bool validation = false)
+        JBro::Bool Open(JBro::Bool validation = false)
         {
             Check(platform.Initialize(memory), "the platform must initialize");
             if (false == rhi.Initialize(memory))
@@ -373,7 +378,7 @@ namespace
         cube.mesh = library.Resolve(JBro::MeshLibrary::BuiltinCubeId());
         cube.tint[1] = 0.0f;
         cube.tint[2] = 0.0f;
-        const auto quad = [](const JBro::Vector3& position, float size, const JBro::Quaternion& rotation, float r, float g, float b) {
+        const auto quad = [](const JBro::Vector3& position, JBro::Float size, const JBro::Quaternion& rotation, JBro::Float r, JBro::Float g, JBro::Float b) {
             JBro::WorldTextSubmit text;
             text.world = JBro::MakeTransformMatrix3D(position, rotation, {size, size, 1.0f});
             text.tint[0] = r;
@@ -383,7 +388,7 @@ namespace
         };
         const JBro::WorldTextSubmit behind = quad({0.0f, 0.0f, -1.0f}, 3.0f, {}, 0.0f, 1.0f, 0.0f);
         const JBro::WorldTextSubmit front = quad({0.0f, 0.0f, 1.5f}, 0.3f, {}, 0.0f, 0.0f, 1.0f);
-        const float half = 30.0f * 3.14159265f / 180.0f;
+        const JBro::Float half = 30.0f * 3.14159265f / 180.0f;
         JBro::Quaternion turned;
         turned.y = std::sin(half);
         turned.w = std::cos(half);
@@ -402,7 +407,7 @@ namespace
         JBro::Array<std::byte> image;
         image.Resize(TargetWidth * TargetHeight * 4);
         JBro::TextureReadback readback;
-        const auto draw = [&](bool withCube, JBro::JArrayView<JBro::WorldTextSubmit> texts) {
+        const auto draw = [&](JBro::Bool withCube, JBro::JArrayView<JBro::WorldTextSubmit> texts) {
             JBro::FrameTarget frameTarget;
             frameTarget.texture = stage.target;
             frameTarget.extent = {TargetWidth, TargetHeight};
@@ -495,7 +500,7 @@ namespace
             stage.RenderOnce(framework, image, readback);
             return ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
         };
-        const auto matches = [](const Pixel& a, float r, float g, float b) {
+        const auto matches = [](const Pixel& a, JBro::Float r, JBro::Float g, JBro::Float b) {
             return Near(a.r, r, 0.03f) && Near(a.g, g, 0.03f) && Near(a.b, b, 0.03f);
         };
 
@@ -522,7 +527,7 @@ namespace
         top.SetOpacity(1.0f);
         top.SetBlend(JBro::LayerBlend::Additive);
         mixed = center();
-        Check(matches(mixed, std::min(1.0f, below.r + above.r), std::min(1.0f, below.g + above.g), std::min(1.0f, below.b + above.b)),
+        Check(matches(mixed, JBro::Min(1.0f, below.r + above.r), JBro::Min(1.0f, below.g + above.g), JBro::Min(1.0f, below.b + above.b)),
             "an additive layer adds itself to the one below");
         top.SetBlend(JBro::LayerBlend::Multiply);
         mixed = center();
@@ -541,10 +546,10 @@ namespace
         thumbnailImage.Resize(static_cast<std::size_t>(TargetWidth / 2) * (TargetHeight / 2) * 4);
         JBro::TextureReadback thumbnailReadback;
         // 첫 프레임의 깊이 없는 뷰 수다. 처음 보는 크기는 그 프레임에 메시 없이 그리고 프레임은 버리지 않는다.
-        std::uint32_t firstWithoutDepth = 0xFFFFFFFFu;
+        JBro::UInt32 firstWithoutDepth = 0xFFFFFFFFu;
         Pixel firstCentre;
         const auto thumbnail = [&](JBro::LayerId layer) {
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 JBro::FrameTarget frameTarget;
                 frameTarget.texture = stage.target;
@@ -588,7 +593,7 @@ namespace
     }
 }
 
-int RunMeshPixelTests()
+JBro::Int32 RunMeshPixelTests()
 {
     TestLayersStackAndBlendIn3D<JBro::D3D12RHIModule>();
     TestLayersStackAndBlendIn3D<JBro::D3D11RHIModule>();

@@ -2,6 +2,7 @@
 #include <dwrite.h>
 #include <cstdio>
 #include <cwchar>
+#include <JBro/Types/Int.h>
 #pragma comment(lib, "dwrite.lib")
 
 struct Source final : IDWriteTextAnalysisSource
@@ -41,7 +42,7 @@ int wmain(int argc, wchar_t** argv)
     factory->CreateFontFace(DWRITE_FONT_FACE_TYPE_TRUETYPE, 1, &file, 0, DWRITE_FONT_SIMULATIONS_NONE, &face);
     IDWriteTextAnalyzer* analyzer = nullptr;
     factory->CreateTextAnalyzer(&analyzer);
-    for (int a = 2; a < argc; ++a)
+    for (JBro::Int32 a = 2; a < argc; ++a)
     {
         // 인자는 16 진 코드포인트를 쉼표로 이은 것이다.
         wchar_t text[64] = {};

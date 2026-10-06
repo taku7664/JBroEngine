@@ -3,6 +3,8 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -18,23 +20,23 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
-        bool OnCreate(EditorApplication& editor) override;
+        Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Bottom; }
 
     private:
         void DrawToolBar();
         void DrawEntries();
-        bool Passes(const LogEntry& entry) const;
+        Bool Passes(const LogEntry& entry) const;
 
         EditorApplication* m_editor = nullptr;
         String m_filter;
         // 등급마다 켜고 끈다. 경고만 보고 싶은 때가 있다.
-        bool m_levels[5] = {false, true, true, true, true};
+        Bool m_levels[5] = {false, true, true, true, true};
         // 새 줄이 오면 바닥으로 따라간다. 사람이 위로 올려 읽는 중이면 끈다.
-        bool m_autoScroll = true;
+        Bool m_autoScroll = true;
         // 마지막으로 본 판번호. 같으면 스크롤을 건드리지 않는다.
-        std::uint64_t m_seenRevision = 0;
-        bool m_scrollToBottom = false;
+        UInt64 m_seenRevision = 0;
+        Bool m_scrollToBottom = false;
     };
 }

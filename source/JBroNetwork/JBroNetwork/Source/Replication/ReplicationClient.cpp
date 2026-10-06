@@ -3,14 +3,17 @@
 #include <JBro/Network/Internal/UdpDatagram.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
     namespace
     {
-        constexpr std::uint32_t SpawnMessageBytes = 4 + sizeof(SpawnDesc);
-        constexpr std::uint32_t DespawnMessageBytes = 4;
-        constexpr std::uint32_t AckMessageBytes = 4;
+        constexpr UInt32 SpawnMessageBytes = 4 + sizeof(SpawnDesc);
+        constexpr UInt32 DespawnMessageBytes = 4;
+        constexpr UInt32 AckMessageBytes = 4;
     }
 
     ReplicationClient::ReplicationClient(Transport& transport, IReplicationHost& host, const ReplicationConfig& config)
@@ -37,7 +40,7 @@ namespace JBro::Network
         return static_cast<std::uint8_t>(m_pools.Size() - 1);
     }
 
-    bool ReplicationClient::HandleMessage(const MessageView& view)
+    Bool ReplicationClient::HandleMessage(const MessageView& view)
     {
         if (false == IsReplicationMessage(view.messageId))
         {
@@ -163,7 +166,7 @@ namespace JBro::Network
         m_diagnostics.latestTick = header.tick;
         m_diagnostics.hasSnapshot = true;
         // 지운 항목은 지금 풀에서 떼어 낸다. 스냅숏에서는 이미 없다.
-        for (std::uint32_t index = 0; index < m_removalCount; ++index)
+        for (UInt32 index = 0; index < m_removalCount; ++index)
         {
             const DeltaCodec::Removal& removal = m_removals[index];
             const InstanceId* local = m_objects.Find(removal.object);
@@ -190,12 +193,12 @@ namespace JBro::Network
             return;
         }
         // 간격을 모르면 보간하지 않는다. 그때는 새 스냅숏이 있을 때만 일한다.
-        const bool interpolating = m_snapshotIntervalMilliseconds > 0.0;
+        const Bool interpolating = m_snapshotIntervalMilliseconds > 0.0;
         if (false == m_dirty && false == interpolating)
         {
             return;
         }
-        float alpha = 1.0f;
+        Float alpha = 1.0f;
         if (interpolating)
         {
             const double elapsed = m_transport.GetClock().NowMilliseconds() - m_lastSnapshotMilliseconds;
@@ -205,7 +208,7 @@ namespace JBro::Network
         ApplySnapshots(alpha);
     }
 
-    void ReplicationClient::Apply(float alpha)
+    void ReplicationClient::Apply(Float alpha)
     {
         if (false == m_hasLatest)
         {
@@ -214,7 +217,7 @@ namespace JBro::Network
         ApplySnapshots(alpha);
     }
 
-    void ReplicationClient::ApplySnapshots(float alpha)
+    void ReplicationClient::ApplySnapshots(Float alpha)
     {
         const Snapshot* latest = m_history.Find(m_latestTick);
         if (nullptr == latest)
@@ -222,7 +225,7 @@ namespace JBro::Network
             return;
         }
         const Snapshot* previous = m_history.Find(m_previousTick);
-        for (std::uint32_t index = 0; index < latest->EntryCount(); ++index)
+        for (UInt32 index = 0; index < latest->EntryCount(); ++index)
         {
             const SnapshotEntry& entry = latest->EntryAt(index);
             const InstanceId* local = m_objects.Find(entry.object);
@@ -280,7 +283,7 @@ namespace JBro::Network
         return *local;
     }
 
-    std::uint32_t ReplicationClient::GetObjectCount() const
+    UInt32 ReplicationClient::GetObjectCount() const
     {
         return static_cast<std::uint32_t>(m_objects.Size());
     }

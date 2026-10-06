@@ -179,9 +179,9 @@ class TetrisGameManager final : public GameScript2D
 {
     JBRO_SCRIPT_BODY(TetrisGameManager, "Game::TetrisGameManager")
 
-    JBRO_FIELD(int,   FieldRows,           Range(4, 40) | Category("Field")) = 20;
-    JBRO_FIELD(float, DropIntervalSeconds, Name("낙하 간격"))                = 0.5f;
-    JBRO_FIELD(float, Elapsed,             NoSerialize())                    = 0.0f;
+    JBRO_FIELD(Int32, FieldRows,           Range(4, 40) | Category("Field")) = 20;
+    JBRO_FIELD(Float, DropIntervalSeconds, Name("낙하 간격"))                = 0.5f;
+    JBRO_FIELD(Float, Elapsed,             NoSerialize())                    = 0.0f;
 
     void OnUpdate(float deltaTime) override { ... }
 };
@@ -327,7 +327,7 @@ class SpriteRenderer2D final : public ComponentBase
     JBRO_COMPONENT_BODY(SpriteRenderer2D, "SpriteRenderer2D")
 
     JBRO_FIELD(Vector2,  size,  Name("크기"))          = {1.0f, 1.0f};
-    JBRO_FIELD(bool,  flipX)                        = false;
+    JBRO_FIELD(Bool,  flipX)                        = false;
     JBRO_FIELD(Color, tint,  Category("Rendering")) = {1, 1, 1, 1};
 
     // 등록 안 함 — 캐시다. 매크로가 없다는 것 자체가 의도 표시가 된다.
@@ -862,9 +862,9 @@ class Probe final : public FakeComponentBase
 {
     JBRO_REFLECT_BODY(Probe)
 
-    JBRO_FIELD(int,   FieldRows,   Range(4, 40) | Category("Field")) = 20;
-    JBRO_FIELD(float, DropSeconds, Name("낙하 간격") | Tooltip("..."))  = 0.5f;
-    JBRO_FIELD(float, Elapsed,     NoSerialize())                    = 0.0f;
+    JBRO_FIELD(Int32, FieldRows,   Range(4, 40) | Category("Field")) = 20;
+    JBRO_FIELD(Float, DropSeconds, Name("낙하 간격") | Tooltip("..."))  = 0.5f;
+    JBRO_FIELD(Float, Elapsed,     NoSerialize())                    = 0.0f;
     JBRO_FIELD(double, Plain)                                        = 1.25;
 };
 ```

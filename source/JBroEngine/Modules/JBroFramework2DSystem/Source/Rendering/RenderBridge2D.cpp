@@ -8,6 +8,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -23,7 +27,7 @@ namespace JBro::Internal
         }
 
         // `frame` 의 그려지는 사각형이 뷰포트다(D-239). 보이는 범위와 뷰는 `ComputeCameraView2D` 가 잰다 - 버튼의 역투영과 같은 함수다.
-        bool BuildCamera(const RenderCamera2D& source, const ScreenSpaceFrame& frame, CameraParams& result)
+        Bool BuildCamera(const RenderCamera2D& source, const ScreenSpaceFrame& frame, CameraParams& result)
         {
             CameraView2D view;
             ScreenArea area;
@@ -39,7 +43,7 @@ namespace JBro::Internal
                 0.0f, static_cast<float>(1.0 / halfHeight), 0.0f, 0.0f,
                 0.0f, 0.0f, static_cast<float>(1.0 / depth), static_cast<float>(-source.nearPlane / depth),
                 0.0f, 0.0f, 0.0f, 1.0f}};
-            for (float value : result.projection.values)
+            for (Float value : result.projection.values)
             {
                 if (false == std::isfinite(value))
                 {
@@ -58,7 +62,7 @@ namespace JBro::Internal
         }
 
         // `offsetX`·`offsetY` 는 월드에서 옮길 양이다(패럴랙스, D-286). 오브젝트 변환 뒤에 더한다 - 레이어 전체가 같이 움직인다.
-        SpriteSubmit BuildSprite(const SpriteRenderItem& source, float offsetX = 0.0f, float offsetY = 0.0f)
+        SpriteSubmit BuildSprite(const SpriteRenderItem& source, Float offsetX = 0.0f, Float offsetY = 0.0f)
         {
             // Built-in geometry is a centered unit quad. Apply pivot/size before the object transform.
             const Matrix3x2 geometry{source.size.x, 0.0f, 0.0f, source.size.y,
@@ -111,21 +115,21 @@ namespace JBro::Internal
         // 어느 아이템을 그 뷰에 넣는가. 월드 뷰는 월드 레이어만, 화면 뷰는 그 맞춤 방식의 화면 레이어만이다(D-237).
         struct SpriteFilterRule
         {
-            bool screenSpace = false;
+            Bool screenSpace = false;
             ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
-            bool anyScaleMode = true;
+            Bool anyScaleMode = true;
             // 있으면 이 오브젝트와 그 자손의 아이템만 넣는다(D-252). 캔버스 뷰가 흰 막 위에 들어간 오브젝트를 다시 그릴 때다.
             InstanceId focus = InvalidInstanceId;
             // 있으면 이 오브젝트들의 아이템만 넣는다(D-276). 선택 외곽선의 마스크를 그릴 때다. 자손은 따로 고른 것만이다 -
             // 캔버스 뷰의 고르기가 자손까지 담는다(D-253·D-254).
             const InstanceId* selection = nullptr;
-            std::uint32_t selectionCount = 0;
+            UInt32 selectionCount = 0;
             // 레이어의 블렌드와 불투명도를 렌더러의 묶음으로 낸다(D-279). 선택 외곽선의 마스크는 그린 그대로의 모양이어야 하므로 끈다.
-            bool composite = true;
+            Bool composite = true;
             // 있으면 월드 레이어의 패럴랙스를 이 뷰(월드 → 뷰)로 건다(D-286). 게임 화면만 준다 - 캔버스 뷰는 패럴랙스 없이 배치하는 자리다.
             const Matrix3x2* parallaxView = nullptr;
             // 0 이상이면 이 레이어 차례의 아이템만 넣는다(썸네일, D-288).
-            std::int32_t layerOrder = -1;
+            Int32 layerOrder = -1;
         };
 
         // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
@@ -136,18 +140,18 @@ namespace JBro::Internal
 
         CompositeBlend ToCompositeBlend(LayerBlend blend)
         {
-            const std::uint32_t value = static_cast<std::uint32_t>(blend);
-            return value < CompositeBlendCount ? static_cast<CompositeBlend>(value) : CompositeBlend::Normal;
+            const UInt32 value = static_cast<std::uint32_t>(blend);
+            return value < CompositeBlendCount ? static_cast<CompositeBlend>(value.Get()) : CompositeBlend::Normal;
         }
 
-        bool IsSelected(const GameObject* owner, const InstanceId* selection, std::uint32_t count)
+        Bool IsSelected(const GameObject* owner, const InstanceId* selection, UInt32 count)
         {
             if (owner == nullptr)
             {
                 return false;
             }
             const InstanceId id = owner->GetInstanceId();
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 if (selection[index] == id)
                 {
@@ -157,7 +161,7 @@ namespace JBro::Internal
             return false;
         }
 
-        bool IsInFocus(const GameObject* owner, InstanceId focus)
+        Bool IsInFocus(const GameObject* owner, InstanceId focus)
         {
             for (const GameObject* at = owner; at != nullptr; at = at->GetParent())
             {
@@ -169,22 +173,22 @@ namespace JBro::Internal
             return false;
         }
 
-        bool PushSprites(const RenderWorld2D& world, Renderer& renderer, bool editorView, const SpriteFilterRule& rule,
+        Bool PushSprites(const RenderWorld2D& world, Renderer& renderer, Bool editorView, const SpriteFilterRule& rule,
             std::size_t first = 0, std::size_t last = static_cast<std::size_t>(-1))
         {
             constexpr std::size_t BatchSize = 64;
             SpriteSubmit batch[BatchSize];
-            bool accepted = world.GetDroppedSpriteCount() == 0;
+            Bool accepted = world.GetDroppedSpriteCount() == 0;
             std::size_t next = first;
             const std::size_t end = last < world.GetSpriteCount() ? last : world.GetSpriteCount();
             // **얹어야 하는 레이어는 렌더러의 묶음으로 낸다**(D-279). 정렬이 레이어 차례를 맨 위에 두므로 한 레이어의 아이템은 이어서 온다 -
             // 레이어가 바뀌는 자리에서 모아 둔 것을 먼저 내고 묶음을 닫고 연다. 묶음을 열지 못하면(상한) 그 레이어는 그대로 그린다.
-            constexpr std::int32_t NoLayer = -1;
-            std::int32_t openLayer = NoLayer;
-            bool layerBegun = false;
+            constexpr Int32 NoLayer = -1;
+            Int32 openLayer = NoLayer;
+            Bool layerBegun = false;
             std::size_t count = 0;
             // 렌더러가 하나라도 거절하면 그 뒤는 내지 않는다(제출 상한). 앞에서 버린 아이템이 있었던 것은 결과만 바꾼다.
-            bool refused = false;
+            Bool refused = false;
             const auto flush = [&]() {
                 if (count != 0 && false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
                 {
@@ -216,9 +220,9 @@ namespace JBro::Internal
                 {
                     continue;
                 }
-                const bool needsComposite = rule.composite
+                const Bool needsComposite = rule.composite
                     && (item.layerBlend != LayerBlend::Normal || item.layerOpacity < 1.0f);
-                const std::int32_t wanted = needsComposite ? static_cast<std::int32_t>(item.layerOrder) : NoLayer;
+                const Int32 wanted = needsComposite ? Int32(static_cast<std::int32_t>(item.layerOrder)) : NoLayer;
                 if (wanted != openLayer)
                 {
                     flush();
@@ -230,8 +234,8 @@ namespace JBro::Internal
                         && renderer.BeginLayer(ToCompositeBlend(item.layerBlend), item.layerOpacity);
                     openLayer = wanted;
                 }
-                float offsetX = 0.0f;
-                float offsetY = 0.0f;
+                Float offsetX = 0.0f;
+                Float offsetY = 0.0f;
                 if (rule.parallaxView != nullptr && false == item.screenSpace && item.layerParallax != 1.0f
                     && false == ComputeParallaxOffset2D(*rule.parallaxView, item.layerParallax, offsetX, offsetY))
                 {
@@ -260,23 +264,23 @@ namespace JBro::Internal
         // 사각형의 x 축은 선 방향(길이만큼), y 축은 그 수직(픽셀 두께를 이 뷰의 월드 길이로 바꾼 만큼)이다.
         //
         // **프레임의 성패에 들지 않는다.** 렌더러의 제출 상한에 걸려 선이 못 들어가도 게임 화면은 그대로 나간다 - 버린 것은 저장소가 센다.
-        void PushDebugLines2D(const System::DebugDrawSystem& debugDraw, Renderer& renderer, float worldPerPixel)
+        void PushDebugLines2D(const System::DebugDrawSystem& debugDraw, Renderer& renderer, Float worldPerPixel)
         {
-            constexpr std::uint32_t BatchSize = 64;
+            constexpr UInt32 BatchSize = 64;
             SpriteSubmit batch[BatchSize];
-            std::uint32_t count = 0;
-            const std::uint32_t lineCount = debugDraw.GetLineCount();
-            for (std::uint32_t index = 0; index < lineCount; ++index)
+            UInt32 count = 0;
+            const UInt32 lineCount = debugDraw.GetLineCount();
+            for (UInt32 index = 0; index < lineCount; ++index)
             {
                 const DebugLine& line = debugDraw.GetLine(index);
-                const float dx = line.to[0] - line.from[0];
-                const float dy = line.to[1] - line.from[1];
-                const float length = std::sqrt(dx * dx + dy * dy);
+                const Float dx = line.to[0] - line.from[0];
+                const Float dy = line.to[1] - line.from[1];
+                const Float length = std::sqrt(dx * dx + dy * dy);
                 if (false == (length > 0.0f))
                 {
                     continue;
                 }
-                const float width = line.thickness * worldPerPixel;
+                const Float width = line.thickness * worldPerPixel;
                 SpriteSubmit& sprite = batch[count];
                 sprite = SpriteSubmit{};
                 sprite.world.linear[0] = dx;
@@ -285,7 +289,7 @@ namespace JBro::Internal
                 sprite.world.linear[3] = dx / length * width;
                 sprite.world.translation[0] = (line.from[0] + line.to[0]) * 0.5f;
                 sprite.world.translation[1] = (line.from[1] + line.to[1]) * 0.5f;
-                for (int channel = 0; channel < 4; ++channel)
+                for (Int32 channel = 0; channel < 4; ++channel)
                 {
                     sprite.tint[channel] = static_cast<float>(line.color[channel]) / 255.0f;
                 }
@@ -331,19 +335,19 @@ namespace JBro::Internal
         // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 안 된다.
         SpriteFilterRule rule;
         rule.screenSpace = view.screenSpace;
-        bool accepted = true;
+        Bool accepted = true;
 
         // **선택 외곽선의 마스크를 먼저 그린다**(D-276, 기존 `COutlineRenderer2D::RenderMask`). 같은 카메라로 고른 것의 스프라이트만
         // 투명하게 지운 마스크에 그린다 - 그려진 그대로라 회전·텍스처 알파·틴트가 다 들어간다. 본 뷰가 다 그린 뒤 렌더러가
         // 이 마스크를 키워 둘레만 칠한다. 마스크가 본 뷰보다 먼저 나가야 그 둘레를 칠할 때 마스크가 차 있다.
-        const bool outline = view.selection != nullptr && view.selectionCount != 0
+        const Bool outline = view.selection != nullptr && view.selectionCount != 0
             && view.outlineMask.IsValid() && view.outlineScratch.IsValid();
         if (outline)
         {
             CameraParams mask = parameters;
             mask.target = view.outlineMask;
             mask.targetExtent = view.extent;
-            for (float& channel : mask.clearColor)
+            for (Float& channel : mask.clearColor)
             {
                 channel = 0.0f;
             }
@@ -366,7 +370,7 @@ namespace JBro::Internal
         parameters.targetExtent = view.extent;
         if (outline)
         {
-            constexpr std::uint32_t OutlinePixels = 2;
+            constexpr UInt32 OutlinePixels = 2;
             parameters.outlineMask = view.outlineMask;
             parameters.outlineScratch = view.outlineScratch;
             parameters.outlineWidth = OutlinePixels;
@@ -381,9 +385,9 @@ namespace JBro::Internal
         // 막은 텍스처 없는 스프라이트라 흰색이고 틴트의 알파가 짙기다. 뒤의 오브젝트에 가린 조각도 막 위로 올라와 다 보인다.
         if (view.focusObject != InvalidInstanceId)
         {
-            constexpr float VeilOpacity = 0.7f;
-            const float halfHeight = view.orthographicSize;
-            const float halfWidth = halfHeight * static_cast<float>(view.extent.width) / static_cast<float>(view.extent.height);
+            constexpr Float VeilOpacity = 0.7f;
+            const Float halfHeight = view.orthographicSize;
+            const Float halfWidth = halfHeight * static_cast<float>(view.extent.width) / static_cast<float>(view.extent.height);
             SpriteSubmit veil;
             veil.world.linear[0] = halfWidth * 2.0f;
             veil.world.linear[3] = halfHeight * 2.0f;
@@ -400,7 +404,7 @@ namespace JBro::Internal
         {
             PushDebugLines2D(*debugDraw, renderer, 2.0f * view.orthographicSize / static_cast<float>(view.extent.height));
         }
-        const bool closed = renderer.EndView();
+        const Bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
 
@@ -408,7 +412,7 @@ namespace JBro::Internal
     {
         // 화면 레이어의 정사영이다(D-237). 가운데 원점, y 위, 기준 픽셀 - 앵커와 같은 `ComputeScreenExtent` 로 잰다.
         // 뷰포트는 그려지는 사각형이다 - `PixelPerfect` 카메라의 레터박스 안에 화면 레이어도 그린다(D-239).
-        bool BuildScreenCamera(const ScreenExtent& extent, const ScreenArea& area, CameraParams& result)
+        Bool BuildScreenCamera(const ScreenExtent& extent, const ScreenArea& area, CameraParams& result)
         {
             if (false == (area.width > 0.0f) || false == (area.height > 0.0f)
                 || false == (extent.halfWidth > 0.0f) || false == (extent.halfHeight > 0.0f))
@@ -433,7 +437,7 @@ namespace JBro::Internal
         }
 
         // 그리는 순서의 화면 아이템을 맞춤 방식이 같은 것끼리 이어진 덩어리로 나눠 덩어리마다 뷰 하나에 그린다.
-        bool SubmitScreenViews(const RenderWorld2D& world, Renderer& renderer, const ScreenSpaceFrame& frame, bool& submitted)
+        Bool SubmitScreenViews(const RenderWorld2D& world, Renderer& renderer, const ScreenSpaceFrame& frame, Bool& submitted)
         {
             submitted = false;
             if (world.GetScreenSpriteCount() == 0)
@@ -471,7 +475,7 @@ namespace JBro::Internal
                 rule.screenSpace = true;
                 rule.scaleMode = mode;
                 rule.anyScaleMode = false;
-                const bool accepted = PushSprites(world, renderer, false, rule, index, end);
+                const Bool accepted = PushSprites(world, renderer, false, rule, index, end);
                 if (false == renderer.EndView() || false == accepted)
                 {
                     return false;
@@ -493,7 +497,7 @@ namespace JBro::Internal
         frame.targetWidth = static_cast<float>(target.width);
         frame.targetHeight = static_cast<float>(target.height);
         ApplyCameraArea(camera, frame);
-        bool worldSubmitted = false;
+        Bool worldSubmitted = false;
         // 카메라가 없는 것은 오류가 아니다. 월드를 그리지 않을 뿐이다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
         if (camera != nullptr)
         {
@@ -513,14 +517,14 @@ namespace JBro::Internal
             {
                 rule.parallaxView = &cameraView.view;
             }
-            const bool accepted = PushSprites(world, renderer, false, rule);
+            const Bool accepted = PushSprites(world, renderer, false, rule);
             // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
             if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
             {
                 PushDebugLines2D(*debugDraw, renderer,
                     2.0f * camera->orthographicSize / static_cast<float>(renderer.GetFrameExtent().height));
             }
-            const bool closed = renderer.EndView();
+            const Bool closed = renderer.EndView();
             if (false == accepted || false == closed)
             {
                 return RenderResult::Failed;
@@ -528,7 +532,7 @@ namespace JBro::Internal
             worldSubmitted = true;
         }
         // 화면 레이어는 월드 위에 그린다(D-237). 렌더러는 대상을 첫 뷰에서만 지운다.
-        bool screenSubmitted = false;
+        Bool screenSubmitted = false;
         if (false == SubmitScreenViews(world, renderer, frame, screenSubmitted))
         {
             return RenderResult::Failed;
@@ -553,7 +557,7 @@ namespace JBro::Internal
         rule.composite = false;
         rule.layerOrder = static_cast<std::int32_t>(layer.GetOrder());
         CameraView2D cameraView;
-        bool drawable = false;
+        Bool drawable = false;
         if (layer.GetSpace() == LayerSpace::Screen)
         {
             ScreenArea area;
@@ -579,7 +583,7 @@ namespace JBro::Internal
         }
         parameters.target = thumbnail.target;
         parameters.targetExtent = thumbnail.extent;
-        for (int channel = 0; channel < 4; ++channel)
+        for (Int32 channel = 0; channel < 4; ++channel)
         {
             parameters.clearColor[channel] = thumbnail.clearColor[channel];
         }
@@ -587,8 +591,8 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = false == drawable || PushSprites(world, renderer, false, rule);
-        const bool closed = renderer.EndView();
+        const Bool accepted = false == drawable || PushSprites(world, renderer, false, rule);
+        const Bool closed = renderer.EndView();
         return accepted && closed ? RenderResult::Submitted : RenderResult::Failed;
     }
 }

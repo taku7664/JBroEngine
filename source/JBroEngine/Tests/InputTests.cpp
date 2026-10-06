@@ -5,10 +5,13 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -63,7 +66,7 @@ namespace
     const JBro::InputEvent* FindFirst(
         JBro::JArrayView<JBro::InputEvent> events, JBro::InputEventKind kind)
     {
-        for (std::uint32_t index = 0; index < events.size; ++index)
+        for (JBro::UInt32 index = 0; index < events.size; ++index)
         {
             if (events.data[index].kind == kind)
             {
@@ -84,16 +87,16 @@ namespace
         probe.PostAndPump(WM_KEYDOWN, VK_LEFT, 0);
         Check(FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::KeyDown) != nullptr,
             "the first press must be there");
-        const std::uint32_t afterFirst = probe.platform.GetInputEvents().size;
+        const JBro::UInt32 afterFirst = probe.platform.GetInputEvents().size;
 
         // 아무도 꺼내 가지 않은 채 한 번 더 돈다. 앞의 것이 그대로 있어야 한다.
         PostMessageW(probe.native, WM_KEYDOWN, VK_RIGHT, 0);
         probe.platform.PumpEvents();
         JBro::JArrayView<JBro::InputEvent> events = probe.platform.GetInputEvents();
         Check(events.size > afterFirst, "the second pump must add to what was there");
-        bool sawLeft = false;
-        bool sawRight = false;
-        for (std::uint32_t index = 0; index < events.size; ++index)
+        JBro::Bool sawLeft = false;
+        JBro::Bool sawRight = false;
+        for (JBro::UInt32 index = 0; index < events.size; ++index)
         {
             if (events.data[index].kind != JBro::InputEventKind::KeyDown)
             {
@@ -248,7 +251,7 @@ namespace
     const JBro::InputEvent* FindButton(
         JBro::JArrayView<JBro::InputEvent> events, JBro::InputEventKind kind, JBro::MouseButton button)
     {
-        for (std::uint32_t index = 0; index < events.size; ++index)
+        for (JBro::UInt32 index = 0; index < events.size; ++index)
         {
             if (events.data[index].kind == kind && events.data[index].button == button)
             {
@@ -325,7 +328,7 @@ namespace
     }
 }
 
-int RunInputTests()
+JBro::Int32 RunInputTests()
 {
     TestUnreadInputSurvivesAnotherPump();
     TestKeysComeOutAsKeys();

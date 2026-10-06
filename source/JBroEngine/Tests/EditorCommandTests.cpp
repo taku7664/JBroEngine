@@ -6,10 +6,12 @@
 #include <iostream>
 #include <stdexcept>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -23,7 +25,7 @@ namespace
     class SetNumberCommand final : public JBro::EditorCommand
     {
     public:
-        SetNumberCommand(int& target, int oldValue, int newValue, int tag)
+        SetNumberCommand(JBro::Int32& target, JBro::Int32 oldValue, JBro::Int32 newValue, JBro::Int32 tag)
             : m_target(&target)
             , m_oldValue(oldValue)
             , m_newValue(newValue)
@@ -35,7 +37,7 @@ namespace
         {
             return "Set Number";
         }
-        bool Execute() override
+        JBro::Bool Execute() override
         {
             if (m_failExecute)
             {
@@ -55,12 +57,12 @@ namespace
             *m_target = m_newValue;
             ++redos;
         }
-        bool CanMerge(const JBro::EditorCommand& newer) const override
+        JBro::Bool CanMerge(const JBro::EditorCommand& newer) const override
         {
             const auto* other = dynamic_cast<const SetNumberCommand*>(&newer);
             return other != nullptr && other->m_tag == m_tag;
         }
-        bool TryMerge(const JBro::EditorCommand& newer) override
+        JBro::Bool TryMerge(const JBro::EditorCommand& newer) override
         {
             const auto* other = dynamic_cast<const SetNumberCommand*>(&newer);
             if (other == nullptr || other->m_tag != m_tag)
@@ -77,25 +79,25 @@ namespace
             m_failExecute = true;
         }
 
-        static int executes;
-        static int undos;
-        static int redos;
+        static JBro::Int32 executes;
+        static JBro::Int32 undos;
+        static JBro::Int32 redos;
 
     private:
-        int* m_target = nullptr;
-        int m_oldValue = 0;
-        int m_newValue = 0;
+        JBro::Int32* m_target = nullptr;
+        JBro::Int32 m_oldValue = 0;
+        JBro::Int32 m_newValue = 0;
         // 같은 대상을 가리키는지 나타내는 표식이다. 실제 커맨드에서는 컴포넌트와
         // 프로퍼티 경로가 이 역할을 한다.
-        int m_tag = 0;
-        bool m_failExecute = false;
+        JBro::Int32 m_tag = 0;
+        JBro::Bool m_failExecute = false;
     };
 
-    int SetNumberCommand::executes = 0;
-    int SetNumberCommand::undos = 0;
-    int SetNumberCommand::redos = 0;
+    JBro::Int32 SetNumberCommand::executes = 0;
+    JBro::Int32 SetNumberCommand::undos = 0;
+    JBro::Int32 SetNumberCommand::redos = 0;
 
-    JBro::OwnerPtr<JBro::EditorCommand> MakeSet(int& target, int from, int to, int tag = 0)
+    JBro::OwnerPtr<JBro::EditorCommand> MakeSet(JBro::Int32& target, JBro::Int32 from, JBro::Int32 to, JBro::Int32 tag = 0)
     {
         return JBro::MakeOwnerPtr<SetNumberCommand>(target, from, to, tag);
     }
@@ -103,7 +105,7 @@ namespace
     void TestTheStackUndoesAndRedoes()
     {
         JBro::EditorCommandManager commands;
-        int value = 0;
+        JBro::Int32 value = 0;
 
         Check(false == commands.CanUndo(), "nothing has been done yet");
         Check(false == commands.CanRedo(), "and nothing to put back");
@@ -138,7 +140,7 @@ namespace
     void TestAFailedEditIsNotRemembered()
     {
         JBro::EditorCommandManager commands;
-        int value = 0;
+        JBro::Int32 value = 0;
         auto failing = JBro::MakeOwnerPtr<SetNumberCommand>(value, 0, 1, 0);
         failing->FailNextExecute();
 
@@ -160,7 +162,7 @@ namespace
     void TestEditsDoNotMergeWithoutAMouse()
     {
         JBro::EditorCommandManager commands;
-        int value = 0;
+        JBro::Int32 value = 0;
         Check(commands.Execute(MakeSet(value, 0, 1, 7)), "the first edit");
         Check(commands.Execute(MakeSet(value, 1, 2, 7)), "and another on the same target");
         Check(commands.GetUndoCount() == 2,
@@ -197,7 +199,7 @@ namespace
 
         // 한 프레임 돈다. 버튼 상태를 넣고 NewFrame 을 돌려야 ImGui 가 누른
         // 시간을 갱신한다 - 매니저가 드래그 경계를 그 값으로 읽는다.
-        void Frame(bool mouseDown)
+        void Frame(JBro::Bool mouseDown)
         {
             ImGuiIO& io = ImGui::GetIO();
             io.AddMousePosEvent(10.0f, 10.0f);
@@ -220,10 +222,10 @@ namespace
     {
         MouseStage stage;
         JBro::EditorCommandManager commands;
-        int value = 0;
+        JBro::Int32 value = 0;
 
         // 누른 채로 세 프레임을 끈다. 같은 대상이므로 하나로 합쳐져야 한다.
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             stage.Frame(true);
             Check(commands.Execute(MakeSet(value, frame, frame + 1, 7)),
@@ -284,9 +286,9 @@ namespace
     void TestACompoundIsOneUndo()
     {
         JBro::EditorCommandManager commands;
-        int first = 0;
-        int second = 0;
-        int third = 0;
+        JBro::Int32 first = 0;
+        JBro::Int32 second = 0;
+        JBro::Int32 third = 0;
 
         auto compound = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Set Three");
         Check(compound->Add(MakeSet(first, 0, 1, 1)), "the first must go in");
@@ -310,8 +312,8 @@ namespace
     void TestAFailedPartInsideACompoundRollsBackTheRest()
     {
         JBro::EditorCommandManager commands;
-        int first = 0;
-        int second = 0;
+        JBro::Int32 first = 0;
+        JBro::Int32 second = 0;
 
         auto failing = JBro::MakeOwnerPtr<SetNumberCommand>(second, 0, 2, 2);
         failing->FailNextExecute();
@@ -339,10 +341,10 @@ namespace
     {
         MouseStage stage;
         JBro::EditorCommandManager commands;
-        int first = 0;
-        int second = 0;
+        JBro::Int32 first = 0;
+        JBro::Int32 second = 0;
 
-        for (int frame = 0; frame < 3; ++frame)
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             auto compound = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Drag Two");
             compound->Add(MakeSet(first, frame, frame + 1, 1));
@@ -410,7 +412,7 @@ namespace
     void TestACompoundUndoesInReverse()
     {
         JBro::EditorCommandManager commands;
-        int value = 0;
+        JBro::Int32 value = 0;
 
         auto compound = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Twice");
         // 0 → 1, 그리고 1 → 2. 뒤의 것이 앞의 것 위에 선다.
@@ -431,7 +433,7 @@ namespace
     void TestSavingIsTrackedByRevisionNotByAFlag()
     {
         JBro::EditorCommandManager commands;
-        int value = 0;
+        JBro::Int32 value = 0;
         Check(false == commands.IsDirty(), "a fresh document is saved");
 
         commands.Execute(MakeSet(value, 0, 1));
@@ -450,7 +452,7 @@ namespace
     void TestClearingForgetsEverything()
     {
         JBro::EditorCommandManager commands;
-        int value = 0;
+        JBro::Int32 value = 0;
         commands.Execute(MakeSet(value, 0, 1));
         commands.Undo();
         Check(commands.CanRedo(), "there is something to redo");
@@ -466,8 +468,8 @@ namespace
     void TestTheStackHasACeiling()
     {
         JBro::EditorCommandManager commands;
-        int value = 0;
-        for (int index = 0; index < 400; ++index)
+        JBro::Int32 value = 0;
+        for (JBro::Int32 index = 0; index < 400; ++index)
         {
             // 표식을 다르게 주어 합쳐지지 않게 한다.
             Check(commands.Execute(MakeSet(value, index, index + 1, index)),
@@ -484,7 +486,7 @@ namespace
     }
 }
 
-int RunEditorCommandTests()
+JBro::Int32 RunEditorCommandTests()
 {
     TestTheStackUndoesAndRedoes();
     TestAFailedEditIsNotRemembered();

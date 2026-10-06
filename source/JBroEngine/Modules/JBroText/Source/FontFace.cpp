@@ -11,6 +11,10 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
 #include <stb_truetype.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Text
 {
@@ -43,7 +47,7 @@ namespace JBro::Text
             {
             }
 
-            bool Read16(std::size_t at, std::uint16_t& value) const
+            Bool Read16(std::size_t at, std::uint16_t& value) const
             {
                 if (at + 2 > m_size)
                 {
@@ -53,7 +57,7 @@ namespace JBro::Text
                 return true;
             }
 
-            bool Read32(std::size_t at, std::uint32_t& value) const
+            Bool Read32(std::size_t at, UInt32& value) const
             {
                 std::uint16_t high = 0;
                 std::uint16_t low = 0;
@@ -66,7 +70,7 @@ namespace JBro::Text
             }
 
             // 커버리지 표 안에서 글리프의 번호다. 없으면 -1.
-            std::int32_t CoverageIndex(std::size_t table, std::uint32_t glyph) const
+            Int32 CoverageIndex(std::size_t table, UInt32 glyph) const
             {
                 std::uint16_t format = 0;
                 std::uint16_t count = 0;
@@ -76,11 +80,11 @@ namespace JBro::Text
                 }
                 if (format == 1)
                 {
-                    std::int32_t low = 0;
-                    std::int32_t high = static_cast<std::int32_t>(count) - 1;
+                    Int32 low = 0;
+                    Int32 high = static_cast<std::int32_t>(count) - 1;
                     while (low <= high)
                     {
-                        const std::int32_t middle = (low + high) / 2;
+                        const Int32 middle = (low + high) / 2;
                         std::uint16_t value = 0;
                         if (false == Read16(table + 4 + static_cast<std::size_t>(middle) * 2, value))
                         {
@@ -103,11 +107,11 @@ namespace JBro::Text
                 }
                 if (format == 2)
                 {
-                    std::int32_t low = 0;
-                    std::int32_t high = static_cast<std::int32_t>(count) - 1;
+                    Int32 low = 0;
+                    Int32 high = static_cast<std::int32_t>(count) - 1;
                     while (low <= high)
                     {
-                        const std::int32_t middle = (low + high) / 2;
+                        const Int32 middle = (low + high) / 2;
                         const std::size_t record = table + 4 + static_cast<std::size_t>(middle) * 6;
                         std::uint16_t start = 0;
                         std::uint16_t end = 0;
@@ -134,7 +138,7 @@ namespace JBro::Text
             }
 
             // 글리프의 클래스다. 표에 없으면 0 이다(OpenType 규칙).
-            std::uint32_t ClassOf(std::size_t table, std::uint32_t glyph) const
+            UInt32 ClassOf(std::size_t table, UInt32 glyph) const
             {
                 std::uint16_t format = 0;
                 if (false == Read16(table, format))
@@ -160,11 +164,11 @@ namespace JBro::Text
                     {
                         return 0;
                     }
-                    std::int32_t low = 0;
-                    std::int32_t high = static_cast<std::int32_t>(count) - 1;
+                    Int32 low = 0;
+                    Int32 high = static_cast<std::int32_t>(count) - 1;
                     while (low <= high)
                     {
-                        const std::int32_t middle = (low + high) / 2;
+                        const Int32 middle = (low + high) / 2;
                         const std::size_t record = table + 4 + static_cast<std::size_t>(middle) * 6;
                         std::uint16_t start = 0;
                         std::uint16_t end = 0;
@@ -191,7 +195,7 @@ namespace JBro::Text
             }
 
             // 값 기록 안의 XAdvance 다. 형식에 XAdvance 가 없으면 0 이다. 앞의 XPlacement·YPlacement 만큼 건너뛴다.
-            std::int32_t XAdvanceOf(std::size_t record, std::uint16_t valueFormat) const
+            Int32 XAdvanceOf(std::size_t record, std::uint16_t valueFormat) const
             {
                 if ((valueFormat & 0x0004) == 0)
                 {
@@ -213,7 +217,7 @@ namespace JBro::Text
             }
 
             // 쌍 조정 부표 하나다. 찾으면 참이고 조정값(폰트 단위)을 준다.
-            bool PairAdjustment(std::size_t subtable, std::uint32_t left, std::uint32_t right, std::int32_t& adjustment) const
+            Bool PairAdjustment(std::size_t subtable, UInt32 left, UInt32 right, Int32& adjustment) const
             {
                 std::uint16_t format = 0;
                 std::uint16_t coverage = 0;
@@ -224,7 +228,7 @@ namespace JBro::Text
                 {
                     return false;
                 }
-                const std::int32_t covered = CoverageIndex(subtable + coverage, left);
+                const Int32 covered = CoverageIndex(subtable + coverage, left);
                 if (covered < 0)
                 {
                     return false;
@@ -247,11 +251,11 @@ namespace JBro::Text
                         return false;
                     }
                     const std::size_t recordSize = 2 + size1 + size2;
-                    std::int32_t low = 0;
-                    std::int32_t high = static_cast<std::int32_t>(pairCount) - 1;
+                    Int32 low = 0;
+                    Int32 high = static_cast<std::int32_t>(pairCount) - 1;
                     while (low <= high)
                     {
-                        const std::int32_t middle = (low + high) / 2;
+                        const Int32 middle = (low + high) / 2;
                         const std::size_t record = set + 2 + static_cast<std::size_t>(middle) * recordSize;
                         std::uint16_t second = 0;
                         if (false == Read16(record, second))
@@ -285,8 +289,8 @@ namespace JBro::Text
                     {
                         return false;
                     }
-                    const std::uint32_t class1 = ClassOf(subtable + classDef1, left);
-                    const std::uint32_t class2 = ClassOf(subtable + classDef2, right);
+                    const UInt32 class1 = ClassOf(subtable + classDef1, left);
+                    const UInt32 class2 = ClassOf(subtable + classDef2, right);
                     if (class1 >= class1Count || class2 >= class2Count)
                     {
                         return false;
@@ -301,7 +305,7 @@ namespace JBro::Text
             }
 
             // 앵커 표의 (x, y) 다. 형식 1·2·3 모두 앞의 두 값이 좌표다(2 의 윤곽 점, 3 의 장치 표는 쓰지 않는다).
-            bool Anchor(std::size_t table, std::int32_t& x, std::int32_t& y) const
+            Bool Anchor(std::size_t table, Int32& x, Int32& y) const
             {
                 std::uint16_t format = 0;
                 std::uint16_t xValue = 0;
@@ -317,7 +321,7 @@ namespace JBro::Text
             }
 
             // mark-to-base 부표(형식 4 의 형식 1) 하나다. 찾으면 받침 원점에서 표시 원점까지의 거리(폰트 단위)를 준다.
-            bool MarkToBase(std::size_t subtable, std::uint32_t base, std::uint32_t mark, std::int32_t& dx, std::int32_t& dy) const
+            Bool MarkToBase(std::size_t subtable, UInt32 base, UInt32 mark, Int32& dx, Int32& dy) const
             {
                 std::uint16_t format = 0;
                 std::uint16_t markCoverage = 0;
@@ -331,8 +335,8 @@ namespace JBro::Text
                 {
                     return false;
                 }
-                const std::int32_t markIndex = CoverageIndex(subtable + markCoverage, mark);
-                const std::int32_t baseIndex = CoverageIndex(subtable + baseCoverage, base);
+                const Int32 markIndex = CoverageIndex(subtable + markCoverage, mark);
+                const Int32 baseIndex = CoverageIndex(subtable + baseCoverage, base);
                 if (markIndex < 0 || baseIndex < 0)
                 {
                     return false;
@@ -352,10 +356,10 @@ namespace JBro::Text
                 {
                     return false;
                 }
-                std::int32_t markX = 0;
-                std::int32_t markY = 0;
-                std::int32_t baseX = 0;
-                std::int32_t baseY = 0;
+                Int32 markX = 0;
+                Int32 markY = 0;
+                Int32 baseX = 0;
+                Int32 baseY = 0;
                 if (false == Anchor(marks + markAnchor, markX, markY) || false == Anchor(bases + baseAnchor, baseX, baseY))
                 {
                     return false;
@@ -367,7 +371,7 @@ namespace JBro::Text
 
             // 조회 목록을 돌며 형식 wanted 의 부표를 찾는다(확장 조회는 풀어서). visit 가 참을 주면 멈추고 참이다.
             template <typename TVisit>
-            bool VisitSubtables(std::size_t gpos, std::uint16_t wanted, TVisit&& visit) const
+            Bool VisitSubtables(std::size_t gpos, std::uint16_t wanted, TVisit&& visit) const
             {
                 std::uint16_t major = 0;
                 std::uint16_t lookupList = 0;
@@ -407,7 +411,7 @@ namespace JBro::Text
                         {
                             std::uint16_t extensionFormat = 0;
                             std::uint16_t extensionType = 0;
-                            std::uint32_t extensionOffset = 0;
+                            UInt32 extensionOffset = 0;
                             if (false == Read16(subtable, extensionFormat) || extensionFormat != 1
                                 || false == Read16(subtable + 2, extensionType) || extensionType != wanted
                                 || false == Read32(subtable + 4, extensionOffset))
@@ -425,15 +429,15 @@ namespace JBro::Text
                 return false;
             }
 
-            bool MarkAttachment(std::size_t gpos, std::uint32_t base, std::uint32_t mark, std::int32_t& dx, std::int32_t& dy) const
+            Bool MarkAttachment(std::size_t gpos, UInt32 base, UInt32 mark, Int32& dx, Int32& dy) const
             {
                 return VisitSubtables(gpos, 4, [&](std::size_t subtable) { return MarkToBase(subtable, base, mark, dx, dy); });
             }
 
             // GPOS 전체에서 첫 번째로 찾은 쌍 조정이다. 없으면 0 이다.
-            std::int32_t Kerning(std::size_t gpos, std::uint32_t left, std::uint32_t right) const
+            Int32 Kerning(std::size_t gpos, UInt32 left, UInt32 right) const
             {
-                std::int32_t adjustment = 0;
+                Int32 adjustment = 0;
                 VisitSubtables(gpos, 2, [&](std::size_t subtable) { return PairAdjustment(subtable, left, right, adjustment); });
                 return adjustment;
             }
@@ -452,7 +456,7 @@ namespace JBro::Text
         public:
             using GposReader::GposReader;
 
-            static constexpr std::uint32_t Tag(char a, char b, char c, char d)
+            static constexpr UInt32 Tag(char a, char b, char c, char d)
             {
                 return (static_cast<std::uint32_t>(static_cast<unsigned char>(a)) << 24) | (static_cast<std::uint32_t>(static_cast<unsigned char>(b)) << 16)
                     | (static_cast<std::uint32_t>(static_cast<unsigned char>(c)) << 8) | static_cast<std::uint32_t>(static_cast<unsigned char>(d));
@@ -481,7 +485,7 @@ namespace JBro::Text
                 for (std::uint16_t index = 0; index < scriptCount; ++index)
                 {
                     const std::size_t record = scriptList + 2 + static_cast<std::size_t>(index) * 6;
-                    std::uint32_t tag = 0;
+                    UInt32 tag = 0;
                     std::uint16_t offset = 0;
                     if (Read32(record, tag) && tag == Tag('h', 'a', 'n', 'g') && Read16(record + 4, offset))
                     {
@@ -521,7 +525,7 @@ namespace JBro::Text
                 for (std::uint16_t index = 0; index < featureCount; ++index)
                 {
                     std::uint16_t featureIndex = 0;
-                    std::uint32_t tag = 0;
+                    UInt32 tag = 0;
                     std::uint16_t featureOffset = 0;
                     if (false == Read16(langSys + 6 + static_cast<std::size_t>(index) * 2, featureIndex))
                     {
@@ -568,8 +572,8 @@ namespace JBro::Text
 
         private:
             // 조회 lookupIndex 의 부표를 차례로 대어 보고, 처음 맞는 부표 하나만 position 에 적용한다.
-            bool ApplyAt(std::size_t gsub, std::uint16_t lookupIndex, GlyphIndex* glyphs, std::size_t count, std::size_t position,
-                int depth) const
+            Bool ApplyAt(std::size_t gsub, std::uint16_t lookupIndex, GlyphIndex* glyphs, std::size_t count, std::size_t position,
+                Int32 depth) const
             {
                 std::uint16_t lookupListOffset = 0;
                 std::uint16_t lookupCount = 0;
@@ -603,7 +607,7 @@ namespace JBro::Text
                     if (type == 7)
                     {
                         std::uint16_t extensionFormat = 0;
-                        std::uint32_t extensionOffset = 0;
+                        UInt32 extensionOffset = 0;
                         if (false == Read16(subtable, extensionFormat) || extensionFormat != 1 || false == Read16(subtable + 2, subtableType)
                             || false == Read32(subtable + 4, extensionOffset))
                         {
@@ -623,7 +627,7 @@ namespace JBro::Text
                 return false;
             }
 
-            bool Single(std::size_t subtable, GlyphIndex& glyph) const
+            Bool Single(std::size_t subtable, GlyphIndex& glyph) const
             {
                 std::uint16_t format = 0;
                 std::uint16_t coverage = 0;
@@ -631,7 +635,7 @@ namespace JBro::Text
                 {
                     return false;
                 }
-                const std::int32_t covered = CoverageIndex(subtable + coverage, glyph);
+                const Int32 covered = CoverageIndex(subtable + coverage, glyph);
                 if (covered < 0)
                 {
                     return false;
@@ -653,7 +657,7 @@ namespace JBro::Text
             }
 
             // 연쇄 문맥 치환 형식 3: 앞(가까운 것부터)·입력·뒤가 커버리지마다 맞으면 치환 기록의 조회를 그 자리에 부른다.
-            bool ChainFormat3(std::size_t gsub, std::size_t subtable, GlyphIndex* glyphs, std::size_t count, std::size_t position) const
+            Bool ChainFormat3(std::size_t gsub, std::size_t subtable, GlyphIndex* glyphs, std::size_t count, std::size_t position) const
             {
                 std::uint16_t format = 0;
                 if (false == Read16(subtable, format) || format != 3)
@@ -757,7 +761,7 @@ namespace JBro::Text
         std::memset(other.m_info, 0, sizeof(other.m_info));
     }
 
-    bool FontFace::Load(ArrayView<const std::byte> bytes, std::uint32_t faceIndex)
+    Bool FontFace::Load(ArrayView<const std::byte> bytes, UInt32 faceIndex)
     {
         Unload();
         // sfnt 머리(12 바이트)도 없으면 stb 가 표를 찾다 버퍼 밖을 읽는다.
@@ -769,7 +773,7 @@ namespace JBro::Text
         std::memcpy(m_bytes.Data(), bytes.Data(), bytes.Size());
 
         const unsigned char* data = reinterpret_cast<const unsigned char*>(m_bytes.Data());
-        const int offset = stbtt_GetFontOffsetForIndex(data, static_cast<int>(faceIndex));
+        const Int32 offset = stbtt_GetFontOffsetForIndex(data, static_cast<int>(faceIndex));
         if (offset < 0 || 0 == stbtt_InitFont(Info(m_info), data, offset))
         {
             Unload();
@@ -777,7 +781,7 @@ namespace JBro::Text
         }
 
         const stbtt_fontinfo* info = Info(m_info);
-        const float emScale = stbtt_ScaleForMappingEmToPixels(info, 1.0f);
+        const Float emScale = stbtt_ScaleForMappingEmToPixels(info, 1.0f);
         if (false == (emScale > 0.0f))
         {
             Unload();
@@ -812,7 +816,7 @@ namespace JBro::Text
         std::memset(m_info, 0, sizeof(m_info));
     }
 
-    bool FontFace::IsLoaded() const
+    Bool FontFace::IsLoaded() const
     {
         return m_loaded;
     }
@@ -823,7 +827,7 @@ namespace JBro::Text
         {
             return MissingGlyph;
         }
-        const int glyph = stbtt_FindGlyphIndex(Info(m_info), static_cast<int>(codepoint));
+        const Int32 glyph = stbtt_FindGlyphIndex(Info(m_info), static_cast<int>(codepoint));
         return glyph > 0 ? static_cast<GlyphIndex>(glyph) : MissingGlyph;
     }
 
@@ -832,7 +836,7 @@ namespace JBro::Text
         return m_metrics;
     }
 
-    std::int32_t FontFace::GetAdvance(GlyphIndex glyph) const
+    Int32 FontFace::GetAdvance(GlyphIndex glyph) const
     {
         if (false == m_loaded)
         {
@@ -844,7 +848,7 @@ namespace JBro::Text
         return advance;
     }
 
-    std::int32_t FontFace::GetKerning(GlyphIndex left, GlyphIndex right) const
+    Int32 FontFace::GetKerning(GlyphIndex left, GlyphIndex right) const
     {
         if (false == m_loaded)
         {
@@ -864,7 +868,7 @@ namespace JBro::Text
         return 0;
     }
 
-    bool FontFace::GetMarkAttachment(GlyphIndex base, GlyphIndex mark, std::int32_t& dx, std::int32_t& dy) const
+    Bool FontFace::GetMarkAttachment(GlyphIndex base, GlyphIndex mark, Int32& dx, Int32& dy) const
     {
         dx = 0;
         dy = 0;
@@ -881,12 +885,12 @@ namespace JBro::Text
         return reader.MarkAttachment(static_cast<std::size_t>(info->gpos), base, mark, dx, dy);
     }
 
-    bool FontFace::HasHangulJamoShaping() const
+    Bool FontFace::HasHangulJamoShaping() const
     {
         return m_loaded && m_gsub != 0 && false == m_jamoLookups.IsEmpty();
     }
 
-    bool FontFace::ShapeHangulJamo(GlyphIndex* glyphs, std::size_t count) const
+    Bool FontFace::ShapeHangulJamo(GlyphIndex* glyphs, std::size_t count) const
     {
         if (false == HasHangulJamoShaping() || glyphs == nullptr || count == 0)
         {
@@ -928,7 +932,7 @@ namespace JBro::Text
         return box;
     }
 
-    bool FontFace::MeasureGlyphBitmap(GlyphIndex glyph, float pixelSize, GlyphBitmapBox& box) const
+    Bool FontFace::MeasureGlyphBitmap(GlyphIndex glyph, Float pixelSize, GlyphBitmapBox& box) const
     {
         box = {};
         if (false == m_loaded || false == (pixelSize > 0.0f))
@@ -940,7 +944,7 @@ namespace JBro::Text
         {
             return true;
         }
-        const float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
+        const Float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
         int x0 = 0;
         int y0 = 0;
         int x1 = 0;
@@ -949,24 +953,24 @@ namespace JBro::Text
         stbtt_GetGlyphBitmapBox(info, static_cast<int>(glyph), scale, scale, &x0, &y0, &x1, &y1);
         box.left = x0;
         box.top = -y0;
-        box.width = x1 > x0 ? x1 - x0 : 0;
-        box.height = y1 > y0 ? y1 - y0 : 0;
+        box.width = x1 > x0 ? Int32(x1 - x0) : Int32(0);
+        box.height = y1 > y0 ? Int32(y1 - y0) : Int32(0);
         return true;
     }
 
-    bool FontFace::RasterizeGlyph(GlyphIndex glyph, float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, std::int32_t stride) const
+    Bool FontFace::RasterizeGlyph(GlyphIndex glyph, Float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, Int32 stride) const
     {
         if (false == m_loaded || coverage == nullptr || box.width <= 0 || box.height <= 0 || stride < box.width || false == (pixelSize > 0.0f))
         {
             return false;
         }
         const stbtt_fontinfo* info = Info(m_info);
-        const float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
+        const Float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
         stbtt_MakeGlyphBitmap(info, coverage, box.width, box.height, stride, scale, scale, static_cast<int>(glyph));
         return true;
     }
 
-    bool FontFace::RasterizeGlyphSdf(GlyphIndex glyph, float pixelSize, std::int32_t spread, GlyphBitmapBox& box,
+    Bool FontFace::RasterizeGlyphSdf(GlyphIndex glyph, Float pixelSize, Int32 spread, GlyphBitmapBox& box,
         Array<std::uint8_t>& distances) const
     {
         box = {};
@@ -979,9 +983,9 @@ namespace JBro::Text
         {
             return true;
         }
-        const float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
+        const Float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
         constexpr unsigned char OnEdge = 128;
-        const float perPixel = static_cast<float>(OnEdge) / static_cast<float>(spread);
+        const Float perPixel = static_cast<float>(OnEdge) / static_cast<float>(spread);
         int width = 0;
         int height = 0;
         int xoff = 0;

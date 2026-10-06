@@ -2,6 +2,7 @@
 
 #include <JBro/Types/Math3D.h>
 #include <JBro/Types/Color.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Service
 {
@@ -15,27 +16,27 @@ namespace JBro::Service
     class DebugDraw3DService
     {
     public:
-        void Line(const Vector3& from, const Vector3& to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
-            float thickness = 1.0f) const;
+        void Line(const Vector3& from, const Vector3& to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, Float duration = 0.0f,
+            Float thickness = 1.0f) const;
         void Ray(const Vector3& origin, const Vector3& direction, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-            float duration = 0.0f, float thickness = 1.0f) const;
+            Float duration = 0.0f, Float thickness = 1.0f) const;
         // 촉은 선 길이의 1/4 이고, 선에 수직인 두 평면에 하나씩 네 갈래다.
-        void Arrow(const Vector3& from, const Vector3& to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
-            float thickness = 1.0f) const;
+        void Arrow(const Vector3& from, const Vector3& to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, Float duration = 0.0f,
+            Float thickness = 1.0f) const;
         // 가운데·반 크기·회전의 상자 모서리 열둘이다.
         void Box(const Vector3& center, const Vector3& halfExtents, const Quaternion& rotation = Quaternion{},
-            const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f, float thickness = 1.0f) const;
+            const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, Float duration = 0.0f, Float thickness = 1.0f) const;
         // 세 축 평면의 대원 셋이다(32 조각씩).
-        void Sphere(const Vector3& center, float radius, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
-            float thickness = 1.0f) const;
+        void Sphere(const Vector3& center, Float radius, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, Float duration = 0.0f,
+            Float thickness = 1.0f) const;
         // normal 에 수직인 평면의 원이다.
-        void Circle(const Vector3& center, const Vector3& normal, float radius, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-            float duration = 0.0f, float thickness = 1.0f) const;
+        void Circle(const Vector3& center, const Vector3& normal, Float radius, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+            Float duration = 0.0f, Float thickness = 1.0f) const;
         // 회전의 세 축을 빨강(x)·초록(y)·파랑(z)으로 size 만큼 그린다.
-        void Axes(const Vector3& position, const Quaternion& rotation, float size = 1.0f, float duration = 0.0f,
-            float thickness = 1.0f) const;
+        void Axes(const Vector3& position, const Quaternion& rotation, Float size = 1.0f, Float duration = 0.0f,
+            Float thickness = 1.0f) const;
         // 세 축 방향의 짧은 선 셋이다. size 는 팔 하나의 길이다.
-        void Cross(const Vector3& at, float size, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
-            float thickness = 1.0f) const;
+        void Cross(const Vector3& at, Float size, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, Float duration = 0.0f,
+            Float thickness = 1.0f) const;
     };
 }

@@ -9,10 +9,13 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -22,10 +25,10 @@ namespace
     }
 
     // 어떤 순서로 무엇이 불렸는지 한 줄로 남긴다. 테스트가 보는 것은 이 기록뿐이다.
-    JBro::Array<int> callLog;
-    JBro::Array<int> createLog;
-    JBro::Array<int> fixedLog;
-    JBro::Array<int> destroyLog;
+    JBro::Array<JBro::Int32> callLog;
+    JBro::Array<JBro::Int32> createLog;
+    JBro::Array<JBro::Int32> fixedLog;
+    JBro::Array<JBro::Int32> destroyLog;
 
     class ProbeScript final : public JBro::GameScript2D
     {
@@ -68,10 +71,10 @@ namespace
             destroyLog.Add(mark);
         }
 
-        int   mark = 0;
-        int   startCount = 0;
-        float lastDeltaTime = -1.0f;
-        float lastFixedDeltaTime = -1.0f;
+        JBro::Int32   mark = 0;
+        JBro::Int32   startCount = 0;
+        JBro::Float lastDeltaTime = -1.0f;
+        JBro::Float lastFixedDeltaTime = -1.0f;
     };
 
     void ResetLogs()
@@ -243,13 +246,13 @@ namespace
     // 잘못된 결론이 난다. 그래서 파수병 값을 두고 **파괴된 뒤에 불렸는지를 직접 본다**.
     JBro::Canvas*    activeCanvas = nullptr;
     JBro::GameObject* victimObject = nullptr;
-    bool victimRanWhileAlive = false;
-    bool victimRanAfterDestruction = false;
+    JBro::Bool victimRanWhileAlive = false;
+    JBro::Bool victimRanAfterDestruction = false;
 
     class VictimScript final : public JBro::GameScript2D
     {
     public:
-        static constexpr int AliveMark = 0x5A5A1234;
+        static constexpr JBro::Int32 AliveMark = 0x5A5A1234;
         static constexpr const char* StaticTypeName()
         {
             return "Tests::VictimScript";
@@ -277,7 +280,7 @@ namespace
         }
 
     private:
-        int m_liveMark = AliveMark;
+        JBro::Int32 m_liveMark = AliveMark;
     };
 
     class KillerScript final : public JBro::GameScript2D
@@ -477,7 +480,7 @@ namespace
     }
 }
 
-int RunScriptSchedulingTests()
+JBro::Int32 RunScriptSchedulingTests()
 {
     TestScriptsRunInLayerThenHierarchyOrder();
     TestStartHappensOnceAndBeforeTheSameFrameUpdate();

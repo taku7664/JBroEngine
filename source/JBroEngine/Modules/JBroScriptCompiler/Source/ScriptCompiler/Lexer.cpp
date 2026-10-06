@@ -2,22 +2,24 @@
 
 #include <cstdint>
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::ScriptCompiler
 {
     namespace
     {
-        bool IsLetter(char c) noexcept
+        Bool IsLetter(char c) noexcept
         {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || '_' == c;
         }
 
-        bool IsDigit(char c) noexcept
+        Bool IsDigit(char c) noexcept
         {
             return c >= '0' && c <= '9';
         }
 
-        bool IsLetterOrDigit(char c) noexcept
+        Bool IsLetterOrDigit(char c) noexcept
         {
             return IsLetter(c) || IsDigit(c);
         }
@@ -47,7 +49,7 @@ namespace JBro::ScriptCompiler
             }
 
         private:
-            bool AtEnd() const noexcept
+            Bool AtEnd() const noexcept
             {
                 return m_offset >= m_text.size();
             }
@@ -141,8 +143,8 @@ namespace JBro::ScriptCompiler
                 ++m_offset;
                 // 괄호 안의 줄바꿈은 문장을 끝내지 않는다(D-104). 이미 문장 끝이 나와 있거나
                 // 아직 아무 토큰도 없으면 하나 더 내지 않는다.
-                const bool insideBrackets = m_bracketDepth > 0;
-                const bool afterNewline = m_tokens.IsEmpty() || TokenKind::Newline == m_tokens.Last().Kind;
+                const Bool insideBrackets = m_bracketDepth > 0;
+                const Bool afterNewline = m_tokens.IsEmpty() || TokenKind::Newline == m_tokens.Last().Kind;
                 if (false == insideBrackets && false == afterNewline)
                 {
                     Token& token = m_tokens.Emplace();
@@ -214,13 +216,13 @@ namespace JBro::ScriptCompiler
                 Emit(kind, begin);
             }
 
-            bool FitsInInt64(std::size_t first, std::size_t last) const noexcept
+            Bool FitsInInt64(std::size_t first, std::size_t last) const noexcept
             {
-                const std::uint64_t limit = static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
-                std::uint64_t value = 0;
+                const UInt64 limit = static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+                UInt64 value = 0;
                 for (std::size_t index = first; index < last; ++index)
                 {
-                    const std::uint64_t digit = static_cast<std::uint64_t>(m_text[index] - '0');
+                    const UInt64 digit = static_cast<std::uint64_t>(m_text[index] - '0');
                     if (value > (limit - digit) / 10)
                     {
                         return false;
@@ -444,8 +446,8 @@ namespace JBro::ScriptCompiler
             Array<Token> m_tokens;
             std::size_t m_offset = 0;
             std::size_t m_lineStart = 0;
-            std::uint32_t m_line = 1;
-            std::uint32_t m_bracketDepth = 0;
+            UInt32 m_line = 1;
+            UInt32 m_bracketDepth = 0;
         };
     }
 

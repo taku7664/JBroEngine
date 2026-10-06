@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -19,13 +21,13 @@ namespace JBro
         String canvasFile;
         String error;
 
-        bool IsValid() const
+        Bool IsValid() const
         {
             return error.empty();
         }
     };
 
-    GameHostArguments ParseGameHostArguments(int argumentCount, const char* const* arguments);
+    GameHostArguments ParseGameHostArguments(Int32 argumentCount, const char* const* arguments);
 
     // 처음 읽을 캔버스의 경로다. `--canvas` 가 있으면 그것(상대경로는 프로젝트 폴더 기준), 없으면 `Build.StartupCanvas`.
     // 둘 다 없으면 빈 문자열이다.

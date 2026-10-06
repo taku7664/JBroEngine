@@ -3,6 +3,8 @@
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -18,8 +20,8 @@ namespace JBro
 
         const char* GetTitle() const override;
         const char* GetId() const override;
-        float GetInitialWidth() const override;
-        float GetInitialHeight() const override;
+        Float GetInitialWidth() const override;
+        Float GetInitialHeight() const override;
         void OnDraw(EditorApplication& editor) override;
 
         // 팔레트에 서는 행동을 `query` 로 걸러 표의 차례로 `out` 에 담는다. 컴포넌트 하나를 두고만 뜻이 있는 행동(컴포넌트 메뉴의 것)과
@@ -29,7 +31,7 @@ namespace JBro
     private:
         String m_search;
         Array<const EditorActionInfo*> m_matches;
-        bool m_focusSearch = true;
+        Bool m_focusSearch = true;
     };
 
     namespace CommandPalette

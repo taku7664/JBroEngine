@@ -7,10 +7,12 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -199,8 +201,8 @@ namespace
         JBro::Fixed::String<32> text;
         text.Append("abc");
 
-        int count = 0;
-        int sum = 0;
+        JBro::Int32 count = 0;
+        JBro::Int32 sum = 0;
         for (const char letter : text)
         {
             ++count;
@@ -211,7 +213,7 @@ namespace
         Check(text[0] == 'a' && text[2] == 'c', "indexing reaches them too");
 
         JBro::Fixed::String<8> empty;
-        int emptyCount = 0;
+        JBro::Int32 emptyCount = 0;
         for (const char letter : empty)
         {
             static_cast<void>(letter);
@@ -288,7 +290,7 @@ namespace
     }
 }
 
-int RunFixedStringTests()
+JBro::Int32 RunFixedStringTests()
 {
     try
     {

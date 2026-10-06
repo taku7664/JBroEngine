@@ -9,15 +9,18 @@
 #include <wrl/client.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
     using Microsoft::WRL::ComPtr;
 
-    constexpr std::uint32_t MaxColorAttachments = 8;
-    constexpr std::uint32_t MaxBoundTextures = 8;
-    constexpr std::uint32_t MaxBoundSamplers = 4;
-    constexpr std::uint32_t MaxVertexSlots = 8;
+    constexpr UInt32 MaxColorAttachments = 8;
+    constexpr UInt32 MaxBoundTextures = 8;
+    constexpr UInt32 MaxBoundSamplers = 4;
+    constexpr UInt32 MaxVertexSlots = 8;
 
     class D3D11Device;
 
@@ -29,29 +32,29 @@ namespace JBro::Internal
         void Bind(D3D11Device* device, ID3D11DeviceContext* context);
         void Reset();
 
-        bool BeginRenderPass(const RenderPassDesc& desc) override;
+        Bool BeginRenderPass(const RenderPassDesc& desc) override;
         void EndRenderPass() override;
         void SetViewport(const Viewport& viewport) override;
         void SetScissor(const ScissorRect& scissor) override;
-        bool SetGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
-        bool SetVertexBuffer(
-            std::uint32_t slot,
+        Bool SetGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
+        Bool SetVertexBuffer(
+            UInt32 slot,
             BufferHandle buffer,
-            std::uint32_t stride,
+            UInt32 stride,
             std::size_t offset) override;
-        bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
-        bool SetGraphicsConstants(JArrayView<std::byte> data) override;
-        bool SetTexture(std::uint32_t slot, TextureHandle texture) override;
-        bool SetSampler(std::uint32_t slot, SamplerHandle sampler) override;
-        bool DrawIndexedInstanced(
-            std::uint32_t indexCount,
-            std::uint32_t instanceCount,
-            std::uint32_t firstIndex,
-            std::int32_t baseVertex,
-            std::uint32_t firstInstance) override;
-        bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
+        Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
+        Bool SetTexture(UInt32 slot, TextureHandle texture) override;
+        Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
+        Bool DrawIndexedInstanced(
+            UInt32 indexCount,
+            UInt32 instanceCount,
+            UInt32 firstIndex,
+            Int32 baseVertex,
+            UInt32 firstInstance) override;
+        Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
 
-        bool IsRenderPassActive() const
+        Bool IsRenderPassActive() const
         {
             return m_renderPassActive;
         }
@@ -60,12 +63,12 @@ namespace JBro::Internal
         D3D11Device* m_device = nullptr;
         ID3D11DeviceContext* m_context = nullptr;
         GraphicsPipelineHandle m_activePipeline;
-        std::uint32_t m_activePushConstantBytes = 0;
+        UInt32 m_activePushConstantBytes = 0;
         ShaderStage m_activePushConstantStages = ShaderStage::Vertex;
         // 참조를 든다. 파이프라인이 패스 중간에 지워져도 상수 버퍼는 살아 있다.
         ComPtr<ID3D11Buffer> m_activeConstantBuffer;
-        bool m_renderPassActive = false;
-        bool m_pipelineActive = false;
+        Bool m_renderPassActive = false;
+        Bool m_pipelineActive = false;
     };
 
     struct D3D11SwapchainState
@@ -77,17 +80,17 @@ namespace JBro::Internal
         // 제시 직전의 백버퍼 사본이다. 플립 모델은 제시한 버퍼를 다시 읽을 수 없으므로(버퍼 0 은 다음
         // 프레임의 것이 된다) 되읽기 계약(`ReadTexture`, 진단 전용)은 이 사본으로 지킨다.
         ComPtr<ID3D11Texture2D> presentedCopy;
-        std::uint32_t generation = 1;
-        std::uint32_t backBufferGeneration = 1;
-        bool occupied = false;
+        UInt32 generation = 1;
+        UInt32 backBufferGeneration = 1;
+        Bool occupied = false;
     };
 
     struct D3D11BufferState
     {
         ComPtr<ID3D11Buffer> buffer;
         BufferDesc desc;
-        std::uint32_t generation = 1;
-        bool occupied = false;
+        UInt32 generation = 1;
+        Bool occupied = false;
     };
 
     struct D3D11TextureState
@@ -97,16 +100,16 @@ namespace JBro::Internal
         ComPtr<ID3D11DepthStencilView> depthStencilView;
         ComPtr<ID3D11ShaderResourceView> shaderResourceView;
         TextureDesc desc;
-        std::uint32_t generation = 1;
-        bool occupied = false;
+        UInt32 generation = 1;
+        Bool occupied = false;
     };
 
     struct D3D11SamplerState
     {
         ComPtr<ID3D11SamplerState> sampler;
         SamplerDesc desc;
-        std::uint32_t generation = 1;
-        bool occupied = false;
+        UInt32 generation = 1;
+        Bool occupied = false;
     };
 
     struct D3D11PipelineState
@@ -120,10 +123,10 @@ namespace JBro::Internal
         // 푸시 상수 대신이다. D3D11 에는 루트 상수가 없어 파이프라인마다 상수 버퍼 하나를 b0 에 건다.
         ComPtr<ID3D11Buffer> constantBuffer;
         D3D11_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-        std::uint32_t pushConstantBytes = 0;
+        UInt32 pushConstantBytes = 0;
         ShaderStage pushConstantStages = ShaderStage::Vertex;
-        std::uint32_t generation = 1;
-        bool occupied = false;
+        UInt32 generation = 1;
+        Bool occupied = false;
     };
 
     class D3D11Device final : public IRHIDevice
@@ -133,43 +136,43 @@ namespace JBro::Internal
         D3D11Device(const D3D11Device&) = delete;
         D3D11Device& operator=(const D3D11Device&) = delete;
 
-        bool Initialize(const RHIDeviceCreateInfo& createInfo);
+        Bool Initialize(const RHIDeviceCreateInfo& createInfo);
         void Shutdown();
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
-        bool WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data) override;
+        Bool WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data) override;
         TextureHandle CreateTexture(const TextureDesc& desc) override;
         void DestroyTexture(TextureHandle texture) override;
-        bool WriteTexture(TextureHandle texture, std::uint32_t mipLevel, JArrayView<std::byte> data) override;
-        bool WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
-            std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch) override;
+        Bool WriteTexture(TextureHandle texture, UInt32 mipLevel, JArrayView<std::byte> data) override;
+        Bool WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
+            UInt32 width, UInt32 height, JArrayView<std::byte> data, UInt32 rowPitch) override;
         SamplerHandle CreateSampler(const SamplerDesc& desc) override;
         void DestroySampler(SamplerHandle sampler) override;
         GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
         void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
         SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) override;
         void DestroySwapchain(SwapchainHandle swapchain) override;
-        bool ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent) override;
+        Bool ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent) override;
         BeginFrameResult BeginFrame(SwapchainHandle swapchain) override;
         FrameStatus EndFrame(const FrameContext& frame) override;
         void AbortFrame(const FrameContext& frame) override;
         FrameStatus GetStatus() const override;
         void WaitIdle() override;
-        bool ReadTexture(
+        Bool ReadTexture(
             TextureHandle texture,
             std::byte* destination,
             std::size_t destinationSize,
             TextureReadback& result) override;
-        std::uint32_t GetFramesInFlight() const override;
-        std::uint32_t GetValidationErrorCount() const override;
+        UInt32 GetFramesInFlight() const override;
+        UInt32 GetValidationErrorCount() const override;
 
         // 컨텍스트가 쓰는 해석 함수들.
-        bool ResolveRenderTargetView(TextureHandle texture, ID3D11RenderTargetView*& view);
-        bool ResolveDepthStencilView(TextureHandle texture, ID3D11DepthStencilView*& view);
-        bool ResolveShaderResourceView(TextureHandle texture, ID3D11ShaderResourceView*& view);
-        bool ResolveBuffer(BufferHandle buffer, ID3D11Buffer*& native, BufferDesc& desc);
-        bool ResolveSampler(SamplerHandle sampler, ID3D11SamplerState*& native);
+        Bool ResolveRenderTargetView(TextureHandle texture, ID3D11RenderTargetView*& view);
+        Bool ResolveDepthStencilView(TextureHandle texture, ID3D11DepthStencilView*& view);
+        Bool ResolveShaderResourceView(TextureHandle texture, ID3D11ShaderResourceView*& view);
+        Bool ResolveBuffer(BufferHandle buffer, ID3D11Buffer*& native, BufferDesc& desc);
+        Bool ResolveSampler(SamplerHandle sampler, ID3D11SamplerState*& native);
         D3D11PipelineState* ResolvePipeline(GraphicsPipelineHandle pipeline);
         ID3D11Device* GetNativeDevice() const
         {
@@ -177,17 +180,17 @@ namespace JBro::Internal
         }
 
     private:
-        static constexpr std::uint32_t MaxSwapchains = 8;
-        static constexpr std::uint32_t BackBufferTextureBase = 1;
-        static constexpr std::uint32_t MaxBuffers = 1024;
-        static constexpr std::uint32_t MaxTextures = 512;
-        static constexpr std::uint32_t MaxGraphicsPipelines = 256;
-        static constexpr std::uint32_t MaxSamplers = 64;
-        static constexpr std::uint32_t TextureResourceBase = BackBufferTextureBase + MaxSwapchains;
+        static constexpr UInt32 MaxSwapchains = 8;
+        static constexpr UInt32 BackBufferTextureBase = 1;
+        static constexpr UInt32 MaxBuffers = 1024;
+        static constexpr UInt32 MaxTextures = 512;
+        static constexpr UInt32 MaxGraphicsPipelines = 256;
+        static constexpr UInt32 MaxSamplers = 64;
+        static constexpr UInt32 TextureResourceBase = BackBufferTextureBase + MaxSwapchains;
 
         D3D11SwapchainState* FindSwapchain(SwapchainHandle swapchain);
-        bool BuildBackBuffer(D3D11SwapchainState& state);
-        bool ResolveReadableTexture(TextureHandle texture, ID3D11Texture2D*& resource, TextureDesc& desc);
+        Bool BuildBackBuffer(D3D11SwapchainState& state);
+        Bool ResolveReadableTexture(TextureHandle texture, ID3D11Texture2D*& resource, TextureDesc& desc);
         void MarkDeviceLost();
 
         ComPtr<IDXGIFactory2> m_factory;
@@ -200,14 +203,14 @@ namespace JBro::Internal
         D3D11TextureState m_textures[MaxTextures];
         D3D11PipelineState m_graphicsPipelines[MaxGraphicsPipelines];
         D3D11SamplerState m_samplers[MaxSamplers];
-        std::uint64_t m_frameSerial = 0;
-        std::uint32_t m_activeSwapchainIndex = 0;
+        UInt64 m_frameSerial = 0;
+        UInt32 m_activeSwapchainIndex = 0;
         FrameStatus m_status = FrameStatus::InvalidState;
-        bool m_frameActive = false;
-        bool m_tearingSupported = false;
+        Bool m_frameActive = false;
+        Bool m_tearingSupported = false;
     };
 
     // 두 소스 파일이 함께 쓰는 변환.
     DXGI_FORMAT ToNativeFormat(TextureFormat format);
-    std::uint32_t PixelSize(TextureFormat format);
+    UInt32 PixelSize(TextureFormat format);
 }

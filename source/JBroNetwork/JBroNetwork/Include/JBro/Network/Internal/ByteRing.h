@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
@@ -13,29 +15,29 @@ namespace JBro::Network
     class ByteRing
     {
     public:
-        void Reset(std::uint32_t capacity)
+        void Reset(UInt32 capacity)
         {
             m_storage.Resize(capacity);
             m_head = 0;
             m_size = 0;
         }
 
-        std::uint32_t Capacity() const
+        UInt32 Capacity() const
         {
             return static_cast<std::uint32_t>(m_storage.Size());
         }
 
-        std::uint32_t Size() const
+        UInt32 Size() const
         {
             return m_size;
         }
 
-        std::uint32_t Free() const
+        UInt32 Free() const
         {
             return Capacity() - m_size;
         }
 
-        bool IsEmpty() const
+        Bool IsEmpty() const
         {
             return 0 == m_size;
         }
@@ -46,16 +48,16 @@ namespace JBro::Network
             m_size = 0;
         }
 
-        bool Write(const void* data, std::uint32_t size)
+        Bool Write(const void* data, UInt32 size)
         {
             if (size > Free())
             {
                 return false;
             }
             const std::uint8_t* bytes = static_cast<const std::uint8_t*>(data);
-            const std::uint32_t capacity = Capacity();
-            std::uint32_t tail = (m_head + m_size) % capacity;
-            const std::uint32_t firstRun = (capacity - tail < size) ? (capacity - tail) : size;
+            const UInt32 capacity = Capacity();
+            UInt32 tail = (m_head + m_size) % capacity;
+            const UInt32 firstRun = (capacity - tail < size) ? (capacity - tail) : size;
             std::memcpy(m_storage.Data() + tail, bytes, firstRun);
             if (firstRun < size)
             {
@@ -65,16 +67,16 @@ namespace JBro::Network
             return true;
         }
 
-        std::uint32_t Peek(void* out, std::uint32_t max) const
+        UInt32 Peek(void* out, UInt32 max) const
         {
-            const std::uint32_t count = (max < m_size) ? max : m_size;
+            const UInt32 count = (max < m_size) ? max : m_size;
             if (0 == count)
             {
                 return 0;
             }
             std::uint8_t* bytes = static_cast<std::uint8_t*>(out);
-            const std::uint32_t capacity = Capacity();
-            const std::uint32_t firstRun = (capacity - m_head < count) ? (capacity - m_head) : count;
+            const UInt32 capacity = Capacity();
+            const UInt32 firstRun = (capacity - m_head < count) ? (capacity - m_head) : count;
             std::memcpy(bytes, m_storage.Data() + m_head, firstRun);
             if (firstRun < count)
             {
@@ -84,18 +86,18 @@ namespace JBro::Network
         }
 
         // `offset` 만큼 건너뛴 곳부터 본다. 헤더 뒤의 페이로드를 복사 없이 확인할 때 쓴다.
-        std::uint32_t PeekAt(std::uint32_t offset, void* out, std::uint32_t max) const
+        UInt32 PeekAt(UInt32 offset, void* out, UInt32 max) const
         {
             if (offset >= m_size)
             {
                 return 0;
             }
-            const std::uint32_t available = m_size - offset;
-            const std::uint32_t count = (max < available) ? max : available;
+            const UInt32 available = m_size - offset;
+            const UInt32 count = (max < available) ? max : available;
             std::uint8_t* bytes = static_cast<std::uint8_t*>(out);
-            const std::uint32_t capacity = Capacity();
-            const std::uint32_t start = (m_head + offset) % capacity;
-            const std::uint32_t firstRun = (capacity - start < count) ? (capacity - start) : count;
+            const UInt32 capacity = Capacity();
+            const UInt32 start = (m_head + offset) % capacity;
+            const UInt32 firstRun = (capacity - start < count) ? (capacity - start) : count;
             std::memcpy(bytes, m_storage.Data() + start, firstRun);
             if (firstRun < count)
             {
@@ -104,7 +106,7 @@ namespace JBro::Network
             return count;
         }
 
-        void Discard(std::uint32_t count)
+        void Discard(UInt32 count)
         {
             if (count >= m_size)
             {
@@ -115,29 +117,29 @@ namespace JBro::Network
             m_size -= count;
         }
 
-        std::uint32_t Read(void* out, std::uint32_t max)
+        UInt32 Read(void* out, UInt32 max)
         {
-            const std::uint32_t count = Peek(out, max);
+            const UInt32 count = Peek(out, max);
             Discard(count);
             return count;
         }
 
         // 연속으로 읽을 수 있는 첫 구간이다. 소켓에 바로 넘길 때 복사를 아낀다.
-        const std::uint8_t* ContiguousData(std::uint32_t& outSize) const
+        const std::uint8_t* ContiguousData(UInt32& outSize) const
         {
             if (0 == m_size)
             {
                 outSize = 0;
                 return nullptr;
             }
-            const std::uint32_t capacity = Capacity();
+            const UInt32 capacity = Capacity();
             outSize = (capacity - m_head < m_size) ? (capacity - m_head) : m_size;
             return m_storage.Data() + m_head;
         }
 
     private:
         Array<std::uint8_t> m_storage;
-        std::uint32_t m_head = 0;
-        std::uint32_t m_size = 0;
+        UInt32 m_head = 0;
+        UInt32 m_size = 0;
     };
 }

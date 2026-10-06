@@ -2,12 +2,14 @@
 
 #include <algorithm>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
     // ── Snapshot ────────────────────────────────────────────────────────────────────────────────
 
-    void Snapshot::Reset(std::uint32_t maxEntries, std::uint32_t byteCapacity)
+    void Snapshot::Reset(UInt32 maxEntries, UInt32 byteCapacity)
     {
         m_entries.Resize(maxEntries);
         m_bytes.Resize(byteCapacity);
@@ -24,7 +26,7 @@ namespace JBro::Network
         m_valid = true;
     }
 
-    bool Snapshot::Add(NetworkObjectId object, std::uint8_t type, const std::uint8_t* bytes, std::uint32_t size)
+    Bool Snapshot::Add(NetworkObjectId object, std::uint8_t type, const std::uint8_t* bytes, UInt32 size)
     {
         if (m_count >= m_entries.Size() || m_bytes.Size() - m_size < size)
         {
@@ -51,7 +53,7 @@ namespace JBro::Network
         });
     }
 
-    bool Snapshot::CopyFrom(const Snapshot& other)
+    Bool Snapshot::CopyFrom(const Snapshot& other)
     {
         if (m_entries.Size() < other.m_count || m_bytes.Size() < other.m_size)
         {
@@ -79,7 +81,7 @@ namespace JBro::Network
         m_size = 0;
     }
 
-    bool Snapshot::IsValid() const
+    Bool Snapshot::IsValid() const
     {
         return m_valid;
     }
@@ -89,17 +91,17 @@ namespace JBro::Network
         return m_tick;
     }
 
-    std::uint32_t Snapshot::EntryCount() const
+    UInt32 Snapshot::EntryCount() const
     {
         return m_count;
     }
 
-    std::uint32_t Snapshot::ByteCount() const
+    UInt32 Snapshot::ByteCount() const
     {
         return m_size;
     }
 
-    const SnapshotEntry& Snapshot::EntryAt(std::uint32_t index) const
+    const SnapshotEntry& Snapshot::EntryAt(UInt32 index) const
     {
         return m_entries[index];
     }
@@ -111,13 +113,13 @@ namespace JBro::Network
 
     const SnapshotEntry* Snapshot::Find(NetworkObjectId object, std::uint8_t type) const
     {
-        const std::uint64_t key = SnapshotKey(object, type);
-        std::uint32_t low = 0;
-        std::uint32_t high = m_count;
+        const UInt64 key = SnapshotKey(object, type);
+        UInt32 low = 0;
+        UInt32 high = m_count;
         while (low < high)
         {
-            const std::uint32_t middle = low + (high - low) / 2;
-            const std::uint64_t middleKey = SnapshotKey(m_entries[middle]);
+            const UInt32 middle = low + (high - low) / 2;
+            const UInt64 middleKey = SnapshotKey(m_entries[middle]);
             if (middleKey == key)
             {
                 return &m_entries[middle];
@@ -134,15 +136,15 @@ namespace JBro::Network
         return nullptr;
     }
 
-    bool Snapshot::ContainsObject(NetworkObjectId object) const
+    Bool Snapshot::ContainsObject(NetworkObjectId object) const
     {
         // 타입 0 부터의 키 위치를 찾아 그 오브젝트의 첫 항목인지 본다.
-        const std::uint64_t key = SnapshotKey(object, 0);
-        std::uint32_t low = 0;
-        std::uint32_t high = m_count;
+        const UInt64 key = SnapshotKey(object, 0);
+        UInt32 low = 0;
+        UInt32 high = m_count;
         while (low < high)
         {
-            const std::uint32_t middle = low + (high - low) / 2;
+            const UInt32 middle = low + (high - low) / 2;
             if (SnapshotKey(m_entries[middle]) < key)
             {
                 low = middle + 1;
@@ -157,7 +159,7 @@ namespace JBro::Network
 
     // ── SnapshotHistory ─────────────────────────────────────────────────────────────────────────
 
-    void SnapshotHistory::Reset(std::uint32_t ticks, std::uint32_t maxEntries, std::uint32_t byteCapacity)
+    void SnapshotHistory::Reset(UInt32 ticks, UInt32 maxEntries, UInt32 byteCapacity)
     {
         m_slots.Resize(ticks);
         for (Snapshot& slot : m_slots)
@@ -201,7 +203,7 @@ namespace JBro::Network
         return &slot;
     }
 
-    std::uint32_t SnapshotHistory::Capacity() const
+    UInt32 SnapshotHistory::Capacity() const
     {
         return static_cast<std::uint32_t>(m_slots.Size());
     }

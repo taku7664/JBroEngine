@@ -54,6 +54,10 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 텍스트 2 단계(D-200, text-plan §5)의 테스트다: 글자 저장소와 코덱, 폰트 에셋, 복사, 그리고 GPU 로 그린 글자.
 namespace
@@ -61,7 +65,7 @@ namespace
     namespace fs = std::filesystem;
     using namespace JBro;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -83,7 +87,7 @@ namespace
         stream.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
     }
 
-    bool TextIs(TextId id, const char* expected)
+    JBro::Bool TextIs(TextId id, const char* expected)
     {
         const ArrayView<const char> text = TextStore::Get().GetText(id);
         const std::size_t length = std::strlen(expected);
@@ -93,7 +97,7 @@ namespace
     void TestTheStoreHandsOutSlots()
     {
         TextStore& store = TextStore::Get();
-        const std::uint32_t baseline = store.GetLiveCount();
+        const JBro::UInt32 baseline = store.GetLiveCount();
         TextId hello = store.Create("hello", 5);
         Check(hello.IsValid() && TextIs(hello, "hello") && store.GetRevision(hello) == 1, "a new slot holds its text at revision 1");
         Check(store.Set(hello, "안녕", std::strlen("안녕")) && TextIs(hello, "안녕") && store.GetRevision(hello) == 2,
@@ -184,7 +188,7 @@ namespace
     {
         Component::RegisterBuiltinComponentProperties2D();
         Component::RegisterBuiltinComponentTypes2D();
-        const std::uint32_t baseline = TextStore::Get().GetLiveCount();
+        const JBro::UInt32 baseline = TextStore::Get().GetLiveCount();
         {
             Canvas canvas(CreateDefaultAllocator());
             GameObject* a = canvas.CreateObject("a");
@@ -251,7 +255,7 @@ namespace
         String metaPath;
         String familyMetaPath;
 
-        void Open(float pixelsPerUnit)
+        void Open(JBro::Float pixelsPerUnit)
         {
             root = ProcessTempFolder(L"JBroTextProbe·글자");
             fs::remove_all(root);
@@ -327,12 +331,12 @@ namespace
                 "the FontFamily block round-trips");
         }
 
-        void WriteOptions(float pixelsPerUnit, TextureFilter filter)
+        void WriteOptions(JBro::Float pixelsPerUnit, TextureFilter filter)
         {
             WriteOptionsAt(metaPath, pixelsPerUnit, filter);
         }
 
-        void WriteOptionsAt(const String& metaPath, float pixelsPerUnit, TextureFilter filter)
+        void WriteOptionsAt(const String& metaPath, JBro::Float pixelsPerUnit, TextureFilter filter)
         {
             AssetMetaFile meta;
             AssetMetaError error;
@@ -462,7 +466,7 @@ namespace
         WindowHandle window;
         Array<std::byte> image;
         TextureReadback readback;
-        bool ready = false;
+        JBro::Bool ready = false;
 
         explicit Gpu(WindowsPlatform& owner, JMemoryContext memory)
             : platform(owner)
@@ -512,21 +516,21 @@ namespace
             Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the frame reads back");
         }
 
-        float Red(std::uint32_t x, std::uint32_t y) const
+        JBro::Float Red(JBro::UInt32 x, JBro::UInt32 y) const
         {
             const auto* pixel = reinterpret_cast<const unsigned char*>(
                 image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
             return pixel[2] / 255.0f;
         }
 
-        float Green(std::uint32_t x, std::uint32_t y) const
+        JBro::Float Green(JBro::UInt32 x, JBro::UInt32 y) const
         {
             const auto* pixel = reinterpret_cast<const unsigned char*>(
                 image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
             return pixel[1] / 255.0f;
         }
 
-        float Blue(std::uint32_t x, std::uint32_t y) const
+        JBro::Float Blue(JBro::UInt32 x, JBro::UInt32 y) const
         {
             const auto* pixel = reinterpret_cast<const unsigned char*>(
                 image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
@@ -536,19 +540,19 @@ namespace
 
     struct DarkBox
     {
-        std::uint32_t count = 0;
-        std::uint32_t minX = 64;
-        std::uint32_t minY = 64;
-        std::uint32_t maxX = 0;
-        std::uint32_t maxY = 0;
+        JBro::UInt32 count = 0;
+        JBro::UInt32 minX = 64;
+        JBro::UInt32 minY = 64;
+        JBro::UInt32 maxX = 0;
+        JBro::UInt32 maxY = 0;
     };
 
     DarkBox FindDark(const Gpu& gpu)
     {
         DarkBox box;
-        for (std::uint32_t y = 0; y < 64; ++y)
+        for (JBro::UInt32 y = 0; y < 64; ++y)
         {
-            for (std::uint32_t x = 0; x < 64; ++x)
+            for (JBro::UInt32 x = 0; x < 64; ++x)
             {
                 if (gpu.Red(x, y) < 0.5f)
                 {
@@ -566,13 +570,13 @@ namespace
     // 커널로 따로 잰, 글자 하나의 화면 사각형이다. 카메라가 64 픽셀에 2 유닛이고 폰트 PPU 가 32 라 글자 픽셀 = 화면 픽셀이다.
     struct ScreenRect
     {
-        float left = 0.0f;
-        float top = 0.0f;
-        float right = 0.0f;
-        float bottom = 0.0f;
+        JBro::Float left = 0.0f;
+        JBro::Float top = 0.0f;
+        JBro::Float right = 0.0f;
+        JBro::Float bottom = 0.0f;
     };
 
-    ScreenRect ExpectedGlyph(const char* utf8, std::uint32_t pixelSize)
+    ScreenRect ExpectedGlyph(const char* utf8, JBro::UInt32 pixelSize)
     {
         Text::FontFace face;
         Check(face.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR))),
@@ -649,17 +653,17 @@ namespace
                 "every dark pixel lies inside the glyph's cell");
             Check(static_cast<float>(dark.maxX - dark.minX) > (expected.right - expected.left) * 0.6f,
                 "and the A spans most of its cell");
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            JBro::Float minX = 0.0f;
+            JBro::Float minY = 0.0f;
+            JBro::Float maxX = 0.0f;
+            JBro::Float maxY = 0.0f;
             Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY) && minX < 0.0f && maxX > 0.0f
                 && minY < 0.0f && maxY > 0.0f, "the centred text reports a block around its origin");
             Check(texts->GetLibrary().GetPageTextureCount() == 1, "one atlas page is on the GPU");
-            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
-            const std::uint64_t uploadedBefore = texts->GetLibrary().GetUploadedBytes();
-            const std::uint64_t relayouts = texts->GetRelayoutCount();
-            const std::uint32_t registered = gpu.renderer.GetTextureCount();
+            const JBro::UInt64 uploads = texts->GetLibrary().GetUploadCount();
+            const JBro::UInt64 uploadedBefore = texts->GetLibrary().GetUploadedBytes();
+            const JBro::UInt64 relayouts = texts->GetRelayoutCount();
+            const JBro::UInt32 registered = gpu.renderer.GetTextureCount();
 
             // 2. 아무것도 바뀌지 않은 프레임은 레이아웃도 업로드도 없다.
             gpu.Paint(framework);
@@ -691,7 +695,7 @@ namespace
             // 3-1. 새 글자 둘(T·o)이 한 프레임에 들어오면 올리는 사각형이 두 칸을 다 감싼다. 뒤의 칸(o)만 따로 그려 보면 올린 것이 보인다.
             Check(service.SetText(ref, "To"), "two new glyphs in one frame");
             gpu.Paint(framework);
-            const std::uint64_t afterPair = texts->GetLibrary().GetUploadCount();
+            const JBro::UInt64 afterPair = texts->GetLibrary().GetUploadCount();
             Check(afterPair == uploads + 2, "the pair goes up in one upload");
             Check(service.SetText(ref, "o"), "the second of the pair alone");
             gpu.Paint(framework);
@@ -701,7 +705,7 @@ namespace
             gpu.Paint(framework);
 
             // 4. 색만 바꾸면 다시 레이아웃하지 않는다.
-            const std::uint64_t beforeColour = texts->GetRelayoutCount();
+            const JBro::UInt64 beforeColour = texts->GetRelayoutCount();
             label->color = {1.0f, 0.0f, 0.0f, 1.0f};
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() == beforeColour, "a colour change reuses the layout");
@@ -741,7 +745,7 @@ namespace
             label->minFontSize = 8.0f;
             label->maxFontSize = 200.0f;
             gpu.Paint(framework);
-            const float fitted = texts->GetLaidOutFontSize(label->GetInstanceId());
+            const JBro::Float fitted = texts->GetLaidOutFontSize(label->GetInstanceId());
             std::cout << "  [measure] auto size in a 16 x 40 box: " << fitted << " px" << std::endl;
             Check(fitted == std::floor(fitted) && fitted * 0.608f <= 16.0f + 0.01f && (fitted + 1.0f) * 0.608f > 16.0f,
                 "auto size picks the largest whole size whose A fits the box width");
@@ -782,7 +786,7 @@ namespace
             // 5-1. 퇴출: 한도를 한 장으로 줄이면 다음 프레임에 두 장짜리 아틀라스를 비우고, 남은 A 만 다시 떠 한 장이 된다.
             Check(texts->GetLibrary().GetPageTextureCount() >= 2, "the crowd's pages are still there");
             texts->SetAtlasPageLimit(1);
-            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            const JBro::UInt32 trims = texts->GetLibrary().GetTrimCount();
             gpu.Paint(framework);
             Check(texts->GetLibrary().GetTrimCount() == trims + 1, "an atlas past its limit is emptied");
             Check(texts->GetLibrary().GetPageTextureCount() == 1, "and the text on screen fills one page again");
@@ -798,7 +802,7 @@ namespace
             framework.BindCanvasAssets();
             gpu.Paint(framework);
             gpu.Paint(framework);
-            const std::uint64_t relayoutsAfterThrash = texts->GetRelayoutCount();
+            const JBro::UInt64 relayoutsAfterThrash = texts->GetRelayoutCount();
             gpu.Paint(framework);
             Check(texts->GetLibrary().GetTrimCount() == trims + 1, "an atlas that refills at once is not emptied again");
             Check(texts->GetLibrary().GetPageTextureCount() >= 2 && texts->GetRelayoutCount() == relayoutsAfterThrash,
@@ -893,7 +897,7 @@ namespace
 
             gpu.Paint(framework);
             Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29, "opening the font prewarmed its glyphs");
-            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            const JBro::UInt64 uploads = texts->GetLibrary().GetUploadCount();
             Check(uploads == 1, "the prewarmed page goes up once, with the first frame");
             TextStore::Get().Assign(label->text, "\xEA\xB8\x80\xEC\x9E\x90 ABC", 10);
             gpu.Paint(framework);
@@ -909,7 +913,7 @@ namespace
                 Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves a large prewarm");
             }
             texts->SetAtlasPageLimit(1);
-            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            const JBro::UInt32 trims = texts->GetLibrary().GetTrimCount();
             Check(project.assets.ReloadInPlace(project.fontId), "the font reloads with the large prewarm");
             gpu.Paint(framework);
             gpu.Paint(framework);
@@ -929,7 +933,7 @@ namespace
         frame.targetWidth = 1280.0f;
         frame.targetHeight = 1024.0f;
         ScreenExtent extent;
-        const auto near = [](float a, float b) { return std::fabs(a - b) < 0.01f; };
+        const auto near = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.01f; };
         Check(ComputeScreenExtent(ScreenScaleMode::FixedHeight, frame, extent) && near(extent.halfHeight, 540.0f) && near(extent.halfWidth, 675.0f),
             "FixedHeight keeps the reference height and follows the target's aspect");
         Check(ComputeScreenExtent(ScreenScaleMode::FixedWidth, frame, extent) && near(extent.halfWidth, 960.0f) && near(extent.halfHeight, 768.0f),
@@ -942,8 +946,8 @@ namespace
             "and on a wider target the height binds");
         Check(ComputeScreenExtent(ScreenScaleMode::ConstantPixel, frame, extent) && near(extent.halfWidth, 1280.0f) && near(extent.halfHeight, 540.0f),
             "ConstantPixel is one target pixel per unit");
-        float x = 0.0f;
-        float y = 0.0f;
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
         ComputeAnchorPoint(extent, 1.0f, 0.0f, x, y);
         Check(near(x, 1280.0f) && near(y, -540.0f), "the anchor (1, 0) is the bottom-right corner");
         frame.targetHeight = 0.0f;
@@ -1011,15 +1015,15 @@ namespace
             red->tint = {1.0f, 0.0f, 0.0f, 1.0f};
             framework.BindCanvasAssets();
 
-            const auto countRed = [&](std::uint32_t& minX, std::uint32_t& minY, std::uint32_t& maxX, std::uint32_t& maxY) {
-                std::uint32_t count = 0;
+            const auto countRed = [&](JBro::UInt32& minX, JBro::UInt32& minY, JBro::UInt32& maxX, JBro::UInt32& maxY) {
+                JBro::UInt32 count = 0;
                 minX = 64;
                 minY = 64;
                 maxX = 0;
                 maxY = 0;
-                for (std::uint32_t y = 0; y < 64; ++y)
+                for (JBro::UInt32 y = 0; y < 64; ++y)
                 {
-                    for (std::uint32_t x = 0; x < 64; ++x)
+                    for (JBro::UInt32 x = 0; x < 64; ++x)
                     {
                         if (gpu.Red(x, y) > 0.8f && gpu.Green(x, y) < 0.2f)
                         {
@@ -1033,10 +1037,10 @@ namespace
                 }
                 return count;
             };
-            std::uint32_t minX = 0;
-            std::uint32_t minY = 0;
-            std::uint32_t maxX = 0;
-            std::uint32_t maxY = 0;
+            JBro::UInt32 minX = 0;
+            JBro::UInt32 minY = 0;
+            JBro::UInt32 maxX = 0;
+            JBro::UInt32 maxY = 0;
             gpu.Paint(framework);
             // 앵커 (1, 1) = (32, 32), 자리 (24, 24), 8 x 8 → 화면 x 52..59, y 4..11.
             Check(countRed(minX, minY, maxX, maxY) == 64 && minX == 52 && maxX == 59 && minY == 4 && maxY == 11,
@@ -1084,19 +1088,19 @@ namespace
             framework.BindCanvasAssets();
             gpu.Paint(framework);
             auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
-            float boundsMinX = 0.0f;
-            float boundsMinY = 0.0f;
-            float boundsMaxX = 0.0f;
-            float boundsMaxY = 0.0f;
+            JBro::Float boundsMinX = 0.0f;
+            JBro::Float boundsMinY = 0.0f;
+            JBro::Float boundsMaxX = 0.0f;
+            JBro::Float boundsMaxY = 0.0f;
             Check(texts->GetLocalBounds(label->GetInstanceId(), boundsMinX, boundsMinY, boundsMaxX, boundsMaxY)
                     && boundsMaxY - boundsMinY > 30.0f && boundsMaxY - boundsMinY < 60.0f,
                 "a screen text's bounds are in glyph pixels, not units");
-            std::uint32_t lit = 0;
-            std::uint32_t litMinY = 64;
-            std::uint32_t litMaxY = 0;
-            for (std::uint32_t y = 0; y < 64; ++y)
+            JBro::UInt32 lit = 0;
+            JBro::UInt32 litMinY = 64;
+            JBro::UInt32 litMaxY = 0;
+            for (JBro::UInt32 y = 0; y < 64; ++y)
             {
-                for (std::uint32_t x = 0; x < 64; ++x)
+                for (JBro::UInt32 x = 0; x < 64; ++x)
                 {
                     if (gpu.Red(x, y) > 0.8f && gpu.Green(x, y) > 0.8f)
                     {
@@ -1152,7 +1156,7 @@ namespace
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {0.5f, 0.5f, 0.5f, 1.0f};
-            const auto redSquare = [&](const char* name, Layer& layer, float size) {
+            const auto redSquare = [&](const char* name, Layer& layer, JBro::Float size) {
                 GameObject* object = canvas->CreateObject(name);
                 Check(canvas->SetObjectLayer(object, layer.GetId()), "the square goes on its layer");
                 auto* place = canvas->AttachComponent<Component::Transform2D>(object);
@@ -1173,7 +1177,7 @@ namespace
             badge->position = {-8.0f, -8.0f};
             framework.BindCanvasAssets();
 
-            const auto near = [](float a, float b) { return std::fabs(a - b) < 0.02f; };
+            const auto near = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.02f; };
             gpu.Paint(framework);
             gpu.Paint(framework);
             Check(gpu.renderer.GetLastFrameStats().compositedLayerCount == 2, "both blended layers are composited");
@@ -1234,7 +1238,7 @@ namespace
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-            const auto square = [&](const char* name, LayerId layer, float x, Color tint) {
+            const auto square = [&](const char* name, LayerId layer, JBro::Float x, Color tint) {
                 GameObject* object = canvas->CreateObject(name);
                 Check(canvas->SetObjectLayer(object, layer), "the square goes on its layer");
                 canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
@@ -1308,7 +1312,7 @@ namespace
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-            const auto square = [&](const char* name, LayerId layer, float x, float size, Color tint) {
+            const auto square = [&](const char* name, LayerId layer, JBro::Float x, JBro::Float size, Color tint) {
                 GameObject* object = canvas->CreateObject(name);
                 Check(canvas->SetObjectLayer(object, layer), "the square goes on its layer");
                 canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
@@ -1354,13 +1358,13 @@ namespace
                 Check(gpu.renderer.GetDevice()->ReadTexture(target, image.Data(), image.Size(), readback), "the thumbnail reads back");
             };
             // BGRA.
-            const auto channel = [&](std::uint32_t x, std::uint32_t y, int at) {
+            const auto channel = [&](JBro::UInt32 x, JBro::UInt32 y, JBro::Int32 at) {
                 return reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(y) * readback.rowPitch)[x * 4 + at] / 255.0f;
             };
-            const auto red = [&](std::uint32_t x, std::uint32_t y) { return channel(x, y, 2); };
-            const auto green = [&](std::uint32_t x, std::uint32_t y) { return channel(x, y, 1); };
-            const auto blue = [&](std::uint32_t x, std::uint32_t y) { return channel(x, y, 0); };
-            const auto isBackground = [&](std::uint32_t x, std::uint32_t y) {
+            const auto red = [&](JBro::UInt32 x, JBro::UInt32 y) { return channel(x, y, 2); };
+            const auto green = [&](JBro::UInt32 x, JBro::UInt32 y) { return channel(x, y, 1); };
+            const auto blue = [&](JBro::UInt32 x, JBro::UInt32 y) { return channel(x, y, 0); };
+            const auto isBackground = [&](JBro::UInt32 x, JBro::UInt32 y) {
                 return std::fabs(red(x, y) - 0.08f) < 0.02f && std::fabs(green(x, y) - 0.09f) < 0.02f && std::fabs(blue(x, y) - 0.11f) < 0.02f;
             };
 
@@ -1438,7 +1442,7 @@ namespace
             return;
         }
         // 느슨한 파일로 뜬 것과 패키지로 되살린 것을 같은 장면으로 그려 본다.
-        const auto draw = [&](AssetSystem& assets, std::uint64_t& restores, std::uint32_t& prewarmed, std::uint64_t& uploads) {
+        const auto draw = [&](AssetSystem& assets, JBro::UInt64& restores, JBro::UInt32& prewarmed, JBro::UInt64& uploads) {
             Framework2D framework;
             FrameworkContext context;
             JBro::Testing::AttachClock(context);
@@ -1472,13 +1476,13 @@ namespace
             framework.Shutdown();
             return dark;
         };
-        std::uint64_t looseRestores = 0;
-        std::uint32_t loosePrewarmed = 0;
-        std::uint64_t looseUploads = 0;
+        JBro::UInt64 looseRestores = 0;
+        JBro::UInt32 loosePrewarmed = 0;
+        JBro::UInt64 looseUploads = 0;
         const DarkBox loose = draw(project.assets, looseRestores, loosePrewarmed, looseUploads);
-        std::uint64_t packedRestores = 0;
-        std::uint32_t packedPrewarmed = 0;
-        std::uint64_t packedUploads = 0;
+        JBro::UInt64 packedRestores = 0;
+        JBro::UInt32 packedPrewarmed = 0;
+        JBro::UInt64 packedUploads = 0;
         const DarkBox fromPackage = draw(packed, packedRestores, packedPrewarmed, packedUploads);
         Check(looseRestores == 0 && loosePrewarmed == 95 + 29, "the loose font prewarms at run time");
         Check(packedRestores == 1 && packedPrewarmed == loosePrewarmed, "the packaged font restores the same cells instead");
@@ -1549,7 +1553,7 @@ namespace
 
             gpu.Paint(framework);
             Check(FindDark(gpu).count > 40, "the A draws on the first frame, before the prewarm is done");
-            int frames = 0;
+            JBro::Int32 frames = 0;
             while (texts->GetLibrary().IsPrewarming(label->font) && frames < 2000)
             {
                 tasks.Update();
@@ -1562,7 +1566,7 @@ namespace
             // A 는 레이아웃이 먼저 떴으므로 태스크 쪽은 버린다. 나머지 공백을 뺀 ASCII 와 한글이 들어간다.
             Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29 - 1,
                 "every prewarmed glyph but the one already drawn went in");
-            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            const JBro::UInt64 uploads = texts->GetLibrary().GetUploadCount();
             gpu.Paint(framework);
             Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "the page with the worker's glyphs goes up once");
             TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
@@ -1603,7 +1607,7 @@ namespace
                 Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves large cells");
             }
             texts->SetAtlasPageLimit(1);
-            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            const JBro::UInt32 trims = texts->GetLibrary().GetTrimCount();
             Check(project.assets.ReloadInPlace(project.fontId), "the font reloads with large cells");
             frames = 0;
             gpu.Paint(framework);
@@ -1667,9 +1671,9 @@ namespace
             const auto values = [&]() {
                 Array<std::uint8_t> sorted;
                 sorted.Resize(64 * 64);
-                for (std::uint32_t y = 0; y < 64; ++y)
+                for (JBro::UInt32 y = 0; y < 64; ++y)
                 {
-                    for (std::uint32_t x = 0; x < 64; ++x)
+                    for (JBro::UInt32 x = 0; x < 64; ++x)
                     {
                         sorted[y * 64 + x] = static_cast<std::uint8_t>(std::lround(gpu.Red(x, y) * 255.0f));
                     }
@@ -1744,39 +1748,39 @@ namespace
             framework.BindCanvasAssets();
 
             // 빨강(R 높고 G 낮음)과 검정(R 낮음) 픽셀을 센다.
-            const auto count = [&](std::uint32_t& red, std::uint32_t& black) {
+            const auto count = [&](JBro::UInt32& red, JBro::UInt32& black) {
                 red = 0;
                 black = 0;
-                for (std::uint32_t y = 0; y < 64; ++y)
+                for (JBro::UInt32 y = 0; y < 64; ++y)
                 {
-                    for (std::uint32_t x = 0; x < 64; ++x)
+                    for (JBro::UInt32 x = 0; x < 64; ++x)
                     {
-                        const float r = gpu.Red(x, y);
-                        const float g = gpu.Green(x, y);
+                        const JBro::Float r = gpu.Red(x, y);
+                        const JBro::Float g = gpu.Green(x, y);
                         red += r > 0.8f && g < 0.3f ? 1u : 0u;
                         black += r < 0.3f && g < 0.3f ? 1u : 0u;
                     }
                 }
             };
             gpu.Paint(framework);
-            std::uint32_t red = 0;
-            std::uint32_t black = 0;
+            JBro::UInt32 red = 0;
+            JBro::UInt32 black = 0;
             count(red, black);
             Check(red > 20 && black > 20, "the tagged A is red and the other is black");
 
             // 텍스트 알파가 태그 색에도 곱해진다: 순 빨강 자리가 흰 바탕 위 빨강 절반(G 0.5)이 된다.
             label->color = {0.0f, 0.0f, 0.0f, 0.5f};
             gpu.Paint(framework);
-            std::uint32_t halfRed = 0;
-            for (std::uint32_t y = 0; y < 64; ++y)
+            JBro::UInt32 halfRed = 0;
+            for (JBro::UInt32 y = 0; y < 64; ++y)
             {
-                for (std::uint32_t x = 0; x < 64; ++x)
+                for (JBro::UInt32 x = 0; x < 64; ++x)
                 {
-                    const float g = gpu.Green(x, y);
+                    const JBro::Float g = gpu.Green(x, y);
                     halfRed += gpu.Red(x, y) > 0.95f && g > 0.45f && g < 0.55f ? 1u : 0u;
                 }
             }
-            std::uint32_t fullRed = 0;
+            JBro::UInt32 fullRed = 0;
             count(fullRed, black);
             Check(halfRed > 20 && fullRed == 0, "the text's alpha multiplies the tag colour");
             label->color = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -1815,10 +1819,10 @@ namespace
             gpu.Paint(framework);
             count(red, black);
             Check(red == 0, "without richText nothing is red");
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            JBro::Float minX = 0.0f;
+            JBro::Float minY = 0.0f;
+            JBro::Float maxX = 0.0f;
+            JBro::Float maxY = 0.0f;
             auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
             Check(texts != nullptr && texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY)
                     && maxX - minX > 1.5f, "and the tags lay out as letters");
@@ -1873,10 +1877,10 @@ namespace
             const DarkBox front = FindDark(gpu);
             Check(front.count > 20, "the A draws in the world");
             Check(front.minX < 32 && front.maxX > 32 && front.minY < 32 && front.maxY > 32, "centred on the object");
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            JBro::Float minX = 0.0f;
+            JBro::Float minY = 0.0f;
+            JBro::Float maxX = 0.0f;
+            JBro::Float maxY = 0.0f;
             Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY) && maxY - minY > 1.0f,
                 "the block is over a unit tall (40 px at 32 px per unit)");
 
@@ -1915,13 +1919,13 @@ namespace
             const char* tagged = "<color=#FF0000>A</color>";
             TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
             gpu.Paint(framework);
-            std::uint32_t halfRed = 0;
-            std::uint32_t fullRed = 0;
-            for (std::uint32_t y = 0; y < 64; ++y)
+            JBro::UInt32 halfRed = 0;
+            JBro::UInt32 fullRed = 0;
+            for (JBro::UInt32 y = 0; y < 64; ++y)
             {
-                for (std::uint32_t x = 0; x < 64; ++x)
+                for (JBro::UInt32 x = 0; x < 64; ++x)
                 {
-                    const float g = gpu.Green(x, y);
+                    const JBro::Float g = gpu.Green(x, y);
                     halfRed += gpu.Red(x, y) > 0.95f && g > 0.45f && g < 0.55f ? 1u : 0u;
                     fullRed += gpu.Red(x, y) > 0.9f && g < 0.3f ? 1u : 0u;
                 }
@@ -1942,11 +1946,11 @@ namespace
             TextStore::Get().Assign(farLabel->text, "A", 1);
             framework.BindCanvasAssets();
             gpu.Paint(framework);
-            std::uint32_t overlap = 0;
-            std::uint32_t wrongOrder = 0;
-            for (std::uint32_t y = 0; y < 64; ++y)
+            JBro::UInt32 overlap = 0;
+            JBro::UInt32 wrongOrder = 0;
+            for (JBro::UInt32 y = 0; y < 64; ++y)
             {
-                for (std::uint32_t x = 0; x < 64; ++x)
+                for (JBro::UInt32 x = 0; x < 64; ++x)
                 {
                     // 둘 다 덮은 자리는 초록이 0.25 로 떨어진다(하나만이면 0.5).
                     if (gpu.Green(x, y) < 0.3f)
@@ -1981,7 +1985,7 @@ namespace
             Check(service.GetTextLength(ref) == 2 && service.CopyText(ref, copied, sizeof(copied)) == 2
                     && copied[0] == 'H' && copied[1] == 'i',
                 "and reads it back through the host");
-            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            const JBro::UInt64 relayouts = texts->GetRelayoutCount();
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() > relayouts, "the next frame lays the new text out");
 
@@ -1993,10 +1997,10 @@ namespace
             BindLocalizationSystemContext(localization.GetSystemContext());
             Check(service.SetTextKey(ref, "menu.quit"), "a script sets a 3D text's key");
             gpu.Paint(framework);
-            float keyMinX = 0.0f;
-            float keyMinY = 0.0f;
-            float keyMaxX = 0.0f;
-            float keyMaxY = 0.0f;
+            JBro::Float keyMinX = 0.0f;
+            JBro::Float keyMinY = 0.0f;
+            JBro::Float keyMaxX = 0.0f;
+            JBro::Float keyMaxY = 0.0f;
             Check(texts->GetLocalBounds(label->GetInstanceId(), keyMinX, keyMinY, keyMaxX, keyMaxY), "the keyed 3D text has a block");
             Check(service.SetTextKey(ref, "") && service.SetText(ref, "Quit"), "the key clears and the text is its value");
             gpu.Paint(framework);
@@ -2095,19 +2099,19 @@ namespace
             framework.BindCanvasAssets();
             auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
             const auto widthOf = [&](const Component::Text2D* label) {
-                float minX = 0.0f;
-                float minY = 0.0f;
-                float maxX = 0.0f;
-                float maxY = 0.0f;
+                JBro::Float minX = 0.0f;
+                JBro::Float minY = 0.0f;
+                JBro::Float maxX = 0.0f;
+                JBro::Float maxY = 0.0f;
                 Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "a label has a block");
                 return maxX - minX;
             };
 
             gpu.Paint(framework);
-            const float korean = widthOf(keyed);
-            const float helloWorld = widthOf(plain);
+            const JBro::Float korean = widthOf(keyed);
+            const JBro::Float helloWorld = widthOf(plain);
             Check(korean > 0.1f && korean < helloWorld * 0.5f, "the key draws its one-letter Korean value, not the text");
-            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            const JBro::UInt64 relayouts = texts->GetRelayoutCount();
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() == relayouts, "an unchanged locale lays nothing out again");
 
@@ -2134,7 +2138,7 @@ namespace
             // 표를 고쳐 재로드하면 다음 프레임의 글자가 새 값이다. 재로드는 판번호를 올린다.
             TextStore::Get().Assign(keyed->textKey, "title", 5);
             gpu.Paint(framework);
-            const std::uint32_t revision = localization.GetRevision();
+            const JBro::UInt32 revision = localization.GetRevision();
             constexpr char longer[] = "title: \"\xEA\xB0\x80\xEB\x82\x98\xEB\x8B\xA4\"\n";
             WriteBytes(project.root / "Text" / "ui.ko-KR.jstrings", longer, sizeof(longer) - 1);
             Check(project.assets.ReloadInPlace(project.koreanTableId), "the Korean table reloads");
@@ -2225,7 +2229,7 @@ namespace
             // 폰트 목록은 같고 스타일 번호만 바뀌어도 다시 레이아웃한다: 굵게(라틴)와 기울임(없음 → 한글)을 맞바꾸면 face 는 여전히
             // 한글·라틴 둘이고, 굵게가 한글, 기울임이 라틴이 된다.
             {
-                const std::uint64_t swapped = texts->GetRelayoutCount();
+                const JBro::UInt64 swapped = texts->GetRelayoutCount();
                 FontFamilyOptions swap = slots;
                 swap.boldFontId = project.fontId;
                 swap.italicFontId = project.latinId;
@@ -2240,7 +2244,7 @@ namespace
             }
 
             // 칸을 바꾸면 다시 레이아웃한다.
-            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            const JBro::UInt64 relayouts = texts->GetRelayoutCount();
             slots.boldFontId = {};
             project.WriteFamily(slots);
             Check(project.assets.ReloadInPlace(project.familyId), "the family reloads");
@@ -2265,27 +2269,27 @@ namespace
 
     struct ColourCount
     {
-        std::uint32_t red = 0;
-        std::uint32_t black = 0;
-        std::uint32_t touched = 0; // 흰색이 아닌 픽셀
-        std::uint32_t minX = 64;
-        std::uint32_t minY = 64;
-        std::uint32_t maxX = 0;
-        std::uint32_t maxY = 0;
+        JBro::UInt32 red = 0;
+        JBro::UInt32 black = 0;
+        JBro::UInt32 touched = 0; // 흰색이 아닌 픽셀
+        JBro::UInt32 minX = 64;
+        JBro::UInt32 minY = 64;
+        JBro::UInt32 maxX = 0;
+        JBro::UInt32 maxY = 0;
     };
 
     ColourCount CountColours(const Gpu& gpu)
     {
         ColourCount count;
-        for (std::uint32_t y = 0; y < 64; ++y)
+        for (JBro::UInt32 y = 0; y < 64; ++y)
         {
-            for (std::uint32_t x = 0; x < 64; ++x)
+            for (JBro::UInt32 x = 0; x < 64; ++x)
             {
                 const auto* pixel = reinterpret_cast<const unsigned char*>(
                     gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
-                const int b = pixel[0];
-                const int g = pixel[1];
-                const int r = pixel[2];
+                const JBro::Int32 b = pixel[0];
+                const JBro::Int32 g = pixel[1];
+                const JBro::Int32 r = pixel[2];
                 if (r > 200 && g < 70 && b < 70)
                 {
                     ++count.red;
@@ -2386,12 +2390,12 @@ namespace
             label->outlineWidth = 50.0f;
             gpu.Paint(framework);
             const ColourCount wide = CountColours(gpu);
-            const std::uint32_t box = (huge.maxX - huge.minX + 1) * (huge.maxY - huge.minY + 1);
+            const JBro::UInt32 box = (huge.maxX - huge.minX + 1) * (huge.maxY - huge.minY + 1);
             std::cout << "  [measure] 100 px outline: black " << huge.black << ", touched " << huge.touched << " of a "
                       << box << " px box" << std::endl;
             Check(huge.black == wide.black && huge.touched == wide.touched, "an outline past the spread is cut at the spread");
             // 외곽선은 글자를 둥글게 넓힌 모양이라 그 외접 사각형의 네 모서리는 비어 있다. 칸이 네모로 칠해지면 모서리까지 찬다.
-            const auto whiteAt = [&](std::uint32_t x, std::uint32_t y) {
+            const auto whiteAt = [&](JBro::UInt32 x, JBro::UInt32 y) {
                 const auto* pixel = reinterpret_cast<const unsigned char*>(
                     gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
                 return pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240;
@@ -2414,15 +2418,15 @@ namespace
             label->outlineWidth = 6.0f;
             camera->orthographicSize = 2.0f;
             gpu.Paint(framework);
-            std::uint32_t band = 0;
+            JBro::UInt32 band = 0;
             {
                 // 가운데 줄을 왼쪽부터 훑어 첫 빨강(왼쪽 기둥)까지의 검은 픽셀을 센다.
-                for (std::uint32_t x = 0; x < 64; ++x)
+                for (JBro::UInt32 x = 0; x < 64; ++x)
                 {
                     const auto* pixel = reinterpret_cast<const unsigned char*>(
                         gpu.image.Data() + static_cast<std::size_t>(32) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
-                    const bool black = pixel[2] < 70 && pixel[1] < 70 && pixel[0] < 70;
-                    const bool red = pixel[2] > 200 && pixel[1] < 70;
+                    const JBro::Bool black = pixel[2] < 70 && pixel[1] < 70 && pixel[0] < 70;
+                    const JBro::Bool red = pixel[2] > 200 && pixel[1] < 70;
                     if (red)
                     {
                         break;
@@ -2443,8 +2447,8 @@ namespace
             camera->orthographicSize = 2.0f;
             gpu.Paint(framework);
             const ColourCount far = CountColours(gpu);
-            const float nearRatio = static_cast<float>(near.black) / static_cast<float>(near.red);
-            const float farRatio = static_cast<float>(far.black) / static_cast<float>(far.red);
+            const JBro::Float nearRatio = static_cast<float>(near.black) / static_cast<float>(near.red);
+            const JBro::Float farRatio = static_cast<float>(far.black) / static_cast<float>(far.red);
             std::cout << "  [measure] outline / fill: near " << nearRatio << ", two times further " << farRatio << std::endl;
             Check(far.red < near.red / 2 && far.red > near.red / 8, "the H is drawn smaller from further away");
             Check(std::fabs(farRatio - nearRatio) < nearRatio * 0.3f, "and its outline keeps the same share of it");
@@ -2452,10 +2456,10 @@ namespace
 
             // 4. 반투명이면 채우기 자리는 흰 바탕 위의 빨강 절반이다. 외곽선이 그 밑에 한 번 더 깔리면 초록·파랑이 반보다 어둡다.
             gpu.Paint(framework);
-            Array<std::uint32_t> filled;
-            for (std::uint32_t y = 0; y < 64; ++y)
+            Array<JBro::UInt32> filled;
+            for (JBro::UInt32 y = 0; y < 64; ++y)
             {
-                for (std::uint32_t x = 0; x < 64; ++x)
+                for (JBro::UInt32 x = 0; x < 64; ++x)
                 {
                     const auto* pixel = reinterpret_cast<const unsigned char*>(
                         gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
@@ -2469,8 +2473,8 @@ namespace
             label->color = {1.0f, 0.0f, 0.0f, 0.5f};
             label->outlineColor = {0.0f, 0.0f, 0.0f, 0.5f};
             gpu.Paint(framework);
-            std::uint32_t darker = 0;
-            for (const std::uint32_t at : filled)
+            JBro::UInt32 darker = 0;
+            for (const JBro::UInt32 at : filled)
             {
                 const auto* pixel = reinterpret_cast<const unsigned char*>(
                     gpu.image.Data() + static_cast<std::size_t>(at / 64) * gpu.readback.rowPitch + static_cast<std::size_t>(at % 64) * 4);
@@ -2485,14 +2489,14 @@ namespace
 
             // 5. 크기를 조금 바꾸면 다시 레이아웃하지만 새 글리프는 없다 - 올릴 것도 없다.
             gpu.Paint(framework);
-            const std::uint64_t relayouts = texts->GetRelayoutCount();
-            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
-            float minX = 0.0f;
-            float minY = 0.0f;
-            float maxX = 0.0f;
-            float maxY = 0.0f;
+            const JBro::UInt64 relayouts = texts->GetRelayoutCount();
+            const JBro::UInt64 uploads = texts->GetLibrary().GetUploadCount();
+            JBro::Float minX = 0.0f;
+            JBro::Float minY = 0.0f;
+            JBro::Float maxX = 0.0f;
+            JBro::Float maxY = 0.0f;
             Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the H has a block");
-            const float width40 = maxX - minX;
+            const JBro::Float width40 = maxX - minX;
             // 반올림한 픽셀이 같아도(40.2 → 40) 다시 레이아웃한다.
             label->fontSize = 40.2f;
             gpu.Paint(framework);
@@ -2572,7 +2576,7 @@ namespace
                     && static_cast<float>(a.minY) >= expectedA.top - 1.0f
                     && static_cast<float>(a.maxY) <= expectedA.bottom + 1.0f,
                 "the A lands in its cell");
-            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            const JBro::UInt64 relayouts = texts->GetRelayoutCount();
             project.assets.SetProjectFonts(sansOnly);
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() == relayouts, "setting the same list again lays nothing out");
@@ -2614,7 +2618,7 @@ namespace
     }
 }
 
-int RunTextRenderTests()
+JBro::Int32 RunTextRenderTests()
 {
     try
     {

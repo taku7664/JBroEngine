@@ -11,6 +11,8 @@
 #include <JBro/Editor/Widget/Button.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -25,7 +27,7 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelGame, "Game");
     }
 
-    bool GameViewPanel::OnCreate(EditorApplication& editor)
+    Bool GameViewPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
@@ -52,18 +54,18 @@ namespace JBro
         draw->AddRectFilled(origin, ImVec2(origin.x + panel.x, origin.y + panel.y),
             ImGui::GetColorU32(EditorTheme::ViewportBackground));
 
-        const bool hasImage = gameView.IsValid() && extent.width != 0 && extent.height != 0;
-        float imageLeft = 0.0f;
-        float imageTop = 0.0f;
-        float imageWidth = 0.0f;
-        float imageHeight = 0.0f;
+        const Bool hasImage = gameView.IsValid() && extent.width != 0 && extent.height != 0;
+        Float imageLeft = 0.0f;
+        Float imageTop = 0.0f;
+        Float imageWidth = 0.0f;
+        Float imageHeight = 0.0f;
         if (hasImage)
         {
             // **비율을 지켜 패널 안에 맞춘다(레터박스).** 늘려 붙이면 에디터 창 모양에
             // 따라 게임이 찌그러져 보인다.
-            const float viewAspect =
+            const Float viewAspect =
                 static_cast<float>(extent.width) / static_cast<float>(extent.height);
-            const float panelAspect = panel.x / panel.y;
+            const Float panelAspect = panel.x / panel.y;
             ImVec2 size = panel;
             if (viewAspect > panelAspect)
             {
@@ -97,11 +99,11 @@ namespace JBro
         DrawStatusOverlay(origin.x, origin.y, hasImage);
     }
 
-    void GameViewPanel::DrawStatusOverlay(float left, float top, bool hasImage) const
+    void GameViewPanel::DrawStatusOverlay(Float left, Float top, Bool hasImage) const
     {
         // 기존 엔진의 게임 뷰와 같은 자리, 같은 내용이다. 그림이 안 나올 때 **왜 안 나오는지**를
         // 말하지 않으면 고장과 구분되지 않는다.
-        const bool playing = m_editor->IsSimulationPlaying() && false == m_editor->IsSimulationPaused();
+        const Bool playing = m_editor->IsSimulationPlaying() && false == m_editor->IsSimulationPaused();
         const char* text = nullptr;
         // 글자 앞의 아이콘이 상태를 먼저 말한다(D-278) - 재생·멈춤·경고가 글자를 읽기 전에 갈린다.
         const char* icon = Icons::Warning;
@@ -116,7 +118,7 @@ namespace JBro
             // 텍스처가 있는지만 보면 카메라 없는 검은 화면을 "실행 중" 이라고 말한다 -
             // 기존 게임 뷰는 그 둘을 갈랐다.
             // 카메라가 있는데 값이 잘못되어 건너뛴 것이면 그렇게 말한다(D-239). "카메라 없음" 이라고 하면 붙어 있는 카메라를 찾아 헤맨다.
-            const bool unusable = m_editor->GetUnusableGameCameraCount() > 0;
+            const Bool unusable = m_editor->GetUnusableGameCameraCount() > 0;
             text = unusable
                 ? Loc::TextOr(LocKeys::GameViewCameraUnusable, "the Camera2D values cannot be drawn")
                 : Loc::TextOr(LocKeys::GameViewNoCamera, "there is no camera");
@@ -133,9 +135,9 @@ namespace JBro
             text = Loc::TextOr(LocKeys::GameViewStopped, "Stopped");
             icon = Icons::Stop;
         }
-        const float lineHeight = ImGui::GetTextLineHeight();
-        const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
-        const auto statusLine = [&](float y, const char* glyph, ImU32 tint, const char* message) {
+        const Float lineHeight = ImGui::GetTextLineHeight();
+        const Float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+        const auto statusLine = [&](Float y, const char* glyph, ImU32 tint, const char* message) {
             const ImVec2 iconMin(left + 12.0f, y);
             Widget::DrawGlyphCentered(glyph, iconMin, ImVec2(iconMin.x + lineHeight, iconMin.y + lineHeight), tint);
             ImGui::GetWindowDrawList()->AddText(ImVec2(iconMin.x + lineHeight + gap, y), tint, message);
@@ -148,7 +150,7 @@ namespace JBro
         if (Canvas* canvas = m_editor->GetCanvas())
         {
             std::size_t active = 0;
-            bool anyPrimary = false;
+            Bool anyPrimary = false;
             canvas->ForEach<Component::Camera2D>([&](Component::Camera2D& camera) {
                 if (false == camera.IsActiveComponent())
                 {

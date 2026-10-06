@@ -1,4 +1,5 @@
 ﻿#include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -23,7 +24,7 @@ namespace JBro
         g_boundScriptRegistry = registry;
     }
 
-    bool ScriptRegistry::Register(const ScriptTypeInfo& info)
+    Bool ScriptRegistry::Register(const ScriptTypeInfo& info)
     {
         if (info.name == InvalidNameId
             || info.typeId == InvalidComponentTypeId

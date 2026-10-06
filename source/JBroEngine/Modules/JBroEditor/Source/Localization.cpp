@@ -5,6 +5,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -14,7 +16,7 @@ namespace JBro
         return table;
     }
 
-    bool LocalizationTable::LoadFile(IPlatform& platform, const char* directory, const char* locale,
+    Bool LocalizationTable::LoadFile(IPlatform& platform, const char* directory, const char* locale,
         Table<String, String>& out) const
     {
         if (directory == nullptr || locale == nullptr)
@@ -41,7 +43,7 @@ namespace JBro
         {
             return false;
         }
-        const std::uint32_t entries = document.Find(document.GetRoot(), "Entries");
+        const UInt32 entries = document.Find(document.GetRoot(), "Entries");
         if (entries == 0 || document.GetKind(entries) != YamlKind::Map)
         {
             return false;
@@ -50,7 +52,7 @@ namespace JBro
         for (std::size_t index = 0; index < count; ++index)
         {
             const char* key = document.GetKey(entries, index);
-            const std::uint32_t value = document.GetValue(entries, index);
+            const UInt32 value = document.GetValue(entries, index);
             if (key == nullptr || value == 0)
             {
                 continue;
@@ -61,21 +63,21 @@ namespace JBro
         return true;
     }
 
-    bool LocalizationTable::Load(IPlatform& platform, const char* directory, const char* locale,
+    Bool LocalizationTable::Load(IPlatform& platform, const char* directory, const char* locale,
         const char* fallback)
     {
         Table<String, String> entries;
         Table<String, String> fallbackEntries;
-        const bool loaded = LoadFile(platform, directory, locale, entries);
-        const bool needsFallback = fallback != nullptr && locale != nullptr
+        const Bool loaded = LoadFile(platform, directory, locale, entries);
+        const Bool needsFallback = fallback != nullptr && locale != nullptr
             && std::strcmp(fallback, locale) != 0;
         // **폴백이 없을 때 `true` 로 두면 안 된다.** 기존 엔진이 그렇게 되어 있는데,
         // 로케일과 폴백이 같고 그 파일이 없으면 "폴백은 필요 없었으니 성공" 이 되어
         // **빈 표를 성공이라며 깔아 버린다.** 그러면 이미 그려지던 화면이 통째로
         // 키로 바뀌고, 부르는 쪽은 참을 받았으니 아무 말도 하지 않는다.
-        const bool loadedFallback = needsFallback
+        const Bool loadedFallback = needsFallback
             ? LoadFile(platform, directory, fallback, fallbackEntries)
-            : false;
+            : Bool(false);
         if (false == loaded && false == loadedFallback)
         {
             // 하나도 못 읽었다. **있던 표를 지우지 않는다** - 파일 하나 잘못
@@ -151,7 +153,7 @@ namespace JBro
         return m_entries.Size();
     }
 
-    std::uint64_t LocalizationTable::GetRevision() const
+    UInt64 LocalizationTable::GetRevision() const
     {
         return m_revision;
     }

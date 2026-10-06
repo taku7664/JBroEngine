@@ -10,10 +10,13 @@
 #include <limits>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool value, const char* message)
+    void Check(JBro::Bool value, const char* message)
     {
         if (false == value)
         {
@@ -26,19 +29,19 @@ namespace
 
     struct Trace
     {
-        int events[32]{};
-        int count = 0;
+        JBro::Int32 events[32]{};
+        JBro::Int32 count = 0;
     };
 
     class ProbeSystem final : public JBro::GameSystem
     {
     public:
-        ProbeSystem(Trace& trace, int id, int order)
+        ProbeSystem(Trace& trace, JBro::Int32 id, JBro::Int32 order)
             : m_trace(trace), m_id(id), m_order(order)
         {
         }
 
-        int GetExecutionOrder() const override
+        JBro::Int32 GetExecutionOrder() const override
         {
             return m_order;
         }
@@ -48,11 +51,11 @@ namespace
         {
             m_trace.events[m_trace.count++] = m_id;
         }
-        void OnUpdate(JBro::Canvas&, float) override
+        void OnUpdate(JBro::Canvas&, JBro::Float) override
         {
             m_trace.events[m_trace.count++] = 10 + m_id;
         }
-        void OnFixedUpdate(JBro::Canvas&, float) override
+        void OnFixedUpdate(JBro::Canvas&, JBro::Float) override
         {
             m_trace.events[m_trace.count++] = 20 + m_id;
         }
@@ -64,8 +67,8 @@ namespace
 
     private:
         Trace& m_trace;
-        int m_id;
-        int m_order;
+        JBro::Int32 m_id;
+        JBro::Int32 m_order;
     };
 
     void TestFrameworkFixedStepBudget()
@@ -90,7 +93,7 @@ namespace
         Check(std::fabs(transform->worldPosition.y - transform->position.y) < 0.0001f
             && transform->worldValid,
             "transform propagation must follow the fixed physics steps");
-        const float position = transform->position.y;
+        const JBro::Float position = transform->position.y;
         JBro::Testing::Tick(framework, 0.125f);
         Check(transform->position.y == position, "excess whole-step debt must not leak into later frames");
         Check(false == JBro::Testing::SharedClock().BeginFrame((std::numeric_limits<float>::quiet_NaN)()),
@@ -174,7 +177,7 @@ namespace
             Check(systems.GetSystem(2) == nullptr, "out-of-range system access must fail");
             systems.Initialize(canvas);
             Check(trace.count == 2, "repeat initialization must not invoke hooks twice");
-            bool rejected = false;
+            JBro::Bool rejected = false;
             try
             {
                 systems.AddSystem<ProbeSystem>(trace, 3, 300);
@@ -195,7 +198,7 @@ namespace
     }
 }
 
-int RunSystemSchedulerTests()
+JBro::Int32 RunSystemSchedulerTests()
 {
     TestCanvasOwnsOrderedSystems();
     TestEachSystemIsMeasuredUnderItsOwnName();

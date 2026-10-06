@@ -4,10 +4,12 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -16,36 +18,36 @@ namespace
         }
     }
 
-    int g_freeCallCount = 0;
+    JBro::Int32 g_freeCallCount = 0;
 
-    int AddAndCount(int left, int right)
+    JBro::Int32 AddAndCount(JBro::Int32 left, JBro::Int32 right)
     {
         ++g_freeCallCount;
         return left + right;
     }
 
-    void AppendOne(int& target)
+    void AppendOne(JBro::Int32& target)
     {
         target += 1;
     }
 
     struct Counter
     {
-        int value = 0;
+        JBro::Int32 value = 0;
 
-        int Add(int amount)
+        JBro::Int32 Add(JBro::Int32 amount)
         {
             value += amount;
             return value;
         }
 
-        int Subtract(int amount)
+        JBro::Int32 Subtract(JBro::Int32 amount)
         {
             value -= amount;
             return value;
         }
 
-        int Peek() const
+        JBro::Int32 Peek() const
         {
             return value;
         }
@@ -53,19 +55,19 @@ namespace
 
     // 기존 엔진이 적어 온 콜백 모양이다(`AudioMixerDesc::openStream` 과 같은 꼴). 델리게이트가 이 모양과
     // 그대로 오갈 수 있어야 기존 경계를 한 번에 바꾸지 않고 한 자리씩 옮길 수 있다.
-    using LegacyCallback = int (*)(void* user, int amount);
+    using LegacyCallback = JBro::Int32 (*)(void* user, JBro::Int32 amount);
 
     void* g_lastUser = nullptr;
 
     // 부를 때 넘어온 사용자 자료를 그대로 적어 둔다. 멤버 함수로 확인하면 빈 `user` 가 왔을 때
     // 널 `this` 로 들어가 그냥 터지고, 무엇이 틀렸는지 말해 주는 단언이 남지 않는다.
-    int RecordUser(void* user, int amount)
+    JBro::Int32 RecordUser(void* user, JBro::Int32 amount)
     {
         g_lastUser = user;
         return amount;
     }
 
-    int LegacyAdd(void* user, int amount)
+    JBro::Int32 LegacyAdd(void* user, JBro::Int32 amount)
     {
         Counter* counter = static_cast<Counter*>(user);
         counter->value += amount;
@@ -76,13 +78,13 @@ namespace
     // 함수 포인터만 비우고 `user` 를 남기면 다음에 거는 쪽이 옛 사용자 자료를 물려받는다.
     void TestDefaultIsUnboundAndResetClearsBothFields()
     {
-        JBro::Delegate<int(int)> handler;
+        JBro::Delegate<JBro::Int32(JBro::Int32)> handler;
         Check(false == handler.IsBound(), "a default delegate is not bound");
         Check(handler.function == nullptr, "its function is empty");
         Check(handler.user == nullptr, "and so is its user data");
 
         Counter counter;
-        handler = JBro::Delegate<int(int)>::Bind<&Counter::Add>(&counter);
+        handler = JBro::Delegate<JBro::Int32(JBro::Int32)>::Bind<&Counter::Add>(&counter);
         Check(handler.IsBound(), "binding makes it callable");
 
         handler.Reset();
@@ -94,7 +96,7 @@ namespace
     void TestFreeFunctionBinding()
     {
         g_freeCallCount = 0;
-        const auto handler = JBro::Delegate<int(int, int)>::Bind<&AddAndCount>();
+        const auto handler = JBro::Delegate<JBro::Int32(JBro::Int32, JBro::Int32)>::Bind<&AddAndCount>();
         Check(handler.IsBound(), "a free function binds");
         Check(handler.user == nullptr, "and carries no user data");
         Check(handler.Invoke(2, 3) == 5, "the return value comes back");
@@ -107,8 +109,8 @@ namespace
     {
         Counter first;
         Counter second;
-        const auto toFirst = JBro::Delegate<int(int)>::Bind<&Counter::Add>(&first);
-        const auto toSecond = JBro::Delegate<int(int)>::Bind<&Counter::Add>(&second);
+        const auto toFirst = JBro::Delegate<JBro::Int32(JBro::Int32)>::Bind<&Counter::Add>(&first);
+        const auto toSecond = JBro::Delegate<JBro::Int32(JBro::Int32)>::Bind<&Counter::Add>(&second);
 
         Check(toFirst.user == &first, "the instance is carried as the user pointer");
         Check(toSecond.user == &second, "and each binding carries its own");
@@ -126,7 +128,7 @@ namespace
     {
         Counter counter;
         counter.value = 42;
-        const auto handler = JBro::Delegate<int()>::Bind<&Counter::Peek>(&counter);
+        const auto handler = JBro::Delegate<JBro::Int32()>::Bind<&Counter::Peek>(&counter);
         Check(handler.Invoke() == 42, "a const member function binds and reads through");
     }
 
@@ -134,8 +136,8 @@ namespace
     // 값으로 잘려 나가면 호출한 쪽이 결과를 못 받는다.
     void TestReferenceArgumentsPassThrough()
     {
-        const auto handler = JBro::Delegate<void(int&)>::Bind<&AppendOne>();
-        int target = 5;
+        const auto handler = JBro::Delegate<void(JBro::Int32&)>::Bind<&AppendOne>();
+        JBro::Int32 target = 5;
         handler.Invoke(target);
         handler.Invoke(target);
         Check(target == 7, "the callee wrote through the reference, so it was not copied");
@@ -145,7 +147,7 @@ namespace
     void TestInteropWithRawThunkPairs()
     {
         Counter counter;
-        const auto handler = JBro::Delegate<int(int)>::FromThunk(&LegacyAdd, &counter);
+        const auto handler = JBro::Delegate<JBro::Int32(JBro::Int32)>::FromThunk(&LegacyAdd, &counter);
         Check(handler.function == &LegacyAdd, "the raw thunk is kept as given");
         Check(handler.user == &counter, "and so is its user pointer");
         Check(handler.Invoke(5) == 5, "a raw pair calls through");
@@ -165,17 +167,17 @@ namespace
         Counter second;
 
         g_lastUser = nullptr;
-        const auto toFirst = JBro::Delegate<int(int)>::FromThunk(&RecordUser, &first);
+        const auto toFirst = JBro::Delegate<JBro::Int32(JBro::Int32)>::FromThunk(&RecordUser, &first);
         Check(toFirst.Invoke(1) == 1, "the call goes through");
         Check(g_lastUser == &first, "and it carried the pointer this delegate holds");
 
         g_lastUser = nullptr;
-        const auto toSecond = JBro::Delegate<int(int)>::FromThunk(&RecordUser, &second);
+        const auto toSecond = JBro::Delegate<JBro::Int32(JBro::Int32)>::FromThunk(&RecordUser, &second);
         Check(toSecond.Invoke(2) == 2, "the second call goes through too");
         Check(g_lastUser == &second, "and carried the other target, not the first one");
 
         g_lastUser = nullptr;
-        const auto unbound = JBro::Delegate<int(int)>::FromThunk(&RecordUser, nullptr);
+        const auto unbound = JBro::Delegate<JBro::Int32(JBro::Int32)>::FromThunk(&RecordUser, nullptr);
         Check(unbound.Invoke(3) == 3, "an empty user pointer is still a valid target");
         Check(g_lastUser == nullptr, "and it arrives as an empty pointer, not as someone else's");
     }
@@ -183,7 +185,7 @@ namespace
     // **경계를 넘을 수 있는 값이다.** 바이트로 복사해도 살아 있어야 DLL 경계를 넘는 구조체 칸에 둘 수 있다.
     void TestIsPlainDataAndSurvivesAByteCopy()
     {
-        using Handler = JBro::Delegate<int(int)>;
+        using Handler = JBro::Delegate<JBro::Int32(JBro::Int32)>;
         static_assert(std::is_trivially_copyable_v<Handler>, "a delegate must cross the DLL boundary by value");
         static_assert(std::is_standard_layout_v<Handler>, "and keep a predictable layout");
         static_assert(sizeof(Handler) == sizeof(void*) * 2, "it is exactly a function pointer and a user pointer");
@@ -204,21 +206,21 @@ namespace
     void TestEquality()
     {
         Counter counter;
-        const auto left = JBro::Delegate<int(int)>::Bind<&Counter::Add>(&counter);
-        const auto right = JBro::Delegate<int(int)>::Bind<&Counter::Add>(&counter);
+        const auto left = JBro::Delegate<JBro::Int32(JBro::Int32)>::Bind<&Counter::Add>(&counter);
+        const auto right = JBro::Delegate<JBro::Int32(JBro::Int32)>::Bind<&Counter::Add>(&counter);
         Check(left == right, "the same function and the same target compare equal");
 
-        const auto subtract = JBro::Delegate<int(int)>::Bind<&Counter::Subtract>(&counter);
+        const auto subtract = JBro::Delegate<JBro::Int32(JBro::Int32)>::Bind<&Counter::Subtract>(&counter);
         Check(left.user == subtract.user, "the same target is carried by both");
         Check(left != subtract, "but a different member function makes a different delegate");
 
-        const JBro::Delegate<int(int)> empty;
-        Check(empty == JBro::Delegate<int(int)>(), "two unbound delegates are equal");
+        const JBro::Delegate<JBro::Int32(JBro::Int32)> empty;
+        Check(empty == JBro::Delegate<JBro::Int32(JBro::Int32)>(), "two unbound delegates are equal");
         Check(left != empty, "and a bound one never equals an unbound one");
     }
 }
 
-int RunDelegateTests()
+JBro::Int32 RunDelegateTests()
 {
     try
     {

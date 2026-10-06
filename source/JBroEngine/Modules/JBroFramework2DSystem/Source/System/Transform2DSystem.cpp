@@ -3,6 +3,8 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::System
 {
@@ -56,7 +58,7 @@ namespace JBro::System
         }
     }
 
-    int Transform2DSystem::GetExecutionOrder() const
+    Int32 Transform2DSystem::GetExecutionOrder() const
     {
         return 100;
     }
@@ -67,7 +69,7 @@ namespace JBro::System
     }
 
     // 부모를 가진 노드는 그 부모의 순회에서 처리된다. 여기서는 루트만 골라 내려간다.
-    void Transform2DSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void Transform2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         (void)deltaTime;
 

@@ -1,6 +1,8 @@
 ﻿#include <JBro/Platform/WebPlatform.h>
 
 #include <JBro/Network/Socket.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Bool.h>
 #if defined(__EMSCRIPTEN__)
 #include "MiniaudioAudioOutput.h"
 #endif
@@ -10,7 +12,7 @@
 
 namespace JBro
 {
-    bool WebPlatform::Initialize(const JMemoryContext&)
+    Bool WebPlatform::Initialize(const JMemoryContext&)
     {
         return true;
     }
@@ -48,12 +50,12 @@ namespace JBro
         // 모으지 않으니 비울 것도 없다.
     }
 
-    void WebPlatform::WaitForEvents(std::uint32_t)
+    void WebPlatform::WaitForEvents(UInt32)
     {
         // Browser hosts must yield through their external event loop.
     }
 
-    bool WebPlatform::ShouldClose(WindowHandle) const
+    Bool WebPlatform::ShouldClose(WindowHandle) const
     {
         return false;
     }
@@ -63,7 +65,7 @@ namespace JBro
         return {};
     }
 
-    bool WebPlatform::GetWindowState(WindowHandle, WindowState& state) const
+    Bool WebPlatform::GetWindowState(WindowHandle, WindowState& state) const
     {
         state = {};
         return false;
@@ -78,27 +80,27 @@ namespace JBro
     {
     }
 
-    bool WebPlatform::ReadWholeFile(const char*, Array<std::byte>&)
+    Bool WebPlatform::ReadWholeFile(const char*, Array<std::byte>&)
     {
         return false;
     }
 
-    bool WebPlatform::WriteWholeFile(const char*, JArrayView<std::byte>)
+    Bool WebPlatform::WriteWholeFile(const char*, JArrayView<std::byte>)
     {
         return false;
     }
 
-    bool WebPlatform::FileExists(const char*) const
+    Bool WebPlatform::FileExists(const char*) const
     {
         return false;
     }
 
-    bool WebPlatform::DirectoryExists(const char*) const
+    Bool WebPlatform::DirectoryExists(const char*) const
     {
         return false;
     }
 
-    bool WebPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
+    Bool WebPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
     {
         return false;
     }
@@ -114,7 +116,7 @@ namespace JBro
 #endif
     }
 
-    std::uint32_t WebPlatform::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    UInt32 WebPlatform::EnumerateAudioOutputs(AudioDeviceInfo* devices, UInt32 capacity)
     {
 #if defined(__EMSCRIPTEN__)
         return Internal::EnumerateMiniaudioOutputs(devices, capacity);

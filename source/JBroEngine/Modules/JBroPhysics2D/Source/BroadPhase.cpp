@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Physics2D
 {
@@ -11,7 +12,7 @@ namespace JBro::Physics2D
         m_sorted.Clear();
         m_active.Clear();
 
-        for (std::uint32_t i = 0; i < boxes.Size(); ++i)
+        for (UInt32 i = 0; i < boxes.Size(); ++i)
         {
             const Rect& box = boxes[i];
             // NaN 이 섞이면 정렬 비교가 엄격한 약순서를 잃어 std::sort 가 범위를 벗어날 수 있다.
@@ -53,8 +54,8 @@ namespace JBro::Physics2D
                 {
                     continue;
                 }
-                const std::uint32_t low = std::min(current.index, other.index);
-                const std::uint32_t high = std::max(current.index, other.index);
+                const UInt32 low = std::min(current.index, other.index);
+                const UInt32 high = std::max(current.index, other.index);
                 pairs.Add({ low, high });
             }
             m_active.Add(current);

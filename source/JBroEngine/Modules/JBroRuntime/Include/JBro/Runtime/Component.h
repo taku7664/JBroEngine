@@ -7,6 +7,7 @@
 #include <JBro/Types/SafePtr.h>
 
 #include <type_traits>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -50,9 +51,9 @@ namespace JBro
         GameObjectHandle GetOwner() const;
 
         // §8.1 단일 활성 게이트. 모든 시스템이 이 함수 하나만 본다.
-        bool IsActiveComponent() const;
-        bool IsEnabled() const;
-        void SetEnabled(bool enabled);
+        Bool IsActiveComponent() const;
+        Bool IsEnabled() const;
+        void SetEnabled(Bool enabled);
 
     private:
         friend class Canvas;
@@ -68,7 +69,7 @@ namespace JBro
         ComponentTypeId     m_typeId = InvalidComponentTypeId;
         InstanceId          m_instanceId = InvalidInstanceId;
         InstanceHandle      m_handle;
-        bool                m_enabled = true;
+        Bool                m_enabled = true;
     };
 
     template<typename T>

@@ -6,6 +6,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -32,7 +34,7 @@ namespace JBro
         static constexpr std::uint16_t DefaultPort = 3663;
         // 끝 표시 없이 이보다 길게 오면 답하고 끊는다. 가이드 한 편은 몇 KB 다.
         static constexpr std::size_t MaxMessageBytes = 64 * 1024;
-        static constexpr std::uint32_t MaxClients = 4;
+        static constexpr UInt32 MaxClients = 4;
 
         EditorControlPort();
         ~EditorControlPort();
@@ -40,9 +42,9 @@ namespace JBro
         EditorControlPort& operator=(const EditorControlPort&) = delete;
 
         // provider 는 부른 쪽이 들고 이 포트보다 오래 산다. 포트를 이미 누가 쓰면(에디터를 둘 띄웠다) 거짓이다.
-        bool Open(Network::ISocketProvider& provider, std::uint16_t port);
+        Bool Open(Network::ISocketProvider& provider, std::uint16_t port);
         void Close();
-        bool IsOpen() const noexcept;
+        Bool IsOpen() const noexcept;
         std::uint16_t GetPort() const noexcept;
 
         // 메인 스레드에서 프레임마다 부른다. 접속을 받고, 다 온 글을 처리해 답한다.
@@ -54,7 +56,7 @@ namespace JBro
 
         void Accept();
         // 거짓이면 그 접속을 뗀다.
-        bool Serve(Client& client, EditorApplication& editor);
+        Bool Serve(Client& client, EditorApplication& editor);
 
         OwnerPtr<Network::IStreamSocket> m_listener;
         Array<OwnerPtr<Client>> m_clients;

@@ -5,6 +5,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // Reliable-over-UDP 데이터그램 v2 코덱. 순수 인코드·디코드이고 소켓을 모른다. 기존 엔진 `UdpProto` 와 같은 와이어다.
 //
@@ -30,33 +33,33 @@ namespace JBro::Network::UdpProto
 
     struct DatagramHeader
     {
-        std::uint64_t token = 0;
+        UInt64 token = 0;
         std::uint8_t flags = FlagNone;
         NetChannel channel = NetChannel::Unreliable;
         // 연결별 단조 증가 송신 순번.
-        std::uint32_t seq = 0;
+        UInt32 seq = 0;
         // FlagAck 일 때만. ackBase 는 "이 미만은 전부 받았다", ackBits 는 ackBase+1..+32 의 선택 확인.
-        std::uint32_t ackBase = 0;
-        std::uint32_t ackBits = 0;
+        UInt32 ackBase = 0;
+        UInt32 ackBits = 0;
         // FlagFragment 일 때만.
-        std::uint32_t msgSeq = 0;
+        UInt32 msgSeq = 0;
         std::uint16_t fragIndex = 0;
         std::uint16_t fragCount = 0;
         MessageId msgId = RawMessageId;
     };
 
-    inline constexpr std::uint32_t FixedPrefixBytes = 8 + 1 + 1 + 4;
-    inline constexpr std::uint32_t AckFieldBytes = 4 + 4;
-    inline constexpr std::uint32_t FragmentFieldBytes = 4 + 2 + 2;
-    inline constexpr std::uint32_t MsgIdBytes = 2;
-    inline constexpr std::uint32_t MaxHeaderBytes = FixedPrefixBytes + AckFieldBytes + FragmentFieldBytes + MsgIdBytes;
+    inline constexpr UInt32 FixedPrefixBytes = 8 + 1 + 1 + 4;
+    inline constexpr UInt32 AckFieldBytes = 4 + 4;
+    inline constexpr UInt32 FragmentFieldBytes = 4 + 2 + 2;
+    inline constexpr UInt32 MsgIdBytes = 2;
+    inline constexpr UInt32 MaxHeaderBytes = FixedPrefixBytes + AckFieldBytes + FragmentFieldBytes + MsgIdBytes;
     // 데이터그램 하나가 싣는 최대 페이로드. IP 분할을 피할 여유다. 넘는 신뢰 메시지는 조각낸다.
-    inline constexpr std::uint32_t MaxPayloadBytes = 1024;
-    inline constexpr std::uint32_t MaxDatagramBytes = MaxHeaderBytes + MaxPayloadBytes;
+    inline constexpr UInt32 MaxPayloadBytes = 1024;
+    inline constexpr UInt32 MaxDatagramBytes = MaxHeaderBytes + MaxPayloadBytes;
 
-    inline std::uint32_t HeaderBytes(std::uint8_t flags)
+    inline UInt32 HeaderBytes(std::uint8_t flags)
     {
-        std::uint32_t size = FixedPrefixBytes;
+        UInt32 size = FixedPrefixBytes;
         if (0 != (flags & FlagAck))
         {
             size += AckFieldBytes;
@@ -74,17 +77,17 @@ namespace JBro::Network::UdpProto
         at[1] = static_cast<std::uint8_t>((value >> 8) & 0xFFu);
     }
 
-    inline void WriteU32(std::uint8_t* at, std::uint32_t value)
+    inline void WriteU32(std::uint8_t* at, UInt32 value)
     {
-        for (int index = 0; index < 4; ++index)
+        for (Int32 index = 0; index < 4; ++index)
         {
             at[index] = static_cast<std::uint8_t>((value >> (index * 8)) & 0xFFu);
         }
     }
 
-    inline void WriteU64(std::uint8_t* at, std::uint64_t value)
+    inline void WriteU64(std::uint8_t* at, UInt64 value)
     {
-        for (int index = 0; index < 8; ++index)
+        for (Int32 index = 0; index < 8; ++index)
         {
             at[index] = static_cast<std::uint8_t>((value >> (index * 8)) & 0xFFu);
         }
@@ -95,20 +98,20 @@ namespace JBro::Network::UdpProto
         return static_cast<std::uint16_t>(at[0] | (static_cast<std::uint16_t>(at[1]) << 8));
     }
 
-    inline std::uint32_t ReadU32(const std::uint8_t* at)
+    inline UInt32 ReadU32(const std::uint8_t* at)
     {
-        std::uint32_t value = 0;
-        for (int index = 0; index < 4; ++index)
+        UInt32 value = 0;
+        for (Int32 index = 0; index < 4; ++index)
         {
             value |= static_cast<std::uint32_t>(at[index]) << (index * 8);
         }
         return value;
     }
 
-    inline std::uint64_t ReadU64(const std::uint8_t* at)
+    inline UInt64 ReadU64(const std::uint8_t* at)
     {
-        std::uint64_t value = 0;
-        for (int index = 0; index < 8; ++index)
+        UInt64 value = 0;
+        for (Int32 index = 0; index < 8; ++index)
         {
             value |= static_cast<std::uint64_t>(at[index]) << (index * 8);
         }
@@ -116,9 +119,9 @@ namespace JBro::Network::UdpProto
     }
 
     // `out` 은 HeaderBytes(flags) + payloadSize 이상이어야 한다. 쓴 바이트 수를 돌려준다.
-    inline std::uint32_t Encode(const DatagramHeader& header, const void* payload, std::uint32_t payloadSize, std::uint8_t* out)
+    inline UInt32 Encode(const DatagramHeader& header, const void* payload, UInt32 payloadSize, std::uint8_t* out)
     {
-        std::uint32_t offset = 0;
+        UInt32 offset = 0;
         WriteU64(out + offset, header.token);
         offset += 8;
         out[offset++] = header.flags;
@@ -152,14 +155,14 @@ namespace JBro::Network::UdpProto
     }
 
     // 잘린 버퍼면 거짓이다. 페이로드는 버퍼 안을 가리킨다.
-    inline bool Decode(const std::uint8_t* buffer, std::uint32_t size, DatagramHeader& outHeader,
-        const std::uint8_t*& outPayload, std::uint32_t& outPayloadSize)
+    inline Bool Decode(const std::uint8_t* buffer, UInt32 size, DatagramHeader& outHeader,
+        const std::uint8_t*& outPayload, UInt32& outPayloadSize)
     {
         if (size < FixedPrefixBytes)
         {
             return false;
         }
-        std::uint32_t offset = 0;
+        UInt32 offset = 0;
         outHeader.token = ReadU64(buffer + offset);
         offset += 8;
         outHeader.flags = buffer[offset++];

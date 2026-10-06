@@ -2,6 +2,8 @@
 
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Types/ArrayView.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
@@ -10,5 +12,5 @@ namespace JBro::Widget
     //
     // 파형을 누르거나 끌면 참이고 `seekFraction` 에 그 자리(0..1)가 온다 - 부르는 쪽이 그 자리로 옮긴다.
     // 봉우리가 없으면 빈 칸으로 자리만 지킨다 - 파형을 재는 동안 아래 줄이 프레임마다 움직이지 않게.
-    bool Waveform(const char* id, ArrayView<const float> peaks, float progress, float height, float& seekFraction);
+    Bool Waveform(const char* id, ArrayView<const float> peaks, Float progress, Float height, Float& seekFraction);
 }

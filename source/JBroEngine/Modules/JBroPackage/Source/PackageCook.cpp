@@ -5,6 +5,7 @@
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/TextRendering/TextLibrary.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Package
 {
@@ -29,7 +30,7 @@ namespace JBro::Package
             report.failures.Add(std::move(line));
         }
 
-        bool AddBlob(PackageWriter& writer, CookReport& report, const AssetRecord& record, BlobKind kind, const Array<std::byte>& bytes)
+        Bool AddBlob(PackageWriter& writer, CookReport& report, const AssetRecord& record, BlobKind kind, const Array<std::byte>& bytes)
         {
             if (false == writer.Add(EntryOf(record, kind), ArrayView<const std::byte>(bytes.Data(), bytes.Size())))
             {
@@ -41,7 +42,7 @@ namespace JBro::Package
         }
     }
 
-    bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
+    Bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
         PackageWriter& writer, CookReport& report)
     {
         LooseAssetSource loose;

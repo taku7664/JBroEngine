@@ -3,6 +3,7 @@
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Component
 {
@@ -32,8 +33,8 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, size) { 160.0f, 48.0f };
         JBRO_FIELD(Vector2, offset);
         // 꺼져 있으면 누르지 못하고 `disabledTint` 로 보인다. 포인터는 그래도 소비한다 - 꺼진 단추 뒤의 게임이 눌리면 안 된다.
-        JBRO_FIELD(bool, interactable) = true;
-        JBRO_FIELD(bool, tintSprite) = true;
+        JBRO_FIELD(Bool, interactable) = true;
+        JBRO_FIELD(Bool, tintSprite) = true;
         JBRO_FIELD(Color, normalTint) { 1.0f, 1.0f, 1.0f, 1.0f };
         JBRO_FIELD(Color, hoverTint) { 0.9f, 0.9f, 0.9f, 1.0f };
         JBRO_FIELD(Color, pressedTint) { 0.7f, 0.7f, 0.7f, 1.0f };
@@ -41,8 +42,8 @@ namespace JBro::Component
 
         // 시스템이 채우는 이번 프레임의 상태다. 스크립트가 훅 대신 읽어도 된다.
         // `clicked` 는 버튼 위에서 눌렀다가 버튼 위에서 뗀 그 프레임에만 참이다.
-        JBRO_FIELD(bool, hovered, NoSerialize() | ReadOnly() | Category("State")) = false;
-        JBRO_FIELD(bool, pressed, NoSerialize() | ReadOnly() | Category("State")) = false;
-        JBRO_FIELD(bool, clicked, NoSerialize() | ReadOnly() | Category("State")) = false;
+        JBRO_FIELD(Bool, hovered, NoSerialize() | ReadOnly() | Category("State")) = false;
+        JBRO_FIELD(Bool, pressed, NoSerialize() | ReadOnly() | Category("State")) = false;
+        JBRO_FIELD(Bool, clicked, NoSerialize() | ReadOnly() | Category("State")) = false;
     };
 }

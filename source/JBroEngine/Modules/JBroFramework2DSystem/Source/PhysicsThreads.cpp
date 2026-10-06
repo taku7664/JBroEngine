@@ -10,12 +10,14 @@
 
 #include <algorithm>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    std::uint32_t CountPhysicsWork(Canvas& canvas)
+    UInt32 CountPhysicsWork(Canvas& canvas)
     {
-        std::uint32_t work = 0;
+        UInt32 work = 0;
         canvas.ForEach<Component::Collider2D>([&work](Component::Collider2D& collider)
         {
             if (false == collider.IsActiveComponent())
@@ -29,20 +31,20 @@ namespace JBro
                 work += points < 2 ? 1u : static_cast<std::uint32_t>(collider.loop ? points : points - 1);
                 return;
             }
-            const bool pieced = collider.shape == Component::ColliderShape2D::Polygon && points > 4;
+            const Bool pieced = collider.shape == Component::ColliderShape2D::Polygon && points > 4;
             work += pieced ? static_cast<std::uint32_t>(points - 2) : 1u;
         });
         return work;
     }
 
-    std::uint32_t CountProjectPhysicsWork(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)
+    UInt32 CountProjectPhysicsWork(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)
     {
         Array<String> canvases = project.build.buildCanvases;
         if (canvases.IsEmpty() && false == project.build.startupCanvas.empty())
         {
             canvases.Add(project.build.startupCanvas);
         }
-        std::uint32_t work = 0;
+        UInt32 work = 0;
         Array<std::byte> text;
         for (const String& relative : canvases)
         {
@@ -66,13 +68,13 @@ namespace JBro
         return work;
     }
 
-    std::uint32_t RecommendProjectPhysicsWorkers(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)
+    UInt32 RecommendProjectPhysicsWorkers(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)
     {
-        const std::uint32_t work = CountProjectPhysicsWork(platform, project, projectFilePath);
+        const UInt32 work = CountProjectPhysicsWork(platform, project, projectFilePath);
         return Physics2D::RecommendWorkerCount(work, std::thread::hardware_concurrency());
     }
 
-    std::uint32_t ResolvePhysicsWorkerCount(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)
+    UInt32 ResolvePhysicsWorkerCount(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)
     {
         switch (project.build.physicsThreadMode)
         {
@@ -86,9 +88,9 @@ namespace JBro
         }
     }
 
-    void ResolvePhysicsIgnoredLayers(const ProjectFile& project, std::uint32_t (&rows)[32])
+    void ResolvePhysicsIgnoredLayers(const ProjectFile& project, UInt32 (&rows)[32])
     {
-        for (std::uint32_t& row : rows)
+        for (UInt32& row : rows)
         {
             row = 0u;
         }

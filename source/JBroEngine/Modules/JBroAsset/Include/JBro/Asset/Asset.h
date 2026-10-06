@@ -13,6 +13,9 @@
 
 #include <cstddef>
 #include <string_view>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -23,10 +26,10 @@ namespace JBro
     // 다시 올릴지 정한다.
     struct TextureData
     {
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
+        UInt32 width = 0;
+        UInt32 height = 0;
         Array<std::byte> pixels;
-        std::uint32_t pixelGeneration = 1;
+        UInt32 pixelGeneration = 1;
         // 메타에 적힌 그대로다.
         TextureImportOptions options;
         // 프로젝트 기본을 적용한 값이다(D-117). `Default` 는 여기 오지 않는다 - 그리는 쪽은 이것만 본다.
@@ -48,13 +51,13 @@ namespace JBro
     struct AudioData
     {
         AudioImportOptions options;
-        std::uint32_t sampleRate = 0;
-        std::uint32_t channels = 0;
-        std::uint64_t frameCount = 0;
+        UInt32 sampleRate = 0;
+        UInt32 channels = 0;
+        UInt64 frameCount = 0;
         Array<float> pcm;
         Array<std::byte> encoded;
         String streamPath;
-        std::uint32_t dataGeneration = 1;
+        UInt32 dataGeneration = 1;
     };
 
     // 오디오 자료가 풀리거나 바뀌기 **직전에** 불린다. 믹서가 그 자료를 빌려 재생하고 있을 수 있으므로, 받는 쪽은 여기서
@@ -70,7 +73,7 @@ namespace JBro
         Array<std::byte> bytes;
         // 게임 빌드가 미리 떠 둔 아틀라스다(D-232). 패키지로 연 게임에만 있고, 텍스트 라이브러리가 표지를 보고 되살린다.
         Array<std::byte> bakedAtlas;
-        std::uint32_t dataGeneration = 1;
+        UInt32 dataGeneration = 1;
     };
 
     // 폰트 임포트 옵션을 쓰는 쪽이 보는 값으로 정리한다(D-119·D-215): `Default` 샘플러는 프로젝트 것, 0 이하 PPU 는 기본, SDF 는 Linear,
@@ -92,7 +95,7 @@ namespace JBro
     {
         FontFamilyOptions options;
         AssetHandle fonts[static_cast<std::size_t>(FontFamilySlot::Count)];
-        std::uint32_t dataGeneration = 1;
+        UInt32 dataGeneration = 1;
     };
 
     // 로드된 문자열 표다(D-226). 파일의 최상위 맵(`키: 값`)이 그대로 들고, 로케일은 메타의 것이다. 값이 글자가 아닌 줄(맵·시퀀스)은
@@ -101,7 +104,7 @@ namespace JBro
     {
         StringTableOptions options;
         Table<String, String> entries;
-        std::uint32_t dataGeneration = 1;
+        UInt32 dataGeneration = 1;
     };
 
     // 워커에서 디코드할 에셋 하나다(D-236). `AssetSystem::PrepareDecode`(메인)가 경로와 옵션을 채우고, `DecodeAssetFile`
@@ -119,15 +122,15 @@ namespace JBro
         TextureData texture;
         AudioData audio;
         // `Decompressed` 오디오를 풀 샘플 레이트다(0 이면 파일 그대로, D-231). 에셋 시스템의 값을 준비할 때 떠 온다 - 워커는 에셋 시스템을 보지 않는다.
-        std::uint32_t audioSampleRate = 0;
-        bool decoded = false;
+        UInt32 audioSampleRate = 0;
+        Bool decoded = false;
         String failure;
     };
 
     // 소스의 `Read`·`OpenStream` 과 디코더만 쓰고 에셋 시스템을 보지 않는다. 워커에서 부를 때는 `source.CanReadOnWorkers()` 가 참이어야 한다 -
     // `PrepareDecode` 가 그런 소스에서만 작업을 만든다. `job.type`·`record`·옵션(`texture.options`·`audio.options`)과, 디스크 스트리밍이면
     // `streamPath` 가 채워져 있어야 한다. 실패하면 거짓이고 `failure` 가 채워진다.
-    bool DecodeAssetFile(const IAssetSource& source, AssetDecodeJob& job);
+    Bool DecodeAssetFile(const IAssetSource& source, AssetDecodeJob& job);
 
     // 프로젝트 수명 동안 에셋 로드와 캐시를 소유한다(D-50·D-111). 사용자 호출 표면은 값형 Service::AssetService 다.
     //
@@ -139,7 +142,7 @@ namespace JBro
     class AssetSystem final : public IModule
     {
     public:
-        bool Initialize(const JMemoryContext& memory) override;
+        Bool Initialize(const JMemoryContext& memory) override;
         void Shutdown() override;
 
         // 프로젝트를 열 때 레지스트리·플랫폼·에셋 폴더(UTF-8 절대경로)를 잇는다. 닫을 때 `Unbind` 가 전부 내린다.
@@ -149,9 +152,9 @@ namespace JBro
         // 지금 바이트를 주는 곳이다. 잇지 않았으면 null 이다. 스트리밍 오디오를 여는 쪽(믹서의 스트리머)이 `OpenStream` 을 부른다.
         const IAssetSource* GetSource() const;
         // 경로로 찾은 에셋의 원본 바이트다. 게임 호스트가 시작 캔버스를 읽는 길이다 - 패키지로 열어도 같다.
-        bool ReadSourceByPath(std::string_view relativePath, Array<std::byte>& out) const;
+        Bool ReadSourceByPath(std::string_view relativePath, Array<std::byte>& out) const;
         void Unbind();
-        bool IsBound() const;
+        Bool IsBound() const;
 
         // 프로젝트의 `TextureFilter` 다(D-117). 임포트 옵션이 `Default` 인 텍스처가 이것을 받는다. 로드·재로드 때
         // 적용되므로 프로젝트를 열 때(`Bind` 전에) 정한다. `Default` 를 주면 `Nearest` 로 본다.
@@ -162,7 +165,7 @@ namespace JBro
         // 목록이 바뀌면 판번호가 오른다. 쓰는 쪽은 판번호가 다를 때만 다시 로드한다.
         void SetProjectFonts(ArrayView<const AssetId> fonts);
         ArrayView<const AssetId> GetProjectFonts() const;
-        std::uint32_t GetProjectFontsRevision() const;
+        UInt32 GetProjectFontsRevision() const;
 
         // 잇긴 에셋 폴더(UTF-8 절대경로)와 레지스트리의 레코드가 가리키는 메타 경로다. 에디터가 메타를 고쳐 쓸 때 쓴다(D-120).
         const String& GetAssetRoot() const;
@@ -174,7 +177,7 @@ namespace JBro
         // 워커 디코드를 준비한다(D-236). 텍스처·오디오면 그것을, 스프라이트면 주인 텍스처를 `job` 에 채운다. 이미 실렸거나
         // 이 길로 가지 않는 타입·없는 레코드·읽히지 않는 메타·워커에서 읽을 수 없는 소스(패키지)·빌드가 디코드해 둔 텍스처면 거짓이다 -
         // 그런 것은 `Load` 가 동기로 다룬다(디코드해 둔 텍스처는 복사뿐이다). 메인 스레드다.
-        bool PrepareDecode(AssetId id, AssetDecodeJob& job);
+        Bool PrepareDecode(AssetId id, AssetDecodeJob& job);
         // 디코드한 자료를 풀에 넣고 참조 하나를 잡은 핸들을 준다. 그사이 누가 실었으면 자료는 버리고 그 핸들의 참조를 올린다.
         // 디코드가 실패했거나 묶이지 않았으면 빈 핸들이고, 실패 사유는 로그에 남는다. 메인 스레드다.
         AssetHandle AdoptDecoded(AssetDecodeJob& job);
@@ -182,8 +185,8 @@ namespace JBro
         void Release(AssetHandle handle);
         // 로드돼 있으면 그 핸들, 아니면 빈 핸들. 참조 수를 건드리지 않는다.
         AssetHandle Find(AssetId id) const;
-        bool IsLoaded(AssetHandle handle) const;
-        std::uint32_t GetReferenceCount(AssetHandle handle) const;
+        Bool IsLoaded(AssetHandle handle) const;
+        UInt32 GetReferenceCount(AssetHandle handle) const;
 
         const TextureData* GetTexture(AssetHandle handle) const;
         const SpriteData* GetSprite(AssetHandle handle) const;
@@ -195,22 +198,22 @@ namespace JBro
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
         // 이미 로드된 자료는 바꾸지 않는다 - 다음 로드부터다.
-        void SetAudioDecodeSampleRate(std::uint32_t sampleRate);
+        void SetAudioDecodeSampleRate(UInt32 sampleRate);
         // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
-        bool ComputeAudioPeaks(AssetHandle handle, std::uint32_t buckets, Array<float>& peaks);
+        Bool ComputeAudioPeaks(AssetHandle handle, UInt32 buckets, Array<float>& peaks);
 
         // 디스크의 최신 상태로 자료만 바꾼다. 핸들과 세대는 그대로다(asset-plan §2.7). 로드돼 있지 않으면 false.
-        bool ReloadInPlace(AssetId id);
+        Bool ReloadInPlace(AssetId id);
         // 로드된 것 전부를 in-place 재로드한다. 감시가 넘쳐 무엇이 바뀌었는지 모를 때 쓴다. 성공한 개수다.
-        std::uint32_t ReloadAllInPlace();
+        UInt32 ReloadAllInPlace();
         // 참조 수 0 인 것을 내린다. 내린 개수다. 스프라이트가 먼저 내려가고 그것이 놓은 텍스처가 따라 내려간다.
-        std::uint32_t CollectUnused();
-        std::uint32_t GetLoadedCount() const;
+        UInt32 CollectUnused();
+        UInt32 GetLoadedCount() const;
 
         // **해석 패스.** 컴포넌트의 `xxxId`(`AssetId`) 필드마다 로드해 짝 `xxx`(`AssetHandle`) 필드를 채운다.
         // 빈 아이디와 실패는 핸들을 비운다. 얻은 핸들은 `acquired` 에 쌓인다 - 캔버스를 닫을 때 `ReleaseAll` 로 놓는다.
         // 채운 핸들 수를 돌려준다.
-        std::uint32_t BindComponentAssets(const PropertyTable& table, void* component, Array<AssetHandle>& acquired);
+        UInt32 BindComponentAssets(const PropertyTable& table, void* component, Array<AssetHandle>& acquired);
         // 해석 패스가 볼 아이디만 모은다(D-236). 싣지 않고 핸들도 건드리지 않는다. 빈 아이디는 빼고, 이미 `ids` 에 있는 것은 더하지 않는다.
         // 워커 로드가 캔버스를 열기 전에 무엇을 읽을지 알려고 쓴다.
         static void CollectComponentAssetIds(const PropertyTable& table, const void* component, Array<AssetId>& ids);
@@ -224,20 +227,20 @@ namespace JBro
         {
             TData data;
             AssetId id;
-            std::uint32_t generation = 1;
-            std::uint32_t referenceCount = 0;
-            bool occupied = false;
+            UInt32 generation = 1;
+            UInt32 referenceCount = 0;
+            Bool occupied = false;
         };
 
         template <typename TData>
         struct Pool
         {
             Array<Slot<TData>> slots;
-            Array<std::uint32_t> freeList;
+            Array<UInt32> freeList;
         };
 
-        static constexpr std::uint32_t TypeShift = 28;
-        static constexpr std::uint32_t SlotMask = (1u << TypeShift) - 1;
+        static constexpr UInt32 TypeShift = 28;
+        static constexpr UInt32 SlotMask = (1u << TypeShift) - 1;
 
         template <typename TData>
         Slot<TData>* FindSlot(Pool<TData>& pool, AssetHandle handle, AssetType type);
@@ -246,25 +249,25 @@ namespace JBro
         template <typename TData>
         AssetHandle Occupy(Pool<TData>& pool, AssetType type, AssetId id, TData&& data);
         template <typename TData>
-        void Vacate(Pool<TData>& pool, std::uint32_t slotIndex);
+        void Vacate(Pool<TData>& pool, UInt32 slotIndex);
 
-        bool ReadTexture(const AssetRecord& record, TextureData& data);
-        bool ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options);
-        bool ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options);
-        bool ReadAudio(const AssetRecord& record, AudioData& data);
-        bool ReadFont(const AssetRecord& record, FontData& data);
+        Bool ReadTexture(const AssetRecord& record, TextureData& data);
+        Bool ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options);
+        Bool ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options);
+        Bool ReadAudio(const AssetRecord& record, AudioData& data);
+        Bool ReadFont(const AssetRecord& record, FontData& data);
         // 메타의 네 칸을 읽고 칸마다 Font 를 싣는다. 실패한 칸은 비운다(패밀리는 선다).
-        bool ReadFontFamily(const AssetRecord& record, FontFamilyData& data);
+        Bool ReadFontFamily(const AssetRecord& record, FontFamilyData& data);
         void ReleaseFamilyFonts(FontFamilyData& data);
-        bool ReadStringTable(const AssetRecord& record, StringTableData& data);
-        void NotifyAudioRelease(std::uint32_t slotIndex);
+        Bool ReadStringTable(const AssetRecord& record, StringTableData& data);
+        void NotifyAudioRelease(UInt32 slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
         // 새 옵션으로 시작한다.
-        bool ReadMeta(const AssetRecord& record, AssetMetaFile& meta);
+        Bool ReadMeta(const AssetRecord& record, AssetMetaFile& meta);
         void ForgetMeta(AssetId id);
         Table<AssetId, AssetMetaFile> m_metaCache;
-        bool BuildSprite(const AssetRecord& record, SpriteData& data);
+        Bool BuildSprite(const AssetRecord& record, SpriteData& data);
         String MetaPathOf(const AssetRecord& record) const;
         String SourcePathOf(const AssetRecord& record) const;
 
@@ -273,7 +276,7 @@ namespace JBro
         const IAssetSource* m_source = nullptr;
         TextureFilter m_defaultTextureFilter = TextureFilter::Nearest;
         Array<AssetId> m_projectFonts;
-        std::uint32_t m_projectFontsRevision = 0;
+        UInt32 m_projectFontsRevision = 0;
         const AssetRegistry* m_registry = nullptr;
         String m_assetRoot;
         Pool<TextureData> m_textures;
@@ -283,7 +286,7 @@ namespace JBro
         Pool<FontFamilyData> m_fontFamilies;
         Pool<StringTableData> m_stringTables;
         AudioReleaseCallback m_audioRelease = nullptr;
-        std::uint32_t m_audioDecodeSampleRate = 0;
+        UInt32 m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;
         Table<AssetId, AssetHandle> m_loaded;
     };

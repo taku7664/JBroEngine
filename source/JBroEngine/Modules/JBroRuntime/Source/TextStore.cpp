@@ -2,6 +2,8 @@
 
 #include <cstring>
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -18,7 +20,7 @@ namespace JBro
         {
             String escaped;
             escaped.reserve(length + 2);
-            bool changed = false;
+            Bool changed = false;
             for (std::size_t index = 0; index < length; ++index)
             {
                 const char character = text[index];
@@ -32,8 +34,8 @@ namespace JBro
                 default: escaped += character; break;
                 }
             }
-            const bool edgeSpace = length > 0 && (text[0] == ' ' || text[length - 1] == ' ');
-            const bool startsQuoted = length > 0 && text[0] == '\'';
+            const Bool edgeSpace = length > 0 && (text[0] == ' ' || text[length - 1] == ' ');
+            const Bool startsQuoted = length > 0 && text[0] == '\'';
             // 파서는 따옴표를 벗긴 **뒤에** `[]`·`{}` 를 빈 컨테이너로 읽는다 - 감싸는 것으로는 막지 못한다. 첫 글자를 이스케이프한다.
             if (false == escaped.empty() && (escaped[0] == '[' || escaped[0] == '{'))
             {
@@ -115,7 +117,7 @@ namespace JBro
 
     TextId TextStore::Create(const char* utf8, std::size_t length)
     {
-        std::uint32_t index = 0;
+        UInt32 index = 0;
         if (false == m_free.IsEmpty())
         {
             index = m_free[m_free.Size() - 1];
@@ -138,7 +140,7 @@ namespace JBro
         return { index, slot.generation };
     }
 
-    bool TextStore::Set(TextId id, const char* utf8, std::size_t length)
+    Bool TextStore::Set(TextId id, const char* utf8, std::size_t length)
     {
         Slot* slot = Find(id);
         if (slot == nullptr)
@@ -183,7 +185,7 @@ namespace JBro
         --m_live;
     }
 
-    bool TextStore::IsAlive(TextId id) const
+    Bool TextStore::IsAlive(TextId id) const
     {
         return Find(id) != nullptr;
     }
@@ -198,13 +200,13 @@ namespace JBro
         return ArrayView<const char>(slot->text.data(), slot->text.size());
     }
 
-    std::uint32_t TextStore::GetRevision(TextId id) const
+    UInt32 TextStore::GetRevision(TextId id) const
     {
         const Slot* slot = Find(id);
-        return slot != nullptr ? slot->revision : 0;
+        return slot != nullptr ? slot->revision : UInt32(0);
     }
 
-    std::uint32_t TextStore::GetLiveCount() const
+    UInt32 TextStore::GetLiveCount() const
     {
         return m_live;
     }
@@ -220,7 +222,7 @@ namespace JBro
     {
         static const ValueCodec codec = [] {
             ValueCodec made;
-            made.ToText = [](const void* value, char* buffer, std::size_t capacity, std::size_t& required) noexcept -> bool {
+            made.ToText = [](const void* value, char* buffer, std::size_t capacity, std::size_t& required) noexcept -> Bool {
                 try
                 {
                     const ArrayView<const char> text = TextStore::Get().GetText(*static_cast<const TextId*>(value));
@@ -240,7 +242,7 @@ namespace JBro
                     return false;
                 }
             };
-            made.FromText = [](void* value, const char* text, std::size_t length) noexcept -> bool {
+            made.FromText = [](void* value, const char* text, std::size_t length) noexcept -> Bool {
                 if (text == nullptr)
                 {
                     return false;
@@ -256,7 +258,7 @@ namespace JBro
                     return false;
                 }
             };
-            made.Equals = [](const void* left, const void* right) noexcept -> bool {
+            made.Equals = [](const void* left, const void* right) noexcept -> Bool {
                 const TextStore& store = TextStore::Get();
                 const ArrayView<const char> a = store.GetText(*static_cast<const TextId*>(left));
                 const ArrayView<const char> b = store.GetText(*static_cast<const TextId*>(right));

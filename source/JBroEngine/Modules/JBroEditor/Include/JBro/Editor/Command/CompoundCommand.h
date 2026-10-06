@@ -3,6 +3,7 @@
 #include <JBro/Editor/EditorCommand.h>
 
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -23,7 +24,7 @@ namespace JBro
 
         // `Execute` 전에만 넣는다. 실행한 뒤에 늘리면 되돌리기가 무엇을
         // 되돌리는지가 갈린다.
-        bool Add(OwnerPtr<EditorCommand> command);
+        Bool Add(OwnerPtr<EditorCommand> command);
         // 묶은 것 가운데 첫 커맨드가 다룬 오브젝트다.
         EditorObjectId GetSubject() const override
         {
@@ -36,16 +37,16 @@ namespace JBro
         // **전부 되거나 하나도 안 된다.** 중간에 실패하면 앞서 성공한 것을
         // 되돌리고 거짓을 돌려준다 - 반쯤 적용된 편집이 스택에 오르지 않은 채
         // 남는 것이 가장 나쁘다.
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
-        bool CanMerge(const EditorCommand& newer) const override;
-        bool TryMerge(const EditorCommand& newer) override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
 
     private:
         const char* m_name = nullptr;
         Array<OwnerPtr<EditorCommand>> m_commands;
-        bool m_executed = false;
+        Bool m_executed = false;
     };
 }

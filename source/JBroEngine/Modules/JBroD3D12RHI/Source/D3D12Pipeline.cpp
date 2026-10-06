@@ -1,16 +1,18 @@
 ﻿#include "D3D12Device.h"
 
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
     namespace
     {
-        constexpr std::uint32_t MaxVertexBuffers = 8;
-        constexpr std::uint32_t MaxVertexAttributes = 16;
-        constexpr std::uint32_t MaxColorTargets = 8;
+        constexpr UInt32 MaxVertexBuffers = 8;
+        constexpr UInt32 MaxVertexAttributes = 16;
+        constexpr UInt32 MaxColorTargets = 8;
 
-        std::uint32_t NextGeneration(std::uint32_t generation)
+        UInt32 NextGeneration(UInt32 generation)
         {
             ++generation;
             if (generation == 0)
@@ -60,7 +62,7 @@ namespace JBro::Internal
             return DXGI_FORMAT_UNKNOWN;
         }
 
-        std::uint32_t VertexFormatSize(VertexFormat format)
+        UInt32 VertexFormatSize(VertexFormat format)
         {
             switch (format)
             {
@@ -91,10 +93,10 @@ namespace JBro::Internal
             return D3D12_SHADER_VISIBILITY_ALL;
         }
 
-        bool BuildInputLayout(
+        Bool BuildInputLayout(
             const GraphicsPipelineDesc& desc,
             D3D12_INPUT_ELEMENT_DESC* elements,
-            std::uint32_t& elementCount)
+            UInt32& elementCount)
         {
             if (desc.vertexBuffers.size > MaxVertexBuffers
                 || (desc.vertexBuffers.size != 0 && desc.vertexBuffers.data == nullptr))
@@ -103,7 +105,7 @@ namespace JBro::Internal
             }
 
             elementCount = 0;
-            for (std::uint32_t bufferIndex = 0; bufferIndex < desc.vertexBuffers.size; ++bufferIndex)
+            for (UInt32 bufferIndex = 0; bufferIndex < desc.vertexBuffers.size; ++bufferIndex)
             {
                 const VertexBufferLayoutDesc& layout = desc.vertexBuffers.data[bufferIndex];
                 if (layout.stride == 0
@@ -114,12 +116,12 @@ namespace JBro::Internal
                     return false;
                 }
 
-                for (std::uint32_t attributeIndex = 0;
+                for (UInt32 attributeIndex = 0;
                     attributeIndex < layout.attributes.size;
                     ++attributeIndex)
                 {
                     const VertexAttributeDesc& attribute = layout.attributes.data[attributeIndex];
-                    const std::uint32_t formatSize = VertexFormatSize(attribute.format);
+                    const UInt32 formatSize = VertexFormatSize(attribute.format);
                     if (formatSize == 0
                         || attribute.offset > layout.stride
                         || formatSize > layout.stride - attribute.offset)
@@ -168,13 +170,13 @@ namespace JBro::Internal
         }
 
         D3D12_INPUT_ELEMENT_DESC inputElements[MaxVertexAttributes] = {};
-        std::uint32_t inputElementCount = 0;
+        UInt32 inputElementCount = 0;
         if (false == BuildInputLayout(desc, inputElements, inputElementCount))
         {
             return {};
         }
 
-        for (std::uint32_t index = 0; index < desc.colorFormats.size; ++index)
+        for (UInt32 index = 0; index < desc.colorFormats.size; ++index)
         {
             if (ToNativeFormat(desc.colorFormats.data[index]) == DXGI_FORMAT_UNKNOWN
                 || desc.colorFormats.data[index] == TextureFormat::D32Float)
@@ -184,8 +186,8 @@ namespace JBro::Internal
         }
 
         CollectRetiredResources();
-        std::uint32_t slotIndex = MaxGraphicsPipelines;
-        for (std::uint32_t index = 0; index < MaxGraphicsPipelines; ++index)
+        UInt32 slotIndex = MaxGraphicsPipelines;
+        for (UInt32 index = 0; index < MaxGraphicsPipelines; ++index)
         {
             if (false == m_graphicsPipelines[index].occupied
                 && m_graphicsPipelines[index].pipeline == nullptr)
@@ -209,9 +211,9 @@ namespace JBro::Internal
         // 파라미터 자리는 상수 → 텍스처 표 → 샘플러 표 순서다. 없는 것은 자리를 차지하지 않으므로
         // 그리는 쪽이 번호를 짐작할 수 없고, 그래서 그 번호를 파이프라인에 적어 둔다.
         D3D12_ROOT_PARAMETER rootParameters[3] = {};
-        std::uint32_t parameterCount = 0;
-        std::uint32_t textureTableParameter = InvalidRootParameter;
-        std::uint32_t samplerTableParameter = InvalidRootParameter;
+        UInt32 parameterCount = 0;
+        UInt32 textureTableParameter = InvalidRootParameter;
+        UInt32 samplerTableParameter = InvalidRootParameter;
 
         D3D12_ROOT_SIGNATURE_DESC rootDesc = {};
         rootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
@@ -225,7 +227,7 @@ namespace JBro::Internal
             parameter.Constants.ShaderRegister = 0;
             parameter.Constants.RegisterSpace = 0;
             parameter.Constants.Num32BitValues =
-                desc.pushConstantBytes / sizeof(std::uint32_t);
+                static_cast<UINT>(desc.pushConstantBytes.Get() / sizeof(std::uint32_t));
             parameter.ShaderVisibility = ToNativeVisibility(desc.pushConstantStages);
             ++parameterCount;
         }
@@ -303,7 +305,7 @@ namespace JBro::Internal
         pipelineDesc.PS = {desc.pixelShader.data, desc.pixelShader.size};
         pipelineDesc.BlendState.AlphaToCoverageEnable = FALSE;
         pipelineDesc.BlendState.IndependentBlendEnable = FALSE;
-        for (std::uint32_t index = 0; index < desc.colorFormats.size; ++index)
+        for (UInt32 index = 0; index < desc.colorFormats.size; ++index)
         {
             D3D12_RENDER_TARGET_BLEND_DESC& target = pipelineDesc.BlendState.RenderTarget[index];
             target.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
@@ -365,7 +367,7 @@ namespace JBro::Internal
         pipelineDesc.InputLayout = {inputElements, inputElementCount};
         pipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
         pipelineDesc.NumRenderTargets = desc.colorFormats.size;
-        for (std::uint32_t index = 0; index < desc.colorFormats.size; ++index)
+        for (UInt32 index = 0; index < desc.colorFormats.size; ++index)
         {
             pipelineDesc.RTVFormats[index] = ToNativeFormat(desc.colorFormats.data[index]);
         }
@@ -382,7 +384,7 @@ namespace JBro::Internal
         state.rootSignature = rootSignature;
         state.pipeline = pipeline;
         state.topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-        state.pushConstantCount = desc.pushConstantBytes / sizeof(std::uint32_t);
+        state.pushConstantCount = UInt32(desc.pushConstantBytes / sizeof(std::uint32_t));
         state.sampledTextureCount = desc.sampledTextureCount;
         state.samplerCount = desc.samplerCount;
         state.textureTableParameter = textureTableParameter;
@@ -416,7 +418,7 @@ namespace JBro::Internal
         }
     }
 
-    bool D3D12Device::ResolveGraphicsPipeline(
+    Bool D3D12Device::ResolveGraphicsPipeline(
         GraphicsPipelineHandle pipeline,
         D3D12PipelineBinding& binding)
     {

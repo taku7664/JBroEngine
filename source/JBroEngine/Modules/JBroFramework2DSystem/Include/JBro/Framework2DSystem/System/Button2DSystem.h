@@ -8,6 +8,10 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -35,7 +39,7 @@ namespace JBro::System
     class Button2DSystem final : public GameSystem, public IInputHandler, public IScreen2DSystem
     {
     public:
-        int GetExecutionOrder() const override;
+        Int32 GetExecutionOrder() const override;
 
         // 입력 체인에 선다. 없으면 버튼은 눌리지 않는다(입력이 없는 호스트).
         void SetScriptSystem(ScriptSystem* scripts);
@@ -44,13 +48,13 @@ namespace JBro::System
 
         InputResult OnInput(InputView& input) override;
 
-        bool ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const override;
-        bool LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const override;
-        bool IsPointerOverButton() const override;
+        Bool ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const override;
+        Bool LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const override;
+        Bool IsPointerOverButton() const override;
 
         // 픽셀을 이 레이어의 좌표로 옮긴다. 월드 레이어는 주 카메라(`Camera2DSystem` 과 같은 고르기)를 쓴다.
-        bool PixelToLayer(const Layer& layer, float pixelX, float pixelY, Vector2& point) const;
-        bool LayerToPixel(const Layer& layer, Vector2 point, float& pixelX, float& pixelY) const;
+        Bool PixelToLayer(const Layer& layer, Float pixelX, Float pixelY, Vector2& point) const;
+        Bool LayerToPixel(const Layer& layer, Vector2 point, Float& pixelX, Float& pixelY) const;
 
     protected:
         void OnInitialize(Canvas& canvas) override;
@@ -59,19 +63,19 @@ namespace JBro::System
     private:
         struct Pointer
         {
-            bool  present = false;
-            bool  touch = false;
-            float x = 0.0f;
-            float y = 0.0f;
-            bool  down = false;
-            bool  pressed = false;
-            bool  released = false;
+            Bool  present = false;
+            Bool  touch = false;
+            Float x = 0.0f;
+            Float y = 0.0f;
+            Bool  down = false;
+            Bool  pressed = false;
+            Bool  released = false;
         };
 
         enum class Hook : std::uint8_t { Enter, Exit, Down, Up, Click };
 
         static Pointer ReadPointer(InputView& input);
-        bool HitTest(const Component::Button2D& button, GameObject& owner, const Layer& layer, const Pointer& pointer) const;
+        Bool HitTest(const Component::Button2D& button, GameObject& owner, const Layer& layer, const Pointer& pointer) const;
         void CallHook(GameObject* object, Hook hook);
         void RefreshScriptKeys();
 
@@ -81,12 +85,12 @@ namespace JBro::System
         // 오브젝트 번호로 기억한다 - 지난 프레임의 포인터가 가리키던 오브젝트가 지워졌을 수 있다.
         InstanceId       m_hovered = InvalidInstanceId;
         InstanceId       m_pressed = InvalidInstanceId;
-        bool             m_pointerOver = false;
+        Bool             m_pointerOver = false;
 
         // 훅을 부를 스크립트를 가른다(물리와 같은 방식, D-207). 스크립트 순서가 바뀐 때만 다시 모은다.
         Array<GameScriptBase*>       m_collectedScripts;
         Array<const ComponentBase*>  m_scriptKeys;
-        std::uint64_t                m_scriptRevision = ~std::uint64_t{0};
+        UInt64                m_scriptRevision = ~UInt64{0};
         Array<GameScript2D*>         m_hookTargets;
     };
 }

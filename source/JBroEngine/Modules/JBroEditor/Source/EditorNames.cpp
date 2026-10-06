@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Int.h>
 
 namespace JBro::EditorNames
 {
@@ -30,7 +31,7 @@ namespace JBro::EditorNames
         // 키를 그 자리에서 짓는다. `Loc::TextOr` 는 키를 읽기만 하고, 돌려주는 것은
         // 표가 들고 있는 글자이거나 넘긴 갈래 이름이므로 이 버퍼보다 오래 산다.
         char key[64] = {};
-        const int written = std::snprintf(key, sizeof(key), "component_category.%s", category);
+        const Int32 written = std::snprintf(key, sizeof(key), "component_category.%s", category);
         if (written <= 0 || static_cast<std::size_t>(written) >= sizeof(key))
         {
             return category;

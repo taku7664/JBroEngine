@@ -22,6 +22,12 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <type_traits>
+#include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 공용 위젯 계층이다(ProjectRule §11.1).
 //
@@ -31,7 +37,7 @@
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -39,6 +45,25 @@ namespace
             throw std::runtime_error(message);
         }
     }
+
+
+    // 숫자 칸이 받는 타입(D-290). 생성자로 값을 받으므로 타입을 적지 않아도 정해진다.
+    template<typename T>
+    concept CanDragField = requires(T& value) { JBro::Widget::DragField("##probe", value); };
+
+    template<typename T>
+    concept CanSliderField = requires(T& value) { JBro::Widget::SliderField("##probe", value, value, value); };
+
+    // **엔진 값 타입만 받는다.** 원시 `float`·`int` 를 넘기면 컴파일이 멈춘다 - 이 단언이 그것을 붙잡는다.
+    static_assert(CanDragField<JBro::Float> && CanDragField<JBro::Int32> && CanDragField<JBro::Int64>
+        && CanDragField<JBro::UInt32> && CanDragField<JBro::UInt64>, "every engine number type has a number field");
+    static_assert(false == CanDragField<float> && false == CanDragField<int> && false == CanDragField<double>
+        && false == CanDragField<std::uint32_t>, "a raw number must not reach the number field");
+    static_assert(CanSliderField<JBro::Float> && CanSliderField<JBro::Int32>, "the slider takes the same types");
+    static_assert(false == CanSliderField<float> && false == CanSliderField<int>, "and refuses raw numbers too");
+    // 타입을 적지 않아도 값에서 정해진다.
+    static_assert(std::is_same_v<decltype(JBro::Widget::DragField("##probe", std::declval<JBro::Float&>())),
+        JBro::Widget::DragField<JBro::Float>>, "the field type comes from the value");
 
     // 창 하나짜리 무대. 화면에 내보내지 않고 프레임만 돈다.
     class Stage
@@ -76,7 +101,7 @@ namespace
         // 배치가 자리 잡을 때까지 빈 프레임을 돌린다.
         void Settle()
         {
-            for (int frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Begin();
                 End();
@@ -107,8 +132,8 @@ namespace
         Stage stage;
         stage.Begin();
 
-        const int colorsBefore = ImGui::GetCurrentContext()->ColorStack.Size;
-        const int varsBefore = ImGui::GetCurrentContext()->StyleVarStack.Size;
+        const JBro::Int32 colorsBefore = ImGui::GetCurrentContext()->ColorStack.Size;
+        const JBro::Int32 varsBefore = ImGui::GetCurrentContext()->StyleVarStack.Size;
         {
             JBro::Widget::StyleScope style;
             style.PushColor(ImGuiCol_Text, ImVec4(1, 0, 0, 1));
@@ -152,8 +177,8 @@ namespace
         stage.Begin();
 
         const std::size_t idBefore = stage.IdStackDepth();
-        int labels = 0;
-        int fields = 0;
+        JBro::Int32 labels = 0;
+        JBro::Int32 fields = 0;
         {
             JBro::Widget::FormLayout layout("##probe");
             Check(layout.IsOpen(), "the layout must open inside a window");
@@ -177,16 +202,16 @@ namespace
         Stage stage;
         stage.Begin();
 
-        int drawn = 0;
-        int added = 0;
-        int removed = -1;
-        int movedFrom = -1;
-        int movedTo = -1;
-        const bool changed = JBro::Widget::ListVirtual("##probe", 3,
-            [&](int) -> bool { ++drawn; ImGui::TextUnformatted("row"); return false; },
+        JBro::Int32 drawn = 0;
+        JBro::Int32 added = 0;
+        JBro::Int32 removed = -1;
+        JBro::Int32 movedFrom = -1;
+        JBro::Int32 movedTo = -1;
+        const JBro::Bool changed = JBro::Widget::ListVirtual("##probe", 3,
+            [&](JBro::Int32) -> JBro::Bool { ++drawn; ImGui::TextUnformatted("row"); return false; },
             [&]() { ++added; },
-            [&](int index) { removed = index; },
-            [&](int from, int to) { movedFrom = from; movedTo = to; });
+            [&](JBro::Int32 index) { removed = index; },
+            [&](JBro::Int32 from, JBro::Int32 to) { movedFrom = from; movedTo = to; });
 
         Check(drawn == 3, "every element must be drawn once");
         Check(false == changed, "nothing was touched, so nothing changed");
@@ -197,10 +222,10 @@ namespace
         // 아무 일이 없으면 고장인지 잠긴 것인지 알 수 없다.
         drawn = 0;
         JBro::Widget::ListVirtual("##readonly", 2,
-            [&](int) -> bool { ++drawn; ImGui::TextUnformatted("row"); return false; },
+            [&](JBro::Int32) -> JBro::Bool { ++drawn; ImGui::TextUnformatted("row"); return false; },
             [&]() { ++added; },
-            [&](int) {},
-            [&](int, int) {},
+            [&](JBro::Int32) {},
+            [&](JBro::Int32, JBro::Int32) {},
             JBro::Widget::ListFlagsReadOnly);
         Check(drawn == 2, "a read-only list still shows its elements");
         Check(added == 0, "but must not offer to add one");
@@ -215,13 +240,13 @@ namespace
         Stage stage;
         stage.Settle();
 
-        float top[3] = {};
-        float bottom[3] = {};
-        for (int frame = 0; frame < 3; ++frame)
+        JBro::Float top[3] = {};
+        JBro::Float bottom[3] = {};
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             stage.Begin();
             JBro::Widget::ListVirtual("##rows", 3,
-                [&](int index) -> bool {
+                [&](JBro::Int32 index) -> JBro::Bool {
                     top[index] = ImGui::GetCursorScreenPos().y;
                     ImGui::Button("first");
                     if (index == 1)
@@ -234,13 +259,13 @@ namespace
                     return false;
                 },
                 []() {},
-                [](int) {},
-                [](int, int) {});
+                [](JBro::Int32) {},
+                [](JBro::Int32, JBro::Int32) {});
             stage.End();
         }
 
-        const float gapAfterShort = top[1] - bottom[0];
-        const float gapAfterTall = top[2] - bottom[1];
+        const JBro::Float gapAfterShort = top[1] - bottom[0];
+        const JBro::Float gapAfterTall = top[2] - bottom[1];
         Check(bottom[1] - top[1] > 2.0f * (bottom[0] - top[0]),
             "the test needs a middle row several lines tall");
         Check(top[2] >= bottom[1], "the row after a tall one must start below all of it");
@@ -259,7 +284,7 @@ namespace
         Stage stage;
         stage.Begin();
 
-        JBro::Array<int> items;
+        JBro::Array<JBro::Int32> items;
         items.Add(10);
         items.Add(20);
         items.Add(30);
@@ -267,11 +292,11 @@ namespace
 
         // 목록 위젯을 거치지 않고 덮개가 만드는 옮기기만 따로 확인한다.
         // 위젯은 보정된 **원소 번호**를 넘긴다고 약속한다.
-        auto move = [&](int fromIndex, int toIndex) {
-            int moved = items[static_cast<std::size_t>(fromIndex)];
+        auto move = [&](JBro::Int32 fromIndex, JBro::Int32 toIndex) {
+            JBro::Int32 moved = items[static_cast<std::size_t>(fromIndex)];
             if (fromIndex < toIndex)
             {
-                for (int at = fromIndex; at < toIndex; ++at)
+                for (JBro::Int32 at = fromIndex; at < toIndex; ++at)
                 {
                     items[static_cast<std::size_t>(at)] =
                         items[static_cast<std::size_t>(at) + 1];
@@ -279,7 +304,7 @@ namespace
             }
             else
             {
-                for (int at = fromIndex; at > toIndex; --at)
+                for (JBro::Int32 at = fromIndex; at > toIndex; --at)
                 {
                     items[static_cast<std::size_t>(at)] =
                         items[static_cast<std::size_t>(at) - 1];
@@ -304,13 +329,13 @@ namespace
     void TestARowsBackgroundCoversEverythingItDraws()
     {
         Stage stage;
-        bool tall = true;
-        float top[3] = {};
-        float bottom[3] = {};
+        JBro::Bool tall = true;
+        JBro::Float top[3] = {};
+        JBro::Float bottom[3] = {};
         const auto frame = [&]() {
             stage.Begin();
             JBro::Widget::ListVirtual("##cover", 3,
-                [&](int index) -> bool {
+                [&](JBro::Int32 index) -> JBro::Bool {
                     top[index] = ImGui::GetCursorScreenPos().y;
                     ImGui::Button("first");
                     if (index == 1 && tall)
@@ -322,11 +347,11 @@ namespace
                     return false;
                 },
                 []() {},
-                [](int) {},
-                [](int, int) {});
+                [](JBro::Int32) {},
+                [](JBro::Int32, JBro::Int32) {});
             stage.End();
         };
-        for (int at = 0; at < 3; ++at)
+        for (JBro::Int32 at = 0; at < 3; ++at)
         {
             frame();
         }
@@ -339,10 +364,10 @@ namespace
             }
         }
         Check(body != nullptr, "the list must open its body");
-        int rowValue = 1;
+        JBro::Int32 rowValue = 1;
         const ImGuiID rowBody = ImHashStr("##row_body", 0,
             ImHashData(&rowValue, sizeof(rowValue), body->ID));
-        const auto hoveredAt = [&](float y) {
+        const auto hoveredAt = [&](JBro::Float y) {
             ImGui::GetIO().AddMousePosEvent(body->Pos.x + 5.0f, y);
             frame();
             return ImGui::GetHoveredID();
@@ -354,7 +379,7 @@ namespace
         // 저장값을 직접 본다 - 내용 높이와 같아야 하고, 접으면 한 줄로 돌아와야 한다.
         const ImGuiID heightKey = ImHashStr("##row_height", 0,
             ImHashData(&rowValue, sizeof(rowValue), body->ID));
-        const float tallHeight = bottom[1] - top[1];
+        const JBro::Float tallHeight = bottom[1] - top[1];
         Check(body->DC.StateStorage->GetFloat(heightKey, 0.0f) == tallHeight,
             "the remembered row height must be exactly what the row drew");
 
@@ -377,24 +402,24 @@ namespace
     void TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing()
     {
         Stage stage;
-        int movedFrom = -1;
-        int movedTo = -1;
-        bool changedInAnyFrame = false;
+        JBro::Int32 movedFrom = -1;
+        JBro::Int32 movedTo = -1;
+        JBro::Bool changedInAnyFrame = false;
         const auto frame = [&]() {
             stage.Begin();
-            const bool changed = JBro::Widget::ListVirtual("##drag", 3,
-                [&](int) -> bool { ImGui::TextUnformatted("row"); return false; },
+            const JBro::Bool changed = JBro::Widget::ListVirtual("##drag", 3,
+                [&](JBro::Int32) -> JBro::Bool { ImGui::TextUnformatted("row"); return false; },
                 [&]() {},
-                [&](int) {},
-                [&](int from, int to) { movedFrom = from; movedTo = to; });
+                [&](JBro::Int32) {},
+                [&](JBro::Int32 from, JBro::Int32 to) { movedFrom = from; movedTo = to; });
             changedInAnyFrame = changedInAnyFrame || changed;
             stage.End();
         };
-        const auto moveMouse = [&](float x, float y) {
+        const auto moveMouse = [&](JBro::Float x, JBro::Float y) {
             ImGui::GetIO().AddMousePosEvent(x, y);
             frame();
         };
-        const auto press = [&](bool down) {
+        const auto press = [&](JBro::Bool down) {
             ImGui::GetIO().AddMouseButtonEvent(0, down);
             frame();
         };
@@ -410,15 +435,15 @@ namespace
             }
         }
         Check(body != nullptr, "the list must open its body");
-        const auto pushedId = [](ImGuiID seed, int value) {
+        const auto pushedId = [](ImGuiID seed, JBro::Int32 value) {
             return ImHashData(&value, sizeof(value), seed);
         };
         const auto labelId = [](ImGuiID seed, const char* label) {
             return ImHashStr(label, 0, seed);
         };
         // `x` 에서 위아래로 훑어 `target` 이 가리켜지는 y 를 찾는다.
-        const auto findY = [&](ImGuiID target, float x, float& y) {
-            for (float at = body->Pos.y; at < body->Pos.y + body->Size.y; at += 1.0f)
+        const auto findY = [&](ImGuiID target, JBro::Float x, JBro::Float& y) {
+            for (JBro::Float at = body->Pos.y; at < body->Pos.y + body->Size.y; at += 1.0f)
             {
                 moveMouse(x, at);
                 if (ImGui::GetHoveredID() == target)
@@ -429,11 +454,11 @@ namespace
             }
             return false;
         };
-        const auto dragTo = [&](float fromX, float fromY, float toX, float toY) {
+        const auto dragTo = [&](JBro::Float fromX, JBro::Float fromY, JBro::Float toX, JBro::Float toY) {
             moveMouse(fromX, fromY);
             press(true);
-            constexpr int Steps = 10;
-            for (int step = 1; step <= Steps; ++step)
+            constexpr JBro::Int32 Steps = 10;
+            for (JBro::Int32 step = 1; step <= Steps; ++step)
             {
                 moveMouse(fromX + (toX - fromX) * step / Steps,
                     fromY + (toY - fromY) * step / Steps);
@@ -442,10 +467,10 @@ namespace
             press(false);
             frame();
         };
-        const float handleX = body->Pos.x + 5.0f;
-        const float middleX = body->Pos.x + body->Size.x * 0.5f;
-        float rowY = 0.0f;
-        float slotY = 0.0f;
+        const JBro::Float handleX = body->Pos.x + 5.0f;
+        const JBro::Float middleX = body->Pos.x + body->Size.x * 0.5f;
+        JBro::Float rowY = 0.0f;
+        JBro::Float slotY = 0.0f;
 
         // 둘째 행을 첫 행 위에 놓는다.
         Check(findY(labelId(pushedId(body->ID, 1), "##row_body"), handleX, rowY),
@@ -489,7 +514,7 @@ namespace
         // **잎사귀에도 `NoTreePushOnOpen` 이 필요하다.** 열린 것으로 치면서
         // Id 를 밀어 넣으므로, 빼지 않으면 ImGui 가 "TreePop 이 빠졌다" 고
         // 단언한다 - 계층 패널이 자식 없는 줄에 같은 짝을 준다.
-        const bool opened = JBro::Widget::TreeBegin("##node",
+        const JBro::Bool opened = JBro::Widget::TreeBegin("##node",
             ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf
                 | ImGuiTreeNodeFlags_NoTreePushOnOpen, &row);
         JBro::Widget::TreeEnd();
@@ -516,7 +541,7 @@ namespace
         stage.Begin();
 
         JBro::String text = "hello";
-        const bool changed = JBro::Widget::TextField("##probe", text).Draw();
+        const JBro::Bool changed = JBro::Widget::TextField("##probe", text).Draw();
         Check(false == changed, "nobody typed, so nothing changed");
         Check(text == JBro::String("hello"), "and the value is untouched");
 
@@ -547,14 +572,14 @@ namespace
     {
         Stage stage;
         const char* const items[] = { "Transform2D", "SpriteRenderer2D", "Rigidbody2D" };
-        int current = -1;
-        int changedFrames = 0;
+        JBro::Int32 current = -1;
+        JBro::Int32 changedFrames = 0;
         ImVec2 triggerMin;
         ImVec2 triggerMax;
-        bool triggerKnown = false;
+        JBro::Bool triggerKnown = false;
         const auto frame = [&]() {
             stage.Begin();
-            const bool changed = JBro::Widget::FilterCombo("##probe", items, current)
+            const JBro::Bool changed = JBro::Widget::FilterCombo("##probe", items, current)
                 .EmptyText("(none)")
                 .Width(200.0f)
                 .Draw();
@@ -652,15 +677,15 @@ namespace
         const char* const items[] = { "Collider2D", "Rigidbody2D", "Camera2D" };
         const char* const groups[] = { "Physics", "Physics", "Rendering" };
         // 첫 항목은 이미 붙어 있어 고를 수 없다.
-        const bool addable[] = { false, true, true };
-        int plain = -1;
-        int grouped = -1;
-        float plainHeight = 0.0f;
-        float groupedHeight = 0.0f;
+        const JBro::Bool addable[] = { false, true, true };
+        JBro::Int32 plain = -1;
+        JBro::Int32 grouped = -1;
+        JBro::Float plainHeight = 0.0f;
+        JBro::Float groupedHeight = 0.0f;
         ImVec2 triggerMin;
         ImVec2 triggerMax;
-        bool triggerKnown = false;
-        bool useGroups = false;
+        JBro::Bool triggerKnown = false;
+        JBro::Bool useGroups = false;
         const auto frame = [&]() {
             stage.Begin();
             if (useGroups)
@@ -688,7 +713,7 @@ namespace
             }
             if (const ImGuiWindow* popup = FindComboPopup())
             {
-                float& into = useGroups ? groupedHeight : plainHeight;
+                JBro::Float& into = useGroups ? groupedHeight : plainHeight;
                 into = popup->ContentSize.y;
             }
             stage.End();
@@ -739,10 +764,10 @@ namespace
     void TestAnEmptyFilterComboDrawsAndChangesNothing()
     {
         Stage stage;
-        int current = -1;
+        JBro::Int32 current = -1;
         const JBro::ArrayView<const char* const> none;
         stage.Begin();
-        const bool changed = JBro::Widget::FilterCombo("##empty", none, current)
+        const JBro::Bool changed = JBro::Widget::FilterCombo("##empty", none, current)
             .EmptyText("(none)").Draw();
         stage.End();
         Check(false == changed && current == -1, "an empty list changes nothing");
@@ -762,17 +787,17 @@ namespace
         JBro::EnumNames table;
         table.names = names;
         table.count = 3;
-        table.ToIndex = [](const void* value) noexcept -> std::int32_t {
+        table.ToIndex = [](const void* value) noexcept -> JBro::Int32 {
             return *static_cast<const std::int32_t*>(value);
         };
-        table.FromIndex = [](void* value, std::int32_t index) noexcept {
+        table.FromIndex = [](void* value, JBro::Int32 index) noexcept {
             *static_cast<std::int32_t*>(value) = index;
         };
-        std::int32_t value = 0;
-        int changedFrames = 0;
+        JBro::Int32 value = 0;
+        JBro::Int32 changedFrames = 0;
         ImVec2 triggerMin;
         ImVec2 triggerMax;
-        bool triggerKnown = false;
+        JBro::Bool triggerKnown = false;
         const auto frame = [&]() {
             stage.Begin();
             if (JBro::Widget::EnumCombo("##enum", table, &value, 150.0f))
@@ -806,11 +831,11 @@ namespace
         Check(ImGui::GetActiveID() == 0, "a short enum shows no search box to focus");
 
         // 둘째 항목("Linear")의 Id 는 팝업 창 → PushID(1) → 이름이다.
-        int itemIndex = 1;
+        JBro::Int32 itemIndex = 1;
         const ImGuiID linear = ImHashStr(names[1], 0,
             ImHashData(&itemIndex, sizeof(itemIndex), popup->ID));
-        bool found = false;
-        for (float at = popup->Pos.y; at < popup->Pos.y + popup->Size.y; at += 1.0f)
+        JBro::Bool found = false;
+        for (JBro::Float at = popup->Pos.y; at < popup->Pos.y + popup->Size.y; at += 1.0f)
         {
             io.AddMousePosEvent(popup->Pos.x + 10.0f, at);
             frame();
@@ -843,11 +868,11 @@ namespace
         names[0] = "Default";
         names[1] = "Player";
         names[2] = "Enemy";
-        std::uint32_t mask = (1u << 0) | (1u << 5);
-        int changedFrames = 0;
+        JBro::UInt32 mask = (1u << 0) | (1u << 5);
+        JBro::Int32 changedFrames = 0;
         ImVec2 triggerMin;
         ImVec2 triggerMax;
-        bool triggerKnown = false;
+        JBro::Bool triggerKnown = false;
         const auto frame = [&]() {
             stage.Begin();
             if (JBro::Widget::LayerMaskField("##layers", JBro::ArrayView<const char* const>(names, 32), mask))
@@ -874,11 +899,11 @@ namespace
         frame();
         ImGuiWindow* popup = FindComboPopup();
         Check(popup != nullptr, "clicking the layer field opens its list");
-        const auto idOf = [&](int bit, const char* label) {
+        const auto idOf = [&](JBro::Int32 bit, const char* label) {
             return ImHashStr(label, 0, ImHashData(&bit, sizeof(bit), popup->ID));
         };
         const auto hover = [&](ImGuiID target) {
-            for (float at = popup->Pos.y; at < popup->Pos.y + popup->Size.y; at += 1.0f)
+            for (JBro::Float at = popup->Pos.y; at < popup->Pos.y + popup->Size.y; at += 1.0f)
             {
                 io.AddMousePosEvent(popup->Pos.x + 12.0f, at);
                 frame();
@@ -910,7 +935,7 @@ namespace
     }
 
     // 그리기 목록 전부에서 이 색의 정점이 있는가. 외곽선은 `DragDropTarget`, 칠하기는 `DragDropTargetBg` 로 그려진다.
-    bool AnyVertexHasColour(ImU32 colour)
+    JBro::Bool AnyVertexHasColour(ImU32 colour)
     {
         const ImDrawData* data = ImGui::GetDrawData();
         if (data == nullptr)
@@ -951,16 +976,16 @@ namespace
         ImRect shared;
         ImRect raw;
         ImRect other;
-        std::uint64_t received = 0;
-        int deliveries = 0;
-        bool otherReceived = false;
+        JBro::UInt64 received = 0;
+        JBro::Int32 deliveries = 0;
+        JBro::Bool otherReceived = false;
         const auto frame = [&]() {
             stage.Begin();
             ImGui::Button("source", ImVec2(120.0f, 24.0f));
             source = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
             if (JBro::Widget::BeginDragSource())
             {
-                JBro::Widget::SetDragValue(JBro::Widget::DragKind::HierarchyObject, std::uint64_t(42));
+                JBro::Widget::SetDragValue(JBro::Widget::DragKind::HierarchyObject, JBro::UInt64(42));
                 ImGui::TextUnformatted("dragging");
                 JBro::Widget::EndDragSource();
             }
@@ -968,7 +993,7 @@ namespace
             rawSource = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
             if (ImGui::BeginDragDropSource())
             {
-                const std::uint64_t value = 7;
+                const JBro::UInt64 value = 7;
                 ImGui::SetDragDropPayload("JBRO_HIERARCHY_MOVE", &value, sizeof(value));
                 ImGui::TextUnformatted("dragging");
                 ImGui::EndDragDropSource();
@@ -977,7 +1002,7 @@ namespace
             shared = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
             if (JBro::Widget::BeginDropTarget())
             {
-                std::uint64_t value = 0;
+                JBro::UInt64 value = 0;
                 if (JBro::Widget::AcceptDropValue(JBro::Widget::DragKind::HierarchyObject, value))
                 {
                     received = value;
@@ -996,7 +1021,7 @@ namespace
             other = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
             if (JBro::Widget::BeginDropTarget())
             {
-                std::uint32_t layer = 0;
+                JBro::UInt32 layer = 0;
                 otherReceived = JBro::Widget::AcceptDropValue(JBro::Widget::DragKind::HierarchyLayer, layer)
                     || otherReceived;
                 JBro::Widget::EndDropTarget();
@@ -1018,7 +1043,7 @@ namespace
             io.AddMouseButtonEvent(0, true);
             frame();
             const ImVec2 start = from.GetCenter();
-            for (int step = 1; step <= 5; ++step)
+            for (JBro::Int32 step = 1; step <= 5; ++step)
             {
                 io.AddMousePosEvent(start.x + step * 4.0f, start.y);
                 frame();
@@ -1077,22 +1102,22 @@ namespace
     void TestAListRowDroppedOnAnotherListMovesNothing()
     {
         Stage stage;
-        int movesA = 0;
-        int movesB = 0;
+        JBro::Int32 movesA = 0;
+        JBro::Int32 movesB = 0;
         const auto frame = [&]() {
             stage.Begin();
             JBro::Widget::ListVirtual("##a", 3,
-                [&](int) -> bool { ImGui::TextUnformatted("row"); return false; },
-                [&]() {}, [&](int) {}, [&](int, int) { ++movesA; });
+                [&](JBro::Int32) -> JBro::Bool { ImGui::TextUnformatted("row"); return false; },
+                [&]() {}, [&](JBro::Int32) {}, [&](JBro::Int32, JBro::Int32) { ++movesA; });
             JBro::Widget::ListVirtual("##b", 3,
-                [&](int) -> bool { ImGui::TextUnformatted("row"); return false; },
-                [&]() {}, [&](int) {}, [&](int, int) { ++movesB; });
+                [&](JBro::Int32) -> JBro::Bool { ImGui::TextUnformatted("row"); return false; },
+                [&]() {}, [&](JBro::Int32) {}, [&](JBro::Int32, JBro::Int32) { ++movesB; });
             stage.End();
         };
         frame();
         frame();
         ImGuiWindow* bodies[2] = {};
-        int found = 0;
+        JBro::Int32 found = 0;
         for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
         {
             if (std::strstr(window->Name, "##list_body") != nullptr && found < 2)
@@ -1102,12 +1127,12 @@ namespace
         }
         Check(found == 2 && bodies[0]->Pos.y < bodies[1]->Pos.y, "both lists must open their bodies, one above the other");
         ImGuiIO& io = ImGui::GetIO();
-        const auto moveMouse = [&](float x, float y) {
+        const auto moveMouse = [&](JBro::Float x, JBro::Float y) {
             io.AddMousePosEvent(x, y);
             frame();
         };
-        const auto findY = [&](ImGuiWindow* body, ImGuiID target, float x, float& y) {
-            for (float at = body->Pos.y; at < body->Pos.y + body->Size.y; at += 1.0f)
+        const auto findY = [&](ImGuiWindow* body, ImGuiID target, JBro::Float x, JBro::Float& y) {
+            for (JBro::Float at = body->Pos.y; at < body->Pos.y + body->Size.y; at += 1.0f)
             {
                 moveMouse(x, at);
                 if (ImGui::GetHoveredID() == target)
@@ -1118,15 +1143,15 @@ namespace
             }
             return false;
         };
-        const auto rowId = [](ImGuiWindow* body, int index, const char* label) {
+        const auto rowId = [](ImGuiWindow* body, JBro::Int32 index, const char* label) {
             return ImHashStr(label, 0, ImHashData(&index, sizeof(index), body->ID));
         };
-        const auto dragTo = [&](float fromX, float fromY, float toX, float toY) {
+        const auto dragTo = [&](JBro::Float fromX, JBro::Float fromY, JBro::Float toX, JBro::Float toY) {
             moveMouse(fromX, fromY);
             io.AddMouseButtonEvent(0, true);
             frame();
-            constexpr int Steps = 10;
-            for (int step = 1; step <= Steps; ++step)
+            constexpr JBro::Int32 Steps = 10;
+            for (JBro::Int32 step = 1; step <= Steps; ++step)
             {
                 moveMouse(fromX + (toX - fromX) * step / Steps, fromY + (toY - fromY) * step / Steps);
             }
@@ -1135,10 +1160,10 @@ namespace
             frame();
             frame();
         };
-        const float handleX = bodies[0]->Pos.x + 5.0f;
-        const float middleX = bodies[0]->Pos.x + bodies[0]->Size.x * 0.5f;
-        float rowY = 0.0f;
-        float slotY = 0.0f;
+        const JBro::Float handleX = bodies[0]->Pos.x + 5.0f;
+        const JBro::Float middleX = bodies[0]->Pos.x + bodies[0]->Size.x * 0.5f;
+        JBro::Float rowY = 0.0f;
+        JBro::Float slotY = 0.0f;
         Check(findY(bodies[0], rowId(bodies[0], 1, "##row_body"), handleX, rowY), "list A's second row must have a handle");
         // 끌지 않는 동안 B 의 사이 칸은 받는 자리가 아니라 그냥 빈 단추다. 자리는 그대로 찾을 수 있다.
         Check(findY(bodies[1], rowId(bodies[1], 0, "##slot"), middleX, slotY), "list B must have a slot above its first row");
@@ -1159,12 +1184,12 @@ namespace
     {
         Stage stage;
         const char* const names[] = { "None", "Anchor", "Weight" };
-        int chosen = 0;
-        std::uint64_t dropped = 7;
-        int changedFrames = 0;
+        JBro::Int32 chosen = 0;
+        JBro::UInt64 dropped = 7;
+        JBro::Int32 changedFrames = 0;
         ImVec2 triggerMin;
         ImVec2 triggerMax;
-        bool triggerKnown = false;
+        JBro::Bool triggerKnown = false;
         const auto frame = [&]() {
             stage.Begin();
             if (JBro::Widget::ObjectField("##object", names, chosen, JBro::Widget::DragKind::HierarchyObject, dropped))
@@ -1213,10 +1238,10 @@ namespace
         const char* const names[] = { "art/hero.png", "art/tiles.png" };
         const JBro::AssetId ids[] = { JBro::Uuid::FromName("hero"), JBro::Uuid::FromName("tiles") };
         JBro::AssetId value;
-        int changedFrames = 0;
+        JBro::Int32 changedFrames = 0;
         ImVec2 triggerMin;
         ImVec2 triggerMax;
-        bool triggerKnown = false;
+        JBro::Bool triggerKnown = false;
         const auto frame = [&]() {
             stage.Begin();
             if (JBro::Widget::AssetField("##asset", names, ids, value)
@@ -1294,7 +1319,7 @@ namespace
         stage.Begin();
 
         JBro::String buffer = "*.psd\n*.tmp\n";
-        const bool changed = JBro::Widget::NameListEdit("##names", buffer);
+        const JBro::Bool changed = JBro::Widget::NameListEdit("##names", buffer);
         Check(false == changed, "nobody typed, so nothing changed");
         Check(buffer == JBro::String("*.psd\n*.tmp\n"), "and the buffer is untouched");
 
@@ -1329,14 +1354,14 @@ namespace
 
     // 이 단추가 방금 칠한 색들을 모은다. 정점 색을 그대로 읽는다 - 테마를 밀고 당기는
     // 것은 그리는 순간에만 서 있어서, 부른 뒤에 스타일을 물어보면 이미 원래대로다.
-    void CollectButtonColors(const ImDrawList* list, int fromVertex,
+    void CollectButtonColors(const ImDrawList* list, JBro::Int32 fromVertex,
         JBro::Array<unsigned int>& out)
     {
         out.Clear();
-        for (int at = fromVertex; at < list->VtxBuffer.Size; ++at)
+        for (JBro::Int32 at = fromVertex; at < list->VtxBuffer.Size; ++at)
         {
             const unsigned int color = list->VtxBuffer[at].col;
-            bool seen = false;
+            JBro::Bool seen = false;
             for (std::size_t index = 0; index < out.Size(); ++index)
             {
                 seen = seen || out[index] == color;
@@ -1348,7 +1373,7 @@ namespace
         }
     }
 
-    bool HasColor(const JBro::Array<unsigned int>& colors, unsigned int color)
+    JBro::Bool HasColor(const JBro::Array<unsigned int>& colors, unsigned int color)
     {
         for (std::size_t index = 0; index < colors.Size(); ++index)
         {
@@ -1370,7 +1395,7 @@ namespace
         ImDrawList* list = ImGui::GetWindowDrawList();
         const unsigned int themeButton = ImGui::GetColorU32(ImGuiCol_Button);
 
-        int mark = list->VtxBuffer.Size;
+        JBro::Int32 mark = list->VtxBuffer.Size;
         JBro::Widget::ActionButton("plain", JBro::Widget::Severity::Info);
         JBro::Array<unsigned int> plain;
         CollectButtonColors(list, mark, plain);
@@ -1397,8 +1422,8 @@ namespace
 
         // **잠긴 단추는 눌러도 눌리지 않는다.** 같은 자리를 같은 손짓으로 두 번 누른다 -
         // 한 번은 잠근 채로, 한 번은 풀고서. 잠갔을 때만 답이 없어야 한다.
-        bool locked = true;
-        bool pressed = false;
+        JBro::Bool locked = true;
+        JBro::Bool pressed = false;
         ImVec2 where(0.0f, 0.0f);
         const auto frame = [&]() {
             stage.Begin();
@@ -1453,14 +1478,14 @@ namespace
         Stage stage;
         JBro::EditorTheme::ApplyLayout();
         ImGuiIO& io = ImGui::GetIO();
-        int value = 9;
-        int changedFrames = 0;
+        JBro::Int32 value = 9;
+        JBro::Int32 changedFrames = 0;
         ImVec2 fieldMin;
         ImVec2 fieldMax;
         ImGuiID lastItem = 0;
         const auto frame = [&]() {
             stage.Begin();
-            if (JBro::Widget::DragInt("##count").Range(0, 10).Width(160.0f).Draw(value))
+            if (JBro::Widget::DragField("##count", value).Range(0, 10).Width(160.0f)())
             {
                 ++changedFrames;
             }
@@ -1478,7 +1503,7 @@ namespace
         Check(fieldMax.x - fieldMin.x > 159.0f && fieldMax.x - fieldMin.x < 161.0f,
             "the arrows sit inside the field, so the field keeps the whole width");
 
-        const auto click = [&](float x, float y) {
+        const auto click = [&](JBro::Float x, JBro::Float y) {
             io.AddMousePosEvent(x, y);
             frame();
             frame();
@@ -1487,9 +1512,9 @@ namespace
             io.AddMouseButtonEvent(0, false);
             frame();
         };
-        const float arrowX = fieldMax.x - 3.0f;
-        const float upY = fieldMin.y + 3.0f;
-        const float downY = fieldMax.y - 3.0f;
+        const JBro::Float arrowX = fieldMax.x - 3.0f;
+        const JBro::Float upY = fieldMin.y + 3.0f;
+        const JBro::Float downY = fieldMax.y - 3.0f;
 
         click(arrowX, upY);
         Check(value == 10 && changedFrames == 1, "the upper arrow must add one step");
@@ -1499,9 +1524,60 @@ namespace
         Check(value == 9, "the lower arrow must take one step away");
 
         // 칸 한가운데를 눌렀다 떼는 것은 끌기의 일이다. 움직이지 않았으니 값은 그대로다.
-        const int before = changedFrames;
+        const JBro::Int32 before = changedFrames;
         click((fieldMin.x + fieldMax.x) * 0.5f, (fieldMin.y + fieldMax.y) * 0.5f);
         Check(value == 9 && changedFrames == before, "a click on the middle of the field is not an arrow");
+    }
+
+    // **실수·부호 없는 정수·64 비트 칸도 같은 ▲▼ 다**(D-290). 실수는 `Step` 만큼, 부호 없는 값은 0 아래로 감기지 않고,
+    // 64 비트 정수는 32 비트를 넘는 값도 그대로 한 칸씩 움직인다. 슬라이더도 엔진 타입을 바로 잡는다.
+    void TestEveryNumberTypeSpinsTheSameWay()
+    {
+        Stage stage;
+        JBro::EditorTheme::ApplyLayout();
+        ImGuiIO& io = ImGui::GetIO();
+        JBro::Float speed = 1.0f;
+        JBro::UInt32 count = 0;
+        JBro::Int64 big = 5000000000ll;
+        JBro::UInt32 sliderValue = 3;
+        ImVec2 rects[3][2];
+        const auto frame = [&]() {
+            stage.Begin();
+            JBro::Widget::DragField("##speed", speed).Step(0.25f).Width(160.0f)();
+            rects[0][0] = ImGui::GetItemRectMin();
+            rects[0][1] = ImGui::GetItemRectMax();
+            JBro::Widget::DragField("##count", count).Width(160.0f)();
+            rects[1][0] = ImGui::GetItemRectMin();
+            rects[1][1] = ImGui::GetItemRectMax();
+            JBro::Widget::DragField("##big", big).Width(160.0f)();
+            rects[2][0] = ImGui::GetItemRectMin();
+            rects[2][1] = ImGui::GetItemRectMax();
+            JBro::Widget::SliderField("##slider", sliderValue, 0u, 10u).Width(160.0f)();
+            stage.End();
+        };
+        stage.Settle();
+        frame();
+        const auto click = [&](JBro::Float x, JBro::Float y) {
+            io.AddMousePosEvent(x, y);
+            frame();
+            frame();
+            io.AddMouseButtonEvent(0, true);
+            frame();
+            io.AddMouseButtonEvent(0, false);
+            frame();
+        };
+        const auto up = [&](int which) { click(rects[which][1].x - 3.0f, rects[which][0].y + 3.0f); };
+        const auto down = [&](int which) { click(rects[which][1].x - 3.0f, rects[which][1].y - 3.0f); };
+
+        up(0);
+        Check(speed > 1.24f && speed < 1.26f, "a float field steps by its Step");
+        down(1);
+        Check(count == 0u, "an unsigned field does not wrap below zero");
+        up(1);
+        Check(count == 1u, "and steps up by one");
+        up(2);
+        Check(big == 5000000001ll, "a 64-bit field keeps values past 32 bits");
+        Check(sliderValue == 3u, "an untouched slider keeps its engine value");
     }
 
     // **툴팁은 마우스가 멈춘 뒤 잠시 있다가 뜬다.** 지나가기만 해도 뜨면 패널 위를 움직일 때마다
@@ -1539,18 +1615,18 @@ namespace
             // 툴팁이 막 떴던 자리에서 곧장 옆 항목으로 가면 ImGui 는 기다림을 이어 쓴다(도구 막대를 훑을 때
             // 바로바로 뜨게). 그 몫이 지워지도록 1 초 비켜 있는다.
             io.AddMousePosEvent(5.0f, 590.0f);
-            for (int step = 0; step < 60; ++step)
+            for (JBro::Int32 step = 0; step < 60; ++step)
             {
                 frame();
             }
             io.AddMousePosEvent((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f);
             // 0.3 초까지는 뜨지 않는다.
-            for (int step = 0; step < 18; ++step)
+            for (JBro::Int32 step = 0; step < 18; ++step)
             {
                 Check(false == frame(), early);
             }
-            bool shown = false;
-            for (int step = 0; step < 30 && false == shown; ++step)
+            JBro::Bool shown = false;
+            for (JBro::Int32 step = 0; step < 30 && false == shown; ++step)
             {
                 shown = frame();
             }
@@ -1563,7 +1639,7 @@ namespace
     }
 }
 
-int RunEditorWidgetTests()
+JBro::Int32 RunEditorWidgetTests()
 {
     TestScopesUnwindThemselves();
     TestTheFormLayoutOpensAndClosesCleanly();
@@ -1588,6 +1664,7 @@ int RunEditorWidgetTests()
     TestSeverityColoursDiffer();
     TestATooltipWaitsForTheMouseToRest();
     TestTheNumberFieldSpinsWithStackedArrowsInsideIt();
+    TestEveryNumberTypeSpinsTheSameWay();
     std::cout << "Editor widget tests passed.\n";
     return 0;
 }

@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <JBro/Types/Bool.h>
 
 // 아이콘 글리프가 U+F0000 위에 있다(D-277). 16 비트 `ImWchar` 면 범위가 잘리고 글자를 읽을 때
 // 모두 네모가 되는데 빌드는 지난다 - 그래서 여기서 막는다.
@@ -221,7 +222,7 @@ namespace JBro::EditorTheme
     namespace
     {
         const char* g_iconFontPath = nullptr;
-        bool g_hasIconFont = false;
+        Bool g_hasIconFont = false;
         // 글꼴 파일을 읽어 줄 플랫폼이다. 널이면 아이콘 없이 간다.
         IPlatform* g_platform = nullptr;
     }
@@ -232,7 +233,7 @@ namespace JBro::EditorTheme
         g_platform = platform;
     }
 
-    bool HasIconFont()
+    Bool HasIconFont()
     {
         return g_hasIconFont;
     }
@@ -284,7 +285,7 @@ namespace JBro::EditorTheme
         std::printf("note: icon font at %s could not be read; icons render as boxes\n", g_iconFontPath);
     }
 
-    bool ApplyFont()
+    Bool ApplyFont()
     {
         ImGuiIO& io = ImGui::GetIO();
 

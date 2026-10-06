@@ -3,6 +3,8 @@
 #include <JBro/Editor/Widget/Common.h>
 
 #include <JBro/Reflection/TypeDescriptor.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Widget
 {
@@ -13,6 +15,6 @@ namespace JBro::Widget
     // 만들지 않는다. 그 대신 값의 주소와 설명자를 받는다.
     //
     // 돌려주는 값: 참이면 값이 바뀌었다.
-    bool EnumCombo(const char* id, const EnumNames& names, void* value,
-        float width = 0.0f);
+    Bool EnumCombo(const char* id, const EnumNames& names, void* value,
+        Float width = 0.0f);
 }

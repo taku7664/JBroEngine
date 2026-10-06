@@ -5,6 +5,8 @@
 #include <JBro/Package/PackageCook.h>
 #include <JBro/Package/PackageWriter.h>
 #include <JBro/Types/Uuid.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -33,7 +35,7 @@ namespace JBro
             return path;
         }
 
-        bool CopyWholeFile(IPlatform& platform, const String& from, const String& to)
+        Bool CopyWholeFile(IPlatform& platform, const String& from, const String& to)
         {
             Array<std::byte> bytes;
             if (false == platform.ReadWholeFile(from.c_str(), bytes) || bytes.Size() > 0xFFFFFFFFull)
@@ -46,7 +48,7 @@ namespace JBro
             return platform.WriteWholeFile(to.c_str(), view);
         }
 
-        bool Fail(GameBuildReport& report, const char* why)
+        Bool Fail(GameBuildReport& report, const char* why)
         {
             report.error = why;
             return false;
@@ -72,7 +74,7 @@ namespace JBro
         return String(absolute.c_str() + root.size());
     }
 
-    bool BuildGame(IPlatform& platform, const ProjectFile& project, const char* projectFilePath, const GameBuildOptions& options,
+    Bool BuildGame(IPlatform& platform, const ProjectFile& project, const char* projectFilePath, const GameBuildOptions& options,
         GameBuildReport& report)
     {
         report = {};
@@ -145,7 +147,7 @@ namespace JBro
         }
         // 키는 빌드마다 뽑는다(D-232 §2.3). 0 은 피한다 - 섞지 않은 것과 헷갈린다.
         const Uuid random = Uuid::Generate();
-        const std::uint64_t key = (random.high ^ random.low) | 1ull;
+        const UInt64 key = (random.high ^ random.low) | 1ull;
         Package::PackageWriter writer(key);
         Package::CookReport cooked;
         if (false == Package::CookAssets(platform, registry, assetRoot.c_str(), ArrayView<const AssetId>(included.Data(), included.Size()),

@@ -13,21 +13,25 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
     // 게임 화면의 해상도다. **에디터 창 크기와 무관하다** - 창을 끌어도 게임이 보는
     // 화면은 그대로여야 하고, 패널에는 비율을 지켜 맞춰 붙인다.
-    constexpr std::uint32_t GameViewWidth = 640;
-    constexpr std::uint32_t GameViewHeight = 360;
+    constexpr JBro::UInt32 GameViewWidth = 640;
+    constexpr JBro::UInt32 GameViewHeight = 360;
 
     // 종료 코드다. 런처가 이 값으로 무엇이 틀어졌는지 구분한다(D-97).
     // 사람이 읽을 사유는 표준 출력으로도 같이 나간다.
-    constexpr int ExitOk = 0;
-    constexpr int ExitInitializeFailed = 1;
-    constexpr int ExitProjectFailed = 2;
-    constexpr int ExitEditorUiFailed = 3;
-    constexpr int ExitUsageError = 64;
+    constexpr JBro::Int32 ExitOk = 0;
+    constexpr JBro::Int32 ExitInitializeFailed = 1;
+    constexpr JBro::Int32 ExitProjectFailed = 2;
+    constexpr JBro::Int32 ExitEditorUiFailed = 3;
+    constexpr JBro::Int32 ExitUsageError = 64;
 
     struct HostOptions
     {
@@ -40,7 +44,7 @@ namespace
         long long frameLimit = 0;
         // 제어 포트다(D-270). 0 이면 열지 않는다 - 에디터를 둘 띄워 시험할 때 뒤의 것이 포트를 다투지 않게 한다.
         long long controlPort = JBro::EditorControlPort::DefaultPort;
-        bool showHelp = false;
+        JBro::Bool showHelp = false;
     };
 
     void PrintUsage()
@@ -61,7 +65,7 @@ namespace
             "64 bad arguments\n");
     }
 
-    bool ParseFrameLimit(const char* text, long long& result)
+    JBro::Bool ParseFrameLimit(const char* text, long long& result)
     {
         char* end = nullptr;
         const long long value = std::strtoll(text, &end, 10);
@@ -75,10 +79,10 @@ namespace
 
     // 값을 받는 옵션이 값 없이 마지막에 오면 다음 인자를 읽다가 배열 밖으로 나간다.
     // 여기서 한 번에 막고, 무엇이 빠졌는지 옵션 이름으로 알린다.
-    bool TakeValue(
-        int argumentCount,
+    JBro::Bool TakeValue(
+        JBro::Int32 argumentCount,
         char** arguments,
-        int& index,
+        JBro::Int32& index,
         const char* optionName,
         const char*& value,
         JBro::String& error)
@@ -94,9 +98,9 @@ namespace
         return true;
     }
 
-    bool ParseOptions(int argumentCount, char** arguments, HostOptions& options, JBro::String& error)
+    JBro::Bool ParseOptions(JBro::Int32 argumentCount, char** arguments, HostOptions& options, JBro::String& error)
     {
-        for (int index = 1; index < argumentCount; ++index)
+        for (JBro::Int32 index = 1; index < argumentCount; ++index)
         {
             const char* argument = arguments[index];
             if (std::strcmp(argument, "--help") == 0 || std::strcmp(argument, "-h") == 0)
@@ -203,11 +207,11 @@ namespace
         struct Block
         {
             const char* name;
-            float x;
-            float y;
-            float red;
-            float green;
-            float blue;
+            JBro::Float x;
+            JBro::Float y;
+            JBro::Float red;
+            JBro::Float green;
+            JBro::Float blue;
         };
         // 이름에 한글을 섞는다. 글꼴이 안 잡혔으면 여기가 네모로 나온다 -
         // 띄워 놓고 눈으로 바로 알 수 있는 자리다.
@@ -296,7 +300,7 @@ int main(int argumentCount, char** arguments)
             std::printf(
                 "the editor could not open %s (line %u): %s\n",
                 options.projectFilePath,
-                error.line,
+                error.line.Get(),
                 error.message.c_str());
             editor.Shutdown();
             return ExitProjectFailed;

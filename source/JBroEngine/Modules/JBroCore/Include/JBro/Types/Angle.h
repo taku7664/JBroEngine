@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Types/Float.h>
+
 #include <JBro/Types/StrongTypeOps.h>
 
 #include <cmath>
@@ -49,9 +51,12 @@ namespace JBro
     public:
         constexpr Degree() noexcept = default;
         constexpr Degree(float value) noexcept : Value(value) {}
+        constexpr explicit Degree(Float value) noexcept : Value(value.Get()) {}
         constexpr Degree(const Radian& radian) noexcept;
 
         constexpr operator float() const noexcept { return Value; }
+        // `Float` 를 받는 자리로 바로 간다(`Float` ← `float` ← 각도는 사용자 변환이 둘이라 막힌다, D-290).
+        constexpr operator Float() const noexcept { return Float(Value); }
         constexpr float Get() const noexcept { return Value; }
         constexpr void Set(float value) noexcept { Value = value; }
 
@@ -111,9 +116,12 @@ namespace JBro
     public:
         constexpr Radian() noexcept = default;
         constexpr Radian(float value) noexcept : Value(value) {}
+        constexpr explicit Radian(Float value) noexcept : Value(value.Get()) {}
         constexpr Radian(Degree degree) noexcept : Value(degree.Get() * DegreesToRadians) {}
 
         constexpr operator float() const noexcept { return Value; }
+        // `Float` 를 받는 자리로 바로 간다(`Float` ← `float` ← 각도는 사용자 변환이 둘이라 막힌다, D-290).
+        constexpr operator Float() const noexcept { return Float(Value); }
         constexpr float Get() const noexcept { return Value; }
         constexpr void Set(float value) noexcept { Value = value; }
 

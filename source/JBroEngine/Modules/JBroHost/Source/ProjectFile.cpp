@@ -8,12 +8,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
     namespace
     {
-        bool IsBlankOrComment(const String& text)
+        Bool IsBlankOrComment(const String& text)
         {
             for (char character : text)
             {
@@ -30,7 +34,7 @@ namespace JBro
         }
 
         // YAML 블록 스칼라 표시다(`|`, `|+`, `>-` …). 아래에 여러 줄이 붙는다.
-        bool IsBlockScalarIndicator(const String& value)
+        Bool IsBlockScalarIndicator(const String& value)
         {
             if (value.empty() || (value[0] != '|' && value[0] != '>'))
             {
@@ -62,7 +66,7 @@ namespace JBro
         }
 
         // 따옴표는 벗긴다. 여는 따옴표만 있고 닫는 것이 없으면 실패로 본다.
-        bool Unquote(String& value)
+        Bool Unquote(String& value)
         {
             if (value.size() < 2)
             {
@@ -81,7 +85,7 @@ namespace JBro
             return true;
         }
 
-        bool ParseTextureFilter(const String& value, TextureFilter& result)
+        Bool ParseTextureFilter(const String& value, TextureFilter& result)
         {
             if (value == "Nearest")
             {
@@ -96,7 +100,7 @@ namespace JBro
             return false;
         }
 
-        bool ParseBool(const String& value, bool& result)
+        Bool ParseBool(const String& value, Bool& result)
         {
             if (value == "true")
             {
@@ -111,7 +115,7 @@ namespace JBro
             return false;
         }
 
-        bool ParseUInt(const String& value, std::uint32_t& result)
+        Bool ParseUInt(const String& value, UInt32& result)
         {
             if (value.empty())
             {
@@ -127,7 +131,7 @@ namespace JBro
             return true;
         }
 
-        bool ParseUInt64(const String& value, std::uint64_t& result)
+        Bool ParseUInt64(const String& value, UInt64& result)
         {
             if (value.empty() || value[0] == '-')
             {
@@ -144,7 +148,7 @@ namespace JBro
         }
 
         // `Auto` · `Single` · 워커 수(1 이상). 0 은 Single 로 읽는다. 그 밖의 글자는 모르는 값이라 거절한다.
-        bool ParsePhysicsThreads(const String& value, PhysicsThreadMode& mode, std::uint32_t& workers)
+        Bool ParsePhysicsThreads(const String& value, PhysicsThreadMode& mode, UInt32& workers)
         {
             if (value == "Auto")
             {
@@ -158,7 +162,7 @@ namespace JBro
                 workers = 0;
                 return true;
             }
-            std::uint32_t count = 0;
+            UInt32 count = 0;
             if (false == ParseUInt(value, count))
             {
                 return false;
@@ -182,15 +186,15 @@ namespace JBro
         }
 
         // `0 3` 처럼 공백으로 가른 두 레이어 번호다(D-233). 작은 번호가 앞에 오게 맞춘다.
-        bool ParseLayerPair(const String& value, ProjectLayerPair& result)
+        Bool ParseLayerPair(const String& value, ProjectLayerPair& result)
         {
             const std::size_t space = value.find(' ');
             if (space == String::npos)
             {
                 return false;
             }
-            std::uint32_t first = 0;
-            std::uint32_t second = 0;
+            UInt32 first = 0;
+            UInt32 second = 0;
             if (false == ParseUInt(value.substr(0, space), first) || false == ParseUInt(value.substr(space + 1), second)
                 || first >= 32 || second >= 32)
             {
@@ -201,7 +205,7 @@ namespace JBro
             return true;
         }
 
-        bool ParseFloat(const String& value, float& result)
+        Bool ParseFloat(const String& value, Float& result)
         {
             if (value.empty())
             {
@@ -218,7 +222,7 @@ namespace JBro
         }
 
         // `Framework` 가 받는 값이다. 사람이 손으로 적는 자리라 대소문자는 가리지 않는다.
-        bool ParseFrameworkKind(const String& value, FrameworkKind& result)
+        Bool ParseFrameworkKind(const String& value, FrameworkKind& result)
         {
             if (value == "2D" || value == "2d")
             {
@@ -237,7 +241,7 @@ namespace JBro
         struct AudioEffectKey
         {
             const char* key;
-            float AudioBusEffects::* field;
+            Float AudioBusEffects::* field;
         };
         const AudioEffectKey AudioEffectKeys[] = {
             {"LowPass", &AudioBusEffects::lowPassHz},
@@ -267,7 +271,7 @@ namespace JBro
             {"CompRelease", &AudioBusEffects::compRelease},
             {"CompMakeup", &AudioBusEffects::compMakeup}};
 
-        float* AudioBusEffectField(AudioBusEffects& effects, const String& key)
+        Float* AudioBusEffectField(AudioBusEffects& effects, const String& key)
         {
             for (const AudioEffectKey& entry : AudioEffectKeys)
             {
@@ -279,7 +283,7 @@ namespace JBro
             return nullptr;
         }
 
-        bool Fail(ProjectFileError& error, std::size_t line, const char* message)
+        Bool Fail(ProjectFileError& error, std::size_t line, const char* message)
         {
             error.line = static_cast<std::uint32_t>(line);
             error.message = message;
@@ -292,7 +296,7 @@ namespace JBro
         constexpr const char* InputCompositeNames[] = {"None", "Up", "Down", "Left", "Right"};
 
         template<typename Enum, std::size_t Count>
-        bool ParseNamed(const char* const (&names)[Count], const String& value, Enum& result)
+        Bool ParseNamed(const char* const (&names)[Count], const String& value, Enum& result)
         {
             for (std::size_t index = 0; index < Count; ++index)
             {
@@ -312,22 +316,22 @@ namespace JBro
             return index < Count ? names[index] : names[0];
         }
 
-        bool ParseInputActionType(const String& value, InputActionType& result)
+        Bool ParseInputActionType(const String& value, InputActionType& result)
         {
             return ParseNamed(InputActionTypeNames, value, result);
         }
 
-        bool ParseInputBindingSource(const String& value, InputBindingSource& result)
+        Bool ParseInputBindingSource(const String& value, InputBindingSource& result)
         {
             return ParseNamed(InputBindingSourceNames, value, result);
         }
 
-        bool ParseInputComposite(const String& value, InputComposite& result)
+        Bool ParseInputComposite(const String& value, InputComposite& result)
         {
             return ParseNamed(InputCompositeNames, value, result);
         }
 
-        bool ParseInputBindingCode(InputBindingSource source, const String& value, std::uint16_t& code)
+        Bool ParseInputBindingCode(InputBindingSource source, const String& value, std::uint16_t& code)
         {
             switch (source)
             {
@@ -401,7 +405,7 @@ namespace JBro
         }
     }
 
-    bool ParseProjectFile(
+    Bool ParseProjectFile(
         const char* text,
         std::size_t length,
         ProjectFile& result,
@@ -419,14 +423,14 @@ namespace JBro
         // InputActions)가 들어 있고, 읽지 않을 것을 파싱하려다 틀리느니 지나가는 편이 낫다.
         // 두 키는 있어야 한다(D-99). 값이 비어 있는 것도 없는 것으로 본다 -
         // 런처가 빈 엔진 버전으로는 어느 설치를 띄울지 고를 수 없다.
-        bool           sawEngineVersion = false;
-        bool           sawFramework = false;
+        Bool           sawEngineVersion = false;
+        Bool           sawFramework = false;
         String         currentMap;
         Array<String>* currentSequence = nullptr;
         constexpr std::size_t NotSkipping = static_cast<std::size_t>(-1);
         std::size_t    skipDeeperThan = NotSkipping;
         // `AudioBuses:` 아래에 있는가. 맵의 시퀀스라 스칼라 시퀀스(`currentSequence`)와 따로 읽는다.
-        bool           inAudioBuses = false;
+        Bool           inAudioBuses = false;
         // `Fonts:` 의 항목은 글자로 모았다가 끝에서 아이디로 읽는다. 읽지 못하는 아이디는 파일 오류다.
         Array<String>  fontTexts;
         std::size_t    fontsLine = 0;
@@ -434,8 +438,8 @@ namespace JBro
         Array<String>  layerPairTexts;
         std::size_t    layerPairsLine = 0;
         // `InputActions:` 아래에 있는가(D-214). 액션 항목의 들여쓰기와 `Bindings:` 아래에 있는지를 함께 든다.
-        bool           inInputActions = false;
-        bool           inInputBindings = false;
+        Bool           inInputActions = false;
+        Bool           inInputBindings = false;
         std::size_t    inputActionIndent = 2;
 
         std::size_t lineNumber = 0;
@@ -449,7 +453,7 @@ namespace JBro
             }
             const String raw(text + begin, cursor - begin);
             ++lineNumber;
-            const bool atEnd = cursor >= length;
+            const Bool atEnd = cursor >= length;
             ++cursor;
 
             if (IsBlankOrComment(raw))
@@ -503,7 +507,7 @@ namespace JBro
             // `- Source: Key` 가 바인딩을 열고 `Code:`·`GamepadIndex:`·`Composite:` 가 붙는다. 들여쓰기로 가른다.
             if (inInputActions)
             {
-                const bool opens = content[0] == '-' && (content[1] == ' ' || content[1] == '\0');
+                const Bool opens = content[0] == '-' && (content[1] == ' ' || content[1] == '\0');
                 const char* entry = opens ? content + 1 : content;
                 while (entry < contentEnd && *entry == ' ')
                 {
@@ -572,7 +576,7 @@ namespace JBro
                     }
                     else if (fieldKey == "GamepadIndex")
                     {
-                        std::uint32_t index = 0;
+                        UInt32 index = 0;
                         if (fieldValue == "-1")
                         {
                             binding.gamepad = -1;
@@ -630,7 +634,7 @@ namespace JBro
             // 오디오 버스(D-197): `- Name: X` 가 항목을 열고 그 아래 `Volume: v` 가 붙는다.
             if (inAudioBuses)
             {
-                const bool opens = content[0] == '-' && (content[1] == ' ' || content[1] == '\0');
+                const Bool opens = content[0] == '-' && (content[1] == ' ' || content[1] == '\0');
                 const char* entry = opens ? content + 1 : content;
                 while (entry < contentEnd && *entry == ' ')
                 {
@@ -701,7 +705,7 @@ namespace JBro
                         return Fail(error, lineNumber, "an audio bus DuckAmount and DuckRelease must be numbers");
                     }
                 }
-                else if (float* effect = AudioBusEffectField(bus.effects, busKey))
+                else if (Float* effect = AudioBusEffectField(bus.effects, busKey))
                 {
                     if (false == ParseFloat(busValue, *effect))
                     {
@@ -761,7 +765,7 @@ namespace JBro
             // 값이 있는지는 **따옴표를 벗기기 전에** 본다. `Key: ""` 는 빈 문자열이라는
             // 값이고 `Key:` 는 아래에 블록이 온다는 뜻인데, 먼저 벗기면 둘이 같아진다.
             // 그러면 명시적으로 비운 키가 통째로 무시되고, 뒤따르는 줄까지 건너뛴다.
-            const bool hasValue = false == value.empty();
+            const Bool hasValue = false == value.empty();
             if (false == Unquote(value))
             {
                 return Fail(error, lineNumber, "unterminated quoted string");
@@ -851,7 +855,7 @@ namespace JBro
                 continue;
             }
 
-            bool recognized = true;
+            Bool recognized = true;
             if (currentMap == "Build")
             {
                 if (key == "ProductName") { parsed.build.productName = value; }
@@ -895,7 +899,7 @@ namespace JBro
             {
                 // 범위는 시계의 것을 그대로 쓴다(D-242) - 다른 두 값은 기본값인 채로 이 하나만 재 본다.
                 TimeSettings probe;
-                const bool number = key == "MaxFixedSteps" ? ParseUInt(value, probe.maxFixedSteps)
+                const Bool number = key == "MaxFixedSteps" ? ParseUInt(value, probe.maxFixedSteps)
                     : ParseFloat(value, key == "FixedDeltaTime" ? probe.fixedDeltaTime : probe.maxDeltaTime);
                 if (false == number || false == System::TimeSystem::IsValid(probe))
                 {
@@ -1036,7 +1040,7 @@ namespace JBro
         return true;
     }
 
-    bool LoadProjectFile(IPlatform& platform, const char* utf8Path, ProjectFile& result, ProjectFileError& error)
+    Bool LoadProjectFile(IPlatform& platform, const char* utf8Path, ProjectFile& result, ProjectFileError& error)
     {
         error = {};
         if (utf8Path == nullptr || utf8Path[0] == '\0')
@@ -1056,7 +1060,7 @@ namespace JBro
     {
         // 소수를 글자로. **짧게 적되 값은 지킨다** - `%g` 는 자리를 아끼고, 9 자리면
         // float 가 왕복해도 같은 값으로 돌아온다.
-        String FormatFloat(float value)
+        String FormatFloat(Float value)
         {
             char buffer[32] = {};
             std::snprintf(buffer, sizeof(buffer), "%.9g", static_cast<double>(value));
@@ -1064,12 +1068,12 @@ namespace JBro
         }
 
         // 최상위 키 하나의 지금 값을 글자로. 아는 키가 아니면 거짓이다.
-        bool TopLevelValue(const ProjectFile& project, const String& key, String& value)
+        Bool TopLevelValue(const ProjectFile& project, const String& key, String& value)
         {
             char number[32] = {};
             if (key == "Version")
             {
-                std::snprintf(number, sizeof(number), "%u", project.version);
+                std::snprintf(number, sizeof(number), "%u", project.version.Get());
                 value = number;
             }
             else if (key == "EngineVersion") { value = project.engineVersion; }
@@ -1082,12 +1086,12 @@ namespace JBro
             else if (key == "RootPath") { value = project.rootPath; }
             else if (key == "ResolutionWidth")
             {
-                std::snprintf(number, sizeof(number), "%u", project.resolutionWidth);
+                std::snprintf(number, sizeof(number), "%u", project.resolutionWidth.Get());
                 value = number;
             }
             else if (key == "ResolutionHeight")
             {
-                std::snprintf(number, sizeof(number), "%u", project.resolutionHeight);
+                std::snprintf(number, sizeof(number), "%u", project.resolutionHeight.Get());
                 value = number;
             }
             else if (key == "TextureFilter")
@@ -1101,7 +1105,7 @@ namespace JBro
             else if (key == "FixedDeltaTime") { value = FormatFloat(project.fixedDeltaTime); }
             else if (key == "MaxFixedSteps")
             {
-                std::snprintf(number, sizeof(number), "%u", project.maxFixedSteps);
+                std::snprintf(number, sizeof(number), "%u", project.maxFixedSteps.Get());
                 value = number;
             }
             else if (key == "MaxDeltaTime") { value = FormatFloat(project.maxDeltaTime); }
@@ -1137,7 +1141,7 @@ namespace JBro
         }
 
         // 파일에 없던 최상위 키 가운데 비어 있는 로케일은 새로 적지 않는다(D-226) - 로컬라이징을 쓰지 않는 프로젝트가 저장만으로 길어지지 않게 한다.
-        bool IsUnwrittenTopLevelDefault(const ProjectFile& project, const String& key)
+        Bool IsUnwrittenTopLevelDefault(const ProjectFile& project, const String& key)
         {
             const ProjectFile defaults;
             return (key == "DefaultLocale" && project.defaultLocale.empty())
@@ -1150,7 +1154,7 @@ namespace JBro
                 || (key == "AssetPackage" && project.assetPackage.empty());
         }
 
-        bool BuildValue(const ProjectFile& project, const String& key, String& value)
+        Bool BuildValue(const ProjectFile& project, const String& key, String& value)
         {
             if (key == "ProductName") { value = project.build.productName; }
             else if (key == "EnableWindows") { value = project.build.enableWindows ? "true" : "false"; }
@@ -1169,7 +1173,7 @@ namespace JBro
         }
 
         // 파일에 없던 Build 키 가운데 기본값인 것은 새로 적지 않는다 - 손대지 않은 프로젝트가 저장만으로 길어지지 않게 한다.
-        bool IsUnwrittenDefault(const ProjectFile& project, const String& key)
+        Bool IsUnwrittenDefault(const ProjectFile& project, const String& key)
         {
             return key == "PhysicsThreads" && project.build.physicsThreadMode == PhysicsThreadMode::Auto;
         }
@@ -1189,7 +1193,7 @@ namespace JBro
 
         // `  Key: value` 에서 들여쓰기·키·값을 가른다. 값이 비어 있으면(블록·시퀀스의 머리)
         // `hasValue` 가 거짓이다.
-        bool SplitLine(const String& line, std::size_t& indent, String& key, bool& hasValue)
+        Bool SplitLine(const String& line, std::size_t& indent, String& key, Bool& hasValue)
         {
             indent = 0;
             while (indent < line.size() && line[indent] == ' ')
@@ -1260,13 +1264,13 @@ namespace JBro
         // 이 키를 이미 적었는가. 적었으면 참을 돌려주고, 아니면 적었다고 표시한다.
         // 아는 키 목록에 없으면 거짓이다 - 부르는 쪽이 이미 걸렀지만 여기서도 안전하다.
         template <std::size_t Count>
-        bool MarkWritten(Array<bool>& wrote, const char* const (&keys)[Count], const String& key)
+        Bool MarkWritten(Array<Bool>& wrote, const char* const (&keys)[Count], const String& key)
         {
             for (std::size_t index = 0; index < Count && index < wrote.Size(); ++index)
             {
                 if (key == keys[index])
                 {
-                    const bool already = wrote[index];
+                    const Bool already = wrote[index];
                     wrote[index] = true;
                     return already;
                 }
@@ -1276,12 +1280,12 @@ namespace JBro
 
         // 값을 지키는 가장 짧은 글자다. `%.9g` 로 적으면 사람이 적은 `0.8` 이 `0.800000012` 가 되어, 고친 것이 없는
         // 저장이 파일을 바꾼다(D-189). 6 자리부터 늘려 가며 도로 읽어 같은 값이 되는 첫 것을 쓴다.
-        String FormatShortFloat(float value)
+        String FormatShortFloat(Float value)
         {
             char buffer[32] = {};
-            for (int digits = 6; digits <= 9; ++digits)
+            for (Int32 digits = 6; digits <= 9; ++digits)
             {
-                std::snprintf(buffer, sizeof(buffer), "%.*g", digits, static_cast<double>(value));
+                std::snprintf(buffer, sizeof(buffer), "%.*g", digits.Get(), static_cast<double>(value));
                 if (static_cast<float>(std::strtod(buffer, nullptr)) == value)
                 {
                     break;
@@ -1291,7 +1295,7 @@ namespace JBro
         }
 
         // 따옴표 없이 적어도 되는 이름인가. 기존 엔진의 파일은 따옴표 없이 적혀 있다.
-        bool IsPlainName(const String& name)
+        Bool IsPlainName(const String& name)
         {
             if (name.empty() || name[0] == ' ' || name[name.size() - 1] == ' ')
             {
@@ -1309,7 +1313,7 @@ namespace JBro
 
         // 이름 시퀀스(`InputLayers`·`Locales`)를 적는다(D-214·D-226). 비어 있으면 `[]` 다(원문에 키가 있었을 때만 불린다).
         // 빈 이름이 아닌 항목이 있는가. 설정 창의 목록은 새 줄을 빈 이름으로 시작하고, 이름을 적지 않은 줄은 저장할 때 빠진다.
-        bool HasNamedEntry(const Array<String>& names)
+        Bool HasNamedEntry(const Array<String>& names)
         {
             for (const String& name : names)
             {
@@ -1321,7 +1325,7 @@ namespace JBro
             return false;
         }
 
-        void AppendNameSequence(String& result, const char* key, const Array<String>& names, bool skipEmpty = false)
+        void AppendNameSequence(String& result, const char* key, const Array<String>& names, Bool skipEmpty = false)
         {
             result.append(key);
             if (names.IsEmpty() || (skipEmpty && false == HasNamedEntry(names)))
@@ -1412,7 +1416,7 @@ namespace JBro
                     if (binding.gamepad >= 0)
                     {
                         char text[40] = {};
-                        const int written = std::snprintf(text, sizeof(text), "        GamepadIndex: %d\n", binding.gamepad);
+                        const Int32 written = std::snprintf(text, sizeof(text), "        GamepadIndex: %d\n", binding.gamepad.Get());
                         result.append(text, written > 0 ? static_cast<std::size_t>(written) : 0);
                     }
                     if (binding.composite != InputComposite::None)
@@ -1502,7 +1506,7 @@ namespace JBro
                 const AudioBusEffects defaults;
                 for (const AudioEffectKey& entry : AudioEffectKeys)
                 {
-                    const float value = bus.effects.*entry.field;
+                    const Float value = bus.effects.*entry.field;
                     if (value == defaults.*entry.field)
                     {
                         continue;
@@ -1517,7 +1521,7 @@ namespace JBro
             }
         }
 
-        bool HasListedFont(const ProjectFile& project)
+        Bool HasListedFont(const ProjectFile& project)
         {
             for (const AssetId& font : project.fonts)
             {
@@ -1563,7 +1567,7 @@ namespace JBro
             char line[32];
             for (const ProjectLayerPair& pair : project.physicsIgnoredLayerPairs)
             {
-                const int length = std::snprintf(line, sizeof(line), "  - %u %u\n",
+                const Int32 length = std::snprintf(line, sizeof(line), "  - %u %u\n",
                     static_cast<unsigned>(pair.first), static_cast<unsigned>(pair.second));
                 result.append(line, static_cast<std::size_t>(length));
             }
@@ -1615,7 +1619,7 @@ namespace JBro
         }
     }
 
-    bool WriteProjectFileText(
+    Bool WriteProjectFileText(
         const ProjectFile& project,
         const char* originalText,
         std::size_t originalLength,
@@ -1631,9 +1635,9 @@ namespace JBro
 
         // 원문의 줄을 타고 가며 **아는 키의 값만** 바꾼다. 나머지 줄은 그대로 옮긴다 -
         // 주석도, 우리가 모르는 키도, 시퀀스도 그 자리에 남는다.
-        Array<bool> wroteTopLevel;
+        Array<Bool> wroteTopLevel;
         wroteTopLevel.Resize(sizeof(TopLevelKeys) / sizeof(TopLevelKeys[0]));
-        Array<bool> wroteBuild;
+        Array<Bool> wroteBuild;
         wroteBuild.Resize(sizeof(BuildKeys) / sizeof(BuildKeys[0]));
         for (std::size_t index = 0; index < wroteTopLevel.Size(); ++index)
         {
@@ -1644,19 +1648,19 @@ namespace JBro
             wroteBuild[index] = false;
         }
 
-        bool inBuild = false;
-        bool sawBuild = false;
+        Bool inBuild = false;
+        Bool sawBuild = false;
         // **지금 고쳐 쓰는 시퀀스가 있는가**(D-189). 시퀀스는 값이 여러 줄이라 한 줄
         // 바꿔치기로는 다룰 수 없다 - 머리줄을 새로 적고 원문의 항목 줄들은 건너뛴다.
-        bool skippingSequence = false;
-        bool sawIgnorePatterns = false;
-        bool sawAudioBuses = false;
-        bool sawFonts = false;
-        bool sawInputLayers = false;
-        bool sawInputActions = false;
-        bool sawLocales = false;
-        bool sawPhysicsLayers = false;
-        bool sawLayerPairs = false;
+        Bool skippingSequence = false;
+        Bool sawIgnorePatterns = false;
+        Bool sawAudioBuses = false;
+        Bool sawFonts = false;
+        Bool sawInputLayers = false;
+        Bool sawInputActions = false;
+        Bool sawLocales = false;
+        Bool sawPhysicsLayers = false;
+        Bool sawLayerPairs = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
         std::size_t buildEnd = String::npos;
 
@@ -1681,8 +1685,8 @@ namespace JBro
 
             std::size_t indent = 0;
             String key;
-            bool hasValue = false;
-            const bool pair = false == IsBlankOrComment(line)
+            Bool hasValue = false;
+            const Bool pair = false == IsBlankOrComment(line)
                 && SplitLine(line, indent, key, hasValue);
 
             // 시퀀스를 고쳐 쓰는 중이면 원문의 항목 줄은 버린다. 다음 최상위 키에서 멈춘다.
@@ -1710,13 +1714,13 @@ namespace JBro
             }
 
             String value;
-            bool replaced = false;
-            bool dropped = false;
+            Bool replaced = false;
+            Bool dropped = false;
             if (pair && indent == 0 && (key == "PhysicsLayers" || key == "PhysicsIgnoredLayerPairs"))
             {
                 // 로케일과 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다(D-233).
-                const bool layers = key == "PhysicsLayers";
-                bool& saw = layers ? sawPhysicsLayers : sawLayerPairs;
+                const Bool layers = key == "PhysicsLayers";
+                Bool& saw = layers ? sawPhysicsLayers : sawLayerPairs;
                 dropped = saw;
                 if (false == dropped)
                 {
@@ -1748,8 +1752,8 @@ namespace JBro
             else if (pair && indent == 0 && (key == "InputLayers" || key == "InputActions"))
             {
                 // 버스와 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다.
-                const bool layers = key == "InputLayers";
-                bool& saw = layers ? sawInputLayers : sawInputActions;
+                const Bool layers = key == "InputLayers";
+                Bool& saw = layers ? sawInputLayers : sawInputActions;
                 dropped = saw;
                 if (false == dropped)
                 {
@@ -1964,7 +1968,7 @@ namespace JBro
         return true;
     }
 
-    bool SaveProjectFile(IPlatform& platform, const char* utf8Path, const ProjectFile& project,
+    Bool SaveProjectFile(IPlatform& platform, const char* utf8Path, const ProjectFile& project,
         ProjectFileError& error)
     {
         error = ProjectFileError{};
@@ -2001,10 +2005,10 @@ namespace JBro
         return true;
     }
 
-    bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out)
+    Bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out)
     {
         out = InputActionMap{};
-        bool complete = true;
+        Bool complete = true;
         for (const ProjectInputAction& action : actions)
         {
             if (out.count >= MaxInputActions)
@@ -2012,11 +2016,11 @@ namespace JBro
                 complete = false;
                 break;
             }
-            std::uint32_t set = 0;
+            UInt32 set = 0;
             if (false == action.set.empty())
             {
                 const NameId setName = NameTable::Get().Intern(action.set.c_str());
-                const int found = out.FindSet(setName);
+                const Int32 found = out.FindSet(setName);
                 if (found >= 0)
                 {
                     set = static_cast<std::uint32_t>(found);
@@ -2057,7 +2061,7 @@ namespace JBro
         return complete;
     }
 
-    bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
+    Bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
         FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
         ProjectFileError& error)
     {
@@ -2161,7 +2165,7 @@ namespace JBro
             return String();
         }
         // 드라이브 문자나 루트로 시작하면 절대경로다.
-        const bool absolute = relative[0] == '/' || relative[0] == '\\'
+        const Bool absolute = relative[0] == '/' || relative[0] == '\\'
             || (relative.size() > 1 && relative[1] == ':');
         if (absolute || projectFilePath == nullptr)
         {

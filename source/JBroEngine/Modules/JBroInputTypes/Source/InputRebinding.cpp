@@ -1,4 +1,6 @@
 ﻿#include <JBro/InputTypes/InputRebinding.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -30,7 +32,7 @@ namespace JBro
                 return InputCaptureResult::Captured;
             }
         }
-        for (std::uint32_t pad = 0; pad < MaxGamepads; ++pad)
+        for (UInt32 pad = 0; pad < MaxGamepads; ++pad)
         {
             const GamepadState& gamepad = view.Gamepad(pad);
             for (std::size_t index = 0; index < GamepadButtonCount; ++index)
@@ -46,7 +48,7 @@ namespace JBro
         return InputCaptureResult::None;
     }
 
-    bool IsSameBinding(const InputBinding& a, const InputBinding& b)
+    Bool IsSameBinding(const InputBinding& a, const InputBinding& b)
     {
         return a.source == b.source && a.code == b.code && a.composite == b.composite && a.gamepad == b.gamepad;
     }

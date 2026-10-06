@@ -12,19 +12,23 @@
 
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr float PageListWidth = 150.0f;
+        constexpr Float PageListWidth = 150.0f;
         // 이름 칸과 조합 칸의 가장 넓은 폭과 가장 좁은 폭. 창이 좁으면 줄어든다 - 고정해 두면 좁은 도크에서 기본값 단추가 창 밖으로 밀린다.
-        constexpr float MaxLabelWidth = 190.0f;
-        constexpr float MinLabelWidth = 90.0f;
-        constexpr float MaxBindingWidth = 150.0f;
-        constexpr float MinBindingWidth = 80.0f;
+        constexpr Float MaxLabelWidth = 190.0f;
+        constexpr Float MinLabelWidth = 90.0f;
+        constexpr Float MaxBindingWidth = 150.0f;
+        constexpr Float MinBindingWidth = 80.0f;
 
-        float Clamp(float value, float low, float high)
+        Float Clamp(Float value, Float low, Float high)
         {
             return value < low ? low : (value > high ? high : value);
         }
@@ -46,7 +50,7 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelEditorSettings, "Editor Settings");
     }
 
-    bool EditorSettingsPanel::OnCreate(EditorApplication& editor)
+    Bool EditorSettingsPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         SetOpen(false);
@@ -58,7 +62,7 @@ namespace JBro
         StopCapture();
     }
 
-    void EditorSettingsPanel::OnUpdate(float deltaTime)
+    void EditorSettingsPanel::OnUpdate(Float deltaTime)
     {
         (void)deltaTime;
         // 닫히거나 가려져 그리지 않는 창이 키를 붙잡고 있으면 에디터의 모든 단축키가 멈춘 채로 남는다.
@@ -102,11 +106,11 @@ namespace JBro
         // 음수를 줬다가 칸이 1 픽셀이 되었다.)
         const char* resetAllLabel = Loc::TextOr(LocKeys::EditorSettingsResetAll, "Reset All");
         const ImGuiStyle& style = ImGui::GetStyle();
-        const float resetAllWidth = ImGui::CalcTextSize(resetAllLabel).x + style.FramePadding.x * 2.0f;
-        const float searchWidth = ImGui::GetContentRegionAvail().x - resetAllWidth - style.ItemSpacing.x;
+        const Float resetAllWidth = ImGui::CalcTextSize(resetAllLabel).x + style.FramePadding.x * 2.0f;
+        const Float searchWidth = ImGui::GetContentRegionAvail().x - resetAllWidth - style.ItemSpacing.x;
         Widget::SearchBox("##shortcut_search", m_search)
             .Hint(Loc::TextOr(LocKeys::EditorSettingsSearchHint, "Search by name or key"))
-            .Width(searchWidth > 60.0f ? searchWidth : 60.0f)
+            .Width(searchWidth > 60.0f ? searchWidth : Float(60.0f))
             .Draw();
         ImGui::SameLine();
         if (Widget::ActionButton(resetAllLabel, Widget::Severity::Warning))
@@ -121,14 +125,14 @@ namespace JBro
         ImGui::Spacing();
 
         shortcuts.FindConflicts(m_conflicts);
-        const std::uint32_t count = shortcuts.GetCount();
-        bool any = false;
+        const UInt32 count = shortcuts.GetCount();
+        Bool any = false;
         // 무리는 처음 나온 차례대로 모은다(도움말 창과 같은 수). 검색에 걸린 줄이 없는 무리는 제목도 그리지 않는다.
-        for (std::uint32_t head = 0; head < count; ++head)
+        for (UInt32 head = 0; head < count; ++head)
         {
             const EditorShortcutView first = shortcuts.GetAt(head);
-            bool seen = false;
-            for (std::uint32_t before = 0; before < head && false == seen; ++before)
+            Bool seen = false;
+            for (UInt32 before = 0; before < head && false == seen; ++before)
             {
                 seen = std::strcmp(shortcuts.GetAt(before).categoryKey, first.categoryKey) == 0;
             }
@@ -137,8 +141,8 @@ namespace JBro
                 continue;
             }
             const char* category = Translate(first.categoryKey);
-            bool headerDrawn = false;
-            for (std::uint32_t index = head; index < count; ++index)
+            Bool headerDrawn = false;
+            for (UInt32 index = head; index < count; ++index)
             {
                 const EditorShortcutView view = shortcuts.GetAt(index);
                 if (std::strcmp(view.categoryKey, first.categoryKey) != 0
@@ -165,18 +169,18 @@ namespace JBro
         }
     }
 
-    void EditorSettingsPanel::DrawShortcutRow(std::uint32_t index, const EditorShortcutView& view)
+    void EditorSettingsPanel::DrawShortcutRow(UInt32 index, const EditorShortcutView& view)
     {
         EditorShortcutManager& shortcuts = m_editor->GetShortcuts();
         // 이름 칸은 폭을 고정하고 단추들을 그 뒤에 잇는다. 표(`FormLayout`)로 두면 단추의 Id 가 표의 Id 에 묶여 줄마다 달라진다 -
         // 이름(`view.id`)만으로 단추를 가리킬 수 있게 창 → 이름 → 자리 순으로 둔다.
         // 줄의 폭을 나눈다: 이름 칸 · 조합 칸 둘 · 기본값 단추 · 겹침 표시.
         const ImGuiStyle& style = ImGui::GetStyle();
-        const float available = ImGui::GetContentRegionAvail().x;
-        const float resetWidth = ImGui::CalcTextSize(Loc::TextOr(LocKeys::EditorSettingsReset, "Default")).x + style.FramePadding.x * 2.0f;
-        const float markWidth = ImGui::GetFontSize();
-        const float labelWidth = Clamp(available * 0.35f, MinLabelWidth, MaxLabelWidth);
-        const float bindingWidth = Clamp(
+        const Float available = ImGui::GetContentRegionAvail().x;
+        const Float resetWidth = ImGui::CalcTextSize(Loc::TextOr(LocKeys::EditorSettingsReset, "Default")).x + style.FramePadding.x * 2.0f;
+        const Float markWidth = ImGui::GetFontSize();
+        const Float labelWidth = Clamp(available * 0.35f, MinLabelWidth, MaxLabelWidth);
+        const Float bindingWidth = Clamp(
             (available - labelWidth - resetWidth - markWidth - style.ItemSpacing.x * 4.0f) * 0.5f, MinBindingWidth, MaxBindingWidth);
         ImGui::PushID(view.id);
         {
@@ -184,19 +188,19 @@ namespace JBro
             ImGui::SameLine(labelWidth);
             {
                 const EditorShortcutBinding slots[2] = {view.primary, view.secondary};
-                for (std::uint32_t slot = 0; slot < 2; ++slot)
+                for (UInt32 slot = 0; slot < 2; ++slot)
                 {
                     if (slot != 0)
                     {
                         ImGui::SameLine();
                     }
-                    const bool capturing = m_captureId == view.id && m_captureSlot == slot;
+                    const Bool capturing = m_captureId == view.id && m_captureSlot == slot;
                     const EditorShortcutText text = EditorShortcutManager::Describe(slots[slot]);
                     const char* shown = capturing ? Loc::TextOr(LocKeys::EditorSettingsPressKey, "Press a key")
                         : (text.value[0] != '\0' ? text.value : Loc::TextOr(LocKeys::EditorSettingsEmptyBinding, "(none)"));
                     // `###` 뒤만 Id 가 된다 - 글자가 바뀌어도(키를 누르세요 → Ctrl+U) 같은 단추다.
                     char label[96] = {};
-                    std::snprintf(label, sizeof(label), "%s###slot%u", shown, slot);
+                    std::snprintf(label, sizeof(label), "%s###slot%u", shown, slot.Get());
                     if (Widget::ActionButton(label, capturing ? Widget::Severity::Success : Widget::Severity::Info, true, nullptr,
                             ImVec2(bindingWidth, 0.0f)))
                     {
@@ -242,7 +246,7 @@ namespace JBro
                     {
                         continue;
                     }
-                    const std::uint32_t other = conflict.first == index ? conflict.second : conflict.first;
+                    const UInt32 other = conflict.first == index ? conflict.second : conflict.first;
                     const char* otherLabel = Translate(shortcuts.GetAt(other).labelKey);
                     char reason[256] = {};
                     Widget::Severity severity = Widget::Severity::Warning;
@@ -290,7 +294,7 @@ namespace JBro
         StopCapture();
     }
 
-    void EditorSettingsPanel::StartCapture(const char* id, std::uint32_t slot)
+    void EditorSettingsPanel::StartCapture(const char* id, UInt32 slot)
     {
         m_captureId = id;
         m_captureSlot = slot;
@@ -311,7 +315,7 @@ namespace JBro
         }
     }
 
-    void EditorSettingsPanel::AnswerResetAll(EditorApplication& editor, int choice, void* user)
+    void EditorSettingsPanel::AnswerResetAll(EditorApplication& editor, Int32 choice, void* user)
     {
         (void)user;
         if (choice == 0)

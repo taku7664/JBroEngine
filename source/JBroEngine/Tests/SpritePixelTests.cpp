@@ -10,10 +10,15 @@
 #include <cstddef>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -24,15 +29,15 @@ namespace
 
     struct Pixel
     {
-        float r = 0.0f;
-        float g = 0.0f;
-        float b = 0.0f;
-        float a = 0.0f;
+        JBro::Float r = 0.0f;
+        JBro::Float g = 0.0f;
+        JBro::Float b = 0.0f;
+        JBro::Float a = 0.0f;
     };
 
     // 백버퍼는 BGRA8 이다. 0..255 를 0..1 로 돌려준다.
-    Pixel ReadPixel(const JBro::Array<std::byte>& image, std::uint32_t rowPitch,
-        std::uint32_t x, std::uint32_t y)
+    Pixel ReadPixel(const JBro::Array<std::byte>& image, JBro::UInt32 rowPitch,
+        JBro::UInt32 x, JBro::UInt32 y)
     {
         const std::size_t offset = static_cast<std::size_t>(y) * rowPitch
             + static_cast<std::size_t>(x) * 4;
@@ -45,7 +50,7 @@ namespace
         return pixel;
     }
 
-    bool Near(float a, float b)
+    JBro::Bool Near(JBro::Float a, JBro::Float b)
     {
         return std::fabs(a - b) < 0.02f;
     }
@@ -139,7 +144,7 @@ namespace
         JBro::Array<std::byte> image;
         image.Resize(64 * 64 * 4);
         JBro::TextureReadback readback;
-        const bool read = renderer.ReadBackBuffer(image.Data(), image.Size(), readback);
+        const JBro::Bool read = renderer.ReadBackBuffer(image.Data(), image.Size(), readback);
         Check(read, "the renderer must read its own back buffer");
         Check(readback.extent.width == 64 && readback.extent.height == 64,
             "the readback must describe the surface it read");
@@ -204,8 +209,8 @@ namespace
         // **게임 뷰는 창보다 크다.** 게임 해상도가 에디터 창보다 큰 것이 보통이고,
         // 여기서 일부러 그렇게 잡는다 - 뷰포트를 재는 기준이 창에 묶여 있으면
         // 타깃 안에 멀쩡히 들어가는 뷰포트가 "화면 밖" 으로 거절당한다.
-        constexpr std::uint32_t TargetWidth = 96;
-        constexpr std::uint32_t TargetHeight = 48;
+        constexpr JBro::UInt32 TargetWidth = 96;
+        constexpr JBro::UInt32 TargetHeight = 48;
         static_assert(TargetWidth > 64, "the target must be wider than the window");
         JBro::TextureDesc targetDesc;
         targetDesc.extent = {TargetWidth, TargetHeight};
@@ -303,17 +308,17 @@ namespace
     // 열려 있었는지는 픽셀로만 확인할 수 있다.
     struct OverlayProbe
     {
-        int calls = 0;
-        std::uint32_t lastSlot = 0xFFFFFFFFu;
-        std::uint32_t firstSlot = 0xFFFFFFFFu;
-        bool succeed = true;
-        float mark[4] = {0.25f, 0.75f, 0.5f, 1.0f};
+        JBro::Int32 calls = 0;
+        JBro::UInt32 lastSlot = 0xFFFFFFFFu;
+        JBro::UInt32 firstSlot = 0xFFFFFFFFu;
+        JBro::Bool succeed = true;
+        JBro::Float mark[4] = {0.25f, 0.75f, 0.5f, 1.0f};
     };
 
-    bool DrawOverlayProbe(
+    JBro::Bool DrawOverlayProbe(
         JBro::IRHICommandContext& commands,
         JBro::TextureHandle backBuffer,
-        std::uint32_t frameSlot,
+        JBro::UInt32 frameSlot,
         void* user)
     {
         auto* probe = static_cast<OverlayProbe*>(user);
@@ -633,7 +638,7 @@ namespace
 
         // 거리값이 x 를 따라 1 → 0 으로 떨어진다. 0.5 는 x ≈ 7.5 텍셀, 0.25 는 x ≈ 11.25 텍셀이다.
         std::byte texels[16 * 4] = {};
-        for (int x = 0; x < 16; ++x)
+        for (JBro::Int32 x = 0; x < 16; ++x)
         {
             texels[x * 4 + 0] = std::byte{255};
             texels[x * 4 + 1] = std::byte{255};
@@ -678,7 +683,7 @@ namespace
         JBro::Array<std::byte> image;
         image.Resize(64 * 64 * 4);
         JBro::TextureReadback readback;
-        const auto paint = [&](const JBro::SpriteSubmit& sdf, bool withSprites) {
+        const auto paint = [&](const JBro::SpriteSubmit& sdf, JBro::Bool withSprites) {
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
             Check(renderer.BeginView(camera), "the view must open");
             if (withSprites)
@@ -770,7 +775,7 @@ namespace
         Check(renderer.Initialize(rhi, config), "the region renderer must initialize");
 
         std::byte black[4 * 4 * 4] = {};
-        for (int texel = 0; texel < 16; ++texel)
+        for (JBro::Int32 texel = 0; texel < 16; ++texel)
         {
             black[texel * 4 + 3] = std::byte{255};
         }
@@ -778,9 +783,9 @@ namespace
         Check(texture.generation != 0, "a 4x4 texture registers");
         // 8 x 2 텍셀 버퍼의 앞 두 칸이 빨강이다. 행 간격은 8 텍셀(32 바이트)이다.
         std::byte strip[8 * 2 * 4] = {};
-        for (int row = 0; row < 2; ++row)
+        for (JBro::Int32 row = 0; row < 2; ++row)
         {
-            for (int column = 0; column < 2; ++column)
+            for (JBro::Int32 column = 0; column < 2; ++column)
             {
                 std::byte* texel = strip + (row * 8 + column) * 4;
                 texel[0] = std::byte{255};
@@ -828,7 +833,7 @@ namespace
 namespace
 {
     // 화면을 네 칸(가로 16 픽셀씩)으로 나눈 한 칸을 덮는 스프라이트다. `half` 가 음수면 그 칸의 위 절반, 양수면 아래 절반이다.
-    JBro::SpriteSubmit ColumnSprite(int column, int half, float r, float g, float b, float a)
+    JBro::SpriteSubmit ColumnSprite(JBro::Int32 column, JBro::Int32 half, JBro::Float r, JBro::Float g, JBro::Float b, JBro::Float a)
     {
         JBro::SpriteSubmit sprite;
         sprite.world.linear[0] = 0.5f;
@@ -892,7 +897,7 @@ namespace
         JBro::SpriteSubmit background;
         background.world.linear[0] = 2.0f;
         background.world.linear[3] = 2.0f;
-        for (int channel = 0; channel < 3; ++channel)
+        for (JBro::Int32 channel = 0; channel < 3; ++channel)
         {
             background.tint[channel] = 0.5f;
         }
@@ -935,7 +940,7 @@ namespace
         image.Resize(64 * 64 * 4);
         JBro::TextureReadback readback;
         Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the renderer must read its own back buffer");
-        const auto expect = [&](std::uint32_t x, std::uint32_t y, float r, float g, float b, const char* message) {
+        const auto expect = [&](JBro::UInt32 x, JBro::UInt32 y, JBro::Float r, JBro::Float g, JBro::Float b, const char* message) {
             const Pixel pixel = ReadPixel(image, readback.rowPitch, x, y);
             if (false == (Near(pixel.r, r) && Near(pixel.g, g) && Near(pixel.b, b)))
             {
@@ -962,16 +967,16 @@ namespace
 namespace
 {
     // 시험이 따로 세운 기대값의 식이다(W3C 합성 명세의 분리형 블렌드, 포토샵과 같다). 셰이더의 식을 옮겨 적지 않는다 - 같은 실수가 두 번 맞는다.
-    float ReferenceChannel(JBro::CompositeBlend mode, float b, float s)
+    JBro::Float ReferenceChannel(JBro::CompositeBlend mode, JBro::Float b, JBro::Float s)
     {
-        const auto screen = [](float x, float y) { return x + y - x * y; };
-        const auto hardLight = [&](float back, float source) {
+        const auto screen = [](JBro::Float x, JBro::Float y) { return x + y - x * y; };
+        const auto hardLight = [&](JBro::Float back, JBro::Float source) {
             return source <= 0.5f ? back * 2.0f * source : screen(back, 2.0f * source - 1.0f);
         };
         switch (mode)
         {
         case JBro::CompositeBlend::Subtract:
-            return std::max(b - s, 0.0f);
+            return JBro::Max(b - s, 0.0f);
         case JBro::CompositeBlend::Lighten:
             return std::max(b, s);
         case JBro::CompositeBlend::Darken:
@@ -984,15 +989,15 @@ namespace
             {
                 return b - (1.0f - 2.0f * s) * b * (1.0f - b);
             }
-            const float d = b <= 0.25f ? ((16.0f * b - 12.0f) * b + 4.0f) * b : std::sqrt(b);
+            const JBro::Float d = b <= 0.25f ? ((16.0f * b - 12.0f) * b + 4.0f) * b : JBro::Float(std::sqrt(b));
             return b + (2.0f * s - 1.0f) * (d - b);
         }
         case JBro::CompositeBlend::HardLight:
             return hardLight(b, s);
         case JBro::CompositeBlend::ColorDodge:
-            return b <= 0.0f ? 0.0f : (s >= 1.0f ? 1.0f : std::min(1.0f, b / (1.0f - s)));
+            return b <= 0.0f ? JBro::Float(0.0f) : (s >= 1.0f ? JBro::Float(1.0f) : JBro::Min(1.0f, b / (1.0f - s)));
         case JBro::CompositeBlend::ColorBurn:
-            return b >= 1.0f ? 1.0f : (s <= 0.0f ? 0.0f : 1.0f - std::min(1.0f, (1.0f - b) / s));
+            return b >= 1.0f ? JBro::Float(1.0f) : (s <= 0.0f ? JBro::Float(0.0f) : 1.0f - JBro::Min(1.0f, (1.0f - b) / s));
         case JBro::CompositeBlend::Difference:
         default:
             return std::fabs(b - s);
@@ -1041,10 +1046,10 @@ namespace
         camera.clearColor[3] = 1.0f;
         camera.viewport.width = 64.0f;
         camera.viewport.height = 64.0f;
-        const float back[3] = {0.6f, 0.3f, 0.8f};
-        const float top[3] = {0.2f, 0.7f, 0.5f};
-        constexpr float topAlpha = 0.75f;
-        constexpr float opacity = 0.8f;
+        const JBro::Float back[3] = {0.6f, 0.3f, 0.8f};
+        const JBro::Float top[3] = {0.2f, 0.7f, 0.5f};
+        constexpr JBro::Float topAlpha = 0.75f;
+        constexpr JBro::Float opacity = 0.8f;
         JBro::SpriteSubmit background;
         background.world.linear[0] = 2.0f;
         background.world.linear[3] = 2.0f;
@@ -1052,7 +1057,7 @@ namespace
         layerSprite.world.linear[0] = 1.0f;
         layerSprite.world.linear[3] = 2.0f;
         layerSprite.world.translation[0] = -0.5f;
-        for (int channel = 0; channel < 3; ++channel)
+        for (JBro::Int32 channel = 0; channel < 3; ++channel)
         {
             background.tint[channel] = back[channel];
             layerSprite.tint[channel] = top[channel];
@@ -1062,10 +1067,10 @@ namespace
         JBro::Array<std::byte> image;
         image.Resize(64 * 64 * 4);
         JBro::TextureReadback readback;
-        for (std::uint32_t mode = JBro::FirstBackdropBlend; mode < JBro::CompositeBlendCount; ++mode)
+        for (JBro::UInt32 mode = JBro::FirstBackdropBlend; mode < JBro::CompositeBlendCount; ++mode)
         {
-            const JBro::CompositeBlend blend = static_cast<JBro::CompositeBlend>(mode);
-            for (int frame = 0; frame < 2; ++frame)
+            const JBro::CompositeBlend blend = static_cast<JBro::CompositeBlend>(mode.Get());
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
             {
                 Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the backdrop frame must begin");
                 Check(renderer.BeginView(camera), "the backdrop view must open");
@@ -1081,12 +1086,12 @@ namespace
             Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the renderer must read its own back buffer");
             const Pixel covered = ReadPixel(image, readback.rowPitch, 16, 32);
             const Pixel empty = ReadPixel(image, readback.rowPitch, 48, 32);
-            const float a = topAlpha * opacity;
-            const float got[3] = {covered.r, covered.g, covered.b};
-            const float left[3] = {empty.r, empty.g, empty.b};
-            for (int channel = 0; channel < 3; ++channel)
+            const JBro::Float a = topAlpha * opacity;
+            const JBro::Float got[3] = {covered.r, covered.g, covered.b};
+            const JBro::Float left[3] = {empty.r, empty.g, empty.b};
+            for (JBro::Int32 channel = 0; channel < 3; ++channel)
             {
-                const float expected = (1.0f - a) * back[channel] + a * ReferenceChannel(blend, back[channel], top[channel]);
+                const JBro::Float expected = (1.0f - a) * back[channel] + a * ReferenceChannel(blend, back[channel], top[channel]);
                 if (false == Near(got[channel], expected) || false == Near(left[channel], back[channel]))
                 {
                     std::cout << "  mode " << mode << " channel " << channel << ": read " << got[channel] << " wanted " << expected
@@ -1105,7 +1110,7 @@ namespace
     }
 }
 
-int RunSpritePixelTests()
+JBro::Int32 RunSpritePixelTests()
 {
     TestBackdropBlendsFollowTheirFormulas<JBro::D3D12RHIModule>();
     TestBackdropBlendsFollowTheirFormulas<JBro::D3D11RHIModule>();

@@ -1,24 +1,27 @@
 ﻿#include <JBro/Editor/Gizmo/PolygonEditModel.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::PolygonEditModel
 {
-    Hit Pick(ArrayView<const Vector2> screen, Vector2 mouse, bool closed)
+    Hit Pick(ArrayView<const Vector2> screen, Vector2 mouse, Bool closed)
     {
         Hit hit;
-        const std::uint32_t count = static_cast<std::uint32_t>(screen.Size());
+        const UInt32 count = static_cast<std::uint32_t>(screen.Size());
         if (count < 2)
         {
             return hit;
         }
 
-        float bestVertex = VertexPickRadius * VertexPickRadius;
-        for (std::uint32_t i = 0; i < count; ++i)
+        Float bestVertex = VertexPickRadius * VertexPickRadius;
+        for (UInt32 i = 0; i < count; ++i)
         {
-            const float dx = mouse.x - screen[i].x;
-            const float dy = mouse.y - screen[i].y;
-            const float distanceSquared = dx * dx + dy * dy;
+            const Float dx = mouse.x - screen[i].x;
+            const Float dy = mouse.y - screen[i].y;
+            const Float distanceSquared = dx * dx + dy * dy;
             if (distanceSquared <= bestVertex)
             {
                 bestVertex = distanceSquared;
@@ -31,25 +34,25 @@ namespace JBro::PolygonEditModel
             return hit;
         }
 
-        float bestEdge = EdgePickDistance * EdgePickDistance;
-        const std::uint32_t edges = closed ? count : count - 1;
-        for (std::uint32_t i = 0; i < edges; ++i)
+        Float bestEdge = EdgePickDistance * EdgePickDistance;
+        const UInt32 edges = closed ? count : count - 1;
+        for (UInt32 i = 0; i < edges; ++i)
         {
             const Vector2 a = screen[i];
             const Vector2 b = screen[(i + 1) % count];
-            const float abx = b.x - a.x;
-            const float aby = b.y - a.y;
-            const float lengthSquared = abx * abx + aby * aby;
+            const Float abx = b.x - a.x;
+            const Float aby = b.y - a.y;
+            const Float lengthSquared = abx * abx + aby * aby;
             if (lengthSquared <= 0.0f)
             {
                 continue;
             }
-            float t = ((mouse.x - a.x) * abx + (mouse.y - a.y) * aby) / lengthSquared;
-            t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+            Float t = ((mouse.x - a.x) * abx + (mouse.y - a.y) * aby) / lengthSquared;
+            t = t < 0.0f ? Float(0.0f) : (t > 1.0f ? Float(1.0f) : t);
             const Vector2 foot = { a.x + abx * t, a.y + aby * t };
-            const float dx = mouse.x - foot.x;
-            const float dy = mouse.y - foot.y;
-            const float distanceSquared = dx * dx + dy * dy;
+            const Float dx = mouse.x - foot.x;
+            const Float dy = mouse.y - foot.y;
+            const Float distanceSquared = dx * dx + dy * dy;
             if (distanceSquared <= bestEdge)
             {
                 bestEdge = distanceSquared;
@@ -69,8 +72,8 @@ namespace JBro::PolygonEditModel
             out.Append(collider.points.Data(), collider.points.Size());
             return;
         }
-        const float halfWidth = collider.size.x * 0.5f;
-        const float halfHeight = collider.size.y * 0.5f;
+        const Float halfWidth = collider.size.x * 0.5f;
+        const Float halfHeight = collider.size.y * 0.5f;
         if (collider.shape == Component::ColliderShape2D::Chain)
         {
             out.Add({ -halfWidth, 0.0f });
@@ -83,7 +86,7 @@ namespace JBro::PolygonEditModel
         out.Add({ -halfWidth, halfHeight });
     }
 
-    bool InsertOnEdge(Array<Vector2>& points, std::uint32_t edge, Vector2 point)
+    Bool InsertOnEdge(Array<Vector2>& points, UInt32 edge, Vector2 point)
     {
         if (edge >= points.Size())
         {
@@ -93,7 +96,7 @@ namespace JBro::PolygonEditModel
         return true;
     }
 
-    bool RemoveVertex(Array<Vector2>& points, std::uint32_t index, std::uint32_t minimum)
+    Bool RemoveVertex(Array<Vector2>& points, UInt32 index, UInt32 minimum)
     {
         if (index >= points.Size() || points.Size() <= minimum)
         {
@@ -103,19 +106,19 @@ namespace JBro::PolygonEditModel
         return true;
     }
 
-    bool EditsPoints(const Component::Collider2D& collider)
+    Bool EditsPoints(const Component::Collider2D& collider)
     {
         return collider.shape == Component::ColliderShape2D::Polygon
             || collider.shape == Component::ColliderShape2D::Chain;
     }
 
-    bool IsClosedOutline(const Component::Collider2D& collider)
+    Bool IsClosedOutline(const Component::Collider2D& collider)
     {
         return collider.shape != Component::ColliderShape2D::Chain || collider.loop;
     }
 
-    std::uint32_t MinPointCount(const Component::Collider2D& collider)
+    UInt32 MinPointCount(const Component::Collider2D& collider)
     {
-        return IsClosedOutline(collider) ? MinVertexCount : 2u;
+        return IsClosedOutline(collider) ? MinVertexCount : UInt32(2u);
     }
 }

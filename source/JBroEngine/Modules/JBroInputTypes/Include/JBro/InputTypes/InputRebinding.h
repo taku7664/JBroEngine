@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -47,5 +48,5 @@ namespace JBro
     InputCaptureResult CaptureBinding(const InputView& view, InputBinding& out);
 
     // 두 바인딩이 같은가(원천·코드·방향·패드).
-    bool IsSameBinding(const InputBinding& a, const InputBinding& b);
+    Bool IsSameBinding(const InputBinding& a, const InputBinding& b);
 }

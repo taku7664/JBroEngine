@@ -21,6 +21,8 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -37,8 +39,8 @@ namespace JBro
             {
                 return;
             }
-            const bool pending = context.editor->IsSpriteFramePickFor(address);
-            const bool hasSprite = false == sprite.spriteId.IsNull();
+            const Bool pending = context.editor->IsSpriteFramePickFor(address);
+            const Bool hasSprite = false == sprite.spriteId.IsNull();
             // **값 칸에 둔다.** 줄 전체(`FullRow`)는 첫 칸에 그려져, 단추와 안내 글이 라벨 칸을 넓혀 위의 모든 값 칸을
             // 밀어냈다(에셋 칸을 찾는 테스트가 그래서 깨졌다). 기존도 값 쪽 `FrameIndex` 줄 바로 밑이었다.
             layout.Row([]() {}, [&]() {
@@ -150,7 +152,7 @@ namespace JBro
             {
                 return;
             }
-            const float ppu = data->options.pixelsPerUnit > 0.0f ? data->options.pixelsPerUnit : DefaultPixelsPerUnit;
+            const Float ppu = data->options.pixelsPerUnit > 0.0f ? data->options.pixelsPerUnit : DefaultPixelsPerUnit;
             if (ppu != camera->pixelsPerUnit)
             {
                 DrawHintRow(layout, Widget::Severity::Warning, Loc::TextOr(LocKeys::InspectorSpritePpuMismatch,
@@ -180,7 +182,7 @@ namespace JBro
     {
         // 필드 이름은 처음 한 번만 인턴한다. 그 뒤로는 정수만 견준다.
         static NameId names[EntryCount] = {};
-        static bool interned = false;
+        static Bool interned = false;
         if (false == interned)
         {
             for (std::size_t index = 0; index < EntryCount; ++index)

@@ -5,6 +5,9 @@
 #include <JBro/Types/Math2D.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 // 2D 물리 커널의 도형 기하다(D-199, physics-plan §3.2).
 //
@@ -13,10 +16,10 @@
 namespace JBro::Physics2D
 {
     // 볼록 조각 하나의 꼭짓점 상한. Box2D 와 같은 값이다. 조각이 고정 크기라 자식 도형이 POD 로 남는다.
-    inline constexpr std::uint32_t MaxPolygonVertices = 8;
+    inline constexpr UInt32 MaxPolygonVertices = 8;
 
     // 이보다 가까운 두 점은 같은 점으로, 이웃 두 점을 잇는 선에서 이보다 가까운 점은 일직선으로 본다(유닛).
-    inline constexpr float LinearSlop = 0.005f;
+    inline constexpr Float LinearSlop = 0.005f;
 
     // 반시계로 감긴 엄격한 볼록 다각형이다. 일직선 꼭짓점이 없다.
     //
@@ -25,8 +28,8 @@ namespace JBro::Physics2D
     struct ConvexPolygon
     {
         Vector2          points[MaxPolygonVertices];
-        std::uint32_t count = 0;
-        float         radius = 0.0f;
+        UInt32 count = 0;
+        Float         radius = 0.0f;
     };
 
     enum class PolygonError : std::uint8_t
@@ -41,13 +44,13 @@ namespace JBro::Physics2D
     // 질량 속성. inertia 는 center 를 지나는 축 기준이다.
     struct MassData
     {
-        float mass = 0.0f;
+        Float mass = 0.0f;
         Vector2  center;
-        float inertia = 0.0f;
+        Float inertia = 0.0f;
     };
 
     // 부호 있는 넓이. 반시계면 양수다. 오목 도형에서도 맞다(부채꼴 삼각형의 부호를 버리지 않는다).
-    float SignedArea(ArrayView<const Vector2> points);
+    Float SignedArea(ArrayView<const Vector2> points);
 
     // 거의 같은 점을 합치고, 일직선 점을 빼고, 반시계로 돌린 뒤 단순 다각형인지 검사한다.
     // 실패하면 out 을 비운다. 입력은 건드리지 않는다.
@@ -59,13 +62,13 @@ namespace JBro::Physics2D
         // 정리된 외곽선 꼭짓점의 번호 고리다. 번호로 들고 있어야 두 조각이 공유하는 대각선을 찾을 수 있다.
         struct Piece
         {
-            std::uint32_t vertices[MaxPolygonVertices];
-            std::uint32_t count = 0;
-            bool          alive = true;
+            UInt32 vertices[MaxPolygonVertices];
+            UInt32 count = 0;
+            Bool          alive = true;
         };
 
         Array<Vector2>          clean;
-        Array<std::uint32_t> ring;
+        Array<UInt32> ring;
         Array<Piece>         pieces;
     };
 
@@ -75,16 +78,16 @@ namespace JBro::Physics2D
     PolygonError DecomposePolygon(ArrayView<const Vector2> points, Array<ConvexPolygon>& outPieces, DecomposeScratch& scratch);
 
     // 볼록 조각의 질량 속성(밀도 × 넓이). 두 점 조각은 캡슐로 잰다(ComputeCapsuleMass).
-    MassData ComputePolygonMass(const ConvexPolygon& polygon, float density);
+    MassData ComputePolygonMass(const ConvexPolygon& polygon, Float density);
 
     // 단순 다각형(오목 가능, 반시계) 외곽선에서 바로 구한 질량 속성. 조각 합과 독립인 두 번째 계산이라
     // 분해가 넓이나 관성을 잃지 않았는지 대조하는 데 쓴다.
-    MassData ComputeOutlineMass(ArrayView<const Vector2> ccwPoints, float density);
+    MassData ComputeOutlineMass(ArrayView<const Vector2> ccwPoints, Float density);
 
-    MassData ComputeCircleMass(Vector2 center, float radius, float density);
+    MassData ComputeCircleMass(Vector2 center, Float radius, Float density);
 
     // 선분 a-b 에 반지름을 두른 캡슐의 질량 속성. 가운데 직사각형과 양 끝 반원 둘이다.
-    MassData ComputeCapsuleMass(Vector2 a, Vector2 b, float radius, float density);
+    MassData ComputeCapsuleMass(Vector2 a, Vector2 b, Float radius, Float density);
 
     // 가운데가 center, 반폭이 halfExtents 인 축 정렬 상자에 꼭 맞는 캡슐. 긴 축을 따라 눕고 반지름은 짧은 쪽 반폭이다.
     // 두 반폭이 같으면 두 점이 겹친다 - 원이다. 반폭은 절댓값으로 본다.

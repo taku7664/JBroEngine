@@ -24,6 +24,10 @@
 #include <JBro/Task/TaskGroup.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -79,13 +83,13 @@ namespace JBro
     struct PathBrowseRequest
     {
         // 참이면 폴더, 거짓이면 파일을 고른다.
-        bool folder = true;
+        Bool folder = true;
         // 파일일 때의 종류("JBro 캔버스 파일", "*.jcanvas"). 비면 가리지 않는다.
         String filterName;
         String filterPattern;
         // 참이면 기준 폴더 안의 경로를 그 폴더 기준 상대경로로 바꿔 준다. 기준 폴더가 비면 프로젝트 폴더다 -
         // 프로젝트 파일의 경로 값 대부분이 그렇고, 캔버스 경로는 에셋 폴더를 준다.
-        bool relative = true;
+        Bool relative = true;
         String baseFolder;
         void (*deliver)(void* user, const String& path) = nullptr;
         void* user = nullptr;
@@ -96,12 +100,12 @@ namespace JBro
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
         // 시계의 처음 설정이다(D-242). 프로젝트를 열면 그 파일의 값이 이긴다.
         TimeSettings time;
-        std::uint32_t windowWidth = 1280;
-        std::uint32_t windowHeight = 720;
-        bool windowVisible = true;
-        bool enableValidation = false;
+        UInt32 windowWidth = 1280;
+        UInt32 windowHeight = 720;
+        Bool windowVisible = true;
+        Bool enableValidation = false;
         // 참이면 오디오 출력 장치를 연다(D-197). 실제 에디터만 참이다 - 테스트는 장치 없이 믹서만 세운다.
-        bool audioDevice = false;
+        Bool audioDevice = false;
         // 화면 글자를 어디서 읽을지(ProjectRule §11.2). 못 읽어도 에디터는 뜬다 -
         // 그때는 코드에 있는 영어 원문이 나온다. 글자 파일 하나 때문에 아무것도
         // 못 보는 것이 더 나쁘다.
@@ -112,21 +116,21 @@ namespace JBro
         const char* iconFontPath = "ThirdParty/MaterialDesignIcons/materialdesignicons-webfont.ttf";
         // 파일 대화상자를 대신하는 함수. 널이면 플랫폼의 대화상자를 연다. 테스트가 대화상자
         // 없이 저장 경로를 주는 자리다 - 네이티브 대화상자는 사람 없이 닫히지 않는다.
-        bool (*fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
+        Bool (*fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* fileDialogUser = nullptr;
         // OS 의 기본 프로그램에게 넘기는 것을 대신하는 함수(D-192). 널이면 플랫폼이 연다.
         // 대화상자와 같은 까닭이다 - 테스트가 진짜로 메모장을 띄울 수는 없다.
-        bool (*openPath)(const char* utf8Path, void* user) = nullptr;
+        Bool (*openPath)(const char* utf8Path, void* user) = nullptr;
         void* openPathUser = nullptr;
         // **에디터 환경설정 파일**(사용자가 바꾼 단축키 등, D-228). 실제 에디터만 참이다 - `%LOCALAPPDATA%/JBroEngine/Editor/
         // EditorPreferences.yaml` 을 읽고 쓴다. 테스트는 사람의 설정을 읽거나 덮으면 안 되므로 거짓이 기본이다.
-        bool userPreferences = false;
+        Bool userPreferences = false;
         // 설정 파일 경로를 직접 준다. 있으면 `userPreferences` 보다 앞선다(테스트가 제 임시 파일을 주는 자리).
         const char* preferencesPath = nullptr;
         // 엔진 태스크 관리자의 워커다(D-212). 0 이면 코어 수에서 정한다. 거짓이면 워커 없이 엔진 틱마다 메인 스레드에서 돈다 -
         // 시험이 로드가 끝나는 틱을 정확히 알려고 끈다.
-        std::uint32_t taskWorkerCount = 0;
-        bool taskWorkers = true;
+        UInt32 taskWorkerCount = 0;
+        Bool taskWorkers = true;
         // **제어 포트**(D-270, `EditorControlPort`). 0 이 아니면 이 번호로 루프백에 열어 밖의 프로세스가 가이드를 켜게 한다.
         // 실제 에디터가 `EditorControlPort::DefaultPort` 를 준다. 테스트는 열지 않는 것이 기본이다 - 에디터 여럿이 한 포트를 다툰다.
         std::uint16_t controlPort = 0;
@@ -143,15 +147,15 @@ namespace JBro
         EditorApplication(EditorApplication&&) = delete;
         EditorApplication& operator=(EditorApplication&&) = delete;
 
-        bool Initialize(const EditorApplicationConfig& config);
-        bool OpenProject(const ProjectDescriptor& project);
+        Bool Initialize(const EditorApplicationConfig& config);
+        Bool OpenProject(const ProjectDescriptor& project);
 
         // `.jproject` 파일을 읽어 연다. 그 파일이 가리키는 스크립트 DLL 까지 실린다.
         //
         // **차원은 파일이 정한다**(D-99). `.jproject` 의 `Framework` 키가 2D 인지 3D 인지
         // 말하고, 그 키가 없는 파일은 애초에 읽히지 않는다. 부르는 쪽이 따로 고르지 않는다 -
         // 고르게 두면 런처와 파일이 어긋난 채로 3D 프로젝트가 2D 로 열릴 수 있다.
-        bool OpenProjectFile(const char* projectFilePath, ProjectFileError& error);
+        Bool OpenProjectFile(const char* projectFilePath, ProjectFileError& error);
 
         // 이 프로젝트가 2D 인가 3D 인가(D-99). 편집 화면이 평면인지 궤도인지가 여기서 갈린다.
         FrameworkKind GetFrameworkKind() const { return m_frameworkKind; }
@@ -161,9 +165,9 @@ namespace JBro
         const String& GetProjectFilePath() const { return m_projectFilePath; }
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
-        bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
+        Bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
         // 물리 스레드의 추천 워커 수(D-223). 빌드 캔버스의 콜라이더를 센다. 2D 프로젝트가 아니면 0 이다.
-        std::uint32_t RecommendPhysicsWorkers();
+        UInt32 RecommendPhysicsWorkers();
 
         // ── 에디터 세션(D-146) ──────────────────────────────────────────────
         //
@@ -172,22 +176,22 @@ namespace JBro
 
         // 지금의 세션 값을 프로젝트 파일에 쓴다. 프로젝트를 파일로 열지 않았으면 아무 일도
         // 하지 않고 참이다 - 적을 파일이 없는 것은 실패가 아니다.
-        bool SaveEditorSession();
+        Bool SaveEditorSession();
         // 파일에 적힌 캔버스 뷰 카메라다. `size` 가 0 이면 적힌 적이 없다.
-        void GetSessionCamera(float& centerX, float& centerY, float& size) const;
+        void GetSessionCamera(Float& centerX, Float& centerY, Float& size) const;
         // 지금 캔버스 뷰가 보고 있는 자리다. 패널이 없으면 `size` 가 0 이다.
-        void GetCanvasViewCamera(float& centerX, float& centerY, float& size);
+        void GetCanvasViewCamera(Float& centerX, Float& centerY, Float& size);
         // 월드 한 점이 **마지막으로 그린** 캔버스 뷰(2D)의 어느 화면 점에 놓였는가. 그린 적이 없으면 거짓이다.
         // 그림 위에 겹쳐 그리는 도구와 그것을 마우스로 몰아 보는 테스트가 같은 변환을 쓰게 한다.
-        bool CanvasViewWorldToScreen(float worldX, float worldY, float& screenX, float& screenY);
+        Bool CanvasViewWorldToScreen(Float worldX, Float worldY, Float& screenX, Float& screenY);
         // 캔버스 뷰가 이 오브젝트 안으로 들어간다(D-254). 계층 창의 두 번 누르기가 부른다. 캔버스 뷰가 없으면 아무것도 하지 않는다.
         void StepCanvasViewInto(GameObject& object);
         // 캔버스 뷰의 카메라를 곧바로 그 자리로 둔다(따라가지 않는다). 세션을 되살리는 길과 같다.
-        void SetCanvasViewCamera(float centerX, float centerY, float size);
+        void SetCanvasViewCamera(Float centerX, Float centerY, Float size);
         // 캔버스 뷰가 마지막으로 그린 격자에서 숫자를 붙인 X 선의 월드 값이다(D-275).
-        void GetCanvasViewGridLabelsX(Array<float>& out);
+        void GetCanvasViewGridLabelsX(Array<Float>& out);
         // 캔버스 뷰가 마지막으로 그린 화면의 격자 간격(월드 단위)이다. 격자 스냅이 붙는 칸이다(D-282). 그린 적이 없으면 0 이다.
-        float GetCanvasViewGridStep();
+        Float GetCanvasViewGridStep();
         // 캔버스 뷰가 들어가 있는 오브젝트다. 뿌리거나 캔버스 뷰가 없으면 nullptr 이다.
         GameObject* GetCanvasViewFocus();
         // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지
@@ -197,27 +201,27 @@ namespace JBro
         // 에셋의 작은 그림이다(D-147). 텍스처가 아닌 에셋이나 아직 만들지 못한 것은 빈 핸들이다 -
         // 만드는 일은 프레임마다 몇 개로 막혀 있어, 목록을 처음 열면 몇 프레임에 걸쳐 채워진다.
         // 스프라이트 아이디를 주면 그 짝 텍스처의 그림을 준다.
-        TextureHandle GetAssetThumbnail(AssetId asset, std::uint32_t maxSide = 128);
+        TextureHandle GetAssetThumbnail(AssetId asset, UInt32 maxSide = 128);
         // 그 그림의 원본 크기다. 그림을 아직 만들지 않았으면 거짓이다.
-        bool GetAssetSourceSize(AssetId asset, std::uint32_t& width, std::uint32_t& height) const;
+        Bool GetAssetSourceSize(AssetId asset, UInt32& width, UInt32& height) const;
 
         // **스프라이트 뷰어**에서 연다(D-155). 뿌리 도크에 메인 도크와 나란히 붙는 창이고,
         // 파일마다 탭이 하나다. 그림이 아니면 거짓이다.
-        bool OpenSpriteViewer(AssetId asset);
+        Bool OpenSpriteViewer(AssetId asset);
 
         // **밖의 파일을 에셋 폴더로 가져온다**(D-156, 기존 `SpriteImporterWindow`·`ImporterWindowBase`).
         // 파일을 `relativeFolder` 아래로 **복사**하고 다시 훑어 등록한다 - `.jmeta` 는 스캔이 만든다.
         // 같은 이름이 이미 있으면 거절한다(덮어쓰면 그 파일을 가리키던 아이디가 다른 그림을 가리킨다).
         // 에셋이 아닌 확장자도 거절한다 - 복사는 되는데 목록에 나오지 않으면 가져온 것이 사라진 것처럼 보인다.
-        bool ImportAssetFile(const char* sourcePath, const char* relativeFolder, String* importedPath = nullptr);
+        Bool ImportAssetFile(const char* sourcePath, const char* relativeFolder, String* importedPath = nullptr);
         // 파일 대화상자로 고르고 가져온다. 대화상자는 프레임 밖에서 뜬다. 그림이면 스프라이트 뷰어로 연다 -
         // 기존 임포터가 가져오기 전에 옵션을 보였듯, 가져온 뒤 바로 자르는 옵션을 고칠 수 있게.
         void RequestImportAsset(const char* relativeFolder);
         std::size_t GetSpriteViewerTabCount() const;
         // 앞에 있는 뷰어 탭의 칸 번호다. 탭이 없으면 거짓이다.
-        bool GetSpriteViewerFrame(std::uint32_t& frame) const;
+        Bool GetSpriteViewerFrame(UInt32& frame) const;
         // 마우스가 시트에서 가리킨 칸이다. 없으면 -1 이다(D-185).
-        int GetSpriteViewerHoveredFrame() const;
+        Int32 GetSpriteViewerHoveredFrame() const;
         // 스프라이트가 그리는 **실제 모양**이다(D-149). 칸 안의 비율 좌표로 된 선분들이고,
         // 아직 재지 못했으면 nullptr 다. 크기·피벗·회전은 부르는 쪽이 얹는다.
         const Array<EditorSpriteContours::Segment>* GetSpriteContour(
@@ -227,7 +231,7 @@ namespace JBro
 
         // 에디터 언어를 바꾼다. 글자 표를 다시 읽고, 성공하면 다음 프레임부터 그 언어다.
         // 파일이 없으면 거짓이고 지금 언어는 그대로다.
-        bool SetEditorLocale(const char* locale);
+        Bool SetEditorLocale(const char* locale);
         const String& GetEditorLocale() const { return m_locale; }
         // 글자 표 폴더에 있는 언어들이다(`<로케일>.yaml`). 정렬돼 있다.
         Array<String> GetAvailableLocales() const;
@@ -244,9 +248,9 @@ namespace JBro
         // 소리가 나가는 장치의 이름이다. 장치를 열지 않았거나 못 열었으면 nullptr 이다 - 통계 창이 "소리 없음" 을 알린다.
         const char* GetAudioDeviceName() const;
         // 출력 장치 목록이다(D-203). 몇 ms 걸리므로 목록을 여는 순간에만 부른다.
-        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity);
+        UInt32 EnumerateAudioOutputs(AudioDeviceInfo* devices, UInt32 capacity);
         // 열린 프로젝트의 에셋 폴더가 감시되고 있는가. 거짓이면 밖에서 바꾼 파일이 반영되지 않는다.
-        bool IsWatchingAssets() const;
+        Bool IsWatchingAssets() const;
 
         // ── 에셋 파일 (D-139) ────────────────────────────────────────────
         //
@@ -259,21 +263,21 @@ namespace JBro
         // 어느 것이든 성공하면 레지스트리를 다시 스캔하고 캔버스의 참조를 다시 잇는다.
         const String& GetAssetRoot() const;
         // 에셋 폴더를 지금 다시 훑는다. 감시가 서지 않은 자리에서 사람이 새로 고치는 길이다.
-        bool RescanAssets();
+        Bool RescanAssets();
 
         // **한 손짓이 여럿을 지우면 되돌리기도 하나다**(§11). 고른 것 전부를 한 커맨드로 묶는다.
-        bool DeleteAssets(const Array<String>& relativePaths);
+        Bool DeleteAssets(const Array<String>& relativePaths);
 
         // ── 에셋 파일 작업의 알맹이(D-191) ─────────────────────────────────────────
         // 아래 넷은 **커맨드가 부르는 자리**다. 되돌리기 없이 곧장 디스크를 고치므로
         // 에셋 브라우저나 패널이 직접 부르지 않는다 - 그쪽은 `DeleteAsset` 같은
         // 커맨드를 세우는 함수를 쓴다.
-        bool CreateAssetFolderNow(const char* relativePath);
-        bool MoveAssetPathNow(const char* fromRelative, const char* toRelative);
+        Bool CreateAssetFolderNow(const char* relativePath);
+        Bool MoveAssetPathNow(const char* fromRelative, const char* toRelative);
         // 지운 것을 프로젝트 안 숨김 폴더로 옮긴다. 옮긴 자리(절대경로)를 돌려주고,
         // 실패하면 빈 글자다. `.jmeta` 도 함께 간다.
         String MoveAssetToTrash(const char* relativePath);
-        bool RestoreFromTrash(const char* trashPath, const char* relativePath);
+        Bool RestoreFromTrash(const char* trashPath, const char* relativePath);
         // 그 휴지통 자리를 영영 지운다. 커맨드가 스택에서 밀려날 때 부른다.
         void DropFromTrash(const char* trashPath);
         // 프로젝트를 열 때 남아 있는 휴지통을 치운다(비정상 종료가 남긴 것).
@@ -282,11 +286,11 @@ namespace JBro
         String GetTrashRoot() const;
         // 파일이 움직인 뒤 레지스트리와 캔버스의 참조를 다시 맞춘다.
         void RefreshAfterAssetFileChange();
-        bool CreateAssetFolder(const char* relativeFolder, const char* name);
+        Bool CreateAssetFolder(const char* relativeFolder, const char* name);
         // 이름만 바꾼다. 확장자는 부르는 쪽이 붙인 그대로 쓴다.
-        bool RenameAsset(const char* relativePath, const char* newName);
+        Bool RenameAsset(const char* relativePath, const char* newName);
         // 다른 폴더로 옮긴다. `targetFolder` 가 비면 에셋 폴더의 뿌리다.
-        bool MoveAsset(const char* relativePath, const char* targetFolder);
+        Bool MoveAsset(const char* relativePath, const char* targetFolder);
         // **복제한다**(D-175, 기존 `Duplicate`). 같은 폴더에 겹치지 않는 이름으로 내용을 복사한다.
         // **`.jmeta` 는 따라가지 않는다** - 그 안의 아이디까지 같아지면 두 파일이 한 에셋 행세를 한다.
         // 새 아이디는 스캔이 매긴다. 만든 파일의 상대경로를 돌려준다. 실패하면 빈 글자다.
@@ -296,27 +300,27 @@ namespace JBro
         // 없으면 이름 그대로 가고, 있으면 뒤에 숫자를 붙인다. `.jmeta` 는 따라가지 않는다.
         String CopyAssetInto(const char* relativePath, const char* targetFolder);
         // **되돌릴 수 없다.** 부르는 쪽이 먼저 물어야 한다.
-        bool DeleteAsset(const char* relativePath);
-        bool RevealAsset(const char* relativePath);
+        Bool DeleteAsset(const char* relativePath);
+        Bool RevealAsset(const char* relativePath);
         // **에셋 브라우저를 그 에셋 앞으로 데려간다**(D-193, 기존 `ImReferenceField::OnActivate`).
         // `RevealAsset` 은 탐색기를 여는 다른 일이다 - 이쪽은 에디터 안에서 찾아 준다.
         // 브라우저가 다음 프레임에 가져간다: 폴더를 열고 그 줄을 고른다.
         void RevealAssetInBrowser(AssetId asset);
         // 브라우저가 부른다. 기다리는 것이 있으면 아이디를 주고 비운다.
-        bool TakeBrowserRevealRequest(AssetId& asset);
+        Bool TakeBrowserRevealRequest(AssetId& asset);
         // 엔진이 모르는 파일을 OS 의 기본 프로그램으로 연다. 열 프로그램이 없으면
         // 탐색기로 그 자리를 보여 준다 - 두 번 눌렀는데 아무 일도 없는 것보다 낫다.
-        bool OpenAssetExternally(const char* relativePath);
+        Bool OpenAssetExternally(const char* relativePath);
         // 에셋 파일을 마지막으로 고친 때(유닉스 초, D-196). 에셋 브라우저가 늘어놓는 데 쓴다.
-        bool GetAssetWriteTime(const char* relativePath, std::int64_t& outUnixSeconds) const;
+        Bool GetAssetWriteTime(const char* relativePath, Int64& outUnixSeconds) const;
 
         // **에셋 선택**(D-120). 에셋 브라우저가 고르고 인스펙터가 임포트 옵션을 보여 준다. 오브젝트 선택과 배타다 -
         // 에셋을 고르면 오브젝트 선택이 비고, 오브젝트를 고르면 에셋 선택이 빈다. 인스펙터는 하나만 보인다.
         void SetSelectedAsset(AssetId id);
         // **캔버스 자신을 고른다**(D-186, 기존 계층의 캔버스 줄). 고르면 인스펙터가
         // 캔버스의 값(배경색)을 보여 준다. 오브젝트·에셋 선택과 배타다 - 인스펙터는 하나만 보인다.
-        void SetCanvasSelected(bool selected);
-        bool IsCanvasSelected() const;
+        void SetCanvasSelected(Bool selected);
+        Bool IsCanvasSelected() const;
         // **레이어를 고른다**(D-279, 기존 `Editor::SelectLayer`). 고르면 인스펙터가 그 레이어의 값(이름·보임·블렌드·불투명도·공간)을
         // 보여 주고, 새 오브젝트와 붙여넣기가 그 레이어로 간다. 오브젝트·에셋·캔버스 선택과 배타다. 포인터가 아니라 번호로 든다 -
         // 레이어를 지웠다 되돌리면 새 번호가 서므로, 고른 레이어가 사라지면 `GetSelectedLayer` 는 무효값이다.
@@ -327,11 +331,11 @@ namespace JBro
         // (판번호) 다시 읽으므로 편집·되돌리기 뒤에도 디스크와 같다.
         const AssetMetaFile* GetSelectedAssetMeta() const;
         // 고른 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다. 고른 것이 없으면 거짓이다.
-        bool DescribeSelectedAssetMeta(AssetMetaTarget& target) const;
+        Bool DescribeSelectedAssetMeta(AssetMetaTarget& target) const;
         // 이 프로젝트의 스크립트 DLL 이 실렸는지다. **열렸다고 실린 것은 아니다**(D-98) —
         // 아직 한 번도 빌드하지 않은 프로젝트도 열리므로, 스크립트가 있어야 하는 일은
         // 이것을 먼저 본다.
-        bool IsScriptModuleLoaded() const;
+        Bool IsScriptModuleLoaded() const;
         // 스크립트 DLL 을 싣지 못한 사유다. 실었거나 프로젝트가 스크립트를 가리키지
         // 않으면 비어 있다.
         const String& GetScriptModuleError() const;
@@ -345,10 +349,10 @@ namespace JBro
         // **크기는 게임 해상도지 패널 크기가 아니다.** 패널에 맞춰 만들면 창을
         // 끌 때마다 텍스처를 다시 만들게 되고, 무엇보다 게임이 보는 화면 크기가
         // 에디터 창에 따라 달라진다 - 화면 좌표를 쓰는 스크립트가 어긋난다.
-        bool EnableEditorUi(const Extent2D& gameViewExtent);
+        Bool EnableEditorUi(const Extent2D& gameViewExtent);
         // 끄면 게임이 다시 백버퍼로 간다. 게임 실행과 같은 경로다.
         void DisableEditorUi();
-        bool IsEditorUiEnabled() const;
+        Bool IsEditorUiEnabled() const;
         // 되돌리기 스택이다. 편집하는 패널은 값을 직접 쓰지 않고 여기에
         // 커맨드를 넣는다 - 그래야 Ctrl+Z 가 그 편집을 안다.
         EditorCommandManager& GetCommands();
@@ -375,7 +379,7 @@ namespace JBro
         // Ctrl·Shift 클릭이다. 이미 있으면 아무 일도 하지 않는다.
         void AddToSelection(GameObject* object);
         void RemoveFromSelection(const GameObject* object);
-        bool IsSelected(const GameObject* object) const;
+        Bool IsSelected(const GameObject* object) const;
         void ClearSelection();
         // 살아 있는 것만 센다. 죽은 것은 목록에 남아 있어도 없는 것이다.
         std::size_t GetSelectionCount() const;
@@ -392,8 +396,8 @@ namespace JBro
         // 이번 프레임의 입력을 UI 가 가져갔는가. **게임에 입력을 넘길지
         // 판단하는 자리다** - 에디터의 필드에 타자를 치는 중에 게임
         // 스크립트가 같은 키를 받으면 안 된다. UI 가 꺼져 있으면 거짓이다.
-        bool UiWantsMouse() const;
-        bool UiWantsKeyboard() const;
+        Bool UiWantsMouse() const;
+        Bool UiWantsKeyboard() const;
         // 패널을 들인다. 에디터가 소유하고, UI 를 끌 때 함께 내보낸다.
         // 같은 제목의 패널은 받지 않는다 - ImGui 가 제목으로 창을 식별하므로
         // 둘이 한 창을 나눠 쓰게 된다.
@@ -414,8 +418,8 @@ namespace JBro
         PopupHandle OpenPopup(OwnerPtr<EditorPopup> popup);
         // 닫기 요청. 뜨지 않고 기다리던 것도 닫힌다. 모르는 핸들은 무시한다.
         void ClosePopup(PopupHandle handle);
-        bool IsPopupOpen(PopupHandle handle) const;
-        bool IsPopupOpenById(const char* id) const;
+        Bool IsPopupOpen(PopupHandle handle) const;
+        Bool IsPopupOpenById(const char* id) const;
         // 우측 하단의 알림 더미다(todo "에디터 공용 기반" 1 번). 패널·도구·외부 에디터가 여기에 알린다 -
         // 막는 팝업과 달리 하던 일을 멈추지 않는다. UI 가 꺼져 있어도 쌓이고, 켜지면 뜬다.
         EditorNotifications& GetNotifications();
@@ -425,14 +429,14 @@ namespace JBro
         EditorGuideFocus& GetGuideFocus();
         const EditorGuideFocus& GetGuideFocus() const;
         // 가이드다(D-251). 도움말 메뉴가 내장 가이드를 이 이름으로 켠다(`EditorGuides`). 캔버스가 없거나 모르는 이름이면 거짓이다.
-        bool StartGuide(const char* id);
+        Bool StartGuide(const char* id);
         // **글자로 적힌 가이드를 켠다**(D-267). 에이전트가 사용자의 물음에 맞춰 지은 가이드를 이것으로 넘긴다 - 에디터 안에서는
         // 곧장 부르고, 밖의 프로세스는 제어 포트(D-270)의 `guide.start` 로 부른다. 형식은 `EditorGuides::Parse` 다. 읽지 못하면 까닭을 `error` 에
         // 적고 거짓이며, 이미 돌던 가이드는 그대로 둔다. 읽었으면 돌던 가이드를 멈추고 이것을 켠다.
-        bool StartGuideFromText(const char* text, std::size_t length, String& error);
+        Bool StartGuideFromText(const char* text, std::size_t length, String& error);
         EditorGuide& GetGuide();
         // 제어 포트가 열렸는가(D-270). `controlPort` 를 주었어도 다른 에디터가 그 번호를 쓰고 있으면 열리지 않는다.
-        bool IsControlPortOpen() const;
+        Bool IsControlPortOpen() const;
         // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
         // 다음 틱이 끝날 때 환경설정 파일에 적힌다.
         EditorShortcutManager& GetShortcuts();
@@ -446,7 +450,7 @@ namespace JBro
         EditorPanel* FindPanel(const char* typeName);
         EditorPanel* FindPanel(const Uuid& id);
         // 그 종류의 패널을 들인 차례로 `out` 에 채우고 수를 돌려준다. 고유 패널이면 0 이나 1 이다.
-        std::uint32_t FindPanels(const char* typeName, Array<EditorPanel*>& out);
+        UInt32 FindPanels(const char* typeName, Array<EditorPanel*>& out);
         std::size_t GetPanelCount() const;
 
         // 게임 화면이 그려지는 텍스처다. UI 가 꺼져 있으면 비어 있다.
@@ -456,19 +460,19 @@ namespace JBro
         // **게임이 지난 프레임에 그릴 것을 냈는가**(D-178). 게임 뷰가 "카메라 없음" 을
         // 언제 말할지 정하는 값이다 - 텍스처가 있는지만 보면 카메라가 없어도 검은 화면을
         // "실행 중" 이라고 말하게 된다.
-        bool DidGameSubmitLastFrame() const;
+        Bool DidGameSubmitLastFrame() const;
         // 지난 프레임에 게임을 그린 2D 카메라다(D-239). 2D 프로젝트가 아니거나 카메라가 없으면 null 이다.
         const RenderCamera2D* GetGameCamera2D() const;
         // 켜져 있지만 값이 잘못되어 건너뛴 2D 카메라 수다(D-239). 게임 뷰가 "카메라 없음" 대신 그 까닭을 보인다.
-        std::uint32_t GetUnusableGameCameraCount() const;
+        UInt32 GetUnusableGameCameraCount() const;
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetGameViewExtent() const;
         // 게임 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
         // 그 패널이 포커스를 가졌는지다. 게임 입력의 마우스를 게임 화면 픽셀로 옮기는 데 쓴다(D-214).
-        void ReportGameView(bool focused, float left, float top, float width, float height);
+        void ReportGameView(Bool focused, Float left, Float top, Float width, Float height);
         // 이번 프레임에 게임이 에디터 창의 입력을 받는가(D-214). 재생 중이고 멈추지 않았으며 **지난 프레임에** 게임 뷰가
         // 포커스를 가졌을 때다. 그 동안 에디터 단축키는 재생 제어(F5·F6)만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
-        bool IsGameReceivingInput() const;
+        Bool IsGameReceivingInput() const;
 
         // ── 캔버스 뷰(편집 화면) ─────────────────────────────────────────
         //
@@ -491,50 +495,50 @@ namespace JBro
         // **되살릴 값을 먼저 뜨지 못하면 재생하지 않는다**(§11.5). 캔버스를 글자로 뜨지
         // 못하면 거짓을 돌려주고 아무 일도 하지 않는다 - 돌려놓을 수 없는 재생은
         // 편집 내용을 잃는 일이다.
-        bool StartSimulation();
+        Bool StartSimulation();
         // 멈추고 재생 전의 캔버스로 되돌린다. 돌지 않고 있으면 아무 일도 하지 않는다.
         void StopSimulation();
-        bool IsSimulationPlaying() const;
+        Bool IsSimulationPlaying() const;
         // 메뉴와 단축키가 함께 쓰는 한 손짓이다. 돌고 있으면 세우고, 아니면 시작한다.
         void ToggleSimulation();
         // 재생 중에만 뜻이 있다. 멈춰 세우면 그린 것은 그대로 두고 게임만 세운다.
-        void SetSimulationPaused(bool paused);
-        bool IsSimulationPaused() const;
+        void SetSimulationPaused(Bool paused);
+        Bool IsSimulationPaused() const;
         // 멈춘 재생을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 재생 중이고 멈춰 있을 때만 뜻이 있다.
         void StepSimulation();
         // 스크립트의 디버그 선을 게임 뷰·캔버스 뷰에 그릴지다(D-243). 둘 다 처음에는 켜져 있다.
-        void SetGameViewDebugDraw(bool visible);
-        bool IsGameViewDebugDrawVisible() const;
-        void SetCanvasViewDebugDraw(bool visible);
-        bool IsCanvasViewDebugDrawVisible() const;
+        void SetGameViewDebugDraw(Bool visible);
+        Bool IsGameViewDebugDrawVisible() const;
+        void SetCanvasViewDebugDraw(Bool visible);
+        Bool IsCanvasViewDebugDrawVisible() const;
         // 엔진의 시계·디버그 선·난수 씨앗이다(D-242, D-243). 통계 창과 시험이 읽는다. 엔진이 없으면 null·0 이다.
         const FrameTime* GetFrameTime() const;
         const System::DebugDrawSystem* GetDebugDraw() const;
-        std::uint64_t GetRandomSeed() const;
+        UInt64 GetRandomSeed() const;
 
         // `focusObject` 는 캔버스 뷰가 들어가 있는 오브젝트다(D-252). 있으면 나머지가 흰 막에 가려진다.
-        bool RequestCanvasView(const Extent2D& extent, float centerX, float centerY, float orthographicSize,
-            bool screenSpace = false, InstanceId focusObject = InvalidInstanceId);
+        Bool RequestCanvasView(const Extent2D& extent, Float centerX, Float centerY, Float orthographicSize,
+            Bool screenSpace = false, InstanceId focusObject = InvalidInstanceId);
         // 게임이 쓰는 화면 기준이다(D-237): 프로젝트의 기준 해상도와 게임 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
         // 게임 카메라가 `PixelPerfect` 면 그 레터박스 사각형도 걸려 있다(D-239) - 게임이 쓰는 것과 같은 함수로 건다.
         ScreenSpaceFrame GetGameScreenSpace() const;
         // 캔버스 뷰가 마지막으로 UI 보기를 청했는가(D-237). 시험과 상태 표시가 읽는다.
-        bool IsCanvasViewScreenSpace() const { return m_canvasViewRequest.screenSpace; }
+        Bool IsCanvasViewScreenSpace() const { return m_canvasViewRequest.screenSpace; }
         // **레이어의 공간·맞춤 방식을 바꾸는 커맨드를 만든다**(D-237). 월드↔화면을 오가면 그 레이어 루트의 자리를 지난 프레임의 게임 카메라로
         // 옮겨, 게임 화면에서 보이던 자리가 남는다. 카메라가 없으면 자리는 그대로다. 캔버스나 레이어가 없으면 null 이다.
         OwnerPtr<EditorCommand> MakeLayerSpaceCommand(LayerId layer, LayerSpace space, ScreenScaleMode scaleMode);
         // 3D 의 편집 화면이다(D-136). 바라보는 점과 그 둘레를 도는 거리·각을 준다 -
         // 평면을 밀고 당기는 것으로는 3D 의 뒤를 볼 수 없다.
-        bool RequestCanvasView3D(
+        Bool RequestCanvasView3D(
             const Extent2D& extent,
-            float centerX, float centerY, float centerZ,
-            float distance, float yawDegrees, float pitchDegrees);
+            Float centerX, Float centerY, Float centerZ,
+            Float distance, Float yawDegrees, Float pitchDegrees);
         TextureHandle GetCanvasViewTexture() const;
         // 실제로 잡혀 있는 텍스처의 크기다. 요청한 크기를 **올림**한 값이라 패널을
         // 조금 끌 때마다 텍스처를 다시 만들지 않는다.
         Extent2D GetCanvasViewExtent() const;
 
-        bool Tick(float deltaTime);
+        Bool Tick(Float deltaTime);
         void CloseProject();
         void Shutdown();
 
@@ -542,24 +546,24 @@ namespace JBro
         Canvas* GetCanvas();
         // 열려 있는 캔버스로 `.jcanvas` 를 읽고 쓴다.
         // 읽기는 **빈 캔버스에만** 들어간다 — 이미 내용이 있으면 거절한다.
-        bool LoadCanvas(const char* path, CanvasFileError& error);
+        Bool LoadCanvas(const char* path, CanvasFileError& error);
         // **워커로 여는 캔버스**(D-236). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
         // 다음 틱에 바인딩한다 - 그동안 화면은 멈추지 않고 상태 표시줄에 진행이 보인다. 프로젝트를 열 때와 에셋 브라우저에서
         // 캔버스를 열 때 이 길로 간다. 앞서 돌던 캔버스 로드는 거두고(취소하고 기다린다) 시작한다. 읽지 못하면 거짓이다.
-        bool LoadCanvasAsync(const char* path, CanvasFileError& error);
-        bool IsCanvasLoading() const;
+        Bool LoadCanvasAsync(const char* path, CanvasFileError& error);
+        Bool IsCanvasLoading() const;
         // 도는 캔버스 로드의 묶음이다. 없으면 `InvalidTaskGroupId` 다.
         TaskGroupId GetCanvasLoadGroup() const;
         // 도는 캔버스 로드를 끝까지 기다려 바인딩까지 마친다. 기다려야 하는 자리(시험)가 부른다.
         void FinishCanvasLoadNow();
-        bool SaveCanvas(const char* path, CanvasFileError& error);
+        Bool SaveCanvas(const char* path, CanvasFileError& error);
         // **복사·붙여넣기.** 고른 것 중 맨 위 것들의 나무를 떠 둔다(뜨지 못하면 거짓이고
         // 클립보드는 그대로다). 붙여넣기는 커맨드 하나로 가고, 붙인 뿌리들을 고른다 -
         // 주된 선택의 형제로 붙이고, 고른 것이 없으면 캔버스 뿌리에 붙인다.
-        bool CopySelection();
+        Bool CopySelection();
         // `asChild` 면 고른 것의 자식으로 붙인다(D-166, 기존 `PasteObjectsAsChild`·Ctrl+Shift+V).
-        bool PasteClipboard(bool asChild = false);
-        bool HasClipboard() const
+        Bool PasteClipboard(Bool asChild = false);
+        Bool HasClipboard() const
         {
             return false == m_clipboard.IsEmpty();
         }
@@ -570,15 +574,15 @@ namespace JBro
         // 갔는지 보이지 않는다. **다만 하나만 붙는 타입은 거절한다**(D-180) - 기존 엔진은
         // 붙여넣기만 다중성 판정을 지나치지 않아 Transform 이 둘씩 붙었고, 그렇게 되면
         // 조회가 먼저 붙은 쪽만 돌려주어 나중 것은 보이지도 지워지지도 않는다.
-        bool CopyComponent(ComponentBase& component);
-        bool PasteComponent(GameObject& object);
+        Bool CopyComponent(ComponentBase& component);
+        Bool PasteComponent(GameObject& object);
         // 그 오브젝트에 떠 둔 컴포넌트를 붙일 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
-        bool CanPasteComponent(const GameObject& object) const;
+        Bool CanPasteComponent(const GameObject& object) const;
         // 이미 붙어 있는 컴포넌트에 값만 덮는다. 떠 둔 것이 그 타입이 아니면 거짓이다.
-        bool PasteComponentValues(GameObject& object, ComponentBase& component);
+        Bool PasteComponentValues(GameObject& object, ComponentBase& component);
         // 그 컴포넌트에 값을 덮을 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
-        bool CanPasteComponentValues(const ComponentBase& component) const;
-        bool HasComponentClipboard() const
+        Bool CanPasteComponentValues(const ComponentBase& component) const;
+        Bool HasComponentClipboard() const
         {
             return m_hasComponentClipboard;
         }
@@ -610,25 +614,25 @@ namespace JBro
         // **레이어 썸네일**(D-288, 기존 `RequestLayerThumbnails`). 계층 창이 그리는 프레임마다 줄 높이로 부른다 - 부르지 않는 프레임이 이어지면 텍스처를 놓는다
         // (기존 엔진은 요청을 비우는 줄이 빠져 창이 가려져도 매 프레임 전부를 그렸다). 크기는 이 높이에 프로젝트 해상도의 가로세로비다. 한 프레임에
         // 두 장씩, 아직 그리지 않은 레이어부터 돌아가며 그린다. 숨긴 레이어는 새로 그리지 않는다 - 렌더 추출이 숨긴 레이어를 건너뛴다(§7).
-        void RequestLayerThumbnails(std::uint32_t height);
+        void RequestLayerThumbnails(UInt32 height);
         // 그 레이어의 썸네일이다. 아직 그린 적이 없으면 거짓이다.
-        bool GetLayerThumbnail(LayerId layer, TextureHandle& texture, Extent2D& extent) const;
+        Bool GetLayerThumbnail(LayerId layer, TextureHandle& texture, Extent2D& extent) const;
         // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣고 그 레이어를 고른다**(D-287). 커맨드 하나다. 넣지 못하면 경고를 알리고 거짓이다.
-        bool AddLayerFromAsset(AssetId asset);
+        Bool AddLayerFromAsset(AssetId asset);
         // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
         // 재생 전의 언어로 되돌린다(게임이 바꾼 로케일이 편집 화면에 남지 않게).
         String GetPreviewLocale() const;
-        bool SetPreviewLocale(const char* locale);
+        Bool SetPreviewLocale(const char* locale);
         // 프로젝트의 문자열 표에 있는 키 전부다(D-226, 이름 차례). 인스펙터의 `textKey` 고르기가 쓴다. 표가 바뀔 때만 다시 모은다.
         const Array<String>& GetStringKeys();
         // **게임을 빌드한다**(D-232). 파일 메뉴의 "게임 빌드" 가 부른다. 저장된 프로젝트 파일(원본)로 빌드하고, 결과를 알림으로 보인다.
         // 게임 호스트는 차원에 맞는 것을 실행 파일 옆(`JBroGameHost2D.exe`/`3D`)이나 개발 빌드 폴더(`../Debug_Game2D/JBroGameHost.exe` 따위)에서 찾는다.
-        bool BuildGameForProject(GameBuildReport& report);
+        Bool BuildGameForProject(GameBuildReport& report);
         // 위가 쓰는 게임 호스트 경로다. 찾지 못하면 빈 글자다.
         String FindGameHostExecutable() const;
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
-        void AnswerCanvasSwitch(int choice);
+        void AnswerCanvasSwitch(Int32 choice);
         // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
         // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
         void RequestSaveCanvas();
@@ -644,26 +648,26 @@ namespace JBro
         void RequestNewProject();
         // `<parentFolder>/<name>/` 에 프로젝트를 세우고, 이 프레임이 끝나면 그 프로젝트로 넘어간다.
         // 실패하면 거짓이고 `failure` 에 까닭이 온다. 팝업이 그것으로 번역된 문장을 고른다.
-        bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
+        Bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
             ProjectCreateFailure* failure = nullptr);
         // ── 스프라이트 프레임 고르기(D-165, 기존 `SpriteFramePick`) ─────────────────────────────
         // 인스펙터의 "프레임 고르기" 가 시작하고, 스프라이트 뷰어에서 칸을 누르면 끝난다. 끝나면 대상 컴포넌트의
         // `frameIndex` 를 커맨드로 고친다. 대상은 포인터가 아니라 주소다 - 고르는 사이 지웠다 되살려도 찾는다.
         // 한 번에 하나다. 새로 시작하면 앞의 것은 취소된다.
-        bool BeginSpriteFramePick(AssetId sprite, const ComponentAddress& target);
+        Bool BeginSpriteFramePick(AssetId sprite, const ComponentAddress& target);
         void CancelSpriteFramePick();
-        bool IsSpriteFramePickActive() const
+        Bool IsSpriteFramePickActive() const
         {
             return m_framePickActive;
         }
-        bool IsSpriteFramePickFor(const ComponentAddress& target) const;
+        Bool IsSpriteFramePickFor(const ComponentAddress& target) const;
         // 고르는 중인 스프라이트의 텍스처다. 뷰어가 어느 탭에서 고르는지 안다.
         AssetId GetSpriteFramePickTexture() const
         {
             return m_framePickTexture;
         }
         // 뷰어가 부른다. 대상이 사라졌거나 쓸 수 없으면 거짓이고, 어느 쪽이든 고르기는 끝난다.
-        bool CompleteSpriteFramePick(std::uint32_t frame);
+        Bool CompleteSpriteFramePick(UInt32 frame);
 
         // 경로 칸의 "찾아보기" 를 프레임 밖에서 처리하게 맡긴다(D-164). 한 프레임에 하나다 - 뒤의 것이 앞의 것을 덮는다.
         void RequestBrowsePath(const PathBrowseRequest& request);
@@ -678,23 +682,23 @@ namespace JBro
         Renderer* GetRenderer();
         const Renderer* GetRenderer() const;
 
-        bool IsInitialized() const;
-        bool HasOpenProject() const;
+        Bool IsInitialized() const;
+        Bool HasOpenProject() const;
         FrameStatus GetLastFrameStatus() const;
 
     private:
         // 렌더러가 뷰를 다 기록한 뒤, 프레임을 닫기 전에 불린다.
-        static bool DrawEditorOverlay(
+        static Bool DrawEditorOverlay(
             IRHICommandContext& commands,
             TextureHandle backBuffer,
-            std::uint32_t frameSlot,
+            UInt32 frameSlot,
             void* user);
         // **메뉴는 두 겹이다**(D-134). 기존 엔진과 같다: 프로젝트에 대한 것은 도크 뿌리의
         // 메뉴이고, 지금 연 캔버스에 대한 것은 메인 도크의 메뉴다.
         void DrawRootMenuBar();
         void DrawMainMenuBar();
         // 가이드 포커스의 막과 말풍선을 그리고 한 걸음 나아간다(D-251). 알림 뒤, 프레임 끝에 부른다.
-        void DrawGuideFocus(float deltaTime);
+        void DrawGuideFocus(Float deltaTime);
         // 창 전체를 덮는 도크 뿌리. 메인 도크 하나만 여기에 붙는다.
         void DrawRootDock(const Extent2D& display);
         // 패널 하나를 여닫는 메뉴 항목이다. 설정·디버그 메뉴가 같은 모양으로 쓴다.
@@ -704,25 +708,25 @@ namespace JBro
         // 메인 도크가 아닌 도크들(D-284). 열린 패널이 있는 것만 뿌리에 선다. 패널보다 먼저 그려 도크 공간을 낸다.
         void DrawDockAreas();
         // 모든 패널을 그린다. 메인 도크가 아닌 패널은 처음 그릴 때 제 도크 공간에 붙인다.
-        void DrawPanels(float deltaTime);
+        void DrawPanels(Float deltaTime);
         struct DockAreaState
         {
             const char* name = nullptr;
-            std::uint32_t dockSpace = 0;
+            UInt32 dockSpace = 0;
             // 지난 프레임에 뿌리에 섰는가. 비었다가 다시 서면 뿌리에 다시 붙인다.
-            bool shown = false;
+            Bool shown = false;
             // 이번 프레임에 그려졌는가(메인 도크 탭 뒤에 가려지지 않았는가).
-            bool visible = false;
+            Bool visible = false;
             // 앞으로 꺼내는 중인가. 뿌리 칸의 탭 줄에서 이 도크가 골라질 때까지 이어 간다.
-            bool comingForward = false;
+            Bool comingForward = false;
         };
         Array<DockAreaState> m_dockAreas;
         DockAreaState* FindDockArea(const char* name);
         // 스프라이트 뷰어 패널 중 앞에 있는 것. 없으면 맨 앞, 그것도 없으면 nullptr 이다.
         const EditorPanel* FrontSpriteViewer() const;
         // 메뉴 항목 하나를 단축키 표의 값으로 그린다: 이름·조합키 글자·할 수 있는지.
-        bool DrawShortcutItem(EditorShortcut id, const char* label, const char* icon = nullptr);
-        bool BuildEditorUi(float deltaTime);
+        Bool DrawShortcutItem(EditorShortcut id, const char* label, const char* icon = nullptr);
+        Bool BuildEditorUi(Float deltaTime);
         // 큐의 맨 앞 팝업 하나를 그린다. 닫힌 것은 먼저 빼고, 닫히면 그 자리에서 뺀다.
         void DrawPopups();
         // `RequestSaveCanvas` 를 프레임 밖에서 처리한다.
@@ -734,7 +738,7 @@ namespace JBro
         // `RequestOpenCanvas` 를 프레임 밖에서 처리한다(D-174).
         void PerformOpenCanvasRequest();
         // 캔버스 파일을 읽어 빈 캔버스에 넣는다. 바인딩은 하지 않는다 - 부르는 쪽이 동기로 하거나 워커 로드 뒤에 한다.
-        bool ReadCanvasFile(const char* path, CanvasFileError& error);
+        Bool ReadCanvasFile(const char* path, CanvasFileError& error);
         // 끝난 캔버스 로드를 거둔다: 바인딩하고, 로드가 잡던 참조를 놓고, 실패는 알린다.
         void PollCanvasLoad();
         void CompleteCanvasLoad();
@@ -742,22 +746,22 @@ namespace JBro
         // 부른다 - 워커가 내린 에셋 시스템을 읽지 않게(D-212 의 닫기 규칙).
         void CancelCanvasLoad();
         // 창 바닥의 상태 표시줄이다(13 번). 도는 태스크 묶음과 마지막 알림이 거기에 내려앉는다.
-        float StatusBarHeight() const;
-        void DrawStatusBar(const Extent2D& display, float height);
+        Float StatusBarHeight() const;
+        void DrawStatusBar(const Extent2D& display, Float height);
         // 그림·외곽선 캐시를 지금 프로젝트의 에셋 시스템에 잇는다. 프로젝트가 없으면 끊는다(D-165).
         void BindAssetTools();
         // 프로젝트의 물리 스레드 설정을 풀어 2D 프레임워크에 먹인다(D-223). 열 때와 설정을 저장할 때 부른다.
         // 물리 스레드(D-223)와 레이어 충돌 표(D-233)를 프로젝트 설정대로 프레임워크에 넘긴다.
         void ApplyPhysicsSettings();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
-        bool SwitchToProject(const char* projectFilePath);
+        Bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();
         void ReleaseEditorUi();
         void DestroyPanels();
         // 디바이스가 이미 사라진 뒤에 부른다.
         void AbandonEditorUi();
 
-        bool CreateSelectedFramework(FrameworkKind framework);
+        Bool CreateSelectedFramework(FrameworkKind framework);
         void DestroySelectedFramework();
         void ReleaseProcessResources();
 
@@ -771,13 +775,13 @@ namespace JBro
         // **패널보다 먼저 선언한다** - 패널이 제 단축키를 등록하고 떠날 때 풀므로, 패널이 사라질 때 관리자가 살아 있어야 한다.
         OwnerPtr<EditorShortcutManager> m_shortcuts;
         String m_preferencesPath;
-        std::uint64_t m_savedShortcutRevision = 0;
+        UInt64 m_savedShortcutRevision = 0;
         void LoadPreferences();
         void SavePreferences();
         Array<OwnerPtr<EditorPanel>> m_panels;
         // 패널을 그리는 중인가. 그 사이 닫힌 비고유 패널은 `m_closingPanels` 에 두었다가 그리기가 끝나면 파기한다 -
         // 도는 중에 빼면 뒤의 패널이 한 칸씩 밀려 건너뛴다.
-        bool m_drawingPanels = false;
+        Bool m_drawingPanels = false;
         Array<EditorPanel*> m_closingPanels;
         void DestroyPanel(EditorPanel& panel);
         void DestroyClosingPanels();
@@ -797,34 +801,34 @@ namespace JBro
         // 브라우저가 찾아가야 할 에셋. 비어 있으면 기다리는 것이 없다(D-193).
         AssetId m_revealInBrowser;
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
-        std::uint64_t m_trashCounter = 0;
+        UInt64 m_trashCounter = 0;
         String m_canvasPath;
         // 워커로 여는 캔버스의 로드(D-236). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
         TaskGroupId m_canvasLoadGroup = InvalidTaskGroupId;
         OwnerPtr<AssetLoadResult> m_canvasLoad;
         // 상태 표시줄에서 태스크 목록을 펼쳤다.
-        bool m_taskListOpen = false;
-        bool m_saveRequested = false;
-        bool m_openProjectRequested = false;
-        bool m_newProjectRequested = false;
+        Bool m_taskListOpen = false;
+        Bool m_saveRequested = false;
+        Bool m_openProjectRequested = false;
+        Bool m_newProjectRequested = false;
         PathBrowseRequest m_browseRequest;
-        bool m_browseRequested = false;
+        Bool m_browseRequested = false;
         // 열어 달라고 한 캔버스(에셋 폴더 기준 상대경로). 비어 있으면 요청이 없다.
         String m_openCanvasRequest;
         // 저장하지 않은 변경을 묻는 동안 붙들어 둔 것과, 그 답을 받았다는 표시다.
         String m_pendingCanvasPath;
-        bool m_canvasSwitchConfirmed = false;
+        Bool m_canvasSwitchConfirmed = false;
         ComponentAddress m_framePickTarget;
         AssetId m_framePickTexture;
-        bool m_framePickActive = false;
+        Bool m_framePickActive = false;
         // 만든 프로젝트. 프레임이 끝나면 그리로 넘어간다 - 팝업 안(프레임 안)에서 프로젝트를 닫을 수 없다.
         String m_pendingProjectPath;
         Array<ObjectTreeSnapshot> m_clipboard;
         ComponentSnapshot m_componentClipboard;
-        bool m_hasComponentClipboard = false;
-        bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
+        Bool m_hasComponentClipboard = false;
+        Bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* m_fileDialogUser = nullptr;
-        bool (*m_openPath)(const char* utf8Path, void* user) = nullptr;
+        Bool (*m_openPath)(const char* utf8Path, void* user) = nullptr;
         void* m_openPathUser = nullptr;
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과
         // 같다). Ctrl 로 빼다 보면 목록의 머리가 바뀌는데, 그때마다 인스펙터가
@@ -835,19 +839,19 @@ namespace JBro
         // 마지막으로 에셋 해석을 돌린 커맨드 판번호다. 판이 바뀌면(실행·되돌리기·다시 실행)
         // 프레임워크의 `BindCanvasAssets` 를 다시 부른다(D-115) - `xxxId` 를 바꾼 커맨드만
         // 골라내지 않는다. 되돌리기와 붙여넣기도 아이디를 바꾼다.
-        std::uint64_t m_boundRevision = 0;
+        UInt64 m_boundRevision = 0;
         AssetId m_selectedAsset;
         // 캔버스 자신을 골랐는가(D-186). 위의 둘과 배타다.
-        bool    m_canvasSelected = false;
+        Bool    m_canvasSelected = false;
         // 고른 레이어(D-279). 위의 셋과 배타다.
         LayerId m_selectedLayer = InvalidLayerId;
         OwnerPtr<AssetMetaFile> m_selectedAssetMeta;
-        bool m_selectedAssetMetaLoaded = false;
+        Bool m_selectedAssetMetaLoaded = false;
         void ReloadSelectedAssetMeta();
         EditorObjectRegistry m_objectIds;
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;
-        bool m_gameViewRequested = false;
+        Bool m_gameViewRequested = false;
         // 캔버스 뷰가 그려지는 텍스처와 이번 프레임의 요청(D-130).
         TextureHandle m_canvasView;
         Extent2D m_canvasViewExtent;
@@ -857,58 +861,58 @@ namespace JBro
         // 편집 뷰 요청이 가리키는 선택 번호들이다. 요청은 다음 요청까지 이것을 가리킨다. 용량은 그대로 다시 쓴다.
         Array<InstanceId> m_canvasViewSelection;
         EditorViewDesc m_canvasViewRequest;
-        bool m_canvasViewRequested = false;
+        Bool m_canvasViewRequested = false;
         // 이번 프레임에 요청된 크기의 텍스처를 마련한다. 이미 그 크기면 아무 일도 하지 않는다.
-        bool EnsureCanvasViewTexture(const Extent2D& extent);
+        Bool EnsureCanvasViewTexture(const Extent2D& extent);
         void ReleaseCanvasViewTexture();
         // 썸네일 요청을 엔진에 넘기고 텍스처를 레이어와 맞춘다. UI 를 닫은 뒤, 엔진 프레임 전에 부른다(텍스처는 프레임 밖에서만 만든다).
         void FlushLayerThumbnails();
         // 썸네일 텍스처를 놓는다. **이 프레임의 UI 가 이미 그 텍스처를 그리기 목록에 얹었을 수 있으므로** 곧바로 지우지 않고 다음
         // `FlushLayerThumbnails` 에서 지운다(`now` 면 곧바로 - UI 를 끌 때다).
-        void ReleaseLayerThumbnails(bool now = false);
+        void ReleaseLayerThumbnails(Bool now = false);
         void RetireLayerThumbnail(TextureHandle texture);
         void DestroyRetiredLayerThumbnails();
         struct LayerThumbnailSlot
         {
             LayerId layer = InvalidLayerId;
             TextureHandle texture;
-            bool drawn = false;
+            Bool drawn = false;
         };
         Array<LayerThumbnailSlot> m_layerThumbnails;
         Array<TextureHandle> m_retiredLayerThumbnails;
         Extent2D m_layerThumbnailExtent;
         // 이 프레임에 계층 창이 바란 높이다. 0 이면 바라지 않았다.
-        std::uint32_t m_layerThumbnailHeight = 0;
-        std::uint32_t m_layerThumbnailIdleFrames = 0;
+        UInt32 m_layerThumbnailHeight = 0;
+        UInt32 m_layerThumbnailIdleFrames = 0;
         std::size_t m_layerThumbnailCursor = 0;
         // 캔버스를 다시 읽으면 레이어 번호가 처음부터 다시 매겨진다. 판이 바뀌면 썸네일을 모두 놓는다.
-        std::uint64_t m_canvasGeneration = 0;
-        std::uint64_t m_layerThumbnailGeneration = 0;
+        UInt64 m_canvasGeneration = 0;
+        UInt64 m_layerThumbnailGeneration = 0;
         // 재생을 누르기 전의 캔버스 글자다(D-131). 비어 있으면 돌지 않고 있다는 뜻이다.
         String m_simulationSnapshot;
         // 재생을 시작할 때의 로케일이다. 멈추면 이것으로 되돌린다.
         String m_simulationLocale;
         Array<String> m_stringKeys;
-        std::uint32_t m_stringKeysRevision = 0;
-        bool m_simulationPlaying = false;
-        bool m_simulationPaused = false;
-        bool m_gameViewDebugDraw = true;
-        bool m_canvasViewDebugDraw = true;
+        UInt32 m_stringKeysRevision = 0;
+        Bool m_simulationPlaying = false;
+        Bool m_simulationPaused = false;
+        Bool m_gameViewDebugDraw = true;
+        Bool m_canvasViewDebugDraw = true;
         // 게임 입력(D-214). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
         // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(게임 뷰를 누르면 포커스부터 온다).
-        bool m_gameViewFocused = false;
-        bool m_gameViewReported = false;
-        bool m_gameReceivingInput = false;
+        Bool m_gameViewFocused = false;
+        Bool m_gameViewReported = false;
+        Bool m_gameReceivingInput = false;
         InputSurfaceMapping m_gameViewMapping;
         // 캔버스를 비운다. 되돌리기 위해 다시 읽어 넣기 전에 부른다.
         void ClearCanvasObjects();
-        bool m_uiEnabled = false;
+        Bool m_uiEnabled = false;
         // 메뉴에서 끝내기를 골랐다. 다음 틱에서 내려간다.
-        bool m_exitRequested = false;
+        Bool m_exitRequested = false;
         // 첫 프레임에 한 번만 기본 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
-        bool m_dockLayoutBuilt = false;
+        Bool m_dockLayoutBuilt = false;
         // 도크 뿌리의 배치는 한 번만 잡는다. 메인 도크가 거기 붙는 것이 전부다.
-        bool m_rootLayoutBuilt = false;
+        Bool m_rootLayoutBuilt = false;
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,
         // 그것을 뚫으려면 호스트 계층이 `Canvas` 를 보아야 한다(D-42 가 막는 방향이다).
         FrameworkKind m_frameworkKind = FrameworkKind::Framework2D;
@@ -923,16 +927,16 @@ namespace JBro
         String m_fallbackLocale;
         // 프로젝트를 열 때 파일에서 읽은 캔버스 뷰 카메라다. 패널이 만들어질 때 가져간다 -
         // 프로젝트를 여는 시점에는 패널이 아직 없을 수 있다.
-        float m_sessionCameraX = 0.0f;
-        float m_sessionCameraY = 0.0f;
-        float m_sessionCameraSize = 0.0f;
+        Float m_sessionCameraX = 0.0f;
+        Float m_sessionCameraY = 0.0f;
+        Float m_sessionCameraSize = 0.0f;
         // 적힌 배치를 읽었는가. 읽었으면 기본 배치를 만들지 않는다 - 둘이 같은 프레임에
         // 겹치면 사람이 옮겨 둔 자리가 매번 지워진다.
-        bool m_layoutRestored = false;
+        Bool m_layoutRestored = false;
         // 이번 저장 요청이 프로젝트 저장인가. 캔버스 저장이 성공하면 세션도 적는다.
-        bool m_saveProjectRequested = false;
+        Bool m_saveProjectRequested = false;
         // 가져오기 대화상자를 띄울 차례인가, 그리고 어느 폴더로 가져올 것인가.
-        bool m_importRequested = false;
+        Bool m_importRequested = false;
         String m_importFolder;
         // 에셋의 작은 그림들. 프로젝트를 닫을 때 비운다 - 다음 프로젝트의 아이디는 다른 파일이다.
         OwnerPtr<EditorThumbnails> m_thumbnails;
@@ -940,10 +944,10 @@ namespace JBro
         OwnerPtr<EditorSpriteContours> m_contours;
         // 뿌리 도크에 붙는 파일 창들(D-155). 지금은 스프라이트 뷰어 하나다.
         // 뿌리 도크 노드다. 파일 창을 처음 띄울 때 여기 붙인다.
-        std::uint32_t m_rootDockId = 0;
+        UInt32 m_rootDockId = 0;
 
         GraphicsApi m_graphicsApi = GraphicsApi::D3D12;
         FrameStatus m_lastFrameStatus = FrameStatus::InvalidState;
-        bool m_initialized = false;
+        Bool m_initialized = false;
     };
 }

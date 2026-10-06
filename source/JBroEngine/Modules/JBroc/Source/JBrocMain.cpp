@@ -26,17 +26,19 @@
 #include <system_error>
 
 #include <Windows.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
     using namespace JBro;
     using namespace JBro::ScriptCompiler;
 
-    constexpr int ExitSuccess = 0;
-    constexpr int ExitSourceErrors = 1;
-    constexpr int ExitUsageOrInput = 2;
+    constexpr JBro::Int32 ExitSuccess = 0;
+    constexpr JBro::Int32 ExitSourceErrors = 1;
+    constexpr JBro::Int32 ExitUsageOrInput = 2;
     // JBroc 의 결함이다. 사용자의 입력으로는 나오면 안 된다.
-    constexpr int ExitInternalError = 3;
+    constexpr JBro::Int32 ExitInternalError = 3;
 
     String ToUtf8(std::wstring_view text)
     {
@@ -45,7 +47,7 @@ namespace
         {
             return result;
         }
-        const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+        const JBro::Int32 size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
         result.Std().resize(static_cast<std::size_t>(size));
         WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), size, nullptr, nullptr);
         return result;
@@ -58,7 +60,7 @@ namespace
         {
             return result;
         }
-        const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+        const JBro::Int32 size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
         result.resize(static_cast<std::size_t>(size));
         MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), size);
         return result;
@@ -110,7 +112,7 @@ namespace
         return std::filesystem::path(buffer).parent_path();
     }
 
-    bool ReadWholeFile(const std::filesystem::path& path, String& out)
+    JBro::Bool ReadWholeFile(const std::filesystem::path& path, String& out)
     {
         std::ifstream file(path, std::ios::binary);
         if (false == file.is_open())
@@ -135,18 +137,18 @@ namespace
     struct CommandLine
     {
         String Locale = "ko-KR";
-        bool DumpTree = false;
-        bool Help = false;
+        JBro::Bool DumpTree = false;
+        JBro::Bool Help = false;
         Array<std::filesystem::path> Files;
         // 명령줄이 틀렸으면 그 알림의 키와 인자다. 번역 표를 읽은 뒤에 낸다(언어가 인자에 있으므로).
         const char* ProblemKey = nullptr;
         String ProblemArgument;
     };
 
-    CommandLine ReadCommandLine(int argc, wchar_t** argv)
+    CommandLine ReadCommandLine(JBro::Int32 argc, wchar_t** argv)
     {
         CommandLine commandLine;
-        for (int index = 1; index < argc; ++index)
+        for (JBro::Int32 index = 1; index < argc; ++index)
         {
             const std::wstring_view argument(argv[index]);
             if (L"--help" == argument || L"-h" == argument)
@@ -185,14 +187,14 @@ namespace
     }
 }
 
-int Run(int argc, wchar_t** argv);
+JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv);
 
 int wmain(int argc, wchar_t** argv)
 {
     // **단언이 대화상자를 띄우면 안 된다(D-69 와 같은 이유).** JBroc 은 편집기의 빌드 태스크가 사람 없이 부른다.
     // 대화상자는 누를 사람이 없어 영원히 멈추고, 멈춘 것은 실패한 것보다 나쁘다. 표준 에러로 알리고 끝낸다.
     _set_error_mode(_OUT_TO_STDERR);
-    for (int report : { _CRT_WARN, _CRT_ERROR, _CRT_ASSERT })
+    for (JBro::Int32 report : { _CRT_WARN, _CRT_ERROR, _CRT_ASSERT })
     {
         _CrtSetReportMode(report, _CRTDBG_MODE_FILE);
         _CrtSetReportFile(report, _CRTDBG_FILE_STDERR);
@@ -215,7 +217,7 @@ int wmain(int argc, wchar_t** argv)
     return ExitInternalError;
 }
 
-int Run(int argc, wchar_t** argv)
+JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
 {
     CommandLine commandLine = ReadCommandLine(argc, argv);
 
@@ -259,7 +261,7 @@ int Run(int argc, wchar_t** argv)
         return ExitUsageOrInput;
     }
 
-    int exitCode = ExitSuccess;
+    JBro::Int32 exitCode = ExitSuccess;
     for (const std::filesystem::path& file : commandLine.Files)
     {
         // MSVC 의 absolute 는 GetFullPathNameW 라 `.`·`..`·`/`·겹친 구분자까지 정리해 준다. lexically_normal 을 더해도

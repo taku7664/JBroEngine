@@ -11,13 +11,17 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 입력 액션과 그 저장(D-214, input-plan §4 의 5).
 namespace
 {
     using namespace JBro;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -192,7 +196,7 @@ namespace
                 input.Consume(InputDevice::Keyboard);
                 return InputResult::Pass;
             }
-            bool sawJump = false;
+            JBro::Bool sawJump = false;
         };
         System::InputSystem input;
         InputActionMap map;
@@ -282,7 +286,7 @@ namespace
     {
         ProjectFile project;
         ProjectFileError error;
-        const bool parsed = ParseProjectFile(LegacyInput, std::strlen(LegacyInput), project, error);
+        const JBro::Bool parsed = ParseProjectFile(LegacyInput, std::strlen(LegacyInput), project, error);
         if (false == parsed)
         {
             std::cout << "  line " << error.line << ": " << error.message.c_str() << std::endl;
@@ -377,7 +381,7 @@ namespace
     // 선입력과 코요테 타임(D-218). 60 fps 로 흘린다.
     void TestTheInputBufferRemembersASignalForAWhile()
     {
-        constexpr float dt = 1.0f / 60.0f;
+        constexpr JBro::Float dt = 1.0f / 60.0f;
         InputBuffer jump;
         Check(false == jump.Peek(1000.0f) && false == jump.Take(1000.0f), "a buffer that never saw a signal has nothing");
         jump.Feed(false, dt);
@@ -386,7 +390,7 @@ namespace
         // 땅에 닿기 네 프레임 전에 눌렀다. 0.1 초 안이면 아직 뛴다.
         jump.Feed(true, dt);
         Check(jump.Peek(0.0f), "a signal this frame is inside any window");
-        for (int frame = 0; frame < 4; ++frame)
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
             jump.Feed(false, dt);
         }
@@ -397,7 +401,7 @@ namespace
         // 땅을 떠난 뒤 여섯 프레임이면 0.1 초를 넘는다.
         InputBuffer ground;
         ground.Feed(true, dt);
-        for (int frame = 0; frame < 6; ++frame)
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
             ground.Feed(false, dt);
         }
@@ -430,7 +434,7 @@ namespace
         Check(false == blocked.Peek(1000.0f), "a press the UI blocked never reaches the buffer");
     }
 
-    InputBinding PadBinding(GamepadButton button, int pad)
+    InputBinding PadBinding(GamepadButton button, JBro::Int32 pad)
     {
         InputBinding binding;
         binding.source = InputBindingSource::GamepadButton;
@@ -464,7 +468,7 @@ namespace
             "the place after the last appends");
         Check(false == service.SetActionBinding(jump, 3, KeyBinding(Key::A)), "a place further out is refused");
         Check(false == service.SetActionBinding(MakeNameId("Nope"), 0, KeyBinding(Key::A)), "an unknown action is refused");
-        for (std::uint32_t index = 2; index < MaxInputBindingsPerAction; ++index)
+        for (JBro::UInt32 index = 2; index < MaxInputBindingsPerAction; ++index)
         {
             Check(service.SetActionBinding(jump, index, KeyBinding(Key::A)), "an action holds eight");
         }
@@ -756,9 +760,9 @@ namespace
         Array<ProjectInputAction> actions;
         actions.Add(ProjectAction("Named", "Default", Key::A));
         char name[16] = {};
-        for (int index = 0; index < 32; ++index)
+        for (JBro::Int32 index = 0; index < 32; ++index)
         {
-            std::snprintf(name, sizeof(name), "Set%d", index);
+            std::snprintf(name, sizeof(name), "Set%d", index.Get());
             actions.Add(ProjectAction(name, name, Key::B));
         }
         actions.Add(ProjectAction("After", "Set0", Key::C));
@@ -798,9 +802,9 @@ namespace
     }
 }
 
-int RunInputActionTests()
+JBro::Int32 RunInputActionTests()
 {
-    const bool echo = Log::GetEchoToConsole();
+    const JBro::Bool echo = Log::GetEchoToConsole();
     Log::SetEchoToConsole(false);
     TestEveryNameComesBack();
     TestBoolActionsCombineTheirButtons();

@@ -4,6 +4,8 @@
 #include <JBro/ScriptCompiler/Token.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -58,12 +60,12 @@ namespace JBro::ScriptCompiler
                 return index < m_tokens.Size() ? m_tokens[index].Kind : TokenKind::EndOfFile;
             }
 
-            bool At(TokenKind kind) const
+            Bool At(TokenKind kind) const
             {
                 return Current().Kind == kind;
             }
 
-            bool AtContextual(std::string_view word) const
+            Bool AtContextual(std::string_view word) const
             {
                 return At(TokenKind::Identifier) && Current().Text == word;
             }
@@ -87,7 +89,7 @@ namespace JBro::ScriptCompiler
                 }
             }
 
-            bool AtStatementEnd() const
+            Bool AtStatementEnd() const
             {
                 return At(TokenKind::Newline) || At(TokenKind::RightBrace) || At(TokenKind::EndOfFile);
             }
@@ -124,7 +126,7 @@ namespace JBro::ScriptCompiler
                 m_recovering = true;
             }
 
-            bool Expect(TokenKind kind, std::string_view symbol)
+            Bool Expect(TokenKind kind, std::string_view symbol)
             {
                 if (At(kind))
                 {
@@ -204,7 +206,7 @@ namespace JBro::ScriptCompiler
                 SourceLocation LastEnd;
                 std::size_t NodeCount;
                 std::size_t ChildCount;
-                bool Failed;
+                Bool Failed;
             };
 
             Checkpoint BeginSpeculation()
@@ -216,9 +218,9 @@ namespace JBro::ScriptCompiler
                 return checkpoint;
             }
 
-            bool EndSpeculation(const Checkpoint& checkpoint, bool succeeded)
+            Bool EndSpeculation(const Checkpoint& checkpoint, Bool succeeded)
             {
-                const bool ok = succeeded && false == m_speculationFailed;
+                const Bool ok = succeeded && false == m_speculationFailed;
                 --m_speculationDepth;
                 m_speculationFailed = checkpoint.Failed;
                 m_position = checkpoint.Position;
@@ -247,7 +249,7 @@ namespace JBro::ScriptCompiler
                 }
             }
 
-            static bool IsDeclarationKeyword(TokenKind kind)
+            static Bool IsDeclarationKeyword(TokenKind kind)
             {
                 return TokenKind::KeywordScript == kind || TokenKind::KeywordClass == kind
                     || TokenKind::KeywordStruct == kind || TokenKind::KeywordInterface == kind
@@ -604,7 +606,7 @@ namespace JBro::ScriptCompiler
 
             // ---- 타입 --------------------------------------------------------------
 
-            bool StartsType() const
+            Bool StartsType() const
             {
                 return At(TokenKind::KeywordRef) || At(TokenKind::KeywordConst) || At(TokenKind::Identifier);
             }
@@ -648,7 +650,7 @@ namespace JBro::ScriptCompiler
             }
 
             // 문장이 "타입 + 이름" 으로 시작하는가.
-            bool AtLocalDeclaration()
+            Bool AtLocalDeclaration()
             {
                 if (At(TokenKind::KeywordRef) || At(TokenKind::KeywordConst))
                 {
@@ -670,7 +672,7 @@ namespace JBro::ScriptCompiler
                 }
                 const Checkpoint checkpoint = BeginSpeculation();
                 const NodeIndex type = ParseType();
-                const bool succeeded = InvalidNode != type && At(TokenKind::Identifier);
+                const Bool succeeded = InvalidNode != type && At(TokenKind::Identifier);
                 return EndSpeculation(checkpoint, succeeded);
             }
 
@@ -1184,11 +1186,11 @@ namespace JBro::ScriptCompiler
             }
 
             // `Name<` 뒤가 타입 인자로 읽히고 `>` 바로 뒤에 `(` 가 오는가.
-            bool AtGenericCall()
+            Bool AtGenericCall()
             {
                 const Checkpoint checkpoint = BeginSpeculation();
                 Advance(); // <
-                bool succeeded = true;
+                Bool succeeded = true;
                 do
                 {
                     if (InvalidNode == ParseType())
@@ -1264,9 +1266,9 @@ namespace JBro::ScriptCompiler
             std::size_t m_position = 0;
             SourceLocation m_lastEnd;
             // 한 문장에서 첫 에러를 낸 뒤 다시 읽기 시작할 때까지 참이다. 그동안의 에러는 내지 않는다.
-            bool m_recovering = false;
-            std::uint32_t m_speculationDepth = 0;
-            bool m_speculationFailed = false;
+            Bool m_recovering = false;
+            UInt32 m_speculationDepth = 0;
+            Bool m_speculationFailed = false;
         };
     }
 

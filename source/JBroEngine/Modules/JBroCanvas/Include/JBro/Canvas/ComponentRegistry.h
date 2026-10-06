@@ -6,6 +6,7 @@
 #include <JBro/Types/Table.h>
 
 #include <cstddef>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -57,7 +58,7 @@ namespace JBro
         // 붙인 것을 뗀다. **붙이는 함수와 짝으로 여기 둔다** - 풀이 메모리를
         // 돌려받으려면 정적 타입이 필요하고, 그것을 아는 자리가 여기뿐이다.
         // `GameObject::DetachComponent` 만 부르면 슬롯만 빠지고 풀 자리는 남는다.
-        bool (*Detach)(Canvas& canvas, GameObject* owner, ComponentBase* component) = nullptr;
+        Bool (*Detach)(Canvas& canvas, GameObject* owner, ComponentBase* component) = nullptr;
     };
 
     class ComponentRegistry final
@@ -70,7 +71,7 @@ namespace JBro
         static ComponentRegistry& Get();
 
         // 같은 이름이 이미 있으면 거절한다. 조용히 덮으면 어느 타입이 붙는지 알 수 없다.
-        bool Register(const ComponentTypeInfo& info);
+        Bool Register(const ComponentTypeInfo& info);
 
         const ComponentTypeInfo* Find(NameId name) const;
         const ComponentTypeInfo* Find(const char* name) const;
@@ -91,7 +92,7 @@ namespace JBro
         // 먼저 붙은 쪽만 돌려주므로 사용자가 고친 값이 화면에 반영되지 않는다.
         //
         // 등록되지 않은 이름은 거짓이다. 붙일 방법이 없는 것을 붙일 수 있다고 말하지 않는다.
-        bool CanAttach(const GameObject& object, NameId name) const;
+        Bool CanAttach(const GameObject& object, NameId name) const;
 
     private:
         Table<NameId, ComponentTypeInfo> m_types;
@@ -104,7 +105,7 @@ namespace JBro
     // 이유는, 그 둘이 타입의 성질이 아니라 편집기의 규칙이기 때문이다 - 프레임워크 타입이
     // 에디터를 위해 자기 헤더에 갈래 이름을 적을 까닭이 없다.
     template <typename T>
-    bool RegisterComponentType(const char* category = nullptr,
+    Bool RegisterComponentType(const char* category = nullptr,
         ComponentMultiplicity multiplicity = ComponentMultiplicity::Multiple)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>,
@@ -119,7 +120,7 @@ namespace JBro
         {
             return canvas.AttachComponent<T>(owner);
         };
-        info.Detach = [](Canvas& canvas, GameObject* owner, ComponentBase* component) -> bool
+        info.Detach = [](Canvas& canvas, GameObject* owner, ComponentBase* component) -> Bool
         {
             // **타입이 맞는지 여기서 본다.** 아래 내림 변환은 맞을 때만 옳고,
             // 부르는 쪽이 표를 잘못 찾아왔는지 여기 말고는 알 자리가 없다.

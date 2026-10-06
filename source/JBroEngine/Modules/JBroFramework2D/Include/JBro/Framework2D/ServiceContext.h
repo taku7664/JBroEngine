@@ -6,6 +6,7 @@
 #include <JBro/Framework2D/Service/Text2DService.h>
 
 #include <cstdint>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -16,12 +17,12 @@ namespace JBro
     // 4: `OnCollisionStay`·`OnTriggerStay` 를 더했다(D-233).
     // 5: 버튼 훅 다섯(`OnPointerEnter`~`OnClick`)과 `Screen2DService` 를 더했다(D-237).
     // 6: `DebugDraw2DService` 를 더했고(D-243) 공통 훅이 인자를 잃었다(D-242).
-    inline constexpr std::uint32_t Framework2DServiceContextAbiVersion = 6;
+    inline constexpr UInt32 Framework2DServiceContextAbiVersion = 6;
 
     // Non-owning value services. Kept outside Runtime's dimension-independent context.
     struct Framework2DServiceContext
     {
-        std::uint32_t AbiVersion = Framework2DServiceContextAbiVersion;
+        UInt32 AbiVersion = Framework2DServiceContextAbiVersion;
         Service::Physics2DService Physics2D;
         Service::Text2DService Text2D;
         Service::Screen2DService Screen2D;

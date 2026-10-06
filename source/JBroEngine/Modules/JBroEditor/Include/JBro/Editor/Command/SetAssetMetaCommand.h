@@ -4,6 +4,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -34,16 +35,16 @@ namespace JBro
         SetAssetMetaCommand(const AssetMetaTarget& target, String oldText, String newText);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
-        bool CanMerge(const EditorCommand& newer) const override;
-        bool TryMerge(const EditorCommand& newer) override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
 
         const String& GetMetaPath() const;
 
     private:
-        bool Write(const String& text);
+        Bool Write(const String& text);
 
         AssetMetaTarget m_target;
         String m_oldText;

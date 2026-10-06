@@ -8,6 +8,9 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 에디터 단축키 관리자(todo "에디터 공용 기반" 2 번, D-228).
 //
@@ -16,7 +19,7 @@
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -30,7 +33,7 @@ namespace
     using JBro::EditorShortcutManager;
     using JBro::ShortcutHandle;
 
-    EditorShortcutBinding Key(ImGuiKey key, bool control = false, bool shift = false, bool alt = false)
+    EditorShortcutBinding Key(ImGuiKey key, JBro::Bool control = false, JBro::Bool shift = false, JBro::Bool alt = false)
     {
         return EditorShortcutBinding{key, control, shift, alt};
     }
@@ -39,11 +42,11 @@ namespace
     class Counter final : public JBro::IEditorShortcutHandler
     {
     public:
-        Counter(int& calls, const bool* enabled = nullptr)
+        Counter(JBro::Int32& calls, const JBro::Bool* enabled = nullptr)
             : m_calls(calls), m_enabled(enabled)
         {
         }
-        bool CanExecute(const JBro::EditorApplication& editor) const override
+        JBro::Bool CanExecute(const JBro::EditorApplication& editor) const override
         {
             (void)editor;
             return m_enabled == nullptr || *m_enabled;
@@ -53,7 +56,7 @@ namespace
             (void)editor;
             return "blocked for the test";
         }
-        bool Execute(JBro::EditorApplication& editor) override
+        JBro::Bool Execute(JBro::EditorApplication& editor) override
         {
             (void)editor;
             ++m_calls;
@@ -61,12 +64,12 @@ namespace
         }
 
     private:
-        int& m_calls;
-        const bool* m_enabled = nullptr;
+        JBro::Int32& m_calls;
+        const JBro::Bool* m_enabled = nullptr;
     };
 
-    ShortcutHandle Add(EditorShortcutManager& shortcuts, const char* id, EditorShortcutBinding primary, int& calls,
-        const char* scope = nullptr, EditorShortcutBinding secondary = {}, const bool* enabled = nullptr)
+    ShortcutHandle Add(EditorShortcutManager& shortcuts, const char* id, EditorShortcutBinding primary, JBro::Int32& calls,
+        const char* scope = nullptr, EditorShortcutBinding secondary = {}, const JBro::Bool* enabled = nullptr)
     {
         EditorShortcutDesc desc;
         desc.id = id;
@@ -84,7 +87,7 @@ namespace
     void TestRegistrationRefusesBadAndDuplicateNames()
     {
         EditorShortcutManager shortcuts;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         Check(Add(shortcuts, "a.b", Key(ImGuiKey_A), calls) != JBro::InvalidShortcutHandle, "a named shortcut must register");
         Check(Add(shortcuts, "a.b", Key(ImGuiKey_B), calls) == JBro::InvalidShortcutHandle, "the same name twice must be refused");
         Check(Add(shortcuts, "", Key(ImGuiKey_B), calls) == JBro::InvalidShortcutHandle, "an empty name must be refused");
@@ -99,9 +102,9 @@ namespace
     void TestRemappingAndResetting()
     {
         EditorShortcutManager shortcuts;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         Add(shortcuts, "edit.redo", Key(ImGuiKey_Y, true), calls, nullptr, Key(ImGuiKey_Z, true, true));
-        const std::uint64_t before = shortcuts.GetRevision();
+        const JBro::UInt64 before = shortcuts.GetRevision();
         Check(shortcuts.SetBinding("edit.redo", 0, Key(ImGuiKey_R, true)), "remapping a known shortcut must work");
         JBro::EditorShortcutView view = shortcuts.Find("edit.redo");
         Check(view.primary == Key(ImGuiKey_R, true), "the new combination must stand");
@@ -110,7 +113,7 @@ namespace
         Check(view.customized, "it must say it was changed");
         Check(shortcuts.GetRevision() != before, "a change must move the revision so the editor saves");
 
-        const std::uint64_t unchanged = shortcuts.GetRevision();
+        const JBro::UInt64 unchanged = shortcuts.GetRevision();
         Check(shortcuts.SetBinding("edit.redo", 0, Key(ImGuiKey_R, true)), "setting the same combination again is fine");
         Check(shortcuts.GetRevision() == unchanged, "but it is not a change");
 
@@ -140,7 +143,7 @@ namespace
     void TestAnUnregisteredShortcutKeepsTheUsersKeys()
     {
         EditorShortcutManager shortcuts;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         const ShortcutHandle handle = Add(shortcuts, "tool.run", Key(ImGuiKey_F9), calls);
         shortcuts.SetBinding("tool.run", 0, Key(ImGuiKey_F10));
         shortcuts.Unregister(handle);
@@ -156,7 +159,7 @@ namespace
     void TestPreferencesRoundTrip()
     {
         EditorShortcutManager saved;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         Add(saved, "edit.redo", Key(ImGuiKey_Y, true), calls, nullptr, Key(ImGuiKey_Z, true, true));
         Add(saved, "view.frame", Key(ImGuiKey_F), calls, "CanvasView");
         saved.SetBinding("edit.redo", 0, Key(ImGuiKey_Space, true, false, true));
@@ -195,7 +198,7 @@ namespace
         JBro::YamlError error;
         Check(document.Parse(text, sizeof(text) - 1, error), "the probe preferences must parse");
         EditorShortcutManager shortcuts;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         Add(shortcuts, "edit.undo", Key(ImGuiKey_Z, true), calls);
         Add(shortcuts, "edit.copy", Key(ImGuiKey_C, true), calls);
         shortcuts.Read(document, document.GetRoot());
@@ -241,7 +244,7 @@ namespace
     void TestConflictsAreFoundAndKindsDiffer()
     {
         EditorShortcutManager shortcuts;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         // 막지 않는 패널 것을 **맨 앞에** 둔다 - 겹침을 찾는 두 겹 반복에서 그것이 앞자리에도 뒷자리에도 서야 두 방향을 다 잰다.
         EditorShortcutDesc passes;
         passes.id = "p.passes";
@@ -264,8 +267,8 @@ namespace
 
         JBro::Array<JBro::ShortcutConflict> conflicts;
         shortcuts.FindConflicts(conflicts);
-        int clashes = 0;
-        int shadows = 0;
+        JBro::Int32 clashes = 0;
+        JBro::Int32 shadows = 0;
         for (const JBro::ShortcutConflict& conflict : conflicts)
         {
             const char* first = shortcuts.GetAt(conflict.first).id;
@@ -322,8 +325,8 @@ namespace
         }
 
         // 조합키를 누른 채 키 하나를 누르고, 그 프레임에 관리자를 돌린다. 실행한 수를 돌려준다.
-        std::uint32_t Press(EditorShortcutManager& shortcuts, const EditorShortcutBinding& combo,
-            bool typing = false, bool gameInput = false)
+        JBro::UInt32 Press(EditorShortcutManager& shortcuts, const EditorShortcutBinding& combo,
+            JBro::Bool typing = false, JBro::Bool gameInput = false)
         {
             ImGuiIO& io = ImGui::GetIO();
             io.AddKeyEvent(ImGuiMod_Ctrl, combo.control);
@@ -331,7 +334,7 @@ namespace
             io.AddKeyEvent(ImGuiMod_Alt, combo.alt);
             io.AddKeyEvent(combo.key, true);
             ImGui::NewFrame();
-            const std::uint32_t executed = shortcuts.ProcessInput(m_editor, typing, gameInput);
+            const JBro::UInt32 executed = shortcuts.ProcessInput(m_editor, typing, gameInput);
             ImGui::Render();
             io.AddKeyEvent(combo.key, false);
             io.AddKeyEvent(ImGuiMod_Ctrl, false);
@@ -356,8 +359,8 @@ namespace
     {
         Stage stage;
         EditorShortcutManager shortcuts;
-        int paste = 0;
-        int pasteChild = 0;
+        JBro::Int32 paste = 0;
+        JBro::Int32 pasteChild = 0;
         Add(shortcuts, "edit.paste", Key(ImGuiKey_V, true), paste);
         Add(shortcuts, "edit.paste_child", Key(ImGuiKey_V, true, true), pasteChild);
         Check(stage.Press(shortcuts, Key(ImGuiKey_V, true)) == 1 && paste == 1 && pasteChild == 0,
@@ -376,9 +379,9 @@ namespace
     {
         Stage stage;
         EditorShortcutManager shortcuts;
-        int global = 0;
-        int canvas = 0;
-        int hierarchy = 0;
+        JBro::Int32 global = 0;
+        JBro::Int32 canvas = 0;
+        JBro::Int32 hierarchy = 0;
         Add(shortcuts, "g.delete", Key(ImGuiKey_Delete), global);
         Add(shortcuts, "canvas.delete", Key(ImGuiKey_Delete), canvas, "CanvasView");
         Add(shortcuts, "hierarchy.x", Key(ImGuiKey_X), hierarchy, "Hierarchy");
@@ -401,8 +404,8 @@ namespace
     {
         Stage stage;
         EditorShortcutManager shortcuts;
-        int global = 0;
-        int panel = 0;
+        JBro::Int32 global = 0;
+        JBro::Int32 panel = 0;
         Add(shortcuts, "g.save", Key(ImGuiKey_S, true), global);
         EditorShortcutDesc desc;
         desc.id = "view.note";
@@ -421,9 +424,9 @@ namespace
     {
         Stage stage;
         EditorShortcutManager shortcuts;
-        int global = 0;
-        int panel = 0;
-        bool enabled = false;
+        JBro::Int32 global = 0;
+        JBro::Int32 panel = 0;
+        JBro::Bool enabled = false;
         Add(shortcuts, "g.delete", Key(ImGuiKey_Delete), global);
         Add(shortcuts, "canvas.delete", Key(ImGuiKey_Delete), panel, "CanvasView", {}, &enabled);
         shortcuts.SetFocusedScope("CanvasView");
@@ -439,9 +442,9 @@ namespace
     {
         Stage stage;
         EditorShortcutManager shortcuts;
-        int undo = 0;
-        int save = 0;
-        int play = 0;
+        JBro::Int32 undo = 0;
+        JBro::Int32 save = 0;
+        JBro::Int32 play = 0;
         Add(shortcuts, "edit.undo", Key(ImGuiKey_Z, true), undo);
         EditorShortcutDesc saveDesc;
         saveDesc.id = "file.save";
@@ -469,11 +472,11 @@ namespace
     {
         Stage stage;
         ImGuiIO& io = ImGui::GetIO();
-        const auto press = [&](int button) {
+        const auto press = [&](JBro::Int32 button) {
             io.AddMouseButtonEvent(button, true);
             ImGui::NewFrame();
         };
-        const auto release = [&](int button) {
+        const auto release = [&](JBro::Int32 button) {
             ImGui::Render();
             io.AddMouseButtonEvent(button, false);
             stage.Frame();
@@ -498,14 +501,14 @@ namespace
         stage.Frame();
 
         EditorShortcutManager shortcuts;
-        int back = 0;
+        JBro::Int32 back = 0;
         Add(shortcuts, "view.back", Key(ImGuiKey_MouseX1), back);
         press(3);
-        const std::uint32_t executed = shortcuts.ProcessInput(stage.Editor(), false, false);
+        const JBro::UInt32 executed = shortcuts.ProcessInput(stage.Editor(), false, false);
         release(3);
         Check(executed == 1 && back == 1, "pressing the thumb button runs the shortcut bound to it");
         press(4);
-        const std::uint32_t other = shortcuts.ProcessInput(stage.Editor(), false, false);
+        const JBro::UInt32 other = shortcuts.ProcessInput(stage.Editor(), false, false);
         release(4);
         Check(other == 0 && back == 1, "the other thumb button does not");
     }
@@ -541,7 +544,7 @@ namespace
     void TestSearchLooksAtNamesAndKeys()
     {
         EditorShortcutManager shortcuts;
-        int calls = 0;
+        JBro::Int32 calls = 0;
         Add(shortcuts, "editor.undo", Key(ImGuiKey_Z, true), calls);
         shortcuts.SetBinding("editor.undo", 1, Key(ImGuiKey_Backspace, false, false, true));
         const JBro::EditorShortcutView view = shortcuts.Find("editor.undo");
@@ -563,7 +566,7 @@ namespace
     {
         Stage stage;
         EditorShortcutManager shortcuts;
-        int save = 0;
+        JBro::Int32 save = 0;
         Add(shortcuts, "file.save", Key(ImGuiKey_S, true), save);
         shortcuts.SetSuspended(true);
         Check(shortcuts.IsSuspended(), "it says it is suspended");
@@ -573,7 +576,7 @@ namespace
     }
 }
 
-int RunEditorShortcutTests()
+JBro::Int32 RunEditorShortcutTests()
 {
     TestRegistrationRefusesBadAndDuplicateNames();
     TestRemappingAndResetting();

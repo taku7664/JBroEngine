@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/RHI/RHI.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -16,7 +17,7 @@ namespace JBro
     class D3D11RHIModule final : public IRHIModule
     {
     public:
-        bool Initialize(const JMemoryContext& memory) override;
+        Bool Initialize(const JMemoryContext& memory) override;
         void Shutdown() override;
         GraphicsApi GetApi() const override;
         IRHIDevice* CreateDevice(const RHIDeviceCreateInfo& createInfo) override;
@@ -24,6 +25,6 @@ namespace JBro
 
     private:
         Internal::D3D11Device* m_activeDevice = nullptr;
-        bool m_initialized = false;
+        Bool m_initialized = false;
     };
 }

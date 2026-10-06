@@ -5,6 +5,7 @@
 #include <charconv>
 #include <cstring>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -26,7 +27,7 @@ namespace JBro
                 const void* value,
                 char* buffer,
                 std::size_t capacity,
-                std::size_t& required) noexcept -> bool
+                std::size_t& required) noexcept -> Bool
             {
                 // 넉넉한 임시 자리에 먼저 쓴다. 그래야 버퍼가 모자랄 때
                 // 필요한 크기를 정확히 알려 줄 수 있다.
@@ -48,7 +49,7 @@ namespace JBro
                 return true;
             };
 
-            result.FromText = [](void* value, const char* text, std::size_t length) noexcept -> bool
+            result.FromText = [](void* value, const char* text, std::size_t length) noexcept -> Bool
             {
                 if (text == nullptr || length == 0)
                 {
@@ -65,7 +66,7 @@ namespace JBro
                 return true;
             };
 
-            result.Equals = [](const void* left, const void* right) noexcept -> bool
+            result.Equals = [](const void* left, const void* right) noexcept -> Bool
             {
                 return *static_cast<const T*>(left) == *static_cast<const T*>(right);
             };

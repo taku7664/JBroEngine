@@ -6,6 +6,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 // UTF-8 한 덩어리를 줄로 나누고 글리프마다 자리를 매긴다(D-200, text-plan §3.8·§4.1).
 //
@@ -55,24 +58,24 @@ namespace JBro::Text
 
     struct LayoutOptions
     {
-        float    fontSize = 32.0f;     // em 크기(픽셀)
-        float    boxWidth = 0.0f;      // 0 이면 제한 없음
-        float    boxHeight = 0.0f;     // 0 이면 제한 없음
+        Float    fontSize = 32.0f;     // em 크기(픽셀)
+        Float    boxWidth = 0.0f;      // 0 이면 제한 없음
+        Float    boxHeight = 0.0f;     // 0 이면 제한 없음
         Overflow overflow = Overflow::Wrap;
         WrapMode wrapMode = WrapMode::Word;
         AlignX   alignX = AlignX::Left;
         AlignY   alignY = AlignY::Baseline;
-        float    lineSpacing = 1.0f;   // 줄 높이 배율
-        float    letterSpacing = 0.0f; // 글자 사이에 더하는 픽셀
+        Float    lineSpacing = 1.0f;   // 줄 높이 배율
+        Float    letterSpacing = 0.0f; // 글자 사이에 더하는 픽셀
         // 탭 멈춤 자리의 간격이다(기본 폰트의 공백 폭 몇 개인가). 탭은 줄 머리에서 센 다음 멈춤 자리까지 나아간다. 0 이하면 공백 하나다.
-        float    tabSize = 4.0f;
+        Float    tabSize = 4.0f;
         // **리치 텍스트**(D-221). 켜면 `<color=#RRGGBB>`·`<color=#RRGGBBAA>` ... `</color>` 와 `<size=픽셀>` ... `</size>` 를 태그로 읽고
         // 글자로 내지 않는다. `<<` 는 `<` 한 글자다. 모르는 태그·틀린 태그·짝 없는 닫는 태그·여덟 겹을 넘는 태그는 글자 그대로 보인다.
-        bool     richText = false;
+        Bool     richText = false;
         // `<size>` 에 곱하는 배율이다. 자동 크기(BuildToFit)가 고른 크기 / fontSize 로 둔다.
-        float    markupScale = 1.0f;
+        Float    markupScale = 1.0f;
         // `<size>` 를 정수 픽셀로 반올림한다. 비트맵 폰트는 정수 크기마다 뜨므로 레이아웃도 그 크기로 재야 한다.
-        bool     wholePixelMarkup = false;
+        Bool     wholePixelMarkup = false;
         // **스타일 face**(D-225). 리치 텍스트의 `<b>`·`<i>` 가 붙은 글자가 먼저 볼 faces 안의 번호다(굵게·기울임·굵은 기울임 순).
         // `NoStyleFace` 면 그 스타일의 face 가 없다 - 굵은 기울임은 굵게, 기울임 순으로, 모두 없으면 보통 글자와 같은 face 를 쓴다.
         // 그 face 에 글자가 없으면 폴백 순서(faces 앞에서부터)로 간다.
@@ -96,28 +99,28 @@ namespace JBro::Text
     // 같은 받침의 두 표시는 같은 앵커에 겹친다.
     struct PositionedGlyph
     {
-        float         x = 0.0f;
-        float         y = 0.0f;
+        Float         x = 0.0f;
+        Float         y = 0.0f;
         GlyphIndex    glyph = MissingGlyph;
         std::uint16_t face = 0;         // faces 안의 번호
         std::uint16_t line = 0;
-        std::uint32_t sourceOffset = 0; // 이 글자가 시작하는 UTF-8 바이트 위치
-        float         size = 0.0f;      // 이 글자의 em 크기(픽셀). 리치 텍스트의 `<size>` 밖이면 fontSize 다
-        std::uint32_t color = 0;        // hasColor 이면 `<color>` 의 RGBA8(R 이 가장 낮은 바이트)
-        bool          hasColor = false;
+        UInt32 sourceOffset = 0; // 이 글자가 시작하는 UTF-8 바이트 위치
+        Float         size = 0.0f;      // 이 글자의 em 크기(픽셀). 리치 텍스트의 `<size>` 밖이면 fontSize 다
+        UInt32 color = 0;        // hasColor 이면 `<color>` 의 RGBA8(R 이 가장 낮은 바이트)
+        Bool          hasColor = false;
         std::uint8_t  style = GlyphStyleRegular; // `GlyphStyle` 비트
     };
 
     struct LineInfo
     {
-        std::uint32_t firstGlyph = 0;
-        std::uint32_t glyphCount = 0;
-        float         width = 0.0f;    // 줄 끝 공백을 뺀 폭
-        float         baseline = 0.0f; // 기준선의 y
-        float         size = 0.0f;     // 줄에서 가장 큰 글자의 em 크기(픽셀). 줄 높이와 기준선은 이 크기로 잰다
-        float         height = 0.0f;   // 줄 높이(픽셀, 줄 간격 배율을 곱한 것)
-        std::uint32_t sourceBegin = 0;
-        std::uint32_t sourceEnd = 0;
+        UInt32 firstGlyph = 0;
+        UInt32 glyphCount = 0;
+        Float         width = 0.0f;    // 줄 끝 공백을 뺀 폭
+        Float         baseline = 0.0f; // 기준선의 y
+        Float         size = 0.0f;     // 줄에서 가장 큰 글자의 em 크기(픽셀). 줄 높이와 기준선은 이 크기로 잰다
+        Float         height = 0.0f;   // 줄 높이(픽셀, 줄 간격 배율을 곱한 것)
+        UInt32 sourceBegin = 0;
+        UInt32 sourceEnd = 0;
     };
 
     enum class LayoutError : std::uint8_t
@@ -140,22 +143,22 @@ namespace JBro::Text
         // 어절을 글자에서 끊지 않았다는 뜻이다. step 이 1 이면 정수 크기만(비트맵), 0 이면 0.25 픽셀까지 좁힌다(SDF). 가장 작은 크기로도
         // 넘치면 그 크기다. 이진 탐색이라 Build 를 크기 범위의 로그만큼 부르고, 다시 부를 때 안쪽 배열의 용량을 그대로 쓴다.
         LayoutError BuildToFit(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces, const LayoutOptions& options,
-            float minSize, float maxSize, float step, float& chosenSize);
+            Float minSize, Float maxSize, Float step, Float& chosenSize);
 
         // 줄을 나눈 뒤의 내용 크기다(자르기 전). 가장 긴 줄의 폭, 줄 수 x 줄 높이.
-        float GetContentWidth() const;
-        float GetContentHeight() const;
+        Float GetContentWidth() const;
+        Float GetContentHeight() const;
         // 끊을 자리가 없어 넘친 글자에서 억지로 끊은 횟수다. `Word` 에서 0 이 아니면 어절이 글자에서 갈렸다.
-        std::uint32_t GetForcedBreakCount() const;
+        UInt32 GetForcedBreakCount() const;
 
         ArrayView<const PositionedGlyph> GetGlyphs() const;
         ArrayView<const LineInfo> GetLines() const;
 
         // 블록 사각형이다(정렬 기준점 기준 픽셀). 에디터의 선택과 컬링이 쓴다.
-        float GetMinX() const;
-        float GetMinY() const;
-        float GetMaxX() const;
-        float GetMaxY() const;
+        Float GetMinX() const;
+        Float GetMinY() const;
+        Float GetMaxX() const;
+        Float GetMaxY() const;
 
         // 안쪽 배열 넷(코드포인트·글자·글리프·줄)이 잡아 둔 원소 수의 합이다. 다시 레이아웃해도 이 값이 그대로면
         // 용량을 다시 썼다는 뜻이다 - 주소 비교는 풀었다 다시 잡은 블록이 같은 주소로 올 수 있어 그 증거가 못 된다.
@@ -173,10 +176,10 @@ namespace JBro::Text
         struct Codepoint
         {
             char32_t      value = 0;
-            std::uint32_t offset = 0;
-            float         size = 0.0f;
-            std::uint32_t color = 0;
-            bool          hasColor = false;
+            UInt32 offset = 0;
+            Float         size = 0.0f;
+            UInt32 color = 0;
+            Bool          hasColor = false;
             std::uint8_t  style = 0;
         };
 
@@ -186,16 +189,16 @@ namespace JBro::Text
             GlyphIndex    glyph = MissingGlyph;
             std::uint16_t face = 0;
             ItemKind      kind = ItemKind::Visible;
-            bool          breaksAnywhere = false; // 이 글자의 앞뒤가 늘 줄바꿈 기회다(한자·가나, Character 모드의 전부)
-            std::uint32_t offset = 0;
-            float         advance = 0.0f;         // 픽셀, 커닝 전
-            float         x = 0.0f;               // 줄 안에서 매긴 자리
-            std::uint32_t markBase = 0;           // Mark 이면 붙는 받침 글자의 번호
-            float         markX = 0.0f;           // Mark 이면 받침 원점에서 표시 원점까지(픽셀, y 위쪽)
-            float         markY = 0.0f;
-            float         size = 0.0f;            // em 크기(픽셀)
-            std::uint32_t color = 0;
-            bool          hasColor = false;
+            Bool          breaksAnywhere = false; // 이 글자의 앞뒤가 늘 줄바꿈 기회다(한자·가나, Character 모드의 전부)
+            UInt32 offset = 0;
+            Float         advance = 0.0f;         // 픽셀, 커닝 전
+            Float         x = 0.0f;               // 줄 안에서 매긴 자리
+            UInt32 markBase = 0;           // Mark 이면 붙는 받침 글자의 번호
+            Float         markX = 0.0f;           // Mark 이면 받침 원점에서 표시 원점까지(픽셀, y 위쪽)
+            Float         markY = 0.0f;
+            Float         size = 0.0f;            // em 크기(픽셀)
+            UInt32 color = 0;
+            Bool          hasColor = false;
             std::uint8_t  style = 0;
         };
 
@@ -205,12 +208,12 @@ namespace JBro::Text
         Array<Item>            m_items;
         Array<PositionedGlyph> m_glyphs;
         Array<LineInfo>        m_lines;
-        float                  m_contentWidth = 0.0f;
-        float                  m_contentHeight = 0.0f;
-        std::uint32_t          m_forcedBreaks = 0;
-        float                  m_minX = 0.0f;
-        float                  m_minY = 0.0f;
-        float                  m_maxX = 0.0f;
-        float                  m_maxY = 0.0f;
+        Float                  m_contentWidth = 0.0f;
+        Float                  m_contentHeight = 0.0f;
+        UInt32          m_forcedBreaks = 0;
+        Float                  m_minX = 0.0f;
+        Float                  m_minY = 0.0f;
+        Float                  m_maxX = 0.0f;
+        Float                  m_maxY = 0.0f;
     };
 }

@@ -5,13 +5,14 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::Internal
 {
     namespace
     {
         // 회전은 라디안으로 모은다 - 저장도 계산도 그 단위다(D-248).
-        bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vector2& scale, Radian& rotation)
+        Bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vector2& scale, Radian& rotation)
         {
             Component::Transform2D* local = canvas.FindComponentRaw<Component::Transform2D>(object);
             if (local == nullptr || false == local->IsActiveComponent())
@@ -45,7 +46,7 @@ namespace JBro::Internal
         }
     }
 
-    bool CalculateObjectPose(Canvas& canvas, GameObject* object, ObjectPose& result)
+    Bool CalculateObjectPose(Canvas& canvas, GameObject* object, ObjectPose& result)
     {
         if (object == nullptr
             || false == CalculateWorldMatrix(canvas, object, result.matrix, result.scale, result.angle))

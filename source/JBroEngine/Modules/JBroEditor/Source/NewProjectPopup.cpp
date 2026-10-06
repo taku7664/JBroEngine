@@ -11,6 +11,8 @@
 #include <JBro/Editor/Widget/TextField.h>
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -35,14 +37,14 @@ namespace JBro
         return "new_project";
     }
 
-    float NewProjectPopup::GetInitialWidth() const
+    Float NewProjectPopup::GetInitialWidth() const
     {
         return 460.0f;
     }
 
     void NewProjectPopup::OnDraw(EditorApplication& editor)
     {
-        bool submitted = false;
+        Bool submitted = false;
         {
             Widget::FormLayout layout("##newProject");
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::NewProjectLocation, "Location")), [&]() {
@@ -70,7 +72,7 @@ namespace JBro
         }
         ImGui::Spacing();
 
-        const bool canCreate = false == m_name.empty();
+        const Bool canCreate = false == m_name.empty();
         {
             Widget::DisableScope disabled(false == canCreate);
             if (Widget::ActionButton(Loc::TextOr(LocKeys::CommonCreate, "Create"),

@@ -4,6 +4,7 @@
 #include <JBro/Editor/EditorObjectRegistry.h>
 
 #include <JBro/Types/Math2D.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -37,7 +38,7 @@ namespace JBro
             std::size_t siblingIndex);
 
         const char* GetName() const override;
-        bool Execute() override;
+        Bool Execute() override;
         void Undo() override;
         void Redo() override;
 
@@ -47,18 +48,18 @@ namespace JBro
         {
             EditorObjectId parentId = InvalidEditorObjectId;
             std::size_t siblingIndex = 0;
-            bool hasTransform = false;
+            Bool hasTransform = false;
             Vector2 position{0.0f, 0.0f};
             // `Transform2D` 가 담는 단위 그대로다 - 뜬 값을 되돌려 놓을 때 변환이 끼면 안 된다.
             Radian rotation = 0.0f;
             Vector2 scale{1.0f, 1.0f};
         };
 
-        bool Apply(const Placement& placement);
+        Bool Apply(const Placement& placement);
         // 지금 자리를 뜬다.
-        bool Capture(Placement& placement) const;
+        Bool Capture(Placement& placement) const;
         // 새 부모 아래에서 지금 월드 자리를 지키는 로컬 값을 구한다.
-        bool ComputeWorldStay(GameObject& object, GameObject* newParent,
+        Bool ComputeWorldStay(GameObject& object, GameObject* newParent,
             Placement& placement) const;
 
         Canvas* m_canvas = nullptr;
@@ -67,6 +68,6 @@ namespace JBro
         Placement m_before;
         Placement m_after;
         // 뜨지 못했으면 옮기지 않는다 - 되돌릴 수 없는 것은 하지 않는다(D-76).
-        bool m_captured = false;
+        Bool m_captured = false;
     };
 }

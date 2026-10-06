@@ -3,6 +3,9 @@
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafePtr.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -20,7 +23,7 @@ namespace JBro
 
         // 메뉴와 로그에 보이는 이름이다. 살아 있는 동안 바뀌지 않는다.
         virtual const char* GetName() const = 0;
-        virtual bool Execute() = 0;
+        virtual Bool Execute() = 0;
         virtual void Undo() = 0;
         virtual void Redo() = 0;
 
@@ -44,13 +47,13 @@ namespace JBro
         // `TryMerge` 만 있으면 여럿을 묶은 커맨드가 곤란해진다 - 앞의 것 몇 개를
         // 합친 뒤에 하나가 거절하면 이미 절반만 합쳐진 상태이고, 되돌릴 방법이
         // 없다. 먼저 전부 물어보고 나서 전부 합친다.
-        virtual bool CanMerge(const EditorCommand& newer) const
+        virtual Bool CanMerge(const EditorCommand& newer) const
         {
             (void)newer;
             return false;
         }
 
-        virtual bool TryMerge(const EditorCommand& newer)
+        virtual Bool TryMerge(const EditorCommand& newer)
         {
             (void)newer;
             return false;
@@ -78,13 +81,13 @@ namespace JBro
         static constexpr const char* AssetDatabase = "__AssetDatabase";
 
         // 실행하고 쌓는다. 실행이 실패하면 쌓지 않고 거짓을 돌려준다.
-        bool Execute(OwnerPtr<EditorCommand> command, const char* documentKey = nullptr);
-        bool Undo();
-        bool Redo();
+        Bool Execute(OwnerPtr<EditorCommand> command, const char* documentKey = nullptr);
+        Bool Undo();
+        Bool Redo();
         void Clear();
 
-        bool CanUndo() const;
-        bool CanRedo() const;
+        Bool CanUndo() const;
+        Bool CanRedo() const;
         std::size_t GetUndoCount() const;
         std::size_t GetRedoCount() const;
 
@@ -96,10 +99,10 @@ namespace JBro
         // 적히므로 "적지 않은 것" 이 남지 않는다 - 그래서 문서마다 판번호를 두지 않고,
         // 캔버스의 것 하나만 센다. 저장할 문서가 둘이 되면 그때 표로 바꾼다.
         void MarkSaved();
-        bool IsDirty() const;
+        Bool IsDirty() const;
         // **문서를 가리지 않는 판번호**다. 되돌리기·다시하기까지 포함해 무엇이든 움직이면
         // 올라간다 - 에셋 참조를 다시 잇는 자리(`BindCanvasAssets`)가 이것을 본다.
-        std::uint64_t GetRevision() const;
+        UInt64 GetRevision() const;
 
         // ── 실행 기록(D-268) ─────────────────────────────────
         //
@@ -112,11 +115,11 @@ namespace JBro
             const char* name = nullptr;
             EditorObjectId subject = InvalidEditorObjectId;
         };
-        static constexpr std::uint64_t ExecutedHistory = 32;
+        static constexpr UInt64 ExecutedHistory = 32;
         // 지금까지 실행한 수다. 늘기만 한다.
-        std::uint64_t GetExecuteCount() const noexcept { return m_executeCount; }
+        UInt64 GetExecuteCount() const noexcept { return m_executeCount; }
         // `serial` 번째(1 부터) 실행이다. 오래되어 기록에서 밀려났거나 아직 없으면 거짓이다.
-        bool GetExecuted(std::uint64_t serial, ExecutedCommand& out) const noexcept;
+        Bool GetExecuted(UInt64 serial, ExecutedCommand& out) const noexcept;
 
     private:
         void RecordExecuted(const EditorCommand& command) noexcept;
@@ -137,18 +140,18 @@ namespace JBro
         void Touch(const char* documentKey);
         void PushUndo(Entry entry);
         // 드래그 덩어리가 이어지는 중인지 본다. 매니저 밖에서는 볼 일이 없다.
-        bool ContinuesDrag();
+        Bool ContinuesDrag();
 
         Array<Entry> m_undo;
         Array<Entry> m_redo;
-        bool m_mergingDrag = false;
+        Bool m_mergingDrag = false;
         // 직전 실행 시점의 왼쪽 버튼 누른 시간. 새 누름을 알아내는 데 쓴다.
-        float m_lastMouseDownDuration = -1.0f;
-        std::uint64_t m_revision = 0;
+        Float m_lastMouseDownDuration = -1.0f;
+        UInt64 m_revision = 0;
         // 캔버스를 고친 마지막 판번호와, 그중 저장된 것.
-        std::uint64_t m_canvasRevision = 0;
-        std::uint64_t m_savedCanvasRevision = 0;
+        UInt64 m_canvasRevision = 0;
+        UInt64 m_savedCanvasRevision = 0;
         ExecutedCommand m_executed[ExecutedHistory] = {};
-        std::uint64_t m_executeCount = 0;
+        UInt64 m_executeCount = 0;
     };
 }

@@ -5,10 +5,12 @@
 
 #include <cstring>
 #include <string_view>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
-    GameHostArguments ParseGameHostArguments(int argumentCount, const char* const* arguments)
+    GameHostArguments ParseGameHostArguments(Int32 argumentCount, const char* const* arguments)
     {
         GameHostArguments result;
         if (arguments == nullptr)
@@ -16,15 +18,15 @@ namespace JBro
             return result;
         }
         // 0 번은 실행 파일이다.
-        for (int index = 1; index < argumentCount; ++index)
+        for (Int32 index = 1; index < argumentCount; ++index)
         {
             const char* argument = arguments[index];
             if (argument == nullptr)
             {
                 continue;
             }
-            const bool isProject = std::strcmp(argument, "--project") == 0;
-            const bool isCanvas = std::strcmp(argument, "--canvas") == 0;
+            const Bool isProject = std::strcmp(argument, "--project") == 0;
+            const Bool isCanvas = std::strcmp(argument, "--canvas") == 0;
             if (false == isProject && false == isCanvas)
             {
                 result.error = "unknown argument: ";
@@ -54,7 +56,7 @@ namespace JBro
         {
             String best;
         } search;
-        platform.EnumerateDirectory(folder.c_str(), [](const char* relative, bool isDirectory, void* user) {
+        platform.EnumerateDirectory(folder.c_str(), [](const char* relative, Bool isDirectory, void* user) -> Bool {
             auto& found = *static_cast<Search*>(user);
             const std::string_view name(relative);
             constexpr std::string_view extension(".jproject");

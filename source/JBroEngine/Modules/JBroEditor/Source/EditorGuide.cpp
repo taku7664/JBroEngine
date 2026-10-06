@@ -6,6 +6,9 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -102,21 +105,21 @@ Steps:
         return &m_guide->steps[m_step];
     }
 
-    bool EditorGuide::ConsumeFinished() noexcept
+    Bool EditorGuide::ConsumeFinished() noexcept
     {
-        const bool finished = m_finished;
+        const Bool finished = m_finished;
         m_finished = false;
         return finished;
     }
 
-    bool EditorGuide::Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus)
+    Bool EditorGuide::Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus)
     {
         m_guide = &guide;
         m_finished = false;
         m_revisiting = false;
         m_confirming = false;
         m_results.Clear();
-        for (std::uint32_t index = 0; index < guide.steps.Size(); ++index)
+        for (UInt32 index = 0; index < guide.steps.Size(); ++index)
         {
             m_results.Add(0);
         }
@@ -136,7 +139,7 @@ Steps:
         focus.End();
     }
 
-    bool EditorGuide::TryEnter(std::uint32_t index, EditorApplication& editor, EditorGuideFocus& focus)
+    Bool EditorGuide::TryEnter(UInt32 index, EditorApplication& editor, EditorGuideFocus& focus)
     {
         const GuideStep& step = m_guide->steps[index];
         GuideFocusPath path = step.path;
@@ -164,9 +167,9 @@ Steps:
         return true;
     }
 
-    bool EditorGuide::EnterStep(std::uint32_t from, EditorApplication& editor, EditorGuideFocus& focus)
+    Bool EditorGuide::EnterStep(UInt32 from, EditorApplication& editor, EditorGuideFocus& focus)
     {
-        for (std::uint32_t index = from; index < m_guide->steps.Size(); ++index)
+        for (UInt32 index = from; index < m_guide->steps.Size(); ++index)
         {
             if (TryEnter(index, editor, focus))
             {
@@ -175,7 +178,7 @@ Steps:
                 return true;
             }
             // 받을 결과가 비었다(남긴 단계를 건너뛰었거나 그 오브젝트가 사라졌다). 남긴 단계로 돌아가 다시 하게 한다.
-            const std::int32_t retreat = m_guide->steps[index].retreatOnMissing;
+            const Int32 retreat = m_guide->steps[index].retreatOnMissing;
             if (retreat >= 0 && static_cast<std::uint32_t>(retreat) < index
                 && TryEnter(static_cast<std::uint32_t>(retreat), editor, focus))
             {
@@ -189,24 +192,24 @@ Steps:
         return false;
     }
 
-    std::uint64_t EditorGuide::GetResult(std::uint32_t step) const noexcept
+    UInt64 EditorGuide::GetResult(UInt32 step) const noexcept
     {
-        return step < m_results.Size() ? m_results[step] : 0;
+        return step < m_results.Size() ? m_results[step] : UInt64(0);
     }
 
-    bool EditorGuide::ShowsSkip() const noexcept
+    Bool EditorGuide::ShowsSkip() const noexcept
     {
         const GuideStep* step = GetStep();
         return step != nullptr && step->canSkip && false == m_confirming;
     }
 
-    bool EditorGuide::ShowsBack() const noexcept
+    Bool EditorGuide::ShowsBack() const noexcept
     {
         const GuideStep* step = GetStep();
         return step != nullptr && step->canGoBack;
     }
 
-    bool EditorGuide::CanGoBackNow() const noexcept
+    Bool EditorGuide::CanGoBackNow() const noexcept
     {
         return ShowsBack() && m_step > 0;
     }
@@ -222,7 +225,7 @@ Steps:
         return reason != nullptr && reason[0] != '\0' ? reason : nullptr;
     }
 
-    bool EditorGuide::ShowsNext() const noexcept
+    Bool EditorGuide::ShowsNext() const noexcept
     {
         const GuideStep* step = GetStep();
         return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting || m_confirming);
@@ -250,7 +253,7 @@ Steps:
         if (action == GuideFocusAction::Back && CanGoBackNow())
         {
             // 가리킬 것이 있는 가장 가까운 앞 단계로 간다. 하나도 없으면 제자리다.
-            for (std::uint32_t index = m_step; index > 0; --index)
+            for (UInt32 index = m_step; index > 0; --index)
             {
                 if (TryEnter(index - 1, editor, focus))
                 {
@@ -262,7 +265,7 @@ Steps:
             return;
         }
         const GuideStep& step = m_guide->steps[m_step];
-        const bool nextPressed = action == GuideFocusAction::Next && ShowsNext() && WhyNextBlocked(editor) == nullptr;
+        const Bool nextPressed = action == GuideFocusAction::Next && ShowsNext() && WhyNextBlocked(editor) == nullptr;
         if (m_confirming)
         {
             // 해낸 뒤다. 확인만 기다린다 - 끊김도 조건도 더 보지 않는다(결과를 보고 있는 사람의 화면이 넘어가면 안 된다).
@@ -284,7 +287,7 @@ Steps:
             }
             return;
         }
-        bool done = nextPressed;
+        Bool done = nextPressed;
         // 돌아온 단계는 다음을 기다린다. 조건이 이미 맞아 저절로 넘어가면 이전을 눌러도 제자리로 튕겨 온다.
         if (false == m_revisiting)
         {
@@ -300,7 +303,7 @@ Steps:
                 break;
             }
         }
-        const bool broken = focus.IsBroken();
+        const Bool broken = focus.IsBroken();
         if (broken && false == done && step.nextRoute.IsBound())
         {
             // 같은 일에 드는 다른 길이 있으면 그리로 간다(계층 줄이 검색에 가려졌으면 캔버스 뷰로).
@@ -335,9 +338,9 @@ Steps:
         // 해낸 단계는 남길 것을 적는다. 끊겨서 넘어가는 단계는 남기지 않는다 - 뒤 단계가 그것을 받으면 되돌아온다.
         if (m_step < m_results.Size())
         {
-            m_results[m_step] = false == broken && step.result.IsBound() ? step.result.Invoke(editor, m_memo) : 0;
+            m_results[m_step] = false == broken && step.result.IsBound() ? step.result.Invoke(editor, m_memo) : UInt64(0);
         }
-        const bool last = m_step + 1 >= m_guide->steps.Size();
+        const Bool last = m_step + 1 >= m_guide->steps.Size();
         if (last && false == nextPressed && false == broken)
         {
             // 마지막 일을 해냈다. 곧바로 닫지 않고 확인을 기다린다.
@@ -354,12 +357,12 @@ Steps:
 
     namespace EditorGuides
     {
-        std::uint32_t GetBuiltinCount()
+        UInt32 GetBuiltinCount()
         {
             return static_cast<std::uint32_t>(Builtins().Size());
         }
 
-        const Guide& GetBuiltin(std::uint32_t index)
+        const Guide& GetBuiltin(UInt32 index)
         {
             return Builtins()[index]->Get();
         }
@@ -380,7 +383,7 @@ Steps:
             return nullptr;
         }
 
-        bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path)
+        Bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path)
         {
             const Layer* layer = object.GetLayer();
             if (layer == nullptr)
@@ -389,7 +392,7 @@ Steps:
             }
             // 조상을 뿌리부터 적어야 한다. 부모 사슬은 아래에서 위로 가므로 먼저 모아 뒤집는다.
             GameObject* chain[GuideFocusPath::Capacity];
-            std::uint32_t depth = 0;
+            UInt32 depth = 0;
             for (GameObject* walk = &object; walk != nullptr; walk = walk->GetParent())
             {
                 if (depth >= GuideFocusPath::Capacity)
@@ -404,7 +407,7 @@ Steps:
             {
                 return false;
             }
-            for (std::uint32_t index = depth; index > 0; --index)
+            for (UInt32 index = depth; index > 0; --index)
             {
                 if (false == path.Push(GuideFocusTargets::HierarchyObject(editor.GetObjectIds().Track(chain[index - 1]))))
                 {

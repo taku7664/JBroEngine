@@ -8,6 +8,9 @@
 #include <shobjidl.h>
 
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -16,7 +19,7 @@ namespace JBro
         constexpr wchar_t WindowClassName[] = L"JBroEngineWindow";
         // 창 클래스의 여분 바이트에 플랫폼 포인터를 둔다. GWLP_USERDATA 는 이미
         // 닫기 플래그가 쓰고 있다.
-        constexpr int PlatformSlot = 0;
+        constexpr Int32 PlatformSlot = 0;
         constexpr std::size_t ShadowLibrarySuffixCapacity = 64;
         volatile LONG64 ShadowLibrarySequence = 0;
 
@@ -32,7 +35,7 @@ namespace JBro
         Key TranslateKey(WPARAM wParam, LPARAM lParam)
         {
             const UINT scanCode = static_cast<UINT>((lParam >> 16) & 0xFF);
-            const bool extended = (lParam & (1 << 24)) != 0;
+            const Bool extended = (lParam & (1 << 24)) != 0;
 
             switch (wParam)
             {
@@ -232,7 +235,7 @@ namespace JBro
             case WM_MBUTTONUP:
             case WM_XBUTTONUP:
             {
-                const bool down = message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK
+                const Bool down = message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK
                     || message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK
                     || message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK
                     || message == WM_XBUTTONDOWN || message == WM_XBUTTONDBLCLK;
@@ -335,9 +338,9 @@ namespace JBro
             case WM_POINTERCAPTURECHANGED:
             {
                 const UINT32 pointer = GET_POINTERID_WPARAM(wParam);
-                const bool ends = message == WM_POINTERUP || message == WM_POINTERCAPTURECHANGED;
+                const Bool ends = message == WM_POINTERUP || message == WM_POINTERCAPTURECHANGED;
                 POINTER_INFO info = {};
-                bool known = GetPointerInfo(pointer, &info) != FALSE;
+                Bool known = GetPointerInfo(pointer, &info) != FALSE;
                 if (known && info.pointerType != PT_TOUCH && info.pointerType != PT_PEN)
                 {
                     break;
@@ -394,8 +397,8 @@ namespace JBro
                 return nullptr;
             }
 
-            const int sourceLength = static_cast<int>(title.size);
-            const int wideLength = MultiByteToWideChar(
+            const Int32 sourceLength = static_cast<int>(title.size);
+            const Int32 wideLength = MultiByteToWideChar(
                 CP_UTF8,
                 MB_ERR_INVALID_CHARS,
                 title.data,
@@ -417,7 +420,7 @@ namespace JBro
                 return nullptr;
             }
 
-            const int convertedLength = MultiByteToWideChar(
+            const Int32 convertedLength = MultiByteToWideChar(
                 CP_UTF8,
                 MB_ERR_INVALID_CHARS,
                 title.data,
@@ -435,7 +438,7 @@ namespace JBro
         }
     }
 
-    bool WindowsPlatform::Initialize(const JMemoryContext&)
+    Bool WindowsPlatform::Initialize(const JMemoryContext&)
     {
         if (m_instance != nullptr)
         {
@@ -629,7 +632,7 @@ namespace JBro
         m_pendingHighSurrogate = unit;
     }
 
-    void WindowsPlatform::WaitForEvents(std::uint32_t timeoutMilliseconds)
+    void WindowsPlatform::WaitForEvents(UInt32 timeoutMilliseconds)
     {
         if (timeoutMilliseconds == 0)
         {
@@ -644,14 +647,14 @@ namespace JBro
             MWMO_INPUTAVAILABLE);
     }
 
-    bool WindowsPlatform::ShouldClose(WindowHandle window) const
+    Bool WindowsPlatform::ShouldClose(WindowHandle window) const
     {
         HWND nativeWindow = reinterpret_cast<HWND>(window.value);
         return m_quitRequested || nativeWindow == nullptr || false == IsWindow(nativeWindow)
             || GetWindowLongPtrW(nativeWindow, GWLP_USERDATA) != 0;
     }
 
-    bool WindowsPlatform::GetWindowState(WindowHandle window, WindowState& state) const
+    Bool WindowsPlatform::GetWindowState(WindowHandle window, WindowState& state) const
     {
         state = {};
         const auto nativeWindow = reinterpret_cast<HWND>(window.value);
@@ -673,7 +676,7 @@ namespace JBro
             return {};
         }
 
-        const int wideLength = MultiByteToWideChar(
+        const Int32 wideLength = MultiByteToWideChar(
             CP_UTF8,
             MB_ERR_INVALID_CHARS,
             utf8Path,
@@ -695,7 +698,7 @@ namespace JBro
             return {};
         }
 
-        const int convertedLength = MultiByteToWideChar(
+        const Int32 convertedLength = MultiByteToWideChar(
             CP_UTF8,
             MB_ERR_INVALID_CHARS,
             utf8Path,
@@ -721,8 +724,8 @@ namespace JBro
             return {};
         }
 
-        bool copied = false;
-        for (std::uint32_t attempt = 0; attempt < 16; ++attempt)
+        Bool copied = false;
+        for (UInt32 attempt = 0; attempt < 16; ++attempt)
         {
             if (wcscpy_s(shadowPath, shadowCapacity, sourcePath) != 0)
             {
@@ -730,7 +733,7 @@ namespace JBro
             }
             const unsigned long long sequence = static_cast<unsigned long long>(
                 InterlockedIncrement64(&ShadowLibrarySequence));
-            const int suffixLength = swprintf_s(
+            const Int32 suffixLength = swprintf_s(
                 shadowPath + sourceLength,
                 ShadowLibrarySuffixCapacity,
                 L".jbro.%lu.%llu.dll",
@@ -821,14 +824,14 @@ namespace JBro
     namespace
     {
         // UTF-8 을 고정 크기 UTF-16 버퍼로. 넘치면 거짓 - 대화상자 글자와 경로에는 넉넉하다.
-        bool ToWide(const char* utf8, wchar_t* out, int capacity)
+        Bool ToWide(const char* utf8, wchar_t* out, Int32 capacity)
         {
             if (utf8 == nullptr || *utf8 == '\0')
             {
                 out[0] = L'\0';
                 return true;
             }
-            const int written = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, out, capacity);
+            const Int32 written = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, out, capacity);
             return written > 0;
         }
 
@@ -849,14 +852,14 @@ namespace JBro
 
             // **MTA 스레드는 쓰지 않는다**(D-256). 전에는 `RPC_E_CHANGED_MODE` 도 받아 MTA 에서 대화상자를 열었고, 그 호출이
             // 창도 띄우지 못한 채 멈췄다. 멈춘 에디터보다 열리지 않는 대화상자와 로그 한 줄이 낫다.
-            bool Usable() const
+            Bool Usable() const
             {
                 return SUCCEEDED(result);
             }
         };
     }
 
-    bool WindowsPlatform::ShowFileDialog(
+    Bool WindowsPlatform::ShowFileDialog(
         WindowHandle owner, const FileDialogDesc& desc, String& outPath)
     {
         outPath.clear();
@@ -869,7 +872,7 @@ namespace JBro
             return false;
         }
         IFileDialog* dialog = nullptr;
-        const bool save = desc.save && false == desc.pickFolder;
+        const Bool save = desc.save && false == desc.pickFolder;
         const HRESULT created = CoCreateInstance(
             save ? CLSID_FileSaveDialog : CLSID_FileOpenDialog,
             nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
@@ -931,7 +934,7 @@ namespace JBro
             }
         }
 
-        bool chosen = false;
+        Bool chosen = false;
         if (SUCCEEDED(dialog->Show(reinterpret_cast<HWND>(owner.value))))
         {
             IShellItem* item = nullptr;
@@ -940,7 +943,7 @@ namespace JBro
                 PWSTR path = nullptr;
                 if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) && path != nullptr)
                 {
-                    const int needed = WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
+                    const Int32 needed = WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
                     if (needed > 1)
                     {
                         outPath.resize(static_cast<std::size_t>(needed - 1));

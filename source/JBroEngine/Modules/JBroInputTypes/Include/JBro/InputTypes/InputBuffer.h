@@ -2,6 +2,8 @@
 
 #include <limits>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -23,13 +25,13 @@ namespace JBro
     // 값 하나라 컴포넌트 필드로 두어도 되고, 복사해도 된다. 메인 스레드에서 쓴다.
     struct InputBuffer
     {
-        static constexpr float Never = std::numeric_limits<float>::infinity();
+        static constexpr Float Never = std::numeric_limits<float>::infinity();
 
         // 신호가 마지막으로 참이었던 뒤로 흐른 초다. 한 번도 없었거나 비웠으면 `Never` 다.
-        float age = Never;
+        Float age = Never;
 
         // 한 프레임(또는 고정 스텝)에 한 번 부른다. 참이면 지금부터 다시 센다. 부르는 쪽이 넣는 시간을 고른다 - `OnFixedUpdate` 는 고정 간격을 넣는다.
-        void Feed(bool signal, float deltaTime)
+        void Feed(Bool signal, Float deltaTime)
         {
             if (signal)
             {
@@ -42,13 +44,13 @@ namespace JBro
         }
 
         // 지난 `window` 초 안에 신호가 있었는가. 비우지 않는다.
-        bool Peek(float window) const
+        Bool Peek(Float window) const
         {
             return age <= window;
         }
 
         // 있었으면 참을 돌려주고 비운다 - 한 번 누른 것이 두 번 뛰지 않는다.
-        bool Take(float window)
+        Bool Take(Float window)
         {
             if (age <= window)
             {

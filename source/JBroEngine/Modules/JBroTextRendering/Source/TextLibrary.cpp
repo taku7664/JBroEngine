@@ -7,21 +7,23 @@
 
 #include <cstring>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr std::uint32_t SlotMask = (1u << 28) - 1;
+        constexpr UInt32 SlotMask = (1u << 28) - 1;
         // 태스크 하나가 뜨는 글리프 수다. 워커끼리 나눠 갖고, 끝난 덩어리부터 아틀라스에 들어간다.
-        constexpr std::uint32_t PrewarmChunk = 128;
+        constexpr UInt32 PrewarmChunk = 128;
 
         // **워커에서 글리프를 뜬다.** face 는 읽기만 한다(stb 는 전역 상태가 없다). 결과는 제 배열에 담아 두고, 아틀라스에 넣는 것은
         // `OnFinished`(메인 스레드)가 라이브러리에 맡긴다. face 의 수명은 라이브러리가 지킨다 - 다시 열거나 부수기 전에 기다린다.
         class PrewarmTask final : public Task
         {
         public:
-            PrewarmTask(TextLibrary& library, std::uint32_t slot, const Text::FontFace& face, TextLibrary::PrewarmResult&& work)
+            PrewarmTask(TextLibrary& library, UInt32 slot, const Text::FontFace& face, TextLibrary::PrewarmResult&& work)
                 : Task(String("Prewarm glyphs"), static_cast<std::uint32_t>(work.glyphs.Size()))
                 , m_library(library)
                 , m_slot(slot)
@@ -41,7 +43,7 @@ namespace JBro
                         return;
                     }
                     Text::GlyphBitmapBox box;
-                    bool drawn = false;
+                    Bool drawn = false;
                     if (m_result.sdfSpread != 0)
                     {
                         drawn = m_face.RasterizeGlyphSdf(glyph, static_cast<float>(m_result.pixelSize),
@@ -74,7 +76,7 @@ namespace JBro
 
         private:
             TextLibrary& m_library;
-            std::uint32_t m_slot = 0;
+            UInt32 m_slot = 0;
             const Text::FontFace& m_face;
             TextLibrary::PrewarmResult m_result;
         };
@@ -125,7 +127,7 @@ namespace JBro
         {
             return;
         }
-        const std::uint32_t revision = m_assets->GetProjectFontsRevision();
+        const UInt32 revision = m_assets->GetProjectFontsRevision();
         if (m_projectFontsSynced && revision == m_projectFontsRevision)
         {
             return;
@@ -146,7 +148,7 @@ namespace JBro
                 continue;
             }
             // 같은 폰트를 두 번 적었으면 한 번만 든다 - 폴백을 두 번 찾아볼 까닭이 없다.
-            bool duplicate = false;
+            Bool duplicate = false;
             for (const AssetHandle& held : m_projectFonts)
             {
                 duplicate = duplicate || (held.index == font.index && held.generation == font.generation);
@@ -182,7 +184,7 @@ namespace JBro
         entry.pageTextures.Clear();
     }
 
-    bool TextLibrary::GetFamilyFonts(AssetHandle font, AssetHandle (&slots)[4]) const
+    Bool TextLibrary::GetFamilyFonts(AssetHandle font, AssetHandle (&slots)[4]) const
     {
         const FontFamilyData* family = m_assets != nullptr ? m_assets->GetFontFamily(font) : nullptr;
         if (family == nullptr)
@@ -196,7 +198,7 @@ namespace JBro
         return true;
     }
 
-    bool TextLibrary::Acquire(AssetHandle font, FontView& view)
+    Bool TextLibrary::Acquire(AssetHandle font, FontView& view)
     {
         if (m_assets == nullptr || font.generation == 0)
         {
@@ -207,7 +209,7 @@ namespace JBro
         {
             return false;
         }
-        const std::uint32_t slot = font.index & SlotMask;
+        const UInt32 slot = font.index & SlotMask;
         if (slot >= m_fonts.Size())
         {
             // 에셋 풀은 자라도 여기서 자라는 것은 폰트를 처음 만날 때 한 번이다.
@@ -219,8 +221,8 @@ namespace JBro
         }
         FontEntry& entry = *m_fonts[slot];
 
-        const bool sameAsset = entry.asset.index == font.index && entry.asset.generation == font.generation;
-        const bool current = sameAsset && entry.dataGeneration == data->dataGeneration && entry.face.IsLoaded();
+        const Bool sameAsset = entry.asset.index == font.index && entry.asset.generation == font.generation;
+        const Bool current = sameAsset && entry.dataGeneration == data->dataGeneration && entry.face.IsLoaded();
         if (false == current)
         {
             if (sameAsset && entry.failedGeneration == data->dataGeneration && false == entry.face.IsLoaded())
@@ -249,7 +251,7 @@ namespace JBro
             // 미리 뜨기(text-plan §3.6). 폰트를 열 때 한 번이다 - 그 뒤의 글이 런타임 래스터화 없이 그려진다. 올리기는 다음 업로드가 한다.
             entry.prewarm = data->options.prewarm;
             entry.prewarmSize = data->options.prewarmSize;
-            entry.sourceHash = data->bakedAtlas.IsEmpty() ? 0 : Text::GlyphAtlas::HashFontSource(data->bytes.Data(), data->bytes.Size());
+            entry.sourceHash = data->bakedAtlas.IsEmpty() ? UInt64(0) : Text::GlyphAtlas::HashFontSource(data->bytes.Data(), data->bytes.Size());
             entry.pageLimit = 0;
             entry.lastTrimFrame = 0;
             Prewarm(entry, slot);
@@ -266,13 +268,13 @@ namespace JBro
         return true;
     }
 
-    std::uint32_t TextLibrary::UploadDirtyPages()
+    UInt32 TextLibrary::UploadDirtyPages()
     {
         if (m_renderer == nullptr)
         {
             return 0;
         }
-        std::uint32_t uploaded = 0;
+        UInt32 uploaded = 0;
         for (std::size_t index = 0; index < m_fonts.Size(); ++index)
         {
             if (false == static_cast<bool>(m_fonts[index]))
@@ -280,13 +282,13 @@ namespace JBro
                 continue;
             }
             FontEntry& entry = *m_fonts[index];
-            const std::uint32_t pageCount = entry.atlas.GetPageCount();
+            const UInt32 pageCount = entry.atlas.GetPageCount();
             if (entry.pageTextures.Size() < pageCount)
             {
                 entry.pageTextures.Resize(pageCount);
             }
-            const std::uint32_t pageSize = entry.atlas.GetPageSize();
-            for (std::uint32_t page = 0; page < pageCount; ++page)
+            const UInt32 pageSize = entry.atlas.GetPageSize();
+            for (UInt32 page = 0; page < pageCount; ++page)
             {
                 if (false == entry.atlas.IsPageDirty(page))
                 {
@@ -297,17 +299,17 @@ namespace JBro
                 pixels.data = source.Data();
                 pixels.size = static_cast<std::uint32_t>(source.Size());
                 AssetHandle& texture = entry.pageTextures[page];
-                bool written = false;
+                Bool written = false;
                 if (texture.generation != 0)
                 {
                     // **새 칸들을 감싸는 사각형만 올린다**(text-plan §3.6). 페이지 전체(4 MB)를 올리면 새 글자가 나온 프레임마다
                     // 1.4~1.8 ms 가 들었다(D3D12·Vulkan, 벤치마크). 백엔드가 사각형을 못 올리면 전체를 올린다.
-                    std::uint32_t x = 0;
-                    std::uint32_t y = 0;
-                    std::uint32_t width = 0;
-                    std::uint32_t height = 0;
+                    UInt32 x = 0;
+                    UInt32 y = 0;
+                    UInt32 width = 0;
+                    UInt32 height = 0;
                     entry.atlas.GetPageDirtyRect(page, x, y, width, height);
-                    const std::uint32_t rowPitch = pageSize * 4;
+                    const UInt32 rowPitch = pageSize * 4;
                     if (width > 0 && height > 0)
                     {
                         JArrayView<std::byte> region;
@@ -344,9 +346,9 @@ namespace JBro
         return uploaded;
     }
 
-    AssetHandle TextLibrary::GetPageTexture(AssetHandle font, std::uint32_t page) const
+    AssetHandle TextLibrary::GetPageTexture(AssetHandle font, UInt32 page) const
     {
-        const std::uint32_t slot = font.index & SlotMask;
+        const UInt32 slot = font.index & SlotMask;
         if (slot >= m_fonts.Size() || false == static_cast<bool>(m_fonts[slot]))
         {
             return {};
@@ -359,20 +361,20 @@ namespace JBro
         return entry.pageTextures[page];
     }
 
-    Text::BakedAtlasStamp TextLibrary::PrewarmStampOf(const FontImportOptions& options, std::uint64_t sourceHash)
+    Text::BakedAtlasStamp TextLibrary::PrewarmStampOf(const FontImportOptions& options, UInt64 sourceHash)
     {
-        const bool sdf = options.renderMode == FontRenderMode::Sdf;
+        const Bool sdf = options.renderMode == FontRenderMode::Sdf;
         Text::BakedAtlasStamp stamp;
         stamp.sourceHash = sourceHash;
         stamp.set = options.prewarm == FontPrewarm::Ksx1001 ? Text::PrewarmSet::Ksx1001
             : options.prewarm == FontPrewarm::Ascii          ? Text::PrewarmSet::Ascii
                                                               : Text::PrewarmSet::None;
         stamp.pixelSize = sdf ? options.sdfSize : options.prewarmSize;
-        stamp.sdfSpread = sdf ? options.sdfSpread : 0;
+        stamp.sdfSpread = sdf ? options.sdfSpread : UInt32(0);
         return stamp;
     }
 
-    bool TextLibrary::BakeFontAtlas(const FontData& data, Array<std::byte>& out)
+    Bool TextLibrary::BakeFontAtlas(const FontData& data, Array<std::byte>& out)
     {
         out.Clear();
         const Text::BakedAtlasStamp stamp =
@@ -392,12 +394,12 @@ namespace JBro
         return true;
     }
 
-    std::uint64_t TextLibrary::GetBakedRestoreCount() const
+    UInt64 TextLibrary::GetBakedRestoreCount() const
     {
         return m_bakedRestores;
     }
 
-    void TextLibrary::Prewarm(FontEntry& entry, std::uint32_t slot)
+    void TextLibrary::Prewarm(FontEntry& entry, UInt32 slot)
     {
         entry.prewarmed = 0;
         entry.prewarmPages = 0;
@@ -426,9 +428,9 @@ namespace JBro
             Log::Write(LogLevel::Info, "text", "a baked atlas does not match its font; prewarming at run time");
         }
         const Text::PrewarmSet set = entry.prewarm == FontPrewarm::Ksx1001 ? Text::PrewarmSet::Ksx1001 : Text::PrewarmSet::Ascii;
-        const bool sdf = entry.renderMode == FontRenderMode::Sdf;
-        const std::uint32_t pixelSize = sdf ? entry.sdfSize : entry.prewarmSize;
-        const std::uint32_t spread = sdf ? entry.sdfSpread : 0;
+        const Bool sdf = entry.renderMode == FontRenderMode::Sdf;
+        const UInt32 pixelSize = sdf ? entry.sdfSize : entry.prewarmSize;
+        const UInt32 spread = sdf ? entry.sdfSpread : UInt32(0);
         if (m_tasks == nullptr || false == m_tasks->IsInitialized())
         {
             entry.prewarmed = entry.atlas.Prewarm(entry.face, set, pixelSize, spread);
@@ -441,7 +443,7 @@ namespace JBro
         Array<Text::GlyphIndex> glyphs;
         Text::GlyphAtlas::CollectPrewarmGlyphs(entry.face, set, glyphs);
         OwnerPtr<TaskGroup> group = MakeOwnerPtr<TaskGroup>(String("Prewarm a font"));
-        std::uint32_t tasks = 0;
+        UInt32 tasks = 0;
         for (std::size_t first = 0; first < glyphs.Size(); first += PrewarmChunk)
         {
             PrewarmResult work;
@@ -449,7 +451,7 @@ namespace JBro
             work.dataGeneration = entry.dataGeneration;
             work.pixelSize = pixelSize;
             work.sdfSpread = spread;
-            const std::size_t last = first + PrewarmChunk < glyphs.Size() ? first + PrewarmChunk : glyphs.Size();
+            const std::size_t last = first + PrewarmChunk < glyphs.Size() ? first + PrewarmChunk : UInt64(glyphs.Size());
             for (std::size_t index = first; index < last; ++index)
             {
                 work.glyphs.Add(glyphs[index]);
@@ -470,7 +472,7 @@ namespace JBro
         entry.prewarmTasksPending += tasks;
     }
 
-    void TextLibrary::FinishPrewarm(std::uint32_t slot, const PrewarmResult& result, bool completed)
+    void TextLibrary::FinishPrewarm(UInt32 slot, const PrewarmResult& result, Bool completed)
     {
         if (slot >= m_fonts.Size() || false == static_cast<bool>(m_fonts[slot]))
         {
@@ -508,7 +510,7 @@ namespace JBro
         // 태스크 관리자가 먼저 내려가면(호스트의 끄는 순서) 남은 콜백이 모두 불려 이 수가 이미 0 이다.
         while (entry.prewarmTasksPending > 0 && m_tasks != nullptr)
         {
-            const std::uint32_t before = entry.prewarmTasksPending;
+            const UInt32 before = entry.prewarmTasksPending;
             m_tasks->Update();
             if (entry.prewarmTasksPending == before)
             {
@@ -517,13 +519,13 @@ namespace JBro
         }
     }
 
-    bool TextLibrary::IsPrewarming(AssetHandle font) const
+    Bool TextLibrary::IsPrewarming(AssetHandle font) const
     {
-        const std::uint32_t slot = font.index & SlotMask;
+        const UInt32 slot = font.index & SlotMask;
         return slot < m_fonts.Size() && static_cast<bool>(m_fonts[slot]) && m_fonts[slot]->prewarmTasksPending > 0;
     }
 
-    void TextLibrary::TrimAtlases(std::uint64_t frame)
+    void TextLibrary::TrimAtlases(UInt64 frame)
     {
         for (std::size_t index = 0; index < m_fonts.Size(); ++index)
         {
@@ -532,7 +534,7 @@ namespace JBro
                 continue;
             }
             FontEntry& entry = *m_fonts[index];
-            const std::uint32_t limit = entry.pageLimit > m_pageLimit ? entry.pageLimit : m_pageLimit;
+            const UInt32 limit = entry.pageLimit > m_pageLimit ? entry.pageLimit : m_pageLimit;
             // 미리 채운 페이지는 한도에 넣지 않는다. 워커가 아직 채우는 중이면 페이지가 느는 중이므로 비우지 않는다.
             if (entry.prewarmTasksPending > 0 || entry.atlas.GetPageCount() <= limit + entry.prewarmPages)
             {
@@ -557,40 +559,40 @@ namespace JBro
         }
     }
 
-    void TextLibrary::SetPageLimit(std::uint32_t pages)
+    void TextLibrary::SetPageLimit(UInt32 pages)
     {
-        m_pageLimit = pages > 0 ? pages : 1;
+        m_pageLimit = pages > 0 ? pages : UInt32(1);
     }
 
-    std::uint32_t TextLibrary::GetTrimCount() const
+    UInt32 TextLibrary::GetTrimCount() const
     {
         return m_trimCount;
     }
 
-    std::uint32_t TextLibrary::GetPrewarmedGlyphCount(AssetHandle font) const
+    UInt32 TextLibrary::GetPrewarmedGlyphCount(AssetHandle font) const
     {
-        const std::uint32_t slot = font.index & SlotMask;
+        const UInt32 slot = font.index & SlotMask;
         if (slot >= m_fonts.Size() || false == static_cast<bool>(m_fonts[slot]))
         {
             return 0;
         }
         const FontEntry& entry = *m_fonts[slot];
-        return entry.asset.index == font.index && entry.asset.generation == font.generation ? entry.prewarmed : 0;
+        return entry.asset.index == font.index && entry.asset.generation == font.generation ? entry.prewarmed : UInt32(0);
     }
 
-    std::uint64_t TextLibrary::GetUploadedBytes() const
+    UInt64 TextLibrary::GetUploadedBytes() const
     {
         return m_uploadedBytes;
     }
 
-    std::uint64_t TextLibrary::GetUploadCount() const
+    UInt64 TextLibrary::GetUploadCount() const
     {
         return m_uploadCount;
     }
 
-    std::uint32_t TextLibrary::GetPageTextureCount() const
+    UInt32 TextLibrary::GetPageTextureCount() const
     {
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         for (std::size_t index = 0; index < m_fonts.Size(); ++index)
         {
             if (false == static_cast<bool>(m_fonts[index]))

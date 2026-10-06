@@ -5,6 +5,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -47,7 +51,7 @@ namespace JBro
     class YamlDocument final
     {
     public:
-        static constexpr std::uint32_t InvalidNode = static_cast<std::uint32_t>(-1);
+        static constexpr UInt32 InvalidNode = static_cast<std::uint32_t>(-1);
 
         YamlDocument() = default;
         YamlDocument(const YamlDocument&) = delete;
@@ -56,38 +60,38 @@ namespace JBro
         // 실패하면 문서는 비워지고 error 가 채워진다. 반쯤 읽힌 문서를 남기지 않는다.
         // **경로를 받는 API 는 없다**(D-112). JBroCore 는 플랫폼을 볼 수 없으므로 파일은 부르는 쪽이 `IPlatform` 으로
         // 읽어 글자를 넘긴다.
-        bool Parse(const char* text, std::size_t length, YamlError& error);
+        Bool Parse(const char* text, std::size_t length, YamlError& error);
         void Clear();
 
         // 빈 문서면 InvalidNode 다.
-        std::uint32_t GetRoot() const;
-        YamlKind      GetKind(std::uint32_t node) const;
+        UInt32 GetRoot() const;
+        YamlKind      GetKind(UInt32 node) const;
         // 그 노드가 시작한 줄(1 부터)이다. 오류를 파일의 자리로 말할 수 있게. 모르는 노드면 0 이다.
-        std::size_t   GetLine(std::uint32_t node) const;
+        std::size_t   GetLine(UInt32 node) const;
 
         // 스칼라의 원문이다. 따옴표는 이미 벗겨져 있다. 스칼라가 아니면 빈 문자열.
-        const char* GetText(std::uint32_t node) const;
+        const char* GetText(UInt32 node) const;
 
         // 시퀀스의 항목 수이거나 맵의 키 수다. 스칼라면 0.
-        std::size_t GetCount(std::uint32_t node) const;
+        std::size_t GetCount(UInt32 node) const;
 
         // 시퀀스의 index 번째. 범위를 벗어나면 InvalidNode.
-        std::uint32_t GetElement(std::uint32_t node, std::size_t index) const;
+        UInt32 GetElement(UInt32 node, std::size_t index) const;
 
         // 맵의 index 번째 키와 값. **넣은 순서가 유지된다** — 파일을 다시 쓸 때
         // 줄 순서가 흔들리면 형상 관리에서 diff 가 무의미해진다.
-        const char*   GetKey(std::uint32_t node, std::size_t index) const;
-        std::uint32_t GetValue(std::uint32_t node, std::size_t index) const;
+        const char*   GetKey(UInt32 node, std::size_t index) const;
+        UInt32 GetValue(UInt32 node, std::size_t index) const;
 
         // 맵에서 키로 찾는다. 없으면 InvalidNode.
-        std::uint32_t Find(std::uint32_t node, const char* key) const;
+        UInt32 Find(UInt32 node, const char* key) const;
 
         // 자주 쓰는 조합이다. 없거나 스칼라가 아니거나 값이 읽히지 않으면 false 이고
         // result 는 손대지 않는다.
-        bool FindScalar(std::uint32_t node, const char* key, String& result) const;
-        bool FindBool  (std::uint32_t node, const char* key, bool& result) const;
-        bool FindFloat (std::uint32_t node, const char* key, float& result) const;
-        bool FindInt   (std::uint32_t node, const char* key, std::int64_t& result) const;
+        Bool FindScalar(UInt32 node, const char* key, String& result) const;
+        Bool FindBool  (UInt32 node, const char* key, Bool& result) const;
+        Bool FindFloat (UInt32 node, const char* key, Float& result) const;
+        Bool FindInt   (UInt32 node, const char* key, Int64& result) const;
 
         std::size_t GetNodeCount() const;
 
@@ -98,14 +102,14 @@ namespace JBro
             std::size_t               line = 0;
             String                    text;
             Array<String>             keys;      // Map 일 때만
-            Array<std::uint32_t>      children;  // Sequence 의 항목 또는 Map 의 값
+            Array<UInt32>      children;  // Sequence 의 항목 또는 Map 의 값
         };
 
-        std::uint32_t AddNode(YamlKind kind, std::size_t line);
-        bool          IsValid(std::uint32_t node) const;
+        UInt32 AddNode(YamlKind kind, std::size_t line);
+        Bool          IsValid(UInt32 node) const;
 
         Array<Node>   m_nodes;
-        std::uint32_t m_root = InvalidNode;
+        UInt32 m_root = InvalidNode;
     };
 
     // 위 부분집합으로 다시 쓴다. 들여쓰기는 두 칸이며 기존 엔진이 쓰는 모양과 같다.
@@ -121,14 +125,14 @@ namespace JBro
 
         // 맵 항목
         void WriteString(const char* key, const char* value);
-        void WriteBool  (const char* key, bool value);
-        void WriteFloat (const char* key, float value);
-        void WriteInt   (const char* key, std::int64_t value);
+        void WriteBool  (const char* key, Bool value);
+        void WriteFloat (const char* key, Float value);
+        void WriteInt   (const char* key, Int64 value);
 
         // 시퀀스 항목(대시로 시작하는 줄)
         void WriteStringItem(const char* value);
-        void WriteFloatItem (float value);
-        void WriteIntItem   (std::int64_t value);
+        void WriteFloatItem (Float value);
+        void WriteIntItem   (Int64 value);
 
         // key 가 nullptr 이면 시퀀스 항목 자리에 여는 것이다(`- ` 다음에 온다).
         void BeginMap(const char* key);
@@ -150,15 +154,15 @@ namespace JBro
         // 비어 있는 채로 닫히면 `[]` 나 `{}` 를 적어야 한다.
         struct Block
         {
-            bool isSequence = false;
-            bool wrote = false;
+            Bool isSequence = false;
+            Bool wrote = false;
         };
         Array<Block> m_blocks;
         // 다음 줄을 `- ` 로 열어야 하는지. BeginMap(nullptr) 이 세운다.
-        bool m_pendingDash = false;
+        Bool m_pendingDash = false;
     };
 
     // 부동소수를 파일에 적을 모양으로 바꾼다. 기존 엔진처럼 `1` 은 `1` 로, 나머지는
     // 되읽어서 같은 값이 나오는 가장 짧은 표기로 적는다. 로캘을 타지 않는다.
-    String FormatFloat(float value);
+    String FormatFloat(Float value);
 }

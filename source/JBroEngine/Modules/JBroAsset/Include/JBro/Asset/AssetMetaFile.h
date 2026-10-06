@@ -2,6 +2,8 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/String.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -32,26 +34,26 @@ namespace JBro
     //       sliceType: CellCount
     struct AssetMetaFile
     {
-        std::uint32_t version = 1;
+        UInt32 version = 1;
         AssetId id;
         AssetType type = AssetType::Unknown;
         // `Texture` 일 때만 뜻이 있다. 비어 있으면 Sprite 블록이 없었다는 뜻이다.
         AssetId spriteId;
-        bool hasTextureOptions = false;
+        Bool hasTextureOptions = false;
         TextureImportOptions textureOptions;
-        bool hasSpriteOptions = false;
+        Bool hasSpriteOptions = false;
         SpriteImportOptions spriteOptions;
         // `Audio` 일 때만 뜻이 있다(`Audio.ImportOptions`, D-197).
-        bool hasAudioOptions = false;
+        Bool hasAudioOptions = false;
         AudioImportOptions audioOptions;
         // `Font` 일 때만 뜻이 있다(`Font.ImportOptions`, D-200).
-        bool hasFontOptions = false;
+        Bool hasFontOptions = false;
         FontImportOptions fontOptions;
         // `FontFamily` 일 때만 뜻이 있다(`FontFamily.ImportOptions`, D-225).
-        bool hasFontFamilyOptions = false;
+        Bool hasFontFamilyOptions = false;
         FontFamilyOptions fontFamilyOptions;
         // `StringTable` 일 때만 뜻이 있다(`StringTable.ImportOptions`, D-226).
-        bool hasStringTableOptions = false;
+        Bool hasStringTableOptions = false;
         StringTableOptions stringTableOptions;
     };
 
@@ -64,13 +66,13 @@ namespace JBro
 
     // 읽는다. 실패하면 `result` 는 손대지 않고 `error` 를 채운다. `Id` 가 없거나 읽히지 않는 것,
     // `Type` 이 모르는 이름인 것, 이미지 타입인데 `Sprite.Id` 가 없는 것이 실패다.
-    bool LoadAssetMetaFile(IPlatform& platform, const char* utf8Path, AssetMetaFile& result, AssetMetaError& error);
-    bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error);
+    Bool LoadAssetMetaFile(IPlatform& platform, const char* utf8Path, AssetMetaFile& result, AssetMetaError& error);
+    Bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error);
 
     // 쓴다. 글자를 만들지 못하거나(옵션 값이 적히지 않음, 이미지인데 스프라이트 아이디가 빔) 파일을 만들지 못하면 false 다.
     // **적히지 않는 값은 파일을 쓰지 않는다** - 빈 블록을 적으면 다음 읽기가 기본값으로 대신해 옵션이 조용히 사라진다.
-    bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta);
-    bool FormatAssetMetaFile(const AssetMetaFile& meta, String& text);
+    Bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta);
+    Bool FormatAssetMetaFile(const AssetMetaFile& meta, String& text);
     // 위의 것을 감싼다. 실패하면 빈 글자다 - 테스트와 같이 실패가 곧 검사인 자리용이고, 파일에 쓰는 쪽은 bool 판을 쓴다.
     String FormatAssetMetaFile(const AssetMetaFile& meta);
 }

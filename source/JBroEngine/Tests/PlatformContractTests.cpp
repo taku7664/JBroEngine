@@ -1,4 +1,4 @@
-#include <JBro/Platform/WindowsPlatform.h>
+﻿#include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
 #include <objbase.h>
@@ -8,10 +8,12 @@
 #include <iostream>
 #include <stdexcept>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -112,22 +114,22 @@ namespace
         claimed.get();
 
         // On a thread that is already multithreaded the dialog must refuse at once rather than hang.
-        std::packaged_task<bool()> refuse([] {
+        std::packaged_task<JBro::Bool()> refuse([] {
             CoInitializeEx(nullptr, COINIT_MULTITHREADED);
             JBro::WindowsPlatform platform;
             JBro::JMemoryContext memory;
-            const bool initialized = platform.Initialize(memory);
+            const JBro::Bool initialized = platform.Initialize(memory);
             JBro::FileDialogDesc desc;
             desc.title = "JBro test dialog";
             desc.filterName = "JBro project file";
             desc.filterPattern = "*.jproject";
             JBro::String path;
-            const bool chosen = platform.ShowFileDialog({}, desc, path);
+            const JBro::Bool chosen = platform.ShowFileDialog({}, desc, path);
             platform.Shutdown();
             CoUninitialize();
             return initialized && false == chosen && path.empty();
         });
-        std::future<bool> refused = refuse.get_future();
+        std::future<JBro::Bool> refused = refuse.get_future();
         std::thread worker(std::move(refuse));
         if (refused.wait_for(std::chrono::seconds(3)) != std::future_status::ready)
         {
@@ -139,7 +141,7 @@ namespace
     }
 }
 
-int RunPlatformContractTests()
+JBro::Int32 RunPlatformContractTests()
 {
     TestHiddenWindowLifecycle();
     TestThePlatformThreadStaysSingleThreadedForDialogs();

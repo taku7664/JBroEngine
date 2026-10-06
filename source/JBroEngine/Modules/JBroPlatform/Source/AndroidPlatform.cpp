@@ -1,8 +1,10 @@
 ﻿#include <JBro/Platform/AndroidPlatform.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    bool AndroidPlatform::Initialize(const JMemoryContext&)
+    Bool AndroidPlatform::Initialize(const JMemoryContext&)
     {
         return true;
     }
@@ -40,12 +42,12 @@ namespace JBro
         // 모으지 않으니 비울 것도 없다.
     }
 
-    void AndroidPlatform::WaitForEvents(std::uint32_t)
+    void AndroidPlatform::WaitForEvents(UInt32)
     {
         // The Android backend is still a declared extension point.
     }
 
-    bool AndroidPlatform::ShouldClose(WindowHandle) const
+    Bool AndroidPlatform::ShouldClose(WindowHandle) const
     {
         return false;
     }
@@ -55,7 +57,7 @@ namespace JBro
         return {};
     }
 
-    bool AndroidPlatform::GetWindowState(WindowHandle, WindowState& state) const
+    Bool AndroidPlatform::GetWindowState(WindowHandle, WindowState& state) const
     {
         state = {};
         return false;
@@ -70,27 +72,27 @@ namespace JBro
     {
     }
 
-    bool AndroidPlatform::ReadWholeFile(const char*, Array<std::byte>&)
+    Bool AndroidPlatform::ReadWholeFile(const char*, Array<std::byte>&)
     {
         return false;
     }
 
-    bool AndroidPlatform::WriteWholeFile(const char*, JArrayView<std::byte>)
+    Bool AndroidPlatform::WriteWholeFile(const char*, JArrayView<std::byte>)
     {
         return false;
     }
 
-    bool AndroidPlatform::FileExists(const char*) const
+    Bool AndroidPlatform::FileExists(const char*) const
     {
         return false;
     }
 
-    bool AndroidPlatform::DirectoryExists(const char*) const
+    Bool AndroidPlatform::DirectoryExists(const char*) const
     {
         return false;
     }
 
-    bool AndroidPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
+    Bool AndroidPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
     {
         return false;
     }

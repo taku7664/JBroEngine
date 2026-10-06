@@ -2,6 +2,8 @@
 
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -32,7 +34,7 @@ namespace JBro
             {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}},   {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}},
         };
 
-        constexpr std::uint32_t CubeIndices[36] = {
+        constexpr UInt32 CubeIndices[36] = {
             0, 2, 1, 0, 3, 2,
             4, 6, 5, 4, 7, 6,
             8, 10, 9, 8, 11, 10,
@@ -46,7 +48,7 @@ namespace JBro
         return Uuid::FromName("builtin/cube");
     }
 
-    bool MeshLibrary::Initialize(Renderer* renderer)
+    Bool MeshLibrary::Initialize(Renderer* renderer)
     {
         m_renderer = renderer;
         m_entries.Clear();

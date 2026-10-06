@@ -7,6 +7,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -27,13 +29,13 @@ namespace JBro
 
     struct CookedTextureInfo
     {
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
+        UInt32 width = 0;
+        UInt32 height = 0;
     };
 
-    void WriteCookedTexture(std::uint32_t width, std::uint32_t height, const std::byte* rgba, Array<std::byte>& out);
+    void WriteCookedTexture(UInt32 width, UInt32 height, const std::byte* rgba, Array<std::byte>& out);
     // 머리와 크기가 맞으면 참이다. 픽셀은 `bytes` 의 `CookedTextureHeaderSize` 뒤에 있다.
-    bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info);
+    Bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info);
 
     // 에셋 시스템이 바이트를 받는 곳이다(D-232). 에셋 폴더의 파일(`LooseAssetSource`)이든 패키지(`Package::PackageAssetSource`)든 같은 모양이라
     // 에셋 시스템은 어느 쪽인지 모른다. `Read`·`Has`·`MakeStreamPath` 는 메인 스레드이고, `OpenStream` 은 어느 스레드에서 불러도 된다
@@ -43,14 +45,14 @@ namespace JBro
     public:
         virtual ~IAssetSource() = default;
 
-        virtual bool Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const = 0;
-        virtual bool Has(const AssetRecord& record, AssetBlob blob) const = 0;
+        virtual Bool Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const = 0;
+        virtual Bool Has(const AssetRecord& record, AssetBlob blob) const = 0;
         // 원본을 흘려 읽을 때 쓰는 이름이다. 느슨한 파일은 절대경로, 패키지는 `jpak:<아이디>` 다. 믹서가 이 글자를 들고 있다가 `OpenStream` 에 준다.
         virtual String MakeStreamPath(const AssetRecord& record) const = 0;
         virtual OwnerPtr<IFileStream> OpenStream(const char* streamPath) const = 0;
         // `Read` 를 워커에서 불러도 되는가(D-236). 참인 소스만 워커 로드(`AssetSystem::PrepareDecode`)가 쓴다. 기본은 거짓이다 -
         // 파일 하나를 열어 두고 자리를 옮겨 가며 읽는 소스(패키지)는 동시에 읽으면 경쟁이다. 거짓이면 그 에셋은 동기 로드로 간다.
-        virtual bool CanReadOnWorkers() const
+        virtual Bool CanReadOnWorkers() const
         {
             return false;
         }
@@ -62,12 +64,12 @@ namespace JBro
     public:
         void Bind(IPlatform* platform, const char* assetRoot);
 
-        bool Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const override;
-        bool Has(const AssetRecord& record, AssetBlob blob) const override;
+        Bool Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const override;
+        Bool Has(const AssetRecord& record, AssetBlob blob) const override;
         String MakeStreamPath(const AssetRecord& record) const override;
         OwnerPtr<IFileStream> OpenStream(const char* streamPath) const override;
         // 파일을 통째로 읽는 것뿐이고 플랫폼의 `ReadWholeFile` 은 어느 스레드에서 불러도 된다.
-        bool CanReadOnWorkers() const override
+        Bool CanReadOnWorkers() const override
         {
             return true;
         }

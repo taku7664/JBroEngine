@@ -6,6 +6,10 @@
 #include <imgui_internal.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -15,33 +19,33 @@ namespace JBro::Widget
         GuideFocusTarget g_nextTarget;
 
         // 막에 뚫는 구멍은 대상 하나와 이 경로가 연 팝업들이다.
-        constexpr std::uint32_t MaxHoles = 1 + EditorGuideFocus::PopupCapacity;
-        constexpr std::uint32_t MaxEdges = 2 + MaxHoles * 2;
+        constexpr UInt32 MaxHoles = 1 + EditorGuideFocus::PopupCapacity;
+        constexpr UInt32 MaxEdges = 2 + MaxHoles * 2;
         // 말풍선의 폭, 대상과의 틈, 미끄러져 들어오는 거리와 시간이다.
-        constexpr float BalloonWidth = 300.0f;
-        constexpr float BalloonGap = 12.0f;
-        constexpr float BalloonSlide = 18.0f;
-        constexpr float BalloonSlideSeconds = 0.22f;
+        constexpr Float BalloonWidth = 300.0f;
+        constexpr Float BalloonGap = 12.0f;
+        constexpr Float BalloonSlide = 18.0f;
+        constexpr Float BalloonSlideSeconds = 0.22f;
 
         Rect ToRect(const ImVec2& min, const ImVec2& max)
         {
             return Rect{ { min.x, min.y }, { max.x, max.y } };
         }
 
-        float EaseOut(float t)
+        Float EaseOut(Float t)
         {
-            const float clamped = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-            const float inverse = 1.0f - clamped;
+            const Float clamped = t < 0.0f ? Float(0.0f) : (t > 1.0f ? Float(1.0f) : t);
+            const Float inverse = 1.0f - clamped;
             return 1.0f - inverse * inverse * inverse;
         }
 
         // 작은 배열을 오름차순으로 세우고 겹친 값을 뺀다. 가장자리가 스무 개 남짓이라 삽입 정렬이면 된다.
-        std::uint32_t SortUnique(float* values, std::uint32_t count)
+        UInt32 SortUnique(Float* values, UInt32 count)
         {
-            for (std::uint32_t i = 1; i < count; ++i)
+            for (UInt32 i = 1; i < count; ++i)
             {
-                const float value = values[i];
-                std::uint32_t j = i;
+                const Float value = values[i];
+                UInt32 j = i;
                 while (j > 0 && values[j - 1] > value)
                 {
                     values[j] = values[j - 1];
@@ -49,8 +53,8 @@ namespace JBro::Widget
                 }
                 values[j] = value;
             }
-            std::uint32_t unique = 0;
-            for (std::uint32_t i = 0; i < count; ++i)
+            UInt32 unique = 0;
+            for (UInt32 i = 0; i < count; ++i)
             {
                 if (unique == 0 || values[i] != values[unique - 1])
                 {
@@ -61,24 +65,24 @@ namespace JBro::Widget
             return unique;
         }
 
-        float Clamp(float value, float low, float high)
+        Float Clamp(Float value, Float low, Float high)
         {
             return value < low ? low : (value > high ? high : value);
         }
 
         // 화면에서 구멍들을 뺀 나머지를 칠한다. 구멍의 가장자리로 화면을 격자로 나누고, 구멍에 들지 않는 칸을
         // 한 줄씩 이어 붙여 사각형으로 칠한다 - 매 프레임 잡는 것이 없다.
-        void FillVeil(ImDrawList& list, const ImVec2& display, const ImRect* holes, std::uint32_t holeCount, ImU32 color)
+        void FillVeil(ImDrawList& list, const ImVec2& display, const ImRect* holes, UInt32 holeCount, ImU32 color)
         {
-            float xs[MaxEdges];
-            float ys[MaxEdges];
-            std::uint32_t xCount = 0;
-            std::uint32_t yCount = 0;
+            Float xs[MaxEdges];
+            Float ys[MaxEdges];
+            UInt32 xCount = 0;
+            UInt32 yCount = 0;
             xs[xCount++] = 0.0f;
             xs[xCount++] = display.x;
             ys[yCount++] = 0.0f;
             ys[yCount++] = display.y;
-            for (std::uint32_t index = 0; index < holeCount; ++index)
+            for (UInt32 index = 0; index < holeCount; ++index)
             {
                 xs[xCount++] = Clamp(holes[index].Min.x, 0.0f, display.x);
                 xs[xCount++] = Clamp(holes[index].Max.x, 0.0f, display.x);
@@ -88,20 +92,20 @@ namespace JBro::Widget
             xCount = SortUnique(xs, xCount);
             yCount = SortUnique(ys, yCount);
 
-            for (std::uint32_t row = 0; row + 1 < yCount; ++row)
+            for (UInt32 row = 0; row + 1 < yCount; ++row)
             {
-                const float y0 = ys[row];
-                const float y1 = ys[row + 1];
-                const float cy = (y0 + y1) * 0.5f;
-                float runStart = 0.0f;
-                bool running = false;
-                for (std::uint32_t column = 0; column + 1 < xCount; ++column)
+                const Float y0 = ys[row];
+                const Float y1 = ys[row + 1];
+                const Float cy = (y0 + y1) * 0.5f;
+                Float runStart = 0.0f;
+                Bool running = false;
+                for (UInt32 column = 0; column + 1 < xCount; ++column)
                 {
-                    const float x0 = xs[column];
-                    const float x1 = xs[column + 1];
+                    const Float x0 = xs[column];
+                    const Float x1 = xs[column + 1];
                     const ImVec2 center((x0 + x1) * 0.5f, cy);
-                    bool inHole = false;
-                    for (std::uint32_t index = 0; index < holeCount; ++index)
+                    Bool inHole = false;
+                    for (UInt32 index = 0; index < holeCount; ++index)
                     {
                         if (holes[index].Contains(center))
                         {
@@ -131,18 +135,18 @@ namespace JBro::Widget
         // 귀퉁이마다 꼭짓점에서 호의 점들로 부채를 편다. 호가 꼭짓점 쪽으로 볼록하므로 부채는 귀퉁이를 빈틈없이 덮는다.
         void FillOutsideEllipse(ImDrawList& list, const ImRect& hole, ImU32 color)
         {
-            constexpr int SegmentsPerQuarter = 12;
+            constexpr Int32 SegmentsPerQuarter = 12;
             const ImVec2 center = hole.GetCenter();
-            const float rx = hole.GetWidth() * 0.5f;
-            const float ry = hole.GetHeight() * 0.5f;
+            const Float rx = hole.GetWidth() * 0.5f;
+            const Float ry = hole.GetHeight() * 0.5f;
             const ImVec2 corners[4] = { hole.Max, ImVec2(hole.Min.x, hole.Max.y), hole.Min, ImVec2(hole.Max.x, hole.Min.y) };
-            for (int quarter = 0; quarter < 4; ++quarter)
+            for (Int32 quarter = 0; quarter < 4; ++quarter)
             {
-                const float start = static_cast<float>(quarter) * IM_PI * 0.5f;
+                const Float start = static_cast<float>(quarter) * IM_PI * 0.5f;
                 ImVec2 previous(center.x + rx * ImCos(start), center.y + ry * ImSin(start));
-                for (int step = 1; step <= SegmentsPerQuarter; ++step)
+                for (Int32 step = 1; step <= SegmentsPerQuarter; ++step)
                 {
-                    const float angle = start + (IM_PI * 0.5f) * static_cast<float>(step) / static_cast<float>(SegmentsPerQuarter);
+                    const Float angle = start + (IM_PI * 0.5f) * static_cast<float>(step) / static_cast<float>(SegmentsPerQuarter);
                     const ImVec2 point(center.x + rx * ImCos(angle), center.y + ry * ImSin(angle));
                     list.AddTriangleFilled(corners[quarter], previous, point, color);
                     previous = point;
@@ -154,10 +158,10 @@ namespace JBro::Widget
         // 어디에도 안 들어가면 남는 자리가 가장 넓은 쪽에 두고 화면 안으로 민다. `slide` 는 들어오는 쪽이다.
         ImVec2 PlaceBalloon(const ImRect& target, const ImVec2& size, const ImVec2& display, ImVec2& slide)
         {
-            const float roomRight = display.x - target.Max.x;
-            const float roomLeft = target.Min.x;
-            const float roomBelow = display.y - target.Max.y;
-            const float roomAbove = target.Min.y;
+            const Float roomRight = display.x - target.Max.x;
+            const Float roomLeft = target.Min.x;
+            const Float roomBelow = display.y - target.Max.y;
+            const Float roomAbove = target.Min.y;
             ImVec2 position;
             if (roomRight >= size.x + BalloonGap)
             {
@@ -218,14 +222,14 @@ namespace JBro::Widget
             }
         }
 
-        void ReportLastItem(const GuideFocusTarget& target, bool opened, bool activated,
-            bool enabled, const char* disabledReason)
+        void ReportLastItem(const GuideFocusTarget& target, Bool opened, Bool activated,
+            Bool enabled, const char* disabledReason)
         {
             if (false == target.IsValid() || g_focus == nullptr || false == g_focus->IsActive())
             {
                 return;
             }
-            const bool visible = ImGui::IsItemVisible();
+            const Bool visible = ImGui::IsItemVisible();
             if (false == visible && g_focus->ShouldScrollTo(target))
             {
                 // 지금 칸이 스크롤 밖이다. 이 줄이 가운데 오게 굴린다 - 다음 프레임에 보인다.
@@ -237,13 +241,13 @@ namespace JBro::Widget
     }
 
     void ReportGuideTarget(const GuideFocusTarget& target, const ImVec2& min, const ImVec2& max,
-        bool opened, bool activated, bool round)
+        Bool opened, Bool activated, Bool round)
     {
         if (false == target.IsValid() || g_focus == nullptr || false == g_focus->IsActive())
         {
             return;
         }
-        const bool visible = ImGui::IsRectVisible(min, max);
+        const Bool visible = ImGui::IsRectVisible(min, max);
         if (false == visible && g_focus->ShouldScrollTo(target))
         {
             ImGui::SetScrollFromPosY(ImGui::GetCurrentWindow(), min.y - ImGui::GetWindowPos().y, 0.5f);
@@ -258,14 +262,14 @@ namespace JBro::Widget
         // 이 경로가 켜진 뒤에 열린 팝업을 알린다. 그 안도 누를 수 있어야 메뉴를 따라 들어간다.
         if (focus.IsActive())
         {
-            const std::uint32_t open = static_cast<std::uint32_t>(context.OpenPopupStack.Size);
+            const UInt32 open = static_cast<std::uint32_t>(context.OpenPopupStack.Size);
             if (focus.NeedsPopupBaseline() || open < focus.GetPopupBaseline())
             {
                 // 켤 때 열려 있던 것(가이드를 고른 메뉴)은 곧 닫힌다. 닫혀 줄어들면 기준도 따라 내린다 -
                 // 그래야 그 뒤에 연 메뉴가 기준 위에 선다.
                 focus.SetPopupBaseline(open);
             }
-            for (std::uint32_t index = focus.GetPopupBaseline(); index < open; ++index)
+            for (UInt32 index = focus.GetPopupBaseline(); index < open; ++index)
             {
                 const ImGuiWindow* window = context.OpenPopupStack[static_cast<int>(index)].Window;
                 if (window != nullptr && window->WasActive && 0 == (window->Flags & ImGuiWindowFlags_Modal))
@@ -275,7 +279,7 @@ namespace JBro::Widget
             }
         }
 
-        const float alpha = focus.GetVeilAlpha();
+        const Float alpha = focus.GetVeilAlpha();
         if (false == alpha > 0.0f || false == focus.HasHole())
         {
             return GuideFocusAction::None;
@@ -286,10 +290,10 @@ namespace JBro::Widget
 
         // ── 막 ─────────────────────────────────────────────────────
         ImRect holes[MaxHoles];
-        std::uint32_t holeCount = 0;
+        UInt32 holeCount = 0;
         holes[holeCount++] = hole;
         // 경로의 중간 칸이 연 메뉴는 뚫지 않는다 - 그 안의 다음 칸만 구멍이고 나머지 항목은 막이 덮는다.
-        for (std::uint32_t index = 0; index < focus.GetPopupCount() && holeCount < MaxHoles; ++index)
+        for (UInt32 index = 0; index < focus.GetPopupCount() && holeCount < MaxHoles; ++index)
         {
             if (focus.IsPopupOpen(index))
             {
@@ -320,7 +324,7 @@ namespace JBro::Widget
                     FillOutsideEllipse(list, hole, veilColor);
                 }
                 // 테두리가 숨을 쉰다. 머무는 동안 "여기" 라고 말한다.
-                const float pulse = focus.GetPulse();
+                const Float pulse = focus.GetPulse();
                 const ImVec4 ring = EditorTheme::GuideRing;
                 const ImU32 ringColor = ImGui::GetColorU32(ImVec4(ring.x, ring.y, ring.z, (0.55f + 0.45f * pulse) * alpha));
                 if (focus.IsHoleRound())
@@ -354,7 +358,7 @@ namespace JBro::Widget
         }
         ImVec2 slide;
         ImVec2 position = PlaceBalloon(hole, size, display, slide);
-        const float arrive = EaseOut(focus.GetSettledSeconds() / BalloonSlideSeconds);
+        const Float arrive = EaseOut(focus.GetSettledSeconds() / BalloonSlideSeconds);
         position.x += slide.x * BalloonSlide * (1.0f - arrive);
         position.y += slide.y * BalloonSlide * (1.0f - arrive);
         ImGui::SetNextWindowPos(position);
@@ -389,7 +393,7 @@ namespace JBro::Widget
                     HintText(balloon.note);
                 }
                 ImGui::Spacing();
-                bool first = true;
+                Bool first = true;
                 const auto nextInRow = [&first]() {
                     if (false == first)
                     {

@@ -4,10 +4,13 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -27,9 +30,9 @@ namespace
 
         JBRO_REFLECT_BODY(FakeTransform)
 
-        JBRO_FIELD(float, PositionX) = 0.0f;
-        JBRO_FIELD(float, PositionY) = 0.0f;
-        JBRO_FIELD(float, Rotation, Range(0, 360)) = 0.0f;
+        JBRO_FIELD(JBro::Float, PositionX) = 0.0f;
+        JBRO_FIELD(JBro::Float, PositionY) = 0.0f;
+        JBRO_FIELD(JBro::Float, Rotation, Range(0, 360)) = 0.0f;
     };
 
     // 스크립트 자리에 설 타입.
@@ -43,8 +46,8 @@ namespace
 
         JBRO_REFLECT_BODY(FakePlayerScript)
 
-        JBRO_FIELD(int, Lives, Category("Rules")) = 3;
-        JBRO_FIELD(float, Speed) = 1.0f;
+        JBRO_FIELD(JBro::Int32, Lives, Category("Rules")) = 3;
+        JBRO_FIELD(JBro::Float, Speed) = 1.0f;
     };
 
     // 스크립트가 엔진 타입명을 덮으려 드는 경우. 이름이 FakeTransform 과 같다.
@@ -58,7 +61,7 @@ namespace
 
         JBRO_REFLECT_BODY(ImpostorTransform)
 
-        JBRO_FIELD(int, NotEvenTheSameShape) = 0;
+        JBRO_FIELD(JBro::Int32, NotEvenTheSameShape) = 0;
     };
 
     // 필드가 없는 타입. "물어봤더니 없더라" 와 "아직 등록 안 됐다" 는 다른 답이다.
@@ -215,7 +218,7 @@ namespace
     }
 }
 
-int RunPropertyRegistryTests()
+JBro::Int32 RunPropertyRegistryTests()
 {
     TestABuiltinTypeIsFoundByName();
     TestTheSameNameIsRefusedTwice();

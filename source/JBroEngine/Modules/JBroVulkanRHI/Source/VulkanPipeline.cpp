@@ -3,14 +3,16 @@
 #include <JBro/Types/Array.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
     namespace
     {
-        constexpr std::uint32_t MaxVertexAttributes = 16;
+        constexpr UInt32 MaxVertexAttributes = 16;
         // 스펙이 보장하는 푸시 상수 최소치다. 계약(RHI.h)은 상한을 말하지 않는다 - D3D12 는 256 까지 받고 여기는 128 이다.
-        constexpr std::uint32_t MaxPushConstantBytes = 128;
+        constexpr UInt32 MaxPushConstantBytes = 128;
 
         VkFormat ToNativeVertexFormat(VertexFormat format)
         {
@@ -30,7 +32,7 @@ namespace JBro::Internal
             return VK_FORMAT_UNDEFINED;
         }
 
-        std::uint32_t VertexFormatSize(VertexFormat format)
+        UInt32 VertexFormatSize(VertexFormat format)
         {
             switch (format)
             {
@@ -62,8 +64,8 @@ namespace JBro::Internal
             return flags;
         }
 
-        bool BuildVertexInput(const GraphicsPipelineDesc& desc, VkVertexInputBindingDescription* bindings,
-            VkVertexInputAttributeDescription* attributes, std::uint32_t& attributeCount)
+        Bool BuildVertexInput(const GraphicsPipelineDesc& desc, VkVertexInputBindingDescription* bindings,
+            VkVertexInputAttributeDescription* attributes, UInt32& attributeCount)
         {
             if (desc.vertexBuffers.size > MaxVertexSlots
                 || (desc.vertexBuffers.size != 0 && desc.vertexBuffers.data == nullptr))
@@ -71,7 +73,7 @@ namespace JBro::Internal
                 return false;
             }
             attributeCount = 0;
-            for (std::uint32_t bufferIndex = 0; bufferIndex < desc.vertexBuffers.size; ++bufferIndex)
+            for (UInt32 bufferIndex = 0; bufferIndex < desc.vertexBuffers.size; ++bufferIndex)
             {
                 const VertexBufferLayoutDesc& layout = desc.vertexBuffers.data[bufferIndex];
                 if (layout.stride == 0 || layout.attributes.size == 0 || layout.attributes.data == nullptr
@@ -84,10 +86,10 @@ namespace JBro::Internal
                 bindings[bufferIndex].inputRate = layout.stepMode == VertexStepMode::Instance
                     ? VK_VERTEX_INPUT_RATE_INSTANCE
                     : VK_VERTEX_INPUT_RATE_VERTEX;
-                for (std::uint32_t attributeIndex = 0; attributeIndex < layout.attributes.size; ++attributeIndex)
+                for (UInt32 attributeIndex = 0; attributeIndex < layout.attributes.size; ++attributeIndex)
                 {
                     const VertexAttributeDesc& attribute = layout.attributes.data[attributeIndex];
-                    const std::uint32_t formatSize = VertexFormatSize(attribute.format);
+                    const UInt32 formatSize = VertexFormatSize(attribute.format);
                     if (formatSize == 0 || attribute.offset > layout.stride
                         || formatSize > layout.stride - attribute.offset)
                     {
@@ -104,7 +106,7 @@ namespace JBro::Internal
             return true;
         }
 
-        bool CreateShaderModule(VkDevice device, const ShaderBytecode& bytecode, VkShaderModule& module)
+        Bool CreateShaderModule(VkDevice device, const ShaderBytecode& bytecode, VkShaderModule& module)
         {
             module = VK_NULL_HANDLE;
             // SPIR-V 는 4 바이트 단어의 열이고 첫 단어가 매직이다. DXIL·DXBC 를 잘못 넘긴 것을 여기서 잡는다.
@@ -112,7 +114,7 @@ namespace JBro::Internal
             {
                 return false;
             }
-            std::uint32_t magic = 0;
+            UInt32 magic = 0;
             std::memcpy(&magic, bytecode.data, sizeof(magic));
             if (magic != 0x07230203u)
             {
@@ -151,7 +153,7 @@ namespace JBro::Internal
             return {};
         }
         VkFormat colorFormats[MaxColorAttachments] = {};
-        for (std::uint32_t index = 0; index < desc.colorFormats.size; ++index)
+        for (UInt32 index = 0; index < desc.colorFormats.size; ++index)
         {
             colorFormats[index] = ToVulkanFormat(desc.colorFormats.data[index]);
             if (colorFormats[index] == VK_FORMAT_UNDEFINED || desc.colorFormats.data[index] == TextureFormat::D32Float)
@@ -161,13 +163,13 @@ namespace JBro::Internal
         }
         VkVertexInputBindingDescription bindings[MaxVertexSlots] = {};
         VkVertexInputAttributeDescription attributes[MaxVertexAttributes] = {};
-        std::uint32_t attributeCount = 0;
+        UInt32 attributeCount = 0;
         if (false == BuildVertexInput(desc, bindings, attributes, attributeCount))
         {
             return {};
         }
-        std::uint32_t index = MaxGraphicsPipelines;
-        for (std::uint32_t at = 0; at < MaxGraphicsPipelines; ++at)
+        UInt32 index = MaxGraphicsPipelines;
+        for (UInt32 at = 0; at < MaxGraphicsPipelines; ++at)
         {
             if (false == m_graphicsPipelines[at].occupied)
             {
@@ -205,7 +207,7 @@ namespace JBro::Internal
             {
                 vk.vkDestroyDescriptorSetLayout(m_device, state.setLayout, nullptr);
             }
-            const std::uint32_t generation = state.generation;
+            const UInt32 generation = state.generation;
             state = {};
             state.generation = generation;
             return GraphicsPipelineHandle{};
@@ -218,8 +220,8 @@ namespace JBro::Internal
 
         // set 0: 텍스처는 binding 8+, 샘플러는 16+. 둘 다 없으면 set 자체가 없다.
         VkDescriptorSetLayoutBinding setBindings[MaxBoundTextures + MaxBoundSamplers] = {};
-        std::uint32_t setBindingCount = 0;
-        for (std::uint32_t slot = 0; slot < desc.sampledTextureCount; ++slot)
+        UInt32 setBindingCount = 0;
+        for (UInt32 slot = 0; slot < desc.sampledTextureCount; ++slot)
         {
             VkDescriptorSetLayoutBinding& binding = setBindings[setBindingCount++];
             binding.binding = TextureBindingBase + slot;
@@ -227,7 +229,7 @@ namespace JBro::Internal
             binding.descriptorCount = 1;
             binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         }
-        for (std::uint32_t slot = 0; slot < desc.samplerCount; ++slot)
+        for (UInt32 slot = 0; slot < desc.samplerCount; ++slot)
         {
             VkDescriptorSetLayoutBinding& binding = setBindings[setBindingCount++];
             binding.binding = SamplerBindingBase + slot;
@@ -303,7 +305,7 @@ namespace JBro::Internal
         depth.maxDepthBounds = 1.0f;
 
         VkPipelineColorBlendAttachmentState blendTargets[MaxColorAttachments] = {};
-        for (std::uint32_t at = 0; at < desc.colorFormats.size; ++at)
+        for (UInt32 at = 0; at < desc.colorFormats.size; ++at)
         {
             VkPipelineColorBlendAttachmentState& target = blendTargets[at];
             target.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
@@ -399,7 +401,7 @@ namespace JBro::Internal
         Retire(VulkanRetiredObject::Kind::Pipeline, reinterpret_cast<std::uint64_t>(state.pipeline));
         Retire(VulkanRetiredObject::Kind::PipelineLayout, reinterpret_cast<std::uint64_t>(state.layout));
         Retire(VulkanRetiredObject::Kind::DescriptorSetLayout, reinterpret_cast<std::uint64_t>(state.setLayout));
-        const std::uint32_t generation = VulkanNextGeneration(state.generation);
+        const UInt32 generation = VulkanNextGeneration(state.generation);
         state = {};
         state.generation = generation;
     }

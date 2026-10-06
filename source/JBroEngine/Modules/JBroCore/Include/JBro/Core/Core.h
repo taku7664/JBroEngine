@@ -5,6 +5,8 @@
 
 #include <JBro/Types/Allocator.h>
 #include <JBro/Types/SafePtr.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -12,14 +14,14 @@ namespace JBro
     struct JStringView
     {
         const char*   data = nullptr;
-        std::uint32_t size = 0;
+        UInt32 size = 0;
     };
 
     template <typename T>
     struct JArrayView
     {
         const T*      data = nullptr;
-        std::uint32_t size = 0;
+        UInt32 size = 0;
     };
 
     // JAllocator 는 Types/Allocator.h 에 있다. Array/Table 의 할당기 정책과
@@ -39,12 +41,12 @@ namespace JBro
     public:
         virtual ~IModule() = default;
 
-        virtual bool Initialize(const JMemoryContext& memory) = 0;
+        virtual Bool Initialize(const JMemoryContext& memory) = 0;
         virtual void Shutdown() = 0;
     };
 
     // 영속 식별자. 세션이 바뀌어도 같은 값이 같은 오브젝트를 가리킨다.
     // 생성기는 상태를 가지므로 별도 헤더(InstanceIdGenerator.h)에 있다.
-    using InstanceId = std::uint64_t;
+    using InstanceId = UInt64;
     inline constexpr InstanceId InvalidInstanceId = 0;
 }

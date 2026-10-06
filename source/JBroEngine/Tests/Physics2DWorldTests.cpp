@@ -9,6 +9,10 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 2D 물리 커널의 월드와 솔버 테스트(D-199, physics-plan §4 의 3 단계).
 // 기존 엔진의 오목 폴리곤 결함이 시뮬레이션에서 어떻게 보였는지(홈 안의 상자가 벽을 뚫음, L 자 물체가 제 중심을
@@ -25,9 +29,9 @@ namespace
     using JBro::Physics2D::ShapeId;
     using JBro::Physics2D::World;
 
-    constexpr float Frame = 1.0f / 60.0f;
+    constexpr JBro::Float Frame = 1.0f / 60.0f;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -36,17 +40,17 @@ namespace
         }
     }
 
-    bool Near(float actual, float expected, float tolerance)
+    JBro::Bool Near(JBro::Float actual, JBro::Float expected, JBro::Float tolerance)
     {
         return std::fabs(actual - expected) <= tolerance;
     }
 
-    float Length(Vector2 v)
+    JBro::Float Length(Vector2 v)
     {
         return std::sqrt(v.x * v.x + v.y * v.y);
     }
 
-    Array<Vector2> BoxOutline(float halfWidth, float halfHeight)
+    Array<Vector2> BoxOutline(JBro::Float halfWidth, JBro::Float halfHeight)
     {
         return { { -halfWidth, -halfHeight }, { halfWidth, -halfHeight },
                  { halfWidth, halfHeight }, { -halfWidth, halfHeight } };
@@ -70,7 +74,7 @@ namespace
         return shape;
     }
 
-    BodyId AddBody(World& world, BodyType type, Vector2 position, float angle = 0.0f)
+    BodyId AddBody(World& world, BodyType type, Vector2 position, JBro::Float angle = 0.0f)
     {
         BodyDef def;
         def.type = type;
@@ -86,17 +90,17 @@ namespace
         return ground;
     }
 
-    void Run(World& world, float seconds)
+    void Run(World& world, JBro::Float seconds)
     {
-        const int steps = static_cast<int>(seconds / Frame + 0.5f);
-        for (int i = 0; i < steps; ++i)
+        const JBro::Int32 steps = static_cast<int>(seconds / Frame + 0.5f);
+        for (JBro::Int32 i = 0; i < steps; ++i)
         {
             world.Step(Frame);
         }
     }
 
 #if defined(_MSC_VER) && defined(_DEBUG)
-    int g_allocations = 0;
+    JBro::Int32 g_allocations = 0;
     int CountAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
     {
         if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
@@ -138,7 +142,7 @@ namespace
         Check(position.x > 1.3f - JBro::Physics2D::LinearSlop && position.x < 1.7f + JBro::Physics2D::LinearSlop,
             "between the inner walls");
 
-        for (const float push : { 4.0f, -4.0f })
+        for (const JBro::Float push : { 4.0f, -4.0f })
         {
             world.SetTransform(dropped, { 1.5f, 1.3f }, 0.0f);
             world.SetLinearVelocity(dropped, { push, 0 });
@@ -177,7 +181,7 @@ namespace
         Check(Near(world.GetAngle(l), 2.0f, 1.0e-3f), "while the body turns two radians in a second");
         Check(Near(world.GetAngularVelocity(l), 2.0f, 1.0e-4f), "and keeps its spin");
         // 원점 = 중심 - R(각도)·로컬 중심. 원점이 중심을 따라 붙거나 제자리에 있으면 트랜스폼이 그림과 어긋난다.
-        const float angle = world.GetAngle(l);
+        const JBro::Float angle = world.GetAngle(l);
         const Vector2 local = mass.center;
         const Vector2 expected = {
             after.x - (std::cos(angle) * local.x - std::sin(angle) * local.y),
@@ -195,8 +199,8 @@ namespace
         AddGround(world);
         const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.3f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
-        float highest = 0.0f;
-        for (int i = 0; i < 60; ++i)
+        JBro::Float highest = 0.0f;
+        for (JBro::Int32 i = 0; i < 60; ++i)
         {
             world.Step(Frame);
             highest = std::fmax(highest, world.GetPosition(box).y);
@@ -218,14 +222,14 @@ namespace
         world.CreateCircleShape(top, ball, {});
         AddGround(world);
         Array<BodyId> boxes;
-        for (int i = 0; i < 10; ++i)
+        for (JBro::Int32 i = 0; i < 10; ++i)
         {
             const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f + static_cast<float>(i) * 1.01f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             boxes.Add(box);
         }
         Run(world, 5.0f);
-        for (int i = 0; i < 10; ++i)
+        for (JBro::Int32 i = 0; i < 10; ++i)
         {
             const Vector2 position = world.GetPosition(boxes[i]);
             Check(Length(world.GetLinearVelocity(boxes[i])) < 0.05f, "every box in the stack comes to rest");
@@ -248,7 +252,7 @@ namespace
         def.linearDamping = 0.0f;
         const BodyId free = world.CreateBody(def);
         Run(world, 1.0f);
-        const float expected = 10.0f * std::pow(1.0f + Frame / 4.0f, -240.0f);
+        const JBro::Float expected = 10.0f * std::pow(1.0f + Frame / 4.0f, -240.0f);
         Check(Near(world.GetLinearVelocity(damped).x, expected, 0.01f), "damping 1 slows 10 to about 3.7 in a second");
         Check(Near(world.GetLinearVelocity(free).x, 10.0f, 0.0f), "and no damping keeps the speed");
     }
@@ -256,8 +260,8 @@ namespace
     // **같은 입력은 비트까지 같은 결과다.** 브로드페이즈 쌍과 접촉을 열쇠 순으로 정렬해 두는 이유다.
     void TestTheSameSceneRunsTheSameTwice()
     {
-        float results[2][6] = {};
-        for (int run = 0; run < 2; ++run)
+        JBro::Float results[2][6] = {};
+        for (JBro::Int32 run = 0; run < 2; ++run)
         {
             World world;
             AddGround(world);
@@ -275,7 +279,7 @@ namespace
             const Vector2 pa = world.GetPosition(a);
             const Vector2 pb = world.GetPosition(b);
             const Vector2 pc = world.GetPosition(c);
-            const float values[6] = { pa.x, pa.y, pb.x, pb.y, pc.x, pc.y };
+            const JBro::Float values[6] = { pa.x, pa.y, pb.x, pb.y, pc.x, pc.y };
             std::memcpy(results[run], values, sizeof(values));
         }
         Check(std::memcmp(results[0], results[1], sizeof(results[0])) == 0, "two runs agree bit for bit");
@@ -284,12 +288,12 @@ namespace
     // **마찰.** 30 도 경사에서 tan 30 = 0.577 보다 큰 마찰이면 머물고, 작으면 미끄러진다.
     void TestFrictionHoldsOrLetsGoOnASlope()
     {
-        for (const float friction : { 0.8f, 0.1f })
+        for (const JBro::Float friction : { 0.8f, 0.1f })
         {
             World world;
             ShapeDef def;
             def.friction = friction;
-            const float angle = 0.52359878f;
+            const JBro::Float angle = 0.52359878f;
             const BodyId slope = AddBody(world, BodyType::Static, { 0, 0 }, angle);
             AddPolygon(world, slope, BoxOutline(20.0f, 0.5f), def);
             const Vector2 normal = { -std::sin(angle), std::cos(angle) };
@@ -298,7 +302,7 @@ namespace
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f), def);
             Run(world, 2.0f);
             const Vector2 end = world.GetPosition(box);
-            const float moved = Length({ end.x - start.x, end.y - start.y });
+            const JBro::Float moved = Length({ end.x - start.x, end.y - start.y });
             if (friction > 0.6f)
             {
                 Check(moved < 0.05f, "a grippy box stays on the slope");
@@ -313,7 +317,7 @@ namespace
     // **반발.** 반발이 있으면 튀어 오르고, 없으면 바닥에 붙는다.
     void TestRestitutionBounces()
     {
-        for (const float restitution : { 0.8f, 0.0f })
+        for (const JBro::Float restitution : { 0.8f, 0.0f })
         {
             World world;
             AddGround(world);
@@ -324,9 +328,9 @@ namespace
             const BodyId body = AddBody(world, BodyType::Dynamic, { 0, 3.0f });
             world.CreateCircleShape(body, ball, def);
 
-            bool landed = false;
-            float highest = 0.0f;
-            for (int i = 0; i < 240; ++i)
+            JBro::Bool landed = false;
+            JBro::Float highest = 0.0f;
+            for (JBro::Int32 i = 0; i < 240; ++i)
             {
                 world.Step(Frame);
                 if (world.GetBeginEvents().Size() > 0)
@@ -365,14 +369,14 @@ namespace
         const BodyId box = AddBody(world, BodyType::Dynamic, { 1.5f, 3.6f });
         AddPolygon(world, box, BoxOutline(1.5f, 0.5f), boxDef);
 
-        int begins = 0;
-        for (int i = 0; i < 120; ++i)
+        JBro::Int32 begins = 0;
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             world.Step(Frame);
             for (const JBro::Physics2D::ContactEvent& event : world.GetBeginEvents())
             {
                 ++begins;
-                const bool matches = (event.userDataA == 11 && event.userDataB == 22)
+                const JBro::Bool matches = (event.userDataA == 11 && event.userDataB == 22)
                     || (event.userDataA == 22 && event.userDataB == 11);
                 Check(matches, "the begin event names both shapes");
                 Check(false == event.isTrigger, "and is not a trigger");
@@ -419,9 +423,9 @@ namespace
         const BodyId body = AddBody(world, BodyType::Dynamic, { 0, 4 });
         world.CreateCircleShape(body, ball, {});
 
-        int begins = 0;
-        int ends = 0;
-        for (int i = 0; i < 90; ++i)
+        JBro::Int32 begins = 0;
+        JBro::Int32 ends = 0;
+        for (JBro::Int32 i = 0; i < 90; ++i)
         {
             world.Step(Frame);
             for (const JBro::Physics2D::ContactEvent& event : world.GetBeginEvents())
@@ -545,13 +549,13 @@ namespace
         const ShapeId shape = AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         Run(world, 0.5f);
         Check(world.GetBeginEvents().IsEmpty() && world.GetEndEvents().IsEmpty(), "the box has settled");
-        const float squareInertia = world.GetMassData(box).inertia;
+        const JBro::Float squareInertia = world.GetMassData(box).inertia;
 
-        int begins = 0;
-        int ends = 0;
-        for (int i = 0; i < 60; ++i)
+        JBro::Int32 begins = 0;
+        JBro::Int32 ends = 0;
+        for (JBro::Int32 i = 0; i < 60; ++i)
         {
-            const float half = 0.5f + 0.02f * static_cast<float>(i % 5);
+            const JBro::Float half = 0.5f + 0.02f * static_cast<float>(i % 5);
             Check(world.SetPolygonGeometry(shape, BoxOutline(half, 0.5f).View()) == JBro::Physics2D::PolygonError::None,
                 "a wider box is accepted");
             world.Step(Frame);
@@ -587,7 +591,7 @@ namespace
     {
         World world;
         AddGround(world);
-        for (int i = 0; i < 5; ++i)
+        for (JBro::Int32 i = 0; i < 5; ++i)
         {
             const BodyId box = AddBody(world, BodyType::Dynamic, { -4.0f, 0.5f + static_cast<float>(i) });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
@@ -603,23 +607,23 @@ namespace
         const BodyId growing = AddBody(world, BodyType::Dynamic, { 8, 0.5f });
         const ShapeId growingShape = AddPolygon(world, growing, BoxOutline(0.5f, 0.5f));
         Array<Array<Vector2>> outlines;
-        for (int i = 0; i < 5; ++i)
+        for (JBro::Int32 i = 0; i < 5; ++i)
         {
             outlines.Add(BoxOutline(0.5f + 0.02f * static_cast<float>(i), 0.5f));
         }
-        const auto step = [&](int i)
+        const auto step = [&](JBro::Int32 i)
         {
             world.SetPolygonGeometry(growingShape, outlines[static_cast<std::size_t>(i % 5)].View());
             world.Step(Frame);
         };
-        for (int i = 0; i < 120; ++i)
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             step(i);
         }
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_allocations = 0;
         const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
-        for (int i = 0; i < 120; ++i)
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             step(i);
         }
@@ -634,11 +638,11 @@ namespace
     {
         Array<BodyId> moving;
         AddGround(world);
-        for (int row = 0; row < 10; ++row)
+        for (JBro::Int32 row = 0; row < 10; ++row)
         {
-            for (int column = 0; column < 10 - row; ++column)
+            for (JBro::Int32 column = 0; column < 10 - row; ++column)
             {
-                const float x = -5.0f + static_cast<float>(column) + 0.5f * static_cast<float>(row);
+                const JBro::Float x = -5.0f + static_cast<float>(column) + 0.5f * static_cast<float>(row);
                 const BodyId box = AddBody(world, BodyType::Dynamic, { x, 0.5f + static_cast<float>(row) });
                 AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
                 moving.Add(box);
@@ -646,13 +650,13 @@ namespace
         }
         JBro::Physics2D::Circle ball;
         ball.radius = 0.25f;
-        for (int i = 0; i < 20; ++i)
+        for (JBro::Int32 i = 0; i < 20; ++i)
         {
             const BodyId body = AddBody(world, BodyType::Dynamic, { 8.0f + 0.3f * static_cast<float>(i % 5), 1.0f + 0.6f * static_cast<float>(i / 5) });
             world.CreateCircleShape(body, ball, {});
             moving.Add(body);
         }
-        for (int i = 0; i < 5; ++i)
+        for (JBro::Int32 i = 0; i < 5; ++i)
         {
             const BodyId body = AddBody(world, BodyType::Dynamic, { -12.0f, 0.5f + static_cast<float>(i) });
             world.CreateCapsuleShape(body, { -0.5f, 0 }, { 0.5f, 0 }, 0.45f, {});
@@ -660,7 +664,7 @@ namespace
         }
         const BodyId cup = AddBody(world, BodyType::Static, { 14, 0 });
         AddPolygon(world, cup, UOutline());
-        for (int i = 0; i < 3; ++i)
+        for (JBro::Int32 i = 0; i < 3; ++i)
         {
             const BodyId pebble = AddBody(world, BodyType::Dynamic, { 15.5f, 2.0f + static_cast<float>(i) });
             JBro::Physics2D::Circle small;
@@ -683,7 +687,7 @@ namespace
 #if !defined(__EMSCRIPTEN__)
         Check(parallel.GetWorkerCount() == 3, "the parallel world starts three physics workers");
 #endif
-        for (int i = 0; i < 180; ++i)
+        for (JBro::Int32 i = 0; i < 180; ++i)
         {
             serial.Step(Frame);
             parallel.Step(Frame);
@@ -698,8 +702,8 @@ namespace
         {
             const Vector2 a = serial.GetPosition(serialBodies[i]);
             const Vector2 b = parallel.GetPosition(parallelBodies[i]);
-            const float angleA = serial.GetAngle(serialBodies[i]);
-            const float angleB = parallel.GetAngle(parallelBodies[i]);
+            const JBro::Float angleA = serial.GetAngle(serialBodies[i]);
+            const JBro::Float angleB = parallel.GetAngle(parallelBodies[i]);
             Check(std::memcmp(&a, &b, sizeof(a)) == 0 && std::memcmp(&angleA, &angleB, sizeof(angleA)) == 0,
                 "every body ends bit for bit where the single-thread world put it");
         }
@@ -731,14 +735,14 @@ namespace
         World world;
         BuildPile(world);
         world.SetWorkerCount(3);
-        for (int i = 0; i < 60; ++i)
+        for (JBro::Int32 i = 0; i < 60; ++i)
         {
             world.Step(Frame);
         }
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_allocations = 0;
         const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
-        for (int i = 0; i < 60; ++i)
+        for (JBro::Int32 i = 0; i < 60; ++i)
         {
             world.Step(Frame);
         }
@@ -845,12 +849,12 @@ namespace
         JBro::Physics2D::Circle round;
         round.radius = 0.25f;
         world.CreateCircleShape(ball, round, bouncy);
-        float fallSpeed = 0.0f;
-        float riseSpeed = 0.0f;
-        for (int i = 0; i < 120; ++i)
+        JBro::Float fallSpeed = 0.0f;
+        JBro::Float riseSpeed = 0.0f;
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             world.Step(Frame);
-            const float vy = world.GetLinearVelocity(ball).y;
+            const JBro::Float vy = world.GetLinearVelocity(ball).y;
             fallSpeed = std::fmin(fallSpeed, vy);
             if (fallSpeed < -1.0f)
             {
@@ -869,7 +873,7 @@ namespace
         world.Settings().enableSleep = false;
         const BodyId ground = AddBody(world, BodyType::Static, { 0, 0 });
         Array<Vector2> points;
-        for (int i = 0; i <= 40; ++i)
+        for (JBro::Int32 i = 0; i <= 40; ++i)
         {
             points.Add({ -20.0f + static_cast<float>(i), 0.0f });
         }
@@ -881,9 +885,9 @@ namespace
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f), slippery);
         Run(world, 0.3f);
         world.SetLinearVelocity(box, { 5, 0 });
-        float lowest = 10.0f;
-        float highest = -10.0f;
-        for (int i = 0; i < 120; ++i)
+        JBro::Float lowest = 10.0f;
+        JBro::Float highest = -10.0f;
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             world.Step(Frame);
             lowest = std::fmin(lowest, world.GetLinearVelocity(box).x);
@@ -924,8 +928,8 @@ namespace
         // 위에서 떨어진 상자가 잠든 상자를 깨운다.
         const BodyId dropped = AddBody(world, BodyType::Dynamic, { 0, 4 });
         AddPolygon(world, dropped, BoxOutline(0.5f, 0.5f));
-        bool wokeByTouch = false;
-        for (int i = 0; i < 90; ++i)
+        JBro::Bool wokeByTouch = false;
+        for (JBro::Int32 i = 0; i < 90; ++i)
         {
             world.Step(Frame);
             wokeByTouch = wokeByTouch || world.IsAwake(box);
@@ -946,7 +950,7 @@ namespace
         World world;
         AddGround(world);
         Array<BodyId> boxes;
-        for (int i = 0; i < 10; ++i)
+        for (JBro::Int32 i = 0; i < 10; ++i)
         {
             const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f + static_cast<float>(i) });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
@@ -954,7 +958,7 @@ namespace
         }
         Run(world, 5.0f);
         Check(world.GetLastStepStats().sleepingBodies == 10, "the whole stack falls asleep");
-        const float top = world.GetPosition(boxes[9]).y;
+        const JBro::Float top = world.GetPosition(boxes[9]).y;
         Run(world, 2.0f);
         Check(world.GetPosition(boxes[9]).y == top, "and stays exactly where it slept");
     }
@@ -972,7 +976,7 @@ namespace
             AddPolygon(world, top, BoxOutline(0.5f, 0.5f));
             Run(world, 2.0f);
             Check(false == world.IsAwake(bottom) && false == world.IsAwake(top), "the two-box stack sleeps");
-            const float topBefore = world.GetPosition(top).y;
+            const JBro::Float topBefore = world.GetPosition(top).y;
             world.ApplyLinearImpulseToCenter(bottom, { 0, 5 });
             world.Step(Frame);
             Check(world.IsAwake(top) && world.GetPosition(top).y > topBefore + 0.01f,
@@ -1044,8 +1048,8 @@ namespace
             const BodyId box = AddBody(world, BodyType::Dynamic, { 0, -1.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             world.SetLinearVelocity(box, { 0, 8 });
-            bool beganWhileBelow = false;
-            for (int i = 0; i < 90; ++i)
+            JBro::Bool beganWhileBelow = false;
+            for (JBro::Int32 i = 0; i < 90; ++i)
             {
                 world.Step(Frame);
                 if (world.GetPosition(box).y < 0.7f && false == world.GetBeginEvents().IsEmpty())
@@ -1085,11 +1089,11 @@ namespace
         AddGround(world);
         const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.52f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
-        int begins = 0;
-        int beganAt = -1;
-        int staysBefore = 0;
-        int staysAfter = 0;
-        for (int i = 0; i < 20; ++i)
+        JBro::Int32 begins = 0;
+        JBro::Int32 beganAt = -1;
+        JBro::Int32 staysBefore = 0;
+        JBro::Int32 staysAfter = 0;
+        for (JBro::Int32 i = 0; i < 20; ++i)
         {
             world.Step(Frame);
             begins += static_cast<int>(world.GetBeginEvents().Size());
@@ -1097,7 +1101,7 @@ namespace
             {
                 beganAt = i;
             }
-            const int stays = static_cast<int>(world.GetStayEvents().Size());
+            const JBro::Int32 stays = static_cast<int>(world.GetStayEvents().Size());
             if (beganAt < 0 || beganAt == i)
             {
                 staysBefore += stays;
@@ -1146,17 +1150,17 @@ namespace
         Check(Near(same.GetPosition(top).y, 0.5f, 0.02f), "one row of the table is enough to separate them");
     }
 
-    JBro::Physics2D::Circle MakeBall(float radius)
+    JBro::Physics2D::Circle MakeBall(JBro::Float radius)
     {
         JBro::Physics2D::Circle ball;
         ball.radius = radius;
         return ball;
     }
 
-    float DistanceBetween(Vector2 a, Vector2 b)
+    JBro::Float DistanceBetween(Vector2 a, Vector2 b)
     {
-        const float dx = b.x - a.x;
-        const float dy = b.y - a.y;
+        const JBro::Float dx = b.x - a.x;
+        const JBro::Float dy = b.y - a.y;
         return std::sqrt(dx * dx + dy * dy);
     }
 
@@ -1176,8 +1180,8 @@ namespace
             def.length = 2.0f;
             const JointId joint = world.CreateDistanceJoint(def);
             Check(world.IsValid(joint) && world.GetJointCount() == 1, "a distance joint to the world is made");
-            float worst = 0.0f;
-            for (int i = 0; i < 120; ++i)
+            JBro::Float worst = 0.0f;
+            for (JBro::Int32 i = 0; i < 120; ++i)
             {
                 world.Step(Frame);
                 worst = std::fmax(worst, std::fabs(DistanceBetween(world.GetPosition(ball), { 0, 0 }) - 2.0f));
@@ -1197,7 +1201,7 @@ namespace
             Run(world, 0.2f);
             Check(world.GetPosition(ball).y < -1.1f, "inside its length a rope lets the ball fall freely");
             Run(world, 1.5f);
-            const float hanging = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            const JBro::Float hanging = DistanceBetween(world.GetPosition(ball), { 0, 0 });
             Check(hanging > 1.95f && hanging < 2.02f, "and it stops the ball at its length");
         }
         {
@@ -1227,7 +1231,7 @@ namespace
             world.CreateDistanceJoint(spring);
             Run(world, 4.0f);
             // 고유 진동수 1 Hz 인 질량-용수철은 g / ω² ≈ 0.248 m 늘어나 선다.
-            const float stretched = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            const JBro::Float stretched = DistanceBetween(world.GetPosition(ball), { 0, 0 });
             Check(stretched > 1.2f && stretched < 1.3f, "a spring stretches under gravity by about g over omega squared");
         }
     }
@@ -1238,7 +1242,7 @@ namespace
     {
         using JBro::Physics2D::HingeJointDef;
         using JBro::Physics2D::JointId;
-        const float degree = 3.14159265f / 180.0f;
+        const JBro::Float degree = 3.14159265f / 180.0f;
         {
             World world;
             const BodyId rod = AddBody(world, BodyType::Dynamic, { 1, 0 });
@@ -1251,14 +1255,14 @@ namespace
             def.lowerAngle = -30.0f * degree;
             def.upperAngle = 30.0f * degree;
             const JointId hinge = world.CreateHingeJoint(def);
-            float highest = 0.0f;
-            float pinDrift = 0.0f;
-            for (int i = 0; i < 120; ++i)
+            JBro::Float highest = 0.0f;
+            JBro::Float pinDrift = 0.0f;
+            for (JBro::Int32 i = 0; i < 120; ++i)
             {
                 world.Step(Frame);
                 highest = std::fmax(highest, world.GetHingeAngle(hinge));
                 const Vector2 end = world.GetPosition(rod);
-                const float angle = world.GetAngle(rod);
+                const JBro::Float angle = world.GetAngle(rod);
                 const Vector2 pin{ end.x - std::cos(angle), end.y - std::sin(angle) };
                 pinDrift = std::fmax(pinDrift, DistanceBetween(pin, { 0, 0 }));
             }
@@ -1309,7 +1313,7 @@ namespace
             const JointId hinge = world.CreateHingeJoint(def);
             Run(world, 1.0f);
             const Vector2 end = world.GetPosition(rod);
-            const float angle = world.GetAngle(rod);
+            const JBro::Float angle = world.GetAngle(rod);
             Check(DistanceBetween({ end.x - std::cos(angle), end.y - std::sin(angle) }, { -0.5f, 0 }) < 0.02f,
                 "a hinge that starts apart pulls its pins together");
             Check(world.GetHingeAngle(hinge) > -0.12f, "and one that starts past its limit turns back inside it");
@@ -1383,8 +1387,8 @@ namespace
         tether.length = 2.0f;
         orbit.CreateDistanceJoint(tether);
         orbit.SetLinearVelocity(moon, { 0, 2 });
-        int hubAsleep = 0;
-        for (int i = 0; i < 120; ++i)
+        JBro::Int32 hubAsleep = 0;
+        for (JBro::Int32 i = 0; i < 120; ++i)
         {
             orbit.Step(Frame);
             hubAsleep += orbit.IsAwake(hub) ? 0 : 1;
@@ -1397,7 +1401,7 @@ namespace
     void TestFastBodiesDoNotTunnel()
     {
         using JBro::Physics2D::StepStats;
-        const auto fire = [](World& world, bool round) {
+        const auto fire = [](World& world, JBro::Bool round) {
             world.Settings().gravity = { 0, 0 };
             const BodyId bullet = AddBody(world, BodyType::Dynamic, { 0, 0 });
             if (round)
@@ -1409,8 +1413,8 @@ namespace
                 AddPolygon(world, bullet, BoxOutline(0.05f, 0.05f));
             }
             world.SetLinearVelocity(bullet, { 200, 0 });
-            std::uint32_t hits = 0;
-            for (int i = 0; i < 30; ++i)
+            JBro::UInt32 hits = 0;
+            for (JBro::Int32 i = 0; i < 30; ++i)
             {
                 world.Step(Frame);
                 hits += world.GetLastStepStats().continuousHits;
@@ -1474,9 +1478,9 @@ namespace
         const auto build = [](World& world, Array<BodyId>& boxes) {
             ShapeDef wide;
             AddGround(world, wide);
-            for (int column = 0; column < 24; ++column)
+            for (JBro::Int32 column = 0; column < 24; ++column)
             {
-                for (int row = 0; row < 25; ++row)
+                for (JBro::Int32 row = 0; row < 25; ++row)
                 {
                     const BodyId box = AddBody(world, BodyType::Dynamic,
                         { -18.0f + 1.5f * static_cast<float>(column), 0.5f + static_cast<float>(row) });
@@ -1492,8 +1496,8 @@ namespace
         parallel.SetWorkerCount(3);
         Array<BodyId> parallelBoxes;
         build(parallel, parallelBoxes);
-        std::uint32_t parallelColors = 0;
-        for (int i = 0; i < 30; ++i)
+        JBro::UInt32 parallelColors = 0;
+        for (JBro::Int32 i = 0; i < 30; ++i)
         {
             single.Step(Frame);
             parallel.Step(Frame);
@@ -1504,8 +1508,8 @@ namespace
         {
             Check(parallelColors > 0, "with workers the big colors are split");
         }
-        bool same = true;
-        float lowest = 1.0e9f;
+        JBro::Bool same = true;
+        JBro::Float lowest = 1.0e9f;
         for (std::size_t i = 0; i < singleBoxes.Size(); ++i)
         {
             const Vector2 a = single.GetPosition(singleBoxes[i]);
@@ -1518,7 +1522,7 @@ namespace
     }
 }
 
-int RunPhysics2DWorldTests()
+JBro::Int32 RunPhysics2DWorldTests()
 {
     TestABoxFallsAndRestsOnTheGround();
     TestABoxInTheNotchOfAUStaysInside();

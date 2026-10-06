@@ -4,6 +4,8 @@
 #include <JBro/Types/Color.h>
 
 #include <cstdint>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -13,18 +15,18 @@ namespace JBro::Internal
     class DebugLineBatch
     {
     public:
-        DebugLineBatch(const Color& color, float duration, float thickness);
+        DebugLineBatch(const Color& color, Float duration, Float thickness);
         ~DebugLineBatch();
         DebugLineBatch(const DebugLineBatch&) = delete;
         DebugLineBatch& operator=(const DebugLineBatch&) = delete;
 
-        void Add(float fromX, float fromY, float fromZ, float toX, float toY, float toZ);
+        void Add(Float fromX, Float fromY, Float fromZ, Float toX, Float toY, Float toZ);
         void Flush();
 
     private:
-        static constexpr std::uint32_t Capacity = 64;
+        static constexpr UInt32 Capacity = 64;
         DebugLine m_style;
         DebugLine m_lines[Capacity];
-        std::uint32_t m_count = 0;
+        UInt32 m_count = 0;
     };
 }

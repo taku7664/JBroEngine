@@ -1,10 +1,12 @@
 ﻿#include <JBro/Editor/Command/ComponentAddress.h>
 
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    bool ComponentAddress::Equals(const ComponentAddress& other) const
+    Bool ComponentAddress::Equals(const ComponentAddress& other) const
     {
         return objectId == other.objectId
             && typeId == other.typeId
@@ -12,9 +14,9 @@ namespace JBro
     }
 
     ComponentBase* FindComponentAt(GameObject& object, ComponentTypeId typeId,
-        std::uint32_t ordinal)
+        UInt32 ordinal)
     {
-        std::uint32_t seen = 0;
+        UInt32 seen = 0;
         const Array<ComponentSlot>& components = object.GetComponents();
         for (std::size_t index = 0; index < components.Size(); ++index)
         {
@@ -37,10 +39,10 @@ namespace JBro
         return nullptr;
     }
 
-    bool FindComponentOrdinal(const GameObject& object, const ComponentBase& component,
-        std::uint32_t& ordinal)
+    Bool FindComponentOrdinal(const GameObject& object, const ComponentBase& component,
+        UInt32& ordinal)
     {
-        std::uint32_t seen = 0;
+        UInt32 seen = 0;
         const Array<ComponentSlot>& components = object.GetComponents();
         for (std::size_t index = 0; index < components.Size(); ++index)
         {
@@ -70,10 +72,10 @@ namespace JBro
         return FindComponentAt(*object, address.typeId, address.ordinal);
     }
 
-    bool MakeComponentAddress(EditorObjectRegistry& registry, GameObject& object,
+    Bool MakeComponentAddress(EditorObjectRegistry& registry, GameObject& object,
         const ComponentBase& component, ComponentAddress& address)
     {
-        std::uint32_t ordinal = 0;
+        UInt32 ordinal = 0;
         if (false == FindComponentOrdinal(object, component, ordinal))
         {
             return false;

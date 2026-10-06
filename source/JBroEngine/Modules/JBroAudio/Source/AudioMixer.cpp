@@ -13,6 +13,10 @@
 #include <cmath>
 #include <cstring>
 #include <thread>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -27,10 +31,10 @@ namespace JBro
         {
         public:
             static constexpr std::size_t HeaderSize = 16;
-            static constexpr std::uint32_t MinShift = 6;
-            static constexpr std::uint32_t MaxShift = 24;
-            static constexpr std::uint32_t ClassCount = MaxShift - MinShift + 1;
-            static constexpr std::uint32_t DirectClass = 0xFFu;
+            static constexpr UInt32 MinShift = 6;
+            static constexpr UInt32 MaxShift = 24;
+            static constexpr UInt32 ClassCount = MaxShift - MinShift + 1;
+            static constexpr UInt32 DirectClass = 0xFFu;
 
             ~FixedAllocator()
             {
@@ -39,7 +43,7 @@ namespace JBro
 
             void* Allocate(std::size_t size)
             {
-                const std::uint32_t sizeClass = ClassOf(size + HeaderSize);
+                const UInt32 sizeClass = ClassOf(size + HeaderSize);
                 Lock();
                 void* block = nullptr;
                 if (sizeClass != DirectClass && m_free[sizeClass] != nullptr)
@@ -83,7 +87,7 @@ namespace JBro
                     HeapAllocator{}.Deallocate(block, header->bytes, HeaderSize);
                     return;
                 }
-                const std::uint32_t sizeClass = header->sizeClass;
+                const UInt32 sizeClass = header->sizeClass;
                 Lock();
                 std::memcpy(block, &m_free[sizeClass], sizeof(void*));
                 m_free[sizeClass] = block;
@@ -112,7 +116,7 @@ namespace JBro
                 return replacement;
             }
 
-            std::uint64_t GetGrowths() const
+            UInt64 GetGrowths() const
             {
                 return m_growths;
             }
@@ -164,15 +168,15 @@ namespace JBro
         private:
             struct Header
             {
-                std::uint32_t sizeClass;
-                std::uint32_t reserved;
+                UInt32 sizeClass;
+                UInt32 reserved;
                 std::size_t bytes;
             };
             static_assert(sizeof(Header) <= HeaderSize);
 
-            static std::uint32_t ClassOf(std::size_t bytes)
+            static UInt32 ClassOf(std::size_t bytes)
             {
-                std::uint32_t shift = MinShift;
+                UInt32 shift = MinShift;
                 while (shift <= MaxShift && (std::size_t{1} << shift) < bytes)
                 {
                     ++shift;
@@ -180,7 +184,7 @@ namespace JBro
                 return shift > MaxShift ? DirectClass : shift - MinShift;
             }
 
-            static std::size_t BlockBytes(std::uint32_t sizeClass)
+            static std::size_t BlockBytes(UInt32 sizeClass)
             {
                 return std::size_t{1} << (sizeClass + MinShift);
             }
@@ -200,19 +204,19 @@ namespace JBro
             std::atomic_flag m_lock = ATOMIC_FLAG_INIT;
             void* m_free[ClassCount] = {};
             Array<void*> m_owned;
-            std::uint64_t m_growths = 0;
+            UInt64 m_growths = 0;
         };
 
-        float Clamp01(float value)
+        Float Clamp01(Float value)
         {
             if (!(value > 0.0f))
             {
                 return 0.0f;
             }
-            return value > 1.0f ? 1.0f : value;
+            return value > 1.0f ? Float(1.0f) : value;
         }
 
-        float SafePositive(float value, float fallback)
+        Float SafePositive(Float value, Float fallback)
         {
             return std::isfinite(value) && value > 0.0f ? value : fallback;
         }
@@ -236,23 +240,23 @@ namespace JBro
 
     namespace
     {
-        constexpr float Tau = 6.28318530717958647692f;
+        constexpr Float Tau = 6.28318530717958647692f;
 
         // RBJ 쿡북의 2 차 필터다. 계수는 오디오 스레드가 목표가 바뀐 것을 보고 다시 짓는다 - miniaudio 필터의 `reinit` 은
         // 스레드 안전하지 않다(D-198).
         struct Biquad
         {
-            float b0 = 1.0f;
-            float b1 = 0.0f;
-            float b2 = 0.0f;
-            float a1 = 0.0f;
-            float a2 = 0.0f;
+            Float b0 = 1.0f;
+            Float b1 = 0.0f;
+            Float b2 = 0.0f;
+            Float a1 = 0.0f;
+            Float a2 = 0.0f;
             float z1[2] = {0.0f, 0.0f};
             float z2[2] = {0.0f, 0.0f};
 
-            void Configure(bool highPass, float cutoff, float sampleRate)
+            void Configure(Bool highPass, Float cutoff, Float sampleRate)
             {
-                const float nyquist = sampleRate * 0.5f;
+                const Float nyquist = sampleRate * 0.5f;
                 if (cutoff < 10.0f)
                 {
                     cutoff = 10.0f;
@@ -261,10 +265,10 @@ namespace JBro
                 {
                     cutoff = nyquist * 0.95f;
                 }
-                const float omega = Tau * cutoff / sampleRate;
-                const float cosine = std::cos(omega);
-                const float alpha = std::sin(omega) / (2.0f * 0.70710678f);
-                const float a0 = 1.0f + alpha;
+                const Float omega = Tau * cutoff / sampleRate;
+                const Float cosine = std::cos(omega);
+                const Float alpha = std::sin(omega) / (2.0f * 0.70710678f);
+                const Float a0 = 1.0f + alpha;
                 if (highPass)
                 {
                     b0 = (1.0f + cosine) * 0.5f / a0;
@@ -280,7 +284,7 @@ namespace JBro
                 a2 = (1.0f - alpha) / a0;
             }
 
-            void SetNormalized(float nb0, float nb1, float nb2, float na0, float na1, float na2)
+            void SetNormalized(Float nb0, Float nb1, Float nb2, Float na0, Float na1, Float na2)
             {
                 b0 = nb0 / na0;
                 b1 = nb1 / na0;
@@ -290,17 +294,17 @@ namespace JBro
             }
 
             // RBJ 쿡북의 선반(기울기 1)이다. `high` 면 높은 선반이다(D-210).
-            void ConfigureShelf(bool high, float frequency, float gainDb, float sampleRate)
+            void ConfigureShelf(Bool high, Float frequency, Float gainDb, Float sampleRate)
             {
-                const float nyquist = sampleRate * 0.5f;
-                frequency = frequency < 10.0f ? 10.0f : (frequency > nyquist * 0.95f ? nyquist * 0.95f : frequency);
-                const float amplitude = std::pow(10.0f, gainDb / 40.0f);
-                const float omega = Tau * frequency / sampleRate;
-                const float cosine = std::cos(omega);
-                const float alpha = std::sin(omega) * 0.5f * 1.41421356f;
-                const float root = 2.0f * std::sqrt(amplitude) * alpha;
-                const float up = amplitude + 1.0f;
-                const float down = amplitude - 1.0f;
+                const Float nyquist = sampleRate * 0.5f;
+                frequency = frequency < 10.0f ? Float(10.0f) : (frequency > nyquist * 0.95f ? Float(nyquist * 0.95f) : frequency);
+                const Float amplitude = std::pow(10.0f, gainDb / 40.0f);
+                const Float omega = Tau * frequency / sampleRate;
+                const Float cosine = std::cos(omega);
+                const Float alpha = std::sin(omega) * 0.5f * 1.41421356f;
+                const Float root = 2.0f * std::sqrt(amplitude) * alpha;
+                const Float up = amplitude + 1.0f;
+                const Float down = amplitude - 1.0f;
                 if (high)
                 {
                     SetNormalized(amplitude * (up + down * cosine + root), -2.0f * amplitude * (down + up * cosine),
@@ -316,21 +320,21 @@ namespace JBro
             }
 
             // RBJ 쿡북의 봉우리(Q 1)다.
-            void ConfigurePeak(float frequency, float gainDb, float sampleRate)
+            void ConfigurePeak(Float frequency, Float gainDb, Float sampleRate)
             {
-                const float nyquist = sampleRate * 0.5f;
-                frequency = frequency < 10.0f ? 10.0f : (frequency > nyquist * 0.95f ? nyquist * 0.95f : frequency);
-                const float amplitude = std::pow(10.0f, gainDb / 40.0f);
-                const float omega = Tau * frequency / sampleRate;
-                const float cosine = std::cos(omega);
-                const float alpha = std::sin(omega) * 0.5f;
+                const Float nyquist = sampleRate * 0.5f;
+                frequency = frequency < 10.0f ? Float(10.0f) : (frequency > nyquist * 0.95f ? Float(nyquist * 0.95f) : frequency);
+                const Float amplitude = std::pow(10.0f, gainDb / 40.0f);
+                const Float omega = Tau * frequency / sampleRate;
+                const Float cosine = std::cos(omega);
+                const Float alpha = std::sin(omega) * 0.5f;
                 SetNormalized(1.0f + alpha * amplitude, -2.0f * cosine, 1.0f - alpha * amplitude, 1.0f + alpha / amplitude,
                     -2.0f * cosine, 1.0f - alpha / amplitude);
             }
 
-            float Process(std::uint32_t channel, float input)
+            Float Process(UInt32 channel, Float input)
             {
-                const float output = b0 * input + z1[channel];
+                const Float output = b0 * input + z1[channel];
                 z1[channel] = b1 * input - a1 * output + z2[channel];
                 z2[channel] = b2 * input - a2 * output;
                 return output;
@@ -341,17 +345,17 @@ namespace JBro
         // 늘인다. 오른쪽 채널은 23 샘플 벌린다.
         struct Reverb
         {
-            static constexpr int Combs = 8;
-            static constexpr int Allpasses = 4;
-            static constexpr int MaxComb = 3700;
-            static constexpr int MaxAllpass = 1300;
+            static constexpr Int32 Combs = 8;
+            static constexpr Int32 Allpasses = 4;
+            static constexpr Int32 MaxComb = 3700;
+            static constexpr Int32 MaxAllpass = 1300;
             float comb[2][Combs][MaxComb] = {};
             float combStore[2][Combs] = {};
-            int combLength[2][Combs] = {};
-            int combIndex[2][Combs] = {};
+            Int32 combLength[2][Combs] = {};
+            Int32 combIndex[2][Combs] = {};
             float allpass[2][Allpasses][MaxAllpass] = {};
-            int allpassLength[2][Allpasses] = {};
-            int allpassIndex[2][Allpasses] = {};
+            Int32 allpassLength[2][Allpasses] = {};
+            Int32 allpassIndex[2][Allpasses] = {};
 
             // 옛 꼬리를 지운다. 꺼졌던 잔향을 다시 켤 때 오디오 스레드가 부른다(D-240).
             void Clear()
@@ -361,36 +365,36 @@ namespace JBro
                 std::memset(allpass, 0, sizeof(allpass));
             }
 
-            void Prepare(std::uint32_t sampleRate)
+            void Prepare(UInt32 sampleRate)
             {
-                static const int combTuning[Combs] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617};
-                static const int allpassTuning[Allpasses] = {556, 441, 341, 225};
-                const float scale = static_cast<float>(sampleRate) / 44100.0f;
-                for (int channel = 0; channel < 2; ++channel)
+                static const Int32 combTuning[Combs] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617};
+                static const Int32 allpassTuning[Allpasses] = {556, 441, 341, 225};
+                const Float scale = static_cast<float>(sampleRate) / 44100.0f;
+                for (Int32 channel = 0; channel < 2; ++channel)
                 {
-                    const int spread = channel == 0 ? 0 : 23;
-                    for (int index = 0; index < Combs; ++index)
+                    const Int32 spread = channel == 0 ? 0 : 23;
+                    for (Int32 index = 0; index < Combs; ++index)
                     {
-                        int length = static_cast<int>(static_cast<float>(combTuning[index] + spread) * scale);
-                        combLength[channel][index] = length < MaxComb ? (length > 1 ? length : 1) : MaxComb;
+                        Int32 length = static_cast<int>(static_cast<float>(combTuning[index] + spread) * scale);
+                        combLength[channel][index] = length < MaxComb ? (length > 1 ? length : Int32(1)) : MaxComb;
                     }
-                    for (int index = 0; index < Allpasses; ++index)
+                    for (Int32 index = 0; index < Allpasses; ++index)
                     {
-                        int length = static_cast<int>(static_cast<float>(allpassTuning[index] + spread) * scale);
-                        allpassLength[channel][index] = length < MaxAllpass ? (length > 1 ? length : 1) : MaxAllpass;
+                        Int32 length = static_cast<int>(static_cast<float>(allpassTuning[index] + spread) * scale);
+                        allpassLength[channel][index] = length < MaxAllpass ? (length > 1 ? length : Int32(1)) : MaxAllpass;
                     }
                 }
             }
 
-            float Process(int channel, float input, float feedback, float damping)
+            Float Process(Int32 channel, Float input, Float feedback, Float damping)
             {
-                float output = 0.0f;
-                const float scaled = input * 0.015f;
-                for (int index = 0; index < Combs; ++index)
+                Float output = 0.0f;
+                const Float scaled = input * 0.015f;
+                for (Int32 index = 0; index < Combs; ++index)
                 {
                     float* line = comb[channel][index];
-                    int& at = combIndex[channel][index];
-                    const float delayed = line[at];
+                    Int32& at = combIndex[channel][index];
+                    const Float delayed = line[at];
                     float& store = combStore[channel][index];
                     store = delayed * (1.0f - damping) + store * damping;
                     line[at] = scaled + store * feedback;
@@ -400,11 +404,11 @@ namespace JBro
                     }
                     output += delayed;
                 }
-                for (int index = 0; index < Allpasses; ++index)
+                for (Int32 index = 0; index < Allpasses; ++index)
                 {
                     float* line = allpass[channel][index];
-                    int& at = allpassIndex[channel][index];
-                    const float delayed = line[at];
+                    Int32& at = allpassIndex[channel][index];
+                    const Float delayed = line[at];
                     line[at] = output + delayed * 0.5f;
                     output = delayed - output;
                     if (++at >= allpassLength[channel][index])
@@ -421,8 +425,8 @@ namespace JBro
         struct BusEffectNode
         {
             ma_node_base base;
-            std::uint32_t channels = 2;
-            std::uint32_t sampleRate = 48000;
+            UInt32 channels = 2;
+            UInt32 sampleRate = 48000;
             std::atomic<float> lowPass{0.0f};
             std::atomic<float> highPass{0.0f};
             std::atomic<float> echoDelay{0.25f};
@@ -436,14 +440,14 @@ namespace JBro
             // 버스 음량(D-205). 목표와 프레임당 변화량은 메인 스레드가 쓰고, 지금 값은 오디오 스레드만 만진다.
             std::atomic<float> gainTarget{1.0f};
             std::atomic<float> gainRate{1.0f};
-            float gainCurrent = 1.0f;
+            Float gainCurrent = 1.0f;
             // 블록 끝의 지금 음량이다. 페이드 중에 새 페이드를 걸 때 메인 스레드가 남은 거리를 잰다(D-240).
             std::atomic<float> gainNow{1.0f};
             // 더킹. 다른 버스 노드의 봉우리(지난 블록)를 읽는다. 노드는 믹서의 고정 배열에 있어 버스를 내려도 메모리는 산다.
             std::atomic<const void*> duckSource{nullptr};
             std::atomic<float> duckAmount{0.0f};
             std::atomic<float> duckRelease{0.3f};
-            float duckCurrent = 1.0f;
+            Float duckCurrent = 1.0f;
             // 사용자 처리기(D-206). 오디오 스레드는 `inProcessor` 를 먼저 세우고 처리기를 읽는다. 메인 스레드는 처리기를 바꾼
             // 뒤 `inProcessor` 가 내려갈 때까지 기다린다 - 그래서 돌아온 뒤에는 옛 처리기가 불리지 않는다.
             std::atomic<AudioBusProcessCallback> processor{nullptr};
@@ -451,7 +455,7 @@ namespace JBro
             std::atomic<bool> inProcessor{false};
             std::atomic<float*> echoBuffer{nullptr};
             std::atomic<Reverb*> reverb{nullptr};
-            std::uint32_t echoCapacity = 0;
+            UInt32 echoCapacity = 0;
             // D-210 의 칸들. 뜻은 `AudioBusEffects` 의 같은 이름이다.
             std::atomic<float> eqLowHz{200.0f};
             std::atomic<float> eqLowGain{0.0f};
@@ -473,51 +477,51 @@ namespace JBro
             std::atomic<float> compReduction{0.0f};
             // 코러스·피치 시프트의 지연선이다. 메아리처럼 처음 켤 때 메인 스레드가 잡는다.
             std::atomic<float*> chorusBuffer{nullptr};
-            std::uint32_t chorusCapacity = 0;
+            UInt32 chorusCapacity = 0;
             std::atomic<float*> pitchBuffer{nullptr};
-            std::uint32_t pitchCapacity = 0;
+            UInt32 pitchCapacity = 0;
             // 아래는 오디오 스레드만 만진다.
-            float appliedLowPass = -1.0f;
-            float appliedHighPass = -1.0f;
+            Float appliedLowPass = -1.0f;
+            Float appliedHighPass = -1.0f;
             Biquad lowFilter;
             Biquad highFilter;
-            std::uint32_t echoWrite = 0;
+            UInt32 echoWrite = 0;
             float appliedEq[6] = {-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
             Biquad eqLow;
             Biquad eqMid;
             Biquad eqHigh;
-            std::uint32_t chorusWrite = 0;
-            float chorusPhase = 0.0f;
-            std::uint32_t pitchWrite = 0;
-            float pitchPhase = 0.0f;
-            float compEnvelope = 0.0f;
+            UInt32 chorusWrite = 0;
+            Float chorusPhase = 0.0f;
+            UInt32 pitchWrite = 0;
+            Float pitchPhase = 0.0f;
+            Float compEnvelope = 0.0f;
             // 지난 블록에 켜져 있었는가(D-240). 꺼졌다 켜지면 지연선을 비운다 - 끈 동안 멈춰 있던 옛 소리가 다시 나지 않게.
-            bool echoWasOn = false;
-            bool reverbWasOn = false;
-            bool chorusWasOn = false;
-            bool pitchWasOn = false;
+            Bool echoWasOn = false;
+            Bool reverbWasOn = false;
+            Bool chorusWasOn = false;
+            Bool pitchWasOn = false;
         };
 
-        static constexpr float ChorusSeconds = 0.05f;
-        static constexpr float PitchWindowSeconds = 0.05f;
+        static constexpr Float ChorusSeconds = 0.05f;
+        static constexpr Float PitchWindowSeconds = 0.05f;
 
         // 지연선을 뒤로 `delay` 프레임(소수) 읽는다. 두 샘플 사이는 곧게 잇는다.
-        float ReadDelay(const float* line, std::uint32_t capacity, std::uint32_t channels, std::uint32_t channel,
-            std::uint32_t write, float delay)
+        Float ReadDelay(const float* line, UInt32 capacity, UInt32 channels, UInt32 channel,
+            UInt32 write, Float delay)
         {
-            float position = static_cast<float>(write) - delay;
+            Float position = static_cast<float>(write) - delay;
             while (position < 0.0f)
             {
                 position += static_cast<float>(capacity);
             }
-            const std::uint32_t first = static_cast<std::uint32_t>(position) % capacity;
-            const std::uint32_t second = (first + 1) % capacity;
-            const float fraction = position - std::floor(position);
+            const UInt32 first = static_cast<std::uint32_t>(position) % capacity;
+            const UInt32 second = (first + 1) % capacity;
+            const Float fraction = position - std::floor(position);
             return line[first * channels + channel] * (1.0f - fraction) + line[second * channels + channel] * fraction;
         }
 
-        void RunEqBand(Biquad& filter, float& appliedHz, float& appliedGain, float hz, float gain, int kind, float rate,
-            float* out, std::size_t samples, std::uint32_t channels)
+        void RunEqBand(Biquad& filter, float& appliedHz, float& appliedGain, Float hz, Float gain, Int32 kind, Float rate,
+            float* out, std::size_t samples, UInt32 channels)
         {
             if (gain == 0.0f)
             {
@@ -542,9 +546,9 @@ namespace JBro
             }
         }
 
-        static constexpr float MaxEchoSeconds = 2.0f;
+        static constexpr Float MaxEchoSeconds = 2.0f;
 
-        float Clamped(float value, float low, float high)
+        Float Clamped(Float value, Float low, Float high)
         {
             if (!(value >= low))
             {
@@ -568,14 +572,14 @@ namespace JBro
             ma_uint32* frameCountOut)
         {
             BusEffectNode& self = *reinterpret_cast<BusEffectNode*>(node);
-            const std::uint32_t frames = *frameCountOut;
-            const std::uint32_t channels = self.channels;
+            const UInt32 frames = *frameCountOut;
+            const UInt32 channels = self.channels;
             float* out = framesOut[0];
             const std::size_t samples = static_cast<std::size_t>(frames) * channels;
             // 입력이 없는 프레임도 돈다(`MA_NODE_FLAG_ALLOW_NULL_INPUT`) - 메아리와 잔향의 꼬리가 소리가 멎은 뒤에도 운다.
             if (framesIn != nullptr && framesIn[0] != nullptr && frameCountIn != nullptr && *frameCountIn > 0)
             {
-                const std::size_t available = static_cast<std::size_t>(*frameCountIn < frames ? *frameCountIn : frames) * channels;
+                const std::size_t available = static_cast<std::size_t>(*frameCountIn < frames ? UInt32(*frameCountIn) : frames) * channels;
                 std::memcpy(out, framesIn[0], sizeof(float) * available);
                 if (available < samples)
                 {
@@ -589,9 +593,9 @@ namespace JBro
             // 유한하지 않은 샘플(깨진 클립·자식 버스의 처리기)은 0 으로 바꾼다(D-240). 필터·메아리·컴프레서의 상태에 한 번 들어가면
             // 그 버스가 영원히 먹통이 된다.
             ScrubNonFinite(out, samples);
-            const float rate = static_cast<float>(self.sampleRate);
+            const Float rate = static_cast<float>(self.sampleRate);
 
-            const float highPass = self.highPass.load(std::memory_order_relaxed);
+            const Float highPass = self.highPass.load(std::memory_order_relaxed);
             if (highPass > 0.0f)
             {
                 if (highPass != self.appliedHighPass)
@@ -604,7 +608,7 @@ namespace JBro
                     out[index] = self.highFilter.Process(static_cast<std::uint32_t>(index % channels) & 1u, out[index]);
                 }
             }
-            const float lowPass = self.lowPass.load(std::memory_order_relaxed);
+            const Float lowPass = self.lowPass.load(std::memory_order_relaxed);
             if (lowPass > 0.0f)
             {
                 if (lowPass != self.appliedLowPass)
@@ -627,23 +631,23 @@ namespace JBro
                 Clamped(self.eqHighGain.load(std::memory_order_relaxed), -24.0f, 24.0f), 2, rate, out, samples, channels);
 
             // 디스토션: tanh 로 둥글게 자른다. 가득 찬 소리는 가득 찬 채로 두도록 tanh(이득) 으로 나눈다.
-            const float drive = Clamped(self.distortion.load(std::memory_order_relaxed), 0.0f, 1.0f);
+            const Float drive = Clamped(self.distortion.load(std::memory_order_relaxed), 0.0f, 1.0f);
             if (drive > 0.0f)
             {
-                const float mix = Clamped(self.distortionMix.load(std::memory_order_relaxed), 0.0f, 1.0f);
-                const float pre = 1.0f + drive * 24.0f;
-                const float normalize = 1.0f / std::tanh(pre);
+                const Float mix = Clamped(self.distortionMix.load(std::memory_order_relaxed), 0.0f, 1.0f);
+                const Float pre = 1.0f + drive * 24.0f;
+                const Float normalize = 1.0f / std::tanh(pre);
                 for (std::size_t index = 0; index < samples; ++index)
                 {
-                    const float shaped = std::tanh(pre * out[index]) * normalize;
+                    const Float shaped = std::tanh(pre * out[index]) * normalize;
                     out[index] += (shaped - out[index]) * mix;
                 }
             }
 
             // 코러스: 12 ms 에서 깊이만큼 흔들리는 지연을 섞는다. 오른쪽은 흔들림을 1/4 주기 늦춰 넓게 들린다.
-            const float chorusMix = Clamped(self.chorusMix.load(std::memory_order_relaxed), 0.0f, 1.0f);
+            const Float chorusMix = Clamped(self.chorusMix.load(std::memory_order_relaxed), 0.0f, 1.0f);
             float* chorus = self.chorusBuffer.load(std::memory_order_acquire);
-            const bool chorusOn = chorusMix > 0.0f && chorus != nullptr && self.chorusCapacity > 2;
+            const Bool chorusOn = chorusMix > 0.0f && chorus != nullptr && self.chorusCapacity > 2;
             if (chorusOn && false == self.chorusWasOn)
             {
                 std::memset(chorus, 0, sizeof(float) * static_cast<std::size_t>(self.chorusCapacity) * channels);
@@ -652,19 +656,19 @@ namespace JBro
             self.chorusWasOn = chorusOn;
             if (chorusOn)
             {
-                const float step = Clamped(self.chorusRate.load(std::memory_order_relaxed), 0.05f, 10.0f) / rate;
-                const float depth = Clamped(self.chorusDepth.load(std::memory_order_relaxed), 0.0f, 8.0f) * 0.001f * rate;
-                const float base = 0.012f * rate;
-                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                const Float step = Clamped(self.chorusRate.load(std::memory_order_relaxed), 0.05f, 10.0f) / rate;
+                const Float depth = Clamped(self.chorusDepth.load(std::memory_order_relaxed), 0.0f, 8.0f) * 0.001f * rate;
+                const Float base = 0.012f * rate;
+                for (UInt32 frame = 0; frame < frames; ++frame)
                 {
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
                         chorus[self.chorusWrite * channels + channel] = out[frame * channels + channel];
                     }
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
-                        const float lfo = std::sin(Tau * (self.chorusPhase + (channel == 1 ? 0.25f : 0.0f)));
-                        const float delayed = ReadDelay(chorus, self.chorusCapacity, channels, channel, self.chorusWrite,
+                        const Float lfo = std::sin(Tau * (self.chorusPhase + (channel == 1 ? 0.25f : 0.0f)));
+                        const Float delayed = ReadDelay(chorus, self.chorusCapacity, channels, channel, self.chorusWrite,
                             base + depth * (0.5f + 0.5f * lfo));
                         float& sample = out[frame * channels + channel];
                         sample = sample * (1.0f - 0.5f * chorusMix) + delayed * 0.5f * chorusMix;
@@ -679,9 +683,9 @@ namespace JBro
             }
 
             // 피치 시프트: 50 ms 창의 두 탭이 지연을 줄이거나 늘리며 읽고, 삼각 창으로 번갈아 섞는다. 빠르기는 그대로다.
-            const float semitones = Clamped(self.pitchShift.load(std::memory_order_relaxed), -12.0f, 12.0f);
+            const Float semitones = Clamped(self.pitchShift.load(std::memory_order_relaxed), -12.0f, 12.0f);
             float* pitch = self.pitchBuffer.load(std::memory_order_acquire);
-            const bool pitchOn = semitones != 0.0f && pitch != nullptr && self.pitchCapacity > 2;
+            const Bool pitchOn = semitones != 0.0f && pitch != nullptr && self.pitchCapacity > 2;
             if (pitchOn && false == self.pitchWasOn)
             {
                 std::memset(pitch, 0, sizeof(float) * static_cast<std::size_t>(self.pitchCapacity) * channels);
@@ -691,22 +695,22 @@ namespace JBro
             self.pitchWasOn = pitchOn;
             if (pitchOn)
             {
-                const float window = PitchWindowSeconds * rate;
-                const float step = (1.0f - std::pow(2.0f, semitones / 12.0f)) / window;
-                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                const Float window = PitchWindowSeconds * rate;
+                const Float step = (1.0f - std::pow(2.0f, semitones / 12.0f)) / window;
+                for (UInt32 frame = 0; frame < frames; ++frame)
                 {
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
                         pitch[self.pitchWrite * channels + channel] = out[frame * channels + channel];
                     }
-                    const float first = self.pitchPhase;
-                    const float second = first + 0.5f >= 1.0f ? first - 0.5f : first + 0.5f;
-                    const float firstGain = 1.0f - std::fabs(2.0f * first - 1.0f);
-                    const float secondGain = 1.0f - std::fabs(2.0f * second - 1.0f);
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    const Float first = self.pitchPhase;
+                    const Float second = first + 0.5f >= 1.0f ? first - 0.5f : first + 0.5f;
+                    const Float firstGain = 1.0f - std::fabs(2.0f * first - 1.0f);
+                    const Float secondGain = 1.0f - std::fabs(2.0f * second - 1.0f);
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
-                        const float a = ReadDelay(pitch, self.pitchCapacity, channels, channel, self.pitchWrite, 1.0f + first * window);
-                        const float b = ReadDelay(pitch, self.pitchCapacity, channels, channel, self.pitchWrite, 1.0f + second * window);
+                        const Float a = ReadDelay(pitch, self.pitchCapacity, channels, channel, self.pitchWrite, 1.0f + first * window);
+                        const Float b = ReadDelay(pitch, self.pitchCapacity, channels, channel, self.pitchWrite, 1.0f + second * window);
                         out[frame * channels + channel] = a * firstGain + b * secondGain;
                     }
                     self.pitchWrite = (self.pitchWrite + 1) % self.pitchCapacity;
@@ -723,12 +727,12 @@ namespace JBro
             }
 
             // 메아리·잔향·원음 양은 한 프레임씩 함께 돈다: 결과 = 원음 × dry + 메아리 + 잔향. 잔향은 메아리가 섞인 소리를 받는다.
-            const float echoMix = self.echoMix.load(std::memory_order_relaxed);
+            const Float echoMix = self.echoMix.load(std::memory_order_relaxed);
             float* echo = self.echoBuffer.load(std::memory_order_acquire);
-            const bool echoOn = echoMix > 0.0f && echo != nullptr && self.echoCapacity > 1;
-            const float reverbMix = self.reverbMix.load(std::memory_order_relaxed);
+            const Bool echoOn = echoMix > 0.0f && echo != nullptr && self.echoCapacity > 1;
+            const Float reverbMix = self.reverbMix.load(std::memory_order_relaxed);
             Reverb* reverb = self.reverb.load(std::memory_order_acquire);
-            const bool reverbOn = reverbMix > 0.0f && reverb != nullptr;
+            const Bool reverbOn = reverbMix > 0.0f && reverb != nullptr;
             if (echoOn && false == self.echoWasOn)
             {
                 std::memset(echo, 0, sizeof(float) * static_cast<std::size_t>(self.echoCapacity) * channels);
@@ -740,11 +744,11 @@ namespace JBro
             }
             self.echoWasOn = echoOn;
             self.reverbWasOn = reverbOn;
-            const float dry = Clamped(self.dry.load(std::memory_order_relaxed), 0.0f, 1.0f);
+            const Float dry = Clamped(self.dry.load(std::memory_order_relaxed), 0.0f, 1.0f);
             if (echoOn || reverbOn || dry != 1.0f)
             {
-                const float feedback = Clamped(self.echoFeedback.load(std::memory_order_relaxed), 0.0f, 0.95f);
-                std::uint32_t delay = 0;
+                const Float feedback = Clamped(self.echoFeedback.load(std::memory_order_relaxed), 0.0f, 0.95f);
+                UInt32 delay = 0;
                 // 메아리 칸의 크기는 메아리를 켤 때만 읽는다 - 메인 스레드가 처음 잡을 때 쓰는 값이다.
                 if (echoOn)
                 {
@@ -754,19 +758,19 @@ namespace JBro
                         delay = self.echoCapacity - 1;
                     }
                 }
-                const float room = 0.7f + Clamped(self.reverbRoom.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.28f;
-                const float damping = Clamped(self.reverbDamping.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.4f;
-                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                const Float room = 0.7f + Clamped(self.reverbRoom.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.28f;
+                const Float damping = Clamped(self.reverbDamping.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.4f;
+                for (UInt32 frame = 0; frame < frames; ++frame)
                 {
                     float source[2] = {0.0f, 0.0f};
                     float echoed[2] = {0.0f, 0.0f};
-                    const std::uint32_t read = echoOn ? (self.echoWrite + self.echoCapacity - delay) % self.echoCapacity : 0;
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    const UInt32 read = echoOn ? (self.echoWrite + self.echoCapacity - delay) % self.echoCapacity : UInt32(0);
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
                         source[channel] = out[frame * channels + channel];
                         if (echoOn)
                         {
-                            const float delayed = echo[read * channels + channel];
+                            const Float delayed = echo[read * channels + channel];
                             echo[self.echoWrite * channels + channel] = source[channel] + delayed * feedback;
                             echoed[channel] = delayed * echoMix;
                         }
@@ -778,13 +782,13 @@ namespace JBro
                     float wet[2] = {0.0f, 0.0f};
                     if (reverbOn)
                     {
-                        const float left = source[0] + echoed[0];
-                        const float right = channels > 1 ? source[1] + echoed[1] : left;
-                        const float input = (left + right) * 0.5f;
+                        const Float left = source[0] + echoed[0];
+                        const Float right = channels > 1 ? Float(source[1] + echoed[1]) : left;
+                        const Float input = (left + right) * 0.5f;
                         wet[0] = reverb->Process(0, input, room, damping) * reverbMix * 3.0f;
                         wet[1] = reverb->Process(1, input, room, damping) * reverbMix * 3.0f;
                     }
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
                         out[frame * channels + channel] = source[channel] * dry + echoed[channel] + wet[channel];
                     }
@@ -792,36 +796,36 @@ namespace JBro
             }
 
             // 컴프레서(D-210): 채널의 최대 크기를 어택·릴리스로 따라가고 문턱을 넘은 만큼을 비율로 줄인다.
-            const float compRatio = Clamped(self.compRatio.load(std::memory_order_relaxed), 1.0f, 20.0f);
+            const Float compRatio = Clamped(self.compRatio.load(std::memory_order_relaxed), 1.0f, 20.0f);
             if (compRatio > 1.001f)
             {
-                const float threshold = Clamped(self.compThreshold.load(std::memory_order_relaxed), -60.0f, 0.0f);
-                const float attack = std::exp(-1.0f / (Clamped(self.compAttack.load(std::memory_order_relaxed), 0.0005f, 0.5f) * rate));
-                const float release = std::exp(-1.0f / (Clamped(self.compRelease.load(std::memory_order_relaxed), 0.005f, 2.0f) * rate));
-                const float makeup = std::pow(10.0f, Clamped(self.compMakeup.load(std::memory_order_relaxed), 0.0f, 24.0f) / 20.0f);
-                const float slope = 1.0f - 1.0f / compRatio;
-                float envelope = self.compEnvelope;
-                float deepest = 0.0f;
-                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                const Float threshold = Clamped(self.compThreshold.load(std::memory_order_relaxed), -60.0f, 0.0f);
+                const Float attack = std::exp(-1.0f / (Clamped(self.compAttack.load(std::memory_order_relaxed), 0.0005f, 0.5f) * rate));
+                const Float release = std::exp(-1.0f / (Clamped(self.compRelease.load(std::memory_order_relaxed), 0.005f, 2.0f) * rate));
+                const Float makeup = std::pow(10.0f, Clamped(self.compMakeup.load(std::memory_order_relaxed), 0.0f, 24.0f) / 20.0f);
+                const Float slope = 1.0f - 1.0f / compRatio;
+                Float envelope = self.compEnvelope;
+                Float deepest = 0.0f;
+                for (UInt32 frame = 0; frame < frames; ++frame)
                 {
-                    float level = 0.0f;
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    Float level = 0.0f;
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
                         level = std::fmax(level, std::fabs(out[frame * channels + channel]));
                     }
                     envelope = level > envelope ? level + attack * (envelope - level) : level + release * (envelope - level);
-                    float gain = makeup;
+                    Float gain = makeup;
                     if (envelope > 1e-6f)
                     {
-                        const float over = 20.0f * std::log10(envelope) - threshold;
+                        const Float over = 20.0f * std::log10(envelope) - threshold;
                         if (over > 0.0f)
                         {
-                            const float reduction = over * slope;
+                            const Float reduction = over * slope;
                             deepest = std::fmax(deepest, reduction);
                             gain *= std::pow(10.0f, -reduction / 20.0f);
                         }
                     }
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
                         out[frame * channels + channel] *= gain;
                     }
@@ -844,22 +848,22 @@ namespace JBro
             self.inProcessor.store(false, std::memory_order_seq_cst);
 
             // 음량과 더킹은 사슬의 끝에서 곱한다 - 음소거하면 메아리·잔향의 꼬리도 함께 멎는다. 둘 다 샘플마다 곧게 옮겨 간다.
-            const float gainTarget = self.gainTarget.load(std::memory_order_relaxed);
-            float duckTarget = 1.0f;
+            const Float gainTarget = self.gainTarget.load(std::memory_order_relaxed);
+            Float duckTarget = 1.0f;
             const BusEffectNode* duckSource = static_cast<const BusEffectNode*>(self.duckSource.load(std::memory_order_acquire));
-            const float duckAmount = Clamped(self.duckAmount.load(std::memory_order_relaxed), 0.0f, 1.0f);
+            const Float duckAmount = Clamped(self.duckAmount.load(std::memory_order_relaxed), 0.0f, 1.0f);
             if (duckSource != nullptr && duckAmount > 0.0f && duckSource->peak.load(std::memory_order_relaxed) > 0.01f)
             {
                 duckTarget = 1.0f - duckAmount;
             }
             if (self.gainCurrent != gainTarget || gainTarget != 1.0f || self.duckCurrent != duckTarget || duckTarget != 1.0f)
             {
-                const float gainRate = self.gainRate.load(std::memory_order_relaxed);
-                const float attack = 1.0f / (0.02f * rate);
-                const float release = 1.0f / (Clamped(self.duckRelease.load(std::memory_order_relaxed), 0.01f, 10.0f) * rate);
-                float gain = self.gainCurrent;
-                float duck = self.duckCurrent;
-                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                const Float gainRate = self.gainRate.load(std::memory_order_relaxed);
+                const Float attack = 1.0f / (0.02f * rate);
+                const Float release = 1.0f / (Clamped(self.duckRelease.load(std::memory_order_relaxed), 0.01f, 10.0f) * rate);
+                Float gain = self.gainCurrent;
+                Float duck = self.duckCurrent;
+                for (UInt32 frame = 0; frame < frames; ++frame)
                 {
                     if (gain < gainTarget)
                     {
@@ -877,8 +881,8 @@ namespace JBro
                     {
                         duck = duck + release < duckTarget ? duck + release : duckTarget;
                     }
-                    const float scale = gain * duck;
-                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    const Float scale = gain * duck;
+                    for (UInt32 channel = 0; channel < channels; ++channel)
                     {
                         out[frame * channels + channel] *= scale;
                     }
@@ -888,10 +892,10 @@ namespace JBro
             }
             self.gainNow.store(self.gainCurrent, std::memory_order_relaxed);
 
-            float peak = 0.0f;
+            Float peak = 0.0f;
             for (std::size_t index = 0; index < samples; ++index)
             {
-                const float magnitude = std::fabs(out[index]);
+                const Float magnitude = std::fabs(out[index]);
                 if (magnitude > peak)
                 {
                     peak = magnitude;
@@ -910,13 +914,13 @@ namespace JBro
         struct VoiceFilterNode
         {
             ma_node_base base;
-            std::uint32_t channels = 2;
-            std::uint32_t sampleRate = 48000;
+            UInt32 channels = 2;
+            UInt32 sampleRate = 48000;
             std::atomic<float> lowPass{0.0f};
             std::atomic<float> highPass{0.0f};
             std::atomic<bool> reset{false};
-            float appliedLowPass = -1.0f;
-            float appliedHighPass = -1.0f;
+            Float appliedLowPass = -1.0f;
+            Float appliedHighPass = -1.0f;
             Biquad lowFilter;
             Biquad highFilter;
         };
@@ -925,8 +929,8 @@ namespace JBro
             ma_uint32* frameCountOut)
         {
             VoiceFilterNode& self = *reinterpret_cast<VoiceFilterNode*>(node);
-            const std::uint32_t channels = self.channels;
-            std::uint32_t frames = *frameCountOut;
+            const UInt32 channels = self.channels;
+            UInt32 frames = *frameCountOut;
             if (frameCountIn != nullptr && *frameCountIn < frames)
             {
                 frames = *frameCountIn;
@@ -946,8 +950,8 @@ namespace JBro
                 self.appliedLowPass = -1.0f;
                 self.appliedHighPass = -1.0f;
             }
-            const float rate = static_cast<float>(self.sampleRate);
-            const float highPass = self.highPass.load(std::memory_order_relaxed);
+            const Float rate = static_cast<float>(self.sampleRate);
+            const Float highPass = self.highPass.load(std::memory_order_relaxed);
             if (highPass > 0.0f)
             {
                 if (highPass != self.appliedHighPass)
@@ -960,7 +964,7 @@ namespace JBro
                     out[index] = self.highFilter.Process(static_cast<std::uint32_t>(index % channels) & 1u, out[index]);
                 }
             }
-            const float lowPass = self.lowPass.load(std::memory_order_relaxed);
+            const Float lowPass = self.lowPass.load(std::memory_order_relaxed);
             if (lowPass > 0.0f)
             {
                 if (lowPass != self.appliedLowPass)
@@ -997,12 +1001,12 @@ namespace JBro
             ma_data_source_base base;
             std::atomic<std::uint32_t> phase{static_cast<std::uint32_t>(StreamPhase::Idle)};
             char path[1024] = {};
-            std::uint32_t channels = 0;
-            std::uint32_t sampleRate = 0;
-            std::uint64_t length = 0;
+            UInt32 channels = 0;
+            UInt32 sampleRate = 0;
+            UInt64 length = 0;
             std::atomic<bool> loop{false};
             OwnerPtr<Array<float>> ring;
-            std::uint32_t capacity = 0;
+            UInt32 capacity = 0;
             std::atomic<std::uint64_t> written{0};
             std::atomic<std::uint64_t> consumed{0};
             std::atomic<std::uint32_t> epoch{0};
@@ -1015,12 +1019,12 @@ namespace JBro
             // 스트리머가 처음 채운 뒤 참이다. 그 전의 무음은 끊김으로 세지 않는다.
             std::atomic<bool> ready{false};
             std::atomic<std::uint64_t> underruns{0};
-            bool baseReady = false;
+            Bool baseReady = false;
             // 오디오 스레드만 만진다.
-            std::uint32_t seenEpoch = 0;
+            UInt32 seenEpoch = 0;
             // 스트리머만 만진다.
             AudioFileDecoder decoder;
-            bool failed = false;
+            Bool failed = false;
         };
 
         StreamSlot& SlotOf(ma_data_source* source)
@@ -1032,35 +1036,35 @@ namespace JBro
         {
             StreamSlot& slot = SlotOf(source);
             float* out = static_cast<float*>(output);
-            const std::uint32_t channels = slot.channels;
+            const UInt32 channels = slot.channels;
             // `written` 을 먼저 읽는다(D-240). 스트리머는 새 세대를 알린 뒤에 새 자리의 프레임을 쓰므로, 새 프레임을 품은 `written` 을
             // 보았으면 새 세대도 보인다. 거꾸로 읽으면 옛 세대로 새 프레임을 읽고, 다음에 `consumed` 가 뒤로 가 링을 넘친다.
-            const std::uint64_t write = slot.written.load(std::memory_order_acquire);
-            const std::uint32_t epoch = slot.epoch.load(std::memory_order_acquire);
+            const UInt64 write = slot.written.load(std::memory_order_acquire);
+            const UInt32 epoch = slot.epoch.load(std::memory_order_acquire);
             if (epoch != slot.seenEpoch)
             {
                 slot.consumed.store(slot.epochWritten.load(std::memory_order_relaxed), std::memory_order_release);
                 slot.cursor.store(slot.epochFrame.load(std::memory_order_relaxed), std::memory_order_relaxed);
                 slot.seenEpoch = epoch;
             }
-            const std::uint64_t read = slot.consumed.load(std::memory_order_relaxed);
+            const UInt64 read = slot.consumed.load(std::memory_order_relaxed);
             const float* ring = slot.ring.Get() != nullptr ? slot.ring->Data() : nullptr;
             // 새 세대의 시작이 먼저 읽은 `written` 보다 뒤일 수 있다 - 그때는 이번에 읽을 것이 없다.
-            const std::uint64_t available = write > read ? write - read : 0;
-            std::uint64_t count = available < frameCount ? available : frameCount;
+            const UInt64 available = write > read ? write - read : UInt64(0);
+            UInt64 count = available < frameCount ? available : UInt64(frameCount);
             if (ring == nullptr || slot.capacity == 0)
             {
                 count = 0;
             }
-            for (std::uint64_t done = 0; done < count;)
+            for (UInt64 done = 0; done < count;)
             {
-                const std::uint64_t at = (read + done) % slot.capacity;
-                const std::uint64_t run = count - done < slot.capacity - at ? count - done : slot.capacity - at;
+                const UInt64 at = (read + done) % slot.capacity;
+                const UInt64 run = count - done < slot.capacity - at ? count - done : slot.capacity - at;
                 std::memcpy(out + done * channels, ring + at * channels, sizeof(float) * run * channels);
                 done += run;
             }
             slot.consumed.store(read + count, std::memory_order_release);
-            std::uint64_t cursor = slot.cursor.load(std::memory_order_relaxed) + count;
+            UInt64 cursor = slot.cursor.load(std::memory_order_relaxed) + count;
             if (slot.length > 0 && cursor >= slot.length)
             {
                 cursor = slot.loop.load(std::memory_order_relaxed) ? cursor % slot.length : slot.length;
@@ -1126,17 +1130,17 @@ namespace JBro
         ma_data_source_vtable g_streamVtable = {&StreamRead, &StreamSeek, &StreamFormat, &StreamCursor, &StreamLength,
             &StreamSetLooping, 0};
 
-        float PositiveOrZero(float value)
+        Float PositiveOrZero(Float value)
         {
-            return std::isfinite(value) && value > 0.0f ? value : 0.0f;
+            return std::isfinite(value) && value > 0.0f ? value : Float(0.0f);
         }
 
         // 제자리 반복 FFT(기수 2)다. 스펙트럼 창이 쓴다 - 메인 스레드, 할당 없음.
-        void Fft(float* real, float* imag, std::uint32_t size)
+        void Fft(float* real, float* imag, UInt32 size)
         {
-            for (std::uint32_t index = 1, reversed = 0; index < size; ++index)
+            for (UInt32 index = 1, reversed = 0; index < size; ++index)
             {
-                std::uint32_t bit = size >> 1;
+                UInt32 bit = size >> 1;
                 for (; (reversed & bit) != 0; bit >>= 1)
                 {
                     reversed ^= bit;
@@ -1144,34 +1148,34 @@ namespace JBro
                 reversed ^= bit;
                 if (index < reversed)
                 {
-                    const float swapReal = real[index];
+                    const Float swapReal = real[index];
                     real[index] = real[reversed];
                     real[reversed] = swapReal;
-                    const float swapImag = imag[index];
+                    const Float swapImag = imag[index];
                     imag[index] = imag[reversed];
                     imag[reversed] = swapImag;
                 }
             }
-            for (std::uint32_t length = 2; length <= size; length <<= 1)
+            for (UInt32 length = 2; length <= size; length <<= 1)
             {
-                const float angle = -Tau / static_cast<float>(length);
-                const float stepReal = std::cos(angle);
-                const float stepImag = std::sin(angle);
-                for (std::uint32_t start = 0; start < size; start += length)
+                const Float angle = -Tau / static_cast<float>(length);
+                const Float stepReal = std::cos(angle);
+                const Float stepImag = std::sin(angle);
+                for (UInt32 start = 0; start < size; start += length)
                 {
-                    float twiddleReal = 1.0f;
-                    float twiddleImag = 0.0f;
-                    for (std::uint32_t offset = 0; offset < length / 2; ++offset)
+                    Float twiddleReal = 1.0f;
+                    Float twiddleImag = 0.0f;
+                    for (UInt32 offset = 0; offset < length / 2; ++offset)
                     {
-                        const std::uint32_t even = start + offset;
-                        const std::uint32_t odd = even + length / 2;
-                        const float oddReal = real[odd] * twiddleReal - imag[odd] * twiddleImag;
-                        const float oddImag = real[odd] * twiddleImag + imag[odd] * twiddleReal;
+                        const UInt32 even = start + offset;
+                        const UInt32 odd = even + length / 2;
+                        const Float oddReal = real[odd] * twiddleReal - imag[odd] * twiddleImag;
+                        const Float oddImag = real[odd] * twiddleImag + imag[odd] * twiddleReal;
                         real[odd] = real[even] - oddReal;
                         imag[odd] = imag[even] - oddImag;
                         real[even] += oddReal;
                         imag[even] += oddImag;
-                        const float nextReal = twiddleReal * stepReal - twiddleImag * stepImag;
+                        const Float nextReal = twiddleReal * stepReal - twiddleImag * stepImag;
                         twiddleImag = twiddleReal * stepImag + twiddleImag * stepReal;
                         twiddleReal = nextReal;
                     }
@@ -1190,7 +1194,7 @@ namespace JBro
 
     struct AudioMixer::State
     {
-        static constexpr std::uint32_t NoStream = 0xFFFFFFFFu;
+        static constexpr UInt32 NoStream = 0xFFFFFFFFu;
 
         enum class VoiceState : std::uint8_t
         {
@@ -1205,112 +1209,112 @@ namespace JBro
             ma_sound sound = {};
             ma_audio_buffer_ref buffer = {};
             ma_decoder decoder = {};
-            bool usesDecoder = false;
-            std::uint32_t generation = 1;
+            Bool usesDecoder = false;
+            UInt32 generation = 1;
             VoiceState state = VoiceState::Free;
             AudioClipHandle clip;
             AudioBusId bus = AudioMasterBus;
             std::uint8_t priority = 0;
-            bool looping = false;
-            float volume = 1.0f;
+            Bool looping = false;
+            Float volume = 1.0f;
             // 클립의 트림(D-205). 실제로 거는 음량은 `volume * trim` 이다.
-            float trim = 1.0f;
-            std::uint64_t startSerial = 0;
-            std::uint32_t tag = 0;
+            Float trim = 1.0f;
+            UInt64 startSerial = 0;
+            UInt32 tag = 0;
             // 보이스마다 하나, 초기화 때 만들어 둔다. 필터를 켠 동안만 소리와 버스 사이에 선다(`filterRouted`).
             OwnerPtr<VoiceFilterNode> filter;
-            bool filterReady = false;
+            Bool filterReady = false;
             // 디스크 스트리밍 보이스면 그 자리 번호다.
-            std::uint32_t streamSlot = NoStream;
-            bool filterRouted = false;
+            UInt32 streamSlot = NoStream;
+            Bool filterRouted = false;
             // 들리는 크기를 메인 스레드에서 잰다(D-235). 공간화 값은 시작 때와 `SetPosition` 이 적는다.
-            float pitch = 1.0f;
-            bool spatial = false;
+            Float pitch = 1.0f;
+            Bool spatial = false;
             AudioAttenuation attenuation = AudioAttenuation::Inverse;
-            float minDistance = 1.0f;
-            float maxDistance = 50.0f;
-            float rolloff = 1.0f;
+            Float minDistance = 1.0f;
+            Float maxDistance = 50.0f;
+            Float rolloff = 1.0f;
             float position[3] = {0.0f, 0.0f, 0.0f};
             // 가상 보이스(D-235). 가상이면 `ma_sound` 는 멈춰 있고 재생 위치는 `parkCursor`(클립 프레임)에 `parkTime`(믹서 프레임)
             // 부터 흐른 시간 × 피치를 더한 값이다. `lastSwitch` 는 마지막으로 바뀐 믹서 시각이다.
-            bool parked = false;
-            bool everSwitched = false;
+            Bool parked = false;
+            Bool everSwitched = false;
             double parkCursor = 0.0;
-            std::uint64_t parkTime = 0;
-            std::uint64_t lastSwitch = 0;
+            UInt64 parkTime = 0;
+            UInt64 lastSwitch = 0;
         };
 
         struct Bus
         {
             ma_sound_group group = {};
             BusEffectNode effects;
-            bool effectsReady = false;
+            Bool effectsReady = false;
             OwnerPtr<Array<float>> echoStorage;
             OwnerPtr<Reverb> reverbStorage;
             OwnerPtr<Array<float>> chorusStorage;
             OwnerPtr<Array<float>> pitchStorage;
             AudioBusEffects settings;
-            bool used = false;
-            bool muted = false;
-            bool solo = false;
-            float volume = 1.0f;
+            Bool used = false;
+            Bool muted = false;
+            Bool solo = false;
+            Float volume = 1.0f;
             // 음소거·솔로를 반영해 그룹에 실제로 건 값이다. 보이스를 훔칠 때 들리는 크기로 쓴다.
-            float effectiveGain = 1.0f;
+            Float effectiveGain = 1.0f;
             AudioBusId parent = AudioMasterBus;
             AudioBusId sendTarget = AudioNoBus;
-            float sendLevel = 0.0f;
+            Float sendLevel = 0.0f;
             AudioBusId duckTrigger = AudioNoBus;
         };
 
         struct Clip
         {
             AudioClipDesc desc;
-            std::uint32_t generation = 1;
-            bool used = false;
+            UInt32 generation = 1;
+            Bool used = false;
             // 마지막으로 시작한 믹서 시각(PCM 프레임)이다. 쿨다운이 본다(D-231).
-            bool started = false;
-            std::uint64_t lastStartFrame = 0;
+            Bool started = false;
+            UInt64 lastStartFrame = 0;
         };
 
         AudioMixerDesc desc;
-        bool initialized = false;
+        Bool initialized = false;
         FixedAllocator allocator;
         ma_allocation_callbacks callbacks = {};
         ma_engine engine = {};
         Bus buses[AudioMaxBuses];
-        std::uint32_t busCount = 0;
+        UInt32 busCount = 0;
         // 크기는 초기화 때 한 번 정하고 다시 늘리지 않는다 - 노드 그래프가 `ma_sound` 의 주소를 들고 있다.
         Array<Voice> voices;
-        Array<std::uint32_t> freeVoices;
+        Array<UInt32> freeVoices;
         Array<Clip> clips;
-        Array<std::uint32_t> freeClips;
-        std::uint64_t serial = 0;
-        std::uint64_t voicesStarted = 0;
-        std::uint64_t voicesStolen = 0;
-        std::uint64_t voicesRejected = 0;
-        std::uint64_t voicesCulled = 0;
-        std::uint64_t voicesThrottled = 0;
-        std::uint64_t voicesReplaced = 0;
-        std::uint64_t voicesVirtualized = 0;
-        std::uint64_t voicesRealized = 0;
+        Array<UInt32> freeClips;
+        UInt64 serial = 0;
+        UInt64 voicesStarted = 0;
+        UInt64 voicesStolen = 0;
+        UInt64 voicesRejected = 0;
+        UInt64 voicesCulled = 0;
+        UInt64 voicesThrottled = 0;
+        UInt64 voicesReplaced = 0;
+        UInt64 voicesVirtualized = 0;
+        UInt64 voicesRealized = 0;
         // 가상 보이스의 순위를 매기는 칸이다. 초기화 때 보이스 수만큼 잡아 두어 매 프레임 할당하지 않는다.
-        Array<std::uint32_t> rankOrder;
+        Array<UInt32> rankOrder;
         Array<float> rankLoudness;
         std::atomic<float> peak{0.0f};
         std::atomic<std::uint64_t> renderedFrames{0};
-        float masterVolume = 1.0f;
+        Float masterVolume = 1.0f;
         // 출력 이득(포커스 정책). 목표와 프레임당 변화량은 메인 스레드가 쓰고 지금 값은 오디오 스레드만 만진다.
         std::atomic<float> outputGainTarget{1.0f};
         std::atomic<float> outputGainRate{1.0f};
-        float outputGainCurrent = 1.0f;
+        Float outputGainCurrent = 1.0f;
         // 출력 리미터(D-210). 켬·천장은 메인 스레드가, 지금 이득은 오디오 스레드가 든다.
         std::atomic<bool> limiterEnabled{true};
         std::atomic<float> limiterCeiling{0.98f};
-        float limiterGain = 1.0f;
+        Float limiterGain = 1.0f;
         // 최근 출력(채널 평균)이다. 오디오 스레드가 쓰고 메인 스레드는 복사만 한다.
         float recent[RecentCapacity] = {};
         std::atomic<std::uint32_t> recentWrite{0};
-        static constexpr std::uint32_t FftSize = 2048;
+        static constexpr UInt32 FftSize = 2048;
         // 스펙트럼 계산의 작업 칸이다. `const` 조회에서 쓰므로 mutable 이다(메인 스레드 전용).
         mutable float fftReal[FftSize] = {};
         mutable float fftImag[FftSize] = {};
@@ -1318,14 +1322,14 @@ namespace JBro
         Array<OwnerPtr<StreamSlot>> streams;
         std::thread streamer;
         std::atomic<bool> streamerRunning{false};
-        bool warnedStreams = false;
+        Bool warnedStreams = false;
 
         // 스트리머 스레드다. 자리를 돌며 열고, 옮기고, 채우고, 닫는다. 할 일이 없으면 2 ms 쉰다.
         void RunStreamer()
         {
             while (streamerRunning.load(std::memory_order_acquire))
             {
-                bool busy = false;
+                Bool busy = false;
                 for (OwnerPtr<StreamSlot>& owned : streams)
                 {
                     busy = ServiceStream(*owned) || busy;
@@ -1337,12 +1341,12 @@ namespace JBro
             }
         }
 
-        bool ServiceStream(StreamSlot& slot)
+        Bool ServiceStream(StreamSlot& slot)
         {
             const StreamPhase phase = static_cast<StreamPhase>(slot.phase.load(std::memory_order_acquire));
             if (phase == StreamPhase::Opening)
             {
-                bool opened = desc.openStream != nullptr && desc.openStream(desc.openStreamUser, slot.path, slot.decoder);
+                Bool opened = desc.openStream != nullptr && desc.openStream(desc.openStreamUser, slot.path, slot.decoder);
                 if (opened)
                 {
                     // 클립이 채널 1 을 말하면 모노 에셋이다(D-231) - 평균해 읽는다.
@@ -1376,8 +1380,8 @@ namespace JBro
             }
             if (phase == StreamPhase::Running)
             {
-                bool busy = false;
-                const std::int64_t seek = slot.seekRequest.exchange(-1, std::memory_order_acq_rel);
+                Bool busy = false;
+                const Int64 seek = slot.seekRequest.exchange(-1, std::memory_order_acq_rel);
                 if (seek >= 0 && false == slot.failed)
                 {
                     // 옮긴 뒤 첫 채움 전의 무음은 디스크가 늦은 것이 아니다 - 끊김으로 세지 않는다(D-240).
@@ -1412,31 +1416,31 @@ namespace JBro
         }
 
         // 링의 빈자리를 채운다. 되풀이면 끝에서 처음으로 돌리고, 아니면 끝을 알린다. 채웠으면 참이다.
-        bool FillStream(StreamSlot& slot)
+        Bool FillStream(StreamSlot& slot)
         {
             float* ring = slot.ring->Data();
-            const std::uint32_t channels = slot.channels;
-            std::uint64_t write = slot.written.load(std::memory_order_relaxed);
-            bool filled = false;
-            int emptyReads = 0;
+            const UInt32 channels = slot.channels;
+            UInt64 write = slot.written.load(std::memory_order_relaxed);
+            Bool filled = false;
+            Int32 emptyReads = 0;
             for (;;)
             {
-                const std::uint64_t read = slot.consumed.load(std::memory_order_acquire);
-                const std::uint64_t used = write - read;
+                const UInt64 read = slot.consumed.load(std::memory_order_acquire);
+                const UInt64 used = write - read;
                 if (used >= slot.capacity)
                 {
                     break;
                 }
-                const std::uint64_t free = slot.capacity - used;
+                const UInt64 free = slot.capacity - used;
                 // 조금씩 자주 쓰기보다 덩어리로 쓴다 - 링의 1/8 이 비기 전에는 기다린다(처음 채울 때는 예외).
                 if (filled == false && write != 0 && free < slot.capacity / 8)
                 {
                     break;
                 }
-                const std::uint64_t at = write % slot.capacity;
-                std::uint64_t run = free < slot.capacity - at ? free : slot.capacity - at;
-                run = run > 4096 ? 4096 : run;
-                const std::uint64_t got = slot.decoder.Read(ring + at * channels, run);
+                const UInt64 at = write % slot.capacity;
+                UInt64 run = free < slot.capacity - at ? free : slot.capacity - at;
+                run = run > 4096 ? UInt64(4096) : run;
+                const UInt64 got = slot.decoder.Read(ring + at * channels, run);
                 if (got == 0)
                 {
                     if (slot.loop.load(std::memory_order_relaxed) && ++emptyReads < 2 && slot.decoder.Seek(0))
@@ -1506,14 +1510,14 @@ namespace JBro
             return clip.used && clip.generation == handle.generation ? &clip : nullptr;
         }
 
-        bool IsBusValid(AudioBusId bus) const
+        Bool IsBusValid(AudioBusId bus) const
         {
             return bus < AudioMaxBuses && buses[bus].used;
         }
 
         // 보이스를 곧바로 내리고 자리를 돌려준다. `ma_sound_uninit` 은 오디오 스레드가 이 노드를 다 읽을 때까지
         // 기다린 뒤 돌아온다(miniaudio 7.2 절) - 그래서 돌아온 뒤에는 클립 메모리를 풀어도 된다.
-        void ReleaseVoice(std::uint32_t index)
+        void ReleaseVoice(UInt32 index)
         {
             Voice& voice = voices[index];
             if (voice.state == VoiceState::Free)
@@ -1551,7 +1555,7 @@ namespace JBro
 
         // 지금 들리는 크기다. 공간화한 보이스는 거리 감쇠를 곱한다(D-235 - 전에는 거리를 보지 않아 먼 소리와 가까운 소리가
         // 같았다). 가상 보이스는 들리지 않으므로 0 이다 - 자리가 모자랄 때 먼저 훔쳐진다.
-        float Audibility(const Voice& voice) const
+        Float Audibility(const Voice& voice) const
         {
             if (voice.parked)
             {
@@ -1561,9 +1565,9 @@ namespace JBro
         }
 
         // 가상이든 아니든 실제로 섞으면 들릴 크기다. 가상 보이스의 순위를 매긴다(D-235).
-        float Loudness(const Voice& voice) const
+        Float Loudness(const Voice& voice) const
         {
-            const float gain = voice.volume * voice.trim * buses[voice.bus].effectiveGain;
+            const Float gain = voice.volume * voice.trim * buses[voice.bus].effectiveGain;
             if (false == voice.spatial)
             {
                 return gain;
@@ -1571,7 +1575,7 @@ namespace JBro
             return gain * DistanceGain(voice.attenuation, voice.minDistance, voice.maxDistance, voice.rolloff, voice.position);
         }
 
-        bool HasIdleStream() const
+        Bool HasIdleStream() const
         {
             for (const OwnerPtr<StreamSlot>& slot : streams)
             {
@@ -1583,26 +1587,26 @@ namespace JBro
             return false;
         }
 
-        bool VirtualizationEnabled() const
+        Bool VirtualizationEnabled() const
         {
             return desc.maxAudibleVoices > 0 && desc.maxAudibleVoices < desc.maxVoices;
         }
 
         // 가상이 될 수 있는 보이스다: 재생 중인 루프이고 디스크 스트리밍이 아니다.
-        static bool CanPark(const Voice& voice)
+        static Bool CanPark(const Voice& voice)
         {
             return voice.state == VoiceState::Playing && voice.looping && voice.streamSlot == NoStream;
         }
 
         // 실제로 섞고 있는 보이스다(줄여 끄는 중인 것 포함).
-        static bool IsMixing(const Voice& voice)
+        static Bool IsMixing(const Voice& voice)
         {
             return (voice.state == VoiceState::Playing || voice.state == VoiceState::Stopping) && false == voice.parked;
         }
 
-        std::uint32_t CountMixing() const
+        UInt32 CountMixing() const
         {
-            std::uint32_t count = 0;
+            UInt32 count = 0;
             for (const Voice& voice : voices)
             {
                 count += IsMixing(voice) ? 1u : 0u;
@@ -1610,13 +1614,13 @@ namespace JBro
             return count;
         }
 
-        std::uint64_t Now() const
+        UInt64 Now() const
         {
             return ma_engine_get_time_in_pcm_frames(&engine);
         }
 
         // 가상 보이스의 지금 재생 위치(클립 프레임)다. 멈춘 동안은 흐르지 않고, 루프이므로 길이로 감는다.
-        double VirtualCursor(const Voice& voice, std::uint64_t now) const
+        double VirtualCursor(const Voice& voice, UInt64 now) const
         {
             const Clip* clip = ResolveClip(voice.clip);
             if (clip == nullptr || clip->desc.sampleRate == 0)
@@ -1638,7 +1642,7 @@ namespace JBro
         }
 
         // 가상으로 돌린다: 지금 위치를 기준으로 적고 20 ms 에 줄여 멈춘다. 자리·핸들·디코더는 그대로다.
-        void Park(Voice& voice, std::uint64_t now)
+        void Park(Voice& voice, UInt64 now)
         {
             ma_uint64 cursor = 0;
             ma_sound_get_cursor_in_pcm_frames(&voice.sound, &cursor);
@@ -1659,7 +1663,7 @@ namespace JBro
         }
 
         // 실제로 되돌린다: 센 자리로 옮기고 20 ms 페이드인으로 튼다. 옮기기는 목표만 적는다(miniaudio `seekTarget`).
-        void Unpark(Voice& voice, std::uint64_t now)
+        void Unpark(Voice& voice, UInt64 now)
         {
             const double cursor = VirtualCursor(voice, now);
             ma_sound_stop(&voice.sound);
@@ -1676,18 +1680,18 @@ namespace JBro
         // 섞는 수가 찼을 때 한 번짜리에게 자리를 내줄 루프다: 가장 약한 실제 루프(우선순위가 낮은 것, 같으면 작게 들리는 것).
         // 머무는 시간은 보지 않는다 - 새 소리가 우선이다. 새 소리보다 우선순위가 높은 루프는 밀어내지 않는다(D-240) - 훔치기(`PickVictim`)와 같은 규칙이다. `except` 는 이번 재생이
         // 이미 훔치기로 고른 보이스다.
-        std::uint32_t FindWeakestLoop(std::uint8_t incomingPriority, std::uint32_t except) const
+        UInt32 FindWeakestLoop(std::uint8_t incomingPriority, UInt32 except) const
         {
-            std::uint32_t weakest = static_cast<std::uint32_t>(-1);
-            float weakestLoudness = 0.0f;
-            for (std::uint32_t index = 0; index < voices.Size(); ++index)
+            UInt32 weakest = static_cast<std::uint32_t>(-1);
+            Float weakestLoudness = 0.0f;
+            for (UInt32 index = 0; index < voices.Size(); ++index)
             {
                 const Voice& voice = voices[index];
                 if (index == except || false == CanPark(voice) || voice.parked || voice.priority > incomingPriority)
                 {
                     continue;
                 }
-                const float loudness = Loudness(voice);
+                const Float loudness = Loudness(voice);
                 if (weakest == static_cast<std::uint32_t>(-1) || voice.priority < voices[weakest].priority
                     || (voice.priority == voices[weakest].priority && loudness < weakestLoudness))
                 {
@@ -1706,15 +1710,15 @@ namespace JBro
             {
                 return;
             }
-            const std::uint64_t now = Now();
-            const std::uint64_t dwell = static_cast<std::uint64_t>(AudioVirtualDwellSeconds * static_cast<float>(desc.sampleRate));
+            const UInt64 now = Now();
+            const UInt64 dwell = static_cast<std::uint64_t>(AudioVirtualDwellSeconds * static_cast<float>(desc.sampleRate));
             const auto settled = [now, dwell](const Voice& voice) {
                 // 아직 시작 지연 중인 가상 보이스도 그대로 둔다 - 되살리면 지연보다 먼저 울린다.
                 return (voice.everSwitched && now - voice.lastSwitch < dwell) || (voice.parked && voice.parkTime > now);
             };
-            std::uint32_t required = 0;
-            std::uint32_t candidates = 0;
-            for (std::uint32_t index = 0; index < voices.Size(); ++index)
+            UInt32 required = 0;
+            UInt32 candidates = 0;
+            for (UInt32 index = 0; index < voices.Size(); ++index)
             {
                 Voice& voice = voices[index];
                 // 가상인 채 루프가 풀렸으면 곧바로 되돌린다 - 끝까지 울고 거둬져야 한다.
@@ -1733,7 +1737,7 @@ namespace JBro
                     ++required;
                 }
             }
-            std::sort(rankOrder.Data(), rankOrder.Data() + candidates, [this](std::uint32_t a, std::uint32_t b) {
+            std::sort(rankOrder.Data(), rankOrder.Data() + candidates, [this](UInt32 a, UInt32 b) {
                 const Voice& left = voices[a];
                 const Voice& right = voices[b];
                 if (left.priority != right.priority)
@@ -1746,10 +1750,10 @@ namespace JBro
                 }
                 return left.startSerial < right.startSerial;
             });
-            const std::uint32_t budget = desc.maxAudibleVoices > required ? desc.maxAudibleVoices - required : 0;
+            const UInt32 budget = desc.maxAudibleVoices > required ? desc.maxAudibleVoices - required : UInt32(0);
             // 머무느라 가상이 못 된 루프가 자리를 쥐고 있으면 그만큼 순위의 자리가 준다 - 섞는 수를 넘지 않는다.
-            std::uint32_t used = 0;
-            for (std::uint32_t rank = 0; rank < candidates; ++rank)
+            UInt32 used = 0;
+            for (UInt32 rank = 0; rank < candidates; ++rank)
             {
                 const Voice& voice = voices[rankOrder[rank]];
                 if (settled(voice) && false == voice.parked)
@@ -1757,14 +1761,14 @@ namespace JBro
                     ++used;
                 }
             }
-            for (std::uint32_t rank = 0; rank < candidates; ++rank)
+            for (UInt32 rank = 0; rank < candidates; ++rank)
             {
                 Voice& voice = voices[rankOrder[rank]];
                 if (settled(voice))
                 {
                     continue;
                 }
-                const bool wantReal = used < budget && rankLoudness[rankOrder[rank]] >= CullGain;
+                const Bool wantReal = used < budget && rankLoudness[rankOrder[rank]] >= CullGain;
                 if (wantReal)
                 {
                     ++used;
@@ -1781,7 +1785,7 @@ namespace JBro
         }
 
         // 보이스를 버스에 잇는다. 필터를 켠 보이스는 소리 → 필터 → 버스, 아니면 소리 → 버스다. 재생 중에도 스레드 안전하다.
-        void RouteVoice(Voice& voice, AudioBusId bus, bool filtered)
+        void RouteVoice(Voice& voice, AudioBusId bus, Bool filtered)
         {
             ma_node* group = reinterpret_cast<ma_node*>(&buses[bus].group);
             ma_node* filter = reinterpret_cast<ma_node*>(voice.filter.Get());
@@ -1807,11 +1811,11 @@ namespace JBro
         }
 
         // `from` 에서 부모와 센드를 따라가면 `to` 에 닿는가. 센드를 이을 때 되돌아오는 길을 막는다.
-        bool Reaches(AudioBusId from, AudioBusId to) const
+        Bool Reaches(AudioBusId from, AudioBusId to) const
         {
             AudioBusId stack[AudioMaxBuses * 2 + 1];
-            bool seen[AudioMaxBuses] = {};
-            std::uint32_t top = 0;
+            Bool seen[AudioMaxBuses] = {};
+            UInt32 top = 0;
             stack[top++] = from;
             while (top > 0)
             {
@@ -1837,9 +1841,9 @@ namespace JBro
             return false;
         }
 
-        bool IsDescendantOf(AudioBusId bus, AudioBusId ancestor) const
+        Bool IsDescendantOf(AudioBusId bus, AudioBusId ancestor) const
         {
-            for (std::uint32_t guard = 0; guard < AudioMaxBuses && bus >= AudioFirstProjectBus && buses[bus].used; ++guard)
+            for (UInt32 guard = 0; guard < AudioMaxBuses && bus >= AudioFirstProjectBus && buses[bus].used; ++guard)
             {
                 bus = buses[bus].parent;
                 if (bus == ancestor)
@@ -1852,28 +1856,28 @@ namespace JBro
 
         // 음소거·솔로를 반영해 모든 버스의 음량 목표를 다시 건다. 버스는 열여덟 개뿐이라 매번 전부 센다. `fadingBus` 는
         // `fadeSeconds` 에 걸쳐, 나머지는 10 ms 에 걸쳐 옮긴다(D-205).
-        void ApplyBusGains(AudioBusId fadingBus = AudioNoBus, float fadeSeconds = 0.0f)
+        void ApplyBusGains(AudioBusId fadingBus = AudioNoBus, Float fadeSeconds = 0.0f)
         {
-            bool audible[AudioMaxBuses] = {};
-            bool anySolo = false;
-            for (std::uint32_t bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
+            Bool audible[AudioMaxBuses] = {};
+            Bool anySolo = false;
+            for (UInt32 bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
             {
                 anySolo = anySolo || (buses[bus].used && buses[bus].solo);
             }
-            for (std::uint32_t bus = 0; bus < AudioMaxBuses; ++bus)
+            for (UInt32 bus = 0; bus < AudioMaxBuses; ++bus)
             {
                 audible[bus] = false == anySolo || bus < AudioFirstProjectBus;
             }
             if (anySolo)
             {
                 // 솔로 버스와 그 자식, 그들이 센드로 보내는 버스(되풀이), 그리고 그 모두의 조상이다.
-                for (std::uint32_t bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
+                for (UInt32 bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
                 {
                     if (false == buses[bus].used)
                     {
                         continue;
                     }
-                    for (std::uint32_t solo = AudioFirstProjectBus; solo < AudioMaxBuses; ++solo)
+                    for (UInt32 solo = AudioFirstProjectBus; solo < AudioMaxBuses; ++solo)
                     {
                         if (buses[solo].used && buses[solo].solo
                             && (solo == bus || IsDescendantOf(static_cast<AudioBusId>(bus), static_cast<AudioBusId>(solo))))
@@ -1882,9 +1886,9 @@ namespace JBro
                         }
                     }
                 }
-                for (std::uint32_t pass = 0; pass < AudioMaxBuses; ++pass)
+                for (UInt32 pass = 0; pass < AudioMaxBuses; ++pass)
                 {
-                    for (std::uint32_t bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
+                    for (UInt32 bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
                     {
                         const AudioBusId target = buses[bus].sendTarget;
                         if (audible[bus] && buses[bus].used && target != AudioNoBus && target < AudioMaxBuses)
@@ -1893,14 +1897,14 @@ namespace JBro
                         }
                     }
                 }
-                for (std::uint32_t bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
+                for (UInt32 bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
                 {
                     if (false == audible[bus] || false == buses[bus].used)
                     {
                         continue;
                     }
                     AudioBusId up = buses[bus].parent;
-                    for (std::uint32_t guard = 0; guard < AudioMaxBuses && up < AudioMaxBuses; ++guard)
+                    for (UInt32 guard = 0; guard < AudioMaxBuses && up < AudioMaxBuses; ++guard)
                     {
                         audible[up] = true;
                         if (up < AudioFirstProjectBus)
@@ -1911,19 +1915,19 @@ namespace JBro
                     }
                 }
             }
-            for (std::uint32_t bus = 0; bus < AudioMaxBuses; ++bus)
+            for (UInt32 bus = 0; bus < AudioMaxBuses; ++bus)
             {
                 Bus& target = buses[bus];
                 if (false == target.used)
                 {
                     continue;
                 }
-                const float gain = target.muted || false == audible[bus] ? 0.0f : target.volume;
+                const Float gain = target.muted || false == audible[bus] ? Float(0.0f) : target.volume;
                 if (gain != target.effectiveGain)
                 {
-                    const float seconds = bus == fadingBus && fadeSeconds > 0.01f ? fadeSeconds : 0.01f;
-                    float distance = std::fabs(gain - target.effects.gainNow.load(std::memory_order_relaxed));
-                    distance = distance > 0.0f ? distance : 1.0f;
+                    const Float seconds = bus == fadingBus && fadeSeconds > 0.01f ? fadeSeconds : Float(0.01f);
+                    Float distance = std::fabs(gain - target.effects.gainNow.load(std::memory_order_relaxed));
+                    distance = distance > 0.0f ? distance : Float(1.0f);
                     target.effects.gainRate.store(distance / (seconds * static_cast<float>(desc.sampleRate)),
                         std::memory_order_relaxed);
                     target.effects.gainTarget.store(gain, std::memory_order_relaxed);
@@ -1933,11 +1937,11 @@ namespace JBro
         }
 
         // 이 밑이면 들리지 않는 것으로 본다(-60 dB, D-231).
-        static constexpr float CullGain = 0.001f;
+        static constexpr Float CullGain = 0.001f;
 
         // 듣는 자리에서의 거리 감쇠다(D-231). miniaudio 의 감쇠 공식(`ma_attenuation_*`)을 그대로 따른다 - 최대 거리
         // 밖은 최대 거리의 값이므로 역·지수 감쇠는 멀어도 0 이 되지 않는다. 원뿔은 더 줄일 뿐이라 보지 않는다(보수적).
-        float DistanceGain(AudioAttenuation attenuation, float minDistance, float maxDistance, float rolloff,
+        Float DistanceGain(AudioAttenuation attenuation, Float minDistance, Float maxDistance, Float rolloff,
             const float position[3]) const
         {
             if (attenuation == AudioAttenuation::None)
@@ -1945,16 +1949,16 @@ namespace JBro
                 return 1.0f;
             }
             const ma_vec3f listener = ma_engine_listener_get_position(&engine, 0);
-            const float dx = position[0] - listener.x;
-            const float dy = position[1] - listener.y;
-            const float dz = position[2] - listener.z;
-            const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+            const Float dx = position[0] - listener.x;
+            const Float dy = position[1] - listener.y;
+            const Float dz = position[2] - listener.z;
+            const Float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
             if (false == std::isfinite(distance) || minDistance >= maxDistance)
             {
                 return 1.0f;
             }
-            const float clamped = distance < minDistance ? minDistance : (distance > maxDistance ? maxDistance : distance);
-            float gain = 1.0f;
+            const Float clamped = distance < minDistance ? minDistance : (distance > maxDistance ? maxDistance : distance);
+            Float gain = 1.0f;
             if (attenuation == AudioAttenuation::Linear)
             {
                 gain = 1.0f - rolloff * (clamped - minDistance) / (maxDistance - minDistance);
@@ -1967,17 +1971,17 @@ namespace JBro
             {
                 gain = minDistance / (minDistance + rolloff * (clamped - minDistance));
             }
-            return gain > 0.0f ? gain : 0.0f;
+            return gain > 0.0f ? gain : Float(0.0f);
         }
 
         // 시작하는 자리에서 들리지 않는가(D-231). 공간화한 한 번짜리만 거른다 - 루프는 가상 보이스(D-235)가 맡는다.
-        bool IsInaudibleAtStart(const AudioPlayDesc& play, float trim, float minDistance, float maxDistance) const
+        Bool IsInaudibleAtStart(const AudioPlayDesc& play, Float trim, Float minDistance, Float maxDistance) const
         {
             if (false == play.spatial || play.loop)
             {
                 return false;
             }
-            const float gain = DistanceGain(play.attenuation, minDistance, maxDistance, SafePositive(play.rolloff, 1.0f),
+            const Float gain = DistanceGain(play.attenuation, minDistance, maxDistance, SafePositive(play.rolloff, 1.0f),
                 play.position);
             return Clamp01(play.volume) * trim * gain < CullGain;
         }
@@ -1985,11 +1989,11 @@ namespace JBro
         // 훔칠 보이스다. 우선순위가 가장 낮은 것, 같으면 작게 들리는 것, 같으면 가장 오래된 것이다. 새 보이스보다
         // 우선순위가 높은 것만 남았으면 훔치지 않는다. 결정적이다 - 같은 상태에서 늘 같은 것을 고른다.
         // `mixingOnly` 면 실제로 섞는 보이스만 본다 - 섞는 수가 찼을 때(D-235).
-        std::uint32_t PickVictim(std::uint8_t incomingPriority, bool mixingOnly = false,
-            std::uint32_t except = static_cast<std::uint32_t>(-1)) const
+        UInt32 PickVictim(std::uint8_t incomingPriority, Bool mixingOnly = false,
+            UInt32 except = static_cast<std::uint32_t>(-1)) const
         {
-            std::uint32_t best = static_cast<std::uint32_t>(-1);
-            for (std::uint32_t index = 0; index < voices.Size(); ++index)
+            UInt32 best = static_cast<std::uint32_t>(-1);
+            for (UInt32 index = 0; index < voices.Size(); ++index)
             {
                 const Voice& voice = voices[index];
                 if (index == except || voice.state == VoiceState::Free || voice.priority > incomingPriority
@@ -2011,8 +2015,8 @@ namespace JBro
                     }
                     continue;
                 }
-                const float audibility = Audibility(voice);
-                const float currentAudibility = Audibility(current);
+                const Float audibility = Audibility(voice);
+                const Float currentAudibility = Audibility(current);
                 if (audibility != currentAudibility)
                 {
                     if (audibility < currentAudibility)
@@ -2084,7 +2088,7 @@ namespace JBro
             node.pitchWasOn = false;
         }
 
-        bool InitBus(Bus& bus, AudioBusId parentBus, float volume)
+        Bool InitBus(Bus& bus, AudioBusId parentBus, Float volume)
         {
             ma_sound_group* parent = parentBus == AudioNoBus ? nullptr : &buses[parentBus].group;
             if (ma_sound_group_init(&engine, 0, parent, &bus.group) != MA_SUCCESS)
@@ -2169,11 +2173,11 @@ namespace JBro
             Array<ma_sound> sounds;
             buffers.Resize(desc.maxVoices);
             sounds.Resize(desc.maxVoices);
-            for (std::uint32_t channels = 1; channels <= 2; ++channels)
+            for (UInt32 channels = 1; channels <= 2; ++channels)
             {
-                for (int spatial = 0; spatial < 2; ++spatial)
+                for (Int32 spatial = 0; spatial < 2; ++spatial)
                 {
-                    std::uint32_t made = 0;
+                    UInt32 made = 0;
                     for (; made < desc.maxVoices; ++made)
                     {
                         if (ma_audio_buffer_ref_init(ma_format_f32, channels, silence, 1, &buffers[made]) != MA_SUCCESS)
@@ -2189,7 +2193,7 @@ namespace JBro
                             break;
                         }
                     }
-                    for (std::uint32_t index = 0; index < made; ++index)
+                    for (UInt32 index = 0; index < made; ++index)
                     {
                         ma_sound_uninit(&sounds[index]);
                     }
@@ -2205,7 +2209,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool AudioMixer::Initialize(const AudioMixerDesc& desc)
+    Bool AudioMixer::Initialize(const AudioMixerDesc& desc)
     {
         if (m_state && m_state->initialized)
         {
@@ -2263,14 +2267,14 @@ namespace JBro
         state.rankOrder.Resize(desc.maxVoices);
         state.rankLoudness.Resize(desc.maxVoices);
         state.freeVoices.Reserve(desc.maxVoices);
-        for (std::uint32_t index = desc.maxVoices; index > 0; --index)
+        for (UInt32 index = desc.maxVoices; index > 0; --index)
         {
             state.freeVoices.Add(index - 1);
         }
         state.clips.Reserve(desc.maxClips);
         state.freeClips.Reserve(desc.maxClips);
         state.streams.Reserve(desc.maxStreams);
-        for (std::uint32_t index = 0; index < desc.maxStreams; ++index)
+        for (UInt32 index = 0; index < desc.maxStreams; ++index)
         {
             OwnerPtr<StreamSlot> slot = MakeOwnerPtr<StreamSlot>();
             ma_data_source_config sourceConfig = ma_data_source_config_init();
@@ -2293,7 +2297,7 @@ namespace JBro
         State& state = *m_state;
         if (state.initialized)
         {
-            for (std::uint32_t index = 0; index < state.voices.Size(); ++index)
+            for (UInt32 index = 0; index < state.voices.Size(); ++index)
             {
                 state.ReleaseVoice(index);
             }
@@ -2314,7 +2318,7 @@ namespace JBro
                     slot->baseReady = false;
                 }
             }
-            for (std::uint32_t bus = AudioMaxBuses; bus > AudioFirstProjectBus; --bus)
+            for (UInt32 bus = AudioMaxBuses; bus > AudioFirstProjectBus; --bus)
             {
                 state.UninitBus(state.buses[bus - 1]);
             }
@@ -2326,22 +2330,22 @@ namespace JBro
         m_state = nullptr;
     }
 
-    bool AudioMixer::IsInitialized() const
+    Bool AudioMixer::IsInitialized() const
     {
         return m_state && m_state->initialized;
     }
 
-    std::uint32_t AudioMixer::GetSampleRate() const
+    UInt32 AudioMixer::GetSampleRate() const
     {
-        return IsInitialized() ? m_state->desc.sampleRate : 0;
+        return IsInitialized() ? m_state->desc.sampleRate : UInt32(0);
     }
 
-    std::uint32_t AudioMixer::GetChannels() const
+    UInt32 AudioMixer::GetChannels() const
     {
-        return IsInitialized() ? m_state->desc.channels : 0;
+        return IsInitialized() ? m_state->desc.channels : UInt32(0);
     }
 
-    void AudioMixer::Render(float* output, std::uint32_t frameCount)
+    void AudioMixer::Render(float* output, UInt32 frameCount)
     {
         if (output == nullptr || frameCount == 0)
         {
@@ -2350,7 +2354,7 @@ namespace JBro
         State* state = m_state.Get();
         if (state == nullptr || false == state->initialized)
         {
-            const std::uint32_t channels = state != nullptr ? state->desc.channels : 2;
+            const UInt32 channels = state != nullptr ? state->desc.channels : UInt32(2);
             std::memset(output, 0, sizeof(float) * frameCount * channels);
             return;
         }
@@ -2366,13 +2370,13 @@ namespace JBro
             std::memset(output + filled, 0, sizeof(float) * (samples - filled));
         }
         // 출력 이득(포커스 정책)을 곧게 옮기며 곱한다. 목표에 닿아 1 이면 건너뛴다.
-        const std::uint32_t channels = state->desc.channels;
-        const float gainTarget = state->outputGainTarget.load(std::memory_order_relaxed);
+        const UInt32 channels = state->desc.channels;
+        const Float gainTarget = state->outputGainTarget.load(std::memory_order_relaxed);
         if (state->outputGainCurrent != gainTarget || gainTarget != 1.0f)
         {
-            const float rate = state->outputGainRate.load(std::memory_order_relaxed);
-            float gain = state->outputGainCurrent;
-            for (std::uint32_t frame = 0; frame < frameCount; ++frame)
+            const Float rate = state->outputGainRate.load(std::memory_order_relaxed);
+            Float gain = state->outputGainCurrent;
+            for (UInt32 frame = 0; frame < frameCount; ++frame)
             {
                 if (gain < gainTarget)
                 {
@@ -2382,7 +2386,7 @@ namespace JBro
                 {
                     gain = gain - rate > gainTarget ? gain - rate : gainTarget;
                 }
-                for (std::uint32_t channel = 0; channel < channels; ++channel)
+                for (UInt32 channel = 0; channel < channels; ++channel)
                 {
                     output[frame * channels + channel] *= gain;
                 }
@@ -2390,15 +2394,15 @@ namespace JBro
             state->outputGainCurrent = gain;
         }
         // 버스를 더하면 1 을 넘을 수 있다. 장치에 넘기 전에 자른다 - 넘친 값은 장치마다 다르게 깨진다.
-        float peak = 0.0f;
+        Float peak = 0.0f;
         for (std::size_t index = 0; index < samples; ++index)
         {
-            float sample = output[index];
+            Float sample = output[index];
             if (!std::isfinite(sample))
             {
                 sample = 0.0f;
             }
-            const float magnitude = std::fabs(sample);
+            const Float magnitude = std::fabs(sample);
             if (magnitude > peak)
             {
                 peak = magnitude;
@@ -2410,20 +2414,20 @@ namespace JBro
         if (state->limiterEnabled.load(std::memory_order_relaxed) && (peak > state->limiterCeiling.load(std::memory_order_relaxed)
             || state->limiterGain < 1.0f))
         {
-            const float ceiling = state->limiterCeiling.load(std::memory_order_relaxed);
-            const float release = 1.0f - std::exp(-1.0f / (0.1f * static_cast<float>(state->desc.sampleRate)));
-            float gain = state->limiterGain;
-            for (std::uint32_t frame = 0; frame < frameCount; ++frame)
+            const Float ceiling = state->limiterCeiling.load(std::memory_order_relaxed);
+            const Float release = 1.0f - std::exp(-1.0f / (0.1f * static_cast<float>(state->desc.sampleRate)));
+            Float gain = state->limiterGain;
+            for (UInt32 frame = 0; frame < frameCount; ++frame)
             {
-                float loudest = 0.0f;
-                for (std::uint32_t channel = 0; channel < channels; ++channel)
+                Float loudest = 0.0f;
+                for (UInt32 channel = 0; channel < channels; ++channel)
                 {
                     loudest = std::fmax(loudest, std::fabs(output[frame * channels + channel]));
                 }
-                const float allowed = loudest > ceiling ? ceiling / loudest : 1.0f;
+                const Float allowed = loudest > ceiling ? ceiling / loudest : Float(1.0f);
                 gain = gain + (1.0f - gain) * release;
                 gain = allowed < gain ? allowed : gain;
-                for (std::uint32_t channel = 0; channel < channels; ++channel)
+                for (UInt32 channel = 0; channel < channels; ++channel)
                 {
                     output[frame * channels + channel] *= gain;
                 }
@@ -2434,15 +2438,15 @@ namespace JBro
         for (std::size_t index = 0; index < samples; ++index)
         {
             float& sample = output[index];
-            sample = sample > 1.0f ? 1.0f : (sample < -1.0f ? -1.0f : sample);
+            sample = sample > 1.0f ? Float(1.0f) : (sample < -1.0f ? Float(-1.0f) : Float(sample));
         }
         // 스펙트럼 창이 읽을 최근 출력이다(채널 평균).
-        std::uint32_t write = state->recentWrite.load(std::memory_order_relaxed);
-        const float inverseChannels = 1.0f / static_cast<float>(channels);
-        for (std::uint32_t frame = 0; frame < frameCount; ++frame)
+        UInt32 write = state->recentWrite.load(std::memory_order_relaxed);
+        const Float inverseChannels = 1.0f / static_cast<float>(channels);
+        for (UInt32 frame = 0; frame < frameCount; ++frame)
         {
-            float mono = 0.0f;
-            for (std::uint32_t channel = 0; channel < channels; ++channel)
+            Float mono = 0.0f;
+            for (UInt32 channel = 0; channel < channels; ++channel)
             {
                 mono += output[frame * channels + channel];
             }
@@ -2454,7 +2458,7 @@ namespace JBro
         state->renderedFrames.fetch_add(frameCount, std::memory_order_relaxed);
     }
 
-    void AudioMixer::RenderCallback(void* user, float* output, std::uint32_t frameCount)
+    void AudioMixer::RenderCallback(void* user, float* output, UInt32 frameCount)
     {
         static_cast<AudioMixer*>(user)->Render(output, frameCount);
     }
@@ -2466,7 +2470,7 @@ namespace JBro
             return;
         }
         State& state = *m_state;
-        for (std::uint32_t index = 0; index < state.voices.Size(); ++index)
+        for (UInt32 index = 0; index < state.voices.Size(); ++index)
         {
             State::Voice& voice = state.voices[index];
             if (voice.state == State::VoiceState::Playing)
@@ -2494,17 +2498,17 @@ namespace JBro
         {
             return {};
         }
-        const bool pcmValid = desc.encoding == AudioClipEncoding::Pcm && desc.pcm != nullptr && desc.frameCount > 0
+        const Bool pcmValid = desc.encoding == AudioClipEncoding::Pcm && desc.pcm != nullptr && desc.frameCount > 0
             && desc.channels > 0 && desc.channels <= 8 && desc.sampleRate > 0;
-        const bool encodedValid = desc.encoding == AudioClipEncoding::Encoded && desc.bytes != nullptr && desc.byteCount > 0;
-        const bool fileValid = desc.encoding == AudioClipEncoding::File && desc.path != nullptr && desc.path[0] != '\0'
+        const Bool encodedValid = desc.encoding == AudioClipEncoding::Encoded && desc.bytes != nullptr && desc.byteCount > 0;
+        const Bool fileValid = desc.encoding == AudioClipEncoding::File && desc.path != nullptr && desc.path[0] != '\0'
             && std::strlen(desc.path) < sizeof(StreamSlot::path) && desc.channels > 0 && desc.channels <= 8 && desc.sampleRate > 0;
         if (false == pcmValid && false == encodedValid && false == fileValid)
         {
             return {};
         }
         State& state = *m_state;
-        std::uint32_t index = 0;
+        UInt32 index = 0;
         if (false == state.freeClips.IsEmpty())
         {
             index = state.freeClips.Last();
@@ -2536,7 +2540,7 @@ namespace JBro
             return;
         }
         State& state = *m_state;
-        for (std::uint32_t index = 0; index < state.voices.Size(); ++index)
+        for (UInt32 index = 0; index < state.voices.Size(); ++index)
         {
             const State::Voice& voice = state.voices[index];
             if (voice.state != State::VoiceState::Free && voice.clip.index == handle.index
@@ -2556,7 +2560,7 @@ namespace JBro
         state.freeClips.Add(handle.index);
     }
 
-    bool AudioMixer::IsClipRegistered(AudioClipHandle clip) const
+    Bool AudioMixer::IsClipRegistered(AudioClipHandle clip) const
     {
         return IsInitialized() && m_state->ResolveClip(clip) != nullptr;
     }
@@ -2575,7 +2579,7 @@ namespace JBro
         return static_cast<double>(clip->desc.frameCount) / static_cast<double>(clip->desc.sampleRate);
     }
 
-    AudioBusId AudioMixer::CreateBus(float volume, AudioBusId parent)
+    AudioBusId AudioMixer::CreateBus(Float volume, AudioBusId parent)
     {
         if (false == IsInitialized())
         {
@@ -2586,7 +2590,7 @@ namespace JBro
         {
             parent = AudioMasterBus;
         }
-        for (std::uint32_t bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
+        for (UInt32 bus = AudioFirstProjectBus; bus < AudioMaxBuses; ++bus)
         {
             if (false == state.buses[bus].used)
             {
@@ -2629,7 +2633,7 @@ namespace JBro
                 bus.duckTrigger = AudioNoBus;
             }
         }
-        for (std::uint32_t bus = AudioMaxBuses; bus > AudioFirstProjectBus; --bus)
+        for (UInt32 bus = AudioMaxBuses; bus > AudioFirstProjectBus; --bus)
         {
             state.UninitBus(state.buses[bus - 1]);
         }
@@ -2646,29 +2650,29 @@ namespace JBro
         return m_state->buses[bus].parent;
     }
 
-    std::uint32_t AudioMixer::GetBusCount() const
+    UInt32 AudioMixer::GetBusCount() const
     {
-        return IsInitialized() ? m_state->busCount : 0;
+        return IsInitialized() ? m_state->busCount : UInt32(0);
     }
 
-    void AudioMixer::SetBusVolume(AudioBusId bus, float volume, float fadeSeconds)
+    void AudioMixer::SetBusVolume(AudioBusId bus, Float volume, Float fadeSeconds)
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus))
         {
             return;
         }
         m_state->buses[bus].volume = Clamp01(volume);
-        m_state->ApplyBusGains(bus, std::isfinite(fadeSeconds) ? fadeSeconds : 0.0f);
+        m_state->ApplyBusGains(bus, std::isfinite(fadeSeconds) ? fadeSeconds : Float(0.0f));
     }
 
-    void AudioMixer::SetBusDucking(AudioBusId bus, AudioBusId trigger, float amount, float releaseSeconds)
+    void AudioMixer::SetBusDucking(AudioBusId bus, AudioBusId trigger, Float amount, Float releaseSeconds)
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus))
         {
             return;
         }
         State::Bus& target = m_state->buses[bus];
-        const float safeAmount = Clamp01(amount);
+        const Float safeAmount = Clamp01(amount);
         // 트리거가 이 버스의 소리를 받으면(조상·센드) 제 소리에 눌린다(D-240) - 거절한다.
         if (trigger == AudioNoBus || trigger == bus || false == m_state->IsBusValid(trigger) || safeAmount <= 0.0f
             || m_state->Reaches(bus, trigger))
@@ -2701,7 +2705,7 @@ namespace JBro
         node.processor.store(callback, std::memory_order_seq_cst);
     }
 
-    float AudioMixer::GetBusGainReduction(AudioBusId bus) const
+    Float AudioMixer::GetBusGainReduction(AudioBusId bus) const
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus))
         {
@@ -2715,7 +2719,7 @@ namespace JBro
         return IsInitialized() && m_state->IsBusValid(bus) ? m_state->buses[bus].duckTrigger : AudioNoBus;
     }
 
-    float AudioMixer::GetBusDuckAmount(AudioBusId bus) const
+    Float AudioMixer::GetBusDuckAmount(AudioBusId bus) const
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus) || m_state->buses[bus].duckTrigger == AudioNoBus)
         {
@@ -2724,7 +2728,7 @@ namespace JBro
         return m_state->buses[bus].effects.duckAmount.load(std::memory_order_relaxed);
     }
 
-    float AudioMixer::GetBusVolume(AudioBusId bus) const
+    Float AudioMixer::GetBusVolume(AudioBusId bus) const
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus))
         {
@@ -2733,7 +2737,7 @@ namespace JBro
         return m_state->buses[bus].volume;
     }
 
-    void AudioMixer::SetBusMuted(AudioBusId bus, bool muted)
+    void AudioMixer::SetBusMuted(AudioBusId bus, Bool muted)
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus))
         {
@@ -2743,7 +2747,7 @@ namespace JBro
         m_state->ApplyBusGains();
     }
 
-    bool AudioMixer::IsBusMuted(AudioBusId bus) const
+    Bool AudioMixer::IsBusMuted(AudioBusId bus) const
     {
         return IsInitialized() && m_state->IsBusValid(bus) && m_state->buses[bus].muted;
     }
@@ -2756,8 +2760,8 @@ namespace JBro
         }
         State::Bus& target = m_state->buses[bus];
         AudioBusEffects safe;
-        safe.lowPassHz = std::isfinite(effects.lowPassHz) && effects.lowPassHz > 0.0f ? effects.lowPassHz : 0.0f;
-        safe.highPassHz = std::isfinite(effects.highPassHz) && effects.highPassHz > 0.0f ? effects.highPassHz : 0.0f;
+        safe.lowPassHz = std::isfinite(effects.lowPassHz) && effects.lowPassHz > 0.0f ? effects.lowPassHz : Float(0.0f);
+        safe.highPassHz = std::isfinite(effects.highPassHz) && effects.highPassHz > 0.0f ? effects.highPassHz : Float(0.0f);
         safe.echoDelay = Clamped(effects.echoDelay, 0.01f, MaxEchoSeconds);
         safe.echoFeedback = Clamped(effects.echoFeedback, 0.0f, 0.95f);
         safe.echoMix = Clamped(effects.echoMix, 0.0f, 1.0f);
@@ -2802,7 +2806,7 @@ namespace JBro
             target.reverbStorage->Prepare(node.sampleRate);
             node.reverb.store(target.reverbStorage.Get(), std::memory_order_release);
         }
-        const auto prepareLine = [&node](OwnerPtr<Array<float>>& storage, std::uint32_t& capacity, float seconds) {
+        const auto prepareLine = [&node](OwnerPtr<Array<float>>& storage, UInt32& capacity, Float seconds) {
             storage = MakeOwnerPtr<Array<float>>();
             capacity = static_cast<std::uint32_t>(seconds * static_cast<float>(node.sampleRate)) + 2;
             storage->Resize(static_cast<std::size_t>(capacity) * node.channels);
@@ -2858,7 +2862,7 @@ namespace JBro
         return m_state->buses[bus].settings;
     }
 
-    bool AudioMixer::SetBusSend(AudioBusId bus, AudioBusId target, float level)
+    Bool AudioMixer::SetBusSend(AudioBusId bus, AudioBusId target, Float level)
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus) || bus < AudioFirstProjectBus)
         {
@@ -2867,7 +2871,7 @@ namespace JBro
         State& state = *m_state;
         State::Bus& source = state.buses[bus];
         ma_node* effects = reinterpret_cast<ma_node*>(&source.effects);
-        const float safeLevel = Clamp01(level);
+        const Float safeLevel = Clamp01(level);
         if (target == AudioNoBus || safeLevel <= 0.0f)
         {
             if (source.sendTarget != AudioNoBus && source.effectsReady)
@@ -2910,12 +2914,12 @@ namespace JBro
         return IsInitialized() && m_state->IsBusValid(bus) ? m_state->buses[bus].sendTarget : AudioNoBus;
     }
 
-    float AudioMixer::GetBusSendLevel(AudioBusId bus) const
+    Float AudioMixer::GetBusSendLevel(AudioBusId bus) const
     {
-        return IsInitialized() && m_state->IsBusValid(bus) ? m_state->buses[bus].sendLevel : 0.0f;
+        return IsInitialized() && m_state->IsBusValid(bus) ? m_state->buses[bus].sendLevel : Float(0.0f);
     }
 
-    void AudioMixer::SetBusSolo(AudioBusId bus, bool solo)
+    void AudioMixer::SetBusSolo(AudioBusId bus, Bool solo)
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus) || bus < AudioFirstProjectBus)
         {
@@ -2925,12 +2929,12 @@ namespace JBro
         m_state->ApplyBusGains();
     }
 
-    bool AudioMixer::IsBusSolo(AudioBusId bus) const
+    Bool AudioMixer::IsBusSolo(AudioBusId bus) const
     {
         return IsInitialized() && m_state->IsBusValid(bus) && m_state->buses[bus].solo;
     }
 
-    float AudioMixer::GetBusPeak(AudioBusId bus) const
+    Float AudioMixer::GetBusPeak(AudioBusId bus) const
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus))
         {
@@ -2952,9 +2956,9 @@ namespace JBro
             return {};
         }
         const AudioBusId bus = state.IsBusValid(desc.bus) ? desc.bus : AudioMasterBus;
-        const float trim = std::isfinite(clip->desc.gain) && clip->desc.gain > 0.0f ? (clip->desc.gain > 4.0f ? 4.0f : clip->desc.gain) : 1.0f;
-        const float minDistance = SafePositive(desc.minDistance, 1.0f);
-        float maxDistance = SafePositive(desc.maxDistance, 50.0f);
+        const Float trim = std::isfinite(clip->desc.gain) && clip->desc.gain > 0.0f ? (clip->desc.gain > 4.0f ? Float(4.0f) : Float(clip->desc.gain)) : Float(1.0f);
+        const Float minDistance = SafePositive(desc.minDistance, 1.0f);
+        Float maxDistance = SafePositive(desc.maxDistance, 50.0f);
         if (maxDistance < minDistance)
         {
             maxDistance = minDistance;
@@ -2966,10 +2970,10 @@ namespace JBro
             ++state.voicesCulled;
             return {};
         }
-        const std::uint64_t now = ma_engine_get_time_in_pcm_frames(&state.engine);
+        const UInt64 now = ma_engine_get_time_in_pcm_frames(&state.engine);
         if (clip->desc.cooldownSeconds > 0.0f && std::isfinite(clip->desc.cooldownSeconds) && clip->started)
         {
-            const std::uint64_t cooldown = static_cast<std::uint64_t>(clip->desc.cooldownSeconds
+            const UInt64 cooldown = static_cast<std::uint64_t>(clip->desc.cooldownSeconds
                 * static_cast<float>(state.desc.sampleRate));
             if (now - clip->lastStartFrame < cooldown)
             {
@@ -2977,16 +2981,16 @@ namespace JBro
                 return {};
             }
         }
-        std::uint32_t replaced = static_cast<std::uint32_t>(-1);
+        UInt32 replaced = static_cast<std::uint32_t>(-1);
         if (clip->desc.maxInstances > 0)
         {
             // 줄여 끄는 중인 것은 세지 않는다 - 곧 비고, 세면 연타 때 새것이 계속 버려진다.
-            std::uint32_t instances = 0;
-            std::uint32_t oldest = static_cast<std::uint32_t>(-1);
-            for (std::uint32_t candidate = 0; candidate < state.voices.Size(); ++candidate)
+            UInt32 instances = 0;
+            UInt32 oldest = static_cast<std::uint32_t>(-1);
+            for (UInt32 candidate = 0; candidate < state.voices.Size(); ++candidate)
             {
                 const State::Voice& other = state.voices[candidate];
-                const bool live = other.state == State::VoiceState::Playing || other.state == State::VoiceState::Paused;
+                const Bool live = other.state == State::VoiceState::Playing || other.state == State::VoiceState::Paused;
                 if (false == live || other.clip.index != desc.clip.index || other.clip.generation != desc.clip.generation)
                 {
                     continue;
@@ -3022,8 +3026,8 @@ namespace JBro
             ++state.voicesRejected;
             return {};
         }
-        const std::uint32_t none = static_cast<std::uint32_t>(-1);
-        std::uint32_t slotVictim = none;
+        const UInt32 none = static_cast<std::uint32_t>(-1);
+        UInt32 slotVictim = none;
         if (state.freeVoices.IsEmpty())
         {
             slotVictim = state.PickVictim(desc.priority);
@@ -3035,12 +3039,12 @@ namespace JBro
         }
         // 섞는 수가 찼다(D-235). 루프는 가상으로 시작하고, 한 번짜리·스트리밍은 가장 약한 루프를 가상으로 돌리거나 실제로 섞는
         // 보이스 가운데서 훔친다.
-        bool startParked = false;
-        std::uint32_t parkVictim = none;
-        std::uint32_t mixVictim = none;
+        Bool startParked = false;
+        UInt32 parkVictim = none;
+        UInt32 mixVictim = none;
         if (state.VirtualizationEnabled())
         {
-            std::uint32_t mixing = state.CountMixing();
+            UInt32 mixing = state.CountMixing();
             if (slotVictim != none && State::IsMixing(state.voices[slotVictim]))
             {
                 --mixing;
@@ -3087,7 +3091,7 @@ namespace JBro
             state.ReleaseVoice(mixVictim);
             ++state.voicesStolen;
         }
-        std::uint32_t index = 0;
+        UInt32 index = 0;
         if (state.freeVoices.IsEmpty())
         {
             ++state.voicesRejected;
@@ -3111,8 +3115,8 @@ namespace JBro
         }
         else if (clip->desc.encoding == AudioClipEncoding::File)
         {
-            std::uint32_t slotIndex = State::NoStream;
-            for (std::uint32_t candidate = 0; candidate < state.streams.Size(); ++candidate)
+            UInt32 slotIndex = State::NoStream;
+            for (UInt32 candidate = 0; candidate < state.streams.Size(); ++candidate)
             {
                 const StreamSlot& slot = *state.streams[candidate];
                 if (slot.baseReady && slot.phase.load(std::memory_order_acquire) == static_cast<std::uint32_t>(StreamPhase::Idle))
@@ -3136,8 +3140,8 @@ namespace JBro
             }
             StreamSlot& slot = *state.streams[slotIndex];
             // 링은 이 자리를 처음 쓸 때(또는 더 큰 형식을 만날 때) 한 번 잡는다. 그 뒤로는 재사용한다.
-            const float seconds = state.desc.streamBufferSeconds > 0.05f ? state.desc.streamBufferSeconds : 0.05f;
-            const std::uint32_t capacity = static_cast<std::uint32_t>(seconds * static_cast<float>(clip->desc.sampleRate)) + 1;
+            const Float seconds = state.desc.streamBufferSeconds > 0.05f ? state.desc.streamBufferSeconds : Float(0.05f);
+            const UInt32 capacity = static_cast<std::uint32_t>(seconds * static_cast<float>(clip->desc.sampleRate)) + 1;
             const std::size_t samples = static_cast<std::size_t>(capacity) * clip->desc.channels;
             if (slot.ring.Get() == nullptr || slot.ring->Size() < samples)
             {
@@ -3169,7 +3173,7 @@ namespace JBro
         else
         {
             // 클립의 채널로 푼다 - 모노 에셋(D-231)이면 1 이고, 아니면 등록 때 읽은 파일의 채널이다.
-            ma_decoder_config config = ma_decoder_config_init(ma_format_f32, clip->desc.channels <= 8 ? clip->desc.channels : 0, 0);
+            ma_decoder_config config = ma_decoder_config_init(ma_format_f32, clip->desc.channels <= 8 ? clip->desc.channels : UInt32(0), 0);
             config.allocationCallbacks = state.callbacks;
             if (ma_decoder_init_memory(clip->desc.bytes, clip->desc.byteCount, &config, &voice.decoder) != MA_SUCCESS)
             {
@@ -3203,8 +3207,8 @@ namespace JBro
 
         // 여기서부터 `ma_sound_start` 전까지는 소리가 멈춰 있어 오디오 스레드가 읽지 않는다. 원자가 아닌 값(거리·
         // 감쇠·도플러)은 이 사이에만 쓴다(D-198).
-        const float lowPass = PositiveOrZero(desc.lowPassHz);
-        const float highPass = PositiveOrZero(desc.highPassHz);
+        const Float lowPass = PositiveOrZero(desc.lowPassHz);
+        const Float highPass = PositiveOrZero(desc.highPassHz);
         if (lowPass > 0.0f || highPass > 0.0f)
         {
             voice.filter->lowPass.store(lowPass, std::memory_order_relaxed);
@@ -3239,7 +3243,7 @@ namespace JBro
             ma_sound_set_max_distance(&voice.sound, maxDistance);
             ma_sound_set_rolloff(&voice.sound, SafePositive(desc.rolloff, 1.0f));
             ma_sound_set_doppler_factor(&voice.sound, std::isfinite(desc.dopplerFactor) && desc.dopplerFactor > 0.0f
-                ? desc.dopplerFactor : 0.0f);
+                ? desc.dopplerFactor : Float(0.0f));
             ma_sound_set_position(&voice.sound, desc.position[0], desc.position[1], desc.position[2]);
         }
         if (desc.fadeInSeconds > 0.0f && std::isfinite(desc.fadeInSeconds))
@@ -3281,7 +3285,7 @@ namespace JBro
         return {index, voice.generation};
     }
 
-    void AudioMixer::Stop(AudioVoiceHandle handle, float fadeOutSeconds)
+    void AudioMixer::Stop(AudioVoiceHandle handle, Float fadeOutSeconds)
     {
         if (false == IsInitialized())
         {
@@ -3302,13 +3306,13 @@ namespace JBro
         m_state->ReleaseVoice(handle.index);
     }
 
-    void AudioMixer::StopAllWithTag(std::uint32_t tag)
+    void AudioMixer::StopAllWithTag(UInt32 tag)
     {
         if (false == IsInitialized())
         {
             return;
         }
-        for (std::uint32_t index = 0; index < m_state->voices.Size(); ++index)
+        for (UInt32 index = 0; index < m_state->voices.Size(); ++index)
         {
             const State::Voice& voice = m_state->voices[index];
             if (voice.state != State::VoiceState::Free && voice.tag == tag)
@@ -3324,7 +3328,7 @@ namespace JBro
         {
             return;
         }
-        for (std::uint32_t index = 0; index < m_state->voices.Size(); ++index)
+        for (UInt32 index = 0; index < m_state->voices.Size(); ++index)
         {
             m_state->ReleaseVoice(index);
         }
@@ -3345,7 +3349,7 @@ namespace JBro
             if (voice->parked)
             {
                 // 가상 보이스는 센 위치를 굳힌다 - 멈춘 동안 흐르지 않는다.
-                const std::uint64_t now = m_state->Now();
+                const UInt64 now = m_state->Now();
                 voice->parkCursor = m_state->VirtualCursor(*voice, now);
                 voice->parkTime = now > voice->parkTime ? now : voice->parkTime;
             }
@@ -3363,7 +3367,7 @@ namespace JBro
             if (voice->parked)
             {
                 // 가상인 채 다시 센다. 울릴지는 다음 갱신의 순위가 정한다.
-                const std::uint64_t now = m_state->Now();
+                const UInt64 now = m_state->Now();
                 voice->parkTime = now > voice->parkTime ? now : voice->parkTime;
                 return;
             }
@@ -3371,12 +3375,12 @@ namespace JBro
         }
     }
 
-    bool AudioMixer::IsAlive(AudioVoiceHandle handle) const
+    Bool AudioMixer::IsAlive(AudioVoiceHandle handle) const
     {
         return IsInitialized() && m_state->Resolve(handle) != nullptr;
     }
 
-    bool AudioMixer::IsPaused(AudioVoiceHandle handle) const
+    Bool AudioMixer::IsPaused(AudioVoiceHandle handle) const
     {
         const State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         return voice != nullptr && voice->state == State::VoiceState::Paused;
@@ -3424,14 +3428,14 @@ namespace JBro
         if (voice->parked)
         {
             voice->parkCursor = frame;
-            const std::uint64_t now = m_state->Now();
+            const UInt64 now = m_state->Now();
             voice->parkTime = now > voice->parkTime ? now : voice->parkTime;
             return;
         }
         ma_sound_seek_to_pcm_frame(&voice->sound, static_cast<ma_uint64>(frame));
     }
 
-    void AudioMixer::SetVolume(AudioVoiceHandle handle, float volume)
+    void AudioMixer::SetVolume(AudioVoiceHandle handle, Float volume)
     {
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice != nullptr)
@@ -3441,7 +3445,7 @@ namespace JBro
         }
     }
 
-    void AudioMixer::SetPitch(AudioVoiceHandle handle, float pitch)
+    void AudioMixer::SetPitch(AudioVoiceHandle handle, Float pitch)
     {
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice != nullptr)
@@ -3449,7 +3453,7 @@ namespace JBro
             if (voice->parked)
             {
                 // 옛 피치로 센 만큼을 굳히고 새 피치로 센다.
-                const std::uint64_t now = m_state->Now();
+                const UInt64 now = m_state->Now();
                 voice->parkCursor = m_state->VirtualCursor(*voice, now);
                 voice->parkTime = now > voice->parkTime ? now : voice->parkTime;
             }
@@ -3458,7 +3462,7 @@ namespace JBro
         }
     }
 
-    void AudioMixer::SetLooping(AudioVoiceHandle handle, bool loop)
+    void AudioMixer::SetLooping(AudioVoiceHandle handle, Bool loop)
     {
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice != nullptr)
@@ -3500,16 +3504,16 @@ namespace JBro
         m_state->RouteVoice(*voice, bus, voice->filterRouted);
     }
 
-    void AudioMixer::SetVoiceFilter(AudioVoiceHandle handle, float lowPassHz, float highPassHz)
+    void AudioMixer::SetVoiceFilter(AudioVoiceHandle handle, Float lowPassHz, Float highPassHz)
     {
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice == nullptr)
         {
             return;
         }
-        const float lowPass = PositiveOrZero(lowPassHz);
-        const float highPass = PositiveOrZero(highPassHz);
-        const bool filtered = lowPass > 0.0f || highPass > 0.0f;
+        const Float lowPass = PositiveOrZero(lowPassHz);
+        const Float highPass = PositiveOrZero(highPassHz);
+        const Bool filtered = lowPass > 0.0f || highPass > 0.0f;
         if (filtered && false == voice->filterRouted)
         {
             voice->filter->reset.store(true, std::memory_order_release);
@@ -3551,7 +3555,7 @@ namespace JBro
         }
     }
 
-    void AudioMixer::SetMasterVolume(float volume)
+    void AudioMixer::SetMasterVolume(Float volume)
     {
         if (IsInitialized())
         {
@@ -3560,27 +3564,27 @@ namespace JBro
         }
     }
 
-    float AudioMixer::GetMasterVolume() const
+    Float AudioMixer::GetMasterVolume() const
     {
-        return IsInitialized() ? m_state->masterVolume : 0.0f;
+        return IsInitialized() ? m_state->masterVolume : Float(0.0f);
     }
 
-    void AudioMixer::SetOutputGain(float gain, float seconds)
+    void AudioMixer::SetOutputGain(Float gain, Float seconds)
     {
         if (false == IsInitialized())
         {
             return;
         }
         State& state = *m_state;
-        const float target = Clamp01(gain);
-        const float frames = std::isfinite(seconds) && seconds > 0.0f
-            ? seconds * static_cast<float>(state.desc.sampleRate) : 1.0f;
+        const Float target = Clamp01(gain);
+        const Float frames = std::isfinite(seconds) && seconds > 0.0f
+            ? seconds * static_cast<float>(state.desc.sampleRate) : Float(1.0f);
         // 0 에서 1 까지(가장 먼 거리)를 `seconds` 에 걷는 속도다. 지금 값은 오디오 스레드만 알므로 거리로 나누지 않는다.
-        state.outputGainRate.store(1.0f / (frames > 1.0f ? frames : 1.0f), std::memory_order_relaxed);
+        state.outputGainRate.store(1.0f / (frames > 1.0f ? frames : Float(1.0f)), std::memory_order_relaxed);
         state.outputGainTarget.store(target, std::memory_order_relaxed);
     }
 
-    void AudioMixer::SetOutputLimiter(bool enabled, float ceiling)
+    void AudioMixer::SetOutputLimiter(Bool enabled, Float ceiling)
     {
         if (IsInitialized())
         {
@@ -3589,17 +3593,17 @@ namespace JBro
         }
     }
 
-    bool AudioMixer::IsOutputLimiterEnabled() const
+    Bool AudioMixer::IsOutputLimiterEnabled() const
     {
         return IsInitialized() && m_state->limiterEnabled.load(std::memory_order_relaxed);
     }
 
-    float AudioMixer::GetOutputGain() const
+    Float AudioMixer::GetOutputGain() const
     {
         return IsInitialized() ? m_state->outputGainTarget.load(std::memory_order_relaxed) : 0.0f;
     }
 
-    std::uint32_t AudioMixer::CopyRecentOutput(float* mono, std::uint32_t count) const
+    UInt32 AudioMixer::CopyRecentOutput(float* mono, UInt32 count) const
     {
         if (false == IsInitialized() || mono == nullptr)
         {
@@ -3610,21 +3614,21 @@ namespace JBro
         {
             count = RecentCapacity;
         }
-        const std::uint32_t write = state.recentWrite.load(std::memory_order_acquire);
-        for (std::uint32_t index = 0; index < count; ++index)
+        const UInt32 write = state.recentWrite.load(std::memory_order_acquire);
+        for (UInt32 index = 0; index < count; ++index)
         {
             mono[index] = state.recent[(write - count + index) % RecentCapacity];
         }
         return count;
     }
 
-    void AudioMixer::ComputeSpectrum(float* bands, std::uint32_t bandCount) const
+    void AudioMixer::ComputeSpectrum(float* bands, UInt32 bandCount) const
     {
         if (bands == nullptr || bandCount == 0)
         {
             return;
         }
-        for (std::uint32_t band = 0; band < bandCount; ++band)
+        for (UInt32 band = 0; band < bandCount; ++band)
         {
             bands[band] = 0.0f;
         }
@@ -3633,26 +3637,26 @@ namespace JBro
             return;
         }
         const State& state = *m_state;
-        constexpr std::uint32_t size = State::FftSize;
+        constexpr UInt32 size = State::FftSize;
         CopyRecentOutput(state.fftReal, size);
         // 한 창이다. 크기 A 의 사인파가 A 로 읽히게 창의 평균(0.5)과 FFT 의 N/2 로 나눈다.
-        for (std::uint32_t index = 0; index < size; ++index)
+        for (UInt32 index = 0; index < size; ++index)
         {
-            const float window = 0.5f - 0.5f * std::cos(Tau * static_cast<float>(index) / static_cast<float>(size - 1));
+            const Float window = 0.5f - 0.5f * std::cos(Tau * static_cast<float>(index) / static_cast<float>(size - 1));
             state.fftReal[index] *= window;
             state.fftImag[index] = 0.0f;
         }
         Fft(state.fftReal, state.fftImag, size);
-        const float nyquist = static_cast<float>(state.desc.sampleRate) * 0.5f;
-        const float lowest = 30.0f;
-        const float binHz = static_cast<float>(state.desc.sampleRate) / static_cast<float>(size);
-        const float scale = 1.0f / (static_cast<float>(size) * 0.25f);
-        for (std::uint32_t band = 0; band < bandCount; ++band)
+        const Float nyquist = static_cast<float>(state.desc.sampleRate) * 0.5f;
+        const Float lowest = 30.0f;
+        const Float binHz = static_cast<float>(state.desc.sampleRate) / static_cast<float>(size);
+        const Float scale = 1.0f / (static_cast<float>(size) * 0.25f);
+        for (UInt32 band = 0; band < bandCount; ++band)
         {
-            const float from = lowest * std::pow(nyquist / lowest, static_cast<float>(band) / static_cast<float>(bandCount));
-            const float to = lowest * std::pow(nyquist / lowest, static_cast<float>(band + 1) / static_cast<float>(bandCount));
-            std::uint32_t first = static_cast<std::uint32_t>(from / binHz);
-            std::uint32_t last = static_cast<std::uint32_t>(to / binHz);
+            const Float from = lowest * std::pow(nyquist / lowest, static_cast<float>(band) / static_cast<float>(bandCount));
+            const Float to = lowest * std::pow(nyquist / lowest, static_cast<float>(band + 1) / static_cast<float>(bandCount));
+            UInt32 first = static_cast<std::uint32_t>(from / binHz);
+            UInt32 last = static_cast<std::uint32_t>(to / binHz);
             if (last < first)
             {
                 last = first;
@@ -3661,17 +3665,17 @@ namespace JBro
             {
                 last = size / 2 - 1;
             }
-            float magnitude = 0.0f;
-            for (std::uint32_t bin = first; bin <= last; ++bin)
+            Float magnitude = 0.0f;
+            for (UInt32 bin = first; bin <= last; ++bin)
             {
-                const float value = std::sqrt(state.fftReal[bin] * state.fftReal[bin]
+                const Float value = std::sqrt(state.fftReal[bin] * state.fftReal[bin]
                     + state.fftImag[bin] * state.fftImag[bin]) * scale;
                 if (value > magnitude)
                 {
                     magnitude = value;
                 }
             }
-            const float decibels = magnitude > 0.0f ? 20.0f * std::log10(magnitude) : -200.0f;
+            const Float decibels = magnitude > 0.0f ? 20.0f * std::log10(magnitude) : -200.0f;
             bands[band] = Clamp01((decibels + 72.0f) / 72.0f);
         }
     }
@@ -3686,7 +3690,7 @@ namespace JBro
             / static_cast<double>(m_state->desc.sampleRate);
     }
 
-    bool AudioMixer::WaitForStreamsIdle(float timeoutSeconds)
+    Bool AudioMixer::WaitForStreamsIdle(Float timeoutSeconds)
     {
         if (false == IsInitialized())
         {
@@ -3694,10 +3698,10 @@ namespace JBro
         }
         const auto deadline = std::chrono::steady_clock::now()
             + std::chrono::milliseconds(static_cast<long long>((std::isfinite(timeoutSeconds) && timeoutSeconds > 0.0f
-                ? timeoutSeconds : 0.0f) * 1000.0f));
+                ? timeoutSeconds : Float(0.0f)) * 1000.0f));
         for (;;)
         {
-            bool idle = true;
+            Bool idle = true;
             for (const OwnerPtr<StreamSlot>& slot : m_state->streams)
             {
                 idle = idle && slot->phase.load(std::memory_order_acquire) == static_cast<std::uint32_t>(StreamPhase::Idle);

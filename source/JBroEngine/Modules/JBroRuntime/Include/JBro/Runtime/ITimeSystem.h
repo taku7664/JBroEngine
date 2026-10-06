@@ -2,6 +2,9 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -10,15 +13,15 @@ namespace JBro
     struct FrameTime
     {
         // 이번 프레임의 게임 델타(초)다. 언스케일 델타 × 타임스케일이고, 멈춰 있으면 0 이다.
-        float deltaTime = 0.0f;
+        Float deltaTime = 0.0f;
         // 자른 뒤의 실제 델타(초)다. 멈춰도 흐른다. 상한은 프로젝트의 `MaxDeltaTime` 이다.
-        float unscaledDeltaTime = 0.0f;
-        float fixedDeltaTime = 1.0f / 60.0f;
-        float timeScale = 1.0f;
+        Float unscaledDeltaTime = 0.0f;
+        Float fixedDeltaTime = 1.0f / 60.0f;
+        Float timeScale = 1.0f;
         // 고정 스텝을 다 돈 뒤 누산기에 남은 몫이다(0 이상 1 미만). 렌더 보간을 할 게임이 쓴다.
-        float fixedStepAlpha = 0.0f;
+        Float fixedStepAlpha = 0.0f;
         // 이번 프레임에 돌 고정 스텝 수다.
-        std::uint32_t fixedStepCount = 0;
+        UInt32 fixedStepCount = 0;
         // 재생을 시작한 뒤 흐른 게임 시간이다. 한 시간 뒤에도 마이크로초가 남도록 double 이다(time-plan T2).
         double time = 0.0;
         // 엔진이 선 뒤 흐른 실제 시간이다.
@@ -26,13 +29,13 @@ namespace JBro
         // 마지막 고정 스텝(스텝 안이면 지금 스텝)이 끝나는 게임 시간이다.
         double fixedTime = 0.0;
         // 엔진이 선 뒤의 프레임 수다. 재생을 다시 시작해도 되돌리지 않는다.
-        std::uint64_t frameCount = 0;
+        UInt64 frameCount = 0;
         // 고정 스텝을 도는 중이다. 이때 서비스의 델타는 고정 델타다.
-        bool inFixedStep = false;
+        Bool inFixedStep = false;
         // 게임이 멈춰 있다(에디터의 일시정지·편집). 한 프레임 진행은 멈춘 채로 도는 프레임이다.
-        bool paused = false;
+        Bool paused = false;
         // 이번 프레임이 멈춘 게임의 한 프레임 진행이다.
-        bool stepFrame = false;
+        Bool stepFrame = false;
     };
 
     static_assert(std::is_standard_layout_v<FrameTime>);
@@ -50,6 +53,6 @@ namespace JBro::System
 
         virtual const FrameTime& GetFrameTime() const = 0;
         // 0 이상 100 이하만 받는다. NaN·범위 밖이면 거짓이고 그대로 둔다. 다음 프레임의 델타부터 걸린다.
-        virtual bool SetTimeScale(float scale) = 0;
+        virtual Bool SetTimeScale(Float scale) = 0;
     };
 }

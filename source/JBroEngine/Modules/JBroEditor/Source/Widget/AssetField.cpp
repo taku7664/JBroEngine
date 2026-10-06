@@ -5,6 +5,9 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::Widget
 {
@@ -29,19 +32,19 @@ namespace JBro::Widget
         return *this;
     }
 
-    AssetField& AssetField::AllowClear(bool allow)
+    AssetField& AssetField::AllowClear(Bool allow)
     {
         m_allowClear = allow;
         return *this;
     }
 
-    AssetField& AssetField::Width(float width)
+    AssetField& AssetField::Width(Float width)
     {
         m_width = width;
         return *this;
     }
 
-    bool AssetField::Draw() const
+    Bool AssetField::Draw() const
     {
         // 두 뷰가 어긋나면 짧은 쪽까지만 믿는다. 이름에 아이디가 없으면 고를 수 없다.
         const std::size_t count = m_names.Size() < m_ids.Size() ? m_names.Size() : m_ids.Size();
@@ -51,14 +54,14 @@ namespace JBro::Widget
             ? m_missingText : Loc::TextOr(LocKeys::AssetMissing, "(missing asset)");
 
         // 비우기 항목이 맨 위에 서면 이름 번호가 한 칸 밀린다.
-        const int offset = m_allowClear ? 1 : 0;
+        const Int32 offset = m_allowClear ? 1 : 0;
         Array<const char*> items;
         items.Reserve(count + static_cast<std::size_t>(offset));
         if (m_allowClear)
         {
             items.Add(noneText);
         }
-        int current = -1;
+        Int32 current = -1;
         for (std::size_t index = 0; index < count; ++index)
         {
             items.Add(m_names[index]);
@@ -67,13 +70,13 @@ namespace JBro::Widget
                 current = static_cast<int>(index) + offset;
             }
         }
-        const bool isNull = m_value.IsNull();
+        const Bool isNull = m_value.IsNull();
         if (isNull && m_allowClear)
         {
             current = 0;
         }
-        const int before = current;
-        const bool changed = FilterCombo(m_id != nullptr ? m_id : "##asset",
+        const Int32 before = current;
+        const Bool changed = FilterCombo(m_id != nullptr ? m_id : "##asset",
             ArrayView<const char* const>(items.Data(), items.Size()), current)
             .EmptyText(isNull ? noneText : missingText)
             .Width(m_width)
@@ -120,7 +123,7 @@ namespace JBro::Widget
         return true;
     }
 
-    bool AssetField::operator()() const
+    Bool AssetField::operator()() const
     {
         return Draw();
     }

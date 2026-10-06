@@ -84,6 +84,11 @@
 
 #include <cmath>
 #include <new>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro
 {
@@ -129,7 +134,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool EditorApplication::Initialize(const EditorApplicationConfig& config)
+    Bool EditorApplication::Initialize(const EditorApplicationConfig& config)
     {
         if (m_initialized || config.windowWidth == 0 || config.windowHeight == 0
             || false == System::TimeSystem::IsValid(config.time)
@@ -165,7 +170,7 @@ namespace JBro
                 }
                 // 드라이브 문자(`C:`)나 구분자로 시작하면 이미 절대경로다.
                 const char* text = path.c_str();
-                const bool absolute = text[0] == '/' || text[0] == '\\'
+                const Bool absolute = text[0] == '/' || text[0] == '\\'
                     || (path.size() > 1 && text[1] == ':');
                 if (absolute)
                 {
@@ -313,12 +318,12 @@ namespace JBro
         YamlError error;
         // **모양까지 본다.** 뿌리가 맵이 아니거나 `Shortcuts` 가 맵이 아니면 읽지 못한 것이다 - YAML 로는 읽혀도(`Shortcuts: [...`
         // 가 한 줄 글자로 읽힌다) 그 파일을 기본값으로 덮어쓰면 손으로 고치던 사람의 설정이 사라진다.
-        bool readable = m_platform->ReadWholeFile(m_preferencesPath.c_str(), bytes)
+        Bool readable = m_platform->ReadWholeFile(m_preferencesPath.c_str(), bytes)
             && document.Parse(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), error)
             && document.GetKind(document.GetRoot()) == YamlKind::Map;
         if (readable)
         {
-            const std::uint32_t shortcuts = document.Find(document.GetRoot(), "Shortcuts");
+            const UInt32 shortcuts = document.Find(document.GetRoot(), "Shortcuts");
             readable = shortcuts == YamlDocument::InvalidNode || document.GetKind(shortcuts) == YamlKind::Map;
         }
         if (false == readable)
@@ -367,7 +372,7 @@ namespace JBro
         return m_preferencesPath;
     }
 
-    bool EditorApplication::OpenProject(const ProjectDescriptor& project)
+    Bool EditorApplication::OpenProject(const ProjectDescriptor& project)
     {
         if (false == m_initialized || m_framework || project.graphicsApi != m_graphicsApi)
         {
@@ -377,7 +382,7 @@ namespace JBro
         {
             return false;
         }
-        bool opened = false;
+        Bool opened = false;
         try
         {
             opened = m_engine->OpenProject(*m_framework);
@@ -410,7 +415,7 @@ namespace JBro
         // `art/enemy.png` 의 폴더는 `art` 다. 슬래시가 없으면 빈 글자(뿌리)다.
     }
 
-    bool EditorApplication::OpenProjectFile(const char* projectFilePath, ProjectFileError& error)
+    Bool EditorApplication::OpenProjectFile(const char* projectFilePath, ProjectFileError& error)
     {
         error = ProjectFileError{};
         if (false == m_initialized || m_framework)
@@ -432,7 +437,7 @@ namespace JBro
             return false;
         }
 
-        bool opened = false;
+        Bool opened = false;
         try
         {
             opened = m_engine->OpenProjectFile(*m_framework, projectFilePath, error);
@@ -487,14 +492,14 @@ namespace JBro
         return true;
     }
 
-    void EditorApplication::GetSessionCamera(float& centerX, float& centerY, float& size) const
+    void EditorApplication::GetSessionCamera(Float& centerX, Float& centerY, Float& size) const
     {
         centerX = m_sessionCameraX;
         centerY = m_sessionCameraY;
         size = m_sessionCameraSize;
     }
 
-    bool EditorApplication::CanvasViewWorldToScreen(float worldX, float worldY, float& screenX, float& screenY)
+    Bool EditorApplication::CanvasViewWorldToScreen(Float worldX, Float worldY, Float& screenX, Float& screenY)
     {
         CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView"));
         return view != nullptr && view->ProjectWorldToScreen(worldX, worldY, screenX, screenY);
@@ -508,7 +513,7 @@ namespace JBro
         }
     }
 
-    void EditorApplication::SetCanvasViewCamera(float centerX, float centerY, float size)
+    void EditorApplication::SetCanvasViewCamera(Float centerX, Float centerY, Float size)
     {
         if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
         {
@@ -516,7 +521,7 @@ namespace JBro
         }
     }
 
-    float EditorApplication::GetCanvasViewGridStep()
+    Float EditorApplication::GetCanvasViewGridStep()
     {
         if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
         {
@@ -525,12 +530,12 @@ namespace JBro
         return 0.0f;
     }
 
-    void EditorApplication::GetCanvasViewGridLabelsX(Array<float>& out)
+    void EditorApplication::GetCanvasViewGridLabelsX(Array<Float>& out)
     {
         out.Clear();
         if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
         {
-            const Array<float>& labels = view->GetGridLabelsX();
+            const Array<Float>& labels = view->GetGridLabelsX();
             for (std::size_t index = 0; index < labels.Size(); ++index)
             {
                 out.Add(labels[index]);
@@ -544,7 +549,7 @@ namespace JBro
         return view != nullptr ? view->GetFocus() : nullptr;
     }
 
-    void EditorApplication::GetCanvasViewCamera(float& centerX, float& centerY, float& size)
+    void EditorApplication::GetCanvasViewCamera(Float& centerX, Float& centerY, Float& size)
     {
         centerX = 0.0f;
         centerY = 0.0f;
@@ -557,13 +562,13 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::GetAssetSourceSize(
-        AssetId asset, std::uint32_t& width, std::uint32_t& height) const
+    Bool EditorApplication::GetAssetSourceSize(
+        AssetId asset, UInt32& width, UInt32& height) const
     {
         return m_thumbnails.Get() != nullptr && m_thumbnails->GetSourceSize(asset, width, height);
     }
 
-    bool EditorApplication::OpenSpriteViewer(AssetId asset)
+    Bool EditorApplication::OpenSpriteViewer(AssetId asset)
     {
         // **그림마다 뷰어 패널 하나다**(D-284). 같은 그림을 보는 패널이 있으면 새로 세우지 않고 그것을 앞으로 가져온다 -
         // 비고유 패널은 만들 때마다 새로 서므로 이 판단은 뷰어가 한다.
@@ -631,7 +636,7 @@ namespace JBro
         return count;
     }
 
-    bool EditorApplication::GetSpriteViewerFrame(std::uint32_t& frame) const
+    Bool EditorApplication::GetSpriteViewerFrame(UInt32& frame) const
     {
         const EditorPanel* viewer = FrontSpriteViewer();
         if (viewer == nullptr)
@@ -642,13 +647,13 @@ namespace JBro
         return true;
     }
 
-    int EditorApplication::GetSpriteViewerHoveredFrame() const
+    Int32 EditorApplication::GetSpriteViewerHoveredFrame() const
     {
         const EditorPanel* viewer = FrontSpriteViewer();
-        return viewer != nullptr ? static_cast<const SpriteViewerPanel*>(viewer)->GetHoveredFrame() : -1;
+        return viewer != nullptr ? static_cast<const SpriteViewerPanel*>(viewer)->GetHoveredFrame() : Int32(-1);
     }
 
-    TextureHandle EditorApplication::GetAssetThumbnail(AssetId asset, std::uint32_t maxSide)
+    TextureHandle EditorApplication::GetAssetThumbnail(AssetId asset, UInt32 maxSide)
     {
         if (m_thumbnails.Get() == nullptr || asset.IsNull())
         {
@@ -713,7 +718,7 @@ namespace JBro
         Log::Write(LogLevel::Info, "editor", "the window layout was read from %s", path.c_str());
     }
 
-    bool EditorApplication::SetEditorLocale(const char* locale)
+    Bool EditorApplication::SetEditorLocale(const char* locale)
     {
         if (locale == nullptr || locale[0] == '\0' || m_platform.Get() == nullptr)
         {
@@ -741,7 +746,7 @@ namespace JBro
         }
         // 폴더의 `<로케일>.yaml` 이 곧 목록이다. 따로 적어 두면 파일을 더해도 목록에 없다.
         m_platform->EnumerateDirectory(m_localizationDirectory.c_str(),
-            [](const char* relativePath, bool isDirectory, void* user) -> bool
+            [](const char* relativePath, Bool isDirectory, void* user) -> Bool
             {
                 if (isDirectory || relativePath == nullptr)
                 {
@@ -767,7 +772,7 @@ namespace JBro
         return locales;
     }
 
-    bool EditorApplication::SaveEditorSession()
+    Bool EditorApplication::SaveEditorSession()
     {
         if (m_projectFilePath.empty())
         {
@@ -803,9 +808,9 @@ namespace JBro
             settings.lastOpenedCanvasPath = relative;
         }
 
-        float cameraX = 0.0f;
-        float cameraY = 0.0f;
-        float cameraSize = 0.0f;
+        Float cameraX = 0.0f;
+        Float cameraY = 0.0f;
+        Float cameraSize = 0.0f;
         GetCanvasViewCamera(cameraX, cameraY, cameraSize);
         if (cameraSize > 0.0f)
         {
@@ -841,7 +846,7 @@ namespace JBro
         return m_engine.Get() != nullptr ? m_engine->GetAssetRoot() : empty;
     }
 
-    bool EditorApplication::RescanAssets()
+    Bool EditorApplication::RescanAssets()
     {
         if (m_engine.Get() == nullptr || false == m_engine->RescanAssets())
         {
@@ -854,7 +859,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::CreateAssetFolder(const char* relativeFolder, const char* name)
+    Bool EditorApplication::CreateAssetFolder(const char* relativeFolder, const char* name)
     {
         if (name == nullptr || name[0] == '\0' || GetAssetRoot().empty())
         {
@@ -925,7 +930,7 @@ namespace JBro
         return to;
     }
 
-    bool EditorApplication::RestoreFromTrash(const char* trashPath, const char* relativePath)
+    Bool EditorApplication::RestoreFromTrash(const char* trashPath, const char* relativePath)
     {
         if (trashPath == nullptr || relativePath == nullptr || GetAssetRoot().empty())
         {
@@ -993,7 +998,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::CreateAssetFolderNow(const char* relativePath)
+    Bool EditorApplication::CreateAssetFolderNow(const char* relativePath)
     {
         if (relativePath == nullptr || GetAssetRoot().empty())
         {
@@ -1044,12 +1049,12 @@ namespace JBro
         String absolute;
         // **0 번은 이름 그대로다.** 다른 폴더로 붙여넣는 것이면 거기에 같은 이름이 없으므로
         // 숫자를 붙일 까닭이 없다. 제자리 복제는 늘 부딪히므로 1 부터 쓰게 된다.
-        for (int attempt = 0; attempt < 100; ++attempt)
+        for (Int32 attempt = 0; attempt < 100; ++attempt)
         {
             char suffix[16] = {};
             if (attempt > 0)
             {
-                std::snprintf(suffix, sizeof(suffix), "%d", attempt);
+                std::snprintf(suffix, sizeof(suffix), "%d", attempt.Get());
             }
             String name = stem;
             name.append(suffix, std::strlen(suffix));
@@ -1080,7 +1085,7 @@ namespace JBro
         return relative;
     }
 
-    bool EditorApplication::RenameAsset(const char* relativePath, const char* newName)
+    Bool EditorApplication::RenameAsset(const char* relativePath, const char* newName)
     {
         if (relativePath == nullptr || newName == nullptr || newName[0] == '\0'
             || GetAssetRoot().empty())
@@ -1102,7 +1107,7 @@ namespace JBro
             EditorCommandManager::AssetDatabase);
     }
 
-    bool EditorApplication::MoveAsset(const char* relativePath, const char* targetFolder)
+    Bool EditorApplication::MoveAsset(const char* relativePath, const char* targetFolder)
     {
         if (relativePath == nullptr || GetAssetRoot().empty())
         {
@@ -1124,7 +1129,7 @@ namespace JBro
             EditorCommandManager::AssetDatabase);
     }
 
-    bool EditorApplication::MoveAssetPathNow(const char* fromRelative, const char* toRelative)
+    Bool EditorApplication::MoveAssetPathNow(const char* fromRelative, const char* toRelative)
     {
         if (fromRelative == nullptr || toRelative == nullptr || GetAssetRoot().empty())
         {
@@ -1158,7 +1163,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::DeleteAsset(const char* relativePath)
+    Bool EditorApplication::DeleteAsset(const char* relativePath)
     {
         if (relativePath == nullptr || GetAssetRoot().empty())
         {
@@ -1168,7 +1173,7 @@ namespace JBro
             EditorCommandManager::AssetDatabase);
     }
 
-    bool EditorApplication::DeleteAssets(const Array<String>& relativePaths)
+    Bool EditorApplication::DeleteAssets(const Array<String>& relativePaths)
     {
         if (relativePaths.IsEmpty() || GetAssetRoot().empty())
         {
@@ -1186,8 +1191,8 @@ namespace JBro
         return m_commands.Execute(std::move(all), EditorCommandManager::AssetDatabase);
     }
 
-    bool EditorApplication::GetAssetWriteTime(const char* relativePath,
-        std::int64_t& outUnixSeconds) const
+    Bool EditorApplication::GetAssetWriteTime(const char* relativePath,
+        Int64& outUnixSeconds) const
     {
         outUnixSeconds = 0;
         if (relativePath == nullptr || m_platform.Get() == nullptr || GetAssetRoot().empty())
@@ -1198,7 +1203,7 @@ namespace JBro
         return m_platform->GetFileWriteTime(path.c_str(), outUnixSeconds);
     }
 
-    bool EditorApplication::OpenAssetExternally(const char* relativePath)
+    Bool EditorApplication::OpenAssetExternally(const char* relativePath)
     {
         if (relativePath == nullptr || GetAssetRoot().empty())
         {
@@ -1229,7 +1234,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::TakeBrowserRevealRequest(AssetId& asset)
+    Bool EditorApplication::TakeBrowserRevealRequest(AssetId& asset)
     {
         if (m_revealInBrowser.IsNull())
         {
@@ -1240,7 +1245,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::RevealAsset(const char* relativePath)
+    Bool EditorApplication::RevealAsset(const char* relativePath)
     {
         if (GetAssetRoot().empty())
         {
@@ -1250,7 +1255,7 @@ namespace JBro
         return m_platform->RevealInFileBrowser(path.c_str());
     }
 
-    bool EditorApplication::SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error)
+    Bool EditorApplication::SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error)
     {
         error = ProjectFileError{};
         if (m_projectFilePath.empty())
@@ -1276,7 +1281,7 @@ namespace JBro
         return true;
     }
 
-    std::uint32_t EditorApplication::RecommendPhysicsWorkers()
+    UInt32 EditorApplication::RecommendPhysicsWorkers()
     {
         if (m_frameworkKind != FrameworkKind::Framework2D || m_framework.Get() == nullptr || m_projectFilePath.empty())
         {
@@ -1293,7 +1298,7 @@ namespace JBro
         }
         Framework2D& framework = *static_cast<Framework2D*>(m_framework.Get());
         framework.SetPhysicsWorkerCount(ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
-        std::uint32_t ignored[32] = {};
+        UInt32 ignored[32] = {};
         ResolvePhysicsIgnoredLayers(GetProjectFile(), ignored);
         framework.SetPhysicsIgnoredLayers(ignored);
     }
@@ -1319,9 +1324,9 @@ namespace JBro
         return m_engine.Get() != nullptr ? m_engine->GetAudio() : nullptr;
     }
 
-    std::uint32_t EditorApplication::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    UInt32 EditorApplication::EnumerateAudioOutputs(AudioDeviceInfo* devices, UInt32 capacity)
     {
-        return m_engine.Get() != nullptr ? m_engine->EnumerateAudioOutputs(devices, capacity) : 0;
+        return m_engine.Get() != nullptr ? m_engine->EnumerateAudioOutputs(devices, capacity) : UInt32(0);
     }
 
     const char* EditorApplication::GetAudioDeviceName() const
@@ -1330,7 +1335,7 @@ namespace JBro
         return output != nullptr ? output->GetDeviceName() : nullptr;
     }
 
-    bool EditorApplication::IsWatchingAssets() const
+    Bool EditorApplication::IsWatchingAssets() const
     {
         return m_engine.Get() != nullptr && m_engine->IsWatchingAssets();
     }
@@ -1348,7 +1353,7 @@ namespace JBro
         ReloadSelectedAssetMeta();
     }
 
-    void EditorApplication::SetCanvasSelected(bool selected)
+    void EditorApplication::SetCanvasSelected(Bool selected)
     {
         // **셋은 서로 배타다**(D-186). 인스펙터는 하나만 보이므로, 캔버스를 고르면
         // 오브젝트와 에셋의 선택을 비운다 - 그러지 않으면 무엇을 고친 것인지 화면과
@@ -1364,7 +1369,7 @@ namespace JBro
         m_canvasSelected = selected;
     }
 
-    bool EditorApplication::IsCanvasSelected() const
+    Bool EditorApplication::IsCanvasSelected() const
     {
         return m_canvasSelected;
     }
@@ -1405,7 +1410,7 @@ namespace JBro
         return m_selectedAssetMetaLoaded ? m_selectedAssetMeta.Get() : nullptr;
     }
 
-    bool EditorApplication::DescribeSelectedAssetMeta(AssetMetaTarget& target) const
+    Bool EditorApplication::DescribeSelectedAssetMeta(AssetMetaTarget& target) const
     {
         if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
         {
@@ -1442,7 +1447,7 @@ namespace JBro
             LoadAssetMetaFile(*target.platform, target.metaPath.c_str(), *m_selectedAssetMeta, error);
     }
 
-    bool EditorApplication::IsScriptModuleLoaded() const
+    Bool EditorApplication::IsScriptModuleLoaded() const
     {
         return m_engine->IsScriptModuleLoaded();
     }
@@ -1465,7 +1470,7 @@ namespace JBro
             return relative;
         }
         // 이미 절대경로면 그대로 둔다. `ResolveScriptModulePath` 와 같은 판정이다.
-        const bool absolute = relative.size() > 1
+        const Bool absolute = relative.size() > 1
             && (relative[0] == '/' || relative[0] == '\\' || relative[1] == ':');
         if (absolute || m_projectFilePath.empty())
         {
@@ -1499,7 +1504,7 @@ namespace JBro
         return nullptr;
     }
 
-    bool EditorApplication::LoadCanvas(const char* path, CanvasFileError& error)
+    Bool EditorApplication::LoadCanvas(const char* path, CanvasFileError& error)
     {
         CancelCanvasLoad();
         if (false == ReadCanvasFile(path, error))
@@ -1511,7 +1516,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::LoadCanvasAsync(const char* path, CanvasFileError& error)
+    Bool EditorApplication::LoadCanvasAsync(const char* path, CanvasFileError& error)
     {
         CancelCanvasLoad();
         if (false == ReadCanvasFile(path, error))
@@ -1537,7 +1542,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::IsCanvasLoading() const
+    Bool EditorApplication::IsCanvasLoading() const
     {
         return m_canvasLoad.Get() != nullptr;
     }
@@ -1643,7 +1648,7 @@ namespace JBro
         m_canvasLoadGroup = InvalidTaskGroupId;
     }
 
-    bool EditorApplication::ReadCanvasFile(const char* path, CanvasFileError& error)
+    Bool EditorApplication::ReadCanvasFile(const char* path, CanvasFileError& error)
     {
         error = CanvasFileError{};
         Canvas* canvas = GetCanvas();
@@ -1673,7 +1678,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::SaveCanvas(const char* path, CanvasFileError& error)
+    Bool EditorApplication::SaveCanvas(const char* path, CanvasFileError& error)
     {
         error = CanvasFileError{};
         Canvas* canvas = GetCanvas();
@@ -1719,7 +1724,7 @@ namespace JBro
         m_saveRequested = true;
     }
 
-    bool EditorApplication::CopySelection()
+    Bool EditorApplication::CopySelection()
     {
         const Array<GameObject*> roots = GetTopLevelSelectedObjects();
         if (roots.IsEmpty())
@@ -1741,7 +1746,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::PasteClipboard(bool asChild)
+    Bool EditorApplication::PasteClipboard(Bool asChild)
     {
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr || m_clipboard.IsEmpty())
@@ -1792,7 +1797,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::CopyComponent(ComponentBase& component)
+    Bool EditorApplication::CopyComponent(ComponentBase& component)
     {
         // **뜨지 못하면 클립보드를 건드리지 않는다**(오브젝트 복사와 같은 규칙). 프로퍼티를
         // 등록하지 않은 타입이 그렇다 - 붙여 봐야 기본값이 하나 더 생길 뿐이다.
@@ -1806,7 +1811,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::CanPasteComponent(const GameObject& object) const
+    Bool EditorApplication::CanPasteComponent(const GameObject& object) const
     {
         if (false == m_hasComponentClipboard)
         {
@@ -1820,7 +1825,7 @@ namespace JBro
         return ComponentRegistry::Get().CanAttach(object, NameTable::Get().Intern(typeName));
     }
 
-    bool EditorApplication::PasteComponent(GameObject& object)
+    Bool EditorApplication::PasteComponent(GameObject& object)
     {
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr || false == CanPasteComponent(object))
@@ -1837,12 +1842,12 @@ namespace JBro
             NameTable::Get().Intern(typeName), m_componentClipboard));
     }
 
-    bool EditorApplication::CanPasteComponentValues(const ComponentBase& component) const
+    Bool EditorApplication::CanPasteComponentValues(const ComponentBase& component) const
     {
         return m_hasComponentClipboard && m_componentClipboard.typeId == component.GetTypeId();
     }
 
-    bool EditorApplication::PasteComponentValues(GameObject& object, ComponentBase& component)
+    Bool EditorApplication::PasteComponentValues(GameObject& object, ComponentBase& component)
     {
         if (false == CanPasteComponentValues(component))
         {
@@ -1887,7 +1892,7 @@ namespace JBro
         desc.filterPattern = "*.jproject";
         desc.save = false;
         String path;
-        const bool chosen = m_fileDialog != nullptr
+        const Bool chosen = m_fileDialog != nullptr
             ? m_fileDialog(desc, path, m_fileDialogUser)
             : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, path);
         if (false == chosen || path.empty())
@@ -1897,7 +1902,7 @@ namespace JBro
         SwitchToProject(path.c_str());
     }
 
-    bool EditorApplication::SwitchToProject(const char* projectFilePath)
+    Bool EditorApplication::SwitchToProject(const char* projectFilePath)
     {
         // **지금 연 것을 먼저 닫는다.** 고른 것·번호·되돌리기도 `CloseProject` 가 비운다 - 이 프로젝트의 것이라
         // 다음 프로젝트에서 그 번호를 믿으면 엉뚱한 오브젝트를 가리킨다.
@@ -1944,7 +1949,7 @@ namespace JBro
         desc.title = Loc::TextOr(LocKeys::DialogNewProjectFolder, "Choose a folder for the project");
         desc.pickFolder = true;
         String folder;
-        const bool chosen = m_fileDialog != nullptr
+        const Bool chosen = m_fileDialog != nullptr
             ? m_fileDialog(desc, folder, m_fileDialogUser)
             : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, folder);
         if (false == chosen || folder.empty())
@@ -1954,7 +1959,7 @@ namespace JBro
         OpenPopup(MakeOwnerPtr<NewProjectPopup>(folder.c_str()));
     }
 
-    bool EditorApplication::BeginSpriteFramePick(AssetId sprite, const ComponentAddress& target)
+    Bool EditorApplication::BeginSpriteFramePick(AssetId sprite, const ComponentAddress& target)
     {
         CancelSpriteFramePick();
         const AssetRecord* record = GetAssetRegistry().Find(sprite);
@@ -1987,12 +1992,12 @@ namespace JBro
         m_framePickTarget = ComponentAddress{};
     }
 
-    bool EditorApplication::IsSpriteFramePickFor(const ComponentAddress& target) const
+    Bool EditorApplication::IsSpriteFramePickFor(const ComponentAddress& target) const
     {
         return m_framePickActive && m_framePickTarget.Equals(target);
     }
 
-    bool EditorApplication::CompleteSpriteFramePick(std::uint32_t frame)
+    Bool EditorApplication::CompleteSpriteFramePick(UInt32 frame)
     {
         if (false == m_framePickActive)
         {
@@ -2010,7 +2015,7 @@ namespace JBro
             return false;
         }
         char text[16] = {};
-        std::snprintf(text, sizeof(text), "%u", frame);
+        std::snprintf(text, sizeof(text), "%u", frame.Get());
         if (before == text)
         {
             return true;
@@ -2081,7 +2086,7 @@ namespace JBro
             desc.filterPattern = request.filterPattern.c_str();
         }
         String chosen;
-        const bool picked = m_fileDialog != nullptr
+        const Bool picked = m_fileDialog != nullptr
             ? m_fileDialog(desc, chosen, m_fileDialogUser)
             : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, chosen);
         if (false == picked || chosen.empty())
@@ -2097,7 +2102,7 @@ namespace JBro
         request.deliver(request.user, chosen);
     }
 
-    bool EditorApplication::CreateProject(
+    Bool EditorApplication::CreateProject(
         const char* parentFolder, const char* name, FrameworkKind framework, ProjectCreateFailure* failure)
     {
         String path;
@@ -2144,7 +2149,7 @@ namespace JBro
             }
             desc.initialDirectory = directory.empty() ? nullptr : directory.c_str();
             desc.save = true;
-            const bool chosen = m_fileDialog != nullptr
+            const Bool chosen = m_fileDialog != nullptr
                 ? m_fileDialog(desc, path, m_fileDialogUser)
                 : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, path);
             if (false == chosen || path.empty())
@@ -2158,7 +2163,7 @@ namespace JBro
         // 보던 자리를 흘리면, 다시 열었을 때 어디를 보고 있었는지 아무도 모른다.
         // 파일로 열지 않은 프로젝트에는 적을 자리가 없으므로 `SaveEditorSession` 이 건너뛴다.
         m_saveProjectRequested = false;
-        constexpr bool alsoSession = true;
+        constexpr Bool alsoSession = true;
         if (false == SaveCanvas(path.c_str(), error))
         {
             // 실패는 로그가 아니라 사용자에게 간다. 같은 Id 라 연달아 실패해도 하나만 뜬다.
@@ -2176,7 +2181,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::ImportAssetFile(
+    Bool EditorApplication::ImportAssetFile(
         const char* sourcePath, const char* relativeFolder, String* importedPath)
     {
         if (sourcePath == nullptr || sourcePath[0] == '\0' || GetAssetRoot().empty())
@@ -2262,7 +2267,7 @@ namespace JBro
         const String base = folder != nullptr ? folder : "";
         String relative;
         String absolute;
-        for (int attempt = 0; attempt < 100; ++attempt)
+        for (Int32 attempt = 0; attempt < 100; ++attempt)
         {
             char name[96] = {};
             if (attempt == 0)
@@ -2271,7 +2276,7 @@ namespace JBro
             }
             else
             {
-                std::snprintf(name, sizeof(name), "%s%d%s", stem, attempt, extension);
+                std::snprintf(name, sizeof(name), "%s%d%s", stem, attempt.Get(), extension);
             }
             relative = EditorPaths::JoinPath(base.c_str(), name);
             absolute = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
@@ -2338,7 +2343,7 @@ namespace JBro
         for (const char* at = layer->GetName(); *at != '\0' && length + 1 < sizeof(stem); ++at)
         {
             const char c = *at;
-            const bool bad = c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|'
+            const Bool bad = c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|'
                 || static_cast<unsigned char>(c) < 0x20;
             stem[length++] = bad ? '_' : c;
         }
@@ -2359,7 +2364,7 @@ namespace JBro
         return created;
     }
 
-    bool EditorApplication::AddLayerFromAsset(AssetId asset)
+    Bool EditorApplication::AddLayerFromAsset(AssetId asset)
     {
         Canvas* canvas = GetCanvas();
         const AssetRecord* record = canvas != nullptr ? GetAssetRegistry().Find(asset) : nullptr;
@@ -2448,11 +2453,11 @@ namespace JBro
         return world != nullptr ? world->GetCamera() : nullptr;
     }
 
-    std::uint32_t EditorApplication::GetUnusableGameCameraCount() const
+    UInt32 EditorApplication::GetUnusableGameCameraCount() const
     {
         const RenderWorld2D* world = m_frameworkKind == FrameworkKind::Framework2D && m_framework.Get() != nullptr
             ? static_cast<Framework2D*>(m_framework.Get())->GetRenderWorld() : nullptr;
-        return world != nullptr ? world->GetUnusableCameraCount() : 0;
+        return world != nullptr ? world->GetUnusableCameraCount() : UInt32(0);
     }
 
     OwnerPtr<EditorCommand> EditorApplication::MakeLayerSpaceCommand(LayerId layerId, LayerSpace space, ScreenScaleMode scaleMode)
@@ -2469,24 +2474,24 @@ namespace JBro
         const ScreenSpaceFrame frame = GetGameScreenSpace();
         // 게임 카메라가 보이는 것은 그리기와 같은 함수로 잰다(D-239) - 레터박스와 스냅이 여기도 같이 들어간다.
         CameraView2D cameraView;
-        const bool hasView = camera != nullptr && ComputeCameraView2D(*camera, frame, cameraView);
+        const Bool hasView = camera != nullptr && ComputeCameraView2D(*camera, frame, cameraView);
         ScreenExtent fromExtent;
         ScreenExtent toExtent;
-        const bool fromOk = ComputeScreenExtent(layer->GetScaleMode(), frame, fromExtent);
-        const bool toOk = ComputeScreenExtent(scaleMode, frame, toExtent);
+        const Bool fromOk = ComputeScreenExtent(layer->GetScaleMode(), frame, fromExtent);
+        const Bool toOk = ComputeScreenExtent(scaleMode, frame, toExtent);
         const auto* cameraTransform = camera != nullptr && camera->owner != nullptr
             ? canvas->FindComponentRaw<Component::Transform2D>(camera->owner) : nullptr;
         // **보이던 자리를 지킨다.** 월드 → 화면: 게임 카메라가 그 점을 화면 어디에 그렸는지를 기준 픽셀로 옮긴다. 화면 → 월드는 거꾸로다.
-        const bool convert = from != space && hasView && fromOk && toOk
+        const Bool convert = from != space && hasView && fromOk && toOk
             && cameraTransform != nullptr && cameraTransform->worldValid;
         if (convert)
         {
-            const float cameraHalfHeight = cameraView.halfHeight;
-            const float cameraHalfWidth = cameraView.halfWidth;
+            const Float cameraHalfHeight = cameraView.halfHeight;
+            const Float cameraHalfWidth = cameraView.halfWidth;
             // **패럴랙스 레이어는 그려진 자리를 지킨다**(D-286). 게임 화면은 그 레이어를 이만큼 옮겨 그리므로 월드 → 화면은 더하고, 화면 → 월드는 뺀다
             // (월드로 돌아간 레이어도 같은 계수를 든다). 기존 엔진은 계수 1 의 카메라로 옮겨 오브젝트가 튀었다.
-            float parallaxX = 0.0f;
-            float parallaxY = 0.0f;
+            Float parallaxX = 0.0f;
+            Float parallaxY = 0.0f;
             if (layer->GetParallax() != 1.0f && false == ComputeParallaxOffset2D(cameraView.view, layer->GetParallax(), parallaxX, parallaxY))
             {
                 parallaxX = 0.0f;
@@ -2507,20 +2512,20 @@ namespace JBro
                 if (space == LayerSpace::Screen)
                 {
                     const Matrix3x2& view = cameraView.view;
-                    const float shownX = transform->worldPosition.x + parallaxX;
-                    const float shownY = transform->worldPosition.y + parallaxY;
-                    const float vx = shownX * view.m11 + shownY * view.m21 + view.m31;
-                    const float vy = shownX * view.m12 + shownY * view.m22 + view.m32;
-                    float anchorX = 0.0f;
-                    float anchorY = 0.0f;
+                    const Float shownX = transform->worldPosition.x + parallaxX;
+                    const Float shownY = transform->worldPosition.y + parallaxY;
+                    const Float vx = shownX * view.m11 + shownY * view.m21 + view.m31;
+                    const Float vy = shownX * view.m12 + shownY * view.m22 + view.m32;
+                    Float anchorX = 0.0f;
+                    Float anchorY = 0.0f;
                     ComputeAnchorPoint(toExtent, transform->anchor.x, transform->anchor.y, anchorX, anchorY);
                     move.x = vx / cameraHalfWidth * toExtent.halfWidth - anchorX;
                     move.y = vy / cameraHalfHeight * toExtent.halfHeight - anchorY;
                 }
                 else
                 {
-                    const float vx = transform->worldPosition.x / fromExtent.halfWidth * cameraHalfWidth;
-                    const float vy = transform->worldPosition.y / fromExtent.halfHeight * cameraHalfHeight;
+                    const Float vx = transform->worldPosition.x / fromExtent.halfWidth * cameraHalfWidth;
+                    const Float vy = transform->worldPosition.y / fromExtent.halfHeight * cameraHalfHeight;
                     const Matrix3x2& eye = cameraTransform->world;
                     move.x = vx * eye.m11 + vy * eye.m21 + eye.m31 - parallaxX;
                     move.y = vx * eye.m12 + vy * eye.m22 + eye.m32 - parallaxY;
@@ -2533,7 +2538,7 @@ namespace JBro
 
     String EditorApplication::FindGameHostExecutable() const
     {
-        const bool is3D = m_frameworkKind == FrameworkKind::Framework3D;
+        const Bool is3D = m_frameworkKind == FrameworkKind::Framework3D;
         const String folder = m_platform.Get() != nullptr ? m_platform->GetExecutableFolder() : String();
         if (folder.empty())
         {
@@ -2562,7 +2567,7 @@ namespace JBro
         return String();
     }
 
-    bool EditorApplication::BuildGameForProject(GameBuildReport& report)
+    Bool EditorApplication::BuildGameForProject(GameBuildReport& report)
     {
         report = {};
         if (m_projectFilePath.empty() || m_platform.Get() == nullptr)
@@ -2580,7 +2585,7 @@ namespace JBro
             options.physicsWorkers = static_cast<std::int32_t>(
                 ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
         }
-        const bool built = BuildGame(*m_platform, GetProjectFile(), m_projectFilePath.c_str(), options, report);
+        const Bool built = BuildGame(*m_platform, GetProjectFile(), m_projectFilePath.c_str(), options, report);
         if (false == built)
         {
             m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyGameBuildFailed, "The game could not be built"),
@@ -2596,7 +2601,7 @@ namespace JBro
             Log::Write(LogLevel::Warning, "build", "no game host was found; the folder has the package and the project but no executable");
             report.warnings.Add(String("no game host was found; the folder has no executable"));
         }
-        const bool warned = false == report.warnings.IsEmpty();
+        const Bool warned = false == report.warnings.IsEmpty();
         m_notifications.Notify(warned ? NotificationLevel::Warning : NotificationLevel::Success,
             warned ? Loc::TextOr(LocKeys::NotifyGameBuildWarnings, "The game was built with warnings")
                    : Loc::TextOr(LocKeys::NotifyGameBuilt, "The game was built"),
@@ -2622,7 +2627,7 @@ namespace JBro
         return m_stringKeys;
     }
 
-    bool EditorApplication::SetPreviewLocale(const char* locale)
+    Bool EditorApplication::SetPreviewLocale(const char* locale)
     {
         GameLocalization* localization = m_engine.Get() != nullptr ? m_engine->GetLocalization() : nullptr;
         return localization != nullptr && localization->SetLocale(locale);
@@ -2658,7 +2663,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::CommonSaveAndOpen, "Save and open"),
                 Loc::TextOr(LocKeys::CommonOpenWithoutSaving, "Open without saving"),
                 Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
-                [](EditorApplication& editor, int choice, void*)
+                [](EditorApplication& editor, Int32 choice, void*)
                 {
                     editor.AnswerCanvasSwitch(choice);
                 },
@@ -2697,7 +2702,7 @@ namespace JBro
         Log::Write(LogLevel::Info, "editor", "opened %s", relative.c_str());
     }
 
-    void EditorApplication::AnswerCanvasSwitch(int choice)
+    void EditorApplication::AnswerCanvasSwitch(Int32 choice)
     {
         const String pending = m_pendingCanvasPath;
         m_pendingCanvasPath.clear();
@@ -2744,7 +2749,7 @@ namespace JBro
         desc.filterPattern = "*.png;*.jpg;*.jpeg;*.bmp;*.tga";
         desc.save = false;
         String path;
-        const bool chosen = m_fileDialog != nullptr
+        const Bool chosen = m_fileDialog != nullptr
             ? m_fileDialog(desc, path, m_fileDialogUser)
             : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, path);
         if (false == chosen || path.empty())
@@ -2772,7 +2777,7 @@ namespace JBro
         RequestSaveCanvas();
     }
 
-    bool EditorApplication::EnableEditorUi(const Extent2D& gameViewExtent)
+    Bool EditorApplication::EnableEditorUi(const Extent2D& gameViewExtent)
     {
         // 크기가 0 인 것은 아래 `CreateTexture` 도 거절한다. 그래도 여기서 막는 것은
         // 계약을 이 함수에서 읽을 수 있게 하려는 것이다 - RHI 가 마침 거절해 주는
@@ -2845,7 +2850,7 @@ namespace JBro
         try
         {
             const EditorPanelRegistry& types = EditorPanelRegistry::Get();
-            for (std::uint32_t index = 0; index < types.GetCount(); ++index)
+            for (UInt32 index = 0; index < types.GetCount(); ++index)
             {
                 const EditorPanelTypeInfo& type = types.GetAt(index);
                 if (type.createWithUi && CreatePanel(type.name) == nullptr)
@@ -2872,7 +2877,7 @@ namespace JBro
         ReleaseEditorUi();
     }
 
-    bool EditorApplication::IsEditorUiEnabled() const
+    Bool EditorApplication::IsEditorUiEnabled() const
     {
         return m_uiEnabled;
     }
@@ -2902,7 +2907,7 @@ namespace JBro
             return label;
         }
 
-        bool SameName(const char* left, const char* right)
+        Bool SameName(const char* left, const char* right)
         {
             return left != nullptr && right != nullptr && std::strcmp(left, right) == 0;
         }
@@ -3057,7 +3062,7 @@ namespace JBro
         return nullptr;
     }
 
-    std::uint32_t EditorApplication::FindPanels(const char* typeName, Array<EditorPanel*>& out)
+    UInt32 EditorApplication::FindPanels(const char* typeName, Array<EditorPanel*>& out)
     {
         out.Clear();
         if (typeName == nullptr)
@@ -3175,7 +3180,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::IsSelected(const GameObject* object) const
+    Bool EditorApplication::IsSelected(const GameObject* object) const
     {
         if (object == nullptr)
         {
@@ -3264,7 +3269,7 @@ namespace JBro
         Array<GameObject*> roots;
         for (std::size_t index = 0; index < living.Size(); ++index)
         {
-            bool ancestorSelected = false;
+            Bool ancestorSelected = false;
             for (const GameObject* walk = living[index]->GetParent();
                 walk != nullptr && false == ancestorSelected;
                 walk = walk->GetParent())
@@ -3279,12 +3284,12 @@ namespace JBro
         return roots;
     }
 
-    bool EditorApplication::UiWantsMouse() const
+    Bool EditorApplication::UiWantsMouse() const
     {
         return m_uiEnabled && m_ui.WantsMouse();
     }
 
-    bool EditorApplication::UiWantsKeyboard() const
+    Bool EditorApplication::UiWantsKeyboard() const
     {
         return m_uiEnabled && m_ui.WantsKeyboard();
     }
@@ -3294,7 +3299,7 @@ namespace JBro
         return m_gameView;
     }
 
-    bool EditorApplication::DidGameSubmitLastFrame() const
+    Bool EditorApplication::DidGameSubmitLastFrame() const
     {
         return m_engine.Get() != nullptr && m_engine->DidGameSubmitLastFrame();
     }
@@ -3304,7 +3309,7 @@ namespace JBro
         m_gameViewRequested = true;
     }
 
-    void EditorApplication::ReportGameView(bool focused, float left, float top, float width, float height)
+    void EditorApplication::ReportGameView(Bool focused, Float left, Float top, Float width, Float height)
     {
         m_gameViewReported = true;
         m_gameViewFocused = focused;
@@ -3319,7 +3324,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::IsGameReceivingInput() const
+    Bool EditorApplication::IsGameReceivingInput() const
     {
         return m_gameReceivingInput;
     }
@@ -3350,7 +3355,7 @@ namespace JBro
         canvas->FlushPendingDestroy();
     }
 
-    bool EditorApplication::StartSimulation()
+    Bool EditorApplication::StartSimulation()
     {
         if (m_simulationPlaying || m_engine.Get() == nullptr)
         {
@@ -3434,7 +3439,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::IsSimulationPlaying() const
+    Bool EditorApplication::IsSimulationPlaying() const
     {
         return m_simulationPlaying;
     }
@@ -3451,7 +3456,7 @@ namespace JBro
         }
     }
 
-    void EditorApplication::SetSimulationPaused(bool paused)
+    void EditorApplication::SetSimulationPaused(Bool paused)
     {
         if (false == m_simulationPlaying)
         {
@@ -3464,7 +3469,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::IsSimulationPaused() const
+    Bool EditorApplication::IsSimulationPaused() const
     {
         return m_simulationPaused;
     }
@@ -3478,7 +3483,7 @@ namespace JBro
         m_engine->StepSimulation();
     }
 
-    void EditorApplication::SetGameViewDebugDraw(bool visible)
+    void EditorApplication::SetGameViewDebugDraw(Bool visible)
     {
         m_gameViewDebugDraw = visible;
         if (m_engine.Get() != nullptr)
@@ -3487,17 +3492,17 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::IsGameViewDebugDrawVisible() const
+    Bool EditorApplication::IsGameViewDebugDrawVisible() const
     {
         return m_gameViewDebugDraw;
     }
 
-    void EditorApplication::SetCanvasViewDebugDraw(bool visible)
+    void EditorApplication::SetCanvasViewDebugDraw(Bool visible)
     {
         m_canvasViewDebugDraw = visible;
     }
 
-    bool EditorApplication::IsCanvasViewDebugDrawVisible() const
+    Bool EditorApplication::IsCanvasViewDebugDrawVisible() const
     {
         return m_canvasViewDebugDraw;
     }
@@ -3515,14 +3520,14 @@ namespace JBro
         return engine != nullptr ? engine->GetDebugDraw() : nullptr;
     }
 
-    std::uint64_t EditorApplication::GetRandomSeed() const
+    UInt64 EditorApplication::GetRandomSeed() const
     {
         EngineInstance* engine = m_engine.Get();
         const System::RandomSystem* random = engine != nullptr ? engine->GetRandom() : nullptr;
-        return random != nullptr ? random->GetSeed() : 0;
+        return random != nullptr ? random->GetSeed() : UInt64(0);
     }
 
-    bool EditorApplication::EnsureCanvasViewTexture(const Extent2D& extent)
+    Bool EditorApplication::EnsureCanvasViewTexture(const Extent2D& extent)
     {
         if (m_canvasView.IsValid()
             && m_canvasViewExtent.width == extent.width
@@ -3589,12 +3594,12 @@ namespace JBro
         m_canvasViewRequested = false;
     }
 
-    void EditorApplication::RequestLayerThumbnails(std::uint32_t height)
+    void EditorApplication::RequestLayerThumbnails(UInt32 height)
     {
         m_layerThumbnailHeight = height;
     }
 
-    bool EditorApplication::GetLayerThumbnail(LayerId layer, TextureHandle& texture, Extent2D& extent) const
+    Bool EditorApplication::GetLayerThumbnail(LayerId layer, TextureHandle& texture, Extent2D& extent) const
     {
         for (std::size_t index = 0; index < m_layerThumbnails.Size(); ++index)
         {
@@ -3628,7 +3633,7 @@ namespace JBro
         m_retiredLayerThumbnails.Clear();
     }
 
-    void EditorApplication::ReleaseLayerThumbnails(bool now)
+    void EditorApplication::ReleaseLayerThumbnails(Bool now)
     {
         for (std::size_t index = 0; index < m_layerThumbnails.Size(); ++index)
         {
@@ -3646,9 +3651,9 @@ namespace JBro
     void EditorApplication::FlushLayerThumbnails()
     {
         // 바란 프레임이 끊긴 지 한참이면 놓는다. 탭을 잠깐 바꾼 것으로는 놓지 않는다 - 돌아오면 지난 그림이 곧바로 보인다.
-        constexpr std::uint32_t ReleaseAfterFrames = 120;
+        constexpr UInt32 ReleaseAfterFrames = 120;
         constexpr std::size_t PerFrame = 2;
-        const std::uint32_t height = m_layerThumbnailHeight;
+        const UInt32 height = m_layerThumbnailHeight;
         m_layerThumbnailHeight = 0;
         // 지난 플러시에서 놓은 것은 지난 프레임의 UI 까지만 쓰였다. 이제 지운다(디바이스가 GPU 가 다 쓴 뒤에 놓는다).
         DestroyRetiredLayerThumbnails();
@@ -3665,9 +3670,9 @@ namespace JBro
         }
         m_layerThumbnailIdleFrames = 0;
         const ProjectFile& project = GetProjectFile();
-        const std::uint32_t referenceWidth = project.resolutionWidth != 0 ? project.resolutionWidth : 16;
-        const std::uint32_t referenceHeight = project.resolutionHeight != 0 ? project.resolutionHeight : 9;
-        const Extent2D extent{(std::max)(1u, height * referenceWidth / referenceHeight), height};
+        const UInt32 referenceWidth = project.resolutionWidth != 0 ? project.resolutionWidth : UInt32(16);
+        const UInt32 referenceHeight = project.resolutionHeight != 0 ? project.resolutionHeight : UInt32(9);
+        const Extent2D extent{JBro::Max(1u, height * referenceWidth / referenceHeight), height};
         if (extent.width != m_layerThumbnailExtent.width || extent.height != m_layerThumbnailExtent.height
             || m_layerThumbnailGeneration != m_canvasGeneration)
         {
@@ -3687,7 +3692,7 @@ namespace JBro
         for (std::size_t at = 0; at < canvas->GetLayerCount(); ++at)
         {
             const Layer* layer = canvas->GetLayerAt(at);
-            bool found = false;
+            Bool found = false;
             for (std::size_t index = 0; index < m_layerThumbnails.Size() && false == found; ++index)
             {
                 found = m_layerThumbnails[index].layer == layer->GetId();
@@ -3748,8 +3753,8 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::RequestCanvasView(const Extent2D& extent, float centerX, float centerY, float orthographicSize,
-        bool screenSpace, InstanceId focusObject)
+    Bool EditorApplication::RequestCanvasView(const Extent2D& extent, Float centerX, Float centerY, Float orthographicSize,
+        Bool screenSpace, InstanceId focusObject)
     {
         if (false == m_uiEnabled || extent.width == 0 || extent.height == 0
             || false == std::isfinite(centerX) || false == std::isfinite(centerY)
@@ -3759,7 +3764,7 @@ namespace JBro
         }
         // **요청한 크기를 올려 맞춘다.** 패널을 조금씩 끄는 동안 픽셀마다 텍스처를
         // 다시 만들면 그 프레임마다 GPU 자원을 버리게 된다. 64 의 배수면 몇 번만 만든다.
-        constexpr std::uint32_t Step = 64;
+        constexpr UInt32 Step = 64;
         Extent2D rounded;
         rounded.width = ((extent.width + Step - 1) / Step) * Step;
         rounded.height = ((extent.height + Step - 1) / Step) * Step;
@@ -3801,10 +3806,10 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::RequestCanvasView3D(
+    Bool EditorApplication::RequestCanvasView3D(
         const Extent2D& extent,
-        float centerX, float centerY, float centerZ,
-        float distance, float yawDegrees, float pitchDegrees)
+        Float centerX, Float centerY, Float centerZ,
+        Float distance, Float yawDegrees, Float pitchDegrees)
     {
         // 2D 의 것과 같은 길이다. 배율 대신 거리를 재고, 각이 둘 더 온다.
         if (false == RequestCanvasView(extent, centerX, centerY, 1.0f))
@@ -3913,7 +3918,7 @@ namespace JBro
         m_closingPanels.Clear();
     }
 
-    bool EditorApplication::DrawShortcutItem(EditorShortcut id, const char* label, const char* icon)
+    Bool EditorApplication::DrawShortcutItem(EditorShortcut id, const char* label, const char* icon)
     {
         // **이름도 글자도 할 수 있는지도 행동 표에서 온다**(D-132·D-284). 메뉴에 박아 두면 키를 바꿨을 때 화면만 옛 글자로 남는다.
         EditorActionContext context;
@@ -3949,8 +3954,8 @@ namespace JBro
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), Icons::Save);
             {
                 // 파일로 연 프로젝트만 적을 자리가 있고, 돌고 있는 동안에는 적지 않는다.
-                const bool noFile = m_projectFilePath.empty();
-                const bool playing = IsSimulationPlaying();
+                const Bool noFile = m_projectFilePath.empty();
+                const Bool playing = IsSimulationPlaying();
                 const char* why = nullptr;
                 if (noFile)
                 {
@@ -3985,7 +3990,7 @@ namespace JBro
         if (m_commands.IsDirty())
         {
             const char* mark = Loc::TextOr(LocKeys::MenuUnsaved, "unsaved");
-            const float width = ImGui::CalcTextSize(mark).x;
+            const Float width = ImGui::CalcTextSize(mark).x;
             ImGui::SameLine(ImGui::GetContentRegionMax().x - width
                 - ImGui::GetStyle().ItemSpacing.x);
             Widget::HintText(mark);
@@ -4004,7 +4009,7 @@ namespace JBro
         // 차례다: 시뮬레이션, 편집, 창.
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuSimulation, "Simulation")))
         {
-            const bool playing = IsSimulationPlaying();
+            const Bool playing = IsSimulationPlaying();
             DrawShortcutItem(EditorShortcut::TogglePlay, playing
                 ? Loc::TextOr(LocKeys::MenuSimulationStop, "Stop")
                 : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"), playing ? Icons::Stop : Icons::Play);
@@ -4013,13 +4018,13 @@ namespace JBro
             DrawShortcutItem(EditorShortcut::StepFrame,
                 Loc::TextOr(LocKeys::MenuSimulationStep, "Step One Frame"), Icons::StepFrame);
             ImGui::Separator();
-            bool gameDebugDraw = m_gameViewDebugDraw;
+            Bool gameDebugDraw = m_gameViewDebugDraw;
             if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationGameDebugDraw, "Debug Lines in Game View"), gameDebugDraw))
             {
                 SetGameViewDebugDraw(gameDebugDraw);
             }
             // 두 뷰의 토글을 한 메뉴에 둔다(D-243). 캔버스 뷰 도구 모음에 단추로 두면 도구 모음이 넓어져 좁은 창에서 줄이 바뀐다.
-            bool canvasDebugDraw = m_canvasViewDebugDraw;
+            Bool canvasDebugDraw = m_canvasViewDebugDraw;
             if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationCanvasDebugDraw, "Debug Lines in Canvas View"), canvasDebugDraw))
             {
                 SetCanvasViewDebugDraw(canvasDebugDraw);
@@ -4080,7 +4085,7 @@ namespace JBro
                     {
                         continue;
                     }
-                    bool open = panel->IsOpen();
+                    Bool open = panel->IsOpen();
                     if (Widget::MenuToggle(panel->GetDisplayTitle(), open))
                     {
                         panel->SetOpen(open);
@@ -4093,7 +4098,7 @@ namespace JBro
             if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindowImporter, "Importer")))
             {
                 const AssetRecord* chosen = GetAssetRegistry().Find(GetSelectedAsset());
-                const bool image = chosen != nullptr && AssetTypeRules::IsImageType(chosen->type);
+                const Bool image = chosen != nullptr && AssetTypeRules::IsImageType(chosen->type);
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuImportSprite, "Import Sprite"),
                         nullptr, false == GetAssetRoot().empty(),
                         Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))
@@ -4123,8 +4128,8 @@ namespace JBro
             ImGui::Separator();
             if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuHelpGuides, "Guides")))
             {
-                const bool hasCanvas = GetCanvas() != nullptr;
-                for (std::uint32_t index = 0; index < EditorGuides::GetBuiltinCount(); ++index)
+                const Bool hasCanvas = GetCanvas() != nullptr;
+                for (UInt32 index = 0; index < EditorGuides::GetBuiltinCount(); ++index)
                 {
                     const Guide& guide = EditorGuides::GetBuiltin(index);
                     if (Widget::MenuItem(Loc::TextFor(guide.title.key, guide.title.string, guide.title.locale), nullptr, hasCanvas,
@@ -4141,7 +4146,7 @@ namespace JBro
         Widget::EndMenuBar();
     }
 
-    void EditorApplication::DrawGuideFocus(float deltaTime)
+    void EditorApplication::DrawGuideFocus(Float deltaTime)
     {
         // 모달이 떠 있으면 막을 걷는다(D-251 (7)). 이 프레임에 그린 팝업을 본다.
         m_guideFocus.SetPaused(ImGui::GetTopMostPopupModal() != nullptr);
@@ -4153,7 +4158,7 @@ namespace JBro
         if (step != nullptr)
         {
             const Guide& guide = *m_guide.GetGuide();
-            const std::uint32_t total = static_cast<std::uint32_t>(guide.steps.Size());
+            const UInt32 total = static_cast<std::uint32_t>(guide.steps.Size());
             std::snprintf(progress, sizeof(progress), Loc::TextOr(LocKeys::GuideProgress, "%u / %u"),
                 m_guide.GetStepIndex() + 1, total);
             balloon.progress = progress;
@@ -4231,7 +4236,7 @@ namespace JBro
         EditorPanel* panel = FindPanel(panelTitle);
         // 없는 패널이면 항목을 잠근다. 눌러도 아무 일도 없는 항목은 없는 것보다 나쁘다(D-134).
         Widget::DisableScope disabled(panel == nullptr);
-        bool open = panel != nullptr && panel->IsOpen();
+        Bool open = panel != nullptr && panel->IsOpen();
         if (Widget::MenuToggle(label, open) && panel != nullptr)
         {
             panel->SetOpen(open);
@@ -4247,8 +4252,8 @@ namespace JBro
     {
         // **창 전체를 덮는 도크 뿌리다**(D-134). 기존 엔진의 `CRootDockWindow` 자리이고,
         // 여기에는 **메인 도크 하나만** 붙는다 - 도구 창은 그 안쪽에 붙는다. 바닥 한 줄은 상태 표시줄이 쓴다(13 번).
-        const float statusHeight = StatusBarHeight();
-        const float rootHeight = std::max(1.0f, static_cast<float>(display.height) - statusHeight);
+        const Float statusHeight = StatusBarHeight();
+        const Float rootHeight = JBro::Max(1.0f, static_cast<float>(display.height) - statusHeight);
         ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
         ImGui::SetNextWindowSize(ImVec2(static_cast<float>(display.width), rootHeight));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -4291,16 +4296,16 @@ namespace JBro
         DrawStatusBar(display, statusHeight);
     }
 
-    float EditorApplication::StatusBarHeight() const
+    Float EditorApplication::StatusBarHeight() const
     {
         return ImGui::GetFrameHeight() + 4.0f;
     }
 
-    void EditorApplication::DrawStatusBar(const Extent2D& display, float height)
+    void EditorApplication::DrawStatusBar(const Extent2D& display, Float height)
     {
         // **창 바닥의 한 줄이다**(13 번). 왼쪽에 도는 태스크 묶음(가장 먼저 온 것과 나머지 수), 오른쪽에 마지막 알림이 선다.
         // 묶음을 누르면 그 위에 태스크 목록을 펼치고(D-217 의 "로딩 바 아래 목록"), 알림을 누르면 로그 창을 연다.
-        const float top = static_cast<float>(display.height) - height;
+        const Float top = static_cast<float>(display.height) - height;
         ImGui::SetNextWindowPos(ImVec2(0.0f, top));
         ImGui::SetNextWindowSize(ImVec2(static_cast<float>(display.width), height));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -4328,10 +4333,10 @@ namespace JBro
 
         const TaskManager* tasks = m_engine.Get() != nullptr ? m_engine->GetTaskManager() : nullptr;
         TaskGroupId first = InvalidTaskGroupId;
-        std::uint32_t running = 0;
+        UInt32 running = 0;
         if (tasks != nullptr)
         {
-            for (std::uint32_t index = 0; index < tasks->GetGroupCount(); ++index)
+            for (UInt32 index = 0; index < tasks->GetGroupCount(); ++index)
             {
                 const TaskGroup& group = tasks->GetGroupAt(index);
                 if (group.IsFinished())
@@ -4398,7 +4403,7 @@ namespace JBro
         ImGui::Begin("##EditorTaskList", nullptr,
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking
                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
-        for (std::uint32_t index = 0; index < tasks->GetGroupCount(); ++index)
+        for (UInt32 index = 0; index < tasks->GetGroupCount(); ++index)
         {
             const TaskGroup& group = tasks->GetGroupAt(index);
             if (group.IsFinished())
@@ -4421,7 +4426,7 @@ namespace JBro
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         String mainTitle = Loc::TextOr(LocKeys::DockMain, "Main");
         mainTitle.append(MainDockLabel, std::strlen(MainDockLabel));
-        const bool open = ImGui::Begin(mainTitle.c_str(), nullptr,
+        const Bool open = ImGui::Begin(mainTitle.c_str(), nullptr,
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove
                 | ImGuiWindowFlags_NoTitleBar
                 | ImGuiWindowFlags_MenuBar);
@@ -4464,7 +4469,7 @@ namespace JBro
                     // 다른 도크의 패널은 제 도크가 붙인다(D-284).
                     if (panel != nullptr && std::strcmp(panel->GetDockArea(), MainDockArea) == 0)
                     {
-                        const int slot = static_cast<int>(panel->GetPreferredDock());
+                        const Int32 slot = static_cast<int>(panel->GetPreferredDock());
                         const String label = PanelWindowLabel(*panel);
                         ImGui::DockBuilderDockWindow(label.c_str(), nodes[slot]);
                     }
@@ -4502,7 +4507,7 @@ namespace JBro
         // **뿌리에는 도크만 붙는다**(D-284). 메인 도크가 아닌 도크는 열린 패널이 있을 때만 서서, 기존 엔진의 뷰어 도크처럼
         // 메인 도크와 같은 뿌리 칸에 탭으로 선다. 그 안에 제 도크 공간을 내고, 그 도크의 패널은 거기 붙는다.
         const EditorPanelRegistry& types = EditorPanelRegistry::Get();
-        for (std::uint32_t index = 0; index < types.GetDockAreaCount(); ++index)
+        for (UInt32 index = 0; index < types.GetDockAreaCount(); ++index)
         {
             const EditorDockAreaInfo& info = types.GetDockAreaAt(index);
             if (std::strcmp(info.name, MainDockArea) == 0)
@@ -4517,8 +4522,8 @@ namespace JBro
                 m_dockAreas.Add(added);
                 area = &m_dockAreas[m_dockAreas.Size() - 1];
             }
-            bool hasPanel = false;
-            bool wantsFront = false;
+            Bool hasPanel = false;
+            Bool wantsFront = false;
             for (const OwnerPtr<EditorPanel>& panel : m_panels)
             {
                 if (panel.Get() != nullptr && panel->IsOpen() && std::strcmp(panel->GetDockArea(), info.name) == 0)
@@ -4553,13 +4558,13 @@ namespace JBro
             String title = Loc::TextOr(info.titleKey, info.fallbackTitle);
             title += "###";
             title += info.name;
-            const bool visible = ImGui::Begin(title.c_str(), nullptr, ImGuiWindowFlags_NoCollapse);
+            const Bool visible = ImGui::Begin(title.c_str(), nullptr, ImGuiWindowFlags_NoCollapse);
             area->visible = visible;
             if (area->comingForward)
             {
                 const ImGuiWindow* window = ImGui::GetCurrentWindow();
                 const ImGuiDockNode* node = window->DockNode;
-                const bool chosen = node == nullptr
+                const Bool chosen = node == nullptr
                     || (node->TabBar != nullptr && node->TabBar->SelectedTabId == window->TabId);
                 area->comingForward = false == (visible && chosen);
             }
@@ -4573,7 +4578,7 @@ namespace JBro
         }
     }
 
-    void EditorApplication::DrawPanels(float deltaTime)
+    void EditorApplication::DrawPanels(Float deltaTime)
     {
         // 그리는 동안 닫힌 비고유 패널은 끝난 뒤에 파기한다(D-284).
         m_drawingPanels = true;
@@ -4595,8 +4600,8 @@ namespace JBro
             const GuideFocusTarget panelTarget = GuideFocusTargets::Panel(panel->GetTitle());
             if (m_guideFocus.IsActive())
             {
-                const std::uint32_t at = m_guideFocus.GetPath().Find(panelTarget);
-                const bool onPath = at < m_guideFocus.GetPath().count && at <= m_guideFocus.GetLevel();
+                const UInt32 at = m_guideFocus.GetPath().Find(panelTarget);
+                const Bool onPath = at < m_guideFocus.GetPath().count && at <= m_guideFocus.GetLevel();
                 if ((onPath && false == panel->IsOpen()) || m_guideFocus.IsOpenRequested(panelTarget))
                 {
                     panel->RequestFocus();
@@ -4606,7 +4611,7 @@ namespace JBro
             {
                 continue;
             }
-            bool panelOpen = true;
+            Bool panelOpen = true;
             ImGuiWindowFlags flags = panel->HasMenuBar()
                 ? ImGuiWindowFlags_MenuBar
                 : ImGuiWindowFlags_None;
@@ -4618,7 +4623,7 @@ namespace JBro
             const String label = PanelWindowLabel(*panel);
             // 닫기 단추를 원하지 않는 패널에는 불리언을 넘기지 않는다. ImGui 는
             // 그것으로 단추를 그릴지 정한다.
-            bool* closable = panel->HasCloseButton() ? &panelOpen : nullptr;
+            Bool* closable = panel->HasCloseButton() ? &panelOpen : nullptr;
             // **메인 도크가 아닌 도크의 패널은 처음 그릴 때 그 도크 공간에 붙인다**(D-284). 그 뒤로는 사람이 옮긴 자리를 지킨다.
             if (false == panel->m_placed && std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
             {
@@ -4630,7 +4635,7 @@ namespace JBro
             }
             // 앞으로 와 달라고 한 패널은 이 프레임에 탭의 앞으로 온다(D-178). 다른 도크의 패널은 그 도크가 메인 도크 탭 뒤에서
             // 나와 그려질 때까지 요청을 남겨 둔다 - 가려진 프레임에 써 버리면 도크만 앞으로 오고 탭은 그대로 뒤에 남는다.
-            bool canComeForward = true;
+            Bool canComeForward = true;
             if (std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
             {
                 const DockAreaState* area = FindDockArea(panel->GetDockArea());
@@ -4640,7 +4645,10 @@ namespace JBro
             {
                 ImGui::SetNextWindowFocus();
             }
-            const bool shown = ImGui::Begin(label.c_str(), closable, flags);
+            // ImGui 는 bool* 를 받는다(서드파티 경계). 원시 값으로 넘기고 닫힘을 되돌려 쓴다.
+            bool rawOpen = panelOpen;
+            const Bool shown = ImGui::Begin(label.c_str(), closable != nullptr ? &rawOpen : nullptr, flags);
+            panelOpen = rawOpen;
             // 창 전체가 대상일 수 있다(레이어 창에서 오브젝트를 고르는 단계). 가려진 탭이면 열리지 않은 것으로 알린다.
             {
                 const ImVec2 position = ImGui::GetWindowPos();
@@ -4669,7 +4677,7 @@ namespace JBro
         DestroyClosingPanels();
     }
 
-    bool EditorApplication::BuildEditorUi(float deltaTime)
+    Bool EditorApplication::BuildEditorUi(Float deltaTime)
     {
         Renderer* renderer = m_engine->GetRenderer();
         if (renderer == nullptr)
@@ -4699,11 +4707,11 @@ namespace JBro
             // 가이드도 함께 멈춘다. 가이드 없이 켠 가이드 포커스면 그것만 꺼진다.
             m_guide.Stop(m_guideFocus);
         }
-        const bool pushed = m_ui.PushInput(input);
+        const Bool pushed = m_ui.PushInput(input);
         // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
         // 기존 엔진의 `SetViewportActive` 게이트와 같다. 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
         // 그러지 않으면 W 를 누른 채 인스펙터를 누르면 게임 속 캐릭터가 계속 걷는다.
-        const bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_gameViewReported && m_gameViewFocused;
+        const Bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_gameViewReported && m_gameViewFocused;
         if (gameInput)
         {
             m_engine->SubmitHostInput(input, m_gameViewMapping);
@@ -4728,8 +4736,8 @@ namespace JBro
         // **시계가 움직이지 않은 프레임은 실패가 아니다**(D-160). 호스트는 첫 프레임의 시간을 `now - previous` 로
         // 재는데, 시계가 그 사이 넘어가지 않으면 0 이다. UI 는 0 을 받지 않으므로(ImGui 가 단언에서 멈춘다) 거절했고,
         // 에디터가 켜지자마자 꺼졌다 - 서른 번에 세 번꼴이었다. 음수와 NaN 은 여전히 잘못이다.
-        constexpr float StillFrameTime = 1.0e-6f;
-        const float uiDeltaTime = deltaTime == 0.0f ? StillFrameTime : deltaTime;
+        constexpr Float StillFrameTime = 1.0e-6f;
+        const Float uiDeltaTime = deltaTime == 0.0f ? StillFrameTime : deltaTime;
         if (false == m_ui.BeginFrame(display, uiDeltaTime))
         {
             return false;
@@ -4820,13 +4828,13 @@ namespace JBro
             {
                 ImGui::OpenPopup(label);
             }
-            const float width = popup.GetInitialWidth();
-            const float height = popup.GetInitialHeight();
+            const Float width = popup.GetInitialWidth();
+            const Float height = popup.GetInitialHeight();
             // **폭만 정하고 높이는 내용에 맞출 수 있다**(D-160, 기존 `ImPopupDesc::InitSize(400, 0)`). ImGui 는 크기의
             // 한 축이 0 이면 그 축을 내용에 맞춘다 - 기존도 이렇게 매 프레임 불렀다. 폭까지 내용에 맞추면 긴 경로를
             // 보이는 팝업이 경로 폭만큼 늘고, 짧으면 칸이 좁아진다.
-            const bool fixedWidth = width > 0.0f && height <= 0.0f;
-            const bool autoSize = false == fixedWidth && (width <= 0.0f || height <= 0.0f);
+            const Bool fixedWidth = width > 0.0f && height <= 0.0f;
+            const Bool autoSize = false == fixedWidth && (width <= 0.0f || height <= 0.0f);
             if (fixedWidth)
             {
                 ImGui::SetNextWindowSize(ImVec2(width, 0.0f));
@@ -4843,11 +4851,14 @@ namespace JBro
                 ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
             }
             // p_open 이 nullptr 이면 ImGui 가 제목줄의 X 를 그리지 않는다.
-            bool* open = popup.HasCloseButton() ? &popup.m_open : nullptr;
+            bool rawOpen = popup.m_open;
+            bool* open = popup.HasCloseButton() ? &rawOpen : nullptr;
             const ImGuiWindowFlags flags = autoSize
                 ? ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings
                 : ImGuiWindowFlags_NoSavedSettings;
-            if (ImGui::BeginPopupModal(label, open, flags))
+            const bool modalShown = ImGui::BeginPopupModal(label, open, flags);
+            popup.m_open = rawOpen;
+            if (modalShown)
             {
                 if (false == popup.m_shown)
                 {
@@ -4916,7 +4927,7 @@ namespace JBro
         }
     }
 
-    bool EditorApplication::IsPopupOpen(PopupHandle handle) const
+    Bool EditorApplication::IsPopupOpen(PopupHandle handle) const
     {
         if (handle == InvalidPopupHandle)
         {
@@ -4943,7 +4954,7 @@ namespace JBro
         return m_guideFocus;
     }
 
-    bool EditorApplication::StartGuide(const char* id)
+    Bool EditorApplication::StartGuide(const char* id)
     {
         const Guide* guide = EditorGuides::FindBuiltin(id);
         if (guide == nullptr || GetCanvas() == nullptr)
@@ -4953,7 +4964,7 @@ namespace JBro
         return m_guide.Start(*guide, *this, m_guideFocus);
     }
 
-    bool EditorApplication::StartGuideFromText(const char* text, std::size_t length, String& error)
+    Bool EditorApplication::StartGuideFromText(const char* text, std::size_t length, String& error)
     {
         if (GetCanvas() == nullptr)
         {
@@ -4982,7 +4993,7 @@ namespace JBro
         return m_guide;
     }
 
-    bool EditorApplication::IsControlPortOpen() const
+    Bool EditorApplication::IsControlPortOpen() const
     {
         return m_controlPort.Get() != nullptr && m_controlPort->IsOpen();
     }
@@ -5007,7 +5018,7 @@ namespace JBro
         return m_componentMenus;
     }
 
-    bool EditorApplication::IsPopupOpenById(const char* id) const
+    Bool EditorApplication::IsPopupOpenById(const char* id) const
     {
         if (id == nullptr || *id == '\0')
         {
@@ -5026,10 +5037,10 @@ namespace JBro
         return false;
     }
 
-    bool EditorApplication::DrawEditorOverlay(
+    Bool EditorApplication::DrawEditorOverlay(
         IRHICommandContext& commands,
         TextureHandle backBuffer,
-        std::uint32_t frameSlot,
+        UInt32 frameSlot,
         void* user)
     {
         auto* self = static_cast<EditorApplication*>(user);
@@ -5056,12 +5067,12 @@ namespace JBro
         viewport.height = static_cast<float>(display.height);
         commands.SetViewport(viewport);
 
-        const bool drawn = self->m_ui.Draw(commands, frameSlot);
+        const Bool drawn = self->m_ui.Draw(commands, frameSlot);
         commands.EndRenderPass();
         return drawn;
     }
 
-    bool EditorApplication::Tick(float deltaTime)
+    Bool EditorApplication::Tick(Float deltaTime)
     {
         if (false == m_initialized || m_engine.Get() == nullptr)
         {
@@ -5157,7 +5168,7 @@ namespace JBro
             ReleaseProcessResources();
             return false;
         }
-        const bool running = m_engine->Tick(deltaTime);
+        const Bool running = m_engine->Tick(deltaTime);
         m_lastFrameStatus = m_engine->GetLastFrameStatus();
         if (m_framework && m_engine->GetFramework() == nullptr)
         {
@@ -5259,12 +5270,12 @@ namespace JBro
         return m_engine ? m_engine->GetRenderer() : nullptr;
     }
 
-    bool EditorApplication::IsInitialized() const
+    Bool EditorApplication::IsInitialized() const
     {
         return m_initialized;
     }
 
-    bool EditorApplication::HasOpenProject() const
+    Bool EditorApplication::HasOpenProject() const
     {
         return static_cast<bool>(m_framework);
     }
@@ -5274,7 +5285,7 @@ namespace JBro
         return m_lastFrameStatus;
     }
 
-    bool EditorApplication::CreateSelectedFramework(FrameworkKind framework)
+    Bool EditorApplication::CreateSelectedFramework(FrameworkKind framework)
     {
         try
         {

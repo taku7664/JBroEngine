@@ -1,4 +1,7 @@
 ﻿#include <JBro/Network/Native/WinsockSocketProvider.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Int.h>
 
 #ifdef _WIN32
 
@@ -23,7 +26,7 @@ namespace JBro::Network::Native
             return static_cast<std::uintptr_t>(socket);
         }
 
-        bool ResolveAddress(const char* host, std::uint16_t port, int socketType, int protocol, Endpoint& out)
+        Bool ResolveAddress(const char* host, std::uint16_t port, Int32 socketType, Int32 protocol, Endpoint& out)
         {
             if (nullptr == host)
             {
@@ -93,7 +96,7 @@ namespace JBro::Network::Native
         return nullptr;
     }
 
-    bool WinsockSocketProvider::IsAvailable() const
+    Bool WinsockSocketProvider::IsAvailable() const
     {
         return m_started;
     }
@@ -114,7 +117,7 @@ namespace JBro::Network::Native
         Close();
     }
 
-    bool WinsockStreamSocket::EnsureSocket()
+    Bool WinsockStreamSocket::EnsureSocket()
     {
         if (InvalidHandle != m_socket)
         {
@@ -140,7 +143,7 @@ namespace JBro::Network::Native
         ioctlsocket(ToSocket(m_socket), FIONBIO, &mode);
     }
 
-    bool WinsockStreamSocket::Connect(const char* host, std::uint16_t port)
+    Bool WinsockStreamSocket::Connect(const char* host, std::uint16_t port)
     {
         Endpoint endpoint;
         if (false == ResolveAddress(host, port, SOCK_STREAM, IPPROTO_TCP, endpoint))
@@ -151,7 +154,7 @@ namespace JBro::Network::Native
         {
             return false;
         }
-        const int result = connect(ToSocket(m_socket), reinterpret_cast<const sockaddr*>(endpoint.data),
+        const Int32 result = connect(ToSocket(m_socket), reinterpret_cast<const sockaddr*>(endpoint.data),
             static_cast<int>(endpoint.length));
         if (0 != result && WSAEWOULDBLOCK != WSAGetLastError())
         {
@@ -162,17 +165,17 @@ namespace JBro::Network::Native
         return true;
     }
 
-    bool WinsockStreamSocket::Listen(std::uint16_t port)
+    Bool WinsockStreamSocket::Listen(std::uint16_t port)
     {
         return ListenOn(INADDR_ANY, port);
     }
 
-    bool WinsockStreamSocket::ListenLoopback(std::uint16_t port)
+    Bool WinsockStreamSocket::ListenLoopback(std::uint16_t port)
     {
         return ListenOn(INADDR_LOOPBACK, port);
     }
 
-    bool WinsockStreamSocket::ListenOn(std::uint32_t hostAddress, std::uint16_t port)
+    Bool WinsockStreamSocket::ListenOn(UInt32 hostAddress, std::uint16_t port)
     {
         if (false == EnsureSocket())
         {
@@ -230,7 +233,7 @@ namespace JBro::Network::Native
         FD_SET(ToSocket(m_socket), &writeSet);
         FD_SET(ToSocket(m_socket), &errorSet);
         timeval immediately = { 0, 0 };
-        const int ready = select(0, nullptr, &writeSet, &errorSet, &immediately);
+        const Int32 ready = select(0, nullptr, &writeSet, &errorSet, &immediately);
         if (ready <= 0)
         {
             return ConnectionState::Connecting;
@@ -257,13 +260,13 @@ namespace JBro::Network::Native
         {
             return SocketIo::Ok;
         }
-        const int sent = send(ToSocket(m_socket), static_cast<const char*>(data), static_cast<int>(size), 0);
+        const Int32 sent = send(ToSocket(m_socket), static_cast<const char*>(data), static_cast<int>(size), 0);
         if (sent > 0)
         {
             outSent = static_cast<std::size_t>(sent);
             return SocketIo::Ok;
         }
-        const int error = WSAGetLastError();
+        const Int32 error = WSAGetLastError();
         if (WSAEWOULDBLOCK == error)
         {
             return SocketIo::WouldBlock;
@@ -282,7 +285,7 @@ namespace JBro::Network::Native
         {
             return SocketIo::Error;
         }
-        const int received = recv(ToSocket(m_socket), static_cast<char*>(buffer), static_cast<int>(capacity), 0);
+        const Int32 received = recv(ToSocket(m_socket), static_cast<char*>(buffer), static_cast<int>(capacity), 0);
         if (received > 0)
         {
             outReceived = static_cast<std::size_t>(received);
@@ -292,7 +295,7 @@ namespace JBro::Network::Native
         {
             return SocketIo::Closed;
         }
-        const int error = WSAGetLastError();
+        const Int32 error = WSAGetLastError();
         if (WSAEWOULDBLOCK == error)
         {
             return SocketIo::WouldBlock;
@@ -321,7 +324,7 @@ namespace JBro::Network::Native
         Close();
     }
 
-    bool WinsockDatagramSocket::Open()
+    Bool WinsockDatagramSocket::Open()
     {
         if (InvalidHandle != m_socket)
         {
@@ -347,7 +350,7 @@ namespace JBro::Network::Native
         ioctlsocket(ToSocket(m_socket), FIONBIO, &mode);
     }
 
-    bool WinsockDatagramSocket::Bind(std::uint16_t port)
+    Bool WinsockDatagramSocket::Bind(std::uint16_t port)
     {
         if (InvalidHandle == m_socket && false == Open())
         {
@@ -360,7 +363,7 @@ namespace JBro::Network::Native
         return 0 == bind(ToSocket(m_socket), reinterpret_cast<sockaddr*>(&address), sizeof(address));
     }
 
-    bool WinsockDatagramSocket::Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint)
+    Bool WinsockDatagramSocket::Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint)
     {
         return ResolveAddress(host, port, SOCK_DGRAM, IPPROTO_UDP, outEndpoint);
     }
@@ -371,7 +374,7 @@ namespace JBro::Network::Native
         {
             return SocketIo::Error;
         }
-        const int sent = sendto(ToSocket(m_socket), static_cast<const char*>(data), static_cast<int>(size), 0,
+        const Int32 sent = sendto(ToSocket(m_socket), static_cast<const char*>(data), static_cast<int>(size), 0,
             reinterpret_cast<const sockaddr*>(to.data), static_cast<int>(to.length));
         if (sent >= 0)
         {
@@ -392,7 +395,7 @@ namespace JBro::Network::Native
             return SocketIo::Error;
         }
         int fromLength = static_cast<int>(Endpoint::Capacity);
-        const int received = recvfrom(ToSocket(m_socket), static_cast<char*>(buffer), static_cast<int>(capacity), 0,
+        const Int32 received = recvfrom(ToSocket(m_socket), static_cast<char*>(buffer), static_cast<int>(capacity), 0,
             reinterpret_cast<sockaddr*>(outFrom.data), &fromLength);
         if (received >= 0)
         {
@@ -400,7 +403,7 @@ namespace JBro::Network::Native
             outFrom.length = static_cast<std::uint32_t>(fromLength);
             return SocketIo::Ok;
         }
-        const int error = WSAGetLastError();
+        const Int32 error = WSAGetLastError();
         if (WSAEWOULDBLOCK == error)
         {
             return SocketIo::WouldBlock;
@@ -422,7 +425,7 @@ namespace JBro::Network::Native
         }
     }
 
-    bool WinsockDatagramSocket::IsOpen() const
+    Bool WinsockDatagramSocket::IsOpen() const
     {
         return InvalidHandle != m_socket;
     }

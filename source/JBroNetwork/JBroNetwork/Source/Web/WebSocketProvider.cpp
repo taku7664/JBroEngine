@@ -1,4 +1,7 @@
 ﻿#include <JBro/Network/Web/WebSocketProvider.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Int.h>
 
 // Emscripten 전용. Windows 빌드에서는 빈 번역 단위다. **미검증** - 웹 빌드가 서는 날 확인한다(network-plan §3-6).
 #if defined(__EMSCRIPTEN__)
@@ -14,7 +17,7 @@
 // ── JS 쪽 ──────────────────────────────────────────────────────────────────────────────────────
 // 핸들 표 하나에 WebSocket 과 RTCPeerConnection 을 둔다. 받은 메시지는 JS 배열 큐에 쌓이고 C++ 이 폴링으로 꺼낸다 -
 // 콜백을 C++ 로 넘기지 않는다(꺼내 가기 규약, network-plan §2.4).
-EM_JS(int, jbro_ws_open, (const char* url), {
+EM_JS(JBro::Int32, jbro_ws_open, (const char* url), {
     var table = Module.jbroNet || (Module.jbroNet = { next: 1, items: {} });
     var id = table.next++;
     var entry = { ws: null, open: false, closed: false, queue: [] };
@@ -33,13 +36,13 @@ EM_JS(int, jbro_ws_open, (const char* url), {
     return id;
 });
 
-EM_JS(int, jbro_ws_state, (int id), {
+EM_JS(JBro::Int32, jbro_ws_state, (JBro::Int32 id), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || entry.closed) { return 2; }
     return entry.open ? 1 : 0;
 });
 
-EM_JS(int, jbro_ws_send, (int id, const unsigned char* data, int size), {
+EM_JS(JBro::Int32, jbro_ws_send, (JBro::Int32 id, const unsigned char* data, JBro::Int32 size), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || !entry.open) { return 0; }
     entry.ws.send(HEAPU8.slice(data, data + size));
@@ -47,7 +50,7 @@ EM_JS(int, jbro_ws_send, (int id, const unsigned char* data, int size), {
 });
 
 // 큐 맨 앞 메시지를 최대 capacity 만큼 복사하고 크기를 돌려준다. 없으면 -1. 버퍼가 작으면 -2(메시지는 남는다).
-EM_JS(int, jbro_ws_take, (int id, unsigned char* out, int capacity), {
+EM_JS(JBro::Int32, jbro_ws_take, (JBro::Int32 id, unsigned char* out, JBro::Int32 capacity), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || entry.queue.length === 0) { return -1; }
     var message = entry.queue[0];
@@ -57,7 +60,7 @@ EM_JS(int, jbro_ws_take, (int id, unsigned char* out, int capacity), {
     return message.length;
 });
 
-EM_JS(void, jbro_ws_close, (int id), {
+EM_JS(void, jbro_ws_close, (JBro::Int32 id), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry) { return; }
     try { if (entry.ws) { entry.ws.close(); } } catch (error) {}
@@ -66,7 +69,7 @@ EM_JS(void, jbro_ws_close, (int id), {
 });
 
 // 피어: 데이터 채널 넷을 채널 열거형 순서로 연다. 시그널은 JSON 글자({type:'offer'|'answer'|'candidate', ...}) 다.
-EM_JS(int, jbro_peer_open, (int initiator, const char* iceServers), {
+EM_JS(JBro::Int32, jbro_peer_open, (JBro::Int32 initiator, const char* iceServers), {
     var table = Module.jbroNet || (Module.jbroNet = { next: 1, items: {} });
     var id = table.next++;
     var servers = [];
@@ -117,13 +120,13 @@ EM_JS(int, jbro_peer_open, (int initiator, const char* iceServers), {
     return id;
 });
 
-EM_JS(int, jbro_peer_state, (int id), {
+EM_JS(JBro::Int32, jbro_peer_state, (JBro::Int32 id), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || entry.closed) { return 2; }
     return entry.openCount >= 4 ? 1 : 0;
 });
 
-EM_JS(int, jbro_peer_take_signal, (int id, unsigned char* out, int capacity), {
+EM_JS(JBro::Int32, jbro_peer_take_signal, (JBro::Int32 id, unsigned char* out, JBro::Int32 capacity), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || entry.signals.length === 0) { return -1; }
     var bytes = new TextEncoder().encode(entry.signals[0]);
@@ -133,7 +136,7 @@ EM_JS(int, jbro_peer_take_signal, (int id, unsigned char* out, int capacity), {
     return bytes.length;
 });
 
-EM_JS(int, jbro_peer_push_signal, (int id, const unsigned char* data, int size), {
+EM_JS(JBro::Int32, jbro_peer_push_signal, (JBro::Int32 id, const unsigned char* data, JBro::Int32 size), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || !entry.pc) { return 0; }
     var message;
@@ -157,7 +160,7 @@ EM_JS(int, jbro_peer_push_signal, (int id, const unsigned char* data, int size),
     return 1;
 });
 
-EM_JS(int, jbro_peer_send, (int id, int channel, const unsigned char* data, int size), {
+EM_JS(JBro::Int32, jbro_peer_send, (JBro::Int32 id, JBro::Int32 channel, const unsigned char* data, JBro::Int32 size), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || !entry.channels[channel] || entry.channels[channel].readyState !== 'open') { return 0; }
     entry.channels[channel].send(HEAPU8.slice(data, data + size));
@@ -165,7 +168,7 @@ EM_JS(int, jbro_peer_send, (int id, int channel, const unsigned char* data, int 
 });
 
 // 큐 맨 앞 메시지를 복사하고 크기를 돌려준다. 채널 번호는 *outChannel 에. 없으면 -1, 버퍼가 작으면 -2.
-EM_JS(int, jbro_peer_take, (int id, unsigned char* out, int capacity, int* outChannel), {
+EM_JS(JBro::Int32, jbro_peer_take, (JBro::Int32 id, unsigned char* out, JBro::Int32 capacity, JBro::Int32* outChannel), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry || entry.queue.length === 0) { return -1; }
     var message = entry.queue[0];
@@ -176,7 +179,7 @@ EM_JS(int, jbro_peer_take, (int id, unsigned char* out, int capacity, int* outCh
     return message.data.length;
 });
 
-EM_JS(void, jbro_peer_close, (int id), {
+EM_JS(void, jbro_peer_close, (JBro::Int32 id), {
     var entry = Module.jbroNet && Module.jbroNet.items[id];
     if (!entry) { return; }
     try { if (entry.pc) { entry.pc.close(); } } catch (error) {}
@@ -204,27 +207,27 @@ namespace JBro::Network::Web
                 Close();
             }
 
-            bool Connect(const char* host, std::uint16_t port) override
+            Bool Connect(const char* host, std::uint16_t port) override
             {
                 if (0 != m_handle)
                 {
                     return false;
                 }
                 // https 페이지에서는 브라우저가 평문 ws 를 막는다(mixed content). 페이지가 https 면 wss 로 간다.
-                const bool secure = EM_ASM_INT({ return location.protocol === 'https:' ? 1 : 0; }) != 0;
+                const Bool secure = EM_ASM_INT({ return location.protocol === 'https:' ? 1 : 0; }) != 0;
                 char url[512];
                 std::snprintf(url, sizeof(url), "%s://%s:%u", secure ? "wss" : "ws", host, static_cast<unsigned>(port));
                 m_handle = jbro_ws_open(url);
                 return 0 != m_handle;
             }
 
-            bool Listen(std::uint16_t) override
+            Bool Listen(std::uint16_t) override
             {
                 // 브라우저는 소켓을 받을 수 없다. 웹 호스트는 피어 연결이다.
                 return false;
             }
 
-            bool ListenLoopback(std::uint16_t) override
+            Bool ListenLoopback(std::uint16_t) override
             {
                 return false;
             }
@@ -240,7 +243,7 @@ namespace JBro::Network::Web
                 {
                     return ConnectionState::Disconnected;
                 }
-                const int state = jbro_ws_state(m_handle);
+                const Int32 state = jbro_ws_state(m_handle);
                 if (2 == state)
                 {
                     return ConnectionState::Disconnected;
@@ -272,7 +275,7 @@ namespace JBro::Network::Web
                     return SocketIo::Error;
                 }
                 Fill();
-                const std::uint32_t count = m_incoming.Read(buffer, static_cast<std::uint32_t>(capacity));
+                const UInt32 count = m_incoming.Read(buffer, static_cast<std::uint32_t>(capacity));
                 if (count > 0)
                 {
                     outReceived = count;
@@ -301,10 +304,10 @@ namespace JBro::Network::Web
                 std::uint8_t scratch[8192];
                 while (m_outgoing.Size() > 0)
                 {
-                    const std::uint32_t peeked = m_outgoing.Peek(scratch, sizeof(scratch));
+                    const UInt32 peeked = m_outgoing.Peek(scratch, sizeof(scratch));
                     if (false == m_handshakeDone)
                     {
-                        std::uint32_t consumed = 0;
+                        UInt32 consumed = 0;
                         WebSocket::ServerHandshakeRequest request;
                         const WebSocket::ParseResult result = WebSocket::ParseServerHandshake(scratch, peeked, consumed, request);
                         if (result != WebSocket::ParseResult::Ok)
@@ -313,7 +316,7 @@ namespace JBro::Network::Web
                         }
                         m_outgoing.Discard(consumed);
                         char response[512];
-                        const std::uint32_t length = WebSocket::BuildServerHandshakeResponse(request, response, sizeof(response));
+                        const UInt32 length = WebSocket::BuildServerHandshakeResponse(request, response, sizeof(response));
                         m_incoming.Write(response, length);
                         m_handshakeDone = true;
                         continue;
@@ -323,7 +326,7 @@ namespace JBro::Network::Web
                     {
                         return;
                     }
-                    const std::uint32_t total = header.headerLength + static_cast<std::uint32_t>(header.payloadLength);
+                    const UInt32 total = header.headerLength + static_cast<std::uint32_t>(header.payloadLength);
                     if (m_outgoing.Size() < total)
                     {
                         return;
@@ -359,21 +362,21 @@ namespace JBro::Network::Web
                 std::uint8_t body[8192];
                 while (m_incoming.Free() > sizeof(body) + WebSocket::MaxFrameHeaderBytes)
                 {
-                    const int size = jbro_ws_take(m_handle, body, sizeof(body));
+                    const Int32 size = jbro_ws_take(m_handle, body, sizeof(body));
                     if (size < 0)
                     {
                         return;
                     }
                     std::uint8_t header[WebSocket::MaxFrameHeaderBytes];
-                    const std::uint32_t headerLength = WebSocket::EncodeFrameHeader(
+                    const UInt32 headerLength = WebSocket::EncodeFrameHeader(
                         WebSocket::Opcode::Binary, true, static_cast<std::uint64_t>(size), false, 0, header);
                     m_incoming.Write(header, headerLength);
                     m_incoming.Write(body, static_cast<std::uint32_t>(size));
                 }
             }
 
-            int m_handle = 0;
-            bool m_handshakeDone = false;
+            Int32 m_handle = 0;
+            Bool m_handshakeDone = false;
             ByteRing m_outgoing;
             ByteRing m_incoming;
         };
@@ -416,7 +419,7 @@ namespace JBro::Network::Web
                 {
                     return ConnectionState::Disconnected;
                 }
-                const int state = jbro_peer_state(m_handle);
+                const Int32 state = jbro_peer_state(m_handle);
                 if (2 == state)
                 {
                     return ConnectionState::Disconnected;
@@ -424,17 +427,17 @@ namespace JBro::Network::Web
                 return 1 == state ? ConnectionState::Connected : ConnectionState::Connecting;
             }
 
-            std::uint32_t TakeSignal(void* buffer, std::uint32_t capacity) override
+            UInt32 TakeSignal(void* buffer, UInt32 capacity) override
             {
                 if (0 == m_handle)
                 {
                     return 0;
                 }
-                const int size = jbro_peer_take_signal(m_handle, static_cast<unsigned char*>(buffer), static_cast<int>(capacity));
+                const Int32 size = jbro_peer_take_signal(m_handle, static_cast<unsigned char*>(buffer), static_cast<int>(capacity));
                 return size > 0 ? static_cast<std::uint32_t>(size) : 0;
             }
 
-            bool PushSignal(const void* data, std::uint32_t size) override
+            Bool PushSignal(const void* data, UInt32 size) override
             {
                 return 0 != m_handle && 0 != jbro_peer_push_signal(m_handle, static_cast<const unsigned char*>(data), static_cast<int>(size));
             }
@@ -457,8 +460,8 @@ namespace JBro::Network::Web
                 {
                     return SocketIo::Error;
                 }
-                int channel = 0;
-                const int size = jbro_peer_take(m_handle, static_cast<unsigned char*>(buffer), static_cast<int>(capacity), &channel);
+                Int32 channel = 0;
+                const Int32 size = jbro_peer_take(m_handle, static_cast<unsigned char*>(buffer), static_cast<int>(capacity), &channel);
                 if (size >= 0)
                 {
                     outReceived = static_cast<std::size_t>(size);
@@ -482,7 +485,7 @@ namespace JBro::Network::Web
             }
 
         private:
-            int m_handle = 0;
+            Int32 m_handle = 0;
         };
     }
 

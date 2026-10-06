@@ -53,6 +53,10 @@
 
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -66,7 +70,7 @@ namespace JBro
     {
         // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
         // 그리지 않는다 - 그림이 창을 다 먹으면 정작 고칠 값들이 스크롤 밖으로 나간다.
-        constexpr float PreviewMaxSide = 160.0f;
+        constexpr Float PreviewMaxSide = 160.0f;
     }
 
     namespace
@@ -75,7 +79,7 @@ namespace JBro
         // 읽기 전용으로 보여 준다 - 반쪽만 보여 주고 고치게 하면 저장할 때 잘린다.
         constexpr std::size_t TextCapacity = 512;
 
-        bool SameName(NameId id, const char* text)
+        Bool SameName(NameId id, const char* text)
         {
             const char* name = NameTable::Get().Resolve(id);
             return name != nullptr && std::strcmp(name, text) == 0;
@@ -85,7 +89,7 @@ namespace JBro
         // `Component::Transform2D` 의 접두어는 코드가 쓰는 것이지 사람이 읽는 것이
         // 아니다.
         // 에셋 참조 필드는 `Id` 로 끝나는 `JBro.Uuid` 다 - 해석 패스와 같은 규칙이다(D-115).
-        bool IsAssetIdName(const char* name)
+        Bool IsAssetIdName(const char* name)
         {
             if (name == nullptr)
             {
@@ -103,7 +107,7 @@ namespace JBro
 
         using EditorNames::DisplayTypeName;
 
-        bool ToText(const TypeDescriptor& type, const void* address, String& text)
+        Bool ToText(const TypeDescriptor& type, const void* address, String& text)
         {
             if (type.codec == nullptr || type.codec->ToText == nullptr)
             {
@@ -131,7 +135,7 @@ namespace JBro
         return Loc::TextOr(LocKeys::PanelInspector, "Inspector");
     }
 
-    bool InspectorPanel::OnCreate(EditorApplication& editor)
+    Bool InspectorPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
@@ -195,7 +199,7 @@ namespace JBro
             header.Row(
                 Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorActive, "Active")),
                 [&]() {
-                    bool active = object->IsActiveSelf();
+                    Bool active = object->IsActiveSelf();
                     if (Widget::Checkbox("##active", active))
                     {
                         // **고른 것이 다 따라간다**(D-142). 여럿을 골라 놓고 하나만 꺼지면
@@ -233,7 +237,7 @@ namespace JBro
                     }
                     // **편집이 끝날 때 한 번 커맨드를 만든다.** 글자마다 만들면 되돌리기가
                     // 글자 수만큼 필요해진다 - 커맨드 병합은 마우스 드래그에만 걸린다.
-                    const bool finished =
+                    const Bool finished =
                         Widget::TextField("##name", m_name).CommitOnFinish().Draw();
                     m_nameEditing = ImGui::IsItemActive();
                     if (finished)
@@ -261,7 +265,7 @@ namespace JBro
             // 이름이 아니라 슬롯으로 구분한다. 같은 타입을 두 개 붙일 수 있다.
             ImGui::PushID(static_cast<int>(index));
             // 가이드의 표식은 그 타입의 첫째에만 단다(D-273, `Context::guideTarget`). 가이드가 견주는 값도 첫째다.
-            bool firstOfType = true;
+            Bool firstOfType = true;
             for (std::size_t earlier = 0; earlier < index && firstOfType; ++earlier)
             {
                 firstOfType = components[earlier].typeId != slot.typeId;
@@ -270,7 +274,7 @@ namespace JBro
             {
                 Widget::SetNextItemTarget(GuideFocusTargets::InspectorComponent(slot.typeId));
             }
-            const bool opened = Widget::CollapsingSection(
+            const Bool opened = Widget::CollapsingSection(
                 typeName != nullptr
                     ? typeName
                     : Loc::TextOr(LocKeys::InspectorUnknownComponent,
@@ -299,7 +303,7 @@ namespace JBro
                 {
                     ImGui::EndDisabled();
                 }
-                const bool last = index + 1 >= components.Size();
+                const Bool last = index + 1 >= components.Size();
                 if (last)
                 {
                     ImGui::BeginDisabled();
@@ -328,11 +332,11 @@ namespace JBro
                 {
                     m_editor->CopyComponent(*component);
                 }
-                bool pasted = false;
+                Bool pasted = false;
                 {
                     // 하나만 붙는 타입이 이미 있으면 회색이다(D-180). 눌러도 아무 일이
                     // 일어나지 않는 항목을 켜 두면 고장과 구분되지 않는다.
-                    const bool canPaste = m_editor->CanPasteComponent(*object);
+                    const Bool canPaste = m_editor->CanPasteComponent(*object);
                     // 떠 둔 것이 없는 것과, 떠 두었지만 이미 붙어 있는 것은 다른 이야기다.
                     const char* why = m_editor->HasComponentClipboard()
                         ? Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")
@@ -355,7 +359,7 @@ namespace JBro
                     // **값만 덮어쓰기.** 떠 둔 것이 같은 타입일 때만 켜진다. `Transform2D` 처럼
                     // 하나만 있어야 뜻이 서는 타입에서는 이쪽이 쓰는 손짓이다(D-167) -
                     // 기존 엔진에는 새로 하나 더 붙이는 쪽만 있었다.
-                    const bool canPasteValues = m_editor->CanPasteComponentValues(*component);
+                    const Bool canPasteValues = m_editor->CanPasteComponentValues(*component);
                     if (false == canPasteValues)
                     {
                         ImGui::BeginDisabled();
@@ -404,7 +408,7 @@ namespace JBro
             // **메뉴는 단추로도 연다**(D-278). 우클릭만 되면 메뉴가 있다는 것을 알 수 없다. 같은 메뉴를 다음 프레임에 연다.
             {
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
-                const float side = headerMax.y - headerMin.y;
+                const Float side = headerMax.y - headerMin.y;
                 ImGui::SetCursorScreenPos(ImVec2(headerMax.x - side, headerMin.y));
                 if (Widget::IconButton("##component_menu", Icons::Menu)
                         .Size(ImVec2(side, side))
@@ -421,7 +425,7 @@ namespace JBro
                 layout.Row(
                     Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled")),
                     [&]() {
-                        bool enabled = component->IsEnabled();
+                        Bool enabled = component->IsEnabled();
                         if (Widget::Checkbox("##enabled", enabled))
                         {
                             // 이것도 커맨드다(D-142). 끈 것을 되돌릴 수 없으면 편집이 아니다.
@@ -537,7 +541,7 @@ namespace JBro
                     m_namedLayer = layerId;
                     m_layerName = layer->GetName();
                 }
-                const bool finished = Widget::TextField("##layerName", m_layerName).CommitOnFinish().Draw();
+                const Bool finished = Widget::TextField("##layerName", m_layerName).CommitOnFinish().Draw();
                 m_layerNameEditing = ImGui::IsItemActive();
                 if (finished && m_layerName != layer->GetName())
                 {
@@ -547,7 +551,7 @@ namespace JBro
         layout.Row(
             Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerVisible, "Visible")),
             [&]() {
-                bool visible = layer->IsVisible();
+                Bool visible = layer->IsVisible();
                 if (Widget::Checkbox("##layerVisible", visible))
                 {
                     m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerVisibleCommand>(*canvas, layerId, visible));
@@ -574,21 +578,21 @@ namespace JBro
                     Loc::TextOr(LocKeys::InspectorLayerBlendColorBurn, "Color Burn"),
                     Loc::TextOr(LocKeys::InspectorLayerBlendDifference, "Difference")};
                 static_assert(sizeof(blends) / sizeof(blends[0]) == LayerBlendCount, "one item per blend");
-                int current = static_cast<int>(layer->GetBlend());
-                constexpr int count = static_cast<int>(LayerBlendCount);
+                Int32 current = static_cast<int>(layer->GetBlend());
+                constexpr Int32 count = static_cast<int>(LayerBlendCount);
                 if (Widget::FilterCombo("##layerBlend", ArrayView<const char* const>(blends, LayerBlendCount), current).Draw()
                     && current >= 0 && current < count)
                 {
                     m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerCompositeCommand>(
-                        *canvas, layerId, static_cast<LayerBlend>(current), layer->GetOpacity()));
+                        *canvas, layerId, static_cast<LayerBlend>(current.Get()), layer->GetOpacity()));
                 }
             });
         layout.Row(
             Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerOpacity, "Opacity")),
             [&]() {
                 // 끄는 동안 프레임마다 커맨드가 생기고 매니저가 합친다 - 끌기 하나가 되돌리기 하나다.
-                float opacity = layer->GetOpacity();
-                if (Widget::SliderFloat("##layerOpacity", opacity, 0.0f, 1.0f))
+                Float opacity = layer->GetOpacity();
+                if (Widget::SliderField("##layerOpacity", opacity, 0.0f, 1.0f)())
                 {
                     m_editor->GetCommands().Execute(
                         MakeOwnerPtr<SetLayerCompositeCommand>(*canvas, layerId, layer->GetBlend(), opacity));
@@ -602,8 +606,8 @@ namespace JBro
                     .Tooltip(Loc::TextOr(LocKeys::InspectorLayerParallaxTooltip,
                         "how far this layer moves when the camera moves")),
                 [&]() {
-                    float parallax = layer->GetParallax();
-                    if (Widget::DragFloat("##layerParallax").Range(0.0f, 10.0f).Speed(0.01f).Step(0.05f).Draw(parallax))
+                    Float parallax = layer->GetParallax();
+                    if (Widget::DragField("##layerParallax", parallax).Range(0.0f, 10.0f).Speed(0.01f).Step(0.05f)())
                     {
                         m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerParallaxCommand>(*canvas, layerId, parallax));
                     }
@@ -617,13 +621,13 @@ namespace JBro
                 const char* const spaces[] = {
                     Loc::TextOr(LocKeys::InspectorLayerSpaceWorld, "World"),
                     Loc::TextOr(LocKeys::InspectorLayerSpaceScreen, "Screen")};
-                int current = static_cast<int>(layer->GetSpace());
+                Int32 current = static_cast<int>(layer->GetSpace());
                 if (Widget::FilterCombo("##layerSpace", ArrayView<const char* const>(spaces, 2), current).ShowFilter(false).Draw()
-                    && current >= 0 && current < 2 && static_cast<LayerSpace>(current) != layer->GetSpace())
+                    && current >= 0 && current < 2 && static_cast<LayerSpace>(current.Get()) != layer->GetSpace())
                 {
                     // 루트의 자리까지 한 커맨드다(D-237) - 계층 메뉴의 "화면 레이어로 바꾸기" 와 같은 길이다.
                     if (OwnerPtr<EditorCommand> command = m_editor->MakeLayerSpaceCommand(
-                            layerId, static_cast<LayerSpace>(current), layer->GetScaleMode()))
+                            layerId, static_cast<LayerSpace>(current.Get()), layer->GetScaleMode()))
                     {
                         m_editor->GetCommands().Execute(std::move(command));
                     }
@@ -636,12 +640,12 @@ namespace JBro
                 [&]() {
                     // 값은 타입의 이름 그대로다 - 계층 메뉴와 같다.
                     const char* const modes[] = {"FixedHeight", "FixedWidth", "Contain", "ConstantPixel"};
-                    int current = static_cast<int>(layer->GetScaleMode());
+                    Int32 current = static_cast<int>(layer->GetScaleMode());
                     if (Widget::FilterCombo("##layerScaleMode", ArrayView<const char* const>(modes, 4), current).ShowFilter(false).Draw()
                         && current >= 0 && current < 4)
                     {
                         if (OwnerPtr<EditorCommand> command = m_editor->MakeLayerSpaceCommand(
-                                layerId, LayerSpace::Screen, static_cast<ScreenScaleMode>(current)))
+                                layerId, LayerSpace::Screen, static_cast<ScreenScaleMode>(current.Get())))
                         {
                             m_editor->GetCommands().Execute(std::move(command));
                         }
@@ -661,20 +665,20 @@ namespace JBro
         // 더 붙일 수 없는 것은 회색으로 남는다 - 목록에서 빼 버리면 찾던 이름이 사라진다.
         EditorActions::AddComponentList list;
         EditorActions::BuildAddComponentList(object, list);
-        int chosen = -1;
+        Int32 chosen = -1;
         // 고르기 칸 앞의 + 가 무엇을 하는 칸인지 말한다(D-278).
         Widget::InlineIcon(Icons::Plus);
         Widget::SetNextItemTarget(GuideFocusTargets::InspectorAddComponent());
-        const bool picked = Widget::FilterCombo("##AddComponent",
+        const Bool picked = Widget::FilterCombo("##AddComponent",
             ArrayView<const char* const>(list.names.Data(), list.names.Size()), chosen)
             .EmptyText(Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component"))
             .NoItemsText(Loc::TextOr(LocKeys::InspectorNoComponentTypes,
                 "no component type has registered itself"))
             .ItemGroups(ArrayView<const char* const>(list.groups.Data(), list.groups.Size()))
-            .ItemEnabled(ArrayView<const bool>(list.addable.Data(), list.addable.Size()))
+            .ItemEnabled(ArrayView<const Bool>(list.addable.Data(), list.addable.Size()))
             .DisabledTooltip(Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added"))
             .ItemTargets(GuideFocusTargets::ComponentListItem(0).name,
-                ArrayView<const std::uint64_t>(list.typeNames.Data(), list.typeNames.Size()))
+                ArrayView<const UInt64>(list.typeNames.Data(), list.typeNames.Size()))
             .Width(-FLT_MIN)
             .Draw();
         if (false == picked || chosen < 0
@@ -705,16 +709,16 @@ namespace JBro
             *canvas, m_editor->GetObjectIds(), objectId, &component));
     }
 
-    bool InspectorPanel::DrawScalarRun(
+    Bool InspectorPanel::DrawScalarRun(
         const TypeDescriptor& type, const ScalarRun& run, const PropertyEditInfo* edit)
     {
-        float scratch[ScalarRun::MaxCount] = {};
-        for (std::uint32_t index = 0; index < run.count; ++index)
+        Float scratch[ScalarRun::MaxCount] = {};
+        for (UInt32 index = 0; index < run.count; ++index)
         {
             scratch[index] = *run.values[index];
         }
 
-        bool changed = false;
+        Bool changed = false;
         // 색은 숫자 네 개가 아니라 색이다. 견본과 고르개가 붙는다.
         if (run.count == 4 && SameName(type.typeName, "JBro.Color"))
         {
@@ -722,16 +726,16 @@ namespace JBro
         }
         else
         {
-            const bool hasRange = edit != nullptr && edit->hasRange;
+            const Bool hasRange = edit != nullptr && edit->hasRange;
             changed = Widget::ScalarRunField("##value", scratch, static_cast<int>(run.count),
-                0.01f, hasRange, hasRange ? edit->rangeMin : 0.0f, hasRange ? edit->rangeMax : 0.0f);
+                0.01f, hasRange, hasRange ? edit->rangeMin : Float(0.0f), hasRange ? edit->rangeMax : Float(0.0f));
         }
         if (false == changed)
         {
             return false;
         }
         // **주소마다 따로 써 넣는다.** 붙어 있으리라 믿지 않는다.
-        for (std::uint32_t index = 0; index < run.count; ++index)
+        for (UInt32 index = 0; index < run.count; ++index)
         {
             *run.values[index] = scratch[index];
         }
@@ -793,7 +797,7 @@ namespace JBro
         m_busEnabled.Clear();
         m_busNames.Add(String(AudioMasterBusName));
         m_busEnabled.Add(true);
-        int current = bus.IsMaster() ? 0 : -1;
+        Int32 current = bus.IsMaster() ? 0 : -1;
         for (std::size_t index = 0; index < project.audioBuses.Size(); ++index)
         {
             const String& name = project.audioBuses[index].name;
@@ -809,7 +813,7 @@ namespace JBro
             m_busEnabled.Add(true);
         }
         // 목록에 없는 이름은 지우지 않고 보여 준다 - 그 자리에서 왜 Master 로 울리는지 알 수 있게. 고를 수는 없다.
-        const bool missing = current < 0;
+        const Bool missing = current < 0;
         if (missing)
         {
             const char* text = NameTable::Get().Resolve(bus.id);
@@ -823,11 +827,11 @@ namespace JBro
             m_busNamePointers.Add(m_busNames[index].c_str());
         }
         String before;
-        const bool snapped = ToText(type, address, before);
-        int chosen = current;
-        const bool changed = Widget::FilterCombo("##value",
+        const Bool snapped = ToText(type, address, before);
+        Int32 chosen = current;
+        const Bool changed = Widget::FilterCombo("##value",
             ArrayView<const char* const>(m_busNamePointers.Data(), m_busNamePointers.Size()), chosen)
-            .ItemEnabled(ArrayView<const bool>(m_busEnabled.Data(), m_busEnabled.Size()))
+            .ItemEnabled(ArrayView<const Bool>(m_busEnabled.Data(), m_busEnabled.Size()))
             .ShowFilter(true)
             .Draw();
         if (missing)
@@ -851,8 +855,8 @@ namespace JBro
             names[index] = project.physicsLayers[index].c_str();
         }
         String before;
-        const bool snapped = ToText(type, address, before);
-        std::uint32_t& mask = *static_cast<std::uint32_t*>(address);
+        const Bool snapped = ToText(type, address, before);
+        UInt32& mask = *static_cast<UInt32*>(address);
         if (Widget::LayerMaskField("##value", ArrayView<const char* const>(names, 32), mask) && snapped)
         {
             CommitEdit(type, address, before, context);
@@ -866,7 +870,7 @@ namespace JBro
         m_objectIds.Clear();
         m_objectNames.Add(String(Loc::TextOr(LocKeys::InspectorObjectNone, "None")));
         m_objectIds.Add(InvalidInstanceId);
-        int current = handle.GetInstanceId() == InvalidInstanceId ? 0 : -1;
+        Int32 current = handle.GetInstanceId() == InvalidInstanceId ? 0 : -1;
         if (Canvas* canvas = m_editor->GetCanvas())
         {
             canvas->ForEachObject([&](GameObject& object) {
@@ -885,11 +889,11 @@ namespace JBro
             m_objectNamePointers.Add(name.c_str());
         }
         String before;
-        const bool snapped = ToText(type, address, before);
-        int chosen = current;
-        std::uint64_t dropped = 0;
+        const Bool snapped = ToText(type, address, before);
+        Int32 chosen = current;
+        UInt64 dropped = 0;
         // 하이어라키의 끌기 페이로드는 에디터 오브젝트 번호다(주소를 담지 않는다).
-        const bool changed = Widget::ObjectField("##value",
+        const Bool changed = Widget::ObjectField("##value",
             ArrayView<const char* const>(m_objectNamePointers.Data(), m_objectNamePointers.Size()), chosen,
             Widget::DragKind::HierarchyObject, dropped);
         if (false == changed || false == snapped)
@@ -928,7 +932,7 @@ namespace JBro
         // 에셋이나 자료의 판이 바뀌었으면 다시 잰다. 싣기는 이때 한 번이고(동기), 파형도 이때 푼다.
         const AssetHandle loaded = assets->Find(meta.id);
         const AudioData* current = assets->GetAudio(loaded);
-        const std::uint32_t generation = current != nullptr ? current->dataGeneration : 0;
+        const UInt32 generation = current != nullptr ? current->dataGeneration : UInt32(0);
         if (false == (m_audioAsset == meta.id) || (current != nullptr && generation != m_audioGeneration))
         {
             if (audio != nullptr && false == (m_audioAsset == meta.id))
@@ -946,7 +950,7 @@ namespace JBro
                 m_audioSampleRate = data->sampleRate;
                 m_audioChannels = data->channels;
                 m_audioSeconds = data->sampleRate > 0 ? static_cast<double>(data->frameCount) / data->sampleRate : 0.0;
-                constexpr std::uint32_t Buckets = 512;
+                constexpr UInt32 Buckets = 512;
                 assets->ComputeAudioPeaks(held, Buckets, m_audioPeaks);
             }
             // 붙잡지 않는다. 참조 수 0 이어도 `CollectUnused` 까지 살고, 내려가면 해제 알림이 미리 듣기를 멈춘다.
@@ -960,7 +964,7 @@ namespace JBro
         }
 
         const AssetHandle handle = assets->Find(meta.id);
-        const bool playingThis = audio != nullptr && audio->IsPreviewPlaying()
+        const Bool playingThis = audio != nullptr && audio->IsPreviewPlaying()
             && audio->GetPreviewClip().index == handle.index && audio->GetPreviewClip().generation == handle.generation;
         const auto play = [&](double from) {
             if (audio == nullptr)
@@ -980,13 +984,13 @@ namespace JBro
                 [&]() { Widget::TextF("%u Hz, %u ch", m_audioSampleRate, m_audioChannels); });
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioLength, "Length")),
                 [&]() {
-                    const int minutes = static_cast<int>(m_audioSeconds / 60.0);
+                    const Int32 minutes = static_cast<int>(m_audioSeconds / 60.0);
                     Widget::TextF("%d:%05.2f", minutes, m_audioSeconds - minutes * 60.0);
                 });
         }
         const double position = playingThis ? audio->GetPreviewTime() : 0.0;
-        const float progress = playingThis && m_audioSeconds > 0.0 ? static_cast<float>(position / m_audioSeconds) : -1.0f;
-        float seek = 0.0f;
+        const Float progress = playingThis && m_audioSeconds > 0.0 ? static_cast<float>(position / m_audioSeconds) : -1.0f;
+        Float seek = 0.0f;
         if (Widget::Waveform("##waveform", ArrayView<const float>(m_audioPeaks.Data(), m_audioPeaks.Size()), progress,
                 56.0f, seek))
         {
@@ -1019,7 +1023,7 @@ namespace JBro
                         audio->StopPreview();
                     }
                     ImGui::SameLine();
-                    const int minutes = static_cast<int>(position / 60.0);
+                    const Int32 minutes = static_cast<int>(position / 60.0);
                     Widget::TextF("%d:%05.2f", minutes, position - minutes * 60.0);
                 }
                 else if (Widget::IconButton("##audio_play", Icons::Play)
@@ -1041,8 +1045,8 @@ namespace JBro
             ? ChoicesFor(AssetType::Font, AssetType::FontFamily)
             : ChoicesFor(AssetTypeOfIdName(fieldName));
         String before;
-        const bool snapped = ToText(type, address, before);
-        const bool changed = Widget::AssetField("##value",
+        const Bool snapped = ToText(type, address, before);
+        const Bool changed = Widget::AssetField("##value",
             ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
             ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()),
             *static_cast<AssetId*>(address))
@@ -1070,7 +1074,7 @@ namespace JBro
         }
     }
 
-    void InspectorPanel::DrawTextBody(const TypeDescriptor& type, void* address, bool editable, bool multiline, Context& context)
+    void InspectorPanel::DrawTextBody(const TypeDescriptor& type, void* address, Bool editable, Bool multiline, Context& context)
     {
         TextId& id = *static_cast<TextId*>(address);
         // **매 프레임 저장소의 글자를 넘긴다.** 치는 동안에는 ImGui 가 제 버퍼를 들고 넘긴 글자를 보지 않고, 편집이 끝나는
@@ -1086,7 +1090,7 @@ namespace JBro
             if (false == keys.IsEmpty())
             {
                 m_keyNames.Clear();
-                int current = -1;
+                Int32 current = -1;
                 for (std::size_t index = 0; index < keys.Size(); ++index)
                 {
                     m_keyNames.Add(keys[index].c_str());
@@ -1095,7 +1099,7 @@ namespace JBro
                         current = static_cast<int>(index);
                     }
                 }
-                const bool picked = Widget::FilterCombo("##value", ArrayView<const char* const>(m_keyNames.Data(), m_keyNames.Size()),
+                const Bool picked = Widget::FilterCombo("##value", ArrayView<const char* const>(m_keyNames.Data(), m_keyNames.Size()),
                     current)
                                         .EmptyText(draft.empty() ? Loc::TextOr(LocKeys::InspectorNoStringKey, "(none)") : draft.c_str())
                                         .Draw();
@@ -1112,7 +1116,7 @@ namespace JBro
                 return;
             }
         }
-        const bool finished = multiline ? Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw()
+        const Bool finished = multiline ? Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw()
                                         : Widget::TextField("##value", draft).CommitOnFinish().Draw();
         if (finished && editable)
         {
@@ -1127,22 +1131,22 @@ namespace JBro
         }
     }
 
-    bool InspectorPanel::DrawLeaf(
+    Bool InspectorPanel::DrawLeaf(
         const TypeDescriptor& type,
         void* address,
         const PropertyEditInfo* edit,
         const String& before,
-        bool snapped)
+        Bool snapped)
     {
         // **잎사귀는 공용 위젯으로 그린다**(§11.1). 처음에는 여기가 ImGui 원시 호출 뭉치였다.
         // 끌기는 단추 없이 칸 하나라 `##value` 가 곧 그 칸의 Id 다.
-        const bool hasRange = edit != nullptr && edit->hasRange;
+        const Bool hasRange = edit != nullptr && edit->hasRange;
         if (SameName(type.typeName, "float"))
         {
-            float& value = *static_cast<float*>(address);
+            Float& value = *static_cast<Float*>(address);
             return hasRange
-                ? Widget::SliderFloat("##value", value, edit->rangeMin, edit->rangeMax)
-                : Widget::DragFloat("##value").Speed(0.01f).StepButtons(false)(value);
+                ? Widget::SliderField("##value", value, edit->rangeMin, edit->rangeMax)()
+                : Widget::DragField("##value", value).Speed(0.01f).StepButtons(false)();
         }
         if (SameName(type.typeName, "JBro.Radian"))
         {
@@ -1150,10 +1154,10 @@ namespace JBro
             // 1.5707 을 읽고 직각인 줄 아는 일은 없다. 되돌려 넣을 때 다시 라디안이 되므로
             // 파일에 적히는 숫자와 델타 계산은 전과 같다.
             Radian& value = *static_cast<Radian*>(address);
-            float degrees = value.ToDegree().Get();
-            const bool changed = hasRange
-                ? Widget::SliderFloat("##value", degrees, edit->rangeMin, edit->rangeMax)
-                : Widget::DragFloat("##value").Speed(0.5f).Format("%.2f\u00b0").StepButtons(false)(degrees);
+            Float degrees = value.ToDegree().Get();
+            const Bool changed = hasRange
+                ? Widget::SliderField("##value", degrees, edit->rangeMin, edit->rangeMax)()
+                : Widget::DragField("##value", degrees).Speed(0.5f).Format("%.2f\u00b0").StepButtons(false)();
             if (changed)
             {
                 value = Degree(degrees);
@@ -1163,10 +1167,10 @@ namespace JBro
         if (SameName(type.typeName, "JBro.Degree"))
         {
             Degree& value = *static_cast<Degree*>(address);
-            float degrees = value.Get();
-            const bool changed = hasRange
-                ? Widget::SliderFloat("##value", degrees, edit->rangeMin, edit->rangeMax)
-                : Widget::DragFloat("##value").Speed(0.5f).Format("%.2f\u00b0").StepButtons(false)(degrees);
+            Float degrees = value.Get();
+            const Bool changed = hasRange
+                ? Widget::SliderField("##value", degrees, edit->rangeMin, edit->rangeMax)()
+                : Widget::DragField("##value", degrees).Speed(0.5f).Format("%.2f\u00b0").StepButtons(false)();
             if (changed)
             {
                 value = Degree(degrees);
@@ -1175,15 +1179,15 @@ namespace JBro
         }
         if (SameName(type.typeName, "bool"))
         {
-            return Widget::Checkbox("##value", *static_cast<bool*>(address));
+            return Widget::Checkbox("##value", *static_cast<Bool*>(address));
         }
         if (SameName(type.typeName, "int32"))
         {
-            int& value = *static_cast<int*>(address);
+            Int32& value = *static_cast<Int32*>(address);
             return hasRange
-                ? Widget::SliderInt("##value", value,
-                    static_cast<int>(edit->rangeMin), static_cast<int>(edit->rangeMax))
-                : Widget::DragInt("##value").StepButtons(false)(value);
+                ? Widget::SliderField("##value", value,
+                    static_cast<int>(edit->rangeMin), static_cast<int>(edit->rangeMax))()
+                : Widget::DragField("##value", value).StepButtons(false)();
         }
         if (false == snapped)
         {
@@ -1209,7 +1213,7 @@ namespace JBro
         const Context& context) const
     {
         Array<EditTarget> targets;
-        std::uint32_t ordinal = 0;
+        UInt32 ordinal = 0;
         if (context.component == nullptr || context.owner == nullptr
             || false == FindComponentOrdinal(*context.owner, *context.component, ordinal))
         {
@@ -1277,10 +1281,10 @@ namespace JBro
         if (preview.IsValid())
         {
             // 칸 너비에 맞추되 원본 비율을 지킨다. 늘여 붙이면 픽셀 아트가 기울어 보인다.
-            const float width = ImGui::GetContentRegionAvail().x;
-            const float side = width < PreviewMaxSide ? width : PreviewMaxSide;
-            std::uint32_t sourceWidth = 0;
-            std::uint32_t sourceHeight = 0;
+            const Float width = ImGui::GetContentRegionAvail().x;
+            const Float side = width < PreviewMaxSide ? width : PreviewMaxSide;
+            UInt32 sourceWidth = 0;
+            UInt32 sourceHeight = 0;
             m_editor->GetAssetSourceSize(meta.id, sourceWidth, sourceHeight);
             Widget::Image(preview, Widget::FitInside(sourceWidth, sourceHeight, ImVec2(side, side)));
             ImGui::Spacing();
@@ -1315,11 +1319,11 @@ namespace JBro
         Context context;
         context.asset = &scope;
 
-        const bool image = AssetTypeRules::IsImageType(meta.type);
-        int slot = 0;
-        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock,
-                                     bool audioBlock = false, bool fontBlock = false, bool fontFamilyBlock = false,
-                                     bool stringTableBlock = false) {
+        const Bool image = AssetTypeRules::IsImageType(meta.type);
+        Int32 slot = 0;
+        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, Bool spriteBlock,
+                                     Bool audioBlock = false, Bool fontBlock = false, Bool fontFamilyBlock = false,
+                                     Bool stringTableBlock = false) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
             scope.spriteBlock = spriteBlock;
@@ -1447,22 +1451,22 @@ namespace JBro
         // 트랜스폼 편집을 델타로 다루는 이유다. 반대로 켜짐 여부나 enum 에는
         // 델타라는 것이 없으므로 고른 값을 그대로 준다.
         ScalarRun editedRun;
-        const bool numeric = CollectScalarRun(type, address, editedRun)
+        const Bool numeric = CollectScalarRun(type, address, editedRun)
             || SameName(type.typeName, "float")
             || SameName(type.typeName, "JBro.Radian")
             || SameName(type.typeName, "JBro.Degree");
-        float delta[ScalarRun::MaxCount] = {};
-        std::uint32_t deltaCount = 0;
+        Float delta[ScalarRun::MaxCount] = {};
+        UInt32 deltaCount = 0;
         if (numeric)
         {
             // 지금 주소에는 위젯이 쓴 값이 들어 있고, `before` 가 그 전 값이다.
             ScalarRun afterRun;
             if (false == CollectScalarRun(type, address, afterRun))
             {
-                afterRun.values[0] = static_cast<float*>(address);
+                afterRun.values[0] = static_cast<Float*>(address);
                 afterRun.count = 1;
             }
-            for (std::uint32_t at = 0; at < afterRun.count; ++at)
+            for (UInt32 at = 0; at < afterRun.count; ++at)
             {
                 delta[at] = *afterRun.values[at];
             }
@@ -1479,10 +1483,10 @@ namespace JBro
             ScalarRun beforeRun;
             if (false == CollectScalarRun(type, address, beforeRun))
             {
-                beforeRun.values[0] = static_cast<float*>(address);
+                beforeRun.values[0] = static_cast<Float*>(address);
                 beforeRun.count = 1;
             }
-            for (std::uint32_t at = 0; at < deltaCount && at < beforeRun.count; ++at)
+            for (UInt32 at = 0; at < deltaCount && at < beforeRun.count; ++at)
             {
                 delta[at] -= *beforeRun.values[at];
             }
@@ -1521,14 +1525,14 @@ namespace JBro
                 ScalarRun run;
                 if (false == CollectScalarRun(*targetType, targetAddress, run))
                 {
-                    run.values[0] = static_cast<float*>(targetAddress);
+                    run.values[0] = static_cast<Float*>(targetAddress);
                     run.count = 1;
                 }
-                for (std::uint32_t at = 0; at < run.count && at < deltaCount; ++at)
+                for (UInt32 at = 0; at < run.count && at < deltaCount; ++at)
                 {
                     *run.values[at] += delta[at];
                 }
-                const bool read = SetPropertyCommand::ReadValue(
+                const Bool read = SetPropertyCommand::ReadValue(
                     *target, context.typeId, context.path, targetAfter);
                 SetPropertyCommand::ApplyValue(
                     *target, context.typeId, context.path, targetBefore);
@@ -1550,7 +1554,7 @@ namespace JBro
     }
 
     void InspectorPanel::DrawArray(
-        const TypeDescriptor& type, void* address, bool editable, Context& context)
+        const TypeDescriptor& type, void* address, Bool editable, Context& context)
     {
         const ArrayOps& ops = *type.arrayOps;
         const TypeDescriptor* element = type.element;
@@ -1573,8 +1577,8 @@ namespace JBro
         const char* nodeName = NeedsDescent(*element)
             ? DisplayTypeName(NameTable::Get().Resolve(element->typeName))
             : nullptr;
-        const int count = static_cast<int>(ops.GetSize(address));
-        std::uint32_t flags = Widget::ListFlagsShowIndex;
+        const Int32 count = static_cast<int>(ops.GetSize(address));
+        UInt32 flags = Widget::ListFlagsShowIndex;
         if (false == editable)
         {
             flags |= Widget::ListFlagsReadOnly;
@@ -1583,7 +1587,7 @@ namespace JBro
         Widget::ListVirtual(
             "##array",
             count,
-            [&](int index) -> bool {
+            [&](Int32 index) -> Bool {
                 void* item = ops.GetElement(address, static_cast<std::size_t>(index));
                 if (item == nullptr)
                 {
@@ -1604,7 +1608,7 @@ namespace JBro
                 edit.kind = ListEdit::Kind::Add;
                 edits.Add(std::move(edit));
             },
-            [&](int index) {
+            [&](Int32 index) {
                 if (nodeName != nullptr)
                 {
                     Widget::DropRowInt(nodeName, index, count);
@@ -1614,7 +1618,7 @@ namespace JBro
                 edit.index = static_cast<std::uint32_t>(index);
                 edits.Add(std::move(edit));
             },
-            [&](int fromIndex, int toIndex) {
+            [&](Int32 fromIndex, Int32 toIndex) {
                 if (nodeName != nullptr)
                 {
                     Widget::CarryRowInt(nodeName, fromIndex, toIndex);
@@ -1660,7 +1664,7 @@ namespace JBro
         // 짧게 남는다. 펼침 상태는 행 번호에 붙으므로, 원소를 옮기면 펼침은 자리에 남는다.
         const char* name = DisplayTypeName(NameTable::Get().Resolve(type.typeName));
         // 행의 내용 폭이다. 표는 이만큼만 쓴다 - 남은 폭을 다 쓰면 행 끝의 삭제 표시가 밀려난다.
-        const float width = ImGui::CalcItemWidth();
+        const Float width = ImGui::CalcItemWidth();
         // 계층 패널의 트리 위젯(`Widget::Tree`)은 쓰지 않는다. 그 위젯은 고름·올려놓음 배경을
         // 줄 왼쪽 끝부터 칠해, 목록 행에서는 손잡이와 번호를 덮었다. 중첩 구조체 필드와 같은 마디다.
         if (false == Widget::FoldNode(name != nullptr ? name : "?", ImGuiTreeNodeFlags_None))
@@ -1687,7 +1691,7 @@ namespace JBro
         ListEdit edit;
         edit.kind = ListEdit::Kind::SetElement;
         edit.index = scope.index;
-        for (std::uint32_t step = 0; step < scope.fieldDepth; ++step)
+        for (UInt32 step = 0; step < scope.fieldDepth; ++step)
         {
             edit.fieldPath[step] = scope.fieldPath[step];
         }
@@ -1696,12 +1700,12 @@ namespace JBro
     }
 
     void InspectorPanel::RecordElementRun(
-        const ScalarRun& run, const float before[ScalarRun::MaxCount], Context& context)
+        const ScalarRun& run, const Float before[ScalarRun::MaxCount], Context& context)
     {
         // 위젯이 쓴 값은 그 자리에서 도로 되돌리고 "이 원소의 이 필드에 얼마를 더했다" 로 적는다.
         ListEdit edit = MakeElementEdit(*context.element);
         edit.deltaCount = run.count;
-        for (std::uint32_t at = 0; at < run.count; ++at)
+        for (UInt32 at = 0; at < run.count; ++at)
         {
             edit.delta[at] = *run.values[at] - before[at];
             *run.values[at] = before[at];
@@ -1716,9 +1720,9 @@ namespace JBro
         // 델타는 **되돌린 뒤에** 잰다 - 되돌리기 전에 재면 위젯이 쓴 값이 델타가 된다.
         ListEdit edit = MakeElementEdit(*context.element);
         ScalarRun single;
-        const bool numeric = CollectNumbers(type, address, single);
-        const float after = numeric ? *single.values[0] : 0.0f;
-        const bool captured = numeric || ToText(type, address, edit.text);
+        const Bool numeric = CollectNumbers(type, address, single);
+        const Float after = numeric ? *single.values[0] : Float(0.0f);
+        const Bool captured = numeric || ToText(type, address, edit.text);
         type.codec->FromText(address, before.c_str(), before.size());
         if (false == captured)
         {
@@ -1733,7 +1737,7 @@ namespace JBro
     }
 
     // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것과 컨테이너와 enum 은 아니다.
-    bool InspectorPanel::NeedsDescent(const TypeDescriptor& type)
+    Bool InspectorPanel::NeedsDescent(const TypeDescriptor& type)
     {
         if (type.fields == nullptr)
         {
@@ -1753,7 +1757,7 @@ namespace JBro
         void* owner,
         Context& context)
     {
-        for (std::uint32_t index = 0; index < table.count; ++index)
+        for (UInt32 index = 0; index < table.count; ++index)
         {
             const PropertyInfo& property = table.properties[index];
             if (property.type == nullptr || property.Address == nullptr)
@@ -1781,8 +1785,8 @@ namespace JBro
 
             // 길에 한 칸 더 내려간다. 그려 놓고 되돌려야 형제 필드가 제 길을 갖는다.
             // 목록 원소 안이면 컴포넌트 길이 아니라 원소 안의 필드 길이다(D-89).
-            const bool inElement = context.element != nullptr;
-            const bool tooDeep = inElement
+            const Bool inElement = context.element != nullptr;
+            const Bool tooDeep = inElement
                 ? context.element->fieldDepth >= ListEdit::MaxFieldDepth
                 : context.path.depth >= SetPropertyCommand::MaxDepth;
             if (tooDeep)
@@ -1824,7 +1828,7 @@ namespace JBro
 
             // **원소 안의 저장하지 않는 필드는 잠근다**(D-89). 목록은 전체의 글자로 되돌리는데 그
             // 글자에 이 필드가 없다 - 고쳐도 편집이 빠지고, 목록을 되돌릴 때마다 기본값이 된다.
-            const bool editable = (property.edit == nullptr || property.edit->editable)
+            const Bool editable = (property.edit == nullptr || property.edit->editable)
                 && (false == inElement || property.serialize);
             const char* tooltip =
                 property.edit != nullptr ? property.edit->tooltip : nullptr;
@@ -1865,7 +1869,7 @@ namespace JBro
                 // 줄 전체를 쓴다. 칸을 나누고 값 칸을 비우면 ImGui 가
                 // "항목 없이 커서만 옮겼다" 고 단언한다 - 그리고 실제로
                 // 트리 마디는 두 칸에 걸쳐 있으므로 나눌 이유도 없다.
-                bool opened = false;
+                Bool opened = false;
                 {
                     // **잠긴 값은 타고 내려가도 잠겨 있어야 한다.** 잠금은
                     // `DrawValue` 안에 있었는데, 중첩 구조는 그 길로 가지
@@ -1938,7 +1942,7 @@ namespace JBro
         const PropertyEditInfo* edit,
         Context& context)
     {
-        const bool editable = edit == nullptr || edit->editable;
+        const Bool editable = edit == nullptr || edit->editable;
         Widget::DisableScope disabled(false == editable);
 
         // enum 은 타입이 이름표를 들고 있다. 이름으로 알아볼 필요가 없다.
@@ -1990,8 +1994,8 @@ namespace JBro
             if (context.element != nullptr)
             {
                 // 원소 안에서는 글자를 뜨지 않는다. 칸마다 전 값을 들고 델타로 적는다.
-                float before[ScalarRun::MaxCount] = {};
-                for (std::uint32_t at = 0; at < run.count; ++at)
+                Float before[ScalarRun::MaxCount] = {};
+                for (UInt32 at = 0; at < run.count; ++at)
                 {
                     before[at] = *run.values[at];
                 }
@@ -2004,9 +2008,9 @@ namespace JBro
             // 숫자 묶음에는 코덱이 없다. 커맨드가 쓰는 글자(전체의 YAML)로 뜬다(D-89). 에셋 옵션에는 컴포넌트가
             // 없다 - 그 편집은 메타 전체를 뜨므로 여기 글자는 쓰이지 않는다.
             String before;
-            const bool snapped = context.component != nullptr
+            const Bool snapped = context.component != nullptr
                 ? SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before)
-                : context.asset != nullptr;
+                : Bool(context.asset != nullptr);
             if (DrawScalarRun(type, run, edit) && editable)
             {
                 if (snapped)
@@ -2061,7 +2065,7 @@ namespace JBro
             // 글자 칸으로 **degrade 할 뿐 깨지지 않는다**. 기존 엔진의 18값 enum 과
             // 다른 점이 그것이다 - 거기서는 빠진 값이 곧 그리지 못하는 필드였다.
             String before;
-            const bool snapped = ToText(type, address, before);
+            const Bool snapped = ToText(type, address, before);
             if (DrawLeaf(type, address, edit, before, snapped) && snapped && editable)
             {
                 CommitEdit(type, address, before, context);

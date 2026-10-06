@@ -4,11 +4,15 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // Core 의 공용 값 타입들(D-249): 크기·비트 묶음·사각형 연산·안전 영역·프레임 생존 표시.
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -17,7 +21,7 @@ namespace
         }
     }
 
-    bool Near(float left, float right)
+    JBro::Bool Near(JBro::Float left, JBro::Float right)
     {
         return std::fabs(left - right) < 0.0001f;
     }
@@ -114,7 +118,7 @@ namespace
     // 걸리거나 아무 질의에도 안 걸린다. 물리의 경계 상자가 전부터 `fmin`/`fmax` 로 쌓아 온 까닭이다.
     void TestOneBadPointDoesNotPoisonTheBounds()
     {
-        const float nan = std::nanf("");
+        const JBro::Float nan = std::nanf("");
         JBro::Rect bounds = JBro::MakeRectFromPoint(JBro::Vector2{1.0f, 1.0f});
         bounds = JBro::UnionRect(bounds, JBro::Vector2{nan, 4.0f});
         Check(false == std::isnan(bounds.min.x), "the x side survived the bad point");
@@ -197,19 +201,19 @@ namespace
 
     struct Cached
     {
-        std::uint64_t lastSeenFrame = 0;
-        int payload = 0;
+        JBro::UInt64 lastSeenFrame = 0;
+        JBro::Int32 payload = 0;
     };
 
     // 이번 프레임에 본 것만 남는다. **도는 중에 지우지 않는다** - `Table` 은 지우면 자리를
     // 다시 놓으므로, 도는 중에 지우면 아직 보지 않은 항목을 건너뛴다.
     void TestOnlyWhatWasSeenThisFrameSurvives()
     {
-        JBro::Table<std::uint32_t, Cached> cache;
-        JBro::Array<std::uint32_t> scratch;
+        JBro::Table<JBro::UInt32, Cached> cache;
+        JBro::Array<JBro::UInt32> scratch;
 
-        const std::uint64_t frame = 7;
-        for (std::uint32_t id = 0; id < 8; ++id)
+        const JBro::UInt64 frame = 7;
+        for (JBro::UInt32 id = 0; id < 8; ++id)
         {
             Cached& entry = cache.FindOrAdd(id);
             entry.payload = static_cast<int>(id);
@@ -221,9 +225,9 @@ namespace
             [](const Cached& entry) { return entry.lastSeenFrame; });
 
         Check(cache.Size() == 4, "the four that were seen are still there");
-        for (std::uint32_t id = 0; id < 8; ++id)
+        for (JBro::UInt32 id = 0; id < 8; ++id)
         {
-            const bool present = cache.Find(id) != nullptr;
+            const JBro::Bool present = cache.Find(id) != nullptr;
             Check(present == (id % 2 == 0), "and exactly the seen ones remain");
         }
     }
@@ -231,8 +235,8 @@ namespace
     // 아무도 못 본 프레임이면 전부 지워진다. 비는 것이 맞는 답이다.
     void TestNothingSeenClearsTheCache()
     {
-        JBro::Table<std::uint32_t, Cached> cache;
-        JBro::Array<std::uint32_t> scratch;
+        JBro::Table<JBro::UInt32, Cached> cache;
+        JBro::Array<JBro::UInt32> scratch;
         cache.FindOrAdd(1u).lastSeenFrame = 3;
         cache.FindOrAdd(2u).lastSeenFrame = 3;
 
@@ -242,7 +246,7 @@ namespace
     }
 }
 
-int RunCoreValueTypeTests()
+JBro::Int32 RunCoreValueTypeTests()
 {
     TestSizeDoesNotDivideByZero();
     TestSizeIsEmptyWhenEitherSideIsGone();

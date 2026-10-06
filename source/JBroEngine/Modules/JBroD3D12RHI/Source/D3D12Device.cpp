@@ -1,4 +1,6 @@
 ﻿#include "D3D12Device.h"
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -27,7 +29,7 @@ namespace JBro::Internal
             return DXGI_FORMAT_UNKNOWN;
         }
 
-        std::uint32_t NextGeneration(std::uint32_t generation)
+        UInt32 NextGeneration(UInt32 generation)
         {
             ++generation;
             if (generation == 0)
@@ -37,7 +39,7 @@ namespace JBro::Internal
             return generation;
         }
 
-        bool IsDeviceLostResult(HRESULT result)
+        Bool IsDeviceLostResult(HRESULT result)
         {
             return result == DXGI_ERROR_DEVICE_REMOVED
                 || result == DXGI_ERROR_DEVICE_RESET
@@ -46,7 +48,7 @@ namespace JBro::Internal
         }
     }
 
-    bool D3D12Device::Initialize(const RHIDeviceCreateInfo& createInfo)
+    Bool D3D12Device::Initialize(const RHIDeviceCreateInfo& createInfo)
     {
         if (m_device != nullptr || m_fenceEvent != nullptr)
         {
@@ -264,7 +266,7 @@ namespace JBro::Internal
             return false;
         }
 
-        for (std::uint32_t index = 0; index < MaxFramesInFlight; ++index)
+        for (UInt32 index = 0; index < MaxFramesInFlight; ++index)
         {
             if (FAILED(m_device->CreateCommandAllocator(
                 D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -294,7 +296,7 @@ namespace JBro::Internal
         m_commandList.As(&m_commandList4);
 
         D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
-        const bool nativeRenderPasses = m_commandList4 != nullptr
+        const Bool nativeRenderPasses = m_commandList4 != nullptr
             && SUCCEEDED(m_device->CheckFeatureSupport(
                 D3D12_FEATURE_D3D12_OPTIONS5,
                 &options5,
@@ -351,7 +353,7 @@ namespace JBro::Internal
             m_fenceEvent = nullptr;
         }
 
-        for (std::uint64_t& fenceValue : m_frameFenceValues)
+        for (UInt64& fenceValue : m_frameFenceValues)
         {
             fenceValue = 0;
         }
@@ -389,8 +391,8 @@ namespace JBro::Internal
             return {};
         }
 
-        std::uint32_t swapchainIndex = MaxSwapchains;
-        for (std::uint32_t index = 0; index < MaxSwapchains; ++index)
+        UInt32 swapchainIndex = MaxSwapchains;
+        for (UInt32 index = 0; index < MaxSwapchains; ++index)
         {
             if (false == m_swapchains[index].occupied && m_swapchains[index].swapchain == nullptr)
             {
@@ -481,7 +483,7 @@ namespace JBro::Internal
         state->backBufferGeneration = NextGeneration(state->backBufferGeneration);
     }
 
-    bool D3D12Device::ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent)
+    Bool D3D12Device::ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent)
     {
         D3D12SwapchainState* state = FindSwapchain(swapchain);
         if (state == nullptr
@@ -547,7 +549,7 @@ namespace JBro::Internal
             return result;
         }
 
-        const std::uint32_t frameSlot = static_cast<std::uint32_t>(
+        const UInt32 frameSlot = static_cast<std::uint32_t>(
             m_frameSerial % state->desc.maxFramesInFlight);
         if (false == WaitForFence(m_frameFenceValues[frameSlot]))
         {
@@ -563,7 +565,7 @@ namespace JBro::Internal
             return result;
         }
 
-        const std::uint32_t backBufferIndex = state->swapchain->GetCurrentBackBufferIndex();
+        const UInt32 backBufferIndex = state->swapchain->GetCurrentBackBufferIndex();
         if (backBufferIndex >= state->desc.bufferCount)
         {
             m_commandList->Close();
@@ -620,7 +622,7 @@ namespace JBro::Internal
         }
 
         D3D12SwapchainState& state = m_swapchains[m_activeSwapchainIndex];
-        const std::uint32_t backBufferIndex = state.swapchain->GetCurrentBackBufferIndex();
+        const UInt32 backBufferIndex = state.swapchain->GetCurrentBackBufferIndex();
         if (backBufferIndex >= state.desc.bufferCount
             || frame.backBuffer != state.backBuffers[backBufferIndex].handle)
         {
@@ -659,7 +661,7 @@ namespace JBro::Internal
         }
 
         const HRESULT presentResult = state.swapchain->Present(syncInterval, presentFlags);
-        const std::uint64_t fenceValue = m_nextFenceValue++;
+        const UInt64 fenceValue = m_nextFenceValue++;
         const HRESULT signalResult = m_graphicsQueue->Signal(m_fence.Get(), fenceValue);
         if (SUCCEEDED(signalResult))
         {
@@ -700,7 +702,7 @@ namespace JBro::Internal
         m_commandContext.Reset();
 
         D3D12SwapchainState& swapchain = m_swapchains[m_activeSwapchainIndex];
-        for (std::uint32_t index = 0; index < swapchain.desc.bufferCount; ++index)
+        for (UInt32 index = 0; index < swapchain.desc.bufferCount; ++index)
         {
             swapchain.backBuffers[index].state = D3D12_RESOURCE_STATE_PRESENT;
         }
@@ -735,7 +737,7 @@ namespace JBro::Internal
             return;
         }
 
-        const std::uint64_t fenceValue = m_nextFenceValue++;
+        const UInt64 fenceValue = m_nextFenceValue++;
         if (FAILED(m_graphicsQueue->Signal(m_fence.Get(), fenceValue)))
         {
             MarkDeviceLost();
@@ -779,13 +781,13 @@ namespace JBro::Internal
         return &state;
     }
 
-    bool D3D12Device::BuildBackBuffers(
-        std::uint32_t swapchainIndex,
+    Bool D3D12Device::BuildBackBuffers(
+        UInt32 swapchainIndex,
         D3D12SwapchainState& state)
     {
         const D3D12_CPU_DESCRIPTOR_HANDLE heapStart =
             state.renderTargetHeap->GetCPUDescriptorHandleForHeapStart();
-        for (std::uint32_t index = 0; index < state.desc.bufferCount; ++index)
+        for (UInt32 index = 0; index < state.desc.bufferCount; ++index)
         {
             D3D12BackBuffer& backBuffer = state.backBuffers[index];
             if (FAILED(state.swapchain->GetBuffer(index, IID_PPV_ARGS(&backBuffer.resource))))
@@ -819,7 +821,7 @@ namespace JBro::Internal
         }
     }
 
-    bool D3D12Device::WaitForFence(std::uint64_t fenceValue)
+    Bool D3D12Device::WaitForFence(UInt64 fenceValue)
     {
         if (fenceValue == 0 || m_fence->GetCompletedValue() >= fenceValue)
         {

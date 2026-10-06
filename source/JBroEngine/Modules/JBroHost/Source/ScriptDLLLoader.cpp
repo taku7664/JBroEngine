@@ -1,12 +1,14 @@
 ﻿#include <JBro/Host/ScriptDLLLoader.h>
 
 #include <limits>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        bool ValidateModuleApi(
+        Bool ValidateModuleApi(
             const ScriptModuleApi* api,
             const ScriptModuleLoadContext& context) noexcept
         {
@@ -21,7 +23,7 @@ namespace JBro
                 return false;
             }
 
-            for (std::uint32_t index = 0; index < api->RequiredContextCount; ++index)
+            for (UInt32 index = 0; index < api->RequiredContextCount; ++index)
             {
                 const ScriptContextRequirement& requirement = api->RequiredContexts[index];
                 if (requirement.TypeId == 0 || requirement.AbiVersion == 0
@@ -29,7 +31,7 @@ namespace JBro
                 {
                     return false;
                 }
-                for (std::uint32_t earlier = 0; earlier < index; ++earlier)
+                for (UInt32 earlier = 0; earlier < index; ++earlier)
                 {
                     if (api->RequiredContexts[earlier].TypeId == requirement.TypeId)
                     {
@@ -58,11 +60,11 @@ namespace JBro
         }
     }
 
-    bool ScriptDLLLoader::Load(
+    Bool ScriptDLLLoader::Load(
         const char* dllPath,
         IPlatform& platform,
         const ScriptContextBlock* extensions,
-        std::uint32_t extensionCount)
+        UInt32 extensionCount)
     {
         if (IsLoaded())
         {
@@ -87,10 +89,10 @@ namespace JBro
         AdvanceGeneration();
     }
 
-    bool ScriptDLLLoader::Reload(
+    Bool ScriptDLLLoader::Reload(
         IPlatform& platform,
         const ScriptContextBlock* extensions,
-        std::uint32_t extensionCount)
+        UInt32 extensionCount)
     {
         if (false == IsLoaded() || m_platform != &platform)
         {
@@ -100,7 +102,7 @@ namespace JBro
         const String path = m_path;
         Deactivate(platform);
         m_path.Clear(false);
-        const bool activated = Activate(
+        const Bool activated = Activate(
             path.c_str(), platform, extensions, extensionCount);
         AdvanceGeneration();
         return activated;
@@ -115,12 +117,12 @@ namespace JBro
         return m_platform->GetSymbol(m_library, name);
     }
 
-    bool ScriptDLLLoader::IsLoaded() const noexcept
+    Bool ScriptDLLLoader::IsLoaded() const noexcept
     {
         return m_platform != nullptr && m_library.opaque != nullptr && m_api != nullptr;
     }
 
-    std::uint64_t ScriptDLLLoader::GetGeneration() const noexcept
+    UInt64 ScriptDLLLoader::GetGeneration() const noexcept
     {
         return m_generation;
     }
@@ -130,11 +132,11 @@ namespace JBro
         return m_path;
     }
 
-    bool ScriptDLLLoader::Activate(
+    Bool ScriptDLLLoader::Activate(
         const char* dllPath,
         IPlatform& platform,
         const ScriptContextBlock* extensions,
-        std::uint32_t extensionCount)
+        UInt32 extensionCount)
     {
         if (dllPath == nullptr || dllPath[0] == '\0'
             || extensionCount > MaxScriptContextBlocks

@@ -4,6 +4,9 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -19,13 +22,13 @@ namespace JBro
     // 풀린 칸의 크기(유닛)와 피벗이다. 크기 = 칸 픽셀 / 에셋 PPU 다(D-117).
     struct SpriteFrameView
     {
-        float widthUnits = 0.0f;
-        float heightUnits = 0.0f;
+        Float widthUnits = 0.0f;
+        Float heightUnits = 0.0f;
         // 프레임의 픽셀 크기다. 화면 레이어(D-237)는 PPU 대신 이것을 쓴다 - 그 좌표가 기준 해상도의 픽셀이다.
-        float widthPixels = 0.0f;
-        float heightPixels = 0.0f;
-        float pivotX = 0.5f;
-        float pivotY = 0.5f;
+        Float widthPixels = 0.0f;
+        Float heightPixels = 0.0f;
+        Float pivotX = 0.5f;
+        Float pivotY = 0.5f;
         // 텍스처의 유효 샘플러다(프로젝트 기본이 이미 적용된 값, D-117). `Default` 는 오지 않는다.
         TextureFilter filter = TextureFilter::Nearest;
     };
@@ -39,10 +42,10 @@ namespace JBro
         // 스프라이트 에셋의 `frameIndex` 번째 칸을 렌더러 텍스처와 UV 사각형으로 푼다. 칸 번호가 넘치면 마지막 칸이다.
         // 스프라이트가 로드돼 있지 않거나 텍스처를 올리지 못하면 거짓이고 출력은 손대지 않는다.
         // `frameView` 를 주면 그 칸의 유닛 크기와 피벗도 준다(D-117).
-        bool Resolve(AssetHandle spriteAsset, std::uint32_t frameIndex, AssetHandle& rendererTexture, float uvRect[4],
+        Bool Resolve(AssetHandle spriteAsset, UInt32 frameIndex, AssetHandle& rendererTexture, Float uvRect[4],
             SpriteFrameView* frameView = nullptr);
 
-        std::uint32_t GetUploadedTextureCount() const;
+        UInt32 GetUploadedTextureCount() const;
 
     private:
         struct TextureEntry
@@ -50,13 +53,13 @@ namespace JBro
             // 이 자리를 차지한 텍스처 에셋 핸들이다. 세대가 다르면 다른 에셋이 그 슬롯을 다시 쓴 것이다.
             AssetHandle asset;
             AssetHandle rendererTexture;
-            std::uint32_t pixelGeneration = 0;
+            UInt32 pixelGeneration = 0;
             // 올리기가 실패한 픽셀 세대다. 같은 세대는 다시 시도하지 않는다 - 안 그러면 실패한 텍스처를 스프라이트마다
             // 프레임마다 다시 올리려 든다. 재로드로 세대가 오르면 한 번 더 해 본다.
-            std::uint32_t failedGeneration = 0;
+            UInt32 failedGeneration = 0;
         };
 
-        bool EnsureTexture(AssetHandle textureAsset, AssetHandle& rendererTexture);
+        Bool EnsureTexture(AssetHandle textureAsset, AssetHandle& rendererTexture);
 
         AssetSystem* m_assets = nullptr;
         Renderer* m_renderer = nullptr;

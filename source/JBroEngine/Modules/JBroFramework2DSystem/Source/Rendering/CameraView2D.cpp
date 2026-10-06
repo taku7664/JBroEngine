@@ -1,24 +1,26 @@
 ﻿#include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 
 #include <cmath>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
     namespace
     {
-        bool Positive(float value)
+        Bool Positive(Float value)
         {
             return std::isfinite(value) && value > 0.0f;
         }
 
         // 원본 1 픽셀 격자에 맞춘다. 반올림이라 카메라가 격자 사이를 지날 때 가까운 쪽으로 붙는다.
-        float SnapToPixel(float value, float pixelsPerUnit)
+        Float SnapToPixel(Float value, Float pixelsPerUnit)
         {
             return static_cast<float>(std::round(static_cast<double>(value) * pixelsPerUnit) / pixelsPerUnit);
         }
     }
 
-    bool IsDrawableCamera2D(const RenderCamera2D& camera)
+    Bool IsDrawableCamera2D(const RenderCamera2D& camera)
     {
         if (false == std::isfinite(camera.nearPlane) || false == std::isfinite(camera.farPlane)
             || camera.nearPlane >= camera.farPlane)
@@ -48,7 +50,7 @@ namespace JBro
             return;
         }
         ScreenArea area;
-        float scale = 0.0f;
+        Float scale = 0.0f;
         if (ComputePixelPerfectArea(frame, area, scale))
         {
             frame.areaX = area.x;
@@ -58,7 +60,7 @@ namespace JBro
         }
     }
 
-    bool ComputeCameraView2D(const RenderCamera2D& camera, const ScreenSpaceFrame& frame, CameraView2D& result)
+    Bool ComputeCameraView2D(const RenderCamera2D& camera, const ScreenSpaceFrame& frame, CameraView2D& result)
     {
         ScreenArea area;
         if (false == IsDrawableCamera2D(camera) || false == GetScreenArea(frame, area))
@@ -90,16 +92,16 @@ namespace JBro
         return true;
     }
 
-    bool ComputeParallaxOffset2D(const Matrix3x2& view, float factor, float& dx, float& dy)
+    Bool ComputeParallaxOffset2D(const Matrix3x2& view, Float factor, Float& dx, Float& dy)
     {
         // 카메라의 월드 자리는 뷰가 원점으로 보내는 점이다: x·m11 + y·m21 + m31 = 0, x·m12 + y·m22 + m32 = 0.
-        const float det = view.m11 * view.m22 - view.m21 * view.m12;
+        const Float det = view.m11 * view.m22 - view.m21 * view.m12;
         if (false == std::isfinite(det) || std::fabs(det) < 1e-12f)
         {
             return false;
         }
-        const float cameraX = (view.m21 * view.m32 - view.m31 * view.m22) / det;
-        const float cameraY = (view.m31 * view.m12 - view.m11 * view.m32) / det;
+        const Float cameraX = (view.m21 * view.m32 - view.m31 * view.m22) / det;
+        const Float cameraY = (view.m31 * view.m12 - view.m11 * view.m32) / det;
         dx = cameraX * (1.0f - factor);
         dy = cameraY * (1.0f - factor);
         return std::isfinite(dx) && std::isfinite(dy);

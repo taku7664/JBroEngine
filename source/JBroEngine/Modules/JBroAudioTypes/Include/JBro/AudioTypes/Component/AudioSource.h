@@ -8,6 +8,10 @@
 #include <JBro/Runtime/Component.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Component
 {
@@ -70,27 +74,27 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, clip, NoSerialize() | ReadOnly() | Tooltip("clipId 에서 해석된 값"));
         // 프로젝트 설정의 버스 이름이다. 비우면 Master 다.
         JBRO_FIELD(AudioBusName, bus);
-        JBRO_FIELD(float, volume, Range(0, 1)) = 1.0f;
-        JBRO_FIELD(float, pitch, Range(0.1f, 4.0f)) = 1.0f;
-        JBRO_FIELD(bool,  loop) = false;
+        JBRO_FIELD(Float, volume, Range(0, 1)) = 1.0f;
+        JBRO_FIELD(Float, pitch, Range(0.1f, 4.0f)) = 1.0f;
+        JBRO_FIELD(Bool,  loop) = false;
         // 켜질 때(캔버스 시작 포함) 저절로 한 번 재생한다. 루프가 아니면 다시 켜질 때까지 다시 울리지 않는다.
-        JBRO_FIELD(bool,  playOnStart) = true;
+        JBRO_FIELD(Bool,  playOnStart) = true;
         // 켜면 듣는 자리와의 거리·방향이 소리에 든다. 끄면 배경음처럼 가운데에서 그대로 들린다.
-        JBRO_FIELD(bool,  spatial) = false;
+        JBRO_FIELD(Bool,  spatial) = false;
         JBRO_FIELD(AudioAttenuation, attenuation, Category("Spatial")) = AudioAttenuation::Inverse;
-        JBRO_FIELD(float, minDistance, Category("Spatial")) = 1.0f;
-        JBRO_FIELD(float, maxDistance, Category("Spatial")) = 50.0f;
-        JBRO_FIELD(float, rolloff, Category("Spatial")) = 1.0f;
+        JBRO_FIELD(Float, minDistance, Category("Spatial")) = 1.0f;
+        JBRO_FIELD(Float, maxDistance, Category("Spatial")) = 50.0f;
+        JBRO_FIELD(Float, rolloff, Category("Spatial")) = 1.0f;
         // 0 이면 끈다. 움직이는 소스와 듣는 자리의 속도 차로 음높이가 바뀐다.
-        JBRO_FIELD(float, doppler, Category("Spatial")) = 0.0f;
+        JBRO_FIELD(Float, doppler, Category("Spatial")) = 0.0f;
         // 보이스가 모자랄 때 낮은 것부터 훔친다(0..255). 배경음은 높게, 자잘한 효과음은 낮게 둔다.
-        JBRO_FIELD(std::int32_t, priority, Range(0, 255)) = 128;
+        JBRO_FIELD(Int32, priority, Range(0, 255)) = 128;
         // 시작할 때 이만큼 키운다(초).
-        JBRO_FIELD(float, fadeIn) = 0.0f;
+        JBRO_FIELD(Float, fadeIn) = 0.0f;
         // 이 소스에만 거는 필터다(Hz, 0 이면 끔). 벽 너머의 소리는 저역 통과 800 쯤, 무전기는 고역 통과 1500 쯤이다.
         // 재생 중에 바꿔도 된다. 둘 다 0 인 소스는 필터 비용이 없다.
-        JBRO_FIELD(float, lowPass, Category("Filter")) = 0.0f;
-        JBRO_FIELD(float, highPass, Category("Filter")) = 0.0f;
+        JBRO_FIELD(Float, lowPass, Category("Filter")) = 0.0f;
+        JBRO_FIELD(Float, highPass, Category("Filter")) = 0.0f;
         JBRO_FIELD(AudioSourceState, state, NoSerialize() | ReadOnly()) = AudioSourceState::Idle;
 
         // ── 시스템 전용 ───────────────────────────────────────────────────────────────────────
@@ -101,21 +105,21 @@ namespace JBro::Component
             // 지금 보이스가 재생하는 에셋이다. `clip` 이 바뀌면 교체한다.
             AssetHandle playingClip;
             float position[3] = {0.0f, 0.0f, 0.0f};
-            float lastVolume = -1.0f;
-            float lastPitch = -1.0f;
-            bool lastLoop = false;
+            Float lastVolume = -1.0f;
+            Float lastPitch = -1.0f;
+            Bool lastLoop = false;
             AudioBusName lastBus;
-            float lastLowPass = 0.0f;
-            float lastHighPass = 0.0f;
-            bool wasActive = false;
+            Float lastLowPass = 0.0f;
+            Float lastHighPass = 0.0f;
+            Bool wasActive = false;
             // 이번 활성 구간에 `playOnStart` 를 이미 썼는가.
-            bool playOnStartUsed = false;
+            Bool playOnStartUsed = false;
             // 스크립트가 `Play` 를 불렀다. 다음 갱신이 위치를 채워 시작한다.
-            bool playRequested = false;
+            Bool playRequested = false;
             // 스크립트가 멈춰 둔 것이다. 시스템이 다시 켜지 않는다.
-            bool stoppedByScript = false;
+            Bool stoppedByScript = false;
             // 보이스를 이은 때의 버스 구성 세대다(D-240). 프로젝트 설정을 저장해 버스를 다시 세우면 바뀐다 - 그때 버스를 다시 잇는다.
-            std::uint32_t busGeneration = 0;
+            UInt32 busGeneration = 0;
         };
         Runtime runtime;
     };

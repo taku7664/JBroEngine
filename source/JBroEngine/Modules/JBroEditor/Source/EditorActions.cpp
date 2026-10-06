@@ -21,6 +21,8 @@
 #include <cstdio>
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::EditorActions
 {
@@ -29,12 +31,12 @@ namespace JBro::EditorActions
         // **컴포넌트마다 더한 항목을 인스턴스마다 하위 메뉴로 세운다**(D-220). 줄 이름은 번역하지 않는 타입
         // 이름이고, 같은 타입이 둘 이상이면 둘째부터 `(2)` 처럼 번호를 붙인다(인스펙터의 슬롯 순서와 같다).
         // 항목이 없는 타입은 줄을 만들지 않는다. **거짓이면 오브젝트가 더 이상 없을 수 있다.**
-        bool DrawComponentSubmenus(EditorApplication& editor, GameObject& object,
+        Bool DrawComponentSubmenus(EditorApplication& editor, GameObject& object,
             const ObjectPlacement& placement)
         {
             ComponentMenuTable& table = editor.GetComponentMenus();
             const Array<ComponentSlot>& components = object.GetComponents();
-            bool separated = false;
+            Bool separated = false;
             for (std::size_t index = 0; index < components.Size(); ++index)
             {
                 const ComponentSlot& slot = components[index];
@@ -44,8 +46,8 @@ namespace JBro::EditorActions
                     continue;
                 }
                 // 같은 타입 중 몇째이고 모두 몇인가. 죽은 슬롯은 세지 않는다(`FindComponentAt` 과 같은 셈).
-                std::uint32_t ordinal = 0;
-                std::uint32_t sameType = 0;
+                UInt32 ordinal = 0;
+                UInt32 sameType = 0;
                 for (std::size_t other = 0; other < components.Size(); ++other)
                 {
                     if (components[other].typeId != slot.typeId
@@ -69,7 +71,7 @@ namespace JBro::EditorActions
                 const char* label = typeName;
                 if (sameType > 1 && ordinal > 0)
                 {
-                    std::snprintf(numbered, sizeof(numbered), "%s (%u)", typeName, ordinal + 1);
+                    std::snprintf(numbered, sizeof(numbered), "%s (%u)", typeName, (ordinal + 1).Get());
                     label = numbered;
                 }
                 if (false == separated)
@@ -88,7 +90,7 @@ namespace JBro::EditorActions
                 context.address.ordinal = ordinal;
                 context.component = component;
                 context.placement = placement;
-                const bool alive = table.DrawItems(context);
+                const Bool alive = table.DrawItems(context);
                 Widget::EndMenu();
                 if (false == alive)
                 {
@@ -148,7 +150,7 @@ namespace JBro::EditorActions
         return created;
     }
 
-    bool Unparent(EditorApplication& editor, GameObject& object)
+    Bool Unparent(EditorApplication& editor, GameObject& object)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr || object.GetParent() == nullptr)
@@ -163,7 +165,7 @@ namespace JBro::EditorActions
             *canvas, ids, ids.Track(&object), InvalidEditorObjectId, roots.Size()));
     }
 
-    bool DeleteObject(EditorApplication& editor, GameObject& object)
+    Bool DeleteObject(EditorApplication& editor, GameObject& object)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -177,7 +179,7 @@ namespace JBro::EditorActions
             MakeOwnerPtr<DeleteObjectCommand>(*canvas, editor.GetObjectIds(), &object));
     }
 
-    bool DeleteSelection(EditorApplication& editor)
+    Bool DeleteSelection(EditorApplication& editor)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -203,7 +205,7 @@ namespace JBro::EditorActions
         }
         editor.ClearSelection();
         editor.SetSelectedObject(nullptr);
-        bool any = false;
+        Bool any = false;
         for (std::size_t index = 0; index < targets.Size(); ++index)
         {
             GameObject* object = targets[index];
@@ -238,7 +240,7 @@ namespace JBro::EditorActions
             const char* category = types[lead]->category != nullptr
                 ? types[lead]->category
                 : ComponentCategory::Default;
-            bool seen = false;
+            Bool seen = false;
             for (std::size_t before = 0; before < lead && false == seen; ++before)
             {
                 const char* other = types[before]->category != nullptr
@@ -274,7 +276,7 @@ namespace JBro::EditorActions
         }
     }
 
-    bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName)
+    Bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr
@@ -287,7 +289,7 @@ namespace JBro::EditorActions
             *canvas, editor.GetObjectIds(), objectId, typeName));
     }
 
-    bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object)
+    Bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object)
     {
         // 가이드가 하위 메뉴 · 갈래 · 항목을 차례로 가리킨다(반례 ④). 인스펙터의 목록과 항목 표식이 같다.
         Widget::SetNextItemTarget(GuideFocusTargets::Action("component.add"));
@@ -298,9 +300,9 @@ namespace JBro::EditorActions
         }
         AddComponentList list;
         BuildAddComponentList(object, list);
-        bool added = false;
+        Bool added = false;
         const char* drawnGroup = nullptr;
-        bool inGroup = false;
+        Bool inGroup = false;
         for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
         {
             // 갈래마다 하위 메뉴 하나다(기존 엔진과 같은 모양). 목록이 길어져도
@@ -337,7 +339,7 @@ namespace JBro::EditorActions
     namespace
     {
         // 행동 표의 그 행동을 그린다(D-284). 하고 나서 메뉴의 오브젝트가 없을 수 있으면 참이다.
-        bool DrawRemoving(const char* name, const EditorActionContext& context)
+        Bool DrawRemoving(const char* name, const EditorActionContext& context)
         {
             EditorActionContext itemContext = context;
             if (false == EditorActionUi::DrawItem(name, itemContext))
@@ -349,7 +351,7 @@ namespace JBro::EditorActions
         }
     }
 
-    bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
+    Bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
         const ObjectPlacement& placement)
     {
         // 우클릭한 것을 고른 것으로 삼는다. 메뉴가 무엇에 대한 것인지 보이는 것과 어긋나면 안 된다.
@@ -398,7 +400,7 @@ namespace JBro::EditorActions
         return false == DrawRemoving("object.delete", context);
     }
 
-    bool DrawBackgroundMenu(EditorApplication& editor, const ObjectPlacement& placement)
+    Bool DrawBackgroundMenu(EditorApplication& editor, const ObjectPlacement& placement)
     {
         EditorActionContext context;
         context.editor = &editor;

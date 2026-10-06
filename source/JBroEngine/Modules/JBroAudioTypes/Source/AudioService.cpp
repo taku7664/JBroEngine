@@ -2,6 +2,9 @@
 
 #include <JBro/AudioTypes/Internal/SystemContext.h>
 #include <JBro/AudioTypes/System/IAudioSystem.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Service
 {
@@ -24,17 +27,17 @@ namespace JBro::Service
         }
     }
 
-    void AudioService::PlayOneShot(AssetHandle clip, float volume, float pitch) const
+    void AudioService::PlayOneShot(AssetHandle clip, Float volume, Float pitch) const
     {
         PlayOneShot(clip, AudioBusName{}, volume, pitch);
     }
 
-    void AudioService::PlayOneShot(AssetHandle clip, const char* bus, float volume, float pitch) const
+    void AudioService::PlayOneShot(AssetHandle clip, const char* bus, Float volume, Float pitch) const
     {
         PlayOneShot(clip, Named(bus), volume, pitch);
     }
 
-    void AudioService::PlayOneShot(AssetHandle clip, AudioBusName bus, float volume, float pitch) const
+    void AudioService::PlayOneShot(AssetHandle clip, AudioBusName bus, Float volume, Float pitch) const
     {
         if (System::IAudioSystem* audio = Audio())
         {
@@ -42,12 +45,12 @@ namespace JBro::Service
         }
     }
 
-    void AudioService::PlayOneShotAt(AssetHandle clip, float x, float y, float z, float volume) const
+    void AudioService::PlayOneShotAt(AssetHandle clip, Float x, Float y, Float z, Float volume) const
     {
         PlayOneShotAt(clip, AudioBusName{}, x, y, z, volume);
     }
 
-    void AudioService::PlayOneShotAt(AssetHandle clip, AudioBusName bus, float x, float y, float z, float volume) const
+    void AudioService::PlayOneShotAt(AssetHandle clip, AudioBusName bus, Float x, Float y, Float z, Float volume) const
     {
         if (System::IAudioSystem* audio = Audio())
         {
@@ -64,7 +67,7 @@ namespace JBro::Service
         }
     }
 
-    void AudioService::Stop(Ref<Component::AudioSource> source, float fadeOutSeconds) const
+    void AudioService::Stop(Ref<Component::AudioSource> source, Float fadeOutSeconds) const
     {
         System::IAudioSystem* audio = Audio();
         if (Component::AudioSource* target = source.Get(); audio != nullptr && target != nullptr)
@@ -91,7 +94,7 @@ namespace JBro::Service
         }
     }
 
-    bool AudioService::IsPlaying(Ref<Component::AudioSource> source) const
+    Bool AudioService::IsPlaying(Ref<Component::AudioSource> source) const
     {
         System::IAudioSystem* audio = Audio();
         const Component::AudioSource* target = source.Get();
@@ -105,12 +108,12 @@ namespace JBro::Service
         return audio != nullptr && target != nullptr ? audio->GetSourceTime(*target) : 0.0;
     }
 
-    void AudioService::SetBusVolume(const char* bus, float volume) const
+    void AudioService::SetBusVolume(const char* bus, Float volume) const
     {
         SetBusVolume(Named(bus), volume);
     }
 
-    void AudioService::SetBusVolume(AudioBusName bus, float volume) const
+    void AudioService::SetBusVolume(AudioBusName bus, Float volume) const
     {
         if (System::IAudioSystem* audio = Audio())
         {
@@ -118,23 +121,23 @@ namespace JBro::Service
         }
     }
 
-    float AudioService::GetBusVolume(const char* bus) const
+    Float AudioService::GetBusVolume(const char* bus) const
     {
         return GetBusVolume(Named(bus));
     }
 
-    float AudioService::GetBusVolume(AudioBusName bus) const
+    Float AudioService::GetBusVolume(AudioBusName bus) const
     {
         System::IAudioSystem* audio = Audio();
-        return audio != nullptr ? audio->GetBusVolume(bus) : 0.0f;
+        return audio != nullptr ? audio->GetBusVolume(bus) : Float(0.0f);
     }
 
-    void AudioService::SetBusMuted(const char* bus, bool muted) const
+    void AudioService::SetBusMuted(const char* bus, Bool muted) const
     {
         SetBusMuted(Named(bus), muted);
     }
 
-    void AudioService::SetBusMuted(AudioBusName bus, bool muted) const
+    void AudioService::SetBusMuted(AudioBusName bus, Bool muted) const
     {
         if (System::IAudioSystem* audio = Audio())
         {
@@ -142,7 +145,7 @@ namespace JBro::Service
         }
     }
 
-    bool AudioService::IsBusMuted(AudioBusName bus) const
+    Bool AudioService::IsBusMuted(AudioBusName bus) const
     {
         System::IAudioSystem* audio = Audio();
         return audio != nullptr && audio->IsBusMuted(bus);
@@ -162,7 +165,7 @@ namespace JBro::Service
         return audio != nullptr ? audio->GetBusEffects(bus) : AudioBusEffects{};
     }
 
-    void AudioService::SetBusLowPass(const char* bus, float cutoffHz) const
+    void AudioService::SetBusLowPass(const char* bus, Float cutoffHz) const
     {
         if (System::IAudioSystem* audio = Audio())
         {
@@ -180,12 +183,12 @@ namespace JBro::Service
         }
     }
 
-    void AudioService::FadeBusVolume(const char* bus, float volume, float seconds) const
+    void AudioService::FadeBusVolume(const char* bus, Float volume, Float seconds) const
     {
         FadeBusVolume(Named(bus), volume, seconds);
     }
 
-    void AudioService::FadeBusVolume(AudioBusName bus, float volume, float seconds) const
+    void AudioService::FadeBusVolume(AudioBusName bus, Float volume, Float seconds) const
     {
         if (System::IAudioSystem* audio = Audio())
         {
@@ -193,13 +196,13 @@ namespace JBro::Service
         }
     }
 
-    std::uint32_t AudioService::GetOutputDeviceCount() const
+    UInt32 AudioService::GetOutputDeviceCount() const
     {
         System::IAudioSystem* audio = Audio();
-        return audio != nullptr ? audio->GetOutputDeviceCount() : 0;
+        return audio != nullptr ? audio->GetOutputDeviceCount() : UInt32(0);
     }
 
-    const char* AudioService::GetOutputDeviceName(std::uint32_t index) const
+    const char* AudioService::GetOutputDeviceName(UInt32 index) const
     {
         System::IAudioSystem* audio = Audio();
         return audio != nullptr ? audio->GetOutputDeviceName(index) : "";
@@ -211,19 +214,19 @@ namespace JBro::Service
         return audio != nullptr ? audio->GetOutputDevice() : "";
     }
 
-    bool AudioService::SetOutputDevice(const char* name) const
+    Bool AudioService::SetOutputDevice(const char* name) const
     {
         System::IAudioSystem* audio = Audio();
         return audio != nullptr && audio->SetOutputDevice(name);
     }
 
-    bool AudioService::IsWaitingForUserGesture() const
+    Bool AudioService::IsWaitingForUserGesture() const
     {
         System::IAudioSystem* audio = Audio();
         return audio != nullptr && audio->IsWaitingForUserGesture();
     }
 
-    void AudioService::SetMuteWhenUnfocused(bool mute) const
+    void AudioService::SetMuteWhenUnfocused(Bool mute) const
     {
         if (System::IAudioSystem* audio = Audio())
         {
@@ -231,7 +234,7 @@ namespace JBro::Service
         }
     }
 
-    bool AudioService::IsMuteWhenUnfocused() const
+    Bool AudioService::IsMuteWhenUnfocused() const
     {
         System::IAudioSystem* audio = Audio();
         return audio != nullptr && audio->IsMuteWhenUnfocused();

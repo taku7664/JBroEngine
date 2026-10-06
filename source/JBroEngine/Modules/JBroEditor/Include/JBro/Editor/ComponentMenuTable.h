@@ -6,6 +6,8 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -31,7 +33,7 @@ namespace JBro
     // 그것을 더 그리지 않는다(`EditorActions::DrawObjectMenu` 와 같은 계약). 필드 값만 바꿨으면 참이다.
     // 편집은 커맨드로만 한다.
     // 메뉴가 열린 동안 매 프레임 불리므로 힙 할당·문자열 생성을 하지 않는다.
-    using ComponentMenuDraw = bool (*)(const ComponentMenuContext& context);
+    using ComponentMenuDraw = Bool (*)(const ComponentMenuContext& context);
 
     // 누가 등록했는가의 표지다. 등록한 쪽이 자기 주소 같은 값을 넘기고, 뗄 때 같은 값으로 한 번에 뗀다.
     using ComponentMenuOwner = const void*;
@@ -56,23 +58,23 @@ namespace JBro
 
         // 받았으면 참이다. 타입이 `InvalidComponentTypeId` 이거나 함수·표지가 없거나, 같은 (타입, 함수, 표지)가 이미 있거나,
         // 그리는 중이면 받지 않는다.
-        bool Register(ComponentTypeId typeId, ComponentMenuDraw draw, ComponentMenuOwner owner,
+        Bool Register(ComponentTypeId typeId, ComponentMenuDraw draw, ComponentMenuOwner owner,
             void* user = nullptr);
         // 그 표지로 등록한 것을 모두 뗀다. 뗀 개수다. 그리는 중이면 떼지 않고 0 이다.
-        std::uint32_t Unregister(ComponentMenuOwner owner);
+        UInt32 Unregister(ComponentMenuOwner owner);
 
         // 그 타입에 항목이 하나라도 있는가. 없으면 메뉴에 그 타입의 줄을 세우지 않는다.
-        bool Has(ComponentTypeId typeId) const;
-        std::uint32_t Count(ComponentTypeId typeId) const;
+        Bool Has(ComponentTypeId typeId) const;
+        UInt32 Count(ComponentTypeId typeId) const;
 
         // `context.address.typeId` 의 항목을 등록 순서로 그린다. 등록자가 바뀌는 자리에 구분선을 넣는다.
         // 항목마다 `context.user` 를 그 등록의 값으로 바꿔 넘긴다. 어느 훅이든 거짓을 돌려주면 거기서 멈추고
         // 거짓이다. 이미 열린 메뉴 안에서 부른다.
         // `separatorFirst` 가 참이면 **항목을 하나라도 그릴 때만** 맨 앞에 구분선을 넣는다 - 앞의 항목과 가르되,
         // 그 타입에 항목이 없으면 빈 구분선이 겹쳐 서지 않는다.
-        bool DrawItems(const ComponentMenuContext& context, bool separatorFirst = false);
+        Bool DrawItems(const ComponentMenuContext& context, Bool separatorFirst = false);
 
-        bool IsDrawing() const;
+        Bool IsDrawing() const;
 
     private:
         struct Entry
@@ -84,6 +86,6 @@ namespace JBro
         };
 
         Array<Entry> m_entries;
-        std::uint32_t m_drawDepth = 0;
+        UInt32 m_drawDepth = 0;
     };
 }

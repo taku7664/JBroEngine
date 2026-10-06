@@ -965,6 +965,37 @@
 
 - 지속적으로 저장할 데이터는 YAML 또는 바이너리 형식을 우선한다. (SHOULD)
 
+### 10.5 수와 참거짓은 엔진 값 타입으로 적는다
+
+- **엔진 코드의 데이터와 API 는 `Float`·`Int32`·`Int64`·`UInt32`·`UInt64`·`Bool` 로 적는다.** (MUST) (D-290)
+  원시 `float`·`int`·`bool`·`std::int32_t`·`std::uint32_t`·`std::int64_t`·`std::uint64_t` 를 필드·매개변수·반환·지역 변수에 쓰지 않는다.
+  `Int` 는 `Int64` 의 별칭이고, 폭을 밝혀야 하는 자리는 `Int32`·`UInt32` 다. 필드를 옮길 때 폭을 바꾸지 않는다(저장 파일과 네트워크 바이트가 그대로다).
+  수학 값 타입(`Vector2`·`Vector3`·`Quaternion`·`Matrix3x2`·`Matrix4x4`·`Rect`·`Size`·`Color`)의 성분도 `Float` 다.
+- **원시 타입은 경계에서만 쓴다.** (MUST) (D-290)
+  값 타입과 컨테이너의 구현 자체(`Float`·`IntegerType`·`Bool`·`Angle` 의 `Value`, `Array`·`Table`·`String`·할당기·`Hash`·`Simd128`),
+  서드파티 API(ImGui 의 `bool*`·`float[4]`·콜백, stb, miniaudio, D3D·Vulkan 의 출력 매개변수와 핸들, CRT 훅, Winsock),
+  GPU 로 그대로 올라가는 배치(SPIR-V 낱말, 셰이더 상수 블록), 오디오 샘플 버퍼(`float*`·`Array<float>`·스펙트럼과 파형),
+  표준 라이브러리 함수의 인자(`std::from_chars`·`std::atomic` 의 기대값·`std::chrono::duration`·`std::uniform_int_distribution`·`std::countr_zero`),
+  진입점(`main`·`wmain`), 게임 DLL 의 `extern "C"` 내보내기. 경계 바로 앞에서 원시 값으로 떠서 넘기고 받은 값을 엔진 타입에 담는다 -
+  안쪽까지 원시 타입을 끌고 들어가지 않는다.
+- **리플렉션은 엔진 값 타입만 등록한다.** (MUST) (D-290)
+  `TypeDescriptorOf` 는 `Bool`·`Int32`·`Int64`·`UInt32`·`UInt64`·`Float` 를 등록하고 같은 폭의 원시 타입은 **일부러 등록하지 않는다** -
+  `JBRO_FIELD(float, speed)` 는 컴파일이 멈춘다(`TypeDescriptorOf.h` 의 static_assert). 저장 파일에 적히는 타입 이름은 그대로 `float`·`int32` 다.
+  엔진 타입이 없는 폭(8·16 비트, `double`)만 원시 타입으로 등록된다.
+- **엔진 값 타입끼리, 그리고 원시 값과 섞어도 원시 C++ 처럼 계산된다.** (MUST) (D-290)
+  정수 강타입에 실수를 섞으면 실수로 계산한다(`Int32(10) * 0.5f == 5.0f`). 더 넓은 원시 정수와 섞으면 넓은 쪽으로 받는다(`uint64 * UInt32` 는 `UInt64`).
+  정수끼리의 비교는 값으로 한다(`std::cmp_less`). 값을 잃지 않는 넓히기(`UInt32` → `UInt64`)는 암시이고 좁히기·부호 바꾸기는 명시다.
+  각도 → `Float` 은 암시, `Float` → 각도는 명시다(`Radian(x)`). 둘 다 암시면 비교가 모호해진다.
+- **`std::min`·`std::max`·`std::clamp` 대신 `JBro::Min`·`Max`·`Clamp`(`Types/ValueMath.h`)를 쓴다.** (SHOULD) (D-290)
+  엔진 값 타입과 원시 리터럴이 섞여도 엔진 타입으로 돌려준다. 삼항식의 두 갈래는 같은 타입으로 맞춘다(`cond ? speed : Float(0.0f)`) -
+  `Float` 와 `float` 는 서로 변환되므로 갈래가 다르면 모호하다.
+- **엔진 값 타입을 C 가변 인자로 넘기지 않는다.** (MUST) (D-290)
+  `Float` 는 `double` 로 올라가지 않아 `%f` 가 쓰레기를 읽고, 클래스라 컴파일러가 형식 검사도 하지 않는다. `Log::Write` 는 템플릿이라 원시 값으로
+  내려 주지만 `std::snprintf` 같은 C 함수에는 `.Get()` 으로 넘긴다.
+- **원시 리터럴로 부르는 API 는 원시 짝을 둔다.** (SHOULD) (D-290)
+  `Range(Int32, Int32)` 와 `Range(Float, Float)` 만 있으면 `Range(3, 7)` 이 모호하다 - 둘 다 사용자 변환 하나로 닿는다.
+  스크립트가 리터럴로 부르는 자리(`RandomService::Range`·`RandomStream::Range`)는 `int`·`float` 짝을 두어 엔진 타입 판으로 넘긴다.
+
 ## 11. 에디터
 
 에디터는 **사람이 하루 종일 들여다보는 화면**이고, 그 사람이 한 일을 되돌릴 수 있어야
@@ -1170,6 +1201,13 @@
   글자를 받는 칸은 **편집이 끝날 때 한 번** 커맨드를 만든다(`TextField::CommitOnFinish`).
   커맨드 병합은 마우스를 누른 채일 때만 일어나 타이핑에는 걸리지 않으므로, 글자마다 만들면
   되돌리기가 글자 수만큼 필요해진다.
+
+- **숫자 칸은 `Widget::DragField<T>`, 범위가 닫힌 값은 `Widget::SliderField<T>` 다.** (MUST) (D-289, D-290)
+  `T` 는 `Float`·`Int32`·`Int64`·`UInt32`·`UInt64` 만 받는다(`FieldNumber` concept) - 원시 `float`·`int` 는 컴파일되지 않고, 부르는 쪽이
+  원시 값을 옮겨 담아 넘기지 않는다(필드를 엔진 타입으로 바꾼다). 값은 생성자로 받아 타입을 적지 않는다:
+  `DragField("##count", count).Range(0, 10)()`. 타입마다 다른 것(ImGui 자료형, 기본 형식, 기본 끌기 속도)은 위젯 안에서 `if constexpr` 로 가른다.
+  `Format` 은 `Float` 에만 있다 - 정수는 폭마다 형식 문자가 달라(`%d`·`%lld`·`%u`) 잘못 주면 값이 깨진다.
+  한 칸씩 움직이는 ▲▼ 는 칸 안 오른쪽 끝에 위아래로 쌓인다(칸 옆에 단추를 붙이지 않는다). 누르고 있으면 반복하고, 부호 없는 값은 0 아래로 감기지 않는다.
 
 - **도크는 두 겹이고 메뉴도 그 결을 따른다.** (MUST) (D-134)
   창 전체를 덮는 **도크 뿌리**에는 메인 도크 하나만 붙고, 도구 창은 **메인 도크** 안에 붙는다.

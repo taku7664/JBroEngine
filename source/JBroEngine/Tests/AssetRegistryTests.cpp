@@ -9,12 +9,15 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
     namespace fs = std::filesystem;
 
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -198,7 +201,7 @@ namespace
             Check(false == fs::exists(root / "hero.png.jmeta.tmp"), "the meta save leaves no scratch file behind");
         }
         // 판번호는 바뀔 때마다 오르고, 아무것도 안 하면 그대로다(에디터 목록이 이것으로 다시 모을지 정한다).
-        const std::uint64_t scanned = registry.GetRevision();
+        const JBro::UInt64 scanned = registry.GetRevision();
         Check(scanned != 0 && registry.GetRevision() == scanned, "a scan moves the revision and reading does not");
         const JBro::AssetRecord* hero = registry.FindByPath("hero.png");
         Check(hero != nullptr && hero->type == JBro::AssetType::Texture, "an image is found by path as its texture");
@@ -347,7 +350,7 @@ namespace
     }
 }
 
-int RunAssetRegistryTests()
+JBro::Int32 RunAssetRegistryTests()
 {
     TestTypeRules();
     TestMetaFileRoundTrip();

@@ -5,25 +5,28 @@
 #include <JBro/Types/NameTable.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
     namespace
     {
-        bool IsFloat(const TypeDescriptor& type)
+        Bool IsFloat(const TypeDescriptor& type)
         {
             const char* name = NameTable::Get().Resolve(type.typeName);
             return name != nullptr && std::strcmp(name, "float") == 0;
         }
 
         // `address` 가 비어 있으면 타입만 본다. 셈은 같고 주소만 모으지 않는다.
-        bool CollectInto(const TypeDescriptor& type, void* address, ScalarRun& run)
+        Bool CollectInto(const TypeDescriptor& type, void* address, ScalarRun& run)
         {
             if (type.fields == nullptr)
             {
                 return false;
             }
-            for (std::uint32_t index = 0; index < type.fields->count; ++index)
+            for (UInt32 index = 0; index < type.fields->count; ++index)
             {
                 const PropertyInfo& property = type.fields->properties[index];
                 if (property.type == nullptr || property.Address == nullptr)
@@ -60,26 +63,26 @@ namespace JBro
                     // 다섯 개부터는 한 줄에 넣어 봐야 읽을 수 없다. 타고 내려간다.
                     return false;
                 }
-                run.values[run.count] = static_cast<float*>(field);
+                run.values[run.count] = static_cast<Float*>(field);
                 ++run.count;
             }
             return true;
         }
     }
 
-    bool CollectScalarRun(const TypeDescriptor& type, void* address, ScalarRun& run)
+    Bool CollectScalarRun(const TypeDescriptor& type, void* address, ScalarRun& run)
     {
         run = ScalarRun{};
         return CollectInto(type, address, run) && run.count >= 2;
     }
 
-    bool IsScalarRunType(const TypeDescriptor& type)
+    Bool IsScalarRunType(const TypeDescriptor& type)
     {
         ScalarRun run;
         return CollectInto(type, nullptr, run) && run.count >= 2;
     }
 
-    bool CollectNumbers(const TypeDescriptor& type, void* address, ScalarRun& run)
+    Bool CollectNumbers(const TypeDescriptor& type, void* address, ScalarRun& run)
     {
         if (CollectScalarRun(type, address, run))
         {
@@ -90,7 +93,7 @@ namespace JBro
         {
             return false;
         }
-        run.values[0] = static_cast<float*>(address);
+        run.values[0] = static_cast<Float*>(address);
         run.count = 1;
         return true;
     }

@@ -6,13 +6,16 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // Vulkan 백엔드의 디바이스·스왑체인·프레임·되읽기·크기 바꾸기를 잰다(D-108). 스프라이트와 메시 픽셀
 // 테스트가 세 백엔드에서 같이 돌므로 여기는 그쪽이 안 밟는 것만 본다: 프레임 슬롯이 돌아가는 것과
 // 검증 레이어가 조용한 것.
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -21,8 +24,8 @@ namespace
         }
     }
 
-    unsigned char Channel(const JBro::Array<std::byte>& image, std::uint32_t rowPitch,
-        std::uint32_t x, std::uint32_t y, std::uint32_t channel)
+    unsigned char Channel(const JBro::Array<std::byte>& image, JBro::UInt32 rowPitch,
+        JBro::UInt32 x, JBro::UInt32 y, JBro::UInt32 channel)
     {
         const std::size_t offset = static_cast<std::size_t>(y) * rowPitch + static_cast<std::size_t>(x) * 4;
         return static_cast<unsigned char>(image[offset + channel]);
@@ -138,7 +141,7 @@ namespace
     }
 }
 
-int RunVulkanSmokeTests()
+JBro::Int32 RunVulkanSmokeTests()
 {
     TestVulkanClearsPresentsResizesAndReadsBack();
     std::cout << "Vulkan smoke tests passed.\n";

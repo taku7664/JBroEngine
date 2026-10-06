@@ -5,10 +5,13 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -28,8 +31,8 @@ namespace
     // 핫 경로에 있는 타입 자리. 매크로를 넣지 않고 밖에서 표를 엮는다.
     struct FakeVec2
     {
-        float x = 0.0f;
-        float y = 0.0f;
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
     };
 }
 
@@ -75,7 +78,7 @@ namespace
 
         JBRO_FIELD(Shape, shape) = Shape::Box;
         JBRO_FIELD(FakeVec2, offset);
-        JBRO_FIELD(float, radius, Range(0, 100)) = 0.5f;
+        JBRO_FIELD(JBro::Float, radius, Range(0, 100)) = 0.5f;
     };
 
     void TestAnEnumSavesItsNameNotItsNumber()
@@ -194,7 +197,7 @@ namespace
     }
 }
 
-int RunReflectionCompoundTests()
+JBro::Int32 RunReflectionCompoundTests()
 {
     TestAnEnumSavesItsNameNotItsNumber();
     TestAnEnumRefusesWhatItDoesNotKnow();

@@ -2,17 +2,19 @@
 
 #include <cstring>
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
     namespace
     {
         // WS 메시지 안의 헤더: [uint16 LE 메시지 ID]. 기존 엔진과 같다.
-        constexpr std::uint32_t MessageHeaderBytes = 2;
+        constexpr UInt32 MessageHeaderBytes = 2;
         // 핸드셰이크 HTTP 블록의 상한. 이보다 길면 위반으로 본다.
-        constexpr std::uint32_t MaxHandshakeBytes = 4096;
+        constexpr UInt32 MaxHandshakeBytes = 4096;
         // 백로그 레코드 헤더: [uint16 msgId][uint32 size].
-        constexpr std::uint32_t BacklogHeaderBytes = 6;
+        constexpr UInt32 BacklogHeaderBytes = 6;
 
         // 세션 시스템 메시지(0xFF00~). 유저는 등록할 수 없다.
         constexpr MessageId SystemHello = 0xFF01;
@@ -25,7 +27,7 @@ namespace JBro::Network
 
         struct HelloPayload
         {
-            std::uint32_t protocolVersion = 0;
+            UInt32 protocolVersion = 0;
         };
 
         struct ByePayload
@@ -40,7 +42,7 @@ namespace JBro::Network
 
         struct UdpTokenPayload
         {
-            std::uint64_t token = 0;
+            UInt64 token = 0;
         };
 
         MessageId ReadMessageId(const std::uint8_t* bytes)
@@ -48,7 +50,7 @@ namespace JBro::Network
             return static_cast<MessageId>(bytes[0] | (bytes[1] << 8));
         }
 
-        bool IsReliableChannel(NetChannel channel)
+        Bool IsReliableChannel(NetChannel channel)
         {
             return channel == NetChannel::ReliableOrdered || channel == NetChannel::ReliableUnordered;
         }
@@ -63,7 +65,7 @@ namespace JBro::Network
             return host;
         }
 
-        std::uint32_t Max(std::uint32_t a, std::uint32_t b)
+        UInt32 Max(UInt32 a, UInt32 b)
         {
             return a > b ? a : b;
         }
@@ -71,14 +73,14 @@ namespace JBro::Network
 
     // ── 보조 객체 ───────────────────────────────────────────────────────────────────────────────
 
-    Transport::PeerEmitter::PeerEmitter(Transport& transport, const Endpoint& to, std::uint64_t token)
+    Transport::PeerEmitter::PeerEmitter(Transport& transport, const Endpoint& to, UInt64 token)
         : m_transport(transport)
         , m_to(to)
         , m_token(token)
     {
     }
 
-    void Transport::PeerEmitter::Emit(UdpProto::DatagramHeader& header, const std::uint8_t* payload, std::uint32_t size)
+    void Transport::PeerEmitter::Emit(UdpProto::DatagramHeader& header, const std::uint8_t* payload, UInt32 size)
     {
         header.token = m_token;
         m_transport.SendPacket(m_to, header, payload, size);
@@ -90,7 +92,7 @@ namespace JBro::Network
     {
     }
 
-    void Transport::InboundReceiver::Deliver(NetChannel channel, MessageId messageId, const std::uint8_t* payload, std::uint32_t size)
+    void Transport::InboundReceiver::Deliver(NetChannel channel, MessageId messageId, const std::uint8_t* payload, UInt32 size)
     {
         m_transport.StoreUdpMessage(m_connection, channel, messageId, payload, size);
     }
@@ -103,7 +105,7 @@ namespace JBro::Network
         , m_config(config)
     {
         // 한 프레임이 통째로 들어갈 자리가 없으면 영원히 진행하지 못한다. 예산을 올려 잡는다.
-        const std::uint32_t frameBytes = m_config.maxMessageBytes + MessageHeaderBytes + WebSocket::MaxFrameHeaderBytes;
+        const UInt32 frameBytes = m_config.maxMessageBytes + MessageHeaderBytes + WebSocket::MaxFrameHeaderBytes;
         m_config.sendBufferBytes = Max(m_config.sendBufferBytes, frameBytes);
         m_config.receiveBufferBytes = Max(m_config.receiveBufferBytes, frameBytes);
         m_config.reliable.maxMessageBytes = m_config.maxMessageBytes;
@@ -144,7 +146,7 @@ namespace JBro::Network
         m_connections.Shrink();
     }
 
-    std::uint32_t Transport::GetReservedBytes() const
+    UInt32 Transport::GetReservedBytes() const
     {
         return static_cast<std::uint32_t>(
             m_inbound.Capacity() + m_records.Capacity() * sizeof(InboundRecord) + m_events.Capacity() * sizeof(NetworkEvent)
@@ -159,7 +161,7 @@ namespace JBro::Network
 
     // ── 역할 ────────────────────────────────────────────────────────────────────────────────────
 
-    bool Transport::Listen(std::uint16_t port)
+    Bool Transport::Listen(std::uint16_t port)
     {
         if (m_role != NetworkRole::None)
         {
@@ -181,7 +183,7 @@ namespace JBro::Network
         return true;
     }
 
-    bool Transport::Connect(const char* host, std::uint16_t port)
+    Bool Transport::Connect(const char* host, std::uint16_t port)
     {
         if (m_role != NetworkRole::None || nullptr == host)
         {
@@ -257,7 +259,7 @@ namespace JBro::Network
 
     // ── 피어형 연결 ──────────────────────────────────────────────────────────────────────────────
 
-    bool Transport::HostPeers()
+    Bool Transport::HostPeers()
     {
         if (m_role != NetworkRole::None)
         {
@@ -287,7 +289,7 @@ namespace JBro::Network
         return id;
     }
 
-    bool Transport::ConnectPeer()
+    Bool Transport::ConnectPeer()
     {
         if (m_role != NetworkRole::None)
         {
@@ -306,7 +308,7 @@ namespace JBro::Network
         return true;
     }
 
-    std::uint32_t Transport::TakePeerSignal(ConnectionId id, void* buffer, std::uint32_t capacity)
+    UInt32 Transport::TakePeerSignal(ConnectionId id, void* buffer, UInt32 capacity)
     {
         Connection* connection = FindConnection(id);
         if (nullptr == connection || nullptr == connection->peer.Get())
@@ -316,7 +318,7 @@ namespace JBro::Network
         return connection->peer->TakeSignal(buffer, capacity);
     }
 
-    bool Transport::PushPeerSignal(ConnectionId id, const void* data, std::uint32_t size)
+    Bool Transport::PushPeerSignal(ConnectionId id, const void* data, UInt32 size)
     {
         Connection* connection = FindConnection(id);
         if (nullptr == connection || nullptr == connection->peer.Get())
@@ -337,7 +339,7 @@ namespace JBro::Network
         return m_role;
     }
 
-    bool Transport::IsListening() const
+    Bool Transport::IsListening() const
     {
         return nullptr != m_listener.Get() || m_peerHosting;
     }
@@ -352,12 +354,12 @@ namespace JBro::Network
         return connection->phase == Phase::Ready ? ConnectionState::Connected : ConnectionState::Connecting;
     }
 
-    std::uint32_t Transport::GetConnectionCount() const
+    UInt32 Transport::GetConnectionCount() const
     {
         return static_cast<std::uint32_t>(m_connections.Size());
     }
 
-    ConnectionId Transport::GetConnectionAt(std::uint32_t index) const
+    ConnectionId Transport::GetConnectionAt(UInt32 index) const
     {
         if (index >= m_connections.Size())
         {
@@ -386,7 +388,7 @@ namespace JBro::Network
         return connection->udp.stats.LossRate();
     }
 
-    bool Transport::GetReliableDiagnostics(ConnectionId id, ReliableDiagnostics& out) const
+    Bool Transport::GetReliableDiagnostics(ConnectionId id, ReliableDiagnostics& out) const
     {
         const Connection* connection = FindConnection(id);
         if (nullptr == connection)
@@ -416,14 +418,14 @@ namespace JBro::Network
         return m_clock;
     }
 
-    void Transport::SetFragmentBytesForTests(std::uint32_t bytes)
+    void Transport::SetFragmentBytesForTests(UInt32 bytes)
     {
         m_fragmentBytesForTests = bytes;
     }
 
     // ── 송신 ────────────────────────────────────────────────────────────────────────────────────
 
-    bool Transport::Send(ConnectionId id, MessageId messageId, const void* data, std::uint32_t size, NetChannel channel)
+    Bool Transport::Send(ConnectionId id, MessageId messageId, const void* data, UInt32 size, NetChannel channel)
     {
         if (size > m_config.maxMessageBytes || false == IsKnownChannel(channel) || messageId >= FirstSystemMessageId)
         {
@@ -442,7 +444,7 @@ namespace JBro::Network
     }
 
     // 찾기와 검사가 끝난 연결로 보낸다. `Broadcast` 가 연결마다 다시 찾지 않게 하려고 나눠 두었다.
-    bool Transport::SendTo(Connection& target, MessageId messageId, const void* data, std::uint32_t size, NetChannel channel)
+    Bool Transport::SendTo(Connection& target, MessageId messageId, const void* data, UInt32 size, NetChannel channel)
     {
         Connection* connection = &target;
         // 피어형은 데이터 채널이 채널 규율을 지킨다. 전송로 선택도 폴백도 없다.
@@ -451,7 +453,7 @@ namespace JBro::Network
             return SendOverPeer(*connection, messageId, data, size, channel);
         }
         // 채널 라우팅. UDP 가 준비되지 않았거나 못 보내면 신뢰 WS 로 폴백한다 - 게임은 언제나 동작하고 품질만 변한다.
-        const bool udpReady = nullptr != m_udpSocket.Get() && connection->udp.IsReady();
+        const Bool udpReady = nullptr != m_udpSocket.Get() && connection->udp.IsReady();
         if (channel == NetChannel::ReliableOrdered)
         {
             return SendUserOrdered(*connection, messageId, data, size);
@@ -476,7 +478,7 @@ namespace JBro::Network
         return SendOverWebSocket(*connection, messageId, data, size);
     }
 
-    bool Transport::Broadcast(MessageId messageId, const void* data, std::uint32_t size, NetChannel channel)
+    Bool Transport::Broadcast(MessageId messageId, const void* data, UInt32 size, NetChannel channel)
     {
         if (m_role != NetworkRole::Server)
         {
@@ -490,7 +492,7 @@ namespace JBro::Network
         {
             return false;
         }
-        bool any = false;
+        Bool any = false;
         for (Connection& connection : m_connections)
         {
             if (connection.phase != Phase::Ready || connection.wantsClose)
@@ -505,7 +507,7 @@ namespace JBro::Network
         return any;
     }
 
-    bool Transport::SendOverWebSocket(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    Bool Transport::SendOverWebSocket(Connection& connection, MessageId messageId, const void* data, UInt32 size)
     {
         if (false == QueueMessage(connection, messageId, data, size))
         {
@@ -515,37 +517,37 @@ namespace JBro::Network
         return true;
     }
 
-    bool Transport::QueueMessage(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    Bool Transport::QueueMessage(Connection& connection, MessageId messageId, const void* data, UInt32 size)
     {
         std::uint8_t header[MessageHeaderBytes];
         header[0] = static_cast<std::uint8_t>(messageId & 0xFF);
         header[1] = static_cast<std::uint8_t>((messageId >> 8) & 0xFF);
         const std::uint8_t* bytes = static_cast<const std::uint8_t*>(data);
-        const std::uint32_t chunk = m_fragmentBytesForTests;
+        const UInt32 chunk = m_fragmentBytesForTests;
         if (0 == chunk || chunk >= MessageHeaderBytes + size)
         {
             return QueueFrame(connection, WebSocket::Opcode::Binary, true, header, MessageHeaderBytes, bytes, size);
         }
         // 테스트용 조각내기. 전부 들어갈 자리가 있는지 먼저 본다 - 절반만 보내면 상대가 영원히 기다린다.
-        const std::uint32_t total = MessageHeaderBytes + size;
-        const std::uint32_t frames = (total + chunk - 1) / chunk;
+        const UInt32 total = MessageHeaderBytes + size;
+        const UInt32 frames = (total + chunk - 1) / chunk;
         if (connection.send.Free() < total + frames * WebSocket::MaxFrameHeaderBytes)
         {
             return false;
         }
-        std::uint32_t position = 0;
-        bool first = true;
+        UInt32 position = 0;
+        Bool first = true;
         while (position < total)
         {
-            const std::uint32_t frameSize = (total - position < chunk) ? (total - position) : chunk;
-            const bool fin = position + frameSize >= total;
-            std::uint32_t headerPart = 0;
+            const UInt32 frameSize = (total - position < chunk) ? (total - position) : chunk;
+            const Bool fin = position + frameSize >= total;
+            UInt32 headerPart = 0;
             if (position < MessageHeaderBytes)
             {
                 headerPart = (MessageHeaderBytes - position < frameSize) ? (MessageHeaderBytes - position) : frameSize;
             }
-            const std::uint32_t dataPart = frameSize - headerPart;
-            const std::uint32_t dataStart = (dataPart > 0) ? (position + headerPart - MessageHeaderBytes) : 0;
+            const UInt32 dataPart = frameSize - headerPart;
+            const UInt32 dataStart = (dataPart > 0) ? (position + headerPart - MessageHeaderBytes) : UInt32(0);
             QueueFrame(connection, first ? WebSocket::Opcode::Binary : WebSocket::Opcode::Continuation, fin,
                 header + position, headerPart, bytes + dataStart, dataPart);
             position += frameSize;
@@ -554,14 +556,14 @@ namespace JBro::Network
         return true;
     }
 
-    bool Transport::QueueFrame(Connection& connection, WebSocket::Opcode opcode, bool fin, const std::uint8_t* first,
-        std::uint32_t firstSize, const std::uint8_t* second, std::uint32_t secondSize)
+    Bool Transport::QueueFrame(Connection& connection, WebSocket::Opcode opcode, Bool fin, const std::uint8_t* first,
+        UInt32 firstSize, const std::uint8_t* second, UInt32 secondSize)
     {
         // 클라이언트 → 서버는 마스크, 서버 → 클라이언트는 마스크 없음(RFC6455 §5.3).
-        const bool mask = false == connection.serverSide;
-        const std::uint32_t maskKey = mask ? NextMaskKey() : 0;
+        const Bool mask = false == connection.serverSide;
+        const UInt32 maskKey = mask ? NextMaskKey() : UInt32(0);
         std::uint8_t header[WebSocket::MaxFrameHeaderBytes];
-        const std::uint32_t headerLength = WebSocket::EncodeFrameHeader(
+        const UInt32 headerLength = WebSocket::EncodeFrameHeader(
             opcode, fin, static_cast<std::uint64_t>(firstSize) + secondSize, mask, maskKey, header);
         if (connection.send.Free() < headerLength + firstSize + secondSize)
         {
@@ -571,14 +573,14 @@ namespace JBro::Network
         const std::uint8_t maskBytes[4] = {
             static_cast<std::uint8_t>((maskKey >> 24) & 0xFF), static_cast<std::uint8_t>((maskKey >> 16) & 0xFF),
             static_cast<std::uint8_t>((maskKey >> 8) & 0xFF), static_cast<std::uint8_t>(maskKey & 0xFF) };
-        std::uint32_t maskOffset = 0;
+        UInt32 maskOffset = 0;
         WriteMaskedRun(connection, first, firstSize, mask, maskBytes, maskOffset);
         WriteMaskedRun(connection, second, secondSize, mask, maskBytes, maskOffset);
         return true;
     }
 
-    void Transport::WriteMaskedRun(Connection& connection, const std::uint8_t* data, std::uint32_t size, bool mask,
-        const std::uint8_t maskBytes[4], std::uint32_t& maskOffset)
+    void Transport::WriteMaskedRun(Connection& connection, const std::uint8_t* data, UInt32 size, Bool mask,
+        const std::uint8_t maskBytes[4], UInt32& maskOffset)
     {
         if (0 == size)
         {
@@ -589,11 +591,11 @@ namespace JBro::Network
             connection.send.Write(data, size);
             return;
         }
-        std::uint32_t position = 0;
+        UInt32 position = 0;
         while (position < size)
         {
-            const std::uint32_t run = (size - position < m_scratch.Size()) ? (size - position)
-                : static_cast<std::uint32_t>(m_scratch.Size());
+            const UInt32 run = (size - position < m_scratch.Size()) ? (size - position)
+                : UInt32(static_cast<std::uint32_t>(m_scratch.Size()));
             std::memcpy(m_scratch.Data(), data + position, run);
             WebSocket::ApplyMask(m_scratch.Data(), run, maskBytes, maskOffset);
             connection.send.Write(m_scratch.Data(), run);
@@ -608,7 +610,7 @@ namespace JBro::Network
         SendControl(connection, messageId, &payload, static_cast<std::uint32_t>(sizeof(T)));
     }
 
-    void Transport::SendControl(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    void Transport::SendControl(Connection& connection, MessageId messageId, const void* data, UInt32 size)
     {
         // 세션 제어는 항상 신뢰·순서 채널이다. 자리가 없으면 다음 ping 때 다시 시도되는 성질의 것들이라 실패를 삼킨다.
         if (connection.kind == ConnectionKind::Peer)
@@ -622,7 +624,7 @@ namespace JBro::Network
         }
     }
 
-    bool Transport::SendOverPeer(Connection& connection, MessageId messageId, const void* data, std::uint32_t size, NetChannel channel)
+    Bool Transport::SendOverPeer(Connection& connection, MessageId messageId, const void* data, UInt32 size, NetChannel channel)
     {
         if (nullptr == connection.peer.Get() || connection.phase == Phase::PeerConnecting || connection.wantsClose)
         {
@@ -639,9 +641,9 @@ namespace JBro::Network
         return SocketIo::Ok == connection.peer->Send(channel, frame, MessageHeaderBytes + size);
     }
 
-    std::uint32_t Transport::NextMaskKey()
+    UInt32 Transport::NextMaskKey()
     {
-        std::uint32_t x = m_maskState;
+        UInt32 x = m_maskState;
         x ^= x << 13;
         x ^= x >> 17;
         x ^= x << 5;
@@ -649,14 +651,14 @@ namespace JBro::Network
         return x;
     }
 
-    std::uint64_t Transport::NextToken()
+    UInt64 Transport::NextToken()
     {
-        std::uint64_t x = m_tokenState;
+        UInt64 x = m_tokenState;
         x ^= x << 13;
         x ^= x >> 7;
         x ^= x << 17;
         m_tokenState = x;
-        return 0 != x ? x : 0x9E3779B97F4A7C15ull;
+        return 0 != x ? x : UInt64(0x9E3779B97F4A7C15ull);
     }
 
     // ── 갱신 ────────────────────────────────────────────────────────────────────────────────────
@@ -693,11 +695,11 @@ namespace JBro::Network
             return;
         }
         // 꺼내 간 것은 앞쪽에 몰려 있다. 남은 바이트를 앞으로 당기고 오프셋을 그만큼 뺀다.
-        const std::uint32_t firstKept = m_records[m_recordsTaken].offset;
-        const std::uint32_t keptBytes = m_inboundSize - firstKept;
+        const UInt32 firstKept = m_records[m_recordsTaken].offset;
+        const UInt32 keptBytes = m_inboundSize - firstKept;
         std::memmove(m_inbound.Data(), m_inbound.Data() + firstKept, keptBytes);
-        const std::uint32_t remaining = m_recordCount - m_recordsTaken;
-        for (std::uint32_t index = 0; index < remaining; ++index)
+        const UInt32 remaining = m_recordCount - m_recordsTaken;
+        for (UInt32 index = 0; index < remaining; ++index)
         {
             InboundRecord& record = m_records[index];
             record = m_records[m_recordsTaken + index];
@@ -829,7 +831,7 @@ namespace JBro::Network
             }
             const MessageId messageId = ReadMessageId(m_messageScratch.Data());
             const std::uint8_t* body = m_messageScratch.Data() + MessageHeaderBytes;
-            const std::uint32_t bodySize = static_cast<std::uint32_t>(received) - MessageHeaderBytes;
+            const UInt32 bodySize = static_cast<std::uint32_t>(received) - MessageHeaderBytes;
             if (messageId >= FirstSystemMessageId)
             {
                 HandleSystemMessage(connection, messageId, body, bodySize);
@@ -857,7 +859,7 @@ namespace JBro::Network
         }
         WebSocket::GenerateClientKey((static_cast<std::uint64_t>(connection.id) << 32) ^ NextMaskKey(), connection.clientKey);
         char* request = reinterpret_cast<char*>(m_scratch.Data());
-        const std::uint32_t length = WebSocket::BuildClientHandshakeRequest(
+        const UInt32 length = WebSocket::BuildClientHandshakeRequest(
             connection.host, connection.port, connection.clientKey, request, static_cast<std::uint32_t>(m_scratch.Size()));
         if (0 == length || false == connection.send.Write(request, length))
         {
@@ -867,13 +869,13 @@ namespace JBro::Network
 
     void Transport::PumpWebSocketHandshake(Connection& connection)
     {
-        const std::uint32_t available = connection.receive.Size() < MaxHandshakeBytes ? connection.receive.Size() : MaxHandshakeBytes;
+        const UInt32 available = connection.receive.Size() < MaxHandshakeBytes ? connection.receive.Size() : MaxHandshakeBytes;
         if (0 == available)
         {
             return;
         }
         connection.receive.Peek(m_scratch.Data(), available);
-        std::uint32_t consumed = 0;
+        UInt32 consumed = 0;
         WebSocket::ParseResult result = WebSocket::ParseResult::Invalid;
         if (connection.serverSide)
         {
@@ -882,7 +884,7 @@ namespace JBro::Network
             if (result == WebSocket::ParseResult::Ok)
             {
                 char* response = reinterpret_cast<char*>(m_scratch.Data());
-                const std::uint32_t length = WebSocket::BuildServerHandshakeResponse(
+                const UInt32 length = WebSocket::BuildServerHandshakeResponse(
                     request, response, static_cast<std::uint32_t>(m_scratch.Size()));
                 if (0 == length || false == connection.send.Write(response, length))
                 {
@@ -926,7 +928,7 @@ namespace JBro::Network
         std::uint8_t headerBytes[WebSocket::MaxFrameHeaderBytes];
         while (false == connection.wantsClose)
         {
-            const std::uint32_t peeked = connection.receive.Peek(headerBytes, WebSocket::MaxFrameHeaderBytes);
+            const UInt32 peeked = connection.receive.Peek(headerBytes, WebSocket::MaxFrameHeaderBytes);
             WebSocket::FrameHeader header;
             const WebSocket::ParseResult result = WebSocket::DecodeFrameHeader(headerBytes, peeked, header);
             if (result == WebSocket::ParseResult::NeedMoreData)
@@ -938,7 +940,7 @@ namespace JBro::Network
                 RequestClose(connection, DisconnectReason::Error);
                 return;
             }
-            const std::uint64_t total = header.headerLength + header.payloadLength;
+            const UInt64 total = header.headerLength + header.payloadLength;
             if (header.payloadLength > m_config.maxMessageBytes + MessageHeaderBytes || total > connection.receive.Capacity())
             {
                 RequestClose(connection, DisconnectReason::Error);
@@ -948,8 +950,8 @@ namespace JBro::Network
             {
                 return;
             }
-            const std::uint32_t payloadLength = static_cast<std::uint32_t>(header.payloadLength);
-            const bool control = 0 != (static_cast<std::uint8_t>(header.opcode) & 0x08u);
+            const UInt32 payloadLength = static_cast<std::uint32_t>(header.payloadLength);
+            const Bool control = 0 != (static_cast<std::uint8_t>(header.opcode) & 0x08u);
             if (control && (false == header.fin || payloadLength > WebSocket::MaxControlPayloadBytes))
             {
                 // RFC6455 §5.5: 제어 프레임은 쪼갤 수 없고 125 바이트를 넘지 못한다.
@@ -1005,11 +1007,11 @@ namespace JBro::Network
         }
     }
 
-    bool Transport::DeliverDataFrame(Connection& connection, const WebSocket::FrameHeader& header)
+    Bool Transport::DeliverDataFrame(Connection& connection, const WebSocket::FrameHeader& header)
     {
-        const std::uint32_t payloadLength = static_cast<std::uint32_t>(header.payloadLength);
-        const std::uint32_t total = header.headerLength + payloadLength;
-        const bool isStart = header.opcode != WebSocket::Opcode::Continuation;
+        const UInt32 payloadLength = static_cast<std::uint32_t>(header.payloadLength);
+        const UInt32 total = header.headerLength + payloadLength;
+        const Bool isStart = header.opcode != WebSocket::Opcode::Continuation;
         if (isStart && connection.inFragment)
         {
             // 앞 조각이 끝나지 않았는데 새 메시지가 시작됐다.
@@ -1036,7 +1038,7 @@ namespace JBro::Network
                 WebSocket::ApplyMask(idBytes, MessageHeaderBytes, header.mask, 0);
             }
             const MessageId messageId = ReadMessageId(idBytes);
-            const std::uint32_t bodySize = payloadLength - MessageHeaderBytes;
+            const UInt32 bodySize = payloadLength - MessageHeaderBytes;
             if (messageId >= FirstSystemMessageId)
             {
                 if (bodySize > m_scratch.Size())
@@ -1089,7 +1091,7 @@ namespace JBro::Network
             connection.receive.Discard(total);
             return true;
         }
-        const std::uint32_t assembled = connection.fragmentSize + payloadLength;
+        const UInt32 assembled = connection.fragmentSize + payloadLength;
         if (false == DeliverMessage(connection, connection.fragment.Data(), assembled))
         {
             // 저장소가 없다. 조립 버퍼는 그대로 두고 이 프레임은 다음에 다시 본다.
@@ -1101,7 +1103,7 @@ namespace JBro::Network
         return true;
     }
 
-    bool Transport::DeliverMessage(Connection& connection, const std::uint8_t* message, std::uint32_t size)
+    Bool Transport::DeliverMessage(Connection& connection, const std::uint8_t* message, UInt32 size)
     {
         if (size < MessageHeaderBytes)
         {
@@ -1110,7 +1112,7 @@ namespace JBro::Network
         }
         const MessageId messageId = ReadMessageId(message);
         const std::uint8_t* body = message + MessageHeaderBytes;
-        const std::uint32_t bodySize = size - MessageHeaderBytes;
+        const UInt32 bodySize = size - MessageHeaderBytes;
         if (messageId >= FirstSystemMessageId)
         {
             HandleSystemMessage(connection, messageId, body, bodySize);
@@ -1128,7 +1130,7 @@ namespace JBro::Network
         return true;
     }
 
-    void Transport::HandleSystemMessage(Connection& connection, MessageId messageId, const std::uint8_t* payload, std::uint32_t size)
+    void Transport::HandleSystemMessage(Connection& connection, MessageId messageId, const std::uint8_t* payload, UInt32 size)
     {
         switch (messageId)
         {
@@ -1231,7 +1233,7 @@ namespace JBro::Network
         // 서버: 이 연결의 UDP 토큰을 발급해 신뢰 채널로 전한다. 클라이언트가 그것으로 UDP 를 켠다.
         if (connection.serverSide && connection.kind == ConnectionKind::Socket && nullptr != m_udpSocket.Get())
         {
-            std::uint64_t token = NextToken();
+            UInt64 token = NextToken();
             while (nullptr != FindConnectionByToken(token))
             {
                 token = NextToken();
@@ -1287,7 +1289,7 @@ namespace JBro::Network
     {
         while (false == connection.send.IsEmpty() && false == connection.wantsClose)
         {
-            std::uint32_t runSize = 0;
+            UInt32 runSize = 0;
             const std::uint8_t* run = connection.send.ContiguousData(runSize);
             std::size_t sent = 0;
             const SocketIo io = connection.stream->Send(run, runSize, sent);
@@ -1311,12 +1313,12 @@ namespace JBro::Network
 
     void Transport::ReadIntoRing(Connection& connection)
     {
-        bool gotAny = false;
+        Bool gotAny = false;
         while (connection.receive.Free() > 0)
         {
-            const std::uint32_t chunk = connection.receive.Free() < m_scratch.Size()
+            const UInt32 chunk = connection.receive.Free() < m_scratch.Size()
                 ? connection.receive.Free()
-                : static_cast<std::uint32_t>(m_scratch.Size());
+                : UInt32(static_cast<std::uint32_t>(m_scratch.Size()));
             std::size_t received = 0;
             const SocketIo io = connection.stream->Receive(m_scratch.Data(), chunk, received);
             if (io == SocketIo::Ok)
@@ -1342,7 +1344,7 @@ namespace JBro::Network
         }
     }
 
-    std::uint8_t* Transport::ReserveInbound(const Connection& connection, MessageId messageId, NetChannel channel, std::uint32_t size)
+    std::uint8_t* Transport::ReserveInbound(const Connection& connection, MessageId messageId, NetChannel channel, UInt32 size)
     {
         if (m_recordCount >= m_records.Size())
         {
@@ -1365,7 +1367,7 @@ namespace JBro::Network
     }
 
     void Transport::StoreUdpMessage(Connection& connection, NetChannel channel, MessageId messageId, const std::uint8_t* payload,
-        std::uint32_t size)
+        UInt32 size)
     {
         std::uint8_t* destination = ReserveInbound(connection, messageId, channel, size);
         if (nullptr == destination)
@@ -1380,15 +1382,15 @@ namespace JBro::Network
         }
     }
 
-    bool Transport::InboundHasHeadroom() const
+    Bool Transport::InboundHasHeadroom() const
     {
         // 신뢰 엔진의 순서 방출은 한 번에 여러 메시지를 올릴 수 있다. 창 하나 분량의 여유를 둔다.
-        const std::uint32_t recordsNeeded = ReliableEndpoint::AckWindow + m_config.reliable.reassemblySlots;
-        const std::uint32_t bytesNeeded = m_config.maxMessageBytes * 2 + ReliableEndpoint::AckWindow * UdpProto::MaxPayloadBytes;
+        const UInt32 recordsNeeded = ReliableEndpoint::AckWindow + m_config.reliable.reassemblySlots;
+        const UInt32 bytesNeeded = m_config.maxMessageBytes * 2 + ReliableEndpoint::AckWindow * UdpProto::MaxPayloadBytes;
         return m_records.Size() - m_recordCount >= recordsNeeded && m_inbound.Size() - m_inboundSize >= bytesNeeded;
     }
 
-    bool Transport::UdpPossible() const
+    Bool Transport::UdpPossible() const
     {
         if (false == m_config.udpEnabled || m_udpUnavailable)
         {
@@ -1460,7 +1462,7 @@ namespace JBro::Network
         m_udpSocket = std::move(socket);
     }
 
-    void Transport::AttachClientUdp(Connection& connection, std::uint64_t token)
+    void Transport::AttachClientUdp(Connection& connection, UInt64 token)
     {
         if (nullptr == m_udpSocket.Get())
         {
@@ -1496,17 +1498,17 @@ namespace JBro::Network
         }
     }
 
-    bool Transport::SendPacket(const Endpoint& to, UdpProto::DatagramHeader& header, const std::uint8_t* payload, std::uint32_t size)
+    Bool Transport::SendPacket(const Endpoint& to, UdpProto::DatagramHeader& header, const std::uint8_t* payload, UInt32 size)
     {
         if (nullptr == m_udpSocket.Get() || false == to.IsValid())
         {
             return false;
         }
-        const std::uint32_t written = UdpProto::Encode(header, payload, size, m_datagramScratch.Data());
+        const UInt32 written = UdpProto::Encode(header, payload, size, m_datagramScratch.Data());
         return SocketIo::Ok == m_udpSocket->SendTo(to, m_datagramScratch.Data(), written);
     }
 
-    bool Transport::SendUdpDatagram(Connection& connection, NetChannel channel, MessageId messageId, const void* data, std::uint32_t size)
+    Bool Transport::SendUdpDatagram(Connection& connection, NetChannel channel, MessageId messageId, const void* data, UInt32 size)
     {
         if (false == connection.udp.IsReady() || size > UdpProto::MaxPayloadBytes)
         {
@@ -1521,7 +1523,7 @@ namespace JBro::Network
         return SendPacket(connection.udp.endpoint, header, static_cast<const std::uint8_t*>(data), size);
     }
 
-    bool Transport::SendUdpReliable(Connection& connection, NetChannel channel, MessageId messageId, const void* data, std::uint32_t size)
+    Bool Transport::SendUdpReliable(Connection& connection, NetChannel channel, MessageId messageId, const void* data, UInt32 size)
     {
         if (false == connection.udp.IsReady() || false == connection.udp.reliable.IsReady())
         {
@@ -1549,7 +1551,7 @@ namespace JBro::Network
     }
 
     // 사용자 `ReliableOrdered`. 전송로가 확정되기 전에는 백로그에 쌓고, 확정 뒤에는 그 전송로로만 보낸다.
-    bool Transport::SendUserOrdered(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    Bool Transport::SendUserOrdered(Connection& connection, MessageId messageId, const void* data, UInt32 size)
     {
         // UDP 가 올 수 없는 트랜스포트(웹·비활성·서버에 소켓 없음)는 기다릴 것이 없다. 바로 WS 다.
         if (false == UdpPossible())
@@ -1579,7 +1581,7 @@ namespace JBro::Network
         }
     }
 
-    bool Transport::PushBacklog(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    Bool Transport::PushBacklog(Connection& connection, MessageId messageId, const void* data, UInt32 size)
     {
         if (connection.udp.backlog.Capacity() == 0)
         {
@@ -1608,9 +1610,9 @@ namespace JBro::Network
             std::uint8_t header[BacklogHeaderBytes];
             connection.udp.backlog.Peek(header, BacklogHeaderBytes);
             const MessageId messageId = UdpProto::ReadU16(header);
-            const std::uint32_t size = UdpProto::ReadU32(header + 2);
+            const UInt32 size = UdpProto::ReadU32(header + 2);
             connection.udp.backlog.PeekAt(BacklogHeaderBytes, m_messageScratch.Data(), size);
-            bool sent = false;
+            Bool sent = false;
             if (connection.udp.route == OrderedRoute::Udp)
             {
                 sent = SendUdpReliable(connection, NetChannel::ReliableOrdered, messageId, m_messageScratch.Data(), size);
@@ -1640,7 +1642,7 @@ namespace JBro::Network
             UdpPeer& udp = connection.udp;
             if (udp.route == OrderedRoute::Undecided)
             {
-                const bool udpReady = nullptr != m_udpSocket.Get() && udp.IsReady();
+                const Bool udpReady = nullptr != m_udpSocket.Get() && udp.IsReady();
                 if (udpReady)
                 {
                     udp.route = OrderedRoute::Udp;
@@ -1679,7 +1681,7 @@ namespace JBro::Network
             }
             UdpProto::DatagramHeader header;
             const std::uint8_t* payload = nullptr;
-            std::uint32_t payloadSize = 0;
+            UInt32 payloadSize = 0;
             if (false == UdpProto::Decode(m_datagramScratch.Data(), static_cast<std::uint32_t>(received), header, payload, payloadSize))
             {
                 continue;
@@ -1711,7 +1713,7 @@ namespace JBro::Network
     }
 
     void Transport::HandleDatagram(Connection& connection, const UdpProto::DatagramHeader& header, const std::uint8_t* payload,
-        std::uint32_t size)
+        UInt32 size)
     {
         UdpPeer& udp = connection.udp;
         const double now = m_clock.NowMilliseconds();
@@ -1788,9 +1790,9 @@ namespace JBro::Network
 
     // ── 큐 ──────────────────────────────────────────────────────────────────────────────────────
 
-    std::uint32_t Transport::TakeEvents(NetworkEvent* events, std::uint32_t capacity)
+    UInt32 Transport::TakeEvents(NetworkEvent* events, UInt32 capacity)
     {
-        std::uint32_t taken = 0;
+        UInt32 taken = 0;
         while (taken < capacity && m_eventCount > 0)
         {
             events[taken] = m_events[m_eventHead];
@@ -1806,9 +1808,9 @@ namespace JBro::Network
         return taken;
     }
 
-    std::uint32_t Transport::TakeMessages(MessageView* messages, std::uint32_t capacity)
+    UInt32 Transport::TakeMessages(MessageView* messages, UInt32 capacity)
     {
-        std::uint32_t taken = 0;
+        UInt32 taken = 0;
         while (taken < capacity && m_recordsTaken < m_recordCount)
         {
             const InboundRecord& record = m_records[m_recordsTaken];
@@ -1850,7 +1852,7 @@ namespace JBro::Network
         return nullptr;
     }
 
-    Transport::Connection* Transport::FindConnectionByToken(std::uint64_t token)
+    Transport::Connection* Transport::FindConnectionByToken(UInt64 token)
     {
         for (Connection& connection : m_connections)
         {
@@ -1862,7 +1864,7 @@ namespace JBro::Network
         return nullptr;
     }
 
-    Transport::Connection& Transport::AddConnection(ConnectionId id, OwnerPtr<IStreamSocket> stream, bool serverSide)
+    Transport::Connection& Transport::AddConnection(ConnectionId id, OwnerPtr<IStreamSocket> stream, Bool serverSide)
     {
         Connection& connection = m_connections.Emplace();
         connection.id = id;
@@ -1878,7 +1880,7 @@ namespace JBro::Network
         return connection;
     }
 
-    Transport::Connection& Transport::AddPeerConnection(ConnectionId id, OwnerPtr<IPeerConnection> peer, bool serverSide)
+    Transport::Connection& Transport::AddPeerConnection(ConnectionId id, OwnerPtr<IPeerConnection> peer, Bool serverSide)
     {
         Connection& connection = m_connections.Emplace();
         connection.id = id;
@@ -1909,7 +1911,7 @@ namespace JBro::Network
             m_overflowPending = true;
             return;
         }
-        const std::uint32_t tail = (m_eventHead + m_eventCount) % static_cast<std::uint32_t>(m_events.Size());
+        const UInt32 tail = (m_eventHead + m_eventCount) % static_cast<std::uint32_t>(m_events.Size());
         NetworkEvent& event = m_events[tail];
         event.kind = kind;
         event.connection = connection;

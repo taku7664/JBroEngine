@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <imgui.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -63,7 +65,7 @@ namespace JBro
 
         constexpr ImVec4 Clear(0.0f, 0.0f, 0.0f, 0.0f);
 
-        constexpr ImVec4 Fade(const ImVec4& color, float alpha)
+        constexpr ImVec4 Fade(const ImVec4& color, Float alpha)
         {
             return ImVec4(color.x, color.y, color.z, alpha);
         }
@@ -87,14 +89,14 @@ namespace JBro
         //
         // 기본 글꼴에는 한글이 없다. 이 코드베이스의 주석도 화면에 나올 이름도
         // 한글이라, 글꼴이 없으면 네모가 늘어선다.
-        bool ApplyFont();
+        Bool ApplyFont();
         // 아이콘 글꼴 파일의 경로(UTF-8). `ApplyFont` 가 본문 글꼴에 합친다. 널이면 합치지
         // 않는다. `Apply` 보다 먼저 부른다.
         // 아이콘 글꼴의 경로와, 그 파일을 읽어 줄 플랫폼이다(D-176). 플랫폼이 널이면 아이콘 없이 간다 -
         // 경로를 C 런타임으로 열면 한글이 든 폴더에서 못 찾는다.
         void SetIconFontPath(const char* path, IPlatform* platform);
         // 아이콘 글꼴이 합쳐졌는가. 없는 기계에서는 거짓이고 아이콘은 네모다.
-        bool HasIconFont();
+        Bool HasIconFont();
 
         // 셋 다.
         void Apply();

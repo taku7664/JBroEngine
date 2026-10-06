@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -87,7 +88,7 @@ namespace JBro::ScriptCompiler
         SyntaxFlagNegated = 1 << 9,
     };
 
-    using NodeIndex = std::uint32_t;
+    using NodeIndex = UInt32;
     inline constexpr NodeIndex InvalidNode = static_cast<NodeIndex>(-1);
 
     struct SyntaxNode
@@ -97,8 +98,8 @@ namespace JBro::ScriptCompiler
         SourceRange Range;
         // 이름·연산자·리터럴의 원문이다. `SourceText` 를 가리킨다.
         std::string_view Text;
-        std::uint32_t FirstChild = 0;
-        std::uint32_t ChildCount = 0;
+        UInt32 FirstChild = 0;
+        UInt32 ChildCount = 0;
     };
 
     // 파일 하나의 구문 트리다.

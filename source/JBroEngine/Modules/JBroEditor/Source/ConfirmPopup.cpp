@@ -5,6 +5,7 @@
 #include <JBro/Editor/Widget/Button.h>
 
 #include <imgui.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -32,7 +33,7 @@ namespace JBro
         return m_id.empty() ? nullptr : m_id.c_str();
     }
 
-    void ConfirmPopup::Choose(EditorApplication& editor, int choice)
+    void ConfirmPopup::Choose(EditorApplication& editor, Int32 choice)
     {
         // **한 번만 답한다.** 단추를 누른 프레임에 닫히지만, 그 프레임의 남은 단추들도
         // 그려지므로 두 번 답할 길이 생긴다.
@@ -56,7 +57,7 @@ namespace JBro
         Widget::WrappedText(m_message.c_str());
         ImGui::EndGroup();
         ImGui::Spacing();
-        for (int index = 0; index < 3; ++index)
+        for (Int32 index = 0; index < 3; ++index)
         {
             if (m_labels[index].empty())
             {

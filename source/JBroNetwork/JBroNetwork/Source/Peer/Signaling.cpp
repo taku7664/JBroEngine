@@ -3,6 +3,8 @@
 #include <JBro/Network/Internal/UdpDatagram.h>
 
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Network
 {
@@ -19,10 +21,10 @@ namespace JBro::Network
     void SignalingServer::Update()
     {
         NetworkEvent events[32];
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         while ((count = m_transport.TakeEvents(events, 32)) > 0)
         {
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 if (events[index].kind == NetworkEventKind::Disconnected)
                 {
@@ -33,7 +35,7 @@ namespace JBro::Network
         MessageView views[32];
         while ((count = m_transport.TakeMessages(views, 32)) > 0)
         {
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 const MessageView& view = views[index];
                 if (view.messageId == SignalingJoinMessage && view.size == 4)
@@ -48,12 +50,12 @@ namespace JBro::Network
         }
     }
 
-    std::uint32_t SignalingServer::GetRoomCount() const
+    UInt32 SignalingServer::GetRoomCount() const
     {
         return static_cast<std::uint32_t>(m_rooms.Size());
     }
 
-    std::uint32_t SignalingServer::GetMemberCount(std::uint32_t room) const
+    UInt32 SignalingServer::GetMemberCount(UInt32 room) const
     {
         for (const Room& candidate : m_rooms)
         {
@@ -65,7 +67,7 @@ namespace JBro::Network
         return 0;
     }
 
-    SignalingServer::Room* SignalingServer::FindRoom(std::uint32_t code)
+    SignalingServer::Room* SignalingServer::FindRoom(UInt32 code)
     {
         for (Room& room : m_rooms)
         {
@@ -77,7 +79,7 @@ namespace JBro::Network
         return nullptr;
     }
 
-    SignalingServer::Room* SignalingServer::FindRoomOf(ConnectionId connection, bool& outIsHost, std::uint32_t& outPeerId)
+    SignalingServer::Room* SignalingServer::FindRoomOf(ConnectionId connection, Bool& outIsHost, UInt32& outPeerId)
     {
         for (Room& room : m_rooms)
         {
@@ -100,17 +102,17 @@ namespace JBro::Network
         return nullptr;
     }
 
-    void SignalingServer::SendPeerId(ConnectionId to, MessageId messageId, std::uint32_t peerId)
+    void SignalingServer::SendPeerId(ConnectionId to, MessageId messageId, UInt32 peerId)
     {
         std::uint8_t payload[4];
         UdpProto::WriteU32(payload, peerId);
         m_transport.Send(to, messageId, payload, 4, NetChannel::ReliableOrdered);
     }
 
-    void SignalingServer::HandleJoin(ConnectionId connection, std::uint32_t code)
+    void SignalingServer::HandleJoin(ConnectionId connection, UInt32 code)
     {
-        bool isHost = false;
-        std::uint32_t peerId = 0;
+        Bool isHost = false;
+        UInt32 peerId = 0;
         if (nullptr != FindRoomOf(connection, isHost, peerId))
         {
             // 이미 어느 방에 있다. 두 방에 있을 수는 없다.
@@ -146,16 +148,16 @@ namespace JBro::Network
         SendPeerId(room->host, SignalingPeerJoinedMessage, member.peerId);
     }
 
-    void SignalingServer::HandleRelay(ConnectionId connection, const std::uint8_t* payload, std::uint32_t size)
+    void SignalingServer::HandleRelay(ConnectionId connection, const std::uint8_t* payload, UInt32 size)
     {
-        bool isHost = false;
-        std::uint32_t peerId = 0;
+        Bool isHost = false;
+        UInt32 peerId = 0;
         Room* room = FindRoomOf(connection, isHost, peerId);
         if (nullptr == room || size > m_scratch.Size())
         {
             return;
         }
-        const std::uint32_t target = UdpProto::ReadU32(payload);
+        const UInt32 target = UdpProto::ReadU32(payload);
         std::memcpy(m_scratch.Data(), payload, size);
         if (isHost)
         {
@@ -214,7 +216,7 @@ namespace JBro::Network
         m_scratch.Resize(4 + m_config.maxSignalBytes);
     }
 
-    void SignalingClient::Join(std::uint32_t room)
+    void SignalingClient::Join(UInt32 room)
     {
         m_room = room;
         m_joinPending = true;
@@ -237,10 +239,10 @@ namespace JBro::Network
             // 시그널링 연결의 사건은 여기서 삼킨다. 끊기면 새 시그널은 오지 않지만 이미 이어진 피어는 그대로 산다.
         }
         MessageView views[16];
-        std::uint32_t count = 0;
+        UInt32 count = 0;
         while ((count = m_signaling.TakeMessages(views, 16)) > 0)
         {
-            for (std::uint32_t index = 0; index < count; ++index)
+            for (UInt32 index = 0; index < count; ++index)
             {
                 const MessageView& view = views[index];
                 if (view.messageId == SignalingRoleMessage && view.size == 5)
@@ -277,7 +279,7 @@ namespace JBro::Network
         }
     }
 
-    void SignalingClient::HandleRole(bool isHost, std::uint32_t peerId)
+    void SignalingClient::HandleRole(Bool isHost, UInt32 peerId)
     {
         if (m_hasRole)
         {
@@ -299,7 +301,7 @@ namespace JBro::Network
         }
     }
 
-    void SignalingClient::HandlePeerJoined(std::uint32_t peerId)
+    void SignalingClient::HandlePeerJoined(UInt32 peerId)
     {
         if (false == m_isHost || m_mappings.Size() >= m_config.maxMembersPerRoom)
         {
@@ -315,7 +317,7 @@ namespace JBro::Network
         mapping.connection = connection;
     }
 
-    void SignalingClient::HandlePeerLeft(std::uint32_t peerId)
+    void SignalingClient::HandlePeerLeft(UInt32 peerId)
     {
         for (std::size_t index = 0; index < m_mappings.Size(); ++index)
         {
@@ -328,7 +330,7 @@ namespace JBro::Network
         }
     }
 
-    void SignalingClient::HandleRelay(std::uint32_t peerId, const std::uint8_t* signal, std::uint32_t size)
+    void SignalingClient::HandleRelay(UInt32 peerId, const std::uint8_t* signal, UInt32 size)
     {
         const ConnectionId connection = FindPeerConnection(peerId);
         if (InvalidConnectionId == connection)
@@ -344,7 +346,7 @@ namespace JBro::Network
         {
             while (true)
             {
-                const std::uint32_t size = m_peers.TakePeerSignal(mapping.connection, m_scratch.Data() + 4, m_config.maxSignalBytes);
+                const UInt32 size = m_peers.TakePeerSignal(mapping.connection, m_scratch.Data() + 4, m_config.maxSignalBytes);
                 if (0 == size)
                 {
                     break;
@@ -355,22 +357,22 @@ namespace JBro::Network
         }
     }
 
-    bool SignalingClient::HasRole() const
+    Bool SignalingClient::HasRole() const
     {
         return m_hasRole;
     }
 
-    bool SignalingClient::IsHost() const
+    Bool SignalingClient::IsHost() const
     {
         return m_isHost;
     }
 
-    std::uint32_t SignalingClient::GetPeerId() const
+    UInt32 SignalingClient::GetPeerId() const
     {
         return m_peerId;
     }
 
-    ConnectionId SignalingClient::FindPeerConnection(std::uint32_t peerId) const
+    ConnectionId SignalingClient::FindPeerConnection(UInt32 peerId) const
     {
         for (const Mapping& mapping : m_mappings)
         {
@@ -382,7 +384,7 @@ namespace JBro::Network
         return InvalidConnectionId;
     }
 
-    std::uint32_t SignalingClient::GetPeerCount() const
+    UInt32 SignalingClient::GetPeerCount() const
     {
         return static_cast<std::uint32_t>(m_mappings.Size());
     }

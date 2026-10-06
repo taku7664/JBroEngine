@@ -10,10 +10,13 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -22,32 +25,32 @@ namespace
         }
     }
 
-    constexpr std::uint32_t SurfaceSize = 512;
+    constexpr JBro::UInt32 SurfaceSize = 512;
     // **창을 일부러 비대칭으로 놓는다.** 화면 가운데에 두면 y 를 뒤집거나 translate 가
     // 틀려도 같은 자리에 떨어져서, 넓이만 세는 검사는 통과해 버린다.
     // 오른쪽 여백 104, 아래쪽 여백 184 - 어느 축으로 뒤집어도 자리가 달라진다.
-    constexpr std::uint32_t WindowLeft = 8;
-    constexpr std::uint32_t WindowTop = 8;
-    constexpr std::uint32_t WindowWidth = 400;
-    constexpr std::uint32_t WindowHeight = 320;
+    constexpr JBro::UInt32 WindowLeft = 8;
+    constexpr JBro::UInt32 WindowTop = 8;
+    constexpr JBro::UInt32 WindowWidth = 400;
+    constexpr JBro::UInt32 WindowHeight = 320;
     // 창 아래쪽 빈 자리 - 세 구역이 겹치지 않게 나눠 쓴다.
-    constexpr std::uint32_t WindowBandBottom = 340;
+    constexpr JBro::UInt32 WindowBandBottom = 340;
     // **잘라내기 사각형을 화면 왼쪽 밖까지 민다.** D3D12 는 음수 시저를 받지 않으므로
     // 0 으로 붙여야 하고, 그 붙이는 코드가 실제로 필요한지는 이런 도형이 있어야 드러난다.
-    constexpr std::uint32_t ClipTop = 350;
-    constexpr std::uint32_t ClipBottom = 390;
-    constexpr std::uint32_t ClipRight = 40;
+    constexpr JBro::UInt32 ClipTop = 350;
+    constexpr JBro::UInt32 ClipBottom = 390;
+    constexpr JBro::UInt32 ClipRight = 40;
     // **맨 마지막 드로우 리스트에 놓는 사각형이다.** 리스트마다 더해 주는 정점·인덱스
     // 오프셋은 앞 리스트에서 전부 0 이라, 마지막 리스트의 도형만이 그 덧셈을 붙잡는다.
     // 전경 드로우 리스트는 창들 뒤에 제출되므로 여기가 그 자리다.
-    constexpr std::uint32_t ForeLeft = 200;
-    constexpr std::uint32_t ForeTop = 400;
-    constexpr std::uint32_t ForeSize = 40;
-    constexpr std::uint32_t ForeRounding = 12;
+    constexpr JBro::UInt32 ForeLeft = 200;
+    constexpr JBro::UInt32 ForeTop = 400;
+    constexpr JBro::UInt32 ForeSize = 40;
+    constexpr JBro::UInt32 ForeRounding = 12;
     // 첫 드로우 리스트(배경)의 사각형이다.
-    constexpr std::uint32_t CornerLeft = 440;
-    constexpr std::uint32_t CornerTop = 450;
-    constexpr std::uint32_t CornerSize = 50;
+    constexpr JBro::UInt32 CornerLeft = 440;
+    constexpr JBro::UInt32 CornerTop = 450;
+    constexpr JBro::UInt32 CornerSize = 50;
 
     struct Stage
     {
@@ -56,14 +59,14 @@ namespace
         JBro::IRHIDevice* device = nullptr;
         JBro::WindowHandle window;
         JBro::SwapchainHandle swapchain;
-        bool platformOpen = false;
-        bool rhiOpen = false;
+        JBro::Bool platformOpen = false;
+        JBro::Bool rhiOpen = false;
 
-        bool Open(const char* title);
+        JBro::Bool Open(const char* title);
         void Close();
     };
 
-    bool Stage::Open(const char* title)
+    JBro::Bool Stage::Open(const char* title)
     {
         JBro::JMemoryContext memory;
         Check(platform.Initialize(memory), "the platform must initialize");
@@ -204,7 +207,7 @@ namespace
 
         // **새 창은 첫 프레임에 그려지지 않는다.** ImGui 가 크기를 재고 자리를
         // 잡는 동안 감춰 두기 때문이다. 몇 프레임 돌린 뒤에 본다.
-        for (int warmUp = 0; warmUp < 3; ++warmUp)
+        for (JBro::Int32 warmUp = 0; warmUp < 3; ++warmUp)
         {
             BuildUiFrame();
         }
@@ -215,8 +218,8 @@ namespace
         JBro::Array<std::byte> image;
         image.Resize(SurfaceSize * SurfaceSize * 4);
         JBro::TextureReadback readback;
-        std::uint32_t lastSlot = 0;
-        for (int frame = 0; frame < 2; ++frame)
+        JBro::UInt32 lastSlot = 0;
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
         if (frame > 0)
         {
@@ -261,12 +264,12 @@ namespace
 
         // 지운 색은 검정이다. 검지 않은 픽셀은 UI 가 칠한 것이다.
         // 세 구역을 따로 센다. 창(위쪽 띠), 왼쪽으로 잘린 사각형, 오른쪽 아래 구석이다.
-        const auto Pixel = [&](std::uint32_t x, std::uint32_t y) {
+        const auto Pixel = [&](JBro::UInt32 x, JBro::UInt32 y) {
             const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                 + static_cast<std::size_t>(x) * 4;
             return reinterpret_cast<const unsigned char*>(image.Data() + offset);
         };
-        const auto Painted = [&](std::uint32_t x, std::uint32_t y) {
+        const auto Painted = [&](JBro::UInt32 x, JBro::UInt32 y) {
             const unsigned char* p = Pixel(x, y);
             return p[0] != 0 || p[1] != 0 || p[2] != 0;
         };
@@ -276,13 +279,13 @@ namespace
         // 안 올라가도 숫자가 채워진다.
         std::size_t painted = 0;
         std::size_t bright = 0;
-        std::uint32_t minX = SurfaceSize;
-        std::uint32_t maxX = 0;
-        std::uint32_t minY = SurfaceSize;
-        std::uint32_t maxY = 0;
-        for (std::uint32_t y = 0; y < WindowBandBottom; ++y)
+        JBro::UInt32 minX = SurfaceSize;
+        JBro::UInt32 maxX = 0;
+        JBro::UInt32 minY = SurfaceSize;
+        JBro::UInt32 maxY = 0;
+        for (JBro::UInt32 y = 0; y < WindowBandBottom; ++y)
         {
-            for (std::uint32_t x = 0; x < SurfaceSize; ++x)
+            for (JBro::UInt32 x = 0; x < SurfaceSize; ++x)
             {
                 if (false == Painted(x, y))
                 {
@@ -306,10 +309,10 @@ namespace
 
         // 왼쪽으로 잘린 사각형 - x 는 0 에서 시작해 ClipRight 에서 끝난다.
         std::size_t clipPainted = 0;
-        std::uint32_t clipMaxX = 0;
-        for (std::uint32_t y = ClipTop; y < ClipBottom; ++y)
+        JBro::UInt32 clipMaxX = 0;
+        for (JBro::UInt32 y = ClipTop; y < ClipBottom; ++y)
         {
-            for (std::uint32_t x = 0; x < SurfaceSize; ++x)
+            for (JBro::UInt32 x = 0; x < SurfaceSize; ++x)
             {
                 if (Painted(x, y))
                 {
@@ -321,11 +324,11 @@ namespace
 
         // 전경 사각형 - 마지막 드로우 리스트가 제자리에 갔는지. 자리까지 본다.
         std::size_t forePainted = 0;
-        std::uint32_t foreMinX = SurfaceSize;
-        std::uint32_t foreMaxX = 0;
-        for (std::uint32_t y = ForeTop; y < ForeTop + ForeSize; ++y)
+        JBro::UInt32 foreMinX = SurfaceSize;
+        JBro::UInt32 foreMaxX = 0;
+        for (JBro::UInt32 y = ForeTop; y < ForeTop + ForeSize; ++y)
         {
-            for (std::uint32_t x = 0; x < SurfaceSize; ++x)
+            for (JBro::UInt32 x = 0; x < SurfaceSize; ++x)
             {
                 if (Painted(x, y))
                 {
@@ -338,9 +341,9 @@ namespace
 
         // 구석 사각형 - 첫 드로우 리스트가 제자리에 갔는지.
         std::size_t cornerPainted = 0;
-        for (std::uint32_t y = CornerTop; y < CornerTop + CornerSize; ++y)
+        for (JBro::UInt32 y = CornerTop; y < CornerTop + CornerSize; ++y)
         {
-            for (std::uint32_t x = CornerLeft; x < CornerLeft + CornerSize; ++x)
+            for (JBro::UInt32 x = CornerLeft; x < CornerLeft + CornerSize; ++x)
             {
                 if (Painted(x, y))
                 {
@@ -361,8 +364,8 @@ namespace
         // **칠해진 자리가 우리가 지정한 자리여야 한다.** 넓이만 세면 창이 엉뚱한 곳에
         // 통째로 옮겨가도 통과한다 - 투영 상수나 뷰포트가 틀리면 정확히 그렇게 된다.
         // 모서리가 둥글어 가장자리 한두 픽셀은 흐리므로 2픽셀까지 봐준다.
-        const auto Near = [](std::uint32_t got, std::uint32_t want) {
-            const std::uint32_t gap = got > want ? got - want : want - got;
+        const auto Near = [](JBro::UInt32 got, JBro::UInt32 want) {
+            const JBro::UInt32 gap = got > want ? got - want : want - got;
             return gap <= 2;
         };
         Check(Near(minX, WindowLeft) && Near(maxX, WindowLeft + WindowWidth - 1),
@@ -430,7 +433,7 @@ namespace
         move.x = static_cast<float>(SurfaceSize) / 2.0f;
         move.y = static_cast<float>(SurfaceSize) / 2.0f;
 
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(ui.PushInput({&move, 1}), "the pointer must reach the UI");
             Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
@@ -451,7 +454,7 @@ namespace
         JBro::InputEvent away = move;
         away.x = -50.0f;
         away.y = -50.0f;
-        for (int frame = 0; frame < 2; ++frame)
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(ui.PushInput({&away, 1}), "the pointer must reach the UI");
             Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
@@ -475,7 +478,7 @@ namespace
         // 그때 준 포커스는 먹지 않고, 필드가 **활성화되는 그 프레임**의 글자는
         // 버려진다(활성화하면서 내용을 고르기 때문이다). 그래서 자리를 잡히고,
         // 포커스를 주고, 활성화된 것을 본 뒤에 글자를 넣는다.
-        for (int frame = 0; frame < 8; ++frame)
+        for (JBro::Int32 frame = 0; frame < 8; ++frame)
         {
             if (frame == 5)
             {
@@ -541,7 +544,7 @@ namespace
     }
 }
 
-int RunEditorUITests()
+JBro::Int32 RunEditorUITests()
 {
     TestTheDemoWindowPaintsSomething();
     TestInputReachesTheUi();

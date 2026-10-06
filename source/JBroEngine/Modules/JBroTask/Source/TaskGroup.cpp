@@ -1,6 +1,8 @@
-#include <JBro/Task/TaskGroup.h>
+﻿#include <JBro/Task/TaskGroup.h>
 
 #include <utility>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -12,7 +14,7 @@ namespace JBro
 
     TaskGroup::~TaskGroup() = default;
 
-    bool TaskGroup::Add(OwnerPtr<Task> task)
+    Bool TaskGroup::Add(OwnerPtr<Task> task)
     {
         if (m_submitted || task.Get() == nullptr)
         {
@@ -37,22 +39,22 @@ namespace JBro
         return m_id;
     }
 
-    std::uint32_t TaskGroup::GetTaskCount() const
+    UInt32 TaskGroup::GetTaskCount() const
     {
         return static_cast<std::uint32_t>(m_tasks.Size());
     }
 
-    const Task& TaskGroup::GetTaskAt(std::uint32_t index) const
+    const Task& TaskGroup::GetTaskAt(UInt32 index) const
     {
         return *m_tasks[index];
     }
 
-    bool TaskGroup::IsSubmitted() const
+    Bool TaskGroup::IsSubmitted() const
     {
         return m_submitted;
     }
 
-    bool TaskGroup::IsFinished() const
+    Bool TaskGroup::IsFinished() const
     {
         return m_finished;
     }
@@ -70,7 +72,7 @@ namespace JBro
             }
             return TaskState::Pending;
         }
-        bool canceled = false;
+        Bool canceled = false;
         for (const OwnerPtr<Task>& task : m_tasks)
         {
             const TaskState state = task->GetState();

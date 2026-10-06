@@ -16,30 +16,34 @@
 
 #include <cstdio>
 #include <cstring>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     namespace
     {
-        constexpr std::uint32_t CanvasFileVersion = 1;
+        constexpr UInt32 CanvasFileVersion = 1;
         // 레이어 에셋의 판이다. 캔버스 파일과 따로 센다(기존 엔진도 그랬다).
-        constexpr std::uint32_t LayerFileVersion = 1;
+        constexpr UInt32 LayerFileVersion = 1;
 
-        bool Fail(CanvasFileError& error, const char* message)
+        Bool Fail(CanvasFileError& error, const char* message)
         {
             error.message = message;
             return false;
         }
 
         // 값의 걸음이 채운 오류를 파일 오류로 옮긴다. 오브젝트·타입 이름은 이쪽이 이미 적어 두었다.
-        bool FailFrom(CanvasFileError& error, const ReflectedYamlError& reflected)
+        Bool FailFrom(CanvasFileError& error, const ReflectedYamlError& reflected)
         {
             error.message = reflected.message;
             error.fieldName = reflected.fieldName;
             return false;
         }
 
-        bool WriteComponent(
+        Bool WriteComponent(
             YamlWriter& writer,
             const ComponentSlot& slot,
             CanvasFileError& error)
@@ -66,7 +70,7 @@ namespace JBro
             // IsActiveComponent 는 오브젝트 활성까지 합친 값이다. 그것을 적으면
             // 꺼진 오브젝트를 저장했다 열 때 컴포넌트가 **영구히** 꺼진다.
             writer.WriteBool("IsEnabled", component->IsEnabled());
-            for (std::uint32_t i = 0; i < table->count; ++i)
+            for (UInt32 i = 0; i < table->count; ++i)
             {
                 const PropertyInfo& property = table->properties[i];
                 if (false == property.serialize || property.type == nullptr)
@@ -104,7 +108,7 @@ namespace JBro
         // **레이어 노드는 캔버스 파일과 레이어 에셋이 같은 함수로 쓰고 읽는다**(D-287). 둘이 갈리면 같은 레이어가 저장한 곳에 따라 다르게 읽힌다
         // (기존 엔진 `LayerSerializer.h` 의 경고). `inCanvas` 면 캔버스 안 번호(`Id`)와 원본 에셋(`SourceAsset`)도 적는다 - 레이어 에셋은 제 자신을
         // 가리키지 않는다. 기본값인 값은 적지 않는다(D-237·D-279·D-286).
-        void WriteLayerNode(YamlWriter& writer, const Layer& layer, bool inCanvas)
+        void WriteLayerNode(YamlWriter& writer, const Layer& layer, Bool inCanvas)
         {
             if (inCanvas)
             {
@@ -143,16 +147,16 @@ namespace JBro
         struct LayerNodeValues
         {
             String name;
-            bool visible = true;
+            Bool visible = true;
             LayerSpace space = LayerSpace::World;
             ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
             LayerBlend blend = LayerBlend::Normal;
-            float opacity = 1.0f;
-            float parallax = 1.0f;
+            Float opacity = 1.0f;
+            Float parallax = 1.0f;
             Uuid sourceAsset;
         };
 
-        bool ReadLayerNode(const YamlDocument& document, std::uint32_t entry, LayerNodeValues& values, CanvasFileError& error)
+        Bool ReadLayerNode(const YamlDocument& document, UInt32 entry, LayerNodeValues& values, CanvasFileError& error)
         {
             if (false == document.FindScalar(entry, "Name", values.name))
             {
@@ -199,8 +203,8 @@ namespace JBro
 
         // 오브젝트 목록을 적는다. `ordered` 는 부모가 자식보다 앞이다. `writeLayer` 면 오브젝트마다 레이어 번호를 적는다(캔버스 파일) - 레이어 에셋은
         // 오브젝트가 모두 그 레이어라 적지 않는다.
-        bool WriteObjects(YamlWriter& writer, const Array<GameObject*>& ordered, Table<const GameObject*, std::size_t>& indexOf,
-            CanvasWriteMode mode, bool writeLayer, CanvasFileError& error)
+        Bool WriteObjects(YamlWriter& writer, const Array<GameObject*>& ordered, Table<const GameObject*, std::size_t>& indexOf,
+            CanvasWriteMode mode, Bool writeLayer, CanvasFileError& error)
         {
             writer.BeginSequence("Objects");
             for (std::size_t i = 0; i < ordered.Size(); ++i)
@@ -213,7 +217,7 @@ namespace JBro
                 writer.WriteString("Name", object->GetTag());
                 writer.WriteBool("Active", object->IsActiveSelf());
                 // 플래그는 있을 때만 적는다 - 대부분의 오브젝트는 0 이고, 없으면 0 으로 읽는다.
-                const std::uint32_t flags = mode == CanvasWriteMode::Package
+                const UInt32 flags = mode == CanvasWriteMode::Package
                     ? (object->GetFlags() & ~EditorOnlyObjectFlags)
                     : object->GetFlags();
                 if (flags != 0)
@@ -221,7 +225,7 @@ namespace JBro
                     writer.WriteInt("Flags", static_cast<std::int64_t>(flags));
                 }
 
-                std::int64_t parentIndex = -1;
+                Int64 parentIndex = -1;
                 if (object->GetParent() != nullptr)
                 {
                     const std::size_t* found = indexOf.Find(object->GetParent());
@@ -257,18 +261,18 @@ namespace JBro
         // 오브젝트가 어느 레이어에 서는가. 캔버스 파일은 파일의 레이어 번호를 짝지은 표로, 레이어 에셋은 새로 세운 레이어 하나로 정한다.
         struct ObjectLayerRule
         {
-            const Table<std::uint64_t, LayerId>* layerOf = nullptr;
+            const Table<UInt64, LayerId>* layerOf = nullptr;
             LayerId fixedLayer = InvalidLayerId;
         };
 
         // 오브젝트를 만든다. **모두 만든 뒤 컴포넌트를 읽는다**(D-233) - 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다. 실패해도 만든 것은
         // `created` 에 남는다 - 거두는 것은 부르는 쪽이다.
-        bool ReadObjects(Canvas& canvas, const YamlDocument& document, std::uint32_t objects, const ObjectLayerRule& rule,
+        Bool ReadObjects(Canvas& canvas, const YamlDocument& document, UInt32 objects, const ObjectLayerRule& rule,
             Array<GameObject*>& created, CanvasFileError& error)
         {
             for (std::size_t i = 0; i < document.GetCount(objects); ++i)
             {
-                const std::uint32_t entry = document.GetElement(objects, i);
+                const UInt32 entry = document.GetElement(objects, i);
                 String name;
                 document.FindScalar(entry, "Name", name);
                 error.objectName = name;
@@ -279,7 +283,7 @@ namespace JBro
                     return Fail(error, "an object in this file could not be created");
                 }
                 created.Add(object);
-                std::int64_t flags = 0;
+                Int64 flags = 0;
                 if (document.FindInt(entry, "Flags", flags))
                 {
                     if (flags < 0 || flags > static_cast<std::int64_t>(UINT32_MAX))
@@ -289,7 +293,7 @@ namespace JBro
                     object->SetFlags(static_cast<std::uint32_t>(flags));
                 }
 
-                std::int64_t parentIndex = -1;
+                Int64 parentIndex = -1;
                 if (false == document.FindInt(entry, "ParentIndex", parentIndex))
                 {
                     return Fail(error, "an object in this file does not say where it hangs");
@@ -310,7 +314,7 @@ namespace JBro
                 }
                 else
                 {
-                    std::int64_t fileLayer = 0;
+                    Int64 fileLayer = 0;
                     if (rule.layerOf != nullptr && document.FindInt(entry, "LayerId", fileLayer))
                     {
                         const LayerId* mapped = rule.layerOf->Find(static_cast<std::uint64_t>(fileLayer));
@@ -325,7 +329,7 @@ namespace JBro
 
             Internal::ObjectRefRemap remap;
             remap.user = &created;
-            remap.toObjectId = [](void* user, std::int64_t index) -> InstanceId {
+            remap.toObjectId = [](void* user, Int64 index) -> InstanceId {
                 const Array<GameObject*>& objects = *static_cast<Array<GameObject*>*>(user);
                 return index >= 0 && static_cast<std::size_t>(index) < objects.Size()
                     ? objects[static_cast<std::size_t>(index)]->GetInstanceId()
@@ -334,14 +338,14 @@ namespace JBro
             ObjectRefRemapScope remapScope(remap);
             for (std::size_t i = 0; i < created.Size(); ++i)
             {
-                const std::uint32_t entry = document.GetElement(objects, i);
+                const UInt32 entry = document.GetElement(objects, i);
                 GameObject* object = created[i];
                 error.objectName = object->GetTag();
 
-                const std::uint32_t components = document.Find(entry, "Components");
+                const UInt32 components = document.Find(entry, "Components");
                 for (std::size_t c = 0; c < document.GetCount(components); ++c)
                 {
-                    const std::uint32_t saved = document.GetElement(components, c);
+                    const UInt32 saved = document.GetElement(components, c);
                     String typeName;
                     if (false == document.FindScalar(saved, "Type", typeName))
                     {
@@ -374,7 +378,7 @@ namespace JBro
                         return FailFrom(error, reflected);
                     }
 
-                    bool enabled = true;
+                    Bool enabled = true;
                     if (document.FindBool(saved, "IsEnabled", enabled))
                     {
                         component->SetEnabled(enabled);
@@ -383,7 +387,7 @@ namespace JBro
                 }
 
                 // 활성은 마지막이다. 부모가 정해진 뒤라야 상속 활성값이 맞는다.
-                bool active = true;
+                Bool active = true;
                 document.FindBool(entry, "Active", active);
                 object->SetActive(active);
             }
@@ -401,18 +405,18 @@ namespace JBro
                     fileIndexOf.TryAdd(ordered[i]->GetInstanceId(), static_cast<std::int64_t>(i));
                 }
                 remap.user = &fileIndexOf;
-                remap.toIndex = [](void* user, InstanceId objectId) -> std::int64_t {
-                    const std::int64_t* found = static_cast<Table<InstanceId, std::int64_t>*>(user)->Find(objectId);
-                    return found != nullptr ? *found : -1;
+                remap.toIndex = [](void* user, InstanceId objectId) -> Int64 {
+                    const Int64* found = static_cast<Table<InstanceId, Int64>*>(user)->Find(objectId);
+                    return found != nullptr ? *found : Int64(-1);
                 };
             }
 
-            Table<InstanceId, std::int64_t> fileIndexOf;
+            Table<InstanceId, Int64> fileIndexOf;
             Internal::ObjectRefRemap remap;
         };
     }
 
-    bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error, CanvasWriteMode mode)
+    Bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error, CanvasWriteMode mode)
     {
         error = CanvasFileError{};
 
@@ -486,7 +490,7 @@ namespace JBro
     // 읽기
     // -----------------------------------------------------------------------
 
-    bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error)
+    Bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error)
     {
         error = CanvasFileError{};
         if (canvas.GetObjectCount() != 0)
@@ -502,8 +506,8 @@ namespace JBro
             return false;
         }
 
-        const std::uint32_t root = document.GetRoot();
-        std::int64_t version = 0;
+        const UInt32 root = document.GetRoot();
+        Int64 version = 0;
         if (false == document.FindInt(root, "Version", version))
         {
             return Fail(error, "this file does not say what version it is");
@@ -516,7 +520,7 @@ namespace JBro
         // 배경색은 **없어도 된다**(D-186). 이 키가 생기기 전의 파일은 캔버스의 기본값으로
         // 열린다 - 그것이 그때 화면에 나오던 색이다.
         {
-            const std::uint32_t background = document.Find(root, "BackgroundColor");
+            const UInt32 background = document.Find(root, "BackgroundColor");
             if (background != YamlDocument::InvalidNode)
             {
                 Color color = canvas.GetBackgroundColor();
@@ -530,18 +534,18 @@ namespace JBro
 
         // 레이어부터 만든다. 파일의 Id 는 그대로 쓸 수 없으므로(캔버스가 스스로 매긴다)
         // 파일의 것과 새로 받은 것을 짝지어 둔다.
-        Table<std::uint64_t, LayerId> layerOf;
-        const std::uint32_t layers = document.Find(root, "Layers");
-        bool firstLayer = true;
+        Table<UInt64, LayerId> layerOf;
+        const UInt32 layers = document.Find(root, "Layers");
+        Bool firstLayer = true;
         for (std::size_t i = 0; i < document.GetCount(layers); ++i)
         {
-            const std::uint32_t entry = document.GetElement(layers, i);
+            const UInt32 entry = document.GetElement(layers, i);
             LayerNodeValues values;
             if (false == ReadLayerNode(document, entry, values, error))
             {
                 return false;
             }
-            std::int64_t fileId = 0;
+            Int64 fileId = 0;
             if (false == document.FindInt(entry, "Id", fileId))
             {
                 return Fail(error, "a layer in this file has no name or no id");
@@ -573,7 +577,7 @@ namespace JBro
     // 레이어 에셋(`.jlayer`, D-287)
     // -----------------------------------------------------------------------
 
-    bool WriteLayerText(Canvas& canvas, LayerId layerId, String& text, CanvasFileError& error)
+    Bool WriteLayerText(Canvas& canvas, LayerId layerId, String& text, CanvasFileError& error)
     {
         error = CanvasFileError{};
         const Layer* layer = canvas.FindLayer(layerId);
@@ -614,7 +618,7 @@ namespace JBro
         return true;
     }
 
-    bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error)
+    Bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error)
     {
         error = CanvasFileError{};
         created = InvalidLayerId;
@@ -625,8 +629,8 @@ namespace JBro
             error.message = parseError.message;
             return false;
         }
-        const std::uint32_t root = document.GetRoot();
-        std::int64_t version = 0;
+        const UInt32 root = document.GetRoot();
+        Int64 version = 0;
         if (false == document.FindInt(root, "Version", version))
         {
             return Fail(error, "this file does not say what version it is");
@@ -635,7 +639,7 @@ namespace JBro
         {
             return Fail(error, "this file was written by a different version of the format");
         }
-        const std::uint32_t node = document.Find(root, "Layer");
+        const UInt32 node = document.Find(root, "Layer");
         if (node == YamlDocument::InvalidNode)
         {
             return Fail(error, "this file holds no layer");

@@ -7,6 +7,7 @@
 
 #include <cstring>
 #include <string_view>
+#include <JBro/Types/Bool.h>
 
 namespace JBro
 {
@@ -27,7 +28,7 @@ namespace JBro
             return name;
         }
 
-        bool IsMaster() const
+        Bool IsMaster() const
         {
             return id == InvalidNameId || id == MakeNameId("Master");
         }
@@ -43,7 +44,7 @@ namespace JBro
         static const ValueCodec codec = [] {
             ValueCodec made;
             made.ToText = [](const void* value, char* buffer, std::size_t capacity,
-                std::size_t& required) noexcept -> bool {
+                std::size_t& required) noexcept -> Bool {
                 const NameId id = static_cast<const AudioBusName*>(value)->id;
                 const std::string_view text = id == InvalidNameId ? std::string_view() : NameTable::Get().Resolve(id);
                 required = text.size() + 1;
@@ -55,7 +56,7 @@ namespace JBro
                 buffer[text.size()] = '\0';
                 return true;
             };
-            made.FromText = [](void* value, const char* text, std::size_t length) noexcept -> bool {
+            made.FromText = [](void* value, const char* text, std::size_t length) noexcept -> Bool {
                 if (text == nullptr)
                 {
                     return false;
@@ -76,7 +77,7 @@ namespace JBro
                     return false;
                 }
             };
-            made.Equals = [](const void* left, const void* right) noexcept -> bool {
+            made.Equals = [](const void* left, const void* right) noexcept -> Bool {
                 return static_cast<const AudioBusName*>(left)->id == static_cast<const AudioBusName*>(right)->id;
             };
             made.Assign = [](void* destination, const void* source) noexcept {

@@ -17,13 +17,18 @@ public:
 	constexpr bool IsTrue() const noexcept { return Value; }
 	constexpr bool IsFalse() const noexcept { return !Value; }
 
-	Bool& operator=(bool value) noexcept
+	constexpr Bool& operator=(bool value) noexcept
 	{
 		Value = value;
 		return *this;
 	}
 
-	Bool& Toggle() noexcept
+	// 필드를 엔진 타입으로 옮긴 뒤에도 `dirty |= changed` 가 그대로 읽혀야 한다(D-290).
+	constexpr Bool& operator|=(bool rhs) noexcept { Value = Value || rhs; return *this; }
+	constexpr Bool& operator&=(bool rhs) noexcept { Value = Value && rhs; return *this; }
+	constexpr Bool& operator^=(bool rhs) noexcept { Value = Value != rhs; return *this; }
+
+	constexpr Bool& Toggle() noexcept
 	{
 		Value = !Value;
 		return *this;

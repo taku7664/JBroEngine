@@ -5,6 +5,8 @@
 #include <JBro/Types/String.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -19,28 +21,28 @@ namespace JBro
         ScriptDLLLoader& operator=(ScriptDLLLoader&&) = delete;
 
         // Main-thread only. The platform must outlive an active loader.
-        bool Load(
+        Bool Load(
             const char* dllPath,
             IPlatform& platform,
             const ScriptContextBlock* extensions = nullptr,
-            std::uint32_t extensionCount = 0);
+            UInt32 extensionCount = 0);
         void Unload(IPlatform& platform) noexcept;
-        bool Reload(
+        Bool Reload(
             IPlatform& platform,
             const ScriptContextBlock* extensions = nullptr,
-            std::uint32_t extensionCount = 0);
+            UInt32 extensionCount = 0);
 
         void* GetSymbol(const char* name) const noexcept;
-        bool IsLoaded() const noexcept;
-        std::uint64_t GetGeneration() const noexcept;
+        Bool IsLoaded() const noexcept;
+        UInt64 GetGeneration() const noexcept;
         const String& GetLoadedPath() const noexcept;
 
     private:
-        bool Activate(
+        Bool Activate(
             const char* dllPath,
             IPlatform& platform,
             const ScriptContextBlock* extensions,
-            std::uint32_t extensionCount);
+            UInt32 extensionCount);
         void Deactivate(IPlatform& platform) noexcept;
         void AdvanceGeneration() noexcept;
 
@@ -48,6 +50,6 @@ namespace JBro
         DynamicLibrary m_library;
         const ScriptModuleApi* m_api = nullptr;
         String m_path;
-        std::uint64_t m_generation = 0;
+        UInt64 m_generation = 0;
     };
 }

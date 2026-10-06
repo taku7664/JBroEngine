@@ -4,6 +4,9 @@
 
 #include <cmath>
 #include <cstddef>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
+#include <JBro/Types/Bool.h>
 
 // 액션 평가(D-214). 부를 때 그 자리의 뷰로 계산한다 - 미리 평가해 두면 위에서 소비한 장치가 액션에 남는다.
 // 바인딩 몇 개를 도는 일이라 싸고, 할당도 문자열도 없다(§9).
@@ -12,13 +15,13 @@ namespace JBro
     namespace
     {
         // Bool 액션이 축을 "눌림" 으로 보는 문턱이다.
-        constexpr float AxisPressThreshold = 0.5f;
+        constexpr Float AxisPressThreshold = 0.5f;
 
         struct ButtonSample
         {
-            bool down = false;
-            bool pressed = false;
-            bool released = false;
+            Bool down = false;
+            Bool pressed = false;
+            Bool released = false;
         };
 
         void Merge(ButtonSample& into, const ButtonState& button)
@@ -49,7 +52,7 @@ namespace JBro
             case InputBindingSource::GamepadButton:
                 if (binding.code < GamepadButtonCount)
                 {
-                    for (std::uint32_t pad = 0; pad < MaxGamepads; ++pad)
+                    for (UInt32 pad = 0; pad < MaxGamepads; ++pad)
                     {
                         if (binding.gamepad >= 0 && static_cast<std::uint32_t>(binding.gamepad) != pad)
                         {
@@ -77,7 +80,7 @@ namespace JBro
                 const GamepadState& pad = view.Gamepad(static_cast<std::uint32_t>(binding.gamepad));
                 return pad.connected ? &pad : nullptr;
             }
-            for (std::uint32_t index = 0; index < MaxGamepads; ++index)
+            for (UInt32 index = 0; index < MaxGamepads; ++index)
             {
                 const GamepadState& pad = view.Gamepad(index);
                 if (pad.connected)
@@ -88,7 +91,7 @@ namespace JBro
             return nullptr;
         }
 
-        float SampleAxis(const InputView& view, const InputBinding& binding)
+        Float SampleAxis(const InputView& view, const InputBinding& binding)
         {
             const GamepadState* pad = PadFor(view, binding);
             if (pad == nullptr || binding.code >= GamepadAxisCount)
@@ -105,13 +108,13 @@ namespace JBro
             {
                 return {};
             }
-            const bool right = binding.code == 1;
+            const Bool right = binding.code == 1;
             const GamepadAxis x = right ? GamepadAxis::RightX : GamepadAxis::LeftX;
             const GamepadAxis y = right ? GamepadAxis::RightY : GamepadAxis::LeftY;
             return {pad->GetAxis(x), pad->GetAxis(y)};
         }
 
-        bool IsButtonSource(InputBindingSource source)
+        Bool IsButtonSource(InputBindingSource source)
         {
             return source == InputBindingSource::Key || source == InputBindingSource::MouseButton
                 || source == InputBindingSource::GamepadButton;
@@ -123,14 +126,14 @@ namespace JBro
             {
                 return;
             }
-            for (std::uint32_t index = 0; index < map->warnedCount; ++index)
+            for (UInt32 index = 0; index < map->warnedCount; ++index)
             {
                 if (map->warned[index] == action)
                 {
                     return;
                 }
             }
-            const std::uint32_t capacity = static_cast<std::uint32_t>(sizeof(map->warned) / sizeof(map->warned[0]));
+            const UInt32 capacity = static_cast<std::uint32_t>(sizeof(map->warned) / sizeof(map->warned[0]));
             if (map->warnedCount >= capacity)
             {
                 return;
@@ -160,11 +163,11 @@ namespace JBro
         }
 
         ButtonSample buttons;
-        const std::uint32_t count = desc->bindingCount < MaxInputBindingsPerAction
-            ? desc->bindingCount : MaxInputBindingsPerAction;
-        float scalar = 0.0f;
+        const UInt32 count = desc->bindingCount < MaxInputBindingsPerAction
+            ? UInt32(desc->bindingCount) : MaxInputBindingsPerAction;
+        Float scalar = 0.0f;
         InputVector2 vector;
-        for (std::uint32_t index = 0; index < count; ++index)
+        for (UInt32 index = 0; index < count; ++index)
         {
             const InputBinding& binding = desc->bindings[index];
             if (IsButtonSource(binding.source))
@@ -197,7 +200,7 @@ namespace JBro
             }
             else if (binding.source == InputBindingSource::GamepadAxis)
             {
-                const float axis = SampleAxis(*this, binding);
+                const Float axis = SampleAxis(*this, binding);
                 if (std::fabs(axis) > std::fabs(scalar))
                 {
                     scalar = axis;
@@ -209,7 +212,7 @@ namespace JBro
                 const InputVector2 stick = SampleStick(*this, binding);
                 vector.x += stick.x;
                 vector.y += stick.y;
-                const float length = std::sqrt(stick.x * stick.x + stick.y * stick.y);
+                const Float length = std::sqrt(stick.x * stick.x + stick.y * stick.y);
                 if (length > std::fabs(scalar))
                 {
                     scalar = length;
@@ -231,10 +234,10 @@ namespace JBro
         case InputActionType::Vector2:
         {
             // 대각선이 빨라지지 않게 길이 1 로 자른다.
-            const float lengthSquared = vector.x * vector.x + vector.y * vector.y;
+            const Float lengthSquared = vector.x * vector.x + vector.y * vector.y;
             if (lengthSquared > 1.0f)
             {
-                const float inverse = 1.0f / std::sqrt(lengthSquared);
+                const Float inverse = 1.0f / std::sqrt(lengthSquared);
                 vector.x *= inverse;
                 vector.y *= inverse;
             }
@@ -250,22 +253,22 @@ namespace JBro
         return value;
     }
 
-    bool InputView::IsActionDown(InputActionId action) const
+    Bool InputView::IsActionDown(InputActionId action) const
     {
         return Action(action).down;
     }
 
-    bool InputView::IsActionPressed(InputActionId action) const
+    Bool InputView::IsActionPressed(InputActionId action) const
     {
         return Action(action).pressed;
     }
 
-    bool InputView::IsActionReleased(InputActionId action) const
+    Bool InputView::IsActionReleased(InputActionId action) const
     {
         return Action(action).released;
     }
 
-    float InputView::GetActionFloat(InputActionId action) const
+    Float InputView::GetActionFloat(InputActionId action) const
     {
         return Action(action).x;
     }

@@ -3,10 +3,13 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace
 {
-    void Check(bool condition, const char* message)
+    void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
         {
@@ -15,7 +18,7 @@ namespace
         }
     }
 
-    const JBro::ProfileSample* Find(const char* name, std::uint32_t depth)
+    const JBro::ProfileSample* Find(const char* name, JBro::UInt32 depth)
     {
         for (std::size_t index = 0; index < JBro::Profiler::GetCount(); ++index)
         {
@@ -130,7 +133,7 @@ namespace
     }
 }
 
-int RunProfilerTests()
+JBro::Int32 RunProfilerTests()
 {
     TestNothingIsMeasuredWhileItIsOff();
     TestNestedScopesKeepTheirDepthAndMerge();
