@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Widget/Gizmo.h>
+﻿#include <JBro/Editor/Widget/ItemLocator.h>
+#include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
@@ -59,7 +60,10 @@ namespace JBro::Widget
         void ReportHandles(GizmoMode mode, const GizmoHandleShape* handles, UInt32 count, const GizmoOutput& output)
         {
             const EditorGuideFocus* focus = GetGuideFocus();
-            if (focus == nullptr || false == focus->IsActive())
+            const Bool guided = focus != nullptr && focus->IsActive();
+            // 손잡이는 ImGui 항목이 아니다(직접 판정한다). 가이드와 시험의 항목 찾기(D-292)가 그 자리를 알 길이 이것뿐이다.
+            const Bool located = ItemLocator::IsWatching();
+            if (false == guided && false == located)
             {
                 return;
             }
@@ -93,6 +97,15 @@ namespace JBro::Widget
                     min = ImVec2((std::min)(handle.x0, handle.x1) - pad, (std::min)(handle.y0, handle.y1) - pad);
                     max = ImVec2((std::max)(handle.x0, handle.x1) + pad, (std::max)(handle.y0, handle.y1) + pad);
                     round = false;
+                }
+                if (located)
+                {
+                    const UInt32 id = ImGui::GetCurrentWindow()->GetID(AxisIdName(handle.axis));
+                    ItemLocator::Report(id, ItemLocator::ItemRect{min.x, min.y, max.x, max.y});
+                }
+                if (false == guided)
+                {
+                    continue;
                 }
                 const Bool activated = output.dragStarted && output.axis == handle.axis;
                 ReportGuideTarget(target, min, max, false, activated, round);

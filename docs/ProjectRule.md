@@ -1565,6 +1565,9 @@
   `JBRO_TESTS=조각,조각` 은 이름에 그 조각이 든 묶음만 돌리고(끝 줄 `selected tests passed`), 비면 모두 돈다(끝 줄 `all tests passed.` - 전체가 지났다는 표시는 이 줄뿐이다).
   묶음마다 `[suite] 이름 초` 가 찍힌다. 고치는 동안은 관련 묶음만 돌리고, 전체는 main 에 합치기 직전에 한 번 돌린다. 새 묶음은 `RunSuite("이름", &RunXTests)` 로 등록한다.
   `JBRO_GPU_VALIDATION=0` 은 D3D12 의 GPU 기반 검증만 끈다(디버그 레이어는 켜진다) - 기본은 켜짐이다(D-64).
+- **에디터 시험은 항목의 자리를 ImGui 에서 받고, 마우스는 그 자리에 한 번만 보낸다.** (SHOULD) (D-292)
+  `Widget::ItemLocator`(ImGui 시험 훅 `IMGUI_ENABLE_TEST_ENGINE`)가 지켜본 Id 의 그려진 사각형을 준다. 마우스를 픽셀마다 옮기며 프레임을 그려 훑는 것은 자리를 받지 못할 때의
+  뒤쪽 길이다 - 한 칸마다 에디터 한 프레임이라 찾기 한 번이 수천 프레임이 된다. `ItemAdd` 없이 직접 판정하는 위젯(기즈모 손잡이)은 `ItemLocator::Report` 로 제 사각형을 알린다.
 
 ### 히스토리를 다시 쓰는 명령을 쓸 때 · 강제 푸시가 필요할 때
 

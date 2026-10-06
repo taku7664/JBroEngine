@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Version.h>
+﻿#include <JBro/Editor/Widget/ItemLocator.h>
+#include <JBro/Core/Version.h>
 #include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
 #include <JBro/Editor/Command/LayerCommands.h>
@@ -1165,11 +1166,66 @@ namespace
         return n < count ? bodies[n] : nullptr;
     }
 
-    // `window` 를 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
+    enum class Located
+    {
+        Found,
+        // 그려졌지만 주어진 x 에 걸치지 않는다. 그 x 를 훑어도 찾지 못한다.
+        Elsewhere,
+        // 자리를 받지 못했다(그려지지 않았거나 ImGui 항목이 아닌 것). 훑어 본다.
+        Unknown,
+        // 그려진 자리는 있는데 마우스를 올려도 가리켜지지 않는다(겹친 창·둥근 손잡이의 가운데). 훑어 본다.
+        NotHovered,
+    };
+
+    // **항목이 그려진 자리를 ImGui 에서 받는다**(D-292). 마우스로 창을 2 픽셀씩 훑으면 한 칸마다 에디터 한 프레임이라, 찾기 한 번이 수천 프레임이었다
+    // (전체 시험의 85% 가 이 묶음이었고 한 시험이 155 초였다). 받은 자리의 가운데(`x` 가 있으면 그 x)에 마우스를 한 번 올려 정말 가리켜지는지 본다 -
+    // 시험이 보는 것(그 자리를 누르면 그 항목이다)은 그대로다.
+    Located LocateItem(JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, JBro::Int32 x, Spot& spot)
+    {
+        JBro::Widget::ItemLocator::Watch(target);
+        const JBro::Bool ticked = editor.Tick(Frame);
+        JBro::Widget::ItemLocator::ItemRect rect;
+        const JBro::Bool drawn = JBro::Widget::ItemLocator::Take(rect);
+        Check(ticked, "the editor must tick while locating");
+        if (false == drawn)
+        {
+            return Located::Unknown;
+        }
+        const JBro::Int32 left = static_cast<JBro::Int32>(std::ceil(rect.minX.Get()));
+        const JBro::Int32 right = static_cast<JBro::Int32>(std::floor(rect.maxX.Get())) - 1;
+        const JBro::Int32 top = static_cast<JBro::Int32>(std::ceil(rect.minY.Get()));
+        const JBro::Int32 bottom = static_cast<JBro::Int32>(std::floor(rect.maxY.Get())) - 1;
+        if (right < left || bottom < top)
+        {
+            return Located::Unknown;
+        }
+        if (x >= 0 && (x < left || x > right))
+        {
+            return Located::Elsewhere;
+        }
+        const JBro::Int32 pointX = x >= 0 ? x : (left + right) / 2;
+        const JBro::Int32 pointY = (top + bottom) / 2;
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(pointX, pointY));
+        Check(editor.Tick(Frame), "the editor must tick while pointing");
+        if (ImGui::GetHoveredID() != target)
+        {
+            return Located::NotHovered;
+        }
+        spot.x = pointX;
+        spot.y = pointY;
+        return Located::Found;
+    }
+
+    // `window` 를 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다. 먼저 그려진 자리를 받아 본다(`LocateItem`).
     JBro::Bool FindItemInWindow(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window,
         ImGuiID target, JBro::Int32 x, Spot& spot)
     {
         Check(window != nullptr, "the window this test looks in must exist");
+        const Located located = LocateItem(editor, hwnd, target, x, spot);
+        if (located == Located::Found || located == Located::Elsewhere)
+        {
+            return located == Located::Found;
+        }
         const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
         for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 2)
         {
@@ -1185,11 +1241,15 @@ namespace
         return false;
     }
 
-    // `window` 를 여러 x 에서 훑는다. 한 칸짜리 위젯(켜기 칸)은 한 x 로는 빗나간다.
+    // `window` 를 여러 x 에서 훑는다. 한 칸짜리 위젯(켜기 칸)은 한 x 로는 빗나간다. 먼저 그려진 자리를 받아 본다(`LocateItem`).
     JBro::Bool FindItemAnywhereInWindow(JBro::EditorApplication& editor, HWND hwnd,
         ImGuiWindow* window, ImGuiID target, Spot& spot)
     {
         Check(window != nullptr, "the window this test looks in must exist");
+        if (LocateItem(editor, hwnd, target, -1, spot) == Located::Found)
+        {
+            return true;
+        }
         for (JBro::Float fraction = 0.05f; fraction < 0.95f; fraction += 0.05f)
         {
             if (FindItemInWindow(editor, hwnd, window, target,
