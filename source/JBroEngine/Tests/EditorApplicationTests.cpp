@@ -17,6 +17,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Core/Profiler.h>
 #include <JBro/Editor/Command/CanvasCommands.h>
+#include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/ConfirmPopup.h>
@@ -2577,6 +2578,73 @@ namespace
         Check(alpha->FindComponentIndex(transform, slot) && slot == 0,
             "and put the transform back first");
         Check(FindContextMenuWindow() == nullptr, "and the menu must be gone");
+
+        editor.Shutdown();
+    }
+
+    // **컴포넌트 머리를 끌어 놓으면 순서가 바뀐다**(D-294). 메뉴의 위로·아래로와 같은 커맨드라 한 번에 되돌아간다.
+    // 머리의 아래 절반은 그 머리의 뒤, 위 절반은 앞이다.
+    void TestDraggingAComponentHeaderReordersIt()
+    {
+        // 끼울 자리 셈: 끌어 온 것이 빠진 뒤의 번호다.
+        Check(JBro::ComponentDropSlot(0, 1, false) == 1, "dropping slot 0 after slot 1 puts it at 1");
+        Check(JBro::ComponentDropSlot(0, 2, true) == 1, "dropping slot 0 before slot 2 puts it at 1");
+        Check(JBro::ComponentDropSlot(2, 0, true) == 0, "dropping slot 2 before slot 0 puts it first");
+        Check(JBro::ComponentDropSlot(2, 0, false) == 1, "dropping slot 2 after slot 0 puts it at 1");
+        Check(JBro::ComponentDropSlot(1, 1, true) == 1 && JBro::ComponentDropSlot(1, 0, false) == 1,
+            "dropping a slot next to itself leaves it where it is");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; component dragging not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "DragComponentProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(alpha);
+        Check(transform != nullptr && sprite != nullptr, "both components must attach");
+        JBro::GameObject* chosen[] = {alpha};
+        editor.SelectObjects({chosen, 1});
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot first;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 0), "Transform2D"), first),
+            "the transform header must be in the inspector");
+        Spot second;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 1), "SpriteRenderer2D"), second),
+            "and the sprite header");
+        // 훑기는 위에서 3 픽셀씩 내려오므로 찾은 자리는 머리의 윗단이다. 아래 절반으로 내린다.
+        Spot below = second;
+        below.y += static_cast<JBro::Int32>(ImGui::GetFrameHeight() * 0.7f);
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, first, below);
+        std::size_t slot = 99;
+        Check(alpha->FindComponentIndex(sprite, slot) && slot == 0,
+            "dropping the transform on the lower half of the sprite header must put the sprite first");
+        Check(alpha->FindComponentIndex(transform, slot) && slot == 1, "and the transform after it");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(alpha->FindComponentIndex(transform, slot) && slot == 0, "and put the transform back first");
 
         editor.Shutdown();
     }
@@ -14096,6 +14164,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestPopupsOpenOneAtATimeAndCloseByHandle();
     TestSavingAsksForAPathOnceAndReportsFailure();
     TestMovingAComponentFromItsHeaderMenuCanBeUndone();
+    TestDraggingAComponentHeaderReordersIt();
     TestCopyAndPasteMakeASiblingAndSelectIt();
     TestCopyingAComponentPastesItsValuesOntoAnotherObject();
     TestTheAddComponentListGroupsTypesAndMarksWhatIsAlreadyThere();

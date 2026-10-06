@@ -26,6 +26,8 @@ namespace JBro::Widget
         HierarchyLayer,
         // 목록 위젯의 행. `ListReorderPayload` 다.
         ListReorder,
+        // 인스펙터의 컴포넌트 머리. 오브젝트의 에디터 번호와 슬롯 번호다 - 같은 오브젝트의 머리에만 놓인다.
+        InspectorComponent,
         Count,
     };
 

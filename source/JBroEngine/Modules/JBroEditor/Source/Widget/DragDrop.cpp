@@ -16,6 +16,7 @@ namespace JBro::Widget
             "JBRO_HIERARCHY_MOVE",
             "JBRO_HIERARCHY_LAYER",
             "JBRO_LIST_REORDER",
+            "JBRO_INSPECTOR_COMPONENT",
         };
         static_assert(sizeof(KindNames) / sizeof(KindNames[0]) == static_cast<std::size_t>(DragKind::Count),
             "every drag kind needs its payload name");

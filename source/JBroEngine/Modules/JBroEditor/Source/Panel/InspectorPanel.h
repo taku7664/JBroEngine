@@ -12,6 +12,8 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
 
+struct ImVec2;
+
 namespace JBro
 {
     class ComponentBase;
@@ -179,6 +181,9 @@ namespace JBro
         void RemoveComponent(GameObject& object, ComponentBase& component);
         // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.
         void MoveComponent(GameObject& object, std::size_t from, std::size_t to);
+        // 머리(`headerMin`~`headerMax`)를 끌기 출처와 받는 자리로 만든다(D-294). 이번 프레임에 순서를 옮겼으면 참이다.
+        Bool DrawComponentDrag(
+            GameObject& object, std::size_t index, const char* typeName, const ImVec2& headerMin, const ImVec2& headerMax);
         // 표의 필드를 **이미 열려 있는 줄 배치 안에** 그린다. 배치를 밖에서
         // 받는 이유는 중첩 구조가 자기 배치를 따로 열어야 하기 때문이다 -
         // 한 표 안에서 다시 표를 열면 칸 폭이 바깥과 따로 논다.

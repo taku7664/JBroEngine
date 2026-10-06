@@ -31,6 +31,7 @@
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Editor/Widget/Waveform.h>
+#include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioSystem.h>
@@ -51,6 +52,7 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 #include <JBro/Types/Bool.h>
@@ -68,6 +70,13 @@ namespace JBro
 
     namespace
     {
+        // 컴포넌트 머리를 끌 때 싣는 꾸러미다(D-294). 주소가 아니라 에디터 번호와 슬롯 번호다(D-72).
+        struct ComponentDragPayload
+        {
+            EditorObjectId object = InvalidEditorObjectId;
+            UInt64 slot = 0;
+        };
+
         // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
         // 그리지 않는다 - 그림이 창을 다 먹으면 정작 고칠 값들이 스크롤 밖으로 나간다.
         constexpr Float PreviewMaxSide = 160.0f;
@@ -284,6 +293,14 @@ namespace JBro
             // (머리)에 붙으므로, 단추를 먼저 그리면 머리의 우클릭이 단추로 옮겨 간다.
             const ImVec2 headerMin = ImGui::GetItemRectMin();
             const ImVec2 headerMax = ImGui::GetItemRectMax();
+            // **머리를 끌어 순서를 바꾼다**(D-294). 메뉴의 위로·아래로와 같은 커맨드다. 끌기·받기는 직전 항목(머리)에 붙고,
+            // 툴팁 창을 닫으면 직전 항목이 머리로 돌아오므로 아래 우클릭 메뉴도 그대로 머리에 붙는다.
+            if (DrawComponentDrag(*object, index, typeName, headerMin, headerMax))
+            {
+                ImGui::PopID();
+                // 옮긴 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다. 다음 프레임에 다시 그린다.
+                return;
+            }
             // **머리에 우클릭하면 뗄 수 있다.** 기존 엔진도 여기가 그 자리다.
             // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
             if (Widget::BeginContextMenu("##ComponentMenu"))
@@ -689,6 +706,50 @@ namespace JBro
         }
         EditorActions::AddComponent(
             *m_editor, object, list.typeNames[static_cast<std::size_t>(chosen)]);
+    }
+
+    Bool InspectorPanel::DrawComponentDrag(
+        GameObject& object, std::size_t index, const char* typeName, const ImVec2& headerMin, const ImVec2& headerMax)
+    {
+        const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
+        if (Widget::BeginDragSource())
+        {
+            ComponentDragPayload payload;
+            payload.object = objectId;
+            payload.slot = static_cast<JBro::UInt64>(index);
+            Widget::SetDragValue(Widget::DragKind::InspectorComponent, payload);
+            Widget::Text(typeName != nullptr ? typeName
+                                             : Loc::TextOr(LocKeys::InspectorUnknownComponent, "(unknown component)"));
+            Widget::EndDragSource();
+        }
+        if (false == Widget::BeginDropTarget())
+        {
+            return false;
+        }
+        Bool moved = false;
+        const Widget::DropPayload drop =
+            Widget::AcceptDrop(Widget::DragKind::InspectorComponent, Widget::DropFeedback::None);
+        ComponentDragPayload dragged;
+        // 다른 오브젝트의 머리에서 온 것은 받지 않는다 - 옮기기는 한 오브젝트 안의 순서다.
+        if (Widget::ReadDropValue(drop, dragged) && dragged.object == objectId)
+        {
+            // 위 절반은 이 머리의 앞, 아래 절반은 뒤다.
+            const Float height = (std::max)(1.0f, headerMax.y - headerMin.y);
+            const Bool above = (ImGui::GetIO().MousePos.y - headerMin.y) / height < 0.5f;
+            const std::size_t from = static_cast<std::size_t>(dragged.slot.Get());
+            const std::size_t to = ComponentDropSlot(from, index, above);
+            if (to != from)
+            {
+                Widget::DrawDropLine(headerMin.x, headerMax.x, above ? headerMin.y : headerMax.y);
+            }
+            if (drop.delivered && to != from)
+            {
+                MoveComponent(object, from, to);
+                moved = true;
+            }
+        }
+        Widget::EndDropTarget();
+        return moved;
     }
 
     void InspectorPanel::MoveComponent(GameObject& object, std::size_t from, std::size_t to)
