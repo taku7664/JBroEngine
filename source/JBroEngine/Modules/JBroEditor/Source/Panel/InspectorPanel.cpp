@@ -31,12 +31,14 @@
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Editor/Widget/Waveform.h>
+#include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/AudioBusName.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Core/Log.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/EditorPaths.h>
@@ -51,6 +53,7 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 #include <JBro/Types/Bool.h>
@@ -68,6 +71,13 @@ namespace JBro
 
     namespace
     {
+        // 컴포넌트 머리를 끌 때 싣는 꾸러미다(D-294). 주소가 아니라 에디터 번호와 슬롯 번호다(D-72).
+        struct ComponentDragPayload
+        {
+            EditorObjectId object = InvalidEditorObjectId;
+            UInt64 slot = 0;
+        };
+
         // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
         // 그리지 않는다 - 그림이 창을 다 먹으면 정작 고칠 값들이 스크롤 밖으로 나간다.
         constexpr Float PreviewMaxSide = 160.0f;
@@ -223,11 +233,11 @@ namespace JBro
                     }
                 });
             // **이름을 고칠 수 있다**(D-142). 예전에는 글자로 보여 주기만 해서, 만든
-            // 오브젝트의 이름이 `GameObject` 인 채로 굳었다. 이름은 태그다(D-51).
+            // 오브젝트의 이름이 `GameObject` 인 채로 굳었다. 이름은 인턴된 정수다(D-51).
             header.Row(
                 Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorName, "Name")),
                 [&]() {
-                    const char* tag = object->GetTag();
+                    const char* tag = object->GetName();
                     // **치는 중이 아니면 늘 오브젝트의 이름을 든다.** 고른 것이 바뀔 때만
                     // 다시 읽으면, 이름 바꾸기를 되돌린 뒤에도 칸에는 옛 글자가 남는다.
                     if (m_namedObject != object || false == m_nameEditing)
@@ -247,6 +257,11 @@ namespace JBro
                                 m_editor->GetObjectIds().Track(object), m_name.c_str()));
                     }
                 });
+            // **태그는 프로젝트 목록에서 고른다**(D-297). 글자 칸이면 오타가 그대로 다른 태그가 된다. 목록 끝의 `태그 추가...` 가
+            // 그 자리에서 새 태그를 목록에 더하고 바로 단다 - 프로젝트 설정까지 가지 않는다.
+            header.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorTag, "Tag")),
+                [&]() { DrawTagField(*object); });
         }
         ImGui::Separator();
 
@@ -284,6 +299,14 @@ namespace JBro
             // (머리)에 붙으므로, 단추를 먼저 그리면 머리의 우클릭이 단추로 옮겨 간다.
             const ImVec2 headerMin = ImGui::GetItemRectMin();
             const ImVec2 headerMax = ImGui::GetItemRectMax();
+            // **머리를 끌어 순서를 바꾼다**(D-294). 메뉴의 위로·아래로와 같은 커맨드다. 끌기·받기는 직전 항목(머리)에 붙고,
+            // 툴팁 창을 닫으면 직전 항목이 머리로 돌아오므로 아래 우클릭 메뉴도 그대로 머리에 붙는다.
+            if (DrawComponentDrag(*object, index, typeName, headerMin, headerMax))
+            {
+                ImGui::PopID();
+                // 옮긴 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다. 다음 프레임에 다시 그린다.
+                return;
+            }
             // **머리에 우클릭하면 뗄 수 있다.** 기존 엔진도 여기가 그 자리다.
             // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
             if (Widget::BeginContextMenu("##ComponentMenu"))
@@ -412,6 +435,7 @@ namespace JBro
                 ImGui::SetCursorScreenPos(ImVec2(headerMax.x - side, headerMin.y));
                 if (Widget::IconButton("##component_menu", Icons::Menu)
                         .Size(ImVec2(side, side))
+                        .Flat()
                         .Tooltip(Loc::TextOr(LocKeys::InspectorComponentMenu, "Component menu"))
                         .Draw())
                 {
@@ -702,6 +726,132 @@ namespace JBro
             *m_editor, object, list.typeNames[static_cast<std::size_t>(chosen)]);
     }
 
+    Bool InspectorPanel::DrawComponentDrag(
+        GameObject& object, std::size_t index, const char* typeName, const ImVec2& headerMin, const ImVec2& headerMax)
+    {
+        const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
+        if (Widget::BeginDragSource())
+        {
+            ComponentDragPayload payload;
+            payload.object = objectId;
+            payload.slot = static_cast<JBro::UInt64>(index);
+            Widget::SetDragValue(Widget::DragKind::InspectorComponent, payload);
+            Widget::Text(typeName != nullptr ? typeName
+                                             : Loc::TextOr(LocKeys::InspectorUnknownComponent, "(unknown component)"));
+            Widget::EndDragSource();
+        }
+        if (false == Widget::BeginDropTarget())
+        {
+            return false;
+        }
+        Bool moved = false;
+        const Widget::DropPayload drop =
+            Widget::AcceptDrop(Widget::DragKind::InspectorComponent, Widget::DropFeedback::None);
+        ComponentDragPayload dragged;
+        // 다른 오브젝트의 머리에서 온 것은 받지 않는다 - 옮기기는 한 오브젝트 안의 순서다.
+        if (Widget::ReadDropValue(drop, dragged) && dragged.object == objectId)
+        {
+            // 위 절반은 이 머리의 앞, 아래 절반은 뒤다.
+            const Float height = (std::max)(1.0f, headerMax.y - headerMin.y);
+            const Bool above = (ImGui::GetIO().MousePos.y - headerMin.y) / height < 0.5f;
+            const std::size_t from = static_cast<std::size_t>(dragged.slot.Get());
+            const std::size_t to = ComponentDropSlot(from, index, above);
+            if (to != from)
+            {
+                Widget::DrawDropLine(headerMin.x, headerMax.x, above ? headerMin.y : headerMax.y);
+            }
+            if (drop.delivered && to != from)
+            {
+                MoveComponent(object, from, to);
+                moved = true;
+            }
+        }
+        Widget::EndDropTarget();
+        return moved;
+    }
+
+    void InspectorPanel::DrawTagField(GameObject& object)
+    {
+        // 고른 것이 모두 바뀐다(활성 칸과 같다, D-142).
+        const auto selectedIds = [&]() {
+            Array<EditorObjectId> ids;
+            const Array<GameObject*> chosen = m_editor->GetSelectedObjects();
+            for (std::size_t index = 0; index < chosen.Size(); ++index)
+            {
+                if (chosen[index] != nullptr)
+                {
+                    ids.Add(m_editor->GetObjectIds().Track(chosen[index]));
+                }
+            }
+            if (ids.IsEmpty())
+            {
+                ids.Add(m_editor->GetObjectIds().Track(&object));
+            }
+            return ids;
+        };
+        // 항목: `태그 없음`, 프로젝트의 태그들, (목록에 없는 지금 태그), `태그 추가...`.
+        const Array<String>& tags = m_editor->GetProjectFile().tags;
+        const char* current = object.GetTagId() != InvalidNameId ? object.GetTag() : nullptr;
+        Array<const char*> items;
+        items.Add(Loc::TextOr(LocKeys::InspectorTagNone, "Untagged"));
+        Int32 chosen = 0;
+        for (const String& tag : tags)
+        {
+            if (current != nullptr && tag == current)
+            {
+                chosen = static_cast<JBro::Int32>(items.Size());
+            }
+            items.Add(tag.c_str());
+        }
+        // 목록에서 지운 태그를 단 오브젝트도 제 태그를 보인다. 고르면 그 태그가 그대로 남는다.
+        if (current != nullptr && chosen == 0)
+        {
+            chosen = static_cast<JBro::Int32>(items.Size());
+            items.Add(current);
+        }
+        const Int32 addIndex = static_cast<JBro::Int32>(items.Size());
+        items.Add(Loc::TextOr(LocKeys::InspectorTagAdd, "Add Tag..."));
+        const Int32 before = chosen;
+        if (Widget::FilterCombo("##tag", ArrayView<const char* const>(items.Data(), items.Size()), chosen).Draw() && chosen != before)
+        {
+            if (chosen == addIndex)
+            {
+                m_newTag.clear();
+                Widget::OpenContextMenu("##addTag");
+            }
+            else
+            {
+                const char* tag = chosen == 0 ? "" : items[static_cast<std::size_t>(chosen.Get())];
+                m_editor->GetCommands().Execute(MakeOwnerPtr<SetObjectTagCommand>(m_editor->GetObjectIds(), selectedIds(), tag));
+            }
+        }
+        if (Widget::BeginOpenedContextMenu("##addTag"))
+        {
+            const Bool entered = Widget::TextField("##newTag", m_newTag)
+                .Hint(Loc::TextOr(LocKeys::InspectorTagNameHint, "new tag name"))
+                .CommitOnEnter()
+                .Width(180.0f)
+                .Draw();
+            const Bool clicked = Widget::Button(Loc::TextOr(LocKeys::InspectorTagAddConfirm, "Add"));
+            if ((entered || clicked) && false == m_newTag.empty())
+            {
+                ProjectFileError error;
+                if (m_editor->AddProjectTag(m_newTag.c_str(), error))
+                {
+                    m_editor->GetCommands().Execute(
+                        MakeOwnerPtr<SetObjectTagCommand>(m_editor->GetObjectIds(), selectedIds(), m_newTag.c_str()));
+                }
+                else
+                {
+                    Log::Write(LogLevel::Warning, "editor", "the tag could not be added: %s", error.message.c_str());
+                }
+                m_newTag.clear();
+                Widget::CloseContextMenu();
+            }
+            Widget::EndContextMenu();
+        }
+    }
+
     void InspectorPanel::MoveComponent(GameObject& object, std::size_t from, std::size_t to)
     {
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
@@ -890,7 +1040,7 @@ namespace JBro
                 {
                     current = static_cast<JBro::Int32>(m_objectIds.Size());
                 }
-                const char* name = object.GetTag();
+                const char* name = object.GetName();
                 m_objectNames.Add(String(name != nullptr ? name : ""));
                 m_objectIds.Add(object.GetInstanceId());
             });
@@ -1778,6 +1928,11 @@ namespace JBro
             }
             void* address = property.Address(owner);
             if (address == nullptr)
+            {
+                continue;
+            }
+            // 숨긴 필드는 줄을 두지 않는다(D-296). 저장은 되고 다른 손짓이 고친다.
+            if (property.edit != nullptr && false == property.edit->visible)
             {
                 continue;
             }

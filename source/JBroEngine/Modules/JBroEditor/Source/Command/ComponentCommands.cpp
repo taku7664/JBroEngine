@@ -345,4 +345,15 @@ namespace JBro
     {
         Move(m_from, m_to);
     }
+
+    std::size_t ComponentDropSlot(std::size_t from, std::size_t target, Bool before)
+    {
+        // 끼울 자리는 원래 배열의 "이 칸 앞" 이다. 뒤에 놓는 것은 다음 칸 앞에 놓는 것과 같다.
+        const std::size_t insertBefore = before ? target : target + 1;
+        if (insertBefore > from)
+        {
+            return insertBefore - 1;
+        }
+        return insertBefore;
+    }
 }

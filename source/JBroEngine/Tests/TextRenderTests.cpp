@@ -1348,7 +1348,7 @@ namespace
             const auto thumbnail = [&](LayerId layer, Extent2D extent) {
                 JBro::Testing::Tick(framework, 1.0f / 60.0f);
                 Check(gpu.renderer.BeginFrame() == FrameStatus::Ready, "the frame begins");
-                Check(framework.Render() == RenderResult::Submitted, "the game view submits");
+                Check(framework.Render() == RenderResult::Submitted, "the simulation view submits");
                 LayerThumbnailDesc desc;
                 desc.target = target;
                 desc.extent = extent;

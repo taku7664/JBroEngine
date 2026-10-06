@@ -92,7 +92,7 @@ namespace JBro
             this,
             &Canvas::DestroyObjectFromHandle,
             &Canvas::MarkScriptOrderDirtyFromObject);
-        object->SetTag(name);
+        object->SetName(name);
 
         Layer* defaultLayer = FindLayer(m_defaultLayer);
         if (defaultLayer != nullptr)

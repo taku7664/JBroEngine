@@ -139,6 +139,26 @@ namespace JBro
         }
     }
 
+    const char* GameObject::GetName() const
+    {
+        return NameTable::Get().Resolve(m_name);
+    }
+
+    void GameObject::SetName(const char* name)
+    {
+        m_name = NameTable::Get().Intern(name);
+    }
+
+    NameId GameObject::GetNameId() const
+    {
+        return m_name;
+    }
+
+    void GameObject::SetNameId(NameId name)
+    {
+        m_name = name;
+    }
+
     const char* GameObject::GetTag() const
     {
         return NameTable::Get().Resolve(m_tag);
@@ -146,7 +166,8 @@ namespace JBro
 
     void GameObject::SetTag(const char* tag)
     {
-        m_tag = NameTable::Get().Intern(tag);
+        // 빈 글자는 태그가 없는 것이다. 인턴하면 빈 이름이 번호를 하나 얻어 "태그 없음" 과 갈린다.
+        m_tag = (tag == nullptr || tag[0] == '\0') ? InvalidNameId : NameTable::Get().Intern(tag);
     }
 
     NameId GameObject::GetTagId() const
@@ -157,6 +178,15 @@ namespace JBro
     void GameObject::SetTagId(NameId tag)
     {
         m_tag = tag;
+    }
+
+    Bool GameObject::CompareTag(const char* tag) const
+    {
+        if (tag == nullptr || tag[0] == '\0')
+        {
+            return m_tag == InvalidNameId;
+        }
+        return m_tag == MakeNameId(tag);
     }
 
     UInt32 GameObject::GetFlags() const

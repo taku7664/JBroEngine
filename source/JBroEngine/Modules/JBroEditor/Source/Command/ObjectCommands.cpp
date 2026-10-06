@@ -316,7 +316,7 @@ namespace JBro
         {
             return;
         }
-        const char* tag = object->GetTag();
+        const char* tag = object->GetName();
         m_before = tag != nullptr ? tag : "";
         m_captured = true;
     }
@@ -330,7 +330,7 @@ namespace JBro
     {
         if (GameObject* object = m_registry->Resolve(m_objectId))
         {
-            object->SetTag(name.c_str());
+            object->SetName(name.c_str());
         }
     }
 
@@ -371,6 +371,66 @@ namespace JBro
         // 처음 이름은 이쪽 것을 지킨다 - 친 글자 전체를 한 번에 되돌려야 한다.
         m_after = static_cast<const RenameObjectCommand&>(newer).m_after;
         return true;
+    }
+
+    SetObjectTagCommand::SetObjectTagCommand(EditorObjectRegistry& registry, const Array<EditorObjectId>& objects, const char* tag)
+        : m_registry(&registry)
+        , m_after(tag != nullptr ? tag : "")
+    {
+        // **되살릴 값을 먼저 뜬다**(§11.5). 찾지 못한 오브젝트는 넣지 않는다.
+        for (std::size_t index = 0; index < objects.Size(); ++index)
+        {
+            const GameObject* object = registry.Resolve(objects[index]);
+            if (object == nullptr)
+            {
+                continue;
+            }
+            const char* before = object->GetTagId() != InvalidNameId ? object->GetTag() : nullptr;
+            m_objects.Add(objects[index]);
+            m_before.Add(String(before != nullptr ? before : ""));
+        }
+    }
+
+    const char* SetObjectTagCommand::GetName() const
+    {
+        return "Set Tag";
+    }
+
+    Bool SetObjectTagCommand::Execute()
+    {
+        Bool changes = false;
+        for (std::size_t index = 0; index < m_objects.Size(); ++index)
+        {
+            changes = changes || m_before[index] != m_after;
+        }
+        if (false == changes)
+        {
+            return false;
+        }
+        Redo();
+        return true;
+    }
+
+    void SetObjectTagCommand::Undo()
+    {
+        for (std::size_t index = 0; index < m_objects.Size(); ++index)
+        {
+            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            {
+                object->SetTag(m_before[index].c_str());
+            }
+        }
+    }
+
+    void SetObjectTagCommand::Redo()
+    {
+        for (std::size_t index = 0; index < m_objects.Size(); ++index)
+        {
+            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            {
+                object->SetTag(m_after.c_str());
+            }
+        }
     }
 
     ObjectToggleCommand::ObjectToggleCommand(EditorObjectRegistry& registry,

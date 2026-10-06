@@ -56,8 +56,8 @@ namespace
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
         Check(Table("Component::Button2D").count == 11, "Button2D declares eleven fields - size, offset, two switches, four tints and three states (D-237)");
         Check(Table("Component::Camera2D").count == 7, "Camera2D declares seven fields (pixelsPerUnit since D-239)");
-        Check(Table("Component::SpriteRenderer2D").count == 13, "SpriteRenderer2D declares thirteen fields");
-        Check(Table("Component::Text2D").count == 22, "Text2D declares twenty-two fields");
+        Check(Table("Component::SpriteRenderer2D").count == 14, "SpriteRenderer2D declares fourteen fields - the hidden drawSequence of D-296 is the fourteenth");
+        Check(Table("Component::Text2D").count == 23, "Text2D declares twenty-three fields - with the hidden drawSequence of D-296");
         Check(Table("Component::Rigidbody2D").count == 11,
             "Rigidbody2D declares eleven fields - the seven of D-199, then angular damping, the axis locks of D-227 and canSleep of D-229");
         Check(Table("Component::Collider2D").count == 12,

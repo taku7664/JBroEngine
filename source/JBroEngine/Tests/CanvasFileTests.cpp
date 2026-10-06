@@ -604,7 +604,7 @@ namespace
             if (object.IsEditorHidden())
             {
                 ++hiddenCount;
-                Check(std::strcmp(object.GetTag(), "Hidden") == 0, "and it comes back on the same object");
+                Check(std::strcmp(object.GetName(), "Hidden") == 0, "and it comes back on the same object");
             }
         });
         Check(hiddenCount == 1, "exactly one object comes back hidden");
@@ -708,7 +708,7 @@ namespace
         JBro::GameObject* object = nullptr;
         reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
         Check(object != nullptr, "the object must be reachable");
-        Check(std::strcmp(object->GetTag(), "Player") == 0, "its name must come back");
+        Check(std::strcmp(object->GetName(), "Player") == 0, "its name must come back");
 
         auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the transform must be attached by name");
@@ -775,7 +775,7 @@ namespace
         JBro::GameObject* loner = nullptr;
         reopened.ForEachObject([&](JBro::GameObject& found)
         {
-            const char* tag = found.GetTag();
+            const char* tag = found.GetName();
             if (std::strcmp(tag, "Parent") == 0) { parent = &found; }
             if (std::strcmp(tag, "Child") == 0) { child = &found; }
             if (std::strcmp(tag, "Grandchild") == 0) { grandchild = &found; }
@@ -1018,11 +1018,11 @@ namespace
         JBro::GameObject* crate = nullptr;
         JBro::GameObject* lid = nullptr;
         target.ForEachObject([&](JBro::GameObject& object) {
-            if (std::strcmp(object.GetTag(), "Crate") == 0)
+            if (std::strcmp(object.GetName(), "Crate") == 0)
             {
                 crate = &object;
             }
-            if (std::strcmp(object.GetTag(), "Lid") == 0)
+            if (std::strcmp(object.GetName(), "Lid") == 0)
             {
                 lid = &object;
             }
@@ -1329,8 +1329,49 @@ namespace
     }
 }
 
+namespace
+{
+    // **태그는 있을 때만 `Tag:` 로 적히고 그대로 돌아온다**(D-297). 빈 글자는 태그가 없는 것이다.
+    void TestATagIsSavedOnlyWhenSet()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* enemy = canvas.CreateObject("Goblin");
+        JBro::GameObject* plain = canvas.CreateObject("Rock");
+        Check(enemy != nullptr && plain != nullptr, "the objects must be created");
+        enemy->SetTag("Enemy");
+        Check(enemy->CompareTag("Enemy") && false == enemy->CompareTag("Player") && std::strcmp(enemy->GetTag(), "Enemy") == 0,
+            "a set tag compares and reads back");
+        Check(plain->GetTagId() == JBro::InvalidNameId && plain->CompareTag(""), "an object starts with no tag");
+        plain->SetTag("Temp");
+        plain->SetTag("");
+        Check(plain->GetTagId() == JBro::InvalidNameId, "an empty tag clears it");
+
+        const JBro::String text = Save(canvas);
+        Check(text.find("Tag: Enemy") != JBro::String::npos && text.find("Tag:") == text.rfind("Tag:"),
+            "only the tagged object writes a tag");
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        JBro::CanvasFileError error;
+        Check(Load(reopened, text, error), "the canvas must read back");
+        JBro::Bool found = false;
+        reopened.ForEachObject([&](JBro::GameObject& object)
+        {
+            if (std::strcmp(object.GetName(), "Goblin") == 0)
+            {
+                found = object.CompareTag("Enemy");
+            }
+            else
+            {
+                Check(object.GetTagId() == JBro::InvalidNameId, "the untagged object stays untagged");
+            }
+        });
+        Check(found, "the tag comes back on its object");
+    }
+}
+
 JBro::Int32 RunCanvasFileTests()
 {
+    TestATagIsSavedOnlyWhenSet();
     TestACanvasWithOneObjectSaves();
     TestWhatIsNotSavedStaysOut();
     TestAParentAlwaysComesBeforeItsChild();

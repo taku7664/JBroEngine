@@ -178,6 +178,7 @@ namespace JBro::System
             item.pivot = Vector2{ 0.0f, 1.0f };
             item.size = Vector2{ quad.width / ppu, quad.height / ppu };
             item.renderOrder = text.renderOrder;
+            item.drawSequence = text.drawSequence;
             if (block.IsSdf())
             {
                 item.sdfText = true;

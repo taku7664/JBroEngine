@@ -148,13 +148,13 @@ namespace JBro::System
         return m_rejected;
     }
 
-    void DebugDrawSystem::SetGameViewVisible(Bool visible)
+    void DebugDrawSystem::SetSimulationViewVisible(Bool visible)
     {
-        m_gameViewVisible = visible;
+        m_simulationViewVisible = visible;
     }
 
-    Bool DebugDrawSystem::IsGameViewVisible() const
+    Bool DebugDrawSystem::IsSimulationViewVisible() const
     {
-        return m_gameViewVisible;
+        return m_simulationViewVisible;
     }
 }

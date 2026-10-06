@@ -62,7 +62,7 @@
 #include "Panel/AssetBrowserPanel.h"
 #include "Panel/CanvasViewPanel.h"
 
-#include "Panel/GameViewPanel.h"
+#include "Panel/SimulationViewPanel.h"
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
 #include "Panel/LogPanel.h"
@@ -228,7 +228,7 @@ namespace JBro
             EngineConfig engineConfig;
             engineConfig.graphicsApi = config.graphicsApi;
             engineConfig.time = config.time;
-            // 게임 뷰의 디버그 선은 에디터의 토글이 정한다(D-243). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
+            // 시뮬레이션 뷰의 디버그 선은 에디터의 토글이 정한다(D-243). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
             engineConfig.gameDebugDrawFromProject = false;
             engineConfig.enableValidation = config.enableValidation;
             engineConfig.tasks.workerCount = config.taskWorkerCount;
@@ -251,7 +251,7 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
-            m_engine->SetGameDebugDrawVisible(m_gameViewDebugDraw);
+            m_engine->SetGameDebugDrawVisible(m_simulationViewDebugDraw);
             // **입력은 에디터가 꺼내 간다**(D-177). 엔진이 프레임마다 비우면 UI 가 그것을
             // 보지 못한다 - 에디터는 한 프레임에 펌프를 두 번 돌기 때문이다.
             m_engine->SetInputOwnedByHost(true);
@@ -709,7 +709,29 @@ namespace JBro
         {
             return;
         }
-        ImGui::LoadIniSettingsFromDisk(path.c_str());
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(path.c_str(), bytes))
+        {
+            return;
+        }
+        String ini(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        // **옛 배치의 게임 뷰를 시뮬레이션 뷰로 읽는다**(D-295). 창은 `###` 뒤의 종류 이름(`[Window][Game]`)으로 적히므로, 이름이 `Game` 이던
+        // 배치를 그대로 읽으면 시뮬레이션 뷰는 적힌 자리가 없어 떠 있는 창으로 나온다. 도크 칸이 고른 탭은 그 이름의 해시로 적힌다.
+        ini.ReplaceAll("[Window][Game]", "[Window][Simulation]");
+        {
+            // ImGui 는 `Selected=0x%08X` 로 적는다(대문자 16 진 여덟 자리).
+            const auto selected = [](const char* name) {
+                const UInt32 hash = ImHashStr(name);
+                String text("Selected=0x");
+                for (Int32 shift = 28; shift >= 0; shift -= 4)
+                {
+                    text += "0123456789ABCDEF"[(hash.Get() >> shift.Get()) & 0xFu];
+                }
+                return text;
+            };
+            ini.ReplaceAll(selected("Game"), selected("Simulation"));
+        }
+        ImGui::LoadIniSettingsFromMemory(ini.c_str(), ini.size());
         // **적힌 배치가 이긴다.** 기본 배치를 만드는 쪽(D-134)은 노드를 지우고 다시
         // 만들므로, 둘 다 돌면 사람이 옮겨 둔 자리가 매 실행 지워진다.
         m_layoutRestored = true;
@@ -1279,6 +1301,31 @@ namespace JBro
         m_engine->SetProjectFile(reloaded);
         ApplyPhysicsSettings();
         return true;
+    }
+
+    Bool EditorApplication::AddProjectTag(const char* tag, ProjectFileError& error)
+    {
+        error = ProjectFileError{};
+        if (tag == nullptr || tag[0] == '\0')
+        {
+            error.message = "a tag needs a name";
+            return false;
+        }
+        ProjectFile settings = GetProjectFile();
+        for (const String& existing : settings.tags)
+        {
+            if (existing == tag)
+            {
+                return true;
+            }
+        }
+        settings.tags.Add(String(tag));
+        if (m_projectFilePath.empty())
+        {
+            m_engine->SetProjectFile(settings);
+            return true;
+        }
+        return SaveProjectSettings(settings, error);
     }
 
     UInt32 EditorApplication::RecommendPhysicsWorkers()
@@ -2440,8 +2487,8 @@ namespace JBro
         ScreenSpaceFrame frame;
         frame.referenceWidth = static_cast<JBro::Float>(GetProjectFile().resolutionWidth);
         frame.referenceHeight = static_cast<JBro::Float>(GetProjectFile().resolutionHeight);
-        frame.targetWidth = static_cast<JBro::Float>(m_gameViewExtent.width);
-        frame.targetHeight = static_cast<JBro::Float>(m_gameViewExtent.height);
+        frame.targetWidth = static_cast<JBro::Float>(m_simulationViewExtent.width);
+        frame.targetHeight = static_cast<JBro::Float>(m_simulationViewExtent.height);
         ApplyCameraArea(GetGameCamera2D(), frame);
         return frame;
     }
@@ -2777,13 +2824,13 @@ namespace JBro
         RequestSaveCanvas();
     }
 
-    Bool EditorApplication::EnableEditorUi(const Extent2D& gameViewExtent)
+    Bool EditorApplication::EnableEditorUi(const Extent2D& simulationViewExtent)
     {
         // 크기가 0 인 것은 아래 `CreateTexture` 도 거절한다. 그래도 여기서 막는 것은
         // 계약을 이 함수에서 읽을 수 있게 하려는 것이다 - RHI 가 마침 거절해 주는
         // 것에 기대면, RHI 가 관대해지는 날 조용히 통과한다.
         if (false == m_initialized || m_uiEnabled
-            || gameViewExtent.width == 0 || gameViewExtent.height == 0)
+            || simulationViewExtent.width == 0 || simulationViewExtent.height == 0)
         {
             return false;
         }
@@ -2801,11 +2848,11 @@ namespace JBro
 
         // 게임이 그려 넣고 UI 가 읽는 텍스처다. 둘 다 되어야 한다.
         TextureDesc desc;
-        desc.extent = gameViewExtent;
+        desc.extent = simulationViewExtent;
         desc.format = renderer->GetBackBufferFormat();
         desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
-        m_gameView = device->CreateTexture(desc);
-        if (false == m_gameView.IsValid())
+        m_simulationView = device->CreateTexture(desc);
+        if (false == m_simulationView.IsValid())
         {
             return false;
         }
@@ -2817,22 +2864,22 @@ namespace JBro
         // 크기가 다른 포맷이면 그때는 실제로 깨진다.
         if (false == m_ui.Initialize(*device, renderer->GetBackBufferFormat(), m_graphicsApi))
         {
-            device->DestroyTexture(m_gameView);
-            m_gameView = {};
+            device->DestroyTexture(m_simulationView);
+            m_simulationView = {};
             return false;
         }
 
         FrameTarget target;
-        target.texture = m_gameView;
-        target.extent = gameViewExtent;
-        if (false == m_engine->SetGameViewTarget(target)
+        target.texture = m_simulationView;
+        target.extent = simulationViewExtent;
+        if (false == m_engine->SetSimulationViewTarget(target)
             || false == renderer->SetFrameOverlay(&DrawEditorOverlay, this))
         {
             ReleaseEditorUi();
             return false;
         }
 
-        m_gameViewExtent = gameViewExtent;
+        m_simulationViewExtent = simulationViewExtent;
         m_uiEnabled = true;
         // 그림을 만들려면 장치와 에셋이 있어야 한다. 프로젝트가 아직 없으면 에셋도 없다.
         BindAssetTools();
@@ -3258,7 +3305,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::CanvasViewSelectedNone, "nothing chosen"));
             return;
         }
-        const char* name = primary->GetTag();
+        const char* name = primary->GetName();
         if (name == nullptr || name[0] == '\0')
         {
             name = Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)");
@@ -3318,9 +3365,9 @@ namespace JBro
         return m_uiEnabled && m_ui.WantsKeyboard();
     }
 
-    TextureHandle EditorApplication::GetGameViewTexture() const
+    TextureHandle EditorApplication::GetSimulationViewTexture() const
     {
-        return m_gameView;
+        return m_simulationView;
     }
 
     Bool EditorApplication::DidGameSubmitLastFrame() const
@@ -3328,23 +3375,23 @@ namespace JBro
         return m_engine.Get() != nullptr && m_engine->DidGameSubmitLastFrame();
     }
 
-    void EditorApplication::RequestGameView()
+    void EditorApplication::RequestSimulationView()
     {
-        m_gameViewRequested = true;
+        m_simulationViewRequested = true;
     }
 
-    void EditorApplication::ReportGameView(Bool focused, Float left, Float top, Float width, Float height)
+    void EditorApplication::ReportSimulationView(Bool focused, Float left, Float top, Float width, Float height)
     {
-        m_gameViewReported = true;
-        m_gameViewFocused = focused;
-        const Extent2D extent = GetGameViewExtent();
+        m_simulationViewReported = true;
+        m_simulationViewFocused = focused;
+        const Extent2D extent = GetSimulationViewExtent();
         if (width > 0.0f && height > 0.0f && extent.width != 0 && extent.height != 0)
         {
             // 창 클라이언트 좌표 → 게임 화면 픽셀. 멀티 뷰포트를 켜지 않았으므로 ImGui 의 화면 좌표가 곧 클라이언트 좌표다.
-            m_gameViewMapping.originX = left;
-            m_gameViewMapping.originY = top;
-            m_gameViewMapping.scaleX = static_cast<JBro::Float>(extent.width) / width;
-            m_gameViewMapping.scaleY = static_cast<JBro::Float>(extent.height) / height;
+            m_simulationViewMapping.originX = left;
+            m_simulationViewMapping.originY = top;
+            m_simulationViewMapping.scaleX = static_cast<JBro::Float>(extent.width) / width;
+            m_simulationViewMapping.scaleY = static_cast<JBro::Float>(extent.height) / height;
         }
     }
 
@@ -3353,9 +3400,9 @@ namespace JBro
         return m_gameReceivingInput;
     }
 
-    Extent2D EditorApplication::GetGameViewExtent() const
+    Extent2D EditorApplication::GetSimulationViewExtent() const
     {
-        return m_gameViewExtent;
+        return m_simulationViewExtent;
     }
 
     void EditorApplication::ClearCanvasObjects()
@@ -3405,11 +3452,11 @@ namespace JBro
         // 게임 시간·타임스케일을 처음으로 두고 난수 씨앗을 건다(D-242). 씨앗은 로그에 남는다 - 같은 재생을 다시 보려면 그 수를 적는다.
         m_engine->RestartGameTime();
         m_engine->SetSimulationEnabled(true);
-        // **게임 뷰를 앞으로 가져온다**(D-178, 기존도 재생에서 그랬다). 캔버스 뷰와 탭으로
+        // **시뮬레이션 뷰를 앞으로 가져온다**(D-178, 기존도 재생에서 그랬다). 캔버스 뷰와 탭으로
         // 겹쳐 있으면 재생을 눌러도 화면이 그대로라 아무 일도 없는 것처럼 보인다.
-        if (EditorPanel* gameView = FindPanel("Game"))
+        if (EditorPanel* simulationView = FindPanel("Simulation"))
         {
-            gameView->RequestFocus();
+            simulationView->RequestFocus();
         }
         return true;
     }
@@ -3507,18 +3554,18 @@ namespace JBro
         m_engine->StepSimulation();
     }
 
-    void EditorApplication::SetGameViewDebugDraw(Bool visible)
+    void EditorApplication::SetSimulationViewDebugDraw(Bool visible)
     {
-        m_gameViewDebugDraw = visible;
+        m_simulationViewDebugDraw = visible;
         if (m_engine.Get() != nullptr)
         {
             m_engine->SetGameDebugDrawVisible(visible);
         }
     }
 
-    Bool EditorApplication::IsGameViewDebugDrawVisible() const
+    Bool EditorApplication::IsSimulationViewDebugDrawVisible() const
     {
-        return m_gameViewDebugDraw;
+        return m_simulationViewDebugDraw;
     }
 
     void EditorApplication::SetCanvasViewDebugDraw(Bool visible)
@@ -3872,8 +3919,8 @@ namespace JBro
         // 텍스처도 그때 함께 사라졌으므로 지우려 들지 않는다 - 죽은 디바이스로
         // DestroyTexture 를 부르면 그 자리에서 터진다.
         m_ui.AbandonDevice();
-        m_gameView = {};
-        m_gameViewExtent = {};
+        m_simulationView = {};
+        m_simulationViewExtent = {};
         // 캔버스 뷰 텍스처도 디바이스와 함께 사라졌다. 지우려 들지 않고 잊는다.
         m_canvasView = {};
         m_canvasViewExtent = {};
@@ -3904,15 +3951,15 @@ namespace JBro
         // 사라진 UI 를 그리려 들거나 게임 화면이 버려진 텍스처로 간다.
         if (m_engine)
         {
-            m_engine->SetGameViewTarget({});
+            m_engine->SetSimulationViewTarget({});
             if (Renderer* renderer = m_engine->GetRenderer())
             {
                 renderer->SetFrameOverlay(nullptr, nullptr);
-                if (m_gameView.IsValid())
+                if (m_simulationView.IsValid())
                 {
                     if (IRHIDevice* device = renderer->GetDevice())
                     {
-                        device->DestroyTexture(m_gameView);
+                        device->DestroyTexture(m_simulationView);
                     }
                 }
             }
@@ -3920,8 +3967,8 @@ namespace JBro
         ReleaseCanvasViewTexture();
         ReleaseLayerThumbnails(true);
         m_ui.Shutdown();
-        m_gameView = {};
-        m_gameViewExtent = {};
+        m_simulationView = {};
+        m_simulationViewExtent = {};
         ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
@@ -4043,10 +4090,10 @@ namespace JBro
             DrawShortcutItem(EditorShortcut::StepFrame,
                 Loc::TextOr(LocKeys::MenuSimulationStep, "Step One Frame"), Icons::StepFrame);
             ImGui::Separator();
-            Bool gameDebugDraw = m_gameViewDebugDraw;
-            if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationGameDebugDraw, "Debug Lines in Game View"), gameDebugDraw))
+            Bool gameDebugDraw = m_simulationViewDebugDraw;
+            if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationViewDebugDraw, "Debug Lines in Simulation View"), gameDebugDraw))
             {
-                SetGameViewDebugDraw(gameDebugDraw);
+                SetSimulationViewDebugDraw(gameDebugDraw);
             }
             // 두 뷰의 토글을 한 메뉴에 둔다(D-243). 캔버스 뷰 도구 모음에 단추로 두면 도구 모음이 넓어져 좁은 창에서 줄이 바뀐다.
             Bool canvasDebugDraw = m_canvasViewDebugDraw;
@@ -4741,25 +4788,25 @@ namespace JBro
             m_guide.Stop(m_guideFocus);
         }
         const Bool pushed = m_ui.PushInput(input);
-        // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
-        // 기존 엔진의 `SetViewportActive` 게이트와 같다. 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
+        // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 시뮬레이션 뷰가 포커스를 가졌으면.
+        // 기존 엔진의 `SetViewportActive` 게이트와 같다. 시뮬레이션 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
         // 그러지 않으면 W 를 누른 채 인스펙터를 누르면 게임 속 캐릭터가 계속 걷는다.
-        const Bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_gameViewReported && m_gameViewFocused;
+        const Bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_simulationViewReported && m_simulationViewFocused;
         if (gameInput)
         {
-            m_engine->SubmitHostInput(input, m_gameViewMapping);
+            m_engine->SubmitHostInput(input, m_simulationViewMapping);
         }
         else if (m_gameReceivingInput)
         {
             InputEvent lost;
             lost.kind = InputEventKind::FocusLost;
-            m_engine->SubmitHostInput({&lost, 1}, m_gameViewMapping);
+            m_engine->SubmitHostInput({&lost, 1}, m_simulationViewMapping);
         }
         m_gameReceivingInput = gameInput;
         m_engine->SetHostGameInputActive(gameInput);
-        // 이번 프레임의 게임 뷰가 다시 알린다. 알리지 않으면(닫힘·가림) 다음 프레임은 게임 입력이 없다.
-        m_gameViewReported = false;
-        m_gameViewFocused = false;
+        // 이번 프레임의 시뮬레이션 뷰가 다시 알린다. 알리지 않으면(닫힘·가림) 다음 프레임은 게임 입력이 없다.
+        m_simulationViewReported = false;
+        m_simulationViewFocused = false;
         m_platform->ClearInputEvents();
         if (false == pushed)
         {
@@ -5152,18 +5199,18 @@ namespace JBro
             Log::Write(LogLevel::Error, "editor", "the editor UI could not build a frame");
             return false;
         }
-        // **게임 뷰 렌더는 매 프레임 opt-in 이다**(D-63). UI 를 먼저 만들었으므로 이 프레임에
-        // 게임 뷰 패널이 그려졌는지 이미 안다. 패널이 닫히거나 다른 탭에 가려진 프레임에는
+        // **시뮬레이션 뷰 렌더는 매 프레임 opt-in 이다**(D-63). UI 를 먼저 만들었으므로 이 프레임에
+        // 시뮬레이션 뷰 패널이 그려졌는지 이미 안다. 패널이 닫히거나 다른 탭에 가려진 프레임에는
         // 뷰를 기록하지 않고, 텍스처는 파기하지 않아 다시 보일 때 마지막 그림에서 이어진다.
-        if (m_uiEnabled && m_gameView.IsValid())
+        if (m_uiEnabled && m_simulationView.IsValid())
         {
             FrameTarget target;
-            target.texture = m_gameView;
-            target.extent = m_gameViewExtent;
-            target.recordViews = m_gameViewRequested;
-            m_engine->SetGameViewTarget(target);
+            target.texture = m_simulationView;
+            target.extent = m_simulationViewExtent;
+            target.recordViews = m_simulationViewRequested;
+            m_engine->SetSimulationViewTarget(target);
         }
-        m_gameViewRequested = false;
+        m_simulationViewRequested = false;
         // 캔버스 뷰도 같은 규칙이다(D-130). 이 프레임에 패널이 붙였으면 한 번 더 그린다.
         if (m_uiEnabled && m_canvasViewRequested)
         {

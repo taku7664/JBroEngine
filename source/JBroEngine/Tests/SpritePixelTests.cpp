@@ -168,7 +168,7 @@ namespace
         platform.PumpEvents();
         platform.Shutdown();
     }
-    // **같은 렌더러가 같은 그림을 텍스처로도 내놓아야 한다.** 에디터의 게임 뷰는
+    // **같은 렌더러가 같은 그림을 텍스처로도 내놓아야 한다.** 에디터의 시뮬레이션 뷰는
     // 그 차이 하나로 성립한다 - 렌더 경로가 갈리면 에디터에서 보는 것과 실행했을 때
     // 보는 것이 달라지고, 그 어긋남은 한참 뒤에야 드러난다(D-63).
     template <typename TModule>
@@ -206,7 +206,7 @@ namespace
         JBro::IRHIDevice* device = renderer.GetDevice();
         Check(device != nullptr, "the renderer must hand out the device it made");
 
-        // **게임 뷰는 창보다 크다.** 게임 해상도가 에디터 창보다 큰 것이 보통이고,
+        // **시뮬레이션 뷰는 창보다 크다.** 게임 해상도가 에디터 창보다 큰 것이 보통이고,
         // 여기서 일부러 그렇게 잡는다 - 뷰포트를 재는 기준이 창에 묶여 있으면
         // 타깃 안에 멀쩡히 들어가는 뷰포트가 "화면 밖" 으로 거절당한다.
         constexpr JBro::UInt32 TargetWidth = 96;
@@ -216,8 +216,8 @@ namespace
         targetDesc.extent = {TargetWidth, TargetHeight};
         targetDesc.format = JBro::TextureFormat::BGRA8Unorm;
         targetDesc.usage = JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
-        const JBro::TextureHandle gameView = device->CreateTexture(targetDesc);
-        Check(gameView.IsValid(), "the game view texture must be created");
+        const JBro::TextureHandle simulationView = device->CreateTexture(targetDesc);
+        Check(simulationView.IsValid(), "the simulation view texture must be created");
 
         JBro::CameraParams camera;
         camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f,
@@ -243,12 +243,12 @@ namespace
 
         // 크기 없이 텍스처만 주는 것은 거절한다.
         JBro::FrameTarget sizeless;
-        sizeless.texture = gameView;
+        sizeless.texture = simulationView;
         Check(renderer.BeginFrame(sizeless) == JBro::FrameStatus::InvalidState,
             "a target without a size must be refused");
 
         JBro::FrameTarget target;
-        target.texture = gameView;
+        target.texture = simulationView;
         target.extent = {TargetWidth, TargetHeight};
         Check(renderer.BeginFrame(target) == JBro::FrameStatus::Ready,
             "the frame aimed at a texture must begin");
@@ -260,8 +260,8 @@ namespace
         JBro::Array<std::byte> image;
         image.Resize(TargetWidth * TargetHeight * 4);
         JBro::TextureReadback readback;
-        Check(device->ReadTexture(gameView, image.Data(), image.Size(), readback),
-            "the game view texture must read back");
+        Check(device->ReadTexture(simulationView, image.Data(), image.Size(), readback),
+            "the simulation view texture must read back");
         Check(readback.extent.width == TargetWidth && readback.extent.height == TargetHeight,
             "and describe the texture, not the window");
 
@@ -297,7 +297,7 @@ namespace
         Check(Near(windowLeft.r, 1.0f) && Near(windowLeft.g, 0.5f) && Near(windowLeft.b, 0.25f),
             "and the sprite must be on it, not still going to the texture");
 
-        device->DestroyTexture(gameView);
+        device->DestroyTexture(simulationView);
         renderer.Shutdown();
         rhi.Shutdown();
         platform.ClosePlatformWindow(window);
@@ -387,8 +387,8 @@ namespace
         targetDesc.extent = {32, 32};
         targetDesc.format = JBro::TextureFormat::BGRA8Unorm;
         targetDesc.usage = JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
-        const JBro::TextureHandle gameView = device->CreateTexture(targetDesc);
-        Check(gameView.IsValid(), "the game view texture must be created");
+        const JBro::TextureHandle simulationView = device->CreateTexture(targetDesc);
+        Check(simulationView.IsValid(), "the simulation view texture must be created");
 
         OverlayProbe probe;
         Check(renderer.HasFrameOverlay() == false, "there is no overlay to begin with");
@@ -396,7 +396,7 @@ namespace
         Check(renderer.HasFrameOverlay(), "and say so");
 
         JBro::FrameTarget target;
-        target.texture = gameView;
+        target.texture = simulationView;
         target.extent = {32, 32};
         Check(renderer.BeginFrame(target) == JBro::FrameStatus::Ready, "the frame must begin");
         // 프레임이 열린 동안에는 오버레이를 바꿀 수 없다.
@@ -439,7 +439,7 @@ namespace
         Check(renderer.SetFrameOverlay(nullptr, nullptr), "the overlay must detach");
         Check(renderer.HasFrameOverlay() == false, "and say so");
 
-        device->DestroyTexture(gameView);
+        device->DestroyTexture(simulationView);
         renderer.Shutdown();
         rhi.Shutdown();
         platform.ClosePlatformWindow(window);

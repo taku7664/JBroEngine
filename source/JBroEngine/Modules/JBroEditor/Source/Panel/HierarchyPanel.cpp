@@ -125,7 +125,7 @@ namespace JBro
         {
             return true;
         }
-        if (ContainsFold(object.GetTag(), m_filter))
+        if (ContainsFold(object.GetName(), m_filter))
         {
             return true;
         }
@@ -538,29 +538,8 @@ namespace JBro
         const LayerId layerId = layer.GetId();
         Bool alive = true;
 
-        // 이름 고치기는 팝업 안의 글자 칸이다. 줄 위에서 바로 고치게 하면 그 줄의
-        // 클릭·끌기와 뒤섞인다.
-        if (m_renaming != layerId)
-        {
-            m_renaming = layerId;
-            m_renameText = layer.GetName();
-        }
-        Widget::Text(Loc::TextOr(LocKeys::HierarchyLayerName, "Name"));
-        // **편집이 끝날 때 한 번만 커맨드를 낸다**(D-183, 기존 `ImInputText` +
-        // `IsItemDeactivatedAfterEdit`). 글자마다 내면 이름을 열 자 고친 것을 되돌리는 데
-        // 실행 취소가 열 번 들고, 커맨드 병합은 마우스를 누른 채일 때만 일어나므로
-        // 타이핑에는 걸리지 않는다. 인스펙터의 오브젝트 이름 칸이 이미 이 수를 쓴다.
-        const Bool renamed = Widget::TextField("##layerName", m_renameText)
-            .Width(180.0f)
-            .CommitOnFinish()
-            .Draw();
-        if (renamed && m_renameText != layer.GetName())
-        {
-            m_editor->GetCommands().Execute(
-                MakeOwnerPtr<RenameLayerCommand>(*canvas, layerId, m_renameText.c_str()));
-        }
-
-        ImGui::Separator();
+        // 이름은 여기서 고치지 않는다. 오브젝트처럼 인스펙터에서만 고친다 - 우클릭 메뉴가 레이어에만 이름 칸을 두면
+        // 같은 일을 하는 길이 줄마다 다르다.
         // **화면 레이어**(D-237). 켜고 끄면 루트의 자리가 게임 화면에서 보이던 곳에 남는다(`MakeLayerSpaceCommand`).
         {
             const Bool screen = layer.GetSpace() == LayerSpace::Screen;
@@ -626,10 +605,6 @@ namespace JBro
             }
         }
         Widget::EndContextMenu();
-        if (false == alive)
-        {
-            m_renaming = InvalidLayerId;
-        }
         return alive;
     }
 
@@ -643,7 +618,7 @@ namespace JBro
         // 되살려도 같은 것을 가리킨다(D-72).
         const EditorObjectId id = m_editor->GetObjectIds().Track(&object);
         Widget::SetDragValue(Widget::DragKind::HierarchyObject, id);
-        const char* name = object.GetTag();
+        const char* name = object.GetName();
         Widget::Text(name != nullptr && *name != '\0'
             ? name
             : Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)"));
@@ -924,8 +899,8 @@ namespace JBro
         // 줄과 접혀서 그리지 않은 자식은 들어오지 않는다.
         m_visibleRows.Add(&object);
 
-        // 이름은 태그로 산다 - `Canvas::CreateObject(name)` 이 거기에 넣는다.
-        const char* name = object.GetTag();
+        // 이름은 `Canvas::CreateObject(name)` 이 넣는다.
+        const char* name = object.GetName();
         if (name == nullptr || *name == '\0')
         {
             name = Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)");
@@ -1063,7 +1038,7 @@ namespace JBro
                 Widget::HintText(name);
             }
             ImGui::SetCursorScreenPos(cursor);
-            // **캔버스 뷰에서만 감추는 눈이다**(D-163, 기존 레이어 창의 `EditorHidden`). 게임 뷰와 게임에는 그대로 나온다.
+            // **캔버스 뷰에서만 감추는 눈이다**(D-163, 기존 레이어 창의 `EditorHidden`). 시뮬레이션 뷰와 게임에는 그대로 나온다.
             const Bool shown = false == object.IsEditorHidden();
             if (Widget::RowEyeToggle(row, "##eye", shown,
                     Loc::TextOr(LocKeys::HierarchyObjectHidden, "hide or show in the canvas view")))

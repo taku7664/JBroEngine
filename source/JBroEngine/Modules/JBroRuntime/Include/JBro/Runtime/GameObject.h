@@ -37,7 +37,7 @@ namespace JBro
     };
 
     // 오브젝트 플래그의 비트다(D-163). 캔버스 파일에 `Flags` 로 적힌다.
-    // `EditorHidden` 은 **에디터의 캔버스 뷰에서만** 감춘다(기존 엔진 `ObjectFlag_EditorHidden`) - 게임 뷰와 게임 실행은
+    // `EditorHidden` 은 **에디터의 캔버스 뷰에서만** 감춘다(기존 엔진 `ObjectFlag_EditorHidden`) - 시뮬레이션 뷰와 게임 실행은
     // 보지 않고, 게임으로 묶을 때(패킹) 파일에서 뺀다.
     inline constexpr UInt32 ObjectFlagEditorHidden = 1u << 0;
     // 패킹할 때 지우는 비트들이다. 에디터에서만 뜻이 있다.
@@ -81,12 +81,21 @@ namespace JBro
         Bool IsActiveInHierarchy() const;
         void SetActive(Bool active);
 
-        // 태그·플래그(B10)
-        // 태그는 정수로 산다(D-51). 문자열은 NameTable 에만 있고 여기서는 되찾아 줄 뿐이다.
+        // 이름·플래그(B10)
+        // 이름은 정수로 산다(D-51). 문자열은 NameTable 에만 있고 여기서는 되찾아 줄 뿐이다.
+        // 예전에는 이것을 `GetTag` 라고 불렀다 - 진짜 태그와 갈라 이름으로 바꿨다(D-297).
+        const char*   GetName() const;
+        void          SetName(const char* name);
+        NameId        GetNameId() const;
+        void          SetNameId(NameId name);
+        // 태그(D-297). 프로젝트의 태그 목록(`.jproject` 의 `Tags`)에서 고른 하나이고, 비어 있으면 태그가 없다. 이름처럼 정수로 산다.
+        // 목록에 없는 글자도 받는다 - 목록은 에디터가 고르는 칸이고, 목록에서 지운 태그를 단 오브젝트가 깨지면 안 된다.
         const char*   GetTag() const;
         void          SetTag(const char* tag);
         NameId        GetTagId() const;
         void          SetTagId(NameId tag);
+        // 글자를 정수로 바꿔 견준다. 문자열을 견주지 않는다.
+        Bool          CompareTag(const char* tag) const;
         UInt32 GetFlags() const;
         void          SetFlags(UInt32 flags);
         Bool IsEditorHidden() const
@@ -160,6 +169,7 @@ namespace JBro
         Bool                          m_destroying = false;
         Bool                          m_active = true;
         Bool                          m_activeInHierarchy = true;
+        NameId                        m_name = InvalidNameId;
         NameId                        m_tag = InvalidNameId;
     };
 

@@ -5,7 +5,7 @@
 #include "Panel/AssetBrowserPanel.h"
 #include "Panel/CanvasViewPanel.h"
 #include "Panel/EditorSettingsPanel.h"
-#include "Panel/GameViewPanel.h"
+#include "Panel/SimulationViewPanel.h"
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
 #include "Panel/LogPanel.h"
@@ -125,10 +125,10 @@ namespace JBro
             return;
         }
         registered = true;
-        // **첫 번째가 가운데를 갖는다 - 편집 화면이 거기여야 한다.** 게임 뷰도 같은 칸에
+        // **첫 번째가 가운데를 갖는다 - 편집 화면이 거기여야 한다.** 시뮬레이션 뷰도 같은 칸에
         // 탭으로 들어가지만, 처음 보이는 것은 만드는 화면이다(D-130).
         RegisterEditorPanelType<CanvasViewPanel>(true);
-        RegisterEditorPanelType<GameViewPanel>(true);
+        RegisterEditorPanelType<SimulationViewPanel>(true);
         RegisterEditorPanelType<HierarchyPanel>(true);
         RegisterEditorPanelType<InspectorPanel>(true);
         RegisterEditorPanelType<AssetBrowserPanel>(true);

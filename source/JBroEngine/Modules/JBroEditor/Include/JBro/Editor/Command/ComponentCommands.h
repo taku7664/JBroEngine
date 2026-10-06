@@ -149,4 +149,8 @@ namespace JBro
         std::size_t m_from = 0;
         std::size_t m_to = 0;
     };
+
+    // 슬롯 `from` 의 머리를 슬롯 `target` 머리의 앞(`before`)이나 뒤에 놓았을 때 `MoveComponentCommand` 가 받을 `to` 다(D-294).
+    // 끌어 온 것이 빠진 뒤의 자리로 센다 - 뒤쪽 머리 앞에 놓으면 한 칸 당겨진다. 제자리면 `from` 을 돌려준다.
+    std::size_t ComponentDropSlot(std::size_t from, std::size_t target, Bool before);
 }

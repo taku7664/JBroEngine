@@ -166,6 +166,9 @@ namespace JBro
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         Bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
+        // 프로젝트 태그 목록(`Tags`, D-297)에 하나를 더한다. 이미 있으면 그대로 참이다. 파일로 연 프로젝트면 파일에 쓰고,
+        // 파일 없이 연 프로젝트면 에디터가 든 값만 바꾼다. 빈 글자는 거절한다.
+        Bool AddProjectTag(const char* tag, ProjectFileError& error);
         // 물리 스레드의 추천 워커 수(D-223). 빌드 캔버스의 콜라이더를 센다. 2D 프로젝트가 아니면 0 이다.
         UInt32 RecommendPhysicsWorkers();
 
@@ -343,13 +346,13 @@ namespace JBro
         // `.jproject` 의 `LastOpenedCanvasPath` 처럼 그 파일 안의 경로가 전부 상대다.
         String ResolveProjectPath(const char* relativePath) const;
 
-        // 에디터 UI 를 켠다(D-63). 켜면 게임 화면은 `gameViewExtent` 크기의
+        // 에디터 UI 를 켠다(D-63). 켜면 게임 화면은 `simulationViewExtent` 크기의
         // 텍스처로 가고, 창에는 그 텍스처를 패널에 붙인 UI 가 그려진다.
         //
         // **크기는 게임 해상도지 패널 크기가 아니다.** 패널에 맞춰 만들면 창을
         // 끌 때마다 텍스처를 다시 만들게 되고, 무엇보다 게임이 보는 화면 크기가
         // 에디터 창에 따라 달라진다 - 화면 좌표를 쓰는 스크립트가 어긋난다.
-        Bool EnableEditorUi(const Extent2D& gameViewExtent);
+        Bool EnableEditorUi(const Extent2D& simulationViewExtent);
         // 끄면 게임이 다시 백버퍼로 간다. 게임 실행과 같은 경로다.
         void DisableEditorUi();
         Bool IsEditorUiEnabled() const;
@@ -457,29 +460,29 @@ namespace JBro
         std::size_t GetPanelCount() const;
 
         // 게임 화면이 그려지는 텍스처다. UI 가 꺼져 있으면 비어 있다.
-        TextureHandle GetGameViewTexture() const;
-        // 게임 뷰 패널이 이 프레임에 게임 화면을 붙였다. 그 프레임에만 게임 뷰를 렌더한다(D-63).
-        void RequestGameView();
-        // **게임이 지난 프레임에 그릴 것을 냈는가**(D-178). 게임 뷰가 "카메라 없음" 을
+        TextureHandle GetSimulationViewTexture() const;
+        // 시뮬레이션 뷰 패널이 이 프레임에 게임 화면을 붙였다. 그 프레임에만 시뮬레이션 뷰를 렌더한다(D-63).
+        void RequestSimulationView();
+        // **게임이 지난 프레임에 그릴 것을 냈는가**(D-178). 시뮬레이션 뷰가 "카메라 없음" 을
         // 언제 말할지 정하는 값이다 - 텍스처가 있는지만 보면 카메라가 없어도 검은 화면을
         // "실행 중" 이라고 말하게 된다.
         Bool DidGameSubmitLastFrame() const;
         // 지난 프레임에 게임을 그린 2D 카메라다(D-239). 2D 프로젝트가 아니거나 카메라가 없으면 null 이다.
         const RenderCamera2D* GetGameCamera2D() const;
-        // 켜져 있지만 값이 잘못되어 건너뛴 2D 카메라 수다(D-239). 게임 뷰가 "카메라 없음" 대신 그 까닭을 보인다.
+        // 켜져 있지만 값이 잘못되어 건너뛴 2D 카메라 수다(D-239). 시뮬레이션 뷰가 "카메라 없음" 대신 그 까닭을 보인다.
         UInt32 GetUnusableGameCameraCount() const;
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
-        Extent2D GetGameViewExtent() const;
-        // 게임 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
+        Extent2D GetSimulationViewExtent() const;
+        // 시뮬레이션 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
         // 그 패널이 포커스를 가졌는지다. 게임 입력의 마우스를 게임 화면 픽셀로 옮기는 데 쓴다(D-214).
-        void ReportGameView(Bool focused, Float left, Float top, Float width, Float height);
-        // 이번 프레임에 게임이 에디터 창의 입력을 받는가(D-214). 재생 중이고 멈추지 않았으며 **지난 프레임에** 게임 뷰가
+        void ReportSimulationView(Bool focused, Float left, Float top, Float width, Float height);
+        // 이번 프레임에 게임이 에디터 창의 입력을 받는가(D-214). 재생 중이고 멈추지 않았으며 **지난 프레임에** 시뮬레이션 뷰가
         // 포커스를 가졌을 때다. 그 동안 에디터 단축키는 재생 제어(F5·F6)만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
         Bool IsGameReceivingInput() const;
 
         // ── 캔버스 뷰(편집 화면) ─────────────────────────────────────────
         //
-        // 기존 엔진에서 유니티의 씬 뷰 노릇을 하던 화면이다(D-130). 게임 뷰는 게임의
+        // 기존 엔진에서 유니티의 씬 뷰 노릇을 하던 화면이다(D-130). 시뮬레이션 뷰는 게임의
         // 카메라가 보는 것이고 이쪽은 **편집 카메라**가 보는 것이다. 둘은 역할이
         // 다르므로 같은 프레임에 함께 있어야 한다.
         //
@@ -488,7 +491,7 @@ namespace JBro
         // 넓혔을 때 흐려지지 않는다.
         //
         // 매 프레임 다시 건다. 걸지 않은 프레임에는 그리지 않고 텍스처는 그대로 둔다
-        // (게임 뷰와 같은 규칙이다, D-63).
+        // (시뮬레이션 뷰와 같은 규칙이다, D-63).
         // ── 시뮬레이션 (D-131) ───────────────────────────────────────────
         //
         // 기존 엔진과 같은 뜻이다: **재생을 누르기 전의 캔버스로 돌아온다.** 게임을 돌리면
@@ -509,9 +512,9 @@ namespace JBro
         Bool IsSimulationPaused() const;
         // 멈춘 재생을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 재생 중이고 멈춰 있을 때만 뜻이 있다.
         void StepSimulation();
-        // 스크립트의 디버그 선을 게임 뷰·캔버스 뷰에 그릴지다(D-243). 둘 다 처음에는 켜져 있다.
-        void SetGameViewDebugDraw(Bool visible);
-        Bool IsGameViewDebugDrawVisible() const;
+        // 스크립트의 디버그 선을 시뮬레이션 뷰·캔버스 뷰에 그릴지다(D-243). 둘 다 처음에는 켜져 있다.
+        void SetSimulationViewDebugDraw(Bool visible);
+        Bool IsSimulationViewDebugDrawVisible() const;
         void SetCanvasViewDebugDraw(Bool visible);
         Bool IsCanvasViewDebugDrawVisible() const;
         // 엔진의 시계·디버그 선·난수 씨앗이다(D-242, D-243). 통계 창과 시험이 읽는다. 엔진이 없으면 null·0 이다.
@@ -523,7 +526,7 @@ namespace JBro
         // `lighting` 이 거짓이면 2D 라이트 없이 그린다(D-291) - 캔버스 뷰의 라이팅 단추다.
         Bool RequestCanvasView(const Extent2D& extent, Float centerX, Float centerY, Float orthographicSize,
             Bool screenSpace = false, InstanceId focusObject = InvalidInstanceId, Bool lighting = true);
-        // 게임이 쓰는 화면 기준이다(D-237): 프로젝트의 기준 해상도와 게임 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
+        // 게임이 쓰는 화면 기준이다(D-237): 프로젝트의 기준 해상도와 시뮬레이션 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
         // 게임 카메라가 `PixelPerfect` 면 그 레터박스 사각형도 걸려 있다(D-239) - 게임이 쓰는 것과 같은 함수로 건다.
         ScreenSpaceFrame GetGameScreenSpace() const;
         // 캔버스 뷰가 마지막으로 UI 보기를 청했는가(D-237). 시험과 상태 표시가 읽는다.
@@ -855,9 +858,9 @@ namespace JBro
         Bool m_selectedAssetMetaLoaded = false;
         void ReloadSelectedAssetMeta();
         EditorObjectRegistry m_objectIds;
-        TextureHandle m_gameView;
-        Extent2D m_gameViewExtent;
-        Bool m_gameViewRequested = false;
+        TextureHandle m_simulationView;
+        Extent2D m_simulationViewExtent;
+        Bool m_simulationViewRequested = false;
         // 캔버스 뷰가 그려지는 텍스처와 이번 프레임의 요청(D-130).
         TextureHandle m_canvasView;
         Extent2D m_canvasViewExtent;
@@ -902,14 +905,14 @@ namespace JBro
         UInt32 m_stringKeysRevision = 0;
         Bool m_simulationPlaying = false;
         Bool m_simulationPaused = false;
-        Bool m_gameViewDebugDraw = true;
+        Bool m_simulationViewDebugDraw = true;
         Bool m_canvasViewDebugDraw = true;
-        // 게임 입력(D-214). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
-        // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(게임 뷰를 누르면 포커스부터 온다).
-        Bool m_gameViewFocused = false;
-        Bool m_gameViewReported = false;
+        // 게임 입력(D-214). 시뮬레이션 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
+        // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(시뮬레이션 뷰를 누르면 포커스부터 온다).
+        Bool m_simulationViewFocused = false;
+        Bool m_simulationViewReported = false;
         Bool m_gameReceivingInput = false;
-        InputSurfaceMapping m_gameViewMapping;
+        InputSurfaceMapping m_simulationViewMapping;
         // 캔버스를 비운다. 되돌리기 위해 다시 읽어 넣기 전에 부른다.
         void ClearCanvasObjects();
         Bool m_uiEnabled = false;

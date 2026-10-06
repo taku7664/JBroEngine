@@ -977,7 +977,7 @@ namespace
         Check(pasted.Size() == 1 && pasted[0] != JBro::InvalidEditorObjectId && pasted[0] != sourceId,
             "under a number of its own, not the source's");
         JBro::GameObject* copy = ids.Resolve(pasted[0]);
-        Check(copy != nullptr && copy != parent && std::strcmp(copy->GetTag(), "Parent") == 0,
+        Check(copy != nullptr && copy != parent && std::strcmp(copy->GetName(), "Parent") == 0,
             "the pasted root must be a new object with the same name");
         Check(copy->GetParent() == nullptr, "at the canvas root when no parent was given");
         auto* copiedTransform = canvas.FindComponentRaw<JBro::Component::Transform2D>(copy);

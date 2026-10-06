@@ -10,7 +10,7 @@
 namespace JBro::LocKeys
 {
     // ── 패널 제목 ────────────────────────────────────────────────────────
-    inline constexpr const char* PanelGame = "panel.game";
+    inline constexpr const char* PanelSimulation = "panel.simulation";
     inline constexpr const char* PanelCanvasView = "panel.canvas_view";
     inline constexpr const char* PanelHierarchy = "panel.hierarchy";
     inline constexpr const char* PanelInspector = "panel.inspector";
@@ -21,7 +21,7 @@ namespace JBro::LocKeys
     inline constexpr const char* PanelProfiler = "panel.profiler";
     inline constexpr const char* PanelAssets = "panel.assets";
 
-    // ── 게임 뷰의 기즈모 (D-109) ─────────────────────────────────────────
+    // ── 시뮬레이션 뷰의 기즈모 (D-109) ─────────────────────────────────────────
     inline constexpr const char* GizmoTranslate = "gizmo.translate";
     inline constexpr const char* GizmoRotate = "gizmo.rotate";
     inline constexpr const char* GizmoScale = "gizmo.scale";
@@ -66,14 +66,14 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewUnitPixel = "canvas_view.unit_pixel";
     inline constexpr const char* CanvasViewUnitTooltip = "canvas_view.unit_tooltip";
 
-    // ── 게임 뷰의 상태 표시 (D-131) ──────────────────────────────────────
-    inline constexpr const char* GameViewPlaying = "game_view.playing";
-    inline constexpr const char* GameViewStopped = "game_view.stopped";
-    inline constexpr const char* GameViewNoCanvas = "game_view.no_canvas";
-    inline constexpr const char* GameViewNoCamera = "game_view.no_camera";
-    inline constexpr const char* GameViewCameraUnusable = "game_view.camera_unusable";
+    // ── 시뮬레이션 뷰의 상태 표시 (D-131) ──────────────────────────────────────
+    inline constexpr const char* SimulationViewPlaying = "simulation_view.playing";
+    inline constexpr const char* SimulationViewStopped = "simulation_view.stopped";
+    inline constexpr const char* SimulationViewNoCanvas = "simulation_view.no_canvas";
+    inline constexpr const char* SimulationViewNoCamera = "simulation_view.no_camera";
+    inline constexpr const char* SimulationViewCameraUnusable = "simulation_view.camera_unusable";
     // `primary` 가 없어 첫 활성 카메라로 그리는데 그런 카메라가 여럿일 때(D-187).
-    inline constexpr const char* GameViewCameraAmbiguous = "game_view.camera_ambiguous";
+    inline constexpr const char* SimulationViewCameraAmbiguous = "simulation_view.camera_ambiguous";
 
     // ── 메뉴 ─────────────────────────────────────────────────────────────
     inline constexpr const char* MenuFile = "menu.file";
@@ -84,7 +84,7 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuSimulationStop = "menu.simulation_stop";
     inline constexpr const char* MenuSimulationPause = "menu.simulation_pause";
     inline constexpr const char* MenuSimulationStep = "menu.simulation_step";
-    inline constexpr const char* MenuSimulationGameDebugDraw = "menu.simulation_game_debug_draw";
+    inline constexpr const char* MenuSimulationViewDebugDraw = "menu.simulation_view_debug_draw";
     inline constexpr const char* MenuSimulationCanvasDebugDraw = "menu.simulation_canvas_debug_draw";
     inline constexpr const char* MenuOpenProject = "menu.open_project";
     inline constexpr const char* MenuWindowEditor = "menu.window_editor";
@@ -137,6 +137,12 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyCopy = "hierarchy.copy";
     inline constexpr const char* HierarchyPaste = "hierarchy.paste";
     inline constexpr const char* HierarchyPasteAsChild = "hierarchy.paste_as_child";
+    // 오브젝트 메뉴의 `순서` 하위 메뉴(D-296). 같은 레이어·같은 renderOrder 끼리의 그리는 차례다.
+    inline constexpr const char* HierarchyDrawOrder = "hierarchy.draw_order";
+    inline constexpr const char* HierarchyBringForward = "hierarchy.bring_forward";
+    inline constexpr const char* HierarchyBringToFront = "hierarchy.bring_to_front";
+    inline constexpr const char* HierarchySendBackward = "hierarchy.send_backward";
+    inline constexpr const char* HierarchySendToBack = "hierarchy.send_to_back";
     inline constexpr const char* HierarchyUnparent = "hierarchy.unparent";
     inline constexpr const char* HierarchyUnnamed = "hierarchy.unnamed";
     inline constexpr const char* HierarchySearch = "hierarchy.search";
@@ -191,6 +197,13 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorNothingSelected = "inspector.nothing_selected";
     inline constexpr const char* InspectorActive = "inspector.active";
     inline constexpr const char* InspectorName = "inspector.name";
+    // 인스펙터 머리의 태그 칸(D-297). 목록은 프로젝트의 `Tags` 이고 맨 끝 항목이 새 태그를 더한다.
+    inline constexpr const char* InspectorTag = "inspector.tag";
+    inline constexpr const char* InspectorTagNone = "inspector.tag_none";
+    inline constexpr const char* InspectorTagAdd = "inspector.tag_add";
+    inline constexpr const char* InspectorTagAddConfirm = "inspector.tag_add_confirm";
+    inline constexpr const char* InspectorTagNameHint = "inspector.tag_name_hint";
+    inline constexpr const char* ProjectSettingsTags = "project_settings.tags";
     inline constexpr const char* InspectorEnabled = "inspector.enabled";
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
     inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";
@@ -264,6 +277,9 @@ namespace JBro::LocKeys
     inline constexpr const char* BlockedLastLayer = "blocked.last_layer";
     inline constexpr const char* BlockedNoParent = "blocked.no_parent";
     inline constexpr const char* BlockedPanelNotOpen = "blocked.panel_not_open";
+    inline constexpr const char* BlockedNoDrawing = "blocked.no_drawing";
+    inline constexpr const char* BlockedAlreadyFront = "blocked.already_front";
+    inline constexpr const char* BlockedAlreadyBack = "blocked.already_back";
     inline constexpr const char* CommandPaletteTitle = "command_palette.title";
     inline constexpr const char* CommandPaletteSearchHint = "command_palette.search_hint";
     inline constexpr const char* CommandPaletteNoMatch = "command_palette.no_match";

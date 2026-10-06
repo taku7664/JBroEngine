@@ -192,6 +192,26 @@ namespace JBro
             return context.editor->PasteClipboard(true);
         }
 
+        // 그리는 차례(D-296). 오브젝트 메뉴면 우클릭한 것, 단축키면 고른 것 하나다.
+        template <EditorActions::DrawOrderMove Move>
+        Bool CanDrawOrder(const EditorActionContext& context)
+        {
+            GameObject* target = Target(context);
+            return target != nullptr && EditorActions::WhyNoDrawOrder(*context.editor, *target, Move) == nullptr;
+        }
+        template <EditorActions::DrawOrderMove Move>
+        const char* WhyNoDrawOrder(const EditorActionContext& context)
+        {
+            GameObject* target = Target(context);
+            return target == nullptr ? NothingSelected() : EditorActions::WhyNoDrawOrder(*context.editor, *target, Move);
+        }
+        template <EditorActions::DrawOrderMove Move>
+        Bool DoDrawOrder(EditorActionContext& context)
+        {
+            GameObject* target = Target(context);
+            return target != nullptr && EditorActions::MoveDrawOrder(*context.editor, *target, Move);
+        }
+
         Bool CanDelete(const EditorActionContext& context)
         {
             // 줄에서 연 메뉴는 그 오브젝트를 지운다.
@@ -523,6 +543,57 @@ namespace JBro
             info.primary = Bind(ImGuiKey_Delete);
             info.mayRemoveObject = true;
             actions.Register(info);
+        }
+        // **그리는 차례**(D-296). 조합은 포토샵·파워포인트와 같다 - Ctrl+] 앞으로, Ctrl+Shift+] 맨 앞으로, [ 는 뒤로.
+        {
+            using EditorActions::DrawOrderMove;
+            struct DrawOrderAction
+            {
+                const char* name;
+                const char* labelKey;
+                const char* fallback;
+                DrawOrderMove move;
+                ImGuiKey key;
+                Bool shift;
+            };
+            const DrawOrderAction drawOrders[] = {
+                { "object.bring_forward", LocKeys::HierarchyBringForward, "Bring Forward", DrawOrderMove::Forward, ImGuiKey_RightBracket, false },
+                { "object.bring_to_front", LocKeys::HierarchyBringToFront, "Bring to Front", DrawOrderMove::ToFront, ImGuiKey_RightBracket, true },
+                { "object.send_backward", LocKeys::HierarchySendBackward, "Send Backward", DrawOrderMove::Backward, ImGuiKey_LeftBracket, false },
+                { "object.send_to_back", LocKeys::HierarchySendToBack, "Send to Back", DrawOrderMove::ToBack, ImGuiKey_LeftBracket, true },
+            };
+            for (const DrawOrderAction& order : drawOrders)
+            {
+                Bool (*can)(const EditorActionContext&) = nullptr;
+                const char* (*why)(const EditorActionContext&) = nullptr;
+                Bool (*execute)(EditorActionContext&) = nullptr;
+                switch (order.move)
+                {
+                case DrawOrderMove::Forward:
+                    can = &CanDrawOrder<DrawOrderMove::Forward>;
+                    why = &WhyNoDrawOrder<DrawOrderMove::Forward>;
+                    execute = &DoDrawOrder<DrawOrderMove::Forward>;
+                    break;
+                case DrawOrderMove::ToFront:
+                    can = &CanDrawOrder<DrawOrderMove::ToFront>;
+                    why = &WhyNoDrawOrder<DrawOrderMove::ToFront>;
+                    execute = &DoDrawOrder<DrawOrderMove::ToFront>;
+                    break;
+                case DrawOrderMove::Backward:
+                    can = &CanDrawOrder<DrawOrderMove::Backward>;
+                    why = &WhyNoDrawOrder<DrawOrderMove::Backward>;
+                    execute = &DoDrawOrder<DrawOrderMove::Backward>;
+                    break;
+                case DrawOrderMove::ToBack:
+                    can = &CanDrawOrder<DrawOrderMove::ToBack>;
+                    why = &WhyNoDrawOrder<DrawOrderMove::ToBack>;
+                    execute = &DoDrawOrder<DrawOrderMove::ToBack>;
+                    break;
+                }
+                EditorActionInfo info = Action(order.name, order.labelKey, order.fallback, LocKeys::MenuEdit, Object, can, why, execute);
+                info.primary = Bind(order.key, true, order.shift);
+                actions.Register(info);
+            }
         }
         // **게임이 키를 받는 동안은 재생 제어만 남긴다**(D-214). 게임의 Delete 가 선택한 오브젝트를 지우고 Ctrl+Z 가
         // 편집을 되돌리면 안 된다.

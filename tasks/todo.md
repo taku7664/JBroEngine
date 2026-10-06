@@ -71,7 +71,7 @@
   - 지금 흩어진 자리(2026-09-26 확인): 표 밖에서 키를 직접 읽는 곳이 있다 - `Widget/Gizmo.cpp` 의 W/E/R(`ImGui::IsKeyPressed`)은 표에 없어 도움말에도
     안 나오고 바꿀 수도 없다. 이 항목이 서면 표로 옮긴다. `Widget/FilterCombo.cpp` 의 Enter 는 칸 안의 편집 키라 단축키가 아니다(옮기지 않음).
   - 정할 것: 포커스 범위의 단위(패널 창 하나인지, 에디터 묶음인지), 중첩 창(팝업·도킹된 창)에서 포커스를 누구로 볼지, 기본 우선순위(포커스 > 전역이
-    일반적 - VSCode·언리얼이 이렇다), 블로킹 기본값, 재생 중 게임 뷰 포커스(D-214 는 재생 제어만 통과시킨다)와의 관계.
+    일반적 - VSCode·언리얼이 이렇다), 블로킹 기본값, 재생 중 시뮬레이션 뷰 포커스(D-214 는 재생 제어만 통과시킨다)와의 관계.
 - ~~`[진행 예정]` **3. 모든 툴팁 호버에 딜레이.** 지금 `Widget::HoveredTooltip`(`Widget/Common.cpp`)은 `ImGui::IsItemHovered(flags)` 뒤에
   곧바로 `SetTooltip` 이라 마우스가 지나가기만 해도 뜬다. 공용 위젯 한 곳에서 딜레이를 걸고(ImGui 의 `ImGuiHoveredFlags_DelayNormal`
   같은 플래그 또는 자체 값), `FieldLabel`·`IconButton`·`StatusBadge`·`ActionButton`·`FilterCombo::DisabledTooltip`·메뉴 항목의 잠긴 까닭
@@ -276,7 +276,7 @@
   재생 실측, D-206), 10 단계(EQ·디스토션·코러스·피치 시프트·컴프레서·출력 리미터, D-210), 11 단계(클립의 동시 수·쿨다운·들리지 않는
   시작 거르기·임포트의 레이트 맞추기와 모노, D-231), 12 단계(가상 보이스, D-235)가 섰고, 전체 점검(D-240)에서 찾은 결함을 고쳤다.
   남은 것은 계획서 §5 의 `[열림]` 이다.
-- `[진행]` **입력**(D-214, [input-plan.md](./input-plan.md)). 1~6 단계(프레임 상태·폴링 서비스와 호스트·레이어 체인과 블로킹·에디터 게임 뷰·액션·게임패드)가
+- `[진행]` **입력**(D-214, [input-plan.md](./input-plan.md)). 1~6 단계(프레임 상태·폴링 서비스와 호스트·레이어 체인과 블로킹·에디터 시뮬레이션 뷰·액션·게임패드)가
   main 에 합쳤다. 7 의 터치와 액션 세트·선입력 도구·런타임 리바인딩(D-218)도 섰다. 남은 것은 실기기 실측과 계획서 §4 의 7 의 `[열림]` 이다.
 - `[완료]` **세이브 저장소**(D-218 (4), [save-plan.md](./save-plan.md)). 스크립트의 `SaveService`, 호스트의 `SaveStorage`. 남은 것(웹·Android 뿌리,
   슬롯 목록, 비동기 쓰기)은 계획서 §4 의 `[열림]` 이다.
@@ -318,7 +318,7 @@
 
 **화면이 뜬다.** `Modules/JBroEditorHost` 가 실행 파일이다 — 인자로 프레임 수를 주면 그만큼
 돌고 끝난다(사람 없이 띄워 캡처하는 용도). 1280x720 창에 패널 넷이 도킹되어 나오고,
-창 크기를 바꾸면 따라가며 게임 뷰는 비율을 지킨다.
+창 크기를 바꾸면 따라가며 시뮬레이션 뷰는 비율을 지킨다.
 
 ```
 EditorApplication::Tick
@@ -326,7 +326,7 @@ EditorApplication::Tick
   │                    (텍스처·정점 버퍼 업로드가 RHI 프레임 밖이어야 한다)
   └ engine->Tick
       └ Renderer::EndFrame
-          ├ RecordViews   게임 → 게임 뷰 텍스처(FrameTarget)
+          ├ RecordViews   게임 → 시뮬레이션 뷰 텍스처(FrameTarget)
           └ overlay       EditorUI::Draw(commands, frameSlot) → 백버퍼
 ```
 
@@ -335,7 +335,7 @@ EditorApplication::Tick
 - **ImGui 백엔드**가 JBroRHI 위에 있다(`imgui_impl_dx12` 를 쓰지 않는다, D-60).
   정점·인덱스 버퍼는 프레임 슬롯마다 나뉜다(D-66).
 - **입력**은 플랫폼이 이벤트로 모으고(D-62) 에디터가 ImGui 로 넘긴다.
-- **게임 뷰**는 렌더 타깃 하나 차이다(D-63). 카메라는 창이 아니라 `GetFrameExtent()` 를 본다.
+- **시뮬레이션 뷰**는 렌더 타깃 하나 차이다(D-63). 카메라는 창이 아니라 `GetFrameExtent()` 를 본다.
 - **패널 넷**: Game / Hierarchy / Inspector / Stats. 레지스트리에 등록하고 스스로 자리를
   말한다(D-70).
 - **인스펙터**는 컴포넌트 타입을 하나도 모른다. 리플렉션(D-56)을 타고 내려가 잎사귀에서
@@ -389,7 +389,7 @@ EditorApplication::Tick
   남은 것은 인스펙터의 `ImGui::` 직접 호출(§11.1)이다.
 - `Vector2`·`Color` 필드 편집이 커맨드를 거치지 않던 결함을 고쳤다(D-89) - 한 줄 숫자 묶음은 이제
   `SetPropertyCommand` 의 잎사귀다.
-- 게임 뷰 **매 프레임 opt-in** 이 들어갔다(2026-09-15, D-63 끝). 패널이 그려지지 않은 프레임에는
+- 시뮬레이션 뷰 **매 프레임 opt-in** 이 들어갔다(2026-09-15, D-63 끝). 패널이 그려지지 않은 프레임에는
   뷰를 기록하지 않고 텍스처는 그대로 둔다.
 - **팝업 큐**가 섰다(D-92). 핸들·같은 Id 중복 방지·한 번에 하나만 뜨는 모달이고, 콜백은 패널처럼
   가상 함수다. 저장 실패는 `MessagePopup` 으로 알린다.
@@ -2938,6 +2938,78 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-297. 오브젝트의 이름과 태그를 가른다 - `GetTag` 였던 이름은 `GetName` 이 되고, 태그는 프로젝트의 태그 목록에서 고르는 하나다.**
+  (2026-10-06, 사용자 지시: "오브젝트에 태그가 분명히 있다고 들었는데 왜 없지? 근데 이건 태그를 유저가 어떻게 추가할까에 대해 고민이 필요". 방식은 사용자가 골랐다 -
+  "프로젝트 태그 목록 + 드롭다운". Updates: D-51(이름·태그가 둘 다 인턴된 정수인 것은 그대로, 지금까지 `GetTag` 가 이름이었다), D-142(인스펙터 머리에 태그 줄이 선다).)
+  **이름.** `GameObject::GetTag`·`SetTag`·`GetTagId`·`SetTagId`·`m_tag` 는 실제로 오브젝트 이름이었다(캔버스 파일의 `Name`, 계층 줄, 인스펙터 이름 칸).
+  그래서 진짜 태그가 들어갈 자리가 없었다. 넷을 `GetName`·`SetName`·`GetNameId`·`SetNameId`·`m_name` 으로 바꿨다 - 파일 형식(`Name:`)은 그대로다.
+  **태그.** `GameObject` 에 `NameId m_tag` 와 `GetTag`·`SetTag`·`GetTagId`·`SetTagId`·`CompareTag` 가 있다. 오브젝트마다 하나이고 빈 글자는 "태그 없음"(`InvalidNameId`)이다 -
+  인턴하지 않는다. `CompareTag` 는 글자를 정수로 바꿔 견준다. 스크립트는 `GameObjectHandle::GetTag`·`SetTag`·`CompareTag` 로 쓴다(무효 핸들은 로그를 남기고 빈 글자·거짓).
+  목록에 없는 태그도 받는다 - 목록은 에디터가 고르는 칸이고, 목록에서 지운 태그를 단 오브젝트가 깨지면 안 된다.
+  **저장.** 캔버스·레이어 에셋 파일은 태그가 있을 때만 `Tag: Enemy` 를 적는다(없으면 없음으로 읽는다, 형식 판 그대로). 복사·붙여넣기·지우고 되돌리기의 스냅숏(`ObjectSnapshotEntry::tag`)도 든다.
+  **목록.** `.jproject` 의 `Tags` 가 프로젝트의 태그 목록이다(`ProjectFile::tags`, 로케일 목록과 같은 모양 - 비어 있으면 적지 않는다). 프로젝트 설정 창에 `태그` 절이 있다.
+  **사용자가 태그를 더하는 길**(사용자가 짚은 고민). 인스펙터 머리의 `태그` 칸(이름 아래)이 `태그 없음` · 목록의 태그들 · `태그 추가...` 를 보인다. `태그 추가...` 를 고르면
+  그 자리에 이름 칸이 뜨고 Enter(또는 `추가`)로 목록에 더하면서(`EditorApplication::AddProjectTag` - 파일로 연 프로젝트면 파일에 쓴다) 고른 오브젝트에 바로 단다.
+  프로젝트 설정까지 가지 않아도 된다. 다는 것은 `SetObjectTagCommand`(고른 것이 모두 같은 태그, 되돌리면 각자 제 태그)라 되돌릴 수 있고, 목록에 더한 것은 프로젝트 설정이라
+  되돌리기와 따로 남는다(입력 레이어·로케일 목록과 같다). 목록에서 지운 태그를 단 오브젝트는 칸에 그 태그를 그대로 보인다.
+  **시험.** `TestTheTagList`(프로젝트 파일 읽기·다시 쓰기·없던 파일에 붙이기), `TestATagIsSavedOnlyWhenSet`(캔버스 파일·`CompareTag`·빈 글자),
+  `TestTaggingAnObjectFromTheInspector`(실제 창에서 `태그 추가...` → 이름 → Enter 로 목록과 오브젝트에, 되돌리기 한 번, 목록에서 고르기·`태그 없음`, 붙여넣기가 태그를 지킴, 파일).
+  변이 둘(붙여넣기 때 태그를 되살리지 않기·캔버스 읽기에서 태그 빼기)을 잡았다.
+  `[열림]` 태그로 오브젝트를 찾는 스크립트 길(`FindWithTag` 같은 것)은 아직 없다 - 캔버스가 태그별 목록을 들지 정해야 한다.
+
+- **D-296. 같은 레이어·같은 `renderOrder` 끼리의 그리는 차례는 숨은 필드 `drawSequence` 이고, 오브젝트 메뉴의 `순서` 가 앞으로·맨 앞으로·뒤로·맨 뒤로 옮긴다.**
+  (2026-10-06, 사용자 지시: "같은 Z오더끼리의 스프라이트 간 앞으로 보내기, 맨 앞으로 보내기 등이 있어야함". 저장 자리는 사용자가 골랐다 - 계층 창 차례를 따르는 안 대신
+  "숨은 순번 필드를 새로 둠". Updates: D-46·D-54(정렬 키가 같을 때 견주는 차례에 `drawSequence` 가 `sourceId` 앞에 선다), ProjectRule §1·§9 의 정렬 조항.)
+  **필드.** `SpriteRenderer2D`·`Text2D` 에 `JBRO_FIELD(Int32, drawSequence, Hidden()) = 0` 이 있다. 저장되고(캔버스 파일에 `drawSequence: -1`) 스크립트에서 읽고 쓸 수 있으며
+  인스펙터에는 줄이 없다. 큰 것이 위다. 정렬 키의 예약 16 비트에 넣지 않고 키가 같을 때 견준다 - 스크립트가 주는 값은 16 비트를 넘는다.
+  **리플렉션.** `Attribute::Hidden()` 을 새로 두었다 - `FieldAttributes::visible`·`PropertyEditInfo::visible` 이 거짓이면 인스펙터가 그 줄을 건너뛴다. 저장(`serialize`)과는 따로다.
+  **차례를 옮기는 규칙**(`EditorActions::MoveDrawOrder`, `Source/DrawOrder.cpp`). 오브젝트의 묶음은 첫 `SpriteRenderer2D`(없으면 첫 `Text2D`)의 레이어와 `renderOrder` 다.
+  같은 레이어에서 그 `renderOrder` 로 그리는 스프라이트·텍스트를 렌더러가 견주는 차례(`drawSequence`, 그다음 컴포넌트 번호)로 세우고, 그 오브젝트의 것들을 한 덩어리로 옮긴다 -
+  앞으로는 바로 위의 남의 것 하나를 넘고, 맨 앞은 묶음의 맨 위다. 옮긴 뒤 **묶음 전체를 맨 위 0, 아래로 -1 씩** 다시 매기고, 바뀐 것만 `SetPropertyCommand` 로 써서
+  `CompoundCommand` 하나로 낸다(되돌리기 한 번). 맨 위가 0 이라 새로 만든 것(0)은 맨 위와 겨뤄 번호가 커서 그 위에 선다 - "나중에 만든 것이 위" 가 순서를 바꾼 뒤에도 그대로다.
+  이미 끝이면 회색이고 까닭(`이미 맨 앞에 있습니다`)을, 그리는 컴포넌트가 없으면 `순서를 바꿀 SpriteRenderer2D·Text2D 가 없습니다` 를 말한다. 여럿을 골랐어도 우클릭한 것(단축키면 주된 선택) 하나만 옮긴다.
+  **행동과 메뉴.** 행동 넷 `object.bring_forward`·`object.bring_to_front`·`object.send_backward`·`object.send_to_back` 이 오브젝트 메뉴의 `순서` 하위 메뉴(복사·붙여넣기 묶음 뒤)에 선다.
+  기본 조합은 포토샵·파워포인트와 같은 Ctrl+] · Ctrl+Shift+] · Ctrl+[ · Ctrl+Shift+[ 다. 버튼 판정(`Button2DSystem`)도 `renderOrder` 다음에 `drawSequence` 를 본다 - 그린 것과 눌리는 것이 같다.
+  캔버스 뷰의 집기는 원래 넓이가 작은 것이 이기는 규칙이라 차례를 보지 않는다(그대로).
+  **시험.** `TestRenderWorldCollection` 에 같은 키에서 `drawSequence` 가 `sourceId` 보다 먼저인 경우를, `TestBringingAnObjectForwardReordersItsDrawing` 에 끝에서 막힘·그리는 것 없음·
+  앞으로 한 칸(바로 위 하나만 넘음, 다른 `renderOrder` 는 그대로)·되돌리기 한 번·맨 뒤로·계층 줄 우클릭 `순서` → `맨 앞으로 가져오기`·인스펙터에 줄 없음·캔버스 파일에 적힘을 넣었다.
+  변이 셋(정렬이 차례를 무시·앞으로 한 칸을 두 칸으로·인스펙터 숨김 빼기)을 잡았다. 필드 수를 고정한 `BuiltinComponentPropertyTests` 를 14·23 으로 고쳤다(전체 시험이 잡았다).
+
+- **D-295. 게임 뷰는 시뮬레이션 뷰다 - 화면 글자·로컬라이징 키·패널 종류 이름·클래스·함수·멤버를 모두 바꾼다.**
+  (2026-10-06, 사용자 지시: "게임뷰가 아니라 시뮬레이션 뷰임. 이름 다 바꿔. 클래스명도". Updates: D-63·D-130·D-131·D-178·D-214·D-243 의 이름 - 내용은 그대로다.)
+  **바뀐 이름.** 패널 `GameViewPanel` → `SimulationViewPanel`(파일도), 패널 종류 이름 `Game` → `Simulation`(`FindPanel`·창 이름), `GameView` 가 든 모든 식별자
+  (`EngineInstance::SetGameViewTarget`·`Renderer` 의 게임 뷰 타깃·`DebugDrawSystem::SetGameViewVisible`·`EditorApplication::GetGameViewTexture`·`ReportGameView`·`SetGameViewDebugDraw`·
+  멤버 `m_gameView*`·시험 이름)이 `SimulationView` 로, 로컬라이징 키 `panel.game` → `panel.simulation`, `game_view.*` → `simulation_view.*`,
+  `menu.simulation_game_debug_draw` → `menu.simulation_view_debug_draw`. 보이는 글자는 `시뮬레이션 뷰` / `Simulation`(탭), `Simulation View`(문장 안)다.
+  `SetGameDebugDrawVisible` 처럼 **게임 자체**를 뜻하는 `Game` 은 그대로 둔다. 기존 엔진의 이름(`CGameViewTool`·`Main/GameView/`·`GameView->Focus()`)은 그쪽 이름이라 그대로다.
+  문서는 `ProjectRule.md`·`CLAUDE.md`·도면·계획서·이 파일의 남은 일 절을 바꿨고, **Decisions 의 옛 항목은 적힌 그대로 둔다**(그때의 이름이다).
+  **옛 창 배치.** `.layout.ini` 는 창을 `[Window][Game]` 으로, 도크 칸이 고른 탭을 그 이름의 해시(`Selected=0x…`)로 적는다. 그대로 읽으면 시뮬레이션 뷰가 적힌 자리를 못 찾아
+  떠 있는 창으로 나오므로, `RestoreEditorLayout` 이 파일을 읽어 두 곳을 새 이름으로 바꾼 뒤 `LoadIniSettingsFromMemory` 로 넘긴다.
+  **시험.** `TestTheEditorSessionSurvivesReopening` 이 저장된 배치의 `[Window][Simulation]` 을 `[Window][Game]` 으로 되돌려 둔 뒤 다시 열어도 시뮬레이션 뷰가 도크에 붙는지 본다.
+  바꾸기를 빼는 변이를 잡았다. 패널 이름을 쓰는 시험 여덟(패널 표·포커스·입력·재생·숨김 오브젝트·카메라 없음)이 새 이름으로 통과한다.
+  `[열림]` GitHub 위키의 "게임 뷰" 글자는 로컬 사본이 없어 아직 못 바꿨다.
+
+- **D-294. 인스펙터의 컴포넌트 머리를 끌어 놓아 순서를 바꾼다 - 메뉴의 위로·아래로와 같은 `MoveComponentCommand` 하나다.**
+  (2026-10-06, 사용자 지시: "컴포넌트도 드래그해서 순서 바꿀 수 있게 해야함". Updates: 없음 - 순서가 스크립트 실행 순서라는 D-45 는 그대로다.)
+  **손짓.** 머리를 끌면 타입 이름표가 따라온다. 같은 오브젝트의 다른 머리 위에서는 마우스가 머리의 위 절반이면 그 머리 앞, 아래 절반이면 뒤에 끼울 선이 서고,
+  놓으면 옮긴다. 제자리(바로 앞뒤)에는 선을 긋지 않고 커맨드도 내지 않는다. 다른 오브젝트에서 온 꾸러미는 받지 않는다.
+  **꾸러미.** 새 종류 `Widget::DragKind::InspectorComponent`(`JBRO_INSPECTOR_COMPONENT`)에 에디터 오브젝트 번호와 슬롯 번호를 싣는다 - 주소가 아니다(D-72).
+  끌기·받기는 머리(`CollapsingSection`) 바로 뒤에 붙인다. 끌기 이름표의 툴팁 창이 닫히면 직전 항목이 머리로 돌아오므로 그 뒤의 우클릭 메뉴는 그대로 머리에 붙는다.
+  **자리 셈.** `ComponentDropSlot(from, target, before)`(`ComponentCommands.h`)가 끌어 온 것이 빠진 뒤의 번호로 `to` 를 낸다 - 뒤쪽 머리 앞에 놓으면 한 칸 당겨진다.
+  접힌 머리 위에 0.7 초 머물면 ImGui 의 끌기 머묾 규칙으로 펼쳐진다(트리 마디 기본 동작, 따로 막지 않았다).
+  **시험.** `TestDraggingAComponentHeaderReordersIt`: 자리 셈 다섯 경우, 실제 창에서 `Transform2D` 머리를 `SpriteRenderer2D` 머리의 아래 절반에 끌어 놓으면 순서가 바뀌고
+  되돌리기 한 칸이며 되돌리면 돌아온다. 놓기 처리를 막는 변이를 잡았다.
+
+- **D-293. 컴포넌트 머리의 메뉴 단추는 바탕을 칠하지 않고, 레이어 이름은 오브젝트처럼 인스펙터에서만 고친다.**
+  (2026-10-06, 사용자 지시: "컴포넌트의 우측 점세개 버튼의 경계가 보이는게 싫음. 배경을 투명하게", "왜 레이어는 우클릭하면 이름 바꾸는거 있고 오브젝트는 아님? -> 일관성있게 아예 없게 ㄱㄱ
+  인스펙터에서 바꿀 수 있음". Updates: D-278(머리 메뉴 단추의 모양), D-183(레이어 이름 칸의 자리와 그 회귀 테스트).)
+  **단추.** `Widget::IconButton::Flat()` 을 더했다 - 쉬는 동안 `ImGuiCol_Button` 을 투명으로 두고, 마우스를 올리거나 누르면 평소 색으로 칠한다. 컴포넌트 머리의 `##component_menu` 가 쓴다.
+  머리 색 위에 단추 색 네모가 얹혀 경계가 보이던 것이 없어진다. `Selected` 가 켜져 있으면 그쪽이 이긴다(켜진 상태를 칠해야 하므로).
+  **레이어 메뉴.** 계층의 레이어 우클릭 메뉴에서 이름 칸(`##layerName`)과 그 상태(`m_renaming`·`m_renameText`)를 뺐다. 이름은 레이어를 골랐을 때의 인스펙터 칸(D-279)이 고친다 -
+  오브젝트 줄의 메뉴에는 처음부터 이름 칸이 없었다(D-142). 편집이 끝날 때 커맨드 하나(D-183)는 인스펙터 칸이 이미 지킨다.
+  **시험.** `TestRenamingALayerIsOneCommandNotOnePerLetter` 가 바뀌었다: 레이어 줄 우클릭 메뉴에 `##layerName` 이 **없고**, 줄을 눌러 고른 뒤 인스펙터 `##layer` 표의
+  `##layerName` 에 석 자를 치는 동안 되돌리기 더미가 그대로이며, Enter 에 한 칸, 한 번 되돌리면 원래 이름이다. 단추 바탕은 모양이라 시험이 없다.
+
 - **D-292. 시험 묶음은 이름으로 골라 돌리고(`JBRO_TESTS`), 묶음마다 걸린 시간을 찍는다 - GPU 기반 검증은 기본으로 켜 둔 채 `JBRO_GPU_VALIDATION=0` 으로만 끈다.**
   (2026-10-06, 사용자: 전체 시험이 20 분이라 "내 컴이 너무 힘들어해", "시험 자체를 좀 어캐 해버ㅏ야할거같아", 제안(골라 돌리는 장치를 정식으로·GPU 기반 검증과
   VSync 를 재 보고 정함·느린 묶음을 고침)에 "해봐". Updates: D-244(골라 돌리는 환경 변수는 이제 임시 훅이 아니라 정식 장치다), D-64(GPU 기반 검증을 끄는 길이 생겼지만
@@ -2998,7 +3070,7 @@ EditorApplication::Tick
   ProjectRule 의 "조명은 레이어를 모른다"(D-286)를 고쳤다 - 2D 라이트는 놓인 레이어의 패럴랙스를 받는다.
   검증: `Light2DFrameworkTests.cpp`(세 백엔드, 프레임워크를 통째로) - 점 라이트가 색 × 세기를 환경광에 더함·멀리는 환경광·빛을 받지 않는 레이어는 흰색 그대로·돌린 스포트가
   위를 비춤·옆은 어두움·감춘 레이어의 라이트는 꺼짐·캔버스 뷰도 같은 빛·패럴랙스 레이어의 라이트가 그 레이어와 함께 옮겨짐. 캔버스 파일(`Lit: false` 적고 되읽음·기본은
-  안 적음·레이어 에셋도), 레이어 커맨드(끄기·되돌리기·다시 하기·같은 값은 편집 아님·지웠다 되살려도 꺼진 채). 뮤테이션 12/12(게임 뷰 빛 안 받음·레이어 `lit` 무시·감춘 레이어
+  안 적음·레이어 에셋도), 레이어 커맨드(끄기·되돌리기·다시 하기·같은 값은 편집 아님·지웠다 되살려도 꺼진 채). 뮤테이션 12/12(시뮬레이션 뷰 빛 안 받음·레이어 `lit` 무시·감춘 레이어
   라이트 - 감춘 라이트의 기본 반지름 5 가 점 라이트 자리까지 밝혀 그 검사에서 먼저 잡혔다, 스포트 방향 무시·세기 무시·라이트 패럴랙스 무시·캔버스 뷰 빛 안 받음·파일 안 적음·
   안 읽음·되살리기에서 잃음·되돌리기 무시·스프라이트 아이템의 `lit` 무시). `[열림]` `Text2DSystem` 이 싣는 `layerLit` 은 시험에 글자가 없어 재지 않았다.
   전체 시험에서 기존 기대값 둘을 고쳤다: 기본 시스템 수 7 → 8(`RendererContractTests`), 그리고 "엔진에 없는 컴포넌트" 의 예로 `Component::Light2D` 를 쓰던 캔버스 파일
@@ -3040,7 +3112,7 @@ EditorApplication::Tick
   고르기가 아니다. 콜라이더를 고치는 동안과 UI 보기에는 없다. 계산은 화면을 모르는 `LightGizmoModel`(에디터의 `Gizmo/`) 에 있고 축은 `Light2DSystem` 과 같은 셈(월드 행렬의 첫 행,
   크기는 빼고 거울은 뒤집힘)이다. 기존 엔진은 인스펙터에서 그 탭을 볼 때만 그렸고 끌 수 없었다.
   캔버스 뷰 도구 막대에 **라이팅 단추**(`##canvas_lighting`, 아이콘 MDI `lightbulb-outline`, "라이팅" / 툴팁 "2D 라이트로 비춰 보거나, 빛 없이 원래 색으로 봅니다")를 콜라이더 단추
-  뒤에 두었다. 끄면 `EditorViewDesc::lighting` 이 거짓이 되어 브리지가 캔버스 뷰에 라이트와 그림자 변을 내지 않는다 - 빛을 받는 레이어도 원래 색이다. 게임 뷰와는 따로다.
+  뒤에 두었다. 끄면 `EditorViewDesc::lighting` 이 거짓이 되어 브리지가 캔버스 뷰에 라이트와 그림자 변을 내지 않는다 - 빛을 받는 레이어도 원래 색이다. 시뮬레이션 뷰와는 따로다.
   검증: 모델 시험(축은 돌림을 따르고 크기는 빼고 거울은 뒤집음·`Global` 은 손잡이 없음·각 손잡이는 스포트만·손잡이 자리 다섯·반지름 끌기의 방향과 경계·각 끌기의 두 쪽과
   뒤쪽 360·가운데에서는 그대로·필드 이름). 에디터 시험 `TestTheCanvasViewDragsLightHandles`(실제 `EditorApplication`) - 점 라이트의 두 반지름 손잡이가 그 자리에 있음·옮기기
   기즈모의 x 손잡이는 그대로 잡힘·바깥 반지름 끌기가 1 유닛 늘리고 되돌리기 하나·고른 것 그대로·되돌리기·손잡이를 끌지 않고 눌렀다 놓으면 아무것도 안 바뀌고 고른 것도

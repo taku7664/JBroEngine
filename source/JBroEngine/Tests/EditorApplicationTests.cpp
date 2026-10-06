@@ -18,6 +18,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Core/Profiler.h>
 #include <JBro/Editor/Command/CanvasCommands.h>
+#include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/ConfirmPopup.h>
@@ -571,7 +572,7 @@ namespace
         // **이름으로 센다.** 숫자만 재면 패널을 더할 때마다 이 줄을 고치게 되고,
         // 정작 무엇이 빠졌는지는 말해 주지 않는다.
         const char* const expected[] = {
-            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
             "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
         for (const char* title : expected)
         {
@@ -749,7 +750,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         constexpr JBro::Float Delta = 1.0f / 60.0f;
         const char* const builtins[] = {
-            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
             "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
         for (const char* name : builtins)
         {
@@ -2460,7 +2461,7 @@ namespace
             Check(reader.LoadCanvas(dialog.path.c_str(), error), "the reader must load the saved file");
             JBro::GameObject* loaded = nullptr;
             reader.GetCanvas()->ForEachObject([&loaded](JBro::GameObject& found) {
-                if (std::strcmp(found.GetTag(), "Saved") == 0)
+                if (std::strcmp(found.GetName(), "Saved") == 0)
                 {
                     loaded = &found;
                 }
@@ -2642,6 +2643,73 @@ namespace
         editor.Shutdown();
     }
 
+    // **컴포넌트 머리를 끌어 놓으면 순서가 바뀐다**(D-294). 메뉴의 위로·아래로와 같은 커맨드라 한 번에 되돌아간다.
+    // 머리의 아래 절반은 그 머리의 뒤, 위 절반은 앞이다.
+    void TestDraggingAComponentHeaderReordersIt()
+    {
+        // 끼울 자리 셈: 끌어 온 것이 빠진 뒤의 번호다.
+        Check(JBro::ComponentDropSlot(0, 1, false) == 1, "dropping slot 0 after slot 1 puts it at 1");
+        Check(JBro::ComponentDropSlot(0, 2, true) == 1, "dropping slot 0 before slot 2 puts it at 1");
+        Check(JBro::ComponentDropSlot(2, 0, true) == 0, "dropping slot 2 before slot 0 puts it first");
+        Check(JBro::ComponentDropSlot(2, 0, false) == 1, "dropping slot 2 after slot 0 puts it at 1");
+        Check(JBro::ComponentDropSlot(1, 1, true) == 1 && JBro::ComponentDropSlot(1, 0, false) == 1,
+            "dropping a slot next to itself leaves it where it is");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; component dragging not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "DragComponentProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(alpha);
+        Check(transform != nullptr && sprite != nullptr, "both components must attach");
+        JBro::GameObject* chosen[] = {alpha};
+        editor.SelectObjects({chosen, 1});
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot first;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 0), "Transform2D"), first),
+            "the transform header must be in the inspector");
+        Spot second;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 1), "SpriteRenderer2D"), second),
+            "and the sprite header");
+        // 훑기는 위에서 3 픽셀씩 내려오므로 찾은 자리는 머리의 윗단이다. 아래 절반으로 내린다.
+        Spot below = second;
+        below.y += static_cast<JBro::Int32>(ImGui::GetFrameHeight() * 0.7f);
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, first, below);
+        std::size_t slot = 99;
+        Check(alpha->FindComponentIndex(sprite, slot) && slot == 0,
+            "dropping the transform on the lower half of the sprite header must put the sprite first");
+        Check(alpha->FindComponentIndex(transform, slot) && slot == 1, "and the transform after it");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(alpha->FindComponentIndex(transform, slot) && slot == 0, "and put the transform back first");
+
+        editor.Shutdown();
+    }
+
     // 프로퍼티를 등록하지 않은 컴포넌트다. 스냅샷으로 뜰 수 없다.
     class Opaque final : public JBro::ComponentBase
     {
@@ -2700,7 +2768,7 @@ namespace
         Check(canvas->GetObjectCount() == before + 2, "and add the tree once, not the child twice");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
         JBro::GameObject* pasted = editor.GetSelectedObject();
-        Check(pasted != nullptr && pasted != alpha && std::strcmp(pasted->GetTag(), "Alpha") == 0,
+        Check(pasted != nullptr && pasted != alpha && std::strcmp(pasted->GetName(), "Alpha") == 0,
             "and choose the pasted root instead of the source");
         Check(editor.GetSelectionCount() == 1, "and nothing else");
         Check(pasted->GetParent() == holder, "placed beside the source, under the same parent");
@@ -2720,7 +2788,7 @@ namespace
         editor.ClearSelection();
         Check(editor.PasteClipboard(), "and the earlier clipboard must still paste");
         pasted = editor.GetSelectedObject();
-        Check(pasted != nullptr && std::strcmp(pasted->GetTag(), "Alpha") == 0
+        Check(pasted != nullptr && std::strcmp(pasted->GetName(), "Alpha") == 0
                 && canvas->GetObjectCount() == before + 3,
             "the earlier tree, untouched by the refused copy");
         Check(editor.GetCommands().Undo(), "undo must run");
@@ -2923,11 +2991,11 @@ namespace
         JBro::GameObject* restored = nullptr;
         JBro::GameObject* restoredChild = nullptr;
         canvas->ForEachObject([&](JBro::GameObject& each) {
-            if (std::strcmp(each.GetTag(), "Painted") == 0)
+            if (std::strcmp(each.GetName(), "Painted") == 0)
             {
                 restored = &each;
             }
-            else if (std::strcmp(each.GetTag(), "PaintedChild") == 0)
+            else if (std::strcmp(each.GetName(), "PaintedChild") == 0)
             {
                 restoredChild = &each;
             }
@@ -3184,11 +3252,11 @@ namespace
         editor.Shutdown();
     }
 
-    // **게임 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
+    // **시뮬레이션 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
     // 텍스처에 그릴 이유가 없다. 다시 열면 그 프레임부터 이어진다 - 텍스처는 파기하지 않는다.
-    // **게임 뷰는 카메라가 없는 것과 빈 화면을 가른다**(D-178, 기존 `GameViewNoCamera`).
+    // **시뮬레이션 뷰는 카메라가 없는 것과 빈 화면을 가른다**(D-178, 기존 `SimulationViewNoCamera`).
     // 예전에는 텍스처가 있는지만 보아서, 카메라 없는 검은 화면을 "실행 중" 이라고 말했다.
-    void TestTheGameViewKnowsWhenNoCameraDrew()
+    void TestTheSimulationViewKnowsWhenNoCameraDrew()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -3197,11 +3265,11 @@ namespace
         config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
-            std::cout << "  [skip] no D3D12 device; the game view status not verified" << std::endl;
+            std::cout << "  [skip] no D3D12 device; the simulation view status not verified" << std::endl;
             return;
         }
         JBro::ProjectDescriptor project;
-        constexpr char name[] = "GameViewStatusProbe";
+        constexpr char name[] = "SimulationViewStatusProbe";
         project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
@@ -3247,7 +3315,7 @@ namespace
         editor.Shutdown();
     }
 
-    void TestTheGameViewIsRenderedOnlyWhileItsPanelShows()
+    void TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -3256,11 +3324,11 @@ namespace
         config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
-            std::cout << "  [skip] no D3D12 device; game view opt-in not verified" << std::endl;
+            std::cout << "  [skip] no D3D12 device; simulation view opt-in not verified" << std::endl;
             return;
         }
         JBro::ProjectDescriptor project;
-        constexpr char name[] = "GameViewOptInProbe";
+        constexpr char name[] = "SimulationViewOptInProbe";
         project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
@@ -3271,7 +3339,7 @@ namespace
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
         camera->primary = true;
-        // 이 테스트가 재는 것은 **게임 뷰**의 opt-in 이다. 편집 화면은 자기 텍스처에
+        // 이 테스트가 재는 것은 **시뮬레이션 뷰**의 opt-in 이다. 편집 화면은 자기 텍스처에
         // 따로 그려 뷰를 하나 더 내므로(D-130), 세는 것이 섞이지 않게 닫아 둔다.
         if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
         {
@@ -3290,10 +3358,10 @@ namespace
         Check(renderer != nullptr, "the editor must expose its renderer");
         JBro::RendererFrameStats stats = renderer->GetLastFrameStats();
         Check(stats.viewCount == 1 && stats.skippedViewCount == 0,
-            "with the game view panel showing, the camera's view must be recorded");
+            "with the simulation view panel showing, the camera's view must be recorded");
 
-        JBro::EditorPanel* panel = editor.FindPanel("Game");
-        Check(panel != nullptr, "the game view panel must be registered");
+        JBro::EditorPanel* panel = editor.FindPanel("Simulation");
+        Check(panel != nullptr, "the simulation view panel must be registered");
         panel->SetOpen(false);
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
@@ -3302,7 +3370,7 @@ namespace
         stats = renderer->GetLastFrameStats();
         Check(stats.skippedViewCount == 1,
             "with the panel closed the view must be submitted but not recorded");
-        Check(editor.GetGameViewTexture().IsValid(),
+        Check(editor.GetSimulationViewTexture().IsValid(),
             "and the texture must be kept so the picture can continue later");
 
         panel->SetOpen(true);
@@ -3678,10 +3746,10 @@ namespace
     }
 
 
-    // **게임 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-214, 기존 `SetViewportActive`).
-    // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 게임 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
+    // **시뮬레이션 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-214, 기존 `SetViewportActive`).
+    // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 시뮬레이션 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
     // 게임이 키를 받는 동안 에디터 단축키는 재생 제어만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
-    void TestOnlyTheFocusedGameViewGivesTheGameItsKeys()
+    void TestOnlyTheFocusedSimulationViewGivesTheGameItsKeys()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -3705,9 +3773,9 @@ namespace
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::GameObject* subject = canvas->CreateObject("Subject");
         editor.SetSelectedObject(subject);
-        JBro::EditorPanel* game = editor.FindPanel("Game");
+        JBro::EditorPanel* game = editor.FindPanel("Simulation");
         JBro::EditorPanel* inspector = editor.FindPanel("Inspector");
-        Check(game != nullptr && inspector != nullptr, "the game view and the inspector are default panels");
+        Check(game != nullptr && inspector != nullptr, "the simulation view and the inspector are default panels");
 
         const auto keyboard = []() -> const JBro::KeyboardState&
         {
@@ -3719,7 +3787,7 @@ namespace
             PostMessageW(hwnd, message, key, up);
         };
 
-        // 재생 전에는 게임 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
+        // 재생 전에는 시뮬레이션 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
         // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다.
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -3728,9 +3796,9 @@ namespace
         game->RequestFocus();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must settle on the game view");
+            Check(editor.Tick(Frame), "the editor must settle on the simulation view");
         }
-        Check(game->IsFocused(), "the stopped game view must hold the focus too, or the next check proves nothing");
+        Check(game->IsFocused(), "the stopped simulation view must hold the focus too, or the next check proves nothing");
         post(WM_KEYDOWN, 'W');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
         Check(false == editor.IsGameReceivingInput(), "a stopped game receives nothing");
@@ -3744,10 +3812,10 @@ namespace
         {
             Check(editor.Tick(Frame), "the playing editor must settle");
         }
-        Check(game->IsFocused(), "the game view must hold the focus it asked for");
+        Check(game->IsFocused(), "the simulation view must hold the focus it asked for");
         post(WM_KEYDOWN, 'W');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
-        Check(editor.IsGameReceivingInput(), "a playing game with the game view focused receives input");
+        Check(editor.IsGameReceivingInput(), "a playing game with the simulation view focused receives input");
         Check(keyboard().IsDown(JBro::Key::W), "and it sees the key being held");
 
         // 게임이 받는 동안 Delete 는 게임의 것이다.
@@ -3765,7 +3833,7 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must tick after moving the focus");
         }
-        Check(false == editor.IsGameReceivingInput(), "leaving the game view stops the game input");
+        Check(false == editor.IsGameReceivingInput(), "leaving the simulation view stops the game input");
         Check(false == keyboard().IsDown(JBro::Key::W), "and the held key is released for the game");
         post(WM_KEYDOWN, 'A');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
@@ -5090,7 +5158,7 @@ namespace
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
         // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
         Check(editor.GetPanelCount() == 11, "the default panels must be registered");
-        Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
+        Check(editor.FindPanel("Simulation") != nullptr, "the simulation view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");
         Check(editor.FindPanel("Stats") != nullptr, "and the stats");
@@ -5144,7 +5212,7 @@ namespace
     {
         JBro::GameObject* found = nullptr;
         canvas.ForEachObject([&](JBro::GameObject& object) {
-            if (found == nullptr && std::strcmp(object.GetTag(), name) == 0)
+            if (found == nullptr && std::strcmp(object.GetName(), name) == 0)
             {
                 found = &object;
             }
@@ -5210,7 +5278,7 @@ namespace
         // 커맨드들이 되살아난 오브젝트를 못 찾는다.
         JBro::GameObject* restored = ids.Resolve(parentId);
         Check(restored != nullptr, "the old number must find the restored object");
-        Check(std::strcmp(restored->GetTag(), "Parent") == 0, "with its name");
+        Check(std::strcmp(restored->GetName(), "Parent") == 0, "with its name");
 
         auto* restoredTransform = restored->GetComponent<JBro::Component::Transform2D>().Get();
         Check(restoredTransform != nullptr, "and its transform");
@@ -5312,8 +5380,8 @@ namespace
             "a closed window must stop the editor");
         Check(false == editor.IsEditorUiEnabled(),
             "and the UI must have let go of a device that is already gone");
-        Check(false == editor.GetGameViewTexture().IsValid(),
-            "including its game view texture");
+        Check(false == editor.GetSimulationViewTexture().IsValid(),
+            "including its simulation view texture");
         // 두 번 놓아도 안전해야 한다.
         editor.Shutdown();
     }
@@ -5546,7 +5614,7 @@ namespace
     // **에디터 화면이 실제로 나오는가.** 게임은 텍스처로 가고 백버퍼에는 UI 만 남는다 -
     // 그 프레임은 "게임이 낼 것이 없는" 프레임이기도 해서, 배선이 하나라도 어긋나면
     // 화면이 통째로 검게 남는다. 픽셀을 되읽지 않으면 알 수 없다(D-63).
-    // 세 백엔드에서 돈다(D-107·D-108). 에디터 UI 의 폰트 아틀라스·게임 뷰 텍스처·시저가 백엔드마다
+    // 세 백엔드에서 돈다(D-107·D-108). 에디터 UI 의 폰트 아틀라스·시뮬레이션 뷰 텍스처·시저가 백엔드마다
     // 다른 길을 타므로, 화면이 나오는지는 백엔드마다 봐야 한다.
     void TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi api)
     {
@@ -5570,14 +5638,14 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
 
         Check(false == editor.IsEditorUiEnabled(), "the UI starts off");
-        Check(false == editor.EnableEditorUi({0, 0}), "a game view with no size is refused");
+        Check(false == editor.EnableEditorUi({0, 0}), "a simulation view with no size is refused");
 
-        // 게임 뷰는 창과 다른 크기다. 비율이 다르면 패널 안에서 레터박스가 된다.
+        // 시뮬레이션 뷰는 창과 다른 크기다. 비율이 다르면 패널 안에서 레터박스가 된다.
         constexpr JBro::UInt32 GameWidth = 64;
         constexpr JBro::UInt32 GameHeight = 48;
         Check(editor.EnableEditorUi({GameWidth, GameHeight}), "the editor UI must turn on");
         Check(editor.IsEditorUiEnabled(), "and say so");
-        Check(editor.GetGameViewTexture().IsValid(), "with a game view to draw into");
+        Check(editor.GetSimulationViewTexture().IsValid(), "with a simulation view to draw into");
         Check(false == editor.EnableEditorUi({GameWidth, GameHeight}),
             "turning it on twice must be refused");
 
@@ -5596,9 +5664,9 @@ namespace
         // 텍스처를 거쳐 패널까지 온 것이다.
         camera->clearColor = {0.0f, 0.85f, 0.35f, 1.0f};
 
-        // **가운데 칸은 캔버스 뷰와 게임 뷰가 탭으로 나눠 쓴다**(D-130). 처음 보이는 것은
+        // **가운데 칸은 캔버스 뷰와 시뮬레이션 뷰가 탭으로 나눠 쓴다**(D-130). 처음 보이는 것은
         // 편집 화면이므로, 게임 화면이 텍스처를 거쳐 패널까지 오는지 보려면 이쪽을 닫아
-        // 게임 뷰를 앞으로 내놓는다.
+        // 시뮬레이션 뷰를 앞으로 내놓는다.
         if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
         {
             canvasView->SetOpen(false);
@@ -5673,7 +5741,7 @@ namespace
             "the editor panel must cover the window");
         // 패널 제목이 글자로 나온다. 폰트 아틀라스가 안 올라가면 여기서 걸린다.
         Check(bright > 50, "and its text must be on screen");
-        // 게임 뷰는 4:3 이고 패널은 그보다 넓으므로 좌우가 남는다. 그래도 화면의
+        // 시뮬레이션 뷰는 4:3 이고 패널은 그보다 넓으므로 좌우가 남는다. 그래도 화면의
         // 상당 부분이 게임 화면이어야 한다.
         Check(gamePixels > (WindowWidth * WindowHeight) / 4,
             "the game must reach the panel through its texture");
@@ -5685,7 +5753,7 @@ namespace
         const JBro::Float shown = boxWidth / boxHeight;
         const JBro::Float wanted =
             static_cast<JBro::Float>(GameWidth) / static_cast<JBro::Float>(GameHeight);
-        std::cout << "  the game view is " << boxWidth << "x" << boxHeight
+        std::cout << "  the simulation view is " << boxWidth << "x" << boxHeight
             << " (ratio " << shown << ", wanted " << wanted << ")" << std::endl;
         Check(shown > wanted - 0.08f && shown < wanted + 0.08f,
             "and keep its own shape rather than take the panel's");
@@ -5693,8 +5761,8 @@ namespace
         // 꺼지면 게임이 다시 백버퍼로 간다. 남은 GPU 리소스도 함께 놓는다.
         editor.DisableEditorUi();
         Check(false == editor.IsEditorUiEnabled(), "the UI must turn off");
-        Check(false == editor.GetGameViewTexture().IsValid(),
-            "and give its game view texture back");
+        Check(false == editor.GetSimulationViewTexture().IsValid(),
+            "and give its simulation view texture back");
         Check(editor.Tick(1.0f / 60.0f), "the editor must keep ticking without its UI");
 
         editor.Shutdown();
@@ -5922,7 +5990,7 @@ namespace
 
         JBro::GameObject* loaded = nullptr;
         reopened->ForEachObject([&loaded](JBro::GameObject& found) { loaded = &found; });
-        Check(loaded != nullptr && std::strcmp(loaded->GetTag(), "Saved") == 0,
+        Check(loaded != nullptr && std::strcmp(loaded->GetName(), "Saved") == 0,
             "and come back under its own name");
         auto* loadedTransform = reopened->FindComponentRaw<JBro::Component::Transform2D>(loaded);
         Check(loadedTransform != nullptr
@@ -6040,7 +6108,7 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must settle before the gizmo appears");
         }
-        // **기즈모는 캔버스 뷰에 있다**(D-130·D-131). 게임 뷰는 시뮬레이션 화면이라
+        // **기즈모는 캔버스 뷰에 있다**(D-130·D-131). 시뮬레이션 뷰는 시뮬레이션 화면이라
         // 손잡이도 피킹도 없다 - 기존 엔진의 `CGameViewTool` 과 같다.
         ImGuiWindow* game = ImGui::FindWindowByName("CanvasView");
         Check(game != nullptr, "the canvas view window must exist");
@@ -6275,7 +6343,7 @@ namespace
         JBro::Bool boxBack = false;
         for (JBro::GameObject* root : roots)
         {
-            if (std::strcmp(root->GetTag(), "Box") == 0)
+            if (std::strcmp(root->GetName(), "Box") == 0)
             {
                 auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(root);
                 boxBack = restored != nullptr && std::fabs(restored->position.y - 3.0f) < 1.0e-4f;
@@ -6286,7 +6354,7 @@ namespace
     }
 
     // **멈춘 게임을 한 프레임씩 본다**(D-242, 기존 엔진에 없던 것). 한 프레임 진행은 멈춘 동안만 되고, 떨어지는 상자를 고정 스텝
-    // 한 번만큼만 움직인다. 디버그 선의 두 토글(게임 뷰·캔버스 뷰)은 처음에 켜져 있고 게임 뷰의 것은 엔진에 닿는다(D-243).
+    // 한 번만큼만 움직인다. 디버그 선의 두 토글(시뮬레이션 뷰·캔버스 뷰)은 처음에 켜져 있고 시뮬레이션 뷰의 것은 엔진에 닿는다(D-243).
     void TestSteppingAPausedGameAndTheDebugLineToggles()
     {
         JBro::EditorApplication editor;
@@ -6344,10 +6412,10 @@ namespace
         Check(editor.Tick(Frame) && transform->position.y == steppedTo, "and the frame after it is paused again");
         Check(editor.IsSimulationPaused(), "stepping does not resume the game");
 
-        Check(editor.IsGameViewDebugDrawVisible() && editor.IsCanvasViewDebugDrawVisible(), "both debug line toggles start on");
-        Check(editor.GetDebugDraw() != nullptr && editor.GetDebugDraw()->IsGameViewVisible(), "and the game view's reaches the engine");
-        editor.SetGameViewDebugDraw(false);
-        Check(false == editor.GetDebugDraw()->IsGameViewVisible(), "turning it off hides the lines in the game view");
+        Check(editor.IsSimulationViewDebugDrawVisible() && editor.IsCanvasViewDebugDrawVisible(), "both debug line toggles start on");
+        Check(editor.GetDebugDraw() != nullptr && editor.GetDebugDraw()->IsSimulationViewVisible(), "and the simulation view's reaches the engine");
+        editor.SetSimulationViewDebugDraw(false);
+        Check(false == editor.GetDebugDraw()->IsSimulationViewVisible(), "turning it off hides the lines in the simulation view");
         editor.SetCanvasViewDebugDraw(false);
         Check(false == editor.IsCanvasViewDebugDrawVisible(), "the canvas view keeps its own toggle");
 
@@ -6383,21 +6451,21 @@ namespace
         transform->position = JBro::Vector2{3.0f, 4.0f};
         Check(editor.Tick(Frame), "the editor must tick before play");
 
-        // **게임 뷰를 뒤로 보내 두고 재생한다**(D-178, 기존도 재생에서 앞으로 가져왔다).
+        // **시뮬레이션 뷰를 뒤로 보내 두고 재생한다**(D-178, 기존도 재생에서 앞으로 가져왔다).
         // 캔버스 뷰와 탭으로 겹쳐 있으면 재생을 눌러도 화면이 그대로라 아무 일도 없는 것처럼 보인다.
-        JBro::EditorPanel* gameView = editor.FindPanel("Game");
-        Check(gameView != nullptr, "the game view must exist");
-        gameView->SetOpen(false);
-        Check(editor.Tick(Frame), "the editor must tick with the game view closed");
+        JBro::EditorPanel* simulationView = editor.FindPanel("Simulation");
+        Check(simulationView != nullptr, "the simulation view must exist");
+        simulationView->SetOpen(false);
+        Check(editor.Tick(Frame), "the editor must tick with the simulation view closed");
 
         Check(editor.StartSimulation(), "play must start");
         Check(editor.IsSimulationPlaying(), "and say so");
-        Check(gameView->IsOpen(), "starting play must bring the game view back");
+        Check(simulationView->IsOpen(), "starting play must bring the simulation view back");
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick after play started");
         }
-        if (ImGuiWindow* window = ImGui::FindWindowByName("Game"))
+        if (ImGuiWindow* window = ImGui::FindWindowByName("Simulation"))
         {
             Check(window->Active, "and that window must be the one in front of its tabs");
         }
@@ -6429,7 +6497,7 @@ namespace
         JBro::Array<JBro::GameObject*> roots;
         canvas->GetRootObjects(roots);
         Check(roots.Size() == 1, "and one root must be back");
-        Check(std::strcmp(roots[0]->GetTag(), "Kept") == 0, "the one that was there before play");
+        Check(std::strcmp(roots[0]->GetName(), "Kept") == 0, "the one that was there before play");
         auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(roots[0]);
         Check(restored != nullptr, "with its component");
         Check(std::fabs(restored->position.x - 3.0f) < 1.0e-4f
@@ -6558,10 +6626,10 @@ namespace
             "and the editor must know which dimension it is in");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        // 게임 뷰는 닫아 둔다. 그래야 남는 뷰가 편집 화면의 것 하나뿐이다.
-        if (JBro::EditorPanel* gameView = editor.FindPanel("Game"))
+        // 시뮬레이션 뷰는 닫아 둔다. 그래야 남는 뷰가 편집 화면의 것 하나뿐이다.
+        if (JBro::EditorPanel* simulationView = editor.FindPanel("Simulation"))
         {
-            gameView->SetOpen(false);
+            simulationView->SetOpen(false);
         }
         for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
@@ -9398,6 +9466,15 @@ namespace
                 TempPath("JBroSessionProbe\\Session.jproject.layout.ini");
             Check(std::filesystem::exists(std::filesystem::path(layoutPath.c_str())),
                 "the window layout is written beside the project file");
+            // **옛 배치의 게임 뷰를 시뮬레이션 뷰로 읽는다**(D-295). 시뮬레이션 뷰가 `Game` 으로 적혀 있던 때의 파일로 되돌려 둔다.
+            std::ifstream layoutIn(std::filesystem::path(layoutPath.c_str()), std::ios::binary);
+            std::string layout((std::istreambuf_iterator<char>(layoutIn)), std::istreambuf_iterator<char>());
+            layoutIn.close();
+            const std::size_t at = layout.find("[Window][Simulation]");
+            Check(at != std::string::npos, "the layout names the simulation view by its kind");
+            layout.replace(at, std::strlen("[Window][Simulation]"), "[Window][Game]");
+            std::ofstream layoutOut(std::filesystem::path(layoutPath.c_str()), std::ios::binary | std::ios::trunc);
+            layoutOut << layout;
         }
 
         {
@@ -9435,6 +9512,9 @@ namespace
                 "the inspector must be docked again");
             Check(std::fabs(inspector->DockNode->Size.x - savedInspectorWidth) < 2.0f,
                 "and the dock keeps the width it was left at");
+            ImGuiWindow* simulation = ImGui::FindWindowByName("Simulation");
+            Check(simulation != nullptr && simulation->DockId != 0,
+                "a layout written when the view was called Game still docks the simulation view");
 
             editor.Shutdown();
         }
@@ -10226,20 +10306,20 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
         PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
         Check(editor.Tick(Frame), "the editor must tick");
-        if (std::strcmp(alpha->GetTag(), "AlphaOne") != 0)
+        if (std::strcmp(alpha->GetName(), "AlphaOne") != 0)
         {
-            std::cout << "  [flake] tag='" << alpha->GetTag() << "' frames="
+            std::cout << "  [flake] tag='" << alpha->GetName() << "' frames="
                       << (ImGui::GetFrameCount() - framesBeforeTyping) << " (7 ticks)"
                       << " active=" << (ImGui::GetActiveID() == nameId ? "name" : "other")
                       << " appFocusLost=" << (ImGui::GetIO().AppFocusLost ? 1 : 0) << std::endl;
         }
-        Check(std::strcmp(alpha->GetTag(), "AlphaOne") == 0,
+        Check(std::strcmp(alpha->GetName(), "AlphaOne") == 0,
             "typing in the name field renames the object");
         // **친 글자 전체가 커맨드 하나다.** 글자마다 한 칸씩 쌓이면 되돌리기가 글자 수만큼 필요해진다.
         Check(editor.GetCommands().GetUndoCount() == undoBefore + 1,
             "and the three keystrokes are one command");
         Check(editor.GetCommands().Undo(), "the rename must undo");
-        Check(std::strcmp(alpha->GetTag(), "Alpha") == 0, "back to the name it had");
+        Check(std::strcmp(alpha->GetName(), "Alpha") == 0, "back to the name it had");
         Check(editor.Tick(Frame), "the editor must tick after the undo");
         Check(editor.Tick(Frame), "and once more so the field reads the object again");
 
@@ -10907,7 +10987,7 @@ namespace
 
     // **레이어 이름은 편집이 끝날 때 한 번만 커맨드가 된다**(D-183). 기존 엔진이
     // 주석으로 경고한 자리다 - 글자마다 커맨드를 내면 이름 석 자를 고친 것을 되돌리는 데
-    // 실행 취소가 세 번 든다. 인스펙터의 오브젝트 이름 칸은 이미 그렇게 하고 있었다.
+    // 실행 취소가 세 번 든다. 이름은 오브젝트처럼 인스펙터에서만 고친다 - 레이어 우클릭 메뉴에는 이름 칸이 없다.
     void TestRenamingALayerIsOneCommandNotOnePerLetter()
     {
         JBro::EditorApplication editor;
@@ -10945,10 +11025,21 @@ namespace
         RightClickAt(editor, hwnd, row);
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "right-clicking the layer must open its menu");
-
+        Spot menuField;
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "##layerName"), menuField),
+            "the layer menu must not carry a name field - names are edited in the inspector, as for objects");
+        // 메뉴 밖을 누르면 메뉴가 닫힌다(창에 포커스가 없어 Esc 는 닿지 않는다). 그 다음 누름이 줄을 고른다.
+        ClickAt(editor, hwnd, row);
+        Check(editor.Tick(Frame), "the menu must close");
+        ClickAt(editor, hwnd, row);
+        Check(editor.Tick(Frame), "the editor must settle on the layer row");
+        Check(editor.GetSelectedLayer() == layerId, "clicking the layer row must choose it for the inspector");
+        Check(editor.Tick(Frame), "the inspector must draw the layer");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
         Spot field;
-        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "##layerName"), field),
-            "the menu must carry the name field");
+        Check(FindInspectorItem(editor, hwnd, LabelId(LabelId(inspector->ID, "##layer"), "##layerName"), field),
+            "the inspector must carry the layer's name field");
         const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
         ClickAt(editor, hwnd, field);
         Check(editor.Tick(Frame), "the field must take focus");
@@ -11157,7 +11248,7 @@ namespace
                 copy = &object;
             }
         });
-        Check(copy != nullptr && std::strcmp(copy->GetTag(), "Crate") == 0
+        Check(copy != nullptr && std::strcmp(copy->GetName(), "Crate") == 0
                 && canvas->FindComponentRaw<JBro::Component::Transform2D>(copy)->position.x == 2.0f,
             "the object comes with its values");
         const JBro::EditorObjectId copyId = editor.GetObjectIds().Track(copy);
@@ -11532,7 +11623,7 @@ namespace
     }
 
     // **레이어 창의 오브젝트 줄 눈 표시는 캔버스 뷰에서만 감춘다**(D-163, 기존 `EditorHidden`). 감춘 것은 캔버스 뷰에
-    // 그려지지도 집히지도 않고, 게임 뷰에는 그대로 나온다. 눈은 커맨드라 되돌릴 수 있다.
+    // 그려지지도 집히지도 않고, 시뮬레이션 뷰에는 그대로 나온다. 눈은 커맨드라 되돌릴 수 있다.
     void TestEditorHiddenObjectsLeaveOnlyTheCanvasView()
     {
         JBro::EditorApplication editor;
@@ -11651,7 +11742,7 @@ namespace
             Check(red != nullptr && red->IsEditorHidden(), "still hidden after the undo");
         }
 
-        // **게임 뷰는 감춘 것을 그대로 그린다.** 감추는 것은 편집을 위한 것이다.
+        // **시뮬레이션 뷰는 감춘 것을 그대로 그린다.** 감추는 것은 편집을 위한 것이다.
         JBro::GameObject* eyeObject = canvas->CreateObject("Camera");
         canvas->AttachComponent<JBro::Component::Transform2D>(eyeObject);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eyeObject);
@@ -11664,10 +11755,10 @@ namespace
         }
         for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must show the game view");
+            Check(editor.Tick(Frame), "the editor must show the simulation view");
         }
         Check(red->IsEditorHidden(), "the object is still hidden in the editor");
-        Check(CountRedPixelsIn(*renderer, "Game") > 0, "yet the game view draws it");
+        Check(CountRedPixelsIn(*renderer, "Simulation") > 0, "yet the simulation view draws it");
 
         editor.Shutdown();
     }
@@ -13789,6 +13880,221 @@ namespace
         return nullptr;
     }
 
+    // **태그는 인스펙터에서 프로젝트 목록으로 고르고, 목록 끝에서 새로 더한다**(D-297). 다는 것은 커맨드라 되돌릴 수 있고,
+    // 목록에 더한 것은 프로젝트 설정이라 되돌리기와 따로 남는다. 복사·붙여넣기가 태그를 지킨다.
+    void TestTaggingAnObjectFromTheInspector()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; tags not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "TagProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* hero = canvas->CreateObject("Hero");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(hero) != nullptr, "the probe needs a transform");
+        editor.SetSelectedObject(hero);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID combo = LabelId(LabelId(inspector->ID, "##object"), "##tag");
+        const char* addLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorTagAdd, "Add Tag...");
+        const auto pick = [&](JBro::Int32 index, const char* label) {
+            Spot field;
+            Check(FindItemAnywhereInWindow(editor, hwnd, inspector, combo, field), "the tag field must be in the inspector header");
+            ClickAt(editor, hwnd, field);
+            ImGuiWindow* popup = ImGui::FindWindowByName("##Combo_00");
+            Check(popup != nullptr && popup->Active, "clicking the tag field must open its list");
+            Spot item;
+            Check(FindItemAnywhereInWindow(editor, hwnd, popup, LabelId(PushedId(popup->ID, index), label), item),
+                "the list must carry the item");
+            ClickAt(editor, hwnd, item);
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the list must close");
+            }
+        };
+
+        // ── 목록 끝의 `태그 추가...` 로 새 태그를 만들어 단다 ─────────────
+        // 프로젝트에 태그가 없으니 목록은 `태그 없음`, `태그 추가...` 둘이다.
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        pick(1, addLabel);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "choosing Add Tag must open the name box");
+        Spot box;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "##newTag"), box), "the name box must be there");
+        ClickAt(editor, hwnd, box);
+        Check(editor.Tick(Frame), "the box must take focus");
+        for (const char* at = "Enemy"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        const JBro::Array<JBro::String>& tags = editor.GetProjectFile().tags;
+        Check(tags.Size() == 1 && tags[0] == "Enemy", "the new tag joins the project list");
+        Check(hero->CompareTag("Enemy"), "and the object wears it");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "tagging is one undo");
+        Check(editor.GetCommands().Undo() && hero->GetTagId() == JBro::InvalidNameId, "undo takes the tag off");
+        Check(editor.GetProjectFile().tags.Size() == 1, "but the project keeps the tag in its list");
+
+        // ── 이제 목록에서 고른다 ─────────────
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        pick(1, "Enemy");
+        Check(hero->CompareTag("Enemy"), "picking the tag from the list puts it on");
+        pick(0, JBro::Loc::TextOr(JBro::LocKeys::InspectorTagNone, "Untagged"));
+        Check(hero->GetTagId() == JBro::InvalidNameId, "picking Untagged takes it off");
+        Check(editor.GetCommands().Undo() && hero->CompareTag("Enemy"), "and undo puts it back");
+
+        // ── 복사·붙여넣기와 파일 ─────────────
+        Check(editor.CopySelection() && editor.PasteClipboard(), "the hero copies and pastes");
+        JBro::GameObject* pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted != hero && pasted->CompareTag("Enemy"), "a pasted copy keeps the tag");
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(*canvas, text, error) && text.Contains("Tag: Enemy"), "the canvas file keeps the tag");
+
+        editor.Shutdown();
+    }
+
+    // **같은 레이어·같은 renderOrder 끼리의 그리는 차례를 메뉴로 옮긴다**(D-296). 차례는 숨은 필드 `drawSequence` 이고,
+    // 한 번 옮기면 그 묶음 전체에 맨 위 0 부터 아래로 -1 씩 다시 매긴다. 한 손짓은 커맨드 하나다.
+    void TestBringingAnObjectForwardReordersItsDrawing()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; draw order not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "DrawOrderProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Component::SpriteRenderer2D* sprites[4] = {};
+        JBro::GameObject* objects[4] = {};
+        const char* const names[] = {"A", "B", "C", "Other"};
+        for (JBro::Int32 index = 0; index < 4; ++index)
+        {
+            objects[index] = canvas->CreateObject(names[index]);
+            Check(canvas->AttachComponent<JBro::Component::Transform2D>(objects[index]) != nullptr, "the probe needs a transform");
+            sprites[index] = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(objects[index]);
+            Check(sprites[index] != nullptr, "and a sprite");
+        }
+        // 다른 renderOrder 는 다른 묶음이다.
+        sprites[3]->renderOrder = 5;
+        JBro::GameObject* plain = canvas->CreateObject("Plain");
+        using JBro::EditorActions::DrawOrderMove;
+        const auto sequences = [&](JBro::Int32 sa, JBro::Int32 sb, JBro::Int32 sc) {
+            return sprites[0]->drawSequence == sa && sprites[1]->drawSequence == sb && sprites[2]->drawSequence == sc;
+        };
+
+        // ── 끝에서는 막힌다. 그리는 것이 없으면 막힌다 ─────────────
+        // 차례가 모두 0 이면 만든 차례다 - C 가 맨 위, A 가 맨 아래다.
+        Check(JBro::EditorActions::WhyNoDrawOrder(editor, *objects[2], DrawOrderMove::Forward) != nullptr
+                && JBro::EditorActions::WhyNoDrawOrder(editor, *objects[2], DrawOrderMove::ToFront) != nullptr,
+            "the last made is already in front");
+        Check(JBro::EditorActions::WhyNoDrawOrder(editor, *objects[0], DrawOrderMove::Backward) != nullptr,
+            "the first made is already at the back");
+        Check(JBro::EditorActions::WhyNoDrawOrder(editor, *plain, DrawOrderMove::Forward) != nullptr,
+            "an object with nothing drawn has no order to change");
+
+        // ── 앞으로 한 칸: 바로 위의 하나만 넘는다 ─────────────
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        Check(JBro::EditorActions::MoveDrawOrder(editor, *objects[0], DrawOrderMove::Forward), "A moves forward");
+        Check(sequences(-1, -2, 0), "A passes B but not C, and the group is numbered from 0 at the top");
+        Check(sprites[3]->drawSequence == 0, "a sprite with another render order is not in the group");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "the whole renumbering is one undo");
+        Check(editor.GetCommands().Undo() && sequences(0, 0, 0), "and one undo brings every number back");
+        Check(editor.GetCommands().Redo() && sequences(-1, -2, 0), "redo puts it forward again");
+
+        // ── 맨 뒤로 ─────────────
+        Check(JBro::EditorActions::MoveDrawOrder(editor, *objects[2], DrawOrderMove::ToBack), "C goes to the back");
+        Check(sequences(0, -1, -2), "C is under B, which is under A");
+
+        // ── 메뉴: 계층 줄의 `순서` 하위 메뉴에서 `맨 앞으로 가져오기` ─────────────
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const char* orderLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyDrawOrder, "Order");
+        const char* frontLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyBringToFront, "Bring to Front");
+        Spot row;
+        Check(FindHierarchyRow(editor, hwnd, objects[1], row), "B must have a row");
+        RightClickAt(editor, hwnd, row);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the row must open the object menu");
+        Spot line;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, orderLabel), line),
+            "the object menu must carry the order submenu");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        ImGuiWindow* submenu = FindSubmenuWindow();
+        Check(submenu != nullptr, "hovering the line must open the order submenu");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, frontLabel), item),
+            "the submenu must offer to bring it to the front");
+        ClickAt(editor, hwnd, item);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must close");
+        }
+        Check(sequences(-1, 0, -2), "B comes to the front of the group, the others keep their order under it");
+
+        // ── 숨은 필드: 인스펙터에 줄이 없고 파일에는 적힌다 ─────────────
+        const JBro::PropertyTable& table = JBro::GetPropertyTable<JBro::Component::SpriteRenderer2D>();
+        const JBro::PropertyInfo* field = FindProperty(table, "drawSequence");
+        Check(field != nullptr && field->edit != nullptr && false == field->edit->visible && field->serialize,
+            "the draw sequence is saved but not shown");
+        editor.SetSelectedObject(objects[0]);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must settle on A");
+        }
+        Spot cell;
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(table, "renderOrder"), "##value"), cell),
+            "the render order row is in the inspector");
+        Check(false == FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(table, "drawSequence"), "##value"), cell),
+            "the draw sequence row is not");
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(*canvas, text, error) && text.Contains("drawSequence: -1"),
+            "the canvas file keeps the order");
+
+        editor.Shutdown();
+    }
+
     // **콜라이더 우클릭 메뉴의 "포인트 편집" 은 누른 그 콜라이더를 고친다**(D-220 의 첫 사용처). 도구 막대로 켜면
     // 여전히 첫 폴리곤이다. 폴리곤이 아니면 항목이 회색이다.
     void TestEditPointsFromTheMenuEditsThatCollider()
@@ -13968,7 +14274,7 @@ namespace
     }
 
     // **그릴 수 없는 카메라가 있어도 에디터는 돈다**(D-239). 그 전에는 크기 0 인 카메라 하나로 첫 프레임에 꺼졌다(실제 에디터 실측).
-    // 게임 뷰는 까닭을 말할 수 있어야 하고, `PixelPerfect` 면 게임 화면 기준에 레터박스가 걸린다.
+    // 시뮬레이션 뷰는 까닭을 말할 수 있어야 하고, `PixelPerfect` 면 게임 화면 기준에 레터박스가 걸린다.
     void TestAnUndrawableCameraKeepsTheEditorRunning()
     {
         JBro::EditorApplication editor;
@@ -14002,7 +14308,7 @@ namespace
             Check(editor.Tick(Frame), "a camera that cannot draw must not stop the editor");
         }
         Check(editor.GetUnusableGameCameraCount() == 1 && editor.GetGameCamera2D() == nullptr,
-            "the game view knows a camera was skipped, so it can say why instead of 'no camera'");
+            "the simulation view knows a camera was skipped, so it can say why instead of 'no camera'");
         Check(false == editor.DidGameSubmitLastFrame(), "and the game drew nothing with it");
 
         camera->nearPlane = 50.0f;
@@ -14036,7 +14342,7 @@ namespace
                 && screen.areaX >= 0.0f && screen.areaY >= 0.0f
                 && screen.areaX + screen.areaWidth <= screen.targetWidth + 0.001f
                 && screen.areaY + screen.areaHeight <= screen.targetHeight + 0.001f,
-            "the game screen frame carries the letterbox rectangle, inside the game view");
+            "the game screen frame carries the letterbox rectangle, inside the simulation view");
         const JBro::Float aspect = screen.areaWidth / screen.areaHeight;
         const JBro::Float reference = screen.referenceWidth / screen.referenceHeight;
         Check(std::fabs(aspect - reference) < 0.02f, "the rectangle keeps the reference resolution's shape");
@@ -14258,12 +14564,13 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheInspectorEditsPolygonColliderPoints();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
-    TestTheGameViewKnowsWhenNoCameraDrew();
-    TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
+    TestTheSimulationViewKnowsWhenNoCameraDrew();
+    TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows();
     TestDraggingTheGizmoMovesTheSelectionUnderOneUndo();
     TestPopupsOpenOneAtATimeAndCloseByHandle();
     TestSavingAsksForAPathOnceAndReportsFailure();
     TestMovingAComponentFromItsHeaderMenuCanBeUndone();
+    TestDraggingAComponentHeaderReordersIt();
     TestCopyAndPasteMakeASiblingAndSelectIt();
     TestCopyingAComponentPastesItsValuesOntoAnotherObject();
     TestTheAddComponentListGroupsTypesAndMarksWhatIsAlreadyThere();
@@ -14273,7 +14580,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
-    TestOnlyTheFocusedGameViewGivesTheGameItsKeys();
+    TestOnlyTheFocusedSimulationViewGivesTheGameItsKeys();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAudioSettingsAndMetersDraw();
@@ -14328,6 +14635,8 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheCommandPaletteFindsAndRunsActions();
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();
+    TestBringingAnObjectForwardReordersItsDrawing();
+    TestTaggingAnObjectFromTheInspector();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestALayerRowSelectsTheLayerForTheInspector();
     TestLayerAssetsSaveAndLoadInTheEditor();

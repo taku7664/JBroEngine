@@ -7,6 +7,8 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 
+#include <cstdint>
+
 namespace JBro
 {
     class EditorApplication;
@@ -96,5 +98,21 @@ namespace JBro
         // `placement` 로 캔버스 뷰가 **오른쪽 단추를 누른 자리**를 넘긴다(D-168).
         Bool DrawBackgroundMenu(EditorApplication& editor,
             const ObjectPlacement& placement = {});
+
+        // ── 그리는 차례 (D-296) ──────────────────────────────────────────
+        //
+        // 같은 레이어·같은 `renderOrder` 끼리의 차례(`drawSequence`)를 옮긴다. 오브젝트의 묶음은 첫 `SpriteRenderer2D`(없으면 첫 `Text2D`)의
+        // `renderOrder` 이고, 그 오브젝트의 그 묶음 컴포넌트가 한 덩어리로 움직인다. 앞으로는 바로 위의 남의 것 하나를 넘고, 맨 앞은 묶음의 맨 위다.
+        // 옮긴 뒤 묶음 전체에 차례를 다시 매기고(맨 위 0, 아래로 -1 씩) 그 바뀐 것들을 커맨드 하나로 쓴다.
+        enum class DrawOrderMove : std::uint8_t
+        {
+            Forward,
+            ToFront,
+            Backward,
+            ToBack,
+        };
+        // 할 수 없으면 까닭(번역된 글자), 할 수 있으면 nullptr 이다.
+        const char* WhyNoDrawOrder(EditorApplication& editor, GameObject& object, DrawOrderMove move);
+        Bool MoveDrawOrder(EditorApplication& editor, GameObject& object, DrawOrderMove move);
     }
 }

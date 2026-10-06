@@ -69,8 +69,8 @@ namespace JBro::Internal
             return value < CompositeBlendCount ? static_cast<CompositeBlend>(value.Get()) : CompositeBlend::Normal;
         }
 
-        // 모아 둔 메시를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가 같은 목록을 쓴다.
-        // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 게임 뷰는 보지 않는다.
+        // 모아 둔 메시를 이미 열린 뷰에 밀어 넣는다. 시뮬레이션 뷰와 캔버스 뷰가 같은 목록을 쓴다.
+        // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 시뮬레이션 뷰는 보지 않는다.
         Bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, Bool editorView, std::uint16_t layerOrder)
         {
             constexpr std::size_t BatchSize = 64;
@@ -483,7 +483,7 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const Bool showLines = debugDraw != nullptr && debugDraw->IsGameViewVisible();
+        const Bool showLines = debugDraw != nullptr && debugDraw->IsSimulationViewVisible();
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
             showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(renderer.GetFrameExtent().height));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;

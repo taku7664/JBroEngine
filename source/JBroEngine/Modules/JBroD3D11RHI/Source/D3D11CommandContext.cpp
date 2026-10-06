@@ -60,7 +60,7 @@ namespace JBro::Internal
             return false;
         }
         // 그리려는 텍스처가 아직 셰이더 자원으로 걸려 있으면 D3D11 이 경고를 내며 스스로 뗀다.
-        // 먼저 떼어 조용히 간다 - 에디터가 게임 뷰를 그린 뒤 같은 프레임에 읽는 길이 그렇다.
+        // 먼저 떼어 조용히 간다 - 에디터가 시뮬레이션 뷰를 그린 뒤 같은 프레임에 읽는 길이 그렇다.
         ID3D11ShaderResourceView* noResources[MaxBoundTextures] = {};
         m_context->PSSetShaderResources(0, MaxBoundTextures, noResources);
         m_context->OMSetRenderTargets(desc.colorAttachments.size, views, depthView);

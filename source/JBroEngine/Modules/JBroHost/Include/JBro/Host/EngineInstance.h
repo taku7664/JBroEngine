@@ -60,7 +60,7 @@ namespace JBro
         TimeSettings time;
         // 디버그 선 저장소의 용량이다(D-243). 넘친 선은 버리고 센다.
         UInt32 maxDebugLines = 16384;
-        // 참이면 게임 뷰의 디버그 선을 프로젝트의 `DebugModeEnabled` 로 정한다(게임 실행). 에디터는 거짓으로 두고 제 토글로 정한다.
+        // 참이면 시뮬레이션 뷰의 디버그 선을 프로젝트의 `DebugModeEnabled` 로 정한다(게임 실행). 에디터는 거짓으로 두고 제 토글로 정한다.
         Bool gameDebugDrawFromProject = true;
         // 프레임 임시 메모리 예산이다(D-52). memory.frame 을 직접 채워 주면 그것을 그대로 쓰고,
         // 비어 있으면 호스트가 이 크기로 선형 할당기를 만들어 채운다. 0 이면 만들지 않는다.
@@ -141,11 +141,11 @@ namespace JBro
         // 게임 화면을 어디에 그릴지다. 비워 두면 백버퍼 - 게임 실행이 그것이다.
         // 에디터는 자기 패널에 붙일 텍스처를 여기에 준다(D-63).
         // 프레임 밖에서만 바꾼다.
-        Bool SetGameViewTarget(const FrameTarget& target);
+        Bool SetSimulationViewTarget(const FrameTarget& target);
 
         // **이번 프레임에 편집 화면을 한 번 더 그린다**(D-130). 캔버스 뷰 패널이 매 프레임
         // 다시 건다 - 그 패널이 그려지지 않는 프레임에는 걸리지 않고, 그리지도 않는다
-        // (게임 뷰와 같은 규칙이다, D-63). 프레임 밖에서만 부른다.
+        // (시뮬레이션 뷰와 같은 규칙이다, D-63). 프레임 밖에서만 부른다.
         Bool RequestEditorView(const EditorViewDesc& view);
         // **이번 프레임에 레이어 썸네일을 그린다**(D-288). 편집 화면 뒤에 그리고, 요청은 한 프레임짜리다. 한 프레임에 `MaxLayerThumbnails` 장까지
         // 받는다 - 에디터가 돌아가며 건다. 썸네일이 실패해도 프레임은 실패하지 않는다(게임 화면이 아니다). 프레임 밖에서만 부른다.
@@ -156,14 +156,14 @@ namespace JBro
         // 전까지 거짓으로 두어 스크립트와 물리가 돌지 않게 한다 - 편집하는 동안 게임이
         // 돌면 방금 놓은 값이 다음 프레임에 덮어써진다.
         //
-        // 거짓이어도 **그리기는 그대로 돈다.** 캔버스 뷰도 게임 뷰도 멈춘 장면을 보여야 한다.
+        // 거짓이어도 **그리기는 그대로 돈다.** 캔버스 뷰도 시뮬레이션 뷰도 멈춘 장면을 보여야 한다.
         void SetSimulationEnabled(Bool enabled);
         // **입력을 꺼내 가는 쪽이 있는가**(D-177). 에디터는 자기 UI 에 넣어 주고 스스로 비우므로
         // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
         // 입력이 쌓이기만 한다.
         void SetInputOwnedByHost(Bool owned);
         // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-214). 다음 `Tick` 이 이것을 접고 비운다.
-        // 에디터는 재생 중이고 게임 뷰가 포커스를 가졌을 때만 부르고, 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
+        // 에디터는 재생 중이고 시뮬레이션 뷰가 포커스를 가졌을 때만 부르고, 시뮬레이션 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
         // 한 틱에 여러 번 부르면 이어 붙는다. `mapping` 은 마지막 것을 쓴다.
         void SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping);
         // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-214). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
@@ -172,7 +172,7 @@ namespace JBro
         // 게임이 바꾼 입력 상태(켠 액션 세트)를 프로젝트 설정으로 되돌린다(D-214). 에디터가 재생을 멈출 때 부른다.
         void ResetGameInput();
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
-        // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
+        // 그릴 것이 없다 - 시뮬레이션 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         Bool DidGameSubmitLastFrame() const;
         Bool IsSimulationEnabled() const;
         // 멈춘 게임을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 멈추지 않았으면 아무 일도 없다.
@@ -185,7 +185,7 @@ namespace JBro
         System::RandomSystem* GetRandom();
         // 디버그 선 저장소(D-243). 초기화 전이거나 내린 뒤에는 null 이다.
         System::DebugDrawSystem* GetDebugDraw();
-        // 게임 뷰에 디버그 선을 그릴지다. 캔버스 뷰는 `EditorViewDesc::debugDraw` 가 정한다.
+        // 시뮬레이션 뷰에 디버그 선을 그릴지다. 캔버스 뷰는 `EditorViewDesc::debugDraw` 가 정한다.
         void SetGameDebugDrawVisible(Bool visible);
         Bool IsGameDebugDrawVisible() const;
 
@@ -338,7 +338,7 @@ namespace JBro
         ScriptDLLLoader m_scripts;
         ProjectFile m_project;
         FrameworkContext m_frameworkContext;
-        FrameTarget m_gameViewTarget;
+        FrameTarget m_simulationViewTarget;
         // 이번 프레임의 편집 화면 요청(D-130). 프레임을 그리고 나면 비운다 - 매 프레임
         // 다시 걸어야 그려진다.
         EditorViewDesc m_editorView;

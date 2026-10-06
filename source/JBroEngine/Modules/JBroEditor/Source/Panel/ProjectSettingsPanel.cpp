@@ -182,6 +182,15 @@ namespace JBro
         }
     }
 
+    void ProjectSettingsPanel::DrawTags()
+    {
+        // **오브젝트 태그 목록**(D-297). 인스펙터의 태그 칸이 이 목록에서 고른다. 지워도 그 태그를 단 오브젝트는 제 태그를 지킨다.
+        Widget::SectionHeader(Loc::TextOr(LocKeys::ProjectSettingsTags, "Tags")).SpacingBefore().Draw();
+        Widget::List("##tags", m_draft.tags,
+            [&](String& tag, Int32) { Widget::TextField("##tag", tag).Draw(); },
+            String(), Widget::ListFlagsShowIndex);
+    }
+
     void ProjectSettingsPanel::DrawGameLanguages()
     {
         // **게임 언어**(D-226). 문자열 표의 로케일 목록과 기본·폴백이다. 에디터 언어(`EditorLocale`)와는 다른 값이다 - 위의 언어는
@@ -1051,6 +1060,7 @@ namespace JBro
             },
             AssetId{}, Widget::ListFlagsShowIndex);
         DrawGameLanguages();
+        DrawTags();
         DrawInputSettings();
         DrawPhysicsSettings();
 

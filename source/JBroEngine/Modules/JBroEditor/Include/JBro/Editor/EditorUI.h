@@ -70,7 +70,7 @@ namespace JBro
         // 프레임이 끝났다는 것은 RHI 가 보장한다.
         Bool Draw(IRHICommandContext& commands, UInt32 frameSlot);
 
-        // 텍스처 핸들을 ImGui 가 쓰는 값으로 접는다. **에디터가 게임 뷰를
+        // 텍스처 핸들을 ImGui 가 쓰는 값으로 접는다. **에디터가 시뮬레이션 뷰를
         // `ImGui::Image` 로 붙이려면 이것이 필요하다** - 그 값이 다시 이 백엔드로
         // 돌아와 핸들로 펴지므로, 접는 방법을 한 군데서 정해야 한다.
         // `ImTextureID` 를 헤더에 노출하지 않으려고 부호 없는 64비트로 돌려준다.

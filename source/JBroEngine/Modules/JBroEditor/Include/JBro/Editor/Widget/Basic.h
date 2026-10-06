@@ -85,6 +85,8 @@ namespace JBro::Widget
     // (끌지 않은 오른쪽 버튼), 여기서는 열려 있을 때만 그린다.
     void OpenContextMenu(const char* id);
     Bool BeginOpenedContextMenu(const char* id);
+    // 지금 그리는 우클릭 메뉴를 닫는다. 메뉴 항목이 아닌 것(글자 칸·단추)으로 끝내는 메뉴가 쓴다.
+    void CloseContextMenu();
     // 묻는 창이다. `OpenModal` 로 열고, `BeginModal` 이 참일 때만 `EndModal` 을 부른다.
     void OpenModal(const char* id);
     Bool BeginModal(const char* id);

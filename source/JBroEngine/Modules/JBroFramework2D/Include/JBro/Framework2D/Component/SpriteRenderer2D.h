@@ -78,6 +78,8 @@ namespace JBro::Component
         // 시트의 어느 칸인가(D-113). 슬라이싱이 없는 스프라이트는 언제나 0 이고, 넘치면 마지막 칸이다.
         JBRO_FIELD(UInt32, frameIndex) = 0;
         JBRO_FIELD(Int32, renderOrder) = 0;
+        // 같은 레이어·같은 `renderOrder` 끼리의 그리는 차례다(D-296). 큰 것이 위다. 인스펙터에 줄이 없고 에디터의 "앞으로 가져오기" 메뉴가 고친다.
+        JBRO_FIELD(Int32, drawSequence, Hidden()) = 0;
         JBRO_FIELD(Bool,         visible)     = true;
     };
 }
