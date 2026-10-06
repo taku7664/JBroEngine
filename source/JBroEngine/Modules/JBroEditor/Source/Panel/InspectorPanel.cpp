@@ -311,122 +311,15 @@ namespace JBro
             // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
             if (Widget::BeginContextMenu("##ComponentMenu"))
             {
-                // **자리 옮기기.** 슬롯 순서가 스크립트 실행 순서다(D-45). 양 끝에서는 그쪽
-                // 항목을 잠근다.
-                std::size_t moveTo = index;
-                if (index == 0)
-                {
-                    ImGui::BeginDisabled();
-                }
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up"), nullptr, true, nullptr, Icons::ArrowUp))
-                {
-                    moveTo = index - 1;
-                }
-                if (index == 0)
-                {
-                    ImGui::EndDisabled();
-                }
-                const Bool last = index + 1 >= components.Size();
-                if (last)
-                {
-                    ImGui::BeginDisabled();
-                }
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down"), nullptr, true, nullptr, Icons::ArrowDown))
-                {
-                    moveTo = index + 1;
-                }
-                if (last)
-                {
-                    ImGui::EndDisabled();
-                }
-                if (moveTo != index)
-                {
-                    MoveComponent(*object, index, moveTo);
-                    Widget::EndContextMenu();
-                    ImGui::PopID();
-                    // 옮긴 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다. 다음 프레임에 다시 그린다.
-                    return;
-                }
-                ImGui::Separator();
-                // **복사·붙여넣기**(D-167). 기존 엔진도 이 메뉴에 둘을 나란히 두었다.
-                // 복사는 값만 뜨므로 화면이 그대로고, 붙여넣기는 같은 타입을 하나 더 붙인다.
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorCopyComponent,
-                        "Copy Component"), nullptr, true, nullptr, Icons::Copy))
-                {
-                    m_editor->CopyComponent(*component);
-                }
-                Bool pasted = false;
-                {
-                    // 하나만 붙는 타입이 이미 있으면 회색이다(D-180). 눌러도 아무 일이
-                    // 일어나지 않는 항목을 켜 두면 고장과 구분되지 않는다.
-                    const Bool canPaste = m_editor->CanPasteComponent(*object);
-                    // 떠 둔 것이 없는 것과, 떠 두었지만 이미 붙어 있는 것은 다른 이야기다.
-                    const char* why = m_editor->HasComponentClipboard()
-                        ? Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")
-                        : Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
-                    if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponent,
-                            "Paste Component"), nullptr, canPaste, why))
-                    {
-                        m_editor->PasteComponent(*object);
-                        pasted = true;
-                    }
-                }
-                if (pasted)
-                {
-                    Widget::EndContextMenu();
-                    ImGui::PopID();
-                    // 슬롯이 하나 늘었다. 이 프레임의 배열은 더 이상 맞지 않는다.
-                    return;
-                }
-                {
-                    // **값만 덮어쓰기.** 떠 둔 것이 같은 타입일 때만 켜진다. `Transform2D` 처럼
-                    // 하나만 있어야 뜻이 서는 타입에서는 이쪽이 쓰는 손짓이다(D-167) -
-                    // 기존 엔진에는 새로 하나 더 붙이는 쪽만 있었다.
-                    const Bool canPasteValues = m_editor->CanPasteComponentValues(*component);
-                    if (false == canPasteValues)
-                    {
-                        ImGui::BeginDisabled();
-                    }
-                    if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponentValues,
-                            "Paste Component Values")))
-                    {
-                        m_editor->PasteComponentValues(*object, *component);
-                    }
-                    if (false == canPasteValues)
-                    {
-                        ImGui::EndDisabled();
-                    }
-                }
-                // **컴포넌트마다 더한 항목**(D-220). 오브젝트 메뉴와 같은 표다. 이 메뉴는 이미 이 인스턴스의
-                // 것이므로 하위 메뉴 없이 늘어놓는다. 떼기는 무거운 손짓이라 그 아래 맨 끝에 남긴다.
-                // `Has` 는 주소를 만들기 전에 거르는 것일 뿐이다 - 항목이 없으면 `DrawItems` 는 구분선도 긋지 않는다.
-                ComponentMenuTable& menus = m_editor->GetComponentMenus();
-                ComponentMenuContext hookContext;
-                if (menus.Has(slot.typeId)
-                    && MakeComponentAddress(m_editor->GetObjectIds(), *object, *component, hookContext.address))
-                {
-                    hookContext.editor = m_editor;
-                    hookContext.component = component;
-                    if (false == menus.DrawItems(hookContext, true))
-                    {
-                        Widget::EndContextMenu();
-                        ImGui::PopID();
-                        // 훅이 슬롯 배열을 바꿨을 수 있다. 다음 프레임에 다시 그린다.
-                        return;
-                    }
-                }
-                ImGui::Separator();
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent,
-                        "Remove Component"), nullptr, true, nullptr, Icons::Delete))
-                {
-                    RemoveComponent(*object, *component);
-                    Widget::EndContextMenu();
-                    ImGui::PopID();
-                    // 뗀 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다.
-                    // 계속 돌면 죽은 슬롯을 읽는다 - 다음 프레임에 다시 그린다.
-                    return;
-                }
+                // **오브젝트 메뉴의 컴포넌트 하위 메뉴와 같은 한 벌이다**(D-298). 사용·자리 옮기기·복사·붙여넣기·더한 항목·제거.
+                const Bool unchanged = EditorActions::DrawComponentMenuItems(*m_editor, *object, index);
                 Widget::EndContextMenu();
+                if (false == unchanged)
+                {
+                    ImGui::PopID();
+                    // 슬롯 배열이 바뀌었다. 이 프레임의 배열을 더 읽으면 죽은 슬롯을 본다 - 다음 프레임에 다시 그린다.
+                    return;
+                }
             }
             // **메뉴는 단추로도 연다**(D-278). 우클릭만 되면 메뉴가 있다는 것을 알 수 없다. 같은 메뉴를 다음 프레임에 연다.
             {
@@ -857,18 +750,6 @@ namespace JBro
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
         m_editor->GetCommands().Execute(MakeOwnerPtr<MoveComponentCommand>(
             m_editor->GetObjectIds(), objectId, from, to));
-    }
-
-    void InspectorPanel::RemoveComponent(GameObject& object, ComponentBase& component)
-    {
-        Canvas* canvas = m_editor->GetCanvas();
-        if (canvas == nullptr)
-        {
-            return;
-        }
-        const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
-        m_editor->GetCommands().Execute(MakeOwnerPtr<RemoveComponentCommand>(
-            *canvas, m_editor->GetObjectIds(), objectId, &component));
     }
 
     Bool InspectorPanel::DrawScalarRun(
@@ -1302,10 +1183,18 @@ namespace JBro
     {
         // **잎사귀는 공용 위젯으로 그린다**(§11.1). 처음에는 여기가 ImGui 원시 호출 뭉치였다.
         // 끌기는 단추 없이 칸 하나라 `##value` 가 곧 그 칸의 Id 다.
-        const Bool hasRange = edit != nullptr && edit->hasRange;
+        // 범위가 있어도 `Clamp` 면 슬라이더가 아니라 범위로 자르는 끌기 칸이다(D-298).
+        const Bool hasRange = edit != nullptr && edit->hasRange && edit->slider;
+        const Bool clamped = edit != nullptr && edit->hasRange && false == edit->slider;
+        const Float clampMin = clamped ? edit->rangeMin : Float(0.0f);
+        const Float clampMax = clamped ? edit->rangeMax : Float(0.0f);
         if (SameName(type.typeName, "float"))
         {
             Float& value = *static_cast<Float*>(address);
+            if (clamped)
+            {
+                return Widget::DragField("##value", value).Speed(0.01f).Range(clampMin, clampMax).StepButtons(false)();
+            }
             return hasRange
                 ? Widget::SliderField("##value", value, edit->rangeMin, edit->rangeMax)()
                 : Widget::DragField("##value", value).Speed(0.01f).StepButtons(false)();
@@ -1330,7 +1219,9 @@ namespace JBro
         {
             Degree& value = *static_cast<Degree*>(address);
             Float degrees = value.Get();
-            const Bool changed = hasRange
+            const Bool changed = clamped
+                ? Widget::DragField("##value", degrees).Speed(0.5f).Range(clampMin, clampMax).Format("%.2f\u00b0").StepButtons(false)()
+                : hasRange
                 ? Widget::SliderField("##value", degrees, edit->rangeMin, edit->rangeMax)()
                 : Widget::DragField("##value", degrees).Speed(0.5f).Format("%.2f\u00b0").StepButtons(false)();
             if (changed)

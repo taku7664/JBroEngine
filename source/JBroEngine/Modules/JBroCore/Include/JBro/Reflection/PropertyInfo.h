@@ -26,6 +26,8 @@ namespace JBro
         Bool        editable = true;
         // 거짓이면 인스펙터가 줄을 두지 않는다(`Attribute::Hidden`).
         Bool        visible = true;
+        // 범위가 있을 때 슬라이더인가. 거짓이면 범위로 자르는 끌기 칸이다(`Attribute::Clamp`, D-298).
+        Bool        slider = true;
     };
 
     // 필드 하나의 명세다(D-56 계획서 §8.3).

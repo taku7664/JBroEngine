@@ -102,6 +102,20 @@ namespace JBro
         return count;
     }
 
+    Bool ComponentMenuTable::SetShown(ComponentMenuDraw draw, ComponentMenuOwner owner, ComponentMenuDraw shown)
+    {
+        Bool found = false;
+        for (Entry& entry : m_entries)
+        {
+            if (entry.draw == draw && entry.owner == owner)
+            {
+                entry.shown = shown;
+                found = true;
+            }
+        }
+        return found;
+    }
+
     Bool ComponentMenuTable::DrawItems(const ComponentMenuContext& context, Bool separatorFirst)
     {
         const DrawScope scope(m_drawDepth);
@@ -113,13 +127,17 @@ namespace JBro
             {
                 continue;
             }
+            itemContext.user = entry.user;
+            if (entry.shown != nullptr && false == entry.shown(itemContext))
+            {
+                continue;
+            }
             const Bool first = previousOwner == nullptr;
             if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))
             {
                 ImGui::Separator();
             }
             previousOwner = entry.owner;
-            itemContext.user = entry.user;
             if (false == entry.draw(itemContext))
             {
                 return false;

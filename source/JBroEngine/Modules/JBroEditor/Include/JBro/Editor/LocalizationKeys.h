@@ -54,7 +54,6 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewPointDeleteMinChain = "canvas_view.point_delete_min_chain";
     inline constexpr const char* CanvasViewEditPoints = "canvas_view.edit_points";
     inline constexpr const char* CanvasViewEditPointsNotPolygon = "canvas_view.edit_points_not_polygon";
-    inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
     inline constexpr const char* CanvasViewPreviewLocale = "canvas_view.preview_locale";
     inline constexpr const char* CanvasViewSpaceWorld = "canvas_view.space_world";
     inline constexpr const char* CanvasViewSpaceUi = "canvas_view.space_ui";
@@ -208,6 +207,9 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
     inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";
     inline constexpr const char* InspectorMoveComponentDown = "inspector.move_down";
+    // 컴포넌트 메뉴의 맨 위·맨 아래로(D-298).
+    inline constexpr const char* InspectorMoveComponentTop = "inspector.move_top";
+    inline constexpr const char* InspectorMoveComponentBottom = "inspector.move_bottom";
     inline constexpr const char* InspectorAssetName = "inspector.asset_name";
     inline constexpr const char* InspectorAssetType = "inspector.asset_type";
     inline constexpr const char* InspectorAssetPath = "inspector.asset_path";

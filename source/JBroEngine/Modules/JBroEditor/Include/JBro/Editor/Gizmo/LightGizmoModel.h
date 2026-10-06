@@ -24,7 +24,13 @@ namespace JBro::LightGizmoModel
         OuterRadius,
         InnerAngle,
         OuterAngle,
+        // 각 손잡이의 맞은편이다(D-298). 원뿔은 축에 대칭이라 양쪽 가장자리에 손잡이가 선다 - 한쪽에만 있으면 반대쪽 가장자리를 잡을 데가 없다.
+        // 같은 필드(`innerAngle`·`outerAngle`)를 고친다.
+        InnerAngleMirror,
+        OuterAngleMirror,
     };
+    // 각 손잡이인가(맞은편 포함).
+    Bool IsAngle(Handle handle);
 
     // 라이트의 월드 자리와 축(오브젝트의 +x, 길이 1)이다. 렌더러가 받는 것과 같다(`Light2DSystem`).
     struct Pose
@@ -45,7 +51,7 @@ namespace JBro::LightGizmoModel
     // 옮기기 기즈모의 x·y 손잡이(오른쪽·위) 사이를 피한다.
     Vector2 RadiusDirection(const Component::Light2D& light, const Pose& pose);
     // 손잡이의 월드 자리다. 반지름 손잡이는 그 반지름에 있고, 각 손잡이는 바깥 반지름의 원 위에서 바깥 각은 축의 왼쪽(반시계),
-    // 안쪽 각은 오른쪽(시계)의 반각에 있다 - 둘이 겹치지 않는다.
+    // 안쪽 각은 오른쪽(시계)의 반각에 있다 - 둘이 겹치지 않는다. 맞은편 손잡이는 축에 비친 자리다.
     Vector2 HandlePosition(const Component::Light2D& light, const Pose& pose, Handle handle);
 
     // 반지름을 끈 값이다. 잡은 자리에서 마우스가 반지름 방향으로 간 만큼 더한다(잡은 자리가 손잡이와 조금 어긋나도 튀지 않는다).

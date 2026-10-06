@@ -120,6 +120,8 @@ namespace JBro
         Bool        editable    = true;
         Bool        serialize   = true;
         Bool        visible     = true;
+        // 범위가 있을 때 인스펙터가 슬라이더로 그리는가. `Clamp` 는 범위만 두고 끌기 칸으로 그린다(D-298).
+        Bool        slider      = true;
 
         // 편집 메타데이터가 하나라도 있는지. 없으면 PropertyInfo::edit 를 nullptr 로 두어
         // 게임 빌드가 이 필드의 표시 이름·툴팁을 통째로 건너뛴다.
@@ -131,6 +133,7 @@ namespace JBro
                 || hasRange
                 || editable == false
                 || visible == false;
+            // `slider` 는 `hasRange` 와 함께만 뜻이 있다 - 따로 세지 않는다.
         }
     };
 
@@ -145,6 +148,7 @@ namespace JBro
         merged.hasRange    = left.hasRange || right.hasRange;
         merged.rangeMin    = right.hasRange ? right.rangeMin : left.rangeMin;
         merged.rangeMax    = right.hasRange ? right.rangeMax : left.rangeMax;
+        merged.slider      = right.hasRange ? right.slider : left.slider;
         merged.editable    = left.editable  && right.editable;
         merged.serialize   = left.serialize && right.serialize;
         merged.visible     = left.visible   && right.visible;
@@ -183,6 +187,15 @@ namespace JBro
             attributes.hasRange = true;
             attributes.rangeMin = minimum;
             attributes.rangeMax = maximum;
+            return attributes;
+        }
+
+        // **범위는 지키되 슬라이더로 그리지 않는다**(D-298). 슬라이더는 양 끝을 다 쓰는 값(불투명도 0..1)의 칸이다 - 세기 0..100,
+        // 반지름 0..1000 처럼 끝이 안전장치일 뿐인 값을 슬라이더로 두면 한 픽셀이 몇 유닛씩 건너뛰어 원하는 값을 고를 수 없다.
+        constexpr FieldAttributes Clamp(Float minimum, Float maximum)
+        {
+            FieldAttributes attributes = Range(minimum, maximum);
+            attributes.slider = false;
             return attributes;
         }
 

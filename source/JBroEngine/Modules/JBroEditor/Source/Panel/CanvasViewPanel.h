@@ -167,6 +167,8 @@ namespace JBro
         // 손잡이 하나가 고친 필드를 커맨드 하나로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값(`before`)으로 되돌린 뒤 커맨드가 쓴다.
         void CommitLightField(const ComponentAddress& address, LightGizmoModel::Handle handle, const String& before);
         void DrawGizmo(const ViewRect& rect);
+        // 몸통 누르기를 무장하고, 고르지 않은 것을 눌러 끌면 그것을 고른다(D-298).
+        void ArmBodyDrag(const ViewRect& rect);
         // 화면과 월드를 잇는 카메라를 만든다. 2D 는 우리가 아는 직교 행렬로, 3D 는
         // **렌더러가 이번 프레임에 실제로 쓴 편집 카메라**로 만든다(D-140) - 여기서 같은
         // 행렬을 한 번 더 세우면 둘로 갈려 손잡이가 그림과 다른 자리에 선다.
@@ -299,6 +301,9 @@ namespace JBro
         LayerId m_lastLayerSelection = InvalidLayerId;
         // 이 오브젝트가 지금 보기의 공간에 있는가. 그리기·고르기·테두리가 같은 규칙이다.
         Bool InViewSpace(const GameObject& object) const;
+        // 라이트·카메라 표시(D-298). 표시할 오브젝트면 글리프·색·월드 자리를 주고 참이다.
+        Bool FindMarker(const GameObject& object, const char*& glyph, UInt32& color, Vector2& world) const;
+        void DrawObjectMarkers(const ViewRect& rect);
         void DrawReferenceRect(const ViewRect& rect);
         // 3D 의 궤도 카메라(D-136). 바라보는 점의 높이와, 그 점에서의 거리와 각이다.
         Float m_centerZ = 0.0f;
@@ -352,6 +357,8 @@ namespace JBro
         // 상자 선택 중인가와 그 시작 자리(화면 좌표). 끌기가 임계값을 넘어야 시작한다 -
         // 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가 되어 선택이 풀린다.
         Bool m_boxSelecting = false;
+        // 손잡이 밖에서 누른 채다 - 몸통을 끌면 자유 이동이 된다(D-298). 떼면 풀린다.
+        Bool m_bodyPressArmed = false;
         ImVec2 m_boxStart{0.0f, 0.0f};
         // 오브젝트 하나에 붙은 텍스트들을 모으는 자리다. 외곽선이 매 프레임 묻으므로 한 번 잡은 용량을 계속 쓴다.
         mutable Array<Component::Text2D*> m_textScratch;

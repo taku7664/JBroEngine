@@ -576,6 +576,19 @@ namespace JBro
         {
             return false == m_clipboard.IsEmpty();
         }
+        // **레이어 복사·붙여넣기**(D-298). 복사는 레이어 에셋과 같은 글자(`WriteLayerText` - 레이어 값과 그 위의 오브젝트)를 떠 두고,
+        // 붙여넣기는 그 글자로 새 레이어를 하나 더한다(`AddLayerFromAssetCommand`, 커맨드 하나). 붙인 레이어를 고른다.
+        // 오브젝트 클립보드와 따로 살고, Ctrl+V 는 **마지막에 복사한 쪽**을 붙인다(`IsLayerClipboardLatest`).
+        Bool CopyLayer(LayerId layerId);
+        LayerId PasteLayer();
+        Bool HasLayerClipboard() const
+        {
+            return false == m_layerClipboard.empty();
+        }
+        Bool IsLayerClipboardLatest() const
+        {
+            return m_layerClipboardLatest && HasLayerClipboard();
+        }
         // **컴포넌트 복사·붙여넣기**(D-167, 기존 `DrawCopyComponentMenuItem`·
         // `DrawPasteComponentMenuItem`). 오브젝트 클립보드와 **따로 산다** - 오브젝트를 복사해 둔
         // 채로 컴포넌트를 옮기고 싶은 것이 보통이고, 하나로 합치면 둘 중 하나가 늘 지워진다.
@@ -833,6 +846,9 @@ namespace JBro
         // 만든 프로젝트. 프레임이 끝나면 그리로 넘어간다 - 팝업 안(프레임 안)에서 프로젝트를 닫을 수 없다.
         String m_pendingProjectPath;
         Array<ObjectTreeSnapshot> m_clipboard;
+        // 레이어 클립보드(D-298). 레이어 에셋 글자다. 마지막에 복사한 것이 레이어면 참이다.
+        String m_layerClipboard;
+        Bool m_layerClipboardLatest = false;
         ComponentSnapshot m_componentClipboard;
         Bool m_hasComponentClipboard = false;
         Bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;

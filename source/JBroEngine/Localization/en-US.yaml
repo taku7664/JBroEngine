@@ -67,7 +67,6 @@ Entries:
   canvas_view.point_delete_min_chain: a chain needs at least two points
   canvas_view.edit_points: Edit Points
   canvas_view.edit_points_not_polygon: shape must be Polygon or Chain
-  canvas_view.frame_tooltip: fit the view to the selection
   canvas_view.preview_locale: Language
   canvas_view.space_world: World
   canvas_view.space_ui: UI
@@ -105,6 +104,8 @@ Entries:
   inspector.add_component: Add Component
   inspector.move_up: Move Up
   inspector.move_down: Move Down
+  inspector.move_top: Move to Top
+  inspector.move_bottom: Move to Bottom
   inspector.asset_name: Asset
   inspector.asset_type: Type
   inspector.asset_path: Path

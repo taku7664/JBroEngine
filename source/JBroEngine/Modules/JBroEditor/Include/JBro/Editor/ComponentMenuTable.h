@@ -60,6 +60,9 @@ namespace JBro
         // 그리는 중이면 받지 않는다.
         Bool Register(ComponentTypeId typeId, ComponentMenuDraw draw, ComponentMenuOwner owner,
             void* user = nullptr);
+        // 항목이 지금 설지를 묻는 함수를 단다(D-298). 서지 않는 항목은 그리지도 않고 그 앞 구분선도 긋지 않는다 -
+        // 폴리곤이 아닌 콜라이더에 `포인트 편집` 만 빠지고 빈 구분선이 남지 않는다. 걸린 항목이 없으면 거짓이다.
+        Bool SetShown(ComponentMenuDraw draw, ComponentMenuOwner owner, ComponentMenuDraw shown);
         // 그 표지로 등록한 것을 모두 뗀다. 뗀 개수다. 그리는 중이면 떼지 않고 0 이다.
         UInt32 Unregister(ComponentMenuOwner owner);
 
@@ -83,6 +86,7 @@ namespace JBro
             ComponentMenuDraw draw = nullptr;
             ComponentMenuOwner owner = nullptr;
             void* user = nullptr;
+            ComponentMenuDraw shown = nullptr;
         };
 
         Array<Entry> m_entries;

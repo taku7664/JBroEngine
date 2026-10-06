@@ -137,9 +137,16 @@ namespace JBro
             return EditorActions::Unparent(*context.editor, *Target(context));
         }
 
+        // **레이어를 골랐으면 레이어다**(D-298). 레이어를 고르면 오브젝트 선택이 풀리므로(D-279) 둘이 겹치지 않는다.
+        // 오브젝트 메뉴에서 부른 것은 늘 오브젝트다.
+        Bool CopiesLayer(const EditorActionContext& context)
+        {
+            return context.menu != EditorActionMenu::Object && context.editor->GetSelectionCount() == 0
+                && context.editor->GetSelectedLayer() != InvalidLayerId;
+        }
         Bool CanCopy(const EditorActionContext& context)
         {
-            return context.editor->GetSelectionCount() != 0;
+            return context.editor->GetSelectionCount() != 0 || CopiesLayer(context);
         }
         const char* WhyNoCopy(const EditorActionContext&)
         {
@@ -147,12 +154,21 @@ namespace JBro
         }
         Bool DoCopy(EditorActionContext& context)
         {
+            if (CopiesLayer(context))
+            {
+                return context.editor->CopyLayer(context.editor->GetSelectedLayer());
+            }
             return context.editor->CopySelection();
         }
 
+        // 붙여넣기는 마지막에 복사한 쪽이다. 오브젝트 메뉴에서는 오브젝트만 붙인다.
+        Bool PastesLayer(const EditorActionContext& context)
+        {
+            return context.menu != EditorActionMenu::Object && context.editor->IsLayerClipboardLatest();
+        }
         Bool CanPaste(const EditorActionContext& context)
         {
-            return HasCanvas(context) && context.editor->HasClipboard();
+            return HasCanvas(context) && (context.editor->HasClipboard() || PastesLayer(context));
         }
         const char* WhyNoPaste(const EditorActionContext& context)
         {
@@ -161,6 +177,10 @@ namespace JBro
         Bool DoPaste(EditorActionContext& context)
         {
             // 빈자리의 붙여넣기는 뿌리에 붙는다. 고른 것 밑이 아니다.
+            if (PastesLayer(context))
+            {
+                return context.editor->PasteLayer() != InvalidLayerId;
+            }
             if (context.menu == EditorActionMenu::Background)
             {
                 context.editor->ClearSelection();
@@ -392,6 +412,24 @@ namespace JBro
             context.menu = EditorActionMenu::Component;
             const Bool ran = EditorActionUi::DrawItem(name, context);
             return false == (ran && action->mayRemoveObject);
+        }
+
+        // 행동의 `IsShown` 을 컴포넌트 메뉴 표에 잇는다(D-298).
+        Bool IsComponentActionShown(const ComponentMenuContext& menu)
+        {
+            const EditorActionInfo* action = EditorActionRegistry::Get().Find(static_cast<const char*>(menu.user));
+            if (action == nullptr || action->IsShown == nullptr)
+            {
+                return true;
+            }
+            EditorActionContext context;
+            context.editor = menu.editor;
+            context.component = menu.address;
+            context.componentPointer = menu.component;
+            context.placement = menu.placement;
+            context.menu = EditorActionMenu::Component;
+            EditorActionUi::ResolvePanel(*action, context);
+            return action->IsShown(context);
         }
     }
 
@@ -793,6 +831,10 @@ namespace JBro
                 // 행동마다 표지가 다르다 - 같은 그리기 함수로 같은 타입에 여럿을 올려도 겹친 것으로 보지 않게.
                 menus.Register(action.componentType, &DrawComponentAction, action.name,
                     const_cast<char*>(action.name));
+                if (action.IsShown != nullptr)
+                {
+                    menus.SetShown(&DrawComponentAction, action.name, &IsComponentActionShown);
+                }
             }
         }
     }

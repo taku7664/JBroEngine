@@ -67,6 +67,8 @@ namespace JBro::Icons
     inline constexpr const char* Save         = "\xF3\xB0\x86\x93"; // F0193 content-save - 저장
     inline constexpr const char* Question     = "\xF3\xB0\x98\xA5"; // F0625 help-circle-outline - 확인 팝업
     inline constexpr const char* Solo         = "\xF3\xB0\x8B\x8B"; // F02CB headphones - 혼자 듣기
+    inline constexpr const char* LightMarker  = "\xF3\xB0\x8C\xB5"; // F0335 lightbulb - 캔버스 뷰의 라이트 표시(D-298)
+    inline constexpr const char* CameraMarker = "\xF3\xB0\x95\xA7"; // F0567 video - 캔버스 뷰의 카메라 표시(D-298)
 
     // 위의 글리프 전부다. 시험이 이것을 돌며 모두 글꼴 안에 있는지 본다 - 글리프를 더하면 여기에도 더한다.
     inline constexpr const char* All[] = {
@@ -74,7 +76,7 @@ namespace JBro::Icons
         Colliders, Lighting, Frame, ViewWorld, ViewScreen, Language, Ruler, EditCollider, Success, Warning, Error, Info, Plus,
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,
         Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, Copy, Play, Stop, Pause, StepFrame,
-        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo
+        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker
     };
 
     // 아이콘 글꼴이 덮는 유니코드 범위다. 글꼴을 합칠 때 이 범위만 아이콘 글꼴에서 가져온다.

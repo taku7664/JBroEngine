@@ -23,6 +23,8 @@
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
@@ -200,6 +202,11 @@ namespace JBro
             ActionPanel(context)->m_gizmoMode = mode;
             return true;
         }
+        static Bool Frame(EditorActionContext& context)
+        {
+            ActionPanel(context)->FrameSelection();
+            return true;
+        }
         static Bool EditPoints(EditorActionContext& context)
         {
             // 값도 슬롯도 바꾸지 않는다. 편집 도구를 켜고, 콜라이더가 여럿이면 누른 것을 고친다.
@@ -228,6 +235,10 @@ namespace JBro
         {
             return CanvasViewPanelActions::EditPoints(context);
         }
+        Bool FrameSelected(EditorActionContext& context)
+        {
+            return CanvasViewPanelActions::Frame(context);
+        }
     }
 
     void CanvasViewPanel::RegisterActions()
@@ -247,6 +258,8 @@ namespace JBro
             {"canvas_view.gizmo_translate", LocKeys::GizmoTranslate, "Move", ImGuiKey_W, &SetTranslate},
             {"canvas_view.gizmo_rotate", LocKeys::GizmoRotate, "Rotate", ImGuiKey_E, &SetRotate},
             {"canvas_view.gizmo_scale", LocKeys::GizmoScale, "Scale", ImGuiKey_R, &SetScale},
+            // **맞춤은 스페이스바다**(D-298). 도구 막대의 단추를 뺐다 - 손이 키보드에 있는 손짓이라 단추까지 마우스를 옮길 일이 아니다.
+            {"canvas_view.frame_selection", LocKeys::CanvasViewFrame, "Frame", ImGuiKey_Space, &FrameSelected},
         };
         for (const Row& row : rows)
         {
@@ -269,6 +282,9 @@ namespace JBro
         points.panelType = TypeName;
         points.componentType = MakeStableTypeId(Component::Collider2D::StaticTypeName());
         points.menus = EditorActionMenu::Component;
+        // **폴리곤이 아니면 항목을 세우지 않는다**(D-298). 상자·원·캡슐에는 영영 켜지지 않는 항목이다 - 회색으로 두면 무엇을 해야 켜지는지
+        // 찾게 된다. 모양을 바꾸면 그다음 메뉴에 선다.
+        points.IsShown = &CanEditPoints;
         points.CanExecute = &CanEditPoints;
         points.WhyBlocked = &WhyNoEditPoints;
         points.Execute = &EditPoints;
@@ -380,6 +396,78 @@ namespace JBro
         m_centerY = m_goalY;
         m_orthographicSize = m_goalSize;
         m_screenView = screen;
+    }
+
+    namespace
+    {
+        // **라이트·카메라 표시**(D-298)의 크기다(화면 픽셀). 그림이 없는 오브젝트라 캔버스 뷰에서 찾을 데가 없었다 - 크게 그리고 집을 수 있게 한다.
+        constexpr Float MarkerSize = 34.0f;
+        constexpr Float MarkerPickRadius = MarkerSize * 0.55f;
+    }
+
+    Bool CanvasViewPanel::FindMarker(const GameObject& object, const char*& glyph, UInt32& color, Vector2& world) const
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr || object.IsEditorHidden() || false == InViewSpace(object))
+        {
+            return false;
+        }
+        GameObject& mutableObject = const_cast<GameObject&>(object);
+        const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(&mutableObject);
+        if (transform == nullptr)
+        {
+            return false;
+        }
+        if (const Component::Light2D* light = canvas->FindComponentRaw<Component::Light2D>(&mutableObject))
+        {
+            glyph = Icons::LightMarker;
+            // 전구는 빛의 색이다. 꺼 둔 라이트는 흐리다.
+            const Float alpha = light->IsEnabled() ? Float(1.0f) : Float(0.45f);
+            color = ImGui::ColorConvertFloat4ToU32(ImVec4(light->color.R, light->color.G, light->color.B, alpha));
+        }
+        else if (const Component::Camera2D* camera = canvas->FindComponentRaw<Component::Camera2D>(&mutableObject))
+        {
+            glyph = Icons::CameraMarker;
+            color = camera->IsEnabled() ? IM_COL32(235, 240, 250, 255) : IM_COL32(235, 240, 250, 115);
+        }
+        else
+        {
+            return false;
+        }
+        const Matrix3x2 matrix = transform->worldValid
+            ? transform->world
+            : MakeTransformMatrix2D(transform->position, transform->GetRotationRadian(), transform->scale);
+        world = { matrix.m31, matrix.m32 };
+        return true;
+    }
+
+    void CanvasViewPanel::DrawObjectMarkers(const ViewRect& rect)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        canvas->ForEachObject([&](GameObject& object)
+        {
+            const char* glyph = nullptr;
+            UInt32 color = 0;
+            Vector2 world;
+            if (false == FindMarker(object, glyph, color, world))
+            {
+                return;
+            }
+            Float x = 0.0f;
+            Float y = 0.0f;
+            WorldToScreen(rect, world.x, world.y, x, y);
+            // 어두운 바탕 원 위에 글리프를 얹는다 - 밝은 스프라이트 위에서도 보인다.
+            const Float half = MarkerSize * 0.5f;
+            draw->AddCircleFilled(ImVec2(x, y), half * 0.92f, IM_COL32(20, 22, 28, 170));
+            const Bool selected = m_editor->IsSelected(&object);
+            draw->AddCircle(ImVec2(x, y), half * 0.92f, selected ? IM_COL32(255, 214, 90, 255) : IM_COL32(255, 255, 255, 70), 32, selected ? 2.0f : 1.0f);
+            Widget::DrawGlyphCentered(glyph, ImVec2(x - half, y - half), ImVec2(x + half, y + half), color, MarkerSize * 0.62f);
+        });
     }
 
     Bool CanvasViewPanel::InViewSpace(const GameObject& object) const
@@ -532,6 +620,7 @@ namespace JBro
             DrawPolygonEditor(rect);
             DrawLightEditor(rect);
             DrawSelectionOutlines(rect);
+            DrawObjectMarkers(rect);
             DrawOverlay(rect);
         }
         else
@@ -678,14 +767,6 @@ namespace JBro
             {
                 m_showLighting = false == m_showLighting;
             }
-        }
-        ImGui::SameLine(0.0f, 6.0f);
-        if (Widget::IconButton("##canvas_frame", Icons::Frame)
-                .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewFrame, "Frame"),
-                    Loc::TextOr(LocKeys::CanvasViewFrameTooltip, "fit the view to the selection")))
-                .Draw())
-        {
-            FrameSelection();
         }
         if (false == Is3D())
         {
@@ -1718,9 +1799,11 @@ namespace JBro
                 light.outerRadius = value;
                 break;
             case LightGizmoModel::Handle::InnerAngle:
+            case LightGizmoModel::Handle::InnerAngleMirror:
                 light.innerAngle = Degree(value);
                 break;
             case LightGizmoModel::Handle::OuterAngle:
+            case LightGizmoModel::Handle::OuterAngleMirror:
                 light.outerAngle = Degree(value);
                 break;
             case LightGizmoModel::Handle::None:
@@ -1737,8 +1820,10 @@ namespace JBro
             case LightGizmoModel::Handle::OuterRadius:
                 return light.outerRadius;
             case LightGizmoModel::Handle::InnerAngle:
+            case LightGizmoModel::Handle::InnerAngleMirror:
                 return Float(light.innerAngle.Get());
             case LightGizmoModel::Handle::OuterAngle:
+            case LightGizmoModel::Handle::OuterAngleMirror:
                 return Float(light.outerAngle.Get());
             case LightGizmoModel::Handle::None:
                 break;
@@ -1798,7 +1883,7 @@ namespace JBro
 
         if (m_lightDragging)
         {
-            const Bool angle = m_lightDragHandle == Handle::InnerAngle || m_lightDragHandle == Handle::OuterAngle;
+            const Bool angle = LightGizmoModel::IsAngle(m_lightDragHandle);
             const Float value = angle
                 ? Float(LightGizmoModel::AngleAt(pose, mouseWorld, Degree(m_lightDragStart)).Get())
                 : LightGizmoModel::DragRadius(m_lightDragStart, LightGizmoModel::RadiusDirection(light, pose), m_lightGrabWorld, mouseWorld);
@@ -1833,7 +1918,8 @@ namespace JBro
             ? Vector2{ (radiusEnd.x - center.x) / radiusLength, (radiusEnd.y - center.y) / radiusLength }
             : Vector2{ 1.0f, 0.0f };
 
-        constexpr Handle Handles[] = { Handle::OuterRadius, Handle::InnerRadius, Handle::OuterAngle, Handle::InnerAngle };
+        constexpr Handle Handles[] = { Handle::OuterRadius, Handle::InnerRadius, Handle::OuterAngle, Handle::InnerAngle,
+            Handle::OuterAngleMirror, Handle::InnerAngleMirror };
         constexpr std::size_t HandleCount = sizeof(Handles) / sizeof(Handles[0]);
         Vector2 screen[HandleCount];
         Bool present[HandleCount] = {};
@@ -2070,6 +2156,27 @@ namespace JBro
             {
                 best = &object;
                 bestArea = area;
+            }
+        });
+        // **라이트·카메라 표시를 누르면 그것이다**(D-298). 넓이가 없는 표시라 어느 몸통보다 작은 것으로 본다.
+        canvas->ForEachObject([&](GameObject& object)
+        {
+            const char* glyph = nullptr;
+            UInt32 color = 0;
+            Vector2 world;
+            if (false == FindMarker(object, glyph, color, world))
+            {
+                return;
+            }
+            Float x = 0.0f;
+            Float y = 0.0f;
+            WorldToScreen(rect, world.x, world.y, x, y);
+            const Float dx = screenX - x;
+            const Float dy = screenY - y;
+            if (dx * dx + dy * dy <= MarkerPickRadius * MarkerPickRadius && (best == nullptr || bestArea > -1.0f))
+            {
+                best = &object;
+                bestArea = -1.0f;
             }
         });
         return best;
@@ -3120,6 +3227,38 @@ namespace JBro
         }
     }
 
+    void CanvasViewPanel::ArmBodyDrag(const ViewRect& rect)
+    {
+        // **몸통을 잡아 끌면 가운데 손잡이처럼 자유 이동이다**(D-298). 손잡이·라이트 손잡이 밖에서 눌렀을 때만 무장한다. 끌기 문턱을 넘었을 때
+        // 누른 자리의 오브젝트가 고르지 않은 것이면 먼저 그것을 고르고(다음 프레임에 잡힌다), 빈 곳이었으면 상자 선택에 넘긴다.
+        // 기즈모 모드와 상관없다 - 돌리기·크기 모드에서도 몸통을 끄는 손짓은 옮기기다. 2D 만이다(3D 의 집기는 따로다).
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            m_bodyPressArmed = false == Is3D() && PointerInView(rect) && false == m_gizmoState.dragging
+                && m_gizmoState.hovered == GizmoAxis::None && false == m_lightDragging
+                && m_lightHover == LightGizmoModel::Handle::None && false == m_boxSelecting;
+        }
+        if (false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            m_bodyPressArmed = false;
+            return;
+        }
+        if (false == m_bodyPressArmed || m_gizmoState.dragging || false == Widget::MouseWasDragged(ImGuiMouseButton_Left))
+        {
+            return;
+        }
+        const ImVec2 press = ImGui::GetIO().MouseClickedPos[0];
+        GameObject* pressed = MapToLevel(PickAt(rect, press.x, press.y));
+        if (pressed == nullptr)
+        {
+            m_bodyPressArmed = false;
+        }
+        else if (false == m_editor->IsSelected(pressed))
+        {
+            m_editor->SetSelectedObject(pressed);
+        }
+    }
+
     void CanvasViewPanel::DrawGizmo(const ViewRect& rect)
     {
         // 콜라이더를 고치는 동안은 기즈모가 없다 - 버텍스 손잡이와 겹친다.
@@ -3134,6 +3273,7 @@ namespace JBro
             m_gizmoState.hovered = GizmoAxis::None;
             return;
         }
+        ArmBodyDrag(rect);
         GameObject* selected = m_editor->GetSelectedObject();
         GizmoSubject subject;
         const Bool hasSubject = selected != nullptr
@@ -3174,11 +3314,23 @@ namespace JBro
         const Bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
         // 라이트 손잡이를 가리키거나 끄는 동안은 기즈모가 마우스를 받지 않는다 - 안쪽 반지름 손잡이는 가운데 가까이 있다.
         const Bool lightHandleHot = m_lightDragging || m_lightHover != LightGizmoModel::Handle::None;
+        // 무장한 몸통 누르기가 고른 오브젝트 위였으면 끌기 문턱을 넘는 이 프레임에 옮기기를 잡는다(위 `ArmBodyDrag`).
+        Bool bodyDragStarted = false;
+        if (m_bodyPressArmed && false == m_gizmoState.dragging && Widget::MouseWasDragged(ImGuiMouseButton_Left))
+        {
+            const ImVec2 press = ImGui::GetIO().MouseClickedPos[0];
+            if (Widget::BeginFreeMove(camera, shown, m_gizmoState, press.x, press.y))
+            {
+                m_bodyPressArmed = false;
+                bodyDragStarted = true;
+            }
+        }
         const Widget::GizmoOutput output = Widget::Gizmo(m_gizmoMode, camera, shown, m_gizmoState, false == lightHandleHot,
             snapping ? GridStep(rect) : Float(0.0f), snapping ? GizmoModel::RotationSnapRadians : Float(0.0f));
-        if (output.dragStarted)
+        if (output.dragStarted || bodyDragStarted)
         {
-            if (false == m_editing.Begin(*m_editor, m_gizmoMode, shown))
+            // 편집 전 값을 뜨는 모드는 끌기의 모드다 - 몸통 끌기는 기즈모가 돌리기 모드여도 옮기기다.
+            if (false == m_editing.Begin(*m_editor, m_gizmoState.drag.mode, shown))
             {
                 m_gizmoState.dragging = false;
                 return;

@@ -34,6 +34,10 @@ namespace JBro::Widget
     GizmoOutput Gizmo(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
         GizmoState& state, Bool interactive, Float snapStep = 0.0f, Float snapRadians = 0.0f);
 
+    // **손잡이 밖에서 시작한 끌기를 가운데 손잡이(자유 이동)로 잡는다**(D-298). 캔버스 뷰가 고른 오브젝트의 몸통을 누르고 끌 때 부른다.
+    // `pressX`·`pressY` 는 누른 자리다 - 끌기 문턱을 넘은 뒤에 불러도 누른 자리부터 따라간다. 잡았으면 참이고, 이어지는 프레임은 `Gizmo` 가
+    // 손잡이 끌기와 같이 잇는다(그 프레임의 `dragStarted` 는 서지 않으므로 편집 전 값은 부르는 쪽이 지금 뜬다).
+    Bool BeginFreeMove(const GizmoCamera& camera, const GizmoSubject& subject, GizmoState& state, Float pressX, Float pressY);
     // 그림 위에 그린 손잡이 하나를 ImGui 항목으로 올린다(폴리곤 버텍스 손잡이). 누가 가리켰는지·잡았는지는
     // 부르는 쪽이 제 모양으로 잰다 - 여기서는 그 결과를 창의 hover·active 로 알릴 뿐이다. 그래야 창 이동이나
     // 뒤의 입력 자리가 같은 마우스를 받지 않고, 테스트가 hover id 로 손잡이를 찾는다.

@@ -90,6 +90,14 @@ namespace
         // 축에서 시계로 30 도(안쪽 각의 반)는 (sin 30, cos 30) 방향이다.
         Check(Near(JBro::LightGizmoModel::HandlePosition(light, pose, Handle::InnerAngle), { 2.0f + 1.5f, 1.0f + 3.0f * 0.8660254f }),
             "the inner angle handle is on the outer circle, half the inner cone to the right");
+        // **맞은편 손잡이는 축에 비친 자리다**(D-298). 원뿔의 양쪽 가장자리를 다 잡을 수 있다.
+        Check(Near(JBro::LightGizmoModel::HandlePosition(light, pose, Handle::OuterAngleMirror), { 2.0f + half, 1.0f + half }),
+            "the outer angle has a mirrored handle on the other edge of the cone");
+        Check(Near(JBro::LightGizmoModel::HandlePosition(light, pose, Handle::InnerAngleMirror), { 2.0f - 1.5f, 1.0f + 3.0f * 0.8660254f }),
+            "and so does the inner angle");
+        Check(JBro::LightGizmoModel::HasHandle(light, Handle::OuterAngleMirror) && JBro::LightGizmoModel::IsAngle(Handle::InnerAngleMirror)
+                && false == JBro::LightGizmoModel::IsAngle(Handle::OuterRadius),
+            "a spot has the mirrored handles and they are angle handles");
         light.type = Light2DType::Point;
         // 점 라이트의 반지름 손잡이는 축에서 시계로 45 도다 - 옮기기 기즈모의 손잡이 사이를 피한다.
         Check(Near(JBro::LightGizmoModel::HandlePosition(light, pose, Handle::OuterRadius), { 2.0f + half, 1.0f + half }),
@@ -124,8 +132,12 @@ namespace
         Check(std::string(JBro::LightGizmoModel::FieldName(Handle::OuterRadius)) == "outerRadius"
                 && std::string(JBro::LightGizmoModel::FieldName(Handle::InnerRadius)) == "innerRadius"
                 && std::string(JBro::LightGizmoModel::FieldName(Handle::OuterAngle)) == "outerAngle"
-                && std::string(JBro::LightGizmoModel::FieldName(Handle::InnerAngle)) == "innerAngle",
-            "each handle edits the Light2D field of its name");
+                && std::string(JBro::LightGizmoModel::FieldName(Handle::InnerAngle)) == "innerAngle"
+                && std::string(JBro::LightGizmoModel::FieldName(Handle::OuterAngleMirror)) == "outerAngle"
+                && std::string(JBro::LightGizmoModel::FieldName(Handle::InnerAngleMirror)) == "innerAngle",
+            "each handle edits the Light2D field of its name, a mirrored one the same field as its twin");
+        Check(std::string(JBro::LightGizmoModel::HandleId(Handle::OuterAngle)) != JBro::LightGizmoModel::HandleId(Handle::OuterAngleMirror),
+            "but the twins are separate items");
     }
 }
 

@@ -26,6 +26,7 @@ namespace JBro::Detail
         edit.rangeMax    = entry.attributes.rangeMax;
         edit.editable    = entry.attributes.editable;
         edit.visible     = entry.attributes.visible;
+        edit.slider      = entry.attributes.slider;
         info.edit        = &edit;
     }
 }

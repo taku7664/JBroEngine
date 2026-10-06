@@ -6,7 +6,7 @@ namespace JBro::LightGizmoModel
 {
     namespace
     {
-        // `Light2D` 의 반지름 필드의 상한이다(`Range(0, 1000)`).
+        // `Light2D` 의 반지름 필드의 상한이다(`Clamp(0, 1000)`).
         constexpr Float MaxRadius = 1000.0f;
         constexpr Float RadiansToDegrees = 57.29577951308232f;
         constexpr Float DegreesToRadians = 0.017453292519943295f;
@@ -32,6 +32,12 @@ namespace JBro::LightGizmoModel
         return pose;
     }
 
+    Bool IsAngle(Handle handle)
+    {
+        return handle == Handle::InnerAngle || handle == Handle::OuterAngle
+            || handle == Handle::InnerAngleMirror || handle == Handle::OuterAngleMirror;
+    }
+
     Bool HasHandles(const Component::Light2D& light)
     {
         return light.type == Component::Light2DType::Point || light.type == Component::Light2DType::Spot;
@@ -46,6 +52,8 @@ namespace JBro::LightGizmoModel
             return HasHandles(light);
         case Handle::InnerAngle:
         case Handle::OuterAngle:
+        case Handle::InnerAngleMirror:
+        case Handle::OuterAngleMirror:
             return light.type == Component::Light2DType::Spot;
         case Handle::None:
             break;
@@ -82,6 +90,14 @@ namespace JBro::LightGizmoModel
             radius = light.outerRadius;
             direction = Rotate(pose.axis, 0.5f * light.outerAngle.Get() * DegreesToRadians);
             break;
+        case Handle::InnerAngleMirror:
+            radius = light.outerRadius;
+            direction = Rotate(pose.axis, 0.5f * light.innerAngle.Get() * DegreesToRadians);
+            break;
+        case Handle::OuterAngleMirror:
+            radius = light.outerRadius;
+            direction = Rotate(pose.axis, -0.5f * light.outerAngle.Get() * DegreesToRadians);
+            break;
         case Handle::None:
             return pose.center;
         }
@@ -117,8 +133,10 @@ namespace JBro::LightGizmoModel
         case Handle::OuterRadius:
             return "outerRadius";
         case Handle::InnerAngle:
+        case Handle::InnerAngleMirror:
             return "innerAngle";
         case Handle::OuterAngle:
+        case Handle::OuterAngleMirror:
             return "outerAngle";
         case Handle::None:
             break;
@@ -138,6 +156,10 @@ namespace JBro::LightGizmoModel
             return "##light_inner_angle";
         case Handle::OuterAngle:
             return "##light_outer_angle";
+        case Handle::InnerAngleMirror:
+            return "##light_inner_angle_mirror";
+        case Handle::OuterAngleMirror:
+            return "##light_outer_angle_mirror";
         case Handle::None:
             break;
         }

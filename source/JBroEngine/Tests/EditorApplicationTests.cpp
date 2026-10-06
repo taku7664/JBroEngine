@@ -13249,9 +13249,10 @@ namespace
         char secondLine[128] = {};
         std::snprintf(secondLine, sizeof(secondLine), "%s (2)", colliderLine);
         Spot spot;
-        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu,
+        // 더한 항목이 없는 타입도 줄이 선다(D-298) - 안에 사용·자리 옮기기·복사·붙여넣기·제거가 있다.
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu,
                 LabelId(menu->ID, ComponentLine(transform->GetTypeId())), spot),
-            "a component type without hooks must not get a line");
+            "a component type without hooks still gets a line for the common items");
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), spot),
             "the second collider must get its own line, numbered");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
@@ -13880,6 +13881,271 @@ namespace
         return nullptr;
     }
 
+    // **몸통을 잡아 끌면 가운데 손잡이처럼 자유 이동이다**(D-298). 고르지 않은 것을 끌면 그것을 고르고 옮긴다. 돌리기 모드여도 옮기기이고,
+    // 한 번 끄는 것은 되돌리기 한 번이다. 빈 곳에서 끌면 여전히 상자 선택이다(아무것도 옮기지 않는다).
+    void TestDraggingABodyMovesItFreely()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; body drag not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "BodyDragProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* crate = canvas->CreateObject("Crate");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(crate);
+        Check(transform != nullptr && canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(crate) != nullptr,
+            "the crate needs a transform and a sprite body");
+        transform->position = {2.0f, 1.0f};
+        JBro::GameObject* other = canvas->CreateObject("Other");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(other) != nullptr, "the other object needs a transform");
+        editor.SetSelectedObject(other);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const auto spotAt = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
+            return spot;
+        };
+
+        // 고르지 않은 상자의 몸통 귀퉁이를 잡아 대각선으로 끈다 - 손잡이가 없는 자리다.
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        Spot from = spotAt(2.35f, 1.35f);
+        Spot to = from;
+        to.x += 60;
+        to.y += 40;
+        DragTo(editor, hwnd, from, to);
+        Check(editor.GetSelectedObject() == crate, "dragging an unselected body selects it");
+        Check(transform->position.x > 2.05f && transform->position.y < 0.95f,
+            "and moves it along both axes at once, like the centre handle");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one undo");
+        Check(editor.GetCommands().Undo() && std::fabs(transform->position.x - 2.0f) < 1.0e-4f
+                && std::fabs(transform->position.y - 1.0f) < 1.0e-4f,
+            "and undo puts it back");
+
+        // 돌리기 모드여도 몸통 끌기는 옮기기다.
+        PostMessageW(hwnd, WM_KEYDOWN, 'E', 0);
+        Check(editor.Tick(Frame), "the editor must tick with E down");
+        PostMessageW(hwnd, WM_KEYUP, 'E', 0);
+        Check(editor.Tick(Frame), "the editor must tick with E up");
+        from = spotAt(2.35f, 0.65f);
+        to = from;
+        to.x -= 50;
+        DragTo(editor, hwnd, from, to);
+        Check(transform->position.x < 1.95f && std::fabs(transform->GetRotation()) < 1.0e-4f,
+            "in rotate mode a body drag still moves and does not turn");
+        Check(editor.GetCommands().Undo(), "undo the move");
+
+        // 빈 곳에서 끌면 상자 선택이다 - 아무것도 옮기지 않는다.
+        from = spotAt(-3.0f, -2.0f);
+        to = from;
+        to.x += 40;
+        to.y += 30;
+        DragTo(editor, hwnd, from, to);
+        Check(std::fabs(transform->position.x - 2.0f) < 1.0e-4f, "a drag on empty space moves nothing");
+
+        // **스페이스바가 맞춤이다**(D-298). 도구 막대의 맞춤 단추는 없다. 상자를 멀리 두고 누르면 캔버스 뷰 카메라가 그리로 간다.
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        Spot frameButton;
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##canvas_frame"), frameButton),
+            "the canvas view tool bar has no frame button");
+        editor.SetSelectedObject(crate);
+        transform->position = {30.0f, 20.0f};
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
+        Check(editor.Tick(Frame), "the editor must tick with the mouse away");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_SPACE, 0);
+        Check(editor.Tick(Frame), "the editor must tick with space down");
+        PostMessageW(hwnd, WM_KEYUP, VK_SPACE, 0);
+        Check(editor.Tick(Frame), "the editor must tick with space up");
+        JBro::Float frameX = 0.0f;
+        JBro::Float frameY = 0.0f;
+        JBro::Float frameSize = 0.0f;
+        editor.GetCanvasViewCamera(frameX, frameY, frameSize);
+        Check(std::fabs(frameX - 30.0f) < 0.6f && std::fabs(frameY - 20.0f) < 0.6f,
+            "space frames the selection - the canvas view camera aims at the crate");
+
+        editor.Shutdown();
+    }
+
+    // **레이어를 복사해 붙이면 그 오브젝트까지 새 레이어 하나가 선다**(D-298). 계층 레이어 메뉴의 복사·붙여넣기와, 레이어를 골라 둔
+    // Ctrl+C·V 가 같은 일을 한다. 붙여넣기는 되돌리기 한 번이고, Ctrl+V 는 마지막에 복사한 쪽(레이어·오브젝트)을 붙인다.
+    void TestCopyingAndPastingALayer()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; layer copy not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "LayerCopyProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Layer& glow = canvas->CreateLayer("Glow");
+        const JBro::LayerId glowId = glow.GetId();
+        glow.SetOpacity(0.5f);
+        JBro::GameObject* spark = canvas->CreateObject("Spark");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(spark) != nullptr, "the spark needs a transform");
+        canvas->SetObjectLayer(spark, glowId);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const std::size_t layersBefore = canvas->GetLayerCount();
+
+        // ── 계층 레이어 메뉴 ─────────────
+        ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(hierarchy != nullptr, "the hierarchy must have a window");
+        Spot row;
+        Check(FindItemAnywhereInWindow(editor, hwnd, hierarchy,
+                  LabelId(PushedId(hierarchy->ID, static_cast<JBro::Int32>(glowId)), "##layer"), row),
+            "the glow layer must have a row");
+        const char* copyLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyCopy, "Copy");
+        const char* pasteLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyPaste, "Paste");
+        const auto clickMenuItem = [&](const char* label) {
+            RightClickAt(editor, hwnd, row);
+            ImGuiWindow* menu = FindContextMenuWindow();
+            Check(menu != nullptr, "right-clicking the layer must open its menu");
+            Spot item;
+            Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, label), item), "the layer menu must carry the item");
+            ClickAt(editor, hwnd, item);
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the menu must close");
+            }
+        };
+        clickMenuItem(copyLabel);
+        Check(editor.HasLayerClipboard() && editor.IsLayerClipboardLatest(), "copy from the layer menu fills the layer clipboard");
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        clickMenuItem(pasteLabel);
+        Check(canvas->GetLayerCount() == layersBefore + 1, "paste adds one layer");
+        const JBro::LayerId pastedId = editor.GetSelectedLayer();
+        const JBro::Layer* pasted = canvas->FindLayer(pastedId);
+        Check(pasted != nullptr && pastedId != glowId && std::strcmp(pasted->GetName(), "Glow") == 0 && pasted->GetOpacity() == 0.5f,
+            "the pasted layer is chosen and keeps the copied name and values");
+        JBro::UInt32 sparks = 0;
+        canvas->ForEachObject([&](JBro::GameObject& object)
+        {
+            if (std::strcmp(object.GetName(), "Spark") == 0 && object.GetLayerId() == pastedId)
+            {
+                ++sparks;
+            }
+        });
+        Check(sparks == 1, "and the objects on the layer come with it");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "pasting a layer is one undo");
+        Check(editor.GetCommands().Undo() && canvas->GetLayerCount() == layersBefore, "and undo takes it away");
+
+        // ── 단축키 길: 레이어를 고른 채 Ctrl+C·V 는 레이어다 ─────────────
+        editor.SetSelectedLayer(glowId);
+        JBro::EditorActionContext context;
+        context.editor = &editor;
+        const JBro::EditorActionInfo* copy = JBro::EditorActionRegistry::Get().Find("object.copy");
+        const JBro::EditorActionInfo* paste = JBro::EditorActionRegistry::Get().Find("object.paste");
+        Check(copy != nullptr && paste != nullptr && JBro::EditorActionUi::Execute(*copy, context), "copy runs with a layer chosen");
+        Check(JBro::EditorActionUi::Execute(*paste, context) && canvas->GetLayerCount() == layersBefore + 1,
+            "and paste adds a layer");
+        // 오브젝트를 복사하면 그다음 Ctrl+V 는 오브젝트다.
+        editor.SetSelectedObject(spark);
+        Check(JBro::EditorActionUi::Execute(*copy, context) && false == editor.IsLayerClipboardLatest(),
+            "copying an object makes the object clipboard the latest");
+        Check(JBro::EditorActionUi::Execute(*paste, context) && canvas->GetLayerCount() == layersBefore + 1,
+            "so paste puts an object down, not a layer");
+
+        editor.Shutdown();
+    }
+
+    // **라이트·카메라는 캔버스 뷰에 큰 표시로 서고, 표시를 누르면 집힌다**(D-298). 그림이 없는 오브젝트라 예전에는 캔버스 뷰에서 고를 길이 없었다.
+    // 라이트의 세기·반지름·각은 슬라이더가 아니라 범위로 자르는 끌기 칸이다(`Clamp`).
+    void TestLightAndCameraMarkersCanBePicked()
+    {
+        const JBro::PropertyTable& lightTable = JBro::GetPropertyTable<JBro::Component::Light2D>();
+        for (const char* field : {"intensity", "innerRadius", "outerRadius", "innerAngle", "outerAngle", "shadowSoftness"})
+        {
+            const JBro::PropertyInfo* info = FindProperty(lightTable, field);
+            Check(info != nullptr && info->edit != nullptr && info->edit->hasRange && false == info->edit->slider,
+                "a light's open-ended values are clamped drags, not sliders");
+        }
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; markers not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "MarkerProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* lamp = canvas->CreateObject("Lamp");
+        auto* lampTransform = canvas->AttachComponent<JBro::Component::Transform2D>(lamp);
+        Check(lampTransform != nullptr && canvas->AttachComponent<JBro::Component::Light2D>(lamp) != nullptr, "the lamp needs a light");
+        lampTransform->position = {-2.0f, 1.0f};
+        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        auto* eyeTransform = canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+        Check(eyeTransform != nullptr && canvas->AttachComponent<JBro::Component::Camera2D>(eye) != nullptr, "the eye needs a camera");
+        eyeTransform->position = {2.0f, -1.0f};
+        editor.ClearSelection();
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const auto spotAt = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
+            return spot;
+        };
+        // 표시의 가장자리 가까이를 누른다 - 표시가 작았으면 빗나간다.
+        Spot onLamp = spotAt(-2.0f, 1.0f);
+        onLamp.x += 12;
+        ClickAt(editor, hwnd, onLamp);
+        Check(editor.GetSelectedObject() == lamp, "clicking the light's marker picks the light");
+        Spot onEye = spotAt(2.0f, -1.0f);
+        onEye.y -= 12;
+        ClickAt(editor, hwnd, onEye);
+        Check(editor.GetSelectedObject() == eye, "clicking the camera's marker picks the camera");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "canvas_view_markers");
+
+        editor.Shutdown();
+    }
+
     // **태그는 인스펙터에서 프로젝트 목록으로 고르고, 목록 끝에서 새로 더한다**(D-297). 다는 것은 커맨드라 되돌릴 수 있고,
     // 목록에 더한 것은 프로젝트 설정이라 되돌리기와 따로 남는다. 복사·붙여넣기가 태그를 지킨다.
     void TestTaggingAnObjectFromTheInspector()
@@ -14096,7 +14362,7 @@ namespace
     }
 
     // **콜라이더 우클릭 메뉴의 "포인트 편집" 은 누른 그 콜라이더를 고친다**(D-220 의 첫 사용처). 도구 막대로 켜면
-    // 여전히 첫 폴리곤이다. 폴리곤이 아니면 항목이 회색이다.
+    // 여전히 첫 폴리곤이다. 폴리곤이 아니면 항목이 서지 않는다(D-298). 같은 하위 메뉴의 공용 항목이 자리를 옮긴다.
     void TestEditPointsFromTheMenuEditsThatCollider()
     {
         JBro::EditorApplication editor;
@@ -14242,7 +14508,7 @@ namespace
         ClickAt(editor, hwnd, toggle);
         Check(hoveredAt(leftCorner) == vertex, "turning editing off and on from the tool bar forgets the pick");
 
-        // 폴리곤이 아니면 회색이다.
+        // 폴리곤이 아니면 항목이 서지 않는다(D-298). 하위 메뉴는 공용 항목으로 남는다.
         left->shape = JBro::Component::ColliderShape2D::Box;
         RightClickAt(editor, hwnd, row);
         menu = FindContextMenuWindow();
@@ -14255,9 +14521,24 @@ namespace
         }
         submenu = FindSubmenuWindow();
         Check(submenu != nullptr, "hovering the line must open its submenu");
-        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
-            "a box collider still shows the item");
-        Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled, "but grey, since a box has no points to edit");
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
+            "a box collider has no edit points item - a box has no points to edit");
+        // 공용 항목: 맨 아래로 이동. 첫 콜라이더(슬롯 1)가 마지막 슬롯으로 간다.
+        const char* bottomLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorMoveComponentBottom, "Move to Bottom");
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, bottomLabel), item),
+            "the submenu carries the common move items");
+        const std::size_t undoBeforeMove = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, item);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must close");
+        }
+        std::size_t leftSlot = 0;
+        Check(cup->FindComponentIndex(left, leftSlot) && leftSlot + 1 == cup->GetComponents().Size(),
+            "move to bottom puts the collider in the last slot");
+        Check(editor.GetCommands().GetUndoCount() == undoBeforeMove + 1 && editor.GetCommands().Undo()
+                && cup->FindComponentIndex(left, leftSlot) && leftSlot == 1,
+            "as one undo");
 
         // **항목은 에디터가 켜질 때 행동 표에서 오르고 패널을 들지 않는다**(D-284). 캔버스 뷰가 사라져도 줄은 남지만, 할 일은 누를 때
         // 그 종류의 패널을 찾으므로 사라진 패널을 가리킬 길이 없다 - 캔버스 뷰가 없으면 할 수 없다.
@@ -14637,6 +14918,9 @@ JBro::Int32 RunEditorApplicationTests()
     TestEditPointsFromTheMenuEditsThatCollider();
     TestBringingAnObjectForwardReordersItsDrawing();
     TestTaggingAnObjectFromTheInspector();
+    TestDraggingABodyMovesItFreely();
+    TestCopyingAndPastingALayer();
+    TestLightAndCameraMarkersCanBePicked();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestALayerRowSelectsTheLayerForTheInspector();
     TestLayerAssetsSaveAndLoadInTheEditor();

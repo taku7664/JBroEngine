@@ -9,6 +9,7 @@
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorNames.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -28,20 +29,20 @@ namespace JBro::EditorActions
 {
     namespace
     {
-        // **컴포넌트마다 더한 항목을 인스턴스마다 하위 메뉴로 세운다**(D-220). 줄 이름은 번역하지 않는 타입
+        // **컴포넌트마다 인스턴스마다 하위 메뉴를 세운다**(D-220, D-298). 줄 이름은 번역하지 않는 타입
         // 이름이고, 같은 타입이 둘 이상이면 둘째부터 `(2)` 처럼 번호를 붙인다(인스펙터의 슬롯 순서와 같다).
-        // 항목이 없는 타입은 줄을 만들지 않는다. **거짓이면 오브젝트가 더 이상 없을 수 있다.**
+        // 안은 인스펙터 머리 메뉴와 같은 한 벌(`DrawComponentMenuItems`)이다. **거짓이면 슬롯 배열이 바뀌었다.**
         Bool DrawComponentSubmenus(EditorApplication& editor, GameObject& object,
             const ObjectPlacement& placement)
         {
-            ComponentMenuTable& table = editor.GetComponentMenus();
             const Array<ComponentSlot>& components = object.GetComponents();
             Bool separated = false;
             for (std::size_t index = 0; index < components.Size(); ++index)
             {
                 const ComponentSlot& slot = components[index];
                 ComponentBase* component = slot.reference.TryGet();
-                if (component == nullptr || false == table.Has(slot.typeId))
+                // **모든 컴포넌트가 하위 메뉴를 갖는다**(D-298). 예전에는 더한 항목이 있는 타입(`Collider2D`)만 섰다.
+                if (component == nullptr)
                 {
                     continue;
                 }
@@ -83,14 +84,7 @@ namespace JBro::EditorActions
                 {
                     continue;
                 }
-                ComponentMenuContext context;
-                context.editor = &editor;
-                context.address.objectId = editor.GetObjectIds().Track(&object);
-                context.address.typeId = slot.typeId;
-                context.address.ordinal = ordinal;
-                context.component = component;
-                context.placement = placement;
-                const Bool alive = table.DrawItems(context);
+                const Bool alive = DrawComponentMenuItems(editor, object, index, placement);
                 Widget::EndMenu();
                 if (false == alive)
                 {
@@ -100,6 +94,100 @@ namespace JBro::EditorActions
             }
             return true;
         }
+    }
+
+    Bool DrawComponentMenuItems(EditorApplication& editor, GameObject& object, std::size_t slot,
+        const ObjectPlacement& placement)
+    {
+        const Array<ComponentSlot>& components = object.GetComponents();
+        if (slot >= components.Size())
+        {
+            return true;
+        }
+        const ComponentTypeId typeId = components[slot].typeId;
+        ComponentBase* component = components[slot].reference.TryGet();
+        Canvas* canvas = editor.GetCanvas();
+        ComponentAddress address;
+        if (component == nullptr || canvas == nullptr
+            || false == MakeComponentAddress(editor.GetObjectIds(), object, *component, address))
+        {
+            return true;
+        }
+
+        // **사용.** 인스펙터의 `사용` 칸과 같은 커맨드다(D-142).
+        Bool enabled = component->IsEnabled();
+        if (Widget::MenuToggle(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled"), enabled))
+        {
+            editor.GetCommands().Execute(MakeOwnerPtr<SetComponentEnabledCommand>(editor.GetObjectIds(), address, enabled));
+        }
+        ImGui::Separator();
+
+        // **자리 옮기기.** 슬롯 순서가 스크립트 실행 순서다(D-45). 양 끝에서는 그쪽 항목이 잠긴다.
+        const std::size_t last = components.Size() - 1;
+        std::size_t moveTo = slot;
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentTop, "Move to Top"), nullptr, slot > 0))
+        {
+            moveTo = 0;
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up"), nullptr, slot > 0, nullptr, Icons::ArrowUp))
+        {
+            moveTo = slot - 1;
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down"), nullptr, slot < last, nullptr, Icons::ArrowDown))
+        {
+            moveTo = slot + 1;
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentBottom, "Move to Bottom"), nullptr, slot < last))
+        {
+            moveTo = last;
+        }
+        if (moveTo != slot)
+        {
+            editor.GetCommands().Execute(MakeOwnerPtr<MoveComponentCommand>(editor.GetObjectIds(), address.objectId, slot, moveTo));
+            return false;
+        }
+        ImGui::Separator();
+
+        // **복사·붙여넣기**(D-167). 복사는 값만 뜨고, 붙여넣기는 같은 타입을 하나 더 붙이며, 값 붙여넣기는 이 컴포넌트에 덮어쓴다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorCopyComponent, "Copy Component"), nullptr, true, nullptr, Icons::Copy))
+        {
+            editor.CopyComponent(*component);
+        }
+        // 떠 둔 것이 없는 것과, 떠 두었지만 하나만 붙는 타입이 이미 있는 것은 다른 이야기다(D-180).
+        const char* whyNoPaste = editor.HasComponentClipboard()
+            ? Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")
+            : Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponent, "Paste Component"), nullptr,
+                editor.CanPasteComponent(object), whyNoPaste))
+        {
+            editor.PasteComponent(object);
+            return false;
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponentValues, "Paste Component Values"), nullptr,
+                editor.CanPasteComponentValues(*component), Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied")))
+        {
+            editor.PasteComponentValues(object, *component);
+        }
+
+        // **그 타입에 더한 항목**(D-220). 항목이 하나라도 서야 앞에 구분선이 선다.
+        ComponentMenuContext hookContext;
+        hookContext.editor = &editor;
+        hookContext.address = address;
+        hookContext.component = component;
+        hookContext.placement = placement;
+        if (false == editor.GetComponentMenus().DrawItems(hookContext, true))
+        {
+            return false;
+        }
+
+        // 떼기는 무거운 손짓이라 맨 끝이다.
+        ImGui::Separator();
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent, "Remove Component"), nullptr, true, nullptr, Icons::Delete))
+        {
+            editor.GetCommands().Execute(MakeOwnerPtr<RemoveComponentCommand>(*canvas, editor.GetObjectIds(), address.objectId, component));
+            return false;
+        }
+        return true;
     }
 
     LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent)

@@ -1771,6 +1771,44 @@ namespace JBro
         m_saveRequested = true;
     }
 
+    Bool EditorApplication::CopyLayer(LayerId layerId)
+    {
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr || canvas->FindLayer(layerId) == nullptr)
+        {
+            return false;
+        }
+        String text;
+        CanvasFileError error;
+        if (false == WriteLayerText(*canvas, layerId, text, error))
+        {
+            Log::Write(LogLevel::Error, "editor", "the layer could not be copied: %s", error.message.c_str());
+            return false;
+        }
+        m_layerClipboard = std::move(text);
+        m_layerClipboardLatest = true;
+        return true;
+    }
+
+    LayerId EditorApplication::PasteLayer()
+    {
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr || false == HasLayerClipboard())
+        {
+            return InvalidLayerId;
+        }
+        // 원본 에셋이 없는 레이어다 - 복사한 레이어가 에셋에서 왔어도 붙인 것은 그 에셋의 사본이 아니다.
+        auto command = MakeOwnerPtr<AddLayerFromAssetCommand>(*canvas, GetObjectIds(), m_layerClipboard, Uuid{});
+        AddLayerFromAssetCommand* raw = command.Get();
+        if (false == GetCommands().Execute(std::move(command)))
+        {
+            Log::Write(LogLevel::Error, "editor", "the copied layer could not be pasted: %s", raw->GetError().c_str());
+            return InvalidLayerId;
+        }
+        SetSelectedLayer(raw->GetLayerId());
+        return raw->GetLayerId();
+    }
+
     Bool EditorApplication::CopySelection()
     {
         const Array<GameObject*> roots = GetTopLevelSelectedObjects();
@@ -1778,6 +1816,7 @@ namespace JBro
         {
             return false;
         }
+        m_layerClipboardLatest = false;
         Array<ObjectTreeSnapshot> copied;
         for (std::size_t index = 0; index < roots.Size(); ++index)
         {

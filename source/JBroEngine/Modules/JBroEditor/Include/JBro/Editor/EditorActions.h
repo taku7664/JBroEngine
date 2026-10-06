@@ -81,6 +81,11 @@ namespace JBro
         // 이미 열려 있는 메뉴 안에 `컴포넌트 추가` 하위 메뉴를 그린다(D-180, 기존
         // `DrawAddComponentMenu`). 붙였으면 참이다.
         Bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object);
+        // **컴포넌트 하나의 메뉴 항목 한 벌**이다(D-298). 인스펙터의 컴포넌트 머리 메뉴와 오브젝트 메뉴의 컴포넌트 하위 메뉴가 같은 것을
+        // 그린다 - 사용 켜기·끄기, 맨 위로·위로·아래로·맨 아래로, 복사·붙여넣기·값 붙여넣기, 그 타입에 더한 항목(D-220), 제거.
+        // 이미 열린 메뉴 안에서 부른다. **슬롯 배열을 바꿨으면 거짓이다** - 부르는 쪽은 그 프레임에 슬롯을 더 읽지 않는다.
+        Bool DrawComponentMenuItems(EditorApplication& editor, GameObject& object, std::size_t slot,
+            const ObjectPlacement& placement = {});
 
         // 오브젝트 하나를 두고 여는 메뉴 한 벌이다(D-170). 계층의 줄과 캔버스 뷰에서
         // 오브젝트를 우클릭한 자리가 같은 것을 쓴다 - 기존 엔진도 두 화면의 메뉴가 같다.

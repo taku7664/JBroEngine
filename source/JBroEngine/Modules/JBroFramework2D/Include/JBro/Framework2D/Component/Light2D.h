@@ -57,16 +57,16 @@ namespace JBro::Component
         JBRO_FIELD(Light2DType, type) = Light2DType::Point;
         JBRO_FIELD(Color, color) { 1.0f, 1.0f, 1.0f, 1.0f };
         // 색에 곱한다. 1 을 넘으면 흰색보다 밝은 빛이 되어 어두운 색을 더 밝힌다.
-        JBRO_FIELD(Float, intensity, Range(0.0f, 100.0f)) = 1.0f;
+        JBRO_FIELD(Float, intensity, Clamp(0.0f, 100.0f)) = 1.0f;
         // 이 거리(월드 단위)까지는 빛이 다 닿고, `outerRadius` 에서 0 이 된다. `Global` 은 보지 않는다.
-        JBRO_FIELD(Float, innerRadius, Range(0.0f, 1000.0f)) = 0.0f;
-        JBRO_FIELD(Float, outerRadius, Range(0.0f, 1000.0f)) = 5.0f;
+        JBRO_FIELD(Float, innerRadius, Clamp(0.0f, 1000.0f)) = 0.0f;
+        JBRO_FIELD(Float, outerRadius, Clamp(0.0f, 1000.0f)) = 5.0f;
         // `Spot` 의 원뿔 **전체** 각이다. 안쪽 각 안은 빛이 다 닿고 바깥 각에서 0 이 된다.
-        JBRO_FIELD(Degree, innerAngle, Range(0.0f, 360.0f)) = 30.0f;
-        JBRO_FIELD(Degree, outerAngle, Range(0.0f, 360.0f)) = 60.0f;
+        JBRO_FIELD(Degree, innerAngle, Clamp(0.0f, 360.0f)) = 30.0f;
+        JBRO_FIELD(Degree, outerAngle, Clamp(0.0f, 360.0f)) = 60.0f;
         // 참이면 `ShadowCaster2D` 가 이 빛을 가린다. 그림자를 드리우는 라이트는 하나씩 그려져 많이 켜면 비싸다. `Global` 은 보지 않는다.
         JBRO_FIELD(Bool, castShadows) = false;
         // 그림자 가장자리가 번지는 정도다 - 빛을 이 반지름(월드 단위)의 원판으로 본다. 가림막에서 멀수록 넓게 번지고, 0 이면 가장자리가 단단하다.
-        JBRO_FIELD(Float, shadowSoftness, Range(0.0f, 100.0f)) = 0.0f;
+        JBRO_FIELD(Float, shadowSoftness, Clamp(0.0f, 100.0f)) = 0.0f;
     };
 }

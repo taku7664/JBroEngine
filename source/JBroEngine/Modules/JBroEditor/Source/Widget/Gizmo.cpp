@@ -255,6 +255,23 @@ namespace JBro::Widget
         return output;
     }
 
+    Bool BeginFreeMove(const GizmoCamera& camera, const GizmoSubject& subject, GizmoState& state, Float pressX, Float pressY)
+    {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window == nullptr || state.dragging
+            || false == GizmoModel::BeginDrag(GizmoMode::Translate, GizmoAxis::Free, camera, subject, pressX, pressY, state.drag))
+        {
+            return false;
+        }
+        state.dragging = true;
+        state.hovered = GizmoAxis::None;
+        const ImGuiID id = window->GetID(AxisIdName(GizmoAxis::Free));
+        ImGui::SetActiveID(id, window);
+        ImGui::KeepAliveID(id);
+        ImGui::FocusWindow(window);
+        return true;
+    }
+
     void OverlayHandle(const char* id, Bool hovered, Bool holding, Bool pressed)
     {
         ImGuiWindow* window = ImGui::GetCurrentWindow();

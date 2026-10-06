@@ -178,7 +178,6 @@ namespace JBro
         void DrawCanvas();
         // 레이어를 골랐을 때의 화면이다(D-279).
         void DrawLayer(LayerId layerId);
-        void RemoveComponent(GameObject& object, ComponentBase& component);
         // 머리의 태그 칸(D-297). 프로젝트 태그 목록에서 고르고, 맨 끝 항목이 새 태그를 더한다.
         void DrawTagField(GameObject& object);
         // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.

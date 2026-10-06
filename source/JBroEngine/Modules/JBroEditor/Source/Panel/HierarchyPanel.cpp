@@ -12,6 +12,7 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorUI.h>
@@ -569,6 +570,26 @@ namespace JBro
                         m_editor->GetCommands().Execute(std::move(command));
                     }
                 }
+            }
+        }
+        ImGui::Separator();
+        // **복사·붙여넣기**(D-298). 레이어 값과 그 위의 오브젝트를 통째로 뜨고, 붙이면 새 레이어 하나가 선다. 단축키는 편집 메뉴의
+        // Ctrl+C·V 와 같다 - 레이어를 골라 두면 그 레이어다.
+        {
+            const EditorActionInfo* copyAction = EditorActionRegistry::Get().Find("object.copy");
+            const EditorActionInfo* pasteAction = EditorActionRegistry::Get().Find("object.paste");
+            const EditorShortcutText copyKeys = copyAction != nullptr ? EditorActionUi::Keys(*m_editor, *copyAction) : EditorShortcutText{};
+            const EditorShortcutText pasteKeys = pasteAction != nullptr ? EditorActionUi::Keys(*m_editor, *pasteAction) : EditorShortcutText{};
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"), copyKeys.value, true, nullptr, Icons::Copy))
+            {
+                m_editor->SetSelectedLayer(layerId);
+                m_editor->CopyLayer(layerId);
+            }
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), pasteKeys.value, m_editor->HasLayerClipboard(),
+                    Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied")))
+            {
+                m_editor->PasteLayer();
+                alive = false;
             }
         }
         ImGui::Separator();
