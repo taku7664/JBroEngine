@@ -1,6 +1,4 @@
 ﻿#include <JBro/Editor/Widget/Scalar.h>
-#include <JBro/Editor/EditorIcons.h>
-#include <JBro/Editor/Widget/Button.h>
 
 // IM_PI 와 ImVec2 연산을 쓴다.
 #include <imgui_internal.h>
@@ -23,30 +21,73 @@ namespace JBro::Widget
 
     namespace
     {
-        // -/+ 를 붙일 자리를 떼어 내고 드래그 칸에 남는 폭을 돌려준다.
-        float SplitWidthForStepButtons(
-            float requested, bool stepButtons, float& outButtonSize, float& outSpacing)
+        // 칸 오른쪽 끝의 화살표 한쪽(위 또는 아래)이다. 칸 위에 겹쳐 놓으므로 배치를 밀지 않는다.
+        // 누르고 있으면 반복한다(`ButtonRepeat`). 키보드 이동은 칸이 받고 화살표는 건너뛴다.
+        bool SpinArrow(const char* id, const ImRect& bb, bool up)
         {
-            const ImGuiStyle& style = ImGui::GetStyle();
-            const float full =
-                requested != 0.0f ? requested : ImGui::GetContentRegionAvail().x;
-            if (false == stepButtons)
+            const ImGuiID itemId = ImGui::GetID(id);
+            if (false == ImGui::ItemAdd(bb, itemId, nullptr,
+                    ImGuiItemFlags_ButtonRepeat | ImGuiItemFlags_NoNav | ImGuiItemFlags_NoTabStop))
             {
-                outButtonSize = 0.0f;
-                outSpacing = 0.0f;
-                return std::max(1.0f, full);
+                return false;
             }
-            outButtonSize = ImGui::GetFrameHeight();
-            outSpacing = style.ItemInnerSpacing.x;
-            return std::max(1.0f, full - (outButtonSize + outSpacing) * 2.0f);
+            bool hovered = false;
+            bool held = false;
+            const bool pressed = ImGui::ButtonBehavior(bb, itemId, &hovered, &held);
+
+            ImDrawList* draw = ImGui::GetWindowDrawList();
+            if (hovered || held)
+            {
+                const float rounding = ImGui::GetStyle().FrameRounding;
+                const ImDrawFlags corners = up ? ImDrawFlags_RoundCornersTopRight : ImDrawFlags_RoundCornersBottomRight;
+                draw->AddRectFilled(bb.Min, bb.Max,
+                    ImGui::GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered), rounding, corners);
+            }
+            // 삼각형은 밑변이 칸 폭의 절반, 높이는 밑변의 반이다. 픽셀에 맞춰야 가장자리가 번지지 않는다.
+            const float halfWidth = std::floor(bb.GetWidth() * 0.25f);
+            const float height = std::max(2.0f, halfWidth);
+            const ImVec2 center(std::floor((bb.Min.x + bb.Max.x) * 0.5f), std::floor((bb.Min.y + bb.Max.y) * 0.5f));
+            const float top = std::floor(center.y - height * 0.5f) + (up ? 0.0f : 1.0f);
+            const float bottom = top + height;
+            const ImU32 color = ImGui::GetColorU32(hovered || held ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+            if (up)
+            {
+                draw->AddTriangleFilled(ImVec2(center.x, top), ImVec2(center.x + halfWidth, bottom),
+                    ImVec2(center.x - halfWidth, bottom), color);
+            }
+            else
+            {
+                draw->AddTriangleFilled(ImVec2(center.x - halfWidth, top), ImVec2(center.x + halfWidth, top),
+                    ImVec2(center.x, bottom), color);
+            }
+            return pressed;
         }
 
-        // 빼기·더하기 단추다. 글자 `-`/`+` 대신 아이콘을 잉크로 한가운데 놓는다(D-278).
-        bool StepButton(const char* id, const char* glyph, float size)
+        // 방금 그린 칸 안 오른쪽 끝에 ▲▼ 를 위아래로 쌓는다. 위를 누르면 +1, 아래는 -1, 아니면 0.
+        //
+        // **화살표를 누른 뒤에도 "마지막 항목" 은 칸이다.** 부르는 쪽이 `IsItemDeactivatedAfterEdit`·
+        // 툴팁·가이드의 사각형을 칸 기준으로 본다 - 화살표가 마지막이면 그것이 모두 화살표로 간다.
+        int SpinArrows()
         {
-            const bool pressed = ImGui::Button(id, ImVec2(size, size));
-            DrawGlyphCentered(glyph, ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Text));
-            return pressed;
+            ImGuiContext& context = *ImGui::GetCurrentContext();
+            const ImGuiLastItemData field = context.LastItemData;
+            const ImRect frame = field.Rect;
+            const float width = std::floor(std::max(10.0f, frame.GetHeight() * 0.7f));
+            const float middle = std::floor((frame.Min.y + frame.Max.y) * 0.5f);
+            const ImRect upper(ImVec2(frame.Max.x - width, frame.Min.y), ImVec2(frame.Max.x, middle));
+            const ImRect lower(ImVec2(frame.Max.x - width, middle), frame.Max);
+
+            int direction = 0;
+            if (SpinArrow("##up", upper, true))
+            {
+                direction = 1;
+            }
+            if (SpinArrow("##down", lower, false))
+            {
+                direction = -1;
+            }
+            context.LastItemData = field;
+            return direction;
         }
     }
 
@@ -104,30 +145,19 @@ namespace JBro::Widget
                 ClampFlags(m_min < m_max));
         }
         ImGui::PushID(m_id);
-        float buttonSize = 0.0f;
-        float spacing = 0.0f;
-        const float dragWidth =
-            SplitWidthForStepButtons(m_width, m_stepButtons, buttonSize, spacing);
-
-        ImGui::SetNextItemWidth(dragWidth);
+        // 화살표는 칸 안에 들어가므로 폭을 떼어 내지 않는다. 폭을 주지 않으면 남은 폭을 다 쓴다.
+        ImGui::SetNextItemWidth(m_width != 0.0f ? m_width : ImGui::GetContentRegionAvail().x);
+        // 화살표가 칸 위에 겹친다. 겹친 쪽이 마우스를 먼저 받도록 칸을 겹칠 수 있게 연다.
+        ImGui::SetNextItemAllowOverlap();
         bool changed = ImGui::DragInt("##drag", &value, m_speed, m_min, m_max,
             m_format, ClampFlags(m_min < m_max));
 
-        if (m_stepButtons)
+        const int direction = SpinArrows();
+        if (direction != 0)
         {
-            ImGui::SameLine(0.0f, spacing);
-            if (StepButton("##minus", Icons::Minus, buttonSize))
-            {
-                value -= m_step;
-                changed = true;
-            }
-            ImGui::SameLine(0.0f, spacing);
-            if (StepButton("##plus", Icons::Plus, buttonSize))
-            {
-                value += m_step;
-                changed = true;
-            }
-            // **버튼은 드래그의 클램프를 타지 않는다.** 여기서 직접 가둔다.
+            value += direction * m_step;
+            changed = true;
+            // **화살표는 드래그의 클램프를 타지 않는다.** 여기서 직접 가둔다.
             if (m_min < m_max)
             {
                 value = std::clamp(value, m_min, m_max);
@@ -197,29 +227,16 @@ namespace JBro::Widget
                 ClampFlags(m_min < m_max));
         }
         ImGui::PushID(m_id);
-        float buttonSize = 0.0f;
-        float spacing = 0.0f;
-        const float dragWidth =
-            SplitWidthForStepButtons(m_width, m_stepButtons, buttonSize, spacing);
-
-        ImGui::SetNextItemWidth(dragWidth);
+        ImGui::SetNextItemWidth(m_width != 0.0f ? m_width : ImGui::GetContentRegionAvail().x);
+        ImGui::SetNextItemAllowOverlap();
         bool changed = ImGui::DragFloat("##drag", &value, m_speed, m_min, m_max,
             m_format, ClampFlags(m_min < m_max));
 
-        if (m_stepButtons)
+        const int direction = SpinArrows();
+        if (direction != 0)
         {
-            ImGui::SameLine(0.0f, spacing);
-            if (StepButton("##minus", Icons::Minus, buttonSize))
-            {
-                value -= m_step;
-                changed = true;
-            }
-            ImGui::SameLine(0.0f, spacing);
-            if (StepButton("##plus", Icons::Plus, buttonSize))
-            {
-                value += m_step;
-                changed = true;
-            }
+            value += static_cast<float>(direction) * m_step;
+            changed = true;
             if (m_min < m_max)
             {
                 value = std::clamp(value, m_min, m_max);

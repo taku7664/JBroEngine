@@ -1446,6 +1446,64 @@ namespace
         Check(faded.x == error.x, "and the colour left alone");
     }
 
+    // **숫자 칸의 ▲▼ 는 칸 안 오른쪽 끝에 위아래로 쌓인다.** 칸 옆에 단추가 붙지 않으므로 칸이 준 폭을
+    // 다 쓰고, 위를 누르면 한 칸 오르고 아래를 누르면 내려가며 범위에서 멈춘다. 그린 뒤 마지막 항목은 칸이다.
+    void TestTheNumberFieldSpinsWithStackedArrowsInsideIt()
+    {
+        Stage stage;
+        JBro::EditorTheme::ApplyLayout();
+        ImGuiIO& io = ImGui::GetIO();
+        int value = 9;
+        int changedFrames = 0;
+        ImVec2 fieldMin;
+        ImVec2 fieldMax;
+        ImGuiID lastItem = 0;
+        const auto frame = [&]() {
+            stage.Begin();
+            if (JBro::Widget::DragInt("##count").Range(0, 10).Width(160.0f).Draw(value))
+            {
+                ++changedFrames;
+            }
+            fieldMin = ImGui::GetItemRectMin();
+            fieldMax = ImGui::GetItemRectMax();
+            lastItem = ImGui::GetItemID();
+            ImGui::PushID("##count");
+            const ImGuiID drag = ImGui::GetID("##drag");
+            ImGui::PopID();
+            Check(lastItem == drag, "the last item after the arrows must still be the field");
+            stage.End();
+        };
+        stage.Settle();
+        frame();
+        Check(fieldMax.x - fieldMin.x > 159.0f && fieldMax.x - fieldMin.x < 161.0f,
+            "the arrows sit inside the field, so the field keeps the whole width");
+
+        const auto click = [&](float x, float y) {
+            io.AddMousePosEvent(x, y);
+            frame();
+            frame();
+            io.AddMouseButtonEvent(0, true);
+            frame();
+            io.AddMouseButtonEvent(0, false);
+            frame();
+        };
+        const float arrowX = fieldMax.x - 3.0f;
+        const float upY = fieldMin.y + 3.0f;
+        const float downY = fieldMax.y - 3.0f;
+
+        click(arrowX, upY);
+        Check(value == 10 && changedFrames == 1, "the upper arrow must add one step");
+        click(arrowX, upY);
+        Check(value == 10, "and stop at the top of the range");
+        click(arrowX, downY);
+        Check(value == 9, "the lower arrow must take one step away");
+
+        // 칸 한가운데를 눌렀다 떼는 것은 끌기의 일이다. 움직이지 않았으니 값은 그대로다.
+        const int before = changedFrames;
+        click((fieldMin.x + fieldMax.x) * 0.5f, (fieldMin.y + fieldMax.y) * 0.5f);
+        Check(value == 9 && changedFrames == before, "a click on the middle of the field is not an arrow");
+    }
+
     // **툴팁은 마우스가 멈춘 뒤 잠시 있다가 뜬다.** 지나가기만 해도 뜨면 패널 위를 움직일 때마다
     // 말풍선이 따라다닌다. 회색 항목의 까닭도 같은 길을 지난다.
     void TestATooltipWaitsForTheMouseToRest()
@@ -1529,6 +1587,7 @@ int RunEditorWidgetTests()
     TestAWeightedButtonLooksDifferentFromAPlainOne();
     TestSeverityColoursDiffer();
     TestATooltipWaitsForTheMouseToRest();
+    TestTheNumberFieldSpinsWithStackedArrowsInsideIt();
     std::cout << "Editor widget tests passed.\n";
     return 0;
 }
