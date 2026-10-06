@@ -545,8 +545,97 @@ namespace
     }
 }
 
+namespace
+{
+    // 한 열의 위쪽 절반에서 빛이 일부만 닿는(반그림자) 픽셀 수다. 빛은 0.8 이다.
+    JBro::Int32 CountPenumbra(const Stage& stage, JBro::UInt32 x)
+    {
+        JBro::Int32 count = 0;
+        for (JBro::UInt32 y = 0; y < Side / 2; ++y)
+        {
+            const JBro::Float red = stage.Read(x, y).r;
+            if (red > 0.05f && red < 0.75f)
+            {
+                count = count + 1;
+            }
+        }
+        return count;
+    }
+
+    // **부드러운 그림자는 가림막에서 멀수록 가장자리가 넓다**(D-291 4 단계). 라이트(-0.6, 0)가 상자(가운데 (-0.3, 0), 반 너비 0.1)를 비춘다.
+    // 그림자의 위쪽 가장자리는 상자의 왼쪽 위 모서리를 지나는 선이다. 반지름 0.03 의 원판으로 보면 상자 바로 뒤(x 0.02, 열 32)의 반그림자는 4 픽셀쯤,
+    // 멀리(x 0.77, 열 56)는 11 픽셀쯤이다. 반지름 0 은 3 단계의 단단한 그림자라 반그림자 픽셀이 없다.
+    // 상자의 오른쪽 위 모서리를 라이트 가운데와 잇는 선 위(열 44, 행 24)는 두 변이 원판을 나눠 가리는데, 둘의 몫을 더해 다 가려져야 한다.
+    template <typename TModule>
+    void TestSoftShadowsWidenWithDistance()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "soft shadows"))
+        {
+            return;
+        }
+        JBro::Light2DSubmit light;
+        light.kind = JBro::Light2DKind::Point;
+        light.position[0] = -0.6f;
+        light.position[1] = 0.0f;
+        light.color[0] = 0.8f;
+        light.color[1] = 0.8f;
+        light.color[2] = 0.8f;
+        light.innerRadius = 2.5f;
+        light.outerRadius = 3.0f;
+        light.castShadows = true;
+        JBro::ShadowEdge2D box[4];
+        BoxEdges(-0.3f, 0.0f, 0.1f, false, box);
+        const auto scene = [&]() {
+            Check(stage.renderer.SubmitLight2D(light), "the shadowed light must submit");
+            Check(stage.renderer.SubmitShadowEdges2D({box, 4}), "the box edges must submit");
+            Check(stage.renderer.SetSpriteLighting(true), "lighting must turn on");
+            Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f)), "the lit ground must submit");
+        };
+        for (JBro::Int32 at = 0; at < 3; ++at)
+        {
+            stage.Frame(scene);
+        }
+        const JBro::Int32 hardNear = CountPenumbra(stage, 32);
+        const JBro::Int32 hardFar = CountPenumbra(stage, 56);
+        if (hardNear != 0 || hardFar != 0)
+        {
+            std::cout << "  hard shadow edge: " << hardNear << " and " << hardFar << " partly lit pixels\n";
+        }
+        Check(hardNear == 0 && hardFar == 0, "a light without softness casts a hard shadow edge");
+        stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "behind the box the hard shadow is dark");
+
+        light.shadowSoftness = 0.03f;
+        stage.Frame(scene);
+        const JBro::Int32 softNear = CountPenumbra(stage, 32);
+        const JBro::Int32 softFar = CountPenumbra(stage, 56);
+        if (softNear < 2 || softFar < softNear + 4)
+        {
+            std::cout << "  soft shadow edge: " << softNear << " near and " << softFar << " far partly lit pixels\n";
+        }
+        Check(softNear >= 2, "a soft shadow's edge is blurred right behind the box");
+        Check(softFar >= softNear + 4, "a soft shadow's edge widens away from the box");
+        stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "behind the box the soft shadow is still dark");
+        stage.Expect(44, 24, 0.0f, 0.0f, 0.0f, "where two edges share the disc their shares add up to the whole");
+        stage.Expect(56, 2, 0.8f, 0.8f, 0.8f, "beyond the penumbra the light reaches in full");
+
+        // 라이트가 윗변의 선보다 조금 아래(y 0.08)에 있으면 윗변을 오른쪽 끝에서 원판에 맞춰 민 사각형이 그 선의 아래(라이트 쪽)로 내려온다.
+        // 그 자리(열 48, 행 30)는 윗변 너머가 아니라서 윗변이 가리지 않는다 - 오른쪽 변만 원판의 74% 쯤을 가려 빛이 0.2 쯤 닿는다.
+        // 윗변의 몫까지 더하면 거의 다 가려진다.
+        light.position[1] = 0.08f;
+        light.shadowSoftness = 0.1f;
+        stage.Frame(scene);
+        stage.Expect(48, 30, 0.2f, 0.2f, 0.2f, "an edge does not shade the side of its line the light is on");
+        stage.Close(rhi);
+    }
+}
+
 JBro::Int32 RunLight2DPixelTests()
 {
+    TestSoftShadowsWidenWithDistance<JBro::D3D12RHIModule>();
+    TestSoftShadowsWidenWithDistance<JBro::D3D11RHIModule>();
+    TestSoftShadowsWidenWithDistance<JBro::VulkanRHIModule>();
     TestEachViewShadowsWithItsOwnEdges<JBro::D3D12RHIModule>();
     TestEachViewShadowsWithItsOwnEdges<JBro::D3D11RHIModule>();
     TestEachViewShadowsWithItsOwnEdges<JBro::VulkanRHIModule>();

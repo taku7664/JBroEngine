@@ -381,6 +381,23 @@ namespace
         stage.Expect(0.0f, 0.0f, 0.8f, 0.8f, 0.8f, "and not where it would be without the parallax, between the light and the box");
         canvas.FindComponentRaw<JBro::Component::Transform2D>(eye)->position = {0.0f, 0.0f};
 
+        // `shadowSoftness` 는 빛을 그 반지름의 원판으로 본다(4 단계). 상자의 왼쪽 위 모서리를 지난 그림자 가장자리 바로 안쪽은 단단한 그림자에서는 어둡고,
+        // 번지면 빛이 일부 닿는다. 가운데는 그대로 어둡다.
+        update();
+        stage.RenderGame(framework);
+        stage.Expect(3.0f, 0.6f, 0.0f, 0.0f, 0.0f, "just inside a hard shadow's edge it is dark");
+        light->shadowSoftness = 0.4f;
+        update();
+        stage.RenderGame(framework);
+        const JBro::Float blurred = stage.At(3.0f, 0.6f).r;
+        if (false == (blurred > 0.1f && blurred < 0.7f))
+        {
+            std::cout << "  read " << blurred << " at the soft shadow's edge\n";
+        }
+        Check(blurred > 0.1f && blurred < 0.7f, "a soft light's shadow edge is partly lit");
+        stage.Expect(3.0f, 0.0f, 0.0f, 0.0f, 0.0f, "and the soft shadow's middle stays dark");
+        light->shadowSoftness = 0.0f;
+
         light->castShadows = false;
         update();
         stage.RenderGame(framework);

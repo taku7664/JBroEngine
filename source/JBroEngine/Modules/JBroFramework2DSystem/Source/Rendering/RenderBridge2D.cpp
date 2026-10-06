@@ -316,6 +316,7 @@ namespace JBro::Internal
                 light.innerAngle = Radian(item.innerAngle);
                 light.outerAngle = Radian(item.outerAngle);
                 light.castShadows = item.castShadows;
+                light.shadowSoftness = item.shadowSoftness;
                 ++count;
                 if (count == BatchSize)
                 {

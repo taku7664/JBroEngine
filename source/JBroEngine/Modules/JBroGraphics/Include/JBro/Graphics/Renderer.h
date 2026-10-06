@@ -207,6 +207,9 @@ namespace JBro
         // 참이면 이 뷰의 그림자 변(`SubmitShadowEdges2D`)에 가려진 곳에는 빛이 닿지 않는다. `Global` 은 보지 않는다.
         // 그림자를 드리우는 라이트는 하나씩 그려진다(그림자 마스크 하나와 라이트맵 패스 하나) - 많이 켜면 비싸다.
         Bool castShadows = false;
+        // 그림자를 드리울 때 빛을 이 반지름(월드)의 원판으로 본다 - 가림막에서 멀어질수록 그림자 가장자리가 넓게 번진다(반그림자, 4 단계).
+        // 0 이면 점 빛이라 가장자리가 단단하다. `castShadows` 가 거짓이면 보지 않는다.
+        Float shadowSoftness = 0.0f;
     };
 
     // **그림자를 드리우는 변 하나**(D-291, tasks/lighting2d-plan.md 3 단계). 월드 좌표다. 닫힌 모양은 **시계 반대 방향**으로 감아 낸다 - 변의
@@ -476,6 +479,7 @@ namespace JBro
             UInt32 instance = 0;
             Float position[2] = {0.0f, 0.0f};
             Float reach = 0.0f;
+            Float softness = 0.0f;
         };
         static_assert(offsetof(GpuLight2DInstance, color) == 16, "light attribute 2 reads the colour from offset 16");
         static_assert(offsetof(GpuLight2DInstance, cone) == 32, "light attribute 3 reads the cone from offset 32");
@@ -494,7 +498,7 @@ namespace JBro
         // 레이어를 그려 둘 텍스처다. 뷰의 타깃 크기마다 하나이고 백버퍼 포맷이다. 프레임 안에서는 만들 수 없으므로, 기록 중에
         // 없는 크기를 만나면 바라는 크기로 적어 두고 다음 `BeginFrame` 이 프레임을 열기 전에 만든다. 오래 안 쓰면 놓는다.
         // 쓰임은 둘이다: 레이어를 그리는 자리와, 아래 그림을 읽는 블렌드가 대상을 복사해 두는 자리(D-283). 같은 크기라도 따로 든다.
-        // `LightMap` 은 2D 라이트맵이다(D-291) - 백버퍼 포맷이 아니라 RGBA16F 다. `ShadowMask` 는 그림자를 드리우는 라이트 하나의 가림막(RGBA8)이다.
+        // `LightMap` 은 2D 라이트맵이다(D-291) - 백버퍼 포맷이 아니라 RGBA16F 다. `ShadowMask` 는 그림자를 드리우는 라이트 하나의 가림막(RGBA16F)이다.
         enum class LayerTargetRole : std::uint8_t
         {
             Layer,

@@ -66,5 +66,7 @@ namespace JBro::Component
         JBRO_FIELD(Degree, outerAngle, Range(0.0f, 360.0f)) = 60.0f;
         // 참이면 `ShadowCaster2D` 가 이 빛을 가린다. 그림자를 드리우는 라이트는 하나씩 그려져 많이 켜면 비싸다. `Global` 은 보지 않는다.
         JBRO_FIELD(Bool, castShadows) = false;
+        // 그림자 가장자리가 번지는 정도다 - 빛을 이 반지름(월드 단위)의 원판으로 본다. 가림막에서 멀수록 넓게 번지고, 0 이면 가장자리가 단단하다.
+        JBRO_FIELD(Float, shadowSoftness, Range(0.0f, 100.0f)) = 0.0f;
     };
 }

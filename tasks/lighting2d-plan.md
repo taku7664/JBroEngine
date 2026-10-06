@@ -69,7 +69,10 @@
 3. ~~그림자: `ShadowCaster2D`, 단단한 그림자. 완료 조건: 가림막 뒤가 어둡다, 화면 밖 가림막도 그림자를 드리운다, 가림막 안의 라이트(`selfShadow`).~~
    → 완료 2026-10-06(D-291 의 "3 단계"). `BuiltinShadow2D.hlsl`·`PSShadowedMain`, `Renderer::SubmitShadowEdges2D`, `ShadowCaster2D.h`·`ShadowCaster2DSystem`,
    브리지의 `PushShadowEdges`. 뮤테이션 12/12.
-4. 부드러운 그림자: 반그림자. 완료 조건: 그림자 가장자리가 거리에 따라 넓어진다, `shadowSoftness` 0 은 3 단계와 같다.
+4. ~~부드러운 그림자: 반그림자. 완료 조건: 그림자 가장자리가 거리에 따라 넓어진다, `shadowSoftness` 0 은 3 단계와 같다.~~
+   → 완료 2026-10-06(D-291 의 "4 단계"). `shadowSoftness` 는 빛을 그 반지름(월드)의 원판으로 본다. `BuiltinShadow2D.hlsl` 이 변의 끝을 원판에 닿는 선으로 밀어 사각형을
+   반그림자까지 넓히고, 픽셀마다 변이 가리는 원판의 몫을 각도로 셈한다. 마스크는 RGBA16F 다. 시험 `TestSoftShadowsWidenWithDistance`·프레임워크 시험의 번진 가장자리.
+   뮤테이션 5/5.
 5. 에디터: 반지름·각도 기즈모(끌어서 고침), 캔버스 뷰의 라이팅 켜고 끄기, 실제 에디터 확인.
 
 ## 4. `[열림]`

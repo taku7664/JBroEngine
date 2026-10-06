@@ -1844,7 +1844,7 @@ namespace JBro
             const Bool lightMap = role == LayerTargetRole::LightMap;
             const Bool shadowMask = role == LayerTargetRole::ShadowMask;
             // 라이트맵은 1 을 넘는 빛을 담는다(D-291). 그림자 마스크는 0 과 1 뿐이다. 나머지는 타깃에 얹거나 타깃을 복사해 두는 자리라 백버퍼 포맷이다.
-            desc.format = lightMap ? TextureFormat::RGBA16Float : (shadowMask ? TextureFormat::RGBA8Unorm : m_config.backBufferFormat);
+            desc.format = lightMap || shadowMask ? TextureFormat::RGBA16Float : m_config.backBufferFormat;
             desc.usage = lightMap || shadowMask ? TextureUsage::RenderTarget | TextureUsage::Sampled
                                                 : TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
             chosen->texture = m_device->CreateTexture(desc);
@@ -2299,8 +2299,9 @@ namespace JBro
         const VertexBufferLayoutDesc edgeLayouts[] = {
             {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}},
             {static_cast<JBro::UInt32>(sizeof(GpuShadowEdgeInstance)), VertexStepMode::Instance, {edgeAttributes, 2}}};
-        // 마스크는 0 과 1 뿐이다. 겹친 그림자는 `One·One` 으로 더해 1 에서 잘린다.
-        const TextureFormat maskFormats[] = {TextureFormat::RGBA8Unorm};
+        // 마스크는 가려진 몫(0~1)이다. 겹친 그림자는 `One·One` 으로 더하고 라이트 패스가 1 에서 자른다. 이웃한 변의 반그림자가 나눠 가진 몫을
+        // 더해 1 이 되어야 하므로 8 비트가 아니라 16 비트 실수다 - 8 비트면 이음매로 빛이 1/255 씩 샌다.
+        const TextureFormat maskFormats[] = {TextureFormat::RGBA16Float};
         GraphicsPipelineDesc maskDesc;
         maskDesc.vertexShader = PickShader(m_config.api, JBroBuiltinShadow2DVS, sizeof(JBroBuiltinShadow2DVS),
             Sm5::JBroBuiltinShadow2DVS_SM5, sizeof(Sm5::JBroBuiltinShadow2DVS_SM5),
@@ -2388,6 +2389,7 @@ namespace JBro
                         entry.position[0] = m_lights[at].position[0];
                         entry.position[1] = m_lights[at].position[1];
                         entry.reach = m_gpuLightInstances[next].shape[2];
+                        entry.softness = m_lights[at].shadowSoftness > 0.0f ? m_lights[at].shadowSoftness : Float(0.0f);
                         m_shadowedLights.Add(entry);
                     }
                     ++next;
@@ -2528,6 +2530,7 @@ namespace JBro
                 constants.light[1] = light.position[1];
                 // 라이트가 닿는 곳보다 멀리 민다. 변의 끝이 라이트 안쪽에 있어도 바깥 반지름의 두 배면 넘는다.
                 constants.light[2] = light.reach * 2.0f;
+                constants.light[3] = light.softness;
                 ColorAttachmentDesc maskColor;
                 maskColor.texture = mask;
                 maskColor.loadOperation = LoadOperation::Clear;

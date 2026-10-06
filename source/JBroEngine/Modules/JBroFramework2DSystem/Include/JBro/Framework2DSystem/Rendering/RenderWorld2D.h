@@ -82,6 +82,7 @@ namespace JBro
         // 라이트가 놓인 레이어의 패럴랙스다(D-286) - 그 레이어의 스프라이트와 함께 옮겨야 제 자리를 비춘다.
         Float layerParallax = 1.0f;
         Bool castShadows = false;
+        Float shadowSoftness = 0.0f;
     };
 
     // 그림자를 드리우는 변 하나다(D-291 3 단계). 월드이고, 닫힌 모양은 시계 반대 방향으로 감겼다(렌더러의 `ShadowEdge2D` 와 같은 뜻).
