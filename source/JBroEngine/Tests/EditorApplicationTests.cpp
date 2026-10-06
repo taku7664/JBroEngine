@@ -2400,7 +2400,7 @@ namespace
             Check(reader.LoadCanvas(dialog.path.c_str(), error), "the reader must load the saved file");
             JBro::GameObject* loaded = nullptr;
             reader.GetCanvas()->ForEachObject([&loaded](JBro::GameObject& found) {
-                if (std::strcmp(found.GetTag(), "Saved") == 0)
+                if (std::strcmp(found.GetName(), "Saved") == 0)
                 {
                     loaded = &found;
                 }
@@ -2707,7 +2707,7 @@ namespace
         Check(canvas->GetObjectCount() == before + 2, "and add the tree once, not the child twice");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
         JBro::GameObject* pasted = editor.GetSelectedObject();
-        Check(pasted != nullptr && pasted != alpha && std::strcmp(pasted->GetTag(), "Alpha") == 0,
+        Check(pasted != nullptr && pasted != alpha && std::strcmp(pasted->GetName(), "Alpha") == 0,
             "and choose the pasted root instead of the source");
         Check(editor.GetSelectionCount() == 1, "and nothing else");
         Check(pasted->GetParent() == holder, "placed beside the source, under the same parent");
@@ -2727,7 +2727,7 @@ namespace
         editor.ClearSelection();
         Check(editor.PasteClipboard(), "and the earlier clipboard must still paste");
         pasted = editor.GetSelectedObject();
-        Check(pasted != nullptr && std::strcmp(pasted->GetTag(), "Alpha") == 0
+        Check(pasted != nullptr && std::strcmp(pasted->GetName(), "Alpha") == 0
                 && canvas->GetObjectCount() == before + 3,
             "the earlier tree, untouched by the refused copy");
         Check(editor.GetCommands().Undo(), "undo must run");
@@ -2930,11 +2930,11 @@ namespace
         JBro::GameObject* restored = nullptr;
         JBro::GameObject* restoredChild = nullptr;
         canvas->ForEachObject([&](JBro::GameObject& each) {
-            if (std::strcmp(each.GetTag(), "Painted") == 0)
+            if (std::strcmp(each.GetName(), "Painted") == 0)
             {
                 restored = &each;
             }
-            else if (std::strcmp(each.GetTag(), "PaintedChild") == 0)
+            else if (std::strcmp(each.GetName(), "PaintedChild") == 0)
             {
                 restoredChild = &each;
             }
@@ -5151,7 +5151,7 @@ namespace
     {
         JBro::GameObject* found = nullptr;
         canvas.ForEachObject([&](JBro::GameObject& object) {
-            if (found == nullptr && std::strcmp(object.GetTag(), name) == 0)
+            if (found == nullptr && std::strcmp(object.GetName(), name) == 0)
             {
                 found = &object;
             }
@@ -5217,7 +5217,7 @@ namespace
         // 커맨드들이 되살아난 오브젝트를 못 찾는다.
         JBro::GameObject* restored = ids.Resolve(parentId);
         Check(restored != nullptr, "the old number must find the restored object");
-        Check(std::strcmp(restored->GetTag(), "Parent") == 0, "with its name");
+        Check(std::strcmp(restored->GetName(), "Parent") == 0, "with its name");
 
         auto* restoredTransform = restored->GetComponent<JBro::Component::Transform2D>().Get();
         Check(restoredTransform != nullptr, "and its transform");
@@ -5929,7 +5929,7 @@ namespace
 
         JBro::GameObject* loaded = nullptr;
         reopened->ForEachObject([&loaded](JBro::GameObject& found) { loaded = &found; });
-        Check(loaded != nullptr && std::strcmp(loaded->GetTag(), "Saved") == 0,
+        Check(loaded != nullptr && std::strcmp(loaded->GetName(), "Saved") == 0,
             "and come back under its own name");
         auto* loadedTransform = reopened->FindComponentRaw<JBro::Component::Transform2D>(loaded);
         Check(loadedTransform != nullptr
@@ -6282,7 +6282,7 @@ namespace
         JBro::Bool boxBack = false;
         for (JBro::GameObject* root : roots)
         {
-            if (std::strcmp(root->GetTag(), "Box") == 0)
+            if (std::strcmp(root->GetName(), "Box") == 0)
             {
                 auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(root);
                 boxBack = restored != nullptr && std::fabs(restored->position.y - 3.0f) < 1.0e-4f;
@@ -6436,7 +6436,7 @@ namespace
         JBro::Array<JBro::GameObject*> roots;
         canvas->GetRootObjects(roots);
         Check(roots.Size() == 1, "and one root must be back");
-        Check(std::strcmp(roots[0]->GetTag(), "Kept") == 0, "the one that was there before play");
+        Check(std::strcmp(roots[0]->GetName(), "Kept") == 0, "the one that was there before play");
         auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(roots[0]);
         Check(restored != nullptr, "with its component");
         Check(std::fabs(restored->position.x - 3.0f) < 1.0e-4f
@@ -10127,20 +10127,20 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
         PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
         Check(editor.Tick(Frame), "the editor must tick");
-        if (std::strcmp(alpha->GetTag(), "AlphaOne") != 0)
+        if (std::strcmp(alpha->GetName(), "AlphaOne") != 0)
         {
-            std::cout << "  [flake] tag='" << alpha->GetTag() << "' frames="
+            std::cout << "  [flake] tag='" << alpha->GetName() << "' frames="
                       << (ImGui::GetFrameCount() - framesBeforeTyping) << " (7 ticks)"
                       << " active=" << (ImGui::GetActiveID() == nameId ? "name" : "other")
                       << " appFocusLost=" << (ImGui::GetIO().AppFocusLost ? 1 : 0) << std::endl;
         }
-        Check(std::strcmp(alpha->GetTag(), "AlphaOne") == 0,
+        Check(std::strcmp(alpha->GetName(), "AlphaOne") == 0,
             "typing in the name field renames the object");
         // **친 글자 전체가 커맨드 하나다.** 글자마다 한 칸씩 쌓이면 되돌리기가 글자 수만큼 필요해진다.
         Check(editor.GetCommands().GetUndoCount() == undoBefore + 1,
             "and the three keystrokes are one command");
         Check(editor.GetCommands().Undo(), "the rename must undo");
-        Check(std::strcmp(alpha->GetTag(), "Alpha") == 0, "back to the name it had");
+        Check(std::strcmp(alpha->GetName(), "Alpha") == 0, "back to the name it had");
         Check(editor.Tick(Frame), "the editor must tick after the undo");
         Check(editor.Tick(Frame), "and once more so the field reads the object again");
 
@@ -11069,7 +11069,7 @@ namespace
                 copy = &object;
             }
         });
-        Check(copy != nullptr && std::strcmp(copy->GetTag(), "Crate") == 0
+        Check(copy != nullptr && std::strcmp(copy->GetName(), "Crate") == 0
                 && canvas->FindComponentRaw<JBro::Component::Transform2D>(copy)->position.x == 2.0f,
             "the object comes with its values");
         const JBro::EditorObjectId copyId = editor.GetObjectIds().Track(copy);

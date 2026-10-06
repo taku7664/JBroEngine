@@ -232,15 +232,15 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::GameObject* object = canvas.CreateObject("enemy spawner");
         Check(object != nullptr, "the tagged object must be created");
-        Check(std::strcmp(object->GetTag(), "enemy spawner") == 0,
+        Check(std::strcmp(object->GetName(), "enemy spawner") == 0,
             "an object must give back the name it was created with");
-        Check(object->GetTagId() == JBro::MakeNameId("enemy spawner"),
+        Check(object->GetNameId() == JBro::MakeNameId("enemy spawner"),
             "a tag must compare as an integer without visiting the table");
 
-        object->SetTag("player");
-        Check(object->GetTagId() == first, "setting a known tag must reuse its id");
-        object->SetTagId(JBro::InvalidNameId);
-        Check(object->GetTag()[0] == '\0', "clearing a tag must resolve to an empty string");
+        object->SetName("player");
+        Check(object->GetNameId() == first, "setting a known tag must reuse its id");
+        object->SetNameId(JBro::InvalidNameId);
+        Check(object->GetName()[0] == '\0', "clearing a tag must resolve to an empty string");
     }
 
     void TestCachedTypeIdMatchesTheVirtualAnswer()

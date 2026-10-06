@@ -139,24 +139,24 @@ namespace JBro
         }
     }
 
-    const char* GameObject::GetTag() const
+    const char* GameObject::GetName() const
     {
-        return NameTable::Get().Resolve(m_tag);
+        return NameTable::Get().Resolve(m_name);
     }
 
-    void GameObject::SetTag(const char* tag)
+    void GameObject::SetName(const char* name)
     {
-        m_tag = NameTable::Get().Intern(tag);
+        m_name = NameTable::Get().Intern(name);
     }
 
-    NameId GameObject::GetTagId() const
+    NameId GameObject::GetNameId() const
     {
-        return m_tag;
+        return m_name;
     }
 
-    void GameObject::SetTagId(NameId tag)
+    void GameObject::SetNameId(NameId name)
     {
-        m_tag = tag;
+        m_name = name;
     }
 
     UInt32 GameObject::GetFlags() const

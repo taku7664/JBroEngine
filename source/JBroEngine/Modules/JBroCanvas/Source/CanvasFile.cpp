@@ -210,11 +210,11 @@ namespace JBro
             for (std::size_t i = 0; i < ordered.Size(); ++i)
             {
                 GameObject* object = ordered[i];
-                // 오브젝트의 이름은 태그로 산다 — `Canvas::CreateObject(name)` 이 거기에 넣는다.
-                error.objectName = object->GetTag();
+                // 오브젝트의 이름이다 — `Canvas::CreateObject(name)` 이 거기에 넣는다.
+                error.objectName = object->GetName();
 
                 writer.BeginMap(nullptr);
-                writer.WriteString("Name", object->GetTag());
+                writer.WriteString("Name", object->GetName());
                 writer.WriteBool("Active", object->IsActiveSelf());
                 // 플래그는 있을 때만 적는다 - 대부분의 오브젝트는 0 이고, 없으면 0 으로 읽는다.
                 const UInt32 flags = mode == CanvasWriteMode::Package
@@ -340,7 +340,7 @@ namespace JBro
             {
                 const UInt32 entry = document.GetElement(objects, i);
                 GameObject* object = created[i];
-                error.objectName = object->GetTag();
+                error.objectName = object->GetName();
 
                 const UInt32 components = document.Find(entry, "Components");
                 for (std::size_t c = 0; c < document.GetCount(components); ++c)

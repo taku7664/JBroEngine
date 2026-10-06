@@ -1118,11 +1118,11 @@ namespace
         JBro::GameObject* readFirst = nullptr;
         JBro::GameObject* readSecond = nullptr;
         read.ForEachObject([&](JBro::GameObject& object) {
-            if (std::strcmp(object.GetTag(), "first") == 0)
+            if (std::strcmp(object.GetName(), "first") == 0)
             {
                 readFirst = &object;
             }
-            if (std::strcmp(object.GetTag(), "second") == 0)
+            if (std::strcmp(object.GetName(), "second") == 0)
             {
                 readSecond = &object;
             }

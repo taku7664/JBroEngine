@@ -1893,7 +1893,7 @@ namespace JBro
         // 들어가 있으면 그 사실과 나오는 법을 적는다. 모르면 왜 부모가 안 잡히는지 알 수 없다.
         if (GameObject* focus = GetFocus())
         {
-            const char* name = focus->GetTag();
+            const char* name = focus->GetName();
             std::snprintf(text, sizeof(text),
                 Loc::TextOr(LocKeys::CanvasViewInsideFormat,
                     "inside %s - double-click empty space to leave"),

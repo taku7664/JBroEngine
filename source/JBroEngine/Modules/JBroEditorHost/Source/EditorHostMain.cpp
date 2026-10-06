@@ -240,7 +240,7 @@ namespace
     {
         canvas.ForEachObject([&editor](JBro::GameObject& object) {
             if (editor.GetSelectedObject() == nullptr
-                && std::strncmp(object.GetTag(), "빨강", 6) == 0)
+                && std::strncmp(object.GetName(), "빨강", 6) == 0)
             {
                 editor.SetSelectedObject(&object);
             }

@@ -125,7 +125,7 @@ namespace JBro
         {
             return true;
         }
-        if (ContainsFold(object.GetTag(), m_filter))
+        if (ContainsFold(object.GetName(), m_filter))
         {
             return true;
         }
@@ -618,7 +618,7 @@ namespace JBro
         // 되살려도 같은 것을 가리킨다(D-72).
         const EditorObjectId id = m_editor->GetObjectIds().Track(&object);
         Widget::SetDragValue(Widget::DragKind::HierarchyObject, id);
-        const char* name = object.GetTag();
+        const char* name = object.GetName();
         Widget::Text(name != nullptr && *name != '\0'
             ? name
             : Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)"));
@@ -899,8 +899,8 @@ namespace JBro
         // 줄과 접혀서 그리지 않은 자식은 들어오지 않는다.
         m_visibleRows.Add(&object);
 
-        // 이름은 태그로 산다 - `Canvas::CreateObject(name)` 이 거기에 넣는다.
-        const char* name = object.GetTag();
+        // 이름은 `Canvas::CreateObject(name)` 이 넣는다.
+        const char* name = object.GetName();
         if (name == nullptr || *name == '\0')
         {
             name = Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)");

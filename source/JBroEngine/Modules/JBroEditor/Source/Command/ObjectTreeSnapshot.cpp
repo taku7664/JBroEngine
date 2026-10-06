@@ -25,7 +25,7 @@ namespace JBro
     {
         ObjectSnapshotEntry entry;
         entry.id = registry.Track(&object);
-        const char* name = object.GetTag();
+        const char* name = object.GetName();
         entry.name = name != nullptr ? name : "";
         entry.active = object.IsActiveSelf();
         entry.flags = object.GetFlags();

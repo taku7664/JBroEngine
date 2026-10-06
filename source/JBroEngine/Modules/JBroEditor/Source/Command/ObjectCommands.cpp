@@ -316,7 +316,7 @@ namespace JBro
         {
             return;
         }
-        const char* tag = object->GetTag();
+        const char* tag = object->GetName();
         m_before = tag != nullptr ? tag : "";
         m_captured = true;
     }
@@ -330,7 +330,7 @@ namespace JBro
     {
         if (GameObject* object = m_registry->Resolve(m_objectId))
         {
-            object->SetTag(name.c_str());
+            object->SetName(name.c_str());
         }
     }
 

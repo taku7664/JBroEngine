@@ -3280,7 +3280,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::CanvasViewSelectedNone, "nothing chosen"));
             return;
         }
-        const char* name = primary->GetTag();
+        const char* name = primary->GetName();
         if (name == nullptr || name[0] == '\0')
         {
             name = Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)");

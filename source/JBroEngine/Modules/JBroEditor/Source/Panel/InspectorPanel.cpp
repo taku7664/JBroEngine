@@ -232,11 +232,11 @@ namespace JBro
                     }
                 });
             // **이름을 고칠 수 있다**(D-142). 예전에는 글자로 보여 주기만 해서, 만든
-            // 오브젝트의 이름이 `GameObject` 인 채로 굳었다. 이름은 태그다(D-51).
+            // 오브젝트의 이름이 `GameObject` 인 채로 굳었다. 이름은 인턴된 정수다(D-51).
             header.Row(
                 Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorName, "Name")),
                 [&]() {
-                    const char* tag = object->GetTag();
+                    const char* tag = object->GetName();
                     // **치는 중이 아니면 늘 오브젝트의 이름을 든다.** 고른 것이 바뀔 때만
                     // 다시 읽으면, 이름 바꾸기를 되돌린 뒤에도 칸에는 옛 글자가 남는다.
                     if (m_namedObject != object || false == m_nameEditing)
@@ -940,7 +940,7 @@ namespace JBro
                 {
                     current = static_cast<JBro::Int32>(m_objectIds.Size());
                 }
-                const char* name = object.GetTag();
+                const char* name = object.GetName();
                 m_objectNames.Add(String(name != nullptr ? name : ""));
                 m_objectIds.Add(object.GetInstanceId());
             });

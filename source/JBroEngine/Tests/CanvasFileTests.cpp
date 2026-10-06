@@ -604,7 +604,7 @@ namespace
             if (object.IsEditorHidden())
             {
                 ++hiddenCount;
-                Check(std::strcmp(object.GetTag(), "Hidden") == 0, "and it comes back on the same object");
+                Check(std::strcmp(object.GetName(), "Hidden") == 0, "and it comes back on the same object");
             }
         });
         Check(hiddenCount == 1, "exactly one object comes back hidden");
@@ -708,7 +708,7 @@ namespace
         JBro::GameObject* object = nullptr;
         reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
         Check(object != nullptr, "the object must be reachable");
-        Check(std::strcmp(object->GetTag(), "Player") == 0, "its name must come back");
+        Check(std::strcmp(object->GetName(), "Player") == 0, "its name must come back");
 
         auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the transform must be attached by name");
@@ -775,7 +775,7 @@ namespace
         JBro::GameObject* loner = nullptr;
         reopened.ForEachObject([&](JBro::GameObject& found)
         {
-            const char* tag = found.GetTag();
+            const char* tag = found.GetName();
             if (std::strcmp(tag, "Parent") == 0) { parent = &found; }
             if (std::strcmp(tag, "Child") == 0) { child = &found; }
             if (std::strcmp(tag, "Grandchild") == 0) { grandchild = &found; }
@@ -1011,11 +1011,11 @@ namespace
         JBro::GameObject* crate = nullptr;
         JBro::GameObject* lid = nullptr;
         target.ForEachObject([&](JBro::GameObject& object) {
-            if (std::strcmp(object.GetTag(), "Crate") == 0)
+            if (std::strcmp(object.GetName(), "Crate") == 0)
             {
                 crate = &object;
             }
-            if (std::strcmp(object.GetTag(), "Lid") == 0)
+            if (std::strcmp(object.GetName(), "Lid") == 0)
             {
                 lid = &object;
             }

@@ -81,12 +81,13 @@ namespace JBro
         Bool IsActiveInHierarchy() const;
         void SetActive(Bool active);
 
-        // 태그·플래그(B10)
-        // 태그는 정수로 산다(D-51). 문자열은 NameTable 에만 있고 여기서는 되찾아 줄 뿐이다.
-        const char*   GetTag() const;
-        void          SetTag(const char* tag);
-        NameId        GetTagId() const;
-        void          SetTagId(NameId tag);
+        // 이름·플래그(B10)
+        // 이름은 정수로 산다(D-51). 문자열은 NameTable 에만 있고 여기서는 되찾아 줄 뿐이다.
+        // 예전에는 이것을 `GetTag` 라고 불렀다 - 진짜 태그와 갈라 이름으로 바꿨다(D-297).
+        const char*   GetName() const;
+        void          SetName(const char* name);
+        NameId        GetNameId() const;
+        void          SetNameId(NameId name);
         UInt32 GetFlags() const;
         void          SetFlags(UInt32 flags);
         Bool IsEditorHidden() const
@@ -160,7 +161,7 @@ namespace JBro
         Bool                          m_destroying = false;
         Bool                          m_active = true;
         Bool                          m_activeInHierarchy = true;
-        NameId                        m_tag = InvalidNameId;
+        NameId                        m_name = InvalidNameId;
     };
 
     template<typename T>
