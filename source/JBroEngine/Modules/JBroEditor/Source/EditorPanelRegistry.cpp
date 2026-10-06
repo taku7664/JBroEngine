@@ -12,6 +12,7 @@
 #include "Panel/ProfilerPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
+#include "Panel/SpriteViewerPanel.h"
 #include "Panel/StatsPanel.h"
 
 #include <cstring>
@@ -135,5 +136,14 @@ namespace JBro
         RegisterEditorPanelType<ProfilerPanel>(true);
         RegisterEditorPanelType<ShortcutPanel>(true);
         RegisterEditorPanelType<EditorSettingsPanel>(true);
+
+        // **파일을 여는 창은 뿌리에 따로 선 도크에 속한다**(D-155·D-284, 기존 `CSpriteViewerDockWindow`). 메인 도크와 나란히
+        // 뿌리에 탭으로 서고, 그림마다 비고유 패널이 그 안에 열린다.
+        EditorDockAreaInfo viewer;
+        viewer.name = SpriteViewerPanel::DockAreaName;
+        viewer.titleKey = LocKeys::SpriteViewerTitle;
+        viewer.fallbackTitle = "Sprite Viewer";
+        EditorPanelRegistry::Get().RegisterDockArea(viewer);
+        RegisterEditorPanelType<SpriteViewerPanel>(false, SpriteViewerPanel::DockAreaName);
     }
 }

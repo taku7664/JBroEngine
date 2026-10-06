@@ -80,7 +80,8 @@ todo "에디터 공용 기반" 5 번(외부 에디터 등록 API)과 8 번의 �
    `TestRegisteredActionsAppearInContextMenus`. 이름을 이 단계에서 하나로 맞췄다(3 단계에서 하려던 것). 뮤테이션 7/7.
 3. ~~가이드가 행동 표를 읽는다. 완료 조건: 가이드 표에서 메뉴 위치를 손으로 적은 줄이 없다(옛 키매핑 이름 옮기기는 2 단계에서 섰다).~~
    → 완료 2026-10-06(D-284 의 "3 단계"). `EditorGuideActions.cpp` 의 `MenusOf`, 행동 `game.build`. 컴포넌트 추가 하나만 손으로 적는다(하위 메뉴라 행동이 아니다).
-4. 스프라이트 뷰어 도크와 비고유 패널. 완료 조건: 기존 뷰어 시험이 그대로 통과한다, `EditorApplication` 에 뷰어 멤버가 없다.
+4. ~~스프라이트 뷰어 도크와 비고유 패널. 완료 조건: 기존 뷰어 시험이 그대로 통과한다, `EditorApplication` 에 뷰어 멤버가 없다.~~
+   → 완료 2026-10-06(D-284 의 "4 단계"). `Panel/SpriteViewerPanel.h/.cpp`, `EditorApplication::DrawDockAreas`·`DrawPanels`·`OpenSpriteViewer`. 뮤테이션 7/7.
 
 ## 4. `[열림]`
 

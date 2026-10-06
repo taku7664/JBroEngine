@@ -56,7 +56,7 @@
 
 #include "EditorThumbnails.h"
 #include "NewProjectPopup.h"
-#include "Tool/SpriteViewerWindow.h"
+#include "Panel/SpriteViewerPanel.h"
 
 #include "Panel/AssetBrowserPanel.h"
 #include "Panel/CanvasViewPanel.h"
@@ -564,22 +564,87 @@ namespace JBro
 
     bool EditorApplication::OpenSpriteViewer(AssetId asset)
     {
-        return m_spriteViewer.Get() != nullptr && m_spriteViewer->Open(asset);
+        // **그림마다 뷰어 패널 하나다**(D-284). 같은 그림을 보는 패널이 있으면 새로 세우지 않고 그것을 앞으로 가져온다 -
+        // 비고유 패널은 만들 때마다 새로 서므로 이 판단은 뷰어가 한다.
+        AssetId texture;
+        AssetId sprite;
+        if (false == m_uiEnabled || false == SpriteViewerPanel::ResolvePicture(*this, asset, texture, sprite))
+        {
+            return false;
+        }
+        Array<EditorPanel*> viewers;
+        FindPanels(SpriteViewerPanel::TypeName, viewers);
+        for (EditorPanel* panel : viewers)
+        {
+            auto* viewer = static_cast<SpriteViewerPanel*>(panel);
+            if (viewer->GetTexture() == texture)
+            {
+                viewer->RequestFocus();
+                viewer->SelectPicture();
+                return true;
+            }
+        }
+        auto* viewer = static_cast<SpriteViewerPanel*>(CreatePanel(SpriteViewerPanel::TypeName));
+        if (viewer == nullptr)
+        {
+            return false;
+        }
+        if (false == viewer->Show(texture, sprite))
+        {
+            ClosePanel(*viewer);
+            return false;
+        }
+        // **열 때마다 앞으로 꺼낸다**(D-159). 메인 도크 탭 뒤에 가려진 채로 새 탭만 더하면, 두 번 누르기가
+        // 아무 일도 하지 않은 것처럼 보인다(실제 에디터에서 그랬다).
+        viewer->RequestFocus();
+        // 옵션은 고른 에셋의 것을 고친다. 연 그림을 고른다.
+        viewer->SelectPicture();
+        return true;
+    }
+
+    const EditorPanel* EditorApplication::FrontSpriteViewer() const
+    {
+        const EditorPanel* first = nullptr;
+        for (const OwnerPtr<EditorPanel>& panel : m_panels)
+        {
+            if (panel.Get() == nullptr || std::strcmp(panel->GetTitle(), SpriteViewerPanel::TypeName) != 0)
+            {
+                continue;
+            }
+            if (panel->IsVisible())
+            {
+                return panel.Get();
+            }
+            first = first != nullptr ? first : panel.Get();
+        }
+        return first;
     }
 
     std::size_t EditorApplication::GetSpriteViewerTabCount() const
     {
-        return m_spriteViewer.Get() != nullptr ? m_spriteViewer->GetTabCount() : 0;
+        std::size_t count = 0;
+        for (const OwnerPtr<EditorPanel>& panel : m_panels)
+        {
+            count += panel.Get() != nullptr && std::strcmp(panel->GetTitle(), SpriteViewerPanel::TypeName) == 0 ? 1 : 0;
+        }
+        return count;
     }
 
     bool EditorApplication::GetSpriteViewerFrame(std::uint32_t& frame) const
     {
-        return m_spriteViewer.Get() != nullptr && m_spriteViewer->GetActiveFrame(frame);
+        const EditorPanel* viewer = FrontSpriteViewer();
+        if (viewer == nullptr)
+        {
+            return false;
+        }
+        frame = static_cast<const SpriteViewerPanel*>(viewer)->GetFrame();
+        return true;
     }
 
     int EditorApplication::GetSpriteViewerHoveredFrame() const
     {
-        return m_spriteViewer.Get() != nullptr ? m_spriteViewer->GetHoveredFrame() : -1;
+        const EditorPanel* viewer = FrontSpriteViewer();
+        return viewer != nullptr ? static_cast<const SpriteViewerPanel*>(viewer)->GetHoveredFrame() : -1;
     }
 
     TextureHandle EditorApplication::GetAssetThumbnail(AssetId asset, std::uint32_t maxSide)
@@ -2680,8 +2745,6 @@ namespace JBro
         m_uiEnabled = true;
         // 그림을 만들려면 장치와 에셋이 있어야 한다. 프로젝트가 아직 없으면 에셋도 없다.
         BindAssetTools();
-        m_spriteViewer = MakeOwnerPtr<SpriteViewerWindow>();
-        m_spriteViewer->Initialize(*this);
         // 프로젝트가 먼저 열렸으면 그때는 읽을 ImGui 가 없었다. 여기서 한 번 더 본다.
         RestoreEditorLayout();
 
@@ -3554,12 +3617,6 @@ namespace JBro
             m_thumbnails->Shutdown();
             m_thumbnails.Reset();
         }
-        if (m_spriteViewer.Get() != nullptr)
-        {
-            // 뷰어는 스프라이트를 잡고 있다. 에셋보다 먼저 놓는다.
-            m_spriteViewer->Shutdown();
-            m_spriteViewer.Reset();
-        }
         if (m_contours.Get() != nullptr)
         {
             m_contours->Shutdown();
@@ -4099,7 +4156,7 @@ namespace JBro
         ImGui::End();
     }
 
-    void EditorApplication::DrawMainDock(float deltaTime)
+    void EditorApplication::DrawMainDock()
     {
         // **도구 창이 붙는 안쪽 도크다**(D-134). 기존 엔진의 `CMainDockWindow` 자리이고,
         // 자기 메뉴 막대(시뮬레이션·편집·창)를 가진다.
@@ -4149,7 +4206,9 @@ namespace JBro
 
                 for (std::size_t index = 0; index < m_panels.Size(); ++index)
                 {
-                    if (const EditorPanel* panel = m_panels[index].Get())
+                    const EditorPanel* panel = m_panels[index].Get();
+                    // 다른 도크의 패널은 제 도크가 붙인다(D-284).
+                    if (panel != nullptr && std::strcmp(panel->GetDockArea(), MainDockArea) == 0)
                     {
                         const int slot = static_cast<int>(panel->GetPreferredDock());
                         const String label = PanelWindowLabel(*panel);
@@ -4170,7 +4229,98 @@ namespace JBro
                 EditorDockNodeFlags | ImGuiDockNodeFlags_KeepAliveOnly);
         }
         ImGui::End();
+    }
 
+    EditorApplication::DockAreaState* EditorApplication::FindDockArea(const char* name)
+    {
+        for (DockAreaState& area : m_dockAreas)
+        {
+            if (std::strcmp(area.name, name) == 0)
+            {
+                return &area;
+            }
+        }
+        return nullptr;
+    }
+
+    void EditorApplication::DrawDockAreas()
+    {
+        // **뿌리에는 도크만 붙는다**(D-284). 메인 도크가 아닌 도크는 열린 패널이 있을 때만 서서, 기존 엔진의 뷰어 도크처럼
+        // 메인 도크와 같은 뿌리 칸에 탭으로 선다. 그 안에 제 도크 공간을 내고, 그 도크의 패널은 거기 붙는다.
+        const EditorPanelRegistry& types = EditorPanelRegistry::Get();
+        for (std::uint32_t index = 0; index < types.GetDockAreaCount(); ++index)
+        {
+            const EditorDockAreaInfo& info = types.GetDockAreaAt(index);
+            if (std::strcmp(info.name, MainDockArea) == 0)
+            {
+                continue;
+            }
+            DockAreaState* area = FindDockArea(info.name);
+            if (area == nullptr)
+            {
+                DockAreaState added;
+                added.name = info.name;
+                m_dockAreas.Add(added);
+                area = &m_dockAreas[m_dockAreas.Size() - 1];
+            }
+            bool hasPanel = false;
+            bool wantsFront = false;
+            for (const OwnerPtr<EditorPanel>& panel : m_panels)
+            {
+                if (panel.Get() != nullptr && panel->IsOpen() && std::strcmp(panel->GetDockArea(), info.name) == 0)
+                {
+                    hasPanel = true;
+                    // 앞으로 와 달라는 패널이 있으면 도크 자체도 메인 도크 탭 앞으로 온다.
+                    wantsFront = wantsFront || panel->m_focusRequested;
+                }
+            }
+            if (false == hasPanel)
+            {
+                // 비면 서지 않는다. 다시 서면 뿌리 칸에 다시 붙인다 - 사람이 옮겨 둔 자리는 도크가 사라지며 함께 사라진다.
+                area->shown = false;
+                area->visible = false;
+                area->comingForward = false;
+                continue;
+            }
+            if (false == area->shown)
+            {
+                ImGui::SetNextWindowDockID(m_rootDockId, ImGuiCond_Always);
+            }
+            area->shown = true;
+            ImGui::SetNextWindowClass(&RootDockClass());
+            // **뿌리 칸의 탭 줄에서 골라질 때까지 앞으로 꺼낸다.** 처음 붙는 프레임에는 탭 줄이 아직 없어 한 번 꺼내도 다음
+            // 프레임에 탭 줄이 서며 메인 도크가 도로 앞에 선다(실측) - 그러면 연 뷰어가 보이지 않는다.
+            area->comingForward = area->comingForward || wantsFront;
+            if (area->comingForward)
+            {
+                ImGui::SetNextWindowFocus();
+            }
+            // `###` 뒤가 식별자라 언어가 바뀌어도 도킹 자리를 잃지 않는다(D-80).
+            String title = Loc::TextOr(info.titleKey, info.fallbackTitle);
+            title += "###";
+            title += info.name;
+            const bool visible = ImGui::Begin(title.c_str(), nullptr, ImGuiWindowFlags_NoCollapse);
+            area->visible = visible;
+            if (area->comingForward)
+            {
+                const ImGuiWindow* window = ImGui::GetCurrentWindow();
+                const ImGuiDockNode* node = window->DockNode;
+                const bool chosen = node == nullptr
+                    || (node->TabBar != nullptr && node->TabBar->SelectedTabId == window->TabId);
+                area->comingForward = false == (visible && chosen);
+            }
+            const ImGuiID dockSpace = ImGui::GetID("DockSpace");
+            area->dockSpace = dockSpace;
+            // **가려진 프레임에도 도크 공간을 살려 둔다**(D-155). 메인 도크 탭이 앞에 오면 이 창은 그려지지 않는데, 그 프레임에
+            // 도크 공간을 내지 않으면 ImGui 는 노드가 사라졌다고 보고 붙어 있던 패널을 떠 있는 창으로 흩어 놓는다.
+            ImGui::DockSpace(dockSpace, ImVec2(0.0f, 0.0f),
+                visible ? EditorDockNodeFlags : (EditorDockNodeFlags | ImGuiDockNodeFlags_KeepAliveOnly));
+            ImGui::End();
+        }
+    }
+
+    void EditorApplication::DrawPanels(float deltaTime)
+    {
         // 그리는 동안 닫힌 비고유 패널은 끝난 뒤에 파기한다(D-284).
         m_drawingPanels = true;
         for (std::size_t index = 0; index < m_panels.Size(); ++index)
@@ -4215,8 +4365,24 @@ namespace JBro
             // 닫기 단추를 원하지 않는 패널에는 불리언을 넘기지 않는다. ImGui 는
             // 그것으로 단추를 그릴지 정한다.
             bool* closable = panel->HasCloseButton() ? &panelOpen : nullptr;
-            // 앞으로 와 달라고 한 패널은 이 프레임에 탭의 앞으로 온다(D-178).
-            if (panel->TakeFocusRequest())
+            // **메인 도크가 아닌 도크의 패널은 처음 그릴 때 그 도크 공간에 붙인다**(D-284). 그 뒤로는 사람이 옮긴 자리를 지킨다.
+            if (false == panel->m_placed && std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
+            {
+                if (DockAreaState* area = FindDockArea(panel->GetDockArea()); area != nullptr && area->dockSpace != 0)
+                {
+                    ImGui::SetNextWindowDockID(area->dockSpace, ImGuiCond_Always);
+                    panel->m_placed = true;
+                }
+            }
+            // 앞으로 와 달라고 한 패널은 이 프레임에 탭의 앞으로 온다(D-178). 다른 도크의 패널은 그 도크가 메인 도크 탭 뒤에서
+            // 나와 그려질 때까지 요청을 남겨 둔다 - 가려진 프레임에 써 버리면 도크만 앞으로 오고 탭은 그대로 뒤에 남는다.
+            bool canComeForward = true;
+            if (std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
+            {
+                const DockAreaState* area = FindDockArea(panel->GetDockArea());
+                canComeForward = area != nullptr && area->visible;
+            }
+            if (canComeForward && panel->TakeFocusRequest())
             {
                 ImGui::SetNextWindowFocus();
             }
@@ -4341,12 +4507,10 @@ namespace JBro
         }
 
         DrawRootDock(display);
-        DrawMainDock(deltaTime);
-        // 뿌리에 붙는 파일 창들이다(D-155). 메인 도크 뒤에 그려야 처음 뜰 때 그 옆 탭으로 선다.
-        if (m_spriteViewer.Get() != nullptr)
-        {
-            m_spriteViewer->Draw(m_rootDockId, RootDockClass());
-        }
+        DrawMainDock();
+        // 뿌리에 붙는 다른 도크들이다(D-155·D-284). 메인 도크 뒤에 그려야 처음 뜰 때 그 옆 탭으로 선다.
+        DrawDockAreas();
+        DrawPanels(deltaTime);
 
         DrawPopups();
 
@@ -4794,10 +4958,14 @@ namespace JBro
         {
             m_contours->Shutdown();
         }
-        if (m_spriteViewer.Get() != nullptr)
         {
-            // 탭이 잡은 스프라이트는 이 프로젝트의 것이다. 닫기 전에 놓는다.
-            m_spriteViewer->Clear();
+            // 뷰어 패널이 잡은 스프라이트는 이 프로젝트의 것이다. 닫기 전에 닫는다(비고유 패널이라 파기되며 놓는다).
+            Array<EditorPanel*> viewers;
+            FindPanels(SpriteViewerPanel::TypeName, viewers);
+            for (EditorPanel* viewer : viewers)
+            {
+                ClosePanel(*viewer);
+            }
         }
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();

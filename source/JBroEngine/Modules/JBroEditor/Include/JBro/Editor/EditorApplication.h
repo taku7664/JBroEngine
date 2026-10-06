@@ -44,7 +44,6 @@ namespace JBro
     // 모르는 쪽도 include 하므로 **열거형만 앞선언한다**(D-158) - 헤더를 통째로 끌어오면
     // 그쪽 빌드가 `imgui.h` 를 찾지 못해 깨진다(실제로 깨져 있었다).
     enum class EditorShortcut : std::uint8_t;
-    class SpriteViewerWindow;
     // 제어 포트는 소켓 헤더를 끌어온다. 이 헤더를 보는 쪽이 네트워크 헤더를 보지 않게 이름만 안다(D-270).
     class EditorControlPort;
     class GameObject;
@@ -690,7 +689,26 @@ namespace JBro
         // 패널 하나를 여닫는 메뉴 항목이다. 설정·디버그 메뉴가 같은 모양으로 쓴다.
         void DrawPanelMenuItem(const char* panelTitle, const char* label);
         // 도구 창들이 붙는 안쪽 도크. 자기 메뉴 막대를 가진다.
-        void DrawMainDock(float deltaTime);
+        void DrawMainDock();
+        // 메인 도크가 아닌 도크들(D-284). 열린 패널이 있는 것만 뿌리에 선다. 패널보다 먼저 그려 도크 공간을 낸다.
+        void DrawDockAreas();
+        // 모든 패널을 그린다. 메인 도크가 아닌 패널은 처음 그릴 때 제 도크 공간에 붙인다.
+        void DrawPanels(float deltaTime);
+        struct DockAreaState
+        {
+            const char* name = nullptr;
+            std::uint32_t dockSpace = 0;
+            // 지난 프레임에 뿌리에 섰는가. 비었다가 다시 서면 뿌리에 다시 붙인다.
+            bool shown = false;
+            // 이번 프레임에 그려졌는가(메인 도크 탭 뒤에 가려지지 않았는가).
+            bool visible = false;
+            // 앞으로 꺼내는 중인가. 뿌리 칸의 탭 줄에서 이 도크가 골라질 때까지 이어 간다.
+            bool comingForward = false;
+        };
+        Array<DockAreaState> m_dockAreas;
+        DockAreaState* FindDockArea(const char* name);
+        // 스프라이트 뷰어 패널 중 앞에 있는 것. 없으면 맨 앞, 그것도 없으면 nullptr 이다.
+        const EditorPanel* FrontSpriteViewer() const;
         // 메뉴 항목 하나를 단축키 표의 값으로 그린다: 이름·조합키 글자·할 수 있는지.
         bool DrawShortcutItem(EditorShortcut id, const char* label, const char* icon = nullptr);
         bool BuildEditorUi(float deltaTime);
@@ -887,7 +905,6 @@ namespace JBro
         // 스프라이트의 실제 모양. 같은 이유로 프로젝트를 닫을 때 비운다.
         OwnerPtr<EditorSpriteContours> m_contours;
         // 뿌리 도크에 붙는 파일 창들(D-155). 지금은 스프라이트 뷰어 하나다.
-        OwnerPtr<SpriteViewerWindow> m_spriteViewer;
         // 뿌리 도크 노드다. 파일 창을 처음 띄울 때 여기 붙인다.
         std::uint32_t m_rootDockId = 0;
 

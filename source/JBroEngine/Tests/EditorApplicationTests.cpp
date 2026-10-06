@@ -7156,6 +7156,11 @@ namespace
             std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
+        // 둘째 그림이다. 그림마다 뷰어 패널이 따로 서는지 본다(D-284).
+        {
+            std::ofstream png(root / "Assets" / "villain.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
         // **칸을 네 개로 자른다.** 그림은 2x2 인데 자르는 기본값은 그보다 큰 칸이라,
         // 메타를 적어 두지 않으면 칸이 하나도 나오지 않는다 - 그러면 시트에 테두리도
         // 피벗도 없어 눈으로도 검사로도 아무것도 볼 수 없다(처음에 그러했다).
@@ -7448,11 +7453,63 @@ namespace
             // 프로젝트를 다시 열었다. 앞에서 받은 에셋 시스템은 그 프로젝트의 것이었다.
             assets = editor.GetAssetSystem();
         }
+        // **그림마다 뷰어 패널 하나다**(D-284). 다른 그림을 열면 비고유 패널이 하나 더 서고, 둘 다 뷰어 도크에 속한다.
+        {
+            const JBro::AssetRecord* villain = editor.GetAssetRegistry().FindByPath("villain.png");
+            Check(villain != nullptr, "the scan must have registered villain.png");
+            JBro::AssetId villainSprite;
+            for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
+            {
+                const JBro::AssetRecord& record = editor.GetAssetRegistry().GetRecord(index);
+                if (record.type == JBro::AssetType::Sprite && record.owner == villain->id)
+                {
+                    villainSprite = record.id;
+                }
+            }
+            Check(editor.OpenSpriteViewer(villain->id), "a second picture opens");
+            Check(editor.GetSpriteViewerTabCount() == 2, "in a viewer panel of its own");
+            for (int frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the second viewer");
+            }
+            JBro::Array<JBro::EditorPanel*> viewers;
+            Check(editor.FindPanels("SpriteViewer", viewers) == 2, "both are found by their type");
+            ImGuiWindow* dockWindow = ImGui::FindWindowByName("###SpriteViewer");
+            for (JBro::EditorPanel* panel : viewers)
+            {
+                Check(panel->GetKind() == JBro::EditorPanelKind::Instance, "a viewer is an instance panel");
+                Check(std::strcmp(panel->GetDockArea(), "SpriteViewer") == 0, "that belongs to the viewer dock");
+                char id[JBro::Uuid::TextCapacity] = {};
+                panel->GetId().ToText(id, sizeof(id));
+                std::string label = "###SpriteViewer/";
+                label += id;
+                ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
+                // 도크 공간의 식별자는 도크 창 안에서 `GetID("DockSpace")` 로 지은 것이다.
+                const ImGuiID viewerDockSpace = dockWindow != nullptr ? ImHashStr("DockSpace", 0, dockWindow->ID) : 0;
+                Check(window != nullptr && window->DockNode != nullptr
+                        && ImGui::DockNodeGetRootNode(window->DockNode)->ID == viewerDockSpace,
+                    "and is docked inside the viewer dock, not the root or the main dock");
+            }
+            Check(editor.GetSelectedAsset() == villain->id, "the second picture is the chosen asset");
+            JBro::EditorPanel* second = viewers[1];
+            const JBro::AssetHandle villainHandle = assets->Find(villainSprite);
+            Check(assets->GetReferenceCount(villainHandle) >= 1, "its panel holds its sprite");
+            editor.ClosePanel(*second);
+            Check(editor.GetSpriteViewerTabCount() == 1, "closing a viewer panel destroys it");
+            Check(false == assets->IsLoaded(assets->Find(villainSprite)) || assets->GetReferenceCount(assets->Find(villainSprite)) == 0,
+                "and lets go of its sprite");
+            Check(editor.OpenSpriteViewer(heroTexture) && editor.GetSpriteViewerTabCount() == 1,
+                "the hero's panel is still the one that opens for the hero");
+        }
         const JBro::AssetHandle held = assets->Find(heroSprite);
         const std::uint32_t heldCount = assets->GetReferenceCount(held);
         Check(heldCount >= 1, "the open tab holds the sprite");
         editor.CloseProject();
         Check(editor.GetSpriteViewerTabCount() == 0, "closing the project closes the viewer's tabs");
+        // 비면 도크도 서지 않는다. 뿌리에는 메인 도크만 남는다.
+        Check(editor.Tick(Frame), "the editor must tick after the project closes");
+        ImGuiWindow* emptyDock = ImGui::FindWindowByName("###SpriteViewer");
+        Check(emptyDock == nullptr || false == emptyDock->Active, "an empty viewer dock is not drawn");
         Check(false == editor.IsSpriteFramePickActive(), "and ends a pick, which pointed into that project");
 
         editor.Shutdown();

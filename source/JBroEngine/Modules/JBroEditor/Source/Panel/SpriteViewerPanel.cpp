@@ -1,6 +1,6 @@
-﻿#include "SpriteViewerWindow.h"
+﻿#include "SpriteViewerPanel.h"
 
-#include "../Panel/InspectorPanel.h"
+#include "InspectorPanel.h"
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -22,7 +22,6 @@ namespace JBro
 {
     namespace
     {
-        constexpr std::size_t NoTab = static_cast<std::size_t>(-1);
         // 작은 그림은 키워 보인다. 16 픽셀짜리 시트를 16 픽셀로 보이면 칸을 누를 수 없다.
         // 창에 맞춰 키우되 서른두 배에서 멈춘다 - 그 너머로는 한 픽셀이 칸 하나보다 커진다.
         constexpr float MaxSheetZoom = 32.0f;
@@ -32,56 +31,48 @@ namespace JBro
         constexpr float PreviewMaxSide = 192.0f;
     }
 
-    void SpriteViewerWindow::Initialize(EditorApplication& editor)
+    const char* SpriteViewerPanel::GetTitle() const
+    {
+        return TypeName;
+    }
+
+    const char* SpriteViewerPanel::GetDisplayTitle() const
+    {
+        return m_name.empty() ? Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer") : m_name.c_str();
+    }
+
+    bool SpriteViewerPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
+        return true;
     }
 
-    void SpriteViewerWindow::Shutdown()
+    void SpriteViewerPanel::OnUpdate(float deltaTime)
     {
-        Clear();
-        m_editor = nullptr;
+        (void)deltaTime;
+        // 그리기 전에 지난 프레임에 앞에 있었는지를 받아 둔다. 그리기에서 이번에 앞으로 왔는지 견준다.
+        m_wasVisible = IsVisible();
     }
 
-    void SpriteViewerWindow::Clear()
+    void SpriteViewerPanel::OnDestroy()
     {
-        while (false == m_tabs.IsEmpty())
-        {
-            CloseTab(m_tabs.Size() - 1);
-        }
-        m_active = NoTab;
-        m_selectNext = NoTab;
-    }
-
-    void SpriteViewerWindow::CloseTab(std::size_t index)
-    {
-        if (index >= m_tabs.Size())
-        {
-            return;
-        }
-        // **잡고 있던 스프라이트를 놓는다.** 놓지 않으면 탭을 닫아도 `CollectUnused` 가
-        // 그 그림을 영영 내리지 못한다.
         if (AssetSystem* assets = m_editor != nullptr ? m_editor->GetAssetSystem() : nullptr)
         {
-            if (assets->IsLoaded(m_tabs[index].spriteHandle))
+            if (assets->IsLoaded(m_spriteHandle))
             {
-                assets->Release(m_tabs[index].spriteHandle);
+                assets->Release(m_spriteHandle);
             }
         }
-        m_tabs.RemoveAt(index);
-        if (m_active != NoTab && m_active >= m_tabs.Size())
-        {
-            m_active = m_tabs.IsEmpty() ? NoTab : m_tabs.Size() - 1;
-        }
+        m_spriteHandle = {};
     }
 
-    bool SpriteViewerWindow::Open(AssetId asset)
+    bool SpriteViewerPanel::ResolvePicture(EditorApplication& editor, AssetId asset, AssetId& texture, AssetId& sprite)
     {
-        if (m_editor == nullptr || asset.IsNull())
+        if (asset.IsNull())
         {
             return false;
         }
-        const AssetRegistry& registry = m_editor->GetAssetRegistry();
+        const AssetRegistry& registry = editor.GetAssetRegistry();
         const AssetRecord* record = registry.Find(asset);
         // 그림 파일은 Texture 와 Sprite 두 레코드다. 어느 쪽을 받아도 연다.
         if (record == nullptr
@@ -90,8 +81,8 @@ namespace JBro
             return false;
         }
         // Texture 와 Sprite 를 둘 다 찾는다. 시트는 텍스처가, 칸은 스프라이트가 안다.
-        AssetId texture = record->type == AssetType::Texture ? record->id : record->owner;
-        AssetId sprite = record->type == AssetType::Sprite ? record->id : AssetId{};
+        texture = record->type == AssetType::Texture ? record->id : record->owner;
+        sprite = record->type == AssetType::Sprite ? record->id : AssetId{};
         if (sprite.IsNull())
         {
             for (std::size_t index = 0; index < registry.GetCount(); ++index)
@@ -104,141 +95,51 @@ namespace JBro
                 }
             }
         }
-        if (texture.IsNull() || sprite.IsNull())
-        {
-            return false;
-        }
+        return false == texture.IsNull() && false == sprite.IsNull();
+    }
 
-        for (std::size_t index = 0; index < m_tabs.Size(); ++index)
-        {
-            if (m_tabs[index].texture == texture)
-            {
-                m_selectNext = index;
-                SelectPicture(texture);
-                return true;
-            }
-        }
-
-        AssetSystem* assets = m_editor->GetAssetSystem();
+    bool SpriteViewerPanel::Show(AssetId texture, AssetId sprite)
+    {
+        AssetSystem* assets = m_editor != nullptr ? m_editor->GetAssetSystem() : nullptr;
         if (assets == nullptr)
         {
             return false;
         }
-        Tab tab;
-        tab.texture = texture;
-        tab.sprite = sprite;
-        // **탭이 열려 있는 동안 스프라이트를 잡는다.** 칸은 스프라이트가 들고, 옵션을 고치면
+        // **열려 있는 동안 스프라이트를 잡는다.** 칸은 스프라이트가 들고, 옵션을 고치면
         // 제자리에서 다시 읽혀(asset-plan §2.7) 같은 핸들로 새 칸이 온다.
-        tab.spriteHandle = assets->Load(sprite);
-        if (false == assets->IsLoaded(tab.spriteHandle))
+        m_spriteHandle = assets->Load(sprite);
+        if (false == assets->IsLoaded(m_spriteHandle))
         {
             return false;
         }
-        const AssetRecord* textureRecord = registry.Find(texture);
-        tab.name = textureRecord != nullptr ? textureRecord->relativePath : String("?");
-        m_tabs.Add(std::move(tab));
-        m_selectNext = m_tabs.Size() - 1;
-        // 옵션은 고른 에셋의 것을 고친다. 연 그림을 고른다.
-        SelectPicture(texture);
+        m_texture = texture;
+        m_sprite = sprite;
+        const AssetRecord* textureRecord = m_editor->GetAssetRegistry().Find(texture);
+        m_name = textureRecord != nullptr ? textureRecord->relativePath : String("?");
         return true;
     }
 
-    void SpriteViewerWindow::SelectPicture(AssetId texture)
+    void SpriteViewerPanel::SelectPicture()
     {
         // **프레임을 고르는 중이면 고른 것을 바꾸지 않는다**(D-165). 인스펙터는 고르는 대상 오브젝트를 계속 보여야 한다.
-        if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == texture)
+        if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == m_texture)
         {
             return;
         }
-        m_editor->SetSelectedAsset(texture);
+        m_editor->SetSelectedAsset(m_texture);
     }
 
-    bool SpriteViewerWindow::GetActiveFrame(std::uint32_t& frame) const
+    void SpriteViewerPanel::OnDraw()
     {
-        if (m_active == NoTab || m_active >= m_tabs.Size())
+        // 다른 뷰어 탭에서 이 탭으로 오면 이 그림을 고른다 - 옵션 칸이 이 그림의 것이어야 한다.
+        if (false == m_wasVisible)
         {
-            return false;
+            SelectPicture();
         }
-        frame = m_tabs[m_active].frame;
-        return true;
-    }
-
-    int SpriteViewerWindow::GetHoveredFrame() const
-    {
-        if (m_active == NoTab || m_active >= m_tabs.Size())
-        {
-            return -1;
-        }
-        return m_tabs[m_active].hoveredFrame;
-    }
-
-    void SpriteViewerWindow::Draw(ImGuiID rootDock, const ImGuiWindowClass& rootClass)
-    {
-        if (m_editor == nullptr || m_tabs.IsEmpty())
-        {
-            m_dockNext = true;
-            return;
-        }
-        // **뿌리 노드에 붙는다.** 메인 도크와 같은 칸에 탭으로 선다 - 기존과 같은 자리다.
-        // 도구 창은 뿌리에 붙지 못하게 칸을 나눠 두었으니(D-134) 이 창도 뿌리의 칸을 든다.
-        if (m_dockNext)
-        {
-            ImGui::SetNextWindowDockID(rootDock, ImGuiCond_Always);
-            m_dockNext = false;
-        }
-        ImGui::SetNextWindowClass(&rootClass);
-        // **열 때마다 앞으로 꺼낸다**(D-159). 메인 도크 탭 뒤에 가려진 채로 새 탭만 더하면, 두 번 누르기가
-        // 아무 일도 하지 않은 것처럼 보인다(실제 에디터에서 그랬다). 가려진 창은 `Begin` 이 거짓이라 탭도
-        // 고를 수 없다.
-        if (m_selectNext != NoTab)
-        {
-            ImGui::SetNextWindowFocus();
-        }
-        // `###` 뒤가 식별자라 언어가 바뀌어도 도킹 자리를 잃지 않는다(D-80).
-        String title = Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer");
-        title.append("###SpriteViewer", 15);
-        const bool visible = ImGui::Begin(title.c_str(), nullptr, ImGuiWindowFlags_NoCollapse);
-        if (visible && Widget::BeginTabs("##spriteTabs"))
-        {
-            const float deltaTime = ImGui::GetIO().DeltaTime;
-            for (std::size_t index = 0; index < m_tabs.Size(); ++index)
-            {
-                Tab& tab = m_tabs[index];
-                Widget::IdScope id(static_cast<int>(index));
-                const bool select = m_selectNext == index;
-                if (Widget::BeginTab(tab.name.c_str(), &tab.open, select))
-                {
-                    if (m_active != index)
-                    {
-                        // 탭을 바꾸면 그 그림을 고른다 - 옵션 칸이 그 그림의 것이어야 한다.
-                        m_active = index;
-                        SelectPicture(tab.texture);
-                    }
-                    DrawTab(tab, deltaTime);
-                    Widget::EndTab();
-                }
-            }
-            m_selectNext = NoTab;
-            Widget::EndTabs();
-        }
-        ImGui::End();
-
-        // 닫힌 탭은 그리기가 끝난 뒤에 뺀다. 도는 중에 빼면 뒤의 탭이 한 칸씩 밀려 건너뛴다.
-        for (std::size_t index = m_tabs.Size(); index > 0; --index)
-        {
-            if (false == m_tabs[index - 1].open)
-            {
-                CloseTab(index - 1);
-                m_active = NoTab;
-            }
-        }
-    }
-
-    void SpriteViewerWindow::DrawTab(Tab& tab, float deltaTime)
-    {
+        const float deltaTime = ImGui::GetIO().DeltaTime;
         // **고르는 중이면 위에 말해 준다**(D-165, 기존 `SpriteFramePick`). 누르면 칸이 바로 들어가므로, 보기만 하려던
         // 사람이 모르고 고치지 않게 한 줄로 알리고 그만둘 길을 둔다.
-        if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == tab.texture)
+        if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == m_texture)
         {
             Widget::SeverityTextF(Widget::Severity::Info, "%s",
                 Loc::TextOr(LocKeys::SpriteViewerPickHint, "click a cell to use that frame"));
@@ -257,7 +158,7 @@ namespace JBro
             (std::max)(120.0f, available.x - 200.0f));
         if (ImGui::BeginChild("##sheet", ImVec2(sheetWidth, 0.0f), ImGuiChildFlags_Borders))
         {
-            DrawSheet(tab, ImGui::GetContentRegionAvail());
+            DrawSheet(ImGui::GetContentRegionAvail());
         }
         ImGui::EndChild();
         ImGui::SameLine(0.0f, 0.0f);
@@ -266,17 +167,17 @@ namespace JBro
         ImGui::SameLine(0.0f, 0.0f);
         if (ImGui::BeginChild("##side", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))
         {
-            DrawPreview(tab, deltaTime);
+            DrawPreview(deltaTime);
         }
         ImGui::EndChild();
     }
 
-    void SpriteViewerWindow::DrawSheet(Tab& tab, const ImVec2& area)
+    void SpriteViewerPanel::DrawSheet(const ImVec2& area)
     {
-        const TextureHandle sheet = m_editor->GetAssetThumbnail(tab.texture, SheetMaxSide);
+        const TextureHandle sheet = m_editor->GetAssetThumbnail(m_texture, SheetMaxSide);
         std::uint32_t width = 0;
         std::uint32_t height = 0;
-        if (false == sheet.IsValid() || false == m_editor->GetAssetSourceSize(tab.texture, width, height)
+        if (false == sheet.IsValid() || false == m_editor->GetAssetSourceSize(m_texture, width, height)
             || width == 0 || height == 0)
         {
             // 그림은 프레임마다 몇 장씩만 만들어진다. 다음 프레임에 선다.
@@ -290,23 +191,23 @@ namespace JBro
             MinSheetZoom, MaxSheetZoom);
         // 확대 줄. 기존 엔진도 슬라이더와 `창에 맞추기` 단추를 나란히 두었다.
         {
-            float chosen = tab.sheetZoom > 0.0f ? tab.sheetZoom : fitZoom;
+            float chosen = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
             if (Widget::SliderFloat("##zoom", chosen, MinSheetZoom, MaxSheetZoom, 160.0f))
             {
-                tab.sheetZoom = chosen;
+                m_sheetZoom = chosen;
             }
             Widget::HoveredTooltip(Loc::TextOr(LocKeys::SpriteViewerZoom, "Zoom"));
             ImGui::SameLine(0.0f, 6.0f);
             if (Widget::Button(Loc::TextOr(LocKeys::SpriteViewerFit, "Fit")))
             {
                 // 0 으로 돌려놓는다. 지금 값을 넣으면 창을 늘렸을 때 다시 어긋난다.
-                tab.sheetZoom = 0.0f;
+                m_sheetZoom = 0.0f;
             }
             ImGui::SameLine(0.0f, 12.0f);
             Widget::Checkbox(Loc::TextOr(LocKeys::SpriteViewerShowPivot, "Show pivot"),
-                tab.showPivot);
+                m_showPivot);
         }
-        const float zoom = tab.sheetZoom > 0.0f ? tab.sheetZoom : fitZoom;
+        const float zoom = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
         const ImVec2 size(static_cast<float>(width) * zoom, static_cast<float>(height) * zoom);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
 
@@ -317,15 +218,15 @@ namespace JBro
             ImVec2(origin.x + size.x, origin.y + size.y));
 
         const AssetSystem* assets = m_editor->GetAssetSystem();
-        const SpriteData* data = assets != nullptr ? assets->GetSprite(tab.spriteHandle) : nullptr;
+        const SpriteData* data = assets != nullptr ? assets->GetSprite(m_spriteHandle) : nullptr;
         if (data == nullptr || data->frames.IsEmpty())
         {
             return;
         }
-        if (tab.frame >= data->frames.Size())
+        if (m_frame >= data->frames.Size())
         {
             // 옵션을 고쳐 칸이 줄었다. 넘친 번호를 들고 있으면 미리보기가 없는 칸을 가리킨다.
-            tab.frame = static_cast<std::uint32_t>(data->frames.Size() - 1);
+            m_frame = static_cast<std::uint32_t>(data->frames.Size() - 1);
         }
 
         // **칸마다 테두리를 두른다.** 자른 모양이 보여야 자르는 옵션을 고칠 수 있다.
@@ -334,7 +235,7 @@ namespace JBro
         const ImU32 hoverColor = IM_COL32(120, 200, 255, 220);
         // 마우스가 가리킨 칸을 이 자리에서 정한다(D-185, 기존 `가리킴`). 시트 위에 있지
         // 않으면 없음이다 - 지난 프레임의 값을 들고 있으면 마우스를 뺀 뒤에도 남는다.
-        tab.hoveredFrame = -1;
+        m_hoveredFrame = -1;
         const bool overSheet = ImGui::IsItemHovered();
         const ImVec2 mouse = ImGui::GetIO().MousePos;
         const float hoverX = (mouse.x - origin.x) / zoom;
@@ -342,13 +243,13 @@ namespace JBro
         for (std::size_t index = 0; index < data->frames.Size(); ++index)
         {
             const SpriteFrame& frame = data->frames[index];
-            if (overSheet && tab.hoveredFrame < 0
+            if (overSheet && m_hoveredFrame < 0
                 && hoverX >= static_cast<float>(frame.x)
                 && hoverX < static_cast<float>(frame.x + frame.width)
                 && hoverY >= static_cast<float>(frame.y)
                 && hoverY < static_cast<float>(frame.y + frame.height))
             {
-                tab.hoveredFrame = static_cast<int>(index);
+                m_hoveredFrame = static_cast<int>(index);
             }
         }
         for (std::size_t index = 0; index < data->frames.Size(); ++index)
@@ -358,12 +259,12 @@ namespace JBro
                 origin.y + static_cast<float>(frame.y) * zoom);
             const ImVec2 max(min.x + static_cast<float>(frame.width) * zoom,
                 min.y + static_cast<float>(frame.height) * zoom);
-            const bool chosen = index == tab.frame;
-            const bool hovered = static_cast<int>(index) == tab.hoveredFrame;
+            const bool chosen = index == m_frame;
+            const bool hovered = static_cast<int>(index) == m_hoveredFrame;
             const ImU32 color = hovered ? hoverColor : (chosen ? chosenColor : cellColor);
             draw->AddRect(min, max, color, 0.0f, 0, (hovered || chosen) ? 2.0f : 1.0f);
             // 피벗은 **칸마다** 다를 수 있다. 시트에서 한눈에 견주려면 다 그려야 한다.
-            if (tab.showPivot)
+            if (m_showPivot)
             {
                 const float pivotX = min.x + static_cast<float>(frame.width) * frame.pivotX * zoom;
                 const float pivotY = min.y + static_cast<float>(frame.height) * frame.pivotY * zoom;
@@ -375,63 +276,63 @@ namespace JBro
             }
         }
 
-        if (clicked && tab.hoveredFrame >= 0)
+        if (clicked && m_hoveredFrame >= 0)
         {
             // 누른 자리의 칸은 이미 위에서 찾아 두었다. 칸 사이 틈을 누르면 그대로다.
-            tab.frame = static_cast<std::uint32_t>(tab.hoveredFrame);
-            tab.playing = false;
+            m_frame = static_cast<std::uint32_t>(m_hoveredFrame);
+            m_playing = false;
             // 인스펙터가 이 그림으로 고르는 중이면 누른 칸이 곧 답이다.
             if (m_editor->IsSpriteFramePickActive()
-                && m_editor->GetSpriteFramePickTexture() == tab.texture)
+                && m_editor->GetSpriteFramePickTexture() == m_texture)
             {
-                m_editor->CompleteSpriteFramePick(tab.frame);
+                m_editor->CompleteSpriteFramePick(m_frame);
             }
         }
 
         // **가리킨 칸의 자리와 크기를 적는다**(D-185, 기존 `가리킴`). 자르는 옵션을 고칠 때
         // 지금 칸이 몇 픽셀인지가 유일하게 알고 싶은 값인데, 그림만 봐서는 셀 수 없다.
-        if (tab.hoveredFrame >= 0
-            && static_cast<std::size_t>(tab.hoveredFrame) < data->frames.Size())
+        if (m_hoveredFrame >= 0
+            && static_cast<std::size_t>(m_hoveredFrame) < data->frames.Size())
         {
-            const SpriteFrame& frame = data->frames[static_cast<std::size_t>(tab.hoveredFrame)];
+            const SpriteFrame& frame = data->frames[static_cast<std::size_t>(m_hoveredFrame)];
             Widget::HintTextF(
                 Loc::TextOr(LocKeys::SpriteViewerHoveredFrame, "hovering %d (%d, %d) %d x %d"),
-                tab.hoveredFrame, static_cast<int>(frame.x), static_cast<int>(frame.y),
+                m_hoveredFrame, static_cast<int>(frame.x), static_cast<int>(frame.y),
                 static_cast<int>(frame.width), static_cast<int>(frame.height));
         }
     }
 
-    void SpriteViewerWindow::DrawPreview(Tab& tab, float deltaTime)
+    void SpriteViewerPanel::DrawPreview(float deltaTime)
     {
         const AssetSystem* assets = m_editor->GetAssetSystem();
-        const SpriteData* data = assets != nullptr ? assets->GetSprite(tab.spriteHandle) : nullptr;
-        const TextureHandle sheet = m_editor->GetAssetThumbnail(tab.texture, SheetMaxSide);
+        const SpriteData* data = assets != nullptr ? assets->GetSprite(m_spriteHandle) : nullptr;
+        const TextureHandle sheet = m_editor->GetAssetThumbnail(m_texture, SheetMaxSide);
         std::uint32_t width = 0;
         std::uint32_t height = 0;
         const bool ready = data != nullptr && false == data->frames.IsEmpty() && sheet.IsValid()
-            && m_editor->GetAssetSourceSize(tab.texture, width, height) && width != 0 && height != 0;
+            && m_editor->GetAssetSourceSize(m_texture, width, height) && width != 0 && height != 0;
 
         if (ready)
         {
             const std::uint32_t count = static_cast<std::uint32_t>(data->frames.Size());
-            if (tab.playing && tab.framesPerSecond > 0.0f)
+            if (m_playing && m_framesPerSecond > 0.0f)
             {
                 // 칸 하나의 시간이 쌓이면 넘긴다. 프레임 시간이 길어도 한 번에 여러 칸을 건너뛰어
                 // 재생 속도를 지킨다.
-                tab.clock += deltaTime;
-                const float step = 1.0f / tab.framesPerSecond;
-                while (tab.clock >= step)
+                m_clock += deltaTime;
+                const float step = 1.0f / m_framesPerSecond;
+                while (m_clock >= step)
                 {
-                    tab.clock -= step;
-                    tab.frame = (tab.frame + 1) % count;
+                    m_clock -= step;
+                    m_frame = (m_frame + 1) % count;
                 }
             }
-            if (tab.frame >= count)
+            if (m_frame >= count)
             {
-                tab.frame = count - 1;
+                m_frame = count - 1;
             }
             // **고른 칸을 크게 본다.** 원래 비율을 지킨다 - 늘여 붙이면 픽셀 아트가 기울어 보인다.
-            const SpriteFrame& frame = data->frames[tab.frame];
+            const SpriteFrame& frame = data->frames[m_frame];
             const float widthAvailable = ImGui::GetContentRegionAvail().x;
             const float side = (std::min)(PreviewMaxSide, widthAvailable);
             const ImVec2 size = Widget::FitInside(frame.width, frame.height, ImVec2(side, side));
@@ -442,7 +343,7 @@ namespace JBro
             const ImVec2 previewOrigin = ImGui::GetCursorScreenPos();
             Widget::Image(sheet, size, uvMin, uvMax);
             // 미리보기에도 피벗을 찍는다(D-185). 시트에서는 칸이 작아 잘 보이지 않는다.
-            if (tab.showPivot)
+            if (m_showPivot)
             {
                 ImDrawList* draw = ImGui::GetWindowDrawList();
                 const float pivotX = previewOrigin.x + size.x * frame.pivotX;
@@ -455,26 +356,26 @@ namespace JBro
 
             Widget::FormLayout layout("##playback");
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::SpriteViewerFrame, "Frame")), [&]() {
-                int value = static_cast<int>(tab.frame);
+                int value = static_cast<int>(m_frame);
                 if (Widget::SliderInt("##frame", value, 0, static_cast<int>(count) - 1))
                 {
-                    tab.frame = static_cast<std::uint32_t>(std::clamp(value, 0, static_cast<int>(count) - 1));
-                    tab.playing = false;
+                    m_frame = static_cast<std::uint32_t>(std::clamp(value, 0, static_cast<int>(count) - 1));
+                    m_playing = false;
                 }
             });
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::SpriteViewerFps, "Frames per second")), [&]() {
-                Widget::SliderFloat("##fps", tab.framesPerSecond, 1.0f, 60.0f);
+                Widget::SliderFloat("##fps", m_framesPerSecond, 1.0f, 60.0f);
             });
             layout.FullRow([&]() {
-                if (Widget::Button(tab.playing
+                if (Widget::Button(m_playing
                         ? Loc::TextOr(LocKeys::SpriteViewerStop, "Stop")
                         : Loc::TextOr(LocKeys::SpriteViewerPlay, "Play")))
                 {
-                    tab.playing = false == tab.playing;
-                    tab.clock = 0.0f;
+                    m_playing = false == m_playing;
+                    m_clock = 0.0f;
                 }
                 ImGui::SameLine(0.0f, 8.0f);
-                Widget::HintTextF("%u / %u", tab.frame + 1, count);
+                Widget::HintTextF("%u / %u", m_frame + 1, count);
             });
         }
         else
@@ -486,13 +387,13 @@ namespace JBro
         // **옵션은 인스펙터와 같은 함수로 그린다.** 고른 에셋이 이 그림이 아니면(다른 곳에서 다른 것을
         // 골랐으면) 그리지 않고 고르는 길을 준다 - 남의 메타를 이 창에서 고치게 두면 무엇을 고치는지
         // 화면과 파일이 갈린다.
-        if (false == (m_editor->GetSelectedAsset() == tab.texture))
+        if (false == (m_editor->GetSelectedAsset() == m_texture))
         {
             Widget::HintText(Loc::TextOr(LocKeys::SpriteViewerSelectToEdit,
                 "select this picture to edit its import options"));
             if (Widget::Button(Loc::TextOr(LocKeys::SpriteViewerSelect, "Select")))
             {
-                m_editor->SetSelectedAsset(tab.texture);
+                m_editor->SetSelectedAsset(m_texture);
             }
             return;
         }

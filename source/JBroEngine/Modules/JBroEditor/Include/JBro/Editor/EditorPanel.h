@@ -178,6 +178,8 @@ namespace JBro
         EditorPanelKind m_kind;
         Uuid m_id;
         const char* m_dockArea = MainDockArea;
+        // 메인 도크가 아닌 도크의 패널을 그 도크 공간에 붙였는가. 처음 그릴 때 한 번 붙이고 그 뒤로는 사람이 옮긴 자리를 지킨다.
+        bool m_placed = false;
         bool m_open = true;
         bool m_focusRequested = false;
         bool m_focused = false;
