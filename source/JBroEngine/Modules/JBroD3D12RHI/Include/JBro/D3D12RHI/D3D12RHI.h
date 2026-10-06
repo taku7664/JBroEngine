@@ -17,7 +17,8 @@ namespace JBro
     // 하지 않으므로, 늦게 부르면 "검증을 켰는데 조용하다" 는 잘못된 안심만 남는다.
     //
     // false 는 이 기계에 디버그 레이어가 없다는 뜻이다(Windows 의 그래픽 도구 기능).
-    Bool EnableD3D12ValidationForProcess();
+    // `gpuBased` 면 GPU 기반 검증도 켠다(D-64) - 그릴 때 디스크립터의 리소스 상태까지 보지만 느리다.
+    Bool EnableD3D12ValidationForProcess(Bool gpuBased = true);
 
     class D3D12RHIModule final : public IRHIModule
     {

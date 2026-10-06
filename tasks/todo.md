@@ -2938,6 +2938,25 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-292. 시험 묶음은 이름으로 골라 돌리고(`JBRO_TESTS`), 묶음마다 걸린 시간을 찍는다 - GPU 기반 검증은 기본으로 켜 둔 채 `JBRO_GPU_VALIDATION=0` 으로만 끈다.**
+  (2026-10-06, 사용자: 전체 시험이 20 분이라 "내 컴이 너무 힘들어해", "시험 자체를 좀 어캐 해버ㅏ야할거같아", 제안(골라 돌리는 장치를 정식으로·GPU 기반 검증과
+  VSync 를 재 보고 정함·느린 묶음을 고침)에 "해봐". Updates: D-244(골라 돌리는 환경 변수는 이제 임시 훅이 아니라 정식 장치다), D-64(GPU 기반 검증을 끄는 길이 생겼지만
+  기본은 그대로다).)
+  **장치.** `Tests/TestMain.cpp` 의 `if (RunXTests() != 0)` 사슬 85 개를 `RunSuite("X", &RunXTests)` 로 바꿨다. `JBRO_TESTS` 가 비면 모두 돌고, 쉼표로 나눈 조각 중 하나라도
+  묶음 이름(`Run` 과 `Tests` 를 뺀 것)에 들어 있으면 그 묶음이 돈다(`JBRO_TESTS=Light2D,EditorGuide`). 고른 것만 돌았으면 끝 줄이 `selected tests passed (N suites).` 이고
+  `all tests passed.` 는 전체가 지났을 때만 나온다. 맞는 묶음이 없으면 실패다. 묶음마다 `[suite] 이름 초` 를 찍는다 - `std::cout` 의 정밀도를 바꾸지 않도록 글자로 만든다
+  (처음에 `std::setprecision` 이 남아 뒤 시험들이 찍는 숫자가 `8e+02` 로 뭉개졌다). `EnableD3D12ValidationForProcess(gpuBased)` 가 GPU 기반 검증을 고르고 `TestMain` 은
+  `JBRO_GPU_VALIDATION=0` 일 때만 끈다.
+  **잰 것(Idle 우선순위, Debug).** 전체 501 초 가운데 `EditorApplication` 이 426.7 초(85%)이고 다음이 `AudioIntegration` 11.0·`TextRender` 10.8·`AudioMixer` 8.8 초다 - 나머지
+  62 묶음이 합쳐 44 초다. 짐작했던 두 원인은 작았다: `EditorGuide` 묶음(에디터 35 번)이 37.8 초에서 GPU 기반 검증을 끄면 32.1 초, 에디터 엔진을 `Immediate` 로 그리면
+  35.0 초다. 그래서 D-64 의 기본값과 에디터의 VSync 는 그대로 두고, 다음 일은 `EditorApplication` 안의 시험을 하나씩 재 무거운 것을 고치는 것이다(시험마다 에디터를 띄우는
+  비용과 마우스로 2~3 픽셀씩 훑으며 프레임마다 그리는 도우미가 의심이고, 재지 않았다).
+  **함께 나온 결함.** 가이드가 가리키는 칸이 조금이라도 보이면 굴리지 않아(`IsItemVisible`), 목록 끝에 반쯤 걸친 칸의 구멍이 목록 밖에 걸렸다. 컴포넌트 둘(D-291)이 늘어
+  `EditorApplication` 뒤의 가이드 시험(`the item is in the open list`)이 실패하면서 드러났다 - 따로 돌리면 목록의 스크롤 최대값이 156 이고 그 뒤에 돌리면 303 이라 앞 시험들이
+  전역 컴포넌트 표에 무언가를 남긴다(`[열림]` 무엇인지는 보지 않았다). 이제 칸이 창 안에 다 들어오지 않으면 굴린다(`GuideFocus.cpp` 의 `IsWhollyInWindow`, 창보다 큰 칸은
+  보이기만 하면 된다). 위젯 시험 `TestTheGuideScrollsAHalfHiddenTargetIntoView` 가 높이 100 목록의 아래 경계에 걸친 단추로 재며, 고치기 전에는 실패했다.
+  `EditorApplication` 뒤의 가이드 묶음도 통과한다.
+
 - **D-291. 2D 라이팅은 뷰마다 RGBA16F 라이트맵 한 장이고, 빛을 받는 레이어의 스프라이트가 제 픽셀 자리에서 그것을 곱한다 - 그림자는 `ShadowCaster2D` 모양의 변을 밀어낸다.**
   (2026-10-06, 사용자 지시 "라이트 작업", 타입은 "엔진 제공 타입만"(D-290). 설계 질문에 사용자가 고른 것: 컴포넌트는 `Light2D` + `ShadowCaster2D`, 그림자는 도형 기반,
   렌더 패스 그래프보다 라이팅을 먼저. 빛을 받는 레이어는 처음에 "라이트가 속한 레이어만" 을 물었고, 횃불(캐릭터 레이어)이 바닥 레이어를 비추지 못하는 것과

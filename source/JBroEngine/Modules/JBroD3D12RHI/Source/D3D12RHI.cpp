@@ -7,7 +7,7 @@
 
 namespace JBro
 {
-    Bool EnableD3D12ValidationForProcess()
+    Bool EnableD3D12ValidationForProcess(Bool gpuBased)
     {
         Microsoft::WRL::ComPtr<ID3D12Debug> debugController;
         if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
@@ -16,7 +16,7 @@ namespace JBro
         }
         debugController->EnableDebugLayer();
         Microsoft::WRL::ComPtr<ID3D12Debug1> gpuValidation;
-        if (SUCCEEDED(debugController.As(&gpuValidation)))
+        if (gpuBased && SUCCEEDED(debugController.As(&gpuValidation)))
         {
             gpuValidation->SetEnableGPUBasedValidation(TRUE);
         }

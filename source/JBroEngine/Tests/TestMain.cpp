@@ -5,8 +5,13 @@
 
 #include <exception>
 #include <cstdlib>
+#include <chrono>
+#include <cstring>
+#include <cstdio>
 #include <iostream>
+#include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/String.h>
 
 JBro::Int32 RunCanvasFoundationTests();
 JBro::Int32 RunCoreModelStressTests();
@@ -95,6 +100,69 @@ JBro::Int32 RunTimeTests();
 JBro::Int32 RunDebugDrawTests();
 JBro::Int32 RunEditorLoadingTests();
 
+namespace
+{
+    // **묶음 고르기**(`JBRO_TESTS`). 비어 있으면 모든 묶음이다. 쉼표로 나눈 조각 중 하나라도 묶음 이름(`Run…Tests` 에서 `Run` 과 `Tests` 를 뺀 것)에
+    // 들어 있으면 그 묶음이 돈다 - `JBRO_TESTS=Light2D,EditorGuide`, `JBRO_TESTS=Editor`. 고치는 동안 관련 묶음만 돌리는 길이다(전에는 임시 훅을 손으로 넣었다).
+    JBro::String g_suiteFilter;
+    JBro::Int32 g_suitesRun = 0;
+
+    JBro::Bool WantsSuite(const char* name)
+    {
+        if (g_suiteFilter.empty())
+        {
+            return true;
+        }
+        std::size_t start = 0;
+        while (start <= g_suiteFilter.size())
+        {
+            std::size_t end = g_suiteFilter.find(',', start);
+            if (end == JBro::String::npos)
+            {
+                end = g_suiteFilter.size();
+            }
+            const JBro::String piece = g_suiteFilter.substr(start, end - start);
+            if (false == piece.empty() && std::strstr(name, piece.c_str()) != nullptr)
+            {
+                return true;
+            }
+            start = end + 1;
+        }
+        return false;
+    }
+
+    // 고른 묶음이면 돌리고 걸린 시간을 적는다(`[suite] 이름 초`). 고르지 않은 묶음은 지나간다. 묶음이 실패하면 거짓이다.
+    JBro::Bool RunSuite(const char* name, JBro::Int32 (*runner)())
+    {
+        if (false == WantsSuite(name))
+        {
+            return true;
+        }
+        ++g_suitesRun;
+        const auto started = std::chrono::steady_clock::now();
+        const JBro::Int32 result = runner();
+        const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - started;
+        // 글자로 만들어 찍는다 - `std::cout` 의 정밀도를 바꾸면 뒤의 시험이 찍는 숫자까지 바뀐다.
+        char line[160] = {};
+        std::snprintf(line, sizeof(line), "[suite] %s %.1f s", name, elapsed.count());
+        std::cout << line << std::endl;
+        return result == 0;
+    }
+
+    JBro::String ReadEnvironment(const char* name)
+    {
+        char* value = nullptr;
+        std::size_t length = 0;
+        JBro::String text;
+        if (_dupenv_s(&value, &length, name) == 0 && value != nullptr)
+        {
+            text = value;
+            free(value);
+        }
+        return text;
+    }
+}
+
 int main()
 {
     // **단언이 대화상자를 띄우면 안 된다.** 기본값은 "무시/다시 시도/취소" 창을
@@ -120,7 +188,14 @@ int main()
         free(bench);
         return RunRendererBenchmark();
     }
-    if (false == JBro::EnableD3D12ValidationForProcess())
+    g_suiteFilter = ReadEnvironment("JBRO_TESTS");
+    // GPU 기반 검증은 기본으로 켠다(D-64). `JBRO_GPU_VALIDATION=0` 이면 디버그 레이어만 켠다 - 시간을 재거나 그래픽과 상관없는 묶음을 고칠 때다.
+    const JBro::Bool gpuValidation = ReadEnvironment("JBRO_GPU_VALIDATION") != "0";
+    if (false == gpuValidation)
+    {
+        std::cout << "note: GPU-based D3D12 validation is off (JBRO_GPU_VALIDATION=0)" << std::endl;
+    }
+    if (false == JBro::EnableD3D12ValidationForProcess(gpuValidation))
     {
         std::cout << "note: no D3D12 debug layer here; "
             << "graphics tests cannot check for validation errors" << std::endl;
@@ -130,350 +205,350 @@ int main()
     {
         // 컴파일러 테스트는 그래픽도 파일 시스템도 거의 쓰지 않아 몇 초 안에 끝난다. 앞에 두어
         // 틀렸을 때 뒤의 긴 테스트를 기다리지 않게 한다(뮤테이션 한 개가 몇 분에서 몇 초로 준다).
-        if (RunDelegateTests() != 0)
+        if (false == RunSuite("Delegate", &RunDelegateTests))
         {
             return 1;
         }
-        if (RunInterpolationTests() != 0)
+        if (false == RunSuite("Interpolation", &RunInterpolationTests))
         {
             return 1;
         }
-        if (RunFixedStringTests() != 0)
+        if (false == RunSuite("FixedString", &RunFixedStringTests))
         {
             return 1;
         }
-        if (RunTimeTests() != 0)
+        if (false == RunSuite("Time", &RunTimeTests))
         {
             return 1;
         }
-        if (RunScriptCompilerLexerTests() != 0)
+        if (false == RunSuite("ScriptCompilerLexer", &RunScriptCompilerLexerTests))
         {
             return 1;
         }
-        if (RunPhysics2DGeometryTests() != 0)
+        if (false == RunSuite("Physics2DGeometry", &RunPhysics2DGeometryTests))
         {
             return 1;
         }
-        if (RunPhysics2DCollisionTests() != 0)
+        if (false == RunSuite("Physics2DCollision", &RunPhysics2DCollisionTests))
         {
             return 1;
         }
-        if (RunPhysics2DWorldTests() != 0)
+        if (false == RunSuite("Physics2DWorld", &RunPhysics2DWorldTests))
         {
             return 1;
         }
-        if (RunPhysics2DSystemTests() != 0)
+        if (false == RunSuite("Physics2DSystem", &RunPhysics2DSystemTests))
         {
             return 1;
         }
-        if (RunPolygonEditModelTests() != 0)
+        if (false == RunSuite("PolygonEditModel", &RunPolygonEditModelTests))
         {
             return 1;
         }
-        if (RunScriptCompilerParserTests() != 0)
+        if (false == RunSuite("ScriptCompilerParser", &RunScriptCompilerParserTests))
         {
             return 1;
         }
-        if (RunScriptCompilerCommandLineTests() != 0)
+        if (false == RunSuite("ScriptCompilerCommandLine", &RunScriptCompilerCommandLineTests))
         {
             return 1;
         }
         // 오디오 믹서는 장치 없이 몇 초 안에 끝난다(audio-plan §3-1).
         // 입력 상태 접기는 창 하나만 쓰고 1 초 안에 끝난다(D-214). 앞에 두어 뮤테이션이 빨리 돈다.
-        if (RunInputSystemTests() != 0)
+        if (false == RunSuite("InputSystem", &RunInputSystemTests))
         {
             return 1;
         }
-        if (RunInputChainTests() != 0)
+        if (false == RunSuite("InputChain", &RunInputChainTests))
         {
             return 1;
         }
-        if (RunInputActionTests() != 0)
+        if (false == RunSuite("InputAction", &RunInputActionTests))
         {
             return 1;
         }
-        if (RunSaveStorageTests() != 0)
+        if (false == RunSuite("SaveStorage", &RunSaveStorageTests))
         {
             return 1;
         }
-        if (RunPackageTests() != 0)
+        if (false == RunSuite("Package", &RunPackageTests))
         {
             return 1;
         }
-        if (RunInputGamepadTests() != 0)
+        if (false == RunSuite("InputGamepad", &RunInputGamepadTests))
         {
             return 1;
         }
-        if (RunInputTouchTests() != 0)
+        if (false == RunSuite("InputTouch", &RunInputTouchTests))
         {
             return 1;
         }
-        if (RunAudioMixerTests() != 0)
+        if (false == RunSuite("AudioMixer", &RunAudioMixerTests))
         {
             return 1;
         }
-        if (RunAudioIntegrationTests() != 0)
+        if (false == RunSuite("AudioIntegration", &RunAudioIntegrationTests))
         {
             return 1;
         }
         // 텍스트 커널은 그래픽도 파일도 쓰지 않는다(text-plan §5 의 1 단계). 앞에 두어 뮤테이션이 빨리 끝나게 한다.
-        if (RunTextLayoutTests() != 0)
+        if (false == RunSuite("TextLayout", &RunTextLayoutTests))
         {
             return 1;
         }
-        if (RunGlyphAtlasTests() != 0)
+        if (false == RunSuite("GlyphAtlas", &RunGlyphAtlasTests))
         {
             return 1;
         }
-        if (RunTextRenderTests() != 0)
+        if (false == RunSuite("TextRender", &RunTextRenderTests))
         {
             return 1;
         }
         // 태스크 관리자는 몇 초 안에 끝난다(D-209).
-        if (RunTaskManagerTests() != 0)
+        if (false == RunSuite("TaskManager", &RunTaskManagerTests))
         {
             return 1;
         }
         // 에디터 로딩과 상태 표시줄(D-236). 에디터를 두 번 띄울 뿐이라 앞에 둔다.
-        if (RunEditorLoadingTests() != 0)
+        if (false == RunSuite("EditorLoading", &RunEditorLoadingTests))
         {
             return 1;
         }
         // 에셋 시스템도 몇 초다. 워커 로드(D-236)의 뮤테이션이 스위트 끝까지 기다리지 않게 여기로 당겼다.
-        if (RunAssetSystemTests() != 0)
+        if (false == RunSuite("AssetSystem", &RunAssetSystemTests))
         {
             return 1;
         }
-        if (RunCanvasFoundationTests() != 0)
+        if (false == RunSuite("CanvasFoundation", &RunCanvasFoundationTests))
         {
             return 1;
         }
-        if (RunCoreModelStressTests() != 0)
+        if (false == RunSuite("CoreModelStress", &RunCoreModelStressTests))
         {
             return 1;
         }
-        if (RunFrameMemoryTests() != 0)
+        if (false == RunSuite("FrameMemory", &RunFrameMemoryTests))
         {
             return 1;
         }
-        if (RunLogTests() != 0)
+        if (false == RunSuite("Log", &RunLogTests))
         {
             return 1;
         }
-        if (RunProfilerTests() != 0)
+        if (false == RunSuite("Profiler", &RunProfilerTests))
         {
             return 1;
         }
-        if (RunCoreValueTypeTests() != 0)
+        if (false == RunSuite("CoreValueType", &RunCoreValueTypeTests))
         {
             return 1;
         }
-        if (RunReflectionShapeTests() != 0)
+        if (false == RunSuite("ReflectionShape", &RunReflectionShapeTests))
         {
             return 1;
         }
-        if (RunReflectionFieldTests() != 0)
+        if (false == RunSuite("ReflectionField", &RunReflectionFieldTests))
         {
             return 1;
         }
-        if (RunPropertyRegistryTests() != 0)
+        if (false == RunSuite("PropertyRegistry", &RunPropertyRegistryTests))
         {
             return 1;
         }
-        if (RunReflectionCompoundTests() != 0)
+        if (false == RunSuite("ReflectionCompound", &RunReflectionCompoundTests))
         {
             return 1;
         }
-        if (RunReflectionContainerTests() != 0)
+        if (false == RunSuite("ReflectionContainer", &RunReflectionContainerTests))
         {
             return 1;
         }
-        if (RunBuiltinComponentPropertyTests() != 0)
+        if (false == RunSuite("BuiltinComponentProperty", &RunBuiltinComponentPropertyTests))
         {
             return 1;
         }
-        if (RunScriptSchedulingTests() != 0)
+        if (false == RunSuite("ScriptScheduling", &RunScriptSchedulingTests))
         {
             return 1;
         }
-        if (RunRendererContractTests() != 0)
+        if (false == RunSuite("RendererContract", &RunRendererContractTests))
         {
             return 1;
         }
-        if (RunCameraView2DTests() != 0)
+        if (false == RunSuite("CameraView2D", &RunCameraView2DTests))
         {
             return 1;
         }
-        if (RunPlatformContractTests() != 0)
+        if (false == RunSuite("PlatformContract", &RunPlatformContractTests))
         {
             return 1;
         }
-        if (RunD3D12SmokeTests() != 0)
+        if (false == RunSuite("D3D12Smoke", &RunD3D12SmokeTests))
         {
             return 1;
         }
-        if (RunD3D11SmokeTests() != 0)
+        if (false == RunSuite("D3D11Smoke", &RunD3D11SmokeTests))
         {
             return 1;
         }
-        if (RunVulkanSmokeTests() != 0)
+        if (false == RunSuite("VulkanSmoke", &RunVulkanSmokeTests))
         {
             return 1;
         }
-        if (RunTextureBindingTests() != 0)
+        if (false == RunSuite("TextureBinding", &RunTextureBindingTests))
         {
             return 1;
         }
-        if (RunSpritePixelTests() != 0)
+        if (false == RunSuite("SpritePixel", &RunSpritePixelTests))
         {
             return 1;
         }
-        if (RunLight2DPixelTests() != 0)
+        if (false == RunSuite("Light2DPixel", &RunLight2DPixelTests))
         {
             return 1;
         }
-        if (RunLight2DFrameworkTests() != 0)
+        if (false == RunSuite("Light2DFramework", &RunLight2DFrameworkTests))
         {
             return 1;
         }
-        if (RunReferenceSafetyTests() != 0)
+        if (false == RunSuite("ReferenceSafety", &RunReferenceSafetyTests))
         {
             return 1;
         }
-        if (RunFramework2DSystemTests() != 0)
+        if (false == RunSuite("Framework2DSystem", &RunFramework2DSystemTests))
         {
             return 1;
         }
-        if (RunNetworkHostTests() != 0)
+        if (false == RunSuite("NetworkHost", &RunNetworkHostTests))
         {
             return 1;
         }
-        if (RunFramework3DSystemTests() != 0)
+        if (false == RunSuite("Framework3DSystem", &RunFramework3DSystemTests))
         {
             return 1;
         }
-        if (RunMeshPixelTests() != 0)
+        if (false == RunSuite("MeshPixel", &RunMeshPixelTests))
         {
             return 1;
         }
         // 디버그 드로는 GPU 를 쓰므로 다른 픽셀 시험 옆이다. 앞에 두면 `InputTouchTests` 의 포인터 시험이 깨진다(time-plan §4).
-        if (RunDebugDrawTests() != 0)
+        if (false == RunSuite("DebugDraw", &RunDebugDrawTests))
         {
             return 1;
         }
-        if (RunSystemSchedulerTests() != 0)
+        if (false == RunSuite("SystemScheduler", &RunSystemSchedulerTests))
         {
             return 1;
         }
-        if (RunGameScriptTests() != 0)
+        if (false == RunSuite("GameScript", &RunGameScriptTests))
         {
             return 1;
         }
-        if (RunEditorApplicationTests() != 0)
+        if (false == RunSuite("EditorApplication", &RunEditorApplicationTests))
         {
             return 1;
         }
-        if (RunEditorUITests() != 0)
+        if (false == RunSuite("EditorUI", &RunEditorUITests))
         {
             return 1;
         }
-        if (RunEditorCommandTests() != 0)
+        if (false == RunSuite("EditorCommand", &RunEditorCommandTests))
         {
             return 1;
         }
-        if (RunEditorObjectCommandTests() != 0)
+        if (false == RunSuite("EditorObjectCommand", &RunEditorObjectCommandTests))
         {
             return 1;
         }
-        if (RunEditorLocalizationTests() != 0)
+        if (false == RunSuite("EditorLocalization", &RunEditorLocalizationTests))
         {
             return 1;
         }
-        if (RunEditorWidgetTests() != 0)
+        if (false == RunSuite("EditorWidget", &RunEditorWidgetTests))
         {
             return 1;
         }
-        if (RunEditorNotificationTests() != 0)
+        if (false == RunSuite("EditorNotification", &RunEditorNotificationTests))
         {
             return 1;
         }
-        if (RunEditorGuideFocusTests() != 0)
+        if (false == RunSuite("EditorGuideFocus", &RunEditorGuideFocusTests))
         {
             return 1;
         }
-        if (RunEditorGuideTests() != 0)
+        if (false == RunSuite("EditorGuide", &RunEditorGuideTests))
         {
             return 1;
         }
-        if (RunEditorControlPortTests() != 0)
+        if (false == RunSuite("EditorControlPort", &RunEditorControlPortTests))
         {
             return 1;
         }
-        if (RunEditorShortcutTests() != 0)
+        if (false == RunSuite("EditorShortcut", &RunEditorShortcutTests))
         {
             return 1;
         }
-        if (RunComponentMenuTableTests() != 0)
+        if (false == RunSuite("ComponentMenuTable", &RunComponentMenuTableTests))
         {
             return 1;
         }
-        if (RunGizmoModelTests() != 0)
+        if (false == RunSuite("GizmoModel", &RunGizmoModelTests))
         {
             return 1;
         }
-        if (RunInputTests() != 0)
+        if (false == RunSuite("Input", &RunInputTests))
         {
             return 1;
         }
-        if (RunContextBoundaryTests() != 0)
+        if (false == RunSuite("ContextBoundary", &RunContextBoundaryTests))
         {
             return 1;
         }
-        if (RunScriptApiPreludeTests() != 0)
+        if (false == RunSuite("ScriptApiPrelude", &RunScriptApiPreludeTests))
         {
             return 1;
         }
-        if (RunPublicHeaderCompositionTests() != 0)
+        if (false == RunSuite("PublicHeaderComposition", &RunPublicHeaderCompositionTests))
         {
             return 1;
         }
-        if (RunScriptDLLLoaderTests() != 0)
+        if (false == RunSuite("ScriptDLLLoader", &RunScriptDLLLoaderTests))
         {
             return 1;
         }
-        if (RunProjectFileTests() != 0)
+        if (false == RunSuite("ProjectFile", &RunProjectFileTests))
         {
             return 1;
         }
-        if (RunYamlTests() != 0)
+        if (false == RunSuite("Yaml", &RunYamlTests))
         {
             return 1;
         }
-        if (RunUuidTests() != 0)
+        if (false == RunSuite("Uuid", &RunUuidTests))
         {
             return 1;
         }
-        if (RunPlatformFileTests() != 0)
+        if (false == RunSuite("PlatformFile", &RunPlatformFileTests))
         {
             return 1;
         }
-        if (RunAssetRegistryTests() != 0)
+        if (false == RunSuite("AssetRegistry", &RunAssetRegistryTests))
         {
             return 1;
         }
-        if (RunSpriteLibraryTests() != 0)
+        if (false == RunSuite("SpriteLibrary", &RunSpriteLibraryTests))
         {
             return 1;
         }
-        if (RunGameHostArgumentTests() != 0)
+        if (false == RunSuite("GameHostArgument", &RunGameHostArgumentTests))
         {
             return 1;
         }
-        if (RunReflectedYamlTests() != 0)
+        if (false == RunSuite("ReflectedYaml", &RunReflectedYamlTests))
         {
             return 1;
         }
-        if (RunCanvasFileTests() != 0)
+        if (false == RunSuite("CanvasFile", &RunCanvasFileTests))
         {
             return 1;
         }
@@ -484,6 +559,17 @@ int main()
         return 1;
     }
 
+    // 고른 묶음만 돌았으면 "all tests passed." 라고 하지 않는다 - 그 줄은 전체가 지났다는 표시다.
+    if (false == g_suiteFilter.empty())
+    {
+        if (g_suitesRun == 0)
+        {
+            std::cout << "test failure: JBRO_TESTS=" << g_suiteFilter << " matches no suite\n";
+            return 1;
+        }
+        std::cout << "selected tests passed (" << g_suitesRun << " suites).\n";
+        return 0;
+    }
     std::cout << "all tests passed.\n";
     return 0;
 }
