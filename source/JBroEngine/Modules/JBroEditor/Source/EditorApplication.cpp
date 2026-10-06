@@ -3075,6 +3075,30 @@ namespace JBro
         return static_cast<std::uint32_t>(out.Size());
     }
 
+    bool EditorApplication::IsDockAreaComingForward(const char* dockArea) const
+    {
+        if (dockArea == nullptr)
+        {
+            return false;
+        }
+        for (const DockAreaState& area : m_dockAreas)
+        {
+            if (std::strcmp(area.name, dockArea) == 0 && area.comingForward)
+            {
+                return true;
+            }
+        }
+        for (const OwnerPtr<EditorPanel>& panel : m_panels)
+        {
+            if (panel.Get() != nullptr && panel->IsOpen() && panel->m_focusRequested
+                && std::strcmp(panel->GetDockArea(), dockArea) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     std::size_t EditorApplication::GetPanelCount() const
     {
         return m_panels.Size();
@@ -4620,21 +4644,29 @@ namespace JBro
             // 그것으로 단추를 그릴지 정한다.
             bool* closable = panel->HasCloseButton() ? &panelOpen : nullptr;
             // **메인 도크가 아닌 도크의 패널은 처음 그릴 때 그 도크 공간에 붙인다**(D-284). 그 뒤로는 사람이 옮긴 자리를 지킨다.
-            if (false == panel->m_placed && std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
+            // 그 도크가 이 프레임에 서지 않았으면 그리지 않는다 - 다른 패널이 그리는 도중에 연 패널(에셋 브라우저의 "스프라이트 뷰어에서
+            // 열기")은 도크가 서기 전에 차례가 와, 한 프레임 떠 있는 작은 창으로 섰다(실제 에디터에서 그랬다). 패널은 늘 도크에 속한다.
+            if (std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
             {
-                if (DockAreaState* area = FindDockArea(panel->GetDockArea()); area != nullptr && area->dockSpace != 0)
+                DockAreaState* area = FindDockArea(panel->GetDockArea());
+                if (area == nullptr || false == area->shown || area->dockSpace == 0)
+                {
+                    continue;
+                }
+                if (false == panel->m_placed)
                 {
                     ImGui::SetNextWindowDockID(area->dockSpace, ImGuiCond_Always);
                     panel->m_placed = true;
                 }
             }
             // 앞으로 와 달라고 한 패널은 이 프레임에 탭의 앞으로 온다(D-178). 다른 도크의 패널은 그 도크가 메인 도크 탭 뒤에서
-            // 나와 그려질 때까지 요청을 남겨 둔다 - 가려진 프레임에 써 버리면 도크만 앞으로 오고 탭은 그대로 뒤에 남는다.
+            // 나와 뿌리 탭 줄에서 골라질 때까지 요청을 남겨 둔다 - 그동안은 도크가 매 프레임 포커스를 가져가므로, 먼저 써 버리면
+            // 도크만 앞으로 오고 탭은 먼저 연 그림에 그대로 남는다(실제 에디터에서 그랬다).
             bool canComeForward = true;
             if (std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
             {
                 const DockAreaState* area = FindDockArea(panel->GetDockArea());
-                canComeForward = area != nullptr && area->visible;
+                canComeForward = area != nullptr && area->visible && false == area->comingForward;
             }
             if (canComeForward && panel->TakeFocusRequest())
             {

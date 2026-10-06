@@ -131,8 +131,10 @@ namespace JBro
 
     void SpriteViewerPanel::OnDraw()
     {
-        // 다른 뷰어 탭에서 이 탭으로 오면 이 그림을 고른다 - 옵션 칸이 이 그림의 것이어야 한다.
-        if (false == m_wasVisible)
+        // 다른 뷰어 탭에서 이 탭으로 오면 이 그림을 고른다 - 옵션 칸이 이 그림의 것이어야 한다. **뷰어 도크가 앞으로 나오는 중에는
+        // 고르지 않는다** - 그동안 보이는 탭은 연 그림의 탭이 앞에 오기 전에 잠깐 보이는 앞의 탭이라, 고르면 연 그림을 덮어썼다
+        // (실제 에디터에서 그랬다).
+        if (false == m_wasVisible && false == m_editor->IsDockAreaComingForward(GetDockArea()))
         {
             SelectPicture();
         }
