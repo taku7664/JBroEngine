@@ -121,6 +121,7 @@ namespace JBro
         m_blend = found->GetBlend();
         m_opacity = found->GetOpacity();
         m_parallax = found->GetParallax();
+        m_lit = found->IsLit();
         m_sourceAsset = found->GetSourceAsset();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
         canvas.ForEachObject([this, layer](GameObject& object)
@@ -162,6 +163,7 @@ namespace JBro
         restored.SetBlend(m_blend);
         restored.SetOpacity(m_opacity);
         restored.SetParallax(m_parallax);
+        restored.SetLit(m_lit);
         restored.SetSourceAsset(m_sourceAsset);
         m_layerId = restored.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
@@ -546,6 +548,7 @@ namespace JBro
         m_blend = layer->GetBlend();
         m_opacity = layer->GetOpacity();
         m_parallax = layer->GetParallax();
+        m_lit = layer->IsLit();
         // **되살릴 값을 뜨지 못하면 넣은 것도 거둔다**(§11.5). 반쪽 스냅샷으로는 되돌리기·다시 하기가 오브젝트를 잃는다.
         Array<GameObject*> roots;
         m_canvas->GetRootObjects(roots);
@@ -612,6 +615,7 @@ namespace JBro
         layer.SetBlend(m_blend);
         layer.SetOpacity(m_opacity);
         layer.SetParallax(m_parallax);
+        layer.SetLit(m_lit);
         layer.SetSourceAsset(m_asset);
         m_layerId = layer.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
@@ -743,6 +747,58 @@ namespace JBro
         if (Layer* layer = m_canvas->FindLayer(m_layerId))
         {
             layer->SetVisible(m_after);
+        }
+    }
+
+    // ── SetLayerLitCommand ───────────────────────────────────────────────
+
+    SetLayerLitCommand::SetLayerLitCommand(Canvas& canvas, LayerId layer, Bool lit)
+        : m_canvas(&canvas)
+        , m_layerId(layer)
+        , m_after(lit)
+    {
+        const Layer* found = canvas.FindLayer(layer);
+        if (found == nullptr)
+        {
+            return;
+        }
+        m_before = found->IsLit();
+        m_captured = true;
+    }
+
+    const char* SetLayerLitCommand::GetName() const
+    {
+        return "Set Layer Lit";
+    }
+
+    Bool SetLayerLitCommand::Execute()
+    {
+        if (false == m_captured || m_before == m_after)
+        {
+            return false;
+        }
+        Layer* layer = m_canvas->FindLayer(m_layerId);
+        if (layer == nullptr)
+        {
+            return false;
+        }
+        layer->SetLit(m_after);
+        return true;
+    }
+
+    void SetLayerLitCommand::Undo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetLit(m_before);
+        }
+    }
+
+    void SetLayerLitCommand::Redo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetLit(m_after);
         }
     }
 

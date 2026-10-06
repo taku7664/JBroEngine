@@ -370,6 +370,8 @@ namespace JBro
         // 만들어진다 - 렌더 타깃 포맷은 파이프라인을 만들 때 굳는다.
         TextureFormat GetBackBufferFormat() const;
         UInt32 GetSpriteSubmissionLimit() const;
+        // 한 프레임에 받는 2D 라이트(`Point`·`Spot`)의 상한이다(D-291). 프레임워크가 제 저장소를 이만큼 잡는다.
+        UInt32 GetLight2DLimit() const;
         // 마지막으로 제시한 백버퍼를 CPU 로 읽는다. **진단과 테스트 경로다** —
         // GPU 를 기다리므로 프레임 안에서 부를 수 없고 매 프레임 경로도 아니다.
         Bool ReadBackBuffer(std::byte* destination, std::size_t destinationSize, TextureReadback& result);

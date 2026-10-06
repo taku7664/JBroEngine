@@ -4,6 +4,7 @@
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Math2D.h>
 
@@ -60,6 +61,26 @@ namespace JBro
         Float         layerOpacity = 1.0f;
         // 레이어의 패럴랙스 계수다(D-286). 게임 화면을 그릴 때 브리지가 이 아이템을 `카메라 위치 x (1 - 계수)` 만큼 옮긴다.
         Float         layerParallax = 1.0f;
+        // 레이어가 빛을 받는가(D-291). 브리지가 이 아이템을 렌더러의 빛을 받는 구간에 낸다. 화면 레이어는 보지 않는다.
+        Bool          layerLit = true;
+    };
+
+    // 2D 라이트 하나다(D-291). 위치·방향은 월드다. 브리지가 렌더러의 `Light2DSubmit` 으로 옮긴다.
+    struct Light2DRenderItem
+    {
+        GameObject* owner = nullptr;
+        Component::Light2DType type = Component::Light2DType::Point;
+        Vector2 position;
+        // 오브젝트의 +x 다(길이 1). `Spot` 만 본다.
+        Vector2 direction{ 1.0f, 0.0f };
+        Color color{ 1.0f, 1.0f, 1.0f, 1.0f };
+        Float intensity = 1.0f;
+        Float innerRadius = 0.0f;
+        Float outerRadius = 5.0f;
+        Degree innerAngle = 30.0f;
+        Degree outerAngle = 60.0f;
+        // 라이트가 놓인 레이어의 패럴랙스다(D-286) - 그 레이어의 스프라이트와 함께 옮겨야 제 자리를 비춘다.
+        Float layerParallax = 1.0f;
     };
 
     // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).
@@ -85,6 +106,12 @@ namespace JBro
         std::size_t GetScreenSpriteCount() const;
         // Reserve outside frame processing. Full storage rejects submissions without allocation.
         Bool SubmitSprite(const SpriteRenderItem& item);
+        // 라이트 저장소다(D-291). 스프라이트처럼 프레임 밖에서 잡고, 차면 버리고 센다.
+        Bool ReserveLights(std::size_t capacity);
+        Bool SubmitLight(const Light2DRenderItem& item);
+        std::size_t GetLightCount() const;
+        std::size_t GetDroppedLightCount() const;
+        const Light2DRenderItem& GetLight(std::size_t index) const;
         void Sort();
         void EndFrame();
 
@@ -109,5 +136,7 @@ namespace JBro
         Array<SpriteRenderItem> m_sprites;
         Array<SpriteSortKey>    m_order;
         std::size_t             m_droppedSpriteCount = 0;
+        Array<Light2DRenderItem> m_lights;
+        std::size_t             m_droppedLightCount = 0;
     };
 }

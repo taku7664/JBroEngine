@@ -932,6 +932,8 @@ namespace
             JBro::Layer& fog = canvas.CreateLayer("Fog");
             fog.SetOpacity(0.25f);
             fog.SetParallax(0.5f);
+            // 빛을 받지 않는 레이어는 `Lit: false` 다(D-291).
+            fog.SetLit(false);
             // 아래 그림을 읽는 블렌드도 이름으로 적힌다(D-283).
             canvas.CreateLayer("Tint").SetBlend(JBro::LayerBlend::ColorDodge);
             text = Save(canvas);
@@ -955,6 +957,9 @@ namespace
         Check(text.find("Parallax: 0.5") != JBro::String::npos && text.find("Parallax: 1") == JBro::String::npos
                 && fog->GetParallax() == 0.5f && base->GetParallax() == 1.0f,
             "a parallax layer writes its factor and the default writes nothing (D-286)");
+        Check(text.find("Lit: false") != JBro::String::npos && text.find("Lit: true") == JBro::String::npos
+                && false == fog->IsLit() && base->IsLit() && glow->IsLit(),
+            "a layer that is not lit writes so and comes back unlit, and lit layers write nothing (D-291)");
         Check(Save(reopened) == text, "and saving it again writes the same bytes");
 
         // 모르는 블렌드는 추측하지 않고 거절한다.
@@ -981,6 +986,7 @@ namespace
             JBro::Layer& props = canvas.CreateLayer("Props");
             props.SetBlend(JBro::LayerBlend::Screen);
             props.SetParallax(0.5f);
+            props.SetLit(false);
             JBro::GameObject* crate = canvas.CreateObject("Crate");
             JBro::GameObject* lid = canvas.CreateObject("Lid");
             canvas.SetObjectLayer(crate, props.GetId());
@@ -1005,6 +1011,7 @@ namespace
         Check(JBro::ReadLayerText(target, text.c_str(), text.size(), first, error), "the layer asset reads into a canvas that has things");
         Check(target.GetLayerCount() == 2 && target.GetLayerAt(1)->GetId() == first, "it lands on top as a new layer");
         const JBro::Layer* landed = target.FindLayer(first);
+        Check(false == landed->IsLit(), "a layer asset carries whether the layer is lit (D-291)");
         Check(std::strcmp(landed->GetName(), "Props") == 0 && landed->GetBlend() == JBro::LayerBlend::Screen && landed->GetParallax() == 0.5f
                 && landed->GetSourceAsset().IsNull(),
             "with the layer's own values and no source until the caller links one");
@@ -1144,11 +1151,11 @@ namespace
                 "    ParentIndex: -1\n"
                 "    LayerId: 0\n"
                 "    Components:\n"
-                "      - Type: Component::Light2D\n"
+                "      - Type: Component::NoSuchProbeComponent\n"
                 "        IsEnabled: true\n");
             Check(false == Load(canvas, text, error),
                 "a component this engine does not have must stop the read");
-            Check(error.typeName == "Component::Light2D", "and name that type");
+            Check(error.typeName == "Component::NoSuchProbeComponent", "and name that type");
         }
 
         // 나열의 개수가 맞지 않는 경우. 순서가 전부이므로 어느 자리가 어느 축인지 알 수 없다.

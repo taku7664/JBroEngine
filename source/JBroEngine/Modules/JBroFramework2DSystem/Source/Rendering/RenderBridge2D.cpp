@@ -128,6 +128,9 @@ namespace JBro::Internal
             Bool composite = true;
             // 있으면 월드 레이어의 패럴랙스를 이 뷰(월드 → 뷰)로 건다(D-286). 게임 화면만 준다 - 캔버스 뷰는 패럴랙스 없이 배치하는 자리다.
             const Matrix3x2* parallaxView = nullptr;
+            // 빛을 받는 레이어의 아이템을 렌더러의 빛을 받는 구간으로 낸다(D-291). 라이트를 낸 월드 뷰만 켠다 - 선택 외곽선의 마스크·레이어 썸네일·
+            // 화면 레이어는 빛을 보지 않는다.
+            Bool lighting = false;
             // 0 이상이면 이 레이어 차례의 아이템만 넣는다(썸네일, D-288).
             Int32 layerOrder = -1;
         };
@@ -186,6 +189,8 @@ namespace JBro::Internal
             constexpr Int32 NoLayer = -1;
             Int32 openLayer = NoLayer;
             Bool layerBegun = false;
+            // 열린 빛을 받는 구간이 있는가(D-291). 레이어 묶음과 따로 논다 - 렌더러가 둘을 겹쳐 받는다.
+            Bool lit = false;
             std::size_t count = 0;
             // 렌더러가 하나라도 거절하면 그 뒤는 내지 않는다(제출 상한). 앞에서 버린 아이템이 있었던 것은 결과만 바꾼다.
             Bool refused = false;
@@ -222,6 +227,13 @@ namespace JBro::Internal
                 }
                 const Bool needsComposite = rule.composite
                     && (item.layerBlend != LayerBlend::Normal || item.layerOpacity < 1.0f);
+                const Bool wantLit = rule.lighting && item.layerLit && false == item.screenSpace;
+                if (wantLit != lit)
+                {
+                    flush();
+                    renderer.SetSpriteLighting(wantLit);
+                    lit = wantLit;
+                }
                 const Int32 wanted = needsComposite ? Int32(static_cast<JBro::Int32>(item.layerOrder)) : NoLayer;
                 if (wanted != openLayer)
                 {
@@ -254,7 +266,62 @@ namespace JBro::Internal
             {
                 renderer.EndLayer();
             }
+            // 뒤에 같은 뷰에 낼 것(포커스 막·디버그 선)은 빛을 받지 않는다.
+            if (lit)
+            {
+                renderer.SetSpriteLighting(false);
+            }
             return accepted && false == refused;
+        }
+
+        // **렌더 월드의 라이트를 열린 뷰에 낸다**(D-291). 색에 세기를 곱해 넘긴다(알파는 보지 않는다). `parallaxView` 를 주면 라이트를 그 레이어의
+        // 패럴랙스만큼 옮긴다 - 같은 레이어의 스프라이트와 함께 움직여야 제 자리를 비춘다. 렌더러가 넘치는 라이트를 버리고 센다.
+        void PushLights(const RenderWorld2D& world, Renderer& renderer, const Matrix3x2* parallaxView)
+        {
+            constexpr std::size_t BatchSize = 32;
+            Light2DSubmit batch[BatchSize];
+            std::size_t count = 0;
+            const auto flush = [&]() {
+                if (count != 0)
+                {
+                    renderer.SubmitLights2D({batch, static_cast<JBro::UInt32>(count)});
+                }
+                count = 0;
+            };
+            for (std::size_t index = 0; index < world.GetLightCount(); ++index)
+            {
+                const Light2DRenderItem& item = world.GetLight(index);
+                Light2DSubmit& light = batch[count];
+                light = Light2DSubmit{};
+                light.kind = item.type == Component::Light2DType::Global ? Light2DKind::Global
+                    : item.type == Component::Light2DType::Spot          ? Light2DKind::Spot
+                                                                         : Light2DKind::Point;
+                Float offsetX = 0.0f;
+                Float offsetY = 0.0f;
+                if (parallaxView != nullptr && item.layerParallax != 1.0f
+                    && false == ComputeParallaxOffset2D(*parallaxView, item.layerParallax, offsetX, offsetY))
+                {
+                    offsetX = 0.0f;
+                    offsetY = 0.0f;
+                }
+                light.position[0] = item.position.x + offsetX;
+                light.position[1] = item.position.y + offsetY;
+                light.direction[0] = item.direction.x;
+                light.direction[1] = item.direction.y;
+                light.color[0] = item.color.R * item.intensity;
+                light.color[1] = item.color.G * item.intensity;
+                light.color[2] = item.color.B * item.intensity;
+                light.innerRadius = item.innerRadius;
+                light.outerRadius = item.outerRadius;
+                light.innerAngle = Radian(item.innerAngle);
+                light.outerAngle = Radian(item.outerAngle);
+                ++count;
+                if (count == BatchSize)
+                {
+                    flush();
+                }
+            }
+            flush();
         }
     }
 
@@ -359,6 +426,7 @@ namespace JBro::Internal
             selected.selection = view.selection;
             selected.selectionCount = view.selectionCount;
             selected.composite = false;
+            selected.lighting = false;
             accepted = PushSprites(world, renderer, true, selected);
             if (false == renderer.EndView())
             {
@@ -378,6 +446,12 @@ namespace JBro::Internal
         if (false == renderer.BeginView(parameters))
         {
             return RenderResult::Failed;
+        }
+        // 캔버스 뷰도 게임과 같은 빛으로 보인다(D-291). 월드 보기만이다 - 화면 레이어는 빛을 받지 않는다. 패럴랙스는 걸지 않는다(배치하는 자리다).
+        if (false == view.screenSpace)
+        {
+            PushLights(world, renderer, nullptr);
+            rule.lighting = true;
         }
         accepted = PushSprites(world, renderer, true, rule) && accepted;
         // **들어가 있으면 나머지를 흰 막으로 가린다**(D-252, 기존 캔버스 뷰의 포커스 오버레이). 장면을 다 그리고, 화면을 덮는
@@ -517,6 +591,8 @@ namespace JBro::Internal
             {
                 rule.parallaxView = &cameraView.view;
             }
+            PushLights(world, renderer, rule.parallaxView);
+            rule.lighting = true;
             const Bool accepted = PushSprites(world, renderer, false, rule);
             // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
             if (debugDraw != nullptr && debugDraw->IsGameViewVisible())

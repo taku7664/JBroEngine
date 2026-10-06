@@ -1142,6 +1142,11 @@ namespace JBro
         return m_config.surfaceExtent;
     }
 
+    UInt32 Renderer::GetLight2DLimit() const
+    {
+        return m_device != nullptr ? m_config.maxLights2D : UInt32(0);
+    }
+
     UInt32 Renderer::GetSpriteSubmissionLimit() const
     {
         return m_device != nullptr ? m_config.maxSpriteSubmissions : UInt32(0);

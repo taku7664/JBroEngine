@@ -612,6 +612,18 @@ namespace JBro
                         m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerParallaxCommand>(*canvas, layerId, parallax));
                     }
                 });
+            // 빛을 받는지도 월드 레이어에만 뜻이 있다(D-291). 화면 레이어는 늘 빛을 받지 않는다.
+            layout.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerLit, "Lit"))
+                    .Tooltip(Loc::TextOr(LocKeys::InspectorLayerLitTooltip,
+                        "the objects on this layer are lit by the canvas lights; off draws them in their own colours")),
+                [&]() {
+                    Bool lit = layer->IsLit();
+                    if (Widget::Checkbox("##layerLit", lit))
+                    {
+                        m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerLitCommand>(*canvas, layerId, lit));
+                    }
+                });
         }
         layout.Row(
             Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerSpace, "Space"))

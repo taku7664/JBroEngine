@@ -31,6 +31,47 @@ namespace JBro
         m_order.Clear();
         m_droppedSpriteCount = 0;
         m_screenSprites = 0;
+        m_lights.Clear();
+        m_droppedLightCount = 0;
+    }
+
+    Bool RenderWorld2D::ReserveLights(std::size_t capacity)
+    {
+        try
+        {
+            m_lights.Reserve(capacity);
+        }
+        catch (const std::bad_alloc&)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    Bool RenderWorld2D::SubmitLight(const Light2DRenderItem& item)
+    {
+        if (m_lights.Size() == m_lights.Capacity())
+        {
+            ++m_droppedLightCount;
+            return false;
+        }
+        m_lights.Add(item);
+        return true;
+    }
+
+    std::size_t RenderWorld2D::GetLightCount() const
+    {
+        return m_lights.Size();
+    }
+
+    std::size_t RenderWorld2D::GetDroppedLightCount() const
+    {
+        return m_droppedLightCount;
+    }
+
+    const Light2DRenderItem& RenderWorld2D::GetLight(std::size_t index) const
+    {
+        return m_lights[index];
     }
 
     void RenderWorld2D::SetScreenSpace(const ScreenSpaceFrame& frame)

@@ -95,6 +95,11 @@ namespace JBro
         Float GetParallax() const;
         void SetParallax(Float factor);
 
+        // **빛을 받는가**(D-291, 2D 라이팅). 참이면 이 레이어의 스프라이트·글자는 그 뷰의 라이트맵을 곱해 그려진다 - 장면에 라이트가 하나도 없으면
+        // 그대로다. 기본은 참이다. 화면 레이어는 보지 않는다(늘 빛을 받지 않는다). 라이트는 빛을 받는 모든 레이어를 비춘다.
+        Bool IsLit() const;
+        void SetLit(Bool lit);
+
         // **이 레이어가 어느 레이어 에셋(`.jlayer`)에서 왔는가**(D-287, 기존 `SourceAssetGuid`). 정체 표시일 뿐이다 - 내용은 캔버스에 따로 살고, 레이어를
         // 고쳐도 그 파일은 그대로다. 비어 있으면 캔버스 안에서만 사는 레이어다. 캔버스 파일의 `SourceAsset` 으로 적는다.
         const Uuid& GetSourceAsset() const;
@@ -114,6 +119,7 @@ namespace JBro
         LayerBlend m_blend = LayerBlend::Normal;
         Float      m_opacity = 1.0f;
         Float      m_parallax = 1.0f;
+        Bool       m_lit = true;
         Uuid       m_sourceAsset;
     };
 }

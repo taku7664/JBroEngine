@@ -70,6 +70,7 @@ namespace JBro
         LayerBlend m_blend = LayerBlend::Normal;
         Float m_opacity = 1.0f;
         Float m_parallax = 1.0f;
+        Bool m_lit = true;
         // 원본 에셋 표시도 같이 뜬다(D-287) - 기존 엔진은 레이어 삭제를 되돌리면 이것을 잃었다.
         Uuid m_sourceAsset;
         Array<EditorObjectId> m_objects;
@@ -254,6 +255,7 @@ namespace JBro
         LayerBlend m_blend = LayerBlend::Normal;
         Float m_opacity = 1.0f;
         Float m_parallax = 1.0f;
+        Bool m_lit = true;
         Array<ObjectTreeSnapshot> m_trees;
     };
 
@@ -261,6 +263,25 @@ namespace JBro
     {
     public:
         SetLayerVisibleCommand(Canvas& canvas, LayerId layer, Bool visible);
+
+        const char* GetName() const override;
+        Bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        Canvas* m_canvas = nullptr;
+        LayerId m_layerId = InvalidLayerId;
+        Bool m_before = true;
+        Bool m_after = true;
+        Bool m_captured = false;
+    };
+
+    // **레이어가 빛을 받는지 바꾼다**(D-291). 인스펙터의 "라이팅 사용" 칸이 낸다.
+    class SetLayerLitCommand final : public EditorCommand
+    {
+    public:
+        SetLayerLitCommand(Canvas& canvas, LayerId layer, Bool lit);
 
         const char* GetName() const override;
         Bool Execute() override;

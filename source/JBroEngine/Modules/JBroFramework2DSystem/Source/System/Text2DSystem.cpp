@@ -156,6 +156,7 @@ namespace JBro::System
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
             item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
             item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
+            item.layerLit = layer == nullptr || layer->IsLit();
             // 글리프 쿼드의 왼쪽 위를 오브젝트 로컬에 두고(피벗 {0, 1}), 오브젝트 월드로 옮긴다.
             Matrix3x2 local;
             local.m31 = quad.left / ppu;

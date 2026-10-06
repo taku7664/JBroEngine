@@ -127,6 +127,16 @@ namespace JBro
         m_parallax = factor;
     }
 
+    Bool Layer::IsLit() const
+    {
+        return m_lit;
+    }
+
+    void Layer::SetLit(Bool lit)
+    {
+        m_lit = lit;
+    }
+
     const char* LayerBlendName(LayerBlend blend)
     {
         switch (blend)

@@ -2204,6 +2204,15 @@ namespace
                 canvas, made, true)),
             "setting it to what it already is is not an edit");
 
+        // ── 빛을 받는가(D-291) ───────────────────────────────────────────
+        Check(canvas.FindLayer(made)->IsLit(), "a new layer is lit");
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::SetLayerLitCommand>(canvas, made, false)), "a layer can stop taking light");
+        Check(false == canvas.FindLayer(made)->IsLit(), "and is unlit");
+        Check(commands.Undo() && canvas.FindLayer(made)->IsLit(), "undo must light it again");
+        Check(commands.Redo() && false == canvas.FindLayer(made)->IsLit(), "redo must unlight it again");
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::SetLayerLitCommand>(canvas, made, false)),
+            "setting it to what it already is is not an edit");
+
         // ── 오브젝트를 옮긴다. 자식도 함께 간다. ─────────────────────────
         JBro::GameObject* parent = canvas.CreateObject("Parent");
         JBro::GameObject* child = canvas.CreateObject("Child");
@@ -2233,6 +2242,7 @@ namespace
         JBro::Layer* restored = canvas.GetLayerAt(canvas.GetLayerCount() - 1);
         Check(restored != nullptr, "in the place it had");
         Check(std::strcmp(restored->GetName(), "Sky") == 0, "with the name it had");
+        Check(false == restored->IsLit(), "and still unlit (D-291)");
         Check(parent->GetLayerId() == restored->GetId(),
             "and what was on it is on it again");
         Check(child->GetLayerId() == restored->GetId(), "children too");

@@ -176,6 +176,8 @@ namespace JBro::LocKeys
     inline constexpr const char* LayerAssetLoadFailed = "layer_asset.load_failed";
     inline constexpr const char* InspectorLayerParallax = "inspector.layer_parallax";
     inline constexpr const char* InspectorLayerParallaxTooltip = "inspector.layer_parallax_tooltip";
+    inline constexpr const char* InspectorLayerLit = "inspector.layer_lit";
+    inline constexpr const char* InspectorLayerLitTooltip = "inspector.layer_lit_tooltip";
     inline constexpr const char* InspectorLayerSpace = "inspector.layer_space";
     inline constexpr const char* InspectorLayerSpaceWorld = "inspector.layer_space_world";
     inline constexpr const char* InspectorLayerSpaceScreen = "inspector.layer_space_screen";

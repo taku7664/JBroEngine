@@ -13,6 +13,7 @@
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
+#include <JBro/Framework2DSystem/System/Light2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
@@ -67,7 +68,8 @@ namespace JBro
         try
         {
             const auto capacity = context.renderer != nullptr ? context.renderer->GetSpriteSubmissionLimit() : UInt32(0);
-            if (false == m_renderWorld.ReserveSprites(capacity))
+            const auto lightCapacity = context.renderer != nullptr ? context.renderer->GetLight2DLimit() : UInt32(0);
+            if (false == m_renderWorld.ReserveSprites(capacity) || false == m_renderWorld.ReserveLights(lightCapacity))
             {
                 Shutdown();
                 return false;
@@ -496,6 +498,8 @@ namespace JBro
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();
         sprites.SetRenderWorld(&m_renderWorld);
         sprites.SetSpriteLibrary(&m_spriteLibrary);
+        // 라이트도 스프라이트와 같은 차례에 담는다(D-291).
+        systems.AddSystem<System::Light2DSystem>().SetRenderWorld(&m_renderWorld);
         // 글자마다 스프라이트 아이템이다(D-200). 아틀라스와 페이지 텍스처는 이 시스템이 든다 - 캔버스가 시스템을 내릴 때
         // (렌더러보다 먼저) 풀린다.
         System::Text2DSystem& texts = systems.AddSystem<System::Text2DSystem>();

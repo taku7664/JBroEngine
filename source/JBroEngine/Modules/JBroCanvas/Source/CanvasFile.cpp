@@ -136,6 +136,11 @@ namespace JBro
             {
                 writer.WriteFloat("Parallax", layer.GetParallax());
             }
+            // 빛을 받는 것이 기본이다(D-291). 끈 레이어만 적는다.
+            if (false == layer.IsLit())
+            {
+                writer.WriteBool("Lit", false);
+            }
             if (inCanvas && false == layer.GetSourceAsset().IsNull())
             {
                 char id[Uuid::TextCapacity] = {};
@@ -153,6 +158,7 @@ namespace JBro
             LayerBlend blend = LayerBlend::Normal;
             Float opacity = 1.0f;
             Float parallax = 1.0f;
+            Bool lit = true;
             Uuid sourceAsset;
         };
 
@@ -180,6 +186,7 @@ namespace JBro
             }
             document.FindFloat(entry, "Opacity", values.opacity);
             document.FindFloat(entry, "Parallax", values.parallax);
+            document.FindBool(entry, "Lit", values.lit);
             String source;
             if (document.FindScalar(entry, "SourceAsset", source)
                 && false == Uuid::Parse(source.c_str(), source.size(), values.sourceAsset))
@@ -198,6 +205,7 @@ namespace JBro
             layer.SetBlend(values.blend);
             layer.SetOpacity(values.opacity);
             layer.SetParallax(values.parallax);
+            layer.SetLit(values.lit);
             layer.SetSourceAsset(values.sourceAsset);
         }
 
