@@ -26,6 +26,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/CommandPalette.h>
 #include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/EditorShortcutManager.h>
@@ -13214,6 +13215,140 @@ namespace
             "the probe actions must come off the table");
     }
 
+    bool PaletteHas(const JBro::Array<const JBro::EditorActionInfo*>& list, const char* name)
+    {
+        for (const JBro::EditorActionInfo* action : list)
+        {
+            if (std::strcmp(action->name, name) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    ImGuiWindow* FindModalWindow()
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->Active && (window->Flags & ImGuiWindowFlags_Modal) != 0)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // **명령 팔레트는 행동 표를 찾아 실행한다**(todo 9 번, D-285). 목록이 곧 행동 표라 손으로 적은 명령이 없고, 할 수 없는 것은
+    // 회색으로 남고 까닭을 말한다. 찾기는 이름·무리·저장 이름·조합키 글자를 보고, 누르거나 Enter 로 하면 팔레트가 닫힌다.
+    void TestTheCommandPaletteFindsAndRunsActions()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the command palette not verified" << std::endl;
+            return;
+        }
+        Check(editor.GetShortcuts().Find(JBro::CommandPalettePopup::PopupId).primary
+                == JBro::EditorShortcutBinding{ImGuiKey_P, true, true, false},
+            "the palette opens with Ctrl+Shift+P");
+
+        JBro::Array<const JBro::EditorActionInfo*> found;
+        JBro::CommandPalettePopup::Collect(editor, "", found);
+        Check(PaletteHas(found, "object.copy") && PaletteHas(found, "edit.undo") && PaletteHas(found, "canvas_view.gizmo_rotate"),
+            "an empty search lists the action table, panel actions too");
+        Check(false == PaletteHas(found, "collider.edit_points"), "but not an action that needs a component to act on");
+        Check(false == PaletteHas(found, JBro::CommandPalettePopup::PopupId), "nor the palette itself");
+        JBro::CommandPalettePopup::Collect(editor, "ctrl+z", found);
+        Check(PaletteHas(found, "edit.undo") && false == PaletteHas(found, "object.copy"), "the search reads the key text");
+        JBro::CommandPalettePopup::Collect(editor, JBro::Loc::TextOr(JBro::LocKeys::HierarchyCopy, "Copy"), found);
+        Check(PaletteHas(found, "object.copy"), "and the translated name");
+        JBro::CommandPalettePopup::Collect(editor, "paste_as", found);
+        Check(PaletteHas(found, "object.paste_as_child") && false == PaletteHas(found, "edit.undo"), "and the saved name");
+        // 패널이 없어 못 하는 행동은 까닭을 말한다.
+        const JBro::EditorActionInfo* rotate = JBro::EditorActionRegistry::Get().Find("canvas_view.gizmo_rotate");
+        JBro::EditorActionContext context;
+        context.editor = &editor;
+        const char* why = JBro::EditorActionUi::WhyBlocked(*rotate, context);
+        Check(why != nullptr && std::strcmp(why, JBro::Loc::TextOr(JBro::LocKeys::BlockedPanelNotOpen, "the window this works in is not open")) == 0,
+            "a panel's action without its panel says the window is not open");
+
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PaletteProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(made != nullptr && editor.GetCommands().CanUndo(), "an object is made so there is something to undo");
+        const std::size_t objects = editor.GetCanvas()->GetObjectCount();
+
+        const auto open = [&]() {
+            Check(editor.GetShortcuts().Execute(JBro::CommandPalettePopup::PopupId, editor), "the palette action must run");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the palette must open");
+            }
+            Check(editor.IsPopupOpenById(JBro::CommandPalettePopup::PopupId), "the palette is open");
+            ImGuiWindow* palette = FindModalWindow();
+            Check(palette != nullptr, "as a modal window");
+            return palette;
+        };
+
+        // 눌러서 한다.
+        ImGuiWindow* palette = open();
+        char undoLabel[160] = {};
+        std::snprintf(undoLabel, sizeof(undoLabel), "%s: %s", JBro::Loc::TextOr(JBro::LocKeys::MenuEdit, "Edit"),
+            JBro::Loc::TextOr(JBro::LocKeys::MenuUndo, "Undo"));
+        Spot spot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, palette, LabelId(palette->ID, undoLabel), spot),
+            "the palette lists undo under its category");
+        ClickAt(editor, hwnd, spot);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after the click");
+        }
+        Check(editor.GetCanvas()->GetObjectCount() == objects - 1, "clicking undo in the palette undoes");
+        Check(false == editor.IsPopupOpenById(JBro::CommandPalettePopup::PopupId), "and closes the palette");
+
+        // 쳐서 좁히고 Enter 로 한다. 찾기 칸은 열자마자 글자를 받는다. `edit.` 은 실행 취소(되돌릴 것이 없어 막힘)와 다시 실행을
+        // 함께 거른다 - Enter 는 보이는 첫 항목이 아니라 할 수 있는 첫 항목을 한다.
+        open();
+        Check(false == editor.GetCommands().CanUndo(), "undo is blocked now, so it is not the one Enter picks");
+        for (const char* at = "edit."; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.Tick(Frame), "and once more");
+        Check(editor.GetCanvas()->GetObjectCount() == objects, "typing edit. and Enter runs redo, the first one that can run");
+        Check(false == editor.IsPopupOpenById(JBro::CommandPalettePopup::PopupId), "and closes the palette");
+
+        // Esc 로 닫는다.
+        open();
+        PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_ESCAPE, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.Tick(Frame), "and once more");
+        Check(false == editor.IsPopupOpenById(JBro::CommandPalettePopup::PopupId), "Esc closes the palette");
+        Check(editor.GetCanvas()->GetObjectCount() == objects, "without running anything");
+        editor.Shutdown();
+    }
+
     // **인스펙터 컴포넌트 머리 메뉴도 같은 표를 쓴다**(D-220). 그 메뉴는 이미 인스턴스 하나의 것이라 하위 메뉴 없이
     // 늘어놓고, 둘째 인스턴스의 머리에서 연 메뉴의 훅은 둘째 주소를 받는다. 훅이 없는 타입의 머리에서는 부르지 않는다.
     void TestComponentHooksAppearInTheInspectorHeaderMenu()
@@ -13867,6 +14002,7 @@ int RunEditorApplicationTests()
     TestContextMenusShowRemappedShortcuts();
     TestEditorActionsAreRegisteredFromTheStart();
     TestRegisteredActionsAppearInContextMenus();
+    TestTheCommandPaletteFindsAndRunsActions();
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
