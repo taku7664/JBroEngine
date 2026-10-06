@@ -258,7 +258,7 @@ namespace JBro::Network::Web
                 {
                     return GetState() == ConnectionState::Disconnected ? SocketIo::Closed : SocketIo::WouldBlock;
                 }
-                if (false == m_outgoing.Write(data, static_cast<std::uint32_t>(size)))
+                if (false == m_outgoing.Write(data, static_cast<JBro::UInt32>(size)))
                 {
                     return SocketIo::WouldBlock;
                 }
@@ -275,7 +275,7 @@ namespace JBro::Network::Web
                     return SocketIo::Error;
                 }
                 Fill();
-                const UInt32 count = m_incoming.Read(buffer, static_cast<std::uint32_t>(capacity));
+                const UInt32 count = m_incoming.Read(buffer, static_cast<JBro::UInt32>(capacity));
                 if (count > 0)
                 {
                     outReceived = count;
@@ -326,7 +326,7 @@ namespace JBro::Network::Web
                     {
                         return;
                     }
-                    const UInt32 total = header.headerLength + static_cast<std::uint32_t>(header.payloadLength);
+                    const UInt32 total = header.headerLength + static_cast<JBro::UInt32>(header.payloadLength);
                     if (m_outgoing.Size() < total)
                     {
                         return;
@@ -341,11 +341,11 @@ namespace JBro::Network::Web
                     std::uint8_t* payload = scratch + header.headerLength;
                     if (header.masked)
                     {
-                        WebSocket::ApplyMask(payload, static_cast<std::uint32_t>(header.payloadLength), header.mask, 0);
+                        WebSocket::ApplyMask(payload, static_cast<JBro::UInt32>(header.payloadLength), header.mask, 0);
                     }
                     if (header.opcode == WebSocket::Opcode::Binary || header.opcode == WebSocket::Opcode::Text)
                     {
-                        jbro_ws_send(m_handle, payload, static_cast<int>(header.payloadLength));
+                        jbro_ws_send(m_handle, payload, static_cast<JBro::Int32>(header.payloadLength));
                     }
                     else if (header.opcode == WebSocket::Opcode::Close)
                     {
@@ -369,9 +369,9 @@ namespace JBro::Network::Web
                     }
                     std::uint8_t header[WebSocket::MaxFrameHeaderBytes];
                     const UInt32 headerLength = WebSocket::EncodeFrameHeader(
-                        WebSocket::Opcode::Binary, true, static_cast<std::uint64_t>(size), false, 0, header);
+                        WebSocket::Opcode::Binary, true, static_cast<JBro::UInt64>(size), false, 0, header);
                     m_incoming.Write(header, headerLength);
-                    m_incoming.Write(body, static_cast<std::uint32_t>(size));
+                    m_incoming.Write(body, static_cast<JBro::UInt32>(size));
                 }
             }
 
@@ -433,13 +433,13 @@ namespace JBro::Network::Web
                 {
                     return 0;
                 }
-                const Int32 size = jbro_peer_take_signal(m_handle, static_cast<unsigned char*>(buffer), static_cast<int>(capacity));
-                return size > 0 ? static_cast<std::uint32_t>(size) : 0;
+                const Int32 size = jbro_peer_take_signal(m_handle, static_cast<unsigned char*>(buffer), static_cast<JBro::Int32>(capacity));
+                return size > 0 ? static_cast<JBro::UInt32>(size) : 0;
             }
 
             Bool PushSignal(const void* data, UInt32 size) override
             {
-                return 0 != m_handle && 0 != jbro_peer_push_signal(m_handle, static_cast<const unsigned char*>(data), static_cast<int>(size));
+                return 0 != m_handle && 0 != jbro_peer_push_signal(m_handle, static_cast<const unsigned char*>(data), static_cast<JBro::Int32>(size));
             }
 
             SocketIo Send(NetChannel channel, const void* data, std::size_t size) override
@@ -448,7 +448,7 @@ namespace JBro::Network::Web
                 {
                     return SocketIo::WouldBlock;
                 }
-                return 0 != jbro_peer_send(m_handle, static_cast<int>(channel), static_cast<const unsigned char*>(data), static_cast<int>(size))
+                return 0 != jbro_peer_send(m_handle, static_cast<JBro::Int32>(channel), static_cast<const unsigned char*>(data), static_cast<JBro::Int32>(size))
                     ? SocketIo::Ok
                     : SocketIo::WouldBlock;
             }
@@ -461,7 +461,7 @@ namespace JBro::Network::Web
                     return SocketIo::Error;
                 }
                 Int32 channel = 0;
-                const Int32 size = jbro_peer_take(m_handle, static_cast<unsigned char*>(buffer), static_cast<int>(capacity), &channel);
+                const Int32 size = jbro_peer_take(m_handle, static_cast<unsigned char*>(buffer), static_cast<JBro::Int32>(capacity), &channel);
                 if (size >= 0)
                 {
                     outReceived = static_cast<std::size_t>(size);

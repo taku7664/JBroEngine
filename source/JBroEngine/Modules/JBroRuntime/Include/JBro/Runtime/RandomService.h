@@ -32,16 +32,6 @@ namespace JBro::Service
         Int32 Range(Int32 min, Int32 max) const;
         // [min, max) 의 실수다. min 이 크면 둘을 바꾼다.
         Float Range(Float min, Float max) const;
-        // **리터럴로 부르는 자리.** `Range(3, 7)` 은 `Int32` 와 `Float` 둘 다 사용자 변환 하나로 닿아 모호하다 -
-        // 원시 정수·실수를 받는 짝을 두어 정확히 맞게 한다(D-290).
-        Int32 Range(int min, int max) const
-        {
-            return Range(Int32(min), Int32(max));
-        }
-        Float Range(float min, float max) const
-        {
-            return Range(Float(min), Float(max));
-        }
         // 참일 확률이 p 다.
         Bool Chance(Float probability) const;
 

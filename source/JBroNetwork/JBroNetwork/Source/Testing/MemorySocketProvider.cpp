@@ -68,7 +68,7 @@ namespace JBro::Network::Testing
         {
             return nullptr;
         }
-        const UInt32 index = static_cast<std::uint32_t>(m_peers.Size());
+        const UInt32 index = static_cast<JBro::UInt32>(m_peers.Size());
         OwnerPtr<MemoryPeerConnection> peer = MakeOwnerPtr<MemoryPeerConnection>(*this, index, desc.initiator);
         m_peers.Add(peer.Get());
         return peer;
@@ -410,7 +410,7 @@ namespace JBro::Network::Testing
         {
             return SocketIo::WouldBlock;
         }
-        const UInt32 count = size < room ? UInt32(static_cast<std::uint32_t>(size)) : room;
+        const UInt32 count = size < room ? UInt32(static_cast<JBro::UInt32>(size)) : room;
         out.Write(data, count);
         outSent = count;
         return SocketIo::Ok;
@@ -424,7 +424,7 @@ namespace JBro::Network::Testing
             return SocketIo::Error;
         }
         ByteRing& in = Incoming();
-        const UInt32 count = in.Read(buffer, static_cast<std::uint32_t>(capacity));
+        const UInt32 count = in.Read(buffer, static_cast<JBro::UInt32>(capacity));
         if (count > 0)
         {
             outReceived = count;
@@ -549,7 +549,7 @@ namespace JBro::Network::Testing
         std::memcpy(buffer, datagram.data, count);
         outReceived = count;
         outFrom = datagram.from;
-        m_head = (m_head + 1) % static_cast<std::uint32_t>(m_queue.Size());
+        m_head = (m_head + 1) % static_cast<JBro::UInt32>(m_queue.Size());
         --m_count;
         return SocketIo::Ok;
     }
@@ -577,10 +577,10 @@ namespace JBro::Network::Testing
         {
             return false;
         }
-        const UInt32 tail = (m_head + m_count) % static_cast<std::uint32_t>(m_queue.Size());
+        const UInt32 tail = (m_head + m_count) % static_cast<JBro::UInt32>(m_queue.Size());
         MemorySocketProvider::Datagram& datagram = m_queue[tail];
         datagram.from = from;
-        datagram.size = static_cast<std::uint32_t>(size);
+        datagram.size = static_cast<JBro::UInt32>(size);
         std::memcpy(datagram.data, data, size);
         ++m_count;
         return true;
@@ -625,13 +625,13 @@ namespace JBro::Network::Testing
 
     ByteRing& MemoryPeerConnection::Outgoing(NetChannel channel) const
     {
-        const UInt32 index = static_cast<std::uint32_t>(channel);
+        const UInt32 index = static_cast<JBro::UInt32>(channel);
         return m_initiator ? m_link->toAcceptor[index] : m_link->toInitiator[index];
     }
 
     ByteRing& MemoryPeerConnection::Incoming(NetChannel channel) const
     {
-        const UInt32 index = static_cast<std::uint32_t>(channel);
+        const UInt32 index = static_cast<JBro::UInt32>(channel);
         return m_initiator ? m_link->toInitiator[index] : m_link->toAcceptor[index];
     }
 
@@ -670,12 +670,12 @@ namespace JBro::Network::Testing
             length = std::snprintf(text, sizeof(text), "A%u", m_index.Get());
             m_stage = Stage::Done;
         }
-        if (length <= 0 || static_cast<std::uint32_t>(length) > capacity)
+        if (length <= 0 || static_cast<JBro::UInt32>(length) > capacity)
         {
             return 0;
         }
         std::memcpy(buffer, text, static_cast<std::size_t>(length));
-        return static_cast<std::uint32_t>(length);
+        return static_cast<JBro::UInt32>(length);
     }
 
     Bool MemoryPeerConnection::PushSignal(const void* data, UInt32 size)
@@ -686,7 +686,7 @@ namespace JBro::Network::Testing
         }
         char text[16] = {};
         std::memcpy(text, data, size);
-        const UInt32 other = static_cast<std::uint32_t>(std::strtoul(text + 1, nullptr, 10));
+        const UInt32 other = static_cast<JBro::UInt32>(std::strtoul(text + 1, nullptr, 10));
         if (false == m_initiator && text[0] == 'O' && m_stage == Stage::Idle)
         {
             if (nullptr == m_provider.LinkPeers(other, this))
@@ -707,7 +707,7 @@ namespace JBro::Network::Testing
 
     SocketIo MemoryPeerConnection::Send(NetChannel channel, const void* data, std::size_t size)
     {
-        if (GetState() != ConnectionState::Connected || static_cast<std::uint32_t>(channel) >= NetChannelCount)
+        if (GetState() != ConnectionState::Connected || static_cast<JBro::UInt32>(channel) >= NetChannelCount)
         {
             return SocketIo::WouldBlock;
         }
@@ -718,7 +718,7 @@ namespace JBro::Network::Testing
             return SocketIo::Ok;
         }
         ByteRing& ring = Outgoing(channel);
-        const UInt32 recordSize = static_cast<std::uint32_t>(size);
+        const UInt32 recordSize = static_cast<JBro::UInt32>(size);
         if (ring.Free() < 4 + recordSize)
         {
             return SocketIo::WouldBlock;
@@ -753,8 +753,8 @@ namespace JBro::Network::Testing
             }
             std::uint8_t header[4];
             ring.Peek(header, 4);
-            const UInt32 recordSize = static_cast<std::uint32_t>(header[0]) | (static_cast<std::uint32_t>(header[1]) << 8)
-                | (static_cast<std::uint32_t>(header[2]) << 16) | (static_cast<std::uint32_t>(header[3]) << 24);
+            const UInt32 recordSize = static_cast<JBro::UInt32>(header[0]) | (static_cast<JBro::UInt32>(header[1]) << 8)
+                | (static_cast<JBro::UInt32>(header[2]) << 16) | (static_cast<JBro::UInt32>(header[3]) << 24);
             if (recordSize > capacity)
             {
                 return SocketIo::Error;

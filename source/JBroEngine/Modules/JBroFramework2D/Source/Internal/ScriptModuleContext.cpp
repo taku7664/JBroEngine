@@ -1,4 +1,5 @@
 ﻿#include <JBro/Framework2D/Internal/ScriptModuleContext.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -8,7 +9,7 @@ namespace JBro
         return {
             Framework2DServiceContextTypeId,
             context.AbiVersion,
-            static_cast<std::uint32_t>(sizeof(context)),
+            static_cast<JBro::UInt32>(sizeof(context)),
             &context};
     }
 
@@ -40,7 +41,7 @@ namespace JBro
         return {
             Framework2DSystemContextTypeId,
             context.AbiVersion,
-            static_cast<std::uint32_t>(sizeof(context)),
+            static_cast<JBro::UInt32>(sizeof(context)),
             &context};
     }
 

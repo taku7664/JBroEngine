@@ -37,9 +37,9 @@ namespace JBro::System
                     return false;
                 }
             }
-            view = {static_cast<float>(values[0]), static_cast<float>(values[1]),
-                static_cast<float>(values[2]), static_cast<float>(values[3]),
-                static_cast<float>(values[4]), static_cast<float>(values[5])};
+            view = {static_cast<JBro::Float>(values[0]), static_cast<JBro::Float>(values[1]),
+                static_cast<JBro::Float>(values[2]), static_cast<JBro::Float>(values[3]),
+                static_cast<JBro::Float>(values[4]), static_cast<JBro::Float>(values[5])};
             return true;
         }
     }

@@ -11,5 +11,5 @@ namespace JBro::Widget
     void LevelMeter(const char* id, Float level, Float height = 0.0f);
 
     // 스펙트럼 막대들이다. `bands` 는 칸마다 0..1 이고 왼쪽이 낮은 소리다. 남은 폭을 다 쓴다.
-    void Spectrum(const char* id, ArrayView<const float> bands, Float height);
+    void Spectrum(const char* id, ArrayView<const Float> bands, Float height);
 }

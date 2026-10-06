@@ -62,7 +62,7 @@ namespace JBro::Component
         JBRO_FIELD(Vector2,  scale) { 1.0f, 1.0f };
         // 화면 레이어의 루트가 붙는 화면의 점이다(D-237, 0..1, y 위: (0, 0) 이 왼쪽 아래, (1, 1) 이 오른쪽 위). `position` 은 그 점에서의 거리다.
         // 월드 레이어와 자식에는 뜻이 없다. 위치를 덮지 않고 루트의 부모 행렬로 들어간다 - 위치의 출처가 둘이 되지 않는다.
-        JBRO_FIELD(Vector2,  anchor, Range(0, 1)) { 0.5f, 0.5f };
+        JBRO_FIELD(Vector2,  anchor, Range(0.0f, 1.0f)) { 0.5f, 0.5f };
 
         // 시스템이 채우는 월드 캐시. worldValid 가 false 인 동안의 값은 읽지 않는다.
         //

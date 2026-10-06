@@ -159,7 +159,7 @@ namespace JBro
             return;
         }
         // **레이어 썸네일은 이 창이 그리는 프레임에만 바란다**(D-288). 높이는 글자 두 줄이다(기존과 같다).
-        m_editor->RequestLayerThumbnails(static_cast<std::uint32_t>(ImGui::GetTextLineHeight() * 2.0f));
+        m_editor->RequestLayerThumbnails(static_cast<JBro::UInt32>(ImGui::GetTextLineHeight() * 2.0f));
 
         CollectGuideRows();
 
@@ -336,14 +336,14 @@ namespace JBro
         }
         // **기준은 그대로 둔다.** Shift 를 누른 채 다른 줄을 찍으면 같은 기준에서 다시 잰다.
         // 주된 것은 목록의 머리이므로(§선택), 인스펙터에는 범위의 맨 위 줄이 보인다.
-        m_editor->SelectObjects({range.Data(), static_cast<std::uint32_t>(range.Size())});
+        m_editor->SelectObjects({range.Data(), static_cast<JBro::UInt32>(range.Size())});
     }
 
     void HierarchyPanel::DrawLayer(Layer& layer, std::size_t index)
     {
         Canvas* canvas = m_editor->GetCanvas();
         const LayerId layerId = layer.GetId();
-        ImGui::PushID(static_cast<int>(layerId));
+        ImGui::PushID(static_cast<JBro::Int32>(layerId));
 
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow
             | ImGuiTreeNodeFlags_SpanAvailWidth
@@ -388,11 +388,11 @@ namespace JBro
             Extent2D thumbnailExtent;
             const ProjectFile& project = m_editor->GetProjectFile();
             Float aspect = project.resolutionHeight != 0
-                ? static_cast<float>(project.resolutionWidth) / static_cast<float>(project.resolutionHeight) : 16.0f / 9.0f;
+                ? static_cast<JBro::Float>(project.resolutionWidth) / static_cast<JBro::Float>(project.resolutionHeight) : Float(16.0f / 9.0f);
             const Bool hasThumbnail = m_editor->GetLayerThumbnail(layerId, thumbnail, thumbnailExtent);
             if (hasThumbnail && thumbnailExtent.height != 0)
             {
-                aspect = static_cast<float>(thumbnailExtent.width) / static_cast<float>(thumbnailExtent.height);
+                aspect = static_cast<JBro::Float>(thumbnailExtent.width) / static_cast<JBro::Float>(thumbnailExtent.height);
             }
             const ImVec2 thumbnailMax(thumbnailMin.x + std::floor(thumbnailHeight * aspect), thumbnailMin.y + thumbnailHeight);
             ImDrawList* drawList = ImGui::GetWindowDrawList();
@@ -580,7 +580,7 @@ namespace JBro
             {
                 Widget::Text(Loc::TextOr(LocKeys::HierarchyLayerScaleMode, "Scale Mode"));
                 const char* const modes[] = { "FixedHeight", "FixedWidth", "Contain", "ConstantPixel" };
-                Int32 current = static_cast<int>(layer.GetScaleMode());
+                Int32 current = static_cast<JBro::Int32>(layer.GetScaleMode());
                 if (Widget::FilterCombo("##scaleMode", ArrayView<const char* const>(modes, 4), current).ShowFilter(false).Width(180.0f).Draw()
                     && current >= 0)
                 {

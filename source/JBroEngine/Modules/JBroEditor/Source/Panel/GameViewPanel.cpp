@@ -64,7 +64,7 @@ namespace JBro
             // **비율을 지켜 패널 안에 맞춘다(레터박스).** 늘려 붙이면 에디터 창 모양에
             // 따라 게임이 찌그러져 보인다.
             const Float viewAspect =
-                static_cast<float>(extent.width) / static_cast<float>(extent.height);
+                static_cast<JBro::Float>(extent.width) / static_cast<JBro::Float>(extent.height);
             const Float panelAspect = panel.x / panel.y;
             ImVec2 size = panel;
             if (viewAspect > panelAspect)

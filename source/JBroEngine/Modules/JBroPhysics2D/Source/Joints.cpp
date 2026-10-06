@@ -85,7 +85,7 @@ namespace JBro::Physics2D
         }
         else
         {
-            index = static_cast<std::uint32_t>(m_joints.Size());
+            index = static_cast<JBro::UInt32>(m_joints.Size());
             m_joints.Add({});
         }
         Joint& joint = m_joints[index];

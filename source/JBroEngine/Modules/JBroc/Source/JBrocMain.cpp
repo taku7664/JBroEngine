@@ -47,9 +47,9 @@ namespace
         {
             return result;
         }
-        const JBro::Int32 size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+        const JBro::Int32 size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<JBro::Int32>(text.size()), nullptr, 0, nullptr, nullptr);
         result.Std().resize(static_cast<std::size_t>(size));
-        WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), size, nullptr, nullptr);
+        WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<JBro::Int32>(text.size()), result.data(), size, nullptr, nullptr);
         return result;
     }
 
@@ -60,9 +60,9 @@ namespace
         {
             return result;
         }
-        const JBro::Int32 size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+        const JBro::Int32 size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<JBro::Int32>(text.size()), nullptr, 0);
         result.resize(static_cast<std::size_t>(size));
-        MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), size);
+        MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<JBro::Int32>(text.size()), result.data(), size);
         return result;
     }
 

@@ -15,13 +15,14 @@
 #include <stb_image.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     Bool DecodeImage(JArrayView<std::byte> encoded, DecodedImage& result)
     {
         if (encoded.data == nullptr || encoded.size == 0
-            || encoded.size > static_cast<std::uint32_t>(std::numeric_limits<int>::max()))
+            || encoded.size > static_cast<JBro::UInt32>(std::numeric_limits<int>::max()))
         {
             return false;
         }
@@ -30,7 +31,7 @@ namespace JBro
         int channels = 0;
         stbi_uc* pixels = stbi_load_from_memory(
             reinterpret_cast<const stbi_uc*>(encoded.data),
-            static_cast<int>(encoded.size),
+            static_cast<JBro::Int32>(encoded.size),
             &width,
             &height,
             &channels,
@@ -45,8 +46,8 @@ namespace JBro
         }
         const std::size_t byteCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4u;
         DecodedImage decoded;
-        decoded.width = static_cast<std::uint32_t>(width);
-        decoded.height = static_cast<std::uint32_t>(height);
+        decoded.width = static_cast<JBro::UInt32>(width);
+        decoded.height = static_cast<JBro::UInt32>(height);
         decoded.pixels.Resize(byteCount);
         std::memcpy(decoded.pixels.Data(), pixels, byteCount);
         stbi_image_free(pixels);

@@ -1,6 +1,7 @@
 ﻿#include <JBro/LocalizationTypes/Internal/ScriptModuleContext.h>
 #include <JBro/LocalizationTypes/Internal/SystemContext.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -33,7 +34,7 @@ namespace JBro
 
     ScriptContextBlock MakeLocalizationServiceContextBlock(const LocalizationServiceContext& context) noexcept
     {
-        return { LocalizationServiceContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { LocalizationServiceContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const LocalizationServiceContext* FindLocalizationServiceContext(const ScriptModuleLoadContext& context) noexcept
@@ -54,7 +55,7 @@ namespace JBro
 
     ScriptContextBlock MakeLocalizationSystemContextBlock(const LocalizationSystemContext& context) noexcept
     {
-        return { LocalizationSystemContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { LocalizationSystemContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const LocalizationSystemContext* FindLocalizationSystemContext(const ScriptModuleLoadContext& context) noexcept

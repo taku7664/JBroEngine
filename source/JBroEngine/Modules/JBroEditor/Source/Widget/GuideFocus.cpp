@@ -142,11 +142,11 @@ namespace JBro::Widget
             const ImVec2 corners[4] = { hole.Max, ImVec2(hole.Min.x, hole.Max.y), hole.Min, ImVec2(hole.Max.x, hole.Min.y) };
             for (Int32 quarter = 0; quarter < 4; ++quarter)
             {
-                const Float start = static_cast<float>(quarter) * IM_PI * 0.5f;
+                const Float start = static_cast<JBro::Float>(quarter) * IM_PI * 0.5f;
                 ImVec2 previous(center.x + rx * ImCos(start), center.y + ry * ImSin(start));
                 for (Int32 step = 1; step <= SegmentsPerQuarter; ++step)
                 {
-                    const Float angle = start + (IM_PI * 0.5f) * static_cast<float>(step) / static_cast<float>(SegmentsPerQuarter);
+                    const Float angle = start + (IM_PI * 0.5f) * static_cast<JBro::Float>(step) / static_cast<JBro::Float>(SegmentsPerQuarter);
                     const ImVec2 point(center.x + rx * ImCos(angle), center.y + ry * ImSin(angle));
                     list.AddTriangleFilled(corners[quarter], previous, point, color);
                     previous = point;
@@ -262,7 +262,7 @@ namespace JBro::Widget
         // 이 경로가 켜진 뒤에 열린 팝업을 알린다. 그 안도 누를 수 있어야 메뉴를 따라 들어간다.
         if (focus.IsActive())
         {
-            const UInt32 open = static_cast<std::uint32_t>(context.OpenPopupStack.Size);
+            const UInt32 open = static_cast<JBro::UInt32>(context.OpenPopupStack.Size);
             if (focus.NeedsPopupBaseline() || open < focus.GetPopupBaseline())
             {
                 // 켤 때 열려 있던 것(가이드를 고른 메뉴)은 곧 닫힌다. 닫혀 줄어들면 기준도 따라 내린다 -
@@ -271,7 +271,7 @@ namespace JBro::Widget
             }
             for (UInt32 index = focus.GetPopupBaseline(); index < open; ++index)
             {
-                const ImGuiWindow* window = context.OpenPopupStack[static_cast<int>(index)].Window;
+                const ImGuiWindow* window = context.OpenPopupStack[static_cast<JBro::Int32>(index)].Window;
                 if (window != nullptr && window->WasActive && 0 == (window->Flags & ImGuiWindowFlags_Modal))
                 {
                     focus.ReportPopup(ToRect(window->Pos, ImVec2(window->Pos.x + window->Size.x, window->Pos.y + window->Size.y)));

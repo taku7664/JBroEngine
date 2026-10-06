@@ -32,12 +32,12 @@ namespace
     {
         JBRO_REFLECT_BODY(Probe)
 
-        JBRO_FIELD(JBro::Int32, FieldRows, Range(4, 40) | Category("Field")) = 20;
+        JBRO_FIELD(JBro::Int32, FieldRows, Range(4.0f, 40.0f) | Category("Field")) = 20;
         JBRO_FIELD(JBro::Float, DropSeconds, Name("낙하 간격") | Tooltip("한 칸 떨어지는 데 걸리는 시간")) = 0.5f;
         JBRO_FIELD(JBro::Float, Elapsed, NoSerialize()) = 0.0f;
         JBRO_FIELD(JBro::Bool, Paused, ReadOnly()) = false;
         JBRO_FIELD(double, Plain) = 1.25;
-        JBRO_FIELD(JBro::Float, RangeOnly, Range(0, 1)) = 0.5f;
+        JBRO_FIELD(JBro::Float, RangeOnly, Range(0.0f, 1.0f)) = 0.5f;
         JBRO_FIELD(JBro::Int32, Hidden, Category("Debug") | NoSerialize()) = 0;
         JBRO_FIELD(JBro::Int32, Locked, Category("Debug") | ReadOnly() | Tooltip("고칠 수 없다")) = 0;
     };

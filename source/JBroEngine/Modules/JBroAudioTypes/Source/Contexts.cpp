@@ -1,4 +1,5 @@
 #include <JBro/AudioTypes/Internal/ScriptModuleContext.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -30,7 +31,7 @@ namespace JBro
 
     ScriptContextBlock MakeAudioServiceContextBlock(const AudioServiceContext& context) noexcept
     {
-        return {AudioServiceContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context};
+        return {AudioServiceContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context};
     }
 
     const AudioServiceContext* FindAudioServiceContext(const ScriptModuleLoadContext& context) noexcept
@@ -47,7 +48,7 @@ namespace JBro
 
     ScriptContextBlock MakeAudioSystemContextBlock(const AudioSystemContext& context) noexcept
     {
-        return {AudioSystemContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context};
+        return {AudioSystemContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context};
     }
 
     const AudioSystemContext* FindAudioSystemContext(const ScriptModuleLoadContext& context) noexcept

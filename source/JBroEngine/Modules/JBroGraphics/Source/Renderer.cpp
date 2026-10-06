@@ -82,13 +82,13 @@ namespace JBro
         {
             if (api == GraphicsApi::D3D11)
             {
-                return {dxbc, static_cast<std::uint32_t>(dxbcSize)};
+                return {dxbc, static_cast<JBro::UInt32>(dxbcSize)};
             }
             if (api == GraphicsApi::Vulkan)
             {
-                return {spirv, static_cast<std::uint32_t>(spirvSize)};
+                return {spirv, static_cast<JBro::UInt32>(spirvSize)};
             }
-            return {dxil, static_cast<std::uint32_t>(dxilSize)};
+            return {dxil, static_cast<JBro::UInt32>(dxilSize)};
         }
 
         Matrix4x4 Multiply(const Matrix4x4& left, const Matrix4x4& right)
@@ -123,8 +123,8 @@ namespace JBro
             || config.surface.value == 0
             || config.surfaceExtent.width == 0
             || config.surfaceExtent.height == 0
-            || config.surfaceExtent.width > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)())
-            || config.surfaceExtent.height > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)())
+            || config.surfaceExtent.width > static_cast<JBro::UInt32>((std::numeric_limits<std::int32_t>::max)())
+            || config.surfaceExtent.height > static_cast<JBro::UInt32>((std::numeric_limits<std::int32_t>::max)())
             || config.backBufferCount < 2
             || config.maxFramesInFlight == 0
             || config.maxFramesInFlight >= config.backBufferCount
@@ -305,10 +305,10 @@ namespace JBro
         const Bool written = resource.vertexBuffer.IsValid() && resource.indexBuffer.IsValid()
             && m_device->WriteBuffer(resource.vertexBuffer, 0,
                 {reinterpret_cast<const std::byte*>(vertices.data),
-                    static_cast<std::uint32_t>(vertexDesc.size)})
+                    static_cast<JBro::UInt32>(vertexDesc.size)})
             && m_device->WriteBuffer(resource.indexBuffer, 0,
                 {reinterpret_cast<const std::byte*>(indices.data),
-                    static_cast<std::uint32_t>(indexDesc.size)});
+                    static_cast<JBro::UInt32>(indexDesc.size)});
         if (false == written)
         {
             if (resource.vertexBuffer.IsValid())
@@ -331,7 +331,7 @@ namespace JBro
             {
                 resource.generation = m_meshResources[slot].generation + 1;
                 m_meshResources[slot] = resource;
-                return AssetHandle{static_cast<std::uint32_t>(slot), resource.generation};
+                return AssetHandle{static_cast<JBro::UInt32>(slot), resource.generation};
             }
         }
         m_meshResources.Add(resource);
@@ -339,7 +339,7 @@ namespace JBro
         {
             m_meshHistogram.Resize(m_meshResources.Size());
         }
-        return AssetHandle{static_cast<std::uint32_t>(m_meshResources.Size() - 1), resource.generation};
+        return AssetHandle{static_cast<JBro::UInt32>(m_meshResources.Size() - 1), resource.generation};
     }
 
     void Renderer::UnregisterMesh(AssetHandle mesh)
@@ -420,11 +420,11 @@ namespace JBro
             {
                 resource.generation = m_textureResources[slot].generation + 1;
                 m_textureResources[slot] = resource;
-                return AssetHandle{static_cast<std::uint32_t>(slot), resource.generation};
+                return AssetHandle{static_cast<JBro::UInt32>(slot), resource.generation};
             }
         }
         m_textureResources.Add(resource);
-        return AssetHandle{static_cast<std::uint32_t>(m_textureResources.Size() - 1), resource.generation};
+        return AssetHandle{static_cast<JBro::UInt32>(m_textureResources.Size() - 1), resource.generation};
     }
 
     Bool Renderer::UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8)
@@ -690,12 +690,12 @@ namespace JBro
 
         ViewPacket packet;
         packet.camera = camera;
-        packet.spriteOffset = static_cast<std::uint32_t>(m_sprites.Size());
-        packet.meshOffset = static_cast<std::uint32_t>(m_meshes.Size());
-        packet.worldTextOffset = static_cast<std::uint32_t>(m_worldTexts.Size());
-        packet.layerGroupOffset = static_cast<std::uint32_t>(m_layerGroups.Size());
+        packet.spriteOffset = static_cast<JBro::UInt32>(m_sprites.Size());
+        packet.meshOffset = static_cast<JBro::UInt32>(m_meshes.Size());
+        packet.worldTextOffset = static_cast<JBro::UInt32>(m_worldTexts.Size());
+        packet.layerGroupOffset = static_cast<JBro::UInt32>(m_layerGroups.Size());
         m_views.Add(packet);
-        m_activeView = static_cast<std::uint32_t>(m_views.Size() - 1);
+        m_activeView = static_cast<JBro::UInt32>(m_views.Size() - 1);
         ++m_currentStats.viewCount;
         return true;
     }
@@ -803,7 +803,7 @@ namespace JBro
             return false;
         }
         LayerGroup group;
-        group.firstSprite = static_cast<std::uint32_t>(m_sprites.Size());
+        group.firstSprite = static_cast<JBro::UInt32>(m_sprites.Size());
         group.endSprite = group.firstSprite;
         group.blend = blend;
         // 0..1 로 자른다. 유한하지 않은 값(NaN)은 1 이다 - 비교가 둘 다 거짓이라 처음 값이 남는다.
@@ -817,7 +817,7 @@ namespace JBro
             group.opacity = opacity;
         }
         m_layerGroups.Add(group);
-        m_openLayerGroup = static_cast<std::uint32_t>(m_layerGroups.Size() - 1);
+        m_openLayerGroup = static_cast<JBro::UInt32>(m_layerGroups.Size() - 1);
         ++m_views[m_activeView].layerGroupCount;
         return true;
     }
@@ -828,7 +828,7 @@ namespace JBro
         {
             return false;
         }
-        m_layerGroups[m_openLayerGroup].endSprite = static_cast<std::uint32_t>(m_sprites.Size());
+        m_layerGroups[m_openLayerGroup].endSprite = static_cast<JBro::UInt32>(m_sprites.Size());
         m_openLayerGroup = NoLayerGroup;
         return true;
     }
@@ -986,8 +986,8 @@ namespace JBro
             || m_frameActive
             || extent.width == 0
             || extent.height == 0
-            || extent.width > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)())
-            || extent.height > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)()))
+            || extent.width > static_cast<JBro::UInt32>((std::numeric_limits<std::int32_t>::max)())
+            || extent.height > static_cast<JBro::UInt32>((std::numeric_limits<std::int32_t>::max)()))
         {
             return false;
         }
@@ -1071,7 +1071,7 @@ namespace JBro
         }
         if (false == anyRecorded)
         {
-            m_currentStats.skippedViewCount += static_cast<std::uint32_t>(m_views.Size());
+            m_currentStats.skippedViewCount += static_cast<JBro::UInt32>(m_views.Size());
             return true;
         }
         if (false == UploadSpriteInstances() || false == UploadMeshInstances() || false == UploadWorldTextInstances())
@@ -1127,16 +1127,16 @@ namespace JBro
             {
                 viewport.x = 0.0f;
                 viewport.y = 0.0f;
-                viewport.width = static_cast<float>(extent.width);
-                viewport.height = static_cast<float>(extent.height);
+                viewport.width = static_cast<JBro::Float>(extent.width);
+                viewport.height = static_cast<JBro::Float>(extent.height);
             }
 
             const Float right = viewport.x + viewport.width;
             const Float bottom = viewport.y + viewport.height;
             if (viewport.x < 0.0f
                 || viewport.y < 0.0f
-                || right > static_cast<float>(extent.width)
-                || bottom > static_cast<float>(extent.height)
+                || right > static_cast<JBro::Float>(extent.width)
+                || bottom > static_cast<JBro::Float>(extent.height)
                 || viewport.minDepth < 0.0f
                 || viewport.maxDepth > 1.0f
                 || viewport.minDepth > viewport.maxDepth)
@@ -1151,7 +1151,7 @@ namespace JBro
             {
                 viewLayer = FindLayerTarget(extent);
                 // 아래 그림을 읽는 블렌드면 사본 자리도 같은 프레임에 바란다 - 그래야 둘째 프레임부터 제 식으로 얹힌다(D-283).
-                if (static_cast<std::uint32_t>(view.camera.composite) >= FirstBackdropBlend)
+                if (static_cast<JBro::UInt32>(view.camera.composite) >= FirstBackdropBlend)
                 {
                     FindLayerTarget(extent, LayerTargetRole::Backdrop);
                 }
@@ -1226,10 +1226,10 @@ namespace JBro
 
             // 소수 자리의 뷰포트를 정수 시저로 옮긴다. 안쪽으로 자르면 마지막 열이 잘린다 - 바깥으로 넉넉히 잡는다.
             const ScissorRect scissor = {
-                static_cast<std::int32_t>(std::floor(viewport.x)),
-                static_cast<std::int32_t>(std::floor(viewport.y)),
-                static_cast<std::int32_t>(std::ceil(right)),
-                static_cast<std::int32_t>(std::ceil(bottom))};
+                static_cast<JBro::Int32>(std::floor(viewport.x)),
+                static_cast<JBro::Int32>(std::floor(viewport.y)),
+                static_cast<JBro::Int32>(std::ceil(right)),
+                static_cast<JBro::Int32>(std::ceil(bottom))};
             m_frame.commands->SetViewport(viewport);
             m_frame.commands->SetScissor(scissor);
 
@@ -1240,7 +1240,7 @@ namespace JBro
                     view.camera.view);
                 const JArrayView<std::byte> constants = {
                     reinterpret_cast<const std::byte*>(viewProjection.values),
-                    sizeof(viewProjection.values)};
+                    static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
                 // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
                 // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다. 스프라이트만 있는 뷰는 예전처럼 한 번만 묶는다.
                 const Bool overDepth = withDepth;
@@ -1252,8 +1252,8 @@ namespace JBro
                         && m_frame.commands->SetVertexBuffer(
                             1,
                             sdf ? m_textInstanceBuffers[m_frame.slot] : m_spriteInstanceBuffers[m_frame.slot],
-                            sdf ? static_cast<std::uint32_t>(sizeof(GpuTextInstance))
-                                : static_cast<std::uint32_t>(sizeof(GpuSpriteInstance)),
+                            sdf ? static_cast<JBro::UInt32>(sizeof(GpuTextInstance))
+                                : static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)),
                             0)
                         && m_frame.commands->SetGraphicsConstants(constants);
                 };
@@ -1262,7 +1262,7 @@ namespace JBro
                     || false == m_frame.commands->SetVertexBuffer(
                         0,
                         m_spriteVertexBuffer,
-                        sizeof(float) * 2,
+                        static_cast<JBro::UInt32>(sizeof(float) * 2),
                         0)
                     || false == m_frame.commands->SetIndexBuffer(
                         m_spriteIndexBuffer,
@@ -1277,7 +1277,7 @@ namespace JBro
                 // 패스를 끊으면 깊이를 다시 실어야 해서 묶음을 보지 않는다.
                 const auto bindAll = [&](Bool sdf) {
                     return bindShading(sdf)
-                        && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
+                        && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
                         && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0);
                 };
                 const auto openPass = [&](TextureHandle output, LoadOperation load) {
@@ -1320,7 +1320,7 @@ namespace JBro
                         if (group != NoLayerGroup && group != plainGroup)
                         {
                             layerTexture = FindLayerTarget(extent);
-                            if (static_cast<std::uint32_t>(m_layerGroups[group].blend) >= FirstBackdropBlend)
+                            if (static_cast<JBro::UInt32>(m_layerGroups[group].blend) >= FirstBackdropBlend)
                             {
                                 FindLayerTarget(extent, LayerTargetRole::Backdrop);
                             }
@@ -1399,10 +1399,10 @@ namespace JBro
                     view.camera.view);
                 const JArrayView<std::byte> constants = {
                     reinterpret_cast<const std::byte*>(viewProjection.values),
-                    sizeof(viewProjection.values)};
+                    static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
                 if (false == m_frame.commands->SetGraphicsPipeline(m_meshPipeline)
                     || false == m_frame.commands->SetVertexBuffer(
-                        1, m_meshInstanceBuffers[m_frame.slot], sizeof(GpuMeshInstance), 0)
+                        1, m_meshInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
                     || false == m_frame.commands->SetGraphicsConstants(constants))
                 {
                     return false;
@@ -1419,7 +1419,7 @@ namespace JBro
                         continue;
                     }
                     if (false == m_frame.commands->SetVertexBuffer(
-                            0, mesh->vertexBuffer, sizeof(MeshVertex), 0)
+                            0, mesh->vertexBuffer, static_cast<JBro::UInt32>(sizeof(MeshVertex)), 0)
                         || false == m_frame.commands->SetIndexBuffer(
                             mesh->indexBuffer, IndexFormat::UInt32, 0)
                         || false == m_frame.commands->DrawIndexedInstanced(
@@ -1438,11 +1438,11 @@ namespace JBro
                     view.camera.view);
                 const JArrayView<std::byte> constants = {
                     reinterpret_cast<const std::byte*>(viewProjection.values),
-                    sizeof(viewProjection.values)};
+                    static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
                 if (false == m_frame.commands->SetGraphicsPipeline(m_worldTextPipeline)
-                    || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
+                    || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
                     || false == m_frame.commands->SetVertexBuffer(
-                        1, m_worldTextInstanceBuffers[m_frame.slot], sizeof(GpuWorldTextInstance), 0)
+                        1, m_worldTextInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuWorldTextInstance)), 0)
                     || false == m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
                     || false == m_frame.commands->SetGraphicsConstants(constants))
                 {
@@ -1497,12 +1497,12 @@ namespace JBro
         {
             constants.color[channel] = camera.outlineColor[channel];
         }
-        constants.params[0] = static_cast<float>(camera.outlineWidth);
-        const JArrayView<std::byte> bytes = {reinterpret_cast<const std::byte*>(&constants), sizeof(constants)};
+        constants.params[0] = static_cast<JBro::Float>(camera.outlineWidth);
+        const JArrayView<std::byte> bytes = {reinterpret_cast<const std::byte*>(&constants), static_cast<JBro::UInt32>(sizeof(constants))};
         Viewport viewport;
-        viewport.width = static_cast<float>(extent.width);
-        viewport.height = static_cast<float>(extent.height);
-        const ScissorRect scissor = {0, 0, static_cast<std::int32_t>(extent.width), static_cast<std::int32_t>(extent.height)};
+        viewport.width = static_cast<JBro::Float>(extent.width);
+        viewport.height = static_cast<JBro::Float>(extent.height);
+        const ScissorRect scissor = {0, 0, static_cast<JBro::Int32>(extent.width), static_cast<JBro::Int32>(extent.height)};
 
         const auto pass = [&](TextureHandle output, LoadOperation load, GraphicsPipelineHandle pipeline,
                               TextureHandle first, TextureHandle second) -> Bool {
@@ -1521,7 +1521,7 @@ namespace JBro
             m_frame.commands->SetScissor(scissor);
             const Bool drawn = m_frame.commands->SetGraphicsPipeline(pipeline)
                 && m_frame.commands->SetGraphicsConstants(bytes)
-                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
+                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
                 && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
                 && m_frame.commands->SetTexture(0, first)
                 && m_frame.commands->SetTexture(1, second)
@@ -1540,7 +1540,7 @@ namespace JBro
     {
         // 화면을 덮는 사각형 하나다. 레이어 텍스처는 미리 곱한 색이라 `Layer*` 블렌드로 얹고, 불투명도는 색과 알파에 함께 곱한다.
         // 아래 그림을 읽는 블렌드는 타깃을 복사해 두고, 셰이더가 둘을 섞어 그 자리를 덮어쓴다(D-283).
-        const UInt32 blend = static_cast<std::uint32_t>(group.blend);
+        const UInt32 blend = static_cast<JBro::UInt32>(group.blend);
         GraphicsPipelineHandle pipeline = m_layerCompositePipelines[blend < FirstBackdropBlend ? blend : UInt32(0)];
         TextureHandle backdrop;
         if (blend >= FirstBackdropBlend && blend < CompositeBlendCount)
@@ -1558,7 +1558,7 @@ namespace JBro
             }
         }
         const Float constants[4] = {
-            group.opacity, backdrop.IsValid() ? static_cast<float>(blend - FirstBackdropBlend) : 0.0f, 0.0f, 0.0f};
+            group.opacity, backdrop.IsValid() ? static_cast<JBro::Float>(blend - FirstBackdropBlend) : Float(0.0f), 0.0f, 0.0f};
         ColorAttachmentDesc color;
         color.texture = target;
         color.loadOperation = LoadOperation::Load;
@@ -1573,8 +1573,8 @@ namespace JBro
         m_frame.commands->SetScissor(scissor);
         if (false == m_frame.commands->SetGraphicsPipeline(pipeline)
             || false == m_frame.commands->SetGraphicsConstants(
-                {reinterpret_cast<const std::byte*>(constants), sizeof(constants)})
-            || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
+                {reinterpret_cast<const std::byte*>(constants), static_cast<JBro::UInt32>(sizeof(constants))})
+            || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
             || false == m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
             || false == m_frame.commands->SetTexture(0, layer)
             || (backdrop.IsValid() && false == m_frame.commands->SetTexture(1, backdrop))
@@ -1708,7 +1708,7 @@ namespace JBro
             || false == m_device->WriteBuffer(
                 m_spriteVertexBuffer,
                 0,
-                {reinterpret_cast<const std::byte*>(vertices), sizeof(vertices)}))
+                {reinterpret_cast<const std::byte*>(vertices), static_cast<JBro::UInt32>(sizeof(vertices))}))
         {
             return false;
         }
@@ -1722,7 +1722,7 @@ namespace JBro
             || false == m_device->WriteBuffer(
                 m_spriteIndexBuffer,
                 0,
-                {reinterpret_cast<const std::byte*>(indices), sizeof(indices)}))
+                {reinterpret_cast<const std::byte*>(indices), static_cast<JBro::UInt32>(sizeof(indices))}))
         {
             return false;
         }
@@ -1746,17 +1746,17 @@ namespace JBro
         // 오프셋을 손으로 적지 않는다. 구조체와 정점 속성이 따로 놀 수 있는 틈을 없앨다.
         constexpr std::size_t TransformOffset = offsetof(GpuSpriteInstance, world);
         const VertexAttributeDesc instanceAttributes[] = {
-            {1, static_cast<std::uint32_t>(TransformOffset + offsetof(SpriteTransform2D, linear)),
+            {1, static_cast<JBro::UInt32>(TransformOffset + offsetof(SpriteTransform2D, linear)),
                 VertexFormat::Float4},
-            {2, static_cast<std::uint32_t>(TransformOffset + offsetof(SpriteTransform2D, translation)),
+            {2, static_cast<JBro::UInt32>(TransformOffset + offsetof(SpriteTransform2D, translation)),
                 VertexFormat::Float3},
-            {3, static_cast<std::uint32_t>(offsetof(GpuSpriteInstance, tint)),
+            {3, static_cast<JBro::UInt32>(offsetof(GpuSpriteInstance, tint)),
                 VertexFormat::UByte4Norm},
-            {4, static_cast<std::uint32_t>(offsetof(GpuSpriteInstance, uvRect)),
+            {4, static_cast<JBro::UInt32>(offsetof(GpuSpriteInstance, uvRect)),
                 VertexFormat::UShort4Norm}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
-            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
-            {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 4}}};
+            {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)), VertexStepMode::Instance, {instanceAttributes, 4}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
 
         // 텍스처가 없는 스프라이트의 자리다. 흰색 하나를 샘플링하면 틴트가 그대로 나온다 - 파이프라인이 텍스처
@@ -1796,7 +1796,7 @@ namespace JBro
         pipelineDesc.blend = BlendMode::Alpha;
         pipelineDesc.cull = CullMode::None;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
-        pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
+        pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
         pipelineDesc.sampledTextureCount = 1;
         pipelineDesc.samplerCount = 1;
         m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
@@ -1826,17 +1826,17 @@ namespace JBro
             }
         }
         const VertexAttributeDesc textAttributes[] = {
-            {1, static_cast<std::uint32_t>(offsetof(GpuTextInstance, world) + offsetof(SpriteTransform2D, linear)),
+            {1, static_cast<JBro::UInt32>(offsetof(GpuTextInstance, world) + offsetof(SpriteTransform2D, linear)),
                 VertexFormat::Float4},
-            {2, static_cast<std::uint32_t>(offsetof(GpuTextInstance, world) + offsetof(SpriteTransform2D, translation)),
+            {2, static_cast<JBro::UInt32>(offsetof(GpuTextInstance, world) + offsetof(SpriteTransform2D, translation)),
                 VertexFormat::Float3},
-            {3, static_cast<std::uint32_t>(offsetof(GpuTextInstance, fill)), VertexFormat::UByte4Norm},
-            {4, static_cast<std::uint32_t>(offsetof(GpuTextInstance, uvRect)), VertexFormat::UShort4Norm},
-            {5, static_cast<std::uint32_t>(offsetof(GpuTextInstance, outline)), VertexFormat::UByte4Norm},
-            {6, static_cast<std::uint32_t>(offsetof(GpuTextInstance, params)), VertexFormat::UShort4Norm}};
+            {3, static_cast<JBro::UInt32>(offsetof(GpuTextInstance, fill)), VertexFormat::UByte4Norm},
+            {4, static_cast<JBro::UInt32>(offsetof(GpuTextInstance, uvRect)), VertexFormat::UShort4Norm},
+            {5, static_cast<JBro::UInt32>(offsetof(GpuTextInstance, outline)), VertexFormat::UByte4Norm},
+            {6, static_cast<JBro::UInt32>(offsetof(GpuTextInstance, params)), VertexFormat::UShort4Norm}};
         const VertexBufferLayoutDesc textLayouts[] = {
-            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
-            {sizeof(GpuTextInstance), VertexStepMode::Instance, {textAttributes, 6}}};
+            {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {static_cast<JBro::UInt32>(sizeof(GpuTextInstance)), VertexStepMode::Instance, {textAttributes, 6}}};
         GraphicsPipelineDesc textDesc = pipelineDesc;
         textDesc.vertexShader = PickShader(m_config.api, JBroBuiltinSdfTextVS, sizeof(JBroBuiltinSdfTextVS),
             Sm5::JBroBuiltinSdfTextVS_SM5, sizeof(Sm5::JBroBuiltinSdfTextVS_SM5),
@@ -1856,7 +1856,7 @@ namespace JBro
 
         // 선택 외곽선(D-276). 같은 단위 쿼드의 위치만 읽고, 픽셀 셰이더가 텍스처 둘을 `Load` 로 읽는다.
         const VertexBufferLayoutDesc outlineLayouts[] = {
-            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}}};
+            {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}}};
         GraphicsPipelineDesc outlineDesc;
         outlineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinOutlineVS, sizeof(JBroBuiltinOutlineVS),
             Sm5::JBroBuiltinOutlineVS_SM5, sizeof(Sm5::JBroBuiltinOutlineVS_SM5),
@@ -1871,7 +1871,7 @@ namespace JBro
         outlineDesc.depthTest = false;
         outlineDesc.depthWrite = false;
         outlineDesc.pushConstantStages = ShaderStage::Pixel;
-        outlineDesc.pushConstantBytes = sizeof(float) * 8;
+        outlineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(float) * 8);
         outlineDesc.sampledTextureCount = 2;
         outlineDesc.samplerCount = 1;
         m_outlineGrowPipeline = m_device->CreateGraphicsPipeline(outlineDesc);
@@ -1891,7 +1891,7 @@ namespace JBro
         compositeDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLayerCompositePS, sizeof(JBroBuiltinLayerCompositePS),
             Sm5::JBroBuiltinLayerCompositePS_SM5, sizeof(Sm5::JBroBuiltinLayerCompositePS_SM5),
             Spv::JBroBuiltinLayerCompositePS_SPV, sizeof(Spv::JBroBuiltinLayerCompositePS_SPV));
-        compositeDesc.pushConstantBytes = sizeof(float) * 4;
+        compositeDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(float) * 4);
         compositeDesc.sampledTextureCount = 1;
         const BlendMode compositeBlends[4] = {
             BlendMode::LayerNormal, BlendMode::LayerAdditive, BlendMode::LayerMultiply, BlendMode::LayerScreen};
@@ -1938,18 +1938,18 @@ namespace JBro
         }
 
         const VertexAttributeDesc vertexAttributes[] = {
-            {0, static_cast<std::uint32_t>(offsetof(MeshVertex, position)), VertexFormat::Float3},
-            {1, static_cast<std::uint32_t>(offsetof(MeshVertex, normal)), VertexFormat::Float3}};
+            {0, static_cast<JBro::UInt32>(offsetof(MeshVertex, position)), VertexFormat::Float3},
+            {1, static_cast<JBro::UInt32>(offsetof(MeshVertex, normal)), VertexFormat::Float3}};
         // 월드 행렬은 행 넷으로 쪼개 넘긴다. 정점 포맷에 4x4 가 없다.
         const VertexAttributeDesc instanceAttributes[] = {
-            {2, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 0, VertexFormat::Float4},
-            {3, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 16, VertexFormat::Float4},
-            {4, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 32, VertexFormat::Float4},
-            {5, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 48, VertexFormat::Float4},
-            {6, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, tint)), VertexFormat::Float4}};
+            {2, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 0, VertexFormat::Float4},
+            {3, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 16, VertexFormat::Float4},
+            {4, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 32, VertexFormat::Float4},
+            {5, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 48, VertexFormat::Float4},
+            {6, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, tint)), VertexFormat::Float4}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
-            {sizeof(MeshVertex), VertexStepMode::Vertex, {vertexAttributes, 2}},
-            {sizeof(GpuMeshInstance), VertexStepMode::Instance, {instanceAttributes, 5}}};
+            {static_cast<JBro::UInt32>(sizeof(MeshVertex)), VertexStepMode::Vertex, {vertexAttributes, 2}},
+            {static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), VertexStepMode::Instance, {instanceAttributes, 5}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS),
@@ -1964,7 +1964,7 @@ namespace JBro
         pipelineDesc.blend = BlendMode::Opaque;
         pipelineDesc.cull = CullMode::Back;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
-        pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
+        pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
         m_meshPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         return m_meshPipeline.IsValid();
     }
@@ -2009,7 +2009,7 @@ namespace JBro
         for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
         {
             ViewPacket& view = m_views[viewIndex];
-            view.runOffset = static_cast<std::uint32_t>(m_meshRuns.Size());
+            view.runOffset = static_cast<JBro::UInt32>(m_meshRuns.Size());
             view.runCount = 0;
             if (view.meshCount == 0)
             {
@@ -2041,7 +2041,7 @@ namespace JBro
                 if (count != 0)
                 {
                     MeshRun run;
-                    run.mesh = AssetHandle{static_cast<std::uint32_t>(slot), m_meshResources[slot].generation};
+                    run.mesh = AssetHandle{static_cast<JBro::UInt32>(slot), m_meshResources[slot].generation};
                     run.firstInstance = cursor;
                     run.instanceCount = count;
                     m_meshRuns.Add(run);
@@ -2079,7 +2079,7 @@ namespace JBro
             m_meshInstanceBuffers[m_frame.slot],
             0,
             {reinterpret_cast<const std::byte*>(m_gpuMeshInstances.Data()),
-                static_cast<std::uint32_t>(byteSize)});
+                static_cast<JBro::UInt32>(byteSize)});
     }
 
     Bool Renderer::CreateBuiltinWorldTextResources()
@@ -2109,17 +2109,17 @@ namespace JBro
         const VertexAttributeDesc vertexAttributes[] = {
             {0, 0, VertexFormat::Float2}};
         const VertexAttributeDesc instanceAttributes[] = {
-            {1, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 0, VertexFormat::Float4},
-            {2, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 16, VertexFormat::Float4},
-            {3, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 32, VertexFormat::Float4},
-            {4, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 48, VertexFormat::Float4},
-            {5, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, fill)), VertexFormat::UByte4Norm},
-            {6, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, uvRect)), VertexFormat::UShort4Norm},
-            {7, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, outline)), VertexFormat::UByte4Norm},
-            {8, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, params)), VertexFormat::UShort4Norm}};
+            {1, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, world)) + 0, VertexFormat::Float4},
+            {2, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, world)) + 16, VertexFormat::Float4},
+            {3, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, world)) + 32, VertexFormat::Float4},
+            {4, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, world)) + 48, VertexFormat::Float4},
+            {5, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, fill)), VertexFormat::UByte4Norm},
+            {6, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, uvRect)), VertexFormat::UShort4Norm},
+            {7, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, outline)), VertexFormat::UByte4Norm},
+            {8, static_cast<JBro::UInt32>(offsetof(GpuWorldTextInstance, params)), VertexFormat::UShort4Norm}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
-            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
-            {sizeof(GpuWorldTextInstance), VertexStepMode::Instance, {instanceAttributes, 8}}};
+            {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {static_cast<JBro::UInt32>(sizeof(GpuWorldTextInstance)), VertexStepMode::Instance, {instanceAttributes, 8}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinWorldTextVS, sizeof(JBroBuiltinWorldTextVS),
@@ -2137,7 +2137,7 @@ namespace JBro
         pipelineDesc.blend = BlendMode::Alpha;
         pipelineDesc.cull = CullMode::None;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
-        pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
+        pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
         pipelineDesc.sampledTextureCount = 1;
         pipelineDesc.samplerCount = 1;
         m_worldTextPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
@@ -2187,7 +2187,7 @@ namespace JBro
         }
         for (ViewPacket& view : m_views)
         {
-            view.worldTextRunOffset = static_cast<std::uint32_t>(m_worldTextRuns.Size());
+            view.worldTextRunOffset = static_cast<JBro::UInt32>(m_worldTextRuns.Size());
             view.worldTextRunCount = 0;
             SpriteRun* last = nullptr;
             const UInt32 end = view.worldTextOffset + view.worldTextCount;
@@ -2237,7 +2237,7 @@ namespace JBro
             m_worldTextInstanceBuffers[m_frame.slot],
             0,
             {reinterpret_cast<const std::byte*>(m_gpuWorldTextInstances.Data()),
-                static_cast<std::uint32_t>(count * sizeof(GpuWorldTextInstance))});
+                static_cast<JBro::UInt32>(count * sizeof(GpuWorldTextInstance))});
     }
 
     void Renderer::DestroyBuiltinSpriteResources()
@@ -2347,15 +2347,15 @@ namespace JBro
         // 정렬은 프레임워크의 일이다. 빈 핸들은 흰색이고, 죽은 핸들도 흰색으로 그리되 센다.
         // 묶음 비교는 텍스처·샘플러 핸들을 64 비트 둘로 접어 한다.
         m_spriteRuns.Clear();
-        const UInt64 whiteKey = (static_cast<std::uint64_t>(m_whiteTexture.index) << 32) | m_whiteTexture.generation;
+        const UInt64 whiteKey = (static_cast<JBro::UInt64>(m_whiteTexture.index) << 32) | m_whiteTexture.generation;
         const UInt64 nearestKey =
-            (static_cast<std::uint64_t>(m_nearestSampler.index) << 32) | m_nearestSampler.generation;
+            (static_cast<JBro::UInt64>(m_nearestSampler.index) << 32) | m_nearestSampler.generation;
         const UInt64 linearKey =
-            (static_cast<std::uint64_t>(m_linearSampler.index) << 32) | m_linearSampler.generation;
+            (static_cast<JBro::UInt64>(m_linearSampler.index) << 32) | m_linearSampler.generation;
         for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
         {
             ViewPacket& view = m_views[viewIndex];
-            view.spriteRunOffset = static_cast<std::uint32_t>(m_spriteRuns.Size());
+            view.spriteRunOffset = static_cast<JBro::UInt32>(m_spriteRuns.Size());
             view.spriteRunCount = 0;
             UInt64 lastTextureKey = 0;
             UInt64 lastSamplerKey = 0;
@@ -2412,7 +2412,7 @@ namespace JBro
                     if (resource != nullptr)
                     {
                         texture = resource->texture;
-                        textureKey = (static_cast<std::uint64_t>(texture.index) << 32) | texture.generation;
+                        textureKey = (static_cast<JBro::UInt64>(texture.index) << 32) | texture.generation;
                     }
                     else
                     {
@@ -2451,7 +2451,7 @@ namespace JBro
                 m_spriteInstanceBuffers[m_frame.slot],
                 0,
                 {reinterpret_cast<const std::byte*>(m_gpuSpriteInstances.Data()),
-                    static_cast<std::uint32_t>(byteSize)}))
+                    static_cast<JBro::UInt32>(byteSize)}))
         {
             return false;
         }
@@ -2467,7 +2467,7 @@ namespace JBro
                 m_textInstanceBuffers[m_frame.slot],
                 textOffset,
                 {reinterpret_cast<const std::byte*>(m_gpuTextInstances.Data() + m_gpuTextFirst),
-                    static_cast<std::uint32_t>(textBytes)});
+                    static_cast<JBro::UInt32>(textBytes)});
     }
 
     void Renderer::ResetSubmissionStorage()

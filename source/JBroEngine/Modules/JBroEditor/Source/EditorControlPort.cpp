@@ -8,6 +8,7 @@
 
 #include <string_view>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -102,8 +103,8 @@ namespace JBro
             const Guide& running = *guide.GetGuide();
             writer.WriteString("Guide", running.id != nullptr ? running.id : "");
             // 사람이 읽는 번호와 같게 1 부터 센다.
-            writer.WriteInt("Step", static_cast<std::int64_t>(guide.GetStepIndex()) + 1);
-            writer.WriteInt("Steps", static_cast<std::int64_t>(running.steps.Size()));
+            writer.WriteInt("Step", static_cast<JBro::Int64>(guide.GetStepIndex()) + 1);
+            writer.WriteInt("Steps", static_cast<JBro::Int64>(running.steps.Size()));
             writer.WriteBool("Confirming", guide.IsConfirming());
         }
 

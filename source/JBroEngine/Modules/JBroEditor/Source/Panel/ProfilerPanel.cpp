@@ -139,7 +139,7 @@ namespace JBro
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             // 겹은 들여쓰기로 보인다. 나무를 그리지 않아도 안팎이 읽힌다.
-            const Float indent = static_cast<float>(row.depth) * 14.0f;
+            const Float indent = static_cast<JBro::Float>(row.depth) * 14.0f;
             if (indent > 0.0f)
             {
                 ImGui::Indent(indent);

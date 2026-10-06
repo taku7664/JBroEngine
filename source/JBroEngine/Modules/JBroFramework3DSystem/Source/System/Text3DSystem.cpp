@@ -77,7 +77,7 @@ namespace JBro::System
 
     UInt32 Text3DSystem::GetCachedTextCount() const
     {
-        return static_cast<std::uint32_t>(m_entries.Size());
+        return static_cast<JBro::UInt32>(m_entries.Size());
     }
 
     TextBlockSettings Text3DSystem::SettingsOf(const Component::Text3D& text)

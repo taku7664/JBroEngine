@@ -5,6 +5,7 @@
 
 #include <utility>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -64,7 +65,7 @@ namespace JBro
     {
         JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(text.data());
-        view.size = static_cast<std::uint32_t>(text.size());
+        view.size = static_cast<JBro::UInt32>(text.size());
         if (false == m_target.platform->WriteWholeFile(m_target.metaPath.c_str(), view))
         {
             return false;

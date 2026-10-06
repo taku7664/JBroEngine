@@ -51,7 +51,7 @@ namespace JBro
     class YamlDocument final
     {
     public:
-        static constexpr UInt32 InvalidNode = static_cast<std::uint32_t>(-1);
+        static constexpr UInt32 InvalidNode = static_cast<JBro::UInt32>(-1);
 
         YamlDocument() = default;
         YamlDocument(const YamlDocument&) = delete;

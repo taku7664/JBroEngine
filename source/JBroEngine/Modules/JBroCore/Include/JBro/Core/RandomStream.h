@@ -32,19 +32,19 @@ namespace JBro
             {
                 return bits;
             }
-            UInt64 product = static_cast<std::uint64_t>(bits) * range;
-            UInt32 low = static_cast<std::uint32_t>(product);
+            UInt64 product = static_cast<JBro::UInt64>(bits) * range;
+            UInt32 low = static_cast<JBro::UInt32>(product);
             if (low < range)
             {
                 const UInt32 threshold = (0u - range) % range;
                 while (low < threshold)
                 {
                     bits = next();
-                    product = static_cast<std::uint64_t>(bits) * range;
-                    low = static_cast<std::uint32_t>(product);
+                    product = static_cast<JBro::UInt64>(bits) * range;
+                    low = static_cast<JBro::UInt32>(product);
                 }
             }
-            return static_cast<std::uint32_t>(product >> 32);
+            return static_cast<JBro::UInt32>(product >> 32);
         }
 
         // [min, max] 의 정수다. min 이 max 보다 크면 둘을 바꾼다.
@@ -58,16 +58,16 @@ namespace JBro
                 max = swapped;
             }
             // 폭은 2^32 까지 간다. 그때 32 비트로 옮기면 0 이 되고 `Bounded` 는 그것을 전체로 읽는다.
-            const UInt64 width = static_cast<std::uint64_t>(static_cast<std::int64_t>(max) - min) + 1;
-            const UInt32 offset = Bounded(next, static_cast<std::uint32_t>(width));
-            return static_cast<std::int32_t>(static_cast<std::int64_t>(min) + offset);
+            const UInt64 width = static_cast<JBro::UInt64>(static_cast<JBro::Int64>(max) - min) + 1;
+            const UInt32 offset = Bounded(next, static_cast<JBro::UInt32>(width));
+            return static_cast<JBro::Int32>(static_cast<JBro::Int64>(min) + offset);
         }
 
         // [0, 1) 이다. 위 24 비트를 쓴다 - float 의 가수가 그만큼이라 모든 값이 같은 간격이다.
         template <typename TNext>
         Float Value(TNext& next)
         {
-            return static_cast<float>(next() >> 8) * (1.0f / 16777216.0f);
+            return static_cast<JBro::Float>(next() >> 8) * (1.0f / 16777216.0f);
         }
 
         // [min, max) 이다. min 이 max 보다 크면 둘을 바꾸고, 같으면 그 값이다.
@@ -129,8 +129,8 @@ namespace JBro
         {
             const UInt64 previous = m_state.state;
             m_state.state = previous * 6364136223846793005ull + m_state.increment;
-            const UInt32 shifted = static_cast<std::uint32_t>(((previous >> 18u) ^ previous) >> 27u);
-            const UInt32 rotation = static_cast<std::uint32_t>(previous >> 59u);
+            const UInt32 shifted = static_cast<JBro::UInt32>(((previous >> 18u) ^ previous) >> 27u);
+            const UInt32 rotation = static_cast<JBro::UInt32>(previous >> 59u);
             return (shifted >> rotation) | (shifted << ((0u - rotation) & 31u));
         }
 
@@ -150,18 +150,6 @@ namespace JBro
         Float Range(Float min, Float max)
         {
             return RandomMapping::RangeFloat(*this, min, max);
-        }
-
-        // **리터럴로 부르는 자리.** `Range(3, 7)` 은 `Int32` 와 `Float` 둘 다 사용자 변환 하나로 닿아 모호하다 -
-        // 원시 정수·실수를 받는 짝을 두어 정확히 맞게 한다(D-290).
-        Int32 Range(int min, int max)
-        {
-            return Range(Int32(min), Int32(max));
-        }
-
-        Float Range(float min, float max)
-        {
-            return Range(Float(min), Float(max));
         }
 
         // [0, 1) 이다.

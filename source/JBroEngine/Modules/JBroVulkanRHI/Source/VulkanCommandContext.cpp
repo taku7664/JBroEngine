@@ -2,6 +2,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro::Internal
 {
@@ -9,7 +10,7 @@ namespace JBro::Internal
     {
         Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
 
         VkAttachmentLoadOp ToNativeLoad(LoadOperation operation)
@@ -143,8 +144,8 @@ namespace JBro::Internal
         rendering.pDepthAttachment = depth.image != VK_NULL_HANDLE ? &depthInfo : nullptr;
         vk.vkCmdBeginRendering(m_commands, &rendering);
         // 뷰포트·시저는 동적이라 파이프라인마다 다시 걸 필요 없이 패스 처음에 첨부 전체로 둔다.
-        SetViewport({0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f});
-        SetScissor({0, 0, static_cast<std::int32_t>(extent.width), static_cast<std::int32_t>(extent.height)});
+        SetViewport({0.0f, 0.0f, static_cast<JBro::Float>(extent.width), static_cast<JBro::Float>(extent.height), 0.0f, 1.0f});
+        SetScissor({0, 0, static_cast<JBro::Int32>(extent.width), static_cast<JBro::Int32>(extent.height)});
         m_renderPassActive = true;
         m_pipelineActive = false;
         m_activePipeline = nullptr;
@@ -239,8 +240,8 @@ namespace JBro::Internal
         const Int32 left = scissor.left < 0 ? Int32(0) : scissor.left;
         const Int32 top = scissor.top < 0 ? Int32(0) : scissor.top;
         native.offset = {left, top};
-        native.extent.width = scissor.right > left ? static_cast<std::uint32_t>(scissor.right - left) : 0;
-        native.extent.height = scissor.bottom > top ? static_cast<std::uint32_t>(scissor.bottom - top) : 0;
+        native.extent.width = scissor.right > left ? static_cast<JBro::UInt32>(scissor.right - left) : UInt32(0);
+        native.extent.height = scissor.bottom > top ? static_cast<JBro::UInt32>(scissor.bottom - top) : UInt32(0);
         vk.vkCmdSetScissor(m_commands, 0, 1, &native);
     }
 
@@ -321,7 +322,7 @@ namespace JBro::Internal
             return true;
         }
         vk.vkCmdPushConstants(m_commands, m_activePipeline->layout, m_activePipeline->pushConstantStages, 0,
-            static_cast<std::uint32_t>(data.size), data.data);
+            static_cast<JBro::UInt32>(data.size), data.data);
         return true;
     }
 

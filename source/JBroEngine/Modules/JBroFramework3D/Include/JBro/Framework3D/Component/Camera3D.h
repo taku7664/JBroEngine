@@ -40,7 +40,7 @@ namespace JBro::Component
 
         JBRO_FIELD(CameraProjection3D, projection) = CameraProjection3D::Perspective;
         // 세로 시야각(도). 원근 투영에서만 쓴다.
-        JBRO_FIELD(Float, verticalFieldOfView, Range(1, 179)) = 60.0f;
+        JBRO_FIELD(Float, verticalFieldOfView, Range(1.0f, 179.0f)) = 60.0f;
         // 직교 투영의 세로 절반 크기(월드 단위). 2D 와 같은 뜻이다.
         JBRO_FIELD(Float, orthographicSize) = 10.0f;
         JBRO_FIELD(Float, nearPlane) = 0.1f;

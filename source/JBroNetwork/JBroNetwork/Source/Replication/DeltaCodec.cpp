@@ -10,7 +10,7 @@ namespace JBro::Network::DeltaCodec
 {
     namespace
     {
-        constexpr UInt64 EndKey = ~static_cast<std::uint64_t>(0);
+        constexpr UInt64 EndKey = ~static_cast<JBro::UInt64>(0);
 
         void WriteHeader(std::uint8_t* out, const DeltaHeader& header)
         {

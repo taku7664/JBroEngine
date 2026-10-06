@@ -14,6 +14,7 @@
 #include <cstring>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -177,7 +178,7 @@ namespace JBro
                 ImGui::SameLine(0.0f, 6.0f);
             }
             const std::size_t slot = static_cast<std::size_t>(Levels[index]);
-            Widget::IdScope id(static_cast<int>(slot));
+            Widget::IdScope id(static_cast<JBro::Int32>(slot));
             Widget::Checkbox("##level", m_levels[slot]);
             ImGui::SameLine(0.0f, 4.0f);
             Widget::StyleScope style;
@@ -213,7 +214,7 @@ namespace JBro
             }
             ++shown;
             // 줄마다 번호로 Id 를 준다. 같은 글자가 두 번 나와도 둘이 한 줄을 나눠 쓰지 않는다.
-            ImGui::PushID(static_cast<int>(entry->serial));
+            ImGui::PushID(static_cast<JBro::Int32>(entry->serial));
             Widget::StyleScope style;
             style.PushColor(ImGuiCol_Text, LevelColor(entry->level));
             // 줄 앞의 등급 아이콘(D-278). 색만으로는 정보와 디버그가 잘 갈리지 않는다.

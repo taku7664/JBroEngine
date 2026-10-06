@@ -177,7 +177,7 @@ namespace
         const char payload[] = "\xef\xbb\xbfVersion: 1\n\x00" "binary too";
         JBro::JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(payload);
-        view.size = sizeof(payload) - 1;
+        view.size = static_cast<JBro::UInt32>(sizeof(payload) - 1);
         const JBro::String filePath = Utf8(root / "sub" / L"\uba54\ud0dc.jmeta");
         Check(platform.WriteWholeFile(filePath.c_str(), view), "a file writes under a Korean path");
         Check(platform.FileExists(filePath.c_str()), "and exists afterwards");

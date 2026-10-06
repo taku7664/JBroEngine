@@ -66,8 +66,8 @@ namespace JBro::Widget
             for (UInt32 index = 0; index < count; ++index)
             {
                 const GizmoHandleShape& handle = handles[index];
-                const GuideFocusTarget target = GuideFocusTargets::GizmoHandle(static_cast<std::uint32_t>(mode),
-                    static_cast<std::uint32_t>(handle.axis));
+                const GuideFocusTarget target = GuideFocusTargets::GizmoHandle(static_cast<JBro::UInt32>(mode),
+                    static_cast<JBro::UInt32>(handle.axis));
                 ImVec2 min;
                 ImVec2 max;
                 Bool round = true;
@@ -288,7 +288,7 @@ namespace JBro::Widget
             const Bool selected = mode == modes[index];
             const Bool pressed = IconButton(ids[index], icons[index]).Selected(selected).Tooltip(labels[index]).Draw();
             // 가이드가 모드 단추를 가리킬 수 있다(반례 ⑦). 열림은 그 모드가 켜져 있는가다 - 켜져 있으면 다음 칸(손잡이)으로 간다.
-            Internal::ReportLastItem(GuideFocusTargets::GizmoModeButton(static_cast<std::uint32_t>(modes[index])),
+            Internal::ReportLastItem(GuideFocusTargets::GizmoModeButton(static_cast<JBro::UInt32>(modes[index])),
                 pressed || mode == modes[index], pressed);
             if (pressed)
             {

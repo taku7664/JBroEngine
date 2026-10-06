@@ -38,12 +38,12 @@ namespace JBro
     };
 
     // 전부 f32 인터리브 PCM 으로 푼다(Decompressed). `format` 은 바꾼 뒤의 형식이다.
-    Bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<float>& pcm,
+    Bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<Float>& pcm,
         const AudioDecodeTarget& target = {});
     // 파형 그림용 봉우리다. `buckets` 칸마다 모든 채널의 최대 절댓값(0..1)을 준다. 에디터의 미리 듣기가 쓴다.
-    Bool ComputeAudioPeaks(JArrayView<std::byte> encoded, UInt32 buckets, Array<float>& peaks);
-    void ComputeAudioPeaks(const float* pcm, UInt64 frameCount, UInt32 channels, UInt32 buckets,
-        Array<float>& peaks);
+    Bool ComputeAudioPeaks(JArrayView<std::byte> encoded, UInt32 buckets, Array<Float>& peaks);
+    void ComputeAudioPeaks(const Float* pcm, UInt64 frameCount, UInt32 channels, UInt32 buckets,
+        Array<Float>& peaks);
 
     // 디스크에서 흘려 읽는 디코더다(D-203, `AudioImportMode::StreamFromDisk`). 연 파일(`IFileStream`)을 넘겨받아 조금씩 푼다 -
     // 파일 전체가 메모리에 오지 않는다. **한 번에 한 스레드만 쓴다**(오디오 스트리머의 스레드, 또는 임포트). 할당은
@@ -67,7 +67,7 @@ namespace JBro
         // 끝까지 풀어 세고 처음으로 돌아간다. 임포트 때 한 번 쓴다.
         UInt64 CountFrames();
         // f32 인터리브로 최대 `frames` 프레임을 채우고 채운 수를 돌려준다. 끝이면 0 이다.
-        UInt64 Read(float* out, UInt64 frames);
+        UInt64 Read(Float* out, UInt64 frames);
         Bool Seek(UInt64 frame);
 
     private:
@@ -76,5 +76,5 @@ namespace JBro
     };
 
     // 연 디코더를 끝까지 풀어 봉우리를 잰다(디스크 스트리밍 에셋의 파형).
-    Bool ComputeAudioPeaks(AudioFileDecoder& decoder, UInt32 buckets, Array<float>& peaks);
+    Bool ComputeAudioPeaks(AudioFileDecoder& decoder, UInt32 buckets, Array<Float>& peaks);
 }

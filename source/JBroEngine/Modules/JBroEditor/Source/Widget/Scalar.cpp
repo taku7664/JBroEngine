@@ -456,8 +456,8 @@ namespace JBro::Widget
         // 것과 구분되지 않는다.
         constexpr Int32 VisibleSegments = Segments - 4;
 
-        const Float start = static_cast<float>(ImGui::GetTime()) * spinSpeed;
-        const Float step = 2.0f * IM_PI / static_cast<float>(Segments);
+        const Float start = static_cast<JBro::Float>(ImGui::GetTime()) * spinSpeed;
+        const Float step = 2.0f * IM_PI / static_cast<JBro::Float>(Segments);
 
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         const ImU32 packed = ImGui::GetColorU32(color);

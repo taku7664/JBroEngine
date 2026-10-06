@@ -123,8 +123,8 @@ namespace JBro
             {
                 TypeDescriptor built;
                 built.typeName = NameTable::Get().Intern("Test::Stubborn");
-                built.size = static_cast<std::uint32_t>(sizeof(Stubborn));
-                built.alignment = static_cast<std::uint32_t>(alignof(Stubborn));
+                built.size = static_cast<JBro::UInt32>(sizeof(Stubborn));
+                built.alignment = static_cast<JBro::UInt32>(alignof(Stubborn));
                 built.triviallyCopyable = true;
                 built.codec = &codec;
                 return built;
@@ -1254,7 +1254,7 @@ namespace
         stocked->counts.TryAdd(JBro::String("arrows"), 30);
         for (std::size_t index = 0; index < SampleCount; ++index)
         {
-            stocked->samples.Add(static_cast<float>(index) + 0.125f);
+            stocked->samples.Add(static_cast<JBro::Float>(index) + 0.125f);
         }
         return stocked;
     }

@@ -4,6 +4,7 @@
 #include <JBro/InputTypes/Internal/SystemContext.h>
 #include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/UInt.h>
 
 // 입력 컨텍스트를 D-37 확장 블록으로 내고 찾는 도우미다. 네트워크의 것과 같은 모양이다(D-122, D-214).
 // 블록은 프레임워크가 아니라 **호스트가** 만든다 - 입력 시스템은 엔진이 소유하고 두 차원이 같은 것을 쓴다.
@@ -16,7 +17,7 @@ namespace JBro
     {
         InputServiceContextTypeId,
         InputServiceContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(InputServiceContext))
+        static_cast<JBro::UInt32>(sizeof(InputServiceContext))
     };
 
     ScriptContextBlock MakeInputServiceContextBlock(const InputServiceContext& context) noexcept;
@@ -28,7 +29,7 @@ namespace JBro
     {
         InputSystemContextTypeId,
         InputSystemContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(InputSystemContext))
+        static_cast<JBro::UInt32>(sizeof(InputSystemContext))
     };
 
     ScriptContextBlock MakeInputSystemContextBlock(const InputSystemContext& context) noexcept;

@@ -11,6 +11,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -200,8 +201,8 @@ namespace JBro
                 if (high != 0 && unit >= 0xDC00 && unit <= 0xDFFF)
                 {
                     event.codePoint = 0x10000u
-                        + ((static_cast<std::uint32_t>(high) - 0xD800u) << 10)
-                        + (static_cast<std::uint32_t>(unit) - 0xDC00u);
+                        + ((static_cast<JBro::UInt32>(high) - 0xD800u) << 10)
+                        + (static_cast<JBro::UInt32>(unit) - 0xDC00u);
                 }
                 else
                 {
@@ -217,8 +218,8 @@ namespace JBro
 
             case WM_MOUSEMOVE:
                 event.kind = InputEventKind::MouseMove;
-                event.x = static_cast<float>(GET_X_LPARAM(lParam));
-                event.y = static_cast<float>(GET_Y_LPARAM(lParam));
+                event.x = static_cast<JBro::Float>(GET_X_LPARAM(lParam));
+                event.y = static_cast<JBro::Float>(GET_Y_LPARAM(lParam));
                 platform->RecordInputEvent(event);
                 break;
 
@@ -263,8 +264,8 @@ namespace JBro
                         ? MouseButton::Extra1
                         : MouseButton::Extra2;
                 }
-                event.x = static_cast<float>(GET_X_LPARAM(lParam));
-                event.y = static_cast<float>(GET_Y_LPARAM(lParam));
+                event.x = static_cast<JBro::Float>(GET_X_LPARAM(lParam));
+                event.y = static_cast<JBro::Float>(GET_Y_LPARAM(lParam));
                 platform->RecordInputEvent(event);
                 // **누르는 동안 마우스를 붙잡는다**(D-158). 붙잡지 않으면 끌다가 창 밖에서 뗀 버튼의
                 // 뗌이 다른 창으로 가서, 이 창은 버튼이 아직 눌려 있다고 여긴다 - 끌기가 끝나지
@@ -318,15 +319,15 @@ namespace JBro
 
             case WM_MOUSEWHEEL:
                 event.kind = InputEventKind::MouseWheel;
-                event.y = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam))
-                    / static_cast<float>(WHEEL_DELTA);
+                event.y = static_cast<JBro::Float>(GET_WHEEL_DELTA_WPARAM(wParam))
+                    / static_cast<JBro::Float>(WHEEL_DELTA);
                 platform->RecordInputEvent(event);
                 break;
 
             case WM_MOUSEHWHEEL:
                 event.kind = InputEventKind::MouseWheel;
-                event.x = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam))
-                    / static_cast<float>(WHEEL_DELTA);
+                event.x = static_cast<JBro::Float>(GET_WHEEL_DELTA_WPARAM(wParam))
+                    / static_cast<JBro::Float>(WHEEL_DELTA);
                 platform->RecordInputEvent(event);
                 break;
 
@@ -354,8 +355,8 @@ namespace JBro
                 {
                     POINT at = info.ptPixelLocation;
                     ScreenToClient(window, &at);
-                    event.x = static_cast<float>(at.x);
-                    event.y = static_cast<float>(at.y);
+                    event.x = static_cast<JBro::Float>(at.x);
+                    event.y = static_cast<JBro::Float>(at.y);
                 }
                 else
                 {
@@ -392,12 +393,12 @@ namespace JBro
         {
             if (title.data == nullptr
                 || title.size == 0
-                || title.size > static_cast<std::uint32_t>((std::numeric_limits<int>::max)()))
+                || title.size > static_cast<JBro::UInt32>((std::numeric_limits<int>::max)()))
             {
                 return nullptr;
             }
 
-            const Int32 sourceLength = static_cast<int>(title.size);
+            const Int32 sourceLength = static_cast<JBro::Int32>(title.size);
             const Int32 wideLength = MultiByteToWideChar(
                 CP_UTF8,
                 MB_ERR_INVALID_CHARS,
@@ -508,8 +509,8 @@ namespace JBro
         if (m_instance == nullptr
             || desc.width == 0
             || desc.height == 0
-            || desc.width > static_cast<std::uint32_t>((std::numeric_limits<LONG>::max)())
-            || desc.height > static_cast<std::uint32_t>((std::numeric_limits<LONG>::max)()))
+            || desc.width > static_cast<JBro::UInt32>((std::numeric_limits<LONG>::max)())
+            || desc.height > static_cast<JBro::UInt32>((std::numeric_limits<LONG>::max)()))
         {
             return {};
         }
@@ -602,7 +603,7 @@ namespace JBro
 
     JArrayView<InputEvent> WindowsPlatform::GetInputEvents() const
     {
-        return {m_inputEvents.Data(), static_cast<std::uint32_t>(m_inputEvents.Size())};
+        return {m_inputEvents.Data(), static_cast<JBro::UInt32>(m_inputEvents.Size())};
     }
 
     void WindowsPlatform::ClearInputEvents()
@@ -663,8 +664,8 @@ namespace JBro
         {
             return false;
         }
-        state.width = static_cast<std::uint32_t>(client.right - client.left);
-        state.height = static_cast<std::uint32_t>(client.bottom - client.top);
+        state.width = static_cast<JBro::UInt32>(client.right - client.left);
+        state.height = static_cast<JBro::UInt32>(client.bottom - client.top);
         state.minimized = IsIconic(nativeWindow) != FALSE;
         return true;
     }

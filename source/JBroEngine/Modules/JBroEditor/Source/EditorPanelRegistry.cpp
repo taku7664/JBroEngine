@@ -72,7 +72,7 @@ namespace JBro
 
     UInt32 EditorPanelRegistry::GetDockAreaCount() const
     {
-        return static_cast<std::uint32_t>(m_areas.Size());
+        return static_cast<JBro::UInt32>(m_areas.Size());
     }
 
     const EditorDockAreaInfo& EditorPanelRegistry::GetDockAreaAt(UInt32 index) const
@@ -109,7 +109,7 @@ namespace JBro
 
     UInt32 EditorPanelRegistry::GetCount() const
     {
-        return static_cast<std::uint32_t>(m_types.Size());
+        return static_cast<JBro::UInt32>(m_types.Size());
     }
 
     const EditorPanelTypeInfo& EditorPanelRegistry::GetAt(UInt32 index) const

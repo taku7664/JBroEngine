@@ -103,7 +103,7 @@ namespace JBro::Network::UdpProto
         UInt32 value = 0;
         for (Int32 index = 0; index < 4; ++index)
         {
-            value |= static_cast<std::uint32_t>(at[index]) << (index * 8);
+            value |= static_cast<JBro::UInt32>(at[index]) << (index * 8);
         }
         return value;
     }
@@ -113,7 +113,7 @@ namespace JBro::Network::UdpProto
         UInt64 value = 0;
         for (Int32 index = 0; index < 8; ++index)
         {
-            value |= static_cast<std::uint64_t>(at[index]) << (index * 8);
+            value |= static_cast<JBro::UInt64>(at[index]) << (index * 8);
         }
         return value;
     }

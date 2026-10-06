@@ -51,21 +51,21 @@ namespace JBro::Internal
     {
         Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
 
         Bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
 
         constexpr UInt32 TextureUsageMask =
-            static_cast<std::uint32_t>(TextureUsage::Sampled)
-            | static_cast<std::uint32_t>(TextureUsage::RenderTarget)
-            | static_cast<std::uint32_t>(TextureUsage::DepthStencil)
-            | static_cast<std::uint32_t>(TextureUsage::Storage)
-            | static_cast<std::uint32_t>(TextureUsage::CopySource)
-            | static_cast<std::uint32_t>(TextureUsage::CopyDestination);
+            static_cast<JBro::UInt32>(TextureUsage::Sampled)
+            | static_cast<JBro::UInt32>(TextureUsage::RenderTarget)
+            | static_cast<JBro::UInt32>(TextureUsage::DepthStencil)
+            | static_cast<JBro::UInt32>(TextureUsage::Storage)
+            | static_cast<JBro::UInt32>(TextureUsage::CopySource)
+            | static_cast<JBro::UInt32>(TextureUsage::CopyDestination);
 
         VkSamplerAddressMode ToNativeAddress(AddressMode mode)
         {
@@ -313,7 +313,7 @@ namespace JBro::Internal
             || desc.extent.width == 0 || desc.extent.height == 0 || desc.extent.width > 16384
             || desc.extent.height > 16384 || desc.depthOrLayers != 1 || desc.mipLevels == 0
             || desc.sampleCount != 1 || format == VK_FORMAT_UNDEFINED
-            || (static_cast<std::uint32_t>(desc.usage) & ~TextureUsageMask) != 0
+            || (static_cast<JBro::UInt32>(desc.usage) & ~TextureUsageMask) != 0
             || desc.usage == TextureUsage::None || HasTextureUsage(desc.usage, TextureUsage::Storage)
             || (depth && (renderTarget || false == depthStencil)) || (false == depth && depthStencil))
         {
@@ -509,7 +509,7 @@ namespace JBro::Internal
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.mipLevel = mipLevel;
             region.imageSubresource.layerCount = 1;
-            region.imageOffset = {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), 0};
+            region.imageOffset = {static_cast<JBro::Int32>(x), static_cast<JBro::Int32>(y), 0};
             region.imageExtent = {width, height, 1};
             vk.vkCmdCopyBufferToImage(m_oneShotCommands, staging, state.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 1, &region);

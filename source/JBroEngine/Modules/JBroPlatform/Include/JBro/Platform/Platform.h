@@ -90,7 +90,7 @@ namespace JBro
     // ── 오디오 출력 (D-197·D-198) ─────────────────────────────────────────────────────────────
     // 장치가 **당겨 가는** 모양이다. 오디오 스레드가 이 함수를 불러 인터리브 f32 `frameCount` 프레임을 채우게 한다.
     // 함수 포인터와 사용자 자료만 건너간다(POD). 믹서는 이 모양을 알지 않는다 - 호스트가 둘을 잇는다.
-    using AudioRenderCallback = void (*)(void* user, float* output, UInt32 frameCount);
+    using AudioRenderCallback = void (*)(void* user, Float* output, UInt32 frameCount);
 
     struct AudioOutputDesc
     {

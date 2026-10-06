@@ -55,7 +55,7 @@ namespace
         // 값과 주소가 짝지어 살아 있는지 먼저 확인한다.
         for (std::size_t index = 0; index < live.Size(); ++index)
         {
-            Check(live[index]->Value == static_cast<int>(index),
+            Check(live[index]->Value == static_cast<JBro::Int32>(index),
                 "pooled objects must keep their own storage");
         }
 
@@ -70,7 +70,7 @@ namespace
         // 남은 것이 훼손되지 않았는지.
         for (std::size_t index = 0; index < live.Size(); index += 2)
         {
-            Check(live[index]->Value == static_cast<int>(index),
+            Check(live[index]->Value == static_cast<JBro::Int32>(index),
                 "surviving objects must be untouched by neighbouring destroys");
         }
 

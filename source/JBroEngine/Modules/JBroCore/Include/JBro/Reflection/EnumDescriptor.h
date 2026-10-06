@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -60,7 +61,7 @@ namespace JBro
             {
                 EnumNames result;
                 result.names = Table::Names;
-                result.count = static_cast<std::uint32_t>(Count);
+                result.count = static_cast<JBro::UInt32>(Count);
                 result.ToIndex = [](const void* value) noexcept -> Int32
                 {
                     const E held = *static_cast<const E*>(value);
@@ -68,7 +69,7 @@ namespace JBro
                     {
                         if (Table::Values[i] == held)
                         {
-                            return static_cast<std::int32_t>(i);
+                            return static_cast<JBro::Int32>(i);
                         }
                     }
                     // 이름 없는 값이다. 지어내지 않는다.
@@ -150,8 +151,8 @@ namespace JBro
 
             TypeDescriptor built;
             built.typeName = NameTable::Get().Intern(typeName);
-            built.size = static_cast<std::uint32_t>(sizeof(E));
-            built.alignment = static_cast<std::uint32_t>(alignof(E));
+            built.size = static_cast<JBro::UInt32>(sizeof(E));
+            built.alignment = static_cast<JBro::UInt32>(alignof(E));
             built.triviallyCopyable = true;
             built.enumNames = &names;
             built.codec = &codec;

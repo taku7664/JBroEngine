@@ -368,7 +368,7 @@ namespace JBro
     {
         AssetScanOptions scanOptions;
         scanOptions.ignorePatterns.data = m_project.assetIgnorePatterns.Data();
-        scanOptions.ignorePatterns.size = static_cast<std::uint32_t>(m_project.assetIgnorePatterns.Size());
+        scanOptions.ignorePatterns.size = static_cast<JBro::UInt32>(m_project.assetIgnorePatterns.Size());
         scanOptions.createMissingMeta = m_createMissingAssetMeta;
         if (initial)
         {
@@ -576,7 +576,7 @@ namespace JBro
         for (;;)
         {
             const UInt32 taken = m_platform->TakeFileEvents(
-                m_fileEvents, static_cast<std::uint32_t>(std::size(m_fileEvents)));
+                m_fileEvents, static_cast<JBro::UInt32>(std::size(m_fileEvents)));
             if (taken == 0)
             {
                 break;
@@ -699,7 +699,7 @@ namespace JBro
                         // 빌드하지 않은 프로젝트를 열 길이 없어진다 - 스크립트를 쓰려면
                         // 에디터에서 빌드해야 하는데 그 에디터가 열리지 않는다.
                         m_scriptModuleLoaded = m_scripts.Load(
-                            scriptModulePath, *m_platform, blocks.Data(), static_cast<std::uint32_t>(blocks.Size()));
+                            scriptModulePath, *m_platform, blocks.Data(), static_cast<JBro::UInt32>(blocks.Size()));
                         if (false == m_scriptModuleLoaded)
                         {
                             m_scriptModuleError = "the script module could not be loaded: ";
@@ -812,7 +812,7 @@ namespace JBro
             {
                 if (m_inputOwnedByHost)
                 {
-                    m_input->BeginFrame({m_hostInput.Data(), static_cast<std::uint32_t>(m_hostInput.Size())}, m_hostInputMapping);
+                    m_input->BeginFrame({m_hostInput.Data(), static_cast<JBro::UInt32>(m_hostInput.Size())}, m_hostInputMapping);
                     // 비워도 용량은 남는다. 두 번째 프레임부터는 할당하지 않는다(§9).
                     m_hostInput.Clear();
                 }
@@ -872,12 +872,12 @@ namespace JBro
             {
                 // 화면 기준(D-237): 프로젝트의 기준 해상도와 이번 프레임에 게임이 그려지는 크기(에디터는 게임 뷰 텍스처, 게임은 창).
                 ScreenSpaceFrame screen;
-                screen.referenceWidth = static_cast<float>(m_project.resolutionWidth);
-                screen.referenceHeight = static_cast<float>(m_project.resolutionHeight);
+                screen.referenceWidth = static_cast<JBro::Float>(m_project.resolutionWidth);
+                screen.referenceHeight = static_cast<JBro::Float>(m_project.resolutionHeight);
                 const Extent2D target = m_gameViewTarget.texture.IsValid() ? m_gameViewTarget.extent
                     : m_renderer ? m_renderer->GetSurfaceExtent() : Extent2D{};
-                screen.targetWidth = static_cast<float>(target.width);
-                screen.targetHeight = static_cast<float>(target.height);
+                screen.targetWidth = static_cast<JBro::Float>(target.width);
+                screen.targetHeight = static_cast<JBro::Float>(target.height);
                 // 가려지는 띠다(D-249). **게임이 창에 바로 그릴 때만 뜻이 있다** - 에디터의 게임 뷰는
                 // 텍스처라 화면 가장자리가 아니고, 기기를 돌리면 값이 바뀌므로 프레임마다 다시 받는다.
                 if (false == m_gameViewTarget.texture.IsValid())
@@ -907,8 +907,8 @@ namespace JBro
             && false == m_audioSilentBuffer.IsEmpty() && std::isfinite(deltaTime) && deltaTime > 0.0f)
         {
             const Float seconds = deltaTime < 0.25f ? deltaTime : Float(0.25f);
-            UInt32 frames = static_cast<std::uint32_t>(seconds * static_cast<float>(m_audioMixer->GetSampleRate()));
-            const UInt32 chunk = static_cast<std::uint32_t>(m_audioSilentBuffer.Size() / m_audioMixer->GetChannels());
+            UInt32 frames = static_cast<JBro::UInt32>(seconds * static_cast<JBro::Float>(m_audioMixer->GetSampleRate()));
+            const UInt32 chunk = static_cast<JBro::UInt32>(m_audioSilentBuffer.Size() / m_audioMixer->GetChannels());
             while (frames > 0)
             {
                 const UInt32 count = frames < chunk ? frames : chunk;
@@ -1174,7 +1174,7 @@ namespace JBro
         {
             layers.Add(NameTable::Get().Intern(layer.c_str()));
         }
-        m_input->SetLayerOrder({layers.Data(), static_cast<std::uint32_t>(layers.Size())});
+        m_input->SetLayerOrder({layers.Data(), static_cast<JBro::UInt32>(layers.Size())});
 
         // 액션 표는 고정 크기다. 넘치는 액션과 바인딩은 버리고 한 번 말한다 - 파일은 그대로 두어 되살릴 수 있다.
         InputActionMap map;
@@ -1228,7 +1228,7 @@ namespace JBro
             }
             buses.Add(config);
         }
-        m_audio->ConfigureBuses({buses.Data(), static_cast<std::uint32_t>(buses.Size())});
+        m_audio->ConfigureBuses({buses.Data(), static_cast<JBro::UInt32>(buses.Size())});
         m_audio->SetMuteWhenUnfocused(m_project.audioMuteWhenUnfocused);
         // 고른 장치가 바뀌었을 때만 다시 연다 - 설정을 저장할 때마다 소리가 끊기지 않게.
         if (false == (m_project.audioOutputDevice == m_audioDevicePreference))

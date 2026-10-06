@@ -248,7 +248,7 @@ namespace JBro
             }
             if (reusedSlot)
             {
-                m_freeSlots.Add(static_cast<std::uint32_t>(slotIndex));
+                m_freeSlots.Add(static_cast<JBro::UInt32>(slotIndex));
             }
             else
             {
@@ -278,7 +278,7 @@ namespace JBro
         }
 
         DestroySlot(slot);
-        m_freeSlots.Add(static_cast<std::uint32_t>(slotIndex));
+        m_freeSlots.Add(static_cast<JBro::UInt32>(slotIndex));
         --m_liveCount;
         return true;
     }

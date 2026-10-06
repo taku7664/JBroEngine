@@ -146,7 +146,7 @@ namespace JBro
 
     UInt32 TaskManager::GetWorkerCount() const
     {
-        return static_cast<std::uint32_t>(m_workers.Size());
+        return static_cast<JBro::UInt32>(m_workers.Size());
     }
 
     TaskGroupId TaskManager::Submit(OwnerPtr<TaskGroup> group)
@@ -264,7 +264,7 @@ namespace JBro
 
     UInt32 TaskManager::GetGroupCount() const
     {
-        return static_cast<std::uint32_t>(m_groups.Size());
+        return static_cast<JBro::UInt32>(m_groups.Size());
     }
 
     const TaskGroup& TaskManager::GetGroupAt(UInt32 index) const

@@ -7,6 +7,7 @@
 
 #include <cstring>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -79,8 +80,8 @@ namespace JBro
             static const TypeDescriptor descriptor = [] {
                 TypeDescriptor made;
                 made.typeName = NameTable::Get().Intern("string");
-                made.size = static_cast<std::uint32_t>(sizeof(String));
-                made.alignment = static_cast<std::uint32_t>(alignof(String));
+                made.size = static_cast<JBro::UInt32>(sizeof(String));
+                made.alignment = static_cast<JBro::UInt32>(alignof(String));
                 made.triviallyCopyable = false;
                 made.codec = &GetStringCodec();
                 return made;

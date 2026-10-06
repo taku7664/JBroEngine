@@ -89,7 +89,7 @@ namespace
             }
             JBro::WindowDesc windowDesc;
             constexpr char title[] = "JBro mesh probe";
-            windowDesc.title = {title, sizeof(title) - 1};
+            windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
             windowDesc.width = 64;
             windowDesc.height = 64;
             windowDesc.visible = false;
@@ -293,8 +293,8 @@ namespace
         camera.view = JBro::MakeViewMatrix({0.0f, 0.0f, 3.0f}, {});
         Check(JBro::MakePerspectiveMatrix(60.0f * 3.14159265f / 180.0f, 1.0f, 0.1f, 100.0f, camera.projection),
             "the perspective matrix must build");
-        camera.viewport.width = static_cast<float>(TargetWidth);
-        camera.viewport.height = static_cast<float>(TargetHeight);
+        camera.viewport.width = static_cast<JBro::Float>(TargetWidth);
+        camera.viewport.height = static_cast<JBro::Float>(TargetHeight);
         camera.clearColor[0] = 0.0f;
         camera.clearColor[1] = 0.0f;
         camera.clearColor[2] = 0.0f;
@@ -370,8 +370,8 @@ namespace
         camera.view = JBro::MakeViewMatrix({0.0f, 0.0f, 3.0f}, {});
         Check(JBro::MakePerspectiveMatrix(60.0f * 3.14159265f / 180.0f, 1.0f, 0.1f, 100.0f, camera.projection),
             "the perspective matrix must build");
-        camera.viewport.width = static_cast<float>(TargetWidth);
-        camera.viewport.height = static_cast<float>(TargetHeight);
+        camera.viewport.width = static_cast<JBro::Float>(TargetWidth);
+        camera.viewport.height = static_cast<JBro::Float>(TargetHeight);
         camera.clearColor[3] = 1.0f;
 
         JBro::MeshSubmit cube;

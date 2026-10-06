@@ -95,7 +95,7 @@ namespace JBro::System
 
     UInt32 Text2DSystem::GetCachedTextCount() const
     {
-        return static_cast<std::uint32_t>(m_entries.Size());
+        return static_cast<JBro::UInt32>(m_entries.Size());
     }
 
     TextBlockSettings Text2DSystem::SettingsOf(const Component::Text2D& text)

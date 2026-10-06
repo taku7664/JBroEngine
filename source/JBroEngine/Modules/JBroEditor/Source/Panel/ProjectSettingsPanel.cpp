@@ -208,7 +208,7 @@ namespace JBro
             {
                 if (m_draft.locales[index] == value)
                 {
-                    current = static_cast<int>(index);
+                    current = static_cast<JBro::Int32>(index);
                 }
             }
             if (Widget::FilterCombo(id, ArrayView<const char* const>(names, count), current).ShowFilter(false).Draw()
@@ -240,7 +240,7 @@ namespace JBro
                 {
                     char label[8];
                     std::snprintf(label, sizeof(label), "%u", static_cast<unsigned>(index));
-                    Widget::IdScope scope(static_cast<int>(index));
+                    Widget::IdScope scope(static_cast<JBro::Int32>(index));
                     layout.Row([&] { Widget::Text(label); },
                         [&] { Widget::TextField("##name", m_draft.physicsLayers[index]).Draw(); });
                 }
@@ -276,7 +276,7 @@ namespace JBro
                 for (UInt32 row = 0; row < namedCount; ++row)
                 {
                     const UInt32 first = named[row];
-                    Widget::IdScope rowScope(static_cast<int>(first));
+                    Widget::IdScope rowScope(static_cast<JBro::Int32>(first));
                     layout.Row([&] { Widget::Text(m_draft.physicsLayers[first].c_str()); }, [&] {
                         // 삼각형이다: 행의 레이어와 그 뒤의 레이어들만 칸이 있고, 앞의 자리는 빈 칸으로 줄을 맞춘다.
                         for (UInt32 column = 0; column < namedCount; ++column)
@@ -293,7 +293,7 @@ namespace JBro
                             const UInt32 second = named[column];
                             const std::size_t found = findPair(first, second);
                             Bool collide = found == static_cast<std::size_t>(-1);
-                            Widget::IdScope cellScope(static_cast<int>(second));
+                            Widget::IdScope cellScope(static_cast<JBro::Int32>(second));
                             if (Widget::Checkbox("##meet", collide))
                             {
                                 if (collide)
@@ -339,7 +339,7 @@ namespace JBro
             for (std::size_t index = 0; index < m_draft.inputLayers.Size(); ++index)
             {
                 String& layer = m_draft.inputLayers[index];
-                ImGui::PushID(static_cast<int>(index));
+                ImGui::PushID(static_cast<JBro::Int32>(index));
                 Bool duplicate = false;
                 for (std::size_t other = 0; other < index; ++other)
                 {
@@ -431,7 +431,7 @@ namespace JBro
         {
             ProjectInputAction& action = m_draft.inputActions[index];
             tooMany = tooMany || action.bindings.Size() > MaxInputBindingsPerAction;
-            ImGui::PushID(static_cast<int>(index));
+            ImGui::PushID(static_cast<JBro::Int32>(index));
             Bool duplicate = false;
             for (std::size_t other = 0; other < index; ++other)
             {
@@ -455,7 +455,7 @@ namespace JBro
                         });
                     layout.Row([] { Widget::Text("Type"); },
                         [&] {
-                            Int32 current = static_cast<int>(action.type);
+                            Int32 current = static_cast<JBro::Int32>(action.type);
                             if (Widget::FilterCombo("##type", InputActionTypeChoices, current).ShowFilter(false).Draw())
                             {
                                 action.type = static_cast<InputActionType>(current.Get());
@@ -472,12 +472,12 @@ namespace JBro
                 for (std::size_t at = 0; at < action.bindings.Size(); ++at)
                 {
                     ProjectInputBinding& binding = action.bindings[at];
-                    ImGui::PushID(static_cast<int>(at));
+                    ImGui::PushID(static_cast<JBro::Int32>(at));
                     {
                         Widget::FormLayout layout("##binding");
                         layout.Row([] { Widget::Text("Source"); },
                             [&] {
-                                Int32 current = static_cast<int>(binding.source);
+                                Int32 current = static_cast<JBro::Int32>(binding.source);
                                 if (Widget::FilterCombo("##source", InputBindingSourceChoices, current).ShowFilter(false).Draw())
                                 {
                                     // 원천이 바뀌면 앞의 값은 다른 목록의 번호다. 첫 항목으로 돌린다.
@@ -491,7 +491,7 @@ namespace JBro
                                 FillInputCodeChoices(binding.source);
                                 // 키 목록은 `Unknown` 을 빼고 시작하므로 번호가 하나 밀린다.
                                 const Int32 offset = binding.source == InputBindingSource::Key ? 1 : 0;
-                                Int32 current = static_cast<int>(binding.code) - offset;
+                                Int32 current = static_cast<JBro::Int32>(binding.code) - offset;
                                 if (Widget::FilterCombo("##code", {m_inputCodeChoices.Data(), m_inputCodeChoices.Size()}, current)
                                         .ShowFilter(binding.source == InputBindingSource::Key).Draw())
                                 {
@@ -511,7 +511,7 @@ namespace JBro
                         {
                             layout.Row([] { Widget::Text("Composite"); },
                                 [&] {
-                                    Int32 current = static_cast<int>(binding.composite);
+                                    Int32 current = static_cast<JBro::Int32>(binding.composite);
                                     if (Widget::FilterCombo("##composite", InputCompositeChoices, current).ShowFilter(false).Draw())
                                     {
                                         binding.composite = static_cast<InputComposite>(current.Get());
@@ -722,7 +722,7 @@ namespace JBro
                         names.Add(locales[index].c_str());
                         if (locales[index] == m_editor->GetEditorLocale())
                         {
-                            current = static_cast<int>(index);
+                            current = static_cast<JBro::Int32>(index);
                         }
                     }
                     if (Widget::FilterCombo("##language",
@@ -791,7 +791,7 @@ namespace JBro
                         m_busChoices.Add(m_audioDevices[index].name);
                         if (m_draft.audioOutputDevice == m_audioDevices[index].name)
                         {
-                            current = static_cast<int>(index) + 1;
+                            current = static_cast<JBro::Int32>(index) + 1;
                         }
                     }
                     // 이 기계에 없는 이름이 적혀 있으면 그 이름을 그대로 보인다 - 지우지 않는다.
@@ -827,7 +827,7 @@ namespace JBro
             for (std::size_t index = 0; index < m_draft.audioBuses.Size(); ++index)
             {
                 ProjectAudioBus& bus = m_draft.audioBuses[index];
-                ImGui::PushID(static_cast<int>(index));
+                ImGui::PushID(static_cast<JBro::Int32>(index));
                 Bool duplicate = bus.name == "Master";
                 for (std::size_t other = 0; other < index; ++other)
                 {
@@ -920,7 +920,7 @@ namespace JBro
                                     m_busChoices.Add(m_draft.audioBuses[other].name.c_str());
                                     if (m_draft.audioBuses[other].name == bus.parent)
                                     {
-                                        current = static_cast<int>(other) + 1;
+                                        current = static_cast<JBro::Int32>(other) + 1;
                                     }
                                 }
                                 if (Widget::FilterCombo("##parent", {m_busChoices.Data(), m_busChoices.Size()}, current)
@@ -946,7 +946,7 @@ namespace JBro
                                     m_busChoices.Add(m_draft.audioBuses[other].name.c_str());
                                     if (m_draft.audioBuses[other].name == bus.send)
                                     {
-                                        current = static_cast<int>(m_busChoices.Size()) - 1;
+                                        current = static_cast<JBro::Int32>(m_busChoices.Size()) - 1;
                                     }
                                 }
                                 if (Widget::FilterCombo("##send", {m_busChoices.Data(), m_busChoices.Size()}, current)
@@ -979,7 +979,7 @@ namespace JBro
                                     m_busChoices.Add(m_draft.audioBuses[other].name.c_str());
                                     if (m_draft.audioBuses[other].name == bus.duckBy)
                                     {
-                                        current = static_cast<int>(m_busChoices.Size()) - 1;
+                                        current = static_cast<JBro::Int32>(m_busChoices.Size()) - 1;
                                     }
                                 }
                                 if (Widget::FilterCombo("##duckBy", {m_busChoices.Data(), m_busChoices.Size()}, current)
@@ -1090,7 +1090,7 @@ namespace JBro
                         Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsAuto, "Auto"),
                         Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsSingle, "Single thread"),
                         Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsWorkers, "Set worker count")};
-                    Int32 current = static_cast<int>(m_draft.build.physicsThreadMode);
+                    Int32 current = static_cast<JBro::Int32>(m_draft.build.physicsThreadMode);
                     if (Widget::FilterCombo("##physicsThreads", ArrayView<const char* const>(choices, 3), current)
                             .ShowFilter(false)
                             .Draw()

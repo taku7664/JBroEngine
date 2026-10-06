@@ -30,7 +30,7 @@ namespace JBro::System
             return transform;
         }
 
-        void Store(const Vector3& value, float out[3])
+        void Store(const Vector3& value, Float out[3])
         {
             out[0] = value.x;
             out[1] = value.y;
@@ -97,9 +97,9 @@ namespace JBro::System
                 }
             });
         }
-        float position[3] = {0.0f, 0.0f, 0.0f};
-        float forward[3] = {0.0f, 0.0f, -1.0f};
-        float up[3] = {0.0f, 1.0f, 0.0f};
+        Float position[3] = {0.0f, 0.0f, 0.0f};
+        Float forward[3] = {0.0f, 0.0f, -1.0f};
+        Float up[3] = {0.0f, 1.0f, 0.0f};
         if (listener != nullptr)
         {
             Store(listener->worldPosition, position);
@@ -110,7 +110,7 @@ namespace JBro::System
 
         canvas.ForEach<Component::AudioSource>([&](Component::AudioSource& source)
         {
-            float sourcePosition[3] = {position[0], position[1], position[2]};
+            Float sourcePosition[3] = {position[0], position[1], position[2]};
             // 변환이 없는 소스(배경음)는 듣는 자리에 있는 것으로 본다.
             if (const Component::Transform3D* world = WorldOf(canvas, source))
             {

@@ -80,7 +80,7 @@ namespace JBro::Service
         Float previousY = center.y;
         for (UInt32 segment = 1; segment <= CircleSegments; ++segment)
         {
-            const Float angle = TwoPi * static_cast<float>(segment) / static_cast<float>(CircleSegments);
+            const Float angle = TwoPi * static_cast<JBro::Float>(segment) / static_cast<JBro::Float>(CircleSegments);
             const Float x = center.x + std::cos(angle) * radius;
             const Float y = center.y + std::sin(angle) * radius;
             batch.Add(previousX, previousY, 0.0f, x, y, 0.0f);

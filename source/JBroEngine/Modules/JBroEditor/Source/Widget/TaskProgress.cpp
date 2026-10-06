@@ -13,6 +13,7 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
 #include <JBro/Types/ValueMath.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::Widget
 {
@@ -25,7 +26,7 @@ namespace JBro::Widget
 
         Float Fraction(UInt32 done, UInt32 total)
         {
-            return total == 0 ? 1.0f : static_cast<float>(done) / static_cast<float>(total);
+            return total == 0 ? Float(1.0f) : static_cast<JBro::Float>(done) / static_cast<JBro::Float>(total);
         }
 
         ImVec4 StateColor(TaskState state)
@@ -167,7 +168,7 @@ namespace JBro::Widget
             return false;
         }
         const TaskGroup& group = *m_tasks.FindGroup(m_group);
-        ImGui::PushID(static_cast<int>(m_group & 0x7FFFFFFF));
+        ImGui::PushID(static_cast<JBro::Int32>(m_group & 0x7FFFFFFF));
         char overlay[48];
         std::snprintf(overlay, sizeof(overlay), "%u / %u", summary.done.Get(), summary.total.Get());
         const Float fraction = Fraction(summary.done, summary.total);
@@ -183,7 +184,7 @@ namespace JBro::Widget
         if (m_list && summary.taskCount > 0)
         {
             const Float rowHeight = ImGui::GetFrameHeightWithSpacing();
-            const Float rows = static_cast<float>(std::min(summary.taskCount, m_maxRows));
+            const Float rows = static_cast<JBro::Float>(std::min(summary.taskCount, m_maxRows));
             if (ImGui::BeginChild("##TaskList", ImVec2(0.0f, rows * rowHeight), ImGuiChildFlags_None))
             {
                 const Float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
@@ -191,7 +192,7 @@ namespace JBro::Widget
                 {
                     const Task& task = group.GetTaskAt(index);
                     const TaskState state = task.GetState();
-                    ImGui::PushID(static_cast<int>(index));
+                    ImGui::PushID(static_cast<JBro::Int32>(index));
                     StateMark(state);
                     ImGui::SameLine(0.0f, spacing);
                     ImGui::AlignTextToFramePadding();

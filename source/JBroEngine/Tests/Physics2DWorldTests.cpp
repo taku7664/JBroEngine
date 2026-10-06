@@ -58,12 +58,12 @@ namespace
 
     Array<Vector2> UOutline()
     {
-        return { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        return { { 0.0f, 0.0f }, { 3.0f, 0.0f }, { 3.0f, 3.0f }, { 2.0f, 3.0f }, { 2.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 3.0f }, { 0.0f, 3.0f } };
     }
 
     Array<Vector2> LOutline()
     {
-        return { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        return { { 0.0f, 0.0f }, { 2.0f, 0.0f }, { 2.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 3.0f }, { 0.0f, 3.0f } };
     }
 
     ShapeId AddPolygon(World& world, BodyId body, const Array<Vector2>& outline, const ShapeDef& def = {})
@@ -85,14 +85,14 @@ namespace
 
     BodyId AddGround(World& world, const ShapeDef& def = {})
     {
-        const BodyId ground = AddBody(world, BodyType::Static, { 0, -0.5f });
+        const BodyId ground = AddBody(world, BodyType::Static, { 0.0f, -0.5f });
         AddPolygon(world, ground, BoxOutline(20.0f, 0.5f), def);
         return ground;
     }
 
     void Run(World& world, JBro::Float seconds)
     {
-        const JBro::Int32 steps = static_cast<int>(seconds / Frame + 0.5f);
+        const JBro::Int32 steps = static_cast<JBro::Int32>(seconds / Frame + 0.5f);
         for (JBro::Int32 i = 0; i < steps; ++i)
         {
             world.Step(Frame);
@@ -115,7 +115,7 @@ namespace
     {
         World world;
         AddGround(world);
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 2 });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 2.0f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         Run(world, 3.0f);
 
@@ -131,7 +131,7 @@ namespace
     void TestABoxInTheNotchOfAUStaysInside()
     {
         World world;
-        const BodyId u = AddBody(world, BodyType::Static, { 0, 0 });
+        const BodyId u = AddBody(world, BodyType::Static, { 0.0f, 0.0f });
         AddPolygon(world, u, UOutline());
 
         const BodyId dropped = AddBody(world, BodyType::Dynamic, { 1.5f, 2.5f });
@@ -145,7 +145,7 @@ namespace
         for (const JBro::Float push : { 4.0f, -4.0f })
         {
             world.SetTransform(dropped, { 1.5f, 1.3f }, 0.0f);
-            world.SetLinearVelocity(dropped, { push, 0 });
+            world.SetLinearVelocity(dropped, { push, 0.0f });
             world.SetAngularVelocity(dropped, 0.0f);
             Run(world, 1.5f);
             position = world.GetPosition(dropped);
@@ -161,7 +161,7 @@ namespace
     void TestAnLShapedBodyTurnsAboutItsCenterOfMass()
     {
         World world;
-        world.Settings().gravity = { 0, 0 };
+        world.Settings().gravity = { 0.0f, 0.0f };
         BodyDef def;
         def.angularVelocity = 2.0f;
         const BodyId l = world.CreateBody(def);
@@ -197,7 +197,7 @@ namespace
     {
         World world;
         AddGround(world);
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.3f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.3f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         JBro::Float highest = 0.0f;
         for (JBro::Int32 i = 0; i < 60; ++i)
@@ -218,13 +218,13 @@ namespace
         World world;
         JBro::Physics2D::Circle ball;
         ball.radius = 0.3f;
-        const BodyId top = AddBody(world, BodyType::Dynamic, { 0, 10.4f });
+        const BodyId top = AddBody(world, BodyType::Dynamic, { 0.0f, 10.4f });
         world.CreateCircleShape(top, ball, {});
         AddGround(world);
         Array<BodyId> boxes;
         for (JBro::Int32 i = 0; i < 10; ++i)
         {
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f + static_cast<float>(i) * 1.01f });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f + static_cast<JBro::Float>(i) * 1.01f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             boxes.Add(box);
         }
@@ -234,7 +234,7 @@ namespace
             const Vector2 position = world.GetPosition(boxes[i]);
             Check(Length(world.GetLinearVelocity(boxes[i])) < 0.05f, "every box in the stack comes to rest");
             Check(Near(position.x, 0.0f, 0.05f), "and the stack stays upright");
-            Check(Near(position.y, 0.5f + static_cast<float>(i), 0.1f), "each box sits on the one below");
+            Check(Near(position.y, 0.5f + static_cast<JBro::Float>(i), 0.1f), "each box sits on the one below");
         }
         Check(Near(world.GetPosition(top).y, 10.3f, 0.1f), "and the ball stays on top");
         Check(Length(world.GetLinearVelocity(top)) < 0.05f, "at rest");
@@ -244,9 +244,9 @@ namespace
     void TestLinearDampingSlowsABody()
     {
         World world;
-        world.Settings().gravity = { 0, 0 };
+        world.Settings().gravity = { 0.0f, 0.0f };
         BodyDef def;
-        def.linearVelocity = { 10, 0 };
+        def.linearVelocity = { 10.0f, 0.0f };
         def.linearDamping = 1.0f;
         const BodyId damped = world.CreateBody(def);
         def.linearDamping = 0.0f;
@@ -265,7 +265,7 @@ namespace
         {
             World world;
             AddGround(world);
-            const BodyId u = AddBody(world, BodyType::Static, { 5, 0 });
+            const BodyId u = AddBody(world, BodyType::Static, { 5.0f, 0.0f });
             AddPolygon(world, u, UOutline());
             const BodyId a = AddBody(world, BodyType::Dynamic, { 6.5f, 3.0f }, 0.3f);
             AddPolygon(world, a, BoxOutline(0.3f, 0.3f));
@@ -294,7 +294,7 @@ namespace
             ShapeDef def;
             def.friction = friction;
             const JBro::Float angle = 0.52359878f;
-            const BodyId slope = AddBody(world, BodyType::Static, { 0, 0 }, angle);
+            const BodyId slope = AddBody(world, BodyType::Static, { 0.0f, 0.0f }, angle);
             AddPolygon(world, slope, BoxOutline(20.0f, 0.5f), def);
             const Vector2 normal = { -std::sin(angle), std::cos(angle) };
             const Vector2 start = { normal.x * 1.0f, normal.y * 1.0f };
@@ -325,7 +325,7 @@ namespace
             def.restitution = restitution;
             JBro::Physics2D::Circle ball;
             ball.radius = 0.5f;
-            const BodyId body = AddBody(world, BodyType::Dynamic, { 0, 3.0f });
+            const BodyId body = AddBody(world, BodyType::Dynamic, { 0.0f, 3.0f });
             world.CreateCircleShape(body, ball, def);
 
             JBro::Bool landed = false;
@@ -361,7 +361,7 @@ namespace
         World world;
         ShapeDef uDef;
         uDef.userData = 11;
-        const BodyId u = AddBody(world, BodyType::Static, { 0, 0 });
+        const BodyId u = AddBody(world, BodyType::Static, { 0.0f, 0.0f });
         AddPolygon(world, u, UOutline(), uDef);
 
         ShapeDef boxDef;
@@ -399,7 +399,7 @@ namespace
 
         // 닿아 있는 몸을 지우면 다음 스텝에 끝이 나온다. 번호는 죽었지만 userData 가 남는다.
         world.SetTransform(box, { 1.5f, 3.5f }, 0.0f);
-        world.SetLinearVelocity(box, { 0, 0 });
+        world.SetLinearVelocity(box, { 0.0f, 0.0f });
         Run(world, 0.5f);
         world.DestroyBody(box);
         Check(false == world.IsValid(box), "the destroyed body is gone");
@@ -415,12 +415,12 @@ namespace
         World world;
         ShapeDef trigger;
         trigger.isTrigger = true;
-        const BodyId zone = AddBody(world, BodyType::Static, { 0, 2 });
+        const BodyId zone = AddBody(world, BodyType::Static, { 0.0f, 2.0f });
         AddPolygon(world, zone, BoxOutline(2.0f, 0.5f), trigger);
 
         JBro::Physics2D::Circle ball;
         ball.radius = 0.25f;
-        const BodyId body = AddBody(world, BodyType::Dynamic, { 0, 4 });
+        const BodyId body = AddBody(world, BodyType::Dynamic, { 0.0f, 4.0f });
         world.CreateCircleShape(body, ball, {});
 
         JBro::Int32 begins = 0;
@@ -435,7 +435,7 @@ namespace
                     "and carries no contact point or normal");
                 ++begins;
             }
-            ends += static_cast<int>(world.GetEndEvents().Size());
+            ends += static_cast<JBro::Int32>(world.GetEndEvents().Size());
         }
         Check(begins == 1 && ends == 1, "the ball enters and leaves the zone once each");
         Check(world.GetPosition(body).y < 1.0f, "and falls straight through it");
@@ -450,7 +450,7 @@ namespace
         AddGround(world, groundDef);
         ShapeDef ghost;
         ghost.mask = ~0x2u;
-        const BodyId body = AddBody(world, BodyType::Dynamic, { 0, 1 });
+        const BodyId body = AddBody(world, BodyType::Dynamic, { 0.0f, 1.0f });
         AddPolygon(world, body, BoxOutline(0.5f, 0.5f), ghost);
         Run(world, 1.0f);
         Check(world.GetPosition(body).y < -1.0f, "a box that masks out the ground's layer falls through it");
@@ -461,10 +461,10 @@ namespace
     {
         World world;
         AddGround(world);
-        const BodyId pusher = AddBody(world, BodyType::Kinematic, { -2, 0.5f });
+        const BodyId pusher = AddBody(world, BodyType::Kinematic, { -2.0f, 0.5f });
         AddPolygon(world, pusher, BoxOutline(0.5f, 0.5f));
-        world.SetLinearVelocity(pusher, { 1, 0 });
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        world.SetLinearVelocity(pusher, { 1.0f, 0.0f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         Run(world, 3.0f);
         Check(Near(world.GetPosition(pusher).x, 1.0f, 1.0e-3f), "the kinematic body moves at its own speed");
@@ -475,7 +475,7 @@ namespace
     void TestHandlesAndMassUpdates()
     {
         World world;
-        const BodyId body = AddBody(world, BodyType::Dynamic, { 1, 2 });
+        const BodyId body = AddBody(world, BodyType::Dynamic, { 1.0f, 2.0f });
         Check(world.GetMassData(body).inertia == 0.0f, "a body with no shapes does not turn");
         const ShapeId shape = AddPolygon(world, body, BoxOutline(1.0f, 0.5f));
         Check(world.GetChildCount(shape) == 1, "a box is one child");
@@ -488,7 +488,7 @@ namespace
         ShapeDef sensor;
         sensor.isTrigger = true;
         JBro::Physics2D::Circle zone;
-        zone.center = { 5, 0 };
+        zone.center = { 5.0f, 0.0f };
         zone.radius = 1.0f;
         const ShapeId trigger = world.CreateCircleShape(body, zone, sensor);
         Check(world.IsValid(trigger), "a trigger circle attaches");
@@ -498,7 +498,7 @@ namespace
         world.DestroyShape(trigger);
 
         ShapeId bad;
-        const Array<Vector2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
+        const Array<Vector2> bowTie = { { 0.0f, 0.0f }, { 2.0f, 2.0f }, { 2.0f, 0.0f }, { 0.0f, 2.0f } };
         Check(world.CreatePolygonShape(body, bowTie.View(), {}, bad) == JBro::Physics2D::PolygonError::SelfIntersecting,
             "a self-intersecting outline is refused");
         Check(false == world.IsValid(bad), "and makes no shape");
@@ -506,7 +506,7 @@ namespace
         world.DestroyShape(shape);
         Check(false == world.IsValid(shape), "a destroyed shape is gone");
         world.DestroyBody(body);
-        const BodyId reused = AddBody(world, BodyType::Dynamic, { 0, 0 });
+        const BodyId reused = AddBody(world, BodyType::Dynamic, { 0.0f, 0.0f });
         Check(reused.index == body.index && reused.generation != body.generation,
             "a reused slot gets a new generation");
         Check(false == world.IsValid(body), "so the old handle stays dead");
@@ -517,11 +517,11 @@ namespace
     {
         World world;
         AddGround(world);
-        const BodyId lying = AddBody(world, BodyType::Dynamic, { -5, 2 });
-        const ShapeId lyingShape = world.CreateCapsuleShape(lying, { -1, 0 }, { 1, 0 }, 0.5f, {});
+        const BodyId lying = AddBody(world, BodyType::Dynamic, { -5.0f, 2.0f });
+        const ShapeId lyingShape = world.CreateCapsuleShape(lying, { -1.0f, 0.0f }, { 1.0f, 0.0f }, 0.5f, {});
         Check(world.IsValid(lyingShape) && world.GetChildCount(lyingShape) == 1, "a capsule is one piece");
-        const BodyId round = AddBody(world, BodyType::Dynamic, { 5, 2 });
-        const ShapeId roundShape = world.CreateCapsuleShape(round, { 0, 0 }, { 0, 0.001f }, 0.5f, {});
+        const BodyId round = AddBody(world, BodyType::Dynamic, { 5.0f, 2.0f });
+        const ShapeId roundShape = world.CreateCapsuleShape(round, { 0.0f, 0.0f }, { 0.0f, 0.001f }, 0.5f, {});
         Check(world.GetPolygonChild(roundShape, 0) == nullptr, "two points closer than the slop make a circle");
         Run(world, 3.0f);
 
@@ -531,7 +531,7 @@ namespace
         Check(Near(world.GetPosition(round).y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "and the round one like a ball");
 
         const JBro::Physics2D::MassData mass = world.GetMassData(lying);
-        const JBro::Physics2D::MassData unit = JBro::Physics2D::ComputeCapsuleMass({ -1, 0 }, { 1, 0 }, 0.5f, 1.0f);
+        const JBro::Physics2D::MassData unit = JBro::Physics2D::ComputeCapsuleMass({ -1.0f, 0.0f }, { 1.0f, 0.0f }, 0.5f, 1.0f);
         Check(Near(mass.mass, 1.0f, 0.0f) && Near(mass.inertia, unit.inertia / unit.mass, 1.0e-5f),
             "the requested mass spreads over the capsule's shape");
     }
@@ -545,7 +545,7 @@ namespace
         ShapeDef groundDef;
         groundDef.mask = 0x1u;
         AddGround(world, groundDef);
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
         const ShapeId shape = AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         Run(world, 0.5f);
         Check(world.GetBeginEvents().IsEmpty() && world.GetEndEvents().IsEmpty(), "the box has settled");
@@ -555,12 +555,12 @@ namespace
         JBro::Int32 ends = 0;
         for (JBro::Int32 i = 0; i < 60; ++i)
         {
-            const JBro::Float half = 0.5f + 0.02f * static_cast<float>(i % 5);
+            const JBro::Float half = 0.5f + 0.02f * static_cast<JBro::Float>(i % 5);
             Check(world.SetPolygonGeometry(shape, BoxOutline(half, 0.5f).View()) == JBro::Physics2D::PolygonError::None,
                 "a wider box is accepted");
             world.Step(Frame);
-            begins += static_cast<int>(world.GetBeginEvents().Size());
-            ends += static_cast<int>(world.GetEndEvents().Size());
+            begins += static_cast<JBro::Int32>(world.GetBeginEvents().Size());
+            ends += static_cast<JBro::Int32>(world.GetEndEvents().Size());
         }
         Check(world.IsValid(shape) && begins == 0 && ends == 0, "growing and shrinking it in place never ends the contact");
         Check(world.SetPolygonGeometry(shape, BoxOutline(1.0f, 0.5f).View()) == JBro::Physics2D::PolygonError::None
@@ -568,13 +568,13 @@ namespace
             "a reshaped box turns with the inertia of its new shape: m(w^2 + h^2)/12");
         Check(Near(world.GetPosition(box).y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "and it stays on the ground");
 
-        const Array<Vector2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
+        const Array<Vector2> bowTie = { { 0.0f, 0.0f }, { 2.0f, 2.0f }, { 2.0f, 0.0f }, { 0.0f, 2.0f } };
         Check(world.SetPolygonGeometry(shape, bowTie.View()) == JBro::Physics2D::PolygonError::SelfIntersecting
             && world.GetChildCount(shape) == 1, "a wrong outline is refused and the old box stays");
 
-        Check(world.SetCapsuleGeometry(shape, { -0.5f, 0 }, { 0.5f, 0 }, 0.5f) && world.GetPolygonChild(shape, 0)->count == 2,
+        Check(world.SetCapsuleGeometry(shape, { -0.5f, 0.0f }, { 0.5f, 0.0f }, 0.5f) && world.GetPolygonChild(shape, 0)->count == 2,
             "the same shape can turn into a capsule");
-        Check(world.SetCapsuleGeometry(shape, { 0, 0 }, { 0, 0.001f }, 0.5f) && world.GetPolygonChild(shape, 0) == nullptr,
+        Check(world.SetCapsuleGeometry(shape, { 0.0f, 0.0f }, { 0.0f, 0.001f }, 0.5f) && world.GetPolygonChild(shape, 0) == nullptr,
             "or, too short, a circle");
         Run(world, 0.5f);
 
@@ -593,23 +593,23 @@ namespace
         AddGround(world);
         for (JBro::Int32 i = 0; i < 5; ++i)
         {
-            const BodyId box = AddBody(world, BodyType::Dynamic, { -4.0f, 0.5f + static_cast<float>(i) });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -4.0f, 0.5f + static_cast<JBro::Float>(i) });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         }
-        const BodyId cup = AddBody(world, BodyType::Static, { 4, 0 });
+        const BodyId cup = AddBody(world, BodyType::Static, { 4.0f, 0.0f });
         AddPolygon(world, cup, UOutline());
-        const BodyId pebble = AddBody(world, BodyType::Dynamic, { 5.5f, 2 });
+        const BodyId pebble = AddBody(world, BodyType::Dynamic, { 5.5f, 2.0f });
         JBro::Physics2D::Circle round;
         round.radius = 0.3f;
         world.CreateCircleShape(pebble, round, {});
-        const BodyId pill = AddBody(world, BodyType::Dynamic, { 0, 1 });
-        world.CreateCapsuleShape(pill, { -0.5f, 0 }, { 0.5f, 0 }, 0.4f, {});
-        const BodyId growing = AddBody(world, BodyType::Dynamic, { 8, 0.5f });
+        const BodyId pill = AddBody(world, BodyType::Dynamic, { 0.0f, 1.0f });
+        world.CreateCapsuleShape(pill, { -0.5f, 0.0f }, { 0.5f, 0.0f }, 0.4f, {});
+        const BodyId growing = AddBody(world, BodyType::Dynamic, { 8.0f, 0.5f });
         const ShapeId growingShape = AddPolygon(world, growing, BoxOutline(0.5f, 0.5f));
         Array<Array<Vector2>> outlines;
         for (JBro::Int32 i = 0; i < 5; ++i)
         {
-            outlines.Add(BoxOutline(0.5f + 0.02f * static_cast<float>(i), 0.5f));
+            outlines.Add(BoxOutline(0.5f + 0.02f * static_cast<JBro::Float>(i), 0.5f));
         }
         const auto step = [&](JBro::Int32 i)
         {
@@ -642,8 +642,8 @@ namespace
         {
             for (JBro::Int32 column = 0; column < 10 - row; ++column)
             {
-                const JBro::Float x = -5.0f + static_cast<float>(column) + 0.5f * static_cast<float>(row);
-                const BodyId box = AddBody(world, BodyType::Dynamic, { x, 0.5f + static_cast<float>(row) });
+                const JBro::Float x = -5.0f + static_cast<JBro::Float>(column) + 0.5f * static_cast<JBro::Float>(row);
+                const BodyId box = AddBody(world, BodyType::Dynamic, { x, 0.5f + static_cast<JBro::Float>(row) });
                 AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
                 moving.Add(box);
             }
@@ -652,21 +652,21 @@ namespace
         ball.radius = 0.25f;
         for (JBro::Int32 i = 0; i < 20; ++i)
         {
-            const BodyId body = AddBody(world, BodyType::Dynamic, { 8.0f + 0.3f * static_cast<float>(i % 5), 1.0f + 0.6f * static_cast<float>(i / 5) });
+            const BodyId body = AddBody(world, BodyType::Dynamic, { 8.0f + 0.3f * static_cast<JBro::Float>(i % 5), 1.0f + 0.6f * static_cast<JBro::Float>(i / 5) });
             world.CreateCircleShape(body, ball, {});
             moving.Add(body);
         }
         for (JBro::Int32 i = 0; i < 5; ++i)
         {
-            const BodyId body = AddBody(world, BodyType::Dynamic, { -12.0f, 0.5f + static_cast<float>(i) });
-            world.CreateCapsuleShape(body, { -0.5f, 0 }, { 0.5f, 0 }, 0.45f, {});
+            const BodyId body = AddBody(world, BodyType::Dynamic, { -12.0f, 0.5f + static_cast<JBro::Float>(i) });
+            world.CreateCapsuleShape(body, { -0.5f, 0.0f }, { 0.5f, 0.0f }, 0.45f, {});
             moving.Add(body);
         }
-        const BodyId cup = AddBody(world, BodyType::Static, { 14, 0 });
+        const BodyId cup = AddBody(world, BodyType::Static, { 14.0f, 0.0f });
         AddPolygon(world, cup, UOutline());
         for (JBro::Int32 i = 0; i < 3; ++i)
         {
-            const BodyId pebble = AddBody(world, BodyType::Dynamic, { 15.5f, 2.0f + static_cast<float>(i) });
+            const BodyId pebble = AddBody(world, BodyType::Dynamic, { 15.5f, 2.0f + static_cast<JBro::Float>(i) });
             JBro::Physics2D::Circle small;
             small.radius = 0.2f;
             world.CreateCircleShape(pebble, small, {});
@@ -757,28 +757,28 @@ namespace
     void TestForcesAndImpulses()
     {
         World world;
-        world.Settings().gravity = { 0, 0 };
+        world.Settings().gravity = { 0.0f, 0.0f };
         BodyDef def;
         def.mass = 2.0f;
         const BodyId box = world.CreateBody(def);
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
-        world.ApplyForceToCenter(box, { 4, 0 });
+        world.ApplyForceToCenter(box, { 4.0f, 0.0f });
         world.Step(Frame);
         Check(Near(world.GetLinearVelocity(box).x, 2.0f * Frame, 1.0e-6f), "a force of 4 on a mass of 2 adds 2 m/s² for one step");
         world.Step(Frame);
         Check(Near(world.GetLinearVelocity(box).x, 2.0f * Frame, 1.0e-6f), "and is gone the step after");
-        world.ApplyLinearImpulseToCenter(box, { 0, 2 });
+        world.ApplyLinearImpulseToCenter(box, { 0.0f, 2.0f });
         Check(Near(world.GetLinearVelocity(box).y, 1.0f, 1.0e-6f), "an impulse of 2 adds 1 m/s at once");
         world.ApplyTorque(box, 1.0f);
         world.Step(Frame);
         Check(Near(world.GetAngularVelocity(box), 3.0f * Frame, 1.0e-5f), "a torque of 1 on an inertia of 1/3 spins it up by 3 rad/s²");
         world.SetAngularVelocity(box, 0.0f);
         const Vector2 center = world.GetWorldCenter(box);
-        world.ApplyLinearImpulse(box, { 1, 0 }, { center.x, center.y + 0.5f });
+        world.ApplyLinearImpulse(box, { 1.0f, 0.0f }, { center.x, center.y + 0.5f });
         Check(Near(world.GetAngularVelocity(box), -1.5f, 1.0e-5f), "an impulse half a unit above the center turns it by -0.5 / (1/3)");
 
-        const BodyId ground = AddBody(world, BodyType::Static, { 0, -5 });
-        world.ApplyLinearImpulseToCenter(ground, { 5, 5 });
+        const BodyId ground = AddBody(world, BodyType::Static, { 0.0f, -5.0f });
+        world.ApplyLinearImpulseToCenter(ground, { 5.0f, 5.0f });
         Check(world.GetLinearVelocity(ground).x == 0.0f, "a static body takes no impulse");
     }
 
@@ -786,18 +786,18 @@ namespace
     void TestAxisLocks()
     {
         World world;
-        const BodyId floating = AddBody(world, BodyType::Dynamic, { 0, 5 });
+        const BodyId floating = AddBody(world, BodyType::Dynamic, { 0.0f, 5.0f });
         AddPolygon(world, floating, BoxOutline(0.5f, 0.5f));
         BodyDef lockY;
         lockY.freezePositionY = true;
         world.SetBodyProperties(floating, lockY);
-        world.ApplyLinearImpulseToCenter(floating, { 1, 1 });
+        world.ApplyLinearImpulseToCenter(floating, { 1.0f, 1.0f });
         Run(world, 1.0f);
         Check(Near(world.GetPosition(floating).y, 5.0f, 1.0e-6f), "a body locked in y neither falls nor rises");
         Check(Near(world.GetPosition(floating).x, 1.0f, 1.0e-3f), "but an impulse still moves it in x");
 
         // 45° 비탈(돌린 상자) 위에 떨어뜨린다. 풀린 몸은 옆으로 미끄러지고, x 를 고정한 몸은 그 자리에 선다.
-        const BodyId slope = AddBody(world, BodyType::Static, { 10, 0 }, 0.78539816f);
+        const BodyId slope = AddBody(world, BodyType::Static, { 10.0f, 0.0f }, 0.78539816f);
         AddPolygon(world, slope, BoxOutline(3.0f, 3.0f));
         ShapeDef slippery;
         slippery.friction = 0.0f;
@@ -819,7 +819,7 @@ namespace
     {
         World world;
         AddGround(world);
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         Run(world, 0.5f);
         BodyDef heavier;
@@ -836,7 +836,7 @@ namespace
     void TestALockedBodyBouncesWithItsRealMass()
     {
         World world;
-        const BodyId slope = AddBody(world, BodyType::Static, { 0, 0 }, 0.78539816f);
+        const BodyId slope = AddBody(world, BodyType::Static, { 0.0f, 0.0f }, 0.78539816f);
         ShapeDef bouncy;
         bouncy.friction = 0.0f;
         bouncy.restitution = 1.0f;
@@ -871,20 +871,20 @@ namespace
     {
         World world;
         world.Settings().enableSleep = false;
-        const BodyId ground = AddBody(world, BodyType::Static, { 0, 0 });
+        const BodyId ground = AddBody(world, BodyType::Static, { 0.0f, 0.0f });
         Array<Vector2> points;
         for (JBro::Int32 i = 0; i <= 40; ++i)
         {
-            points.Add({ -20.0f + static_cast<float>(i), 0.0f });
+            points.Add({ -20.0f + static_cast<JBro::Float>(i), 0.0f });
         }
         ShapeDef slippery;
         slippery.friction = 0.0f;
         const ShapeId chain = world.CreateChainShape(ground, points.View(), false, slippery);
         Check(world.IsValid(chain) && world.GetChildCount(chain) == 40, "the chain is forty segments");
-        const BodyId box = AddBody(world, BodyType::Dynamic, { -15, 0.5f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { -15.0f, 0.5f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f), slippery);
         Run(world, 0.3f);
-        world.SetLinearVelocity(box, { 5, 0 });
+        world.SetLinearVelocity(box, { 5.0f, 0.0f });
         JBro::Float lowest = 10.0f;
         JBro::Float highest = -10.0f;
         for (JBro::Int32 i = 0; i < 120; ++i)
@@ -895,7 +895,7 @@ namespace
         }
         Check(lowest > 4.95f, "the box keeps its speed across every seam");
         Check(highest < 0.05f, "and never hops");
-        const Array<Vector2> tooFew = { { 0, 0 } };
+        const Array<Vector2> tooFew = { { 0.0f, 0.0f } };
         Check(false == world.IsValid(world.CreateChainShape(ground, tooFew.View(), false, {})), "one point is no chain");
     }
 
@@ -904,12 +904,12 @@ namespace
     {
         World world;
         const BodyId ground = AddGround(world);
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         BodyDef restless;
         restless.canSleep = false;
         const BodyId awake = world.CreateBody(restless);
-        world.SetTransform(awake, { 5, 0.5f }, 0.0f);
+        world.SetTransform(awake, { 5.0f, 0.5f }, 0.0f);
         AddPolygon(world, awake, BoxOutline(0.5f, 0.5f));
         Run(world, 0.2f);
         Check(world.IsAwake(box), "a box that just landed is awake");
@@ -920,13 +920,13 @@ namespace
         Run(world, 1.0f);
         Check(world.GetPosition(box).x == asleep.x && world.GetPosition(box).y == asleep.y, "a sleeping body does not move at all");
 
-        world.ApplyLinearImpulseToCenter(box, { 0, 3 });
+        world.ApplyLinearImpulseToCenter(box, { 0.0f, 3.0f });
         Check(world.IsAwake(box), "an impulse wakes it");
         Run(world, 2.5f);
         Check(false == world.IsAwake(box), "and it sleeps again once it has landed");
 
         // 위에서 떨어진 상자가 잠든 상자를 깨운다.
-        const BodyId dropped = AddBody(world, BodyType::Dynamic, { 0, 4 });
+        const BodyId dropped = AddBody(world, BodyType::Dynamic, { 0.0f, 4.0f });
         AddPolygon(world, dropped, BoxOutline(0.5f, 0.5f));
         JBro::Bool wokeByTouch = false;
         for (JBro::Int32 i = 0; i < 90; ++i)
@@ -939,7 +939,7 @@ namespace
         Check(false == world.IsAwake(box) && false == world.IsAwake(dropped), "and the two sleep together once still");
 
         // 바닥을 내리면 잠든 몸이 깨어 떨어진다.
-        world.SetTransform(ground, { 0, -3.5f }, 0.0f);
+        world.SetTransform(ground, { 0.0f, -3.5f }, 0.0f);
         Run(world, 1.5f);
         Check(world.GetPosition(box).y < -2.0f, "moving the floor away wakes them and they fall");
     }
@@ -952,7 +952,7 @@ namespace
         Array<BodyId> boxes;
         for (JBro::Int32 i = 0; i < 10; ++i)
         {
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f + static_cast<float>(i) });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f + static_cast<JBro::Float>(i) });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             boxes.Add(box);
         }
@@ -970,14 +970,14 @@ namespace
         {
             World world;
             AddGround(world);
-            const BodyId bottom = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            const BodyId bottom = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
             AddPolygon(world, bottom, BoxOutline(0.5f, 0.5f));
-            const BodyId top = AddBody(world, BodyType::Dynamic, { 0, 1.5f });
+            const BodyId top = AddBody(world, BodyType::Dynamic, { 0.0f, 1.5f });
             AddPolygon(world, top, BoxOutline(0.5f, 0.5f));
             Run(world, 2.0f);
             Check(false == world.IsAwake(bottom) && false == world.IsAwake(top), "the two-box stack sleeps");
             const JBro::Float topBefore = world.GetPosition(top).y;
-            world.ApplyLinearImpulseToCenter(bottom, { 0, 5 });
+            world.ApplyLinearImpulseToCenter(bottom, { 0.0f, 5.0f });
             world.Step(Frame);
             Check(world.IsAwake(top) && world.GetPosition(top).y > topBefore + 0.01f,
                 "knocking the bottom box up lifts the top one in the same step");
@@ -985,36 +985,36 @@ namespace
         {
             World world;
             AddGround(world);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             Run(world, 2.0f);
             Check(false == world.IsAwake(box), "the box sleeps");
-            world.Settings().gravity = { 0, -5.0f };
+            world.Settings().gravity = { 0.0f, -5.0f };
             world.Step(Frame);
             Check(world.IsAwake(box), "changing gravity wakes it");
             Run(world, 2.0f);
             Check(false == world.IsAwake(box), "and it sleeps again once gravity stays put");
-            world.Settings().gravity = { 0, 9.81f };
+            world.Settings().gravity = { 0.0f, 9.81f };
             Run(world, 0.5f);
             Check(world.GetPosition(box).y > 1.0f, "turning gravity over wakes it and it rises");
         }
         {
             World world;
             AddGround(world);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             Run(world, 2.0f);
-            world.SetTransform(box, { 0, 0.5f }, 0.0f);
+            world.SetTransform(box, { 0.0f, 0.5f }, 0.0f);
             Check(world.IsAwake(box), "moving a sleeping body wakes it, even in place");
             Run(world, 2.0f);
-            world.SetTransform(box, { 0, 5 }, 0.0f);
+            world.SetTransform(box, { 0.0f, 5.0f }, 0.0f);
             Run(world, 0.3f);
             Check(world.GetPosition(box).y < 4.9f, "a sleeping box moved into the air falls from there");
         }
         {
             World world;
             AddGround(world);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             Run(world, 2.0f);
             Check(false == world.IsAwake(box), "the box sleeps again");
@@ -1034,20 +1034,20 @@ namespace
         oneWay.oneWay = true;
         {
             World world;
-            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            const BodyId platform = AddBody(world, BodyType::Static, { 0.0f, 0.0f });
             AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 2 });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 2.0f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             Run(world, 1.5f);
             Check(Near(world.GetPosition(box).y, 0.75f, 0.02f), "a box dropped from above rests on the platform");
         }
         {
             World world;
-            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            const BodyId platform = AddBody(world, BodyType::Static, { 0.0f, 0.0f });
             AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, -1.5f });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, -1.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
-            world.SetLinearVelocity(box, { 0, 8 });
+            world.SetLinearVelocity(box, { 0.0f, 8.0f });
             JBro::Bool beganWhileBelow = false;
             for (JBro::Int32 i = 0; i < 90; ++i)
             {
@@ -1062,20 +1062,20 @@ namespace
         }
         {
             World world;
-            world.Settings().gravity = { 0, 0 };
-            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId platform = AddBody(world, BodyType::Static, { 0.0f, 0.0f });
             AddPolygon(world, platform, BoxOutline(1.0f, 0.25f), oneWay);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { -3, 0 });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -3.0f, 0.0f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
-            world.SetLinearVelocity(box, { 4, 0 });
+            world.SetLinearVelocity(box, { 4.0f, 0.0f });
             Run(world, 1.5f);
             Check(world.GetPosition(box).x > 2.5f, "a box sliding in from the side passes through");
         }
         {
             World world;
-            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 }, 3.14159265f);
+            const BodyId platform = AddBody(world, BodyType::Static, { 0.0f, 0.0f }, 3.14159265f);
             AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 2 });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 2.0f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             Run(world, 1.0f);
             Check(world.GetPosition(box).y < -1.0f, "an upside-down platform lets a box from above fall through");
@@ -1087,7 +1087,7 @@ namespace
     {
         World world;
         AddGround(world);
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.52f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.52f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         JBro::Int32 begins = 0;
         JBro::Int32 beganAt = -1;
@@ -1096,12 +1096,12 @@ namespace
         for (JBro::Int32 i = 0; i < 20; ++i)
         {
             world.Step(Frame);
-            begins += static_cast<int>(world.GetBeginEvents().Size());
+            begins += static_cast<JBro::Int32>(world.GetBeginEvents().Size());
             if (beganAt < 0 && false == world.GetBeginEvents().IsEmpty())
             {
                 beganAt = i;
             }
-            const JBro::Int32 stays = static_cast<int>(world.GetStayEvents().Size());
+            const JBro::Int32 stays = static_cast<JBro::Int32>(world.GetStayEvents().Size());
             if (beganAt < 0 || beganAt == i)
             {
                 staysBefore += stays;
@@ -1131,9 +1131,9 @@ namespace
         first.layer = 1u << 1;
         ShapeDef second;
         second.layer = 1u << 2;
-        const BodyId lower = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        const BodyId lower = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
         AddPolygon(world, lower, BoxOutline(0.5f, 0.5f), first);
-        const BodyId upper = AddBody(world, BodyType::Dynamic, { 0, 3 });
+        const BodyId upper = AddBody(world, BodyType::Dynamic, { 0.0f, 3.0f });
         AddPolygon(world, upper, BoxOutline(0.5f, 0.5f), second);
         Run(world, 1.5f);
         Check(Near(world.GetPosition(lower).y, 0.5f, 0.02f) && Near(world.GetPosition(upper).y, 0.5f, 0.02f),
@@ -1141,9 +1141,9 @@ namespace
 
         World same;
         AddGround(same);
-        const BodyId bottom = AddBody(same, BodyType::Dynamic, { 0, 0.5f });
+        const BodyId bottom = AddBody(same, BodyType::Dynamic, { 0.0f, 0.5f });
         AddPolygon(same, bottom, BoxOutline(0.5f, 0.5f), first);
-        const BodyId top = AddBody(same, BodyType::Dynamic, { 0, 3 });
+        const BodyId top = AddBody(same, BodyType::Dynamic, { 0.0f, 3.0f });
         AddPolygon(same, top, BoxOutline(0.5f, 0.5f), second);
         same.Settings().ignoredLayers[1] = 1u << 2;
         Run(same, 1.5f);
@@ -1172,11 +1172,11 @@ namespace
         using JBro::Physics2D::JointId;
         {
             World world;
-            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2, 0 });
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2.0f, 0.0f });
             world.CreateCircleShape(ball, MakeBall(0.1f), {});
             DistanceJointDef def;
             def.bodyA = ball;
-            def.localAnchorB = { 0, 0 };
+            def.localAnchorB = { 0.0f, 0.0f };
             def.length = 2.0f;
             const JointId joint = world.CreateDistanceJoint(def);
             Check(world.IsValid(joint) && world.GetJointCount() == 1, "a distance joint to the world is made");
@@ -1184,14 +1184,14 @@ namespace
             for (JBro::Int32 i = 0; i < 120; ++i)
             {
                 world.Step(Frame);
-                worst = std::fmax(worst, std::fabs(DistanceBetween(world.GetPosition(ball), { 0, 0 }) - 2.0f));
+                worst = std::fmax(worst, std::fabs(DistanceBetween(world.GetPosition(ball), { 0.0f, 0.0f }) - 2.0f));
             }
             Check(worst < 0.02f, "a rigid distance joint keeps the ball two metres from the pin");
             Check(world.GetPosition(ball).y < -0.5f, "and the ball swings down");
         }
         {
             World world;
-            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, -1 });
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0.0f, -1.0f });
             world.CreateCircleShape(ball, MakeBall(0.1f), {});
             DistanceJointDef rope;
             rope.bodyA = ball;
@@ -1201,27 +1201,27 @@ namespace
             Run(world, 0.2f);
             Check(world.GetPosition(ball).y < -1.1f, "inside its length a rope lets the ball fall freely");
             Run(world, 1.5f);
-            const JBro::Float hanging = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            const JBro::Float hanging = DistanceBetween(world.GetPosition(ball), { 0.0f, 0.0f });
             Check(hanging > 1.95f && hanging < 2.02f, "and it stops the ball at its length");
         }
         {
             // 팽팽한 밧줄 끝의 공을 핀 쪽으로 던지면 밧줄은 막지 않는다 - 당기기만 하고 밀지 않는다.
             World world;
-            world.Settings().gravity = { 0, 0 };
-            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2, 0 });
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2.0f, 0.0f });
             world.CreateCircleShape(ball, MakeBall(0.1f), {});
             DistanceJointDef rope;
             rope.bodyA = ball;
             rope.length = 2.0f;
             rope.maxLengthOnly = true;
             world.CreateDistanceJoint(rope);
-            world.SetLinearVelocity(ball, { -10, 0 });
+            world.SetLinearVelocity(ball, { -10.0f, 0.0f });
             Run(world, 0.15f);
-            Check(DistanceBetween(world.GetPosition(ball), { 0, 0 }) < 1.0f, "a rope never pushes a ball thrown toward its pin");
+            Check(DistanceBetween(world.GetPosition(ball), { 0.0f, 0.0f }) < 1.0f, "a rope never pushes a ball thrown toward its pin");
         }
         {
             World world;
-            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, -1 });
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0.0f, -1.0f });
             world.CreateCircleShape(ball, MakeBall(0.1f), {});
             DistanceJointDef spring;
             spring.bodyA = ball;
@@ -1231,7 +1231,7 @@ namespace
             world.CreateDistanceJoint(spring);
             Run(world, 4.0f);
             // 고유 진동수 1 Hz 인 질량-용수철은 g / ω² ≈ 0.248 m 늘어나 선다.
-            const JBro::Float stretched = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            const JBro::Float stretched = DistanceBetween(world.GetPosition(ball), { 0.0f, 0.0f });
             Check(stretched > 1.2f && stretched < 1.3f, "a spring stretches under gravity by about g over omega squared");
         }
     }
@@ -1245,12 +1245,12 @@ namespace
         const JBro::Float degree = 3.14159265f / 180.0f;
         {
             World world;
-            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1, 0 });
+            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1.0f, 0.0f });
             AddPolygon(world, rod, BoxOutline(1.0f, 0.1f));
             HingeJointDef def;
             def.bodyA = rod;
-            def.localAnchorA = { -1, 0 };
-            def.localAnchorB = { 0, 0 };
+            def.localAnchorA = { -1.0f, 0.0f };
+            def.localAnchorB = { 0.0f, 0.0f };
             def.enableLimit = true;
             def.lowerAngle = -30.0f * degree;
             def.upperAngle = 30.0f * degree;
@@ -1264,7 +1264,7 @@ namespace
                 const Vector2 end = world.GetPosition(rod);
                 const JBro::Float angle = world.GetAngle(rod);
                 const Vector2 pin{ end.x - std::cos(angle), end.y - std::sin(angle) };
-                pinDrift = std::fmax(pinDrift, DistanceBetween(pin, { 0, 0 }));
+                pinDrift = std::fmax(pinDrift, DistanceBetween(pin, { 0.0f, 0.0f }));
             }
             Check(pinDrift < 0.02f, "a hinged rod keeps its end on the pin");
             // A 가 막대이고 B 가 월드라 막대가 아래로 돌면 상대 각(B - A)이 커진다 - 위 한계가 막는다.
@@ -1277,8 +1277,8 @@ namespace
         }
         {
             World world;
-            world.Settings().gravity = { 0, 0 };
-            const BodyId wheel = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId wheel = AddBody(world, BodyType::Dynamic, { 0.0f, 0.0f });
             world.CreateCircleShape(wheel, MakeBall(0.5f), {});
             HingeJointDef def;
             def.bodyA = wheel;
@@ -1299,13 +1299,13 @@ namespace
             // 핀에서 0.5 m 떨어져 시작하고 한계 밖(-0.5 rad, 한계 ±0.1)에 놓인 막대는 위치 보정이 핀으로 끌어오고 한계 안으로 돌린다.
             // 속도만 맞추면 벌어진 틈과 넘은 각은 그대로 남는다.
             World world;
-            world.Settings().gravity = { 0, 0 };
-            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1, 0 });
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1.0f, 0.0f });
             AddPolygon(world, rod, BoxOutline(1.0f, 0.1f));
             HingeJointDef def;
             def.bodyA = rod;
-            def.localAnchorA = { -1, 0 };
-            def.localAnchorB = { -0.5f, 0 };
+            def.localAnchorA = { -1.0f, 0.0f };
+            def.localAnchorB = { -0.5f, 0.0f };
             def.referenceAngle = 0.5f;
             def.enableLimit = true;
             def.lowerAngle = -0.1f;
@@ -1314,22 +1314,22 @@ namespace
             Run(world, 1.0f);
             const Vector2 end = world.GetPosition(rod);
             const JBro::Float angle = world.GetAngle(rod);
-            Check(DistanceBetween({ end.x - std::cos(angle), end.y - std::sin(angle) }, { -0.5f, 0 }) < 0.02f,
+            Check(DistanceBetween({ end.x - std::cos(angle), end.y - std::sin(angle) }, { -0.5f, 0.0f }) < 0.02f,
                 "a hinge that starts apart pulls its pins together");
             Check(world.GetHingeAngle(hinge) > -0.12f, "and one that starts past its limit turns back inside it");
         }
         {
             World world;
-            world.Settings().gravity = { 0, 0 };
-            const BodyId first = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId first = AddBody(world, BodyType::Dynamic, { 0.0f, 0.0f });
             AddPolygon(world, first, BoxOutline(0.5f, 0.5f));
-            const BodyId second = AddBody(world, BodyType::Dynamic, { 0.5f, 0 });
+            const BodyId second = AddBody(world, BodyType::Dynamic, { 0.5f, 0.0f });
             AddPolygon(world, second, BoxOutline(0.5f, 0.5f));
             HingeJointDef def;
             def.bodyA = first;
             def.bodyB = second;
-            def.localAnchorA = { 0.25f, 0 };
-            def.localAnchorB = { -0.25f, 0 };
+            def.localAnchorA = { 0.25f, 0.0f };
+            def.localAnchorB = { -0.25f, 0.0f };
             const JointId hinge = world.CreateHingeJoint(def);
             Run(world, 0.5f);
             Check(Near(world.GetPosition(second).x - world.GetPosition(first).x, 0.5f, 0.01f),
@@ -1353,40 +1353,40 @@ namespace
         using JBro::Physics2D::DistanceJointDef;
         World world;
         AddGround(world);
-        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0.0f, 0.5f });
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
-        const BodyId ball = AddBody(world, BodyType::Dynamic, { 3, 0.25f });
+        const BodyId ball = AddBody(world, BodyType::Dynamic, { 3.0f, 0.25f });
         world.CreateCircleShape(ball, MakeBall(0.25f), {});
         DistanceJointDef def;
         def.bodyA = box;
         def.bodyB = ball;
-        def.localAnchorB = { 0, 0 };
+        def.localAnchorB = { 0.0f, 0.0f };
         def.length = 3.0f;
         world.CreateDistanceJoint(def);
         Run(world, 2.0f);
         Check(false == world.IsAwake(box) && false == world.IsAwake(ball), "a box and the ball tied to it sleep together");
         const Vector2 boxBefore = world.GetPosition(box);
-        world.ApplyLinearImpulseToCenter(ball, { 6, 0 });
+        world.ApplyLinearImpulseToCenter(ball, { 6.0f, 0.0f });
         world.Step(Frame);
         Check(world.IsAwake(box), "waking the ball wakes the box it is tied to");
         Check(world.GetPosition(box).x > boxBefore.x, "and the pull moves the box in the same step");
 
         // 무거워서 거의 서 있는 몸도 이어진 몸이 도는 동안은 잠들지 않는다 - 섬의 가장 짧은 시간이 기준이다.
         World orbit;
-        orbit.Settings().gravity = { 0, 0 };
-        const BodyId hub = AddBody(orbit, BodyType::Dynamic, { 0, 0 });
+        orbit.Settings().gravity = { 0.0f, 0.0f };
+        const BodyId hub = AddBody(orbit, BodyType::Dynamic, { 0.0f, 0.0f });
         orbit.CreateCircleShape(hub, MakeBall(0.5f), {});
         JBro::Physics2D::BodyDef heavy;
         heavy.mass = 1000.0f;
         orbit.SetBodyProperties(hub, heavy);
-        const BodyId moon = AddBody(orbit, BodyType::Dynamic, { 2, 0 });
+        const BodyId moon = AddBody(orbit, BodyType::Dynamic, { 2.0f, 0.0f });
         orbit.CreateCircleShape(moon, MakeBall(0.1f), {});
         DistanceJointDef tether;
         tether.bodyA = hub;
         tether.bodyB = moon;
         tether.length = 2.0f;
         orbit.CreateDistanceJoint(tether);
-        orbit.SetLinearVelocity(moon, { 0, 2 });
+        orbit.SetLinearVelocity(moon, { 0.0f, 2.0f });
         JBro::Int32 hubAsleep = 0;
         for (JBro::Int32 i = 0; i < 120; ++i)
         {
@@ -1402,8 +1402,8 @@ namespace
     {
         using JBro::Physics2D::StepStats;
         const auto fire = [](World& world, JBro::Bool round) {
-            world.Settings().gravity = { 0, 0 };
-            const BodyId bullet = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId bullet = AddBody(world, BodyType::Dynamic, { 0.0f, 0.0f });
             if (round)
             {
                 world.CreateCircleShape(bullet, MakeBall(0.05f), {});
@@ -1412,7 +1412,7 @@ namespace
             {
                 AddPolygon(world, bullet, BoxOutline(0.05f, 0.05f));
             }
-            world.SetLinearVelocity(bullet, { 200, 0 });
+            world.SetLinearVelocity(bullet, { 200.0f, 0.0f });
             JBro::UInt32 hits = 0;
             for (JBro::Int32 i = 0; i < 30; ++i)
             {
@@ -1423,22 +1423,22 @@ namespace
         };
         {
             World world;
-            const BodyId wall = AddBody(world, BodyType::Static, { 5, 0 });
+            const BodyId wall = AddBody(world, BodyType::Static, { 5.0f, 0.0f });
             AddPolygon(world, wall, BoxOutline(0.05f, 3.0f));
             const auto [ball, hits] = fire(world, true);
             Check(world.GetPosition(ball).x < 5.0f && hits > 0, "a fast ball stops at a thin wall instead of passing it");
         }
         {
             World world;
-            const BodyId wall = AddBody(world, BodyType::Static, { 5, 0 });
+            const BodyId wall = AddBody(world, BodyType::Static, { 5.0f, 0.0f });
             AddPolygon(world, wall, BoxOutline(0.05f, 3.0f));
             const auto [box, hits] = fire(world, false);
             Check(world.GetPosition(box).x < 5.0f && hits > 0, "and so does a fast box");
         }
         {
             World world;
-            const BodyId line = AddBody(world, BodyType::Static, { 5, 0 });
-            const Array<Vector2> points{ { 0, -3 }, { 0, 3 } };
+            const BodyId line = AddBody(world, BodyType::Static, { 5.0f, 0.0f });
+            const Array<Vector2> points{ { 0.0f, -3.0f }, { 0.0f, 3.0f } };
             world.CreateChainShape(line, points.View(), false, {});
             const auto [ball, hits] = fire(world, true);
             Check(world.GetPosition(ball).x < 5.0f && hits > 0, "a chain segment stops it too");
@@ -1448,24 +1448,24 @@ namespace
             ShapeDef slippery;
             slippery.friction = 0.0f;
             AddGround(world, slippery);
-            const BodyId box = AddBody(world, BodyType::Dynamic, { -15, 0.5f });
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -15.0f, 0.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f), slippery);
             Run(world, 0.5f);
             // 서브스텝마다 0.375 m - 반폭 0.5 의 절반을 넘으므로 이어지는 판정이 돈다.
-            world.SetLinearVelocity(box, { 90, 0 });
+            world.SetLinearVelocity(box, { 90.0f, 0.0f });
             Run(world, 0.25f);
             Check(world.GetPosition(box).x > 5.0f, "a box sliding fast on the ground is not held back by the ground it touches");
         }
         {
             World world;
-            world.Settings().gravity = { 0, 0 };
+            world.Settings().gravity = { 0.0f, 0.0f };
             ShapeDef oneWay;
             oneWay.oneWay = true;
-            const BodyId ledge = AddBody(world, BodyType::Static, { 0, 5 });
+            const BodyId ledge = AddBody(world, BodyType::Static, { 0.0f, 5.0f });
             AddPolygon(world, ledge, BoxOutline(3.0f, 0.05f), oneWay);
-            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0.0f, 0.0f });
             world.CreateCircleShape(ball, MakeBall(0.05f), {});
-            world.SetLinearVelocity(ball, { 0, 200 });
+            world.SetLinearVelocity(ball, { 0.0f, 200.0f });
             Run(world, 0.1f);
             Check(world.GetPosition(ball).y > 6.0f, "a fast ball from below goes through a one-way ledge");
         }
@@ -1483,7 +1483,7 @@ namespace
                 for (JBro::Int32 row = 0; row < 25; ++row)
                 {
                     const BodyId box = AddBody(world, BodyType::Dynamic,
-                        { -18.0f + 1.5f * static_cast<float>(column), 0.5f + static_cast<float>(row) });
+                        { -18.0f + 1.5f * static_cast<JBro::Float>(column), 0.5f + static_cast<JBro::Float>(row) });
                     AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
                     boxes.Add(box);
                 }

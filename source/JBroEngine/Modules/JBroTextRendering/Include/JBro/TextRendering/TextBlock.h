@@ -12,6 +12,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Int.h>
 
 // 텍스트 한 덩어리의 레이아웃 캐시다(D-222). 2D `Text2D` 와 3D `Text3D` 가 같이 쓴다 - 컴포넌트는 제 필드로 `TextBlockSettings` 를
 // 채우고, 시스템은 매 프레임 `Update` 를 부른다. 글자·폰트·옵션·아틀라스가 바뀌었을 때만 다시 레이아웃하고, 결과는 글자 픽셀의 쿼드다.
@@ -19,14 +20,14 @@
 namespace JBro
 {
     // 컴포넌트의 배치 값(Tier S, JBroCore)과 커널의 값(Tier E)은 따로 있고 정수로 옮긴다. 순서가 어긋나면 여기서 멈춘다.
-    static_assert(static_cast<int>(Component::TextOverflow::Clip) == static_cast<int>(Text::Overflow::Clip));
-    static_assert(static_cast<int>(Component::TextOverflow::Wrap) == static_cast<int>(Text::Overflow::Wrap));
-    static_assert(static_cast<int>(Component::TextWrapMode::Character) == static_cast<int>(Text::WrapMode::Character));
-    static_assert(static_cast<int>(Component::TextAlignX::Right) == static_cast<int>(Text::AlignX::Right));
-    static_assert(static_cast<int>(Component::TextAlignX::Center) == static_cast<int>(Text::AlignX::Center));
-    static_assert(static_cast<int>(Component::TextAlignY::Middle) == static_cast<int>(Text::AlignY::Middle));
-    static_assert(static_cast<int>(Component::TextAlignY::Baseline) == static_cast<int>(Text::AlignY::Baseline));
-    static_assert(static_cast<int>(Component::TextAlignY::Bottom) == static_cast<int>(Text::AlignY::Bottom));
+    static_assert(static_cast<JBro::Int32>(Component::TextOverflow::Clip) == static_cast<JBro::Int32>(Text::Overflow::Clip));
+    static_assert(static_cast<JBro::Int32>(Component::TextOverflow::Wrap) == static_cast<JBro::Int32>(Text::Overflow::Wrap));
+    static_assert(static_cast<JBro::Int32>(Component::TextWrapMode::Character) == static_cast<JBro::Int32>(Text::WrapMode::Character));
+    static_assert(static_cast<JBro::Int32>(Component::TextAlignX::Right) == static_cast<JBro::Int32>(Text::AlignX::Right));
+    static_assert(static_cast<JBro::Int32>(Component::TextAlignX::Center) == static_cast<JBro::Int32>(Text::AlignX::Center));
+    static_assert(static_cast<JBro::Int32>(Component::TextAlignY::Middle) == static_cast<JBro::Int32>(Text::AlignY::Middle));
+    static_assert(static_cast<JBro::Int32>(Component::TextAlignY::Baseline) == static_cast<JBro::Int32>(Text::AlignY::Baseline));
+    static_assert(static_cast<JBro::Int32>(Component::TextAlignY::Bottom) == static_cast<JBro::Int32>(Text::AlignY::Bottom));
 
     inline Text::Overflow ToLayout(Component::TextOverflow value)
     {

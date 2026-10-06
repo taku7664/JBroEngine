@@ -92,7 +92,7 @@ namespace
             in.Add(event);
         }
         JBro::Array<InputEvent> out;
-        focus.FilterInput({ in.Data(), static_cast<std::uint32_t>(in.Size()) }, out);
+        focus.FilterInput({ in.Data(), static_cast<JBro::UInt32>(in.Size()) }, out);
         return out;
     }
 
@@ -425,9 +425,9 @@ namespace
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
         const ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        const JBro::Int32 insideX = static_cast<int>(inspector->Pos.x + inspector->Size.x * 0.5f);
-        const JBro::Int32 insideY = static_cast<int>(inspector->Pos.y + inspector->Size.y * 0.5f);
-        Check(focus.IsAllowed({ static_cast<float>(insideX), static_cast<float>(insideY) }),
+        const JBro::Int32 insideX = static_cast<JBro::Int32>(inspector->Pos.x + inspector->Size.x * 0.5f);
+        const JBro::Int32 insideY = static_cast<JBro::Int32>(inspector->Pos.y + inspector->Size.y * 0.5f);
+        Check(focus.IsAllowed({ static_cast<JBro::Float>(insideX), static_cast<JBro::Float>(insideY) }),
             "the inspector the editor drew is the allowed area");
         Check(false == focus.IsAllowed({ 40.0f, 40.0f }), "and the top left of the editor is not");
 
@@ -445,7 +445,7 @@ namespace
         PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(insideX, insideY));
         Check(editor.Tick(Frame), "the editor must tick");
         Check(ImGui::GetIO().MouseDown[0], "a press inside the hole reaches ImGui");
-        Check(ImGui::GetIO().MousePos.x == static_cast<float>(insideX) && ImGui::GetIO().MousePos.y == static_cast<float>(insideY),
+        Check(ImGui::GetIO().MousePos.x == static_cast<JBro::Float>(insideX) && ImGui::GetIO().MousePos.y == static_cast<JBro::Float>(insideY),
             "at the real position");
         PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(insideX, insideY));
         Check(editor.Tick(Frame), "the editor must tick");

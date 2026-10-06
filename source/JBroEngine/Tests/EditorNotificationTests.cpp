@@ -66,7 +66,7 @@ namespace
 
     void Run(EditorNotifications& notifications, JBro::Float seconds)
     {
-        const JBro::Int32 frames = static_cast<int>(std::ceil(seconds / Frame));
+        const JBro::Int32 frames = static_cast<JBro::Int32>(std::ceil(seconds / Frame));
         for (JBro::Int32 frame = 0; frame < frames; ++frame)
         {
             notifications.Update(Frame);
@@ -448,7 +448,7 @@ namespace
 
     void Settle(Stage& stage, EditorNotifications& notifications, JBro::Float seconds)
     {
-        const JBro::Int32 frames = static_cast<int>(std::ceil(seconds / Frame));
+        const JBro::Int32 frames = static_cast<JBro::Int32>(std::ceil(seconds / Frame));
         for (JBro::Int32 frame = 0; frame < frames; ++frame)
         {
             stage.Step(notifications);
@@ -497,7 +497,7 @@ namespace
         const JBro::Float raisedY = BoxOf(upper)->Pos.y;
         notifications.Dismiss(lower);
         // 사라지는 데 걸리는 시간의 절반. 아직 아래 상자가 남아 있다.
-        const JBro::Int32 half = static_cast<int>(EditorNotifications::FadeSeconds / Frame / 2.0f);
+        const JBro::Int32 half = static_cast<JBro::Int32>(EditorNotifications::FadeSeconds / Frame / 2.0f);
         for (JBro::Int32 frame = 0; frame < half; ++frame)
         {
             stage.Step(notifications);
@@ -598,7 +598,7 @@ namespace
         JBro::Bool clicked = false;
         for (JBro::Int32 step = 1; step <= 10; ++step)
         {
-            stage.MoveMouse(x - 20.0f * static_cast<float>(step), y);
+            stage.MoveMouse(x - 20.0f * static_cast<JBro::Float>(step), y);
             clicked = stage.Step(notifications) != JBro::InvalidNotificationHandle || clicked;
         }
         Check(BoxOf(handle)->Pos.x < restX - 100.0f, "the box must follow the pointer while dragged");
@@ -720,8 +720,8 @@ namespace
         const ImVector<ImGuiWindow*>& windows = ImGui::GetCurrentContext()->Windows;
         Check(windows[windows.Size - 1] == box, "in front of the docked panels");
 
-        const JBro::Int32 x = static_cast<int>(box->Pos.x + box->Size.x * 0.4f);
-        const JBro::Int32 y = static_cast<int>(box->Pos.y + box->Size.y * 0.7f);
+        const JBro::Int32 x = static_cast<JBro::Int32>(box->Pos.x + box->Size.x * 0.4f);
+        const JBro::Int32 y = static_cast<JBro::Int32>(box->Pos.y + box->Size.y * 0.7f);
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
         Check(editor.Tick(Frame), "the editor must tick");
         PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));

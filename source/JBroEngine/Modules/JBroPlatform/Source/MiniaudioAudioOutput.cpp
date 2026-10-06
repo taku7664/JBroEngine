@@ -196,7 +196,8 @@ namespace JBro::Internal
                     std::memset(output, 0, sizeof(float) * frameCount * device->playback.channels);
                     return;
                 }
-                callback(self->m_user.load(std::memory_order_relaxed), static_cast<float*>(output), frameCount);
+                // miniaudio 가 넘기는 출력은 float 배열이다. Float 는 float 하나의 standard-layout 이라 같은 자리를 그대로 쓴다(라이브러리 경계).
+                callback(self->m_user.load(std::memory_order_relaxed), static_cast<Float*>(output), frameCount);
             }
 
             ma_context m_context = {};

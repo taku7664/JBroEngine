@@ -33,7 +33,7 @@ namespace JBro
 
         UInt32 ElementBytes() const override
         {
-            return static_cast<std::uint32_t>(sizeof(Wire));
+            return static_cast<JBro::UInt32>(sizeof(Wire));
         }
 
         void Visit(Network::IReplicatedPoolVisitor& visitor) override

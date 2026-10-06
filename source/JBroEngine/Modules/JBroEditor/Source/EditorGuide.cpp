@@ -179,11 +179,11 @@ Steps:
             }
             // 받을 결과가 비었다(남긴 단계를 건너뛰었거나 그 오브젝트가 사라졌다). 남긴 단계로 돌아가 다시 하게 한다.
             const Int32 retreat = m_guide->steps[index].retreatOnMissing;
-            if (retreat >= 0 && static_cast<std::uint32_t>(retreat) < index
-                && TryEnter(static_cast<std::uint32_t>(retreat), editor, focus))
+            if (retreat >= 0 && static_cast<JBro::UInt32>(retreat) < index
+                && TryEnter(static_cast<JBro::UInt32>(retreat), editor, focus))
             {
                 Log::Write(LogLevel::Info, "editor", "guide %s: step %u has nothing to point at; back to step %u",
-                    m_guide->id, index + 1, static_cast<std::uint32_t>(retreat) + 1);
+                    m_guide->id, index + 1, static_cast<JBro::UInt32>(retreat) + 1);
                 m_revisiting = false;
                 m_confirming = false;
                 return true;
@@ -314,12 +314,12 @@ Steps:
                 return;
             }
         }
-        if (broken && step.retreatOnBreak >= 0 && static_cast<std::uint32_t>(step.retreatOnBreak) < m_step)
+        if (broken && step.retreatOnBreak >= 0 && static_cast<JBro::UInt32>(step.retreatOnBreak) < m_step)
         {
             // 가리킬 것을 다시 마련하는 단계로 돌아간다. 돌아온 것이 아니라 새로 들어선 것이다 - 조건으로 넘어가야 한다.
             Log::Write(LogLevel::Info, "editor", "guide %s: step %u lost its target; back to step %u",
-                m_guide->id, m_step + 1, static_cast<std::uint32_t>(step.retreatOnBreak) + 1);
-            if (TryEnter(static_cast<std::uint32_t>(step.retreatOnBreak), editor, focus))
+                m_guide->id, m_step + 1, static_cast<JBro::UInt32>(step.retreatOnBreak) + 1);
+            if (TryEnter(static_cast<JBro::UInt32>(step.retreatOnBreak), editor, focus))
             {
                 m_revisiting = false;
                 m_confirming = false;
@@ -359,7 +359,7 @@ Steps:
     {
         UInt32 GetBuiltinCount()
         {
-            return static_cast<std::uint32_t>(Builtins().Size());
+            return static_cast<JBro::UInt32>(Builtins().Size());
         }
 
         const Guide& GetBuiltin(UInt32 index)

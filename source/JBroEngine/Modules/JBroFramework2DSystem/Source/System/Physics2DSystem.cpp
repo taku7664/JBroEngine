@@ -814,7 +814,7 @@ namespace JBro::System
                         ++count;
                     }
                 }
-                point = { sum.x / static_cast<float>(count), sum.y / static_cast<float>(count) };
+                point = { sum.x / static_cast<JBro::Float>(count), sum.y / static_cast<JBro::Float>(count) };
             }
             hit = MakeHit(*m_canvas, shape.owner, point, normal, candidate);
         });

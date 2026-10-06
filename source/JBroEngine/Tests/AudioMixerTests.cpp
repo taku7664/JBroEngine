@@ -49,14 +49,14 @@ namespace
     }
 #endif
 
-    Array<float> MakeSine(JBro::UInt32 channels, JBro::Float frequency, JBro::Float amplitude, JBro::Float seconds)
+    Array<JBro::Float> MakeSine(JBro::UInt32 channels, JBro::Float frequency, JBro::Float amplitude, JBro::Float seconds)
     {
-        const JBro::UInt32 frames = static_cast<std::uint32_t>(seconds * static_cast<float>(Rate));
-        Array<float> samples;
+        const JBro::UInt32 frames = static_cast<JBro::UInt32>(seconds * static_cast<JBro::Float>(Rate));
+        Array<JBro::Float> samples;
         samples.Resize(static_cast<std::size_t>(frames) * channels);
         for (JBro::UInt32 frame = 0; frame < frames; ++frame)
         {
-            const JBro::Float value = amplitude * std::sin(2.0f * Pi * frequency * static_cast<float>(frame) / static_cast<float>(Rate));
+            const JBro::Float value = amplitude * std::sin(2.0f * Pi * frequency * static_cast<JBro::Float>(frame) / static_cast<JBro::Float>(Rate));
             for (JBro::UInt32 channel = 0; channel < channels; ++channel)
             {
                 samples[static_cast<std::size_t>(frame) * channels + channel] = value;
@@ -65,7 +65,7 @@ namespace
         return samples;
     }
 
-    AudioClipHandle RegisterPcm(AudioMixer& mixer, const Array<float>& samples, JBro::UInt32 channels)
+    AudioClipHandle RegisterPcm(AudioMixer& mixer, const Array<JBro::Float>& samples, JBro::UInt32 channels)
     {
         AudioClipDesc desc;
         desc.encoding = AudioClipEncoding::Pcm;
@@ -78,7 +78,7 @@ namespace
 
     struct Rendered
     {
-        Array<float> samples;
+        Array<JBro::Float> samples;
         JBro::Float Peak(std::size_t channel, std::size_t beginFrame = 0, std::size_t endFrame = static_cast<std::size_t>(-1)) const
         {
             JBro::Float peak = 0.0f;
@@ -157,7 +157,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
         Check(clip.IsSet(), "a PCM clip registers");
 
@@ -212,7 +212,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 0.1f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 0.1f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
 
         AudioPlayDesc play;
@@ -250,7 +250,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
 
         AudioPlayDesc play;
@@ -275,11 +275,11 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(1, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(1, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 1);
-        const float origin[3] = {0.0f, 0.0f, 0.0f};
-        const float forward[3] = {0.0f, 0.0f, -1.0f};
-        const float up[3] = {0.0f, 1.0f, 0.0f};
+        const JBro::Float origin[3] = {0.0f, 0.0f, 0.0f};
+        const JBro::Float forward[3] = {0.0f, 0.0f, -1.0f};
+        const JBro::Float up[3] = {0.0f, 1.0f, 0.0f};
         mixer.SetListener(origin, forward, up);
 
         AudioPlayDesc play;
@@ -294,12 +294,12 @@ namespace
         Check(out.Peak(1, 2400) > out.Peak(0, 2400) * 1.5f, "a source to the right of the listener is louder on the right");
         const JBro::Float nearPeak = out.Peak(1, 2400);
 
-        const float far[3] = {15.0f, 0.0f, 0.0f};
+        const JBro::Float far[3] = {15.0f, 0.0f, 0.0f};
         mixer.SetPosition(right, far);
         out = Render(mixer, 4800);
         Check(out.Peak(1, 2400) < nearPeak * 0.8f, "moving the source away attenuates it");
 
-        const float beyond[3] = {40.0f, 0.0f, 0.0f};
+        const JBro::Float beyond[3] = {40.0f, 0.0f, 0.0f};
         mixer.SetPosition(right, beyond);
         out = Render(mixer, 4800);
         Check(out.Peak(1, 2400) < 0.01f, "linear attenuation reaches silence past the maximum distance");
@@ -340,7 +340,7 @@ namespace
         put32(40, dataBytes);
         for (JBro::UInt32 frame = 0; frame < frames; ++frame)
         {
-            const JBro::Float value = amplitude * std::sin(2.0f * Pi * frequency * static_cast<float>(frame) / static_cast<float>(Rate));
+            const JBro::Float value = amplitude * std::sin(2.0f * Pi * frequency * static_cast<JBro::Float>(frame) / static_cast<JBro::Float>(Rate));
             const std::int16_t sample = static_cast<std::int16_t>(value * 32767.0f);
             std::memcpy(bytes.Data() + 44 + frame * 4, &sample, 2);
             std::memcpy(bytes.Data() + 44 + frame * 4 + 2, &sample, 2);
@@ -381,7 +381,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 2.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 2.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
         AudioPlayDesc play;
         play.clip = clip;
@@ -403,8 +403,8 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> high = MakeSine(2, 5000.0f, 0.5f, 1.0f);
-        const Array<float> low = MakeSine(2, 100.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> high = MakeSine(2, 5000.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> low = MakeSine(2, 100.0f, 0.5f, 1.0f);
         const AudioClipHandle highClip = RegisterPcm(mixer, high, 2);
         const AudioClipHandle lowClip = RegisterPcm(mixer, low, 2);
         const AudioBusId bus = mixer.CreateBus(1.0f);
@@ -436,7 +436,7 @@ namespace
         mixer.Stop(voice);
 
         // 메아리: 0.05 초 소리 뒤 0.2 초에 되울린다.
-        const Array<float> burst = MakeSine(2, 440.0f, 0.5f, 0.05f);
+        const Array<JBro::Float> burst = MakeSine(2, 440.0f, 0.5f, 0.05f);
         const AudioClipHandle burstClip = RegisterPcm(mixer, burst, 2);
         play.clip = burstClip;
         play.loop = false;
@@ -474,7 +474,7 @@ namespace
         mixer.SetBusEffects(bus, effects);
         play.loop = true;
         mixer.Play(play);
-        Array<float> buffer;
+        Array<JBro::Float> buffer;
         buffer.Resize(960);
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_crtAllocations = 0;
@@ -482,7 +482,7 @@ namespace
 #endif
         for (JBro::Int32 frame = 0; frame < 200; ++frame)
         {
-            effects.lowPassHz = 1000.0f + static_cast<float>(frame * 10);
+            effects.lowPassHz = 1000.0f + static_cast<JBro::Float>(frame * 10);
             mixer.SetBusEffects(bus, effects);
             mixer.Render(buffer.Data(), 480);
             mixer.Update();
@@ -500,7 +500,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.3f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.3f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
         const AudioBusId bus = mixer.CreateBus(1.0f);
         AudioPlayDesc play;
@@ -512,7 +512,7 @@ namespace
         std::atomic<bool> bad{false};
         std::thread audio([&]
         {
-            float buffer[480 * 2];
+            JBro::Float buffer[480 * 2];
             while (running.load(std::memory_order_acquire))
             {
                 mixer.Render(buffer, 480);
@@ -528,10 +528,10 @@ namespace
         AudioBusEffects effects;
         for (JBro::Int32 round = 0; round < 2000; ++round)
         {
-            effects.lowPassHz = (round % 3) == 0 ? 0.0f : 200.0f + static_cast<float>(round % 17) * 500.0f;
-            effects.highPassHz = (round % 5) == 0 ? 0.0f : 50.0f + static_cast<float>(round % 7) * 100.0f;
+            effects.lowPassHz = (round % 3) == 0 ? JBro::Float(0.0f) : 200.0f + static_cast<JBro::Float>(round % 17) * 500.0f;
+            effects.highPassHz = (round % 5) == 0 ? JBro::Float(0.0f) : 50.0f + static_cast<JBro::Float>(round % 7) * 100.0f;
             effects.echoMix = (round % 2) == 0 ? 0.0f : 0.4f;
-            effects.echoDelay = 0.01f + static_cast<float>(round % 11) * 0.15f;
+            effects.echoDelay = 0.01f + static_cast<JBro::Float>(round % 11) * 0.15f;
             effects.reverbMix = (round % 4) == 0 ? 0.0f : 0.3f;
             mixer.SetBusEffects(bus, effects);
         }
@@ -546,7 +546,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
 
         // 중첩: SFX(0.5) 아래 Footsteps(0.5) 의 소리는 둘을 곱한 0.25 배다.
@@ -624,7 +624,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> high = MakeSine(2, 5000.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> high = MakeSine(2, 5000.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, high, 2);
         AudioPlayDesc play;
         play.clip = clip;
@@ -644,7 +644,7 @@ namespace
         Check(Render(mixer, 9600).Peak(0, 4800) < 0.1f, "a high-pass set while playing cuts the voice");
 
         // 켜고 끄기를 거듭해도 할당이 없다(노드는 초기화 때 만들었다).
-        Array<float> buffer;
+        Array<JBro::Float> buffer;
         buffer.Resize(960);
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_crtAllocations = 0;
@@ -652,7 +652,7 @@ namespace
 #endif
         for (JBro::Int32 frame = 0; frame < 200; ++frame)
         {
-            mixer.SetVoiceFilter(muffled, (frame % 3) == 0 ? 0.0f : 500.0f + static_cast<float>(frame), 0.0f);
+            mixer.SetVoiceFilter(muffled, (frame % 3) == 0 ? JBro::Float(0.0f) : 500.0f + static_cast<JBro::Float>(frame), 0.0f);
             mixer.Render(buffer.Data(), 480);
         }
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -672,7 +672,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 1000.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 1000.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
         AudioPlayDesc play;
         play.clip = clip;
@@ -695,7 +695,7 @@ namespace
         mixer.SetOutputGain(1.0f, 0.0f);
         Render(mixer, 4800);
 
-        float bands[32];
+        JBro::Float bands[32];
         mixer.ComputeSpectrum(bands, 32);
         JBro::UInt32 loudest = 0;
         for (JBro::UInt32 band = 1; band < 32; ++band)
@@ -705,14 +705,14 @@ namespace
                 loudest = band;
             }
         }
-        const JBro::Float from = 30.0f * std::pow(24000.0f / 30.0f, static_cast<float>(loudest) / 32.0f);
-        const JBro::Float to = 30.0f * std::pow(24000.0f / 30.0f, static_cast<float>(loudest + 1) / 32.0f);
+        const JBro::Float from = 30.0f * std::pow(24000.0f / 30.0f, static_cast<JBro::Float>(loudest) / 32.0f);
+        const JBro::Float to = 30.0f * std::pow(24000.0f / 30.0f, static_cast<JBro::Float>(loudest + 1) / 32.0f);
         std::cout << "  spectrum: loudest band " << loudest << " (" << from << ".." << to << " Hz) = " << bands[loudest] << '\n';
         Check(from <= 1050.0f && to >= 950.0f, "the loudest spectrum band holds the 1 kHz tone");
         // 0.5 는 -6 dB 이므로 (72 - 6) / 72 ≈ 0.92 다.
         Check(bands[loudest] > 0.85f && bands[loudest] < 0.97f, "the spectrum reads the tone's level in decibels");
         Check(bands[31] < bands[loudest] - 0.3f, "bands far from the tone are much quieter");
-        float recent[64];
+        JBro::Float recent[64];
         Check(mixer.CopyRecentOutput(recent, 64) == 64, "the recent output can be copied");
         mixer.Shutdown();
     }
@@ -732,7 +732,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
         const AudioBusId music = mixer.CreateBus(1.0f);
         AudioPlayDesc play;
@@ -766,7 +766,7 @@ namespace
         const AudioBusId voice = mixer.CreateBus(1.0f);
         mixer.SetBusDucking(music, voice, 0.5f, 0.1f);
         Check(mixer.GetBusDuckTrigger(music) == voice && mixer.GetBusDuckAmount(music) == 0.5f, "the bus reports its ducking");
-        const Array<float> line = MakeSine(2, 1000.0f, 0.3f, 0.3f);
+        const Array<JBro::Float> line = MakeSine(2, 1000.0f, 0.3f, 0.3f);
         const AudioClipHandle lineClip = RegisterPcm(mixer, line, 2);
         AudioPlayDesc speak;
         speak.clip = lineClip;
@@ -808,7 +808,7 @@ namespace
     struct HalfGain
     {
         std::atomic<int> calls{0};
-        static void Process(void* user, float* frames, JBro::UInt32 frameCount, JBro::UInt32 channels, JBro::UInt32)
+        static void Process(void* user, JBro::Float* frames, JBro::UInt32 frameCount, JBro::UInt32 channels, JBro::UInt32)
         {
             HalfGain* self = static_cast<HalfGain*>(user);
             self->calls.fetch_add(1, std::memory_order_relaxed);
@@ -824,7 +824,7 @@ namespace
     {
         std::atomic<bool> active{false};
         std::atomic<int> calls{0};
-        static void Process(void* user, float*, JBro::UInt32, JBro::UInt32, JBro::UInt32)
+        static void Process(void* user, JBro::Float*, JBro::UInt32, JBro::UInt32, JBro::UInt32)
         {
             SlowProbe* self = static_cast<SlowProbe*>(user);
             self->active.store(true, std::memory_order_seq_cst);
@@ -841,7 +841,7 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
         const AudioBusId bus = mixer.CreateBus(1.0f);
         AudioPlayDesc play;
@@ -860,7 +860,7 @@ namespace
         std::atomic<bool> running{true};
         std::thread audio([&]
         {
-            float buffer[480 * 2];
+            JBro::Float buffer[480 * 2];
             while (running.load(std::memory_order_acquire))
             {
                 mixer.Render(buffer, 480);
@@ -898,7 +898,7 @@ namespace
     {
         AudioMixer mixer;
         AudioBusId bus = AudioMasterBus;
-        Array<float> sine;
+        Array<JBro::Float> sine;
         AudioVoiceHandle voice;
 
         void Open(JBro::Float frequency, JBro::Float amplitude)
@@ -930,7 +930,7 @@ namespace
         {
             sum += static_cast<double>(out.samples[frame * 2]) * out.samples[frame * 2];
         }
-        return static_cast<float>(std::sqrt(sum / static_cast<double>(frames)));
+        return static_cast<JBro::Float>(std::sqrt(sum / static_cast<double>(frames)));
     }
 
     void TestEqualizer()
@@ -1030,7 +1030,7 @@ namespace
         // 리미터: 같은 소리 둘이 겹쳐 1.6 이 되어도 천장 아래로 부드럽게 눌린다. 끄면 1 에서 잘린다.
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc()), "mixer initializes");
-        const Array<float> loud = MakeSine(2, 440.0f, 0.8f, 1.0f);
+        const Array<JBro::Float> loud = MakeSine(2, 440.0f, 0.8f, 1.0f);
         AudioPlayDesc play;
         play.clip = RegisterPcm(mixer, loud, 2);
         play.loop = true;
@@ -1062,7 +1062,7 @@ namespace
         all.pitchShift = 5.0f;
         all.compRatio = 3.0f;
         bench.mixer.SetBusEffects(bench.bus, all);
-        Array<float> buffer;
+        Array<JBro::Float> buffer;
         buffer.Resize(960);
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_crtAllocations = 0;
@@ -1070,9 +1070,9 @@ namespace
 #endif
         for (JBro::Int32 frame = 0; frame < 200; ++frame)
         {
-            all.eqMidHz = 500.0f + static_cast<float>(frame * 10);
-            all.pitchShift = static_cast<float>((frame % 24) - 12);
-            all.compThreshold = -30.0f + static_cast<float>(frame % 20);
+            all.eqMidHz = 500.0f + static_cast<JBro::Float>(frame * 10);
+            all.pitchShift = static_cast<JBro::Float>((frame % 24) - 12);
+            all.compThreshold = -30.0f + static_cast<JBro::Float>(frame % 20);
             bench.mixer.SetBusEffects(bench.bus, all);
             bench.mixer.Render(buffer.Data(), 480);
         }
@@ -1084,7 +1084,7 @@ namespace
         std::atomic<bool> bad{false};
         std::thread audio([&]
         {
-            float block[480 * 2];
+            JBro::Float block[480 * 2];
             while (running.load(std::memory_order_acquire))
             {
                 bench.mixer.Render(block, 480);
@@ -1103,7 +1103,7 @@ namespace
             changing.eqLowGain = (round % 3) == 0 ? 0.0f : 6.0f;
             changing.distortion = (round % 4) == 0 ? 0.0f : 0.5f;
             changing.chorusMix = (round % 5) == 0 ? 0.0f : 0.7f;
-            changing.pitchShift = static_cast<float>((round % 25) - 12);
+            changing.pitchShift = static_cast<JBro::Float>((round % 25) - 12);
             changing.compRatio = (round % 2) == 0 ? 1.0f : 8.0f;
             bench.mixer.SetBusEffects(bench.bus, changing);
         }
@@ -1117,13 +1117,13 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc(4)), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
         AudioPlayDesc play;
         play.clip = clip;
         play.loop = true;
         AudioVoiceHandle voices[4];
-        const float volumes[4] = {1.0f, 0.2f, 1.0f, 1.0f};
+        const JBro::Float volumes[4] = {1.0f, 0.2f, 1.0f, 1.0f};
         for (JBro::Int32 index = 0; index < 4; ++index)
         {
             play.volume = volumes[index];
@@ -1152,7 +1152,7 @@ namespace
         AudioMixer mixer;
         // 줄여 끄는 보이스가 한꺼번에 몰려도 훔치기가 끼어들지 않을 만큼 둔다.
         Check(mixer.Initialize(SmallDesc(40)), "mixer initializes");
-        const Array<float> sine = MakeSine(2, 440.0f, 0.3f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.3f, 1.0f);
         AudioClipDesc desc;
         desc.encoding = AudioClipEncoding::Pcm;
         desc.pcm = sine.Data();
@@ -1217,11 +1217,11 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc(2)), "mixer initializes");
-        const Array<float> sine = MakeSine(1, 440.0f, 0.5f, 1.0f);
+        const Array<JBro::Float> sine = MakeSine(1, 440.0f, 0.5f, 1.0f);
         const AudioClipHandle clip = RegisterPcm(mixer, sine, 1);
-        const float origin[3] = {0.0f, 0.0f, 0.0f};
-        const float forward[3] = {0.0f, 0.0f, -1.0f};
-        const float up[3] = {0.0f, 1.0f, 0.0f};
+        const JBro::Float origin[3] = {0.0f, 0.0f, 0.0f};
+        const JBro::Float forward[3] = {0.0f, 0.0f, -1.0f};
+        const JBro::Float up[3] = {0.0f, 1.0f, 0.0f};
         mixer.SetListener(origin, forward, up);
         // 보이스 둘을 가장 낮은 우선순위로 채운다 - 걸러지지 않으면 하나를 훔쳤을 것이다.
         AudioPlayDesc filler;
@@ -1286,11 +1286,11 @@ namespace
         const auto measure = [](JBro::UInt32 clipRate) {
             AudioMixer mixer;
             Check(mixer.Initialize(SmallDesc(32)), "mixer initializes");
-            Array<float> samples;
+            Array<JBro::Float> samples;
             samples.Resize(static_cast<std::size_t>(clipRate) * 2);
             for (std::size_t index = 0; index < samples.Size(); ++index)
             {
-                samples[index] = 0.01f * std::sin(static_cast<float>(index) * 0.01f);
+                samples[index] = 0.01f * std::sin(static_cast<JBro::Float>(index) * 0.01f);
             }
             AudioClipDesc desc;
             desc.encoding = AudioClipEncoding::Pcm;
@@ -1321,7 +1321,7 @@ namespace
     struct VirtualBench
     {
         AudioMixer mixer;
-        Array<float> sine;
+        Array<JBro::Float> sine;
         AudioClipHandle clip;
         AudioBusId buses[4] = {};
         AudioVoiceHandle loops[4];
@@ -1331,9 +1331,9 @@ namespace
             AudioMixerDesc desc = SmallDesc(8);
             desc.maxAudibleVoices = audible;
             Check(mixer.Initialize(desc), "mixer initializes");
-            const float origin[3] = {0.0f, 0.0f, 0.0f};
-            const float forward[3] = {0.0f, 0.0f, -1.0f};
-            const float up[3] = {0.0f, 1.0f, 0.0f};
+            const JBro::Float origin[3] = {0.0f, 0.0f, 0.0f};
+            const JBro::Float forward[3] = {0.0f, 0.0f, -1.0f};
+            const JBro::Float up[3] = {0.0f, 1.0f, 0.0f};
             mixer.SetListener(origin, forward, up);
             sine = MakeSine(1, 440.0f, 0.5f, 1.0f);
             clip = RegisterPcm(mixer, sine, 1);
@@ -1359,7 +1359,7 @@ namespace
 
         void Move(AudioVoiceHandle voice, JBro::Float x)
         {
-            const float position[3] = {x, 0.0f, 0.0f};
+            const JBro::Float position[3] = {x, 0.0f, 0.0f};
             mixer.SetPosition(voice, position);
         }
 
@@ -1503,11 +1503,11 @@ namespace
         bench.Open(2);
         for (JBro::Int32 index = 0; index < 4; ++index)
         {
-            bench.loops[index] = bench.PlayLoop(index, 5.0f + 5.0f * static_cast<float>(index));
+            bench.loops[index] = bench.PlayLoop(index, 5.0f + 5.0f * static_cast<JBro::Float>(index));
         }
         bench.Step();
         // 시험의 `Render` 는 결과 배열을 새로 잡으므로 여기서는 미리 잡은 칸에 섞는다.
-        Array<float> buffer;
+        Array<JBro::Float> buffer;
         buffer.Resize(960);
         const JBro::UInt64 growthsBefore = bench.mixer.GetStats().allocatorGrowths;
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -1520,7 +1520,7 @@ namespace
             const JBro::Int32 nearest = (frame / 18) % 4;
             for (JBro::Int32 index = 0; index < 4; ++index)
             {
-                bench.Move(bench.loops[index], index == nearest ? 1.0f : 15.0f + static_cast<float>(index));
+                bench.Move(bench.loops[index], index == nearest ? JBro::Float(1.0f) : 15.0f + static_cast<JBro::Float>(index));
             }
             bench.mixer.Update();
             bench.mixer.Render(buffer.Data(), 400);
@@ -1539,8 +1539,8 @@ namespace
     // 오디오 전체 점검(D-240)에서 찾은 보이스의 반례들이다. 각 검사는 고치기 전의 코드에서 떨어진다.
     void TestVoiceAuditRegressions()
     {
-        const Array<float> longTone = MakeSine(1, 440.0f, 0.3f, 1.0f);
-        const Array<float> blip = MakeSine(1, 440.0f, 0.3f, 0.05f);
+        const Array<JBro::Float> longTone = MakeSine(1, 440.0f, 0.3f, 1.0f);
+        const Array<JBro::Float> blip = MakeSine(1, 440.0f, 0.3f, 0.05f);
         {
             // 섞는 수가 찼고 새 소리를 받을 자리가 없으면 아무것도 죽이지 않고 거절한다.
             AudioMixerDesc desc = SmallDesc(4);
@@ -1717,14 +1717,14 @@ namespace
             const AudioBusId child = mixer.CreateBus(1.0f);
             struct Poison
             {
-                static void Run(void*, float* frames, JBro::UInt32, JBro::UInt32, JBro::UInt32)
+                static void Run(void*, JBro::Float* frames, JBro::UInt32, JBro::UInt32, JBro::UInt32)
                 {
                     frames[0] = std::numeric_limits<float>::infinity();
                     frames[1] = std::numeric_limits<float>::quiet_NaN();
                 }
             };
             mixer.SetBusProcessor(child, &Poison::Run, nullptr);
-            const Array<float> tone = MakeSine(2, 440.0f, 0.5f, 1.0f);
+            const Array<JBro::Float> tone = MakeSine(2, 440.0f, 0.5f, 1.0f);
             AudioPlayDesc play;
             play.clip = RegisterPcm(mixer, tone, 2);
             play.loop = true;
@@ -1747,7 +1747,7 @@ namespace
             echo.echoFeedback = 0.5f;
             echo.reverbMix = 0.5f;
             mixer.SetBusEffects(bus, echo);
-            const Array<float> tone = MakeSine(2, 440.0f, 0.5f, 1.0f);
+            const Array<JBro::Float> tone = MakeSine(2, 440.0f, 0.5f, 1.0f);
             AudioPlayDesc play;
             play.clip = RegisterPcm(mixer, tone, 2);
             play.loop = true;
@@ -1777,7 +1777,7 @@ namespace
             mixer.SetBusEffects(music, dull);
             mixer.DestroyProjectBuses();
             const AudioBusId fresh = mixer.CreateBus(1.0f);
-            const Array<float> bright = MakeSine(2, 5000.0f, 0.5f, 1.0f);
+            const Array<JBro::Float> bright = MakeSine(2, 5000.0f, 0.5f, 1.0f);
             AudioPlayDesc play;
             play.clip = RegisterPcm(mixer, bright, 2);
             play.loop = true;
@@ -1802,12 +1802,12 @@ namespace
     {
         AudioMixer mixer;
         Check(mixer.Initialize(SmallDesc(8)), "mixer initializes");
-        const Array<float> mono = MakeSine(1, 440.0f, 0.5f, 0.05f);
-        const Array<float> stereo = MakeSine(2, 440.0f, 0.5f, 0.05f);
+        const Array<JBro::Float> mono = MakeSine(1, 440.0f, 0.5f, 0.05f);
+        const Array<JBro::Float> stereo = MakeSine(2, 440.0f, 0.5f, 0.05f);
         const AudioClipHandle monoClip = RegisterPcm(mixer, mono, 1);
         const AudioClipHandle stereoClip = RegisterPcm(mixer, stereo, 2);
         const AudioBusId bus = mixer.CreateBus(1.0f);
-        Array<float> buffer;
+        Array<JBro::Float> buffer;
         buffer.Resize(960);
         const JBro::UInt64 growthsBefore = mixer.GetStats().allocatorGrowths;
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -1822,7 +1822,7 @@ namespace
             play.bus = (frame % 5) == 0 ? bus : AudioMasterBus;
             play.pitch = (frame % 7) == 0 ? 1.5f : 1.0f;
             AudioVoiceHandle voice = mixer.Play(play);
-            const float position[3] = {static_cast<float>(frame % 11), 0.0f, 0.0f};
+            const JBro::Float position[3] = {static_cast<JBro::Float>(frame % 11), 0.0f, 0.0f};
             mixer.SetPosition(voice, position);
             mixer.Render(buffer.Data(), 480);
             if ((frame % 4) == 0)
@@ -1854,7 +1854,7 @@ namespace
         std::atomic<std::uint64_t> renders{0};
         std::thread audio([&]
         {
-            float buffer[480 * 2];
+            JBro::Float buffer[480 * 2];
             while (running.load(std::memory_order_acquire))
             {
                 mixer.Render(buffer, 480);
@@ -1872,7 +1872,7 @@ namespace
         double worstStallMicroseconds = 0.0;
         for (JBro::Int32 round = 0; round < 200; ++round)
         {
-            Array<float> sine = MakeSine(2, 330.0f, 0.5f, 0.2f);
+            Array<JBro::Float> sine = MakeSine(2, 330.0f, 0.5f, 0.2f);
             const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
             AudioPlayDesc play;
             play.clip = clip;
@@ -1892,7 +1892,7 @@ namespace
                 worstStallMicroseconds = stall;
             }
             // 돌아온 뒤에 읽으면 들리도록 표지값으로 덮고 푼다. 디버그 힙의 채움이나 같은 크기의 새 사인에 기대지 않는다.
-            for (float& sample : sine)
+            for (JBro::Float& sample : sine)
             {
                 sample = 0.9f;
             }
@@ -1907,7 +1907,7 @@ namespace
 
     void TestLifetimeRepeats()
     {
-        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 0.5f);
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 0.5f);
         for (JBro::Int32 round = 0; round < 20; ++round)
         {
             AudioMixer mixer;
@@ -1918,7 +1918,7 @@ namespace
             play.loop = true;
             mixer.Play(play);
             mixer.CreateBus(0.5f);
-            float buffer[960];
+            JBro::Float buffer[960];
             mixer.Render(buffer, 480);
             // 살아 있는 보이스·버스·클립을 둔 채로 내린다(기존 엔진 단계 2 의 반례).
         }

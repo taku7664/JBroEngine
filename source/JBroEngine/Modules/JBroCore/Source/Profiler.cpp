@@ -11,7 +11,7 @@ namespace JBro::Profiler
         UInt64 NowNanoseconds()
         {
             const auto now = std::chrono::steady_clock::now().time_since_epoch();
-            return static_cast<std::uint64_t>(
+            return static_cast<JBro::UInt64>(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(now).count());
         }
 
@@ -115,7 +115,7 @@ namespace JBro::Profiler
             return;
         }
 
-        const UInt32 depth = static_cast<std::uint32_t>(state.depth);
+        const UInt32 depth = static_cast<JBro::UInt32>(state.depth);
         // 같은 이름·같은 겹이면 한 줄로 합친다. 이름은 리터럴이라 주소 비교로 끝난다.
         std::size_t found = state.buildingCount;
         for (std::size_t index = 0; index < state.buildingCount; ++index)

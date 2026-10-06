@@ -151,7 +151,7 @@ namespace JBro::Network::Testing
             }
             Pending& pending = m_pending[m_pendingCount++];
             pending.to = to;
-            pending.size = static_cast<std::uint32_t>(size);
+            pending.size = static_cast<JBro::UInt32>(size);
             if (size > 0)
             {
                 std::memcpy(pending.bytes, data, size);

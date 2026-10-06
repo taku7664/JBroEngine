@@ -100,7 +100,7 @@ namespace
         Check(server.GetConnectionCount() == 1, "the server holds one connection");
 
         const char hello[] = "hello";
-        Check(client.Send(ServerConnectionId, 7, hello, sizeof(hello), NetChannel::Unreliable), "the client sends");
+        Check(client.Send(ServerConnectionId, 7, hello, static_cast<JBro::UInt32>(sizeof(hello)), NetChannel::Unreliable), "the client sends");
         Pump(server, client, clock);
 
         MessageView views[4];
@@ -114,7 +114,7 @@ namespace
         Check(0 == std::memcmp(views[0].data, hello, sizeof(hello)), "and the bytes");
 
         const JBro::UInt32 reply = 0xCAFEF00D;
-        Check(server.Broadcast(9, &reply, sizeof(reply)), "the server broadcasts");
+        Check(server.Broadcast(9, &reply, static_cast<JBro::UInt32>(sizeof(reply))), "the server broadcasts");
         Pump(server, client, clock);
         const JBro::UInt32 clientReceived = client.TakeMessages(views, 4);
         Check(clientReceived == 1, "the client takes the broadcast");
@@ -150,7 +150,7 @@ namespace
 
         Pump(server, client, clock);
         const char hello[] = "hello";
-        Check(client.Send(ServerConnectionId, 11, hello, sizeof(hello)), "a message goes over");
+        Check(client.Send(ServerConnectionId, 11, hello, static_cast<JBro::UInt32>(sizeof(hello))), "a message goes over");
         Pump(server, client, clock);
         MessageView views[4];
         Check(server.TakeMessages(views, 4) == 1, "and arrives - the lazy buffers are the same buffers");
@@ -187,7 +187,7 @@ namespace
         for (MessageId id = 1; id <= 300; ++id)
         {
             const JBro::UInt32 body = id;
-            Check(client.Send(ServerConnectionId, id, &body, sizeof(body), NetChannel::UnreliableSequenced),
+            Check(client.Send(ServerConnectionId, id, &body, static_cast<JBro::UInt32>(sizeof(body)), NetChannel::UnreliableSequenced),
                 "every message id is accepted");
             Pump(server, client, clock, 2);
             delivered += server.TakeMessages(views, 64);
@@ -197,7 +197,7 @@ namespace
 
         // 같은 ID 의 역전은 여전히 버린다(고정 슬롯이 그 ID 를 들고 있는 동안).
         const JBro::UInt32 newest = 0xABCD;
-        Check(client.Send(ServerConnectionId, 300, &newest, sizeof(newest), NetChannel::UnreliableSequenced), "a newer one goes");
+        Check(client.Send(ServerConnectionId, 300, &newest, static_cast<JBro::UInt32>(sizeof(newest)), NetChannel::UnreliableSequenced), "a newer one goes");
         Pump(server, client, clock, 2);
         Check(server.TakeMessages(views, 64) == 1, "and arrives once");
     }
@@ -223,7 +223,7 @@ namespace
         server.Update();
 
         const JBro::UInt32 payload = 0x1234;
-        Check(server.Broadcast(31, &payload, sizeof(payload)), "the broadcast goes out");
+        Check(server.Broadcast(31, &payload, static_cast<JBro::UInt32>(sizeof(payload))), "the broadcast goes out");
         for (JBro::Int32 round = 0; round < 8; ++round)
         {
             server.Update();
@@ -235,7 +235,7 @@ namespace
         Check(first.TakeMessages(views, 8) == 1, "the ready client got it");
         Check(views[0].messageId == 31, "with its id");
 
-        Check(false == server.Broadcast(0xFF00, &payload, sizeof(payload)), "the system range is refused");
+        Check(false == server.Broadcast(0xFF00, &payload, static_cast<JBro::UInt32>(sizeof(payload))), "the system range is refused");
         Check(false == server.Broadcast(31, nullptr, 4), "and so is a size without bytes");
     }
 
@@ -255,7 +255,7 @@ namespace
         {
             payload[index] = static_cast<std::uint8_t>(index * 7 + 3);
         }
-        Check(client.Send(ServerConnectionId, 21, payload, sizeof(payload)), "a 20000 byte message is accepted");
+        Check(client.Send(ServerConnectionId, 21, payload, static_cast<JBro::UInt32>(sizeof(payload))), "a 20000 byte message is accepted");
 
         MessageView view;
         JBro::UInt32 got = 0;
@@ -362,9 +362,9 @@ namespace
         const char first[] = "first";
         const char second[] = "second!";
         const char third[] = "3";
-        Check(client.Send(ServerConnectionId, 1, first, sizeof(first)), "send 1");
-        Check(client.Send(ServerConnectionId, 2, second, sizeof(second)), "send 2");
-        Check(client.Send(ServerConnectionId, 3, third, sizeof(third)), "send 3");
+        Check(client.Send(ServerConnectionId, 1, first, static_cast<JBro::UInt32>(sizeof(first))), "send 1");
+        Check(client.Send(ServerConnectionId, 2, second, static_cast<JBro::UInt32>(sizeof(second))), "send 2");
+        Check(client.Send(ServerConnectionId, 3, third, static_cast<JBro::UInt32>(sizeof(third))), "send 3");
         Pump(server, client, clock);
 
         MessageView view;
@@ -397,7 +397,7 @@ namespace
 
         for (std::uint16_t id = 1; id <= 6; ++id)
         {
-            Check(client.Send(ServerConnectionId, id, &id, sizeof(id)), "send");
+            Check(client.Send(ServerConnectionId, id, &id, static_cast<JBro::UInt32>(sizeof(id))), "send");
         }
         Pump(server, client, clock, 8);
 
@@ -432,7 +432,7 @@ namespace
         drop.Drain(server);
 
         std::uint8_t big[64] = {};
-        Check(client.Send(ServerConnectionId, 1, big, sizeof(big)), "the client, with its own larger limit, sends 64 bytes");
+        Check(client.Send(ServerConnectionId, 1, big, static_cast<JBro::UInt32>(sizeof(big))), "the client, with its own larger limit, sends 64 bytes");
         Pump(server, client, clock);
         EventLog events;
         events.Drain(server);

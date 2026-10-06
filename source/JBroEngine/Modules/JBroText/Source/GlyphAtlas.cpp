@@ -6,6 +6,8 @@
 #include <cstring>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::Text
 {
@@ -22,14 +24,14 @@ namespace JBro::Text
 
     UInt64 GlyphAtlas::Key(UInt32 pixelSize, GlyphIndex glyph)
     {
-        return (static_cast<std::uint64_t>(pixelSize) << 32) | static_cast<std::uint64_t>(glyph);
+        return (static_cast<JBro::UInt64>(pixelSize) << 32) | static_cast<JBro::UInt64>(glyph);
     }
 
     UInt64 GlyphAtlas::SdfKey(UInt32 pixelSize, UInt32 spread, GlyphIndex glyph)
     {
         // 맨 위 비트가 SDF 표시이고, 그 아래 8 비트가 퍼짐이다. 비트맵 키는 크기가 512 이하라 이 자리에 닿지 않는다.
-        return (UInt64{ 1 } << 63) | (static_cast<std::uint64_t>(spread & 0xFF) << 48)
-            | (static_cast<std::uint64_t>(pixelSize) << 32) | static_cast<std::uint64_t>(glyph);
+        return (UInt64{ 1 } << 63) | (static_cast<JBro::UInt64>(spread & 0xFF) << 48)
+            | (static_cast<JBro::UInt64>(pixelSize) << 32) | static_cast<JBro::UInt64>(glyph);
     }
 
     AtlasError GlyphAtlas::EnsureSdf(const FontFace& face, UInt32 pixelSize, UInt32 spread, GlyphIndex glyph,
@@ -50,7 +52,7 @@ namespace JBro::Text
             return AtlasError::None;
         }
         GlyphBitmapBox box;
-        if (false == face.RasterizeGlyphSdf(glyph, static_cast<float>(pixelSize), static_cast<std::int32_t>(spread), box, m_scratch)
+        if (false == face.RasterizeGlyphSdf(glyph, static_cast<JBro::Float>(pixelSize), static_cast<JBro::Int32>(spread), box, m_scratch)
             || box.width <= 0 || box.height <= 0)
         {
             AtlasGlyph entry;
@@ -63,8 +65,8 @@ namespace JBro::Text
 
     AtlasError GlyphAtlas::Place(UInt64 key, const GlyphBitmapBox& box, const std::uint8_t* alpha, AtlasGlyph& out)
     {
-        const UInt32 width = static_cast<std::uint32_t>(box.width);
-        const UInt32 height = static_cast<std::uint32_t>(box.height);
+        const UInt32 width = static_cast<JBro::UInt32>(box.width);
+        const UInt32 height = static_cast<JBro::UInt32>(box.height);
         UInt32 page = 0;
         UInt32 x = 0;
         UInt32 y = 0;
@@ -221,7 +223,7 @@ namespace JBro::Text
 
         GlyphBitmapBox box;
         AtlasGlyph entry;
-        if (false == face.MeasureGlyphBitmap(glyph, static_cast<float>(pixelSize), box) || box.width <= 0 || box.height <= 0)
+        if (false == face.MeasureGlyphBitmap(glyph, static_cast<JBro::Float>(pixelSize), box) || box.width <= 0 || box.height <= 0)
         {
             // 그릴 것이 없는 글리프(공백 등)도 기억해 두어 다음에 다시 재지 않는다.
             m_glyphs.FindOrAdd(key) = entry;
@@ -229,14 +231,14 @@ namespace JBro::Text
             return AtlasError::None;
         }
         // 칸이 들어갈 자리가 없으면 래스터화하지 않는다(Place 가 거절한다) - 크기만 먼저 본다.
-        if (static_cast<std::uint32_t>(box.width) + 2 * Gap > m_pageSize || static_cast<std::uint32_t>(box.height) + 2 * Gap > m_pageSize)
+        if (static_cast<JBro::UInt32>(box.width) + 2 * Gap > m_pageSize || static_cast<JBro::UInt32>(box.height) + 2 * Gap > m_pageSize)
         {
             return AtlasError::GlyphTooLarge;
         }
-        const UInt32 width = static_cast<std::uint32_t>(box.width);
-        m_scratch.Resize(static_cast<std::size_t>(width) * static_cast<std::uint32_t>(box.height));
+        const UInt32 width = static_cast<JBro::UInt32>(box.width);
+        m_scratch.Resize(static_cast<std::size_t>(width) * static_cast<JBro::UInt32>(box.height));
         std::memset(m_scratch.Data(), 0, m_scratch.Size());
-        face.RasterizeGlyph(glyph, static_cast<float>(pixelSize), box, m_scratch.Data(), static_cast<std::int32_t>(width));
+        face.RasterizeGlyph(glyph, static_cast<JBro::Float>(pixelSize), box, m_scratch.Data(), static_cast<JBro::Int32>(width));
         return Place(key, box, m_scratch.Data(), out);
     }
 
@@ -258,7 +260,7 @@ namespace JBro::Text
             }
             if (last.cursorY + height + Gap <= m_pageSize)
             {
-                page = static_cast<std::uint32_t>(m_pages.Size() - 1);
+                page = static_cast<JBro::UInt32>(m_pages.Size() - 1);
                 x = last.cursorX;
                 y = last.cursorY;
                 last.cursorX += width + Gap;
@@ -284,7 +286,7 @@ namespace JBro::Text
         fresh.cursorY = Gap;
         fresh.shelfHeight = height;
         fresh.dirty = true;
-        page = static_cast<std::uint32_t>(m_pages.Size() - 1);
+        page = static_cast<JBro::UInt32>(m_pages.Size() - 1);
         x = Gap;
         y = Gap;
         return true;
@@ -297,7 +299,7 @@ namespace JBro::Text
 
     UInt32 GlyphAtlas::GetPageCount() const
     {
-        return static_cast<std::uint32_t>(m_pages.Size());
+        return static_cast<JBro::UInt32>(m_pages.Size());
     }
 
     ArrayView<const std::byte> GlyphAtlas::GetPagePixels(UInt32 page) const
@@ -346,7 +348,7 @@ namespace JBro::Text
 
     UInt32 GlyphAtlas::GetGlyphCount() const
     {
-        return static_cast<std::uint32_t>(m_glyphs.Size());
+        return static_cast<JBro::UInt32>(m_glyphs.Size());
     }
 
     void GlyphAtlas::Clear()
@@ -410,8 +412,8 @@ namespace JBro::Text
         PutValue(out, stamp.pixelSize);
         PutValue(out, stamp.sdfSpread);
         PutValue(out, m_pageSize);
-        PutValue(out, static_cast<std::uint32_t>(m_pages.Size()));
-        PutValue(out, static_cast<std::uint32_t>(m_glyphs.Size()));
+        PutValue(out, static_cast<JBro::UInt32>(m_pages.Size()));
+        PutValue(out, static_cast<JBro::UInt32>(m_glyphs.Size()));
         for (const Page& page : m_pages)
         {
             PutValue(out, page.cursorX);
@@ -512,7 +514,7 @@ namespace JBro::Text
             at += 1;
             // 칸이 페이지 밖을 가리키면 깨진 것이다.
             if (false == glyph.empty
-                && (glyph.page >= pageCount || static_cast<std::uint32_t>(glyph.x) + glyph.width > pageSize || static_cast<std::uint32_t>(glyph.y) + glyph.height > pageSize))
+                && (glyph.page >= pageCount || static_cast<JBro::UInt32>(glyph.x) + glyph.width > pageSize || static_cast<JBro::UInt32>(glyph.y) + glyph.height > pageSize))
             {
                 return false;
             }

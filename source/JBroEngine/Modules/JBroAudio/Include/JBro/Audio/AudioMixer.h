@@ -20,7 +20,7 @@ namespace JBro
     // 버스 사슬에 붙는 사용자 처리기다(D-206). **오디오 스레드에서 불린다** - 할당·잠금·파일 IO·로그를 하지 않고 곧 돌아와야
     // 한다. `frames` 는 인터리브 f32 이고 제자리에서 고친다. 스크립트 DLL 에는 열지 않는다(핫 리로드가 코드를 내리는 동안 오디오
     // 스레드가 부를 수 있다) - 엔진·호스트 코드가 쓰는 확장점이다.
-    using AudioBusProcessCallback = void (*)(void* user, float* frames, UInt32 frameCount, UInt32 channels,
+    using AudioBusProcessCallback = void (*)(void* user, Float* frames, UInt32 frameCount, UInt32 channels,
         UInt32 sampleRate);
 
     struct AudioMixerDesc
@@ -60,7 +60,7 @@ namespace JBro
     struct AudioClipDesc
     {
         AudioClipEncoding encoding = AudioClipEncoding::Pcm;
-        const float* pcm = nullptr;
+        const Float* pcm = nullptr;
         UInt64 frameCount = 0;
         UInt32 sampleRate = 0;
         // `Encoded`·`File` 은 이 값이 1 이고 파일이 여러 채널이면 풀면서 평균해 모노로 읽는다(D-231).
@@ -95,7 +95,7 @@ namespace JBro
         Float rolloff = 1.0f;
         // 0 이면 도플러를 끈다.
         Float dopplerFactor = 0.0f;
-        float position[3] = {0.0f, 0.0f, 0.0f};
+        Float position[3] = {0.0f, 0.0f, 0.0f};
         // 0..255. 보이스가 모자랄 때 낮은 것부터 훔친다. 같은 우선순위면 작게 들리는 것, 그다음 오래된 것이다.
         std::uint8_t priority = 128;
         // 공간화한 한 번짜리 소리(루프 아님)가 시작하는 자리에서 거리 감쇠 × 음량 × 트림이 -60 dB 밑이면 보이스를 잡지 않고
@@ -176,9 +176,9 @@ namespace JBro
 
         // ── 오디오 스레드 ──────────────────────────────────────────────────────
         // 인터리브 f32 로 `frameCount` 프레임을 채운다. 초기화 전이면 0 으로 채운다.
-        void Render(float* output, UInt32 frameCount);
+        void Render(Float* output, UInt32 frameCount);
         // 출력 장치에 넘기는 함수 포인터 모양이다(POD 경계, `IAudioOutput`).
-        static void RenderCallback(void* user, float* output, UInt32 frameCount);
+        static void RenderCallback(void* user, Float* output, UInt32 frameCount);
 
         // ── 메인 스레드 ────────────────────────────────────────────────────────
         // 프레임마다 한 번 부른다. 끝난 보이스를 거둔다.
@@ -251,15 +251,15 @@ namespace JBro
         void SetVolume(AudioVoiceHandle voice, Float volume);
         void SetPitch(AudioVoiceHandle voice, Float pitch);
         void SetLooping(AudioVoiceHandle voice, Bool loop);
-        void SetPosition(AudioVoiceHandle voice, const float position[3]);
-        void SetVelocity(AudioVoiceHandle voice, const float velocity[3]);
+        void SetPosition(AudioVoiceHandle voice, const Float position[3]);
+        void SetVelocity(AudioVoiceHandle voice, const Float velocity[3]);
         void SetBus(AudioVoiceHandle voice, AudioBusId bus);
         // 보이스의 필터다(Hz, 0 이면 끔). 켜면 보이스가 제 필터 노드를 거쳐 버스로 가고, 둘 다 끄면 곧장 버스로 간다.
         void SetVoiceFilter(AudioVoiceHandle voice, Float lowPassHz, Float highPassHz);
 
         // 리스너다. 2D 는 방향을 기본(-Z 앞, +Y 위)으로 두고 위치만 준다.
-        void SetListener(const float position[3], const float forward[3], const float up[3]);
-        void SetListenerVelocity(const float velocity[3]);
+        void SetListener(const Float position[3], const Float forward[3], const Float up[3]);
+        void SetListenerVelocity(const Float velocity[3]);
         void SetMasterVolume(Float volume);
         Float GetMasterVolume() const;
         // 장치로 나가기 직전의 이득이다. `seconds` 동안 곧게 옮겨 가므로 뚝 끊기는 소리(클릭)가 없다. 창이 포커스를 잃었을
@@ -274,10 +274,10 @@ namespace JBro
         // 장치로 나간 마지막 `count` 샘플(채널 평균, 최대 `RecentCapacity`)을 옛것부터 복사하고 복사한 수를 돌려준다.
         // 오디오 스레드가 쓰는 도중에 읽으므로 한두 샘플이 어긋날 수 있다 - 화면에 그리는 데만 쓴다.
         static constexpr UInt32 RecentCapacity = 4096;
-        UInt32 CopyRecentOutput(float* mono, UInt32 count) const;
+        UInt32 CopyRecentOutput(Float* mono, UInt32 count) const;
         // 최근 출력의 스펙트럼을 `bandCount` 칸(로그 간격, 30 Hz..나이퀴스트)으로 채운다. 값은 0..1 이고 -72 dB 가 0,
         // 0 dB(최대 크기의 사인파)가 1 이다. 메인 스레드에서 2048 점 FFT 를 한 번 돈다. 할당하지 않는다.
-        void ComputeSpectrum(float* bands, UInt32 bandCount) const;
+        void ComputeSpectrum(Float* bands, UInt32 bandCount) const;
 
         // 오디오 시계(초). 예약 시작의 기준이다.
         double GetTimeSeconds() const;

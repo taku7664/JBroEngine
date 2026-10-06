@@ -1,6 +1,7 @@
 ﻿#include <JBro/SaveTypes/Internal/ScriptModuleContext.h>
 #include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -33,7 +34,7 @@ namespace JBro
 
     ScriptContextBlock MakeSaveServiceContextBlock(const SaveServiceContext& context) noexcept
     {
-        return { SaveServiceContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { SaveServiceContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const SaveServiceContext* FindSaveServiceContext(const ScriptModuleLoadContext& context) noexcept
@@ -54,7 +55,7 @@ namespace JBro
 
     ScriptContextBlock MakeSaveSystemContextBlock(const SaveSystemContext& context) noexcept
     {
-        return { SaveSystemContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { SaveSystemContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const SaveSystemContext* FindSaveSystemContext(const ScriptModuleLoadContext& context) noexcept

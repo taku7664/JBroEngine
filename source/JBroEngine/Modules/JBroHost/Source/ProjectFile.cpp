@@ -127,7 +127,7 @@ namespace JBro
             {
                 return false;
             }
-            result = static_cast<std::uint32_t>(parsed);
+            result = static_cast<JBro::UInt32>(parsed);
             return true;
         }
 
@@ -143,7 +143,7 @@ namespace JBro
             {
                 return false;
             }
-            result = static_cast<std::uint64_t>(parsed);
+            result = static_cast<JBro::UInt64>(parsed);
             return true;
         }
 
@@ -217,7 +217,7 @@ namespace JBro
             {
                 return false;
             }
-            result = static_cast<float>(parsed);
+            result = static_cast<JBro::Float>(parsed);
             return true;
         }
 
@@ -285,7 +285,7 @@ namespace JBro
 
         Bool Fail(ProjectFileError& error, std::size_t line, const char* message)
         {
-            error.line = static_cast<std::uint32_t>(line);
+            error.line = static_cast<JBro::UInt32>(line);
             error.message = message;
             return false;
         }
@@ -583,7 +583,7 @@ namespace JBro
                         }
                         else if (ParseUInt(fieldValue, index) && index < 4)
                         {
-                            binding.gamepad = static_cast<int>(index);
+                            binding.gamepad = static_cast<JBro::Int32>(index);
                         }
                         else
                         {
@@ -1286,7 +1286,7 @@ namespace JBro
             for (Int32 digits = 6; digits <= 9; ++digits)
             {
                 std::snprintf(buffer, sizeof(buffer), "%.*g", digits.Get(), static_cast<double>(value));
-                if (static_cast<float>(std::strtod(buffer, nullptr)) == value)
+                if (static_cast<JBro::Float>(std::strtod(buffer, nullptr)) == value)
                 {
                     break;
                 }
@@ -1993,7 +1993,7 @@ namespace JBro
         temporary.append(".tmp", 4);
         const JArrayView<std::byte> bytes{
             reinterpret_cast<const std::byte*>(text.c_str()),
-            static_cast<std::uint32_t>(text.size())};
+            static_cast<JBro::UInt32>(text.size())};
         if (false == platform.WriteWholeFile(temporary.c_str(), bytes))
         {
             return Fail(error, 0, "the project file could not be written");
@@ -2023,7 +2023,7 @@ namespace JBro
                 const Int32 found = out.FindSet(setName);
                 if (found >= 0)
                 {
-                    set = static_cast<std::uint32_t>(found);
+                    set = static_cast<JBro::UInt32>(found);
                 }
                 else if (out.setCount < MaxInputActionSets)
                 {
@@ -2136,7 +2136,7 @@ namespace JBro
         path.append(".jproject", 9);
         const JArrayView<std::byte> bytes{
             reinterpret_cast<const std::byte*>(text.c_str()),
-            static_cast<std::uint32_t>(text.size())};
+            static_cast<JBro::UInt32>(text.size())};
         if (false == platform.WriteWholeFile(path.c_str(), bytes))
         {
             return fail(ProjectCreateFailure::CannotWrite, "the project file could not be written");

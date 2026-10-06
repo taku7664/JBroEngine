@@ -4,6 +4,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -20,13 +21,13 @@ namespace JBro::Widget
         // 넘칠 때만 그린다.
         const ArrayView<const char* const> items(names.names, names.count);
         const Bool changed = FilterCombo(id != nullptr ? id : "##enum", items, current)
-            .ShowFilter(names.count > static_cast<std::uint32_t>(FilterCombo::DefaultMaxVisibleItems))
+            .ShowFilter(names.count > static_cast<JBro::UInt32>(FilterCombo::DefaultMaxVisibleItems))
             .Width(width)
             .Draw();
         // **범위를 벗어난 고름은 버린다.** 위젯이 그럴 일은 없지만, 이름표 개수와
         // 실제 값의 개수가 어긋난 타입이 오면 여기서 막아야 한다.
         if (false == changed || current == before
-            || current < 0 || static_cast<std::uint32_t>(current) >= names.count)
+            || current < 0 || static_cast<JBro::UInt32>(current) >= names.count)
         {
             return false;
         }

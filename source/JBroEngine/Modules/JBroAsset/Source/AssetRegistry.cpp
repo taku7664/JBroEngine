@@ -245,7 +245,7 @@ namespace JBro
         {
             return false;
         }
-        const UInt32 index = static_cast<std::uint32_t>(m_records.Size());
+        const UInt32 index = static_cast<JBro::UInt32>(m_records.Size());
         m_records.Add(record);
         m_byId.TryAdd(record.id, index);
         if (ownsPath)
@@ -299,7 +299,7 @@ namespace JBro
                 m_byOwner.Remove(removed.owner);
             }
         }
-        const UInt32 last = static_cast<std::uint32_t>(m_records.Size() - 1);
+        const UInt32 last = static_cast<JBro::UInt32>(m_records.Size() - 1);
         if (index != last)
         {
             m_records[index] = m_records[last];
@@ -393,7 +393,7 @@ namespace JBro
         metadata.id = record->id;
         metadata.type = record->type;
         metadata.sourcePath.data = record->relativePath.c_str();
-        metadata.sourcePath.size = static_cast<std::uint32_t>(record->relativePath.size());
+        metadata.sourcePath.size = static_cast<JBro::UInt32>(record->relativePath.size());
         return true;
     }
 

@@ -70,7 +70,7 @@ namespace JBro
             return 0;
         }
         // 순서를 지키며 뗀다. 남은 항목의 등록 순서가 메뉴의 순서다.
-        return static_cast<std::uint32_t>(m_entries.RemoveAll(
+        return static_cast<JBro::UInt32>(m_entries.RemoveAll(
             [owner](const Entry& entry)
             {
                 return entry.owner == owner;

@@ -17,7 +17,7 @@ namespace JBro::Internal
 
         Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
     }
 
@@ -77,8 +77,8 @@ namespace JBro::Internal
                 const D3D11_RECT full = {0, 0, static_cast<LONG>(textureDesc.Width), static_cast<LONG>(textureDesc.Height)};
                 m_context->RSSetScissorRects(1, &full);
                 D3D11_VIEWPORT viewport = {};
-                viewport.Width = static_cast<float>(textureDesc.Width);
-                viewport.Height = static_cast<float>(textureDesc.Height);
+                viewport.Width = static_cast<JBro::Float>(textureDesc.Width);
+                viewport.Height = static_cast<JBro::Float>(textureDesc.Height);
                 viewport.MaxDepth = 1.0f;
                 m_context->RSSetViewports(1, &viewport);
             }

@@ -33,8 +33,8 @@ namespace JBro
                 MakeFieldEntry<&SpriteImportOptions::marginY>(),
                 MakeFieldEntry<&SpriteImportOptions::gapX>(),
                 MakeFieldEntry<&SpriteImportOptions::gapY>(),
-                MakeFieldEntry<&SpriteImportOptions::pivotX>(Attribute::Range(0, 1)),
-                MakeFieldEntry<&SpriteImportOptions::pivotY>(Attribute::Range(0, 1)),
+                MakeFieldEntry<&SpriteImportOptions::pivotX>(Attribute::Range(0.0f, 1.0f)),
+                MakeFieldEntry<&SpriteImportOptions::pivotY>(Attribute::Range(0.0f, 1.0f)),
                 MakeFieldEntry<&SpriteImportOptions::pixelsPerUnit>(),
             };
             static const StaticPropertyTable<12> fields { entries };
@@ -89,10 +89,10 @@ namespace JBro
             static const FieldEntry entries[] =
             {
                 MakeFieldEntry<&AudioImportOptions::mode>(),
-                MakeFieldEntry<&AudioImportOptions::gain>(Attribute::Range(0, 4)),
+                MakeFieldEntry<&AudioImportOptions::gain>(Attribute::Range(0.0f, 4.0f)),
                 MakeFieldEntry<&AudioImportOptions::mono>(),
-                MakeFieldEntry<&AudioImportOptions::maxInstances>(Attribute::Range(0, 64)),
-                MakeFieldEntry<&AudioImportOptions::cooldown>(Attribute::Range(0, 5)),
+                MakeFieldEntry<&AudioImportOptions::maxInstances>(Attribute::Range(0.0f, 64.0f)),
+                MakeFieldEntry<&AudioImportOptions::cooldown>(Attribute::Range(0.0f, 5.0f)),
             };
             static const StaticPropertyTable<5> fields { entries };
             static const TypeDescriptor descriptor =
@@ -112,10 +112,10 @@ namespace JBro
                 MakeFieldEntry<&FontImportOptions::pixelsPerUnit>(),
                 MakeFieldEntry<&FontImportOptions::filter>(),
                 MakeFieldEntry<&FontImportOptions::renderMode>(),
-                MakeFieldEntry<&FontImportOptions::sdfSize>(Attribute::Range(8, 256)),
-                MakeFieldEntry<&FontImportOptions::sdfSpread>(Attribute::Range(1, 32)),
+                MakeFieldEntry<&FontImportOptions::sdfSize>(Attribute::Range(8.0f, 256.0f)),
+                MakeFieldEntry<&FontImportOptions::sdfSpread>(Attribute::Range(1.0f, 32.0f)),
                 MakeFieldEntry<&FontImportOptions::prewarm>(),
-                MakeFieldEntry<&FontImportOptions::prewarmSize>(Attribute::Range(1, 512)),
+                MakeFieldEntry<&FontImportOptions::prewarmSize>(Attribute::Range(1.0f, 512.0f)),
             };
             static const StaticPropertyTable<7> fields { entries };
             static const TypeDescriptor descriptor =

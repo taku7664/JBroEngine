@@ -51,7 +51,7 @@ namespace JBro
         void Invalidate(AssetId asset);
         void Clear();
 
-        UInt32 GetCount() const { return static_cast<std::uint32_t>(m_entries.Size()); }
+        UInt32 GetCount() const { return static_cast<JBro::UInt32>(m_entries.Size()); }
 
     private:
         struct Entry

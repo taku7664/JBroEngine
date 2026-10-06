@@ -109,7 +109,7 @@ namespace JBro
             { EditMenu, GuideRoute::EditMenu, MenuObject::Optional },
             { FileMenu, GuideRoute::MainMenu, MenuObject::Forbidden },
         };
-        constexpr UInt32 MenuRouteCount = sizeof(MenuRoutes) / sizeof(MenuRoutes[0]);
+        constexpr UInt32 MenuRouteCount = static_cast<JBro::UInt32>(sizeof(MenuRoutes) / sizeof(MenuRoutes[0]));
 
         // 커맨드가 다룬 오브젝트가 단계의 오브젝트와 어떤 사이여야 끝인가.
         enum class Subject : std::uint8_t
@@ -659,8 +659,8 @@ namespace JBro
         Bool BuildGizmo(GizmoMode mode, GizmoAxis axis, GuideStepBinding& binding, EditorApplication& editor, GuideFocusPath& path)
         {
             return SelectForCanvasTool(binding, editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
-                && path.Push(GuideFocusTargets::GizmoModeButton(static_cast<std::uint32_t>(mode)), GuideFocusOpen::User)
-                && path.Push(GuideFocusTargets::GizmoHandle(static_cast<std::uint32_t>(mode), static_cast<std::uint32_t>(axis)));
+                && path.Push(GuideFocusTargets::GizmoModeButton(static_cast<JBro::UInt32>(mode)), GuideFocusOpen::User)
+                && path.Push(GuideFocusTargets::GizmoHandle(static_cast<JBro::UInt32>(mode), static_cast<JBro::UInt32>(axis)));
         }
 
         // 옮기기는 가운데 손잡이(화면 평면으로 옮긴다), 돌리기는 고리(2D 는 Z 축 하나), 크기는 가운데(균등).
@@ -869,7 +869,7 @@ namespace JBro
                     return info;
                 }(),
             };
-            count = static_cast<std::uint32_t>(sizeof(actions) / sizeof(actions[0]));
+            count = static_cast<JBro::UInt32>(sizeof(actions) / sizeof(actions[0]));
             return actions;
         }
 
@@ -1296,7 +1296,7 @@ namespace JBro
                         return Fail(node, "%s", reason);
                     }
                     binding.objectRef = GuideStepBinding::ObjectRef::Step;
-                    binding.refStep = static_cast<std::uint32_t>(index);
+                    binding.refStep = static_cast<JBro::UInt32>(index);
                     return true;
                 }
                 return Fail(node, "'%s' names no earlier step", value.c_str());
@@ -1450,7 +1450,7 @@ namespace JBro
                 {
                     return Fail(node, "Point must be a point index, not '%s'", value.c_str());
                 }
-                binding->pointIndex = static_cast<std::uint32_t>(index);
+                binding->pointIndex = static_cast<JBro::UInt32>(index);
             }
             if (document.FindScalar(node, "Field", value))
             {
@@ -1532,7 +1532,7 @@ namespace JBro
                 {
                     if (stepIds[index] == retreat)
                     {
-                        step.retreatOnBreak = static_cast<std::int32_t>(index);
+                        step.retreatOnBreak = static_cast<JBro::Int32>(index);
                         earlier = true;
                     }
                 }
@@ -1546,7 +1546,7 @@ namespace JBro
                 // 받은 것을 잃으면(들어설 때 비었거나 도중에 사라졌다) 그것을 남긴 단계로 돌아간다. `RetreatTo` 를 적었으면 그리로 간다.
                 if (step.retreatOnBreak < 0)
                 {
-                    step.retreatOnBreak = static_cast<std::int32_t>(binding->refStep);
+                    step.retreatOnBreak = static_cast<JBro::Int32>(binding->refStep);
                 }
                 step.retreatOnMissing = step.retreatOnBreak;
             }

@@ -971,13 +971,17 @@
   원시 `float`·`int`·`bool`·`std::int32_t`·`std::uint32_t`·`std::int64_t`·`std::uint64_t` 를 필드·매개변수·반환·지역 변수에 쓰지 않는다.
   `Int` 는 `Int64` 의 별칭이고, 폭을 밝혀야 하는 자리는 `Int32`·`UInt32` 다. 필드를 옮길 때 폭을 바꾸지 않는다(저장 파일과 네트워크 바이트가 그대로다).
   수학 값 타입(`Vector2`·`Vector3`·`Quaternion`·`Matrix3x2`·`Matrix4x4`·`Rect`·`Size`·`Color`)의 성분도 `Float` 다.
-- **원시 타입은 경계에서만 쓴다.** (MUST) (D-290)
-  값 타입과 컨테이너의 구현 자체(`Float`·`IntegerType`·`Bool`·`Angle` 의 `Value`, `Array`·`Table`·`String`·할당기·`Hash`·`Simd128`),
-  서드파티 API(ImGui 의 `bool*`·`float[4]`·콜백, stb, miniaudio, D3D·Vulkan 의 출력 매개변수와 핸들, CRT 훅, Winsock),
-  GPU 로 그대로 올라가는 배치(SPIR-V 낱말, 셰이더 상수 블록), 오디오 샘플 버퍼(`float*`·`Array<float>`·스펙트럼과 파형),
-  표준 라이브러리 함수의 인자(`std::from_chars`·`std::atomic` 의 기대값·`std::chrono::duration`·`std::uniform_int_distribution`·`std::countr_zero`),
-  진입점(`main`·`wmain`), 게임 DLL 의 `extern "C"` 내보내기. 경계 바로 앞에서 원시 값으로 떠서 넘기고 받은 값을 엔진 타입에 담는다 -
-  안쪽까지 원시 타입을 끌고 들어가지 않는다.
+- **원시 타입은 라이브러리가 그 타입을 요구하는 자리에서만 쓴다.** (MUST) (D-290)
+  서드파티·표준 라이브러리·언어 규칙이 타입을 정한 자리다: ImGui 의 `bool*`·`float[4]`·콜백, stb·Vulkan·D3D·Winsock 의 출력 매개변수와 핸들,
+  miniaudio 의 출력 버퍼와 노드 콜백 시그니처, CRT 훅, SPIR-V 낱말, `std::from_chars`·`std::atomic` 의 기대값·`std::chrono::duration`·`std::uniform_int_distribution`·
+  `std::countr_zero` 의 인자, `main`·`wmain`, 비교 연산자의 `bool` 반환과 `explicit operator bool`, 열거형의 밑 타입과 그 플래그 연산.
+  **그 한 지점에서만** 라이브러리 타입으로 바꿔 넘기고 받은 값은 곧바로 엔진 타입에 담는다 - 안쪽 버퍼·지역 변수·우리 함수의 매개변수까지 원시 타입을 끌고 들어가지 않는다
+  (오디오 믹서는 miniaudio 가 넘긴 `float**` 를 콜백 입구에서 `Float` 로 받아 쓴다). 값 타입과 컨테이너의 구현 자체(`Float`·`IntegerType`·`Bool`·`Angle` 의 `Value`,
+  `Array`·`Table`·`String`·할당기·`Hash`·`Simd128`)는 원시 타입이 곧 그 구현이다.
+  **우리 함수는 `extern "C"` 라도 엔진 타입으로 적는다.** `extern "C"` 는 이름을 꾸미지 않을 뿐 타입을 정하지 않는다 - MSVC 의 C4190(C 와 호환되지 않는 반환)은
+  부르는 쪽이 C 일 때의 경고라 같은 헤더의 타입으로 부르는 C++ 에는 해당하지 않는다. 다만 호스트와 DLL 의 선언이 **같아야** 한다(아래 반환 규약).
+- **식 안의 수 변환도 엔진 타입으로 한다.** (MUST) (D-290)
+  `static_cast<Float>(count)`·`static_cast<UInt32>(size)` 다. 값 타입은 다른 원시 수·열거형에서 오는 명시적 생성자를 가져 폭 경고 없이 원시 `static_cast` 와 같은 일을 한다.
 - **리플렉션은 엔진 값 타입만 등록한다.** (MUST) (D-290)
   `TypeDescriptorOf` 는 `Bool`·`Int32`·`Int64`·`UInt32`·`UInt64`·`Float` 를 등록하고 같은 폭의 원시 타입은 **일부러 등록하지 않는다** -
   `JBRO_FIELD(float, speed)` 는 컴파일이 멈춘다(`TypeDescriptorOf.h` 의 static_assert). 저장 파일에 적히는 타입 이름은 그대로 `float`·`int32` 다.
@@ -986,15 +990,19 @@
   정수 강타입에 실수를 섞으면 실수로 계산한다(`Int32(10) * 0.5f == 5.0f`). 더 넓은 원시 정수와 섞으면 넓은 쪽으로 받는다(`uint64 * UInt32` 는 `UInt64`).
   정수끼리의 비교는 값으로 한다(`std::cmp_less`). 값을 잃지 않는 넓히기(`UInt32` → `UInt64`)는 암시이고 좁히기·부호 바꾸기는 명시다.
   각도 → `Float` 은 암시, `Float` → 각도는 명시다(`Radian(x)`). 둘 다 암시면 비교가 모호해진다.
+- **원시 값은 같은 종류의 엔진 타입으로만 암시 변환된다.** (MUST) (D-290)
+  `Float` 는 실수에서, 정수 강타입은 같거나 좁은 정수·범위 없는 열거형에서만 암시로 만들어진다. 정수 리터럴은 `Float` 로 가지 않으므로 `Float speed = 0.0f;` 로 적고,
+  `Vector2{0.0f, 1.0f}` 처럼 적는다. 그래야 `Range(Int32, Int32)` 와 `Range(Float, Float)` 만 있어도 `Range(3, 7)` 은 정수 판, `Range(1.0f, 2.0f)` 는 실수 판으로
+  저절로 갈린다 - 엔진 함수에 원시 타입 오버로드를 두지 않는다.
 - **`std::min`·`std::max`·`std::clamp` 대신 `JBro::Min`·`Max`·`Clamp`(`Types/ValueMath.h`)를 쓴다.** (SHOULD) (D-290)
   엔진 값 타입과 원시 리터럴이 섞여도 엔진 타입으로 돌려준다. 삼항식의 두 갈래는 같은 타입으로 맞춘다(`cond ? speed : Float(0.0f)`) -
   `Float` 와 `float` 는 서로 변환되므로 갈래가 다르면 모호하다.
 - **엔진 값 타입을 C 가변 인자로 넘기지 않는다.** (MUST) (D-290)
   `Float` 는 `double` 로 올라가지 않아 `%f` 가 쓰레기를 읽고, 클래스라 컴파일러가 형식 검사도 하지 않는다. `Log::Write` 는 템플릿이라 원시 값으로
   내려 주지만 `std::snprintf` 같은 C 함수에는 `.Get()` 으로 넘긴다.
-- **원시 리터럴로 부르는 API 는 원시 짝을 둔다.** (SHOULD) (D-290)
-  `Range(Int32, Int32)` 와 `Range(Float, Float)` 만 있으면 `Range(3, 7)` 이 모호하다 - 둘 다 사용자 변환 하나로 닿는다.
-  스크립트가 리터럴로 부르는 자리(`RandomService::Range`·`RandomStream::Range`)는 `int`·`float` 짝을 두어 엔진 타입 판으로 넘긴다.
+- **DLL 경계로 오가는 함수는 양쪽 선언을 같은 헤더에서 가져온다.** (MUST) (D-290)
+  엔진 값 타입은 생성자가 있는 클래스라 MSVC x64 가 반환값을 메모리로 넘긴다(원시 `float` 은 XMM0). 한쪽은 `float`, 다른 쪽은 `Float` 로 선언하면 크래시다.
+  DLL 의 진입점은 `extern "C"` 하나(`JBroScriptModule_GetApi`, 포인터를 돌려준다)이고 나머지는 공용 헤더에 엔진 타입으로 선언한 함수 표로 오간다.
 
 ## 11. 에디터
 

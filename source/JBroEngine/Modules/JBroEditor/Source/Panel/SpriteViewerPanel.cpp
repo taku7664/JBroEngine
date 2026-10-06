@@ -194,7 +194,7 @@ namespace JBro
         // **칸에 맞춘 배율이 바닥이다**(D-185). 사람이 확대를 고르지 않았으면 그것을 쓴다 -
         // 처음 열었을 때 시트 전체가 보여야 어디를 볼지 고를 수 있다.
         const Float fitZoom = JBro::Clamp(
-            (std::min)(area.x / static_cast<float>(width), area.y / static_cast<float>(height)),
+            (std::min)(area.x / static_cast<JBro::Float>(width), area.y / static_cast<JBro::Float>(height)),
             MinSheetZoom, MaxSheetZoom);
         // 확대 줄. 기존 엔진도 슬라이더와 `창에 맞추기` 단추를 나란히 두었다.
         {
@@ -215,7 +215,7 @@ namespace JBro
                 m_showPivot);
         }
         const Float zoom = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
-        const ImVec2 size(static_cast<float>(width) * zoom, static_cast<float>(height) * zoom);
+        const ImVec2 size(static_cast<JBro::Float>(width) * zoom, static_cast<JBro::Float>(height) * zoom);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
 
         // 누름 자리를 먼저 두고 그 위에 그림과 격자를 그린다.
@@ -233,7 +233,7 @@ namespace JBro
         if (m_frame >= data->frames.Size())
         {
             // 옵션을 고쳐 칸이 줄었다. 넘친 번호를 들고 있으면 미리보기가 없는 칸을 가리킨다.
-            m_frame = static_cast<std::uint32_t>(data->frames.Size() - 1);
+            m_frame = static_cast<JBro::UInt32>(data->frames.Size() - 1);
         }
 
         // **칸마다 테두리를 두른다.** 자른 모양이 보여야 자르는 옵션을 고칠 수 있다.
@@ -251,30 +251,30 @@ namespace JBro
         {
             const SpriteFrame& frame = data->frames[index];
             if (overSheet && m_hoveredFrame < 0
-                && hoverX >= static_cast<float>(frame.x)
-                && hoverX < static_cast<float>(frame.x + frame.width)
-                && hoverY >= static_cast<float>(frame.y)
-                && hoverY < static_cast<float>(frame.y + frame.height))
+                && hoverX >= static_cast<JBro::Float>(frame.x)
+                && hoverX < static_cast<JBro::Float>(frame.x + frame.width)
+                && hoverY >= static_cast<JBro::Float>(frame.y)
+                && hoverY < static_cast<JBro::Float>(frame.y + frame.height))
             {
-                m_hoveredFrame = static_cast<int>(index);
+                m_hoveredFrame = static_cast<JBro::Int32>(index);
             }
         }
         for (std::size_t index = 0; index < data->frames.Size(); ++index)
         {
             const SpriteFrame& frame = data->frames[index];
-            const ImVec2 min(origin.x + static_cast<float>(frame.x) * zoom,
-                origin.y + static_cast<float>(frame.y) * zoom);
-            const ImVec2 max(min.x + static_cast<float>(frame.width) * zoom,
-                min.y + static_cast<float>(frame.height) * zoom);
+            const ImVec2 min(origin.x + static_cast<JBro::Float>(frame.x) * zoom,
+                origin.y + static_cast<JBro::Float>(frame.y) * zoom);
+            const ImVec2 max(min.x + static_cast<JBro::Float>(frame.width) * zoom,
+                min.y + static_cast<JBro::Float>(frame.height) * zoom);
             const Bool chosen = index == m_frame;
-            const Bool hovered = static_cast<int>(index) == m_hoveredFrame;
+            const Bool hovered = static_cast<JBro::Int32>(index) == m_hoveredFrame;
             const ImU32 color = hovered ? hoverColor : (chosen ? chosenColor : cellColor);
             draw->AddRect(min, max, color, 0.0f, 0, (hovered || chosen) ? 2.0f : 1.0f);
             // 피벗은 **칸마다** 다를 수 있다. 시트에서 한눈에 견주려면 다 그려야 한다.
             if (m_showPivot)
             {
-                const Float pivotX = min.x + static_cast<float>(frame.width) * frame.pivotX * zoom;
-                const Float pivotY = min.y + static_cast<float>(frame.height) * frame.pivotY * zoom;
+                const Float pivotX = min.x + static_cast<JBro::Float>(frame.width) * frame.pivotX * zoom;
+                const Float pivotY = min.y + static_cast<JBro::Float>(frame.height) * frame.pivotY * zoom;
                 constexpr Float Arm = 4.0f;
                 draw->AddLine(ImVec2(pivotX - Arm, pivotY), ImVec2(pivotX + Arm, pivotY),
                     chosenColor, 1.5f);
@@ -286,7 +286,7 @@ namespace JBro
         if (clicked && m_hoveredFrame >= 0)
         {
             // 누른 자리의 칸은 이미 위에서 찾아 두었다. 칸 사이 틈을 누르면 그대로다.
-            m_frame = static_cast<std::uint32_t>(m_hoveredFrame);
+            m_frame = static_cast<JBro::UInt32>(m_hoveredFrame);
             m_playing = false;
             // 인스펙터가 이 그림으로 고르는 중이면 누른 칸이 곧 답이다.
             if (m_editor->IsSpriteFramePickActive()
@@ -304,8 +304,8 @@ namespace JBro
             const SpriteFrame& frame = data->frames[static_cast<std::size_t>(m_hoveredFrame)];
             Widget::HintTextF(
                 Loc::TextOr(LocKeys::SpriteViewerHoveredFrame, "hovering %d (%d, %d) %d x %d"),
-                m_hoveredFrame, static_cast<int>(frame.x), static_cast<int>(frame.y),
-                static_cast<int>(frame.width), static_cast<int>(frame.height));
+                m_hoveredFrame, static_cast<JBro::Int32>(frame.x), static_cast<JBro::Int32>(frame.y),
+                static_cast<JBro::Int32>(frame.width), static_cast<JBro::Int32>(frame.height));
         }
     }
 
@@ -321,7 +321,7 @@ namespace JBro
 
         if (ready)
         {
-            const UInt32 count = static_cast<std::uint32_t>(data->frames.Size());
+            const UInt32 count = static_cast<JBro::UInt32>(data->frames.Size());
             if (m_playing && m_framesPerSecond > 0.0f)
             {
                 // 칸 하나의 시간이 쌓이면 넘긴다. 프레임 시간이 길어도 한 번에 여러 칸을 건너뛰어
@@ -343,10 +343,10 @@ namespace JBro
             const Float widthAvailable = ImGui::GetContentRegionAvail().x;
             const Float side = (std::min)(PreviewMaxSide, widthAvailable);
             const ImVec2 size = Widget::FitInside(frame.width, frame.height, ImVec2(side, side));
-            const ImVec2 uvMin(static_cast<float>(frame.x) / static_cast<float>(width),
-                static_cast<float>(frame.y) / static_cast<float>(height));
-            const ImVec2 uvMax(static_cast<float>(frame.x + frame.width) / static_cast<float>(width),
-                static_cast<float>(frame.y + frame.height) / static_cast<float>(height));
+            const ImVec2 uvMin(static_cast<JBro::Float>(frame.x) / static_cast<JBro::Float>(width),
+                static_cast<JBro::Float>(frame.y) / static_cast<JBro::Float>(height));
+            const ImVec2 uvMax(static_cast<JBro::Float>(frame.x + frame.width) / static_cast<JBro::Float>(width),
+                static_cast<JBro::Float>(frame.y + frame.height) / static_cast<JBro::Float>(height));
             const ImVec2 previewOrigin = ImGui::GetCursorScreenPos();
             Widget::Image(sheet, size, uvMin, uvMax);
             // 미리보기에도 피벗을 찍는다(D-185). 시트에서는 칸이 작아 잘 보이지 않는다.

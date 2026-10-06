@@ -25,7 +25,7 @@ namespace JBro
 
         UInt32 ButtonBit(MouseButton button)
         {
-            return 1u << static_cast<std::uint32_t>(button);
+            return 1u << static_cast<JBro::UInt32>(button);
         }
 
         InputEvent MakeMove(Float x, Float y)
@@ -137,7 +137,7 @@ namespace JBro
 
         GuideFocusTarget GizmoHandle(UInt32 mode, UInt32 axis)
         {
-            return { MakeNameId("canvas_view.gizmo_handle"), (static_cast<std::uint64_t>(mode) << 8) | axis };
+            return { MakeNameId("canvas_view.gizmo_handle"), (static_cast<JBro::UInt64>(mode) << 8) | axis };
         }
 
         GuideFocusTarget ColliderEditButton()

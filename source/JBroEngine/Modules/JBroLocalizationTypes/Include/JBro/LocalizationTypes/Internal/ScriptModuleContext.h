@@ -4,6 +4,7 @@
 #include <JBro/LocalizationTypes/Internal/SystemContext.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/UInt.h>
 
 // 로컬라이징 컨텍스트를 D-37 확장 블록으로 내고 찾는 도우미다. 세이브의 것과 같은 모양이다(D-218, D-226).
 // 블록은 **호스트가** 만든다 - 표는 엔진이 소유하고 두 차원이 같은 것을 쓴다.
@@ -16,7 +17,7 @@ namespace JBro
     {
         LocalizationServiceContextTypeId,
         LocalizationServiceContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(LocalizationServiceContext))
+        static_cast<JBro::UInt32>(sizeof(LocalizationServiceContext))
     };
 
     ScriptContextBlock MakeLocalizationServiceContextBlock(const LocalizationServiceContext& context) noexcept;
@@ -28,7 +29,7 @@ namespace JBro
     {
         LocalizationSystemContextTypeId,
         LocalizationSystemContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(LocalizationSystemContext))
+        static_cast<JBro::UInt32>(sizeof(LocalizationSystemContext))
     };
 
     ScriptContextBlock MakeLocalizationSystemContextBlock(const LocalizationSystemContext& context) noexcept;

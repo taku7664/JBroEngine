@@ -117,14 +117,14 @@ namespace JBro
         friend class System::InputSystem;
 
         static constexpr UInt32 AllDevices =
-            (1u << static_cast<std::uint32_t>(InputDevice::Count)) - 1u;
+            (1u << static_cast<JBro::UInt32>(InputDevice::Count)) - 1u;
 
         InputView() = default;
 
         static constexpr UInt32 DeviceBit(InputDevice device)
         {
-            const UInt32 index = static_cast<std::uint32_t>(device);
-            if (index >= static_cast<std::uint32_t>(InputDevice::Count))
+            const UInt32 index = static_cast<JBro::UInt32>(device);
+            if (index >= static_cast<JBro::UInt32>(InputDevice::Count))
             {
                 return 0;
             }

@@ -27,7 +27,7 @@ namespace
         JBro::Float y = 0.0f;
     };
 
-    constexpr JBro::UInt32 StateBytes = sizeof(State);
+    constexpr JBro::UInt32 StateBytes = static_cast<JBro::UInt32>(sizeof(State));
 
     // 클라이언트 한 벌: 트랜스포트·호스트·풀·복제.
     struct Client
@@ -162,8 +162,8 @@ namespace
             for (JBro::UInt32 index = 0; index < count; ++index)
             {
                 State state;
-                state.x = static_cast<float>(index);
-                state.y = static_cast<float>(index) * 0.5f;
+                state.x = static_cast<JBro::Float>(index);
+                state.y = static_cast<JBro::Float>(index) * 0.5f;
                 serverPool.Set(1 + index, &state);
             }
         }
@@ -281,7 +281,7 @@ namespace
             ReliableDiagnostics reliable;
             world.server.GetReliableDiagnostics(world.server.GetConnectionAt(0), reliable);
             std::cout << "  server reliable: unacked=" << reliable.unacked << " queued=" << reliable.queued << " cwnd="
-                << reliable.congestionWindow << " rto=" << reliable.rtoMilliseconds << " route=" << static_cast<int>(reliable.route)
+                << reliable.congestionWindow << " rto=" << reliable.rtoMilliseconds << " route=" << static_cast<JBro::Int32>(reliable.route)
                 << " ready=" << reliable.udpReady << "\n";
             world.client.transport.GetReliableDiagnostics(ServerConnectionId, reliable);
             std::cout << "  client reliable: unacked=" << reliable.unacked << " queued=" << reliable.queued

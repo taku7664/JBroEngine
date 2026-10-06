@@ -63,9 +63,9 @@ namespace JBro::ScriptCompiler
             SourceLocation Here() const noexcept
             {
                 SourceLocation location;
-                location.Offset = static_cast<std::uint32_t>(m_offset);
+                location.Offset = static_cast<JBro::UInt32>(m_offset);
                 location.Line = m_line;
-                location.Column = static_cast<std::uint32_t>(m_offset - m_lineStart + 1);
+                location.Column = static_cast<JBro::UInt32>(m_offset - m_lineStart + 1);
                 return location;
             }
 
@@ -218,11 +218,11 @@ namespace JBro::ScriptCompiler
 
             Bool FitsInInt64(std::size_t first, std::size_t last) const noexcept
             {
-                const UInt64 limit = static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+                const UInt64 limit = static_cast<JBro::UInt64>(std::numeric_limits<std::int64_t>::max());
                 UInt64 value = 0;
                 for (std::size_t index = first; index < last; ++index)
                 {
-                    const UInt64 digit = static_cast<std::uint64_t>(m_text[index] - '0');
+                    const UInt64 digit = static_cast<JBro::UInt64>(m_text[index] - '0');
                     if (value > (limit - digit) / 10)
                     {
                         return false;

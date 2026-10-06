@@ -47,7 +47,7 @@ namespace JBro::Widget
         }
     }
 
-    void Spectrum(const char* id, ArrayView<const float> bands, Float height)
+    void Spectrum(const char* id, ArrayView<const Float> bands, Float height)
     {
         const Float width = ImGui::GetContentRegionAvail().x;
         const ImVec2 size(width > 1.0f ? width : Float(1.0f), height > 1.0f ? height : Float(1.0f));
@@ -60,7 +60,7 @@ namespace JBro::Widget
         {
             return;
         }
-        const Float column = size.x / static_cast<float>(bands.Size());
+        const Float column = size.x / static_cast<JBro::Float>(bands.Size());
         const Float gap = column > 3.0f ? 1.0f : 0.0f;
         const ImU32 color = ImGui::GetColorU32(ImGuiCol_PlotHistogram);
         for (std::size_t band = 0; band < bands.Size(); ++band)
@@ -71,7 +71,7 @@ namespace JBro::Widget
             {
                 continue;
             }
-            const Float left = origin.x + column * static_cast<float>(band);
+            const Float left = origin.x + column * static_cast<JBro::Float>(band);
             draw->AddRectFilled(ImVec2(left, end.y - size.y * value), ImVec2(left + column - gap, end.y), color);
         }
     }

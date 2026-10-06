@@ -109,7 +109,7 @@ namespace JBro
 
     UInt32 EditorShortcutManager::GetCount() const
     {
-        return static_cast<std::uint32_t>(m_entries.Size());
+        return static_cast<JBro::UInt32>(m_entries.Size());
     }
 
     EditorShortcutView EditorShortcutManager::GetAt(UInt32 index) const

@@ -230,7 +230,7 @@ namespace JBro::System
                 continue;
             }
             InputEntry entry;
-            entry.ordered = static_cast<std::uint32_t>(index);
+            entry.ordered = static_cast<JBro::UInt32>(index);
             entry.handler = binding.ToHandler(script);
             entry.layer = binding.layer;
             entry.layerText = binding.layerText;

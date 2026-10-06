@@ -18,14 +18,14 @@ namespace JBro
             std::mt19937 engine(source());
             std::uniform_int_distribution<std::uint32_t> distribution(
                 0,
-                static_cast<std::uint32_t>(SessionMask));
+                static_cast<JBro::UInt32>(SessionMask));
             return distribution(engine);
         }
 
         UInt64 CurrentMilliseconds()
         {
             using namespace std::chrono;
-            return static_cast<std::uint64_t>(
+            return static_cast<JBro::UInt64>(
                 duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
         }
     }

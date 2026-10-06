@@ -93,8 +93,8 @@ namespace JBro
             static const TypeDescriptor descriptor = [] {
                 TypeDescriptor made;
                 made.typeName = NameTable::Get().Intern("JBro.TextId");
-                made.size = static_cast<std::uint32_t>(sizeof(TextId));
-                made.alignment = static_cast<std::uint32_t>(alignof(TextId));
+                made.size = static_cast<JBro::UInt32>(sizeof(TextId));
+                made.alignment = static_cast<JBro::UInt32>(alignof(TextId));
                 // 바이트를 옮기면 두 값이 한 칸을 나눠 갖는다. 복사는 코덱이 한다.
                 made.triviallyCopyable = false;
                 made.codec = &GetTextIdCodec();

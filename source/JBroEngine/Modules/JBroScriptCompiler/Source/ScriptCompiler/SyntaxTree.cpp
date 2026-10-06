@@ -1,5 +1,6 @@
 ﻿#include <JBro/ScriptCompiler/SyntaxTree.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::ScriptCompiler
 {
@@ -31,13 +32,13 @@ namespace JBro::ScriptCompiler
         node.Flags = flags;
         node.Range = range;
         node.Text = text;
-        node.FirstChild = static_cast<std::uint32_t>(m_children.Size());
-        node.ChildCount = static_cast<std::uint32_t>(children.Size());
+        node.FirstChild = static_cast<JBro::UInt32>(m_children.Size());
+        node.ChildCount = static_cast<JBro::UInt32>(children.Size());
         for (NodeIndex child : children)
         {
             m_children.Add(child);
         }
-        return NodeIndex(static_cast<std::uint32_t>(m_nodes.Size() - 1));
+        return NodeIndex(static_cast<JBro::UInt32>(m_nodes.Size() - 1));
     }
 
     void SyntaxTree::Truncate(std::size_t nodeCount, std::size_t childIndexCount)

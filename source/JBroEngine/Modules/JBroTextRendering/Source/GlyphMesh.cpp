@@ -11,7 +11,7 @@ namespace JBro
     UInt32 GlyphPixelSize(Float fontSize)
     {
         const long rounded = std::isfinite(fontSize) ? std::lround(fontSize) : 0;
-        return static_cast<std::uint32_t>(std::clamp<long>(rounded, 1, static_cast<long>(Text::GlyphAtlas::MaxPixelSize)));
+        return static_cast<JBro::UInt32>(std::clamp<long>(rounded, 1, static_cast<long>(Text::GlyphAtlas::MaxPixelSize)));
     }
 
     void BuildGlyphQuads(const Text::TextLayout& layout, const FontView* views, UInt32 viewCount,
@@ -35,10 +35,10 @@ namespace JBro
             {
                 continue;
             }
-            const Float pageSize = static_cast<float>(glyphFont.atlas->GetPageSize());
+            const Float pageSize = static_cast<JBro::Float>(glyphFont.atlas->GetPageSize());
             // 글자마다 크기가 다를 수 있다(리치 텍스트). SDF 는 거리장 한 벌을 그 크기로 키우고, 비트맵은 그 정수 크기로 뜬다.
             const Float glyphSize = glyph.size > 0.0f ? glyph.size : Float(1.0f);
-            const Float cellScale = options.sdf ? glyphSize / static_cast<float>(options.sdfSize) : Float(1.0f);
+            const Float cellScale = options.sdf ? glyphSize / static_cast<JBro::Float>(options.sdfSize) : Float(1.0f);
             Text::AtlasGlyph cell;
             const Text::AtlasError placed = options.sdf
                 ? glyphFont.atlas->EnsureSdf(*glyphFont.face, options.sdfSize, options.sdfSpread, glyph.glyph, cell)
@@ -50,14 +50,14 @@ namespace JBro
             GlyphQuad quad;
             const Float originX = options.pixelSnap ? Float(std::round(glyph.x)) : glyph.x;
             const Float originY = options.pixelSnap ? Float(std::round(glyph.y)) : glyph.y;
-            quad.left = originX + static_cast<float>(cell.left) * cellScale;
-            quad.top = originY + static_cast<float>(cell.top) * cellScale;
-            quad.width = static_cast<float>(cell.width) * cellScale;
-            quad.height = static_cast<float>(cell.height) * cellScale;
-            Float u0 = static_cast<float>(cell.x) / pageSize;
-            Float v0 = static_cast<float>(cell.y) / pageSize;
-            Float u1 = static_cast<float>(cell.x + cell.width) / pageSize;
-            Float v1 = static_cast<float>(cell.y + cell.height) / pageSize;
+            quad.left = originX + static_cast<JBro::Float>(cell.left) * cellScale;
+            quad.top = originY + static_cast<JBro::Float>(cell.top) * cellScale;
+            quad.width = static_cast<JBro::Float>(cell.width) * cellScale;
+            quad.height = static_cast<JBro::Float>(cell.height) * cellScale;
+            Float u0 = static_cast<JBro::Float>(cell.x) / pageSize;
+            Float v0 = static_cast<JBro::Float>(cell.y) / pageSize;
+            Float u1 = static_cast<JBro::Float>(cell.x + cell.width) / pageSize;
+            Float v1 = static_cast<JBro::Float>(cell.y + cell.height) / pageSize;
             if (options.clip)
             {
                 Float right = quad.left + quad.width;
@@ -95,7 +95,7 @@ namespace JBro
             quad.uvRect[3] = v1 - v0;
             quad.page = cell.page;
             quad.face = static_cast<std::uint8_t>(faceIndex);
-            quad.sdfPerTextPixel = options.sdf ? static_cast<float>(options.sdfSize) / glyphSize : Float(1.0f);
+            quad.sdfPerTextPixel = options.sdf ? static_cast<JBro::Float>(options.sdfSize) / glyphSize : Float(1.0f);
             if (glyph.hasColor)
             {
                 quad.hasTint = true;
@@ -114,7 +114,7 @@ namespace JBro
         {
             return 0.5f;
         }
-        const Float spread = static_cast<float>(sdfSpread);
+        const Float spread = static_cast<JBro::Float>(sdfSpread);
         const Float width = std::min(outlineWidth * sdfPerTextPixel, spread - 1.0f);
         return 0.5f - width * (0.5f / spread);
     }

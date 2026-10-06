@@ -216,7 +216,7 @@ namespace
         for (JBro::UInt32 id = 0; id < 8; ++id)
         {
             Cached& entry = cache.FindOrAdd(id);
-            entry.payload = static_cast<int>(id);
+            entry.payload = static_cast<JBro::Int32>(id);
             // 짝수만 이번 프레임에 봤다.
             entry.lastSeenFrame = (id % 2 == 0) ? frame : frame - 1;
         }

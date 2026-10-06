@@ -120,8 +120,8 @@ namespace JBro
                 out[0] = '\0';
                 return true;
             }
-            const Int32 written = WideCharToMultiByte(CP_UTF8, 0, name, static_cast<int>(length),
-                out, static_cast<int>(capacity - 1), nullptr, nullptr);
+            const Int32 written = WideCharToMultiByte(CP_UTF8, 0, name, static_cast<JBro::Int32>(length),
+                out, static_cast<JBro::Int32>(capacity - 1), nullptr, nullptr);
             if (written <= 0)
             {
                 return false;

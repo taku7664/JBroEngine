@@ -51,7 +51,7 @@ namespace
         JBro::EngineInstance engine;
         JBro::EngineConfig config;
         constexpr char title[] = "JBro EngineInstance hidden lifecycle test";
-        config.window.title = {title, sizeof(title) - 1};
+        config.window.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         config.window.width = 96;
         config.window.height = 64;
         config.window.visible = false;
@@ -242,7 +242,7 @@ namespace
 
         constexpr char title[] = "JBro D3D12 smoke test";
         JBro::WindowDesc windowDesc;
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -428,7 +428,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro abort probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;

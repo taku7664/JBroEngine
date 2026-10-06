@@ -29,7 +29,7 @@ namespace
 
         constexpr char title[] = "JBro hidden test window";
         JBro::WindowDesc desc;
-        desc.title = {title, sizeof(title) - 1};
+        desc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         desc.width = 320;
         desc.height = 180;
         desc.visible = false;

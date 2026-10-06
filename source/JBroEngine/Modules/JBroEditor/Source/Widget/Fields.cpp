@@ -358,7 +358,7 @@ namespace JBro::Widget
                     continue;
                 }
                 char number[8];
-                ImGui::PushID(static_cast<int>(bit));
+                ImGui::PushID(static_cast<JBro::Int32>(bit));
                 bool rawOn = on;
                 const bool toggled = ImGui::Checkbox(nameOf(bit, number, sizeof(number)), &rawOn);
                 on = rawOn;

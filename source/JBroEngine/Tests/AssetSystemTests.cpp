@@ -51,7 +51,7 @@ namespace
     {
         JBro::JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(TinyPng);
-        view.size = sizeof(TinyPng);
+        view.size = static_cast<JBro::UInt32>(sizeof(TinyPng));
         return view;
     }
 
@@ -91,7 +91,7 @@ namespace
         const char garbage[] = "this is not an image";
         JBro::JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(garbage);
-        view.size = sizeof(garbage);
+        view.size = static_cast<JBro::UInt32>(sizeof(garbage));
         JBro::DecodedImage untouched;
         untouched.width = 7;
         Check(false == JBro::DecodeImage(view, untouched), "garbage is refused");
@@ -270,7 +270,7 @@ namespace
         text.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 2\n    pivotX: 0\n");
         JBro::JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(text.data());
-        view.size = static_cast<std::uint32_t>(text.size());
+        view.size = static_cast<JBro::UInt32>(text.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with options saves");
 
         Check(assets.ReloadInPlace(fixture.spriteId), "the sprite reloads in place");
@@ -292,7 +292,7 @@ namespace
         JBro::String textureText = JBro::FormatAssetMetaFile(meta);
         textureText.append("Texture:\n  ImportOptions:\n    filter: Linear\n");
         view.data = reinterpret_cast<const std::byte*>(textureText.data());
-        view.size = static_cast<std::uint32_t>(textureText.size());
+        view.size = static_cast<JBro::UInt32>(textureText.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with a texture filter saves");
         Check(assets.ReloadInPlace(fixture.textureId) && assets.GetTexture(texture)->filter == JBro::TextureFilter::Linear,
             "the texture's own filter wins");
@@ -300,7 +300,7 @@ namespace
         textureText = JBro::FormatAssetMetaFile(meta);
         textureText.append("Texture:\n  ImportOptions:\n    filter: Default\n");
         view.data = reinterpret_cast<const std::byte*>(textureText.data());
-        view.size = static_cast<std::uint32_t>(textureText.size());
+        view.size = static_cast<JBro::UInt32>(textureText.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with Default saves");
         Check(assets.ReloadInPlace(fixture.textureId) && assets.GetTexture(texture)->filter == JBro::TextureFilter::Linear
                 && assets.GetTexture(texture)->options.filter == JBro::TextureFilter::Default,
@@ -312,7 +312,7 @@ namespace
         textureText = JBro::FormatAssetMetaFile(meta);
         textureText.append("Texture:\n  ImportOptions:\n    filter: Blurry\n");
         view.data = reinterpret_cast<const std::byte*>(textureText.data());
-        view.size = static_cast<std::uint32_t>(textureText.size());
+        view.size = static_cast<JBro::UInt32>(textureText.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with a bad filter saves");
         Check(false == assets.ReloadInPlace(fixture.textureId), "a filter name nobody knows is refused");
         Check(assets.GetTexture(texture)->filter == JBro::TextureFilter::Nearest, "leaving the previous data");
@@ -321,7 +321,7 @@ namespace
         // 옵션이 읽히지 않으면 실패고 옛 자료가 남는다.
         text.append("    nonsense: 1\n");
         view.data = reinterpret_cast<const std::byte*>(text.data());
-        view.size = static_cast<std::uint32_t>(text.size());
+        view.size = static_cast<JBro::UInt32>(text.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "a meta with an unknown option key saves");
         Check(false == assets.ReloadInPlace(fixture.spriteId), "and is refused on reload");
 
@@ -332,13 +332,13 @@ namespace
         JBro::String badPpu = JBro::FormatAssetMetaFile(meta);
         badPpu.append("  ImportOptions:\n    pixelsPerUnit: -5\n");
         view.data = reinterpret_cast<const std::byte*>(badPpu.data());
-        view.size = static_cast<std::uint32_t>(badPpu.size());
+        view.size = static_cast<JBro::UInt32>(badPpu.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "a meta with a negative PPU saves");
         Check(assets.ReloadInPlace(fixture.spriteId)
                 && assets.GetSprite(sprite)->options.pixelsPerUnit == JBro::DefaultPixelsPerUnit,
             "a non-positive pixels per unit is repaired to the default on load");
         view.data = reinterpret_cast<const std::byte*>(text.data());
-        view.size = static_cast<std::uint32_t>(text.size());
+        view.size = static_cast<JBro::UInt32>(text.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with the unknown key is put back");
 
         // 메타는 이미지마다 한 번 파싱돼 캐시된다. 내려간 뒤의 로드는 디스크를 다시 본다 - 손으로 고친 메타가 반영되게.
@@ -346,7 +346,7 @@ namespace
             JBro::String rows = JBro::FormatAssetMetaFile(meta);
             rows.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 1\n");
             view.data = reinterpret_cast<const std::byte*>(rows.data());
-            view.size = static_cast<std::uint32_t>(rows.size());
+            view.size = static_cast<JBro::UInt32>(rows.size());
             const std::size_t framesBefore = assets.GetSprite(sprite)->frames.Size();
             Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "a meta edited by hand saves");
             Check(assets.GetSprite(sprite)->frames.Size() == framesBefore, "the loaded sprite does not see it yet");
@@ -359,7 +359,7 @@ namespace
             assets.Release(again);
             assets.CollectUnused();
             view.data = reinterpret_cast<const std::byte*>(text.data());
-            view.size = static_cast<std::uint32_t>(text.size());
+            view.size = static_cast<JBro::UInt32>(text.size());
             Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with the unknown key is put back again");
         }
 

@@ -50,7 +50,7 @@ namespace JBro::Network
             {
                 return -1.0;
             }
-            const UInt64 expected = static_cast<std::uint64_t>(maxSeq - firstSeq) + 1u;
+            const UInt64 expected = static_cast<JBro::UInt64>(maxSeq - firstSeq) + 1u;
             if (received >= expected)
             {
                 return 0.0;

@@ -263,7 +263,7 @@ namespace
 
         // 앵커가 없는 받침에서는 받침의 끝이다. 표시가 둘이면 같은 받침에 붙는다(mark-to-mark 는 읽지 않는다).
         Check(layout.Build(Utf8("B\xCC\x81\xCC\x81"), faces, options) == LayoutError::None, "B + two acutes lays out");
-        const JBro::Float bAdvance = static_cast<float>(marks.GetAdvance(marks.FindGlyph(U'B')));
+        const JBro::Float bAdvance = static_cast<JBro::Float>(marks.GetAdvance(marks.FindGlyph(U'B')));
         Check(layout.GetGlyphs().Size() == 3 && Near(layout.GetGlyphs()[1].x, bAdvance) && Near(layout.GetGlyphs()[1].y, layout.GetGlyphs()[0].y),
             "without an anchor the mark stands at the end of its base");
         Check(Near(layout.GetGlyphs()[2].x, bAdvance), "a second mark attaches to the same base");
@@ -426,7 +426,7 @@ namespace
         Check(false == layout.GetGlyphs()[1].hasColor, "and the B after the closing tag has none");
         Check(layout.GetGlyphs()[0].sourceOffset == 17 && layout.GetGlyphs()[1].sourceOffset == 26,
             "glyphs keep the byte offsets of their letters");
-        Check(Near(layout.GetGlyphs()[1].x, 608.0f + static_cast<float>(face.GetKerning(face.FindGlyph(U'A'), face.FindGlyph(U'B')))),
+        Check(Near(layout.GetGlyphs()[1].x, 608.0f + static_cast<JBro::Float>(face.GetKerning(face.FindGlyph(U'A'), face.FindGlyph(U'B')))),
             "and the B follows the A as if the tags were not there");
         Check(layout.Build(Utf8("<color=#00FF00>A</color>"), faces, options) == LayoutError::None
                 && layout.GetGlyphs()[0].color == 0xFF00FF00u, "a colour without alpha is opaque");
@@ -462,7 +462,7 @@ namespace
         Check(Near(layout.GetGlyphs()[1].size, 2000.0f) && Near(layout.GetGlyphs()[0].size, 1000.0f) && Near(layout.GetGlyphs()[2].size, 1000.0f),
             "only the A inside the tag is 2000 px");
         Check(Near(layout.GetGlyphs()[2].x - layout.GetGlyphs()[1].x,
-                1216.0f + static_cast<float>(face.GetKerning(face.FindGlyph(U'A'), face.FindGlyph(U'A')))),
+                1216.0f + static_cast<JBro::Float>(face.GetKerning(face.FindGlyph(U'A'), face.FindGlyph(U'A')))),
             "and it advances twice as far");
         Check(layout.Build(Utf8("<size=500><size=2000>A</size>A</size>"), faces, options) == LayoutError::None
                 && Near(layout.GetGlyphs()[0].size, 2000.0f) && Near(layout.GetGlyphs()[1].size, 500.0f), "the inner size wins");

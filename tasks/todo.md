@@ -2944,10 +2944,11 @@ EditorApplication::Tick
   폭은 그대로(32 비트 필드는 `Int32`). 이름은 `DragValue` 대신 `DragField` - `Widget::SetDragValue`·`AcceptDropValue` 가 끌어 놓기의 값을 뜻해 헷갈리고, 위젯 계층은 `…Field` 로 끝난다.
   `InputBox<T>` 는 하지 않기로 했다(글자 칸은 `TextField` 하나이고 숫자 타자 칸은 `DragField` 가 이미 한다).
   Updates: D-289(▲▼ 는 그대로, 위젯 이름과 타입이 바뀐다), D-249(`Size`·`SizeU`·`SizeI` 의 성분이 `Float`·`UInt32`·`Int32`), D-247(각도 ↔ `Float` 변환 방향), D-241(수학 값 타입의 성분).)
-  **규칙.** `ProjectRule.md` §10.5(수 타입과 경계)와 §11.1(숫자 칸). 원시 타입이 남는 자리는 값 타입·컨테이너의 구현 자체, 서드파티 API(ImGui 의 `bool*`·`float[4]`·콜백, stb,
-  miniaudio, D3D·Vulkan 의 출력 매개변수와 핸들, CRT 훅, Winsock), GPU 로 그대로 가는 배치(SPIR-V 낱말), 오디오 샘플 버퍼, 표준 라이브러리 인자(`from_chars`·`atomic` 기대값·
-  `chrono::duration`·분포·`countr_zero`), 진입점, 게임 DLL 의 `extern "C"` 내보내기, C++ 규칙이 `bool` 을 요구하는 비교 연산자 반환과 `explicit operator bool`, 열거형 밑 타입이다.
-  식 안의 명시적 변환(`static_cast<float>(x)`)은 그대로 둔다 - 결과는 곧바로 엔진 타입에 담긴다.
+  **규칙.** `ProjectRule.md` §10.5(수 타입과 경계)와 §11.1(숫자 칸). 원시 타입은 라이브러리·언어가 타입을 요구하는 **그 한 지점**에서만 쓴다(ImGui·stb·Vulkan·D3D·Winsock·
+  miniaudio·CRT·표준 라이브러리의 인자와 콜백 시그니처, SPIR-V 낱말, 진입점, 비교 연산자의 `bool` 반환, 열거형 밑 타입). 식 안의 수 변환도 `static_cast<Float>` 같은 엔진 타입이다.
+  (사용자 확인, 2026-10-06: "해당 라이브러리가 원하는 타입으로 줘야지", "라이브러리가 원하는 타입으로의 캐스팅은 허용", 식 안의 변환은 "Float로 바꿔야지".)
+  **처음 판단의 잘못.** 처음에는 시험 DLL 의 `extern "C"` 내보내기·오디오 샘플 버퍼 전체·식 안의 변환 955 곳을 혼자 "경계" 로 정해 원시 타입으로 두었다. `extern "C"` 는 확인해 보니
+  엔진 타입으로도 컴파일·실행된다(C4190 경고만 - 부르는 쪽이 C 일 때의 경고다). 변환이 깨진 파일을 고치는 대신 되돌리고 붙인 이름이었다. 셋 다 엔진 타입으로 바꿨다.
   **위젯.** `Widget::DragField<T>`·`SliderField<T>`(`Scalar.h`). `T` 는 `FieldNumber` concept(`Float`·`Int32`·`Int64`·`UInt32`·`UInt64`)이고 값은 생성자로 받아 CTAD 로 타입이 정해진다
   (`DragField("##count", count).Range(0, 10)()`). 범위는 `std::type_identity_t<T>` 로 받아 `0.0f` 리터럴이 추론을 흔들지 않는다. 타입마다 다른 ImGui 자료형(`S32`·`S64`·`U32`·`U64`·`Float`)·
   기본 형식(`%d`·`%lld`·`%u`·`%llu`·`%.2f`)·기본 끌기 속도는 `if constexpr` 로 가르고, `Format` 은 `Float` 에만 있다(`requires`). 다섯 타입을 `Scalar.cpp` 에서 명시적으로 인스턴스화한다.
@@ -2964,15 +2965,19 @@ EditorApplication::Tick
   (7) 각도 ↔ `Float` 양방향 암시는 비교를 모호하게 한다 → 각도 → `Float` 만 암시, `Float` → 각도는 명시(`Radian(x)`).
   (8) `Log::Write` 가 C 가변 인자라 `Float` 를 넘기면 `%f` 가 쓰레기를 읽었다 → 템플릿으로 감싸 원시 값으로 내려 준다. `snprintf` 류 49 곳은 `.Get()` 으로 넘긴다
   (다시 빌드한 C4477 경고로 찾았다 - 그대로 두었으면 `.jproject` 에 버전과 해상도가 쓰레기로 적혔다). ImGui 의 형식 함수는 컴파일러가 검사하지 않아 손으로 찾았다(2 곳).
-  (9) `Range(3, 7)` 이 `Int32`·`Float` 판 사이에서 모호하다 → `RandomService`·`RandomStream` 에 `int`·`float` 짝을 두었다. `RandomService::UInt32()` 는 이름이 타입과 같아 클래스 안의 타입은 `JBro::UInt32` 로 적는다.
+  (9) `Range(3, 7)` 이 `Int32`·`Float` 판 사이에서 모호했다 - 정수 리터럴이 둘 다로 암시 변환됐다. 처음에는 `int`·`float` 짝을 두었으나(사용자: "우리 엔진함수냐? 그럼 당연히 인자 타입도
+  우리 엔진 타입으로") 지우고, 암시 변환을 **같은 종류끼리만** 허용했다: `Float` 는 실수에서, 정수 강타입은 같거나 좁은 정수·범위 없는 열거형에서. 좁히기·실수→정수·정수→`Float` 는 명시
+  (명시적 생성자가 받는다). 그 결과 `Float x = 0;`·`Vector2{0, 0}`·`UInt32 n = sizeof(x)` 같은 자리가 컴파일 오류로 드러나 `0.0f`·`static_cast<UInt32>` 로 고쳤다(시험 코드에 수백 곳).
+  `RandomService::UInt32()` 는 이름이 타입과 같아 클래스 안의 타입은 `JBro::UInt32` 로 적는다.
   `JBro::Min`·`Max`·`Clamp`(`Types/ValueMath.h`)를 새로 두었다 - 엔진 타입과 리터럴이 섞여도 엔진 타입으로 돌려준다.
   **DLL 반환 규약.** `Float`·`Bool`·정수 강타입은 생성자가 있는 클래스라 MSVC x64 가 **반환값을 메모리로** 넘긴다(원시 `float` 은 XMM0, `bool` 은 AL).
   시험이 시험 DLL 의 `extern "C" float JBroScriptProbe_GetDeltaTime()` 을 `JBro::Float (*)()` 로 불러 크래시가 났다(전체 시험이 `ScriptDLLLoaderTests` 에서 종료 코드 139).
-  `extern "C"` 내보내기와 그것을 `GetProcAddress` 로 받는 포인터 타입은 원시 시그니처로 맞추고, 호스트와 게임 DLL 이 같은 헤더로 나누는 함수 표는 그대로 엔진 타입이다.
+  원인은 원시냐 엔진 타입이냐가 아니라 **양쪽 선언이 달랐던 것**이다. 시험 DLL 의 내보내기와 시험의 포인터 타입을 둘 다 엔진 타입으로 맞추고, C4190 은 그 파일에서만 까닭을 적어 껐다.
+  권고(사용자에게 드림): DLL 경계는 `extern "C"` 진입점 하나와 공용 헤더의 함수 표로만 오가게 한다 - 시험 DLL 의 `JBroScriptProbe_*` 내보내기 스무 개도 시험용 함수 표 하나로 묶을 수 있다(아직 안 함).
   옛 헤더로 빌드한 게임 DLL 은 반환 규약이 달라 실리면 깨지므로 `ScriptModuleAbiVersion` 을 1 → 2 로 올려 싣지 않는다.
   **범위.** 엔진 모듈 전부와 시험, 별도 프로젝트 `JBroNetwork`(엔진 Core 헤더를 그대로 쓰므로 같이 옮겼다). 코드(주석·문자열 제외)에 남은 원시 수 타입 토큰은 약 9,500 개에서 1,623 개다 -
-  그중 955 개가 식 안의 명시적 변환, 142 개가 표준 템플릿 인자, 48 개가 `sizeof`, 나머지가 위에 적은 경계다. 오디오 믹서(DSP)는 샘플 버퍼가 miniaudio 와 나누는 원시 배열이라
-  버퍼·위치 배열·스펙트럼·파형은 `float` 이고, 믹서 API 의 볼륨 같은 값은 `Float` 다.
+  그 뒤 식 안의 변환을 엔진 타입으로 바꿔 575 개로 줄었다(표준 템플릿 인자 115, `sizeof` 48, 값 타입·컨테이너 구현과 열거형 밑 타입 쪽 변환 46, 나머지는 위의 라이브러리 지점).
+  오디오는 버퍼·위치 배열·스펙트럼·파형까지 `Float` 이고, miniaudio 가 정한 출력 버퍼(`void*` → `Float*`)와 노드 콜백의 `float**` 시그니처, `ma_sound_get_cursor_in_seconds` 의 출력만 원시다.
   **검증.** 솔루션 전체 다시 빌드, 위젯 시험 `TestEveryNumberTypeSpinsTheSameWay`(실수 `Step`·부호 없는 바닥·64 비트) 와 `static_assert` 로 원시 `float`·`int`·`double`·`std::uint32_t` 가
   숫자 칸에 닿지 않는 것. 음성 컴파일(스크래치 `cl /Zs`): `JBRO_FIELD(Float, …)` 는 통과, `float`·`int`·`bool` 은 `TypeDescriptorOf.h` 의 static_assert 로 실패.
   변이: 부호 없는 바닥을 빼면 시험이 잡는다. `Int64` 를 ImGui `S32` 로 그리는 변이는 **살아남는다** - 리틀 엔디언이라 위쪽 32 비트가 그대로 남아 값은 맞고, 보이는 숫자만 틀린다(화면 글자를 읽는 시험이 없다).

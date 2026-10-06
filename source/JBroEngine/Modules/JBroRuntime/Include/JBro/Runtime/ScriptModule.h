@@ -44,7 +44,7 @@ namespace JBro
     struct ScriptModuleLoadContext
     {
         UInt32 AbiVersion = ScriptModuleLoadContextAbiVersion;
-        UInt32 StructSize = sizeof(ScriptModuleLoadContext);
+        UInt32 StructSize = static_cast<UInt32>(sizeof(ScriptModuleLoadContext));
         const SystemContext* Systems = nullptr;
         const ServiceContext* Services = nullptr;
         // 호스트의 인스턴스 레지스트리. DLL 은 이것을 자기 사본의 접근점에 1회 바인딩한다(D-44).
@@ -71,7 +71,7 @@ namespace JBro
     struct ScriptModuleApi
     {
         UInt32 AbiVersion = ScriptModuleAbiVersion;
-        UInt32 StructSize = sizeof(ScriptModuleApi);
+        UInt32 StructSize = static_cast<UInt32>(sizeof(ScriptModuleApi));
         const ScriptContextRequirement* RequiredContexts = nullptr;
         UInt32 RequiredContextCount = 0;
         UInt32 Reserved = 0;

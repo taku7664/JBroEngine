@@ -6,6 +6,7 @@
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/TextRendering/TextLibrary.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Package
 {
@@ -89,7 +90,7 @@ namespace JBro::Package
             {
                 JArrayView<std::byte> view;
                 view.data = source.Data();
-                view.size = static_cast<std::uint32_t>(source.Size());
+                view.size = static_cast<JBro::UInt32>(source.Size());
                 DecodedImage image;
                 if (false == DecodeImage(view, image))
                 {

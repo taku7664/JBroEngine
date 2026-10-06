@@ -4,6 +4,7 @@
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
+#include <JBro/Types/UInt.h>
 
 // 세이브 컨텍스트를 D-37 확장 블록으로 내고 찾는 도우미다. 입력의 것과 같은 모양이다(D-214, D-218).
 // 블록은 **호스트가** 만든다 - 저장소는 엔진이 소유하고 두 차원이 같은 것을 쓴다.
@@ -16,7 +17,7 @@ namespace JBro
     {
         SaveServiceContextTypeId,
         SaveServiceContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(SaveServiceContext))
+        static_cast<JBro::UInt32>(sizeof(SaveServiceContext))
     };
 
     ScriptContextBlock MakeSaveServiceContextBlock(const SaveServiceContext& context) noexcept;
@@ -28,7 +29,7 @@ namespace JBro
     {
         SaveSystemContextTypeId,
         SaveSystemContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(SaveSystemContext))
+        static_cast<JBro::UInt32>(sizeof(SaveSystemContext))
     };
 
     ScriptContextBlock MakeSaveSystemContextBlock(const SaveSystemContext& context) noexcept;

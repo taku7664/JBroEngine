@@ -304,7 +304,7 @@ namespace JBro
         OwnerPtr<AudioMixer> m_audioMixer;
         // 장치를 원하는데 없을 때(열지 못함·사라져 다시 여는 중) 믹서를 소리 없이 당기는 칸이다(D-240). 믹서의 시계가 멈추면
         // 끝난 한 번짜리가 거둬지지 않고 쿨다운이 풀리지 않는다.
-        Array<float> m_audioSilentBuffer;
+        Array<Float> m_audioSilentBuffer;
         OwnerPtr<System::AudioSystem> m_audio;
         // 태스크 관리자(D-209). 프로세스 수명이고, 내릴 때는 프로젝트보다 먼저 내린다 - 남은 콜백이 프로젝트의 것을
         // 만질 수 있다.

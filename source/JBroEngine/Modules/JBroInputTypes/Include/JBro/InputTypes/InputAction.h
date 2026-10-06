@@ -114,7 +114,7 @@ namespace JBro
             {
                 if (sets[index] == name)
                 {
-                    return static_cast<int>(index);
+                    return static_cast<JBro::Int32>(index);
                 }
             }
             return -1;

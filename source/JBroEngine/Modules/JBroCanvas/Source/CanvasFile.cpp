@@ -112,7 +112,7 @@ namespace JBro
         {
             if (inCanvas)
             {
-                writer.WriteInt("Id", static_cast<std::int64_t>(layer.GetId()));
+                writer.WriteInt("Id", static_cast<JBro::Int64>(layer.GetId()));
             }
             writer.WriteString("Name", layer.GetName());
             writer.WriteBool("Visible", layer.IsVisible());
@@ -222,7 +222,7 @@ namespace JBro
                     : object->GetFlags();
                 if (flags != 0)
                 {
-                    writer.WriteInt("Flags", static_cast<std::int64_t>(flags));
+                    writer.WriteInt("Flags", static_cast<JBro::Int64>(flags));
                 }
 
                 Int64 parentIndex = -1;
@@ -233,12 +233,12 @@ namespace JBro
                     {
                         return Fail(error, "an object hangs from something that is not in this canvas");
                     }
-                    parentIndex = static_cast<std::int64_t>(*found);
+                    parentIndex = static_cast<JBro::Int64>(*found);
                 }
                 writer.WriteInt("ParentIndex", parentIndex);
                 if (writeLayer)
                 {
-                    writer.WriteInt("LayerId", static_cast<std::int64_t>(object->GetLayerId()));
+                    writer.WriteInt("LayerId", static_cast<JBro::Int64>(object->GetLayerId()));
                 }
 
                 writer.BeginSequence("Components");
@@ -286,11 +286,11 @@ namespace JBro
                 Int64 flags = 0;
                 if (document.FindInt(entry, "Flags", flags))
                 {
-                    if (flags < 0 || flags > static_cast<std::int64_t>(UINT32_MAX))
+                    if (flags < 0 || flags > static_cast<JBro::Int64>(UINT32_MAX))
                     {
                         return Fail(error, "an object in this file has flags that do not fit");
                     }
-                    object->SetFlags(static_cast<std::uint32_t>(flags));
+                    object->SetFlags(static_cast<JBro::UInt32>(flags));
                 }
 
                 Int64 parentIndex = -1;
@@ -317,7 +317,7 @@ namespace JBro
                     Int64 fileLayer = 0;
                     if (rule.layerOf != nullptr && document.FindInt(entry, "LayerId", fileLayer))
                     {
-                        const LayerId* mapped = rule.layerOf->Find(static_cast<std::uint64_t>(fileLayer));
+                        const LayerId* mapped = rule.layerOf->Find(static_cast<JBro::UInt64>(fileLayer));
                         if (mapped == nullptr)
                         {
                             return Fail(error, "an object sits on a layer this file never described");
@@ -402,7 +402,7 @@ namespace JBro
             {
                 for (std::size_t i = 0; i < ordered.Size(); ++i)
                 {
-                    fileIndexOf.TryAdd(ordered[i]->GetInstanceId(), static_cast<std::int64_t>(i));
+                    fileIndexOf.TryAdd(ordered[i]->GetInstanceId(), static_cast<JBro::Int64>(i));
                 }
                 remap.user = &fileIndexOf;
                 remap.toIndex = [](void* user, InstanceId objectId) -> Int64 {
@@ -448,7 +448,7 @@ namespace JBro
         ObjectRefRemapScope remapScope(fileIndex.remap);
 
         YamlWriter writer;
-        writer.WriteInt("Version", static_cast<std::int64_t>(CanvasFileVersion));
+        writer.WriteInt("Version", static_cast<JBro::Int64>(CanvasFileVersion));
 
         // **배경색은 캔버스의 것이다**(D-186). 네 채널을 한 줄씩 적는다 - 한 줄에 몰아
         // 적으면 사람이 고칠 때 어느 숫자가 무엇인지 세어야 한다.
@@ -512,7 +512,7 @@ namespace JBro
         {
             return Fail(error, "this file does not say what version it is");
         }
-        if (version != static_cast<std::int64_t>(CanvasFileVersion))
+        if (version != static_cast<JBro::Int64>(CanvasFileVersion))
         {
             return Fail(error, "this file was written by a different version of the format");
         }
@@ -559,7 +559,7 @@ namespace JBro
             }
             firstLayer = false;
             ApplyLayerNode(*layer, values);
-            layerOf.TryAdd(static_cast<std::uint64_t>(fileId), layer->GetId());
+            layerOf.TryAdd(static_cast<JBro::UInt64>(fileId), layer->GetId());
         }
 
         Array<GameObject*> created;
@@ -606,7 +606,7 @@ namespace JBro
         ObjectRefRemapScope remapScope(fileIndex.remap);
 
         YamlWriter writer;
-        writer.WriteInt("Version", static_cast<std::int64_t>(LayerFileVersion));
+        writer.WriteInt("Version", static_cast<JBro::Int64>(LayerFileVersion));
         writer.BeginMap("Layer");
         WriteLayerNode(writer, *layer, false);
         writer.EndMap();
@@ -635,7 +635,7 @@ namespace JBro
         {
             return Fail(error, "this file does not say what version it is");
         }
-        if (version != static_cast<std::int64_t>(LayerFileVersion))
+        if (version != static_cast<JBro::Int64>(LayerFileVersion))
         {
             return Fail(error, "this file was written by a different version of the format");
         }

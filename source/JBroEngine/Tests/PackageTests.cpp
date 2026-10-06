@@ -321,7 +321,7 @@ namespace
             "and its stream reads the original file");
         Check(source.OpenStream("jpak:0123") .Get() == nullptr && source.OpenStream("C:/theme.wav").Get() == nullptr,
             "a stream name that is not a packaged source opens nothing");
-        Array<float> peaks;
+        Array<JBro::Float> peaks;
         Check(assets.ComputeAudioPeaks(assets.Find(soundId), 8, peaks) && peaks.Size() == 8, "peaks stream from the package too");
         assets.Shutdown();
         package.Close();
@@ -468,7 +468,7 @@ namespace
             || exported.build.physicsThreadMode != PhysicsThreadMode::Single || false == exported.scriptOutputLibraryPath.empty())
         {
             std::cout << "  exported: package=" << exported.assetPackage.c_str() << " canvas=" << exported.build.startupCanvas.c_str()
-                      << " physics=" << static_cast<int>(exported.build.physicsThreadMode) << " script=" << exported.scriptOutputLibraryPath.c_str()
+                      << " physics=" << static_cast<JBro::Int32>(exported.build.physicsThreadMode) << " script=" << exported.scriptOutputLibraryPath.c_str()
                       << '\n';
         }
         Check(exported.assetPackage == "Content/game.jpak" && exported.build.startupCanvas == "Canvases/Main.jcanvas"
@@ -613,7 +613,7 @@ namespace
 
         // 창 스트림: 블롭 안만 보이고, 어디서든 읽기 시작할 수 있다.
         OwnerPtr<IFileStream> stream = reader.OpenBlobStream(*source);
-        Check(stream.Get() != nullptr && stream->GetSize() == static_cast<std::int64_t>(std::strlen(canvasText)), "a blob stream has the blob's size");
+        Check(stream.Get() != nullptr && stream->GetSize() == static_cast<JBro::Int64>(std::strlen(canvasText)), "a blob stream has the blob's size");
         char part[8] = {};
         Check(stream->Seek(3, FileSeekOrigin::Begin) && stream->Read(part, 5) == 5 && std::memcmp(part, canvasText + 3, 5) == 0,
             "a blob stream reads from the middle");

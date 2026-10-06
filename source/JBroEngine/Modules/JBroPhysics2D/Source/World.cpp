@@ -216,7 +216,7 @@ namespace JBro::Physics2D
         }
         else
         {
-            index = static_cast<std::uint32_t>(m_bodies.Size());
+            index = static_cast<JBro::UInt32>(m_bodies.Size());
             m_bodies.Emplace();
         }
 
@@ -295,7 +295,7 @@ namespace JBro::Physics2D
         }
         else
         {
-            index = static_cast<std::uint32_t>(m_shapes.Size());
+            index = static_cast<JBro::UInt32>(m_shapes.Size());
             m_shapes.Emplace();
         }
 
@@ -567,9 +567,9 @@ namespace JBro::Physics2D
         }
         if (shape->isChain)
         {
-            return static_cast<std::uint32_t>(shape->segments.Size());
+            return static_cast<JBro::UInt32>(shape->segments.Size());
         }
-        return shape->isCircle ? 1u : static_cast<std::uint32_t>(shape->pieces.Size());
+        return shape->isCircle ? UInt32(1u) : static_cast<JBro::UInt32>(shape->pieces.Size());
     }
 
     const ChainSegment* World::GetChainChild(ShapeId id, UInt32 child) const
@@ -669,7 +669,7 @@ namespace JBro::Physics2D
                 {
                     middle = Add(middle, piece.points[i]);
                 }
-                middle = Scale(middle, 1.0f / static_cast<float>(piece.count));
+                middle = Scale(middle, 1.0f / static_cast<JBro::Float>(piece.count));
                 Float nearest = piece.count > 2 ? FLT_MAX : 0.0f;
                 for (UInt32 i = 0; piece.count > 2 && i < piece.count; ++i)
                 {
@@ -942,7 +942,7 @@ namespace JBro::Physics2D
             m_lastGravity = m_settings.gravity;
         }
         const UInt32 subSteps = std::max<UInt32>(1u, m_settings.subSteps);
-        const Float h = deltaTime / static_cast<float>(subSteps);
+        const Float h = deltaTime / static_cast<JBro::Float>(subSteps);
         for (UInt32 step = 0; step < subSteps; ++step)
         {
             IntegrateVelocities(h);
@@ -1064,8 +1064,8 @@ namespace JBro::Physics2D
             }
             const Body& body = m_bodies[shape.body];
             const Pose pose{ body.origin, body.rotation };
-            const UInt32 childCount = shape.isChain ? static_cast<std::uint32_t>(shape.segments.Size())
-                : shape.isCircle ? 1u : static_cast<std::uint32_t>(shape.pieces.Size());
+            const UInt32 childCount = shape.isChain ? static_cast<JBro::UInt32>(shape.segments.Size())
+                : shape.isCircle ? UInt32(1u) : static_cast<JBro::UInt32>(shape.pieces.Size());
             for (UInt32 child = 0; child < childCount; ++child)
             {
                 Rect bounds;
@@ -1155,7 +1155,7 @@ namespace JBro::Physics2D
             candidate.isTrigger = isTrigger;
         }
 
-        const UInt32 candidateCount = static_cast<std::uint32_t>(m_candidates.Size());
+        const UInt32 candidateCount = static_cast<JBro::UInt32>(m_candidates.Size());
         m_candidateManifolds.Resize(candidateCount);
         const UInt32 workers = GetWorkerCount();
         m_lastStats.candidates = candidateCount;
@@ -1436,7 +1436,7 @@ namespace JBro::Physics2D
 
     void World::ColorContacts()
     {
-        const UInt32 contactCount = static_cast<std::uint32_t>(m_contacts.Size());
+        const UInt32 contactCount = static_cast<JBro::UInt32>(m_contacts.Size());
         m_bodyColors.Resize(m_bodies.Size());
         for (UInt64& used : m_bodyColors)
         {
@@ -1475,7 +1475,7 @@ namespace JBro::Physics2D
             {
                 used |= m_bodyColors[contact.bodyB];
             }
-            const UInt32 color = used == ~0ull ? OverflowColor : UInt32(static_cast<std::uint32_t>(std::countr_one(used.Get())));
+            const UInt32 color = used == ~0ull ? OverflowColor : UInt32(static_cast<JBro::UInt32>(std::countr_one(used.Get())));
             if (color < OverflowColor)
             {
                 const UInt64 bit = 1ull << color;
@@ -1598,7 +1598,7 @@ namespace JBro::Physics2D
             // 이 서브스텝에 자기 두께의 절반보다 멀리 가는 동적 몸만 이어서 본다. 그보다 느리면 미리 만든 접촉이 잡는다.
             if (body.type == BodyType::Dynamic && body.coreExtent > 0.0f && Length(body.linearVelocity) * h > 0.5f * body.coreExtent)
             {
-                ClampToFirstHit(body, static_cast<std::uint32_t>(&body - m_bodies.Data()), startCenter);
+                ClampToFirstHit(body, static_cast<JBro::UInt32>(&body - m_bodies.Data()), startCenter);
             }
         }
     }
@@ -1625,7 +1625,7 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const UInt32 ownPieces = own.isCircle ? 1u : static_cast<std::uint32_t>(own.pieces.Size());
+            const UInt32 ownPieces = own.isCircle ? UInt32(1u) : static_cast<JBro::UInt32>(own.pieces.Size());
             for (UInt32 p = 0; p < ownPieces; ++p)
             {
                 Rect swept = own.isCircle ? ComputeCircleBounds(own.circle, start) : ComputePolygonBounds(own.pieces[p], start);
@@ -1649,8 +1649,8 @@ namespace JBro::Physics2D
                         continue;
                     }
                     const Pose targetPose{ other.origin, other.rotation };
-                    const UInt32 children = target.isCircle ? 1u
-                        : static_cast<std::uint32_t>(target.isChain ? target.segments.Size() : target.pieces.Size());
+                    const UInt32 children = target.isCircle ? UInt32(1u)
+                        : static_cast<JBro::UInt32>(target.isChain ? UInt32(target.segments.Size()) : UInt32(target.pieces.Size()));
                     for (UInt32 c = 0; c < children; ++c)
                     {
                         ConvexPolygon segment;
@@ -1750,7 +1750,7 @@ namespace JBro::Physics2D
     {
         for (UInt32 bits = layerA; bits != 0u; bits &= bits - 1u)
         {
-            const UInt32 i = static_cast<std::uint32_t>(std::countr_zero(bits.Get()));
+            const UInt32 i = static_cast<JBro::UInt32>(std::countr_zero(bits.Get()));
             if ((layerB & ~m_settings.ignoredLayers[i]) != 0u)
             {
                 return true;
@@ -1814,7 +1814,7 @@ namespace JBro::Physics2D
 
     void World::UpdateSleep(Float deltaTime)
     {
-        const UInt32 count = static_cast<std::uint32_t>(m_bodies.Size());
+        const UInt32 count = static_cast<JBro::UInt32>(m_bodies.Size());
         m_islandParent.Resize(count);
         m_islandSleepTime.Resize(count);
         for (UInt32 i = 0; i < count; ++i)

@@ -148,7 +148,7 @@ namespace JBro::Network
 
     UInt32 Transport::GetReservedBytes() const
     {
-        return static_cast<std::uint32_t>(
+        return static_cast<JBro::UInt32>(
             m_inbound.Capacity() + m_records.Capacity() * sizeof(InboundRecord) + m_events.Capacity() * sizeof(NetworkEvent)
             + m_scratch.Capacity() + m_datagramScratch.Capacity() + m_messageScratch.Capacity()
             + m_connections.Capacity() * sizeof(Connection));
@@ -356,7 +356,7 @@ namespace JBro::Network
 
     UInt32 Transport::GetConnectionCount() const
     {
-        return static_cast<std::uint32_t>(m_connections.Size());
+        return static_cast<JBro::UInt32>(m_connections.Size());
     }
 
     ConnectionId Transport::GetConnectionAt(UInt32 index) const
@@ -564,7 +564,7 @@ namespace JBro::Network
         const UInt32 maskKey = mask ? NextMaskKey() : UInt32(0);
         std::uint8_t header[WebSocket::MaxFrameHeaderBytes];
         const UInt32 headerLength = WebSocket::EncodeFrameHeader(
-            opcode, fin, static_cast<std::uint64_t>(firstSize) + secondSize, mask, maskKey, header);
+            opcode, fin, static_cast<JBro::UInt64>(firstSize) + secondSize, mask, maskKey, header);
         if (connection.send.Free() < headerLength + firstSize + secondSize)
         {
             return false;
@@ -595,7 +595,7 @@ namespace JBro::Network
         while (position < size)
         {
             const UInt32 run = (size - position < m_scratch.Size()) ? (size - position)
-                : UInt32(static_cast<std::uint32_t>(m_scratch.Size()));
+                : UInt32(static_cast<JBro::UInt32>(m_scratch.Size()));
             std::memcpy(m_scratch.Data(), data + position, run);
             WebSocket::ApplyMask(m_scratch.Data(), run, maskBytes, maskOffset);
             connection.send.Write(m_scratch.Data(), run);
@@ -607,7 +607,7 @@ namespace JBro::Network
     template <typename T>
     void Transport::SendSystem(Connection& connection, MessageId messageId, const T& payload)
     {
-        SendControl(connection, messageId, &payload, static_cast<std::uint32_t>(sizeof(T)));
+        SendControl(connection, messageId, &payload, static_cast<JBro::UInt32>(sizeof(T)));
     }
 
     void Transport::SendControl(Connection& connection, MessageId messageId, const void* data, UInt32 size)
@@ -831,7 +831,7 @@ namespace JBro::Network
             }
             const MessageId messageId = ReadMessageId(m_messageScratch.Data());
             const std::uint8_t* body = m_messageScratch.Data() + MessageHeaderBytes;
-            const UInt32 bodySize = static_cast<std::uint32_t>(received) - MessageHeaderBytes;
+            const UInt32 bodySize = static_cast<JBro::UInt32>(received) - MessageHeaderBytes;
             if (messageId >= FirstSystemMessageId)
             {
                 HandleSystemMessage(connection, messageId, body, bodySize);
@@ -857,10 +857,10 @@ namespace JBro::Network
         {
             return;
         }
-        WebSocket::GenerateClientKey((static_cast<std::uint64_t>(connection.id) << 32) ^ NextMaskKey(), connection.clientKey);
+        WebSocket::GenerateClientKey((static_cast<JBro::UInt64>(connection.id) << 32) ^ NextMaskKey(), connection.clientKey);
         char* request = reinterpret_cast<char*>(m_scratch.Data());
         const UInt32 length = WebSocket::BuildClientHandshakeRequest(
-            connection.host, connection.port, connection.clientKey, request, static_cast<std::uint32_t>(m_scratch.Size()));
+            connection.host, connection.port, connection.clientKey, request, static_cast<JBro::UInt32>(m_scratch.Size()));
         if (0 == length || false == connection.send.Write(request, length))
         {
             RequestClose(connection, DisconnectReason::Error);
@@ -885,7 +885,7 @@ namespace JBro::Network
             {
                 char* response = reinterpret_cast<char*>(m_scratch.Data());
                 const UInt32 length = WebSocket::BuildServerHandshakeResponse(
-                    request, response, static_cast<std::uint32_t>(m_scratch.Size()));
+                    request, response, static_cast<JBro::UInt32>(m_scratch.Size()));
                 if (0 == length || false == connection.send.Write(response, length))
                 {
                     RequestClose(connection, DisconnectReason::Error);
@@ -950,7 +950,7 @@ namespace JBro::Network
             {
                 return;
             }
-            const UInt32 payloadLength = static_cast<std::uint32_t>(header.payloadLength);
+            const UInt32 payloadLength = static_cast<JBro::UInt32>(header.payloadLength);
             const Bool control = 0 != (static_cast<std::uint8_t>(header.opcode) & 0x08u);
             if (control && (false == header.fin || payloadLength > WebSocket::MaxControlPayloadBytes))
             {
@@ -980,12 +980,12 @@ namespace JBro::Network
                     WebSocket::ApplyMask(m_scratch.Data(), payloadLength, header.mask, 0);
                 }
                 QueueFrame(connection, WebSocket::Opcode::Pong, true, m_scratch.Data(), payloadLength, nullptr, 0);
-                connection.receive.Discard(static_cast<std::uint32_t>(total));
+                connection.receive.Discard(static_cast<JBro::UInt32>(total));
                 break;
             }
             case WebSocket::Opcode::Pong:
             {
-                connection.receive.Discard(static_cast<std::uint32_t>(total));
+                connection.receive.Discard(static_cast<JBro::UInt32>(total));
                 break;
             }
             case WebSocket::Opcode::Binary:
@@ -1009,7 +1009,7 @@ namespace JBro::Network
 
     Bool Transport::DeliverDataFrame(Connection& connection, const WebSocket::FrameHeader& header)
     {
-        const UInt32 payloadLength = static_cast<std::uint32_t>(header.payloadLength);
+        const UInt32 payloadLength = static_cast<JBro::UInt32>(header.payloadLength);
         const UInt32 total = header.headerLength + payloadLength;
         const Bool isStart = header.opcode != WebSocket::Opcode::Continuation;
         if (isStart && connection.inFragment)
@@ -1299,7 +1299,7 @@ namespace JBro::Network
                 {
                     break;
                 }
-                connection.send.Discard(static_cast<std::uint32_t>(sent));
+                connection.send.Discard(static_cast<JBro::UInt32>(sent));
                 continue;
             }
             if (io == SocketIo::WouldBlock)
@@ -1318,7 +1318,7 @@ namespace JBro::Network
         {
             const UInt32 chunk = connection.receive.Free() < m_scratch.Size()
                 ? connection.receive.Free()
-                : UInt32(static_cast<std::uint32_t>(m_scratch.Size()));
+                : UInt32(static_cast<JBro::UInt32>(m_scratch.Size()));
             std::size_t received = 0;
             const SocketIo io = connection.stream->Receive(m_scratch.Data(), chunk, received);
             if (io == SocketIo::Ok)
@@ -1327,7 +1327,7 @@ namespace JBro::Network
                 {
                     break;
                 }
-                connection.receive.Write(m_scratch.Data(), static_cast<std::uint32_t>(received));
+                connection.receive.Write(m_scratch.Data(), static_cast<JBro::UInt32>(received));
                 gotAny = true;
                 continue;
             }
@@ -1682,7 +1682,7 @@ namespace JBro::Network
             UdpProto::DatagramHeader header;
             const std::uint8_t* payload = nullptr;
             UInt32 payloadSize = 0;
-            if (false == UdpProto::Decode(m_datagramScratch.Data(), static_cast<std::uint32_t>(received), header, payload, payloadSize))
+            if (false == UdpProto::Decode(m_datagramScratch.Data(), static_cast<JBro::UInt32>(received), header, payload, payloadSize))
             {
                 continue;
             }
@@ -1796,7 +1796,7 @@ namespace JBro::Network
         while (taken < capacity && m_eventCount > 0)
         {
             events[taken] = m_events[m_eventHead];
-            m_eventHead = (m_eventHead + 1) % static_cast<std::uint32_t>(m_events.Size());
+            m_eventHead = (m_eventHead + 1) % static_cast<JBro::UInt32>(m_events.Size());
             --m_eventCount;
             ++taken;
         }
@@ -1911,7 +1911,7 @@ namespace JBro::Network
             m_overflowPending = true;
             return;
         }
-        const UInt32 tail = (m_eventHead + m_eventCount) % static_cast<std::uint32_t>(m_events.Size());
+        const UInt32 tail = (m_eventHead + m_eventCount) % static_cast<JBro::UInt32>(m_events.Size());
         NetworkEvent& event = m_events[tail];
         event.kind = kind;
         event.connection = connection;

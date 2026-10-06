@@ -10,7 +10,7 @@ namespace JBro::PolygonEditModel
     Hit Pick(ArrayView<const Vector2> screen, Vector2 mouse, Bool closed)
     {
         Hit hit;
-        const UInt32 count = static_cast<std::uint32_t>(screen.Size());
+        const UInt32 count = static_cast<JBro::UInt32>(screen.Size());
         if (count < 2)
         {
             return hit;

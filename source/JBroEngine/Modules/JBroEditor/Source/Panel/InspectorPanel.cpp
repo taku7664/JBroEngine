@@ -191,7 +191,7 @@ namespace JBro
         {
             Widget::HintTextF(
                 Loc::TextOr(LocKeys::InspectorMultipleSelected, "%d objects selected"),
-                static_cast<int>(chosen));
+                static_cast<JBro::Int32>(chosen));
         }
 
         {
@@ -263,7 +263,7 @@ namespace JBro
                 DisplayTypeName(NameTable::Get().Resolve(slot.typeId));
 
             // 이름이 아니라 슬롯으로 구분한다. 같은 타입을 두 개 붙일 수 있다.
-            ImGui::PushID(static_cast<int>(index));
+            ImGui::PushID(static_cast<JBro::Int32>(index));
             // 가이드의 표식은 그 타입의 첫째에만 단다(D-273, `Context::guideTarget`). 가이드가 견주는 값도 첫째다.
             Bool firstOfType = true;
             for (std::size_t earlier = 0; earlier < index && firstOfType; ++earlier)
@@ -578,8 +578,8 @@ namespace JBro
                     Loc::TextOr(LocKeys::InspectorLayerBlendColorBurn, "Color Burn"),
                     Loc::TextOr(LocKeys::InspectorLayerBlendDifference, "Difference")};
                 static_assert(sizeof(blends) / sizeof(blends[0]) == LayerBlendCount, "one item per blend");
-                Int32 current = static_cast<int>(layer->GetBlend());
-                constexpr Int32 count = static_cast<int>(LayerBlendCount);
+                Int32 current = static_cast<JBro::Int32>(layer->GetBlend());
+                constexpr Int32 count = static_cast<JBro::Int32>(LayerBlendCount);
                 if (Widget::FilterCombo("##layerBlend", ArrayView<const char* const>(blends, LayerBlendCount), current).Draw()
                     && current >= 0 && current < count)
                 {
@@ -621,7 +621,7 @@ namespace JBro
                 const char* const spaces[] = {
                     Loc::TextOr(LocKeys::InspectorLayerSpaceWorld, "World"),
                     Loc::TextOr(LocKeys::InspectorLayerSpaceScreen, "Screen")};
-                Int32 current = static_cast<int>(layer->GetSpace());
+                Int32 current = static_cast<JBro::Int32>(layer->GetSpace());
                 if (Widget::FilterCombo("##layerSpace", ArrayView<const char* const>(spaces, 2), current).ShowFilter(false).Draw()
                     && current >= 0 && current < 2 && static_cast<LayerSpace>(current.Get()) != layer->GetSpace())
                 {
@@ -640,7 +640,7 @@ namespace JBro
                 [&]() {
                     // 값은 타입의 이름 그대로다 - 계층 메뉴와 같다.
                     const char* const modes[] = {"FixedHeight", "FixedWidth", "Contain", "ConstantPixel"};
-                    Int32 current = static_cast<int>(layer->GetScaleMode());
+                    Int32 current = static_cast<JBro::Int32>(layer->GetScaleMode());
                     if (Widget::FilterCombo("##layerScaleMode", ArrayView<const char* const>(modes, 4), current).ShowFilter(false).Draw()
                         && current >= 0 && current < 4)
                     {
@@ -727,7 +727,7 @@ namespace JBro
         else
         {
             const Bool hasRange = edit != nullptr && edit->hasRange;
-            changed = Widget::ScalarRunField("##value", scratch, static_cast<int>(run.count),
+            changed = Widget::ScalarRunField("##value", scratch, static_cast<JBro::Int32>(run.count),
                 0.01f, hasRange, hasRange ? edit->rangeMin : Float(0.0f), hasRange ? edit->rangeMax : Float(0.0f));
         }
         if (false == changed)
@@ -807,7 +807,7 @@ namespace JBro
             }
             if (current < 0 && MakeNameId(name.c_str()) == bus.id)
             {
-                current = static_cast<int>(m_busNames.Size());
+                current = static_cast<JBro::Int32>(m_busNames.Size());
             }
             m_busNames.Add(name);
             m_busEnabled.Add(true);
@@ -817,7 +817,7 @@ namespace JBro
         if (missing)
         {
             const char* text = NameTable::Get().Resolve(bus.id);
-            current = static_cast<int>(m_busNames.Size());
+            current = static_cast<JBro::Int32>(m_busNames.Size());
             m_busNames.Add(String(text[0] != '\0' ? text : "?"));
             m_busEnabled.Add(false);
         }
@@ -876,7 +876,7 @@ namespace JBro
             canvas->ForEachObject([&](GameObject& object) {
                 if (object.GetInstanceId() == handle.GetInstanceId())
                 {
-                    current = static_cast<int>(m_objectIds.Size());
+                    current = static_cast<JBro::Int32>(m_objectIds.Size());
                 }
                 const char* name = object.GetTag();
                 m_objectNames.Add(String(name != nullptr ? name : ""));
@@ -984,14 +984,14 @@ namespace JBro
                 [&]() { Widget::TextF("%u Hz, %u ch", m_audioSampleRate, m_audioChannels); });
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioLength, "Length")),
                 [&]() {
-                    const Int32 minutes = static_cast<int>(m_audioSeconds / 60.0);
+                    const Int32 minutes = static_cast<JBro::Int32>(m_audioSeconds / 60.0);
                     Widget::TextF("%d:%05.2f", minutes, m_audioSeconds - minutes * 60.0);
                 });
         }
         const double position = playingThis ? audio->GetPreviewTime() : 0.0;
-        const Float progress = playingThis && m_audioSeconds > 0.0 ? static_cast<float>(position / m_audioSeconds) : -1.0f;
+        const Float progress = playingThis && m_audioSeconds > 0.0 ? static_cast<JBro::Float>(position / m_audioSeconds) : Float(-1.0f);
         Float seek = 0.0f;
-        if (Widget::Waveform("##waveform", ArrayView<const float>(m_audioPeaks.Data(), m_audioPeaks.Size()), progress,
+        if (Widget::Waveform("##waveform", ArrayView<const Float>(m_audioPeaks.Data(), m_audioPeaks.Size()), progress,
                 56.0f, seek))
         {
             // 누른 자리부터 듣는다. 이미 울리고 있으면 그 자리로 옮기기만 한다.
@@ -1023,7 +1023,7 @@ namespace JBro
                         audio->StopPreview();
                     }
                     ImGui::SameLine();
-                    const Int32 minutes = static_cast<int>(position / 60.0);
+                    const Int32 minutes = static_cast<JBro::Int32>(position / 60.0);
                     Widget::TextF("%d:%05.2f", minutes, position - minutes * 60.0);
                 }
                 else if (Widget::IconButton("##audio_play", Icons::Play)
@@ -1096,7 +1096,7 @@ namespace JBro
                     m_keyNames.Add(keys[index].c_str());
                     if (keys[index] == draft)
                     {
-                        current = static_cast<int>(index);
+                        current = static_cast<JBro::Int32>(index);
                     }
                 }
                 const Bool picked = Widget::FilterCombo("##value", ArrayView<const char* const>(m_keyNames.Data(), m_keyNames.Size()),
@@ -1186,7 +1186,7 @@ namespace JBro
             Int32& value = *static_cast<Int32*>(address);
             return hasRange
                 ? Widget::SliderField("##value", value,
-                    static_cast<int>(edit->rangeMin), static_cast<int>(edit->rangeMax))()
+                    static_cast<JBro::Int32>(edit->rangeMin), static_cast<JBro::Int32>(edit->rangeMax))()
                 : Widget::DragField("##value", value).StepButtons(false)();
         }
         if (false == snapped)
@@ -1577,7 +1577,7 @@ namespace JBro
         const char* nodeName = NeedsDescent(*element)
             ? DisplayTypeName(NameTable::Get().Resolve(element->typeName))
             : nullptr;
-        const Int32 count = static_cast<int>(ops.GetSize(address));
+        const Int32 count = static_cast<JBro::Int32>(ops.GetSize(address));
         UInt32 flags = Widget::ListFlagsShowIndex;
         if (false == editable)
         {
@@ -1596,7 +1596,7 @@ namespace JBro
                 // 원소 안의 편집은 컴포넌트 길 대신 이 원소를 들고 적힌다(D-89).
                 ElementScope scope;
                 scope.edits = &edits;
-                scope.index = static_cast<std::uint32_t>(index);
+                scope.index = static_cast<JBro::UInt32>(index);
                 Context elementContext = context;
                 elementContext.element = &scope;
                 const std::size_t recorded = edits.Size();
@@ -1615,7 +1615,7 @@ namespace JBro
                 }
                 ListEdit edit;
                 edit.kind = ListEdit::Kind::Remove;
-                edit.index = static_cast<std::uint32_t>(index);
+                edit.index = static_cast<JBro::UInt32>(index);
                 edits.Add(std::move(edit));
             },
             [&](Int32 fromIndex, Int32 toIndex) {
@@ -1625,8 +1625,8 @@ namespace JBro
                 }
                 ListEdit edit;
                 edit.kind = ListEdit::Kind::Move;
-                edit.index = static_cast<std::uint32_t>(fromIndex);
-                edit.to = static_cast<std::uint32_t>(toIndex);
+                edit.index = static_cast<JBro::UInt32>(fromIndex);
+                edit.to = static_cast<JBro::UInt32>(toIndex);
                 edits.Add(std::move(edit));
             },
             flags);
@@ -1844,7 +1844,7 @@ namespace JBro
                 && NeedsDescent(*property.type->element))
             {
                 layout.Break([&]() {
-                    Widget::IdScope id(static_cast<int>(index));
+                    Widget::IdScope id(static_cast<JBro::Int32>(index));
                     Widget::FieldLabel(label != nullptr ? label : "?")
                         .Disabled(false == editable)
                         .Tooltip(tooltip)
@@ -1857,7 +1857,7 @@ namespace JBro
                 continue;
             }
 
-            Widget::IdScope id(static_cast<int>(index));
+            Widget::IdScope id(static_cast<JBro::Int32>(index));
 
             // **한 줄에 담기지 않는 구조는 같은 표 안에서 이어 그린다.**
             //
@@ -1965,7 +1965,7 @@ namespace JBro
                 ? (type.arrayOps->GetSize != nullptr ? type.arrayOps->GetSize(address) : 0)
                 : (type.tableOps->GetSize != nullptr ? type.tableOps->GetSize(address) : 0);
             Widget::HintTextF(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
-                static_cast<int>(count));
+                static_cast<JBro::Int32>(count));
             return;
         }
         // 배열은 목록 위젯이 그린다. 원소 접근이 전부 조작 함수를 거치므로
@@ -1981,7 +1981,7 @@ namespace JBro
             // 아직 정해지지 않았다. 지금은 개수만 보여 준다 - 목록 위젯의
             // `drawAddRow` 자리가 그것을 위해 열려 있다.
             Widget::TextF(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
-                static_cast<int>(type.tableOps->GetSize(address)));
+                static_cast<JBro::Int32>(type.tableOps->GetSize(address)));
             return;
         }
 

@@ -24,7 +24,7 @@ namespace JBro::System
         std::random_device device;
         const UInt64 high = device();
         UInt64 seed = (high << 32) | device();
-        seed ^= static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+        seed ^= static_cast<JBro::UInt64>(std::chrono::steady_clock::now().time_since_epoch().count());
         return seed != 0 ? seed : UInt64(1);
     }
 

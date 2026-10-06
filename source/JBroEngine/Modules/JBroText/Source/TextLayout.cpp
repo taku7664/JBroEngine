@@ -239,7 +239,7 @@ namespace JBro::Text
 
         Float Scale(const FontFace& face, Float fontSize)
         {
-            return fontSize / static_cast<float>(face.GetMetrics().unitsPerEm);
+            return fontSize / static_cast<JBro::Float>(face.GetMetrics().unitsPerEm);
         }
 
         // 리치 텍스트 태그의 겹침 상한이다. 넘는 여는 태그는 글자로 보인다.
@@ -306,7 +306,7 @@ namespace JBro::Text
                 {
                     return false;
                 }
-                channels[channel] = static_cast<std::uint32_t>(high * 16 + low);
+                channels[channel] = static_cast<JBro::UInt32>(high * 16 + low);
             }
             color = channels[0] | (channels[1] << 8) | (channels[2] << 16) | (channels[3] << 24);
             return true;
@@ -459,7 +459,7 @@ namespace JBro::Text
         std::size_t cursor = 0;
         while (cursor < length)
         {
-            const UInt32 offset = static_cast<std::uint32_t>(cursor);
+            const UInt32 offset = static_cast<JBro::UInt32>(cursor);
             if (options.richText && text[cursor] == '<')
             {
                 if (cursor + 1 < length && text[cursor + 1] == '<')
@@ -549,7 +549,7 @@ namespace JBro::Text
                         }
                         clusterFace->ShapeHangulJamo(glyphs, jamoCount);
                         const Float scale = Scale(*clusterFace, m_codepoints[first].size);
-                        const UInt32 baseIndex = static_cast<std::uint32_t>(m_items.Size());
+                        const UInt32 baseIndex = static_cast<JBro::UInt32>(m_items.Size());
                         Float before = 0.0f;
                         for (std::size_t k = 0; k < jamoCount; ++k)
                         {
@@ -562,7 +562,7 @@ namespace JBro::Text
                             item.style = m_codepoints[first].style;
                             item.glyph = glyphs[k];
                             item.face = choice.face;
-                            const Float advance = static_cast<float>(clusterFace->GetAdvance(glyphs[k])) * scale;
+                            const Float advance = static_cast<JBro::Float>(clusterFace->GetAdvance(glyphs[k])) * scale;
                             if (k == 0)
                             {
                                 item.kind = ItemKind::Visible;
@@ -616,7 +616,7 @@ namespace JBro::Text
             {
                 const UInt32 baseIndex = m_items.Last().kind == ItemKind::Mark
                     ? m_items.Last().markBase
-                    : UInt32(static_cast<std::uint32_t>(m_items.Size() - 1));
+                    : UInt32(static_cast<JBro::UInt32>(m_items.Size() - 1));
                 const Item& base = m_items[baseIndex];
                 item.kind = ItemKind::Mark;
                 item.markBase = baseIndex;
@@ -641,8 +641,8 @@ namespace JBro::Text
                 if (choice.face == base.face && baseFace.GetMarkAttachment(base.glyph, choice.glyph, dx, dy))
                 {
                     const Float scale = Scale(baseFace, base.size);
-                    item.markX = static_cast<float>(dx) * scale;
-                    item.markY = static_cast<float>(dy) * scale;
+                    item.markX = static_cast<JBro::Float>(dx) * scale;
+                    item.markY = static_cast<JBro::Float>(dy) * scale;
                 }
                 else
                 {
@@ -673,7 +673,7 @@ namespace JBro::Text
             item.breaksAnywhere = item.kind == ItemKind::Visible
                 && (options.wrapMode == WrapMode::Character || IsBreakAnywhereScript(value));
             const FontFace& face = *faces[choice.face];
-            item.advance = static_cast<float>(face.GetAdvance(choice.glyph)) * Scale(face, item.size);
+            item.advance = static_cast<JBro::Float>(face.GetAdvance(choice.glyph)) * Scale(face, item.size);
             m_items.Add(item);
         }
 
@@ -683,14 +683,14 @@ namespace JBro::Text
         const Float primaryScale = Scale(*primaryFace, options.fontSize);
         const FontMetrics& metrics = primaryFace->GetMetrics();
         // 줄의 올림과 높이는 그 줄에서 가장 큰 글자의 크기로 잰다. 리치 텍스트가 아니면 모든 줄이 fontSize 다.
-        const auto ascentOf = [&](Float size) { return static_cast<float>(metrics.ascent) * Scale(*primaryFace, size); };
+        const auto ascentOf = [&](Float size) { return static_cast<JBro::Float>(metrics.ascent) * Scale(*primaryFace, size); };
         const auto lineHeightOf = [&](Float size) {
-            return static_cast<float>(metrics.ascent - metrics.descent + metrics.lineGap) * Scale(*primaryFace, size)
+            return static_cast<JBro::Float>(metrics.ascent - metrics.descent + metrics.lineGap) * Scale(*primaryFace, size)
                 * JBro::Max(0.0f, options.lineSpacing);
         };
         // 탭 멈춤 간격(픽셀)이다. 기본 폰트의 공백 폭으로 센다 - 폴백 폰트가 섞여도 멈춤 자리는 한 줄 안에서 같다.
         const Float tabStop = options.tabSize > 0.0f && std::isfinite(options.tabSize)
-            ? static_cast<float>(primaryFace->GetAdvance(primaryFace->FindGlyph(U' '))) * primaryScale * options.tabSize
+            ? static_cast<JBro::Float>(primaryFace->GetAdvance(primaryFace->FindGlyph(U' '))) * primaryScale * options.tabSize
             : Float(0.0f);
 
         // 줄 끝을 매긴다: [begin, end) 의 글자에서 보이는 것만 글리프로 내고, 끝 공백을 뺀 폭을 잰다.
@@ -708,9 +708,9 @@ namespace JBro::Text
                 line.size = std::max(line.size, m_items[index].size);
             }
             line.height = lineHeightOf(line.size);
-            line.firstGlyph = static_cast<std::uint32_t>(m_glyphs.Size());
-            line.sourceBegin = begin < m_items.Size() ? m_items[begin].offset : UInt32(static_cast<std::uint32_t>(length));
-            line.sourceEnd = end < m_items.Size() ? m_items[end].offset : UInt32(static_cast<std::uint32_t>(length));
+            line.firstGlyph = static_cast<JBro::UInt32>(m_glyphs.Size());
+            line.sourceBegin = begin < m_items.Size() ? m_items[begin].offset : UInt32(static_cast<JBro::UInt32>(length));
+            line.sourceEnd = end < m_items.Size() ? m_items[end].offset : UInt32(static_cast<JBro::UInt32>(length));
             for (std::size_t index = begin; index < end; ++index)
             {
                 const Item& item = m_items[index];
@@ -732,7 +732,7 @@ namespace JBro::Text
                 m_glyphs.Add(glyph);
                 line.width = std::max(line.width, item.x + item.advance);
             }
-            line.glyphCount = static_cast<std::uint32_t>(m_glyphs.Size()) - line.firstGlyph;
+            line.glyphCount = static_cast<JBro::UInt32>(m_glyphs.Size()) - line.firstGlyph;
             m_lines.Add(line);
             return true;
         };
@@ -776,7 +776,7 @@ namespace JBro::Text
                 if (previous.face == item.face)
                 {
                     const FontFace& face = *faces[item.face];
-                    x += static_cast<float>(face.GetKerning(previous.glyph, item.glyph)) * Scale(face, item.size);
+                    x += static_cast<JBro::Float>(face.GetKerning(previous.glyph, item.glyph)) * Scale(face, item.size);
                 }
                 // 공백은 줄 끝에 매달리므로 새 줄은 공백이 아닌 글자에서만 시작한다. 금칙 글자는 줄 머리·꼬리에 오지 않게 기회를 버린다
                 // (기회가 없는 줄은 여전히 넘친 글자에서 끊는다 - 금칙은 끊을 자리가 있을 때만 지켜진다).
@@ -952,23 +952,23 @@ namespace JBro::Text
         };
         // 크기를 격자로 센다. step 이 1 이면 정수, 0 이면 0.25 픽셀 칸이다. 안쪽 끝은 칸에 맞춰 줄인다.
         const Float cell = step > 0.0f ? step : Float(0.25f);
-        const Int64 low = static_cast<std::int64_t>(std::ceil(minSize / cell));
-        const Int64 high = JBro::Max(low, static_cast<std::int64_t>(std::floor(maxSize / cell)));
-        LayoutError error = buildAt(static_cast<float>(high) * cell);
+        const Int64 low = static_cast<JBro::Int64>(std::ceil(minSize / cell));
+        const Int64 high = JBro::Max(low, static_cast<JBro::Int64>(std::floor(maxSize / cell)));
+        LayoutError error = buildAt(static_cast<JBro::Float>(high) * cell);
         if (error != LayoutError::None)
         {
             return error;
         }
         if (fits())
         {
-            chosenSize = static_cast<float>(high) * cell;
+            chosenSize = static_cast<JBro::Float>(high) * cell;
             return LayoutError::None;
         }
         // [best, bad) 사이를 좁힌다. best 는 들어가는 것이 확인된 가장 큰 칸이다(없으면 low 로 넘친다).
         Int64 best = low;
         Int64 bad = high;
         Bool lowFits = false;
-        error = buildAt(static_cast<float>(low) * cell);
+        error = buildAt(static_cast<JBro::Float>(low) * cell);
         if (error != LayoutError::None)
         {
             return error;
@@ -979,7 +979,7 @@ namespace JBro::Text
             while (bad - best > 1)
             {
                 const Int64 middle = best + (bad - best) / 2;
-                error = buildAt(static_cast<float>(middle) * cell);
+                error = buildAt(static_cast<JBro::Float>(middle) * cell);
                 if (error != LayoutError::None)
                 {
                     return error;
@@ -994,7 +994,7 @@ namespace JBro::Text
                 }
             }
         }
-        chosenSize = static_cast<float>(best) * cell;
+        chosenSize = static_cast<JBro::Float>(best) * cell;
         return buildAt(chosenSize);
     }
 

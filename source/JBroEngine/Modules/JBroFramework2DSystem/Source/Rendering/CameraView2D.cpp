@@ -16,7 +16,7 @@ namespace JBro
         // 원본 1 픽셀 격자에 맞춘다. 반올림이라 카메라가 격자 사이를 지날 때 가까운 쪽으로 붙는다.
         Float SnapToPixel(Float value, Float pixelsPerUnit)
         {
-            return static_cast<float>(std::round(static_cast<double>(value) * pixelsPerUnit) / pixelsPerUnit);
+            return static_cast<JBro::Float>(std::round(static_cast<double>(value) * pixelsPerUnit) / pixelsPerUnit);
         }
     }
 

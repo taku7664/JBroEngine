@@ -170,7 +170,7 @@ namespace JBro
         const ScriptModuleApi* api = nullptr;
         if (getApi != nullptr)
         {
-            api = getApi(ScriptModuleAbiVersion, sizeof(ScriptModuleApi));
+            api = getApi(ScriptModuleAbiVersion, static_cast<JBro::UInt32>(sizeof(ScriptModuleApi)));
         }
         if (false == ValidateModuleApi(api, context))
         {

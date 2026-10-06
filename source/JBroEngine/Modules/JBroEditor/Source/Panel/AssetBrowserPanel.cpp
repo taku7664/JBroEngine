@@ -537,7 +537,7 @@ namespace JBro
             Widget::SetAssetDragPayload(entry.record->id, paired, bundle);
             if (count > 1)
             {
-                Widget::TextF("%s +%d", entry.name, static_cast<int>(count - 1));
+                Widget::TextF("%s +%d", entry.name, static_cast<JBro::Int32>(count - 1));
             }
             else
             {
@@ -908,7 +908,7 @@ namespace JBro
         {
             Widget::HintTextF(
                 Loc::TextOr(LocKeys::AssetsSelectionCount, "%d chosen"),
-                static_cast<int>(m_selection.Size()));
+                static_cast<JBro::Int32>(m_selection.Size()));
             ImGui::Separator();
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsRename, "Rename")))
@@ -1046,7 +1046,7 @@ namespace JBro
         if (many)
         {
             Widget::TextF(Loc::TextOr(LocKeys::AssetsDeleteManyAsk, "delete these %d assets?"),
-                static_cast<int>(m_selection.Size()));
+                static_cast<JBro::Int32>(m_selection.Size()));
             // 무엇이 사라지는지 한 줄씩 보여 준다. 개수만으로는 잘못 고른 것을 알 수 없다.
             for (std::size_t index = 0; index < m_selection.Size(); ++index)
             {
@@ -1177,7 +1177,7 @@ namespace JBro
             names.names = sortNames;
             names.count = 3;
             names.ToIndex = [](const void* value) noexcept -> Int32 {
-                return static_cast<std::int32_t>(*static_cast<const SortMode*>(value));
+                return static_cast<JBro::Int32>(*static_cast<const SortMode*>(value));
             };
             names.FromIndex = [](void* value, Int32 index) noexcept {
                 *static_cast<SortMode*>(value) = static_cast<SortMode>(index.Get());

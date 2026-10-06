@@ -21,7 +21,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        const Float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        const Float aspect = static_cast<JBro::Float>(extent.width) / static_cast<JBro::Float>(extent.height);
         Bool projected = false;
         if (source.projection == Component::CameraProjection3D::Perspective)
         {
@@ -46,8 +46,8 @@ namespace JBro::Internal
                 return false;
             }
         }
-        result.viewport.width = static_cast<float>(extent.width);
-        result.viewport.height = static_cast<float>(extent.height);
+        result.viewport.width = static_cast<JBro::Float>(extent.width);
+        result.viewport.height = static_cast<JBro::Float>(extent.height);
         result.clearColor[0] = source.clearColor.R;
         result.clearColor[1] = source.clearColor.G;
         result.clearColor[2] = source.clearColor.B;
@@ -59,13 +59,13 @@ namespace JBro::Internal
     {
         // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
         static_assert(LayerBlendCount == CompositeBlendCount, "the canvas and the renderer list the same blends");
-        static_assert(static_cast<std::uint32_t>(LayerBlend::Screen) == static_cast<std::uint32_t>(CompositeBlend::Screen)
-                && static_cast<std::uint32_t>(LayerBlend::Difference) == static_cast<std::uint32_t>(CompositeBlend::Difference),
+        static_assert(static_cast<JBro::UInt32>(LayerBlend::Screen) == static_cast<JBro::UInt32>(CompositeBlend::Screen)
+                && static_cast<JBro::UInt32>(LayerBlend::Difference) == static_cast<JBro::UInt32>(CompositeBlend::Difference),
             "in the same order");
 
         CompositeBlend ToCompositeBlend3D(LayerBlend blend)
         {
-            const UInt32 value = static_cast<std::uint32_t>(blend);
+            const UInt32 value = static_cast<JBro::UInt32>(blend);
             return value < CompositeBlendCount ? static_cast<CompositeBlend>(value.Get()) : CompositeBlend::Normal;
         }
 
@@ -102,7 +102,7 @@ namespace JBro::Internal
                 {
                     break;
                 }
-                if (false == renderer.SubmitMeshes({batch, static_cast<std::uint32_t>(count)}))
+                if (false == renderer.SubmitMeshes({batch, static_cast<JBro::UInt32>(count)}))
                 {
                     accepted = false;
                     break;
@@ -124,7 +124,7 @@ namespace JBro::Internal
                 {
                     continue;
                 }
-                order.Add(static_cast<std::uint32_t>(index));
+                order.Add(static_cast<JBro::UInt32>(index));
             }
             const auto distance = [&](UInt32 index) {
                 const Vector3& position = world.GetText(index).position;
@@ -269,7 +269,7 @@ namespace JBro::Internal
                 matrix[15] = 1.0f;
                 for (Int32 channel = 0; channel < 4; ++channel)
                 {
-                    quad.tint[channel] = static_cast<float>(line.color[channel]) / 255.0f;
+                    quad.tint[channel] = static_cast<JBro::Float>(line.color[channel]) / 255.0f;
                 }
                 ++count;
                 if (count == BatchSize)
@@ -438,7 +438,7 @@ namespace JBro::Internal
         parameters.target = view.target;
         parameters.targetExtent = view.extent;
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
-            view.debugDraw ? debugDraw : nullptr, editor, static_cast<float>(view.extent.height));
+            view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 
@@ -467,7 +467,7 @@ namespace JBro::Internal
             return renderer.BeginView(parameters) && renderer.EndView() ? RenderResult::Submitted : RenderResult::Failed;
         }
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation, nullptr, *camera,
-            static_cast<float>(thumbnail.extent.height), static_cast<std::int32_t>(layerOrder));
+            static_cast<JBro::Float>(thumbnail.extent.height), static_cast<JBro::Int32>(layerOrder));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 
@@ -485,7 +485,7 @@ namespace JBro::Internal
         }
         const Bool showLines = debugDraw != nullptr && debugDraw->IsGameViewVisible();
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
-            showLines ? debugDraw : nullptr, *camera, static_cast<float>(renderer.GetFrameExtent().height));
+            showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(renderer.GetFrameExtent().height));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 }

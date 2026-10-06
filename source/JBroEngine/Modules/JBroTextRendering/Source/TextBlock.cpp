@@ -19,7 +19,7 @@ namespace JBro
         {
             std::size_t seed = static_cast<std::size_t>(key);
             HashCombine(seed, static_cast<std::size_t>(value));
-            key = static_cast<std::uint64_t>(seed);
+            key = static_cast<JBro::UInt64>(seed);
         }
 
         UInt64 Bits(Float value)
@@ -34,10 +34,10 @@ namespace JBro
         UInt64 key = Bits(settings.fontSize);
         Mix(key, Bits(settings.boxWidth));
         Mix(key, Bits(settings.boxHeight));
-        Mix(key, static_cast<std::uint64_t>(settings.overflow));
-        Mix(key, static_cast<std::uint64_t>(settings.wrapMode));
-        Mix(key, static_cast<std::uint64_t>(settings.alignX));
-        Mix(key, static_cast<std::uint64_t>(settings.alignY));
+        Mix(key, static_cast<JBro::UInt64>(settings.overflow));
+        Mix(key, static_cast<JBro::UInt64>(settings.wrapMode));
+        Mix(key, static_cast<JBro::UInt64>(settings.alignX));
+        Mix(key, static_cast<JBro::UInt64>(settings.alignY));
         Mix(key, Bits(settings.lineSpacing));
         Mix(key, Bits(settings.letterSpacing));
         Mix(key, settings.autoSize ? 1u : 0u);
@@ -212,10 +212,10 @@ namespace JBro
         // **SDF 는 크기를 반올림하지 않는다**(4 단계). 거리장 한 벌을 키우고 줄이므로 크기가 조금씩 바뀌는 연출(트윈)에 새 글리프가
         // 생기지 않는다 - 비트맵은 정수 크기마다 새로 떠 아틀라스가 크기 수만큼 자랐다(text-plan §7).
         const Bool sdf = font.renderMode == FontRenderMode::Sdf;
-        const Float maxSize = static_cast<float>(Text::GlyphAtlas::MaxPixelSize);
+        const Float maxSize = static_cast<JBro::Float>(Text::GlyphAtlas::MaxPixelSize);
         const auto sizeOf = [&](Float requested) {
             return sdf ? JBro::Clamp(std::isfinite(requested) ? requested : Float(1.0f), 1.0f, maxSize)
-                       : Float(static_cast<float>(GlyphPixelSize(requested)));
+                       : Float(static_cast<JBro::Float>(GlyphPixelSize(requested)));
         };
         Float layoutSize = sizeOf(settings.fontSize);
         Text::LayoutOptions options;

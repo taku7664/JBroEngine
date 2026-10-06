@@ -100,7 +100,7 @@ namespace JBro::Network::Testing
 
         UInt32 LiveCount() const
         {
-            return static_cast<std::uint32_t>(m_records.Size());
+            return static_cast<JBro::UInt32>(m_records.Size());
         }
 
     private:
@@ -113,7 +113,7 @@ namespace JBro::Network::Testing
             }
             Record& record = m_records.Emplace();
             record.object = object;
-            m_index.InsertOrAssign(object, static_cast<std::uint32_t>(m_records.Size() - 1));
+            m_index.InsertOrAssign(object, static_cast<JBro::UInt32>(m_records.Size() - 1));
             return record;
         }
 
@@ -156,7 +156,7 @@ namespace JBro::Network::Testing
             }
             outDesc.prefab = m_prefab;
             outDesc.owner = InvalidConnectionId;
-            outDesc.flags = static_cast<std::uint32_t>(object & 0xFFFFFFFFu);
+            outDesc.flags = static_cast<JBro::UInt32>(object & 0xFFFFFFFFu);
             return true;
         }
 
@@ -200,7 +200,7 @@ namespace JBro::Network::Testing
 
         UInt32 SpawnedCount() const
         {
-            return static_cast<std::uint32_t>(m_spawned.Size());
+            return static_cast<JBro::UInt32>(m_spawned.Size());
         }
 
         UInt32 DespawnCount() const

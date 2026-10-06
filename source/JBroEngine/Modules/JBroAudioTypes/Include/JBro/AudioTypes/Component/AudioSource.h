@@ -74,7 +74,7 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, clip, NoSerialize() | ReadOnly() | Tooltip("clipId 에서 해석된 값"));
         // 프로젝트 설정의 버스 이름이다. 비우면 Master 다.
         JBRO_FIELD(AudioBusName, bus);
-        JBRO_FIELD(Float, volume, Range(0, 1)) = 1.0f;
+        JBRO_FIELD(Float, volume, Range(0.0f, 1.0f)) = 1.0f;
         JBRO_FIELD(Float, pitch, Range(0.1f, 4.0f)) = 1.0f;
         JBRO_FIELD(Bool,  loop) = false;
         // 켜질 때(캔버스 시작 포함) 저절로 한 번 재생한다. 루프가 아니면 다시 켜질 때까지 다시 울리지 않는다.
@@ -88,7 +88,7 @@ namespace JBro::Component
         // 0 이면 끈다. 움직이는 소스와 듣는 자리의 속도 차로 음높이가 바뀐다.
         JBRO_FIELD(Float, doppler, Category("Spatial")) = 0.0f;
         // 보이스가 모자랄 때 낮은 것부터 훔친다(0..255). 배경음은 높게, 자잘한 효과음은 낮게 둔다.
-        JBRO_FIELD(Int32, priority, Range(0, 255)) = 128;
+        JBRO_FIELD(Int32, priority, Range(0.0f, 255.0f)) = 128;
         // 시작할 때 이만큼 키운다(초).
         JBRO_FIELD(Float, fadeIn) = 0.0f;
         // 이 소스에만 거는 필터다(Hz, 0 이면 끔). 벽 너머의 소리는 저역 통과 800 쯤, 무전기는 고역 통과 1500 쯤이다.
@@ -104,7 +104,7 @@ namespace JBro::Component
             AudioVoiceHandle voice;
             // 지금 보이스가 재생하는 에셋이다. `clip` 이 바뀌면 교체한다.
             AssetHandle playingClip;
-            float position[3] = {0.0f, 0.0f, 0.0f};
+            Float position[3] = {0.0f, 0.0f, 0.0f};
             Float lastVolume = -1.0f;
             Float lastPitch = -1.0f;
             Bool lastLoop = false;

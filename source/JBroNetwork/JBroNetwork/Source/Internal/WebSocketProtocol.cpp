@@ -25,8 +25,8 @@ namespace JBro::Network::WebSocket
             for (Int32 index = 0; index < 16; ++index)
             {
                 const std::uint8_t* at = block + index * 4;
-                w[index] = (static_cast<std::uint32_t>(at[0]) << 24) | (static_cast<std::uint32_t>(at[1]) << 16)
-                    | (static_cast<std::uint32_t>(at[2]) << 8) | static_cast<std::uint32_t>(at[3]);
+                w[index] = (static_cast<JBro::UInt32>(at[0]) << 24) | (static_cast<JBro::UInt32>(at[1]) << 16)
+                    | (static_cast<JBro::UInt32>(at[2]) << 8) | static_cast<JBro::UInt32>(at[3]);
             }
             for (Int32 index = 16; index < 80; ++index)
             {
@@ -104,7 +104,7 @@ namespace JBro::Network::WebSocket
 
         Bool ContainsIgnoreCase(const char* haystack, UInt32 haystackLength, const char* needle)
         {
-            const UInt32 needleLength = static_cast<std::uint32_t>(std::strlen(needle));
+            const UInt32 needleLength = static_cast<JBro::UInt32>(std::strlen(needle));
             if (needleLength > haystackLength)
             {
                 return false;
@@ -217,7 +217,7 @@ namespace JBro::Network::WebSocket
 
         Bool Append(char* out, UInt32 capacity, UInt32& length, const char* text)
         {
-            const UInt32 textLength = static_cast<std::uint32_t>(std::strlen(text));
+            const UInt32 textLength = static_cast<JBro::UInt32>(std::strlen(text));
             if (length + textLength >= capacity)
             {
                 return false;
@@ -246,7 +246,7 @@ namespace JBro::Network::WebSocket
         std::memcpy(tail, message + offset, remaining);
         tail[remaining] = 0x80;
         const std::size_t tailBlocks = (remaining + 1 + 8 <= 64) ? 1 : 2;
-        const UInt64 bitLength = static_cast<std::uint64_t>(length) * 8u;
+        const UInt64 bitLength = static_cast<JBro::UInt64>(length) * 8u;
         for (Int32 index = 0; index < 8; ++index)
         {
             tail[tailBlocks * 64 - 1 - index] = static_cast<std::uint8_t>((bitLength >> (index * 8)) & 0xFFu);
@@ -267,7 +267,7 @@ namespace JBro::Network::WebSocket
 
     UInt32 Base64Encode(const std::uint8_t* data, std::size_t size, char* out, UInt32 capacity)
     {
-        const UInt32 needed = static_cast<std::uint32_t>(((size + 2u) / 3u) * 4u);
+        const UInt32 needed = static_cast<JBro::UInt32>(((size + 2u) / 3u) * 4u);
         if (needed > capacity)
         {
             return 0;
@@ -276,8 +276,8 @@ namespace JBro::Network::WebSocket
         std::size_t index = 0;
         while (index + 3u <= size)
         {
-            const UInt32 triple = (static_cast<std::uint32_t>(data[index]) << 16)
-                | (static_cast<std::uint32_t>(data[index + 1]) << 8) | static_cast<std::uint32_t>(data[index + 2]);
+            const UInt32 triple = (static_cast<JBro::UInt32>(data[index]) << 16)
+                | (static_cast<JBro::UInt32>(data[index + 1]) << 8) | static_cast<JBro::UInt32>(data[index + 2]);
             out[written++] = Base64Alphabet[(triple >> 18) & 0x3Fu];
             out[written++] = Base64Alphabet[(triple >> 12) & 0x3Fu];
             out[written++] = Base64Alphabet[(triple >> 6) & 0x3Fu];
@@ -287,7 +287,7 @@ namespace JBro::Network::WebSocket
         const std::size_t remaining = size - index;
         if (1u == remaining)
         {
-            const UInt32 triple = static_cast<std::uint32_t>(data[index]) << 16;
+            const UInt32 triple = static_cast<JBro::UInt32>(data[index]) << 16;
             out[written++] = Base64Alphabet[(triple >> 18) & 0x3Fu];
             out[written++] = Base64Alphabet[(triple >> 12) & 0x3Fu];
             out[written++] = '=';
@@ -295,8 +295,8 @@ namespace JBro::Network::WebSocket
         }
         else if (2u == remaining)
         {
-            const UInt32 triple = (static_cast<std::uint32_t>(data[index]) << 16)
-                | (static_cast<std::uint32_t>(data[index + 1]) << 8);
+            const UInt32 triple = (static_cast<JBro::UInt32>(data[index]) << 16)
+                | (static_cast<JBro::UInt32>(data[index + 1]) << 8);
             out[written++] = Base64Alphabet[(triple >> 18) & 0x3Fu];
             out[written++] = Base64Alphabet[(triple >> 12) & 0x3Fu];
             out[written++] = Base64Alphabet[(triple >> 6) & 0x3Fu];
@@ -502,7 +502,7 @@ namespace JBro::Network::WebSocket
             {
                 return ParseResult::NeedMoreData;
             }
-            payloadLength = (static_cast<std::uint64_t>(data[offset]) << 8) | static_cast<std::uint64_t>(data[offset + 1]);
+            payloadLength = (static_cast<JBro::UInt64>(data[offset]) << 8) | static_cast<JBro::UInt64>(data[offset + 1]);
             offset += 2;
         }
         else if (127u == payloadLength)
@@ -514,7 +514,7 @@ namespace JBro::Network::WebSocket
             payloadLength = 0;
             for (Int32 index = 0; index < 8; ++index)
             {
-                payloadLength = (payloadLength << 8) | static_cast<std::uint64_t>(data[offset + index]);
+                payloadLength = (payloadLength << 8) | static_cast<JBro::UInt64>(data[offset + index]);
             }
             offset += 8;
         }

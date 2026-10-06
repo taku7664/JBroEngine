@@ -78,7 +78,7 @@ namespace
 
         JBRO_FIELD(Shape, shape) = Shape::Box;
         JBRO_FIELD(FakeVec2, offset);
-        JBRO_FIELD(JBro::Float, radius, Range(0, 100)) = 0.5f;
+        JBRO_FIELD(JBro::Float, radius, Range(0.0f, 100.0f)) = 0.5f;
     };
 
     void TestAnEnumSavesItsNameNotItsNumber()

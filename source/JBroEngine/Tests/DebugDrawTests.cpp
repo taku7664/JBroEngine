@@ -307,7 +307,7 @@ namespace
         JBro::Vector2 many[200];
         for (JBro::Int32 index = 0; index < 200; ++index)
         {
-            many[index] = {static_cast<float>(index), 0.0f};
+            many[index] = {static_cast<JBro::Float>(index), 0.0f};
         }
         debug.Polygon(many, 200, true);
         Check(store.GetLineCount() == 200, "a long polygon crosses the 64-line batch without losing a line");
@@ -423,7 +423,7 @@ namespace
             }
             JBro::WindowDesc windowDesc;
             constexpr char title[] = "JBro debug draw probe";
-            windowDesc.title = {title, sizeof(title) - 1};
+            windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
             windowDesc.width = 64;
             windowDesc.height = 64;
             windowDesc.visible = false;

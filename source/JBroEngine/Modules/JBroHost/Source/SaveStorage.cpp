@@ -7,6 +7,7 @@
 #include <cstring>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -215,7 +216,7 @@ namespace JBro
         }
         String writing = path;
         writing += WritingSuffix;
-        const JArrayView<std::byte> bytes(static_cast<const std::byte*>(data), static_cast<std::uint32_t>(size));
+        const JArrayView<std::byte> bytes(static_cast<const std::byte*>(data), static_cast<JBro::UInt32>(size));
         if (false == m_platform.WriteWholeFile(writing.c_str(), bytes))
         {
             // 디스크가 찼거나 권한이 없다. 반쯤 쓴 옆 파일은 지우고, 원래 세이브는 그대로다.
@@ -268,7 +269,7 @@ namespace JBro
             return false;
         }
         const Int64 size = stream->GetSize();
-        if (size < 0 || static_cast<std::uint64_t>(size) > capacity || (buffer == nullptr && size > 0))
+        if (size < 0 || static_cast<JBro::UInt64>(size) > capacity || (buffer == nullptr && size > 0))
         {
             return false;
         }

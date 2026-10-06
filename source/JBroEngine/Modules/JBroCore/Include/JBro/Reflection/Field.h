@@ -11,6 +11,7 @@
 #include <utility>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -314,7 +315,7 @@ namespace JBro
             Detail::FillFields<T>(properties, edits, std::make_index_sequence<count>{});
             PropertyTable built;
             built.properties = count > 0 ? properties : nullptr;
-            built.count = static_cast<std::uint32_t>(count);
+            built.count = static_cast<JBro::UInt32>(count);
             return built;
         }();
         return table;
@@ -339,7 +340,7 @@ namespace JBro
                 Detail::ApplyFieldEntry(entries[i], m_properties[i], m_edits[i]);
             }
             m_table.properties = m_properties;
-            m_table.count = static_cast<std::uint32_t>(Count);
+            m_table.count = static_cast<JBro::UInt32>(Count);
         }
 
         StaticPropertyTable(const StaticPropertyTable&) = delete;
@@ -363,8 +364,8 @@ namespace JBro
     {
         TypeDescriptor descriptor;
         descriptor.typeName = NameTable::Get().Intern(typeName);
-        descriptor.size = static_cast<std::uint32_t>(sizeof(T));
-        descriptor.alignment = static_cast<std::uint32_t>(alignof(T));
+        descriptor.size = static_cast<JBro::UInt32>(sizeof(T));
+        descriptor.alignment = static_cast<JBro::UInt32>(alignof(T));
         descriptor.triviallyCopyable = std::is_trivially_copyable_v<T>;
         descriptor.fields = &fields;
         return descriptor;

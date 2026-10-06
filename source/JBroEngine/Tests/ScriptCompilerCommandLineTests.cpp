@@ -55,9 +55,9 @@ namespace
         {
             return std::string();
         }
-        const JBro::Int32 size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+        const JBro::Int32 size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<JBro::Int32>(text.size()), nullptr, 0, nullptr, nullptr);
         std::string result(static_cast<std::size_t>(size), '\0');
-        WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), size, nullptr, nullptr);
+        WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<JBro::Int32>(text.size()), result.data(), size, nullptr, nullptr);
         return result;
     }
 

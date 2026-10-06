@@ -477,7 +477,7 @@ namespace
             }
             WindowDesc windowDesc;
             constexpr char title[] = "JBro text probe";
-            windowDesc.title = {title, sizeof(title) - 1};
+            windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
             windowDesc.width = 64;
             windowDesc.height = 64;
             windowDesc.visible = false;
@@ -583,19 +583,19 @@ namespace
             "the reference face loads");
         Text::TextLayout layout;
         Text::LayoutOptions options;
-        options.fontSize = static_cast<float>(pixelSize);
+        options.fontSize = static_cast<JBro::Float>(pixelSize);
         options.alignX = Text::AlignX::Center;
         options.alignY = Text::AlignY::Middle;
         const Text::FontFace* faces[] = { &face };
         Check(layout.Build(ArrayView<const char>(utf8, std::strlen(utf8)), faces, options) == Text::LayoutError::None
             && layout.GetGlyphs().Size() == 1, "the reference layout has one glyph");
         Text::GlyphBitmapBox box;
-        Check(face.MeasureGlyphBitmap(layout.GetGlyphs()[0].glyph, static_cast<float>(pixelSize), box), "the reference glyph measures");
+        Check(face.MeasureGlyphBitmap(layout.GetGlyphs()[0].glyph, static_cast<JBro::Float>(pixelSize), box), "the reference glyph measures");
         ScreenRect rect;
-        rect.left = 32.0f + layout.GetGlyphs()[0].x + static_cast<float>(box.left);
-        rect.top = 32.0f - (layout.GetGlyphs()[0].y + static_cast<float>(box.top));
-        rect.right = rect.left + static_cast<float>(box.width);
-        rect.bottom = rect.top + static_cast<float>(box.height);
+        rect.left = 32.0f + layout.GetGlyphs()[0].x + static_cast<JBro::Float>(box.left);
+        rect.top = 32.0f - (layout.GetGlyphs()[0].y + static_cast<JBro::Float>(box.top));
+        rect.right = rect.left + static_cast<JBro::Float>(box.width);
+        rect.bottom = rect.top + static_cast<JBro::Float>(box.height);
         return rect;
     }
 
@@ -648,10 +648,10 @@ namespace
             const ScreenRect expected = ExpectedGlyph("A", 40);
             DarkBox dark = FindDark(gpu);
             Check(dark.count > 40, "the A is drawn in black on white");
-            Check(static_cast<float>(dark.minX) >= expected.left - 1.0f && static_cast<float>(dark.maxX) <= expected.right + 1.0f
-                && static_cast<float>(dark.minY) >= expected.top - 1.0f && static_cast<float>(dark.maxY) <= expected.bottom + 1.0f,
+            Check(static_cast<JBro::Float>(dark.minX) >= expected.left - 1.0f && static_cast<JBro::Float>(dark.maxX) <= expected.right + 1.0f
+                && static_cast<JBro::Float>(dark.minY) >= expected.top - 1.0f && static_cast<JBro::Float>(dark.maxY) <= expected.bottom + 1.0f,
                 "every dark pixel lies inside the glyph's cell");
-            Check(static_cast<float>(dark.maxX - dark.minX) > (expected.right - expected.left) * 0.6f,
+            Check(static_cast<JBro::Float>(dark.maxX - dark.minX) > (expected.right - expected.left) * 0.6f,
                 "and the A spans most of its cell");
             JBro::Float minX = 0.0f;
             JBro::Float minY = 0.0f;
@@ -677,7 +677,7 @@ namespace
             const Ref<Component::Text2D> ref = labelObject->GetScriptHandle().GetComponent<Component::Text2D>();
             Check(service.SetText(ref, "V"), "a script sets the text");
             char copied[8] = {};
-            Check(service.GetTextLength(ref) == 1 && service.CopyText(ref, copied, sizeof(copied)) == 1 && copied[0] == 'V',
+            Check(service.GetTextLength(ref) == 1 && service.CopyText(ref, copied, static_cast<JBro::UInt32>(sizeof(copied))) == 1 && copied[0] == 'V',
                 "and reads it back");
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() == relayouts + 1, "the changed text is laid out once");
@@ -1111,8 +1111,8 @@ namespace
                 }
             }
             const ScreenRect glyph = ExpectedGlyph("A", 40);
-            Check(lit > 40 && static_cast<float>(litMaxY - litMinY) > (glyph.bottom - glyph.top) * 0.8f
-                    && static_cast<float>(litMaxY - litMinY) < (glyph.bottom - glyph.top) * 1.2f,
+            Check(lit > 40 && static_cast<JBro::Float>(litMaxY - litMinY) > (glyph.bottom - glyph.top) * 0.8f
+                    && static_cast<JBro::Float>(litMaxY - litMinY) < (glyph.bottom - glyph.top) * 1.2f,
                 "a 40 px letter on a screen layer is 40 px tall on a same-size target");
             framework.Shutdown();
         }
@@ -1982,7 +1982,7 @@ namespace
             const Ref<Component::Text3D> ref = labelObject->GetScriptHandle().GetComponent<Component::Text3D>();
             Check(service.SetText(ref, "Hi"), "a script sets a 3D text");
             char copied[8] = {};
-            Check(service.GetTextLength(ref) == 2 && service.CopyText(ref, copied, sizeof(copied)) == 2
+            Check(service.GetTextLength(ref) == 2 && service.CopyText(ref, copied, static_cast<JBro::UInt32>(sizeof(copied))) == 2
                     && copied[0] == 'H' && copied[1] == 'i',
                 "and reads it back through the host");
             const JBro::UInt64 relayouts = texts->GetRelayoutCount();
@@ -2380,7 +2380,7 @@ namespace
                       << " in " << (near.maxX - near.minX + 1) << "x" << (near.maxY - near.minY + 1) << std::endl;
             Check(near.red > 100 && near.black > 60, "a red H with a black outline");
             const ScreenRect cell = ExpectedGlyph("H", 40);
-            Check(static_cast<float>(near.minX) >= cell.left - 5.0f && static_cast<float>(near.maxX) <= cell.right + 5.0f,
+            Check(static_cast<JBro::Float>(near.minX) >= cell.left - 5.0f && static_cast<JBro::Float>(near.maxX) <= cell.right + 5.0f,
                 "the outlined H stays around its glyph cell");
 
             // 2. 퍼짐보다 굵은 외곽선(100 px)은 퍼짐까지로 잘린다 - 50 px 과 같은 그림이고, 칸 전체가 칠해지지 않는다.
@@ -2447,8 +2447,8 @@ namespace
             camera->orthographicSize = 2.0f;
             gpu.Paint(framework);
             const ColourCount far = CountColours(gpu);
-            const JBro::Float nearRatio = static_cast<float>(near.black) / static_cast<float>(near.red);
-            const JBro::Float farRatio = static_cast<float>(far.black) / static_cast<float>(far.red);
+            const JBro::Float nearRatio = static_cast<JBro::Float>(near.black) / static_cast<JBro::Float>(near.red);
+            const JBro::Float farRatio = static_cast<JBro::Float>(far.black) / static_cast<JBro::Float>(far.red);
             std::cout << "  [measure] outline / fill: near " << nearRatio << ", two times further " << farRatio << std::endl;
             Check(far.red < near.red / 2 && far.red > near.red / 8, "the H is drawn smaller from further away");
             Check(std::fabs(farRatio - nearRatio) < nearRatio * 0.3f, "and its outline keeps the same share of it");
@@ -2571,10 +2571,10 @@ namespace
             Check(false == texts->IsMissingFont(label->GetInstanceId()), "the project's first font draws a text with no fontId");
             const ScreenRect expectedA = ExpectedGlyph("A", 40);
             const DarkBox a = FindDark(gpu);
-            Check(a.count > 40 && static_cast<float>(a.minX) >= expectedA.left - 1.0f
-                    && static_cast<float>(a.maxX) <= expectedA.right + 1.0f
-                    && static_cast<float>(a.minY) >= expectedA.top - 1.0f
-                    && static_cast<float>(a.maxY) <= expectedA.bottom + 1.0f,
+            Check(a.count > 40 && static_cast<JBro::Float>(a.minX) >= expectedA.left - 1.0f
+                    && static_cast<JBro::Float>(a.maxX) <= expectedA.right + 1.0f
+                    && static_cast<JBro::Float>(a.minY) >= expectedA.top - 1.0f
+                    && static_cast<JBro::Float>(a.maxY) <= expectedA.bottom + 1.0f,
                 "the A lands in its cell");
             const JBro::UInt64 relayouts = texts->GetRelayoutCount();
             project.assets.SetProjectFonts(sansOnly);
@@ -2589,10 +2589,10 @@ namespace
             gpu.Paint(framework);
             const ScreenRect expectedHan = ExpectedGlyph("\xED\x95\x9C", 40);
             const DarkBox han = FindDark(gpu);
-            Check(han.count > 60 && static_cast<float>(han.minX) >= expectedHan.left - 1.0f
-                    && static_cast<float>(han.maxX) <= expectedHan.right + 1.0f
-                    && static_cast<float>(han.minY) >= expectedHan.top - 1.0f
-                    && static_cast<float>(han.maxY) <= expectedHan.bottom + 1.0f,
+            Check(han.count > 60 && static_cast<JBro::Float>(han.minX) >= expectedHan.left - 1.0f
+                    && static_cast<JBro::Float>(han.maxX) <= expectedHan.right + 1.0f
+                    && static_cast<JBro::Float>(han.minY) >= expectedHan.top - 1.0f
+                    && static_cast<JBro::Float>(han.maxY) <= expectedHan.bottom + 1.0f,
                 "the missing letter is filled in from the project font, inside its cell");
 
             // 4. 목록을 비우면 다음 프레임에 다시 레이아웃되고, `한` 은 라틴 폰트의 .notdef(네모) 로 바뀐다.

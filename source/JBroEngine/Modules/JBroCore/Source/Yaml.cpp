@@ -118,7 +118,7 @@ namespace JBro
         node.kind = kind;
         node.line = line;
         m_nodes.Add(std::move(node));
-        return static_cast<std::uint32_t>(m_nodes.Size() - 1);
+        return static_cast<JBro::UInt32>(m_nodes.Size() - 1);
     }
 
     Bool YamlDocument::IsValid(UInt32 node) const

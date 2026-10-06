@@ -1153,7 +1153,7 @@ namespace JBro::Physics2D
         {
             centroid = Add(centroid, polygon.points[i]);
         }
-        centroid = TransformPoint(poseB, Scale(centroid, 1.0f / static_cast<float>(polygon.count)));
+        centroid = TransformPoint(poseB, Scale(centroid, 1.0f / static_cast<JBro::Float>(polygon.count)));
         Vector2 face;
         const ChainVerdict verdict = JudgeChainNormal(world, raw.points[0].point, raw.normal, centroid, face);
         if (verdict == ChainVerdict::Keep)

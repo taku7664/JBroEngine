@@ -83,7 +83,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro sprite library probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -161,7 +161,7 @@ namespace
             rows.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 1\n    pixelsPerUnit: 2\n");
             JBro::JArrayView<std::byte> rowBytes;
             rowBytes.data = reinterpret_cast<const std::byte*>(rows.data());
-            rowBytes.size = static_cast<std::uint32_t>(rows.size());
+            rowBytes.size = static_cast<JBro::UInt32>(rows.size());
             Check(platform.WriteWholeFile(metaB.c_str(), rowBytes), "b's meta with two rows saves");
             Check(assets.ReloadInPlace(spriteB), "b reloads in place");
             JBro::SpriteFrameView wide;
@@ -178,7 +178,7 @@ namespace
         text.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 2\n    pixelsPerUnit: 2\n    pivotX: 0\n");
         JBro::JArrayView<std::byte> bytes;
         bytes.data = reinterpret_cast<const std::byte*>(text.data());
-        bytes.size = static_cast<std::uint32_t>(text.size());
+        bytes.size = static_cast<JBro::UInt32>(text.size());
         Check(platform.WriteWholeFile(metaPath.c_str(), bytes), "the meta with a sheet saves");
         Check(assets.ReloadInPlace(spriteA), "the sprite reloads in place");
         Check(library.Resolve(handleA, 3, again, uv) && SameHandle(again, texture), "the same texture serves the sheet");
@@ -261,7 +261,7 @@ namespace
             JBro::String sheet = JBro::FormatAssetMetaFile(metaFile);
             sheet.append("  ImportOptions:\n    pixelsPerUnit: 2\n");
             bytes.data = reinterpret_cast<const std::byte*>(sheet.data());
-            bytes.size = static_cast<std::uint32_t>(sheet.size());
+            bytes.size = static_cast<JBro::UInt32>(sheet.size());
             Check(platform.WriteWholeFile(metaC.c_str(), bytes), "c's meta with a PPU saves");
 
             JBro::Framework2D framework;
@@ -311,7 +311,7 @@ namespace
             JBro::String smooth = JBro::FormatAssetMetaFile(metaFile);
             smooth.append("  ImportOptions:\n    pixelsPerUnit: 2\nTexture:\n  ImportOptions:\n    filter: Linear\n");
             bytes.data = reinterpret_cast<const std::byte*>(smooth.data());
-            bytes.size = static_cast<std::uint32_t>(smooth.size());
+            bytes.size = static_cast<JBro::UInt32>(smooth.size());
             Check(platform.WriteWholeFile(metaC.c_str(), bytes), "c's meta with Linear saves");
             Check(assets.ReloadInPlace(textureC), "c's texture reloads in place");
             paint(32, 24, r, g, b);

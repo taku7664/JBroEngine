@@ -74,7 +74,7 @@ namespace JBro
         // 순열은 제출과 동시에 자란다. 정렬 전에도 GetSprite 는 제출 순서를 돌려준다.
         SpriteSortKey entry;
         entry.key = MakeSortKey(item);
-        entry.index = static_cast<std::uint32_t>(m_sprites.Size());
+        entry.index = static_cast<JBro::UInt32>(m_sprites.Size());
         m_sprites.Add(item);
         m_order.Add(entry);
         if (item.screenSpace)
@@ -90,7 +90,7 @@ namespace JBro
         // 부호 있는 renderOrder 는 최상위 비트만 뒤집어 부호 없는 대소 관계로 옮긴다.
         const UInt64 layer = item.layerOrder;
         const UInt64 order =
-            static_cast<std::uint32_t>(item.renderOrder) ^ 0x80000000u;
+            static_cast<JBro::UInt32>(item.renderOrder) ^ 0x80000000u;
         return (layer << 48) | (order << 16);
     }
 

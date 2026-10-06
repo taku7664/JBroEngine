@@ -141,8 +141,8 @@ namespace JBro
             {
                 TypeDescriptor built;
                 built.typeName = NameTable::Get().Intern("Test::LongText");
-                built.size = static_cast<std::uint32_t>(sizeof(LongText));
-                built.alignment = static_cast<std::uint32_t>(alignof(LongText));
+                built.size = static_cast<JBro::UInt32>(sizeof(LongText));
+                built.alignment = static_cast<JBro::UInt32>(alignof(LongText));
                 built.triviallyCopyable = true;
                 built.codec = &codec;
                 return built;
@@ -1230,11 +1230,11 @@ namespace
             canvas.AttachComponent<JBro::Component::Transform2D>(object);
             auto* collider = canvas.AttachComponent<JBro::Component::Collider2D>(object);
             collider->shape = JBro::Component::ColliderShape2D::Polygon;
-            collider->points = { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+            collider->points = { { 0.0f, 0.0f }, { 3.0f, 0.0f }, { 3.0f, 3.0f }, { 2.0f, 3.0f }, { 2.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 3.0f }, { 0.0f, 3.0f } };
             collider->friction = 0.25f;
             collider->restitution = 0.5f;
-            collider->layer = 0x4u;
-            collider->mask = 0xFFFFFFF0u;
+            collider->layer = JBro::UInt32(0x4u);
+            collider->mask = JBro::UInt32(0xFFFFFFF0u);
             text = Save(canvas);
         }
 
@@ -1248,7 +1248,7 @@ namespace
             Check(collider.points.Size() == 8, "with all eight corners of the U");
             Check(collider.points[4].x == 2.0f && collider.points[4].y == 1.0f, "in their order");
             Check(collider.friction == 0.25f && collider.restitution == 0.5f, "and the surface values");
-            Check(collider.layer == 0x4u && collider.mask == 0xFFFFFFF0u, "and the collision filter");
+            Check(collider.layer.bits == 0x4u && collider.mask.bits == 0xFFFFFFF0u, "and the collision filter");
         });
         Check(found == 1, "exactly one collider comes back");
     }

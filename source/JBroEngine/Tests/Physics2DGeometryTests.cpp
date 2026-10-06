@@ -44,12 +44,12 @@ namespace
     // 3x3 정사각형에서 가운데 위쪽 1x2 를 판 U. 면적 중심 (1.5, 1.357) 이 파인 홈 안, 즉 도형 밖에 있다.
     Array<Vector2> MakeU()
     {
-        return { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        return { { 0.0f, 0.0f }, { 3.0f, 0.0f }, { 3.0f, 3.0f }, { 2.0f, 3.0f }, { 2.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 3.0f }, { 0.0f, 3.0f } };
     }
 
     Array<Vector2> MakeL()
     {
-        return { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        return { { 0.0f, 0.0f }, { 2.0f, 0.0f }, { 2.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 3.0f }, { 0.0f, 3.0f } };
     }
 
     JBro::Bool IsStrictlyConvexCcw(const ConvexPolygon& polygon)
@@ -143,8 +143,8 @@ namespace
             for (JBro::Int32 iy = 0; iy < Steps; ++iy)
             {
                 const Vector2 point = {
-                    low.x + (high.x - low.x) * (static_cast<float>(ix) + 0.3819660f) / Steps,
-                    low.y + (high.y - low.y) * (static_cast<float>(iy) + 0.2360680f) / Steps };
+                    low.x + (high.x - low.x) * (static_cast<JBro::Float>(ix) + 0.3819660f) / Steps,
+                    low.y + (high.y - low.y) * (static_cast<JBro::Float>(iy) + 0.2360680f) / Steps };
                 JBro::Int32 covering = 0;
                 for (const ConvexPolygon& piece : pieces)
                 {
@@ -245,7 +245,7 @@ namespace
     // 기존 엔진이 주석으로 남긴 수평 법선 버그다(`Physics2DSystem.cpp:3048`).
     void TestAConvexOutlineStaysWhole()
     {
-        const Array<Vector2> box = { { 0, 0 }, { 4, 0 }, { 4, 1 }, { 0, 1 } };
+        const Array<Vector2> box = { { 0.0f, 0.0f }, { 4.0f, 0.0f }, { 4.0f, 1.0f }, { 0.0f, 1.0f } };
         Array<ConvexPolygon> pieces;
         Check(JBro::Physics2D::DecomposePolygon(View(box), pieces) == PolygonError::None, "a box decomposes");
         Check(pieces.Size() == 1 && pieces[0].count == 4, "into itself");
@@ -254,7 +254,7 @@ namespace
         Array<Vector2> circle;
         for (JBro::Int32 i = 0; i < 20; ++i)
         {
-            const JBro::Float angle = 6.2831853f * static_cast<float>(i) / 20.0f;
+            const JBro::Float angle = 6.2831853f * static_cast<JBro::Float>(i) / 20.0f;
             circle.Add({ std::cos(angle), std::sin(angle) });
         }
         CheckDecomposition(circle, "a 20-gon splits into convex pieces of at most eight points");
@@ -269,9 +269,9 @@ namespace
     {
         // U 의 모든 변에 가운데 점을 넣고, 몇 점은 두 번 적는다.
         const Array<Vector2> noisy = {
-            { 0, 0 }, { 1.5f, 0 }, { 3, 0 }, { 3, 0 }, { 3, 1.5f }, { 3, 3 }, { 2.5f, 3 }, { 2, 3 },
-            { 2, 2 }, { 2, 1 }, { 1.5f, 1 }, { 1, 1 }, { 1, 1 }, { 1, 2 }, { 1, 3 }, { 0.5f, 3 }, { 0, 3 },
-            { 0, 1.5f }, { 0, 0 } };
+            { 0.0f, 0.0f }, { 1.5f, 0.0f }, { 3.0f, 0.0f }, { 3.0f, 0.0f }, { 3.0f, 1.5f }, { 3.0f, 3.0f }, { 2.5f, 3.0f }, { 2.0f, 3.0f },
+            { 2.0f, 2.0f }, { 2.0f, 1.0f }, { 1.5f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 2.0f }, { 1.0f, 3.0f }, { 0.5f, 3.0f }, { 0.0f, 3.0f },
+            { 0.0f, 1.5f }, { 0.0f, 0.0f } };
         CheckDecomposition(noisy, "a noisy U decomposes without losing area");
 
         Array<Vector2> clean;
@@ -299,26 +299,26 @@ namespace
         Array<ConvexPolygon> pieces;
         pieces.Emplace();
 
-        const Array<Vector2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
+        const Array<Vector2> bowTie = { { 0.0f, 0.0f }, { 2.0f, 2.0f }, { 2.0f, 0.0f }, { 0.0f, 2.0f } };
         Check(JBro::Physics2D::DecomposePolygon(View(bowTie), pieces) == PolygonError::SelfIntersecting,
             "a bow tie crosses itself");
         Check(pieces.IsEmpty(), "and a refused outline leaves no pieces");
 
         // 두 정사각형이 한 꼭짓점에서만 만난다. 넓이는 있지만 단순 다각형이 아니다.
         const Array<Vector2> pinched = {
-            { 0, 0 }, { 1, 0 }, { 1, 1 }, { 2, 1 }, { 2, 2 }, { 1, 2 }, { 1, 1 }, { 0, 1 } };
+            { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 2.0f, 1.0f }, { 2.0f, 2.0f }, { 1.0f, 2.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f } };
         Check(JBro::Physics2D::DecomposePolygon(View(pinched), pieces) == PolygonError::SelfIntersecting,
             "two squares touching at a corner are not a simple polygon");
 
-        const Array<Vector2> twoPoints = { { 0, 0 }, { 1, 0 } };
+        const Array<Vector2> twoPoints = { { 0.0f, 0.0f }, { 1.0f, 0.0f } };
         Check(JBro::Physics2D::DecomposePolygon(View(twoPoints), pieces) == PolygonError::TooFewPoints,
             "two points are too few");
 
-        const Array<Vector2> line = { { 0, 0 }, { 1, 0 }, { 2, 0 }, { 3, 0 } };
+        const Array<Vector2> line = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 2.0f, 0.0f }, { 3.0f, 0.0f } };
         Check(JBro::Physics2D::DecomposePolygon(View(line), pieces) == PolygonError::TooFewPoints,
             "points on one line clean down to fewer than three");
 
-        const Array<Vector2> samePoint = { { 1, 1 }, { 1, 1 }, { 1, 1 } };
+        const Array<Vector2> samePoint = { { 1.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } };
         Check(JBro::Physics2D::DecomposePolygon(View(samePoint), pieces) == PolygonError::TooFewPoints,
             "one point written three times is one point");
     }
@@ -331,17 +331,17 @@ namespace
         const auto next = [&state]()
         {
             state = state * 1664525u + 1013904223u;
-            return static_cast<float>(state >> 8) / static_cast<float>(1u << 24);
+            return static_cast<JBro::Float>(state >> 8) / static_cast<JBro::Float>(1u << 24);
         };
 
         JBro::Int32 concaveCount = 0;
         for (JBro::Int32 shape = 0; shape < 200; ++shape)
         {
-            const JBro::Int32 count = 5 + static_cast<int>(next() * 20.0f);
+            const JBro::Int32 count = 5 + static_cast<JBro::Int32>(next() * 20.0f);
             Array<Vector2> outline;
             for (JBro::Int32 i = 0; i < count; ++i)
             {
-                const JBro::Float angle = 6.2831853f * (static_cast<float>(i) + 0.8f * next()) / static_cast<float>(count);
+                const JBro::Float angle = 6.2831853f * (static_cast<JBro::Float>(i) + 0.8f * next()) / static_cast<JBro::Float>(count);
                 const JBro::Float radius = 0.3f + 2.0f * next();
                 outline.Add({ radius * std::cos(angle), radius * std::sin(angle) });
             }
@@ -383,12 +383,12 @@ namespace
 
     void TestCircleAndCombinedMass()
     {
-        const MassData circle = JBro::Physics2D::ComputeCircleMass({ 1, 0 }, 0.5f, 4.0f);
+        const MassData circle = JBro::Physics2D::ComputeCircleMass({ 1.0f, 0.0f }, 0.5f, 4.0f);
         Check(Near(circle.mass, 3.14159265f, 1.0e-5f), "a circle of radius 0.5 at density 4 has mass pi");
         Check(Near(circle.inertia, 0.5f * circle.mass * 0.25f, 1.0e-6f), "and inertia m r^2 / 2");
 
         // 같은 원 두 개를 x = ±1 에 두면 중심은 원점이고 관성은 평행축 정리로 m·1² 씩 는다.
-        const MassData parts[] = { circle, JBro::Physics2D::ComputeCircleMass({ -1, 0 }, 0.5f, 4.0f) };
+        const MassData parts[] = { circle, JBro::Physics2D::ComputeCircleMass({ -1.0f, 0.0f }, 0.5f, 4.0f) };
         const MassData combined = JBro::Physics2D::CombineMass(ArrayView<const MassData>(parts));
         Check(Near(combined.mass, 2.0f * circle.mass, 1.0e-5f), "masses add");
         Check(Near(combined.center.x, 0.0f, 1.0e-6f), "the combined center is between them");

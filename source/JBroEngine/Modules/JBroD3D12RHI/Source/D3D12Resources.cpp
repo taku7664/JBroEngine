@@ -7,34 +7,35 @@
 #include <limits>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro::Internal
 {
     namespace
     {
         constexpr UInt32 BufferUsageMask =
-            static_cast<std::uint32_t>(BufferUsage::Vertex)
-            | static_cast<std::uint32_t>(BufferUsage::Index)
-            | static_cast<std::uint32_t>(BufferUsage::Constant)
-            | static_cast<std::uint32_t>(BufferUsage::CopySource)
-            | static_cast<std::uint32_t>(BufferUsage::CopyDestination);
+            static_cast<JBro::UInt32>(BufferUsage::Vertex)
+            | static_cast<JBro::UInt32>(BufferUsage::Index)
+            | static_cast<JBro::UInt32>(BufferUsage::Constant)
+            | static_cast<JBro::UInt32>(BufferUsage::CopySource)
+            | static_cast<JBro::UInt32>(BufferUsage::CopyDestination);
 
         constexpr UInt32 TextureUsageMask =
-            static_cast<std::uint32_t>(TextureUsage::Sampled)
-            | static_cast<std::uint32_t>(TextureUsage::RenderTarget)
-            | static_cast<std::uint32_t>(TextureUsage::DepthStencil)
-            | static_cast<std::uint32_t>(TextureUsage::Storage)
-            | static_cast<std::uint32_t>(TextureUsage::CopySource)
-            | static_cast<std::uint32_t>(TextureUsage::CopyDestination);
+            static_cast<JBro::UInt32>(TextureUsage::Sampled)
+            | static_cast<JBro::UInt32>(TextureUsage::RenderTarget)
+            | static_cast<JBro::UInt32>(TextureUsage::DepthStencil)
+            | static_cast<JBro::UInt32>(TextureUsage::Storage)
+            | static_cast<JBro::UInt32>(TextureUsage::CopySource)
+            | static_cast<JBro::UInt32>(TextureUsage::CopyDestination);
 
         Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
 
         Bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
 
         UInt32 NextGeneration(UInt32 generation)
@@ -132,7 +133,7 @@ namespace JBro::Internal
 
         Bool IsBufferDescValid(const BufferDesc& desc)
         {
-            const UInt32 usages = static_cast<std::uint32_t>(desc.usage);
+            const UInt32 usages = static_cast<JBro::UInt32>(desc.usage);
             if (desc.size == 0 || usages == 0 || (usages & ~BufferUsageMask) != 0)
             {
                 return false;
@@ -148,7 +149,7 @@ namespace JBro::Internal
                 return false;
             }
             if (desc.memory == MemoryType::Readback
-                && usages != static_cast<std::uint32_t>(BufferUsage::CopyDestination))
+                && usages != static_cast<JBro::UInt32>(BufferUsage::CopyDestination))
             {
                 return false;
             }
@@ -157,7 +158,7 @@ namespace JBro::Internal
 
         Bool IsTextureDescValid(const TextureDesc& desc)
         {
-            const UInt32 usages = static_cast<std::uint32_t>(desc.usage);
+            const UInt32 usages = static_cast<JBro::UInt32>(desc.usage);
             const Bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
             const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
             const Bool storage = HasTextureUsage(desc.usage, TextureUsage::Storage);
@@ -208,7 +209,7 @@ namespace JBro::Internal
             return {};
         }
 
-        UInt64 resourceSize = static_cast<std::uint64_t>(desc.size);
+        UInt64 resourceSize = static_cast<JBro::UInt64>(desc.size);
         if (HasBufferUsage(desc.usage, BufferUsage::Constant))
         {
             resourceSize = (resourceSize + 255) & ~UInt64{255};
@@ -300,7 +301,7 @@ namespace JBro::Internal
         // 메시지 하나를 받아 둘 자리다. 설명이 이보다 긴 메시지는 건너뛴다 -
         // 세는 일이 메모리를 잡는 일이 되면 안 된다.
         alignas(D3D12_MESSAGE) unsigned char messageStorage[2048] = {};
-        const auto count = static_cast<std::uint32_t>(
+        const auto count = static_cast<JBro::UInt32>(
             m_infoQueue->GetNumStoredMessagesAllowedByRetrievalFilter());
 
         // **세기만 하면 쓸모가 없다.** "검증 레이어가 1건 말했다" 만 보고는 무엇이
@@ -984,8 +985,8 @@ namespace JBro::Internal
 
         result.extent = desc.extent;
         result.format = desc.format;
-        result.rowPitch = static_cast<std::uint32_t>(tightRowPitch);
-        result.writtenBytes = static_cast<std::uint32_t>(requiredBytes);
+        result.rowPitch = static_cast<JBro::UInt32>(tightRowPitch);
+        result.writtenBytes = static_cast<JBro::UInt32>(requiredBytes);
         return true;
     }
 
@@ -1208,8 +1209,8 @@ namespace JBro::Internal
         {
             return false;
         }
-        return WriteTextureRegion(texture, mipLevel, 0, 0, static_cast<std::uint32_t>(resourceDesc.Width), resourceDesc.Height,
-            data, static_cast<std::uint32_t>(rowSizeInBytes));
+        return WriteTextureRegion(texture, mipLevel, 0, 0, static_cast<JBro::UInt32>(resourceDesc.Width), resourceDesc.Height,
+            data, static_cast<JBro::UInt32>(rowSizeInBytes));
     }
 
     Bool D3D12Device::WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
@@ -1312,7 +1313,7 @@ namespace JBro::Internal
         }
         upload->Unmap(0, nullptr);
 
-        const UInt32 frameSlot = static_cast<std::uint32_t>(
+        const UInt32 frameSlot = static_cast<JBro::UInt32>(
             m_nextFenceValue % MaxFramesInFlight);
         // **이 할당자를 쓰던 프레임이 끝나기를 먼저 기다린다.** 아직 GPU 가
         // 그 명령을 읽고 있는데 할당자를 되감으면 디바이스가 통째로 날아간다

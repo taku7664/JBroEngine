@@ -68,7 +68,7 @@ namespace JBro::Package
 
     UInt32 PackageWriter::GetEntryCount() const
     {
-        return static_cast<std::uint32_t>(m_entries.Size());
+        return static_cast<JBro::UInt32>(m_entries.Size());
     }
 
     void PackageWriter::Build(Array<std::byte>& file) const
@@ -106,7 +106,7 @@ namespace JBro::Package
             PutValue(index, static_cast<std::uint16_t>(entry.type));
             PutValue(index, static_cast<std::uint8_t>(entry.kind));
             PutValue(index, static_cast<std::uint8_t>(0));
-            PutValue(index, static_cast<std::uint32_t>(entry.path.size()));
+            PutValue(index, static_cast<JBro::UInt32>(entry.path.size()));
             PutValue(index, entry.owner.high);
             PutValue(index, entry.owner.low);
             PutValue(index, entry.offset);
@@ -122,13 +122,13 @@ namespace JBro::Package
         Put(header, Magic, sizeof(Magic));
         PutValue(header, FormatVersion);
         PutValue(header, HeaderSize);
-        PutValue(header, static_cast<std::uint32_t>(sorted.Size()));
-        PutValue(header, static_cast<std::uint32_t>(0));
+        PutValue(header, static_cast<JBro::UInt32>(sorted.Size()));
+        PutValue(header, static_cast<JBro::UInt32>(0));
         PutValue(header, indexOffset);
-        PutValue(header, static_cast<std::uint64_t>(index.Size()));
+        PutValue(header, static_cast<JBro::UInt64>(index.Size()));
         PutValue(header, indexHash);
         PutValue(header, m_key);
-        PutValue(header, static_cast<std::uint64_t>(0));
+        PutValue(header, static_cast<JBro::UInt64>(0));
         std::memcpy(file.Data(), header.Data(), HeaderSize);
     }
 
@@ -143,7 +143,7 @@ namespace JBro::Package
         }
         JArrayView<std::byte> view;
         view.data = file.Data();
-        view.size = static_cast<std::uint32_t>(file.Size());
+        view.size = static_cast<JBro::UInt32>(file.Size());
         if (false == platform.WriteWholeFile(utf8Path, view))
         {
             error = "the package file could not be written";

@@ -20,7 +20,7 @@ namespace JBro::Network
 
     inline UInt64 SnapshotKey(NetworkObjectId object, std::uint8_t type)
     {
-        return (static_cast<std::uint64_t>(object) << 8) | type;
+        return (static_cast<JBro::UInt64>(object) << 8) | type;
     }
 
     inline UInt64 SnapshotKey(const SnapshotEntry& entry)

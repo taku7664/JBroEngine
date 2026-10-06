@@ -524,7 +524,7 @@ namespace
         input.BeginFrame({});
         GamepadRawState raw[MaxGamepads] = {};
         raw[2].connected = true;
-        raw[2].buttons = static_cast<std::uint16_t>(1u << static_cast<std::uint32_t>(GamepadButton::East));
+        raw[2].buttons = static_cast<std::uint16_t>(1u << static_cast<JBro::UInt32>(GamepadButton::East));
         raw[2].axes[static_cast<std::size_t>(GamepadAxis::LeftTrigger)] = 1.0f;
         input.FoldGamepads(raw);
         Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::Captured

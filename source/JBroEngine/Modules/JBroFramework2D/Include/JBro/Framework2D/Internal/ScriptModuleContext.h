@@ -3,6 +3,7 @@
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -13,7 +14,7 @@ namespace JBro
     {
         Framework2DServiceContextTypeId,
         Framework2DServiceContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(Framework2DServiceContext))
+        static_cast<JBro::UInt32>(sizeof(Framework2DServiceContext))
     };
 
     ScriptContextBlock MakeFramework2DServiceContextBlock(
@@ -28,7 +29,7 @@ namespace JBro
     {
         Framework2DSystemContextTypeId,
         Framework2DSystemContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(Framework2DSystemContext))
+        static_cast<JBro::UInt32>(sizeof(Framework2DSystemContext))
     };
 
     ScriptContextBlock MakeFramework2DSystemContextBlock(

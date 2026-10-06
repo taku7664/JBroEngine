@@ -8,6 +8,7 @@
 #include <cstring>
 #include <string_view>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -97,8 +98,8 @@ namespace JBro
             static const TypeDescriptor descriptor = [] {
                 TypeDescriptor made;
                 made.typeName = NameTable::Get().Intern("JBro.AudioBusName");
-                made.size = static_cast<std::uint32_t>(sizeof(AudioBusName));
-                made.alignment = static_cast<std::uint32_t>(alignof(AudioBusName));
+                made.size = static_cast<JBro::UInt32>(sizeof(AudioBusName));
+                made.alignment = static_cast<JBro::UInt32>(alignof(AudioBusName));
                 made.triviallyCopyable = true;
                 made.codec = &GetAudioBusNameCodec();
                 return made;

@@ -549,7 +549,7 @@ namespace JBro::Internal
             return result;
         }
 
-        const UInt32 frameSlot = static_cast<std::uint32_t>(
+        const UInt32 frameSlot = static_cast<JBro::UInt32>(
             m_frameSerial % state->desc.maxFramesInFlight);
         if (false == WaitForFence(m_frameFenceValues[frameSlot]))
         {

@@ -41,7 +41,7 @@ namespace JBro
 
     UInt32 TaskGroup::GetTaskCount() const
     {
-        return static_cast<std::uint32_t>(m_tasks.Size());
+        return static_cast<JBro::UInt32>(m_tasks.Size());
     }
 
     const Task& TaskGroup::GetTaskAt(UInt32 index) const

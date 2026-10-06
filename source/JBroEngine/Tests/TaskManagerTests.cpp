@@ -123,7 +123,7 @@ namespace
         journal.lastState = result.state;
         journal.lastSucceeded = result.succeededSubTasks;
         journal.lastFailed = result.failedSubTasks;
-        journal.lastFailureCount = static_cast<std::uint32_t>(result.failures.Size());
+        journal.lastFailureCount = static_cast<JBro::UInt32>(result.failures.Size());
         if (false == result.failures.IsEmpty())
         {
             strncpy_s(journal.lastReason, result.failures[0].reason.c_str(), _TRUNCATE);

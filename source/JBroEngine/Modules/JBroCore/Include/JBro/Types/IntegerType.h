@@ -37,7 +37,25 @@ public:
 	using ValueType = T;
 
 	constexpr IntegerType() noexcept = default;
-	constexpr IntegerType(T value) noexcept : Value(value) {}
+	// **같은 종류에서만 암시로 만든다**(D-290). 정수 리터럴과 같거나 좁은 원시 정수·범위 없는 열거형은 암시(`UInt32 count = 0;`),
+	// 넓은 정수·실수·열거형·bool 은 명시다(`static_cast<UInt32>(size)`). 실수가 정수 강타입으로 암시 변환되면
+	// `Range(Int32, Int32)` 와 `Range(Float, Float)` 가 `Range(1.0f, 2.0f)` 에서 둘 다 닿아 모호해진다 - 종류가 갈리면
+	// 리터럴이 맞는 판을 저절로 고른다. 좁히기도 명시라야 원시 타입의 폭 경고가 잡던 것을 컴파일러가 잡는다.
+	template<typename A>
+		requires (((std::is_integral_v<A> && !std::is_same_v<A, bool>) || (std::is_enum_v<A> && std::is_convertible_v<A, long long>)) && sizeof(A) <= sizeof(T))
+	constexpr IntegerType(A value) noexcept : Value(static_cast<T>(value)) {}
+
+	template<typename A>
+		requires ((std::is_arithmetic_v<A> || std::is_enum_v<A>)
+			&& !(((std::is_integral_v<A> && !std::is_same_v<A, bool>) || (std::is_enum_v<A> && std::is_convertible_v<A, long long>)) && sizeof(A) <= sizeof(T)))
+	constexpr explicit IntegerType(A value) noexcept : Value(static_cast<T>(value)) {}
+
+	// `Float` 처럼 원시 수로 바뀌는 엔진 값 타입에서 명시적으로 만든다(정수 강타입끼리는 위의 넓히기 생성자가 맡는다).
+	template<typename A>
+		requires (std::is_class_v<A> && !requires(A a) { a.Value; typename A::ValueType; }
+			&& std::is_convertible_v<A, double>)
+	constexpr explicit IntegerType(const A& value) noexcept : Value(static_cast<T>(static_cast<double>(value))) {}
+
 
 	// **값을 잃지 않는 넓히기는 암시로 된다**(`UInt32` → `UInt64`, `Int32` → `Int64`, `UInt32` → `Int64`).
 	// 원시 정수끼리 되던 것이 강타입이라고 막히면 필드를 옮긴 자리마다 캐스트가 붙는다(D-290).

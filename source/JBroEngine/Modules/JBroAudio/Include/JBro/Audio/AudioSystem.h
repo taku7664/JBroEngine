@@ -91,10 +91,10 @@ namespace JBro::System
         // `planarDepth` 는 2D 의 몫이다: 소스를 듣는 자리 앞 이만큼의 깊이에 두어 가까운 소리가 한쪽 귀로 뚝 꺾이지
         // 않게 한다. 거리 감쇠는 같은 깊이만큼 보정한다. 3D 는 0 이다.
         // `deltaTime` 은 도플러의 속도(위치 차 / 시간)를 재는 데만 쓴다. 0 이면 속도를 0 으로 둔다.
-        void SetListener(const float position[3], const float forward[3], const float up[3], Float planarDepth,
+        void SetListener(const Float position[3], const Float forward[3], const Float up[3], Float planarDepth,
             Float deltaTime);
         // 소스 하나를 한 프레임 진행한다. `active` 는 `IsActiveComponent` 다.
-        void UpdateSource(Component::AudioSource& source, Bool active, const float position[3], Float deltaTime);
+        void UpdateSource(Component::AudioSource& source, Bool active, const Float position[3], Float deltaTime);
         // 플레이를 멈출 때 부른다. 게임 소리를 전부 멈춘다(미리 듣기는 그대로다).
         void StopGameSounds();
 
@@ -169,7 +169,7 @@ namespace JBro::System
         AudioBusId ResolveControlBus(AudioBusName bus) const;
         void StartSource(Component::AudioSource& source);
         void StopVoice(Component::AudioSource& source, Float fadeOutSeconds);
-        void Place(const float position[3], float out[3]) const;
+        void Place(const Float position[3], Float out[3]) const;
         Float WidenDistance(Float distance) const;
 
         AudioMixer* m_mixer = nullptr;
@@ -186,7 +186,7 @@ namespace JBro::System
         AudioVoiceHandle m_preview;
         AssetHandle m_previewClip;
         Float m_planarDepth = 0.0f;
-        float m_listenerPosition[3] = {0.0f, 0.0f, 0.0f};
+        Float m_listenerPosition[3] = {0.0f, 0.0f, 0.0f};
         Bool m_listenerPlaced = false;
         // `ConfigureBuses` 가 버스를 다시 세울 때마다 는다(D-240). 소스가 제 버스를 다시 잇는 신호다.
         UInt32 m_busGeneration = 1;

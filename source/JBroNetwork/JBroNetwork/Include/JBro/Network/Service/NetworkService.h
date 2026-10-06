@@ -30,7 +30,7 @@ namespace JBro::Service
             Network::NetChannel channel = Network::NetChannel::ReliableOrdered) const
         {
             static_assert(std::is_trivially_copyable_v<T>, "network messages must be POD - the DLL boundary rule");
-            return Send(connection, messageId, &message, static_cast<std::uint32_t>(sizeof(T)), channel);
+            return Send(connection, messageId, &message, static_cast<JBro::UInt32>(sizeof(T)), channel);
         }
 
         template <typename T>
@@ -38,7 +38,7 @@ namespace JBro::Service
             Network::NetChannel channel = Network::NetChannel::ReliableOrdered) const
         {
             static_assert(std::is_trivially_copyable_v<T>, "network messages must be POD - the DLL boundary rule");
-            return Broadcast(messageId, &message, static_cast<std::uint32_t>(sizeof(T)), channel);
+            return Broadcast(messageId, &message, static_cast<JBro::UInt32>(sizeof(T)), channel);
         }
 
         // 복제 표. 없으면 `InvalidNetworkObjectId` / `InvalidInstanceId`.

@@ -60,7 +60,7 @@ namespace
     // 목표에 닿지 않고 남는다 - 화면에서 1 픽셀씩 밀린 채 멈추는 종류의 결함이다.
     void TestEveryKindStartsAtZeroAndEndsAtOne()
     {
-        for (JBro::Int32 index = 0; index < static_cast<int>(JBro::EaseKind::Count); ++index)
+        for (JBro::Int32 index = 0; index < static_cast<JBro::Int32>(JBro::EaseKind::Count); ++index)
         {
             const JBro::EaseKind kind = static_cast<JBro::EaseKind>(index.Get());
             const JBro::Float atZero = JBro::Ease(kind, 0.0f);
@@ -80,7 +80,7 @@ namespace
     {
         for (JBro::Int32 step = 0; step <= 20; ++step)
         {
-            const JBro::Float t = static_cast<float>(step) / 20.0f;
+            const JBro::Float t = static_cast<JBro::Float>(step) / 20.0f;
             Check(Near(JBro::Ease(JBro::EaseKind::Linear, t), t), "linear returns the progress unchanged");
         }
     }
@@ -89,7 +89,7 @@ namespace
     // 자르지 않으면 `Expo` 가 크게 튄다.
     void TestProgressIsClamped()
     {
-        for (JBro::Int32 index = 0; index < static_cast<int>(JBro::EaseKind::Count); ++index)
+        for (JBro::Int32 index = 0; index < static_cast<JBro::Int32>(JBro::EaseKind::Count); ++index)
         {
             const JBro::EaseKind kind = static_cast<JBro::EaseKind>(index.Get());
             Check(Near(JBro::Ease(kind, -3.0f), JBro::Ease(kind, 0.0f)), "progress below zero is clamped to zero");
@@ -114,7 +114,7 @@ namespace
         {
             for (JBro::Int32 step = 0; step <= 20; ++step)
             {
-                const JBro::Float t = static_cast<float>(step) / 20.0f;
+                const JBro::Float t = static_cast<JBro::Float>(step) / 20.0f;
                 const JBro::Float out = JBro::Ease(pair[1], t);
                 const JBro::Float mirrored = 1.0f - JBro::Ease(pair[0], 1.0f - t);
                 Check(Near(out, mirrored), "an out curve is its in curve mirrored");
@@ -151,7 +151,7 @@ namespace
             JBro::Float previous = JBro::Ease(kind, 0.0f);
             for (JBro::Int32 step = 1; step <= 200; ++step)
             {
-                const JBro::Float value = JBro::Ease(kind, static_cast<float>(step) / 200.0f);
+                const JBro::Float value = JBro::Ease(kind, static_cast<JBro::Float>(step) / 200.0f);
                 if (value < previous - 0.0001f)
                 {
                     std::cout << "  " << NameOf(kind) << " went from " << previous << " to " << value << '\n';
@@ -170,7 +170,7 @@ namespace
         JBro::Bool elasticWentAboveOne = false;
         for (JBro::Int32 step = 0; step <= 200; ++step)
         {
-            const JBro::Float t = static_cast<float>(step) / 200.0f;
+            const JBro::Float t = static_cast<JBro::Float>(step) / 200.0f;
             if (JBro::Ease(JBro::EaseKind::BackIn, t) < -0.001f)
             {
                 backWentBelowZero = true;
@@ -192,7 +192,7 @@ namespace
         JBro::Float previous = JBro::Ease(JBro::EaseKind::BounceOut, 0.0f);
         for (JBro::Int32 step = 1; step <= 400; ++step)
         {
-            const JBro::Float value = JBro::Ease(JBro::EaseKind::BounceOut, static_cast<float>(step) / 400.0f);
+            const JBro::Float value = JBro::Ease(JBro::EaseKind::BounceOut, static_cast<JBro::Float>(step) / 400.0f);
             if (value < previous - 0.001f)
             {
                 ++descents;
@@ -210,7 +210,7 @@ namespace
         const JBro::EaseKind unknown = static_cast<JBro::EaseKind>(200);
         for (JBro::Int32 step = 0; step <= 10; ++step)
         {
-            const JBro::Float t = static_cast<float>(step) / 10.0f;
+            const JBro::Float t = static_cast<JBro::Float>(step) / 10.0f;
             Check(Near(JBro::Ease(unknown, t), t), "an unknown kind behaves as linear");
         }
     }

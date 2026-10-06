@@ -54,7 +54,7 @@ namespace JBro
         UInt32 sampleRate = 0;
         UInt32 channels = 0;
         UInt64 frameCount = 0;
-        Array<float> pcm;
+        Array<Float> pcm;
         Array<std::byte> encoded;
         String streamPath;
         UInt32 dataGeneration = 1;
@@ -200,7 +200,7 @@ namespace JBro
         // 이미 로드된 자료는 바꾸지 않는다 - 다음 로드부터다.
         void SetAudioDecodeSampleRate(UInt32 sampleRate);
         // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
-        Bool ComputeAudioPeaks(AssetHandle handle, UInt32 buckets, Array<float>& peaks);
+        Bool ComputeAudioPeaks(AssetHandle handle, UInt32 buckets, Array<Float>& peaks);
 
         // 디스크의 최신 상태로 자료만 바꾼다. 핸들과 세대는 그대로다(asset-plan §2.7). 로드돼 있지 않으면 false.
         Bool ReloadInPlace(AssetId id);

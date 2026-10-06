@@ -12,7 +12,7 @@ namespace JBro
         UInt64 hash = 1469598103934665603ull;
         while (name != nullptr && *name != '\0')
         {
-            hash ^= static_cast<std::uint64_t>(static_cast<unsigned char>(*name));
+            hash ^= static_cast<JBro::UInt64>(static_cast<unsigned char>(*name));
             hash *= 1099511628211ull;
             ++name;
         }

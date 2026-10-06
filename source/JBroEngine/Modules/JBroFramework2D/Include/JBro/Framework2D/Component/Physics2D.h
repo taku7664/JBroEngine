@@ -42,19 +42,13 @@ namespace JBro
 {
     // 물리 레이어 비트 묶음이다(D-233). 메모리와 파일은 부호 없는 32 비트 정수 그대로이고(옛 파일과 같은 글자), 이름은
     // 프로젝트 설정의 `PhysicsLayers` 가 준다 - 비트 i 가 그 목록의 i 번째 이름이다. 에디터는 이 타입 이름을 보고 이름을
-    // 고르는 칸을 그린다. 정수와 저절로 오가므로 스크립트는 `collider->layer = 1u << 3;` 처럼 쓴다.
+    // 고르는 칸을 그린다. 정수와 저절로 오가므로 스크립트는 `collider->layer = JBro::UInt32(1u << 3);` 처럼 쓴다.
     struct PhysicsLayerMask
     {
         UInt32 bits = 0;
 
         constexpr PhysicsLayerMask() = default;
         constexpr PhysicsLayerMask(UInt32 value)
-            : bits(value)
-        {
-        }
-
-        // 리터럴(`0x4u`)에서 바로 온다. `UInt32` 생성자만 있으면 `uint32` → `UInt32` → 마스크로 사용자 변환이 둘이다.
-        constexpr PhysicsLayerMask(std::uint32_t value)
             : bits(value)
         {
         }
@@ -79,8 +73,8 @@ namespace JBro
             static const TypeDescriptor descriptor = [] {
                 TypeDescriptor made;
                 made.typeName = NameTable::Get().Intern("JBro.PhysicsLayerMask");
-                made.size = static_cast<std::uint32_t>(sizeof(PhysicsLayerMask));
-                made.alignment = static_cast<std::uint32_t>(alignof(PhysicsLayerMask));
+                made.size = static_cast<JBro::UInt32>(sizeof(PhysicsLayerMask));
+                made.alignment = static_cast<JBro::UInt32>(alignof(PhysicsLayerMask));
                 made.triviallyCopyable = true;
                 made.codec = &GetScalarCodec<std::uint32_t>();
                 return made;
@@ -136,7 +130,7 @@ namespace JBro::Component
         // 물체가 저장된 순간의 속도로 튀어 나간다.
         JBRO_FIELD(Vector2,  linearVelocity,  NoSerialize());
         JBRO_FIELD(Float, angularVelocity, NoSerialize()) = 0.0f;
-        JBRO_FIELD(Float, mass,          Range(0, 1000)) = 1.0f;
+        JBRO_FIELD(Float, mass,          Range(0.0f, 1000.0f)) = 1.0f;
         JBRO_FIELD(Float, gravityScale)  = 1.0f;
         JBRO_FIELD(Float, linearDamping) = 0.0f;
         JBRO_FIELD(Float, angularDamping) = 0.0f;
@@ -231,8 +225,8 @@ namespace JBro::Component
         // 동안에는 닿은 것도 아니다(훅이 없다). 닿기 시작할 때 방향을 보고 떨어질 때까지 그대로다.
         JBRO_FIELD(Bool, oneWay) = false;
         // 표면 성질과 충돌 거르기는 도형의 것이다(D-199 (4)). 두 도형의 마찰은 기하 평균, 반발은 큰 쪽으로 섞는다.
-        JBRO_FIELD(Float, friction, Range(0, 2)) = 0.6f;
-        JBRO_FIELD(Float, restitution, Range(0, 1)) = 0.0f;
+        JBRO_FIELD(Float, friction, Range(0.0f, 2.0f)) = 0.6f;
+        JBRO_FIELD(Float, restitution, Range(0.0f, 1.0f)) = 0.0f;
         // 두 콜라이더는 (A.layer & B.mask) 와 (B.layer & A.mask) 가 모두 0 이 아니고, 프로젝트의 레이어 충돌 표가 두 레이어를
         // 떼어 두지 않았을 때만 만난다(D-233). 비트 i 의 이름은 프로젝트 설정의 물리 레이어 i 번째다.
         JBRO_FIELD(PhysicsLayerMask, layer) = 0x00000001u;
@@ -262,12 +256,12 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, connectedAnchor);
         // 참이면 조인트가 처음 이어지는 순간 두 앵커 사이의 거리를 distance 에 적는다.
         JBRO_FIELD(Bool, autoDistance) = true;
-        JBRO_FIELD(Float, distance, Range(0, 1000)) = 1.0f;
+        JBRO_FIELD(Float, distance, Range(0.0f, 1000.0f)) = 1.0f;
         // 참이면 밧줄이다: distance 보다 멀어지지만 않게 하고 가까워지는 것은 막지 않는다.
         JBRO_FIELD(Bool, maxDistanceOnly) = false;
         // 0 보다 크면 용수철이다(초당 떨림 수). 0 이면 단단하다. 밧줄에는 쓰지 않는다.
-        JBRO_FIELD(Float, frequency, Range(0, 30)) = 0.0f;
-        JBRO_FIELD(Float, dampingRatio, Range(0, 1)) = 0.0f;
+        JBRO_FIELD(Float, frequency, Range(0.0f, 30.0f)) = 0.0f;
+        JBRO_FIELD(Float, dampingRatio, Range(0.0f, 1.0f)) = 0.0f;
         // 거짓이면 이은 두 오브젝트의 콜라이더가 서로 부딪히지 않는다.
         JBRO_FIELD(Bool, collideConnected) = false;
     };
@@ -295,12 +289,12 @@ namespace JBro::Component
         // 참이면 조인트가 처음 이어지는 순간 anchor 가 놓인 자리를 상대의 로컬(없으면 월드)로 connectedAnchor 에 적는다.
         JBRO_FIELD(Bool, autoConnectedAnchor) = true;
         JBRO_FIELD(Bool, useLimits) = false;
-        JBRO_FIELD(Degree, lowerAngle, Range(-360, 360)) = -45.0f;
-        JBRO_FIELD(Degree, upperAngle, Range(-360, 360)) = 45.0f;
+        JBRO_FIELD(Degree, lowerAngle, Range(-360.0f, 360.0f)) = -45.0f;
+        JBRO_FIELD(Degree, upperAngle, Range(-360.0f, 360.0f)) = 45.0f;
         // 모터는 이 오브젝트를 상대에 대해 motorSpeed(도/초)로 돌린다. 그러려고 쓸 수 있는 가장 큰 토크가 maxMotorTorque 다.
         JBRO_FIELD(Bool, useMotor) = false;
         JBRO_FIELD(Degree, motorSpeed) = 0.0f;
-        JBRO_FIELD(Float, maxMotorTorque, Range(0, 100000)) = 1000.0f;
+        JBRO_FIELD(Float, maxMotorTorque, Range(0.0f, 100000.0f)) = 1000.0f;
         JBRO_FIELD(Bool, collideConnected) = false;
     };
 }

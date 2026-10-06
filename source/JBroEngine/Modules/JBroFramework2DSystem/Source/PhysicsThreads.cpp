@@ -28,11 +28,11 @@ namespace JBro
             if (collider.shape == Component::ColliderShape2D::Chain)
             {
                 // 선분마다 한 조각이다. 포인트가 없으면 선분 하나.
-                work += points < 2 ? 1u : static_cast<std::uint32_t>(collider.loop ? points : points - 1);
+                work += points < 2 ? UInt32(1u) : static_cast<JBro::UInt32>(collider.loop ? UInt32(points) : points - 1);
                 return;
             }
             const Bool pieced = collider.shape == Component::ColliderShape2D::Polygon && points > 4;
-            work += pieced ? static_cast<std::uint32_t>(points - 2) : 1u;
+            work += pieced ? static_cast<JBro::UInt32>(points - 2) : UInt32(1u);
         });
         return work;
     }

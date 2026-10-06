@@ -117,7 +117,7 @@ namespace JBro
 
     UInt32 GameLocalization::GetTableCount() const
     {
-        return static_cast<std::uint32_t>(m_tables.Size());
+        return static_cast<JBro::UInt32>(m_tables.Size());
     }
 
     const LocalizationSystemContext& GameLocalization::GetSystemContext() const

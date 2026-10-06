@@ -41,12 +41,12 @@ namespace JBro::System
             {
                 return false;
             }
-            inverse.m11 = static_cast<float>(m.m22 / determinant);
-            inverse.m12 = static_cast<float>(-m.m12 / determinant);
-            inverse.m21 = static_cast<float>(-m.m21 / determinant);
-            inverse.m22 = static_cast<float>(m.m11 / determinant);
-            inverse.m31 = static_cast<float>((static_cast<double>(m.m21) * m.m32 - static_cast<double>(m.m22) * m.m31) / determinant);
-            inverse.m32 = static_cast<float>((static_cast<double>(m.m12) * m.m31 - static_cast<double>(m.m11) * m.m32) / determinant);
+            inverse.m11 = static_cast<JBro::Float>(m.m22 / determinant);
+            inverse.m12 = static_cast<JBro::Float>(-m.m12 / determinant);
+            inverse.m21 = static_cast<JBro::Float>(-m.m21 / determinant);
+            inverse.m22 = static_cast<JBro::Float>(m.m11 / determinant);
+            inverse.m31 = static_cast<JBro::Float>((static_cast<double>(m.m21) * m.m32 - static_cast<double>(m.m22) * m.m31) / determinant);
+            inverse.m32 = static_cast<JBro::Float>((static_cast<double>(m.m12) * m.m31 - static_cast<double>(m.m11) * m.m32) / determinant);
             return true;
         }
 

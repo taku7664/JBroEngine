@@ -24,7 +24,7 @@ namespace JBro::Network
 
         UInt32 Capacity() const
         {
-            return static_cast<std::uint32_t>(m_storage.Size());
+            return static_cast<JBro::UInt32>(m_storage.Size());
         }
 
         UInt32 Size() const

@@ -71,7 +71,7 @@ namespace JBro::Internal
 
         Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
     }
 
@@ -608,8 +608,8 @@ namespace JBro::Internal
 
         const UInt64 remainingSize = binding.size - offset;
         const UInt32 viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
-            ? (std::numeric_limits<std::uint32_t>::max)()
-            : static_cast<std::uint32_t>(remainingSize);
+            ? UInt32((std::numeric_limits<std::uint32_t>::max)())
+            : static_cast<JBro::UInt32>(remainingSize);
         D3D12_VERTEX_BUFFER_VIEW view = {};
         view.BufferLocation = binding.gpuAddress + offset;
         view.SizeInBytes = viewSize;
@@ -636,8 +636,8 @@ namespace JBro::Internal
 
         const UInt64 remainingSize = binding.size - offset;
         const UInt32 viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
-            ? (std::numeric_limits<std::uint32_t>::max)()
-            : static_cast<std::uint32_t>(remainingSize);
+            ? UInt32((std::numeric_limits<std::uint32_t>::max)())
+            : static_cast<JBro::UInt32>(remainingSize);
         D3D12_INDEX_BUFFER_VIEW view = {};
         view.BufferLocation = binding.gpuAddress + offset;
         view.SizeInBytes = viewSize;

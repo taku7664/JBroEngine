@@ -173,7 +173,7 @@ namespace
         {
             payload[index] = static_cast<std::uint8_t>(index ^ 0x5A);
         }
-        Check(client.Send(ServerConnectionId, 77, payload, sizeof(payload)), "send in 5 byte fragments");
+        Check(client.Send(ServerConnectionId, 77, payload, static_cast<JBro::UInt32>(sizeof(payload))), "send in 5 byte fragments");
         Check(client.Send(ServerConnectionId, 78, payload, 3), "and a small one that still splits the header");
         Pump(server, client, clock);
         MessageView views[4];

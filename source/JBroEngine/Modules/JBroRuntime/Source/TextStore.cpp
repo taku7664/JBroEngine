@@ -129,7 +129,7 @@ namespace JBro
             {
                 return {};
             }
-            index = static_cast<std::uint32_t>(m_slots.Size());
+            index = static_cast<JBro::UInt32>(m_slots.Size());
             m_slots.Emplace();
         }
         Slot& slot = m_slots[index];

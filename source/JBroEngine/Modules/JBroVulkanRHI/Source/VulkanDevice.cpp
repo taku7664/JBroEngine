@@ -1333,8 +1333,8 @@ namespace JBro::Internal
             std::memcpy(destination, mapped, requiredBytes);
             result.extent = desc.extent;
             result.format = desc.format;
-            result.rowPitch = static_cast<std::uint32_t>(tightRowPitch);
-            result.writtenBytes = static_cast<std::uint32_t>(requiredBytes);
+            result.rowPitch = static_cast<JBro::UInt32>(tightRowPitch);
+            result.writtenBytes = static_cast<JBro::UInt32>(requiredBytes);
         }
         vk.vkUnmapMemory(m_device, stagingMemory);
         vk.vkDestroyBuffer(m_device, staging, nullptr);

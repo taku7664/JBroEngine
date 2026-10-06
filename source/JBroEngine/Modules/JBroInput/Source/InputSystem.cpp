@@ -207,7 +207,7 @@ namespace JBro::System
         {
             if (m_layers[index] == layer)
             {
-                return static_cast<std::uint32_t>(index);
+                return static_cast<JBro::UInt32>(index);
             }
         }
         // 없는 레이어는 막지 않는다 - 컴파일은 되고 맨 아래에서 받는다. 대신 한 번은 말한다.
@@ -216,7 +216,7 @@ namespace JBro::System
             Log::Write(LogLevel::Warning, "input", "unknown input layer \"%s\"; it receives input after every known layer",
                 text != nullptr ? text : "?");
         }
-        return static_cast<std::uint32_t>(m_layers.Size());
+        return static_cast<JBro::UInt32>(m_layers.Size());
     }
 
     void InputSystem::SetActionMap(const InputActionMap& actions)
@@ -252,7 +252,7 @@ namespace JBro::System
             }
             return false;
         }
-        const UInt32 bit = 1u << static_cast<std::uint32_t>(index);
+        const UInt32 bit = 1u << static_cast<JBro::UInt32>(index);
         if (enabled)
         {
             m_actions.activeSets |= bit;
@@ -267,7 +267,7 @@ namespace JBro::System
     Bool InputSystem::IsActionSetEnabled(NameId set) const noexcept
     {
         const Int32 index = m_actions.FindSet(set);
-        return index >= 0 && m_actions.IsSetActive(static_cast<std::uint32_t>(index));
+        return index >= 0 && m_actions.IsSetActive(static_cast<JBro::UInt32>(index));
     }
 
     InputActionDesc* InputSystem::FindLiveAction(InputActionId action)

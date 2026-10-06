@@ -39,7 +39,7 @@ namespace JBro::Service
             Vector3 previous = Add(center, Scale(axisA, radius));
             for (UInt32 segment = 1; segment <= CircleSegments; ++segment)
             {
-                const Float angle = TwoPi * static_cast<float>(segment) / static_cast<float>(CircleSegments);
+                const Float angle = TwoPi * static_cast<JBro::Float>(segment) / static_cast<JBro::Float>(CircleSegments);
                 const Vector3 point = Add(center, Add(Scale(axisA, std::cos(angle) * radius), Scale(axisB, std::sin(angle) * radius)));
                 AddLine(batch, previous, point);
                 previous = point;

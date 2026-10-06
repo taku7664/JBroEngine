@@ -355,7 +355,7 @@ namespace
         Check(false == JBro::Widget::SummarizeTaskGroup(*tasks, JBro::TaskGroupId{987654321}).found,
             "a group nobody knows is not found");
 
-        const JBro::Int32 barY = static_cast<int>(bar->Pos.y + bar->Size.y * 0.5f);
+        const JBro::Int32 barY = static_cast<JBro::Int32>(bar->Pos.y + bar->Size.y * 0.5f);
         ClickAt(editor, hwnd, 16, barY);
         Check(IsWindowActive("##EditorTaskList"), "clicking the running group opens the task list");
         ImGuiWindow* list = ImGui::FindWindowByName("##EditorTaskList");
@@ -388,7 +388,7 @@ namespace
             }
         }
         Check(std::strcmp(editor.GetNotifications().GetLastTitle(), "status bar probe") == 0, "the last notification is kept");
-        ClickAt(editor, hwnd, static_cast<int>(ImGui::GetIO().DisplaySize.x) - 12, barY);
+        ClickAt(editor, hwnd, static_cast<JBro::Int32>(ImGui::GetIO().DisplaySize.x) - 12, barY);
         Check(log->IsOpen(), "clicking the last notification on the status bar opens the log");
 
         editor.Shutdown();

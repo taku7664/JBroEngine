@@ -153,7 +153,7 @@ namespace JBro::Widget
     Bool FilterCombo::Draw() const
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        const Int32 itemCount = static_cast<int>(m_items.Size());
+        const Int32 itemCount = static_cast<JBro::Int32>(m_items.Size());
         // 갈래는 항목과 길이가 맞을 때만 쓴다. 어긋난 배열을 읽으면 그 자리에서 죽는다.
         const Bool hasGroups = m_groups.Size() == m_items.Size() && m_items.Size() > 0;
         const Bool hasEnabled = m_enabled.Size() == m_items.Size();
@@ -215,7 +215,7 @@ namespace JBro::Widget
         const Int32 headingLines = manyGroups ? groupCount : Int32(0);
         const Float popupMaxHeight = (m_showFilter ? ImGui::GetFrameHeightWithSpacing() : 0.0f)
             + ImGui::GetTextLineHeightWithSpacing()
-                * static_cast<float>(maxVisible + headingLines)
+                * static_cast<JBro::Float>(maxVisible + headingLines)
             + style.WindowPadding.y * 2.0f;
         ImGui::SetNextWindowSizeConstraints(
             ImVec2(popupWidth, 0.0f), ImVec2(FLT_MAX, popupMaxHeight));

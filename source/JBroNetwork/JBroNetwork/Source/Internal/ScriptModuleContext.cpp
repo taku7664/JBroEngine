@@ -1,10 +1,11 @@
 ﻿#include <JBro/Network/Internal/ScriptModuleContext.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     ScriptContextBlock MakeNetworkServiceContextBlock(const NetworkServiceContext& context) noexcept
     {
-        return { NetworkServiceContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { NetworkServiceContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const NetworkServiceContext* FindNetworkServiceContext(const ScriptModuleLoadContext& context) noexcept
@@ -25,7 +26,7 @@ namespace JBro
 
     ScriptContextBlock MakeNetworkSystemContextBlock(const NetworkSystemContext& context) noexcept
     {
-        return { NetworkSystemContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { NetworkSystemContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const NetworkSystemContext* FindNetworkSystemContext(const ScriptModuleLoadContext& context) noexcept

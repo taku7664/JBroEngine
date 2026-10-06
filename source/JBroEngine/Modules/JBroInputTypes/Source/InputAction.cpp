@@ -54,7 +54,7 @@ namespace JBro
                 {
                     for (UInt32 pad = 0; pad < MaxGamepads; ++pad)
                     {
-                        if (binding.gamepad >= 0 && static_cast<std::uint32_t>(binding.gamepad) != pad)
+                        if (binding.gamepad >= 0 && static_cast<JBro::UInt32>(binding.gamepad) != pad)
                         {
                             continue;
                         }
@@ -73,11 +73,11 @@ namespace JBro
         {
             if (binding.gamepad >= 0)
             {
-                if (static_cast<std::uint32_t>(binding.gamepad) >= MaxGamepads)
+                if (static_cast<JBro::UInt32>(binding.gamepad) >= MaxGamepads)
                 {
                     return nullptr;
                 }
-                const GamepadState& pad = view.Gamepad(static_cast<std::uint32_t>(binding.gamepad));
+                const GamepadState& pad = view.Gamepad(static_cast<JBro::UInt32>(binding.gamepad));
                 return pad.connected ? &pad : nullptr;
             }
             for (UInt32 index = 0; index < MaxGamepads; ++index)
@@ -133,7 +133,7 @@ namespace JBro
                     return;
                 }
             }
-            const UInt32 capacity = static_cast<std::uint32_t>(sizeof(map->warned) / sizeof(map->warned[0]));
+            const UInt32 capacity = static_cast<JBro::UInt32>(sizeof(map->warned) / sizeof(map->warned[0]));
             if (map->warnedCount >= capacity)
             {
                 return;

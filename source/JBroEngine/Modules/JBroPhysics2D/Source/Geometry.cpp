@@ -350,7 +350,7 @@ namespace JBro::Physics2D
             {
                 whole.vertices[i] = i;
             }
-            whole.count = static_cast<std::uint32_t>(clean.Size());
+            whole.count = static_cast<JBro::UInt32>(clean.Size());
             if (IsConvexRing(clean, whole.vertices, whole.count))
             {
                 pieces.Add(whole);

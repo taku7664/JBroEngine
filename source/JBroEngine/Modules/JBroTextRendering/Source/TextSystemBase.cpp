@@ -13,7 +13,7 @@ namespace JBro
 
     UInt32 TextSystemBase::GetTextLength(const TextId& text) const
     {
-        return static_cast<std::uint32_t>(TextStore::Get().GetText(text).Size());
+        return static_cast<JBro::UInt32>(TextStore::Get().GetText(text).Size());
     }
 
     UInt32 TextSystemBase::CopyText(const TextId& text, char* buffer, UInt32 capacity) const
@@ -23,7 +23,7 @@ namespace JBro
             return 0;
         }
         const ArrayView<const char> source = TextStore::Get().GetText(text);
-        const UInt32 count = static_cast<std::uint32_t>(std::min<std::size_t>(source.Size(), capacity - 1));
+        const UInt32 count = static_cast<JBro::UInt32>(std::min<std::size_t>(source.Size(), capacity - 1));
         if (count > 0)
         {
             std::memcpy(buffer, source.Data(), count);

@@ -50,21 +50,21 @@ namespace JBro::Internal
     {
         Bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
 
         Bool HasTextureUsage(TextureUsage usages, TextureUsage usage)
         {
-            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+            return (static_cast<JBro::UInt32>(usages) & static_cast<JBro::UInt32>(usage)) != 0;
         }
 
         constexpr UInt32 TextureUsageMask =
-            static_cast<std::uint32_t>(TextureUsage::Sampled)
-            | static_cast<std::uint32_t>(TextureUsage::RenderTarget)
-            | static_cast<std::uint32_t>(TextureUsage::DepthStencil)
-            | static_cast<std::uint32_t>(TextureUsage::Storage)
-            | static_cast<std::uint32_t>(TextureUsage::CopySource)
-            | static_cast<std::uint32_t>(TextureUsage::CopyDestination);
+            static_cast<JBro::UInt32>(TextureUsage::Sampled)
+            | static_cast<JBro::UInt32>(TextureUsage::RenderTarget)
+            | static_cast<JBro::UInt32>(TextureUsage::DepthStencil)
+            | static_cast<JBro::UInt32>(TextureUsage::Storage)
+            | static_cast<JBro::UInt32>(TextureUsage::CopySource)
+            | static_cast<JBro::UInt32>(TextureUsage::CopyDestination);
 
         UINT RoundUpTo16(std::size_t size)
         {
@@ -205,7 +205,7 @@ namespace JBro::Internal
 
     TextureHandle D3D11Device::CreateTexture(const TextureDesc& desc)
     {
-        const UInt32 usages = static_cast<std::uint32_t>(desc.usage);
+        const UInt32 usages = static_cast<JBro::UInt32>(desc.usage);
         const Bool renderTarget = HasTextureUsage(desc.usage, TextureUsage::RenderTarget);
         const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == nullptr || m_frameActive

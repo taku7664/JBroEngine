@@ -31,7 +31,7 @@ namespace
             JBro::JMemoryContext memory;
             Check(platform.Initialize(memory), "the platform must initialize");
             JBro::WindowDesc desc;
-            desc.title = {title, static_cast<std::uint32_t>(std::strlen(title))};
+            desc.title = {title, static_cast<JBro::UInt32>(std::strlen(title))};
             desc.width = 320;
             desc.height = 240;
             desc.visible = false;
@@ -178,7 +178,7 @@ namespace
         const JBro::InputEvent* text =
             FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::Text);
         Check(text != nullptr, "a character message must produce a text event");
-        Check(text->codePoint == static_cast<std::uint32_t>('k'),
+        Check(text->codePoint == static_cast<JBro::UInt32>('k'),
             "and carry the code point");
 
         // 한글도 그대로 지나가야 한다.

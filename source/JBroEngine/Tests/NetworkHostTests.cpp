@@ -121,9 +121,9 @@ namespace
             objects[index] = server.canvas.CreateObject("replicated");
             JBro::Component::Transform2D* transform = server.canvas.AttachComponent<JBro::Component::Transform2D>(objects[index]);
             Check(nullptr != transform, "transform attaches");
-            transform->position = { static_cast<float>(index), static_cast<float>(index) * 2.0f };
-            transform->SetRotationRadian(JBro::Radian(0.1f * static_cast<float>(index)));
-            transform->scale = { 1.0f + 0.01f * static_cast<float>(index), 1.0f };
+            transform->position = { static_cast<JBro::Float>(index), static_cast<JBro::Float>(index) * 2.0f };
+            transform->SetRotationRadian(JBro::Radian(0.1f * static_cast<JBro::Float>(index)));
+            transform->scale = { 1.0f + 0.01f * static_cast<JBro::Float>(index), 1.0f };
         }
 
         auto converged = [&]()
@@ -184,9 +184,9 @@ namespace
 
         // 게임 메시지는 복제와 섞이지 않고 따로 꺼내진다.
         const JBro::UInt32 payload = 0xBEEF;
-        Check(client.host.Send(JBro::Network::ServerConnectionId, 12, &payload, sizeof(payload), JBro::Network::NetChannel::ReliableOrdered),
+        Check(client.host.Send(JBro::Network::ServerConnectionId, 12, &payload, static_cast<JBro::UInt32>(sizeof(payload)), JBro::Network::NetChannel::ReliableOrdered),
             "a game message goes out");
-        Check(false == client.host.Send(JBro::Network::ServerConnectionId, JBro::Network::ReplicationDeltaMessage, &payload, sizeof(payload),
+        Check(false == client.host.Send(JBro::Network::ServerConnectionId, JBro::Network::ReplicationDeltaMessage, &payload, static_cast<JBro::UInt32>(sizeof(payload)),
                   JBro::Network::NetChannel::ReliableOrdered),
             "but the replication range is refused");
         JBro::Network::MessageView view;

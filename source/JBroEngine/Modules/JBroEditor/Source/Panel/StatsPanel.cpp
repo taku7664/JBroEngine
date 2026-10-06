@@ -47,7 +47,7 @@ namespace JBro
             // 번호는 값 칸 안에서만 민다 - 표의 줄 사이에서 밀면 표의 ID 쌓기가 어긋난다.
             meters.Row([&config] { Widget::Text(NameTable::Get().Resolve(config.name)); },
                 [&] {
-                    ImGui::PushID(static_cast<int>(index));
+                    ImGui::PushID(static_cast<JBro::Int32>(index));
                     Bool solo = audio.IsBusSolo(name);
                     // 칸 앞의 헤드폰이 무엇을 켜는 칸인지 말한다(D-278).
                     Widget::InlineIcon(Icons::Solo);
@@ -101,7 +101,7 @@ namespace JBro
             total += m_samples[index];
         }
         const Float average = m_filledSamples > 0
-            ? total / static_cast<float>(m_filledSamples)
+            ? total / static_cast<JBro::Float>(m_filledSamples)
             : Float(0.0f);
 
         Widget::TextF(Loc::TextOr(LocKeys::StatsFrameTime, "frame %.2f ms"),

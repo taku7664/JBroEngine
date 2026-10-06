@@ -73,7 +73,7 @@ namespace
             }
             JBro::WindowDesc windowDesc;
             constexpr char title[] = "JBro bench";
-            windowDesc.title = {title, sizeof(title) - 1};
+            windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
             windowDesc.width = 256;
             windowDesc.height = 256;
             windowDesc.visible = false;
@@ -165,21 +165,21 @@ namespace
     JBro::CameraParams OrthoCamera()
     {
         JBro::CameraParams camera;
-        JBro::MakeOrthographicMatrix(1.0f, static_cast<float>(TargetWidth) / TargetHeight, -10.0f, 10.0f,
+        JBro::MakeOrthographicMatrix(1.0f, static_cast<JBro::Float>(TargetWidth) / TargetHeight, -10.0f, 10.0f,
             camera.projection);
-        camera.viewport.width = static_cast<float>(TargetWidth);
-        camera.viewport.height = static_cast<float>(TargetHeight);
+        camera.viewport.width = static_cast<JBro::Float>(TargetWidth);
+        camera.viewport.height = static_cast<JBro::Float>(TargetHeight);
         return camera;
     }
 
     JBro::CameraParams PerspectiveCamera()
     {
         JBro::CameraParams camera;
-        JBro::MakePerspectiveMatrix(60.0f * 3.14159265f / 180.0f, static_cast<float>(TargetWidth) / TargetHeight,
+        JBro::MakePerspectiveMatrix(60.0f * 3.14159265f / 180.0f, static_cast<JBro::Float>(TargetWidth) / TargetHeight,
             0.1f, 500.0f, camera.projection);
         camera.view = JBro::MakeViewMatrix({0.0f, 0.0f, 60.0f}, {});
-        camera.viewport.width = static_cast<float>(TargetWidth);
-        camera.viewport.height = static_cast<float>(TargetHeight);
+        camera.viewport.width = static_cast<JBro::Float>(TargetWidth);
+        camera.viewport.height = static_cast<JBro::Float>(TargetHeight);
         return camera;
     }
 
@@ -187,8 +187,8 @@ namespace
     void BuildSprites(JBro::Array<JBro::SpriteSubmit>& sprites, JBro::UInt32 count)
     {
         sprites.Clear();
-        const JBro::UInt32 columns = static_cast<std::uint32_t>(std::sqrt(static_cast<float>(count))) + 1;
-        const JBro::Float aspect = static_cast<float>(TargetWidth) / TargetHeight;
+        const JBro::UInt32 columns = static_cast<JBro::UInt32>(std::sqrt(static_cast<JBro::Float>(count))) + 1;
+        const JBro::Float aspect = static_cast<JBro::Float>(TargetWidth) / TargetHeight;
         for (JBro::UInt32 index = 0; index < count; ++index)
         {
             JBro::SpriteSubmit sprite;
@@ -209,12 +209,12 @@ namespace
         JBro::UInt32 meshCount)
     {
         cubes.Clear();
-        const JBro::UInt32 columns = static_cast<std::uint32_t>(std::sqrt(static_cast<float>(count))) + 1;
+        const JBro::UInt32 columns = static_cast<JBro::UInt32>(std::sqrt(static_cast<JBro::Float>(count))) + 1;
         for (JBro::UInt32 index = 0; index < count; ++index)
         {
             JBro::MeshSubmit cube;
-            const JBro::Float x = (static_cast<float>(index % columns) - columns * 0.5f) * 1.5f;
-            const JBro::Float y = (static_cast<float>(index / columns) - columns * 0.5f) * 1.5f;
+            const JBro::Float x = (static_cast<JBro::Float>(index % columns) - columns * 0.5f) * 1.5f;
+            const JBro::Float y = (static_cast<JBro::Float>(index / columns) - columns * 0.5f) * 1.5f;
             cube.world = JBro::MakeTransformMatrix3D({x, y, 0.0f},
                 JBro::FromAxisAngle({0.3f, 1.0f, 0.2f}, 0.01f * index), {1.0f, 1.0f, 1.0f});
             cube.mesh = meshes[index % meshCount];
@@ -292,7 +292,7 @@ namespace
                 constexpr JBro::UInt32 Batch = 64;
                 for (JBro::UInt32 offset = 0; offset < sprites.Size(); offset += Batch)
                 {
-                    const JBro::UInt32 count = static_cast<std::uint32_t>(
+                    const JBro::UInt32 count = static_cast<JBro::UInt32>(
                         JBro::Min(static_cast<std::size_t>(Batch), sprites.Size() - offset));
                     if (false == renderer.SubmitSprites({sprites.Data() + offset, count}))
                     {
@@ -308,7 +308,7 @@ namespace
         {
             JBro::Array<std::byte> page;
             page.Resize(static_cast<std::size_t>(1024) * 1024 * 4);
-            const JBro::AssetHandle atlas = renderer.RegisterTexture({1024, 1024}, {page.Data(), static_cast<std::uint32_t>(page.Size())});
+            const JBro::AssetHandle atlas = renderer.RegisterTexture({1024, 1024}, {page.Data(), static_cast<JBro::UInt32>(page.Size())});
             JBro::Array<JBro::SpriteSubmit> sprites;
             BuildSprites(sprites, 60000);
             const JBro::CameraParams camera = OrthoCamera();
@@ -323,9 +323,9 @@ namespace
             {
                 const auto start = Clock::now();
                 const JBro::Bool sent = mode == 0
-                    ? renderer.UpdateTexture(atlas, {page.Data(), static_cast<std::uint32_t>(page.Size())})
+                    ? renderer.UpdateTexture(atlas, {page.Data(), static_cast<JBro::UInt32>(page.Size())})
                     : renderer.UpdateTextureRegion(atlas, 512, 512, 64, 64,
-                          {page.Data() + cornerOffset, static_cast<std::uint32_t>(page.Size() - cornerOffset)}, 1024 * 4);
+                          {page.Data() + cornerOffset, static_cast<JBro::UInt32>(page.Size() - cornerOffset)}, 1024 * 4);
                 if (false == sent)
                 {
                     break;
@@ -345,7 +345,7 @@ namespace
                 }
                 for (JBro::UInt32 offset = 0; offset < sprites.Size(); offset += 64)
                 {
-                    const JBro::UInt32 count = static_cast<std::uint32_t>(JBro::Min(static_cast<std::size_t>(64), sprites.Size() - offset));
+                    const JBro::UInt32 count = static_cast<JBro::UInt32>(JBro::Min(static_cast<std::size_t>(64), sprites.Size() - offset));
                     renderer.SubmitSprites({sprites.Data() + offset, count});
                 }
                 renderer.EndView();
@@ -380,7 +380,7 @@ namespace
                 constexpr JBro::UInt32 Batch = 64;
                 for (JBro::UInt32 offset = 0; offset < sprites.Size(); offset += Batch)
                 {
-                    const JBro::UInt32 count = static_cast<std::uint32_t>(
+                    const JBro::UInt32 count = static_cast<JBro::UInt32>(
                         JBro::Min(static_cast<std::size_t>(Batch), sprites.Size() - offset));
                     if (false == renderer.SubmitSprites({sprites.Data() + offset, count}))
                     {
@@ -418,7 +418,7 @@ namespace
                 constexpr JBro::UInt32 Batch = 64;
                 for (JBro::UInt32 offset = 0; offset < cubes.Size(); offset += Batch)
                 {
-                    const JBro::UInt32 count = static_cast<std::uint32_t>(
+                    const JBro::UInt32 count = static_cast<JBro::UInt32>(
                         JBro::Min(static_cast<std::size_t>(Batch), cubes.Size() - offset));
                     if (false == renderer.SubmitMeshes({cubes.Data() + offset, count}))
                     {
@@ -465,26 +465,26 @@ namespace
             vertexDesc.usage = JBro::BufferUsage::Vertex;
             vertexDesc.memory = JBro::MemoryType::Upload;
             const JBro::BufferHandle vertexBuffer = device->CreateBuffer(vertexDesc);
-            device->WriteBuffer(vertexBuffer, 0, {reinterpret_cast<const std::byte*>(quad), sizeof(quad)});
+            device->WriteBuffer(vertexBuffer, 0, {reinterpret_cast<const std::byte*>(quad), static_cast<JBro::UInt32>(sizeof(quad))});
             JBro::BufferDesc indexDesc;
-            indexDesc.size = sizeof(quadIndices);
+            indexDesc.size = static_cast<JBro::UInt32>(sizeof(quadIndices));
             indexDesc.usage = JBro::BufferUsage::Index;
             indexDesc.memory = JBro::MemoryType::Upload;
             const JBro::BufferHandle indexBuffer = device->CreateBuffer(indexDesc);
-            device->WriteBuffer(indexBuffer, 0, {reinterpret_cast<const std::byte*>(quadIndices), sizeof(quadIndices)});
+            device->WriteBuffer(indexBuffer, 0, {reinterpret_cast<const std::byte*>(quadIndices), static_cast<JBro::UInt32>(sizeof(quadIndices))});
             const JBro::VertexAttributeDesc attributes[] = {{0, 0, JBro::VertexFormat::Float2}, {1, 8, JBro::VertexFormat::Float2}};
-            const JBro::VertexBufferLayoutDesc layout = {sizeof(Vertex), JBro::VertexStepMode::Vertex, {attributes, 2}};
+            const JBro::VertexBufferLayoutDesc layout = {static_cast<JBro::UInt32>(sizeof(Vertex)), JBro::VertexStepMode::Vertex, {attributes, 2}};
             const JBro::TextureFormat colorFormats[] = {JBro::TextureFormat::BGRA8Unorm};
             JBro::GraphicsPipelineDesc pipelineDesc;
             if (IsVulkan<TModule>())
             {
-                pipelineDesc.vertexShader = {Spv::JBroTestTexturedQuadVS_SPV, sizeof(Spv::JBroTestTexturedQuadVS_SPV)};
-                pipelineDesc.pixelShader = {Spv::JBroTestTexturedQuadPS_SPV, sizeof(Spv::JBroTestTexturedQuadPS_SPV)};
+                pipelineDesc.vertexShader = {Spv::JBroTestTexturedQuadVS_SPV, static_cast<JBro::UInt32>(sizeof(Spv::JBroTestTexturedQuadVS_SPV))};
+                pipelineDesc.pixelShader = {Spv::JBroTestTexturedQuadPS_SPV, static_cast<JBro::UInt32>(sizeof(Spv::JBroTestTexturedQuadPS_SPV))};
             }
             else
             {
-                pipelineDesc.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
-                pipelineDesc.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
+                pipelineDesc.vertexShader = {JBroTestTexturedQuadVS, static_cast<JBro::UInt32>(sizeof(JBroTestTexturedQuadVS))};
+                pipelineDesc.pixelShader = {JBroTestTexturedQuadPS, static_cast<JBro::UInt32>(sizeof(JBroTestTexturedQuadPS))};
             }
             pipelineDesc.vertexBuffers = {&layout, 1};
             pipelineDesc.colorFormats = {colorFormats, 1};
@@ -513,16 +513,16 @@ namespace
                     JBro::RenderPassDesc pass;
                     pass.colorAttachments = {&attachment, 1};
                     if (false == commands.BeginRenderPass(pass) || false == commands.SetGraphicsPipeline(o.pipeline)
-                        || false == commands.SetVertexBuffer(0, o.vertexBuffer, sizeof(Vertex), 0)
+                        || false == commands.SetVertexBuffer(0, o.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0)
                         || false == commands.SetIndexBuffer(o.indexBuffer, JBro::IndexFormat::UInt16, 0))
                     {
                         return false;
                     }
                     JBro::Viewport viewport;
-                    viewport.width = static_cast<float>(TargetWidth);
-                    viewport.height = static_cast<float>(TargetHeight);
+                    viewport.width = static_cast<JBro::Float>(TargetWidth);
+                    viewport.height = static_cast<JBro::Float>(TargetHeight);
                     commands.SetViewport(viewport);
-                    commands.SetScissor({0, 0, static_cast<std::int32_t>(TargetWidth), static_cast<std::int32_t>(TargetHeight)});
+                    commands.SetScissor({0, 0, static_cast<JBro::Int32>(TargetWidth), static_cast<JBro::Int32>(TargetHeight)});
                     for (JBro::UInt32 draw = 0; draw < 1000; ++draw)
                     {
                         if (false == commands.SetTexture(0, o.textures[o.alternate ? draw & 1 : JBro::UInt32(0)])

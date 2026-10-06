@@ -21,11 +21,11 @@ namespace
     {
         std::uint8_t signal[64];
         JBro::UInt32 size = 0;
-        while ((size = a.TakePeerSignal(aId, signal, sizeof(signal))) > 0)
+        while ((size = a.TakePeerSignal(aId, signal, static_cast<JBro::UInt32>(sizeof(signal)))) > 0)
         {
             Check(b.PushPeerSignal(bId, signal, size), "the peer accepts the signal");
         }
-        while ((size = b.TakePeerSignal(bId, signal, sizeof(signal))) > 0)
+        while ((size = b.TakePeerSignal(bId, signal, static_cast<JBro::UInt32>(sizeof(signal)))) > 0)
         {
             Check(a.PushPeerSignal(aId, signal, size), "the peer accepts the signal");
         }
@@ -67,9 +67,9 @@ namespace
             NetChannel::UnreliableSequenced };
         for (JBro::UInt32 index = 0; index < 4; ++index)
         {
-            Check(client.Send(ServerConnectionId, static_cast<MessageId>(10 + index), &index, sizeof(index), channels[index]),
+            Check(client.Send(ServerConnectionId, static_cast<MessageId>(10 + index), &index, static_cast<JBro::UInt32>(sizeof(index)), channels[index]),
                 "the client sends on each channel");
-            Check(host.Send(guest, static_cast<MessageId>(20 + index), &index, sizeof(index), channels[index]),
+            Check(host.Send(guest, static_cast<MessageId>(20 + index), &index, static_cast<JBro::UInt32>(sizeof(index)), channels[index]),
                 "the host sends on each channel");
         }
         host.Update();
@@ -93,7 +93,7 @@ namespace
         // 순서 보장 300 개는 순서대로 전부.
         for (JBro::UInt32 value = 0; value < 300; ++value)
         {
-            Check(client.Send(ServerConnectionId, 1, &value, sizeof(value)), "ordered send");
+            Check(client.Send(ServerConnectionId, 1, &value, static_cast<JBro::UInt32>(sizeof(value))), "ordered send");
         }
         JBro::UInt32 expected = 0;
         for (JBro::Int32 round = 0; round < 20 && expected < 300; ++round)
@@ -158,8 +158,8 @@ namespace
         MessageView views[16];
         for (JBro::UInt32 value = 0; value < 200; ++value)
         {
-            client.Send(ServerConnectionId, 1, &value, sizeof(value), NetChannel::ReliableUnordered);
-            client.Send(ServerConnectionId, 2, &value, sizeof(value), NetChannel::Unreliable);
+            client.Send(ServerConnectionId, 1, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::ReliableUnordered);
+            client.Send(ServerConnectionId, 2, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::Unreliable);
             host.Update();
             client.Update();
             JBro::UInt32 got = 0;
@@ -251,7 +251,7 @@ namespace
         Check(room.server.GetRoomCount() == 1 && room.server.GetMemberCount(42) == 1, "the server holds one room with one member");
 
         const JBro::UInt32 value = 77;
-        Check(room.guestPeers.Send(ServerConnectionId, 5, &value, sizeof(value), NetChannel::Unreliable), "the guest sends over the peer");
+        Check(room.guestPeers.Send(ServerConnectionId, 5, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::Unreliable), "the guest sends over the peer");
         room.Round();
         MessageView view;
         Check(room.hostPeers.TakeMessages(&view, 1) == 1 && view.messageId == 5 && view.channel == NetChannel::Unreliable,

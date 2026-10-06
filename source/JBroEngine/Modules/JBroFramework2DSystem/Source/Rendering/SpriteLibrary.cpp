@@ -53,7 +53,7 @@ namespace JBro
         TextureEntry& entry = m_textures[slot];
         JArrayView<std::byte> pixels;
         pixels.data = texture->pixels.Data();
-        pixels.size = static_cast<std::uint32_t>(texture->pixels.Size());
+        pixels.size = static_cast<JBro::UInt32>(texture->pixels.Size());
         const Extent2D extent{texture->width, texture->height};
 
         const Bool sameAsset = entry.asset.generation == textureAsset.generation && entry.asset.index == textureAsset.index;
@@ -125,22 +125,22 @@ namespace JBro
         }
         const std::size_t clamped = frameIndex < sprite->frames.Size() ? static_cast<std::size_t>(frameIndex.Get()) : sprite->frames.Size() - 1;
         const SpriteFrame& frame = sprite->frames[clamped];
-        const Float width = static_cast<float>(texture->width);
-        const Float height = static_cast<float>(texture->height);
+        const Float width = static_cast<JBro::Float>(texture->width);
+        const Float height = static_cast<JBro::Float>(texture->height);
         rendererTexture = uploaded;
-        uvRect[0] = static_cast<float>(frame.x) / width;
-        uvRect[1] = static_cast<float>(frame.y) / height;
-        uvRect[2] = static_cast<float>(frame.width) / width;
-        uvRect[3] = static_cast<float>(frame.height) / height;
+        uvRect[0] = static_cast<JBro::Float>(frame.x) / width;
+        uvRect[1] = static_cast<JBro::Float>(frame.y) / height;
+        uvRect[2] = static_cast<JBro::Float>(frame.width) / width;
+        uvRect[3] = static_cast<JBro::Float>(frame.height) / height;
         if (frameView != nullptr)
         {
             // 로드가 이미 바로잡은 값이다. 그래도 0 나누기는 여기서 한 번 더 막는다.
             const Float pixelsPerUnit = sprite->options.pixelsPerUnit > 0.0f
                 ? sprite->options.pixelsPerUnit : DefaultPixelsPerUnit;
-            frameView->widthUnits = static_cast<float>(frame.width) / pixelsPerUnit;
-            frameView->heightUnits = static_cast<float>(frame.height) / pixelsPerUnit;
-            frameView->widthPixels = static_cast<float>(frame.width);
-            frameView->heightPixels = static_cast<float>(frame.height);
+            frameView->widthUnits = static_cast<JBro::Float>(frame.width) / pixelsPerUnit;
+            frameView->heightUnits = static_cast<JBro::Float>(frame.height) / pixelsPerUnit;
+            frameView->widthPixels = static_cast<JBro::Float>(frame.width);
+            frameView->heightPixels = static_cast<JBro::Float>(frame.height);
             frameView->pivotX = frame.pivotX;
             frameView->pivotY = frame.pivotY;
             frameView->filter = texture->filter;

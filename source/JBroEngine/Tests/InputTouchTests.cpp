@@ -161,7 +161,7 @@ namespace
         Check(platform.Initialize(memory), "the platform must initialize");
         WindowDesc desc;
         const char title[] = "JBro touch probe";
-        desc.title = {title, static_cast<std::uint32_t>(std::strlen(title))};
+        desc.title = {title, static_cast<JBro::UInt32>(std::strlen(title))};
         desc.width = 320;
         desc.height = 240;
         desc.visible = false;

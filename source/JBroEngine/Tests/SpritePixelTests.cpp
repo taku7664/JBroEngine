@@ -74,7 +74,7 @@ namespace
 
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro pixel probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -187,7 +187,7 @@ namespace
 
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro target probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -228,8 +228,8 @@ namespace
         camera.clearColor[1] = 0.0f;
         camera.clearColor[2] = 0.0f;
         camera.clearColor[3] = 1.0f;
-        camera.viewport.width = static_cast<float>(TargetWidth);
-        camera.viewport.height = static_cast<float>(TargetHeight);
+        camera.viewport.width = static_cast<JBro::Float>(TargetWidth);
+        camera.viewport.height = static_cast<JBro::Float>(TargetHeight);
 
         // 위의 테스트와 같은 스프라이트다. 왼쪽 절반을 덮는다.
         JBro::SpriteSubmit sprite;
@@ -365,7 +365,7 @@ namespace
 
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro overlay probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -468,7 +468,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro texture probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -620,7 +620,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro sdf probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -643,9 +643,9 @@ namespace
             texels[x * 4 + 0] = std::byte{255};
             texels[x * 4 + 1] = std::byte{255};
             texels[x * 4 + 2] = std::byte{255};
-            texels[x * 4 + 3] = static_cast<std::byte>(static_cast<int>(std::lround(255.0 * (15 - x) / 15.0)));
+            texels[x * 4 + 3] = static_cast<std::byte>((static_cast<JBro::Int32>(std::lround(255.0 * (15 - x) / 15.0))).Get());
         }
-        const JBro::AssetHandle field = renderer.RegisterTexture({16, 1}, {texels, sizeof(texels)});
+        const JBro::AssetHandle field = renderer.RegisterTexture({16u, 1u}, {texels, static_cast<JBro::UInt32>(sizeof(texels))});
         Check(field.generation != 0, "the distance field registers");
 
         JBro::CameraParams camera;
@@ -759,7 +759,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro region probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -779,7 +779,7 @@ namespace
         {
             black[texel * 4 + 3] = std::byte{255};
         }
-        const JBro::AssetHandle texture = renderer.RegisterTexture({4, 4}, {black, sizeof(black)});
+        const JBro::AssetHandle texture = renderer.RegisterTexture({4u, 4u}, {black, static_cast<JBro::UInt32>(sizeof(black))});
         Check(texture.generation != 0, "a 4x4 texture registers");
         // 8 x 2 텍셀 버퍼의 앞 두 칸이 빨강이다. 행 간격은 8 텍셀(32 바이트)이다.
         std::byte strip[8 * 2 * 4] = {};
@@ -792,10 +792,10 @@ namespace
                 texel[3] = std::byte{255};
             }
         }
-        Check(renderer.UpdateTextureRegion(texture, 2, 0, 2, 2, {strip, sizeof(strip)}, 32), "a 2x2 region goes up");
-        Check(false == renderer.UpdateTextureRegion(texture, 3, 0, 2, 2, {strip, sizeof(strip)}, 32),
+        Check(renderer.UpdateTextureRegion(texture, 2, 0, 2, 2, {strip, static_cast<JBro::UInt32>(sizeof(strip))}, 32), "a 2x2 region goes up");
+        Check(false == renderer.UpdateTextureRegion(texture, 3, 0, 2, 2, {strip, static_cast<JBro::UInt32>(sizeof(strip))}, 32),
             "a region past the texture is refused");
-        Check(false == renderer.UpdateTextureRegion(texture, 0, 0, 2, 2, {strip, sizeof(strip)}, 4),
+        Check(false == renderer.UpdateTextureRegion(texture, 0, 0, 2, 2, {strip, static_cast<JBro::UInt32>(sizeof(strip))}, 4),
             "a row pitch shorter than a row is refused");
 
         JBro::CameraParams camera;
@@ -838,7 +838,7 @@ namespace
         JBro::SpriteSubmit sprite;
         sprite.world.linear[0] = 0.5f;
         sprite.world.linear[3] = half == 0 ? 2.0f : 1.0f;
-        sprite.world.translation[0] = -0.75f + 0.5f * static_cast<float>(column);
+        sprite.world.translation[0] = -0.75f + 0.5f * static_cast<JBro::Float>(column);
         sprite.world.translation[1] = half == 0 ? 0.0f : (half < 0 ? 0.5f : -0.5f);
         sprite.tint[0] = r;
         sprite.tint[1] = g;
@@ -869,7 +869,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro layer blend probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;
@@ -1023,7 +1023,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro backdrop blend probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 64;
         windowDesc.visible = false;

@@ -4,6 +4,7 @@
 
 #include <cstring>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Widget
 {
@@ -13,7 +14,7 @@ namespace JBro::Widget
         AssetDragHeader header;
         header.primary = primary;
         header.paired = paired;
-        header.pathBytes = static_cast<std::uint32_t>(paths.size() + 1);
+        header.pathBytes = static_cast<JBro::UInt32>(paths.size() + 1);
         Array<std::byte> buffer;
         buffer.Resize(sizeof(AssetDragHeader) + header.pathBytes);
         std::memcpy(buffer.Data(), &header, sizeof(header));

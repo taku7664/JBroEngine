@@ -480,8 +480,8 @@ namespace JBro::Internal
         m_context->Unmap(staging.Get(), 0);
         result.extent = desc.extent;
         result.format = desc.format;
-        result.rowPitch = static_cast<std::uint32_t>(tightRowPitch);
-        result.writtenBytes = static_cast<std::uint32_t>(requiredBytes);
+        result.rowPitch = static_cast<JBro::UInt32>(tightRowPitch);
+        result.writtenBytes = static_cast<JBro::UInt32>(requiredBytes);
         return true;
     }
 }

@@ -11,7 +11,7 @@ namespace JBro::Network
 {
     namespace
     {
-        constexpr UInt32 SpawnMessageBytes = 4 + sizeof(SpawnDesc);
+        constexpr UInt32 SpawnMessageBytes = static_cast<JBro::UInt32>(4 + sizeof(SpawnDesc));
         constexpr UInt32 DespawnMessageBytes = 4;
         constexpr UInt32 AckMessageBytes = 4;
     }
@@ -91,7 +91,7 @@ namespace JBro::Network
         m_objects.InsertOrAssign(id, local);
         // 델타가 먼저 와 있었을 수 있다. 최신 스냅숏의 것을 바로 입힌다.
         ApplyObjectFromLatest(id, local);
-        m_diagnostics.objects = static_cast<std::uint32_t>(m_objects.Size());
+        m_diagnostics.objects = static_cast<JBro::UInt32>(m_objects.Size());
     }
 
     void ReplicationClient::HandleDespawn(const MessageView& view)
@@ -108,7 +108,7 @@ namespace JBro::Network
         }
         m_host.DespawnObject(*local);
         m_objects.Remove(id);
-        m_diagnostics.objects = static_cast<std::uint32_t>(m_objects.Size());
+        m_diagnostics.objects = static_cast<JBro::UInt32>(m_objects.Size());
     }
 
     void ReplicationClient::HandleDelta(const MessageView& view)
@@ -141,8 +141,8 @@ namespace JBro::Network
         }
         Snapshot& out = m_history.Begin(header.tick);
         if (false == DeltaCodec::Decode(view.data, view.size, m_typeSizes.Data(), static_cast<std::uint8_t>(m_typeSizes.Size()),
-                baseline, out, header, m_removals.Data(), static_cast<std::uint32_t>(m_removals.Size()), m_removalCount,
-                m_changedScratch.Data(), static_cast<std::uint32_t>(m_changedScratch.Size())))
+                baseline, out, header, m_removals.Data(), static_cast<JBro::UInt32>(m_removals.Size()), m_removalCount,
+                m_changedScratch.Data(), static_cast<JBro::UInt32>(m_changedScratch.Size())))
         {
             out.Invalidate();
             ++m_diagnostics.droppedDeltas;
@@ -203,7 +203,7 @@ namespace JBro::Network
         {
             const double elapsed = m_transport.GetClock().NowMilliseconds() - m_lastSnapshotMilliseconds;
             const double ratio = elapsed / m_snapshotIntervalMilliseconds;
-            alpha = static_cast<float>(ratio < 0.0 ? 0.0 : (ratio > 1.0 ? 1.0 : ratio));
+            alpha = static_cast<JBro::Float>(ratio < 0.0 ? 0.0 : (ratio > 1.0 ? 1.0 : ratio));
         }
         ApplySnapshots(alpha);
     }
@@ -285,6 +285,6 @@ namespace JBro::Network
 
     UInt32 ReplicationClient::GetObjectCount() const
     {
-        return static_cast<std::uint32_t>(m_objects.Size());
+        return static_cast<JBro::UInt32>(m_objects.Size());
     }
 }

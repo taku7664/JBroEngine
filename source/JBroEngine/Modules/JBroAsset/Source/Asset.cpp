@@ -29,7 +29,7 @@ namespace JBro
         constexpr AssetHandle MakeHandle(AssetType type, UInt32 slotIndex, UInt32 generation) noexcept
         {
             AssetHandle handle;
-            handle.index = (static_cast<std::uint32_t>(type) << 28) | slotIndex;
+            handle.index = (static_cast<JBro::UInt32>(type) << 28) | slotIndex;
             handle.generation = generation;
             return handle;
         }
@@ -187,7 +187,7 @@ namespace JBro
             {
                 return {};
             }
-            slotIndex = static_cast<std::uint32_t>(pool.slots.Size());
+            slotIndex = static_cast<JBro::UInt32>(pool.slots.Size());
             pool.slots.Emplace();
         }
         Slot<TData>& slot = pool.slots[slotIndex];
@@ -299,7 +299,7 @@ namespace JBro
             }
             JArrayView<std::byte> view;
             view.data = encoded.Data();
-            view.size = static_cast<std::uint32_t>(encoded.Size());
+            view.size = static_cast<JBro::UInt32>(encoded.Size());
             DecodedImage image;
             if (false == DecodeImage(view, image))
             {
@@ -342,7 +342,7 @@ namespace JBro
             }
             JArrayView<std::byte> view;
             view.data = encoded.Data();
-            view.size = static_cast<std::uint32_t>(encoded.Size());
+            view.size = static_cast<JBro::UInt32>(encoded.Size());
             AudioFormat format;
             AudioDecodeTarget target;
             target.sampleRate = job.audioSampleRate;
@@ -718,7 +718,7 @@ namespace JBro
         }
     }
 
-    Bool AssetSystem::ComputeAudioPeaks(AssetHandle handle, UInt32 buckets, Array<float>& peaks)
+    Bool AssetSystem::ComputeAudioPeaks(AssetHandle handle, UInt32 buckets, Array<Float>& peaks)
     {
         const AudioData* data = GetAudio(handle);
         if (data == nullptr)
@@ -734,7 +734,7 @@ namespace JBro
         {
             JArrayView<std::byte> bytes;
             bytes.data = data->encoded.Data();
-            bytes.size = static_cast<std::uint32_t>(data->encoded.Size());
+            bytes.size = static_cast<JBro::UInt32>(data->encoded.Size());
             return JBro::ComputeAudioPeaks(bytes, buckets, peaks);
         }
         if (false == data->streamPath.empty() && m_source != nullptr)
@@ -1270,7 +1270,7 @@ namespace JBro
 
     UInt32 AssetSystem::GetLoadedCount() const
     {
-        return static_cast<std::uint32_t>(m_loaded.Size());
+        return static_cast<JBro::UInt32>(m_loaded.Size());
     }
 
     UInt32 AssetSystem::BindComponentAssets(const PropertyTable& table, void* component, Array<AssetHandle>& acquired)

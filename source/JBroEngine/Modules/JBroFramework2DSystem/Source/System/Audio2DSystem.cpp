@@ -19,7 +19,7 @@ namespace JBro::System
     namespace
     {
         // 월드 위치다. 변환이 없거나 꺼져 있으면 거짓이다.
-        Bool WorldPositionOf(Canvas& canvas, const ComponentBase& component, float out[3])
+        Bool WorldPositionOf(Canvas& canvas, const ComponentBase& component, Float out[3])
         {
             GameObject* owner = Internal::CanvasAccess::GetOwner(component);
             const auto* transform = canvas.FindComponentRaw<Component::Transform2D>(owner);
@@ -55,7 +55,7 @@ namespace JBro::System
     void Audio2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         // 듣는 자리: 첫 활성 리스너, 없으면 게임 카메라(`primary` 먼저), 그것도 없으면 원점이다.
-        float listener[3] = {0.0f, 0.0f, 0.0f};
+        Float listener[3] = {0.0f, 0.0f, 0.0f};
         Float panDistance = 5.0f;
         Bool found = false;
         UInt32 listeners = 0;
@@ -66,7 +66,7 @@ namespace JBro::System
                 return;
             }
             ++listeners;
-            float position[3];
+            Float position[3];
             if (false == found && WorldPositionOf(canvas, candidate, position))
             {
                 listener[0] = position[0];
@@ -89,7 +89,7 @@ namespace JBro::System
                 {
                     return;
                 }
-                float position[3];
+                Float position[3];
                 if (WorldPositionOf(canvas, camera, position) && (false == found || camera.primary))
                 {
                     listener[0] = position[0];
@@ -100,14 +100,14 @@ namespace JBro::System
             });
         }
         // 2D 는 화면을 보는 쪽(-Z)이 앞이고 +Y 가 위다. 소스는 `panDistance` 깊이 앞에 놓인다(`AudioSystem::SetListener`).
-        const float forward[3] = {0.0f, 0.0f, -1.0f};
-        const float up[3] = {0.0f, 1.0f, 0.0f};
+        const Float forward[3] = {0.0f, 0.0f, -1.0f};
+        const Float up[3] = {0.0f, 1.0f, 0.0f};
         m_audio.SetListener(listener, forward, up, std::isfinite(panDistance) && panDistance > 0.0f ? panDistance : Float(5.0f),
             deltaTime);
 
         canvas.ForEach<Component::AudioSource>([&](Component::AudioSource& source)
         {
-            float position[3] = {listener[0], listener[1], 0.0f};
+            Float position[3] = {listener[0], listener[1], 0.0f};
             const Bool placed = WorldPositionOf(canvas, source, position);
             // 변환이 없는 소스도 운다 - 배경음은 대개 변환 없이 붙는다. 그때는 듣는 자리에 있는 것으로 본다.
             if (false == placed)

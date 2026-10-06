@@ -34,7 +34,7 @@ namespace JBro::System
         {
             AudioClipDesc desc;
             desc.gain = data.options.gain;
-            desc.maxInstances = data.options.maxInstances > 0 ? static_cast<std::uint32_t>(data.options.maxInstances) : 0;
+            desc.maxInstances = data.options.maxInstances > 0 ? static_cast<JBro::UInt32>(data.options.maxInstances) : UInt32(0);
             desc.cooldownSeconds = Finite(data.options.cooldown, 0.0f);
             desc.frameCount = data.frameCount;
             desc.sampleRate = data.sampleRate;
@@ -234,7 +234,7 @@ namespace JBro::System
 
     JArrayView<AudioBusConfig> AudioSystem::GetBusConfigs() const
     {
-        return {m_busConfigs.Data(), static_cast<std::uint32_t>(m_busConfigs.Size())};
+        return {m_busConfigs.Data(), static_cast<JBro::UInt32>(m_busConfigs.Size())};
     }
 
     void AudioSystem::Update()
@@ -247,7 +247,7 @@ namespace JBro::System
 
     UInt64 AudioSystem::KeyOf(AssetHandle handle)
     {
-        return (static_cast<std::uint64_t>(handle.generation) << 32) | handle.index;
+        return (static_cast<JBro::UInt64>(handle.generation) << 32) | handle.index;
     }
 
     void AudioSystem::OnAudioReleased(void* user, AssetHandle handle)
@@ -344,7 +344,7 @@ namespace JBro::System
         return AudioMasterBus;
     }
 
-    void AudioSystem::SetListener(const float position[3], const float forward[3], const float up[3], Float planarDepth,
+    void AudioSystem::SetListener(const Float position[3], const Float forward[3], const Float up[3], Float planarDepth,
         Float deltaTime)
     {
         if (false == m_initialized || position == nullptr)
@@ -354,7 +354,7 @@ namespace JBro::System
         m_planarDepth = planarDepth > 0.0f && std::isfinite(planarDepth) ? planarDepth : Float(0.0f);
         m_mixer->SetListener(position, forward, up);
         // 리스너의 속도는 도플러에만 쓰인다. 첫 프레임과 순간 이동(시간 0)은 0 이다.
-        float velocity[3] = {0.0f, 0.0f, 0.0f};
+        Float velocity[3] = {0.0f, 0.0f, 0.0f};
         if (m_listenerPlaced && deltaTime > 0.0f && std::isfinite(deltaTime))
         {
             for (Int32 axis = 0; axis < 3; ++axis)
@@ -370,7 +370,7 @@ namespace JBro::System
         m_listenerPlaced = true;
     }
 
-    void AudioSystem::Place(const float position[3], float out[3]) const
+    void AudioSystem::Place(const Float position[3], Float out[3]) const
     {
         out[0] = Finite(position[0], 0.0f);
         out[1] = Finite(position[1], 0.0f);
@@ -434,7 +434,7 @@ namespace JBro::System
         source.state = runtime.voice.IsSet() ? Component::AudioSourceState::Playing : Component::AudioSourceState::Finished;
     }
 
-    void AudioSystem::UpdateSource(Component::AudioSource& source, Bool active, const float position[3], Float deltaTime)
+    void AudioSystem::UpdateSource(Component::AudioSource& source, Bool active, const Float position[3], Float deltaTime)
     {
         if (false == m_initialized)
         {
@@ -455,7 +455,7 @@ namespace JBro::System
             }
             return;
         }
-        float velocity[3] = {0.0f, 0.0f, 0.0f};
+        Float velocity[3] = {0.0f, 0.0f, 0.0f};
         if (position != nullptr)
         {
             // 도플러를 쓰는 소스만 속도를 잰다. 첫 프레임(보이스 없음)은 0 이다.
@@ -553,7 +553,7 @@ namespace JBro::System
         }
         if (source.spatial)
         {
-            float placed[3];
+            Float placed[3];
             Place(runtime.position, placed);
             m_mixer->SetPosition(runtime.voice, placed);
             if (source.doppler > 0.0f)
@@ -676,7 +676,7 @@ namespace JBro::System
         play.spatial = true;
         play.minDistance = WidenDistance(1.0f);
         play.maxDistance = WidenDistance(50.0f);
-        const float position[3] = {x, y, z};
+        const Float position[3] = {x, y, z};
         Place(position, play.position);
         play.priority = OneShotPriority;
         play.tag = GameTag;

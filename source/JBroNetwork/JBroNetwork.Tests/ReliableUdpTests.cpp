@@ -130,7 +130,7 @@ namespace
         header.seq = 1;
         header.msgId = 7;
         const std::uint8_t body[] = { 1, 2, 3 };
-        const JBro::UInt32 written = UdpProto::Encode(header, body, sizeof(body), buffer);
+        const JBro::UInt32 written = UdpProto::Encode(header, body, static_cast<JBro::UInt32>(sizeof(body)), buffer);
         Check(written > 0, "a well formed datagram encodes");
 
         UdpProto::DatagramHeader parsed;
@@ -157,7 +157,7 @@ namespace
         // 먼저 온전한 두 조각 메시지 하나를 보내 슬롯에 0xAB 를 채운다.
         std::uint8_t full[UdpProto::MaxPayloadBytes];
         std::memset(full, 0xAB, sizeof(full));
-        endpoint.OnReliableReceived(FragmentHeader(0, 1, 0, 2), full, sizeof(full), 0.0, receiver);
+        endpoint.OnReliableReceived(FragmentHeader(0, 1, 0, 2), full, static_cast<JBro::UInt32>(sizeof(full)), 0.0, receiver);
         endpoint.OnReliableReceived(FragmentHeader(1, 1, 1, 2), full, 16, 0.0, receiver);
         Check(receiver.count == 1, "the whole message arrives");
         Check(receiver.lastSize == UdpProto::MaxPayloadBytes + 16, "with the size its fragments say");
@@ -165,8 +165,8 @@ namespace
         // 이제 짧은 중간 조각으로 같은 짓을 시도한다.
         std::uint8_t shortPayload[16];
         std::memset(shortPayload, 0x11, sizeof(shortPayload));
-        endpoint.OnReliableReceived(FragmentHeader(2, 2, 0, 2), shortPayload, sizeof(shortPayload), 0.0, receiver);
-        endpoint.OnReliableReceived(FragmentHeader(3, 2, 1, 2), shortPayload, sizeof(shortPayload), 0.0, receiver);
+        endpoint.OnReliableReceived(FragmentHeader(2, 2, 0, 2), shortPayload, static_cast<JBro::UInt32>(sizeof(shortPayload)), 0.0, receiver);
+        endpoint.OnReliableReceived(FragmentHeader(3, 2, 1, 2), shortPayload, static_cast<JBro::UInt32>(sizeof(shortPayload)), 0.0, receiver);
         Check(receiver.count == 1, "nothing is delivered - the short middle fragment was refused");
     }
 
@@ -187,21 +187,21 @@ namespace
         header.msgId = 9;
         const std::uint8_t body[] = { 0x5A };
         header.seq = start;
-        endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+        endpoint.OnReliableReceived(header, body, static_cast<JBro::UInt32>(sizeof(body)), 0.0, receiver);
         Check(receiver.count == 1, "the first one arrives");
 
         // 랩을 건너는 순번이 **역전되어** 온다. 부호 없는 비교로는 0 이 0xFFFFFFFF 보다 작아 보여 지난 것으로 버려진다.
         header.seq = start + 2;
-        endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+        endpoint.OnReliableReceived(header, body, static_cast<JBro::UInt32>(sizeof(body)), 0.0, receiver);
         Check(receiver.count == 1, "the one after the wrap waits for the gap before it");
         header.seq = start + 1;
-        endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+        endpoint.OnReliableReceived(header, body, static_cast<JBro::UInt32>(sizeof(body)), 0.0, receiver);
         Check(receiver.count == 3, "and when the gap fills, both come up in order");
 
         for (JBro::UInt32 step = 3; step < 6; ++step)
         {
             header.seq = start + step;
-            endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+            endpoint.OnReliableReceived(header, body, static_cast<JBro::UInt32>(sizeof(body)), 0.0, receiver);
         }
         Check(receiver.count == 6, "the sequence keeps running past the wrap");
     }
@@ -257,10 +257,10 @@ namespace
             "the server learned the client's endpoint from the punch");
 
         const JBro::UInt32 value = 42;
-        Check(pair.client.Send(ServerConnectionId, 3, &value, sizeof(value), NetChannel::Unreliable), "send unreliable");
-        Check(pair.client.Send(ServerConnectionId, 4, &value, sizeof(value), NetChannel::UnreliableSequenced), "send sequenced");
-        Check(pair.client.Send(ServerConnectionId, 5, &value, sizeof(value), NetChannel::ReliableUnordered), "send unordered");
-        Check(pair.client.Send(ServerConnectionId, 6, &value, sizeof(value), NetChannel::ReliableOrdered), "send ordered");
+        Check(pair.client.Send(ServerConnectionId, 3, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::Unreliable), "send unreliable");
+        Check(pair.client.Send(ServerConnectionId, 4, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::UnreliableSequenced), "send sequenced");
+        Check(pair.client.Send(ServerConnectionId, 5, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::ReliableUnordered), "send unordered");
+        Check(pair.client.Send(ServerConnectionId, 6, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::ReliableOrdered), "send ordered");
         for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();
@@ -304,7 +304,7 @@ namespace
         {
             while (sent < count)
             {
-                if (false == pair.client.Send(ServerConnectionId, 1, &sent, sizeof(sent)))
+                if (false == pair.client.Send(ServerConnectionId, 1, &sent, static_cast<JBro::UInt32>(sizeof(sent))))
                 {
                     break;
                 }
@@ -329,7 +329,7 @@ namespace
             pair.server.GetReliableDiagnostics(pair.clientOnServer, server);
             std::cout << "stall: sent=" << sent << " expected=" << expected << " rounds=" << pair.rounds
                 << " client{unacked=" << client.unacked << " queued=" << client.queued << " cwnd=" << client.congestionWindow
-                << " rto=" << client.rtoMilliseconds << " srtt=" << client.smoothedRttMilliseconds << " route=" << static_cast<int>(client.route)
+                << " rto=" << client.rtoMilliseconds << " srtt=" << client.smoothedRttMilliseconds << " route=" << static_cast<JBro::Int32>(client.route)
                 << "} server{unacked=" << server.unacked << " queued=" << server.queued << " piggy=" << server.piggybackAcks
                 << " standalone=" << server.standaloneAcks << "}\n";
         }
@@ -385,7 +385,7 @@ namespace
         MessageView views[64];
         for (JBro::UInt32 round = 0; round < 40000 && received < Count; ++round)
         {
-            while (sent < Count && pair.client.Send(ServerConnectionId, 2, &sent, sizeof(sent), NetChannel::ReliableUnordered))
+            while (sent < Count && pair.client.Send(ServerConnectionId, 2, &sent, static_cast<JBro::UInt32>(sizeof(sent)), NetChannel::ReliableUnordered))
             {
                 ++sent;
             }
@@ -461,7 +461,7 @@ namespace
         pair.ConnectBoth();
         pair.WaitForUdp();
         JBro::UInt32 sent = 0;
-        while (sent < 500 && pair.client.Send(ServerConnectionId, 1, &sent, sizeof(sent)))
+        while (sent < 500 && pair.client.Send(ServerConnectionId, 1, &sent, static_cast<JBro::UInt32>(sizeof(sent))))
         {
             ++sent;
         }
@@ -515,7 +515,7 @@ namespace
         MessageView views[64];
         for (JBro::UInt32 value = 0; value < 500; ++value)
         {
-            pair.client.Send(ServerConnectionId, 7, &value, sizeof(value), NetChannel::Unreliable);
+            pair.client.Send(ServerConnectionId, 7, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::Unreliable);
             pair.Round();
             plainReceived += pair.server.TakeMessages(views, 64);
         }
@@ -535,7 +535,7 @@ namespace
         JBro::Bool sequencedMonotonic = true;
         for (JBro::UInt32 value = 0; value < 500; ++value)
         {
-            pair.client.Send(ServerConnectionId, 8, &value, sizeof(value), NetChannel::UnreliableSequenced);
+            pair.client.Send(ServerConnectionId, 8, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::UnreliableSequenced);
             pair.Round();
             const JBro::UInt32 got = pair.server.TakeMessages(views, 64);
             for (JBro::UInt32 index = 0; index < got; ++index)
@@ -579,7 +579,7 @@ namespace
         const JBro::UInt32 values[3] = { 10, 20, 30 };
         for (JBro::UInt32 value : values)
         {
-            Check(pair.server.Send(pair.clientOnServer, 1, &value, sizeof(value)), "the server queues ordered messages");
+            Check(pair.server.Send(pair.clientOnServer, 1, &value, static_cast<JBro::UInt32>(sizeof(value))), "the server queues ordered messages");
         }
         MessageView views[8];
         Check(pair.client.TakeMessages(views, 8) == 0, "nothing arrives while the route is undecided");
@@ -610,7 +610,7 @@ namespace
         Pair pair(nullptr, noUdp, {});
         pair.ConnectBoth();
         const JBro::UInt32 value = 99;
-        Check(pair.client.Send(ServerConnectionId, 1, &value, sizeof(value)), "the client queues an ordered message");
+        Check(pair.client.Send(ServerConnectionId, 1, &value, static_cast<JBro::UInt32>(sizeof(value))), "the client queues an ordered message");
         MessageView view;
         for (JBro::Int32 round = 0; round < 4; ++round)
         {
@@ -626,7 +626,7 @@ namespace
         ReliableDiagnostics diagnostics;
         pair.client.GetReliableDiagnostics(ServerConnectionId, diagnostics);
         Check(diagnostics.route == OrderedRoute::WebSocket && false == diagnostics.udpReady, "the client settled on WS");
-        Check(pair.server.Send(pair.clientOnServer, 2, &value, sizeof(value), NetChannel::Unreliable), "the server sends unreliable");
+        Check(pair.server.Send(pair.clientOnServer, 2, &value, static_cast<JBro::UInt32>(sizeof(value)), NetChannel::Unreliable), "the server sends unreliable");
         for (JBro::Int32 round = 0; round < 4; ++round)
         {
             pair.Round();

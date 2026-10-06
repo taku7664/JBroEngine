@@ -111,7 +111,7 @@ namespace
 
     std::uint16_t Bit(GamepadButton button)
     {
-        return static_cast<std::uint16_t>(1u << static_cast<std::uint32_t>(button));
+        return static_cast<std::uint16_t>(1u << static_cast<JBro::UInt32>(button));
     }
 
     void Frame(System::InputSystem& input, GamepadPlatform& platform, JBro::Float deltaTime = 1.0f / 60.0f)

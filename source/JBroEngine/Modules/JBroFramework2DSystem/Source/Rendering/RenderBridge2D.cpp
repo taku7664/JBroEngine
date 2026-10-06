@@ -39,9 +39,9 @@ namespace JBro::Internal
             const double halfWidth = view.halfWidth;
             const double depth = static_cast<double>(source.farPlane) - source.nearPlane;
             result.view = ToColumnMatrix(view.view);
-            result.projection = {{static_cast<float>(1.0 / halfWidth), 0.0f, 0.0f, 0.0f,
-                0.0f, static_cast<float>(1.0 / halfHeight), 0.0f, 0.0f,
-                0.0f, 0.0f, static_cast<float>(1.0 / depth), static_cast<float>(-source.nearPlane / depth),
+            result.projection = {{static_cast<JBro::Float>(1.0 / halfWidth), 0.0f, 0.0f, 0.0f,
+                0.0f, static_cast<JBro::Float>(1.0 / halfHeight), 0.0f, 0.0f,
+                0.0f, 0.0f, static_cast<JBro::Float>(1.0 / depth), static_cast<JBro::Float>(-source.nearPlane / depth),
                 0.0f, 0.0f, 0.0f, 1.0f}};
             for (Float value : result.projection.values)
             {
@@ -134,13 +134,13 @@ namespace JBro::Internal
 
         // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
         static_assert(LayerBlendCount == CompositeBlendCount, "the canvas and the renderer list the same blends");
-        static_assert(static_cast<std::uint32_t>(LayerBlend::Screen) == static_cast<std::uint32_t>(CompositeBlend::Screen)
-                && static_cast<std::uint32_t>(LayerBlend::Difference) == static_cast<std::uint32_t>(CompositeBlend::Difference),
+        static_assert(static_cast<JBro::UInt32>(LayerBlend::Screen) == static_cast<JBro::UInt32>(CompositeBlend::Screen)
+                && static_cast<JBro::UInt32>(LayerBlend::Difference) == static_cast<JBro::UInt32>(CompositeBlend::Difference),
             "in the same order");
 
         CompositeBlend ToCompositeBlend(LayerBlend blend)
         {
-            const UInt32 value = static_cast<std::uint32_t>(blend);
+            const UInt32 value = static_cast<JBro::UInt32>(blend);
             return value < CompositeBlendCount ? static_cast<CompositeBlend>(value.Get()) : CompositeBlend::Normal;
         }
 
@@ -190,7 +190,7 @@ namespace JBro::Internal
             // 렌더러가 하나라도 거절하면 그 뒤는 내지 않는다(제출 상한). 앞에서 버린 아이템이 있었던 것은 결과만 바꾼다.
             Bool refused = false;
             const auto flush = [&]() {
-                if (count != 0 && false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
+                if (count != 0 && false == renderer.SubmitSprites({batch, static_cast<JBro::UInt32>(count)}))
                 {
                     refused = true;
                 }
@@ -222,7 +222,7 @@ namespace JBro::Internal
                 }
                 const Bool needsComposite = rule.composite
                     && (item.layerBlend != LayerBlend::Normal || item.layerOpacity < 1.0f);
-                const Int32 wanted = needsComposite ? Int32(static_cast<std::int32_t>(item.layerOrder)) : NoLayer;
+                const Int32 wanted = needsComposite ? Int32(static_cast<JBro::Int32>(item.layerOrder)) : NoLayer;
                 if (wanted != openLayer)
                 {
                     flush();
@@ -291,7 +291,7 @@ namespace JBro::Internal
                 sprite.world.translation[1] = (line.from[1] + line.to[1]) * 0.5f;
                 for (Int32 channel = 0; channel < 4; ++channel)
                 {
-                    sprite.tint[channel] = static_cast<float>(line.color[channel]) / 255.0f;
+                    sprite.tint[channel] = static_cast<JBro::Float>(line.color[channel]) / 255.0f;
                 }
                 ++count;
                 if (count == BatchSize)
@@ -325,8 +325,8 @@ namespace JBro::Internal
 
         // 편집 카메라는 대상 전체에 그린다. 기준 해상도는 `Orthographic` 에 쓰이지 않는다.
         ScreenSpaceFrame frame;
-        frame.targetWidth = static_cast<float>(view.extent.width);
-        frame.targetHeight = static_cast<float>(view.extent.height);
+        frame.targetWidth = static_cast<JBro::Float>(view.extent.width);
+        frame.targetHeight = static_cast<JBro::Float>(view.extent.height);
         CameraParams parameters;
         if (false == BuildCamera(editor, frame, parameters))
         {
@@ -387,7 +387,7 @@ namespace JBro::Internal
         {
             constexpr Float VeilOpacity = 0.7f;
             const Float halfHeight = view.orthographicSize;
-            const Float halfWidth = halfHeight * static_cast<float>(view.extent.width) / static_cast<float>(view.extent.height);
+            const Float halfWidth = halfHeight * static_cast<JBro::Float>(view.extent.width) / static_cast<JBro::Float>(view.extent.height);
             SpriteSubmit veil;
             veil.world.linear[0] = halfWidth * 2.0f;
             veil.world.linear[3] = halfHeight * 2.0f;
@@ -402,7 +402,7 @@ namespace JBro::Internal
         // 디버그 선은 월드 좌표라 월드 보기에만 그린다(D-243).
         if (debugDraw != nullptr && view.debugDraw && false == view.screenSpace)
         {
-            PushDebugLines2D(*debugDraw, renderer, 2.0f * view.orthographicSize / static_cast<float>(view.extent.height));
+            PushDebugLines2D(*debugDraw, renderer, 2.0f * view.orthographicSize / static_cast<JBro::Float>(view.extent.height));
         }
         const Bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
@@ -494,8 +494,8 @@ namespace JBro::Internal
         // 것을 쓴다. 레터박스는 앵커를 잰 것과 같은 함수로 이번에 뽑힌 카메라에서 다시 건다 - 첫 프레임에는 앵커 쪽이 카메라를 아직 몰랐다.
         ScreenSpaceFrame frame = world.GetScreenSpace();
         const Extent2D target = renderer.GetFrameExtent();
-        frame.targetWidth = static_cast<float>(target.width);
-        frame.targetHeight = static_cast<float>(target.height);
+        frame.targetWidth = static_cast<JBro::Float>(target.width);
+        frame.targetHeight = static_cast<JBro::Float>(target.height);
         ApplyCameraArea(camera, frame);
         Bool worldSubmitted = false;
         // 카메라가 없는 것은 오류가 아니다. 월드를 그리지 않을 뿐이다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
@@ -522,7 +522,7 @@ namespace JBro::Internal
             if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
             {
                 PushDebugLines2D(*debugDraw, renderer,
-                    2.0f * camera->orthographicSize / static_cast<float>(renderer.GetFrameExtent().height));
+                    2.0f * camera->orthographicSize / static_cast<JBro::Float>(renderer.GetFrameExtent().height));
             }
             const Bool closed = renderer.EndView();
             if (false == accepted || false == closed)
@@ -549,13 +549,13 @@ namespace JBro::Internal
         // **게임 화면과 같은 셈이다** - 화면 기준·레터박스·패럴랙스. 크기만 썸네일의 것이다.
         const RenderCamera2D* camera = world.GetCamera();
         ScreenSpaceFrame frame = world.GetScreenSpace();
-        frame.targetWidth = static_cast<float>(thumbnail.extent.width);
-        frame.targetHeight = static_cast<float>(thumbnail.extent.height);
+        frame.targetWidth = static_cast<JBro::Float>(thumbnail.extent.width);
+        frame.targetHeight = static_cast<JBro::Float>(thumbnail.extent.height);
         ApplyCameraArea(camera, frame);
         CameraParams parameters;
         SpriteFilterRule rule;
         rule.composite = false;
-        rule.layerOrder = static_cast<std::int32_t>(layer.GetOrder());
+        rule.layerOrder = static_cast<JBro::Int32>(layer.GetOrder());
         CameraView2D cameraView;
         Bool drawable = false;
         if (layer.GetSpace() == LayerSpace::Screen)

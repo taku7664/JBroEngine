@@ -10,7 +10,7 @@ namespace JBro::Network
 {
     namespace
     {
-        constexpr UInt32 SpawnMessageBytes = 4 + sizeof(SpawnDesc);
+        constexpr UInt32 SpawnMessageBytes = static_cast<JBro::UInt32>(4 + sizeof(SpawnDesc));
         constexpr UInt32 DespawnMessageBytes = 4;
         constexpr UInt32 AckMessageBytes = 4;
     }
@@ -118,8 +118,8 @@ namespace JBro::Network
 
         // 4) 델타.
         SendDeltas(current);
-        m_diagnostics.objects = static_cast<std::uint32_t>(m_objects.Size());
-        m_diagnostics.clients = static_cast<std::uint32_t>(m_clients.Size());
+        m_diagnostics.objects = static_cast<JBro::UInt32>(m_objects.Size());
+        m_diagnostics.clients = static_cast<JBro::UInt32>(m_clients.Size());
     }
 
     void ReplicationServer::SyncClients()
@@ -187,8 +187,8 @@ namespace JBro::Network
             const ReplicationTick baselineTick = m_clients[index].ackedTick;
             const Snapshot* baseline = m_history.Find(baselineTick);
             const UInt32 written = DeltaCodec::Encode(baseline, current, m_deltaBuffer.Data(),
-                static_cast<std::uint32_t>(m_deltaBuffer.Size()), m_removalScratch.Data(),
-                static_cast<std::uint32_t>(m_removalScratch.Size()));
+                static_cast<JBro::UInt32>(m_deltaBuffer.Size()), m_removalScratch.Data(),
+                static_cast<JBro::UInt32>(m_removalScratch.Size()));
             ++m_diagnostics.lastDeltaEncodes;
             for (std::size_t at = index; at < m_clients.Size(); ++at)
             {
@@ -284,7 +284,7 @@ namespace JBro::Network
         record.instance = instance;
         record.desc = desc;
         record.isNew = true;
-        m_objectIndex.InsertOrAssign(instance, static_cast<std::uint32_t>(m_objects.Size() - 1));
+        m_objectIndex.InsertOrAssign(instance, static_cast<JBro::UInt32>(m_objects.Size() - 1));
         return &record;
     }
 
@@ -295,7 +295,7 @@ namespace JBro::Network
         if (index != last)
         {
             m_objects[index] = m_objects[last];
-            m_objectIndex.InsertOrAssign(m_objects[index].instance, static_cast<std::uint32_t>(index));
+            m_objectIndex.InsertOrAssign(m_objects[index].instance, static_cast<JBro::UInt32>(index));
         }
         m_objects.RemoveAt(last);
     }
@@ -332,6 +332,6 @@ namespace JBro::Network
 
     UInt32 ReplicationServer::GetObjectCount() const
     {
-        return static_cast<std::uint32_t>(m_objects.Size());
+        return static_cast<JBro::UInt32>(m_objects.Size());
     }
 }

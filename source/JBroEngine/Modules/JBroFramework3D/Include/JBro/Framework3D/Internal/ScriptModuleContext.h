@@ -3,6 +3,7 @@
 #include <JBro/Framework3D/Internal/SystemContext.h>
 #include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -13,7 +14,7 @@ namespace JBro
     {
         Framework3DServiceContextTypeId,
         Framework3DServiceContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(Framework3DServiceContext))
+        static_cast<JBro::UInt32>(sizeof(Framework3DServiceContext))
     };
 
     ScriptContextBlock MakeFramework3DServiceContextBlock(
@@ -28,7 +29,7 @@ namespace JBro
     {
         Framework3DSystemContextTypeId,
         Framework3DSystemContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(Framework3DSystemContext))
+        static_cast<JBro::UInt32>(sizeof(Framework3DSystemContext))
     };
 
     ScriptContextBlock MakeFramework3DSystemContextBlock(

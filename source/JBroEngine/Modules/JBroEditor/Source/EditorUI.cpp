@@ -40,10 +40,10 @@ namespace JBro
 
         TextureHandle FromTextureId(ImTextureID id)
         {
-            const UInt64 packed = static_cast<std::uint64_t>(id);
+            const UInt64 packed = static_cast<JBro::UInt64>(id);
             TextureHandle handle;
-            handle.index = static_cast<std::uint32_t>(packed & 0xffffffffull);
-            handle.generation = static_cast<std::uint32_t>(packed >> 32);
+            handle.index = static_cast<JBro::UInt32>(packed & 0xffffffffull);
+            handle.generation = static_cast<JBro::UInt32>(packed >> 32);
             return handle;
         }
 
@@ -53,24 +53,24 @@ namespace JBro
         {
             const auto value = static_cast<std::uint16_t>(key);
             const auto offsetFrom = [value](Key first) {
-                return static_cast<int>(value) - static_cast<int>(first);
+                return static_cast<JBro::Int32>(value) - static_cast<JBro::Int32>(first);
             };
 
             if (key >= Key::Digit0 && key <= Key::Digit9)
             {
-                return static_cast<ImGuiKey>(ImGuiKey_0 + offsetFrom(Key::Digit0));
+                return static_cast<ImGuiKey>((ImGuiKey_0 + offsetFrom(Key::Digit0)).Get());
             }
             if (key >= Key::A && key <= Key::Z)
             {
-                return static_cast<ImGuiKey>(ImGuiKey_A + offsetFrom(Key::A));
+                return static_cast<ImGuiKey>((ImGuiKey_A + offsetFrom(Key::A)).Get());
             }
             if (key >= Key::F1 && key <= Key::F12)
             {
-                return static_cast<ImGuiKey>(ImGuiKey_F1 + offsetFrom(Key::F1));
+                return static_cast<ImGuiKey>((ImGuiKey_F1 + offsetFrom(Key::F1)).Get());
             }
             if (key >= Key::Keypad0 && key <= Key::Keypad9)
             {
-                return static_cast<ImGuiKey>(ImGuiKey_Keypad0 + offsetFrom(Key::Keypad0));
+                return static_cast<ImGuiKey>((ImGuiKey_Keypad0 + offsetFrom(Key::Keypad0)).Get());
             }
 
             switch (key)
@@ -215,14 +215,14 @@ namespace JBro
 
         // `ImDrawVert` 를 그대로 읽는다. 정점을 옮겨 담지 않는다.
         static const VertexAttributeDesc attributes[] = {
-            {0, static_cast<std::uint32_t>(offsetof(ImDrawVert, pos)), VertexFormat::Float2},
-            {1, static_cast<std::uint32_t>(offsetof(ImDrawVert, uv)),  VertexFormat::Float2},
-            {2, static_cast<std::uint32_t>(offsetof(ImDrawVert, col)), VertexFormat::UByte4Norm},
+            {0, static_cast<JBro::UInt32>(offsetof(ImDrawVert, pos)), VertexFormat::Float2},
+            {1, static_cast<JBro::UInt32>(offsetof(ImDrawVert, uv)),  VertexFormat::Float2},
+            {2, static_cast<JBro::UInt32>(offsetof(ImDrawVert, col)), VertexFormat::UByte4Norm},
         };
         static_assert(sizeof(ImDrawIdx) == 2, "the index buffer is bound as 16 bit");
 
         VertexBufferLayoutDesc layout;
-        layout.stride = sizeof(ImDrawVert);
+        layout.stride = static_cast<JBro::UInt32>(sizeof(ImDrawVert));
         layout.attributes = {attributes, 3};
         const TextureFormat colorFormats[] = {backBufferFormat};
 
@@ -230,25 +230,25 @@ namespace JBro
         // D3D11 은 DXBC 를(D-107), Vulkan 은 SPIR-V 를(D-108) 읽는다. 나머지는 DXIL 이다.
         if (api == GraphicsApi::D3D11)
         {
-            pipelineDesc.vertexShader = {Sm5::JBroEditorUIVS_SM5, sizeof(Sm5::JBroEditorUIVS_SM5)};
-            pipelineDesc.pixelShader = {Sm5::JBroEditorUIPS_SM5, sizeof(Sm5::JBroEditorUIPS_SM5)};
+            pipelineDesc.vertexShader = {Sm5::JBroEditorUIVS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroEditorUIVS_SM5))};
+            pipelineDesc.pixelShader = {Sm5::JBroEditorUIPS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroEditorUIPS_SM5))};
         }
         else if (api == GraphicsApi::Vulkan)
         {
-            pipelineDesc.vertexShader = {Spv::JBroEditorUIVS_SPV, sizeof(Spv::JBroEditorUIVS_SPV)};
-            pipelineDesc.pixelShader = {Spv::JBroEditorUIPS_SPV, sizeof(Spv::JBroEditorUIPS_SPV)};
+            pipelineDesc.vertexShader = {Spv::JBroEditorUIVS_SPV, static_cast<JBro::UInt32>(sizeof(Spv::JBroEditorUIVS_SPV))};
+            pipelineDesc.pixelShader = {Spv::JBroEditorUIPS_SPV, static_cast<JBro::UInt32>(sizeof(Spv::JBroEditorUIPS_SPV))};
         }
         else
         {
-            pipelineDesc.vertexShader = {JBroEditorUIVS, sizeof(JBroEditorUIVS)};
-            pipelineDesc.pixelShader = {JBroEditorUIPS, sizeof(JBroEditorUIPS)};
+            pipelineDesc.vertexShader = {JBroEditorUIVS, static_cast<JBro::UInt32>(sizeof(JBroEditorUIVS))};
+            pipelineDesc.pixelShader = {JBroEditorUIPS, static_cast<JBro::UInt32>(sizeof(JBroEditorUIPS))};
         }
         pipelineDesc.vertexBuffers = {&layout, 1};
         pipelineDesc.colorFormats = {colorFormats, 1};
         pipelineDesc.blend = BlendMode::Alpha;
         pipelineDesc.cull = CullMode::None;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
-        pipelineDesc.pushConstantBytes = sizeof(UIPushConstants);
+        pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(UIPushConstants));
         pipelineDesc.sampledTextureCount = 1;
         pipelineDesc.samplerCount = 1;
         m_pipeline = device.CreateGraphicsPipeline(pipelineDesc);
@@ -345,7 +345,7 @@ namespace JBro
 
     UInt64 EditorUI::ToTextureId(TextureHandle handle)
     {
-        return (static_cast<std::uint64_t>(handle.generation) << 32) | handle.index;
+        return (static_cast<JBro::UInt64>(handle.generation) << 32) | handle.index;
     }
 
     Bool EditorUI::PushInput(JArrayView<InputEvent> events)
@@ -447,8 +447,8 @@ namespace JBro
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
         ImGuiIO& io = ImGui::GetIO();
         io.DisplaySize = ImVec2(
-            static_cast<float>(displaySize.width),
-            static_cast<float>(displaySize.height));
+            static_cast<JBro::Float>(displaySize.width),
+            static_cast<JBro::Float>(displaySize.height));
         io.DeltaTime = deltaTime;
         ImGui::NewFrame();
         m_frameOpen = true;
@@ -507,10 +507,10 @@ namespace JBro
                 static_cast<std::size_t>(list->IdxBuffer.Size) * sizeof(ImDrawIdx);
             if (false == m_device->WriteBuffer(m_vertices[slot], vertexOffset,
                     {reinterpret_cast<const std::byte*>(list->VtxBuffer.Data),
-                        static_cast<std::uint32_t>(listVertexBytes)})
+                        static_cast<JBro::UInt32>(listVertexBytes)})
                 || false == m_device->WriteBuffer(m_indices[slot], indexOffset,
                     {reinterpret_cast<const std::byte*>(list->IdxBuffer.Data),
-                        static_cast<std::uint32_t>(listIndexBytes)}))
+                        static_cast<JBro::UInt32>(listIndexBytes)}))
             {
                 return false;
             }
@@ -558,8 +558,8 @@ namespace JBro
                     }
                     TextureDesc desc;
                     desc.extent = {
-                        static_cast<std::uint32_t>(texture->Width),
-                        static_cast<std::uint32_t>(texture->Height)};
+                        static_cast<JBro::UInt32>(texture->Width),
+                        static_cast<JBro::UInt32>(texture->Height)};
                     desc.format = TextureFormat::RGBA8Unorm;
                     desc.usage = TextureUsage::Sampled | TextureUsage::CopyDestination;
                     handle = m_device->CreateTexture(desc);
@@ -573,7 +573,7 @@ namespace JBro
                     * static_cast<std::size_t>(texture->Height) * 4;
                 if (false == m_device->WriteTexture(handle, 0,
                     {reinterpret_cast<const std::byte*>(texture->GetPixels()),
-                        static_cast<std::uint32_t>(size)}))
+                        static_cast<JBro::UInt32>(size)}))
                 {
                     return false;
                 }
@@ -709,7 +709,7 @@ namespace JBro
             return false;
         }
         if (false == commands.SetVertexBuffer(
-                0, m_vertices[frameSlot], sizeof(ImDrawVert), 0)
+                0, m_vertices[frameSlot], static_cast<JBro::UInt32>(sizeof(ImDrawVert)), 0)
             || false == commands.SetIndexBuffer(
                 m_indices[frameSlot], IndexFormat::UInt16, 0))
         {
@@ -723,7 +723,7 @@ namespace JBro
         push.translateX = -1.0f - drawData->DisplayPos.x * push.scaleX;
         push.translateY = 1.0f - drawData->DisplayPos.y * push.scaleY;
         if (false == commands.SetGraphicsConstants(
-            {reinterpret_cast<const std::byte*>(&push), static_cast<std::uint32_t>(sizeof(push))}))
+            {reinterpret_cast<const std::byte*>(&push), static_cast<JBro::UInt32>(sizeof(push))}))
         {
             return false;
         }
@@ -748,10 +748,10 @@ namespace JBro
                 }
 
                 ScissorRect scissor;
-                scissor.left = static_cast<std::int32_t>(command.ClipRect.x - clipOffset.x);
-                scissor.top = static_cast<std::int32_t>(command.ClipRect.y - clipOffset.y);
-                scissor.right = static_cast<std::int32_t>(command.ClipRect.z - clipOffset.x);
-                scissor.bottom = static_cast<std::int32_t>(command.ClipRect.w - clipOffset.y);
+                scissor.left = static_cast<JBro::Int32>(command.ClipRect.x - clipOffset.x);
+                scissor.top = static_cast<JBro::Int32>(command.ClipRect.y - clipOffset.y);
+                scissor.right = static_cast<JBro::Int32>(command.ClipRect.z - clipOffset.x);
+                scissor.bottom = static_cast<JBro::Int32>(command.ClipRect.w - clipOffset.y);
                 if (scissor.right <= scissor.left || scissor.bottom <= scissor.top)
                 {
                     continue;
@@ -786,15 +786,15 @@ namespace JBro
                     command.ElemCount,
                     1,
                     command.IdxOffset + globalIndexOffset,
-                    static_cast<std::int32_t>(command.VtxOffset + globalVertexOffset),
+                    static_cast<JBro::Int32>(command.VtxOffset + globalVertexOffset),
                     0))
                 {
                     return false;
                 }
                 ++m_lastDrawCount;
             }
-            globalVertexOffset += static_cast<std::uint32_t>(list->VtxBuffer.Size);
-            globalIndexOffset += static_cast<std::uint32_t>(list->IdxBuffer.Size);
+            globalVertexOffset += static_cast<JBro::UInt32>(list->VtxBuffer.Size);
+            globalIndexOffset += static_cast<JBro::UInt32>(list->IdxBuffer.Size);
         }
         return true;
     }

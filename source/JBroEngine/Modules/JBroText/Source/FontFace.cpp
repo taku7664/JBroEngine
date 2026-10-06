@@ -65,7 +65,7 @@ namespace JBro::Text
                 {
                     return false;
                 }
-                value = (static_cast<std::uint32_t>(high) << 16) | low;
+                value = (static_cast<JBro::UInt32>(high) << 16) | low;
                 return true;
             }
 
@@ -81,7 +81,7 @@ namespace JBro::Text
                 if (format == 1)
                 {
                     Int32 low = 0;
-                    Int32 high = static_cast<std::int32_t>(count) - 1;
+                    Int32 high = static_cast<JBro::Int32>(count) - 1;
                     while (low <= high)
                     {
                         const Int32 middle = (low + high) / 2;
@@ -108,7 +108,7 @@ namespace JBro::Text
                 if (format == 2)
                 {
                     Int32 low = 0;
-                    Int32 high = static_cast<std::int32_t>(count) - 1;
+                    Int32 high = static_cast<JBro::Int32>(count) - 1;
                     while (low <= high)
                     {
                         const Int32 middle = (low + high) / 2;
@@ -130,7 +130,7 @@ namespace JBro::Text
                         }
                         else
                         {
-                            return static_cast<std::int32_t>(first + (glyph - start));
+                            return static_cast<JBro::Int32>(first + (glyph - start));
                         }
                     }
                 }
@@ -150,7 +150,7 @@ namespace JBro::Text
                     std::uint16_t start = 0;
                     std::uint16_t count = 0;
                     std::uint16_t value = 0;
-                    if (Read16(table + 2, start) && Read16(table + 4, count) && glyph >= start && glyph < static_cast<std::uint32_t>(start) + count
+                    if (Read16(table + 2, start) && Read16(table + 4, count) && glyph >= start && glyph < static_cast<JBro::UInt32>(start) + count
                         && Read16(table + 6 + static_cast<std::size_t>(glyph - start) * 2, value))
                     {
                         return value;
@@ -165,7 +165,7 @@ namespace JBro::Text
                         return 0;
                     }
                     Int32 low = 0;
-                    Int32 high = static_cast<std::int32_t>(count) - 1;
+                    Int32 high = static_cast<JBro::Int32>(count) - 1;
                     while (low <= high)
                     {
                         const Int32 middle = (low + high) / 2;
@@ -252,7 +252,7 @@ namespace JBro::Text
                     }
                     const std::size_t recordSize = 2 + size1 + size2;
                     Int32 low = 0;
-                    Int32 high = static_cast<std::int32_t>(pairCount) - 1;
+                    Int32 high = static_cast<JBro::Int32>(pairCount) - 1;
                     while (low <= high)
                     {
                         const Int32 middle = (low + high) / 2;
@@ -458,8 +458,8 @@ namespace JBro::Text
 
             static constexpr UInt32 Tag(char a, char b, char c, char d)
             {
-                return (static_cast<std::uint32_t>(static_cast<unsigned char>(a)) << 24) | (static_cast<std::uint32_t>(static_cast<unsigned char>(b)) << 16)
-                    | (static_cast<std::uint32_t>(static_cast<unsigned char>(c)) << 8) | static_cast<std::uint32_t>(static_cast<unsigned char>(d));
+                return (static_cast<JBro::UInt32>(static_cast<unsigned char>(a)) << 24) | (static_cast<JBro::UInt32>(static_cast<unsigned char>(b)) << 16)
+                    | (static_cast<JBro::UInt32>(static_cast<unsigned char>(c)) << 8) | static_cast<JBro::UInt32>(static_cast<unsigned char>(d));
             }
 
             // `hang` 문자 체계의 기본 언어 체계(없으면 첫 언어 체계)에서 세 기능의 조회 번호를 모아 차례대로 둔다.
@@ -773,7 +773,7 @@ namespace JBro::Text
         std::memcpy(m_bytes.Data(), bytes.Data(), bytes.Size());
 
         const unsigned char* data = reinterpret_cast<const unsigned char*>(m_bytes.Data());
-        const Int32 offset = stbtt_GetFontOffsetForIndex(data, static_cast<int>(faceIndex));
+        const Int32 offset = stbtt_GetFontOffsetForIndex(data, static_cast<JBro::Int32>(faceIndex));
         if (offset < 0 || 0 == stbtt_InitFont(Info(m_info), data, offset))
         {
             Unload();
@@ -791,7 +791,7 @@ namespace JBro::Text
         int descent = 0;
         int lineGap = 0;
         stbtt_GetFontVMetrics(info, &ascent, &descent, &lineGap);
-        m_metrics.unitsPerEm = static_cast<std::int32_t>(std::lround(1.0f / emScale));
+        m_metrics.unitsPerEm = static_cast<JBro::Int32>(std::lround(1.0f / emScale));
         m_metrics.ascent = ascent;
         m_metrics.descent = descent;
         m_metrics.lineGap = lineGap;
@@ -827,7 +827,7 @@ namespace JBro::Text
         {
             return MissingGlyph;
         }
-        const Int32 glyph = stbtt_FindGlyphIndex(Info(m_info), static_cast<int>(codepoint));
+        const Int32 glyph = stbtt_FindGlyphIndex(Info(m_info), static_cast<JBro::Int32>(codepoint));
         return glyph > 0 ? static_cast<GlyphIndex>(glyph) : MissingGlyph;
     }
 
@@ -844,7 +844,7 @@ namespace JBro::Text
         }
         int advance = 0;
         int leftSideBearing = 0;
-        stbtt_GetGlyphHMetrics(Info(m_info), static_cast<int>(glyph), &advance, &leftSideBearing);
+        stbtt_GetGlyphHMetrics(Info(m_info), static_cast<JBro::Int32>(glyph), &advance, &leftSideBearing);
         return advance;
     }
 
@@ -863,7 +863,7 @@ namespace JBro::Text
         }
         if (info->kern != 0)
         {
-            return stbtt__GetGlyphKernInfoAdvance(info, static_cast<int>(left), static_cast<int>(right));
+            return stbtt__GetGlyphKernInfoAdvance(info, static_cast<JBro::Int32>(left), static_cast<JBro::Int32>(right));
         }
         return 0;
     }
@@ -912,7 +912,7 @@ namespace JBro::Text
             return box;
         }
         const stbtt_fontinfo* info = Info(m_info);
-        if (0 != stbtt_IsGlyphEmpty(info, static_cast<int>(glyph)))
+        if (0 != stbtt_IsGlyphEmpty(info, static_cast<JBro::Int32>(glyph)))
         {
             return box;
         }
@@ -920,7 +920,7 @@ namespace JBro::Text
         int y0 = 0;
         int x1 = 0;
         int y1 = 0;
-        if (0 == stbtt_GetGlyphBox(info, static_cast<int>(glyph), &x0, &y0, &x1, &y1))
+        if (0 == stbtt_GetGlyphBox(info, static_cast<JBro::Int32>(glyph), &x0, &y0, &x1, &y1))
         {
             return box;
         }
@@ -940,7 +940,7 @@ namespace JBro::Text
             return false;
         }
         const stbtt_fontinfo* info = Info(m_info);
-        if (0 != stbtt_IsGlyphEmpty(info, static_cast<int>(glyph)))
+        if (0 != stbtt_IsGlyphEmpty(info, static_cast<JBro::Int32>(glyph)))
         {
             return true;
         }
@@ -950,7 +950,7 @@ namespace JBro::Text
         int x1 = 0;
         int y1 = 0;
         // stb 의 상자는 y 가 아래쪽이다. 위쪽이 양수인 top 으로 뒤집는다.
-        stbtt_GetGlyphBitmapBox(info, static_cast<int>(glyph), scale, scale, &x0, &y0, &x1, &y1);
+        stbtt_GetGlyphBitmapBox(info, static_cast<JBro::Int32>(glyph), scale, scale, &x0, &y0, &x1, &y1);
         box.left = x0;
         box.top = -y0;
         box.width = x1 > x0 ? Int32(x1 - x0) : Int32(0);
@@ -966,7 +966,7 @@ namespace JBro::Text
         }
         const stbtt_fontinfo* info = Info(m_info);
         const Float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
-        stbtt_MakeGlyphBitmap(info, coverage, box.width, box.height, stride, scale, scale, static_cast<int>(glyph));
+        stbtt_MakeGlyphBitmap(info, coverage, box.width, box.height, stride, scale, scale, static_cast<JBro::Int32>(glyph));
         return true;
     }
 
@@ -979,18 +979,18 @@ namespace JBro::Text
             return false;
         }
         const stbtt_fontinfo* info = Info(m_info);
-        if (0 != stbtt_IsGlyphEmpty(info, static_cast<int>(glyph)))
+        if (0 != stbtt_IsGlyphEmpty(info, static_cast<JBro::Int32>(glyph)))
         {
             return true;
         }
         const Float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
         constexpr unsigned char OnEdge = 128;
-        const Float perPixel = static_cast<float>(OnEdge) / static_cast<float>(spread);
+        const Float perPixel = static_cast<JBro::Float>(OnEdge) / static_cast<JBro::Float>(spread);
         int width = 0;
         int height = 0;
         int xoff = 0;
         int yoff = 0;
-        unsigned char* field = stbtt_GetGlyphSDF(info, scale, static_cast<int>(glyph), spread, OnEdge, perPixel,
+        unsigned char* field = stbtt_GetGlyphSDF(info, scale, static_cast<JBro::Int32>(glyph), spread, OnEdge, perPixel,
             &width, &height, &xoff, &yoff);
         if (field == nullptr || width <= 0 || height <= 0)
         {

@@ -115,11 +115,11 @@ namespace JBro
 
         // 불투명한 칸의 네 변 중 **이웃이 없는 쪽**만 남긴다. 칸 밖은 없는 것으로 본다 -
         // 그림이 칸 가장자리까지 차 있으면 그 변이 곧 경계다.
-        const Float cellWidth = 1.0f / static_cast<float>(columns);
-        const Float cellHeight = 1.0f / static_cast<float>(rows);
+        const Float cellWidth = 1.0f / static_cast<JBro::Float>(columns);
+        const Float cellHeight = 1.0f / static_cast<JBro::Float>(rows);
         const auto filled = [&](Int64 column, Int64 row) {
-            if (column < 0 || row < 0 || column >= static_cast<std::int64_t>(columns)
-                || row >= static_cast<std::int64_t>(rows))
+            if (column < 0 || row < 0 || column >= static_cast<JBro::Int64>(columns)
+                || row >= static_cast<JBro::Int64>(rows))
             {
                 return false;
             }
@@ -134,23 +134,23 @@ namespace JBro
                 {
                     continue;
                 }
-                const Float left = static_cast<float>(column) * cellWidth;
+                const Float left = static_cast<JBro::Float>(column) * cellWidth;
                 const Float right = left + cellWidth;
-                const Float top = static_cast<float>(row) * cellHeight;
+                const Float top = static_cast<JBro::Float>(row) * cellHeight;
                 const Float bottom = top + cellHeight;
-                if (false == filled(column, static_cast<std::int64_t>(row) - 1))
+                if (false == filled(column, static_cast<JBro::Int64>(row) - 1))
                 {
                     entry.segments.Add(Segment{left, top, right, top});
                 }
-                if (false == filled(column, static_cast<std::int64_t>(row) + 1))
+                if (false == filled(column, static_cast<JBro::Int64>(row) + 1))
                 {
                     entry.segments.Add(Segment{left, bottom, right, bottom});
                 }
-                if (false == filled(static_cast<std::int64_t>(column) - 1, row))
+                if (false == filled(static_cast<JBro::Int64>(column) - 1, row))
                 {
                     entry.segments.Add(Segment{left, top, left, bottom});
                 }
-                if (false == filled(static_cast<std::int64_t>(column) + 1, row))
+                if (false == filled(static_cast<JBro::Int64>(column) + 1, row))
                 {
                     entry.segments.Add(Segment{right, top, right, bottom});
                 }

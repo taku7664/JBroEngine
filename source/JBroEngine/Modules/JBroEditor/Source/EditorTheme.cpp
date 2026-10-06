@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 
 // 아이콘 글리프가 U+F0000 위에 있다(D-277). 16 비트 `ImWchar` 면 범위가 잘리고 글자를 읽을 때
 // 모두 네모가 되는데 빌드는 지난다 - 그래서 여기서 막는다.
@@ -276,7 +277,7 @@ namespace JBro::EditorTheme
         // 아이콘은 글자보다 조금 작게 그려야 줄 높이를 밀지 않는다.
         config.GlyphMinAdvanceX = 13.0f;
         static const ImWchar ranges[] = {Icons::RangeBegin, Icons::RangeEnd, 0};
-        if (io.Fonts->AddFontFromMemoryTTF(fontData, static_cast<int>(fileSize), 13.0f, &config, ranges)
+        if (io.Fonts->AddFontFromMemoryTTF(fontData, static_cast<JBro::Int32>(fileSize), 13.0f, &config, ranges)
             != nullptr)
         {
             g_hasIconFont = true;

@@ -9,6 +9,8 @@
 #include <thread>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -24,7 +26,7 @@ namespace JBro
         {
         public:
             PrewarmTask(TextLibrary& library, UInt32 slot, const Text::FontFace& face, TextLibrary::PrewarmResult&& work)
-                : Task(String("Prewarm glyphs"), static_cast<std::uint32_t>(work.glyphs.Size()))
+                : Task(String("Prewarm glyphs"), static_cast<JBro::UInt32>(work.glyphs.Size()))
                 , m_library(library)
                 , m_slot(slot)
                 , m_face(face)
@@ -46,21 +48,21 @@ namespace JBro
                     Bool drawn = false;
                     if (m_result.sdfSpread != 0)
                     {
-                        drawn = m_face.RasterizeGlyphSdf(glyph, static_cast<float>(m_result.pixelSize),
-                            static_cast<std::int32_t>(m_result.sdfSpread), box, scratch);
+                        drawn = m_face.RasterizeGlyphSdf(glyph, static_cast<JBro::Float>(m_result.pixelSize),
+                            static_cast<JBro::Int32>(m_result.sdfSpread), box, scratch);
                     }
-                    else if (m_face.MeasureGlyphBitmap(glyph, static_cast<float>(m_result.pixelSize), box))
+                    else if (m_face.MeasureGlyphBitmap(glyph, static_cast<JBro::Float>(m_result.pixelSize), box))
                     {
                         drawn = true;
                         if (box.width > 0 && box.height > 0)
                         {
                             scratch.Resize(static_cast<std::size_t>(box.width) * static_cast<std::size_t>(box.height));
                             std::memset(scratch.Data(), 0, scratch.Size());
-                            m_face.RasterizeGlyph(glyph, static_cast<float>(m_result.pixelSize), box, scratch.Data(), box.width);
+                            m_face.RasterizeGlyph(glyph, static_cast<JBro::Float>(m_result.pixelSize), box, scratch.Data(), box.width);
                         }
                     }
                     m_result.boxes.Add(drawn ? box : Text::GlyphBitmapBox{});
-                    m_result.offsets.Add(static_cast<std::uint32_t>(m_result.pixels.Size()));
+                    m_result.offsets.Add(static_cast<JBro::UInt32>(m_result.pixels.Size()));
                     if (drawn && box.width > 0 && box.height > 0)
                     {
                         m_result.pixels.Append(scratch.Data(), static_cast<std::size_t>(box.width) * static_cast<std::size_t>(box.height));
@@ -297,7 +299,7 @@ namespace JBro
                 const ArrayView<const std::byte> source = entry.atlas.GetPagePixels(page);
                 JArrayView<std::byte> pixels;
                 pixels.data = source.Data();
-                pixels.size = static_cast<std::uint32_t>(source.Size());
+                pixels.size = static_cast<JBro::UInt32>(source.Size());
                 AssetHandle& texture = entry.pageTextures[page];
                 Bool written = false;
                 if (texture.generation != 0)
@@ -314,11 +316,11 @@ namespace JBro
                     {
                         JArrayView<std::byte> region;
                         region.data = source.Data() + static_cast<std::size_t>(y) * rowPitch + static_cast<std::size_t>(x) * 4;
-                        region.size = static_cast<std::uint32_t>(source.Size() - (static_cast<std::size_t>(y) * rowPitch + static_cast<std::size_t>(x) * 4));
+                        region.size = static_cast<JBro::UInt32>(source.Size() - (static_cast<std::size_t>(y) * rowPitch + static_cast<std::size_t>(x) * 4));
                         written = m_renderer->UpdateTextureRegion(texture, x, y, width, height, region, rowPitch);
                         if (written)
                         {
-                            m_uploadedBytes += static_cast<std::uint64_t>(width) * height * 4;
+                            m_uploadedBytes += static_cast<JBro::UInt64>(width) * height * 4;
                         }
                     }
                     if (false == written)
@@ -553,7 +555,7 @@ namespace JBro
             ++entry.atlasGeneration;
             entry.lastTrimFrame = frame;
             ++m_trimCount;
-            Prewarm(entry, static_cast<std::uint32_t>(index));
+            Prewarm(entry, static_cast<JBro::UInt32>(index));
             Log::Write(LogLevel::Info, "text", "a font atlas passed %u pages and was emptied; the text on screen draws its glyphs again",
                 limit);
         }

@@ -10,6 +10,7 @@
 #include <cstring>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::Internal
 {
@@ -130,8 +131,8 @@ namespace JBro
             static const TypeDescriptor descriptor = [] {
                 TypeDescriptor made;
                 made.typeName = NameTable::Get().Intern("JBro.GameObjectHandle");
-                made.size = static_cast<std::uint32_t>(sizeof(GameObjectHandle));
-                made.alignment = static_cast<std::uint32_t>(alignof(GameObjectHandle));
+                made.size = static_cast<JBro::UInt32>(sizeof(GameObjectHandle));
+                made.alignment = static_cast<JBro::UInt32>(alignof(GameObjectHandle));
                 made.triviallyCopyable = true;
                 made.codec = &Internal::GetGameObjectHandleCodec();
                 return made;

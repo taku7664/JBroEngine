@@ -123,13 +123,13 @@ namespace
         JBro::GraphicsPipelineDesc desc;
         if (api == JBro::GraphicsApi::Vulkan)
         {
-            desc.vertexShader = {Spv::JBroTestTexturedQuadVS_SPV, sizeof(Spv::JBroTestTexturedQuadVS_SPV)};
-            desc.pixelShader = {Spv::JBroTestTexturedQuadPS_SPV, sizeof(Spv::JBroTestTexturedQuadPS_SPV)};
+            desc.vertexShader = {Spv::JBroTestTexturedQuadVS_SPV, static_cast<JBro::UInt32>(sizeof(Spv::JBroTestTexturedQuadVS_SPV))};
+            desc.pixelShader = {Spv::JBroTestTexturedQuadPS_SPV, static_cast<JBro::UInt32>(sizeof(Spv::JBroTestTexturedQuadPS_SPV))};
         }
         else
         {
-            desc.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
-            desc.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
+            desc.vertexShader = {JBroTestTexturedQuadVS, static_cast<JBro::UInt32>(sizeof(JBroTestTexturedQuadVS))};
+            desc.pixelShader = {JBroTestTexturedQuadPS, static_cast<JBro::UInt32>(sizeof(JBroTestTexturedQuadPS))};
         }
         desc.vertexBuffers = {&layout, 1};
         desc.colorFormats = {colorFormats, 1};
@@ -163,7 +163,7 @@ namespace
         }
 
         JBro::WindowDesc windowDesc;
-        windowDesc.title = {title, static_cast<std::uint32_t>(std::strlen(title))};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(std::strlen(title))};
         windowDesc.width = SurfaceSize;
         windowDesc.height = SurfaceSize;
         windowDesc.visible = false;
@@ -184,7 +184,7 @@ namespace
         texture = device->CreateTexture(textureDesc);
         Check(texture.IsValid(), "a sampled texture must be created");
         Check(device->WriteTexture(texture, 0,
-            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels)}),
+            {reinterpret_cast<const std::byte*>(ProbeTexels), static_cast<JBro::UInt32>(sizeof(ProbeTexels))}),
             "the texels must upload");
 
         // 셰이더가 읽을 수 없는 텍스처다. 묶으려 드는 쪽을 거절하는지 보는 데 쓴다.
@@ -229,7 +229,7 @@ namespace
         vertexBuffer = device->CreateBuffer(vertexDesc);
         Check(vertexBuffer.IsValid(), "the vertex buffer must be created");
         Check(device->WriteBuffer(vertexBuffer, 0,
-            {reinterpret_cast<const std::byte*>(vertices), sizeof(vertices)}),
+            {reinterpret_cast<const std::byte*>(vertices), static_cast<JBro::UInt32>(sizeof(vertices))}),
             "the vertices must upload");
 
         JBro::BufferDesc indexDesc;
@@ -239,7 +239,7 @@ namespace
         indexBuffer = device->CreateBuffer(indexDesc);
         Check(indexBuffer.IsValid(), "the index buffer must be created");
         Check(device->WriteBuffer(indexBuffer, 0,
-            {reinterpret_cast<const std::byte*>(indices), sizeof(indices)}),
+            {reinterpret_cast<const std::byte*>(indices), static_cast<JBro::UInt32>(sizeof(indices))}),
             "the indices must upload");
 
         pipeline = device->CreateGraphicsPipeline(MakeTexturedPipelineDesc(rhi.GetApi()));
@@ -263,12 +263,12 @@ namespace
             return false;
         }
         JBro::Viewport viewport;
-        viewport.width = static_cast<float>(SurfaceSize);
-        viewport.height = static_cast<float>(SurfaceSize);
+        viewport.width = static_cast<JBro::Float>(SurfaceSize);
+        viewport.height = static_cast<JBro::Float>(SurfaceSize);
         commands.SetViewport(viewport);
         commands.SetScissor({0, 0,
-            static_cast<std::int32_t>(SurfaceSize),
-            static_cast<std::int32_t>(SurfaceSize)});
+            static_cast<JBro::Int32>(SurfaceSize),
+            static_cast<JBro::Int32>(SurfaceSize)});
         return true;
     }
 
@@ -336,11 +336,11 @@ namespace
 
         // 밉 하나짜리만 올린다는 계약이다.
         Check(false == probe.device->WriteTexture(probe.texture, 1,
-            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels)}),
+            {reinterpret_cast<const std::byte*>(ProbeTexels), static_cast<JBro::UInt32>(sizeof(ProbeTexels))}),
             "a mip this engine does not upload must be refused");
         // 크기가 맞지 않는 것도 거절한다. 모자란 것을 받으면 나머지가 쓰레기가 된다.
         Check(false == probe.device->WriteTexture(probe.texture, 0,
-            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels) - 4}),
+            {reinterpret_cast<const std::byte*>(ProbeTexels), static_cast<JBro::UInt32>(sizeof(ProbeTexels) - 4)}),
             "a short upload must be refused rather than padded");
 
         // 선언한 수를 넘는 파이프라인은 거절한다. 루트 시그니처는 만들고 나면 못 바꾸므로
@@ -363,7 +363,7 @@ namespace
 
         // 프레임 안에서는 올리지 않는다. 여기서 GPU 를 기다리면 프레임이 막힌다.
         Check(false == probe.device->WriteTexture(probe.texture, 0,
-            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels)}),
+            {reinterpret_cast<const std::byte*>(ProbeTexels), static_cast<JBro::UInt32>(sizeof(ProbeTexels))}),
             "uploading inside a frame must be refused");
 
         Check(probe.BeginPass(commands, begun), "the probe render pass must begin");
@@ -377,7 +377,7 @@ namespace
 
         Check(commands.SetTexture(0, probe.texture), "the texture must bind");
         Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
-        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0),
             "the vertices must bind");
         Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
             "the indices must bind");
@@ -442,7 +442,7 @@ namespace
         Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
         Check(commands.SetTexture(0, probe.texture), "the texture must bind");
         Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
-        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0),
             "the vertices must bind");
         Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
             "the indices must bind");
@@ -496,17 +496,17 @@ namespace
                 "a pass onto a plain texture must begin");
 
             JBro::Viewport viewport;
-            viewport.width = static_cast<float>(SurfaceSize);
-            viewport.height = static_cast<float>(SurfaceSize);
+            viewport.width = static_cast<JBro::Float>(SurfaceSize);
+            viewport.height = static_cast<JBro::Float>(SurfaceSize);
             commands.SetViewport(viewport);
             commands.SetScissor({0, 0,
-                static_cast<std::int32_t>(SurfaceSize),
-                static_cast<std::int32_t>(SurfaceSize)});
+                static_cast<JBro::Int32>(SurfaceSize),
+                static_cast<JBro::Int32>(SurfaceSize)});
 
             Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
             Check(commands.SetTexture(0, probe.texture), "the source texture must bind");
             Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
-            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0),
                 "the vertices must bind");
             Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
                 "the indices must bind");
@@ -525,14 +525,14 @@ namespace
             Check(commands.BeginRenderPass(backPass), "the back buffer pass must begin");
             commands.SetViewport(viewport);
             commands.SetScissor({0, 0,
-                static_cast<std::int32_t>(SurfaceSize),
-                static_cast<std::int32_t>(SurfaceSize)});
+                static_cast<JBro::Int32>(SurfaceSize),
+                static_cast<JBro::Int32>(SurfaceSize)});
 
             Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind again");
             Check(commands.SetTexture(0, probe.offscreen),
                 "the texture just drawn into must bind as a source");
             Check(commands.SetSampler(0, probe.sampler), "the sampler must bind again");
-            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0),
                 "the vertices must bind again");
             Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
                 "the indices must bind again");
@@ -586,7 +586,7 @@ namespace
         JBro::IRHICommandContext& commands = *begun.frame.commands;
         Check(probe.BeginPass(commands, begun), "the render pass must begin");
         Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
-        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0),
             "the vertices must bind");
         Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
             "the indices must bind");
@@ -642,7 +642,7 @@ namespace
             JBro::IRHICommandContext& commands = *begun.frame.commands;
             Check(probe.BeginPass(commands, begun), "each render pass must begin");
             Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
-            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0),
                 "the vertices must bind");
             Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
                 "the indices must bind");
@@ -682,7 +682,7 @@ namespace
         const JBro::TextureHandle blue = probe.device->CreateTexture(blueDesc);
         constexpr unsigned char BlueTexels[] = {0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255};
         Check(blue.IsValid() && probe.device->WriteTexture(blue, 0,
-            {reinterpret_cast<const std::byte*>(BlueTexels), sizeof(BlueTexels)}), "the blue texture must upload");
+            {reinterpret_cast<const std::byte*>(BlueTexels), static_cast<JBro::UInt32>(sizeof(BlueTexels))}), "the blue texture must upload");
 
         for (JBro::Int32 order = 0; order < 2; ++order)
         {
@@ -694,7 +694,7 @@ namespace
             JBro::IRHICommandContext& commands = *begun.frame.commands;
             Check(probe.BeginPass(commands, begun), "the render pass must begin");
             Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
-            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0), "the vertices must bind");
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, static_cast<JBro::UInt32>(sizeof(Vertex)), 0), "the vertices must bind");
             Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0), "the indices must bind");
             Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
             for (JBro::Int32 repeat = 0; repeat < 3; ++repeat)

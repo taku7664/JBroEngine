@@ -5,6 +5,7 @@
 #include <JBro/Types/Angle.h>
 #include <JBro/Types/Color.h>
 #include <JBro/Types/Uuid.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -20,10 +21,10 @@ namespace JBro
         {
             static const FieldEntry entries[] =
             {
-                MakeFieldEntry<&Color::R>(Attribute::Range(0, 1)),
-                MakeFieldEntry<&Color::G>(Attribute::Range(0, 1)),
-                MakeFieldEntry<&Color::B>(Attribute::Range(0, 1)),
-                MakeFieldEntry<&Color::A>(Attribute::Range(0, 1)),
+                MakeFieldEntry<&Color::R>(Attribute::Range(0.0f, 1.0f)),
+                MakeFieldEntry<&Color::G>(Attribute::Range(0.0f, 1.0f)),
+                MakeFieldEntry<&Color::B>(Attribute::Range(0.0f, 1.0f)),
+                MakeFieldEntry<&Color::A>(Attribute::Range(0.0f, 1.0f)),
             };
             static const StaticPropertyTable<4> fields { entries };
             static const TypeDescriptor descriptor =
@@ -75,8 +76,8 @@ namespace JBro
             {
                 TypeDescriptor built;
                 built.typeName = NameTable::Get().Intern("JBro.Uuid");
-                built.size = static_cast<std::uint32_t>(sizeof(Uuid));
-                built.alignment = static_cast<std::uint32_t>(alignof(Uuid));
+                built.size = static_cast<JBro::UInt32>(sizeof(Uuid));
+                built.alignment = static_cast<JBro::UInt32>(alignof(Uuid));
                 built.triviallyCopyable = true;
                 built.codec = &GetUuidCodec();
                 return built;

@@ -52,7 +52,7 @@ namespace JBro::Network
 
     UInt32 SignalingServer::GetRoomCount() const
     {
-        return static_cast<std::uint32_t>(m_rooms.Size());
+        return static_cast<JBro::UInt32>(m_rooms.Size());
     }
 
     UInt32 SignalingServer::GetMemberCount(UInt32 room) const
@@ -61,7 +61,7 @@ namespace JBro::Network
         {
             if (candidate.code == room)
             {
-                return static_cast<std::uint32_t>(candidate.members.Size());
+                return static_cast<JBro::UInt32>(candidate.members.Size());
             }
         }
         return 0;
@@ -386,6 +386,6 @@ namespace JBro::Network
 
     UInt32 SignalingClient::GetPeerCount() const
     {
-        return static_cast<std::uint32_t>(m_mappings.Size());
+        return static_cast<JBro::UInt32>(m_mappings.Size());
     }
 }

@@ -432,7 +432,7 @@ namespace JBro::Widget
         T defaultValue = T{},
         UInt32 flags = ListFlagsNone)
     {
-        return ListVirtual(id, static_cast<int>(items.Size()),
+        return ListVirtual(id, static_cast<JBro::Int32>(items.Size()),
             // 행 편집은 변경으로 세지 않는다 - 추가·삭제·재정렬만 본다.
             // 기존 엔진과 같은 계약이다.
             [&](Int32 index) -> Bool { drawRow(items[static_cast<std::size_t>(index)], index); return false; },

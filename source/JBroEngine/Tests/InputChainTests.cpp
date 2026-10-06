@@ -26,6 +26,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
 
 // 입력 레이어 체인과 블로킹을 잰다(D-214, input-plan §4 의 3).
 namespace
@@ -244,7 +245,7 @@ namespace
         Check(g_dispatchLog.Size() == 6, "every handler is called once per frame");
         for (std::size_t index = 0; index < 6; ++index)
         {
-            Check(g_dispatchLog[index] == static_cast<int>(index) + 1,
+            Check(g_dispatchLog[index] == static_cast<JBro::Int32>(index) + 1,
                 "handlers must run by layer, then by larger order, then by execution order");
         }
         Check(CountUnknownLayerWarnings() == 1, "an unknown layer is reported once");
@@ -586,7 +587,7 @@ namespace
             {
                 list.Add(event);
             }
-            input.BeginFrame({list.Data(), static_cast<std::uint32_t>(list.Size())});
+            input.BeginFrame({list.Data(), static_cast<JBro::UInt32>(list.Size())});
             JBro::Testing::Tick(framework, 1.0f / 60.0f);
         };
         frameWith({});

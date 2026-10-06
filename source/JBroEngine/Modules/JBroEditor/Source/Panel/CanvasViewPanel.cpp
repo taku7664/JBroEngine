@@ -91,7 +91,7 @@ namespace JBro
                 return 1;
             }
             long long stride = 1;
-            while (static_cast<float>(stride) * pixelsPerStep < needed && stride < (1ll << 40))
+            while (static_cast<JBro::Float>(stride) * pixelsPerStep < needed && stride < (1ll << 40))
             {
                 // 1 → 2 → 5 → 10 의 되풀이다. 맨 앞 자리만 보면 된다.
                 long long power = 1;
@@ -446,8 +446,8 @@ namespace JBro
         // **패널 크기가 곧 편집 화면의 크기다.** 게임 화면과 반대다 - 게임은 해상도가
         // 정해진 그림이라 늘려 붙이지만, 편집 화면은 이 자리가 화면이다.
         const Extent2D wanted{
-            static_cast<std::uint32_t>(available.x),
-            static_cast<std::uint32_t>(available.y)};
+            static_cast<JBro::UInt32>(available.x),
+            static_cast<JBro::UInt32>(available.y)};
         if (Is3D())
         {
             m_editor->RequestCanvasView3D(wanted, m_centerX, m_centerY, m_centerZ,
@@ -470,8 +470,8 @@ namespace JBro
         // 엔진이 그린 화면의 크기다(D-150). 아직 텍스처가 없으면 패널 크기로 둔다 -
         // 첫 프레임에는 그림도 없어 어긋날 것이 없다.
         const Extent2D drawn = m_editor->GetCanvasViewExtent();
-        rect.drawWidth = drawn.width != 0 ? static_cast<float>(drawn.width) : available.x;
-        rect.drawHeight = drawn.height != 0 ? static_cast<float>(drawn.height) : available.y;
+        rect.drawWidth = drawn.width != 0 ? static_cast<JBro::Float>(drawn.width) : Float(available.x);
+        rect.drawHeight = drawn.height != 0 ? static_cast<JBro::Float>(drawn.height) : Float(available.y);
         m_lastRect = rect;
         m_hasLastRect = false == Is3D();
 
@@ -482,8 +482,8 @@ namespace JBro
         {
             // 텍스처는 요청보다 크다(64 의 배수로 올려 잡았다). 왼쪽 위에서 패널 크기만큼만
             // 잘라 쓴다 - 늘려 붙이면 같은 장면이 미세하게 찌그러진다.
-            const Float u = available.x / static_cast<float>(extent.width);
-            const Float v = available.y / static_cast<float>(extent.height);
+            const Float u = available.x / static_cast<JBro::Float>(extent.width);
+            const Float v = available.y / static_cast<JBro::Float>(extent.height);
             draw->AddImage(
                 static_cast<ImTextureID>(EditorUI::ToTextureId(texture)),
                 ImVec2(rect.left, rect.top),
@@ -577,7 +577,7 @@ namespace JBro
             names[index] = locales[index].c_str();
             if (locales[index] == current)
             {
-                chosen = static_cast<int>(index);
+                chosen = static_cast<JBro::Int32>(index);
             }
         }
         Widget::ToolBarSeparator();
@@ -883,7 +883,7 @@ namespace JBro
         const long long lastX = static_cast<long long>(std::floor(maxX / step));
         for (long long index = firstX; index <= lastX; ++index)
         {
-            const Float x = static_cast<float>(index) * step;
+            const Float x = static_cast<JBro::Float>(index) * step;
             Float screenX = 0.0f;
             Float unused = 0.0f;
             WorldToScreen(rect, x, 0.0f, screenX, unused);
@@ -906,7 +906,7 @@ namespace JBro
         const long long lastY = static_cast<long long>(std::floor(maxY / step));
         for (long long index = firstY; index <= lastY; ++index)
         {
-            const Float y = static_cast<float>(index) * step;
+            const Float y = static_cast<JBro::Float>(index) * step;
             Float screenY = 0.0f;
             Float unused = 0.0f;
             WorldToScreen(rect, 0.0f, y, unused, screenY);
@@ -1014,8 +1014,8 @@ namespace JBro
                     // 화면 레이어는 PPU 대신 픽셀이다 - 그리는 쪽과 같다(D-237).
                     const Layer* layer = object.GetLayer();
                     const Float ppu = layer != nullptr && layer->GetSpace() == LayerSpace::Screen ? Float(1.0f) : data->options.pixelsPerUnit;
-                    widthUnits = static_cast<float>(frame.width) / ppu;
-                    heightUnits = static_cast<float>(frame.height) / ppu;
+                    widthUnits = static_cast<JBro::Float>(frame.width) / ppu;
+                    heightUnits = static_cast<JBro::Float>(frame.height) / ppu;
                 }
                 if (sprite->pivotMode == Component::SpritePivotMode::FromSprite)
                 {
@@ -1263,7 +1263,7 @@ namespace JBro
                         const Float start = end == 0 ? -0.5f * Pi : 0.5f * Pi;
                         for (Int32 k = 0; k <= ArcSegments; ++k)
                         {
-                            const Float turn = start + Pi * static_cast<float>(k) / static_cast<float>(ArcSegments);
+                            const Float turn = start + Pi * static_cast<JBro::Float>(k) / static_cast<JBro::Float>(ArcSegments);
                             const Float c = std::cos(turn) * capsule.radius;
                             const Float s = std::sin(turn) * capsule.radius;
                             const Vector2 local{ cap.x + axis.x * c + side.x * s, cap.y + axis.y * c + side.y * s };
@@ -1326,7 +1326,7 @@ namespace JBro
                                 WorldToScreen(rect, worldX, worldY, screenX, screenY);
                                 corners[k] = ImVec2(screenX, screenY);
                             }
-                            draw->AddPolyline(corners, static_cast<int>(convex.count), pieceColor,
+                            draw->AddPolyline(corners, static_cast<JBro::Int32>(convex.count), pieceColor,
                                 ImDrawFlags_Closed, 1.0f);
                         }
                     }
@@ -1394,7 +1394,7 @@ namespace JBro
             signature ^= bits;
             signature *= 1099511628211ull;
         };
-        mix(static_cast<float>(collider.points.Size()));
+        mix(static_cast<JBro::Float>(collider.points.Size()));
         for (const Vector2& point : collider.points)
         {
             mix(point.x);
@@ -1626,7 +1626,7 @@ namespace JBro
             for (std::size_t index = 0; index < m_screenScratch.Size(); ++index)
             {
                 const Vector2 p = m_screenScratch[index];
-                Widget::ReportGuideTarget(GuideFocusTargets::PolygonPoint(static_cast<std::uint32_t>(index)),
+                Widget::ReportGuideTarget(GuideFocusTargets::PolygonPoint(static_cast<JBro::UInt32>(index)),
                     ImVec2(p.x - PointHoleRadius, p.y - PointHoleRadius), ImVec2(p.x + PointHoleRadius, p.y + PointHoleRadius),
                     false, grabbedNow && index == m_dragVertex, true);
             }
@@ -2535,7 +2535,7 @@ namespace JBro
             }
             return GizmoModel::MakeCamera(drawn.view, drawn.projection,
                 rect.left, rect.top,
-                static_cast<float>(extent.width), static_cast<float>(extent.height), camera);
+                static_cast<JBro::Float>(extent.width), static_cast<JBro::Float>(extent.height), camera);
         }
 
         // 2D 는 우리가 카메라를 다 안다. 엔진이 캔버스 뷰를 그릴 때 쓰는 것과 같은 식이다.
@@ -2603,7 +2603,7 @@ namespace JBro
         // **끝이 있는 격자다.** 평면은 지평선까지 이어지지만, 거기까지 선을 그으면
         // 먼 쪽이 한 덩어리로 뭉쳐 잡음이 된다. 바라보는 점 둘레의 칸만 그린다.
         constexpr Int32 HalfLines = 20;
-        const Float half = step * static_cast<float>(HalfLines);
+        const Float half = step * static_cast<JBro::Float>(HalfLines);
         const Float baseX = std::floor(look.x / step) * step;
         const Float baseZ = std::floor(look.z / step) * step;
 
@@ -2623,7 +2623,7 @@ namespace JBro
             Bool hasPrevious = false;
             for (Int32 index = 0; index <= Segments; ++index)
             {
-                const Float t = static_cast<float>(index) / static_cast<float>(Segments);
+                const Float t = static_cast<JBro::Float>(index) / static_cast<JBro::Float>(Segments);
                 const Vector3 point{
                     from.x + (to.x - from.x) * t,
                     from.y + (to.y - from.y) * t,
@@ -2647,7 +2647,7 @@ namespace JBro
 
         for (Int32 index = -HalfLines; index <= HalfLines; ++index)
         {
-            const Float offset = step * static_cast<float>(index);
+            const Float offset = step * static_cast<JBro::Float>(index);
             const Float x = baseX + offset;
             const Float z = baseZ + offset;
             // 열 칸마다 한 줄은 진하게. 2D 와 같은 규칙이라 배율이 같은 방식으로 읽힌다.

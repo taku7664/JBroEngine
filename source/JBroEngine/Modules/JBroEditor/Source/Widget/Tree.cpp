@@ -185,7 +185,7 @@ namespace JBro::Widget
             const Bool span_all_columns_label =
                 (flags & ImGuiTreeNodeFlags_LabelSpanAllColumns) != 0 && (g.CurrentTable != NULL);
 
-            const Float tree_depth_indent_compensation = static_cast<float>(ImMax(window->DC.TreeDepth, 0)) * style.IndentSpacing * 0.5f;
+            const Float tree_depth_indent_compensation = static_cast<JBro::Float>(ImMax(window->DC.TreeDepth, 0)) * style.IndentSpacing * 0.5f;
             const Float row_cursor_x = window->DC.CursorPos.x - tree_depth_indent_compensation;
             const Float row_cursor_y = window->DC.CursorPos.y;
 

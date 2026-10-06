@@ -11,6 +11,11 @@
 #include <JBro/Types/NameTable.h>
 
 #include <cstdint>
+#include <JBro/Types/UInt.h>
+
+// 내보내기는 `extern "C"`(이름을 꾸미지 않으려고)이고 시그니처는 엔진 값 타입이다(D-290). MSVC 는 C 연결에서 클래스를
+// 돌려주면 C4190("C 와 호환되지 않음")을 낸다 - 부르는 쪽은 C 가 아니라 같은 타입으로 선언한 C++(호스트·시험)이라 해당하지 않는다.
+#pragma warning(disable : 4190)
 
 #ifndef JBRO_SCRIPT_PROBE_REVISION
 #define JBRO_SCRIPT_PROBE_REVISION 1
@@ -48,9 +53,9 @@ extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetScriptRegistr
     return reinterpret_cast<std::uintptr_t>(&JBro::ScriptRegistry::Get());
 }
 
-extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScriptSize() noexcept
+extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetRegisteredScriptSize() noexcept
 {
-    return static_cast<std::uint32_t>(sizeof(ProbeRegisteredScript));
+    return static_cast<JBro::UInt32>(sizeof(ProbeRegisteredScript));
 }
 
 
@@ -152,8 +157,8 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
 }
 
 extern "C" __declspec(dllexport) const JBro::ScriptModuleApi* JBroScriptModule_GetApi(
-    std::uint32_t hostAbiVersion,
-    std::uint32_t hostApiSize) noexcept
+    JBro::UInt32 hostAbiVersion,
+    JBro::UInt32 hostApiSize) noexcept
 {
     if (hostAbiVersion != JBro::ScriptModuleAbiVersion
         || hostApiSize != sizeof(JBro::ScriptModuleApi))
@@ -163,22 +168,22 @@ extern "C" __declspec(dllexport) const JBro::ScriptModuleApi* JBroScriptModule_G
     return &ModuleApi;
 }
 
-extern "C" __declspec(dllexport) bool JBroScriptProbe_IsLoaded() noexcept
+extern "C" __declspec(dllexport) JBro::Bool JBroScriptProbe_IsLoaded() noexcept
 {
     return g_loaded;
 }
 
-extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetSystemAbi() noexcept
+extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetSystemAbi() noexcept
 {
     return JBro::GetSystemContext().AbiVersion;
 }
 
-extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetServiceAbi() noexcept
+extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetServiceAbi() noexcept
 {
     return JBro::GetServiceContext().AbiVersion;
 }
 
-extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetFramework2DAbi() noexcept
+extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetFramework2DAbi() noexcept
 {
     return JBro::GetFramework2DServices().AbiVersion;
 }
@@ -213,8 +218,8 @@ extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetTextStore() n
 }
 
 // 호스트가 만든 글자를 **DLL 쪽 코덱으로** 읽는다. 스크립트 타입의 `TextId` 필드가 파일에 적힐 때 지나는 길이다.
-extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_WriteText(
-    std::uint32_t index, std::uint32_t generation, char* buffer, std::uint32_t capacity) noexcept
+extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_WriteText(
+    JBro::UInt32 index, JBro::UInt32 generation, char* buffer, JBro::UInt32 capacity) noexcept
 {
     JBro::TextId id;
     id.index = index;
@@ -224,43 +229,43 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_WriteText(
     {
         return 0;
     }
-    return static_cast<std::uint32_t>(required);
+    return static_cast<JBro::UInt32>(required);
 }
 
 // 호스트가 이미 보관한 원문을 DLL 안에서 되찾을 수 있는지 직접 본다.
-extern "C" __declspec(dllexport) const char* JBroScriptProbe_ResolveName(std::uint64_t id) noexcept
+extern "C" __declspec(dllexport) const char* JBroScriptProbe_ResolveName(JBro::UInt64 id) noexcept
 {
     return JBro::NameTable::Get().Resolve(id);
 }
 
-extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRevision() noexcept
+extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetRevision() noexcept
 {
     return JBRO_SCRIPT_PROBE_REVISION;
 }
 
 // DLL 안의 스크립트가 서비스로 읽는 키보드다(D-214). 호스트가 접은 이번 프레임의 입력이 이 DLL 사본에 닿는지 본다.
-extern "C" __declspec(dllexport) bool JBroScriptProbe_IsKeyDown(std::uint16_t key) noexcept
+extern "C" __declspec(dllexport) JBro::Bool JBroScriptProbe_IsKeyDown(std::uint16_t key) noexcept
 {
     return JBro::GetInputServices().Input.Keyboard().IsDown(static_cast<JBro::Key>(key));
 }
 
 // 시간과 난수가 DLL 까지 닿는다(D-242). 공통 컨텍스트는 `BindScriptModuleContexts` 가 묶는다 - 확장 블록이 필요 없다.
-extern "C" __declspec(dllexport) float JBroScriptProbe_GetDeltaTime() noexcept
+extern "C" __declspec(dllexport) JBro::Float JBroScriptProbe_GetDeltaTime() noexcept
 {
     return JBro::GetServiceContext().Time.DeltaTime();
 }
 
-extern "C" __declspec(dllexport) std::uint64_t JBroScriptProbe_GetFrameCount() noexcept
+extern "C" __declspec(dllexport) JBro::UInt64 JBroScriptProbe_GetFrameCount() noexcept
 {
     return JBro::GetServiceContext().Time.FrameCount();
 }
 
-extern "C" __declspec(dllexport) void JBroScriptProbe_SetRandomSeed(std::uint64_t seed) noexcept
+extern "C" __declspec(dllexport) void JBroScriptProbe_SetRandomSeed(JBro::UInt64 seed) noexcept
 {
     JBro::GetServiceContext().Random.SetSeed(seed);
 }
 
-extern "C" __declspec(dllexport) std::int32_t JBroScriptProbe_RandomRange(std::int32_t min, std::int32_t max) noexcept
+extern "C" __declspec(dllexport) JBro::Int32 JBroScriptProbe_RandomRange(JBro::Int32 min, JBro::Int32 max) noexcept
 {
     return JBro::GetServiceContext().Random.Range(min, max);
 }
@@ -272,7 +277,7 @@ extern "C" __declspec(dllexport) void JBroScriptProbe_DrawLine() noexcept
 }
 
 // DLL 안의 스크립트가 세이브를 쓰고 되읽는다(D-218). 읽은 바이트는 이 DLL 의 힙에 놓인다 - 호스트가 DLL 의 컨테이너를 키우지 않는지 본다.
-extern "C" __declspec(dllexport) bool JBroScriptProbe_SaveRoundTrip(const char* slot, const char* text) noexcept
+extern "C" __declspec(dllexport) JBro::Bool JBroScriptProbe_SaveRoundTrip(const char* slot, const char* text) noexcept
 {
     const JBro::Service::SaveService& save = JBro::GetSaveServices().Save;
     const JBro::String written(text);

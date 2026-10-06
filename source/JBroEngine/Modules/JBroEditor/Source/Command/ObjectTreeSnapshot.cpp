@@ -52,7 +52,7 @@ namespace JBro
             entry.components.Add(std::move(captured));
         }
 
-        const Int64 self = static_cast<std::int64_t>(objects.Size());
+        const Int64 self = static_cast<JBro::Int64>(objects.Size());
         objects.Add(std::move(entry));
 
         const Array<SafePtr<GameObject>>& children = object.GetChildren();

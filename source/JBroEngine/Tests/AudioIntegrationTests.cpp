@@ -94,7 +94,7 @@ namespace
         put32(40, dataBytes);
         for (JBro::UInt32 frame = 0; frame < frames; ++frame)
         {
-            const JBro::Float value = amplitude * std::sin(2.0f * Pi * 440.0f * static_cast<float>(frame) / Rate);
+            const JBro::Float value = amplitude * std::sin(2.0f * Pi * 440.0f * static_cast<JBro::Float>(frame) / Rate);
             const std::int16_t sample = static_cast<std::int16_t>(value * 32767.0f);
             const std::int16_t rightSample = right >= 0.0f
                 ? static_cast<std::int16_t>(value / amplitude * right * 32767.0f) : sample;
@@ -112,7 +112,7 @@ namespace
 
     Peaks RenderPeaks(AudioMixer& mixer, JBro::UInt32 frames)
     {
-        Array<float> buffer;
+        Array<JBro::Float> buffer;
         buffer.Resize(static_cast<std::size_t>(frames) * 2);
         JBro::UInt32 done = 0;
         while (done < frames)
@@ -348,10 +348,10 @@ namespace
         Check(streamed->frameCount == Rate, "its length is probed");
         Check(assets.GetSprite(blip) == nullptr && assets.GetTexture(blip) == nullptr, "an audio handle is only audio");
 
-        Array<float> peaks;
+        Array<JBro::Float> peaks;
         JArrayView<std::byte> bytes;
         bytes.data = streamed->encoded.Data();
-        bytes.size = static_cast<std::uint32_t>(streamed->encoded.Size());
+        bytes.size = static_cast<JBro::UInt32>(streamed->encoded.Size());
         Check(ComputeAudioPeaks(bytes, 64, peaks) && peaks.Size() == 64, "the waveform peaks are computed from the bytes");
         Check(peaks[10] > 0.45f && peaks[10] < 0.55f, "a peak matches the tone's amplitude");
 
@@ -445,11 +445,11 @@ namespace
     }
 
     // 왼쪽 채널을 장치처럼 조금씩 당겨 모은다(`PacedWindowPeaks` 와 같은 속도).
-    Array<float> PacedSamples(AudioMixer& mixer, JBro::UInt32 frames)
+    Array<JBro::Float> PacedSamples(AudioMixer& mixer, JBro::UInt32 frames)
     {
-        Array<float> samples;
+        Array<JBro::Float> samples;
         samples.Reserve(frames);
-        float buffer[480 * 2];
+        JBro::Float buffer[480 * 2];
         for (JBro::UInt32 done = 0; done < frames; done += 480)
         {
             mixer.Render(buffer, 480);
@@ -463,10 +463,10 @@ namespace
     }
 
     // 소리를 장치처럼 조금씩 당기되 스트리머가 따라올 틈을 준다(실시간의 약 10 배). 창마다의 최대 크기를 모은다.
-    Array<float> PacedWindowPeaks(AudioMixer& mixer, JBro::UInt32 windows, JBro::UInt32 windowFrames)
+    Array<JBro::Float> PacedWindowPeaks(AudioMixer& mixer, JBro::UInt32 windows, JBro::UInt32 windowFrames)
     {
-        Array<float> peaks;
-        float buffer[480 * 2];
+        Array<JBro::Float> peaks;
+        JBro::Float buffer[480 * 2];
         for (JBro::UInt32 window = 0; window < windows; ++window)
         {
             JBro::Float peak = 0.0f;
@@ -505,7 +505,7 @@ namespace
         Check(data != nullptr && data->pcm.IsEmpty() && data->encoded.IsEmpty() && false == data->streamPath.empty(),
             "a disk-streamed asset keeps only its path in memory");
         Check(data->frameCount == Rate && data->channels == 2 && data->sampleRate == Rate, "its format is read from the header");
-        Array<float> wave;
+        Array<JBro::Float> wave;
         Check(fixture.assets.ComputeAudioPeaks(theme, 64, wave) && wave.Size() == 64 && wave[32] > 0.4f,
             "the editor can draw its waveform by streaming it once");
 
@@ -532,7 +532,7 @@ namespace
         const AudioVoiceHandle looping = mixer.Play(play);
         Check(looping.IsSet(), "a disk stream starts");
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        const Array<float> windows = PacedWindowPeaks(mixer, 30, 4800);
+        const Array<JBro::Float> windows = PacedWindowPeaks(mixer, 30, 4800);
         JBro::Float quietest = 1.0f;
         for (JBro::Float peak : windows)
         {
@@ -545,7 +545,7 @@ namespace
             "the streamer keeps ahead of the audio thread");
         // 창의 봉우리는 10 ms 의 빈틈을 못 본다. 이음매를 지나는 1.2 초의 샘플에서 가장 긴 무음과 가장 큰 튐을 잰다
         // (1 초에 440 주기라 파일은 끊김 없이 이어진다 - 0.5 사인의 샘플 사이 변화는 0.029 를 넘지 않는다).
-        const Array<float> seam = PacedSamples(mixer, Rate * 12 / 10);
+        const Array<JBro::Float> seam = PacedSamples(mixer, Rate * 12 / 10);
         JBro::UInt32 silentRun = 0;
         JBro::UInt32 longestSilence = 0;
         JBro::Float largestJump = 0.0f;
@@ -659,7 +659,7 @@ namespace
             fixture.Close();
         }
 
-        float scratch[1600] = {};
+        JBro::Float scratch[1600] = {};
     };
 
     void EditAudioMeta(Fixture& fixture, const char* file, const AudioImportOptions& options)
@@ -847,7 +847,7 @@ namespace
         play.clip = streamMixer.RegisterClip(fileClip);
         Check(streamMixer.Play(play).IsSet(), "a mono disk stream starts");
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        const Array<float> windows = PacedWindowPeaks(streamMixer, 5, 4800);
+        const Array<JBro::Float> windows = PacedWindowPeaks(streamMixer, 5, 4800);
         std::cout << "  mono disk stream window peak " << windows[4] << '\n';
         Check(windows[4] > 0.22f && windows[4] < 0.28f && streamMixer.GetStats().streamUnderruns == 0,
             "a mono disk stream plays the channel average without a gap");
@@ -1152,7 +1152,7 @@ namespace
         scene.Open();
         for (JBro::Int32 index = 0; index < 8; ++index)
         {
-            Component::AudioSource* source = scene.AddSource("loop", static_cast<float>(index), true);
+            Component::AudioSource* source = scene.AddSource("loop", static_cast<JBro::Float>(index), true);
             source->spatial = (index % 2) == 0;
             source->doppler = (index % 4) == 0 ? 1.0f : 0.0f;
             source->bus = AudioBusName::FromText((index % 3) == 0 ? "Music" : "SFX");

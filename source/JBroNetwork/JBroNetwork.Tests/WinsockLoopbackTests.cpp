@@ -78,7 +78,7 @@ namespace
         Check(client.GetConnectionState(ServerConnectionId) == ConnectionState::Connected, "and on the client");
 
         const char text[] = "over real sockets";
-        Check(client.Send(ServerConnectionId, 5, text, sizeof(text)), "the client sends");
+        Check(client.Send(ServerConnectionId, 5, text, static_cast<JBro::UInt32>(sizeof(text))), "the client sends");
         MessageView view;
         const JBro::Bool received = PumpUntil(server, client, [&]()
         {
@@ -93,7 +93,7 @@ namespace
         {
             big[index] = static_cast<std::uint8_t>(index * 13);
         }
-        Check(server.Send(clientOnServer, 6, big, sizeof(big)), "the server sends 40000 bytes");
+        Check(server.Send(clientOnServer, 6, big, static_cast<JBro::UInt32>(sizeof(big))), "the server sends 40000 bytes");
         MessageView bigView;
         const JBro::Bool bigReceived = PumpUntil(server, client, [&]()
         {

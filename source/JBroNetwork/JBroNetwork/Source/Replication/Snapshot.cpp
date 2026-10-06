@@ -205,7 +205,7 @@ namespace JBro::Network
 
     UInt32 SnapshotHistory::Capacity() const
     {
-        return static_cast<std::uint32_t>(m_slots.Size());
+        return static_cast<JBro::UInt32>(m_slots.Size());
     }
 
     void SnapshotHistory::Clear()

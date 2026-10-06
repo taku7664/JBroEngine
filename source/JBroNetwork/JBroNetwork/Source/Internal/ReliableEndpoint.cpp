@@ -111,7 +111,7 @@ namespace JBro::Network
         {
             return false;
         }
-        m_sendQueue.Write(&unit, sizeof(QueuedUnit));
+        m_sendQueue.Write(&unit, static_cast<UInt32>(sizeof(QueuedUnit)));
         if (unit.size > 0)
         {
             m_sendQueue.Write(payload, unit.size);
@@ -201,7 +201,7 @@ namespace JBro::Network
                 break;
             }
             QueuedUnit unit;
-            m_sendQueue.Read(&unit, sizeof(QueuedUnit));
+            m_sendQueue.Read(&unit, static_cast<UInt32>(sizeof(QueuedUnit)));
             const UInt32 seq = m_nextSeq++;
             Outbound& outbound = SlotFor(seq);
             outbound.used = true;
@@ -302,7 +302,7 @@ namespace JBro::Network
         const UInt32 seq = header.seq;
         // 창 밖 순번은 보내는 쪽 규칙 위반이다. ack 도 하지 않는다. 비교는 순번이 한 바퀴 돌아도 맞는 부호 있는 거리다.
         const Int32 distance = SeqDistance(seq, m_recvNext);
-        if (distance >= static_cast<std::int32_t>(AckWindow))
+        if (distance >= static_cast<JBro::Int32>(AckWindow))
         {
             return;
         }
@@ -394,7 +394,7 @@ namespace JBro::Network
             }
             if (0 == reassembly->have[header.fragIndex])
             {
-                const UInt32 offset = static_cast<std::uint32_t>(header.fragIndex) * UdpProto::MaxPayloadBytes;
+                const UInt32 offset = static_cast<JBro::UInt32>(header.fragIndex) * UdpProto::MaxPayloadBytes;
                 if (offset + size > reassembly->bytes.Size())
                 {
                     return;
@@ -416,7 +416,7 @@ namespace JBro::Network
                 return;
             }
             // 완성. 순서 무관이면 바로, 아니면 마지막 조각의 순번으로 줄에 세운다.
-            const Int32 slotIndex = static_cast<std::int32_t>(reassembly - m_reassembly.Data());
+            const Int32 slotIndex = static_cast<JBro::Int32>(reassembly - m_reassembly.Data());
             if (reassembly->channel == NetChannel::ReliableUnordered)
             {
                 receiver.Deliver(reassembly->channel, reassembly->messageId, reassembly->bytes.Data(), reassembly->totalSize);

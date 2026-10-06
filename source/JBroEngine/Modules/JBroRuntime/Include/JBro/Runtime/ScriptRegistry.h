@@ -110,8 +110,8 @@ namespace JBro
         ScriptTypeInfo info;
         info.name = MakeNameId(T::StaticTypeName());
         info.typeId = MakeStableTypeId(T::StaticTypeName());
-        info.size = static_cast<std::uint32_t>(sizeof(T));
-        info.alignment = static_cast<std::uint32_t>(alignof(T));
+        info.size = static_cast<JBro::UInt32>(sizeof(T));
+        info.alignment = static_cast<JBro::UInt32>(alignof(T));
         // 생성이 던지면 경계를 넘기지 않고 실패로 바꾼다. 예외는 DLL 경계를 넘지 않는다.
         info.Construct = [](void* storage) noexcept -> GameScriptBase*
         {

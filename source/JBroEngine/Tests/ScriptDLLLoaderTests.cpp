@@ -232,10 +232,10 @@ namespace
         g_requirements[0] = {
             ProbeContextTypeId,
             7,
-            static_cast<std::uint32_t>(sizeof(ProbeExtension))};
+            static_cast<JBro::UInt32>(sizeof(ProbeExtension))};
         g_api = {};
         g_api.AbiVersion = JBro::ScriptModuleAbiVersion;
-        g_api.StructSize = sizeof(JBro::ScriptModuleApi);
+        g_api.StructSize = static_cast<JBro::UInt32>(sizeof(JBro::ScriptModuleApi));
         g_api.RequiredContexts = g_requirements;
         g_api.RequiredContextCount = 1;
         g_api.Load = &LoadProbeModule;
@@ -247,7 +247,7 @@ namespace
         return {
             ProbeContextTypeId,
             extension.AbiVersion,
-            static_cast<std::uint32_t>(sizeof(extension)),
+            static_cast<JBro::UInt32>(sizeof(extension)),
             &extension};
     }
 
@@ -595,9 +595,9 @@ namespace
             "real script DLL must load from a Korean UTF-8 path");
         Check(CountShadowLibraries(files) == 1,
             "a loaded script module must own exactly one shadow DLL");
-        // DLL 의 extern "C" 내보내기와 같은 원시 시그니처다(경계, D-290).
-        using ReadBool = bool (*)() noexcept;
-        using ReadU32 = std::uint32_t (*)() noexcept;
+        // DLL 의 내보내기와 같은 시그니처다. 양쪽이 같은 타입이어야 반환 규약이 맞는다(D-290).
+        using ReadBool = JBro::Bool (*)() noexcept;
+        using ReadU32 = JBro::UInt32 (*)() noexcept;
         using ReadAddress = std::uintptr_t (*)() noexcept;
         const auto isLoaded = reinterpret_cast<ReadBool>(
             loader.GetSymbol("JBroScriptProbe_IsLoaded"));
@@ -634,7 +634,7 @@ namespace
 
         // 이름표도 같은 방식으로 붙어야 한다. 붙지 않으면 DLL 이 호스트가 지은
         // 태그의 원문을 되찾지 못하고 빈 문자열만 본다.
-        using ResolveName = const char* (*)(std::uint64_t) noexcept;
+        using ResolveName = const char* (*)(JBro::UInt64) noexcept;
         const auto getNameTable = reinterpret_cast<ReadAddress>(
             loader.GetSymbol("JBroScriptProbe_GetNameTable"));
         const auto resolveName = reinterpret_cast<ResolveName>(
@@ -649,7 +649,7 @@ namespace
             "a script DLL must read back a name the host interned");
 
         // 글자 저장소도 붙는다(D-211). DLL 쪽 코덱이 호스트가 쓴 글자를 읽어야 스크립트 타입의 `TextId` 필드가 파일에 남는다.
-        using WriteText = std::uint32_t (*)(std::uint32_t, std::uint32_t, char*, std::uint32_t) noexcept;
+        using WriteText = JBro::UInt32 (*)(JBro::UInt32, JBro::UInt32, char*, JBro::UInt32) noexcept;
         const auto getTextStore = reinterpret_cast<ReadAddress>(loader.GetSymbol("JBroScriptProbe_GetTextStore"));
         const auto writeText = reinterpret_cast<WriteText>(loader.GetSymbol("JBroScriptProbe_WriteText"));
         Check(getTextStore != nullptr && writeText != nullptr, "the real script probe must expose its text store view");
@@ -657,7 +657,7 @@ namespace
             "a loaded script DLL must keep text in the host text store");
         const JBro::TextId hostText = JBro::TextStore::Local().Create("from the host", 13);
         char written[64] = {};
-        Check(writeText(hostText.index, hostText.generation, written, sizeof(written)) != 0
+        Check(writeText(hostText.index, hostText.generation, written, static_cast<JBro::UInt32>(sizeof(written))) != 0
                 && std::strcmp(written, "from the host") == 0,
             "the script DLL's codec reads the text the host wrote");
         JBro::TextStore::Local().Destroy(hostText);
@@ -860,7 +860,7 @@ namespace
 
         // 게임 입력이 DLL 까지 닿는다(D-214). 창에 넣은 키를 엔진이 틱에서 접고, DLL 은 자기 사본의 서비스로
         // 그것을 읽는다 - 호스트가 입력 블록을 내지 않았거나 DLL 이 묶지 않았으면 여기서 거짓이다.
-        using IsKeyDown = bool (*)(std::uint16_t) noexcept;
+        using IsKeyDown = JBro::Bool (*)(std::uint16_t) noexcept;
         const auto isKeyDown = reinterpret_cast<IsKeyDown>(
             engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsKeyDown"));
         Check(isKeyDown != nullptr, "the probe must export its key query");
@@ -896,10 +896,10 @@ namespace
 
         // 시간과 난수가 DLL 까지 닿는다(D-242). DLL 은 제 사본의 서비스로 호스트의 시계와 난수 흐름을 읽는다 - 호스트가 공통 시스템
         // 컨텍스트를 채우지 않았으면 델타는 0 이고, DLL 이 묶지 않았으면 제 사본의 고정 씨앗 흐름에서 뽑아 엔진 씨앗이 바뀌지 않는다.
-        using GetDelta = float (*)() noexcept;
-        using GetFrames = std::uint64_t (*)() noexcept;
-        using SetSeed = void (*)(std::uint64_t) noexcept;
-        using RandomRange = std::int32_t (*)(std::int32_t, std::int32_t) noexcept;
+        using GetDelta = JBro::Float (*)() noexcept;
+        using GetFrames = JBro::UInt64 (*)() noexcept;
+        using SetSeed = void (*)(JBro::UInt64) noexcept;
+        using RandomRange = JBro::Int32 (*)(JBro::Int32, JBro::Int32) noexcept;
         const auto getDelta = reinterpret_cast<GetDelta>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_GetDeltaTime"));
         const auto getFrames = reinterpret_cast<GetFrames>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_GetFrameCount"));
         const auto setSeed = reinterpret_cast<SetSeed>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_SetRandomSeed"));
@@ -940,7 +940,7 @@ namespace
             "restarting the game time must undo the scale a game set and zero the game clock");
 
         // DLL 안의 스크립트가 세이브를 쓰고 되읽는다(D-218). 읽은 바이트는 DLL 의 힙에 놓인다.
-        using SaveRoundTrip = bool (*)(const char*, const char*) noexcept;
+        using SaveRoundTrip = JBro::Bool (*)(const char*, const char*) noexcept;
         const auto saveRoundTrip = reinterpret_cast<SaveRoundTrip>(
             engine.GetScriptModule().GetSymbol("JBroScriptProbe_SaveRoundTrip"));
         Check(saveRoundTrip != nullptr, "the probe must export its save round trip");

@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Int.h>
 
 namespace JBro
 {
@@ -78,7 +79,7 @@ namespace JBro
                 }
                 else if constexpr (std::is_same_v<T, Bool>)
                 {
-                    return static_cast<int>(value.Get());
+                    return static_cast<JBro::Int32>(value.Get());
                 }
                 else if constexpr (IsIntegerValue<T>::value)
                 {

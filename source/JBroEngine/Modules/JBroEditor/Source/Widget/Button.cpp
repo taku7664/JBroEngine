@@ -79,10 +79,10 @@ namespace JBro::Widget
             {
                 return false;
             }
-            const Int32 left = static_cast<int>(glyph.U0 * texture->Width + 0.5f);
-            const Int32 top = static_cast<int>(glyph.V0 * texture->Height + 0.5f);
-            const Int32 right = static_cast<int>(glyph.U1 * texture->Width + 0.5f);
-            const Int32 bottom = static_cast<int>(glyph.V1 * texture->Height + 0.5f);
+            const Int32 left = static_cast<JBro::Int32>(glyph.U0 * texture->Width + 0.5f);
+            const Int32 top = static_cast<JBro::Int32>(glyph.V0 * texture->Height + 0.5f);
+            const Int32 right = static_cast<JBro::Int32>(glyph.U1 * texture->Width + 0.5f);
+            const Int32 bottom = static_cast<JBro::Int32>(glyph.V1 * texture->Height + 0.5f);
             if (right <= left || bottom <= top)
             {
                 return false;
@@ -112,8 +112,8 @@ namespace JBro::Widget
             {
                 return false;
             }
-            const Float texelWidth = (glyph.X1 - glyph.X0) / static_cast<float>(right - left);
-            const Float texelHeight = (glyph.Y1 - glyph.Y0) / static_cast<float>(bottom - top);
+            const Float texelWidth = (glyph.X1 - glyph.X0) / static_cast<JBro::Float>(right - left);
+            const Float texelHeight = (glyph.Y1 - glyph.Y0) / static_cast<JBro::Float>(bottom - top);
             inkMin = ImVec2(glyph.X0 + (inkLeft - left) * texelWidth, glyph.Y0 + (inkTop - top) * texelHeight);
             inkMax = ImVec2(glyph.X0 + (inkRight + 1 - left) * texelWidth, glyph.Y0 + (inkBottom + 1 - top) * texelHeight);
             return true;

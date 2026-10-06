@@ -39,7 +39,7 @@ namespace JBro
         Float Stick(SHORT value)
         {
             // -32768 도 -1 로 자른다. 32767 로 나누면 -1.00003 이 된다.
-            return std::clamp(static_cast<float>(value) / 32767.0f, -1.0f, 1.0f);
+            return JBro::Clamp(static_cast<JBro::Float>(value) / 32767.0f, -1.0f, 1.0f);
         }
     }
 
@@ -67,8 +67,8 @@ namespace JBro
         state.axes[static_cast<std::size_t>(GamepadAxis::LeftY)] = Stick(raw.Gamepad.sThumbLY);
         state.axes[static_cast<std::size_t>(GamepadAxis::RightX)] = Stick(raw.Gamepad.sThumbRX);
         state.axes[static_cast<std::size_t>(GamepadAxis::RightY)] = Stick(raw.Gamepad.sThumbRY);
-        state.axes[static_cast<std::size_t>(GamepadAxis::LeftTrigger)] = static_cast<float>(raw.Gamepad.bLeftTrigger) / 255.0f;
-        state.axes[static_cast<std::size_t>(GamepadAxis::RightTrigger)] = static_cast<float>(raw.Gamepad.bRightTrigger) / 255.0f;
+        state.axes[static_cast<std::size_t>(GamepadAxis::LeftTrigger)] = static_cast<JBro::Float>(raw.Gamepad.bLeftTrigger) / 255.0f;
+        state.axes[static_cast<std::size_t>(GamepadAxis::RightTrigger)] = static_cast<JBro::Float>(raw.Gamepad.bRightTrigger) / 255.0f;
         return true;
     }
 

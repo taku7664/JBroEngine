@@ -160,8 +160,8 @@ namespace JBro
             if ((false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f)) && m_context.renderer != nullptr)
             {
                 const Extent2D extent = m_context.renderer->GetFrameExtent();
-                frame.targetWidth = static_cast<float>(extent.width);
-                frame.targetHeight = static_cast<float>(extent.height);
+                frame.targetWidth = static_cast<JBro::Float>(extent.width);
+                frame.targetHeight = static_cast<JBro::Float>(extent.height);
             }
             // `PixelPerfect` 카메라의 레터박스를 화면 기준에 건다(D-239) - 앵커·버튼이 그 사각형 안을 잰다. 카메라는 지난 프레임의
             // 트랜스폼으로 고른다(이번 프레임의 트랜스폼은 아직 돌지 않았다). 그리기는 이번에 뽑힌 카메라로 같은 함수를 다시 부른다.

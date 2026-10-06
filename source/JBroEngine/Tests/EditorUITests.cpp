@@ -13,6 +13,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/Float.h>
 
 namespace
 {
@@ -85,7 +86,7 @@ namespace
         }
 
         JBro::WindowDesc windowDesc;
-        windowDesc.title = {title, static_cast<std::uint32_t>(std::strlen(title))};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(std::strlen(title))};
         windowDesc.width = SurfaceSize;
         windowDesc.height = SurfaceSize;
         windowDesc.visible = false;
@@ -158,9 +159,9 @@ namespace
         Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
             "each UI frame must begin");
         ImGui::SetNextWindowPos(
-            ImVec2(static_cast<float>(WindowLeft), static_cast<float>(WindowTop)));
+            ImVec2(static_cast<JBro::Float>(WindowLeft), static_cast<JBro::Float>(WindowTop)));
         ImGui::SetNextWindowSize(
-            ImVec2(static_cast<float>(WindowWidth), static_cast<float>(WindowHeight)));
+            ImVec2(static_cast<JBro::Float>(WindowWidth), static_cast<JBro::Float>(WindowHeight)));
         ImGui::Begin("Probe", nullptr,
             ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
                 | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
@@ -175,17 +176,17 @@ namespace
         // 배경 드로우 리스트는 창들과 별도 리스트로 제출된다.
         ImDrawList* background = ImGui::GetBackgroundDrawList();
         background->AddRectFilled(
-            ImVec2(static_cast<float>(CornerLeft), static_cast<float>(CornerTop)),
-            ImVec2(static_cast<float>(CornerLeft + CornerSize),
-                static_cast<float>(CornerTop + CornerSize)),
+            ImVec2(static_cast<JBro::Float>(CornerLeft), static_cast<JBro::Float>(CornerTop)),
+            ImVec2(static_cast<JBro::Float>(CornerLeft + CornerSize),
+                static_cast<JBro::Float>(CornerTop + CornerSize)),
             IM_COL32(255, 255, 255, 255));
         background->PushClipRect(
-            ImVec2(-40.0f, static_cast<float>(ClipTop)),
-            ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
+            ImVec2(-40.0f, static_cast<JBro::Float>(ClipTop)),
+            ImVec2(static_cast<JBro::Float>(ClipRight), static_cast<JBro::Float>(ClipBottom)),
             false);
         background->AddRectFilled(
-            ImVec2(-40.0f, static_cast<float>(ClipTop)),
-            ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
+            ImVec2(-40.0f, static_cast<JBro::Float>(ClipTop)),
+            ImVec2(static_cast<JBro::Float>(ClipRight), static_cast<JBro::Float>(ClipBottom)),
             IM_COL32(255, 255, 255, 255));
         background->PopClipRect();
 
@@ -197,11 +198,11 @@ namespace
         // 인덱스를 엉뚱한 데서 읽어와도 결과가 똑같이 나온다. 둥근 모서리는
         // 삼각형 부채꼴이 되어 그 패턴이 달라진다.
         ImGui::GetForegroundDrawList()->AddRectFilled(
-            ImVec2(static_cast<float>(ForeLeft), static_cast<float>(ForeTop)),
-            ImVec2(static_cast<float>(ForeLeft + ForeSize),
-                static_cast<float>(ForeTop + ForeSize)),
+            ImVec2(static_cast<JBro::Float>(ForeLeft), static_cast<JBro::Float>(ForeTop)),
+            ImVec2(static_cast<JBro::Float>(ForeLeft + ForeSize),
+                static_cast<JBro::Float>(ForeTop + ForeSize)),
             IM_COL32(255, 255, 255, 255),
-            static_cast<float>(ForeRounding));
+            static_cast<JBro::Float>(ForeRounding));
         Check(ui.EndFrame(), "each UI frame must end and its textures must upload");
         };
 
@@ -239,8 +240,8 @@ namespace
         Check(commands.BeginRenderPass(pass), "the render pass must begin");
 
         JBro::Viewport viewport;
-        viewport.width = static_cast<float>(SurfaceSize);
-        viewport.height = static_cast<float>(SurfaceSize);
+        viewport.width = static_cast<JBro::Float>(SurfaceSize);
+        viewport.height = static_cast<JBro::Float>(SurfaceSize);
         commands.SetViewport(viewport);
 
         // 슬롯을 함께 준다. 이 프레임이 쓰는 슬롯의 버퍼에 정점이 들어간다.
@@ -430,8 +431,8 @@ namespace
         // 이번 프레임의 가져감을 정하므로, 두 프레임을 돌려야 한다.
         JBro::InputEvent move;
         move.kind = JBro::InputEventKind::MouseMove;
-        move.x = static_cast<float>(SurfaceSize) / 2.0f;
-        move.y = static_cast<float>(SurfaceSize) / 2.0f;
+        move.x = static_cast<JBro::Float>(SurfaceSize) / 2.0f;
+        move.y = static_cast<JBro::Float>(SurfaceSize) / 2.0f;
 
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
@@ -440,7 +441,7 @@ namespace
                 "the UI frame must begin");
             ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
             ImGui::SetNextWindowSize(ImVec2(
-                static_cast<float>(SurfaceSize), static_cast<float>(SurfaceSize)));
+                static_cast<JBro::Float>(SurfaceSize), static_cast<JBro::Float>(SurfaceSize)));
             ImGui::Begin("Hover", nullptr, ImGuiWindowFlags_NoSavedSettings);
             ImGui::TextUnformatted("over here");
             ImGui::End();
@@ -473,7 +474,7 @@ namespace
         char typedText[32] = {};
         JBro::InputEvent typed;
         typed.kind = JBro::InputEventKind::Text;
-        typed.codePoint = static_cast<std::uint32_t>('k');
+        typed.codePoint = static_cast<JBro::UInt32>('k');
         // 프레임 순서가 까다롭다. 창은 첫 두 프레임 동안 자리를 잡느라 감춰져 있어
         // 그때 준 포커스는 먹지 않고, 필드가 **활성화되는 그 프레임**의 글자는
         // 버려진다(활성화하면서 내용을 고르기 때문이다). 그래서 자리를 잡히고,

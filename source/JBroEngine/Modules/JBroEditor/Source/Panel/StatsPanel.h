@@ -48,6 +48,6 @@ namespace JBro
         Float m_busLevels[MaxMeteredBuses] = {};
         Float m_masterLevel = 0.0f;
         static constexpr UInt32 SpectrumBands = 48;
-        float m_spectrum[SpectrumBands] = {};
+        Float m_spectrum[SpectrumBands] = {};
     };
 }

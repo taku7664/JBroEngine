@@ -83,7 +83,7 @@ namespace JBro
             {
                 return Fail(error, document.GetLine(document.Find(root, "Version")), "this meta file version is not one this engine reads");
             }
-            parsed.version = static_cast<std::uint32_t>(version);
+            parsed.version = static_cast<JBro::UInt32>(version);
 
             if (false == ReadId(document, root, "Id", parsed.id) || parsed.id.IsNull())
             {
@@ -189,7 +189,7 @@ namespace JBro
         }
         char idText[Uuid::TextCapacity];
         YamlWriter writer;
-        writer.WriteInt("Version", static_cast<std::int64_t>(meta.version));
+        writer.WriteInt("Version", static_cast<JBro::Int64>(meta.version));
         meta.id.ToText(idText, sizeof(idText));
         writer.WriteString("Id", idText);
         writer.WriteString("Type", AssetTypeRules::GetTypeName(meta.type));
@@ -282,7 +282,7 @@ namespace JBro
         }
         JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(text.data());
-        view.size = static_cast<std::uint32_t>(text.size());
+        view.size = static_cast<JBro::UInt32>(text.size());
         // 임시 파일에 다 쓴 뒤 바꿔치기한다. 메타를 쓰다 말면 아이디를 잃고, 그것은 다시 들여와도 돌아오지 않는다.
         // 옮기기가 없는 플랫폼은 그대로 덮어쓴다.
         const String scratch = AssetTypeRules::MakeMetaScratchPath(utf8Path);

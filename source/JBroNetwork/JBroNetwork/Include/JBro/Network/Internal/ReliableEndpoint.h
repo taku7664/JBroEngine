@@ -27,7 +27,7 @@ namespace JBro::Network
     // 32 비트 순번은 돌아온다. 뺄셈을 부호 있는 수로 보면 창 안에서는 언제나 맞는 비교가 된다(RFC1982 와 같은 생각).
     inline Int32 SeqDistance(UInt32 later, UInt32 earlier)
     {
-        return static_cast<std::int32_t>(later - earlier);
+        return static_cast<JBro::Int32>(later - earlier);
     }
 
     inline Bool SeqLess(UInt32 left, UInt32 right)

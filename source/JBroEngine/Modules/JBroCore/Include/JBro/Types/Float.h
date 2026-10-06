@@ -14,7 +14,15 @@ class Float
 {
 public:
 	constexpr Float() noexcept = default;
-	constexpr Float(float value) noexcept : Value(value) {}
+	// **실수에서만 암시로 만든다**(D-290). 정수·열거형에서는 명시다(`static_cast<Float>(count)`) - 정수 리터럴이
+	// `Float` 로도 정수 강타입으로도 암시 변환되면 `Range(3, 7)` 이 모호해진다. `Float speed = 0;` 은 `0.0f` 로 적는다.
+	template<typename A>
+		requires std::is_floating_point_v<A>
+	constexpr Float(A value) noexcept : Value(static_cast<float>(value)) {}
+
+	template<typename A>
+		requires (std::is_integral_v<A> || std::is_enum_v<A>)
+	constexpr explicit Float(A value) noexcept : Value(static_cast<float>(value)) {}
 	// 정수 강타입에서 바로 온다. 원시 `int` 가 `float` 로 암시 변환되던 것과 같다 -
 	// 없으면 `Int32` → `int` → `float` → `Float` 로 사용자 변환이 둘이라 막힌다(D-290).
 	template<typename U>

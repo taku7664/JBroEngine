@@ -61,7 +61,7 @@ namespace
         }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro Vulkan probe";
-        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
         windowDesc.width = 64;
         windowDesc.height = 48;
         windowDesc.visible = false;
@@ -100,7 +100,7 @@ namespace
             "and describe the surface with a tight row pitch, like D3D12 does");
         // BGRA: 파랑 0, 초록 128 근처, 빨강 255.
         Check(Channel(image, readback.rowPitch, 32, 24, 2) == 255 && Channel(image, readback.rowPitch, 32, 24, 0) == 0
-                && std::abs(static_cast<int>(Channel(image, readback.rowPitch, 32, 24, 1)) - 128) <= 1,
+                && std::abs(static_cast<JBro::Int32>(Channel(image, readback.rowPitch, 32, 24, 1)) - 128) <= 1,
             "the back buffer must hold the camera's clear colour");
 
         // 크기를 바꾼 뒤에도 다음 프레임이 새 크기로 돈다.

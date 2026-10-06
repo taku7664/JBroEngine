@@ -40,7 +40,7 @@ namespace JBro::Service
             {
                 return false;
             }
-            return SetText(text, utf8, static_cast<std::uint32_t>(length));
+            return SetText(text, utf8, static_cast<JBro::UInt32>(length));
         }
 
         // 게임 문자열 표의 키를 바꾼다(D-226). 빈 키를 주면 `text` 의 글자로 돌아간다. 글자 칸은 `text` 와 같은 길로 호스트가 복사한다.
@@ -53,7 +53,7 @@ namespace JBro::Service
             {
                 return false;
             }
-            system->SetText(component->textKey, key, static_cast<std::uint32_t>(length));
+            system->SetText(component->textKey, key, static_cast<JBro::UInt32>(length));
             return true;
         }
 

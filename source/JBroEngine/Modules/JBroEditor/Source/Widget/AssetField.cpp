@@ -67,7 +67,7 @@ namespace JBro::Widget
             items.Add(m_names[index]);
             if (current < 0 && m_ids[index] == m_value)
             {
-                current = static_cast<int>(index) + offset;
+                current = static_cast<JBro::Int32>(index) + offset;
             }
         }
         const Bool isNull = m_value.IsNull();

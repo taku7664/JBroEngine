@@ -32,7 +32,7 @@ namespace
 
         JBRO_FIELD(JBro::Float, PositionX) = 0.0f;
         JBRO_FIELD(JBro::Float, PositionY) = 0.0f;
-        JBRO_FIELD(JBro::Float, Rotation, Range(0, 360)) = 0.0f;
+        JBRO_FIELD(JBro::Float, Rotation, Range(0.0f, 360.0f)) = 0.0f;
     };
 
     // 스크립트 자리에 설 타입.

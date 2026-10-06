@@ -434,7 +434,7 @@ namespace JBro
 
     UInt32 EditorActionRegistry::GetCount() const
     {
-        return static_cast<std::uint32_t>(m_actions.Size());
+        return static_cast<JBro::UInt32>(m_actions.Size());
     }
 
     const EditorActionInfo& EditorActionRegistry::GetAt(UInt32 index) const

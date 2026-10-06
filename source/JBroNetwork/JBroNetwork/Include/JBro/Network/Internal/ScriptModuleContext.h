@@ -4,6 +4,7 @@
 #include <JBro/Network/Internal/SystemContext.h>
 #include <JBro/Network/ServiceContext.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/UInt.h>
 
 // 네트워크 컨텍스트를 D-37 확장 블록으로 내고 찾는 도우미다. `JBro::Framework2D` 의 것과 같은 모양이다.
 // 블록은 프레임워크가 아니라 **호스트가** 만든다 - 트랜스포트는 캔버스보다 오래 살고 두 차원이 같은 것을 쓴다.
@@ -16,7 +17,7 @@ namespace JBro
     {
         NetworkServiceContextTypeId,
         NetworkServiceContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(NetworkServiceContext))
+        static_cast<JBro::UInt32>(sizeof(NetworkServiceContext))
     };
 
     ScriptContextBlock MakeNetworkServiceContextBlock(const NetworkServiceContext& context) noexcept;
@@ -28,7 +29,7 @@ namespace JBro
     {
         NetworkSystemContextTypeId,
         NetworkSystemContextAbiVersion,
-        static_cast<std::uint32_t>(sizeof(NetworkSystemContext))
+        static_cast<JBro::UInt32>(sizeof(NetworkSystemContext))
     };
 
     ScriptContextBlock MakeNetworkSystemContextBlock(const NetworkSystemContext& context) noexcept;

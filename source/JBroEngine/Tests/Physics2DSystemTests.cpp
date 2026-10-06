@@ -154,7 +154,7 @@ namespace
 
         void Run(JBro::Float seconds)
         {
-            const JBro::Int32 steps = static_cast<int>(seconds / Frame + 0.5f);
+            const JBro::Int32 steps = static_cast<JBro::Int32>(seconds / Frame + 0.5f);
             for (JBro::Int32 i = 0; i < steps; ++i)
             {
                 physics.FixedUpdate(canvas, Frame);
@@ -169,7 +169,7 @@ namespace
 
     Array<Vector2> UOutline()
     {
-        return { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        return { { 0.0f, 0.0f }, { 3.0f, 0.0f }, { 3.0f, 3.0f }, { 2.0f, 3.0f }, { 2.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 3.0f }, { 0.0f, 3.0f } };
     }
 
     // **떨어진 상자가 바닥에 얹히고, 양쪽 스크립트가 시작을 한 번씩 받는다.** 법선은 각자 자기 → 상대 쪽이다.
@@ -177,12 +177,12 @@ namespace
     void TestAFallingBoxLandsAndBothScriptsHearIt()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
         ContactProbe* groundProbe = scene.Probe(ground);
 
-        JBro::GameObject* box = scene.Object("box", { 0, 2 });
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 2.0f });
+        scene.Box(box, { 1.0f, 1.0f });
         Rigidbody2D* body = scene.Dynamic(box);
         ContactProbe* boxProbe = scene.Probe(box);
 
@@ -209,7 +209,7 @@ namespace
         Check(boxProbe->collisionExit == 0 && boxProbe->triggerEnter == 0, "nothing else is heard");
 
         // 스크립트가 자리를 옮기면 커널이 따라간다(순간 이동).
-        scene.TransformOf(box)->position = { 0, 5 };
+        scene.TransformOf(box)->position = { 0.0f, 5.0f };
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(scene.TransformOf(box)->position.y > 4.9f, "a teleported box starts from where the script put it");
         Check(boxProbe->collisionExit == 1 && groundProbe->collisionExit == 1, "and both scripts hear it leave once");
@@ -222,14 +222,14 @@ namespace
     void TestAConcavePolygonColliderHoldsWhatFallsOnAndIntoIt()
     {
         Scene scene;
-        JBro::GameObject* cup = scene.Object("cup", { 0, 0 });
+        JBro::GameObject* cup = scene.Object("cup", { 0.0f, 0.0f });
         Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
         polygon->shape = ColliderShape2D::Polygon;
         polygon->points = UOutline();
         ContactProbe* cupProbe = scene.Probe(cup);
 
         JBro::GameObject* lid = scene.Object("lid", { 1.5f, 3.6f });
-        scene.Box(lid, { 3, 1 });
+        scene.Box(lid, { 3.0f, 1.0f });
         scene.Dynamic(lid);
 
         JBro::GameObject* pebble = scene.Object("pebble", { 1.5f, 2.0f });
@@ -248,12 +248,12 @@ namespace
     void TestATriggerReportsWithoutPushing()
     {
         Scene scene;
-        JBro::GameObject* zone = scene.Object("zone", { 0, 2 });
-        Collider2D* sensor = scene.Box(zone, { 4, 1 });
+        JBro::GameObject* zone = scene.Object("zone", { 0.0f, 2.0f });
+        Collider2D* sensor = scene.Box(zone, { 4.0f, 1.0f });
         sensor->isTrigger = true;
         ContactProbe* zoneProbe = scene.Probe(zone);
 
-        JBro::GameObject* ball = scene.Object("ball", { 0, 4 });
+        JBro::GameObject* ball = scene.Object("ball", { 0.0f, 4.0f });
         Collider2D* round = scene.canvas.AttachComponent<Collider2D>(ball);
         round->shape = ColliderShape2D::Circle;
         round->radius = 0.25f;
@@ -273,11 +273,11 @@ namespace
     void TestLosingAPartnerEndsTheContact()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        Collider2D* floor = scene.Box(ground, { 40, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        Collider2D* floor = scene.Box(ground, { 40.0f, 1.0f });
 
-        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.5f });
+        scene.Box(box, { 1.0f, 1.0f });
         scene.Dynamic(box);
         ContactProbe* boxProbe = scene.Probe(box);
 
@@ -290,7 +290,7 @@ namespace
         Check(boxProbe->lastExit.other.GetInstanceId() == ground->GetInstanceId(), "naming the ground");
 
         floor->SetEnabled(true);
-        scene.TransformOf(box)->position = { 0, 0.5f };
+        scene.TransformOf(box)->position = { 0.0f, 0.5f };
         scene.Run(0.5f);
         Check(boxProbe->collisionEnter == 2, "switching it back on starts a new contact");
 
@@ -306,11 +306,11 @@ namespace
     void TestSwitchingOffAMovingBodysColliderLetsItFall()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
         ContactProbe* groundProbe = scene.Probe(ground);
-        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
-        Collider2D* shape = scene.Box(box, { 1, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.5f });
+        Collider2D* shape = scene.Box(box, { 1.0f, 1.0f });
         scene.Dynamic(box);
         scene.Run(0.5f);
         Check(groundProbe->collisionEnter == 1, "the box starts on the ground");
@@ -327,10 +327,10 @@ namespace
     void TestRestartingDoesNotReplayOldContacts()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.5f });
+        scene.Box(box, { 1.0f, 1.0f });
         scene.Dynamic(box);
         ContactProbe* boxProbe = scene.Probe(box);
         scene.Run(0.5f);
@@ -348,23 +348,23 @@ namespace
     void TestQueriesSeePolygonsAndRotatedBoxes()
     {
         Scene scene;
-        JBro::GameObject* cup = scene.Object("cup", { 0, 0 });
+        JBro::GameObject* cup = scene.Object("cup", { 0.0f, 0.0f });
         Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
         polygon->shape = ColliderShape2D::Polygon;
         polygon->points = UOutline();
 
-        JBro::GameObject* diamond = scene.Object("diamond", { 10, 0 });
+        JBro::GameObject* diamond = scene.Object("diamond", { 10.0f, 0.0f });
         scene.TransformOf(diamond)->SetRotationRadian(JBro::Radian(0.78539816f));
-        scene.Box(diamond, { 2, 2 });
+        scene.Box(diamond, { 2.0f, 2.0f });
 
         JBro::RaycastHit2D hit;
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
-        Check(queries.Raycast({ 1.5f, 5 }, { 0, -1 }, 10, hit, JBro::AllPhysicsLayers), "a ray dropped into the notch hits the cup");
+        Check(queries.Raycast({ 1.5f, 5.0f }, { 0.0f, -1.0f }, 10.0f, hit, JBro::AllPhysicsLayers), "a ray dropped into the notch hits the cup");
         Check(Near(hit.point.y, 1.0f, 1.0e-4f) && Near(hit.normal.y, 1.0f, 1.0e-4f),
             "on the notch floor, not across the notch's mouth");
         Check(hit.other.GetInstanceId() == cup->GetInstanceId(), "naming the cup");
 
-        Check(queries.Raycast({ 5, 0 }, { 1, 0 }, 10, hit, JBro::AllPhysicsLayers), "a ray hits the rotated box");
+        Check(queries.Raycast({ 5.0f, 0.0f }, { 1.0f, 0.0f }, 10.0f, hit, JBro::AllPhysicsLayers), "a ray hits the rotated box");
         Check(Near(hit.point.x, 10.0f - std::sqrt(2.0f), 1.0e-4f), "at its corner, not at an unrotated face");
 
         Array<JBro::GameObjectHandle> overlaps;
@@ -375,8 +375,8 @@ namespace
             "one reaching into the left pillar overlaps the cup");
 
         // 질의는 스텝을 기다리지 않는다. 옮긴 직후에 바로 맞다.
-        scene.TransformOf(cup)->position = { 0, 10 };
-        Check(false == queries.Raycast({ 1.5f, 5 }, { 0, -1 }, 3, hit, JBro::AllPhysicsLayers), "a query sees the cup's new place at once");
+        scene.TransformOf(cup)->position = { 0.0f, 10.0f };
+        Check(false == queries.Raycast({ 1.5f, 5.0f }, { 0.0f, -1.0f }, 3.0f, hit, JBro::AllPhysicsLayers), "a query sees the cup's new place at once");
     }
 
     // **늘어난 질의(physics-plan §4 의 6).** x 축에 벽 A(레이어 1, 상자 안에 원 콜라이더 하나 더), 벽 B(레이어 2),
@@ -384,18 +384,18 @@ namespace
     void TestTheWiderQueries()
     {
         Scene scene;
-        JBro::GameObject* a = scene.Object("a", { 3, 0 });
-        scene.Box(a, { 2, 2 });
+        JBro::GameObject* a = scene.Object("a", { 3.0f, 0.0f });
+        scene.Box(a, { 2.0f, 2.0f });
         Collider2D* inner = scene.canvas.AttachComponent<Collider2D>(a);
         inner->shape = ColliderShape2D::Circle;
         inner->radius = 0.5f;
-        JBro::GameObject* b = scene.Object("b", { 6, 0 });
-        scene.Box(b, { 2, 2 })->layer = 0x2u;
-        JBro::GameObject* c = scene.Object("c", { 9, 0 });
+        JBro::GameObject* b = scene.Object("b", { 6.0f, 0.0f });
+        scene.Box(b, { 2.0f, 2.0f })->layer = JBro::UInt32(0x2u);
+        JBro::GameObject* c = scene.Object("c", { 9.0f, 0.0f });
         Collider2D* round = scene.canvas.AttachComponent<Collider2D>(c);
         round->shape = ColliderShape2D::Circle;
         round->radius = 0.5f;
-        JBro::GameObject* cup = scene.Object("cup", { 20, 0 });
+        JBro::GameObject* cup = scene.Object("cup", { 20.0f, 0.0f });
         Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
         polygon->shape = ColliderShape2D::Polygon;
         polygon->points = UOutline();
@@ -403,7 +403,7 @@ namespace
         const JBro::UInt32 all = JBro::AllPhysicsLayers;
 
         JBro::Array<JBro::RaycastHit2D> hits;
-        queries.RaycastAll({ 0, 0 }, { 1, 0 }, 15, hits, all);
+        queries.RaycastAll({ 0.0f, 0.0f }, { 1.0f, 0.0f }, 15.0f, hits, all);
         Check(hits.Size() == 4, "a ray through everything hits every collider on its path, the inner circle too");
         Check(Near(hits[0].distance, 2.0f, 1.0e-4f) && hits[0].other.GetInstanceId() == a->GetInstanceId()
             && Near(hits[1].distance, 2.5f, 1.0e-4f) && hits[1].other.GetInstanceId() == a->GetInstanceId()
@@ -411,57 +411,57 @@ namespace
             && Near(hits[3].distance, 8.5f, 1.0e-4f) && hits[3].other.GetInstanceId() == c->GetInstanceId(),
             "sorted by distance: A's box, A's circle, B, C");
         // 거꾸로 쏘면 콜라이더를 도는 순서와 거리 순서가 어긋난다. 정렬이 없으면 여기서 드러난다.
-        queries.RaycastAll({ 15, 0 }, { -1, 0 }, 15, hits, all);
+        queries.RaycastAll({ 15.0f, 0.0f }, { -1.0f, 0.0f }, 15.0f, hits, all);
         Check(hits.Size() == 4 && Near(hits[0].distance, 5.5f, 1.0e-4f) && hits[0].other.GetInstanceId() == c->GetInstanceId()
             && Near(hits[1].distance, 8.0f, 1.0e-4f) && Near(hits[2].distance, 11.0f, 1.0e-4f)
             && Near(hits[3].distance, 11.5f, 1.0e-4f),
             "a ray shot back along x is sorted too: C, B, A's box, A's circle");
-        queries.RaycastAll({ 0, 0 }, { 1, 0 }, 15, hits, 0x1u);
+        queries.RaycastAll({ 0.0f, 0.0f }, { 1.0f, 0.0f }, 15.0f, hits, 0x1u);
         Check(hits.Size() == 3 && hits[2].other.GetInstanceId() == c->GetInstanceId(), "masking layer 1 skips B");
         JBro::RaycastHit2D hit;
-        Check(queries.Raycast({ 0, 0 }, { 1, 0 }, 15, hit, 0x2u) && hit.other.GetInstanceId() == b->GetInstanceId()
+        Check(queries.Raycast({ 0.0f, 0.0f }, { 1.0f, 0.0f }, 15.0f, hit, 0x2u) && hit.other.GetInstanceId() == b->GetInstanceId()
             && Near(hit.distance, 5.0f, 1.0e-4f), "a ray on layer 2 goes through A and stops at B");
-        queries.RaycastAll({ 20.5f, 5 }, { 0, -1 }, 10, hits, all);
+        queries.RaycastAll({ 20.5f, 5.0f }, { 0.0f, -1.0f }, 10.0f, hits, all);
         Check(hits.Size() == 1 && Near(hits[0].distance, 2.0f, 1.0e-4f),
             "a ray down the left pillar of the U is one hit, though the pillar may be more than one piece");
 
-        Check(queries.OverlapPoint({ 3, 0 }, all).GetInstanceId() == a->GetInstanceId(), "a point inside A is A");
-        Check(queries.OverlapPoint({ 4.5f, 0 }, all).GetInstanceId() == JBro::InvalidInstanceId,
+        Check(queries.OverlapPoint({ 3.0f, 0.0f }, all).GetInstanceId() == a->GetInstanceId(), "a point inside A is A");
+        Check(queries.OverlapPoint({ 4.5f, 0.0f }, all).GetInstanceId() == JBro::InvalidInstanceId,
             "a point between the walls is nothing");
-        Check(queries.OverlapPoint({ 21.5f, 2 }, all).GetInstanceId() == JBro::InvalidInstanceId,
+        Check(queries.OverlapPoint({ 21.5f, 2.0f }, all).GetInstanceId() == JBro::InvalidInstanceId,
             "a point in the notch of the U is not the U");
-        Check(queries.OverlapPoint({ 20.5f, 2 }, all).GetInstanceId() == cup->GetInstanceId(), "one in its pillar is");
-        Check(queries.OverlapPoint({ 3, 0 }, 0x2u).GetInstanceId() == JBro::InvalidInstanceId, "and a mask hides A");
+        Check(queries.OverlapPoint({ 20.5f, 2.0f }, all).GetInstanceId() == cup->GetInstanceId(), "one in its pillar is");
+        Check(queries.OverlapPoint({ 3.0f, 0.0f }, 0x2u).GetInstanceId() == JBro::InvalidInstanceId, "and a mask hides A");
 
         JBro::Array<JBro::GameObjectHandle> found;
-        queries.OverlapCircle({ 4.5f, 0 }, 0.6f, found, all);
+        queries.OverlapCircle({ 4.5f, 0.0f }, 0.6f, found, all);
         Check(found.Size() == 2, "a circle between the walls reaching both finds A and B, A once");
-        queries.OverlapCircle({ 4.5f, 0 }, 0.4f, found, all);
+        queries.OverlapCircle({ 4.5f, 0.0f }, 0.4f, found, all);
         Check(found.IsEmpty(), "a smaller one reaches neither");
-        queries.OverlapCircle({ 3, 0 }, 1.0f, found, all);
+        queries.OverlapCircle({ 3.0f, 0.0f }, 1.0f, found, all);
         Check(found.Size() == 1 && found[0].GetInstanceId() == a->GetInstanceId(),
             "a circle over both of A's colliders finds A once");
         queries.OverlapBox({ { 2.5f, -0.5f }, { 3.5f, 0.5f } }, found, 0x2u);
         Check(found.IsEmpty(), "a box over A on layer 2 finds nothing");
 
-        Check(queries.CircleCast({ 0, 0 }, 0.5f, { 1, 0 }, 15, hit, all) && hit.other.GetInstanceId() == a->GetInstanceId(),
+        Check(queries.CircleCast({ 0.0f, 0.0f }, 0.5f, { 1.0f, 0.0f }, 15.0f, hit, all) && hit.other.GetInstanceId() == a->GetInstanceId(),
             "a circle swept along x hits A");
         Check(Near(hit.distance, 1.5f, 1.0e-4f) && Near(hit.normal.x, -1.0f, 1.0e-5f)
             && Near(hit.point.x, 2.0f, 1.0e-4f) && Near(hit.point.y, 0.0f, 1.0e-4f),
             "a radius short of A's face, touching it at (2, 0)");
-        Check(queries.CircleCast({ 3, 0 }, 0.5f, { 1, 0 }, 15, hit, all) && hit.distance == 0.0f
+        Check(queries.CircleCast({ 3.0f, 0.0f }, 0.5f, { 1.0f, 0.0f }, 15.0f, hit, all) && hit.distance == 0.0f
             && Near(hit.point.x, 3.0f, 0.0f), "a circle that starts inside A reports zero at its own center");
-        Check(queries.CircleCast({ 21.5f, 5 }, 0.3f, { 0, -1 }, 10, hit, all)
+        Check(queries.CircleCast({ 21.5f, 5.0f }, 0.3f, { 0.0f, -1.0f }, 10.0f, hit, all)
             && hit.other.GetInstanceId() == cup->GetInstanceId() && Near(hit.distance, 3.7f, 1.0e-4f),
             "a ball dropped into the notch of the U lands on the notch floor");
 
-        Check(queries.BoxCast({ 0, 0 }, { 0.5f, 0.5f }, 0.0f, { 1, 0 }, 15, hit, all)
+        Check(queries.BoxCast({ 0.0f, 0.0f }, { 0.5f, 0.5f }, 0.0f, { 1.0f, 0.0f }, 15.0f, hit, all)
             && Near(hit.distance, 1.5f, 1.0e-4f) && Near(hit.point.x, 2.0f, 1.0e-4f) && Near(hit.point.y, 0.0f, 1.0e-3f),
             "a box swept along x stops face to face with A, touching at the middle of its face");
-        Check(queries.BoxCast({ 0, 0 }, { 0.5f, 0.5f }, 0.78539816f, { 1, 0 }, 15, hit, all)
+        Check(queries.BoxCast({ 0.0f, 0.0f }, { 0.5f, 0.5f }, 0.78539816f, { 1.0f, 0.0f }, 15.0f, hit, all)
             && Near(hit.distance, 2.0f - std::sqrt(0.5f), 1.0e-4f) && Near(hit.point.x, 2.0f, 1.0e-4f),
             "a diamond swept along x touches A with its corner");
-        Check(false == queries.BoxCast({ 0, 3 }, { 0.5f, 0.5f }, 0.0f, { 1, 0 }, 15, hit, all),
+        Check(false == queries.BoxCast({ 0.0f, 3.0f }, { 0.5f, 0.5f }, 0.0f, { 1.0f, 0.0f }, 15.0f, hit, all),
             "a box passing above everything misses");
     }
 
@@ -481,18 +481,18 @@ namespace
     void TestTheFixedStepDoesNotAllocate()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* cup = scene.Object("cup", { 6, 0 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* cup = scene.Object("cup", { 6.0f, 0.0f });
         Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
         polygon->shape = ColliderShape2D::Polygon;
         polygon->points = UOutline();
-        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
-        Collider2D* animated = scene.Box(box, { 1, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.5f });
+        Collider2D* animated = scene.Box(box, { 1.0f, 1.0f });
         scene.Dynamic(box);
         scene.Probe(box);
-        JBro::GameObject* pill = scene.Object("pill", { -3, 0.5f });
-        scene.Box(pill, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        JBro::GameObject* pill = scene.Object("pill", { -3.0f, 0.5f });
+        scene.Box(pill, { 2.0f, 1.0f })->shape = ColliderShape2D::Capsule;
         scene.Dynamic(pill);
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
         JBro::RaycastHit2D hit;
@@ -502,11 +502,11 @@ namespace
         found.Reserve(16);
         const auto step = [&](JBro::Int32 i)
         {
-            animated->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
+            animated->size = { 1.0f + 0.04f * static_cast<JBro::Float>(i % 5), 1.0f };
             scene.physics.FixedUpdate(scene.canvas, Frame);
-            queries.Raycast({ -10, 0.25f }, { 1, 0 }, 30, hit, JBro::AllPhysicsLayers);
-            queries.RaycastAll({ -10, 0.25f }, { 1, 0 }, 30, hits, JBro::AllPhysicsLayers);
-            queries.OverlapCircle({ 6, 1 }, 1.5f, found, JBro::AllPhysicsLayers);
+            queries.Raycast({ -10.0f, 0.25f }, { 1.0f, 0.0f }, 30.0f, hit, JBro::AllPhysicsLayers);
+            queries.RaycastAll({ -10.0f, 0.25f }, { 1.0f, 0.0f }, 30.0f, hits, JBro::AllPhysicsLayers);
+            queries.OverlapCircle({ 6.0f, 1.0f }, 1.5f, found, JBro::AllPhysicsLayers);
         };
         for (JBro::Int32 i = 0; i < 120; ++i)
         {
@@ -530,10 +530,10 @@ namespace
     void TestAnAnimatedColliderKeepsItsContact()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
-        Collider2D* collider = scene.Box(box, { 1, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.5f });
+        Collider2D* collider = scene.Box(box, { 1.0f, 1.0f });
         scene.Dynamic(box);
         ContactProbe* probe = scene.Probe(box);
         scene.Run(0.5f);
@@ -541,7 +541,7 @@ namespace
 
         for (JBro::Int32 i = 0; i < 60; ++i)
         {
-            collider->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
+            collider->size = { 1.0f + 0.04f * static_cast<JBro::Float>(i % 5), 1.0f };
             scene.physics.FixedUpdate(scene.canvas, Frame);
         }
         Check(probe->collisionEnter == 1 && probe->collisionExit == 0, "resizing it every step keeps the one contact");
@@ -552,25 +552,25 @@ namespace
         Check(probe->collisionExit == 1 && probe->triggerEnter == 1, "turning it into a trigger ends the collision");
 
         // 모양이 틀린 외곽선이 되면 도형이 없어지고 닿아 있던 것은 끝난다. 레이어를 바꿔 걸러도 끝난다(제자리에서 바꾼 표면).
-        JBro::GameObject* second = scene.Object("second", { 5, 0.5f });
-        Collider2D* outline = scene.Box(second, { 1, 1 });
+        JBro::GameObject* second = scene.Object("second", { 5.0f, 0.5f });
+        Collider2D* outline = scene.Box(second, { 1.0f, 1.0f });
         outline->shape = ColliderShape2D::Polygon;
         outline->points = { { -0.5f, -0.5f }, { 0.5f, -0.5f }, { 0.5f, 0.5f }, { -0.5f, 0.5f } };
         scene.Dynamic(second);
         ContactProbe* secondProbe = scene.Probe(second);
-        JBro::GameObject* third = scene.Object("third", { -5, 0.5f });
-        Collider2D* layered = scene.Box(third, { 1, 1 });
+        JBro::GameObject* third = scene.Object("third", { -5.0f, 0.5f });
+        Collider2D* layered = scene.Box(third, { 1.0f, 1.0f });
         scene.Dynamic(third);
         ContactProbe* thirdProbe = scene.Probe(third);
         scene.Run(0.5f);
         Check(secondProbe->collisionEnter == 1 && thirdProbe->collisionEnter == 1, "two more boxes land");
         const std::size_t shapes = scene.physics.GetShapeCount();
-        outline->points = { { 0, 0 }, { 1, 1 }, { 1, 0 }, { 0, 1 } };
+        outline->points = { { 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 1.0f } };
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(scene.physics.GetShapeCount() == shapes - 1 && secondProbe->collisionExit == 1,
             "a collider bent into a bow tie loses its shape and its contact");
-        scene.canvas.FindComponentRaw<Collider2D>(ground)->mask = 0x1u;
-        layered->layer = 0x2u;
+        scene.canvas.FindComponentRaw<Collider2D>(ground)->mask = JBro::UInt32(0x1u);
+        layered->layer = JBro::UInt32(0x2u);
         scene.Run(0.1f);
         Check(thirdProbe->collisionExit == 1, "and one moved to a layer the ground does not take lets go");
     }
@@ -582,12 +582,12 @@ namespace
     void TestABodyUnderASkewedOrMirroredParentKeepsItsRotation()
     {
         Scene scene;
-        scene.physics.SetGravity({ 0, 0 });
-        JBro::GameObject* skewed = scene.Object("skewed", { 0, 0 });
+        scene.physics.SetGravity({ 0.0f, 0.0f });
+        JBro::GameObject* skewed = scene.Object("skewed", { 0.0f, 0.0f });
         scene.TransformOf(skewed)->SetRotationRadian(JBro::Radian(0.5f));
-        scene.TransformOf(skewed)->scale = { 2, 1 };
-        JBro::GameObject* mirrored = scene.Object("mirrored", { 10, 0 });
-        scene.TransformOf(mirrored)->scale = { -1, 1 };
+        scene.TransformOf(skewed)->scale = { 2.0f, 1.0f };
+        JBro::GameObject* mirrored = scene.Object("mirrored", { 10.0f, 0.0f });
+        scene.TransformOf(mirrored)->scale = { -1.0f, 1.0f };
 
         JBro::GameObject* children[2] = {};
         JBro::GameObject* parents[2] = { skewed, mirrored };
@@ -596,9 +596,9 @@ namespace
             children[i] = scene.canvas.CreateObject(i == 0 ? "skewedChild" : "mirroredChild");
             children[i]->SetParent(parents[i]);
             Transform2D* local = scene.canvas.AttachComponent<Transform2D>(children[i]);
-            local->position = { 1, 0.5f };
+            local->position = { 1.0f, 0.5f };
             local->SetRotationRadian(JBro::Radian(0.3f));
-            scene.Box(children[i], { 1, 0.5f });
+            scene.Box(children[i], { 1.0f, 0.5f });
             scene.Dynamic(children[i]);
         }
         scene.Run(0.5f);
@@ -625,14 +625,14 @@ namespace
         for (JBro::Int32 s = 0; s < 2; ++s)
         {
             Scene& scene = *scenes[s];
-            JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-            scene.Box(ground, { 80, 1 });
+            JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+            scene.Box(ground, { 80.0f, 1.0f });
             for (JBro::Int32 i = 0; i < 60; ++i)
             {
-                const JBro::Float x = -30.0f + static_cast<float>(i % 30) * 2.0f;
-                const JBro::Float y = 0.5f + static_cast<float>(i / 30) * 1.0f;
+                const JBro::Float x = -30.0f + static_cast<JBro::Float>(i % 30) * 2.0f;
+                const JBro::Float y = 0.5f + static_cast<JBro::Float>(i / 30) * 1.0f;
                 boxes[s][i] = scene.Object("box", { x, y });
-                scene.Box(boxes[s][i], { 1, 1 });
+                scene.Box(boxes[s][i], { 1.0f, 1.0f });
                 scene.Dynamic(boxes[s][i]);
             }
         }
@@ -655,17 +655,17 @@ namespace
     void TestCountingPhysicsWork()
     {
         Scene scene;
-        JBro::GameObject* box = scene.Object("box", { 0, 0 });
-        scene.Box(box, { 1, 1 });
-        JBro::GameObject* round = scene.Object("round", { 3, 0 });
-        scene.Box(round, { 1, 1 })->shape = ColliderShape2D::Circle;
-        JBro::GameObject* cup = scene.Object("cup", { 6, 0 });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.0f });
+        scene.Box(box, { 1.0f, 1.0f });
+        JBro::GameObject* round = scene.Object("round", { 3.0f, 0.0f });
+        scene.Box(round, { 1.0f, 1.0f })->shape = ColliderShape2D::Circle;
+        JBro::GameObject* cup = scene.Object("cup", { 6.0f, 0.0f });
         Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
         polygon->shape = ColliderShape2D::Polygon;
         polygon->points = UOutline();
-        JBro::GameObject* off = scene.Object("off", { 9, 0 });
-        scene.Box(off, { 1, 1 })->SetEnabled(false);
-        const JBro::UInt32 uPieces = static_cast<std::uint32_t>(UOutline().Size() - 2);
+        JBro::GameObject* off = scene.Object("off", { 9.0f, 0.0f });
+        scene.Box(off, { 1.0f, 1.0f })->SetEnabled(false);
+        const JBro::UInt32 uPieces = static_cast<JBro::UInt32>(UOutline().Size() - 2);
         Check(JBro::CountPhysicsWork(scene.canvas) == 2 + uPieces,
             "a box and a circle count one each, the U its points less two, the disabled one nothing");
     }
@@ -674,21 +674,21 @@ namespace
     void TestRigidbodyForcesLocksAndDamping()
     {
         Scene scene;
-        scene.physics.SetGravity({ 0, 0 });
+        scene.physics.SetGravity({ 0.0f, 0.0f });
         // 원점에서 떨어뜨려 둔다 - 위치를 준 충격량의 토크가 질량 중심으로 풀려야 맞는 자리다.
-        JBro::GameObject* box = scene.Object("box", { 3, 2 });
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* box = scene.Object("box", { 3.0f, 2.0f });
+        scene.Box(box, { 1.0f, 1.0f });
         Rigidbody2D* body = scene.Dynamic(box);
         body->mass = 2.0f;
         scene.Run(Frame);
-        body->AddForce({ 4, 0 });
+        body->AddForce({ 4.0f, 0.0f });
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(Near(body->linearVelocity.x, 2.0f * Frame, 1.0e-6f), "a force added by a script acts for the next fixed step");
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(Near(body->linearVelocity.x, 2.0f * Frame, 1.0e-6f), "only that one");
-        body->linearVelocity = { 0, 0 };
+        body->linearVelocity = { 0.0f, 0.0f };
         const JBro::Vector2 at = scene.TransformOf(box)->position;
-        body->AddImpulseAtPosition({ 1, 0 }, { at.x, at.y + 0.5f });
+        body->AddImpulseAtPosition({ 1.0f, 0.0f }, { at.x, at.y + 0.5f });
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(Near(body->linearVelocity.x, 0.5f, 1.0e-5f) && Near(body->angularVelocity, -1.5f, 1.0e-4f),
             "an impulse above the center pushes and turns, about the center of mass");
@@ -700,7 +700,7 @@ namespace
 
         body->angularDamping = 5.0f;
         body->freezePositionX = true;
-        body->AddImpulse({ 3, 0 });
+        body->AddImpulse({ 3.0f, 0.0f });
         scene.Run(1.0f);
         Check(std::fabs(body->angularVelocity) < 0.1f, "angular damping from the component slows the spin");
         Check(Near(body->linearVelocity.x, 0.0f, 0.0f), "and a body locked in x takes no push along it");
@@ -710,10 +710,10 @@ namespace
     void TestChangingTheMassKeepsTheContact()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.5f });
+        scene.Box(box, { 1.0f, 1.0f });
         Rigidbody2D* body = scene.Dynamic(box);
         ContactProbe* probe = scene.Probe(box);
         scene.Run(0.5f);
@@ -728,12 +728,12 @@ namespace
     void TestChainCollidersAndSleep()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, 0 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, 0.0f });
         Collider2D* chain = scene.canvas.AttachComponent<Collider2D>(ground);
         chain->shape = ColliderShape2D::Chain;
-        chain->points = { { -10, 0 }, { -2, 0 }, { 2, 0 }, { 10, 0 } };
-        JBro::GameObject* box = scene.Object("box", { 0, 3 });
-        scene.Box(box, { 1, 1 });
+        chain->points = { { -10.0f, 0.0f }, { -2.0f, 0.0f }, { 2.0f, 0.0f }, { 10.0f, 0.0f } };
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 3.0f });
+        scene.Box(box, { 1.0f, 1.0f });
         Rigidbody2D* body = scene.Dynamic(box);
         scene.Run(3.0f);
         Check(Near(scene.TransformOf(box)->position.y, 0.5f, 2.0f * Slop), "a box lands on a chain floor");
@@ -741,10 +741,10 @@ namespace
 
         JBro::RaycastHit2D hit;
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
-        Check(queries.Raycast({ 6, 5 }, { 0, -1 }, 10, hit, JBro::AllPhysicsLayers)
+        Check(queries.Raycast({ 6.0f, 5.0f }, { 0.0f, -1.0f }, 10.0f, hit, JBro::AllPhysicsLayers)
             && hit.other.GetInstanceId() == ground->GetInstanceId() && Near(hit.distance, 5.0f, 1.0e-4f)
             && Near(hit.normal.y, 1.0f, 1.0e-5f), "a ray down hits the chain, its normal facing the ray");
-        Check(queries.Raycast({ 6, -5 }, { 0, 1 }, 10, hit, JBro::AllPhysicsLayers) && Near(hit.normal.y, -1.0f, 1.0e-5f),
+        Check(queries.Raycast({ 6.0f, -5.0f }, { 0.0f, 1.0f }, 10.0f, hit, JBro::AllPhysicsLayers) && Near(hit.normal.y, -1.0f, 1.0e-5f),
             "and from below too, both faces answer");
 
         body->WakeUp();
@@ -760,12 +760,12 @@ namespace
         Check(JBro::CountPhysicsWork(scene.canvas) == 1 + 4, "a looped chain of four points is four segments of work");
 
         // 삼각형 체인: 닫으면 (10,10)-(-10,0) 변(기울기 0.5)이 생긴다. y = 5 로 쏜 레이가 열리면 세로 변(x = 10), 닫히면 그 닫는 변(x = 0)에 맞는다.
-        chain->points = { { -10, 0 }, { 10, 0 }, { 10, 10 } };
+        chain->points = { { -10.0f, 0.0f }, { 10.0f, 0.0f }, { 10.0f, 10.0f } };
         chain->loop = false;
-        Check(queries.Raycast({ -9, 5 }, { 1, 0 }, 30, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 19.0f, 1.0e-4f),
+        Check(queries.Raycast({ -9.0f, 5.0f }, { 1.0f, 0.0f }, 30.0f, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 19.0f, 1.0e-4f),
             "an open triangle chain has no closing edge for the ray");
         chain->loop = true;
-        Check(queries.Raycast({ -9, 5 }, { 1, 0 }, 30, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 9.0f, 1.0e-4f),
+        Check(queries.Raycast({ -9.0f, 5.0f }, { 1.0f, 0.0f }, 30.0f, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 9.0f, 1.0e-4f),
             "a looped one does");
         JBro::GameObject* ball = scene.Object("ball", { -6.0f, 6.0f });
         Collider2D* round = scene.canvas.AttachComponent<Collider2D>(ball);
@@ -781,20 +781,20 @@ namespace
     void TestCapsuleColliders()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* lying = scene.Object("lying", { -5, 2 });
-        scene.Box(lying, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* lying = scene.Object("lying", { -5.0f, 2.0f });
+        scene.Box(lying, { 2.0f, 1.0f })->shape = ColliderShape2D::Capsule;
         scene.Dynamic(lying);
-        JBro::GameObject* stretched = scene.Object("stretched", { 5, 2 });
-        scene.TransformOf(stretched)->scale = { 3, 1 };
-        scene.Box(stretched, { 1, 1 })->shape = ColliderShape2D::Capsule;
+        JBro::GameObject* stretched = scene.Object("stretched", { 5.0f, 2.0f });
+        scene.TransformOf(stretched)->scale = { 3.0f, 1.0f };
+        scene.Box(stretched, { 1.0f, 1.0f })->shape = ColliderShape2D::Capsule;
         scene.Dynamic(stretched);
-        JBro::GameObject* post = scene.Object("post", { 20, 0 });
-        scene.Box(post, { 2, 1 })->shape = ColliderShape2D::Capsule;
-        JBro::GameObject* upright = scene.Object("upright", { 30, 0 });
+        JBro::GameObject* post = scene.Object("post", { 20.0f, 0.0f });
+        scene.Box(post, { 2.0f, 1.0f })->shape = ColliderShape2D::Capsule;
+        JBro::GameObject* upright = scene.Object("upright", { 30.0f, 0.0f });
         scene.TransformOf(upright)->SetRotationRadian(JBro::Radian(1.5707963f));
-        scene.Box(upright, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        scene.Box(upright, { 2.0f, 1.0f })->shape = ColliderShape2D::Capsule;
         scene.Run(3.0f);
 
         Check(scene.physics.GetShapeCount() == 5, "every capsule collider is a shape");
@@ -807,16 +807,16 @@ namespace
         JBro::RaycastHit2D hit;
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
         const JBro::Float stretchedX = scene.TransformOf(stretched)->position.x;
-        Check(queries.Raycast({ stretchedX + 3.0f, 0.5f }, { -1, 0 }, 10, hit, JBro::AllPhysicsLayers)
+        Check(queries.Raycast({ stretchedX + 3.0f, 0.5f }, { -1.0f, 0.0f }, 10.0f, hit, JBro::AllPhysicsLayers)
             && hit.other.GetInstanceId() == stretched->GetInstanceId() && Near(hit.distance, 1.5f, 1.0e-3f),
             "and it is 3 long, not the unit circle it was stretched from");
-        Check(queries.Raycast({ 25, 0.4f }, { -1, 0 }, 10, hit, JBro::AllPhysicsLayers)
+        Check(queries.Raycast({ 25.0f, 0.4f }, { -1.0f, 0.0f }, 10.0f, hit, JBro::AllPhysicsLayers)
             && hit.other.GetInstanceId() == post->GetInstanceId() && Near(hit.distance, 4.2f, 1.0e-4f),
             "a ray along x at 0.4 hits the post's round end (core 19.5..20.5, radius 0.5) at x = 20.8");
-        Check(queries.Raycast({ 30, 5 }, { 0, -1 }, 10, hit, JBro::AllPhysicsLayers)
+        Check(queries.Raycast({ 30.0f, 5.0f }, { 0.0f, -1.0f }, 10.0f, hit, JBro::AllPhysicsLayers)
             && hit.other.GetInstanceId() == upright->GetInstanceId() && Near(hit.distance, 4.0f, 1.0e-4f),
             "a turned capsule stands, its top a length and a radius up");
-        Check(queries.OverlapPoint({ 20.8f, 0 }, JBro::AllPhysicsLayers).GetInstanceId() == post->GetInstanceId(),
+        Check(queries.OverlapPoint({ 20.8f, 0.0f }, JBro::AllPhysicsLayers).GetInstanceId() == post->GetInstanceId(),
             "a point in the round end is the post");
         Check(queries.OverlapPoint({ 20.9f, 0.4f }, JBro::AllPhysicsLayers).GetInstanceId() == JBro::InvalidInstanceId,
             "one in the corner of its size box is not");
@@ -826,15 +826,15 @@ namespace
     void TestAStaticBodyFollowsItsTransform()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 0.5f });
+        scene.Box(box, { 1.0f, 1.0f });
         scene.Dynamic(box);
         scene.Run(0.5f);
         Check(Near(scene.TransformOf(box)->position.y, 0.5f, 2.0f * Slop), "the box starts on the ground");
 
-        scene.TransformOf(ground)->position = { 0, -3.5f };
+        scene.TransformOf(ground)->position = { 0.0f, -3.5f };
         scene.Run(1.5f);
         Check(Near(scene.TransformOf(box)->position.y, -2.5f, 2.0f * Slop), "and ends on the ground's new place");
     }
@@ -844,12 +844,12 @@ namespace
     void TestAnEmptyPolygonCollidesAsItsSizeBox()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* box = scene.Object("box", { 0, 3 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 3.0f });
         Collider2D* shape = scene.canvas.AttachComponent<Collider2D>(box);
         shape->shape = ColliderShape2D::Polygon;
-        shape->size = { 2, 2 };
+        shape->size = { 2.0f, 2.0f };
         scene.Dynamic(box);
         scene.Run(2.0f);
         Check(scene.physics.GetShapeCount() == 2, "the empty polygon still makes a shape");
@@ -860,11 +860,11 @@ namespace
     void TestScaleGrowsTheShape()
     {
         Scene scene;
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 40, 1 });
-        JBro::GameObject* box = scene.Object("box", { 0, 3 });
-        scene.TransformOf(box)->scale = { 2, 2 };
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 40.0f, 1.0f });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, 3.0f });
+        scene.TransformOf(box)->scale = { 2.0f, 2.0f };
+        scene.Box(box, { 1.0f, 1.0f });
         scene.Dynamic(box);
         scene.Run(2.0f);
         Check(Near(scene.TransformOf(box)->position.y, 1.0f, 2.0f * Slop), "a box scaled by two rests one unit up");
@@ -874,11 +874,11 @@ namespace
     void TestAnOffCenterBodyTurnsAboutItsCenterOfMass()
     {
         Scene scene;
-        scene.physics.SetGravity({ 0, 0 });
-        JBro::GameObject* l = scene.Object("l", { 0, 0 });
+        scene.physics.SetGravity({ 0.0f, 0.0f });
+        JBro::GameObject* l = scene.Object("l", { 0.0f, 0.0f });
         Collider2D* shape = scene.canvas.AttachComponent<Collider2D>(l);
         shape->shape = ColliderShape2D::Polygon;
-        shape->points = { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        shape->points = { { 0.0f, 0.0f }, { 2.0f, 0.0f }, { 2.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 3.0f }, { 0.0f, 3.0f } };
         Rigidbody2D* body = scene.Dynamic(l);
         body->angularVelocity = 3.14159265f;
         scene.Run(1.0f);
@@ -897,10 +897,10 @@ namespace
     {
         {
             Scene scene;
-            JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-            scene.Box(ground, { 40, 1 });
-            JBro::GameObject* box = scene.Object("box", { 0, 0.6f });
-            scene.Box(box, { 1, 1 });
+            JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+            scene.Box(ground, { 40.0f, 1.0f });
+            JBro::GameObject* box = scene.Object("box", { 0.0f, 0.6f });
+            scene.Box(box, { 1.0f, 1.0f });
             scene.Dynamic(box);
             ContactProbe* boxProbe = scene.Probe(box);
             scene.Run(0.2f);
@@ -917,11 +917,11 @@ namespace
         }
         {
             Scene scene;
-            JBro::GameObject* zone = scene.Object("zone", { 0, 0 });
-            Collider2D* sensor = scene.Box(zone, { 4, 4 });
+            JBro::GameObject* zone = scene.Object("zone", { 0.0f, 0.0f });
+            Collider2D* sensor = scene.Box(zone, { 4.0f, 4.0f });
             sensor->isTrigger = true;
             ContactProbe* zoneProbe = scene.Probe(zone);
-            JBro::GameObject* ball = scene.Object("ball", { 0, 0 });
+            JBro::GameObject* ball = scene.Object("ball", { 0.0f, 0.0f });
             Collider2D* round = scene.canvas.AttachComponent<Collider2D>(ball);
             round->shape = ColliderShape2D::Circle;
             round->radius = 0.25f;
@@ -945,14 +945,14 @@ namespace
     void TestAOneWayColliderLetsThingsUpThrough()
     {
         Scene scene;
-        JBro::GameObject* platform = scene.Object("platform", { 0, 0 });
-        Collider2D* ledge = scene.Box(platform, { 6, 0.5f });
+        JBro::GameObject* platform = scene.Object("platform", { 0.0f, 0.0f });
+        Collider2D* ledge = scene.Box(platform, { 6.0f, 0.5f });
         ledge->oneWay = true;
         ContactProbe* platformProbe = scene.Probe(platform);
-        JBro::GameObject* box = scene.Object("box", { 0, -1.5f });
-        scene.Box(box, { 1, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0.0f, -1.5f });
+        scene.Box(box, { 1.0f, 1.0f });
         Rigidbody2D* body = scene.Dynamic(box);
-        body->linearVelocity = { 0, 8 };
+        body->linearVelocity = { 0.0f, 8.0f };
         scene.Run(0.12f);
         Check(scene.TransformOf(box)->position.y > -1.0f && platformProbe->collisionEnter == 0,
             "jumping up through the ledge is heard by no one");
@@ -964,17 +964,17 @@ namespace
         Check(Near(scene.TransformOf(box)->position.y, 0.75f, 0.02f), "turning oneWay off leaves it standing there");
 
         // 막는 발판에 밑에서 쳐올리면 튕겨 떨어지고, 그 자리에서 oneWay 를 켜면 같은 도형이 흘려보낸다.
-        JBro::GameObject* jumper = scene.Object("jumper", { 5, -1.5f });
+        JBro::GameObject* jumper = scene.Object("jumper", { 5.0f, -1.5f });
         scene.Box(jumper, { 0.5f, 0.5f });
         Rigidbody2D* jumperBody = scene.Dynamic(jumper);
-        JBro::GameObject* ceiling = scene.Object("ceiling", { 5, 0 });
-        Collider2D* roof = scene.Box(ceiling, { 2, 0.5f });
-        jumperBody->linearVelocity = { 0, 8 };
+        JBro::GameObject* ceiling = scene.Object("ceiling", { 5.0f, 0.0f });
+        Collider2D* roof = scene.Box(ceiling, { 2.0f, 0.5f });
+        jumperBody->linearVelocity = { 0.0f, 8.0f };
         scene.Run(0.3f);
         Check(scene.TransformOf(jumper)->position.y < -0.4f, "a solid ceiling stops a jump from below");
         roof->oneWay = true;
         scene.Run(0.5f);
-        jumperBody->linearVelocity = { 0, 8 };
+        jumperBody->linearVelocity = { 0.0f, 8.0f };
         scene.Run(1.0f);
         Check(scene.TransformOf(jumper)->position.y > 0.3f, "switching oneWay on lets the next jump through onto it");
     }
@@ -987,13 +987,13 @@ namespace
         rows[1] = 1u << 2;
         rows[2] = 1u << 1;
         scene.physics.SetIgnoredLayers(rows);
-        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
-        scene.Box(ground, { 20, 1 });
-        JBro::GameObject* lower = scene.Object("lower", { 0, 0.5f });
-        scene.Box(lower, { 1, 1 })->layer = 1u << 1;
+        JBro::GameObject* ground = scene.Object("ground", { 0.0f, -0.5f });
+        scene.Box(ground, { 20.0f, 1.0f });
+        JBro::GameObject* lower = scene.Object("lower", { 0.0f, 0.5f });
+        scene.Box(lower, { 1.0f, 1.0f })->layer = JBro::UInt32(1u << 1);
         scene.Dynamic(lower);
-        JBro::GameObject* upper = scene.Object("upper", { 0, 3 });
-        scene.Box(upper, { 1, 1 })->layer = 1u << 2;
+        JBro::GameObject* upper = scene.Object("upper", { 0.0f, 3.0f });
+        scene.Box(upper, { 1.0f, 1.0f })->layer = JBro::UInt32(1u << 2);
         scene.Dynamic(upper);
         scene.Run(1.5f);
         Check(Near(scene.TransformOf(upper)->position.y, 0.5f, 0.03f), "a box on a separated layer falls through the other onto the ground");
@@ -1015,11 +1015,11 @@ namespace
             const JBro::Float start = 20.0f * degree;
             JBro::GameObject* rod = scene.Object("rod", { 2.0f + std::cos(start), 1.0f + std::sin(start) });
             scene.TransformOf(rod)->SetRotationRadian(JBro::Radian(start));
-            scene.TransformOf(rod)->scale = { 2, 1 };
+            scene.TransformOf(rod)->scale = { 2.0f, 1.0f };
             scene.Box(rod, { 1.0f, 0.2f });
             scene.Dynamic(rod);
             HingeJoint2D* hinge = scene.canvas.AttachComponent<HingeJoint2D>(rod);
-            hinge->anchor = { -0.5f, 0 };
+            hinge->anchor = { -0.5f, 0.0f };
             hinge->useLimits = true;
             hinge->lowerAngle = -30.0f;
             hinge->upperAngle = 10.0f;
@@ -1043,8 +1043,8 @@ namespace
         }
         {
             Scene scene;
-            scene.physics.SetGravity({ 0, 0 });
-            JBro::GameObject* wheel = scene.Object("wheel", { 0, 0 });
+            scene.physics.SetGravity({ 0.0f, 0.0f });
+            JBro::GameObject* wheel = scene.Object("wheel", { 0.0f, 0.0f });
             Collider2D* round = scene.canvas.AttachComponent<Collider2D>(wheel);
             round->shape = ColliderShape2D::Circle;
             Rigidbody2D* body = scene.Dynamic(wheel);
@@ -1056,9 +1056,9 @@ namespace
         }
         {
             Scene scene;
-            JBro::GameObject* hook = scene.Object("hook", { 0, 5 });
+            JBro::GameObject* hook = scene.Object("hook", { 0.0f, 5.0f });
             scene.Box(hook, { 0.2f, 0.2f });
-            JBro::GameObject* weight = scene.Object("weight", { 0, 3 });
+            JBro::GameObject* weight = scene.Object("weight", { 0.0f, 3.0f });
             scene.Box(weight, { 0.5f, 0.5f });
             scene.Dynamic(weight);
             DistanceJoint2D* joint = scene.canvas.AttachComponent<DistanceJoint2D>(weight);
@@ -1079,8 +1079,8 @@ namespace
             Check(scene.physics.GetJointCount() == 0 && scene.TransformOf(weight)->position.y < 1.9f,
                 "switching the joint off removes it and the weight falls");
             joint->SetEnabled(true);
-            JBro::GameObject* stand = scene.Object("stand", { 0, -3 });
-            scene.Box(stand, { 4, 1 });
+            JBro::GameObject* stand = scene.Object("stand", { 0.0f, -3.0f });
+            scene.Box(stand, { 4.0f, 1.0f });
             scene.Run(2.0f);
             Check(scene.physics.GetJointCount() == 1, "switching it on joins them again");
             Check(scene.canvas.DestroyObject(hook), "the hook is destroyed");
@@ -1155,10 +1155,10 @@ namespace
         {
             for (JBro::Int32 y = 0; y < 10; ++y)
             {
-                JBro::GameObject* object = scene.Object("cell", { 3.0f * static_cast<float>(x), 3.0f * static_cast<float>(y) });
+                JBro::GameObject* object = scene.Object("cell", { 3.0f * static_cast<JBro::Float>(x), 3.0f * static_cast<JBro::Float>(y) });
                 if ((x + y) % 2 == 0)
                 {
-                    scene.Box(object, { 1, 1 });
+                    scene.Box(object, { 1.0f, 1.0f });
                 }
                 else
                 {
@@ -1170,25 +1170,25 @@ namespace
         }
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
         JBro::RaycastHit2D hit;
-        Check(queries.Raycast({ 7, 6 }, { 1, 0 }, 3, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 1.5f, 1.0e-4f),
+        Check(queries.Raycast({ 7.0f, 6.0f }, { 1.0f, 0.0f }, 3.0f, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 1.5f, 1.0e-4f),
             "a short ray still hits the circle next to it");
         Check(scene.physics.GetLastQueryColliderCount() <= 2, "and looks at no more than the colliders along it");
         Array<JBro::GameObjectHandle> found;
-        queries.OverlapCircle({ 12, 12 }, 0.2f, found, JBro::AllPhysicsLayers);
+        queries.OverlapCircle({ 12.0f, 12.0f }, 0.2f, found, JBro::AllPhysicsLayers);
         Check(found.Size() == 1 && scene.physics.GetLastQueryColliderCount() == 1, "a small circle looks at one collider");
         // 원 콜라이더(중심 (9, 6), 반지름 0.5)의 가장자리만 걸치는 질의도 찾는다 - 경계는 반지름을 품는다.
         queries.OverlapCircle({ 9.6f, 6.0f }, 0.2f, found, JBro::AllPhysicsLayers);
         Check(found.Size() == 1, "a query touching only a circle's edge still finds it");
         // 원을 민 스윕은 반지름만큼 옆의 콜라이더도 본다 - (1.8, 0.8) 에서 반지름 0.4 로 오른쪽으로 밀면 (3, 0) 의 원(반지름 0.5)에 걸린다.
-        Check(queries.CircleCast({ 1.8f, 0.8f }, 0.4f, { 1, 0 }, 5, hit, JBro::AllPhysicsLayers) && hit.distance > 0.5f && hit.distance < 1.0f,
+        Check(queries.CircleCast({ 1.8f, 0.8f }, 0.4f, { 1.0f, 0.0f }, 5.0f, hit, JBro::AllPhysicsLayers) && hit.distance > 0.5f && hit.distance < 1.0f,
             "a circle cast finds a collider beside its line within its radius");
         // 가로로 네 배 늘린 상자의 먼 끝도 찾는다 - 경계는 크기를 곱한다.
-        JBro::GameObject* stretched = scene.Object("stretched", { 40, 0 });
-        scene.TransformOf(stretched)->scale = { 4, 1 };
-        scene.Box(stretched, { 1, 1 });
+        JBro::GameObject* stretched = scene.Object("stretched", { 40.0f, 0.0f });
+        scene.TransformOf(stretched)->scale = { 4.0f, 1.0f };
+        scene.Box(stretched, { 1.0f, 1.0f });
         Check(queries.OverlapPoint({ 41.8f, 0.0f }, JBro::AllPhysicsLayers).GetInstanceId() == stretched->GetInstanceId(),
             "the far end of a scaled box is still found");
-        Check(false == queries.Raycast({ 100, 100 }, { 0, 1 }, 5, hit, JBro::AllPhysicsLayers)
+        Check(false == queries.Raycast({ 100.0f, 100.0f }, { 0.0f, 1.0f }, 5.0f, hit, JBro::AllPhysicsLayers)
                 && scene.physics.GetLastQueryColliderCount() == 0,
             "a query far away looks at none");
     }

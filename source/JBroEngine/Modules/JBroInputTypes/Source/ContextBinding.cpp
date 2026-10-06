@@ -1,6 +1,7 @@
 ﻿#include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/InputTypes/Internal/SystemContext.h>
 #include <JBro/InputTypes/ServiceContext.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -33,7 +34,7 @@ namespace JBro
 
     ScriptContextBlock MakeInputServiceContextBlock(const InputServiceContext& context) noexcept
     {
-        return { InputServiceContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { InputServiceContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const InputServiceContext* FindInputServiceContext(const ScriptModuleLoadContext& context) noexcept
@@ -54,7 +55,7 @@ namespace JBro
 
     ScriptContextBlock MakeInputSystemContextBlock(const InputSystemContext& context) noexcept
     {
-        return { InputSystemContextTypeId, context.AbiVersion, static_cast<std::uint32_t>(sizeof(context)), &context };
+        return { InputSystemContextTypeId, context.AbiVersion, static_cast<JBro::UInt32>(sizeof(context)), &context };
     }
 
     const InputSystemContext* FindInputSystemContext(const ScriptModuleLoadContext& context) noexcept

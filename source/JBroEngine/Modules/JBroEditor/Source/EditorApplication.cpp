@@ -351,7 +351,7 @@ namespace JBro
         const String folder = EditorPaths::FolderOf(m_preferencesPath.c_str());
         if ((false == folder.IsEmpty() && false == m_platform->CreateDirectoryAt(folder.c_str()))
             || false == m_platform->WriteWholeFile(m_preferencesPath.c_str(),
-                JArrayView<std::byte>{reinterpret_cast<const std::byte*>(text.data()), static_cast<std::uint32_t>(text.size())}))
+                JArrayView<std::byte>{reinterpret_cast<const std::byte*>(text.data()), static_cast<JBro::UInt32>(text.size())}))
         {
             Log::Write(LogLevel::Warning, "editor", "could not write the editor preferences: %s", m_preferencesPath.c_str());
         }
@@ -1072,7 +1072,7 @@ namespace JBro
             return String();
         }
         if (false == m_platform->WriteWholeFile(absolute.c_str(),
-                {bytes.Data(), static_cast<std::uint32_t>(bytes.Size())}))
+                {bytes.Data(), static_cast<JBro::UInt32>(bytes.Size())}))
         {
             Log::Write(LogLevel::Error, "asset", "the copy could not be written: %s",
                 relative.c_str());
@@ -1708,7 +1708,7 @@ namespace JBro
         }
         JArrayView<std::byte> bytes;
         bytes.data = reinterpret_cast<const std::byte*>(text.data());
-        bytes.size = static_cast<std::uint32_t>(text.size());
+        bytes.size = static_cast<JBro::UInt32>(text.size());
         if (false == m_platform->WriteWholeFile(path, bytes))
         {
             error.message = "cannot open the file for writing";
@@ -1793,7 +1793,7 @@ namespace JBro
                 objects.Add(object);
             }
         }
-        SelectObjects({objects.Data(), static_cast<std::uint32_t>(objects.Size())});
+        SelectObjects({objects.Data(), static_cast<JBro::UInt32>(objects.Size())});
         return true;
     }
 
@@ -2218,7 +2218,7 @@ namespace JBro
         const String folder = JoinPath(GetAssetRoot(), relativeFolder != nullptr ? relativeFolder : "");
         m_platform->CreateDirectoryAt(folder.c_str());
         if (false == m_platform->WriteWholeFile(target.c_str(),
-                {bytes.Data(), static_cast<std::uint32_t>(bytes.Size())}))
+                {bytes.Data(), static_cast<JBro::UInt32>(bytes.Size())}))
         {
             Log::Write(LogLevel::Error, "asset", "the file could not be written: %s", target.c_str());
             return false;
@@ -2294,7 +2294,7 @@ namespace JBro
         m_platform->CreateDirectoryAt(directory.c_str());
         if (false == m_platform->WriteWholeFile(absolute.c_str(),
                 {reinterpret_cast<const std::byte*>(text.c_str()),
-                    static_cast<std::uint32_t>(text.size())}))
+                    static_cast<JBro::UInt32>(text.size())}))
         {
             Log::Write(LogLevel::Error, "editor", "the asset file could not be written: %s",
                 absolute.c_str());
@@ -2438,10 +2438,10 @@ namespace JBro
     ScreenSpaceFrame EditorApplication::GetGameScreenSpace() const
     {
         ScreenSpaceFrame frame;
-        frame.referenceWidth = static_cast<float>(GetProjectFile().resolutionWidth);
-        frame.referenceHeight = static_cast<float>(GetProjectFile().resolutionHeight);
-        frame.targetWidth = static_cast<float>(m_gameViewExtent.width);
-        frame.targetHeight = static_cast<float>(m_gameViewExtent.height);
+        frame.referenceWidth = static_cast<JBro::Float>(GetProjectFile().resolutionWidth);
+        frame.referenceHeight = static_cast<JBro::Float>(GetProjectFile().resolutionHeight);
+        frame.targetWidth = static_cast<JBro::Float>(m_gameViewExtent.width);
+        frame.targetHeight = static_cast<JBro::Float>(m_gameViewExtent.height);
         ApplyCameraArea(GetGameCamera2D(), frame);
         return frame;
     }
@@ -2582,7 +2582,7 @@ namespace JBro
         // 게임은 패키지에서 캔버스를 세어 볼 수 없으므로 물리 워커 수는 여기서 정해 적는다(D-223).
         if (m_frameworkKind == FrameworkKind::Framework2D)
         {
-            options.physicsWorkers = static_cast<std::int32_t>(
+            options.physicsWorkers = static_cast<JBro::Int32>(
                 ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
         }
         const Bool built = BuildGame(*m_platform, GetProjectFile(), m_projectFilePath.c_str(), options, report);
@@ -3077,7 +3077,7 @@ namespace JBro
                 out.Add(panel);
             }
         }
-        return static_cast<std::uint32_t>(out.Size());
+        return static_cast<JBro::UInt32>(out.Size());
     }
 
     Bool EditorApplication::IsDockAreaComingForward(const char* dockArea) const
@@ -3271,7 +3271,7 @@ namespace JBro
         }
         std::snprintf(out, size,
             Loc::TextOr(LocKeys::CanvasViewSelectedCountFormat, "chosen: %s and %d more"),
-            name, static_cast<int>(chosen) - 1);
+            name, static_cast<JBro::Int32>(chosen) - 1);
     }
 
     Array<GameObject*> EditorApplication::GetSelectedObjects() const
@@ -3343,8 +3343,8 @@ namespace JBro
             // 창 클라이언트 좌표 → 게임 화면 픽셀. 멀티 뷰포트를 켜지 않았으므로 ImGui 의 화면 좌표가 곧 클라이언트 좌표다.
             m_gameViewMapping.originX = left;
             m_gameViewMapping.originY = top;
-            m_gameViewMapping.scaleX = static_cast<float>(extent.width) / width;
-            m_gameViewMapping.scaleY = static_cast<float>(extent.height) / height;
+            m_gameViewMapping.scaleX = static_cast<JBro::Float>(extent.width) / width;
+            m_gameViewMapping.scaleY = static_cast<JBro::Float>(extent.height) / height;
         }
     }
 
@@ -3813,7 +3813,7 @@ namespace JBro
             m_canvasViewSelection.Add(selected[index]->GetInstanceId());
         }
         m_canvasViewRequest.selection = m_canvasViewSelection.Data();
-        m_canvasViewRequest.selectionCount = static_cast<std::uint32_t>(m_canvasViewSelection.Size());
+        m_canvasViewRequest.selectionCount = static_cast<JBro::UInt32>(m_canvasViewSelection.Size());
         m_canvasViewRequest.outlineMask = m_canvasViewOutlineMask;
         m_canvasViewRequest.outlineScratch = m_canvasViewOutlineScratch;
         // **캔버스가 지우는 색을 쓴다**(D-186). 편집하는 배경이 게임에서 보일 배경과
@@ -4182,7 +4182,7 @@ namespace JBro
         if (step != nullptr)
         {
             const Guide& guide = *m_guide.GetGuide();
-            const UInt32 total = static_cast<std::uint32_t>(guide.steps.Size());
+            const UInt32 total = static_cast<JBro::UInt32>(guide.steps.Size());
             std::snprintf(progress, sizeof(progress), Loc::TextOr(LocKeys::GuideProgress, "%u / %u"),
                 m_guide.GetStepIndex() + 1, total);
             balloon.progress = progress;
@@ -4277,9 +4277,9 @@ namespace JBro
         // **창 전체를 덮는 도크 뿌리다**(D-134). 기존 엔진의 `CRootDockWindow` 자리이고,
         // 여기에는 **메인 도크 하나만** 붙는다 - 도구 창은 그 안쪽에 붙는다. 바닥 한 줄은 상태 표시줄이 쓴다(13 번).
         const Float statusHeight = StatusBarHeight();
-        const Float rootHeight = JBro::Max(1.0f, static_cast<float>(display.height) - statusHeight);
+        const Float rootHeight = JBro::Max(1.0f, static_cast<JBro::Float>(display.height) - statusHeight);
         ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(display.width), rootHeight));
+        ImGui::SetNextWindowSize(ImVec2(static_cast<JBro::Float>(display.width), rootHeight));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -4302,7 +4302,7 @@ namespace JBro
             ImGui::DockBuilderAddNode(rootDock,
                 ImGuiDockNodeFlags_DockSpace | EditorDockNodeFlags
                     | ImGuiDockNodeFlags_AutoHideTabBar);
-            ImGui::DockBuilderSetNodeSize(rootDock, ImVec2(static_cast<float>(display.width), rootHeight));
+            ImGui::DockBuilderSetNodeSize(rootDock, ImVec2(static_cast<JBro::Float>(display.width), rootHeight));
             ImGui::DockBuilderDockWindow(MainDockLabel, rootDock);
             ImGui::DockBuilderFinish(rootDock);
             m_rootLayoutBuilt = true;
@@ -4329,9 +4329,9 @@ namespace JBro
     {
         // **창 바닥의 한 줄이다**(13 번). 왼쪽에 도는 태스크 묶음(가장 먼저 온 것과 나머지 수), 오른쪽에 마지막 알림이 선다.
         // 묶음을 누르면 그 위에 태스크 목록을 펼치고(D-217 의 "로딩 바 아래 목록"), 알림을 누르면 로그 창을 연다.
-        const Float top = static_cast<float>(display.height) - height;
+        const Float top = static_cast<JBro::Float>(display.height) - height;
         ImGui::SetNextWindowPos(ImVec2(0.0f, top));
-        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(display.width), height));
+        ImGui::SetNextWindowSize(ImVec2(static_cast<JBro::Float>(display.width), height));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 2.0f));
@@ -4479,13 +4479,13 @@ namespace JBro
 
                 ImGuiID center = mainDock;
                 ImGuiID nodes[4] = {};
-                nodes[static_cast<int>(EditorDock::Left)] = ImGui::DockBuilderSplitNode(
+                nodes[static_cast<JBro::Int32>(EditorDock::Left)] = ImGui::DockBuilderSplitNode(
                     center, ImGuiDir_Left, 0.18f, nullptr, &center);
-                nodes[static_cast<int>(EditorDock::Right)] = ImGui::DockBuilderSplitNode(
+                nodes[static_cast<JBro::Int32>(EditorDock::Right)] = ImGui::DockBuilderSplitNode(
                     center, ImGuiDir_Right, 0.24f, nullptr, &center);
-                nodes[static_cast<int>(EditorDock::Bottom)] = ImGui::DockBuilderSplitNode(
+                nodes[static_cast<JBro::Int32>(EditorDock::Bottom)] = ImGui::DockBuilderSplitNode(
                     center, ImGuiDir_Down, 0.26f, nullptr, &center);
-                nodes[static_cast<int>(EditorDock::Center)] = center;
+                nodes[static_cast<JBro::Int32>(EditorDock::Center)] = center;
 
                 for (std::size_t index = 0; index < m_panels.Size(); ++index)
                 {
@@ -4493,7 +4493,7 @@ namespace JBro
                     // 다른 도크의 패널은 제 도크가 붙인다(D-284).
                     if (panel != nullptr && std::strcmp(panel->GetDockArea(), MainDockArea) == 0)
                     {
-                        const Int32 slot = static_cast<int>(panel->GetPreferredDock());
+                        const Int32 slot = static_cast<JBro::Int32>(panel->GetPreferredDock());
                         const String label = PanelWindowLabel(*panel);
                         ImGui::DockBuilderDockWindow(label.c_str(), nodes[slot]);
                     }
@@ -4733,7 +4733,7 @@ namespace JBro
         // **가이드 포커스가 먼저 거른다**(D-251). ImGui 에 넣은 뒤에는 막을 수 없다 - 에디터 단축키와 캔버스 뷰는 ImGui 의 hover 를
         // 거치지 않고 키와 버튼을 읽는다. 꺼져 있어도 거친다: 그대로 넘기면서 눌린 버튼을 세야 켠 뒤에도 그 뗌을 넘긴다.
         m_guideFocus.FilterInput(m_platform->GetInputEvents(), m_filteredInput);
-        const JArrayView<InputEvent> input{ m_filteredInput.Data(), static_cast<std::uint32_t>(m_filteredInput.Size()) };
+        const JArrayView<InputEvent> input{ m_filteredInput.Data(), static_cast<JBro::UInt32>(m_filteredInput.Size()) };
         if (m_guideFocus.ConsumeSkipRequest())
         {
             // 가이드도 함께 멈춘다. 가이드 없이 켠 가이드 포커스면 그것만 꺼진다.
@@ -5095,8 +5095,8 @@ namespace JBro
         }
 
         Viewport viewport;
-        viewport.width = static_cast<float>(display.width);
-        viewport.height = static_cast<float>(display.height);
+        viewport.width = static_cast<JBro::Float>(display.width);
+        viewport.height = static_cast<JBro::Float>(display.height);
         commands.SetViewport(viewport);
 
         const Bool drawn = self->m_ui.Draw(commands, frameSlot);

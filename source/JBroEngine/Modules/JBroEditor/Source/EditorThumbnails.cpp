@@ -146,7 +146,7 @@ namespace JBro
             return false;
         }
         const JArrayView<std::byte> bytes{
-            pixels.Data(), static_cast<std::uint32_t>(pixels.Size())};
+            pixels.Data(), static_cast<JBro::UInt32>(pixels.Size())};
         if (false == m_device->WriteTexture(texture, 0, bytes))
         {
             // **올리지 못한 텍스처는 버린다.** 빈 텍스처를 들고 있으면 화면에 쓰레기가 뜬다.

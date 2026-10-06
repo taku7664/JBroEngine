@@ -312,10 +312,10 @@ namespace JBro::Widget
         {
             return box;
         }
-        const Float scaleX = box.x / static_cast<float>(width);
-        const Float scaleY = box.y / static_cast<float>(height);
+        const Float scaleX = box.x / static_cast<JBro::Float>(width);
+        const Float scaleY = box.y / static_cast<JBro::Float>(height);
         const Float scale = scaleX < scaleY ? scaleX : scaleY;
-        return ImVec2(static_cast<float>(width) * scale, static_cast<float>(height) * scale);
+        return ImVec2(static_cast<JBro::Float>(width) * scale, static_cast<JBro::Float>(height) * scale);
     }
 
     Bool BeginTabs(const char* id)

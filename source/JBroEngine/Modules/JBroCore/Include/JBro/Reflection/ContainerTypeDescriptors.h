@@ -11,6 +11,7 @@
 #include <memory>
 #include <utility>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -248,8 +249,8 @@ namespace JBro
 
             TypeDescriptor made;
             made.typeName = NameTable::Get().Intern(name.c_str());
-            made.size = static_cast<std::uint32_t>(sizeof(Array<T>));
-            made.alignment = static_cast<std::uint32_t>(alignof(Array<T>));
+            made.size = static_cast<JBro::UInt32>(sizeof(Array<T>));
+            made.alignment = static_cast<JBro::UInt32>(alignof(Array<T>));
             made.triviallyCopyable = false;
             made.arrayOps = &ArrayOpsOf<T>();
             made.element = &element;
@@ -274,8 +275,8 @@ namespace JBro
 
             TypeDescriptor made;
             made.typeName = NameTable::Get().Intern(name.c_str());
-            made.size = static_cast<std::uint32_t>(sizeof(Table<Key, Value>));
-            made.alignment = static_cast<std::uint32_t>(alignof(Table<Key, Value>));
+            made.size = static_cast<JBro::UInt32>(sizeof(Table<Key, Value>));
+            made.alignment = static_cast<JBro::UInt32>(alignof(Table<Key, Value>));
             made.triviallyCopyable = false;
             made.tableOps = &TableOpsOf<Key, Value>();
             made.key = &keyType;

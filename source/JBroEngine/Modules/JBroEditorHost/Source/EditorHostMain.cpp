@@ -326,7 +326,7 @@ int main(int argumentCount, char** arguments)
     {
         JBro::ProjectDescriptor project;
         constexpr char name[] = "JBroEditorHost";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         if (false == editor.OpenProject(project))
         {
             std::printf("the editor could not open its project\n");

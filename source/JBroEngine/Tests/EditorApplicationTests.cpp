@@ -220,7 +220,7 @@ namespace
     JBro::Bool DiffersFromClear(const unsigned char* pixel)
     {
         const auto apart = [](unsigned char got, JBro::Int32 want) {
-            const JBro::Int32 gap = static_cast<int>(got) - want;
+            const JBro::Int32 gap = static_cast<JBro::Int32>(got) - want;
             return gap > 4 || gap < -4;
         };
         return apart(pixel[0], ClearBlue)
@@ -418,10 +418,10 @@ namespace
         // **재는 자리를 좁힌다.** 같은 색이 다른 창에도 있다(인스펙터의 강조 같은 것) -
         // 화면 전체를 재면 그것들까지 한 상자에 들어온다.
         PixelBox box;
-        const JBro::UInt32 left = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.x));
-        const JBro::UInt32 top = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.y));
-        const JBro::UInt32 right = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.x));
-        const JBro::UInt32 bottom = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.y));
+        const JBro::UInt32 left = static_cast<JBro::UInt32>((std::max)(0.0f, area.Min.x));
+        const JBro::UInt32 top = static_cast<JBro::UInt32>((std::max)(0.0f, area.Min.y));
+        const JBro::UInt32 right = static_cast<JBro::UInt32>((std::max)(0.0f, area.Max.x));
+        const JBro::UInt32 bottom = static_cast<JBro::UInt32>((std::max)(0.0f, area.Max.y));
         for (JBro::UInt32 y = top; y < bottom; ++y)
         {
             for (JBro::UInt32 x = left; x < right; ++x)
@@ -434,10 +434,10 @@ namespace
                 {
                     continue;
                 }
-                box.minX = JBro::Min(box.minX, static_cast<int>(x));
-                box.minY = JBro::Min(box.minY, static_cast<int>(y));
-                box.maxX = JBro::Max(box.maxX, static_cast<int>(x));
-                box.maxY = JBro::Max(box.maxY, static_cast<int>(y));
+                box.minX = JBro::Min(box.minX, static_cast<JBro::Int32>(x));
+                box.minY = JBro::Min(box.minY, static_cast<JBro::Int32>(y));
+                box.maxX = JBro::Max(box.maxX, static_cast<JBro::Int32>(x));
+                box.maxY = JBro::Max(box.maxY, static_cast<JBro::Int32>(y));
             }
         }
         return box;
@@ -871,9 +871,9 @@ namespace
         const ImGuiStyle& style = ImGui::GetStyle();
         const ImRect titleBar = floating->TitleBarRect();
         const JBro::Float buttonSize = ImGui::GetFontSize();
-        const JBro::Int32 x = static_cast<int>(
+        const JBro::Int32 x = static_cast<JBro::Int32>(
             titleBar.Max.x - style.FramePadding.x - buttonSize * 0.5f);
-        const JBro::Int32 y = static_cast<int>(titleBar.GetCenter().y);
+        const JBro::Int32 y = static_cast<JBro::Int32>(titleBar.GetCenter().y);
 
         // 가리키고, 누르고, 뗀다. ImGui 는 지난 프레임에 무엇 위에 있었는지로
         // 이번 프레임의 눌림을 정하므로 각각 한 프레임씩 준다.
@@ -934,7 +934,7 @@ namespace
         Check(window != nullptr, "the inspector must have a window");
         const ImGuiID component = PushedId(window->ID, slot);
         const ImGuiID table = LabelId(component, "##component");
-        return LabelId(PushedId(table, static_cast<int>(field)), label);
+        return LabelId(PushedId(table, static_cast<JBro::Int32>(field)), label);
     }
 
     // ImGui 의 자식 창은 `"<부모 이름>/<자식 이름>_<16진 Id>"` 로 이름 붙는다. 그 16진 값을
@@ -997,9 +997,9 @@ namespace
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
         // **값 칸**이다. 왼쪽 칸은 라벨이 차지하므로 그쪽을 훑으면 위젯을 못 만난다.
-        const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * 0.65f);
-        const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
-        for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 3)
+        const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * 0.65f);
+        const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
+        for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 3)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1170,8 +1170,8 @@ namespace
         ImGuiID target, JBro::Int32 x, Spot& spot)
     {
         Check(window != nullptr, "the window this test looks in must exist");
-        const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
-        for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
+        const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
+        for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 2)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1193,7 +1193,7 @@ namespace
         for (JBro::Float fraction = 0.05f; fraction < 0.95f; fraction += 0.05f)
         {
             if (FindItemInWindow(editor, hwnd, window, target,
-                    static_cast<int>(window->Pos.x + window->Size.x * fraction), spot))
+                    static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction), spot))
             {
                 return true;
             }
@@ -1208,15 +1208,15 @@ namespace
     {
         Check(window != nullptr, "the window this test looks in must exist");
         Spot first;
-        const JBro::Int32 firstX = static_cast<int>(window->Pos.x + ImGui::GetStyle().WindowPadding.x + ImGui::GetFrameHeight() * 0.5f);
+        const JBro::Int32 firstX = static_cast<JBro::Int32>(window->Pos.x + ImGui::GetStyle().WindowPadding.x + ImGui::GetFrameHeight() * 0.5f);
         if (false == FindItemInWindow(editor, hwnd, window, LabelId(window->ID, "##gizmo_translate"), firstX, first))
         {
             return false;
         }
         // 처음 닿은 y 는 단추의 윗변이다. 조금 내려 줄의 안쪽을 훑는다.
         const JBro::Int32 y = first.y + 4;
-        const JBro::Int32 right = static_cast<int>(window->Pos.x + window->Size.x);
-        for (JBro::Int32 x = static_cast<int>(window->Pos.x); x < right; x += 3)
+        const JBro::Int32 right = static_cast<JBro::Int32>(window->Pos.x + window->Size.x);
+        for (JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x); x < right; x += 3)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1259,8 +1259,8 @@ namespace
     {
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the list must have its body");
-        const JBro::Int32 bottom = static_cast<int>(body->Pos.y + body->Size.y);
-        for (JBro::Int32 y = static_cast<int>(body->Pos.y); y < bottom; y += 2)
+        const JBro::Int32 bottom = static_cast<JBro::Int32>(body->Pos.y + body->Size.y);
+        for (JBro::Int32 y = static_cast<JBro::Int32>(body->Pos.y); y < bottom; y += 2)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -1289,9 +1289,9 @@ namespace
     {
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the list must have its body");
-        const JBro::Int32 right = static_cast<int>(body->Pos.x + body->Size.x);
-        const JBro::Int32 top = static_cast<int>(body->Pos.y);
-        const JBro::Int32 bottom = top + static_cast<int>(ImGui::GetFrameHeight()) * rows + 8;
+        const JBro::Int32 right = static_cast<JBro::Int32>(body->Pos.x + body->Size.x);
+        const JBro::Int32 top = static_cast<JBro::Int32>(body->Pos.y);
+        const JBro::Int32 bottom = top + static_cast<JBro::Int32>(ImGui::GetFrameHeight()) * rows + 8;
         for (JBro::Int32 y = top; y < bottom; y += 2)
         {
             for (JBro::Int32 x = right - 40; x < right; x += 3)
@@ -1335,7 +1335,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ListEditProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -1365,7 +1365,7 @@ namespace
 
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the inspector must draw the list");
-        const JBro::Int32 middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
+        const JBro::Int32 middle = static_cast<JBro::Int32>(body->Pos.x + body->Size.x * 0.5f);
         std::size_t undo = editor.GetCommands().GetUndoCount();
 
         // 둘째 원소를 끈다. 둘 다 같은 만큼 움직여야 한다 - 모이면 뭉갠 것이다.
@@ -1454,13 +1454,13 @@ namespace
             const JBro::Float right = listBody->Pos.x + listBody->Size.x;
             const JBro::Float centerX = left + listBody->Size.x * 0.5f;
             JBro::Int32 measuredRows = 0;
-            JBro::Int32 y = static_cast<int>(listBody->Pos.y);
-            const JBro::Int32 bottom = static_cast<int>(listBody->Pos.y + listBody->Size.y);
+            JBro::Int32 y = static_cast<JBro::Int32>(listBody->Pos.y);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(listBody->Pos.y + listBody->Size.y);
             while (y < bottom)
             {
                 // 값 칸의 숫자가 있는 줄 하나를 찾는다.
                 const PixelBox digits = MeasurePixels(image, readback,
-                    ImRect(centerX - 20.0f, static_cast<float>(y), centerX + 20.0f, static_cast<float>(y + 1)), bright);
+                    ImRect(centerX - 20.0f, static_cast<JBro::Float>(y), centerX + 20.0f, static_cast<JBro::Float>(y + 1)), bright);
                 if (digits.IsEmpty())
                 {
                     ++y;
@@ -1471,14 +1471,14 @@ namespace
                 for (JBro::Int32 probe = y + 1; probe < bottom && probe <= runEnd + 3; ++probe)
                 {
                     if (false == MeasurePixels(image, readback,
-                        ImRect(centerX - 20.0f, static_cast<float>(probe), centerX + 20.0f, static_cast<float>(probe + 1)),
+                        ImRect(centerX - 20.0f, static_cast<JBro::Float>(probe), centerX + 20.0f, static_cast<JBro::Float>(probe + 1)),
                         bright).IsEmpty())
                     {
                         runEnd = probe + 1;
                     }
                 }
                 const JBro::Float textMiddle = (y + runEnd - 1) * 0.5f;
-                const ImRect band(0.0f, static_cast<float>(y - 6), 0.0f, static_cast<float>(runEnd + 6));
+                const ImRect band(0.0f, static_cast<JBro::Float>(y - 6), 0.0f, static_cast<JBro::Float>(runEnd + 6));
                 const PixelBox grip = MeasurePixels(image, readback,
                     ImRect(left, band.Min.y, left + 24.0f, band.Max.y), bright);
                 const PixelBox mark = MeasurePixels(image, readback,
@@ -1523,7 +1523,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ColliderPointsProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -1544,7 +1544,7 @@ namespace
 
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the inspector must draw the collider's points as a list");
-        const JBro::Int32 middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
+        const JBro::Int32 middle = static_cast<JBro::Int32>(body->Pos.x + body->Size.x * 0.5f);
         std::size_t undo = editor.GetCommands().GetUndoCount();
 
         Spot spot;
@@ -1622,8 +1622,8 @@ namespace
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
-        for (JBro::Int32 x = static_cast<int>(window->Pos.x);
-             x < static_cast<int>(window->Pos.x + window->Size.x); ++x)
+        for (JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x);
+             x < static_cast<JBro::Int32>(window->Pos.x + window->Size.x); ++x)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while measuring");
@@ -1644,7 +1644,7 @@ namespace
             ImGuiWindow* body = FindListBody();
             Check(body != nullptr, "the list must have its body");
             if (FindListItem(editor, hwnd, target,
-                    static_cast<int>(body->Pos.x + body->Size.x * fraction), spot))
+                    static_cast<JBro::Int32>(body->Pos.x + body->Size.x * fraction), spot))
             {
                 return true;
             }
@@ -1671,7 +1671,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "StructListProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -1713,7 +1713,7 @@ namespace
         const JBro::PropertyTable& fields = *JBro::TypeDescriptorOf<Signal>::Get().fields;
         const ImGuiID table = LabelId(node, "##element");
         const auto fieldId = [&](const char* field) {
-            return LabelId(PushedId(table, static_cast<int>(FieldIndexOf(fields, field))),
+            return LabelId(PushedId(table, static_cast<JBro::Int32>(FieldIndexOf(fields, field))),
                 "##value");
         };
 
@@ -1726,8 +1726,8 @@ namespace
         {
             ImGuiWindow* list = FindListBody();
             JBro::Int32 hovered = 0;
-            for (JBro::Int32 x = static_cast<int>(list->Pos.x);
-                 x < static_cast<int>(list->Pos.x + list->Size.x); x += 2)
+            for (JBro::Int32 x = static_cast<JBro::Int32>(list->Pos.x);
+                 x < static_cast<JBro::Int32>(list->Pos.x + list->Size.x); x += 2)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, spot.y));
                 Check(editor.Tick(Frame), "the editor must tick while measuring");
@@ -1738,7 +1738,7 @@ namespace
                 }
             }
             // 목록 폭의 4분의 1 이다. 값 칸 안에 두었을 때는 1024 창에서 목록 폭의 7% 쯤이었다.
-            Check(static_cast<float>(hovered) >= list->Size.x * 0.25f,
+            Check(static_cast<JBro::Float>(hovered) >= list->Size.x * 0.25f,
                 "the value of a field inside an element must be wide enough to read");
         }
         std::size_t undo = editor.GetCommands().GetUndoCount();
@@ -1793,7 +1793,7 @@ namespace
             const ImGuiID firstPart = LabelId(PushedId(inspector->ID, 0), "##component");
             const ImGuiID secondPart = PushedId(LabelId(firstPart, "##Instances"), 1);
             const ImGuiID trailing = LabelId(PushedId(secondPart,
-                static_cast<int>(FieldIndexOf(*signalledTable, "trailing"))), "##value");
+                static_cast<JBro::Int32>(FieldIndexOf(*signalledTable, "trailing"))), "##value");
             Spot before;
             Spot after;
             Check(FindInspectorItem(editor, hwnd, leading, before),
@@ -1844,7 +1844,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ReorderProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -1875,12 +1875,12 @@ namespace
         // 얹혀 있다 - 왼쪽 끝을 훑으면 배경이 가리켜진다.
         Spot handle;
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 1), "##row_body"),
-                static_cast<int>(body->Pos.x) + 6, handle),
+                static_cast<JBro::Int32>(body->Pos.x) + 6, handle),
             "the second row must have a handle to drag");
         // 첫 행 위의 떨어뜨릴 자리. 슬롯 번호는 "이 원소 앞" 이다.
         Spot slot;
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 0), "##slot"),
-                static_cast<int>(body->Pos.x + body->Size.x * 0.5f), slot),
+                static_cast<JBro::Int32>(body->Pos.x + body->Size.x * 0.5f), slot),
             "there must be a drop slot above the first row");
         // 둘째 원소의 마디를 펼쳐 둔다. **펼침은 원소를 따라가야 한다** - 행 번호에 붙어 있으면
         // 옮긴 뒤 옛 자리의 원소가 펼쳐져 보인다.
@@ -1898,7 +1898,7 @@ namespace
             "the second node must be open and the first closed before the drag");
         // 펼친 행은 손잡이 자리도 커졌다. 다시 찾는다.
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 1), "##row_body"),
-                static_cast<int>(body->Pos.x) + 6, handle),
+                static_cast<JBro::Int32>(body->Pos.x) + 6, handle),
             "the opened second row must still have a handle to drag");
 
         const std::size_t undo = editor.GetCommands().GetUndoCount();
@@ -1914,7 +1914,7 @@ namespace
         }
         Check(FindListItemAnywhere(editor, hwnd,
                 LabelId(PushedId(LabelId(LabelId(PushedId(body->ID, 0), "Signal"), "##element"),
-                    static_cast<int>(FieldIndexOf(
+                    static_cast<JBro::Int32>(FieldIndexOf(
                         *JBro::TypeDescriptorOf<Signal>::Get().fields, "strength"))),
                     "##value"),
                 node),
@@ -1936,7 +1936,7 @@ namespace
 
         // 놓는 자리가 출발 행의 바로 아래면 옮길 것이 없다. 되돌리기가 하나 늘면 빈 커맨드다.
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 2), "##slot"),
-                static_cast<int>(body->Pos.x + body->Size.x * 0.5f), slot),
+                static_cast<JBro::Int32>(body->Pos.x + body->Size.x * 0.5f), slot),
             "there must be a drop slot below the second row");
         const std::size_t before = editor.GetCommands().GetUndoCount();
         DragTo(editor, hwnd, handle, slot);
@@ -1947,10 +1947,10 @@ namespace
         // 첫 행을 맨 아래 자리에 놓는다. 원본을 먼저 빼므로 **뒤로 갈 때는 목표가 한 칸
         // 당겨진다** - 위로 끄는 것만 재면 그 보정이 빠져도 드러나지 않는다.
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 0), "##row_body"),
-                static_cast<int>(body->Pos.x) + 6, handle),
+                static_cast<JBro::Int32>(body->Pos.x) + 6, handle),
             "the first row must have a handle to drag");
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 2), "##slot"),
-                static_cast<int>(body->Pos.x + body->Size.x * 0.5f), slot),
+                static_cast<JBro::Int32>(body->Pos.x + body->Size.x * 0.5f), slot),
             "there must be a drop slot at the end of the list");
         DragTo(editor, hwnd, handle, slot);
         Check(a->signals[0].strength == 100.0f && a->signals[1].strength == 1.0f,
@@ -2031,7 +2031,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ToggledListProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -2242,7 +2242,7 @@ namespace
             "a popup cannot open before the UI is on");
         JBro::ProjectDescriptor project;
         constexpr char name[] = "PopupProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
@@ -2361,7 +2361,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "MenuSaveProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2477,11 +2477,11 @@ namespace
                 const auto* pixel = reinterpret_cast<const unsigned char*>(image.Data() + offset);
                 // 빨강에서 파랑과 초록의 큰 쪽을 뺀다. 테마의 회색 단추는 0 근처다.
                 const JBro::Int32 other = pixel[0] > pixel[1] ? pixel[0] : pixel[1];
-                redness += static_cast<int>(pixel[2]) - other;
+                redness += static_cast<JBro::Int32>(pixel[2]) - other;
                 ++counted;
             }
         }
-        return counted == 0 ? 0 : static_cast<int>(redness / counted);
+        return counted == 0 ? JBro::Int32(0) : static_cast<JBro::Int32>(redness / counted);
     }
 
     void RightClickAt(JBro::EditorApplication& editor, HWND hwnd, const Spot& spot)
@@ -2524,7 +2524,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "MoveComponentProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -2611,7 +2611,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "PasteProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2758,7 +2758,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "PlacementProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2838,7 +2838,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "LayerRoundTripProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2914,7 +2914,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ComponentClipboardProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -3041,7 +3041,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "AddComponentListProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::GameObject* object = canvas->CreateObject("Probe");
@@ -3141,7 +3141,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GameViewStatusProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
@@ -3200,7 +3200,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GameViewOptInProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -3273,7 +3273,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "VectorFieldProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -3306,9 +3306,9 @@ namespace
         JBro::Bool found = false;
         for (JBro::Float fraction = 0.40f; fraction < 0.95f && false == found; fraction += 0.05f)
         {
-            const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
-            const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
-            for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom && false == found; y += 3)
+            const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
+            for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom && false == found; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -3351,7 +3351,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "PairListProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -3386,7 +3386,7 @@ namespace
         for (JBro::Float fraction = 0.25f; fraction < 0.75f && false == found; fraction += 0.05f)
         {
             found = FindListItem(editor, hwnd, firstField,
-                static_cast<int>(body->Pos.x + body->Size.x * fraction), spot);
+                static_cast<JBro::Int32>(body->Pos.x + body->Size.x * fraction), spot);
         }
         Check(found, "the x field of the second point must be on the list");
         const std::size_t undo = editor.GetCommands().GetUndoCount();
@@ -3427,7 +3427,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "InspectorEditProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -3568,7 +3568,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "InspectorTextProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -3635,7 +3635,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GameInputProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -3926,11 +3926,11 @@ namespace
         const auto findButton = [&](ImGuiID target, Spot& found) {
             ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
             Check(window != nullptr, "the inspector must have a window");
-            const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
             for (const JBro::Float fraction : {0.40f, 0.45f, 0.50f, 0.55f})
             {
-                const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
-                for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 4)
+                const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction);
+                for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 4)
                 {
                     PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                     Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -4340,8 +4340,8 @@ namespace
             ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, assets->TabId);
             Check(tab != nullptr, "the asset browser must have a tab in its dock");
             Spot tabSpot;
-            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
-            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            tabSpot.x = static_cast<JBro::Int32>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<JBro::Int32>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
             for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
@@ -4358,9 +4358,9 @@ namespace
             Check(tree != nullptr, "the folder tree pane must exist");
             const ImGuiID artRow = LabelId(LabelId(tree->ID, "art"), "##folder");
             JBro::Bool foundFolder = false;
-            const JBro::Int32 x = static_cast<int>(tree->Pos.x + 40.0f);
-            const JBro::Int32 bottom = static_cast<int>(tree->Pos.y + tree->Size.y);
-            for (JBro::Int32 y = static_cast<int>(tree->Pos.y); y < bottom && false == foundFolder; y += 3)
+            const JBro::Int32 x = static_cast<JBro::Int32>(tree->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(tree->Pos.y + tree->Size.y);
+            for (JBro::Int32 y = static_cast<JBro::Int32>(tree->Pos.y); y < bottom && false == foundFolder; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for the folder");
@@ -4387,9 +4387,9 @@ namespace
             Check(contents != nullptr, "the contents pane must exist");
             // 줄의 Id: 자식 창 → PushID("art/hero.png") → "##file".
             const ImGuiID heroRow = LabelId(LabelId(contents->ID, "art/hero.png"), "##file");
-            const JBro::Int32 x = static_cast<int>(contents->Pos.x + 40.0f);
-            const JBro::Int32 bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
-            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
+            const JBro::Int32 x = static_cast<JBro::Int32>(contents->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(contents->Pos.y + contents->Size.y);
+            for (JBro::Int32 y = static_cast<JBro::Int32>(contents->Pos.y); y < bottom && false == found; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -4448,9 +4448,9 @@ namespace
             Check(contents != nullptr, "the contents pane must still exist");
             const ImGuiID heroRow = LabelId(LabelId(contents->ID, "art/hero.png"), "##file");
             JBro::Bool againFound = false;
-            const JBro::Int32 x = static_cast<int>(contents->Pos.x + 40.0f);
-            const JBro::Int32 bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
-            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == againFound; y += 3)
+            const JBro::Int32 x = static_cast<JBro::Int32>(contents->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(contents->Pos.y + contents->Size.y);
+            for (JBro::Int32 y = static_cast<JBro::Int32>(contents->Pos.y); y < bottom && false == againFound; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking again");
@@ -4487,7 +4487,7 @@ namespace
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
         const ImGuiID ppuField = LabelId(
-            PushedId(LabelId(PushedId(inspector->ID, 1), "##import"), static_cast<int>(ppu)), "##value");
+            PushedId(LabelId(PushedId(inspector->ID, 1), "##import"), static_cast<JBro::Int32>(ppu)), "##value");
         Check(FindInspectorItem(editor, hwnd, ppuField, spot), "the pixels-per-unit row must be in the inspector");
 
         const fs::path metaPath = root / "Assets" / "art" / "hero.png.jmeta";
@@ -4614,7 +4614,7 @@ namespace
             if (false == editor.Tick(1.0f / 60.0f))
             {
                 std::cout << "  the editor died on frame " << frame
-                    << " with status " << static_cast<int>(editor.GetLastFrameStatus())
+                    << " with status " << static_cast<JBro::Int32>(editor.GetLastFrameStatus())
                     << std::endl;
                 Check(false, "a font atlas update must not take the device down");
             }
@@ -4640,7 +4640,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "SelectionProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -4721,7 +4721,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "TopLevelProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -4788,7 +4788,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "MultiEditProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -4883,7 +4883,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "TopLevelEditProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -4946,7 +4946,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "OrdinalProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -5022,7 +5022,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "InspectorProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -5108,7 +5108,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ObjectCommandProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -5192,7 +5192,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "CreateProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -5237,7 +5237,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "EditorCloseProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         Check(editor.Tick(1.0f / 60.0f), "the editor must tick with its UI on");
@@ -5425,9 +5425,9 @@ namespace
             // 제 이름으로 Id 를 받는다.
             const ImGuiID bar = LabelId(barWindow->ID, "##MenuBar");
             const ImRect rect = barWindow->MenuBarRect();
-            const JBro::Int32 y = static_cast<int>(rect.GetCenter().y);
-            for (JBro::Int32 x = static_cast<int>(rect.Min.x);
-                x < static_cast<int>(rect.Max.x) && x < 400; x += 4)
+            const JBro::Int32 y = static_cast<JBro::Int32>(rect.GetCenter().y);
+            for (JBro::Int32 x = static_cast<JBro::Int32>(rect.Min.x);
+                x < static_cast<JBro::Int32>(rect.Max.x) && x < 400; x += 4)
             {
                 PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -5504,7 +5504,7 @@ namespace
 
         JBro::ProjectDescriptor project;
         constexpr char name[] = "EditorScreenProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         project.graphicsApi = api;
         Check(editor.OpenProject(project), "the probe project must open");
 
@@ -5619,11 +5619,11 @@ namespace
 
         // **모양이 지켜져야 한다.** 패널에 늘려 붙이면 픽셀 수는 오히려 늘어나서
         // 넓이만 세는 검사는 통과한다 - 게임이 에디터 창 모양대로 찌그러진 채로.
-        const JBro::Float boxWidth = static_cast<float>(gameMaxX - gameMinX + 1);
-        const JBro::Float boxHeight = static_cast<float>(gameMaxY - gameMinY + 1);
+        const JBro::Float boxWidth = static_cast<JBro::Float>(gameMaxX - gameMinX + 1);
+        const JBro::Float boxHeight = static_cast<JBro::Float>(gameMaxY - gameMinY + 1);
         const JBro::Float shown = boxWidth / boxHeight;
         const JBro::Float wanted =
-            static_cast<float>(GameWidth) / static_cast<float>(GameHeight);
+            static_cast<JBro::Float>(GameWidth) / static_cast<JBro::Float>(GameHeight);
         std::cout << "  the game view is " << boxWidth << "x" << boxHeight
             << " (ratio " << shown << ", wanted " << wanted << ")" << std::endl;
         Check(shown > wanted - 0.08f && shown < wanted + 0.08f,
@@ -5960,7 +5960,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GizmoProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({320, 240}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -6121,7 +6121,7 @@ namespace
         {
             JBro::GameObject* box = canvas->CreateObject("Box");
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
-            transform->position = JBro::Vector2{static_cast<float>(i % 100) * 2.0f, static_cast<float>(i / 100) * 2.0f};
+            transform->position = JBro::Vector2{static_cast<JBro::Float>(i % 100) * 2.0f, static_cast<JBro::Float>(i / 100) * 2.0f};
             canvas->AttachComponent<JBro::Component::Collider2D>(box);
         }
         JBro::CanvasFileError canvasError;
@@ -6170,7 +6170,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "PhysicsPlayProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -6240,7 +6240,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "StepFrameProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -6310,7 +6310,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "SimulationProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         Check(false == editor.IsSimulationPlaying(), "the editor opens stopped");
@@ -6396,7 +6396,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "BoxSelectProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -6447,11 +6447,11 @@ namespace
 
         // x -1..1 은 상자 안이고, y 4 는 위로 한참 벗어나 상자 밖이다.
         Spot from;
-        from.x = static_cast<int>(centerX - pixelsPerUnit * 1.2f);
-        from.y = static_cast<int>(centerY - pixelsPerUnit * 0.4f);
+        from.x = static_cast<JBro::Int32>(centerX - pixelsPerUnit * 1.2f);
+        from.y = static_cast<JBro::Int32>(centerY - pixelsPerUnit * 0.4f);
         Spot to;
-        to.x = static_cast<int>(centerX + pixelsPerUnit * 1.2f);
-        to.y = static_cast<int>(centerY + pixelsPerUnit * 0.4f);
+        to.x = static_cast<JBro::Int32>(centerX + pixelsPerUnit * 1.2f);
+        to.y = static_cast<JBro::Int32>(centerY + pixelsPerUnit * 0.4f);
         DragTo(editor, hwnd, from, to);
 
         Check(editor.IsSelected(left) && editor.IsSelected(right), "the box must pick the two it touched");
@@ -6465,8 +6465,8 @@ namespace
         // 빈 곳은 뷰 크기에서 고른다. 가운데에서 고정 150 px 위였는데, 창 바닥에 상태 표시줄이 서며(D-236) 뷰가 짧아지자
         // 그 점이 탭 줄 위로 올라가 뷰를 누르지 못했다. 오른쪽 가장자리 가까이, 오브젝트 줄보다 조금 아래는 늘 비어 있다.
         Spot empty;
-        empty.x = static_cast<int>(centerX + view->Size.x * 0.4f);
-        empty.y = static_cast<int>(centerY + pixelsPerUnit * 0.6f);
+        empty.x = static_cast<JBro::Int32>(centerX + view->Size.x * 0.4f);
+        empty.y = static_cast<JBro::Int32>(centerY + pixelsPerUnit * 0.6f);
         ClickAt(editor, hwnd, empty);
         Check(editor.GetSelectionCount() == 0,
             "a plain click on empty space clears the selection instead of boxing nothing");
@@ -6490,7 +6490,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "CanvasView3DProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         project.framework = JBro::FrameworkKind::Framework3D;
         Check(editor.OpenProject(project), "the 3D probe project must open");
         Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
@@ -6718,8 +6718,8 @@ namespace
             ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, assets->TabId);
             Check(tab != nullptr, "the asset browser must have a tab in its dock");
             Spot tabSpot;
-            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
-            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            tabSpot.x = static_cast<JBro::Int32>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<JBro::Int32>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
             for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
@@ -6731,9 +6731,9 @@ namespace
 
         // 왼쪽 나무에서 `art` 를 연다.
         const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
-            const JBro::Int32 x = static_cast<int>(pane->Pos.x + 40.0f);
-            const JBro::Int32 bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
-            for (JBro::Int32 y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            const JBro::Int32 x = static_cast<JBro::Int32>(pane->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(pane->Pos.y + pane->Size.y);
+            for (JBro::Int32 y = static_cast<JBro::Int32>(pane->Pos.y); y < bottom; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for a row");
@@ -6954,9 +6954,9 @@ namespace
         const ImGuiID heroRow = LabelId(LabelId(contents->ID, "hero.png"), "##file");
         Spot from;
         JBro::Bool found = false;
-        const JBro::Int32 x = static_cast<int>(contents->Pos.x + 40.0f);
-        const JBro::Int32 bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
-        for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
+        const JBro::Int32 x = static_cast<JBro::Int32>(contents->Pos.x + 40.0f);
+        const JBro::Int32 bottom = static_cast<JBro::Int32>(contents->Pos.y + contents->Size.y);
+        for (JBro::Int32 y = static_cast<JBro::Int32>(contents->Pos.y); y < bottom && false == found; y += 3)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking for the row");
@@ -6994,7 +6994,7 @@ namespace
             const ImGuiID subRow = LabelId(LabelId(contents->ID, "sub"), "##sub");
             Spot folder;
             JBro::Bool foundFolder = false;
-            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom && false == foundFolder; y += 3)
+            for (JBro::Int32 y = static_cast<JBro::Int32>(contents->Pos.y); y < bottom && false == foundFolder; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for the folder");
@@ -7037,7 +7037,7 @@ namespace
             // **줄의 가운데를 누른다.** 호버가 잡힌 구간의 한가운데를 쓴다.
             JBro::Int32 firstY = -1;
             JBro::Int32 lastY = -1;
-            for (JBro::Int32 y = static_cast<int>(contents->Pos.y); y < bottom; y += 2)
+            for (JBro::Int32 y = static_cast<JBro::Int32>(contents->Pos.y); y < bottom; y += 2)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for the picture row");
@@ -7335,14 +7335,14 @@ namespace
             JBro::Renderer* renderer = editor.GetRenderer();
             Check(renderer != nullptr, "the editor must expose its renderer");
             // 재는 칸: 시트 자식 창에서 확대 줄을 끝 자리다.
-            const JBro::UInt32 sheetLeft = static_cast<std::uint32_t>(sheet->Pos.x);
-            const JBro::UInt32 sheetTop = static_cast<std::uint32_t>(sheet->Pos.y) + 30;
-            const JBro::UInt32 sheetRight = static_cast<std::uint32_t>(sheet->Pos.x + sheet->Size.x);
-            const JBro::UInt32 sheetBottom = static_cast<std::uint32_t>(sheet->Pos.y + sheet->Size.y);
+            const JBro::UInt32 sheetLeft = static_cast<JBro::UInt32>(sheet->Pos.x);
+            const JBro::UInt32 sheetTop = static_cast<JBro::UInt32>(sheet->Pos.y) + 30;
+            const JBro::UInt32 sheetRight = static_cast<JBro::UInt32>(sheet->Pos.x + sheet->Size.x);
+            const JBro::UInt32 sheetBottom = static_cast<JBro::UInt32>(sheet->Pos.y + sheet->Size.y);
             // 마우스를 시트 밖으로 치운다. 가리킨 칸의 강조가 차이에 섞이지 않게.
             const auto park = [&]() {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0,
-                    MAKELPARAM(static_cast<int>(sheetRight) + 40, static_cast<int>(sheetTop)));
+                    MAKELPARAM(static_cast<JBro::Int32>(sheetRight) + 40, static_cast<JBro::Int32>(sheetTop)));
                 Check(editor.Tick(Frame), "the editor must tick with the mouse parked");
                 Check(editor.Tick(Frame), "and once more so the sheet redraws");
             };
@@ -7362,7 +7362,7 @@ namespace
                 for (JBro::UInt32 x = sheetLeft; x + 4 < sheetRight && false == foundCell; x += 6)
                 {
                     PostMessageW(hwnd, WM_MOUSEMOVE, 0,
-                        MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
+                        MAKELPARAM(static_cast<JBro::Int32>(x), static_cast<JBro::Int32>(y)));
                     Check(editor.Tick(Frame), "the editor must tick while looking for a cell");
                     foundCell = editor.GetSpriteViewerHoveredFrame() >= 0;
                 }
@@ -7398,7 +7398,7 @@ namespace
             // **끌어서 왼쪽 끝까지 민다.** 한 번 누르는 것으로는 어디가 눌렸는지에 따라
             // 값이 거의 그대로일 수 있고, 지금 배율은 이미 위쪽 한계라 더 키울 수도 없다.
             Spot low = slider;
-            low.x = static_cast<int>(sheetLeft);
+            low.x = static_cast<JBro::Int32>(sheetLeft);
             DragTo(editor, hwnd, slider, low);
             park();
             ReadBackBufferInto(*renderer, 1024, 768, after, readback);
@@ -7978,7 +7978,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "StepInsideProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -8003,9 +8003,9 @@ namespace
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
         const ImGuiID canvasId = LabelId(view->ID, "##canvas");
-        const JBro::Int32 probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+        const JBro::Int32 probeX = static_cast<JBro::Int32>(view->Pos.x + view->Size.x * 0.5f);
         JBro::Int32 top = -1;
-        for (JBro::Int32 y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
+        for (JBro::Int32 y = static_cast<JBro::Int32>(view->Pos.y); y < static_cast<JBro::Int32>(view->Pos.y + view->Size.y); ++y)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(probeX, y));
             Check(editor.Tick(Frame), "the editor must tick while looking for the picture");
@@ -8019,18 +8019,18 @@ namespace
         // 월드 원점은 **그린 화면(텍스처)의 한가운데**다(D-150). 세로 절반이 5 유닛이다.
         const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
         const JBro::Float left = view->ContentRegionRect.Min.x;
-        const JBro::Float originX = left + static_cast<float>(drawn.width) * 0.5f;
-        const JBro::Float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
-        const JBro::Float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
+        const JBro::Float originX = left + static_cast<JBro::Float>(drawn.width) * 0.5f;
+        const JBro::Float originY = static_cast<JBro::Float>(top) + static_cast<JBro::Float>(drawn.height) * 0.5f;
+        const JBro::Float pixelsPerUnit = static_cast<JBro::Float>(drawn.height) * 0.5f / 5.0f;
         Spot onBody;
-        onBody.x = static_cast<int>(originX);
-        onBody.y = static_cast<int>(originY);
+        onBody.x = static_cast<JBro::Int32>(originX);
+        onBody.y = static_cast<JBro::Int32>(originY);
         Spot onArm;
-        onArm.x = static_cast<int>(originX - pixelsPerUnit * 2.0f);
-        onArm.y = static_cast<int>(originY + pixelsPerUnit * 2.0f);
+        onArm.x = static_cast<JBro::Int32>(originX - pixelsPerUnit * 2.0f);
+        onArm.y = static_cast<JBro::Int32>(originY + pixelsPerUnit * 2.0f);
         Spot empty;
-        empty.x = static_cast<int>(originX + pixelsPerUnit * 3.0f);
-        empty.y = static_cast<int>(originY + pixelsPerUnit * 3.0f);
+        empty.x = static_cast<JBro::Int32>(originX + pixelsPerUnit * 3.0f);
+        empty.y = static_cast<JBro::Int32>(originY + pixelsPerUnit * 3.0f);
         const auto waitOutDoubleClick = [&]() {
             // 다음 누름이 두 번 누르기로 읽히지 않게 시간을 둔다.
             for (JBro::Int32 frame = 0; frame < 30; ++frame)
@@ -8054,8 +8054,8 @@ namespace
             JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must map world to screen");
             Spot spot;
-            spot.x = static_cast<int>(x);
-            spot.y = static_cast<int>(y);
+            spot.x = static_cast<JBro::Int32>(x);
+            spot.y = static_cast<JBro::Int32>(y);
             return spot;
         };
 
@@ -8147,7 +8147,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "FocusVeilProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -8185,8 +8185,8 @@ namespace
             Check(view != nullptr && view->ContentRegionRect.Contains(ImVec2(x, y)),
                 "the spot the test reads must lie inside the canvas view");
             Spot spot;
-            spot.x = static_cast<int>(x);
-            spot.y = static_cast<int>(y);
+            spot.x = static_cast<JBro::Int32>(x);
+            spot.y = static_cast<JBro::Int32>(y);
             return spot;
         };
         const auto unitPixels = [&]() {
@@ -8359,7 +8359,7 @@ namespace
             }
             JBro::ProjectDescriptor project;
             constexpr char name[] = "CreateProbe";
-            project.name = {name, sizeof(name) - 1};
+            project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
             project.framework = kind;
             Check(editor.OpenProject(project), "the probe project must open");
             JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
@@ -8560,8 +8560,8 @@ namespace
         Check(pixelsPerUnit > 1.0f, "one world unit must be some pixels wide");
 
         Spot inside;
-        inside.x = static_cast<int>(centerX);
-        inside.y = static_cast<int>(centerY);
+        inside.x = static_cast<JBro::Int32>(centerX);
+        inside.y = static_cast<JBro::Int32>(centerY);
         ClickAt(editor, hwnd, inside);
         Check(editor.GetSelectedObject() == object, "the middle of the picture picks it");
 
@@ -8609,9 +8609,9 @@ namespace
             // 이 색을 쓰는 것은 테두리뿐이다.
             const PixelBox outline = MeasurePixels(frameImage, readback, area,
                 [](const unsigned char* p) {
-                    return std::abs(static_cast<int>(p[2]) - 255) < 40
-                        && std::abs(static_cast<int>(p[1]) - 168) < 40
-                        && std::abs(static_cast<int>(p[0]) - 64) < 40;
+                    return std::abs(static_cast<JBro::Int32>(p[2]) - 255) < 40
+                        && std::abs(static_cast<JBro::Int32>(p[1]) - 168) < 40
+                        && std::abs(static_cast<JBro::Int32>(p[0]) - 64) < 40;
                 });
             Check(false == picture.IsEmpty(), "the picture must be on screen");
             Check(false == outline.IsEmpty(), "and so must the outline");
@@ -8641,8 +8641,8 @@ namespace
         // 두 유닛 옆은 **그림 밖**이다. 예전 셈으로는 아직 한참 안쪽이었다.
         // 원점과 같은 높이는 고른 것의 기즈모 X 축 위라, 한 유닛 반 위로 비켜 누른다(그림은 ±1 유닛이라 여전히 밖이다).
         Spot outside;
-        outside.x = static_cast<int>(centerX + pixelsPerUnit * 2.0f);
-        outside.y = static_cast<int>(centerY - pixelsPerUnit * 1.5f);
+        outside.x = static_cast<JBro::Int32>(centerX + pixelsPerUnit * 2.0f);
+        outside.y = static_cast<JBro::Int32>(centerY - pixelsPerUnit * 1.5f);
         ClickAt(editor, hwnd, outside);
         Check(editor.GetSelectedObject() == nullptr,
             "and two units to the side is outside the picture, so nothing is picked");
@@ -8756,9 +8756,9 @@ namespace
         Check(editor.Tick(Frame), "and once more so the world scale is current");
         // 월드 원점은 **그린 화면(텍스처)의 한가운데**다(D-150). 툴바 아래에서 그림이 시작하는 줄을 먼저 찾는다.
         const ImGuiID canvasId = LabelId(view->ID, "##canvas");
-        const JBro::Int32 probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+        const JBro::Int32 probeX = static_cast<JBro::Int32>(view->Pos.x + view->Size.x * 0.5f);
         JBro::Int32 top = -1;
-        for (JBro::Int32 y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
+        for (JBro::Int32 y = static_cast<JBro::Int32>(view->Pos.y); y < static_cast<JBro::Int32>(view->Pos.y + view->Size.y); ++y)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(probeX, y));
             Check(editor.Tick(Frame), "the editor must tick while looking for the picture");
@@ -8770,12 +8770,12 @@ namespace
         }
         Check(top >= 0, "the picture must be under the tool bar");
         const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
-        const JBro::Float originX = view->ContentRegionRect.Min.x + static_cast<float>(drawn.width) * 0.5f;
-        const JBro::Float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
-        const JBro::Float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
+        const JBro::Float originX = view->ContentRegionRect.Min.x + static_cast<JBro::Float>(drawn.width) * 0.5f;
+        const JBro::Float originY = static_cast<JBro::Float>(top) + static_cast<JBro::Float>(drawn.height) * 0.5f;
+        const JBro::Float pixelsPerUnit = static_cast<JBro::Float>(drawn.height) * 0.5f / 5.0f;
         Spot onText;
-        onText.x = static_cast<int>(originX + pickX * pixelsPerUnit);
-        onText.y = static_cast<int>(originY - pickY * pixelsPerUnit);
+        onText.x = static_cast<JBro::Int32>(originX + pickX * pixelsPerUnit);
+        onText.y = static_cast<JBro::Int32>(originY - pickY * pixelsPerUnit);
         ClickAt(editor, hwnd, onText);
         Check(editor.GetSelectedObject() == object, "clicking the letters picks the text object");
         // 다음 누름이 두 번 누르기(들어가기)로 읽히지 않게 시간을 둔다.
@@ -8786,7 +8786,7 @@ namespace
         // 아래쪽이다. 고른 오브젝트의 기즈모 손잡이는 오른쪽·위로 뻗어, 옆을 누르면 손잡이를 잡는다.
         Spot belowText;
         belowText.x = onText.x;
-        belowText.y = static_cast<int>(originY - (minY * Scale - 0.5f) * pixelsPerUnit);
+        belowText.y = static_cast<JBro::Int32>(originY - (minY * Scale - 0.5f) * pixelsPerUnit);
         ClickAt(editor, hwnd, belowText);
         Check(editor.GetSelectedObject() == nullptr, "and half a unit below the block picks nothing");
         for (JBro::Int32 frame = 0; frame < 30; ++frame)
@@ -8796,8 +8796,8 @@ namespace
         // 원점 바로 왼쪽은 빈 오브젝트라면 잡히는 기본 상자 안이지만, 글자 블록은 원점에서 오른쪽으로 뻗는다(Left 정렬).
         // 텍스트가 있으면 그 작은 상자 대신 블록을 쓴다.
         Spot leftOfBlock;
-        leftOfBlock.x = static_cast<int>(originX - 0.15f * pixelsPerUnit);
-        leftOfBlock.y = static_cast<int>(originY - 0.1f * pixelsPerUnit);
+        leftOfBlock.x = static_cast<JBro::Int32>(originX - 0.15f * pixelsPerUnit);
+        leftOfBlock.y = static_cast<JBro::Int32>(originY - 0.1f * pixelsPerUnit);
         ClickAt(editor, hwnd, leftOfBlock);
         Check(editor.GetSelectedObject() == nullptr, "just left of the block is not the text, even inside the empty-object box");
         for (JBro::Int32 frame = 0; frame < 30; ++frame)
@@ -8808,8 +8808,8 @@ namespace
         JBro::TextStore::Get().Assign(label->text, "", 0);
         Check(editor.Tick(Frame), "the editor must lay the empty text out");
         Spot atOrigin;
-        atOrigin.x = static_cast<int>(originX + 0.1f * pixelsPerUnit);
-        atOrigin.y = static_cast<int>(originY - 0.1f * pixelsPerUnit);
+        atOrigin.x = static_cast<JBro::Int32>(originX + 0.1f * pixelsPerUnit);
+        atOrigin.y = static_cast<JBro::Int32>(originY - 0.1f * pixelsPerUnit);
         ClickAt(editor, hwnd, atOrigin);
         Check(editor.GetSelectedObject() == object, "an empty text can still be picked at its origin");
         JBro::TextStore::Get().Assign(label->text, "AB", 2);
@@ -8823,8 +8823,8 @@ namespace
             Check(editor.Tick(Frame), "the editor must settle on the turned text");
         }
         Spot turned;
-        turned.x = static_cast<int>(originX - 1.5f * pixelsPerUnit);
-        turned.y = static_cast<int>(originY - 1.8f * pixelsPerUnit);
+        turned.x = static_cast<JBro::Int32>(originX - 1.5f * pixelsPerUnit);
+        turned.y = static_cast<JBro::Int32>(originY - 1.8f * pixelsPerUnit);
         ClickAt(editor, hwnd, turned);
         Check(editor.GetSelectedObject() == object, "a turned text is picked where its turned block is");
         transform->SetRotationRadian(JBro::Radian(0.0f));
@@ -8936,7 +8936,7 @@ namespace
         const JBro::TypeDescriptor& fontOptions = JBro::TypeDescriptorOf<JBro::FontImportOptions>::Get();
         Check(fontOptions.fields != nullptr, "font import options have a property table");
         const ImGuiID ppuField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"),
-            static_cast<int>(FieldIndexOf(*fontOptions.fields, "pixelsPerUnit"))), "##value");
+            static_cast<JBro::Int32>(FieldIndexOf(*fontOptions.fields, "pixelsPerUnit"))), "##value");
         Spot ppuSpot;
         Check(FindInspectorItem(editor, hwnd, ppuField, ppuSpot), "the font's pixels-per-unit row must be in the inspector");
         const std::size_t undoOptions = editor.GetCommands().GetUndoCount();
@@ -9051,7 +9051,7 @@ namespace
         label += "###ProjectSettings";
         ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
         Check(window != nullptr, "the project settings must have a window");
-        const JBro::Int32 buttonX = static_cast<int>(window->ContentRegionRect.Min.x + 12.0f);
+        const JBro::Int32 buttonX = static_cast<JBro::Int32>(window->ContentRegionRect.Min.x + 12.0f);
 
         // 폰트 목록은 공용 목록 위젯이라 제 자식 창(`##list_body`) 안에 선다. 줄의 Id 는 그 창 → 줄 번호 → `##font` 다.
         ImGuiWindow* list = FindChildWindow(window, "##list_body");
@@ -9059,7 +9059,7 @@ namespace
         Spot add;
         Check(FindItemScrolling(editor, hwnd, window,
                 LabelId(list->ID, JBro::Loc::TextOr(JBro::LocKeys::ListAddElement, "Add element")),
-                static_cast<int>(list->Pos.x + 30.0f), add),
+                static_cast<JBro::Int32>(list->Pos.x + 30.0f), add),
             "the font list shows its add row");
         ClickAt(editor, hwnd, add);
         Check(editor.Tick(Frame), "the new row must appear");
@@ -9071,7 +9071,7 @@ namespace
         for (JBro::Float fraction = 0.35f; fraction < 0.8f && false == foundField; fraction += 0.15f)
         {
             foundField = FindItemScrolling(editor, hwnd, window, row,
-                static_cast<int>(window->Pos.x + window->Size.x * fraction), field);
+                static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction), field);
         }
         std::cout << "  [measure] settings window " << window->Size.x << " x " << window->Size.y << std::endl;
         Check(foundField, "the added row has a font field");
@@ -9187,8 +9187,8 @@ namespace
             Check(hwnd != nullptr, "the editor window must be findable");
             ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
             Check(view != nullptr, "the canvas view must have a window");
-            const JBro::Int32 x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-            const JBro::Int32 y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+            const JBro::Int32 x = static_cast<JBro::Int32>(view->Pos.x + view->Size.x * 0.5f);
+            const JBro::Int32 y = static_cast<JBro::Int32>(view->Pos.y + view->Size.y * 0.5f);
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick");
             PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, WHEEL_DELTA), MAKELPARAM(x, y));
@@ -9269,8 +9269,8 @@ namespace
             Check(hwnd != nullptr, "the editor window must be findable");
             ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
             Check(view != nullptr, "the canvas view must have a window");
-            const JBro::Int32 x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-            const JBro::Int32 y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+            const JBro::Int32 x = static_cast<JBro::Int32>(view->Pos.x + view->Size.x * 0.5f);
+            const JBro::Int32 y = static_cast<JBro::Int32>(view->Pos.y + view->Size.y * 0.5f);
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick");
             PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, WHEEL_DELTA), MAKELPARAM(x, y));
@@ -9394,7 +9394,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "StatsProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -9446,7 +9446,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ColliderViewProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -9514,7 +9514,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "CapsuleDrawProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -9575,7 +9575,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "PolygonEditProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         // 창을 넉넉히 연다. 도구 막대는 줄을 넘기지 않아, 좁은 창에서는 끝의 "콜라이더 편집" 이 잘린다.
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
@@ -9603,8 +9603,8 @@ namespace
             JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
             Spot spot;
-            spot.x = static_cast<int>(std::lround(x));
-            spot.y = static_cast<int>(std::lround(y));
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
             return spot;
         };
         const auto hoveredAt = [&](const Spot& spot) {
@@ -9713,7 +9713,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GridLabelProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -9769,7 +9769,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "RulerUnitProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -9804,14 +9804,14 @@ namespace
         // **눈금 숫자가 있는 자리만 잰다.** 창 전체로 재면 단추 글자가 `유닛` 에서 `픽셀` 로
         // 바뀐 것까지 섞여 들어와, 정작 눈금이 그대로여도 검사가 통과한다(처음에 그랬다).
         // X 숫자는 뷰 아래쪽 한 줄, Y 숫자는 왼쪽 한 칸이다.
-        const JBro::UInt32 viewLeft = static_cast<std::uint32_t>(view->Pos.x);
-        const JBro::UInt32 viewRight = static_cast<std::uint32_t>(view->Pos.x + view->Size.x);
-        const JBro::UInt32 viewBottom = static_cast<std::uint32_t>(view->Pos.y + view->Size.y);
+        const JBro::UInt32 viewLeft = static_cast<JBro::UInt32>(view->Pos.x);
+        const JBro::UInt32 viewRight = static_cast<JBro::UInt32>(view->Pos.x + view->Size.x);
+        const JBro::UInt32 viewBottom = static_cast<JBro::UInt32>(view->Pos.y + view->Size.y);
         const std::size_t alongX = CountDifferingPixelsIn(inUnits, inPixels, readback,
             viewLeft, viewBottom > 22 ? viewBottom - 22 : JBro::UInt32(0), viewRight, viewBottom);
         // 세로 줄은 **툴바 아래부터** 잰다. 툴바까지 넣으면 단추가 다시 칠해진 픽셀이
         // 섞여 들어와, y 숫자가 그대로여도 이 수가 천을 넘는다(처음에 그랬다).
-        const JBro::UInt32 belowToolBar = static_cast<std::uint32_t>(view->Pos.y) + 100;
+        const JBro::UInt32 belowToolBar = static_cast<JBro::UInt32>(view->Pos.y) + 100;
         const std::size_t alongY = CountDifferingPixelsIn(inUnits, inPixels, readback,
             viewLeft, belowToolBar, viewLeft + 36,
             viewBottom > 24 ? viewBottom - 24 : belowToolBar);
@@ -9857,7 +9857,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "CanvasBackgroundProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -9950,10 +9950,10 @@ namespace
             }
             ReadBackBufferInto(*renderer, 1024, 768, bright, readback);
             const std::size_t painted = CountDifferingPixelsIn(dark, bright, readback,
-                static_cast<std::uint32_t>(view->Pos.x) + 8,
-                static_cast<std::uint32_t>(view->Pos.y) + 60,
-                static_cast<std::uint32_t>(view->Pos.x + view->Size.x) - 8,
-                static_cast<std::uint32_t>(view->Pos.y + view->Size.y) - 8);
+                static_cast<JBro::UInt32>(view->Pos.x) + 8,
+                static_cast<JBro::UInt32>(view->Pos.y) + 60,
+                static_cast<JBro::UInt32>(view->Pos.x + view->Size.x) - 8,
+                static_cast<JBro::UInt32>(view->Pos.y + view->Size.y) - 8);
             std::cout << "  the canvas background painted " << painted << " pixels" << std::endl;
             Check(painted > 5000, "the canvas view must clear with the canvas's own colour");
         }
@@ -9991,7 +9991,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "InspectorHeaderProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -10199,8 +10199,8 @@ namespace
             ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, browser->TabId);
             Check(tab != nullptr, "the asset browser must have a tab in its dock");
             Spot tabSpot;
-            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
-            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            tabSpot.x = static_cast<JBro::Int32>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<JBro::Int32>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
             for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
@@ -10210,9 +10210,9 @@ namespace
         }
 
         const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
-            const JBro::Int32 x = static_cast<int>(pane->Pos.x + 40.0f);
-            const JBro::Int32 bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
-            for (JBro::Int32 y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            const JBro::Int32 x = static_cast<JBro::Int32>(pane->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(pane->Pos.y + pane->Size.y);
+            for (JBro::Int32 y = static_cast<JBro::Int32>(pane->Pos.y); y < bottom; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for a row");
@@ -10307,7 +10307,7 @@ namespace
             ReadBackBufferInto(*renderer, 1600, 900, shot, readback);
             // `findRow` 는 줄을 처음 가리킨 **윗가장자리**를 돌려준다. 글자는 줄 가운데에 있으므로
             // 거기서 한 줄 높이만큼 아래로 잰다(처음에 위아래로 재어 글자를 비껴갔다).
-            const JBro::Int32 rowHeight = static_cast<int>(ImGui::GetFrameHeight());
+            const JBro::Int32 rowHeight = static_cast<JBro::Int32>(ImGui::GetFrameHeight());
             const auto pixelAt = [&](JBro::Int32 x, JBro::Int32 y) {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -10316,8 +10316,8 @@ namespace
             // **그 줄의 배경과 견준다.** 날짜와 아이디는 흐린 글자라 밝기 문턱 하나로는 거의 잡히지
             // 않았다(26 픽셀). 줄 맨 윗줄은 글자가 닿지 않으므로 거기가 배경이다.
             const auto litIn = [&](JBro::Float from, JBro::Float to) {
-                const JBro::Int32 left = static_cast<int>(pane->Pos.x + pane->Size.x * from);
-                const JBro::Int32 right = static_cast<int>(pane->Pos.x + pane->Size.x * to);
+                const JBro::Int32 left = static_cast<JBro::Int32>(pane->Pos.x + pane->Size.x * from);
+                const JBro::Int32 right = static_cast<JBro::Int32>(pane->Pos.x + pane->Size.x * to);
                 const unsigned char* background = pixelAt(left, row.y);
                 std::size_t lit = 0;
                 for (JBro::Int32 y = row.y; y <= row.y + rowHeight; ++y)
@@ -10423,8 +10423,8 @@ namespace
             ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, browser->TabId);
             Check(tab != nullptr, "the asset browser must have a tab in its dock");
             Spot tabSpot;
-            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
-            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            tabSpot.x = static_cast<JBro::Int32>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<JBro::Int32>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
             ClickAt(editor, hwnd, tabSpot);
             for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
@@ -10437,9 +10437,9 @@ namespace
 
         // 줄은 왼쪽 나무(`##tree`)와 오른쪽 목록(`##contents`) 안에 있고, 각자 제 아이디를 쓴다.
         const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
-            const JBro::Int32 x = static_cast<int>(pane->Pos.x + 40.0f);
-            const JBro::Int32 bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
-            for (JBro::Int32 y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            const JBro::Int32 x = static_cast<JBro::Int32>(pane->Pos.x + 40.0f);
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(pane->Pos.y + pane->Size.y);
+            for (JBro::Int32 y = static_cast<JBro::Int32>(pane->Pos.y); y < bottom; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking for a row");
@@ -10743,7 +10743,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "LayerRenameProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -10759,7 +10759,7 @@ namespace
         Check(hierarchy != nullptr, "the hierarchy must have a window");
         // 레이어 줄은 `PushID(layerId)` 위의 `##layer` 마디다(오브젝트 줄과 같은 셈).
         const ImGuiID rowId = LabelId(
-            PushedId(hierarchy->ID, static_cast<int>(layerId)), "##layer");
+            PushedId(hierarchy->ID, static_cast<JBro::Int32>(layerId)), "##layer");
         Spot row;
         Check(FindItemAnywhereInWindow(editor, hwnd, hierarchy, rowId, row),
             "the layer row must be findable in the hierarchy");
@@ -10819,7 +10819,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "LayerSelectProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -10838,7 +10838,7 @@ namespace
         Check(hierarchy != nullptr, "the hierarchy must have a window");
         Spot row;
         Check(FindItemAnywhereInWindow(editor, hwnd, hierarchy,
-                  LabelId(PushedId(hierarchy->ID, static_cast<int>(glowId)), "##layer"), row),
+                  LabelId(PushedId(hierarchy->ID, static_cast<JBro::Int32>(glowId)), "##layer"), row),
             "the glow layer must have a row");
         ClickAt(editor, hwnd, row);
         Check(editor.Tick(Frame), "the editor must settle on the layer row");
@@ -11132,7 +11132,7 @@ namespace
             chain[depth++] = walk;
         }
         // `ImGui::PushID(int)` 와 같은 계산이다. 레이어 줄은 아이디를 정수로 쌓는다.
-        const JBro::Int32 layerId = static_cast<int>(object->GetLayerId());
+        const JBro::Int32 layerId = static_cast<JBro::Int32>(object->GetLayerId());
         ImGuiID seed = LabelId(PushedId(window->ID, layerId), "##layer");
         for (std::size_t step = depth; step > 0; --step)
         {
@@ -11150,9 +11150,9 @@ namespace
         ImGuiWindow* window = ImGui::FindWindowByName("Hierarchy");
         Check(window != nullptr, "the hierarchy must have a window");
         const ImGuiID target = HierarchyRowId(object);
-        const JBro::Int32 x = static_cast<int>(window->Pos.x + window->Size.x * 0.5f);
-        const JBro::Int32 bottom = static_cast<int>(window->Pos.y + window->Size.y);
-        for (JBro::Int32 y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
+        const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * 0.5f);
+        const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
+        for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 2)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
             Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -11184,7 +11184,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "SelectionOutlineProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -11221,8 +11221,8 @@ namespace
         SaveScreenshot(*renderer, 800, 600, "selection_outline");
         // 바이트는 파랑·초록·빨강 순서다. 화면 위가 +y 가 아니라 아래가 +y 다.
         const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
-            const JBro::Int32 x = static_cast<int>(originX + worldX * pixelsPerUnit);
-            const JBro::Int32 y = static_cast<int>(originY - worldY * pixelsPerUnit);
+            const JBro::Int32 x = static_cast<JBro::Int32>(originX + worldX * pixelsPerUnit);
+            const JBro::Int32 y = static_cast<JBro::Int32>(originY - worldY * pixelsPerUnit);
             const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4;
             return reinterpret_cast<const unsigned char*>(image.Data() + offset);
         };
@@ -11232,8 +11232,8 @@ namespace
         };
         // 선은 1~2 픽셀이라 한 점만 집으면 반올림으로 빗나간다. 둘레 몇 픽셀 안에 그 색이 있는지 본다.
         const auto nearby = [&](JBro::Float worldX, JBro::Float worldY, JBro::Int32 reach, auto matches) {
-            const JBro::Int32 cx = static_cast<int>(originX + worldX * pixelsPerUnit);
-            const JBro::Int32 cy = static_cast<int>(originY - worldY * pixelsPerUnit);
+            const JBro::Int32 cx = static_cast<JBro::Int32>(originX + worldX * pixelsPerUnit);
+            const JBro::Int32 cy = static_cast<JBro::Int32>(originY - worldY * pixelsPerUnit);
             for (JBro::Int32 dy = -reach; dy <= reach; ++dy)
             {
                 for (JBro::Int32 dx = -reach; dx <= reach; ++dx)
@@ -11292,7 +11292,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "HierarchyStepProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -11368,7 +11368,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "EditorHiddenProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -11396,7 +11396,7 @@ namespace
         ImGuiWindow* layers = ImGui::FindWindowByName("Hierarchy");
         Spot eye;
         // 줄의 오른쪽 끝은 창의 작업 영역 끝이고, 눈 칸은 그 앞의 줄 높이만한 정사각형이다. 그 한가운데를 누른다.
-        eye.x = static_cast<int>(layers->WorkRect.Max.x - ImGui::GetFrameHeight() * 0.5f);
+        eye.x = static_cast<JBro::Int32>(layers->WorkRect.Max.x - ImGui::GetFrameHeight() * 0.5f);
         eye.y = row.y + 2;
 
         // **눈은 줄의 글자와 같은 높이에 선다**(D-277). 아이콘을 글자처럼 줄 상자로 가운데 잡으면 합친 아이콘
@@ -11407,7 +11407,7 @@ namespace
             JBro::TextureReadback readback;
             ReadBackBufferInto(*renderer, 1024, 768, image, readback);
             const JBro::Float frameHeight = ImGui::GetFrameHeight();
-            const JBro::Float rowTop = static_cast<float>(row.y);
+            const JBro::Float rowTop = static_cast<JBro::Float>(row.y);
             const JBro::Float eyeLeft = layers->WorkRect.Max.x - frameHeight;
             const auto bright = [](const unsigned char* pixel)
             {
@@ -11446,8 +11446,8 @@ namespace
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, middleX, middleY),
             "the canvas view must map the world origin to the screen");
         Spot middle;
-        middle.x = static_cast<int>(middleX);
-        middle.y = static_cast<int>(middleY);
+        middle.x = static_cast<JBro::Int32>(middleX);
+        middle.y = static_cast<JBro::Int32>(middleY);
         ClickAt(editor, hwnd, middle);
         Check(editor.GetSelectedObject() != red, "a hidden object cannot be picked in the canvas view");
 
@@ -11510,7 +11510,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "HierarchyDragProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -11582,8 +11582,8 @@ namespace
         ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
         Check(hierarchy != nullptr, "the hierarchy must have a window");
         Spot blank;
-        blank.x = static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
-        blank.y = static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 20.0f);
+        blank.x = static_cast<JBro::Int32>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
+        blank.y = static_cast<JBro::Int32>(hierarchy->Pos.y + hierarchy->Size.y - 20.0f);
         DragTo(editor, hwnd, from, blank);
         Check(gamma->GetParent() == nullptr,
             "dropping on the empty space below the tree must take the parent off");
@@ -11645,7 +11645,7 @@ namespace
         Check(inspector != nullptr, "the inspector must have a window");
         const JBro::TypeDescriptor& slots = JBro::TypeDescriptorOf<JBro::FontFamilyOptions>::Get();
         const ImGuiID boldField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"),
-            static_cast<int>(FieldIndexOf(*slots.fields, "boldFontId"))), "##value");
+            static_cast<JBro::Int32>(FieldIndexOf(*slots.fields, "boldFontId"))), "##value");
         Spot boldSpot;
         Check(FindInspectorItem(editor, hwnd, boldField, boldSpot), "the family's bold slot is a row in the inspector");
         editor.Shutdown();
@@ -11670,7 +11670,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ScreenLayerProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -11842,9 +11842,9 @@ namespace
         JBro::Bool found = false;
         for (JBro::Float fraction = 0.05f; fraction < 1.0f && false == found; fraction += 0.02f)
         {
-            for (JBro::Int32 y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y) + 64 && false == found; y += 4)
+            for (JBro::Int32 y = static_cast<JBro::Int32>(view->Pos.y); y < static_cast<JBro::Int32>(view->Pos.y) + 64 && false == found; y += 4)
             {
-                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(view->Pos.x + view->Size.x * fraction), y));
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<JBro::Int32>(view->Pos.x + view->Size.x * fraction), y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
                 found = ImGui::GetHoveredID() == combo;
             }
@@ -12054,7 +12054,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "SelectionTextProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -12117,7 +12117,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GizmoSpaceProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -12146,8 +12146,8 @@ namespace
         Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY),
             "the canvas view must map the world origin to the screen");
         Spot origin;
-        origin.x = static_cast<int>(originX);
-        origin.y = static_cast<int>(originY);
+        origin.x = static_cast<JBro::Int32>(originX);
+        origin.y = static_cast<JBro::Int32>(originY);
 
         // ── 로컬: 오른쪽에는 손잡이가 없다. 끌어도 오브젝트는 그 자리다. ──────
         const JBro::Float startX = transform->position.x;
@@ -12211,7 +12211,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GridSnapProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -12258,8 +12258,8 @@ namespace
             JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(grabWorldX, grabWorldY, x, y), "the canvas view must map the grab point");
             Spot from;
-            from.x = static_cast<int>(std::lround(x));
-            from.y = static_cast<int>(std::lround(y));
+            from.x = static_cast<JBro::Int32>(std::lround(x));
+            from.y = static_cast<JBro::Int32>(std::lround(y));
             const auto tick = [&](const char* message) {
                 if (ctrl)
                 {
@@ -12487,7 +12487,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "GizmoKeyProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -12594,7 +12594,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "EditorSettingsProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -12757,7 +12757,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "TypingShortcutProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
@@ -12936,7 +12936,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ComponentMenuProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -13060,7 +13060,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ContextMenuKeysProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -13257,7 +13257,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ActionMenuProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -13422,7 +13422,7 @@ namespace
 
         JBro::ProjectDescriptor project;
         constexpr char name[] = "PaletteProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -13508,7 +13508,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "InspectorHookProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -13626,7 +13626,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "EditPointsMenuProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -13661,8 +13661,8 @@ namespace
             JBro::Float y = 0.0f;
             Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
             Spot spot;
-            spot.x = static_cast<int>(std::lround(x));
-            spot.y = static_cast<int>(std::lround(y));
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
             return spot;
         };
         const auto hoveredAt = [&](const Spot& spot) {
@@ -13804,7 +13804,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "UndrawableCameraProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
@@ -13898,7 +13898,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "CanvasMenuProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();
@@ -13940,8 +13940,8 @@ namespace
 
         // 오브젝트는 월드 원점에 있고 여덟 배로 키워 두었다. 그 자리를 그대로 누른다.
         Spot onObject;
-        onObject.x = static_cast<int>(originX);
-        onObject.y = static_cast<int>(originY);
+        onObject.x = static_cast<JBro::Int32>(originX);
+        onObject.y = static_cast<JBro::Int32>(originY);
         ClickAt(editor, hwnd, onObject);
         Check(editor.IsSelected(target), "the object must be clickable where it stands");
         editor.ClearSelection();
@@ -13968,8 +13968,8 @@ namespace
         Check(editor.GetCommands().Undo(), "undo must run");
 
         // **빈 곳은 여전히 빈자리 메뉴다.** 지우기는 거기 없다.
-        rightClick(static_cast<int>(view->Pos.x) + 30,
-            static_cast<int>(view->Pos.y + view->Size.y) - 30);
+        rightClick(static_cast<JBro::Int32>(view->Pos.x) + 30,
+            static_cast<JBro::Int32>(view->Pos.y + view->Size.y) - 30);
         menu = FindContextMenuWindow();
         Check(menu != nullptr, "right-clicking empty space must open a menu too");
         Check(false == FindItemAnywhereInWindow(
@@ -13996,7 +13996,7 @@ namespace
         }
         JBro::ProjectDescriptor project;
         constexpr char name[] = "RangeSelectProbe";
-        project.name = {name, sizeof(name) - 1};
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         HWND hwnd = FindOwnEditorWindow();

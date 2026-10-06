@@ -8,7 +8,7 @@
 
 namespace JBro::Widget
 {
-    Bool Waveform(const char* id, ArrayView<const float> peaks, Float progress, Float height, Float& seekFraction)
+    Bool Waveform(const char* id, ArrayView<const Float> peaks, Float progress, Float height, Float& seekFraction)
     {
         const Float width = ImGui::GetContentRegionAvail().x;
         const ImVec2 size(width > 1.0f ? width : Float(1.0f), height > 1.0f ? height : Float(1.0f));
@@ -28,7 +28,7 @@ namespace JBro::Widget
         if (peaks.Size() > 0)
         {
             // 한 픽셀에 한 줄이다. 봉우리가 픽셀보다 많으면 그 사이의 최댓값을 쓴다 - 짧은 딱 소리가 사라지지 않게.
-            const Int32 columns = static_cast<int>(size.x);
+            const Int32 columns = static_cast<JBro::Int32>(size.x);
             for (Int32 column = 0; column < columns; ++column)
             {
                 const std::size_t first = static_cast<std::size_t>(column) * peaks.Size() / static_cast<std::size_t>(columns);
@@ -42,7 +42,7 @@ namespace JBro::Widget
                 {
                     peak = JBro::Max(peak, peaks.Data()[index]);
                 }
-                const Float x = origin.x + static_cast<float>(column) + 0.5f;
+                const Float x = origin.x + static_cast<JBro::Float>(column) + 0.5f;
                 const Float extent = peak * half < 0.5f ? Float(0.5f) : peak * half;
                 draw->AddLine(ImVec2(x, middle - extent), ImVec2(x, middle + extent), x <= playedX ? played : unplayed);
             }

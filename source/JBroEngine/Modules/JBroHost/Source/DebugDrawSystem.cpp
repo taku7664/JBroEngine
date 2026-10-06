@@ -125,7 +125,7 @@ namespace JBro::System
 
     UInt32 DebugDrawSystem::GetLineCount() const
     {
-        return static_cast<std::uint32_t>(m_entries.Size());
+        return static_cast<JBro::UInt32>(m_entries.Size());
     }
 
     const DebugLine& DebugDrawSystem::GetLine(UInt32 index) const

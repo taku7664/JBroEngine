@@ -137,7 +137,7 @@ namespace JBro
             out.ring = true;
             for (UInt32 index = 0; index < GizmoHandleShape::RingPoints; ++index)
             {
-                const Float angle = 2.0f * Pi * static_cast<float>(index) / GizmoHandleShape::RingPoints;
+                const Float angle = 2.0f * Pi * static_cast<JBro::Float>(index) / GizmoHandleShape::RingPoints;
                 const Vector3 point = Add(subject.position,
                     Add(Scale(u, radius * std::cos(angle)), Scale(v, radius * std::sin(angle))));
                 if (false == GizmoModel::Project(camera, point, out.ringX[index], out.ringY[index]))

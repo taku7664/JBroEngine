@@ -44,7 +44,7 @@ namespace JBro
             }
             JArrayView<std::byte> view;
             view.data = bytes.Data();
-            view.size = static_cast<std::uint32_t>(bytes.Size());
+            view.size = static_cast<JBro::UInt32>(bytes.Size());
             return platform.WriteWholeFile(to.c_str(), view);
         }
 
@@ -82,7 +82,7 @@ namespace JBro
         AssetRegistry registry;
         AssetScanOptions scan;
         scan.ignorePatterns.data = project.assetIgnorePatterns.Data();
-        scan.ignorePatterns.size = static_cast<std::uint32_t>(project.assetIgnorePatterns.Size());
+        scan.ignorePatterns.size = static_cast<JBro::UInt32>(project.assetIgnorePatterns.Size());
         AssetScanReport scanned;
         if (false == registry.Scan(platform, assetRoot.c_str(), scan, scanned))
         {
@@ -174,7 +174,7 @@ namespace JBro
         report.packageBytes = packageBytes.Size();
         JArrayView<std::byte> packageView;
         packageView.data = packageBytes.Data();
-        packageView.size = static_cast<std::uint32_t>(packageBytes.Size());
+        packageView.size = static_cast<JBro::UInt32>(packageBytes.Size());
         if (packageBytes.Size() > 0xFFFFFFFFull || false == platform.WriteWholeFile(Join(content, "game.jpak").c_str(), packageView))
         {
             return Fail(report, "the package could not be written");
@@ -211,7 +211,7 @@ namespace JBro
         if (options.physicsWorkers >= 0)
         {
             exported.build.physicsThreadMode = options.physicsWorkers == 0 ? PhysicsThreadMode::Single : PhysicsThreadMode::Workers;
-            exported.build.physicsWorkers = static_cast<std::uint32_t>(options.physicsWorkers);
+            exported.build.physicsWorkers = static_cast<JBro::UInt32>(options.physicsWorkers);
         }
         String projectName(productName);
         projectName.append(".jproject");
@@ -228,7 +228,7 @@ namespace JBro
         }
         JArrayView<std::byte> projectView;
         projectView.data = reinterpret_cast<const std::byte*>(projectText.data());
-        projectView.size = static_cast<std::uint32_t>(projectText.size());
+        projectView.size = static_cast<JBro::UInt32>(projectText.size());
         if (false == platform.WriteWholeFile(exportedPath.c_str(), projectView))
         {
             return Fail(report, "the project copy could not be written");

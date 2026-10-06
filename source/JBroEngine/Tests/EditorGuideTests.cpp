@@ -439,7 +439,7 @@ namespace
             return false;
         }
         JBro::ProjectDescriptor project;
-        project.name = { projectName, static_cast<std::uint32_t>(std::strlen(projectName)) };
+        project.name = { projectName, static_cast<JBro::UInt32>(std::strlen(projectName)) };
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({ 64, 48 }), "the editor UI must turn on");
         hwnd = FindOwnEditorWindow();
@@ -487,8 +487,8 @@ namespace
     void HoleCenter(const JBro::EditorGuideFocus& focus, JBro::Int32& x, JBro::Int32& y)
     {
         const Rect& hole = focus.GetHoleRect();
-        x = static_cast<int>((hole.min.x + hole.max.x) * 0.5f);
-        y = static_cast<int>((hole.min.y + hole.max.y) * 0.5f);
+        x = static_cast<JBro::Int32>((hole.min.x + hole.max.x) * 0.5f);
+        y = static_cast<JBro::Int32>((hole.min.y + hole.max.y) * 0.5f);
     }
 
     // 말풍선의 단추 줄의 높이를 찾는다. 줄의 맨 왼쪽에는 늘 단추가 있다 - 그 자리를 아래에서 위로 훑어 처음 걸리는 높이다.
@@ -505,7 +505,7 @@ namespace
         const JBro::Float x = balloon->Pos.x + 24.0f;
         for (JBro::Float probe = balloon->Pos.y + balloon->Size.y + 40.0f; probe > balloon->Pos.y; probe -= 4.0f)
         {
-            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(probe)));
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<JBro::Int32>(x), static_cast<JBro::Int32>(probe)));
             Tick(editor, 1);
             if (ImGui::GetCurrentContext()->HoveredId != 0)
             {
@@ -530,7 +530,7 @@ namespace
         JBro::Int32 seen = -1;
         for (JBro::Float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
         {
-            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<JBro::Int32>(x), static_cast<JBro::Int32>(y)));
             Tick(editor, 1);
             const ImGuiContext& context = *ImGui::GetCurrentContext();
             if (context.HoveredId == 0 || context.HoveredIdIsDisabled || context.HoveredId == last)
@@ -541,9 +541,9 @@ namespace
             ++seen;
             if (seen == skip)
             {
-                PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
+                PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(static_cast<JBro::Int32>(x), static_cast<JBro::Int32>(y)));
                 Tick(editor, 1);
-                PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
+                PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(static_cast<JBro::Int32>(x), static_cast<JBro::Int32>(y)));
                 Tick(editor, 1);
                 return true;
             }
@@ -562,7 +562,7 @@ namespace
         }
         for (JBro::Float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
         {
-            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<JBro::Int32>(x), static_cast<JBro::Int32>(y)));
             Tick(editor, 1);
             const ImGuiContext& context = *ImGui::GetCurrentContext();
             if (context.HoveredId != 0)
@@ -639,8 +639,8 @@ namespace
         // 값 칸을 두 번 눌러 글자 입력으로 바꾸고 Esc 를 누른다. 편집 취소이지 가이드 끝내기가 아니다.
         {
             const Rect& field = editor.GetGuideFocus().GetHoleRect();
-            const JBro::Int32 fx = static_cast<int>(field.max.x - 40.0f);
-            const JBro::Int32 fy = static_cast<int>((field.min.y + field.max.y) * 0.5f);
+            const JBro::Int32 fx = static_cast<JBro::Int32>(field.max.x - 40.0f);
+            const JBro::Int32 fy = static_cast<JBro::Int32>((field.min.y + field.max.y) * 0.5f);
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(fx, fy));
             Tick(editor, 1);
             for (JBro::Int32 press = 0; press < 2; ++press)
@@ -707,7 +707,7 @@ namespace
         {
             const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
             Check(balloon != nullptr, "the balloon must be up");
-            ClickAt(editor, hwnd, static_cast<int>(balloon->Pos.x + 20.0f), static_cast<int>(balloon->Pos.y + 14.0f));
+            ClickAt(editor, hwnd, static_cast<JBro::Int32>(balloon->Pos.x + 20.0f), static_cast<JBro::Int32>(balloon->Pos.y + 14.0f));
             Tick(editor, 2);
         }
         Check(ClickBalloonRightmostButton(editor, hwnd), "the balloon's OK button must be found and pressed");
@@ -755,7 +755,7 @@ namespace
         Check(firstItemY < hole.min.y, "the first item of the menu is above the hole, or the next check proves nothing");
         Check(false == editor.GetGuideFocus().IsAllowed({ menuX, firstItemY }),
             "the other items of the menu the user opened are not pressable");
-        ClickAt(editor, hwnd, static_cast<int>(menuX), static_cast<int>(firstItemY));
+        ClickAt(editor, hwnd, static_cast<JBro::Int32>(menuX), static_cast<JBro::Int32>(firstItemY));
         Tick(editor, 2);
         Check(ImGui::GetCurrentContext()->OpenPopupStack.Size == 1, "pressing another item does nothing - the menu is still open");
         Check(editor.GetGuide().IsRunning() && editor.GetGuideFocus().GetLevel() == 1, "and the guide is where it was");
@@ -1515,8 +1515,8 @@ namespace
         // 계층의 검색 칸에 아무 이름과도 맞지 않는 글자를 친다. 줄이 모두 가려진다.
         const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
         Check(hierarchy != nullptr, "the layers window must be there");
-        const JBro::Int32 searchX = static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
-        const JBro::Int32 searchY = static_cast<int>(hierarchy->Pos.y + hierarchy->TitleBarHeight + ImGui::GetStyle().WindowPadding.y
+        const JBro::Int32 searchX = static_cast<JBro::Int32>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
+        const JBro::Int32 searchY = static_cast<JBro::Int32>(hierarchy->Pos.y + hierarchy->TitleBarHeight + ImGui::GetStyle().WindowPadding.y
             + ImGui::GetFrameHeight() * 0.5f);
         ClickAt(editor, hwnd, searchX, searchY);
         for (const wchar_t letter : { L'q', L'z', L'x' })
@@ -1737,8 +1737,8 @@ namespace
         // 창의 아래쪽 빈 곳을 우클릭한다.
         const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
         Check(hierarchy != nullptr, "the layers window must be there");
-        RightClickMenuAndPress(editor, hwnd, 1, static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
-            static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
+        RightClickMenuAndPress(editor, hwnd, 1, static_cast<JBro::Int32>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
+            static_cast<JBro::Int32>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
         std::size_t after = 0;
         editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++after; });
         Check(after == before + 1, "pressing Create Object in the hole makes one object");
@@ -1924,8 +1924,8 @@ namespace
         const ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must be there");
         // 뷰의 오른쪽 아래 빈 곳이다(원점의 오브젝트는 없다).
-        RightClickMenuAndPress(editor, hwnd, 1, static_cast<int>(view->Pos.x + view->Size.x - 60.0f),
-            static_cast<int>(view->Pos.y + view->Size.y - 60.0f));
+        RightClickMenuAndPress(editor, hwnd, 1, static_cast<JBro::Int32>(view->Pos.x + view->Size.x - 60.0f),
+            static_cast<JBro::Int32>(view->Pos.y + view->Size.y - 60.0f));
         std::size_t count = 0;
         editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++count; });
         Check(count == 1, "pressing Create Object in the canvas view makes one object");
@@ -2022,8 +2022,8 @@ namespace
         JBro::String error;
         Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
         const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
-        RightClickMenuAndPress(editor, hwnd, 1, static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
-            static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
+        RightClickMenuAndPress(editor, hwnd, 1, static_cast<JBro::Int32>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
+            static_cast<JBro::Int32>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
         Tick(editor, 2);
         JBro::EditorGuide& run = editor.GetGuide();
         Check(run.GetStepIndex() == 1, "making the object moves on");
@@ -2519,8 +2519,8 @@ namespace
         Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
         const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
         Check(WaitUntilSettled(editor, 1), "the hole must reach the layers window");
-        RightClickAt(editor, hwnd, static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
-            static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
+        RightClickAt(editor, hwnd, static_cast<JBro::Int32>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
+            static_cast<JBro::Int32>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
         Tick(editor, 2);
         Check(WaitUntilSettled(editor, 2), "the menu opens and the hole moves onto Paste");
         Check(focus.IsCurrentDisabled(), "Paste with nothing copied is known to be grey");
@@ -2661,10 +2661,10 @@ namespace
         Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
         const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
         const GuideFocusPath& path = focus.GetPath();
-        const JBro::UInt32 translate = static_cast<std::uint32_t>(JBro::GizmoMode::Translate);
+        const JBro::UInt32 translate = static_cast<JBro::UInt32>(JBro::GizmoMode::Translate);
         Check(path.count == 3 && path.targets[0] == JBro::GuideFocusTargets::Panel("CanvasView")
                 && path.targets[1] == JBro::GuideFocusTargets::GizmoModeButton(translate) && path.open[1] == GuideFocusOpen::User
-                && path.targets[2] == JBro::GuideFocusTargets::GizmoHandle(translate, static_cast<std::uint32_t>(JBro::GizmoAxis::Free)),
+                && path.targets[2] == JBro::GuideFocusTargets::GizmoHandle(translate, static_cast<JBro::UInt32>(JBro::GizmoAxis::Free)),
             "the canvas view, the Move button and the gizmo's center handle");
         Check(editor.GetSelectedObject() == object, "the object is picked so its gizmo shows");
         Check(WaitUntilSettled(editor, 2), "Move is already on, so the hole goes straight to the center handle");
@@ -2719,7 +2719,7 @@ namespace
         JBro::Component::Transform2D* transform = TransformOf(editor, *object);
         const JBro::Float before = transform->GetRotationRadian().Get();
         HoleCenter(focus, x, y);
-        const JBro::Int32 ring = static_cast<int>(JBro::GizmoModel::RingRadiusPixels);
+        const JBro::Int32 ring = static_cast<JBro::Int32>(JBro::GizmoModel::RingRadiusPixels);
         DragAt(editor, hwnd, x + ring, y, -ring, -ring);
         Check(std::fabs(transform->GetRotationRadian().Get() - before) > 0.05f, "dragging along the ring turns the object");
         Check(editor.GetGuide().IsConfirming(), "and the step is done");
@@ -2910,7 +2910,7 @@ namespace
         first->shape = JBro::Component::ColliderShape2D::Polygon;
         for (JBro::Int32 point = 0; point < 40; ++point)
         {
-            first->points.Add({ static_cast<float>(point), 0.0f });
+            first->points.Add({ static_cast<JBro::Float>(point), 0.0f });
         }
         Tick(editor, 3);
         JBro::String error;

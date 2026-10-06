@@ -58,7 +58,7 @@ namespace JBro::Internal
             }
             m_entries.Reserve(m_entries.Size() + 1);
             m_freeSlots.Reserve(m_entries.Size() + 1);
-            slot = static_cast<std::uint32_t>(m_entries.Size());
+            slot = static_cast<JBro::UInt32>(m_entries.Size());
             m_entries.Add({});
         }
 
@@ -178,7 +178,7 @@ namespace JBro::Internal
             entry.ObjectId = InvalidInstanceId;
             entry.ComponentId = InvalidInstanceId;
             entry.Alive = false;
-            m_freeSlots.Add(static_cast<std::uint32_t>(index));
+            m_freeSlots.Add(static_cast<JBro::UInt32>(index));
         }
         m_liveCount = 0;
         m_persistentLookupCount = 0;

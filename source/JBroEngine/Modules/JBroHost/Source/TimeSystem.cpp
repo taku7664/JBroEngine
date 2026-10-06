@@ -68,17 +68,17 @@ namespace JBro::System
                 delta -= dropped;
                 whole = m_settings.maxFixedSteps;
             }
-            steps = static_cast<std::uint32_t>(whole);
+            steps = static_cast<JBro::UInt32>(whole);
             m_accumulator -= whole * fixed;
             if (m_accumulator < 0.0)
             {
                 m_accumulator = 0.0;
             }
         }
-        m_time.deltaTime = static_cast<float>(delta);
+        m_time.deltaTime = static_cast<JBro::Float>(delta);
         m_time.time += delta;
         m_time.fixedStepCount = steps;
-        m_time.fixedStepAlpha = static_cast<float>(m_accumulator / fixed);
+        m_time.fixedStepAlpha = static_cast<JBro::Float>(m_accumulator / fixed);
         if (m_time.fixedStepAlpha >= 1.0f)
         {
             m_time.fixedStepAlpha = std::nextafter(1.0f, 0.0f);

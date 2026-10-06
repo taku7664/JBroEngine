@@ -57,9 +57,9 @@ namespace
         Check(face.MeasureGlyphBitmap(a, 32.0f, box), "A measures at 32 px");
         const JBro::Float scale = 32.0f / 1000.0f;
         // 비트맵은 외곽선을 픽셀 격자로 넓힌 것이다(바깥쪽 올림).
-        Check(box.top == static_cast<std::int32_t>(std::ceil(outline.maxY * scale)), "the bitmap top is the rounded-up outline top");
-        Check(box.left == static_cast<std::int32_t>(std::floor(outline.minX * scale)), "the bitmap left is the rounded-down outline left");
-        Check(box.width == static_cast<std::int32_t>(std::ceil(outline.maxX * scale)) - box.left, "the bitmap width covers the outline");
+        Check(box.top == static_cast<JBro::Int32>(std::ceil(outline.maxY * scale)), "the bitmap top is the rounded-up outline top");
+        Check(box.left == static_cast<JBro::Int32>(std::floor(outline.minX * scale)), "the bitmap left is the rounded-down outline left");
+        Check(box.width == static_cast<JBro::Int32>(std::ceil(outline.maxX * scale)) - box.left, "the bitmap width covers the outline");
         Check(box.height > 0 && box.width > 0, "A has a bitmap");
 
         GlyphBitmapBox space;
@@ -81,8 +81,8 @@ namespace
 
         // 칸 안에는 커버리지가, 칸 밖(틈)에는 투명한 흰색이 있다.
         JBro::UInt32 covered = 0;
-        const JBro::UInt32 right = static_cast<std::uint32_t>(glyph.x) + glyph.width;
-        const JBro::UInt32 bottom = static_cast<std::uint32_t>(glyph.y) + glyph.height;
+        const JBro::UInt32 right = static_cast<JBro::UInt32>(glyph.x) + glyph.width;
+        const JBro::UInt32 bottom = static_cast<JBro::UInt32>(glyph.y) + glyph.height;
         for (JBro::UInt32 y = glyph.y; y < bottom; ++y)
         {
             for (JBro::UInt32 x = glyph.x; x < right; ++x)
@@ -91,7 +91,7 @@ namespace
                 Check(RedAt(atlas, 0, x, y) == 255, "glyph pixels are white so the tint is the text colour");
             }
         }
-        Check(covered > static_cast<std::uint32_t>(glyph.width) * glyph.height / 8, "A covers a good part of its cell");
+        Check(covered > static_cast<JBro::UInt32>(glyph.width) * glyph.height / 8, "A covers a good part of its cell");
         Check(AlphaAt(atlas, 0, glyph.x - 1, glyph.y) == 0 && AlphaAt(atlas, 0, glyph.x + glyph.width, glyph.y) == 0,
             "the gap around a cell is transparent");
         Check(RedAt(atlas, 0, glyph.x + glyph.width + 5, glyph.y) == 255, "empty atlas space is transparent white");
@@ -129,15 +129,15 @@ namespace
         constexpr JBro::UInt32 Spread = 8;
 
         GlyphBitmapBox bitmap;
-        Check(face.MeasureGlyphBitmap(a, static_cast<float>(Size), bitmap), "A measures at 48 px");
+        Check(face.MeasureGlyphBitmap(a, static_cast<JBro::Float>(Size), bitmap), "A measures at 48 px");
         AtlasGlyph sdf;
         Check(atlas.EnsureSdf(face, Size, Spread, a, sdf) == AtlasError::None && false == sdf.empty, "A gets an SDF cell");
         std::cout << "  [measure] 48 px A bitmap " << bitmap.width << "x" << bitmap.height << ", sdf cell " << sdf.width << "x"
                   << sdf.height << " at " << sdf.left << "," << sdf.top << std::endl;
-        Check(std::abs(static_cast<int>(sdf.width) - (bitmap.width + 2 * static_cast<int>(Spread))) <= 2
-                && std::abs(static_cast<int>(sdf.height) - (bitmap.height + 2 * static_cast<int>(Spread))) <= 2,
+        Check(std::abs(static_cast<JBro::Int32>(sdf.width) - (bitmap.width + 2 * static_cast<JBro::Int32>(Spread))) <= 2
+                && std::abs(static_cast<JBro::Int32>(sdf.height) - (bitmap.height + 2 * static_cast<JBro::Int32>(Spread))) <= 2,
             "the field is the bitmap box grown by the spread on every side");
-        Check(std::abs((sdf.left + static_cast<int>(Spread)) - bitmap.left) <= 1 && std::abs((sdf.top - static_cast<int>(Spread)) - bitmap.top) <= 1,
+        Check(std::abs((sdf.left + static_cast<JBro::Int32>(Spread)) - bitmap.left) <= 1 && std::abs((sdf.top - static_cast<JBro::Int32>(Spread)) - bitmap.top) <= 1,
             "and it sits the spread outside the bitmap's corner");
 
         // 칸의 모서리는 글자에서 퍼짐보다 멀다. 가운데 줄에는 글자 안(128 위)과 밖(128 아래)이 다 있다.
@@ -145,13 +145,13 @@ namespace
             "the cell's corners are past the spread, at zero");
         std::uint8_t highest = 0;
         std::uint8_t lowest = 255;
-        const JBro::UInt32 row = static_cast<std::uint32_t>(sdf.y) + sdf.height * 3 / 4;
-        for (JBro::UInt32 x = sdf.x; x < static_cast<std::uint32_t>(sdf.x) + sdf.width; ++x)
+        const JBro::UInt32 row = static_cast<JBro::UInt32>(sdf.y) + sdf.height * 3 / 4;
+        for (JBro::UInt32 x = sdf.x; x < static_cast<JBro::UInt32>(sdf.x) + sdf.width; ++x)
         {
             highest = std::max(highest, AlphaAt(atlas, 0, x, row));
             lowest = std::min(lowest, AlphaAt(atlas, 0, x, row));
         }
-        std::cout << "  [measure] leg row distance " << static_cast<int>(lowest) << ".." << static_cast<int>(highest) << std::endl;
+        std::cout << "  [measure] leg row distance " << static_cast<JBro::Int32>(lowest) << ".." << static_cast<JBro::Int32>(highest) << std::endl;
         // 다리 굵기가 5 px 남짓이라 안쪽 깊이는 2 px 남짓(128 + 2 x 16)이다.
         Check(highest > 140 && lowest < 60, "a row through the legs runs from inside to well outside the edge");
         Check(RedAt(atlas, 0, sdf.x + sdf.width / 2, sdf.y + sdf.height / 2) == 255, "the field is stored as white with the distance in alpha");

@@ -230,7 +230,7 @@ namespace JBro
         UInt32 m_audioSampleRate = 0;
         UInt32 m_audioChannels = 0;
         double m_audioSeconds = 0.0;
-        Array<float> m_audioPeaks;
+        Array<Float> m_audioPeaks;
         Bool m_audioLoop = false;
         // 이번 프레임에 미리 듣기 칸을 그렸는가. 다른 것을 고르면 다음 프레임에 미리 듣기를 멈춘다 - 반복 재생이
         // 에셋을 떠난 뒤에도 끝없이 울리지 않게.

@@ -31,7 +31,7 @@ namespace JBro::Package
             {
                 const UInt64 left = m_size - m_position;
                 const std::size_t wanted = static_cast<std::size_t>(bytes < left ? UInt64(bytes) : left);
-                if (wanted == 0 || false == m_file->Seek(static_cast<std::int64_t>(m_begin + m_position), FileSeekOrigin::Begin))
+                if (wanted == 0 || false == m_file->Seek(static_cast<JBro::Int64>(m_begin + m_position), FileSeekOrigin::Begin))
                 {
                     return 0;
                 }
@@ -46,29 +46,29 @@ namespace JBro::Package
                 Int64 base = 0;
                 if (origin == FileSeekOrigin::Current)
                 {
-                    base = static_cast<std::int64_t>(m_position);
+                    base = static_cast<JBro::Int64>(m_position);
                 }
                 else if (origin == FileSeekOrigin::End)
                 {
-                    base = static_cast<std::int64_t>(m_size);
+                    base = static_cast<JBro::Int64>(m_size);
                 }
                 const Int64 target = base + offset;
-                if (target < 0 || target > static_cast<std::int64_t>(m_size))
+                if (target < 0 || target > static_cast<JBro::Int64>(m_size))
                 {
                     return false;
                 }
-                m_position = static_cast<std::uint64_t>(target);
+                m_position = static_cast<JBro::UInt64>(target);
                 return true;
             }
 
             Int64 Tell() const override
             {
-                return static_cast<std::int64_t>(m_position);
+                return static_cast<JBro::Int64>(m_position);
             }
 
             Int64 GetSize() const override
             {
-                return static_cast<std::int64_t>(m_size);
+                return static_cast<JBro::Int64>(m_size);
             }
 
         private:
@@ -81,7 +81,7 @@ namespace JBro::Package
 
         Bool ReadAt(IFileStream& file, UInt64 offset, void* buffer, std::size_t size)
         {
-            if (false == file.Seek(static_cast<std::int64_t>(offset), FileSeekOrigin::Begin))
+            if (false == file.Seek(static_cast<JBro::Int64>(offset), FileSeekOrigin::Begin))
             {
                 return false;
             }
@@ -100,7 +100,7 @@ namespace JBro::Package
         }
         const Int64 fileSize = file->GetSize();
         std::byte header[HeaderSize] = {};
-        if (fileSize < static_cast<std::int64_t>(HeaderSize) || false == ReadAt(*file, 0, header, HeaderSize))
+        if (fileSize < static_cast<JBro::Int64>(HeaderSize) || false == ReadAt(*file, 0, header, HeaderSize))
         {
             error = "the file is too short to be a package";
             return false;
@@ -124,9 +124,9 @@ namespace JBro::Package
             error = "the package was written by another format version";
             return false;
         }
-        const auto total = static_cast<std::uint64_t>(fileSize);
+        const auto total = static_cast<JBro::UInt64>(fileSize);
         if (indexOffset < HeaderSize || indexOffset > total || indexSize > total - indexOffset
-            || indexSize < static_cast<std::uint64_t>(entryCount) * RecordFixedSize)
+            || indexSize < static_cast<JBro::UInt64>(entryCount) * RecordFixedSize)
         {
             error = "the package index lies outside the file";
             return false;
@@ -232,7 +232,7 @@ namespace JBro::Package
 
     UInt32 PackageReader::GetEntryCount() const
     {
-        return static_cast<std::uint32_t>(m_entries.Size());
+        return static_cast<JBro::UInt32>(m_entries.Size());
     }
 
     const Entry& PackageReader::GetEntry(UInt32 index) const

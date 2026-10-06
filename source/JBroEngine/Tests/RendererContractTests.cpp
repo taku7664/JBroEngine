@@ -200,7 +200,7 @@ namespace
             constexpr std::size_t Stride = sizeof(JBro::SpriteTransform2D) + 4 + 8;
             if (data.size >= Stride && data.size % Stride == 0)
             {
-                uploadedInstanceCount = static_cast<std::uint32_t>(data.size / Stride);
+                uploadedInstanceCount = static_cast<JBro::UInt32>(data.size / Stride);
                 std::memcpy(&firstInstanceWorld, data.data, sizeof(firstInstanceWorld));
                 unsigned char tintBytes[4] = {};
                 std::memcpy(tintBytes, data.data + sizeof(JBro::SpriteTransform2D), sizeof(tintBytes));
@@ -516,7 +516,7 @@ namespace
         {
             JBro::JArrayView<JBro::InputEvent> view;
             view.data = events.Data();
-            view.size = static_cast<std::uint32_t>(events.Size());
+            view.size = static_cast<JBro::UInt32>(events.Size());
             return view;
         }
         void WaitForEvents(JBro::UInt32) override
@@ -666,7 +666,7 @@ namespace
         HostPlatform platform;
         platform.module = &module;
         platform.pad.connected = true;
-        platform.pad.buttons = static_cast<std::uint16_t>(1u << static_cast<std::uint32_t>(JBro::GamepadButton::South));
+        platform.pad.buttons = static_cast<std::uint16_t>(1u << static_cast<JBro::UInt32>(JBro::GamepadButton::South));
         JBro::EngineConfig config;
         JBro::EngineInstance engine;
         Check(engine.Initialize(config, platform, module), "the host must initialize");
