@@ -140,6 +140,8 @@
   안전 영역은 뺐고 `KeepOnCanvasChange`·런타임 레이어 불러오기는 런타임 캔버스 전환이 없어 막혔다)와 포토샵식 다음 후보(그룹·클리핑 마스크·잠금·솔로·색 조정)
 - [tasks/postprocess-plan.md](./tasks/postprocess-plan.md) — 후처리 초석(D-307). 확장성 우선으로 RHI 확장(상수 버퍼·컴퓨트·서브리소스·깊이 읽기·포맷)·DAG 렌더 그래프(지금 패스까지 옮긴다)·
   효과 종류 표와 주입 지점·프로필·Shader·Material 에셋·카메라·레이어·볼륨 적용을 깐다. 지금 상태(기존 엔진은 Reinhard 톤맵뿐)가 §1, 설계가 §2, 단계가 §3, 정한 것과 미정이 §4. **계획만 섰다**
+- [tasks/node-graph-plan.md](./tasks/node-graph-plan.md) — 노드 그래프 프레임워크(D-308). 모델은 Tier E 모듈 `JBroNodeGraph`(노드·핀·링크·도메인·YAML), 화면은 `JBroEditor` 의 화면 모델·`Widget::NodeGraphCanvas`·`NodeGraphPanel`,
+  편집은 그래프 창마다 커맨드 스택, 다듬기는 샘플 도메인 `Math` 와 `.jgraph` 에셋. 층이 §2, 단계가 §3, 미정이 §4
 - [tasks/guide-focus-plan.md](./tasks/guide-focus-plan.md) — 에디터 가이드 포커스(D-251). 반투명 막에 대상 위젯만 뚫고 그 위젯만 입력을 받게 하며,
   닫힌 패널·트리를 부모부터 한 칸씩 연다. 기구 `EditorGuideFocus`·`Widget::GuideFocus` 와 내용 `Guide`·`GuideStep`·`EditorGuide` 로 나눈다.
   **열두 단계가 섰다** - 입력 문·표식·막과 애니메이션·부모부터 열기·가이드 둘(`도움말` → `가이드`)·글자로 적는 가이드(D-267: 단계는 `Do: object.delete`
