@@ -75,7 +75,7 @@ namespace JBro
         }
     };
 
-    // 이펙트 편집 창의 종류 고르기와 `.jfx` 의 `Kind:` 가 이 이름을 쓴다(D-305).
+    // 이펙트 편집 창의 종류 고르기와 `.jfx` 의 `Kind:` 가 이 이름을 쓴다(D-306).
     JBRO_DEFINE_ENUM_TYPE(AudioEffectKind, "JBro.AudioEffectKind",
         { AudioEffectKind::Reverb,     "Reverb" },
         { AudioEffectKind::LowPass,    "LowPass" },

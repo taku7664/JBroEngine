@@ -127,7 +127,7 @@
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest), `Fonts`(폰트 에셋 아이디의 순서 있는 시퀀스 - 첫 폰트가 `fontId` 가 빈 텍스트의 기본이고 목록 전체가
   폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다), 게임 언어의 `Locales`(이름 시퀀스)·
-  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226), 게임 빌드의 프로젝트 사본이 적는 `AssetPackage`(D-232), 게임 전체 음량 `AudioMasterVolume`(0..1, 1 이면 적지 않는다 - 기존 설정 창의 Master 슬라이더는 저장하지 않았다, D-304) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
+  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226), 게임 빌드의 프로젝트 사본이 적는 `AssetPackage`(D-232), 게임 전체 음량 `AudioMasterVolume`(0..1, 1 이면 적지 않는다 - 기존 설정 창의 Master 슬라이더는 저장하지 않았다, D-305) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
   PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-213)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
 - **빈 값은 `""` 로 적는다.** `Key: ` 는 "아래에 블록이 온다" 로 읽혀 기본값이 되살아난다. 원문에서 이미 비어 있던 줄만 그대로 둔다. (MUST) (D-232)
@@ -203,6 +203,9 @@
   - 이펙트는 **버스마다 고정 사슬**(고역 차단 → 저역 차단 → EQ → 디스토션 → 코러스 → 피치 시프트 → 메아리 → 잔향 → 원음 양 →
     컴프레서, D-202·D-210)이다. 출력은 리미터(기본 켬)를 거친 뒤 1 에서 잘린다. 값은 원자 변수로 건너가고 필터 계수는
     오디오 스레드가 짓는다. 메아리·잔향 버퍼는 처음 켤 때 메인 스레드가 잡는다 - 오디오 스레드는 할당하지 않는다.
+  - **소스마다 이펙트 사슬**은 `.jfx` 에셋(타입 `AudioEffect`, 기존 엔진의 `Effect: { Kind, Parameters }` 모양)을 `AudioSource.audioEffectIds` 의
+    차례대로 넷까지 건다(D-306). 종류마다 파라미터의 이름·기본값·범위는 `JBroAssetTypes` 의 `AudioEffectKinds` 한 곳에만 둔다 - 편집 창·파일·DSP 가
+    따로 표를 두지 않는다. 버스와 보이스 사슬은 같은 DSP(`EffectDsp`)를 탄다. 사슬 노드는 믹서가 초기화 때 정한 수만큼 두고 모자라면 이펙트 없이 울린다.
   - 버스의 부모는 목록의 앞 버스만이고, 센드는 되돌아오는 길을 만들면 거절한다(D-203). 솔로는 저장하지 않는다.
   - 버스 음량·음소거·솔로는 이펙트 노드 끝의 램프로 건다(D-205). 그룹 음량을 곧바로 바꾸지 않는다 - 딸깍 소리가 난다.
   - 버스 사용자 처리기는 엔진·호스트 코드만 건다. 스크립트 DLL 에는 열지 않는다(D-206). `SetBusProcessor` 가 돌아오면 옛 처리기는

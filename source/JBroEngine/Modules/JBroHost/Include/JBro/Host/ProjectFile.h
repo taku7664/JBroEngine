@@ -181,7 +181,7 @@ namespace JBro
         String        audioOutputDevice;
         // 창이 포커스를 잃으면 소리를 끈다(`AudioMuteWhenUnfocused`). 스크립트가 옵션 화면에서 바꿀 수 있다.
         Bool          audioMuteWhenUnfocused = false;
-        // 게임 전체 음량(`AudioMasterVolume`, 0..1, D-304)이다. 리스너의 `volume` 과 곱해 Master 버스에 걸린다. 1 이면 파일에 적지 않는다.
+        // 게임 전체 음량(`AudioMasterVolume`, 0..1, D-305)이다. 리스너의 `volume` 과 곱해 Master 버스에 걸린다. 1 이면 파일에 적지 않는다.
         Float         audioMasterVolume = 1.0f;
         // 프로젝트의 폰트 목록이다(`Fonts`, 폰트 에셋 아이디의 시퀀스, D-200 (6)). 순서가 있다: 첫 폰트는 `fontId` 가 빈
         // 텍스트의 기본 폰트이고, 목록 전체가 글자가 없을 때 차례로 찾아보는 폴백이다. 비어 있으면 `fontId` 가 빈 텍스트는

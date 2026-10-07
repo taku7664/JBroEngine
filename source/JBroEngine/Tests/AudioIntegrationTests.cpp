@@ -149,7 +149,7 @@ namespace
         "  - Name: MoveLeft\n"
         "    Key: A\n";
 
-    // `AudioMasterVolume`(D-304)는 1 이면 적지 않고, 바꾸면 최상위 키로 왕복한다.
+    // `AudioMasterVolume`(D-305)는 1 이면 적지 않고, 바꾸면 최상위 키로 왕복한다.
     void TestProjectFileKeepsTheMasterVolume()
     {
         ProjectFile project;
@@ -1029,7 +1029,7 @@ namespace
         scene.Close();
     }
 
-    // **게임 전체 음량 × 리스너 음량**(D-304, 기존 `SetMasterVolume` × `AudioListener.MasterVolume`). 스크립트가 버스 이름을 읽는다.
+    // **게임 전체 음량 × 리스너 음량**(D-305, 기존 `SetMasterVolume` × `AudioListener.MasterVolume`). 스크립트가 버스 이름을 읽는다.
     void TestMasterAndListenerVolume()
     {
         Scene scene;
@@ -1075,7 +1075,7 @@ namespace
         scene.Close();
     }
 
-    // **`.jfx` 는 기존 형식 그대로 읽힌다**(D-305). 바깥 `Effect:` 가 없어도, 새로 만든 파일(`Parameters: {}`)도, 모르는 종류·키도 읽힌다.
+    // **`.jfx` 는 기존 형식 그대로 읽힌다**(D-306). 바깥 `Effect:` 가 없어도, 새로 만든 파일(`Parameters: {}`)도, 모르는 종류·키도 읽힌다.
     void TestEffectFilesReadAndWrite()
     {
         Check(AssetTypeRules::DetectTypeFromPath("Sound/cave.jfx") == AssetType::AudioEffect, ".jfx is a sound effect asset");
@@ -1118,7 +1118,7 @@ namespace
         Check(echo.values[0] == 0.25f, "and the others start at their defaults");
     }
 
-    // **소스의 `audioEffectIds` 가 `.jfx` 를 차례대로 건다**(D-305). 재생 중에 `.jfx` 를 고쳐 다시 읽으면 다시 시작하지 않고 값만 바뀐다.
+    // **소스의 `audioEffectIds` 가 `.jfx` 를 차례대로 건다**(D-306). 재생 중에 `.jfx` 를 고쳐 다시 읽으면 다시 시작하지 않고 값만 바뀐다.
     void TestSourceEffectChainsFromAssets()
     {
         Scene scene;

@@ -160,8 +160,9 @@ namespace JBro
         {
             return;
         }
-        // 지난 프레임에 미리 듣기 칸을 그리지 않았으면(다른 것을 골랐다) 미리 듣기를 멈춘다.
-        if (false == m_audioDrawn)
+        // 지난 프레임에 미리 듣기 칸을 그리지 않았으면(다른 것을 골랐다) 미리 듣기를 멈춘다. **인스펙터가 소리를 보이고 있던 때만이다**
+        // (D-306) - 사운드 이펙트 창의 미리 듣기는 인스펙터와 따로 울린다.
+        if (false == m_audioDrawn && false == m_audioAsset.IsNull())
         {
             if (System::AudioSystem* audio = m_editor->GetAudio(); audio != nullptr && audio->IsPreviewPlaying())
             {
@@ -1156,7 +1157,7 @@ namespace JBro
                         audio->StopPreview();
                     }
                     ImGui::SameLine();
-                    // 지금 / 길이다(기존 `"%.2f / %.2f s"`, D-304).
+                    // 지금 / 길이다(기존 `"%.2f / %.2f s"`, D-305).
                     const Int32 minutes = static_cast<JBro::Int32>(position / 60.0);
                     const Int32 totalMinutes = static_cast<JBro::Int32>(m_audioSeconds / 60.0);
                     Widget::TextF("%d:%05.2f / %d:%05.2f", minutes, position - minutes * 60.0, totalMinutes,
@@ -1171,7 +1172,7 @@ namespace JBro
             });
         layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioLoop, "Loop")),
             [&]() { Widget::Checkbox("##loop", m_audioLoop); });
-        // **울리는 동안 위치 막대와 스펙트럼**(D-304, 기존 탐색 막대와 `ImSpectrumVisualizer`). 막대를 끌면 그 자리로 옮긴다.
+        // **울리는 동안 위치 막대와 스펙트럼**(D-305, 기존 탐색 막대와 `ImSpectrumVisualizer`). 막대를 끌면 그 자리로 옮긴다.
         // 스펙트럼은 믹서의 최근 출력이다 - 편집 중에는 미리 듣기만 울린다.
         if (playingThis && m_audioSeconds > 0.0)
         {
@@ -1464,6 +1465,18 @@ namespace JBro
         if (meta.type == AssetType::Audio)
         {
             DrawAudioPreview(meta);
+            ImGui::Spacing();
+        }
+        // 사운드 이펙트는 편집 창에서 고친다(D-306, 기존 인스펙터의 `Open Effect Editor`).
+        if (meta.type == AssetType::AudioEffect)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorSoundEffectHint, "Edit sound effects in their own window"));
+            if (Widget::IconButton("##open_effect_editor", Icons::OpenExternal)
+                    .Caption(Loc::TextOr(LocKeys::InspectorOpenSoundEffect, "Open Effect Editor"))
+                    .Draw())
+            {
+                m_editor->OpenSoundEffectEditor(meta.id);
+            }
             ImGui::Spacing();
         }
         if (AssetTypeRules::IsImageType(meta.type))
@@ -2150,7 +2163,10 @@ namespace JBro
         // 인스펙터는 여기서도 무엇이 든 배열인지 모른다(ProjectRule §11.1).
         if (type.arrayOps != nullptr && type.arrayOps->GetSize != nullptr)
         {
+            const char* outerList = context.listField;
+            context.listField = label;
             DrawArray(type, address, editable, context);
+            context.listField = outerList;
             return;
         }
         if (type.tableOps != nullptr && type.tableOps->GetSize != nullptr)
@@ -2218,13 +2234,25 @@ namespace JBro
             DrawObjectField(type, address, context);
             return;
         }
-        // **`AssetId` 는 드롭다운이다**(D-116). 원소 안의 아이디는 아직 글자 칸이다 - 목록 원소
-        // 편집은 값을 글자로 모아 커맨드를 만드는 길이라(D-89) 이 칸이 그 길을 타려면 따로 봐야 한다.
+        // **`AssetId` 는 드롭다운이다**(D-116). 목록 원소도 그렇다(D-306): `audioEffectIds` 의 원소는 `audioEffectId` 처럼
+        // 읽어 그 타입만 고른다. 고른 값은 원소 편집으로 적힌다(`CommitEdit` → `RecordElementEdit`, D-89) - 쓰는 길은 하나다.
         if (context.element == nullptr && SameName(type.typeName, "JBro.Uuid")
             && IsAssetIdName(label))
         {
             DrawAssetField(label, type, address, context);
             return;
+        }
+        if (context.element != nullptr && context.element->fieldDepth == 0 && SameName(type.typeName, "JBro.Uuid")
+            && context.listField != nullptr)
+        {
+            const std::size_t length = std::strlen(context.listField);
+            if (length > 3 && length < 64 && std::strcmp(context.listField + length - 3, "Ids") == 0)
+            {
+                char elementName[64] = {};
+                std::memcpy(elementName, context.listField, length - 1);
+                DrawAssetField(elementName, type, address, context);
+                return;
+            }
         }
 
         // 텍스트의 글자는 줄바꿈을 그대로 치는 여러 줄 칸이다. 한 줄 칸은 줄바꿈을 이스케이프 글자로 보여 주고

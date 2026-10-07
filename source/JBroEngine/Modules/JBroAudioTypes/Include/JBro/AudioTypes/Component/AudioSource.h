@@ -97,7 +97,7 @@ namespace JBro::Component
         // 재생 중에 바꿔도 된다. 둘 다 0 인 소스는 필터 비용이 없다.
         JBRO_FIELD(Float, lowPass, Category("Filter")) = 0.0f;
         JBRO_FIELD(Float, highPass, Category("Filter")) = 0.0f;
-        // 이 소스에만 거는 이펙트 사슬이다(D-305, 기존 `AudioPlayer.EffectGuids`). `.jfx` 에셋을 목록의 차례대로 걸고 넷까지다.
+        // 이 소스에만 거는 이펙트 사슬이다(D-306, 기존 `AudioPlayer.EffectGuids`). `.jfx` 에셋을 목록의 차례대로 걸고 넷까지다.
         // 재생 중에 목록이나 `.jfx` 를 고치면 다시 시작하지 않고 값만 바뀐다. 사슬을 건 소스는 그만큼 DSP 비용이 든다.
         JBRO_FIELD(Array<AssetId>, audioEffectIds, Category("Effects"));
         JBRO_FIELD(Array<AssetHandle>, audioEffects, NoSerialize() | ReadOnly() | Category("Effects") | Tooltip("audioEffectIds 에서 해석된 값"));
@@ -126,7 +126,7 @@ namespace JBro::Component
             Bool stoppedByScript = false;
             // 보이스를 이은 때의 버스 구성 세대다(D-240). 프로젝트 설정을 저장해 버스를 다시 세우면 바뀐다 - 그때 버스를 다시 잇는다.
             UInt32 busGeneration = 0;
-            // 마지막으로 건 이펙트 사슬의 지문이다(D-305) - 목록·에셋·에셋의 판이 바뀌면 달라진다. 그때만 사슬 값을 다시 건다.
+            // 마지막으로 건 이펙트 사슬의 지문이다(D-306) - 목록·에셋·에셋의 판이 바뀌면 달라진다. 그때만 사슬 값을 다시 건다.
             UInt32 effectSignature = 0;
         };
         Runtime runtime;

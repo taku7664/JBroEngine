@@ -8,7 +8,7 @@
 
 namespace JBro
 {
-    // `.jfx` 본문을 읽고 쓴다(D-305). 모양은 기존 엔진과 같다:
+    // `.jfx` 본문을 읽고 쓴다(D-306). 모양은 기존 엔진과 같다:
     //
     //   Effect:
     //     Kind: Reverb

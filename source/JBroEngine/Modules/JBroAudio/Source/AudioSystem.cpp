@@ -605,7 +605,7 @@ namespace JBro::System
             runtime.lastLowPass = lowPass;
             runtime.lastHighPass = highPass;
         }
-        // 이펙트 사슬(D-305): 목록이나 `.jfx` 가 바뀌었을 때만 다시 건다. 다시 시작하지 않는다.
+        // 이펙트 사슬(D-306): 목록이나 `.jfx` 가 바뀌었을 때만 다시 건다. 다시 시작하지 않는다.
         {
             AudioEffectSettings effects[AudioMaxVoiceEffects];
             UInt32 signature = 0;
@@ -634,7 +634,7 @@ namespace JBro::System
         {
             m_mixer->StopAllWithTag(GameTag);
         }
-        // 게임의 리스너가 줄여 둔 음량을 편집 화면에 남기지 않는다(D-304).
+        // 게임의 리스너가 줄여 둔 음량을 편집 화면에 남기지 않는다(D-305).
         SetListenerVolume(1.0f);
         // 다시 켠 첫 프레임에 멈추기 전 자리와의 차이로 도플러가 튀지 않게 한다(D-240).
         m_listenerPlaced = false;

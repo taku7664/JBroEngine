@@ -100,6 +100,9 @@ namespace JBro
             AttachedRef attached;
             ComponentTypeId typeId = 0;
             SetPropertyCommand::Path path;
+            // 지금 그리는 목록 필드의 이름이다(D-306). `audioEffectIds` 처럼 `Ids` 로 끝나는 `AssetId` 목록이면 원소가 그 타입의 에셋
+            // 드롭다운이다. 목록 밖이면 비어 있다.
+            const char* listField = nullptr;
             // 가이드 포커스에 필드 줄을 알리는가(D-273). 표식은 타입과 필드 이름뿐이라 같은 타입의 둘째 컴포넌트까지 알리면
             // 같은 대상이 두 자리에 서고, 구멍이 두 줄 사이를 오가며 인스펙터를 끝없이 굴린다. 그 타입의 첫째만 알린다.
             Bool guideTarget = true;
@@ -252,7 +255,7 @@ namespace JBro
         double m_audioSeconds = 0.0;
         Array<Float> m_audioPeaks;
         Bool m_audioLoop = false;
-        // 미리 듣기 중의 스펙트럼 칸이다(D-304). 프레임마다 할당하지 않게 여기 둔다.
+        // 미리 듣기 중의 스펙트럼 칸이다(D-305). 프레임마다 할당하지 않게 여기 둔다.
         static constexpr UInt32 AudioSpectrumBands = 48;
         Float m_audioSpectrum[AudioSpectrumBands] = {};
         // 이번 프레임에 미리 듣기 칸을 그렸는가. 다른 것을 고르면 다음 프레임에 미리 듣기를 멈춘다 - 반복 재생이

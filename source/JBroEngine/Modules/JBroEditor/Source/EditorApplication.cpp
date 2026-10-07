@@ -58,6 +58,8 @@
 #include "EditorThumbnails.h"
 #include "NewProjectPopup.h"
 #include "NewScriptPopup.h"
+#include "Panel/SoundEffectPanel.h"
+#include <JBro/Asset/AudioEffectFile.h>
 #include "Panel/SpriteViewerPanel.h"
 
 #include "Panel/AssetBrowserPanel.h"
@@ -629,6 +631,83 @@ namespace JBro
         viewer->RequestFocus();
         // 옵션은 고른 에셋의 것을 고친다. 연 그림을 고른다.
         viewer->SelectPicture();
+        return true;
+    }
+
+    Bool EditorApplication::OpenSoundEffectEditor(AssetId asset)
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (false == m_uiEnabled || record == nullptr || record->type != AssetType::AudioEffect)
+        {
+            return false;
+        }
+        Array<EditorPanel*> editors;
+        FindPanels(SoundEffectPanel::TypeName, editors);
+        for (EditorPanel* panel : editors)
+        {
+            if (static_cast<SoundEffectPanel*>(panel)->GetAsset() == asset)
+            {
+                panel->RequestFocus();
+                return true;
+            }
+        }
+        auto* editor = static_cast<SoundEffectPanel*>(CreatePanel(SoundEffectPanel::TypeName));
+        if (editor == nullptr)
+        {
+            return false;
+        }
+        if (false == editor->Show(asset))
+        {
+            ClosePanel(*editor);
+            return false;
+        }
+        editor->RequestFocus();
+        return true;
+    }
+
+    Bool EditorApplication::ReadSoundEffect(AssetId asset, AudioEffectSettings& settings) const
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (record == nullptr || record->type != AssetType::AudioEffect || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = EditorPaths::JoinPath(GetAssetRoot().c_str(), record->relativePath.c_str());
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(path.c_str(), bytes))
+        {
+            return false;
+        }
+        String error;
+        if (false == ParseAudioEffect(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), settings, &error))
+        {
+            Log::Write(LogLevel::Warning, "editor", "the sound effect could not be read (%s): %s", record->relativePath.c_str(),
+                error.c_str());
+            return false;
+        }
+        return true;
+    }
+
+    Bool EditorApplication::WriteSoundEffect(AssetId asset, const AudioEffectSettings& settings)
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (record == nullptr || record->type != AssetType::AudioEffect || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = EditorPaths::JoinPath(GetAssetRoot().c_str(), record->relativePath.c_str());
+        const String text = WriteAudioEffect(settings);
+        if (false == m_platform->WriteWholeFile(path.c_str(),
+                {reinterpret_cast<const std::byte*>(text.c_str()), static_cast<JBro::UInt32>(text.size())}))
+        {
+            Log::Write(LogLevel::Error, "editor", "the sound effect could not be written: %s", path.c_str());
+            return false;
+        }
+        // 실린 에셋은 제자리에서 다시 읽는다 - 소스의 사슬이 다음 프레임에 새 값을 건다. 실리지 않았으면 다음 로드가 새 파일을 읽는다.
+        if (AssetSystem* assets = GetAssetSystem(); assets != nullptr && assets->IsLoaded(assets->Find(asset)))
+        {
+            assets->ReloadInPlace(asset);
+        }
         return true;
     }
 
@@ -2430,6 +2509,23 @@ namespace JBro
         return relative;
     }
 
+    String EditorApplication::CreateSoundEffectAsset(const char* folder)
+    {
+        // 기존의 새 이펙트 틀(`Kind: Reverb`, 빈 파라미터)과 같은 소리다 - 잔향 기본값을 적어 둔다.
+        const String created = WriteNewAssetFile(folder, "NewEffect", ".jfx", WriteAudioEffect(MakeAudioEffect(AudioEffectKind::Reverb)));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+            OpenSoundEffectEditor(record->id);
+        }
+        return created;
+    }
+
     String EditorApplication::CreateFontFamilyAsset(const char* folder)
     {
         // 본문은 표지뿐이다. 네 칸은 메타의 `FontFamily` 블록에 있다(D-225) - 에셋 옵션을 고치는 길(메타 커맨드·제자리 재로드)을 그대로 쓴다.
@@ -3342,7 +3438,7 @@ namespace JBro
         FileDialogDesc desc;
         desc.title = Loc::TextOr(LocKeys::DialogImportTitle, "Import");
         // 대화상자는 한 종류만 받는다(`FileDialogDesc`). 그림과 소리를 한 줄에 묶는다 - 처음에는 그림만 받아 에디터 안에서
-        // 소리를 들일 길이 없었다(D-304).
+        // 소리를 들일 길이 없었다(D-305).
         switch (m_importFilter)
         {
             case ImportFilter::Image:
@@ -4761,7 +4857,7 @@ namespace JBro
                 {
                     RequestImportAsset("", ImportFilter::Image);
                 }
-                // 기존 엔진의 `Audio Importer` 자리다(D-304). 창은 두지 않고 가져온 뒤 인스펙터에서 옵션을 고친다.
+                // 기존 엔진의 `Audio Importer` 자리다(D-305). 창은 두지 않고 가져온 뒤 인스펙터에서 옵션을 고친다.
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuImportAudio, "Import Audio"),
                         nullptr, false == GetAssetRoot().empty(),
                         Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))

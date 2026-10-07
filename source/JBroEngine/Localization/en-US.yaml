@@ -409,6 +409,23 @@ Entries:
   new_script.failed: The script could not be created
   assets.new_font_family: New Font Family
   assets.new_string_table: New String Table
+  assets.new_sound_effect: New Sound Effect
+  inspector.sound_effect_hint: "Edit sound effects in their own window"
+  inspector.open_sound_effect: Open Effect Editor
+  sound_effect.title: Sound Effect
+  sound_effect.open: Open Sound Effect
+  sound_effect.none: "There are no sound effects in this project"
+  sound_effect.save: Save
+  sound_effect.nothing_to_save: "nothing has changed"
+  sound_effect.reload: Reload From Disk
+  sound_effect.close: Close
+  sound_effect.kind_help: "Changing the kind keeps the values of the parameters both kinds have"
+  sound_effect.apply: Apply
+  sound_effect.save_failed: "The sound effect could not be saved"
+  sound_effect.read_failed: "The sound effect file could not be read"
+  sound_effect.preview: Preview
+  sound_effect.test_sound: Test Sound
+  sound_effect.preview_hint: "Pick an audio asset above or drag one onto it, then play"
   assets.duplicate: Duplicate
   assets.copy_path: Copy Path
   assets.cut: Cut

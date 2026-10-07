@@ -51,6 +51,7 @@ namespace JBro
             case AssetType::Sprite:
                 return Icons::FileImage;
             case AssetType::Audio:
+            case AssetType::AudioEffect:
                 return Icons::FileAudio;
             case AssetType::Font:
             case AssetType::FontFamily:
@@ -558,6 +559,11 @@ namespace JBro
             {
                 m_editor->RequestOpenCanvas(entry.record->relativePath.c_str());
             }
+            // 사운드 이펙트는 편집 창에서 연다(D-306, 기존 브라우저도 그랬다).
+            else if (entry.record->type == AssetType::AudioEffect)
+            {
+                m_editor->OpenSoundEffectEditor(entry.record->id);
+            }
             else
             {
                 // **엔진이 모르는 파일은 OS 에게 넘긴다**(기존 브라우저의 기본 동작).
@@ -1035,6 +1041,11 @@ namespace JBro
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewStringTable, "New String Table")))
         {
             m_editor->CreateStringTableAsset(m_openFolder.c_str());
+        }
+        // **새 사운드 이펙트**(D-306, 기존 `에셋 추가 ▸ Sound Effect`). 만들고 편집 창에서 연다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewSoundEffect, "New Sound Effect")))
+        {
+            m_editor->CreateSoundEffectAsset(m_openFolder.c_str());
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewCanvas, "New Canvas")))
         {

@@ -51,7 +51,7 @@ namespace JBro::System
         virtual const char* GetCurrentOutputDevice() const = 0;
         virtual Bool SelectOutputDevice(const char* name) = 0;
         virtual Bool IsWaitingForUserGesture() const = 0;
-        // 출력 장치의 지연(초)이다(D-304). 장치가 없으면 0 이다.
+        // 출력 장치의 지연(초)이다(D-305). 장치가 없으면 0 이다.
         virtual Float GetOutputLatencySeconds() const
         {
             return 0.0f;
@@ -98,7 +98,7 @@ namespace JBro::System
         // `deltaTime` 은 도플러의 속도(위치 차 / 시간)를 재는 데만 쓴다. 0 이면 속도를 0 으로 둔다.
         void SetListener(const Float position[3], const Float forward[3], const Float up[3], Float planarDepth,
             Float deltaTime);
-        // 리스너 컴포넌트의 `volume` 이다(D-304, 기존 `AudioListener.MasterVolume`). 리스너가 없으면 1 이다. 게임 전체 음량과
+        // 리스너 컴포넌트의 `volume` 이다(D-305, 기존 `AudioListener.MasterVolume`). 리스너가 없으면 1 이다. 게임 전체 음량과
         // 곱해 Master 버스에 건다 - 바뀐 때만 믹서를 부른다.
         void SetListenerVolume(Float volume);
         // 소스 하나를 한 프레임 진행한다. `active` 는 `IsActiveComponent` 다.
@@ -108,7 +108,7 @@ namespace JBro::System
 
         // ── 에디터 미리 듣기 ────────────────────────────────────────────────────────────────────
         // 미리 듣기 버스로 한 번에 하나만 울린다. 새로 부르면 앞의 것을 멈춘다. Master 음소거와 무관하게 들린다.
-        // `effects` 를 주면 그 사슬을 걸고 듣는다(D-305, 이펙트 편집 창의 미리 듣기). 울리는 동안 `SetPreviewEffects` 로 값만 바꾼다.
+        // `effects` 를 주면 그 사슬을 걸고 듣는다(D-306, 이펙트 편집 창의 미리 듣기). 울리는 동안 `SetPreviewEffects` 로 값만 바꾼다.
         Bool PlayPreview(AssetHandle clip, Bool loop, const AudioEffectSettings* effects = nullptr, UInt32 effectCount = 0);
         void SetPreviewEffects(const AudioEffectSettings* effects, UInt32 effectCount);
         void StopPreview();
@@ -184,7 +184,7 @@ namespace JBro::System
         // `AudioNoBus` 다 - 오타 하나가 게임 전체를 음소거하지 않게. 한 번만 알린다.
         AudioBusId ResolveControlBus(AudioBusName bus) const;
         void StartSource(Component::AudioSource& source);
-        // 소스의 이펙트 사슬을 모은다(D-305). 실린 `.jfx` 만 들고 넷까지다. `signature` 는 목록·에셋·판의 지문이다.
+        // 소스의 이펙트 사슬을 모은다(D-306). 실린 `.jfx` 만 들고 넷까지다. `signature` 는 목록·에셋·판의 지문이다.
         UInt32 GatherEffects(const Component::AudioSource& source, AudioEffectSettings* out, UInt32& signature) const;
         void StopVoice(Component::AudioSource& source, Float fadeOutSeconds);
         void Place(const Float position[3], Float out[3]) const;
@@ -202,7 +202,7 @@ namespace JBro::System
         IAudioDeviceControl* m_deviceControl = nullptr;
         Bool m_muteWhenUnfocused = false;
         Bool m_focused = true;
-        // 게임 전체 음량과 리스너 음량이다(D-304). 믹서의 Master 음량은 둘의 곱이다.
+        // 게임 전체 음량과 리스너 음량이다(D-305). 믹서의 Master 음량은 둘의 곱이다.
         Float m_masterVolume = 1.0f;
         Float m_listenerVolume = 1.0f;
         AudioVoiceHandle m_preview;

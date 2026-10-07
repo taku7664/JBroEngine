@@ -254,7 +254,7 @@ namespace JBro
             Float z1[2] = {0.0f, 0.0f};
             Float z2[2] = {0.0f, 0.0f};
 
-            // `q` 는 기존 `.jfx` 의 `q` 다(D-305). 버스는 0.707(버터워스)이다.
+            // `q` 는 기존 `.jfx` 의 `q` 다(D-306). 버스는 0.707(버터워스)이다.
             void Configure(Bool highPass, Float cutoff, Float sampleRate, Float q = 0.70710678f)
             {
                 const Float nyquist = sampleRate * 0.5f;
@@ -422,7 +422,7 @@ namespace JBro
             }
         };
 
-        // 이펙트 사슬 하나의 DSP 다(D-210, D-305 에서 떼어 냄). 버스 노드는 이것을 하나, 보이스 사슬 노드는 단계마다 하나 든다 - 버스와
+        // 이펙트 사슬 하나의 DSP 다(D-210, D-306 에서 떼어 냄). 버스 노드는 이것을 하나, 보이스 사슬 노드는 단계마다 하나 든다 - 버스와
         // 소스가 같은 코드를 탄다. 목표 값은 메인 스레드가 원자로 쓰고 오디오 스레드는 처리 앞에 읽어 바뀐 것만 반영한다. 지연선·잔향
         // 버퍼는 메인 스레드가 처음 켤 때 잡아 원자 포인터로 넘긴다.
         struct EffectDsp
@@ -431,7 +431,7 @@ namespace JBro
             UInt32 sampleRate = 48000;
             std::atomic<float> lowPass{0.0f};
             std::atomic<float> highPass{0.0f};
-            // 필터의 Q 와 잔향의 폭이다(D-305, 기존 `.jfx` 의 `q`·`width`). 버스는 기본값 그대로다.
+            // 필터의 Q 와 잔향의 폭이다(D-306, 기존 `.jfx` 의 `q`·`width`). 버스는 기본값 그대로다.
             std::atomic<float> lowPassQ{0.70710678f};
             std::atomic<float> highPassQ{0.70710678f};
             std::atomic<float> reverbWidth{1.0f};
@@ -586,7 +586,7 @@ namespace JBro
             }
         }
 
-        // 사슬 하나를 제자리에서 돈다(D-305). 차례는 고역 차단 → 저역 차단 → EQ → 디스토션 → 코러스 → 피치 → 메아리·잔향·원음 → 컴프레서다.
+        // 사슬 하나를 제자리에서 돈다(D-306). 차례는 고역 차단 → 저역 차단 → EQ → 디스토션 → 코러스 → 피치 → 메아리·잔향·원음 → 컴프레서다.
         // 버스 노드와 보이스 사슬 노드가 같이 쓴다. **오디오 스레드에서만 부른다** - 할당·잠금이 없다.
         void RunEffectDsp(EffectDsp& self, Float* out, UInt32 frames)
         {
@@ -791,7 +791,7 @@ namespace JBro
                         const Float left = source[0] + echoed[0];
                         const Float right = channels > 1 ? Float(source[1] + echoed[1]) : left;
                         const Float input = (left + right) * 0.5f;
-                        // 폭(Freeverb 의 width): 1 이면 두 줄이 제 쪽으로, 0 이면 가운데로 모인다(D-305).
+                        // 폭(Freeverb 의 width): 1 이면 두 줄이 제 쪽으로, 0 이면 가운데로 모인다(D-306).
                         const Float left0 = reverb->Process(0, input, room, damping) * reverbMix * 3.0f;
                         const Float right0 = reverb->Process(1, input, room, damping) * reverbMix * 3.0f;
                         wet[0] = left0 * wetSame + right0 * wetCross;
@@ -1035,7 +1035,7 @@ namespace JBro
             OwnerPtr<Array<Float>> pitch;
         };
 
-        // 보이스 하나의 이펙트 사슬 노드다(D-305). 소리 → (필터) → 이 노드 → 버스로 선다. `stageCount` 단계를 차례로 돈다. 노드는
+        // 보이스 하나의 이펙트 사슬 노드다(D-306). 소리 → (필터) → 이 노드 → 버스로 선다. `stageCount` 단계를 차례로 돈다. 노드는
         // 믹서가 초기화 때 정한 수만큼 만들어 두고 사슬을 건 보이스가 빌려 쓴다. 새 보이스가 빌리면 `reset` 으로 지난 소리의 상태를
         // 오디오 스레드가 비운다.
         struct VoiceEffectNode
@@ -1106,7 +1106,7 @@ namespace JBro
 
         ma_node_vtable g_voiceEffectVtable = {&ProcessVoiceEffects, nullptr, 1, 1, 0};
 
-        // `.jfx` 하나를 DSP 한 단계의 값으로 옮긴다(D-305). 그 종류의 칸만 켜고 나머지는 끈 사슬이다. 이름은 기존 엔진의 키다.
+        // `.jfx` 하나를 DSP 한 단계의 값으로 옮긴다(D-306). 그 종류의 칸만 켜고 나머지는 끈 사슬이다. 이름은 기존 엔진의 키다.
         AudioBusEffects ToStageEffects(const AudioEffectSettings& effect, Float& lowPassQ, Float& highPassQ, Float& reverbWidth)
         {
             AudioBusEffects stage;
@@ -1493,7 +1493,7 @@ namespace JBro
         static constexpr UInt32 NoStream = 0xFFFFFFFFu;
         static constexpr UInt32 NoChain = 0xFFFFFFFFu;
 
-        // 보이스가 빌려 쓰는 이펙트 사슬이다(D-305). 노드는 초기화 때 만들고, 단계의 버퍼는 그 단계를 처음 쓸 때 잡아 두고 되쓴다.
+        // 보이스가 빌려 쓰는 이펙트 사슬이다(D-306). 노드는 초기화 때 만들고, 단계의 버퍼는 그 단계를 처음 쓸 때 잡아 두고 되쓴다.
         struct EffectChain
         {
             OwnerPtr<VoiceEffectNode> node;
@@ -1531,7 +1531,7 @@ namespace JBro
             Bool filterReady = false;
             // 디스크 스트리밍 보이스면 그 자리 번호다.
             UInt32 streamSlot = NoStream;
-            // 빌려 쓰는 이펙트 사슬의 번호다(D-305). 없으면 `NoChain` 이다.
+            // 빌려 쓰는 이펙트 사슬의 번호다(D-306). 없으면 `NoChain` 이다.
             UInt32 effectChain = NoChain;
             Bool filterRouted = false;
             // 들리는 크기를 메인 스레드에서 잰다(D-235). 공간화 값은 시작 때와 `SetPosition` 이 적는다.
@@ -1627,7 +1627,7 @@ namespace JBro
         std::thread streamer;
         std::atomic<bool> streamerRunning{false};
         Bool warnedStreams = false;
-        // 이펙트 사슬 자리(D-305).
+        // 이펙트 사슬 자리(D-306).
         Array<OwnerPtr<EffectChain>> effectChains;
         Array<UInt32> freeEffectChains;
         Bool warnedEffectChains = false;
@@ -2099,7 +2099,7 @@ namespace JBro
         {
             ma_node* group = reinterpret_cast<ma_node*>(&buses[bus].group);
             ma_node* filter = reinterpret_cast<ma_node*>(voice.filter.Get());
-            // 사슬을 빌린 보이스는 사슬이 버스 앞에 선다(D-305): 소리 → (필터) → 사슬 → 버스.
+            // 사슬을 빌린 보이스는 사슬이 버스 앞에 선다(D-306): 소리 → (필터) → 사슬 → 버스.
             if (voice.effectChain != NoChain)
             {
                 ma_node* chain = reinterpret_cast<ma_node*>(effectChains[voice.effectChain]->node.Get());
@@ -2127,7 +2127,7 @@ namespace JBro
             voice.bus = bus;
         }
 
-        // 보이스의 이펙트 사슬을 건다(D-305). `count` 가 0 이면 사슬을 돌려주고 소리를 버스에 곧장 잇는다. 사슬이 없던 보이스는 하나를
+        // 보이스의 이펙트 사슬을 건다(D-306). `count` 가 0 이면 사슬을 돌려주고 소리를 버스에 곧장 잇는다. 사슬이 없던 보이스는 하나를
         // 빌린다 - 다 쓰였으면 이펙트 없이 울리고 한 번 알린다. 단계의 버퍼는 그 단계를 처음 쓸 때 여기(메인 스레드)서 잡는다.
         void SetVoiceEffects(Voice& voice, AudioBusId bus, const AudioEffectSettings* effects, UInt32 count)
         {
@@ -2306,7 +2306,7 @@ namespace JBro
                 {
                     continue;
                 }
-                // Master 음량(D-304)은 Master 버스에만 곱한다 - 미리 듣기 버스는 엔드포인트로 곧장 가므로 줄지 않는다.
+                // Master 음량(D-305)은 Master 버스에만 곱한다 - 미리 듣기 버스는 엔드포인트로 곧장 가므로 줄지 않는다.
                 const Float scale = bus == AudioMasterBus ? masterVolume : Float(1.0f);
                 const Float gain = target.muted || false == audible[bus] ? Float(0.0f) : Float(target.volume * scale);
                 if (gain != target.effectiveGain)
@@ -2661,7 +2661,7 @@ namespace JBro
         {
             state.freeVoices.Add(index - 1);
         }
-        // 이펙트 사슬 노드(D-305). 버퍼는 단계를 처음 쓸 때 잡는다 - 쓰지 않는 프로젝트는 노드 수만큼의 작은 자리만 든다.
+        // 이펙트 사슬 노드(D-306). 버퍼는 단계를 처음 쓸 때 잡는다 - 쓰지 않는 프로젝트는 노드 수만큼의 작은 자리만 든다.
         state.effectChains.Reserve(desc.maxEffectVoices);
         state.freeEffectChains.Reserve(desc.maxEffectVoices);
         for (UInt32 index = 0; index < desc.maxEffectVoices; ++index)
@@ -3556,7 +3556,7 @@ namespace JBro
             voice.filter->reset.store(true, std::memory_order_release);
             state.RouteVoice(voice, bus, true);
         }
-        // 소스의 이펙트 사슬(D-305). 필터 뒤, 버스 앞에 선다.
+        // 소스의 이펙트 사슬(D-306). 필터 뒤, 버스 앞에 선다.
         if (desc.effects != nullptr && desc.effectCount > 0)
         {
             state.SetVoiceEffects(voice, bus, desc.effects, desc.effectCount);
@@ -3922,7 +3922,7 @@ namespace JBro
     {
         if (IsInitialized())
         {
-            // 엔진 전체 음량(`ma_engine_set_volume`)이 아니라 Master 버스의 이득이다(D-304) - 에디터 미리 듣기는 Master 와 따로
+            // 엔진 전체 음량(`ma_engine_set_volume`)이 아니라 Master 버스의 이득이다(D-305) - 에디터 미리 듣기는 Master 와 따로
             // 들린다(§2.9). 10 ms 에 걸쳐 옮긴다(클릭 없음).
             m_state->masterVolume = Clamp01(volume);
             m_state->ApplyBusGains();

@@ -75,7 +75,7 @@ namespace JBro
             }
         }
 
-        // 목록 짝이다(D-305): `xxxIds`(`Array<AssetId>`)와 `xxxs`(`Array<AssetHandle>`). `AudioSource.audioEffectIds` 처럼 차례가 뜻을
+        // 목록 짝이다(D-306): `xxxIds`(`Array<AssetId>`)와 `xxxs`(`Array<AssetHandle>`). `AudioSource.audioEffectIds` 처럼 차례가 뜻을
         // 갖는 에셋 목록이 이 짝으로 풀린다. 원소는 타입 소거 조작(`ArrayOps`)으로 다룬다.
         template <typename Visitor>
         void ForEachAssetListField(const PropertyTable& table, Visitor&& visit)

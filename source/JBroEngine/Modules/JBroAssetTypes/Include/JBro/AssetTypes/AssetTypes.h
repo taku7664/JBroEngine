@@ -46,7 +46,7 @@ namespace JBro
         StringTable,
         // 레이어 에셋이다(D-287). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적은 `.jlayer` 다. 에디터가 계층에 끌어 넣는다.
         Layer,
-        // 소리 이펙트 하나다(D-305, 기존 `.jfx`). 본문은 `Effect: { Kind, Parameters }` YAML 이고 `AudioSource.audioEffectIds` 가 차례로 건다.
+        // 소리 이펙트 하나다(D-306, 기존 `.jfx`). 본문은 `Effect: { Kind, Parameters }` YAML 이고 `AudioSource.audioEffectIds` 가 차례로 건다.
         AudioEffect
     };
 
@@ -151,7 +151,7 @@ namespace JBro
         Ksx1001
     };
 
-    // ── 소리 이펙트 (D-305) ─────────────────────────────────────────────────────────────────────
+    // ── 소리 이펙트 (D-306) ─────────────────────────────────────────────────────────────────────
     // 이펙트의 종류다. `.jfx` 에는 이름으로 적힌다(`Kind: Reverb`). 앞의 일곱은 기존 엔진 `EAudioEffectKind` 와 같은 이름이고,
     // 뒤의 셋은 버스 사슬(D-210)에 있던 DSP 를 소스에도 쓰게 한 것이다.
     enum class AudioEffectKind : std::uint8_t

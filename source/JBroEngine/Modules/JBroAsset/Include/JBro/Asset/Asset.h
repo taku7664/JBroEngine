@@ -107,7 +107,7 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
-    // 로드된 소리 이펙트(`.jfx`, D-305)다. `dataGeneration` 은 in-place 재로드마다 오른다 - 오디오 시스템이 그것을 보고 재생 중인
+    // 로드된 소리 이펙트(`.jfx`, D-306)다. `dataGeneration` 은 in-place 재로드마다 오른다 - 오디오 시스템이 그것을 보고 재생 중인
     // 사슬의 값만 바꾼다(다시 시작하지 않는다, 기존의 세대 비교).
     struct AudioEffectData
     {

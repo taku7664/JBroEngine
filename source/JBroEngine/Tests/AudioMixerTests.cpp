@@ -208,7 +208,7 @@ namespace
         mixer.Shutdown();
     }
 
-    // **Master 음량은 Master 버스에만 걸린다**(D-304). 처음 판은 엔진 전체 음량(`ma_engine_set_volume`)이라 에디터 미리 듣기까지
+    // **Master 음량은 Master 버스에만 걸린다**(D-305). 처음 판은 엔진 전체 음량(`ma_engine_set_volume`)이라 에디터 미리 듣기까지
     // 줄었다 - 미리 듣기는 Master 와 따로 들려야 한다(§2.9).
     void TestMasterVolumeSparesThePreview()
     {
@@ -1145,7 +1145,7 @@ namespace
         bench.mixer.Shutdown();
     }
 
-    // ── 소스마다 이펙트 사슬 (D-305) ─────────────────────────────────────────────────────────────
+    // ── 소스마다 이펙트 사슬 (D-306) ─────────────────────────────────────────────────────────────
     // 사인 하나를 루프로 틀고 그 보이스에 사슬을 건다. `Settle` 은 사슬을 바꾸고 0.1 초를 버린 뒤 `frames` 를 잰다.
     struct VoiceBench
     {

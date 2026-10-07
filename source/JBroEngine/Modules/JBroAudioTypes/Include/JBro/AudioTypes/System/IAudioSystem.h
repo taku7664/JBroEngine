@@ -63,7 +63,7 @@ namespace JBro::System
         virtual void SetMuteWhenUnfocused(Bool mute) = 0;
         virtual Bool IsMuteWhenUnfocused() const = 0;
 
-        // ── D-304: 기존 엔진 `IAudioDevice` 의 조회 ──
+        // ── D-305: 기존 엔진 `IAudioDevice` 의 조회 ──
         // 게임 전체 음량(0..1)이다. 프로젝트 설정 `AudioMasterVolume` 이 처음 값이고 리스너의 `volume` 과 곱해진다.
         virtual void SetMasterVolume(Float volume) = 0;
         virtual Float GetMasterVolume() const = 0;

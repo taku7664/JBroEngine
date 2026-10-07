@@ -28,7 +28,7 @@ namespace JBro::Component
         // 좌우로 이만큼 떨어진 소리가 한쪽으로 크게(약 45°) 기운다(월드 단위). 작을수록 가까운 소리도 한쪽 귀로 쏠린다.
         // 화면 폭의 절반쯤이 자연스럽다.
         JBRO_FIELD(Float, panDistance, Range(0.1f, 1000.0f)) = 5.0f;
-        // 듣는 귀의 음량이다(D-304, 기존 `AudioListener.MasterVolume`). 게임 전체 음량과 곱해 Master 버스에 걸린다.
+        // 듣는 귀의 음량이다(D-305, 기존 `AudioListener.MasterVolume`). 게임 전체 음량과 곱해 Master 버스에 걸린다.
         JBRO_FIELD(Float, volume, Range(0.0f, 1.0f)) = 1.0f;
     };
 }
