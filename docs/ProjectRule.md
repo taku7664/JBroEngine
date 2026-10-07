@@ -254,6 +254,7 @@
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
+  | Tier E | `JBroNodeGraph` | 노드 그래프 모델(노드·핀·링크·도메인·YAML)과 샘플 도메인 `Math`. `JBroCore` 에만 기대고 에디터·셰이더 그래프 컴파일러가 함께 쓴다 (D-308) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-232) |

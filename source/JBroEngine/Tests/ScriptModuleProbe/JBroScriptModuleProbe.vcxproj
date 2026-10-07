@@ -45,6 +45,7 @@
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Package'">JBRO_TIER_PROBE_PACKAGE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Task'">JBRO_TIER_PROBE_TASK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'TextRendering'">JBRO_TIER_PROBE_TEXT_RENDERING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'NodeGraph'">JBRO_TIER_PROBE_NODE_GRAPH;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

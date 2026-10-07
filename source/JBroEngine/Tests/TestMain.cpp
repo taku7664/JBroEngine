@@ -43,6 +43,7 @@ JBro::Int32 RunPhysics2DCollisionTests();
 JBro::Int32 RunPhysics2DWorldTests();
 JBro::Int32 RunPhysics2DSystemTests();
 JBro::Int32 RunPolygonEditModelTests();
+JBro::Int32 RunNodeGraphTests();
 JBro::Int32 RunLightGizmoModelTests();
 JBro::Int32 RunGameHostArgumentTests();
 JBro::Int32 RunPlatformFileTests();
@@ -247,6 +248,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("PolygonEditModel", &RunPolygonEditModelTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("NodeGraph", &RunNodeGraphTests))
         {
             return 1;
         }

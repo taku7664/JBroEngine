@@ -52,6 +52,12 @@
 #include <JBro/TextRendering/TextLibrary.h>
 #endif
 
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=NodeGraph
+#if defined(JBRO_TIER_PROBE_NODE_GRAPH)
+// 노드 그래프 모델은 Tier E 다(D-308). 에디터와 셰이더 그래프 컴파일러가 쓰고, 스크립트는 그래프를 보지 않는다.
+#include <JBro/NodeGraph/Graph.h>
+#endif
+
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Input
 #if defined(JBRO_TIER_PROBE_INPUT)
 // 입력을 접는 시스템은 Tier E 다(D-214). 스크립트는 상태와 뷰만 본다.
