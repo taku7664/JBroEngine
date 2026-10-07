@@ -255,17 +255,20 @@ namespace JBro::Widget
         return output;
     }
 
-    Bool BeginFreeMove(const GizmoCamera& camera, const GizmoSubject& subject, GizmoState& state, Float pressX, Float pressY)
+    Bool BeginNeutralDrag(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject, GizmoState& state,
+        Float pressX, Float pressY)
     {
+        // 돌리기에는 가운데 손잡이가 없다(`GizmoModel::BeginDrag` 가 거절한다). 화면을 도는 고리가 그 모드의 중립이다.
+        const GizmoAxis axis = mode == GizmoMode::Rotate ? GizmoAxis::Z : GizmoAxis::Free;
         ImGuiWindow* window = ImGui::GetCurrentWindow();
         if (window == nullptr || state.dragging
-            || false == GizmoModel::BeginDrag(GizmoMode::Translate, GizmoAxis::Free, camera, subject, pressX, pressY, state.drag))
+            || false == GizmoModel::BeginDrag(mode, axis, camera, subject, pressX, pressY, state.drag))
         {
             return false;
         }
         state.dragging = true;
         state.hovered = GizmoAxis::None;
-        const ImGuiID id = window->GetID(AxisIdName(GizmoAxis::Free));
+        const ImGuiID id = window->GetID(AxisIdName(axis));
         ImGui::SetActiveID(id, window);
         ImGui::KeepAliveID(id);
         ImGui::FocusWindow(window);

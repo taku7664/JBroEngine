@@ -2939,6 +2939,21 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-303. 캔버스 뷰는 켜진 `Camera2D` 마다 게임에서 담는 영역을 늘 그리고, 고른 오브젝트마다 원점(피벗)을 표시한다.** (2026-10-07, 사용자 지적: "카메라 영역은 왜 안나오는거냐? 아 왜이렇게 기존 엔진을 안따르지?")
+  Updates: D-298(카메라 표시는 아이콘만 있었다).
+  기존 엔진은 `CanvasDebugDraw::Submit`(`Engine/GameFramework/Debug/CanvasDebugDrawSystem.cpp`)이 캔버스 뷰마다 켜진 카메라(오브젝트 활성·컴포넌트 사용) 모두에
+  노란 사각형(255, 220, 50, 220, 두께 1.5)과 가운데 십자(긴 변의 5%)를 그렸다. 크기는 프로젝트 해상도의 가로세로비 × `OrthographicSize` 에 오브젝트의 회전·크기를 얹었다.
+  우리 쪽 D-298 은 카메라를 아이콘으로만 보였고, 그 카메라가 무엇을 담는지는 시뮬레이션 뷰를 켜야 알 수 있었다.
+  **지금:** `CanvasViewPanel::DrawCameraAreas` 가 월드 보기에서 고르지 않아도 늘 그린다(색·두께·십자는 기존 엔진 값). 크기는 렌더러와 같은 함수 `ComputeCameraView2D` 에서 오고,
+  새 함수 `ComputeCameraWorldArea2D`(`CameraView2D.h`)가 카메라 오브젝트의 월드 행렬을 얹어 네 귀퉁이를 낸다 - 그래서 `PixelPerfect`(기준 해상도 / PPU)도 맞는다.
+  가로세로비는 프로젝트 해상도다(기존 엔진과 같다). 시뮬레이션 뷰 패널 크기를 따르면 패널을 늘일 때마다 사각형이 흔들린다. `PixelPerfect` 의 원본 1 픽셀 맞춤은 그리지 않는다(반 칸보다 작다).
+  꺼진 카메라는 그리지 않는다(게임이 고르지 않는다 - 기존 엔진도 그랬다).
+  **같이 맞댄 것.** 기존 `CanvasViewTool.cpp` 의 그리기 단계를 하나씩 대 봤다. 격자 눈금 글자·유닛/픽셀 전환·기즈모 모드 줄·콜라이더·상자 선택·글자 오버레이·라이트 기즈모는 있다.
+  **고른 것의 원점 표시(Layer 2.7)가 없어 같이 넣었다** - `DrawPivotMarkers`, 고른 오브젝트마다 원점에 빨간 원 둘(5·3)과 흰 십자, 1 픽셀 그림자(값은 기존 엔진 그대로).
+  카메라 뷰포트 인디케이터(인스펙터의 Camera2D 탭이 열렸을 때 오른아래에 뷰포트 자리를 보이는 작은 상자)는 옮기지 않았다 - 우리에게는 캔버스 뷰포트가 없다(카메라 하나가 화면 전체다).
+  시험: `TestTheCameraAreaFollowsTheCameraObject`(돌리고 키운 카메라 오브젝트의 귀퉁이, `PixelPerfect` 의 크기, 그릴 수 없는 카메라는 영역이 없음).
+  실제 에디터 창에서 그려진 것을 화면으로 재지는 않았다 - 그리기는 ImGui 그리기 목록이라 시험이 픽셀을 보지 않는다.
+
 - **D-302. 스크립트가 보는 참조는 `JBro::Handle` 의 핸들이고, 이름은 엔진 타입과 같다. 빌트인 컴포넌트도 핸들이며, 스크립트는 컴포넌트가 아니다.** (2026-09-29, 사용자 지시: "빌트인 컴포넌트도 핸들화시키고, 컴포넌트와 스크립트를 분리한다", "Transform2D라는 이름이 핸들이어야해 … 핸들타입->타입id->확인->있으면 핸들 반환", "스크립트는 GameObjectHandle이 아니라 GameObject를 써야하는데?", "캔버스 마이그레이션 지원 안해도 됨", "네임스페이스도 Object로 해. 그리고 핸들도 JBro::Handle::인데 … using namespace JBro::Handle 이거도 추가해") **구현 전이다 - 계약만 섰다.**
   Updates: D-5, D-42, D-44, D-45, D-48, D-233, D-264, D-300, D-301, cpp-script-plan §3.6, ProjectRule §5·§6.
   (1) **핸들은 `JBro::Handle` 에 있고 엔진 타입과 이름이 같다.** `Handle::GameObject`(16B, 지금의 `GameObjectHandle`), `Handle::Transform2D`·`Handle::SpriteRenderer2D` 같은
@@ -3060,8 +3075,10 @@ EditorApplication::Tick
   D-228(캔버스 뷰 패널 단축키에 스페이스바), D-278(맞춤 단추를 뺐다), D-291(라이트 손잡이 맞은편·세기와 반지름이 끌기 칸).)
   **맞춤.** 행동 `canvas_view.frame_selection` 이 캔버스 뷰 패널 범위의 스페이스바다(W·E·R 과 같은 표). 도구 막대의 `##canvas_frame` 단추와 툴팁 키 `canvas_view.frame_tooltip` 을 뺐다.
   **몸통 끌기.** 손잡이·라이트 손잡이 밖에서 누르면 무장하고(`ArmBodyDrag`), 끌기 문턱을 넘을 때 누른 자리의 오브젝트(`PickAt`, 그림이 있거나 표시가 있는 것)가 골라져 있으면
-  `Widget::BeginFreeMove` 가 가운데 손잡이(`GizmoAxis::Free`)의 옮기기 끌기를 **누른 자리부터** 시작한다. 고르지 않은 것이면 먼저 고르고 다음 프레임에 잡는다. 기즈모 모드와 상관없이
-  옮기기다(편집 전 값은 끌기의 모드로 뜬다). 빈 곳은 그대로 상자 선택이다. 2D 만이다. 기존 엔진에는 없던 손짓이다.
+  `Widget::BeginNeutralDrag` 가 **지금 기즈모 모드의 중립 손잡이** 끌기를 **누른 자리부터** 시작한다 - 옮기기는 가운데 손잡이(`GizmoAxis::Free`, 자유 이동),
+  크기는 가운데 원(`Free`, 균등 크기), 돌리기는 가운데 손잡이가 없어 화면을 도는 고리(`Z`)다. 고르지 않은 것이면 먼저 고르고 다음 프레임에 잡는다.
+  빈 곳은 그대로 상자 선택이다. 2D 만이다. 기존 엔진에는 없던 손짓이다.
+  (처음에는 모드와 상관없이 옮기기로만 만들었다 - 요청은 "중립 손잡이를 몸통에도" 였는데 옮기기의 중립만 옮겼다. 2026-10-07 사용자 지적으로 고쳤다.)
   **레이어 복사·붙여넣기.** `EditorApplication::CopyLayer`·`PasteLayer` - 복사는 레이어 에셋 글자(`WriteLayerText`, 레이어 값과 그 위의 오브젝트)를 떠 두고, 붙이기는
   `AddLayerFromAssetCommand`(원본 에셋 없음)로 새 레이어 하나를 커맨드 하나로 더하고 고른다. 계층 레이어 우클릭 메뉴에 `복사`·`붙여넣기`가 서고, 편집의 Ctrl+C 는 레이어를 골라 두면
   레이어를, Ctrl+V 는 **마지막에 복사한 쪽**(레이어·오브젝트)을 붙인다. 오브젝트 메뉴에서 부른 것은 늘 오브젝트다.
@@ -3074,7 +3091,7 @@ EditorApplication::Tick
   **라이트 손잡이.** `LightGizmoModel::Handle` 에 `InnerAngleMirror`·`OuterAngleMirror` 를 더했다 - 원뿔의 양쪽 가장자리에 각 손잡이가 서고 같은 필드를 고친다(`IsAngle`).
   **`Clamp`.** 리플렉션 `Attribute::Clamp(min, max)` 는 범위를 지키되 슬라이더가 아니라 범위로 자르는 끌기 칸이다(`FieldAttributes::slider`·`PropertyEditInfo::slider`).
   `Light2D` 의 `intensity`·`innerRadius`·`outerRadius`·`innerAngle`·`outerAngle`·`shadowSoftness` 가 그것이다 - 끝이 안전장치일 뿐인 값을 슬라이더로 두면 한 픽셀에 몇 유닛씩 건너뛴다.
-  **시험.** `TestDraggingABodyMovesItFreely`(고르지 않은 몸통 끌기가 고르고 두 축으로 옮김·되돌리기 한 번·돌리기 모드에서도 옮기기·빈 곳은 옮기지 않음·스페이스바 맞춤·맞춤 단추 없음),
+  **시험.** `TestDraggingABodyUsesTheNeutralHandle`(고르지 않은 몸통 끌기가 고르고 두 축으로 옮김·되돌리기 한 번·돌리기 모드는 돌리고 자리는 그대로·크기 모드는 두 축을 같은 비율로·빈 곳은 아무것도 바꾸지 않음·스페이스바 맞춤·맞춤 단추 없음),
   `TestCopyingAndPastingALayer`(레이어 메뉴 복사·붙여넣기가 값과 오브젝트까지·되돌리기 한 번·Ctrl+C·V 의 레이어/오브젝트 갈림), `TestLightAndCameraMarkersCanBePicked`(`Clamp` 필드·표시 집기),
   `TestEditPointsFromTheMenuEditsThatCollider`(상자 콜라이더에 항목 없음·`맨 아래로 이동`), 컴포넌트 훅 시험(훅 없는 타입도 줄이 섬), `LightGizmoModelTests`(맞은편 자리·필드·Id).
   에디터 앱 묶음 전체가 지난다. `EditorGuideFocus` 의 키보드 단언(F9·"shortcuts run again")이 다섯 번 중 셋 흔들렸다 - 임시 출력으로 F9 는 눌렸는데 단축키 판정이 보조키에서

@@ -13881,9 +13881,10 @@ namespace
         return nullptr;
     }
 
-    // **몸통을 잡아 끌면 가운데 손잡이처럼 자유 이동이다**(D-298). 고르지 않은 것을 끌면 그것을 고르고 옮긴다. 돌리기 모드여도 옮기기이고,
-    // 한 번 끄는 것은 되돌리기 한 번이다. 빈 곳에서 끌면 여전히 상자 선택이다(아무것도 옮기지 않는다).
-    void TestDraggingABodyMovesItFreely()
+    // **몸통을 잡아 끌면 지금 기즈모 모드의 중립 손잡이를 잡은 것과 같다**(D-298). 옮기기 모드는 두 축으로 옮기고(고르지 않은 것을 끌면
+    // 그것을 고르고 옮긴다), 돌리기 모드는 돌리고, 크기 모드는 두 축을 같은 비율로 키운다. 한 번 끄는 것은 되돌리기 한 번이다.
+    // 빈 곳에서 끌면 여전히 상자 선택이다(아무것도 바꾸지 않는다).
+    void TestDraggingABodyUsesTheNeutralHandle()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -13940,18 +13941,38 @@ namespace
                 && std::fabs(transform->position.y - 1.0f) < 1.0e-4f,
             "and undo puts it back");
 
-        // 돌리기 모드여도 몸통 끌기는 옮기기다.
-        PostMessageW(hwnd, WM_KEYDOWN, 'E', 0);
-        Check(editor.Tick(Frame), "the editor must tick with E down");
-        PostMessageW(hwnd, WM_KEYUP, 'E', 0);
-        Check(editor.Tick(Frame), "the editor must tick with E up");
+        const auto pressKey = [&](WPARAM key) {
+            PostMessageW(hwnd, WM_KEYDOWN, key, 0);
+            Check(editor.Tick(Frame), "the editor must tick with the key down");
+            PostMessageW(hwnd, WM_KEYUP, key, 0);
+            Check(editor.Tick(Frame), "the editor must tick with the key up");
+        };
+
+        // 돌리기 모드의 몸통 끌기는 돌린다 - 회전 고리를 잡은 것과 같고, 자리는 그대로다.
+        pressKey('E');
         from = spotAt(2.35f, 0.65f);
         to = from;
         to.x -= 50;
+        to.y -= 30;
         DragTo(editor, hwnd, from, to);
-        Check(transform->position.x < 1.95f && std::fabs(transform->GetRotation()) < 1.0e-4f,
-            "in rotate mode a body drag still moves and does not turn");
-        Check(editor.GetCommands().Undo(), "undo the move");
+        Check(std::fabs(transform->GetRotation()) > 1.0e-3f, "in rotate mode a body drag turns the body");
+        Check(std::fabs(transform->position.x - 2.0f) < 1.0e-4f && std::fabs(transform->position.y - 1.0f) < 1.0e-4f,
+            "and does not move it");
+        Check(editor.GetCommands().Undo() && std::fabs(transform->GetRotation()) < 1.0e-4f, "undo the turn");
+
+        // 크기 모드의 몸통 끌기는 두 축을 같은 비율로 키운다 - 가운데 원을 잡은 것과 같다. 가운데에서 멀어지게 끈다.
+        pressKey('R');
+        from = spotAt(2.35f, 1.35f);
+        to = from;
+        to.x += 60;
+        to.y -= 40;
+        DragTo(editor, hwnd, from, to);
+        Check(transform->scale.x > 1.05f && std::fabs(transform->scale.x - transform->scale.y) < 1.0e-4f,
+            "in scale mode a body drag scales both axes alike");
+        Check(std::fabs(transform->position.x - 2.0f) < 1.0e-4f && std::fabs(transform->position.y - 1.0f) < 1.0e-4f,
+            "and does not move it");
+        Check(editor.GetCommands().Undo() && std::fabs(transform->scale.x - 1.0f) < 1.0e-4f, "undo the scale");
+        pressKey('W');
 
         // 빈 곳에서 끌면 상자 선택이다 - 아무것도 옮기지 않는다.
         from = spotAt(-3.0f, -2.0f);
@@ -13959,7 +13980,9 @@ namespace
         to.x += 40;
         to.y += 30;
         DragTo(editor, hwnd, from, to);
-        Check(std::fabs(transform->position.x - 2.0f) < 1.0e-4f, "a drag on empty space moves nothing");
+        Check(std::fabs(transform->position.x - 2.0f) < 1.0e-4f && std::fabs(transform->GetRotation()) < 1.0e-4f
+                && std::fabs(transform->scale.x - 1.0f) < 1.0e-4f,
+            "a drag on empty space changes nothing");
 
         // **스페이스바가 맞춤이다**(D-298). 도구 막대의 맞춤 단추는 없다. 상자를 멀리 두고 누르면 캔버스 뷰 카메라가 그리로 간다.
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
@@ -14918,7 +14941,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestEditPointsFromTheMenuEditsThatCollider();
     TestBringingAnObjectForwardReordersItsDrawing();
     TestTaggingAnObjectFromTheInspector();
-    TestDraggingABodyMovesItFreely();
+    TestDraggingABodyUsesTheNeutralHandle();
     TestCopyingAndPastingALayer();
     TestLightAndCameraMarkersCanBePicked();
     TestRenamingALayerIsOneCommandNotOnePerLetter();

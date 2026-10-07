@@ -201,6 +201,44 @@ namespace
         Check(false == JBro::ComputeCameraView2D(ortho, Frame(320.0f, 180.0f, 0.0f, 0.0f), view), "no target, no view");
     }
 
+    // **에디터가 그리는 카메라 영역**(D-303)은 렌더러의 크기에 카메라 오브젝트의 월드 행렬을 얹은 것이다 - 회전·크기·자리가 따른다.
+    void TestTheCameraAreaFollowsTheCameraObject()
+    {
+        using JBro::Component::CameraProjection2D;
+        const JBro::ScreenSpaceFrame frame = Frame(320.0f, 180.0f, 320.0f, 180.0f);
+        JBro::RenderCamera2D ortho = Camera(CameraProjection2D::Orthographic);
+        // 자리 (10, 2), 90 도 돌리고 두 배 키운 오브젝트다.
+        JBro::Matrix3x2 world;
+        world.m11 = 0.0f;
+        world.m12 = 2.0f;
+        world.m21 = -2.0f;
+        world.m22 = 0.0f;
+        world.m31 = 10.0f;
+        world.m32 = 2.0f;
+        JBro::Vector2 corners[4];
+        const JBro::Float halfWidth = 5.0f * 320.0f / 180.0f;
+        Check(JBro::ComputeCameraWorldArea2D(ortho, world, frame, corners), "an orthographic camera has an area");
+        // 왼아래 (-w, -h) -> (-w x 0 + -h x -2 + 10, -w x 2 + -h x 0 + 2)
+        Check(Close(corners[0].x, 20.0f) && Close(corners[0].y, 2.0f - 2.0f * halfWidth),
+            "the bottom left corner turns and scales with the object");
+        Check(Close(corners[2].x, 0.0f) && Close(corners[2].y, 2.0f + 2.0f * halfWidth), "and so does the top right");
+
+        JBro::RenderCamera2D pixel = ortho;
+        pixel.projection = CameraProjection2D::PixelPerfect;
+        JBro::Matrix3x2 identity;
+        identity.m11 = 1.0f;
+        identity.m12 = 0.0f;
+        identity.m21 = 0.0f;
+        identity.m22 = 1.0f;
+        identity.m31 = 0.0f;
+        identity.m32 = 0.0f;
+        Check(JBro::ComputeCameraWorldArea2D(pixel, identity, frame, corners)
+                && Close(corners[0].x, -10.0f) && Close(corners[0].y, -5.625f) && Close(corners[2].x, 10.0f) && Close(corners[2].y, 5.625f),
+            "a pixel perfect camera covers the reference in source pixels");
+        pixel.pixelsPerUnit = 0.0f;
+        Check(false == JBro::ComputeCameraWorldArea2D(pixel, identity, frame, corners), "an undrawable camera has no area");
+    }
+
     void TestUndrawableCamerasAreSkippedWhenChoosing()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
@@ -247,6 +285,7 @@ JBro::Int32 RunCameraView2DTests()
     TestTheScreenAreaDrivesExtentsAndPointers();
     TestOnlyDrawableCamerasAreDrawable();
     TestTheCameraViewMatchesItsProjection();
+    TestTheCameraAreaFollowsTheCameraObject();
     TestUndrawableCamerasAreSkippedWhenChoosing();
     std::cout << "Camera view 2D tests passed.\n";
     return 0;
