@@ -59,6 +59,10 @@
 #include "NewProjectPopup.h"
 #include "NewScriptPopup.h"
 #include "Panel/SoundEffectPanel.h"
+#include "Panel/NodeGraphPanel.h"
+#include <JBro/NodeGraph/Domain.h>
+#include <JBro/NodeGraph/GraphYaml.h>
+#include <JBro/NodeGraph/MathDomain.h>
 #include <JBro/Asset/AudioEffectFile.h>
 #include "Panel/SpriteViewerPanel.h"
 
@@ -129,8 +133,21 @@ namespace JBro
 
     // 단축키 관리자는 언제나 있다 - 켜기 전에도 패널과 테스트가 이름으로 찾을 수 있게.
     EditorApplication::EditorApplication()
-        : m_shortcuts(MakeOwnerPtr<EditorShortcutManager>())
+        : m_shortcuts(MakeOwnerPtr<EditorShortcutManager>()),
+          m_nodeGraphDomains(MakeOwnerPtr<NodeGraph::DomainRegistry>())
     {
+        // 노드 그래프의 도메인이다(D-308). 셰이더 그래프가 서면 여기에 더한다.
+        m_nodeGraphDomains->Add(NodeGraph::MakeMathDomain());
+    }
+
+    NodeGraph::DomainRegistry& EditorApplication::GetNodeGraphDomains()
+    {
+        return *m_nodeGraphDomains;
+    }
+
+    const NodeGraph::DomainRegistry& EditorApplication::GetNodeGraphDomains() const
+    {
+        return *m_nodeGraphDomains;
     }
 
     EditorApplication::~EditorApplication()
@@ -662,6 +679,75 @@ namespace JBro
             return false;
         }
         editor->RequestFocus();
+        return true;
+    }
+
+    Bool EditorApplication::OpenNodeGraphEditor(AssetId asset)
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (false == m_uiEnabled || record == nullptr || record->type != AssetType::NodeGraph)
+        {
+            return false;
+        }
+        Array<EditorPanel*> editors;
+        FindPanels(NodeGraphPanel::TypeName, editors);
+        for (EditorPanel* panel : editors)
+        {
+            if (static_cast<NodeGraphPanel*>(panel)->GetAsset() == asset)
+            {
+                panel->RequestFocus();
+                return true;
+            }
+        }
+        auto* editor = static_cast<NodeGraphPanel*>(CreatePanel(NodeGraphPanel::TypeName));
+        if (editor == nullptr)
+        {
+            return false;
+        }
+        if (false == editor->Show(asset))
+        {
+            ClosePanel(*editor);
+            return false;
+        }
+        editor->RequestFocus();
+        return true;
+    }
+
+    Bool EditorApplication::ReadAssetText(AssetId asset, String& text) const
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (record == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = EditorPaths::JoinPath(GetAssetRoot().c_str(), record->relativePath.c_str());
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(path.c_str(), bytes))
+        {
+            return false;
+        }
+        text.assign(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        return true;
+    }
+
+    Bool EditorApplication::WriteAssetText(AssetId asset, const String& text)
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (record == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = EditorPaths::JoinPath(GetAssetRoot().c_str(), record->relativePath.c_str());
+        if (false == m_platform->WriteWholeFile(path.c_str(),
+                {reinterpret_cast<const std::byte*>(text.c_str()), static_cast<JBro::UInt32>(text.size())}))
+        {
+            Log::Write(LogLevel::Error, "editor", "the asset could not be written: %s", path.c_str());
+            return false;
+        }
+        if (AssetSystem* assets = GetAssetSystem(); assets != nullptr && assets->IsLoaded(assets->Find(asset)))
+        {
+            assets->ReloadInPlace(asset);
+        }
         return true;
     }
 
@@ -2565,6 +2651,31 @@ namespace JBro
             SetSelectedAsset(record->id);
             RevealAssetInBrowser(record->id);
             OpenSoundEffectEditor(record->id);
+        }
+        return created;
+    }
+
+    String EditorApplication::CreateNodeGraphAsset(const char* folder)
+    {
+        // 샘플 도메인의 빈 그래프에 결과 노드 하나를 둔다 - 열자마자 무엇을 이을지 보인다.
+        const NodeGraph::Domain* domain = m_nodeGraphDomains->Find(NodeGraph::MathDomainName);
+        if (domain == nullptr)
+        {
+            return String();
+        }
+        NodeGraph::Graph graph;
+        graph.SetDomain(domain->GetName());
+        graph.AddNode(*domain, "Output", Vector2{240.0f, 0.0f});
+        const String created = WriteNewAssetFile(folder, "NewGraph", ".jgraph", NodeGraph::WriteGraph(graph, domain));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+            OpenNodeGraphEditor(record->id);
         }
         return created;
     }

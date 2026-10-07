@@ -410,6 +410,31 @@ Entries:
   new_script.failed: The script could not be created
   assets.new_font_family: New Font Family
   assets.new_string_table: New String Table
+  node_graph.title: Node Graph
+  assets.new_node_graph: New Node Graph
+  node_graph.save: Save
+  node_graph.nothing_to_save: Nothing has changed
+  node_graph.reload: Reload From Disk
+  node_graph.close: Close
+  node_graph.save_failed: The node graph could not be saved
+  node_graph.read_failed: The node graph file could not be read
+  node_graph.problems: "Some parts of the file could not be read. Hover to see which"
+  node_graph.add_node: Add Node
+  node_graph.copy: Copy
+  node_graph.paste: Paste
+  node_graph.nothing_to_paste: Nothing has been copied
+  node_graph.duplicate: Duplicate
+  node_graph.delete: Delete
+  node_graph.frame: Frame All
+  node_graph.disconnect: Break Link
+  node_graph.disconnect_all: Break All Links
+  node_graph.no_selection: No node is selected
+  node_graph.many_selected: Several nodes are selected
+  node_graph.linked: Linked
+  node_graph.only_one: A graph holds only one of these
+  node_graph.unknown_type: This domain has no node of this type
+  node_graph.preview: Preview
+  node_graph.no_output: Add an Output node to see the result
   assets.new_sound_effect: New Sound Effect
   inspector.sound_effect_hint: "Edit sound effects in their own window"
   inspector.open_sound_effect: Open Effect Editor

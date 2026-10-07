@@ -47,7 +47,9 @@ namespace JBro
         // 레이어 에셋이다(D-287). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적은 `.jlayer` 다. 에디터가 계층에 끌어 넣는다.
         Layer,
         // 소리 이펙트 하나다(D-306, 기존 `.jfx`). 본문은 `Effect: { Kind, Parameters }` YAML 이고 `AudioSource.audioEffectIds` 가 차례로 건다.
-        AudioEffect
+        AudioEffect,
+        // 노드 그래프 하나다(D-308). 본문이 그래프 YAML 이고 첫 키 `Domain` 이 어느 도메인의 그래프인지 정한다. 에디터의 노드 그래프 창이 연다.
+        NodeGraph
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반

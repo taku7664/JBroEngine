@@ -564,6 +564,11 @@ namespace JBro
             {
                 m_editor->OpenSoundEffectEditor(entry.record->id);
             }
+            // 노드 그래프는 노드 그래프 창에서 연다(D-308).
+            else if (entry.record->type == AssetType::NodeGraph)
+            {
+                m_editor->OpenNodeGraphEditor(entry.record->id);
+            }
             else
             {
                 // **엔진이 모르는 파일은 OS 에게 넘긴다**(기존 브라우저의 기본 동작).
@@ -1046,6 +1051,11 @@ namespace JBro
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewSoundEffect, "New Sound Effect")))
         {
             m_editor->CreateSoundEffectAsset(m_openFolder.c_str());
+        }
+        // **새 노드 그래프**(D-308). 샘플 도메인 `Math` 의 그래프를 만들고 노드 그래프 창에서 연다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewNodeGraph, "New Node Graph")))
+        {
+            m_editor->CreateNodeGraphAsset(m_openFolder.c_str());
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewCanvas, "New Canvas")))
         {

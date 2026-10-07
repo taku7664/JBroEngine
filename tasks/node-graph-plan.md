@@ -50,7 +50,20 @@
 1. ~~모델·도메인·YAML·샘플 도메인과 계산기.~~ **섰다**(2026-10-07). 시험 `NodeGraphTests.cpp`: 잇기 규칙·순환 거절·갈아 치우기·지우기의 링크 정리·
    하나만 둘 노드·위상 순서·계산 값·읽고 쓰기 왕복(같은 글자로 다시 써진다)·모르는 핀과 모르는 종류(값을 차례로 지킨다). 뮤테이션 셋(순환 검사·
    갈아 치우기·링크 정리를 빼기)이 모두 그 단언에서 죽었다. 스크립트 프로브 `JBroTierProbe=NodeGraph` 가 C1083 으로 실패한다(Tier E).
-2. 화면 모델·위젯·패널·커맨드·행동·에셋. 시험: 판정·손짓 사건·커맨드 되돌리기·실제 에디터에서 열고 잇기.
+2. ~~화면 모델·위젯·패널·커맨드·행동·에셋.~~ **섰다**(2026-10-07).
+   - 화면 모델 `NodeGraphView`(`JBroEditor/Include/JBro/Editor/NodeGraph`): 카메라(마우스 아래를 고정한 줌·맞춤), 판정(핀 → 노드 → 링크 곡선),
+     손짓 `Interaction`(고르기·Ctrl/Shift 더하기·상자 고르기·끌어 옮기기는 놓을 때 사건 하나·핀에서 끌어 잇기·빈 곳에 놓으면 노드 더하기 메뉴·
+     Alt 로 끊기·오른쪽 끌기는 팬·끌지 않은 오른쪽은 우클릭 메뉴). 잇는 중에 밝힐 핀은 모델의 `Connect` 를 그대로 돌려 본다 - 규칙이 한 곳이다.
+   - 위젯 `Widget::NodeGraphCanvas`: 그리기 목록으로 격자·링크(출력 핀 타입 색)·노드(머리는 내는 값의 색)·핀(이어지면 채움)·한 칸 입력 값을 그린다.
+   - 패널 `NodeGraphPanel`(비고유, 뿌리 "노드 그래프" 도크): 편집은 모두 `NodeGraphEditCommand`(전후 그래프 글자)이고 스택은 창의 것이다.
+     패널 행동 `node_graph.undo`·`redo`·`copy`·`paste`·`duplicate`·`delete`·`frame`·`save` 가 포커스가 있을 때 전역 행동을 가린다.
+     오른쪽은 고른 노드의 입력 칸(`ScalarRunField`)과 `Math` 결과의 견본이다. 복제는 클립보드를 덮지 않는다.
+   - 에셋 `NodeGraph`(`.jgraph`, 열여섯째 타입 - 그래서 D-307 (2) 를 먼저 했다), 에셋 브라우저의 `새 노드 그래프`·두 번 눌러 열기,
+     `EditorApplication::OpenNodeGraphEditor`·`ReadAssetText`·`WriteAssetText`·`GetNodeGraphDomains`.
+   - 시험: `NodeGraphViewTests.cpp`(카메라·판정·손짓 일곱), `EditorApplicationTests.cpp` 의 `TestTheNodeGraphEditorEditsWithItsOwnUndo`
+     (실제 에디터: 만들기 → 눌러 고르기 → Delete → Ctrl+S → 우클릭 ▸ 노드 추가 ▸ Output → Ctrl+Z·Ctrl+Y, 캔버스 스택은 그대로, 손으로 쓴 그래프 열기).
+     `JBRO_EDITOR_SHOT` 을 주면 `editor_node_graph.bmp` 를 찍는다. 시험이 끌기 첫 프레임에 노드가 한 프레임 늦게 따라오는 것을 잡아 고쳤다.
+     뮤테이션 넷(줌 기준점 고정·잇기 방향·놓을 때 옮김 사건·Alt 링크 끊기를 빼기)이 모두 그 단언에서 죽었다. `EditorApplication` 스위트 전체가 지난다(1,773 초).
 3. 사용자와 다듬기(검색 노드 메뉴·주석과 묶음·경유점·미니맵·노드 안 값 칸 등은 여기서 고른다).
 
 ## 4. 미정

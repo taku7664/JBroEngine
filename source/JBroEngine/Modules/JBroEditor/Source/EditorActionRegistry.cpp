@@ -14,6 +14,7 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include "Panel/CanvasViewPanel.h"
+#include "Panel/NodeGraphPanel.h"
 
 #include <cstring>
 #include <JBro/Types/Bool.h>
@@ -661,6 +662,7 @@ namespace JBro
         }
         // 패널 종류의 행동은 그 패널이 올린다.
         CanvasViewPanel::RegisterActions();
+        NodeGraphPanel::RegisterActions();
         CommandPalette::RegisterAction();
     }
 

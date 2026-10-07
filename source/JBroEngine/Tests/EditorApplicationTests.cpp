@@ -15218,6 +15218,180 @@ namespace
 
         editor.Shutdown();
     }
+    // **노드 그래프 창**(D-308). 새 그래프를 만들면 창이 열리고, 노드를 눌러 고르고 Delete 로 지우고, 우클릭 메뉴로 더하며,
+    // Ctrl+Z 는 캔버스가 아니라 그 창의 스택을 되돌린다. 저장(Ctrl+S)하기 전에는 파일이 그대로다.
+    void TestTheNodeGraphEditorEditsWithItsOwnUndo()
+    {
+        namespace fs = std::filesystem;
+        JBro::String probeFolder("JBroNodeGraphProbe");
+        probeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(probeFolder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "graph", ignored);
+        {
+            // 손으로 쓴 그래프다. 링크가 있는 그래프를 읽어 그리는지와, 사람이 볼 화면(`JBRO_EDITOR_SHOT`)에 쓴다.
+            std::ofstream file(root / "Assets" / "graph" / "Sample.jgraph", std::ios::binary);
+            file << "Domain: Math\nNextId: 20\nNodes:\n"
+                    "  - Id: 1\n    Type: Color\n    X: 0\n    Y: 0\n    Inputs:\n      - Pin: R\n        Value:\n          - 0.9\n"
+                    "      - Pin: G\n        Value:\n          - 0.4\n      - Pin: B\n        Value:\n          - 0.2\n"
+                    "  - Id: 2\n    Type: Float\n    X: 0\n    Y: 160\n    Inputs:\n      - Pin: Value\n        Value:\n          - 0.75\n"
+                    "  - Id: 3\n    Type: Multiply\n    X: 260\n    Y: 40\n"
+                    "  - Id: 4\n    Type: Lerp\n    X: 500\n    Y: 100\n"
+                    "  - Id: 5\n    Type: Output\n    X: 760\n    Y: 100\n"
+                    "Links:\n"
+                    "  - Id: 10\n    FromNode: 1\n    FromPin: Result\n    ToNode: 3\n    ToPin: A\n"
+                    "  - Id: 11\n    FromNode: 2\n    FromPin: Result\n    ToNode: 3\n    ToPin: B\n"
+                    "  - Id: 12\n    FromNode: 3\n    FromPin: Result\n    ToNode: 4\n    ToPin: B\n"
+                    "  - Id: 13\n    FromNode: 4\n    FromPin: Result\n    ToNode: 5\n    ToPin: Color\n";
+        }
+        JBro::String projectName(probeFolder);
+        projectName.append("\\Graph.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: GraphProbe\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 800;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the node graph editor not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        Check(editor.Tick(Frame), "the editor must settle");
+
+        // ── 만들기: 결과 노드 하나의 `.jgraph` 가 서고 창이 열린다 ──
+        const JBro::String created = editor.CreateNodeGraphAsset("graph");
+        Check(created == "graph/NewGraph.jgraph", "a new node graph is named NewGraph");
+        const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath("graph/NewGraph.jgraph");
+        Check(record != nullptr && record->type == JBro::AssetType::NodeGraph, "it registers as a node graph");
+        const JBro::AssetId graphId = record->id;
+        JBro::String text;
+        Check(editor.ReadAssetText(graphId, text) && text.find("Domain: Math") != JBro::String::npos && text.find("Type: Output") != JBro::String::npos,
+            "it starts as a Math graph holding the output node");
+        JBro::Array<JBro::EditorPanel*> panels;
+        Check(editor.FindPanels("NodeGraph", panels) == 1, "making it opens its editor");
+        Check(editor.OpenNodeGraphEditor(graphId) && editor.FindPanels("NodeGraph", panels) == 1, "opening it again brings the same editor forward");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the node graph editor");
+        }
+        ImGuiWindow* window = nullptr;
+        for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            const char* found = std::strstr(candidate->Name, "###NodeGraph/");
+            if (found != nullptr && std::strchr(found + std::strlen("###NodeGraph/"), '/') == nullptr)
+            {
+                window = candidate;
+            }
+        }
+        Check(window != nullptr, "the node graph editor has a window");
+
+        // 캔버스의 사각형을 받는다. 노드 하나는 처음 그릴 때 가운데로 맞춰진다.
+        const ImGuiID canvas = LabelId(window->ID, "##nodeGraph");
+        JBro::Widget::ItemLocator::Watch(canvas);
+        Check(editor.Tick(Frame), "the editor must draw the canvas");
+        JBro::Widget::ItemLocator::ItemRect rect;
+        Check(JBro::Widget::ItemLocator::Take(rect), "the canvas is drawn");
+        const Spot center{static_cast<JBro::Int32>((rect.minX.Get() + rect.maxX.Get()) * 0.5f), static_cast<JBro::Int32>((rect.minY.Get() + rect.maxY.Get()) * 0.5f)};
+        const Spot corner{static_cast<JBro::Int32>(rect.minX.Get()) + 30, static_cast<JBro::Int32>(rect.minY.Get()) + 30};
+
+        const std::size_t canvasUndo = editor.GetCommands().GetUndoCount();
+        const auto chord = [&](ImGuiKey key, JBro::Bool control) {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddKeyEvent(ImGuiMod_Ctrl, control);
+            io.AddKeyEvent(key, true);
+            Check(editor.Tick(Frame), "the editor must tick with the key down");
+            io.AddKeyEvent(key, false);
+            io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            Check(editor.Tick(Frame), "the editor must tick with the key up");
+        };
+        const auto dirty = [&]() {
+            const char* title = panels[0]->GetDisplayTitle();
+            return title != nullptr && std::strstr(title, "*") != nullptr;
+        };
+
+        // ── 고르고 지운다. 저장 전에는 파일이 그대로다 ──
+        ClickAt(editor, hwnd, center);
+        Check(panels[0]->IsFocused(), "clicking the canvas focuses the graph editor");
+        chord(ImGuiKey_Delete, false);
+        Check(dirty(), "deleting the selected node marks the tab");
+        Check(editor.ReadAssetText(graphId, text) && text.find("Type: Output") != JBro::String::npos, "the file is not written until it is saved");
+        chord(ImGuiKey_S, true);
+        Check(!dirty(), "saving clears the mark");
+        Check(editor.ReadAssetText(graphId, text) && text.find("Type: Output") == JBro::String::npos, "and the file no longer holds the node");
+
+        // ── 우클릭 ▸ 노드 추가 ▸ Output ──
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(corner.x, corner.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(corner.x, corner.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(corner.x, corner.y));
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the context menu must open");
+        }
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "a right click on empty space opens the graph menu");
+        Spot spot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, JBro::Loc::TextOr(JBro::LocKeys::NodeGraphAddNode, "Add Node")), spot),
+            "the menu offers Add Node");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        ImGuiWindow* submenu = FindSubmenuWindow();
+        Check(submenu != nullptr, "hovering Add Node opens the node list");
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, "Output"), spot), "the output node is listed by its type name");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.Tick(Frame), "the editor must redraw");
+        Check(dirty(), "adding a node marks the tab");
+        chord(ImGuiKey_S, true);
+        Check(editor.ReadAssetText(graphId, text) && text.find("Type: Output") != JBro::String::npos, "the added node is saved");
+
+        // ── 되돌리기는 그 창의 스택이다 ──
+        panels[0]->RequestFocus();
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must settle on the graph editor");
+        chord(ImGuiKey_Z, true);
+        Check(dirty(), "undo in the graph editor changes the graph");
+        chord(ImGuiKey_S, true);
+        Check(editor.ReadAssetText(graphId, text) && text.find("Type: Output") == JBro::String::npos, "undo took the added node back out");
+        chord(ImGuiKey_Y, true);
+        chord(ImGuiKey_S, true);
+        Check(editor.ReadAssetText(graphId, text) && text.find("Type: Output") != JBro::String::npos, "redo puts it back");
+        Check(editor.GetCommands().GetUndoCount() == canvasUndo, "none of it touched the canvas undo stack");
+
+        // ── 손으로 쓴 그래프를 연다. 링크 넷이 다 이어진 채 새 탭으로 선다 ──
+        const JBro::AssetRecord* sample = editor.GetAssetRegistry().FindByPath("graph/Sample.jgraph");
+        Check(sample != nullptr && sample->type == JBro::AssetType::NodeGraph, "a hand-written graph registers on scan");
+        Check(editor.OpenNodeGraphEditor(sample->id) && editor.FindPanels("NodeGraph", panels) == 2, "it opens in a tab of its own");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the sample graph");
+        }
+        Check(panels[1]->GetDisplayTitle() != nullptr && std::strstr(panels[1]->GetDisplayTitle(), "*") == nullptr,
+            "opening a graph does not mark it unsaved");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 800, "node_graph");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
 }
 
 JBro::Int32 RunEditorApplicationTests()
@@ -15267,6 +15441,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAudioSettingsAndMetersDraw();
     TestTheSoundEffectEditorMakesAndPlaysAnEffect();
+    TestTheNodeGraphEditorEditsWithItsOwnUndo();
     TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();

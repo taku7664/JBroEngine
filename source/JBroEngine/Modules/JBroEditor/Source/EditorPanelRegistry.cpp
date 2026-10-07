@@ -14,6 +14,7 @@
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
 #include "Panel/SoundEffectPanel.h"
+#include "Panel/NodeGraphPanel.h"
 #include "Panel/SpriteViewerPanel.h"
 #include "Panel/StatsPanel.h"
 
@@ -158,5 +159,12 @@ namespace JBro
         effects.fallbackTitle = "Sound Effect";
         EditorPanelRegistry::Get().RegisterDockArea(effects);
         RegisterEditorPanelType<SoundEffectPanel>(false, SoundEffectPanel::DockAreaName);
+        // 노드 그래프 창도 파일을 여는 창이다(D-308). 제 도크에 `.jgraph` 마다 열린다.
+        EditorDockAreaInfo graphs;
+        graphs.name = NodeGraphPanel::DockAreaName;
+        graphs.titleKey = LocKeys::NodeGraphTitle;
+        graphs.fallbackTitle = "Node Graph";
+        EditorPanelRegistry::Get().RegisterDockArea(graphs);
+        RegisterEditorPanelType<NodeGraphPanel>(false, NodeGraphPanel::DockAreaName);
     }
 }
