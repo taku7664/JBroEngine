@@ -210,10 +210,15 @@ namespace JBro
         }
         static Bool EditPoints(EditorActionContext& context)
         {
-            // 값도 슬롯도 바꾸지 않는다. 편집 도구를 켜고, 콜라이더가 여럿이면 누른 것을 고친다.
+            // 값도 슬롯도 바꾸지 않는다. 편집 도구를 켜고, 누른 콜라이더를 인스펙터에서 고른다(D-304) - 포인트는 고른 컴포넌트에 선다.
             CanvasViewPanel* panel = ActionPanel(context);
             panel->m_editCollider = true;
-            panel->m_pointTarget = context.component;
+            ComponentBase* component = ResolveComponent(panel->m_editor->GetObjectIds(), context.component);
+            Object::GameObject* object = panel->m_editor->GetObjectIds().Resolve(context.component.objectId);
+            if (component != nullptr && object != nullptr)
+            {
+                panel->m_editor->InspectAttached(*object, component);
+            }
             return true;
         }
     };
@@ -696,6 +701,7 @@ namespace JBro
             DrawPivotMarkers(rect);
             DrawCameraAreas(rect);
             DrawObjectMarkers(rect);
+            DrawCameraIndicator(rect);
             DrawOverlay(rect);
         }
         else
@@ -884,8 +890,10 @@ namespace JBro
                     .Draw())
             {
                 m_editCollider = false == m_editCollider;
-                // 끄면 메뉴로 고른 콜라이더도 잊는다. 다시 켜면 첫 폴리곤부터다.
-                m_pointTarget = {};
+                if (m_editCollider)
+                {
+                    InspectFirstPolygon();
+                }
             }
         }
     }
@@ -1595,6 +1603,32 @@ namespace JBro
         return *cache;
     }
 
+    void CanvasViewPanel::InspectFirstPolygon()
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        Object::GameObject* object = m_editor->GetSelectedObject();
+        if (canvas == nullptr || object == nullptr)
+        {
+            return;
+        }
+        const ComponentTypeId colliderType = MakeStableTypeId(Component::Collider2D::StaticTypeName());
+        const AttachedRef inspected = m_editor->GetInspectedAttached();
+        if (inspected.component != nullptr && inspected.component->GetTypeId() == colliderType
+            && PolygonEditModel::EditsPoints(*static_cast<Component::Collider2D*>(inspected.component)))
+        {
+            return;
+        }
+        canvas->FindComponentsRaw<Component::Collider2D>(object, m_colliderScratch);
+        for (Component::Collider2D* collider : m_colliderScratch)
+        {
+            if (collider != nullptr && collider->IsEnabled() && PolygonEditModel::EditsPoints(*collider))
+            {
+                m_editor->InspectAttached(*object, collider);
+                return;
+            }
+        }
+    }
+
     Bool CanvasViewPanel::FindPolygonTarget(PolygonTarget& target)
     {
         target = {};
@@ -1609,36 +1643,15 @@ namespace JBro
         {
             return false;
         }
-        // 우클릭 메뉴의 "포인트 편집" 으로 고른 것이 먼저다(D-220). 고른 오브젝트가 바뀌었거나, 그 콜라이더가
-        // 사라졌거나 꺼졌거나 폴리곤이 아니게 됐으면 잊고 아래의 첫째로 돌아간다.
-        if (m_pointTarget.objectId != InvalidEditorObjectId)
+        // **인스펙터에서 고른 콜라이더다**(D-304, 기존 엔진의 "포커스된 콜라이더" = 인스펙터 탭이 그 콜라이더). 같은 오브젝트에 폴리곤이 여럿이어도
+        // 고른 그 하나의 포인트가 선다. 예전에는 메뉴로 고른 것이 없으면 늘 첫 폴리곤이었다.
+        const AttachedRef inspected = m_editor->GetInspectedAttached();
+        if (inspected.component != nullptr && inspected.component->GetTypeId() == MakeStableTypeId(Component::Collider2D::StaticTypeName()))
         {
-            Component::Collider2D* chosen = nullptr;
-            if (m_editor->GetObjectIds().Resolve(m_pointTarget.objectId) == object)
-            {
-                chosen = static_cast<Component::Collider2D*>(ResolveComponent(m_editor->GetObjectIds(), m_pointTarget));
-            }
-            if (chosen != nullptr && chosen->IsEnabled() && PolygonEditModel::EditsPoints(*chosen))
+            Component::Collider2D* chosen = static_cast<Component::Collider2D*>(inspected.component);
+            if (chosen->IsEnabled() && PolygonEditModel::EditsPoints(*chosen))
             {
                 target.collider = chosen;
-            }
-            else
-            {
-                m_pointTarget = {};
-            }
-        }
-        if (target.collider == nullptr)
-        {
-            // 한 오브젝트에 폴리곤이 여럿이면 첫째다(기존 엔진은 한 오브젝트에 폴리곤 하나였다).
-            canvas->FindComponentsRaw<Component::Collider2D>(object, m_colliderScratch);
-            for (Component::Collider2D* collider : m_colliderScratch)
-            {
-                if (collider != nullptr && collider->IsEnabled()
-                    && PolygonEditModel::EditsPoints(*collider))
-                {
-                    target.collider = collider;
-                    break;
-                }
             }
         }
         if (target.collider == nullptr
@@ -1847,7 +1860,13 @@ namespace JBro
             return false;
         }
         const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(object);
-        Component::Light2D* light = canvas->FindComponentRaw<Component::Light2D>(object);
+        // **인스펙터에서 고른 라이트다**(D-304, 기존 엔진도 Light2D 탭이 열렸을 때만 그렸다). 한 오브젝트에 라이트가 여럿이면 고른 그 하나다 -
+        // 예전에는 늘 첫째라 둘째 라이트는 캔버스 뷰에서 고칠 길이 없었다.
+        const AttachedRef inspected = m_editor->GetInspectedAttached();
+        Component::Light2D* light = inspected.component != nullptr
+                && inspected.component->GetTypeId() == MakeStableTypeId(Component::Light2D::StaticTypeName())
+            ? static_cast<Component::Light2D*>(inspected.component)
+            : nullptr;
         if (transform == nullptr || false == transform->worldValid || light == nullptr || false == light->IsEnabled()
             || false == LightGizmoModel::HasHandles(*light)
             || false == MakeComponentAddress(m_editor->GetObjectIds(), *object, *light, target.address))
@@ -2192,6 +2211,35 @@ namespace JBro
         }
     }
 
+    void CanvasViewPanel::DrawCameraIndicator(const ViewRect& rect)
+    {
+        // **뷰포트 인디케이터**(D-304, 기존 `CanvasViewTool` 의 `Camera2D 뷰포트 인디케이터`). 인스펙터에서 카메라를 골랐을 때만 오른아래에 선다 -
+        // 프로젝트 해상도 비율의 어두운 상자(폭 160) 안에 그 카메라가 그리는 자리를 초록으로 칠하고, 위에 이름을 쓴다. 값은 기존 엔진 그대로다.
+        // 우리에게는 캔버스 뷰포트가 없어 카메라 하나가 화면 전체다 - 그래서 초록 사각형은 늘 상자를 채운다. 꺼 둔 카메라는 그리지 않는다.
+        const AttachedRef inspected = m_editor->GetInspectedAttached();
+        const ProjectFile& project = m_editor->GetProjectFile();
+        if (inspected.component == nullptr || false == inspected.component->IsEnabled()
+            || inspected.component->GetTypeId() != MakeStableTypeId(Component::Camera2D::StaticTypeName())
+            || project.resolutionWidth == 0 || project.resolutionHeight == 0)
+        {
+            return;
+        }
+        constexpr Float IndicatorWidth = 160.0f;
+        constexpr Float Margin = 12.0f;
+        const Float indicatorHeight = IndicatorWidth
+            * static_cast<JBro::Float>(project.resolutionHeight) / static_cast<JBro::Float>(project.resolutionWidth);
+        const ImVec2 boxMin(rect.left + rect.width - IndicatorWidth - Margin, rect.top + rect.height - indicatorHeight - Margin);
+        const ImVec2 boxMax(boxMin.x + IndicatorWidth, boxMin.y + indicatorHeight);
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        draw->AddRectFilled(boxMin, boxMax, IM_COL32(15, 18, 22, 210));
+        draw->AddRect(boxMin, boxMax, IM_COL32(70, 80, 95, 180), 0.0f, 0, 1.0f);
+        // 카메라가 그리는 자리다. 화면 전체(0, 0, 1, 1)다.
+        draw->AddRectFilled(boxMin, boxMax, IM_COL32(50, 200, 80, 45));
+        draw->AddRect(boxMin, boxMax, IM_COL32(80, 230, 110, 230), 0.0f, 0, 1.5f);
+        draw->AddText(ImVec2(boxMin.x, boxMin.y - 18.0f), IM_COL32(80, 230, 110, 220),
+            Loc::TextOr(LocKeys::CanvasViewViewportSelectedCamera, "Viewport (Selected Camera)"));
+    }
+
     void CanvasViewPanel::DrawPivotMarkers(const ViewRect& rect)
     {
         // **고른 것의 원점**(D-303). 기존 엔진(`CanvasViewTool` Layer 2.7)처럼 고른 오브젝트마다 원점에 빨간 원 둘(반지름 5·3)과 흰 십자를 그리고,
@@ -2378,7 +2426,7 @@ namespace JBro
         {
             std::snprintf(text, sizeof(text),
                 Loc::TextOr(LocKeys::CanvasViewCamera3DFormat, "camera yaw %.0f pitch %.0f distance %.1f"),
-                m_yawDegrees, m_pitchDegrees, m_distance);
+                m_yawDegrees.Get(), m_pitchDegrees.Get(), m_distance.Get());
         }
         else
         {
@@ -2390,7 +2438,7 @@ namespace JBro
             };
             std::snprintf(text, sizeof(text),
                 Loc::TextOr(LocKeys::CanvasViewCameraFormat, "camera (%.2f, %.2f) size %.2f"),
-                tidy(m_centerX), tidy(m_centerY), m_orthographicSize);
+                tidy(m_centerX).Get(), tidy(m_centerY).Get(), m_orthographicSize.Get());
         }
         line(text, IM_COL32(150, 158, 170, 255));
 

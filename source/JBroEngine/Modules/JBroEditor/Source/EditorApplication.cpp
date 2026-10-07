@@ -1690,7 +1690,7 @@ namespace JBro
             char message[512];
             std::snprintf(message, sizeof(message),
                 Loc::TextOr(LocKeys::NotifyCanvasAssetsFailedMessage, "%u file(s) could not be loaded - %s"),
-                result.failed, result.firstFailure.c_str());
+                result.failed.Get(), result.firstFailure.c_str());
             NotificationDesc desc;
             desc.level = NotificationLevel::Warning;
             desc.title = Loc::TextOr(LocKeys::NotifyCanvasAssetsFailedTitle, "Some assets could not be loaded");
@@ -1963,6 +1963,49 @@ namespace JBro
         return m_commands.Execute(MakeOwnerPtr<AddComponentCommand>(
             *canvas, m_objectIds, m_objectIds.Track(&object),
             NameTable::Get().Intern(typeName), m_componentClipboard));
+    }
+
+    AttachedRef EditorApplication::GetInspectedAttached() const
+    {
+        const Object::GameObject* object = GetSelectedObject();
+        if (object == nullptr)
+        {
+            return {};
+        }
+        if (m_inspectedKind == AttachedKind::Script)
+        {
+            const Array<ScriptSlot>& scripts = object->GetScripts();
+            return m_inspectedSlot < scripts.Size() ? AttachedRef(scripts[m_inspectedSlot].reference.TryGet()) : AttachedRef();
+        }
+        const Array<ComponentSlot>& components = object->GetComponents();
+        return m_inspectedSlot < components.Size() ? AttachedRef(components[m_inspectedSlot].reference.TryGet()) : AttachedRef();
+    }
+
+    Bool EditorApplication::InspectAttached(const Object::GameObject& object, AttachedRef attached)
+    {
+        if (attached.script != nullptr)
+        {
+            const Array<ScriptSlot>& scripts = object.GetScripts();
+            for (std::size_t slot = 0; slot < scripts.Size(); ++slot)
+            {
+                if (scripts[slot].reference.TryGet() == attached.script)
+                {
+                    SetInspectedSlot(AttachedKind::Script, slot);
+                    return true;
+                }
+            }
+            return false;
+        }
+        const Array<ComponentSlot>& components = object.GetComponents();
+        for (std::size_t slot = 0; slot < components.Size(); ++slot)
+        {
+            if (attached.component != nullptr && components[slot].reference.TryGet() == attached.component)
+            {
+                SetInspectedSlot(AttachedKind::Component, slot);
+                return true;
+            }
+        }
+        return false;
     }
 
     Bool EditorApplication::CanPasteComponentValues(AttachedRef attached) const
@@ -3866,7 +3909,7 @@ namespace JBro
         }
         std::snprintf(out, size,
             Loc::TextOr(LocKeys::CanvasViewSelectedCountFormat, "chosen: %s and %d more"),
-            name, static_cast<JBro::Int32>(chosen) - 1);
+            name, static_cast<int>(chosen) - 1);
     }
 
     Array<Object::GameObject*> EditorApplication::GetSelectedObjects() const
@@ -4792,7 +4835,7 @@ namespace JBro
             const Guide& guide = *m_guide.GetGuide();
             const UInt32 total = static_cast<JBro::UInt32>(guide.steps.Size());
             std::snprintf(progress, sizeof(progress), Loc::TextOr(LocKeys::GuideProgress, "%u / %u"),
-                m_guide.GetStepIndex() + 1, total);
+                (m_guide.GetStepIndex() + 1).Get(), total.Get());
             balloon.progress = progress;
             balloon.title = Loc::TextFor(step->title.key, step->title.string, step->title.locale);
             balloon.body = Loc::TextFor(step->body.key, step->body.string, step->body.locale);

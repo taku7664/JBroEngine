@@ -21,7 +21,7 @@ namespace JBro::Widget
         ImGui::TextUnformatted(text != nullptr ? text : "");
     }
 
-    void TextF(const char* format, ...)
+    void TextFormatted(const char* format, ...)
     {
         va_list args;
         va_start(args, format);
@@ -42,7 +42,7 @@ namespace JBro::Widget
         ImGui::TextDisabled("%s", text != nullptr ? text : "");
     }
 
-    void HintTextF(const char* format, ...)
+    void HintTextFormatted(const char* format, ...)
     {
         va_list args;
         va_start(args, format);
@@ -50,7 +50,7 @@ namespace JBro::Widget
         va_end(args);
     }
 
-    void SeverityTextF(Severity severity, const char* format, ...)
+    void SeverityTextFormatted(Severity severity, const char* format, ...)
     {
         va_list args;
         va_start(args, format);
@@ -99,6 +99,29 @@ namespace JBro::Widget
     Bool SelectableRow(const char* label, Bool selected)
     {
         return ImGui::Selectable(label, selected);
+    }
+
+    Bool ChoiceRow(const char* label, const char* icon, Bool selected, Bool dimmed)
+    {
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        const Bool guided = false == selected && Internal::ShouldOpenGuided(target);
+        const Float side = ImGui::GetTextLineHeight();
+        const ImVec2 iconMin = ImGui::GetCursorScreenPos();
+        StyleScope scope;
+        if (dimmed)
+        {
+            scope.PushColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        }
+        // 아이콘 자리는 늘 비워 둔다 - 아이콘이 없는 줄도 이름이 같은 세로줄에 선다.
+        ImGui::Dummy(ImVec2(side, side));
+        ImGui::SameLine();
+        const Bool clicked = ImGui::Selectable(label, selected, ImGuiSelectableFlags_AllowOverlap);
+        if (icon != nullptr)
+        {
+            DrawGlyphCentered(icon, iconMin, ImVec2(iconMin.x + side, iconMin.y + side), ImGui::GetColorU32(ImGuiCol_Text), side);
+        }
+        Internal::ReportLastItem(target, selected || clicked, clicked);
+        return clicked || guided;
     }
 
     Bool ActionButton(const char* label, Severity severity, Bool enabled,

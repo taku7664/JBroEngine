@@ -625,6 +625,26 @@ namespace JBro
         // 클립보드에 든 컴포넌트의 타입 이름이다. 없으면 nullptr 이다. 메뉴가 무엇이 붙을지
         // 말하는 데 쓴다.
         const char* GetComponentClipboardTypeName() const;
+        // **인스펙터에서 고른 컴포넌트**(D-304, 기존 `InspectorTool` 의 `m_selectedTabIndex`·`GetActiveComponentTypeName`). 인스펙터 왼쪽 목록에서 고른
+        // 한 칸이고, 캔버스 뷰는 이것만 따른다 - 라이트의 반지름·각도 점, 폴리곤 포인트 편집, 카메라의 뷰포트 인디케이터는 고른 컴포넌트가 그 타입일 때만 선다.
+        // 같은 타입이 여럿이면 고른 그 하나다. 오브젝트가 아니라 목록과 칸 번호를 든다 - 기존 엔진처럼 다른 오브젝트를 골라도 같은 칸이다.
+        void SetInspectedSlot(AttachedKind kind, std::size_t slot)
+        {
+            m_inspectedKind = kind;
+            m_inspectedSlot = slot;
+        }
+        AttachedKind GetInspectedKind() const
+        {
+            return m_inspectedKind;
+        }
+        std::size_t GetInspectedSlot() const
+        {
+            return m_inspectedSlot;
+        }
+        // 고른 오브젝트에서 고른 칸이 가리키는 것이다. 칸이 없거나 비었으면 비었다.
+        AttachedRef GetInspectedAttached() const;
+        // 그 오브젝트에 붙은 그것을 고른 칸으로 삼는다. 붙어 있지 않으면 아무것도 바꾸지 않고 거짓이다.
+        Bool InspectAttached(const Object::GameObject& object, AttachedRef attached);
         // **다른 캔버스를 연다**(D-174, 기존 에셋 브라우저의 캔버스 더블클릭). 프로젝트 파일에 적힌
         // 캔버스 하나만 편집할 수 있었다 - 새로 만들 길도, 다른 것을 열 길도 에디터 안에 없었다.
         //
@@ -908,6 +928,8 @@ namespace JBro
         Bool m_layerClipboardLatest = false;
         ComponentSnapshot m_componentClipboard;
         Bool m_hasComponentClipboard = false;
+        AttachedKind m_inspectedKind = AttachedKind::Component;
+        std::size_t m_inspectedSlot = 0;
         Bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* m_fileDialogUser = nullptr;
         Bool (*m_openPath)(const char* utf8Path, void* user) = nullptr;

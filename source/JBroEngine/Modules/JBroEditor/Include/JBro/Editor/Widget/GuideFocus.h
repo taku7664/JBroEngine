@@ -28,6 +28,8 @@ namespace JBro::Widget
         GuideFocusTarget TakeNextItemTarget();
         // 이 대상을 이번 프레임에 열어야 하면 `SetNextItemOpen(true)` 를 건다.
         void OpenIfGuided(const GuideFocusTarget& target);
+        // 이 대상을 이번 프레임에 열어야 하는가. 접기 머리가 아닌 것(목록에서 고르는 줄)이 제 방식으로 연다.
+        Bool ShouldOpenGuided(const GuideFocusTarget& target);
         // 방금 그린 항목(`GetItemRect`)을 알린다. 지금 칸인데 잘려 있으면 그 자리로 굴린다.
         // 회색 항목이면 `enabled` 를 거짓으로, 그 까닭(툴팁의 글자)을 함께 넘긴다 - 말풍선이 왜 안 눌리는지 적는다.
         void ReportLastItem(const GuideFocusTarget& target, Bool opened, Bool activated,
