@@ -62,5 +62,17 @@ namespace JBro::System
         // 창이 포커스를 잃으면 소리를 줄인다(0.2 초에 걸쳐). 프로젝트 설정 `AudioMuteWhenUnfocused` 가 처음 값이다.
         virtual void SetMuteWhenUnfocused(Bool mute) = 0;
         virtual Bool IsMuteWhenUnfocused() const = 0;
+
+        // ── D-305: 기존 엔진 `IAudioDevice` 의 조회 ──
+        // 게임 전체 음량(0..1)이다. 프로젝트 설정 `AudioMasterVolume` 이 처음 값이고 리스너의 `volume` 과 곱해진다.
+        virtual void SetMasterVolume(Float volume) = 0;
+        virtual Float GetMasterVolume() const = 0;
+        // 프로젝트 버스 목록이다(Master 는 빠진다, 목록의 차례). 이름은 다음 버스 구성까지 유효하다.
+        virtual UInt32 GetBusCount() const = 0;
+        virtual const char* GetBusName(UInt32 index) const = 0;
+        // 오디오 시계(초)다. 믹서가 섞은 프레임으로 세므로 게임이 멈춰도 흐른다.
+        virtual double GetAudioTime() const = 0;
+        // 출력 장치의 지연(초)이다. 장치가 없으면 0 이다.
+        virtual Float GetOutputLatency() const = 0;
     };
 }

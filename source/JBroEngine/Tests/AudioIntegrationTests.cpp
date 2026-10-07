@@ -3,6 +3,8 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AudioDecoder.h>
+#include <JBro/Asset/AudioEffectFile.h>
+#include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/Component/AudioSource.h>
@@ -146,6 +148,31 @@ namespace
         "InputActions:\n"
         "  - Name: MoveLeft\n"
         "    Key: A\n";
+
+    // `AudioMasterVolume`(D-305)는 1 이면 적지 않고, 바꾸면 최상위 키로 왕복한다.
+    void TestProjectFileKeepsTheMasterVolume()
+    {
+        ProjectFile project;
+        ProjectFileError error;
+        Check(ParseProjectFile(LegacyProject, sizeof(LegacyProject) - 1, project, error), "the project reads");
+        Check(project.audioMasterVolume == 1.0f, "the master volume starts at 1");
+        String written;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "it writes back");
+        Check(written.find("AudioMasterVolume") == String::npos, "an untouched master volume is not written");
+        project.audioMasterVolume = 0.5f;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "an edit writes");
+        Check(written.find("AudioMasterVolume: 0.5\n") != String::npos, "a changed master volume is written as the shortest text");
+        ProjectFile reread;
+        Check(ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.audioMasterVolume == 0.5f,
+            "and reads back");
+        String twice;
+        Check(WriteProjectFileText(reread, written.c_str(), written.size(), twice, error) && twice == written,
+            "saving again changes nothing");
+        String tooLoud(LegacyProject);
+        tooLoud.append("AudioMasterVolume: 3\n");
+        Check(ParseProjectFile(tooLoud.c_str(), tooLoud.size(), reread, error) && reread.audioMasterVolume == 1.0f,
+            "a value above 1 is clamped");
+    }
 
     void TestProjectFileReadsAndKeepsAudioBuses()
     {
@@ -1002,6 +1029,147 @@ namespace
         scene.Close();
     }
 
+    // **게임 전체 음량 × 리스너 음량**(D-305, 기존 `SetMasterVolume` × `AudioListener.MasterVolume`). 스크립트가 버스 이름을 읽는다.
+    void TestMasterAndListenerVolume()
+    {
+        Scene scene;
+        scene.Open();
+        Component::AudioSource* music = scene.AddSource("music", 0.0f, true);
+        music->bus = AudioBusName::FromText("SFX");
+        Object::GameObject* ear = scene.canvas->CreateObject("ear");
+        scene.canvas->AttachComponent<Component::Transform2D>(ear);
+        auto* listener = scene.canvas->AttachComponent<Component::AudioListener2D>(ear);
+        scene.framework.BindCanvasAssets();
+        scene.Frame();
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.5f) < 0.05f, "a sound is heard at its level at first");
+
+        listener->volume = 0.5f;
+        scene.Frame();
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.25f) < 0.04f, "the listener's volume turns the game down");
+        const Service::AudioService& audio = GetAudioServices().Audio;
+        audio.SetMasterVolume(0.5f);
+        Check(std::fabs(audio.GetMasterVolume() - 0.5f) < 1e-6f, "the master volume reads back");
+        scene.Frame();
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.125f) < 0.03f, "and the master volume multiplies it");
+        Check(std::fabs(scene.mixer.GetMasterVolume() - 0.25f) < 1e-6f, "the mixer gets the product");
+
+        // 미리 듣기는 Master 와 따로다.
+        music->SetEnabled(false);
+        scene.Frame();
+        Check(scene.audio.PlayPreview(music->clip, true), "the preview plays");
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.5f) < 0.05f, "the preview is not turned down");
+        scene.audio.StopPreview();
+
+        // 게임을 멈추면 리스너 몫은 1 로 돌아간다 - 편집 화면에 남지 않는다.
+        scene.audio.StopGameSounds();
+        Check(std::fabs(scene.mixer.GetMasterVolume() - 0.5f) < 1e-6f, "stopping the game drops the listener's share");
+
+        Check(audio.GetBusCount() == 2, "the script sees the project's two buses");
+        Check(std::strcmp(audio.GetBusName(0), "Music") == 0 && std::strcmp(audio.GetBusName(1), "SFX") == 0,
+            "by name, in the list's order");
+        Check(audio.GetBusName(9)[0] == '\0', "past the end is an empty name");
+        const double before = audio.GetAudioTime();
+        RenderPeaks(scene.mixer, 4800);
+        Check(audio.GetAudioTime() > before + 0.09, "the audio clock follows the mixed frames");
+        Check(audio.GetOutputLatency() == 0.0f, "without a device the latency is zero");
+        scene.Close();
+    }
+
+    // **`.jfx` 는 기존 형식 그대로 읽힌다**(D-306). 바깥 `Effect:` 가 없어도, 새로 만든 파일(`Parameters: {}`)도, 모르는 종류·키도 읽힌다.
+    void TestEffectFilesReadAndWrite()
+    {
+        Check(AssetTypeRules::DetectTypeFromPath("Sound/cave.jfx") == AssetType::AudioEffect, ".jfx is a sound effect asset");
+        AudioEffectSettings read;
+        const char fresh[] = "Effect:\n  Kind: Reverb\n  Parameters: {}\n";
+        Check(ParseAudioEffect(fresh, sizeof(fresh) - 1, read) && read.kind == AudioEffectKind::Reverb
+                && read.values[0] == 0.5f && read.values[3] == 0.3f,
+            "the old engine's new-effect template reads as reverb with its defaults");
+        const char bare[] = "Kind: Echo\nParameters:\n  delay: 0.4\n  wet: 2\n  volume: 9\n";
+        Check(ParseAudioEffect(bare, sizeof(bare) - 1, read) && read.kind == AudioEffectKind::Echo,
+            "the Effect wrapper may be left out");
+        Check(read.values[0] == 0.4f && read.values[1] == 0.5f && read.values[2] == 1.0f,
+            "a given key is kept, a missing one takes its default, and a value past its range is clamped");
+        const char unknown[] = "Effect:\n  Kind: Flanger\n  Parameters:\n    roomSize: 0.9\n";
+        Check(ParseAudioEffect(unknown, sizeof(unknown) - 1, read) && read.kind == AudioEffectKind::Reverb
+                && read.values[0] == 0.9f,
+            "an unknown kind falls back to reverb, as before");
+        String error;
+        // 탭 들여쓰기는 읽지 않는 YAML 이다(`Yaml.h`).
+        const char broken[] = "Effect:\n\tKind: Reverb\n";
+        Check(false == ParseAudioEffect(broken, sizeof(broken) - 1, read, &error) && false == error.empty(),
+            "a broken file is refused with a reason");
+
+        AudioEffectSettings limiter = MakeAudioEffect(AudioEffectKind::Limiter);
+        limiter.values[0] = -6.0f;
+        const String written = WriteAudioEffect(limiter);
+        Check(written == "Effect:\n  Kind: Limiter\n  Parameters:\n    threshold: -6\n    ratio: 4\n",
+            "an effect is written in the old engine's shape, its parameters in the table's order");
+        Check(ParseAudioEffect(written.c_str(), written.size(), read) && read.kind == AudioEffectKind::Limiter
+                && read.values[0] == -6.0f && read.values[1] == 4.0f,
+            "and reads back");
+        // 종류를 바꾸면 같은 이름의 값은 잇는다(기존 `NormalizeEffectParams`).
+        AudioEffectSettings low = MakeAudioEffect(AudioEffectKind::LowPass);
+        low.values[0] = 300.0f;
+        low.values[1] = 2.0f;
+        const AudioEffectSettings high = ChangeAudioEffectKind(low, AudioEffectKind::HighPass);
+        Check(high.kind == AudioEffectKind::HighPass && high.values[0] == 300.0f && high.values[1] == 2.0f,
+            "changing the kind keeps the values of the keys both kinds have");
+        const AudioEffectSettings echo = ChangeAudioEffectKind(low, AudioEffectKind::Echo);
+        Check(echo.values[0] == 0.25f, "and the others start at their defaults");
+    }
+
+    // **소스의 `audioEffectIds` 가 `.jfx` 를 차례대로 건다**(D-306). 재생 중에 `.jfx` 를 고쳐 다시 읽으면 다시 시작하지 않고 값만 바뀐다.
+    void TestSourceEffectChainsFromAssets()
+    {
+        Scene scene;
+        scene.Open();
+        const char muffle[] = "Effect:\n  Kind: LowPass\n  Parameters:\n    cutoff: 100\n    q: 0.707\n";
+        WriteBytes(scene.fixture.root / "Sound" / "muffle.jfx", muffle, sizeof(muffle) - 1);
+        AssetScanOptions options;
+        options.createMissingMeta = true;
+        AssetScanReport report;
+        Check(scene.fixture.registry.Scan(scene.fixture.platform, Utf8(scene.fixture.root).c_str(), options, report),
+            "the folder scans again");
+        const AssetRecord* record = scene.fixture.registry.FindByPath("Sound/muffle.jfx");
+        Check(record != nullptr && record->type == AssetType::AudioEffect, "the .jfx registers as a sound effect");
+
+        Component::AudioSource* music = scene.AddSource("music", 0.0f, true);
+        music->bus = AudioBusName::FromText("SFX");
+        music->audioEffectIds.Add(record->id);
+        scene.framework.BindCanvasAssets();
+        Check(music->audioEffects.Size() == 1 && scene.fixture.assets.GetAudioEffect(music->audioEffects[0]) != nullptr,
+            "the binding pass resolves the list of effect ids into effect handles");
+        Array<AssetId> referenced;
+        AssetSystem::CollectComponentAssetIds(*PropertyRegistry::Lookup(NameTable::Get().Intern("Component::AudioSource")),
+            music, referenced);
+        Check(referenced.Contains(record->id), "a game build collects the effect assets a source uses");
+
+        scene.Frame();
+        const AudioVoiceHandle voice = music->runtime.voice;
+        Check(scene.mixer.HasVoiceEffects(voice), "the source's voice holds a chain");
+        const JBro::Float muffled = RenderPeaks(scene.mixer, 4800).left;
+        std::cout << "  a 440 Hz source through its .jfx low pass at 100 Hz: " << muffled << " (dry 0.5)" << '\n';
+        Check(muffled < 0.06f, "the effect asset muffles the source");
+
+        // 고쳐 쓰고 다시 읽으면 같은 보이스에서 값만 바뀐다.
+        const char open[] = "Effect:\n  Kind: LowPass\n  Parameters:\n    cutoff: 20000\n";
+        WriteBytes(scene.fixture.root / "Sound" / "muffle.jfx", open, sizeof(open) - 1);
+        Check(scene.fixture.assets.ReloadInPlace(record->id), "the edited effect reloads in place");
+        scene.Frame();
+        Check(music->runtime.voice.index == voice.index && music->runtime.voice.generation == voice.generation,
+            "an edited effect does not restart the sound");
+        const JBro::Float opened = RenderPeaks(scene.mixer, 4800).left;
+        Check(opened > 0.4f, "the new cutoff is heard at once");
+
+        // 목록을 비우면 사슬이 떨어진다.
+        music->audioEffectIds.Clear();
+        scene.framework.BindCanvasAssets();
+        scene.Frame();
+        Check(false == scene.mixer.HasVoiceEffects(music->runtime.voice) && scene.mixer.GetStats().effectVoices == 0,
+            "an emptied list takes the chain off");
+        scene.Close();
+    }
+
     void TestTheScriptServiceReachesTheMixer()
     {
         Scene scene;
@@ -1198,6 +1366,10 @@ JBro::Int32 RunAudioIntegrationTests()
         TestSourcesFollowTheirLifecycle();
         TestBusesAndSpatialSources();
         TestTheScriptServiceReachesTheMixer();
+        TestMasterAndListenerVolume();
+        TestEffectFilesReadAndWrite();
+        TestSourceEffectChainsFromAssets();
+        TestProjectFileKeepsTheMasterVolume();
         TestAReloadedClipIsReleasedBeforeItsDataGoes();
         TestRoutingFromTheProjectAndSourceFilters();
         TestSteadyAudioFramesDoNotAllocate();

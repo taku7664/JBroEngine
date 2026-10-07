@@ -13,6 +13,7 @@
 #include "Panel/ProfilerPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
+#include "Panel/SoundEffectPanel.h"
 #include "Panel/SpriteViewerPanel.h"
 #include "Panel/StatsPanel.h"
 
@@ -150,5 +151,12 @@ namespace JBro
         viewer.fallbackTitle = "Sprite Viewer";
         EditorPanelRegistry::Get().RegisterDockArea(viewer);
         RegisterEditorPanelType<SpriteViewerPanel>(false, SpriteViewerPanel::DockAreaName);
+        // 사운드 이펙트 창도 파일을 여는 창이다(D-306, 기존 `CEffectEditorWindow`). 제 도크에 `.jfx` 마다 열린다.
+        EditorDockAreaInfo effects;
+        effects.name = SoundEffectPanel::DockAreaName;
+        effects.titleKey = LocKeys::SoundEffectTitle;
+        effects.fallbackTitle = "Sound Effect";
+        EditorPanelRegistry::Get().RegisterDockArea(effects);
+        RegisterEditorPanelType<SoundEffectPanel>(false, SoundEffectPanel::DockAreaName);
     }
 }

@@ -77,7 +77,7 @@ namespace JBro
             const char* file = diagnostic.file.empty() ? "" : EditorPaths::LeafOfPath(diagnostic.file);
             std::snprintf(text, sizeof(text), "%s %s(%u)  %s %s", diagnostic.isError ? "x" : "!",
                 file, diagnostic.line.Get(), diagnostic.code.c_str(), diagnostic.message.c_str());
-            if (ImGui::Selectable(text, false))
+            if (Widget::SelectableRow(text, false))
             {
                 m_editor->OpenScriptDiagnostic(index);
             }

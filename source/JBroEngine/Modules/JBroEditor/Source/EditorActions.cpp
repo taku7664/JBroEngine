@@ -161,7 +161,7 @@ namespace JBro::EditorActions
             return true;
         }
 
-        // `사용` 과 자리 옮기기(맨 위로·위로·아래로·맨 아래로)는 메뉴에 두지 않는다(D-305) - `사용` 은 인스펙터 칸에, 자리는 인스펙터 머리를 끌어 바꾼다.
+        // `사용` 과 자리 옮기기(맨 위로·위로·아래로·맨 아래로)는 메뉴에 두지 않는다(D-307) - `사용` 은 인스펙터 칸에, 자리는 인스펙터 머리를 끌어 바꾼다.
         // **복사·붙여넣기**(D-167). 복사는 값만 뜨고, 붙여넣기는 같은 타입을 하나 더 붙이며, 값 붙여넣기는 이 컴포넌트에 덮어쓴다.
         const char* copyLabel = script ? Loc::TextOr(LocKeys::InspectorCopyScript, "Copy Script")
                                        : Loc::TextOr(LocKeys::InspectorCopyComponent, "Copy Component");
@@ -558,7 +558,7 @@ namespace JBro::EditorActions
         {
             return false;
         }
-        // 그리는 차례(D-296)는 오브젝트 메뉴에 하위 메뉴로 두지 않는다 - `SpriteRenderer2D` 의 컴포넌트 메뉴에 선다(D-305).
+        // 그리는 차례(D-296)는 오브젝트 메뉴에 하위 메뉴로 두지 않는다 - `SpriteRenderer2D` 의 컴포넌트 메뉴에 선다(D-307).
         // 여럿을 고른 채로는 세우지 않는다(D-220) - 어느 오브젝트의 컴포넌트에 대한 항목인지 흐려진다.
         if (editor.GetSelectionCount() == 1 && false == DrawComponentSubmenus(editor, object, placement))
         {

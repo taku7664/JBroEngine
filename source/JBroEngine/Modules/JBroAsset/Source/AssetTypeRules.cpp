@@ -29,6 +29,7 @@ namespace JBro
             {AssetType::FontFamily, "FontFamily"},
             {AssetType::StringTable, "StringTable"},
             {AssetType::Layer, "Layer"},
+            {AssetType::AudioEffect, "AudioEffect"},
         };
 
         struct Extension
@@ -61,6 +62,7 @@ namespace JBro
             {".jfontfamily", AssetType::FontFamily},
             {".jstrings", AssetType::StringTable},
             {".jlayer", AssetType::Layer},
+            {".jfx", AssetType::AudioEffect},
         };
 
         constexpr char MetaExtension[] = ".jmeta";

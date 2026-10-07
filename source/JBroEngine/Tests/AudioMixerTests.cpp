@@ -208,6 +208,38 @@ namespace
         mixer.Shutdown();
     }
 
+    // **Master 음량은 Master 버스에만 걸린다**(D-305). 처음 판은 엔진 전체 음량(`ma_engine_set_volume`)이라 에디터 미리 듣기까지
+    // 줄었다 - 미리 듣기는 Master 와 따로 들려야 한다(§2.9).
+    void TestMasterVolumeSparesThePreview()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        const AudioVoiceHandle game = mixer.Play(play);
+        mixer.SetMasterVolume(0.5f);
+        Rendered out = Render(mixer, 4800);
+        Check(std::fabs(out.Peak(0, 2400) - 0.25f) < 0.03f, "the master volume halves a sound on Master");
+        Check(std::fabs(mixer.GetMasterVolume() - 0.5f) < 1e-6f, "and reads back");
+        mixer.SetBusVolume(AudioMasterBus, 0.5f);
+        out = Render(mixer, 4800);
+        Check(std::fabs(out.Peak(0, 2400) - 0.125f) < 0.02f, "it multiplies the Master bus's own volume");
+        mixer.SetBusVolume(AudioMasterBus, 1.0f);
+        mixer.Stop(game);
+
+        play.bus = AudioEditorPreviewBus;
+        const AudioVoiceHandle preview = mixer.Play(play);
+        out = Render(mixer, 4800);
+        Check(std::fabs(out.Peak(0, 2400) - 0.5f) < 0.05f, "the editor preview bus is not turned down by the master volume");
+        mixer.Stop(preview);
+        mixer.SetMasterVolume(2.0f);
+        Check(mixer.GetMasterVolume() == 1.0f, "the master volume is clamped to 1");
+        mixer.Shutdown();
+    }
+
     void TestPitchLoopAndEnd()
     {
         AudioMixer mixer;
@@ -1113,6 +1145,250 @@ namespace
         bench.mixer.Shutdown();
     }
 
+    // ── 소스마다 이펙트 사슬 (D-306) ─────────────────────────────────────────────────────────────
+    // 사인 하나를 루프로 틀고 그 보이스에 사슬을 건다. `Settle` 은 사슬을 바꾸고 0.1 초를 버린 뒤 `frames` 를 잰다.
+    struct VoiceBench
+    {
+        AudioMixer mixer;
+        // 믹서는 PCM 을 빌린다 - 벤치가 살아 있는 동안 둔다.
+        Array<JBro::Float> sine;
+        AudioClipHandle clip;
+        AudioVoiceHandle voice;
+
+        void Open(JBro::Float frequency, JBro::Float amplitude, JBro::UInt32 maxEffectVoices = 8)
+        {
+            AudioMixerDesc desc = SmallDesc();
+            desc.maxEffectVoices = maxEffectVoices;
+            Check(mixer.Initialize(desc), "mixer initializes");
+            sine = MakeSine(2, frequency, amplitude, 1.0f);
+            clip = RegisterPcm(mixer, sine, 2);
+            AudioPlayDesc play;
+            play.clip = clip;
+            play.loop = true;
+            voice = mixer.Play(play);
+            Check(voice.IsSet(), "the bench voice starts");
+        }
+
+        Rendered Settle(const AudioEffectSettings* effects, JBro::UInt32 count, JBro::UInt32 frames = 9600)
+        {
+            mixer.SetVoiceEffects(voice, effects, count);
+            Render(mixer, 4800);
+            return Render(mixer, frames);
+        }
+    };
+
+    AudioEffectSettings Effect(AudioEffectKind kind, std::initializer_list<JBro::Float> values = {})
+    {
+        AudioEffectSettings effect = MakeAudioEffect(kind);
+        JBro::UInt32 index = 0;
+        for (const JBro::Float value : values)
+        {
+            effect.values[index] = value;
+            ++index;
+        }
+        return effect;
+    }
+
+    void TestVoiceEffectChains()
+    {
+        // **차례가 소리를 바꾼다.** 200 Hz 를 다 일그러뜨린 뒤 400 Hz 위를 깎으면 둥근 사인 쪽으로 돌아오고, 먼저 깎고 일그러뜨리면 네모가 남는다.
+        VoiceBench order;
+        order.Open(200.0f, 0.5f);
+        const AudioEffectSettings driveThenCut[] = {Effect(AudioEffectKind::Distortion, {1.0f, 1.0f}),
+            Effect(AudioEffectKind::LowPass, {400.0f, 0.707f})};
+        const Rendered rounded = order.Settle(driveThenCut, 2);
+        const JBro::Float roundedCrest = rounded.Peak(0) / Rms(rounded);
+        const AudioEffectSettings cutThenDrive[] = {Effect(AudioEffectKind::LowPass, {400.0f, 0.707f}),
+            Effect(AudioEffectKind::Distortion, {1.0f, 1.0f})};
+        const Rendered squared = order.Settle(cutThenDrive, 2);
+        const JBro::Float squaredCrest = squared.Peak(0) / Rms(squared);
+        std::cout << "  voice chain order: distortion -> low pass crest " << roundedCrest << ", low pass -> distortion crest "
+                  << squaredCrest << " (a sine is 1.41)" << '\n';
+        Check(squaredCrest < 1.15f, "cutting first and driving last leaves a squared wave");
+        Check(roundedCrest > squaredCrest + 0.12f, "driving first and cutting last rounds it back - the list order is the chain order");
+        Check(order.mixer.HasVoiceEffects(order.voice) && order.mixer.GetStats().effectVoices == 1, "the voice holds one chain");
+
+        // **기존에서 소리에 닿지 않던 키가 이제 닿는다** - 저역 통과의 `q`: 차단 주파수의 사인이 Q 0.707 에서 0.707 배, Q 5 에서 다섯 배쯤이다.
+        VoiceBench resonance;
+        resonance.Open(1000.0f, 0.1f);
+        const AudioEffectSettings flat[] = {Effect(AudioEffectKind::LowPass, {1000.0f, 0.707f})};
+        const JBro::Float flatPeak = resonance.Settle(flat, 1).Peak(0);
+        const AudioEffectSettings sharp[] = {Effect(AudioEffectKind::LowPass, {1000.0f, 5.0f})};
+        const JBro::Float sharpPeak = resonance.Settle(sharp, 1).Peak(0);
+        std::cout << "  low pass at its cutoff: q 0.707 -> " << flatPeak << ", q 5 -> " << sharpPeak << " (input 0.1)" << '\n';
+        Check(flatPeak > 0.06f && flatPeak < 0.08f, "q 0.707 leaves the cutoff at -3 dB");
+        Check(sharpPeak > 0.4f, "q 5 rings at the cutoff - the q key reaches the sound");
+
+        // 메아리의 `delay`: 0.3 초 뒤에 되울린다(기존은 0.25 초로 고정이었다).
+        AudioMixer echoMixer;
+        AudioMixerDesc echoDesc = SmallDesc();
+        Check(echoMixer.Initialize(echoDesc), "mixer initializes");
+        const Array<JBro::Float> click = MakeSine(2, 440.0f, 0.5f, 0.05f);
+        AudioPlayDesc burst;
+        burst.clip = RegisterPcm(echoMixer, click, 2);
+        const AudioEffectSettings echo[] = {Effect(AudioEffectKind::Echo, {0.3f, 0.0f, 1.0f})};
+        burst.effects = echo;
+        burst.effectCount = 1;
+        // 소리가 끝나면 보이스가 거둬져 사슬도 돌아간다 - 끝나기 전의 메아리만 잰다. 그래서 루프로 틀고 0.05 초 뒤에 음량을 0 으로 둔다.
+        burst.loop = true;
+        const AudioVoiceHandle echoVoice = echoMixer.Play(burst);
+        Rendered head = Render(echoMixer, Rate / 20);
+        echoMixer.SetVolume(echoVoice, 0.0f);
+        const Rendered tail = Render(echoMixer, Rate / 2);
+        const JBro::Float quietBefore = tail.Peak(0, Rate / 20, Rate / 4 - Rate / 20 - 480);
+        const JBro::Float echoed = tail.Peak(0, Rate / 4 - Rate / 20, Rate * 3 / 10);
+        std::cout << "  voice echo 0.3 s: head " << head.Peak(0) << ", between " << quietBefore << ", at 0.3 s " << echoed << '\n';
+        Check(quietBefore < 0.01f && echoed > 0.3f, "the echo comes back after the delay it was given");
+        echoMixer.Shutdown();
+
+        // 잔향의 `width`: 0 이면 두 귀가 같고 1 이면 다르다(기존은 이 키를 읽지 않았다).
+        VoiceBench room;
+        room.Open(440.0f, 0.3f);
+        const AudioEffectSettings narrow[] = {Effect(AudioEffectKind::Reverb, {0.8f, 0.5f, 0.0f, 1.0f, 0.0f})};
+        const Rendered mono = room.Settle(narrow, 1, 9600);
+        JBro::Float monoDifference = 0.0f;
+        for (std::size_t frame = 0; frame < 9600; ++frame)
+        {
+            monoDifference = std::fmax(monoDifference, std::fabs(mono.samples[frame * 2] - mono.samples[frame * 2 + 1]));
+        }
+        const AudioEffectSettings wide[] = {Effect(AudioEffectKind::Reverb, {0.8f, 0.5f, 1.0f, 1.0f, 0.0f})};
+        const Rendered stereo = room.Settle(wide, 1, 9600);
+        JBro::Float stereoDifference = 0.0f;
+        for (std::size_t frame = 0; frame < 9600; ++frame)
+        {
+            stereoDifference = std::fmax(stereoDifference, std::fabs(stereo.samples[frame * 2] - stereo.samples[frame * 2 + 1]));
+        }
+        std::cout << "  voice reverb: width 0 ear difference " << monoDifference << ", width 1 " << stereoDifference << '\n';
+        Check(monoDifference < 1e-4f && stereoDifference > 0.01f, "the reverb's width spreads it between the ears");
+
+        // 리미터·컴프레서(기존은 둘 다 잔향으로 떨어졌다).
+        VoiceBench limit;
+        limit.Open(440.0f, 0.8f);
+        const AudioEffectSettings limiter[] = {Effect(AudioEffectKind::Limiter, {-12.0f, 20.0f})};
+        const JBro::Float limited = limit.Settle(limiter, 1).Peak(0, 4800);
+        const AudioEffectSettings compressor[] = {Effect(AudioEffectKind::Compressor, {-12.0f, 4.0f})};
+        const JBro::Float compressed = limit.Settle(compressor, 1).Peak(0, 4800);
+        std::cout << "  voice limiter -12 dB on 0.8 -> " << limited << ", compressor 4:1 -> " << compressed << '\n';
+        Check(limited < 0.32f, "a -12 dB limiter holds a 0.8 tone near 0.25");
+        Check(compressed > limited && compressed < 0.5f, "a 4:1 compressor pulls it down less than the limiter");
+
+        // 사슬을 떼면 원음으로 돌아오고 사슬은 자리로 돌아간다.
+        const JBro::Float dry = limit.Settle(nullptr, 0).Peak(0, 4800);
+        Check(std::fabs(dry - 0.8f) < 0.05f && false == limit.mixer.HasVoiceEffects(limit.voice)
+                && limit.mixer.GetStats().effectVoices == 0,
+            "an empty chain lets the voice go straight to its bus again");
+        limit.mixer.Stop(limit.voice);
+        limit.mixer.Shutdown();
+        room.mixer.Shutdown();
+        resonance.mixer.Shutdown();
+        order.mixer.Stop(order.voice);
+        Check(order.mixer.GetStats().effectVoices == 0, "stopping a voice gives its chain back");
+        order.mixer.Shutdown();
+    }
+
+    // 사슬 자리가 모자라면 이펙트 없이 울리고 알린다. 필터와 사슬이 같이 서고, 버스를 옮겨도 사슬이 남는다.
+    void TestVoiceEffectChainLimitsAndRouting()
+    {
+        AudioMixer mixer;
+        AudioMixerDesc desc = SmallDesc();
+        desc.maxEffectVoices = 1;
+        Check(mixer.Initialize(desc), "mixer initializes");
+        const Array<JBro::Float> sine = MakeSine(2, 5000.0f, 0.5f, 1.0f);
+        AudioPlayDesc play;
+        play.clip = RegisterPcm(mixer, sine, 2);
+        play.loop = true;
+        const AudioEffectSettings cut[] = {Effect(AudioEffectKind::LowPass, {300.0f, 0.707f})};
+        play.effects = cut;
+        play.effectCount = 1;
+        const AudioVoiceHandle first = mixer.Play(play);
+        const AudioVoiceHandle second = mixer.Play(play);
+        Check(mixer.HasVoiceEffects(first) && false == mixer.HasVoiceEffects(second), "only one chain was there to lend");
+        Check(mixer.GetStats().effectsRejected == 1, "the voice without a chain is counted");
+        mixer.Stop(second);
+        // 5 kHz 가 300 Hz 저역 통과에 거의 사라진다.
+        Rendered out = Render(mixer, 9600);
+        Check(out.Peak(0, 4800) < 0.01f, "the chain cuts the 5 kHz tone");
+        // 버스를 옮겨도 사슬은 그대로다.
+        const AudioBusId music = mixer.CreateBus(1.0f);
+        mixer.SetBus(first, music);
+        out = Render(mixer, 9600);
+        Check(out.Peak(0, 4800) < 0.01f && mixer.HasVoiceEffects(first), "moving the voice to another bus keeps its chain");
+        // 필터(고역 통과)를 더해도 사슬 앞에 선다 - 둘 다 걸린다.
+        mixer.SetVoiceFilter(first, 0.0f, 100.0f);
+        out = Render(mixer, 9600);
+        Check(out.Peak(0, 4800) < 0.01f, "a voice filter and a chain stand together");
+        mixer.SetVoiceFilter(first, 0.0f, 0.0f);
+        mixer.SetVoiceEffects(first, nullptr, 0);
+        out = Render(mixer, 9600);
+        Check(std::fabs(out.Peak(0, 4800) - 0.5f) < 0.05f, "taking the chain off brings the tone back on its bus");
+        mixer.Shutdown();
+    }
+
+    // 버퍼를 한 번 잡은 뒤에는 사슬을 걸고 바꾸고 다시 써도 할당이 없다. 다른 스레드가 당기는 동안 거듭 바꿔도 샘플이 찢기지 않는다.
+    void TestVoiceEffectChainsAreRealtimeSafe()
+    {
+        VoiceBench bench;
+        bench.Open(440.0f, 0.3f, 2);
+        const AudioEffectSettings everything[] = {Effect(AudioEffectKind::Reverb), Effect(AudioEffectKind::Echo),
+            Effect(AudioEffectKind::Chorus), Effect(AudioEffectKind::PitchShift)};
+        bench.Settle(everything, 4);
+        // 같은 사슬 자리로 돌아오게 한다 - 처음 쓴 자리의 버퍼가 남아 있다.
+        bench.mixer.Stop(bench.voice);
+        AudioEffectSettings changing[4] = {everything[0], everything[1], everything[2], everything[3]};
+        Array<JBro::Float> buffer;
+        buffer.Resize(960);
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_crtAllocations = 0;
+        _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountCrtAllocations);
+#endif
+        AudioPlayDesc play;
+        play.clip = bench.clip;
+        play.loop = true;
+        play.effects = changing;
+        play.effectCount = 4;
+        bench.voice = bench.mixer.Play(play);
+        for (JBro::Int32 frame = 0; frame < 200; ++frame)
+        {
+            changing[0].values[0] = static_cast<JBro::Float>(frame % 10) * 0.1f;
+            changing[1].values[0] = 0.1f + static_cast<JBro::Float>(frame % 10) * 0.05f;
+            changing[3].values[0] = static_cast<JBro::Float>((frame % 24) - 12);
+            bench.mixer.SetVoiceEffects(bench.voice, changing, 4);
+            bench.mixer.Render(buffer.Data(), 480);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        _CrtSetAllocHook(previous);
+        Check(g_crtAllocations.load() == 0, "a reused chain changing every frame does not touch the heap");
+#endif
+        Check(bench.mixer.HasVoiceEffects(bench.voice), "the restarted voice holds a chain");
+        std::atomic<bool> running{true};
+        std::atomic<bool> bad{false};
+        std::thread audio([&]
+        {
+            JBro::Float block[480 * 2];
+            while (running.load(std::memory_order_acquire))
+            {
+                bench.mixer.Render(block, 480);
+                for (JBro::Float sample : block)
+                {
+                    if (!std::isfinite(sample))
+                    {
+                        bad.store(true, std::memory_order_relaxed);
+                    }
+                }
+            }
+        });
+        for (JBro::Int32 round = 0; round < 2000; ++round)
+        {
+            const JBro::UInt32 count = static_cast<JBro::UInt32>(round % 5);
+            changing[0].kind = static_cast<AudioEffectKind>((round % static_cast<JBro::Int32>(AudioEffectKind::Count)).Get());
+            bench.mixer.SetVoiceEffects(bench.voice, changing, count);
+        }
+        running.store(false, std::memory_order_release);
+        audio.join();
+        Check(false == bad.load(), "changing a voice's chain while rendering never produces a torn sample");
+        bench.mixer.Shutdown();
+    }
+
     void TestStealing()
     {
         AudioMixer mixer;
@@ -1939,6 +2215,7 @@ JBro::Int32 RunAudioMixerTests()
     {
         TestSilenceWithoutVoices();
         TestVolumeAndBuses();
+        TestMasterVolumeSparesThePreview();
         TestPitchLoopAndEnd();
         TestDelayAndFade();
         TestSpatialization();
@@ -1955,6 +2232,9 @@ JBro::Int32 RunAudioMixerTests()
         TestDistortionChorusAndPitch();
         TestCompressorAndLimiter();
         TestExtendedEffectsAreRealtimeSafe();
+        TestVoiceEffectChains();
+        TestVoiceEffectChainLimitsAndRouting();
+        TestVoiceEffectChainsAreRealtimeSafe();
         TestStealing();
         TestInstanceLimitAndCooldown();
         TestInaudibleStartsAreCulled();

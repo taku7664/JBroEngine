@@ -118,6 +118,9 @@ namespace JBro::System
         m_mixer->SetOutputGain(1.0f, 0.0f);
         m_muteWhenUnfocused = false;
         m_focused = true;
+        m_masterVolume = 1.0f;
+        m_listenerVolume = 1.0f;
+        m_mixer->SetMasterVolume(1.0f);
         m_deviceControl = nullptr;
         m_mixer = nullptr;
         m_assets = nullptr;
@@ -370,6 +373,24 @@ namespace JBro::System
         m_listenerPlaced = true;
     }
 
+    void AudioSystem::SetListenerVolume(Float volume)
+    {
+        const Float clamped = std::isfinite(volume) ? (volume < 0.0f ? Float(0.0f) : (volume > 1.0f ? Float(1.0f) : volume)) : Float(1.0f);
+        if (clamped != m_listenerVolume)
+        {
+            m_listenerVolume = clamped;
+            ApplyMasterVolume();
+        }
+    }
+
+    void AudioSystem::ApplyMasterVolume()
+    {
+        if (m_initialized)
+        {
+            m_mixer->SetMasterVolume(m_masterVolume * m_listenerVolume);
+        }
+    }
+
     void AudioSystem::Place(const Float position[3], Float out[3]) const
     {
         out[0] = Finite(position[0], 0.0f);
@@ -391,6 +412,36 @@ namespace JBro::System
             m_mixer->Stop(source.runtime.voice, fadeOutSeconds);
             source.runtime.voice = {};
         }
+    }
+
+    UInt32 AudioSystem::GatherEffects(const Component::AudioSource& source, AudioEffectSettings* out, UInt32& signature) const
+    {
+        UInt32 count = 0;
+        // FNV-1a 를 32 비트 칸으로 섞는다. 같은 목록·같은 판이면 같은 값이다.
+        std::uint32_t hash = 2166136261u;
+        const auto mix = [&hash](std::uint32_t value) {
+            hash = (hash ^ value) * 16777619u;
+        };
+        if (m_assets != nullptr)
+        {
+            for (std::size_t index = 0; index < source.audioEffects.Size() && count < AudioMaxVoiceEffects; ++index)
+            {
+                const AssetHandle handle = source.audioEffects[index];
+                const AudioEffectData* data = m_assets->GetAudioEffect(handle);
+                if (data == nullptr)
+                {
+                    continue;
+                }
+                out[count] = data->settings;
+                ++count;
+                mix(handle.index.Get());
+                mix(handle.generation.Get());
+                mix(data->dataGeneration.Get());
+            }
+        }
+        mix(count.Get());
+        signature = hash;
+        return count;
     }
 
     void AudioSystem::StartSource(Component::AudioSource& source)
@@ -422,6 +473,9 @@ namespace JBro::System
         play.priority = ClampPriority(source.priority);
         play.fadeInSeconds = Finite(source.fadeIn, 0.0f);
         play.tag = GameTag;
+        AudioEffectSettings effects[AudioMaxVoiceEffects];
+        play.effectCount = GatherEffects(source, effects, runtime.effectSignature);
+        play.effects = effects;
         runtime.voice = m_mixer->Play(play);
         runtime.lastVolume = play.volume;
         runtime.lastPitch = play.pitch;
@@ -551,6 +605,17 @@ namespace JBro::System
             runtime.lastLowPass = lowPass;
             runtime.lastHighPass = highPass;
         }
+        // 이펙트 사슬(D-306): 목록이나 `.jfx` 가 바뀌었을 때만 다시 건다. 다시 시작하지 않는다.
+        {
+            AudioEffectSettings effects[AudioMaxVoiceEffects];
+            UInt32 signature = 0;
+            const UInt32 count = GatherEffects(source, effects, signature);
+            if (signature != runtime.effectSignature)
+            {
+                m_mixer->SetVoiceEffects(runtime.voice, effects, count);
+                runtime.effectSignature = signature;
+            }
+        }
         if (source.spatial)
         {
             Float placed[3];
@@ -569,11 +634,13 @@ namespace JBro::System
         {
             m_mixer->StopAllWithTag(GameTag);
         }
+        // 게임의 리스너가 줄여 둔 음량을 편집 화면에 남기지 않는다(D-305).
+        SetListenerVolume(1.0f);
         // 다시 켠 첫 프레임에 멈추기 전 자리와의 차이로 도플러가 튀지 않게 한다(D-240).
         m_listenerPlaced = false;
     }
 
-    Bool AudioSystem::PlayPreview(AssetHandle clip, Bool loop)
+    Bool AudioSystem::PlayPreview(AssetHandle clip, Bool loop, const AudioEffectSettings* effects, UInt32 effectCount)
     {
         StopPreview();
         const AudioClipHandle registered = AcquireClip(clip);
@@ -587,9 +654,19 @@ namespace JBro::System
         play.loop = loop;
         play.priority = 255;
         play.tag = PreviewTag;
+        play.effects = effects;
+        play.effectCount = effects != nullptr ? effectCount : UInt32(0);
         m_preview = m_mixer->Play(play);
         m_previewClip = m_preview.IsSet() ? clip : AssetHandle{};
         return m_preview.IsSet();
+    }
+
+    void AudioSystem::SetPreviewEffects(const AudioEffectSettings* effects, UInt32 effectCount)
+    {
+        if (m_initialized && m_preview.IsSet())
+        {
+            m_mixer->SetVoiceEffects(m_preview, effects, effects != nullptr ? effectCount : UInt32(0));
+        }
     }
 
     void AudioSystem::StopPreview()
@@ -894,5 +971,41 @@ namespace JBro::System
     Bool AudioSystem::IsMuteWhenUnfocused() const
     {
         return m_muteWhenUnfocused;
+    }
+
+    void AudioSystem::SetMasterVolume(Float volume)
+    {
+        m_masterVolume = std::isfinite(volume) ? (volume < 0.0f ? Float(0.0f) : (volume > 1.0f ? Float(1.0f) : volume)) : Float(1.0f);
+        ApplyMasterVolume();
+    }
+
+    Float AudioSystem::GetMasterVolume() const
+    {
+        return m_masterVolume;
+    }
+
+    UInt32 AudioSystem::GetBusCount() const
+    {
+        return static_cast<JBro::UInt32>(m_busConfigs.Size());
+    }
+
+    const char* AudioSystem::GetBusName(UInt32 index) const
+    {
+        if (index >= m_busConfigs.Size())
+        {
+            return "";
+        }
+        const char* name = NameTable::Get().Resolve(m_busConfigs[index].name);
+        return name != nullptr ? name : "";
+    }
+
+    double AudioSystem::GetAudioTime() const
+    {
+        return m_initialized ? m_mixer->GetTimeSeconds() : 0.0;
+    }
+
+    Float AudioSystem::GetOutputLatency() const
+    {
+        return m_deviceControl != nullptr ? m_deviceControl->GetOutputLatencySeconds() : Float(0.0f);
     }
 }

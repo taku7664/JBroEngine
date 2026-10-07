@@ -12,6 +12,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
+#include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/Canvas.h>
@@ -2407,6 +2408,7 @@ namespace
         JBro::Bool save = false;
         JBro::Bool pickFolder = false;
         JBro::String defaultFileName;
+        JBro::String filterPattern;
 
         static JBro::Bool Answer(const JBro::FileDialogDesc& desc, JBro::String& outPath, void* user)
         {
@@ -2415,6 +2417,7 @@ namespace
             probe.save = desc.save;
             probe.pickFolder = desc.pickFolder;
             probe.defaultFileName = desc.defaultFileName != nullptr ? desc.defaultFileName : "";
+            probe.filterPattern = desc.filterPattern != nullptr ? desc.filterPattern : "";
             if (probe.path.empty())
             {
                 return false;
@@ -2594,7 +2597,7 @@ namespace
         return nullptr;
     }
 
-    // **컴포넌트 메뉴에는 `사용` 과 자리 옮기기가 없다**(D-305). `사용` 은 인스펙터 칸이고, 자리는 목록 줄을 끌어 바꾼다
+    // **컴포넌트 메뉴에는 `사용` 과 자리 옮기기가 없다**(D-307). `사용` 은 인스펙터 칸이고, 자리는 목록 줄을 끌어 바꾼다
     // (`TestDraggingAComponentHeaderReordersIt`). 메뉴는 복사·붙여넣기·그 타입에 더한 항목·제거다.
     void TestTheComponentMenuHasNoEnableOrMoveItems()
     {
@@ -4048,8 +4051,10 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1024;
-        config.windowHeight = 768;
+        // 넓은 창이다. 인스펙터가 목록과 필드 두 칸이던 때(D-304 처음 모양, 되돌렸다) 1024 창에서는 값 칸이 6 픽셀이었고, 오디오 소스의 이펙트 목록(D-306)까지
+        // 서면 세로 스크롤바가 그것을 덮었다. 지금 모양에서도 넓은 창이 해롭지 않아 그대로 둔다.
+        config.windowWidth = 1800;
+        config.windowHeight = 900;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; the audio inspector not verified" << std::endl;
@@ -4067,7 +4072,7 @@ namespace
             ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
             Check(window != nullptr, "the inspector must have a window");
             const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
-            for (const JBro::Float fraction : {0.40f, 0.45f, 0.50f, 0.55f})
+            for (const JBro::Float fraction : {0.25f, 0.30f, 0.40f, 0.45f, 0.50f, 0.55f})
             {
                 const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction);
                 for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 4)
@@ -4101,7 +4106,7 @@ namespace
         const ImGuiID playButton = LabelId(LabelId(inspector->ID, "##audioPreview"), playLabel);
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
-            SaveScreenshot(*shotRenderer, 1024, 768, "audio_inspector");
+            SaveScreenshot(*shotRenderer, 1800, 900, "audio_inspector");
         }
         Spot spot;
         Check(findButton(playButton, spot), "the audio inspector shows a Play button");
@@ -4114,6 +4119,13 @@ namespace
         Check(findButton(playButton, spot), "and it says Play again");
         ClickAt(editor, hwnd, spot);
         Check(editor.GetAudio()->IsPreviewPlaying(), "playing again");
+        // 울리는 동안은 위치 막대와 스펙트럼이 선다(D-305, 기존 탐색 막대와 `ImSpectrumVisualizer`).
+        const ImGuiID positionSlider = LabelId(LabelId(inspector->ID, "##audioPreview"), "##position");
+        Check(findButton(positionSlider, spot), "while it plays a position slider shows");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1800, 900, "audio_inspector_playing");
+        }
 
         // ── 소스: 다른 것을 고르면 미리 듣기가 멈춘다 ──
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -4173,7 +4185,7 @@ namespace
         Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
-            SaveScreenshot(*shotRenderer, 1024, 768, "audio_source_inspector");
+            SaveScreenshot(*shotRenderer, 1800, 900, "audio_source_inspector");
         }
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(editor.Tick(Frame), "the editor must tick after undo");
@@ -4313,6 +4325,209 @@ namespace
 
     // **프로젝트 설정의 오디오 마디가 그려진다**(D-202·D-203). 버스마다 접는 "이펙트"·"라우팅" 마디를 열고, 통계 창의
     // 버스 미터를 함께 그린다. 표를 마디 안에서 닫지 않으면 ImGui 의 ID 쌓기가 어긋나 단언이 터진다 - 이 시험이 그것을 잡는다.
+    // **사운드 이펙트 창**(D-306, 기존 `CEffectEditorWindow`). 만들면 창이 열리고, 종류를 고르고 적용하면 `.jfx` 가 바뀌며, 시험 소리를
+    // 골라 재생하면 그 사슬을 건 채로 울린다. 실제 에디터 창을 눌러 잰다.
+    void TestTheSoundEffectEditorMakesAndPlaysAnEffect()
+    {
+        namespace fs = std::filesystem;
+        JBro::String probeFolder("JBroSoundEffectProbe");
+        probeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(probeFolder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "sound", ignored);
+        {
+            // 0.5 초 16 비트 모노 440 Hz.
+            constexpr JBro::UInt32 rate = 48000;
+            constexpr JBro::UInt32 frames = rate / 2;
+            std::vector<std::uint8_t> wav(44 + frames * 2);
+            auto put32 = [&](std::size_t at, JBro::UInt32 value) { std::memcpy(wav.data() + at, &value, 4); };
+            auto put16 = [&](std::size_t at, std::uint16_t value) { std::memcpy(wav.data() + at, &value, 2); };
+            std::memcpy(wav.data(), "RIFF", 4);
+            put32(4, 36 + frames * 2);
+            std::memcpy(wav.data() + 8, "WAVEfmt ", 8);
+            put32(16, 16);
+            put16(20, 1);
+            put16(22, 1);
+            put32(24, rate);
+            put32(28, rate * 2);
+            put16(32, 2);
+            put16(34, 16);
+            std::memcpy(wav.data() + 36, "data", 4);
+            put32(40, frames * 2);
+            for (JBro::UInt32 frame = 0; frame < frames; ++frame)
+            {
+                const std::int16_t sample = static_cast<std::int16_t>(16000.0 * std::sin(2.0 * 3.14159265358979 * 440.0 * frame / rate));
+                std::memcpy(wav.data() + 44 + frame * 2, &sample, 2);
+            }
+            std::ofstream file(root / "Assets" / "sound" / "blip.wav", std::ios::binary);
+            file.write(reinterpret_cast<const char*>(wav.data()), static_cast<std::streamsize>(wav.size()));
+        }
+        JBro::String projectName(probeFolder);
+        projectName.append("\\Effect.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: EffectProbe\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the sound effect editor not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        Check(editor.Tick(Frame), "the editor must settle");
+
+        // ── 만들기: 잔향 기본값의 `.jfx` 가 서고 창이 열린다 ──
+        const JBro::String created = editor.CreateSoundEffectAsset("sound");
+        Check(created == "sound/NewEffect.jfx", "a new sound effect gets the old engine's name");
+        const JBro::AssetRecord* effect = editor.GetAssetRegistry().FindByPath("sound/NewEffect.jfx");
+        Check(effect != nullptr && effect->type == JBro::AssetType::AudioEffect, "it registers as a sound effect");
+        const JBro::AssetId effectId = effect->id;
+        JBro::AudioEffectSettings read;
+        Check(editor.ReadSoundEffect(effectId, read) && read.kind == JBro::AudioEffectKind::Reverb && read.values[0] == 0.5f,
+            "it starts as the old template's reverb");
+        JBro::Array<JBro::EditorPanel*> panels;
+        Check(editor.FindPanels("SoundEffect", panels) == 1, "making it opens its editor");
+        Check(editor.OpenSoundEffectEditor(effectId) && editor.FindPanels("SoundEffect", panels) == 1,
+            "opening it again brings the same editor forward");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the sound effect editor");
+        }
+        ImGuiWindow* window = nullptr;
+        for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            // 패널 창의 이름은 `보이는이름###SoundEffect/<uuid>` 다. 그 뒤에 `/` 가 더 붙은 것은 창 안의 자식 창이다.
+            const char* found = std::strstr(candidate->Name, "###SoundEffect/");
+            if (found != nullptr && std::strchr(found + std::strlen("###SoundEffect/"), '/') == nullptr)
+            {
+                window = candidate;
+            }
+        }
+        Check(window != nullptr, "the sound effect editor has a window");
+        const auto findIn = [&](ImGuiID target, Spot& found) {
+            const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
+            // 값 칸(65%·45%)과, 줄 배치 밖에 서는 짧은 단추(`적용`)가 있는 왼쪽 끝을 훑는다.
+            for (const JBro::Float fraction : {0.65f, 0.45f, 0.15f, 0.12f, 0.0f})
+            {
+                const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction) + (fraction == 0.0f ? 24 : 0);
+                for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 3)
+                {
+                    PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                    Check(editor.Tick(Frame), "the editor must tick while looking");
+                    if (ImGui::GetHoveredID() == target)
+                    {
+                        found.x = x;
+                        found.y = y;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        const auto typeAndEnter = [&](const char* text) {
+            Check(editor.Tick(Frame), "the popup must appear");
+            Check(editor.Tick(Frame), "and its search box must take focus");
+            for (const char* at = text; *at != '\0'; ++at)
+            {
+                PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+                Check(editor.Tick(Frame), "the editor must tick while typing");
+            }
+            PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+            Check(editor.Tick(Frame), "the editor must tick");
+            PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+            Check(editor.Tick(Frame), "the editor must tick");
+        };
+
+        // ── 종류를 고르고 적용한다 ──
+        Spot spot;
+        const ImGuiID kindCombo = LabelId(LabelId(window->ID, "##soundEffect"), "##kind");
+        Check(findIn(kindCombo, spot), "the editor shows the Kind row");
+        ClickAt(editor, hwnd, spot);
+        typeAndEnter("Echo");
+        Check(editor.Tick(Frame), "the editor must redraw with the new kind");
+        Check(panels[0]->GetDisplayTitle() != nullptr && std::strstr(panels[0]->GetDisplayTitle(), "*") != nullptr,
+            "an unsaved change marks the tab");
+        Check(editor.ReadSoundEffect(effectId, read) && read.kind == JBro::AudioEffectKind::Reverb,
+            "the file is not written until it is applied");
+        const ImGuiID apply = LabelId(window->ID, JBro::Loc::TextOr(JBro::LocKeys::SoundEffectApply, "Apply"));
+        Check(findIn(apply, spot), "a changed effect shows an Apply button");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.ReadSoundEffect(effectId, read) && read.kind == JBro::AudioEffectKind::Echo && read.values[0] == 0.25f,
+            "applying writes the new kind with its defaults to the .jfx");
+        Check(std::strstr(panels[0]->GetDisplayTitle(), "*") == nullptr, "and the tab is clean again");
+
+        // ── 시험 소리를 골라 그 사슬로 듣는다 ──
+        const ImGuiID testSound = LabelId(LabelId(window->ID, "##soundEffectPreview"), "##testSound");
+        Check(findIn(testSound, spot), "the editor shows a test sound field");
+        ClickAt(editor, hwnd, spot);
+        typeAndEnter("blip");
+        const ImGuiID play = LabelId(LabelId(window->ID, "##soundEffectPreview"), "##effect_play");
+        Check(findIn(play, spot), "with a test sound the editor shows Play");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.GetAudio() != nullptr && editor.GetAudio()->IsPreviewPlaying(), "Play starts the test sound");
+        Check(editor.GetAudio()->GetMixer()->GetStats().effectVoices == 1, "with the effect chain on it");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "sound_effect_editor");
+        }
+        const ImGuiID stop = LabelId(LabelId(window->ID, "##soundEffectPreview"), "##effect_stop");
+        Check(findIn(stop, spot), "while it plays the button says Stop");
+        ClickAt(editor, hwnd, spot);
+        Check(false == editor.GetAudio()->IsPreviewPlaying() && editor.GetAudio()->GetMixer()->GetStats().effectVoices == 0,
+            "Stop ends it and gives the chain back");
+
+        // ── 인스펙터는 편집기를 여는 단추를 보인다 ──
+        editor.SetSelectedAsset(effectId);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must draw the sound effect");
+        }
+
+        // ── 소스의 `audioEffectIds` 원소는 사운드 이펙트 드롭다운이다(사진으로 본다) ──
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* object = canvas->CreateObject("Speaker");
+        canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        auto* source = canvas->AttachComponent<JBro::Component::AudioSource>(object);
+        source->audioEffectIds.Add(effectId);
+        editor.SetSelectedObject(object);
+        // 사운드 이펙트 도크가 앞에 있다 - 창을 닫으면 메인 도크가 보인다.
+        editor.ClosePanel(*panels[0]);
+        Check(editor.FindPanels("SoundEffect", panels) == 0, "closing the sound effect editor removes it");
+        for (JBro::Int32 step = 0; step < 6; ++step)
+        {
+            // 이펙트 목록은 소스의 끝에 있다 - 사진에 담기도록 인스펙터를 끝까지 내린다.
+            if (ImGuiWindow* inspectorWindow = ImGui::FindWindowByName("Inspector"))
+            {
+                ImGui::SetScrollY(inspectorWindow, 100000.0f);
+            }
+            Check(editor.Tick(Frame), "the inspector must draw the source's effect list");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "audio_source_effects");
+        }
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestTheAudioSettingsAndMetersDraw()
     {
         namespace fs = std::filesystem;
@@ -4396,6 +4611,34 @@ namespace
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
             SaveScreenshot(*shotRenderer, 1024, 768, "audio_project_settings");
+        }
+        // **저장된 버스가 초안에 없으면 사라질 버스로 알린다**(D-305). 저장된 쪽에 `Gone` 을 더하면 창의 초안에는 없다.
+        // 알림은 그리기만 하고 아무것도 바꾸지 않는다 - 창을 그리는 동안 프로젝트가 그대로인지 본다.
+        JBro::ProjectFile saved = editor.GetProjectFile();
+        saved.audioBuses.Add(JBro::ProjectAudioBus{JBro::String("Gone"), 1.0f});
+        saved.audioMasterVolume = 0.5f;
+        Check(editor.SaveProjectSettings(saved, error), "the probe saves a project with one more bus");
+        Check(editor.GetAudio() != nullptr && std::fabs(editor.GetAudio()->GetMasterVolume() - 0.5f) < 1e-6f,
+            "the saved master volume reaches the audio system");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the warning about the bus that would go");
+        }
+        Check(editor.GetProjectFile().audioBuses.Size() == 4, "drawing the warning does not change the project");
+        // 알림은 버스 목록 끝에 있다 - 사진에 담기도록 마디를 닫고 창을 그 자리까지 내린다.
+        for (JBro::Int32 bus = 0; bus < 3; ++bus)
+        {
+            const ImGuiID seed = ImHashData(&bus, sizeof(bus), window->ID);
+            window->StateStorage.SetInt(LabelId(seed, effects), 0);
+            window->StateStorage.SetInt(LabelId(seed, routing), 0);
+        }
+        Check(editor.Tick(Frame), "the editor must draw the closed folds");
+        window->Scroll.y = window->ScrollMax.y * 0.2f;
+        window->ScrollTarget.y = window->Scroll.y;
+        Check(editor.Tick(Frame), "the editor must draw the scrolled settings");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "audio_project_settings_removed_bus");
         }
         editor.Shutdown();
         fs::remove_all(root, ignored);
@@ -8040,6 +8283,25 @@ namespace
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
             std::ofstream text(outside / "notes.txt", std::ios::binary);
             text << "not an asset";
+            // 0.1 초 무음 16 비트 모노 WAV(D-305). 가져오기가 소리를 받는지만 본다.
+            constexpr JBro::UInt32 frames = 4800;
+            std::vector<std::uint8_t> wav(44 + frames * 2, 0);
+            auto put32 = [&](std::size_t at, JBro::UInt32 value) { std::memcpy(wav.data() + at, &value, 4); };
+            auto put16 = [&](std::size_t at, std::uint16_t value) { std::memcpy(wav.data() + at, &value, 2); };
+            std::memcpy(wav.data(), "RIFF", 4);
+            put32(4, 36 + frames * 2);
+            std::memcpy(wav.data() + 8, "WAVEfmt ", 8);
+            put32(16, 16);
+            put16(20, 1);
+            put16(22, 1);
+            put32(24, 48000);
+            put32(28, 48000 * 2);
+            put16(32, 2);
+            put16(34, 16);
+            std::memcpy(wav.data() + 36, "data", 4);
+            put32(40, frames * 2);
+            std::ofstream sound(outside / "step.wav", std::ios::binary);
+            sound.write(reinterpret_cast<const char*>(wav.data()), static_cast<std::streamsize>(wav.size()));
         }
         const JBro::String projectPath = TempPath("JBroImportProbe\\Import.jproject");
         Check(WriteTextFile(projectPath,
@@ -8084,6 +8346,25 @@ namespace
             "the registry knows it without a manual rescan");
         Check(editor.GetSpriteViewerTabCount() == 1,
             "a picture opens in the sprite viewer right away, to set up its slicing");
+        Check(dialog.filterPattern.find("*.png") != JBro::String::npos && dialog.filterPattern.find("*.wav") != JBro::String::npos,
+            "the asset browser's import takes pictures and sounds alike (D-305)");
+
+        // **소리도 가져온다**(D-305). 처음에는 대화상자가 그림만 받아 에디터 안에서 소리를 들일 길이 없었다.
+        dialog.path = TempPath("JBroImportSource/step.wav");
+        editor.RequestImportAsset("sfx", JBro::EditorApplication::ImportFilter::Audio);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick through the audio import");
+        }
+        Check(dialog.filterPattern.find("*.wav") != JBro::String::npos && dialog.filterPattern.find("*.ogg") != JBro::String::npos
+                && dialog.filterPattern.find("*.png") == JBro::String::npos,
+            "the audio import asks for sound files only");
+        const JBro::AssetRecord* sound = editor.GetAssetRegistry().FindByPath("sfx/step.wav");
+        Check(sound != nullptr && sound->type == JBro::AssetType::Audio, "the sound is copied in and registered as audio");
+        Check(sound != nullptr && editor.GetSelectedAsset() == sound->id,
+            "and it is picked, so the inspector shows its import options right away");
+        Check(editor.GetSpriteViewerTabCount() == 1, "a sound does not open a sprite viewer");
+        dialog.path = TempPath("JBroImportSource/walk.png");
 
         // **같은 이름은 덮어쓰지 않는다.** 이미 있는 파일은 아이디를 들고 있다.
         const auto sizeBefore = fs::file_size(root / "Assets" / "art" / "walk.png", ignored);
@@ -14361,7 +14642,7 @@ namespace
         Check(JBro::EditorActions::MoveDrawOrder(editor, *objects[2], DrawOrderMove::ToBack), "C goes to the back");
         Check(sequences(0, -1, -2), "C is under B, which is under A");
 
-        // ── 메뉴: 계층 줄의 `SpriteRenderer2D` 하위 메뉴에서 `맨 앞으로 가져오기`(D-305) ─────────────
+        // ── 메뉴: 계층 줄의 `SpriteRenderer2D` 하위 메뉴에서 `맨 앞으로 가져오기`(D-307) ─────────────
         // 그리는 차례는 스프라이트의 값이라 그 컴포넌트 메뉴에 바로 선다. 오브젝트 메뉴의 `순서` 하위 메뉴는 없다.
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -14584,7 +14865,7 @@ namespace
         Check(submenu != nullptr, "hovering the line must open its submenu");
         Check(false == FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
             "a box collider has no edit points item - a box has no points to edit");
-        // 공용 항목은 복사·붙여넣기·제거다. 자리 옮기기는 없다(D-305).
+        // 공용 항목은 복사·붙여넣기·제거다. 자리 옮기기는 없다(D-307).
         const char* copyLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorCopyComponent, "Copy Component");
         Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, copyLabel), item),
             "the submenu carries the common items");
@@ -14921,6 +15202,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAudioSettingsAndMetersDraw();
+    TestTheSoundEffectEditorMakesAndPlaysAnEffect();
     TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();

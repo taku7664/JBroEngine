@@ -91,7 +91,7 @@ namespace JBro
         // 이미 열려 있는 메뉴 안에 `스크립트 추가` 하위 메뉴를 그린다(D-302). 붙였으면 참이다.
         Bool DrawAddScriptMenu(EditorApplication& editor, Object::GameObject& object);
         // **컴포넌트 하나의 메뉴 항목 한 벌**이다(D-298). 인스펙터의 컴포넌트 머리 메뉴와 오브젝트 메뉴의 컴포넌트 하위 메뉴가 같은 것을
-        // 그린다 - 복사·붙여넣기·값 붙여넣기, 그 타입에 더한 항목(D-220), 제거. `사용` 과 자리 옮기기는 없다(D-305).
+        // 그린다 - 복사·붙여넣기·값 붙여넣기, 그 타입에 더한 항목(D-220), 제거. `사용` 과 자리 옮기기는 없다(D-307).
         // 스크립트도 같은 한 벌이다(`kind`, D-302) - 자리 옮기기는 제 목록 안이고, 타입에 더한 항목은 컴포넌트만 갖는다.
         // 이미 열린 메뉴 안에서 부른다. **슬롯 배열을 바꿨으면 거짓이다** - 부르는 쪽은 그 프레임에 슬롯을 더 읽지 않는다.
         Bool DrawComponentMenuItems(EditorApplication& editor, Object::GameObject& object, std::size_t slot,

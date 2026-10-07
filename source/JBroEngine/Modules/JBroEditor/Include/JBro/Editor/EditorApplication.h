@@ -217,15 +217,28 @@ namespace JBro
         // **스프라이트 뷰어**에서 연다(D-155). 뿌리 도크에 메인 도크와 나란히 붙는 창이고,
         // 파일마다 탭이 하나다. 그림이 아니면 거짓이다.
         Bool OpenSpriteViewer(AssetId asset);
+        // **사운드 이펙트 창**에서 연다(D-306, 기존 `CEffectAssetOpenHandler`). 뿌리 도크에 메인 도크와 나란히 붙는 창이고 `.jfx` 마다
+        // 탭이 하나다. 이미 열려 있으면 그 탭을 앞으로 가져온다. `.jfx` 가 아니거나 읽지 못하면 거짓이다.
+        Bool OpenSoundEffectEditor(AssetId asset);
+        // `.jfx` 의 본문을 읽고 쓴다(D-306). 쓰면 실린 에셋을 제자리에서 다시 읽는다 - 재생 중인 소스의 사슬이 다시 시작하지 않고 바뀐다.
+        Bool ReadSoundEffect(AssetId asset, AudioEffectSettings& settings) const;
+        Bool WriteSoundEffect(AssetId asset, const AudioEffectSettings& settings);
 
         // **밖의 파일을 에셋 폴더로 가져온다**(D-156, 기존 `SpriteImporterWindow`·`ImporterWindowBase`).
         // 파일을 `relativeFolder` 아래로 **복사**하고 다시 훑어 등록한다 - `.jmeta` 는 스캔이 만든다.
         // 같은 이름이 이미 있으면 거절한다(덮어쓰면 그 파일을 가리키던 아이디가 다른 그림을 가리킨다).
         // 에셋이 아닌 확장자도 거절한다 - 복사는 되는데 목록에 나오지 않으면 가져온 것이 사라진 것처럼 보인다.
         Bool ImportAssetFile(const char* sourcePath, const char* relativeFolder, String* importedPath = nullptr);
-        // 파일 대화상자로 고르고 가져온다. 대화상자는 프레임 밖에서 뜬다. 그림이면 스프라이트 뷰어로 연다 -
-        // 기존 임포터가 가져오기 전에 옵션을 보였듯, 가져온 뒤 바로 자르는 옵션을 고칠 수 있게.
-        void RequestImportAsset(const char* relativeFolder);
+        // 가져오기 대화상자가 받는 파일이다. `Any` 는 그림과 소리를 다 받는다(D-305).
+        enum class ImportFilter : std::uint8_t
+        {
+            Any,
+            Image,
+            Audio
+        };
+        // 파일 대화상자로 고르고 가져온다. 대화상자는 프레임 밖에서 뜬다. 그림이면 스프라이트 뷰어로 열고, 소리면 그 에셋을
+        // 골라 인스펙터에 임포트 옵션을 띄운다 - 기존 임포터가 가져오기 전에 옵션을 보였듯, 가져온 뒤 바로 고칠 수 있게.
+        void RequestImportAsset(const char* relativeFolder, ImportFilter filter = ImportFilter::Any);
         std::size_t GetSpriteViewerTabCount() const;
         // 앞에 있는 뷰어 탭의 칸 번호다. 탭이 없으면 거짓이다.
         Bool GetSpriteViewerFrame(UInt32& frame) const;
@@ -664,6 +677,9 @@ namespace JBro
         // **새 문자열 표를 만든다**(D-226). `.jstrings` 를 쓰고, 프로젝트에 기본 언어(없으면 첫 언어)가 있으면 메타의 로케일로 적는다.
         // 고르고 에셋 브라우저에서 보인다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateStringTableAsset(const char* folder);
+        // **새 사운드 이펙트를 만든다**(D-306, 기존 `에셋 추가 ▸ Sound Effect`). `NewEffect.jfx`(잔향 기본값)를 겹치지 않는 이름으로 쓰고
+        // 등록한 뒤 고르고 편집 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
+        String CreateSoundEffectAsset(const char* folder);
         // **레이어를 레이어 에셋(`.jlayer`)으로 저장한다**(D-287, 기존 `SaveLayerAsAssetInFolder`). 에셋 폴더 아래 `folder` 에 레이어 이름으로 겹치지 않게 쓰고,
         // 그 레이어를 그 에셋에서 온 것으로 표시한다(커맨드 - 되돌리면 표시만 빠진다). 만든 파일의 경로이고 실패하면 빈 글자다.
         String SaveLayerAsAsset(LayerId layer, const char* folder);
@@ -1065,6 +1081,7 @@ namespace JBro
         // 가져오기 대화상자를 띄울 차례인가, 그리고 어느 폴더로 가져올 것인가.
         Bool m_importRequested = false;
         String m_importFolder;
+        ImportFilter m_importFilter = ImportFilter::Any;
         // 에셋의 작은 그림들. 프로젝트를 닫을 때 비운다 - 다음 프로젝트의 아이디는 다른 파일이다.
         OwnerPtr<EditorThumbnails> m_thumbnails;
         // 스프라이트의 실제 모양. 같은 이유로 프로젝트를 닫을 때 비운다.

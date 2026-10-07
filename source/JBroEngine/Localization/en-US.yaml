@@ -179,7 +179,6 @@ Entries:
   component_category.Physics: Physics
   component_category.Audio: Audio
   component_category.UI: UI
-  component_category.Script: Script
   component_category.Components: Components
   asset.none: (None)
   asset.missing: (Missing asset)
@@ -197,6 +196,8 @@ Entries:
   inspector.audio_play: "Play"
   inspector.audio_stop: "Stop"
   inspector.audio_loop: "Loop"
+  inspector.audio_position: Position
+  inspector.audio_spectrum: Spectrum
   inspector.audio_seek_hint: "Click to play from there"
   inspector.audio_off: "Audio is off in this editor"
   inspector.audio_unreadable: "This audio file could not be read"
@@ -223,6 +224,8 @@ Entries:
   project_settings.physics_matrix: "Layer Collisions"
   project_settings.physics_matrix_help: "Clear a box to let two layers pass through each other. Only named layers are shown"
   project_settings.audio_mute_help: "Mutes the sound while the window is not focused"
+  project_settings.audio_master_help: "The whole game's volume. Scripts can change it, and the listener's volume multiplies it"
+  project_settings.audio_buses_removed: "These buses disappear when you save; sounds that use them play on Master: %s"
   project_settings.audio_routing: "Routing"
   project_settings.audio_no_send: "None"
   project_settings.audio_parent_help: "Only buses above this one can be its parent"
@@ -406,6 +409,23 @@ Entries:
   new_script.failed: The script could not be created
   assets.new_font_family: New Font Family
   assets.new_string_table: New String Table
+  assets.new_sound_effect: New Sound Effect
+  inspector.sound_effect_hint: "Edit sound effects in their own window"
+  inspector.open_sound_effect: Open Effect Editor
+  sound_effect.title: Sound Effect
+  sound_effect.open: Open Sound Effect
+  sound_effect.none: "There are no sound effects in this project"
+  sound_effect.save: Save
+  sound_effect.nothing_to_save: "nothing has changed"
+  sound_effect.reload: Reload From Disk
+  sound_effect.close: Close
+  sound_effect.kind_help: "Changing the kind keeps the values of the parameters both kinds have"
+  sound_effect.apply: Apply
+  sound_effect.save_failed: "The sound effect could not be saved"
+  sound_effect.read_failed: "The sound effect file could not be read"
+  sound_effect.preview: Preview
+  sound_effect.test_sound: Test Sound
+  sound_effect.preview_hint: "Pick an audio asset above or drag one onto it, then play"
   assets.duplicate: Duplicate
   assets.copy_path: Copy Path
   assets.cut: Cut
@@ -423,6 +443,9 @@ Entries:
   menu.import_sprite: Import Sprite
   dialog.import_title: Import
   dialog.import_images: Images
+  dialog.import_audio: Audio
+  dialog.import_assets: Images and audio
+  menu.import_audio: Import Audio
   popup.import_failed: The file could not be imported
   sprite_viewer.title: Sprite Viewer
   sprite_viewer.loading: reading the picture

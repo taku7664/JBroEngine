@@ -931,6 +931,15 @@ namespace JBro
             else if (key == "EditorLocale") { parsed.editorLocale = value; }
             else if (key == "AudioOutputDevice") { parsed.audioOutputDevice = value; }
             else if (key == "AudioMuteWhenUnfocused") { recognized = ParseBool(value, parsed.audioMuteWhenUnfocused); }
+            else if (key == "AudioMasterVolume")
+            {
+                recognized = ParseFloat(value, parsed.audioMasterVolume);
+                if (recognized)
+                {
+                    parsed.audioMasterVolume = parsed.audioMasterVolume < 0.0f ? Float(0.0f)
+                        : (parsed.audioMasterVolume > 1.0f ? Float(1.0f) : parsed.audioMasterVolume);
+                }
+            }
             else if (key == "CanvasViewCameraX")
             {
                 if (false == ParseFloat(value, parsed.canvasViewCameraX))
@@ -1133,6 +1142,7 @@ namespace JBro
             {
                 value = project.audioMuteWhenUnfocused ? "true" : "false";
             }
+            else if (key == "AudioMasterVolume") { value = FormatFloat(project.audioMasterVolume); }
             else if (key == "CanvasViewCameraX") { value = FormatFloat(project.canvasViewCameraX); }
             else if (key == "CanvasViewCameraY") { value = FormatFloat(project.canvasViewCameraY); }
             else if (key == "CanvasViewCameraSize")
@@ -1161,6 +1171,7 @@ namespace JBro
                 || (key == "MaxFixedSteps" && project.maxFixedSteps == defaults.maxFixedSteps)
                 || (key == "MaxDeltaTime" && project.maxDeltaTime == defaults.maxDeltaTime)
                 || (key == "RandomSeed" && project.randomSeed == 0)
+                || (key == "AudioMasterVolume" && project.audioMasterVolume == 1.0f)
                 || (key == "AssetPackage" && project.assetPackage.empty());
         }
 
@@ -1195,7 +1206,7 @@ namespace JBro
             "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
             "AssetDirectory", "EditorLocale",
             "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize",
-            "AudioOutputDevice", "AudioMuteWhenUnfocused", "DefaultLocale", "FallbackLocale", "AssetPackage",
+            "AudioOutputDevice", "AudioMuteWhenUnfocused", "AudioMasterVolume", "DefaultLocale", "FallbackLocale", "AssetPackage",
             "FixedDeltaTime", "MaxFixedSteps", "MaxDeltaTime", "RandomSeed"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",

@@ -364,6 +364,23 @@ namespace JBro::LocKeys
     inline constexpr const char* NewScriptFailed = "new_script.failed";
     inline constexpr const char* AssetsNewFontFamily = "assets.new_font_family";
     inline constexpr const char* AssetsNewStringTable = "assets.new_string_table";
+    inline constexpr const char* AssetsNewSoundEffect = "assets.new_sound_effect";
+    inline constexpr const char* InspectorSoundEffectHint = "inspector.sound_effect_hint";
+    inline constexpr const char* InspectorOpenSoundEffect = "inspector.open_sound_effect";
+    inline constexpr const char* SoundEffectTitle = "sound_effect.title";
+    inline constexpr const char* SoundEffectOpen = "sound_effect.open";
+    inline constexpr const char* SoundEffectNone = "sound_effect.none";
+    inline constexpr const char* SoundEffectSave = "sound_effect.save";
+    inline constexpr const char* SoundEffectNothingToSave = "sound_effect.nothing_to_save";
+    inline constexpr const char* SoundEffectReload = "sound_effect.reload";
+    inline constexpr const char* SoundEffectClose = "sound_effect.close";
+    inline constexpr const char* SoundEffectKindHelp = "sound_effect.kind_help";
+    inline constexpr const char* SoundEffectApply = "sound_effect.apply";
+    inline constexpr const char* SoundEffectSaveFailed = "sound_effect.save_failed";
+    inline constexpr const char* SoundEffectReadFailed = "sound_effect.read_failed";
+    inline constexpr const char* SoundEffectPreview = "sound_effect.preview";
+    inline constexpr const char* SoundEffectTestSound = "sound_effect.test_sound";
+    inline constexpr const char* SoundEffectPreviewHint = "sound_effect.preview_hint";
     inline constexpr const char* AssetsDuplicate = "assets.duplicate";
     inline constexpr const char* AssetsCopyPath = "assets.copy_path";
     // 파일 클립보드(D-182). 오브젝트 쪽의 복사·붙여넣기와 **다른 키**다 - 같은 말이라도
@@ -383,6 +400,9 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuImportSprite = "menu.import_sprite";
     inline constexpr const char* DialogImportTitle = "dialog.import_title";
     inline constexpr const char* DialogImportImages = "dialog.import_images";
+    inline constexpr const char* DialogImportAudio = "dialog.import_audio";
+    inline constexpr const char* DialogImportAssets = "dialog.import_assets";
+    inline constexpr const char* MenuImportAudio = "menu.import_audio";
     inline constexpr const char* PopupImportFailed = "popup.import_failed";
     inline constexpr const char* SpriteViewerTitle = "sprite_viewer.title";
     inline constexpr const char* SpriteViewerLoading = "sprite_viewer.loading";
@@ -425,6 +445,8 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAudioPlay = "inspector.audio_play";
     inline constexpr const char* InspectorAudioStop = "inspector.audio_stop";
     inline constexpr const char* InspectorAudioLoop = "inspector.audio_loop";
+    inline constexpr const char* InspectorAudioPosition = "inspector.audio_position";
+    inline constexpr const char* InspectorAudioSpectrum = "inspector.audio_spectrum";
     inline constexpr const char* InspectorAudioSeekHint = "inspector.audio_seek_hint";
     inline constexpr const char* InspectorAudioOff = "inspector.audio_off";
     inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
@@ -451,6 +473,8 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsPhysicsMatrix = "project_settings.physics_matrix";
     inline constexpr const char* ProjectSettingsPhysicsMatrixHelp = "project_settings.physics_matrix_help";
     inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
+    inline constexpr const char* ProjectSettingsAudioMasterHelp = "project_settings.audio_master_help";
+    inline constexpr const char* ProjectSettingsAudioBusesRemoved = "project_settings.audio_buses_removed";
     inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
     inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";
     inline constexpr const char* ProjectSettingsAudioParentHelp = "project_settings.audio_parent_help";

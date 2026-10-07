@@ -61,6 +61,7 @@ namespace JBro::System
         // 듣는 자리: 첫 활성 리스너, 없으면 게임 카메라(`primary` 먼저), 그것도 없으면 원점에서 -Z 를 본다.
         const Component::Transform3D* listener = nullptr;
         UInt32 listeners = 0;
+        Float listenerVolume = 1.0f;
         canvas.ForEach<Component::AudioListener3D>([&](Component::AudioListener3D& candidate)
         {
             if (false == candidate.IsActiveComponent())
@@ -71,8 +72,14 @@ namespace JBro::System
             if (listener == nullptr)
             {
                 listener = WorldOf(canvas, candidate);
+                if (listener != nullptr)
+                {
+                    listenerVolume = candidate.volume;
+                }
             }
         });
+        // 리스너 컴포넌트가 없으면(카메라에서 듣는다) 1 이다(D-305).
+        m_audio.SetListenerVolume(listenerVolume);
         if (listeners > 1 && false == m_warnedListeners)
         {
             m_warnedListeners = true;

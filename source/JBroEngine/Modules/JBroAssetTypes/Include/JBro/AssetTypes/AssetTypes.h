@@ -45,7 +45,9 @@ namespace JBro
         // 게임 문자열 표다(D-226). 파일 하나가 로케일 하나이고(`키: 값` YAML), 로케일은 `.jmeta` 의 `StringTable` 블록에 있다.
         StringTable,
         // 레이어 에셋이다(D-287). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적은 `.jlayer` 다. 에디터가 계층에 끌어 넣는다.
-        Layer
+        Layer,
+        // 소리 이펙트 하나다(D-306, 기존 `.jfx`). 본문은 `Effect: { Kind, Parameters }` YAML 이고 `AudioSource.audioEffectIds` 가 차례로 건다.
+        AudioEffect
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반
@@ -148,6 +150,113 @@ namespace JBro
         Ascii,
         Ksx1001
     };
+
+    // ── 소리 이펙트 (D-306) ─────────────────────────────────────────────────────────────────────
+    // 이펙트의 종류다. `.jfx` 에는 이름으로 적힌다(`Kind: Reverb`). 앞의 일곱은 기존 엔진 `EAudioEffectKind` 와 같은 이름이고,
+    // 뒤의 셋은 버스 사슬(D-210)에 있던 DSP 를 소스에도 쓰게 한 것이다.
+    enum class AudioEffectKind : std::uint8_t
+    {
+        Reverb,
+        LowPass,
+        HighPass,
+        Echo,
+        Distortion,
+        Compressor,
+        Limiter,
+        Equalizer,
+        Chorus,
+        PitchShift,
+        Count
+    };
+
+    inline constexpr UInt32 AudioEffectMaxParams = 6;
+
+    // 파라미터 하나의 이름·기본값·범위다. 이름은 `.jfx` 의 키이고 편집 창이 그대로 보인다(필드는 필드 이름으로).
+    struct AudioEffectParam
+    {
+        const char* name = nullptr;
+        Float defaultValue = 0.0f;
+        Float minValue = 0.0f;
+        Float maxValue = 1.0f;
+    };
+
+    struct AudioEffectKindInfo
+    {
+        const char* name = nullptr;
+        UInt32 paramCount = 0;
+        AudioEffectParam params[AudioEffectMaxParams];
+    };
+
+    // **종류마다 파라미터 표가 여기 한 곳에 있다.** 기존 엔진은 에디터 표(`EffectParamSpecs`)와 재생 쪽이 따로 놀아 `q`·`delay`·
+    // `drive` 같은 키가 저장만 되고 소리에 닿지 않았다. 앞의 일곱은 기존 표의 이름·기본값·범위 그대로다.
+    inline constexpr AudioEffectKindInfo AudioEffectKinds[static_cast<std::size_t>(AudioEffectKind::Count)] =
+    {
+        {"Reverb", 5, {{"roomSize", 0.5f, 0.0f, 1.0f}, {"damping", 0.5f, 0.0f, 1.0f}, {"width", 1.0f, 0.0f, 1.0f},
+                       {"wet", 0.3f, 0.0f, 1.0f}, {"dry", 0.7f, 0.0f, 1.0f}}},
+        {"LowPass", 2, {{"cutoff", 1000.0f, 20.0f, 20000.0f}, {"q", 0.707f, 0.1f, 10.0f}}},
+        {"HighPass", 2, {{"cutoff", 1000.0f, 20.0f, 20000.0f}, {"q", 0.707f, 0.1f, 10.0f}}},
+        {"Echo", 3, {{"delay", 0.25f, 0.0f, 2.0f}, {"decay", 0.5f, 0.0f, 1.0f}, {"wet", 0.4f, 0.0f, 1.0f}}},
+        {"Distortion", 2, {{"drive", 0.5f, 0.0f, 1.0f}, {"wet", 1.0f, 0.0f, 1.0f}}},
+        {"Compressor", 2, {{"threshold", -12.0f, -60.0f, 0.0f}, {"ratio", 4.0f, 1.0f, 20.0f}}},
+        {"Limiter", 2, {{"threshold", -12.0f, -60.0f, 0.0f}, {"ratio", 4.0f, 1.0f, 20.0f}}},
+        {"Equalizer", 6, {{"lowGain", 0.0f, -24.0f, 24.0f}, {"lowHz", 200.0f, 20.0f, 1000.0f}, {"midGain", 0.0f, -24.0f, 24.0f},
+                          {"midHz", 1000.0f, 100.0f, 8000.0f}, {"highGain", 0.0f, -24.0f, 24.0f}, {"highHz", 5000.0f, 1000.0f, 16000.0f}}},
+        {"Chorus", 3, {{"mix", 0.5f, 0.0f, 1.0f}, {"rate", 0.8f, 0.05f, 10.0f}, {"depth", 3.0f, 0.0f, 8.0f}}},
+        {"PitchShift", 1, {{"semitones", 12.0f, -12.0f, 12.0f}}},
+    };
+
+    // 모르는 종류는 Reverb 로 본다(기존 엔진과 같다).
+    inline const AudioEffectKindInfo& GetAudioEffectKindInfo(AudioEffectKind kind)
+    {
+        const std::size_t index = static_cast<std::size_t>(kind);
+        return AudioEffectKinds[index < static_cast<std::size_t>(AudioEffectKind::Count) ? index : 0];
+    }
+
+    // `.jfx` 하나의 값이다. `values` 는 그 종류의 파라미터 표 차례다(남는 칸은 0). 스크립트·DLL 경계를 넘는 POD 다.
+    struct AudioEffectSettings
+    {
+        AudioEffectKind kind = AudioEffectKind::Reverb;
+        Float values[AudioEffectMaxParams] = {0.5f, 0.5f, 1.0f, 0.3f, 0.7f, 0.0f};
+    };
+
+    // 그 종류의 기본값이다.
+    inline AudioEffectSettings MakeAudioEffect(AudioEffectKind kind)
+    {
+        AudioEffectSettings settings;
+        const AudioEffectKindInfo& info = GetAudioEffectKindInfo(kind);
+        settings.kind = static_cast<std::size_t>(kind) < static_cast<std::size_t>(AudioEffectKind::Count) ? kind : AudioEffectKind::Reverb;
+        for (UInt32 index = 0; index < AudioEffectMaxParams; ++index)
+        {
+            settings.values[index] = index < info.paramCount ? info.params[index].defaultValue : Float(0.0f);
+        }
+        return settings;
+    }
+
+    // 종류를 바꾼다. 같은 이름의 파라미터는 값을 잇고 나머지는 기본값이다(기존 `NormalizeEffectParams`).
+    inline AudioEffectSettings ChangeAudioEffectKind(const AudioEffectSettings& from, AudioEffectKind kind)
+    {
+        AudioEffectSettings to = MakeAudioEffect(kind);
+        const AudioEffectKindInfo& before = GetAudioEffectKindInfo(from.kind);
+        const AudioEffectKindInfo& after = GetAudioEffectKindInfo(to.kind);
+        for (UInt32 index = 0; index < after.paramCount; ++index)
+        {
+            for (UInt32 old = 0; old < before.paramCount; ++old)
+            {
+                const char* a = after.params[index].name;
+                const char* b = before.params[old].name;
+                while (*a != '\0' && *a == *b)
+                {
+                    ++a;
+                    ++b;
+                }
+                if (*a == *b)
+                {
+                    to.values[index] = from.values[old];
+                }
+            }
+        }
+        return to;
+    }
 
     struct FontImportOptions
     {
