@@ -46,6 +46,9 @@ namespace JBro
         // 안에서 디바이스까지 놓아 버리므로, 이 경우가 실제로 일어난다.
         void AbandonDevice();
         Bool IsInitialized() const;
+        // **시스템 클립보드 대신 이 UI 안의 글자를 쓴다**(D-313). 숨은 창으로 뜬 에디터(시험·도구)가 쓴다 - 사용자가 복사해 둔 것을 덮지 않고,
+        // 같은 기계에서 도는 다른 에디터와 섞이지 않는다. `Initialize` 뒤에 부른다.
+        void UsePrivateClipboard();
 
         // 플랫폼이 모은 입력을 넘긴다. **`BeginFrame` 앞에서 부른다** -
         // ImGui 는 `NewFrame` 에서 이번 프레임의 입력 상태를 굳히므로, 그 뒤에
@@ -110,6 +113,7 @@ namespace JBro
         std::size_t m_lastDrawCount = 0;
         // ImGui 컨텍스트는 이 객체가 소유한다. 여러 개를 만들 일이 없으므로 숨긴다.
         void* m_context = nullptr;
+        String m_privateClipboard;
         Bool m_frameOpen = false;
         Bool m_initialized = false;
     };

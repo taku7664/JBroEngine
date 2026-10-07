@@ -152,6 +152,23 @@ namespace JBro
         Shutdown();
     }
 
+    void EditorUI::UsePrivateClipboard()
+    {
+        if (m_context == nullptr)
+        {
+            return;
+        }
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
+        ImGuiPlatformIO& platform = ImGui::GetPlatformIO();
+        platform.Platform_ClipboardUserData = this;
+        platform.Platform_GetClipboardTextFn = [](ImGuiContext*) -> const char* {
+            return static_cast<EditorUI*>(ImGui::GetPlatformIO().Platform_ClipboardUserData)->m_privateClipboard.c_str();
+        };
+        platform.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) {
+            static_cast<EditorUI*>(ImGui::GetPlatformIO().Platform_ClipboardUserData)->m_privateClipboard = text != nullptr ? text : "";
+        };
+    }
+
     Bool EditorUI::Initialize(IRHIDevice& device, TextureFormat backBufferFormat, GraphicsApi api)
     {
         if (m_initialized)

@@ -228,10 +228,7 @@ namespace JBro
     // 붙인 것을 지우고, 다시 하면 **같은 번호로** 되살린다 - 붙여 넣은 것을 골라 고친 커맨드가
     // 그 뒤에 쌓여 있다.
     //
-    // 클립보드는 글자가 아니라 스냅샷이다. 기존 엔진은 YAML 글자를 시스템 클립보드에 두어
-    // 프로세스 사이에서도 붙일 수 있었지만, 지금 캔버스 파일 쓰기는 캔버스 전체 단위라
-    // 부분 나무의 글자 왕복이 없다. 에디터 안에서만 붙는다 - 프로세스를 넘는 것은 그 왕복이
-    // 생길 때 한다.
+    // 떠 둔 스냅샷을 붙인다. 에디터의 클립보드는 글자라 `PasteObjectsTextCommand` 를 쓴다(D-313) - 이것은 스냅샷을 이미 든 쪽이 쓴다.
     class PasteObjectsCommand final : public EditorCommand
     {
     public:
@@ -261,5 +258,41 @@ namespace JBro
         Array<ObjectTreeSnapshot> m_trees;
         // 한 번 붙였는가. 첫 실행은 새 번호를 받고, 그 뒤는 그 번호에 다시 건다.
         Bool m_pasted = false;
+    };
+
+    // **클립보드의 YAML 글자를 붙인다**(D-313, 기존 `CPasteObjectsCommand`). 첫 실행은 `ReadObjectsText` 로 새 오브젝트를 만들고 그 나무를
+    // 떠 둔다. 되돌리기는 그 나무를 지우고, 다시 하기는 떠 둔 것을 같은 번호로 되살린다(`AddLayerFromAssetCommand` 와 같은 길).
+    // 나무를 뜨지 못하면 만든 것을 거두고 실패한다 - 되살릴 값이 없는 것을 남기지 않는다.
+    class PasteObjectsTextCommand final : public EditorCommand
+    {
+    public:
+        // `parentId` 아래에 붙인다(없으면 캔버스 뿌리). `layer` 가 있으면 그 레이어다. `session` 은 붙이는 에디터의 것이다.
+        PasteObjectsTextCommand(Canvas& canvas, EditorObjectRegistry& registry, String text, EditorObjectId parentId,
+            LayerId layer, String session);
+
+        const char* GetName() const override;
+        EditorObjectId GetSubject() const override;
+        Bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+        Array<EditorObjectId> GetPastedRootIds() const;
+        // 첫 실행이 실패했으면 까닭이다.
+        const String& GetError() const
+        {
+            return m_error;
+        }
+
+    private:
+        Canvas* m_canvas = nullptr;
+        EditorObjectRegistry* m_registry = nullptr;
+        String m_text;
+        EditorObjectId m_parentId = InvalidEditorObjectId;
+        LayerId m_layer = InvalidLayerId;
+        String m_session;
+        Array<ObjectTreeSnapshot> m_trees;
+        Bool m_captured = false;
+        Bool m_present = false;
+        String m_error;
     };
 }

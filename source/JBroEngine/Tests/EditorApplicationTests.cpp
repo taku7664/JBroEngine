@@ -2842,6 +2842,15 @@ namespace
         editor.SelectObjects({chosen, 2});
         Check(editor.CopySelection(), "copying the chosen tree must go through");
         Check(editor.HasClipboard(), "and fill the clipboard");
+        // **클립보드는 YAML 글자다**(D-313). 숨은 창의 에디터라 제 안의 클립보드지만, 보이는 에디터는 같은 글자를 시스템 클립보드에 둔다.
+        {
+            const JBro::String copiedText = editor.GetClipboardText();
+            Check(JBro::IsObjectsText(copiedText.c_str()) && copiedText.find("Name: Alpha") != JBro::String::npos
+                    && copiedText.find("Name: Leaf") != JBro::String::npos && copiedText.find("Name: Holder") == JBro::String::npos,
+                "the clipboard holds the copied tree as YAML text");
+            Check(ImGui::GetClipboardText() != nullptr && std::strcmp(ImGui::GetClipboardText(), copiedText.c_str()) == 0,
+                "through the UI's clipboard");
+        }
 
         const std::size_t before = canvas->GetObjectCount();
         const std::size_t undo = editor.GetCommands().GetUndoCount();
@@ -2937,9 +2946,10 @@ namespace
                   == nullptr,
             "but playing is available with a canvas open");
 
-        // 프로젝트를 닫으면 클립보드도 비운다.
+        // 프로젝트를 닫으면 붙일 곳이 없다. 클립보드의 글자는 남는다(D-313) - 다음 프로젝트에 붙여도 된다.
         editor.CloseProject();
-        Check(false == editor.HasClipboard(), "closing the project must empty the clipboard");
+        Check(false == editor.HasClipboard(), "with no project there is nothing to paste into");
+        Check(JBro::IsObjectsText(editor.GetClipboardText()), "but the copied text is still on the clipboard");
         // 프로젝트가 없으면 **먼저 풀어야 하는 것**을 말한다. 붙여넣기에 대고
         // "복사해 둔 것이 없습니다" 라고 하면 복사할 것을 찾다 끝난다.
         const char* noProject

@@ -43,7 +43,13 @@ namespace JBro::ViewCamera
         }
         const float delta = std::clamp(deltaSeconds.Get(), 0.001f, 0.1f);
         const float step = 1.0f - std::exp(-SmoothSpeed * delta);
-        camera.zoom = camera.zoom.Get() + zoomLeft * step;
+        // **줌이 아니라 보이는 크기(1/줌)를 따라간다** - 캔버스 뷰가 직교 크기를 따라가는 것과 같다.
+        // 휠이 붙잡은 점이 화면 자리 s 에 있으려면 pan = anchor - (s - origin) x 크기 다. pan 과 크기를 같은 몫으로
+        // 옮기면 그 식이 가는 내내 지켜져, 따라가는 도중에도 마우스 아래 점이 움직이지 않는다. 줌을 옮기면 pan 과
+        // 어긋나 화면이 지금 자리에서 커졌다가 옆으로 미끄러진다.
+        const float scale = 1.0f / camera.zoom.Get();
+        const float goalScale = 1.0f / camera.goalZoom.Get();
+        camera.zoom = 1.0f / (scale + (goalScale - scale) * step);
         camera.pan = Vector2{camera.pan.x.Get() + panLeftX * step, camera.pan.y.Get() + panLeftY * step};
     }
 

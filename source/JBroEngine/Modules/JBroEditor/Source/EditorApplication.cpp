@@ -87,6 +87,8 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 
@@ -149,6 +151,12 @@ namespace JBro
     {
         // 노드 그래프의 도메인이다(D-308). 셰이더 그래프가 서면 여기에 더한다.
         m_nodeGraphDomains->Add(NodeGraph::MakeMathDomain());
+        // 프로세스마다 다르면 된다 - 이 객체의 주소와 지금 시각이다(D-313).
+        char session[64];
+        std::snprintf(session, sizeof(session), "%llx-%llx",
+            static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(this)),
+            static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count()));
+        m_clipboardSession = session;
     }
 
     NodeGraph::DomainRegistry& EditorApplication::GetNodeGraphDomains()
@@ -180,6 +188,7 @@ namespace JBro
         {
             m_fileDialog = config.fileDialog;
             m_fileDialogUser = config.fileDialogUser;
+            m_privateClipboard = false == config.windowVisible;
             m_openPath = config.openPath;
             m_openPathUser = config.openPathUser;
             m_platform = MakeOwnerPtr<WindowsPlatform>();
@@ -1997,9 +2006,38 @@ namespace JBro
             Log::Write(LogLevel::Error, "editor", "the layer could not be copied: %s", error.message.c_str());
             return false;
         }
-        m_layerClipboard = std::move(text);
-        m_layerClipboardLatest = true;
+        SetClipboardText(text);
         return true;
+    }
+
+    const char* EditorApplication::GetClipboardText() const
+    {
+        if (m_uiEnabled && ImGui::GetCurrentContext() != nullptr)
+        {
+            const char* text = ImGui::GetClipboardText();
+            return text != nullptr ? text : "";
+        }
+        return m_clipboardFallback.c_str();
+    }
+
+    void EditorApplication::SetClipboardText(const String& text)
+    {
+        if (m_uiEnabled && ImGui::GetCurrentContext() != nullptr)
+        {
+            ImGui::SetClipboardText(text.c_str());
+            return;
+        }
+        m_clipboardFallback = text;
+    }
+
+    Bool EditorApplication::HasClipboard() const
+    {
+        return GetCanvas() != nullptr && IsObjectsText(GetClipboardText());
+    }
+
+    Bool EditorApplication::HasLayerClipboard() const
+    {
+        return GetCanvas() != nullptr && IsLayerText(GetClipboardText());
     }
 
     LayerId EditorApplication::PasteLayer()
@@ -2010,7 +2048,7 @@ namespace JBro
             return InvalidLayerId;
         }
         // 원본 에셋이 없는 레이어다 - 복사한 레이어가 에셋에서 왔어도 붙인 것은 그 에셋의 사본이 아니다.
-        auto command = MakeOwnerPtr<AddLayerFromAssetCommand>(*canvas, GetObjectIds(), m_layerClipboard, Uuid{});
+        auto command = MakeOwnerPtr<AddLayerFromAssetCommand>(*canvas, GetObjectIds(), String(GetClipboardText()), Uuid{});
         AddLayerFromAssetCommand* raw = command.Get();
         if (false == GetCommands().Execute(std::move(command)))
         {
@@ -2024,31 +2062,27 @@ namespace JBro
     Bool EditorApplication::CopySelection()
     {
         const Array<Object::GameObject*> roots = GetTopLevelSelectedObjects();
-        const Canvas* canvas = GetCanvas();
+        Canvas* canvas = GetCanvas();
         if (roots.IsEmpty() || canvas == nullptr)
         {
             return false;
         }
-        m_layerClipboardLatest = false;
-        Array<ObjectTreeSnapshot> copied;
-        for (std::size_t index = 0; index < roots.Size(); ++index)
+        String text;
+        CanvasFileError error;
+        if (false == WriteObjectsText(*canvas, roots, m_clipboardSession.c_str(), text, error))
         {
-            ObjectTreeSnapshot tree;
-            if (roots[index] == nullptr || false == tree.Capture(*canvas, m_objectIds, *roots[index]))
-            {
-                // 하나라도 뜨지 못하면 클립보드를 건드리지 않는다. 반쪽을 붙이게 두지 않는다.
-                return false;
-            }
-            copied.Add(std::move(tree));
+            // 하나라도 뜨지 못하면 클립보드를 건드리지 않는다. 반쪽을 붙이게 두지 않는다.
+            Log::Write(LogLevel::Warning, "editor", "the objects could not be copied: %s", error.message.c_str());
+            return false;
         }
-        m_clipboard = std::move(copied);
+        SetClipboardText(text);
         return true;
     }
 
     Bool EditorApplication::PasteClipboard(Bool asChild)
     {
         Canvas* canvas = GetCanvas();
-        if (canvas == nullptr || m_clipboard.IsEmpty())
+        if (canvas == nullptr || false == HasClipboard())
         {
             return false;
         }
@@ -2064,23 +2098,16 @@ namespace JBro
             }
         }
         // **레이어를 골랐으면 그 레이어에 붙인다**(D-279). 뿌리로 붙으므로 나무 전체가 그 레이어로 간다 - 자식만 다른 레이어에
-        // 남으면 부모와 다른 칸에 놓인다. 떠 둔 클립보드는 그대로 두고 이번 붙여넣기의 사본만 바꾼다.
-        Array<ObjectTreeSnapshot> trees = m_clipboard;
-        const LayerId layer = GetSelectedLayer();
-        if (layer != InvalidLayerId)
-        {
-            for (std::size_t tree = 0; tree < trees.Size(); ++tree)
-            {
-                for (std::size_t entry = 0; entry < trees[tree].objects.Size(); ++entry)
-                {
-                    trees[tree].objects[entry].layer = layer;
-                }
-            }
-        }
-        auto command = MakeOwnerPtr<PasteObjectsCommand>(*canvas, m_objectIds, trees, parentId);
-        PasteObjectsCommand* raw = command.Get();
+        // 남으면 부모와 다른 칸에 놓인다.
+        auto command = MakeOwnerPtr<PasteObjectsTextCommand>(
+            *canvas, m_objectIds, String(GetClipboardText()), parentId, GetSelectedLayer(), m_clipboardSession);
+        PasteObjectsTextCommand* raw = command.Get();
         if (false == m_commands.Execute(std::move(command)))
         {
+            if (false == raw->GetError().empty())
+            {
+                Log::Write(LogLevel::Error, "editor", "the clipboard could not be pasted: %s", raw->GetError().c_str());
+            }
             return false;
         }
         const Array<EditorObjectId> pasted = raw->GetPastedRootIds();
@@ -3548,7 +3575,6 @@ namespace JBro
         SetSelectedAsset({});
         m_commands.Clear();
         m_objectIds.Clear();
-        m_clipboard.Clear();
         CancelSpriteFramePick();
         if (false == canvas->Clear())
         {
@@ -3816,6 +3842,10 @@ namespace JBro
             device->DestroyTexture(m_simulationView);
             m_simulationView = {};
             return false;
+        }
+        if (m_privateClipboard)
+        {
+            m_ui.UsePrivateClipboard();
         }
 
         FrameTarget target;
@@ -6355,8 +6385,7 @@ namespace JBro
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();
         m_saveRequested = false;
-        // 클립보드의 번호는 이 프로젝트의 것이다. 다음 프로젝트에서 그 번호를 믿지 않도록 비운다.
-        m_clipboard.Clear();
+        // 오브젝트 클립보드는 글자라 프로젝트를 닫아도 둔다(D-313). 바깥 참조의 `@` 번호는 지운 오브젝트를 가리켜 붙이면 빈 참조가 된다.
         // 컴포넌트 클립보드에는 에셋 번호가 든 값이 있다. 그 번호도 이 프로젝트의 것이다(D-167).
         m_componentClipboard = ComponentSnapshot();
         m_hasComponentClipboard = false;

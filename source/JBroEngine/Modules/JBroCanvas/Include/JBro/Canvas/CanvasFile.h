@@ -11,6 +11,10 @@
 namespace JBro
 {
     class Canvas;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 캔버스를 `.jcanvas` 로 적는다. 기존 엔진의 확장자와 키 이름·들여쓰기 관례를 따르되,
     // **그 쪽 씬 파일을 읽지는 않는다** — 거기 있는 컴포넌트(`Square2D`, `Text2D`, `Light2D`,
@@ -74,6 +78,29 @@ namespace JBro
     // 같은 에셋을 두 번 넣으면 서로 다른 두 벌이다(기존 엔진은 오브젝트 GUID 를 되살려 두 번 넣지 못했다). 원본 에셋 표시는 부르는 쪽이 단다.
     // 읽다 실패하면 만든 것을 모두 거두고 거짓이다 - 캔버스는 읽기 전 그대로다.
     Bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error);
+    // 글자가 레이어 에셋의 모양인가. 첫 키 둘만 본다 - 메뉴가 프레임마다 묻는다.
+    Bool IsLayerText(const char* text);
+
+    // **오브젝트 클립보드**(D-313, 기존 `Serialization::SerializeObjects`). 복사는 고른 나무를 캔버스 파일과 같은 모양의 YAML 로 적어
+    // 시스템 클립보드에 둔다 - 다른 에디터 창·글 편집기로 옮겨도 읽힌다. 맨 앞 키 `ObjectsVersion` 이 표식이다.
+    // 나무 안을 가리키는 참조는 파일 안 번호로, 나무 밖을 가리키는 참조는 이번 실행의 번호(`@123`)로 적는다 - 붙여넣은 사본도 원본과 같은
+    // 바깥을 잡는다(D-233). `session` 은 이 프로세스를 가리키는 글자이고, 읽는 쪽이 다르면 `@` 번호를 버린다.
+    // `roots` 는 서로의 조상이 아니어야 한다(고른 것 중 맨 위 것들). 뜨지 못하는 컴포넌트가 하나라도 있으면 거짓이고 `text` 는 그대로다.
+    Bool WriteObjectsText(Canvas& canvas, const Array<Object::GameObject*>& roots, const char* session, String& text, CanvasFileError& error);
+    Bool IsObjectsText(const char* text);
+
+    // 어디에 붙이는가. `parent` 가 있으면 그 아래, 레이어는 `layer` → 부모의 레이어 → 글자에 적힌 레이어(이 캔버스에 있으면) → 기본 레이어 순이다.
+    struct ObjectsTextTarget
+    {
+        Object::GameObject* parent = nullptr;
+        LayerId layer = InvalidLayerId;
+        const char* session = nullptr;
+    };
+
+    // 오브젝트 클립보드 글자를 새 오브젝트로 읽어 넣는다. 만든 뿌리를 글자의 차례로 `roots` 에 둔다.
+    // 읽다 실패하면 만든 것을 모두 거두고 거짓이다 - 캔버스는 읽기 전 그대로다.
+    Bool ReadObjectsText(Canvas& canvas, const char* text, std::size_t length, const ObjectsTextTarget& target,
+        Array<Object::GameObject*>& roots, CanvasFileError& error);
     // ── 스크립트 핫 리로드의 두 걸음(cpp-script-plan §3.5, D-300) ────────────────────────────
     //
     // DLL 을 내리기 전에 `KeepScriptsAsText` 로 이름으로 붙인 스크립트를 모두 글자로 떠서 모르는 스크립트(D-264)로 옮기고,

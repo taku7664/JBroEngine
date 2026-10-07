@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/Command/ObjectCommands.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -296,6 +297,124 @@ namespace JBro
     }
 
     Array<EditorObjectId> PasteObjectsCommand::GetPastedRootIds() const
+    {
+        Array<EditorObjectId> ids;
+        for (std::size_t index = 0; index < m_trees.Size(); ++index)
+        {
+            ids.Add(m_trees[index].GetRootId());
+        }
+        return ids;
+    }
+
+    // ── PasteObjectsTextCommand ──────────────────────────────────────────
+
+    PasteObjectsTextCommand::PasteObjectsTextCommand(Canvas& canvas, EditorObjectRegistry& registry, String text,
+        EditorObjectId parentId, LayerId layer, String session)
+        : m_canvas(&canvas)
+        , m_registry(&registry)
+        , m_text(std::move(text))
+        , m_parentId(parentId)
+        , m_layer(layer)
+        , m_session(std::move(session))
+    {
+    }
+
+    const char* PasteObjectsTextCommand::GetName() const
+    {
+        return "Paste Objects";
+    }
+
+    EditorObjectId PasteObjectsTextCommand::GetSubject() const
+    {
+        return m_trees.IsEmpty() ? InvalidEditorObjectId : m_trees[0].GetRootId();
+    }
+
+    Bool PasteObjectsTextCommand::Execute()
+    {
+        if (m_captured)
+        {
+            Redo();
+            return m_present;
+        }
+        // 부모가 지워졌으면 뿌리에 붙이지 않고 거절한다. 사용자가 고른 자리가 아니다.
+        Object::GameObject* parent = nullptr;
+        if (m_parentId != InvalidEditorObjectId)
+        {
+            parent = m_registry->Resolve(m_parentId);
+            if (parent == nullptr)
+            {
+                return false;
+            }
+        }
+        ObjectsTextTarget target;
+        target.parent = parent;
+        target.layer = m_layer;
+        target.session = m_session.c_str();
+        Array<Object::GameObject*> roots;
+        CanvasFileError error;
+        if (false == ReadObjectsText(*m_canvas, m_text.c_str(), m_text.size(), target, roots, error))
+        {
+            m_error = error.message;
+            return false;
+        }
+        for (std::size_t index = 0; index < roots.Size(); ++index)
+        {
+            ObjectTreeSnapshot tree;
+            if (false == tree.Capture(*m_canvas, *m_registry, *roots[index]))
+            {
+                // **되살릴 값을 뜨지 못하면 넣은 것도 거둔다**(§11.5).
+                for (std::size_t back = 0; back < roots.Size(); ++back)
+                {
+                    m_canvas->DestroyObject(roots[back]);
+                }
+                m_canvas->FlushPendingDestroy();
+                m_trees.Clear();
+                m_error = "the pasted objects could not be captured for undo";
+                return false;
+            }
+            m_trees.Add(std::move(tree));
+        }
+        m_captured = true;
+        m_present = true;
+        return true;
+    }
+
+    void PasteObjectsTextCommand::Undo()
+    {
+        if (false == m_present)
+        {
+            return;
+        }
+        for (std::size_t index = m_trees.Size(); index > 0; --index)
+        {
+            m_trees[index - 1].DestroyRoot(*m_canvas, *m_registry);
+        }
+        m_present = false;
+    }
+
+    void PasteObjectsTextCommand::Redo()
+    {
+        if (false == m_captured || m_present)
+        {
+            return;
+        }
+        Object::GameObject* parent = nullptr;
+        if (m_parentId != InvalidEditorObjectId)
+        {
+            parent = m_registry->Resolve(m_parentId);
+            if (parent == nullptr)
+            {
+                return;
+            }
+        }
+        for (std::size_t index = 0; index < m_trees.Size(); ++index)
+        {
+            m_trees[index].Restore(*m_canvas, *m_registry, parent, true);
+        }
+        m_present = true;
+    }
+
+    Array<EditorObjectId> PasteObjectsTextCommand::GetPastedRootIds() const
     {
         Array<EditorObjectId> ids;
         for (std::size_t index = 0; index < m_trees.Size(); ++index)

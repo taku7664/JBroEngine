@@ -23,6 +23,7 @@
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -974,6 +975,103 @@ namespace
         Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer blend is refused");
     }
 
+    // **오브젝트 클립보드 글자**(D-313, 기존 `Serialization::SerializeObjects`). 고른 나무를 캔버스 파일 모양으로 적고 새 오브젝트로 읽어 넣는다.
+    // 나무 안의 참조는 새 사본끼리, 나무 밖의 참조는 같은 프로세스의 글자면 원본을 그대로 잡고(D-233), 다른 프로세스의 글자면 비어 온다.
+    // 사람이 고친 글자도 읽고, 읽지 못하면 캔버스는 그대로다.
+    void TestObjectsTextCopiesATreeAsYaml()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::Object::GameObject* outside = canvas.CreateObject("Outside");
+        JBro::Layer& props = canvas.CreateLayer("Props");
+        JBro::Object::GameObject* holder = canvas.CreateObject("Holder");
+        JBro::Object::GameObject* crate = canvas.CreateObject("Crate");
+        JBro::Object::GameObject* lid = canvas.CreateObject("Lid");
+        crate->SetParent(holder);
+        lid->SetParent(crate);
+        canvas.SetObjectLayer(crate, props.GetId());
+        canvas.AttachComponent<JBro::Component::Transform2D>(crate)->position = {3.0f, 4.0f};
+        canvas.AttachComponent<JBro::Component::DistanceJoint2D>(lid)->connectedObject = crate->GetScriptHandle();
+        canvas.AttachComponent<JBro::Component::DistanceJoint2D>(crate)->connectedObject = outside->GetScriptHandle();
+
+        JBro::Array<JBro::Object::GameObject*> roots;
+        roots.Add(crate);
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteObjectsText(canvas, roots, "here", text, error), "a tree writes as clipboard text");
+        Check(JBro::IsObjectsText(text.c_str()) && false == JBro::IsLayerText(text.c_str()), "and says it holds objects");
+        Check(text.find("Name: Crate") != JBro::String::npos && text.find("Name: Lid") != JBro::String::npos
+                && text.find("Name: Holder") == JBro::String::npos && text.find("Name: Outside") == JBro::String::npos,
+            "it holds the chosen tree and nothing above or beside it");
+        Check(text.find("ParentIndex: -1") != JBro::String::npos, "the chosen root is written as a root - its parent is not in the text");
+        char outsideRef[32];
+        std::snprintf(outsideRef, sizeof(outsideRef), "@%llu", static_cast<unsigned long long>(outside->GetInstanceId().Get()));
+        Check(text.find(outsideRef) != JBro::String::npos, "a reference out of the tree is written as this run's object number");
+
+        const auto find = [](JBro::Canvas& where, const char* name, JBro::Object::GameObject* skip) {
+            JBro::Object::GameObject* found = nullptr;
+            where.ForEachObject([&](JBro::Object::GameObject& object) {
+                if (&object != skip && std::strcmp(object.GetName(), name) == 0)
+                {
+                    found = &object;
+                }
+            });
+            return found;
+        };
+
+        // 같은 프로세스: 뿌리에, 적힌 레이어로.
+        JBro::Array<JBro::Object::GameObject*> pasted;
+        JBro::ObjectsTextTarget here;
+        here.session = "here";
+        Check(JBro::ReadObjectsText(canvas, text.c_str(), text.size(), here, pasted, error), "the text pastes back");
+        Check(pasted.Size() == 1 && pasted[0] != crate && std::strcmp(pasted[0]->GetName(), "Crate") == 0 && pasted[0]->GetParent() == nullptr,
+            "as a new root - the paste decides where it hangs, not the text");
+        Check(pasted[0]->GetLayerId() == props.GetId(), "on the layer it was copied from");
+        JBro::Object::GameObject* lidCopy = pasted[0]->GetChildren().Size() == 1 ? pasted[0]->GetChildren()[0].TryGet() : nullptr;
+        Check(lidCopy != nullptr && lidCopy != lid && lidCopy->GetLayerId() == props.GetId(), "with its child on the same layer");
+        Check(canvas.FindComponentRaw<JBro::Component::Transform2D>(pasted[0])->position.x == 3.0f, "and its values");
+        Check(canvas.FindComponentRaw<JBro::Component::DistanceJoint2D>(lidCopy)->connectedObject.GetInstanceId() == pasted[0]->GetInstanceId(),
+            "a reference inside the tree joins the copy");
+        Check(canvas.FindComponentRaw<JBro::Component::DistanceJoint2D>(pasted[0])->connectedObject.GetInstanceId() == outside->GetInstanceId(),
+            "a reference out of the tree still points at the original (D-233)");
+
+        // 부모 아래로: 부모의 레이어를 따른다.
+        JBro::ObjectsTextTarget under = here;
+        under.parent = outside;
+        Check(JBro::ReadObjectsText(canvas, text.c_str(), text.size(), under, pasted, error)
+                && pasted.Size() == 1 && pasted[0]->GetParent() == outside && pasted[0]->GetLayerId() == outside->GetLayerId(),
+            "pasted under a parent it hangs there, on the parent's layer");
+
+        // 다른 프로세스가 쓴 글자: 바깥 번호는 이 프로세스의 아무것이나 가리킬 수 있어 버린다. 레이어가 없으면 기본 레이어다.
+        JBro::Canvas other(JBro::CreateDefaultAllocator());
+        JBro::ObjectsTextTarget elsewhere;
+        elsewhere.session = "elsewhere";
+        Check(JBro::ReadObjectsText(other, text.c_str(), text.size(), elsewhere, pasted, error) && pasted.Size() == 1,
+            "the text pastes into another canvas");
+        Check(pasted[0]->GetLayerId() == other.GetDefaultLayer(), "a layer that canvas does not have becomes the default layer");
+        Check(false == other.FindComponentRaw<JBro::Component::DistanceJoint2D>(pasted[0])->connectedObject.IsValid(),
+            "an object number from another process is dropped, not trusted");
+
+        // 사람이 고친 글자도 읽는다.
+        JBro::String edited = text;
+        edited.replace(edited.find("Name: Crate"), 11, "Name: Barrel");
+        Check(JBro::ReadObjectsText(other, edited.c_str(), edited.size(), elsewhere, pasted, error) && find(other, "Barrel", nullptr) != nullptr,
+            "a hand-edited clipboard pastes what it says");
+
+        // 읽지 못하면 들어온 것을 다 거둔다.
+        const std::size_t before = other.GetObjectCount();
+        JBro::String broken = text;
+        const std::size_t parentAt = broken.rfind("ParentIndex: ");
+        broken.replace(parentAt, broken.find('\n', parentAt) - parentAt, "ParentIndex: 99");
+        Check(false == JBro::ReadObjectsText(other, broken.c_str(), broken.size(), elsewhere, pasted, error), "text that does not read is refused");
+        other.FlushPendingDestroy();
+        Check(other.GetObjectCount() == before, "and leaves the canvas as it was");
+        Check(false == JBro::IsObjectsText("Version: 1\nLayer:\n") && JBro::IsLayerText("Version: 1\nLayer:\n")
+                && false == JBro::IsLayerText("Version: 1\nLayers:\n"),
+            "a layer asset and a canvas file are told apart from objects");
+    }
+
     // **레이어 에셋**(D-287, 기존 `LayerSerializer`). 레이어 하나와 그 오브젝트를 적고, 다른 캔버스의 맨 위에 새 레이어로 읽어 넣는다. 레이어 노드는
     // 캔버스 파일과 같은 함수로 쓰여 블렌드·패럴랙스가 같이 가고, 레이어 안의 참조는 새 오브젝트끼리 이어지며, 레이어 밖을 가리키던 참조는 비어 온다.
     // 같은 파일을 두 번 넣으면 서로 다른 두 벌이다. 읽다 실패하면 캔버스는 그대로다. 캔버스 파일은 원본 에셋을 적고 되읽는다.
@@ -1574,6 +1672,7 @@ JBro::Int32 RunCanvasFileTests()
     TestScreenLayersComeBack();
     TestLayerBlendAndOpacityComeBack();
     TestLayerAssetsCarryALayerAndItsObjects();
+    TestObjectsTextCopiesATreeAsYaml();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
     TestAnUnknownScriptIsKeptAsWritten();

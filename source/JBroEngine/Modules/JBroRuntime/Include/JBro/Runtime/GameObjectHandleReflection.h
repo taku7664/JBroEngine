@@ -54,6 +54,11 @@ namespace JBro::Internal
                         {
                             length = static_cast<std::size_t>(std::to_chars(local, local + sizeof(local), index).ptr - local);
                         }
+                        else if (remap->outsideAsInstance)
+                        {
+                            local[0] = '@';
+                            length = static_cast<std::size_t>(std::to_chars(local + 1, local + sizeof(local), objectId).ptr - local);
+                        }
                     }
                     else
                     {
@@ -89,7 +94,9 @@ namespace JBro::Internal
                     {
                         return false;
                     }
-                    handle = GameObjectHandleAccess::FromId(objectId);
+                    // 다른 프로세스의 번호는 이 프로세스의 아무 오브젝트나 가리킬 수 있다. 빈 참조로 둔다.
+                    const ObjectRefRemap* remap = InstanceRegistry::Get().GetObjectRefRemap();
+                    handle = remap != nullptr && remap->dropInstanceRefs ? Handle::GameObject{} : GameObjectHandleAccess::FromId(objectId);
                     return true;
                 }
                 // 파일 안 번호는 캔버스 파일을 읽는 동안에만 뜻이 있다.

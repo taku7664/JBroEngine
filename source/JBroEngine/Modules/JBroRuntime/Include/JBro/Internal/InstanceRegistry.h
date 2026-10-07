@@ -22,6 +22,10 @@ namespace JBro::Internal
         Int64 (*toIndex)(void* user, InstanceId objectId) = nullptr;
         // 읽기: 파일 안 번호를 오브젝트 번호로. 없으면 InvalidInstanceId.
         InstanceId (*toObjectId)(void* user, Int64 index) = nullptr;
+        // **오브젝트 클립보드**(D-313). 쓰기는 목록 밖을 가리키는 참조를 빈 참조 대신 이번 실행의 번호(`@123`)로 적는다 -
+        // 붙여넣은 나무 밖을 가리키던 참조는 원본을 그대로 잡는다(D-233). 읽기는 다른 프로세스가 쓴 글자면 `@` 번호를 버린다.
+        Bool outsideAsInstance = false;
+        Bool dropInstanceRefs = false;
     };
 
     // 프로세스에서 활성화된 실 객체를 슬롯·세대로 찾는 메인 스레드 전용 레지스트리.

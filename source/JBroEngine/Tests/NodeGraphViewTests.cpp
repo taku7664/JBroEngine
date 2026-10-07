@@ -116,11 +116,16 @@ namespace
         ZoomAt(scene.camera, scene.style, anchor, 0.5f);
         Check(Near(scene.camera.zoom, 2.0f) && Near(scene.camera.goalZoom, 0.5f), "zooming moves the goal, not the drawn camera");
         // 따라가는 도중에 한 번 더 돌려도 같은 점을 붙잡는다 - 기준점을 가려는 카메라로 잰다.
+        // 다 간 뒤만이 아니라 **가는 내내** 마우스 아래 점이 그대로다(캔버스 뷰처럼 크기를 따라간다).
         Follow(scene.camera, 0.016f);
+        const Vector2 between = ToGraph(scene.camera, anchor);
+        Check(Near(between.x, under.x) && Near(between.y, under.y), "half way there, the point under the mouse has not slid");
         ZoomAt(scene.camera, scene.style, anchor, 0.4f);
         for (int frame = 0; frame < 400; ++frame)
         {
             Follow(scene.camera, 0.016f);
+            const Vector2 moving = ToGraph(scene.camera, anchor);
+            Check(Near(moving.x, under.x) && Near(moving.y, under.y), "every frame of the follow keeps the point under the mouse");
         }
         const Vector2 after = ToGraph(scene.camera, anchor);
         Check(Near(scene.camera.zoom, 0.4f) && Near(after.x, under.x) && Near(after.y, under.y),

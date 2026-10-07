@@ -29,6 +29,9 @@ namespace JBro
         constexpr UInt32 CanvasFileVersion = 1;
         // 레이어 에셋의 판이다. 캔버스 파일과 따로 센다(기존 엔진도 그랬다).
         constexpr UInt32 LayerFileVersion = 1;
+        // 오브젝트 클립보드의 판이다(D-313). 맨 앞 키가 표식을 겸한다.
+        constexpr UInt32 ObjectsTextVersion = 1;
+        constexpr char ObjectsTextMarker[] = "ObjectsVersion:";
 
         Bool Fail(CanvasFileError& error, const char* message)
         {
@@ -316,8 +319,9 @@ namespace JBro
 
         // 오브젝트 목록을 적는다. `ordered` 는 부모가 자식보다 앞이다. `writeLayer` 면 오브젝트마다 레이어 번호를 적는다(캔버스 파일) - 레이어 에셋은
         // 오브젝트가 모두 그 레이어라 적지 않는다.
+        // `outsideParentIsRoot` 면 목록 밖의 부모를 실패 대신 뿌리로 적는다(오브젝트 클립보드 - 고른 나무의 부모는 글자 밖이다).
         Bool WriteObjects(Canvas& canvas, YamlWriter& writer, const Array<Object::GameObject*>& ordered, Table<const Object::GameObject*, std::size_t>& indexOf,
-            CanvasWriteMode mode, Bool writeLayer, CanvasFileError& error)
+            CanvasWriteMode mode, Bool writeLayer, CanvasFileError& error, Bool outsideParentIsRoot = false)
         {
             Array<ScriptEntry> scriptEntries;
             writer.BeginSequence("Objects");
@@ -348,11 +352,11 @@ namespace JBro
                 if (object->GetParent() != nullptr)
                 {
                     const std::size_t* found = indexOf.Find(object->GetParent());
-                    if (found == nullptr)
+                    if (found == nullptr && false == outsideParentIsRoot)
                     {
                         return Fail(error, "an object hangs from something that is not in this canvas");
                     }
-                    parentIndex = static_cast<JBro::Int64>(*found);
+                    parentIndex = found != nullptr ? static_cast<JBro::Int64>(*found) : Int64(-1);
                 }
                 writer.WriteInt("ParentIndex", parentIndex);
                 if (writeLayer)
@@ -405,6 +409,10 @@ namespace JBro
         {
             const Table<UInt64, LayerId>* layerOf = nullptr;
             LayerId fixedLayer = InvalidLayerId;
+            // 표에 없는 레이어를 실패 대신 기본 레이어로 둔다(오브젝트 클립보드 - 복사한 레이어가 사라졌거나 다른 캔버스다).
+            Bool unknownToDefault = false;
+            // 다른 프로세스가 쓴 글자의 `@` 번호를 버린다(D-313).
+            Bool dropInstanceRefs = false;
         };
 
         // 오브젝트를 만든다. **모두 만든 뒤 컴포넌트를 읽는다**(D-233) - 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다. 실패해도 만든 것은
@@ -465,16 +473,17 @@ namespace JBro
                     if (rule.layerOf != nullptr && document.FindInt(entry, "LayerId", fileLayer))
                     {
                         const LayerId* mapped = rule.layerOf->Find(static_cast<JBro::UInt64>(fileLayer));
-                        if (mapped == nullptr)
+                        if (mapped == nullptr && false == rule.unknownToDefault)
                         {
                             return Fail(error, "an object sits on a layer this file never described");
                         }
-                        canvas.SetObjectLayer(object, *mapped);
+                        canvas.SetObjectLayer(object, mapped != nullptr ? *mapped : canvas.GetDefaultLayer());
                     }
                 }
             }
 
             Internal::ObjectRefRemap remap;
+            remap.dropInstanceRefs = rule.dropInstanceRefs;
             remap.user = &created;
             remap.toObjectId = [](void* user, Int64 index) -> InstanceId {
                 const Array<Object::GameObject*>& objects = *static_cast<Array<Object::GameObject*>*>(user);
@@ -871,6 +880,149 @@ namespace JBro
             return false;
         }
         created = layer.GetId();
+        return true;
+    }
+
+    Bool IsLayerText(const char* text)
+    {
+        // 레이어 에셋은 `Version` 다음이 `Layer` 다(`WriteLayerText`). 캔버스 파일은 `Version` 다음이 `Layers` 다.
+        if (text == nullptr || std::strncmp(text, "Version:", 8) != 0)
+        {
+            return false;
+        }
+        const char* next = std::strchr(text, '\n');
+        return next != nullptr && std::strncmp(next + 1, "Layer:", 6) == 0;
+    }
+
+    // -----------------------------------------------------------------------
+    // 오브젝트 클립보드(D-313)
+    // -----------------------------------------------------------------------
+
+    Bool IsObjectsText(const char* text)
+    {
+        return text != nullptr && std::strncmp(text, ObjectsTextMarker, sizeof(ObjectsTextMarker) - 1) == 0;
+    }
+
+    Bool WriteObjectsText(Canvas& canvas, const Array<Object::GameObject*>& roots, const char* session, String& text, CanvasFileError& error)
+    {
+        error = CanvasFileError{};
+        if (roots.IsEmpty())
+        {
+            return Fail(error, "there is nothing to copy");
+        }
+        Array<Object::GameObject*> ordered;
+        for (std::size_t i = 0; i < roots.Size(); ++i)
+        {
+            if (roots[i] == nullptr)
+            {
+                return Fail(error, "an object to copy is gone");
+            }
+            CollectInOrder(roots[i], ordered);
+        }
+        Table<const Object::GameObject*, std::size_t> indexOf;
+        for (std::size_t i = 0; i < ordered.Size(); ++i)
+        {
+            indexOf.TryAdd(ordered[i], i);
+        }
+        FileIndexMap fileIndex(ordered);
+        fileIndex.remap.outsideAsInstance = true;
+        ObjectRefRemapScope remapScope(fileIndex.remap);
+
+        YamlWriter writer;
+        writer.WriteInt("ObjectsVersion", static_cast<JBro::Int64>(ObjectsTextVersion));
+        writer.WriteString("Session", session != nullptr ? session : "");
+        // 뿌리의 부모는 글자 밖이다. 글자 안에서는 뿌리로 적고, 붙이는 쪽이 자리를 정한다.
+        if (false == WriteObjects(canvas, writer, ordered, indexOf, CanvasWriteMode::Editor, true, error, true))
+        {
+            return false;
+        }
+        text = writer.GetText();
+        return true;
+    }
+
+    Bool ReadObjectsText(Canvas& canvas, const char* text, std::size_t length, const ObjectsTextTarget& target,
+        Array<Object::GameObject*>& roots, CanvasFileError& error)
+    {
+        error = CanvasFileError{};
+        roots.Clear();
+        YamlDocument document;
+        YamlError parseError;
+        if (false == document.Parse(text, length, parseError))
+        {
+            error.message = parseError.message;
+            return false;
+        }
+        const UInt32 root = document.GetRoot();
+        Int64 version = 0;
+        if (false == document.FindInt(root, "ObjectsVersion", version))
+        {
+            return Fail(error, "this text holds no objects");
+        }
+        if (version != static_cast<JBro::Int64>(ObjectsTextVersion))
+        {
+            return Fail(error, "this text was written by a different version of the format");
+        }
+        String session;
+        document.FindScalar(root, "Session", session);
+
+        ObjectLayerRule rule;
+        Table<UInt64, LayerId> layerOf;
+        if (target.layer != InvalidLayerId && canvas.FindLayer(target.layer) != nullptr)
+        {
+            rule.fixedLayer = target.layer;
+        }
+        else if (target.parent != nullptr)
+        {
+            // 부분 트리는 늘 한 레이어다(D-135). 부모의 레이어를 따른다.
+            rule.fixedLayer = target.parent->GetLayerId();
+        }
+        else
+        {
+            for (std::size_t i = 0; i < canvas.GetLayerCount(); ++i)
+            {
+                const LayerId id = canvas.GetLayerAt(i)->GetId();
+                layerOf.TryAdd(static_cast<JBro::UInt64>(id), id);
+            }
+            rule.layerOf = &layerOf;
+            rule.unknownToDefault = true;
+        }
+        rule.dropInstanceRefs = target.session == nullptr || session.empty() || session != target.session;
+
+        Array<Object::GameObject*> created;
+        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error))
+        {
+            // **반쯤 들어온 것을 남기지 않는다.** 레이어 에셋 읽기와 같다.
+            for (std::size_t i = created.Size(); i > 0; --i)
+            {
+                if (created[i - 1]->GetParent() == nullptr)
+                {
+                    canvas.DestroyObject(created[i - 1]);
+                }
+            }
+            canvas.FlushPendingDestroy();
+            return false;
+        }
+        for (std::size_t i = 0; i < created.Size(); ++i)
+        {
+            if (created[i]->GetParent() == nullptr)
+            {
+                roots.Add(created[i]);
+                continue;
+            }
+            // 부분 트리는 늘 한 레이어다(D-135). 손으로 고친 글자가 자식을 다른 레이어에 적어도 뿌리를 따른다. 부모가 늘 앞에 있다.
+            canvas.SetObjectLayer(created[i], created[i]->GetParent()->GetLayerId());
+        }
+        if (roots.IsEmpty())
+        {
+            return Fail(error, "this text holds no objects");
+        }
+        if (target.parent != nullptr)
+        {
+            for (std::size_t i = 0; i < roots.Size(); ++i)
+            {
+                roots[i]->SetParent(target.parent);
+            }
+        }
         return true;
     }
 
