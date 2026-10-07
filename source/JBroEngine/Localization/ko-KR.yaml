@@ -103,11 +103,6 @@ Entries:
   project_settings.tags: 태그
   inspector.enabled: 사용
   inspector.add_component: 컴포넌트 추가
-  inspector.add_script: 스크립트 추가
-  inspector.no_script_types: 추가할 수 있는 스크립트가 없습니다
-  inspector.copy_script: 스크립트 복사
-  inspector.paste_script: 스크립트 붙여넣기
-  inspector.remove_script: 스크립트 제거
   inspector.move_up: 위로 이동
   inspector.move_down: 아래로 이동
   inspector.move_top: 맨 위로 이동
@@ -180,6 +175,7 @@ Entries:
   component_category.Audio: 오디오
   component_category.UI: UI
   component_category.Components: 컴포넌트
+  component_category.Scripts: 스크립트
   asset.none: (없음)
   asset.missing: (없는 에셋)
   assets.empty: 에셋 폴더에 파일이 없습니다

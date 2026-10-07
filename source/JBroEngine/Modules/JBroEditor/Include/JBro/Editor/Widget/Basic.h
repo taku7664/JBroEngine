@@ -118,7 +118,8 @@ namespace JBro::Widget
     void TreePop();
     // 접는 머리다. 펼쳐져 있으면 참이다. `allowOverlap` 이면 머리 위에 얹은 단추(컴포넌트 머리의 메뉴 단추)가
     // 마우스를 받는다 - 아니면 머리가 늘 먼저 가져간다.
-    Bool CollapsingSection(const char* title, Bool defaultOpen = true, Bool allowOverlap = false);
+    // `focused` 면 **고른 것으로 칠한다**(D-304) - 도킹 탭의 포커스처럼 머리가 고른 탭 색(`TabTop`)으로 올라오고 위에 강조색 선이 선다.
+    Bool CollapsingSection(const char* title, Bool defaultOpen = true, Bool allowOverlap = false, Bool focused = false);
     // RHI 텍스처를 붙인다. `uvMin`·`uvMax` 로 텍스처의 일부(시트의 한 칸)만 보일 수 있다.
     void Image(TextureHandle texture, const ImVec2& size,
         const ImVec2& uvMin = ImVec2(0.0f, 0.0f), const ImVec2& uvMax = ImVec2(1.0f, 1.0f));

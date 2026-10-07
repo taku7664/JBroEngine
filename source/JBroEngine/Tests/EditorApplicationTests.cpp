@@ -52,6 +52,8 @@
 #include <JBro/Physics2D/World.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Runtime/GameScriptBase.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -10248,6 +10250,8 @@ namespace
             "choosing the second light puts the handle on its circle");
         DragTo(editor, hwnd, at(2.0f * Diagonal, -2.0f * Diagonal), at(2.5f * Diagonal, -2.5f * Diagonal));
         Check(std::fabs(second->outerRadius - 2.5f) < 0.1f, "dragging it changes the second light");
+        // 고른 둘째 라이트의 머리가 도킹의 고른 탭처럼 칠해졌는지 사람이 본다(D-304).
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "inspector_chosen_light");
         Check(light->outerRadius == 3.0f, "and leaves the first alone");
         Check(editor.GetCommands().Undo() && second->outerRadius == 2.0f, "undo puts the second radius back");
 
@@ -14320,6 +14324,88 @@ namespace
         editor.Shutdown();
     }
 
+    // 추가 목록에 서는지 보는 스크립트다(D-308). 엔진 안에서는 컴포넌트가 아니지만 사용자에게는 같은 목록의 한 줄이다.
+    class AddListScriptProbe final : public JBro::GameScriptBase
+    {
+        JBRO_REFLECT_BODY(AddListScriptProbe)
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::AddListScriptProbe";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_FIELD(JBro::Float, Pace) = 1.0f;
+    };
+
+    // **컴포넌트 추가는 버튼 하나다**(D-308). 스크립트도 그 목록의 마지막 `스크립트` 갈래에 서고, 고르면 오브젝트의 스크립트 목록에 붙는다.
+    // `+` 는 버튼 안에 선다. 붙은 스크립트도 컴포넌트처럼 보인다 - 따로 된 `스크립트 추가` 단추는 없다.
+    void TestOneAddComponentButtonOffersScriptsToo()
+    {
+        JBro::RegisterScriptType<AddListScriptProbe>();
+        Check(JBro::ScriptRegistry::Get().Find(JBro::NameTable::Get().Intern(AddListScriptProbe::StaticTypeName())) != nullptr,
+            "the probe script is registered");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the add component button not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "AddListProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* object = canvas->CreateObject("Walker");
+        Check(canvas->AttachComponent<JBro::Component::Collider2D>(object) != nullptr, "the walker gets a small component");
+        editor.SetSelectedObject(object);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot add;
+        Check(FindInspectorItem(editor, hwnd, LabelId(inspector->ID, "##AddComponent"), add), "the add component button is in the inspector");
+        Spot other;
+        Check(false == FindInspectorItem(editor, hwnd, LabelId(inspector->ID, "##AddScript"), other), "and there is no add script button");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "add_component_button");
+
+        ClickAt(editor, hwnd, add);
+        Check(editor.Tick(Frame), "the list must appear");
+        Check(editor.Tick(Frame), "and its search box must take focus");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "add_component_list");
+        for (const char* at = "AddListScript"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "add_component_list_script");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(object->GetScripts().Size() == 1 && object->GetComponents().Size() == 1,
+            "picking the script from the one list attaches it to the object's scripts");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must show the script");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "add_component_script_attached");
+        editor.Shutdown();
+    }
+
     // **레이어를 복사해 붙이면 그 오브젝트까지 새 레이어 하나가 선다**(D-298). 계층 레이어 메뉴의 복사·붙여넣기와, 레이어를 골라 둔
     // Ctrl+C·V 가 같은 일을 한다. 붙여넣기는 되돌리기 한 번이고, Ctrl+V 는 마지막에 복사한 쪽(레이어·오브젝트)을 붙인다.
     void TestCopyingAndPastingALayer()
@@ -14670,6 +14756,8 @@ namespace
         Spot item;
         Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, frontLabel), item),
             "the sprite renderer's submenu offers to bring it to the front, without another submenu");
+        // `JBRO_EDITOR_SHOT` 이 있을 때만 찍는다. 그리는 차례 넷 사이에 구분선이 없는지 사람이 본다(D-307).
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "sprite_draw_order_menu");
         ClickAt(editor, hwnd, item);
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
@@ -15257,6 +15345,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestBringingAnObjectForwardReordersItsDrawing();
     TestTaggingAnObjectFromTheInspector();
     TestDraggingABodyUsesTheNeutralHandle();
+    TestOneAddComponentButtonOffersScriptsToo();
     TestCopyingAndPastingALayer();
     TestLightAndCameraMarkersCanBePicked();
     TestRenamingALayerIsOneCommandNotOnePerLetter();

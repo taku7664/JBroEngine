@@ -35,6 +35,8 @@ namespace JBro::Widget
 
         // 현재 번호가 범위 밖일 때 트리거에 보일 글.
         FilterCombo& EmptyText(const char* text);
+        // 그 글 앞에 **트리거 안에** 세울 아이콘(D-308, 기존 `+ 컴포넌트 추가`). 무엇을 하는 칸인지가 버튼 안에서 보인다.
+        FilterCombo& Icon(const char* glyph);
         // 검색 칸의 힌트. 기본은 로컬라이징된 "검색".
         FilterCombo& FilterHint(const char* text);
         // 항목이 하나도 없을 때 팝업 안에 보일 글. 기본은 로컬라이징된 "일치하는 항목이 없습니다".
@@ -75,6 +77,7 @@ namespace JBro::Widget
         ArrayView<const UInt64> m_targetKeys;
         NameId m_targetName = InvalidNameId;
         const char* m_emptyText = nullptr;
+        const char* m_icon = nullptr;
         const char* m_filterHint = nullptr;
         const char* m_noItemsText = nullptr;
         const char* m_disabledTooltip = nullptr;

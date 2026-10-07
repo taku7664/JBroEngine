@@ -103,11 +103,6 @@ Entries:
   project_settings.tags: Tags
   inspector.enabled: Enabled
   inspector.add_component: Add Component
-  inspector.add_script: Add Script
-  inspector.no_script_types: no script has been built
-  inspector.copy_script: Copy Script
-  inspector.paste_script: Paste Script
-  inspector.remove_script: Remove Script
   inspector.move_up: Move Up
   inspector.move_down: Move Down
   inspector.move_top: Move to Top
@@ -180,6 +175,7 @@ Entries:
   component_category.Audio: Audio
   component_category.UI: UI
   component_category.Components: Components
+  component_category.Scripts: Scripts
   asset.none: (None)
   asset.missing: (Missing asset)
   assets.empty: the asset folder has no files

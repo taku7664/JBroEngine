@@ -290,10 +290,7 @@ namespace JBro
                 return;
             }
         }
-        ImGui::Spacing();
-        DrawAddComponent(*object);
-
-        ImGui::Separator();
+        // 스크립트는 컴포넌트 바로 뒤에 같은 모양으로 선다(D-308) - 사용자에게는 둘이 같은 컴포넌트다.
         const Array<ScriptSlot>& scripts = object->GetScripts();
         // 슬롯 번호가 컴포넌트와 겹치므로 Id 를 한 겹 더 두른다.
         ImGui::PushID("##scripts");
@@ -331,7 +328,7 @@ namespace JBro
         ImGui::PopID();
 
         ImGui::Spacing();
-        DrawAddScript(*object);
+        DrawAddComponent(*object);
     }
 
     Bool InspectorPanel::DrawAttached(Object::GameObject& object, AttachedRef attached, ComponentTypeId typeId,
@@ -372,12 +369,13 @@ namespace JBro
         {
             Widget::SetNextItemTarget(GuideFocusTargets::InspectorComponent(typeId));
         }
+        const Bool chosen = m_editor->GetInspectedKind() == kind && m_editor->GetInspectedSlot() == index;
         const Bool opened = Widget::CollapsingSection(
             typeName != nullptr
                 ? typeName
                 : Loc::TextOr(LocKeys::InspectorUnknownComponent,
                     "(unknown component)"),
-            true, true);
+            true, true, chosen);
         // 머리 오른쪽 끝의 메뉴 단추가 설 자리다. 단추는 메뉴를 다 그린 뒤에 얹는다 - 우클릭 메뉴는 **바로 앞 항목**
         // (머리)에 붙으므로, 단추를 먼저 그리면 머리의 우클릭이 단추로 옮겨 간다.
         const ImVec2 headerMin = ImGui::GetItemRectMin();
@@ -474,12 +472,7 @@ namespace JBro
             {
                 m_editor->SetInspectedSlot(kind, index);
             }
-            // 고른 것은 영역을 테두리로 두른다. 무엇이 캔버스 뷰에 손잡이를 세우는지가 인스펙터에서 보여야 한다.
-            if (m_editor->GetInspectedKind() == kind && m_editor->GetInspectedSlot() == index)
-            {
-                ImGui::GetWindowDrawList()->AddRect(ImVec2(areaMin.x - 2.0f, areaMin.y - 1.0f), ImVec2(areaMax.x + 1.0f, areaMax.y),
-                    ImGui::ColorConvertFloat4ToU32(EditorTheme::Accent), 3.0f, 0, 1.5f);
-            }
+            // 고른 것은 머리를 도킹의 고른 탭처럼 칠한다(`CollapsingSection` 의 `focused`). 영역 테두리는 쓰지 않는다 - 필드 줄마다 겹쳐 보인다.
         }
         ImGui::PopID();
         return true;
@@ -695,12 +688,12 @@ namespace JBro
         EditorActions::AddComponentList list;
         EditorActions::BuildAddComponentList(object, list);
         Int32 chosen = -1;
-        // 고르기 칸 앞의 + 가 무엇을 하는 칸인지 말한다(D-278).
-        Widget::InlineIcon(Icons::Plus);
+        // + 는 버튼 **안에** 선다(D-308, 기존 `+ 컴포넌트 추가`). 밖에 두면 버튼과 따로 노는 글자처럼 보인다.
         Widget::SetNextItemTarget(GuideFocusTargets::InspectorAddComponent());
         const Bool picked = Widget::FilterCombo("##AddComponent",
             ArrayView<const char* const>(list.names.Data(), list.names.Size()), chosen)
             .EmptyText(Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component"))
+            .Icon(Icons::Plus)
             .NoItemsText(Loc::TextOr(LocKeys::InspectorNoComponentTypes,
                 "no component type has registered itself"))
             .ItemGroups(ArrayView<const char* const>(list.groups.Data(), list.groups.Size()))
@@ -844,27 +837,6 @@ namespace JBro
             }
             Widget::EndContextMenu();
         }
-    }
-
-    void InspectorPanel::DrawAddScript(Object::GameObject& object)
-    {
-        // 컴포넌트 추가와 같은 검색 드롭다운이다. 목록은 스크립트 DLL 이 등록한 것이다(D-302).
-        EditorActions::AddComponentList list;
-        EditorActions::BuildAddScriptList(object, list);
-        Int32 chosen = -1;
-        const Bool picked = Widget::FilterCombo("##AddScript",
-            ArrayView<const char* const>(list.names.Data(), list.names.Size()), chosen)
-            .EmptyText(Loc::TextOr(LocKeys::InspectorAddScript, "Add Script"))
-            .NoItemsText(Loc::TextOr(LocKeys::InspectorNoScriptTypes, "no script has been built"))
-            .Width(-FLT_MIN)
-            .Draw();
-        if (false == picked || chosen < 0
-            || static_cast<std::size_t>(chosen) >= list.typeNames.Size())
-        {
-            return;
-        }
-        EditorActions::AddComponent(
-            *m_editor, object, list.typeNames[static_cast<std::size_t>(chosen)]);
     }
 
     void InspectorPanel::MoveAttached(Object::GameObject& object, std::size_t from, std::size_t to, AttachedKind kind)

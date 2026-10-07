@@ -223,11 +223,6 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsTags = "project_settings.tags";
     inline constexpr const char* InspectorEnabled = "inspector.enabled";
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
-    inline constexpr const char* InspectorAddScript = "inspector.add_script";
-    inline constexpr const char* InspectorNoScriptTypes = "inspector.no_script_types";
-    inline constexpr const char* InspectorCopyScript = "inspector.copy_script";
-    inline constexpr const char* InspectorPasteScript = "inspector.paste_script";
-    inline constexpr const char* InspectorRemoveScript = "inspector.remove_script";
     inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";
     inline constexpr const char* InspectorMoveComponentDown = "inspector.move_down";
     // 컴포넌트 메뉴의 맨 위·맨 아래로(D-298).
@@ -321,6 +316,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ComponentCategoryAudio = "component_category.Audio";
     inline constexpr const char* ComponentCategoryUi = "component_category.UI";
     inline constexpr const char* ComponentCategoryDefault = "component_category.Components";
+    inline constexpr const char* ComponentCategoryScripts = "component_category.Scripts";
 
     // ── 에셋 칸 ──────────────────────────────────────────────────────────
     inline constexpr const char* AssetNone = "asset.none";

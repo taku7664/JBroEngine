@@ -2334,7 +2334,7 @@ namespace
 {
     // **스크립트도 빌트인과 같은 커맨드로 붙이고 떼고 되돌린다**(cpp-script-plan §3.1). 처음에는 에디터가 빌트인 표만 보아서
     // 추가 목록에 스크립트가 없었고, 스크립트가 붙은 오브젝트는 값을 뜨지 못해 지우기와 떼기가 막혔다.
-    // 스크립트는 컴포넌트가 아니다(D-302) - 추가 목록이 따로이고, 오브젝트의 스크립트 목록에 붙는다.
+    // 스크립트는 엔진 안에서 컴포넌트가 아니다(D-302) - 오브젝트의 스크립트 목록에 붙는다. **사용자에게는 같은 추가 목록이다**(D-308) - 마지막 `스크립트` 갈래다.
     void TestAScriptIsAddedRemovedAndRestoredLikeAnyComponent()
     {
         RegisterOnce();
@@ -2350,17 +2350,8 @@ namespace
             const JBro::EditorObjectId id = ids.Track(object);
             const JBro::NameId scriptName = JBro::NameTable::Get().Intern(EditorScriptProbe::StaticTypeName());
 
-            JBro::EditorActions::AddComponentList components;
-            JBro::EditorActions::BuildAddComponentList(*object, components);
-            JBro::Bool scriptAmongComponents = false;
-            for (std::size_t index = 0; index < components.typeNames.Size(); ++index)
-            {
-                scriptAmongComponents = scriptAmongComponents || components.typeNames[index] == scriptName;
-            }
-            Check(false == scriptAmongComponents, "the component list does not offer scripts");
-
             JBro::EditorActions::AddComponentList list;
-            JBro::EditorActions::BuildAddScriptList(*object, list);
+            JBro::EditorActions::BuildAddComponentList(*object, list);
             std::size_t listed = list.typeNames.Size();
             for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
             {
@@ -2371,13 +2362,14 @@ namespace
             }
             Check(listed < list.typeNames.Size() && list.addable[listed]
                     && std::strcmp(list.names[listed], "EditorScriptProbe") == 0,
-                "the add list offers the script under its type name");
-            JBro::Bool builtinListed = false;
-            for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+                "the one add list offers the script under its type name");
+            JBro::Bool scriptsLast = std::strcmp(list.categories[listed], "Scripts") == 0
+                && JBro::ComponentRegistry::Get().Find(list.typeNames[0]) != nullptr;
+            for (std::size_t index = listed; index < list.typeNames.Size(); ++index)
             {
-                builtinListed = builtinListed || JBro::ComponentRegistry::Get().Find(list.typeNames[index]) != nullptr;
+                scriptsLast = scriptsLast && std::strcmp(list.categories[index], "Scripts") == 0;
             }
-            Check(false == builtinListed, "the script list offers no built-ins");
+            Check(scriptsLast, "after the built-ins, in the last group, Scripts");
 
             const auto onlyScript = [&canvas]() -> EditorScriptProbe* {
                 JBro::Array<JBro::GameScriptBase*> scripts;

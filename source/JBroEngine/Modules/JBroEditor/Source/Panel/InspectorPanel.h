@@ -186,7 +186,6 @@ namespace JBro
         // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
         void DrawAddComponent(Object::GameObject& object);
         // 스크립트를 붙이는 손잡이(D-302). 컴포넌트 목록과 따로다.
-        void DrawAddScript(Object::GameObject& object);
         // 캔버스 자신을 골랐을 때의 화면이다(D-186).
         void DrawCanvas();
         // 레이어를 골랐을 때의 화면이다(D-279).

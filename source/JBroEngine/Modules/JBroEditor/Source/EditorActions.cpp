@@ -30,6 +30,12 @@ namespace JBro::EditorActions
 {
     namespace
     {
+        // 추가 목록에서 스크립트가 서는 갈래다(D-308). 키는 `component_category.Scripts`.
+        constexpr const char* ScriptCategory = "Scripts";
+    }
+
+    namespace
+    {
         // 한 목록(컴포넌트나 스크립트)의 슬롯마다 타입 하나와 살아 있는지를 읽는다. 하위 메뉴 줄 이름을 세는 데 쓴다.
         struct SlotView
         {
@@ -163,8 +169,8 @@ namespace JBro::EditorActions
 
         // `사용` 과 자리 옮기기(맨 위로·위로·아래로·맨 아래로)는 메뉴에 두지 않는다(D-307) - `사용` 은 인스펙터 칸에, 자리는 인스펙터 머리를 끌어 바꾼다.
         // **복사·붙여넣기**(D-167). 복사는 값만 뜨고, 붙여넣기는 같은 타입을 하나 더 붙이며, 값 붙여넣기는 이 컴포넌트에 덮어쓴다.
-        const char* copyLabel = script ? Loc::TextOr(LocKeys::InspectorCopyScript, "Copy Script")
-                                       : Loc::TextOr(LocKeys::InspectorCopyComponent, "Copy Component");
+        // 스크립트도 사용자에게는 컴포넌트다(D-308) - 글자를 가르지 않는다.
+        const char* copyLabel = Loc::TextOr(LocKeys::InspectorCopyComponent, "Copy Component");
         if (Widget::MenuItem(copyLabel, nullptr, true, nullptr, Icons::Copy))
         {
             editor.CopyComponent(attached);
@@ -175,8 +181,7 @@ namespace JBro::EditorActions
             : Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
         // 떠 둔 것이 같은 목록의 것일 때만 붙인다 - 컴포넌트 메뉴에서 스크립트가 붙으면 어디에 생겼는지 알 수 없다(D-302).
         const Bool canPaste = editor.CanPasteComponent(object) && editor.GetComponentClipboardKind() == kind;
-        const char* pasteLabel = script ? Loc::TextOr(LocKeys::InspectorPasteScript, "Paste Script")
-                                        : Loc::TextOr(LocKeys::InspectorPasteComponent, "Paste Component");
+        const char* pasteLabel = Loc::TextOr(LocKeys::InspectorPasteComponent, "Paste Component");
         if (Widget::MenuItem(pasteLabel, nullptr, canPaste, whyNoPaste))
         {
             editor.PasteComponent(object);
@@ -205,8 +210,7 @@ namespace JBro::EditorActions
 
         // 떼기는 무거운 손짓이라 맨 끝이다.
         ImGui::Separator();
-        const char* removeLabel = script ? Loc::TextOr(LocKeys::InspectorRemoveScript, "Remove Script")
-                                         : Loc::TextOr(LocKeys::InspectorRemoveComponent, "Remove Component");
+        const char* removeLabel = Loc::TextOr(LocKeys::InspectorRemoveComponent, "Remove Component");
         if (Widget::MenuItem(removeLabel, nullptr, true, nullptr, Icons::Delete))
         {
             editor.GetCommands().Execute(MakeOwnerPtr<RemoveComponentCommand>(*canvas, editor.GetObjectIds(), address.objectId, attached));
@@ -388,20 +392,12 @@ namespace JBro::EditorActions
 
             }
         }
-    }
-
-    void BuildAddScriptList(const Object::GameObject& object, AddComponentList& out)
-    {
-        (void)object;
-        out.typeNames.Clear();
-        out.names.Clear();
-        out.groups.Clear();
-        out.categories.Clear();
-        out.addable.Clear();
-        // 표는 해시 순이다. 실행할 때마다 같은 차례로 보이게 이름 순으로 끼운다 - 스크립트는 몇십 개라 정렬을 들여올 이유가 없다.
-        ScriptRegistry::Get().ForEach([&out](const ScriptTypeInfo& type)
+        // **스크립트도 같은 목록이다**(D-308). 엔진 안에서는 따로 살지만(D-302) 사용자에게는 컴포넌트다 - 유니티처럼 마지막 `스크립트` 갈래에 이름 순으로 선다.
+        // 표는 해시 순이라 이름 순으로 끼운다. 스크립트는 몇십 개라 정렬을 들여올 이유가 없다.
+        const std::size_t firstScript = out.names.Size();
+        const char* scriptGroup = EditorNames::ComponentCategoryLabel(ScriptCategory);
+        ScriptRegistry::Get().ForEach([&out, firstScript, scriptGroup](const ScriptTypeInfo& type)
         {
-            // 컴포넌트 목록과 같은 화면 이름이다 - 네임스페이스를 떼고 보인다.
             const char* typeName = NameTable::Get().Resolve(type.name);
             const char* name = typeName != nullptr ? EditorNames::DisplayTypeName(typeName) : nullptr;
             if (name == nullptr)
@@ -409,12 +405,14 @@ namespace JBro::EditorActions
                 return;
             }
             std::size_t at = out.names.Size();
-            while (at > 0 && std::strcmp(out.names[at - 1], name) > 0)
+            while (at > firstScript && std::strcmp(out.names[at - 1], name) > 0)
             {
                 --at;
             }
             out.typeNames.Add(type.name);
             out.names.Add(name);
+            out.groups.Add(scriptGroup);
+            out.categories.Add(ScriptCategory);
             out.addable.Add(true);
             for (std::size_t index = out.names.Size() - 1; index > at; --index)
             {
@@ -483,31 +481,6 @@ namespace JBro::EditorActions
         return added;
     }
 
-    Bool DrawAddScriptMenu(EditorApplication& editor, Object::GameObject& object)
-    {
-        if (false == Widget::BeginMenu(Loc::TextOr(LocKeys::InspectorAddScript, "Add Script")))
-        {
-            return false;
-        }
-        AddComponentList list;
-        BuildAddScriptList(object, list);
-        Bool added = false;
-        if (list.typeNames.IsEmpty())
-        {
-            // 빈 하위 메뉴는 고장과 구분되지 않는다. 왜 비었는지 말한다.
-            Widget::MenuItem(Loc::TextOr(LocKeys::InspectorNoScriptTypes, "no script has been built"), nullptr, false);
-        }
-        for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
-        {
-            if (Widget::MenuItem(list.names[index]))
-            {
-                added = AddComponent(editor, object, list.typeNames[index]) || added;
-            }
-        }
-        Widget::EndMenu();
-        return added;
-    }
-
     namespace
     {
         // 행동 표의 그 행동을 그린다(D-284). 하고 나서 메뉴의 오브젝트가 없을 수 있으면 참이다.
@@ -551,7 +524,6 @@ namespace JBro::EditorActions
         // 인스펙터까지 눈을 옮기지 않고 그 자리에서 붙인다.
         ImGui::Separator();
         DrawAddComponentMenu(editor, object);
-        DrawAddScriptMenu(editor, object);
         ImGui::Separator();
         if (DrawRemoving("object.copy", context) || DrawRemoving("object.paste", context)
             || DrawRemoving("object.paste_as_child", context))
