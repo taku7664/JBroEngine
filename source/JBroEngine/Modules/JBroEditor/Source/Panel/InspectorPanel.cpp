@@ -99,6 +99,29 @@ namespace JBro
             return name != nullptr && std::strcmp(name, text) == 0;
         }
 
+        // `VisibleWhen` 이 가리키는 스위치가 켜져 있는가(D-309). 같은 표의 `Bool` 필드만 본다 - 없거나 `Bool` 이 아니면 켜진 것으로 보아
+        // 줄을 남긴다(오타가 필드를 숨기지 않게).
+        Bool IsSwitchOn(const PropertyTable& table, void* owner, const char* fieldName)
+        {
+            for (UInt32 index = 0; index < table.count; ++index)
+            {
+                const PropertyInfo& property = table.properties[index];
+                if (false == SameName(property.name, fieldName))
+                {
+                    continue;
+                }
+                // 주소가 아니라 타입 이름으로 견준다 - 스크립트 DLL 이 등록한 표의 서술자는 제 모듈의 것이다.
+                if (property.type == nullptr || property.type->typeName != TypeDescriptorOf<Bool>::Get().typeName
+                    || property.Address == nullptr)
+                {
+                    return true;
+                }
+                const void* address = property.Address(owner);
+                return address == nullptr || *static_cast<const Bool*>(address);
+            }
+            return true;
+        }
+
         // 화면에 나오는 이름은 타입 이름 그대로가 아니다(ProjectRule §11.3).
         // `Component::Transform2D` 의 접두어는 코드가 쓰는 것이지 사람이 읽는 것이
         // 아니다.
@@ -1961,6 +1984,12 @@ namespace JBro
             {
                 continue;
             }
+            // 다른 `Bool` 필드가 꺼져 있으면 줄을 두지 않는다(D-309, `VisibleWhen`). 여럿 고르면 주된 것의 값을 본다.
+            if (property.edit != nullptr && property.edit->visibleWhen != nullptr
+                && false == IsSwitchOn(table, owner, property.edit->visibleWhen))
+            {
+                continue;
+            }
             const char* label = property.edit != nullptr
                     && property.edit->displayName != nullptr
                 ? property.edit->displayName
@@ -2025,15 +2054,14 @@ namespace JBro
             const char* tooltip =
                 property.edit != nullptr ? property.edit->tooltip : nullptr;
 
-            // **필드를 가진 구조체 원소의 목록은 표를 끊고 줄 전체를 쓴다**(D-89). 값 칸 안에 두면
-            // 펼친 원소의 필드 표가 또 라벨 칸을 가져, 좁은 패널에서 값이 몇 픽셀만 남았다
-            // (`100` 이 `1` 로 보였다). 라벨은 목록 한 줄 위에 선다.
+            // **목록은 표를 끊고 줄 전체를 쓴다**(D-89, D-309). 값 칸 안에 두면 손잡이·번호·지우기 단추가 값 칸의 폭을 먼저 쓰고,
+            // 펼친 구조체 원소는 필드 표가 또 라벨 칸을 가져, 좁은 패널에서 값이 몇 픽셀만 남았다(`100` 이 `1` 로 보였다,
+            // `audioEffectIds` 의 에셋 칸이 8 픽셀이었다). 라벨은 목록 한 줄 위에 선다. 처음에는 구조체 원소의 목록만 끊었다.
             //
             // 끊기는 이 필드의 Id 를 쌓기 전에 한다 - 쌓은 채로 표를 닫으면 표가 제 Id 대신 그것을
             // 뺀다. 트리 마디가 열린 자리도 같은 이유로 끊지 못해 값 칸에 둔다.
             if (false == inElement && context.openTrees == 0
-                && property.type->arrayOps != nullptr && property.type->element != nullptr
-                && NeedsDescent(*property.type->element))
+                && property.type->arrayOps != nullptr && property.type->element != nullptr)
             {
                 layout.Break([&]() {
                     Widget::IdScope id(static_cast<JBro::Int32>(index));

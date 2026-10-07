@@ -155,7 +155,6 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyPaste = "hierarchy.paste";
     inline constexpr const char* HierarchyPasteAsChild = "hierarchy.paste_as_child";
     // 오브젝트 메뉴의 `순서` 하위 메뉴(D-296). 같은 레이어·같은 renderOrder 끼리의 그리는 차례다.
-    inline constexpr const char* HierarchyDrawOrder = "hierarchy.draw_order";
     inline constexpr const char* HierarchyBringForward = "hierarchy.bring_forward";
     inline constexpr const char* HierarchyBringToFront = "hierarchy.bring_to_front";
     inline constexpr const char* HierarchySendBackward = "hierarchy.send_backward";
@@ -223,11 +222,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsTags = "project_settings.tags";
     inline constexpr const char* InspectorEnabled = "inspector.enabled";
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
-    inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";
-    inline constexpr const char* InspectorMoveComponentDown = "inspector.move_down";
     // 컴포넌트 메뉴의 맨 위·맨 아래로(D-298).
-    inline constexpr const char* InspectorMoveComponentTop = "inspector.move_top";
-    inline constexpr const char* InspectorMoveComponentBottom = "inspector.move_bottom";
     inline constexpr const char* InspectorAssetName = "inspector.asset_name";
     inline constexpr const char* InspectorAssetType = "inspector.asset_type";
     inline constexpr const char* InspectorAssetPath = "inspector.asset_path";
@@ -377,6 +372,28 @@ namespace JBro::LocKeys
     inline constexpr const char* SoundEffectPreview = "sound_effect.preview";
     inline constexpr const char* SoundEffectTestSound = "sound_effect.test_sound";
     inline constexpr const char* SoundEffectPreviewHint = "sound_effect.preview_hint";
+    inline constexpr const char* SoundEffectRevert = "sound_effect.revert";
+    inline constexpr const char* SoundEffectRevertHelp = "sound_effect.revert_help";
+    inline constexpr const char* SoundEffectBypass = "sound_effect.bypass";
+    inline constexpr const char* SoundEffectBypassHelp = "sound_effect.bypass_help";
+    inline constexpr const char* SoundEffectOutput = "sound_effect.output";
+    inline constexpr const char* SoundEffectGraphFrequency = "sound_effect.graph_frequency";
+    inline constexpr const char* SoundEffectGraphShape = "sound_effect.graph_shape";
+    inline constexpr const char* SoundEffectGraphDynamics = "sound_effect.graph_dynamics";
+    inline constexpr const char* SoundEffectGraphEcho = "sound_effect.graph_echo";
+    inline constexpr const char* SoundEffectGraphReverb = "sound_effect.graph_reverb";
+    inline constexpr const char* SoundEffectGraphChorus = "sound_effect.graph_chorus";
+    inline constexpr const char* SoundEffectGraphPitch = "sound_effect.graph_pitch";
+    inline constexpr const char* SoundEffectAboutReverb = "sound_effect.about_reverb";
+    inline constexpr const char* SoundEffectAboutLowPass = "sound_effect.about_low_pass";
+    inline constexpr const char* SoundEffectAboutHighPass = "sound_effect.about_high_pass";
+    inline constexpr const char* SoundEffectAboutEcho = "sound_effect.about_echo";
+    inline constexpr const char* SoundEffectAboutDistortion = "sound_effect.about_distortion";
+    inline constexpr const char* SoundEffectAboutCompressor = "sound_effect.about_compressor";
+    inline constexpr const char* SoundEffectAboutLimiter = "sound_effect.about_limiter";
+    inline constexpr const char* SoundEffectAboutEqualizer = "sound_effect.about_equalizer";
+    inline constexpr const char* SoundEffectAboutChorus = "sound_effect.about_chorus";
+    inline constexpr const char* SoundEffectAboutPitchShift = "sound_effect.about_pitch_shift";
     inline constexpr const char* AssetsDuplicate = "assets.duplicate";
     inline constexpr const char* AssetsCopyPath = "assets.copy_path";
     // 파일 클립보드(D-182). 오브젝트 쪽의 복사·붙여넣기와 **다른 키**다 - 같은 말이라도

@@ -285,6 +285,8 @@ namespace
                 "a resolved handle must not be editable");
             Check(handle.edit->tooltip != nullptr,
                 "a resolved handle must say which field it came from");
+            // 인스펙터에는 줄이 없다(D-309) - 고르는 칸은 `spriteId` 이고, 핸들의 `index`·`generation` 은 사람이 읽을 값이 아니다.
+            Check(handle.edit->visible == false, "a resolved handle has no inspector row");
         }
 
         // 저장되는 쪽은 실제로 값이 실려야 한다.

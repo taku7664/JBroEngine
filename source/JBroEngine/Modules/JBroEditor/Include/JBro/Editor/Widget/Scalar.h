@@ -79,6 +79,8 @@ namespace JBro::Widget
 
         SliderField& Format(const char* format) requires std::same_as<T, Float>;
         SliderField& Width(Float width);
+        // 눈금을 로그로 둔다. 20 Hz..20 kHz 처럼 몇 자릿수에 걸친 값은 고르게 두면 왼쪽 몇 픽셀에 저음이 다 몰린다(D-309).
+        SliderField& Logarithmic();
 
         Bool Draw() const;
         Bool operator()() const;
@@ -90,6 +92,7 @@ namespace JBro::Widget
         T m_min{};
         T m_max{};
         Float m_width = 0.0f;
+        Bool m_logarithmic = false;
     };
 
     extern template class DragField<Float>;

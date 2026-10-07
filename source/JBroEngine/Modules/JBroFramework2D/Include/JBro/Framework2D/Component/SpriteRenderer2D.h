@@ -64,9 +64,9 @@ namespace JBro::Component
         // 씬 로드 뒤와 인스펙터 변경 시에 한 번씩 돌면 된다. 렌더 추출은 지금도 앞으로도
         // 핸들만 읽으므로 매 프레임 경로에 조회가 늘지 않는다.
         JBRO_FIELD(AssetId,     spriteId);
-        JBRO_FIELD(AssetHandle, sprite,     NoSerialize() | ReadOnly() | Tooltip("spriteId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, sprite,     NoSerialize() | ReadOnly() | Tooltip("spriteId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(AssetId,     materialId);
-        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
 
         JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         // `Custom` 일 때만 `pivot`·`size` 가 쓰인다(D-117). 기본은 에셋이 정한다.

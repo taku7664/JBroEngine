@@ -28,6 +28,8 @@ namespace JBro
         Bool        visible = true;
         // 범위가 있을 때 슬라이더인가. 거짓이면 범위로 자르는 끌기 칸이다(`Attribute::Clamp`, D-298).
         Bool        slider = true;
+        // 이 이름의 `Bool` 필드가 거짓이면 인스펙터가 줄을 두지 않는다(`Attribute::VisibleWhen`, D-309).
+        const char* visibleWhen = nullptr;
     };
 
     // 필드 하나의 명세다(D-56 계획서 §8.3).
@@ -64,7 +66,8 @@ namespace JBro
     // ScriptModuleLoadContext 가 같은 이유로 같은 단언을 갖고 있다.
     // 아래 숫자는 짐작이 아니라 MSVC 14.51 x64 에서 재어 넣은 값이다.
     // 64 비트(포인터 8 바이트)에서만 잰다 - 웹(wasm32)은 포인터가 4 바이트이고 스크립트 DLL 경계가 없다(D-206).
-    static_assert(sizeof(void*) != 8 || sizeof(PropertyEditInfo) == 40, "PropertyEditInfo crosses the script DLL boundary");
+    // 40 에서 48 로: 보이는 조건(`visibleWhen`)을 더했다(D-309).
+    static_assert(sizeof(void*) != 8 || sizeof(PropertyEditInfo) == 48, "PropertyEditInfo crosses the script DLL boundary");
     static_assert(sizeof(void*) != 8 || sizeof(PropertyInfo)     == 48, "PropertyInfo crosses the script DLL boundary");
     static_assert(sizeof(void*) != 8 || sizeof(PropertyTable)    == 16, "PropertyTable crosses the script DLL boundary");
     static_assert(sizeof(void*) != 8 || sizeof(ValueCodec)       == 32, "ValueCodec crosses the script DLL boundary");

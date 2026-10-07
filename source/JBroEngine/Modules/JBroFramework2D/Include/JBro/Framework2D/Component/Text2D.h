@@ -42,7 +42,7 @@ namespace JBro::Component
         // 게임 문자열 표의 키다(D-226). 비어 있지 않으면 `text` 대신 이 키의 글자다: 지금 로케일 → 폴백 로케일 → 키 그대로.
         JBRO_FIELD(TextId, textKey);
         JBRO_FIELD(AssetId, fontId);
-        JBRO_FIELD(AssetHandle, font, NoSerialize() | ReadOnly() | Tooltip("fontId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, font, NoSerialize() | ReadOnly() | Tooltip("fontId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(Float, fontSize, Range(1.0f, 512.0f)) = 32.0f;
         // 글자 픽셀이다. 0 이면 그 방향으로 제한이 없다.
         JBRO_FIELD(Vector2, boxSize);

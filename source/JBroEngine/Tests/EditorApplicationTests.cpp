@@ -2646,10 +2646,11 @@ namespace
         Spot item;
         const char* copyLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorCopyComponent, "Copy Component");
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, copyLabel), item), "the menu offers to copy the component");
-        for (const char* key : {JBro::LocKeys::InspectorEnabled, JBro::LocKeys::InspectorMoveComponentTop, JBro::LocKeys::InspectorMoveComponentUp,
-                 JBro::LocKeys::InspectorMoveComponentDown, JBro::LocKeys::InspectorMoveComponentBottom})
+        // 자리 옮기기 넷의 키는 지웠다(D-309, 쓰는 곳이 없다) - 옛 두 언어 이름이 다 없는지 본다.
+        for (const char* label : {JBro::Loc::Text(JBro::LocKeys::InspectorEnabled), "Move to Top", "Move Up", "Move Down", "Move to Bottom",
+                 "맨 위로 이동", "위로 이동", "아래로 이동", "맨 아래로 이동"})
         {
-            Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, JBro::Loc::Text(key)), item),
+            Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, label), item),
                 "the component menu has no enable or move item");
         }
         std::size_t slot = 99;
@@ -4189,6 +4190,29 @@ namespace
         {
             SaveScreenshot(*shotRenderer, 1800, 900, "audio_source_inspector");
         }
+
+        // ── 거리·감쇠는 `spatial` 을 켰을 때만 보인다(D-309, `VisibleWhen`) ──
+        const JBro::UInt32 minDistanceField = FieldIndexOf(*table, "minDistance");
+        const JBro::PropertyEditInfo* minDistanceEdit = table->properties[minDistanceField].edit;
+        Check(minDistanceEdit != nullptr && minDistanceEdit->visibleWhen != nullptr
+                && std::strcmp(minDistanceEdit->visibleWhen, "spatial") == 0,
+            "minDistance carries its switch in the reflection table");
+        Check(false == source->spatial, "a new source is not spatial");
+        Check(false == FindInspectorItem(editor, hwnd, InspectorFieldId(1, minDistanceField, "##value"), spot),
+            "with spatial off the inspector has no minDistance row");
+        source->spatial = true;
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must redraw with spatial on");
+        }
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, minDistanceField, "##value"), spot),
+            "turning spatial on brings the minDistance row");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1800, 900, "audio_source_spatial");
+        }
+        source->spatial = false;
+        Check(editor.Tick(Frame), "the inspector must redraw with spatial off");
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(editor.Tick(Frame), "the editor must tick after undo");
         Check(source->bus.IsMaster(), "undo puts the source back on Master");
@@ -4426,8 +4450,9 @@ namespace
         Check(window != nullptr, "the sound effect editor has a window");
         const auto findIn = [&](ImGuiID target, Spot& found) {
             const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
-            // 값 칸(65%·45%)과, 줄 배치 밖에 서는 짧은 단추(`적용`)가 있는 왼쪽 끝을 훑는다.
-            for (const JBro::Float fraction : {0.65f, 0.45f, 0.15f, 0.12f, 0.0f})
+            // 값 칸(65%·45%)과, 줄 배치 밖에 서는 짧은 단추(`적용`·`되돌리기`)와 종류 칩이 있는 왼쪽을 훑는다.
+            for (const JBro::Float fraction : {0.65f, 0.45f, 0.15f, 0.12f, 0.11f, 0.10f, 0.0f, 0.06f, 0.09f, 0.18f, 0.21f, 0.24f, 0.27f,
+                     0.30f, 0.33f, 0.36f, 0.40f, 0.50f, 0.55f, 0.58f, 0.62f})
             {
                 const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction) + (fraction == 0.0f ? 24 : 0);
                 for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 3)
@@ -4458,13 +4483,19 @@ namespace
             Check(editor.Tick(Frame), "the editor must tick");
         };
 
-        // ── 종류를 고르고 적용한다 ──
+        // ── 종류를 칩으로 고르고 적용한다(D-309) ──
+        // 칩의 Id 는 `##kind` 아래 종류 번호 아래 `##chip` 이다.
+        const auto kindChip = [&](JBro::AudioEffectKind kind) {
+            return LabelId(PushedId(LabelId(window->ID, "##kind"), static_cast<JBro::Int32>(static_cast<int>(kind))), "##chip");
+        };
+        const auto pickKind = [&](JBro::AudioEffectKind kind, const char* why) {
+            Spot chip;
+            Check(findIn(kindChip(kind), chip), why);
+            ClickAt(editor, hwnd, chip);
+            Check(editor.Tick(Frame), "the editor must redraw with the new kind");
+        };
         Spot spot;
-        const ImGuiID kindCombo = LabelId(LabelId(window->ID, "##soundEffect"), "##kind");
-        Check(findIn(kindCombo, spot), "the editor shows the Kind row");
-        ClickAt(editor, hwnd, spot);
-        typeAndEnter("Echo");
-        Check(editor.Tick(Frame), "the editor must redraw with the new kind");
+        pickKind(JBro::AudioEffectKind::Echo, "the editor shows a chip for every kind, Echo among them");
         Check(panels[0]->GetDisplayTitle() != nullptr && std::strstr(panels[0]->GetDisplayTitle(), "*") != nullptr,
             "an unsaved change marks the tab");
         Check(editor.ReadSoundEffect(effectId, read) && read.kind == JBro::AudioEffectKind::Reverb,
@@ -4481,6 +4512,10 @@ namespace
         Check(findIn(testSound, spot), "the editor shows a test sound field");
         ClickAt(editor, hwnd, spot);
         typeAndEnter("blip");
+        // 반복으로 튼다 - 바이패스를 오가는 동안 0.5 초짜리 소리가 끝나지 않게.
+        const ImGuiID loopBox = LabelId(LabelId(window->ID, "##soundEffectPreview"), "##loop");
+        Check(findIn(loopBox, spot), "the editor shows a Loop box");
+        ClickAt(editor, hwnd, spot);
         const ImGuiID play = LabelId(LabelId(window->ID, "##soundEffectPreview"), "##effect_play");
         Check(findIn(play, spot), "with a test sound the editor shows Play");
         ClickAt(editor, hwnd, spot);
@@ -4490,11 +4525,46 @@ namespace
         {
             SaveScreenshot(*shotRenderer, 1024, 768, "sound_effect_editor");
         }
+        // 바이패스를 켜면 같은 소리가 사슬 없이 울리고, 끄면 다시 사슬을 빌린다(D-309).
+        const ImGuiID bypassBox = LabelId(LabelId(window->ID, "##soundEffectPreview"), "##bypass");
+        Check(findIn(bypassBox, spot), "the editor shows a Bypass box");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.GetAudio()->IsPreviewPlaying() && editor.GetAudio()->GetMixer()->GetStats().effectVoices == 0,
+            "bypass keeps the sound playing without the chain");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.GetAudio()->IsPreviewPlaying() && editor.GetAudio()->GetMixer()->GetStats().effectVoices == 1,
+            "turning bypass off puts the chain back");
         const ImGuiID stop = LabelId(LabelId(window->ID, "##soundEffectPreview"), "##effect_stop");
         Check(findIn(stop, spot), "while it plays the button says Stop");
         ClickAt(editor, hwnd, spot);
         Check(false == editor.GetAudio()->IsPreviewPlaying() && editor.GetAudio()->GetMixer()->GetStats().effectVoices == 0,
             "Stop ends it and gives the chain back");
+
+        // ── 다른 종류를 보고 되돌린다: 그래프는 종류마다 다르다(사진으로 본다) ──
+        const ImGuiID revert = LabelId(window->ID, JBro::Loc::TextOr(JBro::LocKeys::SoundEffectRevert, "Revert"));
+        const struct
+        {
+            JBro::AudioEffectKind kind;
+            const char* shot;
+        } looks[] = {{JBro::AudioEffectKind::LowPass, "sound_effect_low_pass"}, {JBro::AudioEffectKind::Equalizer, "sound_effect_equalizer"},
+            {JBro::AudioEffectKind::Compressor, "sound_effect_compressor"}, {JBro::AudioEffectKind::Distortion, "sound_effect_distortion"},
+            {JBro::AudioEffectKind::Reverb, "sound_effect_reverb"}, {JBro::AudioEffectKind::Chorus, "sound_effect_chorus"},
+            {JBro::AudioEffectKind::PitchShift, "sound_effect_pitch_shift"}};
+        for (const auto& look : looks)
+        {
+            pickKind(look.kind, "every kind has its chip");
+            Check(editor.Tick(Frame), "the graph must draw");
+            if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+            {
+                SaveScreenshot(*shotRenderer, 1024, 768, look.shot);
+            }
+            Check(findIn(revert, spot), "a changed effect shows a Revert button");
+            ClickAt(editor, hwnd, spot);
+            Check(editor.Tick(Frame), "the editor must redraw after reverting");
+            Check(std::strstr(panels[0]->GetDisplayTitle(), "*") == nullptr, "reverting leaves nothing unsaved");
+        }
+        Check(editor.ReadSoundEffect(effectId, read) && read.kind == JBro::AudioEffectKind::Echo,
+            "trying other kinds and reverting never touched the file");
 
         // ── 인스펙터는 편집기를 여는 단추를 보인다 ──
         editor.SetSelectedAsset(effectId);
@@ -14734,7 +14804,6 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
-        const char* orderLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyDrawOrder, "Order");
         const char* frontLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyBringToFront, "Bring to Front");
         Spot row;
         Check(FindHierarchyRow(editor, hwnd, objects[1], row), "B must have a row");
@@ -14742,8 +14811,12 @@ namespace
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "right-clicking the row must open the object menu");
         Spot line;
-        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, orderLabel), line),
-            "the object menu has no order submenu of its own");
+        // 그 하위 메뉴의 키(`hierarchy.draw_order`)는 지웠다(D-309) - 옛 두 이름이 다 없는지 본다.
+        for (const char* orderLabel : {"Order", "순서"})
+        {
+            Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, orderLabel), line),
+                "the object menu has no order submenu of its own");
+        }
         Check(FindItemAnywhereInWindow(editor, hwnd, menu,
                   LabelId(menu->ID, ComponentLine(sprites[1]->GetTypeId())), line),
             "the object menu must carry the sprite renderer's submenu");
@@ -14957,9 +15030,11 @@ namespace
         const char* copyLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorCopyComponent, "Copy Component");
         Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, copyLabel), item),
             "the submenu carries the common items");
-        const char* bottomLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorMoveComponentBottom, "Move to Bottom");
-        Check(false == FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, bottomLabel), item),
-            "but no move item");
+        for (const char* bottomLabel : {"Move to Bottom", "맨 아래로 이동"})
+        {
+            Check(false == FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, bottomLabel), item),
+                "but no move item");
+        }
         PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, 0);
         Check(editor.Tick(Frame), "the editor must tick with escape down");
         PostMessageW(hwnd, WM_KEYUP, VK_ESCAPE, 0);

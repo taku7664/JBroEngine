@@ -351,6 +351,13 @@ namespace JBro::Widget
     }
 
     template<FieldNumber T>
+    SliderField<T>& SliderField<T>::Logarithmic()
+    {
+        m_logarithmic = true;
+        return *this;
+    }
+
+    template<FieldNumber T>
     Bool SliderField<T>::Draw() const
     {
         using Raw = typename NumberTraits<T>::Raw;
@@ -362,7 +369,7 @@ namespace JBro::Widget
         const Raw minRaw = m_min.Get();
         const Raw maxRaw = m_max.Get();
         const Bool changed = ImGui::SliderScalar(m_id != nullptr ? m_id : "##slider", DataTypeOf<T>(), &raw,
-            &minRaw, &maxRaw, m_format);
+            &minRaw, &maxRaw, m_format, m_logarithmic ? ImGuiSliderFlags_Logarithmic : ImGuiSliderFlags_None);
         if (changed)
         {
             m_value = raw;

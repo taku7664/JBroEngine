@@ -122,6 +122,8 @@ namespace JBro
         Bool        visible     = true;
         // 범위가 있을 때 인스펙터가 슬라이더로 그리는가. `Clamp` 는 범위만 두고 끌기 칸으로 그린다(D-298).
         Bool        slider      = true;
+        // 같은 타입의 `Bool` 필드 이름이다. 그 필드가 거짓이면 인스펙터가 이 줄을 두지 않는다(`VisibleWhen`, D-309).
+        const char* visibleWhen = nullptr;
 
         // 편집 메타데이터가 하나라도 있는지. 없으면 PropertyInfo::edit 를 nullptr 로 두어
         // 게임 빌드가 이 필드의 표시 이름·툴팁을 통째로 건너뛴다.
@@ -132,7 +134,8 @@ namespace JBro
                 || category    != nullptr
                 || hasRange
                 || editable == false
-                || visible == false;
+                || visible == false
+                || visibleWhen != nullptr;
             // `slider` 는 `hasRange` 와 함께만 뜻이 있다 - 따로 세지 않는다.
         }
     };
@@ -152,6 +155,7 @@ namespace JBro
         merged.editable    = left.editable  && right.editable;
         merged.serialize   = left.serialize && right.serialize;
         merged.visible     = left.visible   && right.visible;
+        merged.visibleWhen = right.visibleWhen != nullptr ? right.visibleWhen : left.visibleWhen;
         return merged;
     }
 
@@ -220,6 +224,16 @@ namespace JBro
         {
             FieldAttributes attributes;
             attributes.visible = false;
+            return attributes;
+        }
+
+        // **같은 타입의 `Bool` 필드가 참일 때만 인스펙터에 줄을 둔다**(D-309). `AudioSource` 의 거리·감쇠는 `spatial` 을 켰을 때만 뜻이 있다 -
+        // 꺼진 소스에 늘 보이면 고쳐도 아무 일이 없는 칸이 다섯 줄이다. 저장과 값은 그대로다(끄고 켜도 값이 남는다).
+        // 이름이 그 타입에 없거나 `Bool` 이 아니면 줄을 그대로 둔다 - 오타가 필드를 숨기지 않게.
+        constexpr FieldAttributes VisibleWhen(const char* boolField)
+        {
+            FieldAttributes attributes;
+            attributes.visibleWhen = boolField;
             return attributes;
         }
     }

@@ -73,7 +73,8 @@ namespace JBro::Component
         JBRO_REFLECT_BODY(AudioSource)
 
         JBRO_FIELD(AssetId,     clipId);
-        JBRO_FIELD(AssetHandle, clip, NoSerialize() | ReadOnly() | Tooltip("clipId 에서 해석된 값"));
+        // 해석된 핸들은 인스펙터에 줄을 두지 않는다(D-309) - 고르는 칸은 `clipId` 다.
+        JBRO_FIELD(AssetHandle, clip, NoSerialize() | ReadOnly() | Tooltip("clipId 에서 해석된 값") | Hidden());
         // 프로젝트 설정의 버스 이름이다. 비우면 Master 다.
         JBRO_FIELD(AudioBusName, bus);
         JBRO_FIELD(Float, volume, Range(0.0f, 1.0f)) = 1.0f;
@@ -81,14 +82,14 @@ namespace JBro::Component
         JBRO_FIELD(Bool,  loop) = false;
         // 켜질 때(캔버스 시작 포함) 저절로 한 번 재생한다. 루프가 아니면 다시 켜질 때까지 다시 울리지 않는다.
         JBRO_FIELD(Bool,  playOnStart) = true;
-        // 켜면 듣는 자리와의 거리·방향이 소리에 든다. 끄면 배경음처럼 가운데에서 그대로 들린다.
+        // 켜면 듣는 자리와의 거리·방향이 소리에 든다. 끄면 배경음처럼 가운데에서 그대로 들린다. 꺼져 있으면 아래 다섯 줄은 인스펙터에 없다(D-309).
         JBRO_FIELD(Bool,  spatial) = false;
-        JBRO_FIELD(AudioAttenuation, attenuation, Category("Spatial")) = AudioAttenuation::Inverse;
-        JBRO_FIELD(Float, minDistance, Category("Spatial")) = 1.0f;
-        JBRO_FIELD(Float, maxDistance, Category("Spatial")) = 50.0f;
-        JBRO_FIELD(Float, rolloff, Category("Spatial")) = 1.0f;
+        JBRO_FIELD(AudioAttenuation, attenuation, Category("Spatial") | VisibleWhen("spatial")) = AudioAttenuation::Inverse;
+        JBRO_FIELD(Float, minDistance, Category("Spatial") | VisibleWhen("spatial")) = 1.0f;
+        JBRO_FIELD(Float, maxDistance, Category("Spatial") | VisibleWhen("spatial")) = 50.0f;
+        JBRO_FIELD(Float, rolloff, Category("Spatial") | VisibleWhen("spatial")) = 1.0f;
         // 0 이면 끈다. 움직이는 소스와 듣는 자리의 속도 차로 음높이가 바뀐다.
-        JBRO_FIELD(Float, doppler, Category("Spatial")) = 0.0f;
+        JBRO_FIELD(Float, doppler, Category("Spatial") | VisibleWhen("spatial")) = 0.0f;
         // 보이스가 모자랄 때 낮은 것부터 훔친다(0..255). 배경음은 높게, 자잘한 효과음은 낮게 둔다.
         JBRO_FIELD(Int32, priority, Range(0.0f, 255.0f)) = 128;
         // 시작할 때 이만큼 키운다(초).
@@ -100,7 +101,7 @@ namespace JBro::Component
         // 이 소스에만 거는 이펙트 사슬이다(D-306, 기존 `AudioPlayer.EffectGuids`). `.jfx` 에셋을 목록의 차례대로 걸고 넷까지다.
         // 재생 중에 목록이나 `.jfx` 를 고치면 다시 시작하지 않고 값만 바뀐다. 사슬을 건 소스는 그만큼 DSP 비용이 든다.
         JBRO_FIELD(Array<AssetId>, audioEffectIds, Category("Effects"));
-        JBRO_FIELD(Array<AssetHandle>, audioEffects, NoSerialize() | ReadOnly() | Category("Effects") | Tooltip("audioEffectIds 에서 해석된 값"));
+        JBRO_FIELD(Array<AssetHandle>, audioEffects, NoSerialize() | ReadOnly() | Category("Effects") | Tooltip("audioEffectIds 에서 해석된 값") | Hidden());
         JBRO_FIELD(AudioSourceState, state, NoSerialize() | ReadOnly()) = AudioSourceState::Idle;
 
         // ── 시스템 전용 ───────────────────────────────────────────────────────────────────────

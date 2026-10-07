@@ -27,6 +27,7 @@ namespace JBro::Detail
         edit.editable    = entry.attributes.editable;
         edit.visible     = entry.attributes.visible;
         edit.slider      = entry.attributes.slider;
+        edit.visibleWhen = entry.attributes.visibleWhen;
         info.edit        = &edit;
     }
 }
