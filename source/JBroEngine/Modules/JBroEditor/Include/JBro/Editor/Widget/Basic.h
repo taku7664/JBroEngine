@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Core/Log.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/RHI/RHI.h>
 
@@ -19,15 +20,31 @@ namespace JBro::Widget
     // ── 글자 ────────────────────────────────────────────────────────────────
     // 그대로 적는다. `%` 가 들어 있어도 서식으로 읽지 않는다.
     void Text(const char* text);
-    // 서식을 채워 적는다.
-    void TextF(const char* format, ...) IM_FMTARGS(1);
+    // 서식을 채워 적는다. **인자는 `Log::Write` 처럼 원시 값으로 내려 준다**(D-304) - `Float` 를 가변 인자로 그대로 넘기면
+    // `%f` 가 쓰레기를 읽는다(캔버스 뷰의 카메라 글자가 그랬다). 서식 함수 셋은 이 틀을 거친다.
+    void TextFormatted(const char* format, ...) IM_FMTARGS(1);
+    template<typename... Args>
+    void TextF(const char* format, const Args&... args)
+    {
+        TextFormatted(format, Log::Detail::ToVarArg(args)...);
+    }
     // 칸 끝에서 줄을 바꾸는 글자다. 경로처럼 길이를 모르는 값이 잘리지 않게 한다(D-160).
     void WrappedText(const char* text);
     // **흐린 안내 글자**다. "선택한 것이 없습니다" 처럼 값이 아니라 상태를 말하는 자리에 쓴다.
     void HintText(const char* text);
-    void HintTextF(const char* format, ...) IM_FMTARGS(1);
+    void HintTextFormatted(const char* format, ...) IM_FMTARGS(1);
+    template<typename... Args>
+    void HintTextF(const char* format, const Args&... args)
+    {
+        HintTextFormatted(format, Log::Detail::ToVarArg(args)...);
+    }
     // 심각도 색으로 적는다. 경고·오류가 본문과 같은 색이면 눈에 걸리지 않는다.
-    void SeverityTextF(Severity severity, const char* format, ...) IM_FMTARGS(2);
+    void SeverityTextFormatted(Severity severity, const char* format, ...) IM_FMTARGS(2);
+    template<typename... Args>
+    void SeverityTextF(Severity severity, const char* format, const Args&... args)
+    {
+        SeverityTextFormatted(severity, format, Log::Detail::ToVarArg(args)...);
+    }
 
     // ── 단추 ────────────────────────────────────────────────────────────────
     // 글자 단추다. 눌렸으면 참이다.
@@ -37,6 +54,10 @@ namespace JBro::Widget
     Bool Button(const char* label, const char* icon);
     // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
     Bool SelectableRow(const char* label, Bool selected);
+    // **목록에서 하나를 고르는 줄**이다(D-304, 인스펙터의 컴포넌트 목록 - 기존 `InspectorTool` 의 `Selectable`). 앞에 아이콘(`icon`, 없으면 빈 자리)이 서고,
+    // `dimmed` 면 흐리게 쓴다(꺼 둔 컴포넌트). 줄 끝에 단추를 얹을 수 있게 겹침을 허락한다. 눌렸으면 참이다.
+    // **가이드가 이 줄 너머를 가리키면 누른 것처럼 참을 돌려준다** - 접기 머리를 여는 것과 같은 자리다. 줄의 열림은 고른 것인가다.
+    Bool ChoiceRow(const char* label, const char* icon, Bool selected, Bool dimmed);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
     // 붉게(`Error`), 저장·만들기처럼 그 자리의 주된 확인은 푸르게(`Success`) 선다 -
     // `Info` 는 보통 단추와 같다. **지우기가 그만두기와 똑같이 생기면 손이 먼저 움직인다.**

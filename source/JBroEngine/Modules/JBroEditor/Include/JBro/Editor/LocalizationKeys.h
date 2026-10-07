@@ -59,6 +59,7 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewSpaceUi = "canvas_view.space_ui";
     inline constexpr const char* CanvasViewSpaceTooltip = "canvas_view.space_tooltip";
     inline constexpr const char* CanvasViewReferenceRect = "canvas_view.reference_rect";
+    inline constexpr const char* CanvasViewViewportSelectedCamera = "canvas_view.viewport_selected_camera";
     inline constexpr const char* CanvasViewPreviewLocaleTooltip = "canvas_view.preview_locale_tooltip";
     // 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지(D-184, 기존 `canvas_view.unit.*`).
     inline constexpr const char* CanvasViewUnitWorld = "canvas_view.unit_world";
@@ -243,6 +244,7 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorRemoveComponent = "inspector.remove_component";
     // 컴포넌트 머리의 메뉴 단추 툴팁(D-278).
     inline constexpr const char* InspectorComponentMenu = "inspector.component_menu";
+    inline constexpr const char* InspectorNoComponents = "inspector.no_components";
     inline constexpr const char* InspectorNoComponentTypes = "inspector.no_component_types";
     inline constexpr const char* InspectorUnregisteredType = "inspector.unregistered_type";
     inline constexpr const char* InspectorUnknownComponent = "inspector.unknown_component";

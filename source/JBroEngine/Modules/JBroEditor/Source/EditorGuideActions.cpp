@@ -713,7 +713,7 @@ namespace JBro
                     return nullptr;
                 }
                 std::snprintf(binding.reason, sizeof(binding.reason), Loc::TextOr(LocKeys::GuideNeedPolygonPoint, "The collider has no point %u"),
-                    binding.pointIndex);
+                    binding.pointIndex.Get());
                 return binding.reason;
             }
             return Loc::TextOr(LocKeys::GuideNeedPointCollider, "The Collider2D's shape must be Polygon or Chain");

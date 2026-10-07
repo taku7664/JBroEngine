@@ -141,6 +141,9 @@ namespace JBro
             PolygonPose            pose;
         };
         Bool FindPolygonTarget(PolygonTarget& target);
+        // 콜라이더 편집을 켤 때 부른다(D-304). 인스펙터에서 고른 것이 폴리곤 콜라이더가 아니면 고른 오브젝트의 첫 폴리곤 콜라이더를 고른다 -
+        // 포인트는 인스펙터에서 고른 것에 서므로, 단추만 눌러도 무엇을 고치는지 인스펙터에 보인다.
+        void InspectFirstPolygon();
         void DrawPolygonEditor(const ViewRect& rect);
         // 버텍스를 우클릭했으면 그 메뉴를 열고 참이다. 캔버스 메뉴 대신이다.
         Bool DrawVertexMenu(const ViewRect& rect);
@@ -255,9 +258,6 @@ namespace JBro
 
         // 폴리곤 콜라이더 편집.
         Bool m_editCollider = false;
-        // 우클릭 메뉴의 "포인트 편집" 으로 고른 콜라이더다(D-220). 비어 있으면 고른 오브젝트의 첫 폴리곤이다.
-        // 고른 오브젝트가 바뀌거나 그 콜라이더가 사라지면 잊는다.
-        ComponentAddress m_pointTarget;
         PolygonEditModel::Hit m_polygonHover;
         Bool m_vertexDragging = false;
         Bool m_vertexPressed = false;
@@ -309,6 +309,8 @@ namespace JBro
         void DrawObjectMarkers(const ViewRect& rect);
         // 켜진 `Camera2D` 마다 게임에서 보일 영역을 그린다(D-303, 기존 `CanvasDebugDraw::Submit`).
         void DrawCameraAreas(const ViewRect& rect);
+        // 인스펙터에서 `Camera2D` 를 골랐으면 오른아래에 그 카메라가 화면에서 차지하는 자리를 보인다(D-304, 기존 뷰포트 인디케이터).
+        void DrawCameraIndicator(const ViewRect& rect);
         // 고른 오브젝트마다 원점(피벗)에 빨간 원 둘과 흰 십자를 그린다(D-303, 기존 `CanvasViewTool` Layer 2.7).
         void DrawPivotMarkers(const ViewRect& rect);
         void DrawReferenceRect(const ViewRect& rect);

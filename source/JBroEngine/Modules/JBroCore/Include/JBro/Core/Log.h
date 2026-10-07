@@ -79,7 +79,8 @@ namespace JBro
                 }
                 else if constexpr (std::is_same_v<T, Bool>)
                 {
-                    return static_cast<JBro::Int32>(value.Get());
+                    // 가변 인자는 경계다 - `Int32` 객체를 넘기면 클래스가 그대로 간다.
+                    return static_cast<int>(value.Get());
                 }
                 else if constexpr (IsIntegerValue<T>::value)
                 {

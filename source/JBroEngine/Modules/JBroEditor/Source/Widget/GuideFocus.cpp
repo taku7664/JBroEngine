@@ -237,6 +237,11 @@ namespace JBro::Widget
             }
         }
 
+        Bool ShouldOpenGuided(const GuideFocusTarget& target)
+        {
+            return target.IsValid() && g_focus != nullptr && g_focus->ShouldOpen(target);
+        }
+
         void ReportLastItem(const GuideFocusTarget& target, Bool opened, Bool activated,
             Bool enabled, const char* disabledReason)
         {

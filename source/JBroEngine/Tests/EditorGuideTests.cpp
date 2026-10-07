@@ -428,12 +428,14 @@ namespace
         return search.found;
     }
 
-    JBro::Bool OpenEditor(JBro::EditorApplication& editor, const char* projectName, HWND& hwnd)
+    // 인스펙터의 값 칸을 손으로 만지는 시험은 넓은 창을 준다 - 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
+    JBro::Bool OpenEditor(JBro::EditorApplication& editor, const char* projectName, HWND& hwnd,
+        JBro::UInt32 width = 1024, JBro::UInt32 height = 768)
     {
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1024;
-        config.windowHeight = 768;
+        config.windowWidth = width;
+        config.windowHeight = height;
         if (false == editor.Initialize(config))
         {
             return false;
@@ -578,21 +580,11 @@ namespace
         return ClickBalloonButtonFromRight(editor, hwnd, 0);
     }
 
-    // 인스펙터의 슬롯 0 컴포넌트 머리가 접혀 있는지(ImGui 가 창의 상태 저장소에 적은 값).
-    ImGuiID ComponentHeaderId(const char* typeName)
-    {
-        ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
-        Check(window != nullptr, "the inspector must have a window");
-        JBro::Int32 slot = 0;
-        const ImGuiID pushed = ImHashData(&slot, sizeof(slot), window->ID);
-        return ImHashStr(typeName, 0, pushed);
-    }
-
     void TestTheAddComponentGuideWalksTheInspector()
     {
         JBro::EditorApplication editor;
         HWND hwnd = nullptr;
-        if (false == OpenEditor(editor, "GuideAddComponentProbe", hwnd))
+        if (false == OpenEditor(editor, "GuideAddComponentProbe", hwnd, 1800, 900))
         {
             std::cout << "  [skip] no D3D12 device; the add component guide not verified" << std::endl;
             return;
@@ -602,12 +594,7 @@ namespace
         Check(object->GetComponents().Size() == 1, "a new object starts with its transform only, or the last step proves nothing");
         Tick(editor, 3);
 
-        // 머리를 접어 둔다. 가이드가 부모부터 열어야 필드에 닿는다.
-        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
-        const ImGuiID header = ComponentHeaderId("Transform2D");
-        inspector->StateStorage.SetInt(header, 0);
-        Tick(editor, 2);
-        Check(0 == inspector->StateStorage.GetInt(header, 1), "the transform header must be folded for the check");
+        // 컴포넌트는 인스펙터 목록에서 고른 하나만 보인다(D-304). 가이드는 목록의 그 줄을 지나 필드에 닿는다.
         // 인스펙터 창도 닫아 둔다. 경로의 첫 칸이 닫힌 패널이면 가이드가 연다.
         JBro::EditorPanel* inspectorPanel = editor.FindPanel("Inspector");
         Check(inspectorPanel != nullptr, "the inspector panel must exist");
@@ -623,11 +610,11 @@ namespace
         editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
         Check(editor.GetGuide().GetStepIndex() == 1, "Next goes on to the field");
         Tick(editor, 3);
-        Check(0 == inspector->StateStorage.GetInt(header, 1), "the header is not flung open before the hole reaches it");
         Check(inspectorPanel->IsOpen(), "the closed inspector the path starts from was opened");
         Check(editor.GetGuideFocus().IsKeyboardAllowed(), "the step that changes a value lets the keyboard through");
-        Check(WaitUntilSettled(editor, 2), "the walk must open the header and reach the first field");
-        Check(1 == inspector->StateStorage.GetInt(header, 0), "the folded header was opened on the way");
+        Check(WaitUntilSettled(editor, 2), "the walk must pass the component's row and reach the first field");
+        Check(editor.GetInspectedKind() == JBro::AttachedKind::Component && editor.GetInspectedSlot() == 0,
+            "the transform is the chosen component on the way");
 
         // 막 밖을 누른다 - 캔버스 뷰 한가운데. 아무 일도 일어나지 않는다.
         const std::size_t undo = editor.GetCommands().GetUndoCount();

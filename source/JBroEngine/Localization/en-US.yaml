@@ -72,6 +72,7 @@ Entries:
   canvas_view.space_ui: UI
   canvas_view.space_tooltip: edit the world layers or the screen (UI) layers
   canvas_view.reference_rect: Reference resolution
+  canvas_view.viewport_selected_camera: Viewport (Selected Camera)
   canvas_view.preview_locale_tooltip: preview texts with a textKey in this language
   canvas_view.unit_world: "Unit"
   canvas_view.unit_pixel: "Pixel"
@@ -121,6 +122,7 @@ Entries:
   inspector.paste_component_values: Paste Values Only
   inspector.remove_component: Remove Component
   inspector.component_menu: Component menu
+  inspector.no_components: This object has no components
   inspector.no_component_types: no component type has registered itself
   inspector.unregistered_type: this type never registered its properties
   inspector.unknown_component: (unknown component)
