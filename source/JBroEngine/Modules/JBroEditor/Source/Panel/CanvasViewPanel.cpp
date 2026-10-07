@@ -27,6 +27,7 @@
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/AssetTypes/AssetTypes.h>
@@ -470,6 +471,78 @@ namespace JBro
         });
     }
 
+    void CanvasViewPanel::DrawCameraAreas(const ViewRect& rect)
+    {
+        // **카메라가 게임에서 담는 영역**(D-303). 기존 엔진(`CanvasDebugDrawSystem`)처럼 켜진 카메라마다 노란 사각형과 가운데 십자를 늘 그린다 -
+        // 고르지 않아도 보인다. 크기는 렌더러와 같은 함수(`ComputeCameraView2D`)로 재고, 오브젝트의 회전·크기는 월드 행렬이 그대로 얹는다.
+        // 가로세로비는 프로젝트 해상도다(기존 엔진도 그랬다) - 시뮬레이션 뷰 패널의 크기를 따르면 패널을 늘일 때마다 사각형이 흔들린다.
+        // `PixelPerfect` 의 원본 1 픽셀 맞춤(위치를 반올림)은 그리지 않는다 - 원본 픽셀 반 칸보다 작다.
+        Canvas* canvas = m_editor->GetCanvas();
+        const ProjectFile& project = m_editor->GetProjectFile();
+        if (canvas == nullptr || project.resolutionWidth == 0 || project.resolutionHeight == 0)
+        {
+            return;
+        }
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = static_cast<JBro::Float>(project.resolutionWidth);
+        frame.referenceHeight = static_cast<JBro::Float>(project.resolutionHeight);
+        frame.targetWidth = frame.referenceWidth;
+        frame.targetHeight = frame.referenceHeight;
+        constexpr UInt32 AreaColor = IM_COL32(255, 220, 50, 220);
+        constexpr Float AreaThickness = 1.5f;
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        canvas->ForEachObject([&](Object::GameObject& object)
+        {
+            if (object.IsEditorHidden() || false == InViewSpace(object))
+            {
+                return;
+            }
+            const Component::Camera2D* camera = canvas->FindComponentRaw<Component::Camera2D>(&object);
+            const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(&object);
+            // 게임이 고르지 않는 카메라(꺼졌거나 오브젝트가 꺼짐)는 그리지 않는다 - 기존 엔진도 그랬다.
+            if (camera == nullptr || transform == nullptr || false == camera->IsActiveComponent())
+            {
+                return;
+            }
+            RenderCamera2D values;
+            values.orthographicSize = camera->orthographicSize;
+            values.pixelsPerUnit = camera->pixelsPerUnit;
+            values.projection = camera->projection;
+            values.nearPlane = camera->nearPlane;
+            values.farPlane = camera->farPlane;
+            const Matrix3x2 world = transform->worldValid
+                ? transform->world
+                : MakeTransformMatrix2D(transform->position, transform->GetRotationRadian(), transform->scale);
+            Vector2 area[4];
+            if (false == ComputeCameraWorldArea2D(values, world, frame, area))
+            {
+                return;
+            }
+            const auto toScreen = [&](const Vector2& point) {
+                Float sx = 0.0f;
+                Float sy = 0.0f;
+                WorldToScreen(rect, point.x, point.y, sx, sy);
+                return ImVec2(sx, sy);
+            };
+            const ImVec2 corners[4] = {toScreen(area[0]), toScreen(area[1]), toScreen(area[2]), toScreen(area[3])};
+            draw->AddPolyline(corners, 4, AreaColor, ImDrawFlags_Closed, AreaThickness);
+            // 가운데 십자는 영역 긴 변의 5% 다(기존 엔진과 같다). 귀퉁이에서 재므로 회전·크기가 같이 따른다.
+            const ImVec2 center((corners[0].x + corners[2].x) * 0.5f, (corners[0].y + corners[2].y) * 0.5f);
+            const ImVec2 right((corners[1].x - corners[0].x) * 0.5f, (corners[1].y - corners[0].y) * 0.5f);
+            const ImVec2 up((corners[3].x - corners[0].x) * 0.5f, (corners[3].y - corners[0].y) * 0.5f);
+            const Float rightLength = std::sqrt(right.x * right.x + right.y * right.y);
+            const Float upLength = std::sqrt(up.x * up.x + up.y * up.y);
+            if (rightLength > 0.0f && upLength > 0.0f)
+            {
+                const Float cross = JBro::Max(rightLength, upLength) * 0.05f;
+                const ImVec2 rx(right.x / rightLength * cross, right.y / rightLength * cross);
+                const ImVec2 uy(up.x / upLength * cross, up.y / upLength * cross);
+                draw->AddLine(ImVec2(center.x - rx.x, center.y - rx.y), ImVec2(center.x + rx.x, center.y + rx.y), AreaColor, AreaThickness);
+                draw->AddLine(ImVec2(center.x - uy.x, center.y - uy.y), ImVec2(center.x + uy.x, center.y + uy.y), AreaColor, AreaThickness);
+            }
+        });
+    }
+
     Bool CanvasViewPanel::InViewSpace(const Object::GameObject& object) const
     {
         const Layer* layer = object.GetLayer();
@@ -620,6 +693,8 @@ namespace JBro
             DrawPolygonEditor(rect);
             DrawLightEditor(rect);
             DrawSelectionOutlines(rect);
+            DrawPivotMarkers(rect);
+            DrawCameraAreas(rect);
             DrawObjectMarkers(rect);
             DrawOverlay(rect);
         }
@@ -2117,6 +2192,57 @@ namespace JBro
         }
     }
 
+    void CanvasViewPanel::DrawPivotMarkers(const ViewRect& rect)
+    {
+        // **고른 것의 원점**(D-303). 기존 엔진(`CanvasViewTool` Layer 2.7)처럼 고른 오브젝트마다 원점에 빨간 원 둘(반지름 5·3)과 흰 십자를 그리고,
+        // 밝은 그림 위에서도 보이게 1 픽셀 비낀 그림자를 먼저 깐다. 바운드 사각형은 그림의 넓이를, 이것은 돌고 커지는 기준점을 보인다 -
+        // 피벗을 옮긴 스프라이트는 둘이 다른 자리다. 여럿 골라 기즈모가 하나뿐일 때도 하나하나의 원점이 보인다.
+        Canvas* canvas = m_editor->GetCanvas();
+        const Array<Object::GameObject*> selected = m_editor->GetSelectedObjects();
+        if (canvas == nullptr || selected.Size() == 0)
+        {
+            return;
+        }
+        constexpr Float OuterRadius = 5.0f;
+        constexpr Float InnerRadius = 3.0f;
+        constexpr Float CrossHalf = OuterRadius + 2.5f;
+        constexpr Float LineWidth = 1.0f;
+        constexpr UInt32 Shadow = IM_COL32(0, 0, 0, 120);
+        constexpr UInt32 White = IM_COL32(255, 255, 255, 225);
+        constexpr UInt32 Red = IM_COL32(255, 60, 60, 235);
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const auto drawMarker = [&](const ImVec2& at, UInt32 ring, UInt32 cross, Float width) {
+            draw->AddCircle(at, OuterRadius, ring, 24, width);
+            draw->AddCircle(at, InnerRadius, ring, 12, width);
+            draw->AddLine(ImVec2(at.x - CrossHalf, at.y), ImVec2(at.x - InnerRadius, at.y), cross, width);
+            draw->AddLine(ImVec2(at.x + InnerRadius, at.y), ImVec2(at.x + CrossHalf, at.y), cross, width);
+            draw->AddLine(ImVec2(at.x, at.y - CrossHalf), ImVec2(at.x, at.y - InnerRadius), cross, width);
+            draw->AddLine(ImVec2(at.x, at.y + InnerRadius), ImVec2(at.x, at.y + CrossHalf), cross, width);
+        };
+        for (Object::GameObject* object : selected)
+        {
+            if (object == nullptr || false == InViewSpace(*object))
+            {
+                continue;
+            }
+            const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(object);
+            if (transform == nullptr)
+            {
+                continue;
+            }
+            const Matrix3x2 world = transform->worldValid
+                ? transform->world
+                : MakeTransformMatrix2D(transform->position, transform->GetRotationRadian(), transform->scale);
+            Float x = 0.0f;
+            Float y = 0.0f;
+            WorldToScreen(rect, world.m31, world.m32, x, y);
+            // 픽셀 가운데에 맞춘다 - 1 픽셀 선이 두 픽셀에 번지지 않는다.
+            const ImVec2 at(std::floor(x) + 0.5f, std::floor(y) + 0.5f);
+            drawMarker(ImVec2(at.x + 1.0f, at.y + 1.0f), Shadow, Shadow, LineWidth + 0.5f);
+            drawMarker(at, Red, White, LineWidth);
+        }
+    }
+
     Object::GameObject* CanvasViewPanel::PickAt(
         const ViewRect& rect, Float screenX, Float screenY) const
     {
@@ -3229,9 +3355,9 @@ namespace JBro
 
     void CanvasViewPanel::ArmBodyDrag(const ViewRect& rect)
     {
-        // **몸통을 잡아 끌면 가운데 손잡이처럼 자유 이동이다**(D-298). 손잡이·라이트 손잡이 밖에서 눌렀을 때만 무장한다. 끌기 문턱을 넘었을 때
-        // 누른 자리의 오브젝트가 고르지 않은 것이면 먼저 그것을 고르고(다음 프레임에 잡힌다), 빈 곳이었으면 상자 선택에 넘긴다.
-        // 기즈모 모드와 상관없다 - 돌리기·크기 모드에서도 몸통을 끄는 손짓은 옮기기다. 2D 만이다(3D 의 집기는 따로다).
+        // **몸통을 잡아 끌면 지금 기즈모 모드의 중립 손잡이를 잡은 것과 같다**(D-298) - 옮기기는 자유 이동, 돌리기는 회전, 크기는 균등 크기다.
+        // 손잡이·라이트 손잡이 밖에서 눌렀을 때만 무장한다. 끌기 문턱을 넘었을 때 누른 자리의 오브젝트가 고르지 않은 것이면 먼저 그것을 고르고
+        // (다음 프레임에 잡힌다), 빈 곳이었으면 상자 선택에 넘긴다. 2D 만이다(3D 의 집기는 따로다).
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
             m_bodyPressArmed = false == Is3D() && PointerInView(rect) && false == m_gizmoState.dragging
@@ -3314,12 +3440,12 @@ namespace JBro
         const Bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
         // 라이트 손잡이를 가리키거나 끄는 동안은 기즈모가 마우스를 받지 않는다 - 안쪽 반지름 손잡이는 가운데 가까이 있다.
         const Bool lightHandleHot = m_lightDragging || m_lightHover != LightGizmoModel::Handle::None;
-        // 무장한 몸통 누르기가 고른 오브젝트 위였으면 끌기 문턱을 넘는 이 프레임에 옮기기를 잡는다(위 `ArmBodyDrag`).
+        // 무장한 몸통 누르기가 고른 오브젝트 위였으면 끌기 문턱을 넘는 이 프레임에 그 모드의 중립 손잡이를 잡는다(위 `ArmBodyDrag`).
         Bool bodyDragStarted = false;
         if (m_bodyPressArmed && false == m_gizmoState.dragging && Widget::MouseWasDragged(ImGuiMouseButton_Left))
         {
             const ImVec2 press = ImGui::GetIO().MouseClickedPos[0];
-            if (Widget::BeginFreeMove(camera, shown, m_gizmoState, press.x, press.y))
+            if (Widget::BeginNeutralDrag(m_gizmoMode, camera, shown, m_gizmoState, press.x, press.y))
             {
                 m_bodyPressArmed = false;
                 bodyDragStarted = true;
@@ -3329,7 +3455,7 @@ namespace JBro
             snapping ? GridStep(rect) : Float(0.0f), snapping ? GizmoModel::RotationSnapRadians : Float(0.0f));
         if (output.dragStarted || bodyDragStarted)
         {
-            // 편집 전 값을 뜨는 모드는 끌기의 모드다 - 몸통 끌기는 기즈모가 돌리기 모드여도 옮기기다.
+            // 편집 전 값을 뜨는 모드는 끌기의 모드다. 몸통 끌기도 지금 모드로 잡았다.
             if (false == m_editing.Begin(*m_editor, m_gizmoState.drag.mode, shown))
             {
                 m_gizmoState.dragging = false;

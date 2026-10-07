@@ -92,6 +92,25 @@ namespace JBro
         return true;
     }
 
+    Bool ComputeCameraWorldArea2D(const RenderCamera2D& camera, const Matrix3x2& world, const ScreenSpaceFrame& frame,
+        Vector2 (&corners)[4])
+    {
+        CameraView2D view;
+        if (false == ComputeCameraView2D(camera, frame, view))
+        {
+            return false;
+        }
+        const Float xs[4] = {-view.halfWidth, view.halfWidth, view.halfWidth, -view.halfWidth};
+        const Float ys[4] = {-view.halfHeight, -view.halfHeight, view.halfHeight, view.halfHeight};
+        for (std::size_t index = 0; index < 4; ++index)
+        {
+            const Float x = xs[index];
+            const Float y = ys[index];
+            corners[index] = {x * world.m11 + y * world.m21 + world.m31, x * world.m12 + y * world.m22 + world.m32};
+        }
+        return true;
+    }
+
     Bool ComputeParallaxOffset2D(const Matrix3x2& view, Float factor, Float& dx, Float& dy)
     {
         // 카메라의 월드 자리는 뷰가 원점으로 보내는 점이다: x·m11 + y·m21 + m31 = 0, x·m12 + y·m22 + m32 = 0.

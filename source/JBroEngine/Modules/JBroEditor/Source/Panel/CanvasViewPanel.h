@@ -307,6 +307,10 @@ namespace JBro
         // 라이트·카메라 표시(D-298). 표시할 오브젝트면 글리프·색·월드 자리를 주고 참이다.
         Bool FindMarker(const Object::GameObject& object, const char*& glyph, UInt32& color, Vector2& world) const;
         void DrawObjectMarkers(const ViewRect& rect);
+        // 켜진 `Camera2D` 마다 게임에서 보일 영역을 그린다(D-303, 기존 `CanvasDebugDraw::Submit`).
+        void DrawCameraAreas(const ViewRect& rect);
+        // 고른 오브젝트마다 원점(피벗)에 빨간 원 둘과 흰 십자를 그린다(D-303, 기존 `CanvasViewTool` Layer 2.7).
+        void DrawPivotMarkers(const ViewRect& rect);
         void DrawReferenceRect(const ViewRect& rect);
         // 3D 의 궤도 카메라(D-136). 바라보는 점의 높이와, 그 점에서의 거리와 각이다.
         Float m_centerZ = 0.0f;
