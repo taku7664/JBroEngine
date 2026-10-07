@@ -146,6 +146,17 @@ namespace JBro::Internal
                 return m_initialized ? m_device.playback.channels : 0;
             }
 
+            // 주기 크기 × 주기 수 / 장치 레이트다(기존 엔진과 같은 셈).
+            Float GetLatencySeconds() const override
+            {
+                if (false == m_initialized || m_device.playback.internalSampleRate == 0)
+                {
+                    return 0.0f;
+                }
+                return static_cast<float>(m_device.playback.internalPeriodSizeInFrames * m_device.playback.internalPeriods)
+                    / static_cast<float>(m_device.playback.internalSampleRate);
+            }
+
             const char* GetDeviceName() const override
             {
                 // 기본 장치가 바뀌어 따라갔으면(알림은 다른 스레드에서 온다) 여기서 이름을 다시 읽는다.

@@ -2383,6 +2383,7 @@ namespace
         JBro::Bool save = false;
         JBro::Bool pickFolder = false;
         JBro::String defaultFileName;
+        JBro::String filterPattern;
 
         static JBro::Bool Answer(const JBro::FileDialogDesc& desc, JBro::String& outPath, void* user)
         {
@@ -2391,6 +2392,7 @@ namespace
             probe.save = desc.save;
             probe.pickFolder = desc.pickFolder;
             probe.defaultFileName = desc.defaultFileName != nullptr ? desc.defaultFileName : "";
+            probe.filterPattern = desc.filterPattern != nullptr ? desc.filterPattern : "";
             if (probe.path.empty())
             {
                 return false;
@@ -4103,6 +4105,13 @@ namespace
         Check(findButton(playButton, spot), "and it says Play again");
         ClickAt(editor, hwnd, spot);
         Check(editor.GetAudio()->IsPreviewPlaying(), "playing again");
+        // 울리는 동안은 위치 막대와 스펙트럼이 선다(D-303, 기존 탐색 막대와 `ImSpectrumVisualizer`).
+        const ImGuiID positionSlider = LabelId(LabelId(inspector->ID, "##audioPreview"), "##position");
+        Check(findButton(positionSlider, spot), "while it plays a position slider shows");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "audio_inspector_playing");
+        }
 
         // ── 소스: 다른 것을 고르면 미리 듣기가 멈춘다 ──
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -4385,6 +4394,34 @@ namespace
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
             SaveScreenshot(*shotRenderer, 1024, 768, "audio_project_settings");
+        }
+        // **저장된 버스가 초안에 없으면 사라질 버스로 알린다**(D-303). 저장된 쪽에 `Gone` 을 더하면 창의 초안에는 없다.
+        // 알림은 그리기만 하고 아무것도 바꾸지 않는다 - 창을 그리는 동안 프로젝트가 그대로인지 본다.
+        JBro::ProjectFile saved = editor.GetProjectFile();
+        saved.audioBuses.Add(JBro::ProjectAudioBus{JBro::String("Gone"), 1.0f});
+        saved.audioMasterVolume = 0.5f;
+        Check(editor.SaveProjectSettings(saved, error), "the probe saves a project with one more bus");
+        Check(editor.GetAudio() != nullptr && std::fabs(editor.GetAudio()->GetMasterVolume() - 0.5f) < 1e-6f,
+            "the saved master volume reaches the audio system");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the warning about the bus that would go");
+        }
+        Check(editor.GetProjectFile().audioBuses.Size() == 4, "drawing the warning does not change the project");
+        // 알림은 버스 목록 끝에 있다 - 사진에 담기도록 마디를 닫고 창을 그 자리까지 내린다.
+        for (JBro::Int32 bus = 0; bus < 3; ++bus)
+        {
+            const ImGuiID seed = ImHashData(&bus, sizeof(bus), window->ID);
+            window->StateStorage.SetInt(LabelId(seed, effects), 0);
+            window->StateStorage.SetInt(LabelId(seed, routing), 0);
+        }
+        Check(editor.Tick(Frame), "the editor must draw the closed folds");
+        window->Scroll.y = window->ScrollMax.y * 0.2f;
+        window->ScrollTarget.y = window->Scroll.y;
+        Check(editor.Tick(Frame), "the editor must draw the scrolled settings");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "audio_project_settings_removed_bus");
         }
         editor.Shutdown();
         fs::remove_all(root, ignored);
@@ -8029,6 +8066,25 @@ namespace
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
             std::ofstream text(outside / "notes.txt", std::ios::binary);
             text << "not an asset";
+            // 0.1 초 무음 16 비트 모노 WAV(D-303). 가져오기가 소리를 받는지만 본다.
+            constexpr JBro::UInt32 frames = 4800;
+            std::vector<std::uint8_t> wav(44 + frames * 2, 0);
+            auto put32 = [&](std::size_t at, JBro::UInt32 value) { std::memcpy(wav.data() + at, &value, 4); };
+            auto put16 = [&](std::size_t at, std::uint16_t value) { std::memcpy(wav.data() + at, &value, 2); };
+            std::memcpy(wav.data(), "RIFF", 4);
+            put32(4, 36 + frames * 2);
+            std::memcpy(wav.data() + 8, "WAVEfmt ", 8);
+            put32(16, 16);
+            put16(20, 1);
+            put16(22, 1);
+            put32(24, 48000);
+            put32(28, 48000 * 2);
+            put16(32, 2);
+            put16(34, 16);
+            std::memcpy(wav.data() + 36, "data", 4);
+            put32(40, frames * 2);
+            std::ofstream sound(outside / "step.wav", std::ios::binary);
+            sound.write(reinterpret_cast<const char*>(wav.data()), static_cast<std::streamsize>(wav.size()));
         }
         const JBro::String projectPath = TempPath("JBroImportProbe\\Import.jproject");
         Check(WriteTextFile(projectPath,
@@ -8073,6 +8129,25 @@ namespace
             "the registry knows it without a manual rescan");
         Check(editor.GetSpriteViewerTabCount() == 1,
             "a picture opens in the sprite viewer right away, to set up its slicing");
+        Check(dialog.filterPattern.find("*.png") != JBro::String::npos && dialog.filterPattern.find("*.wav") != JBro::String::npos,
+            "the asset browser's import takes pictures and sounds alike (D-303)");
+
+        // **소리도 가져온다**(D-303). 처음에는 대화상자가 그림만 받아 에디터 안에서 소리를 들일 길이 없었다.
+        dialog.path = TempPath("JBroImportSource/step.wav");
+        editor.RequestImportAsset("sfx", JBro::EditorApplication::ImportFilter::Audio);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick through the audio import");
+        }
+        Check(dialog.filterPattern.find("*.wav") != JBro::String::npos && dialog.filterPattern.find("*.ogg") != JBro::String::npos
+                && dialog.filterPattern.find("*.png") == JBro::String::npos,
+            "the audio import asks for sound files only");
+        const JBro::AssetRecord* sound = editor.GetAssetRegistry().FindByPath("sfx/step.wav");
+        Check(sound != nullptr && sound->type == JBro::AssetType::Audio, "the sound is copied in and registered as audio");
+        Check(sound != nullptr && editor.GetSelectedAsset() == sound->id,
+            "and it is picked, so the inspector shows its import options right away");
+        Check(editor.GetSpriteViewerTabCount() == 1, "a sound does not open a sprite viewer");
+        dialog.path = TempPath("JBroImportSource/walk.png");
 
         // **같은 이름은 덮어쓰지 않는다.** 이미 있는 파일은 아이디를 들고 있다.
         const auto sizeBefore = fs::file_size(root / "Assets" / "art" / "walk.png", ignored);

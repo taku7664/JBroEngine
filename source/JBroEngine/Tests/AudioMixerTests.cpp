@@ -208,6 +208,38 @@ namespace
         mixer.Shutdown();
     }
 
+    // **Master 음량은 Master 버스에만 걸린다**(D-303). 처음 판은 엔진 전체 음량(`ma_engine_set_volume`)이라 에디터 미리 듣기까지
+    // 줄었다 - 미리 듣기는 Master 와 따로 들려야 한다(§2.9).
+    void TestMasterVolumeSparesThePreview()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<JBro::Float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        const AudioVoiceHandle game = mixer.Play(play);
+        mixer.SetMasterVolume(0.5f);
+        Rendered out = Render(mixer, 4800);
+        Check(std::fabs(out.Peak(0, 2400) - 0.25f) < 0.03f, "the master volume halves a sound on Master");
+        Check(std::fabs(mixer.GetMasterVolume() - 0.5f) < 1e-6f, "and reads back");
+        mixer.SetBusVolume(AudioMasterBus, 0.5f);
+        out = Render(mixer, 4800);
+        Check(std::fabs(out.Peak(0, 2400) - 0.125f) < 0.02f, "it multiplies the Master bus's own volume");
+        mixer.SetBusVolume(AudioMasterBus, 1.0f);
+        mixer.Stop(game);
+
+        play.bus = AudioEditorPreviewBus;
+        const AudioVoiceHandle preview = mixer.Play(play);
+        out = Render(mixer, 4800);
+        Check(std::fabs(out.Peak(0, 2400) - 0.5f) < 0.05f, "the editor preview bus is not turned down by the master volume");
+        mixer.Stop(preview);
+        mixer.SetMasterVolume(2.0f);
+        Check(mixer.GetMasterVolume() == 1.0f, "the master volume is clamped to 1");
+        mixer.Shutdown();
+    }
+
     void TestPitchLoopAndEnd()
     {
         AudioMixer mixer;
@@ -1939,6 +1971,7 @@ JBro::Int32 RunAudioMixerTests()
     {
         TestSilenceWithoutVoices();
         TestVolumeAndBuses();
+        TestMasterVolumeSparesThePreview();
         TestPitchLoopAndEnd();
         TestDelayAndFade();
         TestSpatialization();

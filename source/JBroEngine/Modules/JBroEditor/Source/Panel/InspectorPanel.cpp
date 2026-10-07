@@ -34,8 +34,10 @@
 #include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AudioDecoder.h>
+#include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/AudioBusName.h>
+#include <JBro/Editor/Widget/Meter.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Core/Log.h>
@@ -1154,8 +1156,11 @@ namespace JBro
                         audio->StopPreview();
                     }
                     ImGui::SameLine();
+                    // 지금 / 길이다(기존 `"%.2f / %.2f s"`, D-303).
                     const Int32 minutes = static_cast<JBro::Int32>(position / 60.0);
-                    Widget::TextF("%d:%05.2f", minutes, position - minutes * 60.0);
+                    const Int32 totalMinutes = static_cast<JBro::Int32>(m_audioSeconds / 60.0);
+                    Widget::TextF("%d:%05.2f / %d:%05.2f", minutes, position - minutes * 60.0, totalMinutes,
+                        m_audioSeconds - totalMinutes * 60.0);
                 }
                 else if (Widget::IconButton("##audio_play", Icons::Play)
                              .Caption(Loc::TextOr(LocKeys::InspectorAudioPlay, "Play"))
@@ -1166,6 +1171,29 @@ namespace JBro
             });
         layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioLoop, "Loop")),
             [&]() { Widget::Checkbox("##loop", m_audioLoop); });
+        // **울리는 동안 위치 막대와 스펙트럼**(D-303, 기존 탐색 막대와 `ImSpectrumVisualizer`). 막대를 끌면 그 자리로 옮긴다.
+        // 스펙트럼은 믹서의 최근 출력이다 - 편집 중에는 미리 듣기만 울린다.
+        if (playingThis && m_audioSeconds > 0.0)
+        {
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioPosition, "Position")),
+                [&]() {
+                    Float seconds = static_cast<JBro::Float>(position);
+                    if (Widget::SliderField("##position", seconds, 0.0f, static_cast<JBro::Float>(m_audioSeconds))
+                            .Format("%.2f s")
+                            .Draw())
+                    {
+                        audio->SeekPreview(static_cast<double>(seconds.Get()));
+                    }
+                });
+            if (AudioMixer* mixer = audio->GetMixer())
+            {
+                mixer->ComputeSpectrum(m_audioSpectrum, AudioSpectrumBands);
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioSpectrum, "Spectrum")),
+                    [&]() {
+                        Widget::Spectrum("##spectrum", {m_audioSpectrum, AudioSpectrumBands}, ImGui::GetFrameHeight() * 2.5f);
+                    });
+            }
+        }
     }
 
     void InspectorPanel::DrawAssetField(

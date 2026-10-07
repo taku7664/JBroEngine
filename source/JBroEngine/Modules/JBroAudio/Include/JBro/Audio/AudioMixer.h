@@ -260,6 +260,7 @@ namespace JBro
         // 리스너다. 2D 는 방향을 기본(-Z 앞, +Y 위)으로 두고 위치만 준다.
         void SetListener(const Float position[3], const Float forward[3], const Float up[3]);
         void SetListenerVelocity(const Float velocity[3]);
+        // Master 버스에 곱하는 음량이다(0..1, D-303). Master 버스의 제 음량·음소거와 곱해지고, 미리 듣기 버스에는 걸리지 않는다.
         void SetMasterVolume(Float volume);
         Float GetMasterVolume() const;
         // 장치로 나가기 직전의 이득이다. `seconds` 동안 곧게 옮겨 가므로 뚝 끊기는 소리(클릭)가 없다. 창이 포커스를 잃었을

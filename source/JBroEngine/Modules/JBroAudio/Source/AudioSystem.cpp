@@ -118,6 +118,9 @@ namespace JBro::System
         m_mixer->SetOutputGain(1.0f, 0.0f);
         m_muteWhenUnfocused = false;
         m_focused = true;
+        m_masterVolume = 1.0f;
+        m_listenerVolume = 1.0f;
+        m_mixer->SetMasterVolume(1.0f);
         m_deviceControl = nullptr;
         m_mixer = nullptr;
         m_assets = nullptr;
@@ -370,6 +373,24 @@ namespace JBro::System
         m_listenerPlaced = true;
     }
 
+    void AudioSystem::SetListenerVolume(Float volume)
+    {
+        const Float clamped = std::isfinite(volume) ? (volume < 0.0f ? Float(0.0f) : (volume > 1.0f ? Float(1.0f) : volume)) : Float(1.0f);
+        if (clamped != m_listenerVolume)
+        {
+            m_listenerVolume = clamped;
+            ApplyMasterVolume();
+        }
+    }
+
+    void AudioSystem::ApplyMasterVolume()
+    {
+        if (m_initialized)
+        {
+            m_mixer->SetMasterVolume(m_masterVolume * m_listenerVolume);
+        }
+    }
+
     void AudioSystem::Place(const Float position[3], Float out[3]) const
     {
         out[0] = Finite(position[0], 0.0f);
@@ -569,6 +590,8 @@ namespace JBro::System
         {
             m_mixer->StopAllWithTag(GameTag);
         }
+        // 게임의 리스너가 줄여 둔 음량을 편집 화면에 남기지 않는다(D-303).
+        SetListenerVolume(1.0f);
         // 다시 켠 첫 프레임에 멈추기 전 자리와의 차이로 도플러가 튀지 않게 한다(D-240).
         m_listenerPlaced = false;
     }
@@ -894,5 +917,41 @@ namespace JBro::System
     Bool AudioSystem::IsMuteWhenUnfocused() const
     {
         return m_muteWhenUnfocused;
+    }
+
+    void AudioSystem::SetMasterVolume(Float volume)
+    {
+        m_masterVolume = std::isfinite(volume) ? (volume < 0.0f ? Float(0.0f) : (volume > 1.0f ? Float(1.0f) : volume)) : Float(1.0f);
+        ApplyMasterVolume();
+    }
+
+    Float AudioSystem::GetMasterVolume() const
+    {
+        return m_masterVolume;
+    }
+
+    UInt32 AudioSystem::GetBusCount() const
+    {
+        return static_cast<JBro::UInt32>(m_busConfigs.Size());
+    }
+
+    const char* AudioSystem::GetBusName(UInt32 index) const
+    {
+        if (index >= m_busConfigs.Size())
+        {
+            return "";
+        }
+        const char* name = NameTable::Get().Resolve(m_busConfigs[index].name);
+        return name != nullptr ? name : "";
+    }
+
+    double AudioSystem::GetAudioTime() const
+    {
+        return m_initialized ? m_mixer->GetTimeSeconds() : 0.0;
+    }
+
+    Float AudioSystem::GetOutputLatency() const
+    {
+        return m_deviceControl != nullptr ? m_deviceControl->GetOutputLatencySeconds() : Float(0.0f);
     }
 }

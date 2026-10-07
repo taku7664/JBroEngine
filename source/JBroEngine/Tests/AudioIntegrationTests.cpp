@@ -147,6 +147,31 @@ namespace
         "  - Name: MoveLeft\n"
         "    Key: A\n";
 
+    // `AudioMasterVolume`(D-303)는 1 이면 적지 않고, 바꾸면 최상위 키로 왕복한다.
+    void TestProjectFileKeepsTheMasterVolume()
+    {
+        ProjectFile project;
+        ProjectFileError error;
+        Check(ParseProjectFile(LegacyProject, sizeof(LegacyProject) - 1, project, error), "the project reads");
+        Check(project.audioMasterVolume == 1.0f, "the master volume starts at 1");
+        String written;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "it writes back");
+        Check(written.find("AudioMasterVolume") == String::npos, "an untouched master volume is not written");
+        project.audioMasterVolume = 0.5f;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "an edit writes");
+        Check(written.find("AudioMasterVolume: 0.5\n") != String::npos, "a changed master volume is written as the shortest text");
+        ProjectFile reread;
+        Check(ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.audioMasterVolume == 0.5f,
+            "and reads back");
+        String twice;
+        Check(WriteProjectFileText(reread, written.c_str(), written.size(), twice, error) && twice == written,
+            "saving again changes nothing");
+        String tooLoud(LegacyProject);
+        tooLoud.append("AudioMasterVolume: 3\n");
+        Check(ParseProjectFile(tooLoud.c_str(), tooLoud.size(), reread, error) && reread.audioMasterVolume == 1.0f,
+            "a value above 1 is clamped");
+    }
+
     void TestProjectFileReadsAndKeepsAudioBuses()
     {
         ProjectFile project;
@@ -1002,6 +1027,52 @@ namespace
         scene.Close();
     }
 
+    // **게임 전체 음량 × 리스너 음량**(D-303, 기존 `SetMasterVolume` × `AudioListener.MasterVolume`). 스크립트가 버스 이름을 읽는다.
+    void TestMasterAndListenerVolume()
+    {
+        Scene scene;
+        scene.Open();
+        Component::AudioSource* music = scene.AddSource("music", 0.0f, true);
+        music->bus = AudioBusName::FromText("SFX");
+        Object::GameObject* ear = scene.canvas->CreateObject("ear");
+        scene.canvas->AttachComponent<Component::Transform2D>(ear);
+        auto* listener = scene.canvas->AttachComponent<Component::AudioListener2D>(ear);
+        scene.framework.BindCanvasAssets();
+        scene.Frame();
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.5f) < 0.05f, "a sound is heard at its level at first");
+
+        listener->volume = 0.5f;
+        scene.Frame();
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.25f) < 0.04f, "the listener's volume turns the game down");
+        const Service::AudioService& audio = GetAudioServices().Audio;
+        audio.SetMasterVolume(0.5f);
+        Check(std::fabs(audio.GetMasterVolume() - 0.5f) < 1e-6f, "the master volume reads back");
+        scene.Frame();
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.125f) < 0.03f, "and the master volume multiplies it");
+        Check(std::fabs(scene.mixer.GetMasterVolume() - 0.25f) < 1e-6f, "the mixer gets the product");
+
+        // 미리 듣기는 Master 와 따로다.
+        music->SetEnabled(false);
+        scene.Frame();
+        Check(scene.audio.PlayPreview(music->clip, true), "the preview plays");
+        Check(std::fabs(RenderPeaks(scene.mixer, 4800).left - 0.5f) < 0.05f, "the preview is not turned down");
+        scene.audio.StopPreview();
+
+        // 게임을 멈추면 리스너 몫은 1 로 돌아간다 - 편집 화면에 남지 않는다.
+        scene.audio.StopGameSounds();
+        Check(std::fabs(scene.mixer.GetMasterVolume() - 0.5f) < 1e-6f, "stopping the game drops the listener's share");
+
+        Check(audio.GetBusCount() == 2, "the script sees the project's two buses");
+        Check(std::strcmp(audio.GetBusName(0), "Music") == 0 && std::strcmp(audio.GetBusName(1), "SFX") == 0,
+            "by name, in the list's order");
+        Check(audio.GetBusName(9)[0] == '\0', "past the end is an empty name");
+        const double before = audio.GetAudioTime();
+        RenderPeaks(scene.mixer, 4800);
+        Check(audio.GetAudioTime() > before + 0.09, "the audio clock follows the mixed frames");
+        Check(audio.GetOutputLatency() == 0.0f, "without a device the latency is zero");
+        scene.Close();
+    }
+
     void TestTheScriptServiceReachesTheMixer()
     {
         Scene scene;
@@ -1198,6 +1269,8 @@ JBro::Int32 RunAudioIntegrationTests()
         TestSourcesFollowTheirLifecycle();
         TestBusesAndSpatialSources();
         TestTheScriptServiceReachesTheMixer();
+        TestMasterAndListenerVolume();
+        TestProjectFileKeepsTheMasterVolume();
         TestAReloadedClipIsReleasedBeforeItsDataGoes();
         TestRoutingFromTheProjectAndSourceFilters();
         TestSteadyAudioFramesDoNotAllocate();

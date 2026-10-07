@@ -127,7 +127,7 @@
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest), `Fonts`(폰트 에셋 아이디의 순서 있는 시퀀스 - 첫 폰트가 `fontId` 가 빈 텍스트의 기본이고 목록 전체가
   폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다), 게임 언어의 `Locales`(이름 시퀀스)·
-  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226), 게임 빌드의 프로젝트 사본이 적는 `AssetPackage`(D-232) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
+  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226), 게임 빌드의 프로젝트 사본이 적는 `AssetPackage`(D-232), 게임 전체 음량 `AudioMasterVolume`(0..1, 1 이면 적지 않는다 - 기존 설정 창의 Master 슬라이더는 저장하지 않았다, D-303) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
   PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-213)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
 - **빈 값은 `""` 로 적는다.** `Key: ` 는 "아래에 블록이 온다" 로 읽혀 기본값이 되살아난다. 원문에서 이미 비어 있던 줄만 그대로 둔다. (MUST) (D-232)

@@ -824,6 +824,13 @@ namespace JBro
                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioMuteHelp,
                         "Mutes the sound while the window is not focused"));
                 });
+            // 게임 전체 음량(D-303). 기존 창의 Master Volume 슬라이더는 저장도 적용도 되지 않았다.
+            device.Row([] { Widget::Text("AudioMasterVolume"); },
+                [&] {
+                    Widget::SliderField("##masterVolume", m_draft.audioMasterVolume, 0.0f, 1.0f)();
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioMasterHelp,
+                        "The whole game's volume. Scripts can change it, and the listener's volume multiplies it"));
+                });
         }
         Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsAudioBusesHelp,
             "Master is always there and every bus plays under it."));
@@ -1016,6 +1023,32 @@ namespace JBro
             if (removeAt < m_draft.audioBuses.Size())
             {
                 m_draft.audioBuses.RemoveAt(removeAt);
+            }
+            // **저장하면 사라질 버스**(D-303, 기존 `FindRemovedBusNames`). 이름을 바꾸거나 지우면 그 이름을 쓰는 소스·스크립트가
+            // Master 로 떨어진다 - 저장 전에 보인다. 기준은 저장된 프로젝트다.
+            String removed;
+            for (const ProjectAudioBus& saved : m_editor->GetProjectFile().audioBuses)
+            {
+                Bool kept = false;
+                for (const ProjectAudioBus& bus : m_draft.audioBuses)
+                {
+                    kept = kept || bus.name == saved.name;
+                }
+                if (false == kept && false == saved.name.empty())
+                {
+                    if (false == removed.empty())
+                    {
+                        removed.append(", ", 2);
+                    }
+                    removed.append(saved.name.c_str(), saved.name.size());
+                }
+            }
+            if (false == removed.empty())
+            {
+                char text[512] = {};
+                std::snprintf(text, sizeof(text), Loc::TextOr(LocKeys::ProjectSettingsAudioBusesRemoved,
+                    "These buses disappear when you save; sounds that use them play on Master: %s"), removed.c_str());
+                Widget::ValidationMessage(Widget::Severity::Warning, text).Draw();
             }
         }
         if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsAudioAddBus, "Add Bus"), Icons::Plus))

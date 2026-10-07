@@ -223,9 +223,16 @@ namespace JBro
         // 같은 이름이 이미 있으면 거절한다(덮어쓰면 그 파일을 가리키던 아이디가 다른 그림을 가리킨다).
         // 에셋이 아닌 확장자도 거절한다 - 복사는 되는데 목록에 나오지 않으면 가져온 것이 사라진 것처럼 보인다.
         Bool ImportAssetFile(const char* sourcePath, const char* relativeFolder, String* importedPath = nullptr);
-        // 파일 대화상자로 고르고 가져온다. 대화상자는 프레임 밖에서 뜬다. 그림이면 스프라이트 뷰어로 연다 -
-        // 기존 임포터가 가져오기 전에 옵션을 보였듯, 가져온 뒤 바로 자르는 옵션을 고칠 수 있게.
-        void RequestImportAsset(const char* relativeFolder);
+        // 가져오기 대화상자가 받는 파일이다. `Any` 는 그림과 소리를 다 받는다(D-303).
+        enum class ImportFilter : std::uint8_t
+        {
+            Any,
+            Image,
+            Audio
+        };
+        // 파일 대화상자로 고르고 가져온다. 대화상자는 프레임 밖에서 뜬다. 그림이면 스프라이트 뷰어로 열고, 소리면 그 에셋을
+        // 골라 인스펙터에 임포트 옵션을 띄운다 - 기존 임포터가 가져오기 전에 옵션을 보였듯, 가져온 뒤 바로 고칠 수 있게.
+        void RequestImportAsset(const char* relativeFolder, ImportFilter filter = ImportFilter::Any);
         std::size_t GetSpriteViewerTabCount() const;
         // 앞에 있는 뷰어 탭의 칸 번호다. 탭이 없으면 거짓이다.
         Bool GetSpriteViewerFrame(UInt32& frame) const;
@@ -1043,6 +1050,7 @@ namespace JBro
         // 가져오기 대화상자를 띄울 차례인가, 그리고 어느 폴더로 가져올 것인가.
         Bool m_importRequested = false;
         String m_importFolder;
+        ImportFilter m_importFilter = ImportFilter::Any;
         // 에셋의 작은 그림들. 프로젝트를 닫을 때 비운다 - 다음 프로젝트의 아이디는 다른 파일이다.
         OwnerPtr<EditorThumbnails> m_thumbnails;
         // 스프라이트의 실제 모양. 같은 이유로 프로젝트를 닫을 때 비운다.

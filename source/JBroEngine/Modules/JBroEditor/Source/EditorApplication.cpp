@@ -3321,10 +3321,11 @@ namespace JBro
         RequestOpenCanvas(pending.c_str());
     }
 
-    void EditorApplication::RequestImportAsset(const char* relativeFolder)
+    void EditorApplication::RequestImportAsset(const char* relativeFolder, ImportFilter filter)
     {
         m_importRequested = true;
         m_importFolder = relativeFolder != nullptr ? relativeFolder : "";
+        m_importFilter = filter;
     }
 
     void EditorApplication::PerformImportRequest()
@@ -3340,8 +3341,23 @@ namespace JBro
         }
         FileDialogDesc desc;
         desc.title = Loc::TextOr(LocKeys::DialogImportTitle, "Import");
-        desc.filterName = Loc::TextOr(LocKeys::DialogImportImages, "Images");
-        desc.filterPattern = "*.png;*.jpg;*.jpeg;*.bmp;*.tga";
+        // 대화상자는 한 종류만 받는다(`FileDialogDesc`). 그림과 소리를 한 줄에 묶는다 - 처음에는 그림만 받아 에디터 안에서
+        // 소리를 들일 길이 없었다(D-303).
+        switch (m_importFilter)
+        {
+            case ImportFilter::Image:
+                desc.filterName = Loc::TextOr(LocKeys::DialogImportImages, "Images");
+                desc.filterPattern = "*.png;*.jpg;*.jpeg;*.bmp;*.tga";
+                break;
+            case ImportFilter::Audio:
+                desc.filterName = Loc::TextOr(LocKeys::DialogImportAudio, "Audio");
+                desc.filterPattern = "*.wav;*.ogg;*.mp3;*.flac";
+                break;
+            default:
+                desc.filterName = Loc::TextOr(LocKeys::DialogImportAssets, "Images and audio");
+                desc.filterPattern = "*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.wav;*.ogg;*.mp3;*.flac";
+                break;
+        }
         desc.save = false;
         String path;
         const Bool chosen = m_fileDialog != nullptr
@@ -3359,10 +3375,18 @@ namespace JBro
                 path.c_str(), "import_failed"));
             return;
         }
-        // 그림이면 바로 뷰어로 연다 - 자르는 옵션을 가져온 자리에서 고칠 수 있게.
+        // 그림이면 바로 뷰어로 연다 - 자르는 옵션을 가져온 자리에서 고칠 수 있게. 소리면 그 에셋을 골라 인스펙터에
+        // 임포트 옵션과 미리 듣기를 띄운다.
         if (const AssetRecord* record = GetAssetRegistry().FindByPath(imported.c_str()))
         {
-            OpenSpriteViewer(record->id);
+            if (record->type == AssetType::Audio)
+            {
+                SetSelectedAsset(record->id);
+            }
+            else
+            {
+                OpenSpriteViewer(record->id);
+            }
         }
     }
 
@@ -4735,7 +4759,14 @@ namespace JBro
                         nullptr, false == GetAssetRoot().empty(),
                         Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))
                 {
-                    RequestImportAsset("");
+                    RequestImportAsset("", ImportFilter::Image);
+                }
+                // 기존 엔진의 `Audio Importer` 자리다(D-303). 창은 두지 않고 가져온 뒤 인스펙터에서 옵션을 고친다.
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuImportAudio, "Import Audio"),
+                        nullptr, false == GetAssetRoot().empty(),
+                        Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))
+                {
+                    RequestImportAsset("", ImportFilter::Audio);
                 }
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer"),
                         nullptr, image,

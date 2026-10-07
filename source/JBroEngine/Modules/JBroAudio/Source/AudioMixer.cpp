@@ -1928,7 +1928,9 @@ namespace JBro
                 {
                     continue;
                 }
-                const Float gain = target.muted || false == audible[bus] ? Float(0.0f) : target.volume;
+                // Master 음량(D-303)은 Master 버스에만 곱한다 - 미리 듣기 버스는 엔드포인트로 곧장 가므로 줄지 않는다.
+                const Float scale = bus == AudioMasterBus ? masterVolume : Float(1.0f);
+                const Float gain = target.muted || false == audible[bus] ? Float(0.0f) : Float(target.volume * scale);
                 if (gain != target.effectiveGain)
                 {
                     const Float seconds = bus == fadingBus && fadeSeconds > 0.01f ? fadeSeconds : Float(0.01f);
@@ -3565,8 +3567,10 @@ namespace JBro
     {
         if (IsInitialized())
         {
+            // 엔진 전체 음량(`ma_engine_set_volume`)이 아니라 Master 버스의 이득이다(D-303) - 에디터 미리 듣기는 Master 와 따로
+            // 들린다(§2.9). 10 ms 에 걸쳐 옮긴다(클릭 없음).
             m_state->masterVolume = Clamp01(volume);
-            ma_engine_set_volume(&m_state->engine, m_state->masterVolume);
+            m_state->ApplyBusGains();
         }
     }
 

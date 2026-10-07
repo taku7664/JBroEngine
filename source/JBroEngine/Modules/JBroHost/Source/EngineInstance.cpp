@@ -76,6 +76,12 @@ namespace JBro
                 return output != nullptr && output->IsWaitingForUserGesture();
             }
 
+            Float GetOutputLatencySeconds() const override
+            {
+                const IAudioOutput* output = m_engine.GetAudioOutput();
+                return output != nullptr ? output->GetLatencySeconds() : Float(0.0f);
+            }
+
         private:
             static constexpr UInt32 MaxDevices = 32;
             EngineInstance& m_engine;
@@ -1200,6 +1206,7 @@ namespace JBro
         }
         m_audio->ConfigureBuses({buses.Data(), static_cast<JBro::UInt32>(buses.Size())});
         m_audio->SetMuteWhenUnfocused(m_project.audioMuteWhenUnfocused);
+        m_audio->SetMasterVolume(m_project.audioMasterVolume);
         // 고른 장치가 바뀌었을 때만 다시 연다 - 설정을 저장할 때마다 소리가 끊기지 않게.
         if (false == (m_project.audioOutputDevice == m_audioDevicePreference))
         {

@@ -239,4 +239,42 @@ namespace JBro::Service
         System::IAudioSystem* audio = Audio();
         return audio != nullptr && audio->IsMuteWhenUnfocused();
     }
+
+    void AudioService::SetMasterVolume(Float volume) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            audio->SetMasterVolume(volume);
+        }
+    }
+
+    Float AudioService::GetMasterVolume() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetMasterVolume() : Float(0.0f);
+    }
+
+    UInt32 AudioService::GetBusCount() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetBusCount() : UInt32(0);
+    }
+
+    const char* AudioService::GetBusName(UInt32 index) const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetBusName(index) : "";
+    }
+
+    double AudioService::GetAudioTime() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetAudioTime() : 0.0;
+    }
+
+    Float AudioService::GetOutputLatency() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetOutputLatency() : Float(0.0f);
+    }
 }

@@ -382,6 +382,9 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuImportSprite = "menu.import_sprite";
     inline constexpr const char* DialogImportTitle = "dialog.import_title";
     inline constexpr const char* DialogImportImages = "dialog.import_images";
+    inline constexpr const char* DialogImportAudio = "dialog.import_audio";
+    inline constexpr const char* DialogImportAssets = "dialog.import_assets";
+    inline constexpr const char* MenuImportAudio = "menu.import_audio";
     inline constexpr const char* PopupImportFailed = "popup.import_failed";
     inline constexpr const char* SpriteViewerTitle = "sprite_viewer.title";
     inline constexpr const char* SpriteViewerLoading = "sprite_viewer.loading";
@@ -424,6 +427,8 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAudioPlay = "inspector.audio_play";
     inline constexpr const char* InspectorAudioStop = "inspector.audio_stop";
     inline constexpr const char* InspectorAudioLoop = "inspector.audio_loop";
+    inline constexpr const char* InspectorAudioPosition = "inspector.audio_position";
+    inline constexpr const char* InspectorAudioSpectrum = "inspector.audio_spectrum";
     inline constexpr const char* InspectorAudioSeekHint = "inspector.audio_seek_hint";
     inline constexpr const char* InspectorAudioOff = "inspector.audio_off";
     inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
@@ -450,6 +455,8 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsPhysicsMatrix = "project_settings.physics_matrix";
     inline constexpr const char* ProjectSettingsPhysicsMatrixHelp = "project_settings.physics_matrix_help";
     inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
+    inline constexpr const char* ProjectSettingsAudioMasterHelp = "project_settings.audio_master_help";
+    inline constexpr const char* ProjectSettingsAudioBusesRemoved = "project_settings.audio_buses_removed";
     inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
     inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";
     inline constexpr const char* ProjectSettingsAudioParentHelp = "project_settings.audio_parent_help";

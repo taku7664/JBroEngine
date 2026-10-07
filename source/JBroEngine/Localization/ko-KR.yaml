@@ -196,6 +196,8 @@ Entries:
   inspector.audio_play: "재생"
   inspector.audio_stop: "정지"
   inspector.audio_loop: "반복 재생"
+  inspector.audio_position: "위치"
+  inspector.audio_spectrum: "스펙트럼"
   inspector.audio_seek_hint: "누르면 그 위치부터 재생합니다"
   inspector.audio_off: "이 에디터에서는 오디오가 꺼져 있습니다"
   inspector.audio_unreadable: "오디오 파일을 읽을 수 없습니다"
@@ -222,6 +224,8 @@ Entries:
   project_settings.physics_matrix: "레이어 충돌"
   project_settings.physics_matrix_help: "체크를 해제하면 두 레이어가 서로 부딪히지 않고 지나갑니다. 이름을 붙인 레이어만 보입니다"
   project_settings.audio_mute_help: "창이 포커스를 잃으면 소리를 끕니다"
+  project_settings.audio_master_help: "게임 전체 음량입니다. 스크립트로 바꿀 수 있고 리스너의 음량이 곱해집니다"
+  project_settings.audio_buses_removed: "저장하면 다음 버스가 사라집니다. 이 버스를 쓰는 소리는 Master 로 재생됩니다: %s"
   project_settings.audio_routing: "라우팅"
   project_settings.audio_no_send: "없음"
   project_settings.audio_parent_help: "위에 있는 버스만 부모로 고를 수 있습니다"
@@ -422,6 +426,9 @@ Entries:
   menu.import_sprite: 스프라이트 가져오기
   dialog.import_title: 가져오기
   dialog.import_images: 그림
+  dialog.import_audio: 오디오
+  dialog.import_assets: 그림과 오디오
+  menu.import_audio: 오디오 가져오기
   popup.import_failed: 파일을 가져오지 못했습니다
   sprite_viewer.title: 스프라이트 뷰어
   sprite_viewer.loading: 그림을 읽는 중입니다

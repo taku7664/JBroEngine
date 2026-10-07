@@ -59,6 +59,7 @@ namespace JBro::System
         Float panDistance = 5.0f;
         Bool found = false;
         UInt32 listeners = 0;
+        Float listenerVolume = 1.0f;
         canvas.ForEach<Component::AudioListener2D>([&](Component::AudioListener2D& candidate)
         {
             if (false == candidate.IsActiveComponent())
@@ -72,6 +73,7 @@ namespace JBro::System
                 listener[0] = position[0];
                 listener[1] = position[1];
                 panDistance = candidate.panDistance;
+                listenerVolume = candidate.volume;
                 found = true;
             }
         });
@@ -104,6 +106,8 @@ namespace JBro::System
         const Float up[3] = {0.0f, 1.0f, 0.0f};
         m_audio.SetListener(listener, forward, up, std::isfinite(panDistance) && panDistance > 0.0f ? panDistance : Float(5.0f),
             deltaTime);
+        // 리스너 컴포넌트가 없으면(카메라에서 듣는다) 1 이다.
+        m_audio.SetListenerVolume(listenerVolume);
 
         canvas.ForEach<Component::AudioSource>([&](Component::AudioSource& source)
         {
