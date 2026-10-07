@@ -3342,7 +3342,7 @@ namespace JBro
         FileDialogDesc desc;
         desc.title = Loc::TextOr(LocKeys::DialogImportTitle, "Import");
         // 대화상자는 한 종류만 받는다(`FileDialogDesc`). 그림과 소리를 한 줄에 묶는다 - 처음에는 그림만 받아 에디터 안에서
-        // 소리를 들일 길이 없었다(D-303).
+        // 소리를 들일 길이 없었다(D-304).
         switch (m_importFilter)
         {
             case ImportFilter::Image:
@@ -4761,7 +4761,7 @@ namespace JBro
                 {
                     RequestImportAsset("", ImportFilter::Image);
                 }
-                // 기존 엔진의 `Audio Importer` 자리다(D-303). 창은 두지 않고 가져온 뒤 인스펙터에서 옵션을 고친다.
+                // 기존 엔진의 `Audio Importer` 자리다(D-304). 창은 두지 않고 가져온 뒤 인스펙터에서 옵션을 고친다.
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuImportAudio, "Import Audio"),
                         nullptr, false == GetAssetRoot().empty(),
                         Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))

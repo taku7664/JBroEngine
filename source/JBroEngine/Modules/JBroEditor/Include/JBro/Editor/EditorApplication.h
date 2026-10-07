@@ -223,7 +223,7 @@ namespace JBro
         // 같은 이름이 이미 있으면 거절한다(덮어쓰면 그 파일을 가리키던 아이디가 다른 그림을 가리킨다).
         // 에셋이 아닌 확장자도 거절한다 - 복사는 되는데 목록에 나오지 않으면 가져온 것이 사라진 것처럼 보인다.
         Bool ImportAssetFile(const char* sourcePath, const char* relativeFolder, String* importedPath = nullptr);
-        // 가져오기 대화상자가 받는 파일이다. `Any` 는 그림과 소리를 다 받는다(D-303).
+        // 가져오기 대화상자가 받는 파일이다. `Any` 는 그림과 소리를 다 받는다(D-304).
         enum class ImportFilter : std::uint8_t
         {
             Any,

@@ -4105,7 +4105,7 @@ namespace
         Check(findButton(playButton, spot), "and it says Play again");
         ClickAt(editor, hwnd, spot);
         Check(editor.GetAudio()->IsPreviewPlaying(), "playing again");
-        // 울리는 동안은 위치 막대와 스펙트럼이 선다(D-303, 기존 탐색 막대와 `ImSpectrumVisualizer`).
+        // 울리는 동안은 위치 막대와 스펙트럼이 선다(D-304, 기존 탐색 막대와 `ImSpectrumVisualizer`).
         const ImGuiID positionSlider = LabelId(LabelId(inspector->ID, "##audioPreview"), "##position");
         Check(findButton(positionSlider, spot), "while it plays a position slider shows");
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
@@ -4395,7 +4395,7 @@ namespace
         {
             SaveScreenshot(*shotRenderer, 1024, 768, "audio_project_settings");
         }
-        // **저장된 버스가 초안에 없으면 사라질 버스로 알린다**(D-303). 저장된 쪽에 `Gone` 을 더하면 창의 초안에는 없다.
+        // **저장된 버스가 초안에 없으면 사라질 버스로 알린다**(D-304). 저장된 쪽에 `Gone` 을 더하면 창의 초안에는 없다.
         // 알림은 그리기만 하고 아무것도 바꾸지 않는다 - 창을 그리는 동안 프로젝트가 그대로인지 본다.
         JBro::ProjectFile saved = editor.GetProjectFile();
         saved.audioBuses.Add(JBro::ProjectAudioBus{JBro::String("Gone"), 1.0f});
@@ -8066,7 +8066,7 @@ namespace
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
             std::ofstream text(outside / "notes.txt", std::ios::binary);
             text << "not an asset";
-            // 0.1 초 무음 16 비트 모노 WAV(D-303). 가져오기가 소리를 받는지만 본다.
+            // 0.1 초 무음 16 비트 모노 WAV(D-304). 가져오기가 소리를 받는지만 본다.
             constexpr JBro::UInt32 frames = 4800;
             std::vector<std::uint8_t> wav(44 + frames * 2, 0);
             auto put32 = [&](std::size_t at, JBro::UInt32 value) { std::memcpy(wav.data() + at, &value, 4); };
@@ -8130,9 +8130,9 @@ namespace
         Check(editor.GetSpriteViewerTabCount() == 1,
             "a picture opens in the sprite viewer right away, to set up its slicing");
         Check(dialog.filterPattern.find("*.png") != JBro::String::npos && dialog.filterPattern.find("*.wav") != JBro::String::npos,
-            "the asset browser's import takes pictures and sounds alike (D-303)");
+            "the asset browser's import takes pictures and sounds alike (D-304)");
 
-        // **소리도 가져온다**(D-303). 처음에는 대화상자가 그림만 받아 에디터 안에서 소리를 들일 길이 없었다.
+        // **소리도 가져온다**(D-304). 처음에는 대화상자가 그림만 받아 에디터 안에서 소리를 들일 길이 없었다.
         dialog.path = TempPath("JBroImportSource/step.wav");
         editor.RequestImportAsset("sfx", JBro::EditorApplication::ImportFilter::Audio);
         for (JBro::Int32 frame = 0; frame < 3; ++frame)

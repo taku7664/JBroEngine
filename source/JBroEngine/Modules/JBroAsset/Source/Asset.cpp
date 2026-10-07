@@ -4,6 +4,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Asset/AudioDecoder.h>
+#include <JBro/Asset/AudioEffectFile.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -73,6 +74,50 @@ namespace JBro
                 }
             }
         }
+
+        // 목록 짝이다(D-305): `xxxIds`(`Array<AssetId>`)와 `xxxs`(`Array<AssetHandle>`). `AudioSource.audioEffectIds` 처럼 차례가 뜻을
+        // 갖는 에셋 목록이 이 짝으로 풀린다. 원소는 타입 소거 조작(`ArrayOps`)으로 다룬다.
+        template <typename Visitor>
+        void ForEachAssetListField(const PropertyTable& table, Visitor&& visit)
+        {
+            const NameId uuidName = NameTable::Get().Intern("JBro.Uuid");
+            const NameId handleName = NameTable::Get().Intern("JBro.AssetHandle");
+            for (UInt32 i = 0; i < table.count; ++i)
+            {
+                const PropertyInfo& idProperty = table.properties[i];
+                if (idProperty.type == nullptr || idProperty.type->arrayOps == nullptr || idProperty.type->element == nullptr
+                    || idProperty.type->element->typeName != uuidName)
+                {
+                    continue;
+                }
+                const std::string_view idName = NameTable::Get().Resolve(idProperty.name);
+                if (false == EndsWith(idName, "Ids") || idName.size() <= 3)
+                {
+                    continue;
+                }
+                // `audioEffectIds` → `audioEffects`
+                char handleFieldName[64] = {};
+                const std::size_t stem = idName.size() - 3;
+                if (stem + 2 > sizeof(handleFieldName))
+                {
+                    continue;
+                }
+                std::memcpy(handleFieldName, idName.data(), stem);
+                handleFieldName[stem] = 's';
+                for (UInt32 j = 0; j < table.count; ++j)
+                {
+                    const PropertyInfo& handleProperty = table.properties[j];
+                    if (handleProperty.type == nullptr || handleProperty.type->arrayOps == nullptr
+                        || handleProperty.type->element == nullptr || handleProperty.type->element->typeName != handleName
+                        || std::string_view(handleFieldName) != NameTable::Get().Resolve(handleProperty.name))
+                    {
+                        continue;
+                    }
+                    visit(idProperty, handleProperty);
+                    break;
+                }
+            }
+        }
     }
 
     Bool AssetSystem::Initialize(const JMemoryContext&)
@@ -125,6 +170,7 @@ namespace JBro
         m_audio = {};
         m_fontFamilies = {};
         m_stringTables = {};
+        m_audioEffects = {};
         m_fonts = {};
         m_textures = {};
         m_sprites = {};
@@ -687,6 +733,30 @@ namespace JBro
         return true;
     }
 
+    Bool AssetSystem::ReadAudioEffect(const AssetRecord& record, AudioEffectData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        AudioEffectData read;
+        String error;
+        if (false == ParseAudioEffect(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), read.settings, &error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a sound effect could not be read (%s): %s", record.relativePath.c_str(), error.c_str());
+            return false;
+        }
+        data = read;
+        return true;
+    }
+
+    const AudioEffectData* AssetSystem::GetAudioEffect(AssetHandle handle) const
+    {
+        const Slot<AudioEffectData>* slot = FindSlot(m_audioEffects, handle, AssetType::AudioEffect);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     const StringTableData* AssetSystem::GetStringTable(AssetHandle handle) const
     {
         const Slot<StringTableData>* slot = FindSlot(m_stringTables, handle, AssetType::StringTable);
@@ -879,6 +949,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::AudioEffect:
+                if (Slot<AudioEffectData>* slot = FindSlot(m_audioEffects, handle, AssetType::AudioEffect))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -966,6 +1043,16 @@ namespace JBro
             handle = Occupy(m_stringTables, AssetType::StringTable, id, std::move(data));
             break;
         }
+        case AssetType::AudioEffect:
+        {
+            AudioEffectData data;
+            if (false == ReadAudioEffect(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_audioEffects, AssetType::AudioEffect, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -1025,6 +1112,14 @@ namespace JBro
             {
                 --table->referenceCount;
             }
+            return;
+        }
+        if (Slot<AudioEffectData>* effect = FindSlot(m_audioEffects, handle, AssetType::AudioEffect))
+        {
+            if (effect->referenceCount != 0)
+            {
+                --effect->referenceCount;
+            }
         }
     }
 
@@ -1041,7 +1136,8 @@ namespace JBro
             || FindSlot(m_audio, handle, AssetType::Audio) != nullptr
             || FindSlot(m_fonts, handle, AssetType::Font) != nullptr
             || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr
-            || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr;
+            || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr
+            || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr;
     }
 
     UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -1069,6 +1165,10 @@ namespace JBro
         if (const Slot<StringTableData>* table = FindSlot(m_stringTables, handle, AssetType::StringTable))
         {
             return table->referenceCount;
+        }
+        if (const Slot<AudioEffectData>* effect = FindSlot(m_audioEffects, handle, AssetType::AudioEffect))
+        {
+            return effect->referenceCount;
         }
         return 0;
     }
@@ -1180,6 +1280,17 @@ namespace JBro
             table->data = std::move(fresh);
             return true;
         }
+        if (Slot<AudioEffectData>* effect = FindSlot(m_audioEffects, *loaded, AssetType::AudioEffect))
+        {
+            AudioEffectData fresh;
+            if (false == ReadAudioEffect(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = effect->data.dataGeneration + 1;
+            effect->data = fresh;
+            return true;
+        }
         return false;
     }
 
@@ -1265,6 +1376,15 @@ namespace JBro
                 ++freed;
             }
         }
+        for (UInt32 index = 0; index < m_audioEffects.slots.Size(); ++index)
+        {
+            Slot<AudioEffectData>& slot = m_audioEffects.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_audioEffects, index);
+                ++freed;
+            }
+        }
         return freed;
     }
 
@@ -1290,6 +1410,30 @@ namespace JBro
                 ++bound;
             }
         });
+        // 목록 짝은 아이디 수만큼 핸들 칸을 맞춘 뒤 칸마다 싣는다. 칸 수를 바꾸는 것은 이 패스(캔버스 로드·편집 뒤)뿐이다 - 매 프레임이 아니다.
+        ForEachAssetListField(table, [&](const PropertyInfo& idProperty, const PropertyInfo& handleProperty) {
+            const ArrayOps& idOps = *idProperty.type->arrayOps;
+            const ArrayOps& handleOps = *handleProperty.type->arrayOps;
+            const void* ids = idProperty.ConstAddress(component);
+            void* handles = handleProperty.Address(component);
+            const std::size_t count = idOps.GetSize(ids);
+            handleOps.Clear(handles);
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                if (false == handleOps.AddDefault(handles))
+                {
+                    break;
+                }
+                const AssetId id = *static_cast<const AssetId*>(idOps.GetConstElement(ids, index));
+                AssetHandle& target = *static_cast<AssetHandle*>(handleOps.GetElement(handles, index));
+                target = id.IsNull() ? AssetHandle{} : Load(id);
+                if (target.generation != 0)
+                {
+                    acquired.Add(target);
+                    ++bound;
+                }
+            }
+        });
         return bound;
     }
 
@@ -1304,6 +1448,18 @@ namespace JBro
             if (false == id.IsNull() && false == ids.Contains(id))
             {
                 ids.Add(id);
+            }
+        });
+        ForEachAssetListField(table, [&](const PropertyInfo& idProperty, const PropertyInfo&) {
+            const ArrayOps& idOps = *idProperty.type->arrayOps;
+            const void* list = idProperty.ConstAddress(component);
+            for (std::size_t index = 0; index < idOps.GetSize(list); ++index)
+            {
+                const AssetId id = *static_cast<const AssetId*>(idOps.GetConstElement(list, index));
+                if (false == id.IsNull() && false == ids.Contains(id))
+                {
+                    ids.Add(id);
+                }
             }
         });
     }

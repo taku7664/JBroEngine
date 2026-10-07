@@ -71,7 +71,7 @@ namespace JBro::Service
         void SetMuteWhenUnfocused(Bool mute) const;
         Bool IsMuteWhenUnfocused() const;
 
-        // 옵션 화면의 "전체 음량" 이다(0..1, D-303). 프로젝트 설정 `AudioMasterVolume` 이 처음 값이고 리스너의 `volume` 과 곱해진다.
+        // 옵션 화면의 "전체 음량" 이다(0..1, D-304). 프로젝트 설정 `AudioMasterVolume` 이 처음 값이고 리스너의 `volume` 과 곱해진다.
         void SetMasterVolume(Float volume) const;
         Float GetMasterVolume() const;
         // 프로젝트의 버스 이름들이다(Master 는 빠진다). 옵션 화면에 버스마다 슬라이더를 그릴 때 쓴다.

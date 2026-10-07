@@ -824,7 +824,7 @@ namespace JBro
                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioMuteHelp,
                         "Mutes the sound while the window is not focused"));
                 });
-            // 게임 전체 음량(D-303). 기존 창의 Master Volume 슬라이더는 저장도 적용도 되지 않았다.
+            // 게임 전체 음량(D-304). 기존 창의 Master Volume 슬라이더는 저장도 적용도 되지 않았다.
             device.Row([] { Widget::Text("AudioMasterVolume"); },
                 [&] {
                     Widget::SliderField("##masterVolume", m_draft.audioMasterVolume, 0.0f, 1.0f)();
@@ -1024,7 +1024,7 @@ namespace JBro
             {
                 m_draft.audioBuses.RemoveAt(removeAt);
             }
-            // **저장하면 사라질 버스**(D-303, 기존 `FindRemovedBusNames`). 이름을 바꾸거나 지우면 그 이름을 쓰는 소스·스크립트가
+            // **저장하면 사라질 버스**(D-304, 기존 `FindRemovedBusNames`). 이름을 바꾸거나 지우면 그 이름을 쓰는 소스·스크립트가
             // Master 로 떨어진다 - 저장 전에 보인다. 기준은 저장된 프로젝트다.
             String removed;
             for (const ProjectAudioBus& saved : m_editor->GetProjectFile().audioBuses)

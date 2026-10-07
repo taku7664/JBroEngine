@@ -151,7 +151,7 @@ namespace JBro
         {
             return false;
         }
-        // 장치의 버퍼가 붙드는 시간(초)이다 - 믹서가 낸 소리가 스피커에 닿기까지 걸린다(D-303, 기존 `GetOutputLatencySeconds`).
+        // 장치의 버퍼가 붙드는 시간(초)이다 - 믹서가 낸 소리가 스피커에 닿기까지 걸린다(D-304, 기존 `GetOutputLatencySeconds`).
         // 장치가 말하지 않으면 0 이다.
         virtual Float GetLatencySeconds() const
         {

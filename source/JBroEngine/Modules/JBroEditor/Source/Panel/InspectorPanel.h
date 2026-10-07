@@ -252,7 +252,7 @@ namespace JBro
         double m_audioSeconds = 0.0;
         Array<Float> m_audioPeaks;
         Bool m_audioLoop = false;
-        // 미리 듣기 중의 스펙트럼 칸이다(D-303). 프레임마다 할당하지 않게 여기 둔다.
+        // 미리 듣기 중의 스펙트럼 칸이다(D-304). 프레임마다 할당하지 않게 여기 둔다.
         static constexpr UInt32 AudioSpectrumBands = 48;
         Float m_audioSpectrum[AudioSpectrumBands] = {};
         // 이번 프레임에 미리 듣기 칸을 그렸는가. 다른 것을 고르면 다음 프레임에 미리 듣기를 멈춘다 - 반복 재생이

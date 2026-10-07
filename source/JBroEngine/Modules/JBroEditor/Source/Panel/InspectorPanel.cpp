@@ -1156,7 +1156,7 @@ namespace JBro
                         audio->StopPreview();
                     }
                     ImGui::SameLine();
-                    // 지금 / 길이다(기존 `"%.2f / %.2f s"`, D-303).
+                    // 지금 / 길이다(기존 `"%.2f / %.2f s"`, D-304).
                     const Int32 minutes = static_cast<JBro::Int32>(position / 60.0);
                     const Int32 totalMinutes = static_cast<JBro::Int32>(m_audioSeconds / 60.0);
                     Widget::TextF("%d:%05.2f / %d:%05.2f", minutes, position - minutes * 60.0, totalMinutes,
@@ -1171,7 +1171,7 @@ namespace JBro
             });
         layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioLoop, "Loop")),
             [&]() { Widget::Checkbox("##loop", m_audioLoop); });
-        // **울리는 동안 위치 막대와 스펙트럼**(D-303, 기존 탐색 막대와 `ImSpectrumVisualizer`). 막대를 끌면 그 자리로 옮긴다.
+        // **울리는 동안 위치 막대와 스펙트럼**(D-304, 기존 탐색 막대와 `ImSpectrumVisualizer`). 막대를 끌면 그 자리로 옮긴다.
         // 스펙트럼은 믹서의 최근 출력이다 - 편집 중에는 미리 듣기만 울린다.
         if (playingThis && m_audioSeconds > 0.0)
         {

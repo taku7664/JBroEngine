@@ -24,7 +24,7 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(AudioListener3D)
 
-        // 듣는 귀의 음량이다(D-303, 기존 `AudioListener.MasterVolume`). 게임 전체 음량과 곱해 Master 버스에 걸린다.
+        // 듣는 귀의 음량이다(D-304, 기존 `AudioListener.MasterVolume`). 게임 전체 음량과 곱해 Master 버스에 걸린다.
         JBRO_FIELD(Float, volume, Range(0.0f, 1.0f)) = 1.0f;
     };
 }

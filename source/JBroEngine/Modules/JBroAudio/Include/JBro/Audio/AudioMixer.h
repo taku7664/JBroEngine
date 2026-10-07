@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/AudioTypes/AudioTypes.h>
 #include <JBro/Types/SafePtr.h>
 
@@ -43,7 +44,12 @@ namespace JBro
         void* openStreamUser = nullptr;
         UInt32 maxStreams = 8;
         Float streamBufferSeconds = 1.0f;
+        // 이펙트 사슬을 걸 수 있는 보이스 수다(D-305). 넘치면 이펙트 없이 울린다. 사슬의 버퍼는 단계를 처음 쓸 때 잡는다.
+        UInt32 maxEffectVoices = 32;
     };
+
+    // 보이스 하나에 거는 이펙트 단계의 최대 수다(D-305).
+    inline constexpr UInt32 AudioMaxVoiceEffects = 4;
 
     // 클립의 자료 모양이다. 믹서는 **빌린다** - 등록한 쪽이 `UnregisterClip` 이 돌아올 때까지 메모리를 살려 둔다.
     enum class AudioClipEncoding : std::uint8_t
@@ -107,6 +113,10 @@ namespace JBro
         // 필터 노드를 거치지 않는다 - 쓰지 않는 보이스는 비용이 없다. 재생 중에는 `SetVoiceFilter` 로 바꾼다.
         Float lowPassHz = 0.0f;
         Float highPassHz = 0.0f;
+        // 이 보이스에만 거는 이펙트 사슬이다(D-305, `.jfx`). 차례대로 걸리고 `AudioMaxVoiceEffects` 까지다. 부르는 동안만 읽는다.
+        // 재생 중에는 `SetVoiceEffects` 로 바꾼다.
+        const AudioEffectSettings* effects = nullptr;
+        UInt32 effectCount = 0;
         // 누가 만든 보이스인지다. `StopAllWithTag` 로 한 무리를 멈춘다(플레이 중지·미리 듣기).
         UInt32 tag = 0;
     };
@@ -156,6 +166,10 @@ namespace JBro
             UInt32 activeStreams = 0;
             UInt32 maxStreams = 0;
             UInt64 streamUnderruns = 0;
+            // 이펙트 사슬(D-305). 빌려 쓰는 수·전체 수와, 자리가 없어 이펙트 없이 울린 누계다.
+            UInt32 effectVoices = 0;
+            UInt32 maxEffectVoices = 0;
+            UInt64 effectsRejected = 0;
         };
 
         AudioMixer();
@@ -256,11 +270,15 @@ namespace JBro
         void SetBus(AudioVoiceHandle voice, AudioBusId bus);
         // 보이스의 필터다(Hz, 0 이면 끔). 켜면 보이스가 제 필터 노드를 거쳐 버스로 가고, 둘 다 끄면 곧장 버스로 간다.
         void SetVoiceFilter(AudioVoiceHandle voice, Float lowPassHz, Float highPassHz);
+        // 보이스의 이펙트 사슬을 바꾼다(D-305). 재생 중에 불러도 다시 시작하지 않는다 - 단계의 값은 원자로 바뀌고, 처음 켜는 단계의
+        // 버퍼만 여기서 한 번 잡는다. `count` 가 0 이면 사슬을 떼고 소리를 버스에 곧장 잇는다.
+        void SetVoiceEffects(AudioVoiceHandle voice, const AudioEffectSettings* effects, UInt32 count);
+        Bool HasVoiceEffects(AudioVoiceHandle voice) const;
 
         // 리스너다. 2D 는 방향을 기본(-Z 앞, +Y 위)으로 두고 위치만 준다.
         void SetListener(const Float position[3], const Float forward[3], const Float up[3]);
         void SetListenerVelocity(const Float velocity[3]);
-        // Master 버스에 곱하는 음량이다(0..1, D-303). Master 버스의 제 음량·음소거와 곱해지고, 미리 듣기 버스에는 걸리지 않는다.
+        // Master 버스에 곱하는 음량이다(0..1, D-304). Master 버스의 제 음량·음소거와 곱해지고, 미리 듣기 버스에는 걸리지 않는다.
         void SetMasterVolume(Float volume);
         Float GetMasterVolume() const;
         // 장치로 나가기 직전의 이득이다. `seconds` 동안 곧게 옮겨 가므로 뚝 끊기는 소리(클릭)가 없다. 창이 포커스를 잃었을

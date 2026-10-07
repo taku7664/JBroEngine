@@ -78,7 +78,7 @@ namespace JBro::System
                 }
             }
         });
-        // 리스너 컴포넌트가 없으면(카메라에서 듣는다) 1 이다(D-303).
+        // 리스너 컴포넌트가 없으면(카메라에서 듣는다) 1 이다(D-304).
         m_audio.SetListenerVolume(listenerVolume);
         if (listeners > 1 && false == m_warnedListeners)
         {
