@@ -131,6 +131,8 @@ namespace JBro::EditorActions
         AttachedRef attached;
         ComponentTypeId typeId = InvalidComponentTypeId;
         std::size_t count = 0;
+        (void)typeId;
+        (void)count;
         if (script)
         {
             const Array<ScriptSlot>& scripts = object.GetScripts();
@@ -159,40 +161,7 @@ namespace JBro::EditorActions
             return true;
         }
 
-        // **사용.** 인스펙터의 `사용` 칸과 같은 커맨드다(D-142).
-        Bool enabled = attached.IsEnabled();
-        if (Widget::MenuToggle(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled"), enabled))
-        {
-            editor.GetCommands().Execute(MakeOwnerPtr<SetComponentEnabledCommand>(editor.GetObjectIds(), address, enabled));
-        }
-        ImGui::Separator();
-
-        // **자리 옮기기.** 제 목록 안에서만 옮긴다. 스크립트 목록의 차례가 실행 순서다(D-45, D-302). 양 끝에서는 그쪽 항목이 잠긴다.
-        const std::size_t last = count - 1;
-        std::size_t moveTo = slot;
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentTop, "Move to Top"), nullptr, slot > 0))
-        {
-            moveTo = 0;
-        }
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up"), nullptr, slot > 0, nullptr, Icons::ArrowUp))
-        {
-            moveTo = slot - 1;
-        }
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down"), nullptr, slot < last, nullptr, Icons::ArrowDown))
-        {
-            moveTo = slot + 1;
-        }
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentBottom, "Move to Bottom"), nullptr, slot < last))
-        {
-            moveTo = last;
-        }
-        if (moveTo != slot)
-        {
-            editor.GetCommands().Execute(MakeOwnerPtr<MoveComponentCommand>(editor.GetObjectIds(), address.objectId, slot, moveTo, kind));
-            return false;
-        }
-        ImGui::Separator();
-
+        // `사용` 과 자리 옮기기(맨 위로·위로·아래로·맨 아래로)는 메뉴에 두지 않는다(D-305) - `사용` 은 인스펙터 칸에, 자리는 인스펙터 머리를 끌어 바꾼다.
         // **복사·붙여넣기**(D-167). 복사는 값만 뜨고, 붙여넣기는 같은 타입을 하나 더 붙이며, 값 붙여넣기는 이 컴포넌트에 덮어쓴다.
         const char* copyLabel = script ? Loc::TextOr(LocKeys::InspectorCopyScript, "Copy Script")
                                        : Loc::TextOr(LocKeys::InspectorCopyComponent, "Copy Component");
@@ -589,15 +558,7 @@ namespace JBro::EditorActions
         {
             return false;
         }
-        // **그리는 차례**(D-296). 넷을 한 하위 메뉴에 모은다 - 포토샵의 `정돈`, 파워포인트의 `맨 앞으로 가져오기` 하위 메뉴와 같은 자리다.
-        if (Widget::BeginMenu(Loc::TextOr(LocKeys::HierarchyDrawOrder, "Order")))
-        {
-            for (const char* name : { "object.bring_forward", "object.bring_to_front", "object.send_backward", "object.send_to_back" })
-            {
-                DrawRemoving(name, context);
-            }
-            Widget::EndMenu();
-        }
+        // 그리는 차례(D-296)는 오브젝트 메뉴에 하위 메뉴로 두지 않는다 - `SpriteRenderer2D` 의 컴포넌트 메뉴에 선다(D-305).
         // 여럿을 고른 채로는 세우지 않는다(D-220) - 어느 오브젝트의 컴포넌트에 대한 항목인지 흐려진다.
         if (editor.GetSelectionCount() == 1 && false == DrawComponentSubmenus(editor, object, placement))
         {

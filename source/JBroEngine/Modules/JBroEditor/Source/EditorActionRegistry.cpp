@@ -10,6 +10,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Host/GameBuild.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -56,7 +57,19 @@ namespace JBro
         // 오브젝트 메뉴면 우클릭한 것, 아니면 고른 것이다.
         Object::GameObject* Target(const EditorActionContext& context)
         {
-            return context.object != nullptr ? context.object : context.editor->GetSelectedObject();
+            if (context.object != nullptr)
+            {
+                return context.object;
+            }
+            // 컴포넌트 메뉴에서 부르면 그 컴포넌트의 주인이다(D-305).
+            if (context.component.objectId != InvalidEditorObjectId)
+            {
+                if (Object::GameObject* owner = context.editor->GetObjectIds().Resolve(context.component.objectId))
+                {
+                    return owner;
+                }
+            }
+            return context.editor->GetSelectedObject();
         }
 
         Bool CanSave(const EditorActionContext& context)
@@ -583,6 +596,8 @@ namespace JBro
             actions.Register(info);
         }
         // **그리는 차례**(D-296). 조합은 포토샵·파워포인트와 같다 - Ctrl+] 앞으로, Ctrl+Shift+] 맨 앞으로, [ 는 뒤로.
+        // **메뉴는 `SpriteRenderer2D` 의 컴포넌트 메뉴다**(D-305). 그리는 차례는 스프라이트의 값이라 그 컴포넌트에 선다 - 오브젝트 메뉴의 `순서` 하위 메뉴는 없앴다.
+        // 인스펙터 머리 메뉴와 오브젝트 메뉴의 `SpriteRenderer2D` 하위 메뉴에 하위 메뉴 없이 바로 넷이 선다. 단축키는 그대로다.
         {
             using EditorActions::DrawOrderMove;
             struct DrawOrderAction
@@ -628,7 +643,8 @@ namespace JBro
                     execute = &DoDrawOrder<DrawOrderMove::ToBack>;
                     break;
                 }
-                EditorActionInfo info = Action(order.name, order.labelKey, order.fallback, LocKeys::MenuEdit, EditorActionMenu::Object, can, why, execute);
+                EditorActionInfo info = Action(order.name, order.labelKey, order.fallback, LocKeys::MenuEdit, EditorActionMenu::Component, can, why, execute);
+                info.componentType = MakeStableTypeId(Component::SpriteRenderer2D::StaticTypeName());
                 info.primary = Bind(order.key, true, order.shift);
                 actions.Register(info);
             }

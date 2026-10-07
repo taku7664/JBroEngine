@@ -931,33 +931,11 @@ namespace
     // 창을 `"Inspector"` 로 찾는 것은 여전히 옳다. 실제 이름은
     // `"인스펙터###Inspector"` 지만 `ImHashStr` 이 `###` 에서 해시를 다시 세므로
     // 둘이 같은 값이다 - 번역해도 창의 정체가 그대로인 이유가 이것이다.
-    ImGuiWindow* FindChildWindow(ImGuiWindow* parent, const char* childName);
-
-    // **인스펙터는 왼쪽 목록과 오른쪽 내용으로 나뉜다**(D-304). 둘 다 자식 창이라 Id 사슬이 그 창에서 새로 시작한다.
-    ImGuiWindow* InspectorChild(const char* name)
+    ImGuiID InspectorFieldId(JBro::Int32 slot, JBro::UInt32 field, const char* label)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
-        ImGuiWindow* child = FindChildWindow(window, name);
-        Check(child != nullptr, "the inspector must have its list and content panes");
-        return child;
-    }
-
-    ImGuiID InspectorContentId()
-    {
-        return InspectorChild("##InspectorContent")->ID;
-    }
-
-    // 인스펙터 목록의 줄 Id 다. 칸 번호를 쌓고 `###row` 로 선다 - 이름이 바뀌어도 그대로다.
-    ImGuiID InspectorRowId(JBro::Int32 slot)
-    {
-        return LabelId(PushedId(InspectorChild("##InspectorList")->ID, slot), "###row");
-    }
-
-    // 오른쪽 내용은 고른 컴포넌트 하나다. 그 칸의 필드는 그 칸을 고른 뒤에만 그려진다(`SelectInspectorRow`).
-    ImGuiID InspectorFieldId(JBro::Int32 slot, JBro::UInt32 field, const char* label)
-    {
-        const ImGuiID component = PushedId(InspectorContentId(), slot);
+        const ImGuiID component = PushedId(window->ID, slot);
         const ImGuiID table = LabelId(component, "##component");
         return LabelId(PushedId(table, static_cast<JBro::Int32>(field)), label);
     }
@@ -994,20 +972,8 @@ namespace
     template <typename TScan>
     JBro::Bool ScrollingInInspector(JBro::EditorApplication& editor, TScan&& scan)
     {
-        // 굴러가는 것은 오른쪽 내용이다(D-304). 오브젝트를 고르지 않아 내용 창이 없으면 창 자체를 굴린다.
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        if (ImGuiWindow* content = FindChildWindow(inspector, "##InspectorContent"); content != nullptr && content->Active)
-        {
-            inspector = content;
-            // 내용 창은 오브젝트를 바꿔도 굴린 자리를 지닌다. 아래로만 굴리므로 위에서 시작한다.
-            if (inspector->Scroll.y > 0.0f)
-            {
-                ImGui::SetScrollY(inspector, 0.0f);
-                Check(editor.Tick(Frame), "the editor must tick after scrolling back up");
-                Check(editor.Tick(Frame), "and once more so the scroll lands");
-            }
-        }
         const JBro::Float step = inspector->Size.y * 0.5f;
         JBro::Float scroll = inspector->Scroll.y;
         for (JBro::Int32 pass = 0; pass < 32; ++pass)
@@ -1033,12 +999,8 @@ namespace
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
-        // **값 칸**이다. 왼쪽 칸은 라벨이 차지하므로 그쪽을 훑으면 위젯을 못 만난다. 오브젝트를 골랐으면 값 칸은
-        // 오른쪽 내용 창의 오른쪽 끝이다(D-304) - 시험 창의 인스펙터는 좁아 내용 칸의 대부분을 라벨이 차지한다.
-        ImGuiWindow* content = FindChildWindow(window, "##InspectorContent");
-        const JBro::Int32 x = content != nullptr && content->Active
-            ? static_cast<JBro::Int32>(content->Pos.x + content->Size.x - 3.0f)
-            : static_cast<JBro::Int32>(window->Pos.x + window->Size.x * 0.65f);
+        // **값 칸**이다. 왼쪽 칸은 라벨이 차지하므로 그쪽을 훑으면 위젯을 못 만난다.
+        const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * 0.65f);
         const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
         for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 3)
         {
@@ -1063,43 +1025,28 @@ namespace
         });
     }
 
-    // 인스펙터 목록의 칸 `slot` 줄을 찾는다. 목록 창의 가운데 세로줄을 훑는다.
-    JBro::Bool FindInspectorRow(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 slot, Spot& spot)
-    {
-        const ImGuiID target = InspectorRowId(slot);
-        ImGuiWindow* list = InspectorChild("##InspectorList");
-        const JBro::Int32 x = static_cast<JBro::Int32>(list->Pos.x + list->Size.x * 0.45f);
-        const JBro::Int32 bottom = static_cast<JBro::Int32>(list->Pos.y + list->Size.y);
-        for (JBro::Int32 y = static_cast<JBro::Int32>(list->Pos.y); y < bottom; y += 2)
-        {
-            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
-            Check(editor.Tick(Frame), "the editor must tick while looking");
-            if (ImGui::GetHoveredID() == target)
-            {
-                spot.x = x;
-                spot.y = y;
-                spot.disabled = ImGui::GetCurrentContext()->HoveredIdIsDisabled;
-                return true;
-            }
-        }
-        return false;
-    }
-
     void ClickAt(JBro::EditorApplication& editor, HWND hwnd, const Spot& spot);
 
-    // 인스펙터 목록에서 칸 `slot` 을 눌러 고른다. 오른쪽 내용이 그 컴포넌트가 된다.
-    void SelectInspectorRow(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 slot)
+    // **인스펙터에서 칸 `slot` 의 컴포넌트를 고른다**(D-304). 그 컴포넌트의 영역을 누르면 된다 - 머리를 누르면 접히므로 머리 바로 아래
+    // 첫 줄의 라벨 칸을 누른다. `typeName` 은 머리에 보이는 타입 이름이다.
+    void SelectInspectorComponent(JBro::EditorApplication& editor, HWND hwnd, JBro::Int32 slot, const char* typeName)
     {
-        Spot row;
-        Check(FindInspectorRow(editor, hwnd, slot, row), "the component must have a row in the inspector list");
-        ClickAt(editor, hwnd, row);
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot header;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, slot), typeName), header),
+            "the component's header must be in the inspector");
+        Spot below;
+        below.x = static_cast<JBro::Int32>(inspector->Pos.x + 14.0f);
+        below.y = header.y + static_cast<JBro::Int32>(ImGui::GetFrameHeight() * 1.5f);
+        ClickAt(editor, hwnd, below);
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the inspector must redraw the chosen component");
         }
         Check(editor.GetInspectedKind() == JBro::AttachedKind::Component
                 && editor.GetInspectedSlot() == static_cast<std::size_t>(slot),
-            "clicking the row chooses that component");
+            "clicking inside the component's area chooses it");
     }
 
     void DragFrom(
@@ -1207,8 +1154,8 @@ namespace
     // 따로 창을 열므로, 그 안의 항목은 이 창의 Id 에서 센다.
     ImGuiWindow* FindListBody()
     {
-        // 컴포넌트의 필드는 인스펙터 오른쪽 내용 창 안에 그려진다(D-304). 목록 몸통은 그 창의 자식이다.
-        ImGuiWindow* inspector = InspectorChild("##InspectorContent");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
         for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
         {
             if (window->ParentWindow == inspector
@@ -1224,7 +1171,8 @@ namespace
     // 화면 위에서 아래로 센다 - 창 목록의 차례는 만들어진 차례라 믿지 않는다.
     ImGuiWindow* FindListBodyAt(JBro::Int32 n)
     {
-        ImGuiWindow* inspector = InspectorChild("##InspectorContent");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
         ImGuiWindow* bodies[8] = {};
         JBro::Int32 count = 0;
         for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
@@ -1464,8 +1412,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1800;  // 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
-        config.windowHeight = 900;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; list edits not verified" << std::endl;
@@ -1581,7 +1529,7 @@ namespace
             Check(listBody != nullptr, "the list must still be drawn");
             JBro::Array<std::byte> image;
             JBro::TextureReadback readback;
-            ReadBackBufferInto(*renderer, 1800, 900, image, readback);
+            ReadBackBufferInto(*renderer, 1024, 768, image, readback);
             // 손잡이의 두 선은 가늘어 한 줄이 반쯤 걸쳐 흐리다(밝기 90 남짓) - 문턱을 낮춰 둘 다 잡는다.
             // 바탕은 30 아래라 섞이지 않는다.
             const auto bright = [](const unsigned char* pixel)
@@ -1640,7 +1588,7 @@ namespace
 
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
-            SaveScreenshot(*renderer, 1800, 900, "list");
+            SaveScreenshot(*renderer, 1024, 768, "list");
         }
         editor.Shutdown();
     }
@@ -1652,8 +1600,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1800;  // 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
-        config.windowHeight = 900;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; collider points in the inspector not verified" << std::endl;
@@ -1679,8 +1627,6 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
-        // 콜라이더는 둘째 칸이다. 인스펙터 목록에서 골라야 그 필드가 보인다(D-304).
-        SelectInspectorRow(editor, hwnd, 1);
 
         ImGuiWindow* body = FindListBody();
         Check(body != nullptr, "the inspector must draw the collider's points as a list");
@@ -1802,8 +1748,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1800;  // 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
-        config.windowHeight = 900;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; struct element lists not verified" << std::endl;
@@ -1930,8 +1876,7 @@ namespace
             const ImGuiID leading = InspectorFieldId(
                 0, FieldIndexOf(*signalledTable, "leadingLonger"), "##value");
             ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
-            (void)inspector;
-            const ImGuiID firstPart = LabelId(PushedId(InspectorContentId(), 0), "##component");
+            const ImGuiID firstPart = LabelId(PushedId(inspector->ID, 0), "##component");
             const ImGuiID secondPart = PushedId(LabelId(firstPart, "##Instances"), 1);
             const ImGuiID trailing = LabelId(PushedId(secondPart,
                 static_cast<JBro::Int32>(FieldIndexOf(*signalledTable, "trailing"))), "##value");
@@ -1961,7 +1906,7 @@ namespace
 
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
-            SaveScreenshot(*renderer, 1800, 900, "struct_list");
+            SaveScreenshot(*renderer, 1024, 768, "struct_list");
         }
         editor.Shutdown();
     }
@@ -1976,8 +1921,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1800;  // 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
-        config.windowHeight = 900;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; element reordering not verified" << std::endl;
@@ -2649,9 +2594,9 @@ namespace
         return nullptr;
     }
 
-    // **컴포넌트 머리의 우클릭 메뉴로 자리를 옮기고, 그것은 되돌릴 수 있다.** 슬롯 순서가
-    // 스크립트 실행 순서다(D-45). 양 끝에서는 그쪽 항목이 잠긴다.
-    void TestMovingAComponentFromItsHeaderMenuCanBeUndone()
+    // **컴포넌트 메뉴에는 `사용` 과 자리 옮기기가 없다**(D-305). `사용` 은 인스펙터 칸이고, 자리는 목록 줄을 끌어 바꾼다
+    // (`TestDraggingAComponentHeaderReordersIt`). 메뉴는 복사·붙여넣기·그 타입에 더한 항목·제거다.
+    void TestTheComponentMenuHasNoEnableOrMoveItems()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -2685,38 +2630,26 @@ namespace
 
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        // 첫 칸의 목록 줄(D-304). 우클릭 메뉴가 거기 붙는다.
+        // 첫 슬롯의 머리. 슬롯 번호를 쌓고 타입 이름의 접기 머리를 그린다.
         Spot header;
-        Check(FindInspectorRow(editor, hwnd, 0, header), "the first component must have a row in the inspector list");
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 0), "Transform2D"), header),
+            "the first component header must be in the inspector");
         RightClickAt(editor, hwnd, header);
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "right-clicking the header must open its menu");
 
-        // 맨 위 슬롯에서 "위로 이동" 은 잠겨 있다.
-        const char* upLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorMoveComponentUp, "Move Up");
-        const char* downLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorMoveComponentDown, "Move Down");
         Spot item;
-        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, upLabel), item),
-            "the menu must offer to move the component up");
-        Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled,
-            "but the first slot cannot move up, so that item is locked");
-        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, downLabel), item),
-            "and offer to move it down");
-        const std::size_t undo = editor.GetCommands().GetUndoCount();
-        ClickAt(editor, hwnd, item);
-        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        const char* copyLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorCopyComponent, "Copy Component");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, copyLabel), item), "the menu offers to copy the component");
+        for (const char* key : {JBro::LocKeys::InspectorEnabled, JBro::LocKeys::InspectorMoveComponentTop, JBro::LocKeys::InspectorMoveComponentUp,
+                 JBro::LocKeys::InspectorMoveComponentDown, JBro::LocKeys::InspectorMoveComponentBottom})
         {
-            Check(editor.Tick(Frame), "the inspector must redraw after the move");
+            Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, JBro::Loc::Text(key)), item),
+                "the component menu has no enable or move item");
         }
         std::size_t slot = 99;
-        Check(alpha->FindComponentIndex(sprite, slot) && slot == 0,
-            "moving the transform down must put the sprite first");
-        Check(alpha->FindComponentIndex(transform, slot) && slot == 1, "and the transform second");
-        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
-        Check(editor.GetCommands().Undo(), "undo must run");
-        Check(alpha->FindComponentIndex(transform, slot) && slot == 0,
-            "and put the transform back first");
-        Check(FindContextMenuWindow() == nullptr, "and the menu must be gone");
+        Check(alpha->FindComponentIndex(transform, slot) && slot == 0 && alpha->FindComponentIndex(sprite, slot) && slot == 1,
+            "and opening it moved nothing");
 
         editor.Shutdown();
     }
@@ -2765,14 +2698,15 @@ namespace
 
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        (void)inspector;
         Spot first;
-        Check(FindInspectorRow(editor, hwnd, 0, first), "the transform must have a row in the inspector list");
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 0), "Transform2D"), first),
+            "the transform header must be in the inspector");
         Spot second;
-        Check(FindInspectorRow(editor, hwnd, 1, second), "and the sprite");
-        // 훑기는 위에서 내려오므로 찾은 자리는 줄의 윗단이다. 아래 절반으로 내린다.
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 1), "SpriteRenderer2D"), second),
+            "and the sprite header");
+        // 훑기는 위에서 3 픽셀씩 내려오므로 찾은 자리는 머리의 윗단이다. 아래 절반으로 내린다.
         Spot below = second;
-        below.y += static_cast<JBro::Int32>(ImGui::GetTextLineHeight() * 0.7f);
+        below.y += static_cast<JBro::Int32>(ImGui::GetFrameHeight() * 0.7f);
 
         const std::size_t undo = editor.GetCommands().GetUndoCount();
         DragTo(editor, hwnd, first, below);
@@ -2780,7 +2714,6 @@ namespace
         Check(alpha->FindComponentIndex(sprite, slot) && slot == 0,
             "dropping the transform on the lower half of the sprite header must put the sprite first");
         Check(alpha->FindComponentIndex(transform, slot) && slot == 1, "and the transform after it");
-        Check(editor.GetInspectedSlot() == 1, "the dragged row stays chosen where it landed, as in the old engine");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(alpha->FindComponentIndex(transform, slot) && slot == 0, "and put the transform back first");
@@ -3471,8 +3404,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1800;  // 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
-        config.windowHeight = 900;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; vector field edits not verified" << std::endl;
@@ -3549,8 +3482,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1800;  // 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
-        config.windowHeight = 900;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; pair element drags not verified" << std::endl;
@@ -3623,10 +3556,9 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        // 인스펙터 칸이 좁으면 위젯이 라벨에 밀린다. 넉넉한 창을 쓴다 - 인스펙터는 목록과 내용으로 나뉘어(D-304)
-        // 1024 폭에서는 내용의 값 칸이 몇 픽셀이라 슬라이더를 끌 수 없다.
-        config.windowWidth = 1800;
-        config.windowHeight = 900;
+        // 인스펙터 칸이 좁으면 위젯이 라벨에 밀린다. 넉넉한 창을 쓴다.
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; inspector editing not verified"
@@ -3717,7 +3649,7 @@ namespace
         Spot massSpot;
         Check(FindInspectorItem(editor, hwnd, InspectorFieldId(0, mass, "##value"), massSpot),
             "the mass row must be in the inspector");
-        DragFrom(editor, hwnd, massSpot, massSpot.x + 400);
+        DragFrom(editor, hwnd, massSpot, 1020);
         Check(body->mass > 900.0f,
             "a field with a Range must be a slider that reaches its top");
         Check(body->mass <= 1000.0f, "and must stop there");
@@ -3730,7 +3662,7 @@ namespace
         }
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
-            SaveScreenshot(*renderer, 1800, 900, "inspector");
+            SaveScreenshot(*renderer, 1024, 768, "inspector");
         }
 
         // 프로파일러는 닫혀 있는 창이다(재는 것 자체가 프레임에 얹힌다). 한 번 열어
@@ -3747,7 +3679,7 @@ namespace
             Check(JBro::Profiler::GetCount() != 0, "and there must be sections to show");
             if (JBro::Renderer* renderer = editor.GetRenderer())
             {
-                SaveScreenshot(*renderer, 1800, 900, "profiler");
+                SaveScreenshot(*renderer, 1024, 768, "profiler");
             }
             profiler->SetOpen(false);
             Check(editor.Tick(Frame), "the editor must tick once more");
@@ -4200,8 +4132,7 @@ namespace
             JBro::NameTable::Get().Intern("Component::AudioSource"));
         Check(table != nullptr, "the audio source registered its properties");
 
-        // `clipId` 칸은 오디오 에셋 목록이다(별명 "clip" → Audio). 오디오 소스는 둘째 칸이라 목록에서 먼저 고른다(D-304).
-        SelectInspectorRow(editor, hwnd, 1);
+        // `clipId` 칸은 오디오 에셋 목록이다(별명 "clip" → Audio).
         Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(*table, "clipId"), "##value"), spot),
             "the clipId row must be in the inspector");
         std::size_t undoBefore = editor.GetCommands().GetUndoCount();
@@ -5192,8 +5123,7 @@ namespace
         Check(table != nullptr, "the collider must have registered its properties");
         const JBro::UInt32 radius = FieldIndexOf(*table, "radius");
 
-        // **둘째** 콜라이더의 반지름 칸을 찾는다. 슬롯 1 이다 - 목록에서 먼저 고른다(D-304).
-        SelectInspectorRow(editor, hwnd, 1);
+        // **둘째** 콜라이더의 반지름 칸을 찾는다. 슬롯 1 이다.
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
                 InspectorFieldId(1, radius, "##value"), spot),
@@ -8888,8 +8818,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1800;  // 인스펙터가 목록과 내용으로 나뉘어(D-304) 1024 폭에서는 값 칸이 몇 픽셀이다.
-        config.windowHeight = 900;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; the text editor not verified" << std::endl;
@@ -8922,15 +8852,13 @@ namespace
         Check(texts != nullptr, "a 2D canvas runs the text system in the editor");
 
         // ── 폰트 없음 경고 ────────────────────────────────────────────────
-        // 글자는 둘째 칸이다. 인스펙터 목록에서 고르면 오른쪽 내용이 그것이고, 경고 줄의 높이는 그 창의 내용 높이로 잰다(D-304).
-        SelectInspectorRow(editor, hwnd, 1);
-        ImGuiWindow* content = InspectorChild("##InspectorContent");
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
         Check(texts->IsMissingFont(label->GetInstanceId()), "a text with no font is reported as missing one");
-        const JBro::Float withWarning = content->ContentSize.y;
+        const JBro::Float withWarning = inspector->ContentSize.y;
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
-            SaveScreenshot(*shotRenderer, 1800, 900, "text_no_font");
+            SaveScreenshot(*shotRenderer, 1024, 768, "text_no_font");
         }
 
         label->fontId = fontAsset;
@@ -8941,7 +8869,7 @@ namespace
         }
         Check(label->font.generation != 0, "the font id resolves to a handle");
         Check(false == texts->IsMissingFont(label->GetInstanceId()), "and the text is no longer missing a font");
-        const JBro::Float withoutWarning = content->ContentSize.y;
+        const JBro::Float withoutWarning = inspector->ContentSize.y;
         std::cout << "  [measure] inspector height with the warning " << withWarning << ", without " << withoutWarning
                   << std::endl;
         Check(withWarning > withoutWarning + 4.0f, "the warning line is gone once the font is there");
@@ -9051,7 +8979,6 @@ namespace
         const JBro::PropertyTable* table =
             JBro::PropertyRegistry::Lookup(JBro::NameTable::Get().Intern("Component::Text2D"));
         Check(table != nullptr, "Text2D has a property table");
-        SelectInspectorRow(editor, hwnd, 1);
         const ImGuiID textField = InspectorFieldId(1, FieldIndexOf(*table, "text"), "##value");
         Spot textSpot;
         Check(FindInspectorItem(editor, hwnd, textField, textSpot), "the text row must be in the inspector");
@@ -9103,7 +9030,7 @@ namespace
         }
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
-            SaveScreenshot(*shotRenderer, 1800, 900, "text_inspector");
+            SaveScreenshot(*shotRenderer, 1024, 768, "text_inspector");
         }
         JBro::Float twoLineMinY = 0.0f;
         Check(texts->GetLocalBounds(label->GetInstanceId(), minX, twoLineMinY, maxX, maxY), "the text has a block");
@@ -9980,10 +9907,10 @@ namespace
 
         // 점 라이트: 반지름 손잡이는 (cos -45, sin -45) 방향이다.
         constexpr JBro::Float Diagonal = 0.70710678f;
-        // 인스펙터에서 트랜스폼을 고른 동안은 라이트 손잡이가 없다. 목록에서 라이트를 고르면 선다.
+        // 인스펙터에서 트랜스폼을 고른 동안은 라이트 손잡이가 없다. 라이트 영역을 누르면 선다.
         Check(hoveredAt(at(3.0f * Diagonal, -3.0f * Diagonal)) != LabelId(view->ID, "##light_outer_radius"),
             "with the transform chosen in the inspector the light has no handles");
-        SelectInspectorRow(editor, hwnd, 1);
+        SelectInspectorComponent(editor, hwnd, 1, "Light2D");
         Check(hoveredAt(at(3.0f * Diagonal, -3.0f * Diagonal)) == LabelId(view->ID, "##light_outer_radius"),
             "a point light's outer radius has a handle on its circle");
         Check(hoveredAt(at(1.0f * Diagonal, -1.0f * Diagonal)) == LabelId(view->ID, "##light_inner_radius"),
@@ -10035,7 +9962,7 @@ namespace
         second->innerRadius = 0.5f;
         second->outerRadius = 2.0f;
         Check(editor.Tick(Frame), "the editor must see the second light");
-        SelectInspectorRow(editor, hwnd, 2);
+        SelectInspectorComponent(editor, hwnd, 2, "Light2D");
         Check(hoveredAt(at(2.0f * Diagonal, -2.0f * Diagonal)) == LabelId(view->ID, "##light_outer_radius"),
             "choosing the second light puts the handle on its circle");
         DragTo(editor, hwnd, at(2.0f * Diagonal, -2.0f * Diagonal), at(2.5f * Diagonal, -2.5f * Diagonal));
@@ -13910,10 +13837,18 @@ namespace
 
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        // 목록의 줄은 칸 번호로 선다(D-304). 둘째 콜라이더는 셋째 칸이다.
-        (void)inspector;
+        // 머리는 슬롯 번호를 쌓고 타입 이름으로 선다. 둘째 콜라이더는 셋째 슬롯이다.
+        // 콜라이더 절은 길어서 둘째 머리가 창 아래로 밀린다. 첫째를 접어 올린다.
         Spot header;
-        Check(FindInspectorRow(editor, hwnd, 2, header), "the second collider must have a row in the inspector list");
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 1), ComponentLine(colliderType)), header),
+            "the first collider header must be in the inspector");
+        ClickAt(editor, hwnd, header);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the section must fold");
+        }
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 2), ComponentLine(colliderType)), header),
+            "the second collider header must be in the inspector");
         RightClickAt(editor, hwnd, header);
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "right-clicking the collider header must open its menu");
@@ -13953,7 +13888,9 @@ namespace
         }
 
         const JBro::Int32 callsBefore = g_componentHook.calls;
-        Check(FindInspectorRow(editor, hwnd, 0, header), "the transform must have a row in the inspector list");
+        Check(FindInspectorItem(editor, hwnd,
+                LabelId(PushedId(inspector->ID, 0), ComponentLine(transform->GetTypeId())), header),
+            "the transform header must be in the inspector");
         RightClickAt(editor, hwnd, header);
         Check(FindContextMenuWindow() != nullptr, "right-clicking the transform header must open its menu");
         Check(g_componentHook.calls == callsBefore, "a type without hooks must not call anybody's hooks");
@@ -14424,7 +14361,8 @@ namespace
         Check(JBro::EditorActions::MoveDrawOrder(editor, *objects[2], DrawOrderMove::ToBack), "C goes to the back");
         Check(sequences(0, -1, -2), "C is under B, which is under A");
 
-        // ── 메뉴: 계층 줄의 `순서` 하위 메뉴에서 `맨 앞으로 가져오기` ─────────────
+        // ── 메뉴: 계층 줄의 `SpriteRenderer2D` 하위 메뉴에서 `맨 앞으로 가져오기`(D-305) ─────────────
+        // 그리는 차례는 스프라이트의 값이라 그 컴포넌트 메뉴에 바로 선다. 오브젝트 메뉴의 `순서` 하위 메뉴는 없다.
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
@@ -14437,17 +14375,20 @@ namespace
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "right-clicking the row must open the object menu");
         Spot line;
-        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, orderLabel), line),
-            "the object menu must carry the order submenu");
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, orderLabel), line),
+            "the object menu has no order submenu of its own");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu,
+                  LabelId(menu->ID, ComponentLine(sprites[1]->GetTypeId())), line),
+            "the object menu must carry the sprite renderer's submenu");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the submenu must open on hover");
         }
         ImGuiWindow* submenu = FindSubmenuWindow();
-        Check(submenu != nullptr, "hovering the line must open the order submenu");
+        Check(submenu != nullptr, "hovering the line must open the sprite renderer's submenu");
         Spot item;
         Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, frontLabel), item),
-            "the submenu must offer to bring it to the front");
+            "the sprite renderer's submenu offers to bring it to the front, without another submenu");
         ClickAt(editor, hwnd, item);
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
@@ -14465,7 +14406,6 @@ namespace
         {
             Check(editor.Tick(Frame), "the inspector must settle on A");
         }
-        SelectInspectorRow(editor, hwnd, 1);
         Spot cell;
         Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(table, "renderOrder"), "##value"), cell),
             "the render order row is in the inspector");
@@ -14644,22 +14584,17 @@ namespace
         Check(submenu != nullptr, "hovering the line must open its submenu");
         Check(false == FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
             "a box collider has no edit points item - a box has no points to edit");
-        // 공용 항목: 맨 아래로 이동. 첫 콜라이더(슬롯 1)가 마지막 슬롯으로 간다.
+        // 공용 항목은 복사·붙여넣기·제거다. 자리 옮기기는 없다(D-305).
+        const char* copyLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorCopyComponent, "Copy Component");
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, copyLabel), item),
+            "the submenu carries the common items");
         const char* bottomLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorMoveComponentBottom, "Move to Bottom");
-        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, bottomLabel), item),
-            "the submenu carries the common move items");
-        const std::size_t undoBeforeMove = editor.GetCommands().GetUndoCount();
-        ClickAt(editor, hwnd, item);
-        for (JBro::Int32 frame = 0; frame < 2; ++frame)
-        {
-            Check(editor.Tick(Frame), "the menu must close");
-        }
-        std::size_t leftSlot = 0;
-        Check(cup->FindComponentIndex(left, leftSlot) && leftSlot + 1 == cup->GetComponents().Size(),
-            "move to bottom puts the collider in the last slot");
-        Check(editor.GetCommands().GetUndoCount() == undoBeforeMove + 1 && editor.GetCommands().Undo()
-                && cup->FindComponentIndex(left, leftSlot) && leftSlot == 1,
-            "as one undo");
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, bottomLabel), item),
+            "but no move item");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, 0);
+        Check(editor.Tick(Frame), "the editor must tick with escape down");
+        PostMessageW(hwnd, WM_KEYUP, VK_ESCAPE, 0);
+        Check(editor.Tick(Frame), "the editor must tick with escape up");
 
         // **항목은 에디터가 켜질 때 행동 표에서 오르고 패널을 들지 않는다**(D-284). 캔버스 뷰가 사라져도 줄은 남지만, 할 일은 누를 때
         // 그 종류의 패널을 찾으므로 사라진 패널을 가리킬 길이 없다 - 캔버스 뷰가 없으면 할 수 없다.
@@ -14971,7 +14906,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestDraggingTheGizmoMovesTheSelectionUnderOneUndo();
     TestPopupsOpenOneAtATimeAndCloseByHandle();
     TestSavingAsksForAPathOnceAndReportsFailure();
-    TestMovingAComponentFromItsHeaderMenuCanBeUndone();
+    TestTheComponentMenuHasNoEnableOrMoveItems();
     TestDraggingAComponentHeaderReordersIt();
     TestCopyAndPasteMakeASiblingAndSelectIt();
     TestCopyingAComponentPastesItsValuesOntoAnotherObject();
