@@ -180,7 +180,6 @@ Entries:
   component_category.Physics: Physics
   component_category.Audio: Audio
   component_category.UI: UI
-  component_category.Script: Script
   component_category.Components: Components
   asset.none: (None)
   asset.missing: (Missing asset)

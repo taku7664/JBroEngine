@@ -3043,6 +3043,8 @@ EditorApplication::Tick
   2 단계의 `Components`·`Scripts` 나눔을 그 두 함수 안에 다시 적었다 - 그래서 레이어 에셋도 같은 형식이고, **레이어 에셋의 모르는 컴포넌트도 이제 실패다**(예전 시험은 들고 있기를 봤다).
   인스펙터 머리 메뉴·오브젝트 메뉴의 하위 메뉴(D-298)는 `DrawComponentMenuItems(…, kind)` 한 벌을 스크립트에도 쓴다 - 자리 옮기기는 제 목록 안이고 타입에 더한 항목은 컴포넌트만 갖는다.
   머리 끌기(D-294)의 꾸러미도 `kind` 를 실어 다른 목록에는 놓이지 않는다. `AttachedRef` 의 `explicit operator bool` 은 엔진 값 타입(D-290)과 맞지 않아 `IsValid()` 로 바꿨다.
+  (14) (2026-10-07) 2 단계가 `ComponentCategory::Script` 를 쓰는 자리를 지웠는데 번역 파일의 `component_category.Script` 는 남아, 로컬라이징 시험이 "헤더가 선언하지 않은 키" 로 main 에서 떨어졌다.
+  스크립트는 갈래 없이 `스크립트 추가`(`inspector.add_script`)로 붙으므로 키를 되살리지 않고 `en-US.yaml`·`ko-KR.yaml` 에서 지웠다.
 
 
 - **D-301. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **구현 전이다 - 계약만 섰다.**
@@ -3114,6 +3116,8 @@ EditorApplication::Tick
   (6) 실측: 시험(`ScriptBuildTests`)이 한글 경로의 프로젝트에 선언되지 않은 이름을 쓰는 줄을 넣어 실제 MSBuild 로 빌드하면 `C2065` 가 그 파일·그 줄로 오고,
   고치면 성공해 `x64/Debug/GameScript.dll` 이 선다(Visual Studio 2026). 도는 `cmd` 를 닫으면 그 자식 `ping` 도 끝나고, 스스로 끝난 뒤 닫으면 `start /b` 로 남긴 것은 계속 돈다.
   **Visual Studio 와 VS Code 가 그 줄로 가는지는 재지 않았다** - 두 명령은 각 제품의 문서에 적힌 인자다.
+  (7) (2026-10-07) 진단 줄이 `ImGui::Selectable` 을 직접 불러 위젯 층 시험(`TestPanelsGoThroughTheWidgetLayer`)이 main 에서 떨어졌다 - `Widget::SelectableRow` 로 바꿨다.
+  그 위젯의 몸통이 같은 호출이라 동작(줄을 누르면 `OpenScriptDiagnostic`)은 그대로다.
 
 - **D-298. 캔버스 뷰·메뉴 손질 묶음 - 스페이스바 맞춤, 몸통 끌기, 레이어 복사·붙여넣기, 컴포넌트 메뉴 한 벌, 라이트·카메라 표시, 라이트 손잡이 양쪽, `Clamp` 속성.**
   (2026-10-07, 사용자 지시 아홉: "캔버스 뷰 - spacebar = 맞춤", "콜라이더 폴리곤 형태 아니면 포인트 편집 안뜨게", "기즈모 중립(x든y든 가능한 버튼)을 스프라이트 렌더나 그런 바디가 있는 객체는
