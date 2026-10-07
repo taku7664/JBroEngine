@@ -506,6 +506,11 @@ Component::AudioListener2D   (JBroFramework2D)
      아이콘을 빌렸다). 인스펙터: `.jfx` 를 고르면 `이펙트 편집기 열기` 단추. `AudioSource.audioEffectIds` 의 원소는 `audioEffectId` 로 읽어 사운드 이펙트만 고르는
      드롭다운이다 - 목록 원소의 에셋 칸은 처음이다(전에는 글자 칸이었다). 인스펙터는 자기가 보이던 소리만 미리 듣기를 끈다 - 처음에는 소리를 보이지 않는
      프레임마다 끄던 탓에 이펙트 창의 미리 듣기가 곧바로 꺼졌다.
+   - main 의 D-304(인스펙터가 목록과 필드 두 칸)와 합친 뒤 `TestTheInspectorPreviewsAudioAndPicksABus` 가 `clipId` 칸을 찾지 못했다 - 오디오 소스에 이펙트 목록 두 줄이
+     더해져 필드 칸에 세로 스크롤바가 서고, 1024 창의 6 픽셀짜리 값 칸을 덮었다. D-304 가 다른 필드 시험 일곱을 넓힌 것처럼 1800x900 으로 넓혔다.
+   - 전체 시험(2026-10-07, main `26f39ffa` 를 합친 뒤): 떨어지는 것은 main 에서 온 둘뿐이다 - `EditorLocalization` 의 죽은 키 `component_category.Script`(D-302 2 단계가
+     헤더에서만 뺐다)와 `TestPanelsGoThroughTheWidgetLayer` 의 `BuildResultsPanel.cpp` 직접 `ImGui::Selectable`(D-299). 앞의 것이 묶음을 멈추므로 그 뒤의
+     에디터 시험 57 개와 나머지 묶음 34 개를 따로 돌려 모두 지났다.
    - 시험이 없는 것: 목록 원소 드롭다운을 눌러 고르는 것(목록 위젯의 자식 창 안이라 위젯 아이디를 짚지 못했다 - 1024 폭 시험 창의 좁은 인스펙터에서 칸이 그려진 것만
      사진으로 봤다), 스피커로 듣는 사람 확인.
 

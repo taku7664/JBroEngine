@@ -4119,8 +4119,9 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 1024;
-        config.windowHeight = 768;
+        // 인스펙터가 목록과 필드 두 칸이라(D-304) 1024 창에서는 값 칸이 6 픽셀이고, 오디오 소스의 이펙트 목록(D-306)까지 서면 세로 스크롤바가 그것을 덮는다.
+        config.windowWidth = 1800;
+        config.windowHeight = 900;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; the audio inspector not verified" << std::endl;
@@ -4138,7 +4139,7 @@ namespace
             ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
             Check(window != nullptr, "the inspector must have a window");
             const JBro::Int32 bottom = static_cast<JBro::Int32>(window->Pos.y + window->Size.y);
-            for (const JBro::Float fraction : {0.40f, 0.45f, 0.50f, 0.55f})
+            for (const JBro::Float fraction : {0.25f, 0.30f, 0.40f, 0.45f, 0.50f, 0.55f})
             {
                 const JBro::Int32 x = static_cast<JBro::Int32>(window->Pos.x + window->Size.x * fraction);
                 for (JBro::Int32 y = static_cast<JBro::Int32>(window->Pos.y); y < bottom; y += 4)
@@ -4172,7 +4173,7 @@ namespace
         const ImGuiID playButton = LabelId(LabelId(inspector->ID, "##audioPreview"), playLabel);
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
-            SaveScreenshot(*shotRenderer, 1024, 768, "audio_inspector");
+            SaveScreenshot(*shotRenderer, 1800, 900, "audio_inspector");
         }
         Spot spot;
         Check(findButton(playButton, spot), "the audio inspector shows a Play button");
@@ -4190,7 +4191,7 @@ namespace
         Check(findButton(positionSlider, spot), "while it plays a position slider shows");
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
-            SaveScreenshot(*shotRenderer, 1024, 768, "audio_inspector_playing");
+            SaveScreenshot(*shotRenderer, 1800, 900, "audio_inspector_playing");
         }
 
         // ── 소스: 다른 것을 고르면 미리 듣기가 멈춘다 ──
@@ -4252,7 +4253,7 @@ namespace
         Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
-            SaveScreenshot(*shotRenderer, 1024, 768, "audio_source_inspector");
+            SaveScreenshot(*shotRenderer, 1800, 900, "audio_source_inspector");
         }
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(editor.Tick(Frame), "the editor must tick after undo");
