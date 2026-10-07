@@ -88,6 +88,7 @@ namespace JBro
         entry->blocksGlobal = desc.blocksGlobal;
         entry->whileTyping = desc.whileTyping;
         entry->duringGame = desc.duringGame;
+        entry->mainDockOnly = desc.mainDockOnly;
         entry->handler = std::move(desc.handler);
         Apply(*entry);
         const ShortcutHandle handle = entry->handle;
@@ -369,6 +370,11 @@ namespace JBro
         m_focusedScope = IsBlank(scope) ? nullptr : scope;
     }
 
+    void EditorShortcutManager::SetFocusOutsideMainDock(Bool outside)
+    {
+        m_focusOutsideMainDock = outside;
+    }
+
     void EditorShortcutManager::SetSuspended(Bool suspended)
     {
         m_suspended = suspended;
@@ -465,7 +471,8 @@ namespace JBro
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
             Entry& entry = *m_entries[index];
-            if (false == entry.scope.IsEmpty() || false == Allowed(entry, typing, gameInput))
+            if (false == entry.scope.IsEmpty() || false == Allowed(entry, typing, gameInput)
+                || (entry.mainDockOnly && m_focusOutsideMainDock))
             {
                 continue;
             }

@@ -26,6 +26,7 @@ namespace JBro
         void ClearInputEvents() override;
         void WaitForEvents(UInt32 timeoutMilliseconds) override;
         Bool ShouldClose(WindowHandle window) const override;
+        void CancelClose(WindowHandle window) override;
         Bool GetWindowState(WindowHandle window, WindowState& state) const override;
         DynamicLibrary LoadDynamicLibrary(const char* utf8Path) override;
         void* GetSymbol(DynamicLibrary library, const char* name) override;

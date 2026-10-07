@@ -366,7 +366,15 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsNewFontFamily = "assets.new_font_family";
     inline constexpr const char* AssetsNewStringTable = "assets.new_string_table";
     inline constexpr const char* AssetsNewSoundEffect = "assets.new_sound_effect";
-    // 노드 그래프 창(D-308).
+    // 노드 그래프 창(D-308)과 노드 인스펙터(D-309). `FileWindow*` 는 파일을 여는 창(노드 그래프·사운드 이펙트)이 함께 쓰는 묻는 창이다.
+    inline constexpr const char* NodeGraphInspectorTitle = "node_graph.inspector_title";
+    inline constexpr const char* NodeGraphNoGraph = "node_graph.no_graph";
+    inline constexpr const char* FileWindowUnsavedTitle = "file_window.unsaved_title";
+    inline constexpr const char* FileWindowReloadMessage = "file_window.reload_message";
+    inline constexpr const char* FileWindowReloadDiscard = "file_window.reload_discard";
+    inline constexpr const char* FileWindowCloseMessage = "file_window.close_message";
+    inline constexpr const char* FileWindowSaveAndClose = "file_window.save_and_close";
+    inline constexpr const char* FileWindowCloseWithoutSaving = "file_window.close_without_saving";
     inline constexpr const char* NodeGraphTitle = "node_graph.title";
     inline constexpr const char* AssetsNewNodeGraph = "assets.new_node_graph";
     inline constexpr const char* NodeGraphSave = "node_graph.save";
@@ -419,6 +427,14 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsSelectionCount = "assets.selection_count";
     inline constexpr const char* PopupUnsavedCanvasTitle = "popup.unsaved_canvas_title";
     inline constexpr const char* PopupUnsavedCanvasMessage = "popup.unsaved_canvas_message";
+    // 끝내기·프로젝트 바꾸기 전에 묻는 창(D-309).
+    inline constexpr const char* ProjectSettingsRevertMessage = "project_settings.revert_message";
+    inline constexpr const char* ProjectSettingsRevertDiscard = "project_settings.revert_discard";
+    inline constexpr const char* PopupUnsavedWorkTitle = "popup.unsaved_work_title";
+    inline constexpr const char* PopupUnsavedWorkMessage = "popup.unsaved_work_message";
+    inline constexpr const char* PopupUnsavedWorkCanvas = "popup.unsaved_work_canvas";
+    inline constexpr const char* CommonSaveAll = "common.save_all";
+    inline constexpr const char* CommonDontSave = "common.dont_save";
     inline constexpr const char* CommonSaveAndOpen = "common.save_and_open";
     inline constexpr const char* CommonOpenWithoutSaving = "common.open_without_saving";
     inline constexpr const char* AssetsOpenCanvas = "assets.open_canvas";

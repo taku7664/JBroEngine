@@ -85,6 +85,9 @@ namespace JBro
         Bool Undo();
         Bool Redo();
         void Clear();
+        // **되돌리기 기록만 비운다.** 저장 안 됨은 그대로 둔다 - 재생을 멈추거나 스크립트 필드가 바뀌어 기록을 버려도 캔버스의 편집이
+        // 저장된 것은 아니다. `Clear` 는 저장 기준까지 0 으로 돌려, 그 뒤 다른 캔버스를 열 때 묻지 않고 편집을 버렸다(D-309).
+        void ClearHistory();
 
         Bool CanUndo() const;
         Bool CanRedo() const;

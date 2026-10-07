@@ -63,52 +63,44 @@ namespace JBro::NodeGraphView
         }
     }
 
-    Vector2 ToScreen(const Camera& camera, Vector2 graph)
-    {
-        return Add(camera.origin, Scale(Sub(graph, camera.pan), camera.zoom.Get()));
-    }
-
-    Vector2 ToGraph(const Camera& camera, Vector2 screen)
-    {
-        const float zoom = camera.zoom.Get() <= 0.0f ? 1.0f : camera.zoom.Get();
-        return Add(camera.pan, Scale(Sub(screen, camera.origin), 1.0f / zoom));
-    }
-
     void ZoomAt(Camera& camera, const Style& style, Vector2 screen, Float zoom)
     {
-        const Vector2 anchor = ToGraph(camera, screen);
-        camera.zoom = std::clamp(zoom.Get(), style.minZoom.Get(), style.maxZoom.Get());
-        // 줌을 바꾼 뒤에도 그 화면 자리 아래에 같은 그래프 자리가 오게 팬을 다시 잡는다.
-        camera.pan = Sub(anchor, Scale(Sub(screen, camera.origin), 1.0f / camera.zoom.Get()));
+        ViewCamera::ZoomAt(camera, screen, zoom, style.minZoom, style.maxZoom);
     }
 
-    void Frame(Camera& camera, const Style& style, const Graph& graph, const Domain& domain, Vector2 canvasSize)
+    void Frame(Camera& camera, const Style& style, const Graph& graph, const Domain& domain, Vector2 canvasSize,
+        ArrayView<const NodeId> nodes, Bool immediate)
     {
-        if (graph.GetNodes().IsEmpty())
-        {
-            camera.zoom = 1.0f;
-            camera.pan = Vector2{};
-            return;
-        }
-        Rect bounds = NodeBounds(graph.GetNodes()[0], domain.FindNodeType(graph.GetNodes()[0].type.View()), style);
+        Bool any = false;
+        Rect bounds;
         for (const Node& node : graph.GetNodes())
         {
+            if (!nodes.IsEmpty() && !Contains(nodes, node.id))
+            {
+                continue;
+            }
             const Rect rect = NodeBounds(node, domain.FindNodeType(node.type.View()), style);
+            if (!any)
+            {
+                bounds = rect;
+                any = true;
+                continue;
+            }
             bounds.min = Vector2{std::min(bounds.min.x.Get(), rect.min.x.Get()), std::min(bounds.min.y.Get(), rect.min.y.Get())};
             bounds.max = Vector2{std::max(bounds.max.x.Get(), rect.max.x.Get()), std::max(bounds.max.y.Get(), rect.max.y.Get())};
         }
-        const float margin = 40.0f;
-        const float width = bounds.max.x.Get() - bounds.min.x.Get() + margin * 2.0f;
-        const float height = bounds.max.y.Get() - bounds.min.y.Get() + margin * 2.0f;
-        float zoom = 1.0f;
-        if (canvasSize.x.Get() > 0.0f && canvasSize.y.Get() > 0.0f)
+        if (!any)
         {
-            zoom = std::min(canvasSize.x.Get() / width, canvasSize.y.Get() / height);
+            camera.goalZoom = 1.0f;
+            camera.goalPan = Vector2{};
+            if (immediate)
+            {
+                SetCamera(camera, camera.goalPan, camera.goalZoom);
+            }
+            return;
         }
-        camera.zoom = std::clamp(zoom, style.minZoom.Get(), std::min(1.0f, style.maxZoom.Get()));
-        // 가운데를 맞춘다.
-        const Vector2 center{(bounds.min.x.Get() + bounds.max.x.Get()) * 0.5f, (bounds.min.y.Get() + bounds.max.y.Get()) * 0.5f};
-        camera.pan = Sub(center, Scale(canvasSize, 0.5f / camera.zoom.Get()));
+        // 작은 그래프를 1 보다 크게 키우지 않는다 - 노드 둘을 맞춘다고 화면을 가득 채우면 글자가 부풀어 보인다.
+        ViewCamera::Fit(camera, bounds, canvasSize, 40.0f, style.minZoom, std::min(1.0f, style.maxZoom.Get()), immediate);
     }
 
     Rect NodeBounds(const Node& node, const NodeTypeInfo* type, const Style& style)
@@ -318,7 +310,7 @@ namespace JBro::NodeGraphView
         // 줌과 팬은 손짓 상태와 따로 돈다. 노드를 끄는 중에도 휠로 줌할 수 있다.
         if (input.hovered && input.wheel.Get() != 0.0f)
         {
-            ZoomAt(camera, style, input.mouse, camera.zoom.Get() * std::pow(1.15f, input.wheel.Get()));
+            ZoomAt(camera, style, input.mouse, camera.goalZoom.Get() * std::pow(1.15f, input.wheel.Get()));
         }
         if (input.rightPressed && input.hovered)
         {
@@ -330,7 +322,8 @@ namespace JBro::NodeGraphView
             if (input.middleDown || Length(Sub(input.mouse, m_rightPress)) > style.dragThreshold.Get())
             {
                 m_rightDragged = m_rightDragged || input.rightDown;
-                camera.pan = Sub(camera.pan, Scale(input.mouseDelta, 1.0f / camera.zoom.Get()));
+                // 끈 픽셀을 가려는 줌으로 그래프 길이로 바꿔 가려는 카메라를 민다(캔버스 뷰와 같다).
+                ViewCamera::PanByPixels(camera, input.mouseDelta);
             }
         }
         if (input.rightReleased && input.hovered && !m_rightDragged && m_gesture == Gesture::Idle)
@@ -391,6 +384,11 @@ namespace JBro::NodeGraphView
                     m_selection.Clear();
                     m_selection.Add(m_pressHit.node);
                     events.selectionChanged = true;
+                }
+                if (input.leftDoubleClicked)
+                {
+                    events.nodeDoubleClicked = true;
+                    events.doubleClickedNode = m_pressHit.node;
                 }
                 m_gesture = Gesture::Pressing;
                 break;

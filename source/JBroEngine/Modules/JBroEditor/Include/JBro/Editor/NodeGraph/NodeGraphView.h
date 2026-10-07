@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/ViewCamera.h>
 #include <JBro/NodeGraph/Domain.h>
 #include <JBro/NodeGraph/Graph.h>
 #include <JBro/Types/Array.h>
@@ -44,21 +45,26 @@ namespace JBro::NodeGraphView
         Float maxZoom = 2.5f;
     };
 
-    struct Camera
-    {
-        // 캔버스 왼쪽 위의 화면 자리다. 위젯이 그릴 때마다 채운다.
-        Vector2 origin;
-        // 캔버스 왼쪽 위에 오는 그래프 자리다.
-        Vector2 pan;
-        Float zoom = 1.0f;
-    };
+    // 카메라는 에디터 공용의 부드러운 카메라다(`ViewCamera`, 캔버스 뷰와 같은 손맛). 그래프 공간이 그 카메라의 내용 공간이다.
+    using Camera = ViewCamera::Camera;
+    // `ToScreen`·`Follow` 은 `ViewCamera` 의 것을 그대로 쓴다(카메라가 그 이름공간의 타입이라 이름만으로 찾아진다).
+    using ViewCamera::Follow;
+    using ViewCamera::ToScreen;
 
-    Vector2 ToScreen(const Camera& camera, Vector2 graph);
-    Vector2 ToGraph(const Camera& camera, Vector2 screen);
-    // 화면의 그 점 아래 그래프 자리를 그대로 둔 채 줌을 바꾼다(캔버스 뷰와 같다, D-252).
+    inline Vector2 ToGraph(const Camera& camera, Vector2 screen)
+    {
+        return ViewCamera::ToContent(camera, screen);
+    }
+    inline void SetCamera(Camera& camera, Vector2 pan, Float zoom)
+    {
+        ViewCamera::Set(camera, pan, zoom);
+    }
+    // 화면의 그 점 아래 그래프 자리를 그대로 둔 채 가려는 줌을 바꾼다. 기준점은 **가려는 카메라**로 잰다 - 따라가는 도중에
+    // 휠을 거듭 돌려도 같은 점을 붙잡는다(캔버스 뷰와 같다).
     void ZoomAt(Camera& camera, const Style& style, Vector2 screen, Float zoom);
-    // 노드들이 다 보이게 팬과 줌을 맞춘다. 노드가 없으면 원점으로 간다.
-    void Frame(Camera& camera, const Style& style, const Graph& graph, const Domain& domain, Vector2 canvasSize);
+    // 노드들(`nodes` 가 비면 모두)이 다 보이게 가려는 카메라를 맞춘다. `immediate` 면 두 카메라를 함께 놓는다. 노드가 없으면 원점이다.
+    void Frame(Camera& camera, const Style& style, const Graph& graph, const Domain& domain, Vector2 canvasSize,
+        ArrayView<const NodeId> nodes = {}, Bool immediate = false);
 
     // 그래프 공간의 노드 사각형이다. 모르는 종류의 노드는 핀 없이 머리만 있다.
     Rect NodeBounds(const Node& node, const NodeTypeInfo* type, const Style& style);
@@ -109,6 +115,8 @@ namespace JBro::NodeGraphView
         Bool rightReleased = false;
         Bool rightDown = false;
         Bool middleDown = false;
+        // 왼쪽 단추를 두 번 눌렀다. 두 번째 누름은 `leftPressed` 도 참이다.
+        Bool leftDoubleClicked = false;
         Vector2 mouseDelta;
         Float wheel = 0.0f;
         Bool ctrl = false;
@@ -137,6 +145,9 @@ namespace JBro::NodeGraphView
         PinRef droppedPin;
         Bool droppedFromOutput = false;
         Vector2 dropPoint;
+        // 노드를 두 번 눌렀다. 패널이 노드 인스펙터를 앞으로 꺼낸다.
+        Bool nodeDoubleClicked = false;
+        NodeId doubleClickedNode = NodeGraph::InvalidId;
     };
 
     enum class Gesture : std::uint8_t

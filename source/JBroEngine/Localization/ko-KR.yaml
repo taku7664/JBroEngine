@@ -411,6 +411,14 @@ Entries:
   assets.new_font_family: 새 폰트 패밀리
   assets.new_string_table: 새 문자열 표
   node_graph.title: 노드 그래프
+  node_graph.inspector_title: 노드 인스펙터
+  node_graph.no_graph: 열린 노드 그래프가 없습니다
+  file_window.unsaved_title: 저장하지 않은 변경
+  file_window.reload_message: "저장하지 않은 변경이 있습니다. 디스크에서 다시 읽으면 사라집니다"
+  file_window.reload_discard: 저장하지 않고 다시 읽기
+  file_window.close_message: 저장하지 않은 변경이 있습니다
+  file_window.save_and_close: 저장하고 닫기
+  file_window.close_without_saving: 저장하지 않고 닫기
   assets.new_node_graph: 새 노드 그래프
   node_graph.save: 저장
   node_graph.nothing_to_save: 바뀐 것이 없습니다
@@ -425,7 +433,7 @@ Entries:
   node_graph.nothing_to_paste: 복사한 노드가 없습니다
   node_graph.duplicate: 복제
   node_graph.delete: 삭제
-  node_graph.frame: 전체 보기
+  node_graph.frame: 맞춤
   node_graph.disconnect: 연결 끊기
   node_graph.disconnect_all: 모든 연결 끊기
   node_graph.no_selection: 선택한 노드가 없습니다
@@ -460,6 +468,13 @@ Entries:
   assets.paste_failed: 붙여넣지 못했습니다
   assets.selection_count: "%d개 선택됨"
   popup.unsaved_canvas_title: 저장하지 않은 변경
+  popup.unsaved_work_title: 저장하지 않은 변경
+  popup.unsaved_work_message: 다음에 저장하지 않은 변경이 있습니다
+  popup.unsaved_work_canvas: 캔버스
+  common.save_all: 모두 저장
+  common.dont_save: 저장하지 않음
+  project_settings.revert_message: "저장하지 않은 설정이 있습니다. 되돌리면 사라집니다"
+  project_settings.revert_discard: 저장하지 않고 되돌리기
   popup.unsaved_canvas_message: 지금 캔버스에 저장하지 않은 변경이 있습니다. 다른 캔버스를 열면 그 변경은 사라집니다.
   common.save_and_open: 저장하고 열기
   common.open_without_saving: 저장하지 않고 열기

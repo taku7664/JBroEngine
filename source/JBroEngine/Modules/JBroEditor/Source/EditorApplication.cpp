@@ -125,6 +125,17 @@ namespace JBro
             return value;
         }
 
+        // **도크마다 제 창 클래스다**(D-309). 도크의 안쪽 도크 공간과 그 도크의 패널이 같은 클래스를 쓴다 - 그래서 패널은 제 도크
+        // 안에서만 탭·분할로 붙고, 다른 도크로는 끌어 넣을 수 없다. 클래스가 없을 때는 노드 그래프·스프라이트 뷰어·사운드 이펙트 창을
+        // 메인 도크에 끌어 넣을 수 있었고, 메인 패널을 파일 창 도크에 넣을 수도 있었다(사용자 지적). 떠 있는 창으로 빼는 것은 막지 않는다.
+        ImGuiWindowClass DockAreaClass(const char* area)
+        {
+            ImGuiWindowClass made;
+            made.ClassId = ImHashStr(area, 0, ImHashStr("JBroDockArea"));
+            made.DockingAllowUnclassed = false;
+            return made;
+        }
+
         // 메인 도크 창의 ImGui 이름이다. `###` 뒤가 식별자라 보이는 이름이 바뀌어도
         // 도킹 자리를 잃지 않는다(패널과 같은 규칙, D-80).
         // 보이는 이름은 앞에 붙는다 - 뿌리에 파일 창이 붙으면 탭으로 이 이름이 보인다(D-155).
@@ -2215,6 +2226,11 @@ namespace JBro
             return;
         }
         m_openProjectRequested = false;
+        // 다른 프로젝트를 열면 지금 프로젝트의 캔버스와 창이 닫힌다 - 저장하지 않은 것이 있으면 먼저 묻는다.
+        if (AskBeforeLeaving(LeaveAction::OpenProject))
+        {
+            return;
+        }
 
         // **막히는 호출이라 프레임 밖이어야 한다**(D-93). 대화상자가 떠 있는 동안
         // 어느 프레임도 열려 있지 않다.
@@ -2276,6 +2292,10 @@ namespace JBro
             return;
         }
         m_newProjectRequested = false;
+        if (AskBeforeLeaving(LeaveAction::NewProject))
+        {
+            return;
+        }
         // **막히는 대화상자라 프레임 밖이다**(D-93). 기존과 같이 폴더를 먼저 고르고 이름은 팝업이 받는다.
         FileDialogDesc desc;
         desc.title = Loc::TextOr(LocKeys::DialogNewProjectFolder, "Choose a folder for the project");
@@ -3199,7 +3219,8 @@ namespace JBro
         // 코드만 고친 흔한 경우(필드가 그대로)에는 기록이 남는다.
         if (DescribeScriptFieldLayout() != layoutBefore && m_commands.GetUndoCount() + m_commands.GetRedoCount() != 0)
         {
-            m_commands.Clear();
+            // 기록만 버린다. 저장 안 됨은 남는다(D-309).
+            m_commands.ClearHistory();
             Log::Write(LogLevel::Info, "script", "the undo history was cleared because script fields changed");
         }
         Array<ScriptResolveNote> notes;
@@ -3545,6 +3566,112 @@ namespace JBro
             return;
         }
         Log::Write(LogLevel::Info, "editor", "opened %s", relative.c_str());
+    }
+
+    Bool EditorApplication::HasUnsavedWork() const
+    {
+        if (m_commands.IsDirty())
+        {
+            return true;
+        }
+        for (const OwnerPtr<EditorPanel>& panel : m_panels)
+        {
+            if (panel.Get() != nullptr && panel->HasUnsavedChanges())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Bool EditorApplication::AskBeforeLeaving(LeaveAction action)
+    {
+        if (m_leaveConfirmed)
+        {
+            // 답을 받아 다시 하는 중이다. 한 번만 쓴다 - 다음 손짓은 다시 묻는다.
+            m_leaveConfirmed = false;
+            return false;
+        }
+        if (false == m_uiEnabled || false == HasUnsavedWork())
+        {
+            return false;
+        }
+        if (m_pendingLeave != LeaveAction::None)
+        {
+            // 이미 묻고 있다. 같은 물음을 쌓지 않는다.
+            return true;
+        }
+        // 무엇이 저장되지 않았는지 이름으로 적는다 - "무언가 있다" 만으로는 저장할지 고를 수 없다.
+        String message = Loc::TextOr(LocKeys::PopupUnsavedWorkMessage, "These have changes that are not saved:");
+        if (m_commands.IsDirty())
+        {
+            message.append("\n  ");
+            message.append(m_canvasPath.empty() ? Loc::TextOr(LocKeys::PopupUnsavedWorkCanvas, "the canvas") : m_canvasPath.c_str());
+        }
+        for (const OwnerPtr<EditorPanel>& panel : m_panels)
+        {
+            if (panel.Get() != nullptr && panel->HasUnsavedChanges())
+            {
+                message.append("\n  ");
+                message.append(panel->GetDisplayTitle());
+            }
+        }
+        m_pendingLeave = action;
+        OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+            Loc::TextOr(LocKeys::PopupUnsavedWorkTitle, "Unsaved changes"),
+            message.c_str(),
+            Loc::TextOr(LocKeys::CommonSaveAll, "Save all"),
+            Loc::TextOr(LocKeys::CommonDontSave, "Don't save"),
+            Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
+            [](EditorApplication& editor, Int32 choice, void*) { editor.AnswerLeave(choice); },
+            nullptr, "##UnsavedWork"));
+        return true;
+    }
+
+    void EditorApplication::AnswerLeave(Int32 choice)
+    {
+        const LeaveAction action = m_pendingLeave;
+        m_pendingLeave = LeaveAction::None;
+        if (action == LeaveAction::None || choice == ConfirmPopup::Cancelled || choice == 2)
+        {
+            return;
+        }
+        if (choice == 0)
+        {
+            // 모두 저장한다. 하나라도 저장하지 못했으면 하지 않는다 - 그것이 사라지는 자리다.
+            if (m_commands.IsDirty())
+            {
+                RequestSaveCanvas();
+                PerformSaveRequest();
+            }
+            for (const OwnerPtr<EditorPanel>& panel : m_panels)
+            {
+                if (panel.Get() != nullptr && panel->HasUnsavedChanges())
+                {
+                    panel->SaveChanges();
+                }
+            }
+            if (HasUnsavedWork())
+            {
+                return;
+            }
+        }
+        // 물어본 답을 들고 다시 요청한다. 하는 일은 프레임 밖에서 한다(D-93).
+        m_leaveConfirmed = true;
+        switch (action)
+        {
+        case LeaveAction::Exit:
+            m_exitRequested = true;
+            break;
+        case LeaveAction::OpenProject:
+            m_openProjectRequested = true;
+            break;
+        case LeaveAction::NewProject:
+            m_newProjectRequested = true;
+            break;
+        default:
+            break;
+        }
     }
 
     void EditorApplication::AnswerCanvasSwitch(Int32 choice)
@@ -4324,8 +4451,9 @@ namespace JBro
         m_simulationSnapshot.clear();
         m_objectIds.Clear();
         // 재생 중에 쌓인 편집은 되돌릴 대상이 사라졌다. 스택을 비우지 않으면 Ctrl+Z 가
-        // 이제 없는 오브젝트를 가리킨다.
-        m_commands.Clear();
+        // 이제 없는 오브젝트를 가리킨다. **저장 안 됨은 남긴다** - 캔버스는 재생 전으로 돌아왔고, 재생 전에 저장하지 않은 편집은
+        // 여전히 저장되지 않았다(D-309).
+        m_commands.ClearHistory();
         if (m_framework.Get() != nullptr)
         {
             m_framework->BindCanvasAssets();
@@ -5390,15 +5518,17 @@ namespace JBro
                 ImGui::DockBuilderFinish(mainDock);
                 m_dockLayoutBuilt = true;
             }
-            ImGui::DockSpace(mainDock, ImVec2(0.0f, 0.0f), EditorDockNodeFlags);
+            const ImGuiWindowClass mainClass = DockAreaClass(MainDockArea);
+            ImGui::DockSpace(mainDock, ImVec2(0.0f, 0.0f), EditorDockNodeFlags, &mainClass);
         }
         else
         {
             // **가려진 프레임에도 안쪽 도크를 살려 둔다**(D-155). 뿌리에 파일 창(스프라이트 뷰어)이
             // 붙어 그 탭이 앞에 오면 이 창은 그려지지 않는데, 그 프레임에 도크 공간을 내지 않으면
             // ImGui 는 노드가 사라졌다고 보고 붙어 있던 패널을 전부 떠 있는 창으로 흩어 놓는다.
+            const ImGuiWindowClass mainClass = DockAreaClass(MainDockArea);
             ImGui::DockSpace(ImGui::GetID("EditorDockSpace"), ImVec2(0.0f, 0.0f),
-                EditorDockNodeFlags | ImGuiDockNodeFlags_KeepAliveOnly);
+                EditorDockNodeFlags | ImGuiDockNodeFlags_KeepAliveOnly, &mainClass);
         }
         ImGui::End();
     }
@@ -5452,6 +5582,7 @@ namespace JBro
                 area->shown = false;
                 area->visible = false;
                 area->comingForward = false;
+                area->sideNode = 0;
                 continue;
             }
             if (false == area->shown)
@@ -5485,8 +5616,9 @@ namespace JBro
             area->dockSpace = dockSpace;
             // **가려진 프레임에도 도크 공간을 살려 둔다**(D-155). 메인 도크 탭이 앞에 오면 이 창은 그려지지 않는데, 그 프레임에
             // 도크 공간을 내지 않으면 ImGui 는 노드가 사라졌다고 보고 붙어 있던 패널을 떠 있는 창으로 흩어 놓는다.
+            const ImGuiWindowClass areaClass = DockAreaClass(info.name);
             ImGui::DockSpace(dockSpace, ImVec2(0.0f, 0.0f),
-                visible ? EditorDockNodeFlags : (EditorDockNodeFlags | ImGuiDockNodeFlags_KeepAliveOnly));
+                visible ? EditorDockNodeFlags : (EditorDockNodeFlags | ImGuiDockNodeFlags_KeepAliveOnly), &areaClass);
             ImGui::End();
         }
     }
@@ -5549,7 +5681,31 @@ namespace JBro
                 }
                 if (false == panel->m_placed)
                 {
-                    ImGui::SetNextWindowDockID(area->dockSpace, ImGuiCond_Always);
+                    // **오른쪽을 바라는 패널은 도크를 갈라 오른쪽 칸에 붙는다**(D-309, 노드 인스펙터 - 메인 도크의 인스펙터 자리와 같다).
+                    // 나머지는 가운데 칸이다. 사람이 이미 칸을 다시 나눴으면 가르지 않고 가운데 칸에 붙인다.
+                    ImGuiID target = area->dockSpace;
+                    ImGuiDockNode* root = ImGui::DockBuilderGetNode(area->dockSpace);
+                    if (panel->GetPreferredDock() == EditorDock::Right)
+                    {
+                        if (area->sideNode == 0 || ImGui::DockBuilderGetNode(area->sideNode) == nullptr)
+                        {
+                            area->sideNode = 0;
+                            if (root != nullptr && root->IsLeafNode())
+                            {
+                                ImGuiID rest = 0;
+                                area->sideNode = ImGui::DockBuilderSplitNode(area->dockSpace, ImGuiDir_Right, 0.28f, nullptr, &rest);
+                            }
+                        }
+                        if (area->sideNode != 0)
+                        {
+                            target = area->sideNode;
+                        }
+                    }
+                    else if (root != nullptr && root->CentralNode != nullptr)
+                    {
+                        target = root->CentralNode->ID;
+                    }
+                    ImGui::SetNextWindowDockID(target, ImGuiCond_Always);
                     panel->m_placed = true;
                 }
             }
@@ -5568,6 +5724,8 @@ namespace JBro
             }
             // ImGui 는 bool* 를 받는다(서드파티 경계). 원시 값으로 넘기고 닫힘을 되돌려 쓴다.
             bool rawOpen = panelOpen;
+            const ImGuiWindowClass panelClass = DockAreaClass(panel->GetDockArea());
+            ImGui::SetNextWindowClass(&panelClass);
             const Bool shown = ImGui::Begin(label.c_str(), closable != nullptr ? &rawOpen : nullptr, flags);
             panelOpen = rawOpen;
             // 창 전체가 대상일 수 있다(레이어 창에서 오브젝트를 고르는 단계). 가려진 탭이면 열리지 않은 것으로 알린다.
@@ -5588,7 +5746,8 @@ namespace JBro
                 panel->OnDraw();
             }
             ImGui::End();
-            if (false == panelOpen)
+            // 저장하지 않은 것이 있는 패널은 닫지 않고 묻는다(`OnCloseRequested`).
+            if (false == panelOpen && panel->OnCloseRequested())
             {
                 // 고유 패널은 숨고 비고유 패널은 파기된다 - 파기는 이 루프가 끝난 뒤다.
                 ClosePanel(*panel);
@@ -5673,15 +5832,18 @@ namespace JBro
         // **포커스를 가진 패널의 단축키가 먼저 돈다**(D-228). 패널의 포커스는 지난 프레임에 그리며 적은 값이다 - 이번 프레임의
         // 입력은 패널을 그리기 전에 처리해야 같은 키가 패널 안의 칸에 먼저 가지 않는다.
         const char* focusedScope = nullptr;
+        Bool focusOutsideMain = false;
         for (const OwnerPtr<EditorPanel>& panel : m_panels)
         {
             if (panel.Get() != nullptr && panel->IsFocused())
             {
                 focusedScope = panel->GetTitle();
+                focusOutsideMain = std::strcmp(panel->GetDockArea(), MainDockArea) != 0;
                 break;
             }
         }
         m_shortcuts->SetFocusedScope(focusedScope);
+        m_shortcuts->SetFocusOutsideMainDock(focusOutsideMain);
         // 가이드 포커스가 켜진 동안은 돌지 않는다. `SetSuspended` 는 쓰지 않는다 - 키를 새로 잡는 설정 창이 그것을 켜고 끄므로,
         // 둘이 함께 쓰면 한쪽이 끈 것을 다른 쪽이 풀어 버린다.
         if (false == m_guideFocus.IsActive())
@@ -6086,6 +6248,18 @@ namespace JBro
         PerformBrowseRequest();
         PerformImportRequest();
         PerformOpenCanvasRequest();
+        // **창의 닫기 단추도 저장하지 않은 것을 먼저 묻는다**(D-309). 플랫폼의 닫기 요청을 거두고 답을 기다린다 - 거두지 않으면
+        // 엔진이 이 프레임에 내려가 묻는 창이 뜰 틈이 없다.
+        if (false == m_exitRequested && m_engine->GetMainWindow().value != 0 && m_platform->ShouldClose(m_engine->GetMainWindow())
+            && HasUnsavedWork() && false == m_leaveConfirmed)
+        {
+            m_platform->CancelClose(m_engine->GetMainWindow());
+            m_exitRequested = true;
+        }
+        if (m_exitRequested && AskBeforeLeaving(LeaveAction::Exit))
+        {
+            m_exitRequested = false;
+        }
         if (m_exitRequested)
         {
             // 메뉴에서 끝내기를 골랐다. UI 를 먼저 놓고 내려간다 -
@@ -6162,12 +6336,20 @@ namespace JBro
             m_contours->Shutdown();
         }
         {
-            // 뷰어 패널이 잡은 스프라이트는 이 프로젝트의 것이다. 닫기 전에 닫는다(비고유 패널이라 파기되며 놓는다).
-            Array<EditorPanel*> viewers;
-            FindPanels(SpriteViewerPanel::TypeName, viewers);
-            for (EditorPanel* viewer : viewers)
+            // **파일을 여는 창은 모두 이 프로젝트의 것이다**(D-309). 스프라이트 뷰어는 스프라이트를 잡고, 사운드 이펙트·노드 그래프 창은
+            // 이 프로젝트의 에셋 번호와 초안을 든다 - 남기면 다음 프로젝트에서 옛 번호로 저장한다. 메인 도크 밖의 패널을 모두 닫는다.
+            // 저장하지 않은 것은 프로젝트를 바꾸기 전에 물었다(`AskBeforeLeaving`).
+            Array<EditorPanel*> closing;
+            for (const OwnerPtr<EditorPanel>& panel : m_panels)
             {
-                ClosePanel(*viewer);
+                if (panel.Get() != nullptr && std::strcmp(panel->GetDockArea(), MainDockArea) != 0)
+                {
+                    closing.Add(panel.Get());
+                }
+            }
+            for (EditorPanel* panel : closing)
+            {
+                ClosePanel(*panel);
             }
         }
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.

@@ -78,6 +78,9 @@ namespace JBro
         EditorShortcutBinding secondary;
         Bool whileTyping = false;
         Bool duringGame = false;
+        // **캔버스를 고치는 전역 행동이다**(D-309). 메인 도크 밖의 창(스프라이트 뷰어·사운드 이펙트·노드 그래프)에 포커스가 있으면
+        // 단축키로 돌지 않는다 - 그 창에서 Delete 를 누르면 캔버스의 고른 오브젝트가 지워졌고, Ctrl+Z·Ctrl+S 는 캔버스를 되돌리고 저장했다.
+        Bool mainDockOnly = false;
         Bool blocksGlobal = true;
 
         // 메뉴에 보이는가. 널이면 늘 보인다. 보이지 않는 것은 회색과 다르다 - 영영 켜지지 않는 자리에만 쓴다.

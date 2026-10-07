@@ -5,6 +5,7 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
@@ -17,6 +18,7 @@
 #include <JBro/Editor/Widget/Scalar.h>
 
 #include <algorithm>
+#include <cmath>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -34,6 +36,28 @@ namespace JBro
         // 칸 테두리가 서로 붙어 자른 모양을 볼 수 없다.
         constexpr Float MinSheetZoom = 0.05f;
         constexpr Float PreviewMaxSide = 192.0f;
+    }
+
+    void SpriteViewerPanel::RegisterActions()
+    {
+        // 시트 맞춤은 캔버스 뷰·노드 그래프처럼 스페이스바다. 이 창에 포커스가 있을 때만 돈다.
+        EditorActionInfo info;
+        info.name = "sprite_viewer.frame";
+        info.labelKey = LocKeys::SpriteViewerFit;
+        info.fallbackLabel = "Fit";
+        info.categoryKey = LocKeys::SpriteViewerTitle;
+        info.panelType = TypeName;
+        info.primary.key = ImGuiKey_Space;
+        info.Execute = [](EditorActionContext& context) -> Bool
+        {
+            if (context.panel == nullptr)
+            {
+                return false;
+            }
+            static_cast<SpriteViewerPanel*>(context.panel)->RequestSheetFit();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(info);
     }
 
     const char* SpriteViewerPanel::GetTitle() const
@@ -118,6 +142,8 @@ namespace JBro
             return false;
         }
         m_texture = texture;
+        // 다른 그림이다 - 그 그림 전체에 다시 맞춘다.
+        m_sheetFramed = false;
         m_sprite = sprite;
         const AssetRecord* textureRecord = m_editor->GetAssetRegistry().Find(texture);
         m_name = textureRecord != nullptr ? textureRecord->relativePath : String("?");
@@ -163,7 +189,9 @@ namespace JBro
         }
         const Float sheetWidth = JBro::Clamp(m_sheetWidth, 120.0f,
             (std::max)(120.0f, available.x - 200.0f));
-        if (ImGui::BeginChild("##sheet", ImVec2(sheetWidth, 0.0f), ImGuiChildFlags_Borders))
+        // 시트 칸은 스크롤하지 않는다 - 휠은 줌이고 끌기가 옮기기다(카메라가 맡는다).
+        if (ImGui::BeginChild("##sheet", ImVec2(sheetWidth, 0.0f), ImGuiChildFlags_Borders,
+                ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
         {
             DrawSheet(ImGui::GetContentRegionAvail());
         }
@@ -191,101 +219,97 @@ namespace JBro
             Widget::HintText(Loc::TextOr(LocKeys::SpriteViewerLoading, "reading the picture"));
             return;
         }
-        // **칸에 맞춘 배율이 바닥이다**(D-185). 사람이 확대를 고르지 않았으면 그것을 쓴다 -
-        // 처음 열었을 때 시트 전체가 보여야 어디를 볼지 고를 수 있다.
-        const Float fitZoom = JBro::Clamp(
-            (std::min)(area.x / static_cast<JBro::Float>(width), area.y / static_cast<JBro::Float>(height)),
-            MinSheetZoom, MaxSheetZoom);
-        // 확대 줄. 기존 엔진도 슬라이더와 `창에 맞추기` 단추를 나란히 두었다.
+        const Rect content{Vector2{0.0f, 0.0f}, Vector2{static_cast<JBro::Float>(width), static_cast<JBro::Float>(height)}};
+        const ImVec2 viewCenter(m_sheetCamera.origin.x.Get() + m_sheetFramedSize.x.Get() * 0.5f,
+            m_sheetCamera.origin.y.Get() + m_sheetFramedSize.y.Get() * 0.5f);
+        // 확대 줄. 기존 엔진도 슬라이더와 `창에 맞추기` 단추를 나란히 두었다. 슬라이더는 보이는 칸의 가운데를 고정한 채 키운다.
         {
-            Float chosen = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
+            Float chosen = m_sheetCamera.goalZoom;
             if (Widget::SliderField("##zoom", chosen, MinSheetZoom, MaxSheetZoom).Width(160.0f)())
             {
-                m_sheetZoom = chosen;
+                ViewCamera::ZoomAt(m_sheetCamera, Vector2{viewCenter.x, viewCenter.y}, chosen, MinSheetZoom, MaxSheetZoom);
             }
             Widget::HoveredTooltip(Loc::TextOr(LocKeys::SpriteViewerZoom, "Zoom"));
             ImGui::SameLine(0.0f, 6.0f);
             if (Widget::Button(Loc::TextOr(LocKeys::SpriteViewerFit, "Fit")))
             {
-                // 0 으로 돌려놓는다. 지금 값을 넣으면 창을 늘렸을 때 다시 어긋난다.
-                m_sheetZoom = 0.0f;
+                m_sheetFitRequested = true;
             }
             ImGui::SameLine(0.0f, 12.0f);
             Widget::Checkbox(Loc::TextOr(LocKeys::SpriteViewerShowPivot, "Show pivot"),
                 m_showPivot);
         }
-        const Float zoom = m_sheetZoom > 0.0f ? m_sheetZoom : fitZoom;
-        const ImVec2 size(static_cast<JBro::Float>(width) * zoom, static_cast<JBro::Float>(height) * zoom);
+        // 그림 칸은 확대 줄 아래를 다 쓰고, 맨 아래 한 줄은 가리킨 칸의 자리를 적는 데 남긴다.
         const ImVec2 origin = ImGui::GetCursorScreenPos();
+        const ImVec2 left = ImGui::GetContentRegionAvail();
+        const ImVec2 view((std::max)(32.0f, left.x), (std::max)(32.0f, left.y - ImGui::GetTextLineHeightWithSpacing()));
+        m_sheetCamera.origin = Vector2{origin.x, origin.y};
+        const Bool untouched = m_sheetFramed && m_sheetCamera.goalZoom.Get() == m_sheetFramedZoom.Get()
+            && m_sheetCamera.goalPan.x.Get() == m_sheetFramedPan.x.Get() && m_sheetCamera.goalPan.y.Get() == m_sheetFramedPan.y.Get();
+        const Bool resized = m_sheetFramedSize.x.Get() != view.x || m_sheetFramedSize.y.Get() != view.y;
+        if (false == m_sheetFramed || (untouched && resized))
+        {
+            // 처음 열 때는 따라가지 않고 그 자리에 놓는다.
+            ViewCamera::Fit(m_sheetCamera, content, Vector2{view.x, view.y}, 8.0f, MinSheetZoom, MaxSheetZoom, true);
+            m_sheetFramed = true;
+            m_sheetFramedPan = m_sheetCamera.goalPan;
+            m_sheetFramedZoom = m_sheetCamera.goalZoom;
+        }
+        m_sheetFramedSize = Vector2{view.x, view.y};
+        if (m_sheetFitRequested)
+        {
+            ViewCamera::Fit(m_sheetCamera, content, Vector2{view.x, view.y}, 8.0f, MinSheetZoom, MaxSheetZoom, false);
+            m_sheetFitRequested = false;
+        }
+        const ImGuiIO& io = ImGui::GetIO();
+        ViewCamera::Follow(m_sheetCamera, io.DeltaTime);
 
-        // 누름 자리를 먼저 두고 그 위에 그림과 격자를 그린다.
-        const Bool clicked = Widget::HitArea("##sheetHit", size);
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        draw->AddImage(static_cast<ImTextureID>(EditorUI::ToTextureId(sheet)), origin,
-            ImVec2(origin.x + size.x, origin.y + size.y));
+        // 누름 자리를 먼저 둔다. 세 단추를 다 받아 창이 끌려가지 않게 한다.
+        ImGui::SetNextItemAllowOverlap();
+        const Bool pressed = Widget::HitArea("##sheetHit", view,
+            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
+        const Bool overSheet = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        const Bool holding = ImGui::IsItemActive();
+        if (overSheet && io.MouseWheel != 0.0f)
+        {
+            ViewCamera::ZoomAt(m_sheetCamera, Vector2{io.MousePos.x, io.MousePos.y}, m_sheetCamera.goalZoom.Get() * std::pow(1.15f, io.MouseWheel),
+                MinSheetZoom, MaxSheetZoom);
+        }
+        if ((overSheet || holding) && (io.MouseDown[ImGuiMouseButton_Right] || io.MouseDown[ImGuiMouseButton_Middle])
+            && (io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f))
+        {
+            ViewCamera::PanByPixels(m_sheetCamera, Vector2{io.MouseDelta.x, io.MouseDelta.y});
+        }
+        const Bool clicked = pressed && ImGui::IsMouseReleased(ImGuiMouseButton_Left);
 
         const AssetSystem* assets = m_editor->GetAssetSystem();
         const SpriteData* data = assets != nullptr ? assets->GetSprite(m_spriteHandle) : nullptr;
-        if (data == nullptr || data->frames.IsEmpty())
-        {
-            return;
-        }
-        if (m_frame >= data->frames.Size())
+        if (data != nullptr && m_frame >= data->frames.Size() && false == data->frames.IsEmpty())
         {
             // 옵션을 고쳐 칸이 줄었다. 넘친 번호를 들고 있으면 미리보기가 없는 칸을 가리킨다.
             m_frame = static_cast<JBro::UInt32>(data->frames.Size() - 1);
         }
 
-        // **칸마다 테두리를 두른다.** 자른 모양이 보여야 자르는 옵션을 고칠 수 있다.
-        const ImU32 cellColor = IM_COL32(255, 255, 255, 90);
-        const ImU32 chosenColor = IM_COL32(255, 168, 64, 255);
-        const ImU32 hoverColor = IM_COL32(120, 200, 255, 220);
-        // 마우스가 가리킨 칸을 이 자리에서 정한다(D-185, 기존 `가리킴`). 시트 위에 있지
-        // 않으면 없음이다 - 지난 프레임의 값을 들고 있으면 마우스를 뺀 뒤에도 남는다.
+        // 마우스가 가리킨 칸을 그리기 **전에** 정하고, 누른 칸도 그리기 전에 고른다(D-185·D-309). 그린 뒤에 고르면 누른 프레임에
+        // 옛 칸의 테두리가 한 번 그려진다. 시트 위에 있지 않으면 없음이다 - 지난 프레임의 값을 들고 있으면 마우스를 뺀 뒤에도 남는다.
         m_hoveredFrame = -1;
-        const Bool overSheet = ImGui::IsItemHovered();
-        const ImVec2 mouse = ImGui::GetIO().MousePos;
-        const Float hoverX = (mouse.x - origin.x) / zoom;
-        const Float hoverY = (mouse.y - origin.y) / zoom;
-        for (std::size_t index = 0; index < data->frames.Size(); ++index)
+        const Vector2 pointed = ViewCamera::ToContent(m_sheetCamera, Vector2{io.MousePos.x, io.MousePos.y});
+        if (data != nullptr && overSheet)
         {
-            const SpriteFrame& frame = data->frames[index];
-            if (overSheet && m_hoveredFrame < 0
-                && hoverX >= static_cast<JBro::Float>(frame.x)
-                && hoverX < static_cast<JBro::Float>(frame.x + frame.width)
-                && hoverY >= static_cast<JBro::Float>(frame.y)
-                && hoverY < static_cast<JBro::Float>(frame.y + frame.height))
+            for (std::size_t index = 0; index < data->frames.Size(); ++index)
             {
-                m_hoveredFrame = static_cast<JBro::Int32>(index);
+                const SpriteFrame& frame = data->frames[index];
+                if (pointed.x.Get() >= static_cast<JBro::Float>(frame.x) && pointed.x.Get() < static_cast<JBro::Float>(frame.x + frame.width)
+                    && pointed.y.Get() >= static_cast<JBro::Float>(frame.y) && pointed.y.Get() < static_cast<JBro::Float>(frame.y + frame.height))
+                {
+                    m_hoveredFrame = static_cast<JBro::Int32>(index);
+                    break;
+                }
             }
         }
-        for (std::size_t index = 0; index < data->frames.Size(); ++index)
-        {
-            const SpriteFrame& frame = data->frames[index];
-            const ImVec2 min(origin.x + static_cast<JBro::Float>(frame.x) * zoom,
-                origin.y + static_cast<JBro::Float>(frame.y) * zoom);
-            const ImVec2 max(min.x + static_cast<JBro::Float>(frame.width) * zoom,
-                min.y + static_cast<JBro::Float>(frame.height) * zoom);
-            const Bool chosen = index == m_frame;
-            const Bool hovered = static_cast<JBro::Int32>(index) == m_hoveredFrame;
-            const ImU32 color = hovered ? hoverColor : (chosen ? chosenColor : cellColor);
-            draw->AddRect(min, max, color, 0.0f, 0, (hovered || chosen) ? 2.0f : 1.0f);
-            // 피벗은 **칸마다** 다를 수 있다. 시트에서 한눈에 견주려면 다 그려야 한다.
-            if (m_showPivot)
-            {
-                const Float pivotX = min.x + static_cast<JBro::Float>(frame.width) * frame.pivotX * zoom;
-                const Float pivotY = min.y + static_cast<JBro::Float>(frame.height) * frame.pivotY * zoom;
-                constexpr Float Arm = 4.0f;
-                draw->AddLine(ImVec2(pivotX - Arm, pivotY), ImVec2(pivotX + Arm, pivotY),
-                    chosenColor, 1.5f);
-                draw->AddLine(ImVec2(pivotX, pivotY - Arm), ImVec2(pivotX, pivotY + Arm),
-                    chosenColor, 1.5f);
-            }
-        }
-
         if (clicked && m_hoveredFrame >= 0)
         {
-            // 누른 자리의 칸은 이미 위에서 찾아 두었다. 칸 사이 틈을 누르면 그대로다.
+            // 칸 사이 틈을 누르면 그대로다.
             m_frame = static_cast<JBro::UInt32>(m_hoveredFrame);
             m_playing = false;
             // 인스펙터가 이 그림으로 고르는 중이면 누른 칸이 곧 답이다.
@@ -294,6 +318,50 @@ namespace JBro
             {
                 m_editor->CompleteSpriteFramePick(m_frame);
             }
+        }
+
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        draw->PushClipRect(origin, ImVec2(origin.x + view.x, origin.y + view.y), true);
+        const Vector2 imageMin = ViewCamera::ToScreen(m_sheetCamera, content.min);
+        const Vector2 imageMax = ViewCamera::ToScreen(m_sheetCamera, content.max);
+        draw->AddImage(static_cast<ImTextureID>(EditorUI::ToTextureId(sheet)), ImVec2(imageMin.x, imageMin.y),
+            ImVec2(imageMax.x, imageMax.y));
+        if (data != nullptr)
+        {
+            // **칸마다 테두리를 두른다.** 자른 모양이 보여야 자르는 옵션을 고칠 수 있다.
+            const ImU32 cellColor = IM_COL32(255, 255, 255, 90);
+            const ImU32 chosenColor = IM_COL32(255, 168, 64, 255);
+            const ImU32 hoverColor = IM_COL32(120, 200, 255, 220);
+            const Float zoom = m_sheetCamera.zoom;
+            for (std::size_t index = 0; index < data->frames.Size(); ++index)
+            {
+                const SpriteFrame& frame = data->frames[index];
+                const Vector2 corner = ViewCamera::ToScreen(m_sheetCamera,
+                    Vector2{static_cast<JBro::Float>(frame.x), static_cast<JBro::Float>(frame.y)});
+                const ImVec2 min(corner.x, corner.y);
+                const ImVec2 max(min.x + static_cast<JBro::Float>(frame.width) * zoom,
+                    min.y + static_cast<JBro::Float>(frame.height) * zoom);
+                const Bool chosen = index == m_frame;
+                const Bool hovered = static_cast<JBro::Int32>(index) == m_hoveredFrame;
+                const ImU32 color = hovered ? hoverColor : (chosen ? chosenColor : cellColor);
+                draw->AddRect(min, max, color, 0.0f, 0, (hovered || chosen) ? 2.0f : 1.0f);
+                // 피벗은 **칸마다** 다를 수 있다. 시트에서 한눈에 견주려면 다 그려야 한다.
+                if (m_showPivot)
+                {
+                    const Float pivotX = min.x + static_cast<JBro::Float>(frame.width) * frame.pivotX * zoom;
+                    const Float pivotY = min.y + static_cast<JBro::Float>(frame.height) * frame.pivotY * zoom;
+                    constexpr Float Arm = 4.0f;
+                    draw->AddLine(ImVec2(pivotX - Arm, pivotY), ImVec2(pivotX + Arm, pivotY),
+                        chosenColor, 1.5f);
+                    draw->AddLine(ImVec2(pivotX, pivotY - Arm), ImVec2(pivotX, pivotY + Arm),
+                        chosenColor, 1.5f);
+                }
+            }
+        }
+        draw->PopClipRect();
+        if (data == nullptr || data->frames.IsEmpty())
+        {
+            return;
         }
 
         // **가리킨 칸의 자리와 크기를 적는다**(D-185, 기존 `가리킴`). 자르는 옵션을 고칠 때

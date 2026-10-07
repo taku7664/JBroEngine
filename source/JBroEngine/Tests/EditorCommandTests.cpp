@@ -463,6 +463,22 @@ namespace
         Check(false == commands.IsDirty(), "and start counting again");
     }
 
+    // **기록만 비우면 저장 안 됨은 남는다**(D-309). 재생을 멈추거나 스크립트 필드가 바뀌어 기록을 버려도 편집은 저장되지 않았다 -
+    // `Clear` 를 쓰던 때는 그 뒤 다른 캔버스를 열면 묻지 않고 편집을 버렸다.
+    void TestClearingHistoryKeepsUnsavedWork()
+    {
+        JBro::EditorCommandManager commands;
+        JBro::Int32 value = 0;
+        commands.Execute(MakeSet(value, 0, 1));
+        Check(commands.IsDirty(), "an edit leaves the canvas unsaved");
+        commands.ClearHistory();
+        Check(false == commands.CanUndo() && false == commands.CanRedo(), "clearing the history empties both stacks");
+        Check(commands.IsDirty(), "but the edit is still not saved");
+        commands.MarkSaved();
+        commands.ClearHistory();
+        Check(false == commands.IsDirty(), "and a saved canvas stays saved");
+    }
+
     // 스택은 끝없이 자라지 않는다. 기존 엔진에는 상한이 없어서 오래 켜 둔 편집기가
     // 되돌리기 스택만으로 계속 자란다.
     void TestTheStackHasACeiling()
@@ -498,6 +514,7 @@ JBro::Int32 RunEditorCommandTests()
     TestACompoundUndoesInReverse();
     TestSavingIsTrackedByRevisionNotByAFlag();
     TestClearingForgetsEverything();
+    TestClearingHistoryKeepsUnsavedWork();
     TestTheStackHasACeiling();
     std::cout << "Editor command tests passed.\n";
     return 0;

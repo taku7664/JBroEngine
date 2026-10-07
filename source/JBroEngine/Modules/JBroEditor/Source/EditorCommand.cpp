@@ -132,6 +132,14 @@ namespace JBro
         m_savedCanvasRevision = 0;
     }
 
+    void EditorCommandManager::ClearHistory()
+    {
+        m_undo.Clear();
+        m_redo.Clear();
+        m_mergingDrag = false;
+        m_lastMouseDownDuration = -1.0f;
+    }
+
     Bool EditorCommandManager::CanUndo() const
     {
         return false == m_undo.IsEmpty();

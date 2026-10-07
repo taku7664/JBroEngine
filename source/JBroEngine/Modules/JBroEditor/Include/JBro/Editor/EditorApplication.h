@@ -764,6 +764,10 @@ namespace JBro
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
         void AnswerCanvasSwitch(Int32 choice);
+        // **캔버스와 패널에 저장하지 않은 것이 있는가**(D-309). 끝내기·다른 프로젝트 열기·새 프로젝트가 이것을 보고 먼저 묻는다.
+        Bool HasUnsavedWork() const;
+        // 위의 물음에 대한 답이다. 0 = 모두 저장하고 하기, 1 = 저장하지 않고 하기, 그 밖 = 그만두기. 팝업이 부른다.
+        void AnswerLeave(Int32 choice);
         // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
         // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
         void RequestSaveCanvas();
@@ -850,6 +854,8 @@ namespace JBro
             Bool visible = false;
             // 앞으로 꺼내는 중인가. 뿌리 칸의 탭 줄에서 이 도크가 골라질 때까지 이어 간다.
             Bool comingForward = false;
+            // 오른쪽을 바라는 패널(노드 인스펙터)이 처음 설 때 도크를 갈라 만든 칸이다. 도크가 사라지면 함께 비운다.
+            UInt32 sideNode = 0;
         };
         Array<DockAreaState> m_dockAreas;
         DockAreaState* FindDockArea(const char* name);
@@ -950,6 +956,18 @@ namespace JBro
         // 저장하지 않은 변경을 묻는 동안 붙들어 둔 것과, 그 답을 받았다는 표시다.
         String m_pendingCanvasPath;
         Bool m_canvasSwitchConfirmed = false;
+        // 저장하지 않은 것을 물어 놓고 기다리는 일과, 답을 받아 다시 하는 중인가(D-309).
+        enum class LeaveAction : std::uint8_t
+        {
+            None,
+            Exit,
+            OpenProject,
+            NewProject,
+        };
+        LeaveAction m_pendingLeave = LeaveAction::None;
+        Bool m_leaveConfirmed = false;
+        // 저장하지 않은 것을 묻는다. 물었으면 참이다 - 부른 쪽은 답이 올 때까지 하던 일을 멈춘다.
+        Bool AskBeforeLeaving(LeaveAction action);
         ComponentAddress m_framePickTarget;
         AssetId m_framePickTexture;
         Bool m_framePickActive = false;

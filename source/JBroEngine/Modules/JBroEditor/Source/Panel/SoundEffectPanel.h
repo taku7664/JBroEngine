@@ -1,11 +1,13 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
 namespace JBro
@@ -31,12 +33,19 @@ namespace JBro
         static constexpr const char* TypeName = "SoundEffect";
         static constexpr const char* DockAreaName = "SoundEffect";
 
+        // 이 창의 행동(실행 취소·다시 실행·저장)을 행동 표에 올린다(D-309). 포커스가 있을 때 캔버스의 같은 조합을 가린다.
+        static void RegisterActions();
+
         const char* GetTitle() const override;
         // 탭에는 에셋의 경로가 보인다. 저장하지 않은 것이 있으면 끝에 `*` 가 붙는다.
         const char* GetDisplayTitle() const override;
         Bool OnCreate(EditorApplication& editor) override;
         // 이 창이 튼 미리 듣기를 멈춘다.
         void OnDestroy() override;
+        // 저장하지 않은 것이 있으면 닫지 않고 묻는다(탭의 닫기 단추, D-309).
+        Bool OnCloseRequested() override;
+        Bool HasUnsavedChanges() const override;
+        Bool SaveChanges() override;
         Bool HasMenuBar() const override;
         void OnMenuBar() override;
         void OnDraw() override;
@@ -48,8 +57,16 @@ namespace JBro
         Bool IsDirty() const;
         // 초안을 파일에 쓴다(기존 `Apply Effect`·메뉴의 저장).
         Bool Save();
-        // 파일을 다시 읽는다. 저장하지 않은 것은 버린다.
+        // 파일을 다시 읽는다. 저장하지 않은 것은 버린다 - 메뉴는 `RequestReload` 로 먼저 묻는다.
         Bool ReloadFromDisk();
+        void RequestReload();
+        void RequestClose();
+        // **고치는 것은 이 창의 커맨드다**(D-309). 스택은 이 창의 것이라 Ctrl+Z 가 캔버스가 아니라 이 이펙트를 되돌린다.
+        EditorCommandManager& GetCommands() { return m_commands; }
+        Bool Undo();
+        Bool Redo();
+        // 커맨드가 초안을 그 값으로 놓는다.
+        void ApplyDraft(const AudioEffectSettings& settings);
         // 종류를 바꾼다. 같은 이름의 파라미터는 값을 잇는다(기존 `NormalizeEffectParams`).
         void SetKind(AudioEffectKind kind);
         void SetParameter(UInt32 index, Float value);
@@ -66,6 +83,9 @@ namespace JBro
         // 초안이 바뀌었으면 울리는 미리 듣기에 곧바로 건다.
         void PushDraftToPreview();
         void UpdateTitle();
+        void CommitDraft(const char* name, const AudioEffectSettings& edited, const char* mergeKey);
+        static void AnswerReload(EditorApplication& editor, Int32 choice, void* user);
+        static void AnswerClose(EditorApplication& editor, Int32 choice, void* user);
 
         EditorApplication* m_editor = nullptr;
         AssetId m_asset;
@@ -73,6 +93,9 @@ namespace JBro
         String m_title;
         AudioEffectSettings m_draft;
         AudioEffectSettings m_saved;
+        EditorCommandManager m_commands;
+        Bool m_askingReload = false;
+        Bool m_askingClose = false;
         AssetId m_testSound;
         Bool m_loop = false;
         Bool m_previewing = false;

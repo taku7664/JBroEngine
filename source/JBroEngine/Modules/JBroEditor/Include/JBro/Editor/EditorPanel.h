@@ -94,6 +94,23 @@ namespace JBro
             return true;
         }
 
+        // 닫기 단추를 눌렀다. 거짓이면 닫지 않는다 - 저장하지 않은 것이 있는 창이 묻는 창을 띄우고 답을 기다린다(D-309).
+        virtual Bool OnCloseRequested()
+        {
+            return true;
+        }
+
+        // 이 창에 저장하지 않은 것이 있는가. 에디터를 끝내거나 다른 프로젝트를 열기 전에 캔버스와 함께 묻는다(D-309).
+        virtual Bool HasUnsavedChanges() const
+        {
+            return false;
+        }
+        // "모두 저장" 을 골랐을 때 부른다. 저장하지 못했으면 거짓이다 - 그러면 끝내지도 열지도 않는다.
+        virtual Bool SaveChanges()
+        {
+            return true;
+        }
+
         // 에디터가 들일 때 한 번. 거짓을 돌려주면 패널이 붙지 않는다.
         virtual Bool OnCreate(EditorApplication& editor)
         {

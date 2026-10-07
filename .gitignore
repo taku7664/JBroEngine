@@ -408,3 +408,6 @@ PROJECT_RULES.daiso
 AGENTS.md
 GEMINI.md
 DEMO.md
+
+# 사용자가 워크트리에서 에디터를 띄워 볼 때 쓰는 시험 프로젝트 자리다. 커밋하지 않는다.
+/temp/

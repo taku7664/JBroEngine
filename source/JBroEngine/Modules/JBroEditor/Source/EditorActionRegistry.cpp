@@ -15,6 +15,9 @@
 
 #include "Panel/CanvasViewPanel.h"
 #include "Panel/NodeGraphPanel.h"
+#include "Panel/SoundEffectPanel.h"
+#include "Panel/SpriteViewerPanel.h"
+#include "Panel/ProjectSettingsPanel.h"
 
 #include <cstring>
 #include <JBro/Types/Bool.h>
@@ -351,6 +354,9 @@ namespace JBro
             info.categoryKey = categoryKey;
             info.menus = menus;
             info.placedByEditor = true;
+            // 캔버스 저장·되돌리기·오브젝트 행동은 캔버스를 고친다 - 파일 창에 포커스가 있으면 단축키로 돌지 않는다(D-309).
+            const std::string_view family(name);
+            info.mainDockOnly = family.starts_with("canvas.") || family.starts_with("edit.") || family.starts_with("object.");
             info.CanExecute = can;
             info.WhyBlocked = why;
             info.Execute = execute;
@@ -663,6 +669,9 @@ namespace JBro
         // 패널 종류의 행동은 그 패널이 올린다.
         CanvasViewPanel::RegisterActions();
         NodeGraphPanel::RegisterActions();
+        SoundEffectPanel::RegisterActions();
+        SpriteViewerPanel::RegisterActions();
+        ProjectSettingsPanel::RegisterActions();
         CommandPalette::RegisterAction();
     }
 
@@ -815,6 +824,7 @@ namespace JBro
                 desc.blocksGlobal = action.blocksGlobal;
                 desc.whileTyping = action.whileTyping;
                 desc.duringGame = action.duringGame;
+                desc.mainDockOnly = action.mainDockOnly;
                 desc.handler = MakeOwnerPtr<ActionShortcutHandler>(action.name);
                 shortcuts.Register(std::move(desc));
             }

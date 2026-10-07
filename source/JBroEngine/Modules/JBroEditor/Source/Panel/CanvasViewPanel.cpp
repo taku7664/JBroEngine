@@ -675,6 +675,35 @@ namespace JBro
                 | ImGuiButtonFlags_MouseButtonMiddle);
         const Bool hovered = ImGui::IsItemHovered();
 
+        // **값을 바꾸는 것을 먼저 돌리고 표시는 그 뒤에 그린다**(D-309). 표시(격자·콜라이더·선택 테두리·피벗)를 먼저 그리고 기즈모·폴리곤
+        // 편집·고르기가 뒤에서 값을 바꾸면, 끄는 동안 테두리와 콜라이더 선이 손잡이보다 한 프레임 늦게 따라왔고 누른 프레임에는 옛 선택이
+        // 보였다(노드 그래프의 놓을 때 순간이동과 같은 원인). 화면의 겹침은 그대로다 - 그리기 목록을 두 칸으로 나눠 손잡이를 위 칸(1)에,
+        // 표시를 아래 칸(0)에 그린다. 손잡이끼리의 차례(폴리곤 → 라이트 → 기즈모 → 상자 고르기 → 고르기)는 바꾸지 않는다 - 마우스가 잡는
+        // 대상이 그 차례로 정해진다.
+        draw->ChannelsSplit(2);
+        draw->ChannelsSetCurrent(1);
+        HandleCameraInput(rect, hovered);
+        if (false == Is3D())
+        {
+            draw->PushClipRect(
+                ImVec2(rect.left, rect.top),
+                ImVec2(rect.left + rect.width, rect.top + rect.height), true);
+            DrawPolygonEditor(rect);
+            DrawLightEditor(rect);
+            draw->PopClipRect();
+        }
+        DrawGizmo(rect);
+        if (Is3D())
+        {
+            HandlePicking3D(rect, hovered);
+        }
+        else
+        {
+            HandleBoxSelect(rect, hovered);
+            HandlePicking(rect, hovered);
+        }
+
+        draw->ChannelsSetCurrent(0);
         draw->PushClipRect(
             ImVec2(rect.left, rect.top),
             ImVec2(rect.left + rect.width, rect.top + rect.height), true);
@@ -695,8 +724,6 @@ namespace JBro
                 DrawColliders(rect);
                 DrawJoints(rect);
             }
-            DrawPolygonEditor(rect);
-            DrawLightEditor(rect);
             DrawSelectionOutlines(rect);
             DrawPivotMarkers(rect);
             DrawCameraAreas(rect);
@@ -713,18 +740,7 @@ namespace JBro
             DrawSelectionMarkers3D(rect);
         }
         draw->PopClipRect();
-
-        HandleCameraInput(rect, hovered);
-        DrawGizmo(rect);
-        if (Is3D())
-        {
-            HandlePicking3D(rect, hovered);
-        }
-        else
-        {
-            HandleBoxSelect(rect, hovered);
-            HandlePicking(rect, hovered);
-        }
+        draw->ChannelsMerge();
         DrawContextMenu(rect);
         ReportGuideTargets(rect);
     }

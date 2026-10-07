@@ -3,6 +3,8 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Audio/AudioSystem.h>
+#include <JBro/Editor/ConfirmPopup.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
@@ -28,6 +30,137 @@
 
 namespace JBro
 {
+    namespace
+    {
+        // 초안의 전후 값을 떠 둔 커맨드다. 대상은 같은 창이고, 스택이 창 안에 있어 커맨드가 창보다 오래 살지 않는다.
+        class SoundEffectEditCommand final : public EditorCommand
+        {
+        public:
+            SoundEffectEditCommand(SoundEffectPanel& panel, const char* name, const AudioEffectSettings& before,
+                const AudioEffectSettings& after, const char* mergeKey)
+                : m_panel(panel), m_name(name), m_before(before), m_after(after), m_mergeKey(mergeKey == nullptr ? "" : mergeKey)
+            {
+            }
+
+            const char* GetName() const override
+            {
+                return m_name;
+            }
+
+            Bool Execute() override
+            {
+                m_panel.ApplyDraft(m_after);
+                return true;
+            }
+
+            void Undo() override
+            {
+                m_panel.ApplyDraft(m_before);
+            }
+
+            void Redo() override
+            {
+                m_panel.ApplyDraft(m_after);
+            }
+
+            // 같은 슬라이더를 끄는 동안은 커맨드 하나다(매니저가 끌기가 이어지는지 본다).
+            Bool CanMerge(const EditorCommand& newer) const override
+            {
+                const auto* other = dynamic_cast<const SoundEffectEditCommand*>(&newer);
+                return other != nullptr && &other->m_panel == &m_panel && !m_mergeKey.empty() && other->m_mergeKey == m_mergeKey;
+            }
+
+            Bool TryMerge(const EditorCommand& newer) override
+            {
+                const auto* other = dynamic_cast<const SoundEffectEditCommand*>(&newer);
+                if (other == nullptr)
+                {
+                    return false;
+                }
+                m_after = other->m_after;
+                return true;
+            }
+
+        private:
+            SoundEffectPanel& m_panel;
+            const char* m_name;
+            AudioEffectSettings m_before;
+            AudioEffectSettings m_after;
+            String m_mergeKey;
+        };
+
+        SoundEffectPanel* PanelOf(const EditorActionContext& context)
+        {
+            return static_cast<SoundEffectPanel*>(context.panel);
+        }
+
+        Bool CanUndo(const EditorActionContext& context)
+        {
+            return context.panel != nullptr && PanelOf(context)->GetCommands().CanUndo();
+        }
+
+        Bool CanRedo(const EditorActionContext& context)
+        {
+            return context.panel != nullptr && PanelOf(context)->GetCommands().CanRedo();
+        }
+
+        Bool CanSave(const EditorActionContext& context)
+        {
+            return context.panel != nullptr && PanelOf(context)->IsDirty();
+        }
+
+        const char* WhyNothing(const EditorActionContext&)
+        {
+            return Loc::TextOr(LocKeys::SoundEffectNothingToSave, "nothing has changed");
+        }
+    }
+
+    void SoundEffectPanel::RegisterActions()
+    {
+        EditorActionRegistry& actions = EditorActionRegistry::Get();
+        struct Row
+        {
+            const char* name;
+            const char* labelKey;
+            const char* fallback;
+            EditorShortcutBinding primary;
+            EditorShortcutBinding secondary;
+            Bool (*canExecute)(const EditorActionContext&);
+            Bool (*execute)(EditorActionContext&);
+        };
+        auto bind = [](ImGuiKey key, Bool control = false, Bool shift = false)
+        {
+            EditorShortcutBinding binding;
+            binding.key = key;
+            binding.control = control;
+            binding.shift = shift;
+            return binding;
+        };
+        const Row rows[] = {
+            {"sound_effect.undo", LocKeys::MenuUndo, "Undo", bind(ImGuiKey_Z, true), {}, &CanUndo,
+                [](EditorActionContext& context) -> Bool { return PanelOf(context)->Undo(); }},
+            {"sound_effect.redo", LocKeys::MenuRedo, "Redo", bind(ImGuiKey_Y, true), bind(ImGuiKey_Z, true, true), &CanRedo,
+                [](EditorActionContext& context) -> Bool { return PanelOf(context)->Redo(); }},
+            {"sound_effect.save", LocKeys::SoundEffectSave, "Save", bind(ImGuiKey_S, true), {}, &CanSave,
+                [](EditorActionContext& context) -> Bool { return PanelOf(context)->Save(); }},
+        };
+        for (const Row& row : rows)
+        {
+            EditorActionInfo info;
+            info.name = row.name;
+            info.labelKey = row.labelKey;
+            info.fallbackLabel = row.fallback;
+            info.categoryKey = LocKeys::SoundEffectTitle;
+            info.panelType = TypeName;
+            info.primary = row.primary;
+            info.secondary = row.secondary;
+            info.CanExecute = row.canExecute;
+            info.WhyBlocked = &WhyNothing;
+            info.Execute = row.execute;
+            actions.Register(info);
+        }
+    }
+
     const char* SoundEffectPanel::GetTitle() const
     {
         return TypeName;
@@ -70,6 +203,7 @@ namespace JBro
         m_path = record->relativePath;
         m_draft = read;
         m_saved = read;
+        m_commands.Clear();
         m_message.clear();
         UpdateTitle();
         return true;
@@ -125,17 +259,142 @@ namespace JBro
         }
         m_draft = read;
         m_saved = read;
+        // 다시 읽은 파일은 새 출발이다 - 옛 초안으로 되돌리는 기록은 남기지 않는다.
+        m_commands.Clear();
         m_message.clear();
         UpdateTitle();
         PushDraftToPreview();
         return true;
     }
 
-    void SoundEffectPanel::SetKind(AudioEffectKind kind)
+    void SoundEffectPanel::ApplyDraft(const AudioEffectSettings& settings)
     {
-        m_draft = ChangeAudioEffectKind(m_draft, kind);
+        m_draft = settings;
         UpdateTitle();
         PushDraftToPreview();
+    }
+
+    void SoundEffectPanel::CommitDraft(const char* name, const AudioEffectSettings& edited, const char* mergeKey)
+    {
+        Bool changed = edited.kind != m_draft.kind;
+        for (UInt32 index = 0; index < AudioEffectMaxParams && !changed; ++index)
+        {
+            changed = edited.values[index] != m_draft.values[index];
+        }
+        if (!changed)
+        {
+            return;
+        }
+        m_commands.Execute(MakeOwnerPtr<SoundEffectEditCommand>(*this, name, m_draft, edited, mergeKey));
+    }
+
+    Bool SoundEffectPanel::Undo()
+    {
+        return m_commands.Undo();
+    }
+
+    Bool SoundEffectPanel::Redo()
+    {
+        return m_commands.Redo();
+    }
+
+    Bool SoundEffectPanel::HasUnsavedChanges() const
+    {
+        return IsDirty();
+    }
+
+    Bool SoundEffectPanel::SaveChanges()
+    {
+        return !IsDirty() || Save();
+    }
+
+    Bool SoundEffectPanel::OnCloseRequested()
+    {
+        if (!IsDirty())
+        {
+            return true;
+        }
+        RequestClose();
+        return false;
+    }
+
+    void SoundEffectPanel::RequestReload()
+    {
+        if (!IsDirty())
+        {
+            ReloadFromDisk();
+            return;
+        }
+        // 다시 읽으면 저장하지 않은 것이 사라진다 - 먼저 묻는다(노드 그래프 창과 같은 물음, D-309).
+        m_askingReload = true;
+        m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+            Loc::TextOr(LocKeys::FileWindowUnsavedTitle, "Unsaved changes"),
+            Loc::TextOr(LocKeys::FileWindowReloadMessage, "There are changes that are not saved. Reloading from disk throws them away"),
+            nullptr,
+            Loc::TextOr(LocKeys::FileWindowReloadDiscard, "Reload without saving"),
+            Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
+            &SoundEffectPanel::AnswerReload, nullptr, "##SoundEffectReload"));
+    }
+
+    void SoundEffectPanel::RequestClose()
+    {
+        if (!IsDirty())
+        {
+            m_editor->ClosePanel(*this);
+            return;
+        }
+        m_askingClose = true;
+        m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+            Loc::TextOr(LocKeys::FileWindowUnsavedTitle, "Unsaved changes"),
+            Loc::TextOr(LocKeys::FileWindowCloseMessage, "There are changes that are not saved"),
+            Loc::TextOr(LocKeys::FileWindowSaveAndClose, "Save and close"),
+            Loc::TextOr(LocKeys::FileWindowCloseWithoutSaving, "Close without saving"),
+            Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
+            &SoundEffectPanel::AnswerClose, nullptr, "##SoundEffectClose"));
+    }
+
+    void SoundEffectPanel::AnswerReload(EditorApplication& editor, Int32 choice, void*)
+    {
+        Array<EditorPanel*> panels;
+        editor.FindPanels(TypeName, panels);
+        for (EditorPanel* panel : panels)
+        {
+            auto* effect = static_cast<SoundEffectPanel*>(panel);
+            if (!effect->m_askingReload)
+            {
+                continue;
+            }
+            effect->m_askingReload = false;
+            if (choice == 1)
+            {
+                effect->ReloadFromDisk();
+            }
+        }
+    }
+
+    void SoundEffectPanel::AnswerClose(EditorApplication& editor, Int32 choice, void*)
+    {
+        Array<EditorPanel*> panels;
+        editor.FindPanels(TypeName, panels);
+        for (EditorPanel* panel : panels)
+        {
+            auto* effect = static_cast<SoundEffectPanel*>(panel);
+            if (!effect->m_askingClose)
+            {
+                continue;
+            }
+            effect->m_askingClose = false;
+            // 저장하지 못했으면 닫지 않는다 - 닫으면 고친 것이 사라진다.
+            if ((choice == 0 && effect->Save()) || choice == 1)
+            {
+                editor.ClosePanel(*effect);
+            }
+        }
+    }
+
+    void SoundEffectPanel::SetKind(AudioEffectKind kind)
+    {
+        CommitDraft("Change Effect Kind", ChangeAudioEffectKind(m_draft, kind), nullptr);
     }
 
     void SoundEffectPanel::SetParameter(UInt32 index, Float value)
@@ -146,9 +405,11 @@ namespace JBro
             return;
         }
         const AudioEffectParam& param = info.params[index];
-        m_draft.values[index] = value < param.minValue ? param.minValue : (value > param.maxValue ? param.maxValue : value);
-        UpdateTitle();
-        PushDraftToPreview();
+        AudioEffectSettings edited = m_draft;
+        edited.values[index] = value < param.minValue ? param.minValue : (value > param.maxValue ? param.maxValue : value);
+        char key[32];
+        std::snprintf(key, sizeof(key), "param:%u", index.Get());
+        CommitDraft("Edit Effect Parameter", edited, key);
     }
 
     Bool SoundEffectPanel::IsPreviewing() const
@@ -255,11 +516,11 @@ namespace JBro
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::SoundEffectReload, "Reload From Disk")))
         {
-            ReloadFromDisk();
+            RequestReload();
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::SoundEffectClose, "Close")))
         {
-            m_editor->ClosePanel(*this);
+            RequestClose();
         }
         Widget::EndMenu();
     }

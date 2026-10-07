@@ -15,6 +15,7 @@
 #include "Panel/ShortcutPanel.h"
 #include "Panel/SoundEffectPanel.h"
 #include "Panel/NodeGraphPanel.h"
+#include "Panel/NodeGraphInspectorPanel.h"
 #include "Panel/SpriteViewerPanel.h"
 #include "Panel/StatsPanel.h"
 
@@ -166,5 +167,7 @@ namespace JBro
         graphs.fallbackTitle = "Node Graph";
         EditorPanelRegistry::Get().RegisterDockArea(graphs);
         RegisterEditorPanelType<NodeGraphPanel>(false, NodeGraphPanel::DockAreaName);
+        // 노드 인스펙터는 같은 도크의 오른쪽 칸이다(D-309). 그래프 창을 처음 열 때 선다.
+        RegisterEditorPanelType<NodeGraphInspectorPanel>(false, NodeGraphPanel::DockAreaName);
     }
 }

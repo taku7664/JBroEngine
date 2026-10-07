@@ -411,6 +411,14 @@ Entries:
   assets.new_font_family: New Font Family
   assets.new_string_table: New String Table
   node_graph.title: Node Graph
+  node_graph.inspector_title: Node Inspector
+  node_graph.no_graph: No node graph is open
+  file_window.unsaved_title: Unsaved changes
+  file_window.reload_message: "There are changes that are not saved. Reloading from disk throws them away"
+  file_window.reload_discard: Reload without saving
+  file_window.close_message: There are changes that are not saved
+  file_window.save_and_close: Save and close
+  file_window.close_without_saving: Close without saving
   assets.new_node_graph: New Node Graph
   node_graph.save: Save
   node_graph.nothing_to_save: Nothing has changed
@@ -425,7 +433,7 @@ Entries:
   node_graph.nothing_to_paste: Nothing has been copied
   node_graph.duplicate: Duplicate
   node_graph.delete: Delete
-  node_graph.frame: Frame All
+  node_graph.frame: Frame
   node_graph.disconnect: Break Link
   node_graph.disconnect_all: Break All Links
   node_graph.no_selection: No node is selected
@@ -460,6 +468,13 @@ Entries:
   assets.paste_failed: that could not be pasted
   assets.selection_count: "%d chosen"
   popup.unsaved_canvas_title: Unsaved changes
+  popup.unsaved_work_title: Unsaved changes
+  popup.unsaved_work_message: These have changes that are not saved
+  popup.unsaved_work_canvas: the canvas
+  common.save_all: Save all
+  common.dont_save: "Don't save"
+  project_settings.revert_message: "There are settings that are not saved. Reverting throws them away"
+  project_settings.revert_discard: Revert without saving
   popup.unsaved_canvas_message: This canvas has changes that are not saved. Opening another canvas loses them.
   common.save_and_open: Save and open
   common.open_without_saving: Open without saving

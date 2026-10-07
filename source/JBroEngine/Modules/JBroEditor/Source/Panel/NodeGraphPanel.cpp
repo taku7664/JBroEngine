@@ -3,7 +3,9 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorActionRegistry.h>
+#include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/EditorApplication.h>
+#include "NodeGraphInspectorPanel.h"
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -80,15 +82,22 @@ namespace JBro
             String m_mergeKey;
         };
 
+        // 그래프 창의 행동이면 그 창, 노드 인스펙터의 행동이면 그것이 보이는 그래프 창이다.
         NodeGraphPanel* PanelOf(const EditorActionContext& context)
         {
-            return static_cast<NodeGraphPanel*>(context.panel);
+            if (context.panel != nullptr && std::strcmp(context.panel->GetTitle(), NodeGraphPanel::TypeName) == 0)
+            {
+                return static_cast<NodeGraphPanel*>(context.panel);
+            }
+            return context.editor == nullptr ? nullptr : NodeGraphPanel::FindActive(*context.editor);
         }
 
         Bool HasPanel(const EditorActionContext& context)
         {
-            return context.panel != nullptr;
+            return PanelOf(context) != nullptr;
         }
+
+        UInt64 g_focusSerial = 0;
 
         Bool HasSelection(const EditorActionContext& context)
         {
@@ -190,8 +199,9 @@ namespace JBro
                 [](EditorActionContext& context) -> Bool { return PanelOf(context)->DuplicateSelection(); }},
             {"node_graph.delete", LocKeys::NodeGraphDelete, "Delete", bind(ImGuiKey_Delete), {}, &HasSelection, &WhyNoSelection,
                 [](EditorActionContext& context) -> Bool { return PanelOf(context)->DeleteSelection(); }},
-            {"node_graph.frame", LocKeys::NodeGraphFrame, "Frame All", bind(ImGuiKey_F), {}, &HasPanel, nullptr,
-                [](EditorActionContext& context) -> Bool { PanelOf(context)->FrameAll(); return true; }},
+            // 맞추기는 캔버스 뷰처럼 스페이스바다(D-298).
+            {"node_graph.frame", LocKeys::NodeGraphFrame, "Frame", bind(ImGuiKey_Space), {}, &HasPanel, nullptr,
+                [](EditorActionContext& context) -> Bool { PanelOf(context)->FrameSelection(); return true; }},
             {"node_graph.save", LocKeys::NodeGraphSave, "Save", bind(ImGuiKey_S, true), {}, &CanSave, &WhyNothing,
                 [](EditorActionContext& context) -> Bool { return PanelOf(context)->Save(); }},
         };
@@ -209,6 +219,60 @@ namespace JBro
             info.WhyBlocked = row.whyBlocked;
             info.Execute = row.execute;
             actions.Register(info);
+        }
+        // **노드 인스펙터에 포커스가 있어도 실행 취소·저장은 그 그래프의 것이다.** 올리지 않으면 같은 조합의 전역 행동이 돌아,
+        // 인스펙터에서 값을 고치고 Ctrl+Z 를 누르면 캔버스가 되돌아간다.
+        const Row inspectorRows[] = {
+            {"node_inspector.undo", LocKeys::MenuUndo, "Undo", bind(ImGuiKey_Z, true), {}, &CanUndo, &WhyNothing,
+                [](EditorActionContext& context) -> Bool { return PanelOf(context)->Undo(); }},
+            {"node_inspector.redo", LocKeys::MenuRedo, "Redo", bind(ImGuiKey_Y, true), bind(ImGuiKey_Z, true, true), &CanRedo, &WhyNothing,
+                [](EditorActionContext& context) -> Bool { return PanelOf(context)->Redo(); }},
+            {"node_inspector.save", LocKeys::NodeGraphSave, "Save", bind(ImGuiKey_S, true), {}, &CanSave, &WhyNothing,
+                [](EditorActionContext& context) -> Bool { return PanelOf(context)->Save(); }},
+        };
+        for (const Row& row : inspectorRows)
+        {
+            EditorActionInfo info;
+            info.name = row.name;
+            info.labelKey = row.labelKey;
+            info.fallbackLabel = row.fallback;
+            info.categoryKey = LocKeys::NodeGraphInspectorTitle;
+            info.panelType = NodeGraphInspectorPanel::TypeName;
+            info.primary = row.primary;
+            info.secondary = row.secondary;
+            info.CanExecute = row.canExecute;
+            info.WhyBlocked = row.whyBlocked;
+            info.Execute = row.execute;
+            actions.Register(info);
+        }
+    }
+
+    NodeGraphPanel* NodeGraphPanel::FindActive(EditorApplication& editor)
+    {
+        Array<EditorPanel*> panels;
+        editor.FindPanels(TypeName, panels);
+        NodeGraphPanel* best = nullptr;
+        for (EditorPanel* panel : panels)
+        {
+            auto* graph = static_cast<NodeGraphPanel*>(panel);
+            if (best == nullptr || graph->m_focusSerial.Get() > best->m_focusSerial.Get())
+            {
+                best = graph;
+            }
+        }
+        return best;
+    }
+
+    void NodeGraphPanel::RevealInspector(Bool focus)
+    {
+        EditorPanel* inspector = m_editor->FindPanel(NodeGraphInspectorPanel::TypeName);
+        if (inspector == nullptr)
+        {
+            inspector = m_editor->CreatePanel(NodeGraphInspectorPanel::TypeName);
+        }
+        if (inspector != nullptr && (focus || false == inspector->IsOpen()))
+        {
+            inspector->RequestFocus();
         }
     }
 
@@ -271,6 +335,10 @@ namespace JBro
         m_message.clear();
         m_dirtyRevision = static_cast<std::uint64_t>(-1);
         UpdateTitle();
+        // 막 연 그래프가 노드 인스펙터의 대상이다. 인스펙터가 없으면 같은 도크의 오른쪽에 세운다.
+        g_focusSerial = UInt64(g_focusSerial.Get() + 1);
+        m_focusSerial = g_focusSerial;
+        RevealInspector(false);
         return true;
     }
 
@@ -312,6 +380,100 @@ namespace JBro
         m_dirtyRevision = static_cast<std::uint64_t>(-1);
         UpdateTitle();
         return true;
+    }
+
+    void NodeGraphPanel::RequestReload()
+    {
+        if (!IsDirty())
+        {
+            ReloadFromDisk();
+            return;
+        }
+        // 다시 읽으면 저장하지 않은 것이 사라진다 - 되돌릴 수 없으므로 먼저 묻는다(D-174 의 묻는 창).
+        m_askingReload = true;
+        m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+            Loc::TextOr(LocKeys::FileWindowUnsavedTitle, "Unsaved changes"),
+            Loc::TextOr(LocKeys::FileWindowReloadMessage, "There are changes that are not saved. Reloading from disk throws them away"),
+            nullptr,
+            Loc::TextOr(LocKeys::FileWindowReloadDiscard, "Reload without saving"),
+            Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
+            &NodeGraphPanel::AnswerReload, nullptr, "##NodeGraphReload"));
+    }
+
+    void NodeGraphPanel::RequestClose()
+    {
+        if (!IsDirty())
+        {
+            m_editor->ClosePanel(*this);
+            return;
+        }
+        m_askingClose = true;
+        m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+            Loc::TextOr(LocKeys::FileWindowUnsavedTitle, "Unsaved changes"),
+            Loc::TextOr(LocKeys::FileWindowCloseMessage, "There are changes that are not saved"),
+            Loc::TextOr(LocKeys::FileWindowSaveAndClose, "Save and close"),
+            Loc::TextOr(LocKeys::FileWindowCloseWithoutSaving, "Close without saving"),
+            Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
+            &NodeGraphPanel::AnswerClose, nullptr, "##NodeGraphClose"));
+    }
+
+    Bool NodeGraphPanel::HasUnsavedChanges() const
+    {
+        return IsDirty();
+    }
+
+    Bool NodeGraphPanel::SaveChanges()
+    {
+        return !IsDirty() || Save();
+    }
+
+    Bool NodeGraphPanel::OnCloseRequested()
+    {
+        if (!IsDirty())
+        {
+            return true;
+        }
+        RequestClose();
+        return false;
+    }
+
+    void NodeGraphPanel::AnswerReload(EditorApplication& editor, Int32 choice, void*)
+    {
+        Array<EditorPanel*> panels;
+        editor.FindPanels(TypeName, panels);
+        for (EditorPanel* panel : panels)
+        {
+            auto* graph = static_cast<NodeGraphPanel*>(panel);
+            if (!graph->m_askingReload)
+            {
+                continue;
+            }
+            graph->m_askingReload = false;
+            if (choice == 1)
+            {
+                graph->ReloadFromDisk();
+            }
+        }
+    }
+
+    void NodeGraphPanel::AnswerClose(EditorApplication& editor, Int32 choice, void*)
+    {
+        Array<EditorPanel*> panels;
+        editor.FindPanels(TypeName, panels);
+        for (EditorPanel* panel : panels)
+        {
+            auto* graph = static_cast<NodeGraphPanel*>(panel);
+            if (!graph->m_askingClose)
+            {
+                continue;
+            }
+            graph->m_askingClose = false;
+            // 저장하지 못했으면 닫지 않는다 - 닫으면 고친 것이 사라진다.
+            if ((choice == 0 && graph->Save()) || choice == 1)
+            {
+                editor.ClosePanel(*graph);
+            }
+        }
     }
 
     Bool NodeGraphPanel::ReloadFromDisk()
@@ -602,7 +764,7 @@ namespace JBro
         return redone;
     }
 
-    void NodeGraphPanel::FrameAll()
+    void NodeGraphPanel::FrameSelection()
     {
         m_frameRequested = true;
     }
@@ -657,6 +819,11 @@ namespace JBro
                 m_canvas.interaction.Select({only, 1});
             }
             Widget::OpenContextMenu("##nodeGraphMenu");
+        }
+        if (events.nodeDoubleClicked)
+        {
+            // 노드를 두 번 누르면 그 노드를 보이는 인스펙터가 앞으로 온다(오브젝트를 두 번 누를 때와 같은 손짓).
+            RevealInspector(true);
         }
     }
 
@@ -779,11 +946,11 @@ namespace JBro
             EditorActionUi::DrawItem("node_graph.save", context);
             if (Widget::MenuItem(Loc::TextOr(LocKeys::NodeGraphReload, "Reload From Disk")))
             {
-                ReloadFromDisk();
+                RequestReload();
             }
             if (Widget::MenuItem(Loc::TextOr(LocKeys::NodeGraphClose, "Close")))
             {
-                m_editor->ClosePanel(*this);
+                RequestClose();
             }
             Widget::EndMenu();
         }
@@ -798,82 +965,6 @@ namespace JBro
             EditorActionUi::DrawItem("node_graph.frame", context);
             Widget::EndMenu();
         }
-    }
-
-    void NodeGraphPanel::DrawSidebar(Float width)
-    {
-        const ArrayView<const NodeGraph::NodeId> selection = m_canvas.interaction.GetSelection();
-        if (selection.Size() != 1)
-        {
-            Widget::HintText(selection.IsEmpty() ? Loc::TextOr(LocKeys::NodeGraphNoSelection, "No node is selected")
-                                                 : Loc::TextOr(LocKeys::NodeGraphManySelected, "Several nodes are selected"));
-            return;
-        }
-        const NodeGraph::Node* node = m_document.graph.FindNode(selection[0]);
-        if (node == nullptr)
-        {
-            return;
-        }
-        const NodeGraph::NodeTypeInfo* type = m_document.domain->FindNodeType(node->type.View());
-        Widget::SectionHeader(node->type.c_str()).Draw();
-        if (type == nullptr)
-        {
-            Widget::SeverityTextF(Widget::Severity::Warning, "%s", Loc::TextOr(LocKeys::NodeGraphUnknownType, "This domain has no node of this type"));
-            return;
-        }
-        if (type->inputs.IsEmpty())
-        {
-            return;
-        }
-        Widget::FormLayout layout("##nodeInputs", 4.0f, ImVec2(2.0f, 1.0f), 0.0f, width);
-        for (std::size_t pin = 0; pin < type->inputs.Size() && pin < node->inputs.Size(); ++pin)
-        {
-            const NodeGraph::PinInfo& info = type->inputs[pin];
-            layout.Row(Widget::FieldLabel(info.name.c_str()),
-                [&] {
-                    if (m_document.graph.FindLinkInto(NodeGraph::PinRef{node->id, pin}) != nullptr)
-                    {
-                        Widget::HintText(Loc::TextOr(LocKeys::NodeGraphLinked, "Linked"));
-                        return;
-                    }
-                    const NodeGraph::PinTypeInfo* pinType = m_document.domain->FindPinType(info.type);
-                    const Int32 count = static_cast<JBro::Int32>(pinType == nullptr ? 4u : std::min(pinType->components.Get(), 4u));
-                    char id[48];
-                    std::snprintf(id, sizeof(id), "##input%zu", pin);
-                    NodeGraph::PinValue value = node->inputs[pin];
-                    if (Widget::ScalarRunField(id, value.values, count, 0.01f, false, 0.0f, 0.0f))
-                    {
-                        SetInput(node->id, pin, value);
-                    }
-                });
-        }
-    }
-
-    void NodeGraphPanel::DrawPreview()
-    {
-        // 샘플 도메인 `Math` 는 결과 노드의 값을 보인다 - 그래프를 결과물로 바꾸는 자리가 실제로 도는지 눈으로 본다.
-        if (m_document.domain == nullptr || m_document.domain->GetName().View() != NodeGraph::MathDomainName)
-        {
-            return;
-        }
-        Widget::SectionHeader(Loc::TextOr(LocKeys::NodeGraphPreview, "Preview")).SpacingBefore().Draw();
-        NodeGraph::PinValue result;
-        if (!NodeGraph::EvaluateMath(m_document.graph, *m_document.domain, result))
-        {
-            Widget::HintText(Loc::TextOr(LocKeys::NodeGraphNoOutput, "Add an Output node to see the result"));
-            return;
-        }
-        const ImVec2 at = ImGui::GetCursorScreenPos();
-        const float side = ImGui::GetFrameHeight() * 2.0f;
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        const ImVec4 color(std::clamp(result.values[0].Get(), 0.0f, 1.0f), std::clamp(result.values[1].Get(), 0.0f, 1.0f),
-            std::clamp(result.values[2].Get(), 0.0f, 1.0f), 1.0f);
-        draw->AddRectFilled(at, ImVec2(at.x + side, at.y + side), ImGui::ColorConvertFloat4ToU32(color), 4.0f);
-        draw->AddRect(at, ImVec2(at.x + side, at.y + side), ImGui::ColorConvertFloat4ToU32(EditorTheme::Line), 4.0f);
-        ImGui::Dummy(ImVec2(side, side));
-        ImGui::SameLine();
-        Widget::TextF("%.3f  %.3f  %.3f  %.3f", static_cast<double>(result.values[0].Get()), static_cast<double>(result.values[1].Get()),
-            static_cast<double>(result.values[2].Get()), static_cast<double>(result.values[3].Get()));
     }
 
     void NodeGraphPanel::OnDraw()
@@ -902,23 +993,26 @@ namespace JBro
             Widget::HoveredTooltip(joined.c_str());
         }
 
+        if (IsFocused())
+        {
+            g_focusSerial = UInt64(g_focusSerial.Get() + 1);
+            m_focusSerial = g_focusSerial;
+        }
+
+        // 그래프가 창을 다 쓴다. 고른 노드의 값은 노드 인스펙터(같은 도크의 오른쪽)에 있다.
         const ImVec2 avail = ImGui::GetContentRegionAvail();
-        const float sidebar = std::min(280.0f, std::max(160.0f, avail.x * 0.3f));
-        const ImVec2 canvasSize(std::max(64.0f, avail.x - sidebar - ImGui::GetStyle().ItemSpacing.x), std::max(64.0f, avail.y));
+        const ImVec2 canvasSize(std::max(64.0f, avail.x), std::max(64.0f, avail.y));
+        NodeGraphView::Events events;
+        // 입력 → 커맨드 → 그리기 차례다. 커맨드를 그리기 뒤에 넣으면 놓는 프레임에 노드가 옛 자리에 한 번 그려진다.
+        Widget::BeginNodeGraphCanvas("##nodeGraph", m_document.graph, *m_document.domain, m_canvas, canvasSize, events);
+        HandleEvents(events);
         if (m_frameRequested)
         {
-            NodeGraphView::Frame(m_canvas.camera, m_canvas.style, m_document.graph, *m_document.domain, Vector2{canvasSize.x, canvasSize.y});
+            NodeGraphView::Frame(m_canvas.camera, m_canvas.style, m_document.graph, *m_document.domain, Vector2{canvasSize.x, canvasSize.y},
+                m_canvas.interaction.GetSelection());
             m_frameRequested = false;
         }
-        NodeGraphView::Events events;
-        Widget::NodeGraphCanvas("##nodeGraph", m_document.graph, *m_document.domain, m_canvas, canvasSize, events);
-        HandleEvents(events);
+        Widget::EndNodeGraphCanvas(m_document.graph, *m_document.domain, m_canvas);
         DrawContextMenu();
-
-        ImGui::SameLine();
-        ImGui::BeginGroup();
-        DrawSidebar(sidebar);
-        DrawPreview();
-        ImGui::EndGroup();
     }
 }

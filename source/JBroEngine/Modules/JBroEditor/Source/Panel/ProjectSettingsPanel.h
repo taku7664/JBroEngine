@@ -6,6 +6,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
 namespace JBro
@@ -31,10 +32,18 @@ namespace JBro
         Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Right; }
+        // **저장하지 않은 것을 안다**(D-309). 편집본을 파일 글자로 써서 지금 프로젝트의 것과 견준다. 에디터를 끝내거나 다른 프로젝트를
+        // 열기 전에 캔버스와 함께 묻고, 되돌리기는 저장하지 않은 것이 있으면 먼저 묻는다.
+        Bool HasUnsavedChanges() const override;
+        Bool SaveChanges() override;
+        // 이 창의 행동(저장)을 행동 표에 올린다. 포커스가 있으면 Ctrl+S 는 캔버스가 아니라 설정을 저장한다.
+        static void RegisterActions();
+        Bool SaveDraft();
 
     private:
         // 파일에서 읽은 값을 편집본으로 옮긴다. 창을 열 때와 저장한 뒤에 부른다.
         void Reload();
+        static void AnswerRevert(EditorApplication& editor, Int32 choice, void* user);
 
         // 경로 값 한 줄: 글자 칸과 "찾아보기"(D-164, 기존 `DrawReadOnlyPathWithFolderBrowse`). 고른 경로는 프로젝트
         // 폴더(`assetRelative` 면 에셋 폴더) 기준 상대경로로 편집본에 들어간다. `filterPattern` 이 없으면 폴더를 고른다.
@@ -55,6 +64,8 @@ namespace JBro
         // 어느 프로젝트의 값을 담고 있는가. 프로젝트가 바뀌면 다시 읽는다.
         String m_loadedPath;
         Bool m_loaded = false;
+        // 탭 이름이다. 저장하지 않은 것이 있으면 끝에 `*` 가 붙는다.
+        String m_title;
         // **무시 패턴을 고치는 버퍼**(D-189). 여러 줄 칸은 편집하는 동안 버퍼가
         // 프레임을 넘어 살아 있어야 한다 - 매 프레임 목록에서 새로 지으면 커서가 풀린다.
         // 창을 열 때 한 번 채우고, 그 뒤로는 이쪽이 원본이고 목록이 파생이다.

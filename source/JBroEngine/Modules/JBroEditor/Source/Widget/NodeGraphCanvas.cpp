@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/ItemLocator.h>
 
 #include <algorithm>
 #include <cmath>
@@ -85,7 +86,7 @@ namespace JBro::Widget
             const ImU32 minor = ToU32(EditorTheme::Fade(EditorTheme::Line, 0.55f));
             const ImU32 major = ToU32(EditorTheme::Line);
             // 그래프 자리 0 이 지나는 곳에서 시작해 네 칸마다 굵은 선이다 - 줌하고 옮겨도 선이 그래프에 붙어 있다.
-            const Vector2 originGraph = NodeGraphView::ToScreen(state.camera, Vector2{});
+            const Vector2 originGraph = ViewCamera::ToScreen(state.camera, Vector2{});
             const float startX = originGraph.x.Get() + std::floor((min.x - originGraph.x.Get()) / step) * step;
             const float startY = originGraph.y.Get() + std::floor((min.y - originGraph.y.Get()) / step) * step;
             for (float x = startX; x < max.x; x += step)
@@ -111,18 +112,28 @@ namespace JBro::Widget
         }
     }
 
-    void NodeGraphCanvas(const char* id, const NodeGraph::Graph& graph, const NodeGraph::Domain& domain, NodeGraphCanvasState& state,
+    void BeginNodeGraphCanvas(const char* id, const NodeGraph::Graph& graph, const NodeGraph::Domain& domain, NodeGraphCanvasState& state,
         const ImVec2& size, NodeGraphView::Events& events)
     {
         const ImVec2 min = ImGui::GetCursorScreenPos();
         const ImVec2 canvasSize(std::max(size.x, 32.0f), std::max(size.y, 32.0f));
         const ImVec2 max(min.x + canvasSize.x, min.y + canvasSize.y);
+        state.canvasMin = min;
+        state.canvasMax = max;
         state.camera.origin = Vector2{min.x, min.y};
-        if (!state.framed)
+        const Bool untouched = state.framed && state.camera.goalZoom.Get() == state.framedZoom.Get()
+            && state.camera.goalPan.x.Get() == state.framedPan.x.Get() && state.camera.goalPan.y.Get() == state.framedPan.y.Get();
+        const Bool resized = state.framedSize.x != canvasSize.x || state.framedSize.y != canvasSize.y;
+        if (!state.framed || (untouched && resized))
         {
-            NodeGraphView::Frame(state.camera, state.style, graph, domain, Vector2{canvasSize.x, canvasSize.y});
+            // 처음 열 때는 따라가지 않고 그 자리에 놓는다 - 열자마자 화면이 미끄러져 들어오면 어지럽다.
+            NodeGraphView::Frame(state.camera, state.style, graph, domain, Vector2{canvasSize.x, canvasSize.y}, {}, true);
             state.framed = true;
+            state.framedSize = canvasSize;
+            state.framedPan = state.camera.goalPan;
+            state.framedZoom = state.camera.goalZoom;
         }
+        ViewCamera::Follow(state.camera, ImGui::GetIO().DeltaTime);
 
         // 그림 위의 입력 자리다. 세 단추를 다 받아 창이 끌려가지 않게 한다.
         ImGui::SetNextItemAllowOverlap();
@@ -137,6 +148,7 @@ namespace JBro::Widget
         input.leftPressed = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
         input.leftDown = io.MouseDown[ImGuiMouseButton_Left];
         input.leftReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left);
+        input.leftDoubleClicked = hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
         input.rightPressed = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
         input.rightDown = (hovered || active) && io.MouseDown[ImGuiMouseButton_Right];
         input.rightReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Right);
@@ -147,11 +159,20 @@ namespace JBro::Widget
         input.shift = io.KeyShift;
         input.alt = io.KeyAlt;
         state.interaction.Update(graph, domain, state.style, state.camera, input, events);
-        state.hovered = hovered
+        state.mouse = input.mouse;
+        state.canvasHovered = hovered;
+    }
+
+    void EndNodeGraphCanvas(const NodeGraph::Graph& graph, const NodeGraph::Domain& domain, NodeGraphCanvasState& state)
+    {
+        const ImVec2 min = state.canvasMin;
+        const ImVec2 max = state.canvasMax;
+        NodeGraphView::Input input;
+        input.mouse = state.mouse;
+        const Bool moving = state.interaction.GetGesture() == NodeGraphView::Gesture::MovingNodes;
+        state.hovered = state.canvasHovered
             ? NodeGraphView::Pick(graph, domain, state.style, state.camera, input.mouse,
-                  state.interaction.GetMoveOffset().x.Get() != 0.0f || state.interaction.GetMoveOffset().y.Get() != 0.0f
-                      ? state.interaction.GetSelection() : ArrayView<const NodeGraph::NodeId>{},
-                  state.interaction.GetMoveOffset())
+                  moving ? state.interaction.GetSelection() : ArrayView<const NodeGraph::NodeId>{}, state.interaction.GetMoveOffset())
             : Hit{};
 
         ImDrawList& draw = *ImGui::GetWindowDrawList();
@@ -175,8 +196,8 @@ namespace JBro::Widget
             {
                 continue;
             }
-            const Vector2 a = NodeGraphView::ToScreen(state.camera, NodeGraphView::OutputPosition(Placed(state, *from), link.from.pin, style));
-            const Vector2 b = NodeGraphView::ToScreen(state.camera, NodeGraphView::InputPosition(Placed(state, *to), link.to.pin, style));
+            const Vector2 a = ViewCamera::ToScreen(state.camera, NodeGraphView::OutputPosition(Placed(state, *from), link.from.pin, style));
+            const Vector2 b = ViewCamera::ToScreen(state.camera, NodeGraphView::InputPosition(Placed(state, *to), link.to.pin, style));
             const Bool lit = state.hovered.kind == HitKind::Link && state.hovered.link.Get() == link.id.Get();
             const ImVec4 color = PinColor(domain, fromType->outputs[link.from.pin].type);
             DrawCurve(draw, NodeGraphView::LinkCurve(a, b, state.camera.zoom), ToU32(lit ? EditorTheme::AccentBright : color),
@@ -190,8 +211,14 @@ namespace JBro::Widget
             const NodeGraph::Node node = Placed(state, source);
             const NodeGraph::NodeTypeInfo* type = domain.FindNodeType(source.type.View());
             const Rect bounds = NodeGraphView::NodeBounds(node, type, style);
-            const ImVec2 topLeft = ToIm(NodeGraphView::ToScreen(state.camera, bounds.min));
-            const ImVec2 bottomRight = ToIm(NodeGraphView::ToScreen(state.camera, bounds.max));
+            const ImVec2 topLeft = ToIm(ViewCamera::ToScreen(state.camera, bounds.min));
+            const ImVec2 bottomRight = ToIm(ViewCamera::ToScreen(state.camera, bounds.max));
+            if (ItemLocator::IsWatching())
+            {
+                char label[40];
+                std::snprintf(label, sizeof(label), "##node%llu", static_cast<unsigned long long>(source.id.Get()));
+                ItemLocator::Report(ImGui::GetID(label), ItemLocator::ItemRect{topLeft.x, topLeft.y, bottomRight.x, bottomRight.y});
+            }
             if (bottomRight.x < min.x || topLeft.x > max.x || bottomRight.y < min.y || topLeft.y > max.y)
             {
                 continue;
@@ -219,7 +246,7 @@ namespace JBro::Widget
             const float pinRadius = style.pinRadius.Get() * zoom;
             for (std::size_t pin = 0; pin < type->inputs.Size(); ++pin)
             {
-                const ImVec2 at = ToIm(NodeGraphView::ToScreen(state.camera, NodeGraphView::InputPosition(node, pin, style)));
+                const ImVec2 at = ToIm(ViewCamera::ToScreen(state.camera, NodeGraphView::InputPosition(node, pin, style)));
                 const NodeGraph::Link* link = graph.FindLinkInto(NodeGraph::PinRef{source.id, pin});
                 const ImU32 color = ToU32(PinColor(domain, type->inputs[pin].type));
                 if (link != nullptr)
@@ -253,7 +280,7 @@ namespace JBro::Widget
             }
             for (std::size_t pin = 0; pin < type->outputs.Size(); ++pin)
             {
-                const ImVec2 at = ToIm(NodeGraphView::ToScreen(state.camera, NodeGraphView::OutputPosition(node, pin, style)));
+                const ImVec2 at = ToIm(ViewCamera::ToScreen(state.camera, NodeGraphView::OutputPosition(node, pin, style)));
                 const Bool connected = graph.GetLinks().Size() != 0 && [&]()
                 {
                     for (const NodeGraph::Link& link : graph.GetLinks())
@@ -296,7 +323,7 @@ namespace JBro::Widget
         {
             if (const NodeGraph::Node* node = graph.FindNode(origin.node))
             {
-                const Vector2 pinAt = NodeGraphView::ToScreen(state.camera, fromOutput
+                const Vector2 pinAt = ViewCamera::ToScreen(state.camera, fromOutput
                     ? NodeGraphView::OutputPosition(*node, origin.pin, style)
                     : NodeGraphView::InputPosition(*node, origin.pin, style));
                 const NodeGraphView::Curve curve = fromOutput ? NodeGraphView::LinkCurve(pinAt, input.mouse, state.camera.zoom)

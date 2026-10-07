@@ -655,6 +655,15 @@ namespace JBro
             || GetWindowLongPtrW(nativeWindow, GWLP_USERDATA) != 0;
     }
 
+    void WindowsPlatform::CancelClose(WindowHandle window)
+    {
+        HWND nativeWindow = reinterpret_cast<HWND>(window.value);
+        if (nativeWindow != nullptr && IsWindow(nativeWindow))
+        {
+            SetWindowLongPtrW(nativeWindow, GWLP_USERDATA, 0);
+        }
+    }
+
     Bool WindowsPlatform::GetWindowState(WindowHandle window, WindowState& state) const
     {
         state = {};

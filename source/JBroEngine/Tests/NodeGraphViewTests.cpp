@@ -103,21 +103,50 @@ namespace
     void TestCamera()
     {
         Scene scene;
-        scene.camera.pan = Vector2{10.0f, -20.0f};
-        scene.camera.zoom = 2.0f;
+        SetCamera(scene.camera, Vector2{10.0f, -20.0f}, 2.0f);
         const Vector2 point{37.0f, 12.0f};
         const Vector2 screen = ToScreen(scene.camera, point);
         Check(Near(screen.x, 100.0f + (37.0f - 10.0f) * 2.0f) && Near(screen.y, 50.0f + (12.0f + 20.0f) * 2.0f), "screen = origin + (graph - pan) x zoom");
         const Vector2 back = ToGraph(scene.camera, screen);
         Check(Near(back.x, 37.0f) && Near(back.y, 12.0f), "and back");
 
+        // 휠은 가려는 카메라만 바꾼다. 그리는 카메라는 따라가며, 다 따라가면 마우스 아래 그래프 자리가 그대로다.
         const Vector2 anchor{400.0f, 300.0f};
         const Vector2 under = ToGraph(scene.camera, anchor);
         ZoomAt(scene.camera, scene.style, anchor, 0.5f);
+        Check(Near(scene.camera.zoom, 2.0f) && Near(scene.camera.goalZoom, 0.5f), "zooming moves the goal, not the drawn camera");
+        // 따라가는 도중에 한 번 더 돌려도 같은 점을 붙잡는다 - 기준점을 가려는 카메라로 잰다.
+        Follow(scene.camera, 0.016f);
+        ZoomAt(scene.camera, scene.style, anchor, 0.4f);
+        for (int frame = 0; frame < 400; ++frame)
+        {
+            Follow(scene.camera, 0.016f);
+        }
         const Vector2 after = ToGraph(scene.camera, anchor);
-        Check(Near(after.x, under.x) && Near(after.y, under.y), "zooming keeps the graph point under the mouse");
+        Check(Near(scene.camera.zoom, 0.4f) && Near(after.x, under.x) && Near(after.y, under.y),
+            "once it settles, the graph point under the mouse is where it was");
         ZoomAt(scene.camera, scene.style, anchor, 100.0f);
-        Check(Near(scene.camera.zoom, scene.style.maxZoom), "zoom is clamped");
+        Check(Near(scene.camera.goalZoom, scene.style.maxZoom), "zoom is clamped");
+    }
+
+    void TestFollowIsSmoothAndFrameRateFree()
+    {
+        Camera a;
+        SetCamera(a, Vector2{0.0f, 0.0f}, 1.0f);
+        a.goalPan = Vector2{100.0f, 0.0f};
+        Camera b = a;
+        Follow(a, 0.05f);
+        Check(a.pan.x.Get() > 0.0f && a.pan.x.Get() < 100.0f, "one frame moves part of the way, not all of it");
+        for (int frame = 0; frame < 5; ++frame)
+        {
+            Follow(b, 0.01f);
+        }
+        Check(Near(a.pan.x, b.pan.x), "five frames of 10 ms land where one of 50 ms does");
+        for (int frame = 0; frame < 200; ++frame)
+        {
+            Follow(a, 0.016f);
+        }
+        Check(a.pan.x.Get() == 100.0f && a.zoom.Get() == 1.0f, "close enough, it snaps onto the goal");
     }
 
     void TestPick()
@@ -251,7 +280,7 @@ namespace
         Check(events.contextMenu && events.contextHit.kind == HitKind::Node && events.contextHit.node.Get() == scene.add.Get(),
             "a right click opens the menu for what is under it");
 
-        const Vector2 panBefore = scene.camera.pan;
+        const Vector2 panBefore = scene.camera.goalPan;
         Events panEvents;
         interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, press, panEvents);
         Input drag = Move(Vector2{at.x.Get() + 30.0f, at.y.Get()});
@@ -261,7 +290,7 @@ namespace
         Input dragRelease = Move(drag.mouse);
         dragRelease.rightReleased = true;
         interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, dragRelease, panEvents);
-        Check(!panEvents.contextMenu && Near(scene.camera.pan.x, panBefore.x.Get() - 30.0f), "a right drag pans and opens no menu");
+        Check(!panEvents.contextMenu && Near(scene.camera.goalPan.x, panBefore.x.Get() - 30.0f), "a right drag pans the goal and opens no menu");
 
         const JBro::NodeGraph::Node* add = scene.graph.FindNode(scene.add);
         const JBro::NodeGraph::Node* output = scene.graph.FindNode(scene.output);
@@ -285,24 +314,49 @@ namespace
     void TestFrame()
     {
         Scene scene;
-        Frame(scene.camera, scene.style, scene.graph, *scene.domain, Vector2{1600.0f, 900.0f});
+        Frame(scene.camera, scene.style, scene.graph, *scene.domain, Vector2{1600.0f, 900.0f}, {}, true);
         const Vector2 center = ToScreen(scene.camera, Vector2{(0.0f + 600.0f + scene.style.nodeWidth.Get()) * 0.5f, 0.0f});
         Check(Near(center.x, 100.0f + 800.0f), "framing centers the nodes across");
         Check(scene.camera.zoom.Get() <= 1.0f, "and never zooms past one to fit a small graph");
         Frame(scene.camera, scene.style, scene.graph, *scene.domain, Vector2{300.0f, 200.0f});
-        Check(scene.camera.zoom.Get() < 0.5f, "a narrow canvas zooms out to fit");
+        Check(scene.camera.goalZoom.Get() < 0.5f && scene.camera.zoom.Get() > 0.5f, "framing glides: it sets the goal and the drawn camera follows");
+
+        // 고른 노드만 맞추면 그 노드가 가운데다(캔버스 뷰의 맞추기).
+        const NodeId only[] = {scene.output};
+        Frame(scene.camera, scene.style, scene.graph, *scene.domain, Vector2{1600.0f, 900.0f}, {only, 1}, true);
+        const Vector2 outputCenter = ToScreen(scene.camera, Vector2{600.0f + scene.style.nodeWidth.Get() * 0.5f, 0.0f});
+        Check(Near(outputCenter.x, 100.0f + 800.0f), "framing the selection centers just those nodes");
+    }
+
+    void TestDoubleClickNode()
+    {
+        Scene scene;
+        Interaction interaction;
+        Events events;
+        Input press = Press(scene.Screen(Vector2{360.0f, 10.0f}));
+        press.leftDoubleClicked = true;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, press, events);
+        Check(events.nodeDoubleClicked && events.doubleClickedNode.Get() == scene.add.Get(), "double-clicking a node reports it");
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(press.mouse), events);
+        Events empty;
+        Input emptyPress = Press(scene.Screen(Vector2{200.0f, 400.0f}));
+        emptyPress.leftDoubleClicked = true;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, emptyPress, empty);
+        Check(!empty.nodeDoubleClicked, "double-clicking empty space does not");
     }
 }
 
 JBro::Int32 RunNodeGraphViewTests()
 {
     TestCamera();
+    TestFollowIsSmoothAndFrameRateFree();
     TestPick();
     TestMoveIsOneEventOnRelease();
     TestLinking();
     TestBoxSelectAndModifiers();
     TestRightButtonAndAlt();
     TestFrame();
+    TestDoubleClickNode();
     std::cout << "Node graph view tests passed.\n";
     return 0;
 }

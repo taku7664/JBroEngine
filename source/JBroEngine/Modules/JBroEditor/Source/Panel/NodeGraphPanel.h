@@ -9,6 +9,7 @@
 #include <JBro/NodeGraph/Graph.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Int.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/UInt.h>
 
@@ -51,10 +52,16 @@ namespace JBro
 
         // 패널 행동(실행 취소·복사·삭제 …)을 행동 표에 올린다. 에디터를 켜기 전에 한 번 부른다.
         static void RegisterActions();
+        // 마지막으로 포커스를 가진(없으면 마지막으로 연) 그래프 창이다. 노드 인스펙터가 이것을 보인다. 없으면 널이다.
+        static NodeGraphPanel* FindActive(EditorApplication& editor);
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         Bool OnCreate(EditorApplication& editor) override;
+        // 저장하지 않은 것이 있으면 닫지 않고 묻는다(탭의 닫기 단추).
+        Bool OnCloseRequested() override;
+        Bool HasUnsavedChanges() const override;
+        Bool SaveChanges() override;
         Bool HasMenuBar() const override;
         void OnMenuBar() override;
         void OnDraw() override;
@@ -70,7 +77,13 @@ namespace JBro
 
         Bool IsDirty() const;
         Bool Save();
+        // 파일을 다시 읽는다. 저장하지 않은 것은 버린다 - 메뉴는 이것을 바로 부르지 않고 `RequestReload` 로 먼저 묻는다.
         Bool ReloadFromDisk();
+        // 저장하지 않은 것이 있으면 묻고, 없으면 곧바로 다시 읽거나 닫는다.
+        void RequestReload();
+        void RequestClose();
+        // 노드 인스펙터를 연다(없으면 만든다). `focus` 면 앞으로 꺼낸다.
+        void RevealInspector(Bool focus);
 
         // ── 편집. 모두 커맨드 하나이고, 바뀐 것이 없으면 커맨드를 쌓지 않고 거짓이다. ──
         NodeGraph::NodeId AddNode(std::string_view type, Vector2 position);
@@ -87,7 +100,8 @@ namespace JBro
         Bool CanPaste() const;
         Bool Undo();
         Bool Redo();
-        void FrameAll();
+        // 고른 노드(없으면 모든 노드)에 맞춰 화면을 부드럽게 옮긴다(캔버스 뷰의 맞추기와 같다).
+        void FrameSelection();
 
     private:
         // 그래프를 고친 사본으로 커맨드를 만든다. 사본이 지금과 같으면 쌓지 않는다.
@@ -97,9 +111,9 @@ namespace JBro
         void HandleEvents(const NodeGraphView::Events& events);
         void DrawAddNodeMenu();
         void DrawContextMenu();
-        void DrawSidebar(Float width);
-        void DrawPreview();
         void UpdateTitle();
+        static void AnswerReload(EditorApplication& editor, Int32 choice, void* user);
+        static void AnswerClose(EditorApplication& editor, Int32 choice, void* user);
         void SyncSelection();
         // 더한 노드에서 끌어 놓은 핀에 맞는 첫 핀을 찾아 잇는다.
         void ConnectDropped(NodeGraph::Graph& graph, NodeGraph::NodeId added) const;
@@ -126,5 +140,10 @@ namespace JBro
         NodeGraph::PinRef m_dropPin;
         Bool m_dropFromOutput = false;
         Bool m_frameRequested = false;
+        // 묻는 창을 띄워 놓고 답을 기다리는 중이다. 답은 패널을 번호로 찾는다(묻는 동안 패널이 닫힐 수 있다).
+        Bool m_askingReload = false;
+        Bool m_askingClose = false;
+        // 포커스를 가질 때마다 커지는 번호다. 가장 큰 창이 노드 인스펙터의 대상이다.
+        UInt64 m_focusSerial = 0;
     };
 }

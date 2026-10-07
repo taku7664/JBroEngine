@@ -212,6 +212,12 @@ namespace JBro
         virtual void WaitForEvents(UInt32 timeoutMilliseconds) = 0;
         // A close request does not destroy the surface. The host drains GPU work first.
         virtual Bool ShouldClose(WindowHandle window) const = 0;
+        // Main-thread only. Withdraws a pending close request (the user chose to keep working). Platforms whose windows cannot
+        // refuse a close leave it as it is.
+        virtual void CancelClose(WindowHandle window)
+        {
+            (void)window;
+        }
         // Main-thread only. False means unavailable/invalid; zero extent cannot render.
         virtual Bool GetWindowState(WindowHandle window, WindowState& state) const = 0;
         // Windows loads a disposable sibling copy so the source path remains replaceable.

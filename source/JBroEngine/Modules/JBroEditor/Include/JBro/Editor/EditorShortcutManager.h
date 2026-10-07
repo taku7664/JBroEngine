@@ -95,6 +95,8 @@ namespace JBro
         Bool whileTyping = false;
         // 재생 중 게임이 키를 받는 동안에도 도는가(D-214). 재생 제어만 참이다.
         Bool duringGame = false;
+        // 전역일 때만 뜻이 있다: 메인 도크 밖의 창에 포커스가 있으면 돌지 않는다(`SetFocusOutsideMainDock`, D-309).
+        Bool mainDockOnly = false;
         OwnerPtr<IEditorShortcutHandler> handler;
     };
 
@@ -182,6 +184,8 @@ namespace JBro
         //
         // 이번 프레임에 포커스를 가진 패널의 `GetTitle()`. 없으면 nullptr.
         void SetFocusedScope(const char* scope);
+        // 포커스를 가진 패널이 메인 도크 밖에 있는가. 그러면 `mainDockOnly` 인 전역 단축키는 돌지 않는다.
+        void SetFocusOutsideMainDock(Bool outside);
         // **멈춤.** 키매핑 설정이 새 키를 잡는 동안 참이다 - 그 사이 누른 Ctrl+S 가 저장하면 안 되고 새 조합이 되어야 한다.
         void SetSuspended(Bool suspended);
         Bool IsSuspended() const;
@@ -215,6 +219,7 @@ namespace JBro
             Bool blocksGlobal = true;
             Bool whileTyping = false;
             Bool duringGame = false;
+            Bool mainDockOnly = false;
             OwnerPtr<IEditorShortcutHandler> handler;
         };
         // 사용자가 바꾼 조합. 등록되지 않은 이름의 것도 남긴다.
@@ -235,6 +240,7 @@ namespace JBro
         Array<Override> m_overrides;
         // 패널이 든 글자를 가리킨다. 매 프레임 `ProcessInput` 바로 앞에 다시 받으므로 그 사이에만 쓴다(프레임마다 글자를 복사하지 않는다).
         const char* m_focusedScope = nullptr;
+        Bool m_focusOutsideMainDock = false;
         ShortcutHandle m_nextHandle = 1;
         UInt64 m_revision = 0;
         Bool m_suspended = false;

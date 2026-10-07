@@ -9,7 +9,10 @@
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Core/Log.h>
 #include <JBro/InputTypes/InputState.h>
+#include <JBro/Editor/ConfirmPopup.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Host/ProjectFile.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Common.h>
@@ -52,7 +55,7 @@ namespace JBro
 
     const char* ProjectSettingsPanel::GetDisplayTitle() const
     {
-        return Loc::TextOr(LocKeys::PanelProjectSettings, "Project Settings");
+        return m_title.empty() ? Loc::TextOr(LocKeys::PanelProjectSettings, "Project Settings") : m_title.c_str();
     }
 
     Bool ProjectSettingsPanel::OnCreate(EditorApplication& editor)
@@ -89,6 +92,82 @@ namespace JBro
         {
             m_fontNamePointers.Add(m_fontNames[index].c_str());
         }
+    }
+
+    Bool ProjectSettingsPanel::HasUnsavedChanges() const
+    {
+        if (false == m_loaded || m_editor == nullptr || m_loadedPath != m_editor->GetProjectFilePath())
+        {
+            return false;
+        }
+        // 같은 글자를 쓰는 길로 견준다 - 필드마다 견주면 새 필드를 더할 때 빠뜨린다. 무시 패턴은 버퍼가 원본이다.
+        ProjectFile draft = m_draft;
+        Widget::SplitLines(m_ignorePatterns, draft.assetIgnorePatterns);
+        String drafted;
+        String saved;
+        ProjectFileError ignored;
+        if (false == WriteProjectFileText(draft, "", 0, drafted, ignored)
+            || false == WriteProjectFileText(m_editor->GetProjectFile(), "", 0, saved, ignored))
+        {
+            return false;
+        }
+        return drafted != saved;
+    }
+
+    Bool ProjectSettingsPanel::SaveChanges()
+    {
+        return false == HasUnsavedChanges() || SaveDraft();
+    }
+
+    Bool ProjectSettingsPanel::SaveDraft()
+    {
+        const String path = m_editor->GetProjectFilePath();
+        // **여기서야 파일에 간다.** 고치는 동안 파일을 건드리면 되돌릴 방법이 없다.
+        ProjectFileError error;
+        if (m_editor->SaveProjectSettings(m_draft, error))
+        {
+            m_message = Loc::TextOr(LocKeys::ProjectSettingsSaved, "saved");
+            m_messageIsError = false;
+            Log::Write(LogLevel::Info, "project", "settings saved: %s", path.c_str());
+            return true;
+        }
+        m_message = error.message;
+        m_messageIsError = true;
+        Log::Write(LogLevel::Error, "project", "the settings could not be saved: %s", error.message.c_str());
+        return false;
+    }
+
+    void ProjectSettingsPanel::AnswerRevert(EditorApplication& editor, Int32 choice, void*)
+    {
+        if (choice != 1)
+        {
+            return;
+        }
+        if (auto* panel = static_cast<ProjectSettingsPanel*>(editor.FindPanel(TypeName)))
+        {
+            panel->Reload();
+        }
+    }
+
+    void ProjectSettingsPanel::RegisterActions()
+    {
+        EditorActionInfo info;
+        info.name = "project_settings.save";
+        info.labelKey = LocKeys::ProjectSettingsSave;
+        info.fallbackLabel = "Save";
+        info.categoryKey = LocKeys::PanelProjectSettings;
+        info.panelType = TypeName;
+        info.primary.key = ImGuiKey_S;
+        info.primary.control = true;
+        info.CanExecute = [](const EditorActionContext& context) -> Bool
+        {
+            return context.panel != nullptr && static_cast<ProjectSettingsPanel*>(context.panel)->HasUnsavedChanges();
+        };
+        info.Execute = [](EditorActionContext& context) -> Bool
+        {
+            return context.panel != nullptr && static_cast<ProjectSettingsPanel*>(context.panel)->SaveDraft();
+        };
+        EditorActionRegistry::Get().Register(info);
     }
 
     void ProjectSettingsPanel::Reload()
@@ -604,10 +683,16 @@ namespace JBro
             m_loaded = false;
             return;
         }
-        // 프로젝트가 바뀌었으면 다시 읽는다. 앞 프로젝트의 값을 다음 파일에 쓰면 안 된다.
+        // 프로젝트가 바뀌었으면 다시 읽는다. 앞 프로젝트의 값을 다음 파일에 쓰면 안 된다. 바꾸기 전에 저장하지 않은 것은 물었다(D-309).
         if (false == m_loaded || m_loadedPath != path)
         {
             Reload();
+        }
+        // 저장하지 않은 것이 있으면 탭 이름 끝에 `*` 가 붙는다(파일 창과 같다).
+        m_title = Loc::TextOr(LocKeys::PanelProjectSettings, "Project Settings");
+        if (HasUnsavedChanges())
+        {
+            m_title.append(" *", 2);
         }
 
         Widget::SectionHeader(
@@ -1172,27 +1257,27 @@ namespace JBro
         if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsSave, "Save"),
                 Widget::Severity::Success))
         {
-            // **여기서야 파일에 간다.** 고치는 동안 파일을 건드리면 되돌릴 방법이 없다.
-            ProjectFileError error;
-            if (m_editor->SaveProjectSettings(m_draft, error))
-            {
-                m_message = Loc::TextOr(LocKeys::ProjectSettingsSaved, "saved");
-                m_messageIsError = false;
-                Log::Write(LogLevel::Info, "project", "settings saved: %s", path.c_str());
-            }
-            else
-            {
-                m_message = error.message;
-                m_messageIsError = true;
-                Log::Write(LogLevel::Error, "project",
-                    "the settings could not be saved: %s", error.message.c_str());
-            }
+            SaveDraft();
         }
         ImGui::SameLine(0.0f, 6.0f);
         if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsRevert, "Revert"),
                 Widget::Severity::Warning))
         {
-            Reload();
+            // 되돌리면 고친 것이 사라진다 - 저장하지 않은 것이 있으면 먼저 묻는다(파일 창의 다시 읽기와 같은 물음, D-309).
+            if (HasUnsavedChanges())
+            {
+                m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+                    Loc::TextOr(LocKeys::FileWindowUnsavedTitle, "Unsaved changes"),
+                    Loc::TextOr(LocKeys::ProjectSettingsRevertMessage, "There are settings that are not saved. Reverting throws them away"),
+                    nullptr,
+                    Loc::TextOr(LocKeys::ProjectSettingsRevertDiscard, "Revert without saving"),
+                    Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
+                    &ProjectSettingsPanel::AnswerRevert, nullptr, "##ProjectSettingsRevert"));
+            }
+            else
+            {
+                Reload();
+            }
         }
         if (false == m_message.empty())
         {

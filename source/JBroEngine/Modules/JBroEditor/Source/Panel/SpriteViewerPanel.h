@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/ViewCamera.h>
 #include <JBro/Types/String.h>
 
 #include <imgui.h>
@@ -61,6 +62,11 @@ namespace JBro
 
     private:
         void DrawSheet(const ImVec2& area);
+    public:
+        // 시트를 그림 전체에 맞춘다(미끄러져 간다). 스페이스바 행동과 맞춤 단추가 부른다.
+        void RequestSheetFit() { m_sheetFitRequested = true; }
+        static void RegisterActions();
+    private:
         void DrawPreview(Float deltaTime);
 
         EditorApplication* m_editor = nullptr;
@@ -72,10 +78,15 @@ namespace JBro
         Bool m_playing = false;
         Float m_framesPerSecond = 12.0f;
         Float m_clock = 0.0f;
-        // **시트의 배율**(D-185, 기존 `확대` 슬라이더와 `창에 맞추기`). 0 이면 칸에 맞춘다 -
-        // 처음 열었을 때 시트 전체가 보여야 어디를 볼지 고를 수 있고, 그 뒤로 사람이 키우면
-        // 그 값을 지킨다. 창 크기가 바뀌어도 사람이 고른 배율은 따라 움직이지 않는다.
-        Float m_sheetZoom = 0.0f;
+        // **시트의 카메라**(D-185·D-309). 캔버스 뷰·노드 그래프와 같은 부드러운 카메라다 - 휠은 마우스 아래를 고정한 채 줌하고, 오른쪽·
+        // 가운데 단추로 끌면 옮기며, 맞춤(단추·스페이스바)은 미끄러져 간다. 처음 열면 시트 전체가 보이게 맞추고, 사람이 카메라를 건드리기 전에
+        // 칸 크기가 바뀌면(도크에 붙으며 폭이 정해진다) 다시 맞춘다. 그 뒤로 사람이 고른 배율과 자리는 창 크기를 따라 움직이지 않는다.
+        ViewCamera::Camera m_sheetCamera;
+        Bool m_sheetFramed = false;
+        Vector2 m_sheetFramedSize;
+        Vector2 m_sheetFramedPan;
+        Float m_sheetFramedZoom = 1.0f;
+        Bool m_sheetFitRequested = false;
         // 미리보기에 피벗을 십자로 그릴지(기존 `피벗 표시`). 그림이 어느 점을 기준으로
         // 놓이는지는 눈으로 봐야 안다.
         Bool m_showPivot = false;

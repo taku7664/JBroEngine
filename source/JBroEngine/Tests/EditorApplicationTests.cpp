@@ -7845,6 +7845,13 @@ namespace
             park();
 
             // ── 확대와 창에 맞추기 ─────────────────────────────
+            // 시트 카메라는 미끄러져 간다(D-309, 캔버스 뷰와 같은 손맛). 다 갈 때까지 기다린 뒤 잰다.
+            const auto settleSheet = [&]() {
+                for (JBro::Int32 frame = 0; frame < 90; ++frame)
+                {
+                    Check(editor.Tick(Frame), "the sheet must glide to its goal");
+                }
+            };
             ReadBackBufferInto(*renderer, 1024, 768, before, readback);
             // 슬라이더의 왼쪽 끝을 누른다. 가장 작은 배율이라 시트가 확 줄어든다.
             // **끌어서 왼쪽 끝까지 민다.** 한 번 누르는 것으로는 어디가 눌렸는지에 따라
@@ -7853,6 +7860,7 @@ namespace
             low.x = static_cast<JBro::Int32>(sheetLeft);
             DragTo(editor, hwnd, slider, low);
             park();
+            settleSheet();
             ReadBackBufferInto(*renderer, 1024, 768, after, readback);
             const std::size_t zoomed = CountDifferingPixelsIn(
                 before, after, readback, sheetLeft, sheetTop, sheetRight, sheetBottom);
@@ -7861,6 +7869,7 @@ namespace
             Check(zoomed > 1000, "choosing a zoom must change how big the sheet is drawn");
             ClickAt(editor, hwnd, fitButton);
             park();
+            settleSheet();
             JBro::Array<std::byte> refitted;
             ReadBackBufferInto(*renderer, 1024, 768, refitted, readback);
             const std::size_t back = CountDifferingPixelsIn(
@@ -15309,10 +15318,18 @@ namespace
         Check(editor.Tick(Frame), "the editor must draw the canvas");
         JBro::Widget::ItemLocator::ItemRect rect;
         Check(JBro::Widget::ItemLocator::Take(rect), "the canvas is drawn");
-        const Spot center{static_cast<JBro::Int32>((rect.minX.Get() + rect.maxX.Get()) * 0.5f), static_cast<JBro::Int32>((rect.minY.Get() + rect.maxY.Get()) * 0.5f)};
         const Spot corner{static_cast<JBro::Int32>(rect.minX.Get()) + 30, static_cast<JBro::Int32>(rect.minY.Get()) + 30};
 
         const std::size_t canvasUndo = editor.GetCommands().GetUndoCount();
+        const auto nodeRect = [&](JBro::Int32 node) {
+            char label[32];
+            std::snprintf(label, sizeof(label), "##node%d", node.Get());
+            JBro::Widget::ItemLocator::Watch(LabelId(window->ID, label));
+            Check(editor.Tick(Frame), "the editor must draw the graph");
+            JBro::Widget::ItemLocator::ItemRect found;
+            Check(JBro::Widget::ItemLocator::Take(found), "the node is drawn");
+            return found;
+        };
         const auto chord = [&](ImGuiKey key, JBro::Bool control) {
             ImGuiIO& io = ImGui::GetIO();
             io.AddKeyEvent(ImGuiMod_Ctrl, control);
@@ -15326,6 +15343,85 @@ namespace
             const char* title = panels[0]->GetDisplayTitle();
             return title != nullptr && std::strstr(title, "*") != nullptr;
         };
+
+        // ── 노드 인스펙터는 같은 도크의 다른 칸에 선다. 창 클래스가 도크마다 달라 메인 도크로 끌어 넣을 수 없다 ──
+        JBro::Array<JBro::EditorPanel*> inspectors;
+        Check(editor.FindPanels("NodeGraphInspector", inspectors) == 1 && inspectors[0]->IsOpen(), "opening a graph opens the node inspector");
+        ImGuiWindow* inspectorWindow = FindActiveWindowContaining("###NodeGraphInspector");
+        Check(inspectorWindow != nullptr && inspectorWindow->DockNode != nullptr && window->DockNode != nullptr,
+            "the graph and the node inspector are both docked");
+        Check(inspectorWindow->DockNode != window->DockNode
+                && ImGui::DockNodeGetRootNode(inspectorWindow->DockNode) == ImGui::DockNodeGetRootNode(window->DockNode),
+            "side by side in the same dock, not stacked as tabs");
+        // 메인 도크의 인스펙터는 노드 그래프 도크가 앞에 있으면 그려지지 않는다 - 활성이 아니어도 찾는다.
+        ImGuiWindow* mainInspector = nullptr;
+        for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            const char* found = std::strstr(candidate->Name, "###Inspector");
+            if (found != nullptr && found[std::strlen("###Inspector")] == '\0')
+            {
+                mainInspector = candidate;
+            }
+        }
+        Check(mainInspector != nullptr && mainInspector->WindowClass.ClassId != window->WindowClass.ClassId
+                && false == window->WindowClass.DockingAllowUnclassed,
+            "the graph window's class differs from the main dock's, so it cannot dock there");
+
+        // ── 노드를 끌어 놓는다. 놓는 프레임에 이미 새 자리다(옛 자리로 순간이동하지 않는다) ──
+        const JBro::Widget::ItemLocator::ItemRect before = nodeRect(1);
+        // 노드 인스펙터가 서며 캔버스가 좁아져도 처음 연 그래프는 다시 가운데로 맞춰진다.
+        const JBro::Float nodeMiddle = (before.minX.Get() + before.maxX.Get()) * 0.5f;
+        const ImGuiWindow* canvasWindow = window;
+        Check(std::fabs(nodeMiddle.Get() - (canvasWindow->InnerRect.Min.x + canvasWindow->InnerRect.Max.x) * 0.5f) < 3.0f,
+            "a freshly opened graph stays centered after the node inspector takes its side");
+        const Spot center{static_cast<JBro::Int32>(nodeMiddle.Get()), static_cast<JBro::Int32>((before.minY.Get() + before.maxY.Get()) * 0.5f)};
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(center.x, center.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(center.x, center.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        for (JBro::Int32 step = 1; step <= 6; ++step)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(center.x + step * 10, center.y + step * 5));
+            Check(editor.Tick(Frame), "the editor must tick while dragging");
+        }
+        const JBro::Widget::ItemLocator::ItemRect held = nodeRect(1);
+        Check(std::fabs(held.minX.Get() - before.minX.Get() - 60.0f) < 1.5f && std::fabs(held.minY.Get() - before.minY.Get() - 30.0f) < 1.5f,
+            "while held the node follows the mouse");
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(center.x + 60, center.y + 30));
+        const JBro::Widget::ItemLocator::ItemRect released = nodeRect(1);
+        Check(std::fabs(released.minX.Get() - held.minX.Get()) < 1.5f && std::fabs(released.minY.Get() - held.minY.Get()) < 1.5f,
+            "on the frame it is let go the node is already drawn at its new place");
+        Check(dirty(), "the move is an edit");
+        chord(ImGuiKey_Z, true);
+        const JBro::Widget::ItemLocator::ItemRect undone = nodeRect(1);
+        Check(std::fabs(undone.minX.Get() - before.minX.Get()) < 1.5f, "undo puts it back");
+
+        // ── 두 번 누르면 노드 인스펙터가 앞으로 온다 ──
+        // 사람처럼 누른다(스프라이트 뷰어 시험과 같다): 앞의 누름과 이어지지 않게 두 번 누르기 시간을 넘기고, 두 번째는 `WM_LBUTTONDBLCLK` 다.
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+        }
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(center.x, center.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        for (const UINT press : {static_cast<UINT>(WM_LBUTTONDOWN), static_cast<UINT>(WM_LBUTTONDBLCLK)})
+        {
+            PostMessageW(hwnd, press, MK_LBUTTON, MAKELPARAM(center.x, center.y));
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while the button is held");
+            }
+            PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(center.x, center.y));
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick on the release");
+            }
+        }
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must come forward");
+        }
+        Check(inspectors[0]->IsFocused(), "double-clicking a node focuses the node inspector");
 
         // ── 고르고 지운다. 저장 전에는 파일이 그대로다 ──
         ClickAt(editor, hwnd, center);
@@ -15376,6 +15472,94 @@ namespace
         chord(ImGuiKey_S, true);
         Check(editor.ReadAssetText(graphId, text) && text.find("Type: Output") != JBro::String::npos, "redo puts it back");
         Check(editor.GetCommands().GetUndoCount() == canvasUndo, "none of it touched the canvas undo stack");
+
+        // ── 저장하지 않은 것이 있으면 다시 읽기·닫기는 먼저 묻는다 ──
+        chord(ImGuiKey_Z, true);
+        Check(dirty(), "an unsaved change to ask about");
+        const auto clickMenu = [&](const char* menuLabel, const char* itemLabel) {
+            Spot at;
+            Check(FindItemAnywhereInWindow(editor, hwnd, window, LabelId(LabelId(window->ID, "##MenuBar"), menuLabel), at),
+                "the graph editor has the menu");
+            ClickAt(editor, hwnd, at);
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the menu must open");
+            }
+            ImGuiWindow* opened = FindSubmenuWindow();
+            Check(opened != nullptr, "the menu opens");
+            Check(FindItemAnywhereInWindow(editor, hwnd, opened, LabelId(opened->ID, itemLabel), at), "the menu offers the item");
+            ClickAt(editor, hwnd, at);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle after the menu");
+            }
+        };
+        const auto answer = [&](const char* id, const char* buttonLabel) {
+            // 묻는 창의 ImGui 이름은 `제목###popup_<번호>` 다. 열린 것이 그 창인지는 에디터의 아이디로 본다.
+            Check(editor.IsPopupOpenById(id), "the question this test answers is the one asked");
+            ImGuiWindow* popup = FindActiveWindowContaining("###popup_");
+            Check(popup != nullptr, "the question is on screen");
+            Spot at;
+            Check(FindItemAnywhereInWindow(editor, hwnd, popup, LabelId(popup->ID, buttonLabel), at), "the question has the button");
+            ClickAt(editor, hwnd, at);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle after the answer");
+            }
+        };
+        clickMenu(JBro::Loc::TextOr(JBro::LocKeys::MenuFile, "File"), JBro::Loc::TextOr(JBro::LocKeys::NodeGraphClose, "Close"));
+        Check(editor.IsPopupOpenById("##NodeGraphClose") && editor.FindPanels("NodeGraph", panels) == 1, "closing over unsaved changes asks first");
+        answer("##NodeGraphClose", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
+        Check(editor.FindPanels("NodeGraph", panels) == 1 && dirty(), "cancelling keeps the window and the change");
+
+        // ── 저장하지 않은 그래프가 있으면 다른 프로젝트를 열기·창 닫기 전에 묻는다(D-309) ──
+        Check(dirty() && editor.HasUnsavedWork(), "an unsaved graph is unsaved work");
+        editor.RequestOpenProject();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle while it asks");
+        }
+        Check(editor.IsPopupOpenById("##UnsavedWork"), "opening another project over unsaved work asks first");
+        answer("##UnsavedWork", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
+        Check(dirty() && editor.FindPanels("NodeGraph", panels) == 1, "cancelling keeps the project and the change");
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "closing the window over unsaved work must not end the editor yet");
+        }
+        Check(editor.IsPopupOpenById("##UnsavedWork"), "the window's close button asks too");
+        answer("##UnsavedWork", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
+        Check(editor.Tick(Frame) && dirty(), "cancelling keeps the editor running with the change");
+
+        // ── 파일 창에 포커스가 있으면 캔버스를 고치는 단축키는 돌지 않는다 ──
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the probe canvas takes an object to guard");
+        if (object != nullptr)
+        {
+            editor.SetSelectedObject(object);
+            JBro::Canvas* canvas = editor.GetCanvas();
+            const std::size_t objects = canvas->GetObjectCount();
+            panels[0]->RequestFocus();
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the graph editor must take the focus");
+            }
+            Check(panels[0]->IsFocused(), "the graph editor holds the focus");
+            const std::size_t canvasUndoBefore = editor.GetCommands().GetUndoCount();
+            chord(ImGuiKey_Delete, false);
+            Check(canvas->GetObjectCount() == objects, "Delete in the graph editor does not delete the canvas object");
+            chord(ImGuiKey_Z, true);
+            Check(editor.GetCommands().GetUndoCount() == canvasUndoBefore, "nor does Ctrl+Z reach the canvas");
+        }
+        clickMenu(JBro::Loc::TextOr(JBro::LocKeys::MenuFile, "File"), JBro::Loc::TextOr(JBro::LocKeys::NodeGraphReload, "Reload From Disk"));
+        Check(editor.IsPopupOpenById("##NodeGraphReload"), "reloading over unsaved changes asks first");
+        answer("##NodeGraphReload", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
+        Check(dirty() && false == editor.IsPopupOpenById("##NodeGraphReload"), "cancelling keeps the unsaved change");
+        clickMenu(JBro::Loc::TextOr(JBro::LocKeys::MenuFile, "File"), JBro::Loc::TextOr(JBro::LocKeys::NodeGraphReload, "Reload From Disk"));
+        answer("##NodeGraphReload", JBro::Loc::TextOr(JBro::LocKeys::FileWindowReloadDiscard, "Reload without saving"));
+        Check(!dirty(), "reloading without saving takes the file as it is");
+
+        Check(editor.OpenNodeGraphEditor(graphId), "the graph editor is still there");
 
         // ── 손으로 쓴 그래프를 연다. 링크 넷이 다 이어진 채 새 탭으로 선다 ──
         const JBro::AssetRecord* sample = editor.GetAssetRegistry().FindByPath("graph/Sample.jgraph");
