@@ -27,10 +27,13 @@ namespace JBro
 {
     namespace
     {
+        // 핸들 번호의 위 8 비트가 타입, 아래 24 비트가 슬롯이다(D-307 (2)). `AssetSystem::TypeShift` 와 같아야 한다 - `GetType` 이 잰다.
+        constexpr std::uint32_t HandleTypeShift = 24;
+
         constexpr AssetHandle MakeHandle(AssetType type, UInt32 slotIndex, UInt32 generation) noexcept
         {
             AssetHandle handle;
-            handle.index = (static_cast<JBro::UInt32>(type) << 28) | slotIndex;
+            handle.index = (static_cast<JBro::UInt32>(type) << HandleTypeShift) | slotIndex;
             handle.generation = generation;
             return handle;
         }
@@ -194,6 +197,7 @@ namespace JBro
         {
             return AssetType::Unknown;
         }
+        static_assert(TypeShift.Get() == HandleTypeShift, "the handle packing and AssetSystem::TypeShift must agree");
         return static_cast<AssetType>(handle.index >> TypeShift);
     }
 
