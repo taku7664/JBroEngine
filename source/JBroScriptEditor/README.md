@@ -1,17 +1,20 @@
 # JBro Script Editor
 
-JBroEngine 의 스크립트 편집기다. Code-OSS 를 얇게 포크하고, JBro 기능은 전부 내장 확장으로 만든다.
-엔진 리포의 `source/JBroScriptEditor` 에 있다. 계획과 결정은 `tasks/ide-plan.md` 와 `tasks/todo.md` D-87·D-261 에 있다.
+JBroEngine 의 C++ 스크립트 편집기다. Code-OSS 를 얇게 포크하고, JBro 기능은 전부 내장 확장으로 만든다.
+엔진 리포의 `source/JBroScriptEditor` 에 있다. 현재 작업 계획은 [script-editor-integration-plan.md](../../tasks/script-editor-integration-plan.md),
+결정은 `tasks/todo.md` D-87·D-261·D-310 에 있다. 기존 `.jscript` 문법 확장은 보존한다.
 원래는 따로 있던 로컬 리포 `F:\Project\JBroScriptEditor` 였고, 그 커밋은 `git subtree` 로 히스토리째 들어왔다.
 옛 리포의 `.git` 과 추적 파일은 지웠고, 그 폴더에는 upstream 체크아웃과 `.toolchain` 만 남아 아래의 작업 폴더로 쓴다.
 
-**아직 포크는 없다.** 확장을 먼저 만들고 일반 VS Code 에서 개발·테스트한다.
-upstream Code-OSS 는 패치 없이 빌드해서 띄울 수 있게 해 두었다(아래 "upstream Code-OSS 빌드").
+**현재는 코어 패치 0001~0003을 적용한 Code-OSS 개발 빌드이며, JBro 브랜딩·설치본은 아직 없다.**
+아래 실행 스크립트가 `jbro-engine`과 `jbro-languages`를 개발 확장으로 자동 로딩한다.
+GitHub 로그인 연결 코드는 구현했으며, 실제 계정 인증은 사용자 요청으로 미뤘다. Git 원격 인증도 아직 확인하지 않았다(2026-10-14).
 
 ## 구조
 
 | 경로 | 내용 |
 |---|---|
+| `extensions/jbro-engine` | GitHub 로그인 진입점·계정 상태·내장 계정 관리 연결. 프로젝트·빌드 연결은 아직 구현하지 않았다 |
 | `extensions/jbro-languages` | `.jscript` 언어 등록과 TextMate 문법, `.jproject`·`.jcanvas`·`.jprefab` 의 YAML 연결 |
 | `scripts/check-nls.mjs` | 확장의 번역 파일이 빠짐없이 채워졌는지 검사한다 |
 | `scripts/run-grammar-tests.mjs` | 문법 단언 테스트와 스냅숏 테스트를 돌린다 |
@@ -23,6 +26,16 @@ npm install
 npm test
 ```
 
+계정 연동과 번역만 검사할 때:
+
+```bash
+npm run test:accounts
+npm run test:nls
+```
+
+`test:accounts`는 계정 API 연결·취소·실패·상태 갱신·런처의 프로필 인자 거절을 검사한다.
+실제 GitHub 인증이나 Git 원격 작업을 수행하지 않는다. `npm test`는 이 검사와 번역·문법 검사를 함께 실행한다.
+
 - **문법 단언**: `extensions/*/test/syntax/*.jscript`. 형식은 `vscode-tmgrammar-test` 의 것이다.
   음수 단언은 `- scope1 scope2` 처럼 `-` 를 **한 번만** 쓴다. `- a - b` 로 쓰면 도구의 해석기가 멈춘다.
 - **스냅숏**: `extensions/*/test/snap/*.jscript` 와 옆의 `.snap`. 문법을 고쳐 토큰이 바뀌면
@@ -33,7 +46,7 @@ npm test
 
 ## upstream Code-OSS 빌드
 
-포크 빌드를 준비하는 단계다. 코어 패치는 아직 적용하지 않고 upstream 을 그대로 빌드해서 띄운다.
+개발 빌드의 실행 환경이다. 현재 작업 체크아웃에는 아래 세 코어 패치가 적용되어 있다.
 패치 목록과 각 우회의 이유는 `tasks/ide-plan.md` §4.2 와 §5.2 에 있다.
 
 **upstream 체크아웃과 도구는 엔진 리포 밖에 둔다.** 둘을 담는 폴더를 환경 변수 `JBRO_EDITOR_WORK` 로 준다
@@ -48,7 +61,7 @@ npm test
 | `scripts/upstream-npm-ci.cmd` | 의존성 설치 |
 | `scripts/upstream-prelaunch.cmd` | Electron 받기, 컴파일, 내장 확장 받기 |
 | `scripts/upstream-compile.cmd` | 패치로 소스를 바꾼 뒤 다시 컴파일한다. `preLaunch` 는 `%JBRO_UPSTREAM%\out` 이 있으면 컴파일하지 않는다 |
-| `scripts/upstream-launch.cmd` | 다시 빌드하지 않고 띄운다 |
+| `scripts/upstream-launch.cmd` | 다시 빌드하지 않고 띄우며 두 JBro 확장을 `--extensionDevelopmentPath`로 자동 로딩한다 |
 | `patches/NNNN-이름.patch` | 코어 패치. 파일 하나에 바꾸는 것 하나 |
 | `scripts/apply-patches.mjs` | 깨끗한 upstream 체크아웃에 패치를 이름 순서대로 적용한다. `--check` 는 적용되는지만 본다 |
 
@@ -64,14 +77,44 @@ Visual Studio 에는 C++ 작업과 **"x64/x86용 C++ Spectre 완화 라이브러
 
 ```bat
 scripts\upstream-npm-ci.cmd
+node scripts\apply-patches.mjs
 scripts\upstream-prelaunch.cmd
 scripts\upstream-launch.cmd
 ```
 
+패치 적용은 깨끗한 새 체크아웃에서 한 번 한다. 이미 적용된 작업 폴더를 초기화하거나 다시 적용하지 않는다.
+
+### GitHub 로그인과 계정 관리
+
+개발 창에서 상태 표시줄의 `GitHub 로그인`, 소스 제어 제목줄의 GitHub 아이콘, 또는 명령 팔레트의
+`JBroEngine: GitHub 로그인`을 선택한다. 내장 GitHub 인증 제공자의 안내에 따라 브라우저에서 기기 코드를 승인한다.
+기기 코드 방식이 기본값이며, 인증 후에는 상태 표시줄에 계정 이름이 표시된다.
+계정 이름이나 `JBroEngine: GitHub 계정 관리`를 누르면 Code-OSS의 계정 관리 화면에서 로그아웃할 수 있다.
+
+편집기를 여는 것만으로 로그인 창을 띄우지 않는다. 저장된 세션은 내장 제공자에게 조용히 조회하고,
+로그인·로그아웃에 따른 계정 상태를 갱신한다. JBro 확장은 토큰을 저장하지 않으며 자격 증명은 내장 제공자가 관리한다.
+**실제 계정으로 로그인·로그아웃하거나 Git 원격 작업을 수행한 결과는 아직 확인하지 않았다.**
+
+### 격리 프로필과 확장 호스트 검사
+
+별도 사용자 데이터를 쓰려면 `JBRO_EDITOR_USER_DATA`를 지정한다. 지정하지 않으면 `.toolchain\user-data`를 쓴다.
+런처는 명령줄의 `--user-data-dir`와 `--extensions-dir`를 거절한다. 두 JBro 확장을 별도로 설치하거나 같은 인자를 추가할 필요가 없다.
+
+아래 확장 호스트 검사는 새 프로필에서 명령 등록·내장 제공자 활성화·기기 코드 기본값·로그인하지 않은 초기 상태를 확인한다.
+`source/JBroScriptEditor`에서 실행하며, 사용자 데이터 경로는 이전에 로그인하지 않은 새 폴더를 지정한다.
+
+```bat
+set JBRO_EDITOR_WORK=F:\Project\JBroScriptEditor
+set JBRO_EDITOR_USER_DATA=%JBRO_EDITOR_WORK%\.toolchain\user-data-auth-test-new
+scripts\upstream-launch.cmd --extensionTestsPath="%CD%\extensions\jbro-engine\test\extension-host.cjs" --skip-welcome --skip-release-notes
+```
+
+검사 뒤 일반 개발 창을 열 때는 `set JBRO_EDITOR_USER_DATA=`로 기본 프로필을 다시 사용한다.
+
 ### 코어 패치
 
 ```bat
-git -C %JBRO_EDITOR_WORK%\upstream checkout -- .
+rem Run only against a clean upstream checkout that does not already have the patches.
 node scripts\apply-patches.mjs
 scripts\upstream-compile.cmd
 ```

@@ -4,6 +4,9 @@
 > 상태: **계획 초안**. C++ 대상과 코사원 담당 범위는 사용자 확인 사항이고, 아래 구현 방법·배치는 제안이다.
 > Updates: [ide-plan.md](./ide-plan.md)의 `.jscript` 전용 범위와 §6·§8의 착수 순서. 확정 범위는 [todo.md](./todo.md)의 D-310.
 > 기존 문법 강조·패치·조사 이력은 보존한다. 이 문서는 구현 완료나 설치본 제공을 뜻하지 않는다.
+>
+> **2026-10-14 후속 상태:** GitHub 로그인 연동 코드와 개발 확장 자동 로딩을 구현했다. 실제 계정 인증은 사용자 요청으로 미뤘다.
+> §2~§8은 2026-10-13 조사·계획의 기록이며, 최신 진행 범위와 검증 결과는 §9를 따른다. A·E 전체 완료나 설치본 제공을 뜻하지 않는다.
 
 ## 1. 목표와 담당 범위
 
@@ -101,7 +104,7 @@ SHOULD는 이 계획의 제안이며, 구현 방법을 달리 고르면 이유�
 - **SHOULD**: 프로젝트 파일을 읽는 동작과 빌드·프로세스 실행을 구분하고, 후자는 upstream Workspace Trust 판정을 따른다.
   메뉴 숨김만으로 실행을 막았다고 판단하지 않는다([공식 안내](https://code.visualstudio.com/api/extension-guides/workspace-trust)).
 
-## 5. 구현 단계 — 아직 착수하지 않음
+## 5. 구현 단계 — 2026-10-13 계획 시점에는 미착수
 
 | 순서 | 작업 | 완료 조건·검증 |
 |---|---|---|
@@ -167,3 +170,46 @@ GitHub 로그인은 현재 없는 기능으로 계획한다. 공급자 활성화
 - upstream 확인 자리: `F:\Project\JBroScriptEditor\upstream\product.json`, `extensions/{git,git-base,github,github-authentication,merge-conflict,cpp,yaml}`, `src/vs/workbench/browser/{layout.ts,workbench.contribution.ts}`
 
 upstream의 경로와 버전은 이번 기계의 확인값이다. 다음 작업은 `JBRO_EDITOR_WORK`가 가리키는 실제 체크아웃에서 다시 확인한다.
+
+## 9. 2026-10-14 후속 진행 — GitHub 로그인 연동 코드
+
+사용자는 실제 Git 로그인 연결을 요청한 뒤, 이번에는 **연동 코드까지 마무리하고 실제 계정 인증은 나중에 확인**하도록 범위를 정했다.
+이번 결과는 내장 GitHub 인증 제공자를 호출할 수 있는 JBro 진입점과 개발 호스트 연결이다. Git 전송에 쓰는 자격 증명이나 계정 인증 성공까지 확인한 결과는 아니다.
+
+### 9.1 구현 범위와 남은 일
+
+| 단계·항목 | 현재 상태 | 남은 일 |
+|---|---|---|
+| A: 개발 확장 로딩 | `upstream-launch.cmd`가 `jbro-engine`·`jbro-languages`를 개발 확장으로 자동 로딩한다. `JBRO_EDITOR_USER_DATA`로 별도 프로필을 지정한다 | 제품의 내장 확장 포함 목록·화면 기준 자료·기존 프로필과의 공존 확인. A 전체는 미완료 |
+| E: 로그인 진입점 | `jbro.git.signIn`·`jbro.git.manageAccount`, 상태 표시줄, 소스 제어 제목줄·명령 팔레트 항목을 구현했다 | 실제 GUI에서 글자·아이콘·클릭·상태 전환 확인 |
+| E: 인증 제공자 연결 | 내장 `github` 제공자의 `authentication.getSession`을 사용한다. 내장 GitHub 확장과 같은 범위(`repo`·`workflow`·`user:email`·`read:user`)를 요청하고 기기 코드 방식을 기본값으로 기여한다 | 실제 로그인·취소·인증 실패·로그아웃·재실행 후 세션 확인은 사용자 요청으로 유보 |
+| E: 계정 상태·관리 | 시작 시 조용한 세션 조회, 세션 변경 시 상태 갱신, 내장 `workbench.action.manageAccounts` 연결. JBro 코드는 토큰을 저장하지 않고 인증 제공자가 자격 증명을 관리한다 | 실제 계정 상태로 검증. 모의 API 검사 통과와 구분한다 |
+| E: Git·도구 | upstream Git·충돌 해결·터미널 기능을 재사용하는 계획은 유지한다 | 저장소 발견·diff·선택 스테이징·커밋·브랜치·충돌 해결·터미널·Git 원격 인증 검증. E 전체는 미완료 |
+| 제품·레이아웃 | 세 코어 패치가 적용된 Code-OSS 개발 빌드다. 검토용 기본 개발 창을 실행했다 | 화면 검증·전체 레이아웃·메뉴 0004·JBro 브랜딩·설치본. B·C·D·F·G 완료로 세지 않는다 |
+
+### 9.2 검증 결과와 확인하지 않은 것
+
+- Node 계정 연동 검사 **9개 통과**: 조용한 시작·로그인 호출·중복 요청·취소·실패 안내·상태 갱신·런처의 프로필 인자 거절 등.
+- 번역 검사 통과: `jbro-engine` manifest 키 **4개**, `jbro-languages` 키 **2개**, 실행 문구의 `l10n` 번들.
+- JavaScript 구문 검사 통과.
+- 실제 Code-OSS 확장 호스트 검사 통과, 프로세스 **종료 코드 0**: JBro 명령 등록·내장 GitHub 제공자 활성화·기기 코드 기본값·새 프로필의 조용한 비로그인 상태.
+- 실제 계정 로그인·로그아웃·세션 복원은 사용자 요청으로 유보했다. Git 원격 인증도 수행하지 않았다.
+- GUI 캡처는 `FrameArrived`·창 캡처 시간 초과로 실패했다. 따라서 현재 창의 모양·배치·글자·클릭 동작은 시각적으로 확인하지 못했다.
+- 이번 검사를 문법 전체 시험, 전체 엔진/Code-OSS 재빌드, JBro 프로젝트·빌드·핫 리로드 연결 검증이나 설치본 검증으로 확대해 보고하지 않는다.
+
+### 9.3 실행 중 발견한 문제와 조치
+
+| 발견한 문제 | 원인·영향 | 조치·후속 확인 |
+|---|---|---|
+| 사용자 데이터 인자 중복 | 런처의 `--user-data-dir`에 같은 인자를 다시 넘기자 단일 경로가 Array가 되어 main 프로세스에서 `ERR_INVALID_ARG_TYPE` 발생 | 런처가 명령줄의 `--user-data-dir`·`--extensions-dir`를 거절한다. 검증 프로필은 `JBRO_EDITOR_USER_DATA`로 지정한다 |
+| Windows Node의 배치 실행 인자 전달 | Node 회귀 검사 드라이버에서 Windows 인자 전달 방식 지정이 필요했다 | `spawnSync`에 `windowsVerbatimArguments: true`를 지정해 인자 거절·실패 종료 코드를 검사한다 |
+| 중첩 배치 FOR의 실패 종료 | 중첩 FOR 안의 종료 처리로 인자 거절이 종료 코드 0을 반환할 수 있었다 | 최상위 오류 레이블에서 종료 코드 1을 반환하도록 고쳤고, 회귀 검사가 거절 메시지와 종료 코드 1을 확인한다 |
+
+위 문제는 이번 실행에서 확인한 기록이다. 새 실행 드라이버에서도 프로필 경로를 같은 CLI 인자로 반복하지 않고,
+배치 실행 결과는 메시지만이 아니라 프로세스 종료 코드로 함께 확인한다.
+
+### 9.4 구현·사용법 연결
+
+- [JBroEngine 확장 manifest](../source/JBroScriptEditor/extensions/jbro-engine/package.json)·[진입점](../source/JBroScriptEditor/extensions/jbro-engine/extension.cjs)·[계정 연동](../source/JBroScriptEditor/extensions/jbro-engine/accounts.cjs)
+- [계정 검사](../source/JBroScriptEditor/extensions/jbro-engine/test/accounts.test.cjs)·[실제 확장 호스트 검사](../source/JBroScriptEditor/extensions/jbro-engine/test/extension-host.cjs)
+- [개발 실행 스크립트](../source/JBroScriptEditor/scripts/upstream-launch.cmd)·[README의 로그인·격리 프로필 사용법](../source/JBroScriptEditor/README.md)
