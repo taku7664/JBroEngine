@@ -7,6 +7,10 @@
 >
 > **2026-10-14 후속 상태:** GitHub 로그인 연동 코드와 개발 확장 자동 로딩을 구현했다. 실제 계정 인증은 사용자 요청으로 미뤘다.
 > §2~§8은 2026-10-13 조사·계획의 기록이며, 최신 진행 범위와 검증 결과는 §9를 따른다. A·E 전체 완료나 설치본 제공을 뜻하지 않는다.
+> **2026-10-14 화면 변경 결정:** 기존 Activity Bar·메뉴를 치우고 `프로젝트·Git·빌드·실행·오류/로그`를 기본으로 드러낸다(D-311).
+> §5.1의 미확정 배치안은 이력으로 남긴다. 사용자 결정과 구현 판단·검증 계획은 §10에 구분한다.
+> **2026-10-14 최종 후속:** 0004 구현·본체 변환·타입 검사·격리 프로필의 renderer 검사와 화면 비교를 마쳤다(§10.6).
+> JBro 도구막대는 한국어 표시를 확인했다(D-312·§11). 엔진 태스크 실행·미신뢰 폴더·패널 드래그·설치본·전체 한국어는 미확인이다.
 
 ## 1. 목표와 담당 범위
 
@@ -120,7 +124,7 @@ B·C·D가 최소 JBro 기능 묶음이다. E의 로컬 Git·로그인 연결은
 F의 화면 검토는 A에서 기준을 잡고 기능이 생긴 뒤 마무리한다. G는 개발 확장만 제공하는 단계와 구분한다.
 언어 서비스가 아직 연결되지 않았으면 B~F를 마쳐도 **자동완성까지 되는 C++ 편집기**라고 보고하지 않는다.
 
-### 5.1 레이아웃 제안 — 빡대리 검토 전
+### 5.1 레이아웃 제안 — 2026-10-13 기록, 후속 D-311·§10이 대체
 
 | 영역 | 제안 내용 | 적용 방법 후보 |
 |---|---|---|
@@ -213,3 +217,111 @@ upstream의 경로와 버전은 이번 기계의 확인값이다. 다음 작업�
 - [JBroEngine 확장 manifest](../source/JBroScriptEditor/extensions/jbro-engine/package.json)·[진입점](../source/JBroScriptEditor/extensions/jbro-engine/extension.cjs)·[계정 연동](../source/JBroScriptEditor/extensions/jbro-engine/accounts.cjs)
 - [계정 검사](../source/JBroScriptEditor/extensions/jbro-engine/test/accounts.test.cjs)·[실제 확장 호스트 검사](../source/JBroScriptEditor/extensions/jbro-engine/test/extension-host.cjs)
 - [개발 실행 스크립트](../source/JBroScriptEditor/scripts/upstream-launch.cmd)·[README의 로그인·격리 프로필 사용법](../source/JBroScriptEditor/README.md)
+
+## 10. 2026-10-14 후속 계획 — 기본 화면 변경
+
+Updates: D-102·ide-plan §5.2·§7의 기본 레이아웃 유지 방침과 이 문서 §5.1의 배치안. 확정 결정은 [todo.md](./todo.md) D-311이다.
+이 절을 작성할 때는 레이아웃 구현·화면 검증이 완료되지 않았다. 이후 결과를 이 절에 덧붙이며, 로그인 연결의 §9 검증을 새 화면의 검증으로 대신하지 않는다.
+
+### 10.1 사용자 결정
+
+- 첨부한 기본 Activity Bar와 File/Edit/... 메뉴를 치우고 원하는 항목만 배치한다.
+- 기본으로 항상 보여야 하는 항목은 **프로젝트·Git·빌드·실행·오류/로그**다.
+
+상단 배치, 연결할 upstream 명령, 설정 키, 기존 패널을 여는 방법은 코사원의 구현 판단이다. 사용자에게 확인된 세부 설계로 기록하지 않는다.
+
+### 10.2 구현 내용과 명령 연결
+
+`patches/0004-jbro-layout.patch`로 네이티브 제목줄에 JBro 메뉴 슬롯을 추가한다. 코어는 놓을 자리를 제공하고,
+`jbro-engine` 확장이 메뉴 항목·번역·명령을 기여한다. Activity Bar와 기본 메뉴를 기본으로 숨기고 다섯 텍스트 버튼을 상단에 놓는다.
+Activity Bar 숨김은 확장 기본값, 데스크톱 기본 메뉴 숨김은 본체 패치가 담당한다. 저장된 사용자 설정을 덮어쓰지 않는다.
+기존 코드 영역·사이드바·하단 패널을 사용하며, 사이드바와 패널의 드래그·크기 조절은 유지한다.
+
+| 항목 | 연결한 명령 | 이번 동작 |
+|---|---|---|
+| 프로젝트 | `workbench.view.explorer` | 기존 탐색기 열기 |
+| Git | `workbench.view.scm` | 기존 소스 제어 열기 |
+| 빌드 | `workbench.action.tasks.build` | 기존 빌드 태스크 선택·실행 |
+| 실행 | `workbench.action.tasks.runTask` | 기존 태스크 선택·실행 |
+| 오류/로그 | `workbench.actions.view.problems` | 문제 패널 열기. 로그는 같은 하단 패널의 출력·터미널 탭에서 확인 |
+
+빌드·실행 버튼은 신뢰한 폴더에서만 제공한다. 이번에는 엔진 전용 태스크를 자동 생성하거나 직접 실행하는 연결을 추가하지 않는다.
+프로젝트·빌드·핫 리로드 연결의 B·C·D 단계는 여전히 별도 작업이다.
+
+### 10.3 바꿀 수 있는 표시 설정
+
+아래는 구현한 사용자 설정이다. 기본값은 JBro 도구막대와 다섯 버튼 표시다.
+
+| 설정 | 변경 효과 |
+|---|---|
+| `jbro.layout.enabled` | `false`이면 상단 JBro 도구막대 대신 기존 제목줄 도구를 표시한다. 즉시 반영 |
+| `jbro.layout.showProject`·`showGit`·`showBuild`·`showRun`·`showDiagnostics` | 각 버튼을 표시하거나 숨긴다. 각 이름에는 `jbro.layout.` 접두어가 붙으며 즉시 반영 |
+| `workbench.activityBar.location` | 기존 Activity Bar를 되살리려면 `default`로 설정 |
+| `window.menuBarVisibility` | 기존 File/Edit/... 메뉴를 되살리려면 `classic`으로 설정 |
+
+`jbro.layout.enabled=false`만으로 Activity Bar·기본 메뉴까지 복원하지 않는다. 위 Code-OSS 설정을 각각 조정한다.
+도구막대 표시 전환과 개별 버튼 전환에 재시작을 요구하지 않는다.
+
+### 10.4 구현·검증 순서
+
+1. 사용자 선택과 후속 결정을 기록하고, 각 명령의 제공 범위·설정 전환을 확정한다.
+2. 코어의 메뉴 슬롯·기본 숨김을 패치 0004에 만들고, 확장에 다섯 항목과 번역·설정·신뢰 판정을 기여한다.
+3. 새 프로필과 기존 개발 프로필에서 확장 기여·설정·코어 패치의 연결을 검사하고, 기존 계정 연결 검사가 통과하는지 확인한다.
+4. 실제 화면을 기존 화면·사용자 첨부와 나란히 비교한다. Activity Bar·메뉴 숨김, 다섯 항목, 좁은 창·넓은 창·배치 조절을 확인한다.
+5. 각 버튼·신뢰 제한·개별 숨김·도구막대 전환·기존 메뉴/Activity Bar 복원을 실제로 확인한 결과와 미확인 범위를 기록한다.
+
+소스 검사·번역 검사·컴파일 성공과 실제 시각·조작 결과는 따로 보고한다. JBro 전용 빌드·실행이나 제품 설치본을 이 화면 작업의 완료로 세지 않는다.
+
+### 10.5 구현 후 검사 중 기록 (2026-10-14, 중간 상태 보존)
+
+아래는 최종 검사 전의 중간 상태다. 실패·수정 이력은 보존하며, 이후 결과는 §10.6을 따른다.
+
+| 확인·문제 | 관찰한 결과 | 조치·아직 확인할 것 |
+|---|---|---|
+| 번역·확장 구문 | 번역 검사 통과(`jbro-engine` manifest 15키·`jbro-languages` 2키), 확장 JavaScript 구문 검사 통과 | 실제 화면의 문구·버튼 표시 확인은 별도 |
+| 패치 0004 | 역적용 검사 통과 | 적용 상태 확인이며 실행 동작의 증거는 아니다 |
+| 첫 `compile-client` | 도중 종료 결과를 확보하지 못했고 필요한 `titlebarPart.js`가 없었다 | 전체 컴파일 완료로 보고하지 않는다. 필요한 본체 `transpile-client`를 별도로 실행해 55초·종료 0과 파일 생성을 확인했다 |
+| 본체 타입 검사 | `createActionViewItem`에 없는 `icon`·`label` 옵션을 전달해 TS2353 발생 | 해당 upstream이 지원하는 `TextOnlyMenuEntryActionViewItem`으로 수정한 뒤 타입 검사는 한 번 통과했다. 아래 기본 메뉴 값 수정 후 최종 타입 검사는 다시 진행 중 |
+| 네이티브 창 캡처 | `FrameArrived` 시간 초과가 재발 | 같은 캡처 방식은 중단했다. upstream의 Playwright Electron 방식으로 renderer를 검사해 아래 기본 메뉴 숨김 실패를 발견했다. 최종 UI 확인은 아직 진행 중 |
+| 기본 메뉴 숨김의 실제 실패 | renderer 화면에서 Activity Bar는 숨겨졌지만 File/Edit/... 메뉴가 남았다. 확장 호스트도 `window.menuBarVisibility=classic`을 확인해 실패했다 | 이 설정은 APPLICATION scope여서 확장 기본값 기여가 거절됐다. 로그에 `Cannot register configuration defaults for 'window.menuBarVisibility'`와 허용 scope 목록이 남았다 |
+| 기본 메뉴 숨김 수정 | 확장 manifest의 해당 기본값을 제거하고, 패치 0004의 `workbench.contribution.ts`에서 데스크톱 기본값을 `hidden`으로 변경했다 | 기존 `transpileFile` 기능으로 변경 파일만 컴파일해 종료 0을 확인했다. 사용자 설정은 덮어쓰지 않으며, 최종 타입 검사·UI 재검사는 아직 진행 중 |
+
+검사용 스크래치는 F: 작업 폴더의 `.toolchain` 안에 두며 커밋하지 않는다.
+실제 계정 인증은 계속 사용자 요청으로 유보한다.
+
+### 10.6 최종 구현·검증 결과 (2026-10-14)
+
+0004의 본체 변경은 `actions.ts`·`menusExtensionPoint.ts`·`titlebarPart.ts`·`titlebarpart.css`·`workbench.contribution.ts` 다섯 파일이며,
+JBro 항목·명령·표시 설정·번역은 `jbro-engine`이 제공한다. 다음 결과는 개발 빌드와 새 격리 프로필에서 확인한 범위다.
+
+| 검사 | 결과·범위 |
+|---|---|
+| 본체 변환·타입 | 수정 후 `transpile-client` 47초·종료 0, native TypeScript `noEmit` 검사 종료 0. APPLICATION 기본값 파일의 별도 `transpileFile` 증분 변환 종료 0 후 최종 타입 검사도 종료 0 |
+| 실제 확장 호스트 | 종료 0. 레이아웃 기본값, JBro 다섯 명령과 대응 native 명령, 내장 GitHub 제공자, 새 프로필의 조용한 비로그인 상태 확인 |
+| 실제 renderer | Playwright Electron 검사 종료 0. 다섯 항목 표시, Activity Bar·기본 메뉴 숨김, 프로젝트/Git/오류 버튼 클릭으로 탐색기/소스 제어/문제 패널 열림 확인 |
+| 제한·표시 전환 | 폴더가 없을 때 빌드·실행 비활성, `showGit=false/true` 즉시 숨김·복원, `enabled=false`와 별도 바 설정으로 기존 도구·바 복원 확인 |
+| 화면 비교·창 폭 | 같은 패널 상태의 `before-default`·`after-git-errors` 스크린샷을 나란히 확인했다. 기존 바가 사라지고 사이드바가 48px 공간을 회수했다. 700px 창에서 다섯 버튼 좌표가 창 안에 있고 잘리지 않음을 확인 |
+| 한국어 후속 | 도구막대의 `프로젝트·Git·빌드·실행·오류/로그`가 한국어인 스크린샷을 직접 확인했다. 한국어 변경 후 renderer 재검사 종료 0, 번역 검사 15키+2키 통과 |
+| 일반 개발 프로필 | 기본 `.toolchain/user-data`로 `ScriptAPI.h` 창을 열고 두 JBro 확장의 로딩 로그를 확인했다. 이 프로필의 `User/settings.json`은 없어 해당 파일의 표시 설정 override는 없었다. UIA 텍스트 트리가 비어 이 프로필의 배치에 대한 시각 증거로는 쓰지 않는다 |
+
+첫 navigation 검사는 확장 준비를 기다리기 전에 클릭했고 탐색기가 30초 안에 열리지 않았다.
+최종 검사는 GitHub 상태 항목 생성으로 확장 활성화를 기다린 뒤 클릭하고, 도구막대의 z-index를 기존 native 위젯과 같은 2500으로 맞춘 상태에서 통과했다.
+두 조건을 함께 바꿨으므로 준비 시점이나 제목줄 drag 영역과의 겹침 중 하나만 원인으로 확정하지 않는다.
+
+다음은 여전히 확인하지 않았다: 실제 엔진 빌드·실행 태스크, 미신뢰 폴더에서의 실기, 패널 드래그 실기,
+전체 엔진 빌드·설치본·전체 편집기 한국어 표시. 실제 계정 인증은 사용자 요청으로 유보했고 Git 원격 인증도 수행하지 않았다.
+첫 전체 `compile-client`의 종료 결과는 없으므로 본체 변환·타입 검사 통과를 전체 컴파일 완료로 바꾸어 보고하지 않는다.
+기본 화면의 이번 구현·검증과 F 전체·B/C/D·제품 배포의 완료를 구분한다.
+
+## 11. 2026-10-14 후속 — 한국어 우선 작업
+
+사용자 지시: **"그리고 한국어를 우선적으로 작업해"**. 후속 결정은 [todo.md](./todo.md) D-312다.
+Updates: D-87·ide-plan §5.5의 영어 manifest 기본 문구 방식을 `jbro-engine`의 개발 실행 표시 범위에서 한정해 바꾼다.
+한국어 우선은 사용자 결정이고, 아래 파일 구성은 개발 실행의 실제 소스를 확인한 구현 판단이다.
+
+upstream 개발 모드는 manifest 번역에서 locale을 무시하고 기본 문구를 쓰므로, `jbro-engine/package.nls.json`을 한국어로 제공한다.
+원래 영어는 `package.nls.en.json`에 보존하고 `package.nls.ko.json`도 유지한다. 한국어를 TypeScript 소스에 직접 쓰는 방식으로 바꾸지 않는다.
+기존 `.jscript` 확장과 계정의 runtime `l10n` 구조는 이 결정으로 변경하지 않는다.
+
+실제 한국어 도구막대 표시와 번역 검사 통과는 §10.6에 기록했다. 로그인 상태와 Code-OSS 내부 Source Control·Problems·Output 본문은
+개발 실행에서 영어로 남아 있으므로 전체 한국어화를 완료했다고 판단하지 않는다. 언어 팩·설치본의 표시와 언어 전환은 후속 검증 대상이다.

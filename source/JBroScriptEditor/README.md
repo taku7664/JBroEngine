@@ -2,19 +2,41 @@
 
 JBroEngine 의 C++ 스크립트 편집기다. Code-OSS 를 얇게 포크하고, JBro 기능은 전부 내장 확장으로 만든다.
 엔진 리포의 `source/JBroScriptEditor` 에 있다. 현재 작업 계획은 [script-editor-integration-plan.md](../../tasks/script-editor-integration-plan.md),
-결정은 `tasks/todo.md` D-87·D-261·D-310 에 있다. 기존 `.jscript` 문법 확장은 보존한다.
+결정은 `tasks/todo.md` D-87·D-261·D-310·D-311·D-312 에 있다. 기존 `.jscript` 문법 확장은 보존한다.
 원래는 따로 있던 로컬 리포 `F:\Project\JBroScriptEditor` 였고, 그 커밋은 `git subtree` 로 히스토리째 들어왔다.
 옛 리포의 `.git` 과 추적 파일은 지웠고, 그 폴더에는 upstream 체크아웃과 `.toolchain` 만 남아 아래의 작업 폴더로 쓴다.
 
-**현재는 코어 패치 0001~0003을 적용한 Code-OSS 개발 빌드이며, JBro 브랜딩·설치본은 아직 없다.**
+**현재는 코어 패치 0001~0004를 적용한 Code-OSS 개발 빌드이며, JBro 브랜딩·설치본은 아직 없다.**
 아래 실행 스크립트가 `jbro-engine`과 `jbro-languages`를 개발 확장으로 자동 로딩한다.
 GitHub 로그인 연결 코드는 구현했으며, 실제 계정 인증은 사용자 요청으로 미뤘다. Git 원격 인증도 아직 확인하지 않았다(2026-10-14).
+다섯 항목 도구막대와 기본 메뉴·Activity Bar 숨김을 구현했고, 격리 프로필의 실제 창에서 표시·클릭·설정 전환을 검사했다.
+
+## 기본 화면 (2026-10-14)
+
+빡대리는 기존 Activity Bar와 File/Edit/... 메뉴를 치우고 **프로젝트·Git·빌드·실행·오류/로그**를 기본으로 표시하도록 정했다(D-311).
+상단에 다섯 텍스트 버튼을 놓고 기존 코드 영역·사이드바·하단 패널을 여는 방식이다.
+사이드바·패널은 기존 드래그·크기 조절 기능을 사용한다. 빌드는 신뢰한 폴더의 빌드 태스크를 실행하거나 선택하고, 실행 버튼은 태스크 선택 창을 엽니다.
+엔진 전용 태스크 자동 생성은 이번 변경에 포함하지 않는다. 오류/로그는 문제 패널을 열고, 로그는 출력·터미널 탭에서 확인한다.
+
+표시 설정은 다음과 같다.
+
+- `jbro.layout.enabled=false`: JBro 도구막대 대신 기존 제목줄 도구 표시.
+- `jbro.layout.showProject`·`jbro.layout.showGit`·`jbro.layout.showBuild`·`jbro.layout.showRun`·`jbro.layout.showDiagnostics`: 각 버튼 표시·숨김.
+
+도구막대와 버튼 표시 전환은 즉시 반영한다. 기존 Activity Bar는 `workbench.activityBar.location=default`,
+기본 메뉴는 `window.menuBarVisibility=classic`으로 별도 복원한다.
+코어 패치 `0004-jbro-layout`는 제목줄의 메뉴 자리와 데스크톱 기본 메뉴 숨김을 제공한다.
+`jbro-engine`은 버튼·번역·명령과 Activity Bar 숨김 기본값을 제공한다. 사용자에게 저장된 표시 설정을 덮어쓰지 않는다.
+격리 프로필에서 다섯 항목·바 숨김, 프로젝트/Git/문제 패널 열기, 폴더가 없을 때 빌드·실행 비활성,
+Git 버튼 숨김·복원, 기존 바 복원을 확인했다. 700px 창에서 다섯 버튼이 잘리지 않는 것도 확인했다.
+실제 엔진 빌드·실행 태스크, 미신뢰 폴더에서의 동작, 패널 드래그 실기는 아직 확인하지 않았다.
+현재 구현·검증 결과는 [작업 계획 §10](../../tasks/script-editor-integration-plan.md#10-2026-10-14-후속-계획--기본-화면-변경)에 있다.
 
 ## 구조
 
 | 경로 | 내용 |
 |---|---|
-| `extensions/jbro-engine` | GitHub 로그인 진입점·계정 상태·내장 계정 관리 연결. 프로젝트·빌드 연결은 아직 구현하지 않았다 |
+| `extensions/jbro-engine` | 다섯 항목 도구막대·표시 설정·기존 패널/태스크 명령, GitHub 로그인·계정 관리 연결. 엔진 전용 프로젝트·빌드 연결은 아직 구현하지 않았다 |
 | `extensions/jbro-languages` | `.jscript` 언어 등록과 TextMate 문법, `.jproject`·`.jcanvas`·`.jprefab` 의 YAML 연결 |
 | `scripts/check-nls.mjs` | 확장의 번역 파일이 빠짐없이 채워졌는지 검사한다 |
 | `scripts/run-grammar-tests.mjs` | 문법 단언 테스트와 스냅숏 테스트를 돌린다 |
@@ -46,7 +68,7 @@ npm run test:nls
 
 ## upstream Code-OSS 빌드
 
-개발 빌드의 실행 환경이다. 현재 작업 체크아웃에는 아래 세 코어 패치가 적용되어 있다.
+개발 빌드의 실행 환경이다. 현재 작업 체크아웃에는 아래 네 코어 패치가 적용되어 있다.
 패치 목록과 각 우회의 이유는 `tasks/ide-plan.md` §4.2 와 §5.2 에 있다.
 
 **upstream 체크아웃과 도구는 엔진 리포 밖에 둔다.** 둘을 담는 폴더를 환경 변수 `JBRO_EDITOR_WORK` 로 준다
@@ -119,6 +141,12 @@ node scripts\apply-patches.mjs
 scripts\upstream-compile.cmd
 ```
 
+`upstream-compile.cmd`는 전체 `compile-client`를 실행한다. 본체 패치의 개발 실행만 갱신할 때는
+`upstream-env.cmd`로 환경을 준비한 뒤 upstream 폴더에서 `npm run transpile-client`를 선택할 수 있다.
+소스 변환과 타입 검사는 별도이며, 필요한 출력 파일·종료 코드·타입 검사 결과를 함께 확인한다.
+이번 0004 검증에서는 본체 변환·변경 파일의 증분 변환·최종 native 타입 검사가 통과했다.
+첫 전체 `compile-client`의 종료 결과는 확보하지 못했으므로 전체 컴파일 성공으로 보고하지 않는다.
+
 패치 하나를 고칠 때는 upstream 체크아웃에서 직접 고친 뒤 그 패치가 건드리는 파일만 골라 다시 뽑는다
 (`git -C %JBRO_EDITOR_WORK%\upstream diff -- <파일들> > patches\NNNN-이름.patch`). 패치끼리 같은 파일을 건드리지 않게 둔다.
 뽑은 뒤에는 되돌리고 `apply-patches.mjs` 로 다시 적용해서, 손으로 고친 결과와 같은지 `git -C %JBRO_EDITOR_WORK%\upstream diff` 로 비교한다.
@@ -128,14 +156,21 @@ scripts\upstream-compile.cmd
 | `0001-default-locale-ko` | 적용. 새로 만들어지는 `argv.json` 에 `"locale": "ko"` 가 들어가는 것을 확인했다 |
 | `0002-remove-chat-ai` | 적용. `chat.disableAIFeatures` 기본값을 `true` 로 바꾼다. 에이전트 호스트가 뜨지 않고 새 에러가 없으며, 화면에 채팅·Copilot 안내가 뜨지 않는다. **없애지 않고 기본으로 끈다** - 사용자가 설정에서 다시 켤 수 있다. 기여 import 를 빼는 첫 방식은 태스크·디버그가 채팅 서비스에 기대고 있어 쓸 수 없었다 |
 | `0003-block-vsix-install` | 적용. CLI 의 VSIX 설치가 거절되고, 명령 팔레트에 VSIX 설치 항목이 없으며, 시작할 때 새 에러가 없다 |
+| `0004-jbro-layout` | 적용·본체 변환·타입 검사·실제 renderer 검사 통과. 제목줄 JBro 메뉴 슬롯과 데스크톱 기본 메뉴 숨김. 확장이 다섯 버튼과 Activity Bar 숨김 기본값을 제공하며 저장된 사용자 설정은 보존 |
 
 **C: 에 쓰지 않는다.** `upstream-env.cmd` 가 `LOCALAPPDATA`·`TEMP`·`npm_config_cache` 를 `.toolchain` 아래로 돌린다.
 예외는 홈 폴더의 `.vscode-oss-dev\argv.json` 과 `.vscode-oss-shared` 두 가지로, 위치가 `--user-data-dir` 를 따르지 않는다.
 
 ## 화면 글자
 
-기본은 한국어이고 원문은 영어다. 확장이 화면에 내는 글자는 `package.nls.json`(영어) 과
-`package.nls.ko.json` 에, 실행 중 글자는 `l10n/bundle.l10n*.json` 에 둔다. 키가 빠지면 `npm test` 가 실패한다.
+빡대리 지시에 따라 JBro 화면 작업은 한국어를 우선한다(D-312). `jbro-engine`의 manifest 기본 문구는
+`package.nls.json`의 한국어이며, 영어는 `package.nls.en.json`, 한국어 번역 파일은 `package.nls.ko.json`에 보존한다.
+현재 upstream의 개발 모드는 manifest 번역에서 locale을 사용하지 않고 기본 파일을 읽으므로 이 기본값을 바꿨다.
+기존 `jbro-languages`의 영어 기본 파일과 실행 문구의 `l10n/bundle.l10n*.json` 구조는 그대로다. 키 누락은 번역 검사에서 실패한다.
+
+실제 개발 창의 `프로젝트·Git·빌드·실행·오류/로그` 한국어 표시는 확인했다.
+개발 실행에서 로그인 상태 문구와 Code-OSS의 Source Control·Problems·Output 본문은 영어로 남아 있다.
+전체 편집기의 한국어 표시와 언어 팩을 포함한 설치본은 아직 확인하지 않았다.
 
 ## 문법이 덮는 범위
 

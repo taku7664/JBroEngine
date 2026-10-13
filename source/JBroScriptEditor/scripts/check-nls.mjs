@@ -1,6 +1,6 @@
 // Checks that every JBro extension is translated completely.
 //
-// VS Code falls back to the default (English) file silently when a key is missing, so a
+// VS Code falls back to the default file silently when a key is missing, so a
 // missing translation cannot be seen on screen. This script makes it a test failure instead.
 //
 // For every folder under extensions/:
