@@ -1,5 +1,6 @@
 ﻿#include <JBro/AudioTypes/Service/AudioService.h>
 
+#include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/AudioTypes/Internal/SystemContext.h>
 #include <JBro/AudioTypes/System/IAudioSystem.h>
 #include <JBro/Types/Bool.h>
@@ -58,53 +59,53 @@ namespace JBro::Service
         }
     }
 
-    void AudioService::Play(Ref<Component::AudioSource> source) const
+    void AudioService::Play(Handle::AudioSource source) const
     {
         System::IAudioSystem* audio = Audio();
-        if (Component::AudioSource* target = source.Get(); audio != nullptr && target != nullptr)
+        if (Component::AudioSource* target = Internal::ComponentHandleAccess::ResolveAs<Component::AudioSource>(source); audio != nullptr && target != nullptr)
         {
             audio->PlaySource(*target);
         }
     }
 
-    void AudioService::Stop(Ref<Component::AudioSource> source, Float fadeOutSeconds) const
+    void AudioService::Stop(Handle::AudioSource source, Float fadeOutSeconds) const
     {
         System::IAudioSystem* audio = Audio();
-        if (Component::AudioSource* target = source.Get(); audio != nullptr && target != nullptr)
+        if (Component::AudioSource* target = Internal::ComponentHandleAccess::ResolveAs<Component::AudioSource>(source); audio != nullptr && target != nullptr)
         {
             audio->StopSource(*target, fadeOutSeconds);
         }
     }
 
-    void AudioService::Pause(Ref<Component::AudioSource> source) const
+    void AudioService::Pause(Handle::AudioSource source) const
     {
         System::IAudioSystem* audio = Audio();
-        if (Component::AudioSource* target = source.Get(); audio != nullptr && target != nullptr)
+        if (Component::AudioSource* target = Internal::ComponentHandleAccess::ResolveAs<Component::AudioSource>(source); audio != nullptr && target != nullptr)
         {
             audio->PauseSource(*target);
         }
     }
 
-    void AudioService::Resume(Ref<Component::AudioSource> source) const
+    void AudioService::Resume(Handle::AudioSource source) const
     {
         System::IAudioSystem* audio = Audio();
-        if (Component::AudioSource* target = source.Get(); audio != nullptr && target != nullptr)
+        if (Component::AudioSource* target = Internal::ComponentHandleAccess::ResolveAs<Component::AudioSource>(source); audio != nullptr && target != nullptr)
         {
             audio->ResumeSource(*target);
         }
     }
 
-    Bool AudioService::IsPlaying(Ref<Component::AudioSource> source) const
+    Bool AudioService::IsPlaying(Handle::AudioSource source) const
     {
         System::IAudioSystem* audio = Audio();
-        const Component::AudioSource* target = source.Get();
+        const Component::AudioSource* target = Internal::ComponentHandleAccess::ResolveAs<Component::AudioSource>(source);
         return audio != nullptr && target != nullptr && audio->IsSourcePlaying(*target);
     }
 
-    double AudioService::GetTime(Ref<Component::AudioSource> source) const
+    double AudioService::GetTime(Handle::AudioSource source) const
     {
         System::IAudioSystem* audio = Audio();
-        const Component::AudioSource* target = source.Get();
+        const Component::AudioSource* target = Internal::ComponentHandleAccess::ResolveAs<Component::AudioSource>(source);
         return audio != nullptr && target != nullptr ? audio->GetSourceTime(*target) : 0.0;
     }
 

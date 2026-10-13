@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/GameObjectHandle.h>
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Types/SafePtr.h>
@@ -82,6 +83,16 @@ namespace
         }
 
         JBro::Int32 Value = 0;
+    };
+
+    // `Handle::GameObject::GetComponent<T>` 는 핸들 타입을 받는다(D-302). 시험 컴포넌트에도 같은 이름의 핸들을 둔다.
+    class TestComponentHandle final : public JBro::Internal::ComponentHandle
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return TestComponent::StaticTypeName();
+        }
     };
 
     void TestSafePtrExpiresWithOwner()
@@ -372,7 +383,8 @@ namespace
 
         JBro::Handle::GameObject handle = parent->GetScriptHandle();
         Check(handle.IsValid(), "handle must resolve a live object");
-        Check(handle.GetComponent<TestComponent>().Get() == first,
+        const TestComponentHandle foundHandle = handle.GetComponent<TestComponentHandle>();
+        Check(JBro::Internal::ComponentHandleAccess::Resolve(foundHandle) == first,
             "handle component lookup must preserve first-match semantics");
         handle.SetActive(false);
         Check(false == parent->IsActiveSelf(), "handle must safely change active state");

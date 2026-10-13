@@ -1,23 +1,18 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Camera3D`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::Camera3D through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
+#include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
-
-namespace JBro::Component
-{
-    enum class CameraProjection3D { Perspective, Orthographic };
-}
-
-namespace JBro
-{
-    JBRO_DEFINE_ENUM_TYPE(Component::CameraProjection3D, "Component::CameraProjection3D",
-        { Component::CameraProjection3D::Perspective,  "Perspective" },
-        { Component::CameraProjection3D::Orthographic, "Orthographic" });
-}
 
 namespace JBro::Component
 {

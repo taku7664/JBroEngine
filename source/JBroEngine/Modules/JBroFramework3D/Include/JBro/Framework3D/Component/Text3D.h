@@ -1,6 +1,13 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Text3D`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::Text3D through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
 #include <JBro/AssetTypes/AssetTypesReflection.h>
+#include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Runtime/Component.h>
@@ -10,20 +17,6 @@
 #include <cstdint>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
-
-namespace JBro::Component
-{
-    // 글자 판이 어디를 보나(D-222). Transform 은 오브젝트의 회전을 따르는 판(간판·벽의 글씨), Billboard 는 늘 카메라를 보는 판(이름표)이다.
-    // Billboard 는 오브젝트의 위치와 크기만 쓰고 회전은 뷰마다 카메라의 것으로 바꾼다 - 시뮬레이션 뷰와 편집 뷰가 각자 제 카메라를 본다.
-    enum class TextFacing3D : std::uint8_t { Transform, Billboard };
-}
-
-namespace JBro
-{
-    JBRO_DEFINE_ENUM_TYPE(Component::TextFacing3D, "Component::TextFacing3D",
-        { Component::TextFacing3D::Transform, "Transform" },
-        { Component::TextFacing3D::Billboard, "Billboard" });
-}
 
 namespace JBro::Component
 {

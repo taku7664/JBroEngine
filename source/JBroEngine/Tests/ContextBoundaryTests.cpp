@@ -47,9 +47,9 @@ namespace
         static_assert(offsetof(JBro::Framework3DServiceContext, AbiVersion) == 0);
         static_assert(std::is_same_v<decltype(JBro::Framework3DServiceContext::Text3D), JBro::Service::Text3DService>);
         // 텍스트 서비스는 차원마다 따로지만 몸통은 하나다(D-224): 둘 다 공용 틀에서 나오고 가상 함수가 없다.
-        static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Component::Text2D, JBro::Service::Text2DService>,
+        static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Handle::Text2D, JBro::Service::Text2DService>,
             JBro::Service::Text2DService>);
-        static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Component::Text3D, JBro::Service::Text3DService>,
+        static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Handle::Text3D, JBro::Service::Text3DService>,
             JBro::Service::Text3DService>);
         static_assert(false == std::is_polymorphic_v<JBro::Service::Text3DService>);
         static_assert(std::is_same_v<decltype(JBro::Framework2DSystemContext::Text2D), JBro::System::ITextSystem*>);

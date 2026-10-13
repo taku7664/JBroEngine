@@ -243,7 +243,7 @@ JBRO_SCRIPT_MODULE_2D()
 
 ### 3.6 스크립트 API 의 구멍
 
-**먼저 참조의 모양을 바꾼다(D-302, 구현 전).** 오브젝트 API 는 그 위에 선다.
+**먼저 참조의 모양을 바꾼다(D-302, 1~3 단계가 섰다).** 오브젝트 API 는 그 위에 선다.
 
 1. ~~이름~~ **섰다**(2026-09-29): 엔진 `GameObject` → `JBro::Object::GameObject`, `GameObjectHandle` → `JBro::Handle::GameObject`, 프렐류드에 `using namespace JBro::Handle;`.
    리플렉션 잎사귀는 `JBro.Handle.GameObject`. 프렐류드 시험이 `GameObject` 가 핸들로 풀리는지 단언하고, `JBRO_TEST_OBJECT_NAMESPACE_IN_PRELUDE` 를 켜면 모호해 컴파일이 실패한다.
@@ -252,7 +252,11 @@ JBRO_SCRIPT_MODULE_2D()
    캔버스 파일은 `Scripts:` 를 따로 적고 모르는 것은 스크립트만 든다(`UnresolvedScript`, `ResolveKeptScripts`). `ComponentRegistry` 는 빌트인만 든다.
    에디터는 "붙은 것"(`AttachedRef`, 컴포넌트 또는 스크립트)과 주소의 `kind` 로 필드 편집·스냅숏·붙이기·떼기·옮기기·붙여넣기를 한 길로 다루고,
    인스펙터는 컴포넌트 목록 아래 스크립트 목록과 `스크립트 추가` 를 따로 그린다. 오브젝트 메뉴에도 `스크립트 추가` 가 선다. 에셋 해석 패스는 스크립트의 에셋 필드도 돈다.
-3. 빌트인 핸들: 2D 7 종·3D 6 종의 `Handle::*`, 데이터 헤더를 스크립트 대상에서 막는 음성 시험, 서비스 인자를 핸들로.
+3. ~~빌트인 핸들~~ **섰다**(2026-10-13): 빌트인 20 종(2D 12·3D 7·공용 `AudioSource`, D-302 를 적을 때의 "7 종·6 종" 에서 조명·조인트 등이 늘었다)마다
+   `JBro::Handle` 에 같은 이름의 24B 핸들이 있다. 몸은 `Internal::ComponentHandle`, 필드는 `Get`·`Set` + 필드 이름, 월드 캐시·버튼 상태·저장되는 에셋 id 는 getter 만.
+   스크립트가 쓰는 열거형·물리 값은 `ComponentTypes2D.h`·`ComponentTypes3D.h`·`AudioSourceTypes.h` 로 옮겼고, 데이터 헤더 15 개는 스크립트 대상에서 `#error` 다
+   (음성 시험 `JBroTierProbe=ComponentData`). `AudioService`·`Text2DService`·`Text3DService` 가 핸들을 받는다. 남은 것: 스크립트 필드로 컴포넌트 핸들을 저장하는
+   리플렉션(`JBRO_FIELD(Transform2D, m_target)`)은 없다 - `Ref<T>` 필드도 없던 것이라 그대로 두었다. 에셋 id 를 바꾸는 setter 는 없다(id → 핸들 풀기가 캔버스를 열 때만 돈다).
 4. 아래 오브젝트 만들기·찾기(D-301 을 D-302 의 이름으로 읽는다).
 
 - 오브젝트 만들기·찾기: **모양이 섰다(D-301), 구현 전이다.**
@@ -262,7 +266,7 @@ JBRO_SCRIPT_MODULE_2D()
   - 기본 트랜스폼은 프레임워크 구현이 붙인다. 삭제는 `handle.Destroy()` 하나이고, 요청한 순간부터 모든 사본이 무효이며 찾기에서 빠진다.
   - 프리팹(`PrefabSpawner`)은 뒤로 미룬다.
   - 구현하며 잴 것: 순회 중에 만든 오브젝트의 스크립트 훅이 언제부터 도는가.
-- `ReadOnly` 필드: 월드 캐시를 스크립트가 쓰지 못하게 한다. **빌트인 핸들(D-302)이 getter 만 두어 닫는다** - 위 3 단계.
+- ~~`ReadOnly` 필드~~ **닫혔다**(2026-10-13): 빌트인 핸들(D-302)이 월드 캐시·버튼 상태·오디오 상태에 getter 만 둔다 - 위 3 단계.
 
 ### 3.7 3D
 

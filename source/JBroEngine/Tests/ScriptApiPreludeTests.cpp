@@ -46,11 +46,23 @@ namespace
 
     void TestScriptPreludeSurface()
     {
-        static_assert(std::is_same_v<decltype(Ref<ComponentBase>::Category), const RefCategory>);
+        static_assert(std::is_same_v<decltype(Ref<PreludeScriptProbe>::Category), const RefCategory>);
         static_assert(std::is_class_v<PreludeScriptProbe>);
         // 이 테스트 프로젝트는 두 차원의 include 경로를 모두 갖는다. 어느 프렐류드를 받았는지
         // 드러나도록 2D 전용 타입을 직접 짚는다. 실제 배타성은 스크립트 프로브가 증명한다.
-        static_assert(std::is_base_of_v<ComponentBase, Component::Transform2D>);
+        // **빌트인 컴포넌트도 핸들이다**(D-302). 프렐류드의 `Transform2D` 는 24B 핸들이고 데이터 클래스는 보이지 않는다.
+        static_assert(std::is_same_v<Transform2D, JBro::Handle::Transform2D>,
+            "the prelude must make Transform2D mean the handle");
+        static_assert(sizeof(Transform2D) == 24, "and a component handle is 24 bytes");
+        static_assert(std::is_same_v<decltype(GameObject{}.GetComponent<Transform2D>()), Transform2D>,
+            "GetComponent takes a handle type and gives that handle back");
+#if defined(_MSC_VER)
+        __if_exists(JBro::Component::Transform2D)
+        {
+            static_assert(false == CompleteType<JBro::Component::Transform2D>,
+                "the prelude must not bring the component data class");
+        }
+#endif
 
         // **프렐류드는 `JBro` 만 연다**(D-260). `JBro::Fixed::String<N>` 은 `JBro::String` 과 이름이 같고
         // 자리만 다르므로, 프렐류드가 `JBro::Fixed` 까지 열면 스크립트 작성자의 `String` 이 모호해진다.
@@ -85,11 +97,15 @@ namespace
 #endif
 
         GameObject handle;
-        Ref<ComponentBase> componentReference;
+        Transform2D componentHandle;
         ServiceContext services;
-        Check(false == handle.IsValid() && false == static_cast<bool>(componentReference)
+        Check(false == handle.IsValid() && false == componentHandle.IsValid()
             && services.AbiVersion == ServiceContextAbiVersion,
             "script prelude must expose safe runtime handles and the service context");
+        // 빈 핸들의 안전 멤버는 아무것도 하지 않고 기본값을 준다(경고만 남는다).
+        componentHandle.SetPosition({3.0f, 4.0f});
+        Check(componentHandle.GetPosition().x == 0.0f && false == componentHandle.GetGameObject().IsValid(),
+            "an empty component handle ignores writes and reads the default");
     }
 }
 

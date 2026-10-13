@@ -19,7 +19,7 @@
 // 네트워크 값 서비스(D-122). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.
 #include <JBro/Network/ServiceContext.h>
 // 오디오 값 서비스와 소스(D-197). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.
-#include <JBro/AudioTypes/Component/AudioSource.h>
+#include <JBro/AudioTypes/Handle/AudioSource.h>
 #include <JBro/AudioTypes/ServiceContext.h>
 // 게임 입력(D-214). 키 이름·장치 상태와 `GetInputServices().Input` 이다. 이것도 두 프렐류드가 같은 줄을 공유한다.
 #include <JBro/InputTypes/InputBuffer.h>
@@ -28,12 +28,15 @@
 #include <JBro/LocalizationTypes/ServiceContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
 
-#include <JBro/Framework3D/Component/AudioListener3D.h>
-#include <JBro/Framework3D/Component/Camera3D.h>
-#include <JBro/Framework3D/Component/MeshRenderer3D.h>
-#include <JBro/Framework3D/Component/Physics3D.h>
-#include <JBro/Framework3D/Component/Text3D.h>
-#include <JBro/Framework3D/Component/Transform3D.h>
+// 빌트인 컴포넌트는 핸들로만 보인다(D-302). 데이터 헤더(`Component/*.h`)는 스크립트 대상 빌드에서 `#error` 다.
+#include <JBro/Framework3D/ComponentTypes3D.h>
+#include <JBro/Framework3D/Handle/AudioListener3D.h>
+#include <JBro/Framework3D/Handle/Camera3D.h>
+#include <JBro/Framework3D/Handle/Collider3D.h>
+#include <JBro/Framework3D/Handle/MeshRenderer3D.h>
+#include <JBro/Framework3D/Handle/Rigidbody3D.h>
+#include <JBro/Framework3D/Handle/Text3D.h>
+#include <JBro/Framework3D/Handle/Transform3D.h>
 #include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Types/Math3D.h>

@@ -242,8 +242,8 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vector2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vector3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247)·**크기**(`Types/Size.h` 의 `Size`·`SizeU`·`SizeI`, RHI 의 `Extent2D` 가 `SizeU` 다)·**비트 묶음**(`Types/BitFlag.h`)·**안전 영역**(`Types/SafeArea.h`)·**프레임 생존 표시**(`Types/FrameLiveness.h` 의 `RemoveStaleEntries`, 모두 D-249) |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`Object::GameObject`·`Handle::GameObject`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
-  | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`Object::GameObject`·`Handle::GameObject`·`Internal::ComponentHandle`(빌트인 컴포넌트 핸들의 몸, D-302)·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
+  | Tier S | `JBroFramework2D` | 컴포넌트·컴포넌트 핸들(`Handle/*.h`)·컴포넌트 값 타입(`ComponentTypes2D.h`)·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
   | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-214) |
@@ -380,11 +380,18 @@
 - **핸들은 스크립트 노출 표면에만 적용한다.** (MUST)
   스크립트가 다른 오브젝트를 오래 들고 있는 자리가 실제 댕글링이 나는 곳이고,
   거기만 `GameObject` 핸들로 덮는다.
-- **스크립트에 노출하는 참조는 `JBro::Handle` 의 핸들과 스크립트용 `Ref<T>` 다. 핸들의 이름은 엔진 타입과 같다.** (MUST) (D-302. **이름**(1 단계)과 **컴포넌트·스크립트 분리**(2 단계)는 섰다. 빌트인 핸들(3 단계)은 구현 전이고, 아래 옛 문단의 컴포넌트 `Ref<T>` 가 지금 코드다)
+- **스크립트에 노출하는 참조는 `JBro::Handle` 의 핸들과 스크립트용 `Ref<T>` 다. 핸들의 이름은 엔진 타입과 같다.** (MUST) (D-302. **이름**(1 단계)·**컴포넌트·스크립트 분리**(2 단계)·**빌트인 핸들**(3 단계)이 섰다)
   - 오브젝트는 `Handle::GameObject`(16B), 빌트인 컴포넌트는 `Handle::Transform2D` 처럼 타입마다 하나(24B, 저장부 `InstanceRef`)다. 프렐류드가 `using namespace JBro;` 와 `using namespace JBro::Handle;` 을 연다.
   - 엔진 타입은 `JBro::Object::GameObject`·`JBro::Component::*` 에 있고 프렐류드는 그 네임스페이스를 열지 않는다. 컴포넌트 데이터 헤더는 스크립트 대상 빌드에서 `#error` 다.
   - `GetComponent<T>` 의 `T` 는 핸들 타입이다. 핸들의 타입 이름은 데이터 클래스와 같아 타입 id 가 같고, 오브젝트에서 확인해 있으면 채운 핸들을, 없으면 빈 핸들을 돌려준다.
   - 핸들의 멤버는 안전 멤버다. 무효면 로그를 남기고 무시하며, 값을 돌려주는 멤버는 로그와 기본값이다. 생 포인터를 내주지 않고, 월드 캐시는 getter 만 있다.
+  - 빌트인 핸들은 `Internal::ComponentHandle`(24B, 저장부 `InstanceRef`, 가상 함수 없음)에서 파생하고 데이터 멤버를 더하지 않는다. 공용 멤버는 `IsValid`·`GetGameObject`·`IsEnabled`·`SetEnabled`·`==` 다.
+    필드는 **`Get`·`Set` + 필드 이름**이다(`position` → `GetPosition`·`SetPosition`, `isTrigger` → `GetIsTrigger`). 시스템이 채우는 값(월드 캐시·버튼 상태·오디오 상태)과
+    저장되는 에셋 id 는 getter 만 두고, 에셋은 이번 실행의 자리(`SetSprite(AssetHandle)` 등)로 바꾼다. 배열 필드는 `GetPoints(Array<Vector2>&)` 처럼 호출자의 배열에 복사한다.
+    데이터 클래스에 있던 동작(`Rigidbody2D::AddForce` 등)은 같은 이름으로 핸들에 있다. 핸들의 몸은 프레임워크 라이브러리의 `.cpp` 에 있고 그쪽만 데이터 헤더를 본다.
+  - 스크립트가 쓰는 열거형과 값(`Component::BodyType2D`·`PhysicsLayerMask`·`Collision2D`·`RaycastHit2D` 등)은 데이터 헤더가 아니라 `ComponentTypes2D.h`·`ComponentTypes3D.h`·`AudioSourceTypes.h` 에 있다.
+    서비스는 핸들을 받는다(`AudioService::Play(AudioSource)`·`Text2DService::SetText(Text2D, …)`). 서비스가 데이터에 닿는 길은 `Internal::ComponentHandleAccess::ResolveAs<TData>` 하나다.
+  - 데이터 헤더를 막는 것은 음성 시험으로 본다: `msbuild JBroEngine.slnx /p:JBroTierProbe=ComponentData` 가 `#error` 로 실패해야 한다(`Tests/ScriptModuleProbe/Source/TierProbe.cpp`).
   - `Ref<T>` 는 스크립트 전용이다. 스크립트는 컴포넌트가 아니다 - `GameScriptBase` 는 `ComponentBase` 를 상속하지 않고, 오브젝트는 컴포넌트 목록과 스크립트 목록을 따로 들며,
     스크립트 실행 순서는 스크립트 목록의 차례다. 캔버스 파일은 `Components:` 와 `Scripts:` 를 따로 적고 옛 형식을 읽지 않는다.
 
@@ -392,11 +399,8 @@
     `ReleaseModuleScripts` 는 이름으로 붙인 것만 뗀다. 오브젝트에서 스크립트는 `GetScript<T>`/`GetScripts<T>`, 핸들에서는 `GetScript<T>` 로 찾는다.
     `ComponentRegistry` 는 빌트인만 든다. 이름으로 무엇이든 붙여야 하는 에디터 자리는 `AttachByName`(`ComponentCommands.h`) 하나를 거친다.
 
-  아래는 D-302 전의 계약 중 아직 코드에 남은 것이다(3 단계에서 지운다).
-  `GameObject`는 16B `Handle::GameObject`로 다루며, `operator->` 없이 안전 멤버만 제공한다.
-  컴포넌트는 24B `Ref<T>`를 쓰고 카테고리는 `T`에서 컴파일타임에 결정한다.
   에셋은 `AssetHandle`, 캔버스는 스크립트에 노출하지 않으므로 `RefCategory::Asset`·`Canvas`는 두지 않는다. (D-53)
-  이 둘 외에 타입별 핸들을 추가하지 않는다. 두 크기(16B·24B)는 영구 고정이다. (D-44)
+  두 크기(오브젝트 핸들 16B·컴포넌트 핸들과 `Ref<T>` 24B)는 영구 고정이다. (D-44, D-302)
 - `Handle::GameObject`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
 - **워커 스레드의 일은 `JBroTask` 의 `TaskManager` 에 태스크로 등록한다.** 모듈마다 `std::thread` 를 새로 들지 않는다. 예외는 실시간 마감이
   있는 오디오 스트리머·장치 스레드, OS 대기에서 막히는 파일 감시, 그리고 스텝 안에서 나눴다 합치는 2D 물리의 전용 워커(아래)다. (SHOULD) (D-209, D-223)
@@ -410,9 +414,10 @@
   호스트가 프로젝트를 연 뒤 한 번 풀어 넘긴다. 스레드가 없는 빌드는 늘 메인 한 스레드다. 워커는 후보마다 매니폴드만 제 칸에 쓰고, 거르기·접촉 모으기·
   솔버·되쓰기·훅 발송·질의는 메인 스레드에서 돈다 - 결과는 워커 수와 관계없이 같아야 한다. 워커는 시작할 때만 세우고 스텝 중에 할당하지 않는다.
   (MUST) (D-199, D-223, physics-plan §3.7)
-- **`GetComponent<T>()` 는 원시 포인터가 아니라 `Ref<T>` 를 반환한다.** (MUST)
+- **`GetComponent<T>()` 는 원시 포인터를 반환하지 않는다.** (MUST) 스크립트 핸들(`Handle::GameObject`)의 것은 컴포넌트 핸들을,
+  엔진 오브젝트(`Object::GameObject`)의 것은 `Ref<T>` 를 준다(D-302).
   원시 포인터는 저장할 수 없어 매 프레임 다시 찾아야 하고, 그 조회가 선형 탐색이다.
-  `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.
+  핸들이나 `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.
   시스템이 쓰는 `T*` 반환 조회는 `GetComponent`라는 이름을 쓰지 않고 Tier E 내부 접근 클래스의 `FindComponentRaw<T>`로 둔다. (D-42)
 - `Ref<T>` 의 접근자는 하나다. 별도의 스코프 객체 타입을 두지 않는다. (MUST)
 
@@ -434,7 +439,7 @@
   **경로가 둘인 게 아니라 접근자 하나에 사용법이 둘이다.**
   `operator->` 는 내부적으로 `Get()` 을 부르며, Debug 빌드 assert 만 차이다.
 - 스크립트가 대상의 수명 밖까지 보관하는 멤버에는 raw pointer를 저장하지 않는다. (MUST)
-  `GameObject`를 저장하면 `Handle::GameObject`, 그 외 대상을 저장하면 `Ref<T>`를 멤버로 둔다.
+  `GameObject`를 저장하면 `Handle::GameObject`, 빌트인 컴포넌트는 그 핸들(`Transform2D`), 스크립트는 `Ref<T>`를 멤버로 둔다(D-302).
 - **컴포넌트가 저장되는 값으로 다른 오브젝트를 가리키면 `Handle::GameObject` 필드를 둔다**(리플렉션 잎사귀 `JBro.Handle.GameObject`). (MUST) (D-233)
   캔버스 파일에는 그 오브젝트의 파일 안 번호로, 되돌리기·클립보드·스냅숏 글자에는 이번 실행의 오브젝트 번호(`@번호`)로 적힌다.
   오브젝트 번호(`InstanceId`)를 파일에 쓰지 않는다 - 실행마다 다르다. 지운 오브젝트를 되돌리면 옛 번호로 되살아나 참조가 이어진다.
@@ -520,14 +525,20 @@
   ```cpp
   GameObject target;                           // 스크립트에서는 핸들이다(D-302)
   target.Destroy();                            // 안전 멤버. if 불필요
-  Ref<Component::Transform2D> transform = target.GetComponent<Component::Transform2D>();
-  if (auto* value = transform.Get())            // Ref<T>는 실패를 직접 확인한다
+  Transform2D transform = target.GetComponent<Transform2D>();   // 빌트인 컴포넌트도 핸들이다
+  transform.SetPosition({1.0f, 2.0f});         // 안전 멤버. 없으면 경고만 남는다
+  if (transform.IsValid())                     // 있는지가 뜻이 있으면 묻는다
+  {
+      …
+  }
+  Ref<EnemyScript> enemy = target.GetScript<EnemyScript>();
+  if (EnemyScript* value = enemy.Get())        // 스크립트는 Ref<T> 이고 실패를 직접 확인한다
   {
       …
   }
   ```
 
-  GameObject만 안전 명령용 Handle을 쓰며, 컴포넌트·스크립트별 Handle은 만들지 않는다.
+  오브젝트와 빌트인 컴포넌트는 안전 멤버를 가진 핸들이고, 스크립트별 핸들은 만들지 않는다(D-6).
 - **`Handle::GameObject`에는 `operator->`를 추가하지 않는다.** (MUST)
   안전 멤버 내부에서 대상 해석에 실패하면 즉시 `return`할 수 있어야 한다.
 - **안전 경로의 무효 접근은 로그를 남기고 아무 일도 하지 않는다.** (MUST)
@@ -535,8 +546,9 @@
   Release 빌드에서도 검사(슬롯 범위 + 세대 비교)를 제거하지 않는다.
 - 값을 돌려주는 접근은 실패가 드러나야 한다. (MUST)
   대상이 없을 때 기본값을 조용히 돌려주면 찾기 어려운 논리 버그가 된다.
-  현재 `GetComponent<T>()`는 `Ref<T>`를 반환하고 사용자가 `Get()` 결과를 확인하는 방식으로
-  실패를 드러낸다. 존재하지 않는 값을 대신 만들어 반환하지 않는다.
+  `Ref<T>` 는 사용자가 `Get()` 결과를 확인하는 방식으로 실패를 드러낸다. 빌트인 핸들의 getter 는 무효일 때
+  기본값을 주지만 **그때마다 경고를 남긴다**(D-302) - 조용하지 않다. 있는지가 뜻이 있으면 `IsValid()` 로 묻는다.
+  존재하지 않는 값을 대신 만들어 반환하지 않는다.
 
 - 죽은 대상용 가짜 인스턴스를 돌려주지 않는다. (MUST)
   함수가 절반만 실행되어(죽은 적이 점수를 주는 식) 무시보다 나쁜 결과가 된다.

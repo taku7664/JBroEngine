@@ -1,0 +1,43 @@
+﻿#pragma once
+
+#include <JBro/Framework2D/ComponentTypes2D.h>
+#include <JBro/Runtime/ComponentHandle.h>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+
+#include <type_traits>
+
+namespace JBro::Component
+{
+    class ShadowCaster2D;
+}
+
+namespace JBro::Handle
+{
+    // 스크립트가 보는 `ShadowCaster2D` 다(D-302). 데이터는 엔진의 `Component::ShadowCaster2D` 에 있고, 이것은 그 자리를 가리키는 24B 값이다.
+    // 2D 그림자를 드리운다(D-291).
+    // 무효한 핸들의 멤버는 경고를 남기고 아무것도 하지 않으며, 값을 돌려주는 멤버는 그 타입의 기본값을 준다.
+    class ShadowCaster2D final : public Internal::ComponentHandle
+    {
+    public:
+        // 데이터 클래스와 같은 글자다 - 그래서 타입 id 가 같고 `GetComponent<ShadowCaster2D>()` 가 이것으로 찾는다.
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::ShadowCaster2D";
+        }
+
+        Component::ShadowShape2D GetShape() const;
+        void SetShape(Component::ShadowShape2D value);
+        Bool GetSelfShadow() const;
+        void SetSelfShadow(Bool value);
+
+    private:
+        Component::ShadowCaster2D* Resolve(const char* operation) const;
+    };
+
+    static_assert(sizeof(ShadowCaster2D) == 24, "a component handle is a 24-byte script value");
+    static_assert(std::is_standard_layout_v<ShadowCaster2D>, "a component handle must stay standard layout");
+    static_assert(std::is_trivially_copyable_v<ShadowCaster2D>, "a component handle must stay trivially copyable");
+}

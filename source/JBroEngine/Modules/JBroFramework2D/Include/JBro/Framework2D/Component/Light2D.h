@@ -1,5 +1,12 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Light2D`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::Light2D through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
+#include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Math2DReflection.h>
@@ -9,28 +16,6 @@
 #include <cstdint>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
-
-namespace JBro::Component
-{
-    // 라이트의 종류다(D-291). 값의 차례는 파일과 렌더러의 `Light2DKind` 가 함께 쓰므로 뒤에만 더한다.
-    enum class Light2DType : std::uint8_t
-    {
-        // 캔버스 전체에 같은 빛이다(환경광). 위치·반지름·각도를 보지 않는다. 여럿이면 더한다.
-        Global,
-        // 둘레로 퍼지는 빛이다.
-        Point,
-        // 오브젝트의 오른쪽(+x)을 향한 원뿔이다. 오브젝트를 돌리면 함께 돈다.
-        Spot,
-    };
-}
-
-namespace JBro
-{
-    JBRO_DEFINE_ENUM_TYPE(Component::Light2DType, "Component::Light2DType",
-        { Component::Light2DType::Global, "Global" },
-        { Component::Light2DType::Point,  "Point" },
-        { Component::Light2DType::Spot,   "Spot" });
-}
 
 namespace JBro::Component
 {

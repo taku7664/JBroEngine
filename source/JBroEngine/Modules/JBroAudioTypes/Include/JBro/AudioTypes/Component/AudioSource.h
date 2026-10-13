@@ -1,7 +1,14 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`AudioSource`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::AudioSource through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
 #include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/AudioTypes/AudioBusName.h>
+#include <JBro/AudioTypes/AudioSourceTypes.h>
 #include <JBro/AudioTypes/AudioTypes.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
@@ -14,37 +21,6 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
-
-namespace JBro::Component
-{
-    // 소스가 지금 어디에 있는가다. 인스펙터가 읽기 전용으로 보여 준다 - "왜 안 들리지" 를 화면에서 알 수 있게.
-    enum class AudioSourceState : std::uint8_t
-    {
-        // 재생한 적이 없다(또는 꺼졌다가 다시 무장됐다).
-        Idle,
-        Playing,
-        Paused,
-        // 루프가 아닌 소리가 끝까지 재생됐다. `playOnStart` 는 다시 켜질 때까지 다시 울리지 않는다.
-        Finished,
-        // 클립이 없거나 읽히지 않았다. 매 프레임 다시 시도하지 않는다.
-        NoClip
-    };
-}
-
-namespace JBro
-{
-    JBRO_DEFINE_ENUM_TYPE(AudioAttenuation, "JBro.AudioAttenuation",
-        { AudioAttenuation::None,        "None" },
-        { AudioAttenuation::Inverse,     "Inverse" },
-        { AudioAttenuation::Linear,      "Linear" },
-        { AudioAttenuation::Exponential, "Exponential" });
-    JBRO_DEFINE_ENUM_TYPE(Component::AudioSourceState, "Component::AudioSourceState",
-        { Component::AudioSourceState::Idle,     "Idle" },
-        { Component::AudioSourceState::Playing,  "Playing" },
-        { Component::AudioSourceState::Paused,   "Paused" },
-        { Component::AudioSourceState::Finished, "Finished" },
-        { Component::AudioSourceState::NoClip,   "NoClip" });
-}
 
 namespace JBro::Component
 {

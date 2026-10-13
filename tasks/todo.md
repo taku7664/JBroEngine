@@ -3046,7 +3046,7 @@ EditorApplication::Tick
   시험: `TestTheCameraAreaFollowsTheCameraObject`(돌리고 키운 카메라 오브젝트의 귀퉁이, `PixelPerfect` 의 크기, 그릴 수 없는 카메라는 영역이 없음).
   실제 에디터 창에서 그려진 것을 화면으로 재지는 않았다 - 그리기는 ImGui 그리기 목록이라 시험이 픽셀을 보지 않는다.
 
-- **D-302. 스크립트가 보는 참조는 `JBro::Handle` 의 핸들이고, 이름은 엔진 타입과 같다. 빌트인 컴포넌트도 핸들이며, 스크립트는 컴포넌트가 아니다.** (2026-09-29, 사용자 지시: "빌트인 컴포넌트도 핸들화시키고, 컴포넌트와 스크립트를 분리한다", "Transform2D라는 이름이 핸들이어야해 … 핸들타입->타입id->확인->있으면 핸들 반환", "스크립트는 GameObjectHandle이 아니라 GameObject를 써야하는데?", "캔버스 마이그레이션 지원 안해도 됨", "네임스페이스도 Object로 해. 그리고 핸들도 JBro::Handle::인데 … using namespace JBro::Handle 이거도 추가해") **구현 전이다 - 계약만 섰다.**
+- **D-302. 스크립트가 보는 참조는 `JBro::Handle` 의 핸들이고, 이름은 엔진 타입과 같다. 빌트인 컴포넌트도 핸들이며, 스크립트는 컴포넌트가 아니다.** (2026-09-29, 사용자 지시: "빌트인 컴포넌트도 핸들화시키고, 컴포넌트와 스크립트를 분리한다", "Transform2D라는 이름이 핸들이어야해 … 핸들타입->타입id->확인->있으면 핸들 반환", "스크립트는 GameObjectHandle이 아니라 GameObject를 써야하는데?", "캔버스 마이그레이션 지원 안해도 됨", "네임스페이스도 Object로 해. 그리고 핸들도 JBro::Handle::인데 … using namespace JBro::Handle 이거도 추가해") **1~3 단계가 섰고 4 단계(오브젝트 API)가 남았다.**
   Updates: D-5, D-42, D-44, D-45, D-48, D-233, D-264, D-300, D-301, cpp-script-plan §3.6, ProjectRule §5·§6.
   (1) **핸들은 `JBro::Handle` 에 있고 엔진 타입과 이름이 같다.** `Handle::GameObject`(16B, 지금의 `GameObjectHandle`), `Handle::Transform2D`·`Handle::SpriteRenderer2D` 같은
   빌트인 컴포넌트마다 하나(24B, 저장부는 `InstanceRef`). 게임 스크립트 프렐류드는 `using namespace JBro;` 와 **`using namespace JBro::Handle;`** 을 연다 -
@@ -3090,6 +3090,24 @@ EditorApplication::Tick
   머리 끌기(D-294)의 꾸러미도 `kind` 를 실어 다른 목록에는 놓이지 않는다. `AttachedRef` 의 `explicit operator bool` 은 엔진 값 타입(D-290)과 맞지 않아 `IsValid()` 로 바꿨다.
   (14) (2026-10-07) 2 단계가 `ComponentCategory::Script` 를 쓰는 자리를 지웠는데 번역 파일의 `component_category.Script` 는 남아, 로컬라이징 시험이 "헤더가 선언하지 않은 키" 로 main 에서 떨어졌다.
   스크립트는 갈래 없이 `스크립트 추가`(`inspector.add_script`)로 붙으므로 키를 되살리지 않고 `en-US.yaml`·`ko-KR.yaml` 에서 지웠다.
+  (15) **3 단계(빌트인 핸들)가 섰다**(2026-10-13). 빌트인 컴포넌트 20 종(2D 12·3D 7·공용 `AudioSource`)마다 `JBro::Handle` 에 같은 이름의 24B 핸들이 있다 -
+  (1) 의 "2D 7 종·3D 6 종" 은 이 결정을 적을 때의 셈이고 그사이 조명·조인트·버튼이 늘었다. 몸은 `Internal::ComponentHandle`(`InstanceRef` 하나, 가상 함수 없음)이고 공용 멤버는
+  `IsValid`·`GetGameObject`·`IsEnabled`·`SetEnabled`·`==` 다. 필드는 `Get`·`Set` + 필드 이름이고, 시스템이 채우는 값(월드 캐시·`Button2D` 상태·`AudioSource::state`)과 저장되는 에셋 id 는
+  getter 만 둔다 - 에셋은 이번 실행의 자리(`SetSprite(AssetHandle)`)로 바꾼다. id 를 바꾸는 setter 를 두지 않은 까닭: id → 핸들 풀기가 캔버스를 열 때만 돌아, 바꿔도 그리지 않는다.
+  배열 필드(`Collider2D::points`·`AudioSource::audioEffectIds`)는 호출자의 배열에 복사한다. `Rigidbody2D` 의 힘·깨우기는 같은 이름으로 핸들에 있다.
+  핸들의 몸은 프레임워크 라이브러리의 `.cpp`(`Source/Handle/*Handle.cpp` - 같은 이름의 `.cpp` 와 목적 파일이 겹쳐 뒤에 `Handle` 을 붙였다)에 있고 그쪽만 데이터 헤더를 본다.
+  스크립트가 쓰는 열거형과 물리 값(`PhysicsLayerMask`·`Collision2D`·`RaycastHit2D`)은 데이터 헤더에서 `ComponentTypes2D.h`·`ComponentTypes3D.h`·`AudioSourceTypes.h` 로 옮겼다 - 반사 이름은 그대로라 파일이 바뀌지 않는다.
+  데이터 헤더 15 개는 `JBRO_SCRIPT_TARGET` 에서 `#error` 다(음성 시험 `JBroTierProbe=ComponentData`, C1189 로 실패함을 확인). 프렐류드의 사슬에서 데이터 헤더를 끌던 곳(`GameScript.h`·
+  `Physics2DService.h`·`IPhysics2DSystem.h`·텍스트 서비스)은 값 헤더나 핸들 헤더로 바꿨다. `AudioService` 는 `Handle::AudioSource` 를, `TextServiceBase` 는 핸들 타입을 받고 글자 칸은 차원별 `.cpp` 의
+  `FindTextField` 가 찾는다. 서비스가 데이터에 닿는 길은 `ComponentHandleAccess::ResolveAs<TData>` 하나이고 두 타입의 이름이 다르면 컴파일이 실패한다.
+  엔진 쪽 `Object::GameObject::GetComponent<T>` 는 그대로 `Ref<T>` 다(시스템·에디터·시험이 쓴다). 무효 핸들의 경고는 `Handle::GameObject` 와 같은 `stderr` 한 줄이다.
+  남은 것: 스크립트 필드로 컴포넌트 핸들을 저장하는 리플렉션 잎사귀(`JBRO_FIELD(Transform2D, …)`)는 없다 - `Ref<T>` 필드도 없던 것이라 이번에 늘리지 않았다.
+  시험: 프렐류드의 `Transform2D` 가 24B 핸들이고 데이터 클래스가 보이지 않으며 빈 핸들은 쓰기를 무시하고 기본값을 준다, `GetComponent<핸들>` 이 첫 컴포넌트를 가리킨다,
+  살아 있는 핸들이 위치·회전(도 ↔ 라디안)·크기를 쓰고 월드 캐시를 읽으며 몸 핸들이 힘을 넘기고 켜짐을 바꾼다, 오브젝트를 지우면 모든 사본이 무효가 되어 쓰기를 무시한다(`GameScriptTests`),
+  텍스트 서비스가 핸들로 글자 칸(키 칸이 아니라)에 쓰고 읽는다(2D·3D). Debug·Debug_Game2D·Debug_Game3D 가 빌드되고 전체 시험이 지난다.
+  뮤테이션 4 개(핸들의 쓰기 빼기·`GetComponent` 가 번호를 싣지 않기·힘 넘기기 빼기·글자를 키 칸에 쓰기)가 모두 의도한 단언에서 죽었다 - 마지막 것은 처음에 살아남아
+  (표에 없는 키는 키 글자 그대로 그려져 화면이 같다) 글자 칸을 직접 보는 단언을 더했다. 실제 에디터 창과 스크립트 프로젝트로는 재지 않았다.
+  빌드는 `-m:2` 로 돌린다 - 무제한 병렬 빌드가 C 의 페이지 파일을 키워 사용자의 C 드라이브를 채웠다(추정, 빌드 전 크기는 재지 않았다).
 
 
 - **D-301. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **구현 전이다 - 계약만 섰다.**

@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
+#include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/Ref.h>
 
 #include <type_traits>
@@ -41,8 +42,10 @@ namespace JBro::Handle
         void SetTag(const char* tag);
         Bool CompareTag(const char* tag) const;
 
+        // **`T` 는 컴포넌트 핸들이다**(D-302): `GetComponent<Transform2D>()`. 핸들의 타입 이름이 데이터 클래스와 같아 타입 id 로
+        // 오브젝트의 컴포넌트 목록을 찾고, 있으면 채운 핸들을, 없으면 빈 핸들을 준다.
         template<typename T>
-        Ref<T> GetComponent() const;
+        T GetComponent() const;
 
         // 이 오브젝트의 스크립트를 타입으로 찾는다(D-302). 스크립트는 컴포넌트가 아니므로 `GetComponent` 로는 찾지 않는다.
         template<typename T>
@@ -84,14 +87,11 @@ namespace JBro::Handle
     }
 
     template<typename T>
-    Ref<T> GameObject::GetComponent() const
+    T GameObject::GetComponent() const
     {
+        static_assert(std::is_base_of_v<Internal::ComponentHandle, T>,
+            "GetComponent takes a component handle such as Transform2D; a script is found with GetScript");
         static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
-        const InstanceRef found = FindComponentReference(TypeId);
-        Ref<T> result;
-        result.ObjectId = found.ObjectId;
-        result.ComponentId = found.ComponentId;
-        result.Cached = found.Cached;
-        return result;
+        return Internal::ComponentHandleAccess::FromReference<T>(FindComponentReference(TypeId));
     }
 }
