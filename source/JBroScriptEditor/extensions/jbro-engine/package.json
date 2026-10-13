@@ -1,0 +1,33 @@
+{
+	"name": "jbro-engine",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "jbro",
+	"version": "0.0.1",
+	"private": true,
+	"engines": { "vscode": "^1.100.0" },
+	"categories": ["Other"],
+	"main": "./extension.cjs",
+	"l10n": "./l10n",
+	"extensionKind": ["ui"],
+	"activationEvents": ["onStartupFinished"],
+	"extensionDependencies": ["vscode.github-authentication"],
+	"capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
+	"contributes": {
+		"commands": [
+			{ "command": "jbro.git.signIn", "title": "%signIn%", "category": "JBroEngine", "icon": "$(github)" },
+			{ "command": "jbro.git.manageAccount", "title": "%manageAccount%", "category": "JBroEngine", "icon": "$(account)" }
+		],
+		"menus": {
+			"scm/title": [
+				{ "command": "jbro.git.signIn", "when": "!jbro.github.signedIn", "group": "navigation@9" },
+				{ "command": "jbro.git.manageAccount", "when": "jbro.github.signedIn", "group": "navigation@9" }
+			],
+			"commandPalette": [
+				{ "command": "jbro.git.signIn", "when": "!jbro.github.signedIn" },
+				{ "command": "jbro.git.manageAccount", "when": "jbro.github.signedIn" }
+			]
+		},
+		"configurationDefaults": { "github-authentication.preferDeviceCodeFlow": true }
+	}
+}
