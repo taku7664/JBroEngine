@@ -1,5 +1,12 @@
 # JBro Script Editor — Code-OSS 포크 계획 (초안)
 
+> **2026-10-13 후속 안내 — D-310.** 이번 제작 대상은 C++ 스크립트용이다. 코사원의 JBroEngine 확장·Git 등 개발 도구 연동·Code-OSS 전체 레이아웃 작업은
+> [script-editor-integration-plan.md](./script-editor-integration-plan.md)에서 현재 코드와 대조해 계획한다. 아래 `.jscript` 전용 범위와 `jbroc` 선행 조건은 당시 계획으로 보존한다.
+> Code-OSS 기반·JBro 기능의 내장 확장 구현·제품 모양에 한정한 코어 패치·마켓플레이스 미연결 정책과 기존 `.jscript` 자산은 그대로다.
+> §3·P3·§8의 "DLL 파일 감시가 없다", §2·§5.5의 "사용자 설정 파일이 생길 때"는 과거 상태이므로 현재 구현의 장애 조건으로 삼지 않는다.
+> 현재 `EditorApplication::PollScriptModuleFile`·`ReloadScripts`는 DLL 변경을 다루고, `EditorPreferences.yaml`에는 `Version`·`ScriptEditor`·`Shortcuts`를 저장한다.
+> 화면 언어는 `SaveEditorSession`이 `ProjectFile.editorLocale`에 저장한다. 씬 에디터와 코드 에디터가 함께 읽는 언어 설정 계약은 아직 없으며, 새 계획에서 결정할 항목이다.
+>
 > 2026-09-15 작성, 2026-09-16 갱신. **P0 스파이크를 닫았고 P1 문법 강조 확장이 섰다(옛 문법 기준).**
 > **2026-09-29 에 편집기 리포를 엔진 리포 `source/JBroScriptEditor` 로 합쳤다(D-261).** upstream 체크아웃과 `.toolchain` 은 엔진 리포 밖,
 > 환경 변수 `JBRO_EDITOR_WORK` 가 가리키는 폴더(이 기계에서는 옛 리포 자리 `F:\Project\JBroScriptEditor`)에 있다. 옛 리포의 `.git` 과 추적 파일은 지웠고
