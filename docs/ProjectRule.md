@@ -553,14 +553,17 @@
 - 죽은 대상용 가짜 인스턴스를 돌려주지 않는다. (MUST)
   함수가 절반만 실행되어(죽은 적이 점수를 주는 식) 무시보다 나쁜 결과가 된다.
 - 핸들을 해석해 얻은 raw pointer 는 장기 보관하지 않는다. 검증 이후 짧은 스코프에서만 쓴다. (MUST)
-- **스크립트는 오브젝트를 `GetServiceContext().Objects` 로 만들고 찾는다.** (MUST) (D-301, 구현 전)
-  레이어는 `LayerHandle { LayerId }` 로 가리키고 `Layer` 자체를 프렐류드에 넣지 않는다.
-  `LayerHandle[name]` 은 그 레이어의 뿌리 오브젝트를, `GameObject[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이를 가리지 않는 찾기는 `FindInChildren` 이다.
+- **스크립트는 오브젝트를 `GetServiceContext().Objects` 로 만들고 찾는다.** (MUST) (D-301, D-302 (16))
+  레이어는 `Handle::Layer`(4B, 레이어의 영속 번호 하나)로 가리키고 캔버스의 `Layer` 자체를 프렐류드에 넣지 않는다.
+  `Layer[name]` 은 그 레이어의 뿌리 오브젝트를, `GameObject[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이를 가리지 않는 찾기는 `FindInChildren` 이다.
   같은 이름이 여럿이면 계층에 보이는 순서의 첫 번째이고, 못 찾으면 빈 핸들이다.
   **`[]` 와 `Find` 는 이름만 본다. 태그는 `FindWithTag`·`CompareTag` 같은 함수로만 찾는다** - 이름과 태그는 서로 다른 `NameId` 칸이다.
   찾기는 매 프레임 부르지 않고 `OnStart` 에서 찾아 핸들을 든다.
   오브젝트 삭제는 `Handle::GameObject::Destroy()` 하나이며, **삭제를 요청한 순간부터 모든 사본의 `IsValid()` 가 거짓이고 찾기에서 빠진다.**
-  만들 때 차원의 기본 트랜스폼은 프레임워크 구현이 붙인다.
+  만들 때 차원의 기본 트랜스폼은 프레임워크 구현이 붙인다. 빌트인은 `handle.AddComponent<T>()` 가 핸들을, 스크립트는 `AddScript<T>()` 가 `Ref<T>` 를 준다.
+  서비스는 공통 `SystemContext::Objects`(`System::IObjectSystem`)를 거치고, 구현 `CanvasObjectSystem`(JBroCanvas)은 캔버스를 가진 프레임워크가 들고
+  `BindScriptContexts` 에서 꽂는다 - DLL 은 그 뒤에 실려 같은 포인터를 받는다. 찾는 차례는 레이어 차례 → 뿌리 차례 → 자식 차례(깊이 우선)다.
+  스크립트 순회 중에 만든 오브젝트는 곧바로 찾을 수 있고, 그때 붙인 스크립트는 **다음 프레임**에 `OnStart`·`OnUpdate` 를 받는다(재었다).
 
 ### 6.2 스크립트 DLL ABI와 핫 리로드 수명
 

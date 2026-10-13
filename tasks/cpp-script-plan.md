@@ -243,7 +243,7 @@ JBRO_SCRIPT_MODULE_2D()
 
 ### 3.6 스크립트 API 의 구멍
 
-**먼저 참조의 모양을 바꾼다(D-302, 1~3 단계가 섰다).** 오브젝트 API 는 그 위에 선다.
+**참조의 모양을 바꾸고(D-302) 그 위에 오브젝트 API 를 세웠다 - 네 단계가 모두 섰다.**
 
 1. ~~이름~~ **섰다**(2026-09-29): 엔진 `GameObject` → `JBro::Object::GameObject`, `GameObjectHandle` → `JBro::Handle::GameObject`, 프렐류드에 `using namespace JBro::Handle;`.
    리플렉션 잎사귀는 `JBro.Handle.GameObject`. 프렐류드 시험이 `GameObject` 가 핸들로 풀리는지 단언하고, `JBRO_TEST_OBJECT_NAMESPACE_IN_PRELUDE` 를 켜면 모호해 컴파일이 실패한다.
@@ -257,15 +257,15 @@ JBRO_SCRIPT_MODULE_2D()
    스크립트가 쓰는 열거형·물리 값은 `ComponentTypes2D.h`·`ComponentTypes3D.h`·`AudioSourceTypes.h` 로 옮겼고, 데이터 헤더 15 개는 스크립트 대상에서 `#error` 다
    (음성 시험 `JBroTierProbe=ComponentData`). `AudioService`·`Text2DService`·`Text3DService` 가 핸들을 받는다. 남은 것: 스크립트 필드로 컴포넌트 핸들을 저장하는
    리플렉션(`JBRO_FIELD(Transform2D, m_target)`)은 없다 - `Ref<T>` 필드도 없던 것이라 그대로 두었다. 에셋 id 를 바꾸는 setter 는 없다(id → 핸들 풀기가 캔버스를 열 때만 돈다).
-4. 아래 오브젝트 만들기·찾기(D-301 을 D-302 의 이름으로 읽는다).
+4. ~~오브젝트 만들기·찾기~~ **섰다**(2026-10-14, D-302 (16)): 아래 항목 그대로다. 이름과 태그 나누기는 D-297 이 먼저 했다.
 
-- 오브젝트 만들기·찾기: **모양이 섰다(D-301), 구현 전이다.**
+- 오브젝트 만들기·찾기: **섰다(D-301, D-302 (16)).**
   - 이름과 태그를 나눈다. 지금 태그 칸이 이름이 되고 태그는 새 칸이다. `[]`·`Find` 는 이름만, 태그는 `FindWithTag`·`CompareTag` 같은 함수로만 찾는다.
-  - `LayerHandle { LayerId }`(4B) 를 새로 두고, `LayerHandle[name]` 은 그 레이어의 뿌리를, `GameObject[name]`(핸들) 은 직계 자식을 **한 단계만** 찾는다. 깊이는 `FindInChildren`.
+  - `Handle::Layer`(4B, 옛 이름 `LayerHandle`) 를 새로 두고, `Layer[name]` 은 그 레이어의 뿌리를, `GameObject[name]`(핸들) 은 직계 자식을 **한 단계만** 찾는다. 깊이는 `FindInChildren`.
   - `GetServiceContext().Objects`: `Create(name, parent, layer)`·`Find`·`FindAll`·`FindWithTag`·`FindAllWithTag`·`GetLayer`. 핸들에 `AddComponent<T>`·`GetName`·`GetLayer`·`GetParent`·`SetParent`·`GetChildCount`·`GetChild`.
   - 기본 트랜스폼은 프레임워크 구현이 붙인다. 삭제는 `handle.Destroy()` 하나이고, 요청한 순간부터 모든 사본이 무효이며 찾기에서 빠진다.
   - 프리팹(`PrefabSpawner`)은 뒤로 미룬다.
-  - 구현하며 잴 것: 순회 중에 만든 오브젝트의 스크립트 훅이 언제부터 도는가.
+  - ~~구현하며 잴 것~~ 재었다: 순회 중에 만든 오브젝트는 곧바로 찾을 수 있고, 그때 붙인 스크립트는 다음 프레임에 `OnStart`·`OnUpdate` 를 받는다(`ObjectServiceTests`).
 - ~~`ReadOnly` 필드~~ **닫혔다**(2026-10-13): 빌트인 핸들(D-302)이 월드 캐시·버튼 상태·오디오 상태에 getter 만 둔다 - 위 3 단계.
 
 ### 3.7 3D

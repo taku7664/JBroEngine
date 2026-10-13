@@ -62,6 +62,7 @@ JBro::Int32 RunFramework3DSystemTests();
 JBro::Int32 RunMeshPixelTests();
 JBro::Int32 RunSystemSchedulerTests();
 JBro::Int32 RunGameScriptTests();
+JBro::Int32 RunObjectServiceTests();
 JBro::Int32 RunEditorApplicationTests();
 JBro::Int32 RunEditorUITests();
 JBro::Int32 RunEditorCommandTests();
@@ -450,6 +451,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("GameScript", &RunGameScriptTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ObjectService", &RunObjectServiceTests))
         {
             return 1;
         }

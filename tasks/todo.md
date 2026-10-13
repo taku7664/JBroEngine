@@ -3046,7 +3046,7 @@ EditorApplication::Tick
   시험: `TestTheCameraAreaFollowsTheCameraObject`(돌리고 키운 카메라 오브젝트의 귀퉁이, `PixelPerfect` 의 크기, 그릴 수 없는 카메라는 영역이 없음).
   실제 에디터 창에서 그려진 것을 화면으로 재지는 않았다 - 그리기는 ImGui 그리기 목록이라 시험이 픽셀을 보지 않는다.
 
-- **D-302. 스크립트가 보는 참조는 `JBro::Handle` 의 핸들이고, 이름은 엔진 타입과 같다. 빌트인 컴포넌트도 핸들이며, 스크립트는 컴포넌트가 아니다.** (2026-09-29, 사용자 지시: "빌트인 컴포넌트도 핸들화시키고, 컴포넌트와 스크립트를 분리한다", "Transform2D라는 이름이 핸들이어야해 … 핸들타입->타입id->확인->있으면 핸들 반환", "스크립트는 GameObjectHandle이 아니라 GameObject를 써야하는데?", "캔버스 마이그레이션 지원 안해도 됨", "네임스페이스도 Object로 해. 그리고 핸들도 JBro::Handle::인데 … using namespace JBro::Handle 이거도 추가해") **1~3 단계가 섰고 4 단계(오브젝트 API)가 남았다.**
+- **D-302. 스크립트가 보는 참조는 `JBro::Handle` 의 핸들이고, 이름은 엔진 타입과 같다. 빌트인 컴포넌트도 핸들이며, 스크립트는 컴포넌트가 아니다.** (2026-09-29, 사용자 지시: "빌트인 컴포넌트도 핸들화시키고, 컴포넌트와 스크립트를 분리한다", "Transform2D라는 이름이 핸들이어야해 … 핸들타입->타입id->확인->있으면 핸들 반환", "스크립트는 GameObjectHandle이 아니라 GameObject를 써야하는데?", "캔버스 마이그레이션 지원 안해도 됨", "네임스페이스도 Object로 해. 그리고 핸들도 JBro::Handle::인데 … using namespace JBro::Handle 이거도 추가해") **네 단계가 모두 섰다.**
   Updates: D-5, D-42, D-44, D-45, D-48, D-233, D-264, D-300, D-301, cpp-script-plan §3.6, ProjectRule §5·§6.
   (1) **핸들은 `JBro::Handle` 에 있고 엔진 타입과 이름이 같다.** `Handle::GameObject`(16B, 지금의 `GameObjectHandle`), `Handle::Transform2D`·`Handle::SpriteRenderer2D` 같은
   빌트인 컴포넌트마다 하나(24B, 저장부는 `InstanceRef`). 게임 스크립트 프렐류드는 `using namespace JBro;` 와 **`using namespace JBro::Handle;`** 을 연다 -
@@ -3108,9 +3108,22 @@ EditorApplication::Tick
   뮤테이션 4 개(핸들의 쓰기 빼기·`GetComponent` 가 번호를 싣지 않기·힘 넘기기 빼기·글자를 키 칸에 쓰기)가 모두 의도한 단언에서 죽었다 - 마지막 것은 처음에 살아남아
   (표에 없는 키는 키 글자 그대로 그려져 화면이 같다) 글자 칸을 직접 보는 단언을 더했다. 실제 에디터 창과 스크립트 프로젝트로는 재지 않았다.
   빌드는 `-m:2` 로 돌린다 - 무제한 병렬 빌드가 C 의 페이지 파일을 키워 사용자의 C 드라이브를 채웠다(추정, 빌드 전 크기는 재지 않았다).
+  (16) **4 단계(오브젝트 API, D-301)가 섰다**(2026-10-14). 서비스 `GetServiceContext().Objects`(`ServiceContextAbiVersion` 3 → 4)의 `Create`·`Find`·`FindAll`·
+  `FindWithTag`·`FindAllWithTag`·`GetLayer` 가 공통 `SystemContext::Objects`(`System::IObjectSystem`, `SystemContextAbiVersion` 5 → 6)를 거친다. 구현 `CanvasObjectSystem`(JBroCanvas)은
+  차원을 모르고 기본 컴포넌트의 타입 이름만 받는다 - 2D·3D 프레임워크가 하나씩 들고 `BindScriptContexts` 에서 이 모듈 사본의 컨텍스트에 꽂는다. DLL 은 그 뒤에 실려 같은
+  포인터를 받는다(D-301 (7) 은 "판번호 2 → 3" 이라 적었는데 그사이 2 단계가 3 으로 올렸다). 레이어는 `Handle::Layer`(4B, 영속 번호)이고 `[]` 는 그 레이어의 뿌리만 본다.
+  오브젝트 핸들에 `GetName`·`SetName`·`GetLayer`·`GetParent`·`SetParent`·`GetChildCount`·`GetChild`·`[]`·`FindInChildren`·`AddComponent<T>`(핸들)·`AddScript<T>`(`Ref<T>`)를 더했다(16B 그대로).
+  `SetParent` 는 레이어를 맞추지 않는다 - 에디터의 계층 옮기기와 같다. 만들 때는 준 레이어 → 부모의 레이어 → 기본 레이어 차례다. 이름과 태그 나누기(D-301 (1))는 D-297 이 먼저 했다.
+  **파괴를 요청한 순간부터 모든 사본이 무효다**: 핸들의 해석이 `Object::GameObject::IsDestroyRequested` 를 보고, 찾기·`[]`·자식 수도 그것을 뺀다.
+  **재었다**(D-301 (5) 의 남은 것): 스크립트 순회 중에 만든 오브젝트는 곧바로 찾을 수 있고, 그때 붙인 스크립트는 그 프레임에는 돌지 않고 다음 프레임에 `OnStart`·`OnUpdate` 를 받는다 -
+  스크립트 시스템은 프레임 처음에 세운 목록을 돌고, 붙이기가 올린 판번호는 다음 `EnsureOrder` 가 본다. 오브젝트 풀은 번호로 돌고 청크 주소가 바뀌지 않아 순회 중 만들기가 안전하다.
+  시험(`ObjectServiceTests`, 시험만의 스크립트 표를 묶어 전역 표를 더럽히지 않는다): 만들기와 기본 트랜스폼·부모와 레이어·`layer["HUD"]["HpBar"]`·`[]` 의 한 단계·깊은 찾기·이름과 태그 찾기·
+  `AddComponent`·순회 중 파괴의 사본 무효와 찾기 제외·부모 바꾸기·순회 중 만든 스크립트의 첫 프레임. 뮤테이션 5 개(파괴 요청을 유효로 보기·부모 레이어 무시·뿌리 찾기의 레이어 무시·
+  태그 찾기가 이름을 보기·기본 트랜스폼 빼기)가 모두 의도한 단언에서 죽었다. Debug·Debug_Game2D·Debug_Game3D 가 빌드되고 전체 시험 가운데 `EditorApplication` 을 뺀 묶음이 모두 지난다. `EditorApplication` 은 세 번 돌려 세 번 다 다른 키보드 시험(여러 줄 칸의 Enter·기즈모의 E·R)에서 떨어졌다 - 시험 안에 `[flake]` 진단이 있는 흔들리는 자리이고 이 단계는 에디터 입력을 건드리지 않았지만, 같은 때의 main 에서 도는지는 재지 않았다(C 드라이브가 0.12GB 까지 떨어져 멈췄다). 실제 에디터와 스크립트 DLL 로는 재지 않았다.
+  빌드는 `-m:1 -p:CL_MPCount=4` 로 돌렸다(사용자 지정) - `-m:2` 로도 프로젝트마다 `/MP` 가 코어 수만큼 컴파일러를 띄워 페이지 파일이 15.8GB → 24.1GB 로 컸다.
 
 
-- **D-301. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **구현 전이다 - 계약만 섰다.**
+- **D-301. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **섰다 - D-302 (16) 이 D-302 의 이름으로 구현했다.**
   Updates: D-45, D-51, cpp-script-plan §3.6·§4, ProjectRule §6.1.
   (1) **이름과 태그를 나눈다.** 지금은 오브젝트에 이름 칸이 없고 `CreateObject(name)` 이 이름을 태그 자리(`NameId`)에 넣으며 캔버스 파일은 그 값을 `Name` 으로 쓴다.
   그 칸을 **이름**으로 삼고(`GetName`·`SetName`, 파일의 `Name` 은 그대로), 태그는 따로 `NameId` 칸을 둔다(파일에 `Tag`, 비어 있으면 적지 않는다). 둘 다 인턴된 정수다(D-51).

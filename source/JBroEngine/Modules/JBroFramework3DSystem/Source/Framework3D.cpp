@@ -1,4 +1,5 @@
 ﻿#include <JBro/Framework3DSystem/Framework3D.h>
+#include <JBro/Runtime/SystemContext.h>
 
 #include "Rendering/RenderBridge3D.h"
 
@@ -86,6 +87,13 @@ namespace JBro
         // 같은 값을 블록으로도 내어 준다. 호스트가 그대로 DLL 에 건넨다.
         m_scriptBlocks[0] = MakeFramework3DSystemContextBlock(m_scriptSystems);
         m_scriptBlocks[1] = MakeFramework3DServiceContextBlock(m_scriptServices);
+        // 오브젝트 서비스(D-301). 공통 시스템 컨텍스트의 이 모듈 사본에 꽂는다 - DLL 은 싣는 순간 이 컨텍스트를 받아 간다.
+        m_objects.Bind(m_canvas.Get(), "Component::Transform3D");
+        {
+            SystemContext systems = GetSystemContext();
+            systems.Objects = &m_objects;
+            BindSystemContext(systems);
+        }
         m_scriptBlockCount = 2;
         return true;
     }
@@ -98,6 +106,13 @@ namespace JBro
     void Framework3D::UnbindScriptContexts() noexcept
     {
         m_scriptBlockCount = 0;
+        if (GetSystemContext().Objects == &m_objects)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.Objects = nullptr;
+            BindSystemContext(systems);
+        }
+        m_objects.Bind(nullptr, nullptr);
         if (m_canvas.Get() == nullptr)
         {
             return;

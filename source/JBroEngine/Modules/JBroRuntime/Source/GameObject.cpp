@@ -98,6 +98,11 @@ namespace JBro
         return m_layerIndex;
     }
 
+    Bool Object::GameObject::IsDestroyRequested() const
+    {
+        return m_destroying;
+    }
+
     Bool Object::GameObject::IsActiveSelf() const
     {
         return m_active;
