@@ -1213,9 +1213,12 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_EqualityScore"));
         const auto keywordScore = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_KeywordScore"));
+        const auto borrowedInterfaceRead = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_BorrowedInterfaceRead"));
         const auto childResult = reinterpret_cast<ChildResult>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ChildResult"));
         Check(derivedRead != nullptr && derivedRead() == 5 && childResult != nullptr
+                && borrowedInterfaceRead != nullptr && borrowedInterfaceRead() == 5
                 && multipleBaseProperties != nullptr && multipleBaseProperties() == 23,
             "interface diamonds, virtual overrides and secondary-base reflection execute in the game DLL");
         Check(equalityScore != nullptr && equalityScore() == 475,

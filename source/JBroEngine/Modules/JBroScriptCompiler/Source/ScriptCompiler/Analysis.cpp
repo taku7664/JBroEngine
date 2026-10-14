@@ -2051,11 +2051,17 @@ namespace JBro::ScriptCompiler
                         {
                             expected = expected.Substr(6);
                         }
-                        if (false == Convertible(expected, argument))
+                        Expression compared = argument;
+                        if (parameter.Borrowed)
+                        {
+                            expected = Bare(expected);
+                            compared.Type = Bare(argument.Type);
+                        }
+                        if (false == Convertible(expected, compared))
                         {
                             accepts = false;
                         }
-                        if (false == EqualType(expected, argument.Type))
+                        if (false == EqualType(expected, compared.Type))
                         {
                             score += 1;
                         }

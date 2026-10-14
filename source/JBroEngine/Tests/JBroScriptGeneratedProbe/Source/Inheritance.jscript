@@ -27,6 +27,17 @@ class DerivedCounter : BaseCounter, ILeft, IRight
     {
         return value + 1
     }
+
+    public fn BorrowRead(ref ICounter source) -> Int
+    {
+        return source.Read()
+    }
+
+    public fn ReadThroughInterface() -> Int
+    {
+        DerivedCounter other
+        return BorrowRead(ref other)
+    }
 }
 
 class FieldLeft

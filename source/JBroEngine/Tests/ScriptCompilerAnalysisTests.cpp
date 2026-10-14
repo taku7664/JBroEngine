@@ -528,6 +528,9 @@ namespace
             "class C\n{\nfn Borrow(ref I value) -> Int\n{\nreturn value.Read()\n}\n}\n");
         Check(borrowedInterface->Documents[0]->Diagnostics.IsEmpty(),
             "a borrowed interface parameter remains a valid non-owning reference");
+        auto incompatibleBorrow = Analyze("interface I\n{\nfn Read() -> Int\n}\nclass Other\n{\n}\n"
+            "class C\n{\nfn Borrow(ref I value)\n{\n}\nfn F()\n{\nOther other\nBorrow(ref other)\n}\n}\n");
+        Check(Has(*incompatibleBorrow, "JBC3034"), "an unrelated value cannot satisfy an interface borrow");
         auto borrowedAbstract = Analyze("class A\n{\npublic fn Read() -> Int require\n}\n"
             "class C\n{\nfn Borrow(ref A value) -> Int\n{\nreturn value.Read()\n}\n}\n");
         Check(borrowedAbstract->Documents[0]->Diagnostics.IsEmpty(),

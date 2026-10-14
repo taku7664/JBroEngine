@@ -734,7 +734,8 @@ namespace JBro::ScriptCompiler
             void MemberAccess(NodeIndex index, SyntaxKind ownerKind)
             {
                 const std::uint16_t flags = Node(index).Flags;
-                const bool publicDefault = ownerKind == SyntaxKind::StructDeclaration;
+                const bool publicDefault = ownerKind == SyntaxKind::StructDeclaration
+                    || ownerKind == SyntaxKind::InterfaceDeclaration;
                 const char* access = (flags & SyntaxFlagPublic) ? "public"
                     : (flags & SyntaxFlagProtected) ? "protected"
                     : (flags & SyntaxFlagPrivate) ? "private"
