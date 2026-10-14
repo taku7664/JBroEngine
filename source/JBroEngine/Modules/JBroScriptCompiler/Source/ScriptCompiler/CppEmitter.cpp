@@ -289,6 +289,46 @@ namespace JBro::ScriptCompiler
                 return nullptr;
             }
 
+            const ApiMember* ApiMemberInHierarchy(std::string_view typeName,
+                std::string_view memberName, std::size_t depth = 0) const
+            {
+                if (depth > 32) return nullptr;
+                if (const ApiType* api = Api(typeName))
+                {
+                    for (const ApiMember& member : api->Members)
+                    {
+                        if (member.Name.View() == memberName) return &member;
+                    }
+                    for (const String& base : api->Bases)
+                    {
+                        if (const ApiMember* inherited = ApiMemberInHierarchy(base.View(), memberName, depth + 1))
+                        {
+                            return inherited;
+                        }
+                    }
+                }
+                if (const DeclarationRef* declaration = m_declarations.Find(String(typeName)))
+                {
+                    const NodeIndex bases = declaration->tree->GetChild(declaration->index, 0);
+                    if (bases != InvalidNode && declaration->tree->Get(bases).Kind == SyntaxKind::BaseList)
+                    {
+                        for (NodeIndex base : declaration->tree->GetChildren(bases))
+                        {
+                            if (const ApiMember* inherited = ApiMemberInHierarchy(
+                                declaration->tree->Get(base).Text, memberName, depth + 1))
+                            {
+                                return inherited;
+                            }
+                        }
+                    }
+                    if (declaration->kind == SyntaxKind::ScriptDeclaration)
+                    {
+                        return ApiMemberInHierarchy("GameScript2D", memberName, depth + 1);
+                    }
+                }
+                return nullptr;
+            }
+
             bool IsHandle(const Type& type) const
             {
                 const ApiType* api = Api(type.name);
@@ -982,12 +1022,11 @@ namespace JBro::ScriptCompiler
                     String nativeMember(node.Text);
                     String setter;
                     memberType = MemberTypeInHierarchy(receiver.type.name, node.Text);
-                    if (const ApiType* type = Api(receiver.type.name))
+                    if (memberType.name.empty())
                     {
-                        for (const ApiMember& member : type->Members)
+                        if (const ApiMember* member = ApiMemberInHierarchy(receiver.type.name, node.Text))
                         {
-                            if (member.Name.View() != node.Text) continue;
-                            const String declared(member.Type.c_str());
+                            const String declared(member->Type.c_str());
                             memberType = TextType(declared);
                             if (memberType.name == "T" || memberType.name == "V")
                             {
@@ -1000,18 +1039,18 @@ namespace JBro::ScriptCompiler
                                 memberType = ParseType(Child(index, 1));
                                 memberType.ref = TextType(declared).ref;
                             }
-                            nativeMember = member.NativeName.empty() ? Pascal(node.Text) : member.NativeName.c_str();
-                            property = type->Kind == ApiTypeKind::Handle
-                                && member.Kind == ApiMemberKind::Field;
-                            if (member.Writable && nativeMember.rfind("Get", 0) == 0)
+                            nativeMember = member->NativeName.empty() ? Pascal(node.Text) : member->NativeName.c_str();
+                            const ApiType* receiverApi = Api(receiver.type.name);
+                            property = receiverApi != nullptr && receiverApi->Kind == ApiTypeKind::Handle
+                                && member->Kind == ApiMemberKind::Field;
+                            if (member->Writable && nativeMember.rfind("Get", 0) == 0)
                             {
                                 setter = "Set" + nativeMember.substr(3);
                             }
-                            else if (member.Writable && nativeMember.rfind("Is", 0) == 0)
+                            else if (member->Writable && nativeMember.rfind("Is", 0) == 0)
                             {
                                 setter = "Set" + nativeMember.substr(2);
                             }
-                            break;
                         }
                     }
                     if (memberType.name.empty())
@@ -1121,17 +1160,10 @@ namespace JBro::ScriptCompiler
                     {
                         const Expression receiver = Expr(Child(calleeIndex, 0));
                         String method(calleeNode.Text);
-                        if (const ApiType* type = Api(receiver.type.name))
+                        if (const ApiMember* member = ApiMemberInHierarchy(receiver.type.name, calleeNode.Text))
                         {
-                            for (const ApiMember& member : type->Members)
-                            {
-                                if (member.Name.View() == calleeNode.Text)
-                                {
-                                    method = member.NativeName.empty() ? Pascal(calleeNode.Text)
-                                        : String(member.NativeName.c_str());
-                                    break;
-                                }
-                            }
+                            method = member->NativeName.empty() ? Pascal(calleeNode.Text)
+                                : String(member->NativeName.c_str());
                         }
                         for (std::size_t slot = 1; slot < calleeNode.ChildCount; ++slot)
                         {

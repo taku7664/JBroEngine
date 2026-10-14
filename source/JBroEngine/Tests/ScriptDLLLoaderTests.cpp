@@ -1225,6 +1225,8 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlRaiseScores"));
         const auto controlHasOwner = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasOwner"));
+        const auto controlHasOwnerExplicit = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasOwnerExplicit"));
         const auto controlHasTransform = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasTransform"));
         const auto controlHasTransformSafe = reinterpret_cast<ControlHasOwner>(
@@ -1257,7 +1259,8 @@ namespace
         Check(controlCount != nullptr && controlRhsCount != nullptr && controlActive != nullptr
                 && controlAddScore != nullptr
                 && controlRaiseScores != nullptr
-                && controlHasOwner != nullptr && controlHasTransform != nullptr
+                && controlHasOwner != nullptr && controlHasOwnerExplicit != nullptr
+                && controlHasTransform != nullptr
                 && controlHasTransformSafe != nullptr && controlDisableOwnerSafe != nullptr
                 && controlNullFallback != nullptr && controlGenericArray != nullptr
                 && controlOwnCount != nullptr && controlScoreByName != nullptr
@@ -1309,6 +1312,8 @@ namespace
             Check(attached != nullptr, "the generated enum script attaches by name");
             Check(controlHasOwner(attached),
                 "an implicit inherited script API call resolves to the attached game object");
+            Check(controlHasOwnerExplicit(attached),
+                "an explicit this call resolves the inherited engine API member");
             Check(false == controlHasTransform(attached),
                 "a generic method call on a valid owner returns an absent component handle without logging");
             controlActive(attached);

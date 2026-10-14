@@ -36,6 +36,11 @@ script ControlProbe
         return GetGameObject().valid
     }
 
+    public fn HasOwnerExplicit() -> Bool
+    {
+        return this.GetGameObject().valid
+    }
+
     public fn HasTransform() -> Bool
     {
         return GetGameObject().GetComponent<Transform2D>() is not null

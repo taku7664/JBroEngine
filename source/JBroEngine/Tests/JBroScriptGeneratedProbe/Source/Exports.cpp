@@ -55,6 +55,11 @@ extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasOwner(JBro::G
     return static_cast<ControlProbe*>(base)->HasOwner();
 }
 
+extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasOwnerExplicit(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->HasOwnerExplicit();
+}
+
 extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasTransform(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasTransform();
