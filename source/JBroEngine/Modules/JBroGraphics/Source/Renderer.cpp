@@ -1,77 +1,7 @@
 ﻿#include <JBro/Graphics/Renderer.h>
 
-#include "BuiltinLayerBackdropPS.generated.h"
-#include "BuiltinLayerCompositePS.generated.h"
-#include "BuiltinLight2DPS.generated.h"
-#include "BuiltinLight2DShadowedPS.generated.h"
-#include "BuiltinLight2DVS.generated.h"
-#include "BuiltinMeshPS.generated.h"
-#include "BuiltinMeshVS.generated.h"
-#include "BuiltinOutlineCompositePS.generated.h"
-#include "BuiltinOutlineGrowPS.generated.h"
-#include "BuiltinOutlineVS.generated.h"
-#include "BuiltinShadow2DPS.generated.h"
-#include "BuiltinShadow2DVS.generated.h"
-#include "BuiltinSdfTextLitPS.generated.h"
-#include "BuiltinSdfTextPS.generated.h"
-#include "BuiltinSdfTextVS.generated.h"
-#include "BuiltinSpriteLitPS.generated.h"
-#include "BuiltinSpritePS.generated.h"
-#include "BuiltinSpriteVS.generated.h"
-#include "BuiltinWorldTextPS.generated.h"
-#include "BuiltinWorldTextVS.generated.h"
-
-// D3D11 은 DXIL 을 읽지 못해 같은 HLSL 을 SM 5.0 DXBC 로도 굽는다(D-107). fxc 의 헤더는 `BYTE` 를
-// 쓰므로 그 이름을 이 네임스페이스 안에서만 준다 - windows.h 를 렌더러에 들이지 않는다.
-namespace JBro::Sm5
-{
-    using BYTE = unsigned char;
-#include "BuiltinLayerBackdropPS_SM5.generated.h"
-#include "BuiltinLayerCompositePS_SM5.generated.h"
-#include "BuiltinLight2DPS_SM5.generated.h"
-#include "BuiltinLight2DShadowedPS_SM5.generated.h"
-#include "BuiltinLight2DVS_SM5.generated.h"
-#include "BuiltinMeshPS_SM5.generated.h"
-#include "BuiltinMeshVS_SM5.generated.h"
-#include "BuiltinOutlineCompositePS_SM5.generated.h"
-#include "BuiltinOutlineGrowPS_SM5.generated.h"
-#include "BuiltinOutlineVS_SM5.generated.h"
-#include "BuiltinShadow2DPS_SM5.generated.h"
-#include "BuiltinShadow2DVS_SM5.generated.h"
-#include "BuiltinSdfTextLitPS_SM5.generated.h"
-#include "BuiltinSdfTextPS_SM5.generated.h"
-#include "BuiltinSdfTextVS_SM5.generated.h"
-#include "BuiltinSpriteLitPS_SM5.generated.h"
-#include "BuiltinSpritePS_SM5.generated.h"
-#include "BuiltinSpriteVS_SM5.generated.h"
-#include "BuiltinWorldTextPS_SM5.generated.h"
-#include "BuiltinWorldTextVS_SM5.generated.h"
-}
-
-// Vulkan 은 SPIR-V 를 읽는다(D-108). Vulkan SDK 의 dxc 가 같은 HLSL 을 `-spirv` 로 구운 것이다.
-namespace JBro::Spv
-{
-#include "BuiltinLayerBackdropPS_SPV.generated.h"
-#include "BuiltinLayerCompositePS_SPV.generated.h"
-#include "BuiltinLight2DPS_SPV.generated.h"
-#include "BuiltinLight2DShadowedPS_SPV.generated.h"
-#include "BuiltinLight2DVS_SPV.generated.h"
-#include "BuiltinMeshPS_SPV.generated.h"
-#include "BuiltinMeshVS_SPV.generated.h"
-#include "BuiltinOutlineCompositePS_SPV.generated.h"
-#include "BuiltinOutlineGrowPS_SPV.generated.h"
-#include "BuiltinOutlineVS_SPV.generated.h"
-#include "BuiltinShadow2DPS_SPV.generated.h"
-#include "BuiltinShadow2DVS_SPV.generated.h"
-#include "BuiltinSdfTextLitPS_SPV.generated.h"
-#include "BuiltinSdfTextPS_SPV.generated.h"
-#include "BuiltinSdfTextVS_SPV.generated.h"
-#include "BuiltinSpriteLitPS_SPV.generated.h"
-#include "BuiltinSpritePS_SPV.generated.h"
-#include "BuiltinSpriteVS_SPV.generated.h"
-#include "BuiltinWorldTextPS_SPV.generated.h"
-#include "BuiltinWorldTextVS_SPV.generated.h"
-}
+// 빌트인 셰이더는 매니페스트(Shaders/ShaderManifest.psd1) 한 곳에서 굽고, 바이트코드 셋과 자리표를 표 하나로 받는다(D-329).
+#include <JBro/Graphics/BuiltinShaders.generated.h>
 
 #include <cmath>
 #include <limits>
@@ -98,18 +28,44 @@ namespace JBro
             return static_cast<std::uint16_t>(clamped * 65535.0f + 0.5f);
         }
 
-        ShaderBytecode PickShader(GraphicsApi api, const unsigned char* dxil, std::size_t dxilSize,
-            const unsigned char* dxbc, std::size_t dxbcSize, const unsigned char* spirv, std::size_t spirvSize)
+        static_assert(ShaderStageMask::Vertex == static_cast<std::uint8_t>(ShaderStage::Vertex)
+                && ShaderStageMask::Pixel == static_cast<std::uint8_t>(ShaderStage::Pixel)
+                && ShaderStageMask::Compute == static_cast<std::uint8_t>(ShaderStage::Compute),
+            "the asset's stage bits are the RHI's");
+
+        BindingRange ToBindingRange(const ShaderResourceRange& range)
         {
-            if (api == GraphicsApi::D3D11)
+            return {range.count, static_cast<ShaderStage>(range.stageMask)};
+        }
+
+        // 빌트인 프로그램의 셰이더 둘·푸시 상수·자리표를 파이프라인 서술자에 옮긴다(D-329). 나머지(포맷·블렌드·정점 배치)는
+        // 부르는 쪽이 정한다. 그 API 의 바이트코드가 없거나, 렌더러가 올리는 푸시 상수 크기가 매니페스트와 다르면 거짓이다 -
+        // 매니페스트를 고치고 C++ 구조체를 잊은 것이 그리기 자리가 아니라 여기서 드러난다.
+        Bool ApplyShader(GraphicsPipelineDesc& desc, BuiltinShader program, GraphicsApi api, std::size_t pushConstantBytes)
+        {
+            const ShaderData& shader = GetBuiltinShader(program);
+            const ShaderCodeFormat format = api == GraphicsApi::D3D11 ? ShaderCodeFormat::Dxbc
+                : api == GraphicsApi::Vulkan                       ? ShaderCodeFormat::SpirV
+                                                                   : ShaderCodeFormat::Dxil;
+            const JArrayView<std::byte>& vertex = shader.Code(ShaderProgramStage::Vertex, format);
+            const JArrayView<std::byte>& pixel = shader.Code(ShaderProgramStage::Pixel, format);
+            if (vertex.size == 0 || pixel.size == 0 || shader.pushConstantBytes != pushConstantBytes)
             {
-                return {dxbc, static_cast<JBro::UInt32>(dxbcSize)};
+                return false;
             }
-            if (api == GraphicsApi::Vulkan)
+            desc.vertexShader = {vertex.data, vertex.size};
+            desc.pixelShader = {pixel.data, pixel.size};
+            desc.pushConstantBytes = shader.pushConstantBytes;
+            if (shader.pushConstantStageMask != 0)
             {
-                return {spirv, static_cast<JBro::UInt32>(spirvSize)};
+                desc.pushConstantStages = static_cast<ShaderStage>(shader.pushConstantStageMask);
             }
-            return {dxil, static_cast<JBro::UInt32>(dxilSize)};
+            desc.bindings.constantBuffers = ToBindingRange(shader.constantBuffers);
+            desc.bindings.sampledTextures = ToBindingRange(shader.sampledTextures);
+            desc.bindings.samplers = ToBindingRange(shader.samplers);
+            desc.bindings.storageTextures = ToBindingRange(shader.storageTextures);
+            desc.bindings.storageBuffers = ToBindingRange(shader.storageBuffers);
+            return true;
         }
 
         Matrix4x4 Multiply(const Matrix4x4& left, const Matrix4x4& right)
@@ -1709,14 +1665,14 @@ namespace JBro
                 && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
                 && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
                 && m_frame.commands->SetTexture(0, first)
-                && m_frame.commands->SetTexture(1, second)
-                && m_frame.commands->SetSampler(0, m_nearestSampler)
+                && (false == second.IsValid() || m_frame.commands->SetTexture(1, second))
                 && m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, 0);
             m_frame.commands->EndRenderPass();
             return drawn;
         };
-        // 둘째 패스는 마스크를 t1 로도 읽는다. 첫째 패스의 t1 자리에는 같은 마스크를 묶어 둔다 - 비워 둘 수 없다.
-        return pass(camera.outlineScratch, LoadOperation::Clear, m_outlineGrowPipeline, camera.outlineMask, camera.outlineMask)
+        // 둘째 패스만 마스크를 t1 로도 읽는다. 두 셰이더 모두 `Load` 로만 읽어 샘플러를 묶지 않고, 첫째 프로그램은 텍스처 하나만
+        // 선언한다(매니페스트, D-329 - 반사 시험이 찾았다).
+        return pass(camera.outlineScratch, LoadOperation::Clear, m_outlineGrowPipeline, camera.outlineMask, TextureHandle{})
             && pass(target, LoadOperation::Load, m_outlineCompositePipeline, camera.outlineScratch, camera.outlineMask);
     }
 
@@ -1763,7 +1719,6 @@ namespace JBro
             || false == m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
             || false == m_frame.commands->SetTexture(0, layer)
             || (backdrop.IsValid() && false == m_frame.commands->SetTexture(1, backdrop))
-            || false == m_frame.commands->SetSampler(0, m_nearestSampler)
             || false == m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, 0))
         {
             return false;
@@ -1975,29 +1930,23 @@ namespace JBro
         }
 
         GraphicsPipelineDesc pipelineDesc;
-        pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinSpriteVS, sizeof(JBroBuiltinSpriteVS),
-            Sm5::JBroBuiltinSpriteVS_SM5, sizeof(Sm5::JBroBuiltinSpriteVS_SM5),
-            Spv::JBroBuiltinSpriteVS_SPV, sizeof(Spv::JBroBuiltinSpriteVS_SPV));
-        pipelineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSpritePS, sizeof(JBroBuiltinSpritePS),
-            Sm5::JBroBuiltinSpritePS_SM5, sizeof(Sm5::JBroBuiltinSpritePS_SM5),
-            Spv::JBroBuiltinSpritePS_SPV, sizeof(Spv::JBroBuiltinSpritePS_SPV));
+        if (false == ApplyShader(pipelineDesc, BuiltinShader::Sprite, m_config.api, sizeof(Matrix4x4)))
+        {
+            return false;
+        }
         pipelineDesc.vertexBuffers = {vertexLayouts, 2};
         pipelineDesc.colorFormats = {colorFormats, 1};
         pipelineDesc.blend = BlendMode::Alpha;
         pipelineDesc.cull = CullMode::None;
-        pipelineDesc.pushConstantStages = ShaderStage::Vertex;
-        pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
-        pipelineDesc.bindings.sampledTextures.count = 1;
-        pipelineDesc.bindings.samplers.count = 1;
         m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         // 라이트맵(t1)을 곱하는 쌍둥이다(D-291). 라이트맵은 깊이가 없는 뷰에만 서므로 깊이 판은 없다.
         if (m_config.maxLights2D != 0)
         {
             GraphicsPipelineDesc litDesc = pipelineDesc;
-            litDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSpriteLitPS, sizeof(JBroBuiltinSpriteLitPS),
-                Sm5::JBroBuiltinSpriteLitPS_SM5, sizeof(Sm5::JBroBuiltinSpriteLitPS_SM5),
-                Spv::JBroBuiltinSpriteLitPS_SPV, sizeof(Spv::JBroBuiltinSpriteLitPS_SPV));
-            litDesc.bindings.sampledTextures.count = 2;
+            if (false == ApplyShader(litDesc, BuiltinShader::SpriteLit, m_config.api, sizeof(Matrix4x4)))
+            {
+                return false;
+            }
             m_litSpritePipeline = m_device->CreateGraphicsPipeline(litDesc);
             if (false == m_litSpritePipeline.IsValid())
             {
@@ -2042,22 +1991,20 @@ namespace JBro
             {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}},
             {static_cast<JBro::UInt32>(sizeof(GpuTextInstance)), VertexStepMode::Instance, {textAttributes, 6}}};
         GraphicsPipelineDesc textDesc = pipelineDesc;
-        textDesc.vertexShader = PickShader(m_config.api, JBroBuiltinSdfTextVS, sizeof(JBroBuiltinSdfTextVS),
-            Sm5::JBroBuiltinSdfTextVS_SM5, sizeof(Sm5::JBroBuiltinSdfTextVS_SM5),
-            Spv::JBroBuiltinSdfTextVS_SPV, sizeof(Spv::JBroBuiltinSdfTextVS_SPV));
-        textDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSdfTextPS, sizeof(JBroBuiltinSdfTextPS),
-            Sm5::JBroBuiltinSdfTextPS_SM5, sizeof(Sm5::JBroBuiltinSdfTextPS_SM5),
-            Spv::JBroBuiltinSdfTextPS_SPV, sizeof(Spv::JBroBuiltinSdfTextPS_SPV));
+        if (false == ApplyShader(textDesc, BuiltinShader::SdfText, m_config.api, sizeof(Matrix4x4)))
+        {
+            return false;
+        }
         textDesc.vertexBuffers = {textLayouts, 2};
         textDesc.depthFormat = TextureFormat::Unknown;
         m_sdfTextPipeline = m_device->CreateGraphicsPipeline(textDesc);
         if (m_config.maxLights2D != 0)
         {
             GraphicsPipelineDesc litDesc = textDesc;
-            litDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSdfTextLitPS, sizeof(JBroBuiltinSdfTextLitPS),
-                Sm5::JBroBuiltinSdfTextLitPS_SM5, sizeof(Sm5::JBroBuiltinSdfTextLitPS_SM5),
-                Spv::JBroBuiltinSdfTextLitPS_SPV, sizeof(Spv::JBroBuiltinSdfTextLitPS_SPV));
-            litDesc.bindings.sampledTextures.count = 2;
+            if (false == ApplyShader(litDesc, BuiltinShader::SdfTextLit, m_config.api, sizeof(Matrix4x4)))
+            {
+                return false;
+            }
             m_litSdfTextPipeline = m_device->CreateGraphicsPipeline(litDesc);
             if (false == m_litSdfTextPipeline.IsValid())
             {
@@ -2075,26 +2022,21 @@ namespace JBro
         const VertexBufferLayoutDesc outlineLayouts[] = {
             {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}}};
         GraphicsPipelineDesc outlineDesc;
-        outlineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinOutlineVS, sizeof(JBroBuiltinOutlineVS),
-            Sm5::JBroBuiltinOutlineVS_SM5, sizeof(Sm5::JBroBuiltinOutlineVS_SM5),
-            Spv::JBroBuiltinOutlineVS_SPV, sizeof(Spv::JBroBuiltinOutlineVS_SPV));
-        outlineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinOutlineGrowPS, sizeof(JBroBuiltinOutlineGrowPS),
-            Sm5::JBroBuiltinOutlineGrowPS_SM5, sizeof(Sm5::JBroBuiltinOutlineGrowPS_SM5),
-            Spv::JBroBuiltinOutlineGrowPS_SPV, sizeof(Spv::JBroBuiltinOutlineGrowPS_SPV));
+        if (false == ApplyShader(outlineDesc, BuiltinShader::OutlineGrow, m_config.api, sizeof(float) * 8))
+        {
+            return false;
+        }
         outlineDesc.vertexBuffers = {outlineLayouts, 1};
         outlineDesc.colorFormats = {colorFormats, 1};
         outlineDesc.blend = BlendMode::Opaque;
         outlineDesc.cull = CullMode::None;
         outlineDesc.depthTest = false;
         outlineDesc.depthWrite = false;
-        outlineDesc.pushConstantStages = ShaderStage::Pixel;
-        outlineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(float) * 8);
-        outlineDesc.bindings.sampledTextures.count = 2;
-        outlineDesc.bindings.samplers.count = 1;
         m_outlineGrowPipeline = m_device->CreateGraphicsPipeline(outlineDesc);
-        outlineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinOutlineCompositePS, sizeof(JBroBuiltinOutlineCompositePS),
-            Sm5::JBroBuiltinOutlineCompositePS_SM5, sizeof(Sm5::JBroBuiltinOutlineCompositePS_SM5),
-            Spv::JBroBuiltinOutlineCompositePS_SPV, sizeof(Spv::JBroBuiltinOutlineCompositePS_SPV));
+        if (false == ApplyShader(outlineDesc, BuiltinShader::OutlineComposite, m_config.api, sizeof(float) * 8))
+        {
+            return false;
+        }
         outlineDesc.blend = BlendMode::Alpha;
         m_outlineCompositePipeline = m_device->CreateGraphicsPipeline(outlineDesc);
         if (false == m_outlineGrowPipeline.IsValid() || false == m_outlineCompositePipeline.IsValid())
@@ -2105,11 +2047,10 @@ namespace JBro
         // 레이어 합성(D-279). 외곽선과 같은 정점 셰이더(화면을 덮는 사각형)이고, 픽셀 셰이더가 레이어 텍스처를 `Load` 로 읽어
         // 불투명도를 곱한다. 블렌드만 다른 넷이다 - 미리 곱한 색을 얹는 `Layer*` 계수다.
         GraphicsPipelineDesc compositeDesc = outlineDesc;
-        compositeDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLayerCompositePS, sizeof(JBroBuiltinLayerCompositePS),
-            Sm5::JBroBuiltinLayerCompositePS_SM5, sizeof(Sm5::JBroBuiltinLayerCompositePS_SM5),
-            Spv::JBroBuiltinLayerCompositePS_SPV, sizeof(Spv::JBroBuiltinLayerCompositePS_SPV));
-        compositeDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(float) * 4);
-        compositeDesc.bindings.sampledTextures.count = 1;
+        if (false == ApplyShader(compositeDesc, BuiltinShader::LayerComposite, m_config.api, sizeof(float) * 4))
+        {
+            return false;
+        }
         const BlendMode compositeBlends[4] = {
             BlendMode::LayerNormal, BlendMode::LayerAdditive, BlendMode::LayerMultiply, BlendMode::LayerScreen};
         for (std::size_t at = 0; at < 4; ++at)
@@ -2123,10 +2064,10 @@ namespace JBro
         }
         // 아래 그림을 읽는 블렌드(D-283). 레이어(t0)와 아래 그림의 사본(t1)을 읽어 섞은 색으로 덮어쓴다.
         GraphicsPipelineDesc backdropDesc = compositeDesc;
-        backdropDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLayerBackdropPS, sizeof(JBroBuiltinLayerBackdropPS),
-            Sm5::JBroBuiltinLayerBackdropPS_SM5, sizeof(Sm5::JBroBuiltinLayerBackdropPS_SM5),
-            Spv::JBroBuiltinLayerBackdropPS_SPV, sizeof(Spv::JBroBuiltinLayerBackdropPS_SPV));
-        backdropDesc.bindings.sampledTextures.count = 2;
+        if (false == ApplyShader(backdropDesc, BuiltinShader::LayerBackdrop, m_config.api, sizeof(float) * 4))
+        {
+            return false;
+        }
         backdropDesc.blend = BlendMode::Opaque;
         m_layerBackdropPipeline = m_device->CreateGraphicsPipeline(backdropDesc);
         return m_layerBackdropPipeline.IsValid();
@@ -2169,19 +2110,15 @@ namespace JBro
             {static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), VertexStepMode::Instance, {instanceAttributes, 5}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
         GraphicsPipelineDesc pipelineDesc;
-        pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS),
-            Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5),
-            Spv::JBroBuiltinMeshVS_SPV, sizeof(Spv::JBroBuiltinMeshVS_SPV));
-        pipelineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinMeshPS, sizeof(JBroBuiltinMeshPS),
-            Sm5::JBroBuiltinMeshPS_SM5, sizeof(Sm5::JBroBuiltinMeshPS_SM5),
-            Spv::JBroBuiltinMeshPS_SPV, sizeof(Spv::JBroBuiltinMeshPS_SPV));
+        if (false == ApplyShader(pipelineDesc, BuiltinShader::Mesh, m_config.api, sizeof(Matrix4x4)))
+        {
+            return false;
+        }
         pipelineDesc.vertexBuffers = {vertexLayouts, 2};
         pipelineDesc.colorFormats = {colorFormats, 1};
         pipelineDesc.depthFormat = TextureFormat::D32Float;
         pipelineDesc.blend = BlendMode::Opaque;
         pipelineDesc.cull = CullMode::Back;
-        pipelineDesc.pushConstantStages = ShaderStage::Vertex;
-        pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
         m_meshPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         return m_meshPipeline.IsValid();
     }
@@ -2241,20 +2178,16 @@ namespace JBro
         // 라이트맵은 1 을 넘는 빛을 담는다. 라이트는 서로 더한다 - `LayerAdditive` 가 `One·One` 이다.
         const TextureFormat colorFormats[] = {TextureFormat::RGBA16Float};
         GraphicsPipelineDesc desc;
-        desc.vertexShader = PickShader(m_config.api, JBroBuiltinLight2DVS, sizeof(JBroBuiltinLight2DVS),
-            Sm5::JBroBuiltinLight2DVS_SM5, sizeof(Sm5::JBroBuiltinLight2DVS_SM5),
-            Spv::JBroBuiltinLight2DVS_SPV, sizeof(Spv::JBroBuiltinLight2DVS_SPV));
-        desc.pixelShader = PickShader(m_config.api, JBroBuiltinLight2DPS, sizeof(JBroBuiltinLight2DPS),
-            Sm5::JBroBuiltinLight2DPS_SM5, sizeof(Sm5::JBroBuiltinLight2DPS_SM5),
-            Spv::JBroBuiltinLight2DPS_SPV, sizeof(Spv::JBroBuiltinLight2DPS_SPV));
+        if (false == ApplyShader(desc, BuiltinShader::Light2D, m_config.api, sizeof(Matrix4x4)))
+        {
+            return false;
+        }
         desc.vertexBuffers = {layouts, 2};
         desc.colorFormats = {colorFormats, 1};
         desc.blend = BlendMode::LayerAdditive;
         desc.cull = CullMode::None;
         desc.depthTest = false;
         desc.depthWrite = false;
-        desc.pushConstantStages = ShaderStage::Vertex;
-        desc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
         m_light2DPipeline = m_device->CreateGraphicsPipeline(desc);
         if (false == m_light2DPipeline.IsValid())
         {
@@ -2262,11 +2195,10 @@ namespace JBro
         }
         // 그림자를 드리우는 라이트 하나를 마스크(t0)로 깎으며 더한다. 같은 정점과 인스턴스다.
         GraphicsPipelineDesc shadowedDesc = desc;
-        shadowedDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLight2DShadowedPS, sizeof(JBroBuiltinLight2DShadowedPS),
-            Sm5::JBroBuiltinLight2DShadowedPS_SM5, sizeof(Sm5::JBroBuiltinLight2DShadowedPS_SM5),
-            Spv::JBroBuiltinLight2DShadowedPS_SPV, sizeof(Spv::JBroBuiltinLight2DShadowedPS_SPV));
-        shadowedDesc.bindings.sampledTextures.count = 1;
-        shadowedDesc.bindings.samplers.count = 1;
+        if (false == ApplyShader(shadowedDesc, BuiltinShader::Light2DShadowed, m_config.api, sizeof(Matrix4x4)))
+        {
+            return false;
+        }
         m_shadowedLight2DPipeline = m_device->CreateGraphicsPipeline(shadowedDesc);
         if (false == m_shadowedLight2DPipeline.IsValid())
         {
@@ -2303,20 +2235,16 @@ namespace JBro
         // 더해 1 이 되어야 하므로 8 비트가 아니라 16 비트 실수다 - 8 비트면 이음매로 빛이 1/255 씩 샌다.
         const TextureFormat maskFormats[] = {TextureFormat::RGBA16Float};
         GraphicsPipelineDesc maskDesc;
-        maskDesc.vertexShader = PickShader(m_config.api, JBroBuiltinShadow2DVS, sizeof(JBroBuiltinShadow2DVS),
-            Sm5::JBroBuiltinShadow2DVS_SM5, sizeof(Sm5::JBroBuiltinShadow2DVS_SM5),
-            Spv::JBroBuiltinShadow2DVS_SPV, sizeof(Spv::JBroBuiltinShadow2DVS_SPV));
-        maskDesc.pixelShader = PickShader(m_config.api, JBroBuiltinShadow2DPS, sizeof(JBroBuiltinShadow2DPS),
-            Sm5::JBroBuiltinShadow2DPS_SM5, sizeof(Sm5::JBroBuiltinShadow2DPS_SM5),
-            Spv::JBroBuiltinShadow2DPS_SPV, sizeof(Spv::JBroBuiltinShadow2DPS_SPV));
+        if (false == ApplyShader(maskDesc, BuiltinShader::Shadow2D, m_config.api, sizeof(Matrix4x4) + sizeof(float) * 4))
+        {
+            return false;
+        }
         maskDesc.vertexBuffers = {edgeLayouts, 2};
         maskDesc.colorFormats = {maskFormats, 1};
         maskDesc.blend = BlendMode::LayerAdditive;
         maskDesc.cull = CullMode::None;
         maskDesc.depthTest = false;
         maskDesc.depthWrite = false;
-        maskDesc.pushConstantStages = ShaderStage::Vertex;
-        maskDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4) + sizeof(float) * 4);
         m_shadowMaskPipeline = m_device->CreateGraphicsPipeline(maskDesc);
         return m_shadowMaskPipeline.IsValid();
     }
@@ -2581,7 +2509,7 @@ namespace JBro
                 && m_frame.commands->SetVertexBuffer(1, m_lightInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
                 && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
                 && (false == mask.IsValid()
-                    || (m_frame.commands->SetTexture(0, mask) && m_frame.commands->SetSampler(0, m_nearestSampler)))
+                    || m_frame.commands->SetTexture(0, mask))
                 && m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, light.instance);
             m_frame.commands->EndRenderPass();
             if (false == lit)
@@ -2724,12 +2652,10 @@ namespace JBro
             {static_cast<JBro::UInt32>(sizeof(GpuWorldTextInstance)), VertexStepMode::Instance, {instanceAttributes, 8}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
         GraphicsPipelineDesc pipelineDesc;
-        pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinWorldTextVS, sizeof(JBroBuiltinWorldTextVS),
-            Sm5::JBroBuiltinWorldTextVS_SM5, sizeof(Sm5::JBroBuiltinWorldTextVS_SM5),
-            Spv::JBroBuiltinWorldTextVS_SPV, sizeof(Spv::JBroBuiltinWorldTextVS_SPV));
-        pipelineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinWorldTextPS, sizeof(JBroBuiltinWorldTextPS),
-            Sm5::JBroBuiltinWorldTextPS_SM5, sizeof(Sm5::JBroBuiltinWorldTextPS_SM5),
-            Spv::JBroBuiltinWorldTextPS_SPV, sizeof(Spv::JBroBuiltinWorldTextPS_SPV));
+        if (false == ApplyShader(pipelineDesc, BuiltinShader::WorldText, m_config.api, sizeof(Matrix4x4)))
+        {
+            return false;
+        }
         pipelineDesc.vertexBuffers = {vertexLayouts, 2};
         pipelineDesc.colorFormats = {colorFormats, 1};
         pipelineDesc.depthFormat = TextureFormat::D32Float;
@@ -2738,10 +2664,6 @@ namespace JBro
         pipelineDesc.depthWrite = false;
         pipelineDesc.blend = BlendMode::Alpha;
         pipelineDesc.cull = CullMode::None;
-        pipelineDesc.pushConstantStages = ShaderStage::Vertex;
-        pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
-        pipelineDesc.bindings.sampledTextures.count = 1;
-        pipelineDesc.bindings.samplers.count = 1;
         m_worldTextPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         return m_worldTextPipeline.IsValid();
     }

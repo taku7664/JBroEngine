@@ -109,6 +109,10 @@
   SPIR-V(Vulkan, D-108). 렌더러와 에디터 UI 가 `GraphicsApi` 로 고른다. `.hlsl` 은 ASCII 로 쓰고(fxc 가 BOM 을
   거절한다), 푸시 상수 b0 은 `JBRO_SPIRV` 매크로 뒤에 두 표기를 둔다. 텍스처는 SPIR-V 에서 binding 8+, 샘플러는
   16+ 다. (MUST)
+- 렌더러의 빌트인 셰이더는 `Shaders/ShaderManifest.psd1` 한 곳에 단계(진입점)와 프로그램(셰이더 둘·푸시 상수·자리표)으로
+  적는다. `Compile.ps1` 이 그것을 읽어 바이트코드 헤더와 프로그램 표(`BuiltinShaders.generated.h/.cpp`)를 만들고, 렌더러는
+  `GetBuiltinShader` 의 `ShaderData` 로 파이프라인을 채운다 - 셰이더 헤더를 직접 include 하거나 자리 개수를 손으로 적지 않는다.
+  자리표는 셰이더가 실제로 읽는 자리와 같아야 하며 `BuiltinShaderTests` 가 반사로 잰다. (MUST) (D-329)
 - 상수 버퍼는 b1..b7 이고 슬롯 번호가 곧 `b` 레지스터 번호다. b0 은 푸시 상수 자리라 상수 버퍼를 두지 않으며, SPIR-V 는
   b# 를 옮기지 않아 binding 1..7 이다. 파이프라인은 읽는 자원을 `GraphicsPipelineDesc::bindings` 에 종류마다 개수와 단계로
   적고, 상한은 `IRHIDevice::GetCaps()` 로 묻는다. 푸시 상수는 128 B 까지다. (MUST) (D-325)
