@@ -975,7 +975,7 @@ namespace
         Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer blend is refused");
     }
 
-    // **오브젝트 클립보드 글자**(D-313, 기존 `Serialization::SerializeObjects`). 고른 나무를 캔버스 파일 모양으로 적고 새 오브젝트로 읽어 넣는다.
+    // **오브젝트 클립보드 글자**(D-321, 기존 `Serialization::SerializeObjects`). 고른 나무를 캔버스 파일 모양으로 적고 새 오브젝트로 읽어 넣는다.
     // 나무 안의 참조는 새 사본끼리, 나무 밖의 참조는 같은 프로세스의 글자면 원본을 그대로 잡고(D-233), 다른 프로세스의 글자면 비어 온다.
     // 사람이 고친 글자도 읽고, 읽지 못하면 캔버스는 그대로다.
     void TestObjectsTextCopiesATreeAsYaml()

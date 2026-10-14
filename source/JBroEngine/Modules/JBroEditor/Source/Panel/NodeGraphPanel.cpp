@@ -202,7 +202,7 @@ namespace JBro
             // 맞추기는 캔버스 뷰처럼 스페이스바다(D-298).
             {"node_graph.frame", LocKeys::NodeGraphFrame, "Frame", bind(ImGuiKey_Space), {}, &HasPanel, nullptr,
                 [](EditorActionContext& context) -> Bool { PanelOf(context)->FrameSelection(); return true; }},
-            // 주석은 언리얼 블루프린트처럼 C 다(D-313). 고른 노드가 있으면 감싼다.
+            // 주석은 언리얼 블루프린트처럼 C 다(D-321). 고른 노드가 있으면 감싼다.
             {"node_graph.comment", LocKeys::NodeGraphAddComment, "Add Comment", bind(ImGuiKey_C), {}, &HasPanel, nullptr,
                 [](EditorActionContext& context) -> Bool
                 {
@@ -767,7 +767,7 @@ namespace JBro
     String NodeGraphPanel::SelectionText() const
     {
         // 고른 노드와 그 사이의 링크만 담은 그래프의 글자다. 도메인 이름이 첫 줄이라 다른 도메인에는 붙지 않는다.
-        // 고른 주석도 담는다. 링크는 경유점째다(D-313).
+        // 고른 주석도 담는다. 링크는 경유점째다(D-321).
         NodeGraph::Graph copied;
         copied.SetDomain(m_document.domain->GetName());
         for (const UInt64& id : m_canvas.interaction.GetSelection())

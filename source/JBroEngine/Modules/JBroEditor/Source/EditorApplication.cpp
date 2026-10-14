@@ -151,7 +151,7 @@ namespace JBro
     {
         // 노드 그래프의 도메인이다(D-308). 셰이더 그래프가 서면 여기에 더한다.
         m_nodeGraphDomains->Add(NodeGraph::MakeMathDomain());
-        // 프로세스마다 다르면 된다 - 이 객체의 주소와 지금 시각이다(D-313).
+        // 프로세스마다 다르면 된다 - 이 객체의 주소와 지금 시각이다(D-321).
         char session[64];
         std::snprintf(session, sizeof(session), "%llx-%llx",
             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(this)),
@@ -6385,7 +6385,7 @@ namespace JBro
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();
         m_saveRequested = false;
-        // 오브젝트 클립보드는 글자라 프로젝트를 닫아도 둔다(D-313). 바깥 참조의 `@` 번호는 지운 오브젝트를 가리켜 붙이면 빈 참조가 된다.
+        // 오브젝트 클립보드는 글자라 프로젝트를 닫아도 둔다(D-321). 바깥 참조의 `@` 번호는 지운 오브젝트를 가리켜 붙이면 빈 참조가 된다.
         // 컴포넌트 클립보드에는 에셋 번호가 든 값이 있다. 그 번호도 이 프로젝트의 것이다(D-167).
         m_componentClipboard = ComponentSnapshot();
         m_hasComponentClipboard = false;

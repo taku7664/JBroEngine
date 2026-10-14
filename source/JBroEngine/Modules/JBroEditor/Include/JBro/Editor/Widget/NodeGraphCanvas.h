@@ -13,7 +13,7 @@
 // 노드 그래프를 그리고 마우스를 받는 위젯이다(D-308, node-graph-plan §2.1).
 //
 //   ┌─────────────────────────────────────────────┐
-//   │ ┌ Inputs ────────────────┐ ·  ·  ·  ·  ·  ·  │   주석은 노드 뒤에 깔린다(D-313)
+//   │ ┌ Inputs ────────────────┐ ·  ·  ·  ·  ·  ·  │   주석은 노드 뒤에 깔린다(D-321)
 //   │ │ [2.00]●┌─ Add ───────┐ │      ┌─ Output ┐ │
 //   │ │ [1.00]●│ A   Result ●┼─┼──◆───┼─● Value  │ │   ◆ 는 링크의 경유점이다
 //   │ │        └─────────────┘ │      └─────────┘ │   [2.00] 은 이어지지 않은 입력의 값 칸이다
@@ -63,7 +63,7 @@ namespace JBro::Widget
     void EndNodeGraphCanvas(const NodeGraph::Graph& graph, const NodeGraph::Domain& domain, NodeGraphCanvasState& state,
         NodeGraphView::Events& events);
 
-    // ── 노드 찾기 메뉴(D-313) ──
+    // ── 노드 찾기 메뉴(D-321) ──
     // 우클릭 메뉴 안에 그린다. 맨 위가 찾기 칸이고 메뉴가 열릴 때 글자 칸에 포커스가 간다. 칸이 비면 묶음마다 하위 메뉴로,
     // 글자를 치면 이름이나 묶음에 그 글자가 든 것을 한 줄로 보인다. 위·아래 화살표로 고르고 Enter 로 더한다.
     struct NodeMenuItem

@@ -2842,7 +2842,7 @@ namespace
         editor.SelectObjects({chosen, 2});
         Check(editor.CopySelection(), "copying the chosen tree must go through");
         Check(editor.HasClipboard(), "and fill the clipboard");
-        // **클립보드는 YAML 글자다**(D-313). 숨은 창의 에디터라 제 안의 클립보드지만, 보이는 에디터는 같은 글자를 시스템 클립보드에 둔다.
+        // **클립보드는 YAML 글자다**(D-321). 숨은 창의 에디터라 제 안의 클립보드지만, 보이는 에디터는 같은 글자를 시스템 클립보드에 둔다.
         {
             const JBro::String copiedText = editor.GetClipboardText();
             Check(JBro::IsObjectsText(copiedText.c_str()) && copiedText.find("Name: Alpha") != JBro::String::npos
@@ -2946,7 +2946,7 @@ namespace
                   == nullptr,
             "but playing is available with a canvas open");
 
-        // 프로젝트를 닫으면 붙일 곳이 없다. 클립보드의 글자는 남는다(D-313) - 다음 프로젝트에 붙여도 된다.
+        // 프로젝트를 닫으면 붙일 곳이 없다. 클립보드의 글자는 남는다(D-321) - 다음 프로젝트에 붙여도 된다.
         editor.CloseProject();
         Check(false == editor.HasClipboard(), "with no project there is nothing to paste into");
         Check(JBro::IsObjectsText(editor.GetClipboardText()), "but the copied text is still on the clipboard");
@@ -15456,7 +15456,7 @@ namespace
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "a right click on empty space opens the graph menu");
         Spot spot;
-        // 빈 곳의 메뉴는 노드 찾기다(D-313). 묶음 없는 종류(Output)는 맨 위에 바로 선다.
+        // 빈 곳의 메뉴는 노드 찾기다(D-321). 묶음 없는 종류(Output)는 맨 위에 바로 선다.
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "Output"), spot), "the output node is listed by its type name");
         ClickAt(editor, hwnd, spot);
         Check(editor.Tick(Frame), "the editor must redraw");
@@ -15583,7 +15583,7 @@ namespace
 
 namespace
 {
-    // **노드 그래프 다듬기**(D-313). 실제 에디터에서 찾기 메뉴(글자를 치고 Enter)·노드 안 값 칸(끌기 하나가 실행 취소 하나)·미니맵·
+    // **노드 그래프 다듬기**(D-321). 실제 에디터에서 찾기 메뉴(글자를 치고 Enter)·노드 안 값 칸(끌기 하나가 실행 취소 하나)·미니맵·
     // 주석(C)·복제를 잰다. 화면 모델의 판정은 `NodeGraphViewTests` 가 잰다.
     void TestTheNodeGraphEditorFindsAnnotatesAndEditsInPlace()
     {

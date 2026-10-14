@@ -29,7 +29,7 @@ namespace JBro
         constexpr UInt32 CanvasFileVersion = 1;
         // 레이어 에셋의 판이다. 캔버스 파일과 따로 센다(기존 엔진도 그랬다).
         constexpr UInt32 LayerFileVersion = 1;
-        // 오브젝트 클립보드의 판이다(D-313). 맨 앞 키가 표식을 겸한다.
+        // 오브젝트 클립보드의 판이다(D-321). 맨 앞 키가 표식을 겸한다.
         constexpr UInt32 ObjectsTextVersion = 1;
         constexpr char ObjectsTextMarker[] = "ObjectsVersion:";
 
@@ -411,7 +411,7 @@ namespace JBro
             LayerId fixedLayer = InvalidLayerId;
             // 표에 없는 레이어를 실패 대신 기본 레이어로 둔다(오브젝트 클립보드 - 복사한 레이어가 사라졌거나 다른 캔버스다).
             Bool unknownToDefault = false;
-            // 다른 프로세스가 쓴 글자의 `@` 번호를 버린다(D-313).
+            // 다른 프로세스가 쓴 글자의 `@` 번호를 버린다(D-321).
             Bool dropInstanceRefs = false;
         };
 
@@ -895,7 +895,7 @@ namespace JBro
     }
 
     // -----------------------------------------------------------------------
-    // 오브젝트 클립보드(D-313)
+    // 오브젝트 클립보드(D-321)
     // -----------------------------------------------------------------------
 
     Bool IsObjectsText(const char* text)

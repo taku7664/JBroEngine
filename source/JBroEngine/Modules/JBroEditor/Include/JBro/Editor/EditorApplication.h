@@ -608,14 +608,14 @@ namespace JBro
         // 클립보드는 그대로다). 붙여넣기는 커맨드 하나로 가고, 붙인 뿌리들을 고른다 -
         // 주된 선택의 형제로 붙이고, 고른 것이 없으면 캔버스 뿌리에 붙인다.
         //
-        // **클립보드는 시스템 클립보드의 YAML 글자다**(D-313, 기존 `Serialization::SerializeObjects`). 캔버스 파일과 같은 모양이라
+        // **클립보드는 시스템 클립보드의 YAML 글자다**(D-321, 기존 `Serialization::SerializeObjects`). 캔버스 파일과 같은 모양이라
         // 다른 에디터 창에 붙이거나 글 편집기에서 읽고 고칠 수 있다(`WriteObjectsText`). 숨은 창의 에디터는 제 안의 클립보드를 쓴다.
         Bool CopySelection();
         // `asChild` 면 고른 것의 자식으로 붙인다(D-166, 기존 `PasteObjectsAsChild`·Ctrl+Shift+V).
         Bool PasteClipboard(Bool asChild = false);
         // 클립보드의 글자가 오브젝트인가.
         Bool HasClipboard() const;
-        // **레이어 복사·붙여넣기**(D-298). 복사는 레이어 에셋과 같은 글자(`WriteLayerText` - 레이어 값과 그 위의 오브젝트)를 시스템 클립보드에 두고(D-313),
+        // **레이어 복사·붙여넣기**(D-298). 복사는 레이어 에셋과 같은 글자(`WriteLayerText` - 레이어 값과 그 위의 오브젝트)를 시스템 클립보드에 두고(D-321),
         // 붙여넣기는 그 글자로 새 레이어를 하나 더한다(`AddLayerFromAssetCommand`, 커맨드 하나). 붙인 레이어를 고른다.
         // 오브젝트와 한 클립보드라 Ctrl+V 는 **마지막에 복사한 쪽**을 붙인다 - 클립보드의 글자가 무엇인지가 그것이다.
         Bool CopyLayer(LayerId layerId);
@@ -978,9 +978,9 @@ namespace JBro
         Bool m_framePickActive = false;
         // 만든 프로젝트. 프레임이 끝나면 그리로 넘어간다 - 팝업 안(프레임 안)에서 프로젝트를 닫을 수 없다.
         String m_pendingProjectPath;
-        // UI 가 없을 때의 클립보드다(D-313). UI 가 있으면 시스템 클립보드(숨은 창이면 UI 안의 글자)를 쓴다.
+        // UI 가 없을 때의 클립보드다(D-321). UI 가 있으면 시스템 클립보드(숨은 창이면 UI 안의 글자)를 쓴다.
         String m_clipboardFallback;
-        // 이 프로세스를 가리키는 글자다. 오브젝트 클립보드의 `@` 번호가 이 프로세스의 것인지 가린다(D-313).
+        // 이 프로세스를 가리키는 글자다. 오브젝트 클립보드의 `@` 번호가 이 프로세스의 것인지 가린다(D-321).
         String m_clipboardSession;
         // 숨은 창으로 떴는가. UI 를 켤 때 제 안의 클립보드를 쓴다.
         Bool m_privateClipboard = false;

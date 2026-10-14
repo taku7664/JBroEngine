@@ -18,7 +18,7 @@
 // 좌표는 둘이다. 그래프 공간은 노드의 `position` 이 사는 곳이고 y 가 아래로 커진다. 화면 공간은 픽셀이다.
 // 화면 = 원점 + (그래프 - 팬) x 줌.
 //
-// 그래프에 놓이는 것은 노드·링크(경유점)·주석 셋이다(D-313). 고름은 번호 하나로 노드와 주석을 함께 든다 - 둘은 한 번호 줄을 쓴다.
+// 그래프에 놓이는 것은 노드·링크(경유점)·주석 셋이다(D-321). 고름은 번호 하나로 노드와 주석을 함께 든다 - 둘은 한 번호 줄을 쓴다.
 namespace JBro::NodeGraphView
 {
     using NodeGraph::Comment;
@@ -48,24 +48,24 @@ namespace JBro::NodeGraphView
         Float minZoom = 0.25f;
         Float maxZoom = 2.5f;
 
-        // ── 노드 안 값 칸(D-313). 이어지지 않은 입력의 값을 핀 왼쪽에서 바로 고친다(Unity 셰이더 그래프와 같은 자리). ──
+        // ── 노드 안 값 칸(D-321). 이어지지 않은 입력의 값을 핀 왼쪽에서 바로 고친다(Unity 셰이더 그래프와 같은 자리). ──
         // 칸 하나의 너비, 핀과의 틈, 칸이 서는 가장 작은 줌. 그보다 작으면 글자가 읽히지 않아 칸을 세우지 않는다.
         Float fieldWidth = 38.0f;
         Float fieldGap = 10.0f;
         Float fieldMinZoom = 0.45f;
 
-        // ── 경유점(D-313). 그리는 반지름과 잡는 반지름(화면 픽셀). ──
+        // ── 경유점(D-321). 그리는 반지름과 잡는 반지름(화면 픽셀). ──
         Float waypointRadius = 4.0f;
         Float waypointPickRadius = 8.0f;
 
-        // ── 주석(D-313). 머리 높이(그래프 공간), 크기 손잡이(화면 픽셀), 가장 작은 크기, 고른 노드를 감쌀 때의 여백. ──
+        // ── 주석(D-321). 머리 높이(그래프 공간), 크기 손잡이(화면 픽셀), 가장 작은 크기, 고른 노드를 감쌀 때의 여백. ──
         Float commentHeaderHeight = 28.0f;
         Float commentHandle = 12.0f;
         Float commentMinWidth = 120.0f;
         Float commentMinHeight = 70.0f;
         Float commentPadding = 24.0f;
 
-        // ── 미니맵(D-313). 오른쪽 아래에 선다(화면 픽셀). ──
+        // ── 미니맵(D-321). 오른쪽 아래에 선다(화면 픽셀). ──
         Bool showMinimap = true;
         Float minimapWidth = 190.0f;
         Float minimapHeight = 130.0f;
@@ -104,7 +104,7 @@ namespace JBro::NodeGraphView
     // 노드·주석을 다 덮는 그래프 공간 사각형이다. 아무것도 없으면 거짓이다.
     Bool ContentBounds(const Graph& graph, const Domain& domain, const Style& style, Rect& bounds);
 
-    // ── 노드 안 값 칸(D-313) ──
+    // ── 노드 안 값 칸(D-321) ──
     // 그 입력의 값 칸 수다. 이어지지 않았고, 핀 타입이 한 칸에서 네 칸이고, 줌이 `fieldMinZoom` 이상일 때만 0 이 아니다.
     UInt32 InputFieldComponents(const Graph& graph, const Domain& domain, const Style& style, const Camera& camera, const Node& node, std::size_t pin);
     // 값 칸의 그래프 공간 사각형이다(핀 왼쪽). 칸 수는 핀 타입의 칸 수다.
@@ -120,7 +120,7 @@ namespace JBro::NodeGraphView
     // 경유점을 지나는 링크의 곡선들이다(화면 공간). 점마다 가로로 들어가 가로로 나간다 - 곡선 수는 경유점 수 + 1 이다.
     void LinkPath(Vector2 fromScreen, ArrayView<const Vector2> waypointsScreen, Vector2 toScreen, Float zoom, Array<Curve>& curves);
 
-    // ── 미니맵(D-313) ──
+    // ── 미니맵(D-321) ──
     struct Minimap
     {
         // 미니맵 칸의 화면 사각형이다.
@@ -247,18 +247,18 @@ namespace JBro::NodeGraphView
         NodeId doubleClickedNode = NodeGraph::InvalidId;
         Bool commentDoubleClicked = false;
         CommentId doubleClickedComment = NodeGraph::InvalidId;
-        // ── 경유점(D-313) ── 링크를 두 번 누르면 더하고, 끌어 놓으면 옮기고, Alt 로 누르면 지운다.
+        // ── 경유점(D-321) ── 링크를 두 번 누르면 더하고, 끌어 놓으면 옮기고, Alt 로 누르면 지운다.
         Bool waypointAdded = false;
         Bool waypointMoved = false;
         Bool waypointRemoved = false;
         LinkId waypointLink = NodeGraph::InvalidId;
         std::size_t waypointIndex = 0;
         Vector2 waypointPoint;
-        // ── 주석의 크기(D-313) ── 손잡이를 놓을 때 한 번 선다.
+        // ── 주석의 크기(D-321) ── 손잡이를 놓을 때 한 번 선다.
         Bool commentResized = false;
         CommentId resizedComment = NodeGraph::InvalidId;
         Vector2 resizedSize;
-        // ── 노드 안 값 칸(D-313) ── 위젯의 `End` 가 채운다. 끄는 동안 프레임마다 선다(패널이 커맨드 하나로 합친다).
+        // ── 노드 안 값 칸(D-321) ── 위젯의 `End` 가 채운다. 끄는 동안 프레임마다 선다(패널이 커맨드 하나로 합친다).
         Bool inputEdited = false;
         NodeId editedNode = NodeGraph::InvalidId;
         std::size_t editedPin = 0;

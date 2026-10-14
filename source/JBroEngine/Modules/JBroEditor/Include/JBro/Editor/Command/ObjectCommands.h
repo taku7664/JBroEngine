@@ -228,7 +228,7 @@ namespace JBro
     // 붙인 것을 지우고, 다시 하면 **같은 번호로** 되살린다 - 붙여 넣은 것을 골라 고친 커맨드가
     // 그 뒤에 쌓여 있다.
     //
-    // 떠 둔 스냅샷을 붙인다. 에디터의 클립보드는 글자라 `PasteObjectsTextCommand` 를 쓴다(D-313) - 이것은 스냅샷을 이미 든 쪽이 쓴다.
+    // 떠 둔 스냅샷을 붙인다. 에디터의 클립보드는 글자라 `PasteObjectsTextCommand` 를 쓴다(D-321) - 이것은 스냅샷을 이미 든 쪽이 쓴다.
     class PasteObjectsCommand final : public EditorCommand
     {
     public:
@@ -260,7 +260,7 @@ namespace JBro
         Bool m_pasted = false;
     };
 
-    // **클립보드의 YAML 글자를 붙인다**(D-313, 기존 `CPasteObjectsCommand`). 첫 실행은 `ReadObjectsText` 로 새 오브젝트를 만들고 그 나무를
+    // **클립보드의 YAML 글자를 붙인다**(D-321, 기존 `CPasteObjectsCommand`). 첫 실행은 `ReadObjectsText` 로 새 오브젝트를 만들고 그 나무를
     // 떠 둔다. 되돌리기는 그 나무를 지우고, 다시 하기는 떠 둔 것을 같은 번호로 되살린다(`AddLayerFromAssetCommand` 와 같은 길).
     // 나무를 뜨지 못하면 만든 것을 거두고 실패한다 - 되살릴 값이 없는 것을 남기지 않는다.
     class PasteObjectsTextCommand final : public EditorCommand

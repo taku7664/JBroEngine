@@ -166,7 +166,7 @@ namespace
         Check(WriteGraph(read, domain.Get()) == text, "writing it again gives the same text");
     }
 
-    // **주석과 경유점**(D-313). 둘 다 그래프의 것이라 YAML 로 왕복하고, 번호는 노드·링크와 한 줄을 쓴다.
+    // **주석과 경유점**(D-321). 둘 다 그래프의 것이라 YAML 로 왕복하고, 번호는 노드·링크와 한 줄을 쓴다.
     // 경유점은 잇기의 뜻을 바꾸지 않는다 - 갈아 치운 링크는 경유점 없이 선다.
     void TestCommentsAndWaypoints()
     {

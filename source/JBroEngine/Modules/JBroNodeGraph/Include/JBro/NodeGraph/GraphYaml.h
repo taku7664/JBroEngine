@@ -27,8 +27,8 @@
 //       FromPin: Result
 //       ToNode: 2
 //       ToPin: A
-//       Waypoints: [ 120, 40, 160, 80 ]   (경유점이 있을 때만, x y 의 차례, D-313)
-//   Comments:                             (주석이 있을 때만, D-313)
+//       Waypoints: [ 120, 40, 160, 80 ]   (경유점이 있을 때만, x y 의 차례, D-321)
+//   Comments:                             (주석이 있을 때만, D-321)
 //     - Id: 5
 //       Title: Inputs
 //       X: -20

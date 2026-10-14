@@ -334,7 +334,7 @@ namespace
         Check(Near(outputCenter.x, 100.0f + 800.0f), "framing the selection centers just those nodes");
     }
 
-    // **노드 안 값 칸**(D-313). 이어지지 않은 입력은 핀 왼쪽에 값 칸이 서고, 그 칸을 누르면 손짓이 서지 않는다 - 칸이 마우스를 받는다.
+    // **노드 안 값 칸**(D-321). 이어지지 않은 입력은 핀 왼쪽에 값 칸이 서고, 그 칸을 누르면 손짓이 서지 않는다 - 칸이 마우스를 받는다.
     // 이어진 입력과 작은 줌에는 칸이 없다.
     void TestInputFieldsSitLeftOfUnlinkedInputs()
     {
@@ -364,7 +364,7 @@ namespace
         Check(InputFieldComponents(scene.graph, *scene.domain, scene.style, scene.camera, *add, 0).Get() == 0, "zoomed far out there are no fields");
     }
 
-    // **주석**(D-313). 머리를 누르면 고르고, 끌면 그 안에 다 들어간 노드가 함께 간다(끄는 동안 미리, 놓을 때 사건 하나). 몸은 바닥이라 상자로 고른다.
+    // **주석**(D-321). 머리를 누르면 고르고, 끌면 그 안에 다 들어간 노드가 함께 간다(끄는 동안 미리, 놓을 때 사건 하나). 몸은 바닥이라 상자로 고른다.
     void TestCommentsCarryTheirNodes()
     {
         Scene scene;
@@ -417,7 +417,7 @@ namespace
             "and never below its smallest size");
     }
 
-    // **경유점**(D-313). 링크를 두 번 누르면 그 자리에 서고, 잡아서 끌면 놓을 때 옮기고, Alt 로 누르면 지운다. 두 끝 노드를 함께 끌면 따라간다.
+    // **경유점**(D-321). 링크를 두 번 누르면 그 자리에 서고, 잡아서 끌면 놓을 때 옮기고, Alt 로 누르면 지운다. 두 끝 노드를 함께 끌면 따라간다.
     void TestWaypointsBendALink()
     {
         Scene scene;
@@ -475,7 +475,7 @@ namespace
         interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(Vector2{from.x.Get() + 30.0f, from.y.Get()}), ignored);
     }
 
-    // **미니맵**(D-313). 오른쪽 아래에 서고, 누르거나 끌면 그 자리가 화면 가운데로 미끄러져 간다. 끄거나 캔버스가 작으면 없다.
+    // **미니맵**(D-321). 오른쪽 아래에 서고, 누르거나 끌면 그 자리가 화면 가운데로 미끄러져 간다. 끄거나 캔버스가 작으면 없다.
     void TestTheMinimapMovesTheCamera()
     {
         Scene scene;

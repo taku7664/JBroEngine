@@ -51,12 +51,12 @@ namespace JBro::NodeGraph
         LinkId id = InvalidId;
         PinRef from;
         PinRef to;
-        // **경유점**이다(D-313). 선이 출력에서 이 점들을 차례로 지나 입력으로 간다. 그래프 공간이다.
+        // **경유점**이다(D-321). 선이 출력에서 이 점들을 차례로 지나 입력으로 간다. 그래프 공간이다.
         // 그리는 데만 쓴다 - 잇기의 뜻은 `from`·`to` 가 다이고, 그래프를 결과물로 바꾸는 쪽은 이것을 보지 않는다.
         Array<Vector2> waypoints;
     };
 
-    // **주석 상자**다(D-313). 노드 뒤에 깔리는 제목 달린 사각형이고, 머리를 끌면 안에 든 노드가 함께 간다.
+    // **주석 상자**다(D-321). 노드 뒤에 깔리는 제목 달린 사각형이고, 머리를 끌면 안에 든 노드가 함께 간다.
     // 노드처럼 그래프의 것이지만 잇기·계산에는 끼지 않는다.
     struct Comment
     {
@@ -111,14 +111,14 @@ namespace JBro::NodeGraph
         Bool SetPosition(NodeId id, Vector2 position);
         Bool SetInput(NodeId id, std::size_t pin, const PinValue& value);
 
-        // ── 경유점(D-313) ──
+        // ── 경유점(D-321) ──
         // `index` 자리에 끼운다(0 이면 출력 바로 뒤, 개수면 입력 바로 앞). 범위 밖이면 거짓이다.
         Bool InsertWaypoint(LinkId link, std::size_t index, Vector2 point);
         Bool MoveWaypoint(LinkId link, std::size_t index, Vector2 point);
         Bool RemoveWaypoint(LinkId link, std::size_t index);
         Bool SetWaypoints(LinkId link, ArrayView<const Vector2> points);
 
-        // ── 주석(D-313) ──
+        // ── 주석(D-321) ──
         const Comment* FindComment(CommentId id) const noexcept;
         CommentId AddComment(String title, Vector2 position, Vector2 size, Color color);
         // 그 번호 그대로 넣는다(읽기·붙여넣기). 번호가 비었거나 이미 쓰이면 거짓이다.

@@ -189,7 +189,7 @@ namespace JBro::Widget
             draw.AddRect(min, max, ToU32(hovered ? EditorTheme::LineStrong : EditorTheme::Line), 4.0f);
         }
 
-        // 노드 안 값 칸이다(D-313). 바꾸면 그 값을 `events` 에 담는다.
+        // 노드 안 값 칸이다(D-321). 바꾸면 그 값을 `events` 에 담는다.
         void DrawInputFields(const NodeGraph::Graph& graph, const NodeGraph::Domain& domain, NodeGraphCanvasState& state,
             const NodeGraph::Node& source, const NodeGraph::Node& placed, ImDrawList& draw, float fontSize, NodeGraphView::Events& events)
         {
