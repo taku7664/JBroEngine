@@ -2102,6 +2102,12 @@ namespace JBro::ScriptCompiler
                 {
                     const Symbol symbol = m_result.Symbols[best];
                     call.Resolved = best;
+                    for (std::size_t slot = 0; slot < arguments.Size(); ++slot)
+                    {
+                        String expected = OwnerSubstitution(symbol.Parameters[slot].Type, callee.ReceiverType);
+                        expected = Substitute(expected, symbol.TypeParameters, explicitTypes);
+                        call.ParameterTypes.Add(symbol.Parameters[slot].Borrowed ? Bare(expected) : expected);
+                    }
                     Occur(best, call.CalleeRange);
                     result.Type = OwnerSubstitution(symbol.Type, callee.ReceiverType);
                     result.Type = Substitute(result.Type, symbol.TypeParameters, explicitTypes);

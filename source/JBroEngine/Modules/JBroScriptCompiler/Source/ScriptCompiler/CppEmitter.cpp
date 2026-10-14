@@ -80,11 +80,21 @@ namespace JBro::ScriptCompiler
 
         Type TextType(std::string_view value)
         {
+            if (value.starts_with("const "))
+            {
+                value.remove_prefix(6);
+            }
+            bool ref = false;
             if (value.rfind("ref ", 0) == 0)
             {
-                return {Trim(value.substr(4)), true};
+                value.remove_prefix(4);
+                ref = true;
             }
-            return {Trim(value), false};
+            if (value.starts_with("const "))
+            {
+                value.remove_prefix(6);
+            }
+            return {Trim(value), ref};
         }
 
         Array<String> TypeArguments(std::string_view name)
@@ -856,6 +866,7 @@ namespace JBro::ScriptCompiler
                 const bool abstractMethod = (node.Flags & SyntaxFlagRequire) != 0
                     || (owner != nullptr && owner->kind == SyntaxKind::InterfaceDeclaration);
                 const Type returns = ParseType(Child(index, 2));
+                m_returnType = returns;
                 const bool callback = script && (node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) != 0;
                 const String nativeFunction = constructor ? CppIdentifier(m_owner)
                     : (node.Flags & (SyntaxFlagOperatorEqual | SyntaxFlagOperatorNotEqual))
@@ -954,11 +965,16 @@ namespace JBro::ScriptCompiler
 
             String AdaptValue(const Type& target, const Expression& value, NodeIndex sourceIndex) const
             {
+                if (target.ref && !value.type.ref && target.name == value.type.name
+                    && !IsHandle(value.type) && !IsScript(value.type))
+                {
+                    return NativeType(target) + "(" + value.code + ")";
+                }
                 if (!target.ref && value.type.ref && target.name == value.type.name
                     && !IsHandle(value.type) && !IsScript(value.type))
                 {
                     const String site = SiteKey(Node(sourceIndex));
-                    return "([&]() -> decltype(auto) { auto&& jbro_gen_value = (" + value.code
+                    return "([&]() -> " + NativeType(target) + " { auto&& jbro_gen_value = (" + value.code
                         + "); return JBro::ScriptGuard::Require(jbro_gen_value, " + Escape(site)
                         + ", " + Escape(site + " invalid ref value: " + AccessPath(sourceIndex)) + "); }())";
                 }
@@ -976,6 +992,27 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 return {};
+            }
+
+            const CallSite* AnalyzedCall(NodeIndex index) const
+            {
+                if (m_analysis == nullptr)
+                {
+                    return nullptr;
+                }
+                const SourceRange& range = Node(index).Range;
+                for (const auto& document : m_analysis->Documents)
+                {
+                    if (&document->Tree != m_tree)
+                    {
+                        continue;
+                    }
+                    return document->Calls.FindBy([&](const CallSite& call)
+                    {
+                        return call.Range.Begin.Offset == range.Begin.Offset && call.Range.End.Offset == range.End.Offset;
+                    });
+                }
+                return nullptr;
             }
 
             Expression Expr(NodeIndex index)
@@ -1232,11 +1269,16 @@ namespace JBro::ScriptCompiler
                     const Type analyzedType = AnalyzedType(index);
                     const Type callType = analyzedType.name.empty() ? callee.type : analyzedType;
                     const SyntaxNode& calleeNode = Node(calleeIndex);
+                    const CallSite* analyzedCall = AnalyzedCall(index);
                     String arguments;
                     for (std::size_t slot = 1; slot < node.ChildCount; ++slot)
                     {
                         if (slot != 1) arguments += ", ";
-                        arguments += Expr(Child(index, slot)).code;
+                        const NodeIndex argumentIndex = Child(index, slot);
+                        const Expression argument = Expr(argumentIndex);
+                        arguments += analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
+                            ? AdaptValue(TextType(analyzedCall->ParameterTypes[slot - 1]), argument, argumentIndex)
+                            : argument.code;
                     }
                     if (calleeNode.Kind == SyntaxKind::MemberAccessExpression)
                     {
@@ -1592,7 +1634,11 @@ namespace JBro::ScriptCompiler
                 if (node.Kind == SyntaxKind::ReturnStatement)
                 {
                     m_code += pad + "return";
-                    if (Child(index, 0) != InvalidNode) m_code += " " + Expr(Child(index, 0)).code;
+                    if (Child(index, 0) != InvalidNode)
+                    {
+                        const NodeIndex valueIndex = Child(index, 0);
+                        m_code += " " + AdaptValue(m_returnType, Expr(valueIndex), valueIndex);
+                    }
                     m_code += ";\n";
                     return;
                 }
@@ -1615,6 +1661,7 @@ namespace JBro::ScriptCompiler
             Array<FunctionRef> m_functions;
             std::size_t m_temporary = 0;
             String m_owner;
+            Type m_returnType;
         };
     }
 

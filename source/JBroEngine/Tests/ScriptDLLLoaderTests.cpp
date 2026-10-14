@@ -28,6 +28,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Runtime/Nullable.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/Runtime/ServiceContext.h>
@@ -1494,6 +1495,42 @@ namespace
             "the generated probe must expose its scenario controls");
         const JBro::Bool oldEcho = JBro::Log::GetEchoToConsole();
         JBro::Log::SetEchoToConsole(false);
+        JBro::Log::Clear();
+        const JBro::PropertyTable* conversionProperties = JBro::PropertyRegistry::Lookup("ConversionProbe");
+        Check(conversionProperties != nullptr && conversionProperties->count == 8,
+            "the conversion probe exposes its scenario state");
+        for (JBro::Int mode = 0; mode < 4; ++mode)
+        {
+            JBro::Canvas conversionCanvas(JBro::CreateDefaultAllocator());
+            auto* conversion = conversionCanvas.AttachScript(conversionCanvas.CreateObject("value conversion"), "ConversionProbe");
+            Check(conversion != nullptr, "the conversion probe attaches to a real canvas object");
+            auto integer = [&](JBro::UInt32 field) -> JBro::Int&
+            {
+                return *static_cast<JBro::Int*>(conversionProperties->properties[field].Address(conversion));
+            };
+            auto& maybe = *static_cast<JBro::Nullable<JBro::Int>*>(conversionProperties->properties[1].Address(conversion));
+            integer(0) = mode;
+            JBro::Log::Clear();
+            conversion->OnUpdate();
+            conversion->OnUpdate();
+            Check(integer(2) == 2 && integer(3) == 0 && integer(4) == 0 && integer(5) == 0 && integer(6) == 2,
+                "a missing converted value is evaluated once and aborts before the callee and callback tail");
+            Check(JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
+                "repeated return or argument conversion failures share their source log key");
+            maybe.present = true;
+            maybe.value = 5;
+            conversion->OnUpdate();
+            Check(integer(2) == 3 && integer(3) == 1 && integer(6) == 3
+                    && integer(5) == (mode == 1 ? 7 : 5) && integer(4) == (mode == 1 ? 1 : 0),
+                "present values convert in returns, user calls, generic API calls, and constructors");
+            Check(JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
+                "a later successful callback preserves the recorded failure count");
+            static_cast<JBro::GameScript2D*>(conversion)->OnClick();
+            const auto* label = static_cast<const JBro::String*>(conversionProperties->properties[7].ConstAddress(conversion));
+            Check(integer(6) == 4 && std::strcmp(label->c_str(),
+                    "A temporary nullable string must be copied before its owned storage is destroyed.") == 0,
+                "a returned temporary nullable value copies its owned string before the temporary is destroyed");
+        }
         JBro::Log::Clear();
         auto* generated2D = static_cast<JBro::GameScript2D*>(generatedScript);
         generated2D->OnClick();

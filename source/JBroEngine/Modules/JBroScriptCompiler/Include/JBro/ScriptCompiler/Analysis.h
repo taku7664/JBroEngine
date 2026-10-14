@@ -68,6 +68,7 @@ namespace JBro::ScriptCompiler
         Array<SymbolId> Overloads;
         SymbolId Resolved = InvalidSymbol;
         String ResultType;
+        Array<String> ParameterTypes; // Resolved destination types for supplied arguments.
     };
 
     struct SemanticDiagnostic
