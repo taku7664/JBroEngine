@@ -1,0 +1,17 @@
+{
+	"displayName": "JBroEngine",
+	"description": "Workspace tools and GitHub sign-in for JBro Script Editor.",
+	"signIn": "Sign in to GitHub",
+	"manageAccount": "Manage GitHub account",
+	"project": "Project",
+	"git": "Git",
+	"build": "Build",
+	"run": "Run",
+	"diagnostics": "Errors / Logs",
+	"layoutEnabled": "Use the JBro toolbar instead of the standard title bar tools. Menu bar and Activity Bar visibility are controlled separately.",
+	"showProject": "Show Project in the toolbar.",
+	"showGit": "Show Git in the toolbar.",
+	"showBuild": "Show Build in the toolbar. Runs the workspace build task.",
+	"showRun": "Show Run in the toolbar. Opens the task picker.",
+	"showDiagnostics": "Show Errors / Logs in the toolbar. Opens Problems; Output and Terminal are available in the same bottom panel."
+}

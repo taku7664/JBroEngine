@@ -1,0 +1,153 @@
+diff --git a/src/vs/platform/actions/common/actions.ts b/src/vs/platform/actions/common/actions.ts
+index 68080fa1..42bf1647 100644
+--- a/src/vs/platform/actions/common/actions.ts
++++ b/src/vs/platform/actions/common/actions.ts
+@@ -180,6 +180,7 @@ export class MenuId {
+ 	static readonly TestCoverageFilterItem = new MenuId('TestCoverageFilterItem');
+ 	static readonly TouchBarContext = new MenuId('TouchBarContext');
+ 	static readonly TitleBar = new MenuId('TitleBar');
++	static readonly JBroTitleBar = new MenuId('JBroTitleBar');
+ 	static readonly TitleBarAdjacentCenter = new MenuId('TitleBarAdjacentCenter');
+ 	static readonly TitleBarUpdate = new MenuId('TitleBarUpdate');
+ 	static readonly TitleBarContext = new MenuId('TitleBarContext');
+diff --git a/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css b/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+index 16d2fa44..a7f2cd29 100644
+--- a/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
++++ b/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+@@ -29,6 +29,52 @@
+ 	width: 100%;
+ }
+ 
++/* JBro toolbar: retain the native title bar and window controls. */
++.monaco-workbench .part.titlebar > .titlebar-container:not(.jbro-layout) .jbro-toolbar,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .window-appicon,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .center-adjacent-toolbar-container,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .update-toolbar-container,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .action-toolbar-container {
++	display: none;
++}
++
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout > .titlebar-left,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout > .titlebar-right {
++	width: auto;
++	flex: 0 0 auto;
++	min-width: 0;
++}
++
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout > .titlebar-center {
++	width: auto;
++	max-width: none;
++	flex: 1 1 0;
++	overflow: hidden;
++}
++
++.monaco-workbench .part.titlebar .jbro-toolbar {
++	z-index: 2500;
++	-webkit-app-region: no-drag;
++	max-width: calc(100vw - 156px);
++	overflow-x: auto;
++	scrollbar-width: none;
++}
++
++.monaco-workbench .part.titlebar .jbro-toolbar .actions-container {
++	gap: 4px;
++	padding: 0 8px;
++}
++
++.monaco-workbench .part.titlebar .jbro-toolbar .action-label {
++	padding: 4px 8px;
++	border-radius: 4px;
++	font-size: 12px;
++}
++
++.monaco-workbench .part.titlebar .jbro-toolbar .action-label:hover {
++	background-color: var(--vscode-toolbar-hoverBackground);
++}
++
+ /* Account for zooming */
+ .monaco-workbench .part.titlebar > .titlebar-container.counter-zoom {
+ 	zoom: calc(1.0 / var(--zoom-factor));
+diff --git a/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts b/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts
+index 9d2e8a85..81d67a23 100644
+--- a/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts
++++ b/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts
+@@ -24,8 +24,8 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
+ import { Emitter, Event } from '../../../../base/common/event.js';
+ import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+ import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
+-import { createActionViewItem, fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+-import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
++import { createActionViewItem, fillInActionBarActions, TextOnlyMenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
++import { Action2, IMenu, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+ import { IHostService } from '../../../services/host/browser/host.js';
+ import { WindowTitle } from './windowTitle.js';
+@@ -376,6 +376,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 	}
+ 
+ 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
++		if (event.affectsConfiguration('jbro.layout.enabled') && this.rootContainer) {
++			this.rootContainer.classList.toggle('jbro-layout', this.configurationService.getValue<boolean>('jbro.layout.enabled') === true);
++			this._onDidChange.fire(undefined);
++		}
++
+ 		if (event.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+ 			this.updateStyles();
+ 		}
+@@ -474,6 +479,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 	protected override createContentArea(parent: HTMLElement): HTMLElement {
+ 		this.element = parent;
+ 		this.rootContainer = append(parent, $('.titlebar-container'));
++		this.rootContainer.classList.toggle('jbro-layout', this.configurationService.getValue<boolean>('jbro.layout.enabled') === true);
+ 
+ 		this.leftContent = append(this.rootContainer, $('.titlebar-left'));
+ 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
+@@ -498,6 +504,18 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 		}
+ 
+ 		// Title
++		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
++			const jbroToolbar = append(this.leftContent, $('div.jbro-toolbar'));
++			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, jbroToolbar, MenuId.JBroTitleBar, {
++				hiddenItemStrategy: HiddenItemStrategy.NoHide,
++				toolbarOptions: { primaryGroup: () => true },
++				actionViewItemProvider: action => action instanceof MenuItemAction
++					? this.instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { hoverDelegate: this.hoverDelegate })
++					: undefined,
++				hoverDelegate: this.hoverDelegate
++			}));
++		}
++
+ 		this.title = append(this.centerContent, $('div.window-title'));
+ 		this.createTitle();
+ 
+diff --git a/src/vs/workbench/browser/workbench.contribution.ts b/src/vs/workbench/browser/workbench.contribution.ts
+index e813c53f..64eaaac2 100644
+--- a/src/vs/workbench/browser/workbench.contribution.ts
++++ b/src/vs/workbench/browser/workbench.contribution.ts
+@@ -909,7 +909,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
+ 						localize('window.menuBarVisibility.compact.web', "Menu is displayed as a compact button in the side bar.") :
+ 						localize({ key: 'window.menuBarVisibility.compact', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1} and {2} is either {3} or {4}.", '`#window.titleBarStyle#`', '`native`', '`#window.menuStyle#`', '`native`', '`inherit`')
+ 				],
+-				'default': isWeb ? 'compact' : 'classic',
++				'default': isWeb ? 'compact' : 'hidden',
+ 				'scope': ConfigurationScope.APPLICATION,
+ 				'markdownDescription': isMacintosh ?
+ 					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the side bar.") :
+diff --git a/src/vs/workbench/services/actions/common/menusExtensionPoint.ts b/src/vs/workbench/services/actions/common/menusExtensionPoint.ts
+index 4e2a78f0..faee8b25 100644
+--- a/src/vs/workbench/services/actions/common/menusExtensionPoint.ts
++++ b/src/vs/workbench/services/actions/common/menusExtensionPoint.ts
+@@ -35,6 +35,12 @@ interface IAPIMenu {
+ }
+ 
+ const apiMenus: IAPIMenu[] = [
++	{
++		key: 'jbro/title',
++		id: MenuId.JBroTitleBar,
++		description: localize('menus.jbroTitle', "The JBro Script Editor toolbar"),
++		supportsSubmenus: false
++	},
+ 	{
+ 		key: 'commandPalette',
+ 		id: MenuId.CommandPalette,

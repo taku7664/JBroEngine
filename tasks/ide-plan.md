@@ -1,5 +1,9 @@
 # JBro Script Editor — Code-OSS 포크 계획 (초안)
 
+> **2026-10-14 후속 안내 — D-311.** §5.2·§7의 "기본 레이아웃 유지"와 0004 항목 미정은 사용자 화면 변경 결정으로 대체한다.
+> Activity Bar·File/Edit/... 메뉴를 치우고 `프로젝트·Git·빌드·실행·오류/로그`를 기본으로 드러낸다. 기존 본문은 당시 판단으로 보존한다.
+> 상단 도구막대·표시 설정·기존 패널 재사용은 구현 판단이며, [script-editor-integration-plan.md](./script-editor-integration-plan.md) §10에 계획·검증 범위를 둔다.
+>
 > **2026-10-13 후속 안내 — D-310.** 이번 제작 대상은 C++ 스크립트용이다. 코사원의 JBroEngine 확장·Git 등 개발 도구 연동·Code-OSS 전체 레이아웃 작업은
 > [script-editor-integration-plan.md](./script-editor-integration-plan.md)에서 현재 코드와 대조해 계획한다. 아래 `.jscript` 전용 범위와 `jbroc` 선행 조건은 당시 계획으로 보존한다.
 > Code-OSS 기반·JBro 기능의 내장 확장 구현·제품 모양에 한정한 코어 패치·마켓플레이스 미연결 정책과 기존 `.jscript` 자산은 그대로다.
