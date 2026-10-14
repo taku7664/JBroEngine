@@ -15,6 +15,8 @@
 #include <JBro/Framework2D/Handle/Collider2D.h>
 #include <JBro/Framework2D/Handle/Rigidbody2D.h>
 #include <JBro/Framework2D/Handle/Transform2D.h>
+#include <JBro/Framework3D/Handle/Transform3D.h>
+#include <JBro/AudioTypes/Handle/AudioSource.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -1497,6 +1499,11 @@ namespace
                     && colliderType.refTarget != nullptr
                     && colliderType.refTarget->targetType == JBro::NameTable::Get().Intern("Component::Collider2D"),
                 "every component handle is one field type that names its component");
+            Check(JBro::TypeDescriptorOf<JBro::Handle::Transform3D>::Get().refTarget->targetType
+                    == JBro::NameTable::Get().Intern(JBro::Handle::Transform3D::StaticTypeName())
+                    && JBro::TypeDescriptorOf<JBro::Handle::AudioSource>::Get().refTarget->targetType
+                    == JBro::NameTable::Get().Intern(JBro::Handle::AudioSource::StaticTypeName()),
+                "a 3D handle and the shared AudioSource handle are fields too");
 
             Check(canvas.DetachComponent(target, body), "the body comes off");
             Check(false == script->gone.IsValid(), "and its handle finds nothing");

@@ -9,6 +9,7 @@
 
 #include <Windows.h>
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -91,6 +92,33 @@ namespace
                 "the five lifecycle hooks are declared and defined, as the old engine did");
         }
         Check(Contains(source, "JBRO_REGISTER_SCRIPT_2D(Player);"), "the source registers the script in one line");
+
+        // 빌트인 컴포넌트도 필드로 고른다(D-302 (17)). 프렐류드가 연 핸들 이름 그대로 적힌다.
+        Array<ScriptProject::FieldSpec> handles;
+        handles.Add({String("Follow"), ScriptProject::FieldType::Transform2D});
+        handles.Add({String("Voice"), ScriptProject::FieldType::AudioSource});
+        const String handleHeader = ScriptProject::MakeScriptHeader("Chaser", handles, FrameworkKind::Framework2D);
+        Check(Contains(handleHeader, "    JBRO_FIELD(Transform2D, Follow) = {};\r\n")
+                && Contains(handleHeader, "    JBRO_FIELD(AudioSource, Voice) = {};\r\n"),
+            "a component handle field is written under the handle's own name");
+        // 다른 차원의 핸들은 그 프렐류드에 없어 컴파일되지 않는다 - 그 프로젝트에는 내놓지 않는다.
+        using ScriptProject::FieldType;
+        using ScriptProject::IsFieldTypeOffered;
+        Check(IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework2D)
+                && false == IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework3D)
+                && IsFieldTypeOffered(FieldType::Transform3D, FrameworkKind::Framework3D)
+                && false == IsFieldTypeOffered(FieldType::Transform3D, FrameworkKind::Framework2D),
+            "a 2D handle is offered only to 2D projects and a 3D handle only to 3D ones");
+        Check(IsFieldTypeOffered(FieldType::AudioSource, FrameworkKind::Framework2D)
+                && IsFieldTypeOffered(FieldType::AudioSource, FrameworkKind::Framework3D)
+                && IsFieldTypeOffered(FieldType::GameObject, FrameworkKind::Framework3D),
+            "the shared handle and the plain types are offered to both");
+        // 모든 종류가 제 이름을 가진다. 빠진 `case` 는 기본값 `Float` 로 떨어져 사용자가 고른 것과 다른 필드가 된다.
+        for (Int32 index = static_cast<Int32>(FieldType::Asset) + 1; index < static_cast<Int32>(FieldType::Count); ++index)
+        {
+            Check(std::strcmp(ScriptProject::FieldCppType(static_cast<FieldType>(index.Get())), "Float") != 0,
+                "every handle field type has its own C++ name");
+        }
 
         // 2D 프렐류드는 `Vector3` 의 설명자를 들이지 않는다. 그 필드가 있을 때만 더 들인다(MSBuild 로 확인했다).
         Check(false == Contains(header, "Math3DReflection.h"), "a script without a Vector3 field does not pull in 3D reflection");

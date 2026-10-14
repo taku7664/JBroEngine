@@ -24,7 +24,8 @@ namespace JBro
     // **사용자 코드를 읽지 않는다**(기존 엔진의 C3) - 필드는 사용자가 적은 `JBRO_FIELD` 를 컴파일러가 읽는다.
     namespace ScriptProject
     {
-        // 스크립트 추가 창에서 고르는 필드 타입이다. 리플렉션 설명자가 있는 것만 둔다 - 컴포넌트 참조(`Ref<T>`)는 설명자가 없어 아직 없다.
+        // 스크립트 추가 창에서 고르는 필드 타입이다. 리플렉션 설명자가 있는 것만 둔다 - 스크립트 참조(`Ref<T>`)는 설명자가 없어 아직 없다.
+        // `Asset` 뒤는 빌트인 컴포넌트 핸들이다(D-302 (17)). 2D·3D 전용 핸들은 그 차원의 프로젝트에만 내놓는다(`IsFieldTypeOffered`).
         enum class FieldType : std::uint8_t
         {
             Bool,
@@ -36,11 +37,33 @@ namespace JBro
             Color,
             GameObject,
             Asset,
+            Transform2D,
+            SpriteRenderer2D,
+            Camera2D,
+            Rigidbody2D,
+            Collider2D,
+            DistanceJoint2D,
+            HingeJoint2D,
+            Text2D,
+            Button2D,
+            AudioListener2D,
+            Light2D,
+            ShadowCaster2D,
+            Transform3D,
+            Camera3D,
+            MeshRenderer3D,
+            Rigidbody3D,
+            Collider3D,
+            Text3D,
+            AudioListener3D,
+            AudioSource,
             Count
         };
 
-        // 헤더에 적히는 C++ 타입 이름이다(프렐류드가 `using namespace JBro;` 를 하므로 짧은 이름이다).
+        // 헤더에 적히는 C++ 타입 이름이다(프렐류드가 `using namespace JBro;`·`using namespace JBro::Handle;` 을 하므로 짧은 이름이다).
         const char* FieldCppType(FieldType type);
+        // 이 차원의 스크립트 프로젝트에서 고를 수 있는가. 다른 차원의 핸들은 그 프렐류드에 없어 컴파일되지 않는다.
+        Bool IsFieldTypeOffered(FieldType type, FrameworkKind framework);
 
         struct FieldSpec
         {
