@@ -499,3 +499,50 @@ Problems 목록에 함께 표시된 화면을 확인했다. 상세 경계와 시
 
 이 후속 구현은 이 문서의 C++ 스크립트 언어 서비스나 C++ 빌드 태스크, 엔진 ImGui 패널,
 설치본 연결의 완료를 뜻하지 않는다.
+
+## 16. JBroScript 진단과 엔진 로그 실제 화면 (2026-10-15)
+
+Updates: §15의 실제 진단 검증 범위와 [두 단계 계획](./jbroscript-ref-log-plan.md)의 GUI 미확인 상태.
+작업용 임시 프로젝트·새 clean 프로필의 실제 Code-OSS와 엔진 ImGui 화면을 비교했다.
+
+### 16.1 확인한 시나리오와 증거
+
+| 검사 | 관찰 결과와 증거 |
+|---|---|
+| 초기화 진단 | 작업용 `InitializationOrderProbe.jscript`에서 후속 필드 읽기의 `JBC3044`를 hover·Problems·밑줄로 확인했다. [오류 화면](F:/AI/Temp/jbro-log-screen-proof/editor-initialization-error-20261015-004929.png). 자기 임시 샘플 복원 뒤 진단이 해제됐으며 원본 해시 `40082ad4…`, `dirty=false`, `diagnostics=[]`를 확인했다. |
+| 로그 반복·펼침 | 실제 SDK 오류 수신 경로의 시험 DLL이 `screen-proof-repeat`로 3회 기록했다. [편집기 펼침](F:/AI/Temp/jbro-log-screen-proof/editor-log-expanded-20261015-014310.png)과 [엔진 펼침](F:/AI/Temp/jbro-log-screen-proof/engine-log-history-20261015-014312.png)의 최신 시각 `.494`, 횟수 3, 발생 이력 `.403/.447/.494`가 일치한다. 편집기는 최신순, 엔진은 시간순이다. |
+| 무키 로그 | 두 무키 항목이 별도 줄로 표시된다. 위 편집기 화면과 [필터 없는 엔진 화면](F:/AI/Temp/jbro-log-screen-proof/engine-log-visible-20261015-003536.png)에서 확인했다. 엔진 펼침 증거는 `test1` 필터를 사용하므로 그 이미지에서는 무키 항목을 숨긴다. |
+| Clear | [편집기 Clear](F:/AI/Temp/jbro-log-screen-proof/editor-log-cleared-20261015-014516.png)와 [엔진 Clear](F:/AI/Temp/jbro-log-screen-proof/engine-log-cleared-20261015-014517.png) 후 양쪽이 비었다. [스냅샷](F:/AI/Temp/jbro-log-screen-proof/cleared.json)은 세션 `84859529889892`, Clear `1`, 항목 0이다. |
+| 종료·재접속 | 엔진 종료 뒤 [편집기 연결 끊김](F:/AI/Temp/jbro-log-screen-proof/editor-disconnected-20261015-015210.png), 재실행 뒤 [편집기 재접속](F:/AI/Temp/jbro-log-screen-proof/editor-reconnected-20261015-015236.png)을 확인했다. 새 시간 `01:52:25.097`의 그룹 3회·무키 2건을 표시하며 [스냅샷](F:/AI/Temp/jbro-log-screen-proof/reconnected.json)은 새 세션 `79854472612884`, Clear `0`, 항목 9다. 이전 세션 로그는 중복되지 않았다. [재접속 엔진 이력](F:/AI/Temp/jbro-log-screen-proof/engine-reconnected-history-20261015-015623.png)의 최신 `01:52:25.097`·횟수 3·발생 `01:52:24.996/01:52:25.050/01:52:25.097`도 편집기·스냅샷과 일치했다. |
+
+### 16.2 활성 외부 설치의 패널 표시 수정
+
+실제 외부 설치의 [jbroVisibility.ts](F:/Project/JBroScriptEditor/upstream/src/vs/workbench/common/jbroVisibility.ts)에 있던
+미커밋 허용 목록이 엔진 로그 패널을 `when:false`로 숨기던 원인을 확인했다. 기존 규칙을 유지하면서
+`panelContainers`에 `workbench.view.extension.jbro-engine-logs`, `panelViews`에 `jbro.engineLogs`만 추가했다.
+해당 컴파일된 `out` 모듈만 esbuild로 갱신하고 작업용 새 clean 프로필에서 공식 다시 로드했다.
+[실패 시험](F:/AI/Temp/jbro-log-screen-proof/visibility-red.txt)과 [통과 시험](F:/AI/Temp/jbro-log-screen-proof/visibility-green.txt)은
+로그 패널 가시성과 다른 표시 규칙 유지의 선택 시험 2개를 확인한다. 수정 전
+[소스 백업](F:/AI/Temp/jbro-log-screen-proof/jbroVisibility-before.ts)과 [출력 백업](F:/AI/Temp/jbro-log-screen-proof/jbroVisibility-before.js)을 남겼다.
+
+이것은 활성 외부 설치의 소스·로컬 출력 수정이다. 엔진 브랜치 커밋이나 관리 중인 패치 5개에 반영·적용한 결과로 기록하지 않는다.
+기존 presentation policy에 대한 두 ID 추가를 [별도 재적용 diff](F:/AI/Temp/jbro-log-screen-proof/engine-log-visibility.patch)로 보존했다.
+외부 엔진 로그 뷰의 YAML 묶음, 구분자 포함 분할 응답, 과대 응답 거절, Clear·재시작 선택 시험 4개도
+[최종 Node 시험](F:/AI/Temp/jbro-final-engine-log-view-tests.txt)에서 종료 코드 0으로 통과했다. 이 diff는 관리 패치 5개에 포함되지 않는다.
+
+### 16.3 보존 여부와 남은 범위
+
+원래 사용자 `PatrolProbe` 미저장 버퍼는 앞선 확장호스트 재시작 전후 해시 `0a8f8dd5…`, `dirty=true`만 확인했다.
+이후 Code-OSS가 종료됐고 이전 프로필의 `Backups`가 비어 있어 그 버퍼의 복구를 확인하지 못했다. 종료 주체는 미확인이다.
+이번 작업용 임시 샘플 복원·진단 해제를 원래 사용자 버퍼의 보존·복구 완료로 해석하지 않는다.
+후속 빌드의 `LNK1168` 파일 잠금을 해제하려고 공식 닫은 새 clean 임시 창은 종료 작업을 확인한 별도 대상이며,
+원래 사용자 창이 종료된 원인의 증거로 사용하지 않는다.
+
+후속 작업용 Code-OSS 재실행에서도 임시 샘플의 원본 해시·clean 상태와 빈 진단을 확인했다.
+증거는 [최종 임시 창](F:/AI/Temp/jbro-log-screen-proof/editor-final-max-20261015-021803.png)이다. 최대화한 실제 화면에서 엔진 로그 7행·반복 그룹 3회·무키 2건을 확인했다. 첫 재실행 호출은 환경의 `ComSpec` 부재로 시작하지 못했으며,
+System 폴더 API로 확인한 `cmd`를 사용한 뒤 성공했다. 이는 환경 실패를 처리한 것이며 제품 소스 수정이 아니다.
+
+정의된 2D 문법·현재 유한 타입 생성 시험 및 추상 스크립트 회귀를 확인하고 두 단계의 사용자 시나리오·아키텍처 리뷰를 완료했다.
+생성 헤더 126개와 Debug/Release 선택 회귀의 정확한 범위는 [단계 종료 확인표](./jbroscript-ref-log-plan.md#단계-종료-확인과-검토-범위-2026-10-15)에 둔다.
+모든 합법적 타입 조합·3D 생성·메모리/성능 벤치마크·C++ 언어 서비스·제품 설치본을 검증한 것으로 확대하지 않는다.
+엔진 새 묶음 행은 Widget을 거치지만 기존 LogPanel의 직접 ImGui 배관 호출은 잔여 기술 부채이며 패널 전체 이관 완료를 뜻하지 않는다.
