@@ -190,10 +190,6 @@ namespace JBro::ScriptLanguageServer::Detail
         {
             path.Clear();
         }
-        if (encoded.size() >= 3 && encoded[0] == '/' && encoded[2] == ':')
-        {
-            encoded.remove_prefix(1);
-        }
         for (std::size_t index = 0; index < encoded.size(); ++index)
         {
             if (encoded[index] == '%')
@@ -218,6 +214,11 @@ namespace JBro::ScriptLanguageServer::Detail
                 }
                 path += encoded[index];
             }
+        }
+        if (local && path.size() >= 3 && path[0] == '/'
+            && std::isalpha(static_cast<unsigned char>(path[1])) && path[2] == ':')
+        {
+            path.erase(0, 1);
         }
         return true;
     }

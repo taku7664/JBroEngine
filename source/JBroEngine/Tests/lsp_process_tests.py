@@ -3,6 +3,7 @@ import argparse
 import json
 import pathlib
 import queue
+import re
 import subprocess
 import tempfile
 import threading
@@ -203,6 +204,20 @@ class ProcessTests(unittest.TestCase):
                     "signatureHelpProvider", "referencesProvider", "renameProvider",
                     "semanticTokensProvider", "foldingRangeProvider", "documentFormattingProvider"):
             self.assertTrue(caps.get(key), key)
+
+    def test_editor_file_uri_with_encoded_drive_colon(self):
+        source = "script Enemy\n{\n    public Int hp = 1\n}\n"
+        uri = self.document("Enemy.jscript", source)
+        editor_uri = re.sub(r"^file:///([A-Za-z]):",
+                            lambda match: f"file:///{match.group(1).lower()}%3A", uri)
+        self.assertNotEqual(editor_uri, uri)
+        session = self.start()
+        session.notify("textDocument/didOpen", {
+            "textDocument": {"uri": editor_uri, "languageId": "jbroscript",
+                             "version": 1, "text": source}})
+        symbols = self.result(session, "textDocument/documentSymbol",
+                              {"textDocument": {"uri": editor_uri}})
+        self.assertEqual(symbols[0]["name"], "Enemy")
 
     def test_exit_does_not_wait_for_stdin_eof(self):
         session = self.start()
