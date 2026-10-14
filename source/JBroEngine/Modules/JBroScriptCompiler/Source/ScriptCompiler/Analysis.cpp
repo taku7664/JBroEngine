@@ -652,7 +652,7 @@ namespace JBro::ScriptCompiler
                     }
                     m_document = binding.Document;
                     m_owner = m_result.Symbols[binding.Id].Parent;
-                    m_function = InvalidSymbol;
+                    m_member = binding.Id;
                     Flow flow;
                     if (SyntaxKind::FieldDeclaration == Node(binding.Node).Kind)
                     {
@@ -1308,7 +1308,7 @@ namespace JBro::ScriptCompiler
 
             void AnalyzeFunction(const Binding& binding, Flow& flow)
             {
-                m_function = binding.Id;
+                m_member = binding.Id;
                 m_scopes.Clear();
                 const NodeIndex body = Child(binding.Node, 3);
                 if (InvalidNode == body)
@@ -1326,7 +1326,7 @@ namespace JBro::ScriptCompiler
                         {
                             continue;
                         }
-                        Symbol symbol = FromNode(parameter, m_function, SymbolKind::Parameter);
+                        Symbol symbol = FromNode(parameter, m_member, SymbolKind::Parameter);
                         symbol.Type = RenderType(m_document->Tree, type);
                         symbol.ScopeRange = Node(body).Range;
                         symbol.Writable = 0 == (Node(type).Flags & SyntaxFlagConst);
@@ -1336,11 +1336,11 @@ namespace JBro::ScriptCompiler
                 m_loopDepth = 0;
                 m_switchDepth = 0;
                 const ControlFlow completion = Block(body, flow, false);
-                if (false == completion.AlwaysReturns() && m_result.Symbols[m_function].Type != "Void"
-                    && SymbolKind::Constructor != m_result.Symbols[m_function].Kind)
+                if (false == completion.AlwaysReturns() && m_result.Symbols[m_member].Type != "Void"
+                    && SymbolKind::Constructor != m_result.Symbols[m_member].Kind)
                 {
-                    Error("JBC3011", "return_path", m_result.Symbols[m_function].SelectionRange,
-                        {m_result.Symbols[m_function].Name});
+                    Error("JBC3011", "return_path", m_result.Symbols[m_member].SelectionRange,
+                        {m_result.Symbols[m_member].Name});
                 }
                 m_scopes.Clear();
             }
@@ -1453,6 +1453,32 @@ namespace JBro::ScriptCompiler
                 }
             }
 
+            void CheckFieldInitializationRead(SymbolId id, const SourceRange& range)
+            {
+                if (m_member == InvalidSymbol)
+                {
+                    return;
+                }
+                const Symbol& current = m_result.Symbols[m_member];
+                const Symbol& field = m_result.Symbols[id];
+                if (current.Kind == SymbolKind::Field && field.Kind == SymbolKind::Field
+                    && current.Parent == field.Parent && current.IsStatic == field.IsStatic
+                    && field.SelectionRange.Begin.Offset >= current.SelectionRange.Begin.Offset)
+                {
+                    Error("JBC3044", "uninitialized_field", range, {field.Name});
+                }
+            }
+
+            Bool IsSelfReceiver(NodeIndex index) const
+            {
+                while (index != InvalidNode && Node(index).Kind == SyntaxKind::ParenthesizedExpression)
+                {
+                    index = Child(index, 0);
+                }
+                return index != InvalidNode && Node(index).Kind == SyntaxKind::NameExpression
+                    && Node(index).Text == "this";
+            }
+
             Expression SymbolExpression(SymbolId id, const SourceRange& range, Flow& flow, Bool write, Bool record, Bool implicit = true)
             {
                 const Symbol symbol = m_result.Symbols[id];
@@ -1464,11 +1490,15 @@ namespace JBro::ScriptCompiler
                 expression.LValue = SymbolKind::Field == symbol.Kind || SymbolKind::Local == symbol.Kind || SymbolKind::Parameter == symbol.Kind;
                 expression.Writable = symbol.Writable;
                 expression.TypeObject = IsTypeSymbol(symbol.Kind);
+                if (!write && (implicit || symbol.IsStatic))
+                {
+                    CheckFieldInitializationRead(id, range);
+                }
                 if (false == Accessible(m_result, symbol, m_owner))
                 {
                     Error("JBC3005", "inaccessible", range, {symbol.Name});
                 }
-                if (implicit && InvalidSymbol != m_function && m_result.Symbols[m_function].IsStatic
+                if (implicit && InvalidSymbol != m_member && m_result.Symbols[m_member].IsStatic
                     && Derives(m_result, m_owner, symbol.Parent) && false == symbol.IsStatic
                     && false == expression.TypeObject && false == IsFunction(symbol.Kind))
                 {
@@ -1521,6 +1551,10 @@ namespace JBro::ScriptCompiler
                 {
                     if (node.Text == "this")
                     {
+                        if (m_member != InvalidSymbol && m_result.Symbols[m_member].IsStatic)
+                        {
+                            Error("JBC3028", "static_access", NameRange(*m_document, node), {"this"});
+                        }
                         Expression self = Literal(m_result.Symbols[m_owner].Name);
                         self.Target = m_owner;
                         self.LValue = true;
@@ -1669,6 +1703,10 @@ namespace JBro::ScriptCompiler
                 }
                 const Symbol symbol = m_result.Symbols[found[0]];
                 Expression value = SymbolExpression(found[0], NameRange(*m_document, node), flow, write, record, false);
+                if (!write && !symbol.IsStatic && IsSelfReceiver(Child(index, 0)))
+                {
+                    CheckFieldInitializationRead(found[0], NameRange(*m_document, node));
+                }
                 value.Type = OwnerSubstitution(symbol.Type, receiver.Type);
                 value.DeclaredType = value.Type;
                 value.ReceiverType = receiver.Type;
@@ -1788,6 +1826,15 @@ namespace JBro::ScriptCompiler
                         else
                         {
                             Occur(best, NameRange(*m_document, node));
+                            CallSite call;
+                            call.Range = node.Range;
+                            call.CalleeRange = NameRange(*m_document, node);
+                            call.Arguments.Add(Node(Child(index, 1)).Range);
+                            call.Overloads = candidates;
+                            call.Resolved = best;
+                            call.ResultType = "Bool";
+                            call.ParameterTypes.Add(m_result.Symbols[best].Parameters[0].Type);
+                            m_document->Calls.Add(std::move(call));
                         }
                         return Literal("Bool");
                     }
@@ -2017,8 +2064,8 @@ namespace JBro::ScriptCompiler
                         continue;
                     }
                     const Bool implicitCall = SyntaxKind::NameExpression == calleeSyntax.Kind || SyntaxKind::GenericNameExpression == calleeSyntax.Kind;
-                    const Bool staticContext = callee.StaticReceiver || (implicitCall && InvalidSymbol != m_function
-                        && m_result.Symbols[m_function].IsStatic && Derives(m_result, m_owner, symbol.Parent));
+                    const Bool staticContext = callee.StaticReceiver || (implicitCall && InvalidSymbol != m_member
+                        && m_result.Symbols[m_member].IsStatic && Derives(m_result, m_owner, symbol.Parent));
                     if (staticContext && false == symbol.IsStatic)
                     {
                         requiresInstance = true;
@@ -2314,7 +2361,7 @@ namespace JBro::ScriptCompiler
                 {
                     const NodeIndex typeNode = Child(index, 0);
                     ValidateType(typeNode, false);
-                    Symbol symbol = FromNode(index, m_function, SymbolKind::Local);
+                    Symbol symbol = FromNode(index, m_member, SymbolKind::Local);
                     symbol.Type = RenderType(m_document->Tree, typeNode);
                     symbol.ScopeRange = m_scopes.Last().Range;
                     symbol.Writable = InvalidNode == typeNode || 0 == (Node(typeNode).Flags & SyntaxFlagConst);
@@ -2388,7 +2435,7 @@ namespace JBro::ScriptCompiler
                 case SyntaxKind::ReturnStatement:
                 {
                     const Expression value = Expr(Child(index, 0), flow);
-                    const String expected = SymbolKind::Constructor == m_result.Symbols[m_function].Kind ? String("Void") : m_result.Symbols[m_function].Type;
+                    const String expected = SymbolKind::Constructor == m_result.Symbols[m_member].Kind ? String("Void") : m_result.Symbols[m_member].Type;
                     if (InvalidNode == Child(index, 0))
                     {
                         if (expected != "Void")
@@ -2477,7 +2524,7 @@ namespace JBro::ScriptCompiler
                         {
                             continue;
                         }
-                        Symbol symbol = FromNode(variable, m_function, SymbolKind::Local);
+                        Symbol symbol = FromNode(variable, m_member, SymbolKind::Local);
                         symbol.Type = 0 == slot ? firstType : secondType;
                         symbol.ScopeRange = Node(body).Range;
                         const Bool borrowed = 0 != (Node(variable).Flags & SyntaxFlagRef);
@@ -2656,7 +2703,8 @@ namespace JBro::ScriptCompiler
             Array<String> m_iterated;
             DocumentAnalysis* m_document = nullptr;
             SymbolId m_owner = InvalidSymbol;
-            SymbolId m_function = InvalidSymbol;
+            // Field initializers and method bodies share member access rules.
+            SymbolId m_member = InvalidSymbol;
             UInt32 m_loopDepth = 0;
             UInt32 m_switchDepth = 0;
         };
@@ -2853,7 +2901,8 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.no_overload", "jbroc.semantic.ambiguous_overload", "jbroc.semantic.not_iterable",
             "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
             "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
-            "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature"
+            "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature",
+            "jbroc.semantic.uninitialized_field"
         };
         return {keys, std::size(keys)};
     }

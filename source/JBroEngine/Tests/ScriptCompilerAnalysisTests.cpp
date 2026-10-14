@@ -221,9 +221,10 @@ namespace
         const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
         Check(emitted.Errors.IsEmpty()
                 && emitted.Code.find("const JBro::Int step") != String::npos
-                && emitted.Code.find("inline static JBro::Int total") != String::npos
-                && emitted.Code.find("Counter::Counter(JBro::Int start)") != String::npos
-                && emitted.Code.find("Counter::Next(const JBro::Int amount)") != String::npos
+                && emitted.Code.find("static JBro::Int total;") != String::npos
+                && emitted.Code.find("JBro::Int Counter::total = 0;") != String::npos
+                && emitted.Code.find("Counter::Counter([[maybe_unused]] JBro::Int start)") != String::npos
+                && emitted.Code.find("Counter::Next([[maybe_unused]] const JBro::Int amount)") != String::npos
                 && emitted.Code.find(" + Counter::Next(increment)") != String::npos,
             "constructors, const fields and static members are preserved in generated C++");
     }
@@ -582,6 +583,37 @@ namespace
         Check(staticInstance->Documents[0]->Diagnostics.IsEmpty(), "a static method can access an explicitly supplied instance");
         Check(Has(*Analyze("class C\n{\nInt value = 1\nstatic fn F() -> Int\n{\nreturn value\n}\n}\n"), "JBC3028"),
             "a static method cannot implicitly access an instance field");
+        for (const char* expression : {"value", "Read()", "this.value"})
+        {
+            const String source = String("class C\n{\nInt value = 1\nfn Read() -> Int { return value }\nstatic Int copied = ")
+                + expression + "\n}\n";
+            Check(Has(*Analyze(source.c_str()), "JBC3028"),
+                "a static initializer cannot access an implicit instance field, method or this");
+        }
+        for (const char* expression : {"later", "first", "this.later", "(this).later", "C.later"})
+        {
+            const String source = String("class C\n{\npublic static Int first = ") + expression
+                + "\npublic static Int later = 2\n}\n";
+            if (String(expression).find("this") == String::npos)
+            {
+                Check(Has(*Analyze(source.c_str()), "JBC3044"),
+                    "a static initializer cannot directly read itself or a later static field");
+            }
+            else
+            {
+                const String instance = String("class C\n{\nInt first = ") + expression + "\nInt later = 2\n}\n";
+                Check(Has(*Analyze(instance.c_str()), "JBC3044"),
+                    "explicit and parenthesized this cannot read a later field");
+            }
+        }
+        Check(Has(*Analyze("class C\n{\nref Int first = later\nref Int later = 2\n}\n"), "JBC3044"),
+            "nullable fields follow the same declaration order rule");
+        auto ordered = Analyze("class C\n{\nInt first = 2\nInt second = first + 1\nstatic Int seed = 5\nInt third = seed\n}\n");
+        Check(ordered->Documents[0]->Diagnostics.IsEmpty(),
+            "earlier instance fields and independently initialized static fields remain readable");
+        auto other = Analyze("class C\n{\nInt first = Make().later\npublic Int later = 2\nstatic fn Make() -> C { return C() }\n}\n");
+        Check(false == Has(*other, "JBC3044"),
+            "reading another constructed instance is not a direct declaration order violation");
     }
 
     void TestCompletionReceiverTypesAndRenameSafety()

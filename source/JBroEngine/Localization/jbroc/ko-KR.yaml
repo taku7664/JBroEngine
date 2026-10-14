@@ -69,3 +69,4 @@ Entries:
   jbroc.semantic.static_property_not_serialized: "[prop] static 필드 {0}은 모든 인스턴스가 공유하며 인스턴스 저장 파일에는 저장되지 않습니다. 의도한 경우 [noserialize]를 명시하세요."
   jbroc.semantic.switch_value_type: "switch 조건에는 Int, Float, Bool, String 또는 enum 값이 필요합니다: {0}"
   jbroc.semantic.equality_operator_signature: "{0}는 class 또는 struct의 인스턴스 메서드여야 하고, 값 인자 하나를 받아 Bool을 반환해야 합니다."
+  jbroc.semantic.uninitialized_field: "필드 {0}의 초기화가 끝나지 않았습니다. 필드는 선언 순서대로 초기화됩니다."

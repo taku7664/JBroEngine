@@ -1226,6 +1226,53 @@ namespace
             "equality operators and a chained call from a selected overload execute in the game DLL");
         Check(keywordScore != nullptr && keywordScore() == 16,
             "C++ keywords and escaped prefix names execute through generated types, fields, methods and locals");
+        const auto initializerScore = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializerScore"));
+        Check(initializerScore != nullptr && initializerScore() == 195,
+            "cross-file initializers, static fields, implicit constructors and shadowed constructor arguments execute");
+        const auto initializationGuard = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializationGuard"));
+        JBro::Log::Clear();
+        Check(initializationGuard != nullptr && initializationGuard() == 933,
+            "direct-method and borrowed field reads abort construction while earlier fields and later objects work");
+        Check(JBro::Log::GetGroupCount() == 8,
+            "indirect field reads and incomplete object copies reach the host engine log before copying");
+        Check(JBro::Log::GetGroupAt(0)->count == 2,
+            "nested construction failure reuses the field read log and leaves no construction tracking behind");
+        using InitializationCallback = std::int64_t (*)(JBro::GameScriptBase*);
+        using InitializationMode = void (*)(std::int64_t);
+        const auto initializationCallback = reinterpret_cast<InitializationCallback>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializationCallback"));
+        const auto initializationMode = reinterpret_cast<InitializationMode>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializationMode"));
+        Check(initializationCallback != nullptr && initializationMode != nullptr,
+            "initialization callback probe exports are present");
+        {
+            JBro::Canvas initializationCanvas(JBro::CreateDefaultAllocator());
+            auto* first = initializationCanvas.AttachScript(initializationCanvas.CreateObject("first initializer"), "InitializationProbe");
+            auto* second = initializationCanvas.AttachScript(initializationCanvas.CreateObject("second initializer"), "InitializationProbe");
+            Check(first != nullptr && second != nullptr, "initialization callback probes attach");
+            JBro::Log::Clear();
+            initializationMode(0);
+            Check(initializationCallback(first) == 10 && initializationCallback(second) == 10
+                    && JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
+                "constructor failure aborts only the current callback and repeated reads share one host log group");
+            initializationMode(2);
+            Check(initializationCallback(first) == 21 && initializationCallback(second) == 21,
+                "a later callback can construct normally after initialization aborts");
+            JBro::Log::Clear();
+            initializationMode(0);
+            const auto owner = initializationCanvas.CreateObject("initializer attachment");
+            Check(initializationCanvas.AttachScript(owner, "InitializationAttachProbe") == nullptr
+                    && initializationCanvas.AttachScript(owner, "InitializationAttachProbe") == nullptr,
+                "initialization read failure is contained by the noexcept DLL construction entry point");
+            Check(JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
+                "repeated script attachment failures reach the host log without leaking a live script");
+            initializationMode(2);
+            Check(initializationCanvas.AttachScript(owner, "InitializationAttachProbe") != nullptr,
+                "the failed script pool slot and construction state permit a later successful attachment");
+        }
+        JBro::Log::Clear();
         using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
         using ControlAddScore = void (*)(JBro::GameScriptBase*);

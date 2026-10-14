@@ -1,4 +1,73 @@
 #include "JBroGenerated.h"
+#include <JBro/Runtime/ScriptGuard.h>
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationGuard()
+{
+    std::int64_t failures = 0;
+    for (JBro::Int mode = 0; mode < 9; ++mode)
+    {
+        if (mode == 2)
+        {
+            continue;
+        }
+        InitIndirect::mode = mode;
+        try
+        {
+            InitIndirect invalid;
+        }
+        catch (const JBro::ScriptGuard::AbortCallback&)
+        {
+            ++failures;
+        }
+    }
+    InitIndirect::mode = 2;
+    InitIndirect valid;
+    InitEarlier earlier;
+    InitDerived derived;
+    InitRefHolder holder;
+    InitIndirect::mode = 0;
+    try
+    {
+        InitNested nested;
+    }
+    catch (const JBro::ScriptGuard::AbortCallback&)
+    {
+        ++failures;
+    }
+    InitIndirect::mode = 2;
+    InitNested nested;
+    return failures * 100 + (valid.first + valid.second + earlier.first + earlier.second
+        + derived.third + holder.Change() + nested.owned.second).Get();
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationCallback(JBro::GameScriptBase* base)
+{
+    auto* probe = static_cast<InitializationProbe*>(base);
+    base->OnUpdate();
+    return (probe->before * 10 + probe->after).Get();
+}
+
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_InitializationMode(std::int64_t mode)
+{
+    InitIndirect::mode = mode;
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializerScore()
+{
+    InitLeft ordinary;
+    InitLeft parameterized(JBro::Int(100));
+    InitRight other;
+    InitSnapshot snapshot;
+    InitHolder holder;
+    InitLabelReader reader;
+    const JBro::String expected("temporary field value must remain alive until it is copied out of the completed owner");
+    if (reader.Read() != expected || reader.ReadOptional() != expected || reader.ReadIndex() != expected
+        || reader.ReadOptionalIndex() != expected)
+    {
+        return -1;
+    }
+    return (ordinary.Sum() + parameterized.Sum() + other.value + snapshot.value + holder.owned.value).Get();
+}
 
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_KeywordScore()
 {

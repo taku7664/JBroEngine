@@ -1,5 +1,6 @@
 #include <JBro/ScriptCompiler/CppEmitter.h>
 #include <JBro/ScriptCompiler/Analysis.h>
+#include <JBro/Core/StableTypeId.h>
 #include <JBro/Types/Table.h>
 #include "CppIdentifier.h"
 #include "CppEmitterParts.h"
@@ -17,6 +18,15 @@ namespace JBro::ScriptCompiler
         {
             String name;
             bool ref = false;
+        };
+
+        struct VariableBinding
+        {
+            Type type;
+            bool field = false;
+
+            VariableBinding() = default;
+            VariableBinding(const Type& value, bool isField = false) : type(value), field(isField) {}
         };
 
         struct Expression
@@ -132,7 +142,7 @@ namespace JBro::ScriptCompiler
             CppEmitResult Run()
             {
                 m_code = "#include <JBro/ScriptAPI.h>\n#include <JBro/Framework2D/Scripting/ScriptModule.h>\n"
-                    "#include <JBro/Runtime/ScriptGuard.h>\n"
+                    "#include <JBro/Runtime/ScriptGuard.h>\n#include <JBro/Runtime/ScriptInitialization.h>\n"
                     "#include <JBro/Reflection/EnumDescriptor.h>\n\n"
                     "template<typename Derived, typename Base, std::size_t Index>\n"
                     "JBro::PropertyInfo jbro_gen_inherited_property()\n"
@@ -233,6 +243,24 @@ namespace JBro::ScriptCompiler
                 if (m_unit != nullptr)
                 {
                     m_code = std::move(m_implementation);
+                }
+                for (const DeclarationRef& item : m_initializationOwners)
+                {
+                    m_source = item.source;
+                    m_tree = item.tree;
+                    m_owner = String(Node(item.index).Text);
+                    StaticFields(item.index);
+                }
+                for (const DeclarationRef& item : m_defaultConstructors)
+                {
+                    m_source = item.source;
+                    m_tree = item.tree;
+                    m_owner = String(Node(item.index).Text);
+                    const String owner = CppIdentifier(m_owner);
+                    m_code += owner + "::" + owner + "() try";
+                    ConstructorInitializers(item.index);
+                    m_code += "\n{\n    " + FinishInitializationCode() + ";\n}\n";
+                    ConstructorCatch();
                 }
                 for (const FunctionRef& item : m_functions)
                 {
@@ -462,7 +490,7 @@ namespace JBro::ScriptCompiler
                 }
             }
 
-            void AddFieldsFromBases(const String& name, Table<String, Type>& fields)
+            void AddFieldsFromBases(const String& name, Table<String, VariableBinding>& fields)
             {
                 const DeclarationRef* declaration = m_declarations.Find(name);
                 if (declaration == nullptr) return;
@@ -476,7 +504,10 @@ namespace JBro::ScriptCompiler
                 }
                 if (const auto* owned = m_fields.Find(name))
                 {
-                    for (const auto& field : *owned) fields[field.KeyValue] = field.MappedValue;
+                    for (const auto& field : *owned)
+                    {
+                        fields[field.KeyValue] = VariableBinding(field.MappedValue, true);
+                    }
                 }
             }
 
@@ -511,6 +542,72 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 return {};
+            }
+
+            struct FieldRef
+            {
+                const DeclarationRef* Owner = nullptr;
+                NodeIndex Index = InvalidNode;
+                std::size_t Ordinal = 0;
+            };
+
+            FieldRef FindField(const String& owner, std::string_view name) const
+            {
+                const DeclarationRef* declaration = m_declarations.Find(owner);
+                if (declaration == nullptr)
+                {
+                    return {};
+                }
+                std::size_t ordinal = 0;
+                for (NodeIndex index : declaration->tree->GetChildren(declaration->index))
+                {
+                    if (index == InvalidNode)
+                    {
+                        continue;
+                    }
+                    const SyntaxNode& member = declaration->tree->Get(index);
+                    if (member.Text == name)
+                    {
+                        return member.Kind == SyntaxKind::FieldDeclaration
+                            ? FieldRef{declaration, index, ordinal} : FieldRef{};
+                    }
+                    if (member.Kind == SyntaxKind::FieldDeclaration && !(member.Flags & SyntaxFlagStatic))
+                    {
+                        ++ordinal;
+                    }
+                }
+                const NodeIndex bases = declaration->tree->GetChild(declaration->index, 0);
+                if (bases != InvalidNode && declaration->tree->Get(bases).Kind == SyntaxKind::BaseList)
+                {
+                    for (NodeIndex base : declaration->tree->GetChildren(bases))
+                    {
+                        const FieldRef field = FindField(String(declaration->tree->Get(base).Text), name);
+                        if (field.Owner != nullptr)
+                        {
+                            return field;
+                        }
+                    }
+                }
+                return {};
+            }
+
+            String InitializationType(const String& owner) const
+            {
+                return std::to_string(MakeStableTypeId(owner.c_str()).Get()) + "ULL";
+            }
+
+            String GuardField(const FieldRef& field, const String& receiver, const String& access, NodeIndex site) const
+            {
+                if (field.Owner == nullptr || field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic)
+                {
+                    return access;
+                }
+                const String owner(field.Owner->tree->Get(field.Owner->index).Text);
+                const String key = SiteKey(Node(site));
+                return "(JBro::ScriptGuard::RequireInitializedField(static_cast<const " + CppIdentifier(owner)
+                    + "*>(&" + receiver + "), " + InitializationType(owner) + ", " + std::to_string(field.Ordinal)
+                    + ", " + Escape(key) + ", " + Escape(key + " uninitialized field: " + AccessPath(site))
+                    + "), (" + access + "))";
             }
 
             std::size_t ReflectedFieldCount(const String& name) const
@@ -747,6 +844,7 @@ namespace JBro::ScriptCompiler
                 }
                 else if (interfaceType) m_code += "    virtual ~" + nativeOwner + "() = default;\n";
                 std::size_t reflectedIndex = 0;
+                bool hasConstructor = false;
                 for (NodeIndex member : m_tree->GetChildren(index))
                 {
                     if (member == InvalidNode)
@@ -766,6 +864,7 @@ namespace JBro::ScriptCompiler
                     }
                     else if (Node(member).Kind == SyntaxKind::FunctionDeclaration)
                     {
+                        hasConstructor = hasConstructor || FunctionName(Node(member)) == m_owner;
                         MemberAccess(member, node.Kind);
                         Function(member, script, true);
                         if (Child(member, 3) != InvalidNode)
@@ -780,6 +879,16 @@ namespace JBro::ScriptCompiler
                     else
                     {
                         Error("C++ emitter does not support this member yet");
+                    }
+                }
+                if (!interfaceType)
+                {
+                    const DeclarationRef owner{m_source, m_tree, index, node.Kind};
+                    m_initializationOwners.Add(owner);
+                    if (!hasConstructor)
+                    {
+                        m_code += "    public:\n    " + nativeOwner + "();\n";
+                        m_defaultConstructors.Add(owner);
                     }
                 }
                 m_code += "};\n\n";
@@ -897,7 +1006,7 @@ namespace JBro::ScriptCompiler
                         const String factory = "jbro_gen_field_" + std::to_string(reflectedIndex);
                         m_code += "    public:\n    static void " + factory
                             + "(JBro::PropertyInfo& property, JBro::PropertyEditInfo& edit);\n    "
-                            + memberAccess + ":\n    " + String(staticField ? "inline static " : "") + native + " " + name;
+                            + memberAccess + ":\n    " + String(staticField ? "static " : "") + native + " " + name;
                         m_implementation += "void " + CppIdentifier(m_owner) + "::" + factory
                             + "(JBro::PropertyInfo& property, JBro::PropertyEditInfo& edit)\n{\n"
                             "    using namespace JBro::Attribute;\n    auto field = JBro::"
@@ -917,25 +1026,93 @@ namespace JBro::ScriptCompiler
                         + CppIdentifier(m_owner) + "::" + name + ">(" + attributeCode + ");\n"
                         "        field.name = " + Escape(node.Text) + ";\n"
                         "        return field;\n    }\n    " + memberAccess + ":\n"
-                        "    " + String(staticField ? "inline static " : "") + native + " " + name;
+                        "    " + String(staticField ? "static " : "") + native + " " + name;
                     }
                 }
                 else
                 {
-                    m_code += "    " + String(staticField ? "inline static " : "")
+                    m_code += "    " + String(staticField ? "static " : "")
                         + (constant ? "const " : "") + native + " " + name;
                 }
-                if (Child(index, 2) != InvalidNode)
-                {
-                    const Expression initializer = Expr(Child(index, 2));
-                    m_code += " = " + (initializer.type.name == "Null" ? "{}"
-                        : AdaptValue(type, initializer, Child(index, 2)));
-                }
-                else
-                {
-                    m_code += " = {}";
-                }
                 m_code += ";\n";
+            }
+
+            String FieldInitializer(NodeIndex field)
+            {
+                const NodeIndex initializer = Child(field, 2);
+                if (initializer == InvalidNode)
+                {
+                    return "{}";
+                }
+                const Expression value = Expr(initializer);
+                return value.type.name == "Null" ? String("{}")
+                    : AdaptValue(ParseType(Child(field, 1)), value, initializer);
+            }
+
+            void ConstructorInitializers(NodeIndex owner)
+            {
+                Table<String, VariableBinding> parameters = std::move(m_variables);
+                m_variables.Clear();
+                AddFieldsFromBases(m_owner, m_variables);
+                m_fieldInitializer = true;
+                bool first = true;
+                std::size_t ordinal = 0;
+                for (NodeIndex field : m_tree->GetChildren(owner))
+                {
+                    if (field == InvalidNode || Node(field).Kind != SyntaxKind::FieldDeclaration
+                        || Node(field).Flags & SyntaxFlagStatic)
+                    {
+                        continue;
+                    }
+                    m_code += first ? "\n    : " : ",\n      ";
+                    first = false;
+                    const String initializer = FieldInitializer(field);
+                    const String value = initializer == "{}" ? String(NativeType(ParseType(Child(field, 1))) + "{}") : initializer;
+                    const String key = SiteKey(Node(field));
+                    const String begin = "JBro::ScriptGuard::BeginFieldInitialization(this, " + InitializationType(m_owner)
+                        + ", " + std::to_string(ordinal++) + ", " + Escape(key) + ", "
+                        + Escape(key + " construction nesting limit exceeded") + ")";
+                    m_code += CppIdentifier(Node(field).Text)
+                        + "((" + begin + ", " + value + "))";
+                }
+                m_fieldInitializer = false;
+                m_variables = std::move(parameters);
+            }
+
+            String FinishInitializationCode() const
+            {
+                return "JBro::ScriptGuard::FinishInitialization(this, " + InitializationType(m_owner) + ")";
+            }
+
+            void ConstructorCatch()
+            {
+                m_code += "catch (...)\n{\n    " + FinishInitializationCode() + ";\n    throw;\n}\n\n";
+            }
+
+            void StaticFields(NodeIndex owner)
+            {
+                m_variables.Clear();
+                AddFieldsFromBases(m_owner, m_variables);
+                m_fieldInitializer = true;
+                m_staticInitializer = true;
+                for (NodeIndex field : m_tree->GetChildren(owner))
+                {
+                    if (field == InvalidNode || Node(field).Kind != SyntaxKind::FieldDeclaration
+                        || !(Node(field).Flags & SyntaxFlagStatic))
+                    {
+                        continue;
+                    }
+                    const NodeIndex attributes = Child(field, 0);
+                    const bool reflected = Node(owner).Kind == SyntaxKind::StructDeclaration
+                        || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
+                    const bool constant = (Node(Child(field, 1)).Flags & SyntaxFlagConst) && !reflected;
+                    m_code += String(constant ? "const " : "") + NativeType(ParseType(Child(field, 1)))
+                        + " " + CppIdentifier(m_owner) + "::" + CppIdentifier(Node(field).Text)
+                        + " = " + FieldInitializer(field) + ";\n";
+                }
+                m_fieldInitializer = false;
+                m_staticInitializer = false;
+                m_code += '\n';
             }
 
             void Function(NodeIndex index, bool script, bool declaration)
@@ -970,7 +1147,7 @@ namespace JBro::ScriptCompiler
                         const bool constant = (Node(Child(parameter, 0)).Flags & SyntaxFlagConst) != 0;
                         m_variables[String(Node(parameter).Text)] = type.ref
                             ? Type{type.name, false} : type;
-                        m_code += String(constant ? "const " : "")
+                        m_code += "[[maybe_unused]] " + String(constant ? "const " : "")
                             + (type.ref ? NativeType({type.name, false}) + "&" : NativeType(type))
                             + " " + CppIdentifier(Node(parameter).Text);
                     }
@@ -990,7 +1167,16 @@ namespace JBro::ScriptCompiler
                     m_code += ";\n";
                     return;
                 }
+                if (constructor && owner != nullptr)
+                {
+                    m_code += " try";
+                    ConstructorInitializers(owner->index);
+                }
                 m_code += "\n{\n";
+                if (constructor)
+                {
+                    m_code += "    " + FinishInitializationCode() + ";\n";
+                }
                 if (callback) m_code += "    try\n    {\n";
                 for (NodeIndex statement : m_tree->GetChildren(body))
                 {
@@ -1001,6 +1187,10 @@ namespace JBro::ScriptCompiler
                     m_code += "    }\n    catch (const JBro::ScriptGuard::AbortCallback&)\n    {\n        return;\n    }\n";
                 }
                 m_code += "}\n\n";
+                if (constructor)
+                {
+                    ConstructorCatch();
+                }
             }
 
             String SiteKey(const SyntaxNode& node) const
@@ -1044,22 +1234,45 @@ namespace JBro::ScriptCompiler
                 return "<expression>";
             }
 
+            String GuardValueCopy(const Type& target, const String& code, NodeIndex sourceIndex) const
+            {
+                const DeclarationRef* owner = m_declarations.Find(target.name);
+                if (owner == nullptr || (owner->kind != SyntaxKind::ClassDeclaration && owner->kind != SyntaxKind::StructDeclaration)
+                    || Node(sourceIndex).Kind == SyntaxKind::RefArgument)
+                {
+                    return code;
+                }
+                const String key = SiteKey(Node(sourceIndex));
+                return "JBro::ScriptGuard::RequireInitializedValue<" + CppIdentifier(target.name) + ">((" + code
+                    + "), " + InitializationType(target.name) + ", " + Escape(key) + ", "
+                    + Escape(key + " incomplete object value: " + AccessPath(sourceIndex)) + ")";
+            }
+
+            String WithReceiver(const String& receiver, const String& returns, const String& body,
+                const char* parameter = "jbro_gen_receiver") const
+            {
+                // A temporary passed as a parameter lives to the end of the
+                // enclosing expression, including calls borrowing its fields.
+                return "([&](auto&& " + String(parameter) + ") -> " + returns + " { " + body + " }((" + receiver + ")))";
+            }
+
             String AdaptValue(const Type& target, const Expression& value, NodeIndex sourceIndex) const
             {
                 if (target.ref && !value.type.ref && target.name == value.type.name
                     && !IsHandle(value.type) && !IsScript(value.type))
                 {
-                    return NativeType(target) + "(" + value.code + ")";
+                    return NativeType(target) + "(" + GuardValueCopy(target, value.code, sourceIndex) + ")";
                 }
                 if (!target.ref && value.type.ref && target.name == value.type.name
                     && !IsHandle(value.type) && !IsScript(value.type))
                 {
                     const String site = SiteKey(Node(sourceIndex));
-                    return "([&]() -> " + NativeType(target) + " { auto&& jbro_gen_value = (" + value.code
-                        + "); return JBro::ScriptGuard::Require(jbro_gen_value, " + Escape(site)
-                        + ", " + Escape(site + " invalid ref value: " + AccessPath(sourceIndex)) + "); }())";
+                    return WithReceiver(value.code, NativeType(target), "return "
+                        + GuardValueCopy(target, "JBro::ScriptGuard::Require(jbro_gen_value, " + Escape(site)
+                            + ", " + Escape(site + " invalid ref value: " + AccessPath(sourceIndex)) + ")", sourceIndex)
+                        + ";", "jbro_gen_value");
                 }
-                return value.code;
+                return !target.ref && !value.type.ref ? GuardValueCopy(target, value.code, sourceIndex) : value.code;
             }
 
             Type AnalyzedType(NodeIndex index) const
@@ -1096,6 +1309,12 @@ namespace JBro::ScriptCompiler
                 return nullptr;
             }
 
+            Bool IsFieldName(NodeIndex index) const
+            {
+                const VariableBinding* variable = m_variables.Find(String(Node(index).Text));
+                return variable != nullptr && variable->field;
+            }
+
             Expression Expr(NodeIndex index)
             {
                 if (index == InvalidNode) return {};
@@ -1106,17 +1325,23 @@ namespace JBro::ScriptCompiler
                 {
                     const String name(node.Text);
                     if (name == "this") return {"(*this)", {m_owner, false}, true};
-                    const Type* found = m_variables.Find(name);
+                    const VariableBinding* found = m_variables.Find(name);
                     if (found != nullptr)
                     {
-                        return {CppIdentifier(name), *found, true};
+                        const String receiver = m_fieldInitializer
+                            ? (m_staticInitializer ? CppIdentifier(m_owner) + "::" : String("this->")) : String();
+                        const String code = receiver + CppIdentifier(name);
+                        return {IsFieldName(index) ? GuardField(FindField(m_owner, name), "(*this)", code, index) : code,
+                            found->type, true};
                     }
                     if (m_declarations.Contains(m_owner))
                     {
                         const Type result = MemberTypeInHierarchy(m_owner, name);
                         if (!result.name.empty())
                         {
-                            return {CppIdentifier(name), result};
+                            const String receiver = m_fieldInitializer
+                                ? (m_staticInitializer ? CppIdentifier(m_owner) + "::" : String("this->")) : String();
+                            return {receiver + CppIdentifier(name), result};
                         }
                     }
                     if (name == "Int" || name == "Float" || name == "Bool" || name == "String"
@@ -1228,6 +1453,11 @@ namespace JBro::ScriptCompiler
                     }
                     const String access = receiver.isType ? "::" + nativeMember
                         : property ? "." + nativeMember + "()" : "." + nativeMember;
+                    const FieldRef field = FindField(receiver.type.name, node.Text);
+                    if (receiver.isType)
+                    {
+                        return {receiver.code + access, memberType, field.Owner != nullptr};
+                    }
                     if (node.Flags & SyntaxFlagNullSafe)
                     {
                         if (memberType.name.empty()) return {};
@@ -1235,11 +1465,12 @@ namespace JBro::ScriptCompiler
                         const bool alreadyNullable = memberType.ref || IsHandle(memberType);
                         const String resultType = alreadyNullable
                             ? NativeType(memberType) : "JBro::Nullable<" + bare + ">";
-                        const String code = "([&]() -> " + resultType + " { auto&& jbro_gen_receiver = ("
-                            + receiver.code + "); if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) return {}; "
+                        const String code = WithReceiver(receiver.code, resultType,
+                            "if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) return {}; "
                             "return " + (alreadyNullable ? "" : "JBro::Nullable<" + bare + ">(")
-                            + "JBro::ScriptGuard::UnwrapPresent(jbro_gen_receiver)" + access
-                            + (alreadyNullable ? "" : ")") + "; }())";
+                            + GuardField(field, "(JBro::ScriptGuard::UnwrapPresent(jbro_gen_receiver))",
+                                "JBro::ScriptGuard::UnwrapPresent(jbro_gen_receiver)" + access, index)
+                            + (alreadyNullable ? "" : ")") + ";");
                         memberType.ref = true;
                         return {code, memberType};
                     }
@@ -1247,10 +1478,19 @@ namespace JBro::ScriptCompiler
                     {
                         const String key = Escape(SiteKey(node));
                         const String message = Escape(SiteKey(node) + " invalid ref access: " + AccessPath(index));
-                        const String code = "([&]() -> decltype(auto) { auto&& jbro_gen_receiver = ("
-                            + receiver.code + "); return JBro::ScriptGuard::Require(jbro_gen_receiver, "
-                            + key + ", " + message + ")" + access + "; }())";
+                        const String checked = "JBro::ScriptGuard::Require(jbro_gen_receiver, " + key + ", " + message + ")";
+                        const String code = WithReceiver(receiver.code, "decltype(auto)", "auto&& jbro_gen_checked = "
+                            + checked + "; return (" + GuardField(field, "(jbro_gen_checked)", "jbro_gen_checked" + access, index)
+                            + ");");
                         return {code, memberType, !property, property, setter};
+                    }
+                    if (field.Owner != nullptr && !receiver.isType)
+                    {
+                        const bool lvalue = receiver.lvalue || (field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic);
+                        const String code = WithReceiver(receiver.code, "decltype(auto)", "return ("
+                            + GuardField(field, "(jbro_gen_receiver)",
+                                "(std::forward<decltype(jbro_gen_receiver)>(jbro_gen_receiver))" + access, index) + ");");
+                        return {code, memberType, lvalue};
                     }
                     return {"(" + receiver.code + ")" + access, memberType, !property, property, setter};
                 }
@@ -1260,9 +1500,10 @@ namespace JBro::ScriptCompiler
                     if (!receiver.type.ref && !IsHandle(receiver.type)) return receiver;
                     const String key = Escape(SiteKey(node));
                     const String message = Escape(SiteKey(node) + " invalid ref assertion: " + AccessPath(index));
-                    receiver.code = "([&]() -> decltype(auto) { auto&& jbro_gen_receiver = (" + receiver.code
-                        + "); return JBro::ScriptGuard::Require(jbro_gen_receiver, " + key + ", " + message + "); }())";
+                    receiver.code = WithReceiver(receiver.code, "decltype(auto)",
+                        "return JBro::ScriptGuard::Require(jbro_gen_receiver, " + key + ", " + message + ");");
                     receiver.type.ref = false;
+                    receiver.lvalue = true;
                     return receiver;
                 }
                 case SyntaxKind::IsNullExpression:
@@ -1286,10 +1527,9 @@ namespace JBro::ScriptCompiler
                     {
                         if (left.type.name == "Null") return right;
                         const String bare = NativeType({left.type.name, false});
-                        const String code = "([&]() -> " + bare + " { auto&& jbro_gen_left = (" + left.code
-                            + "); if (JBro::ScriptGuard::IsPresent(jbro_gen_left)) return "
-                            "JBro::ScriptGuard::UnwrapPresent(jbro_gen_left); return " + bare
-                            + "(" + right.code + "); }())";
+                        const String code = WithReceiver(left.code, bare, "if (JBro::ScriptGuard::IsPresent(jbro_gen_left)) return "
+                            + GuardValueCopy({left.type.name, false}, "JBro::ScriptGuard::UnwrapPresent(jbro_gen_left)", Child(index, 0))
+                            + "; return " + AdaptValue({left.type.name, false}, right, Child(index, 1)) + ";", "jbro_gen_left");
                         return {code, {left.type.name, false}};
                     }
                     if (node.Text == "==" || node.Text == "!=")
@@ -1315,6 +1555,12 @@ namespace JBro::ScriptCompiler
                             // Engine handles return JBro::Bool from operator==, so C++20 does
                             // not synthesize operator!= from that result type.
                             return {"!(" + left.code + " == " + right.code + ")", {"Bool", false}};
+                        }
+                        const CallSite* call = AnalyzedCall(index);
+                        if (call != nullptr && call->ParameterTypes.Size() == 1)
+                        {
+                            return {"(" + left.code + " " + String(node.Text) + " "
+                                + AdaptValue(TextType(call->ParameterTypes[0]), right, Child(index, 1)) + ")", {"Bool", false}};
                         }
                     }
                     const bool vectorPair = left.type.name == "Vector2" && right.type.name == "Vector2"
@@ -1380,26 +1626,26 @@ namespace JBro::ScriptCompiler
                         {
                             if (callType.name == "Void")
                             {
-                                const String code = "([&]() { auto&& jbro_gen_receiver = ("
-                                    + receiver.code + "); if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) "
+                                const String code = WithReceiver(receiver.code, "void",
+                                    "if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) "
                                     "return; JBro::ScriptGuard::UnwrapPresent(jbro_gen_receiver)."
-                                    + method + "(" + arguments + "); }())";
+                                    + method + "(" + arguments + ");");
                                 return {code, callType};
                             }
                             const String resultType = NativeType(callType);
-                            const String code = "([&]() -> " + resultType + " { auto&& jbro_gen_receiver = ("
-                                + receiver.code + "); if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) "
+                            const String code = WithReceiver(receiver.code, resultType,
+                                "if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) "
                                 "return {}; return " + resultType + "(JBro::ScriptGuard::UnwrapPresent(jbro_gen_receiver)."
-                                + method + "(" + arguments + ")); }())";
+                                + method + "(" + arguments + "));");
                             return {code, callType};
                         }
                         if (receiver.type.ref || IsHandle(receiver.type))
                         {
                             const String site = SiteKey(calleeNode);
-                            const String code = "([&]() -> decltype(auto) { auto&& jbro_gen_receiver = ("
-                                + receiver.code + "); return JBro::ScriptGuard::Require(jbro_gen_receiver, "
+                            const String code = WithReceiver(receiver.code, "decltype(auto)",
+                                "return JBro::ScriptGuard::Require(jbro_gen_receiver, "
                                 + Escape(site) + ", " + Escape(site + " invalid ref access: "
-                                    + AccessPath(calleeIndex)) + ")." + method + "(" + arguments + "); }())";
+                                    + AccessPath(calleeIndex)) + ")." + method + "(" + arguments + ");");
                             return {code, callType};
                         }
                         return {receiver.isType ? receiver.code + "::" + method + "(" + arguments + ")"
@@ -1414,9 +1660,9 @@ namespace JBro::ScriptCompiler
                     if (borrowed.type.ref)
                     {
                         const String site = SiteKey(Node(source));
-                        borrowed.code = "([&]() -> decltype(auto) { auto&& jbro_gen_borrowed = ("
-                            + borrowed.code + "); return JBro::ScriptGuard::Require(jbro_gen_borrowed, "
-                            + Escape(site) + ", " + Escape(site + " invalid borrowed ref: " + AccessPath(source)) + "); }())";
+                        borrowed.code = WithReceiver(borrowed.code, "decltype(auto)",
+                            "return JBro::ScriptGuard::Require(jbro_gen_borrowed, " + Escape(site) + ", "
+                            + Escape(site + " invalid borrowed ref: " + AccessPath(source)) + ");", "jbro_gen_borrowed");
                         borrowed.type.ref = false;
                     }
                     return borrowed;
@@ -1434,11 +1680,11 @@ namespace JBro::ScriptCompiler
                     if (receiver.type.ref)
                     {
                         const String site = SiteKey(node);
-                        const String code = "([&]() -> decltype(auto) { auto&& jbro_gen_receiver = ("
-                            + receiver.code + "); auto&& jbro_gen_checked = JBro::ScriptGuard::Require(jbro_gen_receiver, "
+                        const String code = WithReceiver(receiver.code, "decltype(auto)",
+                            "auto&& jbro_gen_checked = JBro::ScriptGuard::Require(jbro_gen_receiver, "
                             + Escape(site) + ", " + Escape(site + " invalid ref index: " + AccessPath(index))
-                            + "); return jbro_gen_checked[" + nativeKey + "]; }())";
-                        return {code, element, receiver.lvalue};
+                            + "); return jbro_gen_checked[" + nativeKey + "];");
+                        return {code, element, true};
                     }
                     return {receiver.code + "[" + nativeKey + "]", element, true};
                 }
@@ -1593,7 +1839,7 @@ namespace JBro::ScriptCompiler
                         const String first = "jbro_gen_range_first_" + unique;
                         const String last = "jbro_gen_range_last_" + unique;
                         const auto saved = m_variables;
-                        m_variables[String(Node(variable).Text)] = {"Int", false};
+                        m_variables[String(Node(variable).Text)] = Type{"Int", false};
                         m_code += pad + "{\n" + pad + "    const JBro::Int " + first + " = (" + start.code + ");\n"
                             + pad + "    const JBro::Int " + last + " = (" + end.code + ");\n"
                             + pad + "    for (JBro::Int " + name + " = " + first + "; " + name
@@ -1740,9 +1986,13 @@ namespace JBro::ScriptCompiler
             Table<String, DeclarationRef> m_declarations;
             Table<String, int> m_declarationState;
             Table<String, Table<String, Type>> m_fields;
-            Table<String, Type> m_variables;
+            Table<String, VariableBinding> m_variables;
             Array<String> m_scripts;
             Array<FunctionRef> m_functions;
+            Array<DeclarationRef> m_initializationOwners;
+            Array<DeclarationRef> m_defaultConstructors;
+            bool m_fieldInitializer = false;
+            bool m_staticInitializer = false;
             std::size_t m_temporary = 0;
             String m_owner;
             Type m_returnType;

@@ -174,6 +174,36 @@ JBro::Int32 RunScriptLanguageServerTests()
     Check(unicodeResult.Contains("\"diagnostics\":[],\"uri\":\"file:///C:/project/Contents/Reader.jscript\""),
         "closing an unsaved file must clear its diagnostics");
     TestClientLocaleTags();
+    for (const Bool repair : {false, true})
+    {
+        String ordered = Frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"initializationOptions":{"projectFile":"C:/project/game.jproject"}}})");
+        ordered.Append(Frame(R"({"jsonrpc":"2.0","method":"initialized","params":{}})"));
+        ordered.Append(Frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/project/Contents/Ordered.jscript","version":1,"text":"class C\n{\nInt first = second\nInt second = 2\n}\n"}}})"));
+        if (repair)
+        {
+            ordered.Append(Frame(R"({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///C:/project/Contents/Ordered.jscript","version":2},"contentChanges":[{"text":"class C\n{\nInt second = 2\nInt first = second\n}\n"}]}})"));
+        }
+        ordered.Append(Frame(R"({"jsonrpc":"2.0","id":2,"method":"shutdown"})"));
+        ordered.Append(Frame(R"({"jsonrpc":"2.0","method":"exit"})"));
+        std::istringstream orderedInput(ordered.Std());
+        std::ostringstream orderedOutput;
+        std::ostringstream orderedLog;
+        ServerOptions orderedOptions;
+        orderedOptions.Files = &files;
+        Check(Run(orderedInput, orderedOutput, orderedLog, std::move(orderedOptions)) == 0,
+            "the field initialization diagnostic protocol session shuts down cleanly");
+        const String diagnostics(orderedOutput.str());
+        if (repair)
+        {
+            Check(diagnostics.Contains("\"diagnostics\":[],\"uri\":\"file:///C:/project/Contents/Ordered.jscript\",\"version\":2"),
+                "reordering fields clears the diagnostic without saving the editor buffer");
+        }
+        else
+        {
+            Check(diagnostics.Contains("\"code\":\"JBC3044\"") && diagnostics.Contains("\"character\":12,\"line\":2"),
+                "the language server publishes an initialization order error at the original field read");
+        }
+    }
     std::cout << "  ScriptLanguageServer protocol tests passed\n";
     return 0;
 }

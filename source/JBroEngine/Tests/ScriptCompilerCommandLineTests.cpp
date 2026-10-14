@@ -282,9 +282,17 @@ namespace
         Check(Run(executable, L"--emit-project " + Quote(output) + L" --no-module-entry " + Quote(second) + L" " + Quote(first), scratch).ExitCode == 0
                 && fs::last_write_time(firstCpp) == firstTime && fs::last_write_time(secondCpp) == secondTime,
             "source enumeration order does not change translation units");
+        const auto firstHeaderTime = fs::last_write_time(firstHeader);
+        const auto secondHeaderTime = fs::last_write_time(secondHeader);
+        WriteBytes(second, "script Second {\n public ref First peer\n public Int score = 2\n}\n");
+        Check(Run(executable, arguments, scratch).ExitCode == 0
+                && fs::last_write_time(firstCpp) == firstTime && fs::last_write_time(secondCpp) != secondTime
+                && fs::last_write_time(firstHeader) == firstHeaderTime && fs::last_write_time(secondHeader) == secondHeaderTime,
+            "changing a field initializer changes only its source, preserving dependent headers and translation units");
+        const auto changedSecondTime = fs::last_write_time(secondCpp);
         WriteBytes(second, "script Second {\n Int score =\n}\n");
         Check(Run(executable, arguments, scratch).ExitCode == 1
-                && fs::last_write_time(firstCpp) == firstTime && fs::last_write_time(secondCpp) == secondTime,
+                && fs::last_write_time(firstCpp) == firstTime && fs::last_write_time(secondCpp) == changedSecondTime,
             "source diagnostics leave the previous generated project untouched");
         WriteBytes(second, "script Second {\n public ref First peer\n public Int score = 1\n fn Extra() -> Int { return 7 }\n}\n");
         Check(Run(executable, arguments, scratch).ExitCode == 0 && fs::last_write_time(firstCpp) == firstTime,

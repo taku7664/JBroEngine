@@ -114,12 +114,6 @@ namespace JBro::ScriptCompiler
                                 continue;
                             }
                             CollectValueType(source, source.Tree->GetChild(member, 1), complete);
-                            // Inline member initializers need definitions for calls and enum members.
-                            const NodeIndex initializer = source.Tree->GetChild(member, 2);
-                            if (initializer != InvalidNode)
-                            {
-                                Collect(source, initializer, complete);
-                            }
                         }
                         String header = "#pragma once\n" + Include(declaration.File + ".fwd.h");
                         Sort(used);

@@ -69,3 +69,4 @@ Entries:
   jbroc.semantic.static_property_not_serialized: "[prop] static field {0} is shared across instances and excluded from instance saves. Add [noserialize] to acknowledge this behavior."
   jbroc.semantic.switch_value_type: "A switch condition must be Int, Float, Bool, String, or an enum value: {0}"
   jbroc.semantic.equality_operator_signature: "{0} must be an instance method on a class or struct, take one value parameter, and return Bool."
+  jbroc.semantic.uninitialized_field: "Field {0} has not finished initialization. Fields initialize in declaration order."
