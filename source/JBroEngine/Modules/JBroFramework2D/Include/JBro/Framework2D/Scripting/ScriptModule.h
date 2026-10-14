@@ -14,6 +14,9 @@ namespace JBro
         const ScriptModuleApi* GetScriptModuleApi2D(UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept;
         const ScriptModuleApi* GetScriptModuleApi2DRequiringErrorContext(
             UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept;
+        // Generated JBroScript may share a DLL with hand-written C++ scripts.
+        // The marker makes the ordinary project entry require the error sink too.
+        bool MarkGeneratedScript2D() noexcept;
     }
 }
 

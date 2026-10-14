@@ -25,6 +25,20 @@ namespace JBro::ScriptCompiler
             String setter;
         };
 
+        struct DeclarationRef
+        {
+            const SourceText* source = nullptr;
+            const SyntaxTree* tree = nullptr;
+            NodeIndex index = InvalidNode;
+            SyntaxKind kind = SyntaxKind::CompilationUnit;
+        };
+
+        struct FunctionRef
+        {
+            DeclarationRef owner;
+            NodeIndex index = InvalidNode;
+        };
+
         String Escape(std::string_view text)
         {
             String result = "\"";
@@ -95,8 +109,9 @@ namespace JBro::ScriptCompiler
         class Generator final
         {
         public:
-            Generator(const SourceText& source, const SyntaxTree& tree, const ApiCatalog& api)
-                : m_source(source), m_tree(tree), m_api(api)
+            Generator(ArrayView<const CppSource> sources, const ApiCatalog& api,
+                bool emitModuleEntry)
+                : m_sources(sources), m_api(api), m_emitModuleEntry(emitModuleEntry)
             {
             }
 
@@ -104,38 +119,48 @@ namespace JBro::ScriptCompiler
             {
                 m_code = "#include <JBro/ScriptAPI.h>\n#include <JBro/Framework2D/Scripting/ScriptModule.h>\n"
                     "#include <JBro/Runtime/ScriptGuard.h>\n\n";
-                const NodeIndex root = m_tree.GetRoot();
-                if (root == InvalidNode)
+                if (m_sources.IsEmpty())
                 {
-                    Error("empty syntax tree");
+                    Error("no source files for C++ generation");
                     return Finish();
                 }
-                IndexDeclarations(root);
-                Array<NodeIndex> declarations;
-                for (NodeIndex child : m_tree.GetChildren(root))
+                for (const CppSource& source : m_sources)
                 {
-                    if (child != InvalidNode)
+                    if (source.Source == nullptr || source.Tree == nullptr
+                        || source.Tree->GetRoot() == InvalidNode)
                     {
-                        if (!OrderDeclaration(String(Node(child).Text), declarations))
-                        {
-                            break;
-                        }
+                        Error("empty syntax tree");
+                        return Finish();
+                    }
+                    m_source = source.Source;
+                    m_tree = source.Tree;
+                    IndexDeclarations(m_tree->GetRoot());
+                }
+                Array<DeclarationRef> declarations;
+                for (const CppSource& source : m_sources)
+                {
+                    m_source = source.Source;
+                    m_tree = source.Tree;
+                    for (NodeIndex child : m_tree->GetChildren(m_tree->GetRoot()))
+                    {
+                        if (child != InvalidNode
+                            && !OrderDeclaration(String(Node(child).Text), declarations)) break;
                     }
                 }
                 if (false == m_errors.IsEmpty())
                 {
                     return Finish();
                 }
-                for (NodeIndex child : declarations)
+                for (const DeclarationRef& item : declarations)
                 {
-                    const SyntaxNode& declaration = Node(child);
+                    const SyntaxNode& declaration = item.tree->Get(item.index);
                     m_code += String(declaration.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
                         + String(declaration.Text) + ";\n";
                 }
                 m_code += '\n';
-                for (NodeIndex child : declarations)
+                for (const DeclarationRef& item : declarations)
                 {
-                    const SyntaxNode& declaration = Node(child);
+                    const SyntaxNode& declaration = item.tree->Get(item.index);
                     if (declaration.Kind == SyntaxKind::ScriptDeclaration)
                     {
                         const String name(declaration.Text);
@@ -144,9 +169,18 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 m_code += '\n';
-                for (NodeIndex child : declarations)
+                for (const DeclarationRef& item : declarations)
                 {
-                    Declaration(child);
+                    m_source = item.source;
+                    m_tree = item.tree;
+                    Declaration(item.index);
+                }
+                for (const FunctionRef& item : m_functions)
+                {
+                    m_source = item.owner.source;
+                    m_tree = item.owner.tree;
+                    m_owner = String(Node(item.owner.index).Text);
+                    Function(item.index, item.owner.kind == SyntaxKind::ScriptDeclaration, false);
                 }
                 for (const String& script : m_scripts)
                 {
@@ -154,7 +188,12 @@ namespace JBro::ScriptCompiler
                 }
                 if (!m_scripts.IsEmpty())
                 {
-                    m_code += "JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()\n";
+                    m_code += "namespace { const bool JBroGeneratedScript2DMarker = "
+                        "JBro::Internal::MarkGeneratedScript2D(); }\n";
+                    if (m_emitModuleEntry)
+                    {
+                        m_code += "JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()\n";
+                    }
                 }
                 else
                 {
@@ -164,8 +203,8 @@ namespace JBro::ScriptCompiler
             }
 
         private:
-            const SyntaxNode& Node(NodeIndex index) const { return m_tree.Get(index); }
-            NodeIndex Child(NodeIndex index, std::size_t slot) const { return m_tree.GetChild(index, slot); }
+            const SyntaxNode& Node(NodeIndex index) const { return m_tree->Get(index); }
+            NodeIndex Child(NodeIndex index, std::size_t slot) const { return m_tree->GetChild(index, slot); }
 
             CppEmitResult Finish()
             {
@@ -188,7 +227,7 @@ namespace JBro::ScriptCompiler
                 }
                 const SyntaxNode& node = Node(index);
                 Type result{String(node.Text), (node.Flags & SyntaxFlagRef) != 0};
-                for (NodeIndex child : m_tree.GetChildren(index))
+                for (NodeIndex child : m_tree->GetChildren(index))
                 {
                     if (child == InvalidNode)
                     {
@@ -238,9 +277,8 @@ namespace JBro::ScriptCompiler
 
             bool IsScript(const Type& type) const
             {
-                const NodeIndex* found = m_declarations.Find(type.name);
-                return found != nullptr
-                    && Node(*found).Kind == SyntaxKind::ScriptDeclaration;
+                const DeclarationRef* found = m_declarations.Find(type.name);
+                return found != nullptr && found->kind == SyntaxKind::ScriptDeclaration;
             }
 
             String NativeType(const Type& type) const
@@ -284,7 +322,7 @@ namespace JBro::ScriptCompiler
 
             void IndexDeclarations(NodeIndex root)
             {
-                for (NodeIndex child : m_tree.GetChildren(root))
+                for (NodeIndex child : m_tree->GetChildren(root))
                 {
                     const SyntaxNode& node = Node(child);
                     if (node.Kind != SyntaxKind::ScriptDeclaration
@@ -294,9 +332,14 @@ namespace JBro::ScriptCompiler
                         continue;
                     }
                     const String name(node.Text);
-                    m_declarations[name] = child;
+                    if (m_declarations.Contains(name))
+                    {
+                        Error("duplicate C++ declaration across files: " + name);
+                        continue;
+                    }
+                    m_declarations[name] = {m_source, m_tree, child, node.Kind};
                     auto& fields = m_fields[name];
-                    for (NodeIndex member : m_tree.GetChildren(child))
+                    for (NodeIndex member : m_tree->GetChildren(child))
                     {
                         if (member != InvalidNode && Node(member).Kind == SyntaxKind::FieldDeclaration)
                         {
@@ -306,9 +349,9 @@ namespace JBro::ScriptCompiler
                 }
             }
 
-            bool OrderDeclaration(const String& name, Array<NodeIndex>& ordered)
+            bool OrderDeclaration(const String& name, Array<DeclarationRef>& ordered)
             {
-                const NodeIndex* found = m_declarations.Find(name);
+                const DeclarationRef* found = m_declarations.Find(name);
                 if (found == nullptr)
                 {
                     Error("C++ emitter does not support this declaration yet");
@@ -366,7 +409,7 @@ namespace JBro::ScriptCompiler
                 {
                     m_code += "    JBRO_REFLECT_BODY(" + m_owner + ")\n";
                 }
-                for (NodeIndex member : m_tree.GetChildren(index))
+                for (NodeIndex member : m_tree->GetChildren(index))
                 {
                     if (member == InvalidNode)
                     {
@@ -380,7 +423,8 @@ namespace JBro::ScriptCompiler
                     else if (Node(member).Kind == SyntaxKind::FunctionDeclaration)
                     {
                         MemberAccess(member, node.Kind);
-                        Function(member, script);
+                        Function(member, script, true);
+                        m_functions.Add({{m_source, m_tree, index, node.Kind}, member});
                     }
                     else if (Node(member).Kind == SyntaxKind::BaseList)
                     {
@@ -436,7 +480,7 @@ namespace JBro::ScriptCompiler
                 const bool reflected = isStruct || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
                 if (attributes != InvalidNode)
                 {
-                    for (NodeIndex attribute : m_tree.GetChildren(attributes))
+                    for (NodeIndex attribute : m_tree->GetChildren(attributes))
                     {
                         if (attribute == InvalidNode || Node(attribute).Text != "prop"
                             || Node(attribute).ChildCount != 0)
@@ -473,7 +517,7 @@ namespace JBro::ScriptCompiler
                 m_code += ";\n";
             }
 
-            void Function(NodeIndex index, bool script)
+            void Function(NodeIndex index, bool script, bool declaration)
             {
                 const SyntaxNode& node = Node(index);
                 if (node.Flags & (SyntaxFlagStatic | SyntaxFlagRequire))
@@ -487,12 +531,13 @@ namespace JBro::ScriptCompiler
                 const Type returns = ParseType(Child(index, 2));
                 const bool callback = script && (node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) != 0;
                 m_variables = m_fields[m_owner];
-                m_code += "    " + NativeType(returns) + " " + String(node.Text) + "(";
+                m_code += (declaration ? "    " : "") + NativeType(returns) + " "
+                    + (declaration ? "" : m_owner + "::") + String(node.Text) + "(";
                 const NodeIndex parameters = Child(index, 1);
                 if (parameters != InvalidNode)
                 {
                     std::size_t count = 0;
-                    for (NodeIndex parameter : m_tree.GetChildren(parameters))
+                    for (NodeIndex parameter : m_tree->GetChildren(parameters))
                     {
                         if (count++ != 0) m_code += ", ";
                         const Type type = ParseType(Child(parameter, 0));
@@ -503,24 +548,30 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 m_code += ")";
-                if (node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) m_code += " override";
+                if (declaration && node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) m_code += " override";
                 const NodeIndex body = Child(index, 3);
                 if (body == InvalidNode)
+                {
+                    if (!declaration) Error("C++ emitter does not support methods without a body yet");
+                    m_code += ";\n";
+                    return;
+                }
+                if (declaration)
                 {
                     m_code += ";\n";
                     return;
                 }
-                m_code += "\n    {\n";
-                if (callback) m_code += "        try\n        {\n";
-                for (NodeIndex statement : m_tree.GetChildren(body))
+                m_code += "\n{\n";
+                if (callback) m_code += "    try\n    {\n";
+                for (NodeIndex statement : m_tree->GetChildren(body))
                 {
-                    Statement(statement, callback ? 12 : 8);
+                    Statement(statement, callback ? 8 : 4);
                 }
                 if (callback)
                 {
-                    m_code += "        }\n        catch (const JBro::ScriptGuard::AbortCallback&)\n        {\n            return;\n        }\n";
+                    m_code += "    }\n    catch (const JBro::ScriptGuard::AbortCallback&)\n    {\n        return;\n    }\n";
                 }
-                m_code += "    }\n";
+                m_code += "}\n\n";
             }
 
             String SiteKey(const SyntaxNode& node) const
@@ -528,7 +579,7 @@ namespace JBro::ScriptCompiler
                 const auto line = node.Range.End.Line.Get();
                 const auto end = node.Range.End.Column.Get();
                 const auto column = end > node.Text.size() ? end - node.Text.size() : end;
-                return String(m_source.GetPath().c_str()) + ':' + std::to_string(line) + ':'
+                return String(m_source->GetPath().c_str()) + ':' + std::to_string(line) + ':'
                     + std::to_string(column) + ':' + String(node.Text);
             }
 
@@ -777,12 +828,12 @@ namespace JBro::ScriptCompiler
                 const SyntaxNode& node = Node(index);
                 const String pad(static_cast<std::size_t>(indent), ' ');
                 m_code += "#line " + std::to_string(node.Range.Begin.Line.Get()) + " "
-                    + Escape(m_source.GetPath().c_str()) + "\n";
+                    + Escape(m_source->GetPath().c_str()) + "\n";
                 if (node.Kind == SyntaxKind::Block)
                 {
                     const auto saved = m_variables;
                     m_code += pad + "{\n";
-                    for (NodeIndex child : m_tree.GetChildren(index)) Statement(child, indent + 4);
+                    for (NodeIndex child : m_tree->GetChildren(index)) Statement(child, indent + 4);
                     m_code += pad + "}\n";
                     m_variables = saved;
                     return;
@@ -892,22 +943,33 @@ namespace JBro::ScriptCompiler
                 Error("C++ emitter does not support this statement yet");
             }
 
-            const SourceText& m_source;
-            const SyntaxTree& m_tree;
+            ArrayView<const CppSource> m_sources;
+            const SourceText* m_source = nullptr;
+            const SyntaxTree* m_tree = nullptr;
             const ApiCatalog& m_api;
+            bool m_emitModuleEntry;
             String m_code;
             Array<String> m_errors;
-            Table<String, NodeIndex> m_declarations;
+            Table<String, DeclarationRef> m_declarations;
             Table<String, int> m_declarationState;
             Table<String, Table<String, Type>> m_fields;
             Table<String, Type> m_variables;
             Array<String> m_scripts;
+            Array<FunctionRef> m_functions;
             String m_owner;
         };
     }
 
-    CppEmitResult EmitCpp(const SourceText& source, const SyntaxTree& tree, const ApiCatalog& api)
+    CppEmitResult EmitCpp(const SourceText& source, const SyntaxTree& tree,
+        const ApiCatalog& api, bool emitModuleEntry)
     {
-        return Generator(source, tree, api).Run();
+        const CppSource one{&source, &tree};
+        return Generator(ArrayView<const CppSource>(&one, 1), api, emitModuleEntry).Run();
+    }
+
+    CppEmitResult EmitCpp(ArrayView<const CppSource> sources, const ApiCatalog& api,
+        bool emitModuleEntry)
+    {
+        return Generator(sources, api, emitModuleEntry).Run();
     }
 }

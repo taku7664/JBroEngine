@@ -10,7 +10,29 @@
   <PropertyGroup>
     <JBroGameScriptFrameworkLib Condition="'$(JBroScriptDimension)' == '2D'">JBroFramework2D.lib</JBroGameScriptFrameworkLib>
     <JBroGameScriptFrameworkLib Condition="'$(JBroScriptDimension)' == '3D'">JBroFramework3D.lib</JBroGameScriptFrameworkLib>
+    <JBroCompilerPath>$(JBroBuildDir)$(Platform)\$(Configuration)\JBroc.exe</JBroCompilerPath>
+    <JBroGeneratedSource>$(IntDir)JBroGenerated.cpp</JBroGeneratedSource>
   </PropertyGroup>
+
+  <!-- Keep the generated file in the engine's intermediate directory; never rewrite user-owned C++ sources. -->
+  <ItemGroup>
+    <JBroScriptSource Include="$(MSBuildProjectDirectory)\Scripts\**\*.jscript" />
+    <ClCompile Include="$(JBroGeneratedSource)" Condition="'@(JBroScriptSource)' != '' and '$(JBroScriptDimension)' == '2D'" />
+  </ItemGroup>
+
+  <Target Name="JBroGameScriptValidate" BeforeTargets="ClCompile" Condition="'@(JBroScriptSource)' != ''">
+    <Error Condition="'$(JBroScriptDimension)' != '2D'"
+           Text="JBroScript C++ generation currently supports only 2D script projects." />
+    <Error Condition="!Exists('$(JBroCompilerPath)')"
+           Text="JBroc.exe was not found at $(JBroCompilerPath). Build JBroc in the same configuration first." />
+  </Target>
+
+  <Target Name="JBroGameScriptGenerate" BeforeTargets="ClCompile" DependsOnTargets="JBroGameScriptValidate"
+          Condition="'@(JBroScriptSource)' != '' and '$(JBroScriptDimension)' == '2D'">
+    <MakeDir Directories="$(IntDir)" />
+    <Exec Command="&quot;$(JBroCompilerPath)&quot; --emit-cpp &quot;$(JBroGeneratedSource)&quot; --no-module-entry &quot;@(JBroScriptSource, '&quot; &quot;')&quot;"
+          StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" />
+  </Target>
 
   <ItemDefinitionGroup>
     <ClCompile>

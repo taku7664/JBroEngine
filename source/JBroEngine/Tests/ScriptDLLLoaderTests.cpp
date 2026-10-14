@@ -4,6 +4,7 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>
@@ -1259,6 +1260,29 @@ namespace
         copyIndexCounts(generatedScript, &indexBefore, &indexAfter);
         Check(indexBefore == 3 && indexAfter == 1 && JBro::Log::GetGroupCount() == 4,
             "indexing a present ref Array continues without a new error");
+        JBro::Log::Clear();
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::System::ScriptSystem scheduler;
+            scheduler.Initialize(canvas);
+            JBro::GameScriptBase* scheduledFirst = canvas.AttachScript(canvas.CreateObject("first"), "GuardProbe");
+            JBro::GameScriptBase* scheduledSecond = canvas.AttachScript(canvas.CreateObject("second"), "GuardProbe");
+            Check(scheduledFirst != nullptr && scheduledSecond != nullptr,
+                "generated scripts attach to ordinary canvas game objects");
+            scheduler.Update(canvas, 0.016f);
+            scheduler.Update(canvas, 0.016f);
+            JBro::Int firstBefore = 0;
+            JBro::Int firstAfter = 0;
+            JBro::Int secondBefore = 0;
+            JBro::Int secondAfter = 0;
+            copyGeneratedCounts(scheduledFirst, &firstBefore, &firstAfter, &safeRuns, &valueBefore, &valueAfter);
+            copyGeneratedCounts(scheduledSecond, &secondBefore, &secondAfter, &safeRuns, &valueBefore, &valueAfter);
+            Check(scheduler.GetLastUpdateCount() == 2 && firstBefore == 2 && secondBefore == 2
+                    && firstAfter == 0 && secondAfter == 0 && JBro::Log::GetGroupCount() == 1
+                    && JBro::Log::GetGroupAt(0)->count == 4,
+                "the real script scheduler continues to the next object and frame after each ref failure");
+            scheduler.Shutdown(canvas);
+        }
         JBro::Log::Clear();
         JBro::Log::SetEchoToConsole(oldEcho);
         generatedType->Destruct(secondScript);

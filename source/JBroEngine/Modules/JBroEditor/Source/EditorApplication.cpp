@@ -2727,7 +2727,8 @@ namespace JBro
         {
             const char* dot = std::strrchr(path, '.');
             return dot != nullptr && (std::strcmp(dot, ".h") == 0 || std::strcmp(dot, ".hpp") == 0
-                || std::strcmp(dot, ".cpp") == 0 || std::strcmp(dot, ".inl") == 0);
+                || std::strcmp(dot, ".cpp") == 0 || std::strcmp(dot, ".inl") == 0
+                || std::strcmp(dot, ".jscript") == 0);
         }
     }
 

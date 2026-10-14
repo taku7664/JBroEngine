@@ -134,6 +134,13 @@ namespace
             "a generated callback catches only its own abort");
         Check(emitted.Code.find("JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()") != String::npos,
             "generated modules declare the host error sink as a required context");
+        Check(emitted.Code.find("MarkGeneratedScript2D") != String::npos,
+            "generated scripts mark mixed C++ projects as requiring an error sink");
+        const CppEmitResult projectSource = EmitCpp(source, tree, Catalog(), false);
+        Check(projectSource.Errors.IsEmpty()
+                && projectSource.Code.find("JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()") == String::npos
+                && projectSource.Code.find("JBRO_REGISTER_SCRIPT_2D(Probe)") != String::npos,
+            "project mode registers the generated script without a duplicate DLL entry point");
         Check(emitted.Code.find("#line 10 \"chain.jscript\"") != String::npos,
             "generated statements point C++ diagnostics back to the JBroScript source");
     }
@@ -153,6 +160,26 @@ namespace
             Check(false == emitted.Errors.IsEmpty(),
                 "owned ref cycles must be rejected before a C++ compiler sees an infinite-size value");
         }
+    }
+
+    void TestCppEmitterCombinesProjectFiles()
+    {
+        SourceText link("link.jscript", "class Link\n{\npublic ref Transform2D target2\n}\n");
+        SourceText probe("probe.jscript", "script Probe\n{\npublic ref Link target1\n"
+            "fn OnUpdate() override\n{\nVector2 position = target1.target2.position\n}\n}\n");
+        DiagnosticList linkDiagnostics;
+        DiagnosticList probeDiagnostics;
+        const SyntaxTree linkTree = Parse(link, linkDiagnostics);
+        const SyntaxTree probeTree = Parse(probe, probeDiagnostics);
+        Check(false == linkDiagnostics.HasErrors() && false == probeDiagnostics.HasErrors(),
+            "cross-file emitter scenario parses");
+        const CppSource sources[] = {{&link, &linkTree}, {&probe, &probeTree}};
+        const CppEmitResult result = EmitCpp(sources, Catalog(), false);
+        Check(result.Errors.IsEmpty() && result.Code.find("class Link") != String::npos
+                && result.Code.find("class Probe") != String::npos
+                && result.Code.find("Probe::OnUpdate()") != String::npos
+                && result.Code.find("probe.jscript:6:") != String::npos,
+            "one generated translation unit contains both files and retains the failing source location");
     }
 
     void TestCppEmitterRejectsUnimplementedSemantics()
@@ -493,6 +520,7 @@ JBro::Int32 RunScriptCompilerAnalysisTests()
 {
     TestSingleRefSyntax();
     TestCppEmitterChecksEveryRefLink();
+    TestCppEmitterCombinesProjectFiles();
     TestCppEmitterRejectsRecursiveOwnedRefs();
     TestCppEmitterRejectsUnimplementedSemantics();
     TestCppEmitterPreservesFieldVisibilityAndReflection();

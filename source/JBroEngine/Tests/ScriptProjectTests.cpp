@@ -9,6 +9,7 @@
 
 #include <Windows.h>
 
+#include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -16,6 +17,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 // 사용자 게임 스크립트 프로젝트를 만드는 길(cpp-script-plan §3.3, D-266)을 본다. 만들어지는 글자가 실제로 빌드되는지는
 // MSBuild 로 한 번 쟀다(계획서 §3.3 의 진행) - 여기서는 글자의 약속과 "한 번만 쓴다" 를 지킨다.
@@ -311,6 +313,17 @@ namespace
             listed = listed || file == "Player.h";
         }
         Check(listed, "the new header is listed under the script root");
+        std::ofstream(contents / "Scripts" / "Guard.jscript") << "script Guard {}\n";
+        editor.MarkScriptFilesChanged();
+        editor.CollectScriptFiles(folders, files);
+        Bool listedJBroScript = false;
+        for (const String& file : files)
+        {
+            listedJBroScript = listedJBroScript || file == "Guard.jscript";
+        }
+        Check(listedJBroScript, "JBroScript files are listed under the editor's Scripts root");
+        Check(editor.CheckScriptName("", "Guard") == ScriptProject::NameProblem::TakenByFile,
+            "the C++ script wizard will not reuse a JBroScript file stem");
 
         Check(editor.CheckScriptName("", "Player") == ScriptProject::NameProblem::TakenByFile,
             "the same name cannot be created twice");
@@ -323,6 +336,49 @@ namespace
             Check(editor.Tick(1.0f / 60.0f), "the editor ticks with the new script window up");
         }
         Check(editor.IsPopupOpenById("new_script"), "the new script window is open");
+        const auto waitForBuild = [&editor]() {
+            for (Int32 step = 0; step < 3000; ++step)
+            {
+                Check(editor.Tick(1.0f / 60.0f), "the editor keeps ticking while scripts build");
+                if (editor.GetScriptBuildState() != EditorApplication::ScriptBuildState::Running)
+                {
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            Check(false, "the editor's script build finishes within 30 seconds");
+        };
+        Check(editor.BuildScripts(), "the editor starts a mixed C++ and JBroScript build");
+        waitForBuild();
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
+            "the editor builds the generated JBroScript into the game DLL");
+        const fs::path generatedSource = root / "x64" / "Intermediate" / "Debug" / "JBroGenerated.cpp";
+        const fs::path follower = contents / "Scripts" / "Follower.jscript";
+        std::ofstream(follower) << "script Follower { public ref Guard peer }\n";
+        Check(editor.BuildScripts(), "the editor starts a build after adding a second JBroScript file");
+        waitForBuild();
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && ReadAll(generatedSource).find("class Follower") != std::string::npos,
+            "the second JBroScript file joins the game DLL without editing the project file");
+        fs::remove(follower);
+        Check(editor.BuildScripts(), "the editor starts a build after deleting a JBroScript file");
+        waitForBuild();
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && ReadAll(generatedSource).find("class Follower") == std::string::npos,
+            "a deleted source is removed from generated C++ even if remaining files are older");
+        std::ofstream(contents / "Scripts" / "Guard.jscript", std::ios::trunc)
+            << "script Guard { fn OnUpdate() override { if true {} } }\n";
+        Check(editor.BuildScripts(), "the editor starts a build after JBroScript changes");
+        waitForBuild();
+        Bool sourceDiagnostic = false;
+        for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+        {
+            sourceDiagnostic = sourceDiagnostic || (diagnostic.file.find("Guard.jscript") != String::npos
+                && diagnostic.line.Get() > 0 && diagnostic.isError);
+        }
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Failed && sourceDiagnostic,
+            "an invalid JBroScript source appears at its own file and line in Build Results");
         editor.Shutdown();
     }
 }

@@ -22,6 +22,7 @@ namespace JBro::Internal
 {
     namespace
     {
+        bool g_hasGeneratedScript2D = false;
         // **바인딩 목록은 여기 한 곳이다**(cpp-script-plan §3.2). 사용자가 손으로 적던 때는 시험 DLL 조차 호스트가 넘기는 오디오·네트워크를
         // 묶지 않았다. 차원과 무관한 서비스의 줄은 `JBroFramework3D` 의 같은 파일과 같아야 한다 - 서비스를 더하면 두 곳을 함께 고친다.
         void BindHostServices(const ScriptModuleLoadContext& context)
@@ -185,7 +186,13 @@ namespace JBro::Internal
         {
             return nullptr;
         }
-        return &ModuleApi;
+        return g_hasGeneratedScript2D ? &ErrorReportingModuleApi : &ModuleApi;
+    }
+
+    bool MarkGeneratedScript2D() noexcept
+    {
+        g_hasGeneratedScript2D = true;
+        return true;
     }
 
     const ScriptModuleApi* GetScriptModuleApi2DRequiringErrorContext(

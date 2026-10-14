@@ -23,10 +23,10 @@
       <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PreBuildEvent>
-      <Command>"$(JBroBuildDir)x64\$(Configuration)\JBroc.exe" --emit-cpp "$(IntDir)Guard.cpp" "$(MSBuildProjectDirectory)\Source\Guard.jscript"</Command>
+      <Command>"$(JBroBuildDir)x64\$(Configuration)\JBroc.exe" --emit-cpp "$(IntDir)Guard.cpp" --no-module-entry "$(MSBuildProjectDirectory)\Source\Guard.jscript"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
-  <ItemGroup><ClCompile Include="Source\Exports.cpp" /></ItemGroup>
+  <ItemGroup><ClCompile Include="Source\Exports.cpp" /><ClCompile Include="Source\ScriptModule.cpp" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(JBroModulesDir)JBroc\JBroc.vcxproj"><Project>{1a000016-0000-4000-8000-00000000b20c}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj"><Project>{1a000001-0000-4000-8000-00000000c0de}</Project></ProjectReference>

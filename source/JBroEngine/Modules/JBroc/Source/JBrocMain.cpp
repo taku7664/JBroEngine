@@ -146,6 +146,7 @@ namespace
         JBro::Bool Help = false;
         JBro::Bool Lsp = false;
         JBro::Bool EmitCpp = false;
+        JBro::Bool EmitCppWithoutModuleEntry = false;
         std::filesystem::path EmitCppPath;
         Array<std::filesystem::path> Files;
         // 명령줄이 틀렸으면 그 알림의 키와 인자다. 번역 표를 읽은 뒤에 낸다(언어가 인자에 있으므로).
@@ -184,6 +185,11 @@ namespace
                 }
                 commandLine.EmitCpp = true;
                 commandLine.EmitCppPath = std::filesystem::path(argv[++index]);
+                continue;
+            }
+            if (L"--no-module-entry" == argument)
+            {
+                commandLine.EmitCppWithoutModuleEntry = true;
                 continue;
             }
             if (L"--locale" == argument)
@@ -308,7 +314,8 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
 
     if (commandLine.Lsp && false == commandLine.Help && nullptr == commandLine.ProblemKey)
     {
-        if (commandLine.DumpTree || commandLine.EmitCpp || false == commandLine.Files.IsEmpty())
+        if (commandLine.DumpTree || commandLine.EmitCpp || commandLine.EmitCppWithoutModuleEntry
+            || false == commandLine.Files.IsEmpty())
         {
             WriteLine(STD_ERROR_HANDLE, "jbroc: --lsp cannot be combined with --dump-tree or source file arguments");
             return ExitUsageOrInput;
@@ -361,47 +368,71 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         WriteLine(STD_ERROR_HANDLE, LocalizedText(messages, "jbroc.cli.usage").View());
         return ExitUsageOrInput;
     }
+    if (commandLine.EmitCppWithoutModuleEntry && false == commandLine.EmitCpp)
+    {
+        WriteLine(STD_ERROR_HANDLE, "jbroc: --no-module-entry requires --emit-cpp");
+        return ExitUsageOrInput;
+    }
 
     if (commandLine.EmitCpp)
     {
-        if (commandLine.DumpTree || commandLine.Files.Size() != 1
+        if (commandLine.DumpTree || commandLine.Files.IsEmpty()
             || commandLine.EmitCppPath.extension() != L".cpp")
         {
-            WriteLine(STD_ERROR_HANDLE, "jbroc: --emit-cpp needs one source file and a .cpp output path");
-            return ExitUsageOrInput;
-        }
-        std::error_code pathError;
-        if (std::filesystem::exists(commandLine.EmitCppPath, pathError)
-            && std::filesystem::equivalent(commandLine.Files[0], commandLine.EmitCppPath, pathError))
-        {
-            WriteLine(STD_ERROR_HANDLE, "jbroc: source and output paths must differ");
-            return ExitUsageOrInput;
-        }
-        const std::filesystem::path absolute = std::filesystem::absolute(commandLine.Files[0], pathError);
-        String sourceText;
-        if (pathError || false == ReadWholeFile(absolute, sourceText))
-        {
-            WriteLine(STD_ERROR_HANDLE, "jbroc: cannot read source file");
+            WriteLine(STD_ERROR_HANDLE, "jbroc: --emit-cpp needs source files and a .cpp output path");
             return ExitUsageOrInput;
         }
         Array<DocumentInput> inputs;
-        inputs.Add({ToUtf8(absolute.native()), ToUtf8(absolute.native()), sourceText, 1});
+        for (const std::filesystem::path& file : commandLine.Files)
+        {
+            std::error_code pathError;
+            if (std::filesystem::exists(commandLine.EmitCppPath, pathError)
+                && std::filesystem::equivalent(file, commandLine.EmitCppPath, pathError))
+            {
+                WriteLine(STD_ERROR_HANDLE, "jbroc: source and output paths must differ");
+                return ExitUsageOrInput;
+            }
+            const std::filesystem::path absolute = std::filesystem::absolute(file, pathError);
+            String sourceText;
+            if (pathError || false == ReadWholeFile(absolute, sourceText))
+            {
+                WriteLine(STD_ERROR_HANDLE, String("jbroc: cannot read source file: ")
+                    .Append(ToUtf8(file.native()).View()).View());
+                return ExitUsageOrInput;
+            }
+            const String path = ToUtf8(absolute.native());
+            inputs.Add({path, path, sourceText, 1});
+        }
         const ApiCatalog catalog = JBro::ScriptApiCatalog2D::BuildCatalog();
         const OwnerPtr<AnalysisResult> analyzed = AnalyzeProject(inputs.View(), catalog);
-        const DocumentAnalysis& document = *analyzed->Documents[0];
-        for (const Diagnostic& diagnostic : document.ParseDiagnostics.GetItems())
+        bool sourceErrors = false;
+        Array<CppSource> cppSources;
+        for (const auto& ownedDocument : analyzed->Documents)
         {
-            WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(inputs[0].Path.View(), diagnostic, messages).View());
+            const DocumentAnalysis& document = *ownedDocument;
+            for (const Diagnostic& diagnostic : document.ParseDiagnostics.GetItems())
+            {
+                WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(document.Input.Path.View(), diagnostic, messages).View());
+            }
+            for (const SemanticDiagnostic& diagnostic : document.Diagnostics)
+            {
+                String line(document.Input.Path);
+                line.Append("(").Append(std::to_string(diagnostic.Range.Begin.Line)).Append(",")
+                    .Append(std::to_string(diagnostic.Range.Begin.Column)).Append("): ")
+                    .Append(diagnostic.Warning ? "warning " : "error ").Append(diagnostic.Code.View())
+                    .Append(": ").Append(messages.FormatKey(diagnostic.MessageKey.c_str(), diagnostic.Arguments.View()).View());
+                WriteLine(STD_OUTPUT_HANDLE, line.View());
+            }
+            sourceErrors = sourceErrors || document.ParseDiagnostics.HasErrors()
+                || false == document.Diagnostics.IsEmpty();
+            cppSources.Add({&document.Source, &document.Tree});
         }
-        for (const SemanticDiagnostic& diagnostic : document.Diagnostics)
-        {
-            WriteLine(STD_ERROR_HANDLE, String(diagnostic.Code).Append(": ").Append(diagnostic.MessageKey.View()).View());
-        }
-        if (document.ParseDiagnostics.HasErrors() || false == document.Diagnostics.IsEmpty())
+        if (sourceErrors)
         {
             return ExitSourceErrors;
         }
-        const CppEmitResult emitted = EmitCpp(document.Source, document.Tree, catalog);
+        const CppEmitResult emitted = EmitCpp(cppSources.View(), catalog,
+            false == commandLine.EmitCppWithoutModuleEntry);
         if (false == emitted.Errors.IsEmpty())
         {
             for (const String& error : emitted.Errors)
@@ -409,6 +440,15 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
                 WriteLine(STD_ERROR_HANDLE, String("jbroc: C++ emit error: ").Append(error.View()).View());
             }
             return ExitSourceErrors;
+        }
+        // Source removal changes the project even when the remaining files are
+        // older than the generated C++. Run on every build, but leave the output
+        // timestamp untouched when its bytes have not changed.
+        String previousOutput;
+        if (ReadWholeFile(commandLine.EmitCppPath, previousOutput)
+            && previousOutput == emitted.Code)
+        {
+            return ExitSuccess;
         }
         std::ofstream output(commandLine.EmitCppPath, std::ios::binary | std::ios::trunc);
         if (false == output.is_open())
