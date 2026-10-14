@@ -15456,15 +15456,8 @@ namespace
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "a right click on empty space opens the graph menu");
         Spot spot;
-        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, JBro::Loc::TextOr(JBro::LocKeys::NodeGraphAddNode, "Add Node")), spot),
-            "the menu offers Add Node");
-        for (JBro::Int32 frame = 0; frame < 3; ++frame)
-        {
-            Check(editor.Tick(Frame), "the submenu must open on hover");
-        }
-        ImGuiWindow* submenu = FindSubmenuWindow();
-        Check(submenu != nullptr, "hovering Add Node opens the node list");
-        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, "Output"), spot), "the output node is listed by its type name");
+        // 빈 곳의 메뉴는 노드 찾기다(D-313). 묶음 없는 종류(Output)는 맨 위에 바로 선다.
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "Output"), spot), "the output node is listed by its type name");
         ClickAt(editor, hwnd, spot);
         Check(editor.Tick(Frame), "the editor must redraw");
         Check(dirty(), "adding a node marks the tab");
@@ -15588,6 +15581,197 @@ namespace
     }
 }
 
+namespace
+{
+    // **노드 그래프 다듬기**(D-313). 실제 에디터에서 찾기 메뉴(글자를 치고 Enter)·노드 안 값 칸(끌기 하나가 실행 취소 하나)·미니맵·
+    // 주석(C)·복제를 잰다. 화면 모델의 판정은 `NodeGraphViewTests` 가 잰다.
+    void TestTheNodeGraphEditorFindsAnnotatesAndEditsInPlace()
+    {
+        namespace fs = std::filesystem;
+        JBro::String probeFolder("JBroNodeGraphPolish");
+        probeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(probeFolder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "graph", ignored);
+        {
+            std::ofstream file(root / "Assets" / "graph" / "Polish.jgraph", std::ios::binary);
+            file << "Domain: Math\nNextId: 20\nNodes:\n"
+                    "  - Id: 1\n    Type: Float\n    X: 0\n    Y: 0\n    Inputs:\n      - Pin: Value\n        Value:\n          - 0.5\n"
+                    "  - Id: 2\n    Type: Float\n    X: 0\n    Y: 140\n"
+                    "  - Id: 3\n    Type: Multiply\n    X: 280\n    Y: 40\n"
+                    "  - Id: 4\n    Type: Output\n    X: 540\n    Y: 40\n"
+                    "Links:\n"
+                    "  - Id: 10\n    FromNode: 1\n    FromPin: Result\n    ToNode: 3\n    ToPin: A\n"
+                    "  - Id: 11\n    FromNode: 2\n    FromPin: Result\n    ToNode: 3\n    ToPin: B\n"
+                    "  - Id: 12\n    FromNode: 3\n    FromPin: Result\n    ToNode: 4\n    ToPin: Color\n";
+        }
+        JBro::String projectName(probeFolder);
+        projectName.append("\\Graph.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: GraphPolish\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 800;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; node graph polish not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath("graph/Polish.jgraph");
+        Check(record != nullptr && editor.OpenNodeGraphEditor(record->id), "the probe graph opens");
+        const JBro::AssetId graphId = record->id;
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the graph");
+        }
+        JBro::Array<JBro::EditorPanel*> panels;
+        Check(editor.FindPanels("NodeGraph", panels) == 1, "one graph editor");
+        ImGuiWindow* window = nullptr;
+        for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            const char* found = std::strstr(candidate->Name, "###NodeGraph/");
+            if (found != nullptr && std::strchr(found + std::strlen("###NodeGraph/"), '/') == nullptr)
+            {
+                window = candidate;
+            }
+        }
+        Check(window != nullptr, "the graph editor has a window");
+        const auto locate = [&](const char* label) {
+            JBro::Widget::ItemLocator::Watch(LabelId(window->ID, label));
+            Check(editor.Tick(Frame), "the editor must draw the graph");
+            JBro::Widget::ItemLocator::ItemRect found;
+            Check(JBro::Widget::ItemLocator::Take(found), label);
+            return Spot{static_cast<JBro::Int32>((found.minX.Get() + found.maxX.Get()) * 0.5f),
+                static_cast<JBro::Int32>((found.minY.Get() + found.maxY.Get()) * 0.5f)};
+        };
+        const auto press = [&](ImGuiKey key, JBro::Bool control, JBro::Bool shift) {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddKeyEvent(ImGuiMod_Ctrl, control);
+            io.AddKeyEvent(ImGuiMod_Shift, shift);
+            io.AddKeyEvent(key, true);
+            Check(editor.Tick(Frame), "the editor must tick with the key down");
+            io.AddKeyEvent(key, false);
+            io.AddKeyEvent(ImGuiMod_Shift, false);
+            io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            Check(editor.Tick(Frame), "the editor must tick with the key up");
+        };
+        const auto saved = [&]() {
+            press(ImGuiKey_S, true, false);
+            JBro::String text;
+            Check(editor.ReadAssetText(graphId, text), "the graph file reads");
+            return text;
+        };
+        // 같은 노드를 이어서 누르면 두 번 누르기가 되어 노드 인스펙터가 포커스를 가져간다. 두 번 누르기 시간을 넘기고 누른다.
+        const auto clickNode = [&](const Spot& at) {
+            for (JBro::Int32 frame = 0; frame < 30; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+            }
+            ClickAt(editor, hwnd, at);
+            Check(panels[0]->IsFocused(), "clicking a node focuses the graph editor");
+        };
+        const auto count = [](const JBro::String& text, const char* what) {
+            JBro::Int32 found = 0;
+            for (std::size_t at = text.find(what); at != JBro::String::npos; at = text.find(what, at + 1))
+            {
+                found = found + 1;
+            }
+            return found;
+        };
+
+        // ── 미니맵이 오른쪽 아래에 선다 ──
+        const Spot minimap = locate("##minimap");
+        Check(minimap.x > static_cast<JBro::Int32>((window->InnerRect.Min.x + window->InnerRect.Max.x) * 0.5f), "the minimap sits on the right");
+
+        // ── 노드 안 값 칸: 끌면 값이 바뀌고, 끌기 하나가 실행 취소 하나다 ──
+        const Spot field = locate("##field1_0");
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(field.x, field.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(field.x, field.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        for (JBro::Int32 step = 1; step <= 8; ++step)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(field.x + step * 6, field.y));
+            Check(editor.Tick(Frame), "the editor must tick while dragging the field");
+        }
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(field.x + 48, field.y));
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick on the release");
+        JBro::String text = saved();
+        Check(text.find("- 0.5\n") == JBro::String::npos, "dragging the in-node field changes the value");
+        Check(text.find("Id: 2") != JBro::String::npos && count(text, "Type: Float") == 2, "and moves no node");
+        press(ImGuiKey_Z, true, false);
+        text = saved();
+        Check(text.find("- 0.5\n") != JBro::String::npos, "one undo takes the whole drag back");
+
+        // ── 찾기 메뉴: 빈 곳을 우클릭하고 글자를 쳐 Enter ──
+        // 빈 곳은 아래쪽 Float 노드의 아래다 - 오른쪽 아래에는 미니맵이 있다.
+        const Spot lower = locate("##node2");
+        const Spot empty{lower.x, lower.y + 140};
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(empty.x, empty.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(empty.x, empty.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(empty.x, empty.y));
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must open");
+        }
+        Check(FindContextMenuWindow() != nullptr, "a right click on empty space opens the node finder");
+        for (const char* at = "mul"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must take the typing");
+        }
+        press(ImGuiKey_Enter, false, false);
+        Check(editor.Tick(Frame), "the menu must close");
+        Check(FindContextMenuWindow() == nullptr, "Enter adds the found node and closes the menu");
+        text = saved();
+        Check(count(text, "Type: Multiply") == 2, "typing part of a name and Enter adds that node");
+        press(ImGuiKey_Z, true, false);
+
+        // ── 복제: 고르지 않은 노드에서 오던 선은 따라오지 않는다 ──
+        const Spot multiply = locate("##node3");
+        clickNode(multiply);
+        const JBro::Int32 linksBefore = count(saved(), "FromPin:");
+        press(ImGuiKey_D, true, false);
+        text = saved();
+        Check(count(text, "Type: Multiply") == 2 && count(text, "FromPin:") == linksBefore, "a duplicate brings no links from nodes left out");
+        press(ImGuiKey_Z, true, false);
+
+        // ── 주석: 고른 노드를 C 로 감싼다 ──
+        clickNode(multiply);
+        press(ImGuiKey_C, false, false);
+        text = saved();
+        Check(text.find("Comments:") != JBro::String::npos, "C wraps the selection in a comment");
+        Check(text.find(JBro::Loc::TextOr(JBro::LocKeys::NodeGraphComment, "Comment")) != JBro::String::npos, "with the default title");
+        locate("##comment20");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 800, "node_graph_polish");
+        press(ImGuiKey_Z, true, false);
+        Check(saved().find("Comments:") == JBro::String::npos, "and undo takes it away");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+}
+
 JBro::Int32 RunEditorApplicationTests()
 {
     TestEditorProjectSessions();
@@ -15636,6 +15820,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheAudioSettingsAndMetersDraw();
     TestTheSoundEffectEditorMakesAndPlaysAnEffect();
     TestTheNodeGraphEditorEditsWithItsOwnUndo();
+    TestTheNodeGraphEditorFindsAnnotatesAndEditsInPlace();
     TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();

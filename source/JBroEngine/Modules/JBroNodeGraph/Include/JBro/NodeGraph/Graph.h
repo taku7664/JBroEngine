@@ -4,6 +4,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Color.h>
 #include <JBro/Types/Math2D.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/UInt.h>
@@ -19,6 +20,8 @@ namespace JBro::NodeGraph
 {
     using NodeId = UInt64;
     using LinkId = UInt64;
+    // 주석 상자의 번호다. 노드·링크와 한 번호 줄을 쓴다 - 고름이 번호 하나로 노드와 주석을 함께 든다.
+    using CommentId = UInt64;
     inline constexpr std::uint64_t InvalidId = 0;
 
     struct Node
@@ -48,6 +51,21 @@ namespace JBro::NodeGraph
         LinkId id = InvalidId;
         PinRef from;
         PinRef to;
+        // **경유점**이다(D-313). 선이 출력에서 이 점들을 차례로 지나 입력으로 간다. 그래프 공간이다.
+        // 그리는 데만 쓴다 - 잇기의 뜻은 `from`·`to` 가 다이고, 그래프를 결과물로 바꾸는 쪽은 이것을 보지 않는다.
+        Array<Vector2> waypoints;
+    };
+
+    // **주석 상자**다(D-313). 노드 뒤에 깔리는 제목 달린 사각형이고, 머리를 끌면 안에 든 노드가 함께 간다.
+    // 노드처럼 그래프의 것이지만 잇기·계산에는 끼지 않는다.
+    struct Comment
+    {
+        CommentId id = InvalidId;
+        String title;
+        // 그래프 공간의 왼쪽 위와 크기다.
+        Vector2 position;
+        Vector2 size;
+        Color color;
     };
 
     enum class ConnectResult : std::uint8_t
@@ -70,6 +88,8 @@ namespace JBro::NodeGraph
 
         ArrayView<const Node> GetNodes() const noexcept { return m_nodes.View(); }
         ArrayView<const Link> GetLinks() const noexcept { return m_links.View(); }
+        // 그리는 차례다 - 뒤의 것이 위에 그려진다.
+        ArrayView<const Comment> GetComments() const noexcept { return m_comments.View(); }
 
         const Node* FindNode(NodeId id) const noexcept;
         const Link* FindLink(LinkId id) const noexcept;
@@ -91,6 +111,23 @@ namespace JBro::NodeGraph
         Bool SetPosition(NodeId id, Vector2 position);
         Bool SetInput(NodeId id, std::size_t pin, const PinValue& value);
 
+        // ── 경유점(D-313) ──
+        // `index` 자리에 끼운다(0 이면 출력 바로 뒤, 개수면 입력 바로 앞). 범위 밖이면 거짓이다.
+        Bool InsertWaypoint(LinkId link, std::size_t index, Vector2 point);
+        Bool MoveWaypoint(LinkId link, std::size_t index, Vector2 point);
+        Bool RemoveWaypoint(LinkId link, std::size_t index);
+        Bool SetWaypoints(LinkId link, ArrayView<const Vector2> points);
+
+        // ── 주석(D-313) ──
+        const Comment* FindComment(CommentId id) const noexcept;
+        CommentId AddComment(String title, Vector2 position, Vector2 size, Color color);
+        // 그 번호 그대로 넣는다(읽기·붙여넣기). 번호가 비었거나 이미 쓰이면 거짓이다.
+        Bool InsertComment(Comment comment);
+        Bool RemoveComment(CommentId id);
+        Bool SetCommentRect(CommentId id, Vector2 position, Vector2 size);
+        Bool SetCommentTitle(CommentId id, String title);
+        Bool SetCommentColor(CommentId id, Color color);
+
         // `from` → `to` 링크가 순환을 만드는가. `to` 에서 출력을 따라 `from` 에 닿으면 만든다.
         Bool WouldCreateCycle(NodeId from, NodeId to) const;
         // 입력을 먼저 계산할 차례로 모든 노드를 낸다(앞의 노드가 뒤의 노드의 입력이다).
@@ -105,10 +142,14 @@ namespace JBro::NodeGraph
     private:
         UInt64 TakeId();
         Node* FindNodeMutable(NodeId id) noexcept;
+        Link* FindLinkMutable(LinkId id) noexcept;
+        Comment* FindCommentMutable(CommentId id) noexcept;
+        Bool IdInUse(UInt64 id) const noexcept;
 
         String m_domain;
         Array<Node> m_nodes;
         Array<Link> m_links;
+        Array<Comment> m_comments;
         UInt64 m_nextId = 1;
     };
 }

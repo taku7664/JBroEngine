@@ -10,6 +10,7 @@
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/FormLayout.h>
 #include <JBro/NodeGraph/MathDomain.h>
 
@@ -62,6 +63,11 @@ namespace JBro
                                                  : Loc::TextOr(LocKeys::NodeGraphManySelected, "Several nodes are selected"));
             return;
         }
+        if (graph.GetGraph().FindComment(selection[0]) != nullptr)
+        {
+            DrawComment(graph, selection[0]);
+            return;
+        }
         const NodeGraph::Node* node = graph.GetGraph().FindNode(selection[0]);
         if (node == nullptr)
         {
@@ -108,6 +114,43 @@ namespace JBro
                     }
                 });
         }
+    }
+
+    void NodeGraphInspectorPanel::DrawComment(NodeGraphPanel& graph, UInt64 id)
+    {
+        const NodeGraph::Comment* comment = graph.GetGraph().FindComment(id);
+        if (comment == nullptr)
+        {
+            return;
+        }
+        Widget::SectionHeader(Loc::TextOr(LocKeys::NodeGraphComment, "Comment")).Draw();
+        if (m_titleComment.Get() != id.Get())
+        {
+            m_titleComment = id;
+            m_title = comment->title;
+        }
+        Widget::FormLayout layout("##comment");
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::NodeGraphCommentTitle, "Title")),
+            [&] {
+                // 글자마다가 아니라 다 쳤을 때 커맨드 하나다.
+                if (Widget::TextField("##commentTitle", m_title).CommitOnFinish().Draw())
+                {
+                    graph.SetCommentTitle(id, m_title);
+                }
+            });
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::NodeGraphCommentColor, "Color")),
+            [&] {
+                const NodeGraph::Comment* current = graph.GetGraph().FindComment(id);
+                if (current == nullptr)
+                {
+                    return;
+                }
+                Float rgba[4] = {current->color.R, current->color.G, current->color.B, current->color.A};
+                if (Widget::ColorField("##commentColor", rgba))
+                {
+                    graph.SetCommentColor(id, Color{rgba[0], rgba[1], rgba[2], rgba[3]});
+                }
+            });
     }
 
     void NodeGraphInspectorPanel::DrawPreview(NodeGraphPanel& graph)

@@ -78,6 +78,7 @@ namespace JBro::LocKeys
     // ── 메뉴 ─────────────────────────────────────────────────────────────
     inline constexpr const char* MenuFile = "menu.file";
     inline constexpr const char* MenuEdit = "menu.edit";
+    inline constexpr const char* MenuView = "menu.view";
     inline constexpr const char* MenuWindow = "menu.window";
     inline constexpr const char* MenuSimulation = "menu.simulation";
     inline constexpr const char* MenuSimulationPlay = "menu.simulation_play";
@@ -400,6 +401,12 @@ namespace JBro::LocKeys
     inline constexpr const char* NodeGraphUnknownType = "node_graph.unknown_type";
     inline constexpr const char* NodeGraphPreview = "node_graph.preview";
     inline constexpr const char* NodeGraphNoOutput = "node_graph.no_output";
+    inline constexpr const char* NodeGraphAddComment = "node_graph.add_comment";
+    inline constexpr const char* NodeGraphComment = "node_graph.comment";
+    inline constexpr const char* NodeGraphCommentTitle = "node_graph.comment_title";
+    inline constexpr const char* NodeGraphCommentColor = "node_graph.comment_color";
+    inline constexpr const char* NodeGraphRemoveWaypoint = "node_graph.remove_waypoint";
+    inline constexpr const char* NodeGraphMinimap = "node_graph.minimap";
     inline constexpr const char* InspectorSoundEffectHint = "inspector.sound_effect_hint";
     inline constexpr const char* InspectorOpenSoundEffect = "inspector.open_sound_effect";
     inline constexpr const char* SoundEffectTitle = "sound_effect.title";

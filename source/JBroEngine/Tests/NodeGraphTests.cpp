@@ -166,6 +166,69 @@ namespace
         Check(WriteGraph(read, domain.Get()) == text, "writing it again gives the same text");
     }
 
+    // **주석과 경유점**(D-313). 둘 다 그래프의 것이라 YAML 로 왕복하고, 번호는 노드·링크와 한 줄을 쓴다.
+    // 경유점은 잇기의 뜻을 바꾸지 않는다 - 갈아 치운 링크는 경유점 없이 선다.
+    void TestCommentsAndWaypoints()
+    {
+        const JBro::OwnerPtr<Domain> domain = MakeMathDomain();
+        Graph graph;
+        graph.SetDomain(String(MathDomainName));
+        const NodeId constant = graph.AddNode(*domain, "Float", Vector2{0.0f, 0.0f});
+        const NodeId output = graph.AddNode(*domain, "Output", Vector2{400.0f, 0.0f});
+        LinkId link;
+        Check(graph.Connect(*domain, PinRef{constant, 0}, PinRef{output, 0}, LinkId{}, &link) == ConnectResult::Connected, "the probe link connects");
+        Check(graph.InsertWaypoint(link, 0, Vector2{200.0f, 40.0f}) && graph.InsertWaypoint(link, 1, Vector2{300.0f, 80.0f})
+                && graph.InsertWaypoint(link, 1, Vector2{250.0f, 60.0f}),
+            "waypoints go in at the place asked for");
+        Check(!graph.InsertWaypoint(link, 9, Vector2{}) && !graph.MoveWaypoint(link, 3, Vector2{}) && !graph.RemoveWaypoint(link, 3),
+            "and not past the end");
+        const Link* stored = graph.FindLink(link);
+        Check(stored->waypoints.Size() == 3 && Near(stored->waypoints[1].x, 250.0f) && Near(stored->waypoints[2].x, 300.0f),
+            "in order from the output to the input");
+        Check(graph.MoveWaypoint(link, 0, Vector2{210.0f, 30.0f}) && graph.RemoveWaypoint(link, 2) && graph.FindLink(link)->waypoints.Size() == 2,
+            "they move and go away by their place");
+
+        JBro::Color color;
+        color.R = 0.2f;
+        color.G = 0.4f;
+        color.B = 0.6f;
+        color.A = 0.5f;
+        const CommentId comment = graph.AddComment(String("Inputs"), Vector2{-30.0f, -50.0f}, Vector2{260.0f, 140.0f}, color);
+        Check(comment.Get() != InvalidId && comment.Get() != link.Get() && comment.Get() != output.Get(), "a comment takes a number from the same line");
+        Check(!graph.SetCommentRect(comment, Vector2{}, Vector2{0.0f, 10.0f}), "a comment never shrinks to nothing");
+        Node clash;
+        clash.id = comment;
+        clash.type = String("Float");
+        Check(!graph.InsertNode(clash), "a node cannot take a comment's number");
+
+        const String text = WriteGraph(graph, domain.Get());
+        Check(text.find("Comments:") != String::npos && text.find("Waypoints:") != String::npos, "both are written");
+        Graph read;
+        Array<String> problems;
+        Check(ReadGraph(text.View(), domain.Get(), read, problems) && problems.IsEmpty(), "and read back with no problems");
+        const Comment* readComment = read.FindComment(comment);
+        Check(readComment != nullptr && readComment->title.View() == "Inputs" && Near(readComment->position.y, -50.0f)
+                && Near(readComment->size.x, 260.0f) && Near(readComment->color.B, 0.6f) && Near(readComment->color.A, 0.5f),
+            "a comment keeps its title, place, size and color");
+        Check(read.FindLink(link) != nullptr && read.FindLink(link)->waypoints.Size() == 2 && Near(read.FindLink(link)->waypoints[0].x, 210.0f),
+            "a link keeps its waypoints");
+        Check(WriteGraph(read, domain.Get()) == text, "writing it again gives the same text");
+        Check(read.GetNextId().Get() > comment.Get(), "and the next number is past the comment");
+
+        // 주석이 없는 그래프는 키를 적지 않는다 - 주석 전에 쓴 파일과 같은 글자다.
+        Graph plain;
+        plain.SetDomain(String(MathDomainName));
+        plain.AddNode(*domain, "Float", Vector2{});
+        Check(WriteGraph(plain, domain.Get()).find("Comments") == String::npos, "a graph with no comments writes no comment key");
+
+        // 입력을 다른 출력으로 갈아 치우면 새 링크다. 옛 링크의 경유점은 따라오지 않는다.
+        const NodeId other = graph.AddNode(*domain, "Float", Vector2{0.0f, 200.0f});
+        LinkId replaced;
+        graph.Connect(*domain, PinRef{other, 0}, PinRef{output, 0}, LinkId{}, &replaced);
+        Check(graph.FindLink(link) == nullptr && graph.FindLink(replaced)->waypoints.IsEmpty(), "a replacing link starts straight");
+        Check(graph.RemoveComment(comment) && graph.FindComment(comment) == nullptr, "a comment goes away");
+    }
+
     void TestYamlProblems()
     {
         const JBro::OwnerPtr<Domain> domain = MakeMathDomain();
@@ -251,6 +314,7 @@ JBro::Int32 RunNodeGraphTests()
     TestEvaluate();
     TestYamlRoundTrip();
     TestYamlProblems();
+    TestCommentsAndWaypoints();
     TestRegistry();
     std::cout << "Node graph tests passed.\n";
     return 0;

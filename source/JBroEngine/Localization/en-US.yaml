@@ -16,6 +16,7 @@ Entries:
   gizmo.space_tooltip: put the handles on the object's axes, or switch to World for the screen's (scaling always uses the object's)
   menu.file: File
   menu.edit: Edit
+  menu.view: View
   menu.window: Window
   menu.simulation: Simulation
   menu.simulation_play: Play
@@ -443,6 +444,12 @@ Entries:
   node_graph.unknown_type: This domain has no node of this type
   node_graph.preview: Preview
   node_graph.no_output: Add an Output node to see the result
+  node_graph.add_comment: Add Comment
+  node_graph.comment: Comment
+  node_graph.comment_title: Title
+  node_graph.comment_color: Color
+  node_graph.remove_waypoint: Remove Reroute Point
+  node_graph.minimap: Minimap
   assets.new_sound_effect: New Sound Effect
   inspector.sound_effect_hint: "Edit sound effects in their own window"
   inspector.open_sound_effect: Open Effect Editor

@@ -91,7 +91,22 @@ namespace JBro
         Bool Disconnect(NodeGraph::LinkId link);
         Bool DisconnectNode(NodeGraph::NodeId node);
         Bool MoveSelection(Vector2 delta);
+        // 노드·주석을 함께 옮긴다. 두 끝이 다 옮겨 가는 링크는 경유점도 따라간다(D-313).
+        Bool MoveItems(ArrayView<const UInt64> items, Vector2 delta);
+        // 고른 것(노드·주석)을 지운다.
         Bool DeleteSelection();
+        // ── 주석(D-313) ── 고른 노드가 있으면 그것을 감싸고, 없으면 `at` 에 기본 크기로 선다. 만든 주석을 고른다.
+        NodeGraph::CommentId AddComment(Vector2 at);
+        Bool ResizeComment(NodeGraph::CommentId comment, Vector2 size);
+        Bool SetCommentTitle(NodeGraph::CommentId comment, const String& title);
+        // 색 칸을 끄는 동안은 커맨드 하나로 합친다.
+        Bool SetCommentColor(NodeGraph::CommentId comment, const Color& color);
+        // ── 경유점(D-313) ──
+        Bool AddWaypoint(NodeGraph::LinkId link, std::size_t index, Vector2 point);
+        Bool MoveWaypoint(NodeGraph::LinkId link, std::size_t index, Vector2 point);
+        Bool RemoveWaypoint(NodeGraph::LinkId link, std::size_t index);
+        // 미니맵을 켜고 끈다(창마다, 저장하지 않는다).
+        void ToggleMinimap();
         Bool DuplicateSelection();
         // 같은 칸을 끄는 동안의 값 바꾸기는 커맨드 하나로 합친다.
         Bool SetInput(NodeGraph::NodeId node, std::size_t pin, const NodeGraph::PinValue& value);
@@ -109,8 +124,11 @@ namespace JBro
         String SelectionText() const;
         Bool PasteText(const char* text, Vector2 at, const char* commandName);
         void HandleEvents(const NodeGraphView::Events& events);
+        // 노드 찾기 메뉴를 그린다. 핀에서 끌어 놓았으면 그 핀에 이을 수 있는 종류만 보인다(D-313).
         void DrawAddNodeMenu();
         void DrawContextMenu();
+        // 그 종류의 노드를 더했을 때 끌어 놓은 핀에 이어지는가.
+        Bool AcceptsDroppedPin(const NodeGraph::NodeTypeInfo& type) const;
         void UpdateTitle();
         static void AnswerReload(EditorApplication& editor, Int32 choice, void* user);
         static void AnswerClose(EditorApplication& editor, Int32 choice, void* user);
@@ -137,6 +155,9 @@ namespace JBro
         Vector2 m_menuPoint;
         NodeGraphView::Hit m_menuHit;
         Bool m_menuFromDrop = false;
+        // 노드 찾기 메뉴의 글자와 밝힌 줄이다. 메뉴가 열릴 때마다 비운다.
+        String m_menuFilter;
+        Int32 m_menuHighlight = 0;
         NodeGraph::PinRef m_dropPin;
         Bool m_dropFromOutput = false;
         Bool m_frameRequested = false;

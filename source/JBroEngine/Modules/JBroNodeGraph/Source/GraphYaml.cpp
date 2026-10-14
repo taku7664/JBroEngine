@@ -128,9 +128,43 @@ namespace JBro::NodeGraph
             writer.WriteString("FromPin", fromType->outputs[link.from.pin].name.c_str());
             writer.WriteInt("ToNode", static_cast<std::int64_t>(link.to.node.Get()));
             writer.WriteString("ToPin", toType->inputs[link.to.pin].name.c_str());
+            if (!link.waypoints.IsEmpty())
+            {
+                writer.BeginSequence("Waypoints");
+                for (const Vector2& point : link.waypoints)
+                {
+                    writer.WriteFloatItem(point.x);
+                    writer.WriteFloatItem(point.y);
+                }
+                writer.EndSequence();
+            }
             writer.EndMap();
         }
         writer.EndSequence();
+
+        // 주석이 없는 그래프는 키를 적지 않는다 - 주석 전에 쓴 파일과 같은 글자다.
+        if (!graph.GetComments().IsEmpty())
+        {
+            writer.BeginSequence("Comments");
+            for (const Comment& comment : graph.GetComments())
+            {
+                writer.BeginMap(nullptr);
+                writer.WriteInt("Id", static_cast<std::int64_t>(comment.id.Get()));
+                writer.WriteString("Title", comment.title.c_str());
+                writer.WriteFloat("X", comment.position.x);
+                writer.WriteFloat("Y", comment.position.y);
+                writer.WriteFloat("Width", comment.size.x);
+                writer.WriteFloat("Height", comment.size.y);
+                writer.BeginSequence("Color");
+                writer.WriteFloatItem(comment.color.R);
+                writer.WriteFloatItem(comment.color.G);
+                writer.WriteFloatItem(comment.color.B);
+                writer.WriteFloatItem(comment.color.A);
+                writer.EndSequence();
+                writer.EndMap();
+            }
+            writer.EndSequence();
+        }
         return writer.GetText();
     }
 
@@ -285,6 +319,64 @@ namespace JBro::NodeGraph
                 if (result != ConnectResult::Connected)
                 {
                     problems.Add(String("link ") + std::to_string(id.Get()) + " was rejected");
+                    continue;
+                }
+                const UInt32 waypoints = FindSequence(document, entry, "Waypoints");
+                if (waypoints.Get() != YamlDocument::InvalidNode.Get())
+                {
+                    Array<Vector2> points;
+                    for (std::size_t at = 0; at + 1 < document.GetCount(waypoints); at += 2)
+                    {
+                        Float x = 0.0f;
+                        Float y = 0.0f;
+                        if (ParseFloat(document.GetText(document.GetElement(waypoints, at)), x)
+                            && ParseFloat(document.GetText(document.GetElement(waypoints, at + 1)), y))
+                        {
+                            points.Add(Vector2{x, y});
+                        }
+                    }
+                    graph.SetWaypoints(id, points.View());
+                }
+            }
+        }
+
+        const UInt32 comments = FindSequence(document, root, "Comments");
+        if (comments.Get() != YamlDocument::InvalidNode.Get())
+        {
+            for (std::size_t index = 0; index < document.GetCount(comments); ++index)
+            {
+                const UInt32 entry = document.GetElement(comments, index);
+                Comment comment;
+                if (!FindId(document, entry, "Id", comment.id))
+                {
+                    problems.Add(String("a comment has no id"));
+                    continue;
+                }
+                document.FindScalar(entry, "Title", comment.title);
+                Float x = 0.0f;
+                Float y = 0.0f;
+                Float width = 0.0f;
+                Float height = 0.0f;
+                document.FindFloat(entry, "X", x);
+                document.FindFloat(entry, "Y", y);
+                document.FindFloat(entry, "Width", width);
+                document.FindFloat(entry, "Height", height);
+                comment.position = Vector2{x, y};
+                comment.size = Vector2{width.Get() > 0.0f ? width.Get() : 200.0f, height.Get() > 0.0f ? height.Get() : 120.0f};
+                Float channels[4] = {0.5f, 0.5f, 0.5f, 0.35f};
+                const UInt32 color = FindSequence(document, entry, "Color");
+                if (color.Get() != YamlDocument::InvalidNode.Get())
+                {
+                    for (std::size_t channel = 0; channel < document.GetCount(color) && channel < 4; ++channel)
+                    {
+                        ParseFloat(document.GetText(document.GetElement(color, channel)), channels[channel]);
+                    }
+                }
+                comment.color = Color{channels[0], channels[1], channels[2], channels[3]};
+                const CommentId id = comment.id;
+                if (!graph.InsertComment(static_cast<Comment&&>(comment)))
+                {
+                    problems.Add(String("comment id ") + std::to_string(id.Get()) + " is used twice");
                 }
             }
         }

@@ -27,6 +27,15 @@
 //       FromPin: Result
 //       ToNode: 2
 //       ToPin: A
+//       Waypoints: [ 120, 40, 160, 80 ]   (경유점이 있을 때만, x y 의 차례, D-313)
+//   Comments:                             (주석이 있을 때만, D-313)
+//     - Id: 5
+//       Title: Inputs
+//       X: -20
+//       Y: -40
+//       Width: 400
+//       Height: 200
+//       Color: [ 0.3, 0.5, 0.8, 0.4 ]
 //
 // 핀은 이름으로 적는다 - 도메인에서 핀 차례가 바뀌어도 잇기가 남는다.
 namespace JBro::NodeGraph

@@ -12,6 +12,7 @@ namespace
 {
     using namespace JBro::NodeGraphView;
     using JBro::Vector2;
+    using JBro::NodeGraph::CommentId;
     using JBro::NodeGraph::PinRef;
 
     void Check(JBro::Bool condition, const char* message)
@@ -333,6 +334,184 @@ namespace
         Check(Near(outputCenter.x, 100.0f + 800.0f), "framing the selection centers just those nodes");
     }
 
+    // **노드 안 값 칸**(D-313). 이어지지 않은 입력은 핀 왼쪽에 값 칸이 서고, 그 칸을 누르면 손짓이 서지 않는다 - 칸이 마우스를 받는다.
+    // 이어진 입력과 작은 줌에는 칸이 없다.
+    void TestInputFieldsSitLeftOfUnlinkedInputs()
+    {
+        Scene scene;
+        const JBro::NodeGraph::Node* add = scene.graph.FindNode(scene.add);
+        const JBro::NodeGraph::Node* output = scene.graph.FindNode(scene.output);
+        const JBro::UInt32 components = InputFieldComponents(scene.graph, *scene.domain, scene.style, scene.camera, *add, 0);
+        Check(components.Get() == 4, "an unlinked vector4 input gets four fields");
+        Check(InputFieldComponents(scene.graph, *scene.domain, scene.style, scene.camera, *output, 0).Get() == 0, "a linked input gets none");
+        const JBro::Rect field = InputFieldBounds(*add, 0, components, scene.style);
+        Check(field.max.x.Get() < add->position.x.Get() && Near(field.max.x.Get() - field.min.x.Get(), scene.style.fieldWidth.Get() * 4.0f),
+            "the field sits left of the pin, a field width per component");
+        const Vector2 inside = scene.Screen(Vector2{(field.min.x.Get() + field.max.x.Get()) * 0.5f, (field.min.y.Get() + field.max.y.Get()) * 0.5f});
+        Hit hit = Pick(scene.graph, *scene.domain, scene.style, scene.camera, inside);
+        Check(hit.kind == HitKind::Field && hit.node.Get() == scene.add.Get() && hit.pin == 0, "the field is picked before anything under it");
+
+        Interaction interaction;
+        const NodeId chosen[] = {scene.output};
+        interaction.Select({chosen, 1});
+        Events events;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Press(inside), events);
+        Check(interaction.GetGesture() == Gesture::Idle && !events.selectionChanged && interaction.IsSelected(scene.output),
+            "pressing a field starts no gesture and keeps the selection");
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(inside), events);
+
+        scene.camera.zoom = scene.style.fieldMinZoom.Get() * 0.9f;
+        Check(InputFieldComponents(scene.graph, *scene.domain, scene.style, scene.camera, *add, 0).Get() == 0, "zoomed far out there are no fields");
+    }
+
+    // **주석**(D-313). 머리를 누르면 고르고, 끌면 그 안에 다 들어간 노드가 함께 간다(끄는 동안 미리, 놓을 때 사건 하나). 몸은 바닥이라 상자로 고른다.
+    void TestCommentsCarryTheirNodes()
+    {
+        Scene scene;
+        JBro::Color color;
+        const CommentId comment = scene.graph.AddComment(JBro::String("Group"), Vector2{-40.0f, -60.0f}, Vector2{560.0f, 200.0f}, color);
+        Interaction interaction;
+        const Vector2 header = scene.Screen(Vector2{100.0f, -50.0f});
+        Hit hit = Pick(scene.graph, *scene.domain, scene.style, scene.camera, header);
+        Check(hit.kind == HitKind::CommentHeader && hit.comment.Get() == comment.Get(), "the comment's header is picked");
+
+        Events events;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Press(header), events);
+        Check(interaction.IsSelected(comment) && interaction.GetSelection().Size() == 1, "pressing the header selects the comment");
+        Events during;
+        const Vector2 to{header.x.Get() + 60.0f, header.y.Get() + 30.0f};
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Hold(to), during);
+        Check(interaction.IsMoving(comment) && interaction.IsMoving(scene.constant) && interaction.IsMoving(scene.add) && !interaction.IsMoving(scene.output),
+            "dragging carries the nodes wholly inside it and leaves the one outside");
+        const Preview preview = interaction.GetPreview();
+        Check(Near(PlacedNode(*scene.graph.FindNode(scene.add), preview).position.x, 360.0f), "the carried node is drawn where it is going");
+        Events released;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(to), released);
+        Check(released.moved && released.movedItems.Size() == 3 && Near(released.moveDelta.x, 60.0f), "releasing moves the comment and its nodes once");
+
+        // 몸에서 끌면 상자로 고른다 - 주석은 고르지 않는다.
+        interaction.ClearSelection();
+        const Events boxed = Drag(scene, interaction, scene.Screen(Vector2{-30.0f, 150.0f}), scene.Screen(Vector2{200.0f, 20.0f}));
+        Check(boxed.selectionChanged && interaction.IsSelected(scene.constant) && !interaction.IsSelected(comment),
+            "dragging over the comment's body is a box select");
+        // 상자가 주석을 다 덮으면 주석도 든다.
+        interaction.ClearSelection();
+        Drag(scene, interaction, scene.Screen(Vector2{-60.0f, -80.0f}), scene.Screen(Vector2{560.0f, 160.0f}));
+        Check(interaction.IsSelected(comment), "a box over the whole comment selects it too");
+
+        Events doubled;
+        Input twice = Press(header);
+        twice.leftDoubleClicked = true;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, twice, doubled);
+        Check(doubled.commentDoubleClicked && doubled.doubleClickedComment.Get() == comment.Get(), "double-clicking the header reports the comment");
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(header), doubled);
+
+        // 오른쪽 아래 손잡이를 끌면 크기다. 가장 작은 크기 아래로는 가지 않는다.
+        const Vector2 corner = scene.Screen(Vector2{-40.0f + 560.0f - 2.0f, -60.0f + 200.0f - 2.0f});
+        Check(Pick(scene.graph, *scene.domain, scene.style, scene.camera, corner).kind == HitKind::CommentResize, "the corner is the resize handle");
+        Events grown = Drag(scene, interaction, corner, Vector2{corner.x.Get() + 40.0f, corner.y.Get() + 20.0f});
+        Check(grown.commentResized && grown.resizedComment.Get() == comment.Get() && Near(grown.resizedSize.x, 600.0f) && Near(grown.resizedSize.y, 220.0f),
+            "dragging the corner resizes it");
+        grown = Drag(scene, interaction, corner, Vector2{corner.x.Get() - 2000.0f, corner.y.Get() - 2000.0f});
+        Check(grown.commentResized && Near(grown.resizedSize.x, scene.style.commentMinWidth.Get()) && Near(grown.resizedSize.y, scene.style.commentMinHeight.Get()),
+            "and never below its smallest size");
+    }
+
+    // **경유점**(D-313). 링크를 두 번 누르면 그 자리에 서고, 잡아서 끌면 놓을 때 옮기고, Alt 로 누르면 지운다. 두 끝 노드를 함께 끌면 따라간다.
+    void TestWaypointsBendALink()
+    {
+        Scene scene;
+        Interaction interaction;
+        const JBro::NodeGraph::Link& link = scene.graph.GetLinks()[0];
+        const JBro::NodeGraph::Node* add = scene.graph.FindNode(scene.add);
+        const JBro::NodeGraph::Node* output = scene.graph.FindNode(scene.output);
+        const Vector2 a = scene.Screen(OutputPosition(*add, 0, scene.style));
+        const Vector2 b = scene.Screen(InputPosition(*output, 0, scene.style));
+        const Vector2 onLink{(a.x.Get() + b.x.Get()) * 0.5f, a.y.Get()};
+        Events events;
+        Input twice = Press(onLink);
+        twice.leftDoubleClicked = true;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, twice, events);
+        Check(events.waypointAdded && events.waypointLink.Get() == link.id.Get() && events.waypointIndex == 0
+                && Near(events.waypointPoint.x, ToGraph(scene.camera, onLink).x.Get()),
+            "double-clicking a link adds a waypoint where it was clicked");
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(onLink), events);
+
+        const Vector2 bend{550.0f, 120.0f};
+        scene.graph.InsertWaypoint(link.id, 0, bend);
+        JBro::Array<Curve> curves;
+        LinkPath(a, {&bend, 1}, b, scene.camera.zoom, curves);
+        Check(curves.Size() == 2, "a link with one waypoint is two curves");
+        const Vector2 bendScreen = scene.Screen(bend);
+        Hit hit = Pick(scene.graph, *scene.domain, scene.style, scene.camera, bendScreen);
+        Check(hit.kind == HitKind::Waypoint && hit.link.Get() == link.id.Get() && hit.waypoint == 0, "the waypoint is picked");
+        // 두 번째 곡선(경유점 → 입력) 위를 두 번 누르면 경유점 뒤에 선다.
+        const Vector2 secondHalf{(bendScreen.x.Get() + b.x.Get()) * 0.5f, (bendScreen.y.Get() + b.y.Get()) * 0.5f};
+        Check(WaypointInsertIndex(scene.graph, scene.style, scene.camera, *scene.graph.FindLink(link.id), secondHalf) == 1,
+            "a click on the second curve inserts after the first waypoint");
+
+        const Events moved = Drag(scene, interaction, bendScreen, Vector2{bendScreen.x.Get() + 20.0f, bendScreen.y.Get() - 10.0f});
+        Check(moved.waypointMoved && moved.waypointIndex == 0 && Near(moved.waypointPoint.x, 570.0f) && Near(moved.waypointPoint.y, 110.0f),
+            "dragging a waypoint moves it once on release");
+        Check(interaction.GetSelection().IsEmpty(), "and selects nothing");
+
+        Events removed;
+        Input alt = Press(bendScreen);
+        alt.alt = true;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, alt, removed);
+        Check(removed.waypointRemoved && removed.waypointIndex == 0, "alt-clicking a waypoint removes it");
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(bendScreen), removed);
+
+        // 두 끝을 함께 끌면 경유점도 미리 옮겨 간다.
+        const NodeId both[] = {scene.add, scene.output};
+        interaction.Select({both, 2});
+        Events ignored;
+        const Vector2 from = scene.Screen(Vector2{360.0f, 10.0f});
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Press(from), ignored);
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Hold(Vector2{from.x.Get() + 30.0f, from.y.Get()}), ignored);
+        JBro::Array<Vector2> points;
+        PlacedWaypoints(*scene.graph.FindLink(link.id), interaction.GetPreview(), points);
+        Check(points.Size() == 1 && Near(points[0].x, 580.0f), "a link whose two ends move carries its waypoints");
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, Release(Vector2{from.x.Get() + 30.0f, from.y.Get()}), ignored);
+    }
+
+    // **미니맵**(D-313). 오른쪽 아래에 서고, 누르거나 끌면 그 자리가 화면 가운데로 미끄러져 간다. 끄거나 캔버스가 작으면 없다.
+    void TestTheMinimapMovesTheCamera()
+    {
+        Scene scene;
+        const Vector2 canvas{1200.0f, 800.0f};
+        Minimap minimap;
+        Check(LayoutMinimap(scene.graph, *scene.domain, scene.style, scene.camera, canvas, minimap), "a big enough canvas has a minimap");
+        Check(Near(minimap.screen.max.x, 100.0f + 1200.0f - scene.style.minimapMargin.Get())
+                && Near(minimap.screen.max.y, 50.0f + 800.0f - scene.style.minimapMargin.Get()),
+            "in the bottom-right corner");
+        const Vector2 target{600.0f, 20.0f};
+        const Vector2 spot = GraphToMinimap(minimap, target);
+        Check(Near(MinimapToGraph(minimap, spot).x, 600.0f), "minimap and graph points map both ways");
+        Hit hit = Pick(scene.graph, *scene.domain, scene.style, scene.camera, spot, Preview{}, canvas);
+        Check(hit.kind == HitKind::Minimap, "the minimap is picked over the graph");
+
+        Interaction interaction;
+        Events events;
+        Input press = Press(spot);
+        press.canvasSize = canvas;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, press, events);
+        Check(interaction.GetGesture() == Gesture::Minimap, "pressing it starts a minimap drag");
+        const Vector2 centerGoal{scene.camera.goalPan.x.Get() + canvas.x.Get() * 0.5f / scene.camera.goalZoom.Get(),
+            scene.camera.goalPan.y.Get() + canvas.y.Get() * 0.5f / scene.camera.goalZoom.Get()};
+        Check(Near(centerGoal.x, 600.0f) && Near(centerGoal.y, 20.0f), "and sends the goal there, so the view glides to it");
+        Check(!events.selectionChanged, "without touching the selection");
+        Input release = Release(spot);
+        release.canvasSize = canvas;
+        interaction.Update(scene.graph, *scene.domain, scene.style, scene.camera, release, events);
+        Check(interaction.GetGesture() == Gesture::Idle, "releasing ends it");
+
+        scene.style.showMinimap = false;
+        Check(!LayoutMinimap(scene.graph, *scene.domain, scene.style, scene.camera, canvas, minimap), "switched off there is none");
+        scene.style.showMinimap = true;
+        Check(!LayoutMinimap(scene.graph, *scene.domain, scene.style, scene.camera, Vector2{300.0f, 200.0f}, minimap), "nor on a small canvas");
+    }
+
     void TestDoubleClickNode()
     {
         Scene scene;
@@ -362,6 +541,10 @@ JBro::Int32 RunNodeGraphViewTests()
     TestRightButtonAndAlt();
     TestFrame();
     TestDoubleClickNode();
+    TestInputFieldsSitLeftOfUnlinkedInputs();
+    TestCommentsCarryTheirNodes();
+    TestWaypointsBendALink();
+    TestTheMinimapMovesTheCamera();
     std::cout << "Node graph view tests passed.\n";
     return 0;
 }

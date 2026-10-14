@@ -16,6 +16,7 @@ Entries:
   gizmo.space_tooltip: 손잡이를 오브젝트의 축에 둡니다. 월드로 바꾸면 화면의 축을 따릅니다 (크기는 늘 오브젝트의 축)
   menu.file: 파일
   menu.edit: 편집
+  menu.view: 보기
   menu.window: 창
   menu.simulation: 시뮬레이션
   menu.simulation_play: 실행
@@ -443,6 +444,12 @@ Entries:
   node_graph.unknown_type: 이 도메인에 없는 노드 종류입니다
   node_graph.preview: 미리 보기
   node_graph.no_output: Output 노드를 추가하면 결과가 보입니다
+  node_graph.add_comment: 주석 추가
+  node_graph.comment: 주석
+  node_graph.comment_title: 제목
+  node_graph.comment_color: 색
+  node_graph.remove_waypoint: 경유점 삭제
+  node_graph.minimap: 미니맵
   assets.new_sound_effect: 새 사운드 이펙트
   inspector.sound_effect_hint: "사운드 이펙트는 이펙트 편집기에서 고칩니다"
   inspector.open_sound_effect: 이펙트 편집기 열기

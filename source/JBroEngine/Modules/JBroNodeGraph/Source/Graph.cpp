@@ -17,6 +17,26 @@ namespace JBro::NodeGraph
         return m_links.FindBy([id](const Link& link) { return link.id.Get() == id.Get(); });
     }
 
+    Link* Graph::FindLinkMutable(LinkId id) noexcept
+    {
+        return m_links.FindBy([id](const Link& link) { return link.id.Get() == id.Get(); });
+    }
+
+    const Comment* Graph::FindComment(CommentId id) const noexcept
+    {
+        return m_comments.FindBy([id](const Comment& comment) { return comment.id.Get() == id.Get(); });
+    }
+
+    Comment* Graph::FindCommentMutable(CommentId id) noexcept
+    {
+        return m_comments.FindBy([id](const Comment& comment) { return comment.id.Get() == id.Get(); });
+    }
+
+    Bool Graph::IdInUse(UInt64 id) const noexcept
+    {
+        return FindNode(id) != nullptr || FindLink(id) != nullptr || FindComment(id) != nullptr;
+    }
+
     const Link* Graph::FindLinkInto(PinRef input) const noexcept
     {
         return m_links.FindBy([input](const Link& link) { return link.to == input; });
@@ -45,6 +65,13 @@ namespace JBro::NodeGraph
             if (link.id.Get() >= floor)
             {
                 floor = link.id.Get() + 1;
+            }
+        }
+        for (const Comment& comment : m_comments)
+        {
+            if (comment.id.Get() >= floor)
+            {
+                floor = comment.id.Get() + 1;
             }
         }
         m_nextId = UInt64(floor);
@@ -78,7 +105,7 @@ namespace JBro::NodeGraph
 
     Bool Graph::InsertNode(Node node)
     {
-        if (node.id.Get() == InvalidId || FindNode(node.id) != nullptr || FindLink(node.id) != nullptr)
+        if (node.id.Get() == InvalidId || IdInUse(node.id))
         {
             return false;
         }
@@ -132,7 +159,7 @@ namespace JBro::NodeGraph
         {
             return ConnectResult::Cycle;
         }
-        if (id.Get() != InvalidId && (FindLink(id) != nullptr || FindNode(id) != nullptr))
+        if (id.Get() != InvalidId && IdInUse(id))
         {
             return ConnectResult::IdInUse;
         }
@@ -192,6 +219,126 @@ namespace JBro::NodeGraph
             return false;
         }
         node->inputs[pin] = value;
+        return true;
+    }
+
+    Bool Graph::InsertWaypoint(LinkId id, std::size_t index, Vector2 point)
+    {
+        Link* link = FindLinkMutable(id);
+        if (link == nullptr || index > link->waypoints.Size())
+        {
+            return false;
+        }
+        link->waypoints.Insert(index, point);
+        return true;
+    }
+
+    Bool Graph::MoveWaypoint(LinkId id, std::size_t index, Vector2 point)
+    {
+        Link* link = FindLinkMutable(id);
+        if (link == nullptr || index >= link->waypoints.Size())
+        {
+            return false;
+        }
+        link->waypoints[index] = point;
+        return true;
+    }
+
+    Bool Graph::RemoveWaypoint(LinkId id, std::size_t index)
+    {
+        Link* link = FindLinkMutable(id);
+        if (link == nullptr || index >= link->waypoints.Size())
+        {
+            return false;
+        }
+        link->waypoints.RemoveAt(index);
+        return true;
+    }
+
+    Bool Graph::SetWaypoints(LinkId id, ArrayView<const Vector2> points)
+    {
+        Link* link = FindLinkMutable(id);
+        if (link == nullptr)
+        {
+            return false;
+        }
+        link->waypoints.Clear();
+        for (const Vector2& point : points)
+        {
+            link->waypoints.Add(point);
+        }
+        return true;
+    }
+
+    CommentId Graph::AddComment(String title, Vector2 position, Vector2 size, Color color)
+    {
+        Comment comment;
+        comment.id = TakeId();
+        comment.title = static_cast<String&&>(title);
+        comment.position = position;
+        comment.size = size;
+        comment.color = color;
+        const CommentId id = comment.id;
+        m_comments.Add(static_cast<Comment&&>(comment));
+        return id;
+    }
+
+    Bool Graph::InsertComment(Comment comment)
+    {
+        if (comment.id.Get() == InvalidId || IdInUse(comment.id))
+        {
+            return false;
+        }
+        if (comment.id.Get() >= m_nextId.Get())
+        {
+            m_nextId = UInt64(comment.id.Get() + 1);
+        }
+        m_comments.Add(static_cast<Comment&&>(comment));
+        return true;
+    }
+
+    Bool Graph::RemoveComment(CommentId id)
+    {
+        const std::size_t index = m_comments.IndexOfBy([id](const Comment& comment) { return comment.id.Get() == id.Get(); });
+        if (index == Array<Comment>::InvalidIndex)
+        {
+            return false;
+        }
+        m_comments.RemoveAt(index);
+        return true;
+    }
+
+    Bool Graph::SetCommentRect(CommentId id, Vector2 position, Vector2 size)
+    {
+        Comment* comment = FindCommentMutable(id);
+        if (comment == nullptr || size.x.Get() <= 0.0f || size.y.Get() <= 0.0f)
+        {
+            return false;
+        }
+        comment->position = position;
+        comment->size = size;
+        return true;
+    }
+
+    Bool Graph::SetCommentTitle(CommentId id, String title)
+    {
+        Comment* comment = FindCommentMutable(id);
+        if (comment == nullptr)
+        {
+            return false;
+        }
+        comment->title = static_cast<String&&>(title);
+        return true;
+    }
+
+    Bool Graph::SetCommentColor(CommentId id, Color color)
+    {
+        Comment* comment = FindCommentMutable(id);
+        if (comment == nullptr)
+        {
+            return false;
+        }
+        comment->color = color;
         return true;
     }
 
@@ -281,6 +428,7 @@ namespace JBro::NodeGraph
         m_domain.clear();
         m_nodes.Clear();
         m_links.Clear();
+        m_comments.Clear();
         m_nextId = UInt64(1);
     }
 }

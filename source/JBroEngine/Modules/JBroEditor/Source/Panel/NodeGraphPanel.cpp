@@ -202,6 +202,13 @@ namespace JBro
             // 맞추기는 캔버스 뷰처럼 스페이스바다(D-298).
             {"node_graph.frame", LocKeys::NodeGraphFrame, "Frame", bind(ImGuiKey_Space), {}, &HasPanel, nullptr,
                 [](EditorActionContext& context) -> Bool { PanelOf(context)->FrameSelection(); return true; }},
+            // 주석은 언리얼 블루프린트처럼 C 다(D-313). 고른 노드가 있으면 감싼다.
+            {"node_graph.comment", LocKeys::NodeGraphAddComment, "Add Comment", bind(ImGuiKey_C), {}, &HasPanel, nullptr,
+                [](EditorActionContext& context) -> Bool
+                {
+                    NodeGraphPanel* panel = PanelOf(context);
+                    return panel->AddComment(PastePoint(*panel)).Get() != NodeGraph::InvalidId;
+                }},
             {"node_graph.save", LocKeys::NodeGraphSave, "Save", bind(ImGuiKey_S, true), {}, &CanSave, &WhyNothing,
                 [](EditorActionContext& context) -> Bool { return PanelOf(context)->Save(); }},
         };
@@ -577,13 +584,48 @@ namespace JBro
 
     Bool NodeGraphPanel::MoveSelection(Vector2 delta)
     {
+        return MoveItems(m_canvas.interaction.GetSelection(), delta);
+    }
+
+    Bool NodeGraphPanel::MoveItems(ArrayView<const UInt64> items, Vector2 delta)
+    {
+        auto moved = [items](UInt64 id)
+        {
+            for (const UInt64& item : items)
+            {
+                if (item.Get() == id.Get())
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        auto shifted = [delta](Vector2 point) { return Vector2{point.x.Get() + delta.x.Get(), point.y.Get() + delta.y.Get()}; };
         NodeGraph::Graph edited = m_document.graph;
-        for (const NodeGraph::NodeId& id : m_canvas.interaction.GetSelection())
+        for (const UInt64& id : items)
         {
             if (const NodeGraph::Node* node = edited.FindNode(id))
             {
-                edited.SetPosition(id, Vector2{node->position.x.Get() + delta.x.Get(), node->position.y.Get() + delta.y.Get()});
+                edited.SetPosition(id, shifted(node->position));
             }
+            else if (const NodeGraph::Comment* comment = edited.FindComment(id))
+            {
+                edited.SetCommentRect(id, shifted(comment->position), comment->size);
+            }
+        }
+        // 두 끝이 다 가는 링크는 경유점도 데려간다 - 그림에서 미리 옮긴 것과 같다(`PlacedWaypoints`).
+        for (const NodeGraph::Link& link : m_document.graph.GetLinks())
+        {
+            if (link.waypoints.IsEmpty() || !moved(link.from.node) || !moved(link.to.node))
+            {
+                continue;
+            }
+            Array<Vector2> points;
+            for (const Vector2& point : link.waypoints)
+            {
+                points.Add(shifted(point));
+            }
+            edited.SetWaypoints(link.id, points.View());
         }
         return Commit("Move Nodes", edited);
     }
@@ -591,9 +633,12 @@ namespace JBro
     Bool NodeGraphPanel::DeleteSelection()
     {
         NodeGraph::Graph edited = m_document.graph;
-        for (const NodeGraph::NodeId& id : m_canvas.interaction.GetSelection())
+        for (const UInt64& id : m_canvas.interaction.GetSelection())
         {
-            edited.RemoveNode(id);
+            if (!edited.RemoveNode(id))
+            {
+                edited.RemoveComment(id);
+            }
         }
         if (!Commit("Delete Nodes", edited))
         {
@@ -601,6 +646,109 @@ namespace JBro
         }
         m_canvas.interaction.ClearSelection();
         return true;
+    }
+
+    NodeGraph::CommentId NodeGraphPanel::AddComment(Vector2 at)
+    {
+        if (m_document.domain == nullptr)
+        {
+            return NodeGraph::CommentId(NodeGraph::InvalidId);
+        }
+        const NodeGraphView::Style& style = m_canvas.style;
+        Vector2 position = at;
+        Vector2 size{300.0f, 180.0f};
+        // 고른 노드·주석이 있으면 그것을 여백을 두고 감싼다(언리얼 블루프린트의 C 와 같다).
+        Bool any = false;
+        Rect bounds;
+        for (const UInt64& id : m_canvas.interaction.GetSelection())
+        {
+            Rect rect;
+            if (const NodeGraph::Node* node = m_document.graph.FindNode(id))
+            {
+                rect = NodeGraphView::NodeBounds(*node, m_document.domain->FindNodeType(node->type.View()), style);
+            }
+            else if (const NodeGraph::Comment* comment = m_document.graph.FindComment(id))
+            {
+                rect = NodeGraphView::CommentBounds(*comment);
+            }
+            else
+            {
+                continue;
+            }
+            if (!any)
+            {
+                bounds = rect;
+                any = true;
+                continue;
+            }
+            bounds.min = Vector2{std::min(bounds.min.x.Get(), rect.min.x.Get()), std::min(bounds.min.y.Get(), rect.min.y.Get())};
+            bounds.max = Vector2{std::max(bounds.max.x.Get(), rect.max.x.Get()), std::max(bounds.max.y.Get(), rect.max.y.Get())};
+        }
+        if (any)
+        {
+            const float padding = style.commentPadding.Get();
+            position = Vector2{bounds.min.x.Get() - padding, bounds.min.y.Get() - padding - style.commentHeaderHeight.Get()};
+            size = Vector2{bounds.max.x.Get() - bounds.min.x.Get() + padding * 2.0f,
+                bounds.max.y.Get() - bounds.min.y.Get() + padding * 2.0f + style.commentHeaderHeight.Get()};
+        }
+        NodeGraph::Graph edited = m_document.graph;
+        const NodeGraph::CommentId id = edited.AddComment(String(Loc::TextOr(LocKeys::NodeGraphComment, "Comment")), position, size,
+            Color{0.32f, 0.42f, 0.58f, 0.55f});
+        if (!Commit("Add Comment", edited))
+        {
+            return NodeGraph::CommentId(NodeGraph::InvalidId);
+        }
+        const UInt64 selected[] = {id};
+        m_canvas.interaction.Select({selected, 1});
+        return id;
+    }
+
+    Bool NodeGraphPanel::ResizeComment(NodeGraph::CommentId comment, Vector2 size)
+    {
+        NodeGraph::Graph edited = m_document.graph;
+        const NodeGraph::Comment* found = edited.FindComment(comment);
+        return found != nullptr && edited.SetCommentRect(comment, found->position, size) && Commit("Resize Comment", edited);
+    }
+
+    Bool NodeGraphPanel::SetCommentTitle(NodeGraph::CommentId comment, const String& title)
+    {
+        NodeGraph::Graph edited = m_document.graph;
+        return edited.SetCommentTitle(comment, title) && Commit("Rename Comment", edited);
+    }
+
+    Bool NodeGraphPanel::SetCommentColor(NodeGraph::CommentId comment, const Color& color)
+    {
+        NodeGraph::Graph edited = m_document.graph;
+        if (!edited.SetCommentColor(comment, color))
+        {
+            return false;
+        }
+        char key[48];
+        std::snprintf(key, sizeof(key), "comment-color:%llu", static_cast<unsigned long long>(comment.Get()));
+        return Commit("Comment Color", edited, key);
+    }
+
+    Bool NodeGraphPanel::AddWaypoint(NodeGraph::LinkId link, std::size_t index, Vector2 point)
+    {
+        NodeGraph::Graph edited = m_document.graph;
+        return edited.InsertWaypoint(link, index, point) && Commit("Add Reroute Point", edited);
+    }
+
+    Bool NodeGraphPanel::MoveWaypoint(NodeGraph::LinkId link, std::size_t index, Vector2 point)
+    {
+        NodeGraph::Graph edited = m_document.graph;
+        return edited.MoveWaypoint(link, index, point) && Commit("Move Reroute Point", edited);
+    }
+
+    Bool NodeGraphPanel::RemoveWaypoint(NodeGraph::LinkId link, std::size_t index)
+    {
+        NodeGraph::Graph edited = m_document.graph;
+        return edited.RemoveWaypoint(link, index) && Commit("Remove Reroute Point", edited);
+    }
+
+    void NodeGraphPanel::ToggleMinimap()
+    {
+        m_canvas.style.showMinimap = !m_canvas.style.showMinimap;
     }
 
     Bool NodeGraphPanel::SetInput(NodeGraph::NodeId node, std::size_t pin, const NodeGraph::PinValue& value)
@@ -619,20 +767,26 @@ namespace JBro
     String NodeGraphPanel::SelectionText() const
     {
         // 고른 노드와 그 사이의 링크만 담은 그래프의 글자다. 도메인 이름이 첫 줄이라 다른 도메인에는 붙지 않는다.
+        // 고른 주석도 담는다. 링크는 경유점째다(D-313).
         NodeGraph::Graph copied;
         copied.SetDomain(m_document.domain->GetName());
-        for (const NodeGraph::NodeId& id : m_canvas.interaction.GetSelection())
+        for (const UInt64& id : m_canvas.interaction.GetSelection())
         {
             if (const NodeGraph::Node* node = m_document.graph.FindNode(id))
             {
                 copied.InsertNode(*node);
             }
+            else if (const NodeGraph::Comment* comment = m_document.graph.FindComment(id))
+            {
+                copied.InsertComment(*comment);
+            }
         }
         for (const NodeGraph::Link& link : m_document.graph.GetLinks())
         {
-            if (copied.FindNode(link.from.node) != nullptr && copied.FindNode(link.to.node) != nullptr)
+            if (copied.FindNode(link.from.node) != nullptr && copied.FindNode(link.to.node) != nullptr
+                && copied.Connect(*m_document.domain, link.from, link.to, link.id) == NodeGraph::ConnectResult::Connected)
             {
-                copied.Connect(*m_document.domain, link.from, link.to, link.id);
+                copied.SetWaypoints(link.id, link.waypoints.View());
             }
         }
         return NodeGraph::WriteGraph(copied, m_document.domain);
@@ -669,25 +823,35 @@ namespace JBro
         NodeGraph::Graph copied;
         Array<String> problems;
         if (m_document.domain == nullptr || text == nullptr || !NodeGraph::ReadGraph(text, m_document.domain, copied, problems)
-            || copied.GetNodes().IsEmpty())
+            || (copied.GetNodes().IsEmpty() && copied.GetComments().IsEmpty()))
         {
             return false;
         }
         // 복사한 묶음의 왼쪽 위를 `at` 에 놓는다. 번호는 새로 받고 묶음 안의 링크를 새 번호로 다시 잇는다.
-        Float left = copied.GetNodes()[0].position.x;
-        Float top = copied.GetNodes()[0].position.y;
+        Float left = 1.0e30f;
+        Float top = 1.0e30f;
         for (const NodeGraph::Node& node : copied.GetNodes())
         {
             left = std::min(left.Get(), node.position.x.Get());
             top = std::min(top.Get(), node.position.y.Get());
         }
+        for (const NodeGraph::Comment& comment : copied.GetComments())
+        {
+            left = std::min(left.Get(), comment.position.x.Get());
+            top = std::min(top.Get(), comment.position.y.Get());
+        }
+        auto place = [&](Vector2 point) { return Vector2{at.x.Get() + point.x.Get() - left.Get(), at.y.Get() + point.y.Get() - top.Get()}; };
         NodeGraph::Graph edited = m_document.graph;
         Array<NodeGraph::NodeId> fromIds;
         Array<NodeGraph::NodeId> toIds;
+        Array<UInt64> pasted;
+        for (const NodeGraph::Comment& comment : copied.GetComments())
+        {
+            pasted.Add(edited.AddComment(comment.title, place(comment.position), comment.size, comment.color));
+        }
         for (const NodeGraph::Node& node : copied.GetNodes())
         {
-            const Vector2 place{at.x.Get() + node.position.x.Get() - left.Get(), at.y.Get() + node.position.y.Get() - top.Get()};
-            const NodeGraph::NodeId added = edited.AddNode(*m_document.domain, node.type.View(), place);
+            const NodeGraph::NodeId added = edited.AddNode(*m_document.domain, node.type.View(), place(node.position));
             if (added.Get() == NodeGraph::InvalidId)
             {
                 // 하나만 둘 노드가 이미 있거나 모르는 종류다 - 그것만 빼고 붙인다.
@@ -699,6 +863,7 @@ namespace JBro
             }
             fromIds.Add(node.id);
             toIds.Add(added);
+            pasted.Add(added);
         }
         auto mapped = [&](NodeGraph::NodeId id)
         {
@@ -715,16 +880,24 @@ namespace JBro
         {
             const NodeGraph::NodeId from = mapped(link.from.node);
             const NodeGraph::NodeId to = mapped(link.to.node);
-            if (from.Get() != NodeGraph::InvalidId && to.Get() != NodeGraph::InvalidId)
+            NodeGraph::LinkId created;
+            if (from.Get() != NodeGraph::InvalidId && to.Get() != NodeGraph::InvalidId
+                && edited.Connect(*m_document.domain, NodeGraph::PinRef{from, link.from.pin}, NodeGraph::PinRef{to, link.to.pin}, {}, &created)
+                    == NodeGraph::ConnectResult::Connected)
             {
-                edited.Connect(*m_document.domain, NodeGraph::PinRef{from, link.from.pin}, NodeGraph::PinRef{to, link.to.pin});
+                Array<Vector2> points;
+                for (const Vector2& point : link.waypoints)
+                {
+                    points.Add(place(point));
+                }
+                edited.SetWaypoints(created, points.View());
             }
         }
-        if (toIds.IsEmpty() || !Commit(commandName, edited))
+        if (pasted.IsEmpty() || !Commit(commandName, edited))
         {
             return false;
         }
-        m_canvas.interaction.Select(toIds.View());
+        m_canvas.interaction.Select(pasted.View());
         return true;
     }
 
@@ -737,12 +910,17 @@ namespace JBro
         // 복제는 클립보드를 거치지 않는다 - 사용자가 복사해 둔 것을 덮지 않는다. 원본에서 조금 비켜 놓는다.
         Float left = 1.0e30f;
         Float top = 1.0e30f;
-        for (const NodeGraph::NodeId& id : m_canvas.interaction.GetSelection())
+        for (const UInt64& id : m_canvas.interaction.GetSelection())
         {
             if (const NodeGraph::Node* node = m_document.graph.FindNode(id))
             {
                 left = std::min(left.Get(), node->position.x.Get());
                 top = std::min(top.Get(), node->position.y.Get());
+            }
+            else if (const NodeGraph::Comment* comment = m_document.graph.FindComment(id))
+            {
+                left = std::min(left.Get(), comment->position.x.Get());
+                top = std::min(top.Get(), comment->position.y.Get());
             }
         }
         return PasteText(SelectionText().c_str(), Vector2{left.Get() + 30.0f, top.Get() + 30.0f}, "Duplicate Nodes");
@@ -795,7 +973,23 @@ namespace JBro
     {
         if (events.moved)
         {
-            MoveSelection(events.moveDelta);
+            MoveItems(events.movedItems.View(), events.moveDelta);
+        }
+        if (events.waypointAdded)
+        {
+            AddWaypoint(events.waypointLink, events.waypointIndex, events.waypointPoint);
+        }
+        if (events.waypointMoved)
+        {
+            MoveWaypoint(events.waypointLink, events.waypointIndex, events.waypointPoint);
+        }
+        if (events.waypointRemoved)
+        {
+            RemoveWaypoint(events.waypointLink, events.waypointIndex);
+        }
+        if (events.commentResized)
+        {
+            ResizeComment(events.resizedComment, events.resizedSize);
         }
         if (events.connect)
         {
@@ -805,42 +999,67 @@ namespace JBro
         {
             Disconnect(events.disconnectLink);
         }
-        if (events.contextMenu || events.linkDropped)
+        // 미니맵 위의 우클릭은 메뉴를 열지 않는다 - 미니맵에는 고를 것이 없다.
+        if ((events.contextMenu && events.contextHit.kind != NodeGraphView::HitKind::Minimap) || events.linkDropped)
         {
             m_menuFromDrop = events.linkDropped;
             m_menuPoint = events.linkDropped ? events.dropPoint : events.contextPoint;
             m_menuHit = events.linkDropped ? NodeGraphView::Hit{} : events.contextHit;
             m_dropPin = events.droppedPin;
             m_dropFromOutput = events.droppedFromOutput;
-            // 우클릭한 노드가 고름 밖이면 그것만 고른다 - 메뉴의 삭제·복제가 그 노드를 가리킨다.
-            if (m_menuHit.kind == NodeGraphView::HitKind::Node && !m_canvas.interaction.IsSelected(m_menuHit.node))
+            // 우클릭한 노드·주석이 고름 밖이면 그것만 고른다 - 메뉴의 삭제·복제가 그것을 가리킨다.
+            const UInt64 pointed = m_menuHit.kind == NodeGraphView::HitKind::Node ? m_menuHit.node
+                : (m_menuHit.kind == NodeGraphView::HitKind::CommentHeader || m_menuHit.kind == NodeGraphView::HitKind::CommentResize)
+                    ? m_menuHit.comment : UInt64(NodeGraph::InvalidId);
+            if (pointed.Get() != NodeGraph::InvalidId && !m_canvas.interaction.IsSelected(pointed))
             {
-                const NodeGraph::NodeId only[] = {m_menuHit.node};
+                const UInt64 only[] = {pointed};
                 m_canvas.interaction.Select({only, 1});
             }
             Widget::OpenContextMenu("##nodeGraphMenu");
         }
-        if (events.nodeDoubleClicked)
+        if (events.nodeDoubleClicked || events.commentDoubleClicked)
         {
             // 노드를 두 번 누르면 그 노드를 보이는 인스펙터가 앞으로 온다(오브젝트를 두 번 누를 때와 같은 손짓).
             RevealInspector(true);
         }
     }
 
+    Bool NodeGraphPanel::AcceptsDroppedPin(const NodeGraph::NodeTypeInfo& type) const
+    {
+        // 실제로 더하고 이어 본다 - 잇기 규칙(타입·넓히기·순환)이 모델 한 곳에만 있다.
+        NodeGraph::Graph probe = m_document.graph;
+        const NodeGraph::NodeId added = probe.AddNode(*m_document.domain, type.name.View(), m_menuPoint);
+        if (added.Get() == NodeGraph::InvalidId)
+        {
+            return false;
+        }
+        ConnectDropped(probe, added);
+        // 입력에 놓으면 그 입력의 옛 링크를 갈아 치우므로 링크 수로는 모른다 - 새 노드에 닿은 링크가 섰는지 본다.
+        for (const NodeGraph::Link& link : probe.GetLinks())
+        {
+            if (link.from.node.Get() == added.Get() || link.to.node.Get() == added.Get())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void NodeGraphPanel::DrawAddNodeMenu()
     {
         const NodeGraph::Domain& domain = *m_document.domain;
-        // 묶음 이름은 노드 종류 이름처럼 번역하지 않는다. 묶음이 없는 종류는 맨 위에 둔다.
-        Array<String> categories;
-        for (const NodeGraph::NodeTypeInfo& type : domain.GetNodeTypes())
+        const ArrayView<const NodeGraph::NodeTypeInfo> types = domain.GetNodeTypes();
+        // 핀에서 끌어 놓았으면 그 핀에 이을 수 있는 종류만 보인다(언리얼 블루프린트의 "맥락에 맞게").
+        Array<std::size_t> shown;
+        Array<Widget::NodeMenuItem> items;
+        for (std::size_t index = 0; index < types.Size(); ++index)
         {
-            if (!type.category.empty() && !categories.Contains(type.category))
+            const NodeGraph::NodeTypeInfo& type = types[index];
+            if (m_menuFromDrop && !AcceptsDroppedPin(type))
             {
-                categories.Add(type.category);
+                continue;
             }
-        }
-        auto drawItem = [&](const NodeGraph::NodeTypeInfo& type)
-        {
             Bool taken = false;
             if (type.unique)
             {
@@ -853,44 +1072,34 @@ namespace JBro
                     }
                 }
             }
-            if (Widget::MenuItem(type.name.c_str(), nullptr, !taken, Loc::TextOr(LocKeys::NodeGraphOnlyOne, "A graph holds only one of these")))
-            {
-                NodeGraph::Graph edited = m_document.graph;
-                const NodeGraph::NodeId added = edited.AddNode(domain, type.name.View(), m_menuPoint);
-                if (added.Get() != NodeGraph::InvalidId)
-                {
-                    if (m_menuFromDrop)
-                    {
-                        ConnectDropped(edited, added);
-                    }
-                    if (Commit("Add Node", edited))
-                    {
-                        const NodeGraph::NodeId selected[] = {added};
-                        m_canvas.interaction.Select({selected, 1});
-                    }
-                }
-            }
-        };
-        for (const NodeGraph::NodeTypeInfo& type : domain.GetNodeTypes())
-        {
-            if (type.category.empty())
-            {
-                drawItem(type);
-            }
+            Widget::NodeMenuItem item;
+            item.name = type.name.c_str();
+            item.category = type.category.c_str();
+            item.enabled = !taken;
+            items.Add(item);
+            shown.Add(index);
         }
-        for (const String& category : categories)
+        const Int32 chosen = Widget::NodeSearchMenu(m_menuFilter, m_menuHighlight, items.View(),
+            Loc::TextOr(LocKeys::NodeGraphOnlyOne, "A graph holds only one of these"));
+        if (chosen.Get() < 0)
         {
-            if (Widget::BeginMenu(category.c_str()))
-            {
-                for (const NodeGraph::NodeTypeInfo& type : domain.GetNodeTypes())
-                {
-                    if (type.category == category)
-                    {
-                        drawItem(type);
-                    }
-                }
-                Widget::EndMenu();
-            }
+            return;
+        }
+        const NodeGraph::NodeTypeInfo& type = types[shown[static_cast<std::size_t>(chosen.Get())]];
+        NodeGraph::Graph edited = m_document.graph;
+        const NodeGraph::NodeId added = edited.AddNode(domain, type.name.View(), m_menuPoint);
+        if (added.Get() == NodeGraph::InvalidId)
+        {
+            return;
+        }
+        if (m_menuFromDrop)
+        {
+            ConnectDropped(edited, added);
+        }
+        if (Commit("Add Node", edited))
+        {
+            const UInt64 selected[] = {added};
+            m_canvas.interaction.Select({selected, 1});
         }
     }
 
@@ -907,11 +1116,25 @@ namespace JBro
         {
             EditorActionUi::DrawItem("node_graph.copy", context);
             EditorActionUi::DrawItem("node_graph.duplicate", context);
+            EditorActionUi::DrawItem("node_graph.comment", context);
             if (Widget::MenuItem(Loc::TextOr(LocKeys::NodeGraphDisconnectAll, "Break All Links")))
             {
                 DisconnectNode(m_menuHit.node);
             }
             EditorActionUi::DrawItem("node_graph.delete", context);
+        }
+        else if (m_menuHit.kind == NodeGraphView::HitKind::CommentHeader || m_menuHit.kind == NodeGraphView::HitKind::CommentResize)
+        {
+            EditorActionUi::DrawItem("node_graph.copy", context);
+            EditorActionUi::DrawItem("node_graph.duplicate", context);
+            EditorActionUi::DrawItem("node_graph.delete", context);
+        }
+        else if (m_menuHit.kind == NodeGraphView::HitKind::Waypoint)
+        {
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::NodeGraphRemoveWaypoint, "Remove Reroute Point")))
+            {
+                RemoveWaypoint(m_menuHit.link, m_menuHit.waypoint);
+            }
         }
         else if (m_menuHit.kind == NodeGraphView::HitKind::Link)
         {
@@ -920,17 +1143,22 @@ namespace JBro
                 Disconnect(m_menuHit.link);
             }
         }
-        else
+        else if (m_menuHit.kind != NodeGraphView::HitKind::Minimap)
         {
-            if (Widget::BeginMenu(Loc::TextOr(LocKeys::NodeGraphAddNode, "Add Node")))
+            // 빈 곳의 메뉴는 노드 찾기가 먼저다 - 열자마자 글자를 쳐서 노드를 더한다.
+            DrawAddNodeMenu();
+            if (!m_menuFromDrop)
             {
-                DrawAddNodeMenu();
-                Widget::EndMenu();
-            }
-            if (!m_menuFromDrop && Widget::MenuItem(Loc::TextOr(LocKeys::NodeGraphPaste, "Paste"), nullptr, CanPaste(),
-                    Loc::TextOr(LocKeys::NodeGraphNothingToPaste, "Nothing has been copied")))
-            {
-                Paste(m_menuPoint);
+                ImGui::Separator();
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::NodeGraphAddComment, "Add Comment")))
+                {
+                    AddComment(m_menuPoint);
+                }
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::NodeGraphPaste, "Paste"), nullptr, CanPaste(),
+                        Loc::TextOr(LocKeys::NodeGraphNothingToPaste, "Nothing has been copied")))
+                {
+                    Paste(m_menuPoint);
+                }
             }
         }
         Widget::EndContextMenu();
@@ -962,7 +1190,17 @@ namespace JBro
             EditorActionUi::DrawItem("node_graph.paste", context);
             EditorActionUi::DrawItem("node_graph.duplicate", context);
             EditorActionUi::DrawItem("node_graph.delete", context);
+            EditorActionUi::DrawItem("node_graph.comment", context);
+            Widget::EndMenu();
+        }
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuView, "View")))
+        {
             EditorActionUi::DrawItem("node_graph.frame", context);
+            Bool minimap = m_canvas.style.showMinimap;
+            if (Widget::MenuToggle(Loc::TextOr(LocKeys::NodeGraphMinimap, "Minimap"), minimap))
+            {
+                ToggleMinimap();
+            }
             Widget::EndMenu();
         }
     }
@@ -1012,7 +1250,13 @@ namespace JBro
                 m_canvas.interaction.GetSelection());
             m_frameRequested = false;
         }
-        Widget::EndNodeGraphCanvas(m_document.graph, *m_document.domain, m_canvas);
+        NodeGraphView::Events drawn;
+        Widget::EndNodeGraphCanvas(m_document.graph, *m_document.domain, m_canvas, drawn);
+        // 노드 안 값 칸은 그리면서 고쳐진다. 끄는 동안 프레임마다 오지만 같은 핀이면 커맨드 하나다(`SetInput` 의 합치기 키).
+        if (drawn.inputEdited)
+        {
+            SetInput(drawn.editedNode, drawn.editedPin, drawn.editedValue);
+        }
         DrawContextMenu();
     }
 }
