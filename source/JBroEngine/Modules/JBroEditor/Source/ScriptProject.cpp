@@ -164,6 +164,46 @@ namespace JBro::ScriptProject
             return "GameObject";
         case FieldType::Asset:
             return "AssetHandle";
+        case FieldType::Transform2D:
+            return "Transform2D";
+        case FieldType::SpriteRenderer2D:
+            return "SpriteRenderer2D";
+        case FieldType::Camera2D:
+            return "Camera2D";
+        case FieldType::Rigidbody2D:
+            return "Rigidbody2D";
+        case FieldType::Collider2D:
+            return "Collider2D";
+        case FieldType::DistanceJoint2D:
+            return "DistanceJoint2D";
+        case FieldType::HingeJoint2D:
+            return "HingeJoint2D";
+        case FieldType::Text2D:
+            return "Text2D";
+        case FieldType::Button2D:
+            return "Button2D";
+        case FieldType::AudioListener2D:
+            return "AudioListener2D";
+        case FieldType::Light2D:
+            return "Light2D";
+        case FieldType::ShadowCaster2D:
+            return "ShadowCaster2D";
+        case FieldType::Transform3D:
+            return "Transform3D";
+        case FieldType::Camera3D:
+            return "Camera3D";
+        case FieldType::MeshRenderer3D:
+            return "MeshRenderer3D";
+        case FieldType::Rigidbody3D:
+            return "Rigidbody3D";
+        case FieldType::Collider3D:
+            return "Collider3D";
+        case FieldType::Text3D:
+            return "Text3D";
+        case FieldType::AudioListener3D:
+            return "AudioListener3D";
+        case FieldType::AudioSource:
+            return "AudioSource";
         default:
             return "Float";
         }
@@ -219,6 +259,38 @@ namespace JBro::ScriptProject
             }
         }
         return NameProblem::None;
+    }
+
+    Bool IsFieldTypeOffered(FieldType type, FrameworkKind framework)
+    {
+        switch (type)
+        {
+        case FieldType::Transform2D:
+        case FieldType::SpriteRenderer2D:
+        case FieldType::Camera2D:
+        case FieldType::Rigidbody2D:
+        case FieldType::Collider2D:
+        case FieldType::DistanceJoint2D:
+        case FieldType::HingeJoint2D:
+        case FieldType::Text2D:
+        case FieldType::Button2D:
+        case FieldType::AudioListener2D:
+        case FieldType::Light2D:
+        case FieldType::ShadowCaster2D:
+            return framework == FrameworkKind::Framework2D;
+        case FieldType::Transform3D:
+        case FieldType::Camera3D:
+        case FieldType::MeshRenderer3D:
+        case FieldType::Rigidbody3D:
+        case FieldType::Collider3D:
+        case FieldType::Text3D:
+        case FieldType::AudioListener3D:
+            return framework == FrameworkKind::Framework3D;
+        case FieldType::Count:
+            return false;
+        default:
+            return true;
+        }
     }
 
     String MakeScriptHeader(const char* className, const Array<FieldSpec>& fields, FrameworkKind framework)

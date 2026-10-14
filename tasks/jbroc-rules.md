@@ -1,6 +1,6 @@
-﻿# jbroc 컴파일러 규칙
+# jbroc 컴파일러 규칙
 
-> **현재 상태(2026-10-14, D-315)**: D-262 문법 파서·공용 의미 분석·공용/2D API 카탈로그·`JBroc --lsp`를 구현했다.
+> **현재 상태(2026-10-14, D-316)**: D-262 문법 파서·공용 의미 분석·공용/2D API 카탈로그·`JBroc --lsp`를 구현했다.
 > 아래 2026-09-29의 중단 설명은 이력이다. **C++ 이미터는 계속 미구현**이며 변경 범위는 §12와
 > [언어 서버 계획](./jbroscript-language-server-plan.md)에 있다.
 >
@@ -473,14 +473,14 @@ JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...
 
 ### 11.4 D-262 뒤로 파서에 남은 일 (2026-09-29)
 
-**당시에는 멈춘 상태였다(D-263).** 다시 시작할 때 적어 둔 항목의 이행 상태를 아래에 기록한다. 현재 파서와 편집기 문법 강조는 새 문법(syntax §14)을 읽는다(D-315).
+**당시에는 멈춘 상태였다(D-263).** 다시 시작할 때 적어 둔 항목의 이행 상태를 아래에 기록한다. 현재 파서와 편집기 문법 강조는 새 문법(syntax §14)을 읽는다(D-316).
 
-- ~~타입 뒤의 `?`, 식의 `?.`·`??`·뒤붙이 `!` 를 읽는다. 우선순위는 syntax §10.1 이다.~~ → 구현 2026-10-14 · `Lexer.cpp`·`Parser.cpp`·`ScriptCompilerParserTests.cpp` (D-315).
-- ~~멤버·지역·컨테이너·반환의 `ref` 는 파서가 아니라 타입체커가 에러로 낸다(모양은 옛 판과 같아 파서는 읽기만 한다).~~ → 구현 2026-10-14 · `Analysis.cpp`·`ScriptCompilerAnalysisTests.cpp` (D-315).
+- ~~타입 뒤의 `?`, 식의 `?.`·`??`·뒤붙이 `!` 를 읽는다. 우선순위는 syntax §10.1 이다.~~ → 구현 2026-10-14 · `Lexer.cpp`·`Parser.cpp`·`ScriptCompilerParserTests.cpp` (D-316).
+- ~~멤버·지역·컨테이너·반환의 `ref` 는 파서가 아니라 타입체커가 에러로 낸다(모양은 옛 판과 같아 파서는 읽기만 한다).~~ → 구현 2026-10-14 · `Analysis.cpp`·`ScriptCompilerAnalysisTests.cpp` (D-316).
 - ~~파서 시험의 전체 예시를 syntax §14 로 옮긴다.~~ → 구현 2026-10-14 · `ScriptCompilerParserTests.cpp::TestTheSyntaxDocumentExampleParses`.
-  ~~편집기 문법 스냅숏(`source/JBroScriptEditor/extensions/jbro-languages/test/snap/enemy.jscript`)을 옮기는 일은 클라이언트 작업에 남긴다.~~ → 구현 2026-10-14 · 편집기 문법 강조·예시·스냅숏 시험(D-315). LSP 클라이언트 연결은 별도 작업이다.
+  ~~편집기 문법 스냅숏(`source/JBroScriptEditor/extensions/jbro-languages/test/snap/enemy.jscript`)을 옮기는 일은 클라이언트 작업에 남긴다.~~ → 구현 2026-10-14 · 편집기 문법 강조·예시·스냅숏 시험(D-316). LSP 클라이언트 연결은 별도 작업이다.
 
-## 12. 분석·LSP 재개 (2026-10-14, D-315)
+## 12. 분석·LSP 재개 (2026-10-14, D-316)
 
 Updates: D-263의 타입체커·LSP 중단과 §11.4, D-262의 null 좁히기·서비스 이름표·§7 API 투영.
 사용자가 승인한 독립 언어 서버를 위해 파서와 의미 분석을 재개했다. **이미터 중단은 유지한다.**

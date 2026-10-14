@@ -32,6 +32,11 @@ namespace JBro::Internal
     class ComponentHandle
     {
     public:
+        // **기본 생성자는 공개다.** 파생 핸들은 생성자를 선언하지 않아 집합체이고, `Transform2D follow = {};`(`새 스크립트` 가 만드는 필드 모양)는
+        // 집합체 초기화라 이 생성자를 스크립트 쪽에서 부른다 - protected 로 두었을 때 실제 스크립트 빌드가 C2248 로 실패했다(D-302 (17)).
+        // 빈 몸만 만들 수 있고 가리킬 자리는 `ComponentHandleAccess` 만 채우므로 공개해도 잃는 것이 없다.
+        ComponentHandle() = default;
+
         // 가리키는 컴포넌트가 아직 붙어 있는가. 떼였거나 오브젝트가 사라졌으면 거짓이다.
         Bool IsValid() const;
         explicit operator bool() const;
@@ -45,8 +50,6 @@ namespace JBro::Internal
         Bool operator==(const ComponentHandle& other) const;
 
     protected:
-        ComponentHandle() = default;
-
         // 해석한다. 무효면 `typeName::operation` 으로 경고를 남기고 nullptr 이다.
         ComponentBase* ResolveComponent(const char* typeName, const char* operation) const;
 
@@ -73,6 +76,12 @@ namespace JBro::Internal
         static const InstanceRef& GetReference(const ComponentHandle& handle)
         {
             return handle.m_reference;
+        }
+
+        // 필드 글자를 읽은 자리(`ComponentHandleFromText`)가 쓴다. 타입은 부르는 쪽이 이미 확인했다.
+        static void SetReference(ComponentHandle& handle, const InstanceRef& reference)
+        {
+            handle.m_reference = reference;
         }
 
         // 경고를 남기지 않는다 - 서비스는 무효한 인자를 조용히 무시한다.

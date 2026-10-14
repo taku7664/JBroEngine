@@ -53,8 +53,9 @@ namespace JBro
         // 목록에서 묶이는 갈래다. 비어 있으면 `ComponentCategory::Default` 로 본다.
         const char* category = nullptr;
         ComponentMultiplicity multiplicity = ComponentMultiplicity::Multiple;
-        // 오브젝트에 하나 붙이고 그것을 돌려준다. 실패하면 nullptr 이다.
-        ComponentBase* (*Attach)(Canvas& canvas, Object::GameObject* owner) = nullptr;
+        // 오브젝트에 하나 붙이고 그것을 돌려준다. 실패하면 nullptr 이다. 번호를 정하지 않으면 `InvalidInstanceId` 를 준다
+        // (`Canvas::AttachComponent` 의 `preferredId`).
+        ComponentBase* (*Attach)(Canvas& canvas, Object::GameObject* owner, InstanceId preferredId) = nullptr;
         // 붙인 것을 뗀다. **붙이는 함수와 짝으로 여기 둔다** - 풀이 메모리를
         // 돌려받으려면 정적 타입이 필요하고, 그것을 아는 자리가 여기뿐이다.
         // `GameObject::DetachComponent` 만 부르면 슬롯만 빠지고 풀 자리는 남는다.
@@ -116,9 +117,9 @@ namespace JBro
         info.typeId = MakeStableTypeId(T::StaticTypeName());
         info.category = category != nullptr ? category : ComponentCategory::Default;
         info.multiplicity = multiplicity;
-        info.Attach = [](Canvas& canvas, Object::GameObject* owner) -> ComponentBase*
+        info.Attach = [](Canvas& canvas, Object::GameObject* owner, InstanceId preferredId) -> ComponentBase*
         {
-            return canvas.AttachComponent<T>(owner);
+            return canvas.AttachComponent<T>(owner, preferredId);
         };
         info.Detach = [](Canvas& canvas, Object::GameObject* owner, ComponentBase* component) -> Bool
         {

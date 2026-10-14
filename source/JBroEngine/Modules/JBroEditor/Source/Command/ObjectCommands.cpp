@@ -102,7 +102,7 @@ namespace JBro
             {
                 if (info->Attach != nullptr)
                 {
-                    ComponentBase* component = info->Attach(*m_canvas, object);
+                    ComponentBase* component = info->Attach(*m_canvas, object, InvalidInstanceId);
                     if (component != nullptr && m_hasPosition)
                     {
                         WriteSpawnPosition(*component, info->typeId, m_position);

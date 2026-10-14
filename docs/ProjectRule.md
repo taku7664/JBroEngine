@@ -1,4 +1,4 @@
-﻿# JBroEngine Project Rules
+# JBroEngine Project Rules
 
 이 문서는 JBroEngine 작업에서 계속 지켜야 하는 프로젝트 규칙을 정리한다.
 아키텍처 초안과 내용이 다를 경우 이 문서를 우선하며, 아직 합의되지 않은 설계는 강제 규칙으로 취급하지 않는다.
@@ -254,10 +254,10 @@
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216). 텍스트 레이아웃·아틀라스는 `JBroTextRendering` 이다(D-222). 3D 의 `JBroFramework3DSystem` 도 같은 두 모듈에 기댄다 |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
-  | Tier E | `JBroScriptCompiler` | 렉서·파서·의미 분석·공용 API DTO·들여쓰기 포맷. `JBroCore` 에만 기댄다. C++ 이미터는 미구현 (D-104·D-315) |
-  | Tier E | `JBroScriptApiCatalog2D` | 실제 공용/2D Tier S 타입과 명시적 공개 선언을 분석용 카탈로그로 변환. 엔진 호스트는 실행하지 않는다 (D-315) |
-  | Tier E | `JBroScriptLanguageServer` | LSP 프로토콜·문서 상태·공용 분석 조회. Core·ScriptCompiler·nlohmann-json에 기댄다 (D-315) |
-  | Tier E | `JBroc` | MSVC 모양의 파일 파싱 진단과 `--lsp` 실행 파일 호스트. LSP의 파일 읽기·열거와 stdio 조립을 맡는다 (D-105·D-315) |
+  | Tier E | `JBroScriptCompiler` | 렉서·파서·의미 분석·공용 API DTO·들여쓰기 포맷. `JBroCore` 에만 기댄다. C++ 이미터는 미구현 (D-104·D-316) |
+  | Tier E | `JBroScriptApiCatalog2D` | 실제 공용/2D Tier S 타입과 명시적 공개 선언을 분석용 카탈로그로 변환. 엔진 호스트는 실행하지 않는다 (D-316) |
+  | Tier E | `JBroScriptLanguageServer` | LSP 프로토콜·문서 상태·공용 분석 조회. Core·ScriptCompiler·nlohmann-json에 기댄다 (D-316) |
+  | Tier E | `JBroc` | MSVC 모양의 파일 파싱 진단과 `--lsp` 실행 파일 호스트. LSP의 파일 읽기·열거와 stdio 조립을 맡는다 (D-105·D-316) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-232) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
@@ -445,6 +445,10 @@
 - **컴포넌트가 저장되는 값으로 다른 오브젝트를 가리키면 `Handle::GameObject` 필드를 둔다**(리플렉션 잎사귀 `JBro.Handle.GameObject`). (MUST) (D-233)
   캔버스 파일에는 그 오브젝트의 파일 안 번호로, 되돌리기·클립보드·스냅숏 글자에는 이번 실행의 오브젝트 번호(`@번호`)로 적힌다.
   오브젝트 번호(`InstanceId`)를 파일에 쓰지 않는다 - 실행마다 다르다. 지운 오브젝트를 되돌리면 옛 번호로 되살아나 참조가 이어진다.
+- **스크립트가 저장되는 값으로 빌트인 컴포넌트를 가리키면 그 핸들 필드를 둔다**(`JBRO_FIELD(Transform2D, follow)`, 리플렉션 잎사귀 `JBro.ComponentHandle`,
+  `refTarget` 이 컴포넌트 타입 이름). (MUST) (D-302)
+  캔버스 파일에는 `오브젝트의 파일 안 번호:같은 타입 중 몇 번째`(`1:0`)로, 그 밖의 글자에는 `@오브젝트 번호:컴포넌트 번호` 로 적힌다. 다른 타입의 컴포넌트를 가리키는 `@` 글자는 읽지 않는다.
+  캔버스 파일은 모든 오브젝트에 컴포넌트·스크립트를 붙인 뒤에 필드를 읽는다. 지운 컴포넌트·오브젝트를 되돌리면 컴포넌트도 옛 번호로 되살아나 참조가 이어진다.
   엔진 내부 참조는 이 규칙을 스크립트 핸들로 우회하지 않고 §6의 소유권과 `SafePtr<T>` 계약을 따른다.
 
   > 이 규칙을 타입으로 강제하려는 시도(복사·이동을 삭제한 스코프 객체)는 채택하지 않았다.
@@ -1579,6 +1583,47 @@
   ImGui 가 파일을 못 열고 **단언으로 프로세스를 죽인다.** C 런타임으로 열면 인자와 같은
   인코딩이라 그 자리에서 맞는다.
 
+### 11.7 스크립트 편집기의 공통 UI (D-313)
+
+Updates: D-311의 상단 직접 버튼 방식. 이번 후속 작업은 메뉴만 구현하며 자유 도킹·드래그드롭 위젯·로딩 UI는 후속 범위다.
+후속 D-314는 워크스페이스 사이드바와 테마를 추가한다. 최초 메뉴 범위는 이력으로 보존하며 도킹·드래그드롭·로딩 UI의 후속 범위는 유지한다.
+
+- **스크립트 편집기에서 반복되는 UI 동작은 공통 UI 프레임워크를 거친다.** (MUST) (D-313)
+  메뉴·드래그드롭·로딩 등의 상호작용과 수명 처리를 Titlebar·제품별 화면에 각자 복제하지 않는다.
+- **ScriptEditorNativeUI는 Code-OSS 본체의 UI 계층이며 엔진의 C++·ImGui `JBroWidget`과 별개다.** (MUST)
+  §11.1의 엔진 위젯을 Code-OSS에 포팅하거나 두 계층을 합치는 계약이 아니다.
+- 제품별 메뉴·명령·번역은 내장 확장이 기여하고, 공통 UI는 번역된 문구를 받아 그린다. (MUST)
+  한국어 기본·영어 번역 파일과 번역키를 유지한다(D-312). 공통 UI가 제품 문구를 소스에 직접 갖지 않는다.
+- 구체적인 공통 메뉴바·모듈 구성과 확인 범위는 [메뉴 후속 계획](../tasks/script-editor-integration-plan.md#12-2026-10-14-후속-계획--메뉴-우선공통-ui-구조)에 둔다.
+  재사용 방향과 이번 메뉴 범위를 확정한 것이며 계획의 모든 파일·API가 확정 계약은 아니다.
+  구현은 공통 `JBroMenuBar`·`ui.ts` 진입점과 내장 확장의 하위 메뉴 기여이며 최종 메뉴 확인 범위는 계획 §12.5에 기록한다.
+
+### 11.8 스크립트 편집기의 워크스페이스·테마 (D-314)
+
+Updates: D-313의 최초 메뉴만 구현하는 범위. 사용자 확인 대상은 초기 왼쪽 워크스페이스와 JBroEngine 테마 정합이다.
+
+- **처음 왼쪽 사이드바에는 워크스페이스만 표시한다.** (MUST) (D-314)
+  이번 트리의 파일 탐색·열기는 읽기 전용이며 Outline·Timeline과 파일 관리 기능을 추가하는 범위가 아니다.
+- UI 색의 공통 원천은 엔진 `EditorTheme.h`의 의미별 팔레트로 삼는다. (SHOULD)
+  현재 선택한 구조는 상수 숫자를 읽는 생성기와 Code-OSS native ThemeService·CSS 변수다. 엔진 C++ 팔레트는 수정하지 않는다.
+  코드 문법 강조의 별도 토큰은 엔진 UI의 오류·주의·상호작용 색과 구분한다.
+- 생성기·TreeView·테마 기여의 구현 판단과 확인 범위는 [워크스페이스·테마 추가 계획](../tasks/script-editor-integration-plan.md#13-2026-10-14-추가-계획--워크스페이스사이드바테마)에 둔다.
+  자유 도킹·드래그드롭 위젯·로딩 UI 구현은 계속 후속이다.
+  **현재 확인은 확장 활성화 이후 최종 화면이다.** 초기 로딩 전 Explorer가 잠시 나타나는 전환은 남아 있으며,
+  최초 프레임부터 워크스페이스만 표시됐다고 판단하지 않는다. 실제 트리·파일 열기·테마 확인과 이 한계는 계획 §13.4에 기록한다.
+
+### 11.9 본체 한국어와 폴더 아이콘을 실제 화면에서 확인한다 (D-315)
+
+Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 표시 확인 범위.
+
+- **한국어 우선은 Code-OSS 본체·내장 UI도 포함한다.** (MUST)
+  JBro 메뉴만 번역한 결과나 개발 실행의 영어 상태를 편집기 한국어 제공 완료로 판단하지 않는다.
+  번역 파일·영어 폴백을 유지하고, 실제 내장 패널·경고·빈 상태의 표시를 확인한다.
+- **폴더 아이콘은 파일 존재와 실제 표시를 따로 확인한다.** (MUST)
+  엔진과 같은 아이콘 출처·역할을 사용하되 루트·하위 폴더의 열린/닫힌 상태가 트리에 그려지는지 확인한다.
+- 고정 한국어 팩·개발 대응표·폴더 SVG의 이번 구현과 확인 범위는 [한국어·아이콘 후속 결과](../tasks/script-editor-integration-plan.md#14-2026-10-14-후속--본체-한국어폴더-아이콘)에 둔다.
+  일부 검토 화면 통과를 설치본·전 화면 완전 한국어·실제 계정 인증 완료로 확대하지 않는다.
+
 ## 12. 검증
 
 - 빌드 성공만으로 기능이 검증됐다고 판단하지 않는다. (MUST)
@@ -1710,17 +1755,17 @@
 - [tasks/structural-refactor-plan.md](../tasks/structural-refactor-plan.md) — 2026-09-12 구조 검토와 D-42~D-55의 근거·단계 계획.
   이 문서의 규칙 중 `(D-42)`~`(D-55)`가 붙은 것은 그 계획의 단계가 끝나기 전까지 현재 코드와 다를 수 있다.
 - [tasks/jbroscript-plan.md](../tasks/jbroscript-plan.md) — JBroScript(`.jscript`)와 리플렉션 계획(D-56).
-  계획일 뿐 확정 계약이 아니다. C++ 이미터는 아직 없고 분석·LSP의 현재 범위는 D-315와 §16에 있다. 프로퍼티 리플렉션
+  계획일 뿐 확정 계약이 아니다. C++ 이미터는 아직 없고 분석·LSP의 현재 범위는 D-316과 §16에 있다. 프로퍼티 리플렉션
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장과 코어 패치가 `source/JBroScriptEditor` 에 섰고(D-261) 포크 설치본은 아직 없다.
-- [tasks/script-editor-integration-plan.md](../tasks/script-editor-integration-plan.md) — C++ 스크립트용 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃 현황과 후속 계획(D-310·D-311).
+- [tasks/script-editor-integration-plan.md](../tasks/script-editor-integration-plan.md) — C++ 스크립트용 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃 현황과 후속 계획(D-310~D-315).
   사용자 확인 담당 범위·기본 화면 항목은 Decisions에 기록하며, 이 계획의 구현 제안은 확정 계약이 아니다.
 - [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
   컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. ~~`jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.~~
-  D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. D-263의 분석·LSP 중단은 D-315로 갱신됐다. C++ 이미터는 미구현이다.
+  D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. D-263의 분석·LSP 중단은 D-316으로 갱신됐다. C++ 이미터는 미구현이다.
 - [tasks/jbroscript-language-server-plan.md](../tasks/jbroscript-language-server-plan.md) — 독립 `JBroc --lsp`의 공용/2D 언어 기능,
-  연결 계약·소스/AST 수명·카탈로그·검증·남은 클라이언트/이미터 범위 (D-315).
+  연결 계약·소스/AST 수명·카탈로그·검증·남은 클라이언트/이미터 범위 (D-316).
 - [tasks/cpp-script-plan.md](../tasks/cpp-script-plan.md) — C++ 게임 스크립트 지원 계획(D-263). 계획일 뿐 확정 계약이 아니다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
@@ -1730,7 +1775,7 @@
 두 초안에는 이 문서의 규칙으로 대체된 절이 있다. 해당 절에는 대체 표시를 달아 두었으며,
 대체 결정의 근거는 작업 계획 `tasks/todo.md` 의 Decisions 절에 기록한다.
 
-## 16. JBroScript 언어 서버 후속 계약 (2026-10-14, D-315)
+## 16. JBroScript 언어 서버 후속 계약 (2026-10-14, D-316)
 
 Updates: §2의 도구 파일 접근 경계, §3의 컴파일러 모듈 목록, D-263의 분석·LSP 중단, D-262의 편집 시 타입 분석.
 사용자가 승인한 독립 서버의 계약이며 C++ 이미터·게임 실행·에디터 클라이언트는 이 계약의 구현 범위 밖이다.

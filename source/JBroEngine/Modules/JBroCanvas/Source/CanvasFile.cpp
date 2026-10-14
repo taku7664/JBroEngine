@@ -412,6 +412,9 @@ namespace JBro
         Bool ReadObjects(Canvas& canvas, const YamlDocument& document, UInt32 objects, const ObjectLayerRule& rule,
             Array<Object::GameObject*>& created, CanvasFileError& error)
         {
+            // **뿌리 차례는 파일 차례다.** 이미 있던 뿌리는 먼저 자리를 잡게 하고(지금의 보이는 순서 그대로), 읽은 뿌리는 아래에서 파일 차례로 뒤에 붙인다.
+            Array<Object::GameObject*> existingRoots;
+            canvas.GetRootObjects(existingRoots);
             for (std::size_t i = 0; i < document.GetCount(objects); ++i)
             {
                 const UInt32 entry = document.GetElement(objects, i);
@@ -474,6 +477,8 @@ namespace JBro
                 }
             }
 
+            canvas.AppendRootsInOrder(created);
+
             Internal::ObjectRefRemap remap;
             remap.user = &created;
             remap.toObjectId = [](void* user, Int64 index) -> InstanceId {
@@ -483,6 +488,18 @@ namespace JBro
                     : InvalidInstanceId;
             };
             ObjectRefRemapScope remapScope(remap);
+
+            // **모두 붙인 뒤에 필드를 읽는다**(D-302). 컴포넌트 핸들 필드는 뒤에 오는 오브젝트의 컴포넌트도 가리키고, 그 글자를 읽는 순간
+            // 그 컴포넌트가 붙어 있어야 같은 타입 중 몇 번째인지로 찾을 수 있다.
+            struct PendingFields
+            {
+                UInt32 saved = 0;
+                std::size_t object = 0;
+                ComponentTypeId typeId = 0;
+                ComponentBase* component = nullptr;
+                GameScriptBase* script = nullptr;
+            };
+            Array<PendingFields> pending;
             for (std::size_t i = 0; i < created.Size(); ++i)
             {
                 const UInt32 entry = document.GetElement(objects, i);
@@ -508,20 +525,17 @@ namespace JBro
                             ? "a script is listed among the components - this file is from before scripts were separated from components"
                             : "a component in this file is not one this engine knows");
                     }
-                    ComponentBase* component = info->Attach(canvas, object);
+                    ComponentBase* component = info->Attach(canvas, object, InvalidInstanceId);
                     if (component == nullptr)
                     {
                         return Fail(error, "a component in this file could not be attached");
                     }
-                    if (false == ReadFields(document, saved, info->typeId, component, error))
-                    {
-                        return false;
-                    }
-                    Bool enabled = true;
-                    if (document.FindBool(saved, "IsEnabled", enabled))
-                    {
-                        component->SetEnabled(enabled);
-                    }
+                    PendingFields fields;
+                    fields.saved = saved;
+                    fields.object = i;
+                    fields.typeId = info->typeId;
+                    fields.component = component;
+                    pending.Add(fields);
                     error.typeName.clear();
                 }
 
@@ -564,22 +578,48 @@ namespace JBro
                         return Fail(error, "a script in this file could not be attached");
                     }
                     ++resolvedCount;
-                    if (false == ReadFields(document, saved, type->typeId, script, error))
-                    {
-                        return false;
-                    }
-                    Bool enabled = true;
-                    if (document.FindBool(saved, "IsEnabled", enabled))
-                    {
-                        script->SetEnabled(enabled);
-                    }
+                    PendingFields fields;
+                    fields.saved = saved;
+                    fields.object = i;
+                    fields.typeId = type->typeId;
+                    fields.script = script;
+                    pending.Add(fields);
                     error.typeName.clear();
                 }
+            }
 
-                // 활성은 마지막이다. 부모가 정해진 뒤라야 상속 활성값이 맞는다.
+            for (const PendingFields& fields : pending)
+            {
+                error.objectName = created[fields.object]->GetName();
+                document.FindScalar(fields.saved, "Type", error.typeName);
+                void* instance = fields.component != nullptr
+                    ? static_cast<void*>(fields.component)
+                    : static_cast<void*>(fields.script);
+                if (false == ReadFields(document, fields.saved, fields.typeId, instance, error))
+                {
+                    return false;
+                }
+                Bool enabled = true;
+                if (document.FindBool(fields.saved, "IsEnabled", enabled))
+                {
+                    if (fields.component != nullptr)
+                    {
+                        fields.component->SetEnabled(enabled);
+                    }
+                    else
+                    {
+                        fields.script->SetEnabled(enabled);
+                    }
+                }
+                error.typeName.clear();
+            }
+
+            // 활성은 마지막이다. 부모가 정해진 뒤라야 상속 활성값이 맞는다.
+            for (std::size_t i = 0; i < created.Size(); ++i)
+            {
                 Bool active = true;
-                document.FindBool(entry, "Active", active);
-                object->SetActive(active);
+                document.FindBool(document.GetElement(objects, i), "Active", active);
+                created[i]->SetActive(active);
             }
             error.objectName.clear();
             return true;

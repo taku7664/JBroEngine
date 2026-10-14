@@ -39,6 +39,7 @@
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/AudioBusName.h>
 #include <JBro/Editor/Widget/Meter.h>
+#include <JBro/Runtime/ComponentHandleReflection.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Core/Log.h>
@@ -1073,6 +1074,101 @@ namespace JBro
         else if (chosen >= 0 && static_cast<std::size_t>(chosen) < m_objectIds.Size())
         {
             handle = chosen == 0 ? Handle::GameObject{} : Internal::GameObjectHandleAccess::FromId(m_objectIds[static_cast<std::size_t>(chosen)]);
+        }
+        else
+        {
+            return;
+        }
+        CommitEdit(type, address, before, context);
+    }
+
+    void InspectorPanel::DrawComponentHandleField(const TypeDescriptor& type, void* address, Context& context)
+    {
+        Internal::ComponentHandle& handle = *static_cast<Internal::ComponentHandle*>(address);
+        const InstanceRef& reference = Internal::ComponentHandleAccess::GetReference(handle);
+        const char* targetName = NameTable::Get().Resolve(type.refTarget->targetType);
+        const ComponentTypeId typeId = targetName != nullptr ? MakeStableTypeId(targetName) : InvalidComponentTypeId;
+        m_objectNames.Clear();
+        m_componentRefs.Clear();
+        m_objectNames.Add(String(Loc::TextOr(LocKeys::InspectorObjectNone, "None")));
+        m_componentRefs.Add(InstanceRef{});
+        Int32 current = reference.ComponentId == InvalidInstanceId ? 0 : -1;
+        if (Canvas* canvas = m_editor->GetCanvas())
+        {
+            canvas->ForEachObject([&](Object::GameObject& object) {
+                // 한 오브젝트에 같은 타입이 여럿이면 두 번째부터 이름 뒤에 차례를 붙인다.
+                Int32 ordinal = 0;
+                for (const ComponentSlot& slot : object.GetComponents())
+                {
+                    ComponentBase* component = slot.reference.TryGet();
+                    if (slot.typeId != typeId || component == nullptr)
+                    {
+                        continue;
+                    }
+                    if (component->GetInstanceId() == reference.ComponentId)
+                    {
+                        current = static_cast<JBro::Int32>(m_componentRefs.Size());
+                    }
+                    const char* name = object.GetName();
+                    String label(name != nullptr ? name : "");
+                    if (ordinal > 0)
+                    {
+                        label += " (";
+                        label += std::to_string(ordinal.Get() + 1).c_str();
+                        label += ")";
+                    }
+                    m_objectNames.Add(std::move(label));
+                    InstanceRef entry;
+                    entry.ObjectId = object.GetInstanceId();
+                    entry.ComponentId = component->GetInstanceId();
+                    m_componentRefs.Add(entry);
+                    ++ordinal;
+                }
+            });
+        }
+        m_objectNamePointers.Clear();
+        for (const String& name : m_objectNames)
+        {
+            m_objectNamePointers.Add(name.c_str());
+        }
+        String before;
+        const Bool snapped = ToText(type, address, before);
+        Int32 chosen = current;
+        UInt64 dropped = 0;
+        const Bool changed = Widget::ObjectField("##value",
+            ArrayView<const char* const>(m_objectNamePointers.Data(), m_objectNamePointers.Size()), chosen,
+            Widget::DragKind::HierarchyObject, dropped);
+        if (false == changed || false == snapped)
+        {
+            return;
+        }
+        if (dropped != 0)
+        {
+            // 끌어다 놓은 오브젝트에 그 타입이 붙어 있으면 첫 번째를 고른다. 없으면 그대로 둔다.
+            Object::GameObject* object = m_editor->GetObjectIds().Resolve(static_cast<EditorObjectId>(dropped));
+            InstanceRef found;
+            if (object != nullptr)
+            {
+                for (const ComponentSlot& slot : object->GetComponents())
+                {
+                    ComponentBase* component = slot.reference.TryGet();
+                    if (slot.typeId == typeId && component != nullptr)
+                    {
+                        found.ObjectId = object->GetInstanceId();
+                        found.ComponentId = component->GetInstanceId();
+                        break;
+                    }
+                }
+            }
+            if (found.ComponentId == InvalidInstanceId)
+            {
+                return;
+            }
+            Internal::ComponentHandleAccess::SetReference(handle, found);
+        }
+        else if (chosen >= 0 && static_cast<std::size_t>(chosen) < m_componentRefs.Size())
+        {
+            Internal::ComponentHandleAccess::SetReference(handle, m_componentRefs[static_cast<std::size_t>(chosen)]);
         }
         else
         {
@@ -2264,6 +2360,13 @@ namespace JBro
         if (context.element == nullptr && context.attached.IsValid() && SameName(type.typeName, "JBro.Handle.GameObject"))
         {
             DrawObjectField(type, address, context);
+            return;
+        }
+        // 컴포넌트 참조는 그 타입이 붙은 오브젝트의 목록이다(D-302).
+        if (context.element == nullptr && context.attached.IsValid() && type.refTarget != nullptr
+            && SameName(type.typeName, "JBro.ComponentHandle"))
+        {
+            DrawComponentHandleField(type, address, context);
             return;
         }
         // **`AssetId` 는 드롭다운이다**(D-116). 목록 원소도 그렇다(D-306): `audioEffectIds` 의 원소는 `audioEffectId` 처럼

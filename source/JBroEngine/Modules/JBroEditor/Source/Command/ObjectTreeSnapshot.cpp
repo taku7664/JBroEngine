@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Types/NameTable.h>
@@ -135,20 +136,24 @@ namespace JBro
             created.Add(object);
 
             // 컴포넌트 다음에 스크립트다. 어느 목록인지는 떠 둔 것이 안다(D-302).
-            for (const Array<ComponentSnapshot>* list : { &entry.components, &entry.scripts })
+            for (Array<ComponentSnapshot>* list : { &entry.components, &entry.scripts })
             {
-                for (const ComponentSnapshot& captured : *list)
+                for (ComponentSnapshot& captured : *list)
                 {
                     const char* typeName = NameTable::Get().Resolve(captured.typeId);
                     if (typeName == nullptr)
                     {
                         return false;
                     }
-                    const AttachedRef attached = AttachByName(canvas, *object, MakeNameId(typeName));
+                    // 되살리기는 옛 번호로 붙인다(오브젝트와 같다). 붙여넣기는 새 번호다.
+                    const AttachedRef attached = AttachByName(canvas, *object, MakeNameId(typeName),
+                        rebind ? captured.instanceId : InvalidInstanceId);
                     if (false == attached.IsValid() || false == ApplyAttached(attached, captured))
                     {
                         return false;
                     }
+                    // 받은 번호를 적어 두면 다음 다시 하기가 같은 번호로 되살린다.
+                    captured.instanceId = attached.GetInstanceId();
                 }
             }
             for (std::size_t u = 0; u < entry.unresolved.Size(); ++u)
@@ -177,6 +182,7 @@ namespace JBro
             return;
         }
         const NameId handleType = NameTable::Get().Intern("JBro.Handle.GameObject");
+        const NameId componentHandleType = NameTable::Get().Intern("JBro.ComponentHandle");
         Array<AttachedRef> attached;
         for (Object::GameObject* object : created)
         {
@@ -201,7 +207,17 @@ namespace JBro
                 for (UInt32 p = 0; p < table->count; ++p)
                 {
                     const PropertyInfo& property = table->properties[p];
-                    if (property.type == nullptr || property.type->typeName != handleType || property.Address == nullptr)
+                    if (property.type == nullptr || property.Address == nullptr)
+                    {
+                        continue;
+                    }
+                    if (property.type->typeName == componentHandleType)
+                    {
+                        RetargetComponentHandle(
+                            *static_cast<Internal::ComponentHandle*>(property.Address(instance)), created);
+                        continue;
+                    }
+                    if (property.type->typeName != handleType)
                     {
                         continue;
                     }
@@ -216,6 +232,39 @@ namespace JBro
                     }
                 }
             }
+        }
+    }
+
+    void ObjectTreeSnapshot::RetargetComponentHandle(
+        Internal::ComponentHandle& handle, const Array<Object::GameObject*>& created) const
+    {
+        // 나무 안의 컴포넌트를 가리키면 새 오브젝트의 같은 자리 컴포넌트로 옮긴다(D-302). 컴포넌트는 뜬 차례대로 다시 붙으므로
+        // 뜬 목록의 몇 번째가 새 오브젝트 컴포넌트 목록의 몇 번째다.
+        const InstanceRef& reference = Internal::ComponentHandleAccess::GetReference(handle);
+        for (std::size_t index = 0; index < objects.Size(); ++index)
+        {
+            const ObjectSnapshotEntry& entry = objects[index];
+            if (entry.sourceInstanceId == InvalidInstanceId || reference.ObjectId != entry.sourceInstanceId)
+            {
+                continue;
+            }
+            const Array<ComponentSlot>& slots = created[index]->GetComponents();
+            for (std::size_t c = 0; c < entry.components.Size() && c < slots.Size(); ++c)
+            {
+                ComponentBase* component = slots[c].reference.TryGet();
+                if (entry.components[c].sourceInstanceId != reference.ComponentId || component == nullptr
+                    || slots[c].typeId != entry.components[c].typeId)
+                {
+                    continue;
+                }
+                InstanceRef moved;
+                moved.ObjectId = created[index]->GetInstanceId();
+                moved.ComponentId = component->GetInstanceId();
+                moved.Cached = component->GetHandle();
+                Internal::ComponentHandleAccess::SetReference(handle, moved);
+                return;
+            }
+            return;
         }
     }
 

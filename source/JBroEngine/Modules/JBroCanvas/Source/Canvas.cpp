@@ -311,6 +311,32 @@ namespace JBro
         return false;
     }
 
+    void Canvas::AppendRootsInOrder(const Array<Object::GameObject*>& objects)
+    {
+        m_rootSeen.Clear();
+        for (std::size_t index = 0; index < m_rootOrder.Size(); ++index)
+        {
+            if (const Object::GameObject* object = m_rootOrder[index].TryGet())
+            {
+                m_rootSeen.TryAdd(object, std::uint8_t{1});
+            }
+        }
+        for (Object::GameObject* object : objects)
+        {
+            if (object == nullptr || object->GetParent() != nullptr || object->GetCanvas() != this
+                || m_rootSeen.Contains(object))
+            {
+                continue;
+            }
+            SafePtr<Object::GameObject> reference = object->SafeFromThis();
+            if (reference.IsValid())
+            {
+                m_rootSeen.TryAdd(object, std::uint8_t{1});
+                m_rootOrder.Add(std::move(reference));
+            }
+        }
+    }
+
     Bool Canvas::SetRootIndex(Object::GameObject* object, std::size_t index)
     {
         std::size_t current = 0;
@@ -655,7 +681,7 @@ namespace JBro
     {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         const Bool reuse = preferredId != InvalidInstanceId
-            && registry.Resolve(owner->GetInstanceId(), preferredId, category).Pointer == nullptr;
+            && false == registry.IsRegistered(owner->GetInstanceId(), preferredId, category);
         const InstanceId componentId = reuse ? preferredId : GenerateCanvasInstanceId();
         const InstanceHandle handle = registry.Register(
             owner->GetInstanceId(),
@@ -685,7 +711,7 @@ namespace JBro
     {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         const Bool reuse = preferredId != InvalidInstanceId
-            && registry.Resolve(owner->GetInstanceId(), preferredId, RefCategory::Script).Pointer == nullptr;
+            && false == registry.IsRegistered(owner->GetInstanceId(), preferredId, RefCategory::Script);
         const InstanceId scriptId = reuse ? preferredId : GenerateCanvasInstanceId();
         const InstanceHandle handle = registry.Register(owner->GetInstanceId(), scriptId, RefCategory::Script, script);
         if (false == handle.IsSet())

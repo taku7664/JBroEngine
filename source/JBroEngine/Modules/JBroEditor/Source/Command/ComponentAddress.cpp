@@ -24,6 +24,15 @@ namespace JBro
         return component != nullptr ? component->GetTypeId() : InvalidComponentTypeId;
     }
 
+    InstanceId AttachedRef::GetInstanceId() const
+    {
+        if (script != nullptr)
+        {
+            return script->GetInstanceId();
+        }
+        return component != nullptr ? component->GetInstanceId() : InvalidInstanceId;
+    }
+
     Bool AttachedRef::IsEnabled() const
     {
         if (script != nullptr)

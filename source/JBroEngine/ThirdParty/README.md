@@ -31,7 +31,7 @@ include 경로를 선언해야 하고, 선언하지 않은 모듈에서 include 
 
 ### nlohmann-json — v3.12.0, MIT
 
-`JBroScriptLanguageServer` 내부의 LSP/JSON-RPC 경계에서만 사용한다(D-315). 엔진 프로젝트 파일은 YAML을 유지한다.
+`JBroScriptLanguageServer` 내부의 LSP/JSON-RPC 경계에서만 사용한다(D-316). 엔진 프로젝트 파일은 YAML을 유지한다.
 공식 `v3.12.0` 태그의 `single_include/nlohmann/json.hpp`와 `LICENSE.MIT`를 그대로 넣었다.
 헤더 전용이지만 `nlohmann-json/nlohmann-json.vcxproj`로 의존을 선언하며 공개 분석 헤더에는 JSON 타입을 노출하지 않는다.
 헤더 SHA-256은 `AAF127C04CB31C406E5B04A63F1AE89369FCCDE6D8FA7CDDA1ED4F32DFC5DE63`이다.

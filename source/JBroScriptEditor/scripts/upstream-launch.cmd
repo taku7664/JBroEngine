@@ -9,6 +9,7 @@ for %%A in (%*) do (
 	for /f "tokens=1 delims==" %%B in ("%%~A") do (
 		if /i "%%B"=="--user-data-dir" goto bad_user_data
 		if /i "%%B"=="--extensions-dir" goto bad_extensions
+		if /i "%%B"=="--locale" goto bad_locale
 	)
 )
 call "%~dp0upstream-env.cmd"
@@ -16,7 +17,11 @@ if errorlevel 1 exit /b 1
 
 set VSCODE_SKIP_PRELAUNCH=1
 if not defined JBRO_EDITOR_USER_DATA set "JBRO_EDITOR_USER_DATA=%JBRO_TOOLCHAIN%\user-data"
-call "%JBRO_UPSTREAM%\scripts\code.bat" --user-data-dir "%JBRO_EDITOR_USER_DATA%" --extensions-dir "%JBRO_TOOLCHAIN%\extensions" --extensionDevelopmentPath="%~dp0..\extensions\jbro-engine" --extensionDevelopmentPath="%~dp0..\extensions\jbro-languages" %*
+set "JBRO_LOCALE_ARG="
+if defined JBRO_EDITOR_LOCALE set "JBRO_LOCALE_ARG=--locale=%JBRO_EDITOR_LOCALE%"
+node "%~dp0prepare-korean.mjs" "%JBRO_EDITOR_USER_DATA%"
+if errorlevel 1 exit /b 1
+call "%JBRO_UPSTREAM%\scripts\code.bat" --user-data-dir "%JBRO_EDITOR_USER_DATA%" --extensions-dir "%JBRO_TOOLCHAIN%\extensions" --extensionDevelopmentPath="%~dp0..\extensions\jbro-engine" --extensionDevelopmentPath="%~dp0..\extensions\jbro-languages" --extensionDevelopmentPath="%~dp0..\extensions\jbro-korean" %JBRO_LOCALE_ARG% %*
 exit /b %errorlevel%
 
 :bad_user_data
@@ -25,4 +30,8 @@ exit /b 1
 
 :bad_extensions
 echo upstream-launch: extensions-dir is managed by this launcher
+exit /b 1
+
+:bad_locale
+echo upstream-launch: set JBRO_EDITOR_LOCALE instead of passing --locale
 exit /b 1
