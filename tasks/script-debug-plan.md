@@ -94,11 +94,32 @@
 
 ## 4. 단계
 
-1. **스크립트 예외 보호.** 엔진이 스크립트를 부르는 자리 목록, SEH 보호, 실행 멈춤과 되돌리기, 알림. 디버거 없이도 쓸모가 있어 먼저 한다.
+1. ~~**스크립트 예외 보호.**~~ → 완료 2026-10-15. 아래 §4.1.
 2. **중단점 루프.** 중단점 표·VEH·멈춘 동안의 에디터 루프와 편집 막기·재개·정지.
 3. **어댑터 연결.** 통로, noninvasive 붙기, `.cxr` 기준 스택과 변수, 줄 → 주소.
 4. **한 줄 가기.** 들어가기·넘어가기·나가기.
 5. **디버그 시작 메뉴.** 어댑터를 띄우고 붙은 뒤 실행한다.
+
+### 4.1 스크립트 예외 보호 (1 단계)
+
+- `JBroRuntime` 의 `ScriptGuard`(`ScriptGuard.h`): `Call(hook, callable)` 이 SEH 로 감싼다. 켜져 있지 않으면(게임) 그냥 부른다. 첫 예외의 코드·주소·훅·스택(32 칸)을 적고, 꺼낼 때까지 다음 훅은 부르지 않는다.
+  스택 넘침은 스택을 읽지 않고 받은 뒤 `_resetstkoflw` 로 지킴 페이지를 되살린다. 상태는 링크한 바이너리마다 있어 스크립트 DLL 의 사본은 꺼진 채다.
+- 감싼 자리(전수, 2026-10-15 `grep` 으로 엔진이 스크립트 훅을 부르는 자리를 모두 찾았다): `ScriptSystem` 의 `OnCreate`·`OnStart`·`OnUpdate`·`OnFixedUpdate`·`OnDestroy`,
+  `Physics2DSystem` 의 충돌·트리거 여섯, `Button2DSystem` 의 포인터·클릭 다섯, `Canvas` 의 `OnAttached`·`OnDetached`, `GameScriptBase::SetEnabled` 의 `OnEnabled`·`OnDisabled`. 3D 에는 스크립트 훅을 부르는 자리가 없다.
+  감싸지 않은 것: 스크립트의 생성자·소멸자(스크립트 풀이 만들고 지울 때), DLL 을 실을 때의 정적 초기화.
+- 플랫폼(`IPlatform`): `CaptureFaultFrames` 가 예외 자리부터 함수 표로 거슬러 올라가고(`RtlVirtualUnwind`, 필터 안이라 할당·잠금 없음), `DescribeCodeAddress` 가 dbghelp 로 모듈·함수·파일·줄을 준다. Windows 만 구현했다.
+- 에디터: `Initialize` 에서 켜고 `ReleaseProcessResources` 에서 끈다. `PollScriptFault` 가 프레임 앞에서 꺼내, 스택을 로그에 적고, 실행 중이면 `StopSimulation`, 오류 알림(`notify.script_fault_stopped`·`notify.script_fault`)을 띄운다.
+  알릴 줄은 스택에서 처음 나오는 스크립트 DLL 프레임이다. 스크립트 DLL 은 세대마다 다른 이름의 사본이라, 진입점(`JBroScriptModule_GetApi`)이 든 모듈의 경로와 맞춘다. 알림을 누르면 그 줄을 연다(`OpenInScriptEditor`).
+- 시험: `ScriptGuard` 묶음(꺼짐·null 쓰기의 코드와 파일·줄·호출한 쪽까지의 스택·예외 뒤 막힘·스택 넘침 두 번·C++ 예외), `ScriptFault` 묶음(적대적 시나리오, 아래), `EditorApplication` 의 `TestAScriptFaultStopsPlayAndTellsTheUser`.
+- **적대적 시나리오**(`ScriptFault`): 시험이 등록한 스크립트를 에디터의 진짜 `ScriptSystem`·물리 경로로 돌려 터트린다. `OnCreate` 의 null 쓰기, `OnStart` 의 C++ 예외, `OnUpdate` 의 null 쓰기·정수 0 나누기·끝없는 재귀·`__debugbreak`,
+  `OnFixedUpdate` 의 null 쓰기, `OnCollisionEnter` 의 null 쓰기, 오브젝트 20 개를 만들고 남의 오브젝트를 지우고 값을 옮긴 뒤의 null 쓰기, 스크립트가 붙은 오브젝트를 지운 뒤의 null 쓰기, 일시정지에서 한 프레임 진행으로 들어간 null 쓰기.
+  시나리오마다 실행이 멈추고, 예외가 꼭 하나만 나고(같은 프레임의 둘째 스크립트 훅이 불리지 않는다), 에디터 프레임이 계속 돌고, **캔버스 글자가 실행 전과 똑같고**, 오류 알림과 예외 코드 로그가 남고, 다음 실행에서 훅이 다시 돈다. 같은 에디터에서 두 바퀴 돌린다.
+  편집 중 `OnAttached` 의 null 쓰기는 멈출 것 없이 알리기만 하고 캔버스를 그대로 둔다. 2026-10-15 22 시나리오와 편집 중 하나가 모두 지났다(2.3 초).
+- 뮤테이션 셋 모두 잡혔다: 실행을 멈추지 않게 하면 "the fault must stop the simulation", 예외 뒤 훅을 막지 않으면 "a hook after a fault is refused", `_resetstkoflw` 를 빼면 두 번째 스택 넘침에서 시험 프로세스가 죽는다.
+- 실제 에디터(워크트리 Debug, 2026-10-15): 실제 스크립트 DLL 이 120 번째 `OnUpdate` 에서 null 에 쓰자 실행이 멈추고 캔버스가 돌아왔으며, 알림이 `잘못된 메모리에 접근했습니다 - NewScript.cpp:20 (OnUpdate)` 로 그 줄을 가리켰다.
+  끝없는 재귀는 `스택이 넘쳤습니다 ... NewScript.cpp:6` 으로 재귀 함수를 가리켰다. 알림을 눌러 편집기가 열리는 것은 재지 않았다.
+- 찾은 것(이 단계와 무관, 고치지 않았다): `OnDestroy` 는 시스템이 내려갈 때(`ScriptSystem::OnShutdown`)만 불린다. 실행 중에 오브젝트를 지울 때도, 정지할 때도 불리지 않는다.
+  최소화 상태(`-WindowStyle Minimized`)로 띄운 에디터가 `the editor could not initialize` 로 끝난다 - 원인은 보지 않았다.
 
 ## 5. 대체한 계획
 
