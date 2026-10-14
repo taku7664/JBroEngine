@@ -6,5 +6,8 @@
 	"Sign in to GitHub": "GitHub 로그인",
 	"GitHub account could not be read. Click to try signing in.": "GitHub 계정을 확인하지 못했습니다. 로그인하려면 클릭하세요.",
 	"Sign in to use GitHub with JBro Script Editor.": "JBro Script Editor에서 GitHub를 사용하려면 로그인하세요.",
-	"GitHub sign-in failed. Try again.": "GitHub 로그인에 실패했습니다. 다시 시도하세요."
+	"GitHub sign-in failed. Try again.": "GitHub 로그인에 실패했습니다. 다시 시도하세요.",
+	"Engine log is disconnected. Waiting for the engine editor.": "엔진 로그 연결이 끊겼습니다. 엔진 편집기를 기다리는 중입니다.",
+	"Earlier occurrences were omitted": "이전 발생 기록은 보관 한도를 넘어 생략되었습니다",
+	"Engine log could not be read: {0}": "엔진 로그를 읽지 못했습니다: {0}"
 }

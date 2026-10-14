@@ -3,11 +3,13 @@
 const vscode = require('vscode');
 const { createGitHubAccounts } = require('./accounts.cjs');
 const { createWorkspaceView } = require('./workspace.cjs');
+const { createEngineLogView } = require('./engine-logs.cjs');
 
 function activate(context) {
 	const accounts = createGitHubAccounts(vscode);
 	context.subscriptions.push(
 		createWorkspaceView(vscode),
+		createEngineLogView(vscode),
 		accounts,
 		vscode.commands.registerCommand('jbro.git.signIn', () => accounts.signIn()),
 		vscode.commands.registerCommand('jbro.git.manageAccount', () => accounts.manageAccount())

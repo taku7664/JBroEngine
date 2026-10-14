@@ -7,6 +7,8 @@
 #include <JBro/Network/Socket.h>
 
 #include <string_view>
+#include <charconv>
+#include <limits>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 
@@ -108,8 +110,227 @@ namespace JBro
             writer.WriteBool("Confirming", guide.IsConfirming());
         }
 
+        constexpr std::size_t LogPageSize = 64;
+
+        void WriteUInt(YamlWriter& writer, const char* name, UInt64 value)
+        {
+            char digits[32] = {};
+            const auto written = std::to_chars(digits, digits + sizeof(digits) - 1, value.Get());
+            if (written.ec == std::errc{})
+            {
+                writer.WriteString(name, digits);
+            }
+        }
+
+        // The YAML writer deliberately writes raw scalars. Logs can contain newlines and
+        // protocol delimiter lines, so only base64 data crosses this line protocol.
+        String Base64(const char* source)
+        {
+            static constexpr char Alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            const char* data = source != nullptr ? source : "";
+            const std::size_t length = std::strlen(data);
+            String encoded;
+            encoded.reserve(((length + 2) / 3) * 4);
+            for (std::size_t index = 0; index < length; index += 3)
+            {
+                const unsigned a = static_cast<unsigned char>(data[index]);
+                const unsigned b = index + 1 < length ? static_cast<unsigned char>(data[index + 1]) : 0;
+                const unsigned c = index + 2 < length ? static_cast<unsigned char>(data[index + 2]) : 0;
+                encoded += Alphabet[a >> 2];
+                encoded += Alphabet[((a & 3) << 4) | (b >> 4)];
+                encoded += index + 1 < length ? Alphabet[((b & 15) << 2) | (c >> 6)] : '=';
+                encoded += index + 2 < length ? Alphabet[c & 63] : '=';
+            }
+            return encoded;
+        }
+
+        Bool ReadUInt(const YamlDocument& document, UInt32 root, const char* key, UInt64& value)
+        {
+            String raw;
+            if (false == document.FindScalar(root, key, raw))
+            {
+                return false;
+            }
+            std::uint64_t parsed = 0;
+            const auto read = std::from_chars(raw.data(), raw.data() + raw.size(), parsed);
+            if (read.ec != std::errc{} || read.ptr != raw.data() + raw.size())
+            {
+                return false;
+            }
+            value = parsed;
+            return true;
+        }
+
+        Bool ParseLogBody(const String& body, YamlDocument& document, String& error)
+        {
+            if (body.empty())
+            {
+                return true;
+            }
+            YamlError failure;
+            if (false == document.Parse(body.data(), body.size(), failure)
+                || document.GetKind(document.GetRoot()) != YamlKind::Map)
+            {
+                error = "invalid log cursor YAML";
+                return false;
+            }
+            return true;
+        }
+
+        void WriteLogIdentity(YamlWriter& writer)
+        {
+            writer.WriteInt("Protocol", 1);
+            WriteUInt(writer, "Session", Log::GetSessionId());
+            WriteUInt(writer, "Clear", Log::GetClearEpoch());
+            WriteUInt(writer, "Revision", Log::GetRevision());
+            WriteUInt(writer, "GroupCount", static_cast<std::uint64_t>(Log::GetGroupCount()));
+            const LogEntry* oldest = Log::GetAt(0);
+            const LogEntry* latest = Log::GetAt(Log::GetCount() == 0 ? 0 : Log::GetCount() - 1);
+            WriteUInt(writer, "FirstRetained", oldest != nullptr ? oldest->serial : UInt64(0));
+            WriteUInt(writer, "Latest", latest != nullptr ? latest->serial : UInt64(0));
+        }
+
+        void WriteLogSince(const String& body, String& reply)
+        {
+            YamlDocument document;
+            String error;
+            if (false == ParseLogBody(body, document, error))
+            {
+                AppendError(reply, error);
+                return;
+            }
+            const UInt32 root = document.GetRoot();
+            UInt64 after = 0;
+            UInt64 requestedSession = 0;
+            UInt64 requestedClear = 0;
+            if (root != YamlDocument::InvalidNode)
+            {
+                for (const char* key : { "After", "Session", "Clear" })
+                {
+                    UInt64* target = key[0] == 'A' ? &after : (key[0] == 'S' ? &requestedSession : &requestedClear);
+                    if (document.Find(root, key) != YamlDocument::InvalidNode
+                        && false == ReadUInt(document, root, key, *target))
+                    {
+                        AppendError(reply, "invalid log cursor number");
+                        return;
+                    }
+                }
+            }
+            const Bool reset = (requestedSession != 0 && requestedSession != Log::GetSessionId())
+                || (requestedSession != 0 && requestedClear != Log::GetClearEpoch());
+            if (reset)
+            {
+                after = 0;
+            }
+            const LogEntry* oldest = Log::GetAt(0);
+            const Bool gap = oldest != nullptr && after < oldest->serial - 1;
+            YamlWriter writer;
+            WriteLogIdentity(writer);
+            writer.WriteBool("Reset", reset);
+            writer.WriteBool("Gap", gap);
+            writer.BeginSequence("Entries");
+            std::size_t written = 0;
+            UInt64 last = after;
+            const std::size_t count = Log::GetCount();
+            for (std::size_t index = 0; index < count && written < LogPageSize; ++index)
+            {
+                const LogEntry* entry = Log::GetAt(index);
+                if (entry == nullptr || entry->serial <= after)
+                {
+                    continue;
+                }
+                writer.BeginMap(nullptr);
+                WriteUInt(writer, "Serial", entry->serial);
+                WriteUInt(writer, "TimeMs", entry->timestampMs);
+                writer.WriteInt("Level", static_cast<Int64>(entry->level));
+                writer.WriteString("Category64", Base64(entry->category).c_str());
+                writer.WriteString("Message64", Base64(entry->message).c_str());
+                WriteUInt(writer, "GroupId", entry->groupId);
+                if (entry->groupId != 0)
+                {
+                    const LogGroup* group = Log::GetGroupAt(static_cast<std::size_t>(entry->groupId.Get() - 1));
+                    if (group != nullptr)
+                    {
+                        writer.WriteString("GroupKey64", Base64(group->key.c_str()).c_str());
+                        writer.WriteString("GroupDisplay64", Base64(group->display).c_str());
+                        writer.WriteInt("GroupLevel", static_cast<Int64>(group->latestLevel));
+                        WriteUInt(writer, "GroupCount", group->count);
+                        WriteUInt(writer, "GroupLatest", group->latestSerial);
+                        WriteUInt(writer, "GroupTimeMs", group->latestTimestampMs);
+                    }
+                }
+                writer.EndMap();
+                last = entry->serial;
+                ++written;
+            }
+            writer.EndSequence();
+            const LogEntry* latest = Log::GetAt(count == 0 ? 0 : count - 1);
+            writer.WriteBool("More", latest != nullptr && latest->serial > last);
+            AppendOk(reply, writer.GetText());
+        }
+
+        void WriteLogGroups(const String& body, String& reply)
+        {
+            YamlDocument document;
+            String error;
+            if (false == ParseLogBody(body, document, error))
+            {
+                AppendError(reply, error);
+                return;
+            }
+            UInt64 afterId = 0;
+            const UInt32 root = document.GetRoot();
+            if (root != YamlDocument::InvalidNode
+                && document.Find(root, "AfterId") != YamlDocument::InvalidNode
+                && false == ReadUInt(document, root, "AfterId", afterId))
+            {
+                AppendError(reply, "invalid group cursor number");
+                return;
+            }
+            YamlWriter writer;
+            WriteLogIdentity(writer);
+            writer.BeginSequence("Groups");
+            const std::size_t start = static_cast<std::size_t>(std::min<std::uint64_t>(afterId.Get(), Log::GetGroupCount()));
+            const std::size_t end = std::min(start + LogPageSize, Log::GetGroupCount());
+            for (std::size_t index = start; index < end; ++index)
+            {
+                const LogGroup* group = Log::GetGroupAt(index);
+                writer.BeginMap(nullptr);
+                WriteUInt(writer, "Id", group->id);
+                writer.WriteString("Key64", Base64(group->key.c_str()).c_str());
+                writer.WriteString("Display64", Base64(group->display).c_str());
+                writer.WriteInt("Level", static_cast<Int64>(group->latestLevel));
+                WriteUInt(writer, "Count", group->count);
+                WriteUInt(writer, "First", group->firstSerial);
+                WriteUInt(writer, "Latest", group->latestSerial);
+                WriteUInt(writer, "TimeMs", group->latestTimestampMs);
+                writer.EndMap();
+            }
+            writer.EndSequence();
+            writer.WriteBool("More", end < Log::GetGroupCount());
+            AppendOk(reply, writer.GetText());
+        }
+
         void HandleCommand(EditorApplication& editor, const String& command, const String& body, String& reply)
         {
+            if (command == "log.since" || command == "log.snapshot")
+            {
+                WriteLogSince(command == "log.snapshot" ? String() : body, reply);
+                return;
+            }
+            if (command == "log.groups")
+            {
+                WriteLogGroups(body, reply);
+                return;
+            }
+            if (command == "log.clear")
+            {
+                Log::Clear();
+                YamlWriter writer;
+                WriteLogIdentity(writer);
+                AppendOk(reply, writer.GetText());
+                return;
+            }
             if (command == "guide.start")
             {
                 String error;

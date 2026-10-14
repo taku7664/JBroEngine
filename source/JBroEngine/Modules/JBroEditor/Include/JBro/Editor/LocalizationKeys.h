@@ -560,6 +560,7 @@ namespace JBro::LocKeys
     inline constexpr const char* LogClear = "log.clear";
     inline constexpr const char* LogAutoScroll = "log.auto_scroll";
     inline constexpr const char* LogEmpty = "log.empty";
+    inline constexpr const char* LogEarlierOmitted = "log.earlier_omitted";
     inline constexpr const char* LogTrace = "log.trace";
     inline constexpr const char* LogDebug = "log.debug";
     inline constexpr const char* LogInfo = "log.info";

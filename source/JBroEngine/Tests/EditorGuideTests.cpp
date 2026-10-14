@@ -2192,8 +2192,65 @@ namespace
         Check(client->Connect("memory", JBro::EditorControlPort::DefaultPort), "a tool connects");
         JBro::String buffer;
 
-        SendAll(*client, "guide.catalog\n...\n", pump);
+        JBro::Log::Clear();
+        const JBro::UInt64 logClear = JBro::Log::GetClearEpoch();
+        JBro::Log::WriteGrouped(JBro::LogLevel::Error, "script", "probe:target2", "line\n...\nend");
+        JBro::Log::WriteGrouped(JBro::LogLevel::Error, "script", "probe:target2", "next object");
+        JBro::Log::Write(JBro::LogLevel::Info, "script", "plain");
+        SendAll(*client, "log.since\n...\n", pump);
         JBro::String reply = ReadReply(*client, buffer, pump);
+        Check(StartsWith(reply, "ok\nProtocol: 1\n") && Contains(reply, "Entries:")
+            && Contains(reply, "GroupCount: 2") && Contains(reply, "Message64:")
+            && false == Contains(reply, "line\n...\nend"),
+            "log transfer keeps grouped counts and encodes delimiter lines");
+        Check(Contains(reply, "More: false") && Contains(reply, "Gap: true"),
+            "the first page reaches the end and reports serials lost before clear");
+        SendAll(*client, "log.groups\n...\n", pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(Contains(reply, "GroupCount: 1") && Contains(reply, "Count: 2")
+            && Contains(reply, "Display64:"),
+            "group summaries carry the exact count");
+        SendAll(*client, "log.clear\n...\n", pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(JBro::Log::GetClearEpoch() == logClear + 1 && Contains(reply, "Clear:"),
+            "remote clear changes the host generation");
+        JBro::String stale = "log.since\nSession: ";
+        stale += std::to_string(JBro::Log::GetSessionId().Get()).c_str();
+        stale += "\nClear: ";
+        stale += std::to_string(logClear.Get()).c_str();
+        stale += "\nAfter: 2\n...\n";
+        SendAll(*client, stale, pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(Contains(reply, "Reset: true") && Contains(reply, "Entries:\n  []"),
+            "a stale client sees clear and resets its cache");
+
+        JBro::Log::Clear();
+        for (JBro::Int32 index = 0; index < 65; ++index)
+        {
+            JBro::Log::Write(JBro::LogLevel::Info, "page", "entry %d", index);
+        }
+        SendAll(*client, "log.since\n...\n", pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(Contains(reply, "More: true") && Contains(reply, "Gap: true"),
+            "a full log page exposes continuation and the older cleared serials");
+        JBro::String continuation = "log.since\nAfter: ";
+        continuation += std::to_string(JBro::Log::GetAt(63)->serial.Get()).c_str();
+        continuation += "\nSession: ";
+        continuation += std::to_string(JBro::Log::GetSessionId().Get()).c_str();
+        continuation += "\nClear: ";
+        continuation += std::to_string(JBro::Log::GetClearEpoch().Get()).c_str();
+        continuation += "\n...\n";
+        SendAll(*client, continuation, pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(Contains(reply, "More: false") && Contains(reply, "Gap: false")
+            && Contains(reply, "Message64: ZW50cnkgNjQ="),
+            "the next page contains only the last occurrence");
+        SendAll(*client, "log.since\nAfter: invalid\n...\n", pump);
+        Check(StartsWith(ReadReply(*client, buffer, pump), "error: invalid log cursor number"),
+            "a bad cursor cannot silently restart the stream");
+
+        SendAll(*client, "guide.catalog\n...\n", pump);
+        reply = ReadReply(*client, buffer, pump);
         Check(StartsWith(reply, "ok\n") && Contains(reply, "object.delete") && Contains(reply, "$stepId"), "the catalog comes back");
 
         // 가이드와 물음을 한 번에 보낸다. 줄 끝이 `\r\n` 이어도 된다.
