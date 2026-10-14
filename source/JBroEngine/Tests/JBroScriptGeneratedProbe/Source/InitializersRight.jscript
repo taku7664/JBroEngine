@@ -1,0 +1,64 @@
+class InitRight
+{
+    public Int value = InitLeft.Seed()
+
+    public static fn Seed() -> Int
+    {
+        return 11
+    }
+}
+
+struct InitSnapshot
+{
+    Int value = InitLeft.Seed()
+}
+
+class InitHolder
+{
+    public InitLeft owned
+}
+
+class InitLabel
+{
+    public String label = "temporary field value must remain alive until it is copied out of the completed owner"
+}
+
+class InitLabelReader
+{
+    fn Optional() -> ref InitLabel
+    {
+        return InitLabel()
+    }
+
+    fn Values() -> Array<InitLabel>
+    {
+        Array<InitLabel> values
+        values.Add(InitLabel())
+        return values
+    }
+
+    fn OptionalValues() -> ref Array<InitLabel>
+    {
+        return Values()
+    }
+
+    public fn Read() -> String
+    {
+        return InitLabel().label
+    }
+
+    public fn ReadOptional() -> String
+    {
+        return Optional()!.label
+    }
+
+    public fn ReadIndex() -> String
+    {
+        return Values()[0].label
+    }
+
+    public fn ReadOptionalIndex() -> String
+    {
+        return OptionalValues()[0].label
+    }
+}

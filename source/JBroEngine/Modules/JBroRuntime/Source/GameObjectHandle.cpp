@@ -24,6 +24,11 @@ namespace JBro
         return Resolve() != nullptr;
     }
 
+    Bool Handle::GameObject::operator==(const GameObject& other) const
+    {
+        return m_instanceId == other.m_instanceId;
+    }
+
     Handle::GameObject::operator bool() const
     {
         return IsValid();

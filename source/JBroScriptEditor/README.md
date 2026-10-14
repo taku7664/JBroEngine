@@ -70,12 +70,58 @@ Code-OSS `TreeView` API를 사용해 열린 작업 폴더의 파일을 읽기 �
 | 경로 | 내용 |
 |---|---|
 | `extensions/jbro-engine` | 다섯 드롭다운 메뉴·워크스페이스 트리·테마·표시 설정·기존 패널/태스크 명령, GitHub 로그인·계정 관리 연결. 엔진 전용 프로젝트·빌드 연결은 아직 구현하지 않았다 |
-| `extensions/jbro-languages` | `.jscript` 언어 등록과 TextMate 문법, `.jproject`·`.jcanvas`·`.jprefab` 의 YAML 연결 |
+| `extensions/jbro-languages` | `.jscript` 문법 강조와 `JBroc --lsp` 연결, `.jproject`·`.jcanvas`·`.jprefab` 의 YAML 연결 |
 | `extensions/jbro-korean` | 고정 vscode-loc 한국어 팩의 번역 파일 95개와 MIT 라이선스. 본체·내장 확장 번역 |
 | `scripts/check-nls.mjs` | 확장의 번역 파일이 빠짐없이 채워졌는지 검사한다 |
 | `scripts/check-korean-pack.mjs` | 번역 파일·라이선스·문제 패널/제한 모드 필수 한국어 키를 검사한다 |
 | `scripts/run-grammar-tests.mjs` | 문법 단언 테스트와 스냅숏 테스트를 돌린다 |
 | `scripts/generate-theme.mjs` | 엔진 팔레트에서 `themes/jbro-engine-color-theme.json`을 생성한다. `themes/syntax-tokens.json`은 문법 강조용 색만 제공한다 |
+
+## JBroScript 편집 진단
+
+개발 확장의 의존성을 설치하고 엔진의 `JBroc.exe`를 빌드한다. `npm test`는 언어 서버를 실행하지 않으므로
+실제 편집기 연결을 확인하려면 아래 설치와 확장 호스트 검사가 별도로 필요하다.
+
+```powershell
+npm ci --prefix extensions/jbro-languages
+```
+
+`scripts/upstream-launch.cmd`로 `.jproject` 파일이 하나 있는 프로젝트 폴더를 열고 `.jscript` 파일을 연다.
+확장은 해당 폴더에서 `JBroc --lsp`를 시작한다. 저장하지 않은 수정도 분석하며 문법·타입·null 접근 등의
+진단은 편집기 밑줄과 **오류/로그 → Problems**에 나타난다. 오류를 고치면 진단이 갱신된다.
+자동완성·정의 이동 등 서버의 편집 기능도 이 연결을 사용한다. 서버 로그는 **Output → JBroScript**에서 확인한다.
+
+엔진 편집기가 실행 중이면 **오류/로그 → 엔진 로그**에서 엔진 호스트가 기록한 로그를 별도 패널로 볼 수 있다.
+같은 로그가 엔진 ImGui 로그 패널에도 보인다. 명시적 묶음 키가 있는 오류는 최신 시각과 누적 횟수를 보이고,
+펼치면 보관된 발생별 시각·메시지가 나온다. **지우기**는 엔진 호스트의 로그를 지워 두 화면을 함께 갱신한다.
+제어 포트 기본값은 3663이며 다른 번호로 엔진을 띄웠다면 `jbro.engine.controlPort`를 같은 번호로 설정한다.
+이 패널은 Problems의 언어 진단과 별개이며, C++ 이미터가 완성되기 전에는 JBroScript 실행 오류가 아직 발생하지 않는다.
+
+기본 실행 파일은 이 저장소의 `source/JBroEngine/Build/x64/Debug/JBroc.exe`, 없으면 `Release/JBroc.exe`다.
+다른 빌드 위치나 루트에 여러 `.jproject` 파일이 있는 경우 작업 폴더 설정에 경로를 지정한다.
+
+```json
+{
+  "jbro.jbroscript.serverPath": "F:\\AI\\builds\\jbroscript-language-server\\x64\\Debug\\JBroc.exe",
+  "jbro.jbroscript.projectFile": "Game.jproject"
+}
+```
+
+상대 경로는 작업 폴더 기준이다. 신뢰한 작업 폴더에서만 서버를 실행한다. 현재의 진단은 JBroScript 분석 결과이며
+C++ 코드 생성·C++ 컴파일·게임 실행 결과는 아니다. C++ 스크립트 빌드 태스크의 결과를 Problems에 모으는
+작업도 아직 별개다.
+
+저장소 안의 예제를 직접 보려면 `source/JBroScriptEditor`에서 다음처럼 개발 편집기를 연다.
+
+```powershell
+$env:JBRO_EDITOR_WORK = 'F:\Project\JBroScriptEditor'
+./scripts/upstream-launch.cmd (Resolve-Path 'extensions/jbro-languages/test/fixtures/sample-project').Path
+```
+
+`Contents/Scripts/PatrolProbe.jscript`를 열어 `target.position`을 `target.missing`으로 바꾸면 `JBC3032`, 첫 줄의
+`script`를 `scri!t`로 바꾸면 `JBC2001`이 Problems에 나타난다. 수정 전으로 되돌리면 사라진다.
+`ref` 대상의 일반 멤버 접근은 편집 시 null 오류로 막지 않는다. 실제 실행 중 자동 검사·콜백 중단은 C++ 이미터 단계에 남아 있다.
+이 예제의 자동 확장 호스트 시험은 `extensions/jbro-languages/test/extension-host.cjs`다.
 
 ## 테스트
 

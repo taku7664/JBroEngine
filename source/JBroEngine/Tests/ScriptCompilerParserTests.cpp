@@ -168,7 +168,7 @@ namespace
             "      FloatLiteral 9.8\n"
             "    FieldDeclaration secret {Private}\n"
             "      TypeName Int\n",
-            "a script with parents, attributes, modifiers, ref and nested generic fields");
+            "a script with parents, attributes, modifiers, nullable and nested generic fields");
 
         CheckTree(
             "class Inventory\n{\n}\n"
@@ -676,11 +676,11 @@ namespace
             return;
         }
         const std::string document((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        const std::size_t section = document.find("## 13.");
-        Check(std::string::npos != section, "the syntax document has a section 13");
-        const std::size_t fence = document.find("```\n", section);
-        Check(std::string::npos != fence, "section 13 has a code block");
-        const std::size_t begin = fence + 4;
+        const std::size_t section = document.find("## 14.");
+        Check(std::string::npos != section, "the syntax document has the D-262 section 14");
+        const std::size_t fence = document.find("```", section);
+        Check(std::string::npos != fence, "section 14 has a code block");
+        const std::size_t begin = document.find('\n', fence) + 1;
         const std::size_t end = document.find("\n```", begin);
         Check(std::string::npos != end, "the code block closes");
 
@@ -710,9 +710,23 @@ namespace
         }
         Check(result.Diagnostics.GetCount() == 0, "the full example of the syntax document parses without errors");
         const ArrayView<const NodeIndex> declarations = result.Tree.GetChildren(result.Tree.GetRoot());
-        Check(declarations.Size() == 5, "the example declares an enum, an interface, a struct, a class and a script");
-        Check(SyntaxKind::ScriptDeclaration == result.Tree.Get(declarations[4]).Kind
-            && result.Tree.Get(declarations[4]).Text == "Enemy", "the last declaration is the Enemy script");
+        Check(declarations.Size() == 1, "the D-262 example declares one script");
+        Check(SyntaxKind::ScriptDeclaration == result.Tree.Get(declarations[0]).Kind
+            && result.Tree.Get(declarations[0]).Text == "Enemy", "the D-262 example declares Enemy");
+    }
+
+    void TestEqualityOperatorDeclarationsParse()
+    {
+        ParseResult result("struct Box\n{\n"
+            "    fn operator==(Box other) -> Bool\n    {\n        return true\n    }\n"
+            "    fn operator !=(Box other) -> Bool\n    {\n        return false\n    }\n}\n");
+        Check(result.Diagnostics.GetCount() == 0, "equality operator declarations parse with or without a space");
+        const NodeIndex box = result.Tree.GetChild(result.Tree.GetRoot(), 0);
+        const NodeIndex equal = result.Tree.GetChild(box, 1);
+        const NodeIndex unequal = result.Tree.GetChild(box, 2);
+        Check((result.Tree.Get(equal).Flags & SyntaxFlagOperatorEqual) != 0
+                && (result.Tree.Get(unequal).Flags & SyntaxFlagOperatorNotEqual) != 0,
+            "operator declarations retain their distinct equality tokens");
     }
 }
 
@@ -726,6 +740,7 @@ JBro::Int32 RunScriptCompilerParserTests()
     TestControlFlow();
     TestRangesCoverTheirSource();
     TestErrors();
+    TestEqualityOperatorDeclarationsParse();
     TestTheSyntaxDocumentExampleParses();
     std::cout << "Script compiler parser tests passed.\n";
     return 0;

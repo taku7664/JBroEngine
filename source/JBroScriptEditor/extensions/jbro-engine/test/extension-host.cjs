@@ -13,6 +13,7 @@ async function run() {
 		'jbro.layout.showProject', 'jbro.layout.showGit', 'jbro.tools.build', 'jbro.tools.run', 'jbro.layout.showDiagnostics',
 		'jbro.project.openFolder', 'jbro.project.openFile', 'jbro.tools.showOutput', 'jbro.tools.showTerminal',
 		'jbro.workspace.refresh', 'jbro.workspace.files.focus', 'workbench.view.extension.jbro-workspace',
+		'jbro.engineLogs.show', 'jbro.engineLogs.clear', 'jbro.engineLogs.focus', 'workbench.view.extension.jbro-engine-logs',
 		'workbench.action.files.openFolder', 'workbench.action.files.openFile', 'workbench.action.output.toggleOutput', 'workbench.action.terminal.focus',
 		'workbench.view.explorer', 'workbench.view.scm', 'workbench.action.tasks.build', 'workbench.action.tasks.runTask', 'workbench.actions.view.problems']) {
 		assert.ok(commands.includes(command), `Command is registered: ${command}`);
@@ -21,6 +22,8 @@ async function run() {
 	assert.equal(manifest.contributes.submenus.length, 5);
 	assert.ok(manifest.contributes.menus['jbro/title'].every(item => item.submenu && !item.command), 'Menu headers must open submenus');
 	assert.equal(manifest.contributes.views['jbro-workspace'].length, 1);
+	assert.equal(manifest.contributes.views['jbro-engine-logs'][0].id, 'jbro.engineLogs');
+	assert.equal(vscode.workspace.getConfiguration('jbro.engine').get('controlPort'), 3663);
 	assert.equal(vscode.workspace.getConfiguration('workbench').get('colorTheme'), 'jbro-engine-dark');
 	assert.equal(vscode.workspace.getConfiguration('github-authentication').get('preferDeviceCodeFlow'), true);
 	assert.equal(vscode.workspace.getConfiguration('workbench.activityBar').get('location'), 'hidden');

@@ -28,6 +28,9 @@ namespace JBro
     //   guide.stop     돌던 가이드를 멈춘다.
     //   guide.status   돌고 있는지, 어느 가이드의 몇째 단계인지 YAML 로 답한다.
     //   guide.catalog  가이드가 쓸 수 있는 행동 목록을 YAML 로 답한다(`EditorGuides::WriteCatalog`).
+    //   log.since      본문의 After/Session/Clear 뒤의 호스트 로그를 최대 64건씩 돌려준다.
+    //   log.groups     본문의 AfterId 뒤의 명시적 묶음 요약을 최대 64건씩 돌려준다.
+    //   log.clear      호스트 로그를 지운다. 두 화면은 Clear 세대 변화로 동기화한다.
     class EditorControlPort
     {
     public:

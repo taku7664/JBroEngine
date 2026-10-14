@@ -1,88 +1,75 @@
-﻿#pragma once
+#pragma once
 
-#include <JBro/Types/Bool.h>
-#include <JBro/Types/UInt.h>
+#include <JBro/Runtime/ScriptErrorContext.h>
+#include <JBro/Runtime/Ref.h>
+#include <JBro/Runtime/Nullable.h>
 
-#if defined(_MSC_VER)
-#include <excpt.h>
-#endif
-
-namespace JBro
+namespace JBro::ScriptGuard
 {
-    // 스크립트 훅에서 난 예외 하나다(D-325). 엔진이 받은 그 자리의 값만 담는다 - 주소를 파일·줄로 바꾸는 일은 받은 뒤에 한다.
-    struct ScriptFault
+    struct AbortCallback final {};
+
+    template<typename T>
+    const T& RequireHandle(const T& handle, const char* siteKey, const char* message)
     {
-        static constexpr UInt32 MaxFrames = 32;
-
-        // 운영체제의 예외 코드다(`0xC0000005` 는 잘못된 메모리 접근).
-        UInt32 code = 0;
-        // 예외가 난 명령의 주소다.
-        UInt64 address = 0;
-        // 그때 엔진이 부르던 훅의 이름이다(`"OnUpdate"`). 문자열 리터럴만 넣는다.
-        const char* hook = nullptr;
-        // 예외 자리부터 바깥으로 거슬러 올라간 명령 주소다. 첫 칸이 예외 자리다. 붙잡는 함수가 없으면 비어 있다.
-        UInt64 frames[MaxFrames] = {};
-        UInt32 frameCount = 0;
-    };
-
-    // 예외 자리의 스택을 읽는 함수다. 호스트가 플랫폼의 구현을 넘긴다 - 이 모듈은 플랫폼을 보지 않는다.
-    // `exceptionPointers` 는 운영체제의 예외 정보(`EXCEPTION_POINTERS*`)다. 채운 칸 수를 돌려준다.
-    using ScriptFaultCapture = UInt32 (*)(void* user, const void* exceptionPointers, UInt64* frames, UInt32 capacity);
-
-    // **스크립트가 죽어도 에디터는 산다**(D-325). 엔진이 스크립트 코드를 부르는 자리는 모두 `ScriptGuard::Call` 을 거친다.
-    //
-    // 켜져 있으면 훅을 SEH 로 감싸 예외를 받고, 첫 예외를 적어 둔 뒤 **그다음 훅은 부르지 않는다** - 예외가 난 스크립트의
-    // 캔버스는 이미 믿을 수 없다. 호스트(에디터)가 다음 프레임에 적힌 것을 꺼내 실행을 멈추고 되돌린 뒤 `ClearFault` 한다.
-    // 꺼져 있으면(게임) 그냥 부른다 - 예외는 지금처럼 프로세스를 끝낸다.
-    //
-    // 막지 못하는 것: `__fastfail`(버퍼 넘침 검사·CRT 힙 손상)·`abort`·무한 루프. 스크립트가 엔진 메모리를 덮어쓴 뒤라면 그 순간은 넘겨도 뒤에 죽을 수 있다.
-    // **메인 스레드 전용이다.** 상태는 이 모듈을 링크한 바이너리마다 따로 있다 - 스크립트 DLL 에 든 사본은 켜지지 않으므로 호스트에서만 켠다.
-    namespace ScriptGuard
-    {
-        void Enable(ScriptFaultCapture capture, void* user);
-        void Disable();
-        Bool IsEnabled();
-
-        Bool HasFault();
-        const ScriptFault& GetFault();
-        void ClearFault();
-
-        namespace Detail
+        if (!handle.IsValid())
         {
-            // 예외 필터다. 예외를 적고 받겠다고 답한다.
-            int Filter(const void* exceptionPointers, const char* hook);
-            // 받은 뒤 처리다. 스택 넘침이면 지킴 페이지를 되살린다.
-            void Recover();
+            ReportScriptError(siteKey, message);
+            throw AbortCallback{};
         }
-
-        // 훅 하나를 부른다. 부르지 않았거나 예외가 났으면 거짓이다. `call` 은 인자 없는 호출 가능한 것이고 소멸자가 있는 값을 만들지 않는다.
-        template <typename Callable>
-        Bool Call(const char* hook, Callable&& call)
-        {
-            if (HasFault())
-            {
-                return false;
-            }
-            if (false == IsEnabled())
-            {
-                call();
-                return true;
-            }
-#if defined(_MSC_VER)
-            __try
-            {
-                call();
-            }
-            __except (Detail::Filter(_exception_info(), hook))
-            {
-                Detail::Recover();
-                return false;
-            }
-            return true;
-#else
-            call();
-            return true;
-#endif
-        }
+        return handle;
     }
+
+    // Lowered member access stores its receiver in one local, then calls one
+    // of these overloads. The returned reference is used inside that scope.
+    template<typename T>
+    T& Require(Nullable<T>& value, const char* siteKey, const char* message)
+    {
+        if (!value.HasValue())
+        {
+            ReportScriptError(siteKey, message);
+            throw AbortCallback{};
+        }
+        return value.Value();
+    }
+
+    template<typename T>
+    T& Require(Ref<T>& reference, const char* siteKey, const char* message)
+    {
+        T* object = reference.Get();
+        if (object == nullptr)
+        {
+            ReportScriptError(siteKey, message);
+            throw AbortCallback{};
+        }
+        return *object;
+    }
+
+    template<typename T>
+    T& Require(T& handle, const char* siteKey, const char* message)
+    {
+        if (!handle.IsValid())
+        {
+            ReportScriptError(siteKey, message);
+            throw AbortCallback{};
+        }
+        return handle;
+    }
+
+    template<typename T>
+    Bool IsPresent(const Nullable<T>& value) noexcept { return value.HasValue(); }
+
+    template<typename T>
+    Bool IsPresent(const Ref<T>& value) { return value.Get() != nullptr; }
+
+    template<typename T>
+    Bool IsPresent(const T& handle) { return handle.IsValid(); }
+
+    template<typename T>
+    T& UnwrapPresent(Nullable<T>& value) noexcept { return value.Value(); }
+
+    template<typename T>
+    T& UnwrapPresent(Ref<T>& value) { return *value.Get(); }
+
+    template<typename T>
+    T& UnwrapPresent(T& handle) noexcept { return handle; }
 }

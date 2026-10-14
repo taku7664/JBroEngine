@@ -254,9 +254,11 @@
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216). 텍스트 레이아웃·아틀라스는 `JBroTextRendering` 이다(D-222). 3D 의 `JBroFramework3DSystem` 도 같은 두 모듈에 기댄다 |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
-  | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
+  | Tier E | `JBroScriptCompiler` | 렉서·파서·의미 분석·공용 API DTO·들여쓰기 포맷·2D C++ 이미터. `JBroCore` 에만 기댄다 (D-104·D-316·D-317) |
   | Tier E | `JBroNodeGraph` | 노드 그래프 모델(노드·핀·링크·도메인·YAML)과 샘플 도메인 `Math`. `JBroCore` 에만 기대고 에디터·셰이더 그래프 컴파일러가 함께 쓴다 (D-323) |
-  | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
+  | Tier E | `JBroScriptApiCatalog2D` | 실제 공용/2D Tier S 타입과 명시적 공개 선언을 분석용 카탈로그로 변환. 엔진 호스트는 실행하지 않는다 (D-316) |
+  | Tier E | `JBroScriptLanguageServer` | LSP 프로토콜·문서 상태·공용 분석 조회. Core·ScriptCompiler·nlohmann-json에 기댄다 (D-316) |
+  | Tier E | `JBroc` | MSVC 모양의 파일 진단과 `--lsp` stdio 호스트, `--emit-cpp`·`--emit-project`의 생성 산출물 I/O. LSP의 파일 읽기·열거를 맡는다 (D-105·D-316·D-317) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-232) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
@@ -618,8 +620,8 @@
   디버거가 붙어 있어도 다시 빌드할 수 있어야 한다. 같은 이름으로 다시 쓰면 디버거가 쥔 PDB 때문에 링크가 실패하고 DLL 이 지워진다.
 - **스크립트 디버그 어댑터는 재배포용 DbgEng 을 자기 옆에 두고 쓰며, 끝날 때 대상을 끝내지 않는다.** (MUST) (D-319)
   `System32` 의 DbgEng 은 쓰지 않는다. 어댑터가 어떻게 끝나든 에디터는 살아야 한다(`DEBUG_PROCESS_DETACH_ON_EXIT`).
-- **엔진이 스크립트 코드를 부르는 자리는 모두 `ScriptGuard::Call` 을 거친다. 에디터는 보호를 켜고, 예외가 나면 다음 프레임에 실행을 멈춰 실행 전 캔버스로 되돌린 뒤 로그와 알림으로 알린다.** (MUST) (D-325)
-  예외가 난 뒤에는 에디터가 꺼낼 때까지 어떤 스크립트 훅도 부르지 않는다. 게임은 보호를 켜지 않는다. 새 훅을 부르는 자리를 만들면 `ScriptGuard::Call` 로 감싸고 `ScriptFault` 시험에 시나리오를 더한다.
+- **엔진이 스크립트 코드를 부르는 자리는 모두 `ScriptCallGuard::Call` 을 거친다. 에디터는 보호를 켜고, 예외가 나면 다음 프레임에 실행을 멈춰 실행 전 캔버스로 되돌린 뒤 로그와 알림으로 알린다.** (MUST) (D-325)
+  예외가 난 뒤에는 에디터가 꺼낼 때까지 어떤 스크립트 훅도 부르지 않는다. 게임은 보호를 켜지 않는다. 새 훅을 부르는 자리를 만들면 `ScriptCallGuard::Call` 로 감싸고 `ScriptFault` 시험에 시나리오를 더한다.
 - **스크립트 컴파일러는 MSVC 다. 에디터는 스크립트 툴셋(`JBro.Common.props` 의 `PlatformToolset`)의 컴파일러가 든 설치만 빌드 도구로 본다.** (MUST) (D-318)
   MSBuild 가 있다는 것만으로 찾았다고 하지 않는다. 빌드 도구나 SDK 가 없으면 무엇을 깔지 알리고, 사용자에게 Visual Studio IDE 를 요구하지 않는다.
 
@@ -1762,7 +1764,7 @@ Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 
 - [tasks/structural-refactor-plan.md](../tasks/structural-refactor-plan.md) — 2026-09-12 구조 검토와 D-42~D-55의 근거·단계 계획.
   이 문서의 규칙 중 `(D-42)`~`(D-55)`가 붙은 것은 그 계획의 단계가 끝나기 전까지 현재 코드와 다를 수 있다.
 - [tasks/jbroscript-plan.md](../tasks/jbroscript-plan.md) — JBroScript(`.jscript`)와 리플렉션 계획(D-56).
-  계획일 뿐 확정 계약이 아니다. 언어와 트랜스파일러는 아직 없고, 프로퍼티 리플렉션
+  계획일 뿐 확정 계약이 아니다. 분석·LSP의 독립 서버 당시 범위는 D-316과 §16에 있으며, 현재 2D 이미터·실제 DLL 실행과 단계 리뷰는 [두 단계 최종 확인표](../tasks/jbroscript-ref-log-plan.md#단계-종료-확인과-검토-범위-2026-10-15)에 기록한다. 프로퍼티 리플렉션
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장과 코어 패치가 `source/JBroScriptEditor` 에 섰고(D-261) 포크 설치본은 아직 없다.
@@ -1770,7 +1772,9 @@ Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 
   사용자 확인 담당 범위·기본 화면 항목은 Decisions에 기록하며, 이 계획의 구현 제안은 확정 계약이 아니다.
 - [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
   컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. ~~`jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.~~
-  D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. `jbroc` 은 렉서·파서에서 멈췄다(D-263).
+  D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. D-263의 분석·LSP 중단은 D-316으로 갱신됐다. 후속 2D 이미터·실제 DLL의 검증 범위는 [두 단계 최종 확인표](../tasks/jbroscript-ref-log-plan.md#단계-종료-확인과-검토-범위-2026-10-15)에 있다.
+- [tasks/jbroscript-language-server-plan.md](../tasks/jbroscript-language-server-plan.md) — 독립 `JBroc --lsp`의 공용/2D 언어 기능,
+  연결 계약·소스/AST 수명·카탈로그와 독립 서버 당시 검증 범위 (D-316). 후속 클라이언트·2D 이미터의 완료 범위와 한계는 [두 단계 최종 확인표](../tasks/jbroscript-ref-log-plan.md#단계-종료-확인과-검토-범위-2026-10-15)에 둔다.
 - [tasks/cpp-script-plan.md](../tasks/cpp-script-plan.md) — C++ 게임 스크립트 지원 계획(D-263). 계획일 뿐 확정 계약이 아니다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
@@ -1779,3 +1783,80 @@ Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 
 
 두 초안에는 이 문서의 규칙으로 대체된 절이 있다. 해당 절에는 대체 표시를 달아 두었으며,
 대체 결정의 근거는 작업 계획 `tasks/todo.md` 의 Decisions 절에 기록한다.
+
+## 16. JBroScript 언어 서버 후속 계약 (2026-10-14, D-316)
+
+Updates: §2의 도구 파일 접근 경계, §3의 컴파일러 모듈 목록, D-263의 분석·LSP 중단, D-262의 편집 시 타입 분석.
+사용자가 승인한 독립 서버의 계약이며 C++ 이미터·게임 실행·에디터 클라이언트는 이 계약의 구현 범위 밖이다.
+
+- LSP 메시지는 JSON-RPC 2.0과 UTF-8 `Content-Length` framing으로 stdin/stdout에 주고받으며,
+  stdout에 로그를 섞지 않는다. 로그는 stderr다. (MUST)
+- `initialize.initializationOptions.projectFile`로 활성 `.jproject`를 명시한다. 서버는 `Framework: 2D`와
+  자신의 엔진 버전에 일치하는 프로젝트만 받는다. 프로세스 하나가 클라이언트 하나/프로젝트 하나를 맡는다. (MUST)
+- 프로젝트 파일은 YAML을 유지한다. JSON은 LSP 경계에만 사용하고 JSON 타입을 공개 분석 API에 노출하지 않는다. (MUST)
+- `JBroScriptCompiler`는 API DTO와 소스 글자를 받아 분석하며 엔진 타입 헤더에 의존하지 않는다.
+  공용/2D native 선언은 `JBroScriptApiCatalog2D`에서 실제 함수·멤버 포인터와 명시적 선언 표로 검사한다. (MUST)
+- `JBroScriptLanguageServer`의 프로젝트·스크립트·SDK 소스 읽기와 스크립트 열거는 `WorkspaceFiles`로
+  실행 파일 호스트 `JBroc`에 위임한다. 이 독립 도구 호스트는 표준 파일 시스템으로 소스를 읽고 열거할 수 있다.
+  진단 번역표는 기존 Compiler의 `DiagnosticMessages::Load`가 §2의 진단 파일 예외로 읽는다.
+  엔진 런타임 모듈의 `IPlatform` 경계는 그대로다. 카탈로그의 경로 계산은 정의 위치 메타데이터만 만들며
+  헤더를 읽거나 파싱하지 않는다. (MUST)
+- 문서 분석 결과는 소스와 AST를 함께 소유한다. 저장하지 않은 열린 버퍼가 디스크보다 우선하며,
+  LSP 범위는 UTF-16 좌표로 내보낸다. 이전 문서 버전은 적용하지 않는다. (MUST)
+- 이름 변경은 사용자 심볼의 버전이 있는 `WorkspaceEdit`으로만 반환한다. SDK 심볼은 읽기 전용이고
+  서버는 이름 변경·포맷·저장 알림으로 프로젝트 파일을 쓰지 않는다. (MUST)
+
+지원 요청·클라이언트 파일 감시 책임·null 재검사·출력 반환 투영·포맷 보존 범위와 검증은
+[언어 서버 계획](../tasks/jbroscript-language-server-plan.md)에 둔다. D-263과 D-262의 이전 본문은 결정 이력으로 보존한다.
+
+## 17. JBroScript 단일 `ref`와 실행 시 검사 (2026-10-14, D-317)
+
+Updates: §16의 null 분석 범위, D-262의 `?`/빌림 분리. 이전 문법은 결정 이력으로 보존한다.
+
+- 사용자 타입 표기는 일반 `T`와 nullable `ref T`다. `ref T` 매개변수·`for` 변수의 빌림은 원본을 수정할 수 있지만
+  빌린 주소는 호출 밖으로 탈출할 수 없다. 엔진 객체는 항상 `ref T`로 선언한다. (MUST)
+- JBroScript의 일반 `ref` 접근은 각 수신자를 실행 시 검사한다. 첫 실패를 호스트 로그에 남기고 현재 콜백의
+  나머지를 중단한다. `?.`와 `??`의 명시적 건너뛰기·대체 값은 오류가 아니다. 일반 값 `T`는 자동 검사 대상이 아니다. (MUST)
+- 게임 DLL이 기록하는 로그는 호스트 소유 로그 저장소로 보내고, 엔진 패널과 외부 편집기는 그 기록을 공유한다.
+  반복 묶기는 작성자가 지정한 키에만 적용한다. (MUST)
+
+구현 단계·보존 한도·사용자 시나리오와 아키텍처 검토는
+[JBroScript `ref`·로그 계획](../tasks/jbroscript-ref-log-plan.md)에 둔다. 계약 작성 당시에는 C++ 이미터가 없어 실행 검사가 미검증이었으며, 그 상태는 아래 2026-10-15 후속 검증으로 갱신됐다.
+2026-10-15 현재 검증 범위는 다음과 같다.
+현재는 2D C++ 이미터·실제 게임 DLL의 `ref`/`!` 오류 로그·콜백 중단과 엔진/외부 편집기 로그 표시·Clear/재접속을 확인했다.
+정확한 Debug/Release 회귀·GUI·단계 검토 범위는 [두 단계 확인표](../tasks/jbroscript-ref-log-plan.md#단계-종료-확인과-검토-범위-2026-10-15)에 둔다.
+
+## 18. JBroScript 필드 초기화 순서 (2026-10-14, D-326)
+
+Updates: [언어 문법 §4.2](../tasks/jbroscript-syntax.md#42-필드-확정)의 필드 초깃값 계약.
+
+- 같은 타입의 필드는 선언 순서대로 초기화하며, 아직 초기화하지 않은 필드의 읽기는 오류다. 직접 읽기의 편집·컴파일 진단과
+  메서드 호출·빌린 접근을 통한 간접 읽기의 실행 오류에 같은 규칙을 적용한다. 모든 필드의 기본값을 먼저 준비해 읽기를 허용하는 대안은 채택하지 않았다. (MUST)
+
+상세 계약은 [언어 문법 §18](../tasks/jbroscript-syntax.md#18-필드-초기화-순서-2026-10-14-d-326)에 둔다.
+이는 사용자 결정의 기록이다. 2026-10-15 현재 직접 자기/후속 필드 읽기는 LSP의 `JBC3044` 및 실제 GUI 표시·해제로,
+간접 메서드/빌림/미완성 복사는 실제 Debug/Release DLL의 오류·콜백 중단으로 검증했다. 정적 필드의 간접 미완료 읽기도
+호스트 바인딩 뒤 오류 로그와 SDK `Load` 실패·정상 DLL 재활성화로 확인했다. 전체 문법 검토의 유한 범위와 타입 조합의 한계는
+[두 단계 확인표](../tasks/jbroscript-ref-log-plan.md#단계-종료-확인과-검토-범위-2026-10-15)에 둔다.
+
+## 19. JBroScript 미정·애매한 동작의 판단 기준 (2026-10-14, D-327)
+
+- 미정·애매한 동작은 가능한 한 C++ 동작에 맞춰 판단한다. (SHOULD) 명시적으로 정한 단일 `ref`와 실행 검사(D-317),
+  초기화 전 필드 읽기 오류(D-326)는 유지한다. (MUST)
+
+상세 기준은 [언어 문법 §19](../tasks/jbroscript-syntax.md#19-미정애매한-동작의-판단-기준-2026-10-14-d-327)에 둔다.
+사용자는 정적 초기화 시점을 별도로 선택하지 않았다. C++ 기본 정적 초기화 경로와 엔진 연결 전 API 호출·실행 오류 로그의 충돌은 당시 검토 중이었다.
+2026-10-15의 현재 구현 판단은 §20에 기록한다.
+
+## 20. JBroScript 정적 값의 초기화와 DLL 수명 (2026-10-15)
+
+Updates: §19의 정적 초기화 충돌 검토 상태. 사용자 D-327의 판단 기준을 적용한 구현이며, 사용자가 엔진 연결 뒤 초기화 시점을 선택했다는 기록이 아니다.
+
+- 정적 값은 DLL의 OS 로드 중에 만들지 않고 SDK `Load`의 호스트 컨텍스트·스키마·스크립트 타입 표 연결 뒤 생성한다.
+  첫 사용자 콜백 전에 전체 생성을 마친다. 타입 내부 선언 순서를 지키고, 다른 타입 의존은 접근자를 통해 초기화한다.
+  아직 미완료인 필드를 간접 읽으면 `ScriptGuard` 오류로 `Load`가 실패한다.
+- SDK `Unload`는 성공적으로 생성한 타입들을 역순으로 파괴한 뒤 바인딩을 해제한다.
+- 실패한 SDK `Load`도 고유 세대를 소비한다. 호스트 로그는 활성화 중이거나 실린 모듈의 현재 세대 오류만 받으며, 실패 뒤 남은 오래된 세대의 오류는 거절한다.
+
+자기 타입 정적 프로퍼티의 스키마 준비와 상세 구현은 [언어 문법 §20](../tasks/jbroscript-syntax.md#20-정적-값의-초기화와-dll-수명-2026-10-15)에 둔다.
+현재 Debug/Release 회귀 증거와 전체 계획의 남은 검증은 [두 단계 작업 계획](../tasks/jbroscript-ref-log-plan.md)에 기록한다.

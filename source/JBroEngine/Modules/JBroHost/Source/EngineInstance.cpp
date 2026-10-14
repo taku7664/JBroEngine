@@ -1656,7 +1656,7 @@ namespace JBro
         return m_scriptModulePath;
     }
 
-    void EngineInstance::CollectScriptContextBlocks(IFramework& framework, Array<ScriptContextBlock>& blocks) const
+    void EngineInstance::CollectScriptContextBlocks(IFramework& framework, Array<ScriptContextBlock>& blocks)
     {
         const JArrayView<ScriptContextBlock> frameworkBlocks = framework.GetScriptContextBlocks();
         // 프레임워크의 블록 뒤에 호스트의 네트워크 블록을 잇는다(D-122). 네트워크는 호스트 것이고
@@ -1664,6 +1664,29 @@ namespace JBro
         blocks.Clear();
         blocks.Reserve(frameworkBlocks.size + 10);
         blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
+        // SDK activation reserves this generation even when Load later fails.
+        // A stale binding from an earlier load is ignored by the host callback.
+        const UInt64 currentGeneration = m_scripts.GetGeneration();
+        m_scriptErrorContext.Owner = &m_scripts;
+        m_scriptErrorContext.ExpectedGeneration = currentGeneration.Get() == UINT64_MAX
+            ? UInt64(1) : UInt64(currentGeneration.Get() + 1);
+        m_scriptErrorContext.Report = [](void* owner, UInt64 expectedGeneration,
+            const char* siteKey, const char* message) noexcept {
+            const auto* loader = static_cast<const ScriptDLLLoader*>(owner);
+            if (loader == nullptr || !loader->AcceptsErrorGeneration(expectedGeneration))
+            {
+                return;
+            }
+            try
+            {
+                Log::WriteGrouped(LogLevel::Error, "JBroScript", siteKey, "%s", message);
+            }
+            catch (...)
+            {
+                // No C++ exception may cross this host/DLL function pointer.
+            }
+        };
+        blocks.Add(MakeScriptErrorContextBlock(m_scriptErrorContext));
         if (m_input)
         {
             blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));

@@ -1,4 +1,4 @@
-﻿#include <JBro/Runtime/ScriptGuard.h>
+﻿#include <JBro/Runtime/ScriptCallGuard.h>
 
 #if defined(_MSC_VER)
 #include <malloc.h>
@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace JBro::ScriptGuard
+namespace JBro::ScriptCallGuard
 {
     namespace
     {

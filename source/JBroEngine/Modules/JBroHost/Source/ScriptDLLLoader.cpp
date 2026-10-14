@@ -82,7 +82,6 @@ namespace JBro
         {
             return false;
         }
-        AdvanceGeneration();
         return true;
     }
 
@@ -108,11 +107,15 @@ namespace JBro
         }
 
         const String path = m_path;
+        const UInt64 previousGeneration = m_generation;
         Deactivate(platform);
         m_path.Clear(false);
         const Bool activated = Activate(
             path.c_str(), platform, extensions, extensionCount);
-        AdvanceGeneration();
+        if (m_generation == previousGeneration)
+        {
+            AdvanceGeneration();
+        }
         return activated;
     }
 
@@ -133,6 +136,11 @@ namespace JBro
     UInt64 ScriptDLLLoader::GetGeneration() const noexcept
     {
         return m_generation;
+    }
+
+    Bool ScriptDLLLoader::AcceptsErrorGeneration(UInt64 generation) const noexcept
+    {
+        return generation != 0 && (m_loadingGeneration == generation || (IsLoaded() && m_generation == generation));
     }
 
     const String& ScriptDLLLoader::GetLoadedPath() const noexcept
@@ -186,7 +194,11 @@ namespace JBro
             platform.UnloadDynamicLibrary(library);
             return false;
         }
-        if (false == api->Load(&context))
+        AdvanceGeneration();
+        m_loadingGeneration = m_generation;
+        const Bool loaded = api->Load(&context);
+        m_loadingGeneration = 0;
+        if (!loaded)
         {
             ClearModuleTables();
             api->Unload();

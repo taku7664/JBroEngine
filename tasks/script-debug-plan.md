@@ -102,7 +102,7 @@
 
 ### 4.1 스크립트 예외 보호 (1 단계)
 
-- `JBroRuntime` 의 `ScriptGuard`(`ScriptGuard.h`): `Call(hook, callable)` 이 SEH 로 감싼다. 켜져 있지 않으면(게임) 그냥 부른다. 첫 예외의 코드·주소·훅·스택(32 칸)을 적고, 꺼낼 때까지 다음 훅은 부르지 않는다.
+- `JBroRuntime` 의 `ScriptCallGuard`(`ScriptCallGuard.h`): `Call(hook, callable)` 이 SEH 로 감싼다. 켜져 있지 않으면(게임) 그냥 부른다. 첫 예외의 코드·주소·훅·스택(32 칸)을 적고, 꺼낼 때까지 다음 훅은 부르지 않는다.
   스택 넘침은 스택을 읽지 않고 받은 뒤 `_resetstkoflw` 로 지킴 페이지를 되살린다. 상태는 링크한 바이너리마다 있어 스크립트 DLL 의 사본은 꺼진 채다.
 - 감싼 자리(전수, 2026-10-15 `grep` 으로 엔진이 스크립트 훅을 부르는 자리를 모두 찾았다): `ScriptSystem` 의 `OnCreate`·`OnStart`·`OnUpdate`·`OnFixedUpdate`·`OnDestroy`,
   `Physics2DSystem` 의 충돌·트리거 여섯, `Button2DSystem` 의 포인터·클릭 다섯, `Canvas` 의 `OnAttached`·`OnDetached`, `GameScriptBase::SetEnabled` 의 `OnEnabled`·`OnDisabled`. 3D 에는 스크립트 훅을 부르는 자리가 없다.
@@ -110,7 +110,7 @@
 - 플랫폼(`IPlatform`): `CaptureFaultFrames` 가 예외 자리부터 함수 표로 거슬러 올라가고(`RtlVirtualUnwind`, 필터 안이라 할당·잠금 없음), `DescribeCodeAddress` 가 dbghelp 로 모듈·함수·파일·줄을 준다. Windows 만 구현했다.
 - 에디터: `Initialize` 에서 켜고 `ReleaseProcessResources` 에서 끈다. `PollScriptFault` 가 프레임 앞에서 꺼내, 스택을 로그에 적고, 실행 중이면 `StopSimulation`, 오류 알림(`notify.script_fault_stopped`·`notify.script_fault`)을 띄운다.
   알릴 줄은 스택에서 처음 나오는 스크립트 DLL 프레임이다. 스크립트 DLL 은 세대마다 다른 이름의 사본이라, 진입점(`JBroScriptModule_GetApi`)이 든 모듈의 경로와 맞춘다. 알림을 누르면 그 줄을 연다(`OpenInScriptEditor`).
-- 시험: `ScriptGuard` 묶음(꺼짐·null 쓰기의 코드와 파일·줄·호출한 쪽까지의 스택·예외 뒤 막힘·스택 넘침 두 번·C++ 예외), `ScriptFault` 묶음(적대적 시나리오, 아래), `EditorApplication` 의 `TestAScriptFaultStopsPlayAndTellsTheUser`.
+- 시험: `ScriptCallGuard` 묶음(꺼짐·null 쓰기의 코드와 파일·줄·호출한 쪽까지의 스택·예외 뒤 막힘·스택 넘침 두 번·C++ 예외), `ScriptFault` 묶음(적대적 시나리오, 아래), `EditorApplication` 의 `TestAScriptFaultStopsPlayAndTellsTheUser`.
 - **적대적 시나리오**(`ScriptFault`): 시험이 등록한 스크립트를 에디터의 진짜 `ScriptSystem`·물리 경로로 돌려 터트린다. `OnCreate` 의 null 쓰기, `OnStart` 의 C++ 예외, `OnUpdate` 의 null 쓰기·정수 0 나누기·끝없는 재귀·`__debugbreak`,
   `OnFixedUpdate` 의 null 쓰기, `OnCollisionEnter` 의 null 쓰기, 오브젝트 20 개를 만들고 남의 오브젝트를 지우고 값을 옮긴 뒤의 null 쓰기, 스크립트가 붙은 오브젝트를 지운 뒤의 null 쓰기, 일시정지에서 한 프레임 진행으로 들어간 null 쓰기.
   시나리오마다 실행이 멈추고, 예외가 꼭 하나만 나고(같은 프레임의 둘째 스크립트 훅이 불리지 않는다), 에디터 프레임이 계속 돌고, **캔버스 글자가 실행 전과 똑같고**, 오류 알림과 예외 코드 로그가 남고, 다음 실행에서 훅이 다시 돈다. 같은 에디터에서 두 바퀴 돌린다.

@@ -35,6 +35,7 @@ namespace JBro
         void* GetSymbol(const char* name) const noexcept;
         Bool IsLoaded() const noexcept;
         UInt64 GetGeneration() const noexcept;
+        Bool AcceptsErrorGeneration(UInt64 generation) const noexcept;
         const String& GetLoadedPath() const noexcept;
 
     private:
@@ -51,5 +52,6 @@ namespace JBro
         const ScriptModuleApi* m_api = nullptr;
         String m_path;
         UInt64 m_generation = 0;
+        UInt64 m_loadingGeneration = 0;
     };
 }

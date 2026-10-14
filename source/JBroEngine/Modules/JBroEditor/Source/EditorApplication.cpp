@@ -57,7 +57,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Runtime/GameObject.h>
-#include <JBro/Runtime/ScriptGuard.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 
 #include "EditorThumbnails.h"
 #include "NewProjectPopup.h"
@@ -204,7 +204,7 @@ namespace JBro
                 return false;
             }
             // **스크립트가 죽어도 에디터는 산다**(D-325). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
-            ScriptGuard::Enable(&CaptureScriptFaultFrames, m_platform.Get());
+            ScriptCallGuard::Enable(&CaptureScriptFaultFrames, m_platform.Get());
 
             // **프로그램과 함께 놓인 것은 실행 파일 기준으로 찾는다**(D-176). 현재 작업 폴더로
             // 찾으면 어디서 띄웠는지에 따라 있다가 없다 - 런처나 바로가기로 띄운 에디터가
@@ -2934,7 +2934,8 @@ namespace JBro
         {
             const char* dot = std::strrchr(path, '.');
             return dot != nullptr && (std::strcmp(dot, ".h") == 0 || std::strcmp(dot, ".hpp") == 0
-                || std::strcmp(dot, ".cpp") == 0 || std::strcmp(dot, ".inl") == 0);
+                || std::strcmp(dot, ".cpp") == 0 || std::strcmp(dot, ".inl") == 0
+                || std::strcmp(dot, ".jscript") == 0);
         }
     }
 
@@ -3134,13 +3135,13 @@ namespace JBro
 
     void EditorApplication::PollScriptFault()
     {
-        if (false == ScriptGuard::HasFault())
+        if (false == ScriptCallGuard::HasFault())
         {
             return;
         }
         // 값으로 떠 두고 먼저 푼다. 아래의 되돌리기가 스크립트를 다시 붙이며 훅을 부르는데, 적힌 것이 남아 있으면 그 훅이 막힌다.
-        const ScriptFault fault = ScriptGuard::GetFault();
-        ScriptGuard::ClearFault();
+        const ScriptFault fault = ScriptCallGuard::GetFault();
+        ScriptCallGuard::ClearFault();
 
         // 스크립트 DLL 은 세대마다 다른 이름의 사본으로 실린다. 로더가 아는 것은 원본 경로라, 진입점이 든 모듈에게 실린 경로를 묻는다.
         String scriptModule;
@@ -6900,8 +6901,8 @@ namespace JBro
     void EditorApplication::ReleaseProcessResources()
     {
         // 스택을 읽는 플랫폼이 곧 사라진다(D-325).
-        ScriptGuard::Disable();
-        ScriptGuard::ClearFault();
+        ScriptCallGuard::Disable();
+        ScriptCallGuard::ClearFault();
         // 제어 포트를 먼저 닫는다 - 소켓은 provider 가, provider 는 플랫폼의 Winsock 이 살아 있어야 닫힌다.
         m_controlPort.Reset();
         m_socketProvider.Reset();

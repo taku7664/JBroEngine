@@ -1,0 +1,200 @@
+interface ICounter
+{
+    fn Read() -> Int
+}
+
+interface ILeft : ICounter
+{
+}
+
+interface IRight : ICounter
+{
+}
+
+class BaseCounter
+{
+    public Int value = 4
+
+    public fn Read() -> Int
+    {
+        return value
+    }
+}
+
+class DerivedCounter : BaseCounter, ILeft, IRight
+{
+    public fn Read() -> Int override
+    {
+        return value + 1
+    }
+
+    public fn BorrowRead(ref ICounter source) -> Int
+    {
+        return source.Read()
+    }
+
+    public fn ReadThroughInterface() -> Int
+    {
+        DerivedCounter other
+        return BorrowRead(ref other)
+    }
+}
+
+class FieldLeft
+{
+    [prop] public Int left = 5
+}
+
+class FieldRight
+{
+    [prop] public Int right = 7
+}
+
+class FieldMix : FieldLeft, FieldRight
+{
+    [prop] public Int own = 11
+}
+
+script RequiredScript
+{
+    [prop] public Int seed = 2
+
+    public fn Read() -> Int require
+}
+
+script InheritedRequiredScript : RequiredScript
+{
+}
+
+script ConcreteRequiredScript : InheritedRequiredScript
+{
+    public fn Read() -> Int override
+    {
+        return seed + 5
+    }
+}
+
+script ParentScript
+{
+    [prop] public Int shared = 2
+
+    public fn Increase() -> Int
+    {
+        shared += 1
+        return shared
+    }
+}
+
+script ChildScript : ParentScript
+{
+    [prop] public Int extra = 9
+
+    public fn Result() -> Int
+    {
+        return Increase() + extra
+    }
+}
+
+struct ComparedPair
+{
+    Int value
+
+    fn operator==(ComparedPair other) -> Bool
+    {
+        return value == other.value
+    }
+
+    fn operator!=(ComparedPair other) -> Bool
+    {
+        return value != other.value
+    }
+}
+
+class ComparedLabel
+{
+    public Int value
+
+    public fn operator==(ComparedLabel other) -> Bool
+    {
+        return value == other.value
+    }
+
+    public fn operator!=(ComparedLabel other) -> Bool
+    {
+        return value != other.value
+    }
+
+    public fn operator==(Int other) -> Bool
+    {
+        return value == other
+    }
+
+    public fn LabelScore() -> Int
+    {
+        return value + 1
+    }
+}
+
+class BaseNumber
+{
+    public Int value
+
+    public fn operator==(Int other) -> Bool
+    {
+        return value == other
+    }
+}
+
+class DerivedNumber : BaseNumber
+{
+}
+
+class OverloadFactory
+{
+    public fn Build(Int number) -> ComparedPair
+    {
+        ComparedPair result
+        result.value = number
+        return result
+    }
+
+    public fn Build(String label) -> ComparedLabel
+    {
+        ComparedLabel result
+        if (label == "x") { result.value = 10 }
+        return result
+    }
+}
+
+class EqualityScenario
+{
+    public fn Score() -> Int
+    {
+        ComparedPair a
+        ComparedPair b
+        ComparedPair c
+        a.value = 3
+        b.value = 3
+        c.value = 4
+        ComparedLabel x
+        ComparedLabel y
+        ComparedLabel z
+        x.value = 5
+        y.value = 5
+        z.value = 6
+        Int score = 0
+        if (a == b) { score += 1 }
+        if (a != c) { score += 2 }
+        if (a != b) { score += 4 }
+        if (x == y) { score += 8 }
+        if (x != z) { score += 16 }
+        if (x != y) { score += 32 }
+        if (x == 5) { score += 64 }
+        DerivedNumber inherited
+        inherited.value = 7
+        if (inherited == 7) { score += 128 }
+        OverloadFactory factory
+        if (factory.Build("x").LabelScore() == 11) { score += 256 }
+        return score
+    }
+}

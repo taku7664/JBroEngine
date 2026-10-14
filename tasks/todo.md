@@ -1,4 +1,4 @@
-﻿# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
+# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
 
 폐기된 World/ECS 단계 기록은 [canvas-world-foundation.md](./canvas-world-foundation.md)에 남아 있다.
 이 문서는 현재 설계나 작업 지시가 아니다.
@@ -29,6 +29,44 @@
 > **구현을 마친 항목은 지우지 않고 취소선으로 긋는다**(D-204). 끝에 언제(날짜·커밋)와 어디서(파일·함수) 고쳤는지 붙인다.
 > 예: `- ~~[진행 예정] 툴팁 딜레이. ...~~ → 완료 2026-09-27 · abc1234 · Widget/Common.cpp HoveredTooltip`
 > 세 문서(`todo.md`·`todo-2d.md`·`todo-3d.md`)가 모두 이렇게 한다.
+
+- `[구현 중]` **JBroScript 단일 `ref`·엔진 로그 연동·C++ 이미터를 두 단계로 완수한다.** (D-317)
+  단계마다 사용자 시나리오 적대적 테스트와 아키텍처 코드 검토를 마친다.
+  현재 문법·분석·편집기 예시를 전환 중이며 로그 전달·이미터·실제 콜백 검사는 남아 있다.
+  [두 단계 계획](./jbroscript-ref-log-plan.md)의 확인 상태를 따른다.
+
+- ~~`[구현·검증 중]` **JBroScript 독립 언어 서버와 공용·2D 언어 기능.**~~ → 완료 2026-10-14 · `a574fe64` · `db25f8ae` (D-316)
+  파서·의미 분석·API 카탈로그·`JBroc --lsp`의 구현과 정식 시험은 추가했다. 최종 Debug/Release 검증은
+  [jbroscript-language-server-plan.md](./jbroscript-language-server-plan.md) §7에 기록한다.
+  첫 독립 검토의 세 결함과 후속 break/continue·여러 반복과 while 조건 재평가의 null 흐름 검사·
+  클래스/생성자·override 연결 이름 변경을 고쳤다. 최신 재빌드·주요 7개 suite·실제 LSP 34개 시험은
+  Debug/Release 모두 통과했다. 활성 파서·편집기 문법 시험의 옛 저장형 `ref` 예시도 nullable `?`로 교체하고 재검증했다.
+  독립 검토가 승인 범위와 산출물의 일치를 확인했다. 검토자가 직접 문법 단언 154개·스냅숏과
+  Debug/Release의 실제 LSP 시험 각 34개·관련 C++ 시험 각 7개 suite를 다시 통과시켰다.
+  C++ 이미터·게임 실행·에디터/엔진 LSP 클라이언트·3D Framework는 이 항목에 포함하지 않는다.
+
+- ~~`[연결 예정]` **JBro Script Editor의 `.jscript` 파일을 `JBroc --lsp`에 연결해 진단을 표시한다.**~~
+  → 개발 편집기 연결 완료 2026-10-14 · `b35d370e` · `6b21b5c5`.
+  `jbro-languages`가 프로젝트별 서버를 시작하고 저장하지 않은 파일의 문법·의미 분석 진단을 Problems에 전달한다.
+  Code-OSS 확장 호스트에서 `JBC2001`·`JBC3007` 표시와 수정 후 해제·자동완성을 확인했다.
+  격리 프로필의 실제 개발 창에서도 두 오류의 밑줄과 Problems 목록을 화면으로 확인했다.
+  Debug/Release의 실제 서버 프로세스 시험 각 35개와 관련 C++ 7개 suite가 통과했다.
+  [연결·검증 기록](./jbroscript-language-server-plan.md#8-2026-10-14-편집기-연결)과
+  [실행 방법](../source/JBroScriptEditor/README.md#jbroscript-편집-진단)을 따른다.
+  C++ 이미터·C++ 빌드 로그·게임 실행, 엔진 ImGui 패널의 LSP 클라이언트, 설치본은 남아 있다.
+
+- `[열림]` **C++ 스크립트의 Release 호스트/Debug DLL 구성과 공유 NameTable 항목 배치를 맞춘다.** (2026-10-14 발견)
+  `EditorApplication.cpp:2846`은 호스트 구성과 무관하게 스크립트를 Debug로 빌드하고,
+  `ScriptBuildTests.cpp:397,476`도 Debug DLL을 요구한다. Release의 기존 `ScriptBuild` 시험은
+  `the first build has only its speed`에서 실패했다. 새 언어서버 모듈을 링크하지 않는 LoaderProbe에서도
+  Release 호스트/Debug DLL은 `Speed` 이름을 찾지 못하고, Release DLL로 바꾸면 찾고 종료 0이었다.
+  `String`의 실측 크기는 Debug 40/Release 32바이트, Key+String 항목은 48/40바이트다(`NameTable` 본체는 양쪽 48바이트).
+  근거는 [언어 서버 검증 기록](./jbroscript-language-server-plan.md#7-검증과-남은-범위)과
+  `F:/AI/builds/jbroscript-language-server/inspect-release-regression/{LoaderProbe.cpp,loader-Debug.log,loader-Release.log,layout-results.log}`.
+  기준 커밋의 TestMain·Compiler와 새 분석/포맷/server/catalog를 제외한 별도 binary에서도 같은 검사 실패를 확인했다
+  (`baseline-link-inputs.txt`·`out/JBroTestsBaseline.map`·`full-baseline-scriptbuild.log`). 전체 엔진 시험 결과는 아니다.
+  구성 선택과 공유 이름 표의 수정은 별도 엔진 작업에서 정한다. 이번 서버 범위에서 제품 소스를 고치지 않았으며
+  Release `ScriptBuild`·`ScriptHotReload` 회귀 완료 여부도 후속으로 확인한다.
 
 - `[일부 구현]` **C++ 스크립트 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃.** (2026-10-13, D-310)
   사용자가 코사원에게 맡긴 범위다. 현재 상태·남은 일·작업 순서는 [script-editor-integration-plan.md](./script-editor-integration-plan.md)에 둔다.
@@ -64,7 +102,7 @@
   - ~~**빌드 도구 감지와 안내.** MSBuild 만 있으면 빌드 도구로 보던 것을 스크립트 툴셋의 컴파일러까지 보게 하고, 없으면 무엇을 깔지 말한다~~
     → 완료 2026-10-14 · 35e87f37 · `ScriptBuild::FindMSBuildWithToolset`·`LocateMSBuild`, `EditorApplication::BuildScripts`·`PollScriptBuild`(`MSB8036`).
     실제 에디터에서 `vswhere` 를 못 찾게 띄워 알림 글을 화면으로 봤다. 알림을 눌러 브라우저가 열리는 것, SDK 알림, 빌드 도구만 깐 기계의 빌드는 재지 않았다.
-  - `[진행 예정]` **에디터 안의 스크립트 디버깅(D-325).** 중단점은 엔진이 받아 그 자리에서 에디터 화면만 그리고, 스크립트 예외는 실행을 멈추고 되돌린다. 실측과 단계는 [script-debug-plan.md](./script-debug-plan.md), 1 단계(스크립트 예외 보호)가 섰다 - 엔진이 스크립트 훅을 부르는 자리는 모두 `ScriptGuard::Call` 을 거치고, 에디터가 실행을 멈추고 되돌리며 로그와 알림으로 그 줄을 알린다. 적대적 시나리오 `ScriptFault` 가 지난다. 다음은 2 단계(중단점 루프).
+  - `[진행 예정]` **에디터 안의 스크립트 디버깅(D-325).** 중단점은 엔진이 받아 그 자리에서 에디터 화면만 그리고, 스크립트 예외는 실행을 멈추고 되돌린다. 실측과 단계는 [script-debug-plan.md](./script-debug-plan.md), 1 단계(스크립트 예외 보호)가 섰다 - 엔진이 스크립트 훅을 부르는 자리는 모두 `ScriptCallGuard::Call` 을 거치고, 에디터가 실행을 멈추고 되돌리며 로그와 알림으로 그 줄을 알린다. 적대적 시나리오 `ScriptFault` 가 지난다. 다음은 2 단계(중단점 루프).
   - ~~**사용자 시나리오: 에디터를 켜서 스크립트를 쓰고 돌리기까지(D-328).**~~ → 완료 2026-10-15. 처음 쓰는 사용자(A)와 일부러 잘못 쓰는 사용자(B)를 시험 묶음 `UserScenario` 로 세웠고 둘 다 지난다.
     걸은 과정·본 것·고친 것·남은 의문은 [script-user-scenario.md](./script-user-scenario.md). 고친 것: 콘솔 창 없이 뜨는 에디터, 새 프로젝트의 주 카메라, 새 스크립트·빌드 성공·실패 알림, 빌드 중 안내,
     읽기 전용 분류 접기, 이름 칸의 치는 동안 검사와 포커스, 엔진 컴포넌트와 같은 스크립트 이름 막기, Esc 로 팝업 닫기, 모르는 스크립트 경고, `실행` 으로 맞춘 문구, 처음 배치의 앞 탭(아래 칸은 `에셋 브라우저`), 빌드 실패 때 앞에 서는 `빌드 결과` 와 오류가 먼저인 줄 차례.
@@ -3009,6 +3047,27 @@ EditorApplication::Tick
   처음 배치를 지을 때 칸마다 처음 등록된 패널이 앞 탭이고 키보드는 캔버스 뷰에 남는다. 빌드가 실패하면 `빌드 결과` 가 앞에 서고 오류가 경고보다 먼저다. 에셋 핸들의 슬롯은 24 비트다 - `TextLibrary`·`SpriteLibrary` 가 `AssetSystem::SlotMask`(private)와 같은 값을 따로 적고, `TextRender` 가 폰트 표 칸 수로 지킨다.
   찾은 것(고치지 않음): main 의 `NodeGraphAddNode` 키가 쓰이지 않아 `EditorLocalization` 묶음이 실패한다. 상세는 [script-user-scenario.md](./script-user-scenario.md).
 
+- **D-327. JBroScript에서 미정이거나 애매한 동작은 가능한 한 C++에 맞춰 판단한다.** (2026-10-14)
+  사용자 지시: "최대한 애매하면 c++에 맞춰". Updates: 언어의 미정·애매한 부분을 정하는 기준이며,
+  단일 `ref`·실행 검사(D-317)와 초기화 전 필드 읽기 오류(D-326) 등 명시적으로 정한 의미는 유지한다.
+  후속 계약은 [jbroscript-syntax.md §19](./jbroscript-syntax.md#19-미정애매한-동작의-판단-기준-2026-10-14-d-327)에 둔다.
+  정적 초기화 시점 두 옵션의 질문에 사용자는 시점을 선택하지 않았다. 이 지시를 엔진 연결 뒤 초기화를 선택한 것으로 해석하지 않는다.
+  C++ 기본 정적 초기화 경로와 엔진 연결 전 API 호출·실행 오류 로그의 충돌은 당시 검토 중이었다.
+  **2026-10-15 후속 구현 판단:** 정적 값은 SDK `Load`가 호스트 컨텍스트·스키마·스크립트 타입 표를 연결한 뒤 생성하고 첫 사용자 콜백 전에 전체 생성을 마친다.
+  타입 안의 선언 순서와 다른 타입 접근을 통한 초기화를 지키며, 미완료 필드의 간접 읽기는 `ScriptGuard` 오류와 `Load` 실패로 처리한다.
+  `Unload`는 성공 생성한 타입을 역순으로 파괴한 뒤 바인딩을 푼다. 실패한 `Load`도 세대를 소비하며 실패 후 오래된 세대의 오류를 거절한다.
+  이는 D-327을 적용한 구현 판단이며 사용자가 초기화 시점을 추가로 선택한 것으로 해석하지 않는다.
+  상세 구현은 [언어 문법 §20](./jbroscript-syntax.md#20-정적-값의-초기화와-dll-수명-2026-10-15), Debug/Release 실제 DLL·선택 6개 suite 검증과 남은 전체 범위는 [두 단계 작업 계획](./jbroscript-ref-log-plan.md)에 둔다.
+
+- **D-326. JBroScript 필드는 선언 순서대로 초기화하고, 아직 초기화하지 않은 필드를 읽으면 오류다.** (2026-10-14)
+  사용자 결정: "앞선 필드부터 초기화하고, 아직 초기화하지 않은 필드의 읽기는 오류".
+  질문에는 `Int first = second` 뒤에 `Int second = 2`가 오는 직접 읽기와, 초기화식이 호출한 메서드가 아직 초기화하지 않은 필드를 읽는 경우가 함께 포함됐다.
+  Updates: [jbroscript-syntax.md §4.2](./jbroscript-syntax.md#42-필드-확정)의 필드 초깃값 계약. 후속 계약은 [§18](./jbroscript-syntax.md#18-필드-초기화-순서-2026-10-14-d-326)에 둔다.
+  직접 확인 가능한 읽기는 편집·컴파일 진단으로 거절하고, 메서드 호출·빌린 접근을 통한 간접 읽기도 실행 오류로 처리한다.
+  Rejected: 모든 필드에 기본값을 먼저 준비해 아직 초기화하지 않은 필드의 읽기를 허용하는 대안. 사용자는 이를 선택하지 않았다.
+  이는 승인된 언어 계약이며 구현 완료 기록이 아니다. 실행 검사·정적 필드의 초기화 시점·전체 문법 조합의 검증은 아직 진행 중이며,
+  현재 구현·검증 상태는 [jbroscript-ref-log-plan.md](./jbroscript-ref-log-plan.md)에 둔다.
+
 - **D-325. 스크립트 중단점과 예외는 에디터 프로세스 안에서 엔진이 받는다. 시뮬레이션은 지금처럼 에디터에서 돌고, 중단점에서는 에디터 화면만 그리는 루프를, 스크립트 예외에서는 실행을 멈추고 되돌린다.** (2026-10-14,
   사용자: D-320 의 매 프레임 복사에 "아무리 들어봐도 에반데 이거 매 프레임 오브젝트를 복사해서 동기화한다고...?", 같은 프로세스 길에 "스크립트가 죽어도 엔진은 안죽게 하고싶은데. 정확히는 에디터", 시험 셋을 보인 뒤 "드가자")
   Obsoletes: D-320. Updates: D-319 의 붙는 방식(OS 디버거 → noninvasive no-suspend)과 중단점을 넣는 쪽(어댑터 → 엔진).
@@ -3134,6 +3193,32 @@ EditorApplication::Tick
   `-requires` 로 거르지 않는다. 툴셋 이름과 SDK 는 `ScriptBuild::ScriptToolset`·`ScriptWindowsSdk` 이고 시험이 `JBro.Common.props` 와 맞춘다.
   SDK 는 미리 재지 않고 MSBuild 의 `MSB8036` 을 받아 알린다. 알림은 닫을 때까지 남고 누르면 받는 곳(`BuildToolsDownloadUrl`)을 브라우저로 연다.
   디버거는 VS Code 의 C++ 디버거가 라이선스상 마이크로소프트 제품 전용이라 DbgEng 을 실측한다(남은 일 표).
+
+- **D-317. JBroScript는 `ref` 하나로 nullable과 빌림을 표기하고, 실행 시 첫 무효 접근을 기록한 뒤 콜백을 중단한다.** (2026-10-14)
+  사용자 결정: `?`와 `ref`를 나누지 않으며 값의 원본을 수정하는 `ref`와 nullable 값도 유지한다.
+  자동 검사는 `ref`에만 적용한다. 로그 반복은 작성자가 명시한 키로만 묶고 엔진·외부 편집기가 같은 호스트 로그를 본다.
+  Updates: D-262의 `?`/빌림 분리와 검사 없는 접근의 편집 오류, D-316의 분석 범위.
+  Rejected: 옛 자동 검사의 문장만 건너뛰기(뒤 코드가 기본값으로 계속 실행됨), 타입 표기 `?` 유지,
+  메시지·객체의 자동 유사도에 따른 묶기. 두 단계 모두 구현하고 각 단계 뒤 시나리오·아키텍처 검토를 한다.
+  현재 구현 범위·검증 상태는 [jbroscript-ref-log-plan.md](./jbroscript-ref-log-plan.md)에 기록한다.
+
+- **D-316. JBroScript의 분석·독립 언어 서버를 공용·2D 범위로 재개한다. C++ 이미터는 유보한다.** (2026-10-14)
+  사용자 요청: "Jbroscript용 언어서버 지금 미리 만들어두자. 계획세워", 계획 확인 뒤 "목표대로 진행해".
+  Updates: D-263의 타입체커·LSP 중단, D-262의 null 좁히기 해제·서비스 이름표·출력 인자 투영.
+  (1) **승인 범위.** 독립 서버만 만든다. 진단·완성·정의/타입 정의·문서/워크스페이스 심볼·호버·인자 도움말·참조·이름 변경·
+  의미 토큰·접기·포맷을 포함한다. C++ emitter·에디터/엔진 클라이언트·UI/webview·게임 실행·디버거·멀티클라이언트·3D Framework는 포함하지 않는다.
+  (2) **경계.** Compiler의 공용 분석, `JBroScriptApiCatalog2D`의 실제 native 타입 기반 공개 선언 표,
+  `JBroScriptLanguageServer`의 LSP, `JBroc`의 stdio·파일 호스트로 나눈다. 표준 JSON-RPC는 통신 경계이고 `.jproject`는 YAML이다.
+  프로세스 하나/클라이언트 하나/활성 프로젝트 하나이며 초기화에서 프로젝트·2D·엔진 버전을 확인한다.
+  (3) **분석.** D-262 문법과 사용자/엔진 오버로드를 검사한다. 변경 가능한 호출·대입 뒤 null 보장을 보수적으로 지우고,
+  `Time`·`Physics` 등 서비스 이름과 출력 반환 투영을 카탈로그로 제공한다. 공용 수학 값의 3D 좌표 사용은 3D Framework 지원과 다르다.
+  nullable 런타임 타입과 `!`의 실제 콜백 중단은 이미터 때 정한다.
+  (4) **편집.** 저장하지 않은 버퍼와 문서 버전·UTF-16 좌표를 사용한다. 서버는 프로젝트 파일을 쓰지 않고
+  사용자 심볼만 버전이 있는 편집으로 이름 변경한다. 포맷은 주석·토큰·BOM·줄바꿈을 보존하는 들여쓰기 변경이다.
+  **기각/유보:** 웹뷰와 클라이언트 UI부터 구현하기는 승인 범위 밖이다. 엔진 헤더 문자열 파싱으로 native 시그니처를 복제하는 대신
+  실제 타입을 컴파일로 검사하며, 출력 인자를 그대로 언어에 노출하지 않는다. C++ 생성 및 게임 실행의 검증은 서버 시험으로 대체하지 않는다.
+  구현 위치·사용 계약·검증·남은 범위는 [jbroscript-language-server-plan.md](./jbroscript-language-server-plan.md)에 있다.
+  D-263의 C++ 스크립트 우선 경로와 당시 중단 본문은 이력으로 남긴다.
 
 - **D-315. 한국어 우선은 Code-OSS 본체·내장 UI도 포함하고, 폴더 아이콘은 실제 트리 표시까지 확인한다.** (2026-10-14)
   반복된 내장 UI 영어 표시 지적과 폴더 아이콘 누락의 후속 기록이다. Updates: D-312의 한국어 우선 적용 범위, D-314의 워크스페이스 표시 확인 범위.

@@ -10,7 +10,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Runtime/GameObject.h>
-#include <JBro/Runtime/ScriptGuard.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 
 #include <cstring>
@@ -311,7 +311,7 @@ namespace
         }
         Check(false == editor.IsSimulationPlaying(), "the fault must stop the simulation");
         Check(g_control.faultsRaised == 1, "exactly one fault is raised - no hook runs after the first one");
-        Check(false == ScriptGuard::HasFault(), "the editor took the fault");
+        Check(false == ScriptCallGuard::HasFault(), "the editor took the fault");
         for (Int32 frame = 0; frame < 5; ++frame)
         {
             Check(editor.Tick(Frame), "the editor stays alive after the fault");
@@ -403,7 +403,7 @@ namespace
             canvas.AttachScript(late, FaultScript::StaticTypeName());
             Check(g_control.faultsRaised == 1, "the attach hook faulted");
             Check(editor.Tick(Frame), "the editor keeps ticking");
-            Check(false == ScriptGuard::HasFault(), "and takes the fault");
+            Check(false == ScriptCallGuard::HasFault(), "and takes the fault");
             Check(std::strcmp(editor.GetNotifications().GetLastTitle(),
                       Loc::TextOr(LocKeys::NotifyScriptFault, "A script raised an error")) == 0,
                 "saying a script raised an error, with nothing to stop");
@@ -416,7 +416,7 @@ namespace
         }
 
         editor.Shutdown();
-        Check(false == ScriptGuard::IsEnabled(), "shutting the editor down turns the guard off");
+        Check(false == ScriptCallGuard::IsEnabled(), "shutting the editor down turns the guard off");
     }
 }
 

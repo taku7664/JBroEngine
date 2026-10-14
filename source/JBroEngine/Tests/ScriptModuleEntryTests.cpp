@@ -1,8 +1,11 @@
 ﻿#include <JBro/Framework3D/Internal/ScriptModuleContext.h>
+#include <JBro/Framework2D/Scripting/ScriptModule.h>
 #include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Framework3D/Scripting/ScriptModule.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Runtime/ScriptErrorContext.h>
+#include <JBro/Runtime/ScriptGuard.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 
 #include <cstring>
@@ -68,12 +71,85 @@ namespace
         JBro::ScriptRegistry::Local().Clear();
         JBro::PropertyRegistry::ScriptLocal().Clear();
     }
+
+    void TestRefGuardStopsOnlyTheCurrentCallback()
+    {
+        struct SinkState
+        {
+            int calls = 0;
+            const char* key = nullptr;
+        } state;
+        JBro::ScriptErrorContext context;
+        context.Owner = &state;
+        context.ExpectedGeneration = 17;
+        context.Report = [](void* owner, JBro::UInt64 generation, const char* key, const char*) noexcept {
+            auto& sink = *static_cast<SinkState*>(owner);
+            if (generation == 17)
+            {
+                ++sink.calls;
+                sink.key = key;
+            }
+        };
+        JBro::BindScriptErrorContext(context);
+
+        int before = 0;
+        int after = 0;
+        auto callback = [&] {
+            try
+            {
+                ++before;
+                JBro::Nullable<int> missing;
+                JBro::ScriptGuard::Require(missing, "enemy:7:target", "invalid target");
+                ++after;
+            }
+            catch (const JBro::ScriptGuard::AbortCallback&)
+            {
+            }
+        };
+        callback();
+        callback();
+        Check(before == 2 && after == 0, "an invalid ref stops each current callback after prior effects");
+        Check(state.calls == 2 && std::strcmp(state.key, "enemy:7:target") == 0,
+            "the host sink receives each occurrence with the stable source key");
+
+        struct HandleProbe
+        {
+            int* checks;
+            JBro::Bool IsValid() const { ++*checks; return false; }
+        };
+        int evaluations = 0;
+        int validityChecks = 0;
+        try
+        {
+            auto produce = [&]() {
+                ++evaluations;
+                return HandleProbe{&validityChecks};
+            };
+            const auto receiver = produce();
+            JBro::ScriptGuard::RequireHandle(receiver, "enemy:8:next", "invalid next");
+            Check(false, "the invalid handle must abort");
+        }
+        catch (const JBro::ScriptGuard::AbortCallback&)
+        {
+        }
+        Check(evaluations == 1 && validityChecks == 1 && state.calls == 3,
+            "a handle receiver is evaluated once, checked once, and reported once");
+        JBro::BindScriptErrorContext({});
+    }
 }
 
 JBro::Int32 RunScriptModuleEntryTests()
 {
     TestThe3DModuleAsksForThe3DBlocks();
+    const auto moduleApiSize = static_cast<JBro::UInt32>(sizeof(JBro::ScriptModuleApi));
+    const JBro::ScriptModuleApi* native2D = JBro::Internal::GetScriptModuleApi2D(
+        JBro::ScriptModuleAbiVersion, moduleApiSize);
+    const JBro::ScriptModuleApi* generated2D = JBro::Internal::GetScriptModuleApi2DRequiringErrorContext(
+        JBro::ScriptModuleAbiVersion, moduleApiSize);
+    Check(native2D != nullptr && generated2D != nullptr && generated2D->Load != native2D->Load,
+        "generated scripts validate the error sink payload as well as the block ABI");
     TestRegistrationWaitsUntilItIsAskedFor();
+    TestRefGuardStopsOnlyTheCurrentCallback();
     std::cout << "Script module entry tests passed.\n";
     return 0;
 }

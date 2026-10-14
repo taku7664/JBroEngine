@@ -1,0 +1,284 @@
+enum Mode
+{
+    Idle
+    Active
+}
+
+class Counter
+{
+    public Int value
+    public const Int step = 2
+    public static Int total = 0
+
+    public fn Counter(Int start)
+    {
+        value = start
+    }
+
+    public static fn Next(const Int amount) -> Int
+    {
+        total += amount
+        return total
+    }
+}
+
+script ControlProbe
+{
+    public Int count
+    public Int rhsCount
+    public Int switchChecks
+    public Int vectorChecks
+    public Table<String, Int> scores
+    [prop] public Mode mode = Mode.Idle
+
+    public fn HasOwner() -> Bool
+    {
+        return GetGameObject().valid
+    }
+
+    public fn HasOwnerExplicit() -> Bool
+    {
+        return this.GetGameObject().valid
+    }
+
+    public fn HasTransform() -> Bool
+    {
+        return GetGameObject().GetComponent<Transform2D>() is not null
+    }
+
+    public fn HasNoTransformByEquality() -> Bool
+    {
+        ref Transform2D transform = GetGameObject().GetComponent<Transform2D>()
+        Bool missingLeft = transform == null
+        Bool missingRight = null == transform
+        Bool presentLeft = transform != null
+        Bool presentRight = null != transform
+        return (missingLeft and missingRight and not presentLeft and not presentRight
+            and null == null and not (null != null))
+    }
+
+    public fn MissingScriptRefByEquality() -> Bool
+    {
+        ref ChildScript missing = null
+        return missing == null and not (missing != null)
+    }
+
+    public fn OwnerIdentityEqual() -> Bool
+    {
+        return (GetGameObject() == GetGameObject()
+            and not (GetGameObject() != GetGameObject()))
+    }
+
+    public fn TransformIdentityEqual() -> Bool
+    {
+        ref Transform2D left = GetGameObject().GetComponent<Transform2D>()
+        ref Transform2D right = GetGameObject().GetComponent<Transform2D>()
+        return left == right and not (left != right)
+    }
+
+    public fn DerivedScriptReferenceIdentity() -> Bool
+    {
+        ref ChildScript child = GetGameObject().GetScript<ChildScript>()
+        ref ParentScript initialized = child
+        ref ParentScript parent = null
+        parent = child
+        return (initialized == child and parent == child
+            and not (parent != child) and parent.Increase() == 3)
+    }
+
+    public fn HasTransformSafe() -> Bool
+    {
+        return GetGameObject()?.GetComponent<Transform2D>() is not null
+    }
+
+    public fn DisableOwnerSafe()
+    {
+        GetGameObject()?.SetActive(false)
+    }
+
+    public fn NullFallback() -> Int
+    {
+        return null ?? 5
+    }
+
+    public fn RaiseScores()
+    {
+        for (key, ref value in scores)
+        {
+            value += 1
+        }
+    }
+
+    public fn GenericArray() -> Int
+    {
+        Array<Int> values = Array<Int>()
+        values.Add(3)
+        return values[0]
+    }
+
+    public fn OwnCount() -> Int
+    {
+        return this.count
+    }
+
+    public fn ScoreByName() -> Int
+    {
+        return scores["bonus"]
+    }
+
+    public fn Brighten() -> Float
+    {
+        ref Light2D light = GetGameObject().GetComponent<Light2D>()
+        light.intensity += NextAmount()
+        return light.intensity
+    }
+
+    public fn NextAmount() -> Float
+    {
+        rhsCount += 1
+        return 0.5
+    }
+
+    public fn RenameOwner()
+    {
+        GetGameObject().name = "edited"
+        GetGameObject().name += "!"
+        GetGameObject().active = false
+    }
+
+    public fn MoveOwner() -> Float
+    {
+        ref Transform2D transform = GetGameObject().GetComponent<Transform2D>()
+        Vector2 delta
+        delta.x = 2.0
+        delta.y = 3.0
+        transform.position += delta
+        return transform.position.x
+    }
+
+    public fn UseCounter() -> Int
+    {
+        Counter counter = Counter(3)
+        const Int increment = 1
+        return counter.value + counter.step + Counter.Next(increment)
+    }
+
+    public fn NextSwitchValue() -> Int
+    {
+        switchChecks += 1
+        return 1
+    }
+
+    public fn NextSwitchCase() -> Int
+    {
+        switchChecks += 1
+        return 1
+    }
+
+    public fn SwitchScalars() -> Int
+    {
+        Int result = 0
+        String key = "two"
+        switch (key)
+        {
+            case "one" { result += 100 }
+            case "two" { result += 2 }
+            default { result += 1000 }
+        }
+        Float fraction = 1.5
+        switch (fraction)
+        {
+            case 1.0, 1.5 { result += 3 }
+            default { result += 1000 }
+        }
+        Bool yes = true
+        switch (yes)
+        {
+            case false { result += 1000 }
+            case true { result += 5 }
+        }
+        switch (NextSwitchValue())
+        {
+            case NextSwitchCase() { result += 7 }
+            default { result += 1000 }
+        }
+        for (i in 0..3)
+        {
+            switch (i)
+            {
+                case 1 { continue }
+                default { result += 1 }
+            }
+        }
+        return result + switchChecks * 100
+    }
+
+    public fn VectorMath() -> Float
+    {
+        Vector2 a
+        a.x = 2.0
+        a.y = 4.0
+        Vector2 b
+        b.x = 3.0
+        b.y = 1.0
+        Vector2 sum = a + b
+        Vector2 difference = sum - b
+        Vector2 scaled = difference * 2.0
+        Vector2 reversed = 2.0 * difference
+        Vector2 divided = scaled / 2.0
+        difference += b
+        difference -= b
+        difference *= 2.0
+        difference /= 2.0
+        Vector2 withEffects = MakeVector(1.0, 2.0) + MakeVector(3.0, 4.0)
+        Array<Vector2> positions
+        positions.Add(a)
+        positions[NextVectorIndex()] += b
+        return (sum.x + difference.y + divided.x + reversed.y
+            + withEffects.x + positions[0].x + Float(vectorChecks * 100))
+    }
+
+    public fn MakeVector(Float x, Float y) -> Vector2
+    {
+        vectorChecks += 1
+        Vector2 result
+        result.x = x
+        result.y = y
+        return result
+    }
+
+    public fn NextVectorIndex() -> Int
+    {
+        vectorChecks += 1
+        return 0
+    }
+
+    fn OnPointerDown() override
+    {
+        Float intensity = Brighten()
+        count += 1
+    }
+
+    fn OnUpdate() override
+    {
+        for (i in 0..3)
+        {
+            count += i
+        }
+        for (key, value in scores)
+        {
+            count += value
+        }
+        switch (mode)
+        {
+            case Mode.Idle
+            {
+                count += 1
+            }
+            case Mode.Active
+            {
+                count += 2
+            }
+        }
+    }
+}

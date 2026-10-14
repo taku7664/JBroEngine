@@ -1,7 +1,7 @@
 ﻿#include <JBro/Runtime/GameScriptBase.h>
 
 #include <JBro/Runtime/GameObject.h>
-#include <JBro/Runtime/ScriptGuard.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 
 namespace JBro
 {
@@ -54,13 +54,13 @@ namespace JBro
             return;
         }
         m_enabled = enabled;
-        // 스크립트 훅은 `ScriptGuard` 를 거친다(D-325).
+        // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325).
         if (enabled)
         {
-            ScriptGuard::Call("OnEnabled", [this] { OnEnabled(); });
+            ScriptCallGuard::Call("OnEnabled", [this] { OnEnabled(); });
             return;
         }
-        ScriptGuard::Call("OnDisabled", [this] { OnDisabled(); });
+        ScriptCallGuard::Call("OnDisabled", [this] { OnDisabled(); });
     }
 
     void GameScriptBase::SetOwner(Object::GameObject* owner)

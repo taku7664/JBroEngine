@@ -217,6 +217,9 @@ namespace
         CheckKinds("== != < <= > >=",
             "EqualEqual BangEqual Less LessEqual Greater GreaterEqual EndOfFile",
             "comparison");
+        CheckKinds("T? x?.y x ?? y x!",
+            "Identifier Question Identifier QuestionDot Identifier Identifier QuestionQuestion Identifier Identifier Bang EndOfFile",
+            "D-262 nullable suffix, safe access, coalescing and postfix assertion");
         CheckKinds("a-b", "Identifier Minus Identifier EndOfFile", "minus without spaces");
         CheckKinds("fn F() -> Int", "KeywordFn Identifier LeftParen RightParen Arrow Identifier EndOfFile",
             "the return arrow");
@@ -291,8 +294,8 @@ namespace
             "{\n"
             "    [range(1, 100), category(\"Stats\")]\n"
             "    Int MaxHp = 10\n"
-            "    ref Transform2D target\n"
-            "    Array<ref Enemy> allies\n"
+            "    Transform2D? target\n"
+            "    Array<Enemy?> allies\n"
             "    fn TakeDamage(Int amount) override\n"
             "    {\n"
             "        hp -= amount\n"

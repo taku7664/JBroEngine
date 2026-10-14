@@ -68,6 +68,7 @@ namespace JBro::ScriptCompiler
         IsNullExpression,       // Flags=Negated 면 is not null. [피연산자]
         RangeExpression,        // [시작, 끝]
         ParenthesizedExpression, // [식]
+        NullAssertExpression,   // [식] - D-262 postfix !
 
         Count,
     };
@@ -86,6 +87,10 @@ namespace JBro::ScriptCompiler
         SyntaxFlagOverride = 1 << 7,
         SyntaxFlagRequire = 1 << 8,
         SyntaxFlagNegated = 1 << 9,
+        SyntaxFlagNullable = 1 << 10,
+        SyntaxFlagNullSafe = 1 << 11,
+        SyntaxFlagOperatorEqual = 1 << 12,
+        SyntaxFlagOperatorNotEqual = 1 << 13,
     };
 
     using NodeIndex = UInt32;
@@ -101,6 +106,13 @@ namespace JBro::ScriptCompiler
         UInt32 FirstChild = 0;
         UInt32 ChildCount = 0;
     };
+
+    inline std::string_view FunctionName(const SyntaxNode& node)
+    {
+        if (node.Flags & SyntaxFlagOperatorEqual) return "operator==";
+        if (node.Flags & SyntaxFlagOperatorNotEqual) return "operator!=";
+        return node.Text;
+    }
 
     // 파일 하나의 구문 트리다.
     //

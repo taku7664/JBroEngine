@@ -6,6 +6,7 @@
 #include <JBro/Platform/Platform.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
+#include <JBro/Runtime/ScriptErrorContext.h>
 #include <JBro/Host/TimeSystem.h>
 #include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
@@ -342,6 +343,7 @@ namespace JBro
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.
         ScriptDLLLoader m_scripts;
+        ScriptErrorContext m_scriptErrorContext;
         ProjectFile m_project;
         FrameworkContext m_frameworkContext;
         FrameTarget m_simulationViewTarget;
@@ -380,7 +382,7 @@ namespace JBro
         String m_scriptModuleError;
         String m_scriptModulePath;
         // 열 때와 다시 실을 때 DLL 에 넘기는 블록이다: 프레임워크의 것 뒤에 호스트의 입력·세이브·로컬라이징·네트워크·오디오를 잇는다.
-        void CollectScriptContextBlocks(IFramework& framework, Array<ScriptContextBlock>& blocks) const;
+        void CollectScriptContextBlocks(IFramework& framework, Array<ScriptContextBlock>& blocks);
         FrameStatus m_lastFrameStatus = FrameStatus::Ready;
 
         // 처음 열 때는 비운 채로 시작하고(`initial`), 다시 스캔할 때는 읽지 못하면 전 것을 둔다.

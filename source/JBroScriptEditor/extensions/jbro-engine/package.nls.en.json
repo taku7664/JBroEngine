@@ -26,5 +26,9 @@
 	"workspace": "Workspace",
 	"workspaceEmpty": "Open a folder in the workspace.\n[Open Folder](command:jbro.project.openFolder)",
 	"refreshWorkspace": "Refresh Workspace",
+	"engineLogs": "Engine Log",
+	"showEngineLogs": "Show Engine Log",
+	"clearEngineLogs": "Clear Engine Log",
+	"engineControlPort": "Loopback control port of the engine editor.",
 	"themeName": "JBroEngine Dark"
 }

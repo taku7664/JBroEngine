@@ -1,0 +1,168 @@
+class Link
+{
+    public ref Transform2D target2
+
+    public fn Touch() -> Int
+    {
+        return 7
+    }
+}
+
+script GuardProbe
+{
+    public ref GuardProbe peer
+    [prop] public Array<ref GuardProbe> peers
+    public ref Link target1
+    public Int before
+    public Int after
+    public Int safeRuns
+    [prop] public ref Int maybe
+    public Int valueBefore
+    public Int valueAfter
+    public Array<Int> values
+    public Float factor = 0.5
+    public ref Array<Int> optionalNumbers
+    public Int indexBefore
+    public Int indexAfter
+    public Int touchBefore
+    public Int touchAfter
+    public Int lookupCount
+
+    public fn CountedTarget() -> ref Link
+    {
+        lookupCount += 1
+        return target1
+    }
+
+    public fn TouchFirst() -> Int
+    {
+        return target1.Touch()
+    }
+
+    public fn TouchFirstSafe() -> Int
+    {
+        return target1?.Touch() ?? 0
+    }
+
+    fn OnUpdate() override
+    {
+        before += 1
+        Vector2 position = target1.target2.position
+        after += 1
+    }
+
+    fn OnClick() override
+    {
+        Vector2 position = target1?.target2?.position ?? Vector2()
+        safeRuns += 1
+    }
+
+    fn OnPointerDown() override
+    {
+        valueBefore += 1
+        Int number = maybe
+        valueAfter += 1
+    }
+
+    fn OnPointerUp() override
+    {
+        for (ref item in values)
+        {
+            item += 1
+        }
+    }
+
+    fn OnPointerEnter() override
+    {
+        indexBefore += 1
+        Int first = optionalNumbers[0]
+        indexAfter += 1
+    }
+
+    fn OnPointerExit() override
+    {
+        touchBefore += 1
+        Int touched = CountedTarget().Touch()
+        touchAfter += touched
+    }
+}
+
+class ConversionBox
+{
+    public Int value = 0
+
+    public fn ConversionBox(Int start)
+    {
+        value = start
+    }
+}
+
+script ConversionProbe
+{
+    [prop] public Int mode = 0
+    [prop] public ref Int maybe
+    [prop] public Int before = 0
+    [prop] public Int after = 0
+    [prop] public Int called = 0
+    [prop] public Int result = 0
+    [prop] public Int evaluations = 0
+    [prop] public String label = ""
+
+    public fn CountedMaybe() -> ref Int
+    {
+        evaluations += 1
+        return maybe
+    }
+
+    public fn ReturnNumber() -> Int
+    {
+        return CountedMaybe()
+    }
+
+    public fn Consume(Int value) -> Int
+    {
+        called += 1
+        return value + 2
+    }
+
+    public fn TemporaryLabel() -> ref String
+    {
+        evaluations += 1
+        return "A temporary nullable string must be copied before its owned storage is destroyed."
+    }
+
+    public fn ReturnLabel() -> String
+    {
+        return TemporaryLabel()
+    }
+
+    fn OnClick() override
+    {
+        label = ReturnLabel()
+    }
+
+    fn OnUpdate() override
+    {
+        before += 1
+        if (mode == 0)
+        {
+            result = ReturnNumber()
+        }
+        else if (mode == 1)
+        {
+            result = Consume(CountedMaybe())
+        }
+        else if (mode == 2)
+        {
+            Array<Int> items
+            items.Add(CountedMaybe())
+            result = items[0]
+        }
+        else
+        {
+            ConversionBox box = ConversionBox(CountedMaybe())
+            result = box.value
+        }
+        after += 1
+    }
+}

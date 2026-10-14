@@ -39,6 +39,8 @@ namespace JBro::Handle
 
         Bool IsValid() const;
         explicit operator bool() const;
+        // Identity is the stored instance id; validity is checked separately by IsValid().
+        Bool operator==(const GameObject& other) const;
 
         // 이 오브젝트와 자식을 지운다. 순회 중이면 안전 지점에서 지우지만, 핸들은 지금부터 무효이고 찾기에서 빠진다.
         void Destroy();

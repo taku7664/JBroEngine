@@ -56,7 +56,7 @@
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ScriptRegistry.h>
-#include <JBro/Runtime/ScriptGuard.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -6885,7 +6885,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; script faults not verified" << std::endl;
             return;
         }
-        Check(JBro::ScriptGuard::IsEnabled(), "the editor turns the script guard on");
+        Check(JBro::ScriptCallGuard::IsEnabled(), "the editor turns the script guard on");
         JBro::ProjectDescriptor project;
         constexpr char name[] = "ScriptFaultProbe";
         project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
@@ -6901,10 +6901,10 @@ namespace
         Check(editor.StartSimulation(), "play must start");
         canvas->CreateObject("Spawned");
         transform->position = JBro::Vector2{-9.0f, -9.0f};
-        Check(false == JBro::ScriptGuard::Call("OnUpdate", [] { ScriptWritesThroughNull(); }), "the faulting hook is caught");
+        Check(false == JBro::ScriptCallGuard::Call("OnUpdate", [] { ScriptWritesThroughNull(); }), "the faulting hook is caught");
         Check(editor.Tick(Frame), "the editor keeps ticking after a script fault");
         Check(false == editor.IsSimulationPlaying(), "and has stopped the simulation");
-        Check(false == JBro::ScriptGuard::HasFault(), "having taken the fault");
+        Check(false == JBro::ScriptCallGuard::HasFault(), "having taken the fault");
         Check(canvas->GetObjectCount() == 1, "what the game made is gone");
         JBro::Array<JBro::Object::GameObject*> roots;
         canvas->GetRootObjects(roots);
@@ -6917,16 +6917,16 @@ namespace
             "that says the simulation stopped");
 
         // 실행 중이 아니면(편집 중에 붙인 스크립트의 훅) 멈출 것이 없고 알리기만 한다.
-        Check(false == JBro::ScriptGuard::Call("OnAttached", [] { ScriptWritesThroughNull(); }), "a fault while editing is caught too");
+        Check(false == JBro::ScriptCallGuard::Call("OnAttached", [] { ScriptWritesThroughNull(); }), "a fault while editing is caught too");
         Check(editor.Tick(Frame), "the editor keeps ticking");
-        Check(false == JBro::ScriptGuard::HasFault(), "and takes it");
+        Check(false == JBro::ScriptCallGuard::HasFault(), "and takes it");
         Check(std::strcmp(editor.GetNotifications().GetLastTitle(),
                   JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFault, "A script raised an error")) == 0,
             "saying only that a script raised an error");
         Check(canvas->GetObjectCount() == 1, "leaving the canvas alone");
 
         editor.Shutdown();
-        Check(false == JBro::ScriptGuard::IsEnabled(), "shutting down turns the guard off");
+        Check(false == JBro::ScriptCallGuard::IsEnabled(), "shutting down turns the guard off");
     }
 
     // **빈 곳을 끌면 상자가 되고, 그 안에 닿은 것이 모두 골라진다**(기존 엔진의 드래그 박스

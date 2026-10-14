@@ -26,5 +26,9 @@
 	"workspace": "워크스페이스",
 	"workspaceEmpty": "워크스페이스에 폴더를 열어 주세요.\n[폴더 열기](command:jbro.project.openFolder)",
 	"refreshWorkspace": "워크스페이스 새로 고침",
+	"engineLogs": "엔진 로그",
+	"showEngineLogs": "엔진 로그 보기",
+	"clearEngineLogs": "엔진 로그 지우기",
+	"engineControlPort": "엔진 편집기의 루프백 제어 포트 번호입니다.",
 	"themeName": "JBroEngine 어두운 테마"
 }

@@ -2,7 +2,7 @@
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
-#include <JBro/Runtime/ScriptGuard.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -269,24 +269,24 @@ namespace JBro::System
         }
         for (GameScript2D* script : m_hookTargets)
         {
-            // 스크립트 훅은 `ScriptGuard` 를 거친다(D-325).
+            // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325).
             switch (hook)
             {
             case Hook::Enter:
-                ScriptGuard::Call("OnPointerEnter", [script] { script->OnPointerEnter(); });
+                ScriptCallGuard::Call("OnPointerEnter", [script] { script->OnPointerEnter(); });
                 break;
             case Hook::Exit:
-                ScriptGuard::Call("OnPointerExit", [script] { script->OnPointerExit(); });
+                ScriptCallGuard::Call("OnPointerExit", [script] { script->OnPointerExit(); });
                 break;
             case Hook::Down:
-                ScriptGuard::Call("OnPointerDown", [script] { script->OnPointerDown(); });
+                ScriptCallGuard::Call("OnPointerDown", [script] { script->OnPointerDown(); });
                 break;
             case Hook::Up:
-                ScriptGuard::Call("OnPointerUp", [script] { script->OnPointerUp(); });
+                ScriptCallGuard::Call("OnPointerUp", [script] { script->OnPointerUp(); });
                 break;
             case Hook::Click:
             default:
-                ScriptGuard::Call("OnClick", [script] { script->OnClick(); });
+                ScriptCallGuard::Call("OnClick", [script] { script->OnClick(); });
                 break;
             }
         }

@@ -1,0 +1,24 @@
+class StaticOwned
+{
+    public Int score = 5
+    [prop, noserialize]
+    public static StaticOwned singleton = StaticOwned()
+    public static Int first = 3
+    public static Int second = ReadFirst()
+    public static Float scaleAtStartup = Time.TimeScale()
+
+    public static fn ReadFirst() -> Int
+    {
+        return first + 1
+    }
+
+    public static fn ReadSecond() -> Int
+    {
+        return second
+    }
+}
+
+class StaticDependent
+{
+    public static Int value = StaticOwned.ReadSecond()
+}

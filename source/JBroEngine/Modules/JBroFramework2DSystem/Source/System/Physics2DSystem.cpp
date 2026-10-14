@@ -3,7 +3,7 @@
 #include "Physics2DGeometry.h"
 
 #include <JBro/Canvas/Canvas.h>
-#include <JBro/Runtime/ScriptGuard.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
@@ -1470,35 +1470,35 @@ namespace JBro::System
                     state.hookTargets.Add(static_cast<GameScript2D*>(script));
                 }
             }
-            // 스크립트 훅은 `ScriptGuard` 를 거친다(D-325).
+            // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325).
             for (GameScript2D* script : state.hookTargets)
             {
                 if (trigger)
                 {
                     if (phase == Phase::Enter)
                     {
-                        ScriptGuard::Call("OnTriggerEnter", [script, &hit] { script->OnTriggerEnter(hit); });
+                        ScriptCallGuard::Call("OnTriggerEnter", [script, &hit] { script->OnTriggerEnter(hit); });
                     }
                     else if (phase == Phase::Stay)
                     {
-                        ScriptGuard::Call("OnTriggerStay", [script, &hit] { script->OnTriggerStay(hit); });
+                        ScriptCallGuard::Call("OnTriggerStay", [script, &hit] { script->OnTriggerStay(hit); });
                     }
                     else
                     {
-                        ScriptGuard::Call("OnTriggerExit", [script, &hit] { script->OnTriggerExit(hit); });
+                        ScriptCallGuard::Call("OnTriggerExit", [script, &hit] { script->OnTriggerExit(hit); });
                     }
                 }
                 else if (phase == Phase::Enter)
                 {
-                    ScriptGuard::Call("OnCollisionEnter", [script, &hit] { script->OnCollisionEnter(hit); });
+                    ScriptCallGuard::Call("OnCollisionEnter", [script, &hit] { script->OnCollisionEnter(hit); });
                 }
                 else if (phase == Phase::Stay)
                 {
-                    ScriptGuard::Call("OnCollisionStay", [script, &hit] { script->OnCollisionStay(hit); });
+                    ScriptCallGuard::Call("OnCollisionStay", [script, &hit] { script->OnCollisionStay(hit); });
                 }
                 else
                 {
-                    ScriptGuard::Call("OnCollisionExit", [script, &hit] { script->OnCollisionExit(hit); });
+                    ScriptCallGuard::Call("OnCollisionExit", [script, &hit] { script->OnCollisionExit(hit); });
                 }
             }
         };
