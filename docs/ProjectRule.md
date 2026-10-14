@@ -1610,6 +1610,18 @@ Updates: D-313의 최초 메뉴만 구현하는 범위. 사용자 확인 대상�
   **현재 확인은 확장 활성화 이후 최종 화면이다.** 초기 로딩 전 Explorer가 잠시 나타나는 전환은 남아 있으며,
   최초 프레임부터 워크스페이스만 표시됐다고 판단하지 않는다. 실제 트리·파일 열기·테마 확인과 이 한계는 계획 §13.4에 기록한다.
 
+### 11.9 본체 한국어와 폴더 아이콘을 실제 화면에서 확인한다 (D-315)
+
+Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 표시 확인 범위.
+
+- **한국어 우선은 Code-OSS 본체·내장 UI도 포함한다.** (MUST)
+  JBro 메뉴만 번역한 결과나 개발 실행의 영어 상태를 편집기 한국어 제공 완료로 판단하지 않는다.
+  번역 파일·영어 폴백을 유지하고, 실제 내장 패널·경고·빈 상태의 표시를 확인한다.
+- **폴더 아이콘은 파일 존재와 실제 표시를 따로 확인한다.** (MUST)
+  엔진과 같은 아이콘 출처·역할을 사용하되 루트·하위 폴더의 열린/닫힌 상태가 트리에 그려지는지 확인한다.
+- 고정 한국어 팩·개발 대응표·폴더 SVG의 이번 구현과 확인 범위는 [한국어·아이콘 후속 결과](../tasks/script-editor-integration-plan.md#14-2026-10-14-후속--본체-한국어폴더-아이콘)에 둔다.
+  일부 검토 화면 통과를 설치본·전 화면 완전 한국어·실제 계정 인증 완료로 확대하지 않는다.
+
 ## 12. 검증
 
 - 빌드 성공만으로 기능이 검증됐다고 판단하지 않는다. (MUST)
@@ -1745,7 +1757,7 @@ Updates: D-313의 최초 메뉴만 구현하는 범위. 사용자 확인 대상�
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장과 코어 패치가 `source/JBroScriptEditor` 에 섰고(D-261) 포크 설치본은 아직 없다.
-- [tasks/script-editor-integration-plan.md](../tasks/script-editor-integration-plan.md) — C++ 스크립트용 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃 현황과 후속 계획(D-310~D-314).
+- [tasks/script-editor-integration-plan.md](../tasks/script-editor-integration-plan.md) — C++ 스크립트용 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃 현황과 후속 계획(D-310~D-315).
   사용자 확인 담당 범위·기본 화면 항목은 Decisions에 기록하며, 이 계획의 구현 제안은 확정 계약이 아니다.
 - [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
   컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. ~~`jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.~~

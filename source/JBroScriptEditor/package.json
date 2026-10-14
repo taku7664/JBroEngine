@@ -2,11 +2,11 @@
 	"name": "jbro-script-editor",
 	"private": true,
 	"scripts": {
-		"test": "node scripts/check-nls.mjs && node scripts/generate-theme.mjs --check && node --test extensions/jbro-engine/test/accounts.test.cjs && node scripts/run-grammar-tests.mjs",
+		"test": "node scripts/check-nls.mjs && node scripts/check-korean-pack.mjs && node scripts/generate-theme.mjs --check && node --test extensions/jbro-engine/test/accounts.test.cjs && node scripts/run-grammar-tests.mjs",
 		"generate:theme": "node scripts/generate-theme.mjs",
 		"test:theme": "node scripts/generate-theme.mjs --check",
 		"test:accounts": "node --test extensions/jbro-engine/test/accounts.test.cjs",
-		"test:nls": "node scripts/check-nls.mjs",
+		"test:nls": "node scripts/check-nls.mjs && node scripts/check-korean-pack.mjs",
 		"test:grammar": "node scripts/run-grammar-tests.mjs",
 		"update-snapshots": "node scripts/run-grammar-tests.mjs --update"
 	},
