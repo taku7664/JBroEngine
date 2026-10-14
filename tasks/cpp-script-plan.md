@@ -196,6 +196,9 @@ JBRO_SCRIPT_MODULE_2D()
 
 - 완료 조건: 에디터 메뉴로 빌드하면 성공과 실패가 로그에 보이고, 실패한 줄로 이동할 수 있다.
 
+**2026-10-14 후속 (D-318).** 컴파일러는 MSVC 로 정했다. 에디터는 `v145` 컴파일러가 든 설치만 빌드 도구로 보고(이전에는 MSBuild 만 봤다),
+없거나 SDK 가 없으면 Build Tools for Visual Studio 2026 의 어느 구성 요소를 깔지 알리고 받는 곳을 연다. IDE 는 요구하지 않는다.
+
 **진행 (2026-09-29, D-299).** 섰다. 진단을 보일 곳은 새 `빌드 결과` 패널이고, 여는 편집기는 에디터 설정에서 고른다(두 가지 모두 사용자가 골랐다).
 
 - 플랫폼: `IPlatform` 의 `StartProcess`·`PollProcess`·`CloseProcess`(Job 으로 묶어 닫으면 띄운 것까지 끝낸다)·`LaunchProcess`(띄우고 잊는다)·`ReadEnvironmentVariable`,
