@@ -26,4 +26,16 @@ script AttributeProbe
 
     [clamp(0.0, 1.0)]
     public Float clamped = 0.5
+
+    [prop]
+    public static Int sharedCount = 3
+
+    [prop, noserialize]
+    private static Int privateShared = 12
+
+    [prop, noserialize]
+    protected static Int protectedShared = 13
+
+    [prop, noserialize]
+    public static const Int fixedShared = 14
 }

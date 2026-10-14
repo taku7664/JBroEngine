@@ -216,6 +216,35 @@ namespace
             "an annotated public field is registered for scene and inspector reflection");
     }
 
+    void TestStaticPropertiesAreSharedAndNotSerialized()
+    {
+        auto implicit = Analyze("script S\n{\n[prop]\npublic static Int shared = 3\n}\n");
+        Check(Has(*implicit, "JBC3041"),
+            "an implicit NoSerialize static property warns that edits are not saved");
+        Check(implicit->Documents[0]->Diagnostics[0].Warning,
+            "implicit static property persistence diagnostic is a warning");
+        auto explicitStorage = Analyze("script S\n{\n[prop, noserialize]\npublic static Int shared = 3\n}\n");
+        Check(!Has(*explicitStorage, "JBC3041"),
+            "an explicit noserialize static property needs no persistence warning");
+        Array<DocumentInput> first;
+        first.Add({"file:///static.jscript", "static.jscript",
+            "script S\n{\n[prop]\npublic static Int shared = 3\n}\n", 1});
+        auto previous = AnalyzeProject(first.View(), Catalog());
+        Array<DocumentInput> edited;
+        edited.Add({"file:///static.jscript", "static.jscript",
+            "script S\n{\n[prop, noserialize]\npublic static Int shared = 3\n}\n", 2});
+        auto updated = AnalyzeProjectIncremental(edited.View(), Catalog(), std::move(previous));
+        Check(!Has(*updated, "JBC3041"),
+            "adding noserialize clears the static property warning during incremental editing");
+        SourceText source("static.jscript", "script S\n{\n[prop]\npublic static Int shared = 3\n}\n");
+        DiagnosticList diagnostics;
+        const SyntaxTree tree = Parse(source, diagnostics);
+        const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
+        Check(emitted.Errors.IsEmpty()
+                && emitted.Code.find("JBRO_STATIC_FIELD(JBro::Int, shared, NoSerialize())") != String::npos,
+            "static script properties use shared reflection storage excluded from instance saves");
+    }
+
     void TestCppEmitterFloatLiteralMatchesEngineValueType()
     {
         SourceText source("float.jscript", "script Probe\n{\npublic Float factor = 0.5\n}\n");
@@ -526,6 +555,7 @@ JBro::Int32 RunScriptCompilerAnalysisTests()
     TestCppEmitterRejectsRecursiveOwnedRefs();
     TestCppEmitterClassConstructionAndStaticMembers();
     TestCppEmitterPreservesFieldVisibilityAndReflection();
+    TestStaticPropertiesAreSharedAndNotSerialized();
     TestCppEmitterFloatLiteralMatchesEngineValueType();
     TestWitnessRegressions();
     TestJumpControlFlowAndContainerEffects();

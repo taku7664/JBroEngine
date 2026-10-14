@@ -66,3 +66,4 @@ Entries:
   jbroc.semantic.jump_context: "여기에서는 {0}문을 사용할 수 없습니다."
   jbroc.semantic.type_constraint: "{1} 타입은 {0} 함수의 타입 인자 조건에 맞지 않습니다."
   jbroc.semantic.legacy_nullable_type: "{0}? 대신 ref {0}를 사용하세요."
+  jbroc.semantic.static_property_not_serialized: "[prop] static 필드 {0}은 모든 인스턴스가 공유하며 인스턴스 저장 파일에는 저장되지 않습니다. 의도한 경우 [noserialize]를 명시하세요."

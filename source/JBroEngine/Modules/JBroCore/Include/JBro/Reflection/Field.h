@@ -277,6 +277,22 @@ namespace JBro
         return entry;
     }
 
+    template <auto StaticPointer>
+    constexpr FieldEntry MakeStaticFieldEntry(const FieldAttributes& attributes = {})
+    {
+        using Field = std::remove_pointer_t<decltype(StaticPointer)>;
+        static_assert(std::is_pointer_v<decltype(StaticPointer)> && !std::is_const_v<Field>,
+            "reflected static fields require writable backing storage");
+
+        FieldEntry entry;
+        entry.name = Detail::FieldName<StaticPointer>::Text();
+        entry.GetType = &TypeDescriptorOf<Field>::Get;
+        entry.Address = [](void*) noexcept -> void* { return StaticPointer; };
+        entry.ConstAddress = [](const void*) noexcept -> const void* { return StaticPointer; };
+        entry.attributes = attributes;
+        return entry;
+    }
+
     // ---------------------------------------------------------------------
     // 개수는 스스로 센다 — END 매크로가 없다
     // ---------------------------------------------------------------------
@@ -498,3 +514,36 @@ namespace JBro
         }                                                                            \
     protected:                                                                       \
         FieldType FieldName
+
+// Static fields share one address across every instance and are not instance-owned.
+#define JBRO_STATIC_FIELD(FieldType, FieldName, ...)                                 \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
+        }                                                                            \
+        inline static FieldType FieldName
+
+#define JBRO_STATIC_FIELD_PRIVATE(FieldType, FieldName, ...)                         \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
+        }                                                                            \
+    private:                                                                         \
+        inline static FieldType FieldName
+
+#define JBRO_STATIC_FIELD_PROTECTED(FieldType, FieldName, ...)                       \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
+        }                                                                            \
+    protected:                                                                       \
+        inline static FieldType FieldName

@@ -977,6 +977,26 @@ namespace JBro::ScriptCompiler
                             kind = SymbolKind::EnumMember;
                         }
                         Symbol symbol = FromNode(child, binding.Id, kind);
+                        if (kind == SymbolKind::Field && (Node(child).Flags & SyntaxFlagStatic))
+                        {
+                            bool property = false;
+                            bool noSerialize = false;
+                            const NodeIndex attributes = Child(child, 0);
+                            if (attributes != InvalidNode)
+                            {
+                                for (NodeIndex attribute : m_document->Tree.GetChildren(attributes))
+                                {
+                                    if (attribute == InvalidNode) continue;
+                                    property |= Node(attribute).Text == "prop";
+                                    noSerialize |= Node(attribute).Text == "noserialize";
+                                }
+                            }
+                            if (property && !noSerialize)
+                            {
+                                Error("JBC3041", "static_property_not_serialized",
+                                    NameRange(*m_document, Node(child)), {String(Node(child).Text)}, true);
+                            }
+                        }
                         if (IsFunction(kind))
                         {
                             symbol.Type = RenderType(m_document->Tree, Child(child, 2));
@@ -2702,7 +2722,7 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.operator", "jbroc.semantic.unknown_member", "jbroc.semantic.not_callable",
             "jbroc.semantic.no_overload", "jbroc.semantic.ambiguous_overload", "jbroc.semantic.not_iterable",
             "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
-            "jbroc.semantic.legacy_nullable_type"
+            "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized"
         };
         return {keys, std::size(keys)};
     }

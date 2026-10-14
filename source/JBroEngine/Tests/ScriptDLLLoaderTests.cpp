@@ -1174,7 +1174,7 @@ namespace
                 && std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[1].name), "extra") == 0,
             "inherited and own property names remain distinct in the derived script table");
         const JBro::PropertyTable* attributeProperties = JBro::PropertyRegistry::Lookup("AttributeProbe");
-        Check(attributeProperties != nullptr && attributeProperties->count == 9,
+        Check(attributeProperties != nullptr && attributeProperties->count == 13,
             "all supported field attributes register their script fields");
         Check(attributeProperties->properties[0].edit != nullptr
                 && std::strcmp(attributeProperties->properties[0].edit->displayName, "Gain") == 0
@@ -1191,7 +1191,12 @@ namespace
                 && !attributeProperties->properties[7].edit->editable
                 && !attributeProperties->properties[7].serialize
                 && attributeProperties->properties[8].edit->hasRange
-                && !attributeProperties->properties[8].edit->slider,
+                && !attributeProperties->properties[8].edit->slider
+                && !attributeProperties->properties[9].serialize
+                && !attributeProperties->properties[10].serialize
+                && !attributeProperties->properties[11].serialize
+                && !attributeProperties->properties[12].serialize
+                && !attributeProperties->properties[12].edit->editable,
             "noserialize, tooltip, visiblewhen, hidden, readonly and clamp retain their semantics");
         using DerivedRead = std::int64_t (*)();
         using ChildResult = std::int64_t (*)(JBro::GameScriptBase*);
@@ -1349,6 +1354,31 @@ namespace
             Check(inheritedValue != nullptr && ownValue != nullptr
                     && inheritedValue->Get() == 4 && ownValue->Get() == 9,
                 "derived reflection addresses reach the parent and child values");
+            JBro::GameScriptBase* firstAttributes = controlCanvas.AttachScript(
+                controlCanvas.CreateObject("attributes one"), "AttributeProbe");
+            JBro::GameScriptBase* secondAttributes = controlCanvas.AttachScript(
+                controlCanvas.CreateObject("attributes two"), "AttributeProbe");
+            Check(firstAttributes != nullptr && secondAttributes != nullptr,
+                "two attribute probe instances attach to the game canvas");
+            auto* firstShared = static_cast<JBro::Int*>(
+                attributeProperties->properties[9].Address(firstAttributes));
+            auto* secondShared = static_cast<JBro::Int*>(
+                attributeProperties->properties[9].Address(secondAttributes));
+            Check(firstShared != nullptr && firstShared == secondShared && firstShared->Get() == 3,
+                "static reflected fields expose the same storage through every instance");
+            *firstShared = 8;
+            Check(secondShared->Get() == 8,
+                "editing one instance updates the shared static reflected value");
+            JBro::Canvas staticCanvas(JBro::CreateDefaultAllocator());
+            Check(staticCanvas.AttachScript(staticCanvas.CreateObject("static save"), "AttributeProbe") != nullptr,
+                "the static property save probe attaches to an isolated canvas");
+            JBro::String staticSaved;
+            Check(JBro::WriteCanvasText(staticCanvas, staticSaved, canvasError),
+                "canvas with static script properties writes successfully");
+            Check(staticSaved.find("sharedCount") == JBro::String::npos,
+                "static script property is excluded from canvas saves");
+            Check(staticSaved.find("gain") != JBro::String::npos,
+                "ordinary reflected script field remains in the canvas save");
         }
         alignas(64) unsigned char generatedStorage[4096]{};
         JBro::GameScriptBase* generatedScript = generatedType->Construct(generatedStorage);

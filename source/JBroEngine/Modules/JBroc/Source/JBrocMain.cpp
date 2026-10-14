@@ -423,8 +423,11 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
                     .Append(": ").Append(messages.FormatKey(diagnostic.MessageKey.c_str(), diagnostic.Arguments.View()).View());
                 WriteLine(STD_OUTPUT_HANDLE, line.View());
             }
-            sourceErrors = sourceErrors || document.ParseDiagnostics.HasErrors()
-                || false == document.Diagnostics.IsEmpty();
+            sourceErrors = sourceErrors || document.ParseDiagnostics.HasErrors();
+            for (const SemanticDiagnostic& diagnostic : document.Diagnostics)
+            {
+                sourceErrors = sourceErrors || false == diagnostic.Warning;
+            }
             cppSources.Add({&document.Source, &document.Tree});
         }
         if (sourceErrors)

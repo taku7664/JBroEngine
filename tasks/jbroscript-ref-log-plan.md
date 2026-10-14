@@ -52,7 +52,7 @@
 - 생성기의 `this` 식과 `Table<String, Int>` 문자열 인덱스를 실제 게임 DLL에서 검증했다. 테이블 키를 배열 인덱스처럼 `size_t`로 변환하던 경로를 타입에 맞는 키 생성으로 고쳤다.
 - 여러 파일로 생성한 DLL에서 enum의 이름 기반 리플렉션·캔버스 저장/복원, 범위 `for`, `switch`의 두 분기를 실행했다. `switch`는 현재 `Int`와 스크립트 enum만 생성한다.
 - 생성 DLL의 실제 `Light2D`·`Transform2D`·게임 오브젝트에서 읽기/쓰기 속성의 대입을 확인했다. 무효 `ref`의 복합 대입은 우변 부작용 전에 콜백을 멈추고 위치별 로그를 남긴다. 유효해지면 숫자·`String`·`Bool`·`Vector2` 속성이 엔진 setter에 반영된다. Debug/Release 선택 시험이 통과했다.
-- `class` 생성자, `static` 필드·메서드와 `const` 필드·지역 변수·매개변수를 생성 DLL에서 실행했다. 정적 상태가 호출 사이에 유지되는지 확인했고 Debug/Release 선택 시험이 통과했다. 반영 필드와 `static`/`const`의 조합은 의미를 보존하지 못해 현재 명시적 생성 오류로 둔다.
+- `class` 생성자, `static` 필드·메서드와 `const` 필드·지역 변수·매개변수를 생성 DLL에서 실행했다. 정적 상태가 호출 사이에 유지되는지 확인했고 Debug/Release 선택 시험이 통과했다.
 - 사용자 클래스·스크립트의 상속, 인터페이스의 다이아몬드와 가상 메서드 구현을 생성 DLL에서 실행했다. 부모·자식의 `[prop]` 필드를 합친 표를 만들고 다중 상속의 두 번째 부모 주소를 보정한다. 이름·필드 개수·실제 주소와 Debug/Release 게임 DLL 실행을 확인했다.
-- 필드 어트리뷰트 `prop`·`range`·`clamp`·`name`·`tooltip`·`category`·`visiblewhen`·`readonly`·`noserialize`·`hidden`과 `protected` 반영 필드를 생성 DLL에서 검증했다. 사용자 결정에 따라 `[prop] const`는 읽기 전용으로 표시하고 인스턴스 저장에서 제외한다. Debug/Release 선택 시험이 통과했다. `[prop] static`의 공유 표시·저장 위치는 별도 결정에 따라 이어서 구현한다.
-- **아직 2단계를 닫지 않는다.** 이미터는 2D와 시험한 구문만 지원한다. 상속·인터페이스·일부 어트리뷰트/제어문은 생성 오류 또는 미구현 상태이며, 전체 JBroScript 문법의 `/W4` 컴파일 보장은 확인하지 못했다. 에디터 창의 실제 픽셀 확인은 하지 못했다.
+- 필드 어트리뷰트 `prop`·`range`·`clamp`·`name`·`tooltip`·`category`·`visiblewhen`·`readonly`·`noserialize`·`hidden`과 `protected` 반영 필드를 생성 DLL에서 검증했다. 사용자 결정에 따라 `[prop] const`는 읽기 전용으로 표시하고 인스턴스 저장에서 제외한다. `[prop] static`은 모든 인스턴스가 같은 주소를 편집하고 인스턴스 저장에서는 자동 제외한다. `[noserialize]`를 생략한 `[prop] static`에는 `JBC3041` 경고를 내되 빌드는 계속하며, 명시하면 경고가 사라진다. 실제 DLL의 두 인스턴스와 저장 파일, Debug/Release 선택 시험으로 확인했다.
+- **아직 2단계를 닫지 않는다.** 이미터는 2D와 시험한 구문만 지원한다. 일부 표현식·제어문과 모든 합법적 타입 조합의 C++ 생성은 검증하지 못했다. 전체 JBroScript 문법의 `/W4` 컴파일 보장과 에디터 창의 실제 픽셀 확인도 남았다.

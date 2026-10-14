@@ -685,12 +685,8 @@ namespace JBro::ScriptCompiler
                 const String name(node.Text);
                 const NodeIndex attributes = Child(index, 0);
                 const bool reflected = isStruct || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
-                if (reflected && staticField)
-                {
-                    Error("C++ emitter cannot reflect static fields yet");
-                    return;
-                }
                 String attributeCode;
+                bool explicitNoSerialize = false;
                 if (attributes != InvalidNode)
                 {
                     for (NodeIndex attribute : m_tree->GetChildren(attributes))
@@ -712,7 +708,7 @@ namespace JBro::ScriptCompiler
                         else if (text == "category") { native = "Category"; arity = 1; }
                         else if (text == "visiblewhen") { native = "VisibleWhen"; arity = 1; }
                         else if (text == "readonly") native = "ReadOnly";
-                        else if (text == "noserialize") native = "NoSerialize";
+                        else if (text == "noserialize") { native = "NoSerialize"; explicitNoSerialize = true; }
                         else if (text == "hidden") native = "Hidden";
                         else
                         {
@@ -734,17 +730,28 @@ namespace JBro::ScriptCompiler
                         attributeCode += ")";
                     }
                 }
-                if (reflected && constant)
+                if (reflected && (constant || staticField))
                 {
-                    if (!attributeCode.empty()) attributeCode += " | ";
-                    attributeCode += "ReadOnly() | NoSerialize()";
+                    if (constant)
+                    {
+                        if (!attributeCode.empty()) attributeCode += " | ";
+                        attributeCode += "ReadOnly()";
+                    }
+                    if (!explicitNoSerialize)
+                    {
+                        if (!attributeCode.empty()) attributeCode += " | ";
+                        attributeCode += "NoSerialize()";
+                    }
                 }
                 if (reflected)
                 {
                     const bool privateField = (node.Flags & SyntaxFlagPrivate)
                         || (!isStruct && 0 == (node.Flags & SyntaxFlagPublic));
-                    m_code += "    " + String(node.Flags & SyntaxFlagProtected ? "JBRO_FIELD_PROTECTED("
-                        : privateField ? "JBRO_FIELD_PRIVATE(" : "JBRO_FIELD(")
+                    m_code += "    " + String(staticField
+                        ? (node.Flags & SyntaxFlagProtected ? "JBRO_STATIC_FIELD_PROTECTED("
+                            : privateField ? "JBRO_STATIC_FIELD_PRIVATE(" : "JBRO_STATIC_FIELD(")
+                        : (node.Flags & SyntaxFlagProtected ? "JBRO_FIELD_PROTECTED("
+                            : privateField ? "JBRO_FIELD_PRIVATE(" : "JBRO_FIELD("))
                         + native + ", " + name + (attributeCode.empty() ? "" : ", " + attributeCode) + ")";
                 }
                 else
