@@ -19,6 +19,23 @@ namespace JBro::ScriptCompiler
         const SyntaxTree* Tree = nullptr;
     };
 
+    struct CppArtifact
+    {
+        String FileName;
+        String Code;
+    };
+
+    struct CppProjectResult
+    {
+        Array<CppArtifact> Files;
+        Array<String> Errors;
+    };
+
+    // File names and bytes are stable across source ordering and unrelated edits.
+    // Only the CLI writes artifacts; the compiler remains an in-memory module.
+    CppProjectResult EmitCppProject(ArrayView<const CppSource> sources, const ApiCatalog& api,
+        bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
+
     // Emits C++ for a 2D game DLL. Unsupported syntax is reported
     // explicitly; a partial translation must never be compiled as a script.
     CppEmitResult EmitCpp(const SourceText& source, const SyntaxTree& tree,

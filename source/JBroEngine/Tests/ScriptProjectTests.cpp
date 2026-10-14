@@ -5,6 +5,8 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Runtime/ScriptErrorContext.h>
 #include <JBro/Types/Uuid.h>
 
 #include <Windows.h>
@@ -353,19 +355,58 @@ namespace
         Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
                 && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
             "the editor builds the generated JBroScript into the game DLL");
-        const fs::path generatedSource = root / "x64" / "Intermediate" / "Debug" / "JBroGenerated.cpp";
+        const fs::path generatedDirectory = root / "x64" / "Intermediate" / "Debug" / "JBroScript";
+        const auto generatedHasType = [&generatedDirectory](const char* type) {
+            for (const auto& file : fs::directory_iterator(generatedDirectory))
+            {
+                if (file.path().extension() == L".h" && ReadAll(file.path()).find(type) != std::string::npos)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
         const fs::path follower = contents / "Scripts" / "Follower.jscript";
         std::ofstream(follower) << "script Follower { public ref Guard peer }\n";
         Check(editor.BuildScripts(), "the editor starts a build after adding a second JBroScript file");
         waitForBuild();
         Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
-                && ReadAll(generatedSource).find("class Follower") != std::string::npos,
+                && generatedHasType("class Follower"),
             "the second JBroScript file joins the game DLL without editing the project file");
+        fs::path guardObject;
+        fs::path followerObject;
+        for (const auto& file : fs::directory_iterator(generatedDirectory))
+        {
+            if (file.path().extension() != L".cpp")
+            {
+                continue;
+            }
+            const std::string text = ReadAll(file.path());
+            const fs::path object = generatedDirectory.parent_path() / (file.path().stem().native() + L".obj");
+            if (text.find("RegisterScriptType2D<Guard>") != std::string::npos)
+            {
+                guardObject = object;
+            }
+            if (text.find("RegisterScriptType2D<Follower>") != std::string::npos)
+            {
+                followerObject = object;
+            }
+        }
+        Check(fs::exists(guardObject) && fs::exists(followerObject), "MSBuild compiles a separate object for each source");
+        const auto guardTime = fs::last_write_time(guardObject);
+        const auto followerTime = fs::last_write_time(followerObject);
+        std::ofstream(follower, std::ios::trunc)
+            << "script Follower {\n public ref Guard peer\n fn Score() -> Int { return 7 }\n}\n";
+        Check(editor.BuildScripts(), "the editor builds a change in one JBroScript source");
+        waitForBuild();
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && fs::last_write_time(guardObject) == guardTime && fs::last_write_time(followerObject) != followerTime,
+            "an unrelated script object is not recompiled when one source changes");
         fs::remove(follower);
         Check(editor.BuildScripts(), "the editor starts a build after deleting a JBroScript file");
         waitForBuild();
         Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
-                && ReadAll(generatedSource).find("class Follower") == std::string::npos,
+                && !generatedHasType("class Follower"),
             "a deleted source is removed from generated C++ even if remaining files are older");
         std::ofstream(contents / "Scripts" / "Guard.jscript", std::ios::trunc)
             << "script Guard { fn OnUpdate() override { if true {} } }\n";
@@ -379,6 +420,27 @@ namespace
         }
         Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Failed && sourceDiagnostic,
             "an invalid JBroScript source appears at its own file and line in Build Results");
+        fs::remove(contents / "Scripts" / "Guard.jscript");
+        Check(editor.BuildScripts(), "the editor builds after removing the last JBroScript source");
+        waitForBuild();
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && ReadAll(generatedDirectory / "JBroGenerated.items").empty() && !generatedHasType("class Guard"),
+            "the last removed source leaves the C++ game project with no generated compile inputs");
+        const HMODULE library = LoadLibraryW((root / "x64" / "Debug" / "GameScript.dll").c_str());
+        Check(library != nullptr, "the game DLL still opens after all generated scripts are removed");
+        const auto getApi = reinterpret_cast<GetScriptModuleApiFunction>(GetProcAddress(library, ScriptModuleEntryPointName));
+        const ScriptModuleApi* api = getApi != nullptr
+            ? getApi(ScriptModuleAbiVersion, static_cast<UInt32>(sizeof(ScriptModuleApi))) : nullptr;
+        Bool removedGeneratedMarker = api != nullptr;
+        if (api != nullptr)
+        {
+            for (UInt32 index = 0; index < api->RequiredContextCount; ++index)
+            {
+                removedGeneratedMarker = removedGeneratedMarker && api->RequiredContexts[index].TypeId != ScriptErrorContextTypeId;
+            }
+        }
+        FreeLibrary(library);
+        Check(removedGeneratedMarker, "MSBuild relinks without stale generated objects or their mandatory error context");
         editor.Shutdown();
     }
 }

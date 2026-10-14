@@ -19,6 +19,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
 #include <JBro/Types/String.h>
+#include "CppProjectOutput.h"
 
 #include <crtdbg.h>
 #include <algorithm>
@@ -146,6 +147,7 @@ namespace
         JBro::Bool Help = false;
         JBro::Bool Lsp = false;
         JBro::Bool EmitCpp = false;
+        JBro::Bool EmitProject = false;
         JBro::Bool EmitCppWithoutModuleEntry = false;
         std::filesystem::path EmitCppPath;
         Array<std::filesystem::path> Files;
@@ -175,15 +177,22 @@ namespace
                 commandLine.Lsp = true;
                 continue;
             }
-            if (L"--emit-cpp" == argument)
+            if (L"--emit-cpp" == argument || L"--emit-project" == argument)
             {
                 if (index + 1 >= argc)
                 {
                     commandLine.ProblemKey = "jbroc.cli.missing_option_value";
-                    commandLine.ProblemArgument = "--emit-cpp";
+                    commandLine.ProblemArgument = ToUtf8(argument);
                     continue;
                 }
-                commandLine.EmitCpp = true;
+                if (argument == L"--emit-project")
+                {
+                    commandLine.EmitProject = true;
+                }
+                else
+                {
+                    commandLine.EmitCpp = true;
+                }
                 commandLine.EmitCppPath = std::filesystem::path(argv[++index]);
                 continue;
             }
@@ -314,7 +323,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
 
     if (commandLine.Lsp && false == commandLine.Help && nullptr == commandLine.ProblemKey)
     {
-        if (commandLine.DumpTree || commandLine.EmitCpp || commandLine.EmitCppWithoutModuleEntry
+        if (commandLine.DumpTree || commandLine.EmitCpp || commandLine.EmitProject || commandLine.EmitCppWithoutModuleEntry
             || false == commandLine.Files.IsEmpty())
         {
             WriteLine(STD_ERROR_HANDLE, "jbroc: --lsp cannot be combined with --dump-tree or source file arguments");
@@ -362,24 +371,24 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         WriteLine(STD_OUTPUT_HANDLE, LocalizedText(messages, "jbroc.cli.usage").View());
         return ExitSuccess;
     }
-    if (commandLine.Files.IsEmpty())
+    if (commandLine.Files.IsEmpty() && !(commandLine.EmitProject && commandLine.EmitCppWithoutModuleEntry))
     {
         WriteLine(STD_ERROR_HANDLE, LocalizedText(messages, "jbroc.cli.no_input").View());
         WriteLine(STD_ERROR_HANDLE, LocalizedText(messages, "jbroc.cli.usage").View());
         return ExitUsageOrInput;
     }
-    if (commandLine.EmitCppWithoutModuleEntry && false == commandLine.EmitCpp)
+    if (commandLine.EmitCppWithoutModuleEntry && !commandLine.EmitCpp && !commandLine.EmitProject)
     {
-        WriteLine(STD_ERROR_HANDLE, "jbroc: --no-module-entry requires --emit-cpp");
+        WriteLine(STD_ERROR_HANDLE, "jbroc: --no-module-entry requires --emit-cpp or --emit-project");
         return ExitUsageOrInput;
     }
 
-    if (commandLine.EmitCpp)
+    if (commandLine.EmitCpp || commandLine.EmitProject)
     {
-        if (commandLine.DumpTree || commandLine.Files.IsEmpty()
-            || commandLine.EmitCppPath.extension() != L".cpp")
+        if (commandLine.DumpTree || (commandLine.EmitCpp && commandLine.EmitProject)
+            || (commandLine.EmitCpp && (commandLine.Files.IsEmpty() || commandLine.EmitCppPath.extension() != L".cpp")))
         {
-            WriteLine(STD_ERROR_HANDLE, "jbroc: --emit-cpp needs source files and a .cpp output path");
+            WriteLine(STD_ERROR_HANDLE, "jbroc: select one output mode; --emit-cpp needs source files and a .cpp path");
             return ExitUsageOrInput;
         }
         Array<DocumentInput> inputs;
@@ -433,6 +442,39 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         if (sourceErrors)
         {
             return ExitSourceErrors;
+        }
+        if (commandLine.EmitProject)
+        {
+            const CppProjectResult emitted = EmitCppProject(cppSources.View(), catalog,
+                !commandLine.EmitCppWithoutModuleEntry, analyzed.Get());
+            if (!emitted.Errors.IsEmpty())
+            {
+                for (const String& error : emitted.Errors)
+                {
+                    WriteLine(STD_ERROR_HANDLE, String("jbroc: C++ emit error: ").Append(error.View()).View());
+                }
+                return ExitSourceErrors;
+            }
+            String outputError;
+            for (const CppArtifact& artifact : emitted.Files)
+            {
+                const std::filesystem::path output = commandLine.EmitCppPath / std::filesystem::path(ToWide(artifact.FileName.View()));
+                for (const std::filesystem::path& input : commandLine.Files)
+                {
+                    std::error_code pathError;
+                    if (std::filesystem::exists(output, pathError) && std::filesystem::equivalent(input, output, pathError))
+                    {
+                        WriteLine(STD_ERROR_HANDLE, "jbroc: source and output paths must differ");
+                        return ExitUsageOrInput;
+                    }
+                }
+            }
+            if (!JBro::CompilerOutput::WriteProject(commandLine.EmitCppPath, emitted, outputError))
+            {
+                WriteLine(STD_ERROR_HANDLE, String("jbroc: ").Append(outputError.View()).View());
+                return ExitUsageOrInput;
+            }
+            return ExitSuccess;
         }
         const CppEmitResult emitted = EmitCpp(cppSources.View(), catalog,
             false == commandLine.EmitCppWithoutModuleEntry, analyzed.Get());

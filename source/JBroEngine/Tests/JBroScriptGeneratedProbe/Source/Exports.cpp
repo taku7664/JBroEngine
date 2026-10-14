@@ -1,4 +1,4 @@
-#include "Guard.cpp"
+#include "JBroGenerated.h"
 
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_KeywordScore()
 {

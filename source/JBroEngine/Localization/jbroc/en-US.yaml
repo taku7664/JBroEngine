@@ -20,7 +20,7 @@ Entries:
   jbroc.parse.expected_null_after_is: "Expected null or not null after is."
   jbroc.parse.expected_case_or_default: "Expected case or default inside switch."
   jbroc.parse.missing_field_type: "The field {0} has no type. Write the type before the name."
-  jbroc.cli.usage: "Usage: JBroc [--locale ko-KR|en-US] [--dump-tree] <file.jscript>... or JBroc --emit-cpp <output.cpp> [--no-module-entry] <file.jscript>... or JBroc --lsp [--locale ko-KR|en-US]"
+  jbroc.cli.usage: "Usage: JBroc [--locale ko-KR|en-US] [--dump-tree] <file.jscript>... or JBroc --emit-cpp <output.cpp> [--no-module-entry] <file.jscript>... or JBroc --emit-project <output-directory> [--no-module-entry] <file.jscript>... or JBroc --lsp [--locale ko-KR|en-US]"
   jbroc.cli.no_input: "No input files."
   jbroc.cli.unknown_option: "Unknown option: {0}"
   jbroc.cli.missing_option_value: "{0} needs a value."

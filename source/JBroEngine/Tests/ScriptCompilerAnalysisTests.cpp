@@ -180,6 +180,32 @@ namespace
                 && result.Code.find("Probe::OnUpdate()") != String::npos
                 && result.Code.find("probe.jscript:6:") != String::npos,
             "one generated translation unit contains both files and retains the failing source location");
+        const CppProjectResult project = EmitCppProject(sources, Catalog(), false);
+        Check(project.Errors.IsEmpty(), "the same cross-file declarations emit a separated project");
+        String linkHeader;
+        String probeHeader;
+        String probeCode;
+        for (const CppArtifact& file : project.Files)
+        {
+            if (file.Code.find("class Link\n{") != String::npos)
+            {
+                linkHeader = file.FileName;
+            }
+            if (file.Code.find("class Probe :") != String::npos)
+            {
+                probeHeader = file.Code;
+            }
+            if (file.Code.find("Probe::OnUpdate()") != String::npos)
+            {
+                probeCode = file.Code;
+            }
+        }
+        Check(!linkHeader.empty() && probeHeader.find(linkHeader) != String::npos,
+            "an owned nullable class field includes its complete type in the generated header");
+        Check(probeHeader.find("Probe::OnUpdate()") == String::npos
+                && probeHeader.find("GetPropertyTable<Probe>()\n{") == String::npos
+                && probeCode.find("probe.jscript:6:") != String::npos,
+            "method and reflection definitions stay in the source with original locations");
     }
 
     void TestCppEmitterClassConstructionAndStaticMembers()

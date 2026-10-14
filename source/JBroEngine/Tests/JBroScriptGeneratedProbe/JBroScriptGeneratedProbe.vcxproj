@@ -19,13 +19,17 @@
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(IntDir);$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)JBroScript;$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
-    <PreBuildEvent>
-      <Command>"$(JBroBuildDir)x64\$(Configuration)\JBroc.exe" --emit-cpp "$(IntDir)Guard.cpp" --no-module-entry "$(MSBuildProjectDirectory)\Source\Guard.jscript" "$(MSBuildProjectDirectory)\Source\Control.jscript" "$(MSBuildProjectDirectory)\Source\Inheritance.jscript" "$(MSBuildProjectDirectory)\Source\Attributes.jscript" "$(MSBuildProjectDirectory)\Source\Names.jscript"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
+  <ItemGroup><JBroProbeSource Include="Source\*.jscript" /></ItemGroup>
+  <Target Name="JBroProbeGenerate" BeforeTargets="ClCompile">
+    <MakeDir Directories="$(IntDir)JBroScript" />
+    <Exec Command="&quot;$(JBroBuildDir)x64\$(Configuration)\JBroc.exe&quot; --emit-project &quot;$(IntDir)JBroScript&quot; --no-module-entry @(JBroProbeSource->'&quot;%(FullPath)&quot;', ' ')" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" />
+    <ReadLinesFromFile File="$(IntDir)JBroScript\JBroGenerated.items"><Output TaskParameter="Lines" ItemName="JBroProbeCompile" /></ReadLinesFromFile>
+    <ItemGroup><ClCompile Include="@(JBroProbeCompile->'$(IntDir)JBroScript\%(Identity)')" /></ItemGroup>
+  </Target>
   <ItemGroup><ClCompile Include="Source\Exports.cpp" /><ClCompile Include="Source\ScriptModule.cpp" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(JBroModulesDir)JBroc\JBroc.vcxproj"><Project>{1a000016-0000-4000-8000-00000000b20c}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>

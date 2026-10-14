@@ -2,6 +2,7 @@
 #include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/Types/Table.h>
 #include "CppIdentifier.h"
+#include "CppEmitterParts.h"
 
 #include <algorithm>
 #include <cctype>
@@ -123,8 +124,8 @@ namespace JBro::ScriptCompiler
         {
         public:
             Generator(ArrayView<const CppSource> sources, const ApiCatalog& api,
-                bool emitModuleEntry, const AnalysisResult* analysis)
-                : m_sources(sources), m_api(api), m_emitModuleEntry(emitModuleEntry), m_analysis(analysis)
+                bool emitModuleEntry, const AnalysisResult* analysis, const CppSource* unit = nullptr)
+                : m_sources(sources), m_api(api), m_emitModuleEntry(emitModuleEntry), m_analysis(analysis), m_unit(unit)
             {
             }
 
@@ -181,8 +182,17 @@ namespace JBro::ScriptCompiler
                 {
                     return Finish();
                 }
+                if (m_unit != nullptr)
+                {
+                    m_implementation = std::move(m_code);
+                    m_code.Clear();
+                }
                 for (const DeclarationRef& item : declarations)
                 {
+                    if (m_unit != nullptr)
+                    {
+                        continue;
+                    }
                     const SyntaxNode& declaration = item.tree->Get(item.index);
                     m_code += String(declaration.Kind == SyntaxKind::EnumDeclaration ? "enum class "
                         : declaration.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
@@ -192,6 +202,10 @@ namespace JBro::ScriptCompiler
                 m_code += '\n';
                 for (const DeclarationRef& item : declarations)
                 {
+                    if (m_unit != nullptr)
+                    {
+                        continue;
+                    }
                     const SyntaxNode& declaration = item.tree->Get(item.index);
                     if (declaration.Kind == SyntaxKind::ScriptDeclaration)
                     {
@@ -203,9 +217,22 @@ namespace JBro::ScriptCompiler
                 m_code += '\n';
                 for (const DeclarationRef& item : declarations)
                 {
+                    if (m_unit != nullptr && item.tree != m_unit->Tree)
+                    {
+                        continue;
+                    }
                     m_source = item.source;
                     m_tree = item.tree;
                     Declaration(item.index);
+                    if (m_unit != nullptr)
+                    {
+                        m_parts.Add({String(Node(item.index).Text), std::move(m_code)});
+                        m_code.Clear();
+                    }
+                }
+                if (m_unit != nullptr)
+                {
+                    m_code = std::move(m_implementation);
                 }
                 for (const FunctionRef& item : m_functions)
                 {
@@ -229,11 +256,17 @@ namespace JBro::ScriptCompiler
                         m_code += "JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()\n";
                     }
                 }
-                else
+                else if (m_unit == nullptr)
                 {
                     Error("a game DLL needs at least one script declaration");
                 }
                 return Finish();
+            }
+
+            Internal::CppUnitParts RunParts()
+            {
+                CppEmitResult result = Run();
+                return {std::move(m_parts), std::move(result.Code), std::move(result.Errors)};
             }
 
         private:
@@ -553,6 +586,13 @@ namespace JBro::ScriptCompiler
                 }
                 for (std::size_t field = 0; field < own; ++field)
                 {
+                    if (m_unit != nullptr)
+                    {
+                        m_code += "        " + name + "::jbro_gen_field_" + std::to_string(field)
+                            + "(fields[" + std::to_string(destination++) + "], edits["
+                            + std::to_string(field) + "]);\n";
+                        continue;
+                    }
                     m_code += "        JBro::Detail::ApplyFieldEntry(" + name
                         + "::JBroFieldAt(JBro::FieldIndex<" + std::to_string(field)
                         + ">{ }), fields[" + std::to_string(destination++)
@@ -636,8 +676,15 @@ namespace JBro::ScriptCompiler
                         if (memberCount++ != 0) m_code += ",\n";
                         m_code += "    " + CppIdentifier(Node(member).Text);
                     }
-                    m_code += "\n};\nnamespace JBro { JBRO_DEFINE_ENUM_TYPE(::" + nativeOwner
-                        + ", " + Escape(m_owner) + ", ";
+                    m_code += "\n};\n";
+                    if (m_unit != nullptr)
+                    {
+                        m_code.swap(m_implementation);
+                    }
+                    m_code += m_unit != nullptr
+                        ? "const JBro::TypeDescriptor& JBro::TypeDescriptorOf<" + nativeOwner
+                            + ">::Get()\n{\n    static const JBro::EnumEntry<" + nativeOwner + "> entries[] = {"
+                        : "namespace JBro { JBRO_DEFINE_ENUM_TYPE(::" + nativeOwner + ", " + Escape(m_owner) + ", ";
                     memberCount = 0;
                     for (NodeIndex member : m_tree->GetChildren(index))
                     {
@@ -646,7 +693,14 @@ namespace JBro::ScriptCompiler
                         m_code += "{::" + nativeOwner + "::" + CppIdentifier(name)
                             + ", " + Escape(name) + "}";
                     }
-                    m_code += "); }\n\n";
+                    m_code += m_unit != nullptr
+                        ? "};\n    return JBro::DefineEnumTypeDescriptor<" + nativeOwner + ">(" + Escape(m_owner)
+                            + ", entries);\n}\n\n"
+                        : "); }\n\n";
+                    if (m_unit != nullptr)
+                    {
+                        m_code.swap(m_implementation);
+                    }
                     return;
                 }
                 const bool script = node.Kind == SyntaxKind::ScriptDeclaration;
@@ -729,15 +783,25 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 m_code += "};\n\n";
+                if (m_unit != nullptr)
+                {
+                    m_code.swap(m_implementation);
+                }
                 if (!interfaceType) EmitPropertyTable(index);
                 if (!script && !interfaceType)
                 {
-                    m_code += "template<> struct JBro::TypeDescriptorOf<" + nativeOwner + ">\n{\n"
-                        "    static const JBro::TypeDescriptor& Get()\n    {\n"
-                        "        static const JBro::TypeDescriptor descriptor = "
+                    m_code += (m_unit != nullptr
+                        ? "const JBro::TypeDescriptor& JBro::TypeDescriptorOf<" + nativeOwner + ">::Get()\n{\n"
+                        : "template<> struct JBro::TypeDescriptorOf<" + nativeOwner + ">\n{\n"
+                            "    static const JBro::TypeDescriptor& Get()\n    {\n")
+                        + "        static const JBro::TypeDescriptor descriptor = "
                         "JBro::MakeStructTypeDescriptor<" + nativeOwner + ">(" + Escape(m_owner)
                         + ", JBro::GetPropertyTable<" + nativeOwner + ">());\n"
-                        "        return descriptor;\n    }\n};\n\n";
+                        "        return descriptor;\n" + String(m_unit != nullptr ? "}\n\n" : "    }\n};\n\n");
+                }
+                if (m_unit != nullptr)
+                {
+                    m_code.swap(m_implementation);
                 }
             }
 
@@ -828,7 +892,23 @@ namespace JBro::ScriptCompiler
                         || (!isStruct && 0 == (node.Flags & SyntaxFlagPublic));
                     const String memberAccess = node.Flags & SyntaxFlagProtected ? "protected"
                         : privateField ? "private" : "public";
-                    m_code += "    public:\n"
+                    if (m_unit != nullptr)
+                    {
+                        const String factory = "jbro_gen_field_" + std::to_string(reflectedIndex);
+                        m_code += "    public:\n    static void " + factory
+                            + "(JBro::PropertyInfo& property, JBro::PropertyEditInfo& edit);\n    "
+                            + memberAccess + ":\n    " + String(staticField ? "inline static " : "") + native + " " + name;
+                        m_implementation += "void " + CppIdentifier(m_owner) + "::" + factory
+                            + "(JBro::PropertyInfo& property, JBro::PropertyEditInfo& edit)\n{\n"
+                            "    using namespace JBro::Attribute;\n    auto field = JBro::"
+                            + String(staticField ? "MakeStaticFieldEntry<&" : "MakeFieldEntry<&")
+                            + CppIdentifier(m_owner) + "::" + name + ">(" + attributeCode + ");\n"
+                            "    field.name = " + Escape(node.Text) + ";\n"
+                            "    JBro::Detail::ApplyFieldEntry(field, property, edit);\n}\n\n";
+                    }
+                    else
+                    {
+                        m_code += "    public:\n"
                         "    static constexpr auto JBroFieldAt(JBro::FieldIndex<"
                         + std::to_string(reflectedIndex) + ">)\n    {\n"
                         "        using namespace JBro::Attribute;\n"
@@ -838,6 +918,7 @@ namespace JBro::ScriptCompiler
                         "        field.name = " + Escape(node.Text) + ";\n"
                         "        return field;\n    }\n    " + memberAccess + ":\n"
                         "    " + String(staticField ? "inline static " : "") + native + " " + name;
+                    }
                 }
                 else
                 {
@@ -1651,6 +1732,9 @@ namespace JBro::ScriptCompiler
             const ApiCatalog& m_api;
             bool m_emitModuleEntry;
             const AnalysisResult* m_analysis;
+            const CppSource* m_unit;
+            String m_implementation;
+            Array<Internal::CppDeclarationPart> m_parts;
             String m_code;
             Array<String> m_errors;
             Table<String, DeclarationRef> m_declarations;
@@ -1676,5 +1760,11 @@ namespace JBro::ScriptCompiler
         bool emitModuleEntry, const AnalysisResult* analysis)
     {
         return Generator(sources, api, emitModuleEntry, analysis).Run();
+    }
+
+    Internal::CppUnitParts Internal::EmitCppParts(ArrayView<const CppSource> sources, const ApiCatalog& api,
+        const CppSource& unit, bool emitModuleEntry, const AnalysisResult* analysis)
+    {
+        return Generator(sources, api, emitModuleEntry, analysis, &unit).RunParts();
     }
 }
