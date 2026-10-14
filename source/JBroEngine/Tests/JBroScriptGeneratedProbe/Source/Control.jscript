@@ -50,6 +50,16 @@ script ControlProbe
         return values[0]
     }
 
+    public fn OwnCount() -> Int
+    {
+        return this.count
+    }
+
+    public fn ScoreByName() -> Int
+    {
+        return scores["bonus"]
+    }
+
     fn OnUpdate() override
     {
         for (i in 0..3)

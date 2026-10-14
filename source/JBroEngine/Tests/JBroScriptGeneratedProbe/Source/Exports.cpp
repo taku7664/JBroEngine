@@ -50,6 +50,16 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlGenericA
     return static_cast<ControlProbe*>(base)->GenericArray().Get();
 }
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlOwnCount(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->OwnCount().Get();
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlScoreByName(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->ScoreByName().Get();
+}
+
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetFirstValid(JBro::GameScriptBase* base) noexcept
 {
     static_cast<GuardProbe*>(base)->target1 = JBro::Nullable<Link>(Link{});

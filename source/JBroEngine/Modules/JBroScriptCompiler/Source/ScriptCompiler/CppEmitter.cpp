@@ -668,6 +668,7 @@ namespace JBro::ScriptCompiler
                 case SyntaxKind::NameExpression:
                 {
                     const String name(node.Text);
+                    if (name == "this") return {"(*this)", {m_owner, false}, true};
                     const Type* found = m_variables.Find(name);
                     if (found != nullptr)
                     {
@@ -967,16 +968,20 @@ namespace JBro::ScriptCompiler
                     const Expression key = Expr(Child(index, 1));
                     const Array<String> arguments = TypeArguments(receiver.type.name);
                     const Type element = arguments.IsEmpty() ? Type{} : TextType(arguments[arguments.Size() - 1]);
+                    const bool table = receiver.type.name.rfind("Table<", 0) == 0;
+                    const String nativeKey = table && arguments.Size() == 2
+                        ? NativeType(TextType(arguments[0])) + "(" + key.code + ")"
+                        : "static_cast<std::size_t>(" + key.code + ")";
                     if (receiver.type.ref)
                     {
                         const String site = SiteKey(node);
                         const String code = "([&]() -> decltype(auto) { auto&& __jb_receiver = ("
                             + receiver.code + "); auto&& __jb_checked = JBro::ScriptGuard::Require(__jb_receiver, "
                             + Escape(site) + ", " + Escape(site + " invalid ref index: " + AccessPath(index))
-                            + "); auto __jb_index = (" + key.code + "); return __jb_checked[static_cast<std::size_t>(__jb_index)]; }())";
+                            + "); return __jb_checked[" + nativeKey + "]; }())";
                         return {code, element, receiver.lvalue};
                     }
-                    return {receiver.code + "[static_cast<std::size_t>(" + key.code + ")]", element, true};
+                    return {receiver.code + "[" + nativeKey + "]", element, true};
                 }
                 default:
                     Error("C++ emitter does not support this expression yet");

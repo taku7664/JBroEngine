@@ -1189,11 +1189,16 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlNullFallback"));
         const auto controlGenericArray = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlGenericArray"));
+        const auto controlOwnCount = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlOwnCount"));
+        const auto controlScoreByName = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlScoreByName"));
         Check(controlCount != nullptr && controlActive != nullptr && controlAddScore != nullptr
                 && controlRaiseScores != nullptr
                 && controlHasOwner != nullptr && controlHasTransform != nullptr
                 && controlHasTransformSafe != nullptr && controlDisableOwnerSafe != nullptr
-                && controlNullFallback != nullptr && controlGenericArray != nullptr,
+                && controlNullFallback != nullptr && controlGenericArray != nullptr
+                && controlOwnCount != nullptr && controlScoreByName != nullptr,
             "the generated control scenario exports its probes");
         alignas(64) unsigned char controlStorage[4096]{};
         JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
@@ -1222,6 +1227,10 @@ namespace
         controlScript->OnUpdate();
         Check(controlCount(controlScript) == 34,
             "borrowing a Table value mutates the stored score for the next callback");
+        Check(controlOwnCount(controlScript) == 34,
+            "this resolves to the live script instance in a generated method");
+        Check(controlScoreByName(controlScript) == 8,
+            "a string key reads the Table value after a borrowed mutation");
         controlType->Destruct(controlScript);
         {
             JBro::Canvas controlCanvas(JBro::CreateDefaultAllocator());
