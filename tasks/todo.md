@@ -40,6 +40,15 @@
   Debug/Release의 실제 LSP 시험 각 34개·관련 C++ 시험 각 7개 suite를 다시 통과시켰다.
   C++ 이미터·게임 실행·에디터/엔진 LSP 클라이언트·3D Framework는 이 항목에 포함하지 않는다.
 
+- ~~`[연결 예정]` **JBro Script Editor의 `.jscript` 파일을 `JBroc --lsp`에 연결해 진단을 표시한다.**~~
+  → 개발 편집기 연결 완료 2026-10-14 · `b35d370e` · `6b21b5c5`.
+  `jbro-languages`가 프로젝트별 서버를 시작하고 저장하지 않은 파일의 문법·의미 분석 진단을 Problems에 전달한다.
+  Code-OSS 확장 호스트에서 `JBC2001`·`JBC3007` 표시와 수정 후 해제·자동완성을 확인했다.
+  Debug/Release의 실제 서버 프로세스 시험 각 35개와 관련 C++ 7개 suite가 통과했다.
+  [연결·검증 기록](./jbroscript-language-server-plan.md#8-2026-10-14-편집기-연결)과
+  [실행 방법](../source/JBroScriptEditor/README.md#jbroscript-편집-진단)을 따른다.
+  C++ 이미터·C++ 빌드 로그·게임 실행, 엔진 ImGui 패널의 LSP 클라이언트, 설치본은 남아 있다.
+
 - `[열림]` **C++ 스크립트의 Release 호스트/Debug DLL 구성과 공유 NameTable 항목 배치를 맞춘다.** (2026-10-14 발견)
   `EditorApplication.cpp:2846`은 호스트 구성과 무관하게 스크립트를 Debug로 빌드하고,
   `ScriptBuildTests.cpp:397,476`도 Debug DLL을 요구한다. Release의 기존 `ScriptBuild` 시험은

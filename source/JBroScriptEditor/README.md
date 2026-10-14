@@ -37,9 +37,48 @@ Git 버튼 숨김·복원, 기존 바 복원을 확인했다. 700px 창에서 �
 | 경로 | 내용 |
 |---|---|
 | `extensions/jbro-engine` | 다섯 항목 도구막대·표시 설정·기존 패널/태스크 명령, GitHub 로그인·계정 관리 연결. 엔진 전용 프로젝트·빌드 연결은 아직 구현하지 않았다 |
-| `extensions/jbro-languages` | `.jscript` 언어 등록과 TextMate 문법, `.jproject`·`.jcanvas`·`.jprefab` 의 YAML 연결 |
+| `extensions/jbro-languages` | `.jscript` 문법 강조와 `JBroc --lsp` 연결, `.jproject`·`.jcanvas`·`.jprefab` 의 YAML 연결 |
 | `scripts/check-nls.mjs` | 확장의 번역 파일이 빠짐없이 채워졌는지 검사한다 |
 | `scripts/run-grammar-tests.mjs` | 문법 단언 테스트와 스냅숏 테스트를 돌린다 |
+
+## JBroScript 편집 진단
+
+개발 확장의 의존성을 설치하고 엔진의 `JBroc.exe`를 빌드한다. `npm test`는 언어 서버를 실행하지 않으므로
+실제 편집기 연결을 확인하려면 아래 설치와 확장 호스트 검사가 별도로 필요하다.
+
+```powershell
+npm ci --prefix extensions/jbro-languages
+```
+
+`scripts/upstream-launch.cmd`로 `.jproject` 파일이 하나 있는 프로젝트 폴더를 열고 `.jscript` 파일을 연다.
+확장은 해당 폴더에서 `JBroc --lsp`를 시작한다. 저장하지 않은 수정도 분석하며 문법·타입·null 접근 등의
+진단은 편집기 밑줄과 **오류/로그 → Problems**에 나타난다. 오류를 고치면 진단이 갱신된다.
+자동완성·정의 이동 등 서버의 편집 기능도 이 연결을 사용한다. 서버 로그는 **Output → JBroScript**에서 확인한다.
+
+기본 실행 파일은 이 저장소의 `source/JBroEngine/Build/x64/Debug/JBroc.exe`, 없으면 `Release/JBroc.exe`다.
+다른 빌드 위치나 루트에 여러 `.jproject` 파일이 있는 경우 작업 폴더 설정에 경로를 지정한다.
+
+```json
+{
+  "jbro.jbroscript.serverPath": "F:\\AI\\builds\\jbroscript-language-server\\x64\\Debug\\JBroc.exe",
+  "jbro.jbroscript.projectFile": "Game.jproject"
+}
+```
+
+상대 경로는 작업 폴더 기준이다. 신뢰한 작업 폴더에서만 서버를 실행한다. 현재의 진단은 JBroScript 분석 결과이며
+C++ 코드 생성·C++ 컴파일·게임 실행 결과는 아니다. C++ 스크립트 빌드 태스크의 결과를 Problems에 모으는
+작업도 아직 별개다.
+
+저장소 안의 예제를 직접 보려면 `source/JBroScriptEditor`에서 다음처럼 개발 편집기를 연다.
+
+```powershell
+$env:JBRO_EDITOR_WORK = 'F:\Project\JBroScriptEditor'
+./scripts/upstream-launch.cmd (Resolve-Path 'extensions/jbro-languages/test/fixtures/sample-project').Path
+```
+
+`Contents/Scripts/PatrolProbe.jscript`를 열어 `TargetX`의 null 검사 블록을 지우면 `JBC3007`, 첫 줄의
+`script`를 `scri!t`로 바꾸면 `JBC2001`이 Problems에 나타난다. 수정 전으로 되돌리면 사라진다.
+이 예제의 자동 확장 호스트 시험은 `extensions/jbro-languages/test/extension-host.cjs`다.
 
 ## 테스트
 
