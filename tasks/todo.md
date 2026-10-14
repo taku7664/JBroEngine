@@ -64,14 +64,22 @@
   - ~~**빌드 도구 감지와 안내.** MSBuild 만 있으면 빌드 도구로 보던 것을 스크립트 툴셋의 컴파일러까지 보게 하고, 없으면 무엇을 깔지 말한다~~
     → 완료 2026-10-14 · 35e87f37 · `ScriptBuild::FindMSBuildWithToolset`·`LocateMSBuild`, `EditorApplication::BuildScripts`·`PollScriptBuild`(`MSB8036`).
     실제 에디터에서 `vswhere` 를 못 찾게 띄워 알림 글을 화면으로 봤다. 알림을 눌러 브라우저가 열리는 것, SDK 알림, 빌드 도구만 깐 기계의 빌드는 재지 않았다.
-  - `[진행 예정]` **디버거.** VS Code 의 C++ 디버거(`vsdbg`)는 라이선스상 마이크로소프트 제품 전용이라 싣지 못한다. Windows 의 DbgEng 이 스크립트 DLL 에
-    붙는지(중단점·지역 변수·호출 스택) 작게 재고 어댑터 규모를 정한다. 공개 어댑터 `windbg-debug` 는 기능이 적다.
-    **첫 실측(2026-10-14): Windows 에 기본으로 든 `System32\dbgeng.dll`(10.0.19041) 은 쓸 수 없었다.** 떠 있는 에디터에 `AttachProcess` 는 성공했지만
-    확장 DLL 과 `dbghelp.dll` 을 거절했고(`SECURE: File not allowed to be loaded`), 첫 중단을 기다리는 `WaitForEvent` 가 60 초 상한을 넘겨 돌아오지 않았다.
-    심볼 경로를 로컬로 바꾸려 한 것도 먹지 않아(`srv*` 그대로) 인터넷 심볼 서버를 기다린 것인지는 가르지 못했다. 두 번 같았다.
-    다음은 재배포용 DbgEng(WinDbg·Debugging Tools for Windows 의 것)으로 같은 프로브를 돌리는 것이다 - 받으려면 사용자 확인이 필요하다.
-    알아 둘 것: 에디터는 스크립트 DLL 을 `GameScript.dll.jbro.<pid>.<n>.dll` 복사본으로 싣는다. 중단점은 모듈 이름이 아니라 소스 줄로 걸어야 하고,
-    핫 리로드 뒤 새 복사본에서 다시 걸리는지가 어댑터의 첫 확인 거리다.
+  - `[진행 예정]` **디버거 - DbgEng 이 스크립트 DLL 을 디버깅할 수 있다는 것까지 쟀다. 다음은 어댑터(DAP)다.** VS Code 의 C++ 디버거(`vsdbg`)는 라이선스상
+    마이크로소프트 제품 전용이라 싣지 못한다. 2026-10-14 실측(스크래치 프로브, 커밋하지 않았다):
+    - **재배포용 DbgEng 은 된다.** NuGet `Microsoft.Debugging.Platform.DbgEng` 20260319.1511.0(Microsoft·WinDbg 소유, 21 MB, `dbgeng`·`dbghelp`·`dbgmodel`·`msdia140`·
+      헤더·lib, 엔진 10.0.29547)으로 떠 있는 에디터에 붙어 `NewScript.cpp:19` 소스 줄 중단점에서 멈췄다. 호출 스택이 스크립트 DLL 에서 엔진(`ScriptSystem::OnUpdate`
+      → `EngineInstance::TickFrame`)까지 파일·줄과 함께 나오고, 지역 변수(`position`·`this`)와 필드(`follow`)가 보인다. 떼면 에디터는 그대로 돈다.
+      라이선스는 Windows SDK 라이선스 링크만 있다 - 함께 실어 배포해도 되는지는 원문을 읽지 않았다.
+    - `System32\dbgeng.dll`(10.0.19041)은 확장 DLL 과 `dbghelp.dll` 을 거절했다(`SECURE: File not allowed to be loaded`). 싣는 쪽은 재배포용으로 한다.
+    - **라이브러리로 쓰면 `DEBUG_ENGOPT_INITIAL_BREAK` 를 켜야 한다.** 처음에 이것을 빠뜨려 붙어도 띄워도 멈추지 않았고, 환경 문제로 잘못 봤다
+      (Win32 `WaitForDebugEvent` 는 같은 기계에서 이벤트를 받았다). 위 "첫 실측" 의 멈춤도 이 때문이었을 가능성이 크다.
+    - 스크립트 모듈의 심볼은 지연(deferred)이라 `ld` 로 먼저 불러야 소스 줄 중단점이 풀린다. 에디터가 싣는 이름은 복사본(`GameScript_dll_jbro_<pid>_<세대>`)이다.
+    - **붙은 채로 다시 빌드하면 `LNK1201`(PDB 를 못 씀)로 실패하고, 링커가 `GameScript.dll` 까지 지운다.** 디버거가 `GameScript.pdb` 를 쥐고 있기 때문이다.
+      `.reload /u <모듈>` 로 심볼을 놓으면 빌드·핫 리로드가 되고, 다음 세대 모듈을 적은 소스 줄 중단점(`bu \`GameScript_dll_jbro_<pid>_2!NewScript.cpp:19\``)이
+      실릴 때 풀려 새 복사본에서 멈췄다. 어댑터가 빌드 시작을 알거나, 엔진이 빌드마다 다른 PDB 이름을 쓰게 해야 한다 - 고르지 않았다. Visual Studio 디버거로는 재지 않았다.
+    - `JBro::Float` 같은 값 타입은 숫자가 아니라 구조체로 보인다. `.natvis` 가 있어야 한다(Visual Studio 에도 같다).
+    - 실행 중 `SetInterrupt` 로 끼어들기는 10 초 안에 멈추지 않았다(일시정지 버튼에 필요하다). `WaitForEvent` 밖에서 부른 것이 까닭인지 가르지 못했다.
+    - 따로 본 것: 끝난 에디터의 DLL 복사본(`GameScript.dll.jbro.<pid>.<n>.dll`)이 `x64/Debug` 에 쌓인다(이번에 11 개). 디버거와는 무관하다.
   - `[열림]` 설치 관리자를 필요한 구성 요소가 골라진 채로 띄우기. 지금은 받는 곳을 연다 - 부트스트래퍼를 받아 `--add` 로 띄우는 길은 깨끗한 기계에서 재야 한다.
 
 - ~~`[진행 예정]` **시간·난수·디버그 드로.** 스크립트 훅이 델타를 인자로 받던 것(§7 위반)을 서비스로 옮기고, 기존 엔진의 `CTime`·`CRandomService`·
