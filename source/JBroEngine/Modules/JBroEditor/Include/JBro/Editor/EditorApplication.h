@@ -227,13 +227,13 @@ namespace JBro
         // `.jfx` 의 본문을 읽고 쓴다(D-306). 쓰면 실린 에셋을 제자리에서 다시 읽는다 - 재생 중인 소스의 사슬이 다시 시작하지 않고 바뀐다.
         Bool ReadSoundEffect(AssetId asset, AudioEffectSettings& settings) const;
         Bool WriteSoundEffect(AssetId asset, const AudioEffectSettings& settings);
-        // **노드 그래프 창**에서 연다(D-308). 뿌리의 "노드 그래프" 도크에 `.jgraph` 마다 탭이 하나다. 이미 열려 있으면 그 탭을 앞으로 가져온다.
+        // **노드 그래프 창**에서 연다(D-323). 뿌리의 "노드 그래프" 도크에 `.jgraph` 마다 탭이 하나다. 이미 열려 있으면 그 탭을 앞으로 가져온다.
         // `.jgraph` 가 아니거나, 읽지 못하거나, 그래프의 도메인을 모르면 거짓이다.
         Bool OpenNodeGraphEditor(AssetId asset);
         // 에셋 파일의 본문을 글자로 읽고 쓴다. 쓰면 실린 에셋을 제자리에서 다시 읽는다.
         Bool ReadAssetText(AssetId asset, String& text) const;
         Bool WriteAssetText(AssetId asset, const String& text);
-        // 노드 그래프 도메인의 표다(D-308). 에디터가 만들 때 샘플 도메인 `Math` 를 올린다.
+        // 노드 그래프 도메인의 표다(D-323). 에디터가 만들 때 샘플 도메인 `Math` 를 올린다.
         NodeGraph::DomainRegistry& GetNodeGraphDomains();
         const NodeGraph::DomainRegistry& GetNodeGraphDomains() const;
 
@@ -698,7 +698,7 @@ namespace JBro
         // **새 사운드 이펙트를 만든다**(D-306, 기존 `에셋 추가 ▸ Sound Effect`). `NewEffect.jfx`(잔향 기본값)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 편집 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateSoundEffectAsset(const char* folder);
-        // **새 노드 그래프를 만든다**(D-308). `NewGraph.jgraph`(샘플 도메인 `Math`, 결과 노드 하나)를 겹치지 않는 이름으로 쓰고
+        // **새 노드 그래프를 만든다**(D-323). `NewGraph.jgraph`(샘플 도메인 `Math`, 결과 노드 하나)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 노드 그래프 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateNodeGraphAsset(const char* folder);
         // **레이어를 레이어 에셋(`.jlayer`)으로 저장한다**(D-287, 기존 `SaveLayerAsAssetInFolder`). 에셋 폴더 아래 `folder` 에 레이어 이름으로 겹치지 않게 쓰고,
@@ -771,7 +771,7 @@ namespace JBro
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
         void AnswerCanvasSwitch(Int32 choice);
-        // **캔버스와 패널에 저장하지 않은 것이 있는가**(D-309). 끝내기·다른 프로젝트 열기·새 프로젝트가 이것을 보고 먼저 묻는다.
+        // **캔버스와 패널에 저장하지 않은 것이 있는가**(D-324). 끝내기·다른 프로젝트 열기·새 프로젝트가 이것을 보고 먼저 묻는다.
         Bool HasUnsavedWork() const;
         // 위의 물음에 대한 답이다. 0 = 모두 저장하고 하기, 1 = 저장하지 않고 하기, 그 밖 = 그만두기. 팝업이 부른다.
         void AnswerLeave(Int32 choice);
@@ -963,7 +963,7 @@ namespace JBro
         // 저장하지 않은 변경을 묻는 동안 붙들어 둔 것과, 그 답을 받았다는 표시다.
         String m_pendingCanvasPath;
         Bool m_canvasSwitchConfirmed = false;
-        // 저장하지 않은 것을 물어 놓고 기다리는 일과, 답을 받아 다시 하는 중인가(D-309).
+        // 저장하지 않은 것을 물어 놓고 기다리는 일과, 답을 받아 다시 하는 중인가(D-324).
         enum class LeaveAction : std::uint8_t
         {
             None,

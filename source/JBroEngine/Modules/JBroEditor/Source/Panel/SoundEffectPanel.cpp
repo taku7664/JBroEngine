@@ -330,7 +330,7 @@ namespace JBro
             ReloadFromDisk();
             return;
         }
-        // 다시 읽으면 저장하지 않은 것이 사라진다 - 먼저 묻는다(노드 그래프 창과 같은 물음, D-309).
+        // 다시 읽으면 저장하지 않은 것이 사라진다 - 먼저 묻는다(노드 그래프 창과 같은 물음, D-324).
         m_askingReload = true;
         m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(
             Loc::TextOr(LocKeys::FileWindowUnsavedTitle, "Unsaved changes"),

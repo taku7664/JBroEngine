@@ -7858,7 +7858,7 @@ namespace
             park();
 
             // ── 확대와 창에 맞추기 ─────────────────────────────
-            // 시트 카메라는 미끄러져 간다(D-309, 캔버스 뷰와 같은 손맛). 다 갈 때까지 기다린 뒤 잰다.
+            // 시트 카메라는 미끄러져 간다(D-324, 캔버스 뷰와 같은 손맛). 다 갈 때까지 기다린 뒤 잰다.
             const auto settleSheet = [&]() {
                 for (JBro::Int32 frame = 0; frame < 90; ++frame)
                 {
@@ -15336,7 +15336,7 @@ namespace
 
         editor.Shutdown();
     }
-    // **노드 그래프 창**(D-308). 새 그래프를 만들면 창이 열리고, 노드를 눌러 고르고 Delete 로 지우고, 우클릭 메뉴로 더하며,
+    // **노드 그래프 창**(D-323). 새 그래프를 만들면 창이 열리고, 노드를 눌러 고르고 Delete 로 지우고, 우클릭 메뉴로 더하며,
     // Ctrl+Z 는 캔버스가 아니라 그 창의 스택을 되돌린다. 저장(Ctrl+S)하기 전에는 파일이 그대로다.
     void TestTheNodeGraphEditorEditsWithItsOwnUndo()
     {
@@ -15614,7 +15614,7 @@ namespace
         answer("##NodeGraphClose", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
         Check(editor.FindPanels("NodeGraph", panels) == 1 && dirty(), "cancelling keeps the window and the change");
 
-        // ── 저장하지 않은 그래프가 있으면 다른 프로젝트를 열기·창 닫기 전에 묻는다(D-309) ──
+        // ── 저장하지 않은 그래프가 있으면 다른 프로젝트를 열기·창 닫기 전에 묻는다(D-324) ──
         Check(dirty() && editor.HasUnsavedWork(), "an unsaved graph is unsaved work");
         editor.RequestOpenProject();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)

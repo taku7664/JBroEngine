@@ -11,7 +11,7 @@
 
 #include <cstdint>
 
-// 노드 그래프 화면의 모델이다(D-308, node-graph-plan §2.1). ImGui 를 모른다 - 노드·핀의 화면 자리, 마우스 아래의 것,
+// 노드 그래프 화면의 모델이다(D-323, node-graph-plan §2.1). ImGui 를 모른다 - 노드·핀의 화면 자리, 마우스 아래의 것,
 // 마우스 손짓을 사건으로 바꾸는 일을 여기서 하고 위젯(`Widget::NodeGraphCanvas`)은 그리기와 입력 옮기기만 한다.
 // 그래서 시험이 화면 없이 판정과 손짓을 잰다(`PolygonEditModel` 과 같은 모양).
 //

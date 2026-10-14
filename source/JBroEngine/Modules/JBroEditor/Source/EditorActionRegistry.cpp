@@ -367,7 +367,7 @@ namespace JBro
             info.categoryKey = categoryKey;
             info.menus = menus;
             info.placedByEditor = true;
-            // 캔버스 저장·되돌리기·오브젝트 행동은 캔버스를 고친다 - 파일 창에 포커스가 있으면 단축키로 돌지 않는다(D-309).
+            // 캔버스 저장·되돌리기·오브젝트 행동은 캔버스를 고친다 - 파일 창에 포커스가 있으면 단축키로 돌지 않는다(D-324).
             const std::string_view family(name);
             info.mainDockOnly = family.starts_with("canvas.") || family.starts_with("edit.") || family.starts_with("object.");
             info.CanExecute = can;

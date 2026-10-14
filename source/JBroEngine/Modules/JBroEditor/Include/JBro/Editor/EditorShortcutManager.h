@@ -95,7 +95,7 @@ namespace JBro
         Bool whileTyping = false;
         // 재생 중 게임이 키를 받는 동안에도 도는가(D-214). 재생 제어만 참이다.
         Bool duringGame = false;
-        // 전역일 때만 뜻이 있다: 메인 도크 밖의 창에 포커스가 있으면 돌지 않는다(`SetFocusOutsideMainDock`, D-309).
+        // 전역일 때만 뜻이 있다: 메인 도크 밖의 창에 포커스가 있으면 돌지 않는다(`SetFocusOutsideMainDock`, D-324).
         Bool mainDockOnly = false;
         OwnerPtr<IEditorShortcutHandler> handler;
     };

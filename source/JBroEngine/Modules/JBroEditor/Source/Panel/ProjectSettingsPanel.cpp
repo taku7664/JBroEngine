@@ -683,7 +683,7 @@ namespace JBro
             m_loaded = false;
             return;
         }
-        // 프로젝트가 바뀌었으면 다시 읽는다. 앞 프로젝트의 값을 다음 파일에 쓰면 안 된다. 바꾸기 전에 저장하지 않은 것은 물었다(D-309).
+        // 프로젝트가 바뀌었으면 다시 읽는다. 앞 프로젝트의 값을 다음 파일에 쓰면 안 된다. 바꾸기 전에 저장하지 않은 것은 물었다(D-324).
         if (false == m_loaded || m_loadedPath != path)
         {
             Reload();
@@ -1263,7 +1263,7 @@ namespace JBro
         if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsRevert, "Revert"),
                 Widget::Severity::Warning))
         {
-            // 되돌리면 고친 것이 사라진다 - 저장하지 않은 것이 있으면 먼저 묻는다(파일 창의 다시 읽기와 같은 물음, D-309).
+            // 되돌리면 고친 것이 사라진다 - 저장하지 않은 것이 있으면 먼저 묻는다(파일 창의 다시 읽기와 같은 물음, D-324).
             if (HasUnsavedChanges())
             {
                 m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(

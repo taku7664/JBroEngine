@@ -358,7 +358,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsNewFontFamily = "assets.new_font_family";
     inline constexpr const char* AssetsNewStringTable = "assets.new_string_table";
     inline constexpr const char* AssetsNewSoundEffect = "assets.new_sound_effect";
-    // 노드 그래프 창(D-308)과 노드 인스펙터(D-309). `FileWindow*` 는 파일을 여는 창(노드 그래프·사운드 이펙트)이 함께 쓰는 묻는 창이다.
+    // 노드 그래프 창(D-323)과 노드 인스펙터(D-324). `FileWindow*` 는 파일을 여는 창(노드 그래프·사운드 이펙트)이 함께 쓰는 묻는 창이다.
     inline constexpr const char* NodeGraphInspectorTitle = "node_graph.inspector_title";
     inline constexpr const char* NodeGraphNoGraph = "node_graph.no_graph";
     inline constexpr const char* FileWindowUnsavedTitle = "file_window.unsaved_title";
@@ -447,7 +447,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsSelectionCount = "assets.selection_count";
     inline constexpr const char* PopupUnsavedCanvasTitle = "popup.unsaved_canvas_title";
     inline constexpr const char* PopupUnsavedCanvasMessage = "popup.unsaved_canvas_message";
-    // 끝내기·프로젝트 바꾸기 전에 묻는 창(D-309).
+    // 끝내기·프로젝트 바꾸기 전에 묻는 창(D-324).
     inline constexpr const char* ProjectSettingsRevertMessage = "project_settings.revert_message";
     inline constexpr const char* ProjectSettingsRevertDiscard = "project_settings.revert_discard";
     inline constexpr const char* PopupUnsavedWorkTitle = "popup.unsaved_work_title";

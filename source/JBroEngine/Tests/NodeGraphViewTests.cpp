@@ -7,7 +7,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 
-// 노드 그래프 화면 모델의 시험(D-308, node-graph-plan §3 의 2 단계). 화면 없이 판정과 손짓을 잰다.
+// 노드 그래프 화면 모델의 시험(D-323, node-graph-plan §3 의 2 단계). 화면 없이 판정과 손짓을 잰다.
 namespace
 {
     using namespace JBro::NodeGraphView;

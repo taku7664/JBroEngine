@@ -94,13 +94,13 @@ namespace JBro
             return true;
         }
 
-        // 닫기 단추를 눌렀다. 거짓이면 닫지 않는다 - 저장하지 않은 것이 있는 창이 묻는 창을 띄우고 답을 기다린다(D-309).
+        // 닫기 단추를 눌렀다. 거짓이면 닫지 않는다 - 저장하지 않은 것이 있는 창이 묻는 창을 띄우고 답을 기다린다(D-324).
         virtual Bool OnCloseRequested()
         {
             return true;
         }
 
-        // 이 창에 저장하지 않은 것이 있는가. 에디터를 끝내거나 다른 프로젝트를 열기 전에 캔버스와 함께 묻는다(D-309).
+        // 이 창에 저장하지 않은 것이 있는가. 에디터를 끝내거나 다른 프로젝트를 열기 전에 캔버스와 함께 묻는다(D-324).
         virtual Bool HasUnsavedChanges() const
         {
             return false;

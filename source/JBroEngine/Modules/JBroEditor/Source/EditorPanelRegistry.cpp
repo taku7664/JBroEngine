@@ -160,14 +160,14 @@ namespace JBro
         effects.fallbackTitle = "Sound Effect";
         EditorPanelRegistry::Get().RegisterDockArea(effects);
         RegisterEditorPanelType<SoundEffectPanel>(false, SoundEffectPanel::DockAreaName);
-        // 노드 그래프 창도 파일을 여는 창이다(D-308). 제 도크에 `.jgraph` 마다 열린다.
+        // 노드 그래프 창도 파일을 여는 창이다(D-323). 제 도크에 `.jgraph` 마다 열린다.
         EditorDockAreaInfo graphs;
         graphs.name = NodeGraphPanel::DockAreaName;
         graphs.titleKey = LocKeys::NodeGraphTitle;
         graphs.fallbackTitle = "Node Graph";
         EditorPanelRegistry::Get().RegisterDockArea(graphs);
         RegisterEditorPanelType<NodeGraphPanel>(false, NodeGraphPanel::DockAreaName);
-        // 노드 인스펙터는 같은 도크의 오른쪽 칸이다(D-309). 그래프 창을 처음 열 때 선다.
+        // 노드 인스펙터는 같은 도크의 오른쪽 칸이다(D-324). 그래프 창을 처음 열 때 선다.
         RegisterEditorPanelType<NodeGraphInspectorPanel>(false, NodeGraphPanel::DockAreaName);
     }
 }

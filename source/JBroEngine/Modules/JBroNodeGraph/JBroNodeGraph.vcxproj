@@ -24,7 +24,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!--
-    노드 그래프 모델이다(D-308). Tier E 이고 에디터·ImGui·렌더러를 모른다. JBroCore 만 본다 - 셰이더 그래프 컴파일러와
+    노드 그래프 모델이다(D-323). Tier E 이고 에디터·ImGui·렌더러를 모른다. JBroCore 만 본다 - 셰이더 그래프 컴파일러와
     에디터가 함께 쓴다. 스크립트 DLL 은 이 헤더를 볼 수 없다.
   -->
   <ItemDefinitionGroup>

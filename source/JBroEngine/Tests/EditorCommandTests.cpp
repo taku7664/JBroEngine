@@ -463,7 +463,7 @@ namespace
         Check(false == commands.IsDirty(), "and start counting again");
     }
 
-    // **기록만 비우면 저장 안 됨은 남는다**(D-309). 재생을 멈추거나 스크립트 필드가 바뀌어 기록을 버려도 편집은 저장되지 않았다 -
+    // **기록만 비우면 저장 안 됨은 남는다**(D-324). 재생을 멈추거나 스크립트 필드가 바뀌어 기록을 버려도 편집은 저장되지 않았다 -
     // `Clear` 를 쓰던 때는 그 뒤 다른 캔버스를 열면 묻지 않고 편집을 버렸다.
     void TestClearingHistoryKeepsUnsavedWork()
     {

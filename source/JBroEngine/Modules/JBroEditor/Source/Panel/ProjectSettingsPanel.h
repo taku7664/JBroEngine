@@ -32,7 +32,7 @@ namespace JBro
         Bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Right; }
-        // **저장하지 않은 것을 안다**(D-309). 편집본을 파일 글자로 써서 지금 프로젝트의 것과 견준다. 에디터를 끝내거나 다른 프로젝트를
+        // **저장하지 않은 것을 안다**(D-324). 편집본을 파일 글자로 써서 지금 프로젝트의 것과 견준다. 에디터를 끝내거나 다른 프로젝트를
         // 열기 전에 캔버스와 함께 묻고, 되돌리기는 저장하지 않은 것이 있으면 먼저 묻는다.
         Bool HasUnsavedChanges() const override;
         Bool SaveChanges() override;

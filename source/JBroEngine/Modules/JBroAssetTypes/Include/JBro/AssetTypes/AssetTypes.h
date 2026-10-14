@@ -48,7 +48,7 @@ namespace JBro
         Layer,
         // 소리 이펙트 하나다(D-306, 기존 `.jfx`). 본문은 `Effect: { Kind, Parameters }` YAML 이고 `AudioSource.audioEffectIds` 가 차례로 건다.
         AudioEffect,
-        // 노드 그래프 하나다(D-308). 본문이 그래프 YAML 이고 첫 키 `Domain` 이 어느 도메인의 그래프인지 정한다. 에디터의 노드 그래프 창이 연다.
+        // 노드 그래프 하나다(D-323). 본문이 그래프 YAML 이고 첫 키 `Domain` 이 어느 도메인의 그래프인지 정한다. 에디터의 노드 그래프 창이 연다.
         NodeGraph
     };
 

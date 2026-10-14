@@ -35,7 +35,7 @@ namespace JBro
         static constexpr const char* TypeName = "SoundEffect";
         static constexpr const char* DockAreaName = "SoundEffect";
 
-        // 이 창의 행동(실행 취소·다시 실행·저장)을 행동 표에 올린다(D-309). 포커스가 있을 때 캔버스의 같은 조합을 가린다.
+        // 이 창의 행동(실행 취소·다시 실행·저장)을 행동 표에 올린다(D-324). 포커스가 있을 때 캔버스의 같은 조합을 가린다.
         static void RegisterActions();
 
         const char* GetTitle() const override;
@@ -44,7 +44,7 @@ namespace JBro
         Bool OnCreate(EditorApplication& editor) override;
         // 이 창이 튼 미리 듣기를 멈춘다.
         void OnDestroy() override;
-        // 저장하지 않은 것이 있으면 닫지 않고 묻는다(탭의 닫기 단추, D-309).
+        // 저장하지 않은 것이 있으면 닫지 않고 묻는다(탭의 닫기 단추, D-324).
         Bool OnCloseRequested() override;
         Bool HasUnsavedChanges() const override;
         Bool SaveChanges() override;
@@ -63,7 +63,7 @@ namespace JBro
         Bool ReloadFromDisk();
         void RequestReload();
         void RequestClose();
-        // **고치는 것은 이 창의 커맨드다**(D-309). 스택은 이 창의 것이라 Ctrl+Z 가 캔버스가 아니라 이 이펙트를 되돌린다.
+        // **고치는 것은 이 창의 커맨드다**(D-324). 스택은 이 창의 것이라 Ctrl+Z 가 캔버스가 아니라 이 이펙트를 되돌린다.
         EditorCommandManager& GetCommands() { return m_commands; }
         Bool Undo();
         Bool Redo();

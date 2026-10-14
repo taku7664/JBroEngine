@@ -5,7 +5,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/SafePtr.h>
 
-// 수식 샘플 도메인 `Math` 다(D-308, node-graph-plan §2.4). 에디터에서 노드 그래프를 열어 다듬기 위한 것이고,
+// 수식 샘플 도메인 `Math` 다(D-323, node-graph-plan §2.4). 에디터에서 노드 그래프를 열어 다듬기 위한 것이고,
 // "그래프를 결과물로 바꾸는 컴파일러" 자리를 `EvaluateMath` 가 시험한다.
 //
 // 핀 타입은 `Float`·`Vector2`·`Vector3`·`Vector4` 이고 좁은 것은 넓은 것으로 넓혀진다(`Float` 는 모든 칸에 같은 값,

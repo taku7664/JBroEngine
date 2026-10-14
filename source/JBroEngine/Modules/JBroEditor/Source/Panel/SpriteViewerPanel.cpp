@@ -290,7 +290,7 @@ namespace JBro
             m_frame = static_cast<JBro::UInt32>(data->frames.Size() - 1);
         }
 
-        // 마우스가 가리킨 칸을 그리기 **전에** 정하고, 누른 칸도 그리기 전에 고른다(D-185·D-309). 그린 뒤에 고르면 누른 프레임에
+        // 마우스가 가리킨 칸을 그리기 **전에** 정하고, 누른 칸도 그리기 전에 고른다(D-185·D-324). 그린 뒤에 고르면 누른 프레임에
         // 옛 칸의 테두리가 한 번 그려진다. 시트 위에 있지 않으면 없음이다 - 지난 프레임의 값을 들고 있으면 마우스를 뺀 뒤에도 남는다.
         m_hoveredFrame = -1;
         const Vector2 pointed = ViewCamera::ToContent(m_sheetCamera, Vector2{io.MousePos.x, io.MousePos.y});

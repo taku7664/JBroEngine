@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <string_view>
 
-// 그래프를 YAML 로 쓰고 읽는다(D-308, node-graph-plan §2.2). `.jgraph` 본문이고, 되돌리기 커맨드가 떠 두는 글자다.
+// 그래프를 YAML 로 쓰고 읽는다(D-323, node-graph-plan §2.2). `.jgraph` 본문이고, 되돌리기 커맨드가 떠 두는 글자다.
 //
 //   Domain: Math
 //   NextId: 4

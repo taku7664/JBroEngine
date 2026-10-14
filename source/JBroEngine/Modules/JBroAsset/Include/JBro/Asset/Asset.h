@@ -248,7 +248,7 @@ namespace JBro
             Array<UInt32> freeList;
         };
 
-        // 위 8 비트가 타입(256 종류), 아래 24 비트가 슬롯(타입마다 1,600 만)이다(D-307 (2)). 4 비트일 때는 타입이 열여섯에서 찼다.
+        // 위 8 비트가 타입(256 종류), 아래 24 비트가 슬롯(타입마다 1,600 만)이다(D-322 (2)). 4 비트일 때는 타입이 열여섯에서 찼다.
         static constexpr UInt32 TypeShift = 24;
         static constexpr UInt32 SlotMask = (1u << TypeShift) - 1;
 

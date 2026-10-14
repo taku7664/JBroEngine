@@ -56,7 +56,7 @@
 
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=NodeGraph
 #if defined(JBRO_TIER_PROBE_NODE_GRAPH)
-// 노드 그래프 모델은 Tier E 다(D-308). 에디터와 셰이더 그래프 컴파일러가 쓰고, 스크립트는 그래프를 보지 않는다.
+// 노드 그래프 모델은 Tier E 다(D-323). 에디터와 셰이더 그래프 컴파일러가 쓰고, 스크립트는 그래프를 보지 않는다.
 #include <JBro/NodeGraph/Graph.h>
 #endif
 

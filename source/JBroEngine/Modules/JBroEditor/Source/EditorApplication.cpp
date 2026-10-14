@@ -127,7 +127,7 @@ namespace JBro
             return value;
         }
 
-        // **도크마다 제 창 클래스다**(D-309). 도크의 안쪽 도크 공간과 그 도크의 패널이 같은 클래스를 쓴다 - 그래서 패널은 제 도크
+        // **도크마다 제 창 클래스다**(D-324). 도크의 안쪽 도크 공간과 그 도크의 패널이 같은 클래스를 쓴다 - 그래서 패널은 제 도크
         // 안에서만 탭·분할로 붙고, 다른 도크로는 끌어 넣을 수 없다. 클래스가 없을 때는 노드 그래프·스프라이트 뷰어·사운드 이펙트 창을
         // 메인 도크에 끌어 넣을 수 있었고, 메인 패널을 파일 창 도크에 넣을 수도 있었다(사용자 지적). 떠 있는 창으로 빼는 것은 막지 않는다.
         ImGuiWindowClass DockAreaClass(const char* area)
@@ -149,7 +149,7 @@ namespace JBro
         : m_shortcuts(MakeOwnerPtr<EditorShortcutManager>()),
           m_nodeGraphDomains(MakeOwnerPtr<NodeGraph::DomainRegistry>())
     {
-        // 노드 그래프의 도메인이다(D-308). 셰이더 그래프가 서면 여기에 더한다.
+        // 노드 그래프의 도메인이다(D-323). 셰이더 그래프가 서면 여기에 더한다.
         m_nodeGraphDomains->Add(NodeGraph::MakeMathDomain());
         // 프로세스마다 다르면 된다 - 이 객체의 주소와 지금 시각이다(D-321).
         char session[64];
@@ -3286,7 +3286,7 @@ namespace JBro
         // 코드만 고친 흔한 경우(필드가 그대로)에는 기록이 남는다.
         if (DescribeScriptFieldLayout() != layoutBefore && m_commands.GetUndoCount() + m_commands.GetRedoCount() != 0)
         {
-            // 기록만 버린다. 저장 안 됨은 남는다(D-309).
+            // 기록만 버린다. 저장 안 됨은 남는다(D-324).
             m_commands.ClearHistory();
             Log::Write(LogLevel::Info, "script", "the undo history was cleared because script fields changed");
         }
@@ -4522,7 +4522,7 @@ namespace JBro
         m_objectIds.Clear();
         // 재생 중에 쌓인 편집은 되돌릴 대상이 사라졌다. 스택을 비우지 않으면 Ctrl+Z 가
         // 이제 없는 오브젝트를 가리킨다. **저장 안 됨은 남긴다** - 캔버스는 재생 전으로 돌아왔고, 재생 전에 저장하지 않은 편집은
-        // 여전히 저장되지 않았다(D-309).
+        // 여전히 저장되지 않았다(D-324).
         m_commands.ClearHistory();
         if (m_framework.Get() != nullptr)
         {
@@ -5751,7 +5751,7 @@ namespace JBro
                 }
                 if (false == panel->m_placed)
                 {
-                    // **오른쪽을 바라는 패널은 도크를 갈라 오른쪽 칸에 붙는다**(D-309, 노드 인스펙터 - 메인 도크의 인스펙터 자리와 같다).
+                    // **오른쪽을 바라는 패널은 도크를 갈라 오른쪽 칸에 붙는다**(D-324, 노드 인스펙터 - 메인 도크의 인스펙터 자리와 같다).
                     // 나머지는 가운데 칸이다. 사람이 이미 칸을 다시 나눴으면 가르지 않고 가운데 칸에 붙인다.
                     ImGuiID target = area->dockSpace;
                     ImGuiDockNode* root = ImGui::DockBuilderGetNode(area->dockSpace);
@@ -6318,7 +6318,7 @@ namespace JBro
         PerformBrowseRequest();
         PerformImportRequest();
         PerformOpenCanvasRequest();
-        // **창의 닫기 단추도 저장하지 않은 것을 먼저 묻는다**(D-309). 플랫폼의 닫기 요청을 거두고 답을 기다린다 - 거두지 않으면
+        // **창의 닫기 단추도 저장하지 않은 것을 먼저 묻는다**(D-324). 플랫폼의 닫기 요청을 거두고 답을 기다린다 - 거두지 않으면
         // 엔진이 이 프레임에 내려가 묻는 창이 뜰 틈이 없다.
         if (false == m_exitRequested && m_engine->GetMainWindow().value != 0 && m_platform->ShouldClose(m_engine->GetMainWindow())
             && HasUnsavedWork() && false == m_leaveConfirmed)
@@ -6406,7 +6406,7 @@ namespace JBro
             m_contours->Shutdown();
         }
         {
-            // **파일을 여는 창은 모두 이 프로젝트의 것이다**(D-309). 스프라이트 뷰어는 스프라이트를 잡고, 사운드 이펙트·노드 그래프 창은
+            // **파일을 여는 창은 모두 이 프로젝트의 것이다**(D-324). 스프라이트 뷰어는 스프라이트를 잡고, 사운드 이펙트·노드 그래프 창은
             // 이 프로젝트의 에셋 번호와 초안을 든다 - 남기면 다음 프로젝트에서 옛 번호로 저장한다. 메인 도크 밖의 패널을 모두 닫는다.
             // 저장하지 않은 것은 프로젝트를 바꾸기 전에 물었다(`AskBeforeLeaving`).
             Array<EditorPanel*> closing;
