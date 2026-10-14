@@ -53,6 +53,18 @@ namespace JBro
         void* group = nullptr;
     };
 
+    // 코드 주소 하나가 어디인지다(D-325). 스크립트 예외를 사용자에게 알릴 때 쓴다. 모르는 칸은 비어 있다.
+    struct CodeLocation
+    {
+        // 그 주소가 든 모듈 파일의 경로다.
+        String module;
+        // 함수 이름이다(`NewScript::OnUpdate`).
+        String function;
+        // 소스 파일의 경로와 줄이다. 심볼이 없으면 비어 있고 줄은 0 이다.
+        String file;
+        UInt32 line = 0;
+    };
+
     enum class ProcessStatus : std::uint8_t
     {
         Running,
@@ -461,6 +473,22 @@ namespace JBro
             (void)slot;
             (void)low;
             (void)high;
+        }
+        // **스크립트 예외의 자리를 읽는다**(D-325). `exceptionPointers` 는 운영체제의 예외 정보이고, 예외 자리부터 바깥으로
+        // 명령 주소를 `capacity` 개까지 채워 그 수를 돌려준다. 예외 필터 안에서 불린다 - 할당하지 않는다. 없는 플랫폼이면 0 이다.
+        virtual UInt32 CaptureFaultFrames(const void* exceptionPointers, UInt64* frames, UInt32 capacity)
+        {
+            (void)exceptionPointers;
+            (void)frames;
+            (void)capacity;
+            return 0;
+        }
+        // 이 프로세스의 코드 주소를 모듈·함수·소스 줄로 바꾼다. 모듈도 모르면 거짓이다. 메인 스레드에서 부른다.
+        virtual Bool DescribeCodeAddress(UInt64 address, CodeLocation& location)
+        {
+            (void)address;
+            (void)location;
+            return false;
         }
     };
 }

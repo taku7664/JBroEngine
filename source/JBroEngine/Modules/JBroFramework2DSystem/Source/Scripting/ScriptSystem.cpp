@@ -5,6 +5,7 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Input/InputSystem.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/ScriptGuard.h>
 
 #include <algorithm>
 #include <JBro/Types/Bool.h>
@@ -335,8 +336,9 @@ namespace JBro::System
             {
                 continue;
             }
-            entry.script->OnCreate();
-            entry.script->OnStart();
+            // 스크립트 훅은 모두 `ScriptGuard` 를 거친다(D-325). 예외가 나면 그 뒤 훅은 부르지 않고, 에디터가 실행을 멈춘다.
+            ScriptGuard::Call("OnCreate", [&entry] { entry.script->OnCreate(); });
+            ScriptGuard::Call("OnStart", [&entry] { entry.script->OnStart(); });
             m_started.Add(entry.instanceId);
             entry.started = true;
         }
@@ -347,7 +349,7 @@ namespace JBro::System
             {
                 continue;
             }
-            entry.script->OnUpdate();
+            ScriptGuard::Call("OnUpdate", [&entry] { entry.script->OnUpdate(); });
             ++m_lastUpdateCount;
         }
     }
@@ -363,7 +365,7 @@ namespace JBro::System
         {
             if (entry.started && entry.script->IsActiveScript())
             {
-                entry.script->OnFixedUpdate();
+                ScriptGuard::Call("OnFixedUpdate", [&entry] { entry.script->OnFixedUpdate(); });
             }
         }
     }
@@ -378,7 +380,7 @@ namespace JBro::System
             {
                 if (entry.started)
                 {
-                    entry.script->OnDestroy();
+                    ScriptGuard::Call("OnDestroy", [&entry] { entry.script->OnDestroy(); });
                 }
             }
         }

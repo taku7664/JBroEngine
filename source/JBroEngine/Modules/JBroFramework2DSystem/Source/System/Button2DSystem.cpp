@@ -2,6 +2,7 @@
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
+#include <JBro/Runtime/ScriptGuard.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -268,23 +269,24 @@ namespace JBro::System
         }
         for (GameScript2D* script : m_hookTargets)
         {
+            // 스크립트 훅은 `ScriptGuard` 를 거친다(D-325).
             switch (hook)
             {
             case Hook::Enter:
-                script->OnPointerEnter();
+                ScriptGuard::Call("OnPointerEnter", [script] { script->OnPointerEnter(); });
                 break;
             case Hook::Exit:
-                script->OnPointerExit();
+                ScriptGuard::Call("OnPointerExit", [script] { script->OnPointerExit(); });
                 break;
             case Hook::Down:
-                script->OnPointerDown();
+                ScriptGuard::Call("OnPointerDown", [script] { script->OnPointerDown(); });
                 break;
             case Hook::Up:
-                script->OnPointerUp();
+                ScriptGuard::Call("OnPointerUp", [script] { script->OnPointerUp(); });
                 break;
             case Hook::Click:
             default:
-                script->OnClick();
+                ScriptGuard::Call("OnClick", [script] { script->OnClick(); });
                 break;
             }
         }

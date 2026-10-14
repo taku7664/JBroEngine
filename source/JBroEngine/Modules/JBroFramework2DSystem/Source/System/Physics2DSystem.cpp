@@ -3,6 +3,7 @@
 #include "Physics2DGeometry.h"
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Runtime/ScriptGuard.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
@@ -1469,34 +1470,35 @@ namespace JBro::System
                     state.hookTargets.Add(static_cast<GameScript2D*>(script));
                 }
             }
+            // 스크립트 훅은 `ScriptGuard` 를 거친다(D-325).
             for (GameScript2D* script : state.hookTargets)
             {
                 if (trigger)
                 {
                     if (phase == Phase::Enter)
                     {
-                        script->OnTriggerEnter(hit);
+                        ScriptGuard::Call("OnTriggerEnter", [script, &hit] { script->OnTriggerEnter(hit); });
                     }
                     else if (phase == Phase::Stay)
                     {
-                        script->OnTriggerStay(hit);
+                        ScriptGuard::Call("OnTriggerStay", [script, &hit] { script->OnTriggerStay(hit); });
                     }
                     else
                     {
-                        script->OnTriggerExit(hit);
+                        ScriptGuard::Call("OnTriggerExit", [script, &hit] { script->OnTriggerExit(hit); });
                     }
                 }
                 else if (phase == Phase::Enter)
                 {
-                    script->OnCollisionEnter(hit);
+                    ScriptGuard::Call("OnCollisionEnter", [script, &hit] { script->OnCollisionEnter(hit); });
                 }
                 else if (phase == Phase::Stay)
                 {
-                    script->OnCollisionStay(hit);
+                    ScriptGuard::Call("OnCollisionStay", [script, &hit] { script->OnCollisionStay(hit); });
                 }
                 else
                 {
-                    script->OnCollisionExit(hit);
+                    ScriptGuard::Call("OnCollisionExit", [script, &hit] { script->OnCollisionExit(hit); });
                 }
             }
         };

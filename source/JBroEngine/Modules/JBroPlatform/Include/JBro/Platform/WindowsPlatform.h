@@ -66,6 +66,9 @@ namespace JBro
         Bool PollGamepad(UInt32 slot, GamepadRawState& state) override;
         void SetGamepadVibration(UInt32 slot, Float low, Float high) override;
         Bool TakeAudioDevicesChanged() override;
+        // `WindowsCodeAddress.cpp` 의 것이다.
+        UInt32 CaptureFaultFrames(const void* exceptionPointers, UInt64* frames, UInt32 capacity) override;
+        Bool DescribeCodeAddress(UInt64 address, CodeLocation& location) override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);
