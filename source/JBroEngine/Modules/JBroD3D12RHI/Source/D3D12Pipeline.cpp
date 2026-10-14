@@ -472,4 +472,189 @@ namespace JBro::Internal
         binding.samplerTableParameter = state.samplerTableParameter;
         return true;
     }
+
+    ComputePipelineHandle D3D12Device::CreateComputePipeline(const ComputePipelineDesc& desc)
+    {
+        if (m_status != FrameStatus::Ready || m_device == nullptr || m_frameActive
+            || desc.computeShader.data == nullptr || desc.computeShader.size == 0
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps(), true))
+        {
+            return {};
+        }
+        CollectRetiredResources();
+        UInt32 slotIndex = MaxComputePipelines;
+        for (UInt32 index = 0; index < MaxComputePipelines; ++index)
+        {
+            if (false == m_computePipelines[index].occupied && m_computePipelines[index].pipeline == nullptr)
+            {
+                slotIndex = index;
+                break;
+            }
+        }
+        if (slotIndex == MaxComputePipelines)
+        {
+            return {};
+        }
+
+        // 그래픽과 같은 차례다 - 상수 버퍼 CBV 들, 텍스처 표, 샘플러 표, 그리고 u# 표 하나(u0.. 텍스처, u4.. 버퍼).
+        // 컴퓨트 루트 시그니처의 가시성은 늘 ALL 이다.
+        const BindingLayoutDesc& bindings = desc.bindings;
+        D3D12_ROOT_PARAMETER rootParameters[3 + MaxBoundConstantBuffers] = {};
+        UInt32 parameterCount = 0;
+        UInt32 constantBufferParameter = InvalidRootParameter;
+        UInt32 textureTableParameter = InvalidRootParameter;
+        UInt32 samplerTableParameter = InvalidRootParameter;
+        UInt32 storageTableParameter = InvalidRootParameter;
+        for (UInt32 slot = 1; slot <= bindings.constantBuffers.count; ++slot)
+        {
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+            parameter.Descriptor.ShaderRegister = slot;
+            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            if (slot == 1)
+            {
+                constantBufferParameter = parameterCount;
+            }
+            ++parameterCount;
+        }
+        D3D12_DESCRIPTOR_RANGE textureRange = {};
+        if (bindings.sampledTextures.count != 0)
+        {
+            textureRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+            textureRange.NumDescriptors = bindings.sampledTextures.count;
+            textureRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            parameter.DescriptorTable.NumDescriptorRanges = 1;
+            parameter.DescriptorTable.pDescriptorRanges = &textureRange;
+            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            textureTableParameter = parameterCount++;
+        }
+        D3D12_DESCRIPTOR_RANGE samplerRange = {};
+        if (bindings.samplers.count != 0)
+        {
+            samplerRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+            samplerRange.NumDescriptors = bindings.samplers.count;
+            samplerRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            parameter.DescriptorTable.NumDescriptorRanges = 1;
+            parameter.DescriptorTable.pDescriptorRanges = &samplerRange;
+            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            samplerTableParameter = parameterCount++;
+        }
+        D3D12_DESCRIPTOR_RANGE storageRanges[2] = {};
+        UInt32 storageRangeCount = 0;
+        if (bindings.storageTextures.count != 0)
+        {
+            D3D12_DESCRIPTOR_RANGE& range = storageRanges[storageRangeCount++];
+            range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+            range.NumDescriptors = bindings.storageTextures.count;
+            range.BaseShaderRegister = 0;
+            range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        }
+        if (bindings.storageBuffers.count != 0)
+        {
+            D3D12_DESCRIPTOR_RANGE& range = storageRanges[storageRangeCount++];
+            range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+            range.NumDescriptors = bindings.storageBuffers.count;
+            range.BaseShaderRegister = StorageBufferRegisterBase;
+            range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        }
+        if (storageRangeCount != 0)
+        {
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            parameter.DescriptorTable.NumDescriptorRanges = storageRangeCount;
+            parameter.DescriptorTable.pDescriptorRanges = storageRanges;
+            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            storageTableParameter = parameterCount++;
+        }
+
+        D3D12_ROOT_SIGNATURE_DESC rootDesc = {};
+        rootDesc.NumParameters = parameterCount;
+        rootDesc.pParameters = parameterCount != 0 ? rootParameters : nullptr;
+        ComPtr<ID3DBlob> serialized;
+        ComPtr<ID3DBlob> errors;
+        ComPtr<ID3D12RootSignature> rootSignature;
+        if (FAILED(D3D12SerializeRootSignature(&rootDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, &errors))
+            || FAILED(m_device->CreateRootSignature(
+                0, serialized->GetBufferPointer(), serialized->GetBufferSize(), IID_PPV_ARGS(&rootSignature))))
+        {
+            return {};
+        }
+        D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc = {};
+        pipelineDesc.pRootSignature = rootSignature.Get();
+        pipelineDesc.CS = {desc.computeShader.data, desc.computeShader.size};
+        ComPtr<ID3D12PipelineState> pipeline;
+        if (FAILED(m_device->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(&pipeline))))
+        {
+            return {};
+        }
+
+        D3D12PipelineState& state = m_computePipelines[slotIndex];
+        state.rootSignature = rootSignature;
+        state.pipeline = pipeline;
+        state.compute = true;
+        state.pushConstantCount = 0;
+        state.constantBufferCount = bindings.constantBuffers.count;
+        state.sampledTextureCount = bindings.sampledTextures.count;
+        state.samplerCount = bindings.samplers.count;
+        state.storageTextureCount = bindings.storageTextures.count;
+        state.storageBufferCount = bindings.storageBuffers.count;
+        state.constantBufferParameter = constantBufferParameter;
+        state.textureTableParameter = textureTableParameter;
+        state.samplerTableParameter = samplerTableParameter;
+        state.storageTableParameter = storageTableParameter;
+        state.retirementFence = 0;
+        state.occupied = true;
+        return {slotIndex, state.generation};
+    }
+
+    void D3D12Device::DestroyComputePipeline(ComputePipelineHandle pipeline)
+    {
+        if (pipeline.index >= MaxComputePipelines)
+        {
+            return;
+        }
+        D3D12PipelineState& state = m_computePipelines[pipeline.index];
+        if (false == state.occupied || state.generation != pipeline.generation)
+        {
+            return;
+        }
+        state.occupied = false;
+        state.generation = NextGeneration(state.generation);
+        state.retirementFence = m_frameActive ? PendingRetirementFence : m_lastSubmittedFenceValue;
+        if (m_frameActive)
+        {
+            m_hasPendingRetirementFence = true;
+        }
+    }
+
+    Bool D3D12Device::ResolveComputePipeline(ComputePipelineHandle pipeline, D3D12PipelineBinding& binding)
+    {
+        if (pipeline.index >= MaxComputePipelines)
+        {
+            return false;
+        }
+        D3D12PipelineState& state = m_computePipelines[pipeline.index];
+        if (false == state.occupied || state.generation != pipeline.generation)
+        {
+            return false;
+        }
+        binding = {};
+        binding.pipeline = state.pipeline.Get();
+        binding.rootSignature = state.rootSignature.Get();
+        binding.compute = true;
+        binding.constantBufferCount = state.constantBufferCount;
+        binding.sampledTextureCount = state.sampledTextureCount;
+        binding.samplerCount = state.samplerCount;
+        binding.storageTextureCount = state.storageTextureCount;
+        binding.storageBufferCount = state.storageBufferCount;
+        binding.constantBufferParameter = state.constantBufferParameter;
+        binding.textureTableParameter = state.textureTableParameter;
+        binding.samplerTableParameter = state.samplerTableParameter;
+        binding.storageTableParameter = state.storageTableParameter;
+        return true;
+    }
 }

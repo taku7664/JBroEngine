@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <initializer_list>
 #include <iterator>
 #include <cstring>
 #include <limits>
@@ -19,7 +20,8 @@ namespace JBro::Internal
             | static_cast<JBro::UInt32>(BufferUsage::Index)
             | static_cast<JBro::UInt32>(BufferUsage::Constant)
             | static_cast<JBro::UInt32>(BufferUsage::CopySource)
-            | static_cast<JBro::UInt32>(BufferUsage::CopyDestination);
+            | static_cast<JBro::UInt32>(BufferUsage::CopyDestination)
+            | static_cast<JBro::UInt32>(BufferUsage::Storage);
 
         constexpr UInt32 TextureUsageMask =
             static_cast<JBro::UInt32>(TextureUsage::Sampled)
@@ -147,6 +149,12 @@ namespace JBro::Internal
             {
                 return false;
             }
+            // 구조화 버퍼는 GPU 가 채운다(`Device` 만). 원소 크기는 4 의 배수이고 크기를 나눠떨어지게 한다.
+            if (HasBufferUsage(desc.usage, BufferUsage::Storage)
+                && (desc.memory != MemoryType::Device || desc.stride == 0 || desc.stride % 4 != 0 || desc.size % desc.stride != 0))
+            {
+                return false;
+            }
             if (desc.memory == MemoryType::Readback
                 && usages != static_cast<JBro::UInt32>(BufferUsage::CopyDestination))
             {
@@ -226,7 +234,9 @@ namespace JBro::Internal
         resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
         resourceDesc.SampleDesc.Count = 1;
         resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+        resourceDesc.Flags = HasBufferUsage(desc.usage, BufferUsage::Storage)
+            ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+            : D3D12_RESOURCE_FLAG_NONE;
 
         const D3D12_HEAP_PROPERTIES heapProperties = BuildHeapProperties(desc.memory);
         const D3D12_RESOURCE_STATES initialState = InitialBufferState(desc.memory);
@@ -261,6 +271,19 @@ namespace JBro::Internal
         }
         state.retirementFence = 0;
         state.occupied = true;
+        state.unorderedAccessDescriptor = {};
+        if (HasBufferUsage(desc.usage, BufferUsage::Storage))
+        {
+            // 구조화 버퍼 UAV 를 스테이징에 만들어 둔다. 디스패치 때 보이는 링으로 복사한다.
+            state.unorderedAccessDescriptor = m_bufferUnorderedAccessHeap->GetCPUDescriptorHandleForHeapStart();
+            state.unorderedAccessDescriptor.ptr += static_cast<SIZE_T>(slotIndex) * m_unorderedAccessDescriptorStride;
+            D3D12_UNORDERED_ACCESS_VIEW_DESC viewDesc = {};
+            viewDesc.Format = DXGI_FORMAT_UNKNOWN;
+            viewDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+            viewDesc.Buffer.NumElements = static_cast<UINT>(desc.size / desc.stride);
+            viewDesc.Buffer.StructureByteStride = desc.stride;
+            m_device->CreateUnorderedAccessView(resource.Get(), nullptr, &viewDesc, state.unorderedAccessDescriptor);
+        }
         return {slotIndex, state.generation};
     }
 
@@ -432,6 +455,17 @@ namespace JBro::Internal
             resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
         }
 
+        // 읽고 쓰는 텍스처는 그 포맷의 타입 있는 UAV 를 장치가 받아야 한다(BGRA8 같은 것은 선택 기능이다).
+        if (storage)
+        {
+            D3D12_FEATURE_DATA_FORMAT_SUPPORT support = {ToNativeFormat(desc.format)};
+            if (FAILED(m_device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &support, sizeof(support)))
+                || (support.Support1 & D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW) == 0)
+            {
+                return {};
+            }
+        }
+
         D3D12_HEAP_PROPERTIES heapProperties = {};
         heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
         heapProperties.CreationNodeMask = 1;
@@ -530,6 +564,24 @@ namespace JBro::Internal
             }
         }
 
+        state.unorderedAccessDescriptor = {};
+        if (storage)
+        {
+            // mip 마다 UAV 하나다(`SetStorageTexture`). 블룸의 컴퓨트 내림 사슬이 mip 하나씩 쓴다.
+            state.unorderedAccessDescriptor = m_textureUnorderedAccessHeap->GetCPUDescriptorHandleForHeapStart();
+            state.unorderedAccessDescriptor.ptr +=
+                static_cast<SIZE_T>(slotIndex) * MaxTextureMipLevels * m_unorderedAccessDescriptorStride;
+            for (UInt32 mip = 0; mip < desc.mipLevels; ++mip)
+            {
+                D3D12_UNORDERED_ACCESS_VIEW_DESC viewDesc = {};
+                viewDesc.Format = ToNativeFormat(desc.format);
+                viewDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+                viewDesc.Texture2D.MipSlice = mip;
+                D3D12_CPU_DESCRIPTOR_HANDLE descriptor = state.unorderedAccessDescriptor;
+                descriptor.ptr += static_cast<SIZE_T>(mip) * m_unorderedAccessDescriptorStride;
+                m_device->CreateUnorderedAccessView(resource.Get(), nullptr, &viewDesc, descriptor);
+            }
+        }
         state.occupied = true;
         return {TextureResourceBase + slotIndex, state.generation};
     }
@@ -720,18 +772,24 @@ namespace JBro::Internal
             }
         }
 
-        for (D3D12PipelineState& state : m_graphicsPipelines)
+        // 그래픽과 컴퓨트 파이프라인은 같은 칸 모양이고 같은 펜스로 거둔다.
+        for (D3D12PipelineState* pipelines : {m_graphicsPipelines, m_computePipelines})
         {
-            if (false == state.occupied
-                && state.pipeline != nullptr
-                && state.retirementFence != PendingRetirementFence
-                && state.retirementFence <= completedFence)
+            const UInt32 count = pipelines == m_graphicsPipelines ? MaxGraphicsPipelines : MaxComputePipelines;
+            for (UInt32 index = 0; index < count; ++index)
             {
-                state.pipeline.Reset();
-                state.rootSignature.Reset();
-                state.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
-                state.pushConstantCount = 0;
-                state.retirementFence = 0;
+                D3D12PipelineState& state = pipelines[index];
+                if (false == state.occupied
+                    && state.pipeline != nullptr
+                    && state.retirementFence != PendingRetirementFence
+                    && state.retirementFence <= completedFence)
+                {
+                    state.pipeline.Reset();
+                    state.rootSignature.Reset();
+                    state.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+                    state.pushConstantCount = 0;
+                    state.retirementFence = 0;
+                }
             }
         }
     }
@@ -761,13 +819,18 @@ namespace JBro::Internal
                 state.retirementFence = fenceValue;
             }
         }
-        for (D3D12PipelineState& state : m_graphicsPipelines)
+        for (D3D12PipelineState* pipelines : {m_graphicsPipelines, m_computePipelines})
         {
-            if (false == state.occupied
-                && state.pipeline != nullptr
-                && state.retirementFence == PendingRetirementFence)
+            const UInt32 count = pipelines == m_graphicsPipelines ? MaxGraphicsPipelines : MaxComputePipelines;
+            for (UInt32 index = 0; index < count; ++index)
             {
-                state.retirementFence = fenceValue;
+                D3D12PipelineState& state = pipelines[index];
+                if (false == state.occupied
+                    && state.pipeline != nullptr
+                    && state.retirementFence == PendingRetirementFence)
+                {
+                    state.retirementFence = fenceValue;
+                }
             }
         }
         m_hasPendingRetirementFence = false;
@@ -799,14 +862,19 @@ namespace JBro::Internal
             state.retirementFence = 0;
             state.occupied = false;
         }
-        for (D3D12PipelineState& state : m_graphicsPipelines)
+        for (D3D12PipelineState* pipelines : {m_graphicsPipelines, m_computePipelines})
         {
-            state.pipeline.Reset();
-            state.rootSignature.Reset();
-            state.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
-            state.pushConstantCount = 0;
-            state.retirementFence = 0;
-            state.occupied = false;
+            const UInt32 count = pipelines == m_graphicsPipelines ? MaxGraphicsPipelines : MaxComputePipelines;
+            for (UInt32 index = 0; index < count; ++index)
+            {
+                D3D12PipelineState& state = pipelines[index];
+                state.pipeline.Reset();
+                state.rootSignature.Reset();
+                state.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+                state.pushConstantCount = 0;
+                state.retirementFence = 0;
+                state.occupied = false;
+            }
         }
     }
 
@@ -1072,6 +1140,47 @@ namespace JBro::Internal
         {
             descriptor.ptr += static_cast<SIZE_T>(1 + mipLevel) * m_shaderResourceDescriptorStride;
         }
+        return true;
+    }
+
+    Bool D3D12Device::ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, D3D12StorageBinding& binding)
+    {
+        if (m_device == nullptr || false == texture.IsValid() || texture.index < TextureResourceBase
+            || texture.index - TextureResourceBase >= MaxTextures)
+        {
+            return false;
+        }
+        D3D12TextureState& state = m_textures[texture.index - TextureResourceBase];
+        if (false == state.occupied || state.generation != texture.generation || state.unorderedAccessDescriptor.ptr == 0
+            || mipLevel >= state.desc.mipLevels)
+        {
+            return false;
+        }
+        binding.resource = state.resource.Get();
+        binding.descriptor = state.unorderedAccessDescriptor;
+        binding.descriptor.ptr += static_cast<SIZE_T>(mipLevel) * m_unorderedAccessDescriptorStride;
+        binding.state = &state.states[mipLevel];
+        binding.subresource = mipLevel;
+        binding.sampled = state.shaderResourceDescriptor.ptr != 0;
+        return true;
+    }
+
+    Bool D3D12Device::ResolveStorageBuffer(BufferHandle buffer, D3D12StorageBinding& binding)
+    {
+        if (m_device == nullptr || buffer.index >= MaxBuffers)
+        {
+            return false;
+        }
+        D3D12BufferState& state = m_buffers[buffer.index];
+        if (false == state.occupied || state.generation != buffer.generation || state.unorderedAccessDescriptor.ptr == 0)
+        {
+            return false;
+        }
+        binding.resource = state.resource.Get();
+        binding.descriptor = state.unorderedAccessDescriptor;
+        binding.state = &state.state;
+        binding.subresource = 0;
+        binding.sampled = false;
         return true;
     }
 

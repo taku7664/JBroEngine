@@ -20,6 +20,10 @@ namespace JBro::Internal
     // 셰이더의 t#·s# 가 SPIR-V 에서 앉는 자리다(`-fvk-t-shift 8 0 -fvk-s-shift 16 0`). 0..7 은 상수 버퍼 자리다.
     constexpr UInt32 TextureBindingBase = 8;
     constexpr UInt32 SamplerBindingBase = 16;
+    // 읽고 쓰는 자원(u#)이 SPIR-V 에서 앉는 자리다(`-fvk-u-shift 24 0`). u0..u3 텍스처는 24..27, u4..u7 구조화 버퍼는 28..31.
+    constexpr UInt32 StorageBindingBase = 24;
+    constexpr UInt32 MaxStorageTextures = 4;
+    constexpr UInt32 MaxStorageBuffers = 4;
     // 프레임 슬롯 수의 상한이다. 스왑체인이 `maxFramesInFlight` 로 이 안에서 고른다.
     constexpr UInt32 MaxFramesInFlight = 3;
     constexpr UInt32 MaxSwapchainImages = 8;
@@ -66,6 +70,10 @@ namespace JBro::Internal
             UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
+        Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
+        Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
+        Bool Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ) override;
 
         Bool IsRenderPassActive() const
         {
@@ -76,6 +84,11 @@ namespace JBro::Internal
         Bool BindPendingDescriptors();
         // 두 그리기의 공통 앞단이다.
         Bool PrepareDraw();
+        Bool CanBind() const;
+        // 컴퓨트·그래픽 중 지금 걸린 파이프라인의 묶음 자리다.
+        VkPipelineBindPoint ActiveBindPoint() const;
+        // 읽고 쓰는 텍스처를 디스패치 앞(GENERAL)·뒤(읽기)로 옮긴다.
+        void TransitionStorageTextures(Bool beforeDispatch);
 
         // 상수 버퍼 한 슬롯이다. set 에는 버퍼와 크기만 적고(동적 유니폼 버퍼), 오프셋은 묶을 때 따로 넘긴다 - 링의
         // 구간이 드로우마다 바뀌어도 set 을 새로 만들지 않는다.
@@ -106,6 +119,23 @@ namespace JBro::Internal
         VkSampler m_pendingSamplers[MaxBoundSamplers] = {};
         // b# 자리로 바로 찾는다(0 은 쓰지 않는다).
         PendingConstantBuffer m_pendingConstantBuffers[MaxBoundConstantBuffers + 1] = {};
+        // 컴퓨트의 u# 자리다. 텍스처는 그 mip 의 뷰와 레이아웃(디스패치 앞뒤로 옮긴다), 버퍼는 통째다.
+        struct PendingStorageTexture
+        {
+            VkImage image = VK_NULL_HANDLE;
+            VkImageView view = VK_NULL_HANDLE;
+            VkImageLayout* layout = nullptr;
+            UInt32 mip = 0;
+            Bool sampled = false;
+        };
+        struct PendingStorageBuffer
+        {
+            VkBuffer buffer = VK_NULL_HANDLE;
+            VkDeviceSize size = 0;
+        };
+        PendingStorageTexture m_pendingStorageTextures[MaxStorageTextures] = {};
+        PendingStorageBuffer m_pendingStorageBuffers[MaxStorageBuffers] = {};
+        Bool m_computeActive = false;
         // 이 프레임에 쓴 set 들이다. 같은 묶음(레이아웃·텍스처·샘플러·상수 버퍼와 크기)이 다시 오면 할당하지 않고 그 set 을
         // 다시 건다(D-110). 프레임마다 풀이 비워지므로 함께 비운다.
         static constexpr UInt32 CachedSets = 16;
@@ -116,6 +146,9 @@ namespace JBro::Internal
             VkSampler samplers[MaxBoundSamplers] = {};
             VkBuffer constantBuffers[MaxBoundConstantBuffers + 1] = {};
             VkDeviceSize constantSizes[MaxBoundConstantBuffers + 1] = {};
+            // u0..u7 의 뷰(텍스처)·버퍼다. 컴퓨트 파이프라인만 채운다.
+            VkImageView storageViews[MaxStorageTextures] = {};
+            VkBuffer storageBuffers[MaxStorageBuffers] = {};
             VkDescriptorSet set = VK_NULL_HANDLE;
         };
         CachedSet m_cachedSets[CachedSets] = {};
@@ -198,6 +231,10 @@ namespace JBro::Internal
         UInt32 constantBufferCount = 0;
         UInt32 sampledTextureCount = 0;
         UInt32 samplerCount = 0;
+        // 컴퓨트 파이프라인이면 COMPUTE 묶음 자리에 건다.
+        VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        UInt32 storageTextureCount = 0;
+        UInt32 storageBufferCount = 0;
         UInt32 generation = 1;
         Bool occupied = false;
     };
@@ -254,6 +291,8 @@ namespace JBro::Internal
         void DestroySampler(SamplerHandle sampler) override;
         GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
         void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
+        ComputePipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) override;
+        void DestroyComputePipeline(ComputePipelineHandle pipeline) override;
         SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) override;
         void DestroySwapchain(SwapchainHandle swapchain) override;
         Bool ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent) override;
@@ -292,6 +331,10 @@ namespace JBro::Internal
         Bool ResolveBuffer(BufferHandle buffer, VkBuffer& native, BufferDesc& desc);
         Bool ResolveSampler(SamplerHandle sampler, VkSampler& native);
         VulkanPipelineState* ResolvePipeline(GraphicsPipelineHandle pipeline);
+        VulkanPipelineState* ResolveComputePipeline(ComputePipelineHandle pipeline);
+        // 읽고 쓰는 텍스처의 mip 하나다. 뷰·이미지·그 mip 의 레이아웃을 준다.
+        Bool ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, AttachmentView& view);
+        Bool ResolveStorageBuffer(BufferHandle buffer, VkBuffer& native, VkDeviceSize& size);
         void CountValidationError();
         VkDevice GetNativeDevice() const
         {
@@ -310,6 +353,7 @@ namespace JBro::Internal
         static constexpr UInt32 MaxBuffers = 1024;
         static constexpr UInt32 MaxTextures = 512;
         static constexpr UInt32 MaxGraphicsPipelines = 256;
+        static constexpr UInt32 MaxComputePipelines = 64;
         static constexpr UInt32 MaxSamplers = 64;
         static constexpr UInt32 MaxRetired = 4096;
         static constexpr UInt32 TextureResourceBase = BackBufferTextureBase + MaxSwapchains;
@@ -354,6 +398,7 @@ namespace JBro::Internal
         VulkanBufferState m_buffers[MaxBuffers];
         VulkanTextureState m_textures[MaxTextures];
         VulkanPipelineState m_graphicsPipelines[MaxGraphicsPipelines];
+        VulkanPipelineState m_computePipelines[MaxComputePipelines];
         VulkanSamplerState m_samplers[MaxSamplers];
         VulkanRetiredObject m_retired[MaxRetired];
         UInt32 m_retiredCount = 0;

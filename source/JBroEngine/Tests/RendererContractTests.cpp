@@ -165,6 +165,27 @@ namespace
         JBro::UInt32 setConstantBufferCount = 0;
         JBro::UInt32 drawInstancedCount = 0;
 
+        // 렌더러는 아직 컴퓨트를 쓰지 않는다(후처리 계획의 7 단계부터).
+        JBro::Bool SetComputePipeline(JBro::ComputePipelineHandle) override
+        {
+            return true;
+        }
+
+        JBro::Bool SetStorageTexture(JBro::UInt32, JBro::TextureHandle, JBro::UInt32) override
+        {
+            return true;
+        }
+
+        JBro::Bool SetStorageBuffer(JBro::UInt32, JBro::BufferHandle) override
+        {
+            return true;
+        }
+
+        JBro::Bool Dispatch(JBro::UInt32, JBro::UInt32, JBro::UInt32) override
+        {
+            return true;
+        }
+
         JBro::Bool DrawIndexedInstanced(
             JBro::UInt32,
             JBro::UInt32 instanceCount,
@@ -276,6 +297,15 @@ namespace
         void DestroyGraphicsPipeline(JBro::GraphicsPipelineHandle) override
         {
             ++destroyPipelineCount;
+        }
+
+        JBro::ComputePipelineHandle CreateComputePipeline(const JBro::ComputePipelineDesc&) override
+        {
+            return {1, 1};
+        }
+
+        void DestroyComputePipeline(JBro::ComputePipelineHandle) override
+        {
         }
 
         JBro::SwapchainHandle CreateSwapchain(const JBro::SwapchainDesc& desc) override

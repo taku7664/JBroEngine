@@ -119,10 +119,26 @@ namespace JBro::Internal
         {
             native.BindFlags |= D3D11_BIND_CONSTANT_BUFFER;
         }
+        const Bool storage = HasBufferUsage(desc.usage, BufferUsage::Storage);
+        if (storage)
+        {
+            // 구조화 버퍼는 GPU 가 채운다(`Device` 만). 원소 크기는 4 의 배수이고 크기를 나눠떨어지게 한다(D3D12 와 같은 계약).
+            // D3D11 의 구조화 버퍼는 다른 묶기와 함께 둘 수 없다.
+            if (desc.memory != MemoryType::Device || desc.stride == 0 || desc.stride % 4 != 0 || desc.size % desc.stride != 0
+                || native.BindFlags != 0)
+            {
+                return {};
+            }
+            native.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+            native.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+            native.StructureByteStride = desc.stride;
+        }
         D3D11BufferState& state = m_buffers[index];
-        if (FAILED(m_device->CreateBuffer(&native, nullptr, &state.buffer)))
+        if (FAILED(m_device->CreateBuffer(&native, nullptr, &state.buffer))
+            || (storage && FAILED(m_device->CreateUnorderedAccessView(state.buffer.Get(), nullptr, &state.unorderedAccessView))))
         {
             state.buffer.Reset();
+            state.unorderedAccessView.Reset();
             return {};
         }
         state.desc = desc;
@@ -249,6 +265,16 @@ namespace JBro::Internal
             return {};
         }
         const Bool sampled = HasTextureUsage(desc.usage, TextureUsage::Sampled);
+        const Bool storage = HasTextureUsage(desc.usage, TextureUsage::Storage);
+        // 읽고 쓰는 텍스처는 그 포맷의 타입 있는 UAV 를 장치가 받아야 한다. 깊이·sRGB 는 받지 않는다(D3D12 와 같은 계약).
+        UINT formatSupport = 0;
+        if (storage
+            && (depthStencil || desc.format == TextureFormat::RGBA8UnormSrgb || desc.format == TextureFormat::BGRA8UnormSrgb
+                || FAILED(m_device->CheckFormatSupport(ToNativeFormat(desc.format), &formatSupport))
+                || (formatSupport & D3D11_FORMAT_SUPPORT_TYPED_UNORDERED_ACCESS_VIEW) == 0))
+        {
+            return {};
+        }
         UInt32 slot = MaxTextures;
         for (UInt32 at = 0; at < MaxTextures; ++at)
         {
@@ -305,6 +331,10 @@ namespace JBro::Internal
         {
             native.BindFlags |= D3D11_BIND_RENDER_TARGET;
         }
+        if (storage)
+        {
+            native.BindFlags |= D3D11_BIND_UNORDERED_ACCESS;
+        }
         if (depthStencil)
         {
             native.BindFlags |= D3D11_BIND_DEPTH_STENCIL;
@@ -346,6 +376,16 @@ namespace JBro::Internal
                 viewsMade = SUCCEEDED(
                     m_device->CreateShaderResourceView(state.texture.Get(), &viewDesc, &state.mipShaderResourceViews[mip]));
             }
+        }
+        // 읽고 쓰는 텍스처는 mip 마다 UAV 하나다(`SetStorageTexture`).
+        for (UInt32 mip = 0; storage && viewsMade && mip < desc.mipLevels; ++mip)
+        {
+            D3D11_UNORDERED_ACCESS_VIEW_DESC viewDesc = {};
+            viewDesc.Format = viewFormat;
+            viewDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+            viewDesc.Texture2D.MipSlice = mip;
+            viewsMade = SUCCEEDED(
+                m_device->CreateUnorderedAccessView(state.texture.Get(), &viewDesc, &state.unorderedAccessViews[mip]));
         }
         if (false == viewsMade)
         {
@@ -513,6 +553,37 @@ namespace JBro::Internal
             return false;
         }
         view = state.depthStencilView.Get();
+        return true;
+    }
+
+    Bool D3D11Device::ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, ID3D11UnorderedAccessView*& view)
+    {
+        if (false == texture.IsValid() || texture.index < TextureResourceBase || texture.index - TextureResourceBase >= MaxTextures)
+        {
+            return false;
+        }
+        D3D11TextureState& state = m_textures[texture.index - TextureResourceBase];
+        if (false == state.occupied || state.generation != texture.generation || mipLevel >= state.desc.mipLevels
+            || state.unorderedAccessViews[mipLevel] == nullptr)
+        {
+            return false;
+        }
+        view = state.unorderedAccessViews[mipLevel].Get();
+        return true;
+    }
+
+    Bool D3D11Device::ResolveStorageBuffer(BufferHandle buffer, ID3D11UnorderedAccessView*& view)
+    {
+        if (buffer.index >= MaxBuffers)
+        {
+            return false;
+        }
+        D3D11BufferState& state = m_buffers[buffer.index];
+        if (false == state.occupied || state.generation != buffer.generation || state.unorderedAccessView == nullptr)
+        {
+            return false;
+        }
+        view = state.unorderedAccessView.Get();
         return true;
     }
 

@@ -66,6 +66,15 @@ namespace JBro::Internal
         {
             constants = {};
         }
+        for (PendingStorageTexture& storage : m_pendingStorageTextures)
+        {
+            storage = {};
+        }
+        for (PendingStorageBuffer& storage : m_pendingStorageBuffers)
+        {
+            storage = {};
+        }
+        m_computeActive = false;
         m_descriptorsDirty = false;
         m_passTargets.Clear();
         m_renderPassActive = false;
@@ -168,6 +177,7 @@ namespace JBro::Internal
         {
             m_passTargets.Add(desc.depthStencilAttachment->texture, 0);
         }
+        m_computeActive = false;
         m_renderPassActive = true;
         m_pipelineActive = false;
         m_activePipeline = nullptr;
@@ -284,6 +294,7 @@ namespace JBro::Internal
         }
         vk.vkCmdBindPipeline(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, state->pipeline);
         m_activePipeline = state;
+        m_computeActive = false;
         m_pipelineActive = true;
         // 파이프라인을 걸면 묶어 둔 것은 버려진다 - D3D12 와 같은 계약이다. 새 레이아웃에 다시 묶는다.
         for (VkImageView& view : m_pendingTextures)
@@ -304,7 +315,7 @@ namespace JBro::Internal
 
     Bool VulkanCommandContext::SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size)
     {
-        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr || m_device == nullptr
+        if (false == CanBind() || m_activePipeline == nullptr || m_device == nullptr
             || slot == 0 || slot > m_activePipeline->constantBufferCount)
         {
             return false;
@@ -411,7 +422,7 @@ namespace JBro::Internal
             return false;
         }
         VkImageView view = VK_NULL_HANDLE;
-        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
+        if (false == CanBind() || m_activePipeline == nullptr
             || slot >= m_activePipeline->sampledTextureCount
             || false == m_device->ResolveSampledTexture(texture, mipLevel, view))
         {
@@ -428,7 +439,7 @@ namespace JBro::Internal
     Bool VulkanCommandContext::SetSampler(UInt32 slot, SamplerHandle sampler)
     {
         VkSampler native = VK_NULL_HANDLE;
-        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
+        if (false == CanBind() || m_activePipeline == nullptr
             || slot >= m_activePipeline->samplerCount || false == m_device->ResolveSampler(sampler, native))
         {
             return false;
@@ -466,6 +477,20 @@ namespace JBro::Internal
                 return false;
             }
         }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            if (m_pendingStorageTextures[slot].view == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount; ++slot)
+        {
+            if (m_pendingStorageBuffers[slot].buffer == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
         for (UInt32 slot = 0; slot < m_activePipeline->samplerCount; ++slot)
         {
             if (m_pendingSamplers[slot] == VK_NULL_HANDLE)
@@ -484,7 +509,7 @@ namespace JBro::Internal
         VkDescriptorSet set = VK_NULL_HANDLE;
         if (FindCachedSet(set))
         {
-            vk.vkCmdBindDescriptorSets(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, m_activePipeline->layout, 0, 1,
+            vk.vkCmdBindDescriptorSets(m_commands, ActiveBindPoint(), m_activePipeline->layout, 0, 1,
                 &set, dynamicOffsetCount, dynamicOffsets);
             m_descriptorsDirty = false;
             return true;
@@ -498,9 +523,10 @@ namespace JBro::Internal
             return false;
         }
         RememberSet(set);
-        VkDescriptorBufferInfo buffers[MaxBoundConstantBuffers] = {};
-        VkDescriptorImageInfo images[MaxBoundTextures + MaxBoundSamplers] = {};
-        VkWriteDescriptorSet writes[MaxBoundConstantBuffers + MaxBoundTextures + MaxBoundSamplers] = {};
+        VkDescriptorBufferInfo buffers[MaxBoundConstantBuffers + MaxStorageBuffers] = {};
+        VkDescriptorImageInfo images[MaxBoundTextures + MaxBoundSamplers + MaxStorageTextures] = {};
+        VkWriteDescriptorSet writes[MaxBoundConstantBuffers + MaxBoundTextures + MaxBoundSamplers + MaxStorageTextures
+            + MaxStorageBuffers] = {};
         UInt32 writeCount = 0;
         UInt32 imageCount = 0;
         for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount; ++slot)
@@ -541,8 +567,35 @@ namespace JBro::Internal
             write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
             write.pImageInfo = &images[imageCount++];
         }
+        // 컴퓨트의 u#. 읽고 쓰는 이미지는 GENERAL 레이아웃으로 읽힌다(`Dispatch` 가 옮긴다).
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            images[imageCount].imageView = m_pendingStorageTextures[slot].view;
+            images[imageCount].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            VkWriteDescriptorSet& write = writes[writeCount++];
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = set;
+            write.dstBinding = StorageBindingBase + slot;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            write.pImageInfo = &images[imageCount++];
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount; ++slot)
+        {
+            VkDescriptorBufferInfo& info = buffers[MaxBoundConstantBuffers + slot];
+            info.buffer = m_pendingStorageBuffers[slot].buffer;
+            info.offset = 0;
+            info.range = m_pendingStorageBuffers[slot].size;
+            VkWriteDescriptorSet& write = writes[writeCount++];
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = set;
+            write.dstBinding = StorageBindingBase + StorageBufferRegisterBase + slot;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            write.pBufferInfo = &info;
+        }
         vk.vkUpdateDescriptorSets(m_device->GetNativeDevice(), writeCount, writes, 0, nullptr);
-        vk.vkCmdBindDescriptorSets(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, m_activePipeline->layout, 0, 1, &set,
+        vk.vkCmdBindDescriptorSets(m_commands, ActiveBindPoint(), m_activePipeline->layout, 0, 1, &set,
             dynamicOffsetCount, dynamicOffsets);
         m_descriptorsDirty = false;
         return true;
@@ -571,6 +624,14 @@ namespace JBro::Internal
             {
                 same = candidate.constantBuffers[slot] == m_pendingConstantBuffers[slot].buffer
                     && candidate.constantSizes[slot] == m_pendingConstantBuffers[slot].size;
+            }
+            for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount && same; ++slot)
+            {
+                same = candidate.storageViews[slot] == m_pendingStorageTextures[slot].view;
+            }
+            for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount && same; ++slot)
+            {
+                same = candidate.storageBuffers[slot] == m_pendingStorageBuffers[slot].buffer;
             }
             if (same)
             {
@@ -602,6 +663,16 @@ namespace JBro::Internal
             const Bool declared = slot != 0 && slot <= m_activePipeline->constantBufferCount;
             entry.constantBuffers[slot] = declared ? m_pendingConstantBuffers[slot].buffer : VK_NULL_HANDLE;
             entry.constantSizes[slot] = declared ? m_pendingConstantBuffers[slot].size : 0;
+        }
+        for (UInt32 slot = 0; slot < MaxStorageTextures; ++slot)
+        {
+            entry.storageViews[slot] = slot < m_activePipeline->storageTextureCount ? m_pendingStorageTextures[slot].view
+                                                                                     : VK_NULL_HANDLE;
+        }
+        for (UInt32 slot = 0; slot < MaxStorageBuffers; ++slot)
+        {
+            entry.storageBuffers[slot] = slot < m_activePipeline->storageBufferCount ? m_pendingStorageBuffers[slot].buffer
+                                                                                     : VK_NULL_HANDLE;
         }
     }
 
@@ -641,5 +712,159 @@ namespace JBro::Internal
             return false;
         }
         return BindPendingDescriptors();
+    }
+
+    Bool VulkanCommandContext::CanBind() const
+    {
+        return (m_renderPassActive && m_pipelineActive) || (false == m_renderPassActive && m_computeActive);
+    }
+
+    VkPipelineBindPoint VulkanCommandContext::ActiveBindPoint() const
+    {
+        return m_activePipeline != nullptr ? m_activePipeline->bindPoint : VK_PIPELINE_BIND_POINT_GRAPHICS;
+    }
+
+    Bool VulkanCommandContext::SetComputePipeline(ComputePipelineHandle pipeline)
+    {
+        // 컴퓨트는 렌더 패스(동적 렌더링) 밖에서만이다 - 디스패치 앞뒤의 레이아웃 전이를 패스 안에서 걸 수 없다.
+        if (m_renderPassActive || m_device == nullptr || m_commands == VK_NULL_HANDLE)
+        {
+            return false;
+        }
+        VulkanPipelineState* state = m_device->ResolveComputePipeline(pipeline);
+        if (state == nullptr)
+        {
+            return false;
+        }
+        vk.vkCmdBindPipeline(m_commands, VK_PIPELINE_BIND_POINT_COMPUTE, state->pipeline);
+        m_activePipeline = state;
+        for (VkImageView& view : m_pendingTextures)
+        {
+            view = VK_NULL_HANDLE;
+        }
+        for (VkSampler& sampler : m_pendingSamplers)
+        {
+            sampler = VK_NULL_HANDLE;
+        }
+        for (PendingConstantBuffer& constants : m_pendingConstantBuffers)
+        {
+            constants = {};
+        }
+        for (PendingStorageTexture& storage : m_pendingStorageTextures)
+        {
+            storage = {};
+        }
+        for (PendingStorageBuffer& storage : m_pendingStorageBuffers)
+        {
+            storage = {};
+        }
+        m_descriptorsDirty = true;
+        m_pipelineActive = false;
+        m_computeActive = true;
+        return true;
+    }
+
+    Bool VulkanCommandContext::SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        VulkanDevice::AttachmentView view;
+        if (false == m_computeActive || m_renderPassActive || m_activePipeline == nullptr || m_device == nullptr
+            || slot >= m_activePipeline->storageTextureCount
+            || false == m_device->ResolveStorageTexture(texture, mipLevel, view))
+        {
+            return false;
+        }
+        PendingStorageTexture& pending = m_pendingStorageTextures[slot];
+        if (pending.view != view.view)
+        {
+            m_descriptorsDirty = true;
+        }
+        pending = {view.image, view.view, view.layout, view.mip, view.sampled};
+        return true;
+    }
+
+    Bool VulkanCommandContext::SetStorageBuffer(UInt32 slot, BufferHandle buffer)
+    {
+        VkBuffer native = VK_NULL_HANDLE;
+        VkDeviceSize size = 0;
+        if (false == m_computeActive || m_renderPassActive || m_activePipeline == nullptr || m_device == nullptr
+            || slot < StorageBufferRegisterBase || slot >= StorageBufferRegisterBase + m_activePipeline->storageBufferCount
+            || false == m_device->ResolveStorageBuffer(buffer, native, size))
+        {
+            return false;
+        }
+        PendingStorageBuffer& pending = m_pendingStorageBuffers[slot - StorageBufferRegisterBase];
+        if (pending.buffer != native || pending.size != size)
+        {
+            m_descriptorsDirty = true;
+        }
+        pending = {native, size};
+        return true;
+    }
+
+    void VulkanCommandContext::TransitionStorageTextures(Bool beforeDispatch)
+    {
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            PendingStorageTexture& storage = m_pendingStorageTextures[slot];
+            if (storage.layout == nullptr || (false == beforeDispatch && false == storage.sampled))
+            {
+                continue;
+            }
+            const VkImageLayout wanted = beforeDispatch ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VulkanDevice::TransitionImage(m_commands, storage.image, VK_IMAGE_ASPECT_COLOR_BIT, *storage.layout, wanted,
+                storage.mip, 1);
+            *storage.layout = wanted;
+        }
+    }
+
+    Bool VulkanCommandContext::Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ)
+    {
+        if (false == m_computeActive || m_renderPassActive || m_activePipeline == nullptr
+            || groupCountX == 0 || groupCountY == 0 || groupCountZ == 0)
+        {
+            return false;
+        }
+        // 선언한 자리가 비면 돌지 않는다. 레이아웃을 옮기기 전에 본다 - 거절한 디스패치가 텍스처를 GENERAL 에 남기면 안 된다.
+        for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount; ++slot)
+        {
+            if (m_pendingConstantBuffers[slot].buffer == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            if (m_pendingStorageTextures[slot].view == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount; ++slot)
+        {
+            if (m_pendingStorageBuffers[slot].buffer == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        // 묶음보다 전이가 먼저다. 셋은 레이아웃을 GENERAL 로 적었고, 디스패치가 볼 때 그 레이아웃이어야 한다.
+        TransitionStorageTextures(true);
+        // 앞의 디스패치가 쓴 것(버퍼·이미지)을 이번 디스패치가 읽고 쓰기 전에 기다린다. 이미지 전이는 위에서 이미 기다렸다.
+        VkMemoryBarrier2 memory = {VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
+        memory.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        memory.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        memory.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        memory.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+        VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+        dependency.memoryBarrierCount = 1;
+        dependency.pMemoryBarriers = &memory;
+        vk.vkCmdPipelineBarrier2(m_commands, &dependency);
+        if (false == BindPendingDescriptors())
+        {
+            return false;
+        }
+        vk.vkCmdDispatch(m_commands, groupCountX, groupCountY, groupCountZ);
+        // 읽기도 하는 텍스처는 읽기 레이아웃으로 되돌린다 - 다음 렌더 패스가 그대로 읽는다(`ResolveSampledTexture`).
+        TransitionStorageTextures(false);
+        return true;
     }
 }

@@ -62,6 +62,10 @@ namespace JBro::Internal
             UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
+        Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
+        Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
+        Bool Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ) override;
 
         Bool IsRenderPassActive() const
         {
@@ -71,6 +75,9 @@ namespace JBro::Internal
     private:
         // 두 그리기의 공통 앞단이다. 패스와 파이프라인이 있고 선언한 상수 버퍼가 다 묶였는지 본다.
         Bool PrepareDraw() const;
+        Bool CanBind() const;
+        // 단계 묶음에 컴퓨트가 있으면 CS 에도 건다. 지금 걸린 파이프라인의 단계다.
+        Bool HasComputeStage(ShaderStage stages) const;
         Bool BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel);
         // 지금 패스가 그리는 자리다. 그 mip 을 읽으려 하면 거절한다(`SetTextureMip` 의 계약).
         RenderPassTargets m_passTargets;
@@ -88,6 +95,12 @@ namespace JBro::Internal
         ComPtr<ID3D11Buffer> m_activeConstantBuffer;
         // b# 자리마다 묶였는지다(0 은 쓰지 않는다). 파이프라인을 바꾸면 비운다 - 다른 백엔드와 같은 계약이다.
         Bool m_constantBufferBound[MaxBoundConstantBuffers + 1] = {};
+        // 패스 밖에 컴퓨트 파이프라인이 걸려 있다. `m_activeBindings` 가 그 자리표다.
+        Bool m_computeActive = false;
+        // u0..u7 자리다(u0..u3 텍스처, u4..u7 버퍼). 디스패치 때 한 번에 걸고 돈 뒤에 뗀다 - 걸어 둔 채면 다음 패스가 그 텍스처를 읽거나 그릴 때
+        // D3D11 이 경고를 내며 떼어 낸다.
+        static constexpr UInt32 StorageSlots = 8;
+        ID3D11UnorderedAccessView* m_pendingStorage[StorageSlots] = {};
         Bool m_renderPassActive = false;
         Bool m_pipelineActive = false;
     };
@@ -110,6 +123,8 @@ namespace JBro::Internal
     {
         ComPtr<ID3D11Buffer> buffer;
         BufferDesc desc;
+        // `Storage` 로 만든 버퍼만 갖는다(구조화 버퍼 UAV).
+        ComPtr<ID3D11UnorderedAccessView> unorderedAccessView;
         UInt32 generation = 1;
         Bool occupied = false;
     };
@@ -126,6 +141,8 @@ namespace JBro::Internal
         ComPtr<ID3D11ShaderResourceView> shaderResourceView;
         // mip 하나씩만 보는 뷰다(`SetTextureMip`). mip 이 둘 이상일 때만 만든다 - 하나뿐이면 위의 뷰가 곧 그 mip 이다.
         ComPtr<ID3D11ShaderResourceView> mipShaderResourceViews[MaxTextureMipLevels];
+        // `Storage` 로 만든 텍스처만 갖는다. mip 마다 하나다(`SetStorageTexture`).
+        ComPtr<ID3D11UnorderedAccessView> unorderedAccessViews[MaxTextureMipLevels];
         TextureDesc desc;
         UInt32 generation = 1;
         Bool occupied = false;
@@ -135,6 +152,15 @@ namespace JBro::Internal
     {
         ComPtr<ID3D11SamplerState> sampler;
         SamplerDesc desc;
+        UInt32 generation = 1;
+        Bool occupied = false;
+    };
+
+    // 컴퓨트 파이프라인이다. 셰이더와 자리표뿐이다 - 상태 객체가 없다.
+    struct D3D11ComputePipelineState
+    {
+        ComPtr<ID3D11ComputeShader> shader;
+        BindingLayoutDesc bindings;
         UInt32 generation = 1;
         Bool occupied = false;
     };
@@ -180,6 +206,8 @@ namespace JBro::Internal
         void DestroySampler(SamplerHandle sampler) override;
         GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
         void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
+        ComputePipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) override;
+        void DestroyComputePipeline(ComputePipelineHandle pipeline) override;
         SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) override;
         void DestroySwapchain(SwapchainHandle swapchain) override;
         Bool ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent) override;
@@ -206,6 +234,10 @@ namespace JBro::Internal
         Bool ResolveBuffer(BufferHandle buffer, ID3D11Buffer*& native, BufferDesc& desc);
         Bool ResolveSampler(SamplerHandle sampler, ID3D11SamplerState*& native);
         D3D11PipelineState* ResolvePipeline(GraphicsPipelineHandle pipeline);
+        D3D11ComputePipelineState* ResolveComputePipeline(ComputePipelineHandle pipeline);
+        // 읽고 쓰는 텍스처의 mip 하나, 구조화 버퍼 하나의 UAV 다. `Storage` 로 만들지 않은 것은 거절한다.
+        Bool ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, ID3D11UnorderedAccessView*& view);
+        Bool ResolveStorageBuffer(BufferHandle buffer, ID3D11UnorderedAccessView*& view);
         ID3D11Device* GetNativeDevice() const
         {
             return m_device.Get();
@@ -217,6 +249,7 @@ namespace JBro::Internal
         static constexpr UInt32 MaxBuffers = 1024;
         static constexpr UInt32 MaxTextures = 512;
         static constexpr UInt32 MaxGraphicsPipelines = 256;
+        static constexpr UInt32 MaxComputePipelines = 64;
         static constexpr UInt32 MaxSamplers = 64;
         static constexpr UInt32 TextureResourceBase = BackBufferTextureBase + MaxSwapchains;
 
@@ -234,6 +267,7 @@ namespace JBro::Internal
         D3D11BufferState m_buffers[MaxBuffers];
         D3D11TextureState m_textures[MaxTextures];
         D3D11PipelineState m_graphicsPipelines[MaxGraphicsPipelines];
+        D3D11ComputePipelineState m_computePipelines[MaxComputePipelines];
         D3D11SamplerState m_samplers[MaxSamplers];
         UInt64 m_frameSerial = 0;
         UInt32 m_activeSwapchainIndex = 0;

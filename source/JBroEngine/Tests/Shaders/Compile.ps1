@@ -45,7 +45,11 @@ $targets = @(
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeTintPS'; Header = 'SubresourceProbeTintPS.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeSamplePS'; Header = 'SubresourceProbeSamplePS.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS'; Header = 'SubresourceProbeDepthPS.generated.h' },
-    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestVolumeProbePS'; Header = 'VolumeProbePS.generated.h' }
+    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestVolumeProbePS'; Header = 'VolumeProbePS.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSFill'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeFillCS'; Header = 'ComputeProbeFillCS.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSWriteValues'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeWriteValuesCS'; Header = 'ComputeProbeWriteValuesCS.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSReadValues'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeReadValuesCS'; Header = 'ComputeProbeReadValuesCS.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSHalve'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeHalveCS'; Header = 'ComputeProbeHalveCS.generated.h' }
 )
 
 $sm5Targets = @(
@@ -55,7 +59,11 @@ $sm5Targets = @(
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeTintPS_SM5'; Header = 'SubresourceProbeTintPS_SM5.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeSamplePS_SM5'; Header = 'SubresourceProbeSamplePS_SM5.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeDepthPS_SM5'; Header = 'SubresourceProbeDepthPS_SM5.generated.h' },
-    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroTestVolumeProbePS_SM5'; Header = 'VolumeProbePS_SM5.generated.h' }
+    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroTestVolumeProbePS_SM5'; Header = 'VolumeProbePS_SM5.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSFill'; Profile = 'cs_5_0'; Name = 'JBroTestComputeProbeFillCS_SM5'; Header = 'ComputeProbeFillCS_SM5.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSWriteValues'; Profile = 'cs_5_0'; Name = 'JBroTestComputeProbeWriteValuesCS_SM5'; Header = 'ComputeProbeWriteValuesCS_SM5.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSReadValues'; Profile = 'cs_5_0'; Name = 'JBroTestComputeProbeReadValuesCS_SM5'; Header = 'ComputeProbeReadValuesCS_SM5.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSHalve'; Profile = 'cs_5_0'; Name = 'JBroTestComputeProbeHalveCS_SM5'; Header = 'ComputeProbeHalveCS_SM5.generated.h' }
 )
 
 $spirvTargets = @(
@@ -67,7 +75,11 @@ $spirvTargets = @(
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeTintPS_SPV'; Header = 'SubresourceProbeTintPS_SPV.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeSamplePS_SPV'; Header = 'SubresourceProbeSamplePS_SPV.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS_SPV'; Header = 'SubresourceProbeDepthPS_SPV.generated.h' },
-    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestVolumeProbePS_SPV'; Header = 'VolumeProbePS_SPV.generated.h' }
+    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestVolumeProbePS_SPV'; Header = 'VolumeProbePS_SPV.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSFill'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeFillCS_SPV'; Header = 'ComputeProbeFillCS_SPV.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSWriteValues'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeWriteValuesCS_SPV'; Header = 'ComputeProbeWriteValuesCS_SPV.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSReadValues'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeReadValuesCS_SPV'; Header = 'ComputeProbeReadValuesCS_SPV.generated.h' },
+    @{ File = 'ComputeProbe.hlsl'; Entry = 'CSHalve'; Profile = 'cs_6_0'; Name = 'JBroTestComputeProbeHalveCS_SPV'; Header = 'ComputeProbeHalveCS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)
@@ -107,8 +119,8 @@ foreach ($t in $spirvTargets)
     $header = Join-Path $out $t.Header
     # Vulkan 백엔드는 모듈마다 진입점 이름 VSMain·PSMain 을 찾는다(VulkanPipeline.cpp). 다른 이름의 픽셀 진입점은 PSMain 으로 바꿔 굽는다 -
     # D3D 바이트코드는 이름을 싣지 않는다(엔진의 Compile.ps1 과 같다).
-    $entryName = if ($t.Profile.StartsWith('vs')) { 'VSMain' } else { 'PSMain' }
-    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -Vn $t.Name -Fh $header $source
+    $entryName = if ($t.Profile.StartsWith('vs')) { 'VSMain' } elseif ($t.Profile.StartsWith('cs')) { 'CSMain' } else { 'PSMain' }
+    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -fvk-u-shift 24 0 -Vn $t.Name -Fh $header $source
     if ($LASTEXITCODE -ne 0)
     {
         throw "dxc -spirv failed for $($t.Entry) in $($t.File)"

@@ -211,6 +211,15 @@ namespace JBro::Internal
         {
             info.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         }
+        if (HasBufferUsage(desc.usage, BufferUsage::Storage))
+        {
+            // 구조화 버퍼는 GPU 가 채운다(`Device` 만). 원소 크기는 4 의 배수이고 크기를 나눠떨어지게 한다(D3D 와 같은 계약).
+            if (desc.memory != MemoryType::Device || desc.stride == 0 || desc.stride % 4 != 0 || desc.size % desc.stride != 0)
+            {
+                return {};
+            }
+            info.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        }
         VulkanBufferState& state = m_buffers[index];
         if (vk.vkCreateBuffer(m_device, &info, nullptr, &state.buffer) != VK_SUCCESS)
         {
@@ -313,7 +322,9 @@ namespace JBro::Internal
             || (depthStencil && desc.mipLevels != 1)
             || desc.sampleCount != 1 || format == VK_FORMAT_UNDEFINED
             || (static_cast<JBro::UInt32>(desc.usage) & ~TextureUsageMask) != 0
-            || desc.usage == TextureUsage::None || HasTextureUsage(desc.usage, TextureUsage::Storage)
+            || desc.usage == TextureUsage::None
+            || (HasTextureUsage(desc.usage, TextureUsage::Storage) && (depth || desc.format == TextureFormat::RGBA8UnormSrgb
+                || desc.format == TextureFormat::BGRA8UnormSrgb))
             || (depth && (renderTarget || false == depthStencil)) || (false == depth && depthStencil))
         {
             return {};
@@ -328,6 +339,11 @@ namespace JBro::Internal
         if (renderTarget)
         {
             wanted |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+        }
+        if (HasTextureUsage(desc.usage, TextureUsage::Storage))
+        {
+            // 읽고 쓰는 텍스처(컴퓨트의 u#). RGBA8·RGBA16F 등은 필수이고 BGRA8·R11G11B10 은 장치마다 다르다.
+            wanted |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
         }
         if (depthStencil)
         {
@@ -370,6 +386,10 @@ namespace JBro::Internal
         if (renderTarget)
         {
             info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        }
+        if (HasTextureUsage(desc.usage, TextureUsage::Storage))
+        {
+            info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
         }
         if (depthStencil)
         {
@@ -632,6 +652,46 @@ namespace JBro::Internal
         view.mip = mipLevel;
         view.mipLevels = state.desc.mipLevels;
         view.sampled = HasTextureUsage(state.desc.usage, TextureUsage::Sampled);
+        return true;
+    }
+
+    Bool VulkanDevice::ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, AttachmentView& view)
+    {
+        view = {};
+        if (false == texture.IsValid() || texture.index < TextureResourceBase
+            || texture.index - TextureResourceBase >= MaxTextures)
+        {
+            return false;
+        }
+        VulkanTextureState& state = m_textures[texture.index - TextureResourceBase];
+        if (false == state.occupied || state.generation != texture.generation
+            || false == HasTextureUsage(state.desc.usage, TextureUsage::Storage) || mipLevel >= state.desc.mipLevels)
+        {
+            return false;
+        }
+        view.image = state.image;
+        view.view = state.desc.mipLevels > 1 ? state.mipViews[mipLevel] : state.view;
+        view.layout = &state.layouts[mipLevel];
+        view.mip = mipLevel;
+        view.mipLevels = state.desc.mipLevels;
+        view.sampled = HasTextureUsage(state.desc.usage, TextureUsage::Sampled);
+        return true;
+    }
+
+    Bool VulkanDevice::ResolveStorageBuffer(BufferHandle buffer, VkBuffer& native, VkDeviceSize& size)
+    {
+        if (false == buffer.IsValid() || buffer.index >= MaxBuffers)
+        {
+            return false;
+        }
+        VulkanBufferState& state = m_buffers[buffer.index];
+        if (false == state.occupied || state.generation != buffer.generation
+            || false == HasBufferUsage(state.desc.usage, BufferUsage::Storage))
+        {
+            return false;
+        }
+        native = state.buffer;
+        size = state.desc.size;
         return true;
     }
 

@@ -231,6 +231,23 @@ namespace JBro::Internal
         }
         m_shaderResourceDescriptorStride =
             m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        m_unorderedAccessDescriptorStride = m_shaderResourceDescriptorStride;
+
+        // UAV 스테이징이다(컴퓨트의 u#). SRV 와 같은 종류의 힙이라 드로우·디스패치 때 같은 보이는 링으로 복사한다.
+        D3D12_DESCRIPTOR_HEAP_DESC unorderedAccessHeapDesc = {};
+        unorderedAccessHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        unorderedAccessHeapDesc.NumDescriptors = MaxTextures * MaxTextureMipLevels;
+        if (FAILED(m_device->CreateDescriptorHeap(&unorderedAccessHeapDesc, IID_PPV_ARGS(&m_textureUnorderedAccessHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+        unorderedAccessHeapDesc.NumDescriptors = MaxBuffers;
+        if (FAILED(m_device->CreateDescriptorHeap(&unorderedAccessHeapDesc, IID_PPV_ARGS(&m_bufferUnorderedAccessHeap))))
+        {
+            Shutdown();
+            return false;
+        }
 
         D3D12_DESCRIPTOR_HEAP_DESC samplerStagingHeapDesc = {};
         samplerStagingHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
@@ -352,6 +369,8 @@ namespace JBro::Internal
         m_shaderVisibleTextureHeap.Reset();
         m_samplerStagingHeap.Reset();
         m_textureShaderResourceHeap.Reset();
+        m_textureUnorderedAccessHeap.Reset();
+        m_bufferUnorderedAccessHeap.Reset();
         m_textureDepthStencilHeap.Reset();
         m_textureRenderTargetHeap.Reset();
         m_graphicsQueue.Reset();

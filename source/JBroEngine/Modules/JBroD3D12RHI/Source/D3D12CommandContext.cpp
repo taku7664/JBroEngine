@@ -97,6 +97,13 @@ namespace JBro::Internal
             m_pendingSamplers[index] = {};
         }
         m_depthSampledAtEndActive = false;
+        m_computeActive = false;
+        for (D3D12StorageBinding& storage : m_pendingStorage)
+        {
+            storage = {};
+        }
+        m_storageTableCount = 0;
+        m_storageTableCursor = 0;
         for (Bool& bound : m_constantBufferBound)
         {
             bound = false;
@@ -127,6 +134,13 @@ namespace JBro::Internal
             m_pendingSamplers[index] = {};
         }
         m_depthSampledAtEndActive = false;
+        m_computeActive = false;
+        for (D3D12StorageBinding& storage : m_pendingStorage)
+        {
+            storage = {};
+        }
+        m_storageTableCount = 0;
+        m_storageTableCursor = 0;
         for (Bool& bound : m_constantBufferBound)
         {
             bound = false;
@@ -307,6 +321,7 @@ namespace JBro::Internal
         {
             m_passTargets.Add(desc.depthStencilAttachment->texture, 0);
         }
+        m_computeActive = false;
         m_renderPassActive = true;
         return true;
     }
@@ -488,13 +503,14 @@ namespace JBro::Internal
         {
             bound = false;
         }
+        m_computeActive = false;
         m_pipelineActive = true;
         return true;
     }
 
     Bool D3D12CommandContext::SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size)
     {
-        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
+        if (false == CanBind() || m_device == nullptr)
         {
             return false;
         }
@@ -517,8 +533,15 @@ namespace JBro::Internal
             return false;
         }
         // 루트 CBV 는 크기를 모른다 - 셰이더가 선언한 만큼 읽는다. 크기 검사는 다른 백엔드와 같은 계약을 지키려는 것이다.
-        m_commandList->SetGraphicsRootConstantBufferView(
-            m_activePipeline.constantBufferParameter + slot - 1, binding.gpuAddress + offset);
+        const UInt32 parameter = m_activePipeline.constantBufferParameter + slot - 1;
+        if (m_activePipeline.compute)
+        {
+            m_commandList->SetComputeRootConstantBufferView(parameter, binding.gpuAddress + offset);
+        }
+        else
+        {
+            m_commandList->SetGraphicsRootConstantBufferView(parameter, binding.gpuAddress + offset);
+        }
         m_constantBufferBound[slot] = true;
         return true;
     }
@@ -544,7 +567,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
+        if (false == CanBind() || m_device == nullptr)
         {
             return false;
         }
@@ -565,7 +588,7 @@ namespace JBro::Internal
 
     Bool D3D12CommandContext::SetSampler(UInt32 slot, SamplerHandle sampler)
     {
-        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
+        if (false == CanBind() || m_device == nullptr)
         {
             return false;
         }
@@ -649,7 +672,7 @@ namespace JBro::Internal
             }
             if (table.ptr != m_boundTextureTable.ptr)
             {
-                m_commandList->SetGraphicsRootDescriptorTable(
+                SetRootTable(
                     m_activePipeline.textureTableParameter, table);
                 m_boundTextureTable = table;
             }
@@ -678,7 +701,7 @@ namespace JBro::Internal
             }
             if (table.ptr != m_boundSamplerTable.ptr)
             {
-                m_commandList->SetGraphicsRootDescriptorTable(
+                SetRootTable(
                     m_activePipeline.samplerTableParameter, table);
                 m_boundSamplerTable = table;
             }
@@ -820,5 +843,208 @@ namespace JBro::Internal
         // 묶는 것은 여기서 한다. 슬롯이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있고,
         // 테이블은 연속된 자리를 가리키기 때문이다.
         return BindPendingDescriptors();
+    }
+
+    Bool D3D12CommandContext::CanBind() const
+    {
+        return (m_renderPassActive && m_pipelineActive) || (false == m_renderPassActive && m_computeActive);
+    }
+
+    void D3D12CommandContext::SetRootTable(UInt32 parameter, D3D12_GPU_DESCRIPTOR_HANDLE table)
+    {
+        if (m_activePipeline.compute)
+        {
+            m_commandList->SetComputeRootDescriptorTable(parameter, table);
+        }
+        else
+        {
+            m_commandList->SetGraphicsRootDescriptorTable(parameter, table);
+        }
+    }
+
+    Bool D3D12CommandContext::SetComputePipeline(ComputePipelineHandle pipeline)
+    {
+        // 컴퓨트는 렌더 패스 밖에서만이다 - 패스 안의 배리어가 불법이라 디스패치 앞뒤의 전이를 걸 수 없다.
+        if (m_renderPassActive || m_device == nullptr || m_commandList == nullptr)
+        {
+            return false;
+        }
+        D3D12PipelineBinding binding;
+        if (false == m_device->ResolveComputePipeline(pipeline, binding))
+        {
+            return false;
+        }
+        m_commandList->SetComputeRootSignature(binding.rootSignature);
+        m_commandList->SetPipelineState(binding.pipeline);
+        m_activePipeline = binding;
+        // 그래픽 파이프라인을 걸 때와 같다 - 루트 시그니처가 바뀌었으니 묶어 둔 것은 버린다.
+        m_boundTextureTable = {};
+        m_boundSamplerTable = {};
+        for (UInt32 index = 0; index < MaxBoundTextures; ++index)
+        {
+            m_pendingTextures[index] = {};
+        }
+        for (UInt32 index = 0; index < MaxBoundSamplers; ++index)
+        {
+            m_pendingSamplers[index] = {};
+        }
+        for (Bool& bound : m_constantBufferBound)
+        {
+            bound = false;
+        }
+        for (D3D12StorageBinding& storage : m_pendingStorage)
+        {
+            storage = {};
+        }
+        m_pipelineActive = false;
+        m_computeActive = true;
+        return true;
+    }
+
+    Bool D3D12CommandContext::SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        if (false == m_computeActive || m_renderPassActive || m_device == nullptr
+            || slot >= m_activePipeline.storageTextureCount)
+        {
+            return false;
+        }
+        D3D12StorageBinding binding;
+        if (false == m_device->ResolveStorageTexture(texture, mipLevel, binding))
+        {
+            return false;
+        }
+        m_pendingStorage[slot] = binding;
+        return true;
+    }
+
+    Bool D3D12CommandContext::SetStorageBuffer(UInt32 slot, BufferHandle buffer)
+    {
+        if (false == m_computeActive || m_renderPassActive || m_device == nullptr
+            || slot < StorageBufferRegisterBase || slot >= StorageBufferRegisterBase + m_activePipeline.storageBufferCount)
+        {
+            return false;
+        }
+        D3D12StorageBinding binding;
+        if (false == m_device->ResolveStorageBuffer(buffer, binding))
+        {
+            return false;
+        }
+        m_pendingStorage[slot] = binding;
+        return true;
+    }
+
+    void D3D12CommandContext::TransitionStorage(D3D12_RESOURCE_STATES textureState, Bool beforeDispatch)
+    {
+        D3D12_RESOURCE_BARRIER barriers[StorageSlots] = {};
+        UInt32 barrierCount = 0;
+        for (UInt32 slot = 0; slot < StorageSlots; ++slot)
+        {
+            D3D12StorageBinding& binding = m_pendingStorage[slot];
+            const Bool texture = slot < StorageBufferRegisterBase;
+            if (binding.resource == nullptr || (false == beforeDispatch && (false == texture || false == binding.sampled)))
+            {
+                continue;
+            }
+            const D3D12_RESOURCE_STATES wanted = beforeDispatch ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS : textureState;
+            D3D12_RESOURCE_BARRIER& barrier = barriers[barrierCount];
+            if (*binding.state == wanted)
+            {
+                // 이미 UAV 다. 앞의 디스패치가 쓴 것을 이번 디스패치가 읽고 쓰기 전에 기다린다.
+                if (false == beforeDispatch)
+                {
+                    continue;
+                }
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+                barrier.UAV.pResource = binding.resource;
+                ++barrierCount;
+                continue;
+            }
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Transition.pResource = binding.resource;
+            barrier.Transition.Subresource = texture ? binding.subresource.Get() : 0u;
+            barrier.Transition.StateBefore = *binding.state;
+            barrier.Transition.StateAfter = wanted;
+            *binding.state = wanted;
+            ++barrierCount;
+        }
+        if (barrierCount != 0)
+        {
+            m_commandList->ResourceBarrier(barrierCount, barriers);
+        }
+    }
+
+    Bool D3D12CommandContext::BindPendingStorage()
+    {
+        const UInt32 textureCount = m_activePipeline.storageTextureCount;
+        const UInt32 bufferCount = m_activePipeline.storageBufferCount;
+        if (textureCount + bufferCount == 0)
+        {
+            return true;
+        }
+        // 표는 u0.. 텍스처 다음에 u4.. 버퍼가 빈틈없이 이어진다(루트 시그니처의 두 범위).
+        D3D12_CPU_DESCRIPTOR_HANDLE descriptors[StorageSlots] = {};
+        UInt32 count = 0;
+        for (UInt32 slot = 0; slot < textureCount; ++slot)
+        {
+            descriptors[count++] = m_pendingStorage[slot].descriptor;
+        }
+        for (UInt32 slot = StorageBufferRegisterBase; slot < StorageBufferRegisterBase + bufferCount; ++slot)
+        {
+            descriptors[count++] = m_pendingStorage[slot].descriptor;
+        }
+        D3D12_GPU_DESCRIPTOR_HANDLE table = {};
+        if (false == FindStagedTable(m_storageTables, m_storageTableCount, descriptors, count, table))
+        {
+            if (false == m_device->StageShaderResources(descriptors, count, table))
+            {
+                return false;
+            }
+            RememberStagedTable(m_storageTables, m_storageTableCount, m_storageTableCursor, descriptors, count, table);
+        }
+        m_commandList->SetComputeRootDescriptorTable(m_activePipeline.storageTableParameter, table);
+        return true;
+    }
+
+    Bool D3D12CommandContext::Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ)
+    {
+        if (false == m_computeActive || m_renderPassActive || groupCountX == 0 || groupCountY == 0 || groupCountZ == 0)
+        {
+            return false;
+        }
+        // 선언한 자리가 하나라도 비면 돌지 않는다(그리기와 같은 계약).
+        for (UInt32 slot = 1; slot <= m_activePipeline.constantBufferCount; ++slot)
+        {
+            if (false == m_constantBufferBound[slot])
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline.storageTextureCount; ++slot)
+        {
+            if (m_pendingStorage[slot].resource == nullptr)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline.storageBufferCount; ++slot)
+        {
+            if (m_pendingStorage[StorageBufferRegisterBase + slot].resource == nullptr)
+            {
+                return false;
+            }
+        }
+        if (false == BindPendingDescriptors())
+        {
+            return false;
+        }
+        TransitionStorage(D3D12_RESOURCE_STATE_UNORDERED_ACCESS, true);
+        if (false == BindPendingStorage())
+        {
+            return false;
+        }
+        m_commandList->Dispatch(groupCountX, groupCountY, groupCountZ);
+        // 읽기도 하는 텍스처는 읽기 상태로 되돌린다 - 다음 렌더 패스가 그대로 읽는다. 버퍼는 UAV 에 둔다.
+        TransitionStorage(ShaderReadState, false);
+        return true;
     }
 }

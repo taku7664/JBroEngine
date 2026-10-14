@@ -71,6 +71,19 @@ namespace JBro
         bool operator==(const GraphicsPipelineHandle&) const = default;
     };
 
+    struct ComputePipelineHandle
+    {
+        UInt32 index = 0;
+        UInt32 generation = 0;
+
+        constexpr Bool IsValid() const noexcept
+        {
+            return generation != 0;
+        }
+
+        bool operator==(const ComputePipelineHandle&) const = default;
+    };
+
     struct SamplerHandle
     {
         UInt32 index = 0;
@@ -91,7 +104,10 @@ namespace JBro
         Index = 1u << 1u,
         Constant = 1u << 2u,
         CopySource = 1u << 3u,
-        CopyDestination = 1u << 4u
+        CopyDestination = 1u << 4u,
+        // 셰이더가 읽고 쓰는 구조화 버퍼다(HLSL `RWStructuredBuffer`). `BufferDesc::stride` 가 원소 크기이고 `Device` 메모리만이다 -
+        // 채우는 쪽이 GPU 다(postprocess-plan §2.1 스토리지).
+        Storage = 1u << 5u
     };
 
     constexpr BufferUsage operator|(BufferUsage left, BufferUsage right) noexcept
@@ -199,7 +215,9 @@ namespace JBro
     enum class ShaderStage : std::uint8_t
     {
         Vertex = 1u << 0u,
-        Pixel = 1u << 1u
+        Pixel = 1u << 1u,
+        // 컴퓨트 파이프라인의 단계다. 그래픽 파이프라인의 자리표에는 쓰지 않고, 컴퓨트 파이프라인은 이것만 쓴다.
+        Compute = 1u << 2u
     };
 
     constexpr ShaderStage operator|(ShaderStage left, ShaderStage right) noexcept
@@ -296,6 +314,8 @@ namespace JBro
         std::size_t size = 0;
         BufferUsage usage = BufferUsage::None;
         MemoryType memory = MemoryType::Device;
+        // `Storage` 버퍼의 원소 크기다. 4 의 배수이고 `size` 를 나눠떨어지게 한다. 다른 쓰임은 보지 않는다.
+        UInt32 stride = 0;
     };
 
     enum class TextureDimension : std::uint8_t
@@ -375,6 +395,9 @@ namespace JBro
     //                    상수 버퍼, Vulkan 은 `[[vk::push_constant]]` 가 그 자리다. SPIR-V 에서는 b# 가 그대로 binding 이다.
     //   sampledTextures  t0..t(count-1). SPIR-V binding 8 부터.
     //   samplers         s0..s(count-1). SPIR-V binding 16 부터.
+    //   storageTextures  u0..u(count-1). 읽고 쓰는 텍스처(`RWTexture2D`). 컴퓨트 파이프라인만. SPIR-V binding 24 부터(`-fvk-u-shift 24`).
+    //   storageBuffers   u4..u(4+count-1). 구조화 버퍼(`RWStructuredBuffer`). 컴퓨트 파이프라인만. 텍스처가 몇이든 u4 부터다 -
+    //                    레지스터가 자리표에 따라 밀리지 않게 둘의 칸을 나눴다.
     // 상한은 `IRHIDevice::GetCaps` 가 말한다. 넘는 파이프라인은 만들어지지 않는다.
     //
     // **개수를 파이프라인이 미리 말해야 한다.** 백엔드가 이것으로 루트 시그니처·디스크립터 셋 레이아웃을 만들고,
@@ -384,6 +407,18 @@ namespace JBro
         BindingRange constantBuffers;
         BindingRange sampledTextures;
         BindingRange samplers;
+        BindingRange storageTextures;
+        BindingRange storageBuffers;
+    };
+
+    // 구조화 버퍼의 첫 레지스터다(u4). 그 앞 u0..u3 은 읽고 쓰는 텍스처 자리다.
+    inline constexpr UInt32 StorageBufferRegisterBase = 4;
+
+    // 컴퓨트 파이프라인이다(postprocess-plan §2.1). 렌더 패스 밖에서만 걸고 `Dispatch` 로 돈다. 자리표의 단계는 모두 `Compute` 다.
+    struct ComputePipelineDesc
+    {
+        ShaderBytecode computeShader;
+        BindingLayoutDesc bindings;
     };
 
     // 푸시 상수(`SetGraphicsConstants`)의 상한이다. Vulkan 이 보장하는 최소가 128 B 라 세 백엔드가 이것을 지킨다.
@@ -569,6 +604,22 @@ namespace JBro
         // 상태(배리어·레이아웃)는 백엔드가 맞춘다 - `Sampled` 로 만든 대상은 다음 패스에서 곧바로 읽을 수 있다. 조건이 맞지 않으면 거짓이고
         // 아무것도 기록하지 않는다.
         virtual Bool CopyTexture(TextureHandle source, TextureHandle destination) = 0;
+
+        // ── 컴퓨트(postprocess-plan §2.1) ──
+        // 컴퓨트 파이프라인을 건다. **렌더 패스 밖에서만이다** - 패스 안에서는 거절한다. 거는 동안 `SetConstantBuffer`·`SetTexture`·
+        // `SetTextureMip`·`SetSampler` 는 이 파이프라인의 자리표로 묶인다. 그래픽 파이프라인처럼 걸면 앞에 묶은 것은 버려지고,
+        // `BeginRenderPass` 를 하면 컴퓨트 파이프라인은 내려간다.
+        virtual Bool SetComputePipeline(ComputePipelineHandle pipeline) = 0;
+        // 읽고 쓰는 텍스처의 mip 하나를 u# 슬롯(u0..)에 묶는다. 텍스처는 `TextureUsage::Storage` 로 만든 2D 다.
+        virtual Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) = 0;
+        // 구조화 버퍼 전체를 u# 슬롯(u4..)에 묶는다. 버퍼는 `BufferUsage::Storage` 로 만든 것이다.
+        virtual Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) = 0;
+        // 스레드 그룹 수만큼 돈다. 선언한 자리가 하나라도 비면 돌지 않는다.
+        //
+        // **배리어는 RHI 가 건다.** 돌기 전에 읽고 쓰는 자원을 쓰기 상태로 옮기고 앞의 `Dispatch` 가 쓴 것을 기다리며(UAV 배리어),
+        // 돈 뒤에는 `Sampled` 로도 만든 텍스처를 읽기 상태로 되돌린다 - "패스 밖의 텍스처는 늘 읽기 상태" 라는 그래픽 쪽 계약을
+        // 지킨다. 미리 계산한 배리어를 넘기는 명시 API 는 렌더 그래프(5 단계)와 함께 연다(D-328).
+        virtual Bool Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ) = 0;
     };
 
     struct FrameContext
@@ -598,6 +649,9 @@ namespace JBro
         UInt32 maxConstantBuffers = 7;
         UInt32 maxSampledTextures = 8;
         UInt32 maxSamplers = 4;
+        // 컴퓨트 파이프라인 하나가 선언할 수 있는 읽고 쓰는 텍스처(u0..u3)와 구조화 버퍼(u4..u7)의 수다.
+        UInt32 maxStorageTextures = 4;
+        UInt32 maxStorageBuffers = 4;
         UInt32 maxPushConstantBytes = MaxPushConstantBytes;
         // `SetConstantBuffer` 의 오프셋과 크기의 단위다. D3D12 의 CBV 와 D3D11.1 의 부분 묶기가 256 B 를 요구한다.
         UInt32 constantBufferAlignment = 256;
@@ -633,13 +687,17 @@ namespace JBro
     }
 
     // 자리표가 장치의 상한 안이고, 쓰는 종류마다 읽는 단계를 말했는지 본다. 백엔드가 파이프라인을 만들기 전에 부른다.
-    constexpr Bool IsBindingLayoutValid(const BindingLayoutDesc& layout, const DeviceCaps& caps) noexcept
+    // 그래픽 파이프라인은 정점·픽셀 단계만 쓰고 읽고 쓰는 자원(storage)을 갖지 않는다. 컴퓨트 파이프라인은 `Compute` 단계만 쓴다.
+    constexpr Bool IsBindingLayoutValid(const BindingLayoutDesc& layout, const DeviceCaps& caps, Bool compute = false) noexcept
     {
-        constexpr std::uint8_t knownStages =
-            static_cast<std::uint8_t>(ShaderStage::Vertex) | static_cast<std::uint8_t>(ShaderStage::Pixel);
-        const BindingRange ranges[] = {layout.constantBuffers, layout.sampledTextures, layout.samplers};
-        const UInt32 limits[] = {caps.maxConstantBuffers, caps.maxSampledTextures, caps.maxSamplers};
-        for (UInt32 index = 0; index < 3; ++index)
+        const std::uint8_t knownStages = compute
+            ? static_cast<std::uint8_t>(ShaderStage::Compute)
+            : static_cast<std::uint8_t>(static_cast<std::uint8_t>(ShaderStage::Vertex) | static_cast<std::uint8_t>(ShaderStage::Pixel));
+        const BindingRange ranges[] = {
+            layout.constantBuffers, layout.sampledTextures, layout.samplers, layout.storageTextures, layout.storageBuffers};
+        const UInt32 limits[] = {caps.maxConstantBuffers, caps.maxSampledTextures, caps.maxSamplers,
+            compute ? caps.maxStorageTextures : UInt32(0), compute ? caps.maxStorageBuffers : UInt32(0)};
+        for (UInt32 index = 0; index < 5; ++index)
         {
             const std::uint8_t stages = static_cast<std::uint8_t>(ranges[index].stages);
             if (ranges[index].count > limits[index])
@@ -720,6 +778,8 @@ namespace JBro
         virtual void DestroySampler(SamplerHandle sampler) = 0;
         virtual GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) = 0;
         virtual void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) = 0;
+        virtual ComputePipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) = 0;
+        virtual void DestroyComputePipeline(ComputePipelineHandle pipeline) = 0;
 
         virtual SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) = 0;
         virtual void DestroySwapchain(SwapchainHandle swapchain) = 0;

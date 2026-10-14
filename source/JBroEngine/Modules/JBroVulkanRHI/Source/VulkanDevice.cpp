@@ -370,10 +370,13 @@ namespace JBro::Internal
             const VkDescriptorPoolSize sizes[] = {
                 {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4096 * MaxBoundTextures},
                 {VK_DESCRIPTOR_TYPE_SAMPLER, 4096 * MaxBoundSamplers},
-                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1024 * MaxBoundConstantBuffers}};
+                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1024 * MaxBoundConstantBuffers},
+                // 컴퓨트의 u#. 디스패치는 드로우보다 훨씬 적다.
+                {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 256 * MaxStorageTextures},
+                {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256 * MaxStorageBuffers}};
             VkDescriptorPoolCreateInfo pool = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
             pool.maxSets = 4096;
-            pool.poolSizeCount = 3;
+            pool.poolSizeCount = 5;
             pool.pPoolSizes = sizes;
             if (vk.vkAllocateCommandBuffers(m_device, &allocate, &slot.commands) != VK_SUCCESS
                 || vk.vkCreateFence(m_device, &fence, nullptr, &slot.fence) != VK_SUCCESS
@@ -449,6 +452,13 @@ namespace JBro::Internal
                 if (m_graphicsPipelines[index].occupied)
                 {
                     DestroyGraphicsPipeline(GraphicsPipelineHandle{index, m_graphicsPipelines[index].generation});
+                }
+            }
+            for (UInt32 index = 0; index < MaxComputePipelines; ++index)
+            {
+                if (m_computePipelines[index].occupied)
+                {
+                    DestroyComputePipeline(ComputePipelineHandle{index, m_computePipelines[index].generation});
                 }
             }
             FlushRetired(~UInt64{0});

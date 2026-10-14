@@ -26,7 +26,8 @@ if (-not (Test-Path $fxc))
 
 # Vulkan reads SPIR-V. The Windows SDK dxc is built without SPIR-V codegen, so the Vulkan SDK's
 # dxc does this one (D-108). JBRO_SPIRV selects the [[vk::push_constant]] spelling of b0, and the
-# register shifts keep t# and s# clear of the push block: textures at binding 8+, samplers at 16+.
+# register shifts keep t# and s# clear of the push block: textures at binding 8+, samplers at 16+,
+# storage (u#) at 24+ (D-328). b1..b7 constant buffers stay at binding 1..7.
 $vkdxc = "${env:VULKAN_SDK}\Bin\dxc.exe"
 if (-not (Test-Path $vkdxc))
 {
@@ -136,7 +137,7 @@ foreach ($t in $spirvTargets)
     $source = Join-Path $here $t.File
     $header = Join-Path $out $t.Header
     $entryName = if ($t.Profile.StartsWith('vs')) { 'VSMain' } else { 'PSMain' }
-    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -Vn $t.Name -Fh $header $source
+    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -fvk-u-shift 24 0 -Vn $t.Name -Fh $header $source
     if ($LASTEXITCODE -ne 0)
     {
         throw "dxc -spirv failed for $($t.Entry) in $($t.File)"

@@ -38,6 +38,11 @@ namespace JBro::Internal
         m_activePipeline = {};
         m_activePushConstantBytes = 0;
         m_activeBindings = {};
+        m_computeActive = false;
+        for (ID3D11UnorderedAccessView*& storage : m_pendingStorage)
+        {
+            storage = nullptr;
+        }
         m_activeConstantBuffer = nullptr;
         for (Bool& bound : m_constantBufferBound)
         {
@@ -82,6 +87,8 @@ namespace JBro::Internal
         ID3D11ShaderResourceView* noResources[MaxBoundTextures] = {};
         m_context->VSSetShaderResources(0, MaxBoundTextures, noResources);
         m_context->PSSetShaderResources(0, MaxBoundTextures, noResources);
+        // 컴퓨트가 읽던 것도 뗀다 - 그 텍스처에 이 패스가 그릴 수 있다.
+        m_context->CSSetShaderResources(0, MaxBoundTextures, noResources);
         m_context->OMSetRenderTargets(desc.colorAttachments.size, views, depthView);
         // 래스터라이저가 시저를 켜 두므로 기본 시저가 있어야 한다 - 없으면 D3D11 의 초기 시저는 빈 사각형이라
         // 뷰포트만 준 호출자는 아무것도 그리지 못한다. 첫 첨부 전체로 둔다 - 그 mip 의 크기다.
@@ -119,6 +126,7 @@ namespace JBro::Internal
         {
             m_passTargets.Add(desc.depthStencilAttachment->texture, 0);
         }
+        m_computeActive = false;
         m_renderPassActive = true;
         m_pipelineActive = false;
         return true;
@@ -230,6 +238,7 @@ namespace JBro::Internal
         {
             bound = false;
         }
+        m_computeActive = false;
         m_pipelineActive = true;
         return true;
     }
@@ -331,7 +340,7 @@ namespace JBro::Internal
         }
         ID3D11ShaderResourceView* view = nullptr;
         // 파이프라인이 선언하지 않은 자리는 거절한다 - D3D12·Vulkan 은 그 칸이 없어 거절하고, 계약이 같아야 한다.
-        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
+        if (false == CanBind() || m_device == nullptr
             || slot >= m_activeBindings.sampledTextures.count
             || false == m_device->ResolveShaderResourceView(texture, mipLevel, view))
         {
@@ -345,13 +354,17 @@ namespace JBro::Internal
         {
             m_context->PSSetShaderResources(slot, 1, &view);
         }
+        if (HasStage(m_activeBindings.sampledTextures.stages, ShaderStage::Compute))
+        {
+            m_context->CSSetShaderResources(slot, 1, &view);
+        }
         return true;
     }
 
     Bool D3D11CommandContext::SetSampler(UInt32 slot, SamplerHandle sampler)
     {
         ID3D11SamplerState* native = nullptr;
-        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
+        if (false == CanBind() || m_device == nullptr
             || slot >= m_activeBindings.samplers.count || false == m_device->ResolveSampler(sampler, native))
         {
             return false;
@@ -364,12 +377,16 @@ namespace JBro::Internal
         {
             m_context->PSSetSamplers(slot, 1, &native);
         }
+        if (HasStage(m_activeBindings.samplers.stages, ShaderStage::Compute))
+        {
+            m_context->CSSetSamplers(slot, 1, &native);
+        }
         return true;
     }
 
     Bool D3D11CommandContext::SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size)
     {
-        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
+        if (false == CanBind() || m_device == nullptr
             || slot == 0 || slot > m_activeBindings.constantBuffers.count)
         {
             return false;
@@ -403,6 +420,10 @@ namespace JBro::Internal
             {
                 m_context1->PSSetConstantBuffers1(slot, 1, &native, &firstConstant, &constantCount);
             }
+            if (HasStage(stages, ShaderStage::Compute))
+            {
+                m_context1->CSSetConstantBuffers1(slot, 1, &native, &firstConstant, &constantCount);
+            }
         }
         else
         {
@@ -413,6 +434,10 @@ namespace JBro::Internal
             if (HasStage(stages, ShaderStage::Pixel))
             {
                 m_context->PSSetConstantBuffers(slot, 1, &native);
+            }
+            if (HasStage(stages, ShaderStage::Compute))
+            {
+                m_context->CSSetConstantBuffers(slot, 1, &native);
             }
         }
         m_constantBufferBound[slot] = true;
@@ -462,6 +487,101 @@ namespace JBro::Internal
             return false;
         }
         m_context->DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance);
+        return true;
+    }
+
+    Bool D3D11CommandContext::CanBind() const
+    {
+        return (m_renderPassActive && m_pipelineActive) || (false == m_renderPassActive && m_computeActive);
+    }
+
+    Bool D3D11CommandContext::SetComputePipeline(ComputePipelineHandle pipeline)
+    {
+        if (m_renderPassActive || m_device == nullptr || m_context == nullptr)
+        {
+            return false;
+        }
+        D3D11ComputePipelineState* state = m_device->ResolveComputePipeline(pipeline);
+        if (state == nullptr)
+        {
+            return false;
+        }
+        m_context->CSSetShader(state->shader.Get(), nullptr, 0);
+        m_activeBindings = state->bindings;
+        // 그래픽 파이프라인처럼 묶어 둔 것은 버린다(다른 백엔드와 같은 계약).
+        for (Bool& bound : m_constantBufferBound)
+        {
+            bound = false;
+        }
+        for (ID3D11UnorderedAccessView*& storage : m_pendingStorage)
+        {
+            storage = nullptr;
+        }
+        m_pipelineActive = false;
+        m_computeActive = true;
+        return true;
+    }
+
+    Bool D3D11CommandContext::SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        ID3D11UnorderedAccessView* view = nullptr;
+        if (false == m_computeActive || m_renderPassActive || m_device == nullptr
+            || slot >= m_activeBindings.storageTextures.count
+            || false == m_device->ResolveStorageTexture(texture, mipLevel, view))
+        {
+            return false;
+        }
+        m_pendingStorage[slot] = view;
+        return true;
+    }
+
+    Bool D3D11CommandContext::SetStorageBuffer(UInt32 slot, BufferHandle buffer)
+    {
+        ID3D11UnorderedAccessView* view = nullptr;
+        if (false == m_computeActive || m_renderPassActive || m_device == nullptr
+            || slot < StorageBufferRegisterBase || slot >= StorageBufferRegisterBase + m_activeBindings.storageBuffers.count
+            || false == m_device->ResolveStorageBuffer(buffer, view))
+        {
+            return false;
+        }
+        m_pendingStorage[slot] = view;
+        return true;
+    }
+
+    Bool D3D11CommandContext::Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ)
+    {
+        if (false == m_computeActive || m_renderPassActive || groupCountX == 0 || groupCountY == 0 || groupCountZ == 0)
+        {
+            return false;
+        }
+        // 선언한 자리가 하나라도 비면 돌지 않는다(그리기와 같은 계약).
+        for (UInt32 slot = 1; slot <= m_activeBindings.constantBuffers.count; ++slot)
+        {
+            if (false == m_constantBufferBound[slot])
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activeBindings.storageTextures.count; ++slot)
+        {
+            if (m_pendingStorage[slot] == nullptr)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activeBindings.storageBuffers.count; ++slot)
+        {
+            if (m_pendingStorage[StorageBufferRegisterBase + slot] == nullptr)
+            {
+                return false;
+            }
+        }
+        // D3D11 은 디스패치 사이의 UAV 쓰기를 드라이버가 맞춰 준다. 우리는 걸고, 돌고, 뗀다 - 뗴지 않으면 다음 패스가 같은 텍스처를
+        // 읽거나 그릴 때 D3D11 이 경고를 내며 떼어 낸다.
+        m_context->CSSetUnorderedAccessViews(0, StorageSlots, m_pendingStorage, nullptr);
+        m_context->Dispatch(groupCountX, groupCountY, groupCountZ);
+        ID3D11UnorderedAccessView* noStorage[StorageSlots] = {};
+        m_context->CSSetUnorderedAccessViews(0, StorageSlots, noStorage, nullptr);
         return true;
     }
 }

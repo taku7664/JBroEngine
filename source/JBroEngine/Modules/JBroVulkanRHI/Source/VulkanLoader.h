@@ -91,6 +91,7 @@ namespace JBro::Internal
     X(vkCreatePipelineLayout)                                                                                  \
     X(vkDestroyPipelineLayout)                                                                                 \
     X(vkCreateGraphicsPipelines)                                                                               \
+    X(vkCreateComputePipelines)                                                                                \
     X(vkDestroyPipeline)                                                                                       \
     X(vkCreateDescriptorPool)                                                                                  \
     X(vkDestroyDescriptorPool)                                                                                 \
@@ -109,6 +110,7 @@ namespace JBro::Internal
     X(vkCmdBindDescriptorSets)                                                                                 \
     X(vkCmdDrawIndexed)                                                                                        \
     X(vkCmdDraw)                                                                                               \
+    X(vkCmdDispatch)                                                                                           \
     X(vkCmdCopyBufferToImage)                                                                                  \
     X(vkCmdCopyImageToBuffer)                                                                                  \
     X(vkCmdCopyImage)

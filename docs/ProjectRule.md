@@ -119,6 +119,9 @@
   패스에서 읽지 않는다 - RHI 가 거절한다. (MUST) (D-326)
 - 텍스처의 차원 규칙은 `IsTextureDimensionValid` 하나로 세 백엔드가 같이 본다. 3D 텍스처는 셰이더가 읽기만 하고 mip 이 하나이며
   `WriteTexture` 한 번에 조각 전부를 올린다. 2D 배열은 아직 받지 않는다. (MUST) (D-327)
+- 컴퓨트는 렌더 패스 밖에서만 돈다. 읽고 쓰는 텍스처는 u0..u3, 구조화 버퍼는 u4..u7 이고 SPIR-V 에서 binding 24 부터다
+  (`-fvk-u-shift 24 0`, 컴퓨트 진입점은 `CSMain`). 디스패치 앞뒤의 상태 전이는 RHI 가 하며, 디스패치 뒤의 `Sampled` 텍스처는 읽기
+  상태다. (MUST) (D-328)
 - 앞면은 **화면에서 시계 방향**이다. 세 백엔드가 그렇게 맞춰져 있다(D3D `FrontCounterClockwise = FALSE`, Vulkan 은
   높이 음수 뷰포트 + `CLOCKWISE`). 메시는 바깥에서 볼 때 시계 방향으로 감는다. 좌표는 오른손, 카메라는 -Z, 깊이 0..1,
   NDC +y 는 위다(D-106·D-108). (MUST)
