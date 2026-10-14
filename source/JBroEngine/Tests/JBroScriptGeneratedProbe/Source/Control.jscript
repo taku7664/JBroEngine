@@ -7,13 +7,43 @@ enum Mode
 script ControlProbe
 {
     public Int count
+    public Table<String, Int> scores
     [prop] public Mode mode = Mode.Idle
+
+    public fn HasOwner() -> Bool
+    {
+        return GetGameObject().valid
+    }
+
+    public fn HasTransform() -> Bool
+    {
+        return GetGameObject().GetComponent<Transform2D>() is not null
+    }
+
+    public fn HasTransformSafe() -> Bool
+    {
+        return GetGameObject()?.GetComponent<Transform2D>() is not null
+    }
+
+    public fn DisableOwnerSafe()
+    {
+        GetGameObject()?.SetActive(false)
+    }
+
+    public fn NullFallback() -> Int
+    {
+        return null ?? 5
+    }
 
     fn OnUpdate() override
     {
         for (i in 0..3)
         {
             count += i
+        }
+        for (key, value in scores)
+        {
+            count += value
         }
         switch (mode)
         {

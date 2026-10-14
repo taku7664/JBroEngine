@@ -10,9 +10,59 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlActive(JBro::Gam
     static_cast<ControlProbe*>(base)->mode = Mode::Active;
 }
 
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlAddScore(JBro::GameScriptBase* base)
+{
+    static_cast<ControlProbe*>(base)->scores[JBro::String("bonus")] = JBro::Int(7);
+}
+
+extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasOwner(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->HasOwner();
+}
+
+extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasTransform(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->HasTransform();
+}
+
+extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasTransformSafe(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->HasTransformSafe();
+}
+
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlDisableOwnerSafe(JBro::GameScriptBase* base)
+{
+    static_cast<ControlProbe*>(base)->DisableOwnerSafe();
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlNullFallback(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->NullFallback().Get();
+}
+
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetFirstValid(JBro::GameScriptBase* base) noexcept
 {
     static_cast<GuardProbe*>(base)->target1 = JBro::Nullable<Link>(Link{});
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_TouchFirst(JBro::GameScriptBase* base)
+{
+    return static_cast<GuardProbe*>(base)->TouchFirst().Get();
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_TouchFirstSafe(JBro::GameScriptBase* base)
+{
+    return static_cast<GuardProbe*>(base)->TouchFirstSafe().Get();
+}
+
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_CopyTouchCounts(
+    const JBro::GameScriptBase* base, JBro::Int* before, JBro::Int* after,
+    JBro::Int* lookups) noexcept
+{
+    const auto& script = *static_cast<const GuardProbe*>(base);
+    *before = script.touchBefore;
+    *after = script.touchAfter;
+    *lookups = script.lookupCount;
 }
 
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_CopyCounts(

@@ -1166,25 +1166,61 @@ namespace
             "generated enum fields have a named-value descriptor for inspector and scene storage");
         using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
+        using ControlAddScore = void (*)(JBro::GameScriptBase*);
+        using ControlHasOwner = bool (*)(JBro::GameScriptBase*);
         const auto controlCount = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlCount"));
         const auto controlActive = reinterpret_cast<ControlActive>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlActive"));
-        Check(controlCount != nullptr && controlActive != nullptr, "the generated control scenario exports its probes");
+        const auto controlAddScore = reinterpret_cast<ControlAddScore>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlAddScore"));
+        const auto controlHasOwner = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasOwner"));
+        const auto controlHasTransform = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasTransform"));
+        const auto controlHasTransformSafe = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasTransformSafe"));
+        using ControlDisableOwnerSafe = void (*)(JBro::GameScriptBase*);
+        const auto controlDisableOwnerSafe = reinterpret_cast<ControlDisableOwnerSafe>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlDisableOwnerSafe"));
+        const auto controlNullFallback = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlNullFallback"));
+        Check(controlCount != nullptr && controlActive != nullptr && controlAddScore != nullptr
+                && controlHasOwner != nullptr && controlHasTransform != nullptr
+                && controlHasTransformSafe != nullptr && controlDisableOwnerSafe != nullptr
+                && controlNullFallback != nullptr,
+            "the generated control scenario exports its probes");
         alignas(64) unsigned char controlStorage[4096]{};
         JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
         Check(controlScript != nullptr, "the generated control script constructs");
+        const std::size_t groupsBeforeSafeMethod = JBro::Log::GetGroupCount();
+        Check(false == controlHasTransformSafe(controlScript)
+                && JBro::Log::GetGroupCount() == groupsBeforeSafeMethod,
+            "a null-safe generic method call skips an absent owner without logging");
+        controlDisableOwnerSafe(controlScript);
+        Check(JBro::Log::GetGroupCount() == groupsBeforeSafeMethod,
+            "a null-safe void method skips an absent owner without logging");
+        Check(controlNullFallback(controlScript) == 5,
+            "a literal null coalesce returns the non-null fallback");
         controlScript->OnUpdate();
         Check(controlCount(controlScript) == 4, "range for and the first enum switch branch execute");
         controlActive(controlScript);
         controlScript->OnUpdate();
         Check(controlCount(controlScript) == 9, "the second enum switch branch executes without fallthrough");
+        controlAddScore(controlScript);
+        controlScript->OnUpdate();
+        Check(controlCount(controlScript) == 21,
+            "Table key/value iteration reads the added score once alongside range and switch");
         controlType->Destruct(controlScript);
         {
             JBro::Canvas controlCanvas(JBro::CreateDefaultAllocator());
             JBro::GameScriptBase* attached = controlCanvas.AttachScript(
                 controlCanvas.CreateObject("enum state"), "ControlProbe");
             Check(attached != nullptr, "the generated enum script attaches by name");
+            Check(controlHasOwner(attached),
+                "an implicit inherited script API call resolves to the attached game object");
+            Check(false == controlHasTransform(attached),
+                "a generic method call on a valid owner returns an absent component handle without logging");
             controlActive(attached);
             JBro::CanvasFileError canvasError;
             JBro::String saved;
@@ -1213,6 +1249,14 @@ namespace
         using SetOptionalNumbers = void (*)(JBro::GameScriptBase*);
         const auto setFirstValid = reinterpret_cast<SetFirstValid>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_SetFirstValid"));
+        using TouchFirst = std::int64_t (*)(JBro::GameScriptBase*);
+        const auto touchFirst = reinterpret_cast<TouchFirst>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_TouchFirst"));
+        const auto touchFirstSafe = reinterpret_cast<TouchFirst>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_TouchFirstSafe"));
+        using CopyTouchCounts = void (*)(const JBro::GameScriptBase*, JBro::Int*, JBro::Int*, JBro::Int*) noexcept;
+        const auto copyTouchCounts = reinterpret_cast<CopyTouchCounts>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CopyTouchCounts"));
         const auto copyGeneratedCounts = reinterpret_cast<CopyGeneratedCounts>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CopyCounts"));
         const auto setMaybeValid = reinterpret_cast<SetFirstValid>(
@@ -1227,7 +1271,9 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_SetOptionalNumbers"));
         Check(setFirstValid != nullptr && copyGeneratedCounts != nullptr && setMaybeValid != nullptr
             && addGeneratedValue != nullptr && readGeneratedValue != nullptr
-            && copyIndexCounts != nullptr && setOptionalNumbers != nullptr,
+            && copyIndexCounts != nullptr && setOptionalNumbers != nullptr && touchFirst != nullptr
+            && touchFirstSafe != nullptr
+            && copyTouchCounts != nullptr,
             "the generated probe must expose its scenario controls");
         const JBro::Bool oldEcho = JBro::Log::GetEchoToConsole();
         JBro::Log::SetEchoToConsole(false);
@@ -1259,6 +1305,8 @@ namespace
         Check(JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 3,
             "the same source error on another game object joins the author-specified site group");
         setFirstValid(generatedScript);
+        Check(touchFirst(generatedScript) == 7,
+            "a checked ref receiver can invoke a user-defined method once");
         generatedScript->OnUpdate();
         generatedScript->OnUpdate();
         copyGeneratedCounts(generatedScript, &before, &after, &safeRuns, &valueBefore, &valueAfter);
@@ -1302,6 +1350,25 @@ namespace
         copyIndexCounts(generatedScript, &indexBefore, &indexAfter);
         Check(indexBefore == 3 && indexAfter == 1 && JBro::Log::GetGroupCount() == 4,
             "indexing a present ref Array continues without a new error");
+        JBro::Log::Clear();
+        static_cast<JBro::GameScript2D*>(secondScript)->OnPointerExit();
+        generated2D->OnPointerExit();
+        JBro::Int touchBefore = 0;
+        JBro::Int touchAfter = 0;
+        JBro::Int lookupCount = 0;
+        copyTouchCounts(secondScript, &touchBefore, &touchAfter, &lookupCount);
+        Check(touchBefore == 1 && touchAfter == 0 && lookupCount == 1 && JBro::Log::GetGroupCount() == 1
+                && JBro::Log::GetGroupAt(0)->count == 1,
+            "an absent ref method receiver logs once and aborts only its callback");
+        Check(std::strstr(JBro::Log::GetGroupAt(0)->display, "CountedTarget().Touch") != nullptr,
+            "a failed method call logs its complete source access path");
+        Check(touchFirstSafe(secondScript) == 0 && JBro::Log::GetGroupCount() == 1,
+            "a null-safe user method call returns its fallback without another log");
+        copyTouchCounts(generatedScript, &touchBefore, &touchAfter, &lookupCount);
+        Check(touchBefore == 1 && touchAfter == 7 && lookupCount == 1,
+            "the next callback invokes the method on a present ref receiver");
+        Check(touchFirstSafe(generatedScript) == 7,
+            "a null-safe user method call returns the present value");
         JBro::Log::Clear();
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());

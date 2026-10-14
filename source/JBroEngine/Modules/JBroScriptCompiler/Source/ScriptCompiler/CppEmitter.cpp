@@ -673,9 +673,40 @@ namespace JBro::ScriptCompiler
                     {
                         return {name, *found, true};
                     }
+                    if (const DeclarationRef* owner = m_declarations.Find(m_owner))
+                    {
+                        for (NodeIndex member : owner->tree->GetChildren(owner->index))
+                        {
+                            if (member == InvalidNode) continue;
+                            const SyntaxNode& item = owner->tree->Get(member);
+                            if (item.Kind != SyntaxKind::FunctionDeclaration || item.Text != name)
+                            {
+                                continue;
+                            }
+                            const SyntaxTree* saved = m_tree;
+                            m_tree = owner->tree;
+                            const Type result = ParseType(Child(member, 2));
+                            m_tree = saved;
+                            return {name, result};
+                        }
+                    }
                     if (Api(name) != nullptr || m_declarations.Contains(name))
                     {
                         return {NativeType({name, false}), {name, false}};
+                    }
+                    if (IsScript({m_owner, false}))
+                    {
+                        if (const ApiType* base = Api("GameScriptBase"))
+                        {
+                            for (const ApiMember& member : base->Members)
+                            {
+                                if (member.Name.View() == name)
+                                {
+                                    return {member.NativeName.empty() ? name : String(member.NativeName.c_str()),
+                                        TextType(member.Type.c_str())};
+                                }
+                            }
+                        }
                     }
                     Error("unresolved name in C++ emitter: " + name);
                     return {name, {}, true};
@@ -726,6 +757,23 @@ namespace JBro::ScriptCompiler
                             memberType = *field;
                         }
                     }
+                    if (const DeclarationRef* declaration = m_declarations.Find(receiver.type.name))
+                    {
+                        for (NodeIndex member : declaration->tree->GetChildren(declaration->index))
+                        {
+                            if (member == InvalidNode) continue;
+                            const SyntaxNode& item = declaration->tree->Get(member);
+                            if (item.Kind != SyntaxKind::FunctionDeclaration || item.Text != node.Text)
+                            {
+                                continue;
+                            }
+                            const SyntaxTree* saved = m_tree;
+                            m_tree = declaration->tree;
+                            memberType = ParseType(Child(member, 2));
+                            m_tree = saved;
+                            break;
+                        }
+                    }
                     if (const ApiType* type = Api(receiver.type.name))
                     {
                         for (const ApiMember& member : type->Members)
@@ -738,6 +786,11 @@ namespace JBro::ScriptCompiler
                                 const Array<String> arguments = TypeArguments(receiver.type.name);
                                 const std::size_t slot = memberType.name == "V" ? 1 : 0;
                                 if (slot < arguments.Size()) memberType.name = TextType(arguments[slot]).name;
+                            }
+                            if (memberType.name == "T" && node.ChildCount > 1)
+                            {
+                                memberType = ParseType(Child(index, 1));
+                                memberType.ref = TextType(declared).ref;
                             }
                             nativeMember = member.NativeName.empty() ? Pascal(node.Text) : member.NativeName.c_str();
                             property = type->Kind == ApiTypeKind::Handle
@@ -810,9 +863,12 @@ namespace JBro::ScriptCompiler
                     const Expression right = Expr(Child(index, 1));
                     if (node.Text == "??")
                     {
-                        const String code = "([&]() { auto&& __jb_left = (" + left.code
+                        if (left.type.name == "Null") return right;
+                        const String bare = NativeType({left.type.name, false});
+                        const String code = "([&]() -> " + bare + " { auto&& __jb_left = (" + left.code
                             + "); if (JBro::ScriptGuard::IsPresent(__jb_left)) return "
-                            "JBro::ScriptGuard::UnwrapPresent(__jb_left); return " + right.code + "; }())";
+                            "JBro::ScriptGuard::UnwrapPresent(__jb_left); return " + bare
+                            + "(" + right.code + "); }())";
                         return {code, {left.type.name, false}};
                     }
                     const String op = node.Text == "and" ? "&&" : node.Text == "or" ? "||" : String(node.Text);
@@ -820,15 +876,66 @@ namespace JBro::ScriptCompiler
                 }
                 case SyntaxKind::CallExpression:
                 {
-                    const Expression callee = Expr(Child(index, 0));
-                    String code = callee.code + "(";
+                    const NodeIndex calleeIndex = Child(index, 0);
+                    const Expression callee = Expr(calleeIndex);
+                    const SyntaxNode& calleeNode = Node(calleeIndex);
+                    String arguments;
                     for (std::size_t slot = 1; slot < node.ChildCount; ++slot)
                     {
-                        if (slot != 1) code += ", ";
-                        code += Expr(Child(index, slot)).code;
+                        if (slot != 1) arguments += ", ";
+                        arguments += Expr(Child(index, slot)).code;
                     }
-                    code += ')';
-                    return {code, callee.type};
+                    if (calleeNode.Kind == SyntaxKind::MemberAccessExpression)
+                    {
+                        const Expression receiver = Expr(Child(calleeIndex, 0));
+                        String method(calleeNode.Text);
+                        if (const ApiType* type = Api(receiver.type.name))
+                        {
+                            for (const ApiMember& member : type->Members)
+                            {
+                                if (member.Name.View() == calleeNode.Text)
+                                {
+                                    method = member.NativeName.empty() ? Pascal(calleeNode.Text)
+                                        : String(member.NativeName.c_str());
+                                    break;
+                                }
+                            }
+                        }
+                        for (std::size_t slot = 1; slot < calleeNode.ChildCount; ++slot)
+                        {
+                            method += slot == 1 ? "<" : ", ";
+                            method += NativeType(ParseType(Child(calleeIndex, slot)));
+                        }
+                        if (calleeNode.ChildCount > 1) method += '>';
+                        if (calleeNode.Flags & SyntaxFlagNullSafe)
+                        {
+                            if (callee.type.name == "Void")
+                            {
+                                const String code = "([&]() { auto&& __jb_receiver = ("
+                                    + receiver.code + "); if (!JBro::ScriptGuard::IsPresent(__jb_receiver)) "
+                                    "return; JBro::ScriptGuard::UnwrapPresent(__jb_receiver)."
+                                    + method + "(" + arguments + "); }())";
+                                return {code, callee.type};
+                            }
+                            const String resultType = NativeType(callee.type);
+                            const String code = "([&]() -> " + resultType + " { auto&& __jb_receiver = ("
+                                + receiver.code + "); if (!JBro::ScriptGuard::IsPresent(__jb_receiver)) "
+                                "return {}; return " + resultType + "(JBro::ScriptGuard::UnwrapPresent(__jb_receiver)."
+                                + method + "(" + arguments + ")); }())";
+                            return {code, callee.type};
+                        }
+                        if (receiver.type.ref || IsHandle(receiver.type))
+                        {
+                            const String site = SiteKey(calleeNode);
+                            const String code = "([&]() -> decltype(auto) { auto&& __jb_receiver = ("
+                                + receiver.code + "); return JBro::ScriptGuard::Require(__jb_receiver, "
+                                + Escape(site) + ", " + Escape(site + " invalid ref access: "
+                                    + AccessPath(calleeIndex)) + ")." + method + "(" + arguments + "); }())";
+                            return {code, callee.type};
+                        }
+                        return {"(" + receiver.code + ")." + method + "(" + arguments + ")", callee.type};
+                    }
+                    return {callee.code + "(" + arguments + ")", callee.type};
                 }
                 case SyntaxKind::RefArgument:
                 {
@@ -945,11 +1052,6 @@ namespace JBro::ScriptCompiler
                 }
                 if (node.Kind == SyntaxKind::ForStatement)
                 {
-                    if (Child(index, 1) != InvalidNode)
-                    {
-                        Error("two-variable for is not supported by the C++ emitter yet");
-                        return;
-                    }
                     if (Node(Child(index, 2)).Kind == SyntaxKind::RangeExpression)
                     {
                         const NodeIndex variable = Child(index, 0);
@@ -978,6 +1080,32 @@ namespace JBro::ScriptCompiler
                     }
                     const Expression iterable = Expr(Child(index, 2));
                     const Array<String> arguments = TypeArguments(iterable.type.name);
+                    if (Child(index, 1) != InvalidNode)
+                    {
+                        if (iterable.type.name.rfind("Table<", 0) != 0 || arguments.Size() != 2)
+                        {
+                            Error("two-variable C++ emitter for requires a Table<K, V>");
+                            return;
+                        }
+                        const NodeIndex keyVariable = Child(index, 0);
+                        const NodeIndex valueVariable = Child(index, 1);
+                        const String key(Node(keyVariable).Text);
+                        const String value(Node(valueVariable).Text);
+                        const String entry = "__jb_table_entry_" + std::to_string(m_temporary++);
+                        const auto saved = m_variables;
+                        m_variables[key] = TextType(arguments[0]);
+                        m_variables[value] = TextType(arguments[1]);
+                        m_code += pad + "for (auto&& " + entry + " : " + iterable.code + ")\n"
+                            + pad + "{\n"
+                            + pad + "    " + String((Node(keyVariable).Flags & SyntaxFlagRef) ? "const auto& " : "auto ")
+                            + key + " = " + entry + ".KeyValue;\n"
+                            + pad + "    " + String((Node(valueVariable).Flags & SyntaxFlagRef) ? "auto& " : "auto ")
+                            + value + " = " + entry + ".MappedValue;\n";
+                        Statement(Child(index, 3), indent + 4);
+                        m_code += pad + "}\n";
+                        m_variables = saved;
+                        return;
+                    }
                     if (iterable.type.name.rfind("Array<", 0) != 0 || arguments.Size() != 1)
                     {
                         Error("C++ emitter for requires an Array<T> iterable");
