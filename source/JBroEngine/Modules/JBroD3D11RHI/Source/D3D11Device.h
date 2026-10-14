@@ -20,6 +20,8 @@ namespace JBro::Internal
     constexpr UInt32 MaxColorAttachments = 8;
     constexpr UInt32 MaxBoundTextures = 8;
     constexpr UInt32 MaxBoundSamplers = 4;
+    // 상수 버퍼 슬롯은 b1..b7 이다. b0 은 파이프라인의 푸시 상수 버퍼가 쓴다.
+    constexpr UInt32 MaxBoundConstantBuffers = 7;
     constexpr UInt32 MaxVertexSlots = 8;
 
     class D3D11Device;
@@ -46,11 +48,17 @@ namespace JBro::Internal
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
+        Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
             UInt32 indexCount,
             UInt32 instanceCount,
             UInt32 firstIndex,
             Int32 baseVertex,
+            UInt32 firstInstance) override;
+        Bool DrawInstanced(
+            UInt32 vertexCount,
+            UInt32 instanceCount,
+            UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
 
@@ -60,13 +68,22 @@ namespace JBro::Internal
         }
 
     private:
+        // 두 그리기의 공통 앞단이다. 패스와 파이프라인이 있고 선언한 상수 버퍼가 다 묶였는지 본다.
+        Bool PrepareDraw() const;
+
         D3D11Device* m_device = nullptr;
         ID3D11DeviceContext* m_context = nullptr;
+        // 11.1 의 부분 묶기(`*SetConstantBuffers1`)다. 없는 기계면 null 이고 오프셋 0 만 묶는다.
+        ComPtr<ID3D11DeviceContext1> m_context1;
         GraphicsPipelineHandle m_activePipeline;
         UInt32 m_activePushConstantBytes = 0;
         ShaderStage m_activePushConstantStages = ShaderStage::Vertex;
+        // 이 파이프라인의 자리표다. 묶을 때 슬롯을 거르고 단계마다 건다.
+        BindingLayoutDesc m_activeBindings;
         // 참조를 든다. 파이프라인이 패스 중간에 지워져도 상수 버퍼는 살아 있다.
         ComPtr<ID3D11Buffer> m_activeConstantBuffer;
+        // b# 자리마다 묶였는지다(0 은 쓰지 않는다). 파이프라인을 바꾸면 비운다 - 다른 백엔드와 같은 계약이다.
+        Bool m_constantBufferBound[MaxBoundConstantBuffers + 1] = {};
         Bool m_renderPassActive = false;
         Bool m_pipelineActive = false;
     };
@@ -125,6 +142,7 @@ namespace JBro::Internal
         D3D11_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
         UInt32 pushConstantBytes = 0;
         ShaderStage pushConstantStages = ShaderStage::Vertex;
+        BindingLayoutDesc bindings;
         UInt32 generation = 1;
         Bool occupied = false;
     };
@@ -139,6 +157,7 @@ namespace JBro::Internal
         Bool Initialize(const RHIDeviceCreateInfo& createInfo);
         void Shutdown();
 
+        DeviceCaps GetCaps() const override;
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
         Bool WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data) override;
@@ -208,6 +227,9 @@ namespace JBro::Internal
         FrameStatus m_status = FrameStatus::InvalidState;
         Bool m_frameActive = false;
         Bool m_tearingSupported = false;
+        // 오프셋이 있는 상수 버퍼 구간을 묶을 수 있다. 11.1 의 부분 묶기와 동적 상수 버퍼의 NO_OVERWRITE 가 둘 다 있어야
+        // 참이다 - 링은 한 버퍼의 여러 구간을 한 프레임 안에 차례로 쓰고 묶는다.
+        Bool m_constantBufferOffsets = false;
     };
 
     // 두 소스 파일이 함께 쓰는 변환.

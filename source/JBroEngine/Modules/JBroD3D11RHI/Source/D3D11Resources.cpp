@@ -22,6 +22,16 @@ namespace JBro::Internal
             return DXGI_FORMAT_R16G16B16A16_FLOAT;
         case TextureFormat::D32Float:
             return DXGI_FORMAT_D32_FLOAT;
+        case TextureFormat::R11G11B10Float:
+            return DXGI_FORMAT_R11G11B10_FLOAT;
+        case TextureFormat::R16Float:
+            return DXGI_FORMAT_R16_FLOAT;
+        case TextureFormat::R32Float:
+            return DXGI_FORMAT_R32_FLOAT;
+        case TextureFormat::RG16Float:
+            return DXGI_FORMAT_R16G16_FLOAT;
+        case TextureFormat::RGBA32Float:
+            return DXGI_FORMAT_R32G32B32A32_FLOAT;
         case TextureFormat::Unknown:
             return DXGI_FORMAT_UNKNOWN;
         }
@@ -30,20 +40,7 @@ namespace JBro::Internal
 
     UInt32 PixelSize(TextureFormat format)
     {
-        switch (format)
-        {
-        case TextureFormat::RGBA8Unorm:
-        case TextureFormat::RGBA8UnormSrgb:
-        case TextureFormat::BGRA8Unorm:
-        case TextureFormat::BGRA8UnormSrgb:
-        case TextureFormat::D32Float:
-            return 4;
-        case TextureFormat::RGBA16Float:
-            return 8;
-        case TextureFormat::Unknown:
-            return 0;
-        }
-        return 0;
+        return GetTexelSize(format);
     }
 
     namespace
@@ -97,9 +94,19 @@ namespace JBro::Internal
         }
         D3D11_BUFFER_DESC native = {};
         const Bool constant = HasBufferUsage(desc.usage, BufferUsage::Constant);
+        const Bool constantRing = constant && desc.memory == MemoryType::Upload;
+        if (constantRing
+            && (HasBufferUsage(desc.usage, BufferUsage::Vertex) || HasBufferUsage(desc.usage, BufferUsage::Index)))
+        {
+            // 동적 상수 버퍼는 다른 묶기와 함께 둘 수 없다(D3D11 의 제약).
+            return {};
+        }
         native.ByteWidth = constant ? RoundUpTo16(desc.size) : static_cast<UINT>(desc.size);
-        // 전부 DEFAULT 다. 쓰기는 `UpdateSubresource` 로 간다 - 드라이버가 이름을 바꿔 준다.
-        native.Usage = D3D11_USAGE_DEFAULT;
+        // 대부분 DEFAULT 다. 쓰기는 `UpdateSubresource` 로 간다 - 드라이버가 이름을 바꿔 준다.
+        // `Upload` 상수 버퍼만 DYNAMIC 이다. 한 프레임 안에 구간을 여럿 써서 각각 묶는 링이라(`WriteBuffer` 의 계약)
+        // 통째로 갈아 쓰는 `UpdateSubresource` 로는 앞서 묶은 구간이 덮인다.
+        native.Usage = constantRing ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_DEFAULT;
+        native.CPUAccessFlags = constantRing ? D3D11_CPU_ACCESS_WRITE : 0;
         if (HasBufferUsage(desc.usage, BufferUsage::Vertex))
         {
             native.BindFlags |= D3D11_BIND_VERTEX_BUFFER;
@@ -149,6 +156,26 @@ namespace JBro::Internal
             || offset > desc.size || data.size > desc.size - offset)
         {
             return false;
+        }
+        if (HasBufferUsage(desc.usage, BufferUsage::Constant) && desc.memory == MemoryType::Upload)
+        {
+            // 링이다. 오프셋 0 이 새 바퀴를 열며 버퍼를 갈아 끼우고(DISCARD), 그 뒤의 구간은 앞서 묶은 구간을 건드리지
+            // 않는다(NO_OVERWRITE). 부분 쓰기는 11.1 기능이라 없는 기계에서는 통째로 쓰는 0 만 받는다.
+            const Bool rewind = offset == 0;
+            if (false == rewind && false == m_constantBufferOffsets)
+            {
+                return false;
+            }
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            if (FAILED(m_context->Map(native, 0, rewind ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE, 0,
+                    &mapped))
+                || mapped.pData == nullptr)
+            {
+                return false;
+            }
+            std::memcpy(static_cast<unsigned char*>(mapped.pData) + offset, data.data, data.size);
+            m_context->Unmap(native, 0);
+            return true;
         }
         if (HasBufferUsage(desc.usage, BufferUsage::Constant))
         {

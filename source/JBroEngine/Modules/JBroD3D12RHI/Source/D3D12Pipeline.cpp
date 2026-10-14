@@ -38,6 +38,16 @@ namespace JBro::Internal
                 return DXGI_FORMAT_R16G16B16A16_FLOAT;
             case TextureFormat::D32Float:
                 return DXGI_FORMAT_D32_FLOAT;
+            case TextureFormat::R11G11B10Float:
+                return DXGI_FORMAT_R11G11B10_FLOAT;
+            case TextureFormat::R16Float:
+                return DXGI_FORMAT_R16_FLOAT;
+            case TextureFormat::R32Float:
+                return DXGI_FORMAT_R32_FLOAT;
+            case TextureFormat::RG16Float:
+                return DXGI_FORMAT_R16G16_FLOAT;
+            case TextureFormat::RGBA32Float:
+                return DXGI_FORMAT_R32G32B32A32_FLOAT;
             case TextureFormat::Unknown:
                 return DXGI_FORMAT_UNKNOWN;
             }
@@ -159,12 +169,15 @@ namespace JBro::Internal
             || desc.colorFormats.data == nullptr
             || desc.colorFormats.size == 0
             || desc.colorFormats.size > MaxColorTargets
-            || desc.pushConstantBytes > 256
+            || desc.pushConstantBytes > MaxPushConstantBytes
             || (desc.pushConstantBytes % sizeof(std::uint32_t)) != 0
             || (desc.pushConstantBytes != 0
                 && static_cast<std::uint8_t>(desc.pushConstantStages) == 0)
             || (desc.depthFormat != TextureFormat::Unknown
-                && desc.depthFormat != TextureFormat::D32Float))
+                && desc.depthFormat != TextureFormat::D32Float)
+            // 한 드로우가 묶을 수 있는 수를 넘었다. 루트 시그니처는 만들어지고 나면
+            // 바꿀 수 없으므로, 여기서 거절하지 않으면 그리는 자리에서 조용히 잘린다.
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps()))
         {
             return {};
         }
@@ -201,17 +214,14 @@ namespace JBro::Internal
             return {};
         }
 
-        if (desc.sampledTextureCount > MaxBoundTextures || desc.samplerCount > MaxBoundSamplers)
-        {
-            // 한 드로우가 묶을 수 있는 수를 넘었다. 루트 시그니처는 만들어지고 나면
-            // 바꿀 수 없으므로, 여기서 거절하지 않으면 그리는 자리에서 조용히 잘린다.
-            return {};
-        }
+        const BindingLayoutDesc& bindings = desc.bindings;
 
-        // 파라미터 자리는 상수 → 텍스처 표 → 샘플러 표 순서다. 없는 것은 자리를 차지하지 않으므로
+        // 파라미터 자리는 푸시 상수 → 상수 버퍼 CBV 들 → 텍스처 표 → 샘플러 표 순서다. 없는 것은 자리를 차지하지 않으므로
         // 그리는 쪽이 번호를 짐작할 수 없고, 그래서 그 번호를 파이프라인에 적어 둔다.
-        D3D12_ROOT_PARAMETER rootParameters[3] = {};
+        // 루트 시그니처는 64 DWORD 까지다. 푸시 상수 32 + CBV 7 × 2 + 표 2 = 48 이라 상한을 다 써도 들어간다.
+        D3D12_ROOT_PARAMETER rootParameters[3 + MaxBoundConstantBuffers] = {};
         UInt32 parameterCount = 0;
+        UInt32 constantBufferParameter = InvalidRootParameter;
         UInt32 textureTableParameter = InvalidRootParameter;
         UInt32 samplerTableParameter = InvalidRootParameter;
 
@@ -232,11 +242,27 @@ namespace JBro::Internal
             ++parameterCount;
         }
 
+        // 상수 버퍼는 슬롯마다 루트 CBV 다. 디스크립터 힙을 거치지 않고 주소 하나로 묶이므로, 링의 오프셋만 바꿔 다시
+        // 거는 일(드로우마다 다른 구간)에 복사가 없다.
+        for (UInt32 slot = 1; slot <= bindings.constantBuffers.count; ++slot)
+        {
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+            parameter.Descriptor.ShaderRegister = slot;
+            parameter.Descriptor.RegisterSpace = 0;
+            parameter.ShaderVisibility = ToNativeVisibility(bindings.constantBuffers.stages);
+            if (slot == 1)
+            {
+                constantBufferParameter = parameterCount;
+            }
+            ++parameterCount;
+        }
+
         D3D12_DESCRIPTOR_RANGE textureRange = {};
-        if (desc.sampledTextureCount != 0)
+        if (bindings.sampledTextures.count != 0)
         {
             textureRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-            textureRange.NumDescriptors = desc.sampledTextureCount;
+            textureRange.NumDescriptors = bindings.sampledTextures.count;
             textureRange.BaseShaderRegister = 0;
             textureRange.RegisterSpace = 0;
             textureRange.OffsetInDescriptorsFromTableStart =
@@ -246,18 +272,17 @@ namespace JBro::Internal
             parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             parameter.DescriptorTable.NumDescriptorRanges = 1;
             parameter.DescriptorTable.pDescriptorRanges = &textureRange;
-            // 텍스처는 픽셀 셰이더만 읽는다. 정점 단계에 열어 두면 드라이버가
-            // 필요 없는 가시성까지 준비한다.
-            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+            // 읽는 단계에만 연다. 쓰지 않는 단계에 열어 두면 드라이버가 필요 없는 가시성까지 준비한다.
+            parameter.ShaderVisibility = ToNativeVisibility(bindings.sampledTextures.stages);
             textureTableParameter = parameterCount;
             ++parameterCount;
         }
 
         D3D12_DESCRIPTOR_RANGE samplerRange = {};
-        if (desc.samplerCount != 0)
+        if (bindings.samplers.count != 0)
         {
             samplerRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-            samplerRange.NumDescriptors = desc.samplerCount;
+            samplerRange.NumDescriptors = bindings.samplers.count;
             samplerRange.BaseShaderRegister = 0;
             samplerRange.RegisterSpace = 0;
             samplerRange.OffsetInDescriptorsFromTableStart =
@@ -267,7 +292,7 @@ namespace JBro::Internal
             parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             parameter.DescriptorTable.NumDescriptorRanges = 1;
             parameter.DescriptorTable.pDescriptorRanges = &samplerRange;
-            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+            parameter.ShaderVisibility = ToNativeVisibility(bindings.samplers.stages);
             samplerTableParameter = parameterCount;
             ++parameterCount;
         }
@@ -385,8 +410,10 @@ namespace JBro::Internal
         state.pipeline = pipeline;
         state.topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         state.pushConstantCount = UInt32(desc.pushConstantBytes / sizeof(std::uint32_t));
-        state.sampledTextureCount = desc.sampledTextureCount;
-        state.samplerCount = desc.samplerCount;
+        state.constantBufferCount = bindings.constantBuffers.count;
+        state.sampledTextureCount = bindings.sampledTextures.count;
+        state.samplerCount = bindings.samplers.count;
+        state.constantBufferParameter = constantBufferParameter;
         state.textureTableParameter = textureTableParameter;
         state.samplerTableParameter = samplerTableParameter;
         state.retirementFence = 0;
@@ -437,8 +464,10 @@ namespace JBro::Internal
         binding.rootSignature = state.rootSignature.Get();
         binding.topology = state.topology;
         binding.pushConstantCount = state.pushConstantCount;
+        binding.constantBufferCount = state.constantBufferCount;
         binding.sampledTextureCount = state.sampledTextureCount;
         binding.samplerCount = state.samplerCount;
+        binding.constantBufferParameter = state.constantBufferParameter;
         binding.textureTableParameter = state.textureTableParameter;
         binding.samplerTableParameter = state.samplerTableParameter;
         return true;

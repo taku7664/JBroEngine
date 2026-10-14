@@ -19,6 +19,8 @@ namespace JBro::Internal
     // 한 드로우가 묶을 수 있는 텍스처·샘플러 수다. 넘으면 조용히 자르지 않고 거절한다.
     inline constexpr UInt32 MaxBoundTextures = 8;
     inline constexpr UInt32 MaxBoundSamplers = 4;
+    // 상수 버퍼 슬롯은 b1..b7 이다(b0 은 푸시 상수). 배열은 레지스터 번호로 바로 찾도록 b0 자리까지 잡는다.
+    inline constexpr UInt32 MaxBoundConstantBuffers = 7;
 
     // 한 패스에 붙일 수 있는 색 첨부의 수다. 배리어 배열이 이 크기로 잡히므로
     // 컨텍스트와 패스 시작 코드가 같은 값을 봐야 한다.
@@ -47,6 +49,8 @@ namespace JBro::Internal
         ID3D12Resource* resource = nullptr;
         D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = 0;
         UInt64 size = 0;
+        // 만들 때 받은 크기다. `size` 는 256 단위로 올린 실제 크기라 상수 버퍼 구간은 이것으로 잰다 - 다른 백엔드와 같은 계약이다.
+        UInt64 requestedSize = 0;
         BufferUsage usage = BufferUsage::None;
     };
 
@@ -56,10 +60,13 @@ namespace JBro::Internal
         ID3D12RootSignature* rootSignature = nullptr;
         D3D12_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
         UInt32 pushConstantCount = 0;
+        UInt32 constantBufferCount = 0;
         UInt32 sampledTextureCount = 0;
         UInt32 samplerCount = 0;
         // 루트 파라미터에서의 자리다. 없으면 InvalidRootParameter 다 —
         // 0 은 유효한 자리이므로 0 으로 "없음" 을 나타낼 수 없다.
+        // 상수 버퍼는 b1 부터 슬롯마다 루트 CBV 하나이고, 이 자리부터 차례로 놓인다.
+        UInt32 constantBufferParameter = InvalidRootParameter;
         UInt32 textureTableParameter = InvalidRootParameter;
         UInt32 samplerTableParameter = InvalidRootParameter;
     };
@@ -91,11 +98,17 @@ namespace JBro::Internal
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
+        Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
             UInt32 indexCount,
             UInt32 instanceCount,
             UInt32 firstIndex,
             Int32 baseVertex,
+            UInt32 firstInstance) override;
+        Bool DrawInstanced(
+            UInt32 vertexCount,
+            UInt32 instanceCount,
+            UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
 
@@ -106,6 +119,9 @@ namespace JBro::Internal
         // 드로우 직전까지 들고 있다가 한 번에 묶는다. 디스크립터 테이블은 연속된 자리를
         // 가리키므로, 슬롯이 다 모이기 전에는 어디에 놓을지 정할 수 없다.
         Bool BindPendingDescriptors();
+        // 두 그리기의 공통 앞단이다. 패스와 파이프라인이 있고 선언한 자리가 다 묶였는지 보고 디스크립터를 건다.
+        // 상수 버퍼는 루트 CBV 라 `SetConstantBuffer` 가 곧바로 걸었고, 여기서는 빠진 슬롯만 본다.
+        Bool PrepareDraw();
 
         ID3D12Resource* m_discardAtEnd[MaxColorAttachments] = {};
         UInt32 m_discardAtEndCount = 0;
@@ -140,6 +156,8 @@ namespace JBro::Internal
         D3D12PipelineBinding m_activePipeline;
         D3D12_CPU_DESCRIPTOR_HANDLE m_pendingTextures[MaxBoundTextures] = {};
         D3D12_CPU_DESCRIPTOR_HANDLE m_pendingSamplers[MaxBoundSamplers] = {};
+        // b# 자리마다 묶였는지다(0 은 쓰지 않는다). 파이프라인을 바꾸면 비운다 - 루트 시그니처가 바뀌면 루트 인자도 사라진다.
+        Bool m_constantBufferBound[MaxBoundConstantBuffers + 1] = {};
         Bool m_nativeRenderPasses = false;
         Bool m_renderPassActive = false;
         Bool m_pipelineActive = false;
@@ -185,8 +203,10 @@ namespace JBro::Internal
         UInt64 retirementFence = 0;
         UInt32 generation = 1;
         UInt32 pushConstantCount = 0;
+        UInt32 constantBufferCount = 0;
         UInt32 sampledTextureCount = 0;
         UInt32 samplerCount = 0;
+        UInt32 constantBufferParameter = InvalidRootParameter;
         UInt32 textureTableParameter = InvalidRootParameter;
         UInt32 samplerTableParameter = InvalidRootParameter;
         Bool occupied = false;
@@ -228,6 +248,7 @@ namespace JBro::Internal
         Bool Initialize(const RHIDeviceCreateInfo& createInfo);
         void Shutdown();
 
+        DeviceCaps GetCaps() const override;
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
         Bool ReadTexture(

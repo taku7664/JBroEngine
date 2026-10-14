@@ -109,6 +109,11 @@
   SPIR-V(Vulkan, D-108). 렌더러와 에디터 UI 가 `GraphicsApi` 로 고른다. `.hlsl` 은 ASCII 로 쓰고(fxc 가 BOM 을
   거절한다), 푸시 상수 b0 은 `JBRO_SPIRV` 매크로 뒤에 두 표기를 둔다. 텍스처는 SPIR-V 에서 binding 8+, 샘플러는
   16+ 다. (MUST)
+- 상수 버퍼는 b1..b7 이고 슬롯 번호가 곧 `b` 레지스터 번호다. b0 은 푸시 상수 자리라 상수 버퍼를 두지 않으며, SPIR-V 는
+  b# 를 옮기지 않아 binding 1..7 이다. 파이프라인은 읽는 자원을 `GraphicsPipelineDesc::bindings` 에 종류마다 개수와 단계로
+  적고, 상한은 `IRHIDevice::GetCaps()` 로 묻는다. 푸시 상수는 128 B 까지다. (MUST) (D-325)
+- 프레임마다 바뀌는 상수는 `ConstantRing` 으로 올린다. `Upload` 메모리의 상수 버퍼는 링으로만 쓴다 - 오프셋 0 쓰기가 새
+  바퀴이고, 한 바퀴 안에서 이미 쓴 구간을 다시 쓰지 않는다. 프레임 경로에서 상수 버퍼를 새로 만들지 않는다. (MUST) (D-325)
 - 앞면은 **화면에서 시계 방향**이다. 세 백엔드가 그렇게 맞춰져 있다(D3D `FrontCounterClockwise = FALSE`, Vulkan 은
   높이 음수 뷰포트 + `CLOCKWISE`). 메시는 바깥에서 볼 때 시계 방향으로 감는다. 좌표는 오른손, 카메라는 -Z, 깊이 0..1,
   NDC +y 는 위다(D-106·D-108). (MUST)

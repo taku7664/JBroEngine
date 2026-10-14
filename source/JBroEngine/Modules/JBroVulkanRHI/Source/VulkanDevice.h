@@ -14,8 +14,10 @@ namespace JBro::Internal
     constexpr UInt32 MaxColorAttachments = 8;
     constexpr UInt32 MaxBoundTextures = 8;
     constexpr UInt32 MaxBoundSamplers = 4;
+    // 상수 버퍼 b1..b7 은 옮기지 않고 binding 1..7 에 앉는다. b0 은 `[[vk::push_constant]]` 라 binding 이 없다.
+    constexpr UInt32 MaxBoundConstantBuffers = 7;
     constexpr UInt32 MaxVertexSlots = 8;
-    // 셰이더의 t#·s# 가 SPIR-V 에서 앉는 자리다(`-fvk-t-shift 8 0 -fvk-s-shift 16 0`). 0..7 은 비워 둔다.
+    // 셰이더의 t#·s# 가 SPIR-V 에서 앉는 자리다(`-fvk-t-shift 8 0 -fvk-s-shift 16 0`). 0..7 은 상수 버퍼 자리다.
     constexpr UInt32 TextureBindingBase = 8;
     constexpr UInt32 SamplerBindingBase = 16;
     // 프레임 슬롯 수의 상한이다. 스왑체인이 `maxFramesInFlight` 로 이 안에서 고른다.
@@ -50,11 +52,17 @@ namespace JBro::Internal
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
+        Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
             UInt32 indexCount,
             UInt32 instanceCount,
             UInt32 firstIndex,
             Int32 baseVertex,
+            UInt32 firstInstance) override;
+        Bool DrawInstanced(
+            UInt32 vertexCount,
+            UInt32 instanceCount,
+            UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
 
@@ -65,6 +73,17 @@ namespace JBro::Internal
 
     private:
         Bool BindPendingDescriptors();
+        // 두 그리기의 공통 앞단이다.
+        Bool PrepareDraw();
+
+        // 상수 버퍼 한 슬롯이다. set 에는 버퍼와 크기만 적고(동적 유니폼 버퍼), 오프셋은 묶을 때 따로 넘긴다 - 링의
+        // 구간이 드로우마다 바뀌어도 set 을 새로 만들지 않는다.
+        struct PendingConstantBuffer
+        {
+            VkBuffer buffer = VK_NULL_HANDLE;
+            VkDeviceSize size = 0;
+            UInt32 offset = 0;
+        };
 
         VulkanDevice* m_device = nullptr;
         VkCommandBuffer m_commands = VK_NULL_HANDLE;
@@ -75,14 +94,18 @@ namespace JBro::Internal
         UInt32 m_sampledAtEndCount = 0;
         VkImageView m_pendingTextures[MaxBoundTextures] = {};
         VkSampler m_pendingSamplers[MaxBoundSamplers] = {};
-        // 이 프레임에 쓴 set 들이다. 같은 묶음(레이아웃·텍스처·샘플러)이 다시 오면 할당하지 않고 그 set 을 다시
-        // 건다(D-110). 프레임마다 풀이 비워지므로 함께 비운다.
+        // b# 자리로 바로 찾는다(0 은 쓰지 않는다).
+        PendingConstantBuffer m_pendingConstantBuffers[MaxBoundConstantBuffers + 1] = {};
+        // 이 프레임에 쓴 set 들이다. 같은 묶음(레이아웃·텍스처·샘플러·상수 버퍼와 크기)이 다시 오면 할당하지 않고 그 set 을
+        // 다시 건다(D-110). 프레임마다 풀이 비워지므로 함께 비운다.
         static constexpr UInt32 CachedSets = 16;
         struct CachedSet
         {
             VkDescriptorSetLayout layout = VK_NULL_HANDLE;
             VkImageView views[MaxBoundTextures] = {};
             VkSampler samplers[MaxBoundSamplers] = {};
+            VkBuffer constantBuffers[MaxBoundConstantBuffers + 1] = {};
+            VkDeviceSize constantSizes[MaxBoundConstantBuffers + 1] = {};
             VkDescriptorSet set = VK_NULL_HANDLE;
         };
         CachedSet m_cachedSets[CachedSets] = {};
@@ -158,6 +181,7 @@ namespace JBro::Internal
         VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
         VkShaderStageFlags pushConstantStages = 0;
         UInt32 pushConstantBytes = 0;
+        UInt32 constantBufferCount = 0;
         UInt32 sampledTextureCount = 0;
         UInt32 samplerCount = 0;
         UInt32 generation = 1;
@@ -203,6 +227,7 @@ namespace JBro::Internal
         Bool Initialize(const RHIDeviceCreateInfo& createInfo);
         void Shutdown();
 
+        DeviceCaps GetCaps() const override;
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
         Bool WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data) override;
@@ -292,6 +317,8 @@ namespace JBro::Internal
         VkDebugUtilsMessengerEXT m_messenger = VK_NULL_HANDLE;
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
         VkPhysicalDeviceMemoryProperties m_memoryProperties = {};
+        // 고른 장치의 한계다. 상수 버퍼의 묶는 크기와 오프셋 정렬을 여기서 읽는다.
+        VkPhysicalDeviceLimits m_limits = {};
         VkDevice m_device = VK_NULL_HANDLE;
         VkQueue m_queue = VK_NULL_HANDLE;
         UInt32 m_queueFamily = 0;

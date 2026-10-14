@@ -62,6 +62,10 @@ namespace JBro::Internal
         {
             sampler = VK_NULL_HANDLE;
         }
+        for (PendingConstantBuffer& constants : m_pendingConstantBuffers)
+        {
+            constants = {};
+        }
         m_descriptorsDirty = false;
         m_renderPassActive = false;
         m_pipelineActive = false;
@@ -268,7 +272,44 @@ namespace JBro::Internal
         {
             sampler = VK_NULL_HANDLE;
         }
+        for (PendingConstantBuffer& constants : m_pendingConstantBuffers)
+        {
+            constants = {};
+        }
         m_descriptorsDirty = true;
+        return true;
+    }
+
+    Bool VulkanCommandContext::SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size)
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr || m_device == nullptr
+            || slot == 0 || slot > m_activePipeline->constantBufferCount)
+        {
+            return false;
+        }
+        const DeviceCaps caps = m_device->GetCaps();
+        VkBuffer native = VK_NULL_HANDLE;
+        BufferDesc desc;
+        if (false == m_device->ResolveBuffer(buffer, native, desc)
+            || false == HasBufferUsage(desc.usage, BufferUsage::Constant)
+            || size == 0
+            || size > caps.maxConstantBufferBytes
+            || offset % caps.constantBufferAlignment != 0
+            || size % caps.constantBufferAlignment != 0
+            || offset > desc.size
+            || size > desc.size - offset)
+        {
+            return false;
+        }
+        PendingConstantBuffer& pending = m_pendingConstantBuffers[slot];
+        if (pending.buffer != native || pending.size != size || pending.offset != offset)
+        {
+            // 오프셋만 바뀌어도 set 을 다시 건다(동적 오프셋은 묶을 때 넘긴다). 버퍼·크기가 같으면 캐시된 set 을 그대로 쓴다.
+            pending.buffer = native;
+            pending.size = size;
+            pending.offset = static_cast<UInt32>(offset);
+            m_descriptorsDirty = true;
+        }
         return true;
     }
 
@@ -369,6 +410,13 @@ namespace JBro::Internal
             return true;
         }
         // 파이프라인이 선언한 자리가 다 채워져야 한다. 빈 디스크립터는 검증 오류다.
+        for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount; ++slot)
+        {
+            if (m_pendingConstantBuffers[slot].buffer == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
         for (UInt32 slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
         {
             if (m_pendingTextures[slot] == VK_NULL_HANDLE)
@@ -383,11 +431,19 @@ namespace JBro::Internal
                 return false;
             }
         }
+        // 동적 오프셋은 binding 번호 순서다. 상수 버퍼가 binding 1..N 으로 가장 앞이라 슬롯 순서 그대로다.
+        // Vulkan 에 그대로 넘기는 배열이라 원시 타입이다(서드파티 경계).
+        std::uint32_t dynamicOffsets[MaxBoundConstantBuffers] = {};
+        const UInt32 dynamicOffsetCount = m_activePipeline->constantBufferCount;
+        for (UInt32 slot = 1; slot <= dynamicOffsetCount; ++slot)
+        {
+            dynamicOffsets[slot - 1] = m_pendingConstantBuffers[slot].offset.Get();
+        }
         VkDescriptorSet set = VK_NULL_HANDLE;
         if (FindCachedSet(set))
         {
             vk.vkCmdBindDescriptorSets(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, m_activePipeline->layout, 0, 1,
-                &set, 0, nullptr);
+                &set, dynamicOffsetCount, dynamicOffsets);
             m_descriptorsDirty = false;
             return true;
         }
@@ -400,37 +456,52 @@ namespace JBro::Internal
             return false;
         }
         RememberSet(set);
+        VkDescriptorBufferInfo buffers[MaxBoundConstantBuffers] = {};
         VkDescriptorImageInfo images[MaxBoundTextures + MaxBoundSamplers] = {};
-        VkWriteDescriptorSet writes[MaxBoundTextures + MaxBoundSamplers] = {};
+        VkWriteDescriptorSet writes[MaxBoundConstantBuffers + MaxBoundTextures + MaxBoundSamplers] = {};
         UInt32 writeCount = 0;
+        UInt32 imageCount = 0;
+        for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount; ++slot)
+        {
+            // 오프셋은 0 으로 적고 묶을 때 동적 오프셋으로 준다.
+            VkDescriptorBufferInfo& info = buffers[slot - 1];
+            info.buffer = m_pendingConstantBuffers[slot].buffer;
+            info.offset = 0;
+            info.range = m_pendingConstantBuffers[slot].size;
+            VkWriteDescriptorSet& write = writes[writeCount++];
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = set;
+            write.dstBinding = slot;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            write.pBufferInfo = &info;
+        }
         for (UInt32 slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
         {
-            images[writeCount].imageView = m_pendingTextures[slot];
-            images[writeCount].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            VkWriteDescriptorSet& write = writes[writeCount];
+            images[imageCount].imageView = m_pendingTextures[slot];
+            images[imageCount].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkWriteDescriptorSet& write = writes[writeCount++];
             write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             write.dstSet = set;
             write.dstBinding = TextureBindingBase + slot;
             write.descriptorCount = 1;
             write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            write.pImageInfo = &images[writeCount];
-            ++writeCount;
+            write.pImageInfo = &images[imageCount++];
         }
         for (UInt32 slot = 0; slot < m_activePipeline->samplerCount; ++slot)
         {
-            images[writeCount].sampler = m_pendingSamplers[slot];
-            VkWriteDescriptorSet& write = writes[writeCount];
+            images[imageCount].sampler = m_pendingSamplers[slot];
+            VkWriteDescriptorSet& write = writes[writeCount++];
             write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             write.dstSet = set;
             write.dstBinding = SamplerBindingBase + slot;
             write.descriptorCount = 1;
             write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-            write.pImageInfo = &images[writeCount];
-            ++writeCount;
+            write.pImageInfo = &images[imageCount++];
         }
         vk.vkUpdateDescriptorSets(m_device->GetNativeDevice(), writeCount, writes, 0, nullptr);
         vk.vkCmdBindDescriptorSets(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, m_activePipeline->layout, 0, 1, &set,
-            0, nullptr);
+            dynamicOffsetCount, dynamicOffsets);
         m_descriptorsDirty = false;
         return true;
     }
@@ -452,6 +523,12 @@ namespace JBro::Internal
             for (UInt32 slot = 0; slot < m_activePipeline->samplerCount && same; ++slot)
             {
                 same = candidate.samplers[slot] == m_pendingSamplers[slot];
+            }
+            // 오프셋은 키가 아니다 - 동적 오프셋이라 같은 set 을 다른 구간으로 다시 건다.
+            for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount && same; ++slot)
+            {
+                same = candidate.constantBuffers[slot] == m_pendingConstantBuffers[slot].buffer
+                    && candidate.constantSizes[slot] == m_pendingConstantBuffers[slot].size;
             }
             if (same)
             {
@@ -478,6 +555,12 @@ namespace JBro::Internal
         {
             entry.samplers[slot] = slot < m_activePipeline->samplerCount ? m_pendingSamplers[slot] : VK_NULL_HANDLE;
         }
+        for (UInt32 slot = 0; slot <= MaxBoundConstantBuffers; ++slot)
+        {
+            const Bool declared = slot != 0 && slot <= m_activePipeline->constantBufferCount;
+            entry.constantBuffers[slot] = declared ? m_pendingConstantBuffers[slot].buffer : VK_NULL_HANDLE;
+            entry.constantSizes[slot] = declared ? m_pendingConstantBuffers[slot].size : 0;
+        }
     }
 
     Bool VulkanCommandContext::DrawIndexedInstanced(
@@ -487,12 +570,34 @@ namespace JBro::Internal
         Int32 baseVertex,
         UInt32 firstInstance)
     {
-        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
-            || indexCount == 0 || instanceCount == 0 || false == BindPendingDescriptors())
+        if (indexCount == 0 || instanceCount == 0 || false == PrepareDraw())
         {
             return false;
         }
         vk.vkCmdDrawIndexed(m_commands, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
         return true;
+    }
+
+    Bool VulkanCommandContext::DrawInstanced(
+        UInt32 vertexCount,
+        UInt32 instanceCount,
+        UInt32 firstVertex,
+        UInt32 firstInstance)
+    {
+        if (vertexCount == 0 || instanceCount == 0 || false == PrepareDraw())
+        {
+            return false;
+        }
+        vk.vkCmdDraw(m_commands, vertexCount, instanceCount, firstVertex, firstInstance);
+        return true;
+    }
+
+    Bool VulkanCommandContext::PrepareDraw()
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr)
+        {
+            return false;
+        }
+        return BindPendingDescriptors();
     }
 }

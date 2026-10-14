@@ -298,6 +298,9 @@ namespace JBro::Internal
         m_physicalDevice = chosen;
         m_queueFamily = chosenFamily;
         vk.vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_memoryProperties);
+        VkPhysicalDeviceProperties chosenProperties = {};
+        vk.vkGetPhysicalDeviceProperties(m_physicalDevice, &chosenProperties);
+        m_limits = chosenProperties.limits;
         return true;
     }
 
@@ -363,12 +366,14 @@ namespace JBro::Internal
             fence.flags = VK_FENCE_CREATE_SIGNALED_BIT;
             VkSemaphoreCreateInfo semaphore = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
             // 드로우마다 set 하나다. UI 는 드로우가 수백이라 넉넉히 둔다.
+            // 상수 버퍼는 동적 유니폼 버퍼다. 링의 구간만 바뀌는 드로우는 set 을 새로 잡지 않으므로 텍스처만큼 들지 않는다.
             const VkDescriptorPoolSize sizes[] = {
                 {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4096 * MaxBoundTextures},
-                {VK_DESCRIPTOR_TYPE_SAMPLER, 4096 * MaxBoundSamplers}};
+                {VK_DESCRIPTOR_TYPE_SAMPLER, 4096 * MaxBoundSamplers},
+                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1024 * MaxBoundConstantBuffers}};
             VkDescriptorPoolCreateInfo pool = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
             pool.maxSets = 4096;
-            pool.poolSizeCount = 2;
+            pool.poolSizeCount = 3;
             pool.pPoolSizes = sizes;
             if (vk.vkAllocateCommandBuffers(m_device, &allocate, &slot.commands) != VK_SUCCESS
                 || vk.vkCreateFence(m_device, &fence, nullptr, &slot.fence) != VK_SUCCESS
@@ -1219,6 +1224,26 @@ namespace JBro::Internal
     UInt32 VulkanDevice::GetFramesInFlight() const
     {
         return m_slotCount;
+    }
+
+    DeviceCaps VulkanDevice::GetCaps() const
+    {
+        DeviceCaps caps;
+        caps.maxConstantBuffers = MaxBoundConstantBuffers;
+        caps.maxSampledTextures = MaxBoundTextures;
+        caps.maxSamplers = MaxBoundSamplers;
+        // 정렬은 공통 256 B 를 지킨다. 장치가 그보다 크게 요구하면(명세상 256 이 상한이라 없을 일이다) 그것을 따른다.
+        if (m_limits.minUniformBufferOffsetAlignment > caps.constantBufferAlignment)
+        {
+            caps.constantBufferAlignment = static_cast<UInt32>(m_limits.minUniformBufferOffsetAlignment);
+        }
+        // 명세가 보장하는 최소는 16 KiB 다. 대부분의 장치는 64 KiB 이상이다 - 공통 상한 64 KiB 를 넘지는 않는다.
+        if (m_limits.maxUniformBufferRange != 0 && m_limits.maxUniformBufferRange < caps.maxConstantBufferBytes)
+        {
+            caps.maxConstantBufferBytes = m_limits.maxUniformBufferRange / caps.constantBufferAlignment
+                * caps.constantBufferAlignment;
+        }
+        return caps;
     }
 
     UInt32 VulkanDevice::GetValidationErrorCount() const

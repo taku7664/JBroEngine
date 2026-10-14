@@ -25,6 +25,11 @@ namespace JBro::Internal
     {
         m_device = device;
         m_context = context;
+        m_context1.Reset();
+        if (context != nullptr)
+        {
+            context->QueryInterface(IID_PPV_ARGS(&m_context1));
+        }
         Reset();
     }
 
@@ -32,7 +37,12 @@ namespace JBro::Internal
     {
         m_activePipeline = {};
         m_activePushConstantBytes = 0;
+        m_activeBindings = {};
         m_activeConstantBuffer = nullptr;
+        for (Bool& bound : m_constantBufferBound)
+        {
+            bound = false;
+        }
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -62,6 +72,7 @@ namespace JBro::Internal
         // 그리려는 텍스처가 아직 셰이더 자원으로 걸려 있으면 D3D11 이 경고를 내며 스스로 뗀다.
         // 먼저 떼어 조용히 간다 - 에디터가 시뮬레이션 뷰를 그린 뒤 같은 프레임에 읽는 길이 그렇다.
         ID3D11ShaderResourceView* noResources[MaxBoundTextures] = {};
+        m_context->VSSetShaderResources(0, MaxBoundTextures, noResources);
         m_context->PSSetShaderResources(0, MaxBoundTextures, noResources);
         m_context->OMSetRenderTargets(desc.colorAttachments.size, views, depthView);
         // 래스터라이저가 시저를 켜 두므로 기본 시저가 있어야 한다 - 없으면 D3D11 의 초기 시저는 빈 사각형이라
@@ -195,7 +206,14 @@ namespace JBro::Internal
         m_activePipeline = pipeline;
         m_activePushConstantBytes = state->pushConstantBytes;
         m_activePushConstantStages = state->pushConstantStages;
+        m_activeBindings = state->bindings;
         m_activeConstantBuffer = state->constantBuffer;
+        // 묶어 둔 상수 버퍼는 버린다 - D3D12 는 루트 시그니처가 바뀌면 루트 인자가 사라지고, 계약이 그쪽에 맞춘다.
+        // 컨텍스트의 자리에는 남아 있으므로 빠뜨린 슬롯을 그리기가 알아채도록 표시만 지운다.
+        for (Bool& bound : m_constantBufferBound)
+        {
+            bound = false;
+        }
         m_pipelineActive = true;
         return true;
     }
@@ -277,12 +295,20 @@ namespace JBro::Internal
     Bool D3D11CommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
         ID3D11ShaderResourceView* view = nullptr;
+        // 파이프라인이 선언하지 않은 자리는 거절한다 - D3D12·Vulkan 은 그 칸이 없어 거절하고, 계약이 같아야 한다.
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
-            || slot >= MaxBoundTextures || false == m_device->ResolveShaderResourceView(texture, view))
+            || slot >= m_activeBindings.sampledTextures.count || false == m_device->ResolveShaderResourceView(texture, view))
         {
             return false;
         }
-        m_context->PSSetShaderResources(slot, 1, &view);
+        if (HasStage(m_activeBindings.sampledTextures.stages, ShaderStage::Vertex))
+        {
+            m_context->VSSetShaderResources(slot, 1, &view);
+        }
+        if (HasStage(m_activeBindings.sampledTextures.stages, ShaderStage::Pixel))
+        {
+            m_context->PSSetShaderResources(slot, 1, &view);
+        }
         return true;
     }
 
@@ -290,11 +316,87 @@ namespace JBro::Internal
     {
         ID3D11SamplerState* native = nullptr;
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
-            || slot >= MaxBoundSamplers || false == m_device->ResolveSampler(sampler, native))
+            || slot >= m_activeBindings.samplers.count || false == m_device->ResolveSampler(sampler, native))
         {
             return false;
         }
-        m_context->PSSetSamplers(slot, 1, &native);
+        if (HasStage(m_activeBindings.samplers.stages, ShaderStage::Vertex))
+        {
+            m_context->VSSetSamplers(slot, 1, &native);
+        }
+        if (HasStage(m_activeBindings.samplers.stages, ShaderStage::Pixel))
+        {
+            m_context->PSSetSamplers(slot, 1, &native);
+        }
+        return true;
+    }
+
+    Bool D3D11CommandContext::SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size)
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
+            || slot == 0 || slot > m_activeBindings.constantBuffers.count)
+        {
+            return false;
+        }
+        const DeviceCaps caps = m_device->GetCaps();
+        ID3D11Buffer* native = nullptr;
+        BufferDesc desc;
+        if (false == m_device->ResolveBuffer(buffer, native, desc)
+            || false == HasBufferUsage(desc.usage, BufferUsage::Constant)
+            || size == 0
+            || size > caps.maxConstantBufferBytes
+            || offset % caps.constantBufferAlignment != 0
+            || size % caps.constantBufferAlignment != 0
+            || offset > desc.size
+            || size > desc.size - offset
+            || (offset != 0 && false == caps.constantBufferOffsets))
+        {
+            return false;
+        }
+        const ShaderStage stages = m_activeBindings.constantBuffers.stages;
+        if (caps.constantBufferOffsets && m_context1 != nullptr)
+        {
+            // 단위는 16 B 상수다. 정렬 256 B 가 곧 상수 16 개라 11.1 의 "16 의 배수" 조건이 저절로 맞는다.
+            const UINT firstConstant = static_cast<UINT>(offset / 16);
+            const UINT constantCount = static_cast<UINT>(size / 16);
+            if (HasStage(stages, ShaderStage::Vertex))
+            {
+                m_context1->VSSetConstantBuffers1(slot, 1, &native, &firstConstant, &constantCount);
+            }
+            if (HasStage(stages, ShaderStage::Pixel))
+            {
+                m_context1->PSSetConstantBuffers1(slot, 1, &native, &firstConstant, &constantCount);
+            }
+        }
+        else
+        {
+            if (HasStage(stages, ShaderStage::Vertex))
+            {
+                m_context->VSSetConstantBuffers(slot, 1, &native);
+            }
+            if (HasStage(stages, ShaderStage::Pixel))
+            {
+                m_context->PSSetConstantBuffers(slot, 1, &native);
+            }
+        }
+        m_constantBufferBound[slot] = true;
+        return true;
+    }
+
+    Bool D3D11CommandContext::PrepareDraw() const
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive)
+        {
+            return false;
+        }
+        // 선언한 상수 버퍼가 하나라도 비어 있으면 그리지 않는다. D3D11 은 지난 파이프라인이 남긴 버퍼를 조용히 읽는다.
+        for (UInt32 slot = 1; slot <= m_activeBindings.constantBuffers.count; ++slot)
+        {
+            if (false == m_constantBufferBound[slot])
+            {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -305,11 +407,25 @@ namespace JBro::Internal
         Int32 baseVertex,
         UInt32 firstInstance)
     {
-        if (false == m_renderPassActive || false == m_pipelineActive || indexCount == 0 || instanceCount == 0)
+        if (indexCount == 0 || instanceCount == 0 || false == PrepareDraw())
         {
             return false;
         }
         m_context->DrawIndexedInstanced(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+        return true;
+    }
+
+    Bool D3D11CommandContext::DrawInstanced(
+        UInt32 vertexCount,
+        UInt32 instanceCount,
+        UInt32 firstVertex,
+        UInt32 firstInstance)
+    {
+        if (vertexCount == 0 || instanceCount == 0 || false == PrepareDraw())
+        {
+            return false;
+        }
+        m_context->DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance);
         return true;
     }
 }

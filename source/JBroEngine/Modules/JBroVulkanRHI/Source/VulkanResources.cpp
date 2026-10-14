@@ -23,6 +23,17 @@ namespace JBro::Internal
             return VK_FORMAT_R16G16B16A16_SFLOAT;
         case TextureFormat::D32Float:
             return VK_FORMAT_D32_SFLOAT;
+        // DXGI 의 R11G11B10_FLOAT 와 비트 배치가 같다 - 이름이 낮은 비트부터가 아니라 높은 비트부터 적혔을 뿐이다.
+        case TextureFormat::R11G11B10Float:
+            return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+        case TextureFormat::R16Float:
+            return VK_FORMAT_R16_SFLOAT;
+        case TextureFormat::R32Float:
+            return VK_FORMAT_R32_SFLOAT;
+        case TextureFormat::RG16Float:
+            return VK_FORMAT_R16G16_SFLOAT;
+        case TextureFormat::RGBA32Float:
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
         case TextureFormat::Unknown:
             return VK_FORMAT_UNDEFINED;
         }
@@ -31,20 +42,7 @@ namespace JBro::Internal
 
     UInt32 VulkanPixelSize(TextureFormat format)
     {
-        switch (format)
-        {
-        case TextureFormat::RGBA8Unorm:
-        case TextureFormat::RGBA8UnormSrgb:
-        case TextureFormat::BGRA8Unorm:
-        case TextureFormat::BGRA8UnormSrgb:
-        case TextureFormat::D32Float:
-            return 4;
-        case TextureFormat::RGBA16Float:
-            return 8;
-        case TextureFormat::Unknown:
-            return 0;
-        }
-        return 0;
+        return GetTexelSize(format);
     }
 
     namespace
@@ -316,6 +314,27 @@ namespace JBro::Internal
             || (static_cast<JBro::UInt32>(desc.usage) & ~TextureUsageMask) != 0
             || desc.usage == TextureUsage::None || HasTextureUsage(desc.usage, TextureUsage::Storage)
             || (depth && (renderTarget || false == depthStencil)) || (false == depth && depthStencil))
+        {
+            return {};
+        }
+        // 포맷이 그 쓰임을 지원하는지 장치에 묻는다. R11G11B10 의 색 첨부처럼 명세가 보장하지 않는 것이 있다 - 묻지 않으면
+        // 이미지는 만들어지고 그리는 자리에서 검증 오류가 난다. D3D 는 이 포맷들을 모두 필수로 지원한다.
+        VkFormatFeatureFlags wanted = VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+        if (HasTextureUsage(desc.usage, TextureUsage::Sampled))
+        {
+            wanted |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        }
+        if (renderTarget)
+        {
+            wanted |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+        }
+        if (depthStencil)
+        {
+            wanted |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        }
+        VkFormatProperties support = {};
+        vk.vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &support);
+        if ((support.optimalTilingFeatures & wanted) != wanted)
         {
             return {};
         }

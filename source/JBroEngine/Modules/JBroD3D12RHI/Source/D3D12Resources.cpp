@@ -64,6 +64,16 @@ namespace JBro::Internal
                 return DXGI_FORMAT_R16G16B16A16_FLOAT;
             case TextureFormat::D32Float:
                 return DXGI_FORMAT_D32_FLOAT;
+            case TextureFormat::R11G11B10Float:
+                return DXGI_FORMAT_R11G11B10_FLOAT;
+            case TextureFormat::R16Float:
+                return DXGI_FORMAT_R16_FLOAT;
+            case TextureFormat::R32Float:
+                return DXGI_FORMAT_R32_FLOAT;
+            case TextureFormat::RG16Float:
+                return DXGI_FORMAT_R16G16_FLOAT;
+            case TextureFormat::RGBA32Float:
+                return DXGI_FORMAT_R32G32B32A32_FLOAT;
             case TextureFormat::Unknown:
                 return DXGI_FORMAT_UNKNOWN;
             }
@@ -74,19 +84,7 @@ namespace JBro::Internal
         // 읽기 경로가 지원하는 포맷의 픽셀 크기다. 0 이면 지원하지 않는 포맷이다.
         UInt32 ReadbackPixelSize(TextureFormat format)
         {
-            switch (format)
-            {
-                case TextureFormat::RGBA8Unorm:
-                case TextureFormat::RGBA8UnormSrgb:
-                case TextureFormat::BGRA8Unorm:
-                case TextureFormat::BGRA8UnormSrgb:
-                case TextureFormat::D32Float:
-                    return 4;
-                case TextureFormat::RGBA16Float:
-                    return 8;
-                default:
-                    return 0;
-            }
+            return GetTexelSize(format);
         }
 
         Bool IsSrgbFormat(TextureFormat format)
@@ -289,6 +287,16 @@ namespace JBro::Internal
     UInt32 D3D12Device::GetFramesInFlight() const
     {
         return MaxFramesInFlight;
+    }
+
+    DeviceCaps D3D12Device::GetCaps() const
+    {
+        // 공통 바닥 그대로다. 루트 CBV 는 256 B 정렬 주소를 요구하고, 묶는 크기는 셰이더가 정한다(64 KiB 까지).
+        DeviceCaps caps;
+        caps.maxConstantBuffers = MaxBoundConstantBuffers;
+        caps.maxSampledTextures = MaxBoundTextures;
+        caps.maxSamplers = MaxBoundSamplers;
+        return caps;
     }
 
     UInt32 D3D12Device::GetValidationErrorCount() const
@@ -636,6 +644,7 @@ namespace JBro::Internal
         binding.resource = state.resource.Get();
         binding.gpuAddress = state.resource->GetGPUVirtualAddress();
         binding.size = state.allocatedSize;
+        binding.requestedSize = state.desc.size;
         binding.usage = state.desc.usage;
         return true;
     }

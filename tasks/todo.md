@@ -314,7 +314,8 @@
     거둔다. 에디터의 캔버스 로드는 `CloseProject` 첫머리에서 취소하고 기다린다. 텍스트 라이브러리는 전부터 `Shutdown` 에서 기다렸다.
 
 - `[진행]` **RHI 에 상수·구조화 버퍼 바인딩과 컴퓨트 파이프라인**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.1). 재질(3D todo)과 후처리가 이것 없이 서지 않는다.
-  지금은 푸시 상수와 텍스처·샘플러 슬롯뿐이다.
+  1 단계(바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷)가 섰다(D-325). Vulkan 의 그리기 시험은 SPIR-V 시험 셰이더를 구운 뒤다(계획 §3.1).
+  남은 것은 서브리소스·깊이 읽기·3D 텍스처(2 단계), 컴퓨트·UAV·구조화 버퍼(3 단계)다.
 - `[진행]` **렌더 패스 그래프**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.2). `Renderer::RecordViews` 의 고정 패스를
   읽기·쓰기를 선언하는 DAG 로 바꾸고 지금 패스(라이트맵·그림자·레이어 합성·외곽선)도 옮긴다. ~~선형 구조, 완전한 DAG 는 이 단계에서 과하다~~ → D-322.
 - `[진행]` **`.jpak` 패키지와 게임 익스포트의 에셋**(D-232, [package-plan.md](./package-plan.md)). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬
@@ -2994,6 +2995,22 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-325. 상수 버퍼 슬롯은 b 레지스터 번호이고 b1..b7 이다(b0 은 푸시 상수). 파이프라인은 종류마다 개수와 단계를 적은 자리표를 들고, 프레임마다 바뀌는 상수는 슬롯마다의 업로드 링으로 올린다. 푸시 상수는 세 백엔드 모두 128 B 다.**
+  (2026-10-14, [postprocess-plan.md](./postprocess-plan.md) §3.1, 후처리 계획 1 단계. 인계서 [handoff-postprocess.md](./handoff-postprocess.md) 의 "다음에 시작할 일")
+  Updates: D-322(1 단계를 세운다), D-107·D-108(세 백엔드의 같은 계약에 상수 버퍼를 더한다).
+  (1) `GraphicsPipelineDesc::bindings`(`BindingLayoutDesc`)가 `sampledTextureCount`·`samplerCount` 를 대신한다. 종류마다 `BindingRange{count, stages}` 이고 검사는 `IsBindingLayoutValid` 하나다.
+  상한은 `IRHIDevice::GetCaps()` 의 `DeviceCaps` 가 말한다. UAV 는 3 단계에서 같은 표에 더한다.
+  (2) 상수 버퍼 슬롯 번호는 HLSL `b` 레지스터 번호다. b0 은 푸시 상수(D3D12 루트 상수·D3D11 파이프라인 상수 버퍼·`[[vk::push_constant]]`)라 비워 두고 b1..b7 을 쓴다.
+  SPIR-V 는 b-shift 없이 binding 1..7 이다 - 계획 §2.1 의 "binding 0~7 에 `-fvk-b-shift`" 를 이것이 대신한다(b0 이 binding 을 갖지 않으므로 옮길 것이 없다).
+  (3) `SetConstantBuffer(slot, buffer, offset, size)` 의 오프셋·크기는 256 B 배수다. D3D12 는 루트 CBV, D3D11 은 11.1 의 `*SetConstantBuffers1`, Vulkan 은 동적 유니폼 버퍼다.
+  (4) `ConstantRing`(JBroRHI)이 프레임 슬롯마다 `Upload` 상수 버퍼 하나에 정렬해 쌓는다. **`Upload` 상수 버퍼는 링으로만 쓴다** - 오프셋 0 쓰기가 새 바퀴(D3D11 은 `DISCARD`),
+  그 뒤는 쓴 구간을 다시 쓰지 않는다(`NO_OVERWRITE`). D3D11 은 두 11.1 기능이 다 있어야 `constantBufferOffsets` 가 참이고, 아니면 링을 만들지 않는다.
+  (5) 푸시 상수 상한을 세 백엔드 모두 128 B(`MaxPushConstantBytes`)로 둔다 - Vulkan 이 보장하는 최소다. 더 큰 것은 상수 버퍼로 올린다.
+  (6) 인덱스 없는 그리기 `DrawInstanced` 와 포맷 `R11G11B10Float`·`R16Float`·`R32Float`·`RG16Float`·`RGBA32Float`(enum 끝). Vulkan 은 포맷의 쓰임을 장치에 묻고 없으면 만들지 않는다.
+  (7) D3D11 이 선언하지 않은 텍스처·샘플러 슬롯을 거절한다(전에는 8·4 안이면 받았다) - 세 백엔드의 계약을 맞췄다.
+  **섰다 - 단, Vulkan 의 그리기 시험은 남았다.** 이 기계에 Vulkan SDK 의 dxc 가 없어 시험 셰이더의 SPIR-V 를 굽지 못했다(사용자 결정 "Vulkan은 나중에", 받지 않는다).
+  Vulkan 은 상한·링 시험만 돌고 묶기·그리기·포맷은 컴파일만 됐다.
 
 - **D-324. 노드 그래프 창을 기존 에디터 관례에 맞춘다 - 캔버스 뷰의 부드러운 카메라, 입력과 그리기의 분리, 도크마다의 창 클래스, 노드 인스펙터 패널, 저장하지 않은 것을 묻는 창.**
   (2026-10-07, [node-graph-plan.md](./node-graph-plan.md) §3, 사용자 지적: "왜 캔버스뷰처럼 부드러운 무브먼트로 안만들었는가", "노드 잡았다 뗐을 때 잠깐 순간이동했다 돌아옴",

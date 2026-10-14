@@ -489,8 +489,8 @@ namespace
             pipelineDesc.vertexBuffers = {&layout, 1};
             pipelineDesc.colorFormats = {colorFormats, 1};
             pipelineDesc.cull = JBro::CullMode::None;
-            pipelineDesc.sampledTextureCount = 1;
-            pipelineDesc.samplerCount = 1;
+            pipelineDesc.bindings.sampledTextures.count = 1;
+            pipelineDesc.bindings.samplers.count = 1;
             const JBro::GraphicsPipelineHandle pipeline = device->CreateGraphicsPipeline(pipelineDesc);
 
             // 오버레이로 그린다 - 렌더러의 뷰 기록 뒤, 프레임 안에서 컨텍스트를 받는 유일한 길이다.

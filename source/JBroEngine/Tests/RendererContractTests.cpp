@@ -144,6 +144,22 @@ namespace
             return true;
         }
 
+        // 렌더러는 아직 상수 버퍼를 묶지도, 인덱스 없이 그리지도 않는다(후처리 계획의 5 단계부터). 세기만 한다.
+        JBro::Bool SetConstantBuffer(JBro::UInt32, JBro::BufferHandle, std::size_t, std::size_t) override
+        {
+            ++setConstantBufferCount;
+            return true;
+        }
+
+        JBro::Bool DrawInstanced(JBro::UInt32, JBro::UInt32, JBro::UInt32, JBro::UInt32) override
+        {
+            ++drawInstancedCount;
+            return true;
+        }
+
+        JBro::UInt32 setConstantBufferCount = 0;
+        JBro::UInt32 drawInstancedCount = 0;
+
         JBro::Bool DrawIndexedInstanced(
             JBro::UInt32,
             JBro::UInt32 instanceCount,
@@ -182,6 +198,11 @@ namespace
     class FakeDevice final : public JBro::IRHIDevice
     {
     public:
+        JBro::DeviceCaps GetCaps() const override
+        {
+            return {};
+        }
+
         JBro::BufferHandle CreateBuffer(const JBro::BufferDesc&) override
         {
             return {1, 1};

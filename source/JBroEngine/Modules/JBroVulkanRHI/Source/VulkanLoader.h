@@ -28,6 +28,7 @@ namespace JBro::Internal
     X(vkGetPhysicalDeviceProperties)                                                                           \
     X(vkGetPhysicalDeviceQueueFamilyProperties)                                                                \
     X(vkGetPhysicalDeviceMemoryProperties)                                                                     \
+    X(vkGetPhysicalDeviceFormatProperties)                                                                     \
     X(vkGetPhysicalDeviceFeatures2)                                                                            \
     X(vkEnumerateDeviceExtensionProperties)                                                                    \
     X(vkCreateDevice)                                                                                          \
@@ -107,6 +108,7 @@ namespace JBro::Internal
     X(vkCmdPushConstants)                                                                                      \
     X(vkCmdBindDescriptorSets)                                                                                 \
     X(vkCmdDrawIndexed)                                                                                        \
+    X(vkCmdDraw)                                                                                               \
     X(vkCmdCopyBufferToImage)                                                                                  \
     X(vkCmdCopyImageToBuffer)                                                                                  \
     X(vkCmdCopyImage)

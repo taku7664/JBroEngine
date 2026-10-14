@@ -22,6 +22,16 @@ namespace JBro::Internal
                 return DXGI_FORMAT_R16G16B16A16_FLOAT;
             case TextureFormat::D32Float:
                 return DXGI_FORMAT_D32_FLOAT;
+            case TextureFormat::R11G11B10Float:
+                return DXGI_FORMAT_R11G11B10_FLOAT;
+            case TextureFormat::R16Float:
+                return DXGI_FORMAT_R16_FLOAT;
+            case TextureFormat::R32Float:
+                return DXGI_FORMAT_R32_FLOAT;
+            case TextureFormat::RG16Float:
+                return DXGI_FORMAT_R16G16_FLOAT;
+            case TextureFormat::RGBA32Float:
+                return DXGI_FORMAT_R32G32B32A32_FLOAT;
             case TextureFormat::Unknown:
                 return DXGI_FORMAT_UNKNOWN;
             }

@@ -57,6 +57,8 @@ JBro::Int32 RunD3D12SmokeTests();
 JBro::Int32 RunD3D11SmokeTests();
 JBro::Int32 RunVulkanSmokeTests();
 JBro::Int32 RunTextureBindingTests();
+JBro::Int32 RunConstantBufferTests();
+JBro::Int32 RunRenderTargetFormatTests();
 JBro::Int32 RunReferenceSafetyTests();
 JBro::Int32 RunFramework2DSystemTests();
 JBro::Int32 RunNetworkHostTests();
@@ -417,6 +419,14 @@ int main()
             return 1;
         }
         if (false == RunSuite("TextureBinding", &RunTextureBindingTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ConstantBuffer", &RunConstantBufferTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("RenderTargetFormat", &RunRenderTargetFormatTests))
         {
             return 1;
         }

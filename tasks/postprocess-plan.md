@@ -132,7 +132,7 @@
 
 각 단계는 빌드·시험·뮤테이션 뒤 커밋한다. 픽셀 시험은 세 백엔드(D3D12·D3D11·Vulkan)에서 **디버그 레이어를 켜고** 잰다.
 
-1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷.
+1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14) - Vulkan 의 그리기 시험만 남았다(§3.1).**
 2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처.
 3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`.
 4. 셰이더 매니페스트와 Shader 에셋(빌트인 셰이더를 옮긴다).
@@ -143,6 +143,65 @@
 9. 레이어 프로필과 `AfterLayer`.
 10. 볼륨과 섞기·스크립트 서비스.
 11. Material 에셋과 범용 머티리얼 효과(셰이더 그래프 앞의 마지막 칸).
+
+### 3.1 1 단계 - 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷 (D-325)
+
+무엇이 섰나(계약의 원문은 `RHI.h`·`ConstantRing.h` 의 주석이다):
+
+| 것 | 모양 |
+|---|---|
+| 자리표 | `GraphicsPipelineDesc::bindings` = `BindingLayoutDesc{constantBuffers, sampledTextures, samplers}`. 종류마다 `BindingRange{count, stages}`. 옛 `sampledTextureCount`·`samplerCount` 를 대신한다. 검사는 공용 `IsBindingLayoutValid` 하나 |
+| 슬롯 | 상수 버퍼 슬롯 번호 = `b` 레지스터 번호. **b0 은 푸시 상수 자리라 비우고 b1..b7** 을 쓴다. SPIR-V 는 b-shift 없이 binding 1..7 - 비어 있던 0..7 안이다 |
+| 상한 | `IRHIDevice::GetCaps()` → `DeviceCaps`. 상수 버퍼 7·텍스처 8·샘플러 4·푸시 상수 128 B·정렬 256 B·한 번에 묶는 크기 64 KiB(Vulkan 은 `maxUniformBufferRange` 와 작은 쪽)·`constantBufferOffsets` |
+| 푸시 상수 | 세 백엔드 모두 128 B(`MaxPushConstantBytes`). D3D12·D3D11 의 256 B 를 내렸다. 지금 가장 큰 사용처는 80 B(`Renderer.cpp` 그림자 마스크) |
+| 묶기 | `SetConstantBuffer(slot, buffer, offset, size)`. 오프셋·크기는 256 B 배수, 구간은 만들 때 받은 크기 안. 텍스처처럼 파이프라인을 바꾸면 버려지고, 선언한 슬롯이 비면 그리지 않는다 |
+| 링 | `ConstantRing`(JBroRHI). 프레임 슬롯마다 `Upload` 상수 버퍼 하나, `BeginFrame(slot)` 으로 처음부터, `Push` 는 정렬된 다음 자리에 memcpy. 차면 빈 구간(되감지 않는다) |
+| 그리기 | `DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance)`. 정점 버퍼 없는 파이프라인이 된다(전체 화면 삼각형) |
+| 포맷 | `R11G11B10Float`·`R16Float`·`R32Float`·`RG16Float`·`RGBA32Float` 를 enum 끝에 더했다. 텍셀 크기는 공용 `GetTexelSize` 하나 |
+
+백엔드마다 다른 것:
+
+| | D3D12 | D3D11 | Vulkan |
+|---|---|---|---|
+| 상수 버퍼 | 슬롯마다 루트 CBV. 루트는 푸시 32 + CBV 7×2 + 표 2 = 48 DWORD | `*SetConstantBuffers1`(11.1) 로 구간을 묶는다. 없으면 오프셋 0 만 | `UNIFORM_BUFFER_DYNAMIC` + 동적 오프셋. set 캐시 키는 버퍼·크기이고 오프셋은 키가 아니다 |
+| 링의 버퍼 | 업로드 힙, 슬롯 3 | `DYNAMIC` 버퍼 하나(슬롯 1). 오프셋 0 쓰기가 `DISCARD`, 그 뒤는 `NO_OVERWRITE` | 호스트 일관 메모리, 스왑체인 슬롯 수 |
+| 단계 | 루트 파라미터 가시성 | 단계마다 `VS*`·`PS*` 를 따로 건다. 선언하지 않은 텍스처·샘플러 슬롯을 이제 거절한다(전에는 8·4 안이면 받았다) | 디스크립터 `stageFlags` |
+| 포맷 | 모두 필수 지원 | 모두 필수 지원 | 쓰임마다 `vkGetPhysicalDeviceFormatProperties` 로 묻고 없으면 만들지 않는다(R11G11B10 의 색 첨부는 명세가 보장하지 않는다) |
+
+시험(`ConstantBufferTests.cpp`·`RenderTargetFormatTests.cpp`, 시험 셰이더 `Tests/Shaders/ConstantProbe.hlsl`):
+
+- 상한이 공통 바닥인지, 자리표 검사가 넘는 수·단계 없는 종류·모르는 단계를 거절하는지.
+- 링이 정렬해 쌓고, 차면 거절하고, 프레임마다 처음부터 쓰고, 슬롯마다 다른 버퍼인지. 그리지 않으므로 세 백엔드에서 돈다.
+- 정점 버퍼 없는 삼각형 둘: 첫째는 화면 전체 빨강, 둘째는 b1(정점 단계)로 왼쪽 위 사분면에만 초록. 둘째 값이 첫째 자리를 덮으면 전부 초록이 된다.
+  b0·선언 밖 슬롯·어긋난 정렬·버퍼 밖 구간·상수 버퍼가 아닌 버퍼를 거절하고, 빈 슬롯과 파이프라인을 다시 건 뒤의 그리기를 거절한다.
+- 같은 링으로 8 프레임을 그려 마지막 색이 남는지(D3D11 의 DISCARD 길과 슬롯 되감기).
+- 다섯 포맷에 (2, 0.5, 0.25, 1) 을 그려 되읽으면 정확히 그 값인지 - 1 보다 큰 값이 UNORM 이면 잘려 드러난다.
+
+뮤테이션(2026-10-14, D3D12·D3D11, 8 개 모두 죽었다):
+
+| 망가뜨린 것 | 죽인 검사 |
+|---|---|
+| D3D12 루트 CBV 가 오프셋을 버린다 | 둘째 드로우의 왼쪽 위가 초록 |
+| D3D11 링이 늘 `DISCARD` 로 쓴다 | 같음 |
+| D3D11 이 `*SetConstantBuffers1` 대신 버퍼 통째로 묶는다 | 같음 |
+| D3D12 `R16Float` 를 `R16_UNORM` 으로 | 1 보다 큰 값을 담는다 |
+| D3D11 `R11G11B10Float` 를 `R10G10B10A2_UNORM` 으로 | 같음 |
+| 링이 크기를 정렬로 올리지 않는다 | 첫 구간이 슬롯 처음부터 정렬 크기 |
+| D3D12 상수 버퍼 가시성을 픽셀만 | 파이프라인 생성(정점 셰이더가 b1 을 읽는다) |
+| D3D12 가 빈 상수 버퍼 슬롯으로 그린다 | 빈 슬롯의 그리기는 거절 |
+
+실측 환경: 이 기계에는 VS 2026(v145)이 없어 `-p:PlatformToolset=v143` 로 빌드했다(파일은 고치지 않았다). 이 단계 전의 기준선에서
+`PlatformContract`(COM 끄기 개수)·`TextureBinding`(Vulkan 검증 레이어 없음)·`EditorApplication`(팝업이 화면 가운데)이 이미 실패했다.
+이 단계 뒤에 묶음 96 개를 하나씩 돌려 92 개가 통과했다. 실패 넷 중 `TextureBinding`·`EditorApplication` 은 위의 기준선 그대로이고,
+`InputGamepad` 는 다시 돌리면 통과했으며(흔들림), `EditorLocalization` 은 아무도 쓰지 않는 키 `node_graph.add_node` 때문이다 - 노드 그래프 작업에서
+남은 것이라 이 단계와 상관없고 따로 고친다. `PlatformContract` 는 이번에는 통과했다.
+
+남은 것:
+
+- **Vulkan 의 그리기 시험.** 이 기계에는 Vulkan SDK 의 dxc 가 없어 `ConstantProbe*_SPV.generated.h` 를 굽지 못했다(사용자 결정 "Vulkan은 나중에", 받지 않는다).
+  Vulkan SDK 가 있는 기계에서 `pwsh Tests\Shaders\Compile.ps1` 을 돌리고, 두 시험 파일의 `HasProbeShaders`·API 검사에 Vulkan 을 넣는다.
+  그때까지 Vulkan 의 상수 버퍼 묶기·`vkCmdDraw`·새 포맷은 **컴파일만 됐다**. 상한·링 시험은 Vulkan 에서도 돈다.
+- 이 기계의 Vulkan 에는 검증 레이어가 없다. 그래서 `TextureBinding` 의 "검증 손잡이가 실제로 말하는지" 가 Vulkan 에서 실패한다 - 이 단계 전부터다(§3.1 실측).
 
 ## 4. 정한 것과 미정
 

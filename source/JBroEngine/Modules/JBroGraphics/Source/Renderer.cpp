@@ -1987,8 +1987,8 @@ namespace JBro
         pipelineDesc.cull = CullMode::None;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
         pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
-        pipelineDesc.sampledTextureCount = 1;
-        pipelineDesc.samplerCount = 1;
+        pipelineDesc.bindings.sampledTextures.count = 1;
+        pipelineDesc.bindings.samplers.count = 1;
         m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         // 라이트맵(t1)을 곱하는 쌍둥이다(D-291). 라이트맵은 깊이가 없는 뷰에만 서므로 깊이 판은 없다.
         if (m_config.maxLights2D != 0)
@@ -1997,7 +1997,7 @@ namespace JBro
             litDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSpriteLitPS, sizeof(JBroBuiltinSpriteLitPS),
                 Sm5::JBroBuiltinSpriteLitPS_SM5, sizeof(Sm5::JBroBuiltinSpriteLitPS_SM5),
                 Spv::JBroBuiltinSpriteLitPS_SPV, sizeof(Spv::JBroBuiltinSpriteLitPS_SPV));
-            litDesc.sampledTextureCount = 2;
+            litDesc.bindings.sampledTextures.count = 2;
             m_litSpritePipeline = m_device->CreateGraphicsPipeline(litDesc);
             if (false == m_litSpritePipeline.IsValid())
             {
@@ -2057,7 +2057,7 @@ namespace JBro
             litDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSdfTextLitPS, sizeof(JBroBuiltinSdfTextLitPS),
                 Sm5::JBroBuiltinSdfTextLitPS_SM5, sizeof(Sm5::JBroBuiltinSdfTextLitPS_SM5),
                 Spv::JBroBuiltinSdfTextLitPS_SPV, sizeof(Spv::JBroBuiltinSdfTextLitPS_SPV));
-            litDesc.sampledTextureCount = 2;
+            litDesc.bindings.sampledTextures.count = 2;
             m_litSdfTextPipeline = m_device->CreateGraphicsPipeline(litDesc);
             if (false == m_litSdfTextPipeline.IsValid())
             {
@@ -2089,8 +2089,8 @@ namespace JBro
         outlineDesc.depthWrite = false;
         outlineDesc.pushConstantStages = ShaderStage::Pixel;
         outlineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(float) * 8);
-        outlineDesc.sampledTextureCount = 2;
-        outlineDesc.samplerCount = 1;
+        outlineDesc.bindings.sampledTextures.count = 2;
+        outlineDesc.bindings.samplers.count = 1;
         m_outlineGrowPipeline = m_device->CreateGraphicsPipeline(outlineDesc);
         outlineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinOutlineCompositePS, sizeof(JBroBuiltinOutlineCompositePS),
             Sm5::JBroBuiltinOutlineCompositePS_SM5, sizeof(Sm5::JBroBuiltinOutlineCompositePS_SM5),
@@ -2109,7 +2109,7 @@ namespace JBro
             Sm5::JBroBuiltinLayerCompositePS_SM5, sizeof(Sm5::JBroBuiltinLayerCompositePS_SM5),
             Spv::JBroBuiltinLayerCompositePS_SPV, sizeof(Spv::JBroBuiltinLayerCompositePS_SPV));
         compositeDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(float) * 4);
-        compositeDesc.sampledTextureCount = 1;
+        compositeDesc.bindings.sampledTextures.count = 1;
         const BlendMode compositeBlends[4] = {
             BlendMode::LayerNormal, BlendMode::LayerAdditive, BlendMode::LayerMultiply, BlendMode::LayerScreen};
         for (std::size_t at = 0; at < 4; ++at)
@@ -2126,7 +2126,7 @@ namespace JBro
         backdropDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLayerBackdropPS, sizeof(JBroBuiltinLayerBackdropPS),
             Sm5::JBroBuiltinLayerBackdropPS_SM5, sizeof(Sm5::JBroBuiltinLayerBackdropPS_SM5),
             Spv::JBroBuiltinLayerBackdropPS_SPV, sizeof(Spv::JBroBuiltinLayerBackdropPS_SPV));
-        backdropDesc.sampledTextureCount = 2;
+        backdropDesc.bindings.sampledTextures.count = 2;
         backdropDesc.blend = BlendMode::Opaque;
         m_layerBackdropPipeline = m_device->CreateGraphicsPipeline(backdropDesc);
         return m_layerBackdropPipeline.IsValid();
@@ -2265,8 +2265,8 @@ namespace JBro
         shadowedDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLight2DShadowedPS, sizeof(JBroBuiltinLight2DShadowedPS),
             Sm5::JBroBuiltinLight2DShadowedPS_SM5, sizeof(Sm5::JBroBuiltinLight2DShadowedPS_SM5),
             Spv::JBroBuiltinLight2DShadowedPS_SPV, sizeof(Spv::JBroBuiltinLight2DShadowedPS_SPV));
-        shadowedDesc.sampledTextureCount = 1;
-        shadowedDesc.samplerCount = 1;
+        shadowedDesc.bindings.sampledTextures.count = 1;
+        shadowedDesc.bindings.samplers.count = 1;
         m_shadowedLight2DPipeline = m_device->CreateGraphicsPipeline(shadowedDesc);
         if (false == m_shadowedLight2DPipeline.IsValid())
         {
@@ -2740,8 +2740,8 @@ namespace JBro
         pipelineDesc.cull = CullMode::None;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
         pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
-        pipelineDesc.sampledTextureCount = 1;
-        pipelineDesc.samplerCount = 1;
+        pipelineDesc.bindings.sampledTextures.count = 1;
+        pipelineDesc.bindings.samplers.count = 1;
         m_worldTextPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         return m_worldTextPipeline.IsValid();
     }

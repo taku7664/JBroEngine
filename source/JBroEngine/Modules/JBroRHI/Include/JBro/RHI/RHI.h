@@ -132,8 +132,41 @@ namespace JBro
         BGRA8Unorm,
         BGRA8UnormSrgb,
         RGBA16Float,
-        D32Float
+        D32Float,
+        // 후처리의 중간 텍스처 포맷이다(postprocess-plan §2.1). 값을 끝에 두어 앞의 숫자가 밀리지 않게 한다.
+        // `R11G11B10Float` 는 알파가 없고 음수를 담지 못한다 - 셋 다 부호 없는 작은 부동소수다.
+        R11G11B10Float,
+        R16Float,
+        R32Float,
+        RG16Float,
+        RGBA32Float
     };
+
+    // 텍셀 하나의 바이트 수다. 올리기·되읽기가 행 하나의 길이를 이것으로 센다. 모르는 포맷은 0 이다.
+    constexpr UInt32 GetTexelSize(TextureFormat format) noexcept
+    {
+        switch (format)
+        {
+        case TextureFormat::R16Float:
+            return 2;
+        case TextureFormat::RGBA8Unorm:
+        case TextureFormat::RGBA8UnormSrgb:
+        case TextureFormat::BGRA8Unorm:
+        case TextureFormat::BGRA8UnormSrgb:
+        case TextureFormat::D32Float:
+        case TextureFormat::R11G11B10Float:
+        case TextureFormat::R32Float:
+        case TextureFormat::RG16Float:
+            return 4;
+        case TextureFormat::RGBA16Float:
+            return 8;
+        case TextureFormat::RGBA32Float:
+            return 16;
+        case TextureFormat::Unknown:
+            return 0;
+        }
+        return 0;
+    }
 
     enum class PresentMode : std::uint8_t
     {
@@ -317,6 +350,34 @@ namespace JBro
         JArrayView<VertexAttributeDesc> attributes;
     };
 
+    // 한 종류의 자원이 파이프라인에서 차지하는 자리다. `stages` 는 그 자원을 읽는 단계다 - 백엔드가 보이는 범위를
+    // 거기까지만 연다. 비어 있으면(`count == 0`) 단계는 보지 않는다.
+    struct BindingRange
+    {
+        UInt32 count = 0;
+        ShaderStage stages = ShaderStage::Pixel;
+    };
+
+    // 파이프라인이 읽는 자원의 자리표다(postprocess-plan §2.1). 슬롯 번호는 셰이더의 레지스터 번호다.
+    //   constantBuffers  b1..b(count). **b0 은 푸시 상수 자리라 비워 둔다** - D3D12 는 루트 상수, D3D11 은 파이프라인의
+    //                    상수 버퍼, Vulkan 은 `[[vk::push_constant]]` 가 그 자리다. SPIR-V 에서는 b# 가 그대로 binding 이다.
+    //   sampledTextures  t0..t(count-1). SPIR-V binding 8 부터.
+    //   samplers         s0..s(count-1). SPIR-V binding 16 부터.
+    // 상한은 `IRHIDevice::GetCaps` 가 말한다. 넘는 파이프라인은 만들어지지 않는다.
+    //
+    // **개수를 파이프라인이 미리 말해야 한다.** 백엔드가 이것으로 루트 시그니처·디스크립터 셋 레이아웃을 만들고,
+    // 그것은 파이프라인과 함께 만들어져 바뀌지 않는다. 그리기 직전에 알 수 있는 값이 아니다.
+    struct BindingLayoutDesc
+    {
+        BindingRange constantBuffers;
+        BindingRange sampledTextures;
+        BindingRange samplers;
+    };
+
+    // 푸시 상수(`SetGraphicsConstants`)의 상한이다. Vulkan 이 보장하는 최소가 128 B 라 세 백엔드가 이것을 지킨다.
+    // 더 큰 것은 상수 버퍼로 올린다.
+    inline constexpr UInt32 MaxPushConstantBytes = 128;
+
     struct GraphicsPipelineDesc
     {
         ShaderBytecode vertexShader;
@@ -333,14 +394,9 @@ namespace JBro
         BlendMode blend = BlendMode::Opaque;
         CullMode cull = CullMode::Back;
         ShaderStage pushConstantStages = ShaderStage::Vertex;
+        // `MaxPushConstantBytes` 이하이고 4 의 배수다.
         UInt32 pushConstantBytes = 0;
-        // 이 파이프라인이 픽셀 셰이더에서 읽는 텍스처와 샘플러의 수다.
-        // `t0..t(N-1)`, `s0..s(N-1)` 에 순서대로 묶인다.
-        //
-        // **개수를 파이프라인이 미리 말해야 한다.** 백엔드가 이것으로 루트 시그니처를 만들고,
-        // 그것은 파이프라인과 함께 만들어져 바뀌지 않는다. 그리기 직전에 알 수 있는 값이 아니다.
-        UInt32 sampledTextureCount = 0;
-        UInt32 samplerCount = 0;
+        BindingLayoutDesc bindings;
     };
 
     struct SwapchainDesc
@@ -402,11 +458,25 @@ namespace JBro
         // 한 드로우에 필요한 것이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있다.
         virtual Bool SetTexture(UInt32 slot, TextureHandle texture) = 0;
         virtual Bool SetSampler(UInt32 slot, SamplerHandle sampler) = 0;
+        // 슬롯에 상수 버퍼의 한 구간을 묶는다. 슬롯 번호는 셰이더의 `b` 레지스터 번호이고 1 부터다(b0 은 푸시 상수).
+        // 버퍼는 `BufferUsage::Constant` 로 만든 것이다. `offset`·`size` 는 `DeviceCaps::constantBufferAlignment` 의 배수이고
+        // `size` 는 `maxConstantBufferBytes` 이하이며 구간이 버퍼 안에 있어야 한다. 프레임마다 바뀌는 값은 `ConstantRing` 이
+        // 이 모양으로 내준다. 파이프라인이 선언하지 않은 슬롯이나 조건이 맞지 않는 구간은 거절한다.
+        //
+        // 텍스처처럼 파이프라인을 바꾸면 버려지고, 선언한 슬롯이 하나라도 비어 있으면 그리지 않는다.
+        virtual Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) = 0;
         virtual Bool DrawIndexedInstanced(
             UInt32 indexCount,
             UInt32 instanceCount,
             UInt32 firstIndex,
             Int32 baseVertex,
+            UInt32 firstInstance) = 0;
+        // 인덱스 없이 정점 번호 순서대로 그린다. 정점 버퍼 없이 `SV_VertexID` 로 모양을 만드는 셰이더(전체 화면 삼각형,
+        // `DrawInstanced(3, 1, 0, 0)`)가 이것을 쓴다.
+        virtual Bool DrawInstanced(
+            UInt32 vertexCount,
+            UInt32 instanceCount,
+            UInt32 firstVertex,
             UInt32 firstInstance) = 0;
         // **렌더 타깃 하나를 다른 렌더 타깃으로 통째로 복사한다**(D-283). 레이어 합성이 아래 그림을 읽는 블렌드(오버레이 등)에서 쓴다.
         // 둘은 같은 크기·같은 포맷이어야 하고 패스 밖에서만 부른다. 원본은 백버퍼여도 되고, 대상은 `RenderTarget` 으로 만든 텍스처다.
@@ -434,6 +504,46 @@ namespace JBro
         Bool enableValidation = false;
     };
 
+    // 장치가 지키는 상한이다. 파이프라인과 묶기가 이것을 넘으면 거절된다. 세 백엔드의 공통 바닥을 기본으로 두고,
+    // 백엔드는 그 장치가 실제로 못 하는 것만 낮춘다.
+    struct DeviceCaps
+    {
+        // 파이프라인 하나가 선언할 수 있는 수다. 상수 버퍼는 b1..b7 이다 - Vulkan 에서 binding 8 부터는 텍스처 자리다.
+        UInt32 maxConstantBuffers = 7;
+        UInt32 maxSampledTextures = 8;
+        UInt32 maxSamplers = 4;
+        UInt32 maxPushConstantBytes = MaxPushConstantBytes;
+        // `SetConstantBuffer` 의 오프셋과 크기의 단위다. D3D12 의 CBV 와 D3D11.1 의 부분 묶기가 256 B 를 요구한다.
+        UInt32 constantBufferAlignment = 256;
+        // `SetConstantBuffer` 한 번에 묶을 수 있는 크기다. D3D 는 64 KiB 이고 Vulkan 은 장치의 `maxUniformBufferRange` 다.
+        UInt32 maxConstantBufferBytes = 65536;
+        // 오프셋이 0 이 아닌 구간을 묶을 수 있다. D3D11 은 11.1 의 부분 묶기와 동적 상수 버퍼의 NO_OVERWRITE 를 모두 지원할
+        // 때만 참이다. 거짓이면 `ConstantRing` 을 만들 수 없다.
+        Bool constantBufferOffsets = true;
+    };
+
+    // 자리표가 장치의 상한 안이고, 쓰는 종류마다 읽는 단계를 말했는지 본다. 백엔드가 파이프라인을 만들기 전에 부른다.
+    constexpr Bool IsBindingLayoutValid(const BindingLayoutDesc& layout, const DeviceCaps& caps) noexcept
+    {
+        constexpr std::uint8_t knownStages =
+            static_cast<std::uint8_t>(ShaderStage::Vertex) | static_cast<std::uint8_t>(ShaderStage::Pixel);
+        const BindingRange ranges[] = {layout.constantBuffers, layout.sampledTextures, layout.samplers};
+        const UInt32 limits[] = {caps.maxConstantBuffers, caps.maxSampledTextures, caps.maxSamplers};
+        for (UInt32 index = 0; index < 3; ++index)
+        {
+            const std::uint8_t stages = static_cast<std::uint8_t>(ranges[index].stages);
+            if (ranges[index].count > limits[index])
+            {
+                return false;
+            }
+            if (ranges[index].count != 0 && (stages == 0 || (stages & ~knownStages) != 0))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // 읽어 온 이미지의 모양이다. 목적지에는 행 패딩 없이 빽빽하게 쓴다 —
     // GPU 쪽 행 정렬은 백엔드의 사정이고 부르는 쪽이 알 필요가 없다.
     struct TextureReadback
@@ -449,8 +559,14 @@ namespace JBro
     public:
         virtual ~IRHIDevice() = default;
 
+        virtual DeviceCaps GetCaps() const = 0;
         virtual BufferHandle CreateBuffer(const BufferDesc& desc) = 0;
         virtual void DestroyBuffer(BufferHandle buffer) = 0;
+        // `Upload` 메모리 버퍼에 쓴다. 기다리지 않는다 - GPU 가 아직 읽는 자리를 덮지 않는 것은 부르는 쪽의 몫이다.
+        //
+        // **`Upload` 상수 버퍼는 링으로만 쓴다.** 오프셋 0 쓰기가 새 바퀴를 열고, 그 앞에 쓴 내용은 남지 않을 수 있다
+        // (D3D11 은 그때 버퍼를 갈아 끼운다 - DISCARD). 한 바퀴 안에서는 이미 쓴 구간을 다시 쓰지 않는다(NO_OVERWRITE).
+        // `ConstantRing` 이 이 규칙대로 쓴다.
         virtual Bool WriteBuffer(
             BufferHandle buffer,
             std::size_t offset,

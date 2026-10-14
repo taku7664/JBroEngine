@@ -96,6 +96,10 @@ namespace JBro::Internal
         {
             m_pendingSamplers[index] = {};
         }
+        for (Bool& bound : m_constantBufferBound)
+        {
+            bound = false;
+        }
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -119,6 +123,10 @@ namespace JBro::Internal
         for (UInt32 index = 0; index < MaxBoundSamplers; ++index)
         {
             m_pendingSamplers[index] = {};
+        }
+        for (Bool& bound : m_constantBufferBound)
+        {
+            bound = false;
         }
         m_renderPassActive = false;
         m_pipelineActive = false;
@@ -440,7 +448,42 @@ namespace JBro::Internal
         {
             m_pendingSamplers[index] = {};
         }
+        for (Bool& bound : m_constantBufferBound)
+        {
+            bound = false;
+        }
         m_pipelineActive = true;
+        return true;
+    }
+
+    Bool D3D12CommandContext::SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size)
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
+        {
+            return false;
+        }
+        // b0 은 푸시 상수 자리이고, 선언하지 않은 슬롯은 루트 시그니처에 없다.
+        if (slot == 0 || slot > m_activePipeline.constantBufferCount)
+        {
+            return false;
+        }
+        const DeviceCaps caps = m_device->GetCaps();
+        D3D12BufferBinding binding;
+        if (false == m_device->ResolveBuffer(buffer, binding)
+            || false == HasBufferUsage(binding.usage, BufferUsage::Constant)
+            || size == 0
+            || size > caps.maxConstantBufferBytes
+            || offset % caps.constantBufferAlignment != 0
+            || size % caps.constantBufferAlignment != 0
+            || offset > binding.requestedSize
+            || size > binding.requestedSize - offset)
+        {
+            return false;
+        }
+        // 루트 CBV 는 크기를 모른다 - 셰이더가 선언한 만큼 읽는다. 크기 검사는 다른 백엔드와 같은 계약을 지키려는 것이다.
+        m_commandList->SetGraphicsRootConstantBufferView(
+            m_activePipeline.constantBufferParameter + slot - 1, binding.gpuAddress + offset);
+        m_constantBufferBound[slot] = true;
         return true;
     }
 
@@ -676,17 +719,7 @@ namespace JBro::Internal
         Int32 baseVertex,
         UInt32 firstInstance)
     {
-        if (false == m_renderPassActive
-            || false == m_pipelineActive
-            || indexCount == 0
-            || instanceCount == 0)
-        {
-            return false;
-        }
-
-        // 묶는 것은 여기서 한다. 슬롯이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있고,
-        // 테이블은 연속된 자리를 가리키기 때문이다.
-        if (false == BindPendingDescriptors())
+        if (indexCount == 0 || instanceCount == 0 || false == PrepareDraw())
         {
             return false;
         }
@@ -698,5 +731,39 @@ namespace JBro::Internal
             baseVertex,
             firstInstance);
         return true;
+    }
+
+    Bool D3D12CommandContext::DrawInstanced(
+        UInt32 vertexCount,
+        UInt32 instanceCount,
+        UInt32 firstVertex,
+        UInt32 firstInstance)
+    {
+        if (vertexCount == 0 || instanceCount == 0 || false == PrepareDraw())
+        {
+            return false;
+        }
+
+        m_commandList->DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance);
+        return true;
+    }
+
+    Bool D3D12CommandContext::PrepareDraw()
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive)
+        {
+            return false;
+        }
+        // 선언한 상수 버퍼가 하나라도 비어 있으면 그리지 않는다. 빈 루트 CBV 는 주소 0 을 읽는다.
+        for (UInt32 slot = 1; slot <= m_activePipeline.constantBufferCount; ++slot)
+        {
+            if (false == m_constantBufferBound[slot])
+            {
+                return false;
+            }
+        }
+        // 묶는 것은 여기서 한다. 슬롯이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있고,
+        // 테이블은 연속된 자리를 가리키기 때문이다.
+        return BindPendingDescriptors();
     }
 }

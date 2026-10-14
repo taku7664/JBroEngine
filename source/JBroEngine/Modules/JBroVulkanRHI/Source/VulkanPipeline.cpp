@@ -11,8 +11,6 @@ namespace JBro::Internal
     namespace
     {
         constexpr UInt32 MaxVertexAttributes = 16;
-        // 스펙이 보장하는 푸시 상수 최소치다. 계약(RHI.h)은 상한을 말하지 않는다 - D3D12 는 256 까지 받고 여기는 128 이다.
-        constexpr UInt32 MaxPushConstantBytes = 128;
 
         VkFormat ToNativeVertexFormat(VertexFormat format)
         {
@@ -148,10 +146,11 @@ namespace JBro::Internal
             || (desc.pushConstantBytes != 0 && ToNativeStages(desc.pushConstantStages) == 0)
             || (desc.depthFormat != TextureFormat::Unknown && desc.depthFormat != TextureFormat::D32Float)
             || desc.topology != PrimitiveTopology::TriangleList
-            || desc.sampledTextureCount > MaxBoundTextures || desc.samplerCount > MaxBoundSamplers)
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps()))
         {
             return {};
         }
+        const BindingLayoutDesc& bindingLayout = desc.bindings;
         VkFormat colorFormats[MaxColorAttachments] = {};
         for (UInt32 index = 0; index < desc.colorFormats.size; ++index)
         {
@@ -218,24 +217,33 @@ namespace JBro::Internal
             return fail();
         }
 
-        // set 0: 텍스처는 binding 8+, 샘플러는 16+. 둘 다 없으면 set 자체가 없다.
-        VkDescriptorSetLayoutBinding setBindings[MaxBoundTextures + MaxBoundSamplers] = {};
+        // set 0: 상수 버퍼는 binding 1..7, 텍스처는 8+, 샘플러는 16+. 셋 다 없으면 set 자체가 없다.
+        // 상수 버퍼는 동적 유니폼 버퍼다 - 동적 오프셋은 binding 번호 순서로 넘기므로 낮은 번호에 두면 슬롯 순서와 같다.
+        VkDescriptorSetLayoutBinding setBindings[MaxBoundConstantBuffers + MaxBoundTextures + MaxBoundSamplers] = {};
         UInt32 setBindingCount = 0;
-        for (UInt32 slot = 0; slot < desc.sampledTextureCount; ++slot)
+        for (UInt32 slot = 1; slot <= bindingLayout.constantBuffers.count; ++slot)
+        {
+            VkDescriptorSetLayoutBinding& binding = setBindings[setBindingCount++];
+            binding.binding = slot;
+            binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            binding.descriptorCount = 1;
+            binding.stageFlags = ToNativeStages(bindingLayout.constantBuffers.stages);
+        }
+        for (UInt32 slot = 0; slot < bindingLayout.sampledTextures.count; ++slot)
         {
             VkDescriptorSetLayoutBinding& binding = setBindings[setBindingCount++];
             binding.binding = TextureBindingBase + slot;
             binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
             binding.descriptorCount = 1;
-            binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            binding.stageFlags = ToNativeStages(bindingLayout.sampledTextures.stages);
         }
-        for (UInt32 slot = 0; slot < desc.samplerCount; ++slot)
+        for (UInt32 slot = 0; slot < bindingLayout.samplers.count; ++slot)
         {
             VkDescriptorSetLayoutBinding& binding = setBindings[setBindingCount++];
             binding.binding = SamplerBindingBase + slot;
             binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
             binding.descriptorCount = 1;
-            binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            binding.stageFlags = ToNativeStages(bindingLayout.samplers.stages);
         }
         if (setBindingCount != 0)
         {
@@ -381,8 +389,9 @@ namespace JBro::Internal
         vk.vkDestroyShaderModule(m_device, pixelModule, nullptr);
         state.pushConstantStages = pushRange.stageFlags;
         state.pushConstantBytes = desc.pushConstantBytes;
-        state.sampledTextureCount = desc.sampledTextureCount;
-        state.samplerCount = desc.samplerCount;
+        state.constantBufferCount = bindingLayout.constantBuffers.count;
+        state.sampledTextureCount = bindingLayout.sampledTextures.count;
+        state.samplerCount = bindingLayout.samplers.count;
         state.occupied = true;
         return GraphicsPipelineHandle{index, state.generation};
     }

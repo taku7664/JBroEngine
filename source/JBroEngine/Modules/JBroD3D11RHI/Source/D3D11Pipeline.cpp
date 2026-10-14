@@ -50,8 +50,8 @@ namespace JBro::Internal
             || desc.colorFormats.size > MaxColorAttachments
             || (desc.depthFormat != TextureFormat::Unknown && desc.depthFormat != TextureFormat::D32Float)
             || desc.topology != PrimitiveTopology::TriangleList
-            || desc.pushConstantBytes % 4 != 0 || desc.pushConstantBytes > 256
-            || desc.sampledTextureCount > MaxBoundTextures || desc.samplerCount > MaxBoundSamplers)
+            || desc.pushConstantBytes % 4 != 0 || desc.pushConstantBytes > MaxPushConstantBytes
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps()))
         {
             return {};
         }
@@ -190,6 +190,7 @@ namespace JBro::Internal
         pipeline.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         pipeline.pushConstantBytes = desc.pushConstantBytes;
         pipeline.pushConstantStages = desc.pushConstantStages;
+        pipeline.bindings = desc.bindings;
         pipeline.generation = m_graphicsPipelines[index].generation;
         pipeline.occupied = true;
         m_graphicsPipelines[index] = std::move(pipeline);
