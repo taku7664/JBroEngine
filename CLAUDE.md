@@ -92,6 +92,8 @@
   담당자에게 넘길 남은 일이 §3.3 끝에 있다
 - [tasks/debug-adapter.md](./tasks/debug-adapter.md) — 스크립트 디버그 어댑터(D-319). `source/JBroDebugAdapter` 가 DAP 로 에디터에 DbgEng 으로 붙어 스크립트 DLL 을 디버깅한다.
   확장(`jbro-engine` 의 `debuggers`)에 붙일 때 받는 요청·인자·동작·남은 것이 있다. 스크립트 PDB 는 빌드마다 다른 이름이다
+- [tasks/simulation-process-plan.md](./tasks/simulation-process-plan.md) — 시뮬레이션 프로세스(D-320). 에디터의 실행을 에디터 밖 프로세스로 옮겨 스크립트 중단점에 걸려도 에디터가 서지 않게 한다.
+  사용자가 보는 실행 동작(실행 중 하이어라키·인스펙터·캔버스 뷰, 정지 때 되돌리기)은 같고, 에디터는 받은 상태를 비춘다. 단계와 미지수(미러 비용·`InstanceId`·공유 텍스처)가 있다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
