@@ -5,6 +5,7 @@
 // JBroc.exe 는 이 테스트 실행 파일 옆에 빌드된다(JBroTests 가 프로젝트로 참조한다).
 
 #include <JBro/ScriptCompiler/Diagnostic.h>
+#include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptCompiler/DiagnosticMessages.h>
 #include <JBro/ScriptCompiler/Parser.h>
 
@@ -208,9 +209,17 @@ namespace
             Check(nullptr != ko && nullptr != en, "every command line key is in both tables");
             Check(std::string(ko) != std::string(en), "the Korean and English command line messages differ");
         }
-        const std::size_t expected = static_cast<std::size_t>(DiagnosticCode::Count) + std::size(CommandLineKeys);
+        for (const char* key : GetSemanticDiagnosticKeys())
+        {
+            const char* ko = korean.Find(key);
+            const char* en = english.Find(key);
+            Check(nullptr != ko && nullptr != en, "every semantic diagnostic key is in both tables");
+            Check(std::string(ko) != std::string(en), "the Korean and English semantic messages differ");
+        }
+        const std::size_t expected = static_cast<std::size_t>(DiagnosticCode::Count)
+            + std::size(CommandLineKeys) + GetSemanticDiagnosticKeys().Size();
         Check(korean.GetCount() == expected && english.GetCount() == expected,
-            "the tables hold exactly the diagnostic and command line keys");
+            "the tables hold exactly the parser, lexer, semantic and command line keys");
     }
 
     void TestTheExecutable()

@@ -68,6 +68,7 @@ namespace JBro::ScriptCompiler
         IsNullExpression,       // Flags=Negated 면 is not null. [피연산자]
         RangeExpression,        // [시작, 끝]
         ParenthesizedExpression, // [식]
+        NullAssertExpression,   // [식] - D-262 postfix !
 
         Count,
     };
@@ -86,6 +87,8 @@ namespace JBro::ScriptCompiler
         SyntaxFlagOverride = 1 << 7,
         SyntaxFlagRequire = 1 << 8,
         SyntaxFlagNegated = 1 << 9,
+        SyntaxFlagNullable = 1 << 10,
+        SyntaxFlagNullSafe = 1 << 11,
     };
 
     using NodeIndex = UInt32;

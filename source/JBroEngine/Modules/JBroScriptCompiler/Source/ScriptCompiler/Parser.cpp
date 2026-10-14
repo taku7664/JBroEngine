@@ -646,6 +646,11 @@ namespace JBro::ScriptCompiler
                     } while (At(TokenKind::Comma) && (Advance(), true));
                     Expect(TokenKind::Greater, ">");
                 }
+                if (At(TokenKind::Question))
+                {
+                    Advance();
+                    flags |= SyntaxFlagNullable;
+                }
                 return Make(SyntaxKind::TypeName, begin, name, flags, arguments);
             }
 
@@ -666,7 +671,7 @@ namespace JBro::ScriptCompiler
                 {
                     return true;
                 }
-                if (TokenKind::Less != next)
+                if (TokenKind::Less != next && TokenKind::Question != next)
                 {
                     return false;
                 }
@@ -1073,12 +1078,24 @@ namespace JBro::ScriptCompiler
 
             NodeIndex ParseRelational()
             {
-                NodeIndex left = ParseAdditive();
+                NodeIndex left = ParseCoalescing();
                 while (InvalidNode != left && (At(TokenKind::Less) || At(TokenKind::LessEqual)
                     || At(TokenKind::Greater) || At(TokenKind::GreaterEqual)))
                 {
                     const std::string_view op = Advance().Text;
-                    const NodeIndex right = ParseAdditive();
+                    const NodeIndex right = ParseCoalescing();
+                    left = Make(SyntaxKind::BinaryExpression, BeginOf(left), op, SyntaxFlagNone, { left, right });
+                }
+                return left;
+            }
+
+            NodeIndex ParseCoalescing()
+            {
+                NodeIndex left = ParseAdditive();
+                if (InvalidNode != left && At(TokenKind::QuestionQuestion))
+                {
+                    const std::string_view op = Advance().Text;
+                    const NodeIndex right = ParseCoalescing();
                     left = Make(SyntaxKind::BinaryExpression, BeginOf(left), op, SyntaxFlagNone, { left, right });
                 }
                 return left;
@@ -1126,8 +1143,9 @@ namespace JBro::ScriptCompiler
                 while (InvalidNode != expression)
                 {
                     const SourceLocation begin = BeginOf(expression);
-                    if (At(TokenKind::Dot))
+                    if (At(TokenKind::Dot) || At(TokenKind::QuestionDot))
                     {
+                        const std::uint16_t flags = At(TokenKind::QuestionDot) ? SyntaxFlagNullSafe : SyntaxFlagNone;
                         Advance();
                         if (false == At(TokenKind::Identifier))
                         {
@@ -1135,7 +1153,24 @@ namespace JBro::ScriptCompiler
                             break;
                         }
                         const std::string_view member = Advance().Text;
-                        expression = Make(SyntaxKind::MemberAccessExpression, begin, member, SyntaxFlagNone, { expression });
+                        Array<NodeIndex> children;
+                        children.Add(expression);
+                        if (At(TokenKind::Less) && AtGenericCall())
+                        {
+                            Advance();
+                            do
+                            {
+                                children.Add(ParseType());
+                            } while (At(TokenKind::Comma) && (Advance(), true));
+                            Expect(TokenKind::Greater, ">");
+                        }
+                        expression = Make(SyntaxKind::MemberAccessExpression, begin, member, flags, children);
+                        continue;
+                    }
+                    if (At(TokenKind::Bang))
+                    {
+                        Advance();
+                        expression = Make(SyntaxKind::NullAssertExpression, begin, std::string_view(), SyntaxFlagNone, { expression });
                         continue;
                     }
                     if (At(TokenKind::LeftParen))

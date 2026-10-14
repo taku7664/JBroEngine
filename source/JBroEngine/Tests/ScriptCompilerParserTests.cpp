@@ -128,8 +128,8 @@ namespace
             "    [range(1, 100), category(\"Stats\")]\n"
             "    public Int MaxHp = 10\n"
             "    [prop] Bool ShowDebug = false\n"
-            "    ref Transform2D target\n"
-            "    Array<ref Enemy> allies\n"
+            "    Transform2D? target\n"
+            "    Array<Enemy?> allies\n"
             "    Table<String, Array<Float>> curves\n"
             "    protected static const Float Gravity = 9.8\n"
             "    private Int secret\n"
@@ -154,10 +154,10 @@ namespace
             "      TypeName Bool\n"
             "      BooleanLiteral false\n"
             "    FieldDeclaration target\n"
-            "      TypeName Transform2D {Ref}\n"
+            "      TypeName Transform2D {Nullable}\n"
             "    FieldDeclaration allies\n"
             "      TypeName Array\n"
-            "        TypeName Enemy {Ref}\n"
+            "        TypeName Enemy {Nullable}\n"
             "    FieldDeclaration curves\n"
             "      TypeName Table\n"
             "        TypeName String\n"
@@ -168,7 +168,7 @@ namespace
             "      FloatLiteral 9.8\n"
             "    FieldDeclaration secret {Private}\n"
             "      TypeName Int\n",
-            "a script with parents, attributes, modifiers, ref and nested generic fields");
+            "a script with parents, attributes, modifiers, nullable and nested generic fields");
 
         CheckTree(
             "class Inventory\n{\n}\n"
@@ -224,7 +224,7 @@ namespace
             "    fn OnStart() callback\n"
             "    {\n"
             "    }\n"
-            "    public static fn Sum(ref const Array<DropEntry> table, Int start) -> ref Enemy override\n"
+            "    public static fn Sum(ref const Array<DropEntry> table, Int start) -> Enemy? override\n"
             "    {\n"
             "    }\n"
             "    fn Inventory(Int startGold)\n"
@@ -254,7 +254,7 @@ namespace
             "            TypeName DropEntry\n"
             "        Parameter start\n"
             "          TypeName Int\n"
-            "      TypeName Enemy {Ref}\n"
+            "      TypeName Enemy {Nullable}\n"
             "      Block\n"
             "    FunctionDeclaration Inventory\n"
             "      ParameterList\n"
@@ -268,8 +268,8 @@ namespace
     {
         CheckBody(
             "        Collision2D hit\n"
-            "        Array<ref Enemy> allies\n"
-            "        ref Enemy nearest = FindNearest()\n"
+            "        Array<Enemy?> allies\n"
+            "        Enemy? nearest = FindNearest()\n"
             "        Float hp = enemy.GetHp()\n"
             "        hp -= amount\n"
             "        target.position.x += MoveSpeed * dt\n"
@@ -280,9 +280,9 @@ namespace
             "          TypeName Collision2D\n"
             "        LocalDeclaration allies\n"
             "          TypeName Array\n"
-            "            TypeName Enemy {Ref}\n"
+            "            TypeName Enemy {Nullable}\n"
             "        LocalDeclaration nearest\n"
-            "          TypeName Enemy {Ref}\n"
+            "          TypeName Enemy {Nullable}\n"
             "          CallExpression\n"
             "            NameExpression FindNearest\n"
             "        LocalDeclaration hp\n"
@@ -676,11 +676,11 @@ namespace
             return;
         }
         const std::string document((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        const std::size_t section = document.find("## 13.");
-        Check(std::string::npos != section, "the syntax document has a section 13");
-        const std::size_t fence = document.find("```\n", section);
-        Check(std::string::npos != fence, "section 13 has a code block");
-        const std::size_t begin = fence + 4;
+        const std::size_t section = document.find("## 14.");
+        Check(std::string::npos != section, "the syntax document has the D-262 section 14");
+        const std::size_t fence = document.find("```", section);
+        Check(std::string::npos != fence, "section 14 has a code block");
+        const std::size_t begin = document.find('\n', fence) + 1;
         const std::size_t end = document.find("\n```", begin);
         Check(std::string::npos != end, "the code block closes");
 
@@ -710,9 +710,9 @@ namespace
         }
         Check(result.Diagnostics.GetCount() == 0, "the full example of the syntax document parses without errors");
         const ArrayView<const NodeIndex> declarations = result.Tree.GetChildren(result.Tree.GetRoot());
-        Check(declarations.Size() == 5, "the example declares an enum, an interface, a struct, a class and a script");
-        Check(SyntaxKind::ScriptDeclaration == result.Tree.Get(declarations[4]).Kind
-            && result.Tree.Get(declarations[4]).Text == "Enemy", "the last declaration is the Enemy script");
+        Check(declarations.Size() == 1, "the D-262 example declares one script");
+        Check(SyntaxKind::ScriptDeclaration == result.Tree.Get(declarations[0]).Kind
+            && result.Tree.Get(declarations[0]).Text == "Enemy", "the D-262 example declares Enemy");
     }
 }
 

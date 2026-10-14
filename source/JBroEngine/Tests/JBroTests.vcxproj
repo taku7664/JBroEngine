@@ -25,8 +25,12 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroTextRendering\Include;$(JBroModulesDir)JBroPackage\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroModulesDir)JBroScriptLanguageServer\Include;$(JBroModulesDir)JBroScriptApiCatalog2D\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroTextRendering\Include;$(JBroModulesDir)JBroPackage\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(JBroNegativePreludeProbe)' == 'SystemContext'">JBRO_TEST_SCRIPT_API_SYSTEM_CONTEXT_LEAK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroNegativeCatalogProbe)' == 'UnknownType'">JBRO_TEST_API_CATALOG_UNKNOWN_TYPE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroNegativeCatalogProbe)' == 'ParameterCount'">JBRO_TEST_API_CATALOG_PARAMETER_COUNT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WarningLevel Condition="'$(JBroNegativeCatalogProbe)' != ''">Level4</WarningLevel>
+      <TreatWarningAsError Condition="'$(JBroNegativeCatalogProbe)' != ''">true</TreatWarningAsError>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,6 +151,10 @@
     <ProjectReference Include="$(JBroModulesDir)JBroLocalizationTypes\JBroLocalizationTypes.vcxproj">
       <Project>{1a000033-0000-4000-8000-0000000010c4}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptLanguageServer\JBroScriptLanguageServer.vcxproj"><Project>{1a000053-0000-4000-8000-0000000015f0}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptApiCatalog2D\JBroScriptApiCatalog2D.vcxproj"><Project>{1a000054-0000-4000-8000-00000000ca72}</Project></ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

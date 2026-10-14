@@ -85,6 +85,10 @@ namespace JBro::ScriptCompiler
         LessEqual,      // <=
         Greater,        // >
         GreaterEqual,   // >=
+        Question,       // ?
+        QuestionDot,    // ?.
+        QuestionQuestion, // ??
+        Bang,           // postfix !
 
         Count,
     };

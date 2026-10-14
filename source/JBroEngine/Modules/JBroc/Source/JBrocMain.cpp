@@ -12,11 +12,14 @@
 #include <JBro/ScriptCompiler/DiagnosticMessages.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/SyntaxTree.h>
+#include <JBro/ScriptLanguageServer/Server.h>
+#include <JBro/ScriptApiCatalog2D/Catalog.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
 #include <JBro/Types/String.h>
 
 #include <crtdbg.h>
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -139,6 +142,7 @@ namespace
         String Locale = "ko-KR";
         JBro::Bool DumpTree = false;
         JBro::Bool Help = false;
+        JBro::Bool Lsp = false;
         Array<std::filesystem::path> Files;
         // 명령줄이 틀렸으면 그 알림의 키와 인자다. 번역 표를 읽은 뒤에 낸다(언어가 인자에 있으므로).
         const char* ProblemKey = nullptr;
@@ -159,6 +163,11 @@ namespace
             if (L"--dump-tree" == argument)
             {
                 commandLine.DumpTree = true;
+                continue;
+            }
+            if (L"--lsp" == argument)
+            {
+                commandLine.Lsp = true;
                 continue;
             }
             if (L"--locale" == argument)
@@ -185,6 +194,66 @@ namespace
         }
         return commandLine;
     }
+
+    class LanguageServerFiles final : public JBro::ScriptLanguageServer::WorkspaceFiles
+    {
+    public:
+        JBro::Bool Read(std::string_view path, String& text) override
+        {
+            return ReadWholeFile(std::filesystem::path(ToWide(path)), text);
+        }
+
+        String Resolve(std::string_view baseFile, std::string_view path) override
+        {
+            std::filesystem::path resolved(ToWide(path));
+            if (false == resolved.is_absolute())
+            {
+                resolved = std::filesystem::path(ToWide(baseFile)).parent_path() / resolved;
+            }
+            std::error_code error;
+            const std::filesystem::path absolute = std::filesystem::absolute(resolved, error);
+            if (error.value() == 0)
+            {
+                resolved = absolute;
+            }
+            return ToUtf8(resolved.lexically_normal().native());
+        }
+
+        JBro::Bool EnumerateScripts(std::string_view directory, Array<String>& paths, String& errorText) override
+        {
+            paths.Clear();
+            std::error_code error;
+            const std::filesystem::path root(ToWide(directory));
+            const JBro::Bool exists = std::filesystem::exists(root, error);
+            if (error)
+            {
+                errorText = String("Cannot inspect script directory: ").Append(directory);
+                return false;
+            }
+            if (false == exists)
+            {
+                return true;
+            }
+            std::filesystem::recursive_directory_iterator iterator(root, std::filesystem::directory_options::none, error);
+            const std::filesystem::recursive_directory_iterator end;
+            while (error.value() == 0 && iterator != end)
+            {
+                const std::filesystem::directory_entry& entry = *iterator;
+                if (entry.is_regular_file(error) && ToUtf8(entry.path().extension().native()).ToLowerCopy() == ".jscript")
+                {
+                    paths.Add(ToUtf8(entry.path().lexically_normal().native()));
+                }
+                iterator.increment(error);
+            }
+            if (error)
+            {
+                errorText = String("Cannot enumerate script directory: ").Append(directory).Append(" (").Append(error.message()).Append(")");
+                return false;
+            }
+            std::sort(paths.begin(), paths.end());
+            return true;
+        }
+    };
 }
 
 JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv);
@@ -220,6 +289,22 @@ int wmain(int argc, wchar_t** argv)
 JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
 {
     CommandLine commandLine = ReadCommandLine(argc, argv);
+
+    if (commandLine.Lsp && false == commandLine.Help && nullptr == commandLine.ProblemKey)
+    {
+        if (commandLine.DumpTree || false == commandLine.Files.IsEmpty())
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: --lsp cannot be combined with --dump-tree or source file arguments");
+            return ExitUsageOrInput;
+        }
+        LanguageServerFiles files;
+        JBro::ScriptLanguageServer::ServerOptions options;
+        options.Catalog = JBro::ScriptApiCatalog2D::BuildCatalog();
+        options.Files = &files;
+        options.LocalizationDirectory = ToUtf8((GetExecutableDirectory() / L"Localization" / L"jbroc").native());
+        options.Locale = commandLine.Locale;
+        return JBro::ScriptLanguageServer::RunStdio(std::move(options));
+    }
 
     const std::filesystem::path localizationDirectory = GetExecutableDirectory() / L"Localization" / L"jbroc";
     const String directory = ToUtf8(localizationDirectory.native());

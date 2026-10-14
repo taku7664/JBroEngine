@@ -122,6 +122,10 @@ namespace JBro::ScriptCompiler
         case TokenKind::LessEqual: return "LessEqual";
         case TokenKind::Greater: return "Greater";
         case TokenKind::GreaterEqual: return "GreaterEqual";
+        case TokenKind::Question: return "Question";
+        case TokenKind::QuestionDot: return "QuestionDot";
+        case TokenKind::QuestionQuestion: return "QuestionQuestion";
+        case TokenKind::Bang: return "Bang";
         case TokenKind::Count: break;
         }
         return "Unknown";

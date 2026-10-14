@@ -102,6 +102,7 @@ namespace JBro::ScriptCompiler
         case SyntaxKind::IsNullExpression: return "IsNullExpression";
         case SyntaxKind::RangeExpression: return "RangeExpression";
         case SyntaxKind::ParenthesizedExpression: return "ParenthesizedExpression";
+        case SyntaxKind::NullAssertExpression: return "NullAssertExpression";
         case SyntaxKind::Count: break;
         }
         return "Unknown";
@@ -127,6 +128,8 @@ namespace JBro::ScriptCompiler
             { SyntaxFlagOverride, "Override" },
             { SyntaxFlagRequire, "Require" },
             { SyntaxFlagNegated, "Negated" },
+            { SyntaxFlagNullable, "Nullable" },
+            { SyntaxFlagNullSafe, "NullSafe" },
         };
 
         void DumpNode(const SyntaxTree& tree, NodeIndex index, std::size_t depth, String& out)

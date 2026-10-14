@@ -28,7 +28,7 @@
   -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroScriptLanguageServer\Include;$(JBroModulesDir)JBroScriptApiCatalog2D\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -43,6 +43,12 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroScriptCompiler\JBroScriptCompiler.vcxproj">
       <Project>{1a000015-0000-4000-8000-000000005cc0}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptLanguageServer\JBroScriptLanguageServer.vcxproj">
+      <Project>{1a000053-0000-4000-8000-0000000015f0}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptApiCatalog2D\JBroScriptApiCatalog2D.vcxproj">
+      <Project>{1a000054-0000-4000-8000-00000000ca72}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

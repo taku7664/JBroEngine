@@ -371,7 +371,25 @@ namespace JBro::ScriptCompiler
                         return;
                     }
                     Advance();
-                    m_diagnostics.Add(DiagnosticCode::UseWordOperator, RangeFrom(begin), "!", "not");
+                    if (m_tokens.IsEmpty() || (m_tokens.Last().Kind != TokenKind::Identifier
+                        && m_tokens.Last().Kind != TokenKind::RightParen && m_tokens.Last().Kind != TokenKind::RightBracket
+                        && m_tokens.Last().Kind != TokenKind::Bang && m_tokens.Last().Kind != TokenKind::IntegerLiteral
+                        && m_tokens.Last().Kind != TokenKind::FloatLiteral && m_tokens.Last().Kind != TokenKind::StringLiteral))
+                    {
+                        m_diagnostics.Add(DiagnosticCode::UseWordOperator, RangeFrom(begin), "!", "not");
+                        return;
+                    }
+                    Emit(TokenKind::Bang, begin);
+                    return;
+                case '?':
+                    Advance();
+                    if ('.' == next || '?' == next)
+                    {
+                        Advance();
+                        Emit('.' == next ? TokenKind::QuestionDot : TokenKind::QuestionQuestion, begin);
+                        return;
+                    }
+                    Emit(TokenKind::Question, begin);
                     return;
                 case '&':
                     if ('&' == next)
