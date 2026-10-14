@@ -147,7 +147,8 @@ namespace
     public:
         JBRO_FIELD(GameObject, target);
         JBRO_FIELD(Transform2D, follow);
-        JBRO_FIELD(Rigidbody2D, body);
+        // `새 스크립트` 가 만드는 모양 그대로다(`= {}`). 핸들이 집합체라 기본 생성자가 공개여야 컴파일된다.
+        JBRO_FIELD(Rigidbody2D, body) = {};
     };
 
     // 스크립트가 보는 참조의 형태를 고정한다(D-5, D-44).
