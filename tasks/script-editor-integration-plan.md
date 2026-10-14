@@ -15,6 +15,8 @@
 > §10의 직접 버튼 검증은 당시 기록으로 보존한다. 하위 메뉴·공통 UI의 완료 증거로 사용하지 않는다.
 > **2026-10-14 추가 범위:** 메뉴와 함께 왼쪽에는 워크스페이스를 넣고 코드 에디터를 JBroEngine 테마에 맞췄다(D-314·§13.4). 실제 메뉴·트리·파일 열기·테마 검사가 통과했다.
 > 확장 로딩 전에 Explorer가 잠시 나타나는 전환과 영어 내장 UI는 남는다. 최종 화면 검증을 초기 전환 제거·전체 UI 한국어화 완료로 확대하지 않는다.
+> **한국어·아이콘 후속(D-315):** 본체 한국어 팩과 개발 번역 대응표를 적용해 문제 패널·제한 모드를 한국어로 확인했고 폴더 아이콘도 표시된다(§14).
+> §10~§13의 영어 내장 UI 미완료 설명은 당시 기록이다. 전 화면·설치본 한국어 완료는 여전히 확인하지 않았다.
 
 ## 1. 목표와 담당 범위
 
@@ -435,6 +437,8 @@ Code-OSS 고유 문법 강조 색은 별도 이름 붙은 토큰 파일이 맡�
 
 ### 13.4 최종 워크스페이스·테마 확인과 한계 (2026-10-14)
 
+아래 한국어 범위는 당시 상태다. 본체 번역·폴더 아이콘의 후속 확인은 §14에 기록한다.
+
 | 검사 | 결과·범위 |
 |---|---|
 | 테마 생성 | `scripts/generate-theme.mjs --check` 통과. 실제 엔진 상수를 읽는 생성기·산출물과 별도 `themes/syntax-tokens.json` 사용 |
@@ -446,3 +450,40 @@ Code-OSS 고유 문법 강조 색은 별도 이름 붙은 토큰 파일이 맡�
 실제 GitHub 인증·Git 원격 인증, 빌드·실행 태스크 실기, 전체 엔진 빌드·설치본은 확인하지 않았다.
 자유 도킹·드래그드롭 위젯·로딩 UI는 구현하지 않은 후속 대상이다. 기존 패널 드래그 실기와 전체 UI 한국어화도 완료로 세지 않는다.
 새 프로필 최종 화면 통과를 모든 기존 프로필·초기 로딩 프레임의 동일 배치로 일반화하지 않는다.
+
+## 14. 2026-10-14 후속 — 본체 한국어·폴더 아이콘
+
+Updates: D-312·§11의 JBro 문구 우선과 §13.4의 영어 내장 UI 미완료 상태. 반복된 내장 UI 영어 표시 지적과 폴더 아이콘 누락을 D-315에 기록한다.
+한국어 우선은 제품의 본체·내장 UI도 포함한다. 앞선 영어 표시를 개발 실행의 한계로 적은 것은 당시 상태 기록이며, 그 상태를 한국어 제공 완료로 판단하지 않는다.
+
+### 14.1 구현과 출처
+
+- Microsoft `vscode-loc@0f157dee0cdcbf58cdf51a221ee94751c7f35e75`에서 번역 파일 **95개**를 고정해 `extensions/jbro-korean`에 내장했다. MIT 라이선스를 함께 보존한다.
+- 런처는 세 JBro 개발 확장을 로딩하며 `prepare-korean.mjs`가 선택한 개발 프로필의 `languagepacks.json`에 한국어 팩을 등록한다.
+  새 `argv.json`의 기본 한국어는 0001이 설정한다. 런처는 `JBRO_EDITOR_LOCALE`을 명시한 경우에만 로케일 인자를 전달하고 기존 사용자 언어 선택을 보존한다.
+- 개발 모드의 `localize` 키+영어 원문 대응 **22,422개**를 생성하고 `0005-korean-dev-localization.patch`로 본체에 연결했다. 대응하지 않는 메시지는 영어 폴백을 유지한다.
+- 루트·하위 폴더는 엔진과 같은 **MDI 7.4.47 `folder`·`folder-open` SVG**를 사용한다. 파일이 존재하는 확인과 실제 트리에서 아이콘이 그려지는 확인을 구분한다.
+
+내장 UI 번역도 확인 대상이라는 방향은 사용자 지적에서 재확인한 규칙이다. 고정 한국어 팩·개발 대응표·SVG 제공 방식은 이번 구현 선택이다.
+엔진 ImGui UI와 Code-OSS의 구현을 합치지 않으며, 기존 한국어/영어 파일 분리·번역키·공통 UI의 번역 문구 입력 계약을 유지한다.
+
+### 14.2 검증과 아직 확인하지 않은 것
+
+| 검사 | 결과·범위 |
+|---|---|
+| 본체 | 0005를 적용한 본체 transpile 종료 0, native TypeScript 검사 종료 0 |
+| 번역 팩 검사 | `check-korean-pack.mjs`의 번역 파일 95개 JSON·MIT 라이선스·문제 패널/제한 모드 필수 한글 키 검사 통과. `test`·`test:nls`에 연결 |
+| 생성/실행 일치 | 생성한 키 원본 대응 22,422개와 실행 출력의 값 일치 검사 통과 |
+| 첫 격리 창 | 직접 Playwright 실행에서 `--locale=ko`를 명시해 한국어 검사 통과 |
+| 마지막 격리 창 | CLI 로케일 인자 없이 새 격리 프로필·새 fixture로 직접 Playwright 실행. 현재 공유 `.vscode-oss-dev/argv.json`의 `locale=ko`가 적용돼 패널 다섯 탭·문제 없음 문구·제한 모드 경고·`관리·자세한 정보` 한국어 확인 |
+| 폴더 아이콘 | 마지막 검토 화면에서 루트와 확장한 하위 폴더 아이콘을 확인. 폴더 SVG 출처·역할과 실제 표시 확인을 함께 기록 |
+
+마지막 검토 이미지 위치는 `F:\Project\JBroScriptEditor\.toolchain\korean-review.png`다. 이 결과는 런처 자체 실행의 검증이 아니라 직접 Playwright 실행의 증거다.
+로케일 인자를 생략한 결과도 현재 공유 `argv.json`이 `ko`였다는 조건을 포함한다. 이를 모든 기존 언어 선택·전 화면의 한국어·모든 폴더 상태 검증으로 일반화하지 않는다.
+설치본, 전 화면 완전 한국어, 실제 GitHub 인증은 확인하지 않았다. 이전 초기 Explorer 전환 한계, 엔진 태스크 실기·전체 엔진 빌드·자유 도킹·드래그드롭/로딩 UI 후속 범위도 이번 결과로 완료 처리하지 않는다.
+
+### 14.3 구현·검사 자리
+
+- [한국어 팩 manifest](../source/JBroScriptEditor/extensions/jbro-korean/package.json)·[MIT 라이선스](../source/JBroScriptEditor/extensions/jbro-korean/LICENSE.md)
+- [고정 팩 가져오기](../source/JBroScriptEditor/scripts/vendor-korean-pack.mjs)·[프로필 등록](../source/JBroScriptEditor/scripts/prepare-korean.mjs)·[개발 번역 생성](../source/JBroScriptEditor/scripts/generate-dev-korean.mjs)·[팩 검사](../source/JBroScriptEditor/scripts/check-korean-pack.mjs)
+- [0005](../source/JBroScriptEditor/patches/0005-korean-dev-localization.patch)·[워크스페이스 트리](../source/JBroScriptEditor/extensions/jbro-engine/workspace.cjs)·[폴더 SVG](../source/JBroScriptEditor/extensions/jbro-engine/media/icons/folder.svg)·[열린 폴더 SVG](../source/JBroScriptEditor/extensions/jbro-engine/media/icons/folder-open.svg)
