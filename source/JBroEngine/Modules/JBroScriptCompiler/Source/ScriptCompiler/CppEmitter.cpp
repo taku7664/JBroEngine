@@ -815,7 +815,7 @@ namespace JBro::ScriptCompiler
             void Function(NodeIndex index, bool script, bool declaration)
             {
                 const SyntaxNode& node = Node(index);
-                const bool constructor = node.Text == m_owner;
+                const bool constructor = FunctionName(node) == m_owner;
                 const bool staticMethod = (node.Flags & SyntaxFlagStatic) != 0;
                 const DeclarationRef* owner = m_declarations.Find(m_owner);
                 const bool abstractMethod = (node.Flags & SyntaxFlagRequire) != 0
@@ -828,7 +828,7 @@ namespace JBro::ScriptCompiler
                     + (declaration && !constructor && !staticMethod ? "virtual " : "")
                     + (declaration && staticMethod ? "static " : "")
                     + (constructor ? "" : NativeType(returns) + " ")
-                    + (declaration ? "" : m_owner + "::") + String(node.Text) + "(";
+                    + (declaration ? "" : m_owner + "::") + String(FunctionName(node)) + "(";
                 const NodeIndex parameters = Child(index, 1);
                 if (parameters != InvalidNode)
                 {
@@ -1143,7 +1143,11 @@ namespace JBro::ScriptCompiler
                         return {code, {"Vector2", false}};
                     }
                     const String op = node.Text == "and" ? "&&" : node.Text == "or" ? "||" : String(node.Text);
-                    return {"(" + left.code + " " + op + " " + right.code + ")", left.type};
+                    const bool booleanResult = node.Text == "==" || node.Text == "!=" || node.Text == "<"
+                        || node.Text == "<=" || node.Text == ">" || node.Text == ">="
+                        || node.Text == "and" || node.Text == "or";
+                    return {"(" + left.code + " " + op + " " + right.code + ")",
+                        booleanResult ? Type{"Bool", false} : left.type};
                 }
                 case SyntaxKind::CallExpression:
                 {

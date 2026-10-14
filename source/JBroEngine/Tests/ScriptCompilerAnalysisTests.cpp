@@ -253,6 +253,65 @@ namespace
             "switch rejects class values before C++ emission because they have no equality contract");
     }
 
+    void TestEqualityOperatorsNeedAnExplicitOverload()
+    {
+        auto missing = Analyze("struct Box\n{\nInt value\n}\n"
+            "class Holder\n{\nfn F(Box a, Box b) -> Bool\n{\nreturn a == b\n}\n}\n");
+        Check(Has(*missing, "JBC3031"), "user values without operator== fail semantic analysis");
+
+        auto valid = Analyze("struct Box\n{\nInt value\n"
+            "fn operator==(Box other) -> Bool\n{\nreturn value == other.value\n}\n"
+            "fn operator!=(Box other) -> Bool\n{\nreturn value != other.value\n}\n}\n"
+            "class Holder\n{\nfn F(Box a, Box b) -> Bool\n{\nreturn a == b and a != b\n}\n}\n");
+        Check(!valid->Documents[0]->ParseDiagnostics.HasErrors()
+                && valid->Documents[0]->Diagnostics.IsEmpty(),
+            "matching explicit equality overloads accept comparisons");
+        const Symbol* equality = valid->Symbols.FindBy([](const Symbol& symbol)
+        {
+            return symbol.Name == "operator==";
+        });
+        String renameError;
+        Check(equality != nullptr && !CanRenameSymbol(*valid, equality->Id, "Equals", renameError),
+            "operator declarations cannot be renamed into ordinary methods");
+
+        auto onlyEqual = Analyze("struct Box\n{\n"
+            "fn operator==(Box other) -> Bool\n{\nreturn true\n}\n"
+            "fn F(Box other) -> Bool\n{\nreturn this != other\n}\n}\n");
+        Check(Has(*onlyEqual, "JBC3031"), "operator!= needs its own declaration");
+
+        auto otherParameter = Analyze("struct Box\n{\n"
+            "fn operator==(Int other) -> Bool\n{\nreturn true\n}\n"
+            "fn F(Int other) -> Bool\n{\nreturn this == other\n}\n}\n");
+        Check(otherParameter->Documents[0]->Diagnostics.IsEmpty(),
+            "an equality overload can accept a right operand of another value type");
+
+        auto wrongArity = Analyze("struct Box\n{\n"
+            "fn operator==() -> Bool\n{\nreturn true\n}\n}\n");
+        Check(Has(*wrongArity, "JBC3043"), "an equality operator requires one right operand");
+
+        auto inherited = Analyze("class Base\n{\n"
+            "public fn operator==(Int other) -> Bool\n{\nreturn true\n}\n}\n"
+            "class Child : Base\n{\nfn F(Int other) -> Bool\n{\nreturn this == other\n}\n}\n");
+        Check(inherited->Documents[0]->Diagnostics.IsEmpty(),
+            "a derived value can use an accessible inherited equality overload");
+
+        auto hidden = Analyze("class Base\n{\n"
+            "public fn operator==(Int other) -> Bool\n{\nreturn true\n}\n}\n"
+            "class Child : Base\n{\n"
+            "public fn operator==(String other) -> Bool\n{\nreturn true\n}\n"
+            "fn F(Int other) -> Bool\n{\nreturn this == other\n}\n}\n");
+        Check(Has(*hidden, "JBC3031"),
+            "a child equality declaration hides base overloads that generated C++ cannot call");
+
+        auto wrongReturn = Analyze("struct Box\n{\n"
+            "fn operator==(Box other) -> Int\n{\nreturn 1\n}\n}\n");
+        Check(Has(*wrongReturn, "JBC3043"), "an equality operator must return Bool");
+
+        auto staticOperator = Analyze("struct Box\n{\n"
+            "static fn operator==(Box other) -> Bool\n{\nreturn true\n}\n}\n");
+        Check(Has(*staticOperator, "JBC3043"), "an equality operator cannot be static");
+    }
+
     void TestCppEmitterFloatLiteralMatchesEngineValueType()
     {
         SourceText source("float.jscript", "script Probe\n{\npublic Float factor = 0.5\n}\n");
@@ -565,6 +624,7 @@ JBro::Int32 RunScriptCompilerAnalysisTests()
     TestCppEmitterPreservesFieldVisibilityAndReflection();
     TestStaticPropertiesAreSharedAndNotSerialized();
     TestSwitchRejectsNonComparableValues();
+    TestEqualityOperatorsNeedAnExplicitOverload();
     TestCppEmitterFloatLiteralMatchesEngineValueType();
     TestWitnessRegressions();
     TestJumpControlFlowAndContainerEffects();

@@ -130,6 +130,8 @@ namespace JBro::ScriptCompiler
             { SyntaxFlagNegated, "Negated" },
             { SyntaxFlagNullable, "Nullable" },
             { SyntaxFlagNullSafe, "NullSafe" },
+            { SyntaxFlagOperatorEqual, "OperatorEqual" },
+            { SyntaxFlagOperatorNotEqual, "OperatorNotEqual" },
         };
 
         void DumpNode(const SyntaxTree& tree, NodeIndex index, std::size_t depth, String& out)

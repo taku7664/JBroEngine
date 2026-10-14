@@ -6,6 +6,12 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_DerivedRead()
     return counter.Read().Get();
 }
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_EqualityScore()
+{
+    EqualityScenario scenario;
+    return scenario.Score().Get();
+}
+
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_MultipleBaseProperties()
 {
     FieldMix value;

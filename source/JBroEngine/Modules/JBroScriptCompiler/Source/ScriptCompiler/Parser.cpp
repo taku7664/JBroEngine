@@ -520,6 +520,16 @@ namespace JBro::ScriptCompiler
                 if (At(TokenKind::Identifier))
                 {
                     name = Advance().Text;
+                    if (name == "operator" && At(TokenKind::EqualEqual))
+                    {
+                        flags |= SyntaxFlagOperatorEqual;
+                        Advance();
+                    }
+                    else if (name == "operator" && At(TokenKind::BangEqual))
+                    {
+                        flags |= SyntaxFlagOperatorNotEqual;
+                        Advance();
+                    }
                 }
                 else
                 {

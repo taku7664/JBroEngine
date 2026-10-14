@@ -226,6 +226,28 @@ namespace JBro::ScriptCompiler
             return output;
         }
 
+        void VisibleEqualityMembers(const AnalysisResult& result, SymbolId type, std::string_view name,
+            Array<SymbolId>& output, Array<SymbolId>& visited, Bool& multipleBases)
+        {
+            if (InvalidSymbol == type || visited.Contains(type)) return;
+            visited.Add(type);
+            for (const Symbol& symbol : result.Symbols)
+            {
+                if (symbol.Parent == type && symbol.Name == name) output.Add(symbol.Id);
+            }
+            if (!output.IsEmpty()) return;
+            Bool foundBase = false;
+            for (const String& base : result.Symbols[type].BaseTypes)
+            {
+                Array<SymbolId> branch;
+                VisibleEqualityMembers(result, TypeId(result, base), name, branch, visited, multipleBases);
+                if (branch.IsEmpty()) continue;
+                if (foundBase) multipleBases = true;
+                foundBase = true;
+                output.Append(branch.Data(), branch.Size());
+            }
+        }
+
         String Substitute(std::string_view type, const Array<String>& names, const Array<String>& values)
         {
             String result;
@@ -505,6 +527,11 @@ namespace JBro::ScriptCompiler
             case SyntaxKind::NullAssertExpression:
                 return Bare(ExpressionType(result, document, tree.GetChild(index, 0)));
             case SyntaxKind::BinaryExpression:
+                if (node.Text == "==" || node.Text == "!=" || node.Text == "<" || node.Text == "<="
+                    || node.Text == ">" || node.Text == ">=" || node.Text == "and" || node.Text == "or")
+                {
+                    return "Bool";
+                }
                 return node.Text == "??" ? Bare(ExpressionType(result, document, tree.GetChild(index, 0)))
                     : ExpressionType(result, document, tree.GetChild(index, 0));
             default:
@@ -891,7 +918,7 @@ namespace JBro::ScriptCompiler
                 Symbol symbol;
                 symbol.Parent = parent;
                 symbol.Kind = kind;
-                symbol.Name = String(node.Text);
+                symbol.Name = String(node.Kind == SyntaxKind::FunctionDeclaration ? FunctionName(node) : node.Text);
                 symbol.Uri = m_document->Input.Uri;
                 symbol.Range = node.Range;
                 symbol.SelectionRange = NameRange(*m_document, node);
@@ -970,7 +997,7 @@ namespace JBro::ScriptCompiler
                         SymbolKind kind = SymbolKind::Field;
                         if (SyntaxKind::FunctionDeclaration == Node(child).Kind)
                         {
-                            kind = Node(child).Text == m_result.Symbols[binding.Id].Name ? SymbolKind::Constructor : SymbolKind::Method;
+                            kind = FunctionName(Node(child)) == m_result.Symbols[binding.Id].Name ? SymbolKind::Constructor : SymbolKind::Method;
                         }
                         else if (SyntaxKind::EnumMember == Node(child).Kind)
                         {
@@ -1229,6 +1256,16 @@ namespace JBro::ScriptCompiler
                         || m_scripts.Contains(symbol.Parent)))
                     {
                         Error("JBC3025", "constructor_kind", symbol.SelectionRange);
+                    }
+                    if ((node.Flags & (SyntaxFlagOperatorEqual | SyntaxFlagOperatorNotEqual)) != 0
+                        && (symbol.IsStatic || symbol.IsAbstract || symbol.Parameters.Size() != 1
+                            || (symbol.Parameters.Size() == 1 && symbol.Parameters[0].Borrowed)
+                            || symbol.Type != "Bool" || m_result.Symbols[symbol.Parent].Api
+                            || m_scripts.Contains(symbol.Parent)
+                            || (m_result.Symbols[symbol.Parent].Kind != SymbolKind::Class
+                                && m_result.Symbols[symbol.Parent].Kind != SymbolKind::Struct)))
+                    {
+                        Error("JBC3043", "equality_operator_signature", symbol.SelectionRange, {symbol.Name});
                     }
                     if (symbol.IsAbstract && InvalidNode != Child(binding.Node, 3))
                     {
@@ -1694,6 +1731,65 @@ namespace JBro::ScriptCompiler
                 }
                 if (node.Text == "==" || node.Text == "!=")
                 {
+                    const SymbolId leftType = TypeId(m_result, left.Type);
+                    const SymbolId rightType = TypeId(m_result, right.Type);
+                    const Bool userValue = false == Nullable(left.Type) && leftType != InvalidSymbol
+                        && false == m_result.Symbols[leftType].Api && false == m_scripts.Contains(leftType)
+                        && (m_result.Symbols[leftType].Kind == SymbolKind::Class
+                            || m_result.Symbols[leftType].Kind == SymbolKind::Struct);
+                    if (userValue)
+                    {
+                        Int bestScore = std::numeric_limits<std::int64_t>::max();
+                        SymbolId best = InvalidSymbol;
+                        Bool ambiguous = false;
+                        const String name = String("operator").Append(node.Text);
+                        Array<SymbolId> candidates;
+                        Array<SymbolId> visited;
+                        Bool multipleBases = false;
+                        VisibleEqualityMembers(m_result, leftType, name, candidates, visited, multipleBases);
+                        for (SymbolId candidate : candidates)
+                        {
+                            const Symbol& method = m_result.Symbols[candidate];
+                            if (Accessible(m_result, method, m_owner) && !method.IsStatic && !method.IsAbstract
+                                && method.Type == "Bool" && method.Parameters.Size() == 1
+                                && !method.Parameters[0].Borrowed
+                                && Convertible(method.Parameters[0].Type, right))
+                            {
+                                const Int score = EqualType(method.Parameters[0].Type, right.Type) ? 0 : 1;
+                                if (score < bestScore)
+                                {
+                                    bestScore = score;
+                                    best = candidate;
+                                    ambiguous = false;
+                                }
+                                else if (score == bestScore)
+                                {
+                                    ambiguous = true;
+                                }
+                            }
+                        }
+                        if (best == InvalidSymbol)
+                        {
+                            Error("JBC3031", "operator", node.Range, {String(node.Text), left.Type});
+                        }
+                        else if (ambiguous || multipleBases)
+                        {
+                            Error("JBC3035", "ambiguous_overload", node.Range, {name});
+                        }
+                        else
+                        {
+                            Occur(best, NameRange(*m_document, node));
+                        }
+                        return Literal("Bool");
+                    }
+                    if (rightType != InvalidSymbol && false == m_result.Symbols[rightType].Api
+                        && false == m_scripts.Contains(rightType)
+                        && (m_result.Symbols[rightType].Kind == SymbolKind::Class
+                            || m_result.Symbols[rightType].Kind == SymbolKind::Struct))
+                    {
+                        Error("JBC3031", "operator", node.Range, {String(node.Text), right.Type});
+                        return Literal("Bool");
+                    }
                     if (false == Convertible(left.Type, right) && false == Convertible(right.Type, left))
                     {
                         Error("JBC3003", "type_mismatch", node.Range, {left.Type, right.Type});
@@ -2730,7 +2826,7 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.no_overload", "jbroc.semantic.ambiguous_overload", "jbroc.semantic.not_iterable",
             "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
             "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
-            "jbroc.semantic.switch_value_type"
+            "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature"
         };
         return {keys, std::size(keys)};
     }
@@ -2980,6 +3076,11 @@ namespace JBro::ScriptCompiler
         for (SymbolId memberId : group)
         {
             const Symbol& member = result.Symbols[memberId];
+            if (member.Name == "operator==" || member.Name == "operator!=")
+            {
+                error = "Operator declarations cannot be renamed as identifiers.";
+                return false;
+            }
             if (member.Api || member.IsCallback)
             {
                 error = "This rename group includes an engine API or callback contract whose name is fixed.";

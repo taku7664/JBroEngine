@@ -64,3 +64,83 @@ script ChildScript : ParentScript
         return Increase() + extra
     }
 }
+
+struct ComparedPair
+{
+    Int value
+
+    fn operator==(ComparedPair other) -> Bool
+    {
+        return value == other.value
+    }
+
+    fn operator!=(ComparedPair other) -> Bool
+    {
+        return value != other.value
+    }
+}
+
+class ComparedLabel
+{
+    public Int value
+
+    public fn operator==(ComparedLabel other) -> Bool
+    {
+        return value == other.value
+    }
+
+    public fn operator!=(ComparedLabel other) -> Bool
+    {
+        return value != other.value
+    }
+
+    public fn operator==(Int other) -> Bool
+    {
+        return value == other
+    }
+}
+
+class BaseNumber
+{
+    public Int value
+
+    public fn operator==(Int other) -> Bool
+    {
+        return value == other
+    }
+}
+
+class DerivedNumber : BaseNumber
+{
+}
+
+class EqualityScenario
+{
+    public fn Score() -> Int
+    {
+        ComparedPair a
+        ComparedPair b
+        ComparedPair c
+        a.value = 3
+        b.value = 3
+        c.value = 4
+        ComparedLabel x
+        ComparedLabel y
+        ComparedLabel z
+        x.value = 5
+        y.value = 5
+        z.value = 6
+        Int score = 0
+        if (a == b) { score += 1 }
+        if (a != c) { score += 2 }
+        if (a != b) { score += 4 }
+        if (x == y) { score += 8 }
+        if (x != z) { score += 16 }
+        if (x != y) { score += 32 }
+        if (x == 5) { score += 64 }
+        DerivedNumber inherited
+        inherited.value = 7
+        if (inherited == 7) { score += 128 }
+        return score
+    }
+}

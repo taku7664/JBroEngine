@@ -714,6 +714,20 @@ namespace
         Check(SyntaxKind::ScriptDeclaration == result.Tree.Get(declarations[0]).Kind
             && result.Tree.Get(declarations[0]).Text == "Enemy", "the D-262 example declares Enemy");
     }
+
+    void TestEqualityOperatorDeclarationsParse()
+    {
+        ParseResult result("struct Box\n{\n"
+            "    fn operator==(Box other) -> Bool\n    {\n        return true\n    }\n"
+            "    fn operator !=(Box other) -> Bool\n    {\n        return false\n    }\n}\n");
+        Check(result.Diagnostics.GetCount() == 0, "equality operator declarations parse with or without a space");
+        const NodeIndex box = result.Tree.GetChild(result.Tree.GetRoot(), 0);
+        const NodeIndex equal = result.Tree.GetChild(box, 1);
+        const NodeIndex unequal = result.Tree.GetChild(box, 2);
+        Check((result.Tree.Get(equal).Flags & SyntaxFlagOperatorEqual) != 0
+                && (result.Tree.Get(unequal).Flags & SyntaxFlagOperatorNotEqual) != 0,
+            "operator declarations retain their distinct equality tokens");
+    }
 }
 
 JBro::Int32 RunScriptCompilerParserTests()
@@ -726,6 +740,7 @@ JBro::Int32 RunScriptCompilerParserTests()
     TestControlFlow();
     TestRangesCoverTheirSource();
     TestErrors();
+    TestEqualityOperatorDeclarationsParse();
     TestTheSyntaxDocumentExampleParses();
     std::cout << "Script compiler parser tests passed.\n";
     return 0;

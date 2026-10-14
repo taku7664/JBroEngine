@@ -1204,11 +1204,15 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_DerivedRead"));
         const auto multipleBaseProperties = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_MultipleBaseProperties"));
+        const auto equalityScore = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_EqualityScore"));
         const auto childResult = reinterpret_cast<ChildResult>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ChildResult"));
         Check(derivedRead != nullptr && derivedRead() == 5 && childResult != nullptr
                 && multipleBaseProperties != nullptr && multipleBaseProperties() == 23,
             "interface diamonds, virtual overrides and secondary-base reflection execute in the game DLL");
+        Check(equalityScore != nullptr && equalityScore() == 219,
+            "class and struct equality operators, cross-type and inherited overloads execute in the game DLL");
         using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
         using ControlAddScore = void (*)(JBro::GameScriptBase*);
