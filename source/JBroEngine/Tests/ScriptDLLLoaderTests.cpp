@@ -1205,6 +1205,8 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlRenameOwner"));
         const auto controlMoveOwner = reinterpret_cast<ControlBrighten>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlMoveOwner"));
+        const auto controlUseCounter = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlUseCounter"));
         Check(controlCount != nullptr && controlRhsCount != nullptr && controlActive != nullptr
                 && controlAddScore != nullptr
                 && controlRaiseScores != nullptr
@@ -1213,7 +1215,7 @@ namespace
                 && controlNullFallback != nullptr && controlGenericArray != nullptr
                 && controlOwnCount != nullptr && controlScoreByName != nullptr
                 && controlBrighten != nullptr && controlRenameOwner != nullptr
-                && controlMoveOwner != nullptr,
+                && controlMoveOwner != nullptr && controlUseCounter != nullptr,
             "the generated control scenario exports its probes");
         alignas(64) unsigned char controlStorage[4096]{};
         JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
@@ -1295,6 +1297,8 @@ namespace
             Check(ownerTransform != nullptr && controlMoveOwner(attached) == 2.0f
                     && ownerTransform->position.x == 2.0f && ownerTransform->position.y == 3.0f,
                 "Vector2 compound property assignment writes both vector components");
+            Check(controlUseCounter(attached) == 6 && controlUseCounter(attached) == 7,
+                "class constructors, const fields and static members execute in the game DLL");
         }
         alignas(64) unsigned char generatedStorage[4096]{};
         JBro::GameScriptBase* generatedScript = generatedType->Construct(generatedStorage);

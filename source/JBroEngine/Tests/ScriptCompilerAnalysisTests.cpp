@@ -185,10 +185,7 @@ namespace
     void TestCppEmitterRejectsUnimplementedSemantics()
     {
         for (const char* text : {
-            "class Parent\n{\n}\nclass Child : Parent\n{\n}\nscript Probe\n{\n}\n",
-            "script Probe\n{\nstatic Int shared\n}\n",
-            "script Probe\n{\nstatic fn F()\n{\n}\n}\n",
-            "class Parent\n{\nfn F() require\n}\nscript Probe\n{\n}\n"
+            "class Parent\n{\n}\nclass Child : Parent\n{\n}\nscript Probe\n{\n}\n"
         })
         {
             SourceText source("unsupported.jscript", text);
@@ -196,8 +193,28 @@ namespace
             const SyntaxTree tree = Parse(source, diagnostics);
             Check(false == diagnostics.HasErrors(), "unsupported emitter sample parses");
             Check(false == EmitCpp(source, tree, Catalog()).Errors.IsEmpty(),
-                "the emitter must not silently remove a base class or static field");
+                "the emitter must not silently remove an unsupported inheritance contract");
         }
+    }
+
+    void TestCppEmitterClassConstructionAndStaticMembers()
+    {
+        SourceText source("members.jscript", "class Counter\n{\npublic const Int step = 2\n"
+            "public static Int total = 0\npublic fn Counter(Int start)\n{\n}\n"
+            "public static fn Next(const Int amount) -> Int\n{\ntotal += amount\nreturn total\n}\n}\n"
+            "script Probe\n{\npublic fn F() -> Int\n{\nCounter c = Counter(3)\n"
+            "const Int increment = 1\nreturn c.step + Counter.Next(increment)\n}\n}\n");
+        DiagnosticList diagnostics;
+        const SyntaxTree tree = Parse(source, diagnostics);
+        Check(false == diagnostics.HasErrors(), "class member scenario parses");
+        const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
+        Check(emitted.Errors.IsEmpty()
+                && emitted.Code.find("const JBro::Int step") != String::npos
+                && emitted.Code.find("inline static JBro::Int total") != String::npos
+                && emitted.Code.find("Counter::Counter(JBro::Int start)") != String::npos
+                && emitted.Code.find("Counter::Next(const JBro::Int amount)") != String::npos
+                && emitted.Code.find(" + Counter::Next(increment)") != String::npos,
+            "constructors, const fields and static members are preserved in generated C++");
     }
 
     void TestCppEmitterPreservesFieldVisibilityAndReflection()
@@ -523,6 +540,7 @@ JBro::Int32 RunScriptCompilerAnalysisTests()
     TestCppEmitterCombinesProjectFiles();
     TestCppEmitterRejectsRecursiveOwnedRefs();
     TestCppEmitterRejectsUnimplementedSemantics();
+    TestCppEmitterClassConstructionAndStaticMembers();
     TestCppEmitterPreservesFieldVisibilityAndReflection();
     TestCppEmitterFloatLiteralMatchesEngineValueType();
     TestWitnessRegressions();

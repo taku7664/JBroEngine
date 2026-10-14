@@ -4,6 +4,24 @@ enum Mode
     Active
 }
 
+class Counter
+{
+    public Int value
+    public const Int step = 2
+    public static Int total = 0
+
+    public fn Counter(Int start)
+    {
+        value = start
+    }
+
+    public static fn Next(const Int amount) -> Int
+    {
+        total += amount
+        return total
+    }
+}
+
 script ControlProbe
 {
     public Int count
@@ -89,6 +107,13 @@ script ControlProbe
         delta.y = 3.0
         transform.position += delta
         return transform.position.x
+    }
+
+    public fn UseCounter() -> Int
+    {
+        Counter counter = Counter(3)
+        const Int increment = 1
+        return counter.value + counter.step + Counter.Next(increment)
     }
 
     fn OnPointerDown() override

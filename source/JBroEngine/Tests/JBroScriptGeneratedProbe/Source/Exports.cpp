@@ -80,6 +80,11 @@ extern "C" __declspec(dllexport) float JBroGeneratedProbe_ControlMoveOwner(JBro:
     return static_cast<ControlProbe*>(base)->MoveOwner().Get();
 }
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlUseCounter(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->UseCounter().Get();
+}
+
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetFirstValid(JBro::GameScriptBase* base) noexcept
 {
     static_cast<GuardProbe*>(base)->target1 = JBro::Nullable<Link>(Link{});

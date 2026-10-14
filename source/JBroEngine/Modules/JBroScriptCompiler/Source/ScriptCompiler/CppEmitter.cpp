@@ -23,6 +23,7 @@ namespace JBro::ScriptCompiler
             bool lvalue = false;
             bool property = false;
             String setter;
+            bool isType = false;
         };
 
         struct DeclarationRef
@@ -455,7 +456,10 @@ namespace JBro::ScriptCompiler
                     {
                         MemberAccess(member, node.Kind);
                         Function(member, script, true);
-                        m_functions.Add({{m_source, m_tree, index, node.Kind}, member});
+                        if (Child(member, 3) != InvalidNode)
+                        {
+                            m_functions.Add({{m_source, m_tree, index, node.Kind}, member});
+                        }
                     }
                     else if (Node(member).Kind == SyntaxKind::BaseList)
                     {
@@ -495,20 +499,19 @@ namespace JBro::ScriptCompiler
             void Field(NodeIndex index, bool isStruct)
             {
                 const SyntaxNode& node = Node(index);
-                if (node.Flags & (SyntaxFlagStatic | SyntaxFlagConst))
-                {
-                    Error("C++ emitter does not support static or const fields yet");
-                }
-                if (const NodeIndex typeNode = Child(index, 1); typeNode != InvalidNode
-                    && (Node(typeNode).Flags & SyntaxFlagConst))
-                {
-                    Error("C++ emitter does not support const field types yet");
-                }
+                const NodeIndex typeNode = Child(index, 1);
+                const bool constant = typeNode != InvalidNode && (Node(typeNode).Flags & SyntaxFlagConst);
+                const bool staticField = (node.Flags & SyntaxFlagStatic) != 0;
                 const Type type = ParseType(Child(index, 1));
                 const String native = NativeType(type);
                 const String name(node.Text);
                 const NodeIndex attributes = Child(index, 0);
                 const bool reflected = isStruct || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
+                if (reflected && (staticField || constant))
+                {
+                    Error("C++ emitter cannot reflect static or const fields yet");
+                    return;
+                }
                 if (attributes != InvalidNode)
                 {
                     for (NodeIndex attribute : m_tree->GetChildren(attributes))
@@ -533,7 +536,8 @@ namespace JBro::ScriptCompiler
                 }
                 else
                 {
-                    m_code += "    " + native + " " + name;
+                    m_code += "    " + String(staticField ? "inline static " : "")
+                        + (constant ? "const " : "") + native + " " + name;
                 }
                 if (Child(index, 2) != InvalidNode)
                 {
@@ -551,18 +555,18 @@ namespace JBro::ScriptCompiler
             void Function(NodeIndex index, bool script, bool declaration)
             {
                 const SyntaxNode& node = Node(index);
-                if (node.Flags & (SyntaxFlagStatic | SyntaxFlagRequire))
-                {
-                    Error("C++ emitter does not support static or abstract methods yet");
-                }
-                if (node.Text == m_owner)
-                {
-                    Error("C++ emitter does not support constructors yet");
-                }
+                const bool constructor = node.Text == m_owner;
+                const bool staticMethod = (node.Flags & SyntaxFlagStatic) != 0;
+                const DeclarationRef* owner = m_declarations.Find(m_owner);
+                const bool abstractMethod = (node.Flags & SyntaxFlagRequire) != 0
+                    || (owner != nullptr && owner->kind == SyntaxKind::InterfaceDeclaration);
                 const Type returns = ParseType(Child(index, 2));
                 const bool callback = script && (node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) != 0;
                 m_variables = m_fields[m_owner];
-                m_code += (declaration ? "    " : "") + NativeType(returns) + " "
+                m_code += String(declaration ? "    " : "")
+                    + (declaration && !constructor && !staticMethod ? "virtual " : "")
+                    + (declaration && staticMethod ? "static " : "")
+                    + (constructor ? "" : NativeType(returns) + " ")
                     + (declaration ? "" : m_owner + "::") + String(node.Text) + "(";
                 const NodeIndex parameters = Child(index, 1);
                 if (parameters != InvalidNode)
@@ -572,18 +576,21 @@ namespace JBro::ScriptCompiler
                     {
                         if (count++ != 0) m_code += ", ";
                         const Type type = ParseType(Child(parameter, 0));
+                        const bool constant = (Node(Child(parameter, 0)).Flags & SyntaxFlagConst) != 0;
                         m_variables[String(Node(parameter).Text)] = type.ref
                             ? Type{type.name, false} : type;
-                        m_code += (type.ref ? NativeType({type.name, false}) + "&" : NativeType(type))
+                        m_code += String(constant ? "const " : "")
+                            + (type.ref ? NativeType({type.name, false}) + "&" : NativeType(type))
                             + " " + String(Node(parameter).Text);
                     }
                 }
                 m_code += ")";
                 if (declaration && node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) m_code += " override";
+                if (declaration && abstractMethod) m_code += " = 0";
                 const NodeIndex body = Child(index, 3);
                 if (body == InvalidNode)
                 {
-                    if (!declaration) Error("C++ emitter does not support methods without a body yet");
+                    if (!declaration && !abstractMethod) Error("C++ emitter does not support methods without a body yet");
                     m_code += ";\n";
                     return;
                 }
@@ -693,7 +700,7 @@ namespace JBro::ScriptCompiler
                     }
                     if (Api(name) != nullptr || m_declarations.Contains(name))
                     {
-                        return {NativeType({name, false}), {name, false}};
+                        return {NativeType({name, false}), {name, false}, false, false, {}, true};
                     }
                     if (IsScript({m_owner, false}))
                     {
@@ -720,7 +727,7 @@ namespace JBro::ScriptCompiler
                         Error("unresolved generic name in C++ emitter: " + type.name);
                         return {};
                     }
-                    return {NativeType(type), type};
+                    return {NativeType(type), type, false, false, {}, true};
                 }
                 case SyntaxKind::IntegerLiteral: return {String(node.Text), {"Int", false}};
                 case SyntaxKind::FloatLiteral:
@@ -821,7 +828,8 @@ namespace JBro::ScriptCompiler
                     {
                         Error("unresolved member in C++ emitter: " + String(node.Text));
                     }
-                    const String access = property ? "." + nativeMember + "()" : "." + nativeMember;
+                    const String access = receiver.isType ? "::" + nativeMember
+                        : property ? "." + nativeMember + "()" : "." + nativeMember;
                     if (node.Flags & SyntaxFlagNullSafe)
                     {
                         if (memberType.name.empty()) return {};
@@ -948,7 +956,8 @@ namespace JBro::ScriptCompiler
                                     + AccessPath(calleeIndex)) + ")." + method + "(" + arguments + "); }())";
                             return {code, callee.type};
                         }
-                        return {"(" + receiver.code + ")." + method + "(" + arguments + ")", callee.type};
+                        return {receiver.isType ? receiver.code + "::" + method + "(" + arguments + ")"
+                            : "(" + receiver.code + ")." + method + "(" + arguments + ")", callee.type};
                     }
                     return {callee.code + "(" + arguments + ")", callee.type};
                 }
@@ -1010,9 +1019,13 @@ namespace JBro::ScriptCompiler
                 }
                 if (node.Kind == SyntaxKind::LocalDeclaration)
                 {
-                    const Type type = ParseType(Child(index, 0));
+                    const NodeIndex typeIndex = Child(index, 0);
+                    const Type type = ParseType(typeIndex);
+                    const bool constant = typeIndex != InvalidNode
+                        && (Node(typeIndex).Flags & SyntaxFlagConst) != 0;
                     m_variables[String(node.Text)] = type;
-                    m_code += pad + NativeType(type) + " " + String(node.Text);
+                    m_code += pad + (constant ? "const " : "")
+                        + NativeType(type) + " " + String(node.Text);
                     if (Child(index, 1) != InvalidNode)
                     {
                         const Expression value = Expr(Child(index, 1));
