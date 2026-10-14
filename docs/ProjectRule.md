@@ -1581,6 +1581,35 @@
   ImGui 가 파일을 못 열고 **단언으로 프로세스를 죽인다.** C 런타임으로 열면 인자와 같은
   인코딩이라 그 자리에서 맞는다.
 
+### 11.7 스크립트 편집기의 공통 UI (D-313)
+
+Updates: D-311의 상단 직접 버튼 방식. 이번 후속 작업은 메뉴만 구현하며 자유 도킹·드래그드롭 위젯·로딩 UI는 후속 범위다.
+후속 D-314는 워크스페이스 사이드바와 테마를 추가한다. 최초 메뉴 범위는 이력으로 보존하며 도킹·드래그드롭·로딩 UI의 후속 범위는 유지한다.
+
+- **스크립트 편집기에서 반복되는 UI 동작은 공통 UI 프레임워크를 거친다.** (MUST) (D-313)
+  메뉴·드래그드롭·로딩 등의 상호작용과 수명 처리를 Titlebar·제품별 화면에 각자 복제하지 않는다.
+- **ScriptEditorNativeUI는 Code-OSS 본체의 UI 계층이며 엔진의 C++·ImGui `JBroWidget`과 별개다.** (MUST)
+  §11.1의 엔진 위젯을 Code-OSS에 포팅하거나 두 계층을 합치는 계약이 아니다.
+- 제품별 메뉴·명령·번역은 내장 확장이 기여하고, 공통 UI는 번역된 문구를 받아 그린다. (MUST)
+  한국어 기본·영어 번역 파일과 번역키를 유지한다(D-312). 공통 UI가 제품 문구를 소스에 직접 갖지 않는다.
+- 구체적인 공통 메뉴바·모듈 구성과 확인 범위는 [메뉴 후속 계획](../tasks/script-editor-integration-plan.md#12-2026-10-14-후속-계획--메뉴-우선공통-ui-구조)에 둔다.
+  재사용 방향과 이번 메뉴 범위를 확정한 것이며 계획의 모든 파일·API가 확정 계약은 아니다.
+  구현은 공통 `JBroMenuBar`·`ui.ts` 진입점과 내장 확장의 하위 메뉴 기여이며 최종 메뉴 확인 범위는 계획 §12.5에 기록한다.
+
+### 11.8 스크립트 편집기의 워크스페이스·테마 (D-314)
+
+Updates: D-313의 최초 메뉴만 구현하는 범위. 사용자 확인 대상은 초기 왼쪽 워크스페이스와 JBroEngine 테마 정합이다.
+
+- **처음 왼쪽 사이드바에는 워크스페이스만 표시한다.** (MUST) (D-314)
+  이번 트리의 파일 탐색·열기는 읽기 전용이며 Outline·Timeline과 파일 관리 기능을 추가하는 범위가 아니다.
+- UI 색의 공통 원천은 엔진 `EditorTheme.h`의 의미별 팔레트로 삼는다. (SHOULD)
+  현재 선택한 구조는 상수 숫자를 읽는 생성기와 Code-OSS native ThemeService·CSS 변수다. 엔진 C++ 팔레트는 수정하지 않는다.
+  코드 문법 강조의 별도 토큰은 엔진 UI의 오류·주의·상호작용 색과 구분한다.
+- 생성기·TreeView·테마 기여의 구현 판단과 확인 범위는 [워크스페이스·테마 추가 계획](../tasks/script-editor-integration-plan.md#13-2026-10-14-추가-계획--워크스페이스사이드바테마)에 둔다.
+  자유 도킹·드래그드롭 위젯·로딩 UI 구현은 계속 후속이다.
+  **현재 확인은 확장 활성화 이후 최종 화면이다.** 초기 로딩 전 Explorer가 잠시 나타나는 전환은 남아 있으며,
+  최초 프레임부터 워크스페이스만 표시됐다고 판단하지 않는다. 실제 트리·파일 열기·테마 확인과 이 한계는 계획 §13.4에 기록한다.
+
 ## 12. 검증
 
 - 빌드 성공만으로 기능이 검증됐다고 판단하지 않는다. (MUST)
@@ -1716,7 +1745,7 @@
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장과 코어 패치가 `source/JBroScriptEditor` 에 섰고(D-261) 포크 설치본은 아직 없다.
-- [tasks/script-editor-integration-plan.md](../tasks/script-editor-integration-plan.md) — C++ 스크립트용 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃 현황과 후속 계획(D-310·D-311).
+- [tasks/script-editor-integration-plan.md](../tasks/script-editor-integration-plan.md) — C++ 스크립트용 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃 현황과 후속 계획(D-310~D-314).
   사용자 확인 담당 범위·기본 화면 항목은 Decisions에 기록하며, 이 계획의 구현 제안은 확정 계약이 아니다.
 - [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
   컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. ~~`jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.~~
