@@ -1187,11 +1187,13 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlDisableOwnerSafe"));
         const auto controlNullFallback = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlNullFallback"));
+        const auto controlGenericArray = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlGenericArray"));
         Check(controlCount != nullptr && controlActive != nullptr && controlAddScore != nullptr
                 && controlRaiseScores != nullptr
                 && controlHasOwner != nullptr && controlHasTransform != nullptr
                 && controlHasTransformSafe != nullptr && controlDisableOwnerSafe != nullptr
-                && controlNullFallback != nullptr,
+                && controlNullFallback != nullptr && controlGenericArray != nullptr,
             "the generated control scenario exports its probes");
         alignas(64) unsigned char controlStorage[4096]{};
         JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
@@ -1205,6 +1207,8 @@ namespace
             "a null-safe void method skips an absent owner without logging");
         Check(controlNullFallback(controlScript) == 5,
             "a literal null coalesce returns the non-null fallback");
+        Check(controlGenericArray(controlScript) == 3,
+            "a generic Array constructor and method call compile into a game DLL");
         controlScript->OnUpdate();
         Check(controlCount(controlScript) == 4, "range for and the first enum switch branch execute");
         controlActive(controlScript);

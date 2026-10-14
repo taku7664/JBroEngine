@@ -711,6 +711,16 @@ namespace JBro::ScriptCompiler
                     Error("unresolved name in C++ emitter: " + name);
                     return {name, {}, true};
                 }
+                case SyntaxKind::GenericNameExpression:
+                {
+                    const Type type = ParseType(index);
+                    if (Api(type.name) == nullptr && !m_declarations.Contains(type.name))
+                    {
+                        Error("unresolved generic name in C++ emitter: " + type.name);
+                        return {};
+                    }
+                    return {NativeType(type), type};
+                }
                 case SyntaxKind::IntegerLiteral: return {String(node.Text), {"Int", false}};
                 case SyntaxKind::FloatLiteral:
                 {

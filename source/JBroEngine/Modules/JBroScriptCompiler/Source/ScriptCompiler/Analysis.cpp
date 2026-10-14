@@ -1479,9 +1479,18 @@ namespace JBro::ScriptCompiler
                     {
                         value.Overloads = found;
                     }
-                    for (NodeIndex type : m_document->Tree.GetChildren(index))
+                    if (node.Kind == SyntaxKind::GenericNameExpression && value.TypeObject)
                     {
-                        ValidateType(type, false, false, true);
+                        ValidateType(index, false, false, true);
+                        value.Type = RenderType(m_document->Tree, index);
+                        value.DeclaredType = value.Type;
+                    }
+                    else
+                    {
+                        for (NodeIndex type : m_document->Tree.GetChildren(index))
+                        {
+                            ValidateType(type, false, false, true);
+                        }
                     }
                     return value;
                 }

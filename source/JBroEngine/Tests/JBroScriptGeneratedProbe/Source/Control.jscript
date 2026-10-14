@@ -43,6 +43,13 @@ script ControlProbe
         }
     }
 
+    public fn GenericArray() -> Int
+    {
+        Array<Int> values = Array<Int>()
+        values.Add(3)
+        return values[0]
+    }
+
     fn OnUpdate() override
     {
         for (i in 0..3)
