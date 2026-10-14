@@ -2952,6 +2952,34 @@ namespace JBro
                 }
             }
         };
+
+        // 빌드 도구나 SDK 가 없다는 알림을 누르면 받는 곳을 연다. 무엇을 골라 설치할지는 알림 글이 말한다.
+        class OpenBuildToolsDownloadAction final : public NotificationAction
+        {
+        public:
+            void OnClick(EditorApplication& editor) override
+            {
+                editor.OpenScriptBuildToolsDownload();
+            }
+        };
+
+        // 빌드 도구가 없을 때의 알림이다. 사용자가 설치하러 갈 때까지 남는다 - 몇 초 뒤 사라지면 무엇을 깔지 다시 볼 곳이 없다.
+        void NotifyBuildToolsMissing(EditorNotifications& notifications, const char* key, const char* fallback)
+        {
+            NotificationDesc desc;
+            desc.level = NotificationLevel::Error;
+            desc.title = Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built");
+            desc.message = Loc::TextOr(key, fallback);
+            desc.id = "script_build_tools_missing";
+            desc.durationSeconds = 0.0f;
+            desc.action = MakeOwnerPtr<OpenBuildToolsDownloadAction>();
+            notifications.Notify(std::move(desc));
+        }
+    }
+
+    Bool EditorApplication::OpenScriptBuildToolsDownload()
+    {
+        return m_platform->OpenPathWithShell(ScriptBuild::BuildToolsDownloadUrl);
     }
 
     String EditorApplication::GetToolScratchFolder() const
@@ -2985,8 +3013,9 @@ namespace JBro
         }
         if (m_msbuildPath.empty())
         {
-            m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built"),
-                Loc::TextOr(LocKeys::NotifyMSBuildMissing, "MSBuild was not found. Install Visual Studio with the C++ workload"));
+            NotifyBuildToolsMissing(m_notifications, LocKeys::NotifyBuildToolsMissing,
+                "The C++ build tools (MSVC v145) were not found. Click to open the download page, then install Build Tools for Visual Studio 2026 "
+                "with “Desktop development with C++” and “Windows 11 SDK (10.0.22621.0)”");
             return false;
         }
         // 엔진이 그 사이 옮겨졌을 수 있다. 같으면 쓰지 않는다(D-266).
@@ -3068,6 +3097,17 @@ namespace JBro
             }
             ReloadScripts();
             return;
+        }
+        // 툴셋은 빌드 전에 봤지만 SDK 는 MSBuild 가 본다(`MSB8036`). 설치 위치가 기계마다 달라 미리 재지 않고 MSBuild 의 판단을 받는다.
+        for (const ScriptBuild::Diagnostic& diagnostic : m_scriptDiagnostics)
+        {
+            if (diagnostic.code == "MSB8036")
+            {
+                NotifyBuildToolsMissing(m_notifications, LocKeys::NotifyWindowsSdkMissing,
+                    "Windows SDK 10.0.22621.0 was not found. Click to open the download page, then add “Windows 11 SDK (10.0.22621.0)” "
+                    "to Build Tools for Visual Studio 2026");
+                return;
+            }
         }
         NotificationDesc desc;
         desc.level = NotificationLevel::Error;

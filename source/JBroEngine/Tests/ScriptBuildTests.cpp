@@ -309,6 +309,48 @@ namespace
         platform.Shutdown();
     }
 
+    // **MSBuild 만 있고 C++ 컴파일러가 없는 설치는 빌드 도구로 치지 않는다**(D-318). C++ 워크로드 없이 깐 빌드 도구도 MSBuild 는 있어서,
+    // 찾았다고 하고 빌드에서 툴셋이 없다고 실패했다. 가짜 설치 폴더로 MSBuild 가 컴파일러를 찾는 길(버전 파일 → `cl.exe`)을 하나씩 뺀다.
+    void TestOnlyAnInstallWithTheCompilerIsUsed()
+    {
+        WindowsPlatform platform;
+        JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes");
+        const fs::path install = FreshFolder(u8"빌드 도구");
+        const fs::path msbuild = install / "MSBuild" / "Current" / "Bin" / "MSBuild.exe";
+        const fs::path versionFile = install / "VC" / "Auxiliary" / "Build" / (std::string("Microsoft.VCToolsVersion.") + ScriptBuild::ScriptToolset + ".default.txt");
+        const fs::path compiler = install / "VC" / "Tools" / "MSVC" / "14.51.1" / "bin" / "Hostx64" / "x64" / "cl.exe";
+        for (const fs::path* file : {&msbuild, &versionFile, &compiler})
+        {
+            fs::create_directories(file->parent_path());
+        }
+        std::ofstream(msbuild, std::ios::binary) << "";
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str()).empty(), "MSBuild alone is not the build tools");
+        std::ofstream(versionFile, std::ios::binary) << "14.51.1\r\n";
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str()).empty(), "a toolset version without its compiler is not either");
+        std::ofstream(compiler, std::ios::binary) << "";
+        const String found = ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str());
+        std::error_code ignored;
+        Check(false == found.empty() && fs::equivalent(FromUtf8(found), msbuild, ignored),
+            "with the compiler of the script toolset the install's MSBuild is used");
+        fs::remove(msbuild);
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str()).empty(), "and without MSBuild there is nothing to run");
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, "").empty() && ScriptBuild::FindMSBuildWithToolset(platform, nullptr).empty(),
+            "no folder is no install");
+
+        // 툴셋과 SDK 는 스크립트 프로젝트가 가져가는 `JBro.Common.props` 와 같아야 한다 - 엔진이 툴셋을 올리고 여기를 잊으면
+        // 빌드 도구가 있는데 없다고 하거나, 없는데 있다고 한다.
+        const String engineRoot = ScriptProject::FindEngineRoot(platform, platform.GetExecutableFolder().c_str());
+        Check(false == engineRoot.empty(), "the engine sources are found from the test");
+        const std::string props = ReadAll(FromUtf8(engineRoot) / "JBro.Common.props");
+        Check(props.find(std::string("<PlatformToolset>") + ScriptBuild::ScriptToolset + "</PlatformToolset>") != std::string::npos,
+            "the script toolset is the one the engine props pin");
+        Check(props.find(std::string("<WindowsTargetPlatformVersion>") + ScriptBuild::ScriptWindowsSdk + "</WindowsTargetPlatformVersion>")
+                != std::string::npos,
+            "and so is the Windows SDK");
+        platform.Shutdown();
+    }
+
     // 에디터 설정은 사용자별 설정 파일에 남는다.
     void TestTheScriptEditorIsRemembered()
     {
@@ -505,8 +547,30 @@ namespace
         std::ofstream(header, std::ios::binary) << declaration;
         const UInt64 generation = editor.GetScriptModule()->GetGeneration();
         Check(editor.GetCommands().Execute(MakeOwnerPtr<NoteCommand>()), "an edit goes into the history");
-        Check(BuildAndWait(editor), "the build with a new field starts");
-        Check(editor.GetScriptBuildState() == State::Succeeded, "and succeeds");
+        // **디버거가 PDB 를 쥐고 있어도 다시 빌드된다**(D-319). 디버거처럼 지금 PDB 를 쓰기를 막은 채 연다 - 같은 이름으로 다시 쓰던 때는
+        // 링커가 LNK1201 로 실패하고 DLL 까지 지웠다.
+        const auto scriptPdbs = [&root]() {
+            Array<fs::path> found;
+            for (const fs::directory_entry& entry : fs::directory_iterator(root / "x64" / "Debug"))
+            {
+                const std::string name = entry.path().filename().string();
+                if (name.rfind("GameScript", 0) == 0 && entry.path().extension() == ".pdb")
+                {
+                    found.Add(entry.path());
+                }
+            }
+            return found;
+        };
+        const Array<fs::path> firstPdbs = scriptPdbs();
+        Check(firstPdbs.Size() == 1 && firstPdbs[0].filename() != "GameScript.pdb", "the build writes one PDB under a name of its own");
+        const HANDLE heldPdb = CreateFileW(firstPdbs[0].c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        Check(heldPdb != INVALID_HANDLE_VALUE, "the PDB is held the way a debugger holds it");
+        const Bool heldBuildStarted = BuildAndWait(editor);
+        const Array<fs::path> heldPdbs = scriptPdbs();
+        CloseHandle(heldPdb);
+        Check(heldBuildStarted, "the build with a new field starts");
+        Check(editor.GetScriptBuildState() == State::Succeeded, "and succeeds while the old PDB is held");
+        Check(heldPdbs.Size() == 2 && fs::exists(firstPdbs[0]), "the new PDB sits beside the held one, which could not be removed");
         Check(editor.GetScriptModule()->GetGeneration() != generation, "the library is swapped");
         Array<GameScriptBase*> scripts;
         canvas->CollectScripts(scripts);
@@ -536,6 +600,7 @@ Int32 RunScriptBuildTests()
     TestTheBuildLogIsRead();
     TestTheCommandsAreQuoted();
     TestTheToolsAreFound();
+    TestOnlyAnInstallWithTheCompilerIsUsed();
     TestTheScriptEditorIsRemembered();
     TestTheEditorBuildsTheScriptsAndFindsTheErrorLine();
     std::cout << "Script build tests passed.\n";

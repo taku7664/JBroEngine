@@ -1,5 +1,11 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`MeshRenderer3D`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::MeshRenderer3D through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
 #include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/Math3DReflection.h>
@@ -28,9 +34,9 @@ namespace JBro::Component
         // 빈 핸들은 `MeshRender3DSystem` 이 `MeshLibrary` 에서 매 프레임 해석해 채운다
         // (framework3d-plan §2.3). `AssetSystem` 이 실제로 로드하게 되면 그쪽이 채운다.
         JBRO_FIELD(AssetId,     meshId);
-        JBRO_FIELD(AssetHandle, mesh,       NoSerialize() | ReadOnly() | Tooltip("meshId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, mesh,       NoSerialize() | ReadOnly() | Tooltip("meshId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(AssetId,     materialId);
-        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(Color,       tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         JBRO_FIELD(Bool,        visible) = true;
     };

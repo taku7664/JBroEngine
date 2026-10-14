@@ -1,4 +1,5 @@
 ﻿#include <JBro/Audio/AudioMixer.h>
+#include <JBro/Audio/AudioEffectResponse.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Types/Array.h>
 
@@ -1189,6 +1190,72 @@ namespace
         return effect;
     }
 
+    // **편집 창의 그래프는 소리와 같은 값을 그린다**(D-309). `AudioEffectResponse.h` 의 값을, 같은 `.jfx` 를 건 보이스 사슬에 사인을 넣어
+    // 나온 크기와 견준다. 그래프만 따로 고치거나 DSP 만 고치면 여기서 어긋난다.
+    void TestEffectGraphsMatchTheSound()
+    {
+        const auto measuredDb = [](const AudioEffectSettings& effect, JBro::Float hz, JBro::Float amplitude) {
+            VoiceBench bench;
+            bench.Open(hz, amplitude);
+            const AudioEffectSettings chain[] = {effect};
+            const JBro::Float peak = bench.Settle(chain, 1).Peak(0);
+            return 20.0f * std::log10(peak / amplitude);
+        };
+        struct Probe
+        {
+            const char* what;
+            AudioEffectSettings effect;
+            JBro::Float hz;
+        };
+        const Probe probes[] = {
+            {"low pass 2 kHz, an octave below", Effect(AudioEffectKind::LowPass, {2000.0f, 0.707f}), 1000.0f},
+            {"low pass 2 kHz, at the cutoff", Effect(AudioEffectKind::LowPass, {2000.0f, 0.707f}), 2000.0f},
+            {"low pass 2 kHz, an octave above", Effect(AudioEffectKind::LowPass, {2000.0f, 0.707f}), 4000.0f},
+            {"resonant high pass 500 Hz, at the cutoff", Effect(AudioEffectKind::HighPass, {500.0f, 2.0f}), 500.0f},
+            {"resonant high pass 500 Hz, an octave below", Effect(AudioEffectKind::HighPass, {500.0f, 2.0f}), 250.0f},
+            {"equalizer, under the low shelf", Effect(AudioEffectKind::Equalizer, {9.0f, 200.0f, -6.0f, 1000.0f, 6.0f, 5000.0f}), 100.0f},
+            {"equalizer, at the mid peak", Effect(AudioEffectKind::Equalizer, {9.0f, 200.0f, -6.0f, 1000.0f, 6.0f, 5000.0f}), 1000.0f},
+            {"equalizer, over the high shelf", Effect(AudioEffectKind::Equalizer, {9.0f, 200.0f, -6.0f, 1000.0f, 6.0f, 5000.0f}), 10000.0f},
+        };
+        for (const Probe& probe : probes)
+        {
+            const JBro::Float drawn = AudioEffectResponseDb(probe.effect, probe.hz, static_cast<JBro::Float>(Rate));
+            const JBro::Float heard = measuredDb(probe.effect, probe.hz, 0.05f);
+            std::cout << "  graph vs sound, " << probe.what << ": drawn " << drawn << " dB, heard " << heard << " dB" << '\n';
+            Check(std::fabs(drawn - heard) < 0.5f, "the frequency graph draws what the chain does to a tone");
+        }
+
+        // 디스토션: 사인의 봉우리가 곡선의 그 입력 자리 값이 된다.
+        const AudioEffectSettings drive = Effect(AudioEffectKind::Distortion, {0.5f, 0.8f});
+        VoiceBench driven;
+        driven.Open(200.0f, 0.3f);
+        const AudioEffectSettings driveChain[] = {drive};
+        const JBro::Float drivenPeak = driven.Settle(driveChain, 1).Peak(0);
+        std::cout << "  graph vs sound, distortion of a 0.3 sine: drawn " << AudioEffectShape(drive, 0.3f) << ", heard " << drivenPeak << '\n';
+        Check(std::fabs(AudioEffectShape(drive, 0.3f) - drivenPeak) < 0.01f, "the distortion curve is the shape the chain applies");
+
+        // 컴프레서: 봉우리를 따르는 포락선이라 사인의 봉우리가 정적 곡선의 값에 가깝다(어택·릴리스의 물결만큼 어긋난다).
+        const AudioEffectSettings squeeze = Effect(AudioEffectKind::Compressor, {-20.0f, 4.0f});
+        const JBro::Float inputDb = 20.0f * std::log10(0.5f);
+        const JBro::Float drawnDb = AudioEffectCompressedDb(squeeze, inputDb);
+        VoiceBench comp;
+        comp.Open(440.0f, 0.5f);
+        const AudioEffectSettings compChain[] = {squeeze};
+        const JBro::Float heardDb = 20.0f * std::log10(comp.Settle(compChain, 1).Peak(0));
+        std::cout << "  graph vs sound, compressor on a -6 dB sine: drawn " << drawnDb << " dB, heard " << heardDb << " dB" << '\n';
+        Check(std::fabs(drawnDb - heardDb) < 1.5f, "the compressor curve is the level the chain settles to");
+        Check(AudioEffectCompressedDb(squeeze, -30.0f) == -30.0f, "below the threshold the curve is the diagonal");
+
+        // 잔향 꼬리: 1 에서 시작해 줄고, 방이 클수록 오래 남는다.
+        const AudioEffectSettings small = Effect(AudioEffectKind::Reverb, {0.2f, 0.5f, 1.0f, 0.3f, 0.7f});
+        const AudioEffectSettings large = Effect(AudioEffectKind::Reverb, {0.9f, 0.5f, 1.0f, 0.3f, 0.7f});
+        Check(AudioReverbTail(small, 0.0f) == 1.0f && AudioReverbTail(small, 0.5f) < AudioReverbTail(small, 0.1f),
+            "a reverb tail starts at full and falls");
+        Check(AudioReverbTail(large, 1.0f) > AudioReverbTail(small, 1.0f), "a larger room rings longer");
+        Check(AudioEffectResponseDb(small, 1000.0f, 48000.0f) == 0.0f && AudioEffectShape(small, 0.4f) == 0.4f,
+            "kinds a graph does not cover pass the input through");
+    }
+
     void TestVoiceEffectChains()
     {
         // **차례가 소리를 바꾼다.** 200 Hz 를 다 일그러뜨린 뒤 400 Hz 위를 깎으면 둥근 사인 쪽으로 돌아오고, 먼저 깎고 일그러뜨리면 네모가 남는다.
@@ -2233,6 +2300,7 @@ JBro::Int32 RunAudioMixerTests()
         TestCompressorAndLimiter();
         TestExtendedEffectsAreRealtimeSafe();
         TestVoiceEffectChains();
+        TestEffectGraphsMatchTheSound();
         TestVoiceEffectChainLimitsAndRouting();
         TestVoiceEffectChainsAreRealtimeSafe();
         TestStealing();

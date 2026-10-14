@@ -31,7 +31,7 @@ namespace JBro::Widget
         ListFlagsNoReorder = 1u << 1,
         // 핸들 옆에 [0] [1] … 번호를 붙인다. 순서가 뜻을 갖는 목록용이다.
         // 기본으로 켜지 않는 이유: 순서 없는 목록에서는 번호가 거짓이 되고,
-        // 가로가 빠듯한 목록에서는 내용 폭만 깎는다.
+        // 가로가 빠듯한 목록에서는 내용 폭만 깎는다. 켜도 원소 칸이 좁아지면 빠진다(D-309).
         ListFlagsShowIndex = 1u << 2,
     };
 
@@ -165,16 +165,8 @@ namespace JBro::Widget
         const Bool reorderable =
             (false == readOnly) && ((flags & ListFlagsNoReorder) == 0);
 
-        // 번호 칸의 폭. 자릿수가 늘어도 내용 시작이 흔들리지 않도록 **가장 긴 번호**
-        // 기준으로 한 번 재서 모든 행에 같은 폭을 쓴다(행마다 재면 9→10 에서 칸이 튄다).
-        const Bool showIndex = (flags & ListFlagsShowIndex) != 0;
+        Bool showIndex = (flags & ListFlagsShowIndex) != 0;
         Float indexWidth = 0.0f;
-        if (showIndex)
-        {
-            char widest[16] = {};
-            std::snprintf(widest, sizeof(widest), "[%d]", (count > 0 ? count - 1 : Int32(0)).Get());
-            indexWidth = ImGui::CalcTextSize(widest).x + style.ItemSpacing.x;
-        }
 
         Bool changed = false;
         ImGui::PushID(id);
@@ -195,6 +187,24 @@ namespace JBro::Widget
         constexpr Float RowHandleWidth = 14.0f;
         constexpr Float RowRemoveWidth = 22.0f;
         constexpr Float SlotHeight = 3.0f;
+
+        // 번호 칸의 폭. 자릿수가 늘어도 내용 시작이 흔들리지 않도록 **가장 긴 번호**
+        // 기준으로 한 번 재서 모든 행에 같은 폭을 쓴다(행마다 재면 9→10 에서 칸이 튄다).
+        //
+        // **폭이 좁으면 번호를 뺀다**(D-309). 번호는 차례를 알려 주는 덤이고 원소의 값이 본문이다 - 번호를 두면 원소 칸이 글자 여덟 자보다
+        // 좁아지는 목록(좁은 인스펙터의 에셋 칸)에서는 번호를 버리고 그 폭을 원소에 준다. 차례는 줄의 위아래가 여전히 말한다.
+        if (showIndex)
+        {
+            char widest[16] = {};
+            std::snprintf(widest, sizeof(widest), "[%d]", (count > 0 ? count - 1 : Int32(0)).Get());
+            indexWidth = ImGui::CalcTextSize(widest).x + style.ItemSpacing.x;
+            const Float roomWithIndex = ImGui::GetContentRegionAvail().x - RowHandleWidth - RowRemoveWidth - indexWidth - 8.0f;
+            if (roomWithIndex < ImGui::GetFontSize() * 8.0f)
+            {
+                showIndex = false;
+                indexWidth = 0.0f;
+            }
+        }
         // 이 목록의 몸통이다. 꾸러미가 이 목록의 행에서 왔는지를 이것으로 가린다.
         const UInt32 owner = ImGui::GetCurrentWindow()->ID;
         ListReorderPayload dragging;

@@ -15,6 +15,10 @@
 namespace JBro
 {
     class Canvas;
+    namespace Internal
+    {
+        class ComponentHandle;
+    }
     namespace Object
     {
         class GameObject;
@@ -76,6 +80,8 @@ namespace JBro
 
         // 붙여넣은 나무 안을 가리키는 오브젝트 참조를 새 오브젝트로 옮긴다(D-233).
         void RetargetReferences(const Array<Object::GameObject*>& created) const;
+        // 컴포넌트 핸들 필드 하나를 옮긴다(D-302). 나무 밖을 가리키면 그대로 둔다.
+        void RetargetComponentHandle(Internal::ComponentHandle& handle, const Array<Object::GameObject*>& created) const;
 
         // 뿌리를 번호로 찾아 나무째 지운다. 자식은 캔버스가 함께 지운다.
         Bool DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const;

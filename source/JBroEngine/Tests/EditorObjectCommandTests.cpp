@@ -14,6 +14,9 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Handle/Collider2D.h>
+#include <JBro/Framework2D/Handle/Rigidbody2D.h>
+#include <JBro/Framework2D/Handle/Transform2D.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -2328,13 +2331,134 @@ namespace
         Check(commands.Undo() && commands.Redo(), "undo and redo the paste");
         check("after redo the reference still points at the pasted copy");
     }
+
+    // 빌트인 컴포넌트를 핸들 필드로 든 스크립트다(D-302).
+    class EditorHandleProbe final : public JBro::GameScriptBase
+    {
+        JBRO_REFLECT_BODY(EditorHandleProbe)
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::EditorHandleProbe";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_FIELD(JBro::Handle::Transform2D, follow);
+        JBRO_FIELD(JBro::Handle::Collider2D, second);
+        JBRO_FIELD(JBro::Handle::Rigidbody2D, body);
+    };
+
+    template<typename THandle>
+    THandle HandleTo(const JBro::Object::GameObject& owner, const JBro::ComponentBase& component)
+    {
+        JBro::InstanceRef reference;
+        reference.ObjectId = owner.GetInstanceId();
+        reference.ComponentId = component.GetInstanceId();
+        return JBro::Internal::ComponentHandleAccess::FromReference<THandle>(reference);
+    }
+
+    JBro::InstanceId ComponentIdOf(const JBro::Internal::ComponentHandle& handle)
+    {
+        return JBro::Internal::ComponentHandleAccess::GetReference(handle).ComponentId;
+    }
+
+    // **컴포넌트 참조와 되돌리기·붙여넣기(D-302).** 뗀 컴포넌트를 되돌리거나, 지운 오브젝트를 되돌리거나, 붙이기를 다시 하면 컴포넌트가 옛 번호로
+    // 돌아와 그것을 가리키던 핸들 필드가 다시 찾는다. 나무를 붙여넣으면 나무 안의 컴포넌트를 가리키던 핸들은 사본의 같은 자리를, 밖은 그대로 원본을 잡는다.
+    void TestComponentReferencesFollowUndoAndPaste()
+    {
+        RegisterOnce();
+        if (JBro::ScriptRegistry::Get().Find(EditorHandleProbe::StaticTypeName()) == nullptr)
+        {
+            Check(JBro::RegisterScriptType<EditorHandleProbe>(), "the handle probe registers");
+        }
+        using JBro::Component::Collider2D;
+        using JBro::Component::Rigidbody2D;
+        using JBro::Component::Transform2D;
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::Object::GameObject* rig = canvas.CreateObject("Rig");
+        JBro::Object::GameObject* inside = canvas.CreateObject("Inside");
+        inside->SetParent(rig);
+        JBro::Object::GameObject* target = canvas.CreateObject("Target");
+        auto* probe = static_cast<EditorHandleProbe*>(canvas.AttachScript(rig, EditorHandleProbe::StaticTypeName()));
+        Transform2D* insideTransform = canvas.AttachComponent<Transform2D>(inside);
+        canvas.AttachComponent<Collider2D>(target);
+        Collider2D* secondCollider = canvas.AttachComponent<Collider2D>(target);
+        Check(probe != nullptr && insideTransform != nullptr && secondCollider != nullptr, "the probe scene is built");
+        probe->follow = HandleTo<JBro::Handle::Transform2D>(*inside, *insideTransform);
+        probe->second = HandleTo<JBro::Handle::Collider2D>(*target, *secondCollider);
+        const JBro::InstanceId secondId = secondCollider->GetInstanceId();
+        const JBro::EditorObjectId targetId = ids.Track(target);
+
+        // 떼기 되돌리기.
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(canvas, ids, targetId, secondCollider)),
+            "the second collider comes off");
+        canvas.FlushPendingDestroy();
+        Check(false == probe->second.IsValid(), "the handle to it finds nothing");
+        Check(commands.Undo() && probe->second.IsValid() && ComponentIdOf(probe->second) == secondId,
+            "undoing brings it back under its old number and the handle finds it again");
+
+        // 오브젝트 지우기 되돌리기.
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(canvas, ids, target)), "the target is deleted");
+        canvas.FlushPendingDestroy();
+        Check(false == probe->second.IsValid(), "the handle into the deleted object finds nothing");
+        Check(commands.Undo() && probe->second.IsValid() && ComponentIdOf(probe->second) == secondId,
+            "undoing the delete brings its components back under their old numbers");
+
+        // 붙이기 되돌리기·다시 하기.
+        const JBro::NameId bodyName = JBro::NameTable::Get().Intern(Rigidbody2D::StaticTypeName());
+        auto add = JBro::MakeOwnerPtr<JBro::AddComponentCommand>(canvas, ids, targetId, bodyName);
+        JBro::AddComponentCommand* added = add.Get();
+        Check(commands.Execute(std::move(add)) && added->GetComponent() != nullptr, "a body is added");
+        JBro::Object::GameObject* restored = ids.Resolve(targetId);
+        probe->body = HandleTo<JBro::Handle::Rigidbody2D>(*restored, *added->GetComponent());
+        const JBro::InstanceId bodyId = ComponentIdOf(probe->body);
+        Check(commands.Undo(), "undoing the add runs");
+        canvas.FlushPendingDestroy();
+        Check(false == probe->body.IsValid(), "the handle to the removed body finds nothing");
+        Check(commands.Redo() && probe->body.IsValid() && ComponentIdOf(probe->body) == bodyId,
+            "redoing the add attaches it under the number it had");
+
+        // 붙여넣기: 안은 사본으로, 밖은 그대로.
+        JBro::ObjectTreeSnapshot tree;
+        Check(tree.Capture(canvas, ids, *rig), "the rig is captured");
+        JBro::Array<JBro::ObjectTreeSnapshot> clipboard;
+        clipboard.Add(tree);
+        auto paste = JBro::MakeOwnerPtr<JBro::PasteObjectsCommand>(canvas, ids, clipboard, JBro::InvalidEditorObjectId);
+        JBro::PasteObjectsCommand* raw = paste.Get();
+        Check(commands.Execute(std::move(paste)), "the rig is pasted");
+        JBro::Object::GameObject* copy = ids.Resolve(raw->GetPastedRootIds()[0]);
+        JBro::Object::GameObject* copiedInside = copy != nullptr && copy->GetChildren().Size() == 1 ? copy->GetChildren()[0].TryGet() : nullptr;
+        const auto* copiedProbe = copy != nullptr && copy->GetScripts().Size() == 1
+            ? static_cast<const EditorHandleProbe*>(copy->GetScripts()[0].reference.TryGet())
+            : nullptr;
+        Transform2D* copiedTransform = copiedInside != nullptr ? canvas.FindComponentRaw<Transform2D>(copiedInside) : nullptr;
+        Check(copiedProbe != nullptr && copiedTransform != nullptr
+                && ComponentIdOf(copiedProbe->follow) == copiedTransform->GetInstanceId()
+                && copiedProbe->follow.GetGameObject().GetInstanceId() == copiedInside->GetInstanceId(),
+            "a handle into the pasted tree points at the same component of the copy");
+        Check(ComponentIdOf(copiedProbe->second) == secondId, "a handle out of the tree still points at the original");
+        Check(ComponentIdOf(probe->follow) == insideTransform->GetInstanceId(), "and the source keeps its own");
+
+        // 정한 번호를 다른 오브젝트의 컴포넌트가 쓰고 있으면 새 번호로 붙는다. 주인이 달라도 쓰는 번호다.
+        JBro::Object::GameObject* other = canvas.CreateObject("Other");
+        Transform2D* clash = canvas.AttachComponent<Transform2D>(other, insideTransform->GetInstanceId());
+        Check(clash != nullptr && clash->GetInstanceId() != insideTransform->GetInstanceId(),
+            "a number held by another object's component is not reused - the attach takes a new one");
+    }
 }
 
 namespace
 {
     // **스크립트도 빌트인과 같은 커맨드로 붙이고 떼고 되돌린다**(cpp-script-plan §3.1). 처음에는 에디터가 빌트인 표만 보아서
     // 추가 목록에 스크립트가 없었고, 스크립트가 붙은 오브젝트는 값을 뜨지 못해 지우기와 떼기가 막혔다.
-    // 스크립트는 컴포넌트가 아니다(D-302) - 추가 목록이 따로이고, 오브젝트의 스크립트 목록에 붙는다.
+    // 스크립트는 엔진 안에서 컴포넌트가 아니다(D-302) - 오브젝트의 스크립트 목록에 붙는다. **사용자에게는 같은 추가 목록이다**(D-308) - 마지막 `스크립트` 갈래다.
     void TestAScriptIsAddedRemovedAndRestoredLikeAnyComponent()
     {
         RegisterOnce();
@@ -2350,17 +2474,8 @@ namespace
             const JBro::EditorObjectId id = ids.Track(object);
             const JBro::NameId scriptName = JBro::NameTable::Get().Intern(EditorScriptProbe::StaticTypeName());
 
-            JBro::EditorActions::AddComponentList components;
-            JBro::EditorActions::BuildAddComponentList(*object, components);
-            JBro::Bool scriptAmongComponents = false;
-            for (std::size_t index = 0; index < components.typeNames.Size(); ++index)
-            {
-                scriptAmongComponents = scriptAmongComponents || components.typeNames[index] == scriptName;
-            }
-            Check(false == scriptAmongComponents, "the component list does not offer scripts");
-
             JBro::EditorActions::AddComponentList list;
-            JBro::EditorActions::BuildAddScriptList(*object, list);
+            JBro::EditorActions::BuildAddComponentList(*object, list);
             std::size_t listed = list.typeNames.Size();
             for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
             {
@@ -2371,13 +2486,14 @@ namespace
             }
             Check(listed < list.typeNames.Size() && list.addable[listed]
                     && std::strcmp(list.names[listed], "EditorScriptProbe") == 0,
-                "the add list offers the script under its type name");
-            JBro::Bool builtinListed = false;
-            for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+                "the one add list offers the script under its type name");
+            JBro::Bool scriptsLast = std::strcmp(list.categories[listed], "Scripts") == 0
+                && JBro::ComponentRegistry::Get().Find(list.typeNames[0]) != nullptr;
+            for (std::size_t index = listed; index < list.typeNames.Size(); ++index)
             {
-                builtinListed = builtinListed || JBro::ComponentRegistry::Get().Find(list.typeNames[index]) != nullptr;
+                scriptsLast = scriptsLast && std::strcmp(list.categories[index], "Scripts") == 0;
             }
-            Check(false == builtinListed, "the script list offers no built-ins");
+            Check(scriptsLast, "after the built-ins, in the last group, Scripts");
 
             const auto onlyScript = [&canvas]() -> EditorScriptProbe* {
                 JBro::Array<JBro::GameScriptBase*> scripts;
@@ -2495,6 +2611,7 @@ JBro::Int32 RunEditorObjectCommandTests()
     TestMovingAComponentSlotCanBeUndone();
     TestPastingBuildsTheTreeAgainUnderNewNumbers();
     TestObjectReferencesFollowDeleteAndPaste();
+    TestComponentReferencesFollowUndoAndPaste();
     TestAnEditBeforeARemovalStillFindsItsComponent();
     TestRemovingIsRefusedWhenTheValuesCannotBeSaved();
     TestDeletingBringsBackContainers();

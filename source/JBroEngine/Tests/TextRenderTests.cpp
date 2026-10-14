@@ -11,6 +11,7 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Handle/Text2D.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
@@ -20,6 +21,7 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/Handle/Text3D.h>
 #include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
@@ -674,8 +676,10 @@ namespace
 
             // 3. 스크립트 서비스로 글자를 바꾸면 다음 프레임에 보인다. 새 글자는 페이지를 한 번 올리고, 아는 글자로 바꾸면 올리지 않는다.
             const Service::Text2DService& service = GetFramework2DServices().Text2D;
-            const Ref<Component::Text2D> ref = labelObject->GetScriptHandle().GetComponent<Component::Text2D>();
+            const Handle::Text2D ref = labelObject->GetScriptHandle().GetComponent<Handle::Text2D>();
             Check(service.SetText(ref, "V"), "a script sets the text");
+            Check(label->text.IsValid() && false == label->textKey.IsValid(),
+                "the service writes the text field through the handle, not the key");
             char copied[8] = {};
             Check(service.GetTextLength(ref) == 1 && service.CopyText(ref, copied, static_cast<JBro::UInt32>(sizeof(copied))) == 1 && copied[0] == 'V',
                 "and reads it back");
@@ -1979,7 +1983,7 @@ namespace
             Check(framework.BindScriptContexts() && framework.GetScriptContextBlocks().size == 2,
                 "the 3D framework hands out its system and service contexts");
             const Service::Text3DService& service = GetFramework3DServices().Text3D;
-            const Ref<Component::Text3D> ref = labelObject->GetScriptHandle().GetComponent<Component::Text3D>();
+            const Handle::Text3D ref = labelObject->GetScriptHandle().GetComponent<Handle::Text3D>();
             Check(service.SetText(ref, "Hi"), "a script sets a 3D text");
             char copied[8] = {};
             Check(service.GetTextLength(ref) == 2 && service.CopyText(ref, copied, static_cast<JBro::UInt32>(sizeof(copied))) == 2

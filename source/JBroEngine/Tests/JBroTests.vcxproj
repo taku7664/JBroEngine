@@ -150,6 +150,17 @@
     <ProjectReference Include="$(JBroModulesDir)JBroLocalizationTypes\JBroLocalizationTypes.vcxproj">
       <Project>{1a000033-0000-4000-8000-0000000010c4}</Project>
     </ProjectReference>
+    <!-- 디버그 어댑터 시험(D-319)이 띄우는 실행 파일들이다. 링크하지 않고 빌드만 시킨다. -->
+    <ProjectReference Include="$(JBroRoot)..\JBroDebugAdapter\JBroDebugAdapter.vcxproj">
+      <Project>{1a000035-0000-4000-8000-0000000db9ad}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="DebugAdapterTarget\JBroDebugAdapterTarget.vcxproj">
+      <Project>{1a000037-0000-4000-8000-0000000db9a2}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

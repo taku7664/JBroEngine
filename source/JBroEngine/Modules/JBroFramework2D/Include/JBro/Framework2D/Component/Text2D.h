@@ -1,5 +1,11 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Text2D`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::Text2D through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
 #include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
@@ -42,7 +48,7 @@ namespace JBro::Component
         // 게임 문자열 표의 키다(D-226). 비어 있지 않으면 `text` 대신 이 키의 글자다: 지금 로케일 → 폴백 로케일 → 키 그대로.
         JBRO_FIELD(TextId, textKey);
         JBRO_FIELD(AssetId, fontId);
-        JBRO_FIELD(AssetHandle, font, NoSerialize() | ReadOnly() | Tooltip("fontId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, font, NoSerialize() | ReadOnly() | Tooltip("fontId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(Float, fontSize, Range(1.0f, 512.0f)) = 32.0f;
         // 글자 픽셀이다. 0 이면 그 방향으로 제한이 없다.
         JBRO_FIELD(Vector2, boxSize);

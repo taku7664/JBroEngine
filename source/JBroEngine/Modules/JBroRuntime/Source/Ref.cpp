@@ -88,6 +88,12 @@ namespace JBro::Internal
         return {slot, entry.Generation};
     }
 
+    Bool InstanceRegistry::IsRegistered(InstanceId objectId, InstanceId componentId, RefCategory category) const
+    {
+        const InstanceId persistentId = GetPersistentId(objectId, componentId, category);
+        return persistentId != InvalidInstanceId && m_idToSlot.Find(persistentId) != nullptr;
+    }
+
     Bool InstanceRegistry::Unregister(InstanceHandle handle)
     {
         if (false == handle.IsSet() || handle.Slot >= m_entries.Size())

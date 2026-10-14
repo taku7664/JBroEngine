@@ -94,6 +94,11 @@ namespace JBro::Object
 
         // 활성 상태. IsActiveInHierarchy 는 캐시를 읽으므로 O(1) 이다 —
         // 컴포넌트 활성 게이트가 매 프레임 이것을 부르기 때문이다(§9, D-54).
+        // 이 오브젝트가 붙은 캔버스다. 캔버스 밖에서 만든 것이면 null 이다.
+        Canvas* GetCanvas() const;
+        // 순회 중에 파괴를 요청해 안전 지점을 기다리는 중인가(D-301 (6)). 스크립트 핸들과 찾기는 이것을 이미 없는 것으로 본다.
+        Bool IsDestroyRequested() const;
+
         Bool IsActiveSelf() const;
         Bool IsActiveInHierarchy() const;
         void SetActive(Bool active);
@@ -167,7 +172,6 @@ namespace JBro::Object
         // 스크립트 실행 순서가 달라지므로(D-45) Canvas 의 목록을 헌 것으로 표시해야 한다.
         using ScriptOrderDirtyFunction = void (*)(Canvas* canvas);
 
-        Canvas* GetCanvas() const;
         void SetInstanceIdentity(InstanceId instanceId, InstanceHandle handle);
         void BindCanvas(
             Canvas* canvas,

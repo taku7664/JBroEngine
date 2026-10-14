@@ -15,8 +15,10 @@
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=TextRendering
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=OtherDimension
 //
-// 마지막 것만 C1083 이 아니라 #error 다. GameObject.h 는 스크립트 DLL 이 링크하는 모듈에
-// 있어 경로로는 막을 수 없고, 프렐류드를 거쳤는지로 막는다(§9.5).
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=ComponentData
+//
+// GameObject 와 ComponentData 는 C1083 이 아니라 #error 다. 두 헤더는 스크립트 DLL 이 링크하는 모듈에
+// 있어 경로로는 막을 수 없다. GameObject.h 는 프렐류드를 거쳤는지로, 컴포넌트 데이터 헤더는 스크립트 대상인지로 막는다(D-302).
 
 #include <JBro/ScriptAPI.h>
 
@@ -101,12 +103,17 @@ using ProbeLocalizationInterface = JBro::System::ILocalization;
 #include <JBro/Runtime/GameObject.h>
 #endif
 
+#if defined(JBRO_TIER_PROBE_COMPONENT_DATA)
+// 빌트인 컴포넌트는 핸들로만 만진다(D-302). 프렐류드를 거친 뒤에 데이터 헤더를 집어도 #error 여야 한다.
+#include <JBro/Framework2D/Component/Transform2D.h>
+#endif
+
 #include <type_traits>
 #include <JBro/Types/Float.h>
 
 namespace
 {
-    // 사용자가 쓰는 형태 그대로다. 소유 오브젝트는 핸들로 받고, 컴포넌트는 Ref<T> 로 저장한다.
+    // 사용자가 쓰는 형태 그대로다. 오브젝트도 빌트인 컴포넌트도 핸들로 받고 저장한다(D-302).
     JBRO_SCRIPT(TierProbeScript) final : public GameScript2D
     {
     public:
@@ -124,23 +131,39 @@ namespace
         {
             // 델타는 서비스에서 읽는다(D-242). 프렐류드만으로 닿아야 한다.
             m_elapsed += GetServiceContext().Time.DeltaTime();
-            if (Component::Transform2D* transform = m_transform.Get())
+            if (m_transform.IsValid())
             {
-                transform->position.x = m_elapsed;
+                Vector2 position = m_transform.GetPosition();
+                position.x = m_elapsed;
+                m_transform.SetPosition(position);
             }
         }
 
     private:
         GameObject           m_target;
-        Ref<Component::Transform2D> m_transform;
+        Transform2D                     m_transform;
         JBro::Float                      m_elapsed = 0.0f;
+    };
+
+    // 오브젝트와 빌트인 컴포넌트를 필드로 저장한다(D-233, D-302). 프렐류드만으로 리플렉션이 닿아야 한다.
+    JBRO_SCRIPT(TierProbeFields) final : public GameScript2D
+    {
+        JBRO_SCRIPT_BODY(TierProbeFields)
+
+    public:
+        JBRO_FIELD(GameObject, target);
+        JBRO_FIELD(Transform2D, follow);
+        // `새 스크립트` 가 만드는 모양 그대로다(`= {}`). 핸들이 집합체라 기본 생성자가 공개여야 컴파일된다.
+        JBRO_FIELD(Rigidbody2D, body) = {};
     };
 
     // 스크립트가 보는 참조의 형태를 고정한다(D-5, D-44).
     static_assert(sizeof(GameObject) == 16,
         "a script must see the 16-byte object handle");
-    static_assert(sizeof(Ref<Component::Transform2D>) == 24,
-        "a script must see the 24-byte component reference");
+    static_assert(sizeof(Transform2D) == 24,
+        "a script must see the 24-byte component handle");
+    static_assert(std::is_same_v<Transform2D, JBro::Handle::Transform2D>,
+        "Transform2D in a script is the handle, not the component data");
     static_assert(std::is_same_v<decltype(TierProbeScript{}.GetGameObject()), GameObject>,
         "a script must receive its owner as a handle, not a raw object");
 }

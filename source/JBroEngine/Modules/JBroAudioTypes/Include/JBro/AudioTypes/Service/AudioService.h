@@ -2,7 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/AudioTypes/AudioBusName.h>
-#include <JBro/AudioTypes/Component/AudioSource.h>
+#include <JBro/AudioTypes/Handle/AudioSource.h>
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
@@ -19,7 +19,7 @@ namespace JBro::Service
     // 예:
     //   GetAudioServices().Audio.PlayOneShot(m_jumpClip);
     //   GetAudioServices().Audio.SetBusVolume("Music", 0.5f);
-    //   GetAudioServices().Audio.Play(m_engineSound);           // Ref<Component::AudioSource>
+    //   GetAudioServices().Audio.Play(m_engineSound);           // AudioSource 핸들(D-302)
     class AudioService
     {
     public:
@@ -31,15 +31,15 @@ namespace JBro::Service
         void PlayOneShotAt(AssetHandle clip, Float x, Float y, Float z = 0.0f, Float volume = 1.0f) const;
         void PlayOneShotAt(AssetHandle clip, AudioBusName bus, Float x, Float y, Float z, Float volume) const;
 
-        // 소스 컴포넌트를 다룬다. 무효한 `Ref` 는 아무 일도 하지 않는다.
-        void Play(Ref<Component::AudioSource> source) const;
-        void Stop(Ref<Component::AudioSource> source, Float fadeOutSeconds = 0.0f) const;
-        void Pause(Ref<Component::AudioSource> source) const;
-        void Resume(Ref<Component::AudioSource> source) const;
+        // 소스 컴포넌트를 핸들로 다룬다. 무효한 핸들은 아무 일도 하지 않는다.
+        void Play(Handle::AudioSource source) const;
+        void Stop(Handle::AudioSource source, Float fadeOutSeconds = 0.0f) const;
+        void Pause(Handle::AudioSource source) const;
+        void Resume(Handle::AudioSource source) const;
         // 재생 중이거나 재생을 요청해 두었으면 참이다.
-        Bool IsPlaying(Ref<Component::AudioSource> source) const;
+        Bool IsPlaying(Handle::AudioSource source) const;
         // 재생한 시간(초). 재생 중이 아니면 0 이다.
-        double GetTime(Ref<Component::AudioSource> source) const;
+        double GetTime(Handle::AudioSource source) const;
 
         // 옵션 화면의 "배경음 크기" 같은 것이다. 0..1.
         void SetBusVolume(const char* bus, Float volume) const;

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/CanvasObjectSystem.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
@@ -60,6 +61,8 @@ namespace JBro
         Framework3DServiceContext m_scriptServices;
         ScriptContextBlock m_scriptBlocks[2] = {};
         UInt32 m_scriptBlockCount = 0;
+        // 스크립트의 오브젝트 만들기·찾기가 이 캔버스에 닿는 길이다(D-301). 스크립트 컨텍스트와 같은 수명이다.
+        CanvasObjectSystem m_objects;
     };
 
     IFramework* CreateFramework3D();

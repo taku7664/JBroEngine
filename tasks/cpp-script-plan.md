@@ -196,6 +196,11 @@ JBRO_SCRIPT_MODULE_2D()
 
 - 완료 조건: 에디터 메뉴로 빌드하면 성공과 실패가 로그에 보이고, 실패한 줄로 이동할 수 있다.
 
+**2026-10-14 후속 (D-319).** 스크립트 PDB 는 빌드마다 다른 이름이다 - 디버거가 붙은 채로 다시 빌드해도 된다. 디버그 어댑터는 [debug-adapter.md](./debug-adapter.md).
+
+**2026-10-14 후속 (D-318).** 컴파일러는 MSVC 로 정했다. 에디터는 `v145` 컴파일러가 든 설치만 빌드 도구로 보고(이전에는 MSBuild 만 봤다),
+없거나 SDK 가 없으면 Build Tools for Visual Studio 2026 의 어느 구성 요소를 깔지 알리고 받는 곳을 연다. IDE 는 요구하지 않는다.
+
 **진행 (2026-09-29, D-299).** 섰다. 진단을 보일 곳은 새 `빌드 결과` 패널이고, 여는 편집기는 에디터 설정에서 고른다(두 가지 모두 사용자가 골랐다).
 
 - 플랫폼: `IPlatform` 의 `StartProcess`·`PollProcess`·`CloseProcess`(Job 으로 묶어 닫으면 띄운 것까지 끝낸다)·`LaunchProcess`(띄우고 잊는다)·`ReadEnvironmentVariable`,
@@ -243,7 +248,7 @@ JBRO_SCRIPT_MODULE_2D()
 
 ### 3.6 스크립트 API 의 구멍
 
-**먼저 참조의 모양을 바꾼다(D-302, 구현 전).** 오브젝트 API 는 그 위에 선다.
+**참조의 모양을 바꾸고(D-302) 그 위에 오브젝트 API 를 세웠다 - 네 단계가 모두 섰다.**
 
 1. ~~이름~~ **섰다**(2026-09-29): 엔진 `GameObject` → `JBro::Object::GameObject`, `GameObjectHandle` → `JBro::Handle::GameObject`, 프렐류드에 `using namespace JBro::Handle;`.
    리플렉션 잎사귀는 `JBro.Handle.GameObject`. 프렐류드 시험이 `GameObject` 가 핸들로 풀리는지 단언하고, `JBRO_TEST_OBJECT_NAMESPACE_IN_PRELUDE` 를 켜면 모호해 컴파일이 실패한다.
@@ -252,17 +257,21 @@ JBRO_SCRIPT_MODULE_2D()
    캔버스 파일은 `Scripts:` 를 따로 적고 모르는 것은 스크립트만 든다(`UnresolvedScript`, `ResolveKeptScripts`). `ComponentRegistry` 는 빌트인만 든다.
    에디터는 "붙은 것"(`AttachedRef`, 컴포넌트 또는 스크립트)과 주소의 `kind` 로 필드 편집·스냅숏·붙이기·떼기·옮기기·붙여넣기를 한 길로 다루고,
    인스펙터는 컴포넌트 목록 아래 스크립트 목록과 `스크립트 추가` 를 따로 그린다. 오브젝트 메뉴에도 `스크립트 추가` 가 선다. 에셋 해석 패스는 스크립트의 에셋 필드도 돈다.
-3. 빌트인 핸들: 2D 7 종·3D 6 종의 `Handle::*`, 데이터 헤더를 스크립트 대상에서 막는 음성 시험, 서비스 인자를 핸들로.
-4. 아래 오브젝트 만들기·찾기(D-301 을 D-302 의 이름으로 읽는다).
+3. ~~빌트인 핸들~~ **섰다**(2026-10-13): 빌트인 20 종(2D 12·3D 7·공용 `AudioSource`, D-302 를 적을 때의 "7 종·6 종" 에서 조명·조인트 등이 늘었다)마다
+   `JBro::Handle` 에 같은 이름의 24B 핸들이 있다. 몸은 `Internal::ComponentHandle`, 필드는 `Get`·`Set` + 필드 이름, 월드 캐시·버튼 상태·저장되는 에셋 id 는 getter 만.
+   스크립트가 쓰는 열거형·물리 값은 `ComponentTypes2D.h`·`ComponentTypes3D.h`·`AudioSourceTypes.h` 로 옮겼고, 데이터 헤더 15 개는 스크립트 대상에서 `#error` 다
+   (음성 시험 `JBroTierProbe=ComponentData`). `AudioService`·`Text2DService`·`Text3DService` 가 핸들을 받는다. 스크립트 필드로 컴포넌트 핸들을 저장하는
+   리플렉션(`JBRO_FIELD(Transform2D, m_target)`)도 섰다(2026-10-14, D-302 (17)) - 파일에는 `오브젝트 번호:같은 타입 중 몇 번째` 로 적힌다. 에셋 id 를 바꾸는 setter 는 없다(id → 핸들 풀기가 캔버스를 열 때만 돈다).
+4. ~~오브젝트 만들기·찾기~~ **섰다**(2026-10-14, D-302 (16)): 아래 항목 그대로다. 이름과 태그 나누기는 D-297 이 먼저 했다.
 
-- 오브젝트 만들기·찾기: **모양이 섰다(D-301), 구현 전이다.**
+- 오브젝트 만들기·찾기: **섰다(D-301, D-302 (16)).**
   - 이름과 태그를 나눈다. 지금 태그 칸이 이름이 되고 태그는 새 칸이다. `[]`·`Find` 는 이름만, 태그는 `FindWithTag`·`CompareTag` 같은 함수로만 찾는다.
-  - `LayerHandle { LayerId }`(4B) 를 새로 두고, `LayerHandle[name]` 은 그 레이어의 뿌리를, `GameObject[name]`(핸들) 은 직계 자식을 **한 단계만** 찾는다. 깊이는 `FindInChildren`.
+  - `Handle::Layer`(4B, 옛 이름 `LayerHandle`) 를 새로 두고, `Layer[name]` 은 그 레이어의 뿌리를, `GameObject[name]`(핸들) 은 직계 자식을 **한 단계만** 찾는다. 깊이는 `FindInChildren`.
   - `GetServiceContext().Objects`: `Create(name, parent, layer)`·`Find`·`FindAll`·`FindWithTag`·`FindAllWithTag`·`GetLayer`. 핸들에 `AddComponent<T>`·`GetName`·`GetLayer`·`GetParent`·`SetParent`·`GetChildCount`·`GetChild`.
   - 기본 트랜스폼은 프레임워크 구현이 붙인다. 삭제는 `handle.Destroy()` 하나이고, 요청한 순간부터 모든 사본이 무효이며 찾기에서 빠진다.
   - 프리팹(`PrefabSpawner`)은 뒤로 미룬다.
-  - 구현하며 잴 것: 순회 중에 만든 오브젝트의 스크립트 훅이 언제부터 도는가.
-- `ReadOnly` 필드: 월드 캐시를 스크립트가 쓰지 못하게 한다. **빌트인 핸들(D-302)이 getter 만 두어 닫는다** - 위 3 단계.
+  - ~~구현하며 잴 것~~ 재었다: 순회 중에 만든 오브젝트는 곧바로 찾을 수 있고, 그때 붙인 스크립트는 다음 프레임에 `OnStart`·`OnUpdate` 를 받는다(`ObjectServiceTests`).
+- ~~`ReadOnly` 필드~~ **닫혔다**(2026-10-13): 빌트인 핸들(D-302)이 월드 캐시·버튼 상태·오디오 상태에 getter 만 둔다 - 위 3 단계.
 
 ### 3.7 3D
 

@@ -1,6 +1,13 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`SpriteRenderer2D`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::SpriteRenderer2D through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
 #include <JBro/AssetTypes/AssetTypesReflection.h>
+#include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Math2DReflection.h>
@@ -10,32 +17,6 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
-
-namespace JBro::Component
-{
-    enum class SpriteFlip : std::uint8_t { None, Horizontal, Vertical, Both };
-
-    // 크기와 피벗을 어디서 가져오는가(D-117). `FromSprite` 는 풀린 칸의 픽셀 / 에셋 PPU 와 칸의 피벗이고,
-    // `Custom` 은 컴포넌트의 `size`·`pivot` 이다. 스프라이트가 풀리지 않으면(없거나 로드 실패) 둘 다 저작 값이다.
-    enum class SpriteSizeMode : std::uint8_t { FromSprite, Custom };
-    // 피벗은 크기와 따로 고른다(D-117 의 "컴포넌트 피벗은 덮어쓰기"). 에셋 크기에 저작 피벗을 얹을 수 있다.
-    enum class SpritePivotMode : std::uint8_t { FromSprite, Custom };
-}
-
-namespace JBro
-{
-    JBRO_DEFINE_ENUM_TYPE(Component::SpriteFlip, "Component::SpriteFlip",
-        { Component::SpriteFlip::None,       "None" },
-        { Component::SpriteFlip::Horizontal, "Horizontal" },
-        { Component::SpriteFlip::Vertical,   "Vertical" },
-        { Component::SpriteFlip::Both,       "Both" });
-    JBRO_DEFINE_ENUM_TYPE(Component::SpriteSizeMode, "Component::SpriteSizeMode",
-        { Component::SpriteSizeMode::FromSprite, "FromSprite" },
-        { Component::SpriteSizeMode::Custom,     "Custom" });
-    JBRO_DEFINE_ENUM_TYPE(Component::SpritePivotMode, "Component::SpritePivotMode",
-        { Component::SpritePivotMode::FromSprite, "FromSprite" },
-        { Component::SpritePivotMode::Custom,     "Custom" });
-}
 
 namespace JBro::Component
 {
@@ -64,9 +45,9 @@ namespace JBro::Component
         // 씬 로드 뒤와 인스펙터 변경 시에 한 번씩 돌면 된다. 렌더 추출은 지금도 앞으로도
         // 핸들만 읽으므로 매 프레임 경로에 조회가 늘지 않는다.
         JBRO_FIELD(AssetId,     spriteId);
-        JBRO_FIELD(AssetHandle, sprite,     NoSerialize() | ReadOnly() | Tooltip("spriteId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, sprite,     NoSerialize() | ReadOnly() | Tooltip("spriteId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(AssetId,     materialId);
-        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값"));
+        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
 
         JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         // `Custom` 일 때만 `pivot`·`size` 가 쓰인다(D-117). 기본은 에셋이 정한다.

@@ -17,6 +17,7 @@
 #include <JBro/Framework2DSystem/System/Transform2DSystem.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/CanvasObjectSystem.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
 #include <JBro/Types/Table.h>
@@ -88,6 +89,8 @@ namespace JBro
         Framework2DServiceContext m_scriptServices;
         ScriptContextBlock        m_scriptBlocks[2];
         UInt32             m_scriptBlockCount = 0;
+        // 스크립트의 오브젝트 만들기·찾기가 이 캔버스에 닿는 길이다(D-301). 스크립트 컨텍스트와 같은 수명이다.
+        CanvasObjectSystem m_objects;
         Bool             m_initialized      = false;
         // 게임을 돌릴 것인가(D-131). 게임 실행은 손대지 않으므로 기본이 참이다.
         Bool             m_simulationEnabled = true;

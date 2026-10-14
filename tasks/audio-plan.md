@@ -508,11 +508,34 @@ Component::AudioListener2D   (JBroFramework2D)
      프레임마다 끄던 탓에 이펙트 창의 미리 듣기가 곧바로 꺼졌다.
    - main 의 D-304(인스펙터가 목록과 필드 두 칸)와 합친 뒤 `TestTheInspectorPreviewsAudioAndPicksABus` 가 `clipId` 칸을 찾지 못했다 - 오디오 소스에 이펙트 목록 두 줄이
      더해져 필드 칸에 세로 스크롤바가 서고, 1024 창의 6 픽셀짜리 값 칸을 덮었다. D-304 가 다른 필드 시험 일곱을 넓힌 것처럼 1800x900 으로 넓혔다.
+     그 뒤 main 이 두 칸을 되돌려 컴포넌트를 쌓는 모양으로 돌아갔다(커밋 `9d061eb0`). 넓은 창은 해롭지 않아 그대로 둔다.
    - 전체 시험(2026-10-07, main `26f39ffa` 를 합친 뒤): 떨어지는 것은 main 에서 온 둘뿐이다 - `EditorLocalization` 의 죽은 키 `component_category.Script`(D-302 2 단계가
      헤더에서만 뺐다)와 `TestPanelsGoThroughTheWidgetLayer` 의 `BuildResultsPanel.cpp` 직접 `ImGui::Selectable`(D-299). 앞의 것이 묶음을 멈추므로 그 뒤의
      에디터 시험 57 개와 나머지 묶음 34 개를 따로 돌려 모두 지났다.
    - 시험이 없는 것: 목록 원소 드롭다운을 눌러 고르는 것(목록 위젯의 자식 창 안이라 위젯 아이디를 짚지 못했다 - 1024 폭 시험 창의 좁은 인스펙터에서 칸이 그려진 것만
-     사진으로 봤다), 스피커로 듣는 사람 확인.
+     사진으로 봤다), 스피커로 듣는 사람 확인. 쌓는 인스펙터로 돌아간 main(`1f0259cb`)에서 다시 찍어도 1024 창에서는 원소 칸이 8 픽셀쯤이다 - 목록 위젯이
+     손잡이·번호·지우기 단추에 폭을 쓰고 남은 자리다(두 칸 탓이 아니다). 16 단계에서 풀었다.
+16. `[완료]` (2026-10-07) **`AudioSource` 인스펙터 정리와 사운드 이펙트 창 다듬기**(D-309). 사용자 지시: "AudioSource 인스펙터 정리부터 해",
+    "폭이 좁으면 원소 번호는 생략하게 해줘", "이펙터는 좀 예쁘게 만들었으면 좋겠네".
+   - 인스펙터: 해석된 핸들(`clip`·`audioEffects`, 같은 꼴인 `SpriteRenderer2D`·`Text2D`·`Text3D`·`MeshRenderer3D` 의 것까지)은 `Hidden()` 이다.
+     거리·감쇠 다섯(`attenuation`·`minDistance`·`maxDistance`·`rolloff`·`doppler`)은 새 어트리뷰트 `VisibleWhen("spatial")` 로 `spatial` 을 켰을 때만 선다.
+     목록 필드는 모두 표를 끊고 줄 전체를 쓴다(전에는 구조체 원소의 목록만). 목록 위젯은 원소 칸이 글자 여덟 자보다 좁아지면 번호(`[0]`)를 뺀다.
+     `state` 는 그대로 둔다 - "왜 안 들리지" 를 보이려고 둔 읽기 전용 줄이다.
+   - 이펙트 창: 종류는 콤보 대신 칩 열 개(`Widget::ChoiceChips`), 아래에 종류의 한 줄 설명, 그 아래 응답 그래프(`Widget::Graph`) - 필터·EQ 는 주파수 응답,
+     디스토션은 입출력 곡선, 컴프레서·리미터는 입력 레벨→출력 레벨, 메아리는 되풀이 막대, 잔향은 꼬리, 코러스는 지연 흔들림, 피치는 원음과 바뀐 파형이다.
+     파라미터 값에 단위(`Hz`·`dB`·`s`·`ms`·`st`·`: 1`)를 붙이고 주파수는 로그 눈금이다(`AudioEffectParam::format`·`logarithmic`). 바뀐 것이 있으면 `적용` 옆에
+     `되돌리기`, 미리 듣기에는 `바이패스`(사슬을 떼고 원음으로)와 `출력` 미터(Master 의 봉우리)가 섰다.
+   - 그래프는 소리를 내는 식으로 잰다: 새 공개 헤더 `JBro/Audio/AudioEffectResponse.h` 의 넷(`AudioEffectResponseDb`·`AudioEffectShape`·
+     `AudioEffectCompressedDb`·`AudioReverbTail`)이 `AudioMixer.cpp` 의 `Biquad`·디스토션·컴프레서 식과 잔향 콤 길이(`ReverbCombTuning`, 따로 떼었다)를 그대로 쓴다.
+   - 결과(실측, `TestEffectGraphsMatchTheSound`): 같은 `.jfx` 를 건 보이스 사슬에 사인을 넣어 잰 크기와 그래프 값의 차가 필터·EQ 여덟 점에서 0.21 dB 이하다
+     (저역 통과 2 kHz 의 차단 주파수에서 그래프 -3.012 dB, 소리 -3.011 dB). 디스토션 봉우리는 소수 여섯째 자리까지 같고, 컴프레서는 어택·릴리스의 물결 탓에
+     0.78 dB 어긋난다(그래프 -16.51, 소리 -15.73 - 시험의 허용은 1.5 dB).
+   - 결과(에디터): 인스펙터 시험이 `spatial` 이 꺼진 소스에서 `minDistance` 줄을 찾지 못하고, 켜면 찾는다. 이펙트 창 시험은 칩을 눌러 종류를 고르고, 바이패스를 켜면
+     같은 소리가 사슬 없이(`effectVoices` 0) 울리다 끄면 다시 사슬을 빌리며, 일곱 종류를 차례로 골라 찍고 `되돌리기` 를 눌러 파일이 그대로인지 본다.
+     스크린숏 `editor_sound_effect_*`·`editor_audio_source_spatial`·`editor_audio_source_effects` 를 직접 봤다 - 1024 창에서 이펙트 목록 원소가 `sound/NewEffect`
+     로 읽힌다(전에는 8 픽셀).
+   - 남은 것: 창을 닫을 때 저장하지 않은 것을 묻지 않는다(패널에 닫기 전 훅이 없다). 이펙트 편집은 실행 취소가 없다(초안과 적용, 프로젝트 설정과 같은 모양).
+     `Transform2D` 의 `world` 행렬 줄도 같은 부류(내부 값)지만 이 단계에서 건드리지 않았다. 스피커로 듣는 사람 확인은 여전히 없다.
 
 ## 4. 규칙과 부딪히는 지점
 

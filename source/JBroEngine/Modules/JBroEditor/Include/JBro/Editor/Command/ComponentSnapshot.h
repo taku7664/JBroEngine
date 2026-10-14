@@ -33,6 +33,11 @@ namespace JBro
         ComponentTypeId typeId = 0;
         Bool enabled = true;
         Array<ComponentValue> values;
+        // 되살릴 번호다(D-302). **되살리기**(지운 것 되돌리기·붙여넣기의 다시 하기)만 이 번호로 다시 붙여, 그것을 가리키던 컴포넌트 핸들 필드가 다시 찾게 한다.
+        // 뜰 때의 번호로 시작하고, 나무를 새 번호로 처음 붙여넣으면 그때 받은 번호로 바뀐다(오브젝트의 `instanceId` 와 같다).
+        InstanceId instanceId = InvalidInstanceId;
+        // 뜬 원본의 번호다. 바뀌지 않는다 - 붙여넣은 나무 안의 참조를 사본으로 옮길 때 원본을 알아본다.
+        InstanceId sourceInstanceId = InvalidInstanceId;
     };
 
     // 컴포넌트의 값을 뜬다.

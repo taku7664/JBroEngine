@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/Widget/FilterCombo.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
 
 #include <JBro/Editor/Localization.h>
@@ -92,6 +93,12 @@ namespace JBro::Widget
     FilterCombo& FilterCombo::EmptyText(const char* text)
     {
         m_emptyText = text;
+        return *this;
+    }
+
+    FilterCombo& FilterCombo::Icon(const char* glyph)
+    {
+        m_icon = glyph;
         return *this;
     }
 
@@ -209,6 +216,16 @@ namespace JBro::Widget
         popupWidth = JBro::Max(
             popupWidth + style.FramePadding.x * 4.0f + style.ScrollbarSize,
             ImGui::CalcItemWidth());
+        // **목록은 트리거의 왼쪽 끝에서 연다.** 화면 오른쪽 끝을 넘으면 ImGui 가 창을 왼쪽으로 밀어 넣어 목록이 트리거보다 왼쪽에서 시작했다
+        // (인스펙터처럼 오른쪽 끝에 붙은 패널에서 그랬다). 트리거부터 화면 끝까지의 폭을 넘지 않게 하고, 폭을 고정해 세로 스크롤바가 서도
+        // 창이 넓어지지 않게 한다 - 넓어지면 다시 밀린다. 긴 이름은 잘린다.
+        const ImVec2 triggerMin = ImGui::GetCursorScreenPos();
+        const ImGuiViewport* viewport = ImGui::GetWindowViewport();
+        const Float roomRight = viewport->WorkPos.x + viewport->WorkSize.x - triggerMin.x;
+        if (roomRight > 1.0f)
+        {
+            popupWidth = JBro::Min(popupWidth, roomRight);
+        }
         const Int32 maxVisible = JBro::Clamp(m_maxVisibleItems, 1, DefaultMaxVisibleItems);
         // 보이는 줄은 항목 여덟에 **갈래 제목줄까지**다. 제목줄을 빼고 재면 갈래가 붙는
         // 만큼 팝업이 예산을 넘어, 창 아래에 열렸을 때 마지막 갈래가 화면 밖으로 나간다.
@@ -218,7 +235,7 @@ namespace JBro::Widget
                 * static_cast<JBro::Float>(maxVisible + headingLines)
             + style.WindowPadding.y * 2.0f;
         ImGui::SetNextWindowSizeConstraints(
-            ImVec2(popupWidth, 0.0f), ImVec2(FLT_MAX, popupMaxHeight));
+            ImVec2(popupWidth, 0.0f), ImVec2(popupWidth, popupMaxHeight));
 
         // **트리거는 열기 전에 알린다.** 열린 뒤에는 지금 창이 팝업이라 트리거의 자리를 잴 수 없다. 열림은 목록이 떠 있는가다 -
         // 가이드가 목록의 항목까지 가리키면(반례 ④) 목록이 뜬 것을 보고 한 칸 들어간다. 팝업 이름은 `BeginCombo` 가 짓는 것과 같다.
@@ -226,8 +243,21 @@ namespace JBro::Widget
         const Bool listOpen = ImGui::IsPopupOpen(ImHashStr("##ComboPopup", 0, comboId), ImGuiPopupFlags_None);
         ReportGuideTarget(target, frameMin,
             ImVec2(frameMin.x + ImGui::CalcItemWidth(), frameMin.y + ImGui::GetFrameHeight()), listOpen, false);
-        if (false == ImGui::BeginCombo(id, preview))
+        // 아이콘이 있으면 트리거 안을 손수 그린다(`ImGuiComboFlags_CustomPreview`) - 아이콘, 그다음 글. 고른 값이 있으면 그 값만 쓴다.
+        const Bool iconPreview = m_icon != nullptr && false == hasCurrent;
+        const auto drawPreview = [&]() {
+            if (iconPreview && ImGui::BeginComboPreview())
+            {
+                InlineIcon(m_icon);
+                ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
+                ImGui::TextUnformatted(preview);
+                ImGui::EndComboPreview();
+            }
+        };
+        if (false == ImGui::BeginCombo(id, iconPreview ? "" : preview,
+                iconPreview ? ImGuiComboFlags_CustomPreview : ImGuiComboFlags_None))
         {
+            drawPreview();
             return false;
         }
 
@@ -322,6 +352,7 @@ namespace JBro::Widget
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndCombo();
+        drawPreview();
 
         if (chosen < 0 || chosen == m_currentIndex)
         {

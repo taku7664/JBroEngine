@@ -1,0 +1,268 @@
+diff --git a/src/vs/platform/actions/common/actions.ts b/src/vs/platform/actions/common/actions.ts
+index 68080fa1..42bf1647 100644
+--- a/src/vs/platform/actions/common/actions.ts
++++ b/src/vs/platform/actions/common/actions.ts
+@@ -180,6 +180,7 @@ export class MenuId {
+ 	static readonly TestCoverageFilterItem = new MenuId('TestCoverageFilterItem');
+ 	static readonly TouchBarContext = new MenuId('TouchBarContext');
+ 	static readonly TitleBar = new MenuId('TitleBar');
++	static readonly JBroTitleBar = new MenuId('JBroTitleBar');
+ 	static readonly TitleBarAdjacentCenter = new MenuId('TitleBarAdjacentCenter');
+ 	static readonly TitleBarUpdate = new MenuId('TitleBarUpdate');
+ 	static readonly TitleBarContext = new MenuId('TitleBarContext');
+diff --git a/src/vs/workbench/browser/jbroUi/menuBar.ts b/src/vs/workbench/browser/jbroUi/menuBar.ts
+new file mode 100644
+index 00000000..5315b08e
+--- /dev/null
++++ b/src/vs/workbench/browser/jbroUi/menuBar.ts
+@@ -0,0 +1,93 @@
++/* JBro Script Editor reusable native menu bar. */
++
++import { getWindow } from '../../../base/browser/dom.js';
++import { MenuBar, MenuBarMenu } from '../../../base/browser/ui/menu/menubar.js';
++import { ActionRunner } from '../../../base/common/actions.js';
++import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
++import { IMenu, IMenuService, MenuId, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
++import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
++import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
++import { INotificationService } from '../../../platform/notification/common/notification.js';
++import { defaultMenuStyles } from '../../../platform/theme/browser/defaultStyles.js';
++
++/** Renders localized submenu contributions without owning product labels or commands. */
++export class JBroMenuBar extends Disposable {
++	private readonly rootMenu: IMenu;
++	private readonly widgetStore = this._register(new DisposableStore());
++	private readonly actionRunner = this._register(new ActionRunner());
++	private widget: MenuBar | undefined;
++	private labels: string[] = [];
++	private visible = true;
++
++	constructor(
++		private readonly container: HTMLElement,
++		menuId: MenuId,
++		@IMenuService menuService: IMenuService,
++		@IContextKeyService contextKeyService: IContextKeyService,
++		@IKeybindingService private readonly keybindingService: IKeybindingService,
++		@INotificationService notificationService: INotificationService
++	) {
++		super();
++		this.container.classList.add('menubar');
++		this.rootMenu = this._register(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
++		this._register(this.rootMenu.onDidChange(() => this.render()));
++		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.widget?.update()));
++		this._register(this.actionRunner.onDidRun(event => {
++			if (event.error) {
++				notificationService.error(event.error);
++			}
++		}));
++		const observer = new (getWindow(container).ResizeObserver)(() => this.widget?.update());
++		observer.observe(container);
++		this._register(toDisposable(() => observer.disconnect()));
++		this.render();
++	}
++
++	setVisible(visible: boolean): void {
++		this.visible = visible;
++		if (!visible) {
++			this.widget?.blur();
++		}
++		this.container.style.display = visible && this.labels.length > 0 ? '' : 'none';
++		this.widget?.update({ visibility: visible ? 'visible' : 'hidden' });
++	}
++
++	focus(): void {
++		if (this.visible) {
++			this.widget?.toggleFocus();
++		}
++	}
++
++	private render(): void {
++		const menus: MenuBarMenu[] = this.rootMenu.getActions()
++			.flatMap(([, actions]) => actions)
++			.filter((action): action is SubmenuItemAction => action instanceof SubmenuItemAction)
++			.map(action => ({ label: action.label, actions: [...action.actions] }));
++		const labels = menus.map(menu => menu.label);
++		const sameLabels = labels.length === this.labels.length && labels.every((label, index) => label === this.labels[index]);
++		if (this.widget && sameLabels) {
++			for (const menu of menus) {
++				this.widget.updateMenu(menu);
++			}
++			this.widget.update();
++			return;
++		}
++
++		this.widget?.blur();
++		this.widgetStore.clear();
++		this.widget = undefined;
++		this.labels = labels;
++		this.container.style.display = this.visible && menus.length > 0 ? '' : 'none';
++		if (menus.length === 0) {
++			return;
++		}
++		this.widget = this.widgetStore.add(new MenuBar(this.container, {
++			visibility: this.visible ? 'visible' : 'hidden',
++			enableMnemonics: true,
++			getKeybinding: action => this.keybindingService.lookupKeybinding(action.id),
++			actionRunner: this.actionRunner
++		}, defaultMenuStyles));
++		this.widget.push(menus);
++		this.widget.update();
++	}
++}
+diff --git a/src/vs/workbench/browser/jbroUi/ui.ts b/src/vs/workbench/browser/jbroUi/ui.ts
+new file mode 100644
+index 00000000..fe025b2d
+--- /dev/null
++++ b/src/vs/workbench/browser/jbroUi/ui.ts
+@@ -0,0 +1,4 @@
++/* JBro Script Editor native UI entry point. */
++
++// Public entry point for reusable JBro workbench UI components.
++export { JBroMenuBar } from './menuBar.js';
+diff --git a/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css b/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+index 16d2fa44..29e3002b 100644
+--- a/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
++++ b/src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+@@ -29,6 +29,36 @@
+ 	width: 100%;
+ }
+ 
++/* JBro menu bar: retain the native title bar and window controls. */
++.monaco-workbench .part.titlebar > .titlebar-container:not(.jbro-layout) .jbro-menu-bar,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .window-appicon,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .center-adjacent-toolbar-container,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .update-toolbar-container,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout .action-toolbar-container {
++	display: none;
++}
++
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout > .titlebar-left,
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout > .titlebar-right {
++	width: auto;
++	flex: 0 0 auto;
++	min-width: 0;
++}
++
++.monaco-workbench .part.titlebar > .titlebar-container.jbro-layout > .titlebar-center {
++	width: auto;
++	max-width: none;
++	flex: 1 1 0;
++	overflow: hidden;
++}
++
++.monaco-workbench .part.titlebar .jbro-menu-bar {
++	z-index: 2500;
++	-webkit-app-region: no-drag;
++	max-width: calc(100vw - 156px);
++	padding: 0 8px;
++}
++
+ /* Account for zooming */
+ .monaco-workbench .part.titlebar > .titlebar-container.counter-zoom {
+ 	zoom: calc(1.0 / var(--zoom-factor));
+diff --git a/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts b/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts
+index 9d2e8a85..6e9482d9 100644
+--- a/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts
++++ b/src/vs/workbench/browser/parts/titlebar/titlebarPart.ts
+@@ -26,6 +26,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
+ import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
+ import { createActionViewItem, fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+ import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
++import { JBroMenuBar } from '../../jbroUi/ui.js';
+ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+ import { IHostService } from '../../../services/host/browser/host.js';
+ import { WindowTitle } from './windowTitle.js';
+@@ -273,6 +274,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 	private lastLayoutDimensions: Dimension | undefined;
+ 
+ 	private actionToolBar!: WorkbenchToolBar;
++	private jbroMenuBar: JBroMenuBar | undefined;
+ 	private readonly actionToolBarDisposable = this._register(new DisposableStore());
+ 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
+ 	private actionToolBarElement!: HTMLElement;
+@@ -376,6 +378,13 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 	}
+ 
+ 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
++		if (event.affectsConfiguration('jbro.layout.enabled') && this.rootContainer) {
++			const enabled = this.configurationService.getValue<boolean>('jbro.layout.enabled') === true;
++			this.rootContainer.classList.toggle('jbro-layout', enabled);
++			this.jbroMenuBar?.setVisible(enabled);
++			this._onDidChange.fire(undefined);
++		}
++
+ 		if (event.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+ 			this.updateStyles();
+ 		}
+@@ -474,6 +483,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 	protected override createContentArea(parent: HTMLElement): HTMLElement {
+ 		this.element = parent;
+ 		this.rootContainer = append(parent, $('.titlebar-container'));
++		this.rootContainer.classList.toggle('jbro-layout', this.configurationService.getValue<boolean>('jbro.layout.enabled') === true);
+ 
+ 		this.leftContent = append(this.rootContainer, $('.titlebar-left'));
+ 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
+@@ -497,6 +507,13 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 			this.installMenubar();
+ 		}
+ 
++		// JBro menu bar
++		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
++			const menuContainer = append(this.leftContent, $('div.jbro-menu-bar'));
++			this.jbroMenuBar = this._register(this.instantiationService.createInstance(JBroMenuBar, menuContainer, MenuId.JBroTitleBar));
++			this.jbroMenuBar.setVisible(this.configurationService.getValue<boolean>('jbro.layout.enabled') === true);
++		}
++
+ 		// Title
+ 		this.title = append(this.centerContent, $('div.window-title'));
+ 		this.createTitle();
+@@ -985,7 +1002,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+ 	}
+ 
+ 	focus(): void {
+-		if (this.customMenubar.value) {
++		if (this.jbroMenuBar && this.configurationService.getValue<boolean>('jbro.layout.enabled') === true) {
++			this.jbroMenuBar.focus();
++		} else if (this.customMenubar.value) {
+ 			this.customMenubar.value.toggleFocus();
+ 		} else {
+ 			// eslint-disable-next-line no-restricted-syntax
+diff --git a/src/vs/workbench/browser/workbench.contribution.ts b/src/vs/workbench/browser/workbench.contribution.ts
+index e813c53f..f4063365 100644
+--- a/src/vs/workbench/browser/workbench.contribution.ts
++++ b/src/vs/workbench/browser/workbench.contribution.ts
+@@ -616,7 +616,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
+ 			'workbench.secondarySideBar.defaultVisibility': {
+ 				'type': 'string',
+ 				'enum': ['hidden', 'visibleInWorkspace', 'visible', 'maximizedInWorkspace', 'maximized'],
+-				'default': 'visibleInWorkspace',
++				'default': 'hidden',
+ 				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows that are opened for the first time. Can be overridden by the agent sessions startup editor setting."),
+ 				'enumDescriptions': [
+ 					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
+@@ -909,7 +909,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
+ 						localize('window.menuBarVisibility.compact.web', "Menu is displayed as a compact button in the side bar.") :
+ 						localize({ key: 'window.menuBarVisibility.compact', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1} and {2} is either {3} or {4}.", '`#window.titleBarStyle#`', '`native`', '`#window.menuStyle#`', '`native`', '`inherit`')
+ 				],
+-				'default': isWeb ? 'compact' : 'classic',
++				'default': isWeb ? 'compact' : 'hidden',
+ 				'scope': ConfigurationScope.APPLICATION,
+ 				'markdownDescription': isMacintosh ?
+ 					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the side bar.") :
+diff --git a/src/vs/workbench/services/actions/common/menusExtensionPoint.ts b/src/vs/workbench/services/actions/common/menusExtensionPoint.ts
+index 4e2a78f0..11f76bd8 100644
+--- a/src/vs/workbench/services/actions/common/menusExtensionPoint.ts
++++ b/src/vs/workbench/services/actions/common/menusExtensionPoint.ts
+@@ -35,6 +35,12 @@ interface IAPIMenu {
+ }
+ 
+ const apiMenus: IAPIMenu[] = [
++	{
++		key: 'jbro/title',
++		id: MenuId.JBroTitleBar,
++		description: localize('menus.jbroTitle', "The JBro Script Editor menu bar"),
++		supportsSubmenus: true
++	},
+ 	{
+ 		key: 'commandPalette',
+ 		id: MenuId.CommandPalette,

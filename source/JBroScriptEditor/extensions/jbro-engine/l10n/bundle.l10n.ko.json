@@ -1,0 +1,10 @@
+{
+	"GitHub account": "GitHub 계정",
+	"Signing in to GitHub...": "GitHub 로그인 중...",
+	"Complete sign-in in the GitHub browser page.": "브라우저의 GitHub 페이지에서 로그인을 완료하세요.",
+	"GitHub: {0}. Click to manage accounts or sign out.": "GitHub: {0}. 계정 관리 또는 로그아웃하려면 클릭하세요.",
+	"Sign in to GitHub": "GitHub 로그인",
+	"GitHub account could not be read. Click to try signing in.": "GitHub 계정을 확인하지 못했습니다. 로그인하려면 클릭하세요.",
+	"Sign in to use GitHub with JBro Script Editor.": "JBro Script Editor에서 GitHub를 사용하려면 로그인하세요.",
+	"GitHub sign-in failed. Try again.": "GitHub 로그인에 실패했습니다. 다시 시도하세요."
+}

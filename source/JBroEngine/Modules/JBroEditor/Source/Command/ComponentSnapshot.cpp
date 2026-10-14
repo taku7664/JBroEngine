@@ -89,6 +89,8 @@ namespace JBro
         out.kind = attached.GetKind();
         out.typeId = typeId;
         out.enabled = attached.IsEnabled();
+        out.instanceId = attached.GetInstanceId();
+        out.sourceInstanceId = out.instanceId;
         out.values.Clear();
         SetPropertyCommand::Path path;
         return CaptureValues(*table, attached.GetInstance(), attached.GetInstance(), typeId, path, out.values);

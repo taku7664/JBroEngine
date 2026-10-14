@@ -1,4 +1,5 @@
 ﻿#include <JBro/Audio/AudioMixer.h>
+#include <JBro/Audio/AudioEffectResponse.h>
 
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Core/Log.h>
@@ -343,6 +344,16 @@ namespace JBro
             }
         };
 
+        // Freeverb 콤 필터 여덟의 줄 길이다(44.1 kHz 기준 샘플). 편집 창의 꼬리 그림(`AudioReverbTail`)도 이것을 읽는다(D-309).
+        constexpr Int32 ReverbCombTuning[8] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617};
+
+        // 잔향의 콤 되먹임이다. `roomSize` 0..1 을 0.7..0.98 로 옮긴다.
+        Float ReverbFeedback(Float roomSize)
+        {
+            const Float room = !(roomSize >= 0.0f) ? Float(0.0f) : (roomSize > 1.0f ? Float(1.0f) : roomSize);
+            return 0.7f + room * 0.28f;
+        }
+
         // Freeverb(Jezar, 퍼블릭 도메인)의 짜임이다. 기존 엔진의 잔향도 이것이었다. 줄 길이는 44.1 kHz 기준 값을 샘플 레이트로
         // 늘인다. 오른쪽 채널은 23 샘플 벌린다.
         struct Reverb
@@ -369,7 +380,7 @@ namespace JBro
 
             void Prepare(UInt32 sampleRate)
             {
-                static const Int32 combTuning[Combs] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617};
+                const Int32* combTuning = ReverbCombTuning;
                 static const Int32 allpassTuning[Allpasses] = {556, 441, 341, 225};
                 const Float scale = static_cast<JBro::Float>(sampleRate) / 44100.0f;
                 for (Int32 channel = 0; channel < 2; ++channel)
@@ -761,7 +772,7 @@ namespace JBro
                         delay = self.echoCapacity - 1;
                     }
                 }
-                const Float room = 0.7f + Clamped(self.reverbRoom.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.28f;
+                const Float room = ReverbFeedback(self.reverbRoom.load(std::memory_order_relaxed));
                 const Float damping = Clamped(self.reverbDamping.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.4f;
                 const Float width = Clamped(self.reverbWidth.load(std::memory_order_relaxed), 0.0f, 1.0f);
                 const Float wetSame = width * 0.5f + 0.5f;
@@ -4123,5 +4134,128 @@ namespace JBro
             stats.streamUnderruns += slot->underruns.load(std::memory_order_relaxed);
         }
         return stats;
+    }
+
+    namespace
+    {
+        // 2 차 필터의 크기 응답 |H(e^jw)| 이다. 계수는 소리를 내는 `Biquad` 의 것 그대로다.
+        Float BiquadMagnitude(const Biquad& filter, Float omega)
+        {
+            const Float c1 = std::cos(omega);
+            const Float s1 = std::sin(omega);
+            const Float c2 = std::cos(2.0f * omega);
+            const Float s2 = std::sin(2.0f * omega);
+            const Float numeratorReal = filter.b0 + filter.b1 * c1 + filter.b2 * c2;
+            const Float numeratorImaginary = -(filter.b1 * s1 + filter.b2 * s2);
+            const Float denominatorReal = 1.0f + filter.a1 * c1 + filter.a2 * c2;
+            const Float denominatorImaginary = -(filter.a1 * s1 + filter.a2 * s2);
+            const Float denominator = denominatorReal * denominatorReal + denominatorImaginary * denominatorImaginary;
+            if (!(denominator > 0.0f))
+            {
+                return 1.0f;
+            }
+            return std::sqrt((numeratorReal * numeratorReal + numeratorImaginary * numeratorImaginary) / denominator);
+        }
+    }
+
+    Float AudioEffectResponseDb(const AudioEffectSettings& effect, Float hz, Float sampleRate)
+    {
+        if (!(hz > 0.0f) || !(sampleRate > 0.0f))
+        {
+            return 0.0f;
+        }
+        const Float* v = effect.values;
+        const Float omega = Tau * hz / sampleRate;
+        Float magnitude = 1.0f;
+        switch (effect.kind)
+        {
+            case AudioEffectKind::LowPass:
+            case AudioEffectKind::HighPass:
+            {
+                Biquad filter;
+                filter.Configure(effect.kind == AudioEffectKind::HighPass, v[0], sampleRate, v[1]);
+                magnitude = BiquadMagnitude(filter, omega);
+                break;
+            }
+            case AudioEffectKind::Equalizer:
+            {
+                // `ToStageEffects`·`RunEqBand` 와 같은 차례다: 낮은 선반·봉우리·높은 선반, 이득이 0 인 대역은 건너뛴다.
+                for (Int32 band = 0; band < 3; ++band)
+                {
+                    const Float gain = Clamped(v[band * 2], -24.0f, 24.0f);
+                    if (gain == 0.0f)
+                    {
+                        continue;
+                    }
+                    Biquad filter;
+                    if (band == 1)
+                    {
+                        filter.ConfigurePeak(v[band * 2 + 1], gain, sampleRate);
+                    }
+                    else
+                    {
+                        filter.ConfigureShelf(band == 2, v[band * 2 + 1], gain, sampleRate);
+                    }
+                    magnitude *= BiquadMagnitude(filter, omega);
+                }
+                break;
+            }
+            default:
+                return 0.0f;
+        }
+        return 20.0f * std::log10(magnitude > 1e-6f ? magnitude : Float(1e-6f));
+    }
+
+    Float AudioEffectShape(const AudioEffectSettings& effect, Float input)
+    {
+        if (effect.kind != AudioEffectKind::Distortion)
+        {
+            return input;
+        }
+        // `RunEffectDsp` 의 디스토션과 같은 식이다.
+        const Float drive = Clamped(effect.values[0], 0.0f, 1.0f);
+        if (drive <= 0.0f)
+        {
+            return input;
+        }
+        const Float mix = Clamped(effect.values[1], 0.0f, 1.0f);
+        const Float pre = 1.0f + drive * 24.0f;
+        const Float shaped = std::tanh(pre * input) / std::tanh(pre);
+        return input + (shaped - input) * mix;
+    }
+
+    Float AudioEffectCompressedDb(const AudioEffectSettings& effect, Float inputDb)
+    {
+        if (effect.kind != AudioEffectKind::Compressor && effect.kind != AudioEffectKind::Limiter)
+        {
+            return inputDb;
+        }
+        // `RunEffectDsp` 의 컴프레서와 같은 식이다. 비율이 1 에 붙으면 끈다.
+        const Float ratio = Clamped(effect.values[1], 1.0f, 20.0f);
+        if (ratio <= 1.001f)
+        {
+            return inputDb;
+        }
+        const Float threshold = Clamped(effect.values[0], -60.0f, 0.0f);
+        const Float over = inputDb - threshold;
+        return over > 0.0f ? Float(inputDb - over * (1.0f - 1.0f / ratio)) : inputDb;
+    }
+
+    Float AudioReverbTail(const AudioEffectSettings& effect, Float seconds)
+    {
+        if (effect.kind != AudioEffectKind::Reverb)
+        {
+            return 0.0f;
+        }
+        // 줄 길이는 샘플 레이트만큼 늘므로 초로 재면 레이트와 무관하다.
+        Float meanSamples = 0.0f;
+        for (const Int32 length : ReverbCombTuning)
+        {
+            meanSamples += static_cast<JBro::Float>(length);
+        }
+        meanSamples = meanSamples / 8.0f;
+        const Float meanSeconds = meanSamples / 44100.0f;
+        const Float elapsed = seconds > 0.0f ? seconds : Float(0.0f);
+        return std::pow(ReverbFeedback(effect.values[0]), elapsed / meanSeconds);
     }
 }

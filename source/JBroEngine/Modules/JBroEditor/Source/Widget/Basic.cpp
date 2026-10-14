@@ -101,29 +101,6 @@ namespace JBro::Widget
         return ImGui::Selectable(label, selected);
     }
 
-    Bool ChoiceRow(const char* label, const char* icon, Bool selected, Bool dimmed)
-    {
-        const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        const Bool guided = false == selected && Internal::ShouldOpenGuided(target);
-        const Float side = ImGui::GetTextLineHeight();
-        const ImVec2 iconMin = ImGui::GetCursorScreenPos();
-        StyleScope scope;
-        if (dimmed)
-        {
-            scope.PushColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        }
-        // 아이콘 자리는 늘 비워 둔다 - 아이콘이 없는 줄도 이름이 같은 세로줄에 선다.
-        ImGui::Dummy(ImVec2(side, side));
-        ImGui::SameLine();
-        const Bool clicked = ImGui::Selectable(label, selected, ImGuiSelectableFlags_AllowOverlap);
-        if (icon != nullptr)
-        {
-            DrawGlyphCentered(icon, iconMin, ImVec2(iconMin.x + side, iconMin.y + side), ImGui::GetColorU32(ImGuiCol_Text), side);
-        }
-        Internal::ReportLastItem(target, selected || clicked, clicked);
-        return clicked || guided;
-    }
-
     Bool ActionButton(const char* label, Severity severity, Bool enabled,
         const char* disabledReason, const ImVec2& size)
     {
@@ -302,13 +279,14 @@ namespace JBro::Widget
         ImGui::TreePop();
     }
 
-    Bool CollapsingSection(const char* title, Bool defaultOpen, Bool allowOverlap)
+    Bool CollapsingSection(const char* title, Bool defaultOpen, Bool allowOverlap, Bool focused)
     {
         // **머리는 파랑이 아니다.** `ImGuiCol_Header` 는 고른 줄과 접기 머리가 함께 쓰는
         // 색인데, 파랑은 고른 것의 색이다 - 늘 서 있는 컴포넌트 머리가 그 색을 쓰면
         // 인스펙터 어디가 골라져 있는지 알 수 없게 된다. 머리는 떠 있는 면으로 둔다.
         StyleScope scope;
-        scope.PushColor(ImGuiCol_Header, EditorTheme::Raised);
+        // 고른 것은 도킹의 고른 탭과 같은 색이다 - 화면에 이미 있는 "이것이 지금 것" 의 표시를 그대로 쓴다.
+        scope.PushColor(ImGuiCol_Header, focused ? EditorTheme::TabTop : EditorTheme::Raised);
         scope.PushColor(ImGuiCol_HeaderHovered, EditorTheme::Hover);
         scope.PushColor(ImGuiCol_HeaderActive, EditorTheme::Pressed);
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
@@ -319,6 +297,14 @@ namespace JBro::Widget
             flags |= ImGuiTreeNodeFlags_AllowOverlap;
         }
         const bool open = ImGui::CollapsingHeader(title, flags);
+        if (focused)
+        {
+            // 도킹 탭의 `TabSelectedOverline` 처럼 머리 위 끝에 강조색 선을 긋는다.
+            const ImVec2 min = ImGui::GetItemRectMin();
+            const ImVec2 max = ImGui::GetItemRectMax();
+            ImGui::GetWindowDrawList()->AddLine(ImVec2(min.x, min.y + 1.0f), ImVec2(max.x, min.y + 1.0f),
+                ImGui::ColorConvertFloat4ToU32(EditorTheme::Accent), 2.0f);
+        }
         Internal::ReportLastItem(target, open, ImGui::IsItemClicked());
         return open;
     }

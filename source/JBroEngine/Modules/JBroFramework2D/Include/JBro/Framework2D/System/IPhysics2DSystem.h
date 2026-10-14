@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <JBro/Framework2D/Component/Physics2D.h>
+#include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Types/Array.h>
 
 #include <cstdint>

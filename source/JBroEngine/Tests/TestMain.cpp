@@ -64,6 +64,7 @@ JBro::Int32 RunFramework3DSystemTests();
 JBro::Int32 RunMeshPixelTests();
 JBro::Int32 RunSystemSchedulerTests();
 JBro::Int32 RunGameScriptTests();
+JBro::Int32 RunObjectServiceTests();
 JBro::Int32 RunEditorApplicationTests();
 JBro::Int32 RunEditorUITests();
 JBro::Int32 RunEditorCommandTests();
@@ -92,6 +93,7 @@ JBro::Int32 RunScriptDLLLoaderTests();
 JBro::Int32 RunScriptModuleEntryTests();
 JBro::Int32 RunScriptProjectTests();
 JBro::Int32 RunScriptBuildTests();
+JBro::Int32 RunDebugAdapterTests();
 JBro::Int32 RunScriptHotReloadTests();
 JBro::Int32 RunScriptCompilerLexerTests();
 JBro::Int32 RunScriptCompilerParserTests();
@@ -463,6 +465,10 @@ int main()
         {
             return 1;
         }
+        if (false == RunSuite("ObjectService", &RunObjectServiceTests))
+        {
+            return 1;
+        }
         if (false == RunSuite("EditorApplication", &RunEditorApplicationTests))
         {
             return 1;
@@ -548,6 +554,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("ScriptHotReload", &RunScriptHotReloadTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("DebugAdapter", &RunDebugAdapterTests))
         {
             return 1;
         }

@@ -205,7 +205,8 @@
     오디오 스레드가 짓는다. 메아리·잔향 버퍼는 처음 켤 때 메인 스레드가 잡는다 - 오디오 스레드는 할당하지 않는다.
   - **소스마다 이펙트 사슬**은 `.jfx` 에셋(타입 `AudioEffect`, 기존 엔진의 `Effect: { Kind, Parameters }` 모양)을 `AudioSource.audioEffectIds` 의
     차례대로 넷까지 건다(D-306). 종류마다 파라미터의 이름·기본값·범위는 `JBroAssetTypes` 의 `AudioEffectKinds` 한 곳에만 둔다 - 편집 창·파일·DSP 가
-    따로 표를 두지 않는다. 버스와 보이스 사슬은 같은 DSP(`EffectDsp`)를 탄다. 사슬 노드는 믹서가 초기화 때 정한 수만큼 두고 모자라면 이펙트 없이 울린다.
+    따로 표를 두지 않는다(값의 단위·로그 눈금도 그 표에 있다, D-309). 버스와 보이스 사슬은 같은 DSP(`EffectDsp`)를 탄다. 편집 창의 응답 그래프는
+    `JBro/Audio/AudioEffectResponse.h` 로 DSP 와 같은 식을 읽는다 - 그림을 따로 짓지 않는다. 사슬 노드는 믹서가 초기화 때 정한 수만큼 두고 모자라면 이펙트 없이 울린다.
   - 버스의 부모는 목록의 앞 버스만이고, 센드는 되돌아오는 길을 만들면 거절한다(D-203). 솔로는 저장하지 않는다.
   - 버스 음량·음소거·솔로는 이펙트 노드 끝의 램프로 건다(D-205). 그룹 음량을 곧바로 바꾸지 않는다 - 딸깍 소리가 난다.
   - 버스 사용자 처리기는 엔진·호스트 코드만 건다. 스크립트 DLL 에는 열지 않는다(D-206). `SetBusProcessor` 가 돌아오면 옛 처리기는
@@ -241,8 +242,8 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vector2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vector3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247)·**크기**(`Types/Size.h` 의 `Size`·`SizeU`·`SizeI`, RHI 의 `Extent2D` 가 `SizeU` 다)·**비트 묶음**(`Types/BitFlag.h`)·**안전 영역**(`Types/SafeArea.h`)·**프레임 생존 표시**(`Types/FrameLiveness.h` 의 `RemoveStaleEntries`, 모두 D-249) |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`Object::GameObject`·`Handle::GameObject`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
-  | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`Object::GameObject`·`Handle::GameObject`·`Internal::ComponentHandle`(빌트인 컴포넌트 핸들의 몸, D-302)·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
+  | Tier S | `JBroFramework2D` | 컴포넌트·컴포넌트 핸들(`Handle/*.h`)·컴포넌트 값 타입(`ComponentTypes2D.h`)·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
   | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-214) |
@@ -380,11 +381,18 @@
 - **핸들은 스크립트 노출 표면에만 적용한다.** (MUST)
   스크립트가 다른 오브젝트를 오래 들고 있는 자리가 실제 댕글링이 나는 곳이고,
   거기만 `GameObject` 핸들로 덮는다.
-- **스크립트에 노출하는 참조는 `JBro::Handle` 의 핸들과 스크립트용 `Ref<T>` 다. 핸들의 이름은 엔진 타입과 같다.** (MUST) (D-302. **이름**(1 단계)과 **컴포넌트·스크립트 분리**(2 단계)는 섰다. 빌트인 핸들(3 단계)은 구현 전이고, 아래 옛 문단의 컴포넌트 `Ref<T>` 가 지금 코드다)
+- **스크립트에 노출하는 참조는 `JBro::Handle` 의 핸들과 스크립트용 `Ref<T>` 다. 핸들의 이름은 엔진 타입과 같다.** (MUST) (D-302. **이름**(1 단계)·**컴포넌트·스크립트 분리**(2 단계)·**빌트인 핸들**(3 단계)이 섰다)
   - 오브젝트는 `Handle::GameObject`(16B), 빌트인 컴포넌트는 `Handle::Transform2D` 처럼 타입마다 하나(24B, 저장부 `InstanceRef`)다. 프렐류드가 `using namespace JBro;` 와 `using namespace JBro::Handle;` 을 연다.
   - 엔진 타입은 `JBro::Object::GameObject`·`JBro::Component::*` 에 있고 프렐류드는 그 네임스페이스를 열지 않는다. 컴포넌트 데이터 헤더는 스크립트 대상 빌드에서 `#error` 다.
   - `GetComponent<T>` 의 `T` 는 핸들 타입이다. 핸들의 타입 이름은 데이터 클래스와 같아 타입 id 가 같고, 오브젝트에서 확인해 있으면 채운 핸들을, 없으면 빈 핸들을 돌려준다.
   - 핸들의 멤버는 안전 멤버다. 무효면 로그를 남기고 무시하며, 값을 돌려주는 멤버는 로그와 기본값이다. 생 포인터를 내주지 않고, 월드 캐시는 getter 만 있다.
+  - 빌트인 핸들은 `Internal::ComponentHandle`(24B, 저장부 `InstanceRef`, 가상 함수 없음)에서 파생하고 데이터 멤버를 더하지 않는다. 공용 멤버는 `IsValid`·`GetGameObject`·`IsEnabled`·`SetEnabled`·`==` 다.
+    필드는 **`Get`·`Set` + 필드 이름**이다(`position` → `GetPosition`·`SetPosition`, `isTrigger` → `GetIsTrigger`). 시스템이 채우는 값(월드 캐시·버튼 상태·오디오 상태)과
+    저장되는 에셋 id 는 getter 만 두고, 에셋은 이번 실행의 자리(`SetSprite(AssetHandle)` 등)로 바꾼다. 배열 필드는 `GetPoints(Array<Vector2>&)` 처럼 호출자의 배열에 복사한다.
+    데이터 클래스에 있던 동작(`Rigidbody2D::AddForce` 등)은 같은 이름으로 핸들에 있다. 핸들의 몸은 프레임워크 라이브러리의 `.cpp` 에 있고 그쪽만 데이터 헤더를 본다.
+  - 스크립트가 쓰는 열거형과 값(`Component::BodyType2D`·`PhysicsLayerMask`·`Collision2D`·`RaycastHit2D` 등)은 데이터 헤더가 아니라 `ComponentTypes2D.h`·`ComponentTypes3D.h`·`AudioSourceTypes.h` 에 있다.
+    서비스는 핸들을 받는다(`AudioService::Play(AudioSource)`·`Text2DService::SetText(Text2D, …)`). 서비스가 데이터에 닿는 길은 `Internal::ComponentHandleAccess::ResolveAs<TData>` 하나다.
+  - 데이터 헤더를 막는 것은 음성 시험으로 본다: `msbuild JBroEngine.slnx /p:JBroTierProbe=ComponentData` 가 `#error` 로 실패해야 한다(`Tests/ScriptModuleProbe/Source/TierProbe.cpp`).
   - `Ref<T>` 는 스크립트 전용이다. 스크립트는 컴포넌트가 아니다 - `GameScriptBase` 는 `ComponentBase` 를 상속하지 않고, 오브젝트는 컴포넌트 목록과 스크립트 목록을 따로 들며,
     스크립트 실행 순서는 스크립트 목록의 차례다. 캔버스 파일은 `Components:` 와 `Scripts:` 를 따로 적고 옛 형식을 읽지 않는다.
 
@@ -392,11 +400,8 @@
     `ReleaseModuleScripts` 는 이름으로 붙인 것만 뗀다. 오브젝트에서 스크립트는 `GetScript<T>`/`GetScripts<T>`, 핸들에서는 `GetScript<T>` 로 찾는다.
     `ComponentRegistry` 는 빌트인만 든다. 이름으로 무엇이든 붙여야 하는 에디터 자리는 `AttachByName`(`ComponentCommands.h`) 하나를 거친다.
 
-  아래는 D-302 전의 계약 중 아직 코드에 남은 것이다(3 단계에서 지운다).
-  `GameObject`는 16B `Handle::GameObject`로 다루며, `operator->` 없이 안전 멤버만 제공한다.
-  컴포넌트는 24B `Ref<T>`를 쓰고 카테고리는 `T`에서 컴파일타임에 결정한다.
   에셋은 `AssetHandle`, 캔버스는 스크립트에 노출하지 않으므로 `RefCategory::Asset`·`Canvas`는 두지 않는다. (D-53)
-  이 둘 외에 타입별 핸들을 추가하지 않는다. 두 크기(16B·24B)는 영구 고정이다. (D-44)
+  두 크기(오브젝트 핸들 16B·컴포넌트 핸들과 `Ref<T>` 24B)는 영구 고정이다. (D-44, D-302)
 - `Handle::GameObject`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
 - **워커 스레드의 일은 `JBroTask` 의 `TaskManager` 에 태스크로 등록한다.** 모듈마다 `std::thread` 를 새로 들지 않는다. 예외는 실시간 마감이
   있는 오디오 스트리머·장치 스레드, OS 대기에서 막히는 파일 감시, 그리고 스텝 안에서 나눴다 합치는 2D 물리의 전용 워커(아래)다. (SHOULD) (D-209, D-223)
@@ -410,9 +415,10 @@
   호스트가 프로젝트를 연 뒤 한 번 풀어 넘긴다. 스레드가 없는 빌드는 늘 메인 한 스레드다. 워커는 후보마다 매니폴드만 제 칸에 쓰고, 거르기·접촉 모으기·
   솔버·되쓰기·훅 발송·질의는 메인 스레드에서 돈다 - 결과는 워커 수와 관계없이 같아야 한다. 워커는 시작할 때만 세우고 스텝 중에 할당하지 않는다.
   (MUST) (D-199, D-223, physics-plan §3.7)
-- **`GetComponent<T>()` 는 원시 포인터가 아니라 `Ref<T>` 를 반환한다.** (MUST)
+- **`GetComponent<T>()` 는 원시 포인터를 반환하지 않는다.** (MUST) 스크립트 핸들(`Handle::GameObject`)의 것은 컴포넌트 핸들을,
+  엔진 오브젝트(`Object::GameObject`)의 것은 `Ref<T>` 를 준다(D-302).
   원시 포인터는 저장할 수 없어 매 프레임 다시 찾아야 하고, 그 조회가 선형 탐색이다.
-  `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.
+  핸들이나 `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.
   시스템이 쓰는 `T*` 반환 조회는 `GetComponent`라는 이름을 쓰지 않고 Tier E 내부 접근 클래스의 `FindComponentRaw<T>`로 둔다. (D-42)
 - `Ref<T>` 의 접근자는 하나다. 별도의 스코프 객체 타입을 두지 않는다. (MUST)
 
@@ -434,10 +440,14 @@
   **경로가 둘인 게 아니라 접근자 하나에 사용법이 둘이다.**
   `operator->` 는 내부적으로 `Get()` 을 부르며, Debug 빌드 assert 만 차이다.
 - 스크립트가 대상의 수명 밖까지 보관하는 멤버에는 raw pointer를 저장하지 않는다. (MUST)
-  `GameObject`를 저장하면 `Handle::GameObject`, 그 외 대상을 저장하면 `Ref<T>`를 멤버로 둔다.
+  `GameObject`를 저장하면 `Handle::GameObject`, 빌트인 컴포넌트는 그 핸들(`Transform2D`), 스크립트는 `Ref<T>`를 멤버로 둔다(D-302).
 - **컴포넌트가 저장되는 값으로 다른 오브젝트를 가리키면 `Handle::GameObject` 필드를 둔다**(리플렉션 잎사귀 `JBro.Handle.GameObject`). (MUST) (D-233)
   캔버스 파일에는 그 오브젝트의 파일 안 번호로, 되돌리기·클립보드·스냅숏 글자에는 이번 실행의 오브젝트 번호(`@번호`)로 적힌다.
   오브젝트 번호(`InstanceId`)를 파일에 쓰지 않는다 - 실행마다 다르다. 지운 오브젝트를 되돌리면 옛 번호로 되살아나 참조가 이어진다.
+- **스크립트가 저장되는 값으로 빌트인 컴포넌트를 가리키면 그 핸들 필드를 둔다**(`JBRO_FIELD(Transform2D, follow)`, 리플렉션 잎사귀 `JBro.ComponentHandle`,
+  `refTarget` 이 컴포넌트 타입 이름). (MUST) (D-302)
+  캔버스 파일에는 `오브젝트의 파일 안 번호:같은 타입 중 몇 번째`(`1:0`)로, 그 밖의 글자에는 `@오브젝트 번호:컴포넌트 번호` 로 적힌다. 다른 타입의 컴포넌트를 가리키는 `@` 글자는 읽지 않는다.
+  캔버스 파일은 모든 오브젝트에 컴포넌트·스크립트를 붙인 뒤에 필드를 읽는다. 지운 컴포넌트·오브젝트를 되돌리면 컴포넌트도 옛 번호로 되살아나 참조가 이어진다.
   엔진 내부 참조는 이 규칙을 스크립트 핸들로 우회하지 않고 §6의 소유권과 `SafePtr<T>` 계약을 따른다.
 
   > 이 규칙을 타입으로 강제하려는 시도(복사·이동을 삭제한 스코프 객체)는 채택하지 않았다.
@@ -520,14 +530,20 @@
   ```cpp
   GameObject target;                           // 스크립트에서는 핸들이다(D-302)
   target.Destroy();                            // 안전 멤버. if 불필요
-  Ref<Component::Transform2D> transform = target.GetComponent<Component::Transform2D>();
-  if (auto* value = transform.Get())            // Ref<T>는 실패를 직접 확인한다
+  Transform2D transform = target.GetComponent<Transform2D>();   // 빌트인 컴포넌트도 핸들이다
+  transform.SetPosition({1.0f, 2.0f});         // 안전 멤버. 없으면 경고만 남는다
+  if (transform.IsValid())                     // 있는지가 뜻이 있으면 묻는다
+  {
+      …
+  }
+  Ref<EnemyScript> enemy = target.GetScript<EnemyScript>();
+  if (EnemyScript* value = enemy.Get())        // 스크립트는 Ref<T> 이고 실패를 직접 확인한다
   {
       …
   }
   ```
 
-  GameObject만 안전 명령용 Handle을 쓰며, 컴포넌트·스크립트별 Handle은 만들지 않는다.
+  오브젝트와 빌트인 컴포넌트는 안전 멤버를 가진 핸들이고, 스크립트별 핸들은 만들지 않는다(D-6).
 - **`Handle::GameObject`에는 `operator->`를 추가하지 않는다.** (MUST)
   안전 멤버 내부에서 대상 해석에 실패하면 즉시 `return`할 수 있어야 한다.
 - **안전 경로의 무효 접근은 로그를 남기고 아무 일도 하지 않는다.** (MUST)
@@ -535,20 +551,24 @@
   Release 빌드에서도 검사(슬롯 범위 + 세대 비교)를 제거하지 않는다.
 - 값을 돌려주는 접근은 실패가 드러나야 한다. (MUST)
   대상이 없을 때 기본값을 조용히 돌려주면 찾기 어려운 논리 버그가 된다.
-  현재 `GetComponent<T>()`는 `Ref<T>`를 반환하고 사용자가 `Get()` 결과를 확인하는 방식으로
-  실패를 드러낸다. 존재하지 않는 값을 대신 만들어 반환하지 않는다.
+  `Ref<T>` 는 사용자가 `Get()` 결과를 확인하는 방식으로 실패를 드러낸다. 빌트인 핸들의 getter 는 무효일 때
+  기본값을 주지만 **그때마다 경고를 남긴다**(D-302) - 조용하지 않다. 있는지가 뜻이 있으면 `IsValid()` 로 묻는다.
+  존재하지 않는 값을 대신 만들어 반환하지 않는다.
 
 - 죽은 대상용 가짜 인스턴스를 돌려주지 않는다. (MUST)
   함수가 절반만 실행되어(죽은 적이 점수를 주는 식) 무시보다 나쁜 결과가 된다.
 - 핸들을 해석해 얻은 raw pointer 는 장기 보관하지 않는다. 검증 이후 짧은 스코프에서만 쓴다. (MUST)
-- **스크립트는 오브젝트를 `GetServiceContext().Objects` 로 만들고 찾는다.** (MUST) (D-301, 구현 전)
-  레이어는 `LayerHandle { LayerId }` 로 가리키고 `Layer` 자체를 프렐류드에 넣지 않는다.
-  `LayerHandle[name]` 은 그 레이어의 뿌리 오브젝트를, `GameObject[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이를 가리지 않는 찾기는 `FindInChildren` 이다.
+- **스크립트는 오브젝트를 `GetServiceContext().Objects` 로 만들고 찾는다.** (MUST) (D-301, D-302 (16))
+  레이어는 `Handle::Layer`(4B, 레이어의 영속 번호 하나)로 가리키고 캔버스의 `Layer` 자체를 프렐류드에 넣지 않는다.
+  `Layer[name]` 은 그 레이어의 뿌리 오브젝트를, `GameObject[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이를 가리지 않는 찾기는 `FindInChildren` 이다.
   같은 이름이 여럿이면 계층에 보이는 순서의 첫 번째이고, 못 찾으면 빈 핸들이다.
   **`[]` 와 `Find` 는 이름만 본다. 태그는 `FindWithTag`·`CompareTag` 같은 함수로만 찾는다** - 이름과 태그는 서로 다른 `NameId` 칸이다.
   찾기는 매 프레임 부르지 않고 `OnStart` 에서 찾아 핸들을 든다.
   오브젝트 삭제는 `Handle::GameObject::Destroy()` 하나이며, **삭제를 요청한 순간부터 모든 사본의 `IsValid()` 가 거짓이고 찾기에서 빠진다.**
-  만들 때 차원의 기본 트랜스폼은 프레임워크 구현이 붙인다.
+  만들 때 차원의 기본 트랜스폼은 프레임워크 구현이 붙인다. 빌트인은 `handle.AddComponent<T>()` 가 핸들을, 스크립트는 `AddScript<T>()` 가 `Ref<T>` 를 준다.
+  서비스는 공통 `SystemContext::Objects`(`System::IObjectSystem`)를 거치고, 구현 `CanvasObjectSystem`(JBroCanvas)은 캔버스를 가진 프레임워크가 들고
+  `BindScriptContexts` 에서 꽂는다 - DLL 은 그 뒤에 실려 같은 포인터를 받는다. 찾는 차례는 레이어 차례 → 뿌리 차례 → 자식 차례(깊이 우선)다.
+  스크립트 순회 중에 만든 오브젝트는 곧바로 찾을 수 있고, 그때 붙인 스크립트는 **다음 프레임**에 `OnStart`·`OnUpdate` 를 받는다(재었다).
 
 ### 6.2 스크립트 DLL ABI와 핫 리로드 수명
 
@@ -594,6 +614,12 @@
   번호로 되살린다. 뜨지 못하면 DLL 을 내리지 않는다. 재생 중에는 갈아 끼우지 않고 멈출 때까지 미룬다.
 - **에디터는 스크립트 빌드를 자식 프로세스로 띄우고 끝을 기다리지 않는다. 진단은 빌드 도구의 UTF-8 로그 파일에서 읽는다.** (MUST) (D-299)
   도는 빌드를 그만두거나 프로젝트를 닫으면 그 빌드가 띄운 프로세스까지 끝낸다. 콘솔 출력은 시스템 코드 페이지라 한글 경로가 깨지므로 진단의 출처로 쓰지 않는다.
+- **스크립트 PDB 는 빌드마다 다른 이름이다(`GameScript.<빌드 시각>.pdb`).** (MUST) (D-319)
+  디버거가 붙어 있어도 다시 빌드할 수 있어야 한다. 같은 이름으로 다시 쓰면 디버거가 쥔 PDB 때문에 링크가 실패하고 DLL 이 지워진다.
+- **스크립트 디버그 어댑터는 재배포용 DbgEng 을 자기 옆에 두고 쓰며, 끝날 때 대상을 끝내지 않는다.** (MUST) (D-319)
+  `System32` 의 DbgEng 은 쓰지 않는다. 어댑터가 어떻게 끝나든 에디터는 살아야 한다(`DEBUG_PROCESS_DETACH_ON_EXIT`).
+- **스크립트 컴파일러는 MSVC 다. 에디터는 스크립트 툴셋(`JBro.Common.props` 의 `PlatformToolset`)의 컴파일러가 든 설치만 빌드 도구로 본다.** (MUST) (D-318)
+  MSBuild 가 있다는 것만으로 찾았다고 하지 않는다. 빌드 도구나 SDK 가 없으면 무엇을 깔지 알리고, 사용자에게 Visual Studio IDE 를 요구하지 않는다.
 
 ## 7. 엔진 서비스
 
@@ -1265,10 +1291,15 @@
   집히고 끌어도 끌린다. 그래서 확인은 **화면 픽셀을 읽어** 그림과 겹쳐 그린 것의 자리를
   견주는 것으로 한다.
 
-- **인스펙터는 왼쪽 컴포넌트 목록과 오른쪽 내용으로 나뉘고, 오른쪽에는 고른 컴포넌트 하나만 보인다. 캔버스 뷰의 컴포넌트 손잡이는 고른 컴포넌트만 따른다.** (MUST) (D-304)
-  기존 엔진(`InspectorTool` 의 `##InspectorList`·`##InspectorContent`)과 같은 모양이다. 고른 칸(`EditorApplication::SetInspectedSlot`)은 목록과 칸 번호라
-  다른 오브젝트를 골라도 같은 칸이고, 그 칸이 없으면 첫 컴포넌트로 간다. 라이트의 반지름·각도 점, 폴리곤 포인트 편집, 카메라의 뷰포트 인디케이터는
-  고른 컴포넌트가 그 타입일 때만 서고, 같은 타입이 여럿이면 고른 그 하나다 - 늘 첫째를 쓰면 둘째는 고칠 길이 없다.
+- **인스펙터에는 고른 컴포넌트가 하나 있고, 캔버스 뷰의 컴포넌트 손잡이는 고른 컴포넌트만 따른다.** (MUST) (D-304)
+  컴포넌트는 접기 머리로 쌓아 보이고, 그 컴포넌트의 영역(머리부터 마지막 필드까지)을 누르면 고른다. 고른 것은 머리만 도킹의 고른 탭처럼
+  칠한다(고른 탭 색 `TabTop` 과 위 끝의 강조색 선) - 영역에 테두리를 두르지 않는다.
+  고른 칸(`EditorApplication::SetInspectedSlot`)은 목록과 칸 번호라 다른 오브젝트를 골라도 같은 칸이고, 그 칸이 없으면 첫 컴포넌트로 간다.
+  라이트의 반지름·각도 점, 폴리곤 포인트 편집, 카메라의 뷰포트 인디케이터는 고른 컴포넌트가 그 타입일 때만 서고, 같은 타입이 여럿이면 고른 그 하나다 -
+  늘 첫째를 쓰면 둘째는 고칠 길이 없다.
+- **컴포넌트 메뉴에는 `사용` 과 자리 옮기기가 없다. 타입에 따른 항목은 그 컴포넌트의 메뉴에 하위 메뉴 없이 선다.** (MUST) (D-307)
+  `사용` 은 인스펙터 칸, 자리는 머리 끌기다. 스크립트도 같은 글자다 - 사용자에게 스크립트는 컴포넌트다(D-308): 추가 버튼은 `컴포넌트 추가` 하나이고 스크립트는
+  그 목록의 마지막 `스크립트` 갈래에 선다. 엔진 안의 구분(D-302)은 화면에 드러내지 않는다. 그리는 차례(앞으로 가져오기·맨 앞으로·뒤로 보내기·맨 뒤로)는 `SpriteRenderer2D` 의 메뉴에 서고 오브젝트 메뉴에 `순서` 하위 메뉴를 두지 않는다.
 - **인스펙터의 머리도 편집이다.** (MUST) (D-142)
   활성과 사용 토글, 이름 고치기는 모두 커맨드를 거친다. 값을 그대로 쓰면 화면에서는 같아
   보이지만 되돌릴 수 없고, 되돌릴 수 없는 것은 편집이 아니다(§11.5).
@@ -1315,7 +1346,7 @@
 - **우클릭 메뉴에 더하는 항목은 행동 표에 올린다.** (MUST) (D-220·D-284)
   오브젝트·빈자리 메뉴는 `menus` 에 `EditorActionMenu::Object`·`Background` 를 적은 행동이 공용 항목 뒤의 확장 칸에 선다. 컴포넌트 타입에 따른 항목은
   `EditorActionMenu::Component` 와 `componentType` 을 적으면 에디터가 켜질 때 `ComponentMenuTable` 에 걸려, 오브젝트 메뉴(계층·캔버스 뷰)에는
-  인스턴스마다 타입 이름의 하위 메뉴로, 인스펙터 컴포넌트 목록 줄의 메뉴에는 그 자리에 선다. 메뉴를 그리는 쪽이 `if (타입 == ...)` 으로
+  인스턴스마다 타입 이름의 하위 메뉴로, 인스펙터 컴포넌트 머리 메뉴에는 그 자리에 선다. 메뉴를 그리는 쪽이 `if (타입 == ...)` 으로
   항목을 고정하지 않는다 - 한 자리에만 생기고 외부 에디터는 끼어들 수 없다. 대상은 `ComponentAddress` 로 가리키고 편집은 커맨드로만 하며,
   메뉴의 오브젝트를 없앨 수 있는 행동은 `mayRemoveObject` 를 적는다.
 - **엔진이 사람에게 하는 말은 로그로 간다.** (MUST) (D-133)
@@ -1366,11 +1397,14 @@
   색을 고르는 대신 숫자 네 개를 맞춰야 한다.
   우리 리플렉션에는 이미 표시가 있다 — `TypeDescriptor::writeFieldsAsSequence` 가
   "같은 종류 값을 늘어놓은 구조체" 를 뜻한다(`MakeVectorTypeDescriptor`).
-- **표 칸 하나보다 넓어야 하는 것은 표를 끊고 줄 전체를 쓴다.** (SHOULD) (D-89)
-  필드를 가진 구조체 원소의 목록이 그렇다 — 값 칸 안에 두면 펼친 원소가 또 라벨 칸을 가져
-  값이 몇 픽셀만 남는다. ImGui 표에는 칸 합치기가 없어 `FullRow` 는 첫 칸에 갇히므로
+- **표 칸 하나보다 넓어야 하는 것은 표를 끊고 줄 전체를 쓴다.** (SHOULD) (D-89, D-309)
+  목록 필드가 그렇다 — 값 칸 안에 두면 손잡이·번호·지우기 단추가 폭을 먼저 쓰고, 펼친 구조체 원소는 또 라벨 칸을 가져
+  값이 몇 픽셀만 남는다. 목록 위젯은 원소 칸이 글자 여덟 자보다 좁아지면 번호를 뺀다. ImGui 표에는 칸 합치기가 없어 `FullRow` 는 첫 칸에 갇히므로
   `FormLayout::Break` 로 표를 닫았다 같은 이름으로 다시 연다(같은 이름이라 칸 폭을 함께 쓴다).
   트리 마디가 열린 자리에서는 끊지 않는다 — 표를 닫으면서 마디의 Id 를 뺀다.
+- **해석된 값은 인스펙터에 줄을 두지 않는다. 스위치에 매인 필드는 스위치가 켜졌을 때만 보인다.** (SHOULD) (D-309)
+  `xxxId` 에서 해석된 핸들(`clip`·`sprite`·`font` …)은 `Hidden()` 이다 - 고르는 칸은 `xxxId` 다. 다른 `Bool` 필드가 꺼져 있으면 뜻이 없는 필드는
+  `VisibleWhen("그 필드")` 를 단다(`AudioSource` 의 거리·감쇠는 `spatial`). 인스펙터에 타입 이름으로 고정한 분기를 새로 두지 않는다.
 - **타입이 아니라 뜻에 맞는 위젯을 준다.** (SHOULD)
   각도는 도(degree)로 보여 주고 단위를 붙인다. 범위가 있으면 슬라이더다. 에셋 참조는
   글자 칸이 아니라 에셋 필드다 — 자유 입력은 오타 하나가 조용한 폴백이 된다.
@@ -1554,6 +1588,47 @@
   ImGui 가 파일을 못 열고 **단언으로 프로세스를 죽인다.** C 런타임으로 열면 인자와 같은
   인코딩이라 그 자리에서 맞는다.
 
+### 11.7 스크립트 편집기의 공통 UI (D-313)
+
+Updates: D-311의 상단 직접 버튼 방식. 이번 후속 작업은 메뉴만 구현하며 자유 도킹·드래그드롭 위젯·로딩 UI는 후속 범위다.
+후속 D-314는 워크스페이스 사이드바와 테마를 추가한다. 최초 메뉴 범위는 이력으로 보존하며 도킹·드래그드롭·로딩 UI의 후속 범위는 유지한다.
+
+- **스크립트 편집기에서 반복되는 UI 동작은 공통 UI 프레임워크를 거친다.** (MUST) (D-313)
+  메뉴·드래그드롭·로딩 등의 상호작용과 수명 처리를 Titlebar·제품별 화면에 각자 복제하지 않는다.
+- **ScriptEditorNativeUI는 Code-OSS 본체의 UI 계층이며 엔진의 C++·ImGui `JBroWidget`과 별개다.** (MUST)
+  §11.1의 엔진 위젯을 Code-OSS에 포팅하거나 두 계층을 합치는 계약이 아니다.
+- 제품별 메뉴·명령·번역은 내장 확장이 기여하고, 공통 UI는 번역된 문구를 받아 그린다. (MUST)
+  한국어 기본·영어 번역 파일과 번역키를 유지한다(D-312). 공통 UI가 제품 문구를 소스에 직접 갖지 않는다.
+- 구체적인 공통 메뉴바·모듈 구성과 확인 범위는 [메뉴 후속 계획](../tasks/script-editor-integration-plan.md#12-2026-10-14-후속-계획--메뉴-우선공통-ui-구조)에 둔다.
+  재사용 방향과 이번 메뉴 범위를 확정한 것이며 계획의 모든 파일·API가 확정 계약은 아니다.
+  구현은 공통 `JBroMenuBar`·`ui.ts` 진입점과 내장 확장의 하위 메뉴 기여이며 최종 메뉴 확인 범위는 계획 §12.5에 기록한다.
+
+### 11.8 스크립트 편집기의 워크스페이스·테마 (D-314)
+
+Updates: D-313의 최초 메뉴만 구현하는 범위. 사용자 확인 대상은 초기 왼쪽 워크스페이스와 JBroEngine 테마 정합이다.
+
+- **처음 왼쪽 사이드바에는 워크스페이스만 표시한다.** (MUST) (D-314)
+  이번 트리의 파일 탐색·열기는 읽기 전용이며 Outline·Timeline과 파일 관리 기능을 추가하는 범위가 아니다.
+- UI 색의 공통 원천은 엔진 `EditorTheme.h`의 의미별 팔레트로 삼는다. (SHOULD)
+  현재 선택한 구조는 상수 숫자를 읽는 생성기와 Code-OSS native ThemeService·CSS 변수다. 엔진 C++ 팔레트는 수정하지 않는다.
+  코드 문법 강조의 별도 토큰은 엔진 UI의 오류·주의·상호작용 색과 구분한다.
+- 생성기·TreeView·테마 기여의 구현 판단과 확인 범위는 [워크스페이스·테마 추가 계획](../tasks/script-editor-integration-plan.md#13-2026-10-14-추가-계획--워크스페이스사이드바테마)에 둔다.
+  자유 도킹·드래그드롭 위젯·로딩 UI 구현은 계속 후속이다.
+  **현재 확인은 확장 활성화 이후 최종 화면이다.** 초기 로딩 전 Explorer가 잠시 나타나는 전환은 남아 있으며,
+  최초 프레임부터 워크스페이스만 표시됐다고 판단하지 않는다. 실제 트리·파일 열기·테마 확인과 이 한계는 계획 §13.4에 기록한다.
+
+### 11.9 본체 한국어와 폴더 아이콘을 실제 화면에서 확인한다 (D-315)
+
+Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 표시 확인 범위.
+
+- **한국어 우선은 Code-OSS 본체·내장 UI도 포함한다.** (MUST)
+  JBro 메뉴만 번역한 결과나 개발 실행의 영어 상태를 편집기 한국어 제공 완료로 판단하지 않는다.
+  번역 파일·영어 폴백을 유지하고, 실제 내장 패널·경고·빈 상태의 표시를 확인한다.
+- **폴더 아이콘은 파일 존재와 실제 표시를 따로 확인한다.** (MUST)
+  엔진과 같은 아이콘 출처·역할을 사용하되 루트·하위 폴더의 열린/닫힌 상태가 트리에 그려지는지 확인한다.
+- 고정 한국어 팩·개발 대응표·폴더 SVG의 이번 구현과 확인 범위는 [한국어·아이콘 후속 결과](../tasks/script-editor-integration-plan.md#14-2026-10-14-후속--본체-한국어폴더-아이콘)에 둔다.
+  일부 검토 화면 통과를 설치본·전 화면 완전 한국어·실제 계정 인증 완료로 확대하지 않는다.
+
 ## 12. 검증
 
 - 빌드 성공만으로 기능이 검증됐다고 판단하지 않는다. (MUST)
@@ -1689,6 +1764,8 @@
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장과 코어 패치가 `source/JBroScriptEditor` 에 섰고(D-261) 포크 설치본은 아직 없다.
+- [tasks/script-editor-integration-plan.md](../tasks/script-editor-integration-plan.md) — C++ 스크립트용 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃 현황과 후속 계획(D-310~D-315).
+  사용자 확인 담당 범위·기본 화면 항목은 Decisions에 기록하며, 이 계획의 구현 제안은 확정 계약이 아니다.
 - [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
   컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. ~~`jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.~~
   D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. `jbroc` 은 렉서·파서에서 멈췄다(D-263).

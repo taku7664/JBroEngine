@@ -121,6 +121,7 @@ namespace JBro
         const DrawScope scope(m_drawDepth);
         ComponentMenuContext itemContext = context;
         ComponentMenuOwner previousOwner = nullptr;
+        ComponentMenuDraw previousDraw = nullptr;
         for (const Entry& entry : m_entries)
         {
             if (entry.typeId != context.address.typeId)
@@ -133,11 +134,12 @@ namespace JBro
                 continue;
             }
             const Bool first = previousOwner == nullptr;
-            if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))
+            if ((first && separatorFirst) || (false == first && previousOwner != entry.owner && previousDraw != entry.draw))
             {
                 ImGui::Separator();
             }
             previousOwner = entry.owner;
+            previousDraw = entry.draw;
             if (false == entry.draw(itemContext))
             {
                 return false;

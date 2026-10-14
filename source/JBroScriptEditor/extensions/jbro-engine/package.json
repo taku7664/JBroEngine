@@ -1,0 +1,108 @@
+{
+	"name": "jbro-engine",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "jbro",
+	"version": "0.0.1",
+	"private": true,
+	"engines": { "vscode": "^1.100.0" },
+	"categories": ["Other"],
+	"main": "./extension.cjs",
+	"l10n": "./l10n",
+	"extensionKind": ["ui"],
+	"activationEvents": ["onStartupFinished"],
+	"extensionDependencies": ["vscode.github-authentication"],
+	"capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
+	"contributes": {
+		"commands": [
+			{ "command": "jbro.workspace.refresh", "title": "%refreshWorkspace%", "category": "JBroEngine", "icon": "$(refresh)" },
+			{ "command": "jbro.git.signIn", "title": "%signIn%", "category": "JBroEngine", "icon": "$(github)" },
+			{ "command": "jbro.git.manageAccount", "title": "%manageAccount%", "category": "JBroEngine", "icon": "$(account)" },
+			{ "command": "jbro.layout.showProject", "title": "%showProjectExplorer%", "category": "JBroEngine" },
+			{ "command": "jbro.layout.showGit", "title": "%showGitView%", "category": "JBroEngine" },
+			{ "command": "jbro.tools.build", "title": "%buildTask%", "category": "JBroEngine", "enablement": "isWorkspaceTrusted && workspaceFolderCount > 0" },
+			{ "command": "jbro.tools.run", "title": "%runTask%", "category": "JBroEngine", "enablement": "isWorkspaceTrusted && workspaceFolderCount > 0" },
+			{ "command": "jbro.layout.showDiagnostics", "title": "%showProblems%", "category": "JBroEngine" },
+			{ "command": "jbro.project.openFolder", "title": "%openFolder%", "category": "JBroEngine" },
+			{ "command": "jbro.project.openFile", "title": "%openFile%", "category": "JBroEngine" },
+			{ "command": "jbro.tools.showOutput", "title": "%showOutput%", "category": "JBroEngine" },
+			{ "command": "jbro.tools.showTerminal", "title": "%showTerminal%", "category": "JBroEngine" }
+		],
+		"submenus": [
+			{ "id": "jbro.menu.project", "label": "%project%" },
+			{ "id": "jbro.menu.git", "label": "%git%" },
+			{ "id": "jbro.menu.build", "label": "%build%" },
+			{ "id": "jbro.menu.run", "label": "%run%" },
+			{ "id": "jbro.menu.diagnostics", "label": "%diagnostics%" }
+		],
+		"viewsContainers": {
+			"activitybar": [{ "id": "jbro-workspace", "title": "%workspace%", "icon": "assets/workspace.svg" }]
+		},
+		"views": {
+			"jbro-workspace": [{ "id": "jbro.workspace.files", "name": "%workspace%" }]
+		},
+		"viewsWelcome": [{ "view": "jbro.workspace.files", "contents": "%workspaceEmpty%", "when": "workspaceFolderCount == 0" }],
+		"themes": [{ "id": "jbro-engine-dark", "label": "%themeName%", "uiTheme": "vs-dark", "path": "themes/jbro-engine-color-theme.json" }],
+		"menus": {
+			"view/title": [{ "command": "jbro.workspace.refresh", "when": "view == jbro.workspace.files", "group": "navigation" }],
+			"jbro/title": [
+				{ "submenu": "jbro.menu.project", "when": "config.jbro.layout.showProject", "group": "navigation@1" },
+				{ "submenu": "jbro.menu.git", "when": "config.jbro.layout.showGit", "group": "navigation@2" },
+				{ "submenu": "jbro.menu.build", "when": "config.jbro.layout.showBuild", "group": "navigation@3" },
+				{ "submenu": "jbro.menu.run", "when": "config.jbro.layout.showRun", "group": "navigation@4" },
+				{ "submenu": "jbro.menu.diagnostics", "when": "config.jbro.layout.showDiagnostics", "group": "navigation@5" }
+			],
+			"jbro.menu.project": [
+				{ "command": "jbro.project.openFolder", "group": "1_open@1" },
+				{ "command": "jbro.project.openFile", "group": "1_open@2" },
+				{ "command": "jbro.layout.showProject", "group": "2_view@1" }
+			],
+			"jbro.menu.git": [
+				{ "command": "jbro.layout.showGit", "group": "1_view@1" },
+				{ "command": "jbro.git.signIn", "when": "!jbro.github.signedIn", "group": "2_account@1" },
+				{ "command": "jbro.git.manageAccount", "when": "jbro.github.signedIn", "group": "2_account@1" }
+			],
+			"jbro.menu.build": [
+				{ "command": "jbro.tools.build", "group": "1_task@1" },
+				{ "command": "jbro.tools.showTerminal", "group": "2_view@1" }
+			],
+			"jbro.menu.run": [
+				{ "command": "jbro.tools.run", "group": "1_task@1" }
+			],
+			"jbro.menu.diagnostics": [
+				{ "command": "jbro.layout.showDiagnostics", "group": "1_view@1" },
+				{ "command": "jbro.tools.showOutput", "group": "1_view@2" },
+				{ "command": "jbro.tools.showTerminal", "group": "1_view@3" }
+			],
+			"scm/title": [
+				{ "command": "jbro.git.signIn", "when": "!jbro.github.signedIn", "group": "navigation@9" },
+				{ "command": "jbro.git.manageAccount", "when": "jbro.github.signedIn", "group": "navigation@9" }
+			],
+			"commandPalette": [
+				{ "command": "jbro.git.signIn", "when": "!jbro.github.signedIn" },
+				{ "command": "jbro.git.manageAccount", "when": "jbro.github.signedIn" }
+			]
+		},
+		"configuration": {
+			"title": "JBro Script Editor",
+			"properties": {
+				"jbro.layout.enabled": { "type": "boolean", "default": true, "description": "%layoutEnabled%", "scope": "application" },
+				"jbro.layout.showProject": { "type": "boolean", "default": true, "description": "%showProject%" },
+				"jbro.layout.showGit": { "type": "boolean", "default": true, "description": "%showGit%" },
+				"jbro.layout.showBuild": { "type": "boolean", "default": true, "description": "%showBuild%" },
+				"jbro.layout.showRun": { "type": "boolean", "default": true, "description": "%showRun%" },
+				"jbro.layout.showDiagnostics": { "type": "boolean", "default": true, "description": "%showDiagnostics%" }
+			}
+		},
+		"configurationDefaults": {
+			"workbench.colorTheme": "jbro-engine-dark",
+			"github-authentication.preferDeviceCodeFlow": true,
+			"workbench.activityBar.location": "hidden",
+			"workbench.secondarySideBar.defaultVisibility": "hidden",
+			"window.commandCenter": false,
+			"workbench.layoutControl.enabled": false,
+			"workbench.panel.defaultLocation": "bottom",
+			"workbench.startupEditor": "none"
+		}
+	}
+}

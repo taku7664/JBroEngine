@@ -240,6 +240,30 @@ namespace
             "no separator after the change until the owner changes again");
     }
 
+    // **그리는 함수가 같으면 등록자가 달라도 긋지 않는다**(D-307). 행동 표는 행동마다 표지를 달리 올리지만 한 길이다 - 그리는 차례 넷 사이에 구분선이 섰었다.
+    void TestOneDrawFunctionUnderManyOwnersStaysTogether()
+    {
+        Stage stage;
+        ComponentMenuTable table;
+        Recorder recorder;
+        JBro::Int32 ownerA = 0;
+        JBro::Int32 ownerB = 0;
+        JBro::Int32 ownerC = 0;
+        Slot slot1{ &recorder, 1 };
+        Slot slot2{ &recorder, 2 };
+        Slot slot3{ &recorder, 3 };
+        table.Register(TypeA, &DrawOk, &ownerA, &slot1);
+        table.Register(TypeA, &DrawOk, &ownerB, &slot2);
+        table.Register(TypeA, &DrawOther, &ownerC, &slot3);
+
+        stage.Draw(table, ContextFor(TypeA));
+        Check(recorder.count == 3, "all three entries are drawn");
+        Check(recorder.calls[1].cursorY == recorder.calls[0].cursorY,
+            "no separator between items of one draw function, whoever registered them");
+        Check(recorder.calls[2].cursorY > recorder.calls[1].cursorY,
+            "a separator where both the owner and the function change");
+    }
+
     // 앞 구분선은 항목을 그릴 때만 선다. 항목이 없는 타입에서 그으면 빈 구분선이 앞의 것과 겹친다.
     void TestALeadingSeparatorOnlyComesWithItems()
     {
@@ -337,6 +361,7 @@ JBro::Int32 RunComponentMenuTableTests()
     TestBadEntriesAreRefused();
     TestItemsDrawInRegistrationOrderWithTheirOwnUser();
     TestASeparatorGoesWhereTheOwnerChanges();
+    TestOneDrawFunctionUnderManyOwnersStaysTogether();
     TestALeadingSeparatorOnlyComesWithItems();
     TestAFailingHookStopsTheRest();
     TestUnregisterTakesOnlyThatOwnerAndKeepsTheOrder();

@@ -104,15 +104,6 @@ Entries:
   project_settings.tags: 태그
   inspector.enabled: 사용
   inspector.add_component: 컴포넌트 추가
-  inspector.add_script: 스크립트 추가
-  inspector.no_script_types: 추가할 수 있는 스크립트가 없습니다
-  inspector.copy_script: 스크립트 복사
-  inspector.paste_script: 스크립트 붙여넣기
-  inspector.remove_script: 스크립트 제거
-  inspector.move_up: 위로 이동
-  inspector.move_down: 아래로 이동
-  inspector.move_top: 맨 위로 이동
-  inspector.move_bottom: 맨 아래로 이동
   inspector.asset_name: 에셋
   inspector.asset_type: 종류
   inspector.asset_path: 경로
@@ -123,7 +114,6 @@ Entries:
   inspector.paste_component_values: 값만 붙여넣기
   inspector.remove_component: 컴포넌트 제거
   inspector.component_menu: 컴포넌트 메뉴
-  inspector.no_components: 컴포넌트가 없습니다
   inspector.no_component_types: 추가할 수 있는 컴포넌트가 없습니다
   inspector.unregistered_type: 속성 정보가 등록되지 않은 컴포넌트입니다
   inspector.unknown_component: (알 수 없는 컴포넌트)
@@ -182,6 +172,7 @@ Entries:
   component_category.Audio: 오디오
   component_category.UI: UI
   component_category.Components: 컴포넌트
+  component_category.Scripts: 스크립트
   asset.none: (없음)
   asset.missing: (없는 에셋)
   assets.empty: 에셋 폴더에 파일이 없습니다
@@ -392,7 +383,8 @@ Entries:
   notify.scripts_built: 스크립트를 빌드했습니다
   notify.scripts_build_failed: 스크립트를 빌드하지 못했습니다
   notify.no_script_project: 스크립트 프로젝트가 없습니다. 에셋 브라우저의 스크립트에서 새 스크립트를 먼저 만드세요
-  notify.msbuild_missing: MSBuild 를 찾지 못했습니다. Visual Studio 의 C++ 워크로드를 설치하세요
+  notify.build_tools_missing: C++ 빌드 도구(MSVC v145)가 없습니다. 눌러서 받는 곳을 열고, Build Tools for Visual Studio 2026 을 설치할 때 ‘C++를 사용한 데스크톱 개발’ 과 ‘Windows 11 SDK(10.0.22621.0)’ 을 고르세요
+  notify.windows_sdk_missing: Windows SDK 10.0.22621.0 이 없습니다. 눌러서 받는 곳을 열고, Build Tools for Visual Studio 2026 에 ‘Windows 11 SDK(10.0.22621.0)’ 을 더해 설치하세요
   editor_settings.script_editor: 스크립트 편집기
   editor_settings.script_editor_help: 빌드 결과에서 오류를 누르면 이 편집기로 그 줄을 엽니다
   script_editor.system: 기본 앱 (줄 이동 없음)
@@ -467,6 +459,28 @@ Entries:
   sound_effect.preview: 미리 듣기
   sound_effect.test_sound: 테스트 사운드
   sound_effect.preview_hint: "위에서 오디오 에셋을 고르거나 끌어다 놓은 뒤 재생하세요"
+  sound_effect.revert: "되돌리기"
+  sound_effect.revert_help: "바뀐 값을 버리고 저장된 값으로 돌아갑니다"
+  sound_effect.bypass: "바이패스"
+  sound_effect.bypass_help: "효과 없이 원음을 들려줘 비교할 수 있습니다"
+  sound_effect.output: "출력"
+  sound_effect.graph_frequency: "주파수 응답 (dB)"
+  sound_effect.graph_shape: "입력 → 출력 파형"
+  sound_effect.graph_dynamics: "입력 레벨 → 출력 레벨 (dB)"
+  sound_effect.graph_echo: "되풀이 (초)"
+  sound_effect.graph_reverb: "잔향 꼬리 (초)"
+  sound_effect.graph_chorus: "지연 시간 흔들림 (ms)"
+  sound_effect.graph_pitch: "음높이 변화 (반음)"
+  sound_effect.about_reverb: "방이나 홀에서 울리는 잔향을 더합니다"
+  sound_effect.about_low_pass: "기준 주파수보다 높은 소리를 깎습니다"
+  sound_effect.about_high_pass: "기준 주파수보다 낮은 소리를 깎습니다"
+  sound_effect.about_echo: "소리를 일정한 간격으로 되풀이합니다"
+  sound_effect.about_distortion: "파형을 눌러 찌그러진 소리를 만듭니다"
+  sound_effect.about_compressor: "문턱을 넘는 큰 소리를 비율만큼 줄입니다"
+  sound_effect.about_limiter: "문턱을 넘는 소리를 곧바로 눌러 막습니다"
+  sound_effect.about_equalizer: "저음·중음·고음을 따로 키우거나 줄입니다"
+  sound_effect.about_chorus: "살짝 어긋난 소리를 겹쳐 두껍게 만듭니다"
+  sound_effect.about_pitch_shift: "빠르기는 그대로 두고 음높이만 바꿉니다"
   assets.duplicate: 복제
   assets.copy_path: 경로 복사
   assets.cut: 잘라내기
@@ -533,7 +547,6 @@ Entries:
   inspector.camera_ppu_unused: PixelPerfect 에서만 씁니다.
   inspector.sprite_ppu_mismatch: "이 스프라이트의 pixelsPerUnit 이 PixelPerfect 카메라와 달라 픽셀이 맞지 않습니다."
   hierarchy.paste_as_child: 자식으로 붙여넣기
-  hierarchy.draw_order: 순서
   hierarchy.bring_forward: 앞으로 가져오기
   hierarchy.bring_to_front: 맨 앞으로 가져오기
   hierarchy.send_backward: 뒤로 보내기

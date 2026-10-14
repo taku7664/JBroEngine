@@ -1,30 +1,18 @@
 ﻿#pragma once
 
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`ShadowCaster2D`)로만 만진다(D-302).
+// 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
+#if defined(JBRO_SCRIPT_TARGET)
+#error "A script reaches Component::ShadowCaster2D through its handle in <JBro/ScriptAPI.h>, not the component data header."
+#endif
+
+#include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Runtime/Component.h>
 
 #include <cstdint>
 #include <JBro/Types/Bool.h>
-
-namespace JBro::Component
-{
-    // 그림자의 모양을 어디서 가져오는가(D-291). 값의 차례는 파일이 쓰므로 뒤에만 더한다.
-    enum class ShadowShape2D : std::uint8_t
-    {
-        // 같은 오브젝트의 `Collider2D` 다(상자·원·캡슐·폴리곤·체인). 콜라이더가 없으면 그림자가 없다.
-        Collider,
-        // 같은 오브젝트의 `SpriteRenderer2D` 가 그려지는 사각형이다. 투명한 픽셀의 모양은 따르지 않는다.
-        Sprite,
-    };
-}
-
-namespace JBro
-{
-    JBRO_DEFINE_ENUM_TYPE(Component::ShadowShape2D, "Component::ShadowShape2D",
-        { Component::ShadowShape2D::Collider, "Collider" },
-        { Component::ShadowShape2D::Sprite,   "Sprite" });
-}
 
 namespace JBro::Component
 {

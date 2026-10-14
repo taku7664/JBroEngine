@@ -29,15 +29,15 @@ namespace JBro
         return false;
     }
 
-    AttachedRef AttachByName(Canvas& canvas, Object::GameObject& object, NameId typeName)
+    AttachedRef AttachByName(Canvas& canvas, Object::GameObject& object, NameId typeName, InstanceId preferredId)
     {
         if (const ComponentTypeInfo* builtin = ComponentRegistry::Get().Find(typeName))
         {
-            return builtin->Attach != nullptr ? AttachedRef(builtin->Attach(canvas, &object)) : AttachedRef{};
+            return builtin->Attach != nullptr ? AttachedRef(builtin->Attach(canvas, &object, preferredId)) : AttachedRef{};
         }
         if (ScriptRegistry::Get().Find(typeName) != nullptr)
         {
-            return canvas.AttachScript(&object, typeName);
+            return canvas.AttachScript(&object, typeName, preferredId);
         }
         return {};
     }
@@ -127,11 +127,13 @@ namespace JBro
         {
             return false;
         }
-        const AttachedRef attached = AttachByName(*m_canvas, *object, m_typeName);
+        // 다시 하기는 처음 붙일 때 받은 번호로 붙인다 - 그 사이에 이것을 가리키게 된 컴포넌트 핸들 필드가 다시 찾는다.
+        const AttachedRef attached = AttachByName(*m_canvas, *object, m_typeName, m_instanceId);
         if (false == attached.IsValid())
         {
             return false;
         }
+        m_instanceId = attached.GetInstanceId();
         // 붙은 자리를 세어서 적는다. 지금은 늘 맨 끝이지만, 짐작한 값을 적어 두면
         // 붙이는 쪽이 언젠가 순서를 정하게 될 때 조용히 틀린다.
         m_address.kind = kind;
@@ -257,7 +259,7 @@ namespace JBro
         {
             return;
         }
-        const AttachedRef attached = AttachByName(*m_canvas, *object, m_typeName);
+        const AttachedRef attached = AttachByName(*m_canvas, *object, m_typeName, m_snapshot.instanceId);
         if (false == attached.IsValid())
         {
             return;

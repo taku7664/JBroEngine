@@ -21,7 +21,8 @@ namespace JBro
     // 두 표는 같은 이름을 받지 않는다(`RegisterScriptType`). 어디에도 없으면 거짓이다.
     Bool FindAttachableKind(NameId typeName, AttachedKind& kind, ComponentTypeId& typeId);
     // 이름으로 붙인다. 컴포넌트는 `ComponentRegistry`, 스크립트는 `Canvas::AttachScript` 로 간다. 실패하면 비어 있다.
-    AttachedRef AttachByName(Canvas& canvas, Object::GameObject& object, NameId typeName);
+    // `preferredId` 를 주면 그 번호로 붙인다(누가 쓰고 있으면 새 번호다) - 되돌리기가 뗀 것을 같은 번호로 되살린다(D-302).
+    AttachedRef AttachByName(Canvas& canvas, Object::GameObject& object, NameId typeName, InstanceId preferredId = InvalidInstanceId);
     // 붙은 것을 풀 자리까지 돌려주며 뗀다.
     Bool DetachAttached(Canvas& canvas, Object::GameObject& object, AttachedRef attached);
     // 이 오브젝트에 하나 더 붙일 수 있는가. 스크립트는 여럿 붙는다. 모르는 이름은 거짓이다.
@@ -72,6 +73,8 @@ namespace JBro
         ComponentSnapshot m_values;
         Bool m_hasValues = false;
         Bool m_added = false;
+        // 처음 붙일 때 받은 번호다. 다시 하기가 이 번호로 붙인다.
+        InstanceId m_instanceId = InvalidInstanceId;
     };
 
     // 컴포넌트나 스크립트 하나를 뗀다. 되돌리면 다시 붙이고 값을 도로 써 넣는다.

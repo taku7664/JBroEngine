@@ -54,10 +54,6 @@ namespace JBro::Widget
     Bool Button(const char* label, const char* icon);
     // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
     Bool SelectableRow(const char* label, Bool selected);
-    // **목록에서 하나를 고르는 줄**이다(D-304, 인스펙터의 컴포넌트 목록 - 기존 `InspectorTool` 의 `Selectable`). 앞에 아이콘(`icon`, 없으면 빈 자리)이 서고,
-    // `dimmed` 면 흐리게 쓴다(꺼 둔 컴포넌트). 줄 끝에 단추를 얹을 수 있게 겹침을 허락한다. 눌렸으면 참이다.
-    // **가이드가 이 줄 너머를 가리키면 누른 것처럼 참을 돌려준다** - 접기 머리를 여는 것과 같은 자리다. 줄의 열림은 고른 것인가다.
-    Bool ChoiceRow(const char* label, const char* icon, Bool selected, Bool dimmed);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
     // 붉게(`Error`), 저장·만들기처럼 그 자리의 주된 확인은 푸르게(`Success`) 선다 -
     // `Info` 는 보통 단추와 같다. **지우기가 그만두기와 똑같이 생기면 손이 먼저 움직인다.**
@@ -122,7 +118,8 @@ namespace JBro::Widget
     void TreePop();
     // 접는 머리다. 펼쳐져 있으면 참이다. `allowOverlap` 이면 머리 위에 얹은 단추(컴포넌트 머리의 메뉴 단추)가
     // 마우스를 받는다 - 아니면 머리가 늘 먼저 가져간다.
-    Bool CollapsingSection(const char* title, Bool defaultOpen = true, Bool allowOverlap = false);
+    // `focused` 면 **고른 것으로 칠한다**(D-304) - 도킹 탭의 포커스처럼 머리가 고른 탭 색(`TabTop`)으로 올라오고 위에 강조색 선이 선다.
+    Bool CollapsingSection(const char* title, Bool defaultOpen = true, Bool allowOverlap = false, Bool focused = false);
     // RHI 텍스처를 붙인다. `uvMin`·`uvMax` 로 텍스처의 일부(시트의 한 칸)만 보일 수 있다.
     void Image(TextureHandle texture, const ImVec2& size,
         const ImVec2& uvMin = ImVec2(0.0f, 0.0f), const ImVec2& uvMax = ImVec2(1.0f, 1.0f));

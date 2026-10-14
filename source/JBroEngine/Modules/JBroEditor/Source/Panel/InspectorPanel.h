@@ -159,6 +159,8 @@ namespace JBro
         void DrawLayerMaskField(const TypeDescriptor& type, void* address, Context& context);
         // 캔버스의 오브젝트를 고르는 칸이다(D-233). 하이어라키의 줄을 끌어 놓아도 된다.
         void DrawObjectField(const TypeDescriptor& type, void* address, Context& context);
+        // 컴포넌트 핸들 필드(D-302). 그 타입이 붙은 오브젝트만 나온다.
+        void DrawComponentHandleField(const TypeDescriptor& type, void* address, Context& context);
         // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
         void DrawTextBody(const TypeDescriptor& type, void* address, Bool editable, Bool multiline, Context& context);
         // `textKey` 고르기의 이름 뷰다. 매 프레임 채우되 용량은 남긴다.
@@ -182,16 +184,10 @@ namespace JBro
         // 목록이 바뀌어 이 프레임에 더 그리면 안 되면 거짓이다.
         Bool DrawAttached(Object::GameObject& object, AttachedRef attached, ComponentTypeId typeId,
             std::size_t index, std::size_t count);
-        // **왼쪽 컴포넌트 목록과 오른쪽 내용**(D-304, 기존 `InspectorTool` 의 `##InspectorList`·`##InspectorContent`).
-        void DrawComponentTabs(Object::GameObject& object);
-        // 목록의 한 줄이다. 고르기·끌어서 순서 바꾸기·우클릭 메뉴·메뉴 단추. 목록이 바뀌어 이 프레임에 더 그리면 안 되면 거짓이다.
-        Bool DrawComponentRow(Object::GameObject& object, AttachedRef attached, ComponentTypeId typeId,
-            std::size_t slot, Bool selected);
 
         // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
         void DrawAddComponent(Object::GameObject& object);
         // 스크립트를 붙이는 손잡이(D-302). 컴포넌트 목록과 따로다.
-        void DrawAddScript(Object::GameObject& object);
         // 캔버스 자신을 골랐을 때의 화면이다(D-186).
         void DrawCanvas();
         // 레이어를 골랐을 때의 화면이다(D-279).
@@ -247,8 +243,6 @@ namespace JBro
         String m_layerName;
         // `태그 추가...` 팝업에서 치는 중인 글자(D-297).
         String m_newTag;
-        // 컴포넌트 목록이 차지하는 폭의 비율이다(기존 엔진과 같은 0.4 에서 시작한다).
-        Float m_listRatio = 0.4f;
         LayerId m_namedLayer = InvalidLayerId;
         Bool m_layerNameEditing = false;
 
@@ -274,6 +268,7 @@ namespace JBro
         Array<String> m_objectNames;
         Array<const char*> m_objectNamePointers;
         Array<InstanceId> m_objectIds;
+        Array<InstanceRef> m_componentRefs;
         Array<const char*> m_busNamePointers;
         Array<Bool> m_busEnabled;
     };

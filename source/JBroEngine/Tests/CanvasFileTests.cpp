@@ -12,6 +12,11 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Handle/Collider2D.h>
+#include <JBro/Framework2D/Handle/Rigidbody2D.h>
+#include <JBro/Framework2D/Handle/Transform2D.h>
+#include <JBro/Framework3D/Handle/Transform3D.h>
+#include <JBro/AudioTypes/Handle/AudioSource.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -1507,6 +1512,161 @@ namespace
             "and says the file is from before scripts were separated");
     }
 
+    // 빌트인 컴포넌트를 핸들 필드로 든 스크립트다(D-302).
+    class CanvasHandleScript final : public JBro::GameScriptBase
+    {
+        JBRO_REFLECT_BODY(CanvasHandleScript)
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::CanvasHandleScript";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_FIELD(JBro::Handle::Transform2D, follow);
+        JBRO_FIELD(JBro::Handle::Collider2D, second);
+        JBRO_FIELD(JBro::Handle::Rigidbody2D, gone);
+        JBRO_FIELD(JBro::Handle::Transform2D, empty);
+    };
+
+    template<typename THandle>
+    THandle HandleTo(const JBro::Object::GameObject& owner, const JBro::ComponentBase& component)
+    {
+        JBro::InstanceRef reference;
+        reference.ObjectId = owner.GetInstanceId();
+        reference.ComponentId = component.GetInstanceId();
+        return JBro::Internal::ComponentHandleAccess::FromReference<THandle>(reference);
+    }
+
+    JBro::Bool HasValue(const JBro::String& text, const char* field, const char* value)
+    {
+        const JBro::String plain = JBro::String(field) + ": " + value + "\n";
+        const JBro::String quoted = JBro::String(field) + ": \"" + value + "\"\n";
+        return text.find(plain) != JBro::String::npos || text.find(quoted) != JBro::String::npos;
+    }
+
+    // **컴포넌트 핸들 필드**(D-302). 파일에는 오브젝트의 파일 안 번호와 같은 타입 중 몇 번째인지(`1:1`)로 적힌다 - 컴포넌트 번호는 실행마다 다르다.
+    // 뒤에 오는 오브젝트의 컴포넌트를 가리켜도 읽힌다(모두 붙인 뒤에 필드를 읽는다). 떼인 컴포넌트는 빈 참조로 적힌다.
+    // 그 밖의 글자는 이번 실행의 번호(`@오브젝트:컴포넌트`)이고, 다른 타입의 컴포넌트를 가리키는 글자는 읽지 않는다.
+    void TestComponentHandleFieldsMakeTheRoundTrip()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        if (JBro::ScriptRegistry::Get().Find(CanvasHandleScript::StaticTypeName()) == nullptr)
+        {
+            Check(JBro::RegisterScriptType<CanvasHandleScript>(), "the handle probe script registers");
+        }
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::Object::GameObject* holder = canvas.CreateObject("Holder");
+            JBro::Object::GameObject* target = canvas.CreateObject("Target");
+            auto* script = static_cast<CanvasHandleScript*>(canvas.AttachScript(holder, CanvasHandleScript::StaticTypeName()));
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(target);
+            canvas.AttachComponent<JBro::Component::Collider2D>(target);
+            auto* secondCollider = canvas.AttachComponent<JBro::Component::Collider2D>(target);
+            auto* body = canvas.AttachComponent<JBro::Component::Rigidbody2D>(target);
+            Check(script != nullptr && transform != nullptr && secondCollider != nullptr && body != nullptr, "the probe scene is built");
+            script->follow = HandleTo<JBro::Handle::Transform2D>(*target, *transform);
+            script->second = HandleTo<JBro::Handle::Collider2D>(*target, *secondCollider);
+            script->gone = HandleTo<JBro::Handle::Rigidbody2D>(*target, *body);
+            Check(script->follow.IsValid() && script->second.IsValid() && script->gone.IsValid(), "the handles find their components");
+
+            // 이번 실행의 글자는 번호 그대로다. 같은 값으로 되읽힌다.
+            const JBro::TypeDescriptor& colliderType = JBro::TypeDescriptorOf<JBro::Handle::Collider2D>::Get();
+            char buffer[64] = {};
+            std::size_t required = 0;
+            Check(colliderType.codec->ToText(&script->second, buffer, sizeof(buffer), required) && buffer[0] == '@',
+                "outside a canvas file the text is this run's numbers");
+            JBro::Handle::Collider2D reread;
+            Check(colliderType.codec->FromText(&reread, buffer, std::strlen(buffer)) && reread == script->second,
+                "and reads back to the same component");
+            JBro::Handle::Collider2D wrong;
+            char transformText[64] = {};
+            Check(JBro::TypeDescriptorOf<JBro::Handle::Transform2D>::Get().codec->ToText(
+                    &script->follow, transformText, sizeof(transformText), required)
+                    && false == colliderType.codec->FromText(&wrong, transformText, std::strlen(transformText))
+                    && false == wrong.IsValid(),
+                "a Transform2D's numbers are not read into a Collider2D field");
+            Check(colliderType.typeName == JBro::NameTable::Get().Intern("JBro.ComponentHandle")
+                    && colliderType.refTarget != nullptr
+                    && colliderType.refTarget->targetType == JBro::NameTable::Get().Intern("Component::Collider2D"),
+                "every component handle is one field type that names its component");
+            Check(JBro::TypeDescriptorOf<JBro::Handle::Transform3D>::Get().refTarget->targetType
+                    == JBro::NameTable::Get().Intern(JBro::Handle::Transform3D::StaticTypeName())
+                    && JBro::TypeDescriptorOf<JBro::Handle::AudioSource>::Get().refTarget->targetType
+                    == JBro::NameTable::Get().Intern(JBro::Handle::AudioSource::StaticTypeName()),
+                "a 3D handle and the shared AudioSource handle are fields too");
+
+            Check(canvas.DetachComponent(target, body), "the body comes off");
+            Check(false == script->gone.IsValid(), "and its handle finds nothing");
+            text = Save(canvas);
+        }
+        Check(HasValue(text, "follow", "1:0") && HasValue(text, "second", "1:1"),
+            "a handle is written as the file index of its object and which one of that type it is");
+        Check(text.find("gone: 1") == JBro::String::npos && text.find("gone: @") == JBro::String::npos,
+            "a handle to a component that came off is written empty");
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        LoadOrFail(canvas, text);
+        JBro::Object::GameObject* holder = nullptr;
+        JBro::Object::GameObject* target = nullptr;
+        canvas.ForEachObject([&](JBro::Object::GameObject& found) {
+            if (std::strcmp(found.GetName(), "Holder") == 0)
+            {
+                holder = &found;
+            }
+            else
+            {
+                target = &found;
+            }
+        });
+        Check(holder != nullptr && target != nullptr && holder->GetScripts().Size() == 1, "the scene comes back");
+        const auto* script = static_cast<const CanvasHandleScript*>(holder->GetScripts()[0].reference.TryGet());
+        JBro::Array<JBro::Component::Collider2D*> colliders;
+        canvas.FindComponentsRaw<JBro::Component::Collider2D>(target, colliders);
+        Check(script != nullptr && colliders.Size() == 2, "with its script and both colliders");
+        Check(script->follow.IsValid() && script->follow.GetGameObject().GetInstanceId() == target->GetInstanceId(),
+            "a handle to a component on a later object is read once everything is attached");
+        Check(script->second.IsValid()
+                && JBro::Internal::ComponentHandleAccess::GetReference(script->second).ComponentId == colliders[1]->GetInstanceId(),
+            "and the second of two colliders comes back as the second");
+        Check(false == script->gone.IsValid() && false == script->empty.IsValid(), "empty handles stay empty");
+        Check(Save(canvas) == text, "and it writes back the same");
+    }
+
+    // **지운 캔버스에 다시 읽어도 뿌리 차례는 파일 차례다.** 에디터는 캔버스를 다시 열 때도, 시뮬레이션을 멈출 때도 같은 캔버스를 비우고 다시 읽는다.
+    // 뿌리 차례를 풀 순서에 맡겼더니 풀이 빈 자리를 거꾸로 다시 써서 `C B A` 로 뒤집혔다(실제 에디터에서 하이어라키 순서가 바뀐 것을 보고 찾았다).
+    void TestRootsKeepTheFileOrderInAReusedCanvas()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        canvas.CreateObject("A");
+        canvas.CreateObject("B");
+        canvas.CreateObject("C");
+        const JBro::String text = Save(canvas);
+        for (JBro::Int32 round = 0; round < 2; ++round)
+        {
+            JBro::Array<JBro::Object::GameObject*> all;
+            canvas.GetRootObjects(all);
+            for (JBro::Object::GameObject* object : all)
+            {
+                canvas.DestroyObject(object);
+            }
+            canvas.FlushPendingDestroy();
+            LoadOrFail(canvas, text);
+            JBro::Array<JBro::Object::GameObject*> roots;
+            canvas.GetRootObjects(roots);
+            Check(roots.Size() == 3 && std::strcmp(roots[0]->GetName(), "A") == 0 && std::strcmp(roots[1]->GetName(), "B") == 0
+                    && std::strcmp(roots[2]->GetName(), "C") == 0,
+                "reading into a canvas whose objects were destroyed keeps the roots in file order");
+        }
+    }
+
     void TestAPolygonColliderMakesTheRoundTrip()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
@@ -1677,6 +1837,8 @@ JBro::Int32 RunCanvasFileTests()
     TestReadingRefusesRatherThanGuessing();
     TestAnUnknownScriptIsKeptAsWritten();
     TestScriptsMakeTheRoundTripInTheirOwnList();
+    TestComponentHandleFieldsMakeTheRoundTrip();
+    TestRootsKeepTheFileOrderInAReusedCanvas();
     TestAPolygonColliderMakesTheRoundTrip();
     TestA3DSceneMakesTheRoundTripToo();
     TestEditorHiddenIsSavedButNotPacked();

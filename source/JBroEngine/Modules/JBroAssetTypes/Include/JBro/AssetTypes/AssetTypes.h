@@ -180,6 +180,10 @@ namespace JBro
         Float defaultValue = 0.0f;
         Float minValue = 0.0f;
         Float maxValue = 1.0f;
+        // 편집 창이 값을 적는 꼴이다(`printf`, 단위까지, D-309). 비우면 소수 둘째 자리다.
+        const char* format = nullptr;
+        // 몇 자릿수에 걸친 값(주파수)이다. 편집 창의 슬라이더 눈금이 로그다.
+        Bool logarithmic = false;
     };
 
     struct AudioEffectKindInfo
@@ -195,16 +199,17 @@ namespace JBro
     {
         {"Reverb", 5, {{"roomSize", 0.5f, 0.0f, 1.0f}, {"damping", 0.5f, 0.0f, 1.0f}, {"width", 1.0f, 0.0f, 1.0f},
                        {"wet", 0.3f, 0.0f, 1.0f}, {"dry", 0.7f, 0.0f, 1.0f}}},
-        {"LowPass", 2, {{"cutoff", 1000.0f, 20.0f, 20000.0f}, {"q", 0.707f, 0.1f, 10.0f}}},
-        {"HighPass", 2, {{"cutoff", 1000.0f, 20.0f, 20000.0f}, {"q", 0.707f, 0.1f, 10.0f}}},
-        {"Echo", 3, {{"delay", 0.25f, 0.0f, 2.0f}, {"decay", 0.5f, 0.0f, 1.0f}, {"wet", 0.4f, 0.0f, 1.0f}}},
+        {"LowPass", 2, {{"cutoff", 1000.0f, 20.0f, 20000.0f, "%.0f Hz", true}, {"q", 0.707f, 0.1f, 10.0f, nullptr, true}}},
+        {"HighPass", 2, {{"cutoff", 1000.0f, 20.0f, 20000.0f, "%.0f Hz", true}, {"q", 0.707f, 0.1f, 10.0f, nullptr, true}}},
+        {"Echo", 3, {{"delay", 0.25f, 0.0f, 2.0f, "%.2f s"}, {"decay", 0.5f, 0.0f, 1.0f}, {"wet", 0.4f, 0.0f, 1.0f}}},
         {"Distortion", 2, {{"drive", 0.5f, 0.0f, 1.0f}, {"wet", 1.0f, 0.0f, 1.0f}}},
-        {"Compressor", 2, {{"threshold", -12.0f, -60.0f, 0.0f}, {"ratio", 4.0f, 1.0f, 20.0f}}},
-        {"Limiter", 2, {{"threshold", -12.0f, -60.0f, 0.0f}, {"ratio", 4.0f, 1.0f, 20.0f}}},
-        {"Equalizer", 6, {{"lowGain", 0.0f, -24.0f, 24.0f}, {"lowHz", 200.0f, 20.0f, 1000.0f}, {"midGain", 0.0f, -24.0f, 24.0f},
-                          {"midHz", 1000.0f, 100.0f, 8000.0f}, {"highGain", 0.0f, -24.0f, 24.0f}, {"highHz", 5000.0f, 1000.0f, 16000.0f}}},
-        {"Chorus", 3, {{"mix", 0.5f, 0.0f, 1.0f}, {"rate", 0.8f, 0.05f, 10.0f}, {"depth", 3.0f, 0.0f, 8.0f}}},
-        {"PitchShift", 1, {{"semitones", 12.0f, -12.0f, 12.0f}}},
+        {"Compressor", 2, {{"threshold", -12.0f, -60.0f, 0.0f, "%.1f dB"}, {"ratio", 4.0f, 1.0f, 20.0f, "%.1f : 1"}}},
+        {"Limiter", 2, {{"threshold", -12.0f, -60.0f, 0.0f, "%.1f dB"}, {"ratio", 4.0f, 1.0f, 20.0f, "%.1f : 1"}}},
+        {"Equalizer", 6, {{"lowGain", 0.0f, -24.0f, 24.0f, "%+.1f dB"}, {"lowHz", 200.0f, 20.0f, 1000.0f, "%.0f Hz", true},
+                          {"midGain", 0.0f, -24.0f, 24.0f, "%+.1f dB"}, {"midHz", 1000.0f, 100.0f, 8000.0f, "%.0f Hz", true},
+                          {"highGain", 0.0f, -24.0f, 24.0f, "%+.1f dB"}, {"highHz", 5000.0f, 1000.0f, 16000.0f, "%.0f Hz", true}}},
+        {"Chorus", 3, {{"mix", 0.5f, 0.0f, 1.0f}, {"rate", 0.8f, 0.05f, 10.0f, "%.2f Hz", true}, {"depth", 3.0f, 0.0f, 8.0f, "%.1f ms"}}},
+        {"PitchShift", 1, {{"semitones", 12.0f, -12.0f, 12.0f, "%+.1f st"}}},
     };
 
     // 모르는 종류는 Reverb 로 본다(기존 엔진과 같다).

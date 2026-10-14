@@ -47,6 +47,9 @@ namespace JBro::Internal
             RefCategory category,
             void* pointer);
         Bool Unregister(InstanceHandle handle);
+        // 이 번호가 이미 등록되어 있는가. **주인을 가리지 않는다** - `Resolve` 는 주인이 다르면 없다고 하지만 `Register` 는 같은 번호를 받지 않는다.
+        // 번호를 정해 붙이는 쪽(`Canvas` 의 `preferredId`)이 이것으로 비었는지 본다.
+        Bool IsRegistered(InstanceId objectId, InstanceId componentId, RefCategory category) const;
 
         void* Resolve(InstanceHandle handle, RefCategory category) const;
         ResolvedInstance Resolve(

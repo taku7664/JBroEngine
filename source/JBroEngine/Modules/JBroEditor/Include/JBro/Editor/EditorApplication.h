@@ -745,6 +745,8 @@ namespace JBro
         void ClearScriptDiagnostics();
         // 진단 하나를 고른 편집기로 그 줄에 연다. 편집기를 못 찾거나 `System` 이면 셸 기본 앱으로 파일만 연다.
         Bool OpenScriptDiagnostic(std::size_t index);
+        // 스크립트 빌드 도구(`ScriptBuild::BuildToolsDownloadUrl`)를 받는 곳을 브라우저로 연다. 빌드 도구나 SDK 가 없다는 알림을 누르면 부른다.
+        Bool OpenScriptBuildToolsDownload();
         // 오류 줄을 여는 편집기다(D-299). 에디터 설정에 저장된다.
         ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
         void SetScriptEditor(ScriptBuild::EditorKind kind);

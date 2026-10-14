@@ -23,7 +23,7 @@
   `World` / ECS / `Scene` / `SceneManager` 같은 중복 수명 계층은 이름을 바꿔서도 만들지 않는다
 - 스크립트 참조는 GameObject 전용 16B 핸들(`JBro::Handle::GameObject`, 스크립트에서는 `GameObject`)과 그 외 타입용 24B `Ref<T>`로 나눈다.
   핸들의 안전 멤버는 무효 접근을 로그로 남기고 무시한다. 엔진의 오브젝트 클래스는 `JBro::Object::GameObject` 이고 프렐류드는 `JBro`·`JBro::Handle` 을 연다.
-  **D-302 로 바뀌는 중이다(이름과 컴포넌트·스크립트 분리가 섰고 빌트인 핸들이 남았다)**: 핸들은 `JBro::Handle` 에 엔진 타입과 같은 이름(`GameObject`·`Transform2D`)으로 두고, 빌트인 컴포넌트도 핸들이며,
+  **D-302 가 섰다(이름·컴포넌트와 스크립트 분리·빌트인 핸들·오브젝트 API·핸들 필드)**: 핸들은 `JBro::Handle` 에 엔진 타입과 같은 이름(`GameObject`·`Transform2D`)으로 두고, 빌트인 컴포넌트도 핸들이며(데이터 헤더는 스크립트 대상에서 `#error`),
   `Ref<T>` 는 스크립트 전용이고, 스크립트는 컴포넌트가 아니다. 엔진 타입은 `JBro::Object::GameObject`·`JBro::Component::*`
 - 차원과 무관한 공개 값 타입은 JBroCore에 한 번만 정의한다. Framework가 같은 공개 타입을
   재정의하지 않으며, 이식 완료는 기존 임시 정의 제거와 결합 공개 헤더 컴파일까지 포함한다
@@ -87,9 +87,13 @@
   **3.1·3.2 가 섰다**(D-264·D-265). 스크립트 프로퍼티 표가 호스트로 오고, 캔버스 파일이 모르는 컴포넌트를 읽은 그대로 되쓰며, 에디터는 `FindAttachable` 로 스크립트를 붙인다.
   스크립트는 `JBRO_SCRIPT_BODY`·`JBRO_FIELD` 로 적고, `.cpp` 마다 `JBRO_REGISTER_SCRIPT_2D` 한 줄, 프로젝트에 `JBRO_SCRIPT_MODULE_2D()` 하나다.
   3.3 도 섰다(D-266) - 에셋 브라우저의 `스크립트` 뿌리에서 우클릭 `새 스크립트`, 프로젝트 파일은 한 번만 쓰고 엔진 위치는 `JBroEngine.props` 를 열 때마다 맞춘다.
-  3.4 도 섰다(D-299) - 파일 메뉴 `스크립트 빌드` 가 MSBuild 를 자식 프로세스로 띄우고, 오류는 `빌드 결과` 패널에서 눌러 에디터 설정에서 고른 편집기로 그 줄을 연다.
+  3.4 도 섰다(D-299) - 파일 메뉴 `스크립트 빌드` 가 MSBuild 를 자식 프로세스로 띄우고, 오류는 `빌드 결과` 패널에서 눌러 에디터 설정에서 고른 편집기로 그 줄을 연다. 컴파일러는 MSVC 이고 IDE 는 요구하지 않는다 - 에디터는 `v145` 컴파일러가 든 설치만 빌드 도구로 보고 없으면 무엇을 깔지 알린다(D-318).
   3.5 도 섰다(D-300) - 빌드가 성공하거나 DLL 파일이 바뀌면 캔버스의 스크립트를 글자로 떠 두고 DLL 을 갈아 끼운 뒤 같은 자리·같은 번호로 되살린다(재생 중이면 멈춘 뒤).
   담당자에게 넘길 남은 일이 §3.3 끝에 있다
+- [tasks/debug-adapter.md](./tasks/debug-adapter.md) — 스크립트 디버그 어댑터(D-319). `source/JBroDebugAdapter` 가 DAP 로 에디터에 DbgEng 으로 붙어 스크립트 DLL 을 디버깅한다.
+  확장(`jbro-engine` 의 `debuggers`)에 붙일 때 받는 요청·인자·동작·남은 것이 있다. 스크립트 PDB 는 빌드마다 다른 이름이다
+- [tasks/simulation-process-plan.md](./tasks/simulation-process-plan.md) — 시뮬레이션 프로세스(D-320). 에디터의 실행을 에디터 밖 프로세스로 옮겨 스크립트 중단점에 걸려도 에디터가 서지 않게 한다.
+  사용자가 보는 실행 동작(실행 중 하이어라키·인스펙터·캔버스 뷰, 정지 때 되돌리기)은 같고, 에디터는 받은 상태를 비춘다. 단계와 미지수(미러 비용·`InstanceId`·공유 텍스처)가 있다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
@@ -105,7 +109,7 @@
   `source/JBroNetwork/`(자기 `.slnx`, 엔진의 Core·Runtime 만 참조)에 있고, 엔진 쪽 어댑터는 `Modules/JBroNetworkSystem`(`NetworkHost`·
   `CanvasPoolAdapter`·수신/송신 시스템)이다. 소켓은 `IPlatform::CreateSocketProvider` 로만 온다. 기존 엔진의 WS + Reliable UDP
   하이브리드 분석이 §1, 설계(소켓 주입·꺼내 가기 큐·풀 스냅숏 델타 복제·WebRTC 웹 호스트)가 §2, 단계와 완료 조건·실측이 §3 에 있다
-- [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198·D-201~D-203·D-305·D-306). **열다섯 단계가 섰다**(믹서·장치 출력·에셋·2D/3D 소스·스크립트·에디터·버스 이펙트·라우팅과 디스크 스트리밍과 장치 고르기, 기존 엔진과 맞추기, 소스마다 이펙트 사슬과 `.jfx`·사운드 이펙트 창). `ma_engine` 을 안에 둔 `AudioMixer`,
+- [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198·D-201~D-203·D-305·D-306·D-309). **열여섯 단계가 섰다**(믹서·장치 출력·에셋·2D/3D 소스·스크립트·에디터·버스 이펙트·라우팅과 디스크 스트리밍과 장치 고르기, 기존 엔진과 맞추기, 소스마다 이펙트 사슬과 `.jfx`·사운드 이펙트 창, 인스펙터 정리와 응답 그래프). `ma_engine` 을 안에 둔 `AudioMixer`,
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건·실측이 §3, `[열림]` 이 §5 에 있다
 - [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214·D-218). 1~6 단계와 7 의 터치·액션 세트(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·

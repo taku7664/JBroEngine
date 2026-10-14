@@ -104,15 +104,6 @@ Entries:
   project_settings.tags: Tags
   inspector.enabled: Enabled
   inspector.add_component: Add Component
-  inspector.add_script: Add Script
-  inspector.no_script_types: no script has been built
-  inspector.copy_script: Copy Script
-  inspector.paste_script: Paste Script
-  inspector.remove_script: Remove Script
-  inspector.move_up: Move Up
-  inspector.move_down: Move Down
-  inspector.move_top: Move to Top
-  inspector.move_bottom: Move to Bottom
   inspector.asset_name: Asset
   inspector.asset_type: Type
   inspector.asset_path: Path
@@ -123,7 +114,6 @@ Entries:
   inspector.paste_component_values: Paste Values Only
   inspector.remove_component: Remove Component
   inspector.component_menu: Component menu
-  inspector.no_components: This object has no components
   inspector.no_component_types: no component type has registered itself
   inspector.unregistered_type: this type never registered its properties
   inspector.unknown_component: (unknown component)
@@ -182,6 +172,7 @@ Entries:
   component_category.Audio: Audio
   component_category.UI: UI
   component_category.Components: Components
+  component_category.Scripts: Scripts
   asset.none: (None)
   asset.missing: (Missing asset)
   assets.empty: the asset folder has no files
@@ -392,7 +383,8 @@ Entries:
   notify.scripts_built: The scripts were built
   notify.scripts_build_failed: The scripts could not be built
   notify.no_script_project: There is no script project yet. Create a script from Scripts in the asset browser first
-  notify.msbuild_missing: MSBuild was not found. Install Visual Studio with the C++ workload
+  notify.build_tools_missing: The C++ build tools (MSVC v145) were not found. Click to open the download page, then install Build Tools for Visual Studio 2026 with “Desktop development with C++” and “Windows 11 SDK (10.0.22621.0)”
+  notify.windows_sdk_missing: Windows SDK 10.0.22621.0 was not found. Click to open the download page, then add “Windows 11 SDK (10.0.22621.0)” to Build Tools for Visual Studio 2026
   editor_settings.script_editor: Script Editor
   editor_settings.script_editor_help: Clicking an error in Build Results opens that line in this editor
   script_editor.system: Default app (no line jump)
@@ -467,6 +459,28 @@ Entries:
   sound_effect.preview: Preview
   sound_effect.test_sound: Test Sound
   sound_effect.preview_hint: "Pick an audio asset above or drag one onto it, then play"
+  sound_effect.revert: "Revert"
+  sound_effect.revert_help: "Throw away the changes and go back to the saved values"
+  sound_effect.bypass: "Bypass"
+  sound_effect.bypass_help: "Play the test sound without the effect to compare"
+  sound_effect.output: "Output"
+  sound_effect.graph_frequency: "Frequency response (dB)"
+  sound_effect.graph_shape: "Input → output wave"
+  sound_effect.graph_dynamics: "Input level → output level (dB)"
+  sound_effect.graph_echo: "Repeats (seconds)"
+  sound_effect.graph_reverb: "Reverb tail (seconds)"
+  sound_effect.graph_chorus: "Delay sweep (ms)"
+  sound_effect.graph_pitch: "Pitch change (semitones)"
+  sound_effect.about_reverb: "Adds the reflections of a room or hall"
+  sound_effect.about_low_pass: "Cuts the sound above the cutoff"
+  sound_effect.about_high_pass: "Cuts the sound below the cutoff"
+  sound_effect.about_echo: "Repeats the sound at a fixed interval"
+  sound_effect.about_distortion: "Squashes the wave into a gritty sound"
+  sound_effect.about_compressor: "Turns down loud sound above the threshold by the ratio"
+  sound_effect.about_limiter: "Holds sound above the threshold down right away"
+  sound_effect.about_equalizer: "Boosts or cuts the lows, mids and highs separately"
+  sound_effect.about_chorus: "Layers a slightly shifted copy to thicken the sound"
+  sound_effect.about_pitch_shift: "Changes the pitch and keeps the speed"
   assets.duplicate: Duplicate
   assets.copy_path: Copy Path
   assets.cut: Cut
@@ -533,7 +547,6 @@ Entries:
   inspector.camera_ppu_unused: Used only by PixelPerfect.
   inspector.sprite_ppu_mismatch: "This sprite's pixelsPerUnit differs from the PixelPerfect camera, so its pixels do not line up."
   hierarchy.paste_as_child: Paste As Child
-  hierarchy.draw_order: Order
   hierarchy.bring_forward: Bring Forward
   hierarchy.bring_to_front: Bring to Front
   hierarchy.send_backward: Send Backward

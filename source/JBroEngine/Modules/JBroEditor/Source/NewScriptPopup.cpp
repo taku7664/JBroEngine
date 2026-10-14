@@ -19,17 +19,32 @@ namespace JBro
     namespace
     {
         // 필드 타입 이름은 번역하지 않는다 - 헤더에 그대로 적히는 C++ 타입 이름이다(§11.2).
-        const char* const* FieldTypeNames()
+        // 이 프로젝트의 차원에서 고를 수 있는 것만 차례대로 든다(D-302 (17)). 2D 프로젝트에 3D 핸들을 내놓으면 만든 헤더가 컴파일되지 않는다.
+        struct OfferedFieldTypes
         {
-            static const char* names[static_cast<Int32>(ScriptProject::FieldType::Count)] = {};
-            if (names[0] == nullptr)
+            const char* names[static_cast<Int32>(ScriptProject::FieldType::Count)] = {};
+            ScriptProject::FieldType types[static_cast<Int32>(ScriptProject::FieldType::Count)] = {};
+            std::size_t count = 0;
+        };
+
+        const OfferedFieldTypes& FieldTypesFor(FrameworkKind framework)
+        {
+            static OfferedFieldTypes offered[2];
+            OfferedFieldTypes& list = offered[framework == FrameworkKind::Framework3D ? 1 : 0];
+            if (list.count == 0)
             {
                 for (Int32 index = 0; index < static_cast<Int32>(ScriptProject::FieldType::Count); ++index)
                 {
-                    names[index] = ScriptProject::FieldCppType(static_cast<ScriptProject::FieldType>(index.Get()));
+                    const auto type = static_cast<ScriptProject::FieldType>(index.Get());
+                    if (ScriptProject::IsFieldTypeOffered(type, framework))
+                    {
+                        list.names[list.count] = ScriptProject::FieldCppType(type);
+                        list.types[list.count] = type;
+                        ++list.count;
+                    }
                 }
             }
-            return names;
+            return list;
         }
 
         const char* NameProblemText(ScriptProject::NameProblem problem)
@@ -103,19 +118,28 @@ namespace JBro
         if (Widget::CollapsingSection(Loc::TextOr(LocKeys::NewScriptAdvanced, "Advanced Options"), false))
         {
             Widget::Text(Loc::TextOr(LocKeys::NewScriptFields, "Fields"));
+            const OfferedFieldTypes& offered = FieldTypesFor(editor.GetFrameworkKind());
             Widget::List("##fields", m_fields,
                 [&](ScriptProject::FieldSpec& field, Int32) {
-                    const float width = ImGui::GetContentRegionAvail().x;
+                    // **목록이 준 내용 폭 안에서 나눈다.** 창의 남은 폭을 다 쓰면 줄 끝의 지우기 단추(X)를 종류 칸이 덮는다.
+                    const float width = ImGui::CalcItemWidth();
                     ImGui::SetNextItemWidth(width * 0.6f);
                     Widget::TextField("##fieldName", field.name).Hint("Speed").MaxLength(64).Draw();
                     ImGui::SameLine();
-                    Int32 type = static_cast<Int32>(field.type);
-                    ImGui::SetNextItemWidth(-1.0f);
-                    if (Widget::FilterCombo("##fieldType",
-                            ArrayView<const char* const>(FieldTypeNames(), static_cast<std::size_t>(ScriptProject::FieldType::Count)),
-                            type).ShowFilter(false).Draw())
+                    Int32 type = -1;
+                    for (std::size_t at = 0; at < offered.count; ++at)
                     {
-                        field.type = static_cast<ScriptProject::FieldType>(type.Get());
+                        if (offered.types[at] == field.type)
+                        {
+                            type = static_cast<JBro::Int32>(at);
+                        }
+                    }
+                    ImGui::SetNextItemWidth(width * 0.4f - ImGui::GetStyle().ItemSpacing.x);
+                    // 종류가 많아졌으므로(핸들 20 종) 거르기 칸을 둔다.
+                    if (Widget::FilterCombo("##fieldType", ArrayView<const char* const>(offered.names, offered.count), type).Draw()
+                        && type >= 0 && static_cast<std::size_t>(type.Get()) < offered.count)
+                    {
+                        field.type = offered.types[static_cast<std::size_t>(type.Get())];
                     }
                 },
                 ScriptProject::FieldSpec{});

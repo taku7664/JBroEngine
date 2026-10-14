@@ -184,7 +184,7 @@ namespace
     {
         const ComponentTypeInfo* info = ComponentRegistry::Get().Find(MakeNameId(name));
         Check(info != nullptr, "the builtin is known");
-        return info->Attach(canvas, object);
+        return info->Attach(canvas, object, JBro::InvalidInstanceId);
     }
 
     // 오브젝트의 컴포넌트 차례, `|`, 스크립트 차례를 타입 이름으로 적는다(D-302). 모르는 스크립트는 `?이름` 으로 그 자리에 끼운다.
