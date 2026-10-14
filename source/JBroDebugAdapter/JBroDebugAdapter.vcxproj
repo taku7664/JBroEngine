@@ -49,7 +49,8 @@
   </ItemGroup>
   <!-- 재배포용 DbgEng(Windows SDK 의 REDIST 목록 "Debugging Tools for Windows")과 JBro 값 타입의 natvis 를 실행 파일 옆에 둔다. -->
   <ItemGroup>
-    <CopyFileToFolders Include="ThirdParty\DbgEng\x64\*.dll" />
+    <!-- `x64\` 가 아니라 `amd64\` 다 - 리포의 .gitignore 가 `x64/` 폴더를 무시해 DLL 이 커밋에서 빠졌다. -->
+    <CopyFileToFolders Include="ThirdParty\DbgEng\amd64\*.dll" />
     <CopyFileToFolders Include="$(JBroRoot)JBro.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
