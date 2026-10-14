@@ -30,6 +30,29 @@
 > 예: `- ~~[진행 예정] 툴팁 딜레이. ...~~ → 완료 2026-09-27 · abc1234 · Widget/Common.cpp HoveredTooltip`
 > 세 문서(`todo.md`·`todo-2d.md`·`todo-3d.md`)가 모두 이렇게 한다.
 
+- ~~`[구현·검증 중]` **JBroScript 독립 언어 서버와 공용·2D 언어 기능.**~~ → 완료 2026-10-14 · `a574fe64` · `db25f8ae` (D-315)
+  파서·의미 분석·API 카탈로그·`JBroc --lsp`의 구현과 정식 시험은 추가했다. 최종 Debug/Release 검증은
+  [jbroscript-language-server-plan.md](./jbroscript-language-server-plan.md) §7에 기록한다.
+  첫 독립 검토의 세 결함과 후속 break/continue·여러 반복과 while 조건 재평가의 null 흐름 검사·
+  클래스/생성자·override 연결 이름 변경을 고쳤다. 최신 재빌드·주요 7개 suite·실제 LSP 34개 시험은
+  Debug/Release 모두 통과했다. 활성 파서·편집기 문법 시험의 옛 저장형 `ref` 예시도 nullable `?`로 교체하고 재검증했다.
+  독립 검토가 승인 범위와 산출물의 일치를 확인했다. 검토자가 직접 문법 단언 154개·스냅숏과
+  Debug/Release의 실제 LSP 시험 각 34개·관련 C++ 시험 각 7개 suite를 다시 통과시켰다.
+  C++ 이미터·게임 실행·에디터/엔진 LSP 클라이언트·3D Framework는 이 항목에 포함하지 않는다.
+
+- `[열림]` **C++ 스크립트의 Release 호스트/Debug DLL 구성과 공유 NameTable 항목 배치를 맞춘다.** (2026-10-14 발견)
+  `EditorApplication.cpp:2846`은 호스트 구성과 무관하게 스크립트를 Debug로 빌드하고,
+  `ScriptBuildTests.cpp:397,476`도 Debug DLL을 요구한다. Release의 기존 `ScriptBuild` 시험은
+  `the first build has only its speed`에서 실패했다. 새 언어서버 모듈을 링크하지 않는 LoaderProbe에서도
+  Release 호스트/Debug DLL은 `Speed` 이름을 찾지 못하고, Release DLL로 바꾸면 찾고 종료 0이었다.
+  `String`의 실측 크기는 Debug 40/Release 32바이트, Key+String 항목은 48/40바이트다(`NameTable` 본체는 양쪽 48바이트).
+  근거는 [언어 서버 검증 기록](./jbroscript-language-server-plan.md#7-검증과-남은-범위)과
+  `F:/AI/builds/jbroscript-language-server/inspect-release-regression/{LoaderProbe.cpp,loader-Debug.log,loader-Release.log,layout-results.log}`.
+  기준 커밋의 TestMain·Compiler와 새 분석/포맷/server/catalog를 제외한 별도 binary에서도 같은 검사 실패를 확인했다
+  (`baseline-link-inputs.txt`·`out/JBroTestsBaseline.map`·`full-baseline-scriptbuild.log`). 전체 엔진 시험 결과는 아니다.
+  구성 선택과 공유 이름 표의 수정은 별도 엔진 작업에서 정한다. 이번 서버 범위에서 제품 소스를 고치지 않았으며
+  Release `ScriptBuild`·`ScriptHotReload` 회귀 완료 여부도 후속으로 확인한다.
+
 - `[일부 구현]` **C++ 스크립트 편집기의 JBroEngine 확장·개발 도구 연동·Code-OSS 레이아웃.** (2026-10-13, D-310)
   사용자가 코사원에게 맡긴 범위다. 현재 상태·남은 일·작업 순서는 [script-editor-integration-plan.md](./script-editor-integration-plan.md)에 둔다.
   C++ 언어 서비스·디버거의 선택은 이 범위 확인만으로 확정되지 않았다. 기본 화면 항목의 후속 결정은 D-311이다.
@@ -2952,6 +2975,24 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-315. JBroScript의 분석·독립 언어 서버를 공용·2D 범위로 재개한다. C++ 이미터는 유보한다.** (2026-10-14)
+  사용자 요청: "Jbroscript용 언어서버 지금 미리 만들어두자. 계획세워", 계획 확인 뒤 "목표대로 진행해".
+  Updates: D-263의 타입체커·LSP 중단, D-262의 null 좁히기 해제·서비스 이름표·출력 인자 투영.
+  (1) **승인 범위.** 독립 서버만 만든다. 진단·완성·정의/타입 정의·문서/워크스페이스 심볼·호버·인자 도움말·참조·이름 변경·
+  의미 토큰·접기·포맷을 포함한다. C++ emitter·에디터/엔진 클라이언트·UI/webview·게임 실행·디버거·멀티클라이언트·3D Framework는 포함하지 않는다.
+  (2) **경계.** Compiler의 공용 분석, `JBroScriptApiCatalog2D`의 실제 native 타입 기반 공개 선언 표,
+  `JBroScriptLanguageServer`의 LSP, `JBroc`의 stdio·파일 호스트로 나눈다. 표준 JSON-RPC는 통신 경계이고 `.jproject`는 YAML이다.
+  프로세스 하나/클라이언트 하나/활성 프로젝트 하나이며 초기화에서 프로젝트·2D·엔진 버전을 확인한다.
+  (3) **분석.** D-262 문법과 사용자/엔진 오버로드를 검사한다. 변경 가능한 호출·대입 뒤 null 보장을 보수적으로 지우고,
+  `Time`·`Physics` 등 서비스 이름과 출력 반환 투영을 카탈로그로 제공한다. 공용 수학 값의 3D 좌표 사용은 3D Framework 지원과 다르다.
+  nullable 런타임 타입과 `!`의 실제 콜백 중단은 이미터 때 정한다.
+  (4) **편집.** 저장하지 않은 버퍼와 문서 버전·UTF-16 좌표를 사용한다. 서버는 프로젝트 파일을 쓰지 않고
+  사용자 심볼만 버전이 있는 편집으로 이름 변경한다. 포맷은 주석·토큰·BOM·줄바꿈을 보존하는 들여쓰기 변경이다.
+  **기각/유보:** 웹뷰와 클라이언트 UI부터 구현하기는 승인 범위 밖이다. 엔진 헤더 문자열 파싱으로 native 시그니처를 복제하는 대신
+  실제 타입을 컴파일로 검사하며, 출력 인자를 그대로 언어에 노출하지 않는다. C++ 생성 및 게임 실행의 검증은 서버 시험으로 대체하지 않는다.
+  구현 위치·사용 계약·검증·남은 범위는 [jbroscript-language-server-plan.md](./jbroscript-language-server-plan.md)에 있다.
+  D-263의 C++ 스크립트 우선 경로와 당시 중단 본문은 이력으로 남긴다.
 
 - **D-312. JBro 화면 작업은 한국어를 우선하고, 개발 실행의 JBroEngine manifest 기본 문구를 한국어로 제공한다.** (2026-10-14)
   사용자 지시: "그리고 한국어를 우선적으로 작업해". 한국어 우선은 사용자 결정이며 파일 구성은 실행 소스 확인에 따른 구현 판단이다.

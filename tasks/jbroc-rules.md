@@ -1,5 +1,9 @@
 ﻿# jbroc 컴파일러 규칙
 
+> **현재 상태(2026-10-14, D-315)**: D-262 문법 파서·공용 의미 분석·공용/2D API 카탈로그·`JBroc --lsp`를 구현했다.
+> 아래 2026-09-29의 중단 설명은 이력이다. **C++ 이미터는 계속 미구현**이며 변경 범위는 §12와
+> [언어 서버 계획](./jbroscript-language-server-plan.md)에 있다.
+>
 > 2026-09-15 까지 논의한 **JBroScript 컴파일러 `jbroc`** 의 규칙을 모은 문서다. **렉서·파서와 명령줄 `JBroc` 이 섰고(2026-09-17~18, §11) 타입체커·이미터는 아직 없다.**
 > **2026-09-29 에 여기서 멈췄다(D-263).** C++ 스크립트 지원을 먼저 한다([cpp-script-plan.md](./cpp-script-plan.md)). 같은 날 문법의 참조와 null 을
 > 다시 정해서(D-262) §4·§5.4 가 바뀌었다. **파서는 옛 문법 그대로다** - `?`·`?.`·`??`·`!` 를 읽지 못하고 `ref` 멤버를 에러로 보지 않는다(§11.4).
@@ -369,7 +373,7 @@ JBRO_SCRIPT_API(Service::Physics2DService, Raycast, "origin", "direction", "dist
 
 | 항목 | 정한 것 | 이유 |
 |---|---|---|
-| **선언과 식을 가르는 법** | **모양으로 가른다.** 문장이 "타입 + 이름" 으로 시작하면(`Collision2D hit`, `Array<ref Enemy> allies`, `ref Enemy nearest`) 선언이다 | 이 언어의 식에는 이름 두 개가 나란히 오는 모양이 없다. `Name <` 로 시작하면 타입으로 읽어 보고, 실패하면 식이다(읽어 본 노드는 버린다) |
+| **선언과 식을 가르는 법** | **모양으로 가른다.** 문장이 "타입 + 이름" 으로 시작하면(`Collision2D hit`, `Array<Enemy?> allies`, `Enemy? nearest`) 선언이다 | 이 언어의 식에는 이름 두 개가 나란히 오는 모양이 없다. `Name <` 로 시작하면 타입으로 읽어 보고, 실패하면 식이다(읽어 본 노드는 버린다) |
 | 제네릭 호출 | `Name<` 뒤가 타입 인자로 읽히고 `>` 바로 뒤에 `(` 가 오면 제네릭 호출(`GetComponent<Transform2D>()`) | 비교 연산의 연쇄 `a < b > (c)` 는 `Bool` 과 수의 비교라 어차피 타입 에러다 |
 | 문맥 키워드 | `callback`·`override`·`require` 는 함수 선언의 `)`·반환 타입 뒤에서만, `in` 은 `for (` 의 변수 뒤에서만 키워드로 본다 | 문법 §2.1 |
 | 본문 위치 | `{` 는 다음 줄에 와도 된다. 함수 선언 뒤에 `{` 가 없으면 선언만 있는 함수다(interface·require) | 엔진 코드 스타일(중괄호를 다음 줄에)과 같다 |
@@ -469,8 +473,29 @@ JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...
 
 ### 11.4 D-262 뒤로 파서에 남은 일 (2026-09-29)
 
-**멈춘 상태다(D-263).** 다시 시작할 때 파서가 할 일을 적어 둔다. 지금 파서와 편집기 문법 강조는 옛 문법(syntax §13)을 읽는다.
+**당시에는 멈춘 상태였다(D-263).** 다시 시작할 때 적어 둔 항목의 이행 상태를 아래에 기록한다. 현재 파서와 편집기 문법 강조는 새 문법(syntax §14)을 읽는다(D-315).
 
-- 타입 뒤의 `?`, 식의 `?.`·`??`·뒤붙이 `!` 를 읽는다. 우선순위는 syntax §10.1 이다.
-- 멤버·지역·컨테이너·반환의 `ref` 는 파서가 아니라 타입체커가 에러로 낸다(모양은 옛 판과 같아 파서는 읽기만 한다).
-- 파서 시험의 전체 예시를 syntax §14 로 옮기고, 편집기 문법 스냅숏(`source/JBroScriptEditor/extensions/jbro-languages/test/snap/enemy.jscript`)도 같이 옮긴다.
+- ~~타입 뒤의 `?`, 식의 `?.`·`??`·뒤붙이 `!` 를 읽는다. 우선순위는 syntax §10.1 이다.~~ → 구현 2026-10-14 · `Lexer.cpp`·`Parser.cpp`·`ScriptCompilerParserTests.cpp` (D-315).
+- ~~멤버·지역·컨테이너·반환의 `ref` 는 파서가 아니라 타입체커가 에러로 낸다(모양은 옛 판과 같아 파서는 읽기만 한다).~~ → 구현 2026-10-14 · `Analysis.cpp`·`ScriptCompilerAnalysisTests.cpp` (D-315).
+- ~~파서 시험의 전체 예시를 syntax §14 로 옮긴다.~~ → 구현 2026-10-14 · `ScriptCompilerParserTests.cpp::TestTheSyntaxDocumentExampleParses`.
+  ~~편집기 문법 스냅숏(`source/JBroScriptEditor/extensions/jbro-languages/test/snap/enemy.jscript`)을 옮기는 일은 클라이언트 작업에 남긴다.~~ → 구현 2026-10-14 · 편집기 문법 강조·예시·스냅숏 시험(D-315). LSP 클라이언트 연결은 별도 작업이다.
+
+## 12. 분석·LSP 재개 (2026-10-14, D-315)
+
+Updates: D-263의 타입체커·LSP 중단과 §11.4, D-262의 null 좁히기·서비스 이름표·§7 API 투영.
+사용자가 승인한 독립 언어 서버를 위해 파서와 의미 분석을 재개했다. **이미터 중단은 유지한다.**
+§7.1의 2026-09-15 시그니처 표와 제안은 당시 프로브 기록이다. 현재 분석이 제공하는 서비스 이름과 출력 인자 반환 투영은
+이 절과 [언어 서버 계획 §5](./jbroscript-language-server-plan.md#5-문법엔진-api)의 구현 범위를 따른다.
+§3.1의 생성 C++ `/W4` 보장은 아직 확인할 산출물이 없으므로 달성했다고 보지 않는다.
+
+- `JBroScriptCompiler`는 엔진 타입 헤더를 직접 읽지 않고 `ApiCatalog`와 프로젝트 문서를 받아 분석한다.
+  `AnalysisSession`은 소스/AST를 소유하며 변경·의존 문서의 검사 결과를 갱신한다.
+- `JBroScriptApiCatalog2D`는 명시적인 선언 표와 실제 C++ 함수·멤버 포인터로 native 타입을 검사한다.
+  리플렉션 필드도 실제 표를 사용하고, 기본 인자·읽기 전용·출력 인자 투영은 카탈로그에 명시한다.
+- `JBroScriptLanguageServer`는 표준 LSP/JSON-RPC를 제공한다. 프로젝트·스크립트·SDK 소스 읽기와 스크립트 열거,
+  카탈로그 조립은 실행 파일 `JBroc`의 책임이다. 진단 번역표는 기존 Compiler의 `DiagnosticMessages::Load` 예외를 유지한다.
+  프로젝트 YAML을 JSON으로 바꾸지 않는다.
+- `ref` 제한, nullable 검사·상태 변경 뒤 재검사, 사용자/엔진 오버로드, 엔진 필드 쓰기 제한은 공용 분석에 있다.
+  nullable 값의 런타임 저장 형식과 `!`의 콜백 중단은 이미터 작업에 남긴다.
+
+사용법·지원 요청·검증·클라이언트 책임·배포의 미확인 범위는 [jbroscript-language-server-plan.md](./jbroscript-language-server-plan.md)에 둔다.

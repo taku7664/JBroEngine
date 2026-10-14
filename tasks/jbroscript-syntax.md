@@ -1,5 +1,8 @@
 ﻿# JBroScript 문법
 
+> **현재 상태(2026-10-14, D-315)**: 새 문법의 파서·의미 분석과 공용/2D 언어 서버를 구현했다. C++ 이미터는 미구현이다.
+> 아래 초기·중단 설명은 이력이며, 현재 적용 범위는 §15와 [언어 서버 계획](./jbroscript-language-server-plan.md)에 있다.
+>
 > 2026-09-15 까지 빡대리와 논의한 **사용자가 쓰는 문법**을 모은 문서다. **언어도 `jbroc` 도 아직 구현하지 않았다.**
 > **2026-09-29 에 참조와 null 을 다시 정했다(D-262).** `ref` 는 빌림만 뜻하고, null 이 될 수 있는 것은 `?` 가 붙은 타입뿐이며,
 > 자동 null 검사(문장 건너뛰기)는 없앴다(§8·§9·§10.4). **같은 날 `jbroc` 은 렉서·파서에서 멈췄다(D-263)** - 파서는 아직 옛 문법을 읽으므로
@@ -202,13 +205,14 @@ class Sword : Weapon
 인자를 받는 생성자는 **`class` 에만** 있다. `script` 는 `OnCreate`·`OnStart` 콜백을, `struct` 는 필드 초깃값을 쓴다.
 
 **[제안]** 모양은 클래스 이름과 같은 이름의 `fn` 이고 반환 타입이 없다.
+아래는 클래스 밖에서 호출하므로 생성자를 `public`으로 적은 예시다. `class` 멤버의 기본 접근은 `private`이다.
 
 ```
 class Inventory
 {
     public Int Gold = 0
 
-    fn Inventory(Int startGold)
+    public fn Inventory(Int startGold)
     {
         Gold = startGold
     }
@@ -530,10 +534,11 @@ switch (state)
 9. **서비스 이름.** 스크립트는 `GetFramework2DServices().Physics2D` 같은 C++ 배관 대신 `Physics`·`Time`·`Input` 같은 이름으로 쓴다(§14).
    [확정: 방향] 이름과 게터의 대응표는 jbroc-rules §7 의 엔진 함수 선언 표와 함께 정한다.
 
-## 13. 전체 예시 - 옛 문법 (지금 파서가 읽는 판)
+## 13. 전체 예시 - 옛 문법 (D-262 이전 이력)
 
-**D-262 이전의 문법이다.** `jbroc` 파서가 이 예시를 읽는 시험이 있어서(`ScriptCompilerParserTests.cpp` 의 `TestTheSyntaxDocumentExampleParses`)
-파서가 새 문법을 읽을 때까지 그대로 둔다. 새 문법의 예시는 §14 다. 편집기 문법 스냅숏(`source/JBroScriptEditor/.../enemy.jscript`)도 이 판이다.
+**D-262 이전의 문법이다.** 중단 당시 파서와 편집기 예시를 설명하는 이력으로 남긴다.
+2026-10-14부터 `ScriptCompilerParserTests.cpp::TestTheSyntaxDocumentExampleParses`는 §14의 새 예시를 읽는다(D-315).
+편집기 문법 스냅숏(`source/JBroScriptEditor/.../enemy.jscript`)도 §14의 새 예시로 교체했다.
 [제안]·[열림] 항목이 들어간 줄에는 주석으로 표시했다.
 
 ```
@@ -791,3 +796,18 @@ script Enemy : IDamageable
     }
 }
 ```
+
+## 15. 언어 서버가 검사하는 범위 (2026-10-14, D-315)
+
+Updates: D-262·§9.2의 null 좁히기 해제 시점·§12의 서비스 이름표, D-263의 파서 중단.
+§13은 이전 문법의 이력이며 현재 파서 회귀의 전체 예시는 §14다.
+
+- `T?`·`?.`·`??`·뒤붙이 `!`와 `ref` 빌림을 파싱하고, borrow를 매개변수/`for` 변수 밖에서 사용하면 의미 오류로 낸다.
+- `is null`·`is not null`과 조건의 `and`·`or`에서 타입을 좁힌다. 대입·빌린 인자의 변경·상태 변경 호출과 핸들 무효화
+  가능 호출 뒤에는 관련 null 보장을 지우므로 다시 검사해야 한다.
+- 공용/2D 엔진 타입과 서비스 이름은 [언어 서버 계획 §5](./jbroscript-language-server-plan.md#5-문법엔진-api)의
+  카탈로그를 쓴다. 출력 인자는 반환 타입으로 투영하며, 엔진의 읽기 전용 필드에 쓰면 의미 오류를 낸다.
+- 사용자/엔진 함수의 오버로드·범위·접근·상속·인터페이스·타입 변환을 검사한다. 포맷은 문법이 유효한 경우 들여쓰기만 바꾼다.
+
+이것은 편집 시 분석의 구현 범위다. §9.4의 `!` 실패 때 콜백 중단, 값 `T?`의 실제 저장 형식,
+`struct`의 생성 C++ 제약과 생성 C++의 경고 없음은 이미터·실행 검증에 남아 있다.

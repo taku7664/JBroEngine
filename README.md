@@ -2,7 +2,8 @@
 
 Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`JBroEngine_old`)을 처음부터 다시 세운 것으로,
 오브젝트-컴포넌트 모델, 스크립트 DLL 핫 리로드, 리플렉션 기반 인스펙터와 직렬화, ImGui 에디터까지가 지금 서 있다.
-게임 로직은 C++ 스크립트로 쓰고, 자작 언어 JBroScript(`.jscript`)는 문법과 컴파일러 규칙만 정리된 상태다.
+게임 로직은 C++ 스크립트로 쓴다. 자작 언어 JBroScript(`.jscript`)는 공용·2D 의미 분석과 언어 서버까지 구현했고,
+게임 실행에 필요한 C++ 이미터는 아직 없다.
 
 자세한 내용은 [위키](https://github.com/taku7664/JBroEngine/wiki)에 있다. 이 문서는 어디에 무엇이 있는지만 말한다.
 
@@ -17,10 +18,12 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 - 렌더러는 프레임 패킷을 모았다가 프레임 끝에 정렬·기록한다. RHI 뒤에 D3D12 가 있다
 - 오디오(`JBroAudio`·`JBroAudioTypes`, miniaudio 위): `AudioSource` 와 2D/3D 리스너, 버스(중첩·센드·솔로)와 버스 이펙트, 디스크 스트리밍, 장치 고르기와 뽑힌 장치 되살리기, 스크립트의 `AudioService`,
   에디터의 미리 듣기·프로젝트 설정·통계. 계획과 실측은 [tasks/audio-plan.md](./tasks/audio-plan.md)
+- JBroScript 공용·2D 언어 서버(`JBroc --lsp`): 진단·완성·탐색·호버·인자 도움말·참조·이름 변경·의미 토큰·접기·들여쓰기 포맷.
+  연결 계약과 사용법은 [tasks/jbroscript-language-server-plan.md](./tasks/jbroscript-language-server-plan.md). 에디터 클라이언트는 별도다
 
 ## 아직 없는 것
 
-- JBroScript 언어와 컴파일러 `jbroc` (렉서·파서와 명령줄 `JBroc` 만 있다. 타입체커·이미터는 아직 없다)
+- JBroScript의 C++ 이미터·게임 실행·에디터 LSP 클라이언트·3D Framework용 언어 서비스
 - 에셋 로드(`AssetSystem::Load` 는 스텁이다). 스프라이트는 아직 텍스처를 받지 못한다
 - 3D 렌더 시스템, 물리 시뮬레이션 본체
 - Web 빌드(스텁만 있다)
@@ -31,7 +34,7 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 source/JBroEngine/
   Modules/           모듈마다 vcxproj 하나. 공개 헤더는 Include/JBro/<이름>/ 아래
   Tests/             단일 테스트 실행 파일(JBroTests). 경계 위반이 컴파일 실패하는지 보는 음성 테스트 포함
-  ThirdParty/        외부 라이브러리를 소스째로 둔다(ImGui, Vulkan-Headers, stb_image)
+  ThirdParty/        외부 라이브러리를 소스째로 둔다(ImGui, Vulkan-Headers, stb, miniaudio, nlohmann-json)
   Localization/      에디터 문구(ko-KR, en-US). jbroc/ 아래는 컴파일러 진단 메시지
 source/JBroLauncher/       런처(C# / WinUI 3). 프로젝트 목록을 관리하고 에디터를 띄운다
 source/JBroLauncher.Tests/ 런처의 순수 로직을 재는 실행 파일
@@ -60,6 +63,8 @@ msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Confi
 
 JBroScript 컴파일러 `JBroc` 은 따로 빌드할 수도 있다(`JBroTests` 를 빌드하면 같이 빌드된다).
 `JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...` 로 쓰고, 에러를 `경로(줄,열): error JBC2010: 메시지` 로 낸다.
+`JBroc --lsp [--locale ko-KR|en-US]`는 stdin/stdout의 LSP 서버다. 초기화에서 활성 `.jproject`를 명시하고,
+공용 분석은 `JBroScriptCompiler`, 엔진 선언은 `JBroScriptApiCatalog2D`, 프로토콜은 `JBroScriptLanguageServer`가 맡는다.
 
 ```bash
 msbuild source/JBroEngine/Modules/JBroc/JBroc.vcxproj -p:Configuration=Debug -p:Platform=x64

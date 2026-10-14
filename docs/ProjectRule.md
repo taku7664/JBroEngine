@@ -254,8 +254,10 @@
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216). 텍스트 레이아웃·아틀라스는 `JBroTextRendering` 이다(D-222). 3D 의 `JBroFramework3DSystem` 도 같은 두 모듈에 기댄다 |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
-  | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
-  | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
+  | Tier E | `JBroScriptCompiler` | 렉서·파서·의미 분석·공용 API DTO·들여쓰기 포맷. `JBroCore` 에만 기댄다. C++ 이미터는 미구현 (D-104·D-315) |
+  | Tier E | `JBroScriptApiCatalog2D` | 실제 공용/2D Tier S 타입과 명시적 공개 선언을 분석용 카탈로그로 변환. 엔진 호스트는 실행하지 않는다 (D-315) |
+  | Tier E | `JBroScriptLanguageServer` | LSP 프로토콜·문서 상태·공용 분석 조회. Core·ScriptCompiler·nlohmann-json에 기댄다 (D-315) |
+  | Tier E | `JBroc` | MSVC 모양의 파일 파싱 진단과 `--lsp` 실행 파일 호스트. LSP의 파일 읽기·열거와 stdio 조립을 맡는다 (D-105·D-315) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-232) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
@@ -1708,7 +1710,7 @@
 - [tasks/structural-refactor-plan.md](../tasks/structural-refactor-plan.md) — 2026-09-12 구조 검토와 D-42~D-55의 근거·단계 계획.
   이 문서의 규칙 중 `(D-42)`~`(D-55)`가 붙은 것은 그 계획의 단계가 끝나기 전까지 현재 코드와 다를 수 있다.
 - [tasks/jbroscript-plan.md](../tasks/jbroscript-plan.md) — JBroScript(`.jscript`)와 리플렉션 계획(D-56).
-  계획일 뿐 확정 계약이 아니다. 언어와 트랜스파일러는 아직 없고, 프로퍼티 리플렉션
+  계획일 뿐 확정 계약이 아니다. C++ 이미터는 아직 없고 분석·LSP의 현재 범위는 D-315와 §16에 있다. 프로퍼티 리플렉션
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장과 코어 패치가 `source/JBroScriptEditor` 에 섰고(D-261) 포크 설치본은 아직 없다.
@@ -1716,7 +1718,9 @@
   사용자 확인 담당 범위·기본 화면 항목은 Decisions에 기록하며, 이 계획의 구현 제안은 확정 계약이 아니다.
 - [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
   컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. ~~`jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.~~
-  D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. `jbroc` 은 렉서·파서에서 멈췄다(D-263).
+  D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. D-263의 분석·LSP 중단은 D-315로 갱신됐다. C++ 이미터는 미구현이다.
+- [tasks/jbroscript-language-server-plan.md](../tasks/jbroscript-language-server-plan.md) — 독립 `JBroc --lsp`의 공용/2D 언어 기능,
+  연결 계약·소스/AST 수명·카탈로그·검증·남은 클라이언트/이미터 범위 (D-315).
 - [tasks/cpp-script-plan.md](../tasks/cpp-script-plan.md) — C++ 게임 스크립트 지원 계획(D-263). 계획일 뿐 확정 계약이 아니다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
@@ -1725,3 +1729,28 @@
 
 두 초안에는 이 문서의 규칙으로 대체된 절이 있다. 해당 절에는 대체 표시를 달아 두었으며,
 대체 결정의 근거는 작업 계획 `tasks/todo.md` 의 Decisions 절에 기록한다.
+
+## 16. JBroScript 언어 서버 후속 계약 (2026-10-14, D-315)
+
+Updates: §2의 도구 파일 접근 경계, §3의 컴파일러 모듈 목록, D-263의 분석·LSP 중단, D-262의 편집 시 타입 분석.
+사용자가 승인한 독립 서버의 계약이며 C++ 이미터·게임 실행·에디터 클라이언트는 이 계약의 구현 범위 밖이다.
+
+- LSP 메시지는 JSON-RPC 2.0과 UTF-8 `Content-Length` framing으로 stdin/stdout에 주고받으며,
+  stdout에 로그를 섞지 않는다. 로그는 stderr다. (MUST)
+- `initialize.initializationOptions.projectFile`로 활성 `.jproject`를 명시한다. 서버는 `Framework: 2D`와
+  자신의 엔진 버전에 일치하는 프로젝트만 받는다. 프로세스 하나가 클라이언트 하나/프로젝트 하나를 맡는다. (MUST)
+- 프로젝트 파일은 YAML을 유지한다. JSON은 LSP 경계에만 사용하고 JSON 타입을 공개 분석 API에 노출하지 않는다. (MUST)
+- `JBroScriptCompiler`는 API DTO와 소스 글자를 받아 분석하며 엔진 타입 헤더에 의존하지 않는다.
+  공용/2D native 선언은 `JBroScriptApiCatalog2D`에서 실제 함수·멤버 포인터와 명시적 선언 표로 검사한다. (MUST)
+- `JBroScriptLanguageServer`의 프로젝트·스크립트·SDK 소스 읽기와 스크립트 열거는 `WorkspaceFiles`로
+  실행 파일 호스트 `JBroc`에 위임한다. 이 독립 도구 호스트는 표준 파일 시스템으로 소스를 읽고 열거할 수 있다.
+  진단 번역표는 기존 Compiler의 `DiagnosticMessages::Load`가 §2의 진단 파일 예외로 읽는다.
+  엔진 런타임 모듈의 `IPlatform` 경계는 그대로다. 카탈로그의 경로 계산은 정의 위치 메타데이터만 만들며
+  헤더를 읽거나 파싱하지 않는다. (MUST)
+- 문서 분석 결과는 소스와 AST를 함께 소유한다. 저장하지 않은 열린 버퍼가 디스크보다 우선하며,
+  LSP 범위는 UTF-16 좌표로 내보낸다. 이전 문서 버전은 적용하지 않는다. (MUST)
+- 이름 변경은 사용자 심볼의 버전이 있는 `WorkspaceEdit`으로만 반환한다. SDK 심볼은 읽기 전용이고
+  서버는 이름 변경·포맷·저장 알림으로 프로젝트 파일을 쓰지 않는다. (MUST)
+
+지원 요청·클라이언트 파일 감시 책임·null 재검사·출력 반환 투영·포맷 보존 범위와 검증은
+[언어 서버 계획](../tasks/jbroscript-language-server-plan.md)에 둔다. D-263과 D-262의 이전 본문은 결정 이력으로 보존한다.
