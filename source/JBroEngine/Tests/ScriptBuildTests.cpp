@@ -547,8 +547,30 @@ namespace
         std::ofstream(header, std::ios::binary) << declaration;
         const UInt64 generation = editor.GetScriptModule()->GetGeneration();
         Check(editor.GetCommands().Execute(MakeOwnerPtr<NoteCommand>()), "an edit goes into the history");
-        Check(BuildAndWait(editor), "the build with a new field starts");
-        Check(editor.GetScriptBuildState() == State::Succeeded, "and succeeds");
+        // **디버거가 PDB 를 쥐고 있어도 다시 빌드된다**(D-319). 디버거처럼 지금 PDB 를 쓰기를 막은 채 연다 - 같은 이름으로 다시 쓰던 때는
+        // 링커가 LNK1201 로 실패하고 DLL 까지 지웠다.
+        const auto scriptPdbs = [&root]() {
+            Array<fs::path> found;
+            for (const fs::directory_entry& entry : fs::directory_iterator(root / "x64" / "Debug"))
+            {
+                const std::string name = entry.path().filename().string();
+                if (name.rfind("GameScript", 0) == 0 && entry.path().extension() == ".pdb")
+                {
+                    found.Add(entry.path());
+                }
+            }
+            return found;
+        };
+        const Array<fs::path> firstPdbs = scriptPdbs();
+        Check(firstPdbs.Size() == 1 && firstPdbs[0].filename() != "GameScript.pdb", "the build writes one PDB under a name of its own");
+        const HANDLE heldPdb = CreateFileW(firstPdbs[0].c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        Check(heldPdb != INVALID_HANDLE_VALUE, "the PDB is held the way a debugger holds it");
+        const Bool heldBuildStarted = BuildAndWait(editor);
+        const Array<fs::path> heldPdbs = scriptPdbs();
+        CloseHandle(heldPdb);
+        Check(heldBuildStarted, "the build with a new field starts");
+        Check(editor.GetScriptBuildState() == State::Succeeded, "and succeeds while the old PDB is held");
+        Check(heldPdbs.Size() == 2 && fs::exists(firstPdbs[0]), "the new PDB sits beside the held one, which could not be removed");
         Check(editor.GetScriptModule()->GetGeneration() != generation, "the library is swapped");
         Array<GameScriptBase*> scripts;
         canvas->CollectScripts(scripts);
