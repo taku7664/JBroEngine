@@ -1246,6 +1246,10 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasNoTransformByEquality"));
         const auto missingScriptRefByEquality = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_MissingScriptRefByEquality"));
+        const auto ownerIdentityEqual = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_OwnerIdentityEqual"));
+        const auto transformIdentityEqual = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_TransformIdentityEqual"));
         const auto controlHasTransformSafe = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasTransformSafe"));
         using ControlDisableOwnerSafe = void (*)(JBro::GameScriptBase*);
@@ -1337,6 +1341,8 @@ namespace
                 "a missing engine handle compares equal to null and unequal comparison is false");
             Check(missingScriptRefByEquality != nullptr && missingScriptRefByEquality(attached),
                 "a missing script reference compares equal to null without constructing its target");
+            Check(ownerIdentityEqual != nullptr && ownerIdentityEqual(attached),
+                "two game object handles to the same instance compare equal in a generated script");
             controlActive(attached);
             JBro::CanvasFileError canvasError;
             JBro::String saved;
@@ -1377,6 +1383,8 @@ namespace
                 "Vector2 compound property assignment writes both vector components");
             Check(false == controlHasNoTransformByEquality(attached),
                 "a valid engine handle is not equal to null in either operand order");
+            Check(transformIdentityEqual != nullptr && transformIdentityEqual(attached),
+                "component handles with the same object and component ids compare equal");
             Check(controlUseCounter(attached) == 6 && controlUseCounter(attached) == 7,
                 "class constructors, const fields and static members execute in the game DLL");
             JBro::GameScriptBase* inheritedScript = controlCanvas.AttachScript(

@@ -1190,6 +1190,13 @@ namespace JBro::ScriptCompiler
                                     + "JBro::ScriptGuard::IsPresent(" + handle.code + ")", {"Bool", false}};
                             }
                         }
+                        if (node.Text == "!=" && (IsHandle(left.type)
+                            || (left.type.ref && IsScript(left.type))))
+                        {
+                            // Engine handles return JBro::Bool from operator==, so C++20 does
+                            // not synthesize operator!= from that result type.
+                            return {"!(" + left.code + " == " + right.code + ")", {"Bool", false}};
+                        }
                     }
                     const bool vectorPair = left.type.name == "Vector2" && right.type.name == "Vector2"
                         && (node.Text == "+" || node.Text == "-");
