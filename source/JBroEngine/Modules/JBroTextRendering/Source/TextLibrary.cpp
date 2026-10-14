@@ -16,7 +16,9 @@ namespace JBro
 {
     namespace
     {
-        constexpr UInt32 SlotMask = (1u << 28) - 1;
+        // 핸들 번호에서 슬롯만 떼는 마스크다. **에셋 시스템의 것을 쓴다** - 핸들 번호의 위 8 비트가 타입이 되면서(D-322 (2)) 여기 따로 적어 둔 28 비트가
+        // 타입을 슬롯에 섞어, 폰트(타입 9)의 1 번 슬롯이 `0x09000001` 로 읽혀 폰트 표를 1 억 5 천만 칸으로 늘렸다(1.2 GB, 사용자 시나리오 시험 중 발견).
+        constexpr UInt32 SlotMask = (1u << 24) - 1; // `AssetSystem::SlotMask` 와 같아야 한다(그쪽은 private)
         // 태스크 하나가 뜨는 글리프 수다. 워커끼리 나눠 갖고, 끝난 덩어리부터 아틀라스에 들어간다.
         constexpr UInt32 PrewarmChunk = 128;
 
@@ -590,6 +592,11 @@ namespace JBro
     UInt64 TextLibrary::GetUploadCount() const
     {
         return m_uploadCount;
+    }
+
+    std::size_t TextLibrary::GetFontSlotCount() const
+    {
+        return m_fonts.Size();
     }
 
     UInt32 TextLibrary::GetPageTextureCount() const

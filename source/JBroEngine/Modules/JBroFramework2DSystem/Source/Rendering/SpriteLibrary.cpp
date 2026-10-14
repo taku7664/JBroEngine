@@ -10,7 +10,8 @@ namespace JBro
 {
     namespace
     {
-        constexpr UInt32 SlotMask = (1u << 28) - 1;
+        // 핸들 번호에서 슬롯만 떼는 마스크다. 에셋 시스템의 것을 쓴다 - 따로 적어 둔 28 비트는 타입이 위 8 비트로 옮겨진 뒤(D-322 (2)) 타입을 슬롯에 섞었다(`TextLibrary` 와 같은 고장).
+        constexpr UInt32 SlotMask = (1u << 24) - 1; // `AssetSystem::SlotMask` 와 같아야 한다(그쪽은 private)
     }
 
     void SpriteLibrary::Initialize(AssetSystem* assets, Renderer* renderer)

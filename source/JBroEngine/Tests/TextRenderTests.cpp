@@ -662,6 +662,8 @@ namespace
             Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY) && minX < 0.0f && maxX > 0.0f
                 && minY < 0.0f && maxY > 0.0f, "the centred text reports a block around its origin");
             Check(texts->GetLibrary().GetPageTextureCount() == 1, "one atlas page is on the GPU");
+            // 폰트 표는 슬롯 번호만큼 자란다. 핸들 번호의 위 8 비트(타입)를 슬롯에 섞던 때는 폰트 하나에 1 억 5 천만 칸을 잡았다(D-322 뒤의 고장).
+            Check(texts->GetLibrary().GetFontSlotCount() < 1024, "the font table grows by slot, not by the packed handle number");
             const JBro::UInt64 uploads = texts->GetLibrary().GetUploadCount();
             const JBro::UInt64 uploadedBefore = texts->GetLibrary().GetUploadedBytes();
             const JBro::UInt64 relayouts = texts->GetRelayoutCount();

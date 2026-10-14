@@ -109,6 +109,8 @@ namespace JBro
         };
         void FinishPrewarm(UInt32 slot, const PrewarmResult& result, Bool completed);
         UInt32 GetPageTextureCount() const;
+        // 폰트 표의 칸 수다. 에셋 풀의 폰트 슬롯 수만큼만 자라야 한다 - 핸들의 타입 비트가 슬롯에 섞이면 수억 칸이 된다(시험이 본다).
+        std::size_t GetFontSlotCount() const;
 
     private:
         struct FontEntry
