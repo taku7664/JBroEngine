@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  JBro 값 타입을 디버거에서 값으로 보인다(D-319). `Float` 이 `{Value}` 구조체가 아니라 수로, `Array` 가 원소 목록으로 보인다.
+  JBro Script Editor 의 디버그 어댑터가 붙을 때 싣는다(`.nvload`). Visual Studio 에서도 같은 파일을 쓸 수 있다.
+  타입의 멤버 이름을 바꾸면 여기도 고친다 - 틀린 식은 그 타입만 날것으로 보이고 오류는 나지 않는다.
+-->
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="JBro::Float">
+    <DisplayString>{Value}</DisplayString>
+  </Type>
+  <Type Name="JBro::Bool">
+    <DisplayString>{Value}</DisplayString>
+  </Type>
+  <Type Name="JBro::IntegerType&lt;*&gt;">
+    <DisplayString>{Value}</DisplayString>
+  </Type>
+
+  <!-- `std::string` 을 물려받는다. MSVC STL 의 짧은 글자 최적화를 따라 버퍼나 포인터를 읽는다. -->
+  <Type Name="JBro::String">
+    <DisplayString Condition="_Mypair._Myval2._Myres &lt; 16">{_Mypair._Myval2._Bx._Buf,s8}</DisplayString>
+    <DisplayString>{_Mypair._Myval2._Bx._Ptr,s8}</DisplayString>
+    <StringView Condition="_Mypair._Myval2._Myres &lt; 16">_Mypair._Myval2._Bx._Buf,s8</StringView>
+    <StringView>_Mypair._Myval2._Bx._Ptr,s8</StringView>
+    <Expand>
+      <Item Name="[size]">_Mypair._Myval2._Mysize,d</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="JBro::Array&lt;*&gt;">
+    <DisplayString>{{ size={m_size,d} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">m_size,d</Item>
+      <Item Name="[capacity]">m_capacity,d</Item>
+      <ArrayItems>
+        <Size>m_size</Size>
+        <ValuePointer>m_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="JBro::Vector2">
+    <DisplayString>({x}, {y})</DisplayString>
+  </Type>
+  <Type Name="JBro::Vector3">
+    <DisplayString>({x}, {y}, {z})</DisplayString>
+  </Type>
+  <Type Name="JBro::Vector4">
+    <DisplayString>({x}, {y}, {z}, {w})</DisplayString>
+  </Type>
+  <Type Name="JBro::Quaternion">
+    <DisplayString>({x}, {y}, {z}, {w})</DisplayString>
+  </Type>
+  <Type Name="JBro::Color">
+    <DisplayString>(R={R}, G={G}, B={B}, A={A})</DisplayString>
+  </Type>
+
+  <!-- 살아 있으면 가리키는 것을, 아니면 null 을 보인다. -->
+  <Type Name="JBro::SafePtr&lt;*&gt;">
+    <DisplayString Condition="m_controlBlock == 0 || m_controlBlock-&gt;Alive == 0">null</DisplayString>
+    <DisplayString>{*m_ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem Condition="m_controlBlock != 0 &amp;&amp; m_controlBlock-&gt;Alive != 0">*m_ptr</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="JBro::OwnerPtr&lt;*&gt;">
+    <DisplayString Condition="m_ptr == 0">null</DisplayString>
+    <DisplayString>{*m_ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem Condition="m_ptr != 0">*m_ptr</ExpandedItem>
+    </Expand>
+  </Type>
+
+  <Type Name="JBro::InstanceRef">
+    <DisplayString>{{ object={ObjectId} component={ComponentId} }}</DisplayString>
+  </Type>
+</AutoVisualizer>
