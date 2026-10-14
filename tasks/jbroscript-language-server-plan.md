@@ -282,8 +282,11 @@ native `string`과 스크립트 `String`의 대응 누락에는 각각 경로·�
 `Time.DeltaTime` 자동완성, 저장하지 않은 null 검사 삭제 시 `JBC3007`, `script` 철자 훼손 시
 `JBC2001`, 각각 복구 시 진단 해제, 디스크 원본 보존을 확인했다. Debug/Release 서버 재빌드와
 실제 프로세스 시험 각 35개·관련 C++ 7개 suite, 편집기 번역·계정·문법 시험도 통과했다.
-확장 호스트 API로 Problems 진단 자료를 검증했으며, 설치본 화면의 밑줄·패널 렌더링을 별도로
-촬영·검사한 결과는 아니다. 실행·수동 재현 방법은 [편집기 README](../source/JBroScriptEditor/README.md#jbroscript-편집-진단)에 있다.
+확장 호스트 API로 Problems 진단 자료를 검증했다. 이어 격리 프로필의 실제 Code-OSS 개발 창에서
+`SyntaxErrorDemo.jscript`의 `JBC2001`과 `NullErrorDemo.jscript`의 `JBC3007`이 밑줄과 Problems 목록에
+함께 표시된 화면을 직접 확인·촬영했다. 로컬 증거는
+`F:/AI/builds/jbroscript-language-server/editor-null-problems.png`다. 설치본 화면은 확인하지 않았다.
+실행·수동 재현 방법은 [편집기 README](../source/JBroScriptEditor/README.md#jbroscript-편집-진단)에 있다.
 
 이 연결은 JBroScript 파서·의미 분석의 결과를 보여준다. C++ 이미터, C++ 컴파일 결과를 Problems에
 가져오는 태스크, 게임 실행·엔진 ImGui 패널·3D Framework·설치 패키지는 구현 범위 밖이다.

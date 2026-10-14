@@ -44,6 +44,7 @@
   → 개발 편집기 연결 완료 2026-10-14 · `b35d370e` · `6b21b5c5`.
   `jbro-languages`가 프로젝트별 서버를 시작하고 저장하지 않은 파일의 문법·의미 분석 진단을 Problems에 전달한다.
   Code-OSS 확장 호스트에서 `JBC2001`·`JBC3007` 표시와 수정 후 해제·자동완성을 확인했다.
+  격리 프로필의 실제 개발 창에서도 두 오류의 밑줄과 Problems 목록을 화면으로 확인했다.
   Debug/Release의 실제 서버 프로세스 시험 각 35개와 관련 C++ 7개 suite가 통과했다.
   [연결·검증 기록](./jbroscript-language-server-plan.md#8-2026-10-14-편집기-연결)과
   [실행 방법](../source/JBroScriptEditor/README.md#jbroscript-편집-진단)을 따른다.
