@@ -64,7 +64,10 @@
   - ~~**빌드 도구 감지와 안내.** MSBuild 만 있으면 빌드 도구로 보던 것을 스크립트 툴셋의 컴파일러까지 보게 하고, 없으면 무엇을 깔지 말한다~~
     → 완료 2026-10-14 · 35e87f37 · `ScriptBuild::FindMSBuildWithToolset`·`LocateMSBuild`, `EditorApplication::BuildScripts`·`PollScriptBuild`(`MSB8036`).
     실제 에디터에서 `vswhere` 를 못 찾게 띄워 알림 글을 화면으로 봤다. 알림을 눌러 브라우저가 열리는 것, SDK 알림, 빌드 도구만 깐 기계의 빌드는 재지 않았다.
-  - `[진행 예정]` **디버거 - DbgEng 이 스크립트 DLL 을 디버깅할 수 있다는 것까지 쟀다. 다음은 어댑터(DAP)다.** VS Code 의 C++ 디버거(`vsdbg`)는 라이선스상
+  - `[일부 구현]` **디버그 어댑터가 섰다(D-319). 확장에 붙이는 일은 넘긴다** - 연결 방법·요청·남은 것은 [debug-adapter.md](./debug-adapter.md).
+    `source/JBroDebugAdapter`(DAP·DbgEng·데이터 모델·natvis), 스크립트 PDB 를 빌드마다 다른 이름으로(`JBro.GameScript.targets`), `JBroTests` 의 `DebugAdapter` 묶음.
+    실제 에디터에서 중단점·스택·natvis 값·한 줄 가기·나가기·일시정지·붙은 채 다시 빌드한 복사본의 중단점·떼기 뒤 에디터 생존을 확인했다.
+  - ~~`[진행 예정]` **디버거 - DbgEng 이 스크립트 DLL 을 디버깅할 수 있다는 것까지 쟀다. 다음은 어댑터(DAP)다.**~~ → 위 D-319 로 섰다. 아래는 그 실측 기록이다. VS Code 의 C++ 디버거(`vsdbg`)는 라이선스상
     마이크로소프트 제품 전용이라 싣지 못한다. 2026-10-14 실측(스크래치 프로브, 커밋하지 않았다):
     - **재배포용 DbgEng 은 된다.** NuGet `Microsoft.Debugging.Platform.DbgEng` 20260319.1511.0(Microsoft·WinDbg 소유, 21 MB, `dbgeng`·`dbghelp`·`dbgmodel`·`msdia140`·
       헤더·lib, 엔진 10.0.29547)으로 떠 있는 에디터에 붙어 `NewScript.cpp:19` 소스 줄 중단점에서 멈췄다. 호출 스택이 스크립트 DLL 에서 엔진(`ScriptSystem::OnUpdate`
@@ -2992,6 +2995,20 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-319. 스크립트 디버거는 재배포용 DbgEng 으로 만든 DAP 어댑터 `source/JBroDebugAdapter` 이고, 스크립트 PDB 는 빌드마다 다른 이름이다.** (2026-10-14,
+  사용자: "디버거 어댑터 만들기 진행해줘", 결정 넷 - PDB 잠금은 "빌드마다 다른 PDB 이름", 위치는 "source/JBroDebugAdapter", 확장 연결은 "어댑터만 만들고 넘기기", DLL 은 "리포에 DLL을 넣기")
+  Updates: D-299 의 스크립트 빌드 산출물(PDB 이름), D-318 의 디버거 남은 일.
+  **PDB:** `JBro.GameScript.targets` 가 `ProgramDatabaseFile` 을 `$(TargetName).<빌드 시각>.pdb` 로 두고, 링크 전에 지울 수 있는 옛 PDB 를 조용히 지운다. 디버거가 PDB 를 쥐고 있으면
+  같은 이름으로 다시 쓰다 LNK1201 로 실패하고 링커가 DLL 까지 지웠다(실측). 이름이 링크 명령줄에 들어가 바뀐 것이 없어도 빌드마다 다시 링크한다.
+  **DbgEng:** NuGet `Microsoft.Debugging.Platform.DbgEng` 20260319.1511.0 의 `dbgeng`·`dbgcore`·`dbgmodel`·`dbghelp` 를 리포에 둔다. Windows SDK 라이선스의 REDIST 목록
+  "Debugging Tools for Windows" 가 이 넷을 프로그램의 일부로 배포하도록 허락한다. 목록에 없는 `msdia140.dll` 은 넣지 않았고 없이 PDB 를 읽는다. `System32` 의 DbgEng 은 dbghelp 를 거절해 쓰지 않는다.
+  **어댑터:** 엔진 모듈은 JBroCore(값 타입)만 링크한다. DbgEng 은 한 스레드에서만 부르고, 읽기 스레드는 요청을 큐에 넣는다. 도는 동안 온 요청은 `DebugBreakProcess` 로 몰래 세워 처리한다.
+  중단점은 소스 줄로 들고 스크립트 모듈(파일 이름이 `GameScript` 로 시작)이 실릴 때마다 대상을 세우고 `ld` 로 심볼을 읽어 그 모듈에 다시 건다. 변수는 데이터 모델로 읽고 `JBro.natvis` 를 싣는다.
+  `DEBUG_PROCESS_DETACH_ON_EXIT` 로 어댑터가 죽어도 에디터를 끝내지 않는다(`DebugSetProcessKillOnExit` 는 듣지 않았다). 라이브러리로 쓸 때는 `DEBUG_ENGOPT_INITIAL_BREAK` 를 켜야 붙는다.
+  **고친 것(실측으로 찾음):** 붙을 때의 끼어들기 int 3 이 첫 사용자 멈춤으로 보고됐다, 합성 객체(매개변수 목록)에 `EnumerateRawValues` 를 부르면 dbgmodel 안에서 죽었다, 기호 경로가 비면 심볼을 읽지 않았다,
+  `.reload /f` 는 복사본의 모듈 이름을 받지 않았다, 소멸자에서 출력 콜백이 COM 포인터보다 먼저 지워져 죽었다, `Array` 크기가 16 진수로 보였다.
+  확장(`jbro-engine` 의 `debuggers` 기여)은 이 결정에 넣지 않았다 - [debug-adapter.md](./debug-adapter.md) 를 보고 확장 담당자가 붙인다.
+
 - **D-318. 스크립트 컴파일러는 MSVC 다. 에디터는 스크립트 툴셋의 컴파일러가 든 설치만 빌드 도구로 보고, 없으면 무엇을 깔지 말하고 받는 곳을 연다.** (2026-10-14,
   사용자: "MSVC를 그러니까 마이크로소프트가 만든 컴파일러를 쓰는 게 좋다고 생각하기는 해", 이어서 감지·안내 → 디버거 실측 순서에 "그 순서대로 진행해 줘")
   Updates: D-299 의 MSBuild 찾기와 빌드 도구가 없을 때의 알림.
@@ -3274,6 +3291,8 @@ EditorApplication::Tick
   `Canvas::AppendRootsInOrder` 로 읽은 뿌리를 파일 차례로 붙인다(이미 있던 뿌리는 제자리 - 레이어 에셋 읽기). 시험이 다시 읽기 두 번의 차례를 보고, 뮤테이션(붙이기 빼기)이 그 단언에서 죽었다.
   이 뒤의 전체 시험에서 `EditorApplication` 의 키 입력 시험이 돌 때마다 다른 곳(여러 줄 칸의 Enter·기즈모 E·R·이름 칸 입력)에서 떨어졌다. 뿌리 순서 수정을 뺀 실행 파일로도
   세 번 다 같은 종류로 떨어져 이 수정 탓이 아니다. 같은 날 아침에는 여섯 번 다 지났고 그사이 다른 에이전트가 스크립트 편집기(`Code - OSS`) 창 여럿을 띄웠다 - 그 탓으로 보지만 재지 않았다.
+  같은 날 저녁 D-319 의 전체 시험에서는 `EditorGuideFocus` 의 "with the veil down the probe shortcut runs" 가 떨어졌다. 따로 돌리면 이 브랜치 실행 파일이 3 번 중 3 번,
+  D-319 전의 main 실행 파일이 3 번 중 1 번 지나 둘 다 흔들린다 - 그때 Minecraft·`Code - OSS`·브라우저 창이 떠 있었다. 키 입력 시험이 앞 창의 영향을 받는 것으로 보지만 재지 않았다.
 
 
 - **D-301. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **섰다 - D-302 (16) 이 D-302 의 이름으로 구현했다.**

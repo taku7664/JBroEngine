@@ -90,6 +90,8 @@
   3.4 도 섰다(D-299) - 파일 메뉴 `스크립트 빌드` 가 MSBuild 를 자식 프로세스로 띄우고, 오류는 `빌드 결과` 패널에서 눌러 에디터 설정에서 고른 편집기로 그 줄을 연다. 컴파일러는 MSVC 이고 IDE 는 요구하지 않는다 - 에디터는 `v145` 컴파일러가 든 설치만 빌드 도구로 보고 없으면 무엇을 깔지 알린다(D-318).
   3.5 도 섰다(D-300) - 빌드가 성공하거나 DLL 파일이 바뀌면 캔버스의 스크립트를 글자로 떠 두고 DLL 을 갈아 끼운 뒤 같은 자리·같은 번호로 되살린다(재생 중이면 멈춘 뒤).
   담당자에게 넘길 남은 일이 §3.3 끝에 있다
+- [tasks/debug-adapter.md](./tasks/debug-adapter.md) — 스크립트 디버그 어댑터(D-319). `source/JBroDebugAdapter` 가 DAP 로 에디터에 DbgEng 으로 붙어 스크립트 DLL 을 디버깅한다.
+  확장(`jbro-engine` 의 `debuggers`)에 붙일 때 받는 요청·인자·동작·남은 것이 있다. 스크립트 PDB 는 빌드마다 다른 이름이다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
