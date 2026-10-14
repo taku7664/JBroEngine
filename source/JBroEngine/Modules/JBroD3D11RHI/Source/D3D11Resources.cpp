@@ -237,15 +237,18 @@ namespace JBro::Internal
         const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == nullptr || m_frameActive
             || desc.extent.width == 0 || desc.extent.height == 0
-            || desc.depthOrLayers == 0 || desc.mipLevels == 0 || desc.sampleCount != 1
+            // 배열과 3D 는 아직 받지 않는다(D3D12 와 같은 계약).
+            || desc.depthOrLayers != 1 || false == IsMipCountValid(desc.extent, desc.mipLevels) || desc.sampleCount != 1
             || desc.format == TextureFormat::Unknown
             || usages == 0 || (usages & ~TextureUsageMask) != 0
             || (renderTarget && depthStencil)
             || (depthStencil && desc.format != TextureFormat::D32Float)
+            || (depthStencil && desc.mipLevels != 1)
             || (false == depthStencil && desc.format == TextureFormat::D32Float))
         {
             return {};
         }
+        const Bool sampled = HasTextureUsage(desc.usage, TextureUsage::Sampled);
         UInt32 slot = MaxTextures;
         for (UInt32 at = 0; at < MaxTextures; ++at)
         {
@@ -264,10 +267,12 @@ namespace JBro::Internal
         native.Height = desc.extent.height;
         native.MipLevels = desc.mipLevels;
         native.ArraySize = desc.depthOrLayers;
-        native.Format = ToNativeFormat(desc.format);
+        // 읽기도 하는 깊이는 typeless 로 만들고 뷰마다 포맷을 준다(DSV 는 D32, SRV 는 R32). D32_FLOAT 그대로는 셰이더 자원으로
+        // 묶는 텍스처를 만들 수 없다 - 깊이 읽기가 D3D11 에서 막혔던 까닭이 이것이다(postprocess-plan §1).
+        native.Format = depthStencil && sampled ? DXGI_FORMAT_R32_TYPELESS : ToNativeFormat(desc.format);
         native.SampleDesc.Count = 1;
         native.Usage = D3D11_USAGE_DEFAULT;
-        if (HasTextureUsage(desc.usage, TextureUsage::Sampled))
+        if (sampled)
         {
             native.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
         }
@@ -286,17 +291,36 @@ namespace JBro::Internal
             return {};
         }
         Bool viewsMade = true;
-        if (renderTarget)
+        const DXGI_FORMAT viewFormat = depthStencil ? DXGI_FORMAT_R32_FLOAT : ToNativeFormat(desc.format);
+        for (UInt32 mip = 0; renderTarget && viewsMade && mip < desc.mipLevels; ++mip)
         {
-            viewsMade = SUCCEEDED(m_device->CreateRenderTargetView(state.texture.Get(), nullptr, &state.renderTargetView));
+            D3D11_RENDER_TARGET_VIEW_DESC viewDesc = {};
+            viewDesc.Format = viewFormat;
+            viewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+            viewDesc.Texture2D.MipSlice = mip;
+            viewsMade = SUCCEEDED(m_device->CreateRenderTargetView(state.texture.Get(), &viewDesc, &state.renderTargetViews[mip]));
         }
         if (viewsMade && depthStencil)
         {
-            viewsMade = SUCCEEDED(m_device->CreateDepthStencilView(state.texture.Get(), nullptr, &state.depthStencilView));
+            D3D11_DEPTH_STENCIL_VIEW_DESC viewDesc = {};
+            viewDesc.Format = DXGI_FORMAT_D32_FLOAT;
+            viewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+            viewsMade = SUCCEEDED(m_device->CreateDepthStencilView(state.texture.Get(), &viewDesc, &state.depthStencilView));
         }
-        if (viewsMade && HasTextureUsage(desc.usage, TextureUsage::Sampled))
+        if (viewsMade && sampled)
         {
-            viewsMade = SUCCEEDED(m_device->CreateShaderResourceView(state.texture.Get(), nullptr, &state.shaderResourceView));
+            D3D11_SHADER_RESOURCE_VIEW_DESC viewDesc = {};
+            viewDesc.Format = viewFormat;
+            viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+            viewDesc.Texture2D.MipLevels = desc.mipLevels;
+            viewsMade = SUCCEEDED(m_device->CreateShaderResourceView(state.texture.Get(), &viewDesc, &state.shaderResourceView));
+            for (UInt32 mip = 0; viewsMade && desc.mipLevels > 1 && mip < desc.mipLevels; ++mip)
+            {
+                viewDesc.Texture2D.MostDetailedMip = mip;
+                viewDesc.Texture2D.MipLevels = 1;
+                viewsMade = SUCCEEDED(
+                    m_device->CreateShaderResourceView(state.texture.Get(), &viewDesc, &state.mipShaderResourceViews[mip]));
+            }
         }
         if (false == viewsMade)
         {
@@ -401,7 +425,8 @@ namespace JBro::Internal
         return true;
     }
 
-    Bool D3D11Device::ResolveRenderTargetView(TextureHandle texture, ID3D11RenderTargetView*& view)
+    Bool D3D11Device::ResolveRenderTargetView(TextureHandle texture, UInt32 mipLevel, ID3D11RenderTargetView*& view,
+        Extent2D& extent)
     {
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
         {
@@ -410,7 +435,7 @@ namespace JBro::Internal
         if (texture.index < TextureResourceBase)
         {
             const UInt32 index = texture.index - BackBufferTextureBase;
-            if (index >= MaxSwapchains)
+            if (index >= MaxSwapchains || mipLevel != 0)
             {
                 return false;
             }
@@ -421,6 +446,7 @@ namespace JBro::Internal
                 return false;
             }
             view = state.backBufferView.Get();
+            extent = state.desc.extent;
             return true;
         }
         const UInt32 slot = texture.index - TextureResourceBase;
@@ -429,11 +455,13 @@ namespace JBro::Internal
             return false;
         }
         D3D11TextureState& state = m_textures[slot];
-        if (false == state.occupied || state.generation != texture.generation || state.renderTargetView == nullptr)
+        if (false == state.occupied || state.generation != texture.generation || mipLevel >= state.desc.mipLevels
+            || state.renderTargetViews[mipLevel] == nullptr)
         {
             return false;
         }
-        view = state.renderTargetView.Get();
+        view = state.renderTargetViews[mipLevel].Get();
+        extent = {GetMipExtent(state.desc.extent.width, mipLevel), GetMipExtent(state.desc.extent.height, mipLevel)};
         return true;
     }
 
@@ -457,7 +485,7 @@ namespace JBro::Internal
         return true;
     }
 
-    Bool D3D11Device::ResolveShaderResourceView(TextureHandle texture, ID3D11ShaderResourceView*& view)
+    Bool D3D11Device::ResolveShaderResourceView(TextureHandle texture, UInt32 mipLevel, ID3D11ShaderResourceView*& view)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase)
         {
@@ -474,7 +502,19 @@ namespace JBro::Internal
             return false;
         }
         view = state.shaderResourceView.Get();
-        return true;
+        if (mipLevel == AllMips)
+        {
+            return true;
+        }
+        if (mipLevel >= state.desc.mipLevels)
+        {
+            return false;
+        }
+        if (state.desc.mipLevels > 1)
+        {
+            view = state.mipShaderResourceViews[mipLevel].Get();
+        }
+        return view != nullptr;
     }
 
     // ── 샘플러 ──────────────────────────────────────────────────────────────

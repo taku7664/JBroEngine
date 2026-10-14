@@ -67,6 +67,7 @@ namespace JBro::Internal
             constants = {};
         }
         m_descriptorsDirty = false;
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -82,7 +83,8 @@ namespace JBro::Internal
         VulkanDevice::AttachmentView colors[MaxColorAttachments];
         for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
-            if (false == m_device->ResolveAttachment(desc.colorAttachments.data[index].texture, colors[index])
+            const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
+            if (false == m_device->ResolveAttachment(attachment.texture, attachment.mipLevel, colors[index])
                 || colors[index].aspect != VK_IMAGE_ASPECT_COLOR_BIT)
             {
                 return false;
@@ -90,7 +92,7 @@ namespace JBro::Internal
         }
         VulkanDevice::AttachmentView depth;
         if (desc.depthStencilAttachment != nullptr
-            && (false == m_device->ResolveAttachment(desc.depthStencilAttachment->texture, depth)
+            && (false == m_device->ResolveAttachment(desc.depthStencilAttachment->texture, 0, depth)
                 || depth.aspect != VK_IMAGE_ASPECT_DEPTH_BIT))
         {
             return false;
@@ -108,8 +110,9 @@ namespace JBro::Internal
             // 내용을 버리는 첨부는 UNDEFINED 에서 와도 된다 - 전이가 값을 지켜 줄 필요가 없다.
             const VkImageLayout from = attachment.loadOperation == LoadOperation::Load ? *view.layout
                                                                                          : VK_IMAGE_LAYOUT_UNDEFINED;
+            // 그리는 mip 하나만 옮긴다. 같은 텍스처의 다른 mip 은 이 패스가 읽는 것일 수 있다(블룸의 내림 사슬).
             VulkanDevice::TransitionImage(m_commands, view.image, VK_IMAGE_ASPECT_COLOR_BIT, from,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, view.mip, 1);
             *view.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             VkRenderingAttachmentInfo& info = colorInfos[index];
             info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -121,7 +124,7 @@ namespace JBro::Internal
                 attachment.clearColor.blue, attachment.clearColor.alpha}};
             if (view.sampled)
             {
-                m_sampledAtEnd[m_sampledAtEndCount++] = attachment.texture;
+                m_sampledAtEnd[m_sampledAtEndCount++] = {attachment.texture, view.mip, VK_IMAGE_ASPECT_COLOR_BIT};
             }
         }
         VkRenderingAttachmentInfo depthInfo = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
@@ -139,6 +142,12 @@ namespace JBro::Internal
             depthInfo.storeOp = ToNativeStore(desc.depthStencilAttachment->depthStoreOperation);
             depthInfo.clearValue.depthStencil = {desc.depthStencilAttachment->clearDepth,
                 desc.depthStencilAttachment->clearStencil};
+            // 읽기도 하는 깊이는 패스 뒤에 셰이더 읽기 레이아웃으로 돌린다 - 깊이 읽기가 Vulkan 에서 막혔던 까닭이 이것이다
+            // (`ResolveSampledTexture` 는 그 레이아웃만 받는다).
+            if (depth.sampled)
+            {
+                m_sampledAtEnd[m_sampledAtEndCount++] = {desc.depthStencilAttachment->texture, 0, VK_IMAGE_ASPECT_DEPTH_BIT};
+            }
         }
         VkRenderingInfo rendering = {VK_STRUCTURE_TYPE_RENDERING_INFO};
         rendering.renderArea.extent = extent;
@@ -150,6 +159,15 @@ namespace JBro::Internal
         // 뷰포트·시저는 동적이라 파이프라인마다 다시 걸 필요 없이 패스 처음에 첨부 전체로 둔다.
         SetViewport({0.0f, 0.0f, static_cast<JBro::Float>(extent.width), static_cast<JBro::Float>(extent.height), 0.0f, 1.0f});
         SetScissor({0, 0, static_cast<JBro::Int32>(extent.width), static_cast<JBro::Int32>(extent.height)});
+        m_passTargets.Clear();
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
+        {
+            m_passTargets.Add(desc.colorAttachments.data[index].texture, desc.colorAttachments.data[index].mipLevel);
+        }
+        if (desc.depthStencilAttachment != nullptr)
+        {
+            m_passTargets.Add(desc.depthStencilAttachment->texture, 0);
+        }
         m_renderPassActive = true;
         m_pipelineActive = false;
         m_activePipeline = nullptr;
@@ -161,9 +179,11 @@ namespace JBro::Internal
         VulkanDevice::AttachmentView from;
         VulkanDevice::AttachmentView to;
         if (m_device == nullptr || m_commands == VK_NULL_HANDLE || m_renderPassActive
-            || false == m_device->ResolveAttachment(source, from) || false == m_device->ResolveAttachment(destination, to)
+            || false == m_device->ResolveAttachment(source, 0, from) || false == m_device->ResolveAttachment(destination, 0, to)
             || from.aspect != VK_IMAGE_ASPECT_COLOR_BIT || to.aspect != VK_IMAGE_ASPECT_COLOR_BIT || from.image == to.image
-            || from.extent.width != to.extent.width || from.extent.height != to.extent.height)
+            || from.extent.width != to.extent.width || from.extent.height != to.extent.height
+            // 통째 복사라 mip 이 하나인 것만 받는다(D3D12·D3D11 과 같은 계약).
+            || from.mipLevels != 1 || to.mipLevels != 1)
         {
             return false;
         }
@@ -199,18 +219,20 @@ namespace JBro::Internal
             return;
         }
         vk.vkCmdEndRendering(m_commands);
-        // Sampled 로 만든 색 첨부는 다음 패스가 읽을 수 있게 돌려 놓는다.
+        // Sampled 로 만든 첨부는 다음 패스가 읽을 수 있게 돌려 놓는다. 그린 mip 하나만이다.
         for (UInt32 index = 0; index < m_sampledAtEndCount; ++index)
         {
+            const SampledAttachment& sampled = m_sampledAtEnd[index];
             VulkanDevice::AttachmentView view;
-            if (m_device->ResolveAttachment(m_sampledAtEnd[index], view))
+            if (m_device->ResolveAttachment(sampled.texture, sampled.mip, view))
             {
-                VulkanDevice::TransitionImage(m_commands, view.image, VK_IMAGE_ASPECT_COLOR_BIT, *view.layout,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                VulkanDevice::TransitionImage(m_commands, view.image, sampled.aspect, *view.layout,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, view.mip, 1);
                 *view.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             }
         }
         m_sampledAtEndCount = 0;
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
         m_activePipeline = nullptr;
@@ -369,9 +391,29 @@ namespace JBro::Internal
 
     Bool VulkanCommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
+        return BindTexture(slot, texture, VulkanDevice::AllMips);
+    }
+
+    Bool VulkanCommandContext::SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        if (mipLevel == VulkanDevice::AllMips)
+        {
+            return false;
+        }
+        return BindTexture(slot, texture, mipLevel);
+    }
+
+    Bool VulkanCommandContext::BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        // 이 패스가 그리는 자리를 읽으려 한다(`SetTextureMip` 의 계약).
+        if (m_passTargets.Overlaps(texture, mipLevel, mipLevel == VulkanDevice::AllMips))
+        {
+            return false;
+        }
         VkImageView view = VK_NULL_HANDLE;
         if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
-            || slot >= m_activePipeline->sampledTextureCount || false == m_device->ResolveSampledTexture(texture, view))
+            || slot >= m_activePipeline->sampledTextureCount
+            || false == m_device->ResolveSampledTexture(texture, mipLevel, view))
         {
             return false;
         }

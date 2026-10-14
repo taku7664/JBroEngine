@@ -629,7 +629,7 @@ namespace JBro::Internal
     }
 
     void VulkanDevice::TransitionImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect,
-        VkImageLayout from, VkImageLayout to)
+        VkImageLayout from, VkImageLayout to, UInt32 baseMip, UInt32 mipCount)
     {
         if (from == to)
         {
@@ -651,7 +651,8 @@ namespace JBro::Internal
                 | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             break;
         case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+            // 정점 단계도 텍스처를 읽을 수 있다(자리표의 단계, D-325).
+            barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
             barrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
             break;
         case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
@@ -677,7 +678,8 @@ namespace JBro::Internal
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.image = image;
         barrier.subresourceRange.aspectMask = aspect;
-        barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        barrier.subresourceRange.baseMipLevel = baseMip;
+        barrier.subresourceRange.levelCount = mipCount == AllRemainingMips ? VK_REMAINING_MIP_LEVELS : mipCount.Get();
         barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
         VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
         dependency.imageMemoryBarrierCount = 1;
@@ -1292,7 +1294,7 @@ namespace JBro::Internal
             return false;
         }
         image = state.image;
-        layout = &state.layout;
+        layout = &state.layouts[0];
         desc = state.desc;
         return true;
     }
@@ -1341,7 +1343,7 @@ namespace JBro::Internal
             // 되돌려 놓을 레이아웃. 아직 아무것도 아니던(UNDEFINED) 텍스처는 GENERAL 로 올려 둔다 - UNDEFINED 로는 돌아갈 수 없다.
             const VkImageLayout restoreTo = *layout == VK_IMAGE_LAYOUT_UNDEFINED ? VK_IMAGE_LAYOUT_GENERAL : *layout;
             TransitionImage(m_oneShotCommands, image, VK_IMAGE_ASPECT_COLOR_BIT, *layout,
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0, 1);
             VkBufferImageCopy region = {};
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.layerCount = 1;
@@ -1349,7 +1351,7 @@ namespace JBro::Internal
             vk.vkCmdCopyImageToBuffer(m_oneShotCommands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging, 1,
                 &region);
             TransitionImage(m_oneShotCommands, image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                restoreTo);
+                restoreTo, 0, 1);
             *layout = restoreTo;
             ok = EndOneShot();
         }

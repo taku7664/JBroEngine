@@ -139,6 +139,11 @@ namespace
             return true;
         }
 
+        JBro::Bool SetTextureMip(JBro::UInt32, JBro::TextureHandle, JBro::UInt32) override
+        {
+            return true;
+        }
+
         JBro::Bool SetSampler(JBro::UInt32, JBro::SamplerHandle) override
         {
             return true;

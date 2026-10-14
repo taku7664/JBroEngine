@@ -40,19 +40,31 @@ $targets = @(
     @{ File = 'TexturedQuad.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestTexturedQuadVS'; Header = 'TexturedQuadVS.generated.h' },
     @{ File = 'TexturedQuad.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestTexturedQuadPS'; Header = 'TexturedQuadPS.generated.h' },
     @{ File = 'ConstantProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestConstantProbeVS'; Header = 'ConstantProbeVS.generated.h' },
-    @{ File = 'ConstantProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestConstantProbePS'; Header = 'ConstantProbePS.generated.h' }
+    @{ File = 'ConstantProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestConstantProbePS'; Header = 'ConstantProbePS.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestSubresourceProbeVS'; Header = 'SubresourceProbeVS.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeTintPS'; Header = 'SubresourceProbeTintPS.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeSamplePS'; Header = 'SubresourceProbeSamplePS.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS'; Header = 'SubresourceProbeDepthPS.generated.h' }
 )
 
 $sm5Targets = @(
     @{ File = 'ConstantProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroTestConstantProbeVS_SM5'; Header = 'ConstantProbeVS_SM5.generated.h' },
-    @{ File = 'ConstantProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroTestConstantProbePS_SM5'; Header = 'ConstantProbePS_SM5.generated.h' }
+    @{ File = 'ConstantProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroTestConstantProbePS_SM5'; Header = 'ConstantProbePS_SM5.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroTestSubresourceProbeVS_SM5'; Header = 'SubresourceProbeVS_SM5.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeTintPS_SM5'; Header = 'SubresourceProbeTintPS_SM5.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeSamplePS_SM5'; Header = 'SubresourceProbeSamplePS_SM5.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeDepthPS_SM5'; Header = 'SubresourceProbeDepthPS_SM5.generated.h' }
 )
 
 $spirvTargets = @(
     @{ File = 'TexturedQuad.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestTexturedQuadVS_SPV'; Header = 'TexturedQuadVS_SPV.generated.h' },
     @{ File = 'TexturedQuad.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestTexturedQuadPS_SPV'; Header = 'TexturedQuadPS_SPV.generated.h' },
     @{ File = 'ConstantProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestConstantProbeVS_SPV'; Header = 'ConstantProbeVS_SPV.generated.h' },
-    @{ File = 'ConstantProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestConstantProbePS_SPV'; Header = 'ConstantProbePS_SPV.generated.h' }
+    @{ File = 'ConstantProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestConstantProbePS_SPV'; Header = 'ConstantProbePS_SPV.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestSubresourceProbeVS_SPV'; Header = 'SubresourceProbeVS_SPV.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeTintPS_SPV'; Header = 'SubresourceProbeTintPS_SPV.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeSamplePS_SPV'; Header = 'SubresourceProbeSamplePS_SPV.generated.h' },
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS_SPV'; Header = 'SubresourceProbeDepthPS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)
@@ -90,7 +102,10 @@ foreach ($t in $spirvTargets)
 {
     $source = Join-Path $here $t.File
     $header = Join-Path $out $t.Header
-    & $vkdxc -spirv -T $t.Profile -E $t.Entry -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -Vn $t.Name -Fh $header $source
+    # Vulkan 백엔드는 모듈마다 진입점 이름 VSMain·PSMain 을 찾는다(VulkanPipeline.cpp). 다른 이름의 픽셀 진입점은 PSMain 으로 바꿔 굽는다 -
+    # D3D 바이트코드는 이름을 싣지 않는다(엔진의 Compile.ps1 과 같다).
+    $entryName = if ($t.Profile.StartsWith('vs')) { 'VSMain' } else { 'PSMain' }
+    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -Vn $t.Name -Fh $header $source
     if ($LASTEXITCODE -ne 0)
     {
         throw "dxc -spirv failed for $($t.Entry) in $($t.File)"

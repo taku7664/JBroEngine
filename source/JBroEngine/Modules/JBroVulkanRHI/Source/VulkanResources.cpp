@@ -309,7 +309,8 @@ namespace JBro::Internal
         const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == VK_NULL_HANDLE || m_frameActive
             || desc.extent.width == 0 || desc.extent.height == 0 || desc.extent.width > 16384
-            || desc.extent.height > 16384 || desc.depthOrLayers != 1 || desc.mipLevels == 0
+            || desc.extent.height > 16384 || desc.depthOrLayers != 1 || false == IsMipCountValid(desc.extent, desc.mipLevels)
+            || (depthStencil && desc.mipLevels != 1)
             || desc.sampleCount != 1 || format == VK_FORMAT_UNDEFINED
             || (static_cast<JBro::UInt32>(desc.usage) & ~TextureUsageMask) != 0
             || desc.usage == TextureUsage::None || HasTextureUsage(desc.usage, TextureUsage::Storage)
@@ -386,8 +387,28 @@ namespace JBro::Internal
         view.subresourceRange.aspectMask = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         view.subresourceRange.levelCount = desc.mipLevels;
         view.subresourceRange.layerCount = 1;
-        if (vk.vkCreateImageView(m_device, &view, nullptr, &state.view) != VK_SUCCESS)
+        Bool viewsMade = vk.vkCreateImageView(m_device, &view, nullptr, &state.view) == VK_SUCCESS;
+        // mip 이 둘 이상이면 mip 하나씩의 뷰도 만든다. 그리기 경로에서 뷰를 만들지 않으려고 미리 다 만든다.
+        for (UInt32 mip = 0; viewsMade && desc.mipLevels > 1 && mip < desc.mipLevels; ++mip)
         {
+            view.subresourceRange.baseMipLevel = mip;
+            view.subresourceRange.levelCount = 1;
+            viewsMade = vk.vkCreateImageView(m_device, &view, nullptr, &state.mipViews[mip]) == VK_SUCCESS;
+        }
+        if (false == viewsMade)
+        {
+            for (VkImageView& mipView : state.mipViews)
+            {
+                if (mipView != VK_NULL_HANDLE)
+                {
+                    vk.vkDestroyImageView(m_device, mipView, nullptr);
+                }
+                mipView = VK_NULL_HANDLE;
+            }
+            if (state.view != VK_NULL_HANDLE)
+            {
+                vk.vkDestroyImageView(m_device, state.view, nullptr);
+            }
             vk.vkDestroyImage(m_device, state.image, nullptr);
             vk.vkFreeMemory(m_device, state.memory, nullptr);
             state.image = VK_NULL_HANDLE;
@@ -395,7 +416,10 @@ namespace JBro::Internal
             state.view = VK_NULL_HANDLE;
             return {};
         }
-        state.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        for (VkImageLayout& layout : state.layouts)
+        {
+            layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        }
         state.format = format;
         state.desc = desc;
         state.occupied = true;
@@ -415,6 +439,13 @@ namespace JBro::Internal
             return;
         }
         Retire(VulkanRetiredObject::Kind::ImageView, reinterpret_cast<std::uint64_t>(state.view));
+        for (VkImageView mipView : state.mipViews)
+        {
+            if (mipView != VK_NULL_HANDLE)
+            {
+                Retire(VulkanRetiredObject::Kind::ImageView, reinterpret_cast<std::uint64_t>(mipView));
+            }
+        }
         Retire(VulkanRetiredObject::Kind::Image, reinterpret_cast<std::uint64_t>(state.image));
         Retire(VulkanRetiredObject::Kind::Memory, reinterpret_cast<std::uint64_t>(state.memory));
         const UInt32 generation = VulkanNextGeneration(state.generation);
@@ -456,8 +487,8 @@ namespace JBro::Internal
         Bool ok = BeginOneShot();
         if (ok)
         {
-            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layout,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layouts[mipLevel],
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevel, 1);
             VkBufferImageCopy region = {};
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.mipLevel = mipLevel;
@@ -470,8 +501,8 @@ namespace JBro::Internal
                 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 : VK_IMAGE_LAYOUT_GENERAL;
             TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after);
-            state.layout = after;
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after, mipLevel, 1);
+            state.layouts[mipLevel] = after;
             ok = EndOneShot();
         }
         vk.vkUnmapMemory(m_device, stagingMemory);
@@ -522,8 +553,8 @@ namespace JBro::Internal
         Bool ok = BeginOneShot();
         if (ok)
         {
-            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layout,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layouts[mipLevel],
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevel, 1);
             VkBufferImageCopy region = {};
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.mipLevel = mipLevel;
@@ -536,8 +567,8 @@ namespace JBro::Internal
                 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 : VK_IMAGE_LAYOUT_GENERAL;
             TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after);
-            state.layout = after;
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after, mipLevel, 1);
+            state.layouts[mipLevel] = after;
             ok = EndOneShot();
         }
         vk.vkUnmapMemory(m_device, stagingMemory);
@@ -546,7 +577,7 @@ namespace JBro::Internal
         return ok;
     }
 
-    Bool VulkanDevice::ResolveAttachment(TextureHandle texture, AttachmentView& view)
+    Bool VulkanDevice::ResolveAttachment(TextureHandle texture, UInt32 mipLevel, AttachmentView& view)
     {
         view = {};
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
@@ -556,7 +587,7 @@ namespace JBro::Internal
         if (texture.index < TextureResourceBase)
         {
             const UInt32 index = texture.index - BackBufferTextureBase;
-            if (index >= MaxSwapchains)
+            if (index >= MaxSwapchains || mipLevel != 0)
             {
                 return false;
             }
@@ -585,20 +616,23 @@ namespace JBro::Internal
         }
         const Bool depth = state.desc.format == TextureFormat::D32Float;
         if ((depth && false == HasTextureUsage(state.desc.usage, TextureUsage::DepthStencil))
-            || (false == depth && false == HasTextureUsage(state.desc.usage, TextureUsage::RenderTarget)))
+            || (false == depth && false == HasTextureUsage(state.desc.usage, TextureUsage::RenderTarget))
+            || mipLevel >= state.desc.mipLevels)
         {
             return false;
         }
         view.image = state.image;
-        view.view = state.view;
-        view.layout = &state.layout;
+        view.view = state.desc.mipLevels > 1 ? state.mipViews[mipLevel] : state.view;
+        view.layout = &state.layouts[mipLevel];
         view.aspect = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-        view.extent = {state.desc.extent.width, state.desc.extent.height};
+        view.extent = {GetMipExtent(state.desc.extent.width, mipLevel), GetMipExtent(state.desc.extent.height, mipLevel)};
+        view.mip = mipLevel;
+        view.mipLevels = state.desc.mipLevels;
         view.sampled = HasTextureUsage(state.desc.usage, TextureUsage::Sampled);
         return true;
     }
 
-    Bool VulkanDevice::ResolveSampledTexture(TextureHandle texture, VkImageView& view)
+    Bool VulkanDevice::ResolveSampledTexture(TextureHandle texture, UInt32 mipLevel, VkImageView& view)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase
             || texture.index - TextureResourceBase >= MaxTextures)
@@ -608,12 +642,22 @@ namespace JBro::Internal
         VulkanTextureState& state = m_textures[texture.index - TextureResourceBase];
         if (false == state.occupied || state.generation != texture.generation
             || false == HasTextureUsage(state.desc.usage, TextureUsage::Sampled)
-            || state.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            || (mipLevel != AllMips && mipLevel >= state.desc.mipLevels))
         {
-            // 아직 셰이더가 읽을 레이아웃이 아니다(올린 적도 그린 적도 없다). 렌더 패스 안에서는 바꿀 수 없으니 거절한다.
             return false;
         }
-        view = state.view;
+        // 읽을 mip 이 모두 셰이더 읽기 레이아웃이어야 한다. 아니면 아직 올린 적도 그린 적도 없거나, 이 패스가 그리는 mip 이다 -
+        // 렌더 패스 안에서는 레이아웃을 바꿀 수 없으니 거절한다.
+        const UInt32 first = mipLevel == AllMips ? UInt32(0) : mipLevel;
+        const UInt32 last = mipLevel == AllMips ? UInt32(state.desc.mipLevels - 1) : mipLevel;
+        for (UInt32 mip = first; mip <= last; ++mip)
+        {
+            if (state.layouts[mip] != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            {
+                return false;
+            }
+        }
+        view = mipLevel == AllMips || state.desc.mipLevels == 1 ? state.view : state.mipViews[mipLevel];
         return true;
     }
 

@@ -133,7 +133,7 @@
 각 단계는 빌드·시험·뮤테이션 뒤 커밋한다. 픽셀 시험은 세 백엔드(D3D12·D3D11·Vulkan)에서 **디버그 레이어를 켜고** 잰다.
 
 1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14) - Vulkan 의 그리기 시험만 남았다(§3.1).**
-2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처.
+2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **서브리소스·상태·깊이 읽기가 섰다(D-326, 2026-10-15). 3D 텍스처가 남았다(§3.2).**
 3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`.
 4. 셰이더 매니페스트와 Shader 에셋(빌트인 셰이더를 옮긴다).
 5. 렌더 그래프와 지금 패스 옮기기. 그림이 바뀌지 않는 것을 기존 픽셀 시험이 잰다.
@@ -202,6 +202,58 @@
   Vulkan SDK 가 있는 기계에서 `pwsh Tests\Shaders\Compile.ps1` 을 돌리고, 두 시험 파일의 `HasProbeShaders`·API 검사에 Vulkan 을 넣는다.
   그때까지 Vulkan 의 상수 버퍼 묶기·`vkCmdDraw`·새 포맷은 **컴파일만 됐다**. 상한·링 시험은 Vulkan 에서도 돈다.
 - 이 기계의 Vulkan 에는 검증 레이어가 없다. 그래서 `TextureBinding` 의 "검증 손잡이가 실제로 말하는지" 가 Vulkan 에서 실패한다 - 이 단계 전부터다(§3.1 실측).
+
+### 3.2 2 단계 - 서브리소스·서브리소스 상태·깊이 읽기 (D-326)
+
+무엇이 섰나:
+
+| 것 | 모양 |
+|---|---|
+| mip 에 그리기 | `ColorAttachmentDesc::mipLevel`. 패스의 렌더 영역·기본 뷰포트는 그 mip 의 크기다. 백버퍼는 0 만 |
+| mip 하나 읽기 | `SetTextureMip(slot, texture, mip)`. 셰이더에게는 mip 이 하나뿐인 텍스처다(`SampleLevel(..., 0)` 이 그 mip). `SetTexture` 는 전처럼 모든 mip |
+| 뷰 | 백엔드가 텍스처를 만들 때 mip 마다 RTV·SRV(Vulkan 은 이미지 뷰)를 미리 만든다 - 그리기 경로에서 뷰를 만들지 않는다. 그래서 mip 수에 상한이 있다(`MaxTextureMipLevels` 16, `DeviceCaps::maxTextureMipLevels`) |
+| mip 수 | `IsMipCountValid` - 가장 긴 변이 1 이 되는 mip 까지. 세 백엔드가 같은 검사를 쓴다. 깊이는 mip 1 개만 |
+| 상태 | D3D12 는 mip 마다 상태, Vulkan 은 mip 마다 레이아웃을 든다. 패스는 그리는 mip 하나만 옮기고, 끝나면 그 mip 만 읽기 상태로 돌린다 |
+| 깊이 읽기 | `DepthStencil | Sampled` 깊이를 다음 패스가 `SetTexture` 로 읽는다(R32 로 보인다) |
+| 겹침 거절 | 지금 패스가 그리는 mip·깊이를 같은 패스에서 `SetTexture`·`SetTextureMip` 하면 거절한다(`RenderPassTargets`, 세 컨텍스트가 같은 검사) |
+| 복사 | `CopyTexture` 는 mip 이 하나인 것만 받는다(통째 복사, 상태를 mip 0 으로 옮긴다) |
+| 배열 | 세 백엔드 모두 `depthOrLayers == 1` 만 받는다. D3D12 만 배열을 반쯤 받고 있었고 쓰는 곳이 없었다. 3D 텍스처(§3 의 2 단계 남은 것)가 `depthOrLayers` 를 깊이로 쓴다 |
+
+깊이 읽기가 막혔던 까닭(§1 의 표, 백엔드마다 달랐다):
+
+| D3D12 | D3D11 | Vulkan |
+|---|---|---|
+| 자원은 typeless 로 잘 만들지만 패스 뒤에 `DEPTH_WRITE` 그대로 남아, 읽으면 상태가 어긋난다 | `D32_FLOAT` 그대로 `SHADER_RESOURCE` 를 붙여 텍스처 생성 자체가 실패한다. `R32_TYPELESS` + DSV `D32`·SRV `R32` 로 만든다 | 셰이더 읽기는 `SHADER_READ_ONLY` 레이아웃만 받는데, 깊이는 패스 뒤에 그 레이아웃으로 돌아가지 않았다 |
+
+함께 고친 것:
+
+- D3D12 의 읽기 상태가 `PIXEL_SHADER_RESOURCE` 하나뿐이라, 1 단계에서 연 정점 단계 텍스처 읽기가 검증 오류였다. `PIXEL | NON_PIXEL` 로 둔다(`ShaderReadState`).
+- Vulkan 의 셰이더 읽기 전이가 프래그먼트 단계만 기다렸다. 정점 단계도 기다린다.
+- Vulkan 은 mip 이 여럿인 텍스처를 색 첨부로 쓸 때 모든 mip 의 뷰를 넘기고 있었다(명세 위반, 첨부 뷰는 mip 하나).
+
+시험(`SubresourceTests.cpp`, 셰이더 `Tests/Shaders/SubresourceProbe.hlsl`):
+
+- mip 사슬 끝까지는 만들고 하나 더는 거절, 깊이는 mip 하나만, 읽는 깊이는 만들어진다 - 그리지 않으므로 세 백엔드에서 돈다.
+- mip 0 빨강 → mip 0 을 읽어 mip 1 에 그림 → mip 2 초록 → 왼쪽 절반은 mip 1, 오른쪽 절반은 mip 2 를 읽어 되읽는다. 그리는 mip·텍스처 전체·없는 mip 의 읽기는 거절한다.
+  D3D12 검증 레이어가 조용해야 한다.
+- 왼쪽 절반에만 깊이 0.25 를 쓰고, 그 깊이를 그리는 패스에서는 읽기를 거절하고, 다음 패스가 R32Float 에 옮겨 되읽으면 왼쪽 0.25·오른쪽 1.0 이다.
+
+뮤테이션(2026-10-15, 9 개 모두 죽었다):
+
+| 망가뜨린 것 | 죽인 검사 |
+|---|---|
+| D3D12 패스 시작 배리어를 텍스처 전체로(예전 모양) | 검증 레이어 |
+| D3D12 깊이를 패스 뒤에 읽기 상태로 돌리지 않음 | 검증 레이어 |
+| D3D11 깊이를 typeless 로 만들지 않음 | 읽는 깊이 만들기 |
+| D3D12 mip 하나 뷰 대신 모든 mip 뷰 | mip 2 의 초록 |
+| D3D12·D3D11 이 그리는 mip·깊이의 읽기를 받음 | 그리는 mip 은 못 읽는다 |
+| D3D11·D3D12 RTV 가 늘 mip 0 | mip 1 의 빨강 |
+| mip 수 검사가 하나 더 받음 | 64 너비는 mip 일곱 |
+
+남은 것:
+
+- **3D 텍스처**(컬러 그레이딩 LUT)와 샘플러의 W 축. 다음 커밋이다.
+- Vulkan 의 그리기 시험(§3.1 과 같은 까닭). Vulkan 은 mip·깊이 만들기와 거절만 돌았다.
 
 ## 4. 정한 것과 미정
 

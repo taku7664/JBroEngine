@@ -315,7 +315,8 @@
 
 - `[진행]` **RHI 에 상수·구조화 버퍼 바인딩과 컴퓨트 파이프라인**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.1). 재질(3D todo)과 후처리가 이것 없이 서지 않는다.
   1 단계(바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷)가 섰다(D-325). Vulkan 의 그리기 시험은 SPIR-V 시험 셰이더를 구운 뒤다(계획 §3.1).
-  남은 것은 서브리소스·깊이 읽기·3D 텍스처(2 단계), 컴퓨트·UAV·구조화 버퍼(3 단계)다.
+  2 단계의 서브리소스(mip 에 그리기·mip 하나 읽기)·mip 마다의 상태·깊이 읽기가 섰다(D-326).
+  남은 것은 3D 텍스처(2 단계의 끝), 컴퓨트·UAV·구조화 버퍼(3 단계)다.
 - `[진행]` **렌더 패스 그래프**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.2). `Renderer::RecordViews` 의 고정 패스를
   읽기·쓰기를 선언하는 DAG 로 바꾸고 지금 패스(라이트맵·그림자·레이어 합성·외곽선)도 옮긴다. ~~선형 구조, 완전한 DAG 는 이 단계에서 과하다~~ → D-322.
 - `[진행]` **`.jpak` 패키지와 게임 익스포트의 에셋**(D-232, [package-plan.md](./package-plan.md)). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬
@@ -2995,6 +2996,19 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-326. 텍스처는 mip 마다 그리고 읽는다 - 첨부의 `mipLevel`, mip 하나를 묶는 `SetTextureMip`, mip 마다의 상태. 읽기도 하는 깊이는 패스 뒤에 셰이더 읽기 상태로 돌아간다. 지금 패스가 그리는 자리는 읽지 못한다.**
+  (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.2, 후처리 계획 2 단계 중 서브리소스·상태·깊이 읽기. 사용자 지시 "2단계 ㄱㄱ")
+  Updates: D-325(자리표의 단계 - 정점 단계 텍스처 읽기가 이제 D3D12·Vulkan 에서 맞는 상태로 읽힌다), D-107·D-108(세 백엔드의 같은 계약).
+  (1) `ColorAttachmentDesc::mipLevel` 로 mip 하나에 그린다. 렌더 영역과 기본 뷰포트는 그 mip 의 크기다. `SetTextureMip` 은 mip 하나만 묶고 셰이더에게는 mip 이 하나뿐인 텍스처로 보인다.
+  (2) 백엔드는 mip 마다 RTV·SRV(Vulkan 은 이미지 뷰)를 텍스처를 만들 때 미리 만든다 - 그리기 경로에서 뷰를 만들지 않는다. 그래서 mip 수 상한 `MaxTextureMipLevels`(16)를 두고,
+  mip 수 검사는 공용 `IsMipCountValid` 하나다. 깊이는 mip 1 개만 받는다.
+  (3) D3D12 는 mip 마다 상태, Vulkan 은 mip 마다 레이아웃을 든다. 패스는 그리는 mip 만 옮기고 끝나면 그 mip 만 읽기 상태로 돌린다. D3D12 의 읽기 상태는 `PIXEL | NON_PIXEL` 이다.
+  (4) `DepthStencil | Sampled` 깊이는 패스 뒤에 읽기 상태로 돌아가 다음 패스가 `SetTexture` 로 읽는다. 막혔던 까닭은 백엔드마다 달랐다 - D3D12 는 상태를 돌리지 않았고,
+  D3D11 은 typeless 로 만들지 않아 생성이 실패했고, Vulkan 은 레이아웃을 돌리지 않았다.
+  (5) 지금 패스가 그리는 mip·깊이를 같은 패스에서 읽으려 하면 `SetTexture`·`SetTextureMip` 이 거절한다(`RenderPassTargets`). 전에는 D3D12 가 받아 검증 오류, D3D11 은 몰래 떼어 냈다.
+  (6) `CopyTexture` 는 mip 이 하나인 것만 받는다. 배열은 세 백엔드 모두 받지 않는다(`depthOrLayers == 1`) - D3D12 만 반쯤 받고 있었고 쓰는 곳이 없었다.
+  **섰다 - 3D 텍스처와 Vulkan 의 그리기 시험이 남았다.**
 
 - **D-325. 상수 버퍼 슬롯은 b 레지스터 번호이고 b1..b7 이다(b0 은 푸시 상수). 파이프라인은 종류마다 개수와 단계를 적은 자리표를 들고, 프레임마다 바뀌는 상수는 슬롯마다의 업로드 링으로 올린다. 푸시 상수는 세 백엔드 모두 128 B 다.**
   (2026-10-14, [postprocess-plan.md](./postprocess-plan.md) §3.1, 후처리 계획 1 단계. 인계서 [handoff-postprocess.md](./handoff-postprocess.md) 의 "다음에 시작할 일")

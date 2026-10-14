@@ -96,10 +96,12 @@ namespace JBro::Internal
         {
             m_pendingSamplers[index] = {};
         }
+        m_depthSampledAtEndActive = false;
         for (Bool& bound : m_constantBufferBound)
         {
             bound = false;
         }
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -124,10 +126,12 @@ namespace JBro::Internal
         {
             m_pendingSamplers[index] = {};
         }
+        m_depthSampledAtEndActive = false;
         for (Bool& bound : m_constantBufferBound)
         {
             bound = false;
         }
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -158,7 +162,8 @@ namespace JBro::Internal
 
         for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
-            if (false == m_device->ResolveRenderTarget(desc.colorAttachments.data[index].texture, bindings[index]))
+            const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
+            if (false == m_device->ResolveRenderTarget(attachment.texture, attachment.mipLevel, bindings[index]))
             {
                 return false;
             }
@@ -181,7 +186,7 @@ namespace JBro::Internal
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
                 barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
                 barrier.Transition.pResource = depth.resource;
-                barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                barrier.Transition.Subresource = 0;
                 barrier.Transition.StateBefore = *depth.state;
                 barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
                 *depth.state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
@@ -196,7 +201,7 @@ namespace JBro::Internal
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
                 barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
                 barrier.Transition.pResource = bindings[index].resource;
-                barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                barrier.Transition.Subresource = bindings[index].subresource;
                 barrier.Transition.StateBefore = *bindings[index].state;
                 barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
                 *bindings[index].state = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -217,6 +222,12 @@ namespace JBro::Internal
             {
                 m_sampledAtEnd[m_sampledAtEndCount++] = bindings[index];
             }
+        }
+        // 깊이도 같다. Sampled 로 만든 깊이는 패스 뒤에 셰이더가 읽는다(후처리의 깊이 읽기, postprocess-plan §2.1).
+        m_depthSampledAtEndActive = depthDesc != nullptr && depth.sampled;
+        if (m_depthSampledAtEndActive)
+        {
+            m_depthSampledAtEnd = depth;
         }
 
         if (m_nativeRenderPasses)
@@ -287,6 +298,15 @@ namespace JBro::Internal
             }
         }
 
+        m_passTargets.Clear();
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
+        {
+            m_passTargets.Add(desc.colorAttachments.data[index].texture, desc.colorAttachments.data[index].mipLevel);
+        }
+        if (desc.depthStencilAttachment != nullptr)
+        {
+            m_passTargets.Add(desc.depthStencilAttachment->texture, 0);
+        }
         m_renderPassActive = true;
         return true;
     }
@@ -296,14 +316,16 @@ namespace JBro::Internal
         D3D12RenderTargetBinding from;
         D3D12RenderTargetBinding to;
         if (m_device == nullptr || m_commandList == nullptr || m_renderPassActive
-            || false == m_device->ResolveRenderTarget(source, from) || false == m_device->ResolveRenderTarget(destination, to)
+            || false == m_device->ResolveRenderTarget(source, 0, from) || false == m_device->ResolveRenderTarget(destination, 0, to)
             || from.resource == to.resource || from.format != to.format)
         {
             return false;
         }
         const D3D12_RESOURCE_DESC fromDesc = from.resource->GetDesc();
         const D3D12_RESOURCE_DESC toDesc = to.resource->GetDesc();
-        if (fromDesc.Width != toDesc.Width || fromDesc.Height != toDesc.Height)
+        // 통째 복사라 서브리소스가 하나인 것만 받는다. 상태를 mip 0 하나로 옮기므로 mip 이 더 있으면 나머지 상태가 어긋난다.
+        if (fromDesc.Width != toDesc.Width || fromDesc.Height != toDesc.Height
+            || fromDesc.MipLevels != 1 || toDesc.MipLevels != 1)
         {
             return false;
         }
@@ -354,14 +376,15 @@ namespace JBro::Internal
 
         // **되돌리는 자리가 여기다.** 네이티브 렌더 패스 안에서는 배리어가 불법이므로
         // `SetTexture` 가 그때그때 바꿀 수 없고, 패스를 닫은 뒤에야 할 수 있다.
-        if (m_sampledAtEndCount != 0)
+        // 그린 mip 하나만 되돌린다. 같은 텍스처의 다른 mip 은 이 패스가 읽던 것이라 이미 읽기 상태다.
+        if (m_sampledAtEndCount != 0 || m_depthSampledAtEndActive)
         {
-            D3D12_RESOURCE_BARRIER barriers[MaxColorAttachments] = {};
+            D3D12_RESOURCE_BARRIER barriers[MaxColorAttachments + 1] = {};
             UInt32 barrierCount = 0;
             for (UInt32 index = 0; index < m_sampledAtEndCount; ++index)
             {
                 D3D12RenderTargetBinding& binding = m_sampledAtEnd[index];
-                if (*binding.state == D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                if (*binding.state == ShaderReadState)
                 {
                     continue;
                 }
@@ -369,19 +392,32 @@ namespace JBro::Internal
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
                 barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
                 barrier.Transition.pResource = binding.resource;
-                barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                barrier.Transition.Subresource = binding.subresource;
                 barrier.Transition.StateBefore = *binding.state;
-                barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-                *binding.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                barrier.Transition.StateAfter = ShaderReadState;
+                *binding.state = ShaderReadState;
+            }
+            if (m_depthSampledAtEndActive && *m_depthSampledAtEnd.state != ShaderReadState)
+            {
+                D3D12_RESOURCE_BARRIER& barrier = barriers[barrierCount++];
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                barrier.Transition.pResource = m_depthSampledAtEnd.resource;
+                barrier.Transition.Subresource = 0;
+                barrier.Transition.StateBefore = *m_depthSampledAtEnd.state;
+                barrier.Transition.StateAfter = ShaderReadState;
+                *m_depthSampledAtEnd.state = ShaderReadState;
             }
             if (barrierCount != 0)
             {
                 m_commandList->ResourceBarrier(barrierCount, barriers);
             }
             m_sampledAtEndCount = 0;
+            m_depthSampledAtEndActive = false;
         }
 
         m_discardAtEndCount = 0;
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -489,6 +525,25 @@ namespace JBro::Internal
 
     Bool D3D12CommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
+        return BindTexture(slot, texture, D3D12Device::AllMips);
+    }
+
+    Bool D3D12CommandContext::SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        if (mipLevel == D3D12Device::AllMips)
+        {
+            return false;
+        }
+        return BindTexture(slot, texture, mipLevel);
+    }
+
+    Bool D3D12CommandContext::BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        // 이 패스가 그리는 자리를 읽으려 한다(`SetTextureMip` 의 계약).
+        if (m_passTargets.Overlaps(texture, mipLevel, mipLevel == D3D12Device::AllMips))
+        {
+            return false;
+        }
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
         {
             return false;
@@ -500,7 +555,7 @@ namespace JBro::Internal
             return false;
         }
         D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
-        if (false == m_device->ResolveSampledTexture(texture, descriptor))
+        if (false == m_device->ResolveSampledTexture(texture, mipLevel, descriptor))
         {
             return false;
         }

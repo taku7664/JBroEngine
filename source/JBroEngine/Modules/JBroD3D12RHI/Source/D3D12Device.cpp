@@ -190,7 +190,8 @@ namespace JBro::Internal
 
         D3D12_DESCRIPTOR_HEAP_DESC renderTargetHeapDesc = {};
         renderTargetHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        renderTargetHeapDesc.NumDescriptors = MaxTextures;
+        // 텍스처마다 mip 수 상한만큼의 칸이다 - mip 하나하나가 따로 그릴 수 있는 렌더 타깃이다.
+        renderTargetHeapDesc.NumDescriptors = MaxTextures * MaxTextureMipLevels;
         if (FAILED(m_device->CreateDescriptorHeap(
             &renderTargetHeapDesc,
             IID_PPV_ARGS(&m_textureRenderTargetHeap))))
@@ -219,7 +220,8 @@ namespace JBro::Internal
         // 프레임마다 다시 쓰이므로, 자원의 디스크립터를 거기에 계속 둘 수 없다.
         D3D12_DESCRIPTOR_HEAP_DESC shaderResourceHeapDesc = {};
         shaderResourceHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        shaderResourceHeapDesc.NumDescriptors = MaxTextures;
+        // 텍스처마다 모든 mip 의 뷰 하나 + mip 하나씩의 뷰(`SetTextureMip`)다.
+        shaderResourceHeapDesc.NumDescriptors = MaxTextures * ShaderResourceViewsPerTexture;
         if (FAILED(m_device->CreateDescriptorHeap(
             &shaderResourceHeapDesc,
             IID_PPV_ARGS(&m_textureShaderResourceHeap))))
@@ -597,7 +599,10 @@ namespace JBro::Internal
         m_frameActive = true;
         for (D3D12TextureState& texture : m_textures)
         {
-            texture.stateAtFrameStart = texture.state;
+            for (UInt32 mip = 0; mip < MaxTextureMipLevels; ++mip)
+            {
+                texture.statesAtFrameStart[mip] = texture.states[mip];
+            }
         }
 
         // 이 프레임 몫의 링을 처음부터 다시 쓴다. 이 슬롯의 앞 프레임은 이미 끝났다 —
@@ -722,7 +727,10 @@ namespace JBro::Internal
         {
             if (texture.occupied)
             {
-                texture.state = texture.stateAtFrameStart;
+                for (UInt32 mip = 0; mip < MaxTextureMipLevels; ++mip)
+                {
+                    texture.states[mip] = texture.statesAtFrameStart[mip];
+                }
             }
         }
 

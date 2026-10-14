@@ -47,6 +47,7 @@ namespace JBro::Internal
         Bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
+        Bool SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
         Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
@@ -70,6 +71,9 @@ namespace JBro::Internal
     private:
         // 두 그리기의 공통 앞단이다. 패스와 파이프라인이 있고 선언한 상수 버퍼가 다 묶였는지 본다.
         Bool PrepareDraw() const;
+        Bool BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel);
+        // 지금 패스가 그리는 자리다. 그 mip 을 읽으려 하면 거절한다(`SetTextureMip` 의 계약).
+        RenderPassTargets m_passTargets;
 
         D3D11Device* m_device = nullptr;
         ID3D11DeviceContext* m_context = nullptr;
@@ -113,9 +117,13 @@ namespace JBro::Internal
     struct D3D11TextureState
     {
         ComPtr<ID3D11Texture2D> texture;
-        ComPtr<ID3D11RenderTargetView> renderTargetView;
+        // mip 마다 하나다. 그리기 경로에서 뷰를 만들지 않으려고 미리 다 만든다.
+        ComPtr<ID3D11RenderTargetView> renderTargetViews[MaxTextureMipLevels];
         ComPtr<ID3D11DepthStencilView> depthStencilView;
+        // 모든 mip 을 보는 뷰다.
         ComPtr<ID3D11ShaderResourceView> shaderResourceView;
+        // mip 하나씩만 보는 뷰다(`SetTextureMip`). mip 이 둘 이상일 때만 만든다 - 하나뿐이면 위의 뷰가 곧 그 mip 이다.
+        ComPtr<ID3D11ShaderResourceView> mipShaderResourceViews[MaxTextureMipLevels];
         TextureDesc desc;
         UInt32 generation = 1;
         Bool occupied = false;
@@ -187,9 +195,12 @@ namespace JBro::Internal
         UInt32 GetValidationErrorCount() const override;
 
         // 컨텍스트가 쓰는 해석 함수들.
-        Bool ResolveRenderTargetView(TextureHandle texture, ID3D11RenderTargetView*& view);
+        // 텍스처는 그 mip 하나의 뷰와 그 mip 의 크기로 풀린다. 백버퍼는 mip 0 만 있다.
+        Bool ResolveRenderTargetView(TextureHandle texture, UInt32 mipLevel, ID3D11RenderTargetView*& view, Extent2D& extent);
         Bool ResolveDepthStencilView(TextureHandle texture, ID3D11DepthStencilView*& view);
-        Bool ResolveShaderResourceView(TextureHandle texture, ID3D11ShaderResourceView*& view);
+        // `mipLevel` 이 `AllMips` 면 모든 mip 을 보는 뷰다.
+        static constexpr UInt32 AllMips = ~UInt32{0};
+        Bool ResolveShaderResourceView(TextureHandle texture, UInt32 mipLevel, ID3D11ShaderResourceView*& view);
         Bool ResolveBuffer(BufferHandle buffer, ID3D11Buffer*& native, BufferDesc& desc);
         Bool ResolveSampler(SamplerHandle sampler, ID3D11SamplerState*& native);
         D3D11PipelineState* ResolvePipeline(GraphicsPipelineHandle pipeline);

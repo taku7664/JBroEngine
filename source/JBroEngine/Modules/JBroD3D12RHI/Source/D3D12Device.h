@@ -21,27 +21,38 @@ namespace JBro::Internal
     inline constexpr UInt32 MaxBoundSamplers = 4;
     // 상수 버퍼 슬롯은 b1..b7 이다(b0 은 푸시 상수). 배열은 레지스터 번호로 바로 찾도록 b0 자리까지 잡는다.
     inline constexpr UInt32 MaxBoundConstantBuffers = 7;
+    // 스테이징 SRV 힙에서 텍스처 하나가 차지하는 칸이다 - 모든 mip 의 뷰 하나와 mip 하나씩의 뷰.
+    inline constexpr UInt32 ShaderResourceViewsPerTexture = 1 + MaxTextureMipLevels;
 
     // 한 패스에 붙일 수 있는 색 첨부의 수다. 배리어 배열이 이 크기로 잡히므로
     // 컨텍스트와 패스 시작 코드가 같은 값을 봐야 한다.
     constexpr UInt32 MaxColorAttachments = 8;
 
+    // 셰이더가 텍스처를 읽는 상태다. 픽셀 단계만이 아니다 - 자리표는 정점 단계에도 텍스처를 열 수 있고(D-325),
+    // `PIXEL_SHADER_RESOURCE` 하나로 두면 정점 단계의 읽기가 검증 오류다.
+    inline constexpr D3D12_RESOURCE_STATES ShaderReadState =
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+
+    // 렌더 타깃 하나 - 텍스처라면 그 mip 하나다. 상태는 mip 마다 따로 든다(서브리소스 상태, postprocess-plan §2.1).
     struct D3D12RenderTargetBinding
     {
         ID3D12Resource* resource = nullptr;
         D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
         DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+        // `subresource` 의 상태다. 2D 텍스처의 서브리소스 번호는 mip 번호다.
         D3D12_RESOURCE_STATES* state = nullptr;
+        UInt32 subresource = 0;
         // Sampled 로도 만든 텍스처다. 패스가 끝나면 셰이더가 읽을 수 있는 상태로 되돌린다.
         Bool sampled = false;
     };
 
-    // 깊이 첨부 하나. 렌더 타깃과 달리 샘플링으로 되돌릴 일이 없다 - 깊이 텍스처는 그리기 전용이다.
+    // 깊이 첨부 하나. Sampled 로도 만든 것은 색 첨부처럼 패스가 끝나면 셰이더가 읽는 상태로 되돌린다.
     struct D3D12DepthStencilBinding
     {
         ID3D12Resource* resource = nullptr;
         D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
         D3D12_RESOURCE_STATES* state = nullptr;
+        Bool sampled = false;
     };
 
     struct D3D12BufferBinding
@@ -97,6 +108,7 @@ namespace JBro::Internal
         Bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
+        Bool SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
         Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
@@ -129,6 +141,12 @@ namespace JBro::Internal
         // **패스 안에서는 되돌릴 수 없다** - 네이티브 렌더 패스 안의 배리어는 불법이다.
         D3D12RenderTargetBinding m_sampledAtEnd[MaxColorAttachments] = {};
         UInt32 m_sampledAtEndCount = 0;
+        // 패스가 끝날 때 셰이더 읽기 상태로 되돌릴 깊이 첨부다. Sampled 로 만든 것만 든다.
+        D3D12DepthStencilBinding m_depthSampledAtEnd;
+        Bool m_depthSampledAtEndActive = false;
+        Bool BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel);
+        // 지금 패스가 그리는 자리다. 그 mip 을 읽으려 하면 거절한다(`SetTextureMip` 의 계약).
+        RenderPassTargets m_passTargets;
         UInt32 m_activePushConstantCount = 0;
         // 이 프레임에 스테이징한 테이블이다. 같은 디스크립터 묶음이 다시 오면 복사하지 않고 그 테이블을 다시
         // 건다(D-110). ImGui 는 드로우마다 같은 폰트 아틀라스를 묶으므로 이것이 없으면 드로우마다 복사 하나와
@@ -227,12 +245,15 @@ namespace JBro::Internal
         TextureDesc desc;
         // 프레임이 시작할 때의 상태다. 프레임을 버리면(`AbortFrame`) 기록만 되고 실행되지 않은 배리어가
         // 추적 상태를 어긋나게 하므로 여기로 되돌린다.
-        D3D12_RESOURCE_STATES stateAtFrameStart = D3D12_RESOURCE_STATE_COMMON;
+        D3D12_RESOURCE_STATES statesAtFrameStart[MaxTextureMipLevels] = {};
+        // mip 0 의 RTV 다. mip m 은 그 뒤 m 번째 자리다(텍스처마다 `MaxTextureMipLevels` 칸).
         D3D12_CPU_DESCRIPTOR_HANDLE renderTargetDescriptor = {};
         D3D12_CPU_DESCRIPTOR_HANDLE depthStencilDescriptor = {};
-        // Sampled 로 만든 텍스처만 갖는다. 없으면 ptr 이 0 이다.
+        // Sampled 로 만든 텍스처만 갖는다. 없으면 ptr 이 0 이다. 모든 mip 을 보는 뷰이고, mip 이 둘 이상이면 그 뒤에
+        // mip 하나씩만 보는 뷰가 차례로 놓인다(`SetTextureMip`).
         D3D12_CPU_DESCRIPTOR_HANDLE shaderResourceDescriptor = {};
-        D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+        // mip 마다의 상태다. 쓰는 것은 `desc.mipLevels` 칸까지다.
+        D3D12_RESOURCE_STATES states[MaxTextureMipLevels] = {};
         UInt64 retirementFence = 0;
         UInt32 generation = 1;
         Bool occupied = false;
@@ -285,15 +306,17 @@ namespace JBro::Internal
         FrameStatus GetStatus() const override;
         void WaitIdle() override;
 
-        Bool ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding);
+        // 텍스처는 그 mip 하나로 풀린다. 백버퍼는 mip 0 만 있다.
+        Bool ResolveRenderTarget(TextureHandle texture, UInt32 mipLevel, D3D12RenderTargetBinding& binding);
         // `DepthStencil` 로 만든 텍스처만 받는다. 백버퍼는 깊이가 될 수 없다.
         Bool ResolveDepthStencil(TextureHandle texture, D3D12DepthStencilBinding& binding);
         Bool ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding);
         Bool ResolveGraphicsPipeline(
             GraphicsPipelineHandle pipeline,
             D3D12PipelineBinding& binding);
-        // 셰이더에서 읽을 수 있는 텍스처인지 보고 그 디스크립터를 준다.
-        Bool ResolveSampledTexture(TextureHandle texture, D3D12_CPU_DESCRIPTOR_HANDLE& descriptor);
+        // 셰이더에서 읽을 수 있는 텍스처인지 보고 그 디스크립터를 준다. `mipLevel` 이 `AllMips` 면 모든 mip 을 보는 뷰다.
+        static constexpr UInt32 AllMips = ~UInt32{0};
+        Bool ResolveSampledTexture(TextureHandle texture, UInt32 mipLevel, D3D12_CPU_DESCRIPTOR_HANDLE& descriptor);
         Bool ResolveSampler(SamplerHandle sampler, D3D12_CPU_DESCRIPTOR_HANDLE& descriptor);
         // 이번 프레임의 링에서 연속된 자리를 잡아 스테이징 디스크립터를 복사해 넣는다.
         Bool StageShaderResources(

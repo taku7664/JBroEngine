@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <iterator>
 #include <cstring>
 #include <limits>
 #include <JBro/Types/Bool.h>
@@ -164,14 +165,17 @@ namespace JBro::Internal
                 || desc.extent.height == 0
                 || desc.depthOrLayers == 0
                 || desc.depthOrLayers > (std::numeric_limits<std::uint16_t>::max)()
-                || desc.mipLevels == 0
-                || desc.mipLevels > (std::numeric_limits<std::uint16_t>::max)()
+                || false == IsMipCountValid(desc.extent, desc.mipLevels)
+                // 배열과 3D 는 아직 받지 않는다. 받는 날 서브리소스 번호(mip + 조각 × mip 수)부터 맞춘다.
+                || desc.depthOrLayers != 1
                 || desc.sampleCount != 1
                 || desc.format == TextureFormat::Unknown
                 || usages == 0
                 || (usages & ~TextureUsageMask) != 0
                 || (renderTarget && depthStencil)
                 || (depthStencil && desc.format != TextureFormat::D32Float)
+                // 깊이는 mip 0 에만 그린다(DSV 하나). mip 사슬이 필요한 깊이(Hi-Z)는 컴퓨트로 만든 색 텍스처다.
+                || (depthStencil && desc.mipLevels != 1)
                 || (false == depthStencil && desc.format == TextureFormat::D32Float)
                 || (storage && (depthStencil || IsSrgbFormat(desc.format))))
             {
@@ -453,7 +457,10 @@ namespace JBro::Internal
         D3D12TextureState& state = m_textures[slotIndex];
         state.resource = resource;
         state.desc = desc;
-        state.state = D3D12_RESOURCE_STATE_COMMON;
+        for (D3D12_RESOURCE_STATES& mipState : state.states)
+        {
+            mipState = D3D12_RESOURCE_STATE_COMMON;
+        }
         state.retirementFence = 0;
         state.renderTargetDescriptor = {};
         state.depthStencilDescriptor = {};
@@ -461,11 +468,21 @@ namespace JBro::Internal
 
         if (renderTarget)
         {
+            // mip 마다 RTV 하나다. 그리기 경로에서 뷰를 만들지 않으려고 미리 다 만든다.
             const D3D12_CPU_DESCRIPTOR_HANDLE heapStart =
                 m_textureRenderTargetHeap->GetCPUDescriptorHandleForHeapStart();
             state.renderTargetDescriptor.ptr = heapStart.ptr
-                + static_cast<SIZE_T>(slotIndex) * m_textureRenderTargetDescriptorStride;
-            m_device->CreateRenderTargetView(resource.Get(), nullptr, state.renderTargetDescriptor);
+                + static_cast<SIZE_T>(slotIndex) * MaxTextureMipLevels * m_textureRenderTargetDescriptorStride;
+            for (UInt32 mip = 0; mip < desc.mipLevels; ++mip)
+            {
+                D3D12_RENDER_TARGET_VIEW_DESC viewDesc = {};
+                viewDesc.Format = ToNativeFormat(desc.format);
+                viewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+                viewDesc.Texture2D.MipSlice = mip;
+                D3D12_CPU_DESCRIPTOR_HANDLE descriptor = state.renderTargetDescriptor;
+                descriptor.ptr += static_cast<SIZE_T>(mip) * m_textureRenderTargetDescriptorStride;
+                m_device->CreateRenderTargetView(resource.Get(), &viewDesc, descriptor);
+            }
         }
         if (depthStencil)
         {
@@ -475,13 +492,7 @@ namespace JBro::Internal
                 + static_cast<SIZE_T>(slotIndex) * m_textureDepthStencilDescriptorStride;
             D3D12_DEPTH_STENCIL_VIEW_DESC viewDesc = {};
             viewDesc.Format = DXGI_FORMAT_D32_FLOAT;
-            viewDesc.ViewDimension = desc.depthOrLayers == 1
-                ? D3D12_DSV_DIMENSION_TEXTURE2D
-                : D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
-            if (desc.depthOrLayers > 1)
-            {
-                viewDesc.Texture2DArray.ArraySize = desc.depthOrLayers;
-            }
+            viewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
             m_device->CreateDepthStencilView(resource.Get(), &viewDesc, state.depthStencilDescriptor);
         }
 
@@ -490,25 +501,24 @@ namespace JBro::Internal
             const D3D12_CPU_DESCRIPTOR_HANDLE heapStart =
                 m_textureShaderResourceHeap->GetCPUDescriptorHandleForHeapStart();
             state.shaderResourceDescriptor.ptr = heapStart.ptr
-                + static_cast<SIZE_T>(slotIndex) * m_shaderResourceDescriptorStride;
+                + static_cast<SIZE_T>(slotIndex) * ShaderResourceViewsPerTexture * m_shaderResourceDescriptorStride;
             D3D12_SHADER_RESOURCE_VIEW_DESC viewDesc = {};
             // 깊이 포맷은 SRV 로 못 쓴다 - 같은 비트의 색 포맷으로 본다.
             viewDesc.Format = desc.format == TextureFormat::D32Float ? DXGI_FORMAT_R32_FLOAT : ToNativeFormat(desc.format);
             viewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            viewDesc.ViewDimension = desc.depthOrLayers == 1
-                ? D3D12_SRV_DIMENSION_TEXTURE2D
-                : D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-            if (desc.depthOrLayers == 1)
-            {
-                viewDesc.Texture2D.MipLevels = desc.mipLevels;
-            }
-            else
-            {
-                viewDesc.Texture2DArray.MipLevels = desc.mipLevels;
-                viewDesc.Texture2DArray.ArraySize = desc.depthOrLayers;
-            }
+            viewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            viewDesc.Texture2D.MipLevels = desc.mipLevels;
             m_device->CreateShaderResourceView(
                 resource.Get(), &viewDesc, state.shaderResourceDescriptor);
+            // mip 이 둘 이상이면 mip 하나씩만 보는 뷰를 그 뒤에 둔다. 하나뿐이면 위의 뷰가 곧 그 mip 이다.
+            for (UInt32 mip = 0; desc.mipLevels > 1 && mip < desc.mipLevels; ++mip)
+            {
+                viewDesc.Texture2D.MostDetailedMip = mip;
+                viewDesc.Texture2D.MipLevels = 1;
+                D3D12_CPU_DESCRIPTOR_HANDLE descriptor = state.shaderResourceDescriptor;
+                descriptor.ptr += static_cast<SIZE_T>(1 + mip) * m_shaderResourceDescriptorStride;
+                m_device->CreateShaderResourceView(resource.Get(), &viewDesc, descriptor);
+            }
         }
 
         state.occupied = true;
@@ -545,7 +555,7 @@ namespace JBro::Internal
         }
     }
 
-    Bool D3D12Device::ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding)
+    Bool D3D12Device::ResolveRenderTarget(TextureHandle texture, UInt32 mipLevel, D3D12RenderTargetBinding& binding)
     {
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
         {
@@ -554,6 +564,10 @@ namespace JBro::Internal
 
         if (texture.index < TextureResourceBase)
         {
+            if (mipLevel != 0)
+            {
+                return false;
+            }
             const UInt32 localIndex = texture.index - BackBufferTextureBase;
             const UInt32 swapchainIndex = localIndex / MaxBackBuffers;
             const UInt32 backBufferIndex = localIndex % MaxBackBuffers;
@@ -590,15 +604,18 @@ namespace JBro::Internal
         D3D12TextureState& state = m_textures[slotIndex];
         if (false == state.occupied
             || state.generation != texture.generation
-            || false == HasTextureUsage(state.desc.usage, TextureUsage::RenderTarget))
+            || false == HasTextureUsage(state.desc.usage, TextureUsage::RenderTarget)
+            || mipLevel >= state.desc.mipLevels)
         {
             return false;
         }
 
         binding.resource = state.resource.Get();
         binding.descriptor = state.renderTargetDescriptor;
+        binding.descriptor.ptr += static_cast<SIZE_T>(mipLevel) * m_textureRenderTargetDescriptorStride;
         binding.format = ToNativeFormat(state.desc.format);
-        binding.state = &state.state;
+        binding.state = &state.states[mipLevel];
+        binding.subresource = mipLevel;
         binding.sampled = state.shaderResourceDescriptor.ptr != 0;
         return true;
     }
@@ -624,7 +641,8 @@ namespace JBro::Internal
         }
         binding.resource = state.resource.Get();
         binding.descriptor = state.depthStencilDescriptor;
-        binding.state = &state.state;
+        binding.state = &state.states[0];
+        binding.sampled = state.shaderResourceDescriptor.ptr != 0;
         return true;
     }
 
@@ -688,7 +706,7 @@ namespace JBro::Internal
                 state.desc = {};
                 state.renderTargetDescriptor = {};
                 state.depthStencilDescriptor = {};
-                state.state = D3D12_RESOURCE_STATE_COMMON;
+                std::fill(std::begin(state.states), std::end(state.states), D3D12_RESOURCE_STATE_COMMON);
                 state.retirementFence = 0;
             }
         }
@@ -768,7 +786,7 @@ namespace JBro::Internal
             state.desc = {};
             state.renderTargetDescriptor = {};
             state.depthStencilDescriptor = {};
-            state.state = D3D12_RESOURCE_STATE_COMMON;
+            std::fill(std::begin(state.states), std::end(state.states), D3D12_RESOURCE_STATE_COMMON);
             state.retirementFence = 0;
             state.occupied = false;
         }
@@ -835,7 +853,7 @@ namespace JBro::Internal
             return false;
         }
         resource = textureState.resource.Get();
-        state = &textureState.state;
+        state = &textureState.states[0];
         desc = textureState.desc;
         return true;
     }
@@ -929,7 +947,7 @@ namespace JBro::Internal
             D3D12_RESOURCE_BARRIER barrier = {};
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             barrier.Transition.pResource = resource;
-            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            barrier.Transition.Subresource = 0;
             barrier.Transition.StateBefore = entryState;
             barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
             m_commandList->ResourceBarrier(1, &barrier);
@@ -950,7 +968,7 @@ namespace JBro::Internal
             D3D12_RESOURCE_BARRIER barrier = {};
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             barrier.Transition.pResource = resource;
-            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            barrier.Transition.Subresource = 0;
             barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
             barrier.Transition.StateAfter = entryState;
             m_commandList->ResourceBarrier(1, &barrier);
@@ -1001,6 +1019,7 @@ namespace JBro::Internal
 
     Bool D3D12Device::ResolveSampledTexture(
         TextureHandle texture,
+        UInt32 mipLevel,
         D3D12_CPU_DESCRIPTOR_HANDLE& descriptor)
     {
         if (m_device == nullptr || false == texture.IsValid())
@@ -1029,6 +1048,19 @@ namespace JBro::Internal
             return false;
         }
         descriptor = state.shaderResourceDescriptor;
+        if (mipLevel == AllMips)
+        {
+            return true;
+        }
+        if (mipLevel >= state.desc.mipLevels)
+        {
+            return false;
+        }
+        // mip 이 하나뿐이면 모든 mip 의 뷰가 곧 그 mip 이다. 아니면 mip 하나씩의 뷰가 그 뒤에 있다.
+        if (state.desc.mipLevels > 1)
+        {
+            descriptor.ptr += static_cast<SIZE_T>(1 + mipLevel) * m_shaderResourceDescriptorStride;
+        }
         return true;
     }
 
@@ -1344,16 +1376,16 @@ namespace JBro::Internal
             return false;
         }
 
-        if (state.state != D3D12_RESOURCE_STATE_COPY_DEST)
+        if (state.states[0] != D3D12_RESOURCE_STATE_COPY_DEST)
         {
             D3D12_RESOURCE_BARRIER toCopy = {};
             toCopy.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             toCopy.Transition.pResource = state.resource.Get();
-            toCopy.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            toCopy.Transition.StateBefore = state.state;
+            toCopy.Transition.Subresource = 0;
+            toCopy.Transition.StateBefore = state.states[0];
             toCopy.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
             m_commandList->ResourceBarrier(1, &toCopy);
-            state.state = D3D12_RESOURCE_STATE_COPY_DEST;
+            state.states[0] = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
         D3D12_TEXTURE_COPY_LOCATION destination = {};
@@ -1371,11 +1403,11 @@ namespace JBro::Internal
         D3D12_RESOURCE_BARRIER toRead = {};
         toRead.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         toRead.Transition.pResource = state.resource.Get();
-        toRead.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        toRead.Transition.Subresource = 0;
         toRead.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-        toRead.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        toRead.Transition.StateAfter = ShaderReadState;
         m_commandList->ResourceBarrier(1, &toRead);
-        state.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        state.states[0] = ShaderReadState;
 
         if (FAILED(m_commandList->Close()))
         {

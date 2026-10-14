@@ -51,6 +51,7 @@ namespace JBro::Internal
         Bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
+        Bool SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
         Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
@@ -89,9 +90,18 @@ namespace JBro::Internal
         VkCommandBuffer m_commands = VK_NULL_HANDLE;
         VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
         VulkanPipelineState* m_activePipeline = nullptr;
-        // 패스가 끝나면 셰이더가 읽을 수 있게 돌려 놓을 텍스처들이다(Sampled 로 만든 색 첨부).
-        TextureHandle m_sampledAtEnd[MaxColorAttachments];
+        // 패스가 끝나면 셰이더가 읽을 수 있게 돌려 놓을 첨부들이다(Sampled 로 만든 색 첨부의 그 mip, 그리고 깊이).
+        struct SampledAttachment
+        {
+            TextureHandle texture;
+            UInt32 mip = 0;
+            VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+        };
+        SampledAttachment m_sampledAtEnd[MaxColorAttachments + 1];
         UInt32 m_sampledAtEndCount = 0;
+        Bool BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel);
+        // 지금 패스가 그리는 자리다. 그 mip 을 읽으려 하면 거절한다(`SetTextureMip` 의 계약).
+        RenderPassTargets m_passTargets;
         VkImageView m_pendingTextures[MaxBoundTextures] = {};
         VkSampler m_pendingSamplers[MaxBoundSamplers] = {};
         // b# 자리로 바로 찾는다(0 은 쓰지 않는다).
@@ -157,8 +167,12 @@ namespace JBro::Internal
     {
         VkImage image = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
+        // 모든 mip 을 보는 뷰다. mip 이 하나뿐이면 첨부로도 이것을 쓴다.
         VkImageView view = VK_NULL_HANDLE;
-        VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        // mip 하나씩만 보는 뷰다. mip 이 둘 이상일 때만 만든다 - 색 첨부의 뷰는 mip 이 하나여야 하고(명세), `SetTextureMip` 도 이것을 묶는다.
+        VkImageView mipViews[MaxTextureMipLevels] = {};
+        // mip 마다의 레이아웃이다(서브리소스 상태). 쓰는 것은 `desc.mipLevels` 칸까지다.
+        VkImageLayout layouts[MaxTextureMipLevels] = {};
         VkFormat format = VK_FORMAT_UNDEFINED;
         TextureDesc desc;
         UInt32 generation = 1;
@@ -263,11 +277,18 @@ namespace JBro::Internal
             VkImageView view = VK_NULL_HANDLE;
             VkImageLayout* layout = nullptr;
             VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+            // 그 mip 의 크기다.
             VkExtent2D extent = {};
+            UInt32 mip = 0;
+            // 텍스처 전체의 mip 수다. 통째 복사는 하나인 것만 받는다.
+            UInt32 mipLevels = 1;
             Bool sampled = false;
         };
-        Bool ResolveAttachment(TextureHandle texture, AttachmentView& view);
-        Bool ResolveSampledTexture(TextureHandle texture, VkImageView& view);
+        // 텍스처는 그 mip 하나로 풀린다(뷰·레이아웃·크기). 백버퍼는 mip 0 만 있다.
+        Bool ResolveAttachment(TextureHandle texture, UInt32 mipLevel, AttachmentView& view);
+        // `mipLevel` 이 `AllMips` 면 모든 mip 을 보는 뷰다. 읽으려는 mip 이 모두 셰이더 읽기 레이아웃이어야 한다.
+        static constexpr UInt32 AllMips = ~UInt32{0};
+        Bool ResolveSampledTexture(TextureHandle texture, UInt32 mipLevel, VkImageView& view);
         Bool ResolveBuffer(BufferHandle buffer, VkBuffer& native, BufferDesc& desc);
         Bool ResolveSampler(SamplerHandle sampler, VkSampler& native);
         VulkanPipelineState* ResolvePipeline(GraphicsPipelineHandle pipeline);
@@ -278,8 +299,10 @@ namespace JBro::Internal
         }
 
         // 두 소스 파일이 함께 쓰는 레이아웃 전이. 스테이지·접근은 레이아웃에서 보수적으로 고른다.
+        // `mipCount` 를 주지 않으면 `baseMip` 부터 끝까지다. 레이아웃을 mip 마다 들므로(서브리소스 상태) 텍스처는 mip 하나씩 옮긴다.
         static void TransitionImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect,
-            VkImageLayout from, VkImageLayout to);
+            VkImageLayout from, VkImageLayout to, UInt32 baseMip = 0, UInt32 mipCount = AllRemainingMips);
+        static constexpr UInt32 AllRemainingMips = ~UInt32{0};
 
     private:
         static constexpr UInt32 MaxSwapchains = 8;

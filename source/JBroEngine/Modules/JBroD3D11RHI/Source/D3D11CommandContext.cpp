@@ -43,6 +43,7 @@ namespace JBro::Internal
         {
             bound = false;
         }
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -56,11 +57,18 @@ namespace JBro::Internal
             return false;
         }
         ID3D11RenderTargetView* views[MaxColorAttachments] = {};
+        Extent2D firstExtent;
         for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
-            if (false == m_device->ResolveRenderTargetView(desc.colorAttachments.data[index].texture, views[index]))
+            const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
+            Extent2D extent;
+            if (false == m_device->ResolveRenderTargetView(attachment.texture, attachment.mipLevel, views[index], extent))
             {
                 return false;
+            }
+            if (index == 0)
+            {
+                firstExtent = extent;
             }
         }
         ID3D11DepthStencilView* depthView = nullptr;
@@ -76,23 +84,16 @@ namespace JBro::Internal
         m_context->PSSetShaderResources(0, MaxBoundTextures, noResources);
         m_context->OMSetRenderTargets(desc.colorAttachments.size, views, depthView);
         // 래스터라이저가 시저를 켜 두므로 기본 시저가 있어야 한다 - 없으면 D3D11 의 초기 시저는 빈 사각형이라
-        // 뷰포트만 준 호출자는 아무것도 그리지 못한다. 첫 첨부 전체로 둔다.
+        // 뷰포트만 준 호출자는 아무것도 그리지 못한다. 첫 첨부 전체로 둔다 - 그 mip 의 크기다.
         {
-            ComPtr<ID3D11Resource> resource;
-            views[0]->GetResource(&resource);
-            ComPtr<ID3D11Texture2D> texture;
-            if (resource != nullptr && SUCCEEDED(resource.As(&texture)))
-            {
-                D3D11_TEXTURE2D_DESC textureDesc = {};
-                texture->GetDesc(&textureDesc);
-                const D3D11_RECT full = {0, 0, static_cast<LONG>(textureDesc.Width), static_cast<LONG>(textureDesc.Height)};
-                m_context->RSSetScissorRects(1, &full);
-                D3D11_VIEWPORT viewport = {};
-                viewport.Width = static_cast<JBro::Float>(textureDesc.Width);
-                viewport.Height = static_cast<JBro::Float>(textureDesc.Height);
-                viewport.MaxDepth = 1.0f;
-                m_context->RSSetViewports(1, &viewport);
-            }
+            const D3D11_RECT full = {0, 0, static_cast<LONG>(firstExtent.width.Get()),
+                static_cast<LONG>(firstExtent.height.Get())};
+            m_context->RSSetScissorRects(1, &full);
+            D3D11_VIEWPORT viewport = {};
+            viewport.Width = static_cast<JBro::Float>(firstExtent.width);
+            viewport.Height = static_cast<JBro::Float>(firstExtent.height);
+            viewport.MaxDepth = 1.0f;
+            m_context->RSSetViewports(1, &viewport);
         }
         for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
@@ -109,6 +110,15 @@ namespace JBro::Internal
             m_context->ClearDepthStencilView(depthView, D3D11_CLEAR_DEPTH,
                 desc.depthStencilAttachment->clearDepth, desc.depthStencilAttachment->clearStencil);
         }
+        m_passTargets.Clear();
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
+        {
+            m_passTargets.Add(desc.colorAttachments.data[index].texture, desc.colorAttachments.data[index].mipLevel);
+        }
+        if (desc.depthStencilAttachment != nullptr)
+        {
+            m_passTargets.Add(desc.depthStencilAttachment->texture, 0);
+        }
         m_renderPassActive = true;
         m_pipelineActive = false;
         return true;
@@ -118,8 +128,11 @@ namespace JBro::Internal
     {
         ID3D11RenderTargetView* fromView = nullptr;
         ID3D11RenderTargetView* toView = nullptr;
+        Extent2D fromExtent;
+        Extent2D toExtent;
         if (m_device == nullptr || m_context == nullptr || m_renderPassActive
-            || false == m_device->ResolveRenderTargetView(source, fromView) || false == m_device->ResolveRenderTargetView(destination, toView))
+            || false == m_device->ResolveRenderTargetView(source, 0, fromView, fromExtent)
+            || false == m_device->ResolveRenderTargetView(destination, 0, toView, toExtent))
         {
             return false;
         }
@@ -138,7 +151,9 @@ namespace JBro::Internal
         D3D11_TEXTURE2D_DESC toDesc = {};
         fromTexture->GetDesc(&fromDesc);
         toTexture->GetDesc(&toDesc);
-        if (fromDesc.Width != toDesc.Width || fromDesc.Height != toDesc.Height || fromDesc.Format != toDesc.Format)
+        // 통째 복사라 mip 이 하나인 것만 받는다(D3D12 와 같은 계약).
+        if (fromDesc.Width != toDesc.Width || fromDesc.Height != toDesc.Height || fromDesc.Format != toDesc.Format
+            || fromDesc.MipLevels != 1 || toDesc.MipLevels != 1)
         {
             return false;
         }
@@ -154,6 +169,7 @@ namespace JBro::Internal
         }
         // 렌더 타깃을 떼어 두어야 다음에 그것을 셰이더가 읽을 수 있다.
         m_context->OMSetRenderTargets(0, nullptr, nullptr);
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -294,10 +310,30 @@ namespace JBro::Internal
 
     Bool D3D11CommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
+        return BindTexture(slot, texture, D3D11Device::AllMips);
+    }
+
+    Bool D3D11CommandContext::SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        if (mipLevel == D3D11Device::AllMips)
+        {
+            return false;
+        }
+        return BindTexture(slot, texture, mipLevel);
+    }
+
+    Bool D3D11CommandContext::BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        // 이 패스가 그리는 자리를 읽으려 한다(`SetTextureMip` 의 계약).
+        if (m_passTargets.Overlaps(texture, mipLevel, mipLevel == D3D11Device::AllMips))
+        {
+            return false;
+        }
         ID3D11ShaderResourceView* view = nullptr;
         // 파이프라인이 선언하지 않은 자리는 거절한다 - D3D12·Vulkan 은 그 칸이 없어 거절하고, 계약이 같아야 한다.
         if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr
-            || slot >= m_activeBindings.sampledTextures.count || false == m_device->ResolveShaderResourceView(texture, view))
+            || slot >= m_activeBindings.sampledTextures.count
+            || false == m_device->ResolveShaderResourceView(texture, mipLevel, view))
         {
             return false;
         }

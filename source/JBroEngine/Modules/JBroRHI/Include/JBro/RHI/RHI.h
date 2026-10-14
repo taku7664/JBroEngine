@@ -378,6 +378,70 @@ namespace JBro
     // 더 큰 것은 상수 버퍼로 올린다.
     inline constexpr UInt32 MaxPushConstantBytes = 128;
 
+    // 텍스처 하나의 mip 수 상한이다(`DeviceCaps::maxTextureMipLevels`).
+    inline constexpr UInt32 MaxTextureMipLevels = 16;
+
+    // 지금 패스가 그리는 자리들이다. 백엔드의 컨텍스트가 `BeginRenderPass` 에서 적고 `EndRenderPass` 에서 비우며, 텍스처를 묶을 때
+    // 겹치는지 묻는다(`SetTextureMip` 의 계약). 깊이는 mip 0 하나다.
+    struct RenderPassTargets
+    {
+        static constexpr UInt32 Capacity = 9;
+        TextureHandle textures[Capacity];
+        UInt32 mips[Capacity] = {};
+        UInt32 count = 0;
+
+        void Clear() noexcept
+        {
+            count = 0;
+        }
+
+        void Add(TextureHandle texture, UInt32 mip) noexcept
+        {
+            if (count < Capacity)
+            {
+                textures[count] = texture;
+                mips[count] = mip;
+                ++count;
+            }
+        }
+
+        // `mipLevel` 을 읽으면 이 패스가 그리는 자리와 겹치는지다. `allMips` 면 그 텍스처의 어느 mip 이든 겹친다.
+        Bool Overlaps(TextureHandle texture, UInt32 mipLevel, Bool allMips) const noexcept
+        {
+            for (UInt32 index = 0; index < count; ++index)
+            {
+                if (textures[index] == texture && (allMips || mips[index] == mipLevel))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    };
+
+    // 한 변의 길이에서 mip 의 길이다. 1 아래로 내려가지 않는다.
+    constexpr UInt32 GetMipExtent(UInt32 extent, UInt32 mipLevel) noexcept
+    {
+        const UInt32 shifted = mipLevel >= 32 ? UInt32(0) : UInt32(extent.Get() >> mipLevel.Get());
+        return shifted == 0 ? UInt32(1) : shifted;
+    }
+
+    // 크기에 맞는 mip 수인지 본다 - 가장 긴 변이 1 이 되는 mip 까지가 끝이고, `MaxTextureMipLevels` 를 넘지 않는다.
+    constexpr Bool IsMipCountValid(const Extent2D& extent, UInt32 mipLevels) noexcept
+    {
+        if (mipLevels == 0 || mipLevels > MaxTextureMipLevels)
+        {
+            return false;
+        }
+        const UInt32 longest = extent.width > extent.height ? extent.width : extent.height;
+        UInt32 chain = 1;
+        while (chain < 32 && (longest.Get() >> chain.Get()) != 0)
+        {
+            ++chain;
+        }
+        return mipLevels <= chain;
+    }
+
     struct GraphicsPipelineDesc
     {
         ShaderBytecode vertexShader;
@@ -412,6 +476,9 @@ namespace JBro
     struct ColorAttachmentDesc
     {
         TextureHandle texture;
+        // 그릴 mip 이다(postprocess-plan §2.1 서브리소스). 패스의 기본 뷰포트·시저와 렌더 영역은 그 mip 의 크기다 -
+        // 블룸의 내림 사슬이 mip 하나를 읽고 다음 mip 에 그린다. 백버퍼는 0 만 받는다.
+        UInt32 mipLevel = 0;
         LoadOperation loadOperation = LoadOperation::Load;
         StoreOperation storeOperation = StoreOperation::Store;
         ClearColor clearColor;
@@ -457,6 +524,13 @@ namespace JBro
         // 그리기 직전까지 기억만 하고, 실제 묶는 것은 드로우 호출에서 한 번에 한다.
         // 한 드로우에 필요한 것이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있다.
         virtual Bool SetTexture(UInt32 slot, TextureHandle texture) = 0;
+        // 텍스처의 mip 하나만 묶는다. 셰이더에게는 mip 이 하나뿐인 텍스처로 보인다(`SampleLevel(..., 0)`·`Load` 의 mip 0 이
+        // 그 mip 이다). 같은 텍스처의 다른 mip 에 그리는 패스 안에서 읽을 수 있는 길이 이것이다 - 텍스처 전체를 묶으면 그리는
+        // mip 까지 읽는 자리에 걸린다. 없는 mip 은 거절한다.
+        //
+        // **지금 패스가 그리는 mip(깊이 첨부면 그 깊이)은 `SetTexture`·`SetTextureMip` 둘 다 거절한다.** 같은 자리를 읽고 쓰면
+        // 결과가 정의되지 않는다 - D3D12 는 검증 오류, D3D11 은 몰래 떼어 냄, Vulkan 은 레이아웃이 맞지 않는다.
+        virtual Bool SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel) = 0;
         virtual Bool SetSampler(UInt32 slot, SamplerHandle sampler) = 0;
         // 슬롯에 상수 버퍼의 한 구간을 묶는다. 슬롯 번호는 셰이더의 `b` 레지스터 번호이고 1 부터다(b0 은 푸시 상수).
         // 버퍼는 `BufferUsage::Constant` 로 만든 것이다. `offset`·`size` 는 `DeviceCaps::constantBufferAlignment` 의 배수이고
@@ -520,6 +594,9 @@ namespace JBro
         // 오프셋이 0 이 아닌 구간을 묶을 수 있다. D3D11 은 11.1 의 부분 묶기와 동적 상수 버퍼의 NO_OVERWRITE 를 모두 지원할
         // 때만 참이다. 거짓이면 `ConstantRing` 을 만들 수 없다.
         Bool constantBufferOffsets = true;
+        // 텍스처 하나의 mip 수 상한이다. 16 이면 한 변 32768 까지의 사슬 전부다. 백엔드가 mip 마다 뷰를 미리 만들어 두므로
+        // (그리기 경로에서 뷰를 만들지 않는다) 상한이 있다.
+        UInt32 maxTextureMipLevels = MaxTextureMipLevels;
     };
 
     // 자리표가 장치의 상한 안이고, 쓰는 종류마다 읽는 단계를 말했는지 본다. 백엔드가 파이프라인을 만들기 전에 부른다.
