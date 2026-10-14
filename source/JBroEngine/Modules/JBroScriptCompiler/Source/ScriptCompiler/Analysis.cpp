@@ -1733,6 +1733,13 @@ namespace JBro::ScriptCompiler
                 {
                     const SymbolId leftType = TypeId(m_result, left.Type);
                     const SymbolId rightType = TypeId(m_result, right.Type);
+                    if ((Nullable(left.Type) && (leftType == InvalidSymbol || !m_handles.Contains(leftType)))
+                        || (Nullable(right.Type) && (rightType == InvalidSymbol || !m_handles.Contains(rightType))))
+                    {
+                        Error("JBC3031", "operator", NameRange(*m_document, node),
+                            {String(node.Text), Nullable(left.Type) ? left.Type : right.Type});
+                        return Literal("Bool");
+                    }
                     const Bool userValue = false == Nullable(left.Type) && leftType != InvalidSymbol
                         && false == m_result.Symbols[leftType].Api && false == m_scripts.Contains(leftType)
                         && (m_result.Symbols[leftType].Kind == SymbolKind::Class

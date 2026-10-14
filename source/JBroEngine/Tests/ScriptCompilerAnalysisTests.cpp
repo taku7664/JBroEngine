@@ -279,6 +279,16 @@ namespace
             "fn F(Box other) -> Bool\n{\nreturn this != other\n}\n}\n");
         Check(Has(*onlyEqual, "JBC3031"), "operator!= needs its own declaration");
 
+        auto ownedRefs = Analyze("class Holder\n{\n"
+            "ref Int first\nref Int second\n"
+            "fn Compare() -> Bool\n{\nreturn first == second\n}\n"
+            "fn CompareNull() -> Bool\n{\nreturn first != null\n}\n"
+            "fn CheckNull() -> Bool\n{\nreturn first is null\n}\n}\n");
+        Check(ownedRefs->Documents[0]->Diagnostics.Size() == 2
+                && ownedRefs->Documents[0]->Diagnostics[0].Code == "JBC3031"
+                && ownedRefs->Documents[0]->Diagnostics[1].Code == "JBC3031",
+            "owned nullable refs reject both value and null equality while is null remains valid");
+
         auto otherParameter = Analyze("struct Box\n{\n"
             "fn operator==(Int other) -> Bool\n{\nreturn true\n}\n"
             "fn F(Int other) -> Bool\n{\nreturn this == other\n}\n}\n");
