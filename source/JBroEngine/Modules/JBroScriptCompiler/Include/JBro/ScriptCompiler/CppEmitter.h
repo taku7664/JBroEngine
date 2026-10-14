@@ -6,6 +6,7 @@
 
 namespace JBro::ScriptCompiler
 {
+    struct AnalysisResult;
     struct CppEmitResult
     {
         String Code;
@@ -21,9 +22,9 @@ namespace JBro::ScriptCompiler
     // Emits C++ for a 2D game DLL. Unsupported syntax is reported
     // explicitly; a partial translation must never be compiled as a script.
     CppEmitResult EmitCpp(const SourceText& source, const SyntaxTree& tree,
-        const ApiCatalog& api, bool emitModuleEntry = true);
+        const ApiCatalog& api, bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
     // Emits one translation unit for all files in a game project. Type
     // declarations are ordered across files; source locations remain per file.
     CppEmitResult EmitCpp(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        bool emitModuleEntry = true);
+        bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
 }

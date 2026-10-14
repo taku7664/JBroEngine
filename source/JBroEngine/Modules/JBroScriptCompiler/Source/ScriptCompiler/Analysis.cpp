@@ -491,6 +491,7 @@ namespace JBro::ScriptCompiler
                     if (call.Range.Begin.Offset == node.Range.Begin.Offset && call.Range.End.Offset == node.Range.End.Offset
                         && InvalidSymbol != call.Resolved)
                     {
+                        if (false == call.ResultType.IsEmpty()) return call.ResultType;
                         const Symbol& function = result.Symbols[call.Resolved];
                         const NodeIndex callee = tree.GetChild(index, 0);
                         const SyntaxNode& calleeNode = tree.Get(callee);
@@ -2127,6 +2128,7 @@ namespace JBro::ScriptCompiler
                         }
                     }
                 }
+                call.ResultType = result.Type;
                 m_document->Calls.Add(std::move(call));
                 return result;
             }
@@ -2645,6 +2647,11 @@ namespace JBro::ScriptCompiler
             UInt32 m_loopDepth = 0;
             UInt32 m_switchDepth = 0;
         };
+    }
+
+    String GetExpressionType(const AnalysisResult& result, const DocumentAnalysis& document, NodeIndex index)
+    {
+        return ExpressionType(result, document, index);
     }
 
     OwnerPtr<AnalysisResult> AnalyzeProject(ArrayView<const DocumentInput> documents, const ApiCatalog& api)

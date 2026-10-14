@@ -98,6 +98,11 @@ class ComparedLabel
     {
         return value == other
     }
+
+    public fn LabelScore() -> Int
+    {
+        return value + 1
+    }
 }
 
 class BaseNumber
@@ -112,6 +117,23 @@ class BaseNumber
 
 class DerivedNumber : BaseNumber
 {
+}
+
+class OverloadFactory
+{
+    public fn Build(Int number) -> ComparedPair
+    {
+        ComparedPair result
+        result.value = number
+        return result
+    }
+
+    public fn Build(String label) -> ComparedLabel
+    {
+        ComparedLabel result
+        if (label == "x") { result.value = 10 }
+        return result
+    }
 }
 
 class EqualityScenario
@@ -141,6 +163,8 @@ class EqualityScenario
         DerivedNumber inherited
         inherited.value = 7
         if (inherited == 7) { score += 128 }
+        OverloadFactory factory
+        if (factory.Build("x").LabelScore() == 11) { score += 256 }
         return score
     }
 }

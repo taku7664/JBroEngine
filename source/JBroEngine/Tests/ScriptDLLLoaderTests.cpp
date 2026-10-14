@@ -1211,8 +1211,8 @@ namespace
         Check(derivedRead != nullptr && derivedRead() == 5 && childResult != nullptr
                 && multipleBaseProperties != nullptr && multipleBaseProperties() == 23,
             "interface diamonds, virtual overrides and secondary-base reflection execute in the game DLL");
-        Check(equalityScore != nullptr && equalityScore() == 219,
-            "class and struct equality operators, cross-type and inherited overloads execute in the game DLL");
+        Check(equalityScore != nullptr && equalityScore() == 475,
+            "equality operators and a chained call from a selected overload execute in the game DLL");
         using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
         using ControlAddScore = void (*)(JBro::GameScriptBase*);

@@ -67,6 +67,7 @@ namespace JBro::ScriptCompiler
         Array<SourceRange> Arguments;
         Array<SymbolId> Overloads;
         SymbolId Resolved = InvalidSymbol;
+        String ResultType;
     };
 
     struct SemanticDiagnostic
@@ -108,6 +109,8 @@ namespace JBro::ScriptCompiler
         const ApiCatalog& api, OwnerPtr<AnalysisResult> previous);
     const Symbol* FindSymbol(const AnalysisResult& result, SymbolId id);
     const DocumentAnalysis* FindDocument(const AnalysisResult& result, std::string_view uri);
+    // The analyzed type of one syntax expression, including selected call overloads.
+    String GetExpressionType(const AnalysisResult& result, const DocumentAnalysis& document, NodeIndex index);
     Array<SymbolId> GetCompletionSymbols(const AnalysisResult& result, std::string_view uri, UInt32 offset);
     // Returns the connected rename contract: class/constructors or matching overrides/requirements.
     // Class IDs precede their constructors. API/callback members in a method group make it immutable.

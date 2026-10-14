@@ -1,4 +1,5 @@
 #include <JBro/ScriptCompiler/CppEmitter.h>
+#include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/Types/Table.h>
 
 #include <algorithm>
@@ -111,8 +112,8 @@ namespace JBro::ScriptCompiler
         {
         public:
             Generator(ArrayView<const CppSource> sources, const ApiCatalog& api,
-                bool emitModuleEntry)
-                : m_sources(sources), m_api(api), m_emitModuleEntry(emitModuleEntry)
+                bool emitModuleEntry, const AnalysisResult* analysis)
+                : m_sources(sources), m_api(api), m_emitModuleEntry(emitModuleEntry), m_analysis(analysis)
             {
             }
 
@@ -927,6 +928,19 @@ namespace JBro::ScriptCompiler
                 return value.code;
             }
 
+            Type AnalyzedType(NodeIndex index) const
+            {
+                if (m_analysis == nullptr) return {};
+                for (const auto& document : m_analysis->Documents)
+                {
+                    if (&document->Tree == m_tree)
+                    {
+                        return TextType(GetExpressionType(*m_analysis, *document, index));
+                    }
+                }
+                return {};
+            }
+
             Expression Expr(NodeIndex index)
             {
                 if (index == InvalidNode) return {};
@@ -1153,6 +1167,8 @@ namespace JBro::ScriptCompiler
                 {
                     const NodeIndex calleeIndex = Child(index, 0);
                     const Expression callee = Expr(calleeIndex);
+                    const Type analyzedType = AnalyzedType(index);
+                    const Type callType = analyzedType.name.empty() ? callee.type : analyzedType;
                     const SyntaxNode& calleeNode = Node(calleeIndex);
                     String arguments;
                     for (std::size_t slot = 1; slot < node.ChildCount; ++slot)
@@ -1177,20 +1193,20 @@ namespace JBro::ScriptCompiler
                         if (calleeNode.ChildCount > 1) method += '>';
                         if (calleeNode.Flags & SyntaxFlagNullSafe)
                         {
-                            if (callee.type.name == "Void")
+                            if (callType.name == "Void")
                             {
                                 const String code = "([&]() { auto&& __jb_receiver = ("
                                     + receiver.code + "); if (!JBro::ScriptGuard::IsPresent(__jb_receiver)) "
                                     "return; JBro::ScriptGuard::UnwrapPresent(__jb_receiver)."
                                     + method + "(" + arguments + "); }())";
-                                return {code, callee.type};
+                                return {code, callType};
                             }
-                            const String resultType = NativeType(callee.type);
+                            const String resultType = NativeType(callType);
                             const String code = "([&]() -> " + resultType + " { auto&& __jb_receiver = ("
                                 + receiver.code + "); if (!JBro::ScriptGuard::IsPresent(__jb_receiver)) "
                                 "return {}; return " + resultType + "(JBro::ScriptGuard::UnwrapPresent(__jb_receiver)."
                                 + method + "(" + arguments + ")); }())";
-                            return {code, callee.type};
+                            return {code, callType};
                         }
                         if (receiver.type.ref || IsHandle(receiver.type))
                         {
@@ -1199,12 +1215,12 @@ namespace JBro::ScriptCompiler
                                 + receiver.code + "); return JBro::ScriptGuard::Require(__jb_receiver, "
                                 + Escape(site) + ", " + Escape(site + " invalid ref access: "
                                     + AccessPath(calleeIndex)) + ")." + method + "(" + arguments + "); }())";
-                            return {code, callee.type};
+                            return {code, callType};
                         }
                         return {receiver.isType ? receiver.code + "::" + method + "(" + arguments + ")"
-                            : "(" + receiver.code + ")." + method + "(" + arguments + ")", callee.type};
+                            : "(" + receiver.code + ")." + method + "(" + arguments + ")", callType};
                     }
-                    return {callee.code + "(" + arguments + ")", callee.type};
+                    return {callee.code + "(" + arguments + ")", callType};
                 }
                 case SyntaxKind::RefArgument:
                 {
@@ -1526,6 +1542,7 @@ namespace JBro::ScriptCompiler
             const SyntaxTree* m_tree = nullptr;
             const ApiCatalog& m_api;
             bool m_emitModuleEntry;
+            const AnalysisResult* m_analysis;
             String m_code;
             Array<String> m_errors;
             Table<String, DeclarationRef> m_declarations;
@@ -1540,15 +1557,15 @@ namespace JBro::ScriptCompiler
     }
 
     CppEmitResult EmitCpp(const SourceText& source, const SyntaxTree& tree,
-        const ApiCatalog& api, bool emitModuleEntry)
+        const ApiCatalog& api, bool emitModuleEntry, const AnalysisResult* analysis)
     {
         const CppSource one{&source, &tree};
-        return Generator(ArrayView<const CppSource>(&one, 1), api, emitModuleEntry).Run();
+        return Generator(ArrayView<const CppSource>(&one, 1), api, emitModuleEntry, analysis).Run();
     }
 
     CppEmitResult EmitCpp(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        bool emitModuleEntry)
+        bool emitModuleEntry, const AnalysisResult* analysis)
     {
-        return Generator(sources, api, emitModuleEntry).Run();
+        return Generator(sources, api, emitModuleEntry, analysis).Run();
     }
 }

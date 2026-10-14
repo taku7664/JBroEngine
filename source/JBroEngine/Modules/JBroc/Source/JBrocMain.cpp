@@ -435,7 +435,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
             return ExitSourceErrors;
         }
         const CppEmitResult emitted = EmitCpp(cppSources.View(), catalog,
-            false == commandLine.EmitCppWithoutModuleEntry);
+            false == commandLine.EmitCppWithoutModuleEntry, analyzed.Get());
         if (false == emitted.Errors.IsEmpty())
         {
             for (const String& error : emitted.Errors)
