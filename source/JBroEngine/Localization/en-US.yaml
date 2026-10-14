@@ -382,7 +382,8 @@ Entries:
   notify.scripts_built: The scripts were built
   notify.scripts_build_failed: The scripts could not be built
   notify.no_script_project: There is no script project yet. Create a script from Scripts in the asset browser first
-  notify.msbuild_missing: MSBuild was not found. Install Visual Studio with the C++ workload
+  notify.build_tools_missing: The C++ build tools (MSVC v145) were not found. Click to open the download page, then install Build Tools for Visual Studio 2026 with “Desktop development with C++” and “Windows 11 SDK (10.0.22621.0)”
+  notify.windows_sdk_missing: Windows SDK 10.0.22621.0 was not found. Click to open the download page, then add “Windows 11 SDK (10.0.22621.0)” to Build Tools for Visual Studio 2026
   editor_settings.script_editor: Script Editor
   editor_settings.script_editor_help: Clicking an error in Build Results opens that line in this editor
   script_editor.system: Default app (no line jump)

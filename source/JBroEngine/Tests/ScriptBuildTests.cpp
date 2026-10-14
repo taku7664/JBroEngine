@@ -309,6 +309,48 @@ namespace
         platform.Shutdown();
     }
 
+    // **MSBuild 만 있고 C++ 컴파일러가 없는 설치는 빌드 도구로 치지 않는다**(D-318). C++ 워크로드 없이 깐 빌드 도구도 MSBuild 는 있어서,
+    // 찾았다고 하고 빌드에서 툴셋이 없다고 실패했다. 가짜 설치 폴더로 MSBuild 가 컴파일러를 찾는 길(버전 파일 → `cl.exe`)을 하나씩 뺀다.
+    void TestOnlyAnInstallWithTheCompilerIsUsed()
+    {
+        WindowsPlatform platform;
+        JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes");
+        const fs::path install = FreshFolder(u8"빌드 도구");
+        const fs::path msbuild = install / "MSBuild" / "Current" / "Bin" / "MSBuild.exe";
+        const fs::path versionFile = install / "VC" / "Auxiliary" / "Build" / (std::string("Microsoft.VCToolsVersion.") + ScriptBuild::ScriptToolset + ".default.txt");
+        const fs::path compiler = install / "VC" / "Tools" / "MSVC" / "14.51.1" / "bin" / "Hostx64" / "x64" / "cl.exe";
+        for (const fs::path* file : {&msbuild, &versionFile, &compiler})
+        {
+            fs::create_directories(file->parent_path());
+        }
+        std::ofstream(msbuild, std::ios::binary) << "";
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str()).empty(), "MSBuild alone is not the build tools");
+        std::ofstream(versionFile, std::ios::binary) << "14.51.1\r\n";
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str()).empty(), "a toolset version without its compiler is not either");
+        std::ofstream(compiler, std::ios::binary) << "";
+        const String found = ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str());
+        std::error_code ignored;
+        Check(false == found.empty() && fs::equivalent(FromUtf8(found), msbuild, ignored),
+            "with the compiler of the script toolset the install's MSBuild is used");
+        fs::remove(msbuild);
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, Utf8(install).c_str()).empty(), "and without MSBuild there is nothing to run");
+        Check(ScriptBuild::FindMSBuildWithToolset(platform, "").empty() && ScriptBuild::FindMSBuildWithToolset(platform, nullptr).empty(),
+            "no folder is no install");
+
+        // 툴셋과 SDK 는 스크립트 프로젝트가 가져가는 `JBro.Common.props` 와 같아야 한다 - 엔진이 툴셋을 올리고 여기를 잊으면
+        // 빌드 도구가 있는데 없다고 하거나, 없는데 있다고 한다.
+        const String engineRoot = ScriptProject::FindEngineRoot(platform, platform.GetExecutableFolder().c_str());
+        Check(false == engineRoot.empty(), "the engine sources are found from the test");
+        const std::string props = ReadAll(FromUtf8(engineRoot) / "JBro.Common.props");
+        Check(props.find(std::string("<PlatformToolset>") + ScriptBuild::ScriptToolset + "</PlatformToolset>") != std::string::npos,
+            "the script toolset is the one the engine props pin");
+        Check(props.find(std::string("<WindowsTargetPlatformVersion>") + ScriptBuild::ScriptWindowsSdk + "</WindowsTargetPlatformVersion>")
+                != std::string::npos,
+            "and so is the Windows SDK");
+        platform.Shutdown();
+    }
+
     // 에디터 설정은 사용자별 설정 파일에 남는다.
     void TestTheScriptEditorIsRemembered()
     {
@@ -536,6 +578,7 @@ Int32 RunScriptBuildTests()
     TestTheBuildLogIsRead();
     TestTheCommandsAreQuoted();
     TestTheToolsAreFound();
+    TestOnlyAnInstallWithTheCompilerIsUsed();
     TestTheScriptEditorIsRemembered();
     TestTheEditorBuildsTheScriptsAndFindsTheErrorLine();
     std::cout << "Script build tests passed.\n";

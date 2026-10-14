@@ -48,13 +48,13 @@ namespace JBro::ScriptBuild
             return platform.FileExists(path.c_str()) ? path : String();
         }
 
-        // `vswhere` 를 띄우고 끝을 기다려 첫 줄 중 있는 파일을 돌려준다. 짧게 끝나는 도구라 기다린다(10 초 상한).
-        String RunVswhere(IPlatform& platform, const char* scratchFolder, const char* arguments)
+        // `vswhere` 를 띄우고 끝을 기다려 빈 줄이 아닌 줄을 차례대로 담는다. 짧게 끝나는 도구라 기다린다(10 초 상한).
+        void RunVswhereLines(IPlatform& platform, const char* scratchFolder, const char* arguments, Array<String>& lines)
         {
             const String vswhere = VswherePath(platform);
             if (vswhere.empty() || scratchFolder == nullptr || scratchFolder[0] == '\0')
             {
-                return String();
+                return;
             }
             platform.CreateDirectoryAt(scratchFolder);
             const String output = EditorPaths::JoinPath(scratchFolder, "vswhere.txt");
@@ -74,7 +74,7 @@ namespace JBro::ScriptBuild
             Array<std::byte> bytes;
             if (status != ProcessStatus::Exited || false == platform.ReadWholeFile(output.c_str(), bytes))
             {
-                return String();
+                return;
             }
             const char* text = reinterpret_cast<const char*>(bytes.Data());
             const char* end = text + bytes.Size();
@@ -85,12 +85,26 @@ namespace JBro::ScriptBuild
                 {
                     ++lineEnd;
                 }
-                const String candidate = Trimmed(text, lineEnd);
-                if (false == candidate.empty() && platform.FileExists(candidate.c_str()))
+                String line = Trimmed(text, lineEnd);
+                if (false == line.empty())
+                {
+                    lines.Add(std::move(line));
+                }
+                text = lineEnd + 1;
+            }
+        }
+
+        // 위의 줄 중 있는 파일인 첫 것이다.
+        String RunVswhere(IPlatform& platform, const char* scratchFolder, const char* arguments)
+        {
+            Array<String> lines;
+            RunVswhereLines(platform, scratchFolder, arguments, lines);
+            for (const String& candidate : lines)
+            {
+                if (platform.FileExists(candidate.c_str()))
                 {
                     return candidate;
                 }
-                text = lineEnd + 1;
             }
             return String();
         }
@@ -269,21 +283,55 @@ namespace JBro::ScriptBuild
         }
     }
 
+    String FindMSBuildWithToolset(IPlatform& platform, const char* installFolder)
+    {
+        if (installFolder == nullptr || installFolder[0] == '\0')
+        {
+            return String();
+        }
+        const String msbuild = EditorPaths::JoinPath(installFolder, "MSBuild/Current/Bin/MSBuild.exe");
+        String versionFile = "VC/Auxiliary/Build/Microsoft.VCToolsVersion.";
+        versionFile += ScriptToolset;
+        versionFile += ".default.txt";
+        Array<std::byte> bytes;
+        if (false == platform.FileExists(msbuild.c_str())
+            || false == platform.ReadWholeFile(EditorPaths::JoinPath(installFolder, versionFile.c_str()).c_str(), bytes))
+        {
+            return String();
+        }
+        const char* text = reinterpret_cast<const char*>(bytes.Data());
+        const String version = Trimmed(text, text + bytes.Size());
+        if (version.empty())
+        {
+            return String();
+        }
+        String compiler = "VC/Tools/MSVC/";
+        compiler += version;
+        compiler += "/bin/Hostx64/x64/cl.exe";
+        return platform.FileExists(EditorPaths::JoinPath(installFolder, compiler.c_str()).c_str()) ? msbuild : String();
+    }
+
     String LocateMSBuild(IPlatform& platform, const char* scratchFolder)
     {
-        // 개발자 명령 프롬프트에서 띄웠으면 그 VS 다.
-        const String installDir = platform.ReadEnvironmentVariable("VSINSTALLDIR");
-        if (false == installDir.empty())
+        // 개발자 명령 프롬프트에서 띄웠으면 그 설치다.
+        const String fromPrompt = FindMSBuildWithToolset(platform, platform.ReadEnvironmentVariable("VSINSTALLDIR").c_str());
+        if (false == fromPrompt.empty())
         {
-            const String candidate = EditorPaths::JoinPath(installDir.c_str(), "MSBuild/Current/Bin/MSBuild.exe");
-            if (platform.FileExists(candidate.c_str()))
+            return fromPrompt;
+        }
+        // `-all`·`-prerelease`·`-products *` 로 Visual Studio·빌드 도구·Preview·설치가 덜 끝난 것까지 다 받고, 툴셋은 위에서 직접 본다.
+        // `-requires` 로 거르지 않는다 - 툴셋이 어느 구성 요소에 딸려 오는지는 판마다 바뀌지만 컴파일러가 놓이는 자리는 MSBuild 가 정한다.
+        Array<String> installs;
+        RunVswhereLines(platform, scratchFolder, "-all -prerelease -products * -property installationPath -utf8", installs);
+        for (const String& install : installs)
+        {
+            const String msbuild = FindMSBuildWithToolset(platform, install.c_str());
+            if (false == msbuild.empty())
             {
-                return candidate;
+                return msbuild;
             }
         }
-        // `-prerelease` 로 Preview 판도, `-requires` 로 C++ 빌드 도구가 있는 것만 본다.
-        return RunVswhere(platform, scratchFolder,
-            "-latest -prerelease -products * -requires Microsoft.Component.MSBuild -find MSBuild\\**\\Bin\\MSBuild.exe -utf8");
+        return String();
     }
 
     String LocateVisualStudio(IPlatform& platform, const char* scratchFolder)

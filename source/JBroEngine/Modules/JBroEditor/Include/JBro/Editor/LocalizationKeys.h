@@ -105,7 +105,8 @@ namespace JBro::LocKeys
     inline constexpr const char* NotifyScriptsBuilt = "notify.scripts_built";
     inline constexpr const char* NotifyScriptsBuildFailed = "notify.scripts_build_failed";
     inline constexpr const char* NotifyNoScriptProject = "notify.no_script_project";
-    inline constexpr const char* NotifyMSBuildMissing = "notify.msbuild_missing";
+    inline constexpr const char* NotifyBuildToolsMissing = "notify.build_tools_missing";
+    inline constexpr const char* NotifyWindowsSdkMissing = "notify.windows_sdk_missing";
     inline constexpr const char* EditorSettingsScriptEditor = "editor_settings.script_editor";
     inline constexpr const char* EditorSettingsScriptEditorHelp = "editor_settings.script_editor_help";
     inline constexpr const char* ScriptEditorSystem = "script_editor.system";
