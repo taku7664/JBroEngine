@@ -121,7 +121,8 @@ namespace JBro
             const OfferedFieldTypes& offered = FieldTypesFor(editor.GetFrameworkKind());
             Widget::List("##fields", m_fields,
                 [&](ScriptProject::FieldSpec& field, Int32) {
-                    const float width = ImGui::GetContentRegionAvail().x;
+                    // **목록이 준 내용 폭 안에서 나눈다.** 창의 남은 폭을 다 쓰면 줄 끝의 지우기 단추(X)를 종류 칸이 덮는다.
+                    const float width = ImGui::CalcItemWidth();
                     ImGui::SetNextItemWidth(width * 0.6f);
                     Widget::TextField("##fieldName", field.name).Hint("Speed").MaxLength(64).Draw();
                     ImGui::SameLine();
@@ -133,7 +134,7 @@ namespace JBro
                             type = static_cast<JBro::Int32>(at);
                         }
                     }
-                    ImGui::SetNextItemWidth(-1.0f);
+                    ImGui::SetNextItemWidth(width * 0.4f - ImGui::GetStyle().ItemSpacing.x);
                     // 종류가 많아졌으므로(핸들 20 종) 거르기 칸을 둔다.
                     if (Widget::FilterCombo("##fieldType", ArrayView<const char* const>(offered.names, offered.count), type).Draw()
                         && type >= 0 && static_cast<std::size_t>(type.Get()) < offered.count)
