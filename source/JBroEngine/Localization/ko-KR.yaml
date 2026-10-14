@@ -420,7 +420,6 @@ Entries:
   node_graph.save_failed: 노드 그래프를 저장하지 못했습니다
   node_graph.read_failed: 노드 그래프 파일을 읽지 못했습니다
   node_graph.problems: "파일의 일부를 읽지 못했습니다. 마우스를 올리면 무엇인지 보입니다"
-  node_graph.add_node: 노드 추가
   node_graph.copy: 복사
   node_graph.paste: 붙여넣기
   node_graph.nothing_to_paste: 복사한 노드가 없습니다

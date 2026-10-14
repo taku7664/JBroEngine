@@ -376,7 +376,6 @@ namespace JBro::LocKeys
     inline constexpr const char* NodeGraphSaveFailed = "node_graph.save_failed";
     inline constexpr const char* NodeGraphReadFailed = "node_graph.read_failed";
     inline constexpr const char* NodeGraphProblems = "node_graph.problems";
-    inline constexpr const char* NodeGraphAddNode = "node_graph.add_node";
     inline constexpr const char* NodeGraphCopy = "node_graph.copy";
     inline constexpr const char* NodeGraphPaste = "node_graph.paste";
     inline constexpr const char* NodeGraphNothingToPaste = "node_graph.nothing_to_paste";

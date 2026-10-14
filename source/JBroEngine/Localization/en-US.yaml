@@ -420,7 +420,6 @@ Entries:
   node_graph.save_failed: The node graph could not be saved
   node_graph.read_failed: The node graph file could not be read
   node_graph.problems: "Some parts of the file could not be read. Hover to see which"
-  node_graph.add_node: Add Node
   node_graph.copy: Copy
   node_graph.paste: Paste
   node_graph.nothing_to_paste: Nothing has been copied
