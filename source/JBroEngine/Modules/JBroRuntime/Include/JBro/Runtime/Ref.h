@@ -83,6 +83,25 @@ namespace JBro
 
         static constexpr RefCategory Category = RefCategoryOf<T>::value;
 
+        Ref() = default;
+
+        template<typename U>
+            requires (!std::is_same_v<T, U> && std::is_base_of_v<T, U>
+                && RefCategoryOf<T>::value == RefCategoryOf<U>::value)
+        Ref(const Ref<U>& derived) noexcept
+            : InstanceRef(static_cast<const InstanceRef&>(derived))
+        {
+        }
+
+        template<typename U>
+            requires (!std::is_same_v<T, U> && std::is_base_of_v<T, U>
+                && RefCategoryOf<T>::value == RefCategoryOf<U>::value)
+        Ref& operator=(const Ref<U>& derived) noexcept
+        {
+            static_cast<InstanceRef&>(*this) = static_cast<const InstanceRef&>(derived);
+            return *this;
+        }
+
         T*   Get() const;                    // 무효면 nullptr
         T*   operator->() const;             // Get() 과 같음 + Debug assert
         T&   operator*()  const;
@@ -90,6 +109,14 @@ namespace JBro
         void Clear();
         explicit operator bool() const;      // "설정됨" 만. 해석하지 않음
         bool operator==(const Ref& rhs) const;
+
+        template<typename U>
+            requires ((std::is_base_of_v<T, U> || std::is_base_of_v<U, T>)
+                && RefCategoryOf<T>::value == RefCategoryOf<U>::value)
+        bool operator==(const Ref<U>& rhs) const
+        {
+            return ObjectId == rhs.ObjectId && ComponentId == rhs.ComponentId;
+        }
     };
 
     // Ref<T> 는 InstanceRef 저장부에 어떤 필드도 얹지 않고 virtual 도 갖지 않는다.

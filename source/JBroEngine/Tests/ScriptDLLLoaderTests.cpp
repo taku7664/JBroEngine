@@ -1250,6 +1250,8 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_OwnerIdentityEqual"));
         const auto transformIdentityEqual = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_TransformIdentityEqual"));
+        const auto derivedScriptReferenceIdentity = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_DerivedScriptReferenceIdentity"));
         const auto controlHasTransformSafe = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasTransformSafe"));
         using ControlDisableOwnerSafe = void (*)(JBro::GameScriptBase*);
@@ -1358,6 +1360,10 @@ namespace
             reopenedScripts[0]->OnUpdate();
             Check(controlCount(reopenedScripts[0]) == 5,
                 "the saved enum member restores the active switch branch");
+            Check(controlCanvas.AttachScript(controlOwner, "ChildScript") != nullptr,
+                "the derived script reference scenario attaches a child script to the same object");
+            Check(derivedScriptReferenceIdentity != nullptr && derivedScriptReferenceIdentity(attached),
+                "a derived script ref converts to its parent and compares by handle identity");
             const std::size_t groupsBeforeProperty = JBro::Log::GetGroupCount();
             static_cast<JBro::GameScript2D*>(attached)->OnPointerDown();
             Check(controlCount(attached) == 0 && controlRhsCount(attached) == 0

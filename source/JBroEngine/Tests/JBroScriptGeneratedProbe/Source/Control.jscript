@@ -76,6 +76,16 @@ script ControlProbe
         return left == right and not (left != right)
     }
 
+    public fn DerivedScriptReferenceIdentity() -> Bool
+    {
+        ref ChildScript child = GetGameObject().GetScript<ChildScript>()
+        ref ParentScript initialized = child
+        ref ParentScript parent = null
+        parent = child
+        return (initialized == child and parent == child
+            and not (parent != child) and parent.Increase() == 3)
+    }
+
     public fn HasTransformSafe() -> Bool
     {
         return GetGameObject()?.GetComponent<Transform2D>() is not null
