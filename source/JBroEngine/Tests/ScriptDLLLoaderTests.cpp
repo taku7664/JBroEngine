@@ -1166,6 +1166,24 @@ namespace
         Check(controlType != nullptr && controlProperties != nullptr && controlProperties->count == 1
                 && controlProperties->properties[0].type->enumNames != nullptr,
             "generated enum fields have a named-value descriptor for inspector and scene storage");
+        const JBro::ScriptTypeInfo* childType = JBro::ScriptRegistry::Local().Find("ChildScript");
+        const JBro::PropertyTable* childProperties = JBro::PropertyRegistry::Lookup("ChildScript");
+        Check(childType != nullptr && childProperties != nullptr && childProperties->count == 2,
+            "derived scripts retain both inherited and newly declared reflected properties");
+        Check(std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[0].name), "shared") == 0
+                && std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[1].name), "extra") == 0,
+            "inherited and own property names remain distinct in the derived script table");
+        using DerivedRead = std::int64_t (*)();
+        using ChildResult = std::int64_t (*)(JBro::GameScriptBase*);
+        const auto derivedRead = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_DerivedRead"));
+        const auto multipleBaseProperties = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_MultipleBaseProperties"));
+        const auto childResult = reinterpret_cast<ChildResult>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ChildResult"));
+        Check(derivedRead != nullptr && derivedRead() == 5 && childResult != nullptr
+                && multipleBaseProperties != nullptr && multipleBaseProperties() == 23,
+            "interface diamonds, virtual overrides and secondary-base reflection execute in the game DLL");
         using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
         using ControlAddScore = void (*)(JBro::GameScriptBase*);
@@ -1299,6 +1317,18 @@ namespace
                 "Vector2 compound property assignment writes both vector components");
             Check(controlUseCounter(attached) == 6 && controlUseCounter(attached) == 7,
                 "class constructors, const fields and static members execute in the game DLL");
+            JBro::GameScriptBase* inheritedScript = controlCanvas.AttachScript(
+                controlCanvas.CreateObject("inherited"), "ChildScript");
+            Check(inheritedScript != nullptr && childResult(inheritedScript) == 12
+                    && childResult(inheritedScript) == 13,
+                "derived scripts execute a method and state inherited from their parent");
+            const auto* inheritedValue = static_cast<const JBro::Int*>(
+                childProperties->properties[0].ConstAddress(inheritedScript));
+            const auto* ownValue = static_cast<const JBro::Int*>(
+                childProperties->properties[1].ConstAddress(inheritedScript));
+            Check(inheritedValue != nullptr && ownValue != nullptr
+                    && inheritedValue->Get() == 4 && ownValue->Get() == 9,
+                "derived reflection addresses reach the parent and child values");
         }
         alignas(64) unsigned char generatedStorage[4096]{};
         JBro::GameScriptBase* generatedScript = generatedType->Construct(generatedStorage);

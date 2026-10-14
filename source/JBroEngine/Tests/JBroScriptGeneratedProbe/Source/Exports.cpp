@@ -1,5 +1,30 @@
 #include "Guard.cpp"
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_DerivedRead()
+{
+    DerivedCounter counter;
+    return counter.Read().Get();
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_MultipleBaseProperties()
+{
+    FieldMix value;
+    const JBro::PropertyTable& fields = JBro::GetPropertyTable<FieldMix>();
+    if (fields.count != 3) return -1;
+    std::int64_t result = 0;
+    for (JBro::UInt32 index = 0; index < fields.count; ++index)
+    {
+        const auto* field = static_cast<const JBro::Int*>(fields.properties[index].ConstAddress(&value));
+        result += field->Get();
+    }
+    return result;
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ChildResult(JBro::GameScriptBase* base)
+{
+    return static_cast<ChildScript*>(base)->Result().Get();
+}
+
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlCount(JBro::GameScriptBase* base) noexcept
 {
     return static_cast<ControlProbe*>(base)->count.Get();

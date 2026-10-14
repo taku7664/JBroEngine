@@ -1,0 +1,66 @@
+interface ICounter
+{
+    fn Read() -> Int
+}
+
+interface ILeft : ICounter
+{
+}
+
+interface IRight : ICounter
+{
+}
+
+class BaseCounter
+{
+    public Int value = 4
+
+    public fn Read() -> Int
+    {
+        return value
+    }
+}
+
+class DerivedCounter : BaseCounter, ILeft, IRight
+{
+    public fn Read() -> Int override
+    {
+        return value + 1
+    }
+}
+
+class FieldLeft
+{
+    [prop] public Int left = 5
+}
+
+class FieldRight
+{
+    [prop] public Int right = 7
+}
+
+class FieldMix : FieldLeft, FieldRight
+{
+    [prop] public Int own = 11
+}
+
+script ParentScript
+{
+    [prop] public Int shared = 2
+
+    public fn Increase() -> Int
+    {
+        shared += 1
+        return shared
+    }
+}
+
+script ChildScript : ParentScript
+{
+    [prop] public Int extra = 9
+
+    public fn Result() -> Int
+    {
+        return Increase() + extra
+    }
+}

@@ -182,21 +182,6 @@ namespace
             "one generated translation unit contains both files and retains the failing source location");
     }
 
-    void TestCppEmitterRejectsUnimplementedSemantics()
-    {
-        for (const char* text : {
-            "class Parent\n{\n}\nclass Child : Parent\n{\n}\nscript Probe\n{\n}\n"
-        })
-        {
-            SourceText source("unsupported.jscript", text);
-            DiagnosticList diagnostics;
-            const SyntaxTree tree = Parse(source, diagnostics);
-            Check(false == diagnostics.HasErrors(), "unsupported emitter sample parses");
-            Check(false == EmitCpp(source, tree, Catalog()).Errors.IsEmpty(),
-                "the emitter must not silently remove an unsupported inheritance contract");
-        }
-    }
-
     void TestCppEmitterClassConstructionAndStaticMembers()
     {
         SourceText source("members.jscript", "class Counter\n{\npublic const Int step = 2\n"
@@ -539,7 +524,6 @@ JBro::Int32 RunScriptCompilerAnalysisTests()
     TestCppEmitterChecksEveryRefLink();
     TestCppEmitterCombinesProjectFiles();
     TestCppEmitterRejectsRecursiveOwnedRefs();
-    TestCppEmitterRejectsUnimplementedSemantics();
     TestCppEmitterClassConstructionAndStaticMembers();
     TestCppEmitterPreservesFieldVisibilityAndReflection();
     TestCppEmitterFloatLiteralMatchesEngineValueType();
