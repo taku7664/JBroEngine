@@ -486,3 +486,15 @@ namespace JBro
         }                                                                            \
     private:                                                                         \
         FieldType FieldName
+
+// 자식 타입에는 보이되 외부에는 감춘 반영 필드다.
+#define JBRO_FIELD_PROTECTED(FieldType, FieldName, ...)                              \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);        \
+        }                                                                            \
+    protected:                                                                       \
+        FieldType FieldName

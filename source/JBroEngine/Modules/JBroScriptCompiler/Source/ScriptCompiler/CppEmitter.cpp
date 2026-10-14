@@ -685,32 +685,67 @@ namespace JBro::ScriptCompiler
                 const String name(node.Text);
                 const NodeIndex attributes = Child(index, 0);
                 const bool reflected = isStruct || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
-                if (reflected && (staticField || constant))
+                if (reflected && staticField)
                 {
-                    Error("C++ emitter cannot reflect static or const fields yet");
+                    Error("C++ emitter cannot reflect static fields yet");
                     return;
                 }
+                String attributeCode;
                 if (attributes != InvalidNode)
                 {
                     for (NodeIndex attribute : m_tree->GetChildren(attributes))
                     {
-                        if (attribute == InvalidNode || Node(attribute).Text != "prop"
-                            || Node(attribute).ChildCount != 0)
+                        if (attribute == InvalidNode) continue;
+                        const SyntaxNode& declaration = Node(attribute);
+                        const std::string_view text = declaration.Text;
+                        if (text == "prop")
                         {
-                            Error("C++ emitter supports only the parameterless prop field attribute yet");
+                            if (declaration.ChildCount != 0) Error("prop attribute takes no arguments");
+                            continue;
                         }
+                        String native;
+                        std::size_t arity = 0;
+                        if (text == "range") { native = "Range"; arity = 2; }
+                        else if (text == "clamp") { native = "Clamp"; arity = 2; }
+                        else if (text == "name") { native = "Name"; arity = 1; }
+                        else if (text == "tooltip") { native = "Tooltip"; arity = 1; }
+                        else if (text == "category") { native = "Category"; arity = 1; }
+                        else if (text == "visiblewhen") { native = "VisibleWhen"; arity = 1; }
+                        else if (text == "readonly") native = "ReadOnly";
+                        else if (text == "noserialize") native = "NoSerialize";
+                        else if (text == "hidden") native = "Hidden";
+                        else
+                        {
+                            Error("unknown reflected field attribute: " + String(text));
+                            continue;
+                        }
+                        if (declaration.ChildCount != arity)
+                        {
+                            Error("reflected field attribute argument count: " + String(text));
+                            continue;
+                        }
+                        if (!attributeCode.empty()) attributeCode += " | ";
+                        attributeCode += native + "(";
+                        for (std::size_t argument = 0; argument < arity; ++argument)
+                        {
+                            if (argument != 0) attributeCode += ", ";
+                            attributeCode += Expr(Child(attribute, argument)).code;
+                        }
+                        attributeCode += ")";
                     }
                 }
-                if (reflected && (node.Flags & SyntaxFlagProtected))
+                if (reflected && constant)
                 {
-                    Error("C++ emitter does not support protected reflected fields yet");
+                    if (!attributeCode.empty()) attributeCode += " | ";
+                    attributeCode += "ReadOnly() | NoSerialize()";
                 }
                 if (reflected)
                 {
                     const bool privateField = (node.Flags & SyntaxFlagPrivate)
                         || (!isStruct && 0 == (node.Flags & SyntaxFlagPublic));
-                    m_code += "    " + String(privateField ? "JBRO_FIELD_PRIVATE(" : "JBRO_FIELD(")
-                        + native + ", " + name + ")";
+                    m_code += "    " + String(node.Flags & SyntaxFlagProtected ? "JBRO_FIELD_PROTECTED("
+                        : privateField ? "JBRO_FIELD_PRIVATE(" : "JBRO_FIELD(")
+                        + native + ", " + name + (attributeCode.empty() ? "" : ", " + attributeCode) + ")";
                 }
                 else
                 {

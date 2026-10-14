@@ -1173,6 +1173,26 @@ namespace
         Check(std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[0].name), "shared") == 0
                 && std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[1].name), "extra") == 0,
             "inherited and own property names remain distinct in the derived script table");
+        const JBro::PropertyTable* attributeProperties = JBro::PropertyRegistry::Lookup("AttributeProbe");
+        Check(attributeProperties != nullptr && attributeProperties->count == 9,
+            "all supported field attributes register their script fields");
+        Check(attributeProperties->properties[0].edit != nullptr
+                && std::strcmp(attributeProperties->properties[0].edit->displayName, "Gain") == 0
+                && std::strcmp(attributeProperties->properties[0].edit->category, "Visual") == 0
+                && attributeProperties->properties[0].edit->hasRange
+                && attributeProperties->properties[0].edit->rangeMax.Get() == 10.0f,
+            "range, name and category reach inspector metadata");
+        Check(!attributeProperties->properties[1].serialize
+                && attributeProperties->properties[1].edit != nullptr
+                && std::strcmp(attributeProperties->properties[1].edit->tooltip, "Runtime") == 0
+                && std::strcmp(attributeProperties->properties[2].edit->visibleWhen, "enabled") == 0
+                && !attributeProperties->properties[3].edit->visible
+                && !attributeProperties->properties[6].edit->editable
+                && !attributeProperties->properties[7].edit->editable
+                && !attributeProperties->properties[7].serialize
+                && attributeProperties->properties[8].edit->hasRange
+                && !attributeProperties->properties[8].edit->slider,
+            "noserialize, tooltip, visiblewhen, hidden, readonly and clamp retain their semantics");
         using DerivedRead = std::int64_t (*)();
         using ChildResult = std::int64_t (*)(JBro::GameScriptBase*);
         const auto derivedRead = reinterpret_cast<DerivedRead>(
