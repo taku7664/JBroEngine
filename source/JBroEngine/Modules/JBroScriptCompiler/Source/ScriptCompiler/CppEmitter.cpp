@@ -910,7 +910,8 @@ namespace JBro::ScriptCompiler
                             return {name, result};
                         }
                     }
-                    if (Api(name) != nullptr || m_declarations.Contains(name))
+                    if (name == "Int" || name == "Float" || name == "Bool" || name == "String"
+                        || Api(name) != nullptr || m_declarations.Contains(name))
                     {
                         return {NativeType({name, false}), {name, false}, false, false, {}, true};
                     }
@@ -1082,6 +1083,25 @@ namespace JBro::ScriptCompiler
                             "JBro::ScriptGuard::UnwrapPresent(__jb_left); return " + bare
                             + "(" + right.code + "); }())";
                         return {code, {left.type.name, false}};
+                    }
+                    const bool vectorPair = left.type.name == "Vector2" && right.type.name == "Vector2"
+                        && (node.Text == "+" || node.Text == "-");
+                    const bool vectorScale = left.type.name == "Vector2" && right.type.name == "Float"
+                        && (node.Text == "*" || node.Text == "/");
+                    const bool reverseVectorScale = left.type.name == "Float" && right.type.name == "Vector2"
+                        && node.Text == "*";
+                    if (vectorPair || vectorScale || reverseVectorScale)
+                    {
+                        const String lhsX = left.type.name == "Vector2" ? "__jb_left.x" : "__jb_left";
+                        const String lhsY = left.type.name == "Vector2" ? "__jb_left.y" : "__jb_left";
+                        const String rhsX = right.type.name == "Vector2" ? "__jb_right.x" : "__jb_right";
+                        const String rhsY = right.type.name == "Vector2" ? "__jb_right.y" : "__jb_right";
+                        const String operation(node.Text);
+                        const String code = "([&]() -> JBro::Vector2 { const auto __jb_left = (" + left.code
+                            + "); const auto __jb_right = (" + right.code + "); return { "
+                            + lhsX + " " + operation + " " + rhsX + ", "
+                            + lhsY + " " + operation + " " + rhsY + " }; }())";
+                        return {code, {"Vector2", false}};
                     }
                     const String op = node.Text == "and" ? "&&" : node.Text == "or" ? "||" : String(node.Text);
                     return {"(" + left.code + " " + op + " " + right.code + ")", left.type};
@@ -1283,8 +1303,21 @@ namespace JBro::ScriptCompiler
                     }
                     else
                     {
-                        m_code += pad + target.code + " " + String(node.Text) + " "
-                            + AdaptValue(target.type, value, Child(index, 1)) + ";\n";
+                        if (target.type.name == "Vector2" && node.Text != "=")
+                        {
+                            const String operation(node.Text.substr(0, node.Text.size() - 1));
+                            const String rhsX = value.type.name == "Vector2" ? "__jb_value.x" : "__jb_value";
+                            const String rhsY = value.type.name == "Vector2" ? "__jb_value.y" : "__jb_value";
+                            m_code += pad + "([&]() { auto&& __jb_target = (" + target.code
+                                + "); const auto __jb_value = (" + value.code + "); __jb_target.x "
+                                + operation + "= " + rhsX + "; __jb_target.y " + operation + "= "
+                                + rhsY + "; }());\n";
+                        }
+                        else
+                        {
+                            m_code += pad + target.code + " " + String(node.Text) + " "
+                                + AdaptValue(target.type, value, Child(index, 1)) + ";\n";
+                        }
                     }
                     return;
                 }

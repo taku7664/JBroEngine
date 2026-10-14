@@ -1252,6 +1252,8 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlUseCounter"));
         const auto controlSwitchScalars = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlSwitchScalars"));
+        const auto controlVectorMath = reinterpret_cast<ControlBrighten>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlVectorMath"));
         Check(controlCount != nullptr && controlRhsCount != nullptr && controlActive != nullptr
                 && controlAddScore != nullptr
                 && controlRaiseScores != nullptr
@@ -1261,7 +1263,7 @@ namespace
                 && controlOwnCount != nullptr && controlScoreByName != nullptr
                 && controlBrighten != nullptr && controlRenameOwner != nullptr
                 && controlMoveOwner != nullptr && controlUseCounter != nullptr
-                && controlSwitchScalars != nullptr,
+                && controlSwitchScalars != nullptr && controlVectorMath != nullptr,
             "the generated control scenario exports its probes");
         alignas(64) unsigned char controlStorage[4096]{};
         JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
@@ -1296,6 +1298,8 @@ namespace
             "a string key reads the Table value after a borrowed mutation");
         Check(controlSwitchScalars(controlScript) == 219,
             "scalar switches evaluate dynamic cases once, choose one branch, and preserve loop continue");
+        Check(controlVectorMath(controlScript) == 328.0f,
+            "Vector2 arithmetic evaluates each operand and compound-assignment target once in a generated DLL");
         controlType->Destruct(controlScript);
         {
             JBro::Canvas controlCanvas(JBro::CreateDefaultAllocator());
