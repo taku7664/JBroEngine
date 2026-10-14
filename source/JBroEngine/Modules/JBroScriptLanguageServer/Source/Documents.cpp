@@ -80,10 +80,17 @@ namespace JBro::ScriptLanguageServer::Detail
 
     Bool Session::Initialize(const Json& params, String& error)
     {
-        const String locale = JsonString(params, "locale", m_options.Locale.View());
+        String requestedLocale = JsonString(params, "locale", m_options.Locale.View());
+        if (requestedLocale.IsEmpty())
+        {
+            requestedLocale = m_options.Locale;
+        }
+        const String language = requestedLocale.ToLowerCopy();
+        // LSP clients send language tags such as `ko`; the bundled tables use regional names.
+        const char* locale = language == "ko" || language.StartsWith("ko-") ? "ko-KR" : "en-US";
         if (m_options.LocalizationDirectory.IsNotEmpty())
         {
-            if (false == m_messages.Load(m_options.LocalizationDirectory.c_str(), locale.c_str(), "en-US"))
+            if (false == m_messages.Load(m_options.LocalizationDirectory.c_str(), locale, "en-US"))
             {
                 m_messages.Load(m_options.LocalizationDirectory.c_str(), "en-US", nullptr);
             }

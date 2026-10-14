@@ -3,6 +3,9 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 
 namespace
 {
@@ -53,6 +56,51 @@ namespace
             return true;
         }
     };
+
+    void TestClientLocaleTags()
+    {
+        using namespace JBro::ScriptLanguageServer;
+        struct LocaleTables
+        {
+            std::filesystem::path Directory = std::filesystem::temp_directory_path()
+                / ("JBroLspLocale-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            LocaleTables()
+            {
+                Check(std::filesystem::create_directory(Directory), "locale probe uses a fresh temporary directory");
+                std::ofstream(Directory / "ko-KR.yaml") << "Entries:\n  jbroc.parse.expected_declaration: KOREAN_DECLARATION\n";
+                std::ofstream(Directory / "en-US.yaml") << "Entries:\n  jbroc.parse.expected_declaration: ENGLISH_DECLARATION\n";
+            }
+            ~LocaleTables()
+            {
+                std::error_code ignored;
+                std::filesystem::remove(Directory / "ko-KR.yaml", ignored);
+                std::filesystem::remove(Directory / "en-US.yaml", ignored);
+                std::filesystem::remove(Directory, ignored);
+            }
+        } tables;
+        const auto directory = tables.Directory.u8string();
+        for (const char* locale : {"ko", "KO-kr", "ko-KP", "en", "en-GB", "fr", "../ko-KR", ""})
+        {
+            MemoryFiles files;
+            ServerOptions options;
+            options.Files = &files;
+            options.LocalizationDirectory = String(std::string_view(
+                reinterpret_cast<const char*>(directory.data()), directory.size()));
+            String frames = Frame(String(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"locale":")")
+                .Append(locale).Append(R"(","initializationOptions":{"projectFile":"C:/project/game.jproject"}}})").View());
+            frames.Append(Frame(R"({"jsonrpc":"2.0","method":"initialized","params":{}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/project/Contents/Locale.jscript","version":1,"text":"bad\n"}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","id":2,"method":"shutdown"})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","method":"exit"})"));
+            std::istringstream input(frames.Std());
+            std::ostringstream output;
+            std::ostringstream log;
+            Check(Run(input, output, log, std::move(options)) == 0, "localized protocol session shuts down cleanly");
+            const Bool korean = locale[0] == '\0' || String(locale).ToLowerCopy().StartsWith("ko");
+            Check(String(output.str()).Contains(korean ? "KOREAN_DECLARATION" : "ENGLISH_DECLARATION"),
+                "client language tags select a supported diagnostic table without using the tag as a file path");
+        }
+    }
 }
 
 JBro::Int32 RunScriptLanguageServerTests()
@@ -125,6 +173,7 @@ JBro::Int32 RunScriptLanguageServerTests()
     Check(unicodeResult.Contains("\"character\":22,\"line\":4"), "diagnostic columns must count emoji as two UTF-16 units");
     Check(unicodeResult.Contains("\"diagnostics\":[],\"uri\":\"file:///C:/project/Contents/Reader.jscript\""),
         "closing an unsaved file must clear its diagnostics");
+    TestClientLocaleTags();
     std::cout << "  ScriptLanguageServer protocol tests passed\n";
     return 0;
 }
