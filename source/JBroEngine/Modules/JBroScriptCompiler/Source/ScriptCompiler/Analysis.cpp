@@ -2424,7 +2424,14 @@ namespace JBro::ScriptCompiler
             ControlFlow Switch(NodeIndex index, Flow& flow)
             {
                 const Expression value = Expr(Child(index, 0), flow);
-                const SymbolId type = TypeId(m_result, value.Type);
+                const String valueType = Bare(value.Type);
+                const SymbolId type = TypeId(m_result, valueType);
+                if (false == valueType.IsEmpty() && valueType != "Int" && valueType != "Float"
+                    && valueType != "Bool" && valueType != "String"
+                    && (type == InvalidSymbol || m_result.Symbols[type].Kind != SymbolKind::Enum))
+                {
+                    Error("JBC3042", "switch_value_type", Node(Child(index, 0)).Range, {value.Type});
+                }
                 Array<SymbolId> covered;
                 Bool defaultPresent = false;
                 ControlFlow completion{false, false, false, false};
@@ -2722,7 +2729,8 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.operator", "jbroc.semantic.unknown_member", "jbroc.semantic.not_callable",
             "jbroc.semantic.no_overload", "jbroc.semantic.ambiguous_overload", "jbroc.semantic.not_iterable",
             "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
-            "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized"
+            "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
+            "jbroc.semantic.switch_value_type"
         };
         return {keys, std::size(keys)};
     }

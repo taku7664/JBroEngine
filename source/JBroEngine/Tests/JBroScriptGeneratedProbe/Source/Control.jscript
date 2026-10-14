@@ -26,6 +26,7 @@ script ControlProbe
 {
     public Int count
     public Int rhsCount
+    public Int switchChecks
     public Table<String, Int> scores
     [prop] public Mode mode = Mode.Idle
 
@@ -114,6 +115,56 @@ script ControlProbe
         Counter counter = Counter(3)
         const Int increment = 1
         return counter.value + counter.step + Counter.Next(increment)
+    }
+
+    public fn NextSwitchValue() -> Int
+    {
+        switchChecks += 1
+        return 1
+    }
+
+    public fn NextSwitchCase() -> Int
+    {
+        switchChecks += 1
+        return 1
+    }
+
+    public fn SwitchScalars() -> Int
+    {
+        Int result = 0
+        String key = "two"
+        switch (key)
+        {
+            case "one" { result += 100 }
+            case "two" { result += 2 }
+            default { result += 1000 }
+        }
+        Float fraction = 1.5
+        switch (fraction)
+        {
+            case 1.0, 1.5 { result += 3 }
+            default { result += 1000 }
+        }
+        Bool yes = true
+        switch (yes)
+        {
+            case false { result += 1000 }
+            case true { result += 5 }
+        }
+        switch (NextSwitchValue())
+        {
+            case NextSwitchCase() { result += 7 }
+            default { result += 1000 }
+        }
+        for (i in 0..3)
+        {
+            switch (i)
+            {
+                case 1 { continue }
+                default { result += 1 }
+            }
+        }
+        return result + switchChecks * 100
     }
 
     fn OnPointerDown() override

@@ -245,6 +245,14 @@ namespace
             "static script properties use shared reflection storage excluded from instance saves");
     }
 
+    void TestSwitchRejectsNonComparableValues()
+    {
+        auto result = Analyze("class Box\n{\npublic Int value\n}\n"
+            "script S\n{\nfn F()\n{\nBox box\nswitch (box)\n{\ndefault { }\n}\n}\n}\n");
+        Check(Has(*result, "JBC3042"),
+            "switch rejects class values before C++ emission because they have no equality contract");
+    }
+
     void TestCppEmitterFloatLiteralMatchesEngineValueType()
     {
         SourceText source("float.jscript", "script Probe\n{\npublic Float factor = 0.5\n}\n");
@@ -556,6 +564,7 @@ JBro::Int32 RunScriptCompilerAnalysisTests()
     TestCppEmitterClassConstructionAndStaticMembers();
     TestCppEmitterPreservesFieldVisibilityAndReflection();
     TestStaticPropertiesAreSharedAndNotSerialized();
+    TestSwitchRejectsNonComparableValues();
     TestCppEmitterFloatLiteralMatchesEngineValueType();
     TestWitnessRegressions();
     TestJumpControlFlowAndContainerEffects();

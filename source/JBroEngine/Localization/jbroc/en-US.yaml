@@ -67,3 +67,4 @@ Entries:
   jbroc.semantic.type_constraint: "The type {1} does not satisfy the type argument requirements of {0}."
   jbroc.semantic.legacy_nullable_type: "Use ref {0} instead of {0}?."
   jbroc.semantic.static_property_not_serialized: "[prop] static field {0} is shared across instances and excluded from instance saves. Add [noserialize] to acknowledge this behavior."
+  jbroc.semantic.switch_value_type: "A switch condition must be Int, Float, Bool, String, or an enum value: {0}"

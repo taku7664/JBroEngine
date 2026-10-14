@@ -1381,30 +1381,45 @@ namespace JBro::ScriptCompiler
                     const NodeIndex valueIndex = Child(index, 0);
                     const Expression value = Expr(valueIndex);
                     const DeclarationRef* switchedType = m_declarations.Find(value.type.name);
-                    if (value.type.name != "Int" && (switchedType == nullptr
-                        || switchedType->kind != SyntaxKind::EnumDeclaration))
+                    if (value.type.name != "Int" && value.type.name != "Float"
+                        && value.type.name != "Bool" && value.type.name != "String"
+                        && (switchedType == nullptr || switchedType->kind != SyntaxKind::EnumDeclaration))
                     {
-                        Error("C++ emitter switch requires Int or a script enum");
+                        Error("C++ emitter switch requires a comparable scalar or script enum");
                         return;
                     }
                     const String compared = AdaptValue({value.type.name, false}, value, valueIndex);
-                    m_code += pad + "switch (static_cast<std::int64_t>(" + compared + "))\n"
-                        + pad + "{\n";
+                    const String suffix = std::to_string(m_temporary++);
+                    const String switchValue = "__jb_switch_value_" + suffix;
+                    const String branch = "__jb_switch_branch_" + suffix;
+                    m_code += pad + "{\n" + pad + "    const auto " + switchValue + " = (" + compared + ");\n"
+                        + pad + "    std::int64_t " + branch + " = -1;\n";
+                    bool firstCase = true;
+                    for (std::size_t clauseSlot = 1; clauseSlot < node.ChildCount; ++clauseSlot)
+                    {
+                        const NodeIndex clause = Child(index, clauseSlot);
+                        const SyntaxNode& clauseNode = Node(clause);
+                        if (clauseNode.Kind != SyntaxKind::CaseClause) continue;
+                        for (std::size_t caseSlot = 0; caseSlot + 1 < clauseNode.ChildCount; ++caseSlot)
+                        {
+                            m_code += pad + "    " + String(firstCase ? "if (" : "else if (")
+                                + switchValue + " == (" + Expr(Child(clause, caseSlot)).code + ")) "
+                                + branch + " = " + std::to_string(clauseSlot - 1) + ";\n";
+                            firstCase = false;
+                        }
+                    }
+                    m_code += pad + "    switch (" + branch + ")\n" + pad + "    {\n";
                     for (std::size_t clauseSlot = 1; clauseSlot < node.ChildCount; ++clauseSlot)
                     {
                         const NodeIndex clause = Child(index, clauseSlot);
                         const SyntaxNode& clauseNode = Node(clause);
                         if (clauseNode.Kind == SyntaxKind::CaseClause)
                         {
-                            for (std::size_t caseSlot = 0; caseSlot + 1 < clauseNode.ChildCount; ++caseSlot)
-                            {
-                                m_code += pad + "case static_cast<std::int64_t>("
-                                    + Expr(Child(clause, caseSlot)).code + "):\n";
-                            }
+                            m_code += pad + "    case " + std::to_string(clauseSlot - 1) + ":\n";
                         }
                         else if (clauseNode.Kind == SyntaxKind::DefaultClause)
                         {
-                            m_code += pad + "default:\n";
+                            m_code += pad + "    default:\n";
                         }
                         else
                         {
@@ -1412,9 +1427,9 @@ namespace JBro::ScriptCompiler
                             return;
                         }
                         Statement(Child(clause, clauseNode.ChildCount - 1), indent + 4);
-                        m_code += pad + "    break;\n";
+                        m_code += pad + "        break;\n";
                     }
-                    m_code += pad + "}\n";
+                    m_code += pad + "    }\n" + pad + "}\n";
                     return;
                 }
                 if (node.Kind == SyntaxKind::BreakStatement || node.Kind == SyntaxKind::ContinueStatement)

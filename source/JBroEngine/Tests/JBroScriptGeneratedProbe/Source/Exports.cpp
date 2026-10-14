@@ -110,6 +110,11 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlUseCount
     return static_cast<ControlProbe*>(base)->UseCounter().Get();
 }
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlSwitchScalars(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->SwitchScalars().Get();
+}
+
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetFirstValid(JBro::GameScriptBase* base) noexcept
 {
     static_cast<GuardProbe*>(base)->target1 = JBro::Nullable<Link>(Link{});

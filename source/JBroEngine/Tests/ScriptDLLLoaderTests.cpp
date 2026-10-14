@@ -1250,6 +1250,8 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlMoveOwner"));
         const auto controlUseCounter = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlUseCounter"));
+        const auto controlSwitchScalars = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlSwitchScalars"));
         Check(controlCount != nullptr && controlRhsCount != nullptr && controlActive != nullptr
                 && controlAddScore != nullptr
                 && controlRaiseScores != nullptr
@@ -1258,7 +1260,8 @@ namespace
                 && controlNullFallback != nullptr && controlGenericArray != nullptr
                 && controlOwnCount != nullptr && controlScoreByName != nullptr
                 && controlBrighten != nullptr && controlRenameOwner != nullptr
-                && controlMoveOwner != nullptr && controlUseCounter != nullptr,
+                && controlMoveOwner != nullptr && controlUseCounter != nullptr
+                && controlSwitchScalars != nullptr,
             "the generated control scenario exports its probes");
         alignas(64) unsigned char controlStorage[4096]{};
         JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
@@ -1291,6 +1294,8 @@ namespace
             "this resolves to the live script instance in a generated method");
         Check(controlScoreByName(controlScript) == 8,
             "a string key reads the Table value after a borrowed mutation");
+        Check(controlSwitchScalars(controlScript) == 219,
+            "scalar switches evaluate dynamic cases once, choose one branch, and preserve loop continue");
         controlType->Destruct(controlScript);
         {
             JBro::Canvas controlCanvas(JBro::CreateDefaultAllocator());
