@@ -1,5 +1,6 @@
 #include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptCompiler/Parser.h>
+#include <JBro/ScriptCompiler/CppEmitter.h>
 
 #include <cstdlib>
 #include <iostream>
@@ -113,6 +114,88 @@ namespace
         Check(Has(*unknown, "JBC3032"), "unknown members remain static errors on ref receivers");
         auto legacy = Analyze("script S\n{\nTransform2D? old\n}\n");
         Check(Has(*legacy, "JBC3040"), "legacy question-suffix type has a migration diagnostic");
+    }
+
+    void TestCppEmitterChecksEveryRefLink()
+    {
+        SourceText source("chain.jscript", "class Link\n{\nref Transform2D target2\n}\n"
+            "script Probe\n{\nref Link target1\nfn OnUpdate() override\n{\nInt before = 1\n"
+            "Int position = target1.target2.position\n}\n}\n");
+        DiagnosticList parseDiagnostics;
+        const SyntaxTree tree = Parse(source, parseDiagnostics);
+        Check(false == parseDiagnostics.HasErrors(), "emitter scenario parses");
+        const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
+        Check(emitted.Errors.IsEmpty(), "valid chained ref script emits C++");
+        Check(emitted.Code.find("ScriptGuard::Require") != String::npos,
+            "emitted access uses the callback guard");
+        Check(emitted.Code.find("chain.jscript:11:") != String::npos,
+            "the failure key identifies the source access site");
+        Check(emitted.Code.find("catch (const JBro::ScriptGuard::AbortCallback&)") != String::npos,
+            "a generated callback catches only its own abort");
+        Check(emitted.Code.find("JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()") != String::npos,
+            "generated modules declare the host error sink as a required context");
+        Check(emitted.Code.find("#line 10 \"chain.jscript\"") != String::npos,
+            "generated statements point C++ diagnostics back to the JBroScript source");
+    }
+
+    void TestCppEmitterRejectsRecursiveOwnedRefs()
+    {
+        for (const char* text : {
+            "class Node\n{\nref Node next\n}\nscript Probe\n{\nref Node root\n}\n",
+            "class A\n{\nref B other\n}\nclass B\n{\nref A other\n}\nscript Probe\n{\nref A root\n}\n"
+        })
+        {
+            SourceText source("cycle.jscript", text);
+            DiagnosticList diagnostics;
+            const SyntaxTree tree = Parse(source, diagnostics);
+            Check(false == diagnostics.HasErrors(), "recursive owned ref sample parses");
+            const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
+            Check(false == emitted.Errors.IsEmpty(),
+                "owned ref cycles must be rejected before a C++ compiler sees an infinite-size value");
+        }
+    }
+
+    void TestCppEmitterRejectsUnimplementedSemantics()
+    {
+        for (const char* text : {
+            "class Parent\n{\n}\nclass Child : Parent\n{\n}\nscript Probe\n{\n}\n",
+            "script Probe\n{\nstatic Int shared\n}\n",
+            "script Probe\n{\nstatic fn F()\n{\n}\n}\n",
+            "class Parent\n{\nfn F() require\n}\nscript Probe\n{\n}\n"
+        })
+        {
+            SourceText source("unsupported.jscript", text);
+            DiagnosticList diagnostics;
+            const SyntaxTree tree = Parse(source, diagnostics);
+            Check(false == diagnostics.HasErrors(), "unsupported emitter sample parses");
+            Check(false == EmitCpp(source, tree, Catalog()).Errors.IsEmpty(),
+                "the emitter must not silently remove a base class or static field");
+        }
+    }
+
+    void TestCppEmitterPreservesFieldVisibilityAndReflection()
+    {
+        SourceText source("fields.jscript", "script Probe\n{\nInt hidden\n[prop]\npublic Int shown\n}\n");
+        DiagnosticList diagnostics;
+        const SyntaxTree tree = Parse(source, diagnostics);
+        Check(false == diagnostics.HasErrors(), "field visibility sample parses");
+        const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
+        Check(emitted.Errors.IsEmpty(), "field visibility sample emits");
+        Check(emitted.Code.find("private:\n    JBro::Int hidden") != String::npos,
+            "an unannotated script field remains private and unreflected");
+        Check(emitted.Code.find("JBRO_FIELD(JBro::Int, shown)") != String::npos,
+            "an annotated public field is registered for scene and inspector reflection");
+    }
+
+    void TestCppEmitterFloatLiteralMatchesEngineValueType()
+    {
+        SourceText source("float.jscript", "script Probe\n{\npublic Float factor = 0.5\n}\n");
+        DiagnosticList diagnostics;
+        const SyntaxTree tree = Parse(source, diagnostics);
+        Check(false == diagnostics.HasErrors(), "float sample parses");
+        const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
+        Check(emitted.Errors.IsEmpty() && emitted.Code.find("0.5f") != String::npos,
+            "Float literals are emitted as float, not a double conversion");
     }
 
     void TestWitnessRegressions()
@@ -280,6 +363,9 @@ namespace
         Check(nullableBorrow->Documents[0]->Diagnostics.IsEmpty(), "a borrowed optional value keeps its declared ref type");
         auto mutation = Analyze("class C\n{\nArray<Int> values\nfn F()\n{\nfor (value in values)\n{\nvalues.Add(value)\n}\n}\n}\n");
         Check(Has(*mutation, "JBC3019"), "growing an iterated container is rejected");
+        auto borrowedMutation = Analyze("class C\n{\nArray<Int> values\nfn F()\n{\nfor (ref value in values)\n{\nvalues.Add(value)\n}\n}\n}\n");
+        Check(Has(*borrowedMutation, "JBC3019"),
+            "a borrowed element cannot survive growth of its iterated container");
         auto defaults = Analyze("class C\n{\nfn F()\n{\nArray<Int> values\nvalues.Add(1)\n}\n}\n");
         Check(defaults->Documents[0]->Diagnostics.IsEmpty(), "a default constructed local container is initialized");
         auto invariant = Analyze("class C\n{\nfn F()\n{\nArray<Int> numbers\nArray<String> words\nnumbers = words\n}\n}\n");
@@ -406,6 +492,11 @@ namespace
 JBro::Int32 RunScriptCompilerAnalysisTests()
 {
     TestSingleRefSyntax();
+    TestCppEmitterChecksEveryRefLink();
+    TestCppEmitterRejectsRecursiveOwnedRefs();
+    TestCppEmitterRejectsUnimplementedSemantics();
+    TestCppEmitterPreservesFieldVisibilityAndReflection();
+    TestCppEmitterFloatLiteralMatchesEngineValueType();
     TestWitnessRegressions();
     TestJumpControlFlowAndContainerEffects();
     TestNullableGrammar();

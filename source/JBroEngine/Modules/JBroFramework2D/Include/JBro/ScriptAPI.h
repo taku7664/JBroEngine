@@ -13,6 +13,9 @@
 // `JBRO_FIELD(GameObject, target)` 가 프렐류드만으로 닿아야 한다(D-233). 컴포넌트 핸들은 핸들 헤더가 리플렉션을 함께 연다(D-302).
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Runtime/Ref.h>
+#include <JBro/Runtime/ScriptRefReflection.h>
+#include <JBro/Runtime/NullableReflection.h>
+#include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Script/Macros.h>
 // 네트워크 값 서비스(D-122). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.

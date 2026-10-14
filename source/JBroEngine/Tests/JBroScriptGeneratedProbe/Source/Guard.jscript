@@ -1,0 +1,57 @@
+class Link
+{
+    public ref Transform2D target2
+}
+
+script GuardProbe
+{
+    public ref GuardProbe peer
+    [prop] public Array<ref GuardProbe> peers
+    public ref Link target1
+    public Int before
+    public Int after
+    public Int safeRuns
+    [prop] public ref Int maybe
+    public Int valueBefore
+    public Int valueAfter
+    public Array<Int> values
+    public Float factor = 0.5
+    public ref Array<Int> optionalNumbers
+    public Int indexBefore
+    public Int indexAfter
+
+    fn OnUpdate() override
+    {
+        before += 1
+        Vector2 position = target1.target2.position
+        after += 1
+    }
+
+    fn OnClick() override
+    {
+        Vector2 position = target1?.target2?.position ?? Vector2()
+        safeRuns += 1
+    }
+
+    fn OnPointerDown() override
+    {
+        valueBefore += 1
+        Int number = maybe
+        valueAfter += 1
+    }
+
+    fn OnPointerUp() override
+    {
+        for (ref item in values)
+        {
+            item += 1
+        }
+    }
+
+    fn OnPointerEnter() override
+    {
+        indexBefore += 1
+        Int first = optionalNumbers[0]
+        indexAfter += 1
+    }
+}

@@ -16,6 +16,9 @@
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/Ref.h>
+#include <JBro/Runtime/ScriptRefReflection.h>
+#include <JBro/Runtime/NullableReflection.h>
+#include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Script/Macros.h>
 // 네트워크 값 서비스(D-122). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.

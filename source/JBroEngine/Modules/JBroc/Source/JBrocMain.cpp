@@ -12,6 +12,8 @@
 #include <JBro/ScriptCompiler/DiagnosticMessages.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/SyntaxTree.h>
+#include <JBro/ScriptCompiler/CppEmitter.h>
+#include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptLanguageServer/Server.h>
 #include <JBro/ScriptApiCatalog2D/Catalog.h>
 #include <JBro/Types/Array.h>
@@ -143,6 +145,8 @@ namespace
         JBro::Bool DumpTree = false;
         JBro::Bool Help = false;
         JBro::Bool Lsp = false;
+        JBro::Bool EmitCpp = false;
+        std::filesystem::path EmitCppPath;
         Array<std::filesystem::path> Files;
         // 명령줄이 틀렸으면 그 알림의 키와 인자다. 번역 표를 읽은 뒤에 낸다(언어가 인자에 있으므로).
         const char* ProblemKey = nullptr;
@@ -168,6 +172,18 @@ namespace
             if (L"--lsp" == argument)
             {
                 commandLine.Lsp = true;
+                continue;
+            }
+            if (L"--emit-cpp" == argument)
+            {
+                if (index + 1 >= argc)
+                {
+                    commandLine.ProblemKey = "jbroc.cli.missing_option_value";
+                    commandLine.ProblemArgument = "--emit-cpp";
+                    continue;
+                }
+                commandLine.EmitCpp = true;
+                commandLine.EmitCppPath = std::filesystem::path(argv[++index]);
                 continue;
             }
             if (L"--locale" == argument)
@@ -292,7 +308,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
 
     if (commandLine.Lsp && false == commandLine.Help && nullptr == commandLine.ProblemKey)
     {
-        if (commandLine.DumpTree || false == commandLine.Files.IsEmpty())
+        if (commandLine.DumpTree || commandLine.EmitCpp || false == commandLine.Files.IsEmpty())
         {
             WriteLine(STD_ERROR_HANDLE, "jbroc: --lsp cannot be combined with --dump-tree or source file arguments");
             return ExitUsageOrInput;
@@ -344,6 +360,69 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         WriteLine(STD_ERROR_HANDLE, LocalizedText(messages, "jbroc.cli.no_input").View());
         WriteLine(STD_ERROR_HANDLE, LocalizedText(messages, "jbroc.cli.usage").View());
         return ExitUsageOrInput;
+    }
+
+    if (commandLine.EmitCpp)
+    {
+        if (commandLine.DumpTree || commandLine.Files.Size() != 1
+            || commandLine.EmitCppPath.extension() != L".cpp")
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: --emit-cpp needs one source file and a .cpp output path");
+            return ExitUsageOrInput;
+        }
+        std::error_code pathError;
+        if (std::filesystem::exists(commandLine.EmitCppPath, pathError)
+            && std::filesystem::equivalent(commandLine.Files[0], commandLine.EmitCppPath, pathError))
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: source and output paths must differ");
+            return ExitUsageOrInput;
+        }
+        const std::filesystem::path absolute = std::filesystem::absolute(commandLine.Files[0], pathError);
+        String sourceText;
+        if (pathError || false == ReadWholeFile(absolute, sourceText))
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: cannot read source file");
+            return ExitUsageOrInput;
+        }
+        Array<DocumentInput> inputs;
+        inputs.Add({ToUtf8(absolute.native()), ToUtf8(absolute.native()), sourceText, 1});
+        const ApiCatalog catalog = JBro::ScriptApiCatalog2D::BuildCatalog();
+        const OwnerPtr<AnalysisResult> analyzed = AnalyzeProject(inputs.View(), catalog);
+        const DocumentAnalysis& document = *analyzed->Documents[0];
+        for (const Diagnostic& diagnostic : document.ParseDiagnostics.GetItems())
+        {
+            WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(inputs[0].Path.View(), diagnostic, messages).View());
+        }
+        for (const SemanticDiagnostic& diagnostic : document.Diagnostics)
+        {
+            WriteLine(STD_ERROR_HANDLE, String(diagnostic.Code).Append(": ").Append(diagnostic.MessageKey.View()).View());
+        }
+        if (document.ParseDiagnostics.HasErrors() || false == document.Diagnostics.IsEmpty())
+        {
+            return ExitSourceErrors;
+        }
+        const CppEmitResult emitted = EmitCpp(document.Source, document.Tree, catalog);
+        if (false == emitted.Errors.IsEmpty())
+        {
+            for (const String& error : emitted.Errors)
+            {
+                WriteLine(STD_ERROR_HANDLE, String("jbroc: C++ emit error: ").Append(error.View()).View());
+            }
+            return ExitSourceErrors;
+        }
+        std::ofstream output(commandLine.EmitCppPath, std::ios::binary | std::ios::trunc);
+        if (false == output.is_open())
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: cannot open C++ output path");
+            return ExitUsageOrInput;
+        }
+        output.write(emitted.Code.data(), static_cast<std::streamsize>(emitted.Code.size()));
+        if (false == output.good())
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: cannot write C++ output");
+            return ExitUsageOrInput;
+        }
+        return ExitSuccess;
     }
 
     JBro::Int32 exitCode = ExitSuccess;

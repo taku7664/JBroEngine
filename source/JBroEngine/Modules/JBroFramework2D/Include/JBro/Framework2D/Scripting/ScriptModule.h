@@ -12,6 +12,8 @@ namespace JBro
         // 2D 스크립트 모듈의 API 다(cpp-script-plan §3.2). 컨텍스트 검증·바인딩·해제와 스크립트 타입 등록이 여기에 있다 -
         // 구현이 JBroFramework2D 안에 있으므로 서비스가 늘어도 사용자 DLL 은 다시 빌드만 하면 되고 코드는 바뀌지 않는다.
         const ScriptModuleApi* GetScriptModuleApi2D(UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept;
+        const ScriptModuleApi* GetScriptModuleApi2DRequiringErrorContext(
+            UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept;
     }
 }
 
@@ -23,4 +25,14 @@ namespace JBro
         ::JBro::UInt32 hostApiSize) noexcept                                    \
     {                                                                                  \
         return ::JBro::Internal::GetScriptModuleApi2D(hostAbiVersion, hostApiSize); \
+    }
+
+// Generated JBroScript must have a host error sink: an invalid ref must not
+// abort a callback silently when a module is loaded by a different host.
+#define JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()                              \
+    extern "C" __declspec(dllexport) const ::JBro::ScriptModuleApi* JBroScriptModule_GetApi( \
+        ::JBro::UInt32 hostAbiVersion, ::JBro::UInt32 hostApiSize) noexcept           \
+    {                                                                                  \
+        return ::JBro::Internal::GetScriptModuleApi2DRequiringErrorContext(           \
+            hostAbiVersion, hostApiSize);                                             \
     }

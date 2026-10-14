@@ -11,6 +11,7 @@
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Runtime/ScriptErrorContext.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
@@ -70,6 +71,7 @@ namespace JBro::Internal
 
         void UnbindEverything() noexcept
         {
+            BindScriptErrorContext({});
             BindFramework2DServiceContext({});
             BindFramework2DSystemContext({});
             BindInputServiceContext({});
@@ -110,6 +112,10 @@ namespace JBro::Internal
                 {
                     return false;
                 }
+                if (const ScriptErrorContext* errors = FindScriptErrorContext(*context))
+                {
+                    BindScriptErrorContext(*errors);
+                }
                 BindFramework2DServiceContext(*frameworkServices);
                 BindFramework2DSystemContext(*frameworkSystems);
                 BindHostServices(*context);
@@ -144,6 +150,33 @@ namespace JBro::Internal
             &LoadModule,
             &UnloadModule
         };
+
+        constexpr ScriptContextRequirement ErrorReportingContexts[] =
+        {
+            Framework2DServiceContextRequirement,
+            Framework2DSystemContextRequirement,
+            ScriptErrorContextRequirement
+        };
+
+        Bool LoadErrorReportingModule(const ScriptModuleLoadContext* context) noexcept
+        {
+            if (context == nullptr || FindScriptErrorContext(*context) == nullptr)
+            {
+                return false;
+            }
+            return LoadModule(context);
+        }
+
+        constexpr ScriptModuleApi ErrorReportingModuleApi =
+        {
+            ScriptModuleAbiVersion,
+            sizeof(ScriptModuleApi),
+            ErrorReportingContexts,
+            static_cast<UInt32>(sizeof(ErrorReportingContexts) / sizeof(ErrorReportingContexts[0])),
+            0,
+            &LoadErrorReportingModule,
+            &UnloadModule
+        };
     }
 
     const ScriptModuleApi* GetScriptModuleApi2D(UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept
@@ -153,5 +186,15 @@ namespace JBro::Internal
             return nullptr;
         }
         return &ModuleApi;
+    }
+
+    const ScriptModuleApi* GetScriptModuleApi2DRequiringErrorContext(
+        UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept
+    {
+        if (hostAbiVersion != ScriptModuleAbiVersion || hostApiSize != sizeof(ScriptModuleApi))
+        {
+            return nullptr;
+        }
+        return &ErrorReportingModuleApi;
     }
 }

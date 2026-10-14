@@ -9,7 +9,10 @@
 #include <JBro/Script/Macros.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/GameObjectHandle.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
+#include <JBro/Runtime/ScriptRefReflection.h>
 
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
@@ -174,6 +177,40 @@ JBro::Int32 RunGameScriptTests()
     if (reference.Get() != script || registry.GetPersistentLookupCount() != lookups)
     {
         throw std::runtime_error("cached script reference must bypass persistent lookup");
+    }
+    const JBro::TypeDescriptor& referenceType = JBro::TypeDescriptorOf<JBro::Ref<ScriptProbe>>::Get();
+    char referenceText[64] = {};
+    std::size_t required = 0;
+    JBro::Ref<ScriptProbe> restored;
+    if (referenceType.refTarget == nullptr || referenceType.codec == nullptr
+        || referenceType.refTarget->targetType != JBro::NameTable::Get().Intern(ScriptProbe::StaticTypeName())
+        || !referenceType.codec->ToText(&reference, referenceText, sizeof(referenceText), required)
+        || referenceText[0] != '@'
+        || !referenceType.codec->FromText(&restored, referenceText, required - 1)
+        || restored.Get() != script)
+    {
+        throw std::runtime_error("script ref reflection must round-trip a live script identity");
+    }
+    JBro::Internal::ObjectRefRemap remap;
+    remap.user = object;
+    remap.toIndex = [](void* user, JBro::InstanceId objectId) -> JBro::Int64 {
+        return static_cast<JBro::Object::GameObject*>(user)->GetInstanceId() == objectId
+            ? JBro::Int64(7) : JBro::Int64(-1);
+    };
+    remap.toObjectId = [](void* user, JBro::Int64 index) -> JBro::InstanceId {
+        return index == 7 ? static_cast<JBro::Object::GameObject*>(user)->GetInstanceId()
+            : JBro::InvalidInstanceId;
+    };
+    {
+        JBro::ObjectRefRemapScope remapScope(remap);
+        JBro::Ref<ScriptProbe> saved;
+        if (!referenceType.codec->ToText(&reference, referenceText, sizeof(referenceText), required)
+            || std::strcmp(referenceText, "7:0") != 0
+            || !referenceType.codec->FromText(&saved, referenceText, required - 1)
+            || saved.Get() != script)
+        {
+            throw std::runtime_error("scene script refs must round-trip through object index and script ordinal");
+        }
     }
 
     // Direct calls verify the inherited API and linking, not ScriptSystem scheduling.

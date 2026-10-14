@@ -1,7 +1,9 @@
 ﻿#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Host/RandomSystem.h>
 #include <JBro/Core/StableTypeId.h>
+#include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
+#include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>
@@ -947,6 +949,19 @@ namespace
         Check(engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsLoaded") != nullptr,
             "the loaded module must be queryable through the host");
 
+        JBro::Log::Clear();
+        using TriggerInvalidRef = JBro::Bool (*)() noexcept;
+        const auto triggerInvalidRef = reinterpret_cast<TriggerInvalidRef>(
+            engine.GetScriptModule().GetSymbol("JBroScriptProbe_TriggerInvalidRef"));
+        Check(triggerInvalidRef != nullptr && triggerInvalidRef() && triggerInvalidRef(),
+            "a DLL callback must catch the ref abort on both invocations");
+        Check(JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
+            "both DLL failures must reach one grouped host log, not a DLL-local ring");
+        Check(JBro::Log::GetCount() == 2
+            && std::strcmp(JBro::Log::GetAt(1)->message, "probe target is invalid") == 0,
+            "the host retains each timestamped occurrence");
+        JBro::Log::Clear();
+
         // 게임 입력이 DLL 까지 닿는다(D-214). 창에 넣은 키를 엔진이 틱에서 접고, DLL 은 자기 사본의 서비스로
         // 그것을 읽는다 - 호스트가 입력 블록을 내지 않았거나 DLL 이 묶지 않았으면 여기서 거짓이다.
         using IsKeyDown = JBro::Bool (*)(std::uint16_t) noexcept;
@@ -1111,6 +1126,159 @@ namespace
         Check(false == framework.unbindSawLoadedModule,
             "the module must go down before the contexts it borrowed");
         Check(framework.shutdowns == 1, "closing must shut the framework down once");
+
+        // Compile JBroScript into a second real DLL and call its generated
+        // OnUpdate through the host's registered virtual script instance.
+        const std::filesystem::path generatedSource =
+            std::filesystem::path(files.sourcePath).parent_path() / L"JBroScriptGeneratedProbe.dll";
+        Check(CopyFileW(generatedSource.c_str(), files.dllPath, FALSE) != FALSE,
+            "the generated JBroScript DLL must replace the unloaded probe");
+        ScriptedFramework generated;
+        generated.host = &engine;
+        Check(engine.OpenProject(generated, utf8Path.c_str()) && engine.GetScriptModule().IsLoaded(),
+            "the host must load a DLL emitted from JBroScript source");
+        using ModuleEntry = const JBro::ScriptModuleApi* (*)(JBro::UInt32, JBro::UInt32) noexcept;
+        const auto generatedEntry = reinterpret_cast<ModuleEntry>(
+            engine.GetScriptModule().GetSymbol("JBroScriptModule_GetApi"));
+        const JBro::ScriptModuleApi* generatedApi = generatedEntry == nullptr ? nullptr
+            : generatedEntry(JBro::ScriptModuleAbiVersion, static_cast<JBro::UInt32>(sizeof(JBro::ScriptModuleApi)));
+        Check(generatedApi != nullptr && generatedApi->RequiredContextCount == 3
+            && generatedApi->RequiredContexts[2].TypeId == JBro::ScriptErrorContextRequirement.TypeId,
+            "generated JBroScript DLLs require the host error sink before loading");
+        const JBro::ScriptTypeInfo* generatedType = JBro::ScriptRegistry::Local().Find("GuardProbe");
+        Check(generatedType != nullptr && generatedType->size.Get() <= 4096
+            && generatedType->alignment.Get() <= 64,
+            "the generated script must register a constructible bounded instance");
+        const JBro::PropertyTable* generatedProperties = JBro::PropertyRegistry::Lookup("GuardProbe");
+        Check(generatedProperties != nullptr && generatedProperties->count == 2
+            && generatedProperties->properties[0].type != nullptr
+            && generatedProperties->properties[0].type->element != nullptr
+            && generatedProperties->properties[0].type->element->refTarget != nullptr
+            && generatedProperties->properties[1].type != nullptr
+            && generatedProperties->properties[1].type->fields != nullptr
+            && generatedProperties->properties[1].type->fields->count == 2,
+            "only [prop] fields are reflected: script refs in an Array and nullable Int presence/value");
+        alignas(64) unsigned char generatedStorage[4096]{};
+        JBro::GameScriptBase* generatedScript = generatedType->Construct(generatedStorage);
+        Check(generatedScript != nullptr, "the host constructs the generated script");
+        using SetFirstValid = void (*)(JBro::GameScriptBase*) noexcept;
+        using CopyGeneratedCounts = void (*)(const JBro::GameScriptBase*, JBro::Int*, JBro::Int*,
+            JBro::Int*, JBro::Int*, JBro::Int*) noexcept;
+        using AddGeneratedValue = void (*)(JBro::GameScriptBase*, JBro::Int);
+        using ReadGeneratedValue = std::int64_t (*)(const JBro::GameScriptBase*) noexcept;
+        using CopyIndexCounts = void (*)(const JBro::GameScriptBase*, JBro::Int*, JBro::Int*) noexcept;
+        using SetOptionalNumbers = void (*)(JBro::GameScriptBase*);
+        const auto setFirstValid = reinterpret_cast<SetFirstValid>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_SetFirstValid"));
+        const auto copyGeneratedCounts = reinterpret_cast<CopyGeneratedCounts>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CopyCounts"));
+        const auto setMaybeValid = reinterpret_cast<SetFirstValid>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_SetMaybeValid"));
+        const auto addGeneratedValue = reinterpret_cast<AddGeneratedValue>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_AddValue"));
+        const auto readGeneratedValue = reinterpret_cast<ReadGeneratedValue>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_FirstValue"));
+        const auto copyIndexCounts = reinterpret_cast<CopyIndexCounts>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CopyIndexCounts"));
+        const auto setOptionalNumbers = reinterpret_cast<SetOptionalNumbers>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_SetOptionalNumbers"));
+        Check(setFirstValid != nullptr && copyGeneratedCounts != nullptr && setMaybeValid != nullptr
+            && addGeneratedValue != nullptr && readGeneratedValue != nullptr
+            && copyIndexCounts != nullptr && setOptionalNumbers != nullptr,
+            "the generated probe must expose its scenario controls");
+        const JBro::Bool oldEcho = JBro::Log::GetEchoToConsole();
+        JBro::Log::SetEchoToConsole(false);
+        JBro::Log::Clear();
+        auto* generated2D = static_cast<JBro::GameScript2D*>(generatedScript);
+        generated2D->OnClick();
+        JBro::Int before = 0;
+        JBro::Int after = 0;
+        JBro::Int safeRuns = 0;
+        JBro::Int valueBefore = 0;
+        JBro::Int valueAfter = 0;
+        copyGeneratedCounts(generatedScript, &before, &after, &safeRuns, &valueBefore, &valueAfter);
+        Check(safeRuns == 1 && JBro::Log::GetGroupCount() == 0,
+            "a safe chain with its first ref missing runs the callback without logging");
+        generatedScript->OnUpdate();
+        generatedScript->OnUpdate();
+        copyGeneratedCounts(generatedScript, &before, &after, &safeRuns, &valueBefore, &valueAfter);
+        Check(before == 2 && after == 0 && JBro::Log::GetGroupCount() == 1
+            && JBro::Log::GetGroupAt(0)->count == 2,
+            "the first missing ref stops only each callback and groups both occurrences");
+        Check(JBro::Log::GetGroupAt(0)->key.find("target2") != JBro::String::npos,
+            "the first failing access site is target1 before target2 is read");
+        Check(std::strstr(JBro::Log::GetGroupAt(0)->display, "target1.target2") != nullptr,
+            "the engine log names the access path that failed at its first ref");
+        alignas(64) unsigned char secondStorage[4096]{};
+        JBro::GameScriptBase* secondScript = generatedType->Construct(secondStorage);
+        Check(secondScript != nullptr, "a second game object can own the same generated script type");
+        secondScript->OnUpdate();
+        Check(JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 3,
+            "the same source error on another game object joins the author-specified site group");
+        setFirstValid(generatedScript);
+        generatedScript->OnUpdate();
+        generatedScript->OnUpdate();
+        copyGeneratedCounts(generatedScript, &before, &after, &safeRuns, &valueBefore, &valueAfter);
+        Check(before == 4 && after == 0 && JBro::Log::GetGroupCount() == 2
+            && JBro::Log::GetGroupAt(1)->count == 2,
+            "a valid first ref reaches the second failing site and the next callbacks still run");
+        Check(JBro::Log::GetGroupAt(1)->key.find("position") != JBro::String::npos,
+            "the second failing access site has its own stable key");
+        Check(std::strstr(JBro::Log::GetGroupAt(1)->display, "target1.target2.position") != nullptr,
+            "the second ref failure reports the complete path through that access");
+        generated2D->OnClick();
+        generated2D->OnClick();
+        copyGeneratedCounts(generatedScript, &before, &after, &safeRuns, &valueBefore, &valueAfter);
+        Check(safeRuns == 3 && JBro::Log::GetGroupCount() == 2,
+            "chained ?. and ?? return the fallback quietly even when the second handle is invalid");
+        generated2D->OnPointerDown();
+        generated2D->OnPointerDown();
+        copyGeneratedCounts(generatedScript, &before, &after, &safeRuns, &valueBefore, &valueAfter);
+        Check(valueBefore == 2 && valueAfter == 0 && JBro::Log::GetGroupCount() == 3
+            && JBro::Log::GetGroupAt(2)->count == 2,
+            "an empty owned ref Int aborts this callback and shares its stable log key");
+        setMaybeValid(generatedScript);
+        generated2D->OnPointerDown();
+        copyGeneratedCounts(generatedScript, &before, &after, &safeRuns, &valueBefore, &valueAfter);
+        Check(valueBefore == 3 && valueAfter == 1 && JBro::Log::GetGroupCount() == 3,
+            "a present owned ref Int is read without an error");
+        addGeneratedValue(generatedScript, 1);
+        generated2D->OnPointerUp();
+        Check(readGeneratedValue(generatedScript) == 2,
+            "for (ref item in values) mutates the borrowed array element in place");
+        generated2D->OnPointerEnter();
+        generated2D->OnPointerEnter();
+        JBro::Int indexBefore = 0;
+        JBro::Int indexAfter = 0;
+        copyIndexCounts(generatedScript, &indexBefore, &indexAfter);
+        Check(indexBefore == 2 && indexAfter == 0 && JBro::Log::GetGroupCount() == 4
+            && JBro::Log::GetGroupAt(3)->count == 2,
+            "indexing a missing ref Array aborts the callback and groups the failing site");
+        setOptionalNumbers(generatedScript);
+        generated2D->OnPointerEnter();
+        copyIndexCounts(generatedScript, &indexBefore, &indexAfter);
+        Check(indexBefore == 3 && indexAfter == 1 && JBro::Log::GetGroupCount() == 4,
+            "indexing a present ref Array continues without a new error");
+        JBro::Log::Clear();
+        JBro::Log::SetEchoToConsole(oldEcho);
+        generatedType->Destruct(secondScript);
+        generatedType->Destruct(generatedScript);
+        const JBro::UInt64 previousGeneration = engine.GetScriptModule().GetGeneration();
+        Check(engine.ReloadScriptModule() && engine.GetScriptModule().IsLoaded()
+            && engine.GetScriptModule().GetGeneration() != previousGeneration,
+            "the generated DLL reloads with a new host generation");
+        const JBro::ScriptTypeInfo* reloadedType = JBro::ScriptRegistry::Local().Find("GuardProbe");
+        Check(reloadedType != nullptr, "the reloaded generated script re-registers");
+        alignas(64) unsigned char reloadedStorage[4096]{};
+        JBro::GameScriptBase* reloadedScript = reloadedType->Construct(reloadedStorage);
+        Check(reloadedScript != nullptr, "the reloaded generated script constructs");
+        JBro::Log::Clear();
+        reloadedScript->OnUpdate();
+        Check(JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 1,
+            "a ref error after reload reaches the newly bound host sink");
+        JBro::Log::Clear();
+        reloadedType->Destruct(reloadedScript);
+        engine.CloseProject();
 
         // 실패한 모듈은 프로젝트를 막지 않는다(D-98). 아직 한 번도 빌드하지 않은 프로젝트가
         // 그 모양이고, 여기서 막으면 그것을 빌드할 에디터가 열리지 않는다.

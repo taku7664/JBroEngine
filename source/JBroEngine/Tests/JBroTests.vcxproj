@@ -51,6 +51,10 @@
       <Project>{1a00000e-0000-4000-8000-000000005c43}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
+    <ProjectReference Include="JBroScriptGeneratedProbe\JBroScriptGeneratedProbe.vcxproj">
+      <Project>{1a00000f-0000-4000-8000-000000005c44}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
     </ProjectReference>
