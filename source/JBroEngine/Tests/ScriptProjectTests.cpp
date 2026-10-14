@@ -383,11 +383,11 @@ namespace
             }
             const std::string text = ReadAll(file.path());
             const fs::path object = generatedDirectory.parent_path() / (file.path().stem().native() + L".obj");
-            if (text.find("RegisterScriptType2D<Guard>") != std::string::npos)
+            if (text.find("operator()<Guard>()") != std::string::npos)
             {
                 guardObject = object;
             }
-            if (text.find("RegisterScriptType2D<Follower>") != std::string::npos)
+            if (text.find("operator()<Follower>()") != std::string::npos)
             {
                 followerObject = object;
             }

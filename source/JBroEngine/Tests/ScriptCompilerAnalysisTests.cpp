@@ -139,7 +139,7 @@ namespace
         const CppEmitResult projectSource = EmitCpp(source, tree, Catalog(), false);
         Check(projectSource.Errors.IsEmpty()
                 && projectSource.Code.find("JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()") == String::npos
-                && projectSource.Code.find("RegisterScriptType2D<Probe>()") != String::npos,
+                && projectSource.Code.find("operator()<Probe>()") != String::npos,
             "project mode registers the generated script without a duplicate DLL entry point");
         Check(emitted.Code.find("#line 10 \"chain.jscript\"") != String::npos,
             "generated statements point C++ diagnostics back to the JBroScript source");

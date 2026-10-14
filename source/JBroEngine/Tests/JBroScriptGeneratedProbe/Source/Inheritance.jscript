@@ -55,6 +55,25 @@ class FieldMix : FieldLeft, FieldRight
     [prop] public Int own = 11
 }
 
+script RequiredScript
+{
+    [prop] public Int seed = 2
+
+    public fn Read() -> Int require
+}
+
+script InheritedRequiredScript : RequiredScript
+{
+}
+
+script ConcreteRequiredScript : InheritedRequiredScript
+{
+    public fn Read() -> Int override
+    {
+        return seed + 5
+    }
+}
+
 script ParentScript
 {
     [prop] public Int shared = 2

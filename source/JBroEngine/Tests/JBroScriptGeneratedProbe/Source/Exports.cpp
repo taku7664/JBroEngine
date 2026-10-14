@@ -136,6 +136,12 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_DerivedRead()
     return counter.Read().Get();
 }
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_RequiredRead(JBro::GameScriptBase* script)
+{
+    RequiredScript* base = static_cast<ConcreteRequiredScript*>(script);
+    return base->Read().Get();
+}
+
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_BorrowedInterfaceRead()
 {
     DerivedCounter counter;

@@ -1212,6 +1212,22 @@ namespace
                 && std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[1].name), "extra") == 0,
             "inherited and own property names remain distinct in the derived script table");
         const JBro::ScriptTypeInfo* keywordType = JBro::ScriptRegistry::Local().Find("template");
+        const auto requiredRead = reinterpret_cast<std::int64_t (*)(JBro::GameScriptBase*)>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_RequiredRead"));
+        Check(JBro::ScriptRegistry::Local().Find("RequiredScript") == nullptr
+                && JBro::ScriptRegistry::Local().Find("InheritedRequiredScript") == nullptr
+                && JBro::ScriptRegistry::Local().Find("ConcreteRequiredScript") != nullptr,
+            "abstract script bases stay unconstructible while a concrete implementation registers");
+        {
+            JBro::Canvas requiredCanvas(JBro::CreateDefaultAllocator());
+            const auto object = requiredCanvas.CreateObject("required implementation");
+            JBro::GameScriptBase* concrete = requiredCanvas.AttachScript(object, "ConcreteRequiredScript");
+            const auto* fields = JBro::PropertyRegistry::Lookup("ConcreteRequiredScript");
+            Check(concrete != nullptr && requiredRead != nullptr && requiredRead(concrete) == 7
+                    && fields != nullptr && fields->count == 1
+                    && std::strcmp(JBro::NameTable::Get().Resolve(fields->properties[0].name), "seed") == 0,
+                "a concrete script executes a pure base method and inherits its reflected field");
+        }
         const JBro::PropertyTable* keywordProperties = JBro::PropertyRegistry::Lookup("template");
         Check(keywordType != nullptr && keywordProperties != nullptr && keywordProperties->count == 1
                 && std::strcmp(JBro::NameTable::Get().Resolve(keywordProperties->properties[0].name), "delete") == 0,

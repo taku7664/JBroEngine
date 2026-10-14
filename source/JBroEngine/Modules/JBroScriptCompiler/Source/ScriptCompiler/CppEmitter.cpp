@@ -144,7 +144,7 @@ namespace JBro::ScriptCompiler
                 m_code = "#include <JBro/ScriptAPI.h>\n#include <JBro/Framework2D/Scripting/ScriptModule.h>\n"
                     "#include <JBro/Runtime/ScriptGuard.h>\n#include <JBro/Runtime/ScriptInitialization.h>\n"
                     "#include <JBro/Runtime/ScriptStatics.h>\n"
-                    "#include <JBro/Reflection/EnumDescriptor.h>\n\n"
+                    "#include <JBro/Reflection/EnumDescriptor.h>\n#include <type_traits>\n\n"
                     "template<typename Derived, typename Base, std::size_t Index>\n"
                     "JBro::PropertyInfo jbro_gen_inherited_property()\n"
                     "{\n"
@@ -273,8 +273,18 @@ namespace JBro::ScriptCompiler
                 for (const String& script : m_scripts)
                 {
                     m_code += "static JBro::ScriptTypeRegistration jbro_gen_script_registration_"
-                        + std::to_string(m_temporary++) + "([]() -> JBro::Bool { return "
-                        "JBro::RegisterScriptType2D<" + script + ">(); });\n";
+                        + std::to_string(m_temporary++) + "([]() -> JBro::Bool\n{\n"
+                        "    return []<typename Script>() -> JBro::Bool\n"
+                        "    {\n"
+                        "        if constexpr (std::is_abstract_v<Script>)\n"
+                        "        {\n"
+                        "            return true;\n"
+                        "        }\n"
+                        "        else\n"
+                        "        {\n"
+                        "            return JBro::RegisterScriptType2D<Script>();\n"
+                        "        }\n"
+                        "    }.template operator()<" + script + ">();\n});\n";
                 }
                 if (!m_scripts.IsEmpty() || m_unit != nullptr)
                 {
