@@ -2,179 +2,6 @@
 #^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
 #  ^^^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >
->enum EnemyState
-#^^^^ source.jscript storage.type.enum.jscript
-#    ^ source.jscript
-#     ^^^^^^^^^^ source.jscript entity.name.type.enum.jscript
->{
-#^ source.jscript punctuation.section.block.begin.jscript
->    Idle
-#^^^^ source.jscript
-#    ^^^^ source.jscript variable.other.enummember.jscript
->    Chasing
-#^^^^ source.jscript
-#    ^^^^^^^ source.jscript variable.other.enummember.jscript
->    Dead
-#^^^^ source.jscript
-#    ^^^^ source.jscript variable.other.enummember.jscript
->}
-#^ source.jscript punctuation.section.block.end.jscript
->
->interface IDamageable
-#^^^^^^^^^ source.jscript storage.type.interface.jscript
-#         ^ source.jscript
-#          ^^^^^^^^^^^ source.jscript entity.name.type.class.jscript
->{
-#^ source.jscript punctuation.section.block.begin.jscript
->    fn TakeDamage(Int amount)
-#^^^^ source.jscript
-#    ^^ source.jscript storage.type.function.jscript
-#      ^ source.jscript
-#       ^^^^^^^^^^ source.jscript entity.name.function.jscript
-#                 ^ source.jscript punctuation.section.parameters.begin.jscript
-#                  ^^^ source.jscript support.type.primitive.jscript
-#                     ^ source.jscript
-#                      ^^^^^^ source.jscript variable.other.definition.jscript
-#                            ^ source.jscript punctuation.section.parameters.end.jscript
->    fn IsDead() -> Bool
-#^^^^ source.jscript
-#    ^^ source.jscript storage.type.function.jscript
-#      ^ source.jscript
-#       ^^^^^^ source.jscript entity.name.function.jscript
-#             ^ source.jscript punctuation.section.parameters.begin.jscript
-#              ^ source.jscript punctuation.section.parameters.end.jscript
-#               ^ source.jscript
-#                ^^ source.jscript punctuation.separator.return-type.jscript
-#                  ^ source.jscript
-#                   ^^^^ source.jscript support.type.primitive.jscript
->}
-#^ source.jscript punctuation.section.block.end.jscript
->
->struct DropEntry
-#^^^^^^ source.jscript storage.type.struct.jscript
-#      ^ source.jscript
-#       ^^^^^^^^^ source.jscript entity.name.type.class.jscript
->{
-#^ source.jscript punctuation.section.block.begin.jscript
->    Int Weight = 1
-#^^^^ source.jscript
-#    ^^^ source.jscript support.type.primitive.jscript
-#       ^ source.jscript
-#        ^^^^^^ source.jscript variable.other.definition.jscript
-#              ^ source.jscript
-#               ^ source.jscript keyword.operator.assignment.jscript
-#                ^ source.jscript
-#                 ^ source.jscript constant.numeric.jscript
->    Int ItemId = 0
-#^^^^ source.jscript
-#    ^^^ source.jscript support.type.primitive.jscript
-#       ^ source.jscript
-#        ^^^^^^ source.jscript variable.other.definition.jscript
-#              ^ source.jscript
-#               ^ source.jscript keyword.operator.assignment.jscript
-#                ^ source.jscript
-#                 ^ source.jscript constant.numeric.jscript
->}
-#^ source.jscript punctuation.section.block.end.jscript
->
->class LootTable
-#^^^^^ source.jscript storage.type.class.jscript
-#     ^ source.jscript
-#      ^^^^^^^^^ source.jscript entity.name.type.class.jscript
->{
-#^ source.jscript punctuation.section.block.begin.jscript
->    Array<DropEntry> entries
-#^^^^ source.jscript
-#    ^^^^^ source.jscript support.type.builtin.jscript
-#         ^ source.jscript punctuation.definition.typeparameters.begin.jscript
-#          ^^^^^^^^^ source.jscript entity.name.type.jscript
-#                   ^ source.jscript punctuation.definition.typeparameters.end.jscript
-#                    ^ source.jscript
-#                     ^^^^^^^ source.jscript variable.other.definition.jscript
->
->    fn LootTable(Int capacity)                       // [제안] 생성자 모양
-#^^^^ source.jscript
-#    ^^ source.jscript storage.type.function.jscript
-#      ^ source.jscript
-#       ^^^^^^^^^ source.jscript entity.name.function.jscript
-#                ^ source.jscript punctuation.section.parameters.begin.jscript
-#                 ^^^ source.jscript support.type.primitive.jscript
-#                    ^ source.jscript
-#                     ^^^^^^^^ source.jscript variable.other.definition.jscript
-#                             ^ source.jscript punctuation.section.parameters.end.jscript
-#                              ^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
-#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
-#                                                       ^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
->    {
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.begin.jscript
->        ...
-#^^^^^^^^ source.jscript
-#        ^^ source.jscript keyword.operator.range.jscript
-#          ^ source.jscript punctuation.accessor.jscript
->    }
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.end.jscript
->
->    public fn TotalWeight() -> Int
-#^^^^ source.jscript
-#    ^^^^^^ source.jscript storage.modifier.jscript
-#          ^ source.jscript
-#           ^^ source.jscript storage.type.function.jscript
-#             ^ source.jscript
-#              ^^^^^^^^^^^ source.jscript entity.name.function.jscript
-#                         ^ source.jscript punctuation.section.parameters.begin.jscript
-#                          ^ source.jscript punctuation.section.parameters.end.jscript
-#                           ^ source.jscript
-#                            ^^ source.jscript punctuation.separator.return-type.jscript
-#                              ^ source.jscript
-#                               ^^^ source.jscript support.type.primitive.jscript
->    {
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.begin.jscript
->        Int total = 0
-#^^^^^^^^ source.jscript
-#        ^^^ source.jscript support.type.primitive.jscript
-#           ^ source.jscript
-#            ^^^^^ source.jscript variable.other.definition.jscript
-#                 ^ source.jscript
-#                  ^ source.jscript keyword.operator.assignment.jscript
-#                   ^ source.jscript
-#                    ^ source.jscript constant.numeric.jscript
->        for (ref entry in entries)
-#^^^^^^^^ source.jscript
-#        ^^^ source.jscript keyword.control.jscript
-#           ^ source.jscript
-#            ^ source.jscript punctuation.section.parens.begin.jscript
-#             ^^^ source.jscript storage.modifier.ref.jscript
-#                ^ source.jscript
-#                 ^^^^^ source.jscript variable.other.definition.jscript
-#                      ^ source.jscript
-#                       ^^ source.jscript keyword.control.in.jscript
-#                         ^^^^^^^^ source.jscript
-#                                 ^ source.jscript punctuation.section.parens.end.jscript
->        {
-#^^^^^^^^ source.jscript
-#        ^ source.jscript punctuation.section.block.begin.jscript
->            total += entry.Weight
-#^^^^^^^^^^^^^^^^^^ source.jscript
-#                  ^^ source.jscript keyword.operator.assignment.compound.jscript
-#                    ^^^^^^ source.jscript
-#                          ^ source.jscript punctuation.accessor.jscript
-#                           ^^^^^^^ source.jscript
->        }
-#^^^^^^^^ source.jscript
-#        ^ source.jscript punctuation.section.block.end.jscript
->        return total
-#^^^^^^^^ source.jscript
-#        ^^^^^^ source.jscript keyword.control.jscript
-#              ^^^^^^^ source.jscript
->    }
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.end.jscript
->}
-#^ source.jscript punctuation.section.block.end.jscript
->
 >script Enemy : IDamageable
 #^^^^^^ source.jscript storage.type.script.jscript
 #      ^ source.jscript
@@ -239,30 +66,22 @@
 #                    ^ source.jscript meta.attribute.jscript meta.attribute.arguments.jscript string.quoted.double.jscript punctuation.definition.string.end.jscript
 #                     ^ source.jscript meta.attribute.jscript meta.attribute.arguments.jscript punctuation.definition.arguments.end.jscript
 #                      ^ source.jscript meta.attribute.jscript punctuation.definition.attribute.end.jscript
->    ref Transform2D target
+>    Transform2D? target                              // 핸들은 언제나 ?
 #^^^^ source.jscript
-#    ^^^ source.jscript storage.modifier.ref.jscript
-#       ^ source.jscript
-#        ^^^^^^^^^^^ source.jscript entity.name.type.jscript
-#                   ^ source.jscript
-#                    ^^^^^^ source.jscript variable.other.definition.jscript
+#    ^^^^^^^^^^^ source.jscript entity.name.type.jscript
+#               ^ source.jscript punctuation.definition.nullable.jscript
+#                ^ source.jscript
+#                 ^^^^^^ source.jscript variable.other.definition.jscript
+#                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
+#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
+#                                                       ^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >
->    [autochecknullable(false)]
-#^^^^ source.jscript meta.attribute.jscript
-#    ^ source.jscript meta.attribute.jscript punctuation.definition.attribute.begin.jscript
-#     ^^^^^^^^^^^^^^^^^ source.jscript meta.attribute.jscript entity.other.attribute-name.jscript
-#                      ^ source.jscript meta.attribute.jscript meta.attribute.arguments.jscript punctuation.definition.arguments.begin.jscript
-#                       ^^^^^ source.jscript meta.attribute.jscript meta.attribute.arguments.jscript constant.language.boolean.jscript
-#                            ^ source.jscript meta.attribute.jscript meta.attribute.arguments.jscript punctuation.definition.arguments.end.jscript
-#                             ^ source.jscript meta.attribute.jscript punctuation.definition.attribute.end.jscript
->    ref Transform2D home
+>    Transform2D? home
 #^^^^ source.jscript
-#    ^^^ source.jscript storage.modifier.ref.jscript
-#       ^ source.jscript
-#        ^^^^^^^^^^^ source.jscript entity.name.type.jscript
-#                   ^ source.jscript
-#                    ^^^^ source.jscript variable.other.definition.jscript
->
+#    ^^^^^^^^^^^ source.jscript entity.name.type.jscript
+#               ^ source.jscript punctuation.definition.nullable.jscript
+#                ^ source.jscript
+#                 ^^^^ source.jscript variable.other.definition.jscript
 >    Int hp = 0
 #^^^^ source.jscript
 #    ^^^ source.jscript support.type.primitive.jscript
@@ -282,17 +101,16 @@
 #                      ^^^^^^^^^^^ source.jscript
 #                                 ^ source.jscript punctuation.accessor.jscript
 #                                  ^^^^^ source.jscript
->    Array<ref Enemy> allies
+>    Array<Enemy?> allies
 #^^^^ source.jscript
 #    ^^^^^ source.jscript support.type.builtin.jscript
 #         ^ source.jscript punctuation.definition.typeparameters.begin.jscript
-#          ^^^ source.jscript storage.modifier.ref.jscript
-#             ^ source.jscript
-#              ^^^^^ source.jscript entity.name.type.jscript
-#                   ^ source.jscript punctuation.definition.typeparameters.end.jscript
-#                    ^ source.jscript
-#                     ^^^^^^ source.jscript variable.other.definition.jscript
->    LootTable loot = LootTable(8)                    // class 를 값으로 소유한다
+#          ^^^^^ source.jscript entity.name.type.jscript
+#               ^ source.jscript punctuation.definition.nullable.jscript
+#                ^ source.jscript punctuation.definition.typeparameters.end.jscript
+#                 ^ source.jscript
+#                  ^^^^^^ source.jscript variable.other.definition.jscript
+>    LootTable loot = LootTable(8)                    // class 는 값으로 소유한다
 #^^^^ source.jscript
 #    ^^^^^^^^^ source.jscript entity.name.type.jscript
 #             ^ source.jscript
@@ -311,29 +129,6 @@
 #    ^^^^^^^ source.jscript support.type.builtin.jscript
 #           ^ source.jscript
 #            ^^^^ source.jscript variable.other.definition.jscript
->
->    static Int aliveCount = 0
-#^^^^ source.jscript
-#    ^^^^^^ source.jscript storage.modifier.jscript
-#          ^ source.jscript
-#           ^^^ source.jscript support.type.primitive.jscript
-#              ^ source.jscript
-#               ^^^^^^^^^^ source.jscript variable.other.definition.jscript
-#                         ^ source.jscript
-#                          ^ source.jscript keyword.operator.assignment.jscript
-#                           ^ source.jscript
-#                            ^ source.jscript constant.numeric.jscript
->    const Float ChaseRange = 6.0
-#^^^^ source.jscript
-#    ^^^^^ source.jscript storage.modifier.jscript
-#         ^ source.jscript
-#          ^^^^^ source.jscript support.type.primitive.jscript
-#               ^ source.jscript
-#                ^^^^^^^^^^ source.jscript variable.other.definition.jscript
-#                          ^ source.jscript
-#                           ^ source.jscript keyword.operator.assignment.jscript
-#                            ^ source.jscript
-#                             ^^^ source.jscript constant.numeric.jscript
 >
 >    fn OnStart() callback
 #^^^^ source.jscript
@@ -359,27 +154,19 @@
 #                ^ source.jscript
 #                 ^ source.jscript keyword.operator.arithmetic.jscript
 #                  ^^^ source.jscript constant.numeric.jscript
->        aliveCount += 1
-#^^^^^^^^^^^^^^^^^^^ source.jscript
-#                   ^^ source.jscript keyword.operator.assignment.compound.jscript
-#                     ^ source.jscript
-#                      ^ source.jscript constant.numeric.jscript
 >    }
 #^^^^ source.jscript
 #    ^ source.jscript punctuation.section.block.end.jscript
 >
->    fn OnUpdate(Float dt) callback
+>    fn OnUpdate() callback
 #^^^^ source.jscript
 #    ^^ source.jscript storage.type.function.jscript
 #      ^ source.jscript
 #       ^^^^^^^^ source.jscript entity.name.function.jscript
 #               ^ source.jscript punctuation.section.parameters.begin.jscript
-#                ^^^^^ source.jscript support.type.primitive.jscript
-#                     ^ source.jscript
-#                      ^^ source.jscript variable.other.definition.jscript
-#                        ^ source.jscript punctuation.section.parameters.end.jscript
-#                         ^ source.jscript
-#                          ^^^^^^^^ source.jscript storage.modifier.callback.jscript
+#                ^ source.jscript punctuation.section.parameters.end.jscript
+#                 ^ source.jscript
+#                  ^^^^^^^^ source.jscript storage.modifier.callback.jscript
 >    {
 #^^^^ source.jscript
 #    ^ source.jscript punctuation.section.block.begin.jscript
@@ -402,7 +189,7 @@
 >            {
 #^^^^^^^^^^^^ source.jscript
 #            ^ source.jscript punctuation.section.block.begin.jscript
->                if (target is not null)              // [제안] is not null
+>                if (target is not null)
 #^^^^^^^^^^^^^^^^ source.jscript
 #                ^^ source.jscript keyword.control.jscript
 #                  ^ source.jscript
@@ -414,9 +201,6 @@
 #                                 ^ source.jscript
 #                                  ^^^^ source.jscript constant.language.null.jscript
 #                                      ^ source.jscript punctuation.section.parens.end.jscript
-#                                       ^^^^^^^^^^^^^^ source.jscript
-#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
-#                                                       ^^^^^^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >                {
 #^^^^^^^^^^^^^^^^ source.jscript
 #                ^ source.jscript punctuation.section.block.begin.jscript
@@ -441,7 +225,32 @@
 >            {
 #^^^^^^^^^^^^ source.jscript
 #            ^ source.jscript punctuation.section.block.begin.jscript
->                target.position.x += MoveSpeed * dt  // 자동 null 검사: target 이 null 이면 걸러지고 에러 로그
+>                if (target is null)
+#^^^^^^^^^^^^^^^^ source.jscript
+#                ^^ source.jscript keyword.control.jscript
+#                  ^ source.jscript
+#                   ^ source.jscript punctuation.section.parens.begin.jscript
+#                    ^^^^^^^ source.jscript
+#                           ^^ source.jscript keyword.operator.is.jscript
+#                             ^ source.jscript
+#                              ^^^^ source.jscript constant.language.null.jscript
+#                                  ^ source.jscript punctuation.section.parens.end.jscript
+>                {
+#^^^^^^^^^^^^^^^^ source.jscript
+#                ^ source.jscript punctuation.section.block.begin.jscript
+>                    state = EnemyState.Idle
+#^^^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
+#                          ^ source.jscript keyword.operator.assignment.jscript
+#                           ^^^^^^^^^^^ source.jscript
+#                                      ^ source.jscript punctuation.accessor.jscript
+#                                       ^^^^^ source.jscript
+>                    return
+#^^^^^^^^^^^^^^^^^^^^ source.jscript
+#                    ^^^^^^ source.jscript keyword.control.jscript
+>                }
+#^^^^^^^^^^^^^^^^ source.jscript
+#                ^ source.jscript punctuation.section.block.end.jscript
+>                target.position.x += MoveSpeed * Time.Delta   // 위에서 좁혔다
 #^^^^^^^^^^^^^^^^^^^^^^ source.jscript
 #                      ^ source.jscript punctuation.accessor.jscript
 #                       ^^^^^^^^ source.jscript
@@ -451,8 +260,10 @@
 #                                    ^^^^^^^^^^^ source.jscript
 #                                               ^ source.jscript keyword.operator.arithmetic.jscript
 #                                                ^^^^^ source.jscript
-#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
-#                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
+#                                                     ^ source.jscript punctuation.accessor.jscript
+#                                                      ^^^^^^^^ source.jscript
+#                                                              ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
+#                                                                ^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >            }
 #^^^^^^^^^^^^ source.jscript
 #            ^ source.jscript punctuation.section.block.end.jscript
@@ -475,155 +286,19 @@
 #^^^^^^^^ source.jscript
 #        ^ source.jscript punctuation.section.block.end.jscript
 >
->        if (home is null)
-#^^^^^^^^ source.jscript
-#        ^^ source.jscript keyword.control.jscript
-#          ^ source.jscript
-#           ^ source.jscript punctuation.section.parens.begin.jscript
-#            ^^^^^ source.jscript
-#                 ^^ source.jscript keyword.operator.is.jscript
-#                   ^ source.jscript
-#                    ^^^^ source.jscript constant.language.null.jscript
-#                        ^ source.jscript punctuation.section.parens.end.jscript
->        {
-#^^^^^^^^ source.jscript
-#        ^ source.jscript punctuation.section.block.begin.jscript
->            return
+>        home!.position.y = 0.0                       // 단언: 틀리면 로그를 남기고 이 콜백을 멈춘다
 #^^^^^^^^^^^^ source.jscript
-#            ^^^^^^ source.jscript keyword.control.jscript
->        }
-#^^^^^^^^ source.jscript
-#        ^ source.jscript punctuation.section.block.end.jscript
->        home.position.y = 0.0                        // 자동 검사를 껐고, 위에서 직접 검사했다
-#^^^^^^^^^^^^ source.jscript
-#            ^ source.jscript punctuation.accessor.jscript
-#             ^^^^^^^^ source.jscript
-#                     ^ source.jscript punctuation.accessor.jscript
-#                      ^^ source.jscript
-#                        ^ source.jscript keyword.operator.assignment.jscript
-#                         ^ source.jscript
-#                          ^^^ source.jscript constant.numeric.jscript
-#                             ^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
-#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
-#                                                       ^^^^^^^^^^^^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
->    }
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.end.jscript
->
->    fn TakeDamage(Int amount) override
-#^^^^ source.jscript
-#    ^^ source.jscript storage.type.function.jscript
-#      ^ source.jscript
-#       ^^^^^^^^^^ source.jscript entity.name.function.jscript
-#                 ^ source.jscript punctuation.section.parameters.begin.jscript
-#                  ^^^ source.jscript support.type.primitive.jscript
-#                     ^ source.jscript
-#                      ^^^^^^ source.jscript variable.other.definition.jscript
-#                            ^ source.jscript punctuation.section.parameters.end.jscript
-#                             ^ source.jscript
-#                              ^^^^^^^^ source.jscript storage.modifier.override.jscript
->    {
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.begin.jscript
->        hp -= amount
-#^^^^^^^^^^^ source.jscript
-#           ^^ source.jscript keyword.operator.assignment.compound.jscript
-#             ^^^^^^^^ source.jscript
->        if (hp <= 0 and state != EnemyState.Dead)
-#^^^^^^^^ source.jscript
-#        ^^ source.jscript keyword.control.jscript
-#          ^ source.jscript
-#           ^ source.jscript punctuation.section.parens.begin.jscript
-#            ^^^ source.jscript
-#               ^^ source.jscript keyword.operator.comparison.jscript
-#                 ^ source.jscript
-#                  ^ source.jscript constant.numeric.jscript
-#                   ^ source.jscript
-#                    ^^^ source.jscript keyword.operator.logical.jscript
-#                       ^^^^^^^ source.jscript
-#                              ^^ source.jscript keyword.operator.comparison.jscript
-#                                ^^^^^^^^^^^ source.jscript
-#                                           ^ source.jscript punctuation.accessor.jscript
-#                                            ^^^^ source.jscript
-#                                                ^ source.jscript punctuation.section.parens.end.jscript
->        {
-#^^^^^^^^ source.jscript
-#        ^ source.jscript punctuation.section.block.begin.jscript
->            state = EnemyState.Dead
-#^^^^^^^^^^^^^^^^^^ source.jscript
-#                  ^ source.jscript keyword.operator.assignment.jscript
-#                   ^^^^^^^^^^^ source.jscript
-#                              ^ source.jscript punctuation.accessor.jscript
-#                               ^^^^^ source.jscript
->            aliveCount -= 1
-#^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
-#                       ^^ source.jscript keyword.operator.assignment.compound.jscript
-#                         ^ source.jscript
-#                          ^ source.jscript constant.numeric.jscript
->        }
-#^^^^^^^^ source.jscript
-#        ^ source.jscript punctuation.section.block.end.jscript
->    }
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.end.jscript
->
->    fn IsDead() -> Bool override
-#^^^^ source.jscript
-#    ^^ source.jscript storage.type.function.jscript
-#      ^ source.jscript
-#       ^^^^^^ source.jscript entity.name.function.jscript
-#             ^ source.jscript punctuation.section.parameters.begin.jscript
-#              ^ source.jscript punctuation.section.parameters.end.jscript
-#               ^ source.jscript
-#                ^^ source.jscript punctuation.separator.return-type.jscript
-#                  ^ source.jscript
-#                   ^^^^ source.jscript support.type.primitive.jscript
-#                       ^ source.jscript
-#                        ^^^^^^^^ source.jscript storage.modifier.override.jscript
->    {
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.begin.jscript
->        return state == EnemyState.Dead
-#^^^^^^^^ source.jscript
-#        ^^^^^^ source.jscript keyword.control.jscript
-#              ^^^^^^^ source.jscript
-#                     ^^ source.jscript keyword.operator.comparison.jscript
-#                       ^^^^^^^^^^^ source.jscript
-#                                  ^ source.jscript punctuation.accessor.jscript
-#                                   ^^^^^ source.jscript
->    }
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.end.jscript
->
->    fn HpRatio() -> Float
-#^^^^ source.jscript
-#    ^^ source.jscript storage.type.function.jscript
-#      ^ source.jscript
-#       ^^^^^^^ source.jscript entity.name.function.jscript
-#              ^ source.jscript punctuation.section.parameters.begin.jscript
-#               ^ source.jscript punctuation.section.parameters.end.jscript
-#                ^ source.jscript
-#                 ^^ source.jscript punctuation.separator.return-type.jscript
-#                   ^ source.jscript
-#                    ^^^^^ source.jscript support.type.primitive.jscript
->    {
-#^^^^ source.jscript
-#    ^ source.jscript punctuation.section.block.begin.jscript
->        return Float(hp) / Float(MaxHp)
-#^^^^^^^^ source.jscript
-#        ^^^^^^ source.jscript keyword.control.jscript
-#              ^ source.jscript
-#               ^^^^^ source.jscript support.type.primitive.jscript
-#                    ^ source.jscript punctuation.section.parens.begin.jscript
-#                     ^^ source.jscript
-#                       ^ source.jscript punctuation.section.parens.end.jscript
-#                        ^ source.jscript
-#                         ^ source.jscript keyword.operator.arithmetic.jscript
+#            ^ source.jscript keyword.operator.null-assert.jscript
+#             ^ source.jscript punctuation.accessor.jscript
+#              ^^^^^^^^ source.jscript
+#                      ^ source.jscript punctuation.accessor.jscript
+#                       ^^ source.jscript
+#                         ^ source.jscript keyword.operator.assignment.jscript
 #                          ^ source.jscript
-#                           ^^^^^ source.jscript support.type.primitive.jscript
-#                                ^ source.jscript punctuation.section.parens.begin.jscript
-#                                 ^^^^^ source.jscript
-#                                      ^ source.jscript punctuation.section.parens.end.jscript
+#                           ^^^ source.jscript constant.numeric.jscript
+#                              ^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
+#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
+#                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >    }
 #^^^^ source.jscript
 #    ^ source.jscript punctuation.section.block.end.jscript
@@ -642,39 +317,89 @@
 >    {
 #^^^^ source.jscript
 #    ^ source.jscript punctuation.section.block.begin.jscript
->        Collision2D hit
+>        if (target is null)
 #^^^^^^^^ source.jscript
-#        ^^^^^^^^^^^ source.jscript entity.name.type.jscript
-#                   ^ source.jscript
-#                    ^^^ source.jscript variable.other.definition.jscript
->        return GetFramework2DServices().Physics2D.Raycast(target.position, down, 1.0, ref hit)
+#        ^^ source.jscript keyword.control.jscript
+#          ^ source.jscript
+#           ^ source.jscript punctuation.section.parens.begin.jscript
+#            ^^^^^^^ source.jscript
+#                   ^^ source.jscript keyword.operator.is.jscript
+#                     ^ source.jscript
+#                      ^^^^ source.jscript constant.language.null.jscript
+#                          ^ source.jscript punctuation.section.parens.end.jscript
+>        {
+#^^^^^^^^ source.jscript
+#        ^ source.jscript punctuation.section.block.begin.jscript
+>            return false
+#^^^^^^^^^^^^ source.jscript
+#            ^^^^^^ source.jscript keyword.control.jscript
+#                  ^ source.jscript
+#                   ^^^^^ source.jscript constant.language.boolean.jscript
+>        }
+#^^^^^^^^ source.jscript
+#        ^ source.jscript punctuation.section.block.end.jscript
+>        RaycastHit2D? hit = Physics.Raycast(target.position, down, 1.0)
+#^^^^^^^^ source.jscript
+#        ^^^^^^^^^^^^ source.jscript entity.name.type.jscript
+#                    ^ source.jscript punctuation.definition.nullable.jscript
+#                     ^ source.jscript
+#                      ^^^ source.jscript variable.other.definition.jscript
+#                         ^ source.jscript
+#                          ^ source.jscript keyword.operator.assignment.jscript
+#                           ^^^^^^^^ source.jscript
+#                                   ^ source.jscript punctuation.accessor.jscript
+#                                    ^^^^^^^ source.jscript
+#                                           ^ source.jscript punctuation.section.parens.begin.jscript
+#                                            ^^^^^^ source.jscript
+#                                                  ^ source.jscript punctuation.accessor.jscript
+#                                                   ^^^^^^^^ source.jscript
+#                                                           ^ source.jscript punctuation.separator.comma.jscript
+#                                                            ^^^^^ source.jscript
+#                                                                 ^ source.jscript punctuation.separator.comma.jscript
+#                                                                  ^ source.jscript
+#                                                                   ^^^ source.jscript constant.numeric.jscript
+#                                                                      ^ source.jscript punctuation.section.parens.end.jscript
+>        return hit is not null
 #^^^^^^^^ source.jscript
 #        ^^^^^^ source.jscript keyword.control.jscript
-#              ^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
-#                                     ^ source.jscript punctuation.section.parens.begin.jscript
-#                                      ^ source.jscript punctuation.section.parens.end.jscript
-#                                       ^ source.jscript punctuation.accessor.jscript
-#                                        ^^^^^^^^^ source.jscript
-#                                                 ^ source.jscript punctuation.accessor.jscript
-#                                                  ^^^^^^^ source.jscript
-#                                                         ^ source.jscript punctuation.section.parens.begin.jscript
-#                                                          ^^^^^^ source.jscript
-#                                                                ^ source.jscript punctuation.accessor.jscript
-#                                                                 ^^^^^^^^ source.jscript
-#                                                                         ^ source.jscript punctuation.separator.comma.jscript
-#                                                                          ^^^^^ source.jscript
-#                                                                               ^ source.jscript punctuation.separator.comma.jscript
-#                                                                                ^ source.jscript
-#                                                                                 ^^^ source.jscript constant.numeric.jscript
-#                                                                                    ^ source.jscript punctuation.separator.comma.jscript
-#                                                                                     ^ source.jscript
-#                                                                                      ^^^ source.jscript storage.modifier.ref.jscript
-#                                                                                         ^^^^ source.jscript
-#                                                                                             ^ source.jscript punctuation.section.parens.end.jscript
->        // [열림] §12 의 4번: target 이 null 이면 이 return 은 무엇을 돌려주는가
+#              ^^^^^ source.jscript
+#                   ^^ source.jscript keyword.operator.is.jscript
+#                     ^ source.jscript
+#                      ^^^ source.jscript keyword.operator.logical.jscript
+#                         ^ source.jscript
+#                          ^^^^ source.jscript constant.language.null.jscript
+>    }
+#^^^^ source.jscript
+#    ^ source.jscript punctuation.section.block.end.jscript
+>
+>    fn TargetHeight() -> Float
+#^^^^ source.jscript
+#    ^^ source.jscript storage.type.function.jscript
+#      ^ source.jscript
+#       ^^^^^^^^^^^^ source.jscript entity.name.function.jscript
+#                   ^ source.jscript punctuation.section.parameters.begin.jscript
+#                    ^ source.jscript punctuation.section.parameters.end.jscript
+#                     ^ source.jscript
+#                      ^^ source.jscript punctuation.separator.return-type.jscript
+#                        ^ source.jscript
+#                         ^^^^^ source.jscript support.type.primitive.jscript
+>    {
+#^^^^ source.jscript
+#    ^ source.jscript punctuation.section.block.begin.jscript
+>        return target?.position.y ?? 0.0             // 없으면 0 - 쓰는 사람이 정한다
 #^^^^^^^^ source.jscript
-#        ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
-#          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
+#        ^^^^^^ source.jscript keyword.control.jscript
+#              ^^^^^^^ source.jscript
+#                     ^^ source.jscript punctuation.accessor.nullsafe.jscript
+#                       ^^^^^^^^ source.jscript
+#                               ^ source.jscript punctuation.accessor.jscript
+#                                ^^ source.jscript
+#                                  ^^ source.jscript keyword.operator.null-coalescing.jscript
+#                                    ^ source.jscript
+#                                     ^^^ source.jscript constant.numeric.jscript
+#                                        ^^^^^^^^^^^^^ source.jscript
+#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
+#                                                       ^^^^^^^^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >    }
 #^^^^ source.jscript
 #    ^ source.jscript punctuation.section.block.end.jscript
@@ -715,7 +440,7 @@
 >        {
 #^^^^^^^^ source.jscript
 #        ^ source.jscript punctuation.section.block.begin.jscript
->            if (ally is null)
+>            if (ally is not null and not ally.IsDead())
 #^^^^^^^^^^^^ source.jscript
 #            ^^ source.jscript keyword.control.jscript
 #              ^ source.jscript
@@ -723,29 +448,19 @@
 #                ^^^^^ source.jscript
 #                     ^^ source.jscript keyword.operator.is.jscript
 #                       ^ source.jscript
-#                        ^^^^ source.jscript constant.language.null.jscript
-#                            ^ source.jscript punctuation.section.parens.end.jscript
->            {
-#^^^^^^^^^^^^ source.jscript
-#            ^ source.jscript punctuation.section.block.begin.jscript
->                continue
-#^^^^^^^^^^^^^^^^ source.jscript
-#                ^^^^^^^^ source.jscript keyword.control.jscript
->            }
-#^^^^^^^^^^^^ source.jscript
-#            ^ source.jscript punctuation.section.block.end.jscript
->            if (not ally.IsDead())
-#^^^^^^^^^^^^ source.jscript
-#            ^^ source.jscript keyword.control.jscript
-#              ^ source.jscript
-#               ^ source.jscript punctuation.section.parens.begin.jscript
-#                ^^^ source.jscript keyword.operator.logical.jscript
-#                   ^^^^^ source.jscript
-#                        ^ source.jscript punctuation.accessor.jscript
-#                         ^^^^^^ source.jscript
-#                               ^ source.jscript punctuation.section.parens.begin.jscript
-#                                ^ source.jscript punctuation.section.parens.end.jscript
-#                                 ^ source.jscript punctuation.section.parens.end.jscript
+#                        ^^^ source.jscript keyword.operator.logical.jscript
+#                           ^ source.jscript
+#                            ^^^^ source.jscript constant.language.null.jscript
+#                                ^ source.jscript
+#                                 ^^^ source.jscript keyword.operator.logical.jscript
+#                                    ^ source.jscript
+#                                     ^^^ source.jscript keyword.operator.logical.jscript
+#                                        ^^^^^ source.jscript
+#                                             ^ source.jscript punctuation.accessor.jscript
+#                                              ^^^^^^ source.jscript
+#                                                    ^ source.jscript punctuation.section.parens.begin.jscript
+#                                                     ^ source.jscript punctuation.section.parens.end.jscript
+#                                                      ^ source.jscript punctuation.section.parens.end.jscript
 >            {
 #^^^^^^^^^^^^ source.jscript
 #            ^ source.jscript punctuation.section.block.begin.jscript
@@ -768,7 +483,7 @@
 #^^^^ source.jscript
 #    ^ source.jscript punctuation.section.block.end.jscript
 >
->    static fn SumWeights(ref const Array<DropEntry> table) -> Int
+>    static fn SumWeights(ref const Array<DropEntry> table) -> Int   // 빌린 매개변수
 #^^^^ source.jscript
 #    ^^^^^^ source.jscript storage.modifier.jscript
 #          ^ source.jscript
@@ -791,6 +506,9 @@
 #                                                           ^^ source.jscript punctuation.separator.return-type.jscript
 #                                                             ^ source.jscript
 #                                                              ^^^ source.jscript support.type.primitive.jscript
+#                                                                 ^^^ source.jscript
+#                                                                    ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
+#                                                                      ^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >    {
 #^^^^ source.jscript
 #    ^ source.jscript punctuation.section.block.begin.jscript
@@ -803,35 +521,25 @@
 #                  ^ source.jscript keyword.operator.assignment.jscript
 #                   ^ source.jscript
 #                    ^ source.jscript constant.numeric.jscript
->        for (i in 0..table.Size())
+>        for (entry in table)
 #^^^^^^^^ source.jscript
 #        ^^^ source.jscript keyword.control.jscript
 #           ^ source.jscript
 #            ^ source.jscript punctuation.section.parens.begin.jscript
-#             ^ source.jscript variable.other.definition.jscript
-#              ^ source.jscript
-#               ^^ source.jscript keyword.control.in.jscript
-#                 ^ source.jscript
-#                  ^ source.jscript constant.numeric.jscript
-#                   ^^ source.jscript keyword.operator.range.jscript
-#                     ^^^^^ source.jscript
-#                          ^ source.jscript punctuation.accessor.jscript
-#                           ^^^^ source.jscript
-#                               ^ source.jscript punctuation.section.parens.begin.jscript
-#                                ^ source.jscript punctuation.section.parens.end.jscript
-#                                 ^ source.jscript punctuation.section.parens.end.jscript
+#             ^^^^^ source.jscript variable.other.definition.jscript
+#                  ^ source.jscript
+#                   ^^ source.jscript keyword.control.in.jscript
+#                     ^^^^^^ source.jscript
+#                           ^ source.jscript punctuation.section.parens.end.jscript
 >        {
 #^^^^^^^^ source.jscript
 #        ^ source.jscript punctuation.section.block.begin.jscript
->            total += table[i].Weight
+>            total += entry.Weight
 #^^^^^^^^^^^^^^^^^^ source.jscript
 #                  ^^ source.jscript keyword.operator.assignment.compound.jscript
 #                    ^^^^^^ source.jscript
-#                          ^ source.jscript punctuation.section.brackets.begin.jscript
-#                           ^ source.jscript
-#                            ^ source.jscript punctuation.section.brackets.end.jscript
-#                             ^ source.jscript punctuation.accessor.jscript
-#                              ^^^^^^^ source.jscript
+#                          ^ source.jscript punctuation.accessor.jscript
+#                           ^^^^^^^ source.jscript
 >        }
 #^^^^^^^^ source.jscript
 #        ^ source.jscript punctuation.section.block.end.jscript

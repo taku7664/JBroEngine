@@ -11,9 +11,9 @@ class Sword : Weapon
 //                     ^^^^^^^^ storage.modifier.override.jscript - variable.other.definition.jscript
     fn Speed() -> Float require
 //                      ^^^^^^^ storage.modifier.require.jscript - variable.other.definition.jscript
-    fn FindNearest() -> ref Enemy
-//                      ^^^ storage.modifier.ref.jscript
-//                          ^^^^^ entity.name.type.jscript
+    fn FindNearest() -> Enemy?
+//                      ^^^^^ entity.name.type.jscript
+//                           ^ punctuation.definition.nullable.jscript
     fn Curves() -> Array<Float>
 //                 ^^^^^ support.type.builtin.jscript
 //                       ^^^^^ support.type.primitive.jscript
