@@ -1174,6 +1174,8 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlActive"));
         const auto controlAddScore = reinterpret_cast<ControlAddScore>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlAddScore"));
+        const auto controlRaiseScores = reinterpret_cast<ControlAddScore>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlRaiseScores"));
         const auto controlHasOwner = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasOwner"));
         const auto controlHasTransform = reinterpret_cast<ControlHasOwner>(
@@ -1186,6 +1188,7 @@ namespace
         const auto controlNullFallback = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlNullFallback"));
         Check(controlCount != nullptr && controlActive != nullptr && controlAddScore != nullptr
+                && controlRaiseScores != nullptr
                 && controlHasOwner != nullptr && controlHasTransform != nullptr
                 && controlHasTransformSafe != nullptr && controlDisableOwnerSafe != nullptr
                 && controlNullFallback != nullptr,
@@ -1211,6 +1214,10 @@ namespace
         controlScript->OnUpdate();
         Check(controlCount(controlScript) == 21,
             "Table key/value iteration reads the added score once alongside range and switch");
+        controlRaiseScores(controlScript);
+        controlScript->OnUpdate();
+        Check(controlCount(controlScript) == 34,
+            "borrowing a Table value mutates the stored score for the next callback");
         controlType->Destruct(controlScript);
         {
             JBro::Canvas controlCanvas(JBro::CreateDefaultAllocator());

@@ -15,6 +15,11 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlAddScore(JBro::G
     static_cast<ControlProbe*>(base)->scores[JBro::String("bonus")] = JBro::Int(7);
 }
 
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlRaiseScores(JBro::GameScriptBase* base)
+{
+    static_cast<ControlProbe*>(base)->RaiseScores();
+}
+
 extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasOwner(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasOwner();

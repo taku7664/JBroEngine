@@ -35,6 +35,14 @@ script ControlProbe
         return null ?? 5
     }
 
+    public fn RaiseScores()
+    {
+        for (key, ref value in scores)
+        {
+            value += 1
+        }
+    }
+
     fn OnUpdate() override
     {
         for (i in 0..3)
