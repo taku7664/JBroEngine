@@ -1,0 +1,19 @@
+script PatrolProbe
+{
+    Transform2D? target
+    Float speed = 2.0
+
+    fn TargetX() -> Float
+    {
+        if (target is null)
+        {
+            return 0.0
+        }
+        return target.position.x
+    }
+
+    fn Step() -> Float
+    {
+        return speed * Time.DeltaTime()
+    }
+}

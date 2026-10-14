@@ -1,0 +1,9 @@
+{
+	"Open a JBro project folder to use the JBroScript language server.": "JBroScript 언어 서버를 사용하려면 JBro 프로젝트 폴더를 여세요.",
+	"The configured .jproject file does not exist: {0}": "설정한 .jproject 파일이 없습니다: {0}",
+	"No .jproject file was found at the workspace root. Set jbro.jbroscript.projectFile.": "작업 폴더 최상위에서 .jproject 파일을 찾지 못했습니다. jbro.jbroscript.projectFile을 설정하세요.",
+	"More than one .jproject file was found at the workspace root. Set jbro.jbroscript.projectFile.": "작업 폴더 최상위에 .jproject 파일이 여럿 있습니다. jbro.jbroscript.projectFile을 설정하세요.",
+	"JBroc.exe was not found. Build the engine or set jbro.jbroscript.serverPath.": "JBroc.exe를 찾지 못했습니다. 엔진을 빌드하거나 jbro.jbroscript.serverPath를 설정하세요.",
+	"JBroScript language server could not start: {0}": "JBroScript 언어 서버를 시작하지 못했습니다: {0}",
+	"JBroScript language server started for {0}": "JBroScript 언어 서버를 시작했습니다: {0}"
+}

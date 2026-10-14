@@ -1,4 +1,6 @@
 {
 	"displayName": "JBroScript Language Basics",
-	"description": "Syntax highlighting for JBroScript (.jscript) and YAML association for JBro project files."
+	"description": "Syntax highlighting, language server diagnostics, and editing features for JBroScript (.jscript).",
+	"serverPath": "Path to JBroc.exe, absolute or relative to the workspace folder. Leave empty to use the engine development build next to this extension.",
+	"projectFile": "Path to the active .jproject file. Leave empty when the workspace folder has exactly one root .jproject file."
 }
