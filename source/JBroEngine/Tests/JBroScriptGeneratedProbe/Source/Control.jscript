@@ -46,6 +46,23 @@ script ControlProbe
         return GetGameObject().GetComponent<Transform2D>() is not null
     }
 
+    public fn HasNoTransformByEquality() -> Bool
+    {
+        ref Transform2D transform = GetGameObject().GetComponent<Transform2D>()
+        Bool missingLeft = transform == null
+        Bool missingRight = null == transform
+        Bool presentLeft = transform != null
+        Bool presentRight = null != transform
+        return (missingLeft and missingRight and not presentLeft and not presentRight
+            and null == null and not (null != null))
+    }
+
+    public fn MissingScriptRefByEquality() -> Bool
+    {
+        ref ChildScript missing = null
+        return missing == null and not (missing != null)
+    }
+
     public fn HasTransformSafe() -> Bool
     {
         return GetGameObject()?.GetComponent<Transform2D>() is not null

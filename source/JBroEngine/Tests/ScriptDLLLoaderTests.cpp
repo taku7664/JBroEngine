@@ -1242,6 +1242,10 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasOwnerExplicit"));
         const auto controlHasTransform = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasTransform"));
+        const auto controlHasNoTransformByEquality = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasNoTransformByEquality"));
+        const auto missingScriptRefByEquality = reinterpret_cast<ControlHasOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_MissingScriptRefByEquality"));
         const auto controlHasTransformSafe = reinterpret_cast<ControlHasOwner>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlHasTransformSafe"));
         using ControlDisableOwnerSafe = void (*)(JBro::GameScriptBase*);
@@ -1329,6 +1333,10 @@ namespace
                 "an explicit this call resolves the inherited engine API member");
             Check(false == controlHasTransform(attached),
                 "a generic method call on a valid owner returns an absent component handle without logging");
+            Check(controlHasNoTransformByEquality != nullptr && controlHasNoTransformByEquality(attached),
+                "a missing engine handle compares equal to null and unequal comparison is false");
+            Check(missingScriptRefByEquality != nullptr && missingScriptRefByEquality(attached),
+                "a missing script reference compares equal to null without constructing its target");
             controlActive(attached);
             JBro::CanvasFileError canvasError;
             JBro::String saved;
@@ -1367,6 +1375,8 @@ namespace
             Check(ownerTransform != nullptr && controlMoveOwner(attached) == 2.0f
                     && ownerTransform->position.x == 2.0f && ownerTransform->position.y == 3.0f,
                 "Vector2 compound property assignment writes both vector components");
+            Check(false == controlHasNoTransformByEquality(attached),
+                "a valid engine handle is not equal to null in either operand order");
             Check(controlUseCounter(attached) == 6 && controlUseCounter(attached) == 7,
                 "class constructors, const fields and static members execute in the game DLL");
             JBro::GameScriptBase* inheritedScript = controlCanvas.AttachScript(

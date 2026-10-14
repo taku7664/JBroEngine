@@ -1173,6 +1173,24 @@ namespace JBro::ScriptCompiler
                             + "(" + right.code + "); }())";
                         return {code, {left.type.name, false}};
                     }
+                    if (node.Text == "==" || node.Text == "!=")
+                    {
+                        const bool leftNull = left.type.name == "Null";
+                        const bool rightNull = right.type.name == "Null";
+                        if (leftNull && rightNull)
+                        {
+                            return {node.Text == "==" ? "true" : "false", {"Bool", false}};
+                        }
+                        if (leftNull || rightNull)
+                        {
+                            const Expression& handle = leftNull ? right : left;
+                            if (IsHandle(handle.type) || (handle.type.ref && IsScript(handle.type)))
+                            {
+                                return {String(node.Text == "==" ? "!" : "")
+                                    + "JBro::ScriptGuard::IsPresent(" + handle.code + ")", {"Bool", false}};
+                            }
+                        }
+                    }
                     const bool vectorPair = left.type.name == "Vector2" && right.type.name == "Vector2"
                         && (node.Text == "+" || node.Text == "-");
                     const bool vectorScale = left.type.name == "Vector2" && right.type.name == "Float"

@@ -77,6 +77,16 @@ extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasTransform(JBr
     return static_cast<ControlProbe*>(base)->HasTransform();
 }
 
+extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasNoTransformByEquality(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->HasNoTransformByEquality();
+}
+
+extern "C" __declspec(dllexport) bool JBroGeneratedProbe_MissingScriptRefByEquality(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->MissingScriptRefByEquality();
+}
+
 extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasTransformSafe(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasTransformSafe();
