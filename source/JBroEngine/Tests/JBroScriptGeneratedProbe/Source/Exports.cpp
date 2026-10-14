@@ -1,6 +1,25 @@
 #include "JBroGenerated.h"
 #include <JBro/Runtime/ScriptGuard.h>
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_CustomOverrides()
+{
+    OverrideChild script;
+    script.OnUpdate();
+    script.OnClick();
+    if (script.before != 2 || script.after != 0)
+    {
+        return -1;
+    }
+    script.maybe = JBro::Nullable<JBro::Int>(JBro::Int(5));
+    if (static_cast<OverrideParent*>(&script)->Read() != 7)
+    {
+        return -2;
+    }
+    script.OnUpdate();
+    script.OnClick();
+    return (script.before * 100 + script.after * 10 + script.result).Get();
+}
+
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_StaticStartup()
 {
     const auto& fields = JBro::GetPropertyTable<StaticOwned>();

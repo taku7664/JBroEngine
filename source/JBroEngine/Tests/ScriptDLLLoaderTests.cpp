@@ -1274,6 +1274,14 @@ namespace
         const auto staticService = reinterpret_cast<StaticService>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticService"));
         Check(staticService != nullptr && staticService() == 2.25f,
             "static initializers observe the bound host service instead of a DLL-local default context");
+        const auto customOverrides = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CustomOverrides"));
+        JBro::Log::Clear();
+        Check(customOverrides != nullptr && customOverrides() == 425,
+            "nonvoid and void user overrides propagate a guard failure to their actual engine callback");
+        Check(JBro::Log::GetGroupCount() == 2 && JBro::Log::GetGroupAt(0)->count == 1
+            && JBro::Log::GetGroupAt(1)->count == 1,
+            "each failed override logs its original access site once while later callbacks still run");
         const auto initializationGuard = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializationGuard"));
         JBro::Log::Clear();

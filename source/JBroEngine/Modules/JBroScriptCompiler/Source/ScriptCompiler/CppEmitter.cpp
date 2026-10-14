@@ -1237,7 +1237,9 @@ namespace JBro::ScriptCompiler
                     || (owner != nullptr && owner->kind == SyntaxKind::InterfaceDeclaration);
                 const Type returns = ParseType(Child(index, 2));
                 m_returnType = returns;
-                const bool callback = script && (node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) != 0;
+                const ApiMember* apiMember = script ? ApiMemberInHierarchy(m_owner.View(), FunctionName(node)) : nullptr;
+                const bool callback = script && ((node.Flags & SyntaxFlagCallback) != 0
+                    || (apiMember != nullptr && apiMember->IsCallback));
                 const String nativeFunction = constructor ? CppIdentifier(m_owner)
                     : (node.Flags & (SyntaxFlagOperatorEqual | SyntaxFlagOperatorNotEqual))
                         ? String(FunctionName(node)) : CppIdentifier(FunctionName(node));
