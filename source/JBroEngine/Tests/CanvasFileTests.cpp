@@ -1542,6 +1542,33 @@ namespace
         Check(Save(canvas) == text, "and it writes back the same");
     }
 
+    // **지운 캔버스에 다시 읽어도 뿌리 차례는 파일 차례다.** 에디터는 캔버스를 다시 열 때도, 시뮬레이션을 멈출 때도 같은 캔버스를 비우고 다시 읽는다.
+    // 뿌리 차례를 풀 순서에 맡겼더니 풀이 빈 자리를 거꾸로 다시 써서 `C B A` 로 뒤집혔다(실제 에디터에서 하이어라키 순서가 바뀐 것을 보고 찾았다).
+    void TestRootsKeepTheFileOrderInAReusedCanvas()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        canvas.CreateObject("A");
+        canvas.CreateObject("B");
+        canvas.CreateObject("C");
+        const JBro::String text = Save(canvas);
+        for (JBro::Int32 round = 0; round < 2; ++round)
+        {
+            JBro::Array<JBro::Object::GameObject*> all;
+            canvas.GetRootObjects(all);
+            for (JBro::Object::GameObject* object : all)
+            {
+                canvas.DestroyObject(object);
+            }
+            canvas.FlushPendingDestroy();
+            LoadOrFail(canvas, text);
+            JBro::Array<JBro::Object::GameObject*> roots;
+            canvas.GetRootObjects(roots);
+            Check(roots.Size() == 3 && std::strcmp(roots[0]->GetName(), "A") == 0 && std::strcmp(roots[1]->GetName(), "B") == 0
+                    && std::strcmp(roots[2]->GetName(), "C") == 0,
+                "reading into a canvas whose objects were destroyed keeps the roots in file order");
+        }
+    }
+
     void TestAPolygonColliderMakesTheRoundTrip()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
@@ -1712,6 +1739,7 @@ JBro::Int32 RunCanvasFileTests()
     TestAnUnknownScriptIsKeptAsWritten();
     TestScriptsMakeTheRoundTripInTheirOwnList();
     TestComponentHandleFieldsMakeTheRoundTrip();
+    TestRootsKeepTheFileOrderInAReusedCanvas();
     TestAPolygonColliderMakesTheRoundTrip();
     TestA3DSceneMakesTheRoundTripToo();
     TestEditorHiddenIsSavedButNotPacked();

@@ -90,6 +90,9 @@ namespace JBro
         Bool        FindRootIndex(const Object::GameObject* object, std::size_t& index);
         // 뿌리들 사이의 자리를 옮긴다. 끝을 넘으면 맨 뒤로 간다. 뿌리가 아니면 거짓이다.
         Bool        SetRootIndex(Object::GameObject* object, std::size_t index);
+        // 이 차례대로 뿌리 목록 끝에 붙인다(캔버스 파일·레이어 에셋 읽기). 뿌리가 아니거나 이미 자리를 잡은 것은 건너뛴다.
+        // 풀 순서에 맡기면 안 된다 - 풀은 빈 자리를 나중에 빈 것부터 다시 쓰므로, 지운 캔버스에 다시 읽으면 뿌리 차례가 뒤집혔다.
+        void        AppendRootsInOrder(const Array<Object::GameObject*>& objects);
 
         // 순회 중 요청된 파괴를 실제로 수행한다(D-45). Framework 가 FixedUpdate 묶음 뒤와
         // Update 뒤 두 지점에서 부른다. 순회 중에 부르면 아무 일도 하지 않는다.

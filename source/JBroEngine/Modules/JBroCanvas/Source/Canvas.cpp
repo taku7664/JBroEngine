@@ -311,6 +311,32 @@ namespace JBro
         return false;
     }
 
+    void Canvas::AppendRootsInOrder(const Array<Object::GameObject*>& objects)
+    {
+        m_rootSeen.Clear();
+        for (std::size_t index = 0; index < m_rootOrder.Size(); ++index)
+        {
+            if (const Object::GameObject* object = m_rootOrder[index].TryGet())
+            {
+                m_rootSeen.TryAdd(object, std::uint8_t{1});
+            }
+        }
+        for (Object::GameObject* object : objects)
+        {
+            if (object == nullptr || object->GetParent() != nullptr || object->GetCanvas() != this
+                || m_rootSeen.Contains(object))
+            {
+                continue;
+            }
+            SafePtr<Object::GameObject> reference = object->SafeFromThis();
+            if (reference.IsValid())
+            {
+                m_rootSeen.TryAdd(object, std::uint8_t{1});
+                m_rootOrder.Add(std::move(reference));
+            }
+        }
+    }
+
     Bool Canvas::SetRootIndex(Object::GameObject* object, std::size_t index)
     {
         std::size_t current = 0;

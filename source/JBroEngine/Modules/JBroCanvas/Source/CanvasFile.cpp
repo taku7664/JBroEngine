@@ -412,6 +412,9 @@ namespace JBro
         Bool ReadObjects(Canvas& canvas, const YamlDocument& document, UInt32 objects, const ObjectLayerRule& rule,
             Array<Object::GameObject*>& created, CanvasFileError& error)
         {
+            // **뿌리 차례는 파일 차례다.** 이미 있던 뿌리는 먼저 자리를 잡게 하고(지금의 보이는 순서 그대로), 읽은 뿌리는 아래에서 파일 차례로 뒤에 붙인다.
+            Array<Object::GameObject*> existingRoots;
+            canvas.GetRootObjects(existingRoots);
             for (std::size_t i = 0; i < document.GetCount(objects); ++i)
             {
                 const UInt32 entry = document.GetElement(objects, i);
@@ -473,6 +476,8 @@ namespace JBro
                     }
                 }
             }
+
+            canvas.AppendRootsInOrder(created);
 
             Internal::ObjectRefRemap remap;
             remap.user = &created;
