@@ -274,10 +274,10 @@ JBro::Int32 RunScriptApiCatalogTests()
     Check(!Member(Type(catalog, "Transform2D"), "world").Writable, "world cache has no setter");
     Check(!Member(Type(catalog, "Button2D"), "clicked").Writable, "clicked query has no setter");
     const auto& raycast = Member(Type(catalog, "Physics2DService"), "Raycast");
-    Check(raycast.Type == "RaycastHit2D?" && raycast.Parameters.Size() == 4, "raycast out result is nullable return");
+    Check(raycast.Type == "ref RaycastHit2D" && raycast.Parameters.Size() == 4, "raycast out result is nullable return");
     Check(raycast.HasOutputProjection && raycast.Parameters.Last().HasDefault, "projection and default mask retained");
-    Check(Member(Type(catalog, "ObjectsService"), "FindAll").Type == "Array<GameObject?>", "object query buffer is collection return");
-    Check(Member(Type(catalog, "SaveService"), "ReadText").Type == "String?", "save read is optional text");
+    Check(Member(Type(catalog, "ObjectsService"), "FindAll").Type == "Array<ref GameObject>", "object query buffer is collection return");
+    Check(Member(Type(catalog, "SaveService"), "ReadText").Type == "ref String", "save read is optional text");
     Check(Member(Type(catalog, "GameScript2D"), "OnCollisionEnter").IsCallback, "callback metadata");
     Check(Member(Type(catalog, "Vector2"), "x").Type == "Float", "value fields derive from actual reflection");
     Check(Type(catalog, "BodyType2D").EnumValues.Size() == 3, "enum values derive from actual enum descriptor");

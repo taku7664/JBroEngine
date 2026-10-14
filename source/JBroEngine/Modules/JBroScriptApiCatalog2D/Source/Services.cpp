@@ -421,7 +421,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::InputService::*)(InputActionId,UInt32,InputBinding&) const>(&Service::InputService::GetActionBinding)>("GetActionBinding", Parameters(In("action"), In("index"), Out("out")));
-        member.Type = TypeName<InputBinding>() + "?";
+        member.Type = String("ref ").Append(TypeName<InputBinding>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -463,7 +463,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::InputService::*)(String&) const>(&Service::InputService::WriteBindingOverrides)>("WriteBindingOverrides", Parameters(Out("out")));
-        member.Type = TypeName<String>() + "?";
+        member.Type = String("ref ").Append(TypeName<String>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -498,7 +498,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::SaveService::*)(const char*,Array<std::byte>&) const>(&Service::SaveService::ReadBytes)>("ReadBytes", Parameters(In("slot"), Out("out")));
-        member.Type = TypeName<Array<std::byte>>() + "?";
+        member.Type = String("ref ").Append(TypeName<Array<std::byte>>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -506,7 +506,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::SaveService::*)(const char*,String&) const>(&Service::SaveService::ReadText)>("ReadText", Parameters(In("slot"), Out("out")));
-        member.Type = TypeName<String>() + "?";
+        member.Type = String("ref ").Append(TypeName<String>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -551,7 +551,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::LocalizationService::*)(const char*,String&) const>(&Service::LocalizationService::TryGetText)>("TryGetText", Parameters(In("key"), Out("out")));
-        member.Type = TypeName<String>() + "?";
+        member.Type = String("ref ").Append(TypeName<String>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -650,7 +650,7 @@ void AddServices(ApiCatalog& catalog)
     auto& type = AddType(catalog, "Physics2DService", "JBro::Service::Physics2DService", ApiTypeKind::Service);
     {
         auto member = DeclareFunction<static_cast<Bool (Service::Physics2DService::*)(Vector2,Vector2,Float,RaycastHit2D&,UInt32) const>(&Service::Physics2DService::Raycast)>("Raycast", Parameters(In("origin"), In("direction"), In("distance"), Out("hit"), In("layerMask", "AllPhysicsLayers")));
-        member.Type = TypeName<RaycastHit2D>() + "?";
+        member.Type = String("ref ").Append(TypeName<RaycastHit2D>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -686,7 +686,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::Physics2DService::*)(Vector2,Float,Vector2,Float,RaycastHit2D&,UInt32) const>(&Service::Physics2DService::CircleCast)>("CircleCast", Parameters(In("origin"), In("radius"), In("direction"), In("distance"), Out("hit"), In("layerMask", "AllPhysicsLayers")));
-        member.Type = TypeName<RaycastHit2D>() + "?";
+        member.Type = String("ref ").Append(TypeName<RaycastHit2D>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -694,7 +694,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::Physics2DService::*)(Vector2,Vector2,Float,Vector2,Float,RaycastHit2D&,UInt32) const>(&Service::Physics2DService::BoxCast)>("BoxCast", Parameters(In("center"), In("halfExtents"), In("angle"), In("direction"), In("distance"), Out("hit"), In("layerMask", "AllPhysicsLayers")));
-        member.Type = TypeName<RaycastHit2D>() + "?";
+        member.Type = String("ref ").Append(TypeName<RaycastHit2D>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -740,7 +740,7 @@ void AddServices(ApiCatalog& catalog)
     auto& type = AddType(catalog, "Screen2DService", "JBro::Service::Screen2DService", ApiTypeKind::Service);
     {
         auto member = DeclareFunction<static_cast<Bool (Service::Screen2DService::*)(Vector2,Handle::GameObject,Vector2&) const>(&Service::Screen2DService::ScreenToLayer)>("ScreenToLayer", Parameters(In("pixel"), In("object"), Out("point")));
-        member.Type = TypeName<Vector2>() + "?";
+        member.Type = String("ref ").Append(TypeName<Vector2>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
@@ -748,7 +748,7 @@ void AddServices(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Bool (Service::Screen2DService::*)(Vector2,Handle::GameObject,Vector2&) const>(&Service::Screen2DService::LayerToScreen)>("LayerToScreen", Parameters(In("point"), In("object"), Out("pixel")));
-        member.Type = TypeName<Vector2>() + "?";
+        member.Type = String("ref ").Append(TypeName<Vector2>());
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;

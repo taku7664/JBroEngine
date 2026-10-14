@@ -49,7 +49,7 @@ void AddContainers(ApiCatalog& catalog)
         AddContainerMember<&NativeTable::Remove<String>>(type, "Remove", Parameters(In("key", nullptr, "K")), nullptr, true);
         AddContainerMember<&NativeTable::TryAdd<const String&, const Float&>>(type, "TryAdd", Parameters(In("key", nullptr, "K"), In("value", nullptr, "V")), nullptr, true);
         AddContainerMember<&NativeTable::InsertOrAssign<const String&, const Float&>>(type, "InsertOrAssign", Parameters(In("key", nullptr, "K"), In("value", nullptr, "V")), "V", true);
-        AddContainerMember<static_cast<const Float*(NativeTable::*)(const String&) const>(&NativeTable::Find<String>)>(type, "Find", Parameters(In("key", nullptr, "K")), "V?");
+        AddContainerMember<static_cast<const Float*(NativeTable::*)(const String&) const>(&NativeTable::Find<String>)>(type, "Find", Parameters(In("key", nullptr, "K")), "ref V");
         type.Members.Last().Projection = ApiProjectionKind::NullableReturn;
         type.Members.Last().HasOutputProjection = true;
         type.Members.Add(DeclareProperty<&NativeTable::Size>("count"));

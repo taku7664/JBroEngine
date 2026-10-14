@@ -5,10 +5,10 @@ namespace
 {
 Bool KnownType(const ApiCatalog& catalog, String name)
 {
-    name.ReplaceAll(" ", "");
-    if (name.EndsWith("?"))
+    name = name.Trimmed();
+    if (name.StartsWith("ref "))
     {
-        name.resize(name.size()-1);
+        name = name.Substr(4).Trimmed();
     }
     if (name == "Int" || name == "Float" || name == "Bool" || name == "String" || name == "Void" || name == "T" || name == "K" || name == "V")
     {
@@ -21,7 +21,7 @@ Bool KnownType(const ApiCatalog& catalog, String name)
         {
             return false;
         }
-        const String base = name.Substr(0,open);
+        const String base = name.Substr(0,open).Trimmed();
         if (base != "Array" && base != "Table")
         {
             return false;

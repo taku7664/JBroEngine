@@ -34,7 +34,7 @@ Entries:
   jbroc.semantic.readonly: "이 식에는 값을 대입할 수 없습니다."
   jbroc.semantic.null_access: "{0} 값을 사용하기 전에 null을 검사하거나 ?. 또는 !를 사용하세요."
   jbroc.semantic.borrow_position: "ref는 매개변수와 for 변수에만 사용할 수 있습니다."
-  jbroc.semantic.handle_nullable: "핸들 타입 {0}에는 ?를 붙여야 합니다."
+  jbroc.semantic.handle_nullable: "핸들 타입 {0}에는 ref를 붙여야 합니다."
   jbroc.semantic.borrow_argument: "빌린 매개변수에는 ref를 붙이고 초기화된 값을 넘겨야 합니다. 수정하는 매개변수라면 값을 수정할 수 있어야 합니다."
   jbroc.semantic.return_path: "{0} 함수는 모든 실행 경로에서 값을 반환해야 합니다."
   jbroc.semantic.callback: "{0} 콜백의 이름이나 인자가 엔진 훅과 다릅니다."
@@ -65,3 +65,4 @@ Entries:
   jbroc.semantic.for_variables: "Array와 범위에는 변수 하나를, Table에는 변수 둘을 사용하세요."
   jbroc.semantic.jump_context: "여기에서는 {0}문을 사용할 수 없습니다."
   jbroc.semantic.type_constraint: "{1} 타입은 {0} 함수의 타입 인자 조건에 맞지 않습니다."
+  jbroc.semantic.legacy_nullable_type: "{0}? 대신 ref {0}를 사용하세요."

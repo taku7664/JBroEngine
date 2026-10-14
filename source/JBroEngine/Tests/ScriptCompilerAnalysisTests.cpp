@@ -33,6 +33,10 @@ namespace
         readonlyField.Name = "valid";
         readonlyField.Type = "Bool";
         readonlyField.Kind = ApiMemberKind::Field;
+        ApiMember& next = handle.Members.Emplace();
+        next.Name = "next";
+        next.Type = "ref Transform2D";
+        next.Kind = ApiMemberKind::Field;
         ApiType& base = catalog.Types.Emplace();
         base.Name = "GameScript2D";
         base.Kind = ApiTypeKind::Class;
@@ -60,7 +64,7 @@ namespace
         object.Kind = ApiTypeKind::Handle;
         ApiMember& get = object.Members.Emplace();
         get.Name = "GetComponent";
-        get.Type = "T?";
+        get.Type = "ref T";
         get.TypeParameters.Add("T");
         return catalog;
     }
@@ -93,16 +97,27 @@ namespace
 
     void TestNullableGrammar()
     {
-        SourceText source("nullable.jscript", "script S\n{\n    Transform2D? t\n    Array<S?> peers\n    fn F()\n    {\n        Int p = t?.position ?? 0\n        Int q = t!.position\n    }\n}\n");
+        SourceText source("nullable.jscript", "script S\n{\n    ref Transform2D t\n    Array<ref S> peers\n    fn F()\n    {\n        Int p = t?.position ?? 0\n        Int q = t!.position\n    }\n}\n");
         DiagnosticList diagnostics;
         const SyntaxTree tree = Parse(source, diagnostics);
         Check(0 == diagnostics.GetCount(), "D-262 nullable declarations and operators parse");
         Check(tree.GetNodeCount() > 10, "nullable grammar produces a tree");
     }
 
+    void TestSingleRefSyntax()
+    {
+        auto source = Analyze("script S\n{\nref Transform2D first\nref Int maybe = null\nfn F()\n{\nInt x = first.next.position\nInt y = maybe\nref Int copied = maybe\n}\n}\n");
+        Check(source->Documents[0]->Diagnostics.IsEmpty(),
+            "ref handles and optional values work without a written null check");
+        auto unknown = Analyze("script S\n{\nref Transform2D first\nfn F()\n{\nInt x = first.missing\n}\n}\n");
+        Check(Has(*unknown, "JBC3032"), "unknown members remain static errors on ref receivers");
+        auto legacy = Analyze("script S\n{\nTransform2D? old\n}\n");
+        Check(Has(*legacy, "JBC3040"), "legacy question-suffix type has a migration diagnostic");
+    }
+
     void TestWitnessRegressions()
     {
-        auto assignment = Analyze("class Box\n{\npublic GameObject? target\n}\nclass Reader\n{\nBox box\nfn F()\n{\nif (box.target is not null)\n{\nbox.target = null\n}\n}\n}\n");
+        auto assignment = Analyze("class Box\n{\npublic ref GameObject target\n}\nclass Reader\n{\nBox box\nfn F()\n{\nif (box.target is not null)\n{\nbox.target = null\n}\n}\n}\n");
         auto unreachableReturn = Analyze("class Reader\n{\nfn F() -> Int\n{\nswitch (1)\n{\ndefault\n{\nbreak\nreturn 1\n}\n}\n}\n}\n");
         auto removal = Analyze("class Reader\n{\nArray<Int> values\nfn F()\n{\nfor (value in values)\n{\nvalues.RemoveAtSwap(0)\n}\n}\n}\n");
         const Bool assignmentPassed = assignment->Documents[0]->Diagnostics.IsEmpty();
@@ -133,8 +148,6 @@ namespace
         Check(exhaustive->Documents[0]->Diagnostics.IsEmpty(), "all returning enum cases satisfy the return path");
         auto innerLoop = Analyze("class Reader\n{\nBool condition = false\nfn F() -> Int\n{\nswitch (1)\n{\ndefault\n{\nwhile (condition)\n{\ncontinue\n}\nreturn 1\n}\n}\n}\n}\n");
         Check(innerLoop->Documents[0]->Diagnostics.IsEmpty(), "continue belongs to the inner loop and does not make the later return unreachable");
-        auto nullableBreak = Analyze("script S\n{\nTransform2D? t\nfn F()\n{\nwhile (true)\n{\nif (t is null)\n{\nbreak\n}\nInt x = t.position\n}\n}\n}\n");
-        Check(false == Has(*nullableBreak, "JBC3007"), "breaking the null branch narrows the live loop continuation");
         auto reserve = Analyze("class Reader\n{\nArray<Int> values\nfn F()\n{\nfor (value in values)\n{\nvalues.Reserve(0)\n}\n}\n}\n");
         Check(false == Has(*reserve, "JBC3019"), "capacity-only Reserve is not classified as a size mutation");
         for (const char* method : {"RemoveAt", "RemoveAtSwap", "Resize", "FutureSizeMutation"})
@@ -144,114 +157,6 @@ namespace
             auto result = Analyze(source.c_str());
             Check(Has(*result, "JBC3019"), "every mutating container API except known capacity-only operations is checked");
         }
-    }
-
-    void TestJumpExitFlows()
-    {
-        auto switchExit = Analyze("script S\n{\nTransform2D? target\nfn OnUpdate() callback\n{\nswitch (1)\n{\ndefault\n{\nif (target is null)\n{\nbreak\n}\n}\n}\nInt point = target.position\n}\n}\n");
-        auto continueEdge = Analyze("script S\n{\nTransform2D? target\nBool running = true\nBool skip = true\nfn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (running)\n{\nif (skip)\n{\ntarget = null\ncontinue\n}\nInt point = target.position\n}\n}\n}\n}\n");
-        auto loopExit = Analyze("script S\n{\nTransform2D? target\nBool running = true\nBool stop = true\nfn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (running)\n{\nif (stop)\n{\ntarget = null\nbreak\n}\n}\nInt point = target.position\n}\n}\n}\n");
-        const Bool switchPassed = Has(*switchExit, "JBC3007");
-        const Bool continuePassed = Has(*continueEdge, "JBC3007");
-        const Bool loopPassed = Has(*loopExit, "JBC3007");
-        if (false == switchPassed)
-        {
-            std::cerr << "  jump flow regression failed: switch discarded the nullable break exit\n";
-        }
-        if (false == continuePassed)
-        {
-            std::cerr << "  jump flow regression failed: loop discarded the nullable continue back edge\n";
-        }
-        if (false == loopPassed)
-        {
-            std::cerr << "  jump flow regression failed: loop discarded a nullable break exit\n";
-        }
-        Check(switchPassed && continuePassed && loopPassed, "jump exits must preserve null state at their destinations");
-        auto preservedBreak = Analyze("script S\n{\nTransform2D? target\nfn OnUpdate() callback\n{\nif (target is not null)\n{\nswitch (1)\n{\ndefault\n{\nbreak\ntarget = null\n}\n}\nInt point = target.position\n}\n}\n}\n");
-        Check(false == Has(*preservedBreak, "JBC3007"), "a break preserves an existing null proof and ignores unreachable mutations");
-        auto preservedContinue = Analyze("script S\n{\nTransform2D? target\nBool running = true\nBool skip = true\nfn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (running)\n{\nif (skip)\n{\ncontinue\n}\nInt point = target.position\n}\n}\n}\n}\n");
-        Check(false == Has(*preservedContinue, "JBC3007"), "an unchanged continue back edge preserves a valid null proof");
-        auto nestedContinue = Analyze("script S\n{\nTransform2D? target\nBool running = true\nBool skip = true\nfn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (running)\n{\nswitch (1)\n{\ndefault\n{\nif (skip)\n{\ntarget = null\ncontinue\n}\n}\n}\nInt point = target.position\n}\n}\n}\n}\n");
-        Check(Has(*nestedContinue, "JBC3007"), "continue through a nested switch retains its nullable back edge");
-    }
-
-    void TestLoopNullFixedPoint()
-    {
-        auto propagation = Analyze("script S\n{\nTransform2D? a\nTransform2D? b\nTransform2D? c\nBool running = true\nfn OnUpdate() callback\n{\nif (a is not null and b is not null and c is not null)\n{\nwhile (running)\n{\nInt point = a.position\na = b\nb = c\nc = null\n}\n}\n}\n}\n");
-        Check(Has(*propagation, "JBC3007"), "loop null propagation must stabilize across more than one back edge");
-        auto nested = Analyze("script S\n{\nTransform2D? a\nTransform2D? b\nTransform2D? c\nBool outer = true\nBool inner = true\nfn OnUpdate() callback\n{\nif (a is not null and b is not null and c is not null)\n{\nwhile (outer)\n{\nInt marker = Int(1)\nwhile (inner)\n{\nInt point = a.position\nInt count = Int(1)\na = b\nb = c\nc = null\n}\n}\n}\n}\n}\n");
-        Check(Has(*nested, "JBC3007"), "nested loop fixed points also retain delayed null propagation");
-        for (const auto& document : nested->Documents)
-        {
-            Check(false == document->Calls.IsEmpty(), "nested replay includes real call-site records");
-            std::size_t nullDiagnosticCount = 0;
-            for (const SemanticDiagnostic& diagnostic : document->Diagnostics)
-            {
-                if (diagnostic.Code == "JBC3007")
-                {
-                    ++nullDiagnosticCount;
-                }
-            }
-            Check(1 == nullDiagnosticCount, "nested replay discards previous-pass diagnostics instead of duplicating them");
-            for (const Occurrence& occurrence : document->Occurrences)
-            {
-                Check(nullptr != FindSymbol(*nested, occurrence.Target), "loop replay leaves only valid occurrence symbol IDs");
-            }
-            for (const CallSite& call : document->Calls)
-            {
-                for (SymbolId overload : call.Overloads)
-                {
-                    Check(nullptr != FindSymbol(*nested, overload), "loop replay leaves only valid overload symbol IDs");
-                }
-            }
-        }
-    }
-
-    void TestWhileConditionReevaluation()
-    {
-        const char* bodyPrefix = "script S\n{\nTransform2D? target\nfn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (target.valid)\n{\ntarget = null\n";
-        String fallthrough(bodyPrefix);
-        fallthrough.Append("}\n}\n}\n}\n");
-        String continued(bodyPrefix);
-        continued.Append("continue\n}\n}\n}\n}\n");
-        auto fallthroughResult = Analyze(fallthrough.c_str());
-        auto continueResult = Analyze(continued.c_str());
-        const Bool fallthroughPassed = Has(*fallthroughResult, "JBC3007");
-        const Bool continuePassed = Has(*continueResult, "JBC3007");
-        if (false == fallthroughPassed)
-        {
-            std::cerr << "  while condition regression failed: nullable access on a fallthrough back edge\n";
-        }
-        if (false == continuePassed)
-        {
-            std::cerr << "  while condition regression failed: nullable access on a continue back edge\n";
-        }
-        Check(fallthroughPassed && continuePassed, "while conditions must be checked on every reachable back edge");
-        for (const char* jump : {"break", "return"})
-        {
-            String source(bodyPrefix);
-            source.Append(jump).Append("\n}\n}\n}\n}\n");
-            Check(false == Has(*Analyze(source.c_str()), "JBC3007"), "unconditional break or return does not re-evaluate the condition");
-        }
-        auto guarded = Analyze("script S\n{\nTransform2D? target\nfn OnUpdate() callback\n{\nwhile (target is not null and target.valid)\n{\ntarget = null\ncontinue\n}\n}\n}\n");
-        Check(false == Has(*guarded, "JBC3007"), "short-circuit null guards are checked safely on every iteration");
-        auto falseExit = Analyze("script S\n{\nTransform2D? target\nfn Check() -> Bool\n{\ntarget = null\nreturn false\n}\nfn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (Check())\n{\n}\nInt point = target.position\n}\n}\n}\n");
-        Check(Has(*falseExit, "JBC3007"), "condition side effects are preserved on the loop's false exit");
-        Check(1 == falseExit->Documents[0]->Calls.Size(), "condition replay keeps a single final call site");
-        auto nullableCall = Analyze("script S\n{\nGameObject? owner\nfn OnUpdate() callback\n{\nwhile (owner!.GetComponent<Transform2D>() is not null)\n{\nbreak\n}\n}\n}\n");
-        Check(nullableCall->Documents[0]->Diagnostics.IsEmpty(), "a nullable call can be tested by the loop condition");
-        Check(1 == nullableCall->Documents[0]->Calls.Size(), "null-flow extraction does not duplicate condition call sites");
-        std::size_t conditionDiagnostics = 0;
-        for (const SemanticDiagnostic& diagnostic : fallthroughResult->Documents[0]->Diagnostics)
-        {
-            if (diagnostic.Code == "JBC3007")
-            {
-                ++conditionDiagnostics;
-                Check(diagnostic.Range.Begin.Offset == fallthrough.find("target.valid") + 7,
-                    "the repeated-condition diagnostic points to its member access");
-            }
-        }
-        Check(1 == conditionDiagnostics, "condition replay discards earlier diagnostic copies");
     }
 
     void TestCrossFileSymbolsAndOverloads()
@@ -266,26 +171,11 @@ namespace
         Check(result->Documents[1]->Tree.Get(result->Documents[1]->Tree.GetChild(result->Documents[1]->Tree.GetRoot(), 0)).Text == "Worker", "AST text remains owned by its document snapshot");
     }
 
-    void TestNullFlowAndInvalidation()
-    {
-        auto safe = Analyze("script S\n{\n    Transform2D? t\n    fn F() -> Int\n    {\n        if (t is null)\n        {\n            return 0\n        }\n        return t.position\n    }\n}\n");
-        Check(false == Has(*safe, "JBC3007"), "early return narrows null in the continuation");
-        auto unsafe = Analyze("script S\n{\n    Transform2D? t\n    fn Change()\n    {\n        t = null\n    }\n    fn F()\n    {\n        if (t is not null)\n        {\n            Change()\n            Int x = t.position\n        }\n    }\n}\n");
-        Check(Has(*unsafe, "JBC3007"), "a user call invalidates a narrowed mutable member");
-        auto assigned = Analyze("script S\n{\n    Transform2D? t\n    fn F()\n    {\n        if (t is not null)\n        {\n            t = null\n            Int x = t.position\n        }\n    }\n}\n");
-        Check(Has(*assigned, "JBC3007"), "assignment invalidates a null proof");
-        auto loop = Analyze("script S\n{\nTransform2D? t\nfn F()\n{\nif (t is not null)\n{\nwhile (true)\n{\nInt x = t.position\nt = null\n}\n}\n}\n}\n");
-        Check(Has(*loop, "JBC3007"), "loop back edges invalidate proofs before the next iteration");
-        auto guardedLoop = Analyze("script S\n{\nTransform2D? t\nfn F()\n{\nwhile (t is not null)\n{\nInt x = t.position\nt = null\n}\n}\n}\n");
-        Check(false == Has(*guardedLoop, "JBC3007"), "a while condition rechecks null before every iteration");
-    }
-
     void TestSemanticNegatives()
     {
         Check(Has(*Analyze("class C\n{\n    fn F()\n    {\n        Float bad = 3\n    }\n}\n"), "JBC3003"), "Int to Float variables require explicit conversion");
-        Check(Has(*Analyze("script S\n{\n    ref Transform2D old\n}\n"), "JBC3008"), "stored ref is forbidden");
         Check(Has(*Analyze("script S\n{\n    Transform2D bare\n}\n"), "JBC3009"), "handles require nullable syntax");
-        Check(Has(*Analyze("script S\n{\n    Transform2D? t\n    fn F()\n    {\n        t!.valid = true\n    }\n}\n"), "JBC3006"), "readonly API fields reject assignment");
+        Check(Has(*Analyze("script S\n{\n    ref Transform2D t\n    fn F()\n    {\n        t!.valid = true\n    }\n}\n"), "JBC3006"), "readonly API fields reject assignment");
         Check(Has(*Analyze("class C\n{\n    fn F() -> Int\n    {\n    }\n}\n"), "JBC3011"), "nonvoid functions require a return on every path");
         Check(Has(*Analyze("script S\n{\n    fn Wrong() callback\n    {\n    }\n}\n"), "JBC3012"), "callback signatures must match engine hooks");
         Check(Has(*Analyze("class C\n{\n    fn F() override\n    {\n    }\n}\n"), "JBC3013"), "override requires a matching base function");
@@ -381,9 +271,13 @@ namespace
     void TestBorrowingContainersAndAbstractTypes()
     {
         auto readonlyBorrow = Analyze("class C\n{\nfn Read(ref const Int value) -> Int\n{\nreturn value\n}\nfn F() -> Int\n{\nconst Int x = 1\nreturn Read(ref x)\n}\n}\n");
+        for (const SemanticDiagnostic& diagnostic : readonlyBorrow->Documents[0]->Diagnostics)
+        {
+            std::cerr << "readonly borrow diagnostic: " << diagnostic.Code << '\n';
+        }
         Check(readonlyBorrow->Documents[0]->Diagnostics.IsEmpty(), "readonly borrowed parameters accept initialized const values");
-        auto nullableBorrow = Analyze("class C\n{\nfn Write(ref Int value)\n{\nvalue = 1\n}\nfn F()\n{\nInt? maybe = 1\nif (maybe is not null)\n{\nWrite(ref maybe)\n}\n}\n}\n");
-        Check(Has(*nullableBorrow, "JBC3034"), "null narrowing cannot change the storage type passed by ref");
+        auto nullableBorrow = Analyze("class C\n{\nfn Write(ref Int value)\n{\nvalue = 1\n}\nfn F()\n{\nref Int maybe = 1\nif (maybe is not null)\n{\nWrite(ref maybe)\n}\n}\n}\n");
+        Check(nullableBorrow->Documents[0]->Diagnostics.IsEmpty(), "a borrowed optional value keeps its declared ref type");
         auto mutation = Analyze("class C\n{\nArray<Int> values\nfn F()\n{\nfor (value in values)\n{\nvalues.Add(value)\n}\n}\n}\n");
         Check(Has(*mutation, "JBC3019"), "growing an iterated container is rejected");
         auto defaults = Analyze("class C\n{\nfn F()\n{\nArray<Int> values\nvalues.Add(1)\n}\n}\n");
@@ -392,9 +286,9 @@ namespace
         Check(Has(*invariant, "JBC3003"), "container element types are invariant during assignment");
         auto invalidAbstract = Analyze("class A\n{\nfn F() require\n}\nclass B\n{\nA stored\n}\n");
         Check(Has(*invalidAbstract, "JBC3016"), "abstract types cannot be stored in fields");
-        auto invalidGeneric = Analyze("script S\n{\nGameObject? owner\nfn F()\n{\nowner!.GetComponent<String>()\n}\n}\n");
+        auto invalidGeneric = Analyze("script S\n{\nref GameObject owner\nfn F()\n{\nowner!.GetComponent<String>()\n}\n}\n");
         Check(Has(*invalidGeneric, "JBC3039"), "engine generic component APIs reject value type arguments");
-        auto validGeneric = Analyze("script S\n{\nGameObject? owner\nfn F()\n{\nTransform2D? t = owner!.GetComponent<Transform2D>()\n}\n}\n");
+        auto validGeneric = Analyze("script S\n{\nref GameObject owner\nfn F()\n{\nref Transform2D t = owner!.GetComponent<Transform2D>()\n}\n}\n");
         Check(validGeneric->Documents[0]->Diagnostics.IsEmpty(), "engine generic return types substitute a valid component descriptor");
     }
 
@@ -435,7 +329,7 @@ namespace
 
         AnalysisSession session;
         Array<DocumentInput> documents;
-        documents.Add({"file:///session.jscript", "session.jscript", "script S\n{\nTransform2D? t\nfn F()\n{\nt!.valid = true\n}\n}\n", 1});
+        documents.Add({"file:///session.jscript", "session.jscript", "script S\n{\nref Transform2D t\nfn F()\n{\nt!.valid = true\n}\n}\n", 1});
         ApiCatalog api = Catalog();
         Check(Has(session.Update(documents.View(), api), "JBC3006"), "session analyzes the initial API readonly metadata");
         const DocumentAnalysis* oldDocument = session.GetResult()->Documents[0].Get();
@@ -511,14 +405,11 @@ namespace
 
 JBro::Int32 RunScriptCompilerAnalysisTests()
 {
-    TestWhileConditionReevaluation();
-    TestLoopNullFixedPoint();
-    TestJumpExitFlows();
+    TestSingleRefSyntax();
     TestWitnessRegressions();
     TestJumpControlFlowAndContainerEffects();
     TestNullableGrammar();
     TestCrossFileSymbolsAndOverloads();
-    TestNullFlowAndInvalidation();
     TestSemanticNegatives();
     TestLexicalScopesAndRecovery();
     TestIncrementalDependenciesAndOwnership();

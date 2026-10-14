@@ -9,12 +9,12 @@ script Enemy : IDamageable
     Float MoveSpeed = 2.0
 
     [category("Links")]
-    Transform2D? target                              // 핸들은 언제나 ?
+    ref Transform2D target                              // 핸들은 언제나 ref
 
-    Transform2D? home
+    ref Transform2D home
     Int hp = 0
     EnemyState state = EnemyState.Idle
-    Array<Enemy?> allies
+    Array<ref Enemy> allies
     LootTable loot = LootTable(8)                    // class 는 값으로 소유한다
     Vector2 down
 
@@ -59,7 +59,7 @@ script Enemy : IDamageable
         {
             return false
         }
-        RaycastHit2D? hit = Physics.Raycast(target.position, down, 1.0)
+        ref RaycastHit2D hit = Physics.Raycast(target.position, down, 1.0)
         return hit is not null
     }
 

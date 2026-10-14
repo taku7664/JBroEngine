@@ -66,22 +66,24 @@
 #                    ^ source.jscript meta.attribute.jscript meta.attribute.arguments.jscript string.quoted.double.jscript punctuation.definition.string.end.jscript
 #                     ^ source.jscript meta.attribute.jscript meta.attribute.arguments.jscript punctuation.definition.arguments.end.jscript
 #                      ^ source.jscript meta.attribute.jscript punctuation.definition.attribute.end.jscript
->    Transform2D? target                              // 핸들은 언제나 ?
+>    ref Transform2D target                              // 핸들은 언제나 ref
 #^^^^ source.jscript
-#    ^^^^^^^^^^^ source.jscript entity.name.type.jscript
-#               ^ source.jscript punctuation.definition.nullable.jscript
-#                ^ source.jscript
-#                 ^^^^^^ source.jscript variable.other.definition.jscript
-#                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
-#                                                     ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
-#                                                       ^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
+#    ^^^ source.jscript storage.modifier.ref.jscript
+#       ^ source.jscript
+#        ^^^^^^^^^^^ source.jscript entity.name.type.jscript
+#                   ^ source.jscript
+#                    ^^^^^^ source.jscript variable.other.definition.jscript
+#                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.jscript
+#                                                        ^^ source.jscript comment.line.double-slash.jscript punctuation.definition.comment.jscript
+#                                                          ^^^^^^^^^^^^ source.jscript comment.line.double-slash.jscript
 >
->    Transform2D? home
+>    ref Transform2D home
 #^^^^ source.jscript
-#    ^^^^^^^^^^^ source.jscript entity.name.type.jscript
-#               ^ source.jscript punctuation.definition.nullable.jscript
-#                ^ source.jscript
-#                 ^^^^ source.jscript variable.other.definition.jscript
+#    ^^^ source.jscript storage.modifier.ref.jscript
+#       ^ source.jscript
+#        ^^^^^^^^^^^ source.jscript entity.name.type.jscript
+#                   ^ source.jscript
+#                    ^^^^ source.jscript variable.other.definition.jscript
 >    Int hp = 0
 #^^^^ source.jscript
 #    ^^^ source.jscript support.type.primitive.jscript
@@ -101,15 +103,16 @@
 #                      ^^^^^^^^^^^ source.jscript
 #                                 ^ source.jscript punctuation.accessor.jscript
 #                                  ^^^^^ source.jscript
->    Array<Enemy?> allies
+>    Array<ref Enemy> allies
 #^^^^ source.jscript
 #    ^^^^^ source.jscript support.type.builtin.jscript
 #         ^ source.jscript punctuation.definition.typeparameters.begin.jscript
-#          ^^^^^ source.jscript entity.name.type.jscript
-#               ^ source.jscript punctuation.definition.nullable.jscript
-#                ^ source.jscript punctuation.definition.typeparameters.end.jscript
-#                 ^ source.jscript
-#                  ^^^^^^ source.jscript variable.other.definition.jscript
+#          ^^^ source.jscript storage.modifier.ref.jscript
+#             ^ source.jscript
+#              ^^^^^ source.jscript entity.name.type.jscript
+#                   ^ source.jscript punctuation.definition.typeparameters.end.jscript
+#                    ^ source.jscript
+#                     ^^^^^^ source.jscript variable.other.definition.jscript
 >    LootTable loot = LootTable(8)                    // class 는 값으로 소유한다
 #^^^^ source.jscript
 #    ^^^^^^^^^ source.jscript entity.name.type.jscript
@@ -338,27 +341,28 @@
 >        }
 #^^^^^^^^ source.jscript
 #        ^ source.jscript punctuation.section.block.end.jscript
->        RaycastHit2D? hit = Physics.Raycast(target.position, down, 1.0)
+>        ref RaycastHit2D hit = Physics.Raycast(target.position, down, 1.0)
 #^^^^^^^^ source.jscript
-#        ^^^^^^^^^^^^ source.jscript entity.name.type.jscript
-#                    ^ source.jscript punctuation.definition.nullable.jscript
-#                     ^ source.jscript
-#                      ^^^ source.jscript variable.other.definition.jscript
-#                         ^ source.jscript
-#                          ^ source.jscript keyword.operator.assignment.jscript
-#                           ^^^^^^^^ source.jscript
-#                                   ^ source.jscript punctuation.accessor.jscript
-#                                    ^^^^^^^ source.jscript
-#                                           ^ source.jscript punctuation.section.parens.begin.jscript
-#                                            ^^^^^^ source.jscript
-#                                                  ^ source.jscript punctuation.accessor.jscript
-#                                                   ^^^^^^^^ source.jscript
-#                                                           ^ source.jscript punctuation.separator.comma.jscript
-#                                                            ^^^^^ source.jscript
-#                                                                 ^ source.jscript punctuation.separator.comma.jscript
-#                                                                  ^ source.jscript
-#                                                                   ^^^ source.jscript constant.numeric.jscript
-#                                                                      ^ source.jscript punctuation.section.parens.end.jscript
+#        ^^^ source.jscript storage.modifier.ref.jscript
+#           ^ source.jscript
+#            ^^^^^^^^^^^^ source.jscript entity.name.type.jscript
+#                        ^ source.jscript
+#                         ^^^ source.jscript variable.other.definition.jscript
+#                            ^ source.jscript
+#                             ^ source.jscript keyword.operator.assignment.jscript
+#                              ^^^^^^^^ source.jscript
+#                                      ^ source.jscript punctuation.accessor.jscript
+#                                       ^^^^^^^ source.jscript
+#                                              ^ source.jscript punctuation.section.parens.begin.jscript
+#                                               ^^^^^^ source.jscript
+#                                                     ^ source.jscript punctuation.accessor.jscript
+#                                                      ^^^^^^^^ source.jscript
+#                                                              ^ source.jscript punctuation.separator.comma.jscript
+#                                                               ^^^^^ source.jscript
+#                                                                    ^ source.jscript punctuation.separator.comma.jscript
+#                                                                     ^ source.jscript
+#                                                                      ^^^ source.jscript constant.numeric.jscript
+#                                                                         ^ source.jscript punctuation.section.parens.end.jscript
 >        return hit is not null
 #^^^^^^^^ source.jscript
 #        ^^^^^^ source.jscript keyword.control.jscript

@@ -257,13 +257,13 @@ void AddValueMembers(ApiCatalog& catalog)
     {
     auto& type = FindType(catalog,"Uuid");
     auto parse = DeclareFunction<&Uuid::Parse>("Parse", Parameters(In("text"),Count("length"),Out("result")));
-    parse.Type = "Uuid?";
+    parse.Type = "ref Uuid";
     parse.Projection = ApiProjectionKind::NullableReturn;
     parse.HasOutputProjection = true;
     parse.SuccessFromNativeReturn = true;
     type.Members.Add(std::move(parse));
     auto text = DeclareFunction<&Uuid::ToText>("ToText", Parameters(Out("buffer"),Count("capacity")));
-    text.Type = "String?";
+    text.Type = "ref String";
     text.Projection = ApiProjectionKind::NullableReturn;
     text.HasOutputProjection = true;
     text.SuccessFromNativeReturn = true;

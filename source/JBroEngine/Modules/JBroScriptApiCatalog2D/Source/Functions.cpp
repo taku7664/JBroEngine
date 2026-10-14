@@ -31,10 +31,10 @@ void AddFunctions(ApiCatalog& catalog)
     AddGlobal<&GetMouseButtonName>(catalog,"GetMouseButtonName",Parameters(In("button")));
     AddGlobal<&GetGamepadButtonName>(catalog,"GetGamepadButtonName",Parameters(In("button")));
     AddGlobal<&GetGamepadAxisName>(catalog,"GetGamepadAxisName",Parameters(In("axis")));
-    AddLookup<&FindKeyByName>(catalog,"FindKeyByName","key","Key?");
-    AddLookup<&FindMouseButtonByName>(catalog,"FindMouseButtonByName","button","MouseButton?");
-    AddLookup<&FindGamepadButtonByName>(catalog,"FindGamepadButtonByName","button","GamepadButton?");
-    AddLookup<&FindGamepadAxisByName>(catalog,"FindGamepadAxisByName","axis","GamepadAxis?");
+    AddLookup<&FindKeyByName>(catalog,"FindKeyByName","key","ref Key");
+    AddLookup<&FindMouseButtonByName>(catalog,"FindMouseButtonByName","button","ref MouseButton");
+    AddLookup<&FindGamepadButtonByName>(catalog,"FindGamepadButtonByName","button","ref GamepadButton");
+    AddLookup<&FindGamepadAxisByName>(catalog,"FindGamepadAxisByName","axis","ref GamepadAxis");
     AddGlobal<&IsSameBinding>(catalog,"IsSameBinding",Parameters(In("a"),In("b")));
     {
         auto member = DeclareFunction<&CaptureBinding>("CaptureBinding", Parameters(In("view"),Out("binding")));

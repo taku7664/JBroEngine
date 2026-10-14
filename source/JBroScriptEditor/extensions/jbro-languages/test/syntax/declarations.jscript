@@ -16,21 +16,22 @@ class Sword : Weapon
 //                ^^^^^ support.type.primitive.jscript
 //                      ^^^^^^^ variable.other.definition.jscript
 //                                ^^^ constant.numeric.jscript
-    Transform2D? target
-//  ^^^^^^^^^^^ entity.name.type.jscript
-//             ^ punctuation.definition.nullable.jscript
-//               ^^^^^^ variable.other.definition.jscript
+    ref Transform2D target
+//  ^^^ storage.modifier.ref.jscript
+//      ^^^^^^^^^^^ entity.name.type.jscript
+//                  ^^^^^^ variable.other.definition.jscript
     const Array<DropEntry> table
 //  ^^^^^ storage.modifier.jscript
 //        ^^^^^ support.type.builtin.jscript
 //              ^^^^^^^^^ entity.name.type.jscript
 //                         ^^^^^ variable.other.definition.jscript
-    Array<Enemy?> allies
+    Array<ref Enemy> allies
 //  ^^^^^ support.type.builtin.jscript
 //       ^ punctuation.definition.typeparameters.begin.jscript
-//        ^^^^^ entity.name.type.jscript
-//             ^ punctuation.definition.nullable.jscript
-//                ^^^^^^ variable.other.definition.jscript
+//        ^^^ storage.modifier.ref.jscript
+//            ^^^^^ entity.name.type.jscript
+//                 ^ punctuation.definition.typeparameters.end.jscript
+//                   ^^^^^^ variable.other.definition.jscript
     Table<String, Array<Float>> scores
 //  ^^^^^ support.type.builtin.jscript
 //        ^^^^^^ support.type.primitive.jscript

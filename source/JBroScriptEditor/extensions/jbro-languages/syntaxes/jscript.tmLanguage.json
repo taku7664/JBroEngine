@@ -129,7 +129,7 @@
 				{ "include": "#comment" },
 				{ "include": "#parameters" },
 				{
-					"match": "(->)\\s*([A-Za-z_][A-Za-z0-9_]*(?:<[^\\n]*?>)?)(\\?)?",
+					"match": "(->)\\s*((?:ref\\s+)?[A-Za-z_][A-Za-z0-9_]*(?:<[^\\n]*?>)?)(\\?)?",
 					"captures": {
 						"1": { "name": "punctuation.separator.return-type.jscript" },
 						"2": { "patterns": [ { "include": "#type" } ] },

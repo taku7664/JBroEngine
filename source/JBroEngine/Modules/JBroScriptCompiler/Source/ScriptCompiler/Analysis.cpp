@@ -14,11 +14,19 @@ namespace JBro::ScriptCompiler
     {
         Bool Nullable(std::string_view type)
         {
-            return false == type.empty() && '?' == type.back();
+            if (type.starts_with("const "))
+            {
+                type.remove_prefix(6);
+            }
+            return type.starts_with("ref ");
         }
 
         String Bare(std::string_view type)
         {
+            if (type.starts_with("const "))
+            {
+                type.remove_prefix(6);
+            }
             if (type.starts_with("ref "))
             {
                 type.remove_prefix(4);
@@ -27,11 +35,12 @@ namespace JBro::ScriptCompiler
             {
                 type.remove_prefix(6);
             }
-            if (Nullable(type))
-            {
-                type.remove_suffix(1);
-            }
             return String(type);
+        }
+
+        String RefType(std::string_view type)
+        {
+            return Nullable(type) ? String(type) : String("ref ").Append(type);
         }
 
         String TypeBase(std::string_view type)
@@ -255,9 +264,9 @@ namespace JBro::ScriptCompiler
                     ++index;
                 }
             }
-            while (result.Contains("??"))
+            while (result.Contains("ref ref "))
             {
-                result.ReplaceAll("??", "?");
+                result.ReplaceAll("ref ref ", "ref ");
             }
             return result;
         }
@@ -316,9 +325,9 @@ namespace JBro::ScriptCompiler
                 }
                 type.Append(">");
             }
-            if (0 != (node.Flags & SyntaxFlagNullable))
+            if (0 != (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)))
             {
-                type.Append("?");
+                type = RefType(type);
             }
             return type;
         }
@@ -1049,23 +1058,25 @@ namespace JBro::ScriptCompiler
                 else
                 {
                     Occur(id, NameRange(*m_document, node));
-                    if (false == descriptor && m_handles.Contains(id) && 0 == (node.Flags & SyntaxFlagNullable))
+                    if (false == descriptor && m_handles.Contains(id)
+                        && 0 == (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)))
                     {
                         Error("JBC3009", "handle_nullable", node.Range, {String(node.Text)});
+                    }
+                    if (0 != (node.Flags & SyntaxFlagNullable))
+                    {
+                        Error("JBC3040", "legacy_nullable_type", node.Range, {String(node.Text)});
                     }
                     if ((SymbolKind::Interface == m_result.Symbols[id].Kind && false == borrowAllowed)
                         || (false == returnType && node.Text == "Void"))
                     {
                         Error("JBC3020", "invalid_value_type", node.Range, {String(node.Text)});
                     }
-                    if (false == descriptor && false == borrowAllowed && false == returnType && Abstract(id))
+                    if (false == descriptor && false == borrowAllowed && false == returnType && Abstract(id)
+                        && 0 == (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)))
                     {
                         Error("JBC3016", "abstract_value", node.Range, {String(node.Text)});
                     }
-                }
-                if (0 != (node.Flags & SyntaxFlagRef) && false == borrowAllowed)
-                {
-                    Error("JBC3008", "borrow_position", node.Range);
                 }
                 const auto children = m_document->Tree.GetChildren(index);
                 const std::size_t requiredArguments = node.Text == "Array" ? 1 : (node.Text == "Table" ? 2 : 0);
@@ -1363,6 +1374,10 @@ namespace JBro::ScriptCompiler
                 {
                     return true;
                 }
+                if (Nullable(value.Type) && EqualType(destination, Bare(value.Type)))
+                {
+                    return true;
+                }
                 if (false == TypeArguments(destination).IsEmpty() || false == TypeArguments(value.Type).IsEmpty())
                 {
                     return false;
@@ -1376,14 +1391,6 @@ namespace JBro::ScriptCompiler
                 if (false == Convertible(destination, value))
                 {
                     Error("JBC3003", "type_mismatch", range, {String(destination), value.Type});
-                }
-            }
-
-            void CheckNull(const Expression& expression, Flow& flow, const SourceRange& range)
-            {
-                if (Nullable(expression.Type) && (expression.Path.IsEmpty() || false == flow.NonNull.Contains(expression.Path)))
-                {
-                    Error("JBC3007", "null_access", range, {expression.Type});
                 }
             }
 
@@ -1508,7 +1515,6 @@ namespace JBro::ScriptCompiler
                 {
                     Expression object = Expr(Child(index, 0), flow);
                     const Expression key = Expr(Child(index, 1), flow);
-                    CheckNull(object, flow, node.Range);
                     const Array<String> arguments = TypeArguments(object.Type);
                     const String base = TypeBase(object.Type);
                     if (base == "Array" && arguments.Size() == 1)
@@ -1538,7 +1544,7 @@ namespace JBro::ScriptCompiler
                     object.DeclaredType = object.Type;
                     if (object.NullSafe && false == Nullable(object.Type))
                     {
-                        object.Type.Append("?");
+                        object.Type = RefType(object.Type);
                     }
                     return object;
                 }
@@ -1584,10 +1590,6 @@ namespace JBro::ScriptCompiler
                 const SyntaxNode node = Node(index);
                 const Expression receiver = Expr(Child(index, 0), flow, false, true);
                 const Bool safe = 0 != (node.Flags & SyntaxFlagNullSafe) || receiver.NullSafe;
-                if (false == safe)
-                {
-                    CheckNull(receiver, flow, NameRange(*m_document, node));
-                }
                 const Array<SymbolId> found = Members(m_result, TypeId(m_result, receiver.Type), node.Text);
                 if (found.IsEmpty())
                 {
@@ -1620,7 +1622,7 @@ namespace JBro::ScriptCompiler
                 }
                 if (safe && value.Type != "Void" && false == Nullable(value.Type))
                 {
-                    value.Type.Append("?");
+                    value.Type = RefType(value.Type);
                 }
                 else if (flow.NonNull.Contains(value.Path) && Nullable(value.Type))
                 {
@@ -1966,7 +1968,7 @@ namespace JBro::ScriptCompiler
                     result.NullSafe = callee.NullSafe;
                     if (callee.NullSafe && result.Type != "Void" && false == Nullable(result.Type))
                     {
-                        result.Type.Append("?");
+                        result.Type = RefType(result.Type);
                     }
                     if (symbol.MutatesReceiver && callee.Path.IsNotEmpty())
                     {
@@ -2690,7 +2692,8 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.static_access", "jbroc.semantic.not_indexable", "jbroc.semantic.not_nullable",
             "jbroc.semantic.operator", "jbroc.semantic.unknown_member", "jbroc.semantic.not_callable",
             "jbroc.semantic.no_overload", "jbroc.semantic.ambiguous_overload", "jbroc.semantic.not_iterable",
-            "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint"
+            "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
+            "jbroc.semantic.legacy_nullable_type"
         };
         return {keys, std::size(keys)};
     }

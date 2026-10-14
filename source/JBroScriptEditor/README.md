@@ -112,8 +112,9 @@ $env:JBRO_EDITOR_WORK = 'F:\Project\JBroScriptEditor'
 ./scripts/upstream-launch.cmd (Resolve-Path 'extensions/jbro-languages/test/fixtures/sample-project').Path
 ```
 
-`Contents/Scripts/PatrolProbe.jscript`를 열어 `TargetX`의 null 검사 블록을 지우면 `JBC3007`, 첫 줄의
+`Contents/Scripts/PatrolProbe.jscript`를 열어 `target.position`을 `target.missing`으로 바꾸면 `JBC3032`, 첫 줄의
 `script`를 `scri!t`로 바꾸면 `JBC2001`이 Problems에 나타난다. 수정 전으로 되돌리면 사라진다.
+`ref` 대상의 일반 멤버 접근은 편집 시 null 오류로 막지 않는다. 실제 실행 중 자동 검사·콜백 중단은 C++ 이미터 단계에 남아 있다.
 이 예제의 자동 확장 호스트 시험은 `extensions/jbro-languages/test/extension-host.cjs`다.
 
 ## 테스트

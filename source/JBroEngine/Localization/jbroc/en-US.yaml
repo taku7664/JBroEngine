@@ -34,7 +34,7 @@ Entries:
   jbroc.semantic.readonly: "This expression cannot be assigned to."
   jbroc.semantic.null_access: "Check for null before using this {0} value, or use ?. or !."
   jbroc.semantic.borrow_position: "ref is allowed only on parameters and for variables."
-  jbroc.semantic.handle_nullable: "The handle type {0} must have a ? suffix."
+  jbroc.semantic.handle_nullable: "The handle type {0} must use ref."
   jbroc.semantic.borrow_argument: "A borrowed parameter requires ref and an initialized, writable value."
   jbroc.semantic.return_path: "The function {0} must return a value on every path."
   jbroc.semantic.callback: "The callback {0} does not match an engine hook."
@@ -65,3 +65,4 @@ Entries:
   jbroc.semantic.for_variables: "Use one variable for an Array or range, and two for a Table."
   jbroc.semantic.jump_context: "The statement {0} is not allowed in this context."
   jbroc.semantic.type_constraint: "The type {1} does not satisfy the type argument requirements of {0}."
+  jbroc.semantic.legacy_nullable_type: "Use ref {0} instead of {0}?."

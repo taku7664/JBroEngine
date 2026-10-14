@@ -462,7 +462,7 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual((self.scripts / "Enemy.jscript").read_bytes(), source.encode("utf-8"))
 
     def test_engine_completion_nullable_and_readonly(self):
-        source = ("script Enemy\n{\npublic Transform2D? target\n"
+        source = ("script Enemy\n{\npublic ref Transform2D target\n"
                   "fn OnUpdate() callback\n{\nif (target is not null)\n{\n"
                   "target.worldPosition = Vector2()\n}\n}\n}\n")
         uri = self.document("Enemy.jscript", source)
@@ -538,10 +538,10 @@ class ProcessTests(unittest.TestCase):
     def test_native_overloads_and_output_projections(self):
         source = ("script Player\n{\nfn OnUpdate() callback\n{\n"
                   "Vector2 origin = Vector2(1.0, 2.0)\n"
-                  "RaycastHit2D? hit = Physics.Raycast(origin, Vector2(0.0, 1.0), 10.0)\n"
+                  "ref RaycastHit2D hit = Physics.Raycast(origin, Vector2(0.0, 1.0), 10.0)\n"
                   "if (hit is not null)\n{\nVector2 contact = hit.point\n}\n"
                   'String text = Save.ReadText("key") ?? "fallback"\n'
-                  'Array<GameObject?> matches = Objects.FindAll("Enemy")\n'
+                  'Array<ref GameObject> matches = Objects.FindAll("Enemy")\n'
                   "InputCapture capture = Input.CaptureBinding()\n"
                   "InputCaptureResult status = capture.result\n"
                   "InputBinding binding = capture.binding\n"
@@ -553,11 +553,11 @@ class ProcessTests(unittest.TestCase):
                                 location_params(uri, source, "Physics.Raycast(", advance=len("Physics.Raycast(")))
         self.assertTrue(signature["signatures"])
         label = signature["signatures"][0]["label"]
-        self.assertIn("RaycastHit2D?", label)
-        self.assertNotIn("ref ", label, "native output parameter is returned to the script")
+        self.assertIn("ref RaycastHit2D", label)
+        self.assertEqual(label.count("ref "), 1, "the native output parameter becomes a return value")
 
     def test_incomplete_code_completion_and_invalid_formatting(self):
-        source = "script Enemy\n{\npublic Transform2D? target\nfn OnUpdate() callback\n{\ntarget!.\n}\n}\n"
+        source = "script Enemy\n{\npublic ref Transform2D target\nfn OnUpdate() callback\n{\ntarget!.\n}\n}\n"
         uri = self.document("Enemy.jscript", source)
         session = self.start()
         self.assertTrue(self.open(session, uri, source))
@@ -583,7 +583,7 @@ class ProcessTests(unittest.TestCase):
         self.assertIsNotNone(self.result(session, "textDocument/hover", location_params(uri, source, "MultiplyMatrix4x4")))
 
     def test_overloads_and_nullable_flow(self):
-        source = ("script Enemy\n{\npublic GameObject? target\n"
+        source = ("script Enemy\n{\npublic ref GameObject target\n"
                   "fn Pick(Int amount) -> Int\n{\nreturn amount\n}\n"
                   "fn Pick(String label) -> String\n{\nreturn label\n}\n"
                   "fn Clear()\n{\ntarget = null\n}\n"
@@ -592,8 +592,7 @@ class ProcessTests(unittest.TestCase):
         uri = self.document("Enemy.jscript", source)
         session = self.start()
         diagnostics = self.open(session, uri, source)
-        invalidated_line = position(source, "target.SetActive")["line"]
-        self.assertTrue(any(item["range"]["start"]["line"] == invalidated_line for item in diagnostics), diagnostics)
+        self.assertEqual(diagnostics, [], "nullable access is guarded when the callback runs")
         self.assertFalse(any("duplicate" in item["message"].lower() for item in diagnostics), diagnostics)
 
     def test_localization_is_selected_by_initialize(self):
@@ -607,7 +606,7 @@ class ProcessTests(unittest.TestCase):
         self.assertNotEqual(english_diags[0]["message"], korean_diags[0]["message"])
 
     def test_nullable_member_can_be_assigned_null_after_narrowing(self):
-        source = ("class Box\n{\npublic GameObject? target\n}\nscript S\n{\nBox box\n"
+        source = ("class Box\n{\npublic ref GameObject target\n}\nscript S\n{\nBox box\n"
                   "fn OnUpdate() callback\n{\nif (box.target is not null)\n{\n"
                   "box.target = null\n}\n}\n}\n")
         uri = self.document("NullableMember.jscript", source)
@@ -630,78 +629,21 @@ class ProcessTests(unittest.TestCase):
         diagnostics = self.open(session, uri, source)
         self.assertTrue(any(item["code"] == "JBC3019" for item in diagnostics), diagnostics)
 
-    def test_switch_break_preserves_nullable_exit_path(self):
-        source = ("script S\n{\nGameObject? target\nfn OnUpdate() callback\n{\n"
-                  "switch (1)\n{\ndefault\n{\nif (target is null)\n{\nbreak\n}\n}\n}\n"
-                  "target.SetActive(true)\n}\n}\n")
-        uri = self.document("BreakExitFlow.jscript", source)
+    def test_ref_access_and_legacy_type_diagnostics(self):
+        source = ("script S\n{\nref Transform2D target\nfn OnUpdate() callback\n{\n"
+                  "Vector2 point = target.position\n}\n}\n")
+        uri = self.document("RefAccess.jscript", source)
         session = self.start()
-        diagnostics = self.open(session, uri, source)
-        access_line = position(source, "target.SetActive")["line"]
-        self.assertTrue(any(item["code"] == "JBC3007" and
-                            item["range"]["start"]["line"] == access_line
-                            for item in diagnostics), diagnostics)
-
-    def test_continue_carries_nullable_assignment_to_next_iteration(self):
-        source = ("script S\n{\nTransform2D? target\nBool running = true\nBool skip = true\n"
-                  "fn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (running)\n{\n"
-                  "if (skip)\n{\ntarget = null\ncontinue\n}\nVector2 point = target.position\n"
-                  "}\n}\n}\n}\n")
-        uri = self.document("ContinueFlow.jscript", source)
-        session = self.start()
-        diagnostics = self.open(session, uri, source)
-        access_line = position(source, "target.position")["line"]
-        self.assertTrue(any(item["code"] == "JBC3007" and
-                            item["range"]["start"]["line"] == access_line
-                            for item in diagnostics), diagnostics)
-
-    def test_loop_break_carries_nullable_assignment_to_exit(self):
-        source = ("script S\n{\nTransform2D? target\nBool running = true\nBool stop = true\n"
-                  "fn OnUpdate() callback\n{\nif (target is not null)\n{\nwhile (running)\n{\n"
-                  "if (stop)\n{\ntarget = null\nbreak\n}\n}\nVector2 point = target.position\n"
-                  "}\n}\n}\n")
-        uri = self.document("LoopBreakExit.jscript", source)
-        session = self.start()
-        diagnostics = self.open(session, uri, source)
-        access_line = position(source, "target.position")["line"]
-        self.assertTrue(any(item["code"] == "JBC3007" and
-                            item["range"]["start"]["line"] == access_line
-                            for item in diagnostics), diagnostics)
-
-    def test_while_condition_is_checked_again_on_reachable_back_edges(self):
-        for name, condition, jump, unsafe in (
-                ("fallthrough", "target.valid", "", True),
-                ("continue", "target.valid", "continue\n", True),
-                ("guarded", "target is not null and target.valid", "", False),
-                ("break", "target.valid", "break\n", False),
-                ("return", "target.valid", "return\n", False)):
-            with self.subTest(name=name):
-                source = ("script S\n{\nGameObject? target\nfn OnUpdate() callback\n{\n"
-                          "if (target is not null)\n{\nwhile (" + condition + ")\n{\n"
-                          "target = null\n" + jump + "}\n}\n}\n}\n")
-                uri = self.document("ConditionRecheck.jscript", source)
-                session = self.start()
-                diagnostics = self.open(session, uri, source)
-                if unsafe:
-                    condition_line = position(source, "while (")["line"]
-                    self.assertTrue(any(item["code"] == "JBC3007" and
-                                        item["range"]["start"]["line"] == condition_line
-                                        for item in diagnostics), diagnostics)
-                else:
-                    self.assertEqual(diagnostics, [])
-
-    def test_loop_checks_null_flow_until_it_stops_changing(self):
-        source = ("script S\n{\nTransform2D? a\nTransform2D? b\nTransform2D? c\n"
-                  "Bool running = true\nfn OnUpdate() callback\n{\n"
-                  "if (a is not null and b is not null and c is not null)\n{\nwhile (running)\n{\n"
-                  "Vector2 point = a.position\na = b\nb = c\nc = null\n}\n}\n}\n}\n")
-        uri = self.document("FixedPointFlow.jscript", source)
-        session = self.start()
-        diagnostics = self.open(session, uri, source)
-        access_line = position(source, "a.position")["line"]
-        self.assertTrue(any(item["code"] == "JBC3007" and
-                            item["range"]["start"]["line"] == access_line
-                            for item in diagnostics), diagnostics)
+        self.assertEqual(self.open(session, uri, source), [],
+                         "a ref access is checked when the callback runs")
+        invalid = source.replace("target.position", "target.missing")
+        session.notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": 2},
+                       "contentChanges": [{"text": invalid}]})
+        self.assertTrue(any(item["code"] == "JBC3032" for item in session.diagnostics(uri, 2)))
+        legacy = source.replace("ref Transform2D target", "Transform2D? target")
+        session.notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": 3},
+                       "contentChanges": [{"text": legacy}]})
+        self.assertTrue(any(item["code"] == "JBC3040" for item in session.diagnostics(uri, 3)))
 
 
 if __name__ == "__main__":

@@ -40,17 +40,19 @@ async function run() {
 		return result?.items.some(item => item.label === 'DeltaTime');
 	}, 'JBroScript completion from JBroc');
 
-	const guard = '        if (target is null)\n        {\n            return 0.0\n        }\n';
-	const start = original.indexOf(guard);
+	const member = 'target.position';
+	const start = original.indexOf(member);
 	assert.ok(start >= 0);
-	assert.equal(await editor.edit(edit => edit.delete(new vscode.Range(document.positionAt(start), document.positionAt(start + guard.length)))), true);
-	await eventually(() => vscode.languages.getDiagnostics(document.uri).some(item => item.code === 'JBC3007'),
-		'nullable access diagnostic in Problems');
+	assert.equal(await editor.edit(edit => edit.replace(
+		new vscode.Range(document.positionAt(start), document.positionAt(start + member.length)), 'target.missing')), true);
+	await eventually(() => vscode.languages.getDiagnostics(document.uri).some(item => item.code === 'JBC3032'),
+		'unknown member diagnostic in Problems');
 	assert.equal(fs.readFileSync(scriptPath, 'utf8'), original, 'unsaved edit must not change the file');
 
-	assert.equal(await editor.edit(edit => edit.insert(document.positionAt(start), guard)), true);
+	assert.equal(await editor.edit(edit => edit.replace(
+		new vscode.Range(document.positionAt(start), document.positionAt(start + 'target.missing'.length)), member)), true);
 	await eventually(() => vscode.languages.getDiagnostics(document.uri).length === 0,
-		'diagnostic clearing after the guard is restored');
+		'diagnostic clearing after the member is restored');
 
 	const declaration = original.indexOf('script ');
 	assert.ok(declaration >= 0);

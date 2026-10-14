@@ -6,14 +6,14 @@ void AddGenericMembers(ApiCatalog& catalog)
     auto& object = FindType(catalog, "GameObject");
     {
         auto member = DeclareFunction<&Handle::GameObject::GetComponent<Handle::Transform2D>>("GetComponent", Parameters());
-        member.Type = "T?";
+        member.Type = "ref T";
         member.TypeParameters.Add("T");
         member.Description = "T must be a built-in component handle.";
         object.Members.Add(std::move(member));
     }
     {
         auto member = DeclareFunction<&Handle::GameObject::AddComponent<Handle::Transform2D>>("AddComponent", Parameters());
-        member.Type = "T?";
+        member.Type = "ref T";
         member.TypeParameters.Add("T");
         member.MutatesReceiver = true;
         member.MayInvalidateHandles = true;
@@ -22,14 +22,14 @@ void AddGenericMembers(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<&Handle::GameObject::GetScript<CatalogScriptShape>>("GetScript", Parameters());
-        member.Type = "T?";
+        member.Type = "ref T";
         member.TypeParameters.Add("T");
         member.Description = "T must be a user script.";
         object.Members.Add(std::move(member));
     }
     {
         auto member = DeclareFunction<&Handle::GameObject::AddScript<CatalogScriptShape>>("AddScript", Parameters());
-        member.Type = "T?";
+        member.Type = "ref T";
         member.TypeParameters.Add("T");
         member.MutatesReceiver = true;
         member.MayInvalidateHandles = true;
