@@ -309,7 +309,7 @@ namespace JBro::Internal
         const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == VK_NULL_HANDLE || m_frameActive
             || desc.extent.width == 0 || desc.extent.height == 0 || desc.extent.width > 16384
-            || desc.extent.height > 16384 || desc.depthOrLayers != 1 || false == IsMipCountValid(desc.extent, desc.mipLevels)
+            || desc.extent.height > 16384 || false == IsTextureDimensionValid(desc, GetCaps())
             || (depthStencil && desc.mipLevels != 1)
             || desc.sampleCount != 1 || format == VK_FORMAT_UNDEFINED
             || (static_cast<JBro::UInt32>(desc.usage) & ~TextureUsageMask) != 0
@@ -353,9 +353,10 @@ namespace JBro::Internal
             return {};
         }
         VkImageCreateInfo info = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-        info.imageType = VK_IMAGE_TYPE_2D;
+        const Bool volume = desc.dimension == TextureDimension::Texture3D;
+        info.imageType = volume ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D;
         info.format = format;
-        info.extent = {desc.extent.width, desc.extent.height, 1};
+        info.extent = {desc.extent.width, desc.extent.height, volume ? desc.depthOrLayers.Get() : 1u};
         info.mipLevels = desc.mipLevels;
         info.arrayLayers = 1;
         info.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -382,7 +383,7 @@ namespace JBro::Internal
         }
         VkImageViewCreateInfo view = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         view.image = state.image;
-        view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        view.viewType = volume ? VK_IMAGE_VIEW_TYPE_3D : VK_IMAGE_VIEW_TYPE_2D;
         view.format = format;
         view.subresourceRange.aspectMask = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         view.subresourceRange.levelCount = desc.mipLevels;
@@ -471,7 +472,9 @@ namespace JBro::Internal
         UInt32 height = state.desc.extent.height >> mipLevel;
         width = width == 0 ? UInt32(1) : width;
         height = height == 0 ? UInt32(1) : height;
-        const std::size_t required = static_cast<std::size_t>(width) * height * VulkanPixelSize(state.desc.format);
+        // 3D 는 조각을 차례로 이어 받는다(`IRHIDevice::WriteTexture` 의 계약).
+        const UInt32 depth = state.desc.dimension == TextureDimension::Texture3D ? state.desc.depthOrLayers : UInt32(1);
+        const std::size_t required = static_cast<std::size_t>(width) * height * depth * VulkanPixelSize(state.desc.format);
         if (data.size != required)
         {
             return false;
@@ -493,7 +496,7 @@ namespace JBro::Internal
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.mipLevel = mipLevel;
             region.imageSubresource.layerCount = 1;
-            region.imageExtent = {width, height, 1};
+            region.imageExtent = {width, height, depth};
             vk.vkCmdCopyBufferToImage(m_oneShotCommands, staging, state.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 1, &region);
             // 올린 뒤에는 읽히는 것이 보통이다. Sampled 가 아니면 GENERAL 에 둔다 - 다음 패스가 알아서 바꾼다.
@@ -522,7 +525,7 @@ namespace JBro::Internal
         }
         VulkanTextureState& state = m_textures[texture.index - TextureResourceBase];
         if (false == state.occupied || state.generation != texture.generation || mipLevel >= state.desc.mipLevels
-            || state.desc.format == TextureFormat::D32Float)
+            || state.desc.format == TextureFormat::D32Float || state.desc.dimension != TextureDimension::Texture2D)
         {
             return false;
         }
@@ -688,7 +691,7 @@ namespace JBro::Internal
         info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         info.addressModeU = ToNativeAddress(desc.addressU);
         info.addressModeV = ToNativeAddress(desc.addressV);
-        info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        info.addressModeW = ToNativeAddress(desc.addressW);
         info.maxLod = VK_LOD_CLAMP_NONE;
         info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
         VulkanSamplerState& state = m_samplers[index];

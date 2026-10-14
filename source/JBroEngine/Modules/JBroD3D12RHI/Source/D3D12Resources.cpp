@@ -165,9 +165,9 @@ namespace JBro::Internal
                 || desc.extent.height == 0
                 || desc.depthOrLayers == 0
                 || desc.depthOrLayers > (std::numeric_limits<std::uint16_t>::max)()
-                || false == IsMipCountValid(desc.extent, desc.mipLevels)
-                // 배열과 3D 는 아직 받지 않는다. 받는 날 서브리소스 번호(mip + 조각 × mip 수)부터 맞춘다.
-                || desc.depthOrLayers != 1
+                // 차원 규칙(2D 는 배열 없이, 3D 는 읽기 전용·mip 하나)은 세 백엔드가 같은 함수로 본다. 3D 의 서브리소스는 mip 하나라
+                // 상태 칸 하나로 충분하다 - 배열을 받는 날 서브리소스 번호(mip + 조각 × mip 수)부터 맞춘다.
+                || false == IsTextureDimensionValid(desc, DeviceCaps{})
                 || desc.sampleCount != 1
                 || desc.format == TextureFormat::Unknown
                 || usages == 0
@@ -400,8 +400,9 @@ namespace JBro::Internal
         const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         const Bool storage = HasTextureUsage(desc.usage, TextureUsage::Storage);
 
+        const Bool volume = desc.dimension == TextureDimension::Texture3D;
         D3D12_RESOURCE_DESC resourceDesc = {};
-        resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        resourceDesc.Dimension = volume ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D;
         resourceDesc.Width = desc.extent.width;
         resourceDesc.Height = desc.extent.height;
         resourceDesc.DepthOrArraySize = static_cast<std::uint16_t>(desc.depthOrLayers);
@@ -506,8 +507,16 @@ namespace JBro::Internal
             // 깊이 포맷은 SRV 로 못 쓴다 - 같은 비트의 색 포맷으로 본다.
             viewDesc.Format = desc.format == TextureFormat::D32Float ? DXGI_FORMAT_R32_FLOAT : ToNativeFormat(desc.format);
             viewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            viewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            viewDesc.Texture2D.MipLevels = desc.mipLevels;
+            if (volume)
+            {
+                viewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+                viewDesc.Texture3D.MipLevels = desc.mipLevels;
+            }
+            else
+            {
+                viewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+                viewDesc.Texture2D.MipLevels = desc.mipLevels;
+            }
             m_device->CreateShaderResourceView(
                 resource.Get(), &viewDesc, state.shaderResourceDescriptor);
             // mip 이 둘 이상이면 mip 하나씩만 보는 뷰를 그 뒤에 둔다. 하나뿐이면 위의 뷰가 곧 그 mip 이다.
@@ -884,7 +893,9 @@ namespace JBro::Internal
         }
 
         const UInt32 bytesPerPixel = ReadbackPixelSize(desc.format);
-        if (bytesPerPixel == 0 || desc.extent.width == 0 || desc.extent.height == 0)
+        // 되읽기는 2D 의 mip 0 만이다(진단 경로).
+        if (bytesPerPixel == 0 || desc.extent.width == 0 || desc.extent.height == 0
+            || desc.dimension != TextureDimension::Texture2D)
         {
             return false;
         }
@@ -1188,7 +1199,7 @@ namespace JBro::Internal
         };
         nativeDesc.AddressU = toAddress(desc.addressU);
         nativeDesc.AddressV = toAddress(desc.addressV);
-        nativeDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        nativeDesc.AddressW = toAddress(desc.addressW);
         nativeDesc.MaxLOD = D3D12_FLOAT32_MAX;
         nativeDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
 
@@ -1246,16 +1257,30 @@ namespace JBro::Internal
         UINT rowCount = 0;
         UINT64 rowSizeInBytes = 0;
         m_device->GetCopyableFootprints(&resourceDesc, 0, 1, 0, nullptr, &rowCount, &rowSizeInBytes, nullptr);
-        if (rowCount == 0 || data.size != static_cast<std::size_t>(rowSizeInBytes) * rowCount)
+        // 3D 는 조각을 차례로 이어 받는다. 2D 의 깊이는 1 이다.
+        const UInt32 depth = state.desc.dimension == TextureDimension::Texture3D ? state.desc.depthOrLayers : UInt32(1);
+        if (rowCount == 0 || data.size != static_cast<std::size_t>(rowSizeInBytes) * rowCount * depth)
         {
             return false;
         }
-        return WriteTextureRegion(texture, mipLevel, 0, 0, static_cast<JBro::UInt32>(resourceDesc.Width), resourceDesc.Height,
-            data, static_cast<JBro::UInt32>(rowSizeInBytes));
+        return UploadTextureBox(texture, mipLevel, 0, 0, static_cast<JBro::UInt32>(resourceDesc.Width), resourceDesc.Height,
+            depth, data, static_cast<JBro::UInt32>(rowSizeInBytes));
     }
 
     Bool D3D12Device::WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
         UInt32 width, UInt32 height, JArrayView<std::byte> data, UInt32 rowPitch)
+    {
+        // 사각형 올리기는 2D 만이다(글리프 아틀라스의 길).
+        if (texture.index < TextureResourceBase || texture.index - TextureResourceBase >= MaxTextures
+            || m_textures[texture.index - TextureResourceBase].desc.dimension != TextureDimension::Texture2D)
+        {
+            return false;
+        }
+        return UploadTextureBox(texture, mipLevel, x, y, width, height, 1, data, rowPitch);
+    }
+
+    Bool D3D12Device::UploadTextureBox(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
+        UInt32 width, UInt32 height, UInt32 depth, JArrayView<std::byte> data, UInt32 rowPitch)
     {
         if (m_device == nullptr || m_status == FrameStatus::DeviceLost)
         {
@@ -1267,7 +1292,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        if (data.data == nullptr || data.size == 0 || mipLevel != 0 || width == 0 || height == 0)
+        if (data.data == nullptr || data.size == 0 || mipLevel != 0 || width == 0 || height == 0 || depth == 0)
         {
             // 밉 하나짜리만 올린다. 밉 체인이 필요해지면 그때 연다.
             return false;
@@ -1288,15 +1313,17 @@ namespace JBro::Internal
         }
 
         const D3D12_RESOURCE_DESC resourceDesc = state.resource->GetDesc();
-        if (static_cast<UINT64>(x) + width > resourceDesc.Width || static_cast<UINT64>(y) + height > resourceDesc.Height)
+        if (static_cast<UINT64>(x) + width > resourceDesc.Width || static_cast<UINT64>(y) + height > resourceDesc.Height
+            || (resourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D ? depth != resourceDesc.DepthOrArraySize : depth != 1))
         {
             return false;
         }
-        // 사각형 크기의 텍스처인 것처럼 발자국을 잰다. 업로드 버퍼는 그 사각형만큼이다.
+        // 상자 크기의 텍스처인 것처럼 발자국을 잰다. 업로드 버퍼는 그 상자만큼이다. 3D 의 조각은 발자국 안에서
+        // `RowPitch × 행 수` 간격으로 이어진다.
         D3D12_RESOURCE_DESC regionDesc = resourceDesc;
         regionDesc.Width = width;
         regionDesc.Height = height;
-        regionDesc.DepthOrArraySize = 1;
+        regionDesc.DepthOrArraySize = static_cast<UINT16>(depth.Get());
         regionDesc.MipLevels = 1;
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
         UINT rowCount = 0;
@@ -1308,8 +1335,9 @@ namespace JBro::Internal
         {
             return false;
         }
-        // 행 간격이 한 행보다 짧거나 마지막 행이 모자라면 나머지가 쓰레기로 채워진다.
-        if (rowPitch < rowSizeInBytes || data.size < static_cast<std::size_t>(rowPitch) * (rowCount - 1) + rowSizeInBytes)
+        // 행 간격이 한 행보다 짧거나 마지막 행이 모자라면 나머지가 쓰레기로 채워진다. 조각들은 행 간격으로 빈틈없이 이어진다.
+        const std::size_t sourceRows = static_cast<std::size_t>(rowCount) * depth;
+        if (rowPitch < rowSizeInBytes || data.size < static_cast<std::size_t>(rowPitch) * (sourceRows - 1) + rowSizeInBytes)
         {
             return false;
         }
@@ -1345,12 +1373,16 @@ namespace JBro::Internal
             return false;
         }
         // 행마다 GPU 가 요구하는 간격으로 옮겨 놓는다. 부르는 쪽이 그 간격을 알 필요는 없다.
-        for (UINT row = 0; row < rowCount; ++row)
+        const std::size_t slicePitch = static_cast<std::size_t>(footprint.Footprint.RowPitch) * rowCount;
+        for (UInt32 slice = 0; slice < depth; ++slice)
         {
-            std::memcpy(
-                mapped + footprint.Offset + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
-                data.data + static_cast<std::size_t>(row) * rowPitch,
-                static_cast<std::size_t>(rowSizeInBytes));
+            for (UINT row = 0; row < rowCount; ++row)
+            {
+                std::memcpy(
+                    mapped + footprint.Offset + slice * slicePitch + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
+                    data.data + (static_cast<std::size_t>(slice) * rowCount + row) * rowPitch,
+                    static_cast<std::size_t>(rowSizeInBytes));
+            }
         }
         upload->Unmap(0, nullptr);
 

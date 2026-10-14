@@ -1245,6 +1245,11 @@ namespace JBro::Internal
             caps.maxConstantBufferBytes = m_limits.maxUniformBufferRange / caps.constantBufferAlignment
                 * caps.constantBufferAlignment;
         }
+        // 명세의 최소는 256 이다. LUT(32³·64³)는 그 안이다.
+        if (m_limits.maxImageDimension3D != 0 && m_limits.maxImageDimension3D < caps.maxTexture3DSize)
+        {
+            caps.maxTexture3DSize = m_limits.maxImageDimension3D;
+        }
         return caps;
     }
 
@@ -1319,7 +1324,7 @@ namespace JBro::Internal
             return false;
         }
         const UInt32 pixelSize = VulkanPixelSize(desc.format);
-        if (pixelSize == 0 || desc.format == TextureFormat::D32Float || desc.depthOrLayers != 1)
+        if (pixelSize == 0 || desc.format == TextureFormat::D32Float || desc.depthOrLayers != 1 || desc.dimension != TextureDimension::Texture2D)
         {
             return false;
         }

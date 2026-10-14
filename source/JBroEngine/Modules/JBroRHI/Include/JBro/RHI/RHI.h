@@ -298,14 +298,24 @@ namespace JBro
         MemoryType memory = MemoryType::Device;
     };
 
+    enum class TextureDimension : std::uint8_t
+    {
+        Texture2D,
+        // 컬러 그레이딩 LUT 의 모양이다(postprocess-plan §2.1). 지금은 셰이더가 읽기만 한다 - `Sampled`·`CopyDestination` 만,
+        // mip 하나만 받는다. `depthOrLayers` 가 깊이다.
+        Texture3D
+    };
+
     struct TextureDesc
     {
         Extent2D extent;
+        // 2D 는 1 이다(배열은 아직 받지 않는다). 3D 는 깊이이고 `DeviceCaps::maxTexture3DSize` 까지다.
         UInt32 depthOrLayers = 1;
         UInt32 mipLevels = 1;
         UInt32 sampleCount = 1;
         TextureFormat format = TextureFormat::Unknown;
         TextureUsage usage = TextureUsage::None;
+        TextureDimension dimension = TextureDimension::Texture2D;
     };
 
     enum class FilterMode : std::uint8_t
@@ -328,6 +338,8 @@ namespace JBro
         FilterMode  magFilter = FilterMode::Linear;
         AddressMode addressU  = AddressMode::ClampToEdge;
         AddressMode addressV  = AddressMode::ClampToEdge;
+        // 3D 텍스처의 깊이 축이다. 2D 텍스처는 보지 않는다.
+        AddressMode addressW  = AddressMode::ClampToEdge;
     };
 
     struct ShaderBytecode
@@ -597,7 +609,28 @@ namespace JBro
         // 텍스처 하나의 mip 수 상한이다. 16 이면 한 변 32768 까지의 사슬 전부다. 백엔드가 mip 마다 뷰를 미리 만들어 두므로
         // (그리기 경로에서 뷰를 만들지 않는다) 상한이 있다.
         UInt32 maxTextureMipLevels = MaxTextureMipLevels;
+        // 3D 텍스처 한 변의 상한이다. D3D 는 2048 이고 Vulkan 은 장치의 `maxImageDimension3D` 다(명세의 최소는 256).
+        UInt32 maxTexture3DSize = 2048;
     };
+
+    // 텍스처의 차원 규칙이다. 세 백엔드가 같은 것을 거절하도록 한 자리에 둔다(포맷·쓰임의 나머지 검사는 백엔드가 한다).
+    //   2D  `depthOrLayers == 1` - 배열은 아직 받지 않는다. mip 은 `IsMipCountValid`.
+    //   3D  셰이더가 읽기만 한다(`Sampled`·`CopySource`·`CopyDestination`), mip 하나, 세 변 모두 `maxTexture3DSize` 까지, 깊이 포맷은 안 된다.
+    constexpr Bool IsTextureDimensionValid(const TextureDesc& desc, const DeviceCaps& caps) noexcept
+    {
+        if (desc.dimension == TextureDimension::Texture2D)
+        {
+            return desc.depthOrLayers == 1 && IsMipCountValid(desc.extent, desc.mipLevels);
+        }
+        constexpr std::uint32_t readOnly = static_cast<std::uint32_t>(TextureUsage::Sampled)
+            | static_cast<std::uint32_t>(TextureUsage::CopySource) | static_cast<std::uint32_t>(TextureUsage::CopyDestination);
+        return desc.dimension == TextureDimension::Texture3D
+            && desc.depthOrLayers >= 1 && desc.depthOrLayers <= caps.maxTexture3DSize
+            && desc.extent.width <= caps.maxTexture3DSize && desc.extent.height <= caps.maxTexture3DSize
+            && desc.mipLevels == 1
+            && (static_cast<std::uint32_t>(desc.usage) & ~readOnly) == 0
+            && desc.format != TextureFormat::D32Float;
+    }
 
     // 자리표가 장치의 상한 안이고, 쓰는 종류마다 읽는 단계를 말했는지 본다. 백엔드가 파이프라인을 만들기 전에 부른다.
     constexpr Bool IsBindingLayoutValid(const BindingLayoutDesc& layout, const DeviceCaps& caps) noexcept
@@ -652,6 +685,7 @@ namespace JBro
         virtual void DestroyTexture(TextureHandle texture) = 0;
         // 텍스처 한 면에 픽셀을 올린다. 바이트는 행 패딩 없이 빽빽한 것으로 받는다 —
         // GPU 쪽 행 정렬은 백엔드의 사정이다(`ReadTexture` 와 같은 계약이다).
+        // 3D 텍스처는 깊이 0 부터의 조각을 차례로 이어 준다(조각 하나 = 행 × 높이). `WriteTextureRegion`·`ReadTexture` 는 3D 를 받지 않는다.
         //
         // **GPU 가 끝날 때까지 기다린다.** 로드 경로이고 프레임 안에서는 거절한다.
         virtual Bool WriteTexture(

@@ -289,6 +289,9 @@ namespace JBro::Internal
             TextureHandle texture,
             UInt32 mipLevel,
             JArrayView<std::byte> data) override;
+        // 올리기의 몸통이다. 2D 사각형은 깊이 1, 3D 는 조각 전부다(`WriteTexture`).
+        Bool UploadTextureBox(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y, UInt32 width, UInt32 height,
+            UInt32 depth, JArrayView<std::byte> data, UInt32 rowPitch);
         Bool WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
             UInt32 width, UInt32 height, JArrayView<std::byte> data, UInt32 rowPitch) override;
         SamplerHandle CreateSampler(const SamplerDesc& desc) override;

@@ -9,6 +9,7 @@
 #include "SubresourceProbeSamplePS.generated.h"
 #include "SubresourceProbeTintPS.generated.h"
 #include "SubresourceProbeVS.generated.h"
+#include "VolumeProbePS.generated.h"
 
 // fxc 의 헤더는 `BYTE` 로 적는다. Windows.h 를 끌어들이지 않고 이름만 준다(Renderer.cpp 와 같다).
 namespace Sm5
@@ -18,6 +19,7 @@ namespace Sm5
 #include "SubresourceProbeSamplePS_SM5.generated.h"
 #include "SubresourceProbeTintPS_SM5.generated.h"
 #include "SubresourceProbeVS_SM5.generated.h"
+#include "VolumeProbePS_SM5.generated.h"
 }
 
 #include <cstddef>
@@ -76,7 +78,8 @@ namespace
     {
         Tint,
         Sample,
-        Depth
+        Depth,
+        Volume
     };
 
     JBro::ShaderBytecode VertexShader(JBro::GraphicsApi api)
@@ -108,6 +111,10 @@ namespace
                              static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestSubresourceProbeDepthPS_SM5))}
                        : JBro::ShaderBytecode{JBroTestSubresourceProbeDepthPS,
                              static_cast<JBro::UInt32>(sizeof(JBroTestSubresourceProbeDepthPS))};
+        case ProbePixel::Volume:
+            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestVolumeProbePS_SM5,
+                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestVolumeProbePS_SM5))}
+                       : JBro::ShaderBytecode{JBroTestVolumeProbePS, static_cast<JBro::UInt32>(sizeof(JBroTestVolumeProbePS))};
         }
         return {};
     }
@@ -127,7 +134,7 @@ namespace
         {
             desc.bindings.sampledTextures = {1, JBro::ShaderStage::Pixel};
         }
-        if (pixel == ProbePixel::Sample)
+        if (pixel == ProbePixel::Sample || pixel == ProbePixel::Volume)
         {
             desc.bindings.samplers = {1, JBro::ShaderStage::Pixel};
         }
@@ -517,12 +524,149 @@ namespace
         probe.Close();
     }
 
+    // 깊이 넷인 2×2×4 볼륨이다. 조각마다 한 색이다: 빨강·초록·파랑·하양.
+    constexpr unsigned char VolumeTexels[] = {
+        255, 0, 0, 255,      255, 0, 0, 255,      255, 0, 0, 255,      255, 0, 0, 255,
+        0, 255, 0, 255,      0, 255, 0, 255,      0, 255, 0, 255,      0, 255, 0, 255,
+        0, 0, 255, 255,      0, 0, 255, 255,      0, 0, 255, 255,      0, 0, 255, 255,
+        255, 255, 255, 255,  255, 255, 255, 255,  255, 255, 255, 255,  255, 255, 255, 255,
+    };
+
+    // **3D 텍스처를 만들고 올리고, 셰이더가 깊이로 골라 읽는다.** 컬러 그레이딩 LUT 의 모양이다.
+    // 만들기·올리기·거절은 셰이더가 없어도 되므로 세 백엔드에서 돈다. 그리기는 사분면마다 w 를 달리한다:
+    //   왼쪽 위 w = 0.125 → 조각 0(빨강), 오른쪽 위 w = 0.625 → 조각 2(파랑),
+    //   왼쪽 아래 w = 1.375 를 Repeat 로 → 0.375 → 조각 1(초록), 오른쪽 아래 같은 w 를 Clamp 로 → 마지막 조각(하양).
+    // 아래 둘이 샘플러의 W 축을 잰다 - W 를 늘 Clamp 로 두던 예전 모양이면 왼쪽 아래도 하양이다.
+    template <typename TModule>
+    void TestAVolumeIsReadByDepth()
+    {
+        Probe<TModule> probe;
+        if (false == probe.Open("JBro volume probe"))
+        {
+            std::cout << "  [skip] no device for this API; 3D textures not verified" << std::endl;
+            return;
+        }
+        const JBro::GraphicsApi api = probe.rhi.GetApi();
+        Check(probe.device->GetCaps().maxTexture3DSize >= 256, "a 3D texture may be at least 256 on a side");
+
+        JBro::TextureDesc volumeDesc;
+        volumeDesc.dimension = JBro::TextureDimension::Texture3D;
+        volumeDesc.extent = {2, 2};
+        volumeDesc.depthOrLayers = 4;
+        volumeDesc.format = JBro::TextureFormat::RGBA8Unorm;
+        volumeDesc.usage = JBro::TextureUsage::Sampled | JBro::TextureUsage::CopyDestination;
+        const JBro::TextureHandle volume = probe.device->CreateTexture(volumeDesc);
+        Check(volume.IsValid(), "a 3D texture must be created");
+        const JBro::JArrayView<std::byte> texels{
+            reinterpret_cast<const std::byte*>(VolumeTexels), static_cast<JBro::UInt32>(sizeof(VolumeTexels))};
+        Check(false == probe.device->WriteTexture(volume, 0, {texels.data, static_cast<JBro::UInt32>(texels.size - 16)}),
+            "a 3D upload short of one slice is refused");
+        Check(probe.device->WriteTexture(volume, 0, texels), "every slice of the volume must upload at once");
+        Check(false == probe.device->WriteTextureRegion(volume, 0, 0, 0, 1, 1, texels, 8),
+            "a 3D texture takes no region upload");
+        JBro::Array<std::byte> readback;
+        readback.Resize(sizeof(VolumeTexels));
+        JBro::TextureReadback readResult;
+        Check(false == probe.device->ReadTexture(volume, readback.Data(), readback.Size(), readResult),
+            "a 3D texture is not read back");
+
+        // 3D 는 읽기 전용, mip 하나, 상한 안이다.
+        JBro::TextureDesc drawnVolume = volumeDesc;
+        drawnVolume.usage = JBro::TextureUsage::Sampled | JBro::TextureUsage::RenderTarget;
+        Check(false == probe.device->CreateTexture(drawnVolume).IsValid(), "a 3D texture cannot be drawn into");
+        JBro::TextureDesc mippedVolume = volumeDesc;
+        mippedVolume.mipLevels = 2;
+        Check(false == probe.device->CreateTexture(mippedVolume).IsValid(), "a 3D texture has one mip");
+        JBro::TextureDesc deepVolume = volumeDesc;
+        deepVolume.depthOrLayers = probe.device->GetCaps().maxTexture3DSize + 1;
+        Check(false == probe.device->CreateTexture(deepVolume).IsValid(), "a 3D texture deeper than the caps is refused");
+        JBro::TextureDesc layered;
+        layered.extent = {2, 2};
+        layered.depthOrLayers = 2;
+        layered.format = JBro::TextureFormat::RGBA8Unorm;
+        layered.usage = JBro::TextureUsage::Sampled;
+        Check(false == probe.device->CreateTexture(layered).IsValid(), "a 2D texture array is not taken yet");
+
+        if (false == HasProbeShaders(api))
+        {
+            std::cout << "  [skip] no SPIR-V probe shaders yet; 3D sampling not verified" << std::endl;
+            probe.CheckValidationStayedQuiet("the volume probe");
+            probe.device->DestroyTexture(volume);
+            probe.Close();
+            return;
+        }
+
+        static const JBro::TextureFormat colorFormat = JBro::TextureFormat::BGRA8Unorm;
+        const JBro::GraphicsPipelineHandle pipeline =
+            CreateProbePipeline(*probe.device, api, ProbePixel::Volume, &colorFormat, JBro::TextureFormat::Unknown);
+        Check(pipeline.IsValid(), "the volume pipeline must be created");
+        JBro::TextureDesc targetDesc;
+        targetDesc.extent = {SurfaceSize, SurfaceSize};
+        targetDesc.format = colorFormat;
+        targetDesc.usage = JBro::TextureUsage::RenderTarget;
+        const JBro::TextureHandle target = probe.device->CreateTexture(targetDesc);
+        JBro::SamplerDesc repeatDesc;
+        repeatDesc.minFilter = JBro::FilterMode::Nearest;
+        repeatDesc.magFilter = JBro::FilterMode::Nearest;
+        repeatDesc.addressW = JBro::AddressMode::Repeat;
+        const JBro::SamplerHandle repeat = probe.device->CreateSampler(repeatDesc);
+        Check(target.IsValid() && repeat.IsValid(), "the volume target and the repeating sampler must be created");
+
+        const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
+        Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
+        JBro::IRHICommandContext& commands = *begun.frame.commands;
+        probe.ring.BeginFrame(begun.frame.slot);
+        Check(BeginPass(commands, target, 0, SurfaceSize, nullptr), "the volume pass must begin");
+        Check(commands.SetGraphicsPipeline(pipeline), "the volume pipeline must bind");
+        Check(commands.SetTexture(0, volume), "the volume must bind");
+        Check(commands.SetTextureMip(0, volume, 0), "a 3D texture's only mip binds like the whole texture");
+        struct Quarter
+        {
+            Float4 placement;
+            JBro::Float w = 0.0f;
+            JBro::SamplerHandle sampler;
+        };
+        const Quarter quarters[] = {
+            {{0.5f, 0.5f, -0.5f, 0.5f}, 0.125f, probe.pointSampler},
+            {{0.5f, 0.5f, 0.5f, 0.5f}, 0.625f, probe.pointSampler},
+            {{0.5f, 0.5f, -0.5f, -0.5f}, 1.375f, repeat},
+            {{0.5f, 0.5f, 0.5f, -0.5f}, 1.375f, probe.pointSampler},
+        };
+        for (const Quarter& quarter : quarters)
+        {
+            Check(commands.SetSampler(0, quarter.sampler), "the quarter's sampler must bind");
+            probe.BindConstants(commands, Placement{quarter.placement, {}}, Float4{quarter.w, 0.0f, 0.0f, 0.0f});
+            Check(commands.DrawInstanced(3, 1, 0, 0), "each quarter must draw");
+        }
+        commands.EndRenderPass();
+        Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready, "the probe frame must end");
+
+        JBro::Array<std::byte> image;
+        image.Resize(SurfaceSize * SurfaceSize * 4);
+        JBro::TextureReadback result;
+        Check(probe.device->ReadTexture(target, image.Data(), image.Size(), result), "the volume target must read back");
+        Check(IsColor(ReadBgra(image, result.rowPitch, 16, 16), {1.0f, 0.0f, 0.0f, 1.0f}), "w 0.125 must read slice 0");
+        Check(IsColor(ReadBgra(image, result.rowPitch, 48, 16), {0.0f, 0.0f, 1.0f, 1.0f}), "w 0.625 must read slice 2");
+        Check(IsColor(ReadBgra(image, result.rowPitch, 16, 48), {0.0f, 1.0f, 0.0f, 1.0f}),
+            "a repeating W must wrap 1.375 to slice 1");
+        Check(IsColor(ReadBgra(image, result.rowPitch, 48, 48), {1.0f, 1.0f, 1.0f, 1.0f}),
+            "a clamping W must hold 1.375 at the last slice");
+
+        probe.CheckValidationStayedQuiet("the volume probe");
+        probe.device->DestroySampler(repeat);
+        probe.device->DestroyTexture(target);
+        probe.device->DestroyGraphicsPipeline(pipeline);
+        probe.device->DestroyTexture(volume);
+        probe.Close();
+    }
+
     template <typename TModule>
     void RunSubresourceTestsOn()
     {
         TestTexturesTakeAMipChainAndReadableDepth<TModule>();
         TestOneMipIsDrawnFromAnother<TModule>();
         TestDrawnDepthIsReadByTheNextPass<TModule>();
+        TestAVolumeIsReadByDepth<TModule>();
     }
 }
 

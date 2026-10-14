@@ -316,7 +316,7 @@
 - `[진행]` **RHI 에 상수·구조화 버퍼 바인딩과 컴퓨트 파이프라인**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.1). 재질(3D todo)과 후처리가 이것 없이 서지 않는다.
   1 단계(바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷)가 섰다(D-325). Vulkan 의 그리기 시험은 SPIR-V 시험 셰이더를 구운 뒤다(계획 §3.1).
   2 단계의 서브리소스(mip 에 그리기·mip 하나 읽기)·mip 마다의 상태·깊이 읽기가 섰다(D-326).
-  남은 것은 3D 텍스처(2 단계의 끝), 컴퓨트·UAV·구조화 버퍼(3 단계)다.
+  2 단계의 끝인 3D 텍스처와 샘플러의 W 축도 섰다(D-327). 남은 것은 컴퓨트·UAV·구조화 버퍼(3 단계)와 Vulkan 의 그리기 시험이다.
 - `[진행]` **렌더 패스 그래프**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.2). `Renderer::RecordViews` 의 고정 패스를
   읽기·쓰기를 선언하는 DAG 로 바꾸고 지금 패스(라이트맵·그림자·레이어 합성·외곽선)도 옮긴다. ~~선형 구조, 완전한 DAG 는 이 단계에서 과하다~~ → D-322.
 - `[진행]` **`.jpak` 패키지와 게임 익스포트의 에셋**(D-232, [package-plan.md](./package-plan.md)). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬
@@ -2996,6 +2996,15 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-327. 3D 텍스처는 셰이더가 읽기만 하는 텍스처다 - mip 하나, `WriteTexture` 한 번에 조각 전부. 샘플러는 W 축을 받는다.**
+  (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.3, 후처리 계획 2 단계의 끝. 컬러 그레이딩 LUT(7 단계)가 쓴다)
+  Updates: D-326(차원 규칙을 세 백엔드가 같은 함수로 본다 - 2D 는 배열 없이).
+  (1) `TextureDesc::dimension`, 3D 는 `depthOrLayers` 가 깊이다. 규칙은 공용 `IsTextureDimensionValid`: 읽기 쓰임만(`Sampled`·`CopySource`·`CopyDestination`), mip 하나,
+  세 변 모두 `DeviceCaps::maxTexture3DSize`(D3D 2048, Vulkan 은 장치의 `maxImageDimension3D`) 까지, 깊이 포맷 안 됨. 3D 에 그리기·mip 사슬·UAV 는 필요한 단계(3 단계 컴퓨트 등)에서 연다.
+  (2) `WriteTexture` 는 깊이 0 부터의 조각을 빽빽하게 이어 받는다. `WriteTextureRegion`·`ReadTexture` 는 3D 를 거절한다.
+  (3) `SamplerDesc::addressW`. 전에는 세 백엔드 모두 W 를 늘 Clamp 로 두었다.
+  **섰다 - Vulkan 의 그리기 시험만 남았다.**
 
 - **D-326. 텍스처는 mip 마다 그리고 읽는다 - 첨부의 `mipLevel`, mip 하나를 묶는 `SetTextureMip`, mip 마다의 상태. 읽기도 하는 깊이는 패스 뒤에 셰이더 읽기 상태로 돌아간다. 지금 패스가 그리는 자리는 읽지 못한다.**
   (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.2, 후처리 계획 2 단계 중 서브리소스·상태·깊이 읽기. 사용자 지시 "2단계 ㄱㄱ")

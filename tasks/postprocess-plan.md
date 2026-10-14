@@ -133,7 +133,7 @@
 각 단계는 빌드·시험·뮤테이션 뒤 커밋한다. 픽셀 시험은 세 백엔드(D3D12·D3D11·Vulkan)에서 **디버그 레이어를 켜고** 잰다.
 
 1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14) - Vulkan 의 그리기 시험만 남았다(§3.1).**
-2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **서브리소스·상태·깊이 읽기가 섰다(D-326, 2026-10-15). 3D 텍스처가 남았다(§3.2).**
+2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **섰다(D-326·D-327, 2026-10-15) - Vulkan 의 그리기 시험만 남았다(§3.2·§3.3).**
 3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`.
 4. 셰이더 매니페스트와 Shader 에셋(빌트인 셰이더를 옮긴다).
 5. 렌더 그래프와 지금 패스 옮기기. 그림이 바뀌지 않는 것을 기존 픽셀 시험이 잰다.
@@ -252,7 +252,28 @@
 
 남은 것:
 
-- **3D 텍스처**(컬러 그레이딩 LUT)와 샘플러의 W 축. 다음 커밋이다.
+- **3D 텍스처**(컬러 그레이딩 LUT)와 샘플러의 W 축은 §3.3 에서 섰다.
+
+### 3.3 2 단계의 끝 - 3D 텍스처·샘플러 W 축 (D-327)
+
+| 것 | 모양 |
+|---|---|
+| 차원 | `TextureDesc::dimension`(`Texture2D`·`Texture3D`). 3D 는 `depthOrLayers` 가 깊이다 |
+| 규칙 | 공용 `IsTextureDimensionValid` 하나 - 3D 는 셰이더가 읽기만 한다(`Sampled`·`CopySource`·`CopyDestination`), mip 하나, 세 변 모두 `DeviceCaps::maxTexture3DSize`(D3D 2048, Vulkan 은 `maxImageDimension3D`) 까지, 깊이 포맷은 안 된다. 2D 는 배열 없이 |
+| 올리기 | `WriteTexture` 한 번에 조각 전부(깊이 0 부터 빽빽하게). `WriteTextureRegion`·`ReadTexture` 는 3D 를 거절한다 |
+| 읽기 | `SetTexture`(mip 이 하나라 `SetTextureMip(…, 0)` 도 같다). 셰이더는 `Texture3D` |
+| 샘플러 | `SamplerDesc::addressW`. 전에는 세 백엔드 모두 W 를 늘 Clamp 로 두었다 |
+
+백엔드: D3D12 는 `TEXTURE3D` 자원과 SRV, 올리기는 사각형 올리기를 상자(`UploadTextureBox`)로 넓혔다 - 발자국 안에서 조각은 `RowPitch × 행 수` 간격이다.
+D3D11 은 `ID3D11Texture3D` 를 따로 들고(`volume`) `UpdateSubresource` 에 조각 간격을 준다. Vulkan 은 `VK_IMAGE_TYPE_3D`·`VIEW_TYPE_3D`, 복사 상자의 깊이.
+
+시험(`SubresourceTests.cpp` 의 `TestAVolumeIsReadByDepth`, 셰이더 `Tests/Shaders/VolumeProbe.hlsl`): 조각마다 한 색인 2×2×4 를 올리고 사분면마다 w 를 달리 읽는다 -
+w 0.125 는 조각 0, 0.625 는 조각 2, 1.375 는 Repeat 로 조각 1·Clamp 로 마지막 조각. 모자란 올리기·사각형 올리기·되읽기·그리기 쓰임·mip 둘·상한 넘는 깊이·2D 배열은 거절한다.
+만들기·올리기·거절은 Vulkan 에서도 돈다.
+
+뮤테이션(2026-10-15, 7 개 모두 죽었다): D3D12·D3D11 의 W 를 늘 Clamp 로(Repeat 사분면), D3D12 조각 간격 무시(조각 0), D3D11 조각 간격 0(조각 2),
+3D 쓰임 제한 없앰(그리기 쓰임 거절), Vulkan 올리기 크기에서 깊이 뺌(조각 전부 올리기). D3D12 볼륨을 2D SRV 로 보게 한 것은 그림 비교가 아니라 앞단의 올리기 검사에서
+죽었다 - 잘못된 뷰를 만들며 장치가 망가진 것으로 보이고(추정), 원인을 따로 캐지는 않았다.
 - Vulkan 의 그리기 시험(§3.1 과 같은 까닭). Vulkan 은 mip·깊이 만들기와 거절만 돌았다.
 
 ## 4. 정한 것과 미정

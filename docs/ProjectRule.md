@@ -117,6 +117,8 @@
 - 텍스처의 상태는 mip 마다 따로다. mip 하나에 그리려면 `ColorAttachmentDesc::mipLevel`, mip 하나를 읽으려면 `SetTextureMip` 을
   쓴다. 백엔드는 mip 마다의 뷰를 텍스처를 만들 때 만들고 그리기 경로에서 뷰를 만들지 않는다. 지금 패스가 그리는 mip·깊이는 같은
   패스에서 읽지 않는다 - RHI 가 거절한다. (MUST) (D-326)
+- 텍스처의 차원 규칙은 `IsTextureDimensionValid` 하나로 세 백엔드가 같이 본다. 3D 텍스처는 셰이더가 읽기만 하고 mip 이 하나이며
+  `WriteTexture` 한 번에 조각 전부를 올린다. 2D 배열은 아직 받지 않는다. (MUST) (D-327)
 - 앞면은 **화면에서 시계 방향**이다. 세 백엔드가 그렇게 맞춰져 있다(D3D `FrontCounterClockwise = FALSE`, Vulkan 은
   높이 음수 뷰포트 + `CLOCKWISE`). 메시는 바깥에서 볼 때 시계 방향으로 감는다. 좌표는 오른손, 카메라는 -Z, 깊이 0..1,
   NDC +y 는 위다(D-106·D-108). (MUST)

@@ -44,7 +44,8 @@ $targets = @(
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestSubresourceProbeVS'; Header = 'SubresourceProbeVS.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeTintPS'; Header = 'SubresourceProbeTintPS.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeSamplePS'; Header = 'SubresourceProbeSamplePS.generated.h' },
-    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS'; Header = 'SubresourceProbeDepthPS.generated.h' }
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS'; Header = 'SubresourceProbeDepthPS.generated.h' },
+    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestVolumeProbePS'; Header = 'VolumeProbePS.generated.h' }
 )
 
 $sm5Targets = @(
@@ -53,7 +54,8 @@ $sm5Targets = @(
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroTestSubresourceProbeVS_SM5'; Header = 'SubresourceProbeVS_SM5.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeTintPS_SM5'; Header = 'SubresourceProbeTintPS_SM5.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeSamplePS_SM5'; Header = 'SubresourceProbeSamplePS_SM5.generated.h' },
-    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeDepthPS_SM5'; Header = 'SubresourceProbeDepthPS_SM5.generated.h' }
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_5_0'; Name = 'JBroTestSubresourceProbeDepthPS_SM5'; Header = 'SubresourceProbeDepthPS_SM5.generated.h' },
+    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroTestVolumeProbePS_SM5'; Header = 'VolumeProbePS_SM5.generated.h' }
 )
 
 $spirvTargets = @(
@@ -64,7 +66,8 @@ $spirvTargets = @(
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroTestSubresourceProbeVS_SPV'; Header = 'SubresourceProbeVS_SPV.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSTint'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeTintPS_SPV'; Header = 'SubresourceProbeTintPS_SPV.generated.h' },
     @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSSample'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeSamplePS_SPV'; Header = 'SubresourceProbeSamplePS_SPV.generated.h' },
-    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS_SPV'; Header = 'SubresourceProbeDepthPS_SPV.generated.h' }
+    @{ File = 'SubresourceProbe.hlsl'; Entry = 'PSDepth'; Profile = 'ps_6_0'; Name = 'JBroTestSubresourceProbeDepthPS_SPV'; Header = 'SubresourceProbeDepthPS_SPV.generated.h' },
+    @{ File = 'VolumeProbe.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroTestVolumeProbePS_SPV'; Header = 'VolumeProbePS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)

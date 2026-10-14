@@ -117,6 +117,8 @@ namespace JBro::Internal
     struct D3D11TextureState
     {
         ComPtr<ID3D11Texture2D> texture;
+        // 3D 텍스처면 위 대신 이것이 있다(읽기 전용, SRV 하나).
+        ComPtr<ID3D11Texture3D> volume;
         // mip 마다 하나다. 그리기 경로에서 뷰를 만들지 않으려고 미리 다 만든다.
         ComPtr<ID3D11RenderTargetView> renderTargetViews[MaxTextureMipLevels];
         ComPtr<ID3D11DepthStencilView> depthStencilView;

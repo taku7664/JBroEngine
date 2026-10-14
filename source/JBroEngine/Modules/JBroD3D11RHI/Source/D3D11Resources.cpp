@@ -237,8 +237,8 @@ namespace JBro::Internal
         const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == nullptr || m_frameActive
             || desc.extent.width == 0 || desc.extent.height == 0
-            // 배열과 3D 는 아직 받지 않는다(D3D12 와 같은 계약).
-            || desc.depthOrLayers != 1 || false == IsMipCountValid(desc.extent, desc.mipLevels) || desc.sampleCount != 1
+            // 차원 규칙(2D 는 배열 없이, 3D 는 읽기 전용·mip 하나)은 세 백엔드가 같은 함수로 본다.
+            || false == IsTextureDimensionValid(desc, GetCaps()) || desc.sampleCount != 1
             || desc.format == TextureFormat::Unknown
             || usages == 0 || (usages & ~TextureUsageMask) != 0
             || (renderTarget && depthStencil)
@@ -261,6 +261,31 @@ namespace JBro::Internal
         if (slot == MaxTextures)
         {
             return {};
+        }
+        if (desc.dimension == TextureDimension::Texture3D)
+        {
+            // 3D 는 읽기 전용이다 - SRV 하나만 있다(`IsTextureDimensionValid`).
+            D3D11_TEXTURE3D_DESC volumeDesc = {};
+            volumeDesc.Width = desc.extent.width;
+            volumeDesc.Height = desc.extent.height;
+            volumeDesc.Depth = desc.depthOrLayers;
+            volumeDesc.MipLevels = 1;
+            volumeDesc.Format = ToNativeFormat(desc.format);
+            volumeDesc.Usage = D3D11_USAGE_DEFAULT;
+            volumeDesc.BindFlags = sampled ? D3D11_BIND_SHADER_RESOURCE : 0;
+            D3D11TextureState& volumeState = m_textures[slot];
+            if (FAILED(m_device->CreateTexture3D(&volumeDesc, nullptr, &volumeState.volume))
+                || (sampled && FAILED(m_device->CreateShaderResourceView(volumeState.volume.Get(), nullptr,
+                    &volumeState.shaderResourceView))))
+            {
+                const UInt32 generation = volumeState.generation;
+                volumeState = {};
+                volumeState.generation = generation;
+                return {};
+            }
+            volumeState.desc = desc;
+            volumeState.occupied = true;
+            return TextureHandle{TextureResourceBase + slot, volumeState.generation};
         }
         D3D11_TEXTURE2D_DESC native = {};
         native.Width = desc.extent.width;
@@ -368,21 +393,27 @@ namespace JBro::Internal
             return false;
         }
         D3D11TextureState& state = m_textures[slot];
+        const Bool volume = state.desc.dimension == TextureDimension::Texture3D;
         if (false == state.occupied || state.generation != texture.generation
-            || mipLevel >= state.desc.mipLevels || state.desc.depthOrLayers != 1)
+            || mipLevel >= state.desc.mipLevels || (false == volume && state.desc.depthOrLayers != 1))
         {
             return false;
         }
         const UInt32 width = (std::max)(1u, state.desc.extent.width >> mipLevel);
         const UInt32 height = (std::max)(1u, state.desc.extent.height >> mipLevel);
+        // 3D 는 조각을 차례로 이어 받는다(`IRHIDevice::WriteTexture` 의 계약).
+        const UInt32 depth = volume ? state.desc.depthOrLayers : UInt32(1);
         const UInt32 pixelSize = PixelSize(state.desc.format);
         const std::size_t rowPitch = static_cast<std::size_t>(width) * pixelSize;
-        if (pixelSize == 0 || data.size != rowPitch * height)
+        const std::size_t slicePitch = rowPitch * height;
+        if (pixelSize == 0 || data.size != slicePitch * depth)
         {
             return false;
         }
-        m_context->UpdateSubresource(state.texture.Get(), mipLevel, nullptr, data.data,
-            static_cast<UINT>(rowPitch), 0);
+        ID3D11Resource* const target = volume ? static_cast<ID3D11Resource*>(state.volume.Get())
+                                              : static_cast<ID3D11Resource*>(state.texture.Get());
+        m_context->UpdateSubresource(target, mipLevel, nullptr, data.data,
+            static_cast<UINT>(rowPitch), static_cast<UINT>(slicePitch));
         return true;
     }
 
@@ -401,7 +432,7 @@ namespace JBro::Internal
         }
         D3D11TextureState& state = m_textures[slot];
         if (false == state.occupied || state.generation != texture.generation
-            || mipLevel >= state.desc.mipLevels || state.desc.depthOrLayers != 1)
+            || mipLevel >= state.desc.mipLevels || state.desc.dimension != TextureDimension::Texture2D)
         {
             return false;
         }
@@ -546,7 +577,7 @@ namespace JBro::Internal
             : (magLinear ? D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT : D3D11_FILTER_MIN_MAG_MIP_POINT);
         native.AddressU = desc.addressU == AddressMode::Repeat ? D3D11_TEXTURE_ADDRESS_WRAP : D3D11_TEXTURE_ADDRESS_CLAMP;
         native.AddressV = desc.addressV == AddressMode::Repeat ? D3D11_TEXTURE_ADDRESS_WRAP : D3D11_TEXTURE_ADDRESS_CLAMP;
-        native.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        native.AddressW = desc.addressW == AddressMode::Repeat ? D3D11_TEXTURE_ADDRESS_WRAP : D3D11_TEXTURE_ADDRESS_CLAMP;
         native.MaxLOD = D3D11_FLOAT32_MAX;
         native.ComparisonFunc = D3D11_COMPARISON_NEVER;
         D3D11SamplerState& state = m_samplers[index];
