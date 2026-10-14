@@ -75,6 +75,12 @@ namespace JBro::Internal
             return handle.m_reference;
         }
 
+        // 필드 글자를 읽은 자리(`ComponentHandleFromText`)가 쓴다. 타입은 부르는 쪽이 이미 확인했다.
+        static void SetReference(ComponentHandle& handle, const InstanceRef& reference)
+        {
+            handle.m_reference = reference;
+        }
+
         // 경고를 남기지 않는다 - 서비스는 무효한 인자를 조용히 무시한다.
         static ComponentBase* Resolve(const ComponentHandle& handle)
         {

@@ -655,7 +655,7 @@ namespace JBro
     {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         const Bool reuse = preferredId != InvalidInstanceId
-            && registry.Resolve(owner->GetInstanceId(), preferredId, category).Pointer == nullptr;
+            && false == registry.IsRegistered(owner->GetInstanceId(), preferredId, category);
         const InstanceId componentId = reuse ? preferredId : GenerateCanvasInstanceId();
         const InstanceHandle handle = registry.Register(
             owner->GetInstanceId(),
@@ -685,7 +685,7 @@ namespace JBro
     {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         const Bool reuse = preferredId != InvalidInstanceId
-            && registry.Resolve(owner->GetInstanceId(), preferredId, RefCategory::Script).Pointer == nullptr;
+            && false == registry.IsRegistered(owner->GetInstanceId(), preferredId, RefCategory::Script);
         const InstanceId scriptId = reuse ? preferredId : GenerateCanvasInstanceId();
         const InstanceHandle handle = registry.Register(owner->GetInstanceId(), scriptId, RefCategory::Script, script);
         if (false == handle.IsSet())

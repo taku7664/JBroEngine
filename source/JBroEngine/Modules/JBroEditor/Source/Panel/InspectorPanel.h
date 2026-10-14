@@ -159,6 +159,8 @@ namespace JBro
         void DrawLayerMaskField(const TypeDescriptor& type, void* address, Context& context);
         // 캔버스의 오브젝트를 고르는 칸이다(D-233). 하이어라키의 줄을 끌어 놓아도 된다.
         void DrawObjectField(const TypeDescriptor& type, void* address, Context& context);
+        // 컴포넌트 핸들 필드(D-302). 그 타입이 붙은 오브젝트만 나온다.
+        void DrawComponentHandleField(const TypeDescriptor& type, void* address, Context& context);
         // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
         void DrawTextBody(const TypeDescriptor& type, void* address, Bool editable, Bool multiline, Context& context);
         // `textKey` 고르기의 이름 뷰다. 매 프레임 채우되 용량은 남긴다.
@@ -266,6 +268,7 @@ namespace JBro
         Array<String> m_objectNames;
         Array<const char*> m_objectNamePointers;
         Array<InstanceId> m_objectIds;
+        Array<InstanceRef> m_componentRefs;
         Array<const char*> m_busNamePointers;
         Array<Bool> m_busEnabled;
     };

@@ -12,6 +12,8 @@
 #include <JBro/Types/Types.h>
 
 #include <JBro/Runtime/GameObjectHandle.h>
+// `JBRO_FIELD(GameObject, target)` 가 프렐류드만으로 닿아야 한다(D-233). 컴포넌트 핸들은 핸들 헤더가 리플렉션을 함께 연다(D-302).
+#include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Runtime/ServiceContext.h>

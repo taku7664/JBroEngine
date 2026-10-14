@@ -139,6 +139,17 @@ namespace
         JBro::Float                      m_elapsed = 0.0f;
     };
 
+    // 오브젝트와 빌트인 컴포넌트를 필드로 저장한다(D-233, D-302). 프렐류드만으로 리플렉션이 닿아야 한다.
+    JBRO_SCRIPT(TierProbeFields) final : public GameScript2D
+    {
+        JBRO_SCRIPT_BODY(TierProbeFields)
+
+    public:
+        JBRO_FIELD(GameObject, target);
+        JBRO_FIELD(Transform2D, follow);
+        JBRO_FIELD(Rigidbody2D, body);
+    };
+
     // 스크립트가 보는 참조의 형태를 고정한다(D-5, D-44).
     static_assert(sizeof(GameObject) == 16,
         "a script must see the 16-byte object handle");

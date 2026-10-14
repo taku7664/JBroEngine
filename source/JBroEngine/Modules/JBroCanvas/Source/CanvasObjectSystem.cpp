@@ -124,7 +124,7 @@ namespace JBro
             {
                 if (info->Attach != nullptr)
                 {
-                    info->Attach(*m_canvas, object);
+                    info->Attach(*m_canvas, object, InvalidInstanceId);
                 }
             }
         }
@@ -219,7 +219,7 @@ namespace JBro
         {
             return {};
         }
-        ComponentBase* component = info->Attach(*m_canvas, owner);
+        ComponentBase* component = info->Attach(*m_canvas, owner, InvalidInstanceId);
         if (component == nullptr)
         {
             return {};

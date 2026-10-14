@@ -133,8 +133,10 @@ namespace JBro
         void SetBackgroundColor(const Color& color);
 
         // 같은 타입을 여러 개 붙일 수 있다. 시스템 순회는 타입 풀을 직접 순회한다.
+        // `preferredId` 는 번호를 정해 붙인다(D-302). 그 번호를 누가 쓰고 있으면 새 번호다. 되돌리기가 뗀 컴포넌트를 같은 번호로 되살려
+        // 그것을 가리키던 컴포넌트 핸들 필드가 다시 찾게 한다.
         template<typename T>
-        T* AttachComponent(Object::GameObject* owner);
+        T* AttachComponent(Object::GameObject* owner, InstanceId preferredId = InvalidInstanceId);
 
         template<typename T>
         Bool DetachComponent(Object::GameObject* owner, T* component);
@@ -344,7 +346,7 @@ namespace JBro
     }
 
     template<typename T>
-    T* Canvas::AttachComponent(Object::GameObject* owner)
+    T* Canvas::AttachComponent(Object::GameObject* owner, InstanceId preferredId)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         if (owner == nullptr || owner->GetCanvas() != this)
@@ -382,7 +384,8 @@ namespace JBro
         if (false == RegisterComponentInstance(
             owner,
             component,
-            RefCategoryOf<T>::value))
+            RefCategoryOf<T>::value,
+            preferredId))
         {
             bucket->Pool.Destroy(component);
             return nullptr;

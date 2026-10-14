@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Runtime/ComponentHandle.h>
+#include <JBro/Runtime/ComponentHandleReflection.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Color.h>
 #include <JBro/Types/Float.h>
@@ -84,3 +85,6 @@ namespace JBro::Handle
     static_assert(std::is_standard_layout_v<Text2D>, "a component handle must stay standard layout");
     static_assert(std::is_trivially_copyable_v<Text2D>, "a component handle must stay trivially copyable");
 }
+
+// 스크립트 필드로 저장한다(`JBRO_FIELD(Text2D, target)`).
+JBRO_DEFINE_COMPONENT_HANDLE_TYPE(JBro::Handle::Text2D);

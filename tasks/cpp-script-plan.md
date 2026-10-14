@@ -255,8 +255,8 @@ JBRO_SCRIPT_MODULE_2D()
 3. ~~빌트인 핸들~~ **섰다**(2026-10-13): 빌트인 20 종(2D 12·3D 7·공용 `AudioSource`, D-302 를 적을 때의 "7 종·6 종" 에서 조명·조인트 등이 늘었다)마다
    `JBro::Handle` 에 같은 이름의 24B 핸들이 있다. 몸은 `Internal::ComponentHandle`, 필드는 `Get`·`Set` + 필드 이름, 월드 캐시·버튼 상태·저장되는 에셋 id 는 getter 만.
    스크립트가 쓰는 열거형·물리 값은 `ComponentTypes2D.h`·`ComponentTypes3D.h`·`AudioSourceTypes.h` 로 옮겼고, 데이터 헤더 15 개는 스크립트 대상에서 `#error` 다
-   (음성 시험 `JBroTierProbe=ComponentData`). `AudioService`·`Text2DService`·`Text3DService` 가 핸들을 받는다. 남은 것: 스크립트 필드로 컴포넌트 핸들을 저장하는
-   리플렉션(`JBRO_FIELD(Transform2D, m_target)`)은 없다 - `Ref<T>` 필드도 없던 것이라 그대로 두었다. 에셋 id 를 바꾸는 setter 는 없다(id → 핸들 풀기가 캔버스를 열 때만 돈다).
+   (음성 시험 `JBroTierProbe=ComponentData`). `AudioService`·`Text2DService`·`Text3DService` 가 핸들을 받는다. 스크립트 필드로 컴포넌트 핸들을 저장하는
+   리플렉션(`JBRO_FIELD(Transform2D, m_target)`)도 섰다(2026-10-14, D-302 (17)) - 파일에는 `오브젝트 번호:같은 타입 중 몇 번째` 로 적힌다. 에셋 id 를 바꾸는 setter 는 없다(id → 핸들 풀기가 캔버스를 열 때만 돈다).
 4. ~~오브젝트 만들기·찾기~~ **섰다**(2026-10-14, D-302 (16)): 아래 항목 그대로다. 이름과 태그 나누기는 D-297 이 먼저 했다.
 
 - 오브젝트 만들기·찾기: **섰다(D-301, D-302 (16)).**
