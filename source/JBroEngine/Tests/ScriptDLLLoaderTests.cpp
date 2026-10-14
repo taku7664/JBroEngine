@@ -96,6 +96,9 @@ namespace
         JBro::ServiceContext receivedServices;
         ProbeExtension receivedExtension;
         JBro::Bool receivedExtensionBlock = false;
+        JBro::ScriptDLLLoader* loader = nullptr;
+        JBro::UInt64 activationGeneration = 0;
+        JBro::Bool acceptedDuringActivation = false;
     };
 
     ModuleProbe* g_moduleProbe = nullptr;
@@ -125,6 +128,11 @@ namespace
         }
         g_moduleProbe->events->Add(Event::ModuleLoad);
         ++g_moduleProbe->loadCalls;
+        if (g_moduleProbe->loader != nullptr)
+        {
+            g_moduleProbe->activationGeneration = g_moduleProbe->loader->GetGeneration();
+            g_moduleProbe->acceptedDuringActivation = g_moduleProbe->loader->AcceptsErrorGeneration(g_moduleProbe->activationGeneration);
+        }
         g_moduleProbe->receivedSystems = *context->Systems;
         g_moduleProbe->receivedServices = *context->Services;
         const JBro::ScriptContextBlock* extension =
@@ -387,6 +395,32 @@ namespace
             "all context validation must finish before module code runs");
         Check(platform.loadCalls == platform.unloadCalls,
             "every rejected context candidate must release its DLL handle");
+    }
+
+    void TestActivationErrorGenerationsAreNeverReused()
+    {
+        EventLog events;
+        ModuleProbe probe;
+        probe.events = &events;
+        ResetApi(probe);
+        LoaderPlatform platform(events);
+        BindCommonContexts();
+        ProbeExtension extension;
+        const JBro::ScriptContextBlock block = MakeProbeBlock(extension);
+        JBro::ScriptDLLLoader loader;
+        probe.loader = &loader;
+        probe.loadResult = false;
+        Check(!loader.Load("probe.dll", platform, &block, 1), "a failed activation consumes its error generation");
+        const JBro::UInt64 failedGeneration = probe.activationGeneration;
+        Check(probe.acceptedDuringActivation && !loader.AcceptsErrorGeneration(failedGeneration),
+            "startup errors are accepted only while the failed activation is running");
+        probe.loadResult = true;
+        Check(loader.Load("probe.dll", platform, &block, 1)
+                && loader.GetGeneration() != failedGeneration && !loader.AcceptsErrorGeneration(failedGeneration),
+            "a later successful load cannot revive callbacks from a failed activation");
+        Check(loader.AcceptsErrorGeneration(loader.GetGeneration()), "the active module error generation is accepted");
+        loader.Unload(platform);
+        Check(!loader.AcceptsErrorGeneration(probe.activationGeneration), "unload revokes the active error generation");
     }
 
     void TestRejectsCommonContextAbiBeforeOpeningDll()
@@ -1139,6 +1173,8 @@ namespace
             "the generated JBroScript DLL must replace the unloaded probe");
         ScriptedFramework generated;
         generated.host = &engine;
+        Check(engine.GetTime() != nullptr && engine.GetTime()->SetTimeScale(JBro::Float(2.25f)),
+            "the host time service is configured before generated static initialization");
         Check(engine.OpenProject(generated, utf8Path.c_str()) && engine.GetScriptModule().IsLoaded(),
             "the host must load a DLL emitted from JBroScript source");
         using ModuleEntry = const JBro::ScriptModuleApi* (*)(JBro::UInt32, JBro::UInt32) noexcept;
@@ -1230,6 +1266,14 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializerScore"));
         Check(initializerScore != nullptr && initializerScore() == 195,
             "cross-file initializers, static fields, implicit constructors and shadowed constructor arguments execute");
+        const auto staticStartup = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticStartup"));
+        Check(staticStartup != nullptr && staticStartup() == 16,
+            "own-type static storage and static initializer dependencies are ready before a script callback");
+        using StaticService = float (*)();
+        const auto staticService = reinterpret_cast<StaticService>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticService"));
+        Check(staticService != nullptr && staticService() == 2.25f,
+            "static initializers observe the bound host service instead of a DLL-local default context");
         const auto initializationGuard = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializationGuard"));
         JBro::Log::Clear();
@@ -1717,6 +1761,30 @@ namespace
         // 실패한 모듈은 프로젝트를 막지 않는다(D-98). 아직 한 번도 빌드하지 않은 프로젝트가
         // 그 모양이고, 여기서 막으면 그것을 빌드할 에디터가 열리지 않는다.
         // 대신 못 실었다는 사실이 남아야 한다.
+        const std::filesystem::path staticFailureSource =
+            std::filesystem::path(files.sourcePath).parent_path() / L"JBroScriptStaticFailureProbe.dll";
+        Check(CopyFileW(staticFailureSource.c_str(), files.dllPath, FALSE) != FALSE,
+            "the static initialization failure fixture replaces the unloaded game DLL");
+        JBro::Log::Clear();
+        ScriptedFramework staticFailure;
+        staticFailure.host = &engine;
+        Check(engine.OpenProject(staticFailure, utf8Path.c_str()) && !engine.GetScriptModule().IsLoaded(),
+            "an indirect static read before initialization fails module activation while leaving the editor project open");
+        Check(JBro::Log::GetGroupCount() == 1
+                && std::strstr(JBro::Log::GetGroupAt(0)->display, "uninitialized static field") != nullptr,
+            "static initialization errors reach the bound host log instead of escaping DLL load");
+        Check(JBro::ScriptRegistry::Local().Find("StaticFailureRoot") == nullptr,
+            "static initialization failure leaves no registered script from the failed DLL");
+        engine.CloseProject();
+        Check(CopyFileW(generatedSource.c_str(), files.dllPath, FALSE) != FALSE,
+            "the normal generated DLL replaces the failed initialization module");
+        ScriptedFramework recovered;
+        recovered.host = &engine;
+        Check(engine.OpenProject(recovered, utf8Path.c_str()) && engine.GetScriptModule().IsLoaded(),
+            "another module activation succeeds after static initialization failure rollback");
+        engine.CloseProject();
+        JBro::Log::Clear();
+
         ScriptedFramework second;
         Check(engine.OpenProject(second, "no such module.dll"),
             "a project whose script module fails to load must still open");
@@ -1749,6 +1817,7 @@ JBro::Int32 RunScriptDLLLoaderTests()
     TestRejectsInvalidModuleAbiBeforeCallingModule();
     TestTheLoadContextNeedsEveryHostTable();
     TestRequiresExactUniqueContextBlocks();
+    TestActivationErrorGenerationsAreNeverReused();
     TestRejectsCommonContextAbiBeforeOpeningDll();
     TestFailedModuleActivationRollsBack();
     TestLoadReloadAndUnloadOrder();

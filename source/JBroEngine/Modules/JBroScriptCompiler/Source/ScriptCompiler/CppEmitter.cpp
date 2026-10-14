@@ -143,6 +143,7 @@ namespace JBro::ScriptCompiler
             {
                 m_code = "#include <JBro/ScriptAPI.h>\n#include <JBro/Framework2D/Scripting/ScriptModule.h>\n"
                     "#include <JBro/Runtime/ScriptGuard.h>\n#include <JBro/Runtime/ScriptInitialization.h>\n"
+                    "#include <JBro/Runtime/ScriptStatics.h>\n"
                     "#include <JBro/Reflection/EnumDescriptor.h>\n\n"
                     "template<typename Derived, typename Base, std::size_t Index>\n"
                     "JBro::PropertyInfo jbro_gen_inherited_property()\n"
@@ -275,7 +276,7 @@ namespace JBro::ScriptCompiler
                         + std::to_string(m_temporary++) + "([]() -> JBro::Bool { return "
                         "JBro::RegisterScriptType2D<" + script + ">(); });\n";
                 }
-                if (!m_scripts.IsEmpty())
+                if (!m_scripts.IsEmpty() || m_unit != nullptr)
                 {
                     m_code += "namespace { const bool jbro_gen_script_2d_marker = "
                         "JBro::Internal::MarkGeneratedScript2D(); }\n";
@@ -598,12 +599,17 @@ namespace JBro::ScriptCompiler
 
             String GuardField(const FieldRef& field, const String& receiver, const String& access, NodeIndex site) const
             {
-                if (field.Owner == nullptr || field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic)
+                if (field.Owner == nullptr)
                 {
                     return access;
                 }
                 const String owner(field.Owner->tree->Get(field.Owner->index).Text);
                 const String key = SiteKey(Node(site));
+                if (field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic)
+                {
+                    return CppIdentifier(owner) + "::" + StaticAccessor(field.Owner->tree->Get(field.Index).Text)
+                        + "(" + Escape(key) + ", " + Escape(key + " uninitialized static field: " + AccessPath(site)) + ")";
+                }
                 return "(JBro::ScriptGuard::RequireInitializedField(static_cast<const " + CppIdentifier(owner)
                     + "*>(&" + receiver + "), " + InitializationType(owner) + ", " + std::to_string(field.Ordinal)
                     + ", " + Escape(key) + ", " + Escape(key + " uninitialized field: " + AccessPath(site))
@@ -664,8 +670,14 @@ namespace JBro::ScriptCompiler
                 }
                 m_code += "template<> const JBro::PropertyTable& JBro::GetPropertyTable<" + name
                     + ">()\n{\n    static JBro::PropertyInfo fields[" + std::to_string(total)
-                    + "]{};\n    static JBro::PropertyEditInfo edits[" + std::to_string(own == 0 ? 1 : own)
-                    + "]{};\n    static const JBro::PropertyTable table = []() -> JBro::PropertyTable\n    {\n";
+                    + "]{};\n    static const JBro::PropertyTable table{fields, " + std::to_string(total)
+                    + "};\n    return table;\n}\n\n"
+                    "void " + name + "::jbro_gen_initialize_properties()\n{\n"
+                    "    static JBro::ScriptStaticState state = JBro::ScriptStaticState::Uninitialized;\n"
+                    "    if (state == JBro::ScriptStaticState::Ready)\n    {\n        return;\n    }\n"
+                    "    state = JBro::ScriptStaticState::Initializing;\n"
+                    "    auto* fields = const_cast<JBro::PropertyInfo*>(JBro::GetPropertyTable<" + name + ">().properties);\n"
+                    "    static JBro::PropertyEditInfo edits[" + std::to_string(own == 0 ? 1 : own) + "]{};\n";
                 std::size_t destination = 0;
                 if (bases != InvalidNode && Node(bases).Kind == SyntaxKind::BaseList)
                 {
@@ -673,6 +685,10 @@ namespace JBro::ScriptCompiler
                     {
                         const String baseName(Node(base).Text);
                         const std::size_t count = ReflectedFieldCount(baseName);
+                        if (count != 0)
+                        {
+                            m_code += "    " + CppIdentifier(baseName) + "::jbro_gen_initialize_properties();\n";
+                        }
                         for (std::size_t field = 0; field < count; ++field)
                         {
                             m_code += "        fields[" + std::to_string(destination++)
@@ -695,8 +711,9 @@ namespace JBro::ScriptCompiler
                         + ">{ }), fields[" + std::to_string(destination++)
                         + "], edits[" + std::to_string(field) + "]);\n";
                 }
-                m_code += "        return {fields, " + std::to_string(total) + "};\n    }();\n"
-                    "    return table;\n}\n\n";
+                m_code += "    state = JBro::ScriptStaticState::Ready;\n}\n"
+                    "static JBro::ScriptSchemaRegistration jbro_gen_schema_" + name + "(&" + name
+                    + "::jbro_gen_initialize_properties);\n\n";
             }
 
             bool OrderDeclaration(const String& name, Array<DeclarationRef>& ordered)
@@ -727,9 +744,14 @@ namespace JBro::ScriptCompiler
                         }
                     }
                 }
-                for (const auto& entry : m_fields[name])
+                for (NodeIndex field : found->tree->GetChildren(found->index))
                 {
-                    const Type& type = entry.MappedValue;
+                    if (field == InvalidNode || found->tree->Get(field).Kind != SyntaxKind::FieldDeclaration
+                        || found->tree->Get(field).Flags & SyntaxFlagStatic)
+                    {
+                        continue;
+                    }
+                    const Type& type = m_fields[name][String(found->tree->Get(field).Text)];
                     if (m_declarations.Contains(type.name) && !IsScript(type)
                         && !OrderDeclaration(type.name, ordered))
                     {
@@ -883,6 +905,15 @@ namespace JBro::ScriptCompiler
                 }
                 if (!interfaceType)
                 {
+                    if (ReflectedFieldCount(m_owner) != 0)
+                    {
+                        m_code += "    public:\n    static void jbro_gen_initialize_properties();\n";
+                    }
+                    if (HasStaticFields(index))
+                    {
+                        m_code += "    public:\n    static void jbro_gen_initialize_statics();\n"
+                            "    static void jbro_gen_destroy_statics() noexcept;\n";
+                    }
                     const DeclarationRef owner{m_source, m_tree, index, node.Kind};
                     m_initializationOwners.Add(owner);
                     if (!hasConstructor)
@@ -926,14 +957,44 @@ namespace JBro::ScriptCompiler
                 m_code += "    " + String(access) + ":\n";
             }
 
+            String StaticAccessor(std::string_view name) const
+            {
+                return "jbro_gen_static_" + CppIdentifier(name);
+            }
+
+            bool HasStaticFields(NodeIndex owner) const
+            {
+                for (NodeIndex field : m_tree->GetChildren(owner))
+                {
+                    if (field != InvalidNode && Node(field).Kind == SyntaxKind::FieldDeclaration
+                        && Node(field).Flags & SyntaxFlagStatic)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            String FieldDeclaration(NodeIndex index, bool constant, bool reflected) const
+            {
+                const SyntaxNode& node = Node(index);
+                const String native = NativeType(ParseType(Child(index, 1)));
+                if (node.Flags & SyntaxFlagStatic)
+                {
+                    const String key = SiteKey(node);
+                    return "static " + String(constant && !reflected ? "const " : "") + native + "& "
+                        + StaticAccessor(node.Text) + "(const char* key = " + Escape(key)
+                        + ", const char* message = " + Escape(key + " uninitialized static field: " + String(node.Text)) + ")";
+                }
+                return String(constant && !reflected ? "const " : "") + native + " " + CppIdentifier(node.Text);
+            }
+
             void Field(NodeIndex index, bool isStruct, std::size_t reflectedIndex)
             {
                 const SyntaxNode& node = Node(index);
                 const NodeIndex typeNode = Child(index, 1);
                 const bool constant = typeNode != InvalidNode && (Node(typeNode).Flags & SyntaxFlagConst);
                 const bool staticField = (node.Flags & SyntaxFlagStatic) != 0;
-                const Type type = ParseType(Child(index, 1));
-                const String native = NativeType(type);
                 const String name = CppIdentifier(node.Text);
                 const NodeIndex attributes = Child(index, 0);
                 const bool reflected = isStruct || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
@@ -1006,12 +1067,13 @@ namespace JBro::ScriptCompiler
                         const String factory = "jbro_gen_field_" + std::to_string(reflectedIndex);
                         m_code += "    public:\n    static void " + factory
                             + "(JBro::PropertyInfo& property, JBro::PropertyEditInfo& edit);\n    "
-                            + memberAccess + ":\n    " + String(staticField ? "static " : "") + native + " " + name;
+                            + memberAccess + ":\n    " + FieldDeclaration(index, constant, true);
                         m_implementation += "void " + CppIdentifier(m_owner) + "::" + factory
                             + "(JBro::PropertyInfo& property, JBro::PropertyEditInfo& edit)\n{\n"
                             "    using namespace JBro::Attribute;\n    auto field = JBro::"
-                            + String(staticField ? "MakeStaticFieldEntry<&" : "MakeFieldEntry<&")
-                            + CppIdentifier(m_owner) + "::" + name + ">(" + attributeCode + ");\n"
+                            + String(staticField ? "MakeStaticAccessorFieldEntry<&" : "MakeFieldEntry<&")
+                            + CppIdentifier(m_owner) + "::" + (staticField ? StaticAccessor(node.Text) : name)
+                            + ">(" + (staticField ? Escape(node.Text) + ", " : String()) + attributeCode + ");\n"
                             "    field.name = " + Escape(node.Text) + ";\n"
                             "    JBro::Detail::ApplyFieldEntry(field, property, edit);\n}\n\n";
                     }
@@ -1022,17 +1084,17 @@ namespace JBro::ScriptCompiler
                         + std::to_string(reflectedIndex) + ">)\n    {\n"
                         "        using namespace JBro::Attribute;\n"
                         "        auto field = JBro::"
-                        + String(staticField ? "MakeStaticFieldEntry<&" : "MakeFieldEntry<&")
-                        + CppIdentifier(m_owner) + "::" + name + ">(" + attributeCode + ");\n"
+                        + String(staticField ? "MakeStaticAccessorFieldEntry<&" : "MakeFieldEntry<&")
+                        + CppIdentifier(m_owner) + "::" + (staticField ? StaticAccessor(node.Text) : name)
+                        + ">(" + (staticField ? Escape(node.Text) + ", " : String()) + attributeCode + ");\n"
                         "        field.name = " + Escape(node.Text) + ";\n"
                         "        return field;\n    }\n    " + memberAccess + ":\n"
-                        "    " + String(staticField ? "static " : "") + native + " " + name;
+                        "    " + FieldDeclaration(index, constant, true);
                     }
                 }
                 else
                 {
-                    m_code += "    " + String(staticField ? "static " : "")
-                        + (constant ? "const " : "") + native + " " + name;
+                    m_code += "    " + FieldDeclaration(index, constant, false);
                 }
                 m_code += ";\n";
             }
@@ -1091,28 +1153,78 @@ namespace JBro::ScriptCompiler
 
             void StaticFields(NodeIndex owner)
             {
+                Array<NodeIndex> fields;
+                for (NodeIndex field : m_tree->GetChildren(owner))
+                {
+                    if (field != InvalidNode && Node(field).Kind == SyntaxKind::FieldDeclaration
+                        && Node(field).Flags & SyntaxFlagStatic)
+                    {
+                        fields.Add(field);
+                    }
+                }
+                if (fields.IsEmpty())
+                {
+                    return;
+                }
                 m_variables.Clear();
                 AddFieldsFromBases(m_owner, m_variables);
                 m_fieldInitializer = true;
                 m_staticInitializer = true;
-                for (NodeIndex field : m_tree->GetChildren(owner))
+                const String nativeOwner = CppIdentifier(m_owner);
+                const String prefix = "jbro_gen_statics_" + nativeOwner;
+                m_code += "namespace\n{\n    unsigned char " + prefix + "_owner = 0;\n"
+                    "    JBro::ScriptStaticState " + prefix + "_state = JBro::ScriptStaticState::Uninitialized;\n";
+                for (NodeIndex field : fields)
                 {
-                    if (field == InvalidNode || Node(field).Kind != SyntaxKind::FieldDeclaration
-                        || !(Node(field).Flags & SyntaxFlagStatic))
-                    {
-                        continue;
-                    }
+                    m_code += "    JBro::ScriptStaticValue<" + NativeType(ParseType(Child(field, 1))) + "> "
+                        + prefix + "_" + CppIdentifier(Node(field).Text) + ";\n";
+                }
+                m_code += "    JBro::ScriptStaticRegistration " + prefix + "_registration(&" + nativeOwner
+                    + "::jbro_gen_initialize_statics, &" + nativeOwner + "::jbro_gen_destroy_statics);\n}\n\n";
+                m_code += "void " + nativeOwner + "::jbro_gen_initialize_statics()\n{\n"
+                    "    if (" + prefix + "_state != JBro::ScriptStaticState::Uninitialized)\n    {\n        return;\n    }\n"
+                    "    " + prefix + "_state = JBro::ScriptStaticState::Initializing;\n    try\n    {\n";
+                std::size_t ordinal = 0;
+                for (NodeIndex field : fields)
+                {
+                    const String key = SiteKey(Node(field));
+                    const String native = NativeType(ParseType(Child(field, 1)));
+                    const String initializer = FieldInitializer(field);
+                    m_code += "        JBro::ScriptGuard::BeginFieldInitialization(&" + prefix + "_owner, "
+                        + InitializationType(m_owner) + ", " + std::to_string(ordinal++) + ", " + Escape(key)
+                        + ", " + Escape(key + " static initialization nesting limit exceeded") + ");\n"
+                        "        " + prefix + "_" + CppIdentifier(Node(field).Text) + ".Construct([&]() -> " + native
+                        + " { return " + (initializer == "{}" ? String(native + "{}") : initializer) + "; });\n";
+                }
+                m_code += "        JBro::ScriptGuard::FinishInitialization(&" + prefix + "_owner, " + InitializationType(m_owner)
+                    + ");\n        " + prefix + "_state = JBro::ScriptStaticState::Ready;\n        " + prefix
+                    + "_registration.MarkInitialized();\n    }\n    catch (...)\n    {\n"
+                    "        JBro::ScriptGuard::FinishInitialization(&" + prefix + "_owner, " + InitializationType(m_owner)
+                    + ");\n        jbro_gen_destroy_statics();\n        throw;\n    }\n}\n\n";
+                m_code += "void " + nativeOwner + "::jbro_gen_destroy_statics() noexcept\n{\n";
+                for (std::size_t at = fields.Size(); at > 0; --at)
+                {
+                    m_code += "    " + prefix + "_" + CppIdentifier(Node(fields[at - 1]).Text) + ".Destroy();\n";
+                }
+                m_code += "    " + prefix + "_state = JBro::ScriptStaticState::Uninitialized;\n}\n\n";
+                ordinal = 0;
+                for (NodeIndex field : fields)
+                {
                     const NodeIndex attributes = Child(field, 0);
                     const bool reflected = Node(owner).Kind == SyntaxKind::StructDeclaration
                         || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
                     const bool constant = (Node(Child(field, 1)).Flags & SyntaxFlagConst) && !reflected;
-                    m_code += String(constant ? "const " : "") + NativeType(ParseType(Child(field, 1)))
-                        + " " + CppIdentifier(m_owner) + "::" + CppIdentifier(Node(field).Text)
-                        + " = " + FieldInitializer(field) + ";\n";
+                    const String key = SiteKey(Node(field));
+                    m_code += String(constant ? "const " : "") + NativeType(ParseType(Child(field, 1))) + "& "
+                        + nativeOwner + "::" + StaticAccessor(Node(field).Text) + "(const char* key, const char* message)\n{\n"
+                        "    jbro_gen_initialize_statics();\n"
+                        "    JBro::ScriptGuard::RequireInitializedField(&" + prefix + "_owner, " + InitializationType(m_owner)
+                        + ", " + std::to_string(ordinal++) + ", key != nullptr ? key : " + Escape(key)
+                        + ", message != nullptr ? message : " + Escape(key + " uninitialized static field: " + String(Node(field).Text))
+                        + ");\n    return " + prefix + "_" + CppIdentifier(Node(field).Text) + ".Get();\n}\n\n";
                 }
                 m_fieldInitializer = false;
                 m_staticInitializer = false;
-                m_code += '\n';
             }
 
             void Function(NodeIndex index, bool script, bool declaration)
@@ -1344,6 +1456,13 @@ namespace JBro::ScriptCompiler
                             return {receiver + CppIdentifier(name), result};
                         }
                     }
+                    for (const ApiGlobal& global : m_api.Globals)
+                    {
+                        if (global.Name == name && !global.NativeExpression.empty())
+                        {
+                            return {"JBro::" + global.NativeExpression, TextType(global.Type), true};
+                        }
+                    }
                     if (name == "Int" || name == "Float" || name == "Bool" || name == "String"
                         || Api(name) != nullptr || m_declarations.Contains(name))
                     {
@@ -1456,7 +1575,7 @@ namespace JBro::ScriptCompiler
                     const FieldRef field = FindField(receiver.type.name, node.Text);
                     if (receiver.isType)
                     {
-                        return {receiver.code + access, memberType, field.Owner != nullptr};
+                        return {GuardField(field, String(), receiver.code + access, index), memberType, field.Owner != nullptr};
                     }
                     if (node.Flags & SyntaxFlagNullSafe)
                     {

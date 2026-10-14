@@ -293,6 +293,40 @@ namespace JBro
         return entry;
     }
 
+    template <auto Getter>
+    constexpr FieldEntry MakeStaticAccessorFieldEntry(const char* name, const FieldAttributes& attributes = {})
+    {
+        using Field = std::remove_reference_t<std::invoke_result_t<decltype(Getter), const char*, const char*>>;
+        static_assert(!std::is_const_v<Field>, "reflected static fields require writable backing storage");
+        FieldEntry entry;
+        entry.name = name;
+        entry.GetType = &TypeDescriptorOf<Field>::Get;
+        entry.Address = [](void*) noexcept -> void*
+        {
+            try
+            {
+                return &Getter(nullptr, nullptr);
+            }
+            catch (...)
+            {
+                return nullptr;
+            }
+        };
+        entry.ConstAddress = [](const void*) noexcept -> const void*
+        {
+            try
+            {
+                return &Getter(nullptr, nullptr);
+            }
+            catch (...)
+            {
+                return nullptr;
+            }
+        };
+        entry.attributes = attributes;
+        return entry;
+    }
+
     // ---------------------------------------------------------------------
     // 개수는 스스로 센다 — END 매크로가 없다
     // ---------------------------------------------------------------------

@@ -221,8 +221,8 @@ namespace
         const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
         Check(emitted.Errors.IsEmpty()
                 && emitted.Code.find("const JBro::Int step") != String::npos
-                && emitted.Code.find("static JBro::Int total;") != String::npos
-                && emitted.Code.find("JBro::Int Counter::total = 0;") != String::npos
+                && emitted.Code.find("static JBro::Int& jbro_gen_static_total(") != String::npos
+                && emitted.Code.find("jbro_gen_statics_Counter_total.Construct") != String::npos
                 && emitted.Code.find("Counter::Counter([[maybe_unused]] JBro::Int start)") != String::npos
                 && emitted.Code.find("Counter::Next([[maybe_unused]] const JBro::Int amount)") != String::npos
                 && emitted.Code.find(" + Counter::Next(increment)") != String::npos,
@@ -269,7 +269,7 @@ namespace
         const SyntaxTree tree = Parse(source, diagnostics);
         const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
         Check(emitted.Errors.IsEmpty()
-                && emitted.Code.find("MakeStaticFieldEntry<&S::shared>(NoSerialize())") != String::npos,
+                && emitted.Code.find("MakeStaticAccessorFieldEntry<&S::jbro_gen_static_shared>(\"shared\", NoSerialize())") != String::npos,
             "static script properties use shared reflection storage excluded from instance saves");
     }
 

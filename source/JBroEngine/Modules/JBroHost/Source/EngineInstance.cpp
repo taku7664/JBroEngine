@@ -1664,7 +1664,7 @@ namespace JBro
         blocks.Clear();
         blocks.Reserve(frameworkBlocks.size + 10);
         blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
-        // The DLL receives the generation it will have after Load/Reload succeeds.
+        // SDK activation reserves this generation even when Load later fails.
         // A stale binding from an earlier load is ignored by the host callback.
         const UInt64 currentGeneration = m_scripts.GetGeneration();
         m_scriptErrorContext.Owner = &m_scripts;
@@ -1673,8 +1673,7 @@ namespace JBro
         m_scriptErrorContext.Report = [](void* owner, UInt64 expectedGeneration,
             const char* siteKey, const char* message) noexcept {
             const auto* loader = static_cast<const ScriptDLLLoader*>(owner);
-            if (loader == nullptr || false == loader->IsLoaded()
-                || loader->GetGeneration() != expectedGeneration)
+            if (loader == nullptr || !loader->AcceptsErrorGeneration(expectedGeneration))
             {
                 return;
             }

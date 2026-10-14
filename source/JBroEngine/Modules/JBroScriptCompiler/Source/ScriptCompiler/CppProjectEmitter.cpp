@@ -113,7 +113,10 @@ namespace JBro::ScriptCompiler
                             {
                                 continue;
                             }
-                            CollectValueType(source, source.Tree->GetChild(member, 1), complete);
+                            if (!(source.Tree->Get(member).Flags & SyntaxFlagStatic))
+                            {
+                                CollectValueType(source, source.Tree->GetChild(member, 1), complete);
+                            }
                         }
                         String header = "#pragma once\n" + Include(declaration.File + ".fwd.h");
                         Sort(used);

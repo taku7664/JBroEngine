@@ -1,6 +1,23 @@
 #include "JBroGenerated.h"
 #include <JBro/Runtime/ScriptGuard.h>
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_StaticStartup()
+{
+    const auto& fields = JBro::GetPropertyTable<StaticOwned>();
+    if (fields.count != 1 || fields.properties[0].type->fields != &fields
+        || fields.properties[0].Address(nullptr) != &StaticOwned::jbro_gen_static_singleton())
+    {
+        return -1;
+    }
+    return (StaticOwned::jbro_gen_static_singleton().score + StaticOwned::jbro_gen_static_first()
+        + StaticOwned::jbro_gen_static_second() + StaticDependent::jbro_gen_static_value()).Get();
+}
+
+extern "C" __declspec(dllexport) float JBroGeneratedProbe_StaticService()
+{
+    return StaticOwned::jbro_gen_static_scaleAtStartup().Get();
+}
+
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationGuard()
 {
     std::int64_t failures = 0;
@@ -10,7 +27,7 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationG
         {
             continue;
         }
-        InitIndirect::mode = mode;
+        InitIndirect::jbro_gen_static_mode() = mode;
         try
         {
             InitIndirect invalid;
@@ -20,12 +37,12 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationG
             ++failures;
         }
     }
-    InitIndirect::mode = 2;
+    InitIndirect::jbro_gen_static_mode() = 2;
     InitIndirect valid;
     InitEarlier earlier;
     InitDerived derived;
     InitRefHolder holder;
-    InitIndirect::mode = 0;
+    InitIndirect::jbro_gen_static_mode() = 0;
     try
     {
         InitNested nested;
@@ -34,7 +51,7 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationG
     {
         ++failures;
     }
-    InitIndirect::mode = 2;
+    InitIndirect::jbro_gen_static_mode() = 2;
     InitNested nested;
     return failures * 100 + (valid.first + valid.second + earlier.first + earlier.second
         + derived.third + holder.Change() + nested.owned.second).Get();
@@ -49,7 +66,7 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationC
 
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_InitializationMode(std::int64_t mode)
 {
-    InitIndirect::mode = mode;
+    InitIndirect::jbro_gen_static_mode() = mode;
 }
 
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializerScore()

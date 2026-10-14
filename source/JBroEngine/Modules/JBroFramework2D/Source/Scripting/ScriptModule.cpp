@@ -13,6 +13,7 @@
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/Runtime/ScriptErrorContext.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Runtime/ScriptStatics.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
 #include <JBro/Runtime/TextStore.h>
@@ -121,7 +122,13 @@ namespace JBro::Internal
                 BindFramework2DSystemContext(*frameworkSystems);
                 BindHostServices(*context);
                 // 호스트 표를 모두 묶은 **뒤에** 등록한다. 이름과 필드 표가 호스트 쪽에 들어가야 한다.
-                return RegisterPendingScriptTypes();
+                InitializePendingScriptSchemas();
+                if (!RegisterPendingScriptTypes())
+                {
+                    return false;
+                }
+                InitializePendingScriptStatics();
+                return true;
             }
             catch (...)
             {
@@ -132,6 +139,7 @@ namespace JBro::Internal
 
         void UnloadModule() noexcept
         {
+            DestroyScriptStatics();
             UnbindEverything();
         }
 
