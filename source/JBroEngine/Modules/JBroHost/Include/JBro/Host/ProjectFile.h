@@ -262,6 +262,10 @@ namespace JBro
     // `<name>.jproject` 와 에셋 폴더(`AssetDirectory` 기본값)를 만든다. 이름은 파일 이름이 될 수 있어야 하고,
     // **그 폴더가 이미 있으면 거절한다** - 남의 파일 위에 프로젝트를 덮어 세우지 않는다. 쓴 파일은 다시 읽어
     // 열리는 것까지 확인한다. 성공하면 `outProjectFilePath` 에 프로젝트 파일 경로가 온다.
+    // 새 프로젝트 이름을 검사한다. 폴더·파일 이름으로 쓸 수 없으면 `InvalidName`, 그 폴더에 이미 있으면 `AlreadyExists`, 쓸 수 있으면 `None`.
+    // `CreateProjectFile` 이 같은 검사를 하고, 새 프로젝트 팝업이 치는 동안 묻는다.
+    ProjectCreateFailure CheckProjectName(IPlatform& platform, const char* parentFolder, const char* name);
+
     Bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
         FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
         ProjectFileError& error);

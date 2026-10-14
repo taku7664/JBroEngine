@@ -2057,16 +2057,79 @@ namespace JBro
         return false == IsScalarRunType(type);
     }
 
+    namespace
+    {
+        // 그 분류의 필드가 모두 읽기 전용인가. 실행 중에 엔진이 채우는 캐시(`Transform2D` 의 `World cache`)가 그렇다.
+        Bool IsReadOnlyCategory(const PropertyTable& table, const char* category)
+        {
+            Bool any = false;
+            for (UInt32 index = 0; index < table.count; ++index)
+            {
+                const PropertyEditInfo* edit = table.properties[index].edit;
+                if (edit == nullptr || edit->category == nullptr || std::strcmp(edit->category, category) != 0)
+                {
+                    continue;
+                }
+                if (edit->editable)
+                {
+                    return false;
+                }
+                any = true;
+            }
+            return any;
+        }
+    }
+
     void InspectorPanel::DrawFieldsInto(
         Widget::FormLayout& layout,
         const PropertyTable& table,
         void* owner,
         Context& context)
     {
+        // **읽기 전용 분류는 접은 줄 아래에 둔다**(사용자 시나리오 A). `Transform2D` 의 월드 캐시(행렬 여섯 칸·월드 위치·회전·크기·유효)가
+        // 펼친 채로 위치·회전·크기 바로 밑을 차지해, 정작 고칠 컴포넌트와 `컴포넌트 추가` 가 화면 밖으로 밀렸다.
+        // 고칠 수 있는 필드가 섞인 분류(`AudioSource` 의 `Spatial`)는 지금처럼 그대로 늘어놓는다.
+        const char* foldCategory = nullptr;
+        Bool foldOpen = false;
+        // 접은 줄은 Id 를 쌓지 않는다(`NoTreePushOnOpen`) - 쌓으면 안쪽 필드의 Id 가 바뀌어 가이드 포커스와 시험이 가리키는 자리가 어긋난다.
+        // 안쪽임은 들여쓰기로만 보인다.
+        const auto closeFold = [&]() {
+            if (foldCategory != nullptr && foldOpen)
+            {
+                --context.openTrees;
+                ImGui::Unindent();
+            }
+            foldCategory = nullptr;
+            foldOpen = false;
+        };
         for (UInt32 index = 0; index < table.count; ++index)
         {
             const PropertyInfo& property = table.properties[index];
             if (property.type == nullptr || property.Address == nullptr)
+            {
+                continue;
+            }
+            const char* category = property.edit != nullptr ? property.edit->category : nullptr;
+            const Bool folded = category != nullptr && IsReadOnlyCategory(table, category);
+            if (false == folded || foldCategory == nullptr || std::strcmp(foldCategory, category) != 0)
+            {
+                closeFold();
+                if (folded)
+                {
+                    foldCategory = category;
+                    layout.FullRow([&]() {
+                        Widget::IdScope id(category);
+                        foldOpen = Widget::FoldNode(EditorNames::FieldCategoryLabel(category),
+                            ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_NoTreePushOnOpen);
+                    });
+                    if (foldOpen)
+                    {
+                        ++context.openTrees;
+                        ImGui::Indent();
+                    }
+                }
+            }
+            if (folded && false == foldOpen)
             {
                 continue;
             }
@@ -2252,6 +2315,7 @@ namespace JBro
 
             leave();
         }
+        closeFold();
     }
 
     void InspectorPanel::DrawValue(

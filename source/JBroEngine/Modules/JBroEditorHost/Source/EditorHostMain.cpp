@@ -250,8 +250,12 @@ namespace
 
 // 에디터를 실제 창으로 띄운다. 런처는 `--project` 로 열 프로젝트를 주고, 프로젝트를 주지
 // 않으면 예전처럼 확인용 씬이 뜬다. 인자 규약과 종료 코드는 D-97 이다.
+// `ParentConsole.cpp` 의 것이다. 터미널에서 띄웠으면 그 콘솔로 출력을 낸다.
+void AttachToParentConsole();
+
 int main(int argumentCount, char** arguments)
 {
+    AttachToParentConsole();
     HostOptions options;
     JBro::String optionError;
     if (false == ParseOptions(argumentCount, arguments, options, optionError))

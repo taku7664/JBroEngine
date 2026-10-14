@@ -18,6 +18,8 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Core/Profiler.h>
+#include <JBro/Core/Log.h>
+#include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Editor/Command/CanvasCommands.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
@@ -54,6 +56,7 @@
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Runtime/ScriptGuard.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -3644,6 +3647,23 @@ namespace
         // `world` 는 파생값이라 `ReadOnly` 다. 잠그지 않으면 사용자가 고쳐도
         // 다음 프레임이 덮어써, 고장 난 것처럼 보인다.
         const JBro::UInt32 world = FieldIndexOf(*transformTable, "world");
+        // 월드 캐시는 모두 읽기 전용이라 접힌 한 줄 아래에 있다(사용자 시나리오 A). 펼쳐서 본다.
+        {
+            ImGuiWindow* inspectorWindow = ImGui::FindWindowByName("Inspector");
+            Check(inspectorWindow != nullptr, "the inspector must have a window");
+            const ImGuiID table = LabelId(PushedId(inspectorWindow->ID, 0), "##component");
+            const ImGuiID fold = LabelId(LabelId(table, "World cache"), JBro::EditorNames::FieldCategoryLabel("World cache"));
+            Spot hidden;
+            Check(FindInspectorItem(editor, hwnd, InspectorFieldId(0, world, "world"), hidden) == false,
+                "the world cache starts folded, hiding the cache");
+            Spot foldSpot;
+            Check(FindInspectorItem(editor, hwnd, fold, foldSpot), "the folded world cache row must be in the inspector");
+            ClickAt(editor, hwnd, foldSpot);
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the fold must open");
+            }
+        }
         Spot lockedSpot;
         Check(FindInspectorItem(editor, hwnd,
                 InspectorFieldId(0, world, "world"), lockedSpot),
@@ -6843,6 +6863,70 @@ namespace
             "the selection is cleared, because the objects it pointed at are gone");
 
         editor.Shutdown();
+    }
+
+    __declspec(noinline) void ScriptWritesThroughNull()
+    {
+        volatile int* nothing = nullptr;
+        *nothing = 1;
+    }
+
+    // **스크립트가 죽어도 에디터는 산다**(D-325). 실행 중 훅에서 예외가 나면 다음 프레임에 실행을 멈추고 실행 전 캔버스로 되돌리며,
+    // 오류 알림을 띄운다. 실행 중이 아니면 알리기만 한다. 진짜 스크립트 대신 에디터가 켠 보호를 거쳐 null 에 쓴다.
+    void TestAScriptFaultStopsPlayAndTellsTheUser()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; script faults not verified" << std::endl;
+            return;
+        }
+        Check(JBro::ScriptGuard::IsEnabled(), "the editor turns the script guard on");
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ScriptFaultProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* kept = canvas->CreateObject("Kept");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(kept);
+        transform->position = JBro::Vector2{3.0f, 4.0f};
+        Check(editor.Tick(Frame), "the editor must tick before play");
+
+        Check(editor.StartSimulation(), "play must start");
+        canvas->CreateObject("Spawned");
+        transform->position = JBro::Vector2{-9.0f, -9.0f};
+        Check(false == JBro::ScriptGuard::Call("OnUpdate", [] { ScriptWritesThroughNull(); }), "the faulting hook is caught");
+        Check(editor.Tick(Frame), "the editor keeps ticking after a script fault");
+        Check(false == editor.IsSimulationPlaying(), "and has stopped the simulation");
+        Check(false == JBro::ScriptGuard::HasFault(), "having taken the fault");
+        Check(canvas->GetObjectCount() == 1, "what the game made is gone");
+        JBro::Array<JBro::Object::GameObject*> roots;
+        canvas->GetRootObjects(roots);
+        auto* restored = roots.Size() == 1 ? canvas->FindComponentRaw<JBro::Component::Transform2D>(roots[0]) : nullptr;
+        Check(restored != nullptr && std::fabs(restored->position.x - 3.0f) < 1.0e-4f,
+            "and the canvas is back to how it was before play");
+        Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Error, "the user is told with an error");
+        Check(std::strcmp(editor.GetNotifications().GetLastTitle(),
+                  JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFaultStopped, "A script error stopped the simulation")) == 0,
+            "that says the simulation stopped");
+
+        // 실행 중이 아니면(편집 중에 붙인 스크립트의 훅) 멈출 것이 없고 알리기만 한다.
+        Check(false == JBro::ScriptGuard::Call("OnAttached", [] { ScriptWritesThroughNull(); }), "a fault while editing is caught too");
+        Check(editor.Tick(Frame), "the editor keeps ticking");
+        Check(false == JBro::ScriptGuard::HasFault(), "and takes it");
+        Check(std::strcmp(editor.GetNotifications().GetLastTitle(),
+                  JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFault, "A script raised an error")) == 0,
+            "saying only that a script raised an error");
+        Check(canvas->GetObjectCount() == 1, "leaving the canvas alone");
+
+        editor.Shutdown();
+        Check(false == JBro::ScriptGuard::IsEnabled(), "shutting down turns the guard off");
     }
 
     // **빈 곳을 끌면 상자가 되고, 그 안에 닿은 것이 모두 골라진다**(기존 엔진의 드래그 박스
@@ -15871,6 +15955,552 @@ namespace
     }
 }
 
+namespace
+{
+    // ── 사용자 시나리오(tasks/script-user-scenario.md) ─────────────────────────────────────────────
+    // 에디터를 켜서 스크립트를 쓰고 돌리기까지를 사용자가 하는 차례 그대로 걷는다. 단계마다 `JBRO_EDITOR_SHOT` 이 있으면 화면을 찍는다.
+    // 메뉴 항목이 부르는 것과 같은 함수(`RequestNewProject`·`OpenNewScriptPopup`·`BuildScripts`)를 부르고, 팝업과 인스펙터는 글자·키·클릭으로 다룬다.
+
+    constexpr JBro::UInt32 ScenarioWidth = 1280;
+    constexpr JBro::UInt32 ScenarioHeight = 720;
+
+    void ScenarioShot(JBro::EditorApplication& editor, const char* name)
+    {
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle before a shot");
+        }
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, name);
+    }
+
+    // 도크 칸에서 그 패널의 탭이 앞에 있는가. `###` 뒤의 식별자로 찾는다 - 가려진 탭의 창은 활성이 아닐 수 있어 활성 여부는 보지 않는다.
+    JBro::Bool IsFrontTab(const char* panelId)
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            const char* mark = std::strstr(window->Name, "###");
+            if (mark != nullptr && std::strcmp(mark + 3, panelId) == 0)
+            {
+                return window->DockNode != nullptr && window->DockNode->TabBar != nullptr
+                    && window->DockNode->TabBar->SelectedTabId == window->TabId;
+            }
+        }
+        return false;
+    }
+
+    void TypeText(JBro::EditorApplication& editor, const char* text)
+    {
+        ImGui::GetIO().AddInputCharactersUTF8(text);
+        Check(editor.Tick(Frame), "the editor must take the typed text");
+    }
+
+    void PressKey(JBro::EditorApplication& editor, ImGuiKey key)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddKeyEvent(key, true);
+        Check(editor.Tick(Frame), "the editor must see the key go down");
+        io.AddKeyEvent(key, false);
+        Check(editor.Tick(Frame), "the editor must see the key come up");
+    }
+
+    // 지금 칸의 글자를 다 지운다. 끝으로 가서 Backspace 를 칸 길이(이름 칸은 128 자까지)만큼 누른다 - 사람이 지우는 것과 같은 길이다.
+    void ClearField(JBro::EditorApplication& editor)
+    {
+        PressKey(editor, ImGuiKey_End);
+        ImGuiIO& io = ImGui::GetIO();
+        // 누름과 뗌 사이마다 프레임을 넘긴다. 같은 프레임에 넣으면 ImGui 가 남은 것을 다음 프레임으로 미뤄, 그 뒤에 친 글자를 지운다.
+        for (JBro::Int32 press = 0; press < 40; ++press)
+        {
+            io.AddKeyEvent(ImGuiKey_Backspace, true);
+            Check(editor.Tick(Frame), "backspace goes down");
+            io.AddKeyEvent(ImGuiKey_Backspace, false);
+            Check(editor.Tick(Frame), "backspace comes up");
+        }
+    }
+
+    JBro::Bool WaitForScriptBuild(JBro::EditorApplication& editor)
+    {
+        using State = JBro::EditorApplication::ScriptBuildState;
+        for (JBro::Int32 round = 0; round < 6000 && editor.GetScriptBuildState() == State::Running; ++round)
+        {
+            Check(editor.Tick(Frame), "the editor keeps ticking while the scripts build");
+            Sleep(30);
+        }
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor takes the build result");
+        }
+        return editor.GetScriptBuildState() != State::Running;
+    }
+
+    JBro::Bool HaveScriptBuildTools()
+    {
+        JBro::WindowsPlatform probe;
+        JBro::JMemoryContext memory;
+        if (false == probe.Initialize(memory))
+        {
+            return false;
+        }
+        const JBro::String msbuild = JBro::ScriptBuild::LocateMSBuild(probe, TempPath("JBroUserScenarioTools").c_str());
+        probe.Shutdown();
+        return false == msbuild.empty();
+    }
+
+    std::string ReadWholeText(const std::filesystem::path& path)
+    {
+        std::ifstream file(path, std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    }
+
+    void WriteWholeText(const std::filesystem::path& path, const std::string& text)
+    {
+        std::ofstream(path, std::ios::binary) << text;
+    }
+
+    // 함수 머리 `marker` 다음의 `{` 뒤에 `body` 를 넣는다.
+    std::string InsertIntoFunction(std::string text, const char* marker, const char* body)
+    {
+        const std::size_t at = text.find(marker);
+        Check(at != std::string::npos, "the generated script has the hook");
+        const std::size_t brace = text.find('{', at);
+        Check(brace != std::string::npos, "and its body");
+        text.insert(brace + 1, body);
+        return text;
+    }
+
+    // 스크립트가 하나 붙은 첫 뿌리 오브젝트다. 정지는 오브젝트를 새로 만들어 되돌리므로 포인터를 들고 다니지 않고 매번 찾는다.
+    JBro::Object::GameObject* FindScriptedObject(JBro::Canvas& canvas)
+    {
+        JBro::Array<JBro::Object::GameObject*> roots;
+        canvas.GetRootObjects(roots);
+        for (JBro::Object::GameObject* each : roots)
+        {
+            if (each->GetScripts().Size() == 1)
+            {
+                return each;
+            }
+        }
+        return nullptr;
+    }
+
+    JBro::Float ScriptedX(JBro::Canvas& canvas)
+    {
+        JBro::Object::GameObject* object = FindScriptedObject(canvas);
+        Check(object != nullptr, "the scripted object must be there");
+        auto* transform = canvas.FindComponentRaw<JBro::Component::Transform2D>(object);
+        Check(transform != nullptr, "with a transform");
+        return transform->position.x;
+    }
+
+    JBro::Bool RunEditorAction(JBro::EditorApplication& editor, const char* id)
+    {
+        const JBro::EditorActionInfo* action = JBro::EditorActionRegistry::Get().Find(id);
+        Check(action != nullptr, "the action must be registered");
+        JBro::EditorActionContext context;
+        context.editor = &editor;
+        JBro::EditorActionUi::ResolvePanel(*action, context);
+        return JBro::EditorActionUi::Execute(*action, context);
+    }
+
+    // **시나리오 A: 처음 쓰는 사용자.** 프로젝트 없이 켠다 → 새 프로젝트 → 새 스크립트 → 코드를 적는다 → 빌드 → 오브젝트를 만들고
+    // 컴포넌트 추가로 스크립트를 붙인다 → 실행해 움직이는 것을 본다 → 멈추면 돌아온다 → 오타로 빌드가 깨진다 → 빌드 결과에서 그 줄을 연다
+    // → 고쳐 다시 빌드하면 붙은 스크립트가 그대로 이어진다.
+    void TestScenarioAFirstScript()
+    {
+        namespace fs = std::filesystem;
+        if (false == HaveScriptBuildTools())
+        {
+            std::cout << "  [skip] no MSBuild with the script toolset; scenario A not verified" << std::endl;
+            return;
+        }
+        const fs::path root(TempPath("JBroUserScenarioA").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root, ignored);
+
+        DialogProbe dialog;
+        dialog.path = JBro::String(root.string().c_str());
+        g_openedPath.clear();
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        config.openPath = RecordOpenedPath;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario A not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        ScenarioShot(editor, "a01_start");
+
+        // ── 1. 새 프로젝트 ─────────────
+        editor.RequestNewProject();
+        Check(editor.Tick(Frame), "the folder dialog runs outside the frame");
+        Check(dialog.calls == 1 && dialog.pickFolder, "a new project asks for a folder first");
+        Check(editor.IsPopupOpenById("new_project"), "then for a name");
+        ScenarioShot(editor, "a02_new_project");
+        TypeText(editor, "My Game");
+        ScenarioShot(editor, "a03_new_project_named");
+        PressKey(editor, ImGuiKey_Enter);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor switches to the new project");
+        }
+        Check(false == editor.IsPopupOpenById("new_project"), "the popup closes");
+        Check(editor.HasOpenProject() && editor.GetCanvas() != nullptr, "and the new project is open with a canvas");
+        const fs::path project = root / "My Game";
+        ScenarioShot(editor, "a04_project_open");
+        // 스크립트는 에셋 브라우저의 `스크립트` 뿌리에서 만든다. 처음 연 에디터의 아래 칸은 그 탭이 앞이어야 한다.
+        Check(IsFrontTab("Assets"), "the asset browser is the front tab of the bottom dock");
+        Check(IsFrontTab("CanvasView"), "and the canvas view is the front tab of the center");
+
+        // ── 2. 새 스크립트 (에셋 브라우저의 스크립트 뿌리 → 우클릭 → 새 스크립트) ─────────────
+        editor.OpenNewScriptPopup("");
+        Check(editor.Tick(Frame), "the popup opens");
+        Check(editor.IsPopupOpenById("new_script"), "the new script popup is open");
+        ScenarioShot(editor, "a05_new_script_empty");
+        TypeText(editor, "PlayerMover");
+        ScenarioShot(editor, "a06_new_script_named");
+        PressKey(editor, ImGuiKey_Enter);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the script is created");
+        }
+        Check(false == editor.IsPopupOpenById("new_script"), "the popup closes after creating");
+        const fs::path header = project / "Contents" / "Scripts" / "PlayerMover.h";
+        const fs::path source = project / "Contents" / "Scripts" / "PlayerMover.cpp";
+        Check(fs::is_regular_file(header) && fs::is_regular_file(source), "the header and the source are written");
+        ScenarioShot(editor, "a07_script_created");
+
+        // ── 3. 코드를 적는다 (편집기에서 하는 일) ─────────────
+        WriteWholeText(source, InsertIntoFunction(ReadWholeText(source), "PlayerMover::OnUpdate()",
+            "\r\n    Transform2D transform = GetGameObject().GetComponent<Transform2D>();\r\n"
+            "    Vector2 position = transform.GetPosition();\r\n"
+            "    position.x = position.x + 0.25f;\r\n"
+            "    transform.SetPosition(position);\r\n"));
+
+        // ── 4. 빌드 (파일 → 스크립트 빌드) ─────────────
+        Check(editor.BuildScripts(), "the build starts");
+        ScenarioShot(editor, "a08_building");
+        Check(WaitForScriptBuild(editor), "the build ends");
+        Check(editor.GetScriptBuildState() == JBro::EditorApplication::ScriptBuildState::Succeeded, "the first build succeeds");
+        Check(editor.IsScriptModuleLoaded(), "and the scripts are loaded at once");
+        Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Success, "the user is told it worked");
+        ScenarioShot(editor, "a09_built");
+
+        // ── 5. 오브젝트를 만들고 컴포넌트 추가로 스크립트를 붙인다 ─────────────
+        Check(RunEditorAction(editor, "object.create"), "an object is created from the hierarchy");
+        JBro::Object::GameObject* object = editor.GetSelectedObject();
+        Check(object != nullptr, "and chosen");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector shows it");
+        }
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        // 보이게 그림부터 붙인다(그림 없는 오브젝트는 실행해도 보이지 않는다). 그다음 스크립트다. 둘 다 `컴포넌트 추가` 한 버튼이다.
+        const auto addComponent = [&](const char* search) {
+            Spot add;
+            Check(FindInspectorItem(editor, hwnd, LabelId(inspector->ID, "##AddComponent"), add), "the add component button is there");
+            ClickAt(editor, hwnd, add);
+            Check(editor.Tick(Frame), "the list opens");
+            Check(editor.Tick(Frame), "its search box takes focus");
+            TypeText(editor, search);
+        };
+        addComponent("SpriteRenderer2D");
+        PressKey(editor, ImGuiKey_Enter);
+        Check(editor.GetCanvas()->FindComponentRaw<JBro::Component::SpriteRenderer2D>(object) != nullptr, "a sprite renderer makes it visible");
+        addComponent("PlayerMover");
+        ScenarioShot(editor, "a10_add_component_search");
+        PressKey(editor, ImGuiKey_Enter);
+        Check(object->GetScripts().Size() == 1, "the script is attached");
+        ScenarioShot(editor, "a11_script_attached");
+
+        // ── 6. 실행하면 움직이고, 멈추면 돌아온다 ─────────────
+        const JBro::Float startX = ScriptedX(*editor.GetCanvas());
+        Check(RunEditorAction(editor, "simulation.play"), "play (F5) starts");
+        for (JBro::Int32 frame = 0; frame < 20; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor plays");
+        }
+        Check(editor.IsSimulationPlaying(), "the simulation runs");
+        Check(ScriptedX(*editor.GetCanvas()) > startX + 2.0f, "the script moves its object while playing");
+        ScenarioShot(editor, "a12_playing");
+        Check(RunEditorAction(editor, "simulation.play"), "pressing play again stops");
+        Check(editor.Tick(Frame), "the editor stops");
+        Check(false == editor.IsSimulationPlaying(), "the simulation stops");
+        Check(ScriptedX(*editor.GetCanvas()) == startX, "stopping puts the object back");
+        ScenarioShot(editor, "a13_stopped");
+
+        // ── 7. 오타로 빌드가 깨진다 → 빌드 결과에서 그 줄을 연다 ─────────────
+        const std::string good = ReadWholeText(source);
+        std::string broken = good;
+        const std::size_t typo = broken.find("position.x + 0.25f;");
+        Check(typo != std::string::npos, "the line to break is there");
+        broken.replace(typo, std::strlen("position.x + 0.25f;"), "position.x + spped;");
+        WriteWholeText(source, broken);
+        JBro::UInt32 typoLine = 1;
+        for (std::size_t at = 0; at < typo; ++at)
+        {
+            typoLine += broken[at] == '\n' ? 1 : 0;
+        }
+        Check(editor.BuildScripts(), "the broken build starts");
+        Check(WaitForScriptBuild(editor), "and ends");
+        Check(editor.GetScriptBuildState() == JBro::EditorApplication::ScriptBuildState::Failed, "a typo fails the build");
+        Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Error, "the user is told it failed");
+        Check(editor.FindPanel("BuildResults") != nullptr && editor.FindPanel("BuildResults")->IsOpen(), "the build results come up");
+        std::size_t typoDiagnostic = editor.GetScriptDiagnostics().Size();
+        for (std::size_t index = 0; index < editor.GetScriptDiagnostics().Size(); ++index)
+        {
+            const JBro::ScriptBuild::Diagnostic& diagnostic = editor.GetScriptDiagnostics()[index];
+            if (diagnostic.isError && diagnostic.line == typoLine && std::strstr(diagnostic.file.c_str(), "PlayerMover.cpp") != nullptr)
+            {
+                typoDiagnostic = index;
+            }
+        }
+        Check(typoDiagnostic < editor.GetScriptDiagnostics().Size(), "an error points at the line with the typo");
+        ScenarioShot(editor, "a14_build_error");
+        Check(IsFrontTab("BuildResults"), "a failed build brings the error list to the front");
+        Check(editor.OpenScriptDiagnostic(typoDiagnostic), "the error opens");
+        Check(std::strstr(g_openedPath.c_str(), "PlayerMover.cpp") != nullptr, "in the script's file");
+
+        // ── 8. 고쳐 다시 빌드하면 붙은 스크립트가 이어진다 ─────────────
+        WriteWholeText(source, good);
+        Check(editor.BuildScripts(), "the fixed build starts");
+        Check(WaitForScriptBuild(editor), "and ends");
+        Check(editor.GetScriptBuildState() == JBro::EditorApplication::ScriptBuildState::Succeeded, "the fixed build succeeds");
+        Check(FindScriptedObject(*editor.GetCanvas()) != nullptr, "the script is still on the object after the reload");
+        ScenarioShot(editor, "a15_fixed");
+
+        editor.Shutdown();
+    }
+}
+
+namespace
+{
+    // 새 스크립트 팝업에 이름을 넣고 Enter 를 누른 뒤, 만들어지지 않고 까닭이 보이는지 본다.
+    void ExpectScriptNameRefused(JBro::EditorApplication& editor, const std::filesystem::path& scripts, const char* name,
+        JBro::ScriptProject::NameProblem problem, const char* shot)
+    {
+        Check(editor.IsPopupOpenById("new_script"), "the new script popup is open");
+        ClearField(editor);
+        TypeText(editor, name);
+        Check(editor.CheckScriptName("", name) == problem, "the name is judged as expected");
+        if (shot != nullptr)
+        {
+            ScenarioShot(editor, shot);
+        }
+        // 이미 있는 이름이면 그 파일이 거절 뒤에도 그대로여야 한다. 없던 이름이면 생기지 않아야 한다.
+        std::error_code ignored;
+        const std::filesystem::path written = scripts / std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(name)) + u8".cpp");
+        const JBro::Bool existed = std::filesystem::exists(written, ignored);
+        const auto before = existed ? std::filesystem::last_write_time(written, ignored) : std::filesystem::file_time_type{};
+        PressKey(editor, ImGuiKey_Enter);
+        Check(editor.Tick(Frame), "the editor takes Enter");
+        Check(editor.IsPopupOpenById("new_script"), "a refused name keeps the popup open");
+        Check(std::filesystem::exists(written, ignored) == existed, "and writes no new file");
+        Check(false == existed || std::filesystem::last_write_time(written, ignored) == before, "nor overwrites the one that is there");
+    }
+
+    // **시나리오 B: 적대적인 사용자.** 대화상자를 취소하고, 쓸 수 없는 이름을 넣고, 같은 이름을 두 번 만들고, 스크립트 없이 빌드하고,
+    // 빌드를 두 번 누르고, 실행 중에 빌드하고, 터지는 스크립트를 돌리고, 붙은 스크립트의 파일을 지우고 빌드하고, 빌드 중에 프로젝트를 닫는다.
+    // 한글 폴더·한글 프로젝트 이름에서 한다. 어느 경우에도 에디터가 살고, 무엇이 왜 안 됐는지 화면이 말해야 한다.
+    void TestScenarioBHostileUser()
+    {
+        namespace fs = std::filesystem;
+        using State = JBro::EditorApplication::ScriptBuildState;
+        if (false == HaveScriptBuildTools())
+        {
+            std::cout << "  [skip] no MSBuild with the script toolset; scenario B not verified" << std::endl;
+            return;
+        }
+        const fs::path root = fs::path(TempPath("JBroUserScenarioB").c_str()) / fs::path(u8"사용자 폴더");
+        std::error_code ignored;
+        fs::remove_all(root.parent_path(), ignored);
+        fs::create_directories(root / "Taken", ignored);
+
+        DialogProbe dialog;
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        config.openPath = RecordOpenedPath;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario B not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        // ── 1. 폴더를 고르다 취소한다 ─────────────
+        dialog.path.clear();
+        editor.RequestNewProject();
+        Check(editor.Tick(Frame), "the cancelled dialog returns");
+        Check(false == editor.IsPopupOpenById("new_project"), "cancelling the folder asks nothing more");
+
+        // ── 2. 쓸 수 없는 프로젝트 이름 ─────────────
+        dialog.path = JBro::String(reinterpret_cast<const char*>(root.u8string().c_str()));
+        editor.RequestNewProject();
+        Check(editor.Tick(Frame), "the folder is chosen");
+        Check(editor.IsPopupOpenById("new_project"), "the name popup opens");
+        PressKey(editor, ImGuiKey_Enter);
+        Check(editor.IsPopupOpenById("new_project") && false == editor.HasOpenProject(), "an empty name makes nothing");
+        ScenarioShot(editor, "b01_project_empty_name");
+        TypeText(editor, "a/b");
+        PressKey(editor, ImGuiKey_Enter);
+        Check(editor.IsPopupOpenById("new_project") && false == editor.HasOpenProject(), "a name with a slash is refused");
+        ScenarioShot(editor, "b02_project_bad_name");
+        ClearField(editor);
+        TypeText(editor, "Taken");
+        PressKey(editor, ImGuiKey_Enter);
+        Check(editor.IsPopupOpenById("new_project") && false == editor.HasOpenProject(), "a name already in the folder is refused");
+        ScenarioShot(editor, "b03_project_taken_name");
+        ClearField(editor);
+        TypeText(editor, reinterpret_cast<const char*>(u8"내 게임"));
+        ScenarioShot(editor, "b03b_project_korean_typed");
+        PressKey(editor, ImGuiKey_Enter);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the Korean named project opens");
+        }
+        Check(editor.HasOpenProject(), "a Korean name under a Korean folder works");
+        const fs::path project = root / fs::path(u8"내 게임");
+        const fs::path scripts = project / "Contents" / "Scripts";
+
+        // ── 3. 스크립트가 하나도 없는데 빌드한다 ─────────────
+        Check(false == editor.BuildScripts(), "there is nothing to build yet");
+        Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Warning, "and the user is told why");
+        ScenarioShot(editor, "b04_build_without_scripts");
+
+        // ── 4. 쓸 수 없는 스크립트 이름 ─────────────
+        editor.OpenNewScriptPopup("");
+        Check(editor.Tick(Frame), "the popup opens");
+        using Problem = JBro::ScriptProject::NameProblem;
+        ExpectScriptNameRefused(editor, scripts, "", Problem::Empty, "b05_script_empty_name");
+        ExpectScriptNameRefused(editor, scripts, "1Player", Problem::NotIdentifier, "b06_script_digit_name");
+        ExpectScriptNameRefused(editor, scripts, "class", Problem::Reserved, "b07_script_keyword");
+        ExpectScriptNameRefused(editor, scripts, "Transform2D", Problem::TakenByType, "b08_script_engine_type");
+        ExpectScriptNameRefused(editor, scripts, "Player Mover", Problem::NotIdentifier, nullptr);
+        ExpectScriptNameRefused(editor, scripts, reinterpret_cast<const char*>(u8"플레이어"), Problem::NotIdentifier, "b09_script_korean");
+        ClearField(editor);
+        TypeText(editor, "Hero");
+        PressKey(editor, ImGuiKey_Enter);
+        Check(editor.Tick(Frame), "the script is made");
+        Check(fs::is_regular_file(scripts / "Hero.cpp"), "a good name is made");
+        editor.OpenNewScriptPopup("");
+        Check(editor.Tick(Frame), "the popup opens again");
+        ExpectScriptNameRefused(editor, scripts, "Hero", Problem::TakenByFile, "b10_script_duplicate");
+        PressKey(editor, ImGuiKey_Escape);
+        Check(editor.Tick(Frame), "escape closes the popup");
+        Check(false == editor.IsPopupOpenById("new_script"), "the popup closes on escape");
+
+        // 터지는 스크립트: 30 번째 OnUpdate 에서 null 에 쓴다.
+        const fs::path heroSource = scripts / "Hero.cpp";
+        WriteWholeText(heroSource, InsertIntoFunction(ReadWholeText(heroSource), "Hero::OnUpdate()",
+            "\r\n    static int frames = 0;\r\n"
+            "    ++frames;\r\n"
+            "    if (frames == 30)\r\n"
+            "    {\r\n"
+            "        volatile int* nothing = nullptr;\r\n"
+            "        *nothing = 1;\r\n"
+            "    }\r\n"));
+        JBro::UInt32 crashLine = 0;
+        {
+            const std::string text = ReadWholeText(heroSource);
+            const std::size_t at = text.find("*nothing = 1;");
+            crashLine = 1;
+            for (std::size_t index = 0; index < at; ++index)
+            {
+                crashLine += text[index] == '\n' ? 1 : 0;
+            }
+        }
+
+        // ── 5. 빌드를 두 번 누른다 ─────────────
+        Check(editor.BuildScripts(), "the build starts");
+        Check(false == editor.BuildScripts(), "a second press does not start another build");
+        ScenarioShot(editor, "b11_build_twice");
+        Check(WaitForScriptBuild(editor) && editor.GetScriptBuildState() == State::Succeeded, "the one build succeeds");
+
+        // ── 6. 터지는 스크립트를 붙여 실행한다 ─────────────
+        Check(RunEditorAction(editor, "object.create"), "an object is created");
+        JBro::Object::GameObject* object = editor.GetSelectedObject();
+        Check(object != nullptr && editor.GetCanvas()->AttachScript(object, "Hero") != nullptr, "the hero script attaches");
+        const JBro::String before = [&]() {
+            JBro::String text;
+            JBro::CanvasFileError error;
+            Check(JBro::WriteCanvasText(*editor.GetCanvas(), text, error), "the canvas writes as text");
+            return text;
+        }();
+        Check(RunEditorAction(editor, "simulation.play"), "play starts");
+        for (JBro::Int32 frame = 0; frame < 60 && editor.IsSimulationPlaying(); ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor lives through the crash");
+        }
+        Check(false == editor.IsSimulationPlaying(), "the crash stops the simulation");
+        {
+            JBro::String after;
+            JBro::CanvasFileError error;
+            Check(JBro::WriteCanvasText(*editor.GetCanvas(), after, error) && after == before, "and the canvas is back as it was");
+        }
+        Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Error, "an error is shown");
+        ScenarioShot(editor, "b12_script_crashed");
+        // 알림은 그 스크립트의 그 줄을 가리킨다 - 로그에 적힌 첫 스크립트 프레임으로 본다.
+        JBro::Bool pointed = false;
+        char lineText[32];
+        std::snprintf(lineText, sizeof(lineText), "Hero.cpp:%u", static_cast<unsigned int>(crashLine.Value));
+        for (std::size_t index = 0; index < JBro::Log::GetCount(); ++index)
+        {
+            const JBro::LogEntry* entry = JBro::Log::GetAt(index);
+            pointed = pointed || (entry != nullptr && std::strstr(entry->message, lineText) != nullptr);
+        }
+        Check(pointed, "the crash is placed at the line in the script's own file");
+
+        // ── 7. 실행 중에 빌드한다: 다시 싣기는 멈춘 뒤로 미룬다 ─────────────
+        Check(RunEditorAction(editor, "simulation.play"), "play starts again");
+        Check(editor.Tick(Frame), "the editor plays");
+        Check(editor.BuildScripts(), "a build starts while playing");
+        Check(WaitForScriptBuild(editor), "and ends");
+        if (editor.IsSimulationPlaying())
+        {
+            Check(editor.IsScriptReloadPending(), "the reload waits for the simulation to stop");
+            ScenarioShot(editor, "b13_build_while_playing");
+            Check(RunEditorAction(editor, "simulation.play"), "stop");
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor stops and reloads");
+            }
+            Check(false == editor.IsScriptReloadPending(), "and reloads once stopped");
+        }
+
+        // ── 8. 붙은 스크립트의 파일을 지우고 빌드한다 ─────────────
+        fs::remove(scripts / "Hero.cpp", ignored);
+        fs::remove(scripts / "Hero.h", ignored);
+        Check(editor.BuildScripts(), "the build without the hero starts");
+        Check(WaitForScriptBuild(editor), "and ends");
+        ScenarioShot(editor, "b14_script_deleted");
+        Check(editor.GetCanvas()->GetUnresolvedScriptCount() == 1, "the hero is kept on its object as saved, not lost");
+        Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Warning,
+            "and the user is warned that a script on the canvas no longer exists");
+
+        // ── 9. 빌드 중에 프로젝트를 닫는다 ─────────────
+        Check(editor.BuildScripts(), "another build starts");
+        editor.CloseProject();
+        Check(editor.GetScriptBuildState() != State::Running, "closing the project stops the build");
+        Check(editor.Tick(Frame), "the editor keeps running without a project");
+        ScenarioShot(editor, "b15_closed_mid_build");
+        editor.Shutdown();
+    }
+}
+
 JBro::Int32 RunEditorApplicationTests()
 {
     TestEditorProjectSessions();
@@ -15923,6 +16553,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
+    TestAScriptFaultStopsPlayAndTellsTheUser();
     TestPlayingRunsPhysicsAndStoppingPutsItBack();
     TestSteppingAPausedGameAndTheDebugLineToggles();
     TestThePhysicsThreadsSettingReachesPlay();
@@ -16003,5 +16634,14 @@ JBro::Int32 RunEditorApplicationTests()
     TestCanvasWorkNeedsAnOpenProject();
     TestAProjectOpensWithoutItsScriptModule();
     std::cout << "Editor application tests passed.\n";
+    return 0;
+}
+
+// 사용자 시나리오(tasks/script-user-scenario.md)는 실제 MSBuild 로 스크립트를 빌드해 오래 걸리므로 묶음을 따로 둔다.
+JBro::Int32 RunUserScenarioTests()
+{
+    TestScenarioAFirstScript();
+    TestScenarioBHostileUser();
+    std::cout << "User scenario tests passed.\n";
     return 0;
 }

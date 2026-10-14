@@ -96,11 +96,12 @@ namespace JBro
                         "The class name. Canvas files save the script under this name."))
                     .Required(),
                 [&]() {
-                    if (ImGui::IsWindowAppearing())
+                    if (ImGui::IsWindowAppearing() || m_refocus)
                     {
                         ImGui::SetKeyboardFocusHere();
+                        m_refocus = false;
                     }
-                    submitted = Widget::TextField("##name", m_name).CommitOnEnter().MaxLength(64)();
+                    submitted = Widget::TextField("##name", m_name).CommitOnEnter().LiveText().MaxLength(64)();
                 });
         }
         const ScriptProject::NameProblem nameProblem = editor.CheckScriptName(m_folder.c_str(), m_name.c_str());
@@ -175,20 +176,26 @@ namespace JBro
             Close();
             return;
         }
+        if (submitted && false == canCreate)
+        {
+            m_refocus = true;
+        }
         if (submitted && canCreate)
         {
             String failure;
             const String created = editor.CreateScript(m_folder.c_str(), m_name.c_str(), m_fields, failure);
             if (false == created.empty())
             {
-                // 편집기로 저절로 열지는 않는다 - 어느 편집기로 열지는 아직 정하지 않았다(cpp-script-plan §4).
-                // 에셋 브라우저가 그 폴더를 보이고, 두 번 누르면 연다.
+                // 편집기를 저절로 띄우지는 않는다 - Visual Studio 는 뜨는 데 오래 걸리고, 사용자가 이어서 스크립트를 더 만들 수 있다.
+                // 대신 만들었다는 것과 다음에 할 일을 알리고, 그 알림을 누르면 편집기 설정에서 고른 편집기로 연다.
+                editor.NotifyScriptCreated(created, m_name.c_str());
                 Close();
                 return;
             }
             // 까닭은 번역된 한 문장이고, 엔진이 적은 영어는 로그에 남는다.
             Log::Write(LogLevel::Warning, "script", "the script could not be created: %s", failure.c_str());
             m_error = Loc::TextOr(LocKeys::NewScriptFailed, "The script could not be created");
+            m_refocus = true;
         }
     }
 }

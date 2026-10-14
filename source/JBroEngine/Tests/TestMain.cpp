@@ -94,6 +94,9 @@ JBro::Int32 RunScriptModuleEntryTests();
 JBro::Int32 RunScriptProjectTests();
 JBro::Int32 RunScriptBuildTests();
 JBro::Int32 RunDebugAdapterTests();
+JBro::Int32 RunScriptGuardTests();
+JBro::Int32 RunScriptFaultTests();
+JBro::Int32 RunUserScenarioTests();
 JBro::Int32 RunScriptHotReloadTests();
 JBro::Int32 RunScriptCompilerLexerTests();
 JBro::Int32 RunScriptCompilerParserTests();
@@ -558,6 +561,18 @@ int main()
             return 1;
         }
         if (false == RunSuite("DebugAdapter", &RunDebugAdapterTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptGuard", &RunScriptGuardTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptFault", &RunScriptFaultTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("UserScenario", &RunUserScenarioTests))
         {
             return 1;
         }

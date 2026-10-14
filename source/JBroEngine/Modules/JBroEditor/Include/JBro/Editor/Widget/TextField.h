@@ -25,6 +25,10 @@ namespace JBro::Widget
         TextField& Multiline(Bool multiline = true, Float lines = 4.5f);
         // 참이면 Enter 를 눌러야 값이 반영된다. 거짓이면 글자마다 반영한다.
         TextField& CommitOnEnter(Bool commit = true);
+        // `CommitOnEnter` 칸이라도 치는 동안의 글자를 묶인 글자에 바로 옮긴다. 확정(돌려주는 참)은 그대로 Enter 다.
+        // 이름을 받는 팝업처럼 치는 동안 검사하고 단추를 켜고 끄는 곳이 쓴다 - 옮기지 않으면 검사가 Enter 전의 옛 글자를 본다.
+        // 모델에 바로 묶인 칸에는 쓰지 않는다: 확정 전의 글자가 커맨드를 거치지 않고 들어간다.
+        TextField& LiveText(Bool live = true);
         // 참이면 **편집이 끝날 때 한 번** 참을 돌려준다(포커스를 잃거나 Enter). 글자는 치는
         // 대로 들어가되 부르는 쪽이 값을 확정하는 시점만 미뤄진다.
         //
@@ -49,6 +53,7 @@ namespace JBro::Widget
         Float m_width = 0.0f;
         Bool m_multiline = false;
         Bool m_commitOnEnter = false;
+        Bool m_liveText = false;
         Bool m_commitOnFinish = false;
         Bool m_invalid = false;
     };

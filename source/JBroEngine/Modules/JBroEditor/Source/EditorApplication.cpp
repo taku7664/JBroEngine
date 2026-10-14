@@ -39,6 +39,9 @@
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
@@ -54,6 +57,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/ScriptGuard.h>
 
 #include "EditorThumbnails.h"
 #include "NewProjectPopup.h"
@@ -104,6 +108,8 @@ namespace JBro
 {
     namespace
     {
+        // 스크립트 예외 자리의 스택을 플랫폼에게 읽힌다(D-325). 아래 알림 도우미들과 함께 있다.
+        UInt32 CaptureScriptFaultFrames(void* user, const void* exceptionPointers, UInt64* frames, UInt32 capacity);
         // 도크 노드가 스스로 그리는 단추를 끈다(ProjectRule §11.3). 왼쪽 위의 창 메뉴와
         // 오른쪽 위의 닫기 단추 둘 다이고, 둘 다 `imgui_internal.h` 의 플래그다 -
         // 공개 헤더에 없을 뿐 저장되는 노드 상태의 일부라 ImGui 가 계속 들고 있는 값이다.
@@ -197,6 +203,8 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
+            // **스크립트가 죽어도 에디터는 산다**(D-325). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
+            ScriptGuard::Enable(&CaptureScriptFaultFrames, m_platform.Get());
 
             // **프로그램과 함께 놓인 것은 실행 파일 기준으로 찾는다**(D-176). 현재 작업 폴더로
             // 찾으면 어디서 띄웠는지에 따라 있다가 없다 - 런처나 바로가기로 띄운 에디터가
@@ -1941,6 +1949,7 @@ namespace JBro
                 "%zu scripts in this canvas are not known to the script module; they are kept as saved and do not run",
                 unresolved);
         }
+        NotifyUnresolvedScripts();
         m_canvasPath = path;
         ++m_canvasGeneration;
         return true;
@@ -2305,6 +2314,43 @@ namespace JBro
         m_newProjectRequested = true;
     }
 
+    ProjectCreateFailure EditorApplication::CheckProjectName(const char* parentFolder, const char* name)
+    {
+        return JBro::CheckProjectName(*m_platform, parentFolder, name);
+    }
+
+    void EditorApplication::AddStarterCamera()
+    {
+        // **새 프로젝트의 빈 캔버스에는 카메라 하나를 둔다**(사용자 시나리오 A). 없으면 첫 스크립트를 붙여 실행해도 시뮬레이션 뷰가
+        // `카메라가 없습니다` 만 보여, 스크립트가 도는지 알 수 없다. 이미 무언가 있으면(열던 캔버스) 건드리지 않는다.
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr || canvas->GetObjectCount() != 0)
+        {
+            return;
+        }
+        Object::GameObject* camera = canvas->CreateObject("Camera");
+        if (camera == nullptr)
+        {
+            return;
+        }
+        if (m_frameworkKind == FrameworkKind::Framework3D)
+        {
+            canvas->AttachComponent<Component::Transform3D>(camera);
+            if (auto* lens = canvas->AttachComponent<Component::Camera3D>(camera))
+            {
+                lens->primary = true;
+            }
+            return;
+        }
+        canvas->AttachComponent<Component::Transform2D>(camera);
+        if (auto* lens = canvas->AttachComponent<Component::Camera2D>(camera))
+        {
+            lens->primary = true;
+            // 캔버스 뷰가 처음 보이는 넓이(크기 5)와 같게 둔다. 편집 화면과 실행 화면의 넓이가 같아야 둘을 오가며 헷갈리지 않는다.
+            lens->orthographicSize = 5.0f;
+        }
+    }
+
     void EditorApplication::PerformNewProjectRequest()
     {
         if (false == m_pendingProjectPath.empty())
@@ -2312,7 +2358,10 @@ namespace JBro
             // 팝업이 만든 프로젝트로 넘어간다. 팝업은 프레임 안이라 거기서는 닫을 수 없었다.
             const String path = m_pendingProjectPath;
             m_pendingProjectPath.clear();
-            SwitchToProject(path.c_str());
+            if (SwitchToProject(path.c_str()))
+            {
+                AddStarterCamera();
+            }
         }
         if (false == m_newProjectRequested)
         {
@@ -2953,6 +3002,235 @@ namespace JBro
             }
         };
 
+        UInt32 CaptureScriptFaultFrames(void* user, const void* exceptionPointers, UInt64* frames, UInt32 capacity)
+        {
+            return static_cast<IPlatform*>(user)->CaptureFaultFrames(exceptionPointers, frames, capacity);
+        }
+
+        // 누르면 스크립트 파일의 그 줄을 편집기로 연다. 스크립트 예외(D-325)와 새 스크립트 알림이 쓴다.
+        class OpenScriptLineAction final : public NotificationAction
+        {
+        public:
+            OpenScriptLineAction(String file, UInt32 line)
+                : m_file(std::move(file))
+                , m_line(line)
+            {
+            }
+
+            void OnClick(EditorApplication& editor) override
+            {
+                editor.OpenScriptAt(m_file, m_line);
+            }
+
+        private:
+            String m_file;
+            UInt32 m_line;
+        };
+
+        // 경로의 마지막 조각이다. 구분자는 둘 다 본다.
+        const char* FileNameOf(const String& path)
+        {
+            const char* text = path.c_str();
+            const char* name = text;
+            for (const char* cursor = text; *cursor != '\0'; ++cursor)
+            {
+                if (*cursor == '/' || *cursor == '\\')
+                {
+                    name = cursor + 1;
+                }
+            }
+            return name;
+        }
+
+        // 예외 코드를 사람이 읽는 말로 바꾼다. 모르는 코드는 숫자로 보인다.
+        String DescribeScriptFaultCode(UInt32 code)
+        {
+            switch (code.Value)
+            {
+            case 0xC0000005u:
+                return String(Loc::TextOr(LocKeys::ScriptFaultAccessViolation, "The script accessed invalid memory"));
+            case 0xC0000094u:
+                return String(Loc::TextOr(LocKeys::ScriptFaultDivideByZero, "The script divided an integer by zero"));
+            case 0xC00000FDu:
+                return String(Loc::TextOr(LocKeys::ScriptFaultStackOverflow, "The script overflowed the stack (endless recursion?)"));
+            case 0xE06D7363u:
+                return String(Loc::TextOr(LocKeys::ScriptFaultCppException, "The script threw a C++ exception"));
+            case 0x80000003u:
+                return String(Loc::TextOr(LocKeys::ScriptFaultBreakpoint, "The script hit a breakpoint (__debugbreak)"));
+            default:
+                break;
+            }
+            char text[160];
+            std::snprintf(text, sizeof(text), Loc::TextOr(LocKeys::ScriptFaultOther, "The script raised exception 0x%08X"),
+                static_cast<unsigned int>(code.Value));
+            return String(text);
+        }
+    }
+
+    void EditorApplication::NotifyUnresolvedScripts()
+    {
+        const Canvas* canvas = GetCanvas();
+        const std::size_t unresolved = canvas != nullptr ? canvas->GetUnresolvedScriptCount() : 0;
+        if (unresolved == 0)
+        {
+            return;
+        }
+        char title[160];
+        std::snprintf(title, sizeof(title), Loc::TextOr(LocKeys::NotifyScriptsUnresolved, "%zu script(s) on this canvas were not found"), unresolved);
+        NotificationDesc desc;
+        desc.level = NotificationLevel::Warning;
+        desc.title = title;
+        desc.message = Loc::TextOr(LocKeys::NotifyScriptsUnresolvedWhy,
+            "They are kept as saved and do not run. If the script was deleted or renamed, bring it back and build again");
+        desc.id = "scripts_unresolved";
+        m_notifications.Notify(std::move(desc));
+    }
+
+    void EditorApplication::OpenScriptAt(const String& file, UInt32 line)
+    {
+        OpenInScriptEditor(file, line);
+    }
+
+    void EditorApplication::NotifyScriptCreated(const String& headerPath, const char* className)
+    {
+        // 만든 것은 `.h`·`.cpp` 짝이다. 사용자가 고칠 곳은 `.cpp` 의 `OnUpdate` 라 그 줄을 연다 - 못 찾으면 첫 줄이다.
+        String source = headerPath;
+        if (source.size() > 2 && source.compare(source.size() - 2, 2, ".h") == 0)
+        {
+            source.replace(source.size() - 2, 2, ".cpp");
+        }
+        UInt32 line = 1;
+        Array<std::byte> bytes;
+        if (m_platform->ReadWholeFile(source.c_str(), bytes))
+        {
+            const String text(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+            const std::size_t hook = text.find("::OnUpdate()");
+            if (hook != String::npos)
+            {
+                for (std::size_t at = 0; at < hook; ++at)
+                {
+                    line += text[at] == '\n' ? 1u : 0u;
+                }
+                // 함수 머리 다음 줄(`{`)의 다음, 본문이 시작하는 줄이다.
+                line += 2u;
+            }
+        }
+        else
+        {
+            source = headerPath;
+        }
+        char title[192];
+        std::snprintf(title, sizeof(title), Loc::TextOr(LocKeys::NotifyScriptCreated, "Created the script %s"), className);
+        NotificationDesc desc;
+        desc.level = NotificationLevel::Success;
+        desc.title = title;
+        desc.message = Loc::TextOr(LocKeys::NotifyScriptCreatedNext,
+            "Click to open it in your code editor. When it is written, build with File > Build Scripts and add it with Add Component.");
+        desc.id = "script_created";
+        desc.durationSeconds = 8.0f;
+        desc.action = MakeOwnerPtr<OpenScriptLineAction>(source, line);
+        m_notifications.Notify(std::move(desc));
+    }
+
+    void EditorApplication::PollScriptFault()
+    {
+        if (false == ScriptGuard::HasFault())
+        {
+            return;
+        }
+        // 값으로 떠 두고 먼저 푼다. 아래의 되돌리기가 스크립트를 다시 붙이며 훅을 부르는데, 적힌 것이 남아 있으면 그 훅이 막힌다.
+        const ScriptFault fault = ScriptGuard::GetFault();
+        ScriptGuard::ClearFault();
+
+        // 스크립트 DLL 은 세대마다 다른 이름의 사본으로 실린다. 로더가 아는 것은 원본 경로라, 진입점이 든 모듈에게 실린 경로를 묻는다.
+        String scriptModule;
+        if (m_engine.Get() != nullptr && m_engine->GetScriptModule().IsLoaded())
+        {
+            const void* entry = m_engine->GetScriptModule().GetSymbol(ScriptModuleEntryPointName);
+            CodeLocation entryLocation;
+            if (entry != nullptr
+                && m_platform->DescribeCodeAddress(UInt64(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(entry))), entryLocation))
+            {
+                scriptModule = entryLocation.module;
+            }
+        }
+        CodeLocation found;
+        Bool foundScript = false;
+        Log::Write(LogLevel::Error, "script", "a script raised 0x%08X in %s",
+            static_cast<unsigned int>(fault.code.Value), fault.hook != nullptr ? fault.hook : "?");
+        // 예외 자리부터 바깥으로 보며 첫 스크립트 프레임을 찾는다. 스크립트가 부른 엔진 함수 안에서 났으면 그 함수를 부른 스크립트 줄이 알릴 자리다.
+        // 첫 칸 뒤는 돌아갈 주소라 한 바이트 앞을 본다 - 그래야 부른 줄이 나온다.
+        for (UInt32 index = 0; index < fault.frameCount; ++index)
+        {
+            const UInt64 address = index == 0 ? fault.frames[0] : UInt64(fault.frames[index].Value - 1);
+            CodeLocation location;
+            if (false == m_platform->DescribeCodeAddress(address, location))
+            {
+                Log::Write(LogLevel::Error, "script", "  #%u 0x%llx", static_cast<unsigned int>(index.Value),
+                    static_cast<unsigned long long>(address.Value));
+                continue;
+            }
+            Log::Write(LogLevel::Error, "script", "  #%u %s!%s %s:%u", static_cast<unsigned int>(index.Value),
+                FileNameOf(location.module), location.function.c_str(), location.file.c_str(),
+                static_cast<unsigned int>(location.line.Value));
+            if (false == foundScript && false == scriptModule.empty() && location.module == scriptModule)
+            {
+                found = location;
+                foundScript = true;
+            }
+        }
+
+        // 스택을 못 읽었으면(스택 넘침은 일부러 읽지 않는다) 예외가 난 명령 하나로 찾는다.
+        if (fault.frameCount == 0 && fault.address != 0)
+        {
+            CodeLocation location;
+            if (m_platform->DescribeCodeAddress(fault.address, location))
+            {
+                Log::Write(LogLevel::Error, "script", "  at %s!%s %s:%u", FileNameOf(location.module), location.function.c_str(),
+                    location.file.c_str(), static_cast<unsigned int>(location.line.Value));
+                if (false == scriptModule.empty() && location.module == scriptModule)
+                {
+                    found = location;
+                    foundScript = true;
+                }
+            }
+        }
+
+        // 실행 중이면 지금의 정지와 같은 길로 멈추고 실행 전 캔버스로 되돌린다. 예외가 난 캔버스는 믿을 수 없다.
+        const Bool wasPlaying = m_simulationPlaying;
+        if (wasPlaying)
+        {
+            StopSimulation();
+        }
+
+        const String reason = DescribeScriptFaultCode(fault.code);
+        const char* hook = fault.hook != nullptr ? fault.hook : "?";
+        char message[512];
+        if (foundScript && false == found.file.empty())
+        {
+            std::snprintf(message, sizeof(message), Loc::TextOr(LocKeys::NotifyScriptFaultAt, "%s - %s:%u (%s)"),
+                reason.c_str(), FileNameOf(found.file), static_cast<unsigned int>(found.line.Value), hook);
+        }
+        else
+        {
+            std::snprintf(message, sizeof(message), Loc::TextOr(LocKeys::NotifyScriptFaultInHook, "%s (%s)"), reason.c_str(), hook);
+        }
+        NotificationDesc desc;
+        desc.level = NotificationLevel::Error;
+        desc.title = wasPlaying
+            ? Loc::TextOr(LocKeys::NotifyScriptFaultStopped, "A script error stopped the simulation")
+            : Loc::TextOr(LocKeys::NotifyScriptFault, "A script raised an error");
+        desc.message = message;
+        desc.id = "script_fault";
+        if (foundScript && false == found.file.empty())
+        {
+            desc.action = MakeOwnerPtr<OpenScriptLineAction>(found.file, found.line);
+        }
+        m_notifications.Notify(std::move(desc));
+    }
+
+    namespace
+    {
         // 빌드 도구나 SDK 가 없다는 알림을 누르면 받는 곳을 연다. 무엇을 골라 설치할지는 알림 글이 말한다.
         class OpenBuildToolsDownloadAction final : public NotificationAction
         {
@@ -3087,7 +3365,10 @@ namespace JBro
         m_scriptBuildState = succeeded ? ScriptBuildState::Succeeded : ScriptBuildState::Failed;
         if (succeeded)
         {
-            m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsBuilt, "The scripts were built"));
+            // **알림은 하나다.** 빌드와 싣기를 따로 알리면 같은 일에 성공 알림이 둘 쌓여 인스펙터를 덮었다(사용자 시나리오 A).
+            // 싣기의 성공은 빌드 알림이 말하고, 싣기가 미뤄지거나 실패하거나 값을 못 옮긴 것은 `ReloadScripts` 가 따로 알린다.
+            m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsBuilt, "The scripts were built"),
+                Loc::TextOr(LocKeys::NotifyScriptsBuiltNext, "Attach them with Add Component in the inspector"));
             // 새 DLL 을 곧바로 싣는다(D-300). 재생 중이면 멈출 때까지 미룬다.
             if (m_engine->GetScriptModulePath().empty())
             {
@@ -3095,7 +3376,7 @@ namespace JBro
                     "the project names no script library (ScriptOutputLibraryPath), so the new build is not loaded");
                 return;
             }
-            ReloadScripts();
+            ReloadScripts(false);
             return;
         }
         // 툴셋은 빌드 전에 봤지만 SDK 는 MSBuild 가 본다(`MSB8036`). 설치 위치가 기계마다 달라 미리 재지 않고 MSBuild 의 판단을 받는다.
@@ -3109,12 +3390,55 @@ namespace JBro
                 return;
             }
         }
+        // 첫 오류를 알림에 보인다. 누르면 그 줄을 연다 - 빌드 결과 창을 찾아가지 않아도 무엇이 틀렸는지 안다.
+        const ScriptBuild::Diagnostic* first = nullptr;
+        for (const ScriptBuild::Diagnostic& diagnostic : m_scriptDiagnostics)
+        {
+            if (diagnostic.isError)
+            {
+                first = &diagnostic;
+                break;
+            }
+        }
+        const Bool firstHasLine = first != nullptr && first->line != 0 && false == first->file.empty();
+        char message[512] = {};
+        if (firstHasLine)
+        {
+            const char* name = first->file.c_str();
+            for (const char* cursor = name; *cursor != '\0'; ++cursor)
+            {
+                if (*cursor == '/' || *cursor == '\\')
+                {
+                    name = cursor + 1;
+                }
+            }
+            std::snprintf(message, sizeof(message), "%s:%u  %s %s", name, static_cast<unsigned int>(first->line.Value),
+                first->code.c_str(), first->message.c_str());
+        }
+        else if (first != nullptr)
+        {
+            std::snprintf(message, sizeof(message), "%s %s", first->code.c_str(), first->message.c_str());
+        }
         NotificationDesc desc;
         desc.level = NotificationLevel::Error;
         desc.title = Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built");
+        desc.message = message[0] != '\0' ? message : nullptr;
         desc.id = "script_build_failed";
-        desc.action = MakeOwnerPtr<OpenBuildResultsAction>();
+        if (firstHasLine)
+        {
+            desc.action = MakeOwnerPtr<OpenScriptLineAction>(first->file, first->line);
+        }
+        else
+        {
+            desc.action = MakeOwnerPtr<OpenBuildResultsAction>();
+        }
         m_notifications.Notify(std::move(desc));
+        // 실패하면 오류 목록을 앞에 세운다(사용자 시나리오 A). 알림은 첫 오류 하나만 말하고, 나머지는 `빌드 결과` 에 있다.
+        if (EditorPanel* panel = FindPanel("BuildResults"))
+        {
+            panel->SetOpen(true);
+            panel->RequestFocus();
+        }
     }
 
     void EditorApplication::ClearScriptDiagnostics()
@@ -3138,6 +3462,11 @@ namespace JBro
 
     Bool EditorApplication::OpenInScriptEditor(const String& file, UInt32 line)
     {
+        // 밖의 프로그램을 띄우는 대신 받을 쪽이 있으면(시험) 그쪽에 넘긴다. 없으면 시험이 이 PC 의 편집기를 실제로 띄운다.
+        if (m_openPath != nullptr)
+        {
+            return m_openPath(file.c_str(), m_openPathUser);
+        }
         if (m_scriptEditorPath.empty() && m_scriptEditor == ScriptBuild::EditorKind::VisualStudio)
         {
             m_scriptEditorPath = ScriptBuild::LocateVisualStudio(*m_platform, GetToolScratchFolder().c_str());
@@ -3245,7 +3574,7 @@ namespace JBro
         ReloadScripts();
     }
 
-    Bool EditorApplication::ReloadScripts()
+    Bool EditorApplication::ReloadScripts(Bool announceSuccess)
     {
         if (m_engine.Get() == nullptr || m_framework.Get() == nullptr || m_engine->GetScriptModulePath().empty())
         {
@@ -3316,9 +3645,17 @@ namespace JBro
         Log::Write(LogLevel::Info, "script",
             "reloaded the script library: set %zu scripts aside, attached %zu again, %zu scripts still wait for their type",
             kept, resolved, canvas != nullptr ? canvas->GetUnresolvedScriptCount() : 0);
-        m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsReloaded, "The scripts were reloaded"),
-            notes.IsEmpty() ? nullptr
-                            : Loc::TextOr(LocKeys::NotifyScriptsReloadNotes, "Some field values could not be carried over. See the log"));
+        if (false == notes.IsEmpty())
+        {
+            m_notifications.Notify(NotificationLevel::Warning, Loc::TextOr(LocKeys::NotifyScriptsReloaded, "The scripts were reloaded"),
+                Loc::TextOr(LocKeys::NotifyScriptsReloadNotes, "Some field values could not be carried over. See the log"));
+        }
+        else if (announceSuccess)
+        {
+            m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsReloaded, "The scripts were reloaded"));
+        }
+        // 붙어 있던 스크립트의 타입이 새 DLL 에 없으면 그 스크립트는 돌지 않는다. 성공 알림만 보면 사라진 것을 모른다.
+        NotifyUnresolvedScripts();
         return true;
     }
 
@@ -5587,6 +5924,56 @@ namespace JBro
                 }
                 ImGui::DockBuilderFinish(mainDock);
                 m_dockLayoutBuilt = true;
+                // **칸마다 처음 등록된 패널이 앞 탭이다**(사용자 시나리오 A). 그대로 두면 아래 칸은 `빌드 결과` 가 앞이었고, 스크립트를
+                // 만들러 `에셋 브라우저` 를 따로 눌러야 했다. 종류 표에 없이 손으로 들인 패널은 들인 쪽이 보려는 것이라 표의 패널을 앞서고,
+                // 이미 앞으로 와 달라고 한 패널은 둘 다 앞선다.
+                // 탭 줄은 처음 설 때 노드의 골라 둔 탭을 따르므로 거기 적는다(저장된 배치의 `Selected=` 와 같은 값). 그것만으로는 모자란다 -
+                // 처음 그려지는 창은 저마다 포커스를 가져가 마지막에 그린 `빌드 결과` 가 포커스를 쥐고, 다음 프레임에 탭 줄이 포커스 창을
+                // 앞에 세운다(실측). 그래서 다음 프레임에 포커스를 되돌린다 - 앞으로 와 달라고 한 패널이 있으면 그것, 없으면 가운데 칸의 앞 패널.
+                // 저장된 배치로 연 에디터는 이 길을 지나지 않는다.
+                EditorPanel* front[4] = {};
+                EditorPanel* requested = nullptr;
+                for (std::size_t index = 0; index < m_panels.Size(); ++index)
+                {
+                    EditorPanel* panel = m_panels[index].Get();
+                    if (panel != nullptr && panel->IsOpen() && std::strcmp(panel->GetDockArea(), MainDockArea) == 0)
+                    {
+                        EditorPanel*& chosen = front[static_cast<JBro::Int32>(panel->GetPreferredDock())];
+                        if (panel->m_focusRequested)
+                        {
+                            chosen = panel;
+                            requested = panel;
+                        }
+                        else if (chosen == nullptr
+                            || (false == chosen->m_focusRequested && EditorPanelRegistry::Get().Find(panel->GetTitle()) == nullptr))
+                        {
+                            chosen = panel;
+                        }
+                    }
+                }
+                for (Int32 slot = 0; slot < 4; ++slot)
+                {
+                    ImGuiDockNode* node = ImGui::DockBuilderGetNode(nodes[slot]);
+                    if (node != nullptr && front[slot.Get()] != nullptr)
+                    {
+                        const String label = PanelWindowLabel(*front[slot.Get()]);
+                        node->SelectedTabId = ImHashStr("#TAB", 4, ImHashStr(label.c_str()));
+                    }
+                }
+                EditorPanel* focusTarget = requested != nullptr ? requested : front[static_cast<JBro::Int32>(EditorDock::Center)];
+                m_focusAfterLayout = focusTarget != nullptr ? focusTarget->GetId() : Uuid();
+            }
+            else if (false == m_focusAfterLayout.IsNull())
+            {
+                for (std::size_t index = 0; index < m_panels.Size(); ++index)
+                {
+                    EditorPanel* panel = m_panels[index].Get();
+                    if (panel != nullptr && panel->IsOpen() && panel->GetId() == m_focusAfterLayout)
+                    {
+                        panel->RequestFocus();
+                    }
+                }
+                m_focusAfterLayout = Uuid();
             }
             const ImGuiWindowClass mainClass = DockAreaClass(MainDockArea);
             ImGui::DockSpace(mainDock, ImVec2(0.0f, 0.0f), EditorDockNodeFlags, &mainClass);
@@ -6018,6 +6405,12 @@ namespace JBro
                     popup.OnEnter(*this);
                 }
                 popup.OnDraw(*this);
+                // **Esc 는 취소다**(사용자 시나리오 B). 닫기 단추(X)가 있는 팝업은 Esc 로도 닫힌다 - 이름 칸에 글자를 치던 중이어도 그렇다.
+                // 단추가 없는 것(진행 표시)은 코드로만 닫히므로 Esc 를 받지 않는다.
+                if (popup.HasCloseButton() && popup.IsAlive() && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+                {
+                    popup.Close();
+                }
                 // `OnDraw` 안에서 `Close` 를 불렀어도 ImGui 쪽을 따로 닫지 않는다. 다음 프레임에
                 // `BeginPopupModal` 이 불리지 않으면 ImGui 가 스스로 닫는다 - 닫는 줄을 두었을
                 // 때와 결과가 같아 뮤테이션에서 살아남았고, 잴 수 없는 줄은 지운다(§12).
@@ -6260,6 +6653,8 @@ namespace JBro
         PollScriptBuild();
         // DLL 이 바뀌었거나 미룬 리로드가 있으면 다시 싣는다(D-300).
         PollScriptModuleFile(deltaTime);
+        // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-325). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
+        PollScriptFault();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
         if (m_thumbnails.Get() != nullptr)
         {
@@ -6504,6 +6899,9 @@ namespace JBro
 
     void EditorApplication::ReleaseProcessResources()
     {
+        // 스택을 읽는 플랫폼이 곧 사라진다(D-325).
+        ScriptGuard::Disable();
+        ScriptGuard::ClearFault();
         // 제어 포트를 먼저 닫는다 - 소켓은 provider 가, provider 는 플랫폼의 Winsock 이 살아 있어야 닫힌다.
         m_controlPort.Reset();
         m_socketProvider.Reset();

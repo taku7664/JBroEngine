@@ -108,6 +108,22 @@ namespace JBro::LocKeys
     inline constexpr const char* NotifyNoScriptProject = "notify.no_script_project";
     inline constexpr const char* NotifyBuildToolsMissing = "notify.build_tools_missing";
     inline constexpr const char* NotifyWindowsSdkMissing = "notify.windows_sdk_missing";
+    inline constexpr const char* NotifyScriptCreated = "notify.script_created";
+    inline constexpr const char* NotifyScriptsBuiltNext = "notify.scripts_built_next";
+    inline constexpr const char* BuildResultsRunning = "build_results.running";
+    inline constexpr const char* NotifyScriptsUnresolved = "notify.scripts_unresolved";
+    inline constexpr const char* NotifyScriptsUnresolvedWhy = "notify.scripts_unresolved_why";
+    inline constexpr const char* NotifyScriptCreatedNext = "notify.script_created_next";
+    inline constexpr const char* NotifyScriptFaultStopped = "notify.script_fault_stopped";
+    inline constexpr const char* NotifyScriptFault = "notify.script_fault";
+    inline constexpr const char* NotifyScriptFaultAt = "notify.script_fault_at";
+    inline constexpr const char* NotifyScriptFaultInHook = "notify.script_fault_in_hook";
+    inline constexpr const char* ScriptFaultAccessViolation = "script_fault.access_violation";
+    inline constexpr const char* ScriptFaultDivideByZero = "script_fault.divide_by_zero";
+    inline constexpr const char* ScriptFaultStackOverflow = "script_fault.stack_overflow";
+    inline constexpr const char* ScriptFaultCppException = "script_fault.cpp_exception";
+    inline constexpr const char* ScriptFaultBreakpoint = "script_fault.breakpoint";
+    inline constexpr const char* ScriptFaultOther = "script_fault.other";
     inline constexpr const char* EditorSettingsScriptEditor = "editor_settings.script_editor";
     inline constexpr const char* EditorSettingsScriptEditorHelp = "editor_settings.script_editor_help";
     inline constexpr const char* ScriptEditorSystem = "script_editor.system";
@@ -307,6 +323,8 @@ namespace JBro::LocKeys
     // 키는 `component_category.<갈래>` 로 그 자리에서 지어진다(`EditorNames`).
     // 여기 적는 것은 **번역 파일에 무엇이 있어야 하는지를 남기기 위한 것**이다 -
     // 코드가 이 이름들을 직접 부르지는 않는다.
+    // 필드 분류(`Category`)의 보이는 이름이다. 키는 `field_category.<분류, 띄어쓰기는 _>` 로 그 자리에서 지어진다(`EditorNames::FieldCategoryLabel`).
+    inline constexpr const char* FieldCategoryWorldCache = "field_category.World_cache";
     inline constexpr const char* ComponentCategoryTransform = "component_category.Transform";
     inline constexpr const char* ComponentCategoryRendering = "component_category.Rendering";
     inline constexpr const char* ComponentCategoryPhysics = "component_category.Physics";

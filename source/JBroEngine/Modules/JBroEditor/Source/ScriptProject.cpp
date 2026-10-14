@@ -224,7 +224,12 @@ namespace JBro::ScriptProject
             return NameProblem::Reserved;
         }
         // 빌트인 컴포넌트와 이미 등록된 스크립트의 이름은 쓸 수 없다(D-302 - 두 표는 같은 이름을 받지 않는다).
-        if (ComponentRegistry::Get().Find(MakeNameId(name)) != nullptr || ScriptRegistry::Get().Find(MakeNameId(name)) != nullptr)
+        // 빌트인은 `Component::Transform2D` 로 등록되므로 그 이름으로도 찾는다. 짧은 이름만 찾던 때는 `Transform2D` 스크립트를 만들 수 있었고,
+        // 그 클래스가 스크립트 프렐류드가 여는 핸들 `Transform2D` 와 부딪혀 빌드가 깨졌다(사용자 시나리오 B).
+        String builtin = "Component::";
+        builtin.append(name);
+        if (ComponentRegistry::Get().Find(MakeNameId(name)) != nullptr || ComponentRegistry::Get().Find(MakeNameId(builtin.c_str())) != nullptr
+            || ScriptRegistry::Get().Find(MakeNameId(name)) != nullptr)
         {
             return NameProblem::TakenByType;
         }

@@ -337,7 +337,7 @@ Entries:
   project_settings.fixed_delta_time: 고정 스텝 하나의 길이(초)입니다. 물리와 OnFixedUpdate 가 이 간격으로 돕니다
   project_settings.max_fixed_steps: 한 프레임에 도는 고정 스텝의 상한입니다. 넘치면 따라잡지 않고 게임이 느려집니다
   project_settings.max_delta_time: 한 프레임 델타의 상한(초)입니다. 창을 끌거나 중단점에서 돌아온 긴 프레임을 이 값으로 자릅니다
-  project_settings.random_seed: 난수 씨앗입니다. 0 이면 재생할 때마다 새로 뽑고 로그에 남깁니다
+  project_settings.random_seed: 난수 씨앗입니다. 0 이면 실행할 때마다 새로 뽑고 로그에 남깁니다
   project_settings.ignore_patterns: 한 줄에 패턴 하나입니다. 스캔과 파일 감시가 여기 맞는 것을 건너뜁니다
   panel.profiler: 프로파일러
   profiler.hint: 이 창이 열려 있는 동안 잽니다
@@ -385,6 +385,23 @@ Entries:
   notify.no_script_project: 스크립트 프로젝트가 없습니다. 에셋 브라우저의 스크립트에서 새 스크립트를 먼저 만드세요
   notify.build_tools_missing: C++ 빌드 도구(MSVC v145)가 없습니다. 눌러서 받는 곳을 열고, Build Tools for Visual Studio 2026 을 설치할 때 ‘C++를 사용한 데스크톱 개발’ 과 ‘Windows 11 SDK(10.0.22621.0)’ 을 고르세요
   notify.windows_sdk_missing: Windows SDK 10.0.22621.0 이 없습니다. 눌러서 받는 곳을 열고, Build Tools for Visual Studio 2026 에 ‘Windows 11 SDK(10.0.22621.0)’ 을 더해 설치하세요
+  field_category.World_cache: 월드 캐시
+  notify.scripts_built_next: 인스펙터의 컴포넌트 추가에서 붙일 수 있습니다
+  build_results.running: 스크립트를 빌드하는 중입니다...
+  notify.scripts_unresolved: "캔버스의 스크립트 %zu개를 찾지 못했습니다"
+  notify.scripts_unresolved_why: "저장된 그대로 두고 돌리지 않습니다. 스크립트를 지웠거나 이름을 바꿨다면 되살린 뒤 다시 빌드하세요"
+  notify.script_created: "%s 스크립트를 만들었습니다"
+  notify.script_created_next: "눌러서 편집기로 엽니다. 코드를 쓴 뒤 파일 > 스크립트 빌드를 하면 인스펙터의 컴포넌트 추가에 나옵니다"
+  notify.script_fault_stopped: 스크립트 오류로 실행을 멈췄습니다
+  notify.script_fault: 스크립트에서 오류가 났습니다
+  notify.script_fault_at: "%s - %s:%u (%s). 눌러서 그 줄을 엽니다"
+  notify.script_fault_in_hook: "%s (%s)"
+  script_fault.access_violation: 잘못된 메모리에 접근했습니다
+  script_fault.divide_by_zero: 정수를 0으로 나눴습니다
+  script_fault.stack_overflow: 스택이 넘쳤습니다. 끝없는 재귀일 수 있습니다
+  script_fault.cpp_exception: C++ 예외를 던졌습니다
+  script_fault.breakpoint: 중단점(__debugbreak)에 걸렸습니다
+  script_fault.other: "예외 0x%08X 가 났습니다"
   editor_settings.script_editor: 스크립트 편집기
   editor_settings.script_editor_help: 빌드 결과에서 오류를 누르면 이 편집기로 그 줄을 엽니다
   script_editor.system: 기본 앱 (줄 이동 없음)
@@ -560,7 +577,7 @@ Entries:
   notify.scripts_reload_notes: 값을 옮기지 못한 필드가 있습니다. 로그를 확인하세요
   notify.scripts_reload_failed: 스크립트를 다시 불러오지 못했습니다
   notify.scripts_reload_kept: 스크립트의 값은 캔버스에 그대로 있습니다. 빌드를 고친 뒤 다시 시도하세요
-  notify.scripts_reload_pending: 재생을 멈추면 새 스크립트를 불러옵니다
+  notify.scripts_reload_pending: 실행을 멈추면 새 스크립트를 불러옵니다
   editor_settings.search_hint: 이름이나 키로 검색
   editor_settings.press_key: 키를 누르세요
   editor_settings.capture_hint: Esc 를 누르면 취소합니다

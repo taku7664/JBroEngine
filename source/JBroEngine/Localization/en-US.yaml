@@ -385,6 +385,23 @@ Entries:
   notify.no_script_project: There is no script project yet. Create a script from Scripts in the asset browser first
   notify.build_tools_missing: The C++ build tools (MSVC v145) were not found. Click to open the download page, then install Build Tools for Visual Studio 2026 with “Desktop development with C++” and “Windows 11 SDK (10.0.22621.0)”
   notify.windows_sdk_missing: Windows SDK 10.0.22621.0 was not found. Click to open the download page, then add “Windows 11 SDK (10.0.22621.0)” to Build Tools for Visual Studio 2026
+  field_category.World_cache: World cache
+  notify.scripts_built_next: Attach them with Add Component in the inspector
+  build_results.running: Building the scripts...
+  notify.scripts_unresolved: "%zu script(s) on this canvas were not found"
+  notify.scripts_unresolved_why: "They are kept as saved and do not run. If the script was deleted or renamed, bring it back and build again"
+  notify.script_created: "Created the script %s"
+  notify.script_created_next: "Click to open it in your code editor. Once written, build with File > Build Scripts and it shows up in Add Component in the inspector"
+  notify.script_fault_stopped: A script error stopped the simulation
+  notify.script_fault: A script raised an error
+  notify.script_fault_at: "%s - %s:%u (%s). Click to open the line"
+  notify.script_fault_in_hook: "%s (%s)"
+  script_fault.access_violation: The script accessed invalid memory
+  script_fault.divide_by_zero: The script divided an integer by zero
+  script_fault.stack_overflow: The script overflowed the stack. It may be endless recursion
+  script_fault.cpp_exception: The script threw a C++ exception
+  script_fault.breakpoint: The script hit a breakpoint (__debugbreak)
+  script_fault.other: "The script raised exception 0x%08X"
   editor_settings.script_editor: Script Editor
   editor_settings.script_editor_help: Clicking an error in Build Results opens that line in this editor
   script_editor.system: Default app (no line jump)

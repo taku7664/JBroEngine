@@ -25,6 +25,10 @@ namespace JBro
         String m_parentFolder;
         String m_name;
         String m_error;
+        // 오류가 가리키는 이름이다. 이름을 고치면 지난 오류는 보이지 않는다.
+        String m_errorName;
+        // 거절된 뒤 다음 프레임에 이름 칸으로 돌아간다. Enter 로 낸 칸은 포커스를 놓아, 그대로 치면 글자가 어디에도 들어가지 않았다.
+        Bool m_refocus = false;
         Int32 m_framework = 0;
     };
 }

@@ -38,4 +38,26 @@ namespace JBro::EditorNames
         }
         return Loc::TextOr(key, category);
     }
+
+    const char* FieldCategoryLabel(const char* category)
+    {
+        if (category == nullptr || category[0] == '\0')
+        {
+            return "";
+        }
+        char key[64] = {};
+        const Int32 written = std::snprintf(key, sizeof(key), "field_category.%s", category);
+        if (written <= 0 || static_cast<std::size_t>(written) >= sizeof(key))
+        {
+            return category;
+        }
+        for (char* at = key; *at != '\0'; ++at)
+        {
+            if (*at == ' ')
+            {
+                *at = '_';
+            }
+        }
+        return Loc::TextOr(key, category);
+    }
 }

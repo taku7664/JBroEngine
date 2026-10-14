@@ -396,7 +396,8 @@ namespace
         };
         for (const auto& [name, key] : declared)
         {
-            if (key.rfind("component_category.", 0) == 0)
+            // 갈래 이름과 필드 분류 이름은 키를 그 자리에서 짓는다(`EditorNames`) - 상수 이름으로 부르는 곳이 없다.
+            if (key.rfind("component_category.", 0) == 0 || key.rfind("field_category.", 0) == 0)
             {
                 continue;
             }

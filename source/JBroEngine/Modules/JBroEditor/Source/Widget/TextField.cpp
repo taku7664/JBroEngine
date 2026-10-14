@@ -81,6 +81,12 @@ namespace JBro::Widget
         return *this;
     }
 
+    TextField& TextField::LiveText(Bool live)
+    {
+        m_liveText = live;
+        return *this;
+    }
+
     TextField& TextField::CommitOnEnter(Bool commit)
     {
         m_commitOnEnter = commit;
@@ -149,7 +155,7 @@ namespace JBro::Widget
             changed = ImGui::InputText(id, buffer, capacity, flags);
         }
 
-        if (changed)
+        if (changed || (m_liveText && std::strcmp(buffer, m_text.c_str()) != 0))
         {
             m_text = buffer;
         }

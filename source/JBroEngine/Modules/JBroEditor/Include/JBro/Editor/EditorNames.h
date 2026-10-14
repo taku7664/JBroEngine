@@ -20,4 +20,6 @@ namespace JBro::EditorNames
     // 갈래는 이름과 달리 **번역한다.** 코드에서 부르는 이름이 아니라 목록을 묶어 보여
     // 주는 말이기 때문이다.
     const char* ComponentCategoryLabel(const char* category);
+    // 필드 분류(`Category("World cache")`)의 보이는 이름이다. 키는 `field_category.` 뒤에 띄어쓰기를 `_` 로 바꾼 분류 이름이고, 없으면 분류 이름 그대로다.
+    const char* FieldCategoryLabel(const char* category);
 }

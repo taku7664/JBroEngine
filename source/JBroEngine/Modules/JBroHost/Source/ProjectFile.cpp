@@ -2100,6 +2100,41 @@ namespace JBro
         return complete;
     }
 
+    ProjectCreateFailure CheckProjectName(IPlatform& platform, const char* parentFolder, const char* name)
+    {
+        // **이름은 폴더와 파일의 이름이 된다.** 경로를 가르는 글자나 윈도우가 받지 않는 글자가 들어가면
+        // 엉뚱한 곳에 서거나 만들다 만다. 앞뒤 공백과 `.`·`..` 도 같은 이유로 막는다.
+        const String projectName(name != nullptr ? name : "");
+        if (projectName.empty() || projectName == "." || projectName == ".."
+            || projectName[0] == ' ' || projectName[projectName.size() - 1] == ' '
+            || projectName[projectName.size() - 1] == '.')
+        {
+            return ProjectCreateFailure::InvalidName;
+        }
+        for (const char character : projectName)
+        {
+            if (static_cast<unsigned char>(character) < 0x20 || std::strchr("\\/:*?\"<>|", character) != nullptr)
+            {
+                return ProjectCreateFailure::InvalidName;
+            }
+        }
+        if (parentFolder == nullptr || parentFolder[0] == '\0')
+        {
+            return ProjectCreateFailure::None;
+        }
+        String root(parentFolder);
+        if (root[root.size() - 1] != '/' && root[root.size() - 1] != '\\')
+        {
+            root.append("/", 1);
+        }
+        root.append(projectName.c_str(), projectName.size());
+        if (platform.DirectoryExists(root.c_str()) || platform.FileExists(root.c_str()))
+        {
+            return ProjectCreateFailure::AlreadyExists;
+        }
+        return ProjectCreateFailure::None;
+    }
+
     Bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
         FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
         ProjectFileError& error)
@@ -2119,33 +2154,23 @@ namespace JBro
         {
             return fail(ProjectCreateFailure::NoEngineVersion, "the project must say which engine version it opens with (EngineVersion)");
         }
-        // **이름은 폴더와 파일의 이름이 된다.** 경로를 가르는 글자나 윈도우가 받지 않는 글자가 들어가면
-        // 엉뚱한 곳에 서거나 만들다 만다. 앞뒤 공백과 `.`·`..` 도 같은 이유로 막는다.
+        // 이름 검사는 팝업이 치는 동안 묻는 것과 같은 하나다(`CheckProjectName`).
         const String projectName(name != nullptr ? name : "");
-        if (projectName.empty() || projectName == "." || projectName == ".."
-            || projectName[0] == ' ' || projectName[projectName.size() - 1] == ' '
-            || projectName[projectName.size() - 1] == '.')
+        switch (CheckProjectName(platform, parentFolder, name))
         {
+        case ProjectCreateFailure::InvalidName:
             return fail(ProjectCreateFailure::InvalidName, "the name cannot be a file name");
+        case ProjectCreateFailure::AlreadyExists:
+            return fail(ProjectCreateFailure::AlreadyExists, "something with that name is already in the folder");
+        default:
+            break;
         }
-        for (const char character : projectName)
-        {
-            if (static_cast<unsigned char>(character) < 0x20 || std::strchr("\\/:*?\"<>|", character) != nullptr)
-            {
-                return fail(ProjectCreateFailure::InvalidName, "the name cannot be a file name");
-            }
-        }
-
         String root(parentFolder);
         if (root[root.size() - 1] != '/' && root[root.size() - 1] != '\\')
         {
             root.append("/", 1);
         }
         root.append(projectName.c_str(), projectName.size());
-        if (platform.DirectoryExists(root.c_str()) || platform.FileExists(root.c_str()))
-        {
-            return fail(ProjectCreateFailure::AlreadyExists, "something with that name is already in the folder");
-        }
 
         ProjectFile project;
         project.engineVersion = engineVersion;

@@ -28,5 +28,7 @@ namespace JBro
         String m_name = "NewScript";
         Array<ScriptProject::FieldSpec> m_fields;
         String m_error;
+        // 거절된 뒤 다음 프레임에 이름 칸으로 돌아간다(새 프로젝트 팝업과 같은 까닭).
+        Bool m_refocus = false;
     };
 }

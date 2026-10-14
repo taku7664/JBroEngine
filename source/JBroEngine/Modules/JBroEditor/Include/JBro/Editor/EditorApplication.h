@@ -747,6 +747,16 @@ namespace JBro
         Bool OpenScriptDiagnostic(std::size_t index);
         // 스크립트 빌드 도구(`ScriptBuild::BuildToolsDownloadUrl`)를 받는 곳을 브라우저로 연다. 빌드 도구나 SDK 가 없다는 알림을 누르면 부른다.
         Bool OpenScriptBuildToolsDownload();
+        // 스크립트 파일의 그 줄을 에디터 설정에서 고른 편집기로 연다(D-325 의 예외 알림이 누를 때 쓴다).
+        void OpenScriptAt(const String& file, UInt32 line);
+        // 새 스크립트를 만들었다고 알린다. 다음에 할 일(편집기로 열기·빌드·컴포넌트 추가)을 말하고, 누르면 `.cpp` 의 `OnUpdate` 를 연다.
+        void NotifyScriptCreated(const String& headerPath, const char* className);
+        // 캔버스에 모르는 스크립트(타입이 스크립트 DLL 에 없는 것)가 있으면 경고 알림을 띄운다. 그 스크립트는 저장된 그대로 남고 돌지 않는다.
+        void NotifyUnresolvedScripts();
+        // 새 프로젝트 이름을 검사한다(`CheckProjectName`). 새 프로젝트 팝업이 치는 동안 묻는다.
+        ProjectCreateFailure CheckProjectName(const char* parentFolder, const char* name);
+        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 비어 있지 않으면 아무것도 하지 않는다.
+        void AddStarterCamera();
         // 오류 줄을 여는 편집기다(D-299). 에디터 설정에 저장된다.
         ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
         void SetScriptEditor(ScriptBuild::EditorKind kind);
@@ -754,7 +764,8 @@ namespace JBro
         // 컴포넌트 번호로 되살린다. 필드는 이름이 맞고 읽히는 것만 잇고 나머지는 로그로 알린다. 새 DLL 이 모르는 스크립트는 값을 든 채 남는다.
         // 에디터 빌드가 성공했을 때와 DLL 파일이 바뀌었을 때(Visual Studio 빌드) 저절로 부른다(사용자 결정 2026-09-29).
         // **재생 중이면 멈출 때까지 미루고** 거짓이다. 갈아 끼웠으면 참이다.
-        Bool ReloadScripts();
+        // `announceSuccess` 가 거짓이면 성공 알림을 내지 않는다 - 빌드가 끝나 싣는 길은 빌드 알림이 성공을 말한다. 미룸·실패·옮기지 못한 값은 늘 알린다.
+        Bool ReloadScripts(Bool announceSuccess = true);
         Bool IsScriptReloadPending() const { return m_scriptReloadPending; }
         void MarkScriptFilesChanged() { ++m_scriptFilesRevision; }
         // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
@@ -1075,6 +1086,8 @@ namespace JBro
         Bool m_exitRequested = false;
         // 첫 프레임에 한 번만 기본 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
         Bool m_dockLayoutBuilt = false;
+        // 처음 배치를 지은 다음 프레임에 포커스를 돌려줄 가운데 칸의 앞 패널이다(사용자 시나리오 A). 비면 할 일이 없다.
+        Uuid m_focusAfterLayout;
         // 도크 뿌리의 배치는 한 번만 잡는다. 메인 도크가 거기 붙는 것이 전부다.
         Bool m_rootLayoutBuilt = false;
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,
@@ -1088,6 +1101,8 @@ namespace JBro
         // 스크립트 DLL 파일이 바뀌었는지 0.5 초마다 본다(D-300). 바뀐 시각이 다음 확인에도 그대로면(다 썼으면) 다시 싣는다.
         // 에디터 빌드가 도는 동안은 보지 않는다 - 빌드가 끝나면 그쪽이 싣는다. 미룬 리로드도 여기서 푼다.
         void PollScriptModuleFile(Float deltaTime);
+        // 스크립트 훅에서 예외가 났으면(D-325) 실행을 멈추고 되돌린 뒤, 로그와 알림으로 어느 스크립트의 어느 줄인지 알린다.
+        void PollScriptFault();
         void RememberScriptModuleTime();
         Bool m_scriptReloadPending = false;
         // 마지막으로 실은 DLL 의 수정 시각과, 바뀐 것을 처음 본 시각이다.
