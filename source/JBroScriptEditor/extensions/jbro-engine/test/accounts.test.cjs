@@ -124,7 +124,7 @@ test('disposal prevents late authentication results from changing the view', asy
 
 test('launcher rejects duplicate scalar profile options before starting Electron', { skip: process.platform !== 'win32' }, () => {
 	const launcher = path.resolve(__dirname, '../../../scripts/upstream-launch.cmd');
-	for (const argument of ['--user-data-dir=fake-one --user-data-dir=fake-two', '--extensions-dir=fake-one']) {
+	for (const argument of ['--user-data-dir=fake-one --user-data-dir=fake-two', '--extensions-dir=fake-one', '--locale=en']) {
 		const result = spawnSync('cmd.exe', ['/d', '/s', '/c', `""${launcher}" ${argument}"`], { encoding: 'utf8', windowsVerbatimArguments: true });
 		assert.equal(result.status, 1);
 		assert.match(result.stdout, /upstream-launch:/);

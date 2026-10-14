@@ -2,12 +2,12 @@
 
 JBroEngine 의 C++ 스크립트 편집기다. Code-OSS 를 얇게 포크하고, JBro 기능은 전부 내장 확장으로 만든다.
 엔진 리포의 `source/JBroScriptEditor` 에 있다. 현재 작업 계획은 [script-editor-integration-plan.md](../../tasks/script-editor-integration-plan.md),
-결정은 `tasks/todo.md` D-87·D-261·D-310·D-311·D-312·D-313·D-314 에 있다. 기존 `.jscript` 문법 확장은 보존한다.
+결정은 `tasks/todo.md` D-87·D-261·D-310·D-311·D-312·D-313·D-314·D-315 에 있다. 기존 `.jscript` 문법 확장은 보존한다.
 원래는 따로 있던 로컬 리포 `F:\Project\JBroScriptEditor` 였고, 그 커밋은 `git subtree` 로 히스토리째 들어왔다.
 옛 리포의 `.git` 과 추적 파일은 지웠고, 그 폴더에는 upstream 체크아웃과 `.toolchain` 만 남아 아래의 작업 폴더로 쓴다.
 
-**현재는 코어 패치 0001~0004를 적용한 Code-OSS 개발 빌드이며, JBro 브랜딩·설치본은 아직 없다.**
-아래 실행 스크립트가 `jbro-engine`과 `jbro-languages`를 개발 확장으로 자동 로딩한다.
+**현재는 코어 패치 0001~0005를 적용한 Code-OSS 개발 빌드이며, JBro 브랜딩·설치본은 아직 없다.**
+아래 실행 스크립트가 `jbro-engine`·`jbro-languages`·한국어 팩 `jbro-korean`을 개발 확장으로 자동 로딩한다.
 GitHub 로그인 연결 코드는 구현했으며, 실제 계정 인증은 사용자 요청으로 미뤘다. Git 원격 인증도 아직 확인하지 않았다(2026-10-14).
 상단 다섯 한국어 드롭다운 메뉴, 워크스페이스 트리, JBroEngine 테마를 구현하고 실제 개발 창에서 확인했다(D-313·D-314).
 앞선 D-311의 직접 버튼 구현·검증 이력은 작업 계획 §10에 보존한다.
@@ -56,6 +56,7 @@ GitHub 로그인 연결 코드는 구현했으며, 실제 계정 인증은 사�
 
 확장 활성화 뒤 왼쪽 사이드바에는 `워크스페이스` 컨테이너만 표시하고 Outline·Timeline은 넣지 않는다.
 Code-OSS `TreeView` API를 사용해 열린 작업 폴더의 파일을 읽기 전용으로 탐색하고 파일을 연다. Git 등은 메뉴 선택 시 기존 패널을 연다.
+루트·하위 폴더에는 엔진과 같은 MDI 7.4.47의 `folder`·`folder-open` SVG를 사용하며 실제 트리에서 표시를 확인했다.
 
 엔진의 [EditorTheme.h](../JBroEngine/Modules/JBroEditor/Include/JBro/Editor/EditorTheme.h)에 이미 있는 의미별 팔레트를 UI 색의 출처로 사용한다.
 엔진 C++ 파일을 수정하지 않고 생성기가 상수의 숫자를 읽어 Code-OSS 색상 테마를 만든다. 메뉴·트리·코드 영역은 native ThemeService와 CSS 변수를 공유한다.
@@ -70,7 +71,9 @@ Code-OSS `TreeView` API를 사용해 열린 작업 폴더의 파일을 읽기 �
 |---|---|
 | `extensions/jbro-engine` | 다섯 드롭다운 메뉴·워크스페이스 트리·테마·표시 설정·기존 패널/태스크 명령, GitHub 로그인·계정 관리 연결. 엔진 전용 프로젝트·빌드 연결은 아직 구현하지 않았다 |
 | `extensions/jbro-languages` | `.jscript` 언어 등록과 TextMate 문법, `.jproject`·`.jcanvas`·`.jprefab` 의 YAML 연결 |
+| `extensions/jbro-korean` | 고정 vscode-loc 한국어 팩의 번역 파일 95개와 MIT 라이선스. 본체·내장 확장 번역 |
 | `scripts/check-nls.mjs` | 확장의 번역 파일이 빠짐없이 채워졌는지 검사한다 |
+| `scripts/check-korean-pack.mjs` | 번역 파일·라이선스·문제 패널/제한 모드 필수 한국어 키를 검사한다 |
 | `scripts/run-grammar-tests.mjs` | 문법 단언 테스트와 스냅숏 테스트를 돌린다 |
 | `scripts/generate-theme.mjs` | 엔진 팔레트에서 `themes/jbro-engine-color-theme.json`을 생성한다. `themes/syntax-tokens.json`은 문법 강조용 색만 제공한다 |
 
@@ -91,6 +94,7 @@ npm run test:theme
 
 `test:accounts`는 계정 API 연결·취소·실패·상태 갱신·런처의 프로필 인자 거절을 검사한다.
 실제 GitHub 인증이나 Git 원격 작업을 수행하지 않는다. `npm test`는 이 검사와 번역·테마·문법 검사를 함께 실행한다.
+`npm run test:nls`에는 한국어 팩 파일 95개·라이선스·필수 한글 키 검사도 포함된다.
 엔진 팔레트를 바꾼 뒤에는 `npm run generate:theme`으로 테마를 다시 만들고 `npm run test:theme`으로 생성 결과를 확인한다.
 
 - **문법 단언**: `extensions/*/test/syntax/*.jscript`. 형식은 `vscode-tmgrammar-test` 의 것이다.
@@ -155,7 +159,9 @@ scripts\upstream-launch.cmd
 ### 격리 프로필과 확장 호스트 검사
 
 별도 사용자 데이터를 쓰려면 `JBRO_EDITOR_USER_DATA`를 지정한다. 지정하지 않으면 `.toolchain\user-data`를 쓴다.
-런처는 명령줄의 `--user-data-dir`와 `--extensions-dir`를 거절한다. 두 JBro 확장을 별도로 설치하거나 같은 인자를 추가할 필요가 없다.
+런처는 명령줄의 `--user-data-dir`·`--extensions-dir`·`--locale`을 거절한다. 실행 언어를 명시할 때는 `JBRO_EDITOR_LOCALE`을 지정한다.
+지정하지 않으면 로케일 인자를 전달하지 않아 기존 사용자 언어 선택을 보존한다. 새 `argv.json`의 기본 한국어는 0001과 한국어 팩 등록이 제공한다.
+세 내장 개발 확장을 별도로 설치하거나 같은 인자를 추가할 필요가 없다. 런처는 선택한 개발 프로필에 한국어 팩을 등록한다.
 
 아래 확장 호스트 검사는 새 프로필에서 명령 등록·내장 제공자 활성화·기기 코드 기본값·로그인하지 않은 초기 상태를 확인한다.
 `source/JBroScriptEditor`에서 실행하며, 사용자 데이터 경로는 이전에 로그인하지 않은 새 폴더를 지정한다.
@@ -192,6 +198,7 @@ scripts\upstream-compile.cmd
 | `0002-remove-chat-ai` | 적용. `chat.disableAIFeatures` 기본값을 `true` 로 바꾼다. 에이전트 호스트가 뜨지 않고 새 에러가 없으며, 화면에 채팅·Copilot 안내가 뜨지 않는다. **없애지 않고 기본으로 끈다** - 사용자가 설정에서 다시 켤 수 있다. 기여 import 를 빼는 첫 방식은 태스크·디버그가 채팅 서비스에 기대고 있어 쓸 수 없었다 |
 | `0003-block-vsix-install` | 적용. CLI 의 VSIX 설치가 거절되고, 명령 팔레트에 VSIX 설치 항목이 없으며, 시작할 때 새 에러가 없다 |
 | `0004-jbro-layout` | 적용·역적용 검사·본체 타입 검사·실제 메뉴 renderer 검사 통과. 공통 `JBroMenuBar`와 하위 메뉴 기여, 기본 메뉴·보조 사이드바 숨김. 제품 메뉴·Activity Bar 기본값은 확장이 제공하며 저장된 사용자 설정은 보존 |
+| `0005-korean-dev-localization` | 적용·본체 변환·native 타입 검사 통과. 개발 모드의 번역 키+영어 원문 대응표를 사용하며 영어 폴백 유지. 실제 창의 문제 패널·제한 모드 한국어 확인 |
 
 **C: 에 쓰지 않는다.** `upstream-env.cmd` 가 `LOCALAPPDATA`·`TEMP`·`npm_config_cache` 를 `.toolchain` 아래로 돌린다.
 예외는 홈 폴더의 `.vscode-oss-dev\argv.json` 과 `.vscode-oss-shared` 두 가지로, 위치가 `--user-data-dir` 를 따르지 않는다.
@@ -203,9 +210,18 @@ scripts\upstream-compile.cmd
 현재 upstream의 개발 모드는 manifest 번역에서 locale을 사용하지 않고 기본 파일을 읽으므로 이 기본값을 바꿨다.
 기존 `jbro-languages`의 영어 기본 파일과 실행 문구의 `l10n/bundle.l10n*.json` 구조는 그대로다. 키 누락은 번역 검사에서 실패한다.
 
-실제 개발 창의 다섯 메뉴·하위 항목·워크스페이스 한국어 표시는 확인했다.
-개발 실행에서 로그인 상태 문구와 Code-OSS의 Restricted Mode·초기 안내·내부 패널 본문은 영어로 남아 있다.
-전체 편집기의 한국어 표시와 언어 팩을 포함한 설치본은 아직 확인하지 않았다.
+한국어 확인 범위는 JBro 메뉴뿐 아니라 Code-OSS 본체·내장 UI를 포함한다(D-315).
+Microsoft `vscode-loc@0f157dee0cdcbf58cdf51a221ee94751c7f35e75`의 MIT 한국어 팩을 `jbro-korean`으로 싣고,
+0001이 새 `argv.json`의 기본 한국어를 설정하고 런처가 프로필 `languagepacks.json`에 한국어 팩을 등록한다.
+런처는 `JBRO_EDITOR_LOCALE`이 명시됐을 때만 로케일 인자를 전달한다. 개발 모드에는 키+영어 원문 대응 22,422개를 생성해 적용하며 영어 폴백은 유지한다.
+
+첫 직접 Playwright 검사는 `--locale=ko`를 명시했다. 마지막 검사는 CLI 로케일 인자 없이 새 격리 프로필·새 작업 폴더로 실행했고,
+현재 공유 `.vscode-oss-dev/argv.json`의 `locale=ko`가 적용됐다. `문제·출력·디버그 콘솔·터미널·포트`,
+`작업 영역에서 문제가 발견되지 않았습니다.`, 제한 모드 경고와 `관리·자세한 정보`의 한국어, 루트·확장한 하위 폴더 아이콘을 확인했다.
+이는 직접 Playwright 실행의 결과이며 런처 자체 실행을 검증한 결과는 아니다.
+번역 파일 95개·라이선스·필수 한글 키 검사와 생성 대응표의 실행 출력 값 일치 검사도 통과했다.
+이전 영어 내장 UI 기록은 당시 이력이며 후속 결과는 [작업 계획 §14](../../tasks/script-editor-integration-plan.md#14-2026-10-14-후속--본체-한국어폴더-아이콘)에 있다.
+설치본·전 화면 완전 한국어·실제 GitHub 인증은 아직 확인하지 않았다.
 
 ## 문법이 덮는 범위
 
