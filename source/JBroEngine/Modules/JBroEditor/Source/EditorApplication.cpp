@@ -2361,6 +2361,13 @@ namespace JBro
             if (SwitchToProject(path.c_str()))
             {
                 AddStarterCamera();
+                // 스크립트 자리도 처음부터 둔다(사용자 시나리오 C). 에셋 브라우저의 `스크립트` 뿌리가 디스크의 폴더와 맞고,
+                // `.jscript` 를 편집기에서 바로 만들 곳이 생긴다.
+                const String scripts = GetScriptRoot();
+                if (false == scripts.empty())
+                {
+                    m_platform->CreateDirectoryAt(scripts.c_str());
+                }
             }
         }
         if (false == m_newProjectRequested)
@@ -2881,21 +2888,20 @@ namespace JBro
         return contents.empty() ? contents : EditorPaths::JoinPath(contents.c_str(), "Scripts");
     }
 
-    String EditorApplication::CreateScript(const char* folder, const char* className,
-        const Array<ScriptProject::FieldSpec>& fields, String& error)
+    Bool EditorApplication::PrepareScriptProject(String& error)
     {
         const String contents = GetScriptContentsRoot();
         if (contents.empty())
         {
             error = "no project is open";
-            return String();
+            return false;
         }
         // 엔진 폴더를 못 찾으면 만들지 않는다. 만들어 봐야 빌드되지 않는다 - 설치본에는 아직 헤더와 .lib 가 없다(cpp-script-plan §4).
         const String engineRoot = ScriptProject::FindEngineRoot(*m_platform, m_platform->GetExecutableFolder().c_str());
         if (engineRoot.empty())
         {
             error = "this engine has no script SDK next to it";
-            return String();
+            return false;
         }
         if (false == ScriptProject::EnsureProject(*m_platform, contents.c_str(), m_frameworkKind, error)
             || false == ScriptProject::RefreshEngineProps(*m_platform, contents.c_str(), engineRoot.c_str()))
@@ -2904,6 +2910,16 @@ namespace JBro
             {
                 error = "could not write JBroEngine.props";
             }
+            return false;
+        }
+        return true;
+    }
+
+    String EditorApplication::CreateScript(const char* folder, const char* className,
+        const Array<ScriptProject::FieldSpec>& fields, String& error)
+    {
+        if (false == PrepareScriptProject(error))
+        {
             return String();
         }
         const String target = EditorPaths::JoinPath(GetScriptRoot().c_str(), folder != nullptr ? folder : "");
@@ -2914,6 +2930,40 @@ namespace JBro
         MarkScriptFilesChanged();
         Log::Write(LogLevel::Info, "script", "created the script %s in %s", className, target.c_str());
         return EditorPaths::JoinPath(target.c_str(), (String(className) + ".h").c_str());
+    }
+
+    String EditorApplication::CreateJBroScript(const char* folder, const char* className, String& error)
+    {
+        if (m_frameworkKind != FrameworkKind::Framework2D)
+        {
+            error = "JBroScript builds only in 2D projects";
+            return String();
+        }
+        const String target = EditorPaths::JoinPath(GetScriptRoot().c_str(), folder != nullptr ? folder : "");
+        if (ScriptProject::CheckScriptName(*m_platform, target.c_str(), className) != ScriptProject::NameProblem::None)
+        {
+            error = "the name cannot be used";
+            return String();
+        }
+        if (false == PrepareScriptProject(error))
+        {
+            return String();
+        }
+        m_platform->CreateDirectoryAt(target.c_str());
+        const String path = EditorPaths::JoinPath(target.c_str(), (String(className) + ".jscript").c_str());
+        // 훅 둘을 빈 채로 둔다. 만든 알림이 `OnUpdate` 의 본문 줄을 연다.
+        String text = "script ";
+        text += className;
+        text += "\n{\n    public fn OnStart() callback\n    {\n    }\n\n    public fn OnUpdate() callback\n    {\n    }\n}\n";
+        if (false == m_platform->WriteWholeFile(path.c_str(),
+                {reinterpret_cast<const std::byte*>(text.c_str()), static_cast<UInt32>(text.size())}))
+        {
+            error = "could not write the .jscript file";
+            return String();
+        }
+        MarkScriptFilesChanged();
+        Log::Write(LogLevel::Info, "script", "created the JBroScript %s in %s", className, target.c_str());
+        return path;
     }
 
     ScriptProject::NameProblem EditorApplication::CheckScriptName(const char* folder, const char* name)
@@ -3105,7 +3155,12 @@ namespace JBro
         if (m_platform->ReadWholeFile(source.c_str(), bytes))
         {
             const String text(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
-            const std::size_t hook = text.find("::OnUpdate()");
+            // C++ 는 `.cpp` 의 `::OnUpdate()`, JBroScript 는 `.jscript` 의 `fn OnUpdate()` 다.
+            std::size_t hook = text.find("::OnUpdate()");
+            if (hook == String::npos)
+            {
+                hook = text.find("fn OnUpdate()");
+            }
             if (hook != String::npos)
             {
                 for (std::size_t at = 0; at < hook; ++at)
@@ -3230,6 +3285,92 @@ namespace JBro
         m_notifications.Notify(std::move(desc));
     }
 
+    void EditorApplication::PollScriptErrors()
+    {
+        // **JBroScript 의 실행 오류는 그 콜백만 멈추고 실행은 이어진다**(D-317). 호스트는 자리마다 로그 그룹으로만 남겨, 로그 탭을 열지
+        // 않으면 몰랐다(사용자 시나리오 C). 실행 한 번에 자리마다 한 번 알린다. 로그가 바뀐 프레임에만, 새 줄만 훑는다.
+        const UInt64 revision = Log::GetRevision();
+        if (revision.Get() == m_scriptErrorLogRevision.Get())
+        {
+            return;
+        }
+        m_scriptErrorLogRevision = revision;
+        const UInt64 seen = m_scriptErrorSerial;
+        for (std::size_t index = Log::GetCount(); index > 0; --index)
+        {
+            const LogEntry* entry = Log::GetAt(index - 1);
+            if (entry == nullptr || entry->serial.Get() <= seen.Get())
+            {
+                break;
+            }
+            if (entry->serial.Get() > m_scriptErrorSerial.Get())
+            {
+                m_scriptErrorSerial = entry->serial;
+            }
+            if (entry->groupId.Get() == 0 || std::strcmp(entry->category, "JBroScript") != 0)
+            {
+                continue;
+            }
+            Bool told = false;
+            for (std::size_t group = 0; group < m_scriptErrorGroups.Size(); ++group)
+            {
+                told = told || m_scriptErrorGroups[group].Get() == entry->groupId.Get();
+            }
+            if (told)
+            {
+                continue;
+            }
+            m_scriptErrorGroups.Add(entry->groupId);
+
+            // 글은 `파일:줄:열: 내용` 이다. `.jscript:` 뒤의 줄 번호를 읽고, 못 읽으면 글을 그대로 보인다.
+            const char* text = entry->message;
+            String file;
+            UInt32 line = 0;
+            const char* mark = std::strstr(entry->message, ".jscript:");
+            if (mark != nullptr)
+            {
+                const char* digits = mark + std::strlen(".jscript:");
+                char* end = nullptr;
+                const unsigned long parsed = std::strtoul(digits, &end, 10);
+                if (end != digits)
+                {
+                    file.assign(entry->message, static_cast<std::size_t>(mark - entry->message) + std::strlen(".jscript"));
+                    line = static_cast<UInt32>(static_cast<unsigned int>(parsed));
+                    const char* rest = end;
+                    if (*rest == ':')
+                    {
+                        std::strtoul(rest + 1, &end, 10);
+                        rest = end;
+                    }
+                    while (*rest == ':' || *rest == ' ')
+                    {
+                        ++rest;
+                    }
+                    text = rest;
+                }
+            }
+            char message[640];
+            if (false == file.empty())
+            {
+                std::snprintf(message, sizeof(message), Loc::TextOr(LocKeys::NotifyScriptErrorAt, "%s:%u  %s - play goes on. Click to open the line"),
+                    FileNameOf(file), static_cast<unsigned int>(line.Get()), text);
+            }
+            else
+            {
+                std::snprintf(message, sizeof(message), "%s", text);
+            }
+            NotificationDesc desc;
+            desc.level = NotificationLevel::Error;
+            desc.title = Loc::TextOr(LocKeys::NotifyScriptError, "A script error stopped that callback");
+            desc.message = message;
+            if (false == file.empty())
+            {
+                desc.action = MakeOwnerPtr<OpenScriptLineAction>(file, line);
+            }
+            m_notifications.Notify(std::move(desc));
+        }
+    }
+
     namespace
     {
         // 빌드 도구나 SDK 가 없다는 알림을 누르면 받는 곳을 연다. 무엇을 골라 설치할지는 알림 글이 말한다.
@@ -3279,6 +3420,21 @@ namespace JBro
             return false;
         }
         const String contents = GetScriptContentsRoot();
+        // **스크립트 폴더에 소스가 있는데 프로젝트가 없으면 여기서 만든다**(사용자 시나리오 C). 프로젝트는 `새 스크립트` 가 만들어 왔는데,
+        // 그 팝업은 C++ 만 만든다 - `.jscript` 를 편집기에서 바로 쓴 사람은 빌드할 길이 없었다. 엔진 폴더를 못 찾으면 만들지 않는다(아래 알림).
+        if (false == contents.empty() && false == ScriptProject::HasProject(*m_platform, contents.c_str()))
+        {
+            Array<String> folders;
+            Array<String> files;
+            CollectScriptFiles(folders, files);
+            const String engineRoot = ScriptProject::FindEngineRoot(*m_platform, m_platform->GetExecutableFolder().c_str());
+            String error;
+            if (false == files.IsEmpty() && false == engineRoot.empty()
+                && ScriptProject::EnsureProject(*m_platform, contents.c_str(), m_frameworkKind, error))
+            {
+                Log::Write(LogLevel::Info, "script", "made the script project for the sources in %s", GetScriptRoot().c_str());
+            }
+        }
         if (contents.empty() || false == ScriptProject::HasProject(*m_platform, contents.c_str()))
         {
             m_notifications.Notify(NotificationLevel::Warning, Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built"),
@@ -3368,6 +3524,8 @@ namespace JBro
         {
             // **알림은 하나다.** 빌드와 싣기를 따로 알리면 같은 일에 성공 알림이 둘 쌓여 인스펙터를 덮었다(사용자 시나리오 A).
             // 싣기의 성공은 빌드 알림이 말하고, 싣기가 미뤄지거나 실패하거나 값을 못 옮긴 것은 `ReloadScripts` 가 따로 알린다.
+            m_notifications.Dismiss(m_buildFailedNotification);
+            m_buildFailedNotification = InvalidNotificationHandle;
             m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsBuilt, "The scripts were built"),
                 Loc::TextOr(LocKeys::NotifyScriptsBuiltNext, "Attach them with Add Component in the inspector"));
             // 새 DLL 을 곧바로 싣는다(D-300). 재생 중이면 멈출 때까지 미룬다.
@@ -3425,6 +3583,7 @@ namespace JBro
         desc.title = Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built");
         desc.message = message[0] != '\0' ? message : nullptr;
         desc.id = "script_build_failed";
+        m_notifications.Dismiss(m_buildFailedNotification);
         if (firstHasLine)
         {
             desc.action = MakeOwnerPtr<OpenScriptLineAction>(first->file, first->line);
@@ -3433,7 +3592,7 @@ namespace JBro
         {
             desc.action = MakeOwnerPtr<OpenBuildResultsAction>();
         }
-        m_notifications.Notify(std::move(desc));
+        m_buildFailedNotification = m_notifications.Notify(std::move(desc));
         // 실패하면 오류 목록을 앞에 세운다(사용자 시나리오 A). 알림은 첫 오류 하나만 말하고, 나머지는 `빌드 결과` 에 있다.
         if (EditorPanel* panel = FindPanel("BuildResults"))
         {
@@ -4805,6 +4964,8 @@ namespace JBro
         m_simulationSnapshot = std::move(snapshot);
         m_simulationLocale = GetPreviewLocale();
         m_simulationPlaying = true;
+        // 실행마다 다시 알린다 - 고쳐 다시 돌렸는데 같은 자리가 또 틀리면 사용자는 알아야 한다.
+        m_scriptErrorGroups.Clear();
         m_simulationPaused = false;
         // 게임 시간·타임스케일을 처음으로 두고 난수 씨앗을 건다(D-242). 씨앗은 로그에 남는다 - 같은 재생을 다시 보려면 그 수를 적는다.
         m_engine->RestartGameTime();
@@ -5966,7 +6127,9 @@ namespace JBro
             }
             else if (false == m_focusAfterLayout.IsNull())
             {
-                for (std::size_t index = 0; index < m_panels.Size(); ++index)
+                // 팝업이 떠 있으면 돌리지 않는다. 다른 창이 포커스를 가져가면 ImGui 가 팝업을 닫는다 - 켜자마자 연 팝업(런처가 부른 새 프로젝트)이 사라졌다.
+                const Bool popupOpen = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+                for (std::size_t index = 0; index < m_panels.Size() && false == popupOpen; ++index)
                 {
                     EditorPanel* panel = m_panels[index].Get();
                     if (panel != nullptr && panel->IsOpen() && panel->GetId() == m_focusAfterLayout)
@@ -6656,6 +6819,7 @@ namespace JBro
         PollScriptModuleFile(deltaTime);
         // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-325). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
         PollScriptFault();
+        PollScriptErrors();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
         if (m_thumbnails.Get() != nullptr)
         {

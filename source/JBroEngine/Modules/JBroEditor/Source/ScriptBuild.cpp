@@ -281,6 +281,25 @@ namespace JBro::ScriptBuild
             }
             cursor = lineEnd + 1;
         }
+        // **실행한 도구가 실패했다는 줄(`MSB3073`)은 그 도구가 낸 오류가 있으면 뺀다**(사용자 시나리오 C). `jbroc` 가 `.jscript` 의 줄을
+        // 오류로 낸 뒤 실패 코드로 끝나면 MSBuild 가 긴 명령줄을 오류로 하나 더 붙여, 오류가 둘로 세어지고 진짜 줄이 묻혔다.
+        Bool hasToolError = false;
+        for (const Diagnostic& diagnostic : out)
+        {
+            hasToolError = hasToolError || (diagnostic.isError && diagnostic.code != "MSB3073");
+        }
+        if (hasToolError)
+        {
+            Array<Diagnostic> kept;
+            for (Diagnostic& diagnostic : out)
+            {
+                if (false == (diagnostic.isError && diagnostic.code == "MSB3073"))
+                {
+                    kept.Add(std::move(diagnostic));
+                }
+            }
+            out = std::move(kept);
+        }
     }
 
     String FindMSBuildWithToolset(IPlatform& platform, const char* installFolder)

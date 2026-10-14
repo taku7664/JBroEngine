@@ -5,6 +5,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Chips.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
@@ -45,6 +46,14 @@ namespace JBro
                 }
             }
             return list;
+        }
+
+        // 마지막에 고른 언어다(0 은 C++, 1 은 JBroScript). 에디터를 켜 둔 동안 다음 팝업이 이어받는다 - JBroScript 로 쓰는 사람이
+        // 스크립트마다 다시 고르지 않게.
+        Int32& LastLanguage()
+        {
+            static Int32 language = 0;
+            return language;
         }
 
         const char* NameProblemText(ScriptProject::NameProblem problem)
@@ -103,7 +112,23 @@ namespace JBro
                     }
                     submitted = Widget::TextField("##name", m_name).CommitOnEnter().LiveText().MaxLength(64)();
                 });
+            // 언어 이름은 번역하지 않는다. JBroScript 는 2D 만 빌드되므로 3D 프로젝트에서는 줄 자체를 두지 않는다.
+            if (editor.GetFrameworkKind() == FrameworkKind::Framework2D)
+            {
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::NewScriptLanguage, "Language"))
+                        .Tooltip(Loc::TextOr(LocKeys::NewScriptLanguageHint,
+                            "JBroScript is turned into C++ when you build and goes into the same game DLL. 2D projects only")),
+                    [&]() {
+                        static const char* const languages[] = {"C++", "JBroScript"};
+                        // 고른 뒤에는 이름 칸으로 돌아간다 - 칩을 누르면 포커스가 빠져, 이름을 치려면 칸을 다시 눌러야 했다.
+                        if (Widget::ChoiceChips("##language", ArrayView<const char* const>(languages, 2), LastLanguage()))
+                        {
+                            m_refocus = true;
+                        }
+                    });
+            }
         }
+        const Bool jbroScript = editor.GetFrameworkKind() == FrameworkKind::Framework2D && LastLanguage() == 1;
         const ScriptProject::NameProblem nameProblem = editor.CheckScriptName(m_folder.c_str(), m_name.c_str());
         if (const char* text = NameProblemText(nameProblem))
         {
@@ -116,7 +141,12 @@ namespace JBro
         {
             fieldsValid = fieldsValid && ScriptProject::CheckFieldName(m_fields, index) == ScriptProject::NameProblem::None;
         }
-        if (Widget::CollapsingSection(Loc::TextOr(LocKeys::NewScriptAdvanced, "Advanced Options"), false))
+        // 필드 고르기는 C++ 타입 이름을 쓴다. JBroScript 는 필드를 파일에 바로 적는다(`[prop] public Float speed = 1.0`).
+        if (jbroScript)
+        {
+            fieldsValid = true;
+        }
+        else if (Widget::CollapsingSection(Loc::TextOr(LocKeys::NewScriptAdvanced, "Advanced Options"), false))
         {
             Widget::Text(Loc::TextOr(LocKeys::NewScriptFields, "Fields"));
             const OfferedFieldTypes& offered = FieldTypesFor(editor.GetFrameworkKind());
@@ -183,7 +213,8 @@ namespace JBro
         if (submitted && canCreate)
         {
             String failure;
-            const String created = editor.CreateScript(m_folder.c_str(), m_name.c_str(), m_fields, failure);
+            const String created = jbroScript ? editor.CreateJBroScript(m_folder.c_str(), m_name.c_str(), failure)
+                                              : editor.CreateScript(m_folder.c_str(), m_name.c_str(), m_fields, failure);
             if (false == created.empty())
             {
                 // 편집기를 저절로 띄우지는 않는다 - Visual Studio 는 뜨는 데 오래 걸리고, 사용자가 이어서 스크립트를 더 만들 수 있다.

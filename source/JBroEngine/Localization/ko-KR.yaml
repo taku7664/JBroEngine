@@ -397,6 +397,8 @@ Entries:
   notify.script_fault: 스크립트에서 오류가 났습니다
   notify.script_fault_at: "%s - %s:%u (%s). 눌러서 그 줄을 엽니다"
   notify.script_fault_in_hook: "%s (%s)"
+  notify.script_error: 스크립트 오류로 그 콜백을 멈췄습니다
+  notify.script_error_at: "%s:%u  %s - 실행은 이어집니다. 눌러서 그 줄을 엽니다"
   script_fault.access_violation: 잘못된 메모리에 접근했습니다
   script_fault.divide_by_zero: 정수를 0으로 나눴습니다
   script_fault.stack_overflow: 스택이 넘쳤습니다. 끝없는 재귀일 수 있습니다
@@ -411,6 +413,8 @@ Entries:
   assets.open_script: 열기
   new_script.name: 이름
   new_script.name_hint: 클래스 이름입니다. 캔버스 파일에 이 이름으로 저장됩니다
+  new_script.language: 언어
+  new_script.language_hint: JBroScript 는 빌드할 때 C++ 로 바뀌어 같은 게임 DLL 에 들어갑니다. 2D 프로젝트에서만 쓸 수 있습니다
   new_script.advanced: 고급 옵션
   new_script.fields: 필드
   new_script.invalid_name: 영문자, 숫자, 밑줄만 쓸 수 있고 숫자로 시작할 수 없습니다

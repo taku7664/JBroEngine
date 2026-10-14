@@ -397,6 +397,8 @@ Entries:
   notify.script_fault: A script raised an error
   notify.script_fault_at: "%s - %s:%u (%s). Click to open the line"
   notify.script_fault_in_hook: "%s (%s)"
+  notify.script_error: A script error stopped that callback
+  notify.script_error_at: "%s:%u  %s - play goes on. Click to open the line"
   script_fault.access_violation: The script accessed invalid memory
   script_fault.divide_by_zero: The script divided an integer by zero
   script_fault.stack_overflow: The script overflowed the stack. It may be endless recursion
@@ -411,6 +413,8 @@ Entries:
   assets.open_script: Open
   new_script.name: Name
   new_script.name_hint: The class name. Canvas files save the script under this name
+  new_script.language: Language
+  new_script.language_hint: JBroScript is turned into C++ when you build and goes into the same game DLL. 2D projects only
   new_script.advanced: Advanced Options
   new_script.fields: Fields
   new_script.invalid_name: Use letters, digits and underscores, and do not start with a digit

@@ -118,6 +118,8 @@ namespace JBro::LocKeys
     inline constexpr const char* NotifyScriptFault = "notify.script_fault";
     inline constexpr const char* NotifyScriptFaultAt = "notify.script_fault_at";
     inline constexpr const char* NotifyScriptFaultInHook = "notify.script_fault_in_hook";
+    inline constexpr const char* NotifyScriptError = "notify.script_error";
+    inline constexpr const char* NotifyScriptErrorAt = "notify.script_error_at";
     inline constexpr const char* ScriptFaultAccessViolation = "script_fault.access_violation";
     inline constexpr const char* ScriptFaultDivideByZero = "script_fault.divide_by_zero";
     inline constexpr const char* ScriptFaultStackOverflow = "script_fault.stack_overflow";
@@ -366,6 +368,8 @@ namespace JBro::LocKeys
     inline constexpr const char* NewScriptName = "new_script.name";
     inline constexpr const char* NewScriptNameHint = "new_script.name_hint";
     inline constexpr const char* NewScriptAdvanced = "new_script.advanced";
+    inline constexpr const char* NewScriptLanguage = "new_script.language";
+    inline constexpr const char* NewScriptLanguageHint = "new_script.language_hint";
     inline constexpr const char* NewScriptFields = "new_script.fields";
     inline constexpr const char* NewScriptInvalidName = "new_script.invalid_name";
     inline constexpr const char* NewScriptReservedName = "new_script.reserved_name";

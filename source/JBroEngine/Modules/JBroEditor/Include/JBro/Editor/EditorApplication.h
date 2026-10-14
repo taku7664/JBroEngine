@@ -718,6 +718,9 @@ namespace JBro
         // 스크립트 `.h`/`.cpp` 를 `folder`(스크립트 자리 기준 상대경로, 빈 글자면 `Scripts` 뿌리)에 만든다. 스크립트 프로젝트가 없으면
         // 먼저 만들고 엔진 위치(`JBroEngine.props`)를 맞춘다. 만든 헤더의 실제 경로이고, 실패하면 빈 글자이며 `error` 에 까닭이 있다.
         String CreateScript(const char* folder, const char* className, const Array<ScriptProject::FieldSpec>& fields, String& error);
+        // JBroScript 스크립트 `<이름>.jscript` 를 `folder` 에 만든다(사용자 시나리오 C). 2D 프로젝트만이다 - 3D 는 빌드가 거절한다.
+        // 프로젝트 준비는 `CreateScript` 와 같다. 만든 파일의 실제 경로이고, 실패하면 빈 글자이며 `error` 에 까닭이 있다.
+        String CreateJBroScript(const char* folder, const char* className, String& error);
         // 스크립트 폴더의 파일이 바뀔 때마다 오른다. 에셋 브라우저가 디스크를 다시 읽을지 이것으로 정한다.
         UInt64 GetScriptFilesRevision() const { return m_scriptFilesRevision; }
         // 새 스크립트 창이 이름을 매 프레임 본다. `folder` 는 스크립트 자리 기준 상대경로다.
@@ -1088,6 +1091,12 @@ namespace JBro
         Bool m_dockLayoutBuilt = false;
         // 처음 배치를 지은 다음 프레임에 포커스를 돌려줄 가운데 칸의 앞 패널이다(사용자 시나리오 A). 비면 할 일이 없다.
         Uuid m_focusAfterLayout;
+        // JBroScript 실행 오류 알림: 마지막으로 훑은 로그 판과 줄, 이번 실행에 알린 로그 그룹.
+        UInt64 m_scriptErrorLogRevision = 0;
+        // 떠 있는 빌드 실패 알림이다. 다음 빌드가 성공하면 닫는다 - 고친 뒤에도 실패 알림이 성공 알림 옆에 남았다(사용자 시나리오 C).
+        NotificationHandle m_buildFailedNotification = InvalidNotificationHandle;
+        UInt64 m_scriptErrorSerial = 0;
+        Array<UInt64> m_scriptErrorGroups;
         // 도크 뿌리의 배치는 한 번만 잡는다. 메인 도크가 거기 붙는 것이 전부다.
         Bool m_rootLayoutBuilt = false;
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,
@@ -1103,6 +1112,10 @@ namespace JBro
         void PollScriptModuleFile(Float deltaTime);
         // 스크립트 훅에서 예외가 났으면(D-325) 실행을 멈추고 되돌린 뒤, 로그와 알림으로 어느 스크립트의 어느 줄인지 알린다.
         void PollScriptFault();
+        // JBroScript 가 실행 중에 낸 오류(`!` 단언·빈 ref)를 자리마다 한 번 알린다(사용자 시나리오 C).
+        void PollScriptErrors();
+        // 스크립트 프로젝트를 만들고(없으면) 엔진 위치를 맞춘다. 스크립트를 만드는 두 길이 같이 쓴다.
+        Bool PrepareScriptProject(String& error);
         void RememberScriptModuleTime();
         Bool m_scriptReloadPending = false;
         // 마지막으로 실은 DLL 의 수정 시각과, 바뀐 것을 처음 본 시각이다.
