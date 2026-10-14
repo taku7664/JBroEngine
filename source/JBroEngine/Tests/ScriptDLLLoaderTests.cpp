@@ -41,6 +41,7 @@
 #include <cwchar>
 #include <iostream>
 #include <stdexcept>
+#include <type_traits>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -1274,6 +1275,16 @@ namespace
         const auto staticService = reinterpret_cast<StaticService>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticService"));
         Check(staticService != nullptr && staticService() == 2.25f,
             "static initializers observe the bound host service instead of a DLL-local default context");
+        const auto ownedValues = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_OwnedValues"));
+        Check(ownedValues != nullptr && ownedValues() == 8,
+            "owned nullable values preserve payload initialization and accept explicit nondefault construction and recursive arrays");
+        const auto nullableFailure = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_NullableFailure"));
+        JBro::Log::Clear();
+        Check(nullableFailure != nullptr && nullableFailure() == 20
+            && JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
+            "an absent nullable payload construction failure aborts each callback and never terminates the process");
         const auto customOverrides = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CustomOverrides"));
         JBro::Log::Clear();
@@ -1822,6 +1833,25 @@ namespace
 
 JBro::Int32 RunScriptDLLLoaderTests()
 {
+    struct FailingNullablePayload
+    {
+        FailingNullablePayload()
+        {
+            throw std::runtime_error("payload construction failed");
+        }
+    };
+    Check(!std::is_nothrow_constructible_v<JBro::Nullable<FailingNullablePayload>, std::nullptr_t>,
+        "null construction must not promise noexcept when its owned payload can throw");
+    JBro::Bool payloadFailureCaught = false;
+    try
+    {
+        JBro::Nullable<FailingNullablePayload> empty(nullptr);
+    }
+    catch (const std::runtime_error&)
+    {
+        payloadFailureCaught = true;
+    }
+    Check(payloadFailureCaught, "owned payload failure propagates through nullable null construction");
     TestRejectsInvalidModuleAbiBeforeCallingModule();
     TestTheLoadContextNeedsEveryHostTable();
     TestRequiresExactUniqueContextBlocks();

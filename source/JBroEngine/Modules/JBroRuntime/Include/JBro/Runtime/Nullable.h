@@ -16,7 +16,7 @@ namespace JBro
         T value{};
 
         Nullable() = default;
-        Nullable(std::nullptr_t) noexcept {}
+        Nullable(std::nullptr_t) {}
         Nullable(const T& initial) : present(true), value(initial) {}
         Nullable(T&& initial) : present(true), value(std::move(initial)) {}
 

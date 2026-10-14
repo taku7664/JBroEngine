@@ -1,6 +1,25 @@
 #include "JBroGenerated.h"
 #include <JBro/Runtime/ScriptGuard.h>
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_OwnedValues()
+{
+    const auto& recursive = JBro::GetPropertyTable<RecursiveOwned>();
+    const auto* nullable = recursive.properties[0].type->element;
+    if (recursive.count != 1 || nullable->fields->properties[1].type->fields != &recursive)
+    {
+        return -1;
+    }
+    return OwnedValueModel::Run().Get();
+}
+
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_NullableFailure()
+{
+    NullableFailureProbe script;
+    script.OnUpdate();
+    script.OnUpdate();
+    return (script.before * 10 + script.after).Get();
+}
+
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_CustomOverrides()
 {
     OverrideChild script;
