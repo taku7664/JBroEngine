@@ -1,5 +1,15 @@
 #include "Guard.cpp"
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlCount(JBro::GameScriptBase* base) noexcept
+{
+    return static_cast<ControlProbe*>(base)->count.Get();
+}
+
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlActive(JBro::GameScriptBase* base) noexcept
+{
+    static_cast<ControlProbe*>(base)->mode = Mode::Active;
+}
+
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetFirstValid(JBro::GameScriptBase* base) noexcept
 {
     static_cast<GuardProbe*>(base)->target1 = JBro::Nullable<Link>(Link{});

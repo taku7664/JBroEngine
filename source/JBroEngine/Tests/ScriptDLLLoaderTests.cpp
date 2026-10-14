@@ -1159,6 +1159,48 @@ namespace
             && generatedProperties->properties[1].type->fields != nullptr
             && generatedProperties->properties[1].type->fields->count == 2,
             "only [prop] fields are reflected: script refs in an Array and nullable Int presence/value");
+        const JBro::ScriptTypeInfo* controlType = JBro::ScriptRegistry::Local().Find("ControlProbe");
+        const JBro::PropertyTable* controlProperties = JBro::PropertyRegistry::Lookup("ControlProbe");
+        Check(controlType != nullptr && controlProperties != nullptr && controlProperties->count == 1
+                && controlProperties->properties[0].type->enumNames != nullptr,
+            "generated enum fields have a named-value descriptor for inspector and scene storage");
+        using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
+        using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
+        const auto controlCount = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlCount"));
+        const auto controlActive = reinterpret_cast<ControlActive>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlActive"));
+        Check(controlCount != nullptr && controlActive != nullptr, "the generated control scenario exports its probes");
+        alignas(64) unsigned char controlStorage[4096]{};
+        JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
+        Check(controlScript != nullptr, "the generated control script constructs");
+        controlScript->OnUpdate();
+        Check(controlCount(controlScript) == 4, "range for and the first enum switch branch execute");
+        controlActive(controlScript);
+        controlScript->OnUpdate();
+        Check(controlCount(controlScript) == 9, "the second enum switch branch executes without fallthrough");
+        controlType->Destruct(controlScript);
+        {
+            JBro::Canvas controlCanvas(JBro::CreateDefaultAllocator());
+            JBro::GameScriptBase* attached = controlCanvas.AttachScript(
+                controlCanvas.CreateObject("enum state"), "ControlProbe");
+            Check(attached != nullptr, "the generated enum script attaches by name");
+            controlActive(attached);
+            JBro::CanvasFileError canvasError;
+            JBro::String saved;
+            Check(JBro::WriteCanvasText(controlCanvas, saved, canvasError)
+                    && saved.find("Active") != JBro::String::npos,
+                "a reflected generated enum saves its member name");
+            JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+            Check(JBro::ReadCanvasText(reopened, saved.c_str(), saved.size(), canvasError),
+                "a canvas with a generated enum reopens");
+            JBro::Array<JBro::GameScriptBase*> reopenedScripts;
+            reopened.CollectScripts(reopenedScripts);
+            Check(reopenedScripts.Size() == 1, "the generated enum script survives scene reload");
+            reopenedScripts[0]->OnUpdate();
+            Check(controlCount(reopenedScripts[0]) == 5,
+                "the saved enum member restores the active switch branch");
+        }
         alignas(64) unsigned char generatedStorage[4096]{};
         JBro::GameScriptBase* generatedScript = generatedType->Construct(generatedStorage);
         Check(generatedScript != nullptr, "the host constructs the generated script");

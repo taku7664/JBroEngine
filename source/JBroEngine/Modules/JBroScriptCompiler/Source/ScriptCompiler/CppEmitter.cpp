@@ -118,7 +118,8 @@ namespace JBro::ScriptCompiler
             CppEmitResult Run()
             {
                 m_code = "#include <JBro/ScriptAPI.h>\n#include <JBro/Framework2D/Scripting/ScriptModule.h>\n"
-                    "#include <JBro/Runtime/ScriptGuard.h>\n\n";
+                    "#include <JBro/Runtime/ScriptGuard.h>\n"
+                    "#include <JBro/Reflection/EnumDescriptor.h>\n\n";
                 if (m_sources.IsEmpty())
                 {
                     Error("no source files for C++ generation");
@@ -154,8 +155,10 @@ namespace JBro::ScriptCompiler
                 for (const DeclarationRef& item : declarations)
                 {
                     const SyntaxNode& declaration = item.tree->Get(item.index);
-                    m_code += String(declaration.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
-                        + String(declaration.Text) + ";\n";
+                    m_code += String(declaration.Kind == SyntaxKind::EnumDeclaration ? "enum class "
+                        : declaration.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
+                        + String(declaration.Text)
+                        + (declaration.Kind == SyntaxKind::EnumDeclaration ? " : std::int64_t;\n" : ";\n");
                 }
                 m_code += '\n';
                 for (const DeclarationRef& item : declarations)
@@ -327,7 +330,8 @@ namespace JBro::ScriptCompiler
                     const SyntaxNode& node = Node(child);
                     if (node.Kind != SyntaxKind::ScriptDeclaration
                         && node.Kind != SyntaxKind::ClassDeclaration
-                        && node.Kind != SyntaxKind::StructDeclaration)
+                        && node.Kind != SyntaxKind::StructDeclaration
+                        && node.Kind != SyntaxKind::EnumDeclaration)
                     {
                         continue;
                     }
@@ -388,12 +392,39 @@ namespace JBro::ScriptCompiler
                 const SyntaxNode& node = Node(index);
                 if (node.Kind != SyntaxKind::ScriptDeclaration
                     && node.Kind != SyntaxKind::ClassDeclaration
-                    && node.Kind != SyntaxKind::StructDeclaration)
+                    && node.Kind != SyntaxKind::StructDeclaration
+                    && node.Kind != SyntaxKind::EnumDeclaration)
                 {
                     Error("C++ emitter does not support this declaration yet");
                     return;
                 }
                 m_owner = String(node.Text);
+                if (node.Kind == SyntaxKind::EnumDeclaration)
+                {
+                    if (node.ChildCount == 0)
+                    {
+                        Error("C++ emitter cannot reflect an enum without members: " + m_owner);
+                        return;
+                    }
+                    m_code += "enum class " + m_owner + " : std::int64_t\n{\n";
+                    std::size_t memberCount = 0;
+                    for (NodeIndex member : m_tree->GetChildren(index))
+                    {
+                        if (memberCount++ != 0) m_code += ",\n";
+                        m_code += "    " + String(Node(member).Text);
+                    }
+                    m_code += "\n};\nnamespace JBro { JBRO_DEFINE_ENUM_TYPE(::" + m_owner
+                        + ", " + Escape(m_owner) + ", ";
+                    memberCount = 0;
+                    for (NodeIndex member : m_tree->GetChildren(index))
+                    {
+                        if (memberCount++ != 0) m_code += ", ";
+                        const String name(Node(member).Text);
+                        m_code += "{::" + m_owner + "::" + name + ", " + Escape(name) + "}";
+                    }
+                    m_code += "); }\n\n";
+                    return;
+                }
                 const bool script = node.Kind == SyntaxKind::ScriptDeclaration;
                 if (script)
                 {
@@ -671,6 +702,19 @@ namespace JBro::ScriptCompiler
                 case SyntaxKind::MemberAccessExpression:
                 {
                     Expression receiver = Expr(Child(index, 0));
+                    if (const DeclarationRef* declaration = m_declarations.Find(receiver.type.name);
+                        declaration != nullptr && declaration->kind == SyntaxKind::EnumDeclaration)
+                    {
+                        for (NodeIndex member : declaration->tree->GetChildren(declaration->index))
+                        {
+                            if (declaration->tree->Get(member).Text == node.Text)
+                            {
+                                return {receiver.code + "::" + String(node.Text), receiver.type};
+                            }
+                        }
+                        Error("unresolved enum member in C++ emitter: " + String(node.Text));
+                        return {};
+                    }
                     Type memberType;
                     bool property = false;
                     String nativeMember(node.Text);
@@ -906,6 +950,32 @@ namespace JBro::ScriptCompiler
                         Error("two-variable for is not supported by the C++ emitter yet");
                         return;
                     }
+                    if (Node(Child(index, 2)).Kind == SyntaxKind::RangeExpression)
+                    {
+                        const NodeIndex variable = Child(index, 0);
+                        if (Node(variable).Flags & SyntaxFlagRef)
+                        {
+                            Error("a range loop variable cannot borrow an element");
+                            return;
+                        }
+                        const NodeIndex range = Child(index, 2);
+                        const Expression start = Expr(Child(range, 0));
+                        const Expression end = Expr(Child(range, 1));
+                        const String name(Node(variable).Text);
+                        const String unique = std::to_string(m_temporary++);
+                        const String first = "__jb_range_first_" + unique;
+                        const String last = "__jb_range_last_" + unique;
+                        const auto saved = m_variables;
+                        m_variables[name] = {"Int", false};
+                        m_code += pad + "{\n" + pad + "    const JBro::Int " + first + " = (" + start.code + ");\n"
+                            + pad + "    const JBro::Int " + last + " = (" + end.code + ");\n"
+                            + pad + "    for (JBro::Int " + name + " = " + first + "; " + name
+                            + " < " + last + "; ++" + name + ")\n";
+                        Statement(Child(index, 3), indent + 4);
+                        m_code += pad + "}\n";
+                        m_variables = saved;
+                        return;
+                    }
                     const Expression iterable = Expr(Child(index, 2));
                     const Array<String> arguments = TypeArguments(iterable.type.name);
                     if (iterable.type.name.rfind("Array<", 0) != 0 || arguments.Size() != 1)
@@ -921,6 +991,47 @@ namespace JBro::ScriptCompiler
                         + name + " : " + iterable.code + ")\n";
                     Statement(Child(index, 3), indent);
                     m_variables = saved;
+                    return;
+                }
+                if (node.Kind == SyntaxKind::SwitchStatement)
+                {
+                    const NodeIndex valueIndex = Child(index, 0);
+                    const Expression value = Expr(valueIndex);
+                    const DeclarationRef* switchedType = m_declarations.Find(value.type.name);
+                    if (value.type.name != "Int" && (switchedType == nullptr
+                        || switchedType->kind != SyntaxKind::EnumDeclaration))
+                    {
+                        Error("C++ emitter switch requires Int or a script enum");
+                        return;
+                    }
+                    const String compared = AdaptValue({value.type.name, false}, value, valueIndex);
+                    m_code += pad + "switch (static_cast<std::int64_t>(" + compared + "))\n"
+                        + pad + "{\n";
+                    for (std::size_t clauseSlot = 1; clauseSlot < node.ChildCount; ++clauseSlot)
+                    {
+                        const NodeIndex clause = Child(index, clauseSlot);
+                        const SyntaxNode& clauseNode = Node(clause);
+                        if (clauseNode.Kind == SyntaxKind::CaseClause)
+                        {
+                            for (std::size_t caseSlot = 0; caseSlot + 1 < clauseNode.ChildCount; ++caseSlot)
+                            {
+                                m_code += pad + "case static_cast<std::int64_t>("
+                                    + Expr(Child(clause, caseSlot)).code + "):\n";
+                            }
+                        }
+                        else if (clauseNode.Kind == SyntaxKind::DefaultClause)
+                        {
+                            m_code += pad + "default:\n";
+                        }
+                        else
+                        {
+                            Error("C++ emitter encountered an invalid switch clause");
+                            return;
+                        }
+                        Statement(Child(clause, clauseNode.ChildCount - 1), indent + 4);
+                        m_code += pad + "    break;\n";
+                    }
+                    m_code += pad + "}\n";
                     return;
                 }
                 if (node.Kind == SyntaxKind::BreakStatement || node.Kind == SyntaxKind::ContinueStatement)
@@ -956,6 +1067,7 @@ namespace JBro::ScriptCompiler
             Table<String, Type> m_variables;
             Array<String> m_scripts;
             Array<FunctionRef> m_functions;
+            std::size_t m_temporary = 0;
             String m_owner;
         };
     }

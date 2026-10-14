@@ -1,0 +1,30 @@
+enum Mode
+{
+    Idle
+    Active
+}
+
+script ControlProbe
+{
+    public Int count
+    [prop] public Mode mode = Mode.Idle
+
+    fn OnUpdate() override
+    {
+        for (i in 0..3)
+        {
+            count += i
+        }
+        switch (mode)
+        {
+            case Mode.Idle
+            {
+                count += 1
+            }
+            case Mode.Active
+            {
+                count += 2
+            }
+        }
+    }
+}
