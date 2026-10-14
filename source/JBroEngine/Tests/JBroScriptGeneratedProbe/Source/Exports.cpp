@@ -5,6 +5,11 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlCount(JB
     return static_cast<ControlProbe*>(base)->count.Get();
 }
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlRhsCount(JBro::GameScriptBase* base) noexcept
+{
+    return static_cast<ControlProbe*>(base)->rhsCount.Get();
+}
+
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlActive(JBro::GameScriptBase* base) noexcept
 {
     static_cast<ControlProbe*>(base)->mode = Mode::Active;
@@ -58,6 +63,21 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlOwnCount
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlScoreByName(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->ScoreByName().Get();
+}
+
+extern "C" __declspec(dllexport) float JBroGeneratedProbe_ControlBrighten(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->Brighten().Get();
+}
+
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlRenameOwner(JBro::GameScriptBase* base)
+{
+    static_cast<ControlProbe*>(base)->RenameOwner();
+}
+
+extern "C" __declspec(dllexport) float JBroGeneratedProbe_ControlMoveOwner(JBro::GameScriptBase* base)
+{
+    return static_cast<ControlProbe*>(base)->MoveOwner().Get();
 }
 
 extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetFirstValid(JBro::GameScriptBase* base) noexcept

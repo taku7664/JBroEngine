@@ -810,6 +810,10 @@ namespace JBro::ScriptCompiler
                             {
                                 setter = "Set" + nativeMember.substr(3);
                             }
+                            else if (member.Writable && nativeMember.rfind("Is", 0) == 0)
+                            {
+                                setter = "Set" + nativeMember.substr(2);
+                            }
                             break;
                         }
                     }
@@ -1027,19 +1031,53 @@ namespace JBro::ScriptCompiler
                     if (target.property && !target.setter.empty()
                         && Node(targetIndex).Kind == SyntaxKind::MemberAccessExpression)
                     {
-                        if (node.Text != "=")
-                        {
-                            Error("compound assignment to a projected property is not supported yet");
-                            return;
-                        }
                         const Expression receiver = Expr(Child(targetIndex, 0));
                         const SyntaxNode& member = Node(targetIndex);
                         const String key = Escape(SiteKey(member));
                         const String message = Escape(SiteKey(member) + " invalid ref access: " + AccessPath(targetIndex));
+                        String getter;
+                        if (const ApiType* api = Api(receiver.type.name))
+                        {
+                            for (const ApiMember& candidate : api->Members)
+                            {
+                                if (candidate.Name.View() == member.Text)
+                                {
+                                    getter = candidate.NativeName.empty() ? Pascal(member.Text)
+                                        : String(candidate.NativeName.c_str());
+                                    break;
+                                }
+                            }
+                        }
+                        if (node.Text != "=" && getter.empty())
+                        {
+                            Error("compound property assignment has no getter");
+                            return;
+                        }
                         m_code += pad + "([&]() { auto&& __jb_receiver = (" + receiver.code + "); "
                             "auto&& __jb_checked = JBro::ScriptGuard::Require(__jb_receiver, " + key + ", " + message + "); "
-                            "auto __jb_value = (" + value.code + "); __jb_checked." + target.setter
-                            + "(__jb_value); }());\n";
+                            + (target.type.name == "String" ? "JBro::String __jb_value(" : "auto __jb_value = (")
+                            + value.code + "); ";
+                        if (node.Text != "=")
+                        {
+                            const String operation(node.Text);
+                            m_code += NativeType(target.type) + " __jb_current(__jb_checked." + getter + "()); ";
+                            if (target.type.name == "Vector2")
+                            {
+                                const String operand = operation.substr(0, operation.size() - 1);
+                                const String rhs = value.type.name == "Vector2" ? "__jb_value.x" : "__jb_value";
+                                m_code += "__jb_current.x " + operand + "= " + rhs + "; ";
+                                m_code += "__jb_current.y " + operand + "= "
+                                    + (value.type.name == "Vector2" ? "__jb_value.y" : "__jb_value") + "; ";
+                            }
+                            else
+                            {
+                                m_code += "__jb_current " + operation + " __jb_value; ";
+                            }
+                        }
+                        const String assigned = node.Text == "=" ? "__jb_value" : "__jb_current";
+                        m_code += "__jb_checked." + target.setter + "("
+                            + assigned + (target.type.name == "String" ? ".c_str()" : "")
+                            + "); }());\n";
                     }
                     else
                     {

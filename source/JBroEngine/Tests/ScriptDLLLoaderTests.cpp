@@ -4,6 +4,8 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
@@ -1170,6 +1172,8 @@ namespace
         using ControlHasOwner = bool (*)(JBro::GameScriptBase*);
         const auto controlCount = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlCount"));
+        const auto controlRhsCount = reinterpret_cast<ControlCount>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlRhsCount"));
         const auto controlActive = reinterpret_cast<ControlActive>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlActive"));
         const auto controlAddScore = reinterpret_cast<ControlAddScore>(
@@ -1193,12 +1197,23 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlOwnCount"));
         const auto controlScoreByName = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlScoreByName"));
-        Check(controlCount != nullptr && controlActive != nullptr && controlAddScore != nullptr
+        using ControlBrighten = float (*)(JBro::GameScriptBase*);
+        const auto controlBrighten = reinterpret_cast<ControlBrighten>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlBrighten"));
+        using ControlRenameOwner = void (*)(JBro::GameScriptBase*);
+        const auto controlRenameOwner = reinterpret_cast<ControlRenameOwner>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlRenameOwner"));
+        const auto controlMoveOwner = reinterpret_cast<ControlBrighten>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlMoveOwner"));
+        Check(controlCount != nullptr && controlRhsCount != nullptr && controlActive != nullptr
+                && controlAddScore != nullptr
                 && controlRaiseScores != nullptr
                 && controlHasOwner != nullptr && controlHasTransform != nullptr
                 && controlHasTransformSafe != nullptr && controlDisableOwnerSafe != nullptr
                 && controlNullFallback != nullptr && controlGenericArray != nullptr
-                && controlOwnCount != nullptr && controlScoreByName != nullptr,
+                && controlOwnCount != nullptr && controlScoreByName != nullptr
+                && controlBrighten != nullptr && controlRenameOwner != nullptr
+                && controlMoveOwner != nullptr,
             "the generated control scenario exports its probes");
         alignas(64) unsigned char controlStorage[4096]{};
         JBro::GameScriptBase* controlScript = controlType->Construct(controlStorage);
@@ -1234,8 +1249,9 @@ namespace
         controlType->Destruct(controlScript);
         {
             JBro::Canvas controlCanvas(JBro::CreateDefaultAllocator());
+            JBro::Object::GameObject* controlOwner = controlCanvas.CreateObject("enum state");
             JBro::GameScriptBase* attached = controlCanvas.AttachScript(
-                controlCanvas.CreateObject("enum state"), "ControlProbe");
+                controlOwner, "ControlProbe");
             Check(attached != nullptr, "the generated enum script attaches by name");
             Check(controlHasOwner(attached),
                 "an implicit inherited script API call resolves to the attached game object");
@@ -1256,6 +1272,29 @@ namespace
             reopenedScripts[0]->OnUpdate();
             Check(controlCount(reopenedScripts[0]) == 5,
                 "the saved enum member restores the active switch branch");
+            const std::size_t groupsBeforeProperty = JBro::Log::GetGroupCount();
+            static_cast<JBro::GameScript2D*>(attached)->OnPointerDown();
+            Check(controlCount(attached) == 0 && controlRhsCount(attached) == 0
+                    && JBro::Log::GetGroupCount() == groupsBeforeProperty + 1
+                    && std::strstr(JBro::Log::GetGroupAt(groupsBeforeProperty)->display,
+                        "light.intensity") != nullptr,
+                "a missing handle aborts projected compound assignment before the next statement");
+            Check(controlCanvas.AttachComponent<JBro::Component::Light2D>(controlOwner) != nullptr,
+                "a light component attaches to the generated control scenario");
+            Check(controlBrighten(attached) == 1.5f && controlRhsCount(attached) == 1,
+                "a checked handle compound property assignment reads, updates and writes once");
+            static_cast<JBro::GameScript2D*>(attached)->OnPointerDown();
+            Check(controlCount(attached) == 1 && controlRhsCount(attached) == 2
+                    && JBro::Log::GetGroupCount() == groupsBeforeProperty + 1,
+                "the next callback continues after a component makes the handle valid");
+            controlRenameOwner(attached);
+            Check(std::strcmp(controlOwner->GetName(), "edited!") == 0
+                    && false == controlOwner->IsActiveSelf(),
+                "String and Is-prefixed projected properties call their native setters");
+            auto* ownerTransform = controlCanvas.AttachComponent<JBro::Component::Transform2D>(controlOwner);
+            Check(ownerTransform != nullptr && controlMoveOwner(attached) == 2.0f
+                    && ownerTransform->position.x == 2.0f && ownerTransform->position.y == 3.0f,
+                "Vector2 compound property assignment writes both vector components");
         }
         alignas(64) unsigned char generatedStorage[4096]{};
         JBro::GameScriptBase* generatedScript = generatedType->Construct(generatedStorage);

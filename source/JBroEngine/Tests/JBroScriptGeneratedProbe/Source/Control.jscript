@@ -7,6 +7,7 @@ enum Mode
 script ControlProbe
 {
     public Int count
+    public Int rhsCount
     public Table<String, Int> scores
     [prop] public Mode mode = Mode.Idle
 
@@ -58,6 +59,42 @@ script ControlProbe
     public fn ScoreByName() -> Int
     {
         return scores["bonus"]
+    }
+
+    public fn Brighten() -> Float
+    {
+        ref Light2D light = GetGameObject().GetComponent<Light2D>()
+        light.intensity += NextAmount()
+        return light.intensity
+    }
+
+    public fn NextAmount() -> Float
+    {
+        rhsCount += 1
+        return 0.5
+    }
+
+    public fn RenameOwner()
+    {
+        GetGameObject().name = "edited"
+        GetGameObject().name += "!"
+        GetGameObject().active = false
+    }
+
+    public fn MoveOwner() -> Float
+    {
+        ref Transform2D transform = GetGameObject().GetComponent<Transform2D>()
+        Vector2 delta
+        delta.x = 2.0
+        delta.y = 3.0
+        transform.position += delta
+        return transform.position.x
+    }
+
+    fn OnPointerDown() override
+    {
+        Float intensity = Brighten()
+        count += 1
     }
 
     fn OnUpdate() override
