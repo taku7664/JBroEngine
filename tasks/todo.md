@@ -75,7 +75,7 @@
       (Win32 `WaitForDebugEvent` 는 같은 기계에서 이벤트를 받았다). 위 "첫 실측" 의 멈춤도 이 때문이었을 가능성이 크다.
     - 스크립트 모듈의 심볼은 지연(deferred)이라 `ld` 로 먼저 불러야 소스 줄 중단점이 풀린다. 에디터가 싣는 이름은 복사본(`GameScript_dll_jbro_<pid>_<세대>`)이다.
     - **붙은 채로 다시 빌드하면 `LNK1201`(PDB 를 못 씀)로 실패하고, 링커가 `GameScript.dll` 까지 지운다.** 디버거가 `GameScript.pdb` 를 쥐고 있기 때문이다.
-      `.reload /u <모듈>` 로 심볼을 놓으면 빌드·핫 리로드가 되고, 다음 세대 모듈을 적은 소스 줄 중단점(`bu \`GameScript_dll_jbro_<pid>_2!NewScript.cpp:19\``)이
+      `.reload /u <모듈>` 로 심볼을 놓으면 빌드·핫 리로드가 되고, 다음 세대 모듈을 적은 소스 줄 중단점(`` bu `GameScript_dll_jbro_<pid>_2!NewScript.cpp:19` ``)이
       실릴 때 풀려 새 복사본에서 멈췄다. 어댑터가 빌드 시작을 알거나, 엔진이 빌드마다 다른 PDB 이름을 쓰게 해야 한다 - 고르지 않았다. Visual Studio 디버거로는 재지 않았다.
     - `JBro::Float` 같은 값 타입은 숫자가 아니라 구조체로 보인다. `.natvis` 가 있어야 한다(Visual Studio 에도 같다).
     - 실행 중 `SetInterrupt` 로 끼어들기는 10 초 안에 멈추지 않았다(일시정지 버튼에 필요하다). `WaitForEvent` 밖에서 부른 것이 까닭인지 가르지 못했다.
