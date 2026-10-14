@@ -1,0 +1,44 @@
+enum namespace
+{
+    delete
+    template
+}
+
+struct jbro_gen_template
+{
+    Int delete = 3
+}
+
+class _Upper
+{
+}
+
+class value__part
+{
+}
+
+class JBro
+{
+}
+
+class std
+{
+}
+
+script template
+{
+    [prop]
+    public Int delete = 4
+    public Int JBroFieldAt = 2
+    public Int GetTypeId = 1
+
+    public fn virtual(Int new) -> Int
+    {
+        Int xor = delete + new
+        jbro_gen_template item
+        namespace mode = namespace.delete
+        if (mode == namespace.delete) { xor += 1 }
+        Int jbro_gen_value = xor + JBroFieldAt + GetTypeId
+        return jbro_gen_value + item.delete
+    }
+}

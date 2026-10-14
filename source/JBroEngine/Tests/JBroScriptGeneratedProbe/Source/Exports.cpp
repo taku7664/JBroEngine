@@ -1,5 +1,11 @@
 #include "Guard.cpp"
 
+extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_KeywordScore()
+{
+    jbro_gen_template value;
+    return value.jbro_gen_virtual(JBro::Int(5)).Get();
+}
+
 extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_DerivedRead()
 {
     DerivedCounter counter;

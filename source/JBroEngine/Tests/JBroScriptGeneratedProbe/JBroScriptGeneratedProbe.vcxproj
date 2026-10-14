@@ -23,7 +23,7 @@
       <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PreBuildEvent>
-      <Command>"$(JBroBuildDir)x64\$(Configuration)\JBroc.exe" --emit-cpp "$(IntDir)Guard.cpp" --no-module-entry "$(MSBuildProjectDirectory)\Source\Guard.jscript" "$(MSBuildProjectDirectory)\Source\Control.jscript" "$(MSBuildProjectDirectory)\Source\Inheritance.jscript" "$(MSBuildProjectDirectory)\Source\Attributes.jscript"</Command>
+      <Command>"$(JBroBuildDir)x64\$(Configuration)\JBroc.exe" --emit-cpp "$(IntDir)Guard.cpp" --no-module-entry "$(MSBuildProjectDirectory)\Source\Guard.jscript" "$(MSBuildProjectDirectory)\Source\Control.jscript" "$(MSBuildProjectDirectory)\Source\Inheritance.jscript" "$(MSBuildProjectDirectory)\Source\Attributes.jscript" "$(MSBuildProjectDirectory)\Source\Names.jscript"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup><ClCompile Include="Source\Exports.cpp" /><ClCompile Include="Source\ScriptModule.cpp" /></ItemGroup>

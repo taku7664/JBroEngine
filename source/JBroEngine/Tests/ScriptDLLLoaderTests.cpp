@@ -1173,6 +1173,11 @@ namespace
         Check(std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[0].name), "shared") == 0
                 && std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[1].name), "extra") == 0,
             "inherited and own property names remain distinct in the derived script table");
+        const JBro::ScriptTypeInfo* keywordType = JBro::ScriptRegistry::Local().Find("template");
+        const JBro::PropertyTable* keywordProperties = JBro::PropertyRegistry::Lookup("template");
+        Check(keywordType != nullptr && keywordProperties != nullptr && keywordProperties->count == 1
+                && std::strcmp(JBro::NameTable::Get().Resolve(keywordProperties->properties[0].name), "delete") == 0,
+            "C++ keyword spelling remains the script type and reflected property name");
         const JBro::PropertyTable* attributeProperties = JBro::PropertyRegistry::Lookup("AttributeProbe");
         Check(attributeProperties != nullptr && attributeProperties->count == 13,
             "all supported field attributes register their script fields");
@@ -1206,6 +1211,8 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_MultipleBaseProperties"));
         const auto equalityScore = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_EqualityScore"));
+        const auto keywordScore = reinterpret_cast<DerivedRead>(
+            engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_KeywordScore"));
         const auto childResult = reinterpret_cast<ChildResult>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ChildResult"));
         Check(derivedRead != nullptr && derivedRead() == 5 && childResult != nullptr
@@ -1213,6 +1220,8 @@ namespace
             "interface diamonds, virtual overrides and secondary-base reflection execute in the game DLL");
         Check(equalityScore != nullptr && equalityScore() == 475,
             "equality operators and a chained call from a selected overload execute in the game DLL");
+        Check(keywordScore != nullptr && keywordScore() == 16,
+            "C++ keywords and escaped prefix names execute through generated types, fields, methods and locals");
         using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
         using ControlAddScore = void (*)(JBro::GameScriptBase*);
@@ -1397,6 +1406,26 @@ namespace
                 "static script property is excluded from canvas saves");
             Check(staticSaved.find("gain") != JBro::String::npos,
                 "ordinary reflected script field remains in the canvas save");
+            JBro::Canvas keywordCanvas(JBro::CreateDefaultAllocator());
+            JBro::GameScriptBase* keywordScript = keywordCanvas.AttachScript(
+                keywordCanvas.CreateObject("keyword names"), "template");
+            Check(keywordScript != nullptr, "a script named after a C++ keyword attaches by its original name");
+            auto* keywordValue = static_cast<JBro::Int*>(keywordProperties->properties[0].Address(keywordScript));
+            Check(keywordValue != nullptr && keywordValue->Get() == 4,
+                "a reflected keyword field retains its initialized value");
+            *keywordValue = 9;
+            JBro::String keywordSaved;
+            Check(JBro::WriteCanvasText(keywordCanvas, keywordSaved, canvasError)
+                    && keywordSaved.find("delete") != JBro::String::npos,
+                "scene storage writes the original keyword field name");
+            JBro::Canvas keywordReopened(JBro::CreateDefaultAllocator());
+            Check(JBro::ReadCanvasText(keywordReopened, keywordSaved.c_str(), keywordSaved.size(), canvasError),
+                "a scene with an escaped C++ identifier reopens");
+            JBro::Array<JBro::GameScriptBase*> keywordScripts;
+            keywordReopened.CollectScripts(keywordScripts);
+            Check(keywordScripts.Size() == 1
+                    && static_cast<const JBro::Int*>(keywordProperties->properties[0].ConstAddress(keywordScripts[0]))->Get() == 9,
+                "the original keyword field name restores its saved value");
         }
         alignas(64) unsigned char generatedStorage[4096]{};
         JBro::GameScriptBase* generatedScript = generatedType->Construct(generatedStorage);

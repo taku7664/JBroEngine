@@ -139,7 +139,7 @@ namespace
         const CppEmitResult projectSource = EmitCpp(source, tree, Catalog(), false);
         Check(projectSource.Errors.IsEmpty()
                 && projectSource.Code.find("JBRO_SCRIPT_MODULE_2D_REQUIRING_ERROR_CONTEXT()") == String::npos
-                && projectSource.Code.find("JBRO_REGISTER_SCRIPT_2D(Probe)") != String::npos,
+                && projectSource.Code.find("RegisterScriptType2D<Probe>()") != String::npos,
             "project mode registers the generated script without a duplicate DLL entry point");
         Check(emitted.Code.find("#line 10 \"chain.jscript\"") != String::npos,
             "generated statements point C++ diagnostics back to the JBroScript source");
@@ -212,7 +212,8 @@ namespace
         Check(emitted.Errors.IsEmpty(), "field visibility sample emits");
         Check(emitted.Code.find("private:\n    JBro::Int hidden") != String::npos,
             "an unannotated script field remains private and unreflected");
-        Check(emitted.Code.find("JBRO_FIELD(JBro::Int, shown)") != String::npos,
+        Check(emitted.Code.find("MakeFieldEntry<&Probe::shown>()") != String::npos
+                && emitted.Code.find("field.name = \"shown\"") != String::npos,
             "an annotated public field is registered for scene and inspector reflection");
     }
 
@@ -241,7 +242,7 @@ namespace
         const SyntaxTree tree = Parse(source, diagnostics);
         const CppEmitResult emitted = EmitCpp(source, tree, Catalog());
         Check(emitted.Errors.IsEmpty()
-                && emitted.Code.find("JBRO_STATIC_FIELD(JBro::Int, shared, NoSerialize())") != String::npos,
+                && emitted.Code.find("MakeStaticFieldEntry<&S::shared>(NoSerialize())") != String::npos,
             "static script properties use shared reflection storage excluded from instance saves");
     }
 
