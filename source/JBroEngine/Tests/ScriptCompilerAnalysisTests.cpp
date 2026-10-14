@@ -508,6 +508,30 @@ namespace
         Check(Has(*invariant, "JBC3003"), "container element types are invariant during assignment");
         auto invalidAbstract = Analyze("class A\n{\nfn F() require\n}\nclass B\n{\nA stored\n}\n");
         Check(Has(*invalidAbstract, "JBC3016"), "abstract types cannot be stored in fields");
+        auto nullableAbstract = Analyze("class A\n{\nfn Read() -> Int require\n}\n"
+            "class C\n{\nref A stored\nfn F()\n{\nref A local = null\n}\nfn Make() -> ref A\n{\nreturn null\n}\n}\n");
+        std::size_t abstractDiagnostics = 0;
+        for (const SemanticDiagnostic& diagnostic : nullableAbstract->Documents[0]->Diagnostics)
+        {
+            abstractDiagnostics += diagnostic.Code == "JBC3016" ? 1u : 0u;
+        }
+        Check(abstractDiagnostics == 3, "abstract fields, locals, and returns cannot own nullable C++ values");
+        auto nullableInterface = Analyze("interface I\n{\nfn Read() -> Int\n}\nclass C\n{\nref I stored\n}\n");
+        Check(Has(*nullableInterface, "JBC3020"), "an interface cannot be stored as an owned nullable value");
+        auto abstractParameter = Analyze("class A\n{\nfn Read() -> Int require\n}\n"
+            "class C\n{\nfn Pass(A value)\n{\n}\n}\n");
+        Check(Has(*abstractParameter, "JBC3016"), "an abstract class cannot be passed by value");
+        auto interfaceParameter = Analyze("interface I\n{\nfn Read() -> Int\n}\n"
+            "class C\n{\nfn Pass(I value)\n{\n}\n}\n");
+        Check(Has(*interfaceParameter, "JBC3020"), "an interface cannot be passed by value");
+        auto borrowedInterface = Analyze("interface I\n{\nfn Read() -> Int\n}\n"
+            "class C\n{\nfn Borrow(ref I value) -> Int\n{\nreturn value.Read()\n}\n}\n");
+        Check(borrowedInterface->Documents[0]->Diagnostics.IsEmpty(),
+            "a borrowed interface parameter remains a valid non-owning reference");
+        auto borrowedAbstract = Analyze("class A\n{\npublic fn Read() -> Int require\n}\n"
+            "class C\n{\nfn Borrow(ref A value) -> Int\n{\nreturn value.Read()\n}\n}\n");
+        Check(borrowedAbstract->Documents[0]->Diagnostics.IsEmpty(),
+            "a borrowed abstract class parameter remains a valid non-owning reference");
         auto invalidGeneric = Analyze("script S\n{\nref GameObject owner\nfn F()\n{\nowner!.GetComponent<String>()\n}\n}\n");
         Check(Has(*invalidGeneric, "JBC3039"), "engine generic component APIs reject value type arguments");
         auto validGeneric = Analyze("script S\n{\nref GameObject owner\nfn F()\n{\nref Transform2D t = owner!.GetComponent<Transform2D>()\n}\n}\n");

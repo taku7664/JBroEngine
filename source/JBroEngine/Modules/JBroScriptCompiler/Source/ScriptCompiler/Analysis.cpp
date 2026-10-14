@@ -1115,13 +1115,14 @@ namespace JBro::ScriptCompiler
                     {
                         Error("JBC3040", "legacy_nullable_type", node.Range, {String(node.Text)});
                     }
-                    if ((SymbolKind::Interface == m_result.Symbols[id].Kind && false == borrowAllowed)
+                    const Bool borrowed = borrowAllowed && 0 != (node.Flags & SyntaxFlagRef);
+                    if ((SymbolKind::Interface == m_result.Symbols[id].Kind && false == borrowed)
                         || (false == returnType && node.Text == "Void"))
                     {
                         Error("JBC3020", "invalid_value_type", node.Range, {String(node.Text)});
                     }
-                    if (false == descriptor && false == borrowAllowed && false == returnType && Abstract(id)
-                        && 0 == (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)))
+                    if (false == descriptor && false == borrowed && false == m_handles.Contains(id)
+                        && SymbolKind::Interface != m_result.Symbols[id].Kind && Abstract(id))
                     {
                         Error("JBC3016", "abstract_value", node.Range, {String(node.Text)});
                     }
