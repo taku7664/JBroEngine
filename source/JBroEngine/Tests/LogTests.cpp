@@ -1,5 +1,6 @@
 ﻿#include <JBro/Core/Log.h>
 
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -80,7 +81,9 @@ namespace
         Check(std::strcmp(oldest->message, "5") == 0,
             "and it must be the first one that was not pushed out");
         const JBro::LogEntry* newest = JBro::Log::GetAt(JBro::Log::Capacity - 1);
-        Check(newest != nullptr && std::strcmp(newest->message, "516") == 0,
+        char expectedNewest[32] = {};
+        std::snprintf(expectedNewest, sizeof(expectedNewest), "%zu", JBro::Log::Capacity + Extra - 1);
+        Check(newest != nullptr && std::strcmp(newest->message, expectedNewest) == 0,
             "with the newest at the end");
         // 일련번호는 고리가 돌아도 늘어난다. 줄을 Id 로 쓰는 쪽이 이것에 기댄다.
         Check(newest->serial > oldest->serial, "serials keep counting past the wrap");
@@ -114,6 +117,69 @@ namespace
         Check(JBro::Log::GetCount() == 0, "clearing empties the ring");
         Check(JBro::Log::GetRevision() > before, "and still moves the revision forward");
     }
+
+    void TestExplicitKeysGroupDifferentMessagesAndKeepOccurrenceTimes()
+    {
+        const QuietLog quiet;
+        JBro::Log::Clear();
+        const JBro::UInt64 epoch = JBro::Log::GetClearEpoch();
+        const JBro::UInt64 session = JBro::Log::GetSessionId();
+        JBro::Log::WriteGrouped(JBro::LogLevel::Error, "script", "site:12:target2", "first object");
+        JBro::Log::Write(JBro::LogLevel::Error, "script", "unkeyed");
+        JBro::Log::WriteGrouped(JBro::LogLevel::Error, "script", "site:12:target2", "second object");
+        Check(JBro::Log::GetGroupCount() == 1, "only explicit equal keys group");
+        const JBro::LogGroup* group = JBro::Log::GetGroupAt(0);
+        Check(group != nullptr && group->count == 2, "group total includes both occurrences");
+        Check(std::strcmp(group->key.c_str(), "site:12:target2") == 0, "group keeps writer key");
+        Check(group->latestSerial == JBro::Log::GetAt(2)->serial, "group points at latest event");
+        Check(std::strstr(group->display, "second object (2)") != nullptr,
+            "the collapsed row shows the latest message and total");
+        Check(group->latestTimestampMs >= group->firstTimestampMs, "group time advances");
+        Check(JBro::Log::GetAt(0)->groupId == JBro::Log::GetAt(2)->groupId,
+            "same key uses the same group id even with a different message");
+        Check(JBro::Log::GetAt(1)->groupId == 0, "plain write stays ungrouped");
+        Check(JBro::Log::GetAt(0)->timestampMs > 0 && JBro::Log::GetAt(2)->timestampMs > 0,
+            "each occurrence carries its own time");
+        Check(JBro::Log::GetSessionId() == session && JBro::Log::GetClearEpoch() == epoch,
+            "writing does not replace the session or clear generation");
+    }
+
+    void TestGroupTotalsSurviveOccurrenceEvictionAndClearResetsThem()
+    {
+        const QuietLog quiet;
+        JBro::Log::Clear();
+        for (std::size_t index = 0; index < JBro::Log::Capacity + 3; ++index)
+        {
+            JBro::Log::WriteGrouped(JBro::LogLevel::Warning, "script", "same-site", "hit %zu", index);
+        }
+        const JBro::LogGroup* group = JBro::Log::GetGroupAt(0);
+        Check(group != nullptr && group->count == JBro::Log::Capacity + 3,
+            "eviction must not change exact session total");
+        Check(JBro::Log::GetAt(0)->groupId == group->id, "retained occurrence still identifies the group");
+        Check(JBro::Log::GetAt(0)->serial > group->firstSerial,
+            "client can detect omitted early occurrences");
+        const JBro::UInt64 beforeEpoch = JBro::Log::GetClearEpoch();
+        JBro::Log::Clear();
+        Check(JBro::Log::GetGroupCount() == 0 && JBro::Log::GetCount() == 0,
+            "clear removes summary and details together");
+        Check(JBro::Log::GetClearEpoch() == beforeEpoch + 1,
+            "clear generation changes for the remote editor");
+    }
+
+    void TestMatchingTextDoesNotGroupWithoutTheSameWriterKey()
+    {
+        const QuietLog quiet;
+        JBro::Log::Clear();
+        JBro::Log::WriteGrouped(JBro::LogLevel::Error, "script", "site-a", "same message");
+        JBro::Log::WriteGrouped(JBro::LogLevel::Error, "script", "site-b", "same message");
+        JBro::Log::Write(JBro::LogLevel::Error, "script", "same message");
+        JBro::Log::Write(JBro::LogLevel::Error, "script", "same message");
+        Check(JBro::Log::GetGroupCount() == 2, "different explicit keys remain different groups");
+        Check(JBro::Log::GetAt(0)->groupId != JBro::Log::GetAt(1)->groupId,
+            "identical text never overrides the writer key");
+        Check(JBro::Log::GetAt(2)->groupId == 0 && JBro::Log::GetAt(3)->groupId == 0,
+            "even repeated unkeyed text stays as two rows");
+    }
 }
 
 JBro::Int32 RunLogTests()
@@ -122,6 +188,9 @@ JBro::Int32 RunLogTests()
     TestTheRingDropsTheOldest();
     TestALongLineSaysItWasCut();
     TestClearingMovesTheRevisionForward();
+    TestExplicitKeysGroupDifferentMessagesAndKeepOccurrenceTimes();
+    TestGroupTotalsSurviveOccurrenceEvictionAndClearResetsThem();
+    TestMatchingTextDoesNotGroupWithoutTheSameWriterKey();
     // 검사가 남긴 줄은 치운다. 뒤따르는 테스트의 로그 창이 이것을 보지 않게.
     JBro::Log::Clear();
     std::cout << "Log tests passed.\n";

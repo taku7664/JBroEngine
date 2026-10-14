@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a00000f-0000-4000-8000-000000005c44}</ProjectGuid>
+    <RootNamespace>JBroScriptGeneratedProbe</RootNamespace>
+    <ProjectName>JBroScriptGeneratedProbe</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration"><ConfigurationType>DynamicLibrary</ConfigurationType></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <AdditionalIncludeDirectories>$(IntDir)JBroScript;$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup><JBroProbeSource Include="Source\*.jscript" /></ItemGroup>
+  <Target Name="JBroProbeGenerate" BeforeTargets="ClCompile">
+    <MakeDir Directories="$(IntDir)JBroScript" />
+    <Exec Command="&quot;$(JBroBuildDir)x64\$(Configuration)\JBroc.exe&quot; --emit-project &quot;$(IntDir)JBroScript&quot; --no-module-entry @(JBroProbeSource->'&quot;%(FullPath)&quot;', ' ')" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" />
+    <ReadLinesFromFile File="$(IntDir)JBroScript\JBroGenerated.items"><Output TaskParameter="Lines" ItemName="JBroProbeCompile" /></ReadLinesFromFile>
+    <ItemGroup><ClCompile Include="@(JBroProbeCompile->'$(IntDir)JBroScript\%(Identity)')" /></ItemGroup>
+  </Target>
+  <ItemGroup><ClCompile Include="Source\Exports.cpp" /><ClCompile Include="Source\ScriptModule.cpp" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroc\JBroc.vcxproj"><Project>{1a000016-0000-4000-8000-00000000b20c}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj"><Project>{1a000001-0000-4000-8000-00000000c0de}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj"><Project>{1a000006-0000-4000-8000-000000027417}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj"><Project>{1a000008-0000-4000-8000-000000000f2d}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAudioTypes\JBroAudioTypes.vcxproj"><Project>{1a000018-0000-4000-8000-0000000a0d17}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj"><Project>{1a000030-0000-4000-8000-00000001a7e5}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroSaveTypes\JBroSaveTypes.vcxproj"><Project>{1a000032-0000-4000-8000-000000005a7e}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroLocalizationTypes\JBroLocalizationTypes.vcxproj"><Project>{1a000033-0000-4000-8000-0000000010c4}</Project></ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

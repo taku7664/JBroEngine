@@ -1,0 +1,133 @@
+class InitIndirect
+{
+    public static Int mode = 0
+    public Int first = ReadSecond()
+    public Int second = 2
+
+    fn ReadSecond() -> Int
+    {
+        if (mode == 0)
+        {
+            return second
+        }
+        if (mode == 1)
+        {
+            return ThroughBorrow(ref this)
+        }
+        if (mode == 3)
+        {
+            return ThroughValue(this)
+        }
+        if (mode == 4)
+        {
+            Array<InitIndirect> values
+            values.Add(this)
+        }
+        if (mode == 5)
+        {
+            InitIndirect copy = CopySelf()
+            return copy.second
+        }
+        if (mode == 6)
+        {
+            ref InitIndirect copy = this
+            return copy.second
+        }
+        if (mode == 7)
+        {
+            if (this == this)
+            {
+                return 7
+            }
+        }
+        if (mode == 8)
+        {
+            Int previous = mode
+            mode = 2
+            ref InitIndirect empty
+            mode = previous
+            InitIndirect copy = empty ?? this
+            return copy.second
+        }
+        return 7
+    }
+
+    fn CopySelf() -> InitIndirect
+    {
+        return this
+    }
+
+    static fn ThroughValue(InitIndirect other) -> Int
+    {
+        return other.second
+    }
+
+    public fn operator ==(InitIndirect other) -> Bool
+    {
+        return true
+    }
+
+    static fn ThroughBorrow(ref InitIndirect other) -> Int
+    {
+        return other.second
+    }
+}
+
+script InitializationProbe
+{
+    public Int before = 0
+    public Int after = 0
+
+    fn OnUpdate() override
+    {
+        before += 1
+        InitIndirect value
+        after += 1
+    }
+}
+
+script InitializationAttachProbe
+{
+    public Int first = ReadLater()
+    public Int second = 2
+
+    fn ReadLater() -> Int
+    {
+        if (InitIndirect.mode == 0)
+        {
+            return second
+        }
+        return 7
+    }
+}
+
+class InitEarlier
+{
+    public Int first = 3
+    public Int second = ReadFirst()
+    protected fn ReadFirst() -> Int
+    {
+        return first
+    }
+}
+
+class InitDerived : InitEarlier
+{
+    public Int third = ReadFirst()
+}
+
+class InitNested
+{
+    public InitIndirect owned
+}
+
+class InitRefHolder
+{
+    public ref InitEarlier owned = InitEarlier()
+
+    public fn Change() -> Int
+    {
+        owned.first += 10
+        return owned.first
+    }
+}

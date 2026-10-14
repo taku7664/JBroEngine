@@ -259,6 +259,7 @@ Entries:
   log.clear: Clear
   log.auto_scroll: Follow
   log.empty: nothing has been logged
+  log.earlier_omitted: earlier occurrences were omitted
   log.trace: Trace
   log.debug: Debug
   log.info: Info

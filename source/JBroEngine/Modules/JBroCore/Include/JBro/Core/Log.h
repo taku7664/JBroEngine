@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <JBro/Types/UInt.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/String.h>
 
 namespace JBro
 {
@@ -20,8 +21,9 @@ namespace JBro
     // 감시가 서지 않았다는 말이 그대로 사라졌다. 기존 엔진에는 로그 창이 있었고 없는 것은
     // 이식이 덜 된 자리다.
     //
-    // **고리 버퍼 하나다.** 오래된 것부터 밀린다 - 끝없이 쌓으면 오래 띄워 둔 에디터가
-    // 메모리를 먹고, 정작 방금 일어난 일은 위로 밀려 찾기 어렵다.
+    // **발생 이력은 고리 버퍼 하나다.** 오래된 것부터 밀린다. 명시적 묶음의 요약은
+    // Clear 전까지 유지해 총횟수를 잃지 않는다. 따라서 서로 다른 키의 수만큼 요약 메모리가 늘며,
+    // 프레임에서 반복되는 오류 키는 스크립트 위치처럼 안정된 값이어야 한다.
     //
     // **메인 스레드 전용이다.** 워커에서 부르지 않는다. 잠금을 두지 않는 대신 그 계약을 지킨다.
     enum class LogLevel : std::uint8_t
@@ -43,17 +45,42 @@ namespace JBro
         LogLevel level = LogLevel::Info;
         // 이 줄이 몇 번째로 쌓인 것인가. 고리가 돌아도 이 값은 늘 늘어난다.
         UInt64 serial = 0;
+        // UTC Unix milliseconds. Each occurrence owns its time even when grouped.
+        UInt64 timestampMs = 0;
+        // Zero means this line was not explicitly grouped.
+        UInt64 groupId = 0;
+        char timeText[24] = {};
         char category[MaxCategory] = {};
         char message[MaxMessage] = {};
+        // Cached panel row; no formatting or allocation while drawing the list.
+        char display[608] = {};
+    };
+
+    struct LogGroup
+    {
+        UInt64 id = 0;
+        String key;
+        UInt64 count = 0;
+        UInt64 firstSerial = 0;
+        UInt64 latestSerial = 0;
+        UInt64 firstTimestampMs = 0;
+        UInt64 latestTimestampMs = 0;
+        LogLevel latestLevel = LogLevel::Info;
+        char latestTimeText[24] = {};
+        char display[640] = {};
     };
 
     namespace Log
     {
-        // 고리에 남는 줄 수. 넘치면 오래된 것부터 밀린다.
-        inline constexpr std::size_t Capacity = 512;
+        // 펼친 발생 이력의 최대 줄 수. 넘치면 오래된 것부터 밀린다.
+        inline constexpr std::size_t Capacity = 10000;
 
         void WriteFormatted(LogLevel level, const char* category, const char* format, ...);
         void WriteV(LogLevel level, const char* category, const char* format, std::va_list args);
+        // Grouping is opt-in. A nonempty key identifies one group for this process session,
+        // regardless of message or object; nullptr/empty is the ordinary ungrouped path.
+        void WriteGroupedFormatted(LogLevel level, const char* category, const char* key, const char* format, ...);
+        void WriteGroupedV(LogLevel level, const char* category, const char* key, const char* format, std::va_list args);
 
         namespace Detail
         {
@@ -99,12 +126,22 @@ namespace JBro
             WriteFormatted(level, category, format, Detail::ToVarArg(args)...);
         }
 
+        template<typename... Args>
+        void WriteGrouped(LogLevel level, const char* category, const char* key, const char* format, const Args&... args)
+        {
+            WriteGroupedFormatted(level, category, key, format, Detail::ToVarArg(args)...);
+        }
+
         // 줄이 쌓일 때마다 늘어난다. 로그 창은 이 값이 그대로면 다시 읽지 않는다.
         UInt64 GetRevision();
         // 지금 고리에 남아 있는 줄 수(`Capacity` 를 넘지 않는다).
         std::size_t GetCount();
         // `index` 는 0 이 가장 오래된 줄이다. 범위를 넘으면 nullptr 이다.
         const LogEntry* GetAt(std::size_t index);
+        std::size_t GetGroupCount();
+        const LogGroup* GetGroupAt(std::size_t index);
+        UInt64 GetSessionId();
+        UInt64 GetClearEpoch();
         void Clear();
 
         // **콘솔에도 내보낼 것인가.** 게임 실행은 참이 기본이고, 그래야 창 없이 돌릴 때

@@ -114,6 +114,9 @@ namespace
         // 찾기는 이름만 본다. 태그는 함수로만 찾는다.
         JBro::Handle::GameObject first = objects.Create("Enemy");
         JBro::Handle::GameObject second = objects.Create("Enemy");
+        Check((first == first).Get() && !(first == second).Get()
+                && (JBro::Handle::GameObject{} == JBro::Handle::GameObject{}).Get(),
+            "game object handle equality compares stored identity without resolving objects");
         first.SetTag("Foe");
         second.SetTag("Foe");
         Check(Same(objects.Find("HpBar"), hpBar), "Find looks through the whole canvas");

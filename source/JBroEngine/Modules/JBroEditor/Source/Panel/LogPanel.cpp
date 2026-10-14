@@ -8,10 +8,12 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/Tree.h>
 
 #include <imgui.h>
 
 #include <cstring>
+#include <algorithm>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
 #include <JBro/Types/Int.h>
@@ -130,6 +132,68 @@ namespace JBro
         return ContainsFold(entry.message, m_filter) || ContainsFold(entry.category, m_filter);
     }
 
+    Bool LogPanel::Passes(const LogGroup& group) const
+    {
+        const std::size_t level = static_cast<std::size_t>(group.latestLevel);
+        if (level >= sizeof(m_levels) / sizeof(m_levels[0]) || false == m_levels[level])
+        {
+            return false;
+        }
+        if (ContainsFold(group.display, m_filter) || ContainsFold(group.key.c_str(), m_filter))
+        {
+            return true;
+        }
+        const std::size_t index = static_cast<std::size_t>(group.id.Get() - 1);
+        if (index < m_groupOccurrences.size())
+        {
+            for (const std::size_t occurrenceIndex : m_groupOccurrences[index])
+            {
+                const LogEntry* occurrence = Log::GetAt(occurrenceIndex);
+                if (occurrence != nullptr && (ContainsFold(occurrence->message, m_filter)
+                    || ContainsFold(occurrence->category, m_filter)))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    void LogPanel::RebuildRows()
+    {
+        m_rows.clear();
+        m_groupOccurrences.resize(Log::GetGroupCount());
+        for (std::vector<std::size_t>& occurrences : m_groupOccurrences)
+        {
+            occurrences.clear();
+        }
+        m_rows.reserve(Log::GetGroupCount() + Log::GetCount());
+        for (std::size_t index = 0; index < Log::GetGroupCount(); ++index)
+        {
+            const LogGroup* group = Log::GetGroupAt(index);
+            m_rows.push_back({group->latestSerial, index, true});
+        }
+        for (std::size_t index = 0; index < Log::GetCount(); ++index)
+        {
+            const LogEntry* entry = Log::GetAt(index);
+            if (entry != nullptr && entry->groupId == 0)
+            {
+                m_rows.push_back({entry->serial, index, false});
+            }
+            else if (entry != nullptr)
+            {
+                const std::size_t groupIndex = static_cast<std::size_t>(entry->groupId.Get() - 1);
+                if (groupIndex < m_groupOccurrences.size())
+                {
+                    m_groupOccurrences[groupIndex].push_back(index);
+                }
+            }
+        }
+        std::sort(m_rows.begin(), m_rows.end(), [](const Row& left, const Row& right) {
+            return left.serial < right.serial;
+        });
+    }
+
     void LogPanel::OnDraw()
     {
         if (m_editor == nullptr)
@@ -142,6 +206,7 @@ namespace JBro
         if (revision != m_seenRevision)
         {
             m_seenRevision = revision;
+            RebuildRows();
             m_scrollToBottom = m_autoScroll;
         }
 
@@ -157,6 +222,9 @@ namespace JBro
                 .Draw())
         {
             Log::Clear();
+            m_rows.clear();
+            m_groupOccurrences.clear();
+            m_seenRevision = Log::GetRevision();
         }
         ImGui::SameLine(0.0f, 6.0f);
         // 이름표는 칸 옆 글자다. 위젯에 넘기면 그 글자가 Id 가 되어 번역이 바뀔 때 상태가 풀린다.
@@ -203,11 +271,46 @@ namespace JBro
             return;
         }
 
-        const std::size_t count = Log::GetCount();
+        const std::size_t count = m_rows.size();
         std::size_t shown = 0;
-        for (std::size_t index = 0; index < count; ++index)
         {
-            const LogEntry* entry = Log::GetAt(index);
+        Widget::IdScope epoch(static_cast<Int32>(Log::GetClearEpoch().Get()));
+        for (const Row& row : m_rows)
+        {
+            if (row.grouped)
+            {
+                const LogGroup* group = Log::GetGroupAt(row.index);
+                if (group == nullptr || false == Passes(*group))
+                {
+                    continue;
+                }
+                ++shown;
+                Widget::IdScope id(static_cast<Int32>(group->id.Get()));
+                Widget::StyleScope style;
+                style.PushColor(ImGuiCol_Text, LevelColor(group->latestLevel));
+                if (Widget::Tree(group->display, ImGuiTreeNodeFlags_SpanAvailWidth))
+                {
+                    const std::vector<std::size_t>& occurrences = m_groupOccurrences[row.index];
+                    for (const std::size_t index : occurrences)
+                    {
+                        const LogEntry* occurrence = Log::GetAt(index);
+                        if (occurrence == nullptr)
+                        {
+                            continue;
+                        }
+                        Widget::IdScope eventId(static_cast<Int32>(occurrence->serial.Get()));
+                        Widget::Text(occurrence->display);
+                    }
+                    if (group->count > occurrences.size())
+                    {
+                        Widget::HintText(Loc::TextOr(LocKeys::LogEarlierOmitted,
+                            "earlier occurrences were omitted"));
+                    }
+                    Widget::TreePop();
+                }
+                continue;
+            }
+            const LogEntry* entry = Log::GetAt(row.index);
             if (entry == nullptr || false == Passes(*entry))
             {
                 continue;
@@ -219,15 +322,9 @@ namespace JBro
             style.PushColor(ImGuiCol_Text, LevelColor(entry->level));
             // 줄 앞의 등급 아이콘(D-278). 색만으로는 정보와 디버그가 잘 갈리지 않는다.
             Widget::InlineIcon(LevelIcon(entry->level));
-            if (entry->category[0] != '\0')
-            {
-                Widget::TextF("[%s] %s", entry->category, entry->message);
-            }
-            else
-            {
-                Widget::Text(entry->message);
-            }
+            Widget::Text(entry->display);
             ImGui::PopID();
+        }
         }
 
         if (shown == 0)

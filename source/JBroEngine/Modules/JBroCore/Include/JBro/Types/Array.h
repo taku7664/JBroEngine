@@ -489,11 +489,14 @@ public:
 	}
 
 private:
-	static constexpr SizeType MaxSize = std::numeric_limits<SizeType>::max() / sizeof(T);
+	static constexpr SizeType MaxSize() noexcept
+	{
+		return std::numeric_limits<SizeType>::max() / sizeof(T);
+	}
 
 	void EnsureAdditionalCapacity(SizeType additional)
 	{
-		if (additional > MaxSize - m_size)
+		if (additional > MaxSize() - m_size)
 		{
 			throw std::bad_array_new_length();
 		}
@@ -505,7 +508,7 @@ private:
 		}
 
 		SizeType grown = m_capacity < 4 ? 4 : m_capacity + m_capacity / 2;
-		if (grown < required || grown > MaxSize)
+		if (grown < required || grown > MaxSize())
 		{
 			grown = required;
 		}
@@ -514,7 +517,7 @@ private:
 
 	void Reallocate(SizeType newCapacity)
 	{
-		if (newCapacity > MaxSize)
+		if (newCapacity > MaxSize())
 		{
 			throw std::bad_array_new_length();
 		}

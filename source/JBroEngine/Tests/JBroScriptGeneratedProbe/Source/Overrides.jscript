@@ -1,0 +1,43 @@
+script OverrideParent
+{
+    public fn Read() -> Int
+    {
+        return 1
+    }
+
+    public fn Touch()
+    {
+    }
+}
+
+script OverrideChild : OverrideParent
+{
+    public ref Int maybe
+    public Int before
+    public Int after
+    public Int result
+
+    public fn Read() -> Int override
+    {
+        return maybe! + 2
+    }
+
+    public fn Touch() override
+    {
+        result = maybe!
+    }
+
+    public fn OnUpdate() callback
+    {
+        before += 1
+        result = Read()
+        after += 1
+    }
+
+    public fn OnClick() callback
+    {
+        before += 1
+        Touch()
+        after += 1
+    }
+}

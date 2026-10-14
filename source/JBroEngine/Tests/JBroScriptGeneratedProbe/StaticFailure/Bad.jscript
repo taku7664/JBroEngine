@@ -1,0 +1,14 @@
+class StaticInvalid
+{
+    public static Int first = ReadLater()
+    public static Int later = 2
+
+    public static fn ReadLater() -> Int
+    {
+        return later
+    }
+}
+
+script StaticFailureRoot
+{
+}

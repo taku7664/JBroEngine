@@ -1,0 +1,28 @@
+class InitLeft
+{
+    public Int value = InitRight.Seed()
+    public const Int start = 3
+    public const Int copied = start + 1
+    public ref Int maybe = 5
+    public static Int shared = InitRight.Seed() + 1
+
+    public static fn Seed() -> Int
+    {
+        return 7
+    }
+
+    public fn InitLeft()
+    {
+    }
+
+    public fn InitLeft(Int start)
+    {
+        value += start
+    }
+
+    public fn Sum() -> Int
+    {
+        Int number = maybe
+        return value + start + copied + number + shared
+    }
+}

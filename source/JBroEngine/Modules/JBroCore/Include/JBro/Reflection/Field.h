@@ -277,6 +277,56 @@ namespace JBro
         return entry;
     }
 
+    template <auto StaticPointer>
+    constexpr FieldEntry MakeStaticFieldEntry(const FieldAttributes& attributes = {})
+    {
+        using Field = std::remove_pointer_t<decltype(StaticPointer)>;
+        static_assert(std::is_pointer_v<decltype(StaticPointer)> && !std::is_const_v<Field>,
+            "reflected static fields require writable backing storage");
+
+        FieldEntry entry;
+        entry.name = Detail::FieldName<StaticPointer>::Text();
+        entry.GetType = &TypeDescriptorOf<Field>::Get;
+        entry.Address = [](void*) noexcept -> void* { return StaticPointer; };
+        entry.ConstAddress = [](const void*) noexcept -> const void* { return StaticPointer; };
+        entry.attributes = attributes;
+        return entry;
+    }
+
+    template <auto Getter>
+    constexpr FieldEntry MakeStaticAccessorFieldEntry(const char* name, const FieldAttributes& attributes = {})
+    {
+        using Field = std::remove_reference_t<std::invoke_result_t<decltype(Getter), const char*, const char*>>;
+        static_assert(!std::is_const_v<Field>, "reflected static fields require writable backing storage");
+        FieldEntry entry;
+        entry.name = name;
+        entry.GetType = &TypeDescriptorOf<Field>::Get;
+        entry.Address = [](void*) noexcept -> void*
+        {
+            try
+            {
+                return &Getter(nullptr, nullptr);
+            }
+            catch (...)
+            {
+                return nullptr;
+            }
+        };
+        entry.ConstAddress = [](const void*) noexcept -> const void*
+        {
+            try
+            {
+                return &Getter(nullptr, nullptr);
+            }
+            catch (...)
+            {
+                return nullptr;
+            }
+        };
+        entry.attributes = attributes;
+        return entry;
+    }
+
     // ---------------------------------------------------------------------
     // 개수는 스스로 센다 — END 매크로가 없다
     // ---------------------------------------------------------------------
@@ -486,3 +536,48 @@ namespace JBro
         }                                                                            \
     private:                                                                         \
         FieldType FieldName
+
+// 자식 타입에는 보이되 외부에는 감춘 반영 필드다.
+#define JBRO_FIELD_PROTECTED(FieldType, FieldName, ...)                              \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);        \
+        }                                                                            \
+    protected:                                                                       \
+        FieldType FieldName
+
+// Static fields share one address across every instance and are not instance-owned.
+#define JBRO_STATIC_FIELD(FieldType, FieldName, ...)                                 \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
+        }                                                                            \
+        inline static FieldType FieldName
+
+#define JBRO_STATIC_FIELD_PRIVATE(FieldType, FieldName, ...)                         \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
+        }                                                                            \
+    private:                                                                         \
+        inline static FieldType FieldName
+
+#define JBRO_STATIC_FIELD_PROTECTED(FieldType, FieldName, ...)                       \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
+        }                                                                            \
+    protected:                                                                       \
+        inline static FieldType FieldName

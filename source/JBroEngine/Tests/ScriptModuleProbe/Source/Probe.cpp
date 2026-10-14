@@ -15,6 +15,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Runtime/ServiceContext.h>
+#include <JBro/Runtime/ScriptGuard.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/NameTable.h>
 
@@ -75,6 +76,25 @@ extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetRegisteredScrip
 JBRO_REGISTER_SCRIPT_2D(ProbeRegisteredScript);
 
 JBRO_SCRIPT_MODULE_2D()
+
+// A generated callback uses the same guard path. Keep the exception inside
+// this DLL boundary while the host verifies its own Log ring received it.
+extern "C" __declspec(dllexport) JBro::Bool JBroScriptProbe_TriggerInvalidRef() noexcept
+{
+    try
+    {
+        JBro::Nullable<JBro::Int32> missing;
+        JBro::ScriptGuard::Require(missing, "probe:7:target", "probe target is invalid");
+    }
+    catch (const JBro::ScriptGuard::AbortCallback&)
+    {
+        return true;
+    }
+    catch (...)
+    {
+    }
+    return false;
+}
 
 // 모듈의 `Load` 가 돌아 등록까지 마쳤는지 본다. 등록은 호스트 표를 묶은 뒤에만 한다.
 extern "C" __declspec(dllexport) JBro::Bool JBroScriptProbe_IsLoaded() noexcept

@@ -1,0 +1,69 @@
+class TrackedPayload
+{
+    public static Int creations = 0
+    public Int number = CountCreation()
+
+    static fn CountCreation() -> Int
+    {
+        creations += 1
+        return 4
+    }
+}
+
+class RequiredPayload
+{
+    public Int number
+
+    public fn RequiredPayload(Int initial)
+    {
+        number = initial
+    }
+}
+
+class RecursiveOwned
+{
+    [prop] public Array<ref RecursiveOwned> children
+}
+
+class OwnedValueModel
+{
+    public static fn Run() -> Int
+    {
+        TrackedPayload.creations = 0
+        ref TrackedPayload empty = null
+        Int score = TrackedPayload.creations
+        score += empty?.number ?? 0
+        ref RequiredPayload supplied = RequiredPayload(6)
+        score += supplied.number
+        RecursiveOwned root
+        root.children.Add(RecursiveOwned())
+        ref RecursiveOwned child = root.children[0]
+        child.children.Add(RecursiveOwned())
+        score += 1
+        return score
+    }
+}
+
+class NullPayloadFailure
+{
+    public Int first = ReadLater()
+    public Int later = 1
+
+    fn ReadLater() -> Int
+    {
+        return later
+    }
+}
+
+script NullableFailureProbe
+{
+    public Int before
+    public Int after
+
+    public fn OnUpdate() callback
+    {
+        before += 1
+        ref NullPayloadFailure empty = null
+        after += 1
+    }
+}

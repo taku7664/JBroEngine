@@ -16,7 +16,34 @@
       이 이름이 링크 명령줄에 들어가므로 바뀐 것이 없어도 빌드마다 다시 링크한다 - 스크립트 DLL 은 작아 그 값을 치른다.
     -->
     <JBroGameScriptPdbStamp>$([System.DateTime]::Now.ToString("yyyyMMddHHmmssfff"))</JBroGameScriptPdbStamp>
+    <JBroCompilerPath>$(JBroBuildDir)$(Platform)\$(Configuration)\JBroc.exe</JBroCompilerPath>
+    <JBroGeneratedDirectory>$(IntDir)JBroScript\</JBroGeneratedDirectory>
   </PropertyGroup>
+
+  <!-- Keep the generated file in the engine's intermediate directory; never rewrite user-owned C++ sources. -->
+  <ItemGroup>
+    <JBroScriptSource Include="$(MSBuildProjectDirectory)\Scripts\**\*.jscript" />
+  </ItemGroup>
+
+  <Target Name="JBroGameScriptValidate" BeforeTargets="ClCompile" Condition="'@(JBroScriptSource)' != ''">
+    <Error Condition="'$(JBroScriptDimension)' != '2D'"
+           Text="JBroScript C++ generation currently supports only 2D script projects." />
+    <Error Condition="!Exists('$(JBroCompilerPath)')"
+           Text="JBroc.exe was not found at $(JBroCompilerPath). Build JBroc in the same configuration first." />
+  </Target>
+
+  <Target Name="JBroGameScriptGenerate" BeforeTargets="ClCompile" DependsOnTargets="JBroGameScriptValidate"
+          Condition="'$(JBroScriptDimension)' == '2D' and ('@(JBroScriptSource)' != '' or Exists('$(JBroGeneratedDirectory)JBroGenerated.files'))">
+    <MakeDir Directories="$(JBroGeneratedDirectory)" />
+    <Exec Command="&quot;$(JBroCompilerPath)&quot; --emit-project &quot;$(JBroGeneratedDirectory).&quot; --no-module-entry @(JBroScriptSource->'&quot;%(FullPath)&quot;', ' ')"
+          StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" />
+    <ReadLinesFromFile File="$(JBroGeneratedDirectory)JBroGenerated.items">
+      <Output TaskParameter="Lines" ItemName="JBroGeneratedCompileFiles" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <ClCompile Include="@(JBroGeneratedCompileFiles->'$(JBroGeneratedDirectory)%(Identity)')" />
+    </ItemGroup>
+  </Target>
 
   <ItemDefinitionGroup>
     <ClCompile>

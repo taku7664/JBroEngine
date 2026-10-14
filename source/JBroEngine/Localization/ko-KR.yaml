@@ -259,6 +259,7 @@ Entries:
   log.clear: 지우기
   log.auto_scroll: 자동 스크롤
   log.empty: 기록된 내용이 없습니다
+  log.earlier_omitted: 이전 발생 기록은 보관 한도를 넘어 생략되었습니다
   log.trace: 추적
   log.debug: 디버그
   log.info: 정보

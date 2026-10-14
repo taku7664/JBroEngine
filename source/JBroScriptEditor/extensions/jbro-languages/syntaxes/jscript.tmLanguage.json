@@ -129,11 +129,11 @@
 				{ "include": "#comment" },
 				{ "include": "#parameters" },
 				{
-					"match": "(->)\\s*(?:(ref)\\s+)?([A-Za-z_][A-Za-z0-9_]*(?:<[^\\n]*?>)?)",
+					"match": "(->)\\s*((?:ref\\s+)?[A-Za-z_][A-Za-z0-9_]*(?:<[^\\n]*?>)?)(\\?)?",
 					"captures": {
 						"1": { "name": "punctuation.separator.return-type.jscript" },
-						"2": { "name": "storage.modifier.ref.jscript" },
-						"3": { "patterns": [ { "include": "#type" } ] }
+						"2": { "patterns": [ { "include": "#type" } ] },
+						"3": { "name": "punctuation.definition.nullable.jscript" }
 					}
 				},
 				{
@@ -177,7 +177,7 @@
 		},
 		"typed-declaration": {
 			"comment": "The type comes before the name and there is no 'var'. A declaration is a type, whitespace, a name, then '=', ')', ',', a comment or the end of the line. Reserved words are never a type or a name, which keeps 'return total' and 'is not null' from reading as declarations.",
-			"match": "(?<![A-Za-z0-9_.])(?!(?:script|class|struct|interface|enum|fn|public|protected|private|static|const|ref|if|else|for|while|switch|case|default|break|continue|return|and|or|not|is|null|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*(?:<[^=\\n]*?>)?)\\s+(?!(?:script|class|struct|interface|enum|fn|public|protected|private|static|const|ref|if|else|for|while|switch|case|default|break|continue|return|and|or|not|is|null|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:=(?!=)|\\)|,|//|$))",
+			"match": "(?<![A-Za-z0-9_.])(?!(?:script|class|struct|interface|enum|fn|public|protected|private|static|const|ref|if|else|for|while|switch|case|default|break|continue|return|and|or|not|is|null|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*(?:<[^=\\n]*?>)?\\??)\\s+(?!(?:script|class|struct|interface|enum|fn|public|protected|private|static|const|ref|if|else|for|while|switch|case|default|break|continue|return|and|or|not|is|null|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:=(?!=)|\\)|,|//|$))",
 			"captures": {
 				"1": { "patterns": [ { "include": "#type" } ] },
 				"2": { "name": "variable.other.definition.jscript" }
@@ -209,6 +209,10 @@
 				{
 					"name": "punctuation.separator.typeparameters.jscript",
 					"match": ","
+				},
+				{
+					"name": "punctuation.definition.nullable.jscript",
+					"match": "\\?"
 				}
 			]
 		},
@@ -293,6 +297,14 @@
 		"operator": {
 			"patterns": [
 				{
+					"name": "keyword.operator.null-coalescing.jscript",
+					"match": "\\?\\?"
+				},
+				{
+					"name": "keyword.operator.null-assert.jscript",
+					"match": "(?<![!=])!(?!=)"
+				},
+				{
 					"name": "keyword.operator.range.jscript",
 					"match": "\\.\\."
 				},
@@ -316,6 +328,10 @@
 		},
 		"punctuation": {
 			"patterns": [
+				{
+					"name": "punctuation.accessor.nullsafe.jscript",
+					"match": "\\?\\."
+				},
 				{
 					"name": "punctuation.accessor.jscript",
 					"match": "\\."

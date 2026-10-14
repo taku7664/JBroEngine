@@ -6,5 +6,8 @@
 	"Sign in to GitHub": "Sign in to GitHub",
 	"GitHub account could not be read. Click to try signing in.": "GitHub account could not be read. Click to try signing in.",
 	"Sign in to use GitHub with JBro Script Editor.": "Sign in to use GitHub with JBro Script Editor.",
-	"GitHub sign-in failed. Try again.": "GitHub sign-in failed. Try again."
+	"GitHub sign-in failed. Try again.": "GitHub sign-in failed. Try again.",
+	"Engine log is disconnected. Waiting for the engine editor.": "Engine log is disconnected. Waiting for the engine editor.",
+	"Earlier occurrences were omitted": "Earlier occurrences were omitted",
+	"Engine log could not be read: {0}": "Engine log could not be read: {0}"
 }

@@ -5,6 +5,10 @@
 	"publisher": "jbro",
 	"version": "0.0.1",
 	"private": true,
+	"main": "./extension.cjs",
+	"l10n": "./l10n",
+	"extensionKind": ["workspace"],
+	"activationEvents": ["onLanguage:jbroscript"],
 	"engines": {
 		"vscode": "^1.100.0"
 	},
@@ -33,6 +37,23 @@
 				]
 			}
 		],
+		"configuration": {
+			"title": "JBroScript",
+			"properties": {
+				"jbro.jbroscript.serverPath": {
+					"type": "string",
+					"default": "",
+					"description": "%serverPath%",
+					"scope": "resource"
+				},
+				"jbro.jbroscript.projectFile": {
+					"type": "string",
+					"default": "",
+					"description": "%projectFile%",
+					"scope": "resource"
+				}
+			}
+		},
 		"grammars": [
 			{
 				"language": "jbroscript",
@@ -40,5 +61,8 @@
 				"path": "./syntaxes/jscript.tmLanguage.json"
 			}
 		]
+	},
+	"dependencies": {
+		"vscode-languageclient": "10.1.2"
 	}
 }

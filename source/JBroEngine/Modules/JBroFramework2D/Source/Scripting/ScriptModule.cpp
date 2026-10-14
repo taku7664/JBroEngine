@@ -11,7 +11,9 @@
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Runtime/ScriptErrorContext.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Runtime/ScriptStatics.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
 #include <JBro/Runtime/TextStore.h>
@@ -21,6 +23,7 @@ namespace JBro::Internal
 {
     namespace
     {
+        bool g_hasGeneratedScript2D = false;
         // **바인딩 목록은 여기 한 곳이다**(cpp-script-plan §3.2). 사용자가 손으로 적던 때는 시험 DLL 조차 호스트가 넘기는 오디오·네트워크를
         // 묶지 않았다. 차원과 무관한 서비스의 줄은 `JBroFramework3D` 의 같은 파일과 같아야 한다 - 서비스를 더하면 두 곳을 함께 고친다.
         void BindHostServices(const ScriptModuleLoadContext& context)
@@ -70,6 +73,7 @@ namespace JBro::Internal
 
         void UnbindEverything() noexcept
         {
+            BindScriptErrorContext({});
             BindFramework2DServiceContext({});
             BindFramework2DSystemContext({});
             BindInputServiceContext({});
@@ -110,11 +114,21 @@ namespace JBro::Internal
                 {
                     return false;
                 }
+                if (const ScriptErrorContext* errors = FindScriptErrorContext(*context))
+                {
+                    BindScriptErrorContext(*errors);
+                }
                 BindFramework2DServiceContext(*frameworkServices);
                 BindFramework2DSystemContext(*frameworkSystems);
                 BindHostServices(*context);
                 // 호스트 표를 모두 묶은 **뒤에** 등록한다. 이름과 필드 표가 호스트 쪽에 들어가야 한다.
-                return RegisterPendingScriptTypes();
+                InitializePendingScriptSchemas();
+                if (!RegisterPendingScriptTypes())
+                {
+                    return false;
+                }
+                InitializePendingScriptStatics();
+                return true;
             }
             catch (...)
             {
@@ -125,6 +139,7 @@ namespace JBro::Internal
 
         void UnloadModule() noexcept
         {
+            DestroyScriptStatics();
             UnbindEverything();
         }
 
@@ -144,6 +159,33 @@ namespace JBro::Internal
             &LoadModule,
             &UnloadModule
         };
+
+        constexpr ScriptContextRequirement ErrorReportingContexts[] =
+        {
+            Framework2DServiceContextRequirement,
+            Framework2DSystemContextRequirement,
+            ScriptErrorContextRequirement
+        };
+
+        Bool LoadErrorReportingModule(const ScriptModuleLoadContext* context) noexcept
+        {
+            if (context == nullptr || FindScriptErrorContext(*context) == nullptr)
+            {
+                return false;
+            }
+            return LoadModule(context);
+        }
+
+        constexpr ScriptModuleApi ErrorReportingModuleApi =
+        {
+            ScriptModuleAbiVersion,
+            sizeof(ScriptModuleApi),
+            ErrorReportingContexts,
+            static_cast<UInt32>(sizeof(ErrorReportingContexts) / sizeof(ErrorReportingContexts[0])),
+            0,
+            &LoadErrorReportingModule,
+            &UnloadModule
+        };
     }
 
     const ScriptModuleApi* GetScriptModuleApi2D(UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept
@@ -152,6 +194,22 @@ namespace JBro::Internal
         {
             return nullptr;
         }
-        return &ModuleApi;
+        return g_hasGeneratedScript2D ? &ErrorReportingModuleApi : &ModuleApi;
+    }
+
+    bool MarkGeneratedScript2D() noexcept
+    {
+        g_hasGeneratedScript2D = true;
+        return true;
+    }
+
+    const ScriptModuleApi* GetScriptModuleApi2DRequiringErrorContext(
+        UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept
+    {
+        if (hostAbiVersion != ScriptModuleAbiVersion || hostApiSize != sizeof(ScriptModuleApi))
+        {
+            return nullptr;
+        }
+        return &ErrorReportingModuleApi;
     }
 }

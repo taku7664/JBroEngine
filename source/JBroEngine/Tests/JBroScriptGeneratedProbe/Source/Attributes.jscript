@@ -1,0 +1,41 @@
+script AttributeProbe
+{
+    [range(0.0, 10.0), name("Gain"), category("Visual")]
+    public Float gain = 1.0
+
+    [noserialize, tooltip("Runtime")]
+    public Int transient = 4
+
+    [visiblewhen("enabled")]
+    public Int detail = 5
+
+    [hidden]
+    public Int hiddenValue = 8
+
+    [prop]
+    public Bool enabled = true
+
+    [prop]
+    protected Int shield = 6
+
+    [readonly]
+    public Int fixed = 7
+
+    [prop]
+    public const Int immutable = 10
+
+    [clamp(0.0, 1.0)]
+    public Float clamped = 0.5
+
+    [prop]
+    public static Int sharedCount = 3
+
+    [prop, noserialize]
+    private static Int privateShared = 12
+
+    [prop, noserialize]
+    protected static Int protectedShared = 13
+
+    [prop, noserialize]
+    public static const Int fixedShared = 14
+}

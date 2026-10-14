@@ -722,7 +722,7 @@ namespace JBro
         UInt64 GetScriptFilesRevision() const { return m_scriptFilesRevision; }
         // 새 스크립트 창이 이름을 매 프레임 본다. `folder` 는 스크립트 자리 기준 상대경로다.
         ScriptProject::NameProblem CheckScriptName(const char* folder, const char* name);
-        // 스크립트 자리의 폴더와 소스 파일(`.h`·`.hpp`·`.cpp`·`.inl`)을 `Scripts` 기준 상대경로로 모은다. 디스크를 읽으므로 매 프레임 부르지 않는다.
+        // 스크립트 자리의 폴더와 소스 파일(`.h`·`.hpp`·`.cpp`·`.inl`·`.jscript`)을 `Scripts` 기준 상대경로로 모은다. 디스크를 읽으므로 매 프레임 부르지 않는다.
         void CollectScriptFiles(Array<String>& folders, Array<String>& files);
         // 스크립트 파일을 이 PC 가 그 확장자에 건 프로그램으로 연다(Visual Studio 등). `relativePath` 는 `Scripts` 기준이다.
         Bool OpenScriptFile(const char* relativePath);

@@ -98,6 +98,10 @@ JBro::Int32 RunScriptHotReloadTests();
 JBro::Int32 RunScriptCompilerLexerTests();
 JBro::Int32 RunScriptCompilerParserTests();
 JBro::Int32 RunScriptCompilerCommandLineTests();
+JBro::Int32 RunScriptCompilerAnalysisTests();
+JBro::Int32 RunScriptCompilerFormattingTests();
+JBro::Int32 RunScriptApiCatalogTests();
+JBro::Int32 RunScriptLanguageServerTests();
 JBro::Int32 RunRendererBenchmark();
 JBro::Int32 RunAudioMixerTests();
 JBro::Int32 RunAudioIntegrationTests();
@@ -271,6 +275,22 @@ int main()
             return 1;
         }
         if (false == RunSuite("ScriptCompilerCommandLine", &RunScriptCompilerCommandLineTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptCompilerAnalysis", &RunScriptCompilerAnalysisTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptCompilerFormatting", &RunScriptCompilerFormattingTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptApiCatalog", &RunScriptApiCatalogTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptLanguageServer", &RunScriptLanguageServerTests))
         {
             return 1;
         }

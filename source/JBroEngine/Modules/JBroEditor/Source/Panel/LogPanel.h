@@ -5,6 +5,7 @@
 #include <JBro/Types/String.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
+#include <vector>
 
 namespace JBro
 {
@@ -28,6 +29,15 @@ namespace JBro
         void DrawToolBar();
         void DrawEntries();
         Bool Passes(const LogEntry& entry) const;
+        Bool Passes(const LogGroup& group) const;
+        void RebuildRows();
+
+        struct Row
+        {
+            UInt64 serial = 0;
+            std::size_t index = 0;
+            Bool grouped = false;
+        };
 
         EditorApplication* m_editor = nullptr;
         String m_filter;
@@ -38,5 +48,7 @@ namespace JBro
         // 마지막으로 본 판번호. 같으면 스크롤을 건드리지 않는다.
         UInt64 m_seenRevision = 0;
         Bool m_scrollToBottom = false;
+        std::vector<Row> m_rows;
+        std::vector<std::vector<std::size_t>> m_groupOccurrences;
     };
 }

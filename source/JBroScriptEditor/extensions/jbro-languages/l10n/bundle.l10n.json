@@ -1,0 +1,9 @@
+{
+	"Open a JBro project folder to use the JBroScript language server.": "Open a JBro project folder to use the JBroScript language server.",
+	"The configured .jproject file does not exist: {0}": "The configured .jproject file does not exist: {0}",
+	"No .jproject file was found at the workspace root. Set jbro.jbroscript.projectFile.": "No .jproject file was found at the workspace root. Set jbro.jbroscript.projectFile.",
+	"More than one .jproject file was found at the workspace root. Set jbro.jbroscript.projectFile.": "More than one .jproject file was found at the workspace root. Set jbro.jbroscript.projectFile.",
+	"JBroc.exe was not found. Build the engine or set jbro.jbroscript.serverPath.": "JBroc.exe was not found. Build the engine or set jbro.jbroscript.serverPath.",
+	"JBroScript language server could not start: {0}": "JBroScript language server could not start: {0}",
+	"JBroScript language server started for {0}": "JBroScript language server started for {0}"
+}

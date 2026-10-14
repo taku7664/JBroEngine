@@ -229,7 +229,8 @@ namespace JBro::ScriptProject
             return NameProblem::TakenByType;
         }
         const String stem = EditorPaths::JoinPath(folder, name);
-        if (platform.FileExists((stem + ".h").c_str()) || platform.FileExists((stem + ".cpp").c_str()))
+        if (platform.FileExists((stem + ".h").c_str()) || platform.FileExists((stem + ".cpp").c_str())
+            || platform.FileExists((stem + ".jscript").c_str()))
         {
             return NameProblem::TakenByFile;
         }

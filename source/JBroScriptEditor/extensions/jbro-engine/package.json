@@ -16,6 +16,8 @@
 	"contributes": {
 		"commands": [
 			{ "command": "jbro.workspace.refresh", "title": "%refreshWorkspace%", "category": "JBroEngine", "icon": "$(refresh)" },
+			{ "command": "jbro.engineLogs.show", "title": "%showEngineLogs%", "category": "JBroEngine" },
+			{ "command": "jbro.engineLogs.clear", "title": "%clearEngineLogs%", "category": "JBroEngine", "icon": "$(clear-all)" },
 			{ "command": "jbro.git.signIn", "title": "%signIn%", "category": "JBroEngine", "icon": "$(github)" },
 			{ "command": "jbro.git.manageAccount", "title": "%manageAccount%", "category": "JBroEngine", "icon": "$(account)" },
 			{ "command": "jbro.layout.showProject", "title": "%showProjectExplorer%", "category": "JBroEngine" },
@@ -36,15 +38,20 @@
 			{ "id": "jbro.menu.diagnostics", "label": "%diagnostics%" }
 		],
 		"viewsContainers": {
-			"activitybar": [{ "id": "jbro-workspace", "title": "%workspace%", "icon": "assets/workspace.svg" }]
+			"activitybar": [{ "id": "jbro-workspace", "title": "%workspace%", "icon": "assets/workspace.svg" }],
+			"panel": [{ "id": "jbro-engine-logs", "title": "%engineLogs%", "icon": "assets/workspace.svg" }]
 		},
 		"views": {
-			"jbro-workspace": [{ "id": "jbro.workspace.files", "name": "%workspace%" }]
+			"jbro-workspace": [{ "id": "jbro.workspace.files", "name": "%workspace%" }],
+			"jbro-engine-logs": [{ "id": "jbro.engineLogs", "name": "%engineLogs%" }]
 		},
 		"viewsWelcome": [{ "view": "jbro.workspace.files", "contents": "%workspaceEmpty%", "when": "workspaceFolderCount == 0" }],
 		"themes": [{ "id": "jbro-engine-dark", "label": "%themeName%", "uiTheme": "vs-dark", "path": "themes/jbro-engine-color-theme.json" }],
 		"menus": {
-			"view/title": [{ "command": "jbro.workspace.refresh", "when": "view == jbro.workspace.files", "group": "navigation" }],
+			"view/title": [
+				{ "command": "jbro.workspace.refresh", "when": "view == jbro.workspace.files", "group": "navigation" },
+				{ "command": "jbro.engineLogs.clear", "when": "view == jbro.engineLogs", "group": "navigation" }
+			],
 			"jbro/title": [
 				{ "submenu": "jbro.menu.project", "when": "config.jbro.layout.showProject", "group": "navigation@1" },
 				{ "submenu": "jbro.menu.git", "when": "config.jbro.layout.showGit", "group": "navigation@2" },
@@ -71,6 +78,7 @@
 			],
 			"jbro.menu.diagnostics": [
 				{ "command": "jbro.layout.showDiagnostics", "group": "1_view@1" },
+				{ "command": "jbro.engineLogs.show", "group": "1_view@2" },
 				{ "command": "jbro.tools.showOutput", "group": "1_view@2" },
 				{ "command": "jbro.tools.showTerminal", "group": "1_view@3" }
 			],
@@ -91,7 +99,8 @@
 				"jbro.layout.showGit": { "type": "boolean", "default": true, "description": "%showGit%" },
 				"jbro.layout.showBuild": { "type": "boolean", "default": true, "description": "%showBuild%" },
 				"jbro.layout.showRun": { "type": "boolean", "default": true, "description": "%showRun%" },
-				"jbro.layout.showDiagnostics": { "type": "boolean", "default": true, "description": "%showDiagnostics%" }
+				"jbro.layout.showDiagnostics": { "type": "boolean", "default": true, "description": "%showDiagnostics%" },
+				"jbro.engine.controlPort": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 3663, "description": "%engineControlPort%", "scope": "application" }
 			}
 		},
 		"configurationDefaults": {
