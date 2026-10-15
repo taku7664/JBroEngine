@@ -1,0 +1,635 @@
+﻿Locale: en-US
+Entries:
+  panel.simulation: Simulation
+  panel.canvas_view: Canvas
+  panel.hierarchy: Layers
+  panel.inspector: Inspector
+  panel.assets: Asset Browser
+  panel.shortcuts: Shortcut Reference
+  panel.log: Log
+  panel.stats: Stats
+  gizmo.translate: Move
+  gizmo.rotate: Rotate
+  gizmo.scale: Scale
+  gizmo.space_local: Local
+  gizmo.space_world: World
+  gizmo.space_tooltip: put the handles on the object's axes, or switch to World for the screen's (scaling always uses the object's)
+  menu.file: File
+  menu.edit: Edit
+  menu.view: View
+  menu.window: Window
+  menu.simulation: Simulation
+  menu.simulation_play: Play
+  menu.simulation_stop: Stop
+  menu.simulation_pause: Pause
+  menu.simulation_step: Step One Frame
+  menu.simulation_view_debug_draw: Debug Lines in Simulation View
+  menu.simulation_canvas_debug_draw: Debug Lines in Canvas View
+  menu.save_canvas: Save Canvas
+  menu.save_project: Save Project
+  menu.build_game: Build Game
+  notify.game_built: The game was built
+  notify.game_build_failed: The game could not be built
+  notify.game_build_warnings: The game was built with warnings
+  dock.main: Main
+  popup.save_blocked_while_playing: stop the simulation before saving
+  menu.settings: Settings
+  menu.settings_project: Project Settings
+  menu.debug: Debug
+  menu.debug_cpu_profiler: CPU Profiler
+  menu.debug_stats: Statistics
+  menu.debug_log: Log
+  menu.debug_start: Start Debugging
+  menu.debug_stop: Stop Debugging
+  notify.debug_started: Debugging is on - attach from the script editor to hit breakpoints
+  notify.debug_channel_failed: The debug channel could not open
+  menu.exit: Exit
+  menu.undo: Undo
+  menu.redo: Redo
+  menu.unsaved: unsaved
+  dialog.save_canvas_title: Save Canvas
+  dialog.canvas_filter: JBro canvas file
+  popup.save_failed: The canvas could not be saved
+  canvas_view.grid: Grid
+  canvas_view.frame: Frame
+  canvas_view.grid_tooltip: show or hide the grid
+  canvas_view.grid_snap: Grid Snap
+  canvas_view.grid_snap_tooltip: moving snaps to the grid you see and rotating to 15 degree steps; hold Ctrl while dragging to do the opposite
+  canvas_view.colliders: Colliders
+  canvas_view.inside_format: "inside %s - double-click empty space to leave"
+  canvas_view.selected_none: nothing chosen
+  canvas_view.selected_format: "chosen: %s"
+  canvas_view.selected_count_format: "chosen: %s and %d more"
+  canvas_view.camera_format: "camera (%.2f, %.2f) size %.2f"
+  canvas_view.camera_3d_format: "camera yaw %.0f pitch %.0f distance %.1f"
+  canvas_view.colliders_tooltip: show or hide collider shapes
+  canvas_view.lighting: Lighting
+  canvas_view.lighting_tooltip: draw the canvas view with the scene's 2D lights, or in the sprites' own colours
+  canvas_view.edit_collider: Edit Collider
+  canvas_view.edit_collider_tooltip: edit the selected object's polygon collider - drag a point to move it, click an edge to add one, right-click a point to delete it
+  canvas_view.point_delete: Delete Point
+  canvas_view.point_delete_min: a polygon needs at least three points
+  canvas_view.point_delete_min_chain: a chain needs at least two points
+  canvas_view.edit_points: Edit Points
+  canvas_view.edit_points_not_polygon: shape must be Polygon or Chain
+  canvas_view.preview_locale: Language
+  canvas_view.space_world: World
+  canvas_view.space_ui: UI
+  canvas_view.space_tooltip: edit the world layers or the screen (UI) layers
+  canvas_view.reference_rect: Reference resolution
+  canvas_view.viewport_selected_camera: Viewport (Selected Camera)
+  canvas_view.preview_locale_tooltip: preview texts with a textKey in this language
+  canvas_view.unit_world: "Unit"
+  canvas_view.unit_pixel: "Pixel"
+  canvas_view.unit_tooltip: read the ruler in world units or in pixels, against the default asset PPU of 100
+  simulation_view.playing: Playing
+  simulation_view.stopped: Stopped
+  simulation_view.script_break: "Stopped at %s:%u"
+  simulation_view.no_canvas: no canvas is open
+  simulation_view.no_camera: there is no camera
+  simulation_view.camera_unusable: the Camera2D values cannot be drawn
+  simulation_view.camera_ambiguous: no camera is primary, so the first active one is used
+  hierarchy.no_project: no project is open
+  hierarchy.create_object: Create Object
+  hierarchy.create_child: Create Child
+  hierarchy.delete: Delete
+  hierarchy.copy: Copy
+  hierarchy.paste: Paste
+  hierarchy.unparent: Unparent
+  hierarchy.unnamed: (unnamed)
+  hierarchy.search: Search
+  inspector.nothing_selected: nothing is selected
+  inspector.active: Active
+  inspector.name: Name
+  inspector.tag: Tag
+  inspector.tag_none: Untagged
+  inspector.tag_add: Add Tag...
+  inspector.tag_add_confirm: Add
+  inspector.tag_name_hint: new tag name
+  project_settings.tags: Tags
+  inspector.enabled: Enabled
+  inspector.add_component: Add Component
+  inspector.asset_name: Asset
+  inspector.asset_type: Type
+  inspector.asset_path: Path
+  inspector.asset_id: Id
+  inspector.open_in_viewer: Open in Viewer
+  inspector.copy_component: Copy Component
+  inspector.paste_component: Paste Component
+  inspector.paste_component_values: Paste Values Only
+  inspector.remove_component: Remove Component
+  inspector.component_menu: Component menu
+  inspector.no_component_types: no component type has registered itself
+  inspector.unregistered_type: this type never registered its properties
+  inspector.unknown_component: (unknown component)
+  inspector.unresolved_script: This script could not be found. Its saved values are kept.
+  inspector.undrawable_type: (no way to show this type)
+  inspector.too_deep: (too deeply nested to edit)
+  inspector.too_long: (too long to show)
+  inspector.multiple_selected: %d objects selected
+  stats.frame_time: frame %.2f ms
+  stats.per_second: %.0f per second
+  stats.frame_count: frames %llu
+  stats.game_time: game time %.2f s at scale %.2f
+  stats.fixed_steps: fixed steps this frame %u
+  stats.random_seed: random seed %llu
+  stats.debug_lines: debug lines %u / %u
+  stats.debug_lines_dropped: dropped %u debug line(s) - the store is full
+  stats.views: views %u
+  stats.sprites: sprites %u
+  stats.dropped: dropped %u view(s), %u sprite(s)
+  stats.objects: objects %llu / %llu
+  stats.layers: layers %llu
+  stats.selected: selected %llu
+  stats.pools: component pools
+  stats.no_pools: no component pool has been made yet
+  stats.undo: undo %llu / redo %llu
+  stats.dirty: there are unsaved changes
+  stats.clean: everything is saved
+  list.add_element: Add element
+  list.remove_element: Remove element
+  list.element_count: %d item(s)
+  common.search: Search
+  common.clear: Clear
+  common.no_matches: No matches
+  common.already_added: Already added
+  blocked.no_project: no project is open
+  blocked.no_asset_here: this field is empty
+  blocked.nothing_to_undo: there is nothing to undo
+  blocked.nothing_to_redo: there is nothing to redo
+  blocked.clipboard_empty: nothing has been copied
+  blocked.not_playing: the simulation is not running
+  blocked.not_paused: pause the simulation to step one frame
+  blocked.at_script_break: a script is stopped at a breakpoint - unpause it to go on
+  blocked.project_has_no_file: only a project opened from a file can be saved
+  blocked.pick_an_image: pick an image asset first
+  blocked.last_layer: a canvas needs at least one layer
+  blocked.no_parent: the object has no parent
+  blocked.panel_not_open: the window this works in is not open
+  blocked.no_drawing: there is no SpriteRenderer2D or Text2D to order
+  blocked.already_front: it is already drawn in front
+  blocked.already_back: it is already drawn at the back
+  command_palette.title: Command Palette
+  command_palette.search_hint: Search by name or key
+  command_palette.no_match: No commands match
+  component_category.Transform: Transform
+  component_category.Rendering: Rendering
+  component_category.Physics: Physics
+  component_category.Audio: Audio
+  component_category.UI: UI
+  component_category.Components: Components
+  component_category.Scripts: Scripts
+  asset.none: (None)
+  asset.missing: (Missing asset)
+  assets.empty: the asset folder has no files
+  assets.not_watching: the asset folder is not being watched, so files changed outside will not show up
+  inspector.texture_import_options: Texture Import Options
+  inspector.audio_import_options: "Audio Import Options"
+  inspector.font_import_options: "Font Import Options"
+  inspector.font_family_faces: "Font Family"
+  inspector.string_table: "String Table"
+  inspector.no_string_key: "(none)"
+  inspector.audio_format: "Format"
+  inspector.audio_length: "Length"
+  inspector.audio_preview: "Preview"
+  inspector.audio_play: "Play"
+  inspector.audio_stop: "Stop"
+  inspector.audio_loop: "Loop"
+  inspector.audio_position: Position
+  inspector.audio_spectrum: Spectrum
+  inspector.audio_seek_hint: "Click to play from there"
+  inspector.audio_off: "Audio is off in this editor"
+  inspector.audio_unreadable: "This audio file could not be read"
+  inspector.audio_bus_missing: "Not one of the project's audio buses - it plays on Master"
+  inspector.layers_everything: "Everything"
+  inspector.layers_nothing: "Nothing"
+  inspector.object_none: "None"
+  inspector.object_missing: "Missing object"
+  project_settings.audio: "Audio"
+  project_settings.audio_effect_ratio_off: "1 turns it off"
+  project_settings.audio_duck_help: "While that bus sounds, this one steps back (e.g. music under dialogue)"
+  project_settings.audio_default_device: "System default"
+  project_settings.audio_device_help: "On a computer without this device the system default is used"
+  project_settings.audio_refresh_devices: "Refresh"
+  project_settings.physics_threads_auto: "Auto"
+  project_settings.physics_threads_single: "Single thread"
+  project_settings.physics_threads_workers: "Set worker count"
+  project_settings.physics_threads_help: "Auto picks the worker count from the colliders in the build canvases when the game starts. Platforms without threads (web) always run on a single thread"
+  project_settings.physics_recommend: "Use Recommended"
+  project_settings.physics_recommend_help: "Counts the colliders in the build canvases and fixes the recommended worker count"
+  project_settings.physics: "Physics"
+  project_settings.physics_layers: "Layer Names"
+  project_settings.physics_layers_help: "The names colliders' layer and mask fields pick from. The number in front is the bit"
+  project_settings.physics_matrix: "Layer Collisions"
+  project_settings.physics_matrix_help: "Clear a box to let two layers pass through each other. Only named layers are shown"
+  project_settings.audio_mute_help: "Mutes the sound while the window is not focused"
+  project_settings.audio_master_help: "The whole game's volume. Scripts can change it, and the listener's volume multiplies it"
+  project_settings.audio_buses_removed: "These buses disappear when you save; sounds that use them play on Master: %s"
+  project_settings.audio_routing: "Routing"
+  project_settings.audio_no_send: "None"
+  project_settings.audio_parent_help: "Only buses above this one can be its parent"
+  project_settings.audio_send_help: "Also sends this bus to another bus, e.g. a shared reverb bus with Dry 0"
+  stats.audio_solo: "Solo - hear only this bus while mixing"
+  stats.audio_buses: "Buses"
+  stats.audio_saved: "skipped %llu inaudible play(s), held back %llu by instance limit or cooldown, replaced %llu"
+  stats.audio_virtual: "%u virtual voice(s) - too quiet or crowded out, counted but not mixed"
+  stats.audio_voices: "voices %u / %u, peak %.2f"
+  stats.audio_device: "audio device %s"
+  stats.audio_no_device: "no audio device - sounds are mixed but not heard"
+  stats.audio_stolen: "%llu voice(s) stolen, %llu refused - raise the voice count or lower priorities"
+  project_settings.audio_effects: "Effects"
+  project_settings.audio_effect_off: "0 turns it off"
+  project_settings.audio_add_bus: "Add Bus"
+  project_settings.audio_remove_bus: "Remove"
+  project_settings.audio_buses_help: "Master is always there and every bus plays under it. A component or script names a bus to use it."
+  project_settings.audio_no_buses: "Only Master - every sound plays there"
+  project_settings.audio_duplicate: "This name is already used"
+  project_settings.input: "Input"
+  project_settings.input_layers_help: "Layers higher in the list get input first. When one blocks, the layers below get nothing"
+  project_settings.input_default_layers: "Using the default order (Modal, UI, Game, World, Debug)"
+  project_settings.input_add_layer: "Add Layer"
+  project_settings.input_move_up: "Move Up"
+  project_settings.input_remove: "Remove"
+  project_settings.input_duplicate: "This name is already used"
+  project_settings.input_actions_help: "Scripts read input by action name instead of by key. Each action can bind several keys, buttons and sticks"
+  project_settings.input_no_actions: "No actions"
+  project_settings.input_add_action: "Add Action"
+  project_settings.input_remove_action: "Remove Action"
+  project_settings.input_add_binding: "Add Binding"
+  project_settings.input_remove_binding: "Remove Binding"
+  project_settings.input_any_gamepad: "-1 means any connected gamepad"
+  project_settings.input_set_help: "Scripts turn action sets on and off. Only Default is on when the game starts"
+  project_settings.input_too_many: "The engine uses up to 64 actions and 8 bindings per action. The rest stay only in the file"
+  inspector.sprite_import_options: Sprite Import Options
+  common.ok: OK
+  log.clear: Clear
+  log.auto_scroll: Follow
+  log.empty: nothing has been logged
+  log.earlier_omitted: earlier occurrences were omitted
+  log.trace: Trace
+  log.debug: Debug
+  log.info: Info
+  log.warning: Warning
+  log.error: Error
+  task.load_canvas: Loading canvas assets
+  notify.canvas_assets_failed_title: Some assets could not be loaded
+  notify.canvas_assets_failed_message: "%u file(s) could not be loaded - %s"
+  status_bar.show_tasks: Show the task list
+  status_bar.open_log: Open the log
+  menu.open_project: Open Project
+  menu.window_editor: Editor
+  menu.window_importer: Importer
+  popup.open_project_failed: The project could not be opened
+  dialog.open_project_title: Open Project
+  dialog.project_filter: JBro project file
+  hierarchy.add_layer: Add Layer
+  hierarchy.delete_layer: Delete Layer
+  hierarchy.layer_screen: Make Screen Layer
+  hierarchy.layer_to_world: Make World Layer
+  hierarchy.layer_screen_tooltip: the objects on this layer stay fixed on the screen whatever the camera does, in reference-resolution pixels
+  hierarchy.layer_scale_mode: Scale Mode
+  hierarchy.layer_screen_tag: UI
+  hierarchy.layer_name: Name
+  hierarchy.canvas_unsaved: Canvas (unsaved)
+  inspector.canvas_properties: Canvas
+  inspector.canvas_background: Background colour
+  inspector.layer_properties: Layer
+  inspector.layer_visible: Visible
+  inspector.layer_blend: Blend Mode
+  inspector.layer_blend_tooltip: the layer is drawn as one image and laid onto what is below it this way; its opacity applies to the whole layer once
+  inspector.layer_blend_normal: Normal
+  inspector.layer_blend_additive: Additive
+  inspector.layer_blend_multiply: Multiply
+  inspector.layer_blend_screen: Screen
+  inspector.layer_blend_subtract: Subtract
+  inspector.layer_blend_lighten: Lighten
+  inspector.layer_blend_darken: Darken
+  inspector.layer_blend_overlay: Overlay
+  inspector.layer_blend_soft_light: Soft Light
+  inspector.layer_blend_hard_light: Hard Light
+  inspector.layer_blend_color_dodge: Color Dodge
+  inspector.layer_blend_color_burn: Color Burn
+  inspector.layer_blend_difference: Difference
+  inspector.layer_opacity: Opacity
+  inspector.layer_source_asset: Layer Asset
+  inspector.layer_source_missing: the asset is gone
+  inspector.layer_source_reveal: show in the asset browser
+  hierarchy.save_layer_asset: Save as Asset
+  assets.save_layer_failed: the layer could not be saved as an asset
+  layer_asset.load_failed: the layer asset could not be read
+  inspector.layer_parallax: Parallax Factor
+  inspector.layer_parallax_tooltip: how far this layer moves when the camera moves; 1 moves with the camera, 0.5 is a half-speed background and 0 stays fixed in the world. Seen in the simulation view only, not in the canvas view
+  inspector.layer_lit: Lit
+  inspector.layer_lit_tooltip: the objects on this layer are lit by the canvas lights; off draws them in their own colours
+  inspector.layer_space: Space
+  inspector.layer_space_world: World
+  inspector.layer_space_screen: Screen
+  hierarchy.layer_empty: this layer is empty
+  hierarchy.layer_visible: show or hide this layer
+  panel.project_settings: Project Settings
+  project_settings.no_file: this project has no file to edit
+  project_settings.general: General
+  project_settings.paths: Paths
+  project_settings.language: Language
+  project_settings.no_languages: no language files were found
+  project_settings.build: Build
+  project_settings.text: "Text"
+  project_settings.fonts_help: "The first font draws texts with no fontId. Letters a font lacks are looked up in this list, in order."
+  project_settings.game_languages: "Game Languages"
+  project_settings.game_languages_help: "The languages of the string tables (.jstrings). The game starts in DefaultLocale; a key missing from the current language's tables is looked up in FallbackLocale's."
+  project_settings.save: Save
+  project_settings.revert: Revert
+  project_settings.saved: saved
+  project_settings.linear_filter: linear sampling; off is nearest, which is the pixel-art default
+  project_settings.fixed_delta_time: the length of one fixed step in seconds; physics and OnFixedUpdate run at this interval
+  project_settings.max_fixed_steps: the most fixed steps one frame runs; past it the game slows down instead of catching up
+  project_settings.max_delta_time: the longest frame delta in seconds; a frame after a window drag or a breakpoint is cut to this
+  project_settings.random_seed: the random seed; 0 draws a new one on every play and logs it
+  project_settings.ignore_patterns: one pattern a line; the scan and the watcher skip what matches
+  panel.profiler: Profiler
+  profiler.hint: measured while this window is open
+  profiler.empty: nothing has been measured yet
+  profiler.section: Section
+  profiler.time: ms
+  profiler.calls: calls
+  profiler.share: share
+  profiler.frame: frame
+  assets.root: Assets
+  assets.folder_empty: this folder has no assets
+  assets.new_folder: New Folder
+  assets.new_folder_failed: that folder could not be made
+  assets.rename: Rename
+  assets.rename_failed: that name is taken, or the file could not be renamed
+  assets.delete: Delete
+  assets.delete_ask: delete this asset?
+  assets.delete_folder_ask: delete this folder and everything in it?
+  assets.delete_many_ask: delete these %d assets?
+  assets.delete_failed: that could not be deleted
+  assets.move_failed: that could not be moved
+  assets.reveal: Show in Explorer
+  assets.find_in_browser: Find in Asset Browser
+  assets.column_name: Name
+  assets.column_type: Type
+  assets.column_modified: Date Modified
+  assets.column_id: ID
+  assets.sort_tooltip: Sort by
+  common.cancel: Cancel
+  assets.rescan: Rescan
+  assets.new_canvas: New Canvas
+  assets.new_script: New Script
+  menu.build_scripts: Build Scripts
+  panel.build_results: Build Results
+  build_results.build: Build
+  build_results.building: Building...
+  build_results.clear: Clear
+  build_results.errors: "%d errors"
+  build_results.warnings: "%d warnings"
+  build_results.empty: No build yet
+  build_results.succeeded: Built with no errors or warnings
+  build_results.open_hint: Click to open this line in the editor
+  notify.scripts_built: The scripts were built
+  notify.scripts_build_failed: The scripts could not be built
+  notify.no_script_project: There is no script project yet. Create a script from Scripts in the asset browser first
+  notify.build_tools_missing: The C++ build tools (MSVC v145) were not found. Click to open the download page, then install Build Tools for Visual Studio 2026 with “Desktop development with C++” and “Windows 11 SDK (10.0.22621.0)”
+  notify.windows_sdk_missing: Windows SDK 10.0.22621.0 was not found. Click to open the download page, then add “Windows 11 SDK (10.0.22621.0)” to Build Tools for Visual Studio 2026
+  field_category.World_cache: World cache
+  notify.scripts_built_next: Attach them with Add Component in the inspector
+  build_results.running: Building the scripts...
+  notify.scripts_unresolved: "%zu script(s) on this canvas were not found"
+  notify.scripts_unresolved_why: "They are kept as saved and do not run. If the script was deleted or renamed, bring it back and build again"
+  notify.script_created: "Created the script %s"
+  notify.script_created_next: "Click to open it in your code editor. Once written, build with File > Build Scripts and it shows up in Add Component in the inspector"
+  notify.script_fault_stopped: A script error stopped the simulation
+  notify.script_break: A script stopped at a breakpoint
+  notify.script_break_at: "%s:%u  %s - unpause to go on, stop to end the run. Editing waits until then"
+  notify.script_fault: A script raised an error
+  notify.script_fault_at: "%s - %s:%u (%s). Click to open the line"
+  notify.script_fault_in_hook: "%s (%s)"
+  notify.script_error: A script error stopped that callback
+  notify.script_error_at: "%s:%u  %s - play goes on. Click to open the line"
+  script_fault.access_violation: The script accessed invalid memory
+  script_fault.divide_by_zero: The script divided an integer by zero
+  script_fault.stack_overflow: The script overflowed the stack. It may be endless recursion
+  script_fault.cpp_exception: The script threw a C++ exception
+  script_fault.breakpoint: The script hit a breakpoint (__debugbreak)
+  script_fault.other: "The script raised exception 0x%08X"
+  editor_settings.script_editor: Script Editor
+  editor_settings.script_editor_help: Clicking an error in Build Results opens that line in this editor
+  script_editor.system: Default app (no line jump)
+  assets.scripts_root: Scripts
+  assets.scripts_empty: No scripts yet. Right-click to create one
+  assets.open_script: Open
+  new_script.name: Name
+  new_script.name_hint: The class name. Canvas files save the script under this name
+  new_script.language: Language
+  new_script.language_hint: JBroScript is turned into C++ when you build and goes into the same game DLL. 2D projects only
+  new_script.advanced: Advanced Options
+  new_script.fields: Fields
+  new_script.invalid_name: Use letters, digits and underscores, and do not start with a digit
+  new_script.reserved_name: C++ or the engine already uses that name
+  new_script.type_taken: A component or script with that name already exists
+  new_script.file_taken: A file with that name is already in this folder
+  new_script.invalid_field: A field name is empty, cannot be used, or appears twice
+  new_script.failed: The script could not be created
+  assets.new_font_family: New Font Family
+  assets.new_string_table: New String Table
+  node_graph.title: Node Graph
+  node_graph.inspector_title: Node Inspector
+  node_graph.no_graph: No node graph is open
+  file_window.unsaved_title: Unsaved changes
+  file_window.reload_message: "There are changes that are not saved. Reloading from disk throws them away"
+  file_window.reload_discard: Reload without saving
+  file_window.close_message: There are changes that are not saved
+  file_window.save_and_close: Save and close
+  file_window.close_without_saving: Close without saving
+  assets.new_node_graph: New Node Graph
+  node_graph.save: Save
+  node_graph.nothing_to_save: Nothing has changed
+  node_graph.reload: Reload From Disk
+  node_graph.close: Close
+  node_graph.save_failed: The node graph could not be saved
+  node_graph.read_failed: The node graph file could not be read
+  node_graph.problems: "Some parts of the file could not be read. Hover to see which"
+  node_graph.copy: Copy
+  node_graph.paste: Paste
+  node_graph.nothing_to_paste: Nothing has been copied
+  node_graph.duplicate: Duplicate
+  node_graph.delete: Delete
+  node_graph.frame: Frame
+  node_graph.disconnect: Break Link
+  node_graph.disconnect_all: Break All Links
+  node_graph.no_selection: No node is selected
+  node_graph.many_selected: Several nodes are selected
+  node_graph.linked: Linked
+  node_graph.only_one: A graph holds only one of these
+  node_graph.unknown_type: This domain has no node of this type
+  node_graph.preview: Preview
+  node_graph.no_output: Add an Output node to see the result
+  node_graph.add_comment: Add Comment
+  node_graph.comment: Comment
+  node_graph.comment_title: Title
+  node_graph.comment_color: Color
+  node_graph.remove_waypoint: Remove Reroute Point
+  node_graph.minimap: Minimap
+  assets.new_sound_effect: New Sound Effect
+  inspector.sound_effect_hint: "Edit sound effects in their own window"
+  inspector.open_sound_effect: Open Effect Editor
+  sound_effect.title: Sound Effect
+  sound_effect.open: Open Sound Effect
+  sound_effect.none: "There are no sound effects in this project"
+  sound_effect.save: Save
+  sound_effect.nothing_to_save: "nothing has changed"
+  sound_effect.reload: Reload From Disk
+  sound_effect.close: Close
+  sound_effect.kind_help: "Changing the kind keeps the values of the parameters both kinds have"
+  sound_effect.apply: Apply
+  sound_effect.save_failed: "The sound effect could not be saved"
+  sound_effect.read_failed: "The sound effect file could not be read"
+  sound_effect.preview: Preview
+  sound_effect.test_sound: Test Sound
+  sound_effect.preview_hint: "Pick an audio asset above or drag one onto it, then play"
+  sound_effect.revert: "Revert"
+  sound_effect.revert_help: "Throw away the changes and go back to the saved values"
+  sound_effect.bypass: "Bypass"
+  sound_effect.bypass_help: "Play the test sound without the effect to compare"
+  sound_effect.output: "Output"
+  sound_effect.graph_frequency: "Frequency response (dB)"
+  sound_effect.graph_shape: "Input → output wave"
+  sound_effect.graph_dynamics: "Input level → output level (dB)"
+  sound_effect.graph_echo: "Repeats (seconds)"
+  sound_effect.graph_reverb: "Reverb tail (seconds)"
+  sound_effect.graph_chorus: "Delay sweep (ms)"
+  sound_effect.graph_pitch: "Pitch change (semitones)"
+  sound_effect.about_reverb: "Adds the reflections of a room or hall"
+  sound_effect.about_low_pass: "Cuts the sound above the cutoff"
+  sound_effect.about_high_pass: "Cuts the sound below the cutoff"
+  sound_effect.about_echo: "Repeats the sound at a fixed interval"
+  sound_effect.about_distortion: "Squashes the wave into a gritty sound"
+  sound_effect.about_compressor: "Turns down loud sound above the threshold by the ratio"
+  sound_effect.about_limiter: "Holds sound above the threshold down right away"
+  sound_effect.about_equalizer: "Boosts or cuts the lows, mids and highs separately"
+  sound_effect.about_chorus: "Layers a slightly shifted copy to thicken the sound"
+  sound_effect.about_pitch_shift: "Changes the pitch and keeps the speed"
+  assets.duplicate: Duplicate
+  assets.copy_path: Copy Path
+  assets.cut: Cut
+  assets.copy_file: Copy
+  assets.paste: Paste
+  assets.paste_failed: that could not be pasted
+  assets.selection_count: "%d chosen"
+  popup.unsaved_canvas_title: Unsaved changes
+  popup.unsaved_work_title: Unsaved changes
+  popup.unsaved_work_message: These have changes that are not saved
+  popup.unsaved_work_canvas: the canvas
+  common.save_all: Save all
+  common.dont_save: "Don't save"
+  project_settings.revert_message: "There are settings that are not saved. Reverting throws them away"
+  project_settings.revert_discard: Revert without saving
+  popup.unsaved_canvas_message: This canvas has changes that are not saved. Opening another canvas loses them.
+  common.save_and_open: Save and open
+  common.open_without_saving: Open without saving
+  assets.open_canvas: Open Canvas
+  assets.open_in_sprite_viewer: Open in Sprite Viewer
+  assets.import: Import...
+  menu.import_sprite: Import Sprite
+  dialog.import_title: Import
+  dialog.import_images: Images
+  dialog.import_audio: Audio
+  dialog.import_assets: Images and audio
+  menu.import_audio: Import Audio
+  popup.import_failed: The file could not be imported
+  sprite_viewer.title: Sprite Viewer
+  sprite_viewer.loading: reading the picture
+  sprite_viewer.frame: Frame
+  sprite_viewer.fps: Frames per second
+  sprite_viewer.zoom: Zoom
+  sprite_viewer.fit: Fit
+  sprite_viewer.show_pivot: Show pivot
+  sprite_viewer.hovered_frame: "hovering frame %d (%d, %d) %d x %d"
+  sprite_viewer.play: Play
+  sprite_viewer.stop: Stop
+  sprite_viewer.select_to_edit: select this picture to edit its import options
+  sprite_viewer.select: Select
+  assets.icon_view: Icons
+  assets.list_view: List
+  assets.view_tooltip: switch between the list and the icons
+  menu.new_project: New Project
+  dialog.new_project_folder: Choose a folder for the project
+  new_project.location: Location
+  new_project.name: Name
+  new_project.framework: Framework
+  new_project.name_hint: the folder and the project file take this name
+  common.create: Create
+  popup.new_project_failed: The project could not be created
+  new_project.invalid_name: That name cannot be a folder name
+  new_project.already_exists: Something with that name is already in the folder
+  new_project.cannot_write: The project files could not be written
+  hierarchy.object_hidden: show or hide this object in the canvas view
+  common.browse: Browse
+  dialog.browse_folder: Choose a folder
+  dialog.browse_file: Choose a file
+  sprite_viewer.pick_hint: click a cell on the sheet to use that frame
+  inspector.pick_frame: Pick Frame
+  inspector.pick_frame_no_sprite: set a sprite first
+  inspector.text_no_font: "No usable font, so this text is not drawn. Set fontId or add a font in Project Settings."
+  inspector.camera_size_unused: "Not used by PixelPerfect. The view is the reference resolution divided by pixelsPerUnit."
+  inspector.camera_ppu_unused: Used only by PixelPerfect.
+  inspector.sprite_ppu_mismatch: "This sprite's pixelsPerUnit differs from the PixelPerfect camera, so its pixels do not line up."
+  hierarchy.paste_as_child: Paste As Child
+  hierarchy.bring_forward: Bring Forward
+  hierarchy.bring_to_front: Bring to Front
+  hierarchy.send_backward: Send Backward
+  hierarchy.send_to_back: Send to Back
+  panel.editor_settings: Editor Settings
+  menu.settings_editor: Editor Settings
+  editor_settings.shortcuts: Shortcuts
+  editor_settings.scripts: Scripts
+  build_results.no_diagnostic: The build failed without an error line. Open the log to see why
+  notify.scripts_reloaded: The scripts were reloaded
+  notify.scripts_reload_notes: Some field values could not be carried over. See the log
+  notify.scripts_reload_failed: The scripts could not be reloaded
+  notify.scripts_reload_kept: The scripts keep their values in the canvas. Fix the build and try again
+  notify.scripts_reload_pending: The new scripts load when play stops
+  editor_settings.search_hint: Search by name or key
+  editor_settings.press_key: Press a key
+  editor_settings.capture_hint: Press Esc to cancel
+  editor_settings.clear_binding: Clear
+  editor_settings.empty_binding: "(none)"
+  editor_settings.reset: Default
+  editor_settings.reset_tooltip: Restore the default keys
+  editor_settings.reset_all: Reset All
+  editor_settings.reset_all_title: Reset Shortcuts
+  editor_settings.reset_all_message: Every shortcut goes back to its default keys. Your changes are lost.
+  editor_settings.reset_all_confirm: Reset
+  editor_settings.clash: "Another shortcut uses the same keys: %s"
+  editor_settings.shadows: "In this panel this shortcut runs instead of: %s"
+  editor_settings.shadowed: "A focused panel runs its own shortcut instead: %s"
+  editor_settings.no_match: No shortcuts match
+  menu.help: Help
+  menu.help_guides: Guides
+  guide.next: Next
+  guide.done: OK
+  guide.confirm_note: Done. Press OK to finish the guide.
+  guide.progress_done: Done
+  guide.need_selected_object: Pick an object first
+  guide.need_target_object: Select the highlighted object first
+  guide.need_field_value: "Set %s to %s first"
+  guide.need_point_collider: "The Collider2D's shape must be Polygon or Chain"
+  guide.need_polygon_point: "The collider has no point %u"
+  guide.target_disabled: You can't press this right now
+  guide.target_disabled_because: "You can't press this right now: %s"
+  guide.skip: Skip
+  guide.back: Back
+  guide.back_first_step: This is the first step
+  guide.progress: "%u / %u"
+  guide.finished: Guide finished
+  guide.add_component_title: Adding a Component
+  guide.add_component_select_title: Pick an Object
+  guide.add_component_select_body: Pick an object in the Layers window. If you already picked one, press Next. If there is none, right-click an empty spot and add one - it is picked for you.
+  guide.add_component_field_title: Change a Value
+  guide.add_component_field_body: Drag or type in this field to change the value. Press Next when you are done.
+  guide.add_component_add_title: Add a Component
+  guide.add_component_add_body: Open this list and pick a component to attach.
+  guide.build_game_title: Building the Game
+  guide.build_game_step_title: Build Game
+  guide.build_game_step_body: Open the File menu and choose Build Game to pack the project into a game you can run.
