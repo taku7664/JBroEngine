@@ -75,6 +75,6 @@ upstream pin은 `b12d713e77e8edddff1e69973f67085ac9cfaf74`이고 MIT LICENSE를 
 C++ 언어 서버·자동완성·정의 이동·디버거 통합은 후속 범위다. C++는 현재 편집·어휘 강조를 제공한다.
 모든 문자/입력/프로젝트 수명 조합이나 성능 벤치마크를 검증한 것은 아니다.
 
-구현 커밋은 로컬 `fc592bd6` (`feat(editor): edit scripts in file tabs with live JBroScript diagnostics`)다. 원격 push와 main 병합은 수행하지 않았다. 이번 요청의 main 병합 승인은 없으며 main의 별도 디버거 작업은 그대로 유지했다.
+구현 커밋은 로컬 `fc592bd6` (`feat(editor): edit scripts in file tabs with live JBroScript diagnostics`)다. 원격 push와 main 병합은 수행하지 않았다. main에는 별도 디버거 작업의 미커밋 변경이 같은 EditorApplication/Platform 파일에 진행 중이어서 이번 작업 트리만 커밋하고 main의 작업 상태는 유지했다.
 최종 샘플 Host(PID 74560)에서 두 파일 탭·분석 연결 정상·진단 0개를 다시 확인했다([최종 화면](F:/AI/Temp/imgui-code-editor-spike/engine-ui/final-tabs-check.png)).
 병렬 main의 기존 D-330과 충돌하지 않도록 이번 결정과 참조만 D-335로 옮겼다. 기존 main 결정의 의미는 바꾸지 않았다.
