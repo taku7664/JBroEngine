@@ -355,6 +355,25 @@ namespace
         Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
                 && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
             "the editor builds the generated JBroScript into the game DLL");
+        // 사용자 프로젝트는 엔진 소스가 아니라 스크립트 SDK 사본을 include 한다. 컴포넌트 데이터 헤더는 핸들을 쓰라는 `#error` 이고,
+        // 스크립트 입구에서 닿지 않는 엔진 헤더는 없는 파일이다.
+        const fs::path leak = contents / "Scripts" / "Leak.cpp";
+        const auto buildFailsWith = [&](const char* header, const char* code, const char* where) {
+            std::ofstream(leak, std::ios::trunc) << "#include <" << header << ">\n";
+            Check(editor.BuildScripts(), "the editor starts a build that includes an engine header");
+            waitForBuild();
+            Bool found = false;
+            for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+            {
+                found = found || (diagnostic.code == code && diagnostic.file.find(where) != String::npos);
+            }
+            return editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Failed && found;
+        };
+        Check(buildFailsWith("JBro/Framework2D/Component/Transform2D.h", "C1189", "ScriptSdk"),
+            "a component data header stops a user build with the hint to use its handle");
+        Check(buildFailsWith("JBro/Core/Log.h", "C1083", "Leak.cpp"),
+            "an engine header outside the script SDK cannot be included by a user script");
+        fs::remove(leak);
         const fs::path generatedDirectory = root / "x64" / "Intermediate" / "Debug" / "JBroScript";
         const auto generatedHasType = [&generatedDirectory](const char* type) {
             for (const auto& file : fs::directory_iterator(generatedDirectory))

@@ -5,8 +5,8 @@
     에디터가 만든 vcxproj 는 `Microsoft.Cpp.props` 앞에서 이것을, `Microsoft.Cpp.targets` 앞에서 `JBro.GameScript.targets` 를 import 한다.
     **사용자 프로젝트 파일을 다시 쓰지 않는다**(기존 엔진의 C2) - 엔진 모듈이 늘거나 경로가 바뀌면 이 두 파일만 고친다.
 
-    지금은 엔진 소스 폴더(이 파일이 있는 곳)를 가리킨다. 엔진 설치본에는 헤더와 .lib 가 없다(launcher-plan Q2) -
-    설치본용 SDK 모양은 아직 정하지 않았다(cpp-script-plan §4).
+    지금은 엔진 소스 폴더(이 파일이 있는 곳)를 가리킨다. 헤더는 엔진 빌드가 만든 스크립트 SDK 사본(`Build/ScriptSdk`)이고 .lib 는 엔진 빌드 폴더다.
+    엔진 설치본에는 아직 둘 다 없다(launcher-plan Q2) - 설치본에 SDK 를 싣는 모양은 정하지 않았다(cpp-script-plan §4).
   -->
   <Import Project="$(MSBuildThisFileDirectory)JBro.Common.props" />
 

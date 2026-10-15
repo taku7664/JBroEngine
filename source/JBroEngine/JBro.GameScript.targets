@@ -4,7 +4,8 @@
     사용자 게임 스크립트 프로젝트의 컴파일·링크 설정이다(cpp-script-plan §3.3, D-266). `Microsoft.Cpp.props` 뒤, `Microsoft.Cpp.targets` 앞에서
     import 된다 - 시험 DLL(`Tests/ScriptModuleProbe`)의 ItemDefinitionGroup 과 같은 자리다.
 
-    include 는 스크립트 타깃이 받는 집합(`JBroScriptIncludes`)뿐이다. Tier E 헤더를 include 하면 C1083 이다(ProjectRule §11).
+    include 는 스크립트 SDK 사본(`JBroScriptSdkIncludes`)뿐이다. 스크립트 입구에서 닿는 헤더만 주석 없이 들어 있어, 그 밖의 엔진 헤더를
+    include 하면 C1083 이고 컴포넌트 데이터 헤더는 핸들을 쓰라는 `#error` 다(ProjectRule §11).
     링크 목록은 스크립트 DLL 이 부르는 모듈이다. 모듈이 늘면 여기만 고친다.
   -->
   <PropertyGroup>
@@ -24,6 +25,12 @@
   <ItemGroup>
     <JBroScriptSource Include="$(MSBuildProjectDirectory)\Scripts\**\*.jscript" />
   </ItemGroup>
+
+  <!-- SDK 사본이 없으면 수백 개의 C1083 대신 무엇을 해야 하는지 말한다. -->
+  <Target Name="JBroGameScriptCheckSdk" BeforeTargets="ClCompile">
+    <Error Condition="!Exists('$(JBroScriptSdkIncludes)\JBro\ScriptAPI.h')"
+           Text="The JBro script SDK headers were not found at $(JBroScriptSdkIncludes). Build the engine first." />
+  </Target>
 
   <Target Name="JBroGameScriptValidate" BeforeTargets="ClCompile" Condition="'@(JBroScriptSource)' != ''">
     <Error Condition="'$(JBroScriptDimension)' != '2D'"
@@ -47,7 +54,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroScriptSdkIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>

@@ -237,6 +237,7 @@
   `SystemContext`도 공통 계층이다 — 차원별 시스템 인터페이스는 D-37 확장 블록(`Framework2DSystemContext`)으로 전달한다. (D-43)
 - **모듈은 스크립트가 보는 층(Tier S)과 엔진만 보는 층(Tier E)으로 나뉜다.** 한 모듈에 두 층을 섞지 않는다. (MUST) (D-42)
   사용자 비공개는 include 경로가 강제하므로(§10.1), 스크립트 타깃은 Tier S 모듈의 Include 경로만 받는다.
+  사용자 스크립트 프로젝트는 그중에서도 스크립트 입구에서 닿는 헤더를 주석 없이 옮긴 스크립트 SDK 사본(`Build/ScriptSdk/<차원>/Include`)만 받는다. (D-329)
   의존은 Tier E → Tier S 방향만 허용한다. Tier S 모듈이 Tier E 헤더를 include하면 컴파일이 실패해야 한다.
 
   | 층 | 모듈 | 내용 |

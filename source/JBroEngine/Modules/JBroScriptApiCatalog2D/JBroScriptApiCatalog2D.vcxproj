@@ -10,7 +10,7 @@
   <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
   <PropertyGroup Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType></PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ItemDefinitionGroup><ClCompile><WarningLevel>Level4</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><AdditionalIncludeDirectories>$(JBroModulesDir)JBroScriptApiCatalog2D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroNetworkDir)Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><AdditionalOptions>/FC %(AdditionalOptions)</AdditionalOptions></ClCompile></ItemDefinitionGroup>
+  <ItemDefinitionGroup><ClCompile><WarningLevel>Level4</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><AdditionalIncludeDirectories>$(JBroModulesDir)JBroScriptApiCatalog2D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroNetworkDir)Include;$(JBroScriptSdkDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><AdditionalOptions>/FC %(AdditionalOptions)</AdditionalOptions></ClCompile></ItemDefinitionGroup>
   <ItemGroup><ClInclude Include="Include\**\*.h" /></ItemGroup>
   <ItemGroup><ClCompile Include="Source\**\*.cpp" /></ItemGroup>
   <ItemGroup>
@@ -23,6 +23,7 @@
     <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj"><Project>{1a000030-0000-4000-8000-00000001a7e5}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroSaveTypes\JBroSaveTypes.vcxproj"><Project>{1a000032-0000-4000-8000-000000005a7e}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroLocalizationTypes\JBroLocalizationTypes.vcxproj"><Project>{1a000033-0000-4000-8000-0000000010c4}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptSdk\JBroScriptSdk.vcxproj"><Project>{1a000055-0000-4000-8000-0000000005d4}</Project><ReferenceOutputAssembly>false</ReferenceOutputAssembly><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
     <ProjectReference Include="$(JBroNetworkDir)JBroNetwork.vcxproj"><Project>{1a000020-0000-4000-8000-0000000ae700}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -40,6 +40,15 @@
          프렐류드를 거쳐야만 하는 것들이 이 값을 보고 직접 include 를 거절한다. -->
     <JBroScriptTargetDefines>JBRO_SCRIPT_TARGET</JBroScriptTargetDefines>
     <JBroScriptIncludes>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroNetworkDir)Include;$(JBroScriptFrameworkIncludes)</JBroScriptIncludes>
+    <!--
+      사용자 스크립트 프로젝트가 받는 include 경로는 엔진 소스가 아니라 스크립트 SDK 사본이다. `Modules/JBroScriptSdk` 가 엔진 빌드 때
+      위 집합에서 스크립트 입구(프렐류드·모듈 진입점·JBroScript 가 내는 C++ 의 include·`JBro/Types`)로 닿는 헤더만 주석을 지워 옮긴다.
+      엔진의 시험 프로브는 위 `JBroScriptIncludes` 로 원본을 그대로 본다.
+    -->
+    <JBroScriptSdkDir>$(JBroBuildDir)ScriptSdk\</JBroScriptSdkDir>
+    <JBroScriptSdkIncludes>$(JBroScriptSdkDir)$(JBroScriptDimension)\Include</JBroScriptSdkIncludes>
+    <!-- SDK 도구의 증분 빌드 입력이다. 두 차원의 원본 헤더를 모두 본다. -->
+    <JBroScriptSourceIncludeRoots>$(JBroModulesDir)JBroCore\Include\**\*.h;$(JBroModulesDir)JBroRuntime\Include\**\*.h;$(JBroModulesDir)JBroAssetTypes\Include\**\*.h;$(JBroModulesDir)JBroAudioTypes\Include\**\*.h;$(JBroModulesDir)JBroInputTypes\Include\**\*.h;$(JBroModulesDir)JBroSaveTypes\Include\**\*.h;$(JBroModulesDir)JBroLocalizationTypes\Include\**\*.h;$(JBroNetworkDir)Include\**\*.h;$(JBroModulesDir)JBroFramework2D\Include\**\*.h;$(JBroModulesDir)JBroFramework3D\Include\**\*.h;$(JBroModulesDir)JBroScriptApiCatalog2D\Source\ProjectedValues.h</JBroScriptSourceIncludeRoots>
   </PropertyGroup>
 
   <PropertyGroup Label="JBroVersion">

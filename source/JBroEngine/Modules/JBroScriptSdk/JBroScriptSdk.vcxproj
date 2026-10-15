@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a000055-0000-4000-8000-0000000005d4}</ProjectGuid>
+    <RootNamespace>JBroScriptSdk</RootNamespace>
+    <ProjectName>JBroScriptSdk</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!--
+    스크립트 SDK 헤더 사본을 만드는 도구다. 사용자 스크립트 프로젝트는 엔진 소스의 헤더 대신 이 사본을 include 한다 -
+    스크립트가 쓰는 입구에서 닿는 헤더만, 주석 없이 들어 있다. 빌드가 끝나면 스스로 돌아 `$(JBroScriptSdkDir)` 을 채운다.
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
+      <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemGroup>
+    <JBroScriptSdkInput Include="$(JBroScriptSourceIncludeRoots)" />
+  </ItemGroup>
+  <Target Name="JBroScriptSdkGenerate" AfterTargets="Build"
+          Inputs="@(JBroScriptSdkInput);$(OutDir)$(TargetName)$(TargetExt)"
+          Outputs="$(JBroScriptSdkDir).stamp">
+    <Exec Command="&quot;$(OutDir)$(TargetName)$(TargetExt)&quot; &quot;$(JBroRoot).&quot; &quot;$(JBroScriptSdkDir).&quot;" />
+  </Target>
+</Project>

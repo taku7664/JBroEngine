@@ -4,8 +4,8 @@
 namespace JBro::ScriptApiCatalog2D::Internal
 {
     using namespace ScriptCompiler;
-    void Define(ApiType& type, const char* header, UInt32 offset, UInt32 line, UInt32 column, UInt32 length);
-    void Define(ApiMember& member, const char* header, UInt32 offset, UInt32 line, UInt32 column, UInt32 length);
+    void Define(ApiType& type, const char* header, UInt32 line, UInt32 column, UInt32 length);
+    void Define(ApiMember& member, const char* header, UInt32 line, UInt32 column, UInt32 length);
     ApiType& AddType(ApiCatalog& catalog, const char* name, const char* native, ApiTypeKind kind);
     ApiType& FindType(ApiCatalog& catalog, const char* name);
     void AddValueMembers(ApiCatalog& catalog);

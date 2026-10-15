@@ -1,4 +1,4 @@
-#include <JBro/ScriptApiCatalog2D/Catalog.h>
+﻿#include <JBro/ScriptApiCatalog2D/Catalog.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <filesystem>
@@ -134,6 +134,53 @@ namespace
         }
         return source;
     }
+    // 정의는 사용자가 보는 스크립트 SDK 사본을 가리키고, 그 사본에는 주석이 하나도 없다. 엔진 개발자의 주석(결정 번호·계획서 참조)은 사용자에게 가지 않는다.
+    void CheckScriptSdk(const ApiCatalog& catalog)
+    {
+        const String path = PathFromUri(catalog.Types[0].DefinitionUri);
+        const std::size_t root = path.find("/Build/ScriptSdk/2D/Include/");
+        Check(root != String::npos, "script API definitions open the script SDK copy, not the engine source");
+        const auto include = std::filesystem::path(reinterpret_cast<const char8_t*>(path.Substr(0, root + 27).c_str()));
+        std::size_t headers = 0;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(include))
+        {
+            if (!entry.is_regular_file())
+            {
+                continue;
+            }
+            std::ifstream file(entry.path(), std::ios::binary);
+            const String text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            // 문자열과 글자 리터럴 밖에서 `//`·`/*` 가 나오면 주석이다.
+            char quote = '\0';
+            for (std::size_t index = 0; index + 1 < text.size(); ++index)
+            {
+                const char character = text[index];
+                if (quote != '\0')
+                {
+                    if (character == '\\')
+                    {
+                        ++index;
+                    }
+                    else if (character == quote)
+                    {
+                        quote = '\0';
+                    }
+                    continue;
+                }
+                if (character == '"' || (character == '\'' && (index == 0 || !std::isalnum(static_cast<unsigned char>(text[index - 1])))))
+                {
+                    quote = character;
+                    continue;
+                }
+                if (character == '/' && (text[index + 1] == '/' || text[index + 1] == '*'))
+                {
+                    throw std::runtime_error("the script SDK copy keeps a comment: " + entry.path().filename().string());
+                }
+            }
+            ++headers;
+        }
+        Check(headers > 100, "the 2D script SDK has the prelude's include closure");
+    }
     void CheckOwner(const ApiType& type, const ApiMember& member)
     {
         if (member.Kind == ApiMemberKind::Constructor)
@@ -254,6 +301,7 @@ namespace
 JBro::Int32 RunScriptApiCatalogTests()
 {
     const auto catalog = JBro::ScriptApiCatalog2D::BuildCatalog();
+    CheckScriptSdk(catalog);
     for (const char* alias : {"Time","Random","Objects","Audio","Input","Save","Localization","Network","Session","Physics","Text","Screen","DebugDraw"})
     {
         std::size_t count = 0;
