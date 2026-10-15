@@ -3045,7 +3045,7 @@ EditorApplication::Tick
   정한 것: 에디터는 `SubSystem Windows`(진입점은 `main`)이고 터미널에서 띄우면 부모 콘솔에 붙는다. 새 프로젝트의 빈 캔버스에는 주 카메라 하나를 둔다. 닫기 단추가 있는 팝업은 Esc 로 닫힌다.
   모두 읽기 전용인 필드 분류(`Category`)는 인스펙터에서 접힌 한 줄 아래에 두고, 그 줄은 Id 를 쌓지 않는다. 스크립트 이름은 엔진 컴포넌트의 짧은 이름(`Transform2D`)도 받지 않는다.
   처음 배치를 지을 때 칸마다 처음 등록된 패널이 앞 탭이고 키보드는 캔버스 뷰에 남는다. 빌드가 실패하면 `빌드 결과` 가 앞에 서고 오류가 경고보다 먼저다. 에셋 핸들의 슬롯은 24 비트다 - `TextLibrary`·`SpriteLibrary` 가 `AssetSystem::SlotMask`(private)와 같은 값을 따로 적고, `TextRender` 가 폰트 표 칸 수로 지킨다.
-  찾은 것(고치지 않음): main 의 `NodeGraphAddNode` 키가 쓰이지 않아 `EditorLocalization` 묶음이 실패한다. 상세는 [script-user-scenario.md](./script-user-scenario.md).
+  찾은 것: main 의 `NodeGraphAddNode` 키가 쓰이지 않아 `EditorLocalization` 묶음이 실패했다 - 지웠다. 상세는 [script-user-scenario.md](./script-user-scenario.md).
   시나리오 C(JBroScript 로 쓰는 사용자, main 에 컴파일러가 들어온 뒤): 새 프로젝트는 `Contents/Scripts` 를 만들고, `새 스크립트` 는 2D 프로젝트에서 `언어`(C++ / JBroScript)를 고른다 -
   JBroScript 는 빈 `OnStart`·`OnUpdate` 의 `.jscript` 하나다. 스크립트 폴더에 소스가 있는데 프로젝트가 없으면 빌드할 때 만든다. JBroScript 의 실행 오류(로그 그룹 `JBroScript`)는 실행 한 번에 자리마다 한 번 알린다.
   빌드 결과는 다른 오류가 있으면 `MSB3073` 을 빼고, 빌드가 성공하면 떠 있는 실패 알림을 닫는다. 엔진이 스크립트를 부르는 SEH 보호는 main 의 `ScriptGuard`(생성 코드의 검사)와 나눠 `ScriptCallGuard` 다.
