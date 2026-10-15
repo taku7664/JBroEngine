@@ -529,15 +529,12 @@ namespace JBro::ScriptCompiler
                 if (At(TokenKind::Identifier))
                 {
                     name = Advance().Text;
-                    if (name == "operator" && At(TokenKind::EqualEqual))
+                    if (name == "operator" && (At(TokenKind::EqualEqual) || At(TokenKind::BangEqual)))
                     {
-                        flags |= SyntaxFlagOperatorEqual;
-                        Advance();
-                    }
-                    else if (name == "operator" && At(TokenKind::BangEqual))
-                    {
-                        flags |= SyntaxFlagOperatorNotEqual;
-                        Advance();
+                        flags |= At(TokenKind::EqualEqual) ? SyntaxFlagOperatorEqual : SyntaxFlagOperatorNotEqual;
+                        const Token& operation = Advance();
+                        name = std::string_view(name.data(), static_cast<std::size_t>(
+                            operation.Text.data() + operation.Text.size() - name.data()));
                     }
                 }
                 else

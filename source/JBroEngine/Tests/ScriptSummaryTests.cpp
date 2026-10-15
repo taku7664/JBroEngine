@@ -38,6 +38,25 @@ namespace
         return result;
     }
 
+    void TestOperatorNameSelection()
+    {
+        const auto result = Analyze("class Box\n{\nfn operator==(Box other) -> Bool\n{\nreturn true\n}\nfn operator !=(Box other) -> Bool\n{\nreturn false\n}\n}\n");
+        const auto& document = *result->Documents.First();
+        const ScriptSummary summary = SummarizeScript(*result, document);
+        Check(summary.Valid && summary.Types.Size() == 1 && summary.Types.First().Members.Size() == 2,
+            "both operator declarations appear in the summary");
+        const auto source = document.Source.GetText();
+        const auto& members = summary.Types.First().Members;
+        for (std::size_t index = 0; index < members.Size(); ++index)
+        {
+            const auto& entry = members[index];
+            const auto selection = source.substr(entry.SelectionRange.Begin.Offset,
+                entry.SelectionRange.End.Offset - entry.SelectionRange.Begin.Offset);
+            Check(selection == (index == 0 ? "operator==" : "operator !="),
+                "operator selection includes the operator token and preserves its source spacing");
+        }
+    }
+
     void TestSummary()
     {
         const auto result = Analyze("class Enemy\n{\n[prop] static Int total = 2\n[prop] const Int max = 5\nref Enemy target\nfn Tick(Float elapsed) callback\n{\n}\n}\nstruct Settings\n{\nInt speed = 3\n}\n");
@@ -225,6 +244,7 @@ namespace
 JBro::Int32 RunScriptSummaryTests()
 {
     TestSummary();
+    TestOperatorNameSelection();
     TestEdits();
     TestAddRemove();
     TestAttributeTriviaAndSeparators();
