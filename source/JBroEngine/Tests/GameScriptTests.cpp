@@ -38,7 +38,7 @@ namespace
     static_assert(HasTriggerHooks<JBro::GameScript2D>, "2D scripts receive trigger hooks (D-207)");
     static_assert(false == HasTriggerHooks<JBro::GameScriptBase>, "and the dimension-free base does not");
 
-    JBRO_SCRIPT(ScriptProbe) final : public JBro::GameScript2D
+    JBRO_SCRIPT(ScriptProbe) : public JBro::GameScript2D
     {
     public:
         static constexpr const char* StaticTypeName()
@@ -65,6 +65,34 @@ namespace
         JBro::Int32 fixedUpdates = 0;
     };
 
+    class DerivedScriptProbe final : public ScriptProbe
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::DerivedScriptProbe";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+    };
+
+    class UnrelatedScriptProbe final : public JBro::GameScript2D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::UnrelatedScriptProbe";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+    };
+
     // 스크립트는 컴포넌트가 아니다(D-302).
     static_assert(false == std::is_base_of_v<JBro::ComponentBase, JBro::GameScriptBase>);
     static_assert(std::is_base_of_v<JBro::GameScriptBase, JBro::GameScript2D>);
@@ -85,6 +113,58 @@ namespace
         if (false == condition)
         {
             throw std::runtime_error(message);
+        }
+    }
+
+    void TestDerivedScriptReferenceSerialization()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        auto* object = canvas.CreateObject("derived references");
+        canvas.AttachScript<DerivedScriptProbe>(object);
+        canvas.AttachScript<UnrelatedScriptProbe>(object);
+        canvas.AttachScript<ScriptProbe>(object);
+        canvas.AttachScript<DerivedScriptProbe>(object);
+        const auto derived = object->GetScripts<DerivedScriptProbe>();
+        Expect(derived.Size() == 2, "both derived scripts attach before testing their references");
+        const JBro::Ref<ScriptProbe> references[] = {
+            object->GetScript<ScriptProbe>(), derived[0], derived[1]
+        };
+        const auto& codec = *JBro::TypeDescriptorOf<JBro::Ref<ScriptProbe>>::Get().codec;
+        char text[128] = {};
+        std::size_t required = 0;
+        for (const auto& reference : references)
+        {
+            JBro::Ref<ScriptProbe> restored;
+            Expect(codec.ToText(&reference, text, sizeof(text), required)
+                && codec.FromText(&restored, text, required - 1) && restored == reference,
+                "base references round-trip exact and derived script identities");
+        }
+        const auto unrelated = object->GetScript<UnrelatedScriptProbe>();
+        const auto& otherCodec = *JBro::TypeDescriptorOf<JBro::Ref<UnrelatedScriptProbe>>::Get().codec;
+        JBro::Ref<ScriptProbe> unchanged = references[0];
+        Expect(otherCodec.ToText(&unrelated, text, sizeof(text), required)
+            && !codec.FromText(&unchanged, text, required - 1) && unchanged == references[0],
+            "an incompatible script identity is rejected without replacing the destination");
+
+        JBro::Internal::ObjectRefRemap remap;
+        remap.user = object;
+        remap.toIndex = [](void* user, JBro::InstanceId id) -> JBro::Int64 {
+            return static_cast<JBro::Object::GameObject*>(user)->GetInstanceId() == id
+                ? JBro::Int64(7) : JBro::Int64(-1);
+        };
+        remap.toObjectId = [](void* user, JBro::Int64 index) -> JBro::InstanceId {
+            return index == 7 ? static_cast<JBro::Object::GameObject*>(user)->GetInstanceId()
+                : JBro::InvalidInstanceId;
+        };
+        JBro::ObjectRefRemapScope scope(remap);
+        const char* expected[] = {"7:0", "7:1", "7:2"};
+        for (std::size_t index = 0; index < 3; ++index)
+        {
+            JBro::Ref<ScriptProbe> restored;
+            Expect(codec.ToText(&references[index], text, sizeof(text), required)
+                && std::strcmp(text, expected[index]) == 0
+                && codec.FromText(&restored, text, required - 1) && restored == references[index],
+                "scene refs preserve legacy exact ordinals and round-trip derived identities");
         }
     }
 
@@ -143,6 +223,7 @@ namespace
 JBro::Int32 RunGameScriptTests()
 {
     TestBuiltinComponentHandles();
+    TestDerivedScriptReferenceSerialization();
 
     JBro::Canvas canvas(JBro::CreateDefaultAllocator());
     auto* object = canvas.CreateObject("script owner");
