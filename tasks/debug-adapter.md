@@ -67,8 +67,8 @@ D-330 는 이렇게 바꿨다(실측은 [script-debug-plan.md](./script-debug-pl
 - ~~확장이 붙이는 모양: 에디터의 `디버그 시작` 메뉴가 어댑터를 띄우는가~~ → 아니다(2026-10-15). 에디터의 `디버그 실행` 은 통로만 연다. 어댑터는 스크립트 편집기 확장이 띄워 붙인다.
 - 확장이 붙이는 모양: `attach` 그대로인가, 에디터의 `디버그 시작` 메뉴(5 단계)가 어댑터를 띄우는가.
 
-엔진 쪽은 2026-10-15 에 섰다([script-debug-plan.md](./script-debug-plan.md) §4.2): `EditorApplication::SetScriptBreakpoint`·`ClearScriptBreakpoint` 가 주소에 int 3 을 넣고 빼며,
-설 때 `CodeBreak::context` 가 멈춘 스레드의 `CONTEXT` 주소다. 통로(파이프)와 그 위의 메시지가 3 단계다.
+엔진 쪽 1~5 단계가 2026-10-15 에 모두 섰다([script-debug-plan.md](./script-debug-plan.md) §4.2~§4.5): 세우지 않고 붙기, 통로(파이프)로 중단점·멈춤·한 줄 가기, `.cxr` 스택·변수, 디버그 실행 메뉴.
+어댑터는 `source/JBroDebugAdapter` 에서 새로 섰고, 실제 에디터+어댑터를 함께 돌리는 `DebugAdapter` 시험이 지난다. **남은 것은 스크립트 편집기 확장 쪽 연결뿐이다**(아래 §6).
 
 ## 6. 남은 것
 

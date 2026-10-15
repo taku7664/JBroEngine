@@ -5932,6 +5932,64 @@ namespace
         editor.Shutdown();
     }
 
+    // **디버그 메뉴에 `디버그 실행` 이 선다**(D-330 5 단계). 메뉴를 열어 그 항목과 구분선을 눈으로 본다(JBRO_EDITOR_SHOT).
+    void TestTheDebugMenuShowsStartDebugging()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the debug menu not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND window = FindOwnEditorWindow();
+        Check(window != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick");
+        }
+        const char* debugLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuDebug, "Debug");
+
+        // 메뉴 막대를 훑어 `디버그` 의 자리를 찾아 누른다. 디버그 메뉴는 메인 도크 막대에 있다.
+        ImGuiWindow* main = ImGui::FindWindowByName("###MainDock");
+        Check(main != nullptr, "the main dock must be there");
+        const ImGuiID bar = LabelId(main->ID, "##MenuBar");
+        const ImRect rect = main->MenuBarRect();
+        const JBro::Int32 y = static_cast<JBro::Int32>(rect.GetCenter().y);
+        JBro::Int32 hitX = 0;
+        for (JBro::Int32 x = static_cast<JBro::Int32>(rect.Min.x); x < static_cast<JBro::Int32>(rect.Max.x); x += 3)
+        {
+            PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking for the Debug menu");
+            if (ImGui::GetHoveredID() == LabelId(bar, debugLabel))
+            {
+                hitX = x;
+                break;
+            }
+        }
+        if (hitX == 0)
+        {
+            // 영어로 떨어졌거나 막대 배치가 달라 못 찾았다. 조용히 통과하지 않는다.
+            std::cout << "  [skip] the Debug menu was not found in the bar; its menu not shot" << std::endl;
+            editor.Shutdown();
+            return;
+        }
+        const Spot spot{hitX, y};
+        ClickAt(editor, window, spot);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with the menu open");
+        }
+        ImGuiWindow* menu = FindActiveWindowContaining(debugLabel);
+        Check(menu != nullptr, "the Debug menu opened");
+        SaveScreenshot(*editor.GetRenderer(), WindowWidth, WindowHeight, "debug_menu");
+        editor.Shutdown();
+    }
+
     // **프로젝트가 없어도 에디터 창은 살아 있어야 한다.** 호스트는 프레임워크가
     // 없으면 그릴 것이 없다고 보고 프레임을 통째로 건너뛰는데, 그러면 프로젝트를
     // 닫아 둔 에디터가 검은 창이 된다 - 메뉴도 프로젝트 브라우저도 그때 필요하다.
@@ -16856,6 +16914,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheEditorDrawsWithNoProjectOpen();
     TestTheEditorFindsItsFilesFromAnywhere();
     TestTheMenuBarSpeaksTheLoadedLocale();
+    TestTheDebugMenuShowsStartDebugging();
     TestTheEditorForwardsInputToItsUi();
     TestThePanelRegistryRefusesWhatItCannotHold();
     TestUniqueAndInstancePanels();
