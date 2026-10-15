@@ -19,27 +19,40 @@ namespace JBro::Internal
     // 한 드로우가 묶을 수 있는 텍스처·샘플러 수다. 넘으면 조용히 자르지 않고 거절한다.
     inline constexpr UInt32 MaxBoundTextures = 8;
     inline constexpr UInt32 MaxBoundSamplers = 4;
+    // 상수 버퍼 슬롯은 b1..b7 이다(b0 은 푸시 상수). 배열은 레지스터 번호로 바로 찾도록 b0 자리까지 잡는다.
+    inline constexpr UInt32 MaxBoundConstantBuffers = 7;
+    // 스테이징 SRV 힙에서 텍스처 하나가 차지하는 칸이다 - 모든 mip 의 뷰 하나와 mip 하나씩의 뷰.
+    inline constexpr UInt32 ShaderResourceViewsPerTexture = 1 + MaxTextureMipLevels;
 
     // 한 패스에 붙일 수 있는 색 첨부의 수다. 배리어 배열이 이 크기로 잡히므로
     // 컨텍스트와 패스 시작 코드가 같은 값을 봐야 한다.
     constexpr UInt32 MaxColorAttachments = 8;
 
+    // 셰이더가 텍스처를 읽는 상태다. 픽셀 단계만이 아니다 - 자리표는 정점 단계에도 텍스처를 열 수 있고(D-325),
+    // `PIXEL_SHADER_RESOURCE` 하나로 두면 정점 단계의 읽기가 검증 오류다.
+    inline constexpr D3D12_RESOURCE_STATES ShaderReadState =
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+
+    // 렌더 타깃 하나 - 텍스처라면 그 mip 하나다. 상태는 mip 마다 따로 든다(서브리소스 상태, postprocess-plan §2.1).
     struct D3D12RenderTargetBinding
     {
         ID3D12Resource* resource = nullptr;
         D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
         DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+        // `subresource` 의 상태다. 2D 텍스처의 서브리소스 번호는 mip 번호다.
         D3D12_RESOURCE_STATES* state = nullptr;
+        UInt32 subresource = 0;
         // Sampled 로도 만든 텍스처다. 패스가 끝나면 셰이더가 읽을 수 있는 상태로 되돌린다.
         Bool sampled = false;
     };
 
-    // 깊이 첨부 하나. 렌더 타깃과 달리 샘플링으로 되돌릴 일이 없다 - 깊이 텍스처는 그리기 전용이다.
+    // 깊이 첨부 하나. Sampled 로도 만든 것은 색 첨부처럼 패스가 끝나면 셰이더가 읽는 상태로 되돌린다.
     struct D3D12DepthStencilBinding
     {
         ID3D12Resource* resource = nullptr;
         D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
         D3D12_RESOURCE_STATES* state = nullptr;
+        Bool sampled = false;
     };
 
     struct D3D12BufferBinding
@@ -47,6 +60,8 @@ namespace JBro::Internal
         ID3D12Resource* resource = nullptr;
         D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = 0;
         UInt64 size = 0;
+        // 만들 때 받은 크기다. `size` 는 256 단위로 올린 실제 크기라 상수 버퍼 구간은 이것으로 잰다 - 다른 백엔드와 같은 계약이다.
+        UInt64 requestedSize = 0;
         BufferUsage usage = BufferUsage::None;
     };
 
@@ -56,12 +71,32 @@ namespace JBro::Internal
         ID3D12RootSignature* rootSignature = nullptr;
         D3D12_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
         UInt32 pushConstantCount = 0;
+        UInt32 constantBufferCount = 0;
         UInt32 sampledTextureCount = 0;
         UInt32 samplerCount = 0;
         // 루트 파라미터에서의 자리다. 없으면 InvalidRootParameter 다 —
         // 0 은 유효한 자리이므로 0 으로 "없음" 을 나타낼 수 없다.
+        // 상수 버퍼는 b1 부터 슬롯마다 루트 CBV 하나이고, 이 자리부터 차례로 놓인다.
+        UInt32 constantBufferParameter = InvalidRootParameter;
         UInt32 textureTableParameter = InvalidRootParameter;
         UInt32 samplerTableParameter = InvalidRootParameter;
+        // 컴퓨트 파이프라인이면 참이다. 루트 인자를 `SetCompute*` 로 건다.
+        Bool compute = false;
+        UInt32 storageTextureCount = 0;
+        UInt32 storageBufferCount = 0;
+        // u0.. 텍스처 다음에 u4.. 버퍼가 이어지는 표 하나다.
+        UInt32 storageTableParameter = InvalidRootParameter;
+    };
+
+    // 컴퓨트가 읽고 쓰는 자원 하나다. `Dispatch` 앞뒤의 배리어가 이것으로 상태를 옮긴다.
+    struct D3D12StorageBinding
+    {
+        ID3D12Resource* resource = nullptr;
+        D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
+        D3D12_RESOURCE_STATES* state = nullptr;
+        UInt32 subresource = 0;
+        // 셰이더가 읽기도 하는 텍스처다. 돈 뒤에 읽기 상태로 되돌린다.
+        Bool sampled = false;
     };
 
     class D3D12Device;
@@ -90,14 +125,25 @@ namespace JBro::Internal
         Bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
+        Bool SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
+        Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
             UInt32 indexCount,
             UInt32 instanceCount,
             UInt32 firstIndex,
             Int32 baseVertex,
             UInt32 firstInstance) override;
+        Bool DrawInstanced(
+            UInt32 vertexCount,
+            UInt32 instanceCount,
+            UInt32 firstVertex,
+            UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
+        Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
+        Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
+        Bool Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ) override;
 
     private:
         D3D12Device* m_device = nullptr;
@@ -106,6 +152,17 @@ namespace JBro::Internal
         // 드로우 직전까지 들고 있다가 한 번에 묶는다. 디스크립터 테이블은 연속된 자리를
         // 가리키므로, 슬롯이 다 모이기 전에는 어디에 놓을지 정할 수 없다.
         Bool BindPendingDescriptors();
+        // 두 그리기의 공통 앞단이다. 패스와 파이프라인이 있고 선언한 자리가 다 묶였는지 보고 디스크립터를 건다.
+        // 상수 버퍼는 루트 CBV 라 `SetConstantBuffer` 가 곧바로 걸었고, 여기서는 빠진 슬롯만 본다.
+        Bool PrepareDraw();
+        // 묶을 수 있는 때다 - 패스 안의 그래픽 파이프라인이거나 패스 밖의 컴퓨트 파이프라인.
+        Bool CanBind() const;
+        // 루트 인자를 그래픽·컴퓨트 중 지금 걸린 쪽에 건다.
+        void SetRootTable(UInt32 parameter, D3D12_GPU_DESCRIPTOR_HANDLE table);
+        // 컴퓨트의 u# 자리표를 스테이징해 건다. `Dispatch` 직전에 부른다.
+        Bool BindPendingStorage();
+        // 읽고 쓰는 자원을 한 상태로 옮긴다. 이미 그 상태인 UAV 는 앞의 쓰기를 기다리는 UAV 배리어를 건다.
+        void TransitionStorage(D3D12_RESOURCE_STATES textureState, Bool beforeDispatch);
 
         ID3D12Resource* m_discardAtEnd[MaxColorAttachments] = {};
         UInt32 m_discardAtEndCount = 0;
@@ -113,6 +170,12 @@ namespace JBro::Internal
         // **패스 안에서는 되돌릴 수 없다** - 네이티브 렌더 패스 안의 배리어는 불법이다.
         D3D12RenderTargetBinding m_sampledAtEnd[MaxColorAttachments] = {};
         UInt32 m_sampledAtEndCount = 0;
+        // 패스가 끝날 때 셰이더 읽기 상태로 되돌릴 깊이 첨부다. Sampled 로 만든 것만 든다.
+        D3D12DepthStencilBinding m_depthSampledAtEnd;
+        Bool m_depthSampledAtEndActive = false;
+        Bool BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel);
+        // 지금 패스가 그리는 자리다. 그 mip 을 읽으려 하면 거절한다(`SetTextureMip` 의 계약).
+        RenderPassTargets m_passTargets;
         UInt32 m_activePushConstantCount = 0;
         // 이 프레임에 스테이징한 테이블이다. 같은 디스크립터 묶음이 다시 오면 복사하지 않고 그 테이블을 다시
         // 건다(D-110). ImGui 는 드로우마다 같은 폰트 아틀라스를 묶으므로 이것이 없으면 드로우마다 복사 하나와
@@ -140,6 +203,16 @@ namespace JBro::Internal
         D3D12PipelineBinding m_activePipeline;
         D3D12_CPU_DESCRIPTOR_HANDLE m_pendingTextures[MaxBoundTextures] = {};
         D3D12_CPU_DESCRIPTOR_HANDLE m_pendingSamplers[MaxBoundSamplers] = {};
+        // b# 자리마다 묶였는지다(0 은 쓰지 않는다). 파이프라인을 바꾸면 비운다 - 루트 시그니처가 바뀌면 루트 인자도 사라진다.
+        Bool m_constantBufferBound[MaxBoundConstantBuffers + 1] = {};
+        // 패스 밖에 컴퓨트 파이프라인이 걸려 있다. 그래픽의 `m_pipelineActive` 와 함께 참이 되지 않는다.
+        Bool m_computeActive = false;
+        // u0..u7 자리다(u0..u3 텍스처, u4..u7 버퍼). 비어 있으면 resource 가 null 이다.
+        static constexpr UInt32 StorageSlots = 8;
+        D3D12StorageBinding m_pendingStorage[StorageSlots] = {};
+        StagedTable m_storageTables[CachedTables] = {};
+        UInt32 m_storageTableCount = 0;
+        UInt32 m_storageTableCursor = 0;
         Bool m_nativeRenderPasses = false;
         Bool m_renderPassActive = false;
         Bool m_pipelineActive = false;
@@ -170,6 +243,8 @@ namespace JBro::Internal
         ComPtr<ID3D12Resource> resource;
         BufferDesc desc;
         D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+        // `Storage` 로 만든 버퍼만 갖는다(구조화 버퍼 UAV). 없으면 ptr 이 0 이다.
+        D3D12_CPU_DESCRIPTOR_HANDLE unorderedAccessDescriptor = {};
         void* mappedData = nullptr;
         UInt64 allocatedSize = 0;
         UInt64 retirementFence = 0;
@@ -185,10 +260,17 @@ namespace JBro::Internal
         UInt64 retirementFence = 0;
         UInt32 generation = 1;
         UInt32 pushConstantCount = 0;
+        UInt32 constantBufferCount = 0;
         UInt32 sampledTextureCount = 0;
         UInt32 samplerCount = 0;
+        UInt32 constantBufferParameter = InvalidRootParameter;
         UInt32 textureTableParameter = InvalidRootParameter;
         UInt32 samplerTableParameter = InvalidRootParameter;
+        // 컴퓨트 파이프라인의 칸이다(`m_computePipelines`). 그래픽은 거짓이고 아래 둘은 0 이다.
+        Bool compute = false;
+        UInt32 storageTextureCount = 0;
+        UInt32 storageBufferCount = 0;
+        UInt32 storageTableParameter = InvalidRootParameter;
         Bool occupied = false;
     };
 
@@ -207,12 +289,17 @@ namespace JBro::Internal
         TextureDesc desc;
         // 프레임이 시작할 때의 상태다. 프레임을 버리면(`AbortFrame`) 기록만 되고 실행되지 않은 배리어가
         // 추적 상태를 어긋나게 하므로 여기로 되돌린다.
-        D3D12_RESOURCE_STATES stateAtFrameStart = D3D12_RESOURCE_STATE_COMMON;
+        D3D12_RESOURCE_STATES statesAtFrameStart[MaxTextureMipLevels] = {};
+        // mip 0 의 RTV 다. mip m 은 그 뒤 m 번째 자리다(텍스처마다 `MaxTextureMipLevels` 칸).
         D3D12_CPU_DESCRIPTOR_HANDLE renderTargetDescriptor = {};
         D3D12_CPU_DESCRIPTOR_HANDLE depthStencilDescriptor = {};
-        // Sampled 로 만든 텍스처만 갖는다. 없으면 ptr 이 0 이다.
+        // Sampled 로 만든 텍스처만 갖는다. 없으면 ptr 이 0 이다. 모든 mip 을 보는 뷰이고, mip 이 둘 이상이면 그 뒤에
+        // mip 하나씩만 보는 뷰가 차례로 놓인다(`SetTextureMip`).
         D3D12_CPU_DESCRIPTOR_HANDLE shaderResourceDescriptor = {};
-        D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+        // `Storage` 로 만든 텍스처만 갖는다. mip 0 의 UAV 이고 mip m 은 그 뒤 m 번째 자리다(`SetStorageTexture`).
+        D3D12_CPU_DESCRIPTOR_HANDLE unorderedAccessDescriptor = {};
+        // mip 마다의 상태다. 쓰는 것은 `desc.mipLevels` 칸까지다.
+        D3D12_RESOURCE_STATES states[MaxTextureMipLevels] = {};
         UInt64 retirementFence = 0;
         UInt32 generation = 1;
         Bool occupied = false;
@@ -228,6 +315,7 @@ namespace JBro::Internal
         Bool Initialize(const RHIDeviceCreateInfo& createInfo);
         void Shutdown();
 
+        DeviceCaps GetCaps() const override;
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
         Bool ReadTexture(
@@ -247,12 +335,17 @@ namespace JBro::Internal
             TextureHandle texture,
             UInt32 mipLevel,
             JArrayView<std::byte> data) override;
+        // 올리기의 몸통이다. 2D 사각형은 깊이 1, 3D 는 조각 전부다(`WriteTexture`).
+        Bool UploadTextureBox(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y, UInt32 width, UInt32 height,
+            UInt32 depth, JArrayView<std::byte> data, UInt32 rowPitch);
         Bool WriteTextureRegion(TextureHandle texture, UInt32 mipLevel, UInt32 x, UInt32 y,
             UInt32 width, UInt32 height, JArrayView<std::byte> data, UInt32 rowPitch) override;
         SamplerHandle CreateSampler(const SamplerDesc& desc) override;
         void DestroySampler(SamplerHandle sampler) override;
         GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
         void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
+        ComputePipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) override;
+        void DestroyComputePipeline(ComputePipelineHandle pipeline) override;
 
         SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) override;
         void DestroySwapchain(SwapchainHandle swapchain) override;
@@ -264,16 +357,22 @@ namespace JBro::Internal
         FrameStatus GetStatus() const override;
         void WaitIdle() override;
 
-        Bool ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding);
+        // 텍스처는 그 mip 하나로 풀린다. 백버퍼는 mip 0 만 있다.
+        Bool ResolveRenderTarget(TextureHandle texture, UInt32 mipLevel, D3D12RenderTargetBinding& binding);
         // `DepthStencil` 로 만든 텍스처만 받는다. 백버퍼는 깊이가 될 수 없다.
         Bool ResolveDepthStencil(TextureHandle texture, D3D12DepthStencilBinding& binding);
         Bool ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding);
         Bool ResolveGraphicsPipeline(
             GraphicsPipelineHandle pipeline,
             D3D12PipelineBinding& binding);
-        // 셰이더에서 읽을 수 있는 텍스처인지 보고 그 디스크립터를 준다.
-        Bool ResolveSampledTexture(TextureHandle texture, D3D12_CPU_DESCRIPTOR_HANDLE& descriptor);
+        // 셰이더에서 읽을 수 있는 텍스처인지 보고 그 디스크립터를 준다. `mipLevel` 이 `AllMips` 면 모든 mip 을 보는 뷰다.
+        static constexpr UInt32 AllMips = ~UInt32{0};
+        Bool ResolveSampledTexture(TextureHandle texture, UInt32 mipLevel, D3D12_CPU_DESCRIPTOR_HANDLE& descriptor);
         Bool ResolveSampler(SamplerHandle sampler, D3D12_CPU_DESCRIPTOR_HANDLE& descriptor);
+        Bool ResolveComputePipeline(ComputePipelineHandle pipeline, D3D12PipelineBinding& binding);
+        // 읽고 쓰는 텍스처의 mip 하나, 구조화 버퍼 하나를 UAV 로 푼다. `Storage` 로 만들지 않은 것은 거절한다.
+        Bool ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, D3D12StorageBinding& binding);
+        Bool ResolveStorageBuffer(BufferHandle buffer, D3D12StorageBinding& binding);
         // 이번 프레임의 링에서 연속된 자리를 잡아 스테이징 디스크립터를 복사해 넣는다.
         Bool StageShaderResources(
             const D3D12_CPU_DESCRIPTOR_HANDLE* descriptors,
@@ -292,6 +391,7 @@ namespace JBro::Internal
         static constexpr UInt32 MaxBuffers = 1024;
         static constexpr UInt32 MaxTextures = 512;
         static constexpr UInt32 MaxGraphicsPipelines = 256;
+        static constexpr UInt32 MaxComputePipelines = 64;
         static constexpr UInt32 MaxSamplers = 64;
         // 프레임 슬롯마다 제 몫을 갖는다. 프레임이 겹쳐 도는 동안 앞 프레임이 쓰던
         // 디스크립터를 덮어쓰지 않게 하려면 링을 프레임별로 갈라야 한다.
@@ -336,6 +436,9 @@ namespace JBro::Internal
         // 스테이징이다. 셰이더에서 보이지 않고, 자원 수명 동안 그 자리에 있다.
         ComPtr<ID3D12DescriptorHeap> m_textureShaderResourceHeap;
         ComPtr<ID3D12DescriptorHeap> m_samplerStagingHeap;
+        // UAV 스테이징이다. 텍스처는 mip 마다 한 칸(텍스처마다 `MaxTextureMipLevels` 칸), 버퍼는 버퍼마다 한 칸이다.
+        ComPtr<ID3D12DescriptorHeap> m_textureUnorderedAccessHeap;
+        ComPtr<ID3D12DescriptorHeap> m_bufferUnorderedAccessHeap;
         // 셰이더에서 보이는 링이다. 드로우 때 스테이징에서 여기로 복사한다.
         ComPtr<ID3D12DescriptorHeap> m_shaderVisibleTextureHeap;
         ComPtr<ID3D12DescriptorHeap> m_shaderVisibleSamplerHeap;
@@ -347,6 +450,7 @@ namespace JBro::Internal
         D3D12BufferState m_buffers[MaxBuffers];
         D3D12TextureState m_textures[MaxTextures];
         D3D12PipelineState m_graphicsPipelines[MaxGraphicsPipelines];
+        D3D12PipelineState m_computePipelines[MaxComputePipelines];
         D3D12SamplerState m_samplers[MaxSamplers];
         UInt64 m_frameFenceValues[MaxFramesInFlight] = {};
         UInt64 m_nextFenceValue = 1;
@@ -359,6 +463,7 @@ namespace JBro::Internal
         UInt32 m_textureRenderTargetDescriptorStride = 0;
         UInt32 m_textureDepthStencilDescriptorStride = 0;
         UInt32 m_shaderResourceDescriptorStride = 0;
+        UInt32 m_unorderedAccessDescriptorStride = 0;
         UInt32 m_samplerDescriptorStride = 0;
         // 이번 프레임 슬롯 안에서 몇 개까지 썼는지. BeginFrame 에서 0 으로 되돌린다.
         UInt32 m_shaderVisibleTextureCursor = 0;

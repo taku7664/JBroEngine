@@ -11,8 +11,6 @@ namespace JBro::Internal
     namespace
     {
         constexpr UInt32 MaxVertexAttributes = 16;
-        // 스펙이 보장하는 푸시 상수 최소치다. 계약(RHI.h)은 상한을 말하지 않는다 - D3D12 는 256 까지 받고 여기는 128 이다.
-        constexpr UInt32 MaxPushConstantBytes = 128;
 
         VkFormat ToNativeVertexFormat(VertexFormat format)
         {
@@ -61,7 +59,64 @@ namespace JBro::Internal
             {
                 flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
             }
+            if ((static_cast<std::uint8_t>(stages) & static_cast<std::uint8_t>(ShaderStage::Compute)) != 0)
+            {
+                flags |= VK_SHADER_STAGE_COMPUTE_BIT;
+            }
             return flags;
+        }
+
+        // set 0 의 레이아웃이다. 그래픽·컴퓨트가 같이 쓴다. 아무것도 없으면 set 자체가 없다(`setLayout` 이 null).
+        //   상수 버퍼 binding 1..7(동적 유니폼 버퍼 - 동적 오프셋은 binding 번호 순서로 넘기므로 낮은 번호에 두면 슬롯 순서와 같다)
+        //   텍스처 8+, 샘플러 16+, 읽고 쓰는 텍스처 24+(u0..), 구조화 버퍼 28+(u4..)
+        Bool CreateBindingSetLayout(VkDevice device, const BindingLayoutDesc& bindingLayout, VkDescriptorSetLayout& setLayout)
+        {
+            VkDescriptorSetLayoutBinding setBindings[MaxBoundConstantBuffers + MaxBoundTextures + MaxBoundSamplers
+                + MaxStorageTextures + MaxStorageBuffers] = {};
+            UInt32 setBindingCount = 0;
+            const auto add = [&](UInt32 binding, VkDescriptorType type, ShaderStage stages)
+            {
+                VkDescriptorSetLayoutBinding& entry = setBindings[setBindingCount++];
+                entry.binding = binding;
+                entry.descriptorType = type;
+                entry.descriptorCount = 1;
+                entry.stageFlags = ToNativeStages(stages);
+            };
+            for (UInt32 slot = 1; slot <= bindingLayout.constantBuffers.count; ++slot)
+            {
+                add(slot, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, bindingLayout.constantBuffers.stages);
+            }
+            for (UInt32 slot = 0; slot < bindingLayout.sampledTextures.count; ++slot)
+            {
+                add(TextureBindingBase + slot, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, bindingLayout.sampledTextures.stages);
+            }
+            for (UInt32 slot = 0; slot < bindingLayout.samplers.count; ++slot)
+            {
+                add(SamplerBindingBase + slot, VK_DESCRIPTOR_TYPE_SAMPLER, bindingLayout.samplers.stages);
+            }
+            for (UInt32 slot = 0; slot < bindingLayout.storageTextures.count; ++slot)
+            {
+                add(StorageBindingBase + slot, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, bindingLayout.storageTextures.stages);
+            }
+            for (UInt32 slot = 0; slot < bindingLayout.storageBuffers.count; ++slot)
+            {
+                add(StorageBindingBase + StorageBufferRegisterBase + slot, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                    bindingLayout.storageBuffers.stages);
+            }
+            setLayout = VK_NULL_HANDLE;
+            if (setBindingCount == 0)
+            {
+                return true;
+            }
+            VkDescriptorSetLayoutCreateInfo info = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+            info.bindingCount = setBindingCount;
+            info.pBindings = setBindings;
+            if (vk.vkCreateDescriptorSetLayout(device, &info, nullptr, &setLayout) != VK_SUCCESS)
+            {
+                setLayout = VK_NULL_HANDLE;
+                return false;
+            }
+            return true;
         }
 
         Bool BuildVertexInput(const GraphicsPipelineDesc& desc, VkVertexInputBindingDescription* bindings,
@@ -148,10 +203,11 @@ namespace JBro::Internal
             || (desc.pushConstantBytes != 0 && ToNativeStages(desc.pushConstantStages) == 0)
             || (desc.depthFormat != TextureFormat::Unknown && desc.depthFormat != TextureFormat::D32Float)
             || desc.topology != PrimitiveTopology::TriangleList
-            || desc.sampledTextureCount > MaxBoundTextures || desc.samplerCount > MaxBoundSamplers)
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps()))
         {
             return {};
         }
+        const BindingLayoutDesc& bindingLayout = desc.bindings;
         VkFormat colorFormats[MaxColorAttachments] = {};
         for (UInt32 index = 0; index < desc.colorFormats.size; ++index)
         {
@@ -218,35 +274,9 @@ namespace JBro::Internal
             return fail();
         }
 
-        // set 0: 텍스처는 binding 8+, 샘플러는 16+. 둘 다 없으면 set 자체가 없다.
-        VkDescriptorSetLayoutBinding setBindings[MaxBoundTextures + MaxBoundSamplers] = {};
-        UInt32 setBindingCount = 0;
-        for (UInt32 slot = 0; slot < desc.sampledTextureCount; ++slot)
+        if (false == CreateBindingSetLayout(m_device, bindingLayout, state.setLayout))
         {
-            VkDescriptorSetLayoutBinding& binding = setBindings[setBindingCount++];
-            binding.binding = TextureBindingBase + slot;
-            binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            binding.descriptorCount = 1;
-            binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        }
-        for (UInt32 slot = 0; slot < desc.samplerCount; ++slot)
-        {
-            VkDescriptorSetLayoutBinding& binding = setBindings[setBindingCount++];
-            binding.binding = SamplerBindingBase + slot;
-            binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-            binding.descriptorCount = 1;
-            binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        }
-        if (setBindingCount != 0)
-        {
-            VkDescriptorSetLayoutCreateInfo setLayout = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-            setLayout.bindingCount = setBindingCount;
-            setLayout.pBindings = setBindings;
-            if (vk.vkCreateDescriptorSetLayout(m_device, &setLayout, nullptr, &state.setLayout) != VK_SUCCESS)
-            {
-                state.setLayout = VK_NULL_HANDLE;
-                return fail();
-            }
+            return fail();
         }
         VkPushConstantRange pushRange = {};
         pushRange.stageFlags = ToNativeStages(desc.pushConstantStages);
@@ -381,8 +411,9 @@ namespace JBro::Internal
         vk.vkDestroyShaderModule(m_device, pixelModule, nullptr);
         state.pushConstantStages = pushRange.stageFlags;
         state.pushConstantBytes = desc.pushConstantBytes;
-        state.sampledTextureCount = desc.sampledTextureCount;
-        state.samplerCount = desc.samplerCount;
+        state.constantBufferCount = bindingLayout.constantBuffers.count;
+        state.sampledTextureCount = bindingLayout.sampledTextures.count;
+        state.samplerCount = bindingLayout.samplers.count;
         state.occupied = true;
         return GraphicsPipelineHandle{index, state.generation};
     }
@@ -413,6 +444,117 @@ namespace JBro::Internal
             return nullptr;
         }
         VulkanPipelineState& state = m_graphicsPipelines[pipeline.index];
+        if (false == state.occupied || state.generation != pipeline.generation)
+        {
+            return nullptr;
+        }
+        return &state;
+    }
+
+    ComputePipelineHandle VulkanDevice::CreateComputePipeline(const ComputePipelineDesc& desc)
+    {
+        if (m_status != FrameStatus::Ready || m_device == VK_NULL_HANDLE || m_frameActive
+            || desc.computeShader.data == nullptr || desc.computeShader.size == 0
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps(), true))
+        {
+            return {};
+        }
+        UInt32 index = MaxComputePipelines;
+        for (UInt32 at = 0; at < MaxComputePipelines; ++at)
+        {
+            if (false == m_computePipelines[at].occupied)
+            {
+                index = at;
+                break;
+            }
+        }
+        if (index == MaxComputePipelines)
+        {
+            return {};
+        }
+        VulkanPipelineState& state = m_computePipelines[index];
+        VkShaderModule module = VK_NULL_HANDLE;
+        auto fail = [&]()
+        {
+            if (module != VK_NULL_HANDLE)
+            {
+                vk.vkDestroyShaderModule(m_device, module, nullptr);
+            }
+            if (state.layout != VK_NULL_HANDLE)
+            {
+                vk.vkDestroyPipelineLayout(m_device, state.layout, nullptr);
+            }
+            if (state.setLayout != VK_NULL_HANDLE)
+            {
+                vk.vkDestroyDescriptorSetLayout(m_device, state.setLayout, nullptr);
+            }
+            const UInt32 generation = state.generation;
+            state = {};
+            state.generation = generation;
+            return ComputePipelineHandle{};
+        };
+        if (false == CreateShaderModule(m_device, desc.computeShader, module)
+            || false == CreateBindingSetLayout(m_device, desc.bindings, state.setLayout))
+        {
+            return fail();
+        }
+        VkPipelineLayoutCreateInfo layout = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+        layout.setLayoutCount = state.setLayout != VK_NULL_HANDLE ? 1 : 0;
+        layout.pSetLayouts = &state.setLayout;
+        if (vk.vkCreatePipelineLayout(m_device, &layout, nullptr, &state.layout) != VK_SUCCESS)
+        {
+            state.layout = VK_NULL_HANDLE;
+            return fail();
+        }
+        // 진입점 이름은 CSMain 이다(그래픽의 VSMain·PSMain 과 같은 규칙, 시험 셰이더의 Compile.ps1 이 그 이름으로 굽는다).
+        VkComputePipelineCreateInfo pipeline = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+        pipeline.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        pipeline.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        pipeline.stage.module = module;
+        pipeline.stage.pName = "CSMain";
+        pipeline.layout = state.layout;
+        if (vk.vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &pipeline, nullptr, &state.pipeline) != VK_SUCCESS)
+        {
+            state.pipeline = VK_NULL_HANDLE;
+            return fail();
+        }
+        vk.vkDestroyShaderModule(m_device, module, nullptr);
+        state.bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+        state.constantBufferCount = desc.bindings.constantBuffers.count;
+        state.sampledTextureCount = desc.bindings.sampledTextures.count;
+        state.samplerCount = desc.bindings.samplers.count;
+        state.storageTextureCount = desc.bindings.storageTextures.count;
+        state.storageBufferCount = desc.bindings.storageBuffers.count;
+        state.occupied = true;
+        return ComputePipelineHandle{index, state.generation};
+    }
+
+    void VulkanDevice::DestroyComputePipeline(ComputePipelineHandle pipeline)
+    {
+        if (false == pipeline.IsValid() || pipeline.index >= MaxComputePipelines)
+        {
+            return;
+        }
+        VulkanPipelineState& state = m_computePipelines[pipeline.index];
+        if (false == state.occupied || state.generation != pipeline.generation)
+        {
+            return;
+        }
+        Retire(VulkanRetiredObject::Kind::Pipeline, reinterpret_cast<std::uint64_t>(state.pipeline));
+        Retire(VulkanRetiredObject::Kind::PipelineLayout, reinterpret_cast<std::uint64_t>(state.layout));
+        Retire(VulkanRetiredObject::Kind::DescriptorSetLayout, reinterpret_cast<std::uint64_t>(state.setLayout));
+        const UInt32 generation = VulkanNextGeneration(state.generation);
+        state = {};
+        state.generation = generation;
+    }
+
+    VulkanPipelineState* VulkanDevice::ResolveComputePipeline(ComputePipelineHandle pipeline)
+    {
+        if (false == pipeline.IsValid() || pipeline.index >= MaxComputePipelines)
+        {
+            return nullptr;
+        }
+        VulkanPipelineState& state = m_computePipelines[pipeline.index];
         if (false == state.occupied || state.generation != pipeline.generation)
         {
             return nullptr;

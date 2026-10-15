@@ -133,7 +133,7 @@ namespace
         Check(false == arena.IsInitialized(), "shutdown must release the block");
     }
 
-    // 스크립트가 중단점에 선 동안 안쪽 프레임을 여러 번 돈다(D-325). 바깥 프레임의 메모리는 그대로 두고 안쪽 것만 거둔다.
+    // 스크립트가 중단점에 선 동안 안쪽 프레임을 여러 번 돈다(D-330). 바깥 프레임의 메모리는 그대로 두고 안쪽 것만 거둔다.
     void TestMarkKeepsTheOuterFrame()
     {
         JBro::LinearAllocator arena;

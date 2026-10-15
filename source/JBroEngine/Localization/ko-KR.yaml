@@ -39,6 +39,10 @@ Entries:
   menu.debug_cpu_profiler: CPU 프로파일러
   menu.debug_stats: 통계
   menu.debug_log: 로그
+  menu.debug_start: 디버그 실행
+  menu.debug_stop: 디버그 중지
+  notify.debug_started: 디버그를 시작했습니다 - 스크립트 편집기에서 붙어 중단점을 거세요
+  notify.debug_channel_failed: 디버그 통로를 열지 못했습니다
   menu.exit: 종료
   menu.undo: 실행 취소
   menu.redo: 다시 실행

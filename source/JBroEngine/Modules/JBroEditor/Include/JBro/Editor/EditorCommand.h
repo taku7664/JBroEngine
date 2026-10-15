@@ -84,7 +84,7 @@ namespace JBro
         Bool Execute(OwnerPtr<EditorCommand> command, const char* documentKey = nullptr);
         Bool Undo();
         Bool Redo();
-        // 잠그면 실행·되돌리기·다시하기가 모두 거절된다(D-325: 스크립트가 중단점에 선 동안). 스크립트 스택이 쥔 오브젝트를 지우면 이어 갈 때 죽는다.
+        // 잠그면 실행·되돌리기·다시하기가 모두 거절된다(D-330: 스크립트가 중단점에 선 동안). 스크립트 스택이 쥔 오브젝트를 지우면 이어 갈 때 죽는다.
         void SetLocked(Bool locked);
         Bool IsLocked() const;
         void Clear();

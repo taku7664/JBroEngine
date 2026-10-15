@@ -22,6 +22,16 @@ namespace JBro::Internal
                 return DXGI_FORMAT_R16G16B16A16_FLOAT;
             case TextureFormat::D32Float:
                 return DXGI_FORMAT_D32_FLOAT;
+            case TextureFormat::R11G11B10Float:
+                return DXGI_FORMAT_R11G11B10_FLOAT;
+            case TextureFormat::R16Float:
+                return DXGI_FORMAT_R16_FLOAT;
+            case TextureFormat::R32Float:
+                return DXGI_FORMAT_R32_FLOAT;
+            case TextureFormat::RG16Float:
+                return DXGI_FORMAT_R16G16_FLOAT;
+            case TextureFormat::RGBA32Float:
+                return DXGI_FORMAT_R32G32B32A32_FLOAT;
             case TextureFormat::Unknown:
                 return DXGI_FORMAT_UNKNOWN;
             }
@@ -152,8 +162,11 @@ namespace JBro::Internal
             // 주었다" 는 말인데, 우리는 패스마다 지우는 색이 달라서 만들 때 정할 수가
             // 없다. 값을 주면 이번에는 "지우는 색이 그 값과 다르다" 는 말이 나온다.
             // 고칠 수 없는 잡소리 하나가 매 실행 섞이면 나머지 경고를 보지 않게 된다.
+            // 정점 버퍼 없는 파이프라인(정점 번호로 화면 삼각형을 만드는 후처리 패스, D-325)은 빈 입력 레이아웃이 뜻한 그대로다 -
+            // 디버그 레이어는 "뜻한 것인지 보라" 는 경고를 매번 낸다.
             D3D12_MESSAGE_ID ignored[] = {
-                D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE};
+                D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+                D3D12_MESSAGE_ID_CREATEINPUTLAYOUT_EMPTY_LAYOUT};
             D3D12_INFO_QUEUE_FILTER filter = {};
             filter.AllowList.NumSeverities = _countof(severities);
             filter.AllowList.pSeverityList = severities;
@@ -180,7 +193,8 @@ namespace JBro::Internal
 
         D3D12_DESCRIPTOR_HEAP_DESC renderTargetHeapDesc = {};
         renderTargetHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        renderTargetHeapDesc.NumDescriptors = MaxTextures;
+        // 텍스처마다 mip 수 상한만큼의 칸이다 - mip 하나하나가 따로 그릴 수 있는 렌더 타깃이다.
+        renderTargetHeapDesc.NumDescriptors = MaxTextures * MaxTextureMipLevels;
         if (FAILED(m_device->CreateDescriptorHeap(
             &renderTargetHeapDesc,
             IID_PPV_ARGS(&m_textureRenderTargetHeap))))
@@ -209,7 +223,8 @@ namespace JBro::Internal
         // 프레임마다 다시 쓰이므로, 자원의 디스크립터를 거기에 계속 둘 수 없다.
         D3D12_DESCRIPTOR_HEAP_DESC shaderResourceHeapDesc = {};
         shaderResourceHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        shaderResourceHeapDesc.NumDescriptors = MaxTextures;
+        // 텍스처마다 모든 mip 의 뷰 하나 + mip 하나씩의 뷰(`SetTextureMip`)다.
+        shaderResourceHeapDesc.NumDescriptors = MaxTextures * ShaderResourceViewsPerTexture;
         if (FAILED(m_device->CreateDescriptorHeap(
             &shaderResourceHeapDesc,
             IID_PPV_ARGS(&m_textureShaderResourceHeap))))
@@ -219,6 +234,23 @@ namespace JBro::Internal
         }
         m_shaderResourceDescriptorStride =
             m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        m_unorderedAccessDescriptorStride = m_shaderResourceDescriptorStride;
+
+        // UAV 스테이징이다(컴퓨트의 u#). SRV 와 같은 종류의 힙이라 드로우·디스패치 때 같은 보이는 링으로 복사한다.
+        D3D12_DESCRIPTOR_HEAP_DESC unorderedAccessHeapDesc = {};
+        unorderedAccessHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        unorderedAccessHeapDesc.NumDescriptors = MaxTextures * MaxTextureMipLevels;
+        if (FAILED(m_device->CreateDescriptorHeap(&unorderedAccessHeapDesc, IID_PPV_ARGS(&m_textureUnorderedAccessHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+        unorderedAccessHeapDesc.NumDescriptors = MaxBuffers;
+        if (FAILED(m_device->CreateDescriptorHeap(&unorderedAccessHeapDesc, IID_PPV_ARGS(&m_bufferUnorderedAccessHeap))))
+        {
+            Shutdown();
+            return false;
+        }
 
         D3D12_DESCRIPTOR_HEAP_DESC samplerStagingHeapDesc = {};
         samplerStagingHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
@@ -340,6 +372,8 @@ namespace JBro::Internal
         m_shaderVisibleTextureHeap.Reset();
         m_samplerStagingHeap.Reset();
         m_textureShaderResourceHeap.Reset();
+        m_textureUnorderedAccessHeap.Reset();
+        m_bufferUnorderedAccessHeap.Reset();
         m_textureDepthStencilHeap.Reset();
         m_textureRenderTargetHeap.Reset();
         m_graphicsQueue.Reset();
@@ -587,7 +621,10 @@ namespace JBro::Internal
         m_frameActive = true;
         for (D3D12TextureState& texture : m_textures)
         {
-            texture.stateAtFrameStart = texture.state;
+            for (UInt32 mip = 0; mip < MaxTextureMipLevels; ++mip)
+            {
+                texture.statesAtFrameStart[mip] = texture.states[mip];
+            }
         }
 
         // 이 프레임 몫의 링을 처음부터 다시 쓴다. 이 슬롯의 앞 프레임은 이미 끝났다 —
@@ -712,7 +749,10 @@ namespace JBro::Internal
         {
             if (texture.occupied)
             {
-                texture.state = texture.stateAtFrameStart;
+                for (UInt32 mip = 0; mip < MaxTextureMipLevels; ++mip)
+                {
+                    texture.states[mip] = texture.statesAtFrameStart[mip];
+                }
             }
         }
 

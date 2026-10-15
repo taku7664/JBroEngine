@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <Windows.h>
 #include <cstring>
+#include <string>
 #include <iostream>
 #include <stdexcept>
 #include <JBro/Types/Bool.h>
@@ -23,7 +24,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
-// **스크립트가 중단점에 서도 에디터는 선다 - 화면은 돌고 편집만 막힌다**(D-325 2 단계). 시험이 등록한 스크립트를 에디터의 진짜
+// **스크립트가 중단점에 서도 에디터는 선다 - 화면은 돌고 편집만 막힌다**(D-330 2 단계). 시험이 등록한 스크립트를 에디터의 진짜
 // `ScriptSystem` 으로 돌리며 스크립트의 `__debugbreak` 와 엔진이 넣은 int 3 에서 세운다. 선 동안의 프레임마다 시험이 사람 대신 보고 누른다
 // (`SetScriptBreakFrameHook`). 본 것: 선 자리와 그 줄, 선 동안 그린 프레임, 막힌 편집, 이어 가기와 그 뒤의 실행, 정지와 되돌린 캔버스,
 // 넣은 중단점이 매 프레임 다시 걸리고 빼면 원래 코드가 돈다는 것, 실행 밖에서 걸린 중단점이 아무 일 없이 지나가는 것.
@@ -83,6 +84,9 @@ namespace
             if (g_control.breakInUpdate && g_control.updates == g_control.triggerUpdate)
             {
                 __debugbreak();
+                speed = speed + 2.0f;
+                speed = speed + 4.0f;
+                g_control.targetCalls = g_control.targetCalls + 1;
             }
         }
     };
@@ -270,7 +274,7 @@ namespace
             Check(g_probe.sawLocation, "the stop names the script's file, line and function");
             Check(g_probe.notified, "and tells the user");
             Check(g_probe.editRefused, "editing is refused while the script stands");
-            // 선 동안의 에디터 프레임은 스크립트 스택 위에 예외 처리기와 함께 얹힌다(D-325 §3.6). 얼마나 깊었는지 남기고, 1 MB 스택의 절반을 넘지 않는지 본다.
+            // 선 동안의 에디터 프레임은 스크립트 스택 위에 예외 처리기와 함께 얹힌다(D-330 §3.6). 얼마나 깊었는지 남기고, 1 MB 스택의 절반을 넘지 않는지 본다.
             ULONG_PTR low = 0;
             ULONG_PTR high = 0;
             GetCurrentThreadStackLimits(&low, &high);
@@ -357,11 +361,306 @@ namespace
         editor.SetScriptBreakFrameHook(nullptr, nullptr);
         editor.Shutdown();
     }
+
+    // 파이프 끝에서 어댑터 흉내를 낸다. 에디터와 같은 스레드에서 돌리므로(멈춤 루프의 프레임 훅에서 쓴다) 막히지 않게 읽는다.
+    struct PipeClient
+    {
+        HANDLE handle = INVALID_HANDLE_VALUE;
+        std::string buffer;
+
+        Bool Connect(unsigned long pid)
+        {
+            char name[64] = {};
+            std::snprintf(name, sizeof(name), "\\\\.\\pipe\\jbro-debug-%lu", pid);
+            const std::wstring wide(name, name + std::strlen(name));
+            for (int tries = 0; tries < 200; ++tries)
+            {
+                handle = CreateFileW(wide.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+                if (handle != INVALID_HANDLE_VALUE)
+                {
+                    return true;
+                }
+                Sleep(2);
+            }
+            return false;
+        }
+
+        void Write(const std::string& line)
+        {
+            const std::string packet = line + "\n";
+            DWORD written = 0;
+            WriteFile(handle, packet.data(), static_cast<DWORD>(packet.size()), &written, nullptr);
+        }
+
+        // 와 있는 줄 하나를 꺼낸다(막지 않는다). 없으면 비었다.
+        std::string TakeLine()
+        {
+            for (;;)
+            {
+                const std::size_t newline = buffer.find('\n');
+                if (newline != std::string::npos)
+                {
+                    std::string line = buffer.substr(0, newline);
+                    buffer.erase(0, newline + 1);
+                    return line;
+                }
+                DWORD available = 0;
+                if (FALSE == PeekNamedPipe(handle, nullptr, 0, nullptr, &available, nullptr) || available == 0)
+                {
+                    return std::string();
+                }
+                std::string chunk(available, '\0');
+                DWORD read = 0;
+                ReadFile(handle, chunk.data(), available, &read, nullptr);
+                buffer.append(chunk.data(), read);
+            }
+        }
+
+        // 이 글자로 시작하는 줄이 올 때까지 짧게 기다렸다 꺼낸다.
+        std::string WaitLine(const char* prefix)
+        {
+            for (int tries = 0; tries < 400; ++tries)
+            {
+                const std::string line = TakeLine();
+                if (false == line.empty() && line.compare(0, std::strlen(prefix), prefix) == 0)
+                {
+                    return line;
+                }
+                if (line.empty())
+                {
+                    Sleep(2);
+                }
+            }
+            return std::string();
+        }
+
+        void Close()
+        {
+            if (handle != INVALID_HANDLE_VALUE)
+            {
+                CloseHandle(handle);
+                handle = INVALID_HANDLE_VALUE;
+            }
+        }
+    };
+
+    PipeClient* g_client = nullptr;
+
+    // 멈춘 동안 어댑터가 하는 일: `stopped` 를 읽어 두고 두 프레임 뒤 `continue` 를 보낸다.
+    void OnDebugBreakFrame(void*, EditorApplication& editor)
+    {
+        if (editor.GetScriptBreakFrameCount() == 0)
+        {
+            const std::string stopped = g_client->WaitLine("stopped");
+            Check(false == stopped.empty(), "the adapter receives the stopped event over the pipe");
+            // stopped <addr> <ctx> <tid> - 셋 다 0 이 아니어야 한다.
+            unsigned long long address = 0;
+            unsigned long long context = 0;
+            unsigned long thread = 0;
+            Check(::sscanf_s(stopped.c_str(), "stopped %llx %llx %lu", &address, &context, &thread) == 3,
+                "the stopped event carries the address, context and thread");
+            Check(address != 0 && context != 0 && thread != 0, "none of them is empty");
+            g_probe.hits = g_probe.hits + 1;
+            return;
+        }
+        if (editor.GetScriptBreakFrameCount() == 2)
+        {
+            g_client->Write("continue");
+        }
+    }
+
+    // 한 줄 가기(D-330 4 단계)가 선 자리에서 한 줄씩 나아가는지다. 매 멈춤에서 다음 줄로 넘어가라 한다.
+    struct StepProbe
+    {
+        Int32 stops = 0;
+        UInt32 lines[5] = {};
+    };
+    StepProbe g_stepProbe;
+
+    void OnStepFrame(void*, EditorApplication& editor)
+    {
+        if (editor.GetScriptBreakFrameCount() != 0)
+        {
+            return;
+        }
+        StepProbe& probe = g_stepProbe;
+        if (probe.stops < 5)
+        {
+            probe.lines[probe.stops] = editor.GetScriptBreakLocation().line;
+        }
+        probe.stops = probe.stops + 1;
+        if (probe.stops < 3)
+        {
+            editor.StepScriptBreak(CodeStepKind::Over);
+        }
+        else
+        {
+            editor.SetSimulationPaused(false);
+        }
+    }
+
+    void TestSteppingAdvancesTheLine()
+    {
+        RegisterScriptType<BreakScript>();
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; stepping not verified" << std::endl;
+            return;
+        }
+        ProjectDescriptor project;
+        constexpr char name[] = "StepProbe";
+        project.name = {name, static_cast<UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        editor.SetScriptBreakFrameHook(&OnStepFrame, nullptr);
+
+        Canvas& canvas = *editor.GetCanvas();
+        Object::GameObject* mover = canvas.CreateObject("Mover");
+        canvas.AttachComponent<Component::Transform2D>(mover);
+        Check(canvas.AttachScript(mover, BreakScript::StaticTypeName()) != nullptr, "the break script attaches");
+
+        g_control = BreakControl{};
+        g_control.breakInUpdate = true;
+        g_control.triggerUpdate = 3;
+        g_stepProbe = StepProbe{};
+        Check(editor.StartSimulation(), "play starts");
+        for (Int32 frame = 0; frame < 20 && editor.IsSimulationPlaying() && g_stepProbe.stops < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor ticks through the stepping");
+        }
+        editor.SetScriptBreakFrameHook(nullptr, nullptr);
+        Check(g_stepProbe.stops >= 3, "the script stopped at the break and after two steps");
+        Check(g_stepProbe.lines[1] > g_stepProbe.lines[0] && g_stepProbe.lines[2] > g_stepProbe.lines[1],
+            "each step over moved to a later source line in the same script");
+        Check(false == ScriptCallGuard::HasFault(), "stepping is not a fault");
+        editor.StopSimulation();
+        Check(editor.Tick(Frame), "the editor ticks after stopping");
+        editor.Shutdown();
+    }
+
+    // **파이프 통로가 어댑터와 에디터를 잇는다**(D-330 3 단계). 어댑터 흉내가 중단점을 걸고, 멈춤을 받고, 이어 가라 한다.
+    void TestTheDebugServerRelaysAcrossThePipe()
+    {
+        RegisterScriptType<BreakScript>();
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the debug channel is not verified" << std::endl;
+            return;
+        }
+        ProjectDescriptor project;
+        constexpr char name[] = "DebugChannelProbe";
+        project.name = {name, static_cast<UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        Check(editor.StartScriptDebugServer(GetCurrentProcessId()), "the editor opens the debug channel");
+        Check(editor.IsScriptDebugServerActive(), "the channel is active");
+        PipeClient client;
+        g_client = &client;
+        Check(client.Connect(GetCurrentProcessId()), "the adapter connects to the channel");
+
+        Canvas& canvas = *editor.GetCanvas();
+        Object::GameObject* mover = canvas.CreateObject("Mover");
+        canvas.AttachComponent<Component::Transform2D>(mover);
+        Check(canvas.AttachScript(mover, BreakScript::StaticTypeName()) != nullptr, "the break script attaches");
+        Check(editor.Tick(Frame), "the editor ticks before play");
+
+        // setbp / clearbp 왕복: 주소를 걸고 답을 받는다.
+        char setbp[48] = {};
+        const UInt64 address = CodeAddressOf(&BreakTarget);
+        std::snprintf(setbp, sizeof(setbp), "setbp %llx", static_cast<unsigned long long>(address.Value));
+        client.Write(setbp);
+        Check(editor.Tick(Frame), "the editor ticks so the server reads the command");
+        const std::string reply = client.WaitLine("bp");
+        char expected[48] = {};
+        std::snprintf(expected, sizeof(expected), "bp %llx 1", static_cast<unsigned long long>(address.Value));
+        Check(reply == expected, "the server confirms the breakpoint went in");
+        char clearbp[48] = {};
+        std::snprintf(clearbp, sizeof(clearbp), "clearbp %llx", static_cast<unsigned long long>(address.Value));
+        client.Write(clearbp);
+        Check(editor.Tick(Frame), "the editor ticks so the breakpoint comes out");
+
+        // 스크립트의 __debugbreak 에서 선다. 어댑터가 stopped 를 받고 continue 로 이어 가게 한다.
+        g_control = BreakControl{};
+        g_control.breakInUpdate = true;
+        g_control.triggerUpdate = 3;
+        g_probe = BreakProbe{};
+        editor.SetScriptBreakFrameHook(&OnDebugBreakFrame, nullptr);
+        Check(editor.StartSimulation(), "play starts");
+        for (Int32 frame = 0; frame < 12; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor ticks through the break");
+        }
+        editor.SetScriptBreakFrameHook(nullptr, nullptr);
+        Check(g_probe.hits == 1, "the adapter saw exactly one stop over the pipe");
+        Check(false == editor.IsAtScriptBreak() && editor.IsSimulationPlaying(), "the adapter's continue let play go on");
+        Check(false == client.WaitLine("resumed").empty(), "the adapter is told the script resumed");
+
+        editor.StopSimulation();
+        Check(editor.Tick(Frame), "the editor ticks after stopping");
+        client.Close();
+        g_client = nullptr;
+        editor.StopScriptDebugServer();
+        editor.Shutdown();
+    }
+
+    // **디버그 실행 메뉴**(D-330 5 단계). 통로를 열고 재생을 시작하며, 어댑터가 붙을 수 있다. 다시 누르면 재생과 통로를 함께 닫는다.
+    void TestDebugSessionOpensTheChannelAndPlays()
+    {
+        RegisterScriptType<BreakScript>();
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the debug menu is not verified" << std::endl;
+            return;
+        }
+        ProjectDescriptor project;
+        constexpr char name[] = "DebugMenuProbe";
+        project.name = {name, static_cast<UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Canvas& canvas = *editor.GetCanvas();
+        canvas.AttachComponent<Component::Transform2D>(canvas.CreateObject("Mover"));
+
+        Check(false == editor.IsDebugSessionActive(), "debugging is off at first");
+        editor.StartDebugSession();
+        Check(editor.IsDebugSessionActive() && editor.IsScriptDebugServerActive(), "start debugging opens the channel");
+        Check(editor.IsSimulationPlaying(), "and starts play so scripts can hit breakpoints");
+        Check(editor.GetNotifications().GetLastLevel() == NotificationLevel::Info, "the user is told debugging is on");
+
+        // 어댑터가 붙을 수 있다 - 통로가 이 프로세스의 이름으로 열려 있다.
+        PipeClient client;
+        Check(client.Connect(GetCurrentProcessId()), "an adapter can connect while debugging");
+        Check(editor.Tick(Frame), "the editor ticks while debugging");
+        client.Close();
+
+        editor.StopDebugSession();
+        Check(false == editor.IsDebugSessionActive() && false == editor.IsScriptDebugServerActive(), "stop debugging closes the channel");
+        Check(false == editor.IsSimulationPlaying(), "and stops play");
+        editor.Shutdown();
+    }
 }
 
 JBro::Int32 RunScriptBreakTests()
 {
     TestScriptBreakStopsOnlyTheGame();
+    TestSteppingAdvancesTheLine();
+    TestTheDebugServerRelaysAcrossThePipe();
+    TestDebugSessionOpensTheChannelAndPlays();
     std::cout << "ScriptBreak tests passed.\n";
     return 0;
 }

@@ -336,7 +336,7 @@ namespace JBro::System
             {
                 continue;
             }
-            // 스크립트 훅은 모두 `ScriptCallGuard` 를 거친다(D-325). 예외가 나면 그 뒤 훅은 부르지 않고, 에디터가 실행을 멈춘다.
+            // 스크립트 훅은 모두 `ScriptCallGuard` 를 거친다(D-330). 예외가 나면 그 뒤 훅은 부르지 않고, 에디터가 실행을 멈춘다.
             ScriptCallGuard::Call("OnCreate", [&entry] { entry.script->OnCreate(); });
             ScriptCallGuard::Call("OnStart", [&entry] { entry.script->OnStart(); });
             m_started.Add(entry.instanceId);

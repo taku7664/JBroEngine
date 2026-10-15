@@ -54,7 +54,7 @@ namespace JBro
         void* group = nullptr;
     };
 
-    // 코드 주소 하나가 어디인지다(D-325). 스크립트 예외를 사용자에게 알릴 때 쓴다. 모르는 칸은 비어 있다.
+    // 코드 주소 하나가 어디인지다(D-330). 스크립트 예외를 사용자에게 알릴 때 쓴다. 모르는 칸은 비어 있다.
     struct CodeLocation
     {
         // 그 주소가 든 모듈 파일의 경로다.
@@ -66,7 +66,7 @@ namespace JBro
         UInt32 line = 0;
     };
 
-    // 코드의 int 3 에 걸린 자리다(D-325 2 단계). 엔진이 넣은 중단점이거나, 코드에 원래 든 int 3(`__debugbreak`)이다.
+    // 코드의 int 3 에 걸린 자리다(D-330 2 단계). 엔진이 넣은 중단점이거나, 코드에 원래 든 int 3(`__debugbreak`)이다.
     struct CodeBreak
     {
         UInt64 address = 0;
@@ -74,6 +74,19 @@ namespace JBro
         Bool embedded = false;
         // 멈춘 스레드의 운영체제 문맥(`CONTEXT*`)이다. 디버그 어댑터가 스택과 변수를 이 문맥으로 읽는다.
         const void* context = nullptr;
+        // 선 스레드의 운영체제 번호다.
+        UInt32 threadId = 0;
+    };
+
+    // 한 줄 가기의 종류다(D-330 4 단계). 엔진이 트랩 플래그로 소스 줄이 바뀔 때까지 간다.
+    enum class CodeStepKind : std::uint8_t
+    {
+        // 다음 줄에 선다. 부르는 함수 안으로 들어간다.
+        Into,
+        // 다음 줄에 선다. 부르는 함수는 건너뛴다(더 깊은 스택은 멈추지 않고 지난다).
+        Over,
+        // 지금 함수에서 돌아간 뒤 선다.
+        Out
     };
 
     enum class CodeBreakAction : std::uint8_t
@@ -217,6 +230,20 @@ namespace JBro
         virtual Int64 GetSize() const = 0;
     };
 
+    // 같은 기계의 다른 프로세스와 글을 주고받는 통로다(D-330 3 단계: 에디터와 디버그 어댑터). 서버 쪽이며 클라이언트는 하나다.
+    // **막히지 않는다** - 메인 스레드가 프레임마다 부른다. 같은 사용자의 프로세스만 열 수 있고 원격 접속은 받지 않는다.
+    class ILocalPipe
+    {
+    public:
+        virtual ~ILocalPipe() = default;
+        // 클라이언트가 붙어 있는가. 끊기면 다음 클라이언트를 기다린다.
+        virtual Bool IsConnected() = 0;
+        // 지금 와 있는 바이트를 `into` 뒤에 붙이고 그 수를 돌려준다. 없으면 0 이다.
+        virtual std::size_t Receive(String& into) = 0;
+        // 다 보내거나 끊길 때까지 쓴다. 끊겼으면 거짓이다.
+        virtual Bool Send(const char* data, std::size_t bytes) = 0;
+    };
+
     // 워커에서 메인 스레드로 값으로 건너가는 POD 다. 할당도 참조도 들지 않는다 - `SafePtr` 는 메인 스레드 전용이다.
     struct FileEvent
     {
@@ -343,6 +370,11 @@ namespace JBro
         {
             return String();
         }
+        // 이 프로세스의 운영체제 번호다(D-330 5 단계: 디버그 어댑터가 붙을 때 쓴다). 없는 플랫폼이면 0 이다.
+        virtual UInt32 GetProcessId() const
+        {
+            return 0;
+        }
         // 그 경로를 운영체제의 파일 탐색기에서 연다. 없는 플랫폼이면 거짓이다.
         // **OS 의 기본 프로그램에게 넘긴다**(기존 `File::OpenFile`). 엔진이 모르는 파일을
         // 에셋 브라우저에서 두 번 눌렀을 때 쓴다 - 탐색기로 보여 주는 `RevealInFileBrowser`
@@ -463,6 +495,13 @@ namespace JBro
             return nullptr;
         }
 
+        // 로컬 파이프를 연다(D-330). `name` 은 이 기계에서 하나여야 하는 이름이다(Windows 는 `\\.\pipe\<name>`). 이미 있거나 없는 플랫폼이면 null 이다.
+        virtual OwnerPtr<ILocalPipe> OpenLocalPipe(const char* name)
+        {
+            (void)name;
+            return nullptr;
+        }
+
         // 파일을 조금씩 읽으려고 연다(D-203). 없거나 못 열면 null 이다. **어느 스레드에서 불러도 된다** - 플랫폼의 다른
         // 상태를 만지지 않는다. 기본은 "이 플랫폼에는 없다" 다.
         virtual OwnerPtr<IFileStream> OpenFileStream(const char* utf8Path)
@@ -511,7 +550,7 @@ namespace JBro
             (void)low;
             (void)high;
         }
-        // **스크립트 예외의 자리를 읽는다**(D-325). `exceptionPointers` 는 운영체제의 예외 정보이고, 예외 자리부터 바깥으로
+        // **스크립트 예외의 자리를 읽는다**(D-330). `exceptionPointers` 는 운영체제의 예외 정보이고, 예외 자리부터 바깥으로
         // 명령 주소를 `capacity` 개까지 채워 그 수를 돌려준다. 예외 필터 안에서 불린다 - 할당하지 않는다. 없는 플랫폼이면 0 이다.
         virtual UInt32 CaptureFaultFrames(const void* exceptionPointers, UInt64* frames, UInt32 capacity)
         {
@@ -528,7 +567,7 @@ namespace JBro
             return false;
         }
 
-        // ── 스크립트 중단점 (D-325 2 단계) ──────────────────────────────────────────────────────
+        // ── 스크립트 중단점 (D-330 2 단계) ──────────────────────────────────────────────────────
         // **OS 디버거로 붙지 않고 엔진이 중단점을 받는다.** 엔진이 코드에 int 3 을 넣고 빼며, 걸리면 그 스레드의 예외 처리기에서
         // `handler` 를 부른다. 처리기를 건 스레드에서 난 것만 받는다 - 다른 스레드의 int 3 은 보통 예외로 나아간다.
         // `nullptr` 로 끄면 넣은 중단점도 모두 뺀다. 없는 플랫폼이면 거짓이다.
@@ -551,6 +590,12 @@ namespace JBro
         }
         virtual void ClearCodeBreakpoints()
         {
+        }
+        // 지금 선 중단점에서 돌아갈 때 한 줄 간다(D-330 4 단계). 중단점 처리기(`CodeBreakHandler`) 안에서, 처리기가 `Continue` 를 돌려주기 전에 부른다.
+        // 돌아가면 엔진이 트랩 플래그로 줄이 바뀔 때까지 가고, 그 자리에서 처리기를 다시 부른다. 디버거가 없는 플랫폼이면 아무 일도 하지 않는다.
+        virtual void RequestCodeStep(CodeStepKind kind)
+        {
+            (void)kind;
         }
     };
 }

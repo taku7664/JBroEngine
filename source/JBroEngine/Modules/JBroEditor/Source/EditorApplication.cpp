@@ -4,6 +4,7 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorControlPort.h>
+#include <JBro/Editor/ScriptDebugServer.h>
 #include <JBro/Network/Socket.h>
 #include <JBro/Editor/Command/AssetFileCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
@@ -109,7 +110,7 @@ namespace JBro
 {
     namespace
     {
-        // 스크립트 예외 자리의 스택을 플랫폼에게 읽힌다(D-325). 아래 알림 도우미들과 함께 있다.
+        // 스크립트 예외 자리의 스택을 플랫폼에게 읽힌다(D-330). 아래 알림 도우미들과 함께 있다.
         UInt32 CaptureScriptFaultFrames(void* user, const void* exceptionPointers, UInt64* frames, UInt32 capacity);
         // 도크 노드가 스스로 그리는 단추를 끈다(ProjectRule §11.3). 왼쪽 위의 창 메뉴와
         // 오른쪽 위의 닫기 단추 둘 다이고, 둘 다 `imgui_internal.h` 의 플래그다 -
@@ -204,9 +205,9 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
-            // **스크립트가 죽어도 에디터는 산다**(D-325). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
+            // **스크립트가 죽어도 에디터는 산다**(D-330). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
             ScriptCallGuard::Enable(&CaptureScriptFaultFrames, m_platform.Get());
-            // 스크립트 중단점은 엔진이 받는다(D-325 2 단계). OS 디버거로 붙지 않으므로 선 동안에도 에디터가 그린다.
+            // 스크립트 중단점은 엔진이 받는다(D-330 2 단계). OS 디버거로 붙지 않으므로 선 동안에도 에디터가 그린다.
             m_platform->SetCodeBreakHandler(&EditorApplication::OnCodeBreak, this);
 
             // **프로그램과 함께 놓인 것은 실행 파일 기준으로 찾는다**(D-176). 현재 작업 폴더로
@@ -3061,7 +3062,7 @@ namespace JBro
             return static_cast<IPlatform*>(user)->CaptureFaultFrames(exceptionPointers, frames, capacity);
         }
 
-        // 누르면 스크립트 파일의 그 줄을 편집기로 연다. 스크립트 예외(D-325)와 새 스크립트 알림이 쓴다.
+        // 누르면 스크립트 파일의 그 줄을 편집기로 연다. 스크립트 예외(D-330)와 새 스크립트 알림이 쓴다.
         class OpenScriptLineAction final : public NotificationAction
         {
         public:
@@ -3305,7 +3306,7 @@ namespace JBro
         return static_cast<EditorApplication*>(user)->HandleCodeBreak(hit);
     }
 
-    // **스크립트가 중단점에 섰다**(D-325 2 단계). 여기는 예외 처리기 안이고, 스크립트는 프레임워크 갱신 한가운데에 서 있다.
+    // **스크립트가 중단점에 섰다**(D-330 2 단계). 여기는 예외 처리기 안이고, 스크립트는 프레임워크 갱신 한가운데에 서 있다.
     // 돌아가기 전까지 이 자리에서 에디터 화면만 그린다 - 게임 갱신·시간·소리는 선다. 편집은 막는다: 스크립트 스택이 쥔 오브젝트를 지우면 이어 갈 때 죽는다.
     CodeBreakAction EditorApplication::HandleCodeBreak(const CodeBreak& hit)
     {
@@ -3319,8 +3320,14 @@ namespace JBro
         m_scriptBreakRequest = ScriptBreakRequest::None;
         m_scriptBreakFrames = 0;
         m_scriptBreakLocation = CodeLocation{};
+        m_scriptBreakContext = hit.context;
+        m_scriptBreakThread = hit.threadId;
         m_platform->DescribeCodeAddress(hit.address, m_scriptBreakLocation);
         m_commands.SetLocked(true);
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->NotifyStopped(hit.address, hit.context, m_scriptBreakThread);
+        }
         Log::Write(LogLevel::Info, "script", "a script stopped at %s:%u (%s)", m_scriptBreakLocation.file.empty() ? "?" : m_scriptBreakLocation.file.c_str(),
             static_cast<unsigned int>(m_scriptBreakLocation.line.Value), m_scriptBreakLocation.function.c_str());
         {
@@ -3344,6 +3351,14 @@ namespace JBro
         auto previous = std::chrono::steady_clock::now();
         while (m_scriptBreakRequest == ScriptBreakRequest::None)
         {
+            if (m_debugServer.Get() != nullptr)
+            {
+                m_debugServer->Poll(*this);
+                if (m_scriptBreakRequest != ScriptBreakRequest::None)
+                {
+                    break;
+                }
+            }
             if (m_scriptBreakHook != nullptr)
             {
                 m_scriptBreakHook(m_scriptBreakHookUser, *this);
@@ -3366,15 +3381,28 @@ namespace JBro
         }
 
         const Bool stop = m_scriptBreakRequest == ScriptBreakRequest::Stop;
+        const Bool step = m_scriptBreakRequest == ScriptBreakRequest::Step;
         m_notifications.Dismiss(m_scriptBreakNotification);
         m_scriptBreakNotification = InvalidNotificationHandle;
         m_commands.SetLocked(false);
         m_engine->EndBreakFrames();
         m_scriptBreakActive = false;
         m_scriptBreakRequest = ScriptBreakRequest::None;
+        m_scriptBreakContext = nullptr;
+        m_scriptBreakThread = 0;
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->NotifyResumed();
+        }
         Log::Write(LogLevel::Info, "script", stop ? "the stopped script is being ended" : "the stopped script goes on");
         // 정지면 예외로 나아가게 둔다. 스크립트를 감싼 보호가 그 훅을 끝내고, 다음 프레임의 `PollScriptFault` 가 실행을 멈춘다.
         m_scriptBreakStopped = stop;
+        // 한 줄 가기면 엔진에 신청하고 이어 간다. 돌아가면 엔진이 줄이 바뀔 때까지 가서 처리기를 다시 부른다(여기로 다시 온다).
+        if (step)
+        {
+            m_platform->RequestCodeStep(m_scriptBreakStepKind);
+            return CodeBreakAction::Continue;
+        }
         return stop ? CodeBreakAction::Stop : CodeBreakAction::Continue;
     }
 
@@ -3421,6 +3449,15 @@ namespace JBro
         }
     }
 
+    void EditorApplication::StepScriptBreak(CodeStepKind kind)
+    {
+        if (m_scriptBreakActive)
+        {
+            m_scriptBreakStepKind = kind;
+            m_scriptBreakRequest = ScriptBreakRequest::Step;
+        }
+    }
+
     Bool EditorApplication::SetScriptBreakpoint(UInt64 address)
     {
         return m_platform.Get() != nullptr && m_platform->SetCodeBreakpoint(address);
@@ -3435,6 +3472,80 @@ namespace JBro
     {
         m_scriptBreakHook = hook;
         m_scriptBreakHookUser = user;
+    }
+
+    const void* EditorApplication::GetScriptBreakContext() const
+    {
+        return m_scriptBreakContext;
+    }
+
+    UInt32 EditorApplication::GetScriptBreakThread() const
+    {
+        return m_scriptBreakThread;
+    }
+
+    Bool EditorApplication::StartScriptDebugServer(UInt32 processId)
+    {
+        if (m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        if (m_debugServer.Get() == nullptr)
+        {
+            m_debugServer = MakeOwnerPtr<ScriptDebugServer>();
+        }
+        return m_debugServer->Start(*m_platform, processId);
+    }
+
+    void EditorApplication::StopScriptDebugServer()
+    {
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->Stop();
+        }
+    }
+
+    Bool EditorApplication::IsScriptDebugServerActive() const
+    {
+        return m_debugServer.Get() != nullptr && m_debugServer->IsActive();
+    }
+
+    void EditorApplication::StartDebugSession()
+    {
+        if (IsDebugSessionActive() || m_platform.Get() == nullptr)
+        {
+            return;
+        }
+        if (false == StartScriptDebugServer(m_platform->GetProcessId()))
+        {
+            m_notifications.Notify(NotificationLevel::Error,
+                Loc::TextOr(LocKeys::NotifyDebugChannelFailed, "The debug channel could not open"));
+            return;
+        }
+        if (false == m_simulationPlaying)
+        {
+            StartSimulation();
+        }
+        m_notifications.Notify(NotificationLevel::Info,
+            Loc::TextOr(LocKeys::NotifyDebugStarted, "Debugging is on - attach from the script editor to hit breakpoints"));
+    }
+
+    void EditorApplication::StopDebugSession()
+    {
+        if (false == IsDebugSessionActive())
+        {
+            return;
+        }
+        if (m_simulationPlaying)
+        {
+            StopSimulation();
+        }
+        StopScriptDebugServer();
+    }
+
+    Bool EditorApplication::IsDebugSessionActive() const
+    {
+        return IsScriptDebugServerActive();
     }
 
     void EditorApplication::PollScriptErrors()
@@ -3985,6 +4096,11 @@ namespace JBro
         }
         // 붙어 있던 스크립트의 타입이 새 DLL 에 없으면 그 스크립트는 돌지 않는다. 성공 알림만 보면 사라진 것을 모른다.
         NotifyUnresolvedScripts();
+        // **디버그 어댑터에게 새 복사본을 알린다**(D-330). 넣었던 중단점은 위에서 뺐다 - 어댑터가 새 모듈에서 줄을 다시 풀어 다시 건다.
+        if (m_debugServer.Get() != nullptr && m_debugServer->IsActive())
+        {
+            m_debugServer->NotifyModule(true, m_engine->GetScriptModule().GetLoadedPath());
+        }
         return true;
     }
 
@@ -5854,6 +5970,22 @@ namespace JBro
         }
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuDebug, "Debug")))
         {
+            // **디버그 실행**(D-330 5 단계). 통로를 열고 재생한다 - 스크립트 편집기가 붙어 중단점을 건다. 다시 누르면 멈춘다.
+            const Bool debugging = IsDebugSessionActive();
+            if (Widget::MenuItem(debugging
+                    ? Loc::TextOr(LocKeys::MenuDebugStop, "Stop Debugging")
+                    : Loc::TextOr(LocKeys::MenuDebugStart, "Start Debugging")))
+            {
+                if (debugging)
+                {
+                    StopDebugSession();
+                }
+                else
+                {
+                    StartDebugSession();
+                }
+            }
+            ImGui::Separator();
             DrawPanelMenuItem("Profiler", Loc::TextOr(LocKeys::MenuDebugCpuProfiler, "CPU Profiler"));
             DrawPanelMenuItem("Stats", Loc::TextOr(LocKeys::MenuDebugStats, "Statistics"));
             DrawPanelMenuItem("Log", Loc::TextOr(LocKeys::MenuDebugLog, "Log"));
@@ -6981,6 +7113,10 @@ namespace JBro
         {
             m_controlPort->Poll(*this);
         }
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->Poll(*this);
+        }
         // 에셋 폴더의 변경은 프레임 밖, UI 보다 먼저 적용한다(D-121). 재로드는 핸들을 지키므로 화면은 다음 그림부터
         // 새 자료를 보고, 다시 스캔했으면 못 풀렸던 아이디가 풀릴 수 있어 해석을 다시 돌린다.
         {
@@ -7009,7 +7145,7 @@ namespace JBro
         }
         // DLL 이 바뀌었거나 미룬 리로드가 있으면 다시 싣는다(D-300).
         PollScriptModuleFile(deltaTime);
-        // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-325). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
+        // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-330). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
         PollScriptFault();
         PollScriptErrors();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
@@ -7262,7 +7398,7 @@ namespace JBro
 
     void EditorApplication::ReleaseProcessResources()
     {
-        // 스택을 읽는 플랫폼이 곧 사라진다(D-325). 넣은 중단점도 함께 뺀다.
+        // 스택을 읽는 플랫폼이 곧 사라진다(D-330). 넣은 중단점도 함께 뺀다.
         if (m_platform.Get() != nullptr)
         {
             m_platform->SetCodeBreakHandler(nullptr, nullptr);

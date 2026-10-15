@@ -5932,6 +5932,64 @@ namespace
         editor.Shutdown();
     }
 
+    // **디버그 메뉴에 `디버그 실행` 이 선다**(D-330 5 단계). 메뉴를 열어 그 항목과 구분선을 눈으로 본다(JBRO_EDITOR_SHOT).
+    void TestTheDebugMenuShowsStartDebugging()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the debug menu not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND window = FindOwnEditorWindow();
+        Check(window != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick");
+        }
+        const char* debugLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuDebug, "Debug");
+
+        // 메뉴 막대를 훑어 `디버그` 의 자리를 찾아 누른다. 디버그 메뉴는 메인 도크 막대에 있다.
+        ImGuiWindow* main = ImGui::FindWindowByName("###MainDock");
+        Check(main != nullptr, "the main dock must be there");
+        const ImGuiID bar = LabelId(main->ID, "##MenuBar");
+        const ImRect rect = main->MenuBarRect();
+        const JBro::Int32 y = static_cast<JBro::Int32>(rect.GetCenter().y);
+        JBro::Int32 hitX = 0;
+        for (JBro::Int32 x = static_cast<JBro::Int32>(rect.Min.x); x < static_cast<JBro::Int32>(rect.Max.x); x += 3)
+        {
+            PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking for the Debug menu");
+            if (ImGui::GetHoveredID() == LabelId(bar, debugLabel))
+            {
+                hitX = x;
+                break;
+            }
+        }
+        if (hitX == 0)
+        {
+            // 영어로 떨어졌거나 막대 배치가 달라 못 찾았다. 조용히 통과하지 않는다.
+            std::cout << "  [skip] the Debug menu was not found in the bar; its menu not shot" << std::endl;
+            editor.Shutdown();
+            return;
+        }
+        const Spot spot{hitX, y};
+        ClickAt(editor, window, spot);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with the menu open");
+        }
+        ImGuiWindow* menu = FindActiveWindowContaining(debugLabel);
+        Check(menu != nullptr, "the Debug menu opened");
+        SaveScreenshot(*editor.GetRenderer(), WindowWidth, WindowHeight, "debug_menu");
+        editor.Shutdown();
+    }
+
     // **프로젝트가 없어도 에디터 창은 살아 있어야 한다.** 호스트는 프레임워크가
     // 없으면 그릴 것이 없다고 보고 프레임을 통째로 건너뛰는데, 그러면 프로젝트를
     // 닫아 둔 에디터가 검은 창이 된다 - 메뉴도 프로젝트 브라우저도 그때 필요하다.
@@ -6871,7 +6929,7 @@ namespace
         *nothing = 1;
     }
 
-    // **스크립트가 죽어도 에디터는 산다**(D-325). 실행 중 훅에서 예외가 나면 다음 프레임에 실행을 멈추고 실행 전 캔버스로 되돌리며,
+    // **스크립트가 죽어도 에디터는 산다**(D-330). 실행 중 훅에서 예외가 나면 다음 프레임에 실행을 멈추고 실행 전 캔버스로 되돌리며,
     // 오류 알림을 띄운다. 실행 중이 아니면 알리기만 한다. 진짜 스크립트 대신 에디터가 켠 보호를 거쳐 null 에 쓴다.
     void TestAScriptFaultStopsPlayAndTellsTheUser()
     {
@@ -16347,7 +16405,7 @@ namespace
         Check(FindScriptedObject(*editor.GetCanvas()) != nullptr, "the script is still on the object after the reload");
         ScenarioShot(editor, "a15_fixed");
 
-        // ── 9. 스크립트의 `__debugbreak()` 에서 선다 → 둘러보고 일시정지를 풀면 이어 간다 → 다시 서면 정지한다 (D-325 2 단계) ─────────────
+        // ── 9. 스크립트의 `__debugbreak()` 에서 선다 → 둘러보고 일시정지를 풀면 이어 간다 → 다시 서면 정지한다 (D-330 2 단계) ─────────────
         const std::string withBreak = InsertIntoFunction(good, "PlayerMover::OnUpdate()",
             "\r\n    static Int32 frames = 0;\r\n    frames = frames + 1;\r\n    if (frames == 10 || frames == 40)\r\n    {\r\n        __debugbreak();\r\n    }\r\n");
         WriteWholeText(source, withBreak);
@@ -16856,6 +16914,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheEditorDrawsWithNoProjectOpen();
     TestTheEditorFindsItsFilesFromAnywhere();
     TestTheMenuBarSpeaksTheLoadedLocale();
+    TestTheDebugMenuShowsStartDebugging();
     TestTheEditorForwardsInputToItsUi();
     TestThePanelRegistryRefusesWhatItCannotHold();
     TestUniqueAndInstancePanels();

@@ -8,7 +8,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
-// 스크립트 훅의 예외를 받는 `ScriptCallGuard`(D-325)와 그 자리를 읽는 플랫폼(`CaptureFaultFrames`·`DescribeCodeAddress`)을 본다.
+// 스크립트 훅의 예외를 받는 `ScriptCallGuard`(D-330)와 그 자리를 읽는 플랫폼(`CaptureFaultFrames`·`DescribeCodeAddress`)을 본다.
 // 진짜 스크립트 DLL 없이, 스크립트가 할 법한 잘못(null 에 쓰기·끝없는 재귀·C++ 예외)을 이 실행 파일 안의 함수로 낸다.
 
 namespace

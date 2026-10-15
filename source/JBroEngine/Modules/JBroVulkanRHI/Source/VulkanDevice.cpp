@@ -298,6 +298,9 @@ namespace JBro::Internal
         m_physicalDevice = chosen;
         m_queueFamily = chosenFamily;
         vk.vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_memoryProperties);
+        VkPhysicalDeviceProperties chosenProperties = {};
+        vk.vkGetPhysicalDeviceProperties(m_physicalDevice, &chosenProperties);
+        m_limits = chosenProperties.limits;
         return true;
     }
 
@@ -363,12 +366,17 @@ namespace JBro::Internal
             fence.flags = VK_FENCE_CREATE_SIGNALED_BIT;
             VkSemaphoreCreateInfo semaphore = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
             // 드로우마다 set 하나다. UI 는 드로우가 수백이라 넉넉히 둔다.
+            // 상수 버퍼는 동적 유니폼 버퍼다. 링의 구간만 바뀌는 드로우는 set 을 새로 잡지 않으므로 텍스처만큼 들지 않는다.
             const VkDescriptorPoolSize sizes[] = {
                 {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4096 * MaxBoundTextures},
-                {VK_DESCRIPTOR_TYPE_SAMPLER, 4096 * MaxBoundSamplers}};
+                {VK_DESCRIPTOR_TYPE_SAMPLER, 4096 * MaxBoundSamplers},
+                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1024 * MaxBoundConstantBuffers},
+                // 컴퓨트의 u#. 디스패치는 드로우보다 훨씬 적다.
+                {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 256 * MaxStorageTextures},
+                {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256 * MaxStorageBuffers}};
             VkDescriptorPoolCreateInfo pool = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
             pool.maxSets = 4096;
-            pool.poolSizeCount = 2;
+            pool.poolSizeCount = 5;
             pool.pPoolSizes = sizes;
             if (vk.vkAllocateCommandBuffers(m_device, &allocate, &slot.commands) != VK_SUCCESS
                 || vk.vkCreateFence(m_device, &fence, nullptr, &slot.fence) != VK_SUCCESS
@@ -444,6 +452,13 @@ namespace JBro::Internal
                 if (m_graphicsPipelines[index].occupied)
                 {
                     DestroyGraphicsPipeline(GraphicsPipelineHandle{index, m_graphicsPipelines[index].generation});
+                }
+            }
+            for (UInt32 index = 0; index < MaxComputePipelines; ++index)
+            {
+                if (m_computePipelines[index].occupied)
+                {
+                    DestroyComputePipeline(ComputePipelineHandle{index, m_computePipelines[index].generation});
                 }
             }
             FlushRetired(~UInt64{0});
@@ -624,7 +639,7 @@ namespace JBro::Internal
     }
 
     void VulkanDevice::TransitionImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect,
-        VkImageLayout from, VkImageLayout to)
+        VkImageLayout from, VkImageLayout to, UInt32 baseMip, UInt32 mipCount)
     {
         if (from == to)
         {
@@ -646,7 +661,8 @@ namespace JBro::Internal
                 | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             break;
         case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+            // 정점 단계도 텍스처를 읽을 수 있다(자리표의 단계, D-325).
+            barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
             barrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
             break;
         case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
@@ -672,7 +688,8 @@ namespace JBro::Internal
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.image = image;
         barrier.subresourceRange.aspectMask = aspect;
-        barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        barrier.subresourceRange.baseMipLevel = baseMip;
+        barrier.subresourceRange.levelCount = mipCount == AllRemainingMips ? VK_REMAINING_MIP_LEVELS : mipCount.Get();
         barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
         VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
         dependency.imageMemoryBarrierCount = 1;
@@ -1221,6 +1238,31 @@ namespace JBro::Internal
         return m_slotCount;
     }
 
+    DeviceCaps VulkanDevice::GetCaps() const
+    {
+        DeviceCaps caps;
+        caps.maxConstantBuffers = MaxBoundConstantBuffers;
+        caps.maxSampledTextures = MaxBoundTextures;
+        caps.maxSamplers = MaxBoundSamplers;
+        // 정렬은 공통 256 B 를 지킨다. 장치가 그보다 크게 요구하면(명세상 256 이 상한이라 없을 일이다) 그것을 따른다.
+        if (m_limits.minUniformBufferOffsetAlignment > caps.constantBufferAlignment)
+        {
+            caps.constantBufferAlignment = static_cast<UInt32>(m_limits.minUniformBufferOffsetAlignment);
+        }
+        // 명세가 보장하는 최소는 16 KiB 다. 대부분의 장치는 64 KiB 이상이다 - 공통 상한 64 KiB 를 넘지는 않는다.
+        if (m_limits.maxUniformBufferRange != 0 && m_limits.maxUniformBufferRange < caps.maxConstantBufferBytes)
+        {
+            caps.maxConstantBufferBytes = m_limits.maxUniformBufferRange / caps.constantBufferAlignment
+                * caps.constantBufferAlignment;
+        }
+        // 명세의 최소는 256 이다. LUT(32³·64³)는 그 안이다.
+        if (m_limits.maxImageDimension3D != 0 && m_limits.maxImageDimension3D < caps.maxTexture3DSize)
+        {
+            caps.maxTexture3DSize = m_limits.maxImageDimension3D;
+        }
+        return caps;
+    }
+
     UInt32 VulkanDevice::GetValidationErrorCount() const
     {
         return m_validationErrors;
@@ -1267,7 +1309,7 @@ namespace JBro::Internal
             return false;
         }
         image = state.image;
-        layout = &state.layout;
+        layout = &state.layouts[0];
         desc = state.desc;
         return true;
     }
@@ -1292,7 +1334,7 @@ namespace JBro::Internal
             return false;
         }
         const UInt32 pixelSize = VulkanPixelSize(desc.format);
-        if (pixelSize == 0 || desc.format == TextureFormat::D32Float || desc.depthOrLayers != 1)
+        if (pixelSize == 0 || desc.format == TextureFormat::D32Float || desc.depthOrLayers != 1 || desc.dimension != TextureDimension::Texture2D)
         {
             return false;
         }
@@ -1316,7 +1358,7 @@ namespace JBro::Internal
             // 되돌려 놓을 레이아웃. 아직 아무것도 아니던(UNDEFINED) 텍스처는 GENERAL 로 올려 둔다 - UNDEFINED 로는 돌아갈 수 없다.
             const VkImageLayout restoreTo = *layout == VK_IMAGE_LAYOUT_UNDEFINED ? VK_IMAGE_LAYOUT_GENERAL : *layout;
             TransitionImage(m_oneShotCommands, image, VK_IMAGE_ASPECT_COLOR_BIT, *layout,
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0, 1);
             VkBufferImageCopy region = {};
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.layerCount = 1;
@@ -1324,7 +1366,7 @@ namespace JBro::Internal
             vk.vkCmdCopyImageToBuffer(m_oneShotCommands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging, 1,
                 &region);
             TransitionImage(m_oneShotCommands, image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                restoreTo);
+                restoreTo, 0, 1);
             *layout = restoreTo;
             ok = EndOneShot();
         }

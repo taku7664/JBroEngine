@@ -285,7 +285,7 @@ namespace JBro
         // 때 줄이는 정책이 이것을 쓴다 - 게임이 정한 Master 음량과 따로 논다.
         void SetOutputGain(Float gain, Float seconds);
         Float GetOutputGain() const;
-        // 믹서 전체를 세운다(D-325: 스크립트가 중단점에 선 동안). 선 동안 장치에는 0 을 내고 보이스·스트림은 한 표본도 나아가지 않아,
+        // 믹서 전체를 세운다(D-330: 스크립트가 중단점에 선 동안). 선 동안 장치에는 0 을 내고 보이스·스트림은 한 표본도 나아가지 않아,
         // 풀면 선 자리에서 이어진다. 미리 듣기도 함께 선다.
         void SetFrozen(Bool frozen);
         Bool IsFrozen() const;

@@ -53,6 +53,16 @@ namespace JBro::Internal
         {
             m_tearingSupported = allowTearing == TRUE;
         }
+        // 상수 버퍼 링(postprocess-plan §2.1)이 기대는 두 기능이다. 11.1 장치라도 드라이버가 말해야 한다.
+        D3D11_FEATURE_DATA_D3D11_OPTIONS options = {};
+        ComPtr<ID3D11DeviceContext1> context1;
+        if (selected >= D3D_FEATURE_LEVEL_11_1
+            && SUCCEEDED(m_context.As(&context1))
+            && SUCCEEDED(m_device->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS, &options, sizeof(options))))
+        {
+            m_constantBufferOffsets = options.ConstantBufferOffsetting == TRUE
+                && options.MapNoOverwriteOnDynamicConstantBuffer == TRUE;
+        }
         if ((flags & D3D11_CREATE_DEVICE_DEBUG) != 0)
         {
             // 오류를 세는 길이다. 없으면 0 을 돌려주고, 그것은 "조용했다" 가 아니라 "못 들었다" 다.
@@ -341,6 +351,16 @@ namespace JBro::Internal
     UInt32 D3D11Device::GetFramesInFlight() const
     {
         return 1;
+    }
+
+    DeviceCaps D3D11Device::GetCaps() const
+    {
+        DeviceCaps caps;
+        caps.maxConstantBuffers = MaxBoundConstantBuffers;
+        caps.maxSampledTextures = MaxBoundTextures;
+        caps.maxSamplers = MaxBoundSamplers;
+        caps.constantBufferOffsets = m_constantBufferOffsets;
+        return caps;
     }
 
     UInt32 D3D11Device::GetValidationErrorCount() const

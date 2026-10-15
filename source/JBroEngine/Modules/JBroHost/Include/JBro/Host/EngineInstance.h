@@ -191,7 +191,7 @@ namespace JBro
         Bool IsGameDebugDrawVisible() const;
 
         Bool Tick(Float deltaTime);
-        // ── 스크립트가 중단점에 선 동안 (D-325 2 단계) ──────────────────────────────────────────────
+        // ── 스크립트가 중단점에 선 동안 (D-330 2 단계) ──────────────────────────────────────────────
         // 프레임워크 갱신 한가운데에서 스크립트가 섰다. 그 자리(예외 처리기 안)에서 화면만 다시 그린다 - 갱신·시간은 돌지 않고
         // 오디오 믹서는 선다. `BeginBreakFrames` 와 `EndBreakFrames` 사이에서 `RenderBreakFrame` 을 몇 번이고 부르고, 그 사이에는
         // `Tick` 안이어도 시뮬레이션 뷰·편집 화면·썸네일 요청을 받는다. 프레임 메모리는 선 자리를 표시해 두고 안쪽 프레임마다 거기로 되감는다.
@@ -353,7 +353,7 @@ namespace JBro
 
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
-        // 중단점에 선 동안이다(D-325). 표시는 선 자리의 프레임 메모리, 믹서는 서기 전에 서 있었는지다.
+        // 중단점에 선 동안이다(D-330). 표시는 선 자리의 프레임 메모리, 믹서는 서기 전에 서 있었는지다.
         Bool m_inBreakFrames = false;
         LinearAllocator::Marker m_breakFrameMark;
         Bool m_breakMixerWasFrozen = false;

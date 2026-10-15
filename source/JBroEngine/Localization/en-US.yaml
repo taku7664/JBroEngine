@@ -39,6 +39,10 @@ Entries:
   menu.debug_cpu_profiler: CPU Profiler
   menu.debug_stats: Statistics
   menu.debug_log: Log
+  menu.debug_start: Start Debugging
+  menu.debug_stop: Stop Debugging
+  notify.debug_started: Debugging is on - attach from the script editor to hit breakpoints
+  notify.debug_channel_failed: The debug channel could not open
   menu.exit: Exit
   menu.undo: Undo
   menu.redo: Redo

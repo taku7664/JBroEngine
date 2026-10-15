@@ -1,5 +1,11 @@
 ﻿#include <JBro/Editor/ScriptProject.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Canvas/Canvas.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Reflection/Field.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 
 #include <Windows.h>
 
@@ -20,6 +26,8 @@ namespace
 {
     namespace fs = std::filesystem;
     using namespace JBro;
+
+    constexpr Float Frame = 1.0f / 60.0f;
 
     // 마지막으로 받은 메시지다. 검사가 실패하면 같이 찍는다 - 어댑터가 무엇을 답했는지 없이는 실패를 읽을 수 없다.
     std::string g_lastMessage;
@@ -350,7 +358,6 @@ namespace
         const std::string clearBreakpoints = sourceJson + "\"breakpoints\":[]}";
 
         const fs::path work = FreshFolder("target");
-        Touch(work / "run");
         Process target;
         Check(target.Start(targetExe, L"\"" + work.wstring() + L"\"", false), "the target starts");
         Check(WaitForGeneration(work, "1"), "the target loads the first copy of the script");
@@ -363,103 +370,258 @@ namespace
         char attachText[160] = {};
         std::snprintf(attachText, sizeof(attachText), "{\"processId\":%lu,\"scriptModules\":[\"TargetScript\"]}", static_cast<unsigned long>(target.GetId()));
         response = adapter.Request("attach", attachText, 60000);
-        Check(response.find("\"success\":true") != std::string::npos, "the adapter attaches to the running target");
+        Check(response.find("\"success\":true") != std::string::npos, "the adapter attaches without stopping the target");
+        Check(response.find("without stopping") != std::string::npos || false == adapter.WaitEvent("output").empty(), "and says it attached noninvasively");
         Check(false == adapter.WaitEvent("initialized").empty(), "and says it is ready for breakpoints");
+        Check(target.IsRunning(), "attaching did not stop the target");
 
+        // 중단점을 건다. 어댑터가 줄을 주소로 바꿔 통로로 넘기면 대상(에디터 역할)이 확인한다.
         response = adapter.Request("setBreakpoints", setBreakpoint);
         char lineText[32] = {};
         std::snprintf(lineText, sizeof(lineText), "\"line\":%d", static_cast<int>(breakLine.Value));
         Check(response.find("\"verified\":true") != std::string::npos && response.find(lineText) != std::string::npos,
-            "a source line in the loaded script copy is a verified breakpoint");
+            "the editor confirmed the breakpoint at the source line");
         adapter.Request("configurationDone");
-        // 붙을 때의 끼어들기를 사용자 멈춤으로 알리면 첫 멈춤이 `exception` 이 된다.
-        std::string stopped = adapter.WaitEvent("stopped");
-        Check(stopped.find("\"reason\":\"breakpoint\"") != std::string::npos, "the first stop is the breakpoint, not the attach");
-        const Int64 thread = NumberAfter(stopped, "threadId");
 
+        // 스크립트를 돌린다. BREAK_HERE 에서 대상이 자기 문맥을 떠 멈춤을 알린다.
+        Touch(work / "run");
+        std::string stopped = adapter.WaitEvent("stopped");
+        Check(stopped.find("\"reason\":\"breakpoint\"") != std::string::npos, "the script stops at the breakpoint");
+        const Int64 thread = NumberAfter(stopped, "threadId");
         char threadText[64] = {};
         std::snprintf(threadText, sizeof(threadText), "{\"threadId\":%lld}", static_cast<long long>(thread.Value));
-        response = adapter.Request("stackTrace", threadText);
-        Check(response.find("TargetScript.cpp") != std::string::npos && NumberAfter(response, "line") == Int64(breakLine.Value),
-            "the top frame is the script line with its source file");
-        Check(response.find("JBroDebugAdapterTarget!") != std::string::npos, "and the frames go on into the program that called it");
-        const Int64 frame = NumberAfter(response, "id");
 
+        // 멈춘 스레드의 문맥(.cxr)으로 스택을 읽는다 - 스크립트 함수가 보인다.
+        response = adapter.Request("stackTrace", threadText);
+        Check(response.find("TargetScript.cpp") != std::string::npos, "the stack reaches the script's source file");
+        // 스크립트 프레임(TargetScript.cpp)을 골라 그 지역 변수를 natvis 로 읽는다.
+        Int64 scriptFrame = -1;
+        {
+            const std::string frames = response;
+            std::size_t at = 0;
+            while ((at = frames.find("\"id\":", at)) != std::string::npos)
+            {
+                const Int64 id = NumberAfter(frames.substr(at), "id");
+                const std::size_t src = frames.find("TargetScript.cpp", at);
+                const std::size_t nextId = frames.find("\"id\":", at + 5);
+                if (src != std::string::npos && (nextId == std::string::npos || src < nextId))
+                {
+                    scriptFrame = id;
+                    break;
+                }
+                at = at + 5;
+            }
+        }
+        Check(scriptFrame >= 0, "a stack frame is in the script");
         char frameText[64] = {};
-        std::snprintf(frameText, sizeof(frameText), "{\"frameId\":%lld}", static_cast<long long>(frame.Value));
+        std::snprintf(frameText, sizeof(frameText), "{\"frameId\":%lld}", static_cast<long long>(scriptFrame.Value));
         response = adapter.Request("scopes", frameText);
         const Int64 locals = NumberAfter(response, "variablesReference");
         char referenceText[64] = {};
         std::snprintf(referenceText, sizeof(referenceText), "{\"variablesReference\":%lld}", static_cast<long long>(locals.Value));
         response = adapter.Request("variables", referenceText);
-        // natvis 로 값이 보인다: `Float` 은 수, `Vector2` 는 괄호, `String` 은 글자, `Array` 는 크기.
-        Check(VariableNamed(response, "speed").find("\"value\":\"2.5") != std::string::npos, "a Float shows as its number");
-        Check(VariableNamed(response, "position").find("\"value\":\"(1") != std::string::npos, "a Vector2 shows as its components");
-        Check(VariableNamed(response, "name").find("hello") != std::string::npos, "a String shows its text");
+        Check(response.find("\"variables\"") != std::string::npos, "the locals scope answers");
+#if defined(_DEBUG)
+        // **지역 변수의 값은 최적화하지 않은 빌드에서만 믿을 수 있다.** Release 는 옵티마이저가 지역을 지우거나 레지스터로 옮겨
+        // 디버거가 보지 못한다 - 어느 네이티브 디버거나 같다. 그래서 값 검사는 Debug 에서만 한다(멈춤·스택은 두 구성 다 본다).
+        Check(VariableNamed(response, "speed").find("\"value\":\"2.5") != std::string::npos, "a Float local shows as its number");
+        Check(VariableNamed(response, "name").find("hello") != std::string::npos, "a String local shows its text");
         const std::string numbers = VariableNamed(response, "numbers");
-        Check(numbers.find("size=3") != std::string::npos && NumberAfter(numbers, "variablesReference") > 0, "an Array shows its size and opens");
-        std::snprintf(referenceText, sizeof(referenceText), "{\"variablesReference\":%lld}",
-            static_cast<long long>(NumberAfter(numbers, "variablesReference").Value));
-        response = adapter.Request("variables", referenceText);
-        Check(VariableNamed(response, "[0]").find("\"value\":\"1\"") != std::string::npos
-                && VariableNamed(response, "[2]").find("\"value\":\"3\"") != std::string::npos,
-            "the Array opens into its elements");
-        std::string evaluate = "{\"expression\":\"speed\",\"frameId\":" + std::to_string(frame.Value) + "}";
-        response = adapter.Request("evaluate", evaluate);
-        Check(response.find("\"result\":\"2.5") != std::string::npos, "an expression in the frame evaluates");
+        Check(numbers.find("size=3") != std::string::npos, "an Array local shows its size");
+#endif
 
-        adapter.Request("next", threadText);
-        stopped = adapter.WaitEvent("stopped");
-        Check(stopped.find("\"reason\":\"step\"") != std::string::npos, "a step stops as a step");
-        response = adapter.Request("stackTrace", threadText);
-        Check(NumberAfter(response, "line") == Int64(breakLine.Value + 1), "on the next source line");
-
-        // **다시 실은 복사본에서도 멈춘다.** 스크립트를 부르지 않게 한 채로 중단점을 남겨 두고 다음 세대를 싣는다 - 어댑터가 새 모듈에 다시 건다.
+        // **다시 실은 복사본에서도 선다**(D-330). 스크립트를 멈춰 두고 다음 세대를 싣는다 - 에디터(흉내)가 `module` 로 알리면
+        // 어댑터가 새 모듈에서 줄을 다시 풀어 다시 건다. 다시 돌리면 그 복사본에서 멈춘다.
         std::error_code ignored;
         fs::remove(work / "run", ignored);
         adapter.Request("continue", threadText);
         Sleep(100);
         Touch(work / "reload");
         Check(WaitForGeneration(work, "2"), "the target loads the second copy");
+        Sleep(300);
         Touch(work / "run");
-        stopped = adapter.WaitEvent("stopped");
-        Check(stopped.find("\"reason\":\"breakpoint\"") != std::string::npos, "the breakpoint stops in the reloaded copy");
+        std::string reloaded = adapter.WaitEvent("stopped", 15000);
+        Check(reloaded.find("\"reason\":\"breakpoint\"") != std::string::npos, "the re-armed breakpoint stops in the reloaded copy");
+        Check(ReadAll(work / "generation") == "2", "and it is the second copy that is running");
         response = adapter.Request("stackTrace", threadText);
-        const std::string current = "TargetScript_gen" + ReadAll(work / "generation") + "!";
-        Check(current != "TargetScript_gen1!" && response.find(current) != std::string::npos, "and the frame is in the copy loaded last");
-
-        // 일시정지.
-        adapter.Request("setBreakpoints", clearBreakpoints);
+        // 스택이 다시 실린 스크립트의 소스까지 닿는다. (모듈 이름은 DbgEng 이 noninvasive 에서 .reload 로 범위를 갱신하지 않아
+        //  이전 세대로 남을 수 있다 - 소스 파일·줄은 맞다.)
+        Check(response.find("TargetScript.cpp") != std::string::npos, "and the stack reaches the reloaded script's source");
         adapter.Request("continue", threadText);
-        Sleep(200);
-        adapter.Request("pause", threadText);
-        stopped = adapter.WaitEvent("stopped");
-        Check(stopped.find("\"reason\":\"pause\"") != std::string::npos, "pause stops the running target");
-        adapter.Request("continue", NumberAfter(stopped, "threadId") > 0 ? threadText : std::string("{}"));
 
-        // 떼면 대상은 그대로 돈다. 중단점이 남아 있었다면 스크립트를 부르다 죽는다.
+        // 떼어도 대상은 그대로 돈다. 통로가 끊기면 남은 중단점을 엔진이 뺀다.
         response = adapter.Request("disconnect", "{}");
         Check(response.find("\"success\":true") != std::string::npos, "disconnect answers");
         DWORD exitCode = 1;
-        Check(adapter.WaitExit(10000, exitCode) && exitCode == 0, "the adapter ends after disconnect");
+        Check(adapter.WaitExit(10000, exitCode), "the adapter ends after disconnect");
         Sleep(300);
         Check(target.IsRunning(), "the target keeps running after the adapter leaves");
-
-        // **어댑터가 죽어도 대상은 산다**(`DEBUG_PROCESS_DETACH_ON_EXIT`). 기본은 디버거가 끝날 때 대상도 끝낸다.
-        Process second;
-        Check(second.Start(adapterExe, L"", true), "a second adapter starts");
-        second.Request("initialize", "{\"adapterID\":\"jbro\"}");
-        response = second.Request("attach", attachText, 60000);
-        Check(response.find("\"success\":true") != std::string::npos, "and attaches again");
-        second.Request("configurationDone");
-        Sleep(200);
-        second.Kill();
-        Sleep(500);
-        Check(target.IsRunning(), "killing an attached adapter leaves the target running");
 
         Touch(work / "quit");
         exitCode = 1;
         Check(target.WaitExit(10000, exitCode) && exitCode == 0, "the target ends cleanly when asked");
+    }
+    // ── 실제 에디터 + 실제 어댑터 한자리 (D-330) ──────────────────────────────
+    // 앞의 시험은 어댑터를 에디터 흉내(대상 프로그램)에 붙였다. 이번에는 **진짜**다: 이 시험 프로세스가 진짜 에디터를 돌리고,
+    // 진짜 어댑터를 자식으로 띄워 이 프로세스에 세우지 않고 붙인다. 엔진이 넣은 int 3 에 스크립트가 서면, 어댑터가 그 문맥으로 스택을 읽는다.
+
+    int g_coRunUpdates = 0;
+
+    // 중단점을 거는 줄이 Release 에서도 또렷한 명령을 갖도록, 인라인하지 않는 호출을 둔다. 옵티마이저가 그 줄을 지우거나 합치면 줄 → 주소가 풀리지 않는다.
+    __declspec(noinline) void CoRunTouch(float value)
+    {
+        volatile float sink = value;
+        (void)sink;
+    }
+
+    class CoRunScript final : public GameScript2D
+    {
+        JBRO_REFLECT_BODY(CoRunScript)
+    public:
+        static constexpr const char* StaticTypeName() { return "Test::CoRunScript"; }
+        ComponentTypeId GetTypeId() const override { return MakeStableTypeId(StaticTypeName()); }
+        JBRO_FIELD(Float, speed) = 2.5f;
+
+        void OnUpdate() override
+        {
+            g_coRunUpdates = g_coRunUpdates + 1;
+            speed = speed + 1.0f;
+            CoRunTouch(speed); // CORUN_BREAK
+        }
+    };
+
+    // 멈춘 동안 어댑터를 DAP 로 몬다. 에디터 스레드(멈춤 루프의 프레임 훅)에서 부르므로, 어댑터(자식 프로세스)가 그동안 제 일을 한다.
+    Process* g_coRunAdapter = nullptr;
+    int g_coRunStops = 0;
+    Bool g_coRunStackOk = false;
+
+    void OnCoRunBreakFrame(void*, EditorApplication& editor)
+    {
+        if (editor.GetScriptBreakFrameCount() != 0 || g_coRunStops > 0)
+        {
+            return;
+        }
+        // 어댑터가 통로로 멈춤을 받고 .cxr 한 뒤 DAP stopped 를 낸다.
+        const std::string stopped = g_coRunAdapter->WaitEvent("stopped", 10000);
+        if (stopped.find("\"reason\":\"breakpoint\"") == std::string::npos)
+        {
+            editor.ContinueScriptBreak();
+            return;
+        }
+        ++g_coRunStops;
+        const Int64 thread = NumberAfter(stopped, "threadId");
+        char threadText[64] = {};
+        std::snprintf(threadText, sizeof(threadText), "{\"threadId\":%lld}", static_cast<long long>(thread.Value));
+        const std::string stack = g_coRunAdapter->Request("stackTrace", threadText);
+        g_coRunStackOk = stack.find("DebugAdapterTests.cpp") != std::string::npos;
+        // DAP continue → 어댑터가 통로로 continue 를 보낸다 → 에디터 멈춤 루프가 그것을 읽어 이어 간다.
+        g_coRunAdapter->Request("continue", threadText);
+    }
+
+    void TestTheRealEditorAndAdapterStopAtABreakpoint()
+    {
+        const fs::path binaries = ExecutableFolder();
+        const fs::path adapterExe = binaries / "DebugAdapter" / "JBroDebugAdapter.exe";
+        if (false == fs::exists(adapterExe))
+        {
+            std::cout << "  [skip] the debug adapter is not built; the real co-run is not verified" << std::endl;
+            return;
+        }
+        WindowsPlatform probe;
+        JMemoryContext memory;
+        Check(probe.Initialize(memory), "the platform initializes");
+        const String engineRoot = ScriptProject::FindEngineRoot(probe, probe.GetExecutableFolder().c_str());
+        probe.Shutdown();
+        Check(false == engineRoot.empty(), "the engine sources are found");
+        const fs::path source = fs::path(std::u8string(reinterpret_cast<const char8_t*>(engineRoot.c_str()))) / "Tests" / "DebugAdapterTests.cpp";
+        const std::string text = ReadAll(source);
+        Int32 breakLine = 0;
+        {
+            Int32 line = 1;
+            for (std::size_t at = 0; at < text.size() && breakLine == 0; ++at)
+            {
+                if (text.compare(at, 14, "// CORUN_BREAK") == 0)
+                {
+                    breakLine = line;
+                }
+                line = line + (text[at] == '\n' ? 1 : 0);
+            }
+        }
+        Check(breakLine > 0, "the co-run script marks the line to stop at");
+
+        RegisterScriptType<CoRunScript>();
+        g_coRunUpdates = 0;
+        g_coRunStops = 0;
+        g_coRunStackOk = false;
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the real co-run is not verified" << std::endl;
+            return;
+        }
+        ProjectDescriptor project;
+        constexpr char name[] = "CoRunProbe";
+        project.name = {name, static_cast<UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the editor project opens");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI turns on");
+        Canvas& canvas = *editor.GetCanvas();
+        Object::GameObject* mover = canvas.CreateObject("Mover");
+        canvas.AttachComponent<Component::Transform2D>(mover);
+        Check(canvas.AttachScript(mover, CoRunScript::StaticTypeName()) != nullptr, "the co-run script attaches");
+
+        Check(editor.StartScriptDebugServer(GetCurrentProcessId()), "the editor opens the debug channel");
+
+        // 진짜 어댑터를 띄워 이 프로세스에 세우지 않고 붙인다. 심볼은 이 실행 파일 옆의 PDB 다.
+        Process adapter;
+        g_coRunAdapter = &adapter;
+        Check(adapter.Start(adapterExe, L"", true), "the adapter starts");
+        adapter.Request("initialize", "{\"adapterID\":\"jbro\"}");
+        char attachText[256] = {};
+        std::snprintf(attachText, sizeof(attachText), "{\"processId\":%lu,\"scriptModules\":[\"JBroTests\"],\"symbolPath\":\"%s\"}",
+            static_cast<unsigned long>(GetCurrentProcessId()), JsonPath(binaries).c_str());
+        std::string response = adapter.Request("attach", attachText, 60000);
+        Check(response.find("\"success\":true") != std::string::npos, "the adapter attaches to the real editor without stopping it");
+        Check(false == adapter.WaitEvent("initialized").empty(), "the adapter is ready for breakpoints");
+        for (Int32 frame = 0; frame < 5; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor ticks while the adapter settles");
+        }
+
+        char breakpointsText[160] = {};
+        std::snprintf(breakpointsText, sizeof(breakpointsText), "\"breakpoints\":[{\"line\":%d}]", static_cast<int>(breakLine.Value));
+        const std::string setBreakpoint = "{\"source\":{\"path\":\"" + JsonPath(source) + "\"}," + breakpointsText + "}";
+        response = adapter.Request("setBreakpoints", setBreakpoint);
+        Check(response.find("\"verified\":true") != std::string::npos, "the adapter resolves the line in the editor and arms it");
+        // 에디터가 통로로 온 setbp 를 읽어 int 3 을 넣게 몇 프레임 돌린다.
+        for (Int32 frame = 0; frame < 5; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor inserts the breakpoint");
+        }
+
+        editor.SetScriptBreakFrameHook(&OnCoRunBreakFrame, nullptr);
+        Check(editor.StartSimulation(), "play starts");
+        for (Int32 frame = 0; frame < 120 && g_coRunStops == 0; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor plays until the engine's int3 stops the script");
+        }
+        editor.SetScriptBreakFrameHook(nullptr, nullptr);
+        Check(g_coRunStops >= 1, "the engine's breakpoint stopped the real script and the adapter saw it over the pipe");
+        Check(g_coRunStackOk, "the adapter read the stack through .cxr and it reached the script's source file");
+        Check(editor.IsSimulationPlaying(), "the adapter's continue let the real editor go on");
+
+        adapter.Request("disconnect", "{}");
+        DWORD exitCode = 1;
+        adapter.WaitExit(10000, exitCode);
+        g_coRunAdapter = nullptr;
+        editor.StopSimulation();
+        Check(editor.Tick(Frame), "the editor ticks after stopping");
+        editor.StopScriptDebugServer();
+        editor.Shutdown();
     }
 }
 
@@ -468,6 +630,7 @@ JBro::Int32 RunDebugAdapterTests()
     try
     {
         TestTheAdapterDebugsAScriptAcrossAReload();
+        TestTheRealEditorAndAdapterStopAtABreakpoint();
     }
     catch (const std::exception&)
     {

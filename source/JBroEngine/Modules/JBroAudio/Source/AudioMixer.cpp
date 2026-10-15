@@ -1621,7 +1621,7 @@ namespace JBro
         // 출력 이득(포커스 정책). 목표와 프레임당 변화량은 메인 스레드가 쓰고 지금 값은 오디오 스레드만 만진다.
         std::atomic<float> outputGainTarget{1.0f};
         std::atomic<float> outputGainRate{1.0f};
-        // 선 믹서(D-325). 메인 스레드가 쓰고 오디오 스레드가 읽는다.
+        // 선 믹서(D-330). 메인 스레드가 쓰고 오디오 스레드가 읽는다.
         std::atomic<bool> frozen{false};
         Float outputGainCurrent = 1.0f;
         // 출력 리미터(D-210). 켬·천장은 메인 스레드가, 지금 이득은 오디오 스레드가 든다.

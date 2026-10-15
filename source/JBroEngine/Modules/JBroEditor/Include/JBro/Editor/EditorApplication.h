@@ -67,6 +67,7 @@ namespace JBro
     struct GameBuildReport;
     class IFramework;
     class IPlatform;
+    class ScriptDebugServer;
     struct AudioDeviceInfo;
     class AssetRegistry;
     namespace NodeGraph
@@ -553,7 +554,7 @@ namespace JBro
         // 멈춘 재생을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 재생 중이고 멈춰 있을 때만 뜻이 있다.
         void StepSimulation();
 
-        // ── 스크립트 중단점 (D-325 2 단계) ──────────────────────────────────────────────
+        // ── 스크립트 중단점 (D-330 2 단계) ──────────────────────────────────────────────
         // 재생 중인 스크립트가 중단점(엔진이 넣은 int 3, 또는 스크립트의 `__debugbreak`)에 서면 에디터는 그 자리에서 화면만 그리는 루프를 돈다.
         // 선 동안 보기·고르기·카메라 이동은 되고 편집(커맨드)은 막히며, 게임 갱신과 소리는 선다. `IsSimulationPaused` 는 참이다.
         // 일시정지를 풀면(`SetSimulationPaused(false)`·`ContinueScriptBreak`) 선 자리에서 이어 돌고, 정지하면(`StopSimulation`) 그 훅을
@@ -563,9 +564,22 @@ namespace JBro
         // 이번에 선 동안 그린 프레임 수다.
         UInt32 GetScriptBreakFrameCount() const;
         void ContinueScriptBreak();
+        // 멈춘 스크립트를 한 줄 간다(D-330 4 단계). 엔진이 줄이 바뀔 때까지 가서 그 자리에 다시 선다.
+        void StepScriptBreak(CodeStepKind kind);
         // 코드 주소에 중단점을 넣고 뺀다. 디버그 어댑터가 소스 줄을 주소로 바꿔 넘긴다(3 단계). 스크립트 DLL 을 다시 실으면 모두 빠진다.
         Bool SetScriptBreakpoint(UInt64 address);
         Bool ClearScriptBreakpoint(UInt64 address);
+        // 멈춘 스레드의 운영체제 문맥(`CONTEXT*`)과 그 스레드 번호다(D-330 3 단계). 어댑터가 이 문맥으로 스택과 변수를 읽는다. 서 있지 않으면 null·0 이다.
+        const void* GetScriptBreakContext() const;
+        UInt32 GetScriptBreakThread() const;
+        // 디버그 어댑터가 붙는 통로를 연다(D-330 3 단계). `processId` 는 이 프로세스다. 열렸으면 참이다.
+        Bool StartScriptDebugServer(UInt32 processId);
+        void StopScriptDebugServer();
+        Bool IsScriptDebugServerActive() const;
+        // **디버그 실행**(D-330 5 단계). 통로를 열고 재생을 시작한다 - 스크립트 편집기가 어댑터로 붙어 중단점을 건다. 멈추면 재생과 통로를 함께 닫는다.
+        void StartDebugSession();
+        void StopDebugSession();
+        Bool IsDebugSessionActive() const;
         // 선 동안의 프레임마다 부르는 함수다. 시험이 사람 대신 보고 누른다.
         using ScriptBreakFrameHook = void (*)(void* user, EditorApplication& editor);
         void SetScriptBreakFrameHook(ScriptBreakFrameHook hook, void* user);
@@ -773,7 +787,7 @@ namespace JBro
         Bool OpenScriptDiagnostic(std::size_t index);
         // 스크립트 빌드 도구(`ScriptBuild::BuildToolsDownloadUrl`)를 받는 곳을 브라우저로 연다. 빌드 도구나 SDK 가 없다는 알림을 누르면 부른다.
         Bool OpenScriptBuildToolsDownload();
-        // 스크립트 파일의 그 줄을 에디터 설정에서 고른 편집기로 연다(D-325 의 예외 알림이 누를 때 쓴다).
+        // 스크립트 파일의 그 줄을 에디터 설정에서 고른 편집기로 연다(D-330 의 예외 알림이 누를 때 쓴다).
         void OpenScriptAt(const String& file, UInt32 line);
         // 새 스크립트를 만들었다고 알린다. 다음에 할 일(편집기로 열기·빌드·컴포넌트 추가)을 말하고, 누르면 `.cpp` 의 `OnUpdate` 를 연다.
         void NotifyScriptCreated(const String& headerPath, const char* className);
@@ -1119,12 +1133,13 @@ namespace JBro
         UInt64 m_scriptErrorLogRevision = 0;
         // 떠 있는 빌드 실패 알림이다. 다음 빌드가 성공하면 닫는다 - 고친 뒤에도 실패 알림이 성공 알림 옆에 남았다(사용자 시나리오 C).
         NotificationHandle m_buildFailedNotification = InvalidNotificationHandle;
-        // 스크립트 중단점(D-325 2 단계). 선 동안 루프가 보는 요청, 정지를 골라 다음 예외가 그 정지인지, 선 자리와 알림이다.
+        // 스크립트 중단점(D-330 2 단계). 선 동안 루프가 보는 요청, 정지를 골라 다음 예외가 그 정지인지, 선 자리와 알림이다.
         enum class ScriptBreakRequest : std::uint8_t
         {
             None,
             Continue,
             Stop,
+            Step,
         };
         static CodeBreakAction OnCodeBreak(void* user, const CodeBreak& hit);
         CodeBreakAction HandleCodeBreak(const CodeBreak& hit);
@@ -1133,12 +1148,16 @@ namespace JBro
         void SubmitFrameRequests();
         Bool m_scriptBreakActive = false;
         ScriptBreakRequest m_scriptBreakRequest = ScriptBreakRequest::None;
+        CodeStepKind m_scriptBreakStepKind = CodeStepKind::Into;
         Bool m_scriptBreakStopped = false;
         CodeLocation m_scriptBreakLocation;
         UInt32 m_scriptBreakFrames = 0;
         NotificationHandle m_scriptBreakNotification = InvalidNotificationHandle;
         ScriptBreakFrameHook m_scriptBreakHook = nullptr;
         void* m_scriptBreakHookUser = nullptr;
+        const void* m_scriptBreakContext = nullptr;
+        UInt32 m_scriptBreakThread = 0;
+        OwnerPtr<ScriptDebugServer> m_debugServer;
         UInt64 m_scriptErrorSerial = 0;
         Array<UInt64> m_scriptErrorGroups;
         // 도크 뿌리의 배치는 한 번만 잡는다. 메인 도크가 거기 붙는 것이 전부다.
@@ -1154,7 +1173,7 @@ namespace JBro
         // 스크립트 DLL 파일이 바뀌었는지 0.5 초마다 본다(D-300). 바뀐 시각이 다음 확인에도 그대로면(다 썼으면) 다시 싣는다.
         // 에디터 빌드가 도는 동안은 보지 않는다 - 빌드가 끝나면 그쪽이 싣는다. 미룬 리로드도 여기서 푼다.
         void PollScriptModuleFile(Float deltaTime);
-        // 스크립트 훅에서 예외가 났으면(D-325) 실행을 멈추고 되돌린 뒤, 로그와 알림으로 어느 스크립트의 어느 줄인지 알린다.
+        // 스크립트 훅에서 예외가 났으면(D-330) 실행을 멈추고 되돌린 뒤, 로그와 알림으로 어느 스크립트의 어느 줄인지 알린다.
         void PollScriptFault();
         // JBroScript 가 실행 중에 낸 오류(`!` 단언·빈 ref)를 자리마다 한 번 알린다(사용자 시나리오 C).
         void PollScriptErrors();

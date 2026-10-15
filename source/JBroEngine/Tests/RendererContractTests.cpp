@@ -139,7 +139,49 @@ namespace
             return true;
         }
 
+        JBro::Bool SetTextureMip(JBro::UInt32, JBro::TextureHandle, JBro::UInt32) override
+        {
+            return true;
+        }
+
         JBro::Bool SetSampler(JBro::UInt32, JBro::SamplerHandle) override
+        {
+            return true;
+        }
+
+        // 렌더러는 아직 상수 버퍼를 묶지도, 인덱스 없이 그리지도 않는다(후처리 계획의 5 단계부터). 세기만 한다.
+        JBro::Bool SetConstantBuffer(JBro::UInt32, JBro::BufferHandle, std::size_t, std::size_t) override
+        {
+            ++setConstantBufferCount;
+            return true;
+        }
+
+        JBro::Bool DrawInstanced(JBro::UInt32, JBro::UInt32, JBro::UInt32, JBro::UInt32) override
+        {
+            ++drawInstancedCount;
+            return true;
+        }
+
+        JBro::UInt32 setConstantBufferCount = 0;
+        JBro::UInt32 drawInstancedCount = 0;
+
+        // 렌더러는 아직 컴퓨트를 쓰지 않는다(후처리 계획의 7 단계부터).
+        JBro::Bool SetComputePipeline(JBro::ComputePipelineHandle) override
+        {
+            return true;
+        }
+
+        JBro::Bool SetStorageTexture(JBro::UInt32, JBro::TextureHandle, JBro::UInt32) override
+        {
+            return true;
+        }
+
+        JBro::Bool SetStorageBuffer(JBro::UInt32, JBro::BufferHandle) override
+        {
+            return true;
+        }
+
+        JBro::Bool Dispatch(JBro::UInt32, JBro::UInt32, JBro::UInt32) override
         {
             return true;
         }
@@ -182,6 +224,11 @@ namespace
     class FakeDevice final : public JBro::IRHIDevice
     {
     public:
+        JBro::DeviceCaps GetCaps() const override
+        {
+            return {};
+        }
+
         JBro::BufferHandle CreateBuffer(const JBro::BufferDesc&) override
         {
             return {1, 1};
@@ -250,6 +297,15 @@ namespace
         void DestroyGraphicsPipeline(JBro::GraphicsPipelineHandle) override
         {
             ++destroyPipelineCount;
+        }
+
+        JBro::ComputePipelineHandle CreateComputePipeline(const JBro::ComputePipelineDesc&) override
+        {
+            return {1, 1};
+        }
+
+        void DestroyComputePipeline(JBro::ComputePipelineHandle) override
+        {
         }
 
         JBro::SwapchainHandle CreateSwapchain(const JBro::SwapchainDesc& desc) override
