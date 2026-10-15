@@ -367,6 +367,9 @@ public:
 	// Optional semantic foreground overlay; lexical coloring remains the fallback.
 	inline void ClearTextColors() { for (auto& line : document) for (auto& glyph : line) glyph.textColor = 0; }
 	inline void SetTextColor(DocPos start, DocPos end, ImU32 color) { document.iterateGlyphs(normalizePos(start), normalizePos(end), [color](Glyph& glyph) { glyph.textColor = color; }); }
+	// Independent source ranges; drawing leaves lexical/semantic foreground and diagnostics intact.
+	inline void SetRangeHighlights(const std::vector<DocSelection>& ranges, ImU32 color) { rangeHighlights = ranges; rangeHighlightColor = color; }
+	inline void ClearRangeHighlights() { rangeHighlights.clear(); }
 
 	// specify a change callback (called when changes are made (including undo/redo))
 	// the delay parameter specifies a time in miliseconds that the editor will wait for before calling
@@ -378,6 +381,7 @@ public:
 
 	inline void ClearChangeCallback() { SetChangeCallback(nullptr); }
 	inline void SetExternalUndoRedo(bool value) { externalUndoRedo = value; }
+	inline void SetExternalClipboardActions(bool value) { externalClipboardActions = value; }
 	inline bool HasChangeCallback() const { return delayedChangeCallback != nullptr; }
 
 	// detailed change report passed to callback below
@@ -518,6 +522,8 @@ public:
 	inline void SetTextContextMenuCallback(std::function<void(PopupData& data)> callback) { textContextMenuCallback = callback; }
 	inline void ClearTextContextMenuCallback() { SetTextContextMenuCallback(nullptr); }
 	inline bool HasTextContextMenuCallback() const { return textContextMenuCallback != nullptr; }
+	// Optional owner for the complete popup lifecycle; called each rendered frame.
+	inline void SetTextContextMenuRenderer(std::function<void(bool requested, PopupData& data)> renderer) { textContextMenuRenderer = renderer; textContextMenuRequested = false; }
 
 	inline void SetTextHoverCallback(std::function<void(PopupData& data)> callback) { textHoverCallback = callback; }
 	inline void ClearTextHoverCallback() { SetTextHoverCallback(nullptr); }
@@ -577,6 +583,7 @@ public:
 		currentLineNumber,
 		currentLineHighlight,
 		currentLineHighlightBorder,
+		lineNumberHover,
 		count
 	};
 
@@ -1877,12 +1884,15 @@ protected:
 	void renderCurrentLineHighlight();
 	void renderActiveBracketBackground();
 	void renderSelections();
+	void renderRangeHighlights();
 	void renderTextMarkers();
 	void renderMatchingBracketLines();
 	void renderSquiggles();
 	void renderText();
 	void renderCursorCarets();
 	void renderLineNumberMarkers();
+	void renderLineNumberHover();
+	bool isMouseOverLineNumbers() const;
 	void renderLineNumbers();
 	void renderDecorations();
 	void renderFoldIndicators();
@@ -2038,9 +2048,11 @@ protected:
 
 	bool firstFrame = true;
 	bool externalUndoRedo = false;
+	bool externalClipboardActions = false;
 	float cursorWidth;
 	ImVec2 cursorScreenPos;
 	ImVec2 visibleSize;
+	ImVec2 textViewportMin, textViewportMax;
 	ImDrawList* drawList;
 
 	ImFont* font;
@@ -2089,9 +2101,13 @@ protected:
 
 	std::function<void(const CustomCaret&)> customCaretCallback;
 	std::function<void(const CustomLineNumber&)> customLineNumberCallback;
+	std::vector<DocSelection> rangeHighlights;
+	ImU32 rangeHighlightColor = 0;
 
 	std::function<void(PopupData& data)> lineNumberContextMenuCallback;
 	std::function<void(PopupData& data)> textContextMenuCallback;
+	std::function<void(bool requested, PopupData& data)> textContextMenuRenderer;
+	bool textContextMenuRequested = false;
 	std::function<void(PopupData& data)> textHoverCallback;
 	ImVec2 popupWindowPos;
 	DocPos popupDocPos;
@@ -2119,6 +2135,8 @@ protected:
 	bool scrolling = false;
 	ImVec2 scrollStart;
 	bool selectingText = false;
+	bool selectingLines = false;
+	DocPos lineSelectionStart, lineSelectionEnd;
 	bool deletesHappened = false;
 	std::function<void()> delayedChangeCallback;
 	std::chrono::milliseconds delayedChangeDelay;

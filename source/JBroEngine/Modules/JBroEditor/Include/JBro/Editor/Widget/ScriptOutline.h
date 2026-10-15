@@ -10,6 +10,7 @@ namespace JBro::Widget
         String key, name, detail;
         Code::SummaryKind kind = Code::SummaryKind::Type;
         UInt32 depth = 0;
+        String tooltip;
     };
     void ScriptSummaryHeader(const char* filename, const char* path, UInt32 fields, UInt32 functions,
         const char* status = nullptr, Bool warning = false);

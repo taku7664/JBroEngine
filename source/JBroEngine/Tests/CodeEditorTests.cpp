@@ -3,13 +3,16 @@
 #include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Widget/CodeEditor.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Code/SourceDebugger.h>
 #include <nlohmann/json.hpp>
 #include <JBro/Platform/WindowsPlatform.h>
 #include "../Modules/JBroEditor/Source/Panel/CodeEditorPanel.h"
 #include <TextEditor.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -184,19 +187,39 @@ namespace
     }
     struct Ui
     {
-        Ui()
+        String clipboard;
+        ImFont* alternateFont = nullptr;
+        explicit Ui(Bool codeFont = false)
         {
             ImGui::CreateContext();
             auto& io = ImGui::GetIO();
             io.IniFilename = nullptr;
             io.DisplaySize = {900, 700};
             io.DeltaTime = 1.0f / 60.0f;
+            io.Fonts->AddFontDefault();
+            if (codeFont)
+            {
+                ImFontConfig alternate;
+                alternate.SizePixels = 19;
+                alternateFont = io.Fonts->AddFontDefault(&alternate);
+                WindowsPlatform platform;
+                EditorTheme::LoadCodeFont(platform);
+                Check(EditorTheme::GetCodeFont() != nullptr, "code menu font test loads the actual engine code font");
+            }
             unsigned char* pixels;
             int width, height;
             io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
             io.Fonts->SetTexID(1);
+            auto& platform = ImGui::GetPlatformIO();
+            platform.Platform_ClipboardUserData = &clipboard;
+            platform.Platform_GetClipboardTextFn = [](ImGuiContext* context) {
+                return static_cast<String*>(context->PlatformIO.Platform_ClipboardUserData)->c_str();
+            };
+            platform.Platform_SetClipboardTextFn = [](ImGuiContext* context, const char* text) {
+                *static_cast<String*>(context->PlatformIO.Platform_ClipboardUserData) = text;
+            };
         }
-        ~Ui() { ImGui::DestroyContext(); }
+        ~Ui() { EditorTheme::ReleaseCodeFont(); ImGui::DestroyContext(); }
         template<class Draw> void Render(Draw draw)
         {
             ImGui::NewFrame();
@@ -222,7 +245,55 @@ namespace
             }
             return false;
         }
+        ImRect ColorBounds(ImU32 color)
+        {
+            ImRect result;
+            auto* data = ImGui::GetDrawData();
+            for (int list = 0; list < data->CmdListsCount; ++list)
+            {
+                for (const auto& vertex : data->CmdLists[list]->VtxBuffer)
+                {
+                    if (vertex.col == color) { result.Add(vertex.pos); }
+                }
+            }
+            return result;
+        }
     };
+    void TestCodeEditorGuideBoundary()
+    {
+        Ui ui;
+        Widget::CodeEditor buffer;
+        buffer.SetText("Int value = 1");
+        EditorGuideFocus focus;
+        const auto target = GuideFocusTargets::Action("code_editor.guide_probe");
+        GuideFocusPath path;
+        Check(path.Push(target) && focus.Begin(path), "code editor guide path starts");
+        struct RestoreFocus
+        {
+            EditorGuideFocus* previous = Widget::GetGuideFocus();
+            ~RestoreFocus() { Widget::SetGuideFocus(previous); }
+        } restore;
+        Widget::SetGuideFocus(&focus);
+        Bool consumed = true;
+        ImVec2 minimum, maximum;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            focus.BeginFrame();
+            ui.Render([&] {
+                Widget::SetNextItemTarget(target);
+                buffer.Render("guide-boundary");
+                minimum = ImGui::GetItemRectMin();
+                maximum = ImGui::GetItemRectMax();
+                consumed &= !Widget::Internal::TakeNextItemTarget().IsValid();
+            });
+            focus.Update(1.0f / 60.0f);
+        }
+        Check(consumed, "code editor wrapper consumes its guide target before rendering nested controls");
+        const auto& hole = focus.GetHoleRect();
+        Check(focus.HasHole() && hole.Width() >= maximum.x - minimum.x && hole.Height() >= maximum.y - minimum.y
+            && hole.Contains(Vector2{(minimum.x + maximum.x) * 0.5f, (minimum.y + maximum.y) * 0.5f}),
+            "code editor reports the actual child rectangle to the common guide focus model");
+    }
     void TestTextHistoryAndDelete()
     {
         Ui ui;
@@ -251,6 +322,500 @@ namespace
         first.Redo();
         ui.Render([&] { first.Render("first"); });
         Check(first.GetMainCursorPosition().line < first.GetLineCount(), "delete after scrolling keeps a valid cursor");
+    }
+    void TestLineNumberInteraction()
+    {
+        Ui ui;
+        TextEditor editor;
+        editor.SetShowCurrentLineHighlightEnabled(false);
+        editor.SetLineNumberLeftMargin(3);
+        editor.SetText("first\n\t\xed\x95\x9c\xea\xb8\x80 second\n\nlast");
+        ImGuiWindow* window = nullptr;
+        float scrollX = -1, fontSize = 13;
+        editor.SetCustomLineNumberRenderer([&](const TextEditor::CustomLineNumber&) {
+            window = ImGui::GetCurrentWindow();
+            if (scrollX >= 0) { ImGui::SetScrollX(scrollX); scrollX = -1; }
+        });
+        const auto draw = [&] { ui.Render([&] { ImGui::PushFont(nullptr, fontSize); editor.Render("gutter", {700, 300}); ImGui::PopFont(); }); };
+        draw();
+        draw();
+        Check(window != nullptr, "gutter test finds the real editor child");
+        const auto rowPoint = [&](std::size_t line, float x) {
+            return ImVec2(window->Pos.x + x, editor.DocPos2ScreenPos({line, 0}).y + editor.GetLineHeight() * 0.5f);
+        };
+        const auto click = [&](ImVec2 point) {
+            auto& io = ImGui::GetIO();
+            io.AddMousePosEvent(point.x, point.y);
+            draw();
+            io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+            draw();
+            io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+            draw();
+            for (int frame = 0; frame < 20; ++frame) { draw(); }
+        };
+        auto& io = ImGui::GetIO();
+        const ImVec2 second = rowPoint(1, editor.GetGlyphWidth());
+        io.AddMousePosEvent(second.x, second.y);
+        draw();
+        Check(ui.HasColor(IM_COL32(255, 255, 255, 24)), "line number hover draws the full-row highlight");
+        const auto bounds = ui.ColorBounds(IM_COL32(255, 255, 255, 24));
+        Check(bounds.Min.x <= window->InnerClipRect.Min.x && bounds.Max.x >= window->InnerClipRect.Max.x,
+            "gutter hover rectangle spans the full visible editor row");
+        click(second);
+        Check(editor.GetCursorText(0) == "\t\xed\x95\x9c\xea\xb8\x80 second\n", "left gutter padding selects the whole UTF8/tab line");
+        click(rowPoint(2, editor.GetGlyphWidth()));
+        Check(editor.GetCursorText(0) == "\n", "empty line gutter selects its newline");
+        click(rowPoint(3, editor.GetGlyphWidth()));
+        Check(editor.GetCursorText(0) == "last", "last line without final newline is selected");
+        Check(editor.GetText() == "first\n\t\xed\x95\x9c\xea\xb8\x80 second\n\nlast" && !editor.CanUndo(),
+            "gutter selection never edits the document");
+        io.AddMousePosEvent(second.x, second.y);
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+        draw();
+        const auto last = rowPoint(3, editor.GetGlyphWidth());
+        io.AddMousePosEvent(last.x, last.y);
+        draw();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+        draw();
+        Check(editor.GetCursorText(0) == "\t\xed\x95\x9c\xea\xb8\x80 second\n\nlast", "gutter drag extends by whole lines");
+        click(rowPoint(3, editor.GetGlyphWidth()));
+        io.AddMousePosEvent(last.x, last.y);
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, true); draw();
+        const auto first = editor.DocPos2ScreenPos({0, 0});
+        io.AddMousePosEvent(first.x + editor.GetGlyphWidth() * 2.5f, first.y + editor.GetLineHeight() * 0.5f); draw();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, false); draw();
+        Check(editor.GetCursorText(0) == editor.GetText(), "upward gutter drag into text still selects complete lines");
+        io.AddMousePosEvent(window->Pos.x + editor.GetGlyphWidth(), rowPoint(3, 0).y + editor.GetLineHeight() * 2.0f); draw();
+        Check(!ui.HasColor(IM_COL32(255, 255, 255, 24)), "empty space below the last line is not a hover row");
+        std::string longText;
+        for (int row = 0; row < 100; ++row) { longText += "row " + std::to_string(row) + std::string(160, 'x') + "\n"; }
+        editor.SetText(longText);
+        fontSize = 22;
+        draw(); draw();
+        editor.ScrollToLine(60, TextEditor::Scroll::alignTop);
+        scrollX = 250;
+        draw(); draw(); draw();
+        const auto scrolled = rowPoint(60, editor.GetGlyphWidth());
+        io.AddMousePosEvent(scrolled.x, scrolled.y); draw();
+        Check(window->Scroll.x > 0 && window->Scroll.y > 0 && ui.HasColor(IM_COL32(255, 255, 255, 24)),
+            "zoomed, horizontally and vertically scrolled gutter still hovers the requested source line");
+        click(scrolled);
+        Check(editor.GetCursorText(0) == "row 60" + std::string(160, 'x') + "\n",
+            "zoomed scrolled gutter selection targets the actual source line");
+    }
+    void TestPopupUsesCallerLayout()
+    {
+        Ui ui;
+        TextEditor editor;
+        editor.SetText("Int value");
+        auto& style = ImGui::GetStyle();
+        style.ItemSpacing = {8, 6};
+        ImVec2 popupSpacing;
+        float rowPitch = 0, rowTextHeight = 0, shortcutGap = 0;
+        int popupFrames = 0;
+        editor.SetTextContextMenuCallback([&](TextEditor::PopupData&) {
+            popupSpacing = ImGui::GetStyle().ItemSpacing;
+            const float top = ImGui::GetCursorScreenPos().y;
+            ImGui::MenuItem("Copy", "Ctrl+C");
+            rowPitch = ImGui::GetCursorScreenPos().y - top;
+            rowTextHeight = ImGui::GetTextLineHeight();
+            ImGui::MenuItem("Paste", "Ctrl+V");
+            const auto& columns = ImGui::GetCurrentWindow()->DC.MenuColumns;
+            shortcutGap = columns.OffsetShortcut - columns.OffsetLabel - ImGui::CalcTextSize("Paste").x;
+            ++popupFrames;
+        });
+        const auto draw = [&] {
+            ui.Render([&] {
+                const auto incoming = ImGui::GetStyle().ItemSpacing;
+                const int stack = ImGui::GetCurrentContext()->StyleVarStack.Size;
+                editor.Render("popup-layout", {700, 300});
+                Check(ImGui::GetStyle().ItemSpacing.x == incoming.x && ImGui::GetStyle().ItemSpacing.y == incoming.y
+                    && ImGui::GetCurrentContext()->StyleVarStack.Size == stack, "editor restores caller spacing and style stack after rendering");
+            });
+        };
+        draw(); draw();
+        const auto text = editor.DocPos2ScreenPos({0, 1});
+        auto& io = ImGui::GetIO();
+        io.AddMousePosEvent(text.x + editor.GetGlyphWidth() * 0.5f, text.y + editor.GetLineHeight() * 0.5f);
+        draw();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); draw();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); draw();
+        draw();
+        Check(popupFrames >= 2, "layout regression opens the real native editor popup");
+        Check(popupSpacing.x == 8 && popupSpacing.y == 6, "editor popup inherits caller menu item spacing");
+        Check(rowPitch == rowTextHeight + 6, "editor popup rows use the common menu row pitch");
+        Check(shortcutGap >= 7, "editor popup separates captions and shortcuts by caller spacing");
+        style.ItemSpacing = {13, 9};
+        draw(); draw();
+        Check(popupSpacing.x == 13 && popupSpacing.y == 9 && rowPitch == rowTextHeight + 9 && shortcutGap >= 12,
+            "popup layout follows a different caller spacing without fixed menu constants");
+    }
+    void TestDelegatedPopupOwnership()
+    {
+        Ui ui;
+        TextEditor editor;
+        editor.SetText("Int value");
+        int rendererFrames = 0, requests = 0, legacyFrames = 0;
+        editor.SetTextContextMenuCallback([&](TextEditor::PopupData&) { ++legacyFrames; });
+        editor.SetTextContextMenuRenderer([&](bool requested, TextEditor::PopupData& data) {
+            ++rendererFrames;
+            if (requested)
+            {
+                ++requests;
+                Check(data.pos.line == 0, "delegated popup receives the clicked source location");
+            }
+        });
+        const auto draw = [&] { ui.Render([&] { editor.Render("popup-owner", {700, 300}); }); };
+        draw(); draw();
+        const auto click = [&] {
+            const auto text = editor.DocPos2ScreenPos({0, 1});
+            auto& io = ImGui::GetIO();
+            io.AddMousePosEvent(text.x + editor.GetGlyphWidth() * 0.5f, text.y + editor.GetLineHeight() * 0.5f); draw();
+            io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); draw();
+            io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); draw(); draw();
+        };
+        click();
+        Check(rendererFrames >= 4 && requests == 1 && legacyFrames == 0 && ImGui::GetCurrentContext()->OpenPopupStack.empty(),
+            "delegated renderer receives one request and exclusively owns popup opening");
+        editor.SetTextContextMenuRenderer(nullptr);
+        click();
+        Check(legacyFrames > 0 && !ImGui::GetCurrentContext()->OpenPopupStack.empty(),
+            "removing delegated renderer restores the upstream context callback lifecycle");
+    }
+    void TestWidgetMenuUsesCallerFont()
+    {
+        Ui ui(true);
+        Widget::CodeEditor buffer;
+        buffer.SetText("Int value");
+        ImGui::GetStyle().ItemSpacing = {8, 6};
+        ImFont* callerFont = ImGui::GetIO().Fonts->Fonts.front();
+        float callerSize = 13, renderedCallerSize = 0, expectedLabelWidth = 0, codeGlyph = 0;
+        ImGuiWindow* child = nullptr;
+        const auto draw = [&] {
+            ui.Render([&] {
+                ImGui::PushFont(callerFont, callerSize);
+                renderedCallerSize = ImGui::GetFontSize();
+                expectedLabelWidth = 0;
+                for (const auto* key : {LocKeys::MenuUndo, LocKeys::MenuRedo, LocKeys::MenuCut, LocKeys::MenuCopy, LocKeys::MenuPaste, LocKeys::MenuSelectAll})
+                {
+                    expectedLabelWidth = std::max(expectedLabelWidth, ImGui::CalcTextSize(Loc::Text(key)).x);
+                }
+                ImGui::PushFont(EditorTheme::GetCodeFont(), 16);
+                codeGlyph = ImGui::CalcTextSize("#").x;
+                ImGui::PopFont();
+                const int stack = ImGui::GetCurrentContext()->FontStack.Size;
+                buffer.Render("menu-font");
+                child = ImGui::GetCurrentWindow()->DC.ChildWindows.back();
+                Check(ImGui::GetFont() == callerFont && ImGui::GetFontSize() == renderedCallerSize
+                    && ImGui::GetCurrentContext()->FontStack.Size == stack, "code widget restores caller font, size and font stack");
+                ImGui::PopFont();
+            });
+        };
+        draw(); draw();
+        Check(child->FontRefSize == 16, "font regression uses a 16px code canvas");
+        auto& io = ImGui::GetIO();
+        io.AddMousePosEvent(child->DC.CursorStartPos.x + codeGlyph * 8.5f, child->DC.CursorStartPos.y + 8); draw();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); draw();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); draw();
+        const auto check = [&] {
+            draw(); draw();
+            const auto& popups = ImGui::GetCurrentContext()->OpenPopupStack;
+            Check(!popups.empty() && popups.back().Window != nullptr, "font regression opens the real widget context menu");
+            const auto* popup = popups.back().Window;
+            const float height = popup->DC.CursorPos.y - popup->DC.CursorStartPos.y;
+            Check(height == 6 * (renderedCallerSize + 6) + 2 * (1 + 6), "code context menu row height uses the caller UI font size");
+            Check(std::abs(popup->DC.MenuColumns.Widths[1] - expectedLabelWidth) <= 1,
+                "code context menu measures captions using the caller UI font");
+            Check(popup->DC.MenuColumns.Widths[2] == 0,
+                "standalone context menu does not invent application shortcut bindings");
+        };
+        check();
+        callerFont = ui.alternateFont;
+        callerSize = 19;
+        check();
+        callerFont = ImGui::GetIO().Fonts->Fonts.front();
+        callerSize = 21;
+        check();
+        ImGui::GetStyle().FontScaleMain = 1.5f;
+        callerSize = 14;
+        check();
+    }
+    void TestExternalClipboardOwnership()
+    {
+        Ui ui;
+        TextEditor editor;
+        editor.SetText("first\nlast");
+        editor.SetExternalClipboardActions(true);
+        const auto draw = [&] { ui.Render([&] { editor.Render("clipboard-owner"); }); };
+        draw();
+        editor.SetFocus(); draw(); draw();
+        editor.SelectRegion({0, 1}, {0, 3});
+        ui.clipboard = "paste";
+        const auto key = [&](ImGuiKey item, bool ctrl, bool shift) {
+            auto& io = ImGui::GetIO();
+            io.AddKeyEvent(ImGuiMod_Ctrl, ctrl); io.AddKeyEvent(ImGuiMod_Shift, shift); io.AddKeyEvent(item, true); draw();
+            io.AddKeyEvent(item, false); io.AddKeyEvent(ImGuiMod_Ctrl, false); io.AddKeyEvent(ImGuiMod_Shift, false); draw();
+        };
+        for (const auto item : {ImGuiKey_X, ImGuiKey_C, ImGuiKey_V, ImGuiKey_A, ImGuiKey_Insert, ImGuiKey_Delete})
+        {
+            key(item, true, false);
+            Check(editor.GetText() == "first\nlast" && editor.GetCursorText(0) == "ir" && ui.clipboard == "paste",
+                "external manager owns control clipboard/select shortcuts without native duplicates");
+        }
+        key(ImGuiKey_Insert, false, true);
+        Check(editor.GetText() == "first\nlast", "external manager also owns legacy shift insert paste");
+        const auto copyRoute = [&]() -> ImGuiID {
+            auto& routes = GImGui->KeysRoutingTable;
+            for (auto index = routes.Index[ImGuiKey_C - ImGuiKey_NamedKey_BEGIN]; index != -1; index = routes.Entries[index].NextEntryIndex)
+            {
+                if (routes.Entries[index].Mods == ImGuiMod_Ctrl) { return routes.Entries[index].RoutingCurr; }
+            }
+            return ImGuiKeyOwner_NoOwner;
+        };
+        const ImGuiID externalCopyRoute = copyRoute();
+        editor.SetExternalClipboardActions(false);
+        // Shortcut routing is registered during drawing and becomes current on the next frame.
+        draw(); draw();
+        std::cout << "  standalone clipboard routing: external=" << externalCopyRoute << " standalone=" << copyRoute()
+            << " focused=" << (GImGui->NavWindow == nullptr ? "none" : GImGui->NavWindow->Name)
+            << " selection=" << editor.GetCursorText(0) << " clipboard=" << ui.clipboard << std::endl;
+        key(ImGuiKey_C, true, false);
+        if (ui.clipboard != "ir")
+        {
+            std::cout << "  standalone copy diagnostic: text=" << editor.GetText() << " selection=" << editor.GetCursorText(0)
+                << " clipboard=" << ui.clipboard << " route=" << copyRoute()
+                << " focused=" << (GImGui->NavWindow == nullptr ? "none" : GImGui->NavWindow->Name) << std::endl;
+        }
+        Check(ui.clipboard == "ir", "standalone editor retains its own clipboard shortcut path");
+        ui.clipboard = "x";
+        key(ImGuiKey_Insert, false, true);
+        Check(editor.GetText() == "fxst\nlast", "standalone shift insert uses its native paste path");
+        editor.SetReadOnlyEnabled(true);
+        key(ImGuiKey_X, true, false);
+        key(ImGuiKey_Delete, true, false);
+        Check(editor.GetText() == "fxst\nlast", "standalone readonly mode also blocks native cut shortcuts");
+    }
+    void TestDiagnosticTooltipsUseCommonDelay()
+    {
+        Ui ui;
+        auto& style = ImGui::GetStyle();
+        style.HoverFlagsForTooltipMouse = ImGuiHoveredFlags_Stationary | ImGuiHoveredFlags_DelayNormal;
+        style.HoverDelayNormal = 0.10f;
+        style.HoverStationaryDelay = 0.05f;
+        Widget::CodeEditor buffer;
+        const String source = "// \xf0\x9f\x98\x80\nInt value = 1\n";
+        buffer.SetText(source);
+        Code::Analysis analysis;
+        analysis.diagnostics.Add({{{1, 4}, {1, 9}}, 1, {}, "diagnostic message"});
+        analysis.diagnostics.Add({{{1, 10}, {1, 10}}, 1, {}, "zero width punctuation"});
+        analysis.diagnostics.Add({{{1, 13}, {1, 13}}, 1, {}, "zero width end"});
+        analysis.diagnostics.Add({{{0, 3}, {0, 3}}, 1, {}, "zero width surrogate pair"});
+        buffer.SetAnalysis(analysis);
+        buffer.SetHoverTooltip({{1, 4}, {1, 9}}, "semantic message");
+        ImGuiWindow* window = nullptr;
+        float glyph = 0, height = 0;
+        String tooltipText;
+        const auto draw = [&] {
+            ui.Render([&] {
+                glyph = ImGui::CalcTextSize("#").x;
+                height = ImGui::GetTextLineHeightWithSpacing();
+                ImGui::LogToBuffer();
+                buffer.Render("diagnostic-tooltips");
+                tooltipText = ImGui::GetCurrentContext()->LogBuffer.c_str();
+                ImGui::LogFinish();
+                window = ImGui::GetCurrentWindow()->DC.ChildWindows.back();
+            });
+        };
+        const auto tooltipCount = [] {
+            int count = 0;
+            for (auto* item : ImGui::GetCurrentContext()->Windows)
+            {
+                if (item->Active && (item->Flags & ImGuiWindowFlags_Tooltip)) { ++count; }
+            }
+            return count;
+        };
+        const auto hover = [&](float column, std::size_t line) {
+            ImGui::GetIO().AddMousePosEvent(window->DC.CursorStartPos.x + glyph * (7.0f + column),
+                window->DC.CursorStartPos.y + height * (line + 0.5f));
+            draw();
+        };
+        const auto waitForTooltip = [&] {
+            for (int frame = 0; frame < 20; ++frame) { draw(); }
+        };
+        draw();
+        draw();
+        hover(4.2f, 1);
+        Check(tooltipCount() == 0, "diagnostic tooltip also waits for the common hover delay");
+        waitForTooltip();
+        Check(tooltipCount() == 1 && tooltipText.Contains("diagnostic message") && !tooltipText.Contains("semantic message"),
+            "one delayed diagnostic tooltip takes priority over semantic assistance");
+        hover(10.2f, 1);
+        waitForTooltip();
+        Code::Position symbol;
+        Check(!buffer.GetHoveredPosition(symbol) && tooltipText.Contains("zero width punctuation"),
+            "a zero width diagnostic covers its underlined punctuation without widening symbol hover requests");
+        hover(11.2f, 1);
+        Check(tooltipCount() == 0, "zero width diagnostic does not extend into the next glyph");
+        hover(13.2f, 1);
+        waitForTooltip();
+        Check(tooltipCount() == 0, "an end of line diagnostic cannot hover a glyph without an underline");
+        hover(3.2f, 0);
+        waitForTooltip();
+        Check(tooltipText.Contains("zero width surrogate pair"), "zero width UTF16 diagnostic expands over one complete native glyph");
+        hover(4.2f, 1);
+        waitForTooltip();
+        buffer.SetHoverTooltip({}, {});
+        buffer.ClearAnalysis();
+        draw();
+        Check(tooltipCount() == 0, "clearing analysis removes the cached diagnostic tooltip immediately");
+        buffer.SetAnalysis(analysis);
+        waitForTooltip();
+        Check(tooltipText.Contains("diagnostic message"), "fresh analysis restores the diagnostic tooltip");
+        Check(buffer.ApplyEdits({{{{1, 12}, {1, 13}}, "2"}}), "diagnostic invalidation edit applies");
+        draw();
+        Check(tooltipCount() == 0, "unsaved source edits invalidate old diagnostic tooltips");
+        buffer.SetAnalysis(analysis);
+        waitForTooltip();
+        Check(tooltipText.Contains("diagnostic message"), "diagnostic cache accepts a new analysis after editing");
+        buffer.SetText(source);
+        draw();
+        Check(tooltipCount() == 0, "replacing the source also invalidates old diagnostic tooltips");
+    }
+    void TestSourceAssistanceWidget()
+    {
+        Ui ui;
+        ImGui::GetStyle().HoverFlagsForTooltipMouse = ImGuiHoveredFlags_Stationary | ImGuiHoveredFlags_DelayNormal;
+        ImGui::GetStyle().HoverDelayNormal = 0.10f;
+        ImGui::GetStyle().HoverStationaryDelay = 0.05f;
+        Widget::CodeEditor buffer;
+        const String source = "// \xf0\x9f\x98\x80\nInt value = 1\nvalue\n";
+        buffer.SetText(source);
+        buffer.SetJBroScript(true);
+        ImGuiWindow* window = nullptr;
+        float glyph = 0, height = 0;
+        const auto draw = [&] {
+            ui.Render([&] {
+                const Bool codeFont = EditorTheme::GetCodeFont() != nullptr;
+                if (codeFont) { ImGui::PushFont(EditorTheme::GetCodeFont(), 16.0f); }
+                glyph = ImGui::CalcTextSize("#").x;
+                height = ImGui::GetTextLineHeightWithSpacing();
+                if (codeFont) { ImGui::PopFont(); }
+                buffer.Render("assistance");
+                window = ImGui::GetCurrentWindow()->DC.ChildWindows.back();
+            });
+        };
+        draw(); draw();
+        const auto point = [&](float column, std::size_t line) {
+            return ImVec2(window->DC.CursorStartPos.x + glyph * (7.0f + column), window->DC.CursorStartPos.y + height * (line + 0.5f));
+        };
+        const auto hover = [&](ImVec2 position) {
+            ImGui::GetIO().AddMousePosEvent(position.x, position.y);
+            draw();
+        };
+        Code::Position hovered;
+        hover(point(4.2f, 1));
+        Check(buffer.GetHoveredPosition(hovered) && hovered.line == 1 && hovered.character == 4,
+            "widget reports hovered identifier in UTF16 source coordinates");
+        buffer.SetHoverTooltip({{1, 4}, {1, 9}}, "Int value");
+        draw();
+        const auto hasTooltip = [] {
+            for (auto* item : ImGui::GetCurrentContext()->Windows)
+            {
+                if (item->Active && (item->Flags & ImGuiWindowFlags_Tooltip)) { return true; }
+            }
+            return false;
+        };
+        Check(!hasTooltip(), "symbol tooltip waits for the common hover delay");
+        for (int frame = 0; frame < 20; ++frame) { draw(); }
+        Check(hasTooltip(), "matching current symbol displays the supplied plain text tooltip after the common delay");
+        hover(point(3.2f, 1));
+        Check(!buffer.GetHoveredPosition(hovered) && !hasTooltip(), "whitespace has no symbol hover or stale tooltip");
+        hover({window->Pos.x + glyph * 0.5f, point(0, 1).y});
+        Check(!buffer.GetHoveredPosition(hovered), "line numbers never produce symbol hover requests");
+        buffer.SelectRange({{0, 3}, {0, 5}});
+        const auto selection = buffer.GetSelection();
+        Check(buffer.HasSelection() && selection.start.character == 3 && selection.end.character == 5,
+            "selection API round trips a complete UTF16 surrogate pair");
+        buffer.SelectRange({{1, 4}, {1, 9}});
+        const ImVec2 breakpoint(window->Pos.x + glyph * 4.0f, point(0, 1).y);
+        hover(breakpoint);
+        Check(ui.HasColor(ImGui::ColorConvertFloat4ToU32(EditorTheme::Fade(EditorTheme::Danger, 0.45f))) && buffer.TakeBreakpointToggle() == 0,
+            "unused breakpoint gutter previews a marker without installing it");
+        ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true); draw();
+        ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false); draw();
+        Check(buffer.TakeBreakpointToggle() == 2 && buffer.GetSelection().start.character == 4 && buffer.GetSelection().end.character == 9,
+            "breakpoint click requests its own line and preserves text selection");
+        buffer.SetDebugMarkers({{2, false, "pending"}}, 2);
+        draw();
+        Check(ui.HasColor(ImGui::ColorConvertFloat4ToU32(EditorTheme::Danger)) && ui.HasColor(ImGui::ColorConvertFloat4ToU32(EditorTheme::Amber)),
+            "pending breakpoint and stopped line retain separate marker colors");
+        hover({window->Pos.x + glyph * 0.5f, point(0, 1).y});
+        ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true); draw();
+        ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false); draw();
+        Check(buffer.TakeBreakpointToggle() == 0 && buffer.GetSelection().start.line == 1 && buffer.GetSelection().start.character == 0
+            && buffer.GetSelection().end.line == 2 && buffer.GetSelection().end.character == 0,
+            "number gutter selects one whole line without toggling a breakpoint");
+        buffer.SelectRange({{1, 4}, {1, 9}});
+        Code::Analysis analysis;
+        analysis.tokens.Add({{{1, 4}, {1, 9}}, 8, 0});
+        buffer.SetAnalysis(analysis);
+        buffer.SetReferenceHighlights({{{1, 4}, {1, 9}}, {{2, 0}, {2, 5}}});
+        draw();
+        const auto highlight = ImGui::ColorConvertFloat4ToU32(EditorTheme::Fade(EditorTheme::Amber, 0.30f));
+        Check(ui.HasColor(highlight) && ui.HasColor(IM_COL32(156, 220, 254, 255)),
+            "reference backgrounds preserve semantic foreground colors");
+        Check(buffer.ApplyEdits({{{{1, 12}, {1, 13}}, "2"}}), "source assistance test edit applies");
+        draw();
+        Check(!ui.HasColor(highlight), "source changes immediately invalidate old reference backgrounds");
+
+        const auto menu = [&](const char* label) {
+            auto& popups = ImGui::GetCurrentContext()->OpenPopupStack;
+            if (popups.empty())
+            {
+                hover(point(4.2f, 1));
+                auto& io = ImGui::GetIO();
+                io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); draw();
+                io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); draw();
+            }
+            if (popups.empty() || popups.back().Window == nullptr)
+            {
+                const auto* hoveredWindow = ImGui::GetCurrentContext()->HoveredWindow;
+                throw std::runtime_error(String("right click opens the editor menu: ") + label + "; hovered="
+                    + (hoveredWindow == nullptr ? "none" : hoveredWindow->Name));
+            }
+            ImGui::ActivateItemByID(popups.back().Window->GetID(Loc::Text(label)));
+            draw(); draw();
+        };
+        menu(LocKeys::MenuUndo);
+        Check(buffer.GetText() == source && !buffer.CanUndo(), "context menu undo runs exactly once");
+        menu(LocKeys::MenuRedo);
+        Check(buffer.GetText().find("value = 2") != String::npos, "context menu redo restores its one transaction");
+        buffer.SelectRange({{1, 4}, {1, 9}});
+        menu(LocKeys::MenuCopy);
+        Check(ui.clipboard == "value", "context menu copy uses the selected source text");
+        menu(LocKeys::MenuCut);
+        Check(buffer.GetText().find("Int  = 2") != String::npos, "context menu cut changes the selected text");
+        menu(LocKeys::MenuPaste);
+        Check(buffer.GetText().find("Int value = 2") != String::npos, "context menu paste restores clipboard text");
+        buffer.SetReadOnly(true);
+        const auto locked = buffer.GetText();
+        menu(LocKeys::MenuUndo);
+        Check(buffer.GetText() == locked, "read only menu disables source mutations");
+        menu(LocKeys::MenuRedo);
+        menu(LocKeys::MenuCut);
+        menu(LocKeys::MenuPaste);
+        Check(buffer.GetText() == locked, "read only also disables redo, cut and paste");
+        menu(LocKeys::MenuSelectAll);
+        Check(buffer.HasSelection(), "read only menu still allows select all");
+        menu(LocKeys::MenuCopy);
+        Check(ui.clipboard == locked, "read only menu still allows copying the full document");
+        buffer.SetText("Int " + String(200, 'x') + " = 1");
+        draw(); draw();
+        ImGui::SetScrollX(window, 200);
+        draw(); draw();
+        hover({window->Pos.x + glyph * 0.5f, window->DC.CursorStartPos.y + height * 0.5f});
+        Check(window->Scroll.x > 0 && !buffer.GetHoveredPosition(hovered),
+            "horizontal scrolling never turns the fixed number gutter into a symbol hover target");
     }
     void TestAtomicSourceEditsAndAnchors()
     {
@@ -518,7 +1083,15 @@ namespace
 JBro::Int32 RunCodeEditorTests()
 {
     TestProtocolAndStaleResults();
+    TestCodeEditorGuideBoundary();
     TestTextHistoryAndDelete();
+    TestLineNumberInteraction();
+    TestPopupUsesCallerLayout();
+    TestDelegatedPopupOwnership();
+    TestWidgetMenuUsesCallerFont();
+    TestExternalClipboardOwnership();
+    TestDiagnosticTooltipsUseCommonDelay();
+    TestSourceAssistanceWidget();
     TestAtomicSourceEditsAndAnchors();
     TestExactNativeAnchorChanges();
     TestHighlightingAndUtf16();

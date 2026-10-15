@@ -13430,6 +13430,8 @@ namespace
         }
         JBro::EditorShortcutManager& shortcuts = editor.GetShortcuts();
         const char* undo = JBro::EditorShortcuts::ActionId(JBro::EditorShortcut::Undo);
+        Check(shortcuts.Find(undo).handle != JBro::InvalidShortcutHandle,
+            "the undo shortcut must be registered before filtering its row");
 
         // **훑기 전에 마우스를 치운다.** 훑기 도우미는 `GetHoveredID()` 를 보는데 그것은 지난 프레임에 가리킨 것으로 물러난다 -
         // 방금 누른 단추 위에서 시작하면 첫 자리에서 "찾았다" 고 하고 엉뚱한 곳을 누른다(두 번째 클릭이 그렇게 빗나갔다).
@@ -13456,6 +13458,21 @@ namespace
             io.AddKeyEvent(ImGuiMod_Ctrl, false);
             Check(editor.Tick(Frame), "the editor must tick with the key up");
         };
+
+        // 등록된 행동을 검색한 뒤 실제 단추를 누른다. 다른 행동이 늘어도 첫 화면에 이 줄이 있다는 가정을 하지 않는다.
+        moveAway();
+        ImGuiWindow* shortcutPage = FindActiveWindowContaining("/##settings_page_");
+        Check(shortcutPage != nullptr, "the shortcut page must be drawn before filtering");
+        Spot shortcutSearch;
+        Check(FindItemAnywhereInWindow(editor, hwnd, shortcutPage,
+                  LabelId(LabelId(shortcutPage->ID, "##shortcut_search"), "##input"), shortcutSearch),
+            "the page must offer its existing search box before locating the undo row");
+        ClickAt(editor, hwnd, shortcutSearch);
+        ImGui::GetIO().AddInputCharactersUTF8(undo);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the settings search filters the registered undo action by its stable name");
+        }
 
         ClickAt(editor, hwnd, button(undo, "###slot0"));
         Check(shortcuts.IsSuspended(), "clicking a combination starts listening and holds the other shortcuts");
@@ -13514,6 +13531,14 @@ namespace
         // ── 검색: 걸린 줄만 남는다. 줄이 줄어든 만큼 목록의 높이가 준다. ─────
         moveAway();
         ImGuiWindow* page = FindActiveWindowContaining("/##settings_page_");
+        Check(page != nullptr, "the shortcut page must remain drawn before clearing its filter");
+        Spot clearSearch;
+        Check(FindItemAnywhereInWindow(editor, hwnd, page,
+                  LabelId(LabelId(page->ID, "##shortcut_search"), "##clear"), clearSearch),
+            "the existing search clear button must restore the full shortcut list");
+        ClickAt(editor, hwnd, clearSearch);
+        Check(editor.Tick(Frame), "the full shortcut list returns after clearing its filter");
+        moveAway();
         const JBro::Float fullHeight = page->ContentSize.y;
         Spot search;
         Check(FindItemAnywhereInWindow(editor, hwnd, page,
@@ -14265,8 +14290,21 @@ namespace
             return palette;
         };
 
-        // 눌러서 한다.
+        // 등록된 행동을 찾은 뒤 눌러서 한다. 다른 패널의 행동 수가 늘어도 화면에 보이는 첫 묶음에 기대지 않는다.
         ImGuiWindow* palette = open();
+        JBro::Array<const JBro::EditorActionInfo*> listed;
+        JBro::CommandPalettePopup::Collect(editor, "", listed);
+        JBro::Bool containsUndo = false;
+        for (const auto* action : listed)
+        {
+            containsUndo |= std::strcmp(action->name, "edit.undo") == 0;
+        }
+        Check(containsUndo, "the unfiltered palette includes the registered canvas undo action");
+        for (const char* at = "edit.undo"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the palette filters the canvas undo action by its stable name");
+        }
         char undoLabel[160] = {};
         std::snprintf(undoLabel, sizeof(undoLabel), "%s: %s", JBro::Loc::TextOr(JBro::LocKeys::MenuEdit, "Edit"),
             JBro::Loc::TextOr(JBro::LocKeys::MenuUndo, "Undo"));

@@ -68,8 +68,14 @@ namespace
             LocaleTables()
             {
                 Check(std::filesystem::create_directory(Directory), "locale probe uses a fresh temporary directory");
-                std::ofstream(Directory / "ko-KR.yaml") << "Entries:\n  jbroc.parse.expected_declaration: KOREAN_DECLARATION\n";
-                std::ofstream(Directory / "en-US.yaml") << "Entries:\n  jbroc.parse.expected_declaration: ENGLISH_DECLARATION\n";
+                std::ofstream(Directory / "ko-KR.yaml") << "Entries:\n  jbroc.parse.expected_declaration: KOREAN_DECLARATION\n"
+                    "  jbroc.summary.invalid_initializer: KOREAN_INITIALIZER\n"
+                    "  jbroc.summary.unsupported_change: KOREAN_SETTINGS\n"
+                    "  jbroc.summary.stale_version: KOREAN_STALE\n";
+                std::ofstream(Directory / "en-US.yaml") << "Entries:\n  jbroc.parse.expected_declaration: ENGLISH_DECLARATION\n"
+                    "  jbroc.summary.invalid_initializer: ENGLISH_INITIALIZER\n"
+                    "  jbroc.summary.unsupported_change: ENGLISH_SETTINGS\n"
+                    "  jbroc.summary.stale_version: ENGLISH_STALE\n";
             }
             ~LocaleTables()
             {
@@ -91,6 +97,10 @@ namespace
                 .Append(locale).Append(R"(","initializationOptions":{"projectFile":"C:/project/game.jproject"}}})").View());
             frames.Append(Frame(R"({"jsonrpc":"2.0","method":"initialized","params":{}})"));
             frames.Append(Frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/project/Contents/Locale.jscript","version":1,"text":"bad\n"}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":1,"text":"class Settings\n{\nInt value = 1\n}\n"}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","id":10,"method":"jbro/editFieldSettings","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":1},"position":{"line":2,"character":4},"changes":{"initializer":""}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","id":11,"method":"jbro/editFieldSettings","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":1},"position":{"line":2,"character":4},"changes":{"name":"renamed"}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","id":12,"method":"jbro/scriptSummary","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":0}}})"));
             frames.Append(Frame(R"({"jsonrpc":"2.0","id":2,"method":"shutdown"})"));
             frames.Append(Frame(R"({"jsonrpc":"2.0","method":"exit"})"));
             std::istringstream input(frames.Std());
@@ -100,6 +110,11 @@ namespace
             const Bool korean = locale[0] == '\0' || String(locale).ToLowerCopy().StartsWith("ko");
             Check(String(output.str()).Contains(korean ? "KOREAN_DECLARATION" : "ENGLISH_DECLARATION"),
                 "client language tags select a supported diagnostic table without using the tag as a file path");
+            const String response(output.str());
+            Check(response.Contains(korean ? "KOREAN_INITIALIZER" : "ENGLISH_INITIALIZER")
+                && response.Contains(korean ? "KOREAN_SETTINGS" : "ENGLISH_SETTINGS")
+                && response.Contains(korean ? "KOREAN_STALE" : "ENGLISH_STALE"),
+                "field validation, rejected settings and stale summary errors use the requested locale table");
         }
     }
 
@@ -126,6 +141,8 @@ namespace
         };
         const Json current = Json{{"uri", uri}, {"version", 7}};
         request(20, "jbro/scriptSummary", Json{{"textDocument", current}});
+        request(27, "textDocument/hover", Json{{"textDocument", current}, {"position", Json{{"line", 2}, {"character", 15}}}});
+        request(28, "textDocument/hover", Json{{"textDocument", current}, {"position", Json{{"line", 2}, {"character", 19}}}});
         request(21, "jbro/editFieldSettings", Json{{"textDocument", Json{{"uri", uri}, {"version", 6}}},
             {"position", Json{{"line", 2}, {"character", 19}}}, {"changes", Json{{"initializer", "8"}}}});
         request(22, "jbro/editFieldSettings", Json{{"textDocument", current},
@@ -171,6 +188,9 @@ namespace
             throw std::runtime_error("missing script summary response");
         };
         const Json summary = response(20)["result"];
+        Check(response(27)["result"]["contents"]["value"] == "Int", "primitive type hover shows the type once");
+        Check(response(28)["result"]["contents"]["value"].get<std::string>().find("count") != std::string::npos,
+            "member hover retains its member signature");
         Check(summary["valid"] == true && summary["version"] == 7, "summary echoes the exact unsaved buffer version");
         Check(summary["types"][0]["members"][0]["selectionRange"]["start"]["character"] == 19,
             "summary field positions count a preceding emoji as two UTF-16 units");

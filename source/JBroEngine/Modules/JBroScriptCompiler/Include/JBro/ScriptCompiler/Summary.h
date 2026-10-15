@@ -76,6 +76,7 @@ namespace JBro::ScriptCompiler
 
     // Produces non-overlapping UTF-8 byte edits without changing the analyzed source.
     // The caller must enforce its document version before applying the edits.
+    // On failure, error contains a key for DiagnosticMessages::FormatKey.
     Bool EditFieldSettings(const DocumentAnalysis& document, UInt32 selectionOffset,
         const FieldSettingsChange& change, Array<SummaryTextEdit>& edits, String& error);
 }

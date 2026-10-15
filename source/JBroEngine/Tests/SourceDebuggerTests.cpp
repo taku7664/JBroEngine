@@ -2,6 +2,8 @@
 #include <JBro/Editor/Code/SourceDebugger.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/ScriptBuild.h>
 #include <JBro/Editor/ScriptProject.h>
 #include <JBro/Host/ScriptDLLLoader.h>
@@ -14,6 +16,7 @@
 #include <TlHelp32.h>
 
 #include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -27,6 +30,7 @@ namespace
     namespace fs = std::filesystem;
     constexpr Float Frame = 1.0f / 60.0f;
     constexpr UInt32 BreakLine = 6;
+    constexpr UInt32 RequestedBreakLine = 5;
     constexpr const char* ScriptType = "NativeSourceProbe";
     constexpr const char* ScriptText = "script NativeSourceProbe\n{\n"
         "    [prop] public Float callbacks = 0.0\n"
@@ -204,7 +208,8 @@ namespace
                 && (state == Code::DebugState::Ready || state == Code::DebugState::Stopped);
             const auto* breakpoints = editor.GetSourceDebugger().Client().GetBreakpoints(probe.path);
             probe.installed = probe.installed && breakpoints != nullptr && breakpoints->Size() == 1
-                && (*breakpoints)[0].verified && (*breakpoints)[0].actualLine == BreakLine;
+                && (*breakpoints)[0].verified && (*breakpoints)[0].requestedLine == RequestedBreakLine
+                && (*breakpoints)[0].actualLine == BreakLine;
             const String before = probe.document->GetBufferText();
             probe.sourceLocked = probe.sourceLocked && probe.document->IsReadOnly() && editor.GetCommands().IsLocked();
             probe.summaryVersionCurrent = probe.summaryVersionCurrent
@@ -262,9 +267,11 @@ namespace
         Check(probe.hits == 1 && probe.firstCallback && CallbackCount(editor) == 1.0f,
             "the first callback stops before its first statement and continues exactly once");
         Check(probe.location && probe.installed && probe.configurationReady,
-            "the real adapter and engine confirm the original JBroScript source line before the first callback");
+            "the actual engine relocates the opening-brace request from line 5 to executable line 6 before the first callback");
         Check(probe.sourceLocked && probe.summaryLocked && probe.summaryVersionCurrent && probe.breakFramesDrawn,
             "the stopped engine locks code and refuses an otherwise valid summary source edit");
+        std::cout << "  native breakpoint requested line " << RequestedBreakLine.Get()
+            << " verified at executable line " << BreakLine.Get() << " before the first callback\n";
     }
 
     void StopAndWait(EditorApplication& editor)
@@ -276,6 +283,91 @@ namespace
                 && editor.GetSourceDebugger().Client().GetState() == Code::DebugState::Idle;
         }, std::chrono::seconds(10), "native debugger stop disconnects its child and engine channel");
         Check(false == editor.IsSimulationPlaying(), "stopping native debugging stops simulation");
+    }
+
+    struct ExecutableBreakpointSlots
+    {
+        static constexpr std::size_t PageBytes = 4096;
+        EditorApplication& editor;
+        std::uint8_t* page = nullptr;
+        std::size_t count = 0;
+        explicit ExecutableBreakpointSlots(EditorApplication& value) : editor(value) {}
+        ~ExecutableBreakpointSlots()
+        {
+            if (page != nullptr)
+            {
+                for (std::size_t index = 0; index < count; ++index)
+                {
+                    editor.ClearScriptBreakpoint(Address(index));
+                }
+                VirtualFree(page, 0, MEM_RELEASE);
+            }
+        }
+        UInt64 Address(std::size_t index) const
+        {
+            return static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(page + index));
+        }
+        Bool Fill()
+        {
+            page = static_cast<std::uint8_t*>(VirtualAlloc(nullptr, PageBytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
+            if (page == nullptr)
+            {
+                return false;
+            }
+            std::memset(page, 0x90, PageBytes);
+            DWORD protection = 0;
+            if (false == VirtualProtect(page, PageBytes, PAGE_EXECUTE_READ, &protection))
+            {
+                return false;
+            }
+            // These bytes are never executed. Only the real platform breakpoint table is exercised.
+            while (count < PageBytes && editor.SetScriptBreakpoint(Address(count)))
+            {
+                ++count;
+            }
+            return count > 0 && count < PageBytes;
+        }
+    };
+
+    void TestActualInstallFailureStopsBeforePlay(EditorApplication& editor, BreakProbe& probe)
+    {
+        ExecutableBreakpointSlots slots(editor);
+        Bool capacityFilled = false;
+        Bool simulationRan = false;
+        const UInt32 before = probe.hits;
+        editor.StartDebugSession();
+        Check(editor.GetSourceDebugger().IsActive() && false == editor.IsSimulationPlaying(),
+            "installation failure scenario begins behind the real debugger configuration barrier");
+        Pump(editor, [&]
+        {
+            simulationRan = simulationRan || editor.IsSimulationPlaying();
+            Check(false == simulationRan, "a failed engine breakpoint installation must never enter simulation");
+            const auto state = editor.GetSourceDebugger().Client().GetState();
+            if (false == capacityFilled && (state == Code::DebugState::Starting || state == Code::DebugState::Configuring))
+            {
+                Check(editor.IsScriptDebugServerActive() && slots.Fill(),
+                    "the real engine breakpoint slots fill after DLL reload and before its source installation request");
+                Check(false == editor.SetScriptBreakpoint(slots.Address(slots.count)),
+                    "the production SetScriptBreakpoint implementation rejects an additional executable address");
+                capacityFilled = true;
+            }
+            if (capacityFilled && state == Code::DebugState::Failed && false == editor.GetSourceDebugger().IsActive()
+                && false == editor.IsScriptDebugServerActive())
+            {
+                return true;
+            }
+            Check(editor.GetSourceDebugger().IsActive(), "the failure scenario reaches the actual engine installation response");
+            return false;
+        }, std::chrono::seconds(120), "the actual engine installation rejection fails configuration and closes its channel");
+        const auto* breakpoints = editor.GetSourceDebugger().Client().GetBreakpoints(probe.path);
+        Check(capacityFilled && false == simulationRan && probe.hits == before && CallbackCount(editor) == 0.0f
+            && editor.GetSourceDebugger().Client().GetError().find("install") != String::npos
+            && breakpoints != nullptr && breakpoints->Size() == 1 && false == (*breakpoints)[0].verified,
+            "a real rejected setbp produces configuration failure without a callback or a falsely installed marker");
+        Check(editor.SetScriptBreakpoint(slots.Address(0)) && editor.ClearScriptBreakpoint(slots.Address(0)),
+            "failure cleanup restores breakpoint capacity before the executable test page is released");
+        std::cout << "  actual SetScriptBreakpoint rejection after " << slots.count
+            << " installed slots failed configuration without starting simulation\n";
     }
 
     void TestNativeSourceDebugger()
@@ -301,6 +393,8 @@ namespace
         config.windowHeight = 480;
         config.preferencesPath = preferences.c_str();
         Check(editor.Initialize(config), "the native debugger test initializes a real engine device");
+        Check(LocalizationTable::Get().Load(editor.GetPlatform(), "Localization", "ko-KR", "en-US"),
+            "the real debugger UI loads its Korean error messages");
         Check(false == ScriptBuild::LocateMSBuild(editor.GetPlatform(), Utf8(files.root / "Tools").c_str()).IsEmpty(),
             "the native debugger runtime test requires the real script build toolset");
         String projectError;
@@ -325,7 +419,7 @@ namespace
         Check(panels.Size() == 1, "the runtime fixture has one native source tab");
         probe.document = static_cast<CodeEditorPanel*>(panels[0]);
         probe.summaryEdit = PrepareSummaryEdit(editor, *probe.document);
-        editor.GetSourceDebugger().Anchors().Toggle(probe.path, BreakLine);
+        editor.GetSourceDebugger().Anchors().Toggle(probe.path, RequestedBreakLine);
         Check(editor.GetSourceDebugger().Anchors().Lines(probe.path).Size() == 1, "the source gutter has a requested breakpoint");
         editor.SetScriptBreakFrameHook(&OnBreak, &probe);
         WaitForFirstCallback(editor, probe);
@@ -395,14 +489,30 @@ namespace
         Check(probe.adapterTerminated && editor.GetSourceDebugger().Client().GetState() == Code::DebugState::Failed
             && CallbackCount(editor) == 0.0f,
             "the owned adapter actually died and cleanup restored the pre-play canvas");
+        const String adapterFailure = Loc::Text(LocKeys::DebugClientStopped);
+        Check(editor.GetSourceDebugger().Client().GetError() == adapterFailure
+            && !adapterFailure.Contains("debug_client."), "adapter termination produces the localized client error");
+        Pump(editor, [&] {
+            const auto& notifications = editor.GetNotifications();
+            for (UInt32 index = 0; index < notifications.GetVisibleCount(); ++index)
+            {
+                const auto notification = notifications.GetVisible(index);
+                if (notification.message != nullptr && adapterFailure == notification.message)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }, std::chrono::seconds(10), "the actual engine error notification displays the localized adapter failure");
         probe.terminateAdapter = false;
         const UInt32 afterAdapterDeath = probe.hits;
         Check(editor.StartSimulation() && editor.Tick(Frame) && CallbackCount(editor) == 1.0f && probe.hits == afterAdapterDeath,
             "ordinary simulation remains usable after an adapter dies at a breakpoint");
         editor.StopSimulation();
+        TestActualInstallFailureStopsBeforePlay(editor, probe);
         editor.SetScriptBreakFrameHook(nullptr, nullptr);
         editor.CloseProject();
-        std::cout << "  SourceDebugger native JBroScript first-callback, mismatch, reload, disconnect, busy-channel and adapter-death cleanup verified\n";
+        std::cout << "  SourceDebugger native JBroScript first-callback relocation, mismatch, reload, disconnect, busy-channel, adapter-death and actual install-failure cleanup verified\n";
     }
 }
 

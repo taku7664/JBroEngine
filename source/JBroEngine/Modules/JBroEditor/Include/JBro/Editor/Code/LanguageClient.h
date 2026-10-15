@@ -1,5 +1,6 @@
 #pragma once
 #include <JBro/Editor/Code/Analysis.h>
+#include <JBro/Editor/Code/Assistance.h>
 #include <JBro/Editor/Code/Summary.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/Float.h>
@@ -28,6 +29,12 @@ namespace JBro::Code
         const ScriptSummary* GetSummary(const String& path) const;
         UInt64 EditFieldSettings(const String& path, Int32 version, Position position, const FieldSettings& settings);
         const FieldEditResult* GetFieldEditResult(const String& path) const;
+        UInt64 RequestHover(const String& path, Int32 version, Position position);
+        const HoverResult* GetHover(const String& path) const;
+        void CancelHover(const String& path);
+        UInt64 RequestReferences(const String& path, Int32 version, Position position);
+        const ReferencesResult* GetReferences(const String& path) const;
+        void CancelReferences(const String& path);
         ClientState GetState() const;
         const String& GetError() const;
         static String FileUri(const String& path);

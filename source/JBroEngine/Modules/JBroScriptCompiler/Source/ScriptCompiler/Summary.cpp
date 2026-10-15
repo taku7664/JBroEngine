@@ -459,7 +459,7 @@ namespace JBro::ScriptCompiler
         error.Clear();
         if (document.ParseDiagnostics.HasErrors() || document.Tree.GetRoot() == InvalidNode)
         {
-            error = "The document has syntax errors; field settings are unavailable.";
+            error = "jbroc.summary.syntax_errors";
             return false;
         }
         const SyntaxTree& tree = document.Tree;
@@ -476,7 +476,7 @@ namespace JBro::ScriptCompiler
         }
         if (field == InvalidNode)
         {
-            error = "Select the current field declaration name before editing its settings.";
+            error = "jbroc.summary.field_required";
             return false;
         }
         Array<String> names;
@@ -485,7 +485,7 @@ namespace JBro::ScriptCompiler
             const FieldAttributeDefinition* definition = FindFieldAttributeDefinition(attribute.Name.View());
             if (nullptr == definition || definition->ArgumentCount != attribute.Arguments.Size() || names.Contains(attribute.Name))
             {
-                error = "A field attribute is unknown, duplicated, or has an incorrect argument count.";
+                error = "jbroc.summary.invalid_attribute";
                 return false;
             }
             names.Add(attribute.Name);
@@ -493,14 +493,14 @@ namespace JBro::ScriptCompiler
             {
                 if (false == ValidExpression(argument.View()))
                 {
-                    error = "An attribute argument must be one complete expression.";
+                    error = "jbroc.summary.invalid_attribute_argument";
                     return false;
                 }
             }
         }
         if (change.ChangeInitializer && change.HasInitializer && false == ValidExpression(change.Initializer.View()))
         {
-            error = "The initializer must be one complete expression.";
+            error = "jbroc.summary.invalid_initializer";
             return false;
         }
         DiagnosticList diagnostics;
@@ -568,7 +568,7 @@ namespace JBro::ScriptCompiler
         if (candidateDiagnostics.HasErrors() || false == SameTree(tree, tree.GetRoot(), candidateTree, candidateTree.GetRoot(), field))
         {
             edits.Clear();
-            error = "The requested settings cannot safely replace this declaration without changing other code.";
+            error = "jbroc.summary.unsafe_edit";
             return false;
         }
         return true;

@@ -25,6 +25,12 @@ namespace JBro::Widget
         return text == nullptr || text[0] == '\0';
     }
 
+    Bool IsTextInputActive()
+    {
+        const auto* context = ImGui::GetCurrentContext();
+        return context != nullptr && context->ActiveId != 0 && ImGui::GetInputTextState(context->ActiveId) != nullptr;
+    }
+
     ImVec4 SeverityColor(Severity severity)
     {
         switch (severity)

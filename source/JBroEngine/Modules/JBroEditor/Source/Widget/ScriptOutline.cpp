@@ -1,7 +1,9 @@
 #include <JBro/Editor/Widget/ScriptOutline.h>
 #include <JBro/Editor/Widget/Button.h>
+#include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
@@ -19,10 +21,18 @@ namespace JBro::Widget
         }
         void ClippedText(const char* text, ImVec2 minimum, ImVec2 maximum, ImU32 color)
         {
-            ImDrawList* draw = ImGui::GetWindowDrawList();
-            draw->PushClipRect(minimum, maximum, true);
-            draw->AddText(minimum, color, text);
-            draw->PopClipRect();
+            if (maximum.x <= minimum.x || maximum.y <= minimum.y)
+            {
+                return;
+            }
+            const ImVec2 cursor = ImGui::GetCursorScreenPos();
+            ImGui::PushClipRect(minimum, maximum, true);
+            ImGui::PushStyleColor(ImGuiCol_Text, color);
+            ImGui::SetCursorScreenPos(minimum);
+            Text(text);
+            ImGui::PopStyleColor();
+            ImGui::PopClipRect();
+            ImGui::SetCursorScreenPos(cursor);
         }
     }
     void ScriptSummaryHeader(const char* filename, const char* path, UInt32 fields, UInt32 functions, const char* status, Bool warning)
@@ -30,7 +40,6 @@ namespace JBro::Widget
         const float height = ImGui::GetTextLineHeight();
         const ImVec2 at = ImGui::GetCursorScreenPos();
         const float width = ImGui::GetContentRegionAvail().x;
-        ImDrawList* draw = ImGui::GetWindowDrawList();
         if (EditorTheme::HasIconFont())
         {
             DrawGlyphCentered(Icons::File, at, ImVec2(at.x + height, at.y + height), ImGui::GetColorU32(EditorTheme::InkMuted));
@@ -38,12 +47,12 @@ namespace JBro::Widget
         ClippedText(filename, ImVec2(at.x + height + 6.0f, at.y), ImVec2(at.x + width, at.y + height), ImGui::GetColorU32(EditorTheme::Ink));
         ImGui::Dummy(ImVec2(width, height));
         HoveredTooltip(path);
-        ImGui::TextDisabled(Loc::TextOr(LocKeys::ScriptSummaryCounts, "%u fields  /  %u functions"), fields.Get(), functions.Get());
+        HintTextF(Loc::TextOr(LocKeys::ScriptSummaryCounts, "%u fields  /  %u functions"), fields, functions);
         if (status != nullptr && status[0] != '\0')
         {
             const ImVec4 color = warning ? EditorTheme::Amber : EditorTheme::InkMuted;
             ImGui::PushStyleColor(ImGuiCol_Text, color);
-            ImGui::TextWrapped("%s", status);
+            WrappedText(status);
             ImGui::PopStyleColor();
         }
         ImGui::Spacing();
@@ -100,33 +109,30 @@ namespace JBro::Widget
                 {
                     flags |= ImGuiTreeNodeFlags_DefaultOpen;
                 }
-                open = ImGui::TreeNodeEx("##entry", flags, " ");
+                TreeDrawContext row;
+                open = TreeBegin("##entry", flags, &row);
+                TreeEnd();
                 const Bool clicked = ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen();
-                const ImVec2 minimum = ImGui::GetItemRectMin();
-                const ImVec2 maximum = ImGui::GetItemRectMax();
-                const float iconSize = ImGui::GetTextLineHeight();
-                const float textY = minimum.y + ImGui::GetStyle().FramePadding.y;
-                const float iconX = minimum.x + ImGui::GetTreeNodeToLabelSpacing();
-                if (EditorTheme::HasIconFont())
+                HoveredTooltip(item.tooltip.c_str());
+                if (row.IsVisible)
                 {
-                    DrawGlyphCentered(KindIcon(item.kind), ImVec2(iconX, textY), ImVec2(iconX + iconSize, textY + iconSize),
-                        ImGui::GetColorU32(EditorTheme::InkMuted));
-                }
-                const float nameX = iconX + iconSize + 5.0f;
-                const float nameWidth = ImGui::CalcTextSize(item.name.c_str()).x;
-                const float detailWidth = ImGui::CalcTextSize(item.detail.c_str()).x;
-                const float detailX = std::max(nameX + nameWidth + 12.0f, maximum.x - detailWidth - 8.0f);
-                ClippedText(item.name.c_str(), ImVec2(nameX, textY), ImVec2(std::min(detailX - 8.0f, maximum.x - 6.0f), maximum.y), ImGui::GetColorU32(EditorTheme::Ink));
-                if (detailX < maximum.x - 25.0f)
-                {
-                    ClippedText(item.detail.c_str(), ImVec2(detailX, textY), ImVec2(maximum.x - 6.0f, maximum.y), ImGui::GetColorU32(EditorTheme::InkMuted));
-                }
-                if (ImGui::IsItemHovered())
-                {
-                    ImGui::BeginTooltip();
-                    ImGui::TextUnformatted(item.name.c_str());
-                    ImGui::TextDisabled("%s", item.detail.c_str());
-                    ImGui::EndTooltip();
+                    const ImVec2 origin = row.ContentRect.Min;
+                    const ImVec2 maximum = row.ContentRect.Max;
+                    const float iconSize = ImGui::GetTextLineHeight();
+                    if (EditorTheme::HasIconFont())
+                    {
+                        DrawGlyphCentered(KindIcon(item.kind), origin, ImVec2(origin.x + iconSize, origin.y + iconSize),
+                            ImGui::GetColorU32(EditorTheme::InkMuted));
+                    }
+                    const float nameX = origin.x + iconSize + 5.0f;
+                    const float nameWidth = ImGui::CalcTextSize(item.name.c_str()).x;
+                    const float detailWidth = ImGui::CalcTextSize(item.detail.c_str()).x;
+                    const float detailX = std::max(nameX + nameWidth + 12.0f, maximum.x - detailWidth - 8.0f);
+                    ClippedText(item.name.c_str(), ImVec2(nameX, origin.y), ImVec2(std::min(detailX - 8.0f, maximum.x - 6.0f), maximum.y), ImGui::GetColorU32(EditorTheme::Ink));
+                    if (detailX < maximum.x - 25.0f)
+                    {
+                        ClippedText(item.detail.c_str(), ImVec2(detailX, origin.y), ImVec2(maximum.x - 6.0f, maximum.y), ImGui::GetColorU32(EditorTheme::InkMuted));
+                    }
                 }
                 if (clicked)
                 {
@@ -160,12 +166,12 @@ namespace JBro::Widget
         {
             InlineIcon(KindIcon(kind), ImGui::GetColorU32(EditorTheme::InkMuted));
         }
-        ImGui::TextUnformatted(name);
+        Text(name);
         ImGui::SameLine(0.0f, 8.0f);
-        ImGui::TextDisabled("%s", type);
+        HintText(type);
         if (qualifiers != nullptr && qualifiers[0] != '\0')
         {
-            ImGui::TextDisabled("%s", qualifiers);
+            HintText(qualifiers);
         }
         ImGui::Spacing();
         ImGui::Separator();
@@ -174,7 +180,7 @@ namespace JBro::Widget
     void ScriptSummaryNote(const char* text, Bool error)
     {
         ImGui::PushStyleColor(ImGuiCol_Text, error ? EditorTheme::Danger : EditorTheme::InkMuted);
-        ImGui::TextWrapped("%s", text);
+        WrappedText(text);
         ImGui::PopStyleColor();
     }
     Bool ScriptInitializerField(const char* id, String& text, Bool& present, Bool invalid)
@@ -182,7 +188,7 @@ namespace JBro::Widget
         IdScope scope(id);
         if (!present)
         {
-            if (Button(Loc::TextOr(LocKeys::ScriptSummaryAddInitializer, "Add initializer")))
+            if (Button(Loc::TextOr(LocKeys::ScriptSummaryAddInitializer, "Add initializer"), Icons::Plus))
             {
                 present = true;
             }
@@ -190,10 +196,10 @@ namespace JBro::Widget
         }
         const float buttonWidth = ImGui::GetFrameHeight();
         const float width = std::max(40.0f, ImGui::GetContentRegionAvail().x - buttonWidth - 4.0f);
-        const Bool committed = TextField("##value", text).Width(width).CommitOnFinish().Invalid(invalid).Draw() && !text.empty();
+        const Bool committed = TextField("##value", text).Width(width).CommitOnFinish().Invalid(invalid).Draw();
         ImGui::SameLine(0.0f, 4.0f);
-        const Bool removed = TextButton(EditorTheme::HasIconFont() ? Icons::Xmark : "-", ImVec2(buttonWidth, buttonWidth));
-        HoveredTooltip(Loc::TextOr(LocKeys::ScriptSummaryRemoveInitializer, "Remove initializer"));
+        const Bool removed = IconButton("##remove", Icons::Xmark).Size(ImVec2(buttonWidth, buttonWidth))
+            .Tooltip(Loc::TextOr(LocKeys::ScriptSummaryRemoveInitializer, "Remove initializer")).Draw();
         if (removed)
         {
             present = false;

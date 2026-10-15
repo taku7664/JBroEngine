@@ -43,9 +43,41 @@ Entries:
   menu.debug_stop: Stop Debugging
   notify.debug_started: Debugging started.
   notify.debug_channel_failed: The debug channel could not open
+  debug_client.queue_full: "The debugger request queue is full."
+  debug_client.input_unavailable: "The debugger input channel is unavailable."
+  debug_client.rejected: "The debug adapter rejected a request."
+  debug_client.breakpoint_response_invalid: "The debugger sent an invalid breakpoint response."
+  debug_client.session_closing: "The previous debugger session is still closing."
+  debug_client.invalid_target: "A valid debug adapter path and editor process are required."
+  debug_client.start_failed: "JBroDebugAdapter.exe could not be started."
+  debug_client.output_limit: "The debugger output exceeded its frame limit."
+  debug_client.header_invalid: "The debugger sent an invalid DAP header."
+  debug_client.length_invalid: "The debugger sent an invalid DAP frame length."
+  debug_client.message_invalid: "The debugger sent an invalid DAP message."
+  debug_client.response_malformed: "The debugger sent a malformed DAP response."
+  debug_client.stopped: "The debug adapter stopped unexpectedly."
+  debug_client.startup_timeout: "The debug adapter did not finish installing breakpoints in time."
+  language_client.input_unavailable: "The language server input channel is unavailable."
+  language_client.initialization_failed: "Language server initialization failed."
+  language_client.edit_source_changed: "The source changed while the field edit was being checked."
+  language_client.edit_rejected: "The field edit was rejected."
+  language_client.edit_version_mismatch: "The field edit does not match the source version."
+  language_client.semantic_tokens_invalid: "The language server sent invalid semantic tokens."
+  language_client.start_failed: "JBroc.exe could not be started."
+  language_client.disconnected: "The language server disconnected."
+  language_client.header_invalid: "The language server sent an invalid frame header."
+  language_client.length_invalid: "The language server sent an invalid frame length."
+  language_client.message_invalid: "The language server sent an invalid JSON-RPC message."
+  language_client.response_malformed: "The language server sent a malformed response."
+  language_client.stopped: "The language server stopped. Reconnect to resume analysis."
+  language_client.startup_timeout: "The language server did not initialize in time."
   menu.exit: Exit
   menu.undo: Undo
   menu.redo: Redo
+  menu.cut: Cut
+  menu.copy: Copy
+  menu.paste: Paste
+  menu.select_all: Select All
   menu.unsaved: unsaved
   dialog.save_canvas_title: Save Canvas
   dialog.canvas_filter: JBro canvas file
@@ -681,6 +713,16 @@ Entries:
   editor.code_editor.debug_source_mismatch: "The source differs from the loaded build. Rebuild before debugging."
   editor.code_editor.debug_busy: "Another debugger is connected. Disconnect it before starting."
   editor.code_editor.breakpoint_pending: "Breakpoint pending"
+  editor.code_editor.breakpoint_add: "Click to add breakpoint"
+  editor.code_editor.breakpoint_remove: "Click to remove breakpoint"
+  editor.code_editor.read_only: "This file is read only."
+  editor.code_editor.finish_input: "Finish editing the active input field first."
+  editor.code_editor.no_changes: "There are no changes to save."
+  editor.code_editor.no_selection: "No text is selected."
+  editor.code_editor.empty_document: "The document is empty."
+  editor.code_editor.debug_inactive: "No debugging session is running."
+  editor.code_editor.debug_not_stopped: "The script is not stopped at a breakpoint."
+  editor.code_editor.debug_already_active: "A debugging session is already running."
   editor.code_editor.start_debugging: "Start debugging"
   editor.code_editor.continue_debugging: "Continue"
   editor.code_editor.stop_debugging: "Stop debugging"

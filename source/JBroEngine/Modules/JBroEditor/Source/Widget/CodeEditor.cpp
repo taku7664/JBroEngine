@@ -1,6 +1,10 @@
 #include <JBro/Editor/Widget/CodeEditor.h>
+#include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
 #include <TextEditor.h>
 #include <algorithm>
 
@@ -52,9 +56,28 @@ namespace JBro::Widget
         Code::SourceChanges changes;
         Array<CodeEditor::Marker> markers;
         UInt32 executionLine = 0, toggledLine = 0;
+        Bool mouseOverEditor = false;
+        ImFont* menuFont = nullptr;
+        float menuFontBaseSize = 0;
+        EditorApplication* menuEditor = nullptr;
+        EditorPanel* menuPanel = nullptr;
+        Code::Range tooltipRange;
+        String tooltip;
+        struct DiagnosticTooltip
+        {
+            TextEditor::DocPos start, end;
+            String message;
+        };
+        Array<DiagnosticTooltip> diagnosticTooltips;
         mutable String text;
         mutable Array<std::size_t> lines;
         mutable UInt64 textRevision = UInt64(-1);
+        void ClearAssistance()
+        {
+            editor.ClearRangeHighlights();
+            tooltip.clear();
+            diagnosticTooltips.Clear();
+        }
         const String& Text() const
         {
             if (textRevision != revision)
@@ -92,13 +115,13 @@ namespace JBro::Widget
             palette[static_cast<std::size_t>(TextEditor::Color::keyword)] = IM_COL32(197, 134, 192, 255);
             palette[static_cast<std::size_t>(TextEditor::Color::declaration)] = IM_COL32(78, 201, 176, 255);
             palette[static_cast<std::size_t>(TextEditor::Color::comment)] = IM_COL32(106, 153, 85, 255);
+            palette[static_cast<std::size_t>(TextEditor::Color::lineNumberHover)] = ImGui::ColorConvertFloat4ToU32(EditorTheme::Hover);
             editor.SetPalette(palette);
             editor.SetInsertSpacesOnTabs(false);
             editor.SetShowWhitespacesEnabled(false);
             editor.SetLanguage(TextEditor::Language::Cpp());
             editor.SetFindReplaceEnabled(false);
             editor.SetExternalUndoRedo(true);
-            editor.SetChangeCallback([this] { changed = true; editor.ClearTextColors(); }, 0);
             editor.SetTransactionCallback([this](const std::vector<TextEditor::Change>& actions) {
                 Code::SourceTransaction transaction;
                 transaction.history = static_cast<std::uint64_t>(editor.GetUndoIndex());
@@ -135,6 +158,73 @@ namespace JBro::Widget
                 ++revision;
                 changed = true;
                 editor.ClearTextColors();
+                ClearAssistance();
+            });
+            editor.SetTextContextMenuRenderer([this](bool requested, TextEditor::PopupData& data) {
+                ImGui::PushFont(menuFont, menuFontBaseSize);
+                if (requested)
+                {
+                    OpenContextMenu("TextContextMenu");
+                }
+                if (BeginOpenedContextMenu("TextContextMenu"))
+                {
+                    if (ImGui::IsWindowAppearing())
+                    {
+                        const auto selection = editor.GetMainCursorSelection();
+                        if (data.pos < selection.start || !(data.pos < selection.end))
+                        {
+                            editor.SetCursor(data.pos);
+                        }
+                    }
+                    if (menuEditor != nullptr && menuPanel != nullptr)
+                    {
+                        EditorActionContext context;
+                        context.editor = menuEditor;
+                        context.panel = menuPanel;
+                        context.menu = EditorActionMenu::Edit;
+                        EditorActionUi::DrawItem("code_editor.undo", context);
+                        EditorActionUi::DrawItem("code_editor.redo", context);
+                        ImGui::Separator();
+                        EditorActionUi::DrawItem("code_editor.cut", context);
+                        EditorActionUi::DrawItem("code_editor.copy", context);
+                        EditorActionUi::DrawItem("code_editor.paste", context);
+                        ImGui::Separator();
+                        EditorActionUi::DrawItem("code_editor.select_all", context);
+                    }
+                    else
+                    {
+                        const Bool writable = !editor.IsReadOnlyEnabled();
+                        if (MenuItem(Loc::Text(LocKeys::MenuUndo), nullptr, writable && editor.CanUndo()))
+                        {
+                            editor.Undo();
+                        }
+                        if (MenuItem(Loc::Text(LocKeys::MenuRedo), nullptr, writable && editor.CanRedo()))
+                        {
+                            editor.Redo();
+                        }
+                        ImGui::Separator();
+                        if (MenuItem(Loc::Text(LocKeys::MenuCut), nullptr, writable && editor.AnyCursorHasSelection()))
+                        {
+                            editor.Cut();
+                        }
+                        if (MenuItem(Loc::Text(LocKeys::MenuCopy), nullptr, !editor.IsEmpty()))
+                        {
+                            editor.Copy();
+                        }
+                        const char* clipboard = ImGui::GetClipboardText();
+                        if (MenuItem(Loc::Text(LocKeys::MenuPaste), nullptr, writable && clipboard != nullptr && clipboard[0] != '\0'))
+                        {
+                            editor.Paste();
+                        }
+                        ImGui::Separator();
+                        if (MenuItem(Loc::Text(LocKeys::MenuSelectAll), nullptr, !editor.IsEmpty()))
+                        {
+                            editor.SelectAll();
+                        }
+                    }
+                    EndContextMenu();
+                }
+                ImGui::PopFont();
             });
             editor.SetLineDecorator(2, [this](TextEditor::Decorator& data) {
                 const UInt32 line = static_cast<std::uint32_t>(data.line + 1);
@@ -146,12 +236,15 @@ namespace JBro::Widget
                     toggledLine = line;
                 }
                 auto* draw = ImGui::GetWindowDrawList();
+                const Bool hovered = ImGui::IsItemHovered();
+                const CodeEditor::Marker* activeMarker = nullptr;
                 for (const auto& marker : markers)
                 {
                     if (marker.line != line)
                     {
                         continue;
                     }
+                    activeMarker = &marker;
                     const ImU32 color = ImGui::ColorConvertFloat4ToU32(EditorTheme::Danger);
                     if (marker.verified)
                     {
@@ -161,10 +254,15 @@ namespace JBro::Widget
                     {
                         draw->AddCircle(center, radius, color, 0, 1.5f);
                     }
-                    if (ImGui::IsItemHovered() && !marker.message.empty())
+                }
+                if (hovered)
+                {
+                    if (activeMarker == nullptr)
                     {
-                        ImGui::SetTooltip("%s", marker.message.c_str());
+                        draw->AddCircleFilled(center, radius, ImGui::ColorConvertFloat4ToU32(EditorTheme::Fade(EditorTheme::Danger, 0.45f)));
                     }
+                    HoveredTooltip(activeMarker != nullptr ? activeMarker->message.c_str()
+                        : Loc::Text(LocKeys::CodeEditorBreakpointAdd));
                 }
                 if (executionLine == line)
                 {
@@ -178,6 +276,20 @@ namespace JBro::Widget
         {
             return {point.line.Get(), CodeEditor::Utf16ToGlyph(Line(point.line), point.character).Get()};
         }
+        Code::Position SourcePosition(TextEditor::DocPos point) const
+        {
+            const auto line = Line(static_cast<std::uint32_t>(point.line));
+            std::size_t offset = 0;
+            UInt32 units = 0;
+            for (std::size_t glyph = 0; glyph < point.index && offset < line.size(); ++glyph)
+            {
+                const auto lead = static_cast<unsigned char>(line[offset]);
+                const std::size_t bytes = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
+                units += bytes == 4 ? 2 : 1;
+                offset += std::min(bytes, line.size() - offset);
+            }
+            return {static_cast<std::uint32_t>(point.line), units};
+        }
     };
     CodeEditor::CodeEditor() : m_state(MakeOwnerPtr<State>()) {}
     CodeEditor::~CodeEditor() = default;
@@ -188,11 +300,37 @@ namespace JBro::Widget
         m_state->changes.reset = true;
         m_state->editor.ClearTextColors();
         m_state->editor.ClearSquiggles();
+        m_state->ClearAssistance();
         ++m_state->revision;
     }
     String CodeEditor::GetText() const { return m_state->Text(); }
     void CodeEditor::SetJBroScript(Bool enabled) { m_state->editor.SetLanguage(enabled ? JBroLanguage() : TextEditor::Language::Cpp()); }
     void CodeEditor::SetReadOnly(Bool enabled) { m_state->editor.SetReadOnlyEnabled(enabled.Get()); }
+    void CodeEditor::BindMenu(EditorApplication* editor, EditorPanel* panel)
+    {
+        m_state->menuEditor = editor;
+        m_state->menuPanel = panel;
+        m_state->editor.SetExternalClipboardActions(editor != nullptr && panel != nullptr);
+    }
+    void CodeEditor::Cut() { m_state->editor.Cut(); }
+    void CodeEditor::Copy() const { m_state->editor.Copy(); }
+    void CodeEditor::Paste()
+    {
+        if (CanPaste())
+        {
+            m_state->editor.Paste();
+        }
+    }
+    void CodeEditor::SelectAll() { m_state->editor.SelectAll(); }
+    Bool CodeEditor::CanPaste() const
+    {
+        if (m_state->editor.IsReadOnlyEnabled() || ImGui::GetCurrentContext() == nullptr)
+        {
+            return false;
+        }
+        const char* text = ImGui::GetClipboardText();
+        return text != nullptr && text[0] != '\0';
+    }
     UInt64 CodeEditor::GetHistoryIndex() const { return static_cast<std::uint64_t>(m_state->editor.GetUndoIndex()); }
     Code::SourceChanges CodeEditor::TakeChanges()
     {
@@ -203,6 +341,11 @@ namespace JBro::Widget
     void CodeEditor::SetDebugMarkers(const Array<Marker>& markers, UInt32 executionLine)
     {
         m_state->markers = markers;
+        const char* action = Loc::Text(LocKeys::CodeEditorBreakpointRemove);
+        for (auto& marker : m_state->markers)
+        {
+            marker.message = marker.message.empty() ? String(action) : String(action) + "\n" + marker.message;
+        }
         m_state->executionLine = executionLine;
     }
     UInt32 CodeEditor::TakeBreakpointToggle()
@@ -282,7 +425,10 @@ namespace JBro::Widget
     }
     Bool CodeEditor::Render(const char* id, Bool reserveStatusLine)
     {
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
         m_state->changed = false;
+        m_state->menuFont = ImGui::GetFont();
+        m_state->menuFontBaseSize = ImGui::GetStyle().FontSizeBase;
         ImFont* font = EditorTheme::GetCodeFont();
         if (font != nullptr)
         {
@@ -291,6 +437,36 @@ namespace JBro::Widget
         const ImVec2 size(0.0f, reserveStatusLine ? std::max(1.0f, ImGui::GetContentRegionAvail().y
             - ImGui::GetTextLineHeightWithSpacing()) : 0.0f);
         m_state->editor.Render(id, size);
+        Internal::ReportLastItem(target, false, m_state->changed || ImGui::IsItemClicked());
+        m_state->mouseOverEditor = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        const String* diagnosticTooltip = nullptr;
+        const ImVec2 mouse = ImGui::GetMousePos();
+        if (m_state->mouseOverEditor && m_state->editor.IsMousePosOverGlyph(mouse))
+        {
+            const auto position = m_state->editor.GetDocPosAtMousePos(mouse);
+            for (std::size_t index = m_state->diagnosticTooltips.Size(); index > 0; --index)
+            {
+                const auto& diagnostic = m_state->diagnosticTooltips[index - 1];
+                if (position >= diagnostic.start && position < diagnostic.end)
+                {
+                    diagnosticTooltip = &diagnostic.message;
+                    break;
+                }
+            }
+        }
+        Code::Position hovered;
+        if (diagnosticTooltip != nullptr && !diagnosticTooltip->empty())
+        {
+            HoveredTooltip(diagnosticTooltip->c_str());
+        }
+        else if (!m_state->tooltip.empty() && GetHoveredPosition(hovered))
+        {
+            const auto less = [](Code::Position a, Code::Position b) { return a.line < b.line || (a.line == b.line && a.character < b.character); };
+            if (!less(hovered, m_state->tooltipRange.start) && less(hovered, m_state->tooltipRange.end))
+            {
+                HoveredTooltip(m_state->tooltip.c_str());
+            }
+        }
         if (font != nullptr)
         {
             ImGui::PopFont();
@@ -306,6 +482,7 @@ namespace JBro::Widget
     {
         m_state->editor.ClearTextColors();
         m_state->editor.ClearSquiggles();
+        m_state->diagnosticTooltips.Clear();
     }
     void CodeEditor::SetAnalysis(const Code::Analysis& analysis)
     {
@@ -317,9 +494,11 @@ namespace JBro::Widget
             if (start == end)
             {
                 ++end.index;
+                end = m_state->Position(m_state->SourcePosition(end));
             }
             m_state->editor.AddSquiggle(start, end, 1,
-                diagnostic.severity == 1 ? IM_COL32(224, 90, 82, 255) : IM_COL32(224, 163, 60, 255), diagnostic.message.View());
+                diagnostic.severity == 1 ? IM_COL32(224, 90, 82, 255) : IM_COL32(224, 163, 60, 255));
+            m_state->diagnosticTooltips.Add({start, end, diagnostic.message});
         }
         for (const auto& token : analysis.tokens)
         {
@@ -349,18 +528,61 @@ namespace JBro::Widget
     UInt64 CodeEditor::GetRevision() const { return m_state->revision; }
     Code::Position CodeEditor::GetCursor() const
     {
-        const auto position = m_state->editor.GetMainCursorPosition();
-        const auto line = m_state->Line(static_cast<std::uint32_t>(position.line));
+        return m_state->SourcePosition(m_state->editor.GetMainCursorPosition());
+    }
+    void CodeEditor::SelectRange(const Code::Range& range)
+    {
+        m_state->editor.SetCursor(m_state->Position(range.start));
+        m_state->editor.SelectRegion(m_state->Position(range.start), m_state->Position(range.end));
+        m_state->editor.SetFocus();
+    }
+    Code::Range CodeEditor::GetSelection() const
+    {
+        const auto selection = m_state->editor.GetMainCursorSelection();
+        return {m_state->SourcePosition(selection.start), m_state->SourcePosition(selection.end)};
+    }
+    Bool CodeEditor::HasSelection() const { return m_state->editor.MainCursorHasSelection(); }
+    Bool CodeEditor::GetHoveredPosition(Code::Position& position) const
+    {
+        const auto mouse = ImGui::GetMousePos();
+        if (!m_state->mouseOverEditor || !m_state->editor.IsMousePosOverGlyph(mouse))
+        {
+            return false;
+        }
+        const auto native = m_state->editor.GetDocPosAtMousePos(mouse);
+        const auto line = m_state->Line(static_cast<std::uint32_t>(native.line));
         std::size_t offset = 0;
-        UInt32 units = 0;
-        for (std::size_t glyph = 0; glyph < position.index && offset < line.size(); ++glyph)
+        for (std::size_t glyph = 0; glyph < native.index && offset < line.size(); ++glyph)
         {
             const auto lead = static_cast<unsigned char>(line[offset]);
-            const std::size_t bytes = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
-            units += bytes == 4 ? 2 : 1;
-            offset += std::min(bytes, line.size() - offset);
+            offset += lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
         }
-        return {static_cast<std::uint32_t>(position.line), units};
+        if (offset >= line.size())
+        {
+            return false;
+        }
+        const auto glyph = static_cast<unsigned char>(line[offset]);
+        if (!(glyph >= 0x80 || glyph == '_' || (glyph >= 'A' && glyph <= 'Z') || (glyph >= 'a' && glyph <= 'z') || (glyph >= '0' && glyph <= '9')))
+        {
+            return false;
+        }
+        position = m_state->SourcePosition(native);
+        return true;
+    }
+    void CodeEditor::SetHoverTooltip(const Code::Range& range, const String& text)
+    {
+        m_state->tooltipRange = range;
+        m_state->tooltip = text;
+    }
+    void CodeEditor::SetReferenceHighlights(const Array<Code::Range>& ranges)
+    {
+        std::vector<TextEditor::DocSelection> native;
+        native.reserve(ranges.Size());
+        for (const auto& range : ranges)
+        {
+            native.emplace_back(m_state->Position(range.start), m_state->Position(range.end));
+        }
+        m_state->editor.SetRangeHighlights(native, ImGui::ColorConvertFloat4ToU32(EditorTheme::Fade(EditorTheme::Amber, 0.30f)));
     }
     UInt32 CodeEditor::Utf16ToGlyph(std::string_view line, UInt32 character)
     {

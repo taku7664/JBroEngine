@@ -1,6 +1,8 @@
 #include <JBro/Editor/Code/LanguageClient.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Core/Log.h>
 #include <nlohmann/json.hpp>
 #include <charconv>
@@ -66,13 +68,15 @@ namespace JBro::Code
             Analysis analysis;
             ScriptSummary summary;
             FieldEditResult edit;
+            HoverResult hover;
+            ReferencesResult references;
             Int32 version = 1;
             Bool opened = false, changed = false;
             Float age = 0.0f;
         };
         struct Request
         {
-            enum class Kind { Semantic, Summary, FieldEdit };
+            enum class Kind { Semantic, Summary, FieldEdit, Hover, References };
             int id = 0;
             String uri;
             Int32 version = 0;
@@ -89,6 +93,7 @@ namespace JBro::Code
         Int32 nextDocumentVersion = 1;
         UInt64 revision = 0;
         UInt64 editToken = 0;
+        UInt64 assistanceToken = 0;
         Float startupAge = 0.0f;
         explicit State(IPlatform& value) : platform(&value) {}
         Document* Find(const String& path)
@@ -103,6 +108,25 @@ namespace JBro::Code
             }
             return nullptr;
         }
+        void Retire(Document& document, Request::Kind kind)
+        {
+            for (std::size_t index = requests.Size(); index > 0; --index)
+            {
+                if (requests[index - 1].uri == document.uri && requests[index - 1].kind == kind)
+                {
+                    requests.RemoveAt(index - 1);
+                }
+            }
+        }
+        void InvalidateAssistance(Document& document)
+        {
+            Retire(document, Request::Kind::Hover);
+            Retire(document, Request::Kind::References);
+            document.hover = {};
+            document.hover.revision = ++revision;
+            document.references = {};
+            document.references.revision = ++revision;
+        }
         void Fail(const String& message)
         {
             error = message;
@@ -116,6 +140,7 @@ namespace JBro::Code
                 document.opened = false;
                 document.summary.valid = false;
                 document.summary.revision = ++revision;
+                InvalidateAssistance(document);
                 if (!document.edit.ready && document.edit.requestId != 0)
                 {
                     document.edit.ready = true;
@@ -132,7 +157,7 @@ namespace JBro::Code
             const String frame = "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" + body;
             if (channel.Get() == nullptr || !channel->Write(frame.View()))
             {
-                Fail("The language server input channel is unavailable");
+                Fail(Loc::TextOr(LocKeys::LanguageClientInputUnavailable, "The language server input channel is unavailable"));
                 return false;
             }
             return true;
@@ -190,6 +215,45 @@ namespace JBro::Code
                 }
             }
         }
+        UInt64 Assistance(Document& document, Int32 version, Position position, Request::Kind kind)
+        {
+            if (document.version != version || state != ClientState::Ready)
+            {
+                return 0;
+            }
+            OpenPending();
+            Flush(document);
+            if (state != ClientState::Ready)
+            {
+                return 0;
+            }
+            Retire(document, kind);
+            const UInt64 token = ++assistanceToken;
+            const int id = nextId++;
+            Json params = {{"textDocument", {{"uri", document.uri.Std()}}},
+                {"position", {{"line", position.line.Get()}, {"character", position.character.Get()}}}};
+            if (kind == Request::Kind::Hover)
+            {
+                document.hover = {};
+                document.hover.requestId = token;
+                document.hover.version = version;
+                document.hover.revision = ++revision;
+                document.hover.position = position;
+                document.hover.range = {position, position};
+            }
+            else
+            {
+                document.references = {};
+                document.references.requestId = token;
+                document.references.version = version;
+                document.references.revision = ++revision;
+                document.references.position = position;
+                params["context"] = {{"includeDeclaration", false}};
+            }
+            requests.Add({id, document.uri, version, kind, token});
+            return Send({{"id", id}, {"method", kind == Request::Kind::Hover ? "textDocument/hover" : "textDocument/references"},
+                {"params", std::move(params)}}) ? token : UInt64(0);
+        }
         void Reply(const Json& message)
         {
             if (message.value("method", "") == "textDocument/publishDiagnostics")
@@ -227,9 +291,13 @@ namespace JBro::Code
             const int id = message["id"].get<int>();
             if (id == 1)
             {
+                if (state != ClientState::Starting)
+                {
+                    return;
+                }
                 if (message.contains("error"))
                 {
-                    Fail(message["error"].value("message", "Language server initialization failed"));
+                    Fail(message["error"].value("message", Loc::TextOr(LocKeys::LanguageClientInitializationFailed, "Language server initialization failed")));
                     return;
                 }
                 state = ClientState::Ready;
@@ -263,11 +331,11 @@ namespace JBro::Code
                         edit.edits.Clear();
                         if (document.version != request.version)
                         {
-                            edit.error = "The source changed while the field edit was being checked";
+                            edit.error = Loc::TextOr(LocKeys::LanguageClientEditSourceChanged, "The source changed while the field edit was being checked");
                         }
                         else if (message.contains("error"))
                         {
-                            edit.error = message["error"].value("message", "The field edit was rejected");
+                            edit.error = message["error"].value("message", Loc::TextOr(LocKeys::LanguageClientEditRejected, "The field edit was rejected"));
                         }
                         else if (message.contains("result") && message["result"].value("version", -1) == request.version.Get())
                         {
@@ -280,12 +348,81 @@ namespace JBro::Code
                         }
                         else
                         {
-                            edit.error = "The field edit does not match the source version";
+                            edit.error = Loc::TextOr(LocKeys::LanguageClientEditVersionMismatch, "The field edit does not match the source version");
                         }
                         continue;
                     }
                     if (document.version != request.version)
                     {
+                        continue;
+                    }
+                    if (request.kind == Request::Kind::Hover)
+                    {
+                        auto& hover = document.hover;
+                        if (hover.requestId != request.token)
+                        {
+                            continue;
+                        }
+                        hover.ready = true;
+                        hover.success = false;
+                        hover.revision = ++revision;
+                        if (message.contains("error"))
+                        {
+                            hover.error = message["error"].value("message", "The hover request failed");
+                        }
+                        else if (message.contains("result"))
+                        {
+                            const auto& result = message["result"];
+                            if (!result.is_null())
+                            {
+                                const auto& contents = result.at("contents");
+                                hover.text = contents.is_string() ? contents.get<std::string>() : contents.at("value").get<std::string>();
+                                if (result.contains("range"))
+                                {
+                                    hover.range = ReadRange(result["range"]);
+                                }
+                            }
+                            hover.success = true;
+                        }
+                        else
+                        {
+                            hover.error = "The language server did not return a hover result";
+                        }
+                        continue;
+                    }
+                    if (request.kind == Request::Kind::References)
+                    {
+                        auto& references = document.references;
+                        if (references.requestId != request.token)
+                        {
+                            continue;
+                        }
+                        references.ready = true;
+                        references.success = false;
+                        references.revision = ++revision;
+                        if (message.contains("error"))
+                        {
+                            references.error = message["error"].value("message", "The reference request failed");
+                        }
+                        else if (message.contains("result"))
+                        {
+                            const auto& result = message["result"];
+                            if (!result.is_null())
+                            {
+                                for (const auto& location : result)
+                                {
+                                    if (location.value("uri", "") == document.uri.Std())
+                                    {
+                                        references.ranges.Add(ReadRange(location.at("range")));
+                                    }
+                                }
+                            }
+                            references.success = true;
+                        }
+                        else
+                        {
+                            references.error = "The language server did not return references";
+                        }
                         continue;
                     }
                     if (request.kind == Request::Kind::Summary)
@@ -314,7 +451,7 @@ namespace JBro::Code
                     const Json data = message["result"].is_null() ? Json::array() : message["result"].value("data", Json::array());
                     if (!data.is_array() || data.size() % 5 != 0)
                     {
-                        Fail("The language server sent invalid semantic tokens");
+                        Fail(Loc::TextOr(LocKeys::LanguageClientSemanticTokensInvalid, "The language server sent invalid semantic tokens"));
                         return;
                     }
                     UInt32 line = 0, character = 0;
@@ -345,7 +482,7 @@ namespace JBro::Code
         m_state->channel = m_state->platform->StartProcessChannel(("\"" + executable + "\" --lsp").c_str(), nullptr);
         if (m_state->channel.Get() == nullptr)
         {
-            m_state->Fail("JBroc.exe could not be started");
+            m_state->Fail(Loc::TextOr(LocKeys::LanguageClientStartFailed, "JBroc.exe could not be started"));
             return false;
         }
         m_state->state = ClientState::Starting;
@@ -353,7 +490,8 @@ namespace JBro::Code
         return m_state->Send({{"id", 1}, {"method", "initialize"}, {"params", {
             {"locale", locale.Std()}, {"initializationOptions", {{"projectFile", project.Std()}}},
             {"capabilities", {{"general", {{"positionEncodings", Json::array({"utf-16"})}}},
-                {"textDocument", {{"publishDiagnostics", {{"versionSupport", true}}}}}}}}}});
+                {"textDocument", {{"publishDiagnostics", {{"versionSupport", true}}},
+                    {"hover", {{"contentFormat", Json::array({"plaintext"})}}}}}}}}}});
     }
     void LanguageClient::Stop()
     {
@@ -362,7 +500,6 @@ namespace JBro::Code
         m_state->requests.Clear();
         m_state->error.clear();
         m_state->state = ClientState::Stopped;
-        m_state->nextId = 2;
         for (auto& document : m_state->documents)
         {
             document.opened = false;
@@ -371,11 +508,12 @@ namespace JBro::Code
             document.analysis.revision = ++m_state->revision;
             document.summary.valid = false;
             document.summary.revision = ++m_state->revision;
+            m_state->InvalidateAssistance(document);
             if (!document.edit.ready && document.edit.requestId != 0)
             {
                 document.edit.ready = true;
                 document.edit.success = false;
-                document.edit.error = "The language server disconnected";
+                document.edit.error = Loc::TextOr(LocKeys::LanguageClientDisconnected, "The language server disconnected");
             }
         }
     }
@@ -402,7 +540,7 @@ namespace JBro::Code
             {
                 if (state.incoming.size() > 8192)
                 {
-                    state.Fail("The language server sent an invalid frame header");
+                    state.Fail(Loc::TextOr(LocKeys::LanguageClientHeaderInvalid, "The language server sent an invalid frame header"));
                 }
                 break;
             }
@@ -411,14 +549,14 @@ namespace JBro::Code
             if (end > 8192 || start == String::npos || start > end
                 || (start != 0 && (start < 2 || state.incoming.View().substr(start - 2, 2) != "\r\n")))
             {
-                state.Fail("The language server sent an invalid frame length");
+                state.Fail(Loc::TextOr(LocKeys::LanguageClientLengthInvalid, "The language server sent an invalid frame length"));
                 break;
             }
             const auto lengthEnd = state.incoming.find("\r\n", start);
             const auto parsed = std::from_chars(state.incoming.data() + start + 16, state.incoming.data() + lengthEnd, length);
             if (parsed.ec != std::errc() || parsed.ptr != state.incoming.data() + lengthEnd || length > 8 * 1024 * 1024)
             {
-                state.Fail("The language server sent an invalid frame length");
+                state.Fail(Loc::TextOr(LocKeys::LanguageClientLengthInvalid, "The language server sent an invalid frame length"));
                 break;
             }
             if (state.incoming.size() < end + 4 + length)
@@ -429,7 +567,7 @@ namespace JBro::Code
             state.incoming.erase(0, end + 4 + length);
             if (message.is_discarded() || !message.is_object())
             {
-                state.Fail("The language server sent an invalid JSON-RPC message");
+                state.Fail(Loc::TextOr(LocKeys::LanguageClientMessageInvalid, "The language server sent an invalid JSON-RPC message"));
                 break;
             }
             try
@@ -438,7 +576,7 @@ namespace JBro::Code
             }
             catch (const Json::exception&)
             {
-                state.Fail("The language server sent a malformed response");
+                state.Fail(Loc::TextOr(LocKeys::LanguageClientResponseMalformed, "The language server sent a malformed response"));
             }
             if (state.state == ClientState::Failed)
             {
@@ -451,7 +589,7 @@ namespace JBro::Code
         }
         if (!state.channel->IsRunning())
         {
-            state.Fail("The language server stopped. Reconnect to resume analysis");
+            state.Fail(Loc::TextOr(LocKeys::LanguageClientStopped, "The language server stopped. Reconnect to resume analysis"));
             return;
         }
         if (state.state == ClientState::Starting)
@@ -459,7 +597,7 @@ namespace JBro::Code
             state.startupAge += elapsed;
             if (state.startupAge > 15.0f)
             {
-                state.Fail("The language server did not initialize in time");
+                state.Fail(Loc::TextOr(LocKeys::LanguageClientStartupTimeout, "The language server did not initialize in time"));
             }
             return;
         }
@@ -500,6 +638,7 @@ namespace JBro::Code
             document->analysis.revision = ++m_state->revision;
             document->summary.valid = false;
             document->summary.revision = ++m_state->revision;
+            m_state->InvalidateAssistance(*document);
         }
     }
     void LanguageClient::Saved(const String& path)
@@ -594,6 +733,44 @@ namespace JBro::Code
     {
         const auto* document = m_state->Find(path);
         return document != nullptr ? &document->edit : nullptr;
+    }
+    UInt64 LanguageClient::RequestHover(const String& path, Int32 version, Position position)
+    {
+        auto* document = m_state->Find(path);
+        return document != nullptr ? m_state->Assistance(*document, version, position, State::Request::Kind::Hover) : UInt64(0);
+    }
+    const HoverResult* LanguageClient::GetHover(const String& path) const
+    {
+        const auto* document = m_state->Find(path);
+        return document != nullptr ? &document->hover : nullptr;
+    }
+    void LanguageClient::CancelHover(const String& path)
+    {
+        if (auto* document = m_state->Find(path); document != nullptr)
+        {
+            m_state->Retire(*document, State::Request::Kind::Hover);
+            document->hover = {};
+            document->hover.revision = ++m_state->revision;
+        }
+    }
+    UInt64 LanguageClient::RequestReferences(const String& path, Int32 version, Position position)
+    {
+        auto* document = m_state->Find(path);
+        return document != nullptr ? m_state->Assistance(*document, version, position, State::Request::Kind::References) : UInt64(0);
+    }
+    const ReferencesResult* LanguageClient::GetReferences(const String& path) const
+    {
+        const auto* document = m_state->Find(path);
+        return document != nullptr ? &document->references : nullptr;
+    }
+    void LanguageClient::CancelReferences(const String& path)
+    {
+        if (auto* document = m_state->Find(path); document != nullptr)
+        {
+            m_state->Retire(*document, State::Request::Kind::References);
+            document->references = {};
+            document->references.revision = ++m_state->revision;
+        }
     }
     ClientState LanguageClient::GetState() const { return m_state->state; }
     const String& LanguageClient::GetError() const { return m_state->error; }

@@ -3,11 +3,14 @@
 #include <JBro/Editor/Code/SourceDebugger.h>
 #include "ScriptSummaryPanel.h"
 #include <JBro/Editor/EditorActionRegistry.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Platform/Platform.h>
 #include <algorithm>
 #include <cstring>
@@ -118,6 +121,93 @@ namespace JBro
             return result;
         }
     }
+    namespace
+    {
+        enum class SourceAction
+        {
+            Save, Undo, Redo, Cut, Copy, Paste, SelectAll, Reload, External, Close, DebugStart, DebugContinue, DebugStop
+        };
+
+        const char* WhySourceActionBlocked(const EditorActionContext& context, SourceAction action)
+        {
+            if (context.panel == nullptr || context.editor == nullptr)
+            {
+                return Loc::TextOr(LocKeys::BlockedPanelNotOpen, "The window this works in is not open.");
+            }
+            auto& document = *static_cast<CodeEditorPanel*>(context.panel);
+            const Bool mutates = action == SourceAction::Save || action == SourceAction::Undo || action == SourceAction::Redo
+                || action == SourceAction::Cut || action == SourceAction::Paste;
+            if ((mutates || action == SourceAction::Reload) && context.editor->IsAtScriptBreak())
+            {
+                return Loc::TextOr(LocKeys::BlockedAtScriptBreak, "A script is stopped at a breakpoint. Continue or stop debugging first.");
+            }
+            if (mutates && document.IsReadOnly())
+            {
+                return Loc::TextOr(LocKeys::CodeEditorReadOnly, "This file is read only.");
+            }
+            const Bool editsText = action == SourceAction::Undo || action == SourceAction::Redo || action == SourceAction::Cut
+                || action == SourceAction::Copy || action == SourceAction::Paste || action == SourceAction::SelectAll;
+            if (editsText && Widget::IsTextInputActive())
+            {
+                return Loc::TextOr(LocKeys::CodeEditorFinishInput, "Finish editing the active input field first.");
+            }
+            if (action == SourceAction::Save && !document.HasUnsavedChanges())
+            {
+                return Loc::TextOr(LocKeys::CodeEditorNoChanges, "There are no changes to save.");
+            }
+            if (action == SourceAction::Undo && !document.GetBuffer().CanUndo())
+            {
+                return Loc::TextOr(LocKeys::BlockedNothingToUndo, "There is nothing to undo.");
+            }
+            if (action == SourceAction::Redo && !document.GetBuffer().CanRedo())
+            {
+                return Loc::TextOr(LocKeys::BlockedNothingToRedo, "There is nothing to redo.");
+            }
+            if (action == SourceAction::Cut && !document.GetBuffer().HasSelection())
+            {
+                return Loc::TextOr(LocKeys::CodeEditorNoSelection, "No text is selected.");
+            }
+            if (action == SourceAction::Paste && !document.GetBuffer().CanPaste())
+            {
+                return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "Nothing has been copied.");
+            }
+            if ((action == SourceAction::Copy || action == SourceAction::SelectAll) && document.GetBufferText().empty())
+            {
+                return Loc::TextOr(LocKeys::CodeEditorEmptyDocument, "The document is empty.");
+            }
+            if (action == SourceAction::DebugStart || action == SourceAction::DebugContinue || action == SourceAction::DebugStop)
+            {
+                if (!document.IsJBroScript())
+                {
+                    return Loc::TextOr(LocKeys::ScriptSummaryNoDocument, "Open a JBroScript file first.");
+                }
+                if (action == SourceAction::DebugStart && context.editor->IsDebugSessionActive())
+                {
+                    return Loc::TextOr(LocKeys::CodeEditorDebugAlreadyActive, "A debugging session is already running.");
+                }
+                if (action != SourceAction::DebugStart && !context.editor->IsDebugSessionActive())
+                {
+                    return Loc::TextOr(LocKeys::CodeEditorDebugInactive, "No debugging session is running.");
+                }
+                if (action == SourceAction::DebugContinue && !context.editor->IsAtScriptBreak())
+                {
+                    return Loc::TextOr(LocKeys::CodeEditorDebugNotStopped, "The script is not stopped at a breakpoint.");
+                }
+            }
+            return nullptr;
+        }
+
+        template<SourceAction Action>
+        void SetSourceActionState(EditorActionInfo& info)
+        {
+            info.CanExecute = [](const EditorActionContext& context) -> Bool {
+                return WhySourceActionBlocked(context, Action) == nullptr;
+            };
+            info.WhyBlocked = [](const EditorActionContext& context) {
+                return WhySourceActionBlocked(context, Action);
+            };
+        }
+    }
     void CodeEditorPanel::RegisterActions()
     {
         EditorActionInfo save;
@@ -129,10 +219,10 @@ namespace JBro
         save.primary = {ImGuiKey_S, true};
         save.whileTyping = true;
         save.duringGame = true;
-        save.CanExecute = [](const EditorActionContext& context) -> Bool {
-            return context.panel != nullptr && !static_cast<CodeEditorPanel*>(context.panel)->IsReadOnly()
-                && static_cast<CodeEditorPanel*>(context.panel)->HasUnsavedChanges();
-        };
+        save.menus = EditorActionMenu::File;
+        save.placedByEditor = true;
+        save.icon = Icons::Save;
+        SetSourceActionState<SourceAction::Save>(save);
         save.Execute = [](EditorActionContext& context) -> Bool { return static_cast<CodeEditorPanel*>(context.panel)->Save(); };
         EditorActionRegistry::Get().Register(save);
         EditorActionInfo undo = save;
@@ -140,10 +230,9 @@ namespace JBro
         undo.labelKey = LocKeys::MenuUndo;
         undo.fallbackLabel = "Undo";
         undo.primary = {ImGuiKey_Z, true};
-        undo.CanExecute = [](const EditorActionContext& context) -> Bool {
-            return context.panel != nullptr && !static_cast<CodeEditorPanel*>(context.panel)->IsReadOnly()
-                && static_cast<CodeEditorPanel*>(context.panel)->m_buffer.CanUndo();
-        };
+        undo.menus = EditorActionMenu::Edit;
+        undo.icon = Icons::Undo;
+        SetSourceActionState<SourceAction::Undo>(undo);
         undo.Execute = [](EditorActionContext& context) -> Bool {
             static_cast<CodeEditorPanel*>(context.panel)->Undo();
             return true;
@@ -155,23 +244,142 @@ namespace JBro
         redo.fallbackLabel = "Redo";
         redo.primary = {ImGuiKey_Y, true};
         redo.secondary = {ImGuiKey_Z, true, true};
-        redo.CanExecute = [](const EditorActionContext& context) -> Bool {
-            return context.panel != nullptr && !static_cast<CodeEditorPanel*>(context.panel)->IsReadOnly()
-                && static_cast<CodeEditorPanel*>(context.panel)->m_buffer.CanRedo();
-        };
+        redo.icon = Icons::Redo;
+        SetSourceActionState<SourceAction::Redo>(redo);
         redo.Execute = [](EditorActionContext& context) -> Bool {
             static_cast<CodeEditorPanel*>(context.panel)->Redo();
             return true;
         };
         EditorActionRegistry::Get().Register(redo);
+        EditorActionInfo cut = undo;
+        cut.name = "code_editor.cut";
+        cut.labelKey = LocKeys::MenuCut;
+        cut.fallbackLabel = "Cut";
+        cut.primary = {ImGuiKey_X, true};
+        cut.secondary = {ImGuiKey_Delete, true};
+        cut.whileTyping = true;
+        cut.icon = Icons::Cut;
+        SetSourceActionState<SourceAction::Cut>(cut);
+        cut.Execute = [](EditorActionContext& context) -> Bool {
+            static_cast<CodeEditorPanel*>(context.panel)->Cut();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(cut);
+        EditorActionInfo copy = cut;
+        copy.name = "code_editor.copy";
+        copy.labelKey = LocKeys::MenuCopy;
+        copy.fallbackLabel = "Copy";
+        copy.primary = {ImGuiKey_C, true};
+        copy.secondary = {ImGuiKey_Insert, true};
+        copy.icon = Icons::Copy;
+        SetSourceActionState<SourceAction::Copy>(copy);
+        copy.Execute = [](EditorActionContext& context) -> Bool {
+            static_cast<CodeEditorPanel*>(context.panel)->m_buffer.Copy();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(copy);
+        EditorActionInfo paste = cut;
+        paste.name = "code_editor.paste";
+        paste.labelKey = LocKeys::MenuPaste;
+        paste.fallbackLabel = "Paste";
+        paste.primary = {ImGuiKey_V, true};
+        paste.secondary = {ImGuiKey_Insert, false, true};
+        paste.icon = Icons::Paste;
+        SetSourceActionState<SourceAction::Paste>(paste);
+        paste.Execute = [](EditorActionContext& context) -> Bool {
+            static_cast<CodeEditorPanel*>(context.panel)->Paste();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(paste);
+        EditorActionInfo selectAll = copy;
+        selectAll.name = "code_editor.select_all";
+        selectAll.labelKey = LocKeys::MenuSelectAll;
+        selectAll.fallbackLabel = "Select all";
+        selectAll.primary = {ImGuiKey_A, true};
+        selectAll.secondary = {};
+        selectAll.icon = Icons::SelectAll;
+        SetSourceActionState<SourceAction::SelectAll>(selectAll);
+        selectAll.Execute = [](EditorActionContext& context) -> Bool {
+            static_cast<CodeEditorPanel*>(context.panel)->m_buffer.SelectAll();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(selectAll);
+        EditorActionInfo reload = save;
+        reload.name = "code_editor.reload";
+        reload.labelKey = LocKeys::CodeEditorReload;
+        reload.fallbackLabel = "Reload from disk";
+        reload.primary = {};
+        reload.icon = Icons::Refresh;
+        SetSourceActionState<SourceAction::Reload>(reload);
+        reload.Execute = [](EditorActionContext& context) -> Bool {
+            static_cast<CodeEditorPanel*>(context.panel)->RequestReload();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(reload);
+        EditorActionInfo external = reload;
+        external.name = "code_editor.external";
+        external.labelKey = LocKeys::CodeEditorExternal;
+        external.fallbackLabel = "Open in external editor";
+        external.icon = Icons::OpenExternal;
+        SetSourceActionState<SourceAction::External>(external);
+        external.Execute = [](EditorActionContext& context) -> Bool {
+            return context.editor->OpenCodeFileExternally(static_cast<CodeEditorPanel*>(context.panel)->GetPath());
+        };
+        EditorActionRegistry::Get().Register(external);
+        EditorActionInfo close = reload;
+        close.name = "code_editor.close";
+        close.labelKey = LocKeys::CodeEditorClose;
+        close.fallbackLabel = "Close";
+        close.icon = Icons::Xmark;
+        SetSourceActionState<SourceAction::Close>(close);
+        close.Execute = [](EditorActionContext& context) -> Bool {
+            static_cast<CodeEditorPanel*>(context.panel)->RequestClose();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(close);
+        EditorActionInfo debug = reload;
+        debug.name = "code_editor.debug_start";
+        debug.labelKey = LocKeys::CodeEditorStartDebugging;
+        debug.fallbackLabel = "Start debugging";
+        debug.menus = EditorActionMenu::None;
+        debug.icon = Icons::Debug;
+        SetSourceActionState<SourceAction::DebugStart>(debug);
+        debug.Execute = [](EditorActionContext& context) -> Bool {
+            context.editor->StartDebugSession();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(debug);
+        debug.name = "code_editor.debug_continue";
+        debug.labelKey = LocKeys::CodeEditorContinueDebugging;
+        debug.fallbackLabel = "Continue";
+        debug.icon = Icons::Play;
+        SetSourceActionState<SourceAction::DebugContinue>(debug);
+        debug.Execute = [](EditorActionContext& context) -> Bool {
+            context.editor->ContinueScriptBreak();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(debug);
+        debug.name = "code_editor.debug_stop";
+        debug.labelKey = LocKeys::CodeEditorStopDebugging;
+        debug.fallbackLabel = "Stop debugging";
+        debug.icon = Icons::Stop;
+        SetSourceActionState<SourceAction::DebugStop>(debug);
+        debug.Execute = [](EditorActionContext& context) -> Bool {
+            context.editor->StopDebugSession();
+            return true;
+        };
+        EditorActionRegistry::Get().Register(debug);
     }
     Bool CodeEditorPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
+        m_buffer.BindMenu(&editor, this);
         return true;
     }
     void CodeEditorPanel::OnDestroy()
     {
+        m_buffer.BindMenu(nullptr, nullptr);
+        m_assistance.Connect(nullptr, {});
         if (m_language != nullptr)
         {
             m_language->Close(m_path);
@@ -180,6 +388,12 @@ namespace JBro
     Bool CodeEditorPanel::Open(const String& path, UInt32 line, UInt32 column)
     {
         m_path = Code::LanguageClient::NormalizePath(path);
+        m_markerAnchors = UInt64(-1);
+        m_markerClient = UInt64(-1);
+        m_markerLocale = UInt64(-1);
+        m_debugMarkers.Clear();
+        m_executionLine = 0;
+        m_buffer.SetDebugMarkers({}, 0);
         String extension = m_path.substr(m_path.find_last_of('.') + 1);
         std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
         m_jscript = extension == "jscript";
@@ -196,6 +410,7 @@ namespace JBro
             m_language = &m_editor->GetCodeLanguageClient();
             m_language->Open(m_path, m_text);
         }
+        m_assistance.Connect(m_language, m_path);
         FocusAt(line, column);
         return true;
     }
@@ -209,6 +424,7 @@ namespace JBro
         }
         m_diskBytes = bytes;
         m_text = NormalizedText(bytes, m_bom, m_crlf);
+        m_assistance.Invalidate();
         m_buffer.SetText(m_text);
         m_buffer.TakeChanges();
         m_saved = m_text;
@@ -232,6 +448,7 @@ namespace JBro
     }
     void CodeEditorPanel::Changed()
     {
+        m_assistance.Invalidate();
         const auto sourceChanges = m_buffer.TakeChanges();
         m_text = m_buffer.GetText();
         m_revision = m_buffer.GetRevision();
@@ -247,7 +464,7 @@ namespace JBro
         }
         UpdateTitle();
     }
-    void CodeEditorPanel::OnUpdate(Float)
+    void CodeEditorPanel::OnUpdate(Float elapsed)
     {
         m_buffer.SetReadOnly(IsReadOnly());
         if (m_buffer.GetRevision() != m_revision)
@@ -264,6 +481,7 @@ namespace JBro
                 m_buffer.SetAnalysis(*analysis);
             }
         }
+        m_assistance.Update(elapsed);
     }
     void CodeEditorPanel::UpdateTitle()
     {
@@ -322,12 +540,43 @@ namespace JBro
         UpdateTitle();
         return true;
     }
+    void CodeEditorPanel::CancelSiblingFocusRequests()
+    {
+        if (m_editor == nullptr)
+        {
+            return;
+        }
+        Array<EditorPanel*> panels;
+        m_editor->FindPanels(TypeName, panels);
+        for (auto* panel : panels)
+        {
+            if (panel != this)
+            {
+                auto* document = static_cast<CodeEditorPanel*>(panel);
+                document->TakeFocusRequest();
+                document->m_focus = false;
+                document->m_selectFocus = false;
+            }
+        }
+    }
     void CodeEditorPanel::FocusAt(UInt32 line, UInt32 column)
     {
+        CancelSiblingFocusRequests();
         m_focusSerial = ++g_codeFocusSerial;
         m_focus = true;
+        m_selectFocus = false;
         m_focusLine = line > 0 ? line - 1 : UInt32(0);
         m_focusColumn = column;
+        RequestFocus();
+    }
+    void CodeEditorPanel::SelectDefinition(const Code::Range& range)
+    {
+        CancelSiblingFocusRequests();
+        m_focusSerial = ++g_codeFocusSerial;
+        m_focus = false;
+        m_selectFocus = true;
+        m_focusRange = range;
+        m_assistance.HighlightReferences(range.start);
         RequestFocus();
     }
     void CodeEditorPanel::OnDraw()
@@ -344,7 +593,7 @@ namespace JBro
         if (m_language != nullptr)
         {
             const auto state = m_language->GetState();
-            if (state == Code::ClientState::Failed && Widget::Button(Loc::TextOr(LocKeys::CodeEditorReconnect, "Reconnect language server")))
+            if (state == Code::ClientState::Failed && Widget::Button(Loc::TextOr(LocKeys::CodeEditorReconnect, "Reconnect language server"), Icons::Refresh))
             {
                 m_editor->ReconnectCodeLanguageClient();
             }
@@ -355,69 +604,113 @@ namespace JBro
             Widget::SeverityTextF(diagnostic.severity == 1 ? Widget::Severity::Error : Widget::Severity::Warning, "%u: %s %s",
                 diagnostic.range.start.line + 1, diagnostic.code.c_str(), diagnostic.message.c_str());
         }
-        if (m_focus)
+        if (m_focus && IsVisible() && IsFocused())
         {
             m_buffer.Focus(m_focusLine, m_focusColumn);
             m_focus = false;
+        }
+        if (m_selectFocus && IsVisible() && IsFocused())
+        {
+            m_buffer.SelectRange(m_focusRange);
+            m_selectFocus = false;
         }
         if (m_jscript)
         {
             auto& debugger = m_editor->GetSourceDebugger();
             const Bool stopped = m_editor->IsAtScriptBreak();
+            EditorActionContext context;
+            context.editor = m_editor;
+            context.panel = this;
+            const auto drawDebugAction = [&](const char* name) {
+                const auto* action = EditorActionRegistry::Get().Find(name);
+                if (action == nullptr)
+                {
+                    return;
+                }
+                const Bool enabled = EditorActionUi::CanExecute(*action, context);
+                String tooltip = EditorActionUi::Label(*action, EditorActionMenu::None);
+                if (!enabled)
+                {
+                    const char* reason = EditorActionUi::WhyBlocked(*action, context);
+                    if (reason != nullptr)
+                    {
+                        tooltip += "\n";
+                        tooltip += reason;
+                    }
+                }
+                Widget::IdScope actionId(name);
+                Widget::SetNextItemTarget(GuideFocusTargets::Action(name));
+                if (Widget::IconButton("##action", action->icon).Tooltip(tooltip.c_str()).Disabled(!enabled).Draw())
+                {
+                    EditorActionUi::Execute(*action, context);
+                }
+            };
             if (!m_editor->IsDebugSessionActive())
             {
-                if (Widget::Button(Loc::TextOr(LocKeys::CodeEditorStartDebugging, "Start debugging")))
-                {
-                    m_editor->StartDebugSession();
-                }
+                drawDebugAction("code_editor.debug_start");
             }
             else
             {
-                if (stopped && Widget::Button(Loc::TextOr(LocKeys::CodeEditorContinueDebugging, "Continue")))
+                if (stopped)
                 {
-                    m_editor->ContinueScriptBreak();
+                    drawDebugAction("code_editor.debug_continue");
+                    ImGui::SameLine();
                 }
-                if (Widget::Button(Loc::TextOr(LocKeys::CodeEditorStopDebugging, "Stop debugging")))
-                {
-                    m_editor->StopDebugSession();
-                }
+                drawDebugAction("code_editor.debug_stop");
             }
             const Bool matches = debugger.Matches(m_path, m_text);
-            Array<Widget::CodeEditor::Marker> markers;
-            for (const auto line : debugger.Anchors().Lines(m_path))
+            const UInt64 anchors = debugger.Anchors().GetRevision();
+            const UInt64 client = debugger.Client().GetRevision();
+            const UInt64 locale = LocalizationTable::Get().GetRevision();
+            const Bool markersChanged = m_markerAnchors != anchors || m_markerClient != client
+                || m_markerLocale != locale || m_markerMatches != matches;
+            if (markersChanged)
             {
-                Widget::CodeEditor::Marker marker;
-                marker.line = line;
-                marker.message = Loc::TextOr(LocKeys::CodeEditorBreakpointPending, "Pending a matching build and engine installation.");
-                if (matches)
+                m_debugMarkers.Clear();
+                for (const auto line : debugger.Anchors().Lines(m_path))
                 {
-                    if (const auto* confirmed = debugger.Client().GetBreakpoints(m_path))
+                    Widget::CodeEditor::Marker marker;
+                    marker.line = line;
+                    marker.message = Loc::TextOr(LocKeys::CodeEditorBreakpointPending, "Pending a matching build and engine installation.");
+                    if (matches)
                     {
-                        for (const auto& entry : *confirmed)
+                        if (const auto* confirmed = debugger.Client().GetBreakpoints(m_path))
                         {
-                            if (entry.requestedLine == line)
+                            for (const auto& entry : *confirmed)
                             {
-                                marker.verified = entry.verified;
-                                marker.line = entry.actualLine > 0 ? entry.actualLine : line;
-                                marker.message = entry.message;
-                                if (marker.line != line)
+                                if (entry.requestedLine == line)
                                 {
-                                    marker.message += " (" + std::to_string(line.Get()) + " -> " + std::to_string(marker.line.Get()) + ")";
+                                    marker.verified = entry.verified;
+                                    marker.line = entry.actualLine > 0 ? entry.actualLine : line;
+                                    marker.message = entry.message;
+                                    if (marker.line != line)
+                                    {
+                                        marker.message += " (" + std::to_string(line.Get()) + " -> " + std::to_string(marker.line.Get()) + ")";
+                                    }
                                 }
                             }
                         }
                     }
+                    m_debugMarkers.Add(std::move(marker));
                 }
-                markers.Add(std::move(marker));
+                m_markerAnchors = anchors;
+                m_markerClient = client;
+                m_markerLocale = locale;
+                m_markerMatches = matches;
             }
             const auto& location = m_editor->GetScriptBreakLocation();
             const UInt32 execution = stopped && matches && Code::LanguageClient::NormalizePath(location.file) == m_path ? location.line : UInt32(0);
-            m_buffer.SetDebugMarkers(markers, execution);
+            if (markersChanged || m_executionLine != execution)
+            {
+                m_buffer.SetDebugMarkers(m_debugMarkers, execution);
+                m_executionLine = execution;
+            }
         }
-        if (m_buffer.Render("##CodeBuffer", true))
+        if (m_buffer.Render("##CodeBuffer", true) && m_buffer.GetRevision() != m_revision)
         {
             Changed();
         }
+        m_assistance.AfterDraw();
         if (const UInt32 line = m_buffer.TakeBreakpointToggle(); line > 0 && m_jscript && !m_readOnly)
         {
             auto& debugger = m_editor->GetSourceDebugger();
@@ -495,24 +788,21 @@ namespace JBro
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             EditorActionUi::DrawItem("code_editor.save", context);
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::CodeEditorReload, "Reload from disk")))
-            {
-                RequestReload();
-            }
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::CodeEditorExternal, "Open in external editor")))
-            {
-                m_editor->OpenCodeFileExternally(m_path);
-            }
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::CodeEditorClose, "Close")))
-            {
-                RequestClose();
-            }
+            EditorActionUi::DrawItem("code_editor.reload", context);
+            EditorActionUi::DrawItem("code_editor.external", context);
+            EditorActionUi::DrawItem("code_editor.close", context);
             Widget::EndMenu();
         }
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuEdit, "Edit")))
         {
             EditorActionUi::DrawItem("code_editor.undo", context);
             EditorActionUi::DrawItem("code_editor.redo", context);
+            ImGui::Separator();
+            EditorActionUi::DrawItem("code_editor.cut", context);
+            EditorActionUi::DrawItem("code_editor.copy", context);
+            EditorActionUi::DrawItem("code_editor.paste", context);
+            ImGui::Separator();
+            EditorActionUi::DrawItem("code_editor.select_all", context);
             Widget::EndMenu();
         }
     }
@@ -555,6 +845,30 @@ namespace JBro
             m_buffer.SetReadOnly(IsReadOnly());
             m_buffer.Redo();
             Changed();
+        }
+    }
+    void CodeEditorPanel::Cut()
+    {
+        if (!IsReadOnly() && m_buffer.HasSelection())
+        {
+            m_buffer.SetReadOnly(false);
+            m_buffer.Cut();
+            if (m_buffer.GetRevision() != m_revision)
+            {
+                Changed();
+            }
+        }
+    }
+    void CodeEditorPanel::Paste()
+    {
+        if (!IsReadOnly() && m_buffer.CanPaste())
+        {
+            m_buffer.SetReadOnly(false);
+            m_buffer.Paste();
+            if (m_buffer.GetRevision() != m_revision)
+            {
+                Changed();
+            }
         }
     }
 }

@@ -1,5 +1,7 @@
 #include <JBro/Editor/Code/DebugClient.h>
 #include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Platform/Platform.h>
 #include <nlohmann/json.hpp>
 #include <charconv>
@@ -118,14 +120,14 @@ namespace JBro::Code
         {
             if (requests.Size() >= MaxRequests)
             {
-                Fail("The debugger request queue is full");
+                Fail(Loc::TextOr(LocKeys::DebugClientQueueFull, "The debugger request queue is full"));
                 return false;
             }
             const Int32 seq = nextSeq++;
             const String packet = Packet({{"seq", seq.Get()}, {"type", "request"}, {"command", command}, {"arguments", std::move(arguments)}});
             if (channel.Get() == nullptr || !channel->Write(packet.View()))
             {
-                Fail("The debugger input channel is unavailable");
+                Fail(Loc::TextOr(LocKeys::DebugClientInputUnavailable, "The debugger input channel is unavailable"));
                 return false;
             }
             requests.Add({seq, command, path, generation});
@@ -246,7 +248,7 @@ namespace JBro::Code
                 }
                 if (!message.value("success", false))
                 {
-                    Fail(message.value("message", "The debug adapter rejected a request"));
+                    Fail(message.value("message", Loc::TextOr(LocKeys::DebugClientRejected, "The debug adapter rejected a request")));
                     return;
                 }
                 if (request.command == "initialize")
@@ -263,7 +265,7 @@ namespace JBro::Code
                     const Json values = message.value("body", Json::object()).value("breakpoints", Json::array());
                     if (!values.is_array() || values.size() != document->breakpoints.Size())
                     {
-                        Fail("The debugger sent an invalid breakpoint response");
+                        Fail(Loc::TextOr(LocKeys::DebugClientBreakpointResponseInvalid, "The debugger sent an invalid breakpoint response"));
                         return;
                     }
                     document->ids.Clear();
@@ -296,7 +298,7 @@ namespace JBro::Code
         State& state = *m_state;
         if (state.channel.Get() != nullptr)
         {
-            state.error = "The previous debugger session is still closing";
+            state.error = Loc::TextOr(LocKeys::DebugClientSessionClosing, "The previous debugger session is still closing");
             return false;
         }
         state.error.clear();
@@ -311,13 +313,13 @@ namespace JBro::Code
         state.Invalidate();
         if (processId == 0 || executable.empty() || executable.find('"') != String::npos)
         {
-            state.Fail("A valid debug adapter path and editor process are required");
+            state.Fail(Loc::TextOr(LocKeys::DebugClientInvalidTarget, "A valid debug adapter path and editor process are required"));
             return false;
         }
         state.channel = state.platform->StartProcessChannel(("\"" + executable + "\"").c_str(), nullptr);
         if (state.channel.Get() == nullptr)
         {
-            state.Fail("JBroDebugAdapter.exe could not be started");
+            state.Fail(Loc::TextOr(LocKeys::DebugClientStartFailed, "JBroDebugAdapter.exe could not be started"));
             return false;
         }
         return state.Send("initialize", {{"clientID", "JBroEngine"}, {"adapterID", "jbro"}, {"pathFormat", "path"},
@@ -348,7 +350,7 @@ namespace JBro::Code
         }
         if (state.incoming.size() > MaxBody + MaxHeader)
         {
-            state.Fail("The debugger output exceeded its frame limit");
+            state.Fail(Loc::TextOr(LocKeys::DebugClientOutputLimit, "The debugger output exceeded its frame limit"));
             state.incoming.clear();
         }
         std::size_t messages = 0;
@@ -359,7 +361,7 @@ namespace JBro::Code
             {
                 if (state.incoming.size() > MaxHeader)
                 {
-                    state.Fail("The debugger sent an invalid DAP header");
+                    state.Fail(Loc::TextOr(LocKeys::DebugClientHeaderInvalid, "The debugger sent an invalid DAP header"));
                     state.incoming.clear();
                 }
                 break;
@@ -370,7 +372,7 @@ namespace JBro::Code
                 || (duplicateLength != String::npos && duplicateLength < end)
                 || (lengthAt != 0 && (lengthAt < 2 || state.incoming.View().substr(lengthAt - 2, 2) != "\r\n")))
             {
-                state.Fail("The debugger sent an invalid DAP header");
+                state.Fail(Loc::TextOr(LocKeys::DebugClientHeaderInvalid, "The debugger sent an invalid DAP header"));
                 state.incoming.clear();
                 break;
             }
@@ -384,7 +386,7 @@ namespace JBro::Code
             const auto parsed = std::from_chars(state.incoming.data() + numberAt, state.incoming.data() + numberEnd, length);
             if (parsed.ec != std::errc() || parsed.ptr != state.incoming.data() + numberEnd || length > MaxBody)
             {
-                state.Fail("The debugger sent an invalid DAP frame length");
+                state.Fail(Loc::TextOr(LocKeys::DebugClientLengthInvalid, "The debugger sent an invalid DAP frame length"));
                 state.incoming.clear();
                 break;
             }
@@ -396,7 +398,7 @@ namespace JBro::Code
             state.incoming.erase(0, end + 4 + length);
             if (!message.is_object() || message.is_discarded())
             {
-                state.Fail("The debugger sent an invalid DAP message");
+                state.Fail(Loc::TextOr(LocKeys::DebugClientMessageInvalid, "The debugger sent an invalid DAP message"));
                 continue;
             }
             try
@@ -405,7 +407,7 @@ namespace JBro::Code
             }
             catch (const Json::exception&)
             {
-                state.Fail("The debugger sent a malformed DAP response");
+                state.Fail(Loc::TextOr(LocKeys::DebugClientResponseMalformed, "The debugger sent a malformed DAP response"));
             }
         }
         if (state.channel.Get() == nullptr)
@@ -423,7 +425,7 @@ namespace JBro::Code
         }
         if (!state.channel->IsRunning())
         {
-            state.Fail("The debug adapter stopped unexpectedly");
+            state.Fail(Loc::TextOr(LocKeys::DebugClientStopped, "The debug adapter stopped unexpectedly"));
             return;
         }
         state.Flush();
@@ -432,7 +434,7 @@ namespace JBro::Code
             state.startupAge += elapsed;
             if (state.startupAge >= 15.0f)
             {
-                state.Fail("The debug adapter did not finish installing breakpoints in time");
+                state.Fail(Loc::TextOr(LocKeys::DebugClientStartupTimeout, "The debug adapter did not finish installing breakpoints in time"));
             }
         }
     }

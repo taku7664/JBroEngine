@@ -38,6 +38,8 @@ void TextEditor::reset() {
 	cursors.clearAll();
 	clearMarkers();
 	clearSquiggles();
+	ClearRangeHighlights();
+	textContextMenuRequested = false;
 	resetScrolling();
 }
 
@@ -64,6 +66,7 @@ bool TextEditor::render(const char* title, const ImVec2& size, ImGuiChildFlags c
 
 	// start a new child window
 	ImGui::SetNextWindowContentSize(totalSize);
+	const auto callerItemSpacing = ImGui::GetStyle().ItemSpacing;
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::ColorConvertU32ToFloat4(palette.get(Color::background)));
 
@@ -138,6 +141,9 @@ bool TextEditor::render(const char* title, const ImVec2& size, ImGuiChildFlags c
 
 		// determine number of columns at which text will wrap
 		textSize = ImVec2(textRightOffset - textLeftOffset, visibleSize.y);
+		const auto* currentWindow = ImGui::GetCurrentWindow();
+		textViewportMin = ImVec2(currentWindow->Pos.x + textLeftOffset, currentWindow->InnerClipRect.Min.y);
+		textViewportMax = ImVec2(std::min(currentWindow->Pos.x + textRightOffset, currentWindow->InnerClipRect.Max.x), currentWindow->InnerClipRect.Max.y);
 		config.wordWrapColumns = static_cast<size_t>(std::max(std::floor(textSize.x / glyphSize.x), 0.0f));
 
 		// handle possible state changes caused by API calls before first frame or between frames
@@ -168,6 +174,7 @@ bool TextEditor::render(const char* title, const ImVec2& size, ImGuiChildFlags c
 #else
 		cursorWidth = 1.0f * fontScaleDpi;
 #endif
+		renderLineNumberHover();
 
 		// setup clipping over the text area
 		const auto offset = ImGui::GetWindowPos().x;
@@ -179,6 +186,7 @@ bool TextEditor::render(const char* title, const ImVec2& size, ImGuiChildFlags c
 
 		// render parts in the text area
 		renderCurrentLineHighlight();
+		renderRangeHighlights();
 		renderActiveBracketBackground();
 		renderSelections();
 		renderTextMarkers();
@@ -198,8 +206,11 @@ bool TextEditor::render(const char* title, const ImVec2& size, ImGuiChildFlags c
 		renderMiniMap();
 		renderScrollbarMiniMap();
 		renderPanScrollIndicator();
+		// Zero spacing belongs to the text canvas, not menus or popup controls.
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, callerItemSpacing);
 		renderFindReplace();
 		renderPopups();
+		ImGui::PopStyleVar();
 
 		// handle scrolling caused by actions in this frame
 		handlePossibleScrolling();
@@ -324,6 +335,32 @@ void TextEditor::renderActiveBracketBackground() {
 //
 //	TextEditor::renderSelections
 //
+
+void TextEditor::renderRangeHighlights() {
+	for (const auto& range : rangeHighlights) {
+		for (size_t row = firstVisibleRow; row <= lastVisibleRow; ++row) {
+			const auto& visible = typeSetter[row];
+			if (visible.line < range.start.line || visible.line > range.end.line) {
+				continue;
+			}
+			const auto& line = document[visible.line];
+			const auto* section = line.sections ? &line.sections->at(visible.section) : nullptr;
+			const DocPos rowStart(visible.line, section ? section->startIndex : 0);
+			const DocPos rowEnd(visible.line, section ? section->endIndex : line.size());
+			const auto start = std::max(range.start, rowStart);
+			const auto end = std::min(range.end, rowEnd);
+			if (start < end) {
+				const auto left = docPos2VisPos(start);
+				const auto right = docPos2VisPos(end);
+				const float x = cursorScreenPos.x + textLeftOffset;
+				const float y = cursorScreenPos.y + row * glyphSize.y;
+				drawList->AddRectFilled(ImVec2(x + left.column * glyphSize.x, y),
+					ImVec2(x + (right.row == row ? right.column : visible.columns) * glyphSize.x, y + glyphSize.y),
+					ImGui::GetColorU32(rangeHighlightColor));
+			}
+		}
+	}
+}
 
 void TextEditor::renderSelections() {
 	// draw background for selections
@@ -713,6 +750,28 @@ void TextEditor::renderCursorCarets() {
 //	TextEditor::renderLineNumberMarkers
 //
 
+bool TextEditor::isMouseOverLineNumbers() const {
+	const auto* window = ImGui::GetCurrentWindow();
+	const auto mouse = ImGui::GetMousePos();
+	const auto x = mouse.x - window->Pos.x;
+	const bool overFold = config.lineFolding && std::abs(x - foldIndicatorOffset) <= glyphSize.x * 0.5f;
+	return config.showLineNumbers && ImGui::IsWindowHovered() && window->InnerClipRect.Contains(mouse) &&
+		x >= 0.0f && x < lineNumberRightOffset && !overFold &&
+		mouse.y >= cursorScreenPos.y && mouse.y < cursorScreenPos.y + typeSetter.getRowCount() * glyphSize.y;
+}
+
+void TextEditor::renderLineNumberHover() {
+	if (isMouseOverLineNumbers()) {
+		const auto row = static_cast<size_t>((ImGui::GetMousePos().y - cursorScreenPos.y) / glyphSize.y);
+		const auto& line = document[typeSetter[row].line];
+		const auto* window = ImGui::GetCurrentWindow();
+		const auto top = cursorScreenPos.y + line.row * glyphSize.y;
+		const ImVec2 left(window->InnerClipRect.Min.x, top);
+		const ImVec2 right(std::min(window->InnerClipRect.Max.x, window->Pos.x + textRightOffset), top + line.rows * glyphSize.y);
+		drawList->AddRectFilled(left, right, palette.get(Color::lineNumberHover));
+	}
+}
+
 void TextEditor::renderLineNumberMarkers() {
 	if (markers.size()) {
 		for (size_t row = firstVisibleRow; row <= lastVisibleRow; row++) {
@@ -802,7 +861,8 @@ void TextEditor::renderDecorations() {
 		for (size_t i = firstVisibleRow; i <= lastVisibleRow; i++) {
 			if (typeSetter[i].section == 0) {
 				decorator.line = typeSetter[i].line;
-				decorator.userData = document.getUserData(i);
+				decorator.userData = document.getUserData(decorator.line);
+				position.y = cursorScreenPos.y + glyphSize.y * i;
 				ImGui::SetCursorScreenPos(position);
 				ImGui::PushID(static_cast<int>(i));
 				decoratorCallback(decorator);
@@ -1100,7 +1160,11 @@ void TextEditor::renderPopups() {
 		ImGui::EndPopup();
 	}
 
-	if (ImGui::BeginPopup("TextContextMenu")) {
+	if (textContextMenuRenderer) {
+		const bool requested = textContextMenuRequested;
+		textContextMenuRequested = false;
+		textContextMenuRenderer(requested, popupData);
+	} else if (ImGui::BeginPopup("TextContextMenu")) {
 		if (textContextMenuCallback) {
 			textContextMenuCallback(popupData);
 
@@ -1271,7 +1335,7 @@ void TextEditor::handleKeyboardInputs() {
 		else if (ImGui::Shortcut(ImGuiKey_End)) { moveToEndOfLine(false); }
 		else if (ImGui::Shortcut(ImGuiMod_Shift | ImGuiKey_End)) { moveToEndOfLine(true); }
 
-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_A)) { selectAll(); }
+		else if (!externalClipboardActions && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_A)) { selectAll(); }
 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_D)) { addNextOccurrence(false); }
 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_D)) { addNextOccurrence(true); }
 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_L)) { addNextOccurrence(true); }
@@ -1279,14 +1343,14 @@ void TextEditor::handleKeyboardInputs() {
 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_D)) { selectAllOccurrences(true); }
 
 		// clipboard operations
-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_X)) { cut(); }
-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Delete)) { cut(); }
+		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_X)) { cut(); }
+		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Delete)) { cut(); }
 
-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C)) { copy(); }
-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Insert)) { copy(); }
+		else if (!externalClipboardActions && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C)) { copy(); }
+		else if (!externalClipboardActions && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Insert)) { copy(); }
 
-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_Repeat)) { paste(); }
-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Insert, ImGuiInputFlags_Repeat)) { paste(); }
+		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_Repeat)) { paste(); }
+		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Shift | ImGuiKey_Insert, ImGuiInputFlags_Repeat)) { paste(); }
 
 		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { undo(); }
 		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { redo(); }
@@ -1423,10 +1487,7 @@ void TextEditor::handleMouseInteractions() {
 	const auto mousePos = ImGui::GetMousePos() - cursorScreenPos;
 	const auto absoluteMousePos = ImGui::GetMousePos() - ImGui::GetWindowPos();
 
-	const auto overLineNumbers =
-		config.showLineNumbers &&
-		(absoluteMousePos.x > lineNumberLeftOffset) &&
-		(absoluteMousePos.x < lineNumberRightOffset);
+	const auto overLineNumbers = isMouseOverLineNumbers();
 
 	const auto overText =
 		mousePos.x - ImGui::GetScrollX() > textLeftOffset &&
@@ -1504,11 +1565,15 @@ void TextEditor::handleMouseInteractions() {
 			scrollY = std::clamp(scrollY, 0.0f, totalSize.y - textSize.y);
 			ImGui::SetScrollY(scrollY);
 
-		} else if (selectingText && overLineNumbers) {
+		} else if (selectingText && selectingLines) {
 			auto& cursor = cursors.getCurrent();
 			const auto start = DocPos(cursorPos.line, 0);
 			const auto end = normalizePos(DocPos(cursorPos.line + 1, 0));
-			cursor.update(cursor.getInteractiveEnd() < cursor.getInteractiveStart() ? start : end);
+			if (start < lineSelectionStart) {
+				cursor.update(lineSelectionEnd, start);
+			} else {
+				cursor.update(lineSelectionStart, end);
+			}
 			makeCursorVisible();
 
 		} else if (selectingText && overText) {
@@ -1520,6 +1585,7 @@ void TextEditor::handleMouseInteractions() {
 	} else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
 		miniMapIsScrollbar = false;
 		selectingText = false;
+		selectingLines = false;
 
 	// ignore other interactions when the editor is not hovered
 	} else if (ImGui::IsWindowHovered()) {
@@ -1544,20 +1610,25 @@ void TextEditor::handleMouseInteractions() {
 				popupDocPos = glyphPos;
 				ImGui::OpenPopup("LineNumberContextMenu");
 
-			} else if (overText && textContextMenuCallback) {
+			} else if (overText && (textContextMenuRenderer || textContextMenuCallback)) {
 				popupDocPos = glyphPos;
-				ImGui::OpenPopup("TextContextMenu");
+				if (textContextMenuRenderer) {
+					textContextMenuRequested = true;
+				} else {
+					ImGui::OpenPopup("TextContextMenu");
+				}
 			}
 
 		} else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 			// handle left mouse button actions
 			selectingText = overText || overLineNumbers;
+			selectingLines = overLineNumbers;
 			const auto doubleClick = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
 			const auto now = static_cast<float>(ImGui::GetTime());
 			const auto tripleClick = !doubleClick && lastClickTime != -1.0f && (now - lastClickTime) < io.MouseDoubleClickTime;
 			lastClickTime = tripleClick ? -1.0f : now;
 
-			if (tripleClick) {
+			if (tripleClick && !overLineNumbers) {
 				// left mouse button triple click
 				if (overText) {
 					const auto start = document.getStartOfLine(cursorPos);
@@ -1565,7 +1636,7 @@ void TextEditor::handleMouseInteractions() {
 					cursors.updateCurrentCursor(start, end);
 				}
 
-			} else if (doubleClick) {
+			} else if (doubleClick && !overLineNumbers) {
 				// left mouse button double click
 				if (overText) {
 					const auto codepoint = document.getCodePoint(glyphPos);
@@ -1618,10 +1689,18 @@ void TextEditor::handleMouseInteractions() {
 					// handle line number clicks
 					const auto start = DocPos(cursorPos.line, 0);
 					const auto end = normalizePos(DocPos(cursorPos.line + 1, 0));
+					lineSelectionStart = start;
+					lineSelectionEnd = end;
 
 					if (extendCursor) {
 						auto& cursor = cursors.getCurrent();
-						cursor.update(cursor.getInteractiveEnd() < cursor.getInteractiveStart() ? start : end);
+						lineSelectionStart = DocPos(cursor.getInteractiveStart().line, 0);
+						lineSelectionEnd = normalizePos(DocPos(lineSelectionStart.line + 1, 0));
+						if (start < lineSelectionStart) {
+							cursor.update(lineSelectionEnd, start);
+						} else {
+							cursor.update(lineSelectionStart, end);
+						}
 						autocomplete.cancel();
 
 					} else if (addCursor) {
@@ -1953,7 +2032,7 @@ TextEditor::DocSelection TextEditor::getCursorSelection(size_t cursor) const {
 //
 
 bool TextEditor::isMousePosOverGlyph(const ImVec2& mousePos) const {
-	if (firstFrame) {
+	if (firstFrame || !isMousePosOverTextArea(mousePos)) {
 		return false;
 
 	} else {
@@ -1981,9 +2060,8 @@ bool TextEditor::isMousePosOverTextArea(const ImVec2& mousePos) const {
 		return false;
 
 	} else {
-		// convert mouse position to screen coordinates
-		const auto local = mousePos - cursorScreenPos;
-		return local.x > textLeftOffset && local.x < textRightOffset && local.y >= 0 && local.y < textSize.y;
+		return mousePos.x >= textViewportMin.x && mousePos.x < textViewportMax.x &&
+			mousePos.y >= textViewportMin.y && mousePos.y < textViewportMax.y;
 	}
 }
 
@@ -10735,7 +10813,8 @@ const TextEditor::Palette& TextEditor::GetDarkPalette() {
 		IM_COL32(128, 128, 144, 255),	// line number
 		IM_COL32(224, 224, 240, 255),	// current line number
 		IM_COL32(255, 255, 255,   8),	// current line highlight
-		IM_COL32(255, 255, 255,  16)	// current line highlight border
+		IM_COL32(255, 255, 255,  16),	// current line highlight border
+		IM_COL32(255, 255, 255,  24)	// line number hover
 	}};
 
 	return palette;
@@ -10766,7 +10845,8 @@ const TextEditor::Palette& TextEditor::GetLightPalette() {
 		IM_COL32(  0,  80,  80, 255),	// line number
 		IM_COL32(  0,   0,   0, 255),	// current line number
 		IM_COL32(  0,   0,   0,   8),	// current line highlight
-		IM_COL32(  0,   0,   0,  16)	// current line highlight border
+		IM_COL32(  0,   0,   0,  16),	// current line highlight border
+		IM_COL32(  0,   0,   0,  24)	// line number hover
 	}};
 
 	return palette;

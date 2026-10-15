@@ -2,6 +2,7 @@
 #include "CodeEditorPanel.h"
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorActionRegistry.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -42,6 +43,34 @@ namespace JBro
         {
             return context.editor == nullptr ? nullptr : CodeEditorPanel::FindActive(*context.editor);
         }
+        const char* WhySummaryActionBlocked(const EditorActionContext& context, const char* sourceAction)
+        {
+            auto* document = ActiveDocument(context);
+            if (document == nullptr || !document->IsJBroScript())
+            {
+                return Loc::TextOr(LocKeys::ScriptSummaryNoDocument, "Open a JBroScript file first.");
+            }
+            const auto* action = EditorActionRegistry::Get().Find(sourceAction);
+            if (action == nullptr)
+            {
+                return Loc::TextOr(LocKeys::BlockedPanelNotOpen, "The window this works in is not open.");
+            }
+            EditorActionContext source = context;
+            source.panel = document;
+            return EditorActionUi::WhyBlocked(*action, source);
+        }
+        Bool ExecuteSummaryAction(EditorActionContext& context, const char* sourceAction)
+        {
+            auto* document = ActiveDocument(context);
+            const auto* action = EditorActionRegistry::Get().Find(sourceAction);
+            if (document == nullptr || !document->IsJBroScript() || action == nullptr)
+            {
+                return false;
+            }
+            EditorActionContext source = context;
+            source.panel = document;
+            return EditorActionUi::Execute(*action, source);
+        }
     }
     void ScriptSummaryPanel::RegisterActions()
     {
@@ -54,13 +83,15 @@ namespace JBro
         save.primary = {ImGuiKey_S, true};
         save.whileTyping = true;
         save.duringGame = true;
+        save.icon = Icons::Save;
         save.CanExecute = [](const EditorActionContext& context) -> Bool {
-            const auto* document = ActiveDocument(context);
-            return document != nullptr && document->IsJBroScript() && !document->IsReadOnly() && document->HasUnsavedChanges();
+            return WhySummaryActionBlocked(context, "code_editor.save") == nullptr;
+        };
+        save.WhyBlocked = [](const EditorActionContext& context) {
+            return WhySummaryActionBlocked(context, "code_editor.save");
         };
         save.Execute = [](EditorActionContext& context) -> Bool {
-            auto* document = ActiveDocument(context);
-            return document != nullptr && document->Save();
+            return ExecuteSummaryAction(context, "code_editor.save");
         };
         EditorActionRegistry::Get().Register(save);
         EditorActionInfo undo = save;
@@ -69,18 +100,15 @@ namespace JBro
         undo.fallbackLabel = "Undo";
         undo.primary = {ImGuiKey_Z, true};
         undo.whileTyping = false;
+        undo.icon = Icons::Undo;
         undo.CanExecute = [](const EditorActionContext& context) -> Bool {
-            auto* document = ActiveDocument(context);
-            return document != nullptr && document->IsJBroScript() && !document->IsReadOnly() && document->GetBuffer().CanUndo();
+            return WhySummaryActionBlocked(context, "code_editor.undo") == nullptr;
+        };
+        undo.WhyBlocked = [](const EditorActionContext& context) {
+            return WhySummaryActionBlocked(context, "code_editor.undo");
         };
         undo.Execute = [](EditorActionContext& context) -> Bool {
-            auto* document = ActiveDocument(context);
-            if (document == nullptr || document->IsReadOnly())
-            {
-                return false;
-            }
-            document->Undo();
-            return true;
+            return ExecuteSummaryAction(context, "code_editor.undo");
         };
         EditorActionRegistry::Get().Register(undo);
         EditorActionInfo redo = undo;
@@ -89,18 +117,15 @@ namespace JBro
         redo.fallbackLabel = "Redo";
         redo.primary = {ImGuiKey_Y, true};
         redo.secondary = {ImGuiKey_Z, true, true};
+        redo.icon = Icons::Redo;
         redo.CanExecute = [](const EditorActionContext& context) -> Bool {
-            auto* document = ActiveDocument(context);
-            return document != nullptr && document->IsJBroScript() && !document->IsReadOnly() && document->GetBuffer().CanRedo();
+            return WhySummaryActionBlocked(context, "code_editor.redo") == nullptr;
+        };
+        redo.WhyBlocked = [](const EditorActionContext& context) {
+            return WhySummaryActionBlocked(context, "code_editor.redo");
         };
         redo.Execute = [](EditorActionContext& context) -> Bool {
-            auto* document = ActiveDocument(context);
-            if (document == nullptr || document->IsReadOnly())
-            {
-                return false;
-            }
-            document->Redo();
-            return true;
+            return ExecuteSummaryAction(context, "code_editor.redo");
         };
         EditorActionRegistry::Get().Register(redo);
     }
@@ -251,7 +276,7 @@ namespace JBro
             {
                 if (entry.key == m_selected)
                 {
-                    document->FocusAt(entry.source.selectionRange.start.line + 1u, entry.source.selectionRange.start.character);
+                    document->SelectDefinition(entry.source.selectionRange);
                     break;
                 }
             }
@@ -303,6 +328,7 @@ namespace JBro
             item.key = entry.key;
             item.name = source.kind == Code::SummaryKind::Function ? String(source.name + "()") : source.name;
             item.detail = source.type;
+            item.tooltip = item.name + "\n" + item.detail;
             item.kind = source.kind;
             item.depth = depth;
             m_outline.Add(std::move(item));
@@ -521,10 +547,6 @@ namespace JBro
                 }
                 Bool initializer = field.initializerPresent != entry.source.initializerPresent
                     || (field.initializerPresent && field.initializer != entry.source.initializer);
-                if (field.initializerPresent && field.initializer.empty())
-                {
-                    initializer = false;
-                }
                 Bool attributes = false;
                 for (const auto& desired : field.attributes)
                 {

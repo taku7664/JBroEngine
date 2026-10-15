@@ -75,6 +75,7 @@ JBro::Int32 RunEditorUITests();
 JBro::Int32 RunCodeEditorTests();
 JBro::Int32 RunScriptSummaryTests();
 JBro::Int32 RunScriptSummaryPanelTests();
+JBro::Int32 RunScriptSummaryIntegrationTests();
 JBro::Int32 RunNativeDebugTests();
 JBro::Int32 RunSourceDebuggerTests();
 JBro::Int32 RunNestedScriptTypeTests();
@@ -530,6 +531,7 @@ int main()
         }
         if (false == RunSuite("ScriptSummary", &RunScriptSummaryTests)
             || false == RunSuite("ScriptSummaryPanel", &RunScriptSummaryPanelTests)
+            || false == RunSuite("ScriptSummaryIntegration", &RunScriptSummaryIntegrationTests)
             || false == RunSuite("NativeDebug", &RunNativeDebugTests)
             || false == RunSuite("SourceDebugger", &RunSourceDebuggerTests)
             || false == RunSuite("NestedScriptType", &RunNestedScriptTypeTests))

@@ -41,7 +41,7 @@ namespace JBro::ScriptLanguageServer::Detail
         {
             if (false == params.contains("changes") || false == params["changes"].is_object())
             {
-                error = "Field settings require a changes object.";
+                error = "jbroc.summary.changes_required";
                 return false;
             }
             const Json& changes = params["changes"];
@@ -49,7 +49,7 @@ namespace JBro::ScriptLanguageServer::Detail
             {
                 if (key != "initializer" && key != "attributes")
                 {
-                    error = "Only field attributes and the source initializer are editable.";
+                    error = "jbroc.summary.unsupported_change";
                     return false;
                 }
             }
@@ -58,7 +58,7 @@ namespace JBro::ScriptLanguageServer::Detail
                 const Json& initializer = changes["initializer"];
                 if (false == initializer.is_null() && false == initializer.is_string())
                 {
-                    error = "The initializer must be expression text or null to remove it.";
+                    error = "jbroc.summary.initializer_type";
                     return false;
                 }
                 change.ChangeInitializer = true;
@@ -73,7 +73,7 @@ namespace JBro::ScriptLanguageServer::Detail
                 const Json& attributes = changes["attributes"];
                 if (false == attributes.is_array() || attributes.size() > GetFieldAttributeDefinitions().Size())
                 {
-                    error = "Attributes must be the desired list of recognized field settings.";
+                    error = "jbroc.summary.attributes_type";
                     return false;
                 }
                 change.ChangeAttributes = true;
@@ -83,7 +83,7 @@ namespace JBro::ScriptLanguageServer::Detail
                         || false == attribute["name"].is_string() || false == attribute.contains("arguments")
                         || false == attribute["arguments"].is_array())
                     {
-                        error = "Every field attribute requires a name and an expression argument list.";
+                        error = "jbroc.summary.attribute_shape";
                         return false;
                     }
                     SummaryAttribute value;
@@ -92,7 +92,7 @@ namespace JBro::ScriptLanguageServer::Detail
                     {
                         if (false == argument.is_string())
                         {
-                            error = "Attribute arguments must be expression text.";
+                            error = "jbroc.summary.attribute_argument_type";
                             return false;
                         }
                         value.Arguments.Add(String(argument.get<std::string>()));
@@ -111,13 +111,13 @@ namespace JBro::ScriptLanguageServer::Detail
         if (false == textDocument.contains("version") || false == textDocument["version"].is_number_integer())
         {
             code = -32602;
-            error = "Script summary requests require an exact document version.";
+            error = m_messages.FormatKey("jbroc.summary.version_required", {});
             return nullptr;
         }
         if (textDocument["version"].get<Int64>() != document.Input.Version)
         {
             code = -32801;
-            error = "The document changed; refresh the script summary before editing settings.";
+            error = m_messages.FormatKey("jbroc.summary.stale_version", {});
             return nullptr;
         }
         if (false == edit)
@@ -134,7 +134,7 @@ namespace JBro::ScriptLanguageServer::Detail
         if (false == params.contains("position") || false == Offset(document.Source.GetText(), params["position"], offset))
         {
             code = -32602;
-            error = "A current field selection position in UTF-16 is required.";
+            error = m_messages.FormatKey("jbroc.summary.selection_required", {});
             return nullptr;
         }
         FieldSettingsChange change;
@@ -142,6 +142,7 @@ namespace JBro::ScriptLanguageServer::Detail
         if (false == ReadChanges(params, change, error) || false == EditFieldSettings(document, offset, change, edits, error))
         {
             code = -32602;
+            error = m_messages.FormatKey(error.c_str(), {});
             return nullptr;
         }
         Json result = Json::array();

@@ -164,7 +164,8 @@ namespace
         Respond(platform, client, second, {{"breakpoints", Json::array({{{"id", 2}, {"line", 7}, {"verified", false}}})}});
         client.Configure();
         Respond(platform, client, Request(platform, "configurationDone"), Json::object(), false);
-        Check(client.GetState() == Code::DebugState::Failed && !client.GetError().empty(), "engine install failure prevents ready");
+        Check(client.GetState() == Code::DebugState::Failed && client.GetError() == "engine rejected breakpoint",
+            "engine install failure prevents ready and preserves the adapter diagnostic verbatim");
         Check(!platform.data.destroyed, "failure sends graceful disconnect before killing adapter");
         client.Poll(3.0f);
         Check(platform.data.destroyed, "failure cleanup has finite deadline");

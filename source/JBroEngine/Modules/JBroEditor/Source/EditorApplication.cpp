@@ -6705,8 +6705,10 @@ namespace JBro
             }
             if (shown)
             {
-                panel->SetVisible(true);
-                panel->SetFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
+                const ImGuiWindow* window = ImGui::GetCurrentWindow();
+                const Bool visible = !window->Hidden && (!window->DockIsActive || window->DockTabIsVisible);
+                panel->SetVisible(visible);
+                panel->SetFocused(visible && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
                 if (panel->HasMenuBar() && Widget::BeginMenuBar())
                 {
                     panel->OnMenuBar();

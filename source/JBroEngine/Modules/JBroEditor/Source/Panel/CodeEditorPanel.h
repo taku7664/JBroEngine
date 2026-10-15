@@ -1,7 +1,8 @@
-#pragma once
+﻿#pragma once
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/Widget/CodeEditor.h>
 #include <JBro/Editor/Code/LanguageClient.h>
+#include "../Code/DocumentAssistance.h"
 
 namespace JBro
 {
@@ -32,8 +33,11 @@ namespace JBro
         void RequestClose();
         void RequestReload();
         void FocusAt(UInt32 line, UInt32 column = 0);
+        void SelectDefinition(const Code::Range& range);
         void Undo();
         void Redo();
+        void Cut();
+        void Paste();
         Widget::CodeEditor& GetBuffer() { return m_buffer; }
         String GetBufferText() const { return m_buffer.GetText(); }
         Bool IsJBroScript() const { return m_jscript; }
@@ -44,15 +48,22 @@ namespace JBro
     private:
         void UpdateTitle();
         void Changed();
+        void CancelSiblingFocusRequests();
         EditorApplication* m_editor = nullptr;
         Code::LanguageClient* m_language = nullptr;
         Widget::CodeEditor m_buffer;
+        Code::DocumentAssistance m_assistance{m_buffer};
         String m_path, m_title, m_text, m_saved, m_diskBytes, m_message;
         Array<Code::Diagnostic> m_diagnostics;
+        Array<Widget::CodeEditor::Marker> m_debugMarkers;
+        UInt64 m_markerAnchors = UInt64(-1), m_markerClient = UInt64(-1), m_markerLocale = UInt64(-1);
+        UInt32 m_executionLine = 0;
+        Bool m_markerMatches = false;
         UInt64 m_revision = 0, m_analysisRevision = 0;
         UInt64 m_focusSerial = 0;
         Bool m_jscript = false, m_readOnly = false, m_bom = false, m_crlf = false;
-        Bool m_focus = false;
+        Bool m_focus = false, m_selectFocus = false;
+        Code::Range m_focusRange;
         UInt32 m_focusLine = 0, m_focusColumn = 0;
     };
 }

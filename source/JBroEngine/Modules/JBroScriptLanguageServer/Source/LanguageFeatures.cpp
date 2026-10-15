@@ -231,7 +231,10 @@ namespace JBro::ScriptLanguageServer::Detail
         {
             return nullptr;
         }
-        const String signature = symbol->Signature.IsEmpty() ? String(symbol->Type).Append(" ").Append(symbol->Name.View()) : symbol->Signature;
+        const Bool type = symbol->Kind == SymbolKind::Type || symbol->Kind == SymbolKind::Class || symbol->Kind == SymbolKind::Struct
+            || symbol->Kind == SymbolKind::Interface || symbol->Kind == SymbolKind::Enum;
+        const String signature = type ? (symbol->Type.IsEmpty() ? symbol->Name : symbol->Type)
+            : symbol->Signature.IsEmpty() ? String(symbol->Type).Append(" ").Append(symbol->Name.View()) : symbol->Signature;
         String description = signature;
         if (m_hoverMarkdown)
         {
