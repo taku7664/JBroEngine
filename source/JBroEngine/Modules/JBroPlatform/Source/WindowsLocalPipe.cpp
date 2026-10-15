@@ -242,6 +242,11 @@ namespace JBro
         }
     }
 
+    UInt32 WindowsPlatform::GetProcessId() const
+    {
+        return UInt32(static_cast<std::uint32_t>(GetCurrentProcessId()));
+    }
+
     OwnerPtr<ILocalPipe> WindowsPlatform::OpenLocalPipe(const char* name)
     {
         if (name == nullptr || name[0] == '\0')

@@ -369,6 +369,11 @@ namespace JBro
         {
             return String();
         }
+        // 이 프로세스의 운영체제 번호다(D-330 5 단계: 디버그 어댑터가 붙을 때 쓴다). 없는 플랫폼이면 0 이다.
+        virtual UInt32 GetProcessId() const
+        {
+            return 0;
+        }
         // 그 경로를 운영체제의 파일 탐색기에서 연다. 없는 플랫폼이면 거짓이다.
         // **OS 의 기본 프로그램에게 넘긴다**(기존 `File::OpenFile`). 엔진이 모르는 파일을
         // 에셋 브라우저에서 두 번 눌렀을 때 쓴다 - 탐색기로 보여 주는 `RevealInFileBrowser`

@@ -613,6 +613,46 @@ namespace
         editor.StopScriptDebugServer();
         editor.Shutdown();
     }
+
+    // **디버그 실행 메뉴**(D-330 5 단계). 통로를 열고 재생을 시작하며, 어댑터가 붙을 수 있다. 다시 누르면 재생과 통로를 함께 닫는다.
+    void TestDebugSessionOpensTheChannelAndPlays()
+    {
+        RegisterScriptType<BreakScript>();
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the debug menu is not verified" << std::endl;
+            return;
+        }
+        ProjectDescriptor project;
+        constexpr char name[] = "DebugMenuProbe";
+        project.name = {name, static_cast<UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Canvas& canvas = *editor.GetCanvas();
+        canvas.AttachComponent<Component::Transform2D>(canvas.CreateObject("Mover"));
+
+        Check(false == editor.IsDebugSessionActive(), "debugging is off at first");
+        editor.StartDebugSession();
+        Check(editor.IsDebugSessionActive() && editor.IsScriptDebugServerActive(), "start debugging opens the channel");
+        Check(editor.IsSimulationPlaying(), "and starts play so scripts can hit breakpoints");
+        Check(editor.GetNotifications().GetLastLevel() == NotificationLevel::Info, "the user is told debugging is on");
+
+        // 어댑터가 붙을 수 있다 - 통로가 이 프로세스의 이름으로 열려 있다.
+        PipeClient client;
+        Check(client.Connect(GetCurrentProcessId()), "an adapter can connect while debugging");
+        Check(editor.Tick(Frame), "the editor ticks while debugging");
+        client.Close();
+
+        editor.StopDebugSession();
+        Check(false == editor.IsDebugSessionActive() && false == editor.IsScriptDebugServerActive(), "stop debugging closes the channel");
+        Check(false == editor.IsSimulationPlaying(), "and stops play");
+        editor.Shutdown();
+    }
 }
 
 JBro::Int32 RunScriptBreakTests()
@@ -620,6 +660,7 @@ JBro::Int32 RunScriptBreakTests()
     TestScriptBreakStopsOnlyTheGame();
     TestSteppingAdvancesTheLine();
     TestTheDebugServerRelaysAcrossThePipe();
+    TestDebugSessionOpensTheChannelAndPlays();
     std::cout << "ScriptBreak tests passed.\n";
     return 0;
 }

@@ -570,6 +570,10 @@ namespace JBro
         Bool StartScriptDebugServer(UInt32 processId);
         void StopScriptDebugServer();
         Bool IsScriptDebugServerActive() const;
+        // **디버그 실행**(D-330 5 단계). 통로를 열고 재생을 시작한다 - 스크립트 편집기가 어댑터로 붙어 중단점을 건다. 멈추면 재생과 통로를 함께 닫는다.
+        void StartDebugSession();
+        void StopDebugSession();
+        Bool IsDebugSessionActive() const;
         // 선 동안의 프레임마다 부르는 함수다. 시험이 사람 대신 보고 누른다.
         using ScriptBreakFrameHook = void (*)(void* user, EditorApplication& editor);
         void SetScriptBreakFrameHook(ScriptBreakFrameHook hook, void* user);

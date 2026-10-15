@@ -143,6 +143,10 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuDebugCpuProfiler = "menu.debug_cpu_profiler";
     inline constexpr const char* MenuDebugStats = "menu.debug_stats";
     inline constexpr const char* MenuDebugLog = "menu.debug_log";
+    inline constexpr const char* MenuDebugStart = "menu.debug_start";
+    inline constexpr const char* MenuDebugStop = "menu.debug_stop";
+    inline constexpr const char* NotifyDebugStarted = "notify.debug_started";
+    inline constexpr const char* NotifyDebugChannelFailed = "notify.debug_channel_failed";
     inline constexpr const char* MenuExit = "menu.exit";
     inline constexpr const char* MenuUndo = "menu.undo";
     inline constexpr const char* MenuRedo = "menu.redo";

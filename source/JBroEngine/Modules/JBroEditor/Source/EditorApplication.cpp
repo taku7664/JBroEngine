@@ -3509,6 +3509,44 @@ namespace JBro
         return m_debugServer.Get() != nullptr && m_debugServer->IsActive();
     }
 
+    void EditorApplication::StartDebugSession()
+    {
+        if (IsDebugSessionActive() || m_platform.Get() == nullptr)
+        {
+            return;
+        }
+        if (false == StartScriptDebugServer(m_platform->GetProcessId()))
+        {
+            m_notifications.Notify(NotificationLevel::Error,
+                Loc::TextOr(LocKeys::NotifyDebugChannelFailed, "The debug channel could not open"));
+            return;
+        }
+        if (false == m_simulationPlaying)
+        {
+            StartSimulation();
+        }
+        m_notifications.Notify(NotificationLevel::Info,
+            Loc::TextOr(LocKeys::NotifyDebugStarted, "Debugging is on - attach from the script editor to hit breakpoints"));
+    }
+
+    void EditorApplication::StopDebugSession()
+    {
+        if (false == IsDebugSessionActive())
+        {
+            return;
+        }
+        if (m_simulationPlaying)
+        {
+            StopSimulation();
+        }
+        StopScriptDebugServer();
+    }
+
+    Bool EditorApplication::IsDebugSessionActive() const
+    {
+        return IsScriptDebugServerActive();
+    }
+
     void EditorApplication::PollScriptErrors()
     {
         // **JBroScript 의 실행 오류는 그 콜백만 멈추고 실행은 이어진다**(D-317). 호스트는 자리마다 로그 그룹으로만 남겨, 로그 탭을 열지
@@ -5909,6 +5947,22 @@ namespace JBro
         }
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuDebug, "Debug")))
         {
+            // **디버그 실행**(D-330 5 단계). 통로를 열고 재생한다 - 스크립트 편집기가 붙어 중단점을 건다. 다시 누르면 멈춘다.
+            const Bool debugging = IsDebugSessionActive();
+            if (Widget::MenuItem(debugging
+                    ? Loc::TextOr(LocKeys::MenuDebugStop, "Stop Debugging")
+                    : Loc::TextOr(LocKeys::MenuDebugStart, "Start Debugging")))
+            {
+                if (debugging)
+                {
+                    StopDebugSession();
+                }
+                else
+                {
+                    StartDebugSession();
+                }
+            }
+            ImGui::Separator();
             DrawPanelMenuItem("Profiler", Loc::TextOr(LocKeys::MenuDebugCpuProfiler, "CPU Profiler"));
             DrawPanelMenuItem("Stats", Loc::TextOr(LocKeys::MenuDebugStats, "Statistics"));
             DrawPanelMenuItem("Log", Loc::TextOr(LocKeys::MenuDebugLog, "Log"));
