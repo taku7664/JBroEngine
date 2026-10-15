@@ -4494,6 +4494,7 @@ void TextEditor::Transactions::reset() {
 //
 
 void TextEditor::Transactions::add(std::shared_ptr<Transaction> transaction) {
+	lastKind = TransactionKind::Edit;
 	resize(undoIndex);
 	push_back(transaction);
 	undoIndex++;
@@ -4520,6 +4521,7 @@ void TextEditor::Transactions::add(std::shared_ptr<Transaction> transaction) {
 //
 
 void TextEditor::Transactions::undo(const Config& config, Document& document, Cursors& cursors) {
+	lastKind = TransactionKind::Undo;
 	const auto transaction = at(--undoIndex);
 
 	for (auto action = transaction->rbegin(); action < transaction->rend(); action++) {
@@ -4537,12 +4539,12 @@ void TextEditor::Transactions::undo(const Config& config, Document& document, Cu
 	if (callback) {
 		std::vector<Change> changes;
 
-		for (const auto& action : *transaction) {
+		for (auto action = transaction->rbegin(); action != transaction->rend(); ++action) {
 			auto& change = changes.emplace_back();
-			change.insert = action.type == Action::Type::deleteText;
-			change.start = action.start;
-			change.end = action.end;
-			change.text = action.text;
+			change.insert = action->type == Action::Type::deleteText;
+			change.start = action->start;
+			change.end = action->end;
+			change.text = action->text;
 		}
 
 		callback(changes);
@@ -4555,6 +4557,7 @@ void TextEditor::Transactions::undo(const Config& config, Document& document, Cu
 //
 
 void TextEditor::Transactions::redo(const Config& config, Document& document, Cursors& cursors) {
+	lastKind = TransactionKind::Redo;
 	const auto transaction = at(undoIndex++);
 
 	for (auto action = transaction->begin(); action < transaction->end(); action++) {
@@ -5529,6 +5532,34 @@ void TextEditor::replaceSectionText(const DocPos& start, const DocPos& end, cons
 	const auto newEnd = insertText(transaction, start, text);
 	cursors.clearAdditional();
 	cursors.getMain().update(newEnd, newEnd);
+	endTransaction(transaction);
+}
+
+void TextEditor::ReplaceSectionsText(const std::vector<Replacement>& replacements) {
+	if (config.readOnly || replacements.empty()) {
+		return;
+	}
+	auto ordered = replacements;
+	for (auto& replacement : ordered) {
+		replacement.start = normalizePos(replacement.start);
+		replacement.end = normalizePos(replacement.end);
+		if (replacement.end < replacement.start) {
+			return;
+		}
+	}
+	std::sort(ordered.begin(), ordered.end(), [](const auto& a, const auto& b) { return a.start > b.start; });
+	for (size_t i = 1; i < ordered.size(); ++i) {
+		if (ordered[i].end > ordered[i - 1].start || ordered[i].start == ordered[i - 1].start) {
+			return;
+		}
+	}
+	const auto transaction = startTransaction();
+	for (const auto& replacement : ordered) {
+		deleteText(transaction, replacement.start, replacement.end);
+		const auto end = insertText(transaction, replacement.start, replacement.text);
+		cursors.clearAdditional();
+		cursors.getMain().update(end, end);
+	}
 	endTransaction(transaction);
 }
 

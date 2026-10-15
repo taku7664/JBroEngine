@@ -4,6 +4,8 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/CodeEditor.h>
+#include <JBro/Editor/Code/SourceDebugger.h>
+#include <nlohmann/json.hpp>
 #include <JBro/Platform/WindowsPlatform.h>
 #include "../Modules/JBroEditor/Source/Panel/CodeEditorPanel.h"
 #include <TextEditor.h>
@@ -105,6 +107,25 @@ namespace
         ChannelData data;
     };
     String Frame(const String& body) { return "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" + body; }
+    int LatestRequest(const String& framed, const char* method)
+    {
+        int result = 0;
+        std::size_t at = 0;
+        while (at < framed.size())
+        {
+            const auto end = framed.find("\r\n\r\n", at);
+            Check(end != String::npos, "fake client writes complete frame headers");
+            const auto length = std::stoul(framed.substr(at + 16, end - at - 16));
+            const auto value = nlohmann::json::parse(framed.View().substr(end + 4, length));
+            if (value.value("method", "") == method)
+            {
+                result = value.value("id", 0);
+            }
+            at = end + 4 + length;
+        }
+        Check(result != 0, "expected language request was sent");
+        return result;
+    }
     void Reply(MemoryPlatform& platform, Code::LanguageClient& client, const String& body)
     {
         platform.data.in = Frame(body);
@@ -134,7 +155,7 @@ namespace
         Check(client.GetAnalysis(path)->diagnostics.IsEmpty(), "old diagnostic ignored");
         client.Poll(0.2f);
         Check(platform.data.out.find("didChange") != String::npos && platform.data.out.find("\"version\":2") != String::npos, "debounced change keeps its version");
-        Reply(platform, client, "{\"id\":3,\"result\":{\"data\":[0,0,6,12,0]}}");
+        Reply(platform, client, "{\"id\":" + std::to_string(LatestRequest(platform.data.out, "textDocument/semanticTokens/full")) + ",\"result\":{\"data\":[0,0,6,12,0]}}");
         Check(client.GetAnalysis(path)->tokens.Size() == 1, "current semantic token accepted");
         Reply(platform, client, "{\"method\":\"textDocument/publishDiagnostics\",\"params\":7}");
         Check(client.GetState() == Code::ClientState::Failed && platform.data.destroyed, "malformed result stops the child safely");
@@ -230,6 +251,137 @@ namespace
         first.Redo();
         ui.Render([&] { first.Render("first"); });
         Check(first.GetMainCursorPosition().line < first.GetLineCount(), "delete after scrolling keeps a valid cursor");
+    }
+    void TestAtomicSourceEditsAndAnchors()
+    {
+        Ui ui;
+        Widget::CodeEditor buffer;
+        const String original = "// \xf0\x9f\x98\x80\nInt value = 1 // keep\nfn Run() {}\n";
+        buffer.SetText(original);
+        ui.Render([&] { buffer.Render("edits"); });
+        Array<Code::TextEdit> edits;
+        edits.Add({{{1, 0}, {1, 0}}, "[prop] "});
+        edits.Add({{{1, 12}, {1, 13}}, "42"});
+        Check(buffer.ApplyEdits(edits), "nonoverlapping source edits apply");
+        Check(buffer.GetText() == "// \xf0\x9f\x98\x80\n[prop] Int value = 42 // keep\nfn Run() {}\n", "only target source ranges change");
+        buffer.Undo();
+        Check(buffer.GetText() == original && !buffer.CanUndo(), "one undo restores both attribute and initializer edits");
+        buffer.Redo();
+        Check(buffer.GetText().find("[prop]") != String::npos, "one redo restores source gesture");
+        edits.Clear();
+        edits.Add({{{0, 4}, {0, 4}}, "x"});
+        Check(!buffer.ApplyEdits(edits), "UTF16 edit cannot split a surrogate pair");
+        edits.Clear();
+        edits.Add({{{0, 3}, {0, 5}}, "emoji"});
+        Check(buffer.ApplyEdits(edits) && buffer.GetText().StartsWith("// emoji\n"), "UTF16 replacement targets complete emoji");
+
+        Code::Breakpoints anchors;
+        const String path = "C:/project/probe.jscript";
+        anchors.Open(path, "first\nsecond\nthird", 0);
+        anchors.Toggle(path, 2);
+        anchors.Change(path, "new\nfirst\nsecond\nthird", 1);
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 3, "line insertion moves anchor");
+        anchors.Change(path, "new\nfirst\nthird", 2);
+        Check(anchors.Lines(path).IsEmpty(), "deleting anchored line removes marker");
+        anchors.Change(path, "new\nfirst\nsecond\nthird", 1);
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 3, "undo restores deleted marker");
+        anchors.Change(path, "first\nsecond\nthird", 0);
+        Check(anchors.Lines(path)[0] == 2, "undo insertion restores old line");
+        anchors.Toggle(path, 2);
+        anchors.Change(path, "new\nfirst\nsecond\nthird", 1);
+        Check(anchors.Lines(path).IsEmpty(), "text redo does not re-enable manually removed breakpoint");
+        anchors.Toggle(path, 4);
+        anchors.Open(path, "new\nfirst\nsecond\nthird", 0);
+        Check(anchors.Lines(path)[0] == 4, "closing and reopening document preserves session marker");
+        anchors.Clear();
+        Check(anchors.Lines(path).IsEmpty(), "project close clears markers");
+        anchors.Open(path, "first\nsecond\nthird\nlast", 0);
+        anchors.Toggle(path, 2);
+        anchors.Change(path, "FIRST\nsecond\nTHIRD\nlast", 1);
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 2,
+            "unchanged line inside a multi-range gesture keeps its breakpoint");
+        anchors.Change(path, "FIRST\nreplacement\nTHIRD\nlast", 2);
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 2,
+            "replacing a statement without deleting its line keeps the anchor");
+        anchors.Change(path, "", 3);
+        Check(anchors.Lines(path).IsEmpty(), "deleting all text removes every marker");
+        anchors.Change(path, "FIRST\nreplacement\nTHIRD\nlast", 2);
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 2, "undo delete-all restores anchors");
+    }
+    void TestExactNativeAnchorChanges()
+    {
+        Ui ui;
+        Widget::CodeEditor buffer;
+        Code::Breakpoints anchors;
+        const String path = "C:/project/exact.jscript";
+        const auto sync = [&] {
+            anchors.Change(path, buffer.GetText(), buffer.GetHistoryIndex(), buffer.TakeChanges());
+        };
+        const auto open = [&](const String& text, UInt32 line) {
+            buffer.SetText(text);
+            buffer.TakeChanges();
+            anchors.Clear();
+            anchors.Open(path, text, buffer.GetHistoryIndex());
+            anchors.Toggle(path, line);
+        };
+        open("a\na\n", 2);
+        Check(buffer.ApplyEdits({{{{0, 0}, {0, 0}}, "a\n"}}), "identical line is inserted at the exact beginning");
+        sync();
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 3,
+            "identical-line prepend moves the existing anchor instead of matching duplicate text");
+        buffer.Undo();
+        sync();
+        Check(anchors.Lines(path)[0] == 2, "undo identical-line prepend restores its exact source anchor");
+        buffer.Redo();
+        sync();
+        Check(anchors.Lines(path)[0] == 3, "redo identical-line prepend restores the inserted line shift");
+        anchors.Toggle(path, 3);
+        buffer.Undo();
+        sync();
+        buffer.Redo();
+        sync();
+        Check(anchors.Lines(path).IsEmpty(), "undo and redo never undo a manual breakpoint removal");
+
+        String large;
+        for (UInt32 row = 0; row < 1500; ++row)
+        {
+            large += "line" + std::to_string(row.Get()) + "\n";
+        }
+        open(large, 750);
+        Check(buffer.ApplyEdits({{{{0, 0}, {0, 5}}, "changed-first"}, {{{1499, 0}, {1499, 8}}, "changed-last"}}),
+            "two far-apart source replacements share one native transaction");
+        sync();
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 750,
+            "a 1500-line source gesture preserves an untouched middle anchor");
+        buffer.Undo();
+        sync();
+        Check(buffer.GetText() == large && !buffer.CanUndo() && anchors.Lines(path)[0] == 750,
+            "one undo restores both distant replacements and leaves middle anchor intact");
+        buffer.Redo();
+        sync();
+        Check(anchors.Lines(path)[0] == 750, "redo distant replacements preserves middle anchor");
+
+        open("head\nmarked\ntail\n", 2);
+        Check(buffer.ApplyEdits({{{{0, 0}, {0, 0}}, "inserted\n"}})
+            && buffer.ApplyEdits({{{{2, 0}, {3, 0}}, ""}}), "multiple transactions can queue before the panel consumes changes");
+        sync();
+        Check(anchors.Lines(path).IsEmpty(), "the queued exact deletion removes its anchor");
+        buffer.Undo();
+        sync();
+        Check(anchors.Lines(path).Size() == 1 && anchors.Lines(path)[0] == 3,
+            "undo restores an intermediate transaction that was never separately polled");
+        buffer.Undo();
+        sync();
+        Check(anchors.Lines(path)[0] == 2, "the earlier queued insertion also undoes precisely");
+
+        TextEditor native;
+        native.SetText("old\nend");
+        std::vector<TextEditor::Change> changes;
+        native.SetTransactionCallback([&](const auto& value) { changes = value; });
+        native.ReplaceSectionText({0, 0}, {0, 3}, "new\nextra");
+        native.Undo();
+        Check(changes.size() == 2 && !changes[0].insert && changes[0].text == "new\nextra"
+            && changes[1].insert && changes[1].text == "old", "native undo reports inverse actions in actual execution order");
     }
     void TestHighlightingAndUtf16()
     {
@@ -367,6 +519,8 @@ JBro::Int32 RunCodeEditorTests()
 {
     TestProtocolAndStaleResults();
     TestTextHistoryAndDelete();
+    TestAtomicSourceEditsAndAnchors();
+    TestExactNativeAnchorChanges();
     TestHighlightingAndUtf16();
     TestUndoHasOneOwner();
     TestRealLanguageServer();

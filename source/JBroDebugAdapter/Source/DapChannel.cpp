@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <charconv>
 
 namespace JBro::DebugAdapter
 {
@@ -66,10 +67,16 @@ namespace JBro::DebugAdapter
     {
         std::size_t contentLength = 0;
         Bool haveLength = false;
+        std::size_t headerLength = 0;
         String line;
         while (true)
         {
             if (false == ReadHeaderLine(line))
+            {
+                return false;
+            }
+            headerLength += line.size() + 2;
+            if (headerLength > 8192)
             {
                 return false;
             }
@@ -84,12 +91,26 @@ namespace JBro::DebugAdapter
             constexpr const char* Header = "Content-Length:";
             if (line.rfind(Header, 0) == 0)
             {
-                contentLength = static_cast<std::size_t>(std::strtoull(line.c_str() + std::strlen(Header), nullptr, 10));
+                if (haveLength)
+                {
+                    return false;
+                }
+                const char* start = line.c_str() + std::strlen(Header);
+                const char* end = line.c_str() + line.size();
+                while (start < end && *start == ' ')
+                {
+                    ++start;
+                }
+                const auto result = std::from_chars(start, end, contentLength);
+                if (result.ec != std::errc() || result.ptr != end)
+                {
+                    return false;
+                }
                 haveLength = true;
             }
         }
         // 한 메시지의 상한이다. 클라이언트가 보내는 요청은 작다.
-        if (contentLength > 64u * 1024u * 1024u)
+        if (contentLength > 4u * 1024u * 1024u)
         {
             return false;
         }

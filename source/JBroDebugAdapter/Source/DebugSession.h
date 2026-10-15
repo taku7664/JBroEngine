@@ -67,6 +67,9 @@ namespace JBro::DebugAdapter
             ULONG64 address = 0;
             // 에디터가 이 주소에 중단점을 넣었다고 답했는가.
             Bool armed = false;
+            Bool pending = false;
+            Bool rejected = false;
+            std::chrono::steady_clock::time_point sentAt;
         };
 
         struct ScriptModule
@@ -120,6 +123,8 @@ namespace JBro::DebugAdapter
         Bool ResolveAndArm(SourceBreakpoint& breakpoint);
         void DisarmBreakpoint(SourceBreakpoint& breakpoint);
         JsonValue DescribeBreakpoint(const SourceBreakpoint& breakpoint) const;
+        void CompleteConfiguration();
+        void PollBreakpointAcknowledgments();
 
         // ── 변수 ──
         Bool SelectFrame(Int64 frameId);
@@ -160,6 +165,8 @@ namespace JBro::DebugAdapter
         Array<ScriptModule> m_scriptModules;
         Array<SourceBreakpoint> m_breakpoints;
         Int32 m_nextBreakpointId = 1;
+        JsonValue m_configurationRequest;
+        Bool m_configurationPending = false;
 
         // 지금 멈춘 자리.
         ULONG64 m_stoppedContext = 0;

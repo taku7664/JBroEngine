@@ -68,6 +68,7 @@ namespace JBro
     class IFramework;
     class IPlatform;
     class ScriptDebugServer;
+    namespace Code { class SourceDebugger; }
     struct AudioDeviceInfo;
     class AssetRegistry;
     namespace NodeGraph
@@ -180,6 +181,7 @@ namespace JBro
         Bool OpenCodeFileExternally(const String& path, UInt32 line = 1);
         Code::LanguageClient& GetCodeLanguageClient();
         void ReconnectCodeLanguageClient();
+        Code::SourceDebugger& GetSourceDebugger();
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         Bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
@@ -962,6 +964,7 @@ namespace JBro
 
         OwnerPtr<IPlatform> m_platform;
         OwnerPtr<Code::LanguageClient> m_codeLanguage;
+        OwnerPtr<Code::SourceDebugger> m_sourceDebugger;
         OwnerPtr<IRHIModule> m_rhiModule;
         OwnerPtr<EngineInstance> m_engine;
         OwnerPtr<IFramework> m_framework;

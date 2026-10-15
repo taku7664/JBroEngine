@@ -1,6 +1,37 @@
 --- a/TextEditor.h
 +++ b/TextEditor.h
-@@ -354,6 +354,10 @@
+@@ -66,6 +66,13 @@
+ 		DocSelection(DocPos start, DocPos end) : start(start), end(end) {}
+ 		DocPos start;
+ 		DocPos end;
++	};
++
++	enum class TransactionKind { Edit, Undo, Redo };
++	struct Replacement {
++		DocPos start;
++		DocPos end;
++		std::string text;
+ 	};
+ 
+ 	struct VisPos {
+@@ -194,6 +201,8 @@
+ 	// replace text in editor (new text must be UTF-8 encoded)
+ 	inline void ReplaceSectionText(DocPos start, DocPos end, const std::string_view& text) { replaceSectionText(normalizePos(start), normalizePos(end), text); }
+ 	inline void ReplaceSectionText(const DocSelection& selection, const std::string_view& text) { ReplaceSectionText(selection.start, selection.end, text); }
++	// Nonoverlapping ranges refer to the document before this single undoable gesture.
++	void ReplaceSectionsText(const std::vector<Replacement>& replacements);
+ 
+ 	// clear the editor
+ 	inline void ClearText() { SetText(""); }
+@@ -221,6 +230,7 @@
+ 	inline bool CanUndo() const { return !config.readOnly && transactions.canUndo(); };
+ 	inline bool CanRedo() const { return !config.readOnly && transactions.canRedo(); };
+ 	inline size_t GetUndoIndex() const { return transactions.getUndoIndex(); };
++	inline TransactionKind GetLastTransactionKind() const { return transactions.getLastKind(); }
+ 
+ 	// manipulate cursors and selections (line numbers are zero-based)
+ 	inline void SelectAll() { selectAll(); }
+@@ -354,6 +364,10 @@
  	inline void ClearSquiggles() { clearSquiggles(); }
  	inline bool HasSquiggles() const { return squiggles.size() != 0; }
  
@@ -11,7 +42,7 @@
  	// specify a change callback (called when changes are made (including undo/redo))
  	// the delay parameter specifies a time in miliseconds that the editor will wait for before calling
  	// which helps in case you don't need to track every keystroke
-@@ -363,6 +367,7 @@
+@@ -363,6 +377,7 @@
  	}
  
  	inline void ClearChangeCallback() { SetChangeCallback(nullptr); }
@@ -19,7 +50,7 @@
  	inline bool HasChangeCallback() const { return delayedChangeCallback != nullptr; }
  
  	// detailed change report passed to callback below
-@@ -598,6 +603,7 @@
+@@ -598,6 +613,7 @@
  		// color for this glyph if a language is specified
  		// maintained by the Colorizer and the Bracketeer overlays
  		Color color = Color::text;
@@ -27,7 +58,7 @@
  
  		// maintained by the TypeSetter overlay
  		BreakOption breakOption = BreakOption::undefined;
-@@ -1267,7 +1273,7 @@
+@@ -1267,7 +1283,7 @@
  						CodePoint::write(utf8, glyph->codepoint)));
  				}
  
@@ -36,7 +67,7 @@
  					text += static_cast<T>('\n');
  				}
  			}
-@@ -1285,7 +1291,7 @@
+@@ -1285,7 +1301,7 @@
  					text += static_cast<T>(glyph->codepoint);
  				}
  
@@ -45,7 +76,23 @@
  					text += static_cast<T>('\n');
  				}
  			}
-@@ -2019,6 +2025,7 @@
+@@ -1559,6 +1575,7 @@
+ 		inline bool canUndo() const { return undoIndex > 0; }
+ 		inline bool canRedo() const { return undoIndex < size(); }
+ 		inline size_t getVersion() const { return version; }
++		inline TransactionKind getLastKind() const { return lastKind; }
+ 
+ 		// set transaction callback
+ 		inline void setCallback(std::function<void(const std::vector<Change>&)> cb) { callback = cb; }
+@@ -1567,6 +1584,7 @@
+ 	private:
+ 		size_t undoIndex = 0;
+ 		size_t version = 0;
++		TransactionKind lastKind = TransactionKind::Edit;
+ 		std::function<void(std::vector<Change>&)> callback;
+ 	} transactions;
+ 
+@@ -2019,6 +2037,7 @@
  	static constexpr size_t invalidLine = std::numeric_limits<size_t>::max();
  
  	bool firstFrame = true;
@@ -130,3 +177,80 @@
  	resetCursorAnimationTimer();
  	deletesHappened = true;
  }
+@@ -4490,6 +4494,7 @@
+ //
+ 
+ void TextEditor::Transactions::add(std::shared_ptr<Transaction> transaction) {
++	lastKind = TransactionKind::Edit;
+ 	resize(undoIndex);
+ 	push_back(transaction);
+ 	undoIndex++;
+@@ -4516,6 +4521,7 @@
+ //
+ 
+ void TextEditor::Transactions::undo(const Config& config, Document& document, Cursors& cursors) {
++	lastKind = TransactionKind::Undo;
+ 	const auto transaction = at(--undoIndex);
+ 
+ 	for (auto action = transaction->rbegin(); action < transaction->rend(); action++) {
+@@ -4533,12 +4539,12 @@
+ 	if (callback) {
+ 		std::vector<Change> changes;
+ 
+-		for (const auto& action : *transaction) {
++		for (auto action = transaction->rbegin(); action != transaction->rend(); ++action) {
+ 			auto& change = changes.emplace_back();
+-			change.insert = action.type == Action::Type::deleteText;
+-			change.start = action.start;
+-			change.end = action.end;
+-			change.text = action.text;
++			change.insert = action->type == Action::Type::deleteText;
++			change.start = action->start;
++			change.end = action->end;
++			change.text = action->text;
+ 		}
+ 
+ 		callback(changes);
+@@ -4551,6 +4557,7 @@
+ //
+ 
+ void TextEditor::Transactions::redo(const Config& config, Document& document, Cursors& cursors) {
++	lastKind = TransactionKind::Redo;
+ 	const auto transaction = at(undoIndex++);
+ 
+ 	for (auto action = transaction->begin(); action < transaction->end(); action++) {
+@@ -5525,6 +5532,34 @@
+ 	const auto newEnd = insertText(transaction, start, text);
+ 	cursors.clearAdditional();
+ 	cursors.getMain().update(newEnd, newEnd);
++	endTransaction(transaction);
++}
++
++void TextEditor::ReplaceSectionsText(const std::vector<Replacement>& replacements) {
++	if (config.readOnly || replacements.empty()) {
++		return;
++	}
++	auto ordered = replacements;
++	for (auto& replacement : ordered) {
++		replacement.start = normalizePos(replacement.start);
++		replacement.end = normalizePos(replacement.end);
++		if (replacement.end < replacement.start) {
++			return;
++		}
++	}
++	std::sort(ordered.begin(), ordered.end(), [](const auto& a, const auto& b) { return a.start > b.start; });
++	for (size_t i = 1; i < ordered.size(); ++i) {
++		if (ordered[i].end > ordered[i - 1].start || ordered[i].start == ordered[i - 1].start) {
++			return;
++		}
++	}
++	const auto transaction = startTransaction();
++	for (const auto& replacement : ordered) {
++		deleteText(transaction, replacement.start, replacement.end);
++		const auto end = insertText(transaction, replacement.start, replacement.text);
++		cursors.clearAdditional();
++		cursors.getMain().update(end, end);
++	}
+ 	endTransaction(transaction);
+ }
+ 

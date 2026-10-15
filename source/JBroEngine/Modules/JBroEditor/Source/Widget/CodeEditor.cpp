@@ -49,6 +49,9 @@ namespace JBro::Widget
         TextEditor editor;
         UInt64 revision = 0;
         Bool changed = false;
+        Code::SourceChanges changes;
+        Array<CodeEditor::Marker> markers;
+        UInt32 executionLine = 0, toggledLine = 0;
         mutable String text;
         mutable Array<std::size_t> lines;
         mutable UInt64 textRevision = UInt64(-1);
@@ -95,7 +98,81 @@ namespace JBro::Widget
             editor.SetLanguage(TextEditor::Language::Cpp());
             editor.SetFindReplaceEnabled(false);
             editor.SetExternalUndoRedo(true);
-            editor.SetChangeCallback([this] { ++revision; changed = true; editor.ClearTextColors(); }, 0);
+            editor.SetChangeCallback([this] { changed = true; editor.ClearTextColors(); }, 0);
+            editor.SetTransactionCallback([this](const std::vector<TextEditor::Change>& actions) {
+                Code::SourceTransaction transaction;
+                transaction.history = static_cast<std::uint64_t>(editor.GetUndoIndex());
+                transaction.empty = editor.IsEmpty();
+                const auto kind = editor.GetLastTransactionKind();
+                transaction.kind = kind == TextEditor::TransactionKind::Undo ? Code::SourceChangeKind::Undo
+                    : kind == TextEditor::TransactionKind::Redo ? Code::SourceChangeKind::Redo : Code::SourceChangeKind::Edit;
+                for (std::size_t index = 0; index < actions.size(); ++index)
+                {
+                    const auto& action = actions[index];
+                    const auto* insertion = action.insert ? &action : nullptr;
+                    if (!action.insert && index + 1 < actions.size() && actions[index + 1].insert
+                        && actions[index + 1].start == action.start)
+                    {
+                        insertion = &actions[++index];
+                    }
+                    Code::SourceChange change;
+                    change.startLine = static_cast<std::uint32_t>(action.start.line);
+                    change.endLine = static_cast<std::uint32_t>(action.insert ? action.start.line : action.end.line);
+                    change.startsAtLineStart = action.start.index == 0;
+                    change.endsAtLineStart = (action.insert ? action.start.index : action.end.index) == 0;
+                    change.removesText = !action.insert && !action.text.empty();
+                    change.insertsText = insertion != nullptr && !insertion->text.empty();
+                    if (insertion != nullptr)
+                    {
+                        change.insertedLines = static_cast<std::uint32_t>(insertion->end.line - insertion->start.line);
+                    }
+                    if (change.removesText || change.insertsText)
+                    {
+                        transaction.edits.Add(change);
+                    }
+                }
+                changes.transactions.Add(std::move(transaction));
+                ++revision;
+                changed = true;
+                editor.ClearTextColors();
+            });
+            editor.SetLineDecorator(2, [this](TextEditor::Decorator& data) {
+                const UInt32 line = static_cast<std::uint32_t>(data.line + 1);
+                const ImVec2 origin = ImGui::GetCursorScreenPos();
+                const ImVec2 center(origin.x + data.width * 0.5f, origin.y + data.height * 0.5f);
+                const float radius = std::min(data.width, data.height) * 0.28f;
+                if (ImGui::InvisibleButton("##breakpoint", {data.width, data.height}))
+                {
+                    toggledLine = line;
+                }
+                auto* draw = ImGui::GetWindowDrawList();
+                for (const auto& marker : markers)
+                {
+                    if (marker.line != line)
+                    {
+                        continue;
+                    }
+                    const ImU32 color = ImGui::ColorConvertFloat4ToU32(EditorTheme::Danger);
+                    if (marker.verified)
+                    {
+                        draw->AddCircleFilled(center, radius, color);
+                    }
+                    else
+                    {
+                        draw->AddCircle(center, radius, color, 0, 1.5f);
+                    }
+                    if (ImGui::IsItemHovered() && !marker.message.empty())
+                    {
+                        ImGui::SetTooltip("%s", marker.message.c_str());
+                    }
+                }
+                if (executionLine == line)
+                {
+                    const ImU32 color = ImGui::ColorConvertFloat4ToU32(EditorTheme::Amber);
+                    draw->AddTriangleFilled({origin.x, center.y - radius}, {origin.x, center.y + radius},
+                        {origin.x + data.width, center.y}, color);
+                }
+            });
         }
         TextEditor::DocPos Position(Code::Position point) const
         {
@@ -107,6 +184,8 @@ namespace JBro::Widget
     void CodeEditor::SetText(const String& text)
     {
         m_state->editor.SetText(text.View());
+        m_state->changes = {};
+        m_state->changes.reset = true;
         m_state->editor.ClearTextColors();
         m_state->editor.ClearSquiggles();
         ++m_state->revision;
@@ -114,7 +193,94 @@ namespace JBro::Widget
     String CodeEditor::GetText() const { return m_state->Text(); }
     void CodeEditor::SetJBroScript(Bool enabled) { m_state->editor.SetLanguage(enabled ? JBroLanguage() : TextEditor::Language::Cpp()); }
     void CodeEditor::SetReadOnly(Bool enabled) { m_state->editor.SetReadOnlyEnabled(enabled.Get()); }
-    Bool CodeEditor::Render(const char* id)
+    UInt64 CodeEditor::GetHistoryIndex() const { return static_cast<std::uint64_t>(m_state->editor.GetUndoIndex()); }
+    Code::SourceChanges CodeEditor::TakeChanges()
+    {
+        Code::SourceChanges changes = std::move(m_state->changes);
+        m_state->changes = {};
+        return changes;
+    }
+    void CodeEditor::SetDebugMarkers(const Array<Marker>& markers, UInt32 executionLine)
+    {
+        m_state->markers = markers;
+        m_state->executionLine = executionLine;
+    }
+    UInt32 CodeEditor::TakeBreakpointToggle()
+    {
+        const auto line = m_state->toggledLine;
+        m_state->toggledLine = 0;
+        return line;
+    }
+    Bool CodeEditor::ApplyEdits(const Array<Code::TextEdit>& edits)
+    {
+        if (m_state->editor.IsReadOnlyEnabled())
+        {
+            return false;
+        }
+        const String original = GetText();
+        struct Replacement { std::size_t begin, end; String text; Code::Range range; };
+        Array<Replacement> replacements;
+        const auto offset = [&](Code::Position position, std::size_t& result) -> Bool {
+            result = 0;
+            UInt32 line = 0;
+            while (line < position.line && result < original.size())
+            {
+                if (original[result++] == '\n')
+                {
+                    ++line;
+                }
+            }
+            if (line != position.line)
+            {
+                return false;
+            }
+            UInt32 units = 0;
+            while (units < position.character && result < original.size() && original[result] != '\n')
+            {
+                const auto lead = static_cast<unsigned char>(original[result]);
+                const std::size_t bytes = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
+                units += bytes == 4 ? 2 : 1;
+                result += bytes;
+            }
+            return units == position.character && result <= original.size();
+        };
+        for (const auto& edit : edits)
+        {
+            Replacement value;
+            value.range = edit.range;
+            value.text = edit.newText;
+            if (!offset(edit.range.start, value.begin) || !offset(edit.range.end, value.end) || value.end < value.begin)
+            {
+                return false;
+            }
+            replacements.Add(std::move(value));
+        }
+        if (replacements.IsEmpty())
+        {
+            return true;
+        }
+        std::sort(replacements.begin(), replacements.end(), [](const Replacement& a, const Replacement& b) { return a.begin < b.begin; });
+        for (std::size_t at = 1; at < replacements.Size(); ++at)
+        {
+            if (replacements[at].begin < replacements[at - 1].end
+                || replacements[at].begin == replacements[at - 1].begin)
+            {
+                return false;
+            }
+        }
+        std::vector<TextEditor::Replacement> native;
+        native.reserve(replacements.Size());
+        for (const auto& edit : replacements)
+        {
+            native.push_back({m_state->Position(edit.range.start), m_state->Position(edit.range.end), edit.text.Std()});
+        }
+        m_state->editor.ReplaceSectionsText(native);
+        ++m_state->revision;
+        m_state->editor.ClearTextColors();
+        m_state->editor.ClearSquiggles();
+        return true;
+    }
+    Bool CodeEditor::Render(const char* id, Bool reserveStatusLine)
     {
         m_state->changed = false;
         ImFont* font = EditorTheme::GetCodeFont();
@@ -122,7 +288,9 @@ namespace JBro::Widget
         {
             ImGui::PushFont(font, 16.0f);
         }
-        m_state->editor.Render(id);
+        const ImVec2 size(0.0f, reserveStatusLine ? std::max(1.0f, ImGui::GetContentRegionAvail().y
+            - ImGui::GetTextLineHeightWithSpacing()) : 0.0f);
+        m_state->editor.Render(id, size);
         if (font != nullptr)
         {
             ImGui::PopFont();

@@ -35,6 +35,12 @@ namespace JBro
         void Undo();
         void Redo();
         Widget::CodeEditor& GetBuffer() { return m_buffer; }
+        String GetBufferText() const { return m_buffer.GetText(); }
+        Bool IsJBroScript() const { return m_jscript; }
+        Bool IsReadOnly() const;
+        Code::LanguageClient* GetLanguageClient() { return m_language; }
+        Bool ApplySourceEdits(Int32 version, const Array<Code::TextEdit>& edits);
+        static CodeEditorPanel* FindActive(EditorApplication& editor);
     private:
         void UpdateTitle();
         void Changed();
@@ -44,6 +50,7 @@ namespace JBro
         String m_path, m_title, m_text, m_saved, m_diskBytes, m_message;
         Array<Code::Diagnostic> m_diagnostics;
         UInt64 m_revision = 0, m_analysisRevision = 0;
+        UInt64 m_focusSerial = 0;
         Bool m_jscript = false, m_readOnly = false, m_bom = false, m_crlf = false;
         Bool m_focus = false;
         UInt32 m_focusLine = 0, m_focusColumn = 0;

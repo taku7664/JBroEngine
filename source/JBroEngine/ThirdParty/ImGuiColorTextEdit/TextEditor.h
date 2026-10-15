@@ -68,6 +68,13 @@ public:
 		DocPos end;
 	};
 
+	enum class TransactionKind { Edit, Undo, Redo };
+	struct Replacement {
+		DocPos start;
+		DocPos end;
+		std::string text;
+	};
+
 	struct VisPos {
 		// represents the visual position of a glyph expressed as a visible row and column number (both zero-based)
 		// this is not necessarily the same as the document position
@@ -194,6 +201,8 @@ public:
 	// replace text in editor (new text must be UTF-8 encoded)
 	inline void ReplaceSectionText(DocPos start, DocPos end, const std::string_view& text) { replaceSectionText(normalizePos(start), normalizePos(end), text); }
 	inline void ReplaceSectionText(const DocSelection& selection, const std::string_view& text) { ReplaceSectionText(selection.start, selection.end, text); }
+	// Nonoverlapping ranges refer to the document before this single undoable gesture.
+	void ReplaceSectionsText(const std::vector<Replacement>& replacements);
 
 	// clear the editor
 	inline void ClearText() { SetText(""); }
@@ -221,6 +230,7 @@ public:
 	inline bool CanUndo() const { return !config.readOnly && transactions.canUndo(); };
 	inline bool CanRedo() const { return !config.readOnly && transactions.canRedo(); };
 	inline size_t GetUndoIndex() const { return transactions.getUndoIndex(); };
+	inline TransactionKind GetLastTransactionKind() const { return transactions.getLastKind(); }
 
 	// manipulate cursors and selections (line numbers are zero-based)
 	inline void SelectAll() { selectAll(); }
@@ -1565,6 +1575,7 @@ protected:
 		inline bool canUndo() const { return undoIndex > 0; }
 		inline bool canRedo() const { return undoIndex < size(); }
 		inline size_t getVersion() const { return version; }
+		inline TransactionKind getLastKind() const { return lastKind; }
 
 		// set transaction callback
 		inline void setCallback(std::function<void(const std::vector<Change>&)> cb) { callback = cb; }
@@ -1573,6 +1584,7 @@ protected:
 	private:
 		size_t undoIndex = 0;
 		size_t version = 0;
+		TransactionKind lastKind = TransactionKind::Edit;
 		std::function<void(std::vector<Change>&)> callback;
 	} transactions;
 

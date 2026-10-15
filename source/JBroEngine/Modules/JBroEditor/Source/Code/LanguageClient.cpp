@@ -18,6 +18,45 @@ namespace JBro::Code
         {
             return {Point(value.value("start", Json::object())), Point(value.value("end", Json::object()))};
         }
+        SummaryEntry ReadSummaryEntry(const Json& value)
+        {
+            SummaryEntry entry;
+            const auto kind = value.value("kind", "type");
+            entry.kind = kind == "field" ? SummaryKind::Field : kind == "function" ? SummaryKind::Function : SummaryKind::Type;
+            entry.name = value.value("name", "");
+            entry.type = value.value("type", "");
+            entry.signature = value.value("signature", "");
+            entry.access = value.value("access", "default");
+            entry.range = ReadRange(value.value("range", Json::object()));
+            entry.selectionRange = ReadRange(value.value("selectionRange", Json::object()));
+            entry.isStatic = value.value("isStatic", false);
+            entry.isConst = value.value("isConst", false);
+            entry.isRef = value.value("isRef", false);
+            entry.isCallback = value.value("isCallback", false);
+            const auto initializer = value.value("initializer", Json::object());
+            entry.initializerPresent = initializer.value("present", false);
+            entry.initializer = initializer.value("text", "");
+            for (const auto& source : value.value("attributes", Json::array()))
+            {
+                FieldAttribute attribute;
+                attribute.name = source.value("name", "");
+                for (const auto& argument : source.value("arguments", Json::array()))
+                {
+                    attribute.arguments.Add(argument.get<std::string>());
+                }
+                entry.attributes.Add(std::move(attribute));
+            }
+            const auto effective = value.value("effective", Json::object());
+            entry.effective.property = effective.value("property", false);
+            entry.effective.readOnly = effective.value("readOnly", false);
+            entry.effective.noSerialize = effective.value("noSerialize", false);
+            entry.effective.hidden = effective.value("hidden", false);
+            for (const auto& child : value.value("members", Json::array()))
+            {
+                entry.members.Add(ReadSummaryEntry(child));
+            }
+            return entry;
+        }
     }
     struct LanguageClient::State
     {
@@ -25,15 +64,20 @@ namespace JBro::Code
         {
             String path, uri, text;
             Analysis analysis;
+            ScriptSummary summary;
+            FieldEditResult edit;
             Int32 version = 1;
             Bool opened = false, changed = false;
             Float age = 0.0f;
         };
         struct Request
         {
+            enum class Kind { Semantic, Summary, FieldEdit };
             int id = 0;
             String uri;
             Int32 version = 0;
+            Kind kind = Kind::Semantic;
+            UInt64 token = 0;
         };
         IPlatform* platform;
         OwnerPtr<IProcessChannel> channel;
@@ -42,7 +86,9 @@ namespace JBro::Code
         String incoming, error;
         ClientState state = ClientState::Stopped;
         int nextId = 2;
+        Int32 nextDocumentVersion = 1;
         UInt64 revision = 0;
+        UInt64 editToken = 0;
         Float startupAge = 0.0f;
         explicit State(IPlatform& value) : platform(&value) {}
         Document* Find(const String& path)
@@ -68,6 +114,14 @@ namespace JBro::Code
                 document.analysis.tokens.Clear();
                 document.analysis.revision = ++revision;
                 document.opened = false;
+                document.summary.valid = false;
+                document.summary.revision = ++revision;
+                if (!document.edit.ready && document.edit.requestId != 0)
+                {
+                    document.edit.ready = true;
+                    document.edit.success = false;
+                    document.edit.error = message;
+                }
             }
             Log::Write(LogLevel::Warning, "script", "JBroScript language server: %s", error.c_str());
         }
@@ -94,6 +148,25 @@ namespace JBro::Code
             Send({{"id", id}, {"method", "textDocument/semanticTokens/full"},
                 {"params", {{"textDocument", {{"uri", document.uri.Std()}}}}}});
         }
+        void Summary(Document& document)
+        {
+            const int id = nextId++;
+            requests.Add({id, document.uri, document.version, Request::Kind::Summary});
+            Send({{"id", id}, {"method", "jbro/scriptSummary"},
+                {"params", {{"textDocument", {{"uri", document.uri.Std()}, {"version", document.version.Get()}}}}}});
+        }
+        void Flush(Document& document)
+        {
+            if (!document.changed || !document.opened || state != ClientState::Ready)
+            {
+                return;
+            }
+            Notify("textDocument/didChange", {{"textDocument", {{"uri", document.uri.Std()}, {"version", document.version.Get()}}},
+                {"contentChanges", Json::array({{{"text", document.text.Std()}}})}});
+            document.changed = false;
+            Semantic(document);
+            Summary(document);
+        }
         void OpenPending()
         {
             for (auto& document : documents)
@@ -113,6 +186,7 @@ namespace JBro::Code
                     document.opened = true;
                     document.changed = false;
                     Semantic(document);
+                    Summary(document);
                 }
             }
         }
@@ -173,7 +247,66 @@ namespace JBro::Code
                 requests.RemoveAt(at);
                 for (auto& document : documents)
                 {
-                    if (document.uri != request.uri || document.version != request.version || !message.contains("result"))
+                    if (document.uri != request.uri)
+                    {
+                        continue;
+                    }
+                    if (request.kind == Request::Kind::FieldEdit)
+                    {
+                        if (document.edit.requestId != request.token)
+                        {
+                            continue;
+                        }
+                        auto& edit = document.edit;
+                        edit.ready = true;
+                        edit.success = false;
+                        edit.edits.Clear();
+                        if (document.version != request.version)
+                        {
+                            edit.error = "The source changed while the field edit was being checked";
+                        }
+                        else if (message.contains("error"))
+                        {
+                            edit.error = message["error"].value("message", "The field edit was rejected");
+                        }
+                        else if (message.contains("result") && message["result"].value("version", -1) == request.version.Get())
+                        {
+                            for (const auto& source : message["result"].value("edits", Json::array()))
+                            {
+                                edit.edits.Add({ReadRange(source.at("range")), source.at("newText").get<std::string>()});
+                            }
+                            edit.success = true;
+                            edit.error.clear();
+                        }
+                        else
+                        {
+                            edit.error = "The field edit does not match the source version";
+                        }
+                        continue;
+                    }
+                    if (document.version != request.version)
+                    {
+                        continue;
+                    }
+                    if (request.kind == Request::Kind::Summary)
+                    {
+                        document.summary.valid = false;
+                        document.summary.version = document.version;
+                        document.summary.revision = ++revision;
+                        if (message.contains("result") && message["result"].value("version", -1) == request.version.Get()
+                            && message["result"].value("valid", false))
+                        {
+                            Array<SummaryEntry> types;
+                            for (const auto& source : message["result"].value("types", Json::array()))
+                            {
+                                types.Add(ReadSummaryEntry(source));
+                            }
+                            document.summary.types = std::move(types);
+                            document.summary.valid = true;
+                        }
+                        continue;
+                    }
+                    if (!message.contains("result"))
                     {
                         continue;
                     }
@@ -236,6 +369,14 @@ namespace JBro::Code
             document.analysis.diagnostics.Clear();
             document.analysis.tokens.Clear();
             document.analysis.revision = ++m_state->revision;
+            document.summary.valid = false;
+            document.summary.revision = ++m_state->revision;
+            if (!document.edit.ready && document.edit.requestId != 0)
+            {
+                document.edit.ready = true;
+                document.edit.success = false;
+                document.edit.error = "The language server disconnected";
+            }
         }
     }
     void LanguageClient::Poll(Float elapsed)
@@ -323,23 +464,12 @@ namespace JBro::Code
             return;
         }
         state.OpenPending();
-        Bool refresh = false;
         for (auto& document : state.documents)
         {
             document.age += elapsed;
             if (document.changed && document.age >= 0.15f)
             {
-                state.Notify("textDocument/didChange", {{"textDocument", {{"uri", document.uri.Std()}, {"version", document.version.Get()}}},
-                    {"contentChanges", Json::array({{{"text", document.text.Std()}}})}});
-                document.changed = false;
-                refresh = true;
-            }
-        }
-        if (refresh)
-        {
-            for (auto& document : state.documents)
-            {
-                state.Semantic(document);
+                state.Flush(document);
             }
         }
     }
@@ -351,6 +481,7 @@ namespace JBro::Code
             return;
         }
         State::Document document;
+        document.version = m_state->nextDocumentVersion++;
         document.path = NormalizePath(path);
         document.uri = FileUri(document.path);
         document.text = text;
@@ -361,12 +492,14 @@ namespace JBro::Code
         if (auto* document = m_state->Find(path); document != nullptr && document->text != text)
         {
             document->text = text;
-            ++document->version;
+            document->version = m_state->nextDocumentVersion++;
             document->changed = true;
             document->age = 0.0f;
             document->analysis.diagnostics.Clear();
             document->analysis.tokens.Clear();
             document->analysis.revision = ++m_state->revision;
+            document->summary.valid = false;
+            document->summary.revision = ++m_state->revision;
         }
     }
     void LanguageClient::Saved(const String& path)
@@ -384,6 +517,13 @@ namespace JBro::Code
         {
             if (&m_state->documents[i] == document)
             {
+                for (std::size_t request = m_state->requests.Size(); request > 0; --request)
+                {
+                    if (m_state->requests[request - 1].uri == document->uri)
+                    {
+                        m_state->requests.RemoveAt(request - 1);
+                    }
+                }
                 if (document->opened && m_state->state == ClientState::Ready)
                 {
                     m_state->Notify("textDocument/didClose", {{"textDocument", {{"uri", document->uri.Std()}}}});
@@ -397,6 +537,63 @@ namespace JBro::Code
     {
         const auto* document = m_state->Find(path);
         return document != nullptr ? &document->analysis : nullptr;
+    }
+    Int32 LanguageClient::GetVersion(const String& path) const
+    {
+        const auto* document = m_state->Find(path);
+        return document != nullptr ? document->version : Int32(0);
+    }
+    const ScriptSummary* LanguageClient::GetSummary(const String& path) const
+    {
+        const auto* document = m_state->Find(path);
+        return document != nullptr ? &document->summary : nullptr;
+    }
+    UInt64 LanguageClient::EditFieldSettings(const String& path, Int32 version, Position position, const FieldSettings& settings)
+    {
+        auto* document = m_state->Find(path);
+        if (document == nullptr || document->version != version || m_state->state != ClientState::Ready
+            || (!document->edit.ready && document->edit.requestId != 0))
+        {
+            return 0;
+        }
+        m_state->OpenPending();
+        m_state->Flush(*document);
+        if (m_state->state != ClientState::Ready)
+        {
+            return 0;
+        }
+        Json attributes = Json::array();
+        for (const auto& attribute : settings.attributes)
+        {
+            Json arguments = Json::array();
+            for (const auto& argument : attribute.arguments)
+            {
+                arguments.push_back(argument.Std());
+            }
+            attributes.push_back({{"name", attribute.name.Std()}, {"arguments", std::move(arguments)}});
+        }
+        Json changes = {{"attributes", std::move(attributes)}};
+        if (settings.replaceInitializer)
+        {
+            changes["initializer"] = settings.initializerPresent ? Json(settings.initializer.Std()) : Json(nullptr);
+        }
+        const int id = m_state->nextId++;
+        document->edit = {};
+        document->edit.requestId = ++m_state->editToken;
+        document->edit.version = version;
+        m_state->requests.Add({id, document->uri, version, State::Request::Kind::FieldEdit, document->edit.requestId});
+        if (!m_state->Send({{"id", id}, {"method", "jbro/editFieldSettings"}, {"params", {
+            {"textDocument", {{"uri", document->uri.Std()}, {"version", version.Get()}}},
+            {"position", {{"line", position.line.Get()}, {"character", position.character.Get()}}}, {"changes", std::move(changes)}}}}))
+        {
+            return 0;
+        }
+        return document->edit.requestId;
+    }
+    const FieldEditResult* LanguageClient::GetFieldEditResult(const String& path) const
+    {
+        const auto* document = m_state->Find(path);
+        return document != nullptr ? &document->edit : nullptr;
     }
     ClientState LanguageClient::GetState() const { return m_state->state; }
     const String& LanguageClient::GetError() const { return m_state->error; }

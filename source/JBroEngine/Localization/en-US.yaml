@@ -41,7 +41,7 @@ Entries:
   menu.debug_log: Log
   menu.debug_start: Start Debugging
   menu.debug_stop: Stop Debugging
-  notify.debug_started: Debugging is on - attach from the script editor to hit breakpoints
+  notify.debug_started: Debugging started.
   notify.debug_channel_failed: The debug channel could not open
   menu.exit: Exit
   menu.undo: Undo
@@ -649,3 +649,53 @@ Entries:
   code_editor.server_failed: "JBroScript analysis is disconnected."
   code_editor.reconnect: "Reconnect language server"
   code_editor.cursor: "Line %u, Column %u | %u diagnostics"
+
+  # Source script summary
+  script_summary.title: "Script Summary"
+  script_summary.no_document: "Open a JBroScript file to see its summary"
+  script_summary.waiting: "Waiting for analysis"
+  script_summary.unavailable: "Summary is unavailable"
+  script_summary.locked: "Source is read only"
+  script_summary.applying: "Checking edit..."
+  script_summary.changed: "The source changed. Refresh the field and try again."
+  script_summary.empty: "No declarations in this file"
+  script_summary.callback: "Callback"
+  script_summary.property: "Property"
+  script_summary.range: "Range"
+  script_summary.clamp: "Clamp"
+  script_summary.name: "Display name"
+  script_summary.tooltip: "Description"
+  script_summary.category: "Category"
+  script_summary.visible_when: "Visibility condition"
+  script_summary.read_only: "Read only"
+  script_summary.no_serialize: "Saving"
+  script_summary.hidden: "Hidden"
+  script_summary.expression: "Expression"
+  script_summary.minimum: "Minimum"
+  script_summary.maximum: "Maximum"
+  script_summary.default: "Save"
+  script_summary.excluded: "Do not save"
+
+  # Native script debugger
+  editor.code_editor.debug_build_failed: "Debugging could not start because the script build failed."
+  editor.code_editor.debug_source_mismatch: "The source differs from the loaded build. Rebuild before debugging."
+  editor.code_editor.debug_busy: "Another debugger is connected. Disconnect it before starting."
+  editor.code_editor.breakpoint_pending: "Breakpoint pending"
+  editor.code_editor.start_debugging: "Start debugging"
+  editor.code_editor.continue_debugging: "Continue"
+  editor.code_editor.stop_debugging: "Stop debugging"
+
+  script_summary.counts: "%u fields  /  %u functions"
+  script_summary.select_member: "Select a declaration to see its details"
+  script_summary.initializer: "Initial value"
+  script_summary.add_initializer: "Add initial value"
+  script_summary.remove_initializer: "Remove initial value"
+  script_summary.advanced: "More settings"
+  script_summary.const_rule: "const fields are read only and excluded from saving."
+  script_summary.static_rule: "static values are shared and excluded from instance saving."
+  script_summary.implicit_property: "Other attributes also expose this field as a property."
+  script_summary.automatic_readonly: "Automatic (const)"
+  script_summary.explicit_readonly: "Explicit [readonly]"
+  script_summary.automatic_exclude: "Automatically excluded"
+  script_summary.explicit_exclude: "Explicitly excluded"
+  script_summary.edit_rejected: "The setting could not be applied. Check the expression you entered."

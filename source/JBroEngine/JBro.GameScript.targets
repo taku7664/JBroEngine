@@ -17,7 +17,7 @@
       이 이름이 링크 명령줄에 들어가므로 바뀐 것이 없어도 빌드마다 다시 링크한다 - 스크립트 DLL 은 작아 그 값을 치른다.
     -->
     <JBroGameScriptPdbStamp>$([System.DateTime]::Now.ToString("yyyyMMddHHmmssfff"))</JBroGameScriptPdbStamp>
-    <JBroCompilerPath>$(JBroBuildDir)$(Platform)\$(Configuration)\JBroc.exe</JBroCompilerPath>
+    <JBroCompilerPath>$(JBroBuildDir)$(Platform)\$(JBroGameScriptLibraryConfiguration)\JBroc.exe</JBroCompilerPath>
     <JBroGeneratedDirectory>$(IntDir)JBroScript\</JBroGeneratedDirectory>
   </PropertyGroup>
 
@@ -36,7 +36,7 @@
     <Error Condition="'$(JBroScriptDimension)' != '2D'"
            Text="JBroScript C++ generation currently supports only 2D script projects." />
     <Error Condition="!Exists('$(JBroCompilerPath)')"
-           Text="JBroc.exe was not found at $(JBroCompilerPath). Build JBroc in the same configuration first." />
+           Text="JBroc.exe was not found at $(JBroCompilerPath). Build JBroc for the host configuration first." />
   </Target>
 
   <Target Name="JBroGameScriptGenerate" BeforeTargets="ClCompile" DependsOnTargets="JBroGameScriptValidate"
@@ -56,6 +56,8 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(JBroScriptSdkIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization Condition="'$(Configuration)'=='Debug'">Disabled</Optimization>
+      <DebugInformationFormat Condition="'$(Configuration)'=='Debug'">ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(JBroGameScriptLibDir);$(JBroGameScriptNetworkLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -76,6 +78,6 @@
   <!-- 엔진 라이브러리가 없으면 링커의 LNK1181 대신 무엇을 해야 하는지 말한다. -->
   <Target Name="JBroGameScriptCheckEngineBuild" BeforeTargets="Link">
     <Error Condition="!Exists('$(JBroGameScriptLibDir)JBroRuntime.lib')"
-           Text="The JBro engine has not been built for $(Configuration)|$(Platform) at $(JBroGameScriptLibDir). Build the engine in the same configuration first." />
+           Text="The JBro engine has not been built for $(JBroGameScriptLibraryConfiguration)|$(Platform) at $(JBroGameScriptLibDir). Build the engine for the loading host first." />
   </Target>
 </Project>

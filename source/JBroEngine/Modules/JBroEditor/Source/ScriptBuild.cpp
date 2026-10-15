@@ -378,7 +378,7 @@ namespace JBro::ScriptBuild
         return String();
     }
 
-    String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile)
+    String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile, const char* compiler)
     {
         String command = "\"";
         command += msbuild;
@@ -386,10 +386,21 @@ namespace JBro::ScriptBuild
         command += projectFile;
         command += "\" -nologo -m -nr:false -p:Configuration=";
         command += configuration;
+#ifdef _DEBUG
+        command += " -p:JBroScriptHostConfiguration=Debug";
+#else
+        command += " -p:JBroScriptHostConfiguration=Release";
+#endif
         // 콘솔은 조용히 두고 진단은 파일 로거가 UTF-8 로 적는다. 콘솔 출력은 시스템 코드 페이지라 한글 경로가 깨진다.
         command += " -p:Platform=x64 -v:quiet -fl \"-flp:LogFile=";
         command += logFile;
         command += ";Encoding=UTF-8;Verbosity=minimal\"";
+        if (compiler != nullptr && compiler[0] != '\0')
+        {
+            command += " \"-p:JBroCompilerPath=";
+            command += compiler;
+            command += "\"";
+        }
         return command;
     }
 

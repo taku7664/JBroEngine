@@ -11,9 +11,11 @@
   <Import Project="$(MSBuildThisFileDirectory)JBro.Common.props" />
 
   <PropertyGroup Label="JBroGameScript">
-    <!-- 엔진의 정적 라이브러리가 있는 곳. 스크립트와 같은 구성(Debug/Release)의 엔진을 먼저 빌드해 둬야 한다. -->
-    <JBroGameScriptLibDir>$(JBroBuildDir)$(Platform)\$(Configuration)\</JBroGameScriptLibDir>
-    <JBroGameScriptNetworkLibDir>$(JBroRoot)..\JBroNetwork\Build\$(Platform)\$(Configuration)\</JBroGameScriptNetworkLibDir>
+    <!-- Runtime libraries match the loading host; direct builds default to Configuration. -->
+    <JBroGameScriptLibraryConfiguration>$(Configuration)</JBroGameScriptLibraryConfiguration>
+    <JBroGameScriptLibraryConfiguration Condition="'$(JBroScriptHostConfiguration)' != ''">$(JBroScriptHostConfiguration)</JBroGameScriptLibraryConfiguration>
+    <JBroGameScriptLibDir>$(JBroBuildDir)$(Platform)\$(JBroGameScriptLibraryConfiguration)\</JBroGameScriptLibDir>
+    <JBroGameScriptNetworkLibDir>$(JBroRoot)..\JBroNetwork\Build\$(Platform)\$(JBroGameScriptLibraryConfiguration)\</JBroGameScriptNetworkLibDir>
     <!--
       산출물은 프로젝트 안이다. `JBro.Common.props` 의 OutDir·IntDir 은 엔진 빌드 폴더라 덮는다 - 덮지 않으면 사용자 DLL 이 엔진 폴더에 쌓인다.
       DLL 은 `.jproject` 의 `ScriptOutputLibraryPath` 기본값(`x64/Debug/GameScript.dll`, 프로젝트 파일 기준)에 떨어진다.
