@@ -1,0 +1,56 @@
+diff --git a/TextEditor.cpp b/TextEditor.cpp
+--- a/TextEditor.cpp
++++ b/TextEditor.cpp
+@@ -1152,7 +1152,10 @@
+ 
+ 	float unused;
+ 	const auto firstVisibleLineFraction = std::modf(ImGui::GetScrollY() / glyphSize.y, &unused);
+-	const auto previousFirstLine = visPos2DocPos(VisPos(firstVisibleRow, 0)).line;
++	// The old layout may reference lines removed from the changed document.
++	// Preserve its line number without resolving it through that document.
++	const auto previousFirstLine = typeSetter.getRowCount() == 0 ? 0 :
++		typeSetter[std::min(firstVisibleRow, typeSetter.getRowCount() - 1)].line;
+ 
+ 	if (typeSetter.update(config, document, lineFold)) {
+ 		// see if we can scroll to preserve the first visible line
+@@ -2051,12 +2054,12 @@
+ 
+ void TextEditor::scrollToLine(size_t line, Scroll alignment, float fraction) {
+ 	ensureVisiblePos = DocPos(invalidLine, 0);
+-	scrollToLineNumber = std::min(line, document.size());
++	scrollToLineNumber = normalizeLine(line);
+ 	scrollToAlignment = alignment;
+ 	scrollToFraction = fraction;
+ 
+ 	if (config.lineFolding) {
+-		lineFold.unfoldAroundLine(document, line);
++		lineFold.unfoldAroundLine(document, scrollToLineNumber);
+ 	}
+ }
+ 
+@@ -3118,6 +3121,9 @@
+ bool TextEditor::endTransaction(std::shared_ptr<Transaction> transaction) {
+ 	if (transaction->size() > 0) {
+ 		cursors.update(document);
++		// Edits can move cursors after changing the document. Defer scrolling
++		// until the final cursor positions have been normalized.
++		makeCursorVisible();
+ 		transaction->setAfterState(cursors);
+ 		transactions.add(transaction);
+ 		return true;
+@@ -3240,7 +3246,6 @@
+ 	// this function does not change the cursors
+ 	const auto end = document.insertText(config, start, text);
+ 	transaction->addInsert(start, end, text);
+-	makeCursorVisible();
+ 	return end;
+ }
+ 
+@@ -3255,7 +3260,6 @@
+ 	const auto text = document.getSectionText(start, end);
+ 	document.deleteText(config, start, end);
+ 	transaction->addDelete(start, end, text);
+-	makeCursorVisible();
+ 	resetCursorAnimationTimer();
+ 	deletesHappened = true;
+ }
