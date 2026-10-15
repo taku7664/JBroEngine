@@ -162,8 +162,11 @@ namespace JBro::Internal
             // 주었다" 는 말인데, 우리는 패스마다 지우는 색이 달라서 만들 때 정할 수가
             // 없다. 값을 주면 이번에는 "지우는 색이 그 값과 다르다" 는 말이 나온다.
             // 고칠 수 없는 잡소리 하나가 매 실행 섞이면 나머지 경고를 보지 않게 된다.
+            // 정점 버퍼 없는 파이프라인(정점 번호로 화면 삼각형을 만드는 후처리 패스, D-325)은 빈 입력 레이아웃이 뜻한 그대로다 -
+            // 디버그 레이어는 "뜻한 것인지 보라" 는 경고를 매번 낸다.
             D3D12_MESSAGE_ID ignored[] = {
-                D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE};
+                D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+                D3D12_MESSAGE_ID_CREATEINPUTLAYOUT_EMPTY_LAYOUT};
             D3D12_INFO_QUEUE_FILTER filter = {};
             filter.AllowList.NumSeverities = _countof(severities);
             filter.AllowList.pSeverityList = severities;
