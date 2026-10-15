@@ -108,6 +108,9 @@ source/JBroEngine/Build/x64/Debug/JBroEditorHost.exe --project 내게임.jprojec
 `.jscript` 분석에는 호스트 실행 파일 옆의 `JBroc.exe`를 사용한다. C++는 현재 파일 편집과 어휘 강조를 제공하며 C++ 언어 서버는 연결하지 않았다.
 최종 Debug/Release 빌드·CodeEditor 시험·관련 회귀 10개·긴 회귀 5개와 실제 탭/진단/IME/저장/Undo/삭제/재연결을 확인했다. [통합 기록](tasks/imgui-code-editor-integration.md)에 확인 범위와 남은 일을 둔다.
 
+후속 `스크립트 요약` 패널은 현재 `.jscript`의 타입·함수·멤버를 위쪽 목록에 보여 주고, 선택한 멤버의 속성과 소스 초기값을 아래에서 편집한다. 변경은 미저장 버퍼에 한 번의 Undo로 반영하며 실행 중인 인스턴스 값을 바꾸지 않는다. 중첩 타입은 `Outer.Inner`로 사용할 수 있다([문법](tasks/jbroscript-syntax.md#21-중첩-타입-선언과-이름-해석-2026-10-15-d-336)).
+기본 중단점은 줄 번호 옆에서 토글하고 코드 패널의 디버그 실행·계속 실행·종료를 사용한다. 설치가 확인된 중단점과 미확정을 구분하며, 중단 중에는 코드 편집이 잠긴다. Debug/Release 전체 빌드·관련 21개 회귀와 마지막 UI 수정 뒤 5개 추가 회귀를 양 구성에서 통과했다. 실제 중첩 DLL·첫 콜백 디버깅·요약 편집 UI를 확인했으며 설치 완료/중단 줄의 별도 시각 검증 범위는 [구현·검증 기록](tasks/script-summary-debugger.md)을 따른다.
+
 ## 게임 실행
 
 게임 호스트는 `Debug_Game2D`·`Debug_Game3D`(와 Release) 구성으로 빌드된다. 인자 없이 실행하면 빈 프로젝트로 뜨고,
