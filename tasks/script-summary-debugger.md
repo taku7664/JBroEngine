@@ -197,3 +197,14 @@ API 필요성은 기존 호출 경로로 교차 확인했다. vendor의 기존 `
 - 로그 확장 정식 Node 시험은 5개 통과·실패 0개·skip 0개다. 임시 검수 훅·Claude 호출·화면 비교 자료는 추가하지 않았다.
 - 전체 시험은 `JBRO_TESTS`·`JBRO_BENCH`를 해제하고 `source/JBroEngine`을 작업 폴더로 실행했다. 최초 실행은 작업 폴더 때문에 문법 문서 검사가 빠져 중단했다. 올바른 작업 폴더에서 다시 시작한 실행은 71개 suite 완료 후 사용자의 실행 우선 지시로 중단했다. 중단 전 실패는 기록되지 않았지만 전체 통과로 판단하지 않는다. 별도 옵션이 필요한 실제 스피커 검사와 SPIR-V 프로브가 없는 Vulkan 세부 검사는 실행되지 않은 범위로 남긴다.
 - 빌드 로그는 `source/JBroEngine/Build/Validation/script-editor-main-merge-20261016/release-build-low-priority.log`, 중단한 전체 시험 로그는 같은 폴더의 `full-release-tests-correct-cwd.log`다.
+
+## 2026-10-16 독 포커스가 입력을 가로채는 결함
+
+- 실제 실행 중인 에디터에서 클릭 이벤트가 ImGui까지 전달되지만 다른 메뉴가 열리지 않는 현상을 재현했다. 코드 독의 `comingForward`가 계속 참이었고, 실제 창은 보이는 상태인데 숨겨진 탭 표시줄의 `SelectedTabId`는 0이었다. `DrawDockAreas`가 그 값을 기다리며 매 프레임 포커스를 가져왔다. 잠긴 창·열린 모달·눌린 채 남은 마우스 버튼 때문은 아니었다.
+- 기존 엔진의 `RootDockWindow.cpp`, `MainDockWindow.cpp`, `Engine/Editor/ImWindow/ImWindow.cpp`를 읽었다. 기존 엔진은 제한된 포커스 요청 프레임과 `SelectDockTab`을 쓴다. 새 엔진에서는 기존 독 관리 경로에서 실제 표시 상태로 요청 완료를 판정하여, 표시줄을 숨긴 상태의 내부 선택값에 의존하지 않게 한다. 새 위젯·포커스 서비스·타이머 우회는 추가하지 않는다.
+- `CodeEditor` 정식 시험에 독을 나눈 뒤 탭 표시줄을 숨기고 포커스를 요청하는 회귀를 추가한다. 메뉴 위치는 기존 `Widget::ItemLocator`에서 받고 실제 마우스 이벤트로 메뉴가 열린 뒤 유지되는지 검사한다. 검증 로그는 `source/JBroEngine/Build/Validation/dock-focus-20261016/`에 둔다.
+- 수정 전 `before-fix-tests.log`는 `hidden code dock must not steal focus from an opened menu`로 실패했다. 제품 수정은 `EditorApplication.cpp`의 완료 판정 한 곳이며 `window->DockTabIsVisible`을 사용한다. 수정 후 `final-tests.log`에서 `CodeEditor` 1개 suite가 종료 코드 0으로 통과했다. 파일 메뉴 유지, 코드 우클릭 메뉴 유지, 다른 패널 이동, 새 포커스 요청, 떠 있는 독의 요청 완료를 검사한다.
+- 보강 과정의 `after-fix-tests.log`는 우클릭 전에 앞선 메뉴를 닫지 못한 시험 절차에서 실패했다. 파일 메뉴 바깥인 코드 영역을 클릭하여 메뉴가 닫혔는지와 클릭 대상 창을 확인하도록 보완했다. `context-test-results.log`는 노드 정리 호출이 창을 실제로 분리하지 않은 시험 구성 때문에 실패했다. ImGui의 실제 분리 요청 경로로 바꿨으며 이 두 보완 때문에 제품 코드를 추가 변경하지 않았다.
+- 수정 후 시험 대상 Release 빌드는 오류 0개로 통과했다(`final-tests-build.log`). `related-ui-tests.log`에서 `ScriptSummaryPanel`·`CodeEditor`·`EditorWidget`·`EditorGuideFocus` 4개 suite가 종료 코드 0·skip 없이 통과했다. `fixed-host-build.log`의 에디터 Release 빌드도 종료 코드 0·오류 0개·경고 0개다. 모든 빌드와 시험은 낮은 우선순위와 논리 CPU 2개 제한으로 실행했다.
+- 수정 실행 파일은 `source/JBroEngine/Build/x64/Release/JBroEditorHost-DockFocus.exe`다. 실행 중인 기존 파일을 덮지 않도록 외부 스크래치 MSBuild 설정에서 호스트 출력 이름만 바꿨다. 제품 빌드 설정에는 이 우회를 넣지 않았다. `codex/fix-dock-focus`에서 수정과 기록을 커밋하며, 전체 엔진 시험·메인 병합·원격 푸시는 하지 않는다.
+- **[대기] 실행본 반영:** 현재 PID 28236의 기존 에디터에는 미저장 코드·캔버스가 있어 강제 종료·자동 저장하지 않았다. 사용자에게 직접 저장·종료 또는 기존 창 유지·별도 실행을 선택하도록 요청했으며 답변을 기다린다. 수정본의 수동 GUI 실행·기본 실행 파일 교체는 아직 확인하지 않았다. 정식 시험에서 실제 에디터 UI와 마우스 이벤트로 확인한 결과를 현재 실행 중인 구버전에 반영한 것으로 보고하지 않는다.

@@ -7,6 +7,7 @@
 #include <JBro/Types/ValueMath.h>
 #include <JBro/Editor/Widget/CodeEditor.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
+#include <JBro/Editor/Widget/ItemLocator.h>
 #include <JBro/Editor/Code/SourceDebugger.h>
 #include <nlohmann/json.hpp>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -1066,6 +1067,130 @@ namespace
         client.Stop();
         Check(client.GetState() == Code::ClientState::Stopped, "actual server shuts down");
     }
+    void TestHiddenDockReleasesFocus()
+    {
+        Files files;
+        files.Write("Contents/Scripts/Focus.cpp", "int value = 1;\n");
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        Check(editor.Initialize(config), "engine initializes for dock focus regression");
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(files.Path("Game.jproject").c_str(), error), "focus project opens");
+        Check(editor.EnableEditorUi({64, 48}), "focus UI initializes");
+        Check(editor.OpenCodeFile(files.Path("Contents/Scripts/Focus.cpp")), "focus document opens");
+        const auto tick = [&] {
+            Check(editor.Tick(0.02f), "dock focus frame succeeds");
+        };
+        for (Int32 frame = 0; frame < 8; ++frame)
+        {
+            tick();
+        }
+        ImGuiWindow* dock = ImGui::FindWindowByName("###CodeEditor");
+        Check(dock != nullptr && dock->DockNode != nullptr, "code container is docked");
+        const ImGuiID right = ImGui::DockBuilderSplitNode(dock->DockNode->ID, ImGuiDir_Right, 0.4f, nullptr, nullptr);
+        ImGui::DockBuilderDockWindow(dock->Name, right);
+        ImGui::DockBuilderFinish(right);
+        for (Int32 frame = 0; frame < 4; ++frame)
+        {
+            tick();
+        }
+        ImGuiDockNode* node = dock->DockNode;
+        Check(node != nullptr && node->TabBar != nullptr, "split dock retains its tab bar state");
+        node->LocalFlags |= ImGuiDockNodeFlags_HiddenTabBar;
+        node->UpdateMergedFlags();
+        node->TabBar->SelectedTabId = 0;
+        Array<EditorPanel*> documents;
+        editor.FindPanels(CodeEditorPanel::TypeName, documents);
+        documents[0]->RequestFocus();
+        for (Int32 frame = 0; frame < 6; ++frame)
+        {
+            tick();
+        }
+        Check(dock->DockTabIsVisible && node->IsHiddenTabBar(), "hidden dock is actually visible");
+        ImGuiWindow* root = ImGui::FindWindowByName("##EditorRoot");
+        Check(root != nullptr, "root menu exists");
+        const ImGuiID menuBar = ImHashStr("##MenuBar", 0, root->ID);
+        Widget::ItemLocator::Watch(ImHashStr(Loc::Text(LocKeys::MenuFile), 0, menuBar));
+        tick();
+        Widget::ItemLocator::ItemRect rect;
+        Check(Widget::ItemLocator::Take(rect), "file menu position comes from the item locator");
+        auto& io = ImGui::GetIO();
+        io.AddMousePosEvent((rect.minX + rect.maxX).Get() * 0.5f, (rect.minY + rect.maxY).Get() * 0.5f);
+        tick();
+        io.AddMouseButtonEvent(0, true);
+        tick();
+        io.AddMouseButtonEvent(0, false);
+        for (Int32 frame = 0; frame < 4; ++frame)
+        {
+            tick();
+            Check(!GImGui->OpenPopupStack.empty(), "hidden code dock must not steal focus from an opened menu");
+        }
+        io.AddKeyEvent(ImGuiKey_Escape, true);
+        tick();
+        io.AddKeyEvent(ImGuiKey_Escape, false);
+        tick();
+        ImGuiWindow* buffer = nullptr;
+        for (auto* window : GImGui->Windows)
+        {
+            if (window->Active && std::strstr(window->Name, "##CodeBuffer") != nullptr)
+            {
+                buffer = window;
+                break;
+            }
+        }
+        Check(buffer != nullptr, "code child window is visible");
+        const ImVec2 codePoint = buffer->InnerRect.GetCenter();
+        io.AddMousePosEvent(codePoint.x, codePoint.y);
+        tick();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+        tick();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+        tick();
+        tick();
+        Check(GImGui->OpenPopupStack.empty(), "clicking outside dismisses the file menu");
+        Check(GImGui->HoveredWindow == buffer, "the context click targets the visible code child");
+        io.AddMouseButtonEvent(ImGuiMouseButton_Right, true);
+        tick();
+        io.AddMouseButtonEvent(ImGuiMouseButton_Right, false);
+        for (Int32 frame = 0; frame < 4; ++frame)
+        {
+            tick();
+            Check(!GImGui->OpenPopupStack.empty(), "the code context menu remains usable after dock focus completes");
+        }
+        io.AddKeyEvent(ImGuiKey_Escape, true);
+        tick();
+        io.AddKeyEvent(ImGuiKey_Escape, false);
+        tick();
+        EditorPanel* canvas = editor.FindPanel("CanvasView");
+        Check(canvas != nullptr, "canvas panel exists");
+        canvas->RequestFocus();
+        for (Int32 frame = 0; frame < 4; ++frame)
+        {
+            tick();
+        }
+        Check(canvas->IsFocused(), "another panel can take focus after the code dock is shown");
+        documents[0]->RequestFocus();
+        for (Int32 frame = 0; frame < 4; ++frame)
+        {
+            tick();
+        }
+        Check(documents[0]->IsFocused(), "a new request can focus the code document again");
+        ImGui::DockContextQueueUndockWindow(GImGui, dock);
+        documents[0]->RequestFocus();
+        for (Int32 frame = 0; frame < 6; ++frame)
+        {
+            tick();
+        }
+        Check(dock->DockNode == nullptr, "code container can float outside the root dock");
+        ImGui::FocusWindow(root);
+        for (Int32 frame = 0; frame < 4; ++frame)
+        {
+            tick();
+        }
+        Check(GImGui->NavWindow == root, "a floating container also releases its completed focus request");
+        editor.Shutdown();
+    }
     void TestEngineDocuments()
     {
         Files files;
@@ -1128,6 +1253,7 @@ JBro::Int32 RunCodeEditorTests()
     TestHighlightingAndUtf16();
     TestUndoHasOneOwner();
     TestRealLanguageServer();
+    TestHiddenDockReleasesFocus();
     TestEngineDocuments();
     std::cout << "Code editor: protocol, text/history, highlighting, real server and engine documents passed\n";
     return 0;

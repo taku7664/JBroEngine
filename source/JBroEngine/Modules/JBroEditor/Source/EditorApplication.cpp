@@ -6560,7 +6560,7 @@ namespace JBro
             }
             area->shown = true;
             ImGui::SetNextWindowClass(&RootDockClass());
-            // **뿌리 칸의 탭 줄에서 골라질 때까지 앞으로 꺼낸다.** 처음 붙는 프레임에는 탭 줄이 아직 없어 한 번 꺼내도 다음
+            // **독이 실제로 보일 때까지 앞으로 꺼낸다.** 처음 붙는 프레임에는 탭 줄이 아직 없어 한 번 꺼내도 다음
             // 프레임에 탭 줄이 서며 메인 도크가 도로 앞에 선다(실측) - 그러면 연 뷰어가 보이지 않는다.
             area->comingForward = area->comingForward || wantsFront;
             if (area->comingForward)
@@ -6576,9 +6576,9 @@ namespace JBro
             if (area->comingForward)
             {
                 const ImGuiWindow* window = ImGui::GetCurrentWindow();
-                const ImGuiDockNode* node = window->DockNode;
-                const Bool chosen = node == nullptr
-                    || (node->TabBar != nullptr && node->TabBar->SelectedTabId == window->TabId);
+                // 숨긴 탭 줄은 SelectedTabId를 갱신하지 않는다. 그 값을 기다리면 요청이 끝나지 않아
+                // 매 프레임 포커스를 빼앗는다. Begin이 갱신한 실제 탭 표시 상태로 완료를 판정한다.
+                const Bool chosen = window->DockNode == nullptr || window->DockTabIsVisible;
                 area->comingForward = false == (visible && chosen);
             }
             const ImGuiID dockSpace = ImGui::GetID("DockSpace");
