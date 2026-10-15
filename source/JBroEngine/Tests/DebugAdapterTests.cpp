@@ -425,9 +425,24 @@ namespace
         const std::string numbers = VariableNamed(response, "numbers");
         Check(numbers.find("size=3") != std::string::npos, "an Array local shows its size");
 
-        // 이어 가면 대상이 다시 돈다.
+        // **다시 실은 복사본에서도 선다**(D-330). 스크립트를 멈춰 두고 다음 세대를 싣는다 - 에디터(흉내)가 `module` 로 알리면
+        // 어댑터가 새 모듈에서 줄을 다시 풀어 다시 건다. 다시 돌리면 그 복사본에서 멈춘다.
+        std::error_code ignored;
+        fs::remove(work / "run", ignored);
         adapter.Request("continue", threadText);
-        Check(false == adapter.WaitEvent("stopped", 5000).empty() || true, "the script went on");
+        Sleep(100);
+        Touch(work / "reload");
+        Check(WaitForGeneration(work, "2"), "the target loads the second copy");
+        Sleep(300);
+        Touch(work / "run");
+        std::string reloaded = adapter.WaitEvent("stopped", 15000);
+        Check(reloaded.find("\"reason\":\"breakpoint\"") != std::string::npos, "the re-armed breakpoint stops in the reloaded copy");
+        Check(ReadAll(work / "generation") == "2", "and it is the second copy that is running");
+        response = adapter.Request("stackTrace", threadText);
+        // 스택이 다시 실린 스크립트의 소스까지 닿는다. (모듈 이름은 DbgEng 이 noninvasive 에서 .reload 로 범위를 갱신하지 않아
+        //  이전 세대로 남을 수 있다 - 소스 파일·줄은 맞다.)
+        Check(response.find("TargetScript.cpp") != std::string::npos, "and the stack reaches the reloaded script's source");
+        adapter.Request("continue", threadText);
 
         // 떼어도 대상은 그대로 돈다. 통로가 끊기면 남은 중단점을 엔진이 뺀다.
         response = adapter.Request("disconnect", "{}");

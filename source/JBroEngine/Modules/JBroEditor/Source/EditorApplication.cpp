@@ -4080,6 +4080,11 @@ namespace JBro
         }
         // 붙어 있던 스크립트의 타입이 새 DLL 에 없으면 그 스크립트는 돌지 않는다. 성공 알림만 보면 사라진 것을 모른다.
         NotifyUnresolvedScripts();
+        // **디버그 어댑터에게 새 복사본을 알린다**(D-330). 넣었던 중단점은 위에서 뺐다 - 어댑터가 새 모듈에서 줄을 다시 풀어 다시 건다.
+        if (m_debugServer.Get() != nullptr && m_debugServer->IsActive())
+        {
+            m_debugServer->NotifyModule(true, m_engine->GetScriptModule().GetLoadedPath());
+        }
         return true;
     }
 

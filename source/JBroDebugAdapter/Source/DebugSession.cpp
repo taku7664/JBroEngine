@@ -878,7 +878,8 @@ namespace JBro::DebugAdapter
         {
             return;
         }
-        // 새 복사본이 실렸다. 모듈 목록을 다시 읽고 중단점의 주소를 다시 푼다.
+        // 새 복사본이 실렸다. DbgEng 의 모듈 목록을 새로 읽게 한 뒤(noninvasive 는 자동으로 갱신되지 않는다) 중단점의 주소를 다시 푼다.
+        m_control->ExecuteWide(DEBUG_OUTCTL_THIS_CLIENT, L".reload", DEBUG_EXECUTE_NOT_LOGGED);
         EnumerateScriptModules();
         for (SourceBreakpoint& breakpoint : m_breakpoints)
         {

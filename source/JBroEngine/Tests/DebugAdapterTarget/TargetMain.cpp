@@ -217,6 +217,13 @@ int wmain(int argc, wchar_t** argv)
             {
                 return 4;
             }
+            // 에디터처럼 새 복사본을 어댑터에게 알린다. 어댑터가 새 모듈에서 줄을 다시 풀어 다시 건다. 그때까지 서지 않는다.
+            g_armed = false;
+            const std::wstring copy = g_folder + L"\\TargetScript.gen" + std::to_wstring(generation) + L".dll";
+            int length = WideCharToMultiByte(CP_UTF8, 0, copy.c_str(), -1, nullptr, 0, nullptr, nullptr);
+            std::string copyUtf8(length > 0 ? length - 1 : 0, '\0');
+            WideCharToMultiByte(CP_UTF8, 0, copy.c_str(), -1, copyUtf8.data(), length, nullptr, nullptr);
+            PipeSend(std::string("module 1 ") + copyUtf8);
         }
         if (Exists(g_folder + L"\\run"))
         {
