@@ -134,8 +134,8 @@ namespace
         desc.vertexBuffers = {&layout, 1};
         desc.colorFormats = {colorFormats, 1};
         desc.cull = JBro::CullMode::None;
-        desc.sampledTextureCount = 1;
-        desc.samplerCount = 1;
+        desc.bindings.sampledTextures.count = 1;
+        desc.bindings.samplers.count = 1;
         return desc;
     }
 
@@ -346,7 +346,7 @@ namespace
         // 선언한 수를 넘는 파이프라인은 거절한다. 루트 시그니처는 만들고 나면 못 바꾸므로
         // 여기서 막지 않으면 그리는 자리에서 조용히 잘린다.
         JBro::GraphicsPipelineDesc tooMany = MakeTexturedPipelineDesc(probe.rhi.GetApi());
-        tooMany.sampledTextureCount = 64;
+        tooMany.bindings.sampledTextures.count = 64;
         // 같은 서술자에서 개수만 되돌리면 만들어져야 한다. 위의 거절이 개수 때문이지
         // 다른 무엇 때문이 아님을 그것이 말해 준다.
         JBro::GraphicsPipelineDesc justEnough = MakeTexturedPipelineDesc(probe.rhi.GetApi());

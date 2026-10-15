@@ -266,8 +266,8 @@ namespace JBro
         pipelineDesc.cull = CullMode::None;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
         pipelineDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(UIPushConstants));
-        pipelineDesc.sampledTextureCount = 1;
-        pipelineDesc.samplerCount = 1;
+        pipelineDesc.bindings.sampledTextures.count = 1;
+        pipelineDesc.bindings.samplers.count = 1;
         m_pipeline = device.CreateGraphicsPipeline(pipelineDesc);
         if (false == m_pipeline.IsValid())
         {

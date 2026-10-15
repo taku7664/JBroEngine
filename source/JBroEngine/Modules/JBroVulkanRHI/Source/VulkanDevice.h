@@ -14,10 +14,16 @@ namespace JBro::Internal
     constexpr UInt32 MaxColorAttachments = 8;
     constexpr UInt32 MaxBoundTextures = 8;
     constexpr UInt32 MaxBoundSamplers = 4;
+    // 상수 버퍼 b1..b7 은 옮기지 않고 binding 1..7 에 앉는다. b0 은 `[[vk::push_constant]]` 라 binding 이 없다.
+    constexpr UInt32 MaxBoundConstantBuffers = 7;
     constexpr UInt32 MaxVertexSlots = 8;
-    // 셰이더의 t#·s# 가 SPIR-V 에서 앉는 자리다(`-fvk-t-shift 8 0 -fvk-s-shift 16 0`). 0..7 은 비워 둔다.
+    // 셰이더의 t#·s# 가 SPIR-V 에서 앉는 자리다(`-fvk-t-shift 8 0 -fvk-s-shift 16 0`). 0..7 은 상수 버퍼 자리다.
     constexpr UInt32 TextureBindingBase = 8;
     constexpr UInt32 SamplerBindingBase = 16;
+    // 읽고 쓰는 자원(u#)이 SPIR-V 에서 앉는 자리다(`-fvk-u-shift 24 0`). u0..u3 텍스처는 24..27, u4..u7 구조화 버퍼는 28..31.
+    constexpr UInt32 StorageBindingBase = 24;
+    constexpr UInt32 MaxStorageTextures = 4;
+    constexpr UInt32 MaxStorageBuffers = 4;
     // 프레임 슬롯 수의 상한이다. 스왑체인이 `maxFramesInFlight` 로 이 안에서 고른다.
     constexpr UInt32 MaxFramesInFlight = 3;
     constexpr UInt32 MaxSwapchainImages = 8;
@@ -49,14 +55,25 @@ namespace JBro::Internal
         Bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
         Bool SetGraphicsConstants(JArrayView<std::byte> data) override;
         Bool SetTexture(UInt32 slot, TextureHandle texture) override;
+        Bool SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetSampler(UInt32 slot, SamplerHandle sampler) override;
+        Bool SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size) override;
         Bool DrawIndexedInstanced(
             UInt32 indexCount,
             UInt32 instanceCount,
             UInt32 firstIndex,
             Int32 baseVertex,
             UInt32 firstInstance) override;
+        Bool DrawInstanced(
+            UInt32 vertexCount,
+            UInt32 instanceCount,
+            UInt32 firstVertex,
+            UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
+        Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
+        Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
+        Bool Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ) override;
 
         Bool IsRenderPassActive() const
         {
@@ -65,24 +82,73 @@ namespace JBro::Internal
 
     private:
         Bool BindPendingDescriptors();
+        // 두 그리기의 공통 앞단이다.
+        Bool PrepareDraw();
+        Bool CanBind() const;
+        // 컴퓨트·그래픽 중 지금 걸린 파이프라인의 묶음 자리다.
+        VkPipelineBindPoint ActiveBindPoint() const;
+        // 읽고 쓰는 텍스처를 디스패치 앞(GENERAL)·뒤(읽기)로 옮긴다.
+        void TransitionStorageTextures(Bool beforeDispatch);
+
+        // 상수 버퍼 한 슬롯이다. set 에는 버퍼와 크기만 적고(동적 유니폼 버퍼), 오프셋은 묶을 때 따로 넘긴다 - 링의
+        // 구간이 드로우마다 바뀌어도 set 을 새로 만들지 않는다.
+        struct PendingConstantBuffer
+        {
+            VkBuffer buffer = VK_NULL_HANDLE;
+            VkDeviceSize size = 0;
+            UInt32 offset = 0;
+        };
 
         VulkanDevice* m_device = nullptr;
         VkCommandBuffer m_commands = VK_NULL_HANDLE;
         VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
         VulkanPipelineState* m_activePipeline = nullptr;
-        // 패스가 끝나면 셰이더가 읽을 수 있게 돌려 놓을 텍스처들이다(Sampled 로 만든 색 첨부).
-        TextureHandle m_sampledAtEnd[MaxColorAttachments];
+        // 패스가 끝나면 셰이더가 읽을 수 있게 돌려 놓을 첨부들이다(Sampled 로 만든 색 첨부의 그 mip, 그리고 깊이).
+        struct SampledAttachment
+        {
+            TextureHandle texture;
+            UInt32 mip = 0;
+            VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+        };
+        SampledAttachment m_sampledAtEnd[MaxColorAttachments + 1];
         UInt32 m_sampledAtEndCount = 0;
+        Bool BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel);
+        // 지금 패스가 그리는 자리다. 그 mip 을 읽으려 하면 거절한다(`SetTextureMip` 의 계약).
+        RenderPassTargets m_passTargets;
         VkImageView m_pendingTextures[MaxBoundTextures] = {};
         VkSampler m_pendingSamplers[MaxBoundSamplers] = {};
-        // 이 프레임에 쓴 set 들이다. 같은 묶음(레이아웃·텍스처·샘플러)이 다시 오면 할당하지 않고 그 set 을 다시
-        // 건다(D-110). 프레임마다 풀이 비워지므로 함께 비운다.
+        // b# 자리로 바로 찾는다(0 은 쓰지 않는다).
+        PendingConstantBuffer m_pendingConstantBuffers[MaxBoundConstantBuffers + 1] = {};
+        // 컴퓨트의 u# 자리다. 텍스처는 그 mip 의 뷰와 레이아웃(디스패치 앞뒤로 옮긴다), 버퍼는 통째다.
+        struct PendingStorageTexture
+        {
+            VkImage image = VK_NULL_HANDLE;
+            VkImageView view = VK_NULL_HANDLE;
+            VkImageLayout* layout = nullptr;
+            UInt32 mip = 0;
+            Bool sampled = false;
+        };
+        struct PendingStorageBuffer
+        {
+            VkBuffer buffer = VK_NULL_HANDLE;
+            VkDeviceSize size = 0;
+        };
+        PendingStorageTexture m_pendingStorageTextures[MaxStorageTextures] = {};
+        PendingStorageBuffer m_pendingStorageBuffers[MaxStorageBuffers] = {};
+        Bool m_computeActive = false;
+        // 이 프레임에 쓴 set 들이다. 같은 묶음(레이아웃·텍스처·샘플러·상수 버퍼와 크기)이 다시 오면 할당하지 않고 그 set 을
+        // 다시 건다(D-110). 프레임마다 풀이 비워지므로 함께 비운다.
         static constexpr UInt32 CachedSets = 16;
         struct CachedSet
         {
             VkDescriptorSetLayout layout = VK_NULL_HANDLE;
             VkImageView views[MaxBoundTextures] = {};
             VkSampler samplers[MaxBoundSamplers] = {};
+            VkBuffer constantBuffers[MaxBoundConstantBuffers + 1] = {};
+            VkDeviceSize constantSizes[MaxBoundConstantBuffers + 1] = {};
+            // u0..u7 의 뷰(텍스처)·버퍼다. 컴퓨트 파이프라인만 채운다.
+            VkImageView storageViews[MaxStorageTextures] = {};
+            VkBuffer storageBuffers[MaxStorageBuffers] = {};
             VkDescriptorSet set = VK_NULL_HANDLE;
         };
         CachedSet m_cachedSets[CachedSets] = {};
@@ -134,8 +200,12 @@ namespace JBro::Internal
     {
         VkImage image = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
+        // 모든 mip 을 보는 뷰다. mip 이 하나뿐이면 첨부로도 이것을 쓴다.
         VkImageView view = VK_NULL_HANDLE;
-        VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        // mip 하나씩만 보는 뷰다. mip 이 둘 이상일 때만 만든다 - 색 첨부의 뷰는 mip 이 하나여야 하고(명세), `SetTextureMip` 도 이것을 묶는다.
+        VkImageView mipViews[MaxTextureMipLevels] = {};
+        // mip 마다의 레이아웃이다(서브리소스 상태). 쓰는 것은 `desc.mipLevels` 칸까지다.
+        VkImageLayout layouts[MaxTextureMipLevels] = {};
         VkFormat format = VK_FORMAT_UNDEFINED;
         TextureDesc desc;
         UInt32 generation = 1;
@@ -158,8 +228,13 @@ namespace JBro::Internal
         VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
         VkShaderStageFlags pushConstantStages = 0;
         UInt32 pushConstantBytes = 0;
+        UInt32 constantBufferCount = 0;
         UInt32 sampledTextureCount = 0;
         UInt32 samplerCount = 0;
+        // 컴퓨트 파이프라인이면 COMPUTE 묶음 자리에 건다.
+        VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        UInt32 storageTextureCount = 0;
+        UInt32 storageBufferCount = 0;
         UInt32 generation = 1;
         Bool occupied = false;
     };
@@ -203,6 +278,7 @@ namespace JBro::Internal
         Bool Initialize(const RHIDeviceCreateInfo& createInfo);
         void Shutdown();
 
+        DeviceCaps GetCaps() const override;
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
         Bool WriteBuffer(BufferHandle buffer, std::size_t offset, JArrayView<std::byte> data) override;
@@ -215,6 +291,8 @@ namespace JBro::Internal
         void DestroySampler(SamplerHandle sampler) override;
         GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
         void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
+        ComputePipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) override;
+        void DestroyComputePipeline(ComputePipelineHandle pipeline) override;
         SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) override;
         void DestroySwapchain(SwapchainHandle swapchain) override;
         Bool ResizeSwapchain(SwapchainHandle swapchain, const Extent2D& extent) override;
@@ -238,14 +316,25 @@ namespace JBro::Internal
             VkImageView view = VK_NULL_HANDLE;
             VkImageLayout* layout = nullptr;
             VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+            // 그 mip 의 크기다.
             VkExtent2D extent = {};
+            UInt32 mip = 0;
+            // 텍스처 전체의 mip 수다. 통째 복사는 하나인 것만 받는다.
+            UInt32 mipLevels = 1;
             Bool sampled = false;
         };
-        Bool ResolveAttachment(TextureHandle texture, AttachmentView& view);
-        Bool ResolveSampledTexture(TextureHandle texture, VkImageView& view);
+        // 텍스처는 그 mip 하나로 풀린다(뷰·레이아웃·크기). 백버퍼는 mip 0 만 있다.
+        Bool ResolveAttachment(TextureHandle texture, UInt32 mipLevel, AttachmentView& view);
+        // `mipLevel` 이 `AllMips` 면 모든 mip 을 보는 뷰다. 읽으려는 mip 이 모두 셰이더 읽기 레이아웃이어야 한다.
+        static constexpr UInt32 AllMips = ~UInt32{0};
+        Bool ResolveSampledTexture(TextureHandle texture, UInt32 mipLevel, VkImageView& view);
         Bool ResolveBuffer(BufferHandle buffer, VkBuffer& native, BufferDesc& desc);
         Bool ResolveSampler(SamplerHandle sampler, VkSampler& native);
         VulkanPipelineState* ResolvePipeline(GraphicsPipelineHandle pipeline);
+        VulkanPipelineState* ResolveComputePipeline(ComputePipelineHandle pipeline);
+        // 읽고 쓰는 텍스처의 mip 하나다. 뷰·이미지·그 mip 의 레이아웃을 준다.
+        Bool ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, AttachmentView& view);
+        Bool ResolveStorageBuffer(BufferHandle buffer, VkBuffer& native, VkDeviceSize& size);
         void CountValidationError();
         VkDevice GetNativeDevice() const
         {
@@ -253,8 +342,10 @@ namespace JBro::Internal
         }
 
         // 두 소스 파일이 함께 쓰는 레이아웃 전이. 스테이지·접근은 레이아웃에서 보수적으로 고른다.
+        // `mipCount` 를 주지 않으면 `baseMip` 부터 끝까지다. 레이아웃을 mip 마다 들므로(서브리소스 상태) 텍스처는 mip 하나씩 옮긴다.
         static void TransitionImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect,
-            VkImageLayout from, VkImageLayout to);
+            VkImageLayout from, VkImageLayout to, UInt32 baseMip = 0, UInt32 mipCount = AllRemainingMips);
+        static constexpr UInt32 AllRemainingMips = ~UInt32{0};
 
     private:
         static constexpr UInt32 MaxSwapchains = 8;
@@ -262,6 +353,7 @@ namespace JBro::Internal
         static constexpr UInt32 MaxBuffers = 1024;
         static constexpr UInt32 MaxTextures = 512;
         static constexpr UInt32 MaxGraphicsPipelines = 256;
+        static constexpr UInt32 MaxComputePipelines = 64;
         static constexpr UInt32 MaxSamplers = 64;
         static constexpr UInt32 MaxRetired = 4096;
         static constexpr UInt32 TextureResourceBase = BackBufferTextureBase + MaxSwapchains;
@@ -292,6 +384,8 @@ namespace JBro::Internal
         VkDebugUtilsMessengerEXT m_messenger = VK_NULL_HANDLE;
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
         VkPhysicalDeviceMemoryProperties m_memoryProperties = {};
+        // 고른 장치의 한계다. 상수 버퍼의 묶는 크기와 오프셋 정렬을 여기서 읽는다.
+        VkPhysicalDeviceLimits m_limits = {};
         VkDevice m_device = VK_NULL_HANDLE;
         VkQueue m_queue = VK_NULL_HANDLE;
         UInt32 m_queueFamily = 0;
@@ -304,6 +398,7 @@ namespace JBro::Internal
         VulkanBufferState m_buffers[MaxBuffers];
         VulkanTextureState m_textures[MaxTextures];
         VulkanPipelineState m_graphicsPipelines[MaxGraphicsPipelines];
+        VulkanPipelineState m_computePipelines[MaxComputePipelines];
         VulkanSamplerState m_samplers[MaxSamplers];
         VulkanRetiredObject m_retired[MaxRetired];
         UInt32 m_retiredCount = 0;

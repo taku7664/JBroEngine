@@ -109,6 +109,23 @@
   SPIR-V(Vulkan, D-108). 렌더러와 에디터 UI 가 `GraphicsApi` 로 고른다. `.hlsl` 은 ASCII 로 쓰고(fxc 가 BOM 을
   거절한다), 푸시 상수 b0 은 `JBRO_SPIRV` 매크로 뒤에 두 표기를 둔다. 텍스처는 SPIR-V 에서 binding 8+, 샘플러는
   16+ 다. (MUST)
+- 렌더러의 빌트인 셰이더는 `Shaders/ShaderManifest.psd1` 한 곳에 단계(진입점)와 프로그램(셰이더 둘·푸시 상수·자리표)으로
+  적는다. `Compile.ps1` 이 그것을 읽어 바이트코드 헤더와 프로그램 표(`BuiltinShaders.generated.h/.cpp`)를 만들고, 렌더러는
+  `GetBuiltinShader` 의 `ShaderData` 로 파이프라인을 채운다 - 셰이더 헤더를 직접 include 하거나 자리 개수를 손으로 적지 않는다.
+  자리표는 셰이더가 실제로 읽는 자리와 같아야 하며 `BuiltinShaderTests` 가 반사로 잰다. (MUST) (D-329)
+- 상수 버퍼는 b1..b7 이고 슬롯 번호가 곧 `b` 레지스터 번호다. b0 은 푸시 상수 자리라 상수 버퍼를 두지 않으며, SPIR-V 는
+  b# 를 옮기지 않아 binding 1..7 이다. 파이프라인은 읽는 자원을 `GraphicsPipelineDesc::bindings` 에 종류마다 개수와 단계로
+  적고, 상한은 `IRHIDevice::GetCaps()` 로 묻는다. 푸시 상수는 128 B 까지다. (MUST) (D-325)
+- 프레임마다 바뀌는 상수는 `ConstantRing` 으로 올린다. `Upload` 메모리의 상수 버퍼는 링으로만 쓴다 - 오프셋 0 쓰기가 새
+  바퀴이고, 한 바퀴 안에서 이미 쓴 구간을 다시 쓰지 않는다. 프레임 경로에서 상수 버퍼를 새로 만들지 않는다. (MUST) (D-325)
+- 텍스처의 상태는 mip 마다 따로다. mip 하나에 그리려면 `ColorAttachmentDesc::mipLevel`, mip 하나를 읽으려면 `SetTextureMip` 을
+  쓴다. 백엔드는 mip 마다의 뷰를 텍스처를 만들 때 만들고 그리기 경로에서 뷰를 만들지 않는다. 지금 패스가 그리는 mip·깊이는 같은
+  패스에서 읽지 않는다 - RHI 가 거절한다. (MUST) (D-326)
+- 텍스처의 차원 규칙은 `IsTextureDimensionValid` 하나로 세 백엔드가 같이 본다. 3D 텍스처는 셰이더가 읽기만 하고 mip 이 하나이며
+  `WriteTexture` 한 번에 조각 전부를 올린다. 2D 배열은 아직 받지 않는다. (MUST) (D-327)
+- 컴퓨트는 렌더 패스 밖에서만 돈다. 읽고 쓰는 텍스처는 u0..u3, 구조화 버퍼는 u4..u7 이고 SPIR-V 에서 binding 24 부터다
+  (`-fvk-u-shift 24 0`, 컴퓨트 진입점은 `CSMain`). 디스패치 앞뒤의 상태 전이는 RHI 가 하며, 디스패치 뒤의 `Sampled` 텍스처는 읽기
+  상태다. (MUST) (D-328)
 - 앞면은 **화면에서 시계 방향**이다. 세 백엔드가 그렇게 맞춰져 있다(D3D `FrontCounterClockwise = FALSE`, Vulkan 은
   높이 음수 뷰포트 + `CLOCKWISE`). 메시는 바깥에서 볼 때 시계 방향으로 감는다. 좌표는 오른손, 카메라는 -Z, 깊이 0..1,
   NDC +y 는 위다(D-106·D-108). (MUST)

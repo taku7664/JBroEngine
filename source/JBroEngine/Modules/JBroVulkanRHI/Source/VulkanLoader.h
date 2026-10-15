@@ -28,6 +28,7 @@ namespace JBro::Internal
     X(vkGetPhysicalDeviceProperties)                                                                           \
     X(vkGetPhysicalDeviceQueueFamilyProperties)                                                                \
     X(vkGetPhysicalDeviceMemoryProperties)                                                                     \
+    X(vkGetPhysicalDeviceFormatProperties)                                                                     \
     X(vkGetPhysicalDeviceFeatures2)                                                                            \
     X(vkEnumerateDeviceExtensionProperties)                                                                    \
     X(vkCreateDevice)                                                                                          \
@@ -90,6 +91,7 @@ namespace JBro::Internal
     X(vkCreatePipelineLayout)                                                                                  \
     X(vkDestroyPipelineLayout)                                                                                 \
     X(vkCreateGraphicsPipelines)                                                                               \
+    X(vkCreateComputePipelines)                                                                                \
     X(vkDestroyPipeline)                                                                                       \
     X(vkCreateDescriptorPool)                                                                                  \
     X(vkDestroyDescriptorPool)                                                                                 \
@@ -107,6 +109,8 @@ namespace JBro::Internal
     X(vkCmdPushConstants)                                                                                      \
     X(vkCmdBindDescriptorSets)                                                                                 \
     X(vkCmdDrawIndexed)                                                                                        \
+    X(vkCmdDraw)                                                                                               \
+    X(vkCmdDispatch)                                                                                           \
     X(vkCmdCopyBufferToImage)                                                                                  \
     X(vkCmdCopyImageToBuffer)                                                                                  \
     X(vkCmdCopyImage)

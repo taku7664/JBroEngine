@@ -50,8 +50,8 @@ namespace JBro::Internal
             || desc.colorFormats.size > MaxColorAttachments
             || (desc.depthFormat != TextureFormat::Unknown && desc.depthFormat != TextureFormat::D32Float)
             || desc.topology != PrimitiveTopology::TriangleList
-            || desc.pushConstantBytes % 4 != 0 || desc.pushConstantBytes > 256
-            || desc.sampledTextureCount > MaxBoundTextures || desc.samplerCount > MaxBoundSamplers)
+            || desc.pushConstantBytes % 4 != 0 || desc.pushConstantBytes > MaxPushConstantBytes
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps()))
         {
             return {};
         }
@@ -190,6 +190,7 @@ namespace JBro::Internal
         pipeline.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         pipeline.pushConstantBytes = desc.pushConstantBytes;
         pipeline.pushConstantStages = desc.pushConstantStages;
+        pipeline.bindings = desc.bindings;
         pipeline.generation = m_graphicsPipelines[index].generation;
         pipeline.occupied = true;
         m_graphicsPipelines[index] = std::move(pipeline);
@@ -219,6 +220,69 @@ namespace JBro::Internal
             return nullptr;
         }
         D3D11PipelineState& state = m_graphicsPipelines[pipeline.index];
+        if (false == state.occupied || state.generation != pipeline.generation)
+        {
+            return nullptr;
+        }
+        return &state;
+    }
+
+    ComputePipelineHandle D3D11Device::CreateComputePipeline(const ComputePipelineDesc& desc)
+    {
+        if (m_status != FrameStatus::Ready || m_device == nullptr || m_frameActive
+            || desc.computeShader.data == nullptr || desc.computeShader.size == 0
+            || false == IsBindingLayoutValid(desc.bindings, GetCaps(), true))
+        {
+            return {};
+        }
+        UInt32 index = MaxComputePipelines;
+        for (UInt32 at = 0; at < MaxComputePipelines; ++at)
+        {
+            if (false == m_computePipelines[at].occupied)
+            {
+                index = at;
+                break;
+            }
+        }
+        if (index == MaxComputePipelines)
+        {
+            return {};
+        }
+        D3D11ComputePipelineState& state = m_computePipelines[index];
+        // DXBC(cs_5_0) 여야 한다.
+        if (FAILED(m_device->CreateComputeShader(desc.computeShader.data, desc.computeShader.size, nullptr, &state.shader)))
+        {
+            state.shader.Reset();
+            return {};
+        }
+        state.bindings = desc.bindings;
+        state.occupied = true;
+        return ComputePipelineHandle{index, state.generation};
+    }
+
+    void D3D11Device::DestroyComputePipeline(ComputePipelineHandle pipeline)
+    {
+        if (pipeline.index >= MaxComputePipelines)
+        {
+            return;
+        }
+        D3D11ComputePipelineState& state = m_computePipelines[pipeline.index];
+        if (false == state.occupied || state.generation != pipeline.generation)
+        {
+            return;
+        }
+        const UInt32 generation = state.generation + 1;
+        state = {};
+        state.generation = generation;
+    }
+
+    D3D11ComputePipelineState* D3D11Device::ResolveComputePipeline(ComputePipelineHandle pipeline)
+    {
+        if (pipeline.index >= MaxComputePipelines)
+        {
+            return nullptr;
+        }
+        D3D11ComputePipelineState& state = m_computePipelines[pipeline.index];
         if (false == state.occupied || state.generation != pipeline.generation)
         {
             return nullptr;

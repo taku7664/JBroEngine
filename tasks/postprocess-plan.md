@@ -20,7 +20,7 @@
 - 중간 텍스처는 역할·크기로 찾는 고정 풀 둘이다 - `m_layerTargets[8]`(`Layer`·`Backdrop`·`LightMap`·`ShadowMask`)과 `m_depthTargets[4]`. 이번 프레임에 바란 크기를 적고 다음 `BeginFrame` 에 만들며, 300 프레임 쓰지 않으면 지운다(`Renderer.cpp:1775`·`:1800`).
 - 장면 타깃은 백버퍼 포맷(`BGRA8Unorm`)이다. 장면 파이프라인의 색 포맷이 모두 `m_config.backBufferFormat` 이다. `RGBA16Float` 는 라이트맵·그림자 마스크에만 쓴다.
 - 전체 화면 패스는 ±0.5 쿼드를 VS 가 두 배로 펼치고, PS 가 `Texture.Load(SV_POSITION)` 으로 읽는다. 입력과 출력이 같은 크기여야 한다.
-- 셰이더는 `Shaders/Compile.ps1` 을 손으로 돌려 세 바이트코드(DXIL·DXBC·SPIR-V)를 `*.generated.h` 로 커밋한다. 셰이더 하나를 더하면 스크립트의 배열 셋과 `Renderer.cpp` 의 include 블록 셋을 함께 고친다.
+- 셰이더는 `Shaders/Compile.ps1` 을 손으로 돌려 세 바이트코드(DXIL·DXBC·SPIR-V)를 `*.generated.h` 로 커밋한다. 셰이더 하나를 더하면 스크립트의 배열 셋과 `Renderer.cpp` 의 include 블록 셋을 함께 고친다. → D-329 로 매니페스트 한 곳이 되었다(§3.5).
 - 에디터 기즈모·격자는 렌더러를 거치지 않고 ImGui 로 캔버스 이미지 위에 그린다. 렌더러가 장면 위에 덧그리는 에디터 요소는 선택 외곽선뿐이다.
 
 ### RHI (`Modules/JBroRHI` 와 세 백엔드)
@@ -69,7 +69,7 @@
 - **컴퓨트.** `ShaderStage::Compute`·`ComputePipelineHandle`·`CreateComputePipeline`·`SetComputePipeline`·`Dispatch`. 렌더 패스 밖에서만 부른다.
 - **스토리지.** UAV 텍스처와 구조화 버퍼(`BufferUsage::Storage`, stride).
 - **서브리소스.** 첨부와 읽기와 UAV 가 mip·배열 조각을 고른다(`ColorAttachmentDesc.mipLevel` 과 텍스처 뷰).
-- **상태.** 서브리소스마다 상태를 들고, 쓰기 직전에 필요한 상태로 옮긴다. 배리어는 렌더 그래프가 미리 계산해 RHI 에 넘길 수 있게 `Barrier` 호출을 연다 - RHI 의 자동 전이는 그래프 밖 경로(에디터·시험)를 위해 남긴다.
+- **상태.** 서브리소스마다 상태를 들고, 쓰기 직전에 필요한 상태로 옮긴다. 배리어는 렌더 그래프가 미리 계산해 RHI 에 넘길 수 있게 `Barrier` 호출을 연다(5 단계, D-328) - RHI 의 자동 전이는 그래프 밖 경로(에디터·시험)를 위해 남긴다.
 - **깊이 읽기·포맷·비인덱스 그리기·3D 텍스처.** 표의 오른쪽 열 그대로다.
 
 ### 2.2 렌더 그래프
@@ -132,17 +132,232 @@
 
 각 단계는 빌드·시험·뮤테이션 뒤 커밋한다. 픽셀 시험은 세 백엔드(D3D12·D3D11·Vulkan)에서 **디버그 레이어를 켜고** 잰다.
 
-1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷.
-2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처.
-3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`.
-4. 셰이더 매니페스트와 Shader 에셋(빌트인 셰이더를 옮긴다).
-5. 렌더 그래프와 지금 패스 옮기기. 그림이 바뀌지 않는 것을 기존 픽셀 시험이 잰다.
+1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14) - Vulkan 의 그리기 시험만 남았다(§3.1).**
+2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **섰다(D-326·D-327, 2026-10-15) - Vulkan 의 그리기 시험만 남았다(§3.2·§3.3).**
+3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`. **컴퓨트·UAV·구조화 버퍼·자동 배리어가 섰다(D-328, 2026-10-15). 명시 `Barrier` API 는 5 단계로 옮겼다(사용자 결정).**
+4. 셰이더 매니페스트와 Shader 에셋(빌트인 셰이더를 옮긴다). **매니페스트와 셰이더 자료형 `ShaderData` 가 섰다(D-329, 2026-10-15, §3.5). `.jshader` 에셋 파일과 에디터의 즉석 굽기는 11 단계로 옮겼다(사용자 결정).**
+5. 렌더 그래프와 지금 패스 옮기기. 그림이 바뀌지 않는 것을 기존 픽셀 시험이 잰다. **명시 `Barrier` API 도 여기서 연다(D-328).**
 6. 효과 종류 표·주입 지점·HDR 장면 색·톤맵. 시험대로 노출과 톤맵.
 7. 블룸(mip 체인, 컴퓨트 또는 래스터)·LUT 컬러 그레이딩 - 2·3 단계를 실제로 쓰는 시험대.
 8. `PostProcessProfile` 에셋·카메라의 프로필·에디터 인스펙터.
 9. 레이어 프로필과 `AfterLayer`.
 10. 볼륨과 섞기·스크립트 서비스.
 11. Material 에셋과 범용 머티리얼 효과(셰이더 그래프 앞의 마지막 칸).
+
+### 3.1 1 단계 - 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷 (D-325)
+
+무엇이 섰나(계약의 원문은 `RHI.h`·`ConstantRing.h` 의 주석이다):
+
+| 것 | 모양 |
+|---|---|
+| 자리표 | `GraphicsPipelineDesc::bindings` = `BindingLayoutDesc{constantBuffers, sampledTextures, samplers}`. 종류마다 `BindingRange{count, stages}`. 옛 `sampledTextureCount`·`samplerCount` 를 대신한다. 검사는 공용 `IsBindingLayoutValid` 하나 |
+| 슬롯 | 상수 버퍼 슬롯 번호 = `b` 레지스터 번호. **b0 은 푸시 상수 자리라 비우고 b1..b7** 을 쓴다. SPIR-V 는 b-shift 없이 binding 1..7 - 비어 있던 0..7 안이다 |
+| 상한 | `IRHIDevice::GetCaps()` → `DeviceCaps`. 상수 버퍼 7·텍스처 8·샘플러 4·푸시 상수 128 B·정렬 256 B·한 번에 묶는 크기 64 KiB(Vulkan 은 `maxUniformBufferRange` 와 작은 쪽)·`constantBufferOffsets` |
+| 푸시 상수 | 세 백엔드 모두 128 B(`MaxPushConstantBytes`). D3D12·D3D11 의 256 B 를 내렸다. 지금 가장 큰 사용처는 80 B(`Renderer.cpp` 그림자 마스크) |
+| 묶기 | `SetConstantBuffer(slot, buffer, offset, size)`. 오프셋·크기는 256 B 배수, 구간은 만들 때 받은 크기 안. 텍스처처럼 파이프라인을 바꾸면 버려지고, 선언한 슬롯이 비면 그리지 않는다 |
+| 링 | `ConstantRing`(JBroRHI). 프레임 슬롯마다 `Upload` 상수 버퍼 하나, `BeginFrame(slot)` 으로 처음부터, `Push` 는 정렬된 다음 자리에 memcpy. 차면 빈 구간(되감지 않는다) |
+| 그리기 | `DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance)`. 정점 버퍼 없는 파이프라인이 된다(전체 화면 삼각형) |
+| 포맷 | `R11G11B10Float`·`R16Float`·`R32Float`·`RG16Float`·`RGBA32Float` 를 enum 끝에 더했다. 텍셀 크기는 공용 `GetTexelSize` 하나 |
+
+백엔드마다 다른 것:
+
+| | D3D12 | D3D11 | Vulkan |
+|---|---|---|---|
+| 상수 버퍼 | 슬롯마다 루트 CBV. 루트는 푸시 32 + CBV 7×2 + 표 2 = 48 DWORD | `*SetConstantBuffers1`(11.1) 로 구간을 묶는다. 없으면 오프셋 0 만 | `UNIFORM_BUFFER_DYNAMIC` + 동적 오프셋. set 캐시 키는 버퍼·크기이고 오프셋은 키가 아니다 |
+| 링의 버퍼 | 업로드 힙, 슬롯 3 | `DYNAMIC` 버퍼 하나(슬롯 1). 오프셋 0 쓰기가 `DISCARD`, 그 뒤는 `NO_OVERWRITE` | 호스트 일관 메모리, 스왑체인 슬롯 수 |
+| 단계 | 루트 파라미터 가시성 | 단계마다 `VS*`·`PS*` 를 따로 건다. 선언하지 않은 텍스처·샘플러 슬롯을 이제 거절한다(전에는 8·4 안이면 받았다) | 디스크립터 `stageFlags` |
+| 포맷 | 모두 필수 지원 | 모두 필수 지원 | 쓰임마다 `vkGetPhysicalDeviceFormatProperties` 로 묻고 없으면 만들지 않는다(R11G11B10 의 색 첨부는 명세가 보장하지 않는다) |
+
+시험(`ConstantBufferTests.cpp`·`RenderTargetFormatTests.cpp`, 시험 셰이더 `Tests/Shaders/ConstantProbe.hlsl`):
+
+- 상한이 공통 바닥인지, 자리표 검사가 넘는 수·단계 없는 종류·모르는 단계를 거절하는지.
+- 링이 정렬해 쌓고, 차면 거절하고, 프레임마다 처음부터 쓰고, 슬롯마다 다른 버퍼인지. 그리지 않으므로 세 백엔드에서 돈다.
+- 정점 버퍼 없는 삼각형 둘: 첫째는 화면 전체 빨강, 둘째는 b1(정점 단계)로 왼쪽 위 사분면에만 초록. 둘째 값이 첫째 자리를 덮으면 전부 초록이 된다.
+  b0·선언 밖 슬롯·어긋난 정렬·버퍼 밖 구간·상수 버퍼가 아닌 버퍼를 거절하고, 빈 슬롯과 파이프라인을 다시 건 뒤의 그리기를 거절한다.
+- 같은 링으로 8 프레임을 그려 마지막 색이 남는지(D3D11 의 DISCARD 길과 슬롯 되감기).
+- 다섯 포맷에 (2, 0.5, 0.25, 1) 을 그려 되읽으면 정확히 그 값인지 - 1 보다 큰 값이 UNORM 이면 잘려 드러난다.
+
+뮤테이션(2026-10-14, D3D12·D3D11, 8 개 모두 죽었다):
+
+| 망가뜨린 것 | 죽인 검사 |
+|---|---|
+| D3D12 루트 CBV 가 오프셋을 버린다 | 둘째 드로우의 왼쪽 위가 초록 |
+| D3D11 링이 늘 `DISCARD` 로 쓴다 | 같음 |
+| D3D11 이 `*SetConstantBuffers1` 대신 버퍼 통째로 묶는다 | 같음 |
+| D3D12 `R16Float` 를 `R16_UNORM` 으로 | 1 보다 큰 값을 담는다 |
+| D3D11 `R11G11B10Float` 를 `R10G10B10A2_UNORM` 으로 | 같음 |
+| 링이 크기를 정렬로 올리지 않는다 | 첫 구간이 슬롯 처음부터 정렬 크기 |
+| D3D12 상수 버퍼 가시성을 픽셀만 | 파이프라인 생성(정점 셰이더가 b1 을 읽는다) |
+| D3D12 가 빈 상수 버퍼 슬롯으로 그린다 | 빈 슬롯의 그리기는 거절 |
+
+실측 환경: 이 기계에는 VS 2026(v145)이 없어 `-p:PlatformToolset=v143` 로 빌드했다(파일은 고치지 않았다). 이 단계 전의 기준선에서
+`PlatformContract`(COM 끄기 개수)·`TextureBinding`(Vulkan 검증 레이어 없음)·`EditorApplication`(팝업이 화면 가운데)이 이미 실패했다.
+이 단계 뒤에 묶음 96 개를 하나씩 돌려 92 개가 통과했다. 실패 넷 중 `TextureBinding`·`EditorApplication` 은 위의 기준선 그대로이고,
+`InputGamepad` 는 다시 돌리면 통과했으며(흔들림), `EditorLocalization` 은 아무도 쓰지 않는 키 `node_graph.add_node` 때문이다 - 노드 그래프 작업에서
+남은 것이라 이 단계와 상관없고 따로 고친다. `PlatformContract` 는 이번에는 통과했다.
+
+남은 것:
+
+- **Vulkan 의 그리기 시험.** 이 기계에는 Vulkan SDK 의 dxc 가 없어 `ConstantProbe*_SPV.generated.h` 를 굽지 못했다(사용자 결정 "Vulkan은 나중에", 받지 않는다).
+  Vulkan SDK 가 있는 기계에서 `pwsh Tests\Shaders\Compile.ps1` 을 돌리고, 두 시험 파일의 `HasProbeShaders`·API 검사에 Vulkan 을 넣는다.
+  그때까지 Vulkan 의 상수 버퍼 묶기·`vkCmdDraw`·새 포맷은 **컴파일만 됐다**. 상한·링 시험은 Vulkan 에서도 돈다.
+- 이 기계의 Vulkan 에는 검증 레이어가 없다. 그래서 `TextureBinding` 의 "검증 손잡이가 실제로 말하는지" 가 Vulkan 에서 실패한다 - 이 단계 전부터다(§3.1 실측).
+
+### 3.2 2 단계 - 서브리소스·서브리소스 상태·깊이 읽기 (D-326)
+
+무엇이 섰나:
+
+| 것 | 모양 |
+|---|---|
+| mip 에 그리기 | `ColorAttachmentDesc::mipLevel`. 패스의 렌더 영역·기본 뷰포트는 그 mip 의 크기다. 백버퍼는 0 만 |
+| mip 하나 읽기 | `SetTextureMip(slot, texture, mip)`. 셰이더에게는 mip 이 하나뿐인 텍스처다(`SampleLevel(..., 0)` 이 그 mip). `SetTexture` 는 전처럼 모든 mip |
+| 뷰 | 백엔드가 텍스처를 만들 때 mip 마다 RTV·SRV(Vulkan 은 이미지 뷰)를 미리 만든다 - 그리기 경로에서 뷰를 만들지 않는다. 그래서 mip 수에 상한이 있다(`MaxTextureMipLevels` 16, `DeviceCaps::maxTextureMipLevels`) |
+| mip 수 | `IsMipCountValid` - 가장 긴 변이 1 이 되는 mip 까지. 세 백엔드가 같은 검사를 쓴다. 깊이는 mip 1 개만 |
+| 상태 | D3D12 는 mip 마다 상태, Vulkan 은 mip 마다 레이아웃을 든다. 패스는 그리는 mip 하나만 옮기고, 끝나면 그 mip 만 읽기 상태로 돌린다 |
+| 깊이 읽기 | `DepthStencil | Sampled` 깊이를 다음 패스가 `SetTexture` 로 읽는다(R32 로 보인다) |
+| 겹침 거절 | 지금 패스가 그리는 mip·깊이를 같은 패스에서 `SetTexture`·`SetTextureMip` 하면 거절한다(`RenderPassTargets`, 세 컨텍스트가 같은 검사) |
+| 복사 | `CopyTexture` 는 mip 이 하나인 것만 받는다(통째 복사, 상태를 mip 0 으로 옮긴다) |
+| 배열 | 세 백엔드 모두 `depthOrLayers == 1` 만 받는다. D3D12 만 배열을 반쯤 받고 있었고 쓰는 곳이 없었다. 3D 텍스처(§3 의 2 단계 남은 것)가 `depthOrLayers` 를 깊이로 쓴다 |
+
+깊이 읽기가 막혔던 까닭(§1 의 표, 백엔드마다 달랐다):
+
+| D3D12 | D3D11 | Vulkan |
+|---|---|---|
+| 자원은 typeless 로 잘 만들지만 패스 뒤에 `DEPTH_WRITE` 그대로 남아, 읽으면 상태가 어긋난다 | `D32_FLOAT` 그대로 `SHADER_RESOURCE` 를 붙여 텍스처 생성 자체가 실패한다. `R32_TYPELESS` + DSV `D32`·SRV `R32` 로 만든다 | 셰이더 읽기는 `SHADER_READ_ONLY` 레이아웃만 받는데, 깊이는 패스 뒤에 그 레이아웃으로 돌아가지 않았다 |
+
+함께 고친 것:
+
+- D3D12 의 읽기 상태가 `PIXEL_SHADER_RESOURCE` 하나뿐이라, 1 단계에서 연 정점 단계 텍스처 읽기가 검증 오류였다. `PIXEL | NON_PIXEL` 로 둔다(`ShaderReadState`).
+- Vulkan 의 셰이더 읽기 전이가 프래그먼트 단계만 기다렸다. 정점 단계도 기다린다.
+- Vulkan 은 mip 이 여럿인 텍스처를 색 첨부로 쓸 때 모든 mip 의 뷰를 넘기고 있었다(명세 위반, 첨부 뷰는 mip 하나).
+
+시험(`SubresourceTests.cpp`, 셰이더 `Tests/Shaders/SubresourceProbe.hlsl`):
+
+- mip 사슬 끝까지는 만들고 하나 더는 거절, 깊이는 mip 하나만, 읽는 깊이는 만들어진다 - 그리지 않으므로 세 백엔드에서 돈다.
+- mip 0 빨강 → mip 0 을 읽어 mip 1 에 그림 → mip 2 초록 → 왼쪽 절반은 mip 1, 오른쪽 절반은 mip 2 를 읽어 되읽는다. 그리는 mip·텍스처 전체·없는 mip 의 읽기는 거절한다.
+  D3D12 검증 레이어가 조용해야 한다.
+- 왼쪽 절반에만 깊이 0.25 를 쓰고, 그 깊이를 그리는 패스에서는 읽기를 거절하고, 다음 패스가 R32Float 에 옮겨 되읽으면 왼쪽 0.25·오른쪽 1.0 이다.
+
+뮤테이션(2026-10-15, 9 개 모두 죽었다):
+
+| 망가뜨린 것 | 죽인 검사 |
+|---|---|
+| D3D12 패스 시작 배리어를 텍스처 전체로(예전 모양) | 검증 레이어 |
+| D3D12 깊이를 패스 뒤에 읽기 상태로 돌리지 않음 | 검증 레이어 |
+| D3D11 깊이를 typeless 로 만들지 않음 | 읽는 깊이 만들기 |
+| D3D12 mip 하나 뷰 대신 모든 mip 뷰 | mip 2 의 초록 |
+| D3D12·D3D11 이 그리는 mip·깊이의 읽기를 받음 | 그리는 mip 은 못 읽는다 |
+| D3D11·D3D12 RTV 가 늘 mip 0 | mip 1 의 빨강 |
+| mip 수 검사가 하나 더 받음 | 64 너비는 mip 일곱 |
+
+남은 것:
+
+- **3D 텍스처**(컬러 그레이딩 LUT)와 샘플러의 W 축은 §3.3 에서 섰다.
+
+### 3.3 2 단계의 끝 - 3D 텍스처·샘플러 W 축 (D-327)
+
+| 것 | 모양 |
+|---|---|
+| 차원 | `TextureDesc::dimension`(`Texture2D`·`Texture3D`). 3D 는 `depthOrLayers` 가 깊이다 |
+| 규칙 | 공용 `IsTextureDimensionValid` 하나 - 3D 는 셰이더가 읽기만 한다(`Sampled`·`CopySource`·`CopyDestination`), mip 하나, 세 변 모두 `DeviceCaps::maxTexture3DSize`(D3D 2048, Vulkan 은 `maxImageDimension3D`) 까지, 깊이 포맷은 안 된다. 2D 는 배열 없이 |
+| 올리기 | `WriteTexture` 한 번에 조각 전부(깊이 0 부터 빽빽하게). `WriteTextureRegion`·`ReadTexture` 는 3D 를 거절한다 |
+| 읽기 | `SetTexture`(mip 이 하나라 `SetTextureMip(…, 0)` 도 같다). 셰이더는 `Texture3D` |
+| 샘플러 | `SamplerDesc::addressW`. 전에는 세 백엔드 모두 W 를 늘 Clamp 로 두었다 |
+
+백엔드: D3D12 는 `TEXTURE3D` 자원과 SRV, 올리기는 사각형 올리기를 상자(`UploadTextureBox`)로 넓혔다 - 발자국 안에서 조각은 `RowPitch × 행 수` 간격이다.
+D3D11 은 `ID3D11Texture3D` 를 따로 들고(`volume`) `UpdateSubresource` 에 조각 간격을 준다. Vulkan 은 `VK_IMAGE_TYPE_3D`·`VIEW_TYPE_3D`, 복사 상자의 깊이.
+
+시험(`SubresourceTests.cpp` 의 `TestAVolumeIsReadByDepth`, 셰이더 `Tests/Shaders/VolumeProbe.hlsl`): 조각마다 한 색인 2×2×4 를 올리고 사분면마다 w 를 달리 읽는다 -
+w 0.125 는 조각 0, 0.625 는 조각 2, 1.375 는 Repeat 로 조각 1·Clamp 로 마지막 조각. 모자란 올리기·사각형 올리기·되읽기·그리기 쓰임·mip 둘·상한 넘는 깊이·2D 배열은 거절한다.
+만들기·올리기·거절은 Vulkan 에서도 돈다.
+
+뮤테이션(2026-10-15, 7 개 모두 죽었다): D3D12·D3D11 의 W 를 늘 Clamp 로(Repeat 사분면), D3D12 조각 간격 무시(조각 0), D3D11 조각 간격 0(조각 2),
+3D 쓰임 제한 없앰(그리기 쓰임 거절), Vulkan 올리기 크기에서 깊이 뺌(조각 전부 올리기). D3D12 볼륨을 2D SRV 로 보게 한 것은 그림 비교가 아니라 앞단의 올리기 검사에서
+죽었다 - 잘못된 뷰를 만들며 장치가 망가진 것으로 보이고(추정), 원인을 따로 캐지는 않았다.
+
+### 3.4 3 단계 - 컴퓨트·UAV 텍스처·구조화 버퍼·자동 배리어 (D-328)
+
+| 것 | 모양 |
+|---|---|
+| 파이프라인 | `CreateComputePipeline(ComputePipelineDesc{computeShader, bindings})`·`SetComputePipeline`·`Dispatch(x, y, z)`. 렌더 패스 밖에서만 받는다. 자리표의 단계는 `ShaderStage::Compute` 하나 |
+| 묶기 | 상수 버퍼·텍스처·샘플러는 그래픽과 같은 함수(`SetConstantBuffer`·`SetTexture`·`SetTextureMip`·`SetSampler`)다 - 걸린 파이프라인의 자리표로 묶인다 |
+| UAV 텍스처 | `TextureUsage::Storage` 2D, mip 마다 UAV. `SetStorageTexture(u슬롯, texture, mip)` - u0..u3. 타입 있는 UAV 를 장치가 받는 포맷만(D3D 는 포맷 지원을, Vulkan 은 `STORAGE_IMAGE` 기능을 묻는다). sRGB·깊이는 안 된다 |
+| 구조화 버퍼 | `BufferUsage::Storage` + `BufferDesc::stride`(4 의 배수, 크기를 나눠떨어지게), `Device` 메모리만. `SetStorageBuffer(u슬롯, buffer)` - u4..u7(텍스처가 몇이든 u4 부터) |
+| 상한 | `DeviceCaps::maxStorageTextures`·`maxStorageBuffers` 4. 그래픽 파이프라인의 자리표는 storage 를 받지 않는다(`IsBindingLayoutValid(…, compute)`) |
+| SPIR-V | u# 는 binding 24 부터(`-fvk-u-shift 24 0`) - 텍스처 u0..u3 은 24..27, 버퍼 u4..u7 은 28..31. 컴퓨트 진입점 이름은 `CSMain` |
+| 배리어 | `Dispatch` 가 건다: 돌기 전에 UAV 대상을 쓰기 상태로 옮기고 이미 쓰기 상태인 것은 UAV 배리어(Vulkan 은 컴퓨트→컴퓨트 메모리 배리어), 돈 뒤에 `Sampled` 로도 만든 텍스처를 읽기 상태로 되돌린다. "패스 밖의 텍스처는 늘 읽기 상태" 가 그대로 선다. 버퍼는 쓰기 상태에 남는다 |
+
+백엔드: D3D12 는 루트 시그니처에 u# 표 하나(u0.. 텍스처 범위 + u4.. 버퍼 범위)를 두고 `SetCompute*` 로 건다. UAV 스테이징 힙(텍스처 mip 마다, 버퍼마다)에서 보이는 링으로 복사한다.
+D3D11 은 `CSSet*` 이고, UAV 는 디스패치 때 걸고 바로 뗀다(남겨 두면 다음 패스가 그 텍스처를 읽거나 그릴 때 D3D11 이 경고하며 떼어 낸다). 컴퓨트의 SRV 는 `BeginRenderPass` 에서 뗀다.
+Vulkan 은 `VK_PIPELINE_BIND_POINT_COMPUTE`, `STORAGE_IMAGE`(GENERAL 레이아웃)·`STORAGE_BUFFER` 디스크립터. 거절한 디스패치는 레이아웃을 옮기기 전에 거절한다.
+
+명시 `Barrier` API 는 이 단계에서 열지 않았다(2026-10-15 사용자 결정 "5단계로 미룸") - 쓰는 쪽인 렌더 그래프가 5 단계에서 서고, 그때 그래프가 실제로 필요로 하는 모양을 본다.
+
+시험(`ComputeTests.cpp`, 셰이더 `Tests/Shaders/ComputeProbe.hlsl` 의 네 커널):
+
+- 상한, 자리표(그래픽은 storage 를 받지 않고 컴퓨트는 `Compute` 단계만), 구조화 버퍼 규칙(원소 크기·온전한 원소·`Device`), 읽고 쓰는 텍스처 만들기와 sRGB 거절 - 세 백엔드.
+- 칠하기(64×64 를 한 색으로) → 되읽기. 버퍼 64 칸을 쓰는 디스패치 다음에 그 버퍼를 열마다 옮기는 디스패치 → 열 0·21·63 의 값.
+  2 mip 텍스처의 mip 0 을 칠하고 mip 0 을 읽어 반으로 mip 1 에 쓴 뒤, 다음 렌더 패스가 mip 1 을 `SetTextureMip` 으로 읽는다. 잘못된 슬롯·모르는 텍스처·없는 mip·
+  빈 자리의 디스패치·파이프라인 없는 디스패치·렌더 패스 안의 컴퓨트를 거절한다. D3D12 검증 레이어가 조용해야 한다.
+
+뮤테이션(2026-10-15, 10 개 중 9 개 죽었다):
+
+| 망가뜨린 것 | 결과 |
+|---|---|
+| D3D12 디스패치 뒤 읽기 상태로 되돌리지 않음 | 검증 레이어 |
+| D3D12 디스패치 앞 UAV 로 옮기지 않음 | 검증 레이어 |
+| D3D12 버퍼 범위를 u0 에 | 파이프라인 만들기 |
+| 그래픽 자리표가 storage 를 받음 | 그래픽 자리표 거절(처음엔 살아남았다 - 시험이 그래픽 자리표에 `Compute` 단계를 넣어 단계 검사에서 걸러졌다. 그래픽 단계로 다시 잰다) |
+| Vulkan 구조화 버퍼를 업로드 메모리에 | 구조화 버퍼는 `Device` |
+| D3D11 컴퓨트 상수 버퍼·텍스처를 CS 에 걸지 않음 | 칠한 색·mip 1 의 반 빨강 |
+| D3D12 구조화 버퍼 원소 크기 두 배 | 뒤의 만들기 검사에서 죽었다(잘못된 UAV 로 장치가 망가진 것으로 보인다, 추정) |
+| **D3D12 디스패치 사이의 UAV 배리어를 뺌** | **살아남았다.** 이 GPU 는 잇단 디스패치를 어차피 차례로 돌리는 것으로 보이고(추정), 검증 레이어와 GPU 기반 검증도 빠진 UAV 배리어를 말하지 않는다. 시험으로 잴 수 없는 자리라 코드 읽기로 지킨다 |
+
+남은 것: Vulkan 의 디스패치 시험(SPIR-V), 명시 `Barrier`(5 단계), 그래픽 단계의 UAV(픽셀 셰이더의 쓰기)와 3D·배열 UAV, 읽기 전용 구조화 버퍼(`StructuredBuffer`, t#), 같은 디스패치에서 같은 mip 을
+읽고 쓰는 묶음의 거절(지금은 부르는 쪽의 몫이다), D3D12 프레임 폐기 때 버퍼 상태 되돌리기(텍스처만 되돌린다).
+- Vulkan 의 그리기 시험(§3.1 과 같은 까닭). Vulkan 은 mip·깊이 만들기와 거절만 돌았다.
+
+### 3.5 4 단계 - 셰이더 매니페스트와 셰이더 자료형 (D-329)
+
+범위는 사용자가 골랐다(2026-10-15, "매니페스트+자료형"): 빌트인 셰이더를 매니페스트 한 곳으로 옮기고 셰이더 자료형을 세운다.
+에디터가 그 자리에서 굽는 것과 `.jshader` 에셋 파일·로더는 쓰는 쪽(Material, 11 단계)과 함께 한다.
+
+| 것 | 모양 |
+|---|---|
+| 매니페스트 | `Modules/JBroGraphics/Shaders/ShaderManifest.psd1`. `Stages`(심볼·파일·진입점·단계) 20 개와 `Programs`(셰이더 둘·푸시 상수 크기와 단계·상수 버퍼·텍스처·샘플러 개수와 단계) 13 개. 텍스처·샘플러 단계의 기본값은 `Pixel` |
+| 굽기 | `Compile.ps1` 이 매니페스트를 읽어 단계마다 DXIL·DXBC·SPIR-V 헤더를 굽고(전과 같은 이름·같은 바이트), 프로그램 표 `BuiltinShaders.generated.h/.cpp` 를 쓴다. `-SkipSpirv` 는 SPIR-V 헤더를 건드리지 않는다(Vulkan SDK 없는 기계) |
+| 자료형 | `JBroAsset` 의 `ShaderData`(`<JBro/Asset/ShaderData.h>`): 이름, `[단계][백엔드]` 바이트코드, 푸시 상수 크기와 단계, 자리표 다섯(`ShaderResourceRange{count, stageMask}`). 단계 비트는 RHI 의 `ShaderStage` 와 같다(`static_assert`). 파라미터 블록 레이아웃은 효과가 서는 6 단계에서 더한다 |
+| 렌더러 | include 60 줄과 `PickShader` 가 `GetBuiltinShader(BuiltinShader::X)` 하나로 줄었다. `ApplyShader` 가 셰이더 둘·푸시 상수·자리표를 파이프라인 서술자에 옮기고, 그 API 의 바이트코드가 없거나 C++ 의 푸시 구조체 크기가 매니페스트와 다르면 거짓이다 |
+| 시험 | `BuiltinShaderTests.cpp`: 프로그램마다 DXBC 를 `D3DReflect` 로 열어 쓰인 b·t·s 자리가 선언과 정확히 같은지, 읽는 단계가 자리표 단계 안인지, b0 크기와 단계가 푸시 상수와 같은지, 세 백엔드 코드가 다 있는지 잰다 |
+
+셰이더 하나를 더하는 일은 매니페스트 한 줄(단계)과 한 줄(프로그램), `Compile.ps1` 한 번이다 - 전에는 스크립트의 배열 셋과 `Renderer.cpp` 의 include 블록 셋을 고쳤다(§1).
+에디터 UI 셰이더(`Modules/JBroEditor/Shaders`)는 렌더러 밖이라 옮기지 않았다.
+
+반사 시험이 처음 돌 때 매니페스트(곧 옛 손 자리표)와 셰이더가 어긋난 곳 다섯을 찾았다. 모두 셰이더가 읽지 않는 자리를 선언하던 것이다:
+
+- `OutlineGrow` 는 텍스처 둘과 샘플러를 선언했지만 t0 하나를 `Load` 로만 읽는다. 렌더러의 외곽선 첫 패스가 t1 에 마스크를 묶던 것을 뺐다.
+- `OutlineComposite`·`LayerComposite`·`LayerBackdrop`·`Light2DShadowed` 는 샘플러를 선언했지만 모두 `Load` 로 읽는다. 렌더러의 `SetSampler(0, …)` 셋을 뺐다.
+
+그림은 바뀌지 않았다(SpritePixel·Light2DPixel·MeshPixel·TextRender·DebugDraw·EditorUI·세 백엔드 스모크가 그대로 지난다). D3D12 는 빈 자리를 선언해도 거절하지 않지만 묶지 않은 자리로 그리면 거절하는 RHI 규칙(D-325)과 맞물려, 쓰지 않는 자리를 선언하면 부르는 쪽이 쓸데없이 묶어야 했다.
+
+뮤테이션(2026-10-15, 11 개 중 10 개 죽었다):
+
+| 망가뜨린 것 | 결과 |
+|---|---|
+| 스프라이트의 텍스처 1 → 2 | 반사 시험("쓰지 않는 자리를 선언") |
+| 스프라이트의 샘플러를 뺌 | 반사 시험("선언하지 않은 자리를 씀") |
+| 스프라이트의 텍스처 단계를 정점으로 | 반사 시험(읽는 단계) |
+| 레이어 합성에 샘플러를 다시 선언 | 반사 시험 |
+| 스프라이트의 푸시 상수 64 → 80 | 반사 시험(b0 크기) |
+| 메시의 푸시 상수 단계를 픽셀로 | 반사 시험(푸시 단계) |
+| **`ApplyShader` 의 푸시 크기 검사를 뺌** | **살아남았다.** 지금 크기가 모두 맞아 검사가 거짓을 낼 일이 없다. 매니페스트는 반사 시험이 셰이더에, 이 검사는 C++ 구조체에 묶는다 - 구조체만 바뀌는 경우의 그물이다 |
+| D3D11 에 DXIL 을 줌 | 렌더러 초기화(파이프라인 만들기) |
+| 자리표의 단계를 무시하고 정점으로 | 렌더러 초기화 |
+| 텍스처 자리표를 옮기지 않음 | 렌더러 초기화 |
+| 그림자 빛에 마스크를 묶지 않음 | 빛 프레임(묶지 않은 자리로 그린 것을 RHI 가 거절한 것으로 본다, 추정) |
+
+남은 것: SPIR-V 헤더를 매니페스트로 다시 굽기(Vulkan SDK 가 있는 기계에서 `Compile.ps1` 을 `-SkipSpirv` 없이), 컴퓨트 프로그램을 매니페스트에 받기(첫 효과가 6·7 단계에서),
+파라미터 블록 레이아웃(6 단계), `.jshader` 에셋 파일과 에디터의 즉석 굽기(11 단계).
 
 ## 4. 정한 것과 미정
 

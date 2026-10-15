@@ -62,7 +62,21 @@ namespace JBro::Internal
         {
             sampler = VK_NULL_HANDLE;
         }
+        for (PendingConstantBuffer& constants : m_pendingConstantBuffers)
+        {
+            constants = {};
+        }
+        for (PendingStorageTexture& storage : m_pendingStorageTextures)
+        {
+            storage = {};
+        }
+        for (PendingStorageBuffer& storage : m_pendingStorageBuffers)
+        {
+            storage = {};
+        }
+        m_computeActive = false;
         m_descriptorsDirty = false;
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -78,7 +92,8 @@ namespace JBro::Internal
         VulkanDevice::AttachmentView colors[MaxColorAttachments];
         for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {
-            if (false == m_device->ResolveAttachment(desc.colorAttachments.data[index].texture, colors[index])
+            const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
+            if (false == m_device->ResolveAttachment(attachment.texture, attachment.mipLevel, colors[index])
                 || colors[index].aspect != VK_IMAGE_ASPECT_COLOR_BIT)
             {
                 return false;
@@ -86,7 +101,7 @@ namespace JBro::Internal
         }
         VulkanDevice::AttachmentView depth;
         if (desc.depthStencilAttachment != nullptr
-            && (false == m_device->ResolveAttachment(desc.depthStencilAttachment->texture, depth)
+            && (false == m_device->ResolveAttachment(desc.depthStencilAttachment->texture, 0, depth)
                 || depth.aspect != VK_IMAGE_ASPECT_DEPTH_BIT))
         {
             return false;
@@ -104,8 +119,9 @@ namespace JBro::Internal
             // 내용을 버리는 첨부는 UNDEFINED 에서 와도 된다 - 전이가 값을 지켜 줄 필요가 없다.
             const VkImageLayout from = attachment.loadOperation == LoadOperation::Load ? *view.layout
                                                                                          : VK_IMAGE_LAYOUT_UNDEFINED;
+            // 그리는 mip 하나만 옮긴다. 같은 텍스처의 다른 mip 은 이 패스가 읽는 것일 수 있다(블룸의 내림 사슬).
             VulkanDevice::TransitionImage(m_commands, view.image, VK_IMAGE_ASPECT_COLOR_BIT, from,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, view.mip, 1);
             *view.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             VkRenderingAttachmentInfo& info = colorInfos[index];
             info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -117,7 +133,7 @@ namespace JBro::Internal
                 attachment.clearColor.blue, attachment.clearColor.alpha}};
             if (view.sampled)
             {
-                m_sampledAtEnd[m_sampledAtEndCount++] = attachment.texture;
+                m_sampledAtEnd[m_sampledAtEndCount++] = {attachment.texture, view.mip, VK_IMAGE_ASPECT_COLOR_BIT};
             }
         }
         VkRenderingAttachmentInfo depthInfo = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
@@ -135,6 +151,12 @@ namespace JBro::Internal
             depthInfo.storeOp = ToNativeStore(desc.depthStencilAttachment->depthStoreOperation);
             depthInfo.clearValue.depthStencil = {desc.depthStencilAttachment->clearDepth,
                 desc.depthStencilAttachment->clearStencil};
+            // 읽기도 하는 깊이는 패스 뒤에 셰이더 읽기 레이아웃으로 돌린다 - 깊이 읽기가 Vulkan 에서 막혔던 까닭이 이것이다
+            // (`ResolveSampledTexture` 는 그 레이아웃만 받는다).
+            if (depth.sampled)
+            {
+                m_sampledAtEnd[m_sampledAtEndCount++] = {desc.depthStencilAttachment->texture, 0, VK_IMAGE_ASPECT_DEPTH_BIT};
+            }
         }
         VkRenderingInfo rendering = {VK_STRUCTURE_TYPE_RENDERING_INFO};
         rendering.renderArea.extent = extent;
@@ -146,6 +168,16 @@ namespace JBro::Internal
         // 뷰포트·시저는 동적이라 파이프라인마다 다시 걸 필요 없이 패스 처음에 첨부 전체로 둔다.
         SetViewport({0.0f, 0.0f, static_cast<JBro::Float>(extent.width), static_cast<JBro::Float>(extent.height), 0.0f, 1.0f});
         SetScissor({0, 0, static_cast<JBro::Int32>(extent.width), static_cast<JBro::Int32>(extent.height)});
+        m_passTargets.Clear();
+        for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
+        {
+            m_passTargets.Add(desc.colorAttachments.data[index].texture, desc.colorAttachments.data[index].mipLevel);
+        }
+        if (desc.depthStencilAttachment != nullptr)
+        {
+            m_passTargets.Add(desc.depthStencilAttachment->texture, 0);
+        }
+        m_computeActive = false;
         m_renderPassActive = true;
         m_pipelineActive = false;
         m_activePipeline = nullptr;
@@ -157,9 +189,11 @@ namespace JBro::Internal
         VulkanDevice::AttachmentView from;
         VulkanDevice::AttachmentView to;
         if (m_device == nullptr || m_commands == VK_NULL_HANDLE || m_renderPassActive
-            || false == m_device->ResolveAttachment(source, from) || false == m_device->ResolveAttachment(destination, to)
+            || false == m_device->ResolveAttachment(source, 0, from) || false == m_device->ResolveAttachment(destination, 0, to)
             || from.aspect != VK_IMAGE_ASPECT_COLOR_BIT || to.aspect != VK_IMAGE_ASPECT_COLOR_BIT || from.image == to.image
-            || from.extent.width != to.extent.width || from.extent.height != to.extent.height)
+            || from.extent.width != to.extent.width || from.extent.height != to.extent.height
+            // 통째 복사라 mip 이 하나인 것만 받는다(D3D12·D3D11 과 같은 계약).
+            || from.mipLevels != 1 || to.mipLevels != 1)
         {
             return false;
         }
@@ -195,18 +229,20 @@ namespace JBro::Internal
             return;
         }
         vk.vkCmdEndRendering(m_commands);
-        // Sampled 로 만든 색 첨부는 다음 패스가 읽을 수 있게 돌려 놓는다.
+        // Sampled 로 만든 첨부는 다음 패스가 읽을 수 있게 돌려 놓는다. 그린 mip 하나만이다.
         for (UInt32 index = 0; index < m_sampledAtEndCount; ++index)
         {
+            const SampledAttachment& sampled = m_sampledAtEnd[index];
             VulkanDevice::AttachmentView view;
-            if (m_device->ResolveAttachment(m_sampledAtEnd[index], view))
+            if (m_device->ResolveAttachment(sampled.texture, sampled.mip, view))
             {
-                VulkanDevice::TransitionImage(m_commands, view.image, VK_IMAGE_ASPECT_COLOR_BIT, *view.layout,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                VulkanDevice::TransitionImage(m_commands, view.image, sampled.aspect, *view.layout,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, view.mip, 1);
                 *view.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             }
         }
         m_sampledAtEndCount = 0;
+        m_passTargets.Clear();
         m_renderPassActive = false;
         m_pipelineActive = false;
         m_activePipeline = nullptr;
@@ -258,6 +294,7 @@ namespace JBro::Internal
         }
         vk.vkCmdBindPipeline(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, state->pipeline);
         m_activePipeline = state;
+        m_computeActive = false;
         m_pipelineActive = true;
         // 파이프라인을 걸면 묶어 둔 것은 버려진다 - D3D12 와 같은 계약이다. 새 레이아웃에 다시 묶는다.
         for (VkImageView& view : m_pendingTextures)
@@ -268,7 +305,44 @@ namespace JBro::Internal
         {
             sampler = VK_NULL_HANDLE;
         }
+        for (PendingConstantBuffer& constants : m_pendingConstantBuffers)
+        {
+            constants = {};
+        }
         m_descriptorsDirty = true;
+        return true;
+    }
+
+    Bool VulkanCommandContext::SetConstantBuffer(UInt32 slot, BufferHandle buffer, std::size_t offset, std::size_t size)
+    {
+        if (false == CanBind() || m_activePipeline == nullptr || m_device == nullptr
+            || slot == 0 || slot > m_activePipeline->constantBufferCount)
+        {
+            return false;
+        }
+        const DeviceCaps caps = m_device->GetCaps();
+        VkBuffer native = VK_NULL_HANDLE;
+        BufferDesc desc;
+        if (false == m_device->ResolveBuffer(buffer, native, desc)
+            || false == HasBufferUsage(desc.usage, BufferUsage::Constant)
+            || size == 0
+            || size > caps.maxConstantBufferBytes
+            || offset % caps.constantBufferAlignment != 0
+            || size % caps.constantBufferAlignment != 0
+            || offset > desc.size
+            || size > desc.size - offset)
+        {
+            return false;
+        }
+        PendingConstantBuffer& pending = m_pendingConstantBuffers[slot];
+        if (pending.buffer != native || pending.size != size || pending.offset != offset)
+        {
+            // 오프셋만 바뀌어도 set 을 다시 건다(동적 오프셋은 묶을 때 넘긴다). 버퍼·크기가 같으면 캐시된 set 을 그대로 쓴다.
+            pending.buffer = native;
+            pending.size = size;
+            pending.offset = static_cast<UInt32>(offset);
+            m_descriptorsDirty = true;
+        }
         return true;
     }
 
@@ -328,9 +402,29 @@ namespace JBro::Internal
 
     Bool VulkanCommandContext::SetTexture(UInt32 slot, TextureHandle texture)
     {
+        return BindTexture(slot, texture, VulkanDevice::AllMips);
+    }
+
+    Bool VulkanCommandContext::SetTextureMip(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        if (mipLevel == VulkanDevice::AllMips)
+        {
+            return false;
+        }
+        return BindTexture(slot, texture, mipLevel);
+    }
+
+    Bool VulkanCommandContext::BindTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        // 이 패스가 그리는 자리를 읽으려 한다(`SetTextureMip` 의 계약).
+        if (m_passTargets.Overlaps(texture, mipLevel, mipLevel == VulkanDevice::AllMips))
+        {
+            return false;
+        }
         VkImageView view = VK_NULL_HANDLE;
-        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
-            || slot >= m_activePipeline->sampledTextureCount || false == m_device->ResolveSampledTexture(texture, view))
+        if (false == CanBind() || m_activePipeline == nullptr
+            || slot >= m_activePipeline->sampledTextureCount
+            || false == m_device->ResolveSampledTexture(texture, mipLevel, view))
         {
             return false;
         }
@@ -345,7 +439,7 @@ namespace JBro::Internal
     Bool VulkanCommandContext::SetSampler(UInt32 slot, SamplerHandle sampler)
     {
         VkSampler native = VK_NULL_HANDLE;
-        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
+        if (false == CanBind() || m_activePipeline == nullptr
             || slot >= m_activePipeline->samplerCount || false == m_device->ResolveSampler(sampler, native))
         {
             return false;
@@ -369,9 +463,30 @@ namespace JBro::Internal
             return true;
         }
         // 파이프라인이 선언한 자리가 다 채워져야 한다. 빈 디스크립터는 검증 오류다.
+        for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount; ++slot)
+        {
+            if (m_pendingConstantBuffers[slot].buffer == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
         for (UInt32 slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
         {
             if (m_pendingTextures[slot] == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            if (m_pendingStorageTextures[slot].view == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount; ++slot)
+        {
+            if (m_pendingStorageBuffers[slot].buffer == VK_NULL_HANDLE)
             {
                 return false;
             }
@@ -383,11 +498,19 @@ namespace JBro::Internal
                 return false;
             }
         }
+        // 동적 오프셋은 binding 번호 순서다. 상수 버퍼가 binding 1..N 으로 가장 앞이라 슬롯 순서 그대로다.
+        // Vulkan 에 그대로 넘기는 배열이라 원시 타입이다(서드파티 경계).
+        std::uint32_t dynamicOffsets[MaxBoundConstantBuffers] = {};
+        const UInt32 dynamicOffsetCount = m_activePipeline->constantBufferCount;
+        for (UInt32 slot = 1; slot <= dynamicOffsetCount; ++slot)
+        {
+            dynamicOffsets[slot - 1] = m_pendingConstantBuffers[slot].offset.Get();
+        }
         VkDescriptorSet set = VK_NULL_HANDLE;
         if (FindCachedSet(set))
         {
-            vk.vkCmdBindDescriptorSets(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, m_activePipeline->layout, 0, 1,
-                &set, 0, nullptr);
+            vk.vkCmdBindDescriptorSets(m_commands, ActiveBindPoint(), m_activePipeline->layout, 0, 1,
+                &set, dynamicOffsetCount, dynamicOffsets);
             m_descriptorsDirty = false;
             return true;
         }
@@ -400,37 +523,80 @@ namespace JBro::Internal
             return false;
         }
         RememberSet(set);
-        VkDescriptorImageInfo images[MaxBoundTextures + MaxBoundSamplers] = {};
-        VkWriteDescriptorSet writes[MaxBoundTextures + MaxBoundSamplers] = {};
+        VkDescriptorBufferInfo buffers[MaxBoundConstantBuffers + MaxStorageBuffers] = {};
+        VkDescriptorImageInfo images[MaxBoundTextures + MaxBoundSamplers + MaxStorageTextures] = {};
+        VkWriteDescriptorSet writes[MaxBoundConstantBuffers + MaxBoundTextures + MaxBoundSamplers + MaxStorageTextures
+            + MaxStorageBuffers] = {};
         UInt32 writeCount = 0;
+        UInt32 imageCount = 0;
+        for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount; ++slot)
+        {
+            // 오프셋은 0 으로 적고 묶을 때 동적 오프셋으로 준다.
+            VkDescriptorBufferInfo& info = buffers[slot - 1];
+            info.buffer = m_pendingConstantBuffers[slot].buffer;
+            info.offset = 0;
+            info.range = m_pendingConstantBuffers[slot].size;
+            VkWriteDescriptorSet& write = writes[writeCount++];
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = set;
+            write.dstBinding = slot;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            write.pBufferInfo = &info;
+        }
         for (UInt32 slot = 0; slot < m_activePipeline->sampledTextureCount; ++slot)
         {
-            images[writeCount].imageView = m_pendingTextures[slot];
-            images[writeCount].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            VkWriteDescriptorSet& write = writes[writeCount];
+            images[imageCount].imageView = m_pendingTextures[slot];
+            images[imageCount].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkWriteDescriptorSet& write = writes[writeCount++];
             write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             write.dstSet = set;
             write.dstBinding = TextureBindingBase + slot;
             write.descriptorCount = 1;
             write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            write.pImageInfo = &images[writeCount];
-            ++writeCount;
+            write.pImageInfo = &images[imageCount++];
         }
         for (UInt32 slot = 0; slot < m_activePipeline->samplerCount; ++slot)
         {
-            images[writeCount].sampler = m_pendingSamplers[slot];
-            VkWriteDescriptorSet& write = writes[writeCount];
+            images[imageCount].sampler = m_pendingSamplers[slot];
+            VkWriteDescriptorSet& write = writes[writeCount++];
             write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             write.dstSet = set;
             write.dstBinding = SamplerBindingBase + slot;
             write.descriptorCount = 1;
             write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-            write.pImageInfo = &images[writeCount];
-            ++writeCount;
+            write.pImageInfo = &images[imageCount++];
+        }
+        // 컴퓨트의 u#. 읽고 쓰는 이미지는 GENERAL 레이아웃으로 읽힌다(`Dispatch` 가 옮긴다).
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            images[imageCount].imageView = m_pendingStorageTextures[slot].view;
+            images[imageCount].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            VkWriteDescriptorSet& write = writes[writeCount++];
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = set;
+            write.dstBinding = StorageBindingBase + slot;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            write.pImageInfo = &images[imageCount++];
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount; ++slot)
+        {
+            VkDescriptorBufferInfo& info = buffers[MaxBoundConstantBuffers + slot];
+            info.buffer = m_pendingStorageBuffers[slot].buffer;
+            info.offset = 0;
+            info.range = m_pendingStorageBuffers[slot].size;
+            VkWriteDescriptorSet& write = writes[writeCount++];
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = set;
+            write.dstBinding = StorageBindingBase + StorageBufferRegisterBase + slot;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            write.pBufferInfo = &info;
         }
         vk.vkUpdateDescriptorSets(m_device->GetNativeDevice(), writeCount, writes, 0, nullptr);
-        vk.vkCmdBindDescriptorSets(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, m_activePipeline->layout, 0, 1, &set,
-            0, nullptr);
+        vk.vkCmdBindDescriptorSets(m_commands, ActiveBindPoint(), m_activePipeline->layout, 0, 1, &set,
+            dynamicOffsetCount, dynamicOffsets);
         m_descriptorsDirty = false;
         return true;
     }
@@ -452,6 +618,20 @@ namespace JBro::Internal
             for (UInt32 slot = 0; slot < m_activePipeline->samplerCount && same; ++slot)
             {
                 same = candidate.samplers[slot] == m_pendingSamplers[slot];
+            }
+            // 오프셋은 키가 아니다 - 동적 오프셋이라 같은 set 을 다른 구간으로 다시 건다.
+            for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount && same; ++slot)
+            {
+                same = candidate.constantBuffers[slot] == m_pendingConstantBuffers[slot].buffer
+                    && candidate.constantSizes[slot] == m_pendingConstantBuffers[slot].size;
+            }
+            for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount && same; ++slot)
+            {
+                same = candidate.storageViews[slot] == m_pendingStorageTextures[slot].view;
+            }
+            for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount && same; ++slot)
+            {
+                same = candidate.storageBuffers[slot] == m_pendingStorageBuffers[slot].buffer;
             }
             if (same)
             {
@@ -478,6 +658,22 @@ namespace JBro::Internal
         {
             entry.samplers[slot] = slot < m_activePipeline->samplerCount ? m_pendingSamplers[slot] : VK_NULL_HANDLE;
         }
+        for (UInt32 slot = 0; slot <= MaxBoundConstantBuffers; ++slot)
+        {
+            const Bool declared = slot != 0 && slot <= m_activePipeline->constantBufferCount;
+            entry.constantBuffers[slot] = declared ? m_pendingConstantBuffers[slot].buffer : VK_NULL_HANDLE;
+            entry.constantSizes[slot] = declared ? m_pendingConstantBuffers[slot].size : 0;
+        }
+        for (UInt32 slot = 0; slot < MaxStorageTextures; ++slot)
+        {
+            entry.storageViews[slot] = slot < m_activePipeline->storageTextureCount ? m_pendingStorageTextures[slot].view
+                                                                                     : VK_NULL_HANDLE;
+        }
+        for (UInt32 slot = 0; slot < MaxStorageBuffers; ++slot)
+        {
+            entry.storageBuffers[slot] = slot < m_activePipeline->storageBufferCount ? m_pendingStorageBuffers[slot].buffer
+                                                                                     : VK_NULL_HANDLE;
+        }
     }
 
     Bool VulkanCommandContext::DrawIndexedInstanced(
@@ -487,12 +683,188 @@ namespace JBro::Internal
         Int32 baseVertex,
         UInt32 firstInstance)
     {
-        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr
-            || indexCount == 0 || instanceCount == 0 || false == BindPendingDescriptors())
+        if (indexCount == 0 || instanceCount == 0 || false == PrepareDraw())
         {
             return false;
         }
         vk.vkCmdDrawIndexed(m_commands, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+        return true;
+    }
+
+    Bool VulkanCommandContext::DrawInstanced(
+        UInt32 vertexCount,
+        UInt32 instanceCount,
+        UInt32 firstVertex,
+        UInt32 firstInstance)
+    {
+        if (vertexCount == 0 || instanceCount == 0 || false == PrepareDraw())
+        {
+            return false;
+        }
+        vk.vkCmdDraw(m_commands, vertexCount, instanceCount, firstVertex, firstInstance);
+        return true;
+    }
+
+    Bool VulkanCommandContext::PrepareDraw()
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive || m_activePipeline == nullptr)
+        {
+            return false;
+        }
+        return BindPendingDescriptors();
+    }
+
+    Bool VulkanCommandContext::CanBind() const
+    {
+        return (m_renderPassActive && m_pipelineActive) || (false == m_renderPassActive && m_computeActive);
+    }
+
+    VkPipelineBindPoint VulkanCommandContext::ActiveBindPoint() const
+    {
+        return m_activePipeline != nullptr ? m_activePipeline->bindPoint : VK_PIPELINE_BIND_POINT_GRAPHICS;
+    }
+
+    Bool VulkanCommandContext::SetComputePipeline(ComputePipelineHandle pipeline)
+    {
+        // 컴퓨트는 렌더 패스(동적 렌더링) 밖에서만이다 - 디스패치 앞뒤의 레이아웃 전이를 패스 안에서 걸 수 없다.
+        if (m_renderPassActive || m_device == nullptr || m_commands == VK_NULL_HANDLE)
+        {
+            return false;
+        }
+        VulkanPipelineState* state = m_device->ResolveComputePipeline(pipeline);
+        if (state == nullptr)
+        {
+            return false;
+        }
+        vk.vkCmdBindPipeline(m_commands, VK_PIPELINE_BIND_POINT_COMPUTE, state->pipeline);
+        m_activePipeline = state;
+        for (VkImageView& view : m_pendingTextures)
+        {
+            view = VK_NULL_HANDLE;
+        }
+        for (VkSampler& sampler : m_pendingSamplers)
+        {
+            sampler = VK_NULL_HANDLE;
+        }
+        for (PendingConstantBuffer& constants : m_pendingConstantBuffers)
+        {
+            constants = {};
+        }
+        for (PendingStorageTexture& storage : m_pendingStorageTextures)
+        {
+            storage = {};
+        }
+        for (PendingStorageBuffer& storage : m_pendingStorageBuffers)
+        {
+            storage = {};
+        }
+        m_descriptorsDirty = true;
+        m_pipelineActive = false;
+        m_computeActive = true;
+        return true;
+    }
+
+    Bool VulkanCommandContext::SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel)
+    {
+        VulkanDevice::AttachmentView view;
+        if (false == m_computeActive || m_renderPassActive || m_activePipeline == nullptr || m_device == nullptr
+            || slot >= m_activePipeline->storageTextureCount
+            || false == m_device->ResolveStorageTexture(texture, mipLevel, view))
+        {
+            return false;
+        }
+        PendingStorageTexture& pending = m_pendingStorageTextures[slot];
+        if (pending.view != view.view)
+        {
+            m_descriptorsDirty = true;
+        }
+        pending = {view.image, view.view, view.layout, view.mip, view.sampled};
+        return true;
+    }
+
+    Bool VulkanCommandContext::SetStorageBuffer(UInt32 slot, BufferHandle buffer)
+    {
+        VkBuffer native = VK_NULL_HANDLE;
+        VkDeviceSize size = 0;
+        if (false == m_computeActive || m_renderPassActive || m_activePipeline == nullptr || m_device == nullptr
+            || slot < StorageBufferRegisterBase || slot >= StorageBufferRegisterBase + m_activePipeline->storageBufferCount
+            || false == m_device->ResolveStorageBuffer(buffer, native, size))
+        {
+            return false;
+        }
+        PendingStorageBuffer& pending = m_pendingStorageBuffers[slot - StorageBufferRegisterBase];
+        if (pending.buffer != native || pending.size != size)
+        {
+            m_descriptorsDirty = true;
+        }
+        pending = {native, size};
+        return true;
+    }
+
+    void VulkanCommandContext::TransitionStorageTextures(Bool beforeDispatch)
+    {
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            PendingStorageTexture& storage = m_pendingStorageTextures[slot];
+            if (storage.layout == nullptr || (false == beforeDispatch && false == storage.sampled))
+            {
+                continue;
+            }
+            const VkImageLayout wanted = beforeDispatch ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VulkanDevice::TransitionImage(m_commands, storage.image, VK_IMAGE_ASPECT_COLOR_BIT, *storage.layout, wanted,
+                storage.mip, 1);
+            *storage.layout = wanted;
+        }
+    }
+
+    Bool VulkanCommandContext::Dispatch(UInt32 groupCountX, UInt32 groupCountY, UInt32 groupCountZ)
+    {
+        if (false == m_computeActive || m_renderPassActive || m_activePipeline == nullptr
+            || groupCountX == 0 || groupCountY == 0 || groupCountZ == 0)
+        {
+            return false;
+        }
+        // 선언한 자리가 비면 돌지 않는다. 레이아웃을 옮기기 전에 본다 - 거절한 디스패치가 텍스처를 GENERAL 에 남기면 안 된다.
+        for (UInt32 slot = 1; slot <= m_activePipeline->constantBufferCount; ++slot)
+        {
+            if (m_pendingConstantBuffers[slot].buffer == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageTextureCount; ++slot)
+        {
+            if (m_pendingStorageTextures[slot].view == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < m_activePipeline->storageBufferCount; ++slot)
+        {
+            if (m_pendingStorageBuffers[slot].buffer == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+        }
+        // 묶음보다 전이가 먼저다. 셋은 레이아웃을 GENERAL 로 적었고, 디스패치가 볼 때 그 레이아웃이어야 한다.
+        TransitionStorageTextures(true);
+        // 앞의 디스패치가 쓴 것(버퍼·이미지)을 이번 디스패치가 읽고 쓰기 전에 기다린다. 이미지 전이는 위에서 이미 기다렸다.
+        VkMemoryBarrier2 memory = {VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
+        memory.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        memory.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        memory.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        memory.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+        VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+        dependency.memoryBarrierCount = 1;
+        dependency.pMemoryBarriers = &memory;
+        vk.vkCmdPipelineBarrier2(m_commands, &dependency);
+        if (false == BindPendingDescriptors())
+        {
+            return false;
+        }
+        vk.vkCmdDispatch(m_commands, groupCountX, groupCountY, groupCountZ);
+        // 읽기도 하는 텍스처는 읽기 레이아웃으로 되돌린다 - 다음 렌더 패스가 그대로 읽는다(`ResolveSampledTexture`).
+        TransitionStorageTextures(false);
         return true;
     }
 }

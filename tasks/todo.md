@@ -357,7 +357,11 @@
     거둔다. 에디터의 캔버스 로드는 `CloseProject` 첫머리에서 취소하고 기다린다. 텍스트 라이브러리는 전부터 `Shutdown` 에서 기다렸다.
 
 - `[진행]` **RHI 에 상수·구조화 버퍼 바인딩과 컴퓨트 파이프라인**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.1). 재질(3D todo)과 후처리가 이것 없이 서지 않는다.
-  지금은 푸시 상수와 텍스처·샘플러 슬롯뿐이다.
+  1 단계(바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷)가 섰다(D-325). Vulkan 의 그리기 시험은 SPIR-V 시험 셰이더를 구운 뒤다(계획 §3.1).
+  2 단계의 서브리소스(mip 에 그리기·mip 하나 읽기)·mip 마다의 상태·깊이 읽기가 섰다(D-326).
+  2 단계의 끝인 3D 텍스처와 샘플러의 W 축도 섰다(D-327). 3 단계의 컴퓨트·UAV 텍스처·구조화 버퍼·자동 배리어도 섰다(D-328).
+  4 단계의 셰이더 매니페스트와 셰이더 자료형 `ShaderData` 도 섰다(D-329).
+  남은 것은 명시 `Barrier` API(5 단계로 옮김)와 Vulkan 의 그리기·디스패치 시험이다.
 - `[진행]` **렌더 패스 그래프**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.2). `Renderer::RecordViews` 의 고정 패스를
   읽기·쓰기를 선언하는 DAG 로 바꾸고 지금 패스(라이트맵·그림자·레이어 합성·외곽선)도 옮긴다. ~~선형 구조, 완전한 DAG 는 이 단계에서 과하다~~ → D-322.
 - `[진행]` **`.jpak` 패키지와 게임 익스포트의 에셋**(D-232, [package-plan.md](./package-plan.md)). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬
@@ -3094,6 +3098,64 @@ EditorApplication::Tick
   실측(임시 코드, 커밋하지 않음): 실제 에디터가 중단점에서 8 초 동안 1921 프레임을 그리며 오브젝트 선택과 인스펙터·캔버스 뷰가 됐고, 스크립트의 null 쓰기(`0xc0000005`)를 받고 살아 되돌렸다.
   스크래치 호스트에 noninvasive 로 붙어 줄 → 주소·int 3 넣기·`.cxr` 스택·natvis 값이 됐고 그동안 호스트가 돌았다. 상세는 [script-debug-plan.md](./script-debug-plan.md).
 
+- **D-329. 빌트인 셰이더는 매니페스트 한 곳(`ShaderManifest.psd1`)에 적고, `Compile.ps1` 이 바이트코드 헤더와 프로그램 표를 만든다. 렌더러는 `GetBuiltinShader` 의 `ShaderData` 로 파이프라인을 채운다.**
+  (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.5, 후처리 계획 4 단계. 사용자 결정: 범위는 "매니페스트+자료형" - `.jshader` 에셋 파일과 에디터의 즉석 굽기는 11 단계)
+  Updates: D-111(빌트인 셰이더도 Shader 자료 - 이번에 선 것은 자료형 `ShaderData` 와 빌트인 표이고 에셋 레지스트리 등록은 아직이다), D-322(4 단계의 범위를 줄였다).
+  (1) 매니페스트는 `Stages`(심볼·파일·진입점·단계)와 `Programs`(셰이더 둘·푸시 상수 크기와 단계·상수 버퍼·텍스처·샘플러 개수와 단계)다. 셰이더 하나를 더하는 일은 매니페스트 두 줄과 `Compile.ps1` 한 번이다.
+  (2) `ShaderData`(`JBroAsset`)는 `[단계][백엔드]` 바이트코드와 자리표 다섯(`ShaderResourceRange{count, stageMask}`)을 든다. 단계 비트는 RHI 의 `ShaderStage` 와 같다. 파라미터 블록 레이아웃은 6 단계에서 더한다.
+  (3) 렌더러의 `ApplyShader` 가 셰이더·푸시 상수·자리표를 파이프라인 서술자에 옮기고, 그 API 의 코드가 없거나 C++ 푸시 구조체 크기가 매니페스트와 다르면 렌더러 초기화가 실패한다.
+  (4) 자리표는 셰이더가 실제로 읽는 자리와 정확히 같아야 한다. `BuiltinShaderTests` 가 DXBC 를 `D3DReflect` 로 열어 잰다. 처음 돌 때 쓰지 않는 자리 선언 다섯(외곽선 둘·레이어 합성 둘·그림자 빛의 샘플러와 외곽선 첫 패스의 t1)을 찾아 렌더러의 묶기와 함께 뺐다.
+  **섰다 - SPIR-V 헤더는 Vulkan SDK 가 있는 기계에서 매니페스트로 다시 굽는다(이번엔 `-SkipSpirv`, 셰이더가 바뀌지 않아 옛 헤더가 그대로 맞다).**
+
+- **D-328. 컴퓨트는 렌더 패스 밖에서 돌고 배리어는 `Dispatch` 가 건다. 읽고 쓰는 텍스처는 u0..u3, 구조화 버퍼는 u4..u7 이다. 명시 `Barrier` API 는 렌더 그래프(5 단계)와 함께 연다.**
+  (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.4, 후처리 계획 3 단계. 사용자 결정: 명시 `Barrier` 는 "5단계로 미룸" - 쓰는 쪽이 생길 때 모양을 정한다)
+  Updates: D-322(3 단계 중 `Barrier` 를 5 단계로 옮긴다), D-325(자리표에 `storageTextures`·`storageBuffers` 와 `Compute` 단계를 더한다), D-326(디스패치 뒤에도 "패스 밖의 텍스처는 읽기 상태").
+  (1) `CreateComputePipeline`·`SetComputePipeline`·`Dispatch`. 렌더 패스 안에서는 거절한다. 상수 버퍼·텍스처·샘플러 묶기는 그래픽과 같은 함수이고 걸린 파이프라인의 자리표를 따른다.
+  (2) 레지스터: 읽고 쓰는 텍스처 u0..u3(`SetStorageTexture`, mip 하나), 구조화 버퍼 u4..u7(`SetStorageBuffer`) - 텍스처 수와 상관없이 u4 부터라 레지스터가 밀리지 않는다.
+  SPIR-V 는 `-fvk-u-shift 24 0` 으로 binding 24..31. 그래픽 자리표는 storage 를 받지 않는다.
+  (3) 구조화 버퍼는 `BufferUsage::Storage` + `stride`, `Device` 메모리만이다. 읽고 쓰는 텍스처는 2D 이고 장치가 타입 있는 UAV 를 받는 포맷만이다(sRGB·깊이 안 됨).
+  (4) `Dispatch` 앞에서 UAV 대상을 쓰기 상태로 옮기고 이미 쓰기 상태면 UAV 배리어를 걸며, 뒤에서 `Sampled` 텍스처를 읽기 상태로 되돌린다. 버퍼는 쓰기 상태에 남는다.
+  디스패치 사이의 UAV 배리어가 빠지는 것은 시험이 잡지 못한다(뮤테이션이 살아남았다, 계획 §3.4) - 코드로 지킨다.
+  **섰다 - Vulkan 의 디스패치 시험과 명시 `Barrier` 가 남았다.**
+
+- **D-327. 3D 텍스처는 셰이더가 읽기만 하는 텍스처다 - mip 하나, `WriteTexture` 한 번에 조각 전부. 샘플러는 W 축을 받는다.**
+  (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.3, 후처리 계획 2 단계의 끝. 컬러 그레이딩 LUT(7 단계)가 쓴다)
+  Updates: D-326(차원 규칙을 세 백엔드가 같은 함수로 본다 - 2D 는 배열 없이).
+  (1) `TextureDesc::dimension`, 3D 는 `depthOrLayers` 가 깊이다. 규칙은 공용 `IsTextureDimensionValid`: 읽기 쓰임만(`Sampled`·`CopySource`·`CopyDestination`), mip 하나,
+  세 변 모두 `DeviceCaps::maxTexture3DSize`(D3D 2048, Vulkan 은 장치의 `maxImageDimension3D`) 까지, 깊이 포맷 안 됨. 3D 에 그리기·mip 사슬·UAV 는 필요한 단계(3 단계 컴퓨트 등)에서 연다.
+  (2) `WriteTexture` 는 깊이 0 부터의 조각을 빽빽하게 이어 받는다. `WriteTextureRegion`·`ReadTexture` 는 3D 를 거절한다.
+  (3) `SamplerDesc::addressW`. 전에는 세 백엔드 모두 W 를 늘 Clamp 로 두었다.
+  **섰다 - Vulkan 의 그리기 시험만 남았다.**
+
+- **D-326. 텍스처는 mip 마다 그리고 읽는다 - 첨부의 `mipLevel`, mip 하나를 묶는 `SetTextureMip`, mip 마다의 상태. 읽기도 하는 깊이는 패스 뒤에 셰이더 읽기 상태로 돌아간다. 지금 패스가 그리는 자리는 읽지 못한다.**
+  (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.2, 후처리 계획 2 단계 중 서브리소스·상태·깊이 읽기. 사용자 지시 "2단계 ㄱㄱ")
+  Updates: D-325(자리표의 단계 - 정점 단계 텍스처 읽기가 이제 D3D12·Vulkan 에서 맞는 상태로 읽힌다), D-107·D-108(세 백엔드의 같은 계약).
+  (1) `ColorAttachmentDesc::mipLevel` 로 mip 하나에 그린다. 렌더 영역과 기본 뷰포트는 그 mip 의 크기다. `SetTextureMip` 은 mip 하나만 묶고 셰이더에게는 mip 이 하나뿐인 텍스처로 보인다.
+  (2) 백엔드는 mip 마다 RTV·SRV(Vulkan 은 이미지 뷰)를 텍스처를 만들 때 미리 만든다 - 그리기 경로에서 뷰를 만들지 않는다. 그래서 mip 수 상한 `MaxTextureMipLevels`(16)를 두고,
+  mip 수 검사는 공용 `IsMipCountValid` 하나다. 깊이는 mip 1 개만 받는다.
+  (3) D3D12 는 mip 마다 상태, Vulkan 은 mip 마다 레이아웃을 든다. 패스는 그리는 mip 만 옮기고 끝나면 그 mip 만 읽기 상태로 돌린다. D3D12 의 읽기 상태는 `PIXEL | NON_PIXEL` 이다.
+  (4) `DepthStencil | Sampled` 깊이는 패스 뒤에 읽기 상태로 돌아가 다음 패스가 `SetTexture` 로 읽는다. 막혔던 까닭은 백엔드마다 달랐다 - D3D12 는 상태를 돌리지 않았고,
+  D3D11 은 typeless 로 만들지 않아 생성이 실패했고, Vulkan 은 레이아웃을 돌리지 않았다.
+  (5) 지금 패스가 그리는 mip·깊이를 같은 패스에서 읽으려 하면 `SetTexture`·`SetTextureMip` 이 거절한다(`RenderPassTargets`). 전에는 D3D12 가 받아 검증 오류, D3D11 은 몰래 떼어 냈다.
+  (6) `CopyTexture` 는 mip 이 하나인 것만 받는다. 배열은 세 백엔드 모두 받지 않는다(`depthOrLayers == 1`) - D3D12 만 반쯤 받고 있었고 쓰는 곳이 없었다.
+  **섰다 - 3D 텍스처와 Vulkan 의 그리기 시험이 남았다.**
+
+- **D-325. 상수 버퍼 슬롯은 b 레지스터 번호이고 b1..b7 이다(b0 은 푸시 상수). 파이프라인은 종류마다 개수와 단계를 적은 자리표를 들고, 프레임마다 바뀌는 상수는 슬롯마다의 업로드 링으로 올린다. 푸시 상수는 세 백엔드 모두 128 B 다.**
+  (2026-10-14, [postprocess-plan.md](./postprocess-plan.md) §3.1, 후처리 계획 1 단계. 인계서 [handoff-postprocess.md](./handoff-postprocess.md) 의 "다음에 시작할 일")
+  Updates: D-322(1 단계를 세운다), D-107·D-108(세 백엔드의 같은 계약에 상수 버퍼를 더한다).
+  (1) `GraphicsPipelineDesc::bindings`(`BindingLayoutDesc`)가 `sampledTextureCount`·`samplerCount` 를 대신한다. 종류마다 `BindingRange{count, stages}` 이고 검사는 `IsBindingLayoutValid` 하나다.
+  상한은 `IRHIDevice::GetCaps()` 의 `DeviceCaps` 가 말한다. UAV 는 3 단계에서 같은 표에 더한다.
+  (2) 상수 버퍼 슬롯 번호는 HLSL `b` 레지스터 번호다. b0 은 푸시 상수(D3D12 루트 상수·D3D11 파이프라인 상수 버퍼·`[[vk::push_constant]]`)라 비워 두고 b1..b7 을 쓴다.
+  SPIR-V 는 b-shift 없이 binding 1..7 이다 - 계획 §2.1 의 "binding 0~7 에 `-fvk-b-shift`" 를 이것이 대신한다(b0 이 binding 을 갖지 않으므로 옮길 것이 없다).
+  (3) `SetConstantBuffer(slot, buffer, offset, size)` 의 오프셋·크기는 256 B 배수다. D3D12 는 루트 CBV, D3D11 은 11.1 의 `*SetConstantBuffers1`, Vulkan 은 동적 유니폼 버퍼다.
+  (4) `ConstantRing`(JBroRHI)이 프레임 슬롯마다 `Upload` 상수 버퍼 하나에 정렬해 쌓는다. **`Upload` 상수 버퍼는 링으로만 쓴다** - 오프셋 0 쓰기가 새 바퀴(D3D11 은 `DISCARD`),
+  그 뒤는 쓴 구간을 다시 쓰지 않는다(`NO_OVERWRITE`). D3D11 은 두 11.1 기능이 다 있어야 `constantBufferOffsets` 가 참이고, 아니면 링을 만들지 않는다.
+  (5) 푸시 상수 상한을 세 백엔드 모두 128 B(`MaxPushConstantBytes`)로 둔다 - Vulkan 이 보장하는 최소다. 더 큰 것은 상수 버퍼로 올린다.
+  (6) 인덱스 없는 그리기 `DrawInstanced` 와 포맷 `R11G11B10Float`·`R16Float`·`R32Float`·`RG16Float`·`RGBA32Float`(enum 끝). Vulkan 은 포맷의 쓰임을 장치에 묻고 없으면 만들지 않는다.
+  (7) D3D11 이 선언하지 않은 텍스처·샘플러 슬롯을 거절한다(전에는 8·4 안이면 받았다) - 세 백엔드의 계약을 맞췄다.
+  **섰다 - 단, Vulkan 의 그리기 시험은 남았다.** 이 기계에 Vulkan SDK 의 dxc 가 없어 시험 셰이더의 SPIR-V 를 굽지 못했다(사용자 결정 "Vulkan은 나중에", 받지 않는다).
+  Vulkan 은 상한·링 시험만 돌고 묶기·그리기·포맷은 컴파일만 됐다.
+
 - **D-324. 노드 그래프 창을 기존 에디터 관례에 맞춘다 - 캔버스 뷰의 부드러운 카메라, 입력과 그리기의 분리, 도크마다의 창 클래스, 노드 인스펙터 패널, 저장하지 않은 것을 묻는 창.**
   (2026-10-07, [node-graph-plan.md](./node-graph-plan.md) §3, 사용자 지적: "왜 캔버스뷰처럼 부드러운 무브먼트로 안만들었는가", "노드 잡았다 뗐을 때 잠깐 순간이동했다 돌아옴",
   "왜 노드그래프가 메인 독에도 도킹이 됨?", "우측 사이드바는 인스펙터처럼 따로 나눠", "노드 더블 클릭하면 해당 인스펙터 포커스",
@@ -3171,7 +3233,7 @@ EditorApplication::Tick
   (4) 숨은 창으로 뜬 에디터(시험·도구)는 UI 안의 클립보드를 쓴다(`EditorUI::UsePrivateClipboard`) - 시험이 사용자가 복사해 둔 것을 덮지 않고, 다른 에디터와 섞이지 않는다.
   프로젝트를 닫아도 클립보드 글자는 남는다(전에는 스냅샷의 번호가 그 프로젝트의 것이라 비웠다).
   (5) 노드 그래프 둘째 다듬기(2026-10-14, [node-graph-plan.md](./node-graph-plan.md) §3): 노드 찾기 메뉴·주석(`Graph::Comment`, C 로 감싸기)·링크 경유점(`Link::waypoints`)·
-  미니맵·노드 안 값 칸. 주석과 경유점은 그래프 YAML 에 있을 때만 적힌다. 복사·붙여넣기는 고른 것 사이의 링크만 옮긴다 - 고르지 않은 노드에서 오던 링크를 잇는
+  미니맵·노드 안 값 칸. 찾기 메뉴가 하위 메뉴 "노드 추가" 를 갈음해서 아무도 부르지 않게 된 키 `node_graph.add_node` 를 뺐다(`EditorLocalization` 의 안 쓰는 키 검사). 주석과 경유점은 그래프 YAML 에 있을 때만 적힌다. 복사·붙여넣기는 고른 것 사이의 링크만 옮긴다 - 고르지 않은 노드에서 오던 링크를 잇는
   붙여넣기는 만들었다가 뺐다(사용자: "필요없어").
   남긴 것: 컴포넌트 복사는 D-167 대로 에디터 안의 스냅샷이다(오브젝트 클립보드와 따로 산다는 결정이라 이번에 바꾸지 않았다).
   검증: `CanvasFileTests` 의 `TestObjectsTextCopiesATreeAsYaml`(나무만 적힘·뿌리는 뿌리로·바깥 참조 `@`·같은 프로세스는 원본을 잡고 다른 프로세스는 버림·부모 아래와 레이어·

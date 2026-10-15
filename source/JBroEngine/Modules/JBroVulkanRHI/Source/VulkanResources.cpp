@@ -23,6 +23,17 @@ namespace JBro::Internal
             return VK_FORMAT_R16G16B16A16_SFLOAT;
         case TextureFormat::D32Float:
             return VK_FORMAT_D32_SFLOAT;
+        // DXGI 의 R11G11B10_FLOAT 와 비트 배치가 같다 - 이름이 낮은 비트부터가 아니라 높은 비트부터 적혔을 뿐이다.
+        case TextureFormat::R11G11B10Float:
+            return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+        case TextureFormat::R16Float:
+            return VK_FORMAT_R16_SFLOAT;
+        case TextureFormat::R32Float:
+            return VK_FORMAT_R32_SFLOAT;
+        case TextureFormat::RG16Float:
+            return VK_FORMAT_R16G16_SFLOAT;
+        case TextureFormat::RGBA32Float:
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
         case TextureFormat::Unknown:
             return VK_FORMAT_UNDEFINED;
         }
@@ -31,20 +42,7 @@ namespace JBro::Internal
 
     UInt32 VulkanPixelSize(TextureFormat format)
     {
-        switch (format)
-        {
-        case TextureFormat::RGBA8Unorm:
-        case TextureFormat::RGBA8UnormSrgb:
-        case TextureFormat::BGRA8Unorm:
-        case TextureFormat::BGRA8UnormSrgb:
-        case TextureFormat::D32Float:
-            return 4;
-        case TextureFormat::RGBA16Float:
-            return 8;
-        case TextureFormat::Unknown:
-            return 0;
-        }
-        return 0;
+        return GetTexelSize(format);
     }
 
     namespace
@@ -213,6 +211,15 @@ namespace JBro::Internal
         {
             info.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         }
+        if (HasBufferUsage(desc.usage, BufferUsage::Storage))
+        {
+            // 구조화 버퍼는 GPU 가 채운다(`Device` 만). 원소 크기는 4 의 배수이고 크기를 나눠떨어지게 한다(D3D 와 같은 계약).
+            if (desc.memory != MemoryType::Device || desc.stride == 0 || desc.stride % 4 != 0 || desc.size % desc.stride != 0)
+            {
+                return {};
+            }
+            info.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        }
         VulkanBufferState& state = m_buffers[index];
         if (vk.vkCreateBuffer(m_device, &info, nullptr, &state.buffer) != VK_SUCCESS)
         {
@@ -311,11 +318,40 @@ namespace JBro::Internal
         const Bool depthStencil = HasTextureUsage(desc.usage, TextureUsage::DepthStencil);
         if (m_status != FrameStatus::Ready || m_device == VK_NULL_HANDLE || m_frameActive
             || desc.extent.width == 0 || desc.extent.height == 0 || desc.extent.width > 16384
-            || desc.extent.height > 16384 || desc.depthOrLayers != 1 || desc.mipLevels == 0
+            || desc.extent.height > 16384 || false == IsTextureDimensionValid(desc, GetCaps())
+            || (depthStencil && desc.mipLevels != 1)
             || desc.sampleCount != 1 || format == VK_FORMAT_UNDEFINED
             || (static_cast<JBro::UInt32>(desc.usage) & ~TextureUsageMask) != 0
-            || desc.usage == TextureUsage::None || HasTextureUsage(desc.usage, TextureUsage::Storage)
+            || desc.usage == TextureUsage::None
+            || (HasTextureUsage(desc.usage, TextureUsage::Storage) && (depth || desc.format == TextureFormat::RGBA8UnormSrgb
+                || desc.format == TextureFormat::BGRA8UnormSrgb))
             || (depth && (renderTarget || false == depthStencil)) || (false == depth && depthStencil))
+        {
+            return {};
+        }
+        // 포맷이 그 쓰임을 지원하는지 장치에 묻는다. R11G11B10 의 색 첨부처럼 명세가 보장하지 않는 것이 있다 - 묻지 않으면
+        // 이미지는 만들어지고 그리는 자리에서 검증 오류가 난다. D3D 는 이 포맷들을 모두 필수로 지원한다.
+        VkFormatFeatureFlags wanted = VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+        if (HasTextureUsage(desc.usage, TextureUsage::Sampled))
+        {
+            wanted |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        }
+        if (renderTarget)
+        {
+            wanted |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+        }
+        if (HasTextureUsage(desc.usage, TextureUsage::Storage))
+        {
+            // 읽고 쓰는 텍스처(컴퓨트의 u#). RGBA8·RGBA16F 등은 필수이고 BGRA8·R11G11B10 은 장치마다 다르다.
+            wanted |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+        }
+        if (depthStencil)
+        {
+            wanted |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        }
+        VkFormatProperties support = {};
+        vk.vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &support);
+        if ((support.optimalTilingFeatures & wanted) != wanted)
         {
             return {};
         }
@@ -333,9 +369,10 @@ namespace JBro::Internal
             return {};
         }
         VkImageCreateInfo info = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-        info.imageType = VK_IMAGE_TYPE_2D;
+        const Bool volume = desc.dimension == TextureDimension::Texture3D;
+        info.imageType = volume ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D;
         info.format = format;
-        info.extent = {desc.extent.width, desc.extent.height, 1};
+        info.extent = {desc.extent.width, desc.extent.height, volume ? desc.depthOrLayers.Get() : 1u};
         info.mipLevels = desc.mipLevels;
         info.arrayLayers = 1;
         info.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -350,6 +387,10 @@ namespace JBro::Internal
         {
             info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         }
+        if (HasTextureUsage(desc.usage, TextureUsage::Storage))
+        {
+            info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+        }
         if (depthStencil)
         {
             info.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
@@ -362,13 +403,33 @@ namespace JBro::Internal
         }
         VkImageViewCreateInfo view = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         view.image = state.image;
-        view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        view.viewType = volume ? VK_IMAGE_VIEW_TYPE_3D : VK_IMAGE_VIEW_TYPE_2D;
         view.format = format;
         view.subresourceRange.aspectMask = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         view.subresourceRange.levelCount = desc.mipLevels;
         view.subresourceRange.layerCount = 1;
-        if (vk.vkCreateImageView(m_device, &view, nullptr, &state.view) != VK_SUCCESS)
+        Bool viewsMade = vk.vkCreateImageView(m_device, &view, nullptr, &state.view) == VK_SUCCESS;
+        // mip 이 둘 이상이면 mip 하나씩의 뷰도 만든다. 그리기 경로에서 뷰를 만들지 않으려고 미리 다 만든다.
+        for (UInt32 mip = 0; viewsMade && desc.mipLevels > 1 && mip < desc.mipLevels; ++mip)
         {
+            view.subresourceRange.baseMipLevel = mip;
+            view.subresourceRange.levelCount = 1;
+            viewsMade = vk.vkCreateImageView(m_device, &view, nullptr, &state.mipViews[mip]) == VK_SUCCESS;
+        }
+        if (false == viewsMade)
+        {
+            for (VkImageView& mipView : state.mipViews)
+            {
+                if (mipView != VK_NULL_HANDLE)
+                {
+                    vk.vkDestroyImageView(m_device, mipView, nullptr);
+                }
+                mipView = VK_NULL_HANDLE;
+            }
+            if (state.view != VK_NULL_HANDLE)
+            {
+                vk.vkDestroyImageView(m_device, state.view, nullptr);
+            }
             vk.vkDestroyImage(m_device, state.image, nullptr);
             vk.vkFreeMemory(m_device, state.memory, nullptr);
             state.image = VK_NULL_HANDLE;
@@ -376,7 +437,10 @@ namespace JBro::Internal
             state.view = VK_NULL_HANDLE;
             return {};
         }
-        state.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        for (VkImageLayout& layout : state.layouts)
+        {
+            layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        }
         state.format = format;
         state.desc = desc;
         state.occupied = true;
@@ -396,6 +460,13 @@ namespace JBro::Internal
             return;
         }
         Retire(VulkanRetiredObject::Kind::ImageView, reinterpret_cast<std::uint64_t>(state.view));
+        for (VkImageView mipView : state.mipViews)
+        {
+            if (mipView != VK_NULL_HANDLE)
+            {
+                Retire(VulkanRetiredObject::Kind::ImageView, reinterpret_cast<std::uint64_t>(mipView));
+            }
+        }
         Retire(VulkanRetiredObject::Kind::Image, reinterpret_cast<std::uint64_t>(state.image));
         Retire(VulkanRetiredObject::Kind::Memory, reinterpret_cast<std::uint64_t>(state.memory));
         const UInt32 generation = VulkanNextGeneration(state.generation);
@@ -421,7 +492,9 @@ namespace JBro::Internal
         UInt32 height = state.desc.extent.height >> mipLevel;
         width = width == 0 ? UInt32(1) : width;
         height = height == 0 ? UInt32(1) : height;
-        const std::size_t required = static_cast<std::size_t>(width) * height * VulkanPixelSize(state.desc.format);
+        // 3D 는 조각을 차례로 이어 받는다(`IRHIDevice::WriteTexture` 의 계약).
+        const UInt32 depth = state.desc.dimension == TextureDimension::Texture3D ? state.desc.depthOrLayers : UInt32(1);
+        const std::size_t required = static_cast<std::size_t>(width) * height * depth * VulkanPixelSize(state.desc.format);
         if (data.size != required)
         {
             return false;
@@ -437,13 +510,13 @@ namespace JBro::Internal
         Bool ok = BeginOneShot();
         if (ok)
         {
-            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layout,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layouts[mipLevel],
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevel, 1);
             VkBufferImageCopy region = {};
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.mipLevel = mipLevel;
             region.imageSubresource.layerCount = 1;
-            region.imageExtent = {width, height, 1};
+            region.imageExtent = {width, height, depth};
             vk.vkCmdCopyBufferToImage(m_oneShotCommands, staging, state.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 1, &region);
             // 올린 뒤에는 읽히는 것이 보통이다. Sampled 가 아니면 GENERAL 에 둔다 - 다음 패스가 알아서 바꾼다.
@@ -451,8 +524,8 @@ namespace JBro::Internal
                 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 : VK_IMAGE_LAYOUT_GENERAL;
             TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after);
-            state.layout = after;
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after, mipLevel, 1);
+            state.layouts[mipLevel] = after;
             ok = EndOneShot();
         }
         vk.vkUnmapMemory(m_device, stagingMemory);
@@ -472,7 +545,7 @@ namespace JBro::Internal
         }
         VulkanTextureState& state = m_textures[texture.index - TextureResourceBase];
         if (false == state.occupied || state.generation != texture.generation || mipLevel >= state.desc.mipLevels
-            || state.desc.format == TextureFormat::D32Float)
+            || state.desc.format == TextureFormat::D32Float || state.desc.dimension != TextureDimension::Texture2D)
         {
             return false;
         }
@@ -503,8 +576,8 @@ namespace JBro::Internal
         Bool ok = BeginOneShot();
         if (ok)
         {
-            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layout,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layouts[mipLevel],
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevel, 1);
             VkBufferImageCopy region = {};
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.mipLevel = mipLevel;
@@ -517,8 +590,8 @@ namespace JBro::Internal
                 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 : VK_IMAGE_LAYOUT_GENERAL;
             TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after);
-            state.layout = after;
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after, mipLevel, 1);
+            state.layouts[mipLevel] = after;
             ok = EndOneShot();
         }
         vk.vkUnmapMemory(m_device, stagingMemory);
@@ -527,7 +600,7 @@ namespace JBro::Internal
         return ok;
     }
 
-    Bool VulkanDevice::ResolveAttachment(TextureHandle texture, AttachmentView& view)
+    Bool VulkanDevice::ResolveAttachment(TextureHandle texture, UInt32 mipLevel, AttachmentView& view)
     {
         view = {};
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
@@ -537,7 +610,7 @@ namespace JBro::Internal
         if (texture.index < TextureResourceBase)
         {
             const UInt32 index = texture.index - BackBufferTextureBase;
-            if (index >= MaxSwapchains)
+            if (index >= MaxSwapchains || mipLevel != 0)
             {
                 return false;
             }
@@ -566,20 +639,63 @@ namespace JBro::Internal
         }
         const Bool depth = state.desc.format == TextureFormat::D32Float;
         if ((depth && false == HasTextureUsage(state.desc.usage, TextureUsage::DepthStencil))
-            || (false == depth && false == HasTextureUsage(state.desc.usage, TextureUsage::RenderTarget)))
+            || (false == depth && false == HasTextureUsage(state.desc.usage, TextureUsage::RenderTarget))
+            || mipLevel >= state.desc.mipLevels)
         {
             return false;
         }
         view.image = state.image;
-        view.view = state.view;
-        view.layout = &state.layout;
+        view.view = state.desc.mipLevels > 1 ? state.mipViews[mipLevel] : state.view;
+        view.layout = &state.layouts[mipLevel];
         view.aspect = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-        view.extent = {state.desc.extent.width, state.desc.extent.height};
+        view.extent = {GetMipExtent(state.desc.extent.width, mipLevel), GetMipExtent(state.desc.extent.height, mipLevel)};
+        view.mip = mipLevel;
+        view.mipLevels = state.desc.mipLevels;
         view.sampled = HasTextureUsage(state.desc.usage, TextureUsage::Sampled);
         return true;
     }
 
-    Bool VulkanDevice::ResolveSampledTexture(TextureHandle texture, VkImageView& view)
+    Bool VulkanDevice::ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, AttachmentView& view)
+    {
+        view = {};
+        if (false == texture.IsValid() || texture.index < TextureResourceBase
+            || texture.index - TextureResourceBase >= MaxTextures)
+        {
+            return false;
+        }
+        VulkanTextureState& state = m_textures[texture.index - TextureResourceBase];
+        if (false == state.occupied || state.generation != texture.generation
+            || false == HasTextureUsage(state.desc.usage, TextureUsage::Storage) || mipLevel >= state.desc.mipLevels)
+        {
+            return false;
+        }
+        view.image = state.image;
+        view.view = state.desc.mipLevels > 1 ? state.mipViews[mipLevel] : state.view;
+        view.layout = &state.layouts[mipLevel];
+        view.mip = mipLevel;
+        view.mipLevels = state.desc.mipLevels;
+        view.sampled = HasTextureUsage(state.desc.usage, TextureUsage::Sampled);
+        return true;
+    }
+
+    Bool VulkanDevice::ResolveStorageBuffer(BufferHandle buffer, VkBuffer& native, VkDeviceSize& size)
+    {
+        if (false == buffer.IsValid() || buffer.index >= MaxBuffers)
+        {
+            return false;
+        }
+        VulkanBufferState& state = m_buffers[buffer.index];
+        if (false == state.occupied || state.generation != buffer.generation
+            || false == HasBufferUsage(state.desc.usage, BufferUsage::Storage))
+        {
+            return false;
+        }
+        native = state.buffer;
+        size = state.desc.size;
+        return true;
+    }
+
+    Bool VulkanDevice::ResolveSampledTexture(TextureHandle texture, UInt32 mipLevel, VkImageView& view)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase
             || texture.index - TextureResourceBase >= MaxTextures)
@@ -589,12 +705,22 @@ namespace JBro::Internal
         VulkanTextureState& state = m_textures[texture.index - TextureResourceBase];
         if (false == state.occupied || state.generation != texture.generation
             || false == HasTextureUsage(state.desc.usage, TextureUsage::Sampled)
-            || state.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            || (mipLevel != AllMips && mipLevel >= state.desc.mipLevels))
         {
-            // 아직 셰이더가 읽을 레이아웃이 아니다(올린 적도 그린 적도 없다). 렌더 패스 안에서는 바꿀 수 없으니 거절한다.
             return false;
         }
-        view = state.view;
+        // 읽을 mip 이 모두 셰이더 읽기 레이아웃이어야 한다. 아니면 아직 올린 적도 그린 적도 없거나, 이 패스가 그리는 mip 이다 -
+        // 렌더 패스 안에서는 레이아웃을 바꿀 수 없으니 거절한다.
+        const UInt32 first = mipLevel == AllMips ? UInt32(0) : mipLevel;
+        const UInt32 last = mipLevel == AllMips ? UInt32(state.desc.mipLevels - 1) : mipLevel;
+        for (UInt32 mip = first; mip <= last; ++mip)
+        {
+            if (state.layouts[mip] != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            {
+                return false;
+            }
+        }
+        view = mipLevel == AllMips || state.desc.mipLevels == 1 ? state.view : state.mipViews[mipLevel];
         return true;
     }
 
@@ -625,7 +751,7 @@ namespace JBro::Internal
         info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         info.addressModeU = ToNativeAddress(desc.addressU);
         info.addressModeV = ToNativeAddress(desc.addressV);
-        info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        info.addressModeW = ToNativeAddress(desc.addressW);
         info.maxLod = VK_LOD_CLAMP_NONE;
         info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
         VulkanSamplerState& state = m_samplers[index];
