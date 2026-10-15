@@ -58,6 +58,12 @@ namespace
         return fs::path(self).parent_path();
     }
 
+    fs::path AdapterExecutable(const fs::path& binaries)
+    {
+        const fs::path flat = binaries / "JBroDebugAdapter.exe";
+        return fs::exists(flat) ? flat : binaries / "DebugAdapter" / "JBroDebugAdapter.exe";
+    }
+
     void Touch(const fs::path& path)
     {
         std::ofstream(path, std::ios::binary) << "1";
@@ -322,7 +328,7 @@ namespace
     void TestTheAdapterDebugsAScriptAcrossAReload()
     {
         const fs::path binaries = ExecutableFolder();
-        const fs::path adapterExe = binaries / "DebugAdapter" / "JBroDebugAdapter.exe";
+        const fs::path adapterExe = AdapterExecutable(binaries);
         const fs::path targetExe = binaries / "JBroDebugAdapterTarget.exe";
         if (false == fs::exists(adapterExe) || false == fs::exists(targetExe))
         {
@@ -379,9 +385,12 @@ namespace
         response = adapter.Request("setBreakpoints", setBreakpoint);
         char lineText[32] = {};
         std::snprintf(lineText, sizeof(lineText), "\"line\":%d", static_cast<int>(breakLine.Value));
-        Check(response.find("\"verified\":true") != std::string::npos && response.find(lineText) != std::string::npos,
-            "the editor confirmed the breakpoint at the source line");
-        adapter.Request("configurationDone");
+        Check(response.find("\"verified\":false") != std::string::npos && response.find(lineText) != std::string::npos,
+            "resolving a source location does not claim engine installation");
+        response = adapter.WaitEvent("breakpoint");
+        Check(response.find("\"verified\":true") != std::string::npos, "the engine acknowledgment confirms the breakpoint");
+        Check(adapter.Request("configurationDone").find("\"success\":true") != std::string::npos,
+            "configuration completes after installation");
 
         // 스크립트를 돌린다. BREAK_HERE 에서 대상이 자기 문맥을 떠 멈춤을 알린다.
         Touch(work / "run");
@@ -616,7 +625,7 @@ namespace
     void TestTheRealEditorAndAdapterStopAtABreakpoint()
     {
         const fs::path binaries = ExecutableFolder();
-        const fs::path adapterExe = binaries / "DebugAdapter" / "JBroDebugAdapter.exe";
+        const fs::path adapterExe = AdapterExecutable(binaries);
         if (false == fs::exists(adapterExe))
         {
             std::cout << "  [skip] the debug adapter is not built; the real co-run is not verified" << std::endl;
@@ -691,12 +700,16 @@ namespace
         std::snprintf(breakpointsText, sizeof(breakpointsText), "\"breakpoints\":[{\"line\":%d}]", static_cast<int>(breakLine.Value));
         const std::string setBreakpoint = "{\"source\":{\"path\":\"" + JsonPath(source) + "\"}," + breakpointsText + "}";
         response = adapter.Request("setBreakpoints", setBreakpoint);
-        Check(response.find("\"verified\":true") != std::string::npos, "the adapter resolves the line in the editor and arms it");
+        Check(response.find("\"verified\":false") != std::string::npos, "the adapter waits for the real editor to arm the breakpoint");
         // 에디터가 통로로 온 setbp 를 읽어 int 3 을 넣게 몇 프레임 돌린다.
         for (Int32 frame = 0; frame < 5; ++frame)
         {
             Check(editor.Tick(Frame), "the editor inserts the breakpoint");
         }
+        response = adapter.WaitEvent("breakpoint");
+        Check(response.find("\"verified\":true") != std::string::npos, "the real editor confirms installation over its pipe");
+        Check(adapter.Request("configurationDone").find("\"success\":true") != std::string::npos,
+            "the real editor is configured before simulation starts");
 
         editor.SetScriptBreakFrameHook(&OnCoRunBreakFrame, nullptr);
         Check(editor.StartSimulation(), "play starts");

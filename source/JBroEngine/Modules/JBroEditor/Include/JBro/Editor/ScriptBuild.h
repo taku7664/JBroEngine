@@ -71,7 +71,7 @@ namespace JBro
         String LocateVisualStudioCode(IPlatform& platform);
 
         // `"<msbuild>" "<vcxproj>" ...`. 로그는 `logFile` 에 UTF-8 로 남는다 - 콘솔 출력은 시스템 코드 페이지라 한글 경로가 깨진다.
-        String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile);
+        String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile, const char* compiler = nullptr);
         // 그 편집기로 파일의 그 줄을 여는 명령줄이다. `System` 이거나 편집기 경로가 비면 빈 글자다(부르는 쪽이 셸로 연다).
         String MakeOpenAtLineCommand(EditorKind kind, const char* editorPath, const char* file, UInt32 line);
     }

@@ -19,11 +19,11 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 - 오디오(`JBroAudio`·`JBroAudioTypes`, miniaudio 위): `AudioSource` 와 2D/3D 리스너, 버스(중첩·센드·솔로)와 버스 이펙트, 디스크 스트리밍, 장치 고르기와 뽑힌 장치 되살리기, 스크립트의 `AudioService`,
   에디터의 미리 듣기·프로젝트 설정·통계. 계획과 실측은 [tasks/audio-plan.md](./tasks/audio-plan.md)
 - JBroScript 공용·2D 언어 서버(`JBroc --lsp`): 진단·완성·탐색·호버·인자 도움말·참조·이름 변경·의미 토큰·접기·들여쓰기 포맷.
-  연결 계약과 사용법은 [tasks/jbroscript-language-server-plan.md](./tasks/jbroscript-language-server-plan.md). 에디터 클라이언트는 별도다
+  연결 계약은 [tasks/jbroscript-language-server-plan.md](./tasks/jbroscript-language-server-plan.md), 엔진 내장 클라이언트의 구현·검증 범위는 [통합 기록](./tasks/imgui-code-editor-integration.md)에 있다
 
 ## 아직 없는 것
 
-- JBroScript의 C++ 이미터·게임 실행·에디터 LSP 클라이언트·3D Framework용 언어 서비스
+- JBroScript의 C++ 이미터·게임 실행·3D Framework용 언어 서비스
 - 에셋 로드(`AssetSystem::Load` 는 스텁이다). 스프라이트는 아직 텍스처를 받지 못한다
 - 3D 렌더 시스템, 물리 시뮬레이션 본체
 - Web 빌드(스텁만 있다)
@@ -34,7 +34,7 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 source/JBroEngine/
   Modules/           모듈마다 vcxproj 하나. 공개 헤더는 Include/JBro/<이름>/ 아래
   Tests/             단일 테스트 실행 파일(JBroTests). 경계 위반이 컴파일 실패하는지 보는 음성 테스트 포함
-  ThirdParty/        외부 라이브러리를 소스째로 둔다(ImGui, Vulkan-Headers, stb, miniaudio, nlohmann-json)
+  ThirdParty/        외부 라이브러리를 소스째로 둔다(ImGui, ImGuiColorTextEdit, Vulkan-Headers, stb, miniaudio, nlohmann-json)
   Localization/      에디터 문구(ko-KR, en-US). jbroc/ 아래는 컴파일러 진단 메시지
 source/JBroLauncher/       런처(C# / WinUI 3). 프로젝트 목록을 관리하고 에디터를 띄운다
 source/JBroLauncher.Tests/ 런처의 순수 로직을 재는 실행 파일
@@ -47,6 +47,8 @@ tasks/
   jbroscript-*.md    JBroScript 언어 계획·문법·컴파일러 규칙
 tools/mutate.py      뮤테이션 테스트 도구
 ```
+
+`nlohmann-json`은 기존 JBroScript 언어 서버와 `JBroEditor` 내장 LSP 클라이언트의 내부 JSON-RPC 메시지 경계에 사용한다. 프로젝트·저장 파일의 YAML 형식은 유지하며 공개 분석 API에 JSON 타입을 노출하지 않는다.
 
 ## 빌드
 
@@ -98,6 +100,18 @@ Vulkan 백엔드는 `vulkan-1.dll` 을 실행 시간에 열고 API 헤더는 `Th
 ```bash
 source/JBroEngine/Build/x64/Debug/JBroEditorHost.exe --project 내게임.jproject --content-root source/JBroEngine
 ```
+
+### 내장 코드 편집기
+
+에셋 브라우저의 스크립트나 빌드 결과의 파일 진단을 열면 엔진의 `코드 편집기` 전용 도크에 파일별 탭이 선다.
+저장은 Ctrl+S, 실행 취소는 Ctrl+Z, 다시 실행은 Ctrl+Y 또는 Ctrl+Shift+Z다. 코드 패널의 파일 메뉴에서 외부 편집기로도 열 수 있다.
+`.jscript` 분석에는 호스트 실행 파일 옆의 `JBroc.exe`를 사용한다. C++는 현재 파일 편집과 어휘 강조를 제공하며 C++ 언어 서버는 연결하지 않았다.
+최종 Debug/Release 빌드·CodeEditor 시험·관련 회귀 10개·긴 회귀 5개와 실제 탭/진단/IME/저장/Undo/삭제/재연결을 확인했다. [통합 기록](tasks/imgui-code-editor-integration.md)에 확인 범위와 남은 일을 둔다.
+
+후속 `스크립트 요약` 패널은 현재 `.jscript`의 타입·함수·멤버를 위쪽 목록에 보여 주고, 선택한 멤버의 속성과 소스 초기값을 아래에서 편집한다. 변경은 미저장 버퍼에 한 번의 Undo로 반영하며 실행 중인 인스턴스 값을 바꾸지 않는다. 중첩 타입은 `Outer.Inner`로 사용할 수 있다([문법](tasks/jbroscript-syntax.md#21-중첩-타입-선언과-이름-해석-2026-10-15-d-336)).
+기본 중단점은 줄 번호 옆 전용 칸에서 토글하고 코드 패널의 디버그 실행·계속 실행·종료를 사용한다. 설치가 확인된 중단점과 미확정을 구분하며 중단 중에는 코드 편집이 잠긴다. 실제 화면에서 요청 5→실행 6줄·현재 중단 표시·계속 실행/재중단·종료 정리를 확인했다.
+줄 번호 칸을 가리키면 줄 전체를 강조하고 클릭/드래그로 줄을 선택한다. 요약 항목은 선언 이름만 선택하며 같은 문서의 실제 사용 위치를 노란 배경으로 표시한다. 타입 툴팁과 공통 편집 행동 6개의 우클릭 메뉴를 제공하며 메뉴의 단축키와 실행은 사용자 키 매핑을 따른다.
+편집 보조 후속의 공용 UI 감사 수정 뒤 양 구성 전체 빌드와 각 24개 관련 회귀·장기 `EditorApplication` 1개, 구성별 25개를 통과했다. 요청 기능·감사 수정의 해당 검증을 마치고 코드를 `af60d387`로 로컬 커밋했으며 검증 기록을 함께 갱신했다. 실제 화면 확인은 감사 전 이력이며, 유한 검증 범위와 미확인 한계는 [후속 기록](tasks/script-summary-debugger.md#2026-10-15-후속-편집-보조와-공통-ui)에서 구분한다. 메인 병합·원격 푸시·기존 에디터 교체는 하지 않았다.
 
 ## 게임 실행
 

@@ -1,4 +1,5 @@
 #pragma once
+#include <JBro/Types/Bool.h>
 
 #include <JBro/ScriptCompiler/ApiCatalog.h>
 #include <JBro/ScriptCompiler/SyntaxTree.h>
@@ -34,14 +35,14 @@ namespace JBro::ScriptCompiler
     // File names and bytes are stable across source ordering and unrelated edits.
     // Only the CLI writes artifacts; the compiler remains an in-memory module.
     CppProjectResult EmitCppProject(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
+        Bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
 
     // Emits C++ for a 2D game DLL. Unsupported syntax is reported
     // explicitly; a partial translation must never be compiled as a script.
     CppEmitResult EmitCpp(const SourceText& source, const SyntaxTree& tree,
-        const ApiCatalog& api, bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
+        const ApiCatalog& api, Bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
     // Emits one translation unit for all files in a game project. Type
     // declarations are ordered across files; source locations remain per file.
     CppEmitResult EmitCpp(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
+        Bool emitModuleEntry = true, const AnalysisResult* analysis = nullptr);
 }

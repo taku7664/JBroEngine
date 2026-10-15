@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Platform/Input.h>
+#include <JBro/Platform/ProcessChannel.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafeArea.h>
 #include <JBro/Types/String.h>
@@ -400,6 +401,19 @@ namespace JBro
             return {};
         }
         // 끝났으면 `Exited` 와 종료 코드다. 기다리지 않는다.
+        virtual OwnerPtr<IProcessChannel> StartProcessChannel(const char* command, const char* workingFolder)
+        {
+            (void)command;
+            (void)workingFolder;
+            return nullptr;
+        }
+        virtual void SetTextInputPosition(WindowHandle window, Float x, Float y, Float lineHeight)
+        {
+            (void)window;
+            (void)x;
+            (void)y;
+            (void)lineHeight;
+        }
         virtual ProcessStatus PollProcess(const ChildProcess& process, Int32& exitCode)
         {
             (void)process;

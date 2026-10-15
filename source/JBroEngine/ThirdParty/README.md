@@ -12,7 +12,7 @@
 
 ## 규칙
 
-- **고치지 않는다.** 수정이 필요하면 그 이유와 함께 이 문서에 적고, 올릴 때마다 다시 적용해야 한다는 것을 알고 한다. 지금은 수정본이 없다
+- **고치지 않는다.** 수정이 필요하면 그 이유와 함께 이 문서에 적고, 올릴 때마다 다시 적용해야 한다는 것을 알고 한다. 현재 예외는 아래 ImGuiColorTextEdit이며 [로컬 수정·재적용 안내](./ImGuiColorTextEdit/README.md)와 [누적 패치](./ImGuiColorTextEdit/jbro.patch)를 보존한다
 - **쓰는 것만 넣는다.** 예제, 다른 백엔드, 안 쓰는 헬퍼는 가져오지 않는다
 - 라이선스 파일을 함께 둔다
 - 각 라이브러리는 자기 빌드 단위(`.vcxproj`)를 갖는다. 엔진 모듈과 섞지 않는다
@@ -31,11 +31,17 @@ include 경로를 선언해야 하고, 선언하지 않은 모듈에서 include 
 
 ### nlohmann-json — v3.12.0, MIT
 
-`JBroScriptLanguageServer` 내부의 LSP/JSON-RPC 경계에서만 사용한다(D-316). 엔진 프로젝트 파일은 YAML을 유지한다.
+`JBroScriptLanguageServer`와 `JBroEditor`의 내장 LSP 클라이언트 내부에서 LSP/JSON-RPC 경계의 직렬화·역직렬화에 사용한다(D-316·D-335). 엔진 프로젝트 파일은 YAML을 유지한다.
 공식 `v3.12.0` 태그의 `single_include/nlohmann/json.hpp`와 `LICENSE.MIT`를 그대로 넣었다.
 헤더 전용이지만 `nlohmann-json/nlohmann-json.vcxproj`로 의존을 선언하며 공개 분석 헤더에는 JSON 타입을 노출하지 않는다.
 헤더 SHA-256은 `AAF127C04CB31C406E5B04A63F1AE89369FCCDE6D8FA7CDDA1ED4F32DFC5DE63`이다.
 출처·사용 범위는 [nlohmann-json/README.md](./nlohmann-json/README.md)에 있다.
+
+### ImGuiColorTextEdit — b12d713e77e8edddff1e69973f67085ac9cfaf74, MIT
+
+`goossens/ImGuiColorTextEdit`를 엔진 내장 코드 편집기의 위젯으로 사용한다(D-335). 별도 정적 라이브러리이며 엔진의 ImGui 설정을 공유한다.
+전체 삭제 뒤 커서/스크롤, 최종 LF 보존, 의미 색상·외부 Undo API를 로컬 수정했다. 원본 pin·LICENSE·현재 h/cpp 해시와
+업데이트 시 다시 적용할 [jbro.patch](./ImGuiColorTextEdit/jbro.patch)는 [후보 안내](./ImGuiColorTextEdit/README.md)에 있다. 임시 독립 하네스는 포함하지 않는다.
 
 ### imgui — v1.92.9b-docking, MIT
 

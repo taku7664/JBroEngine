@@ -259,6 +259,14 @@ namespace
         Check(build.find("\"C:/VS/MSBuild.exe\" \"F:/\xed\x95\x9c/GameScript.vcxproj\" ") == 0, "the tool and the project are quoted");
         Check(Contains(build, " -p:Configuration=Debug ") && Contains(build, " -p:Platform=x64 "), "for the configuration and x64");
         Check(Contains(build, " -nr:false "), "without leaving build nodes behind the editor");
+        const String selectedCompiler = ScriptBuild::MakeBuildCommand("MSBuild.exe", "GameScript.vcxproj", "Debug", "build.log", "C:/active build/JBroc.exe");
+        Check(Contains(selectedCompiler, "\"-p:JBroCompilerPath=C:/active build/JBroc.exe\""),
+            "the active editor's compiler is selected with its spaced path quoted");
+#ifdef _DEBUG
+        Check(Contains(build, " -p:JBroScriptHostConfiguration=Debug "), "script runtime and libraries match the Debug host");
+#else
+        Check(Contains(build, " -p:JBroScriptHostConfiguration=Release "), "unoptimized script runtime and libraries match the Release host");
+#endif
         Check(Contains(build, "\"-flp:LogFile=F:/\xed\x95\x9c/x64/ScriptBuild.log;Encoding=UTF-8;Verbosity=minimal\""),
             "the diagnostics go to a UTF-8 log, quoted for the Korean path");
 

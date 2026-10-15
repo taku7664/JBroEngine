@@ -79,12 +79,16 @@
     <IntDir>$(JBroBuildDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+  <!-- Debug scripts keep optimization off while the loading host selects the CRT and public value layouts. -->
+  <PropertyGroup Condition="'$(JBroScriptHostConfiguration)'=='Debug' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Debug')">
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+  <PropertyGroup Condition="'$(JBroScriptHostConfiguration)'=='Release' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Release')">
     <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
 
@@ -113,8 +117,8 @@
       <!-- 코드가 엔진 버전을 알아야 할 때(새 프로젝트의 `EngineVersion`, D-160) 위의 세 줄에서 받는다.
            `JBro/Core/Version.h` 가 글자로 바꾼다. 코드에 버전을 옮겨 적지 않는다(D-101). -->
       <PreprocessorDefinitions>JBRO_VERSION_MAJOR=$(JBroVersionMajor);JBRO_VERSION_MINOR=$(JBroVersionMinor);JBRO_VERSION_PATCH=$(JBroVersionPatch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)'=='Release'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroScriptHostConfiguration)'=='Debug' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Debug')">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroScriptHostConfiguration)'=='Release' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Release')">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Condition="'$(Configuration)'=='Release'">
       <FunctionLevelLinking>true</FunctionLevelLinking>

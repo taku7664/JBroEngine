@@ -288,6 +288,10 @@ namespace JBro::DebugAdapter
             }
             {
                 std::lock_guard<std::mutex> lock(m_queueLock);
+                if (m_queue.size() >= 1024)
+                {
+                    break;
+                }
                 m_queue.push_back(std::move(message));
             }
             m_queueSignal.notify_one();
@@ -319,13 +323,15 @@ namespace JBro::DebugAdapter
         {
             // 에디터가 보낸 멈춤·재개·모듈·끝남을 먼저 본다. noninvasive 라 디버그 이벤트가 없다 - 모든 소식이 파이프로 온다.
             PumpPipe();
+            PollBreakpointAcknowledgments();
+            CompleteConfiguration();
             if (m_quit)
             {
                 break;
             }
             JsonValue request;
-            // 붙기 전에는 요청을 기다리며 쉰다. 붙은 뒤에는 파이프를 자주 보려고 짧게만 기다린다.
-            if (PopRequest(request, m_state == State::None))
+            // A request wakes this wait; pipe events are checked at most 20 ms later.
+            if (PopRequest(request, true))
             {
                 Dispatch(request);
                 continue;
@@ -469,7 +475,7 @@ namespace JBro::DebugAdapter
         {
             m_client->EndSession(DEBUG_END_ACTIVE_DETACH);
             m_client.Reset();
-            m_channel.SendResponse(request, false, JsonValue(), "the editor's debug channel is not open");
+            m_channel.SendResponse(request, false, JsonValue(), "the editor's debug channel is not open or another debugger is connected");
             return;
         }
         m_state = State::Running;
@@ -524,7 +530,56 @@ namespace JBro::DebugAdapter
 
     void DebugSession::OnConfigurationDone(const JsonValue& request)
     {
-        m_channel.SendResponse(request, true, JsonValue());
+        if (m_configurationPending)
+        {
+            m_channel.SendResponse(request, false, JsonValue(), "breakpoint configuration is already pending");
+            return;
+        }
+        m_configurationRequest = JsonValue::MakeObject();
+        m_configurationRequest.Set("seq", request.GetInt64("seq")).Set("command", "configurationDone");
+        m_configurationPending = true;
+        CompleteConfiguration();
+    }
+
+    void DebugSession::CompleteConfiguration()
+    {
+        if (!m_configurationPending)
+        {
+            return;
+        }
+        for (const auto& breakpoint : m_breakpoints)
+        {
+            if (breakpoint.pending)
+            {
+                return;
+            }
+        }
+        m_configurationPending = false;
+        for (const auto& breakpoint : m_breakpoints)
+        {
+            if (breakpoint.rejected)
+            {
+                m_channel.SendResponse(m_configurationRequest, false, JsonValue(), "the editor could not install a script breakpoint");
+                return;
+            }
+        }
+        m_channel.SendResponse(m_configurationRequest, true, JsonValue());
+    }
+
+    void DebugSession::PollBreakpointAcknowledgments()
+    {
+        const auto now = std::chrono::steady_clock::now();
+        for (auto& breakpoint : m_breakpoints)
+        {
+            if (breakpoint.pending && now - breakpoint.sentAt >= std::chrono::seconds(5))
+            {
+                DisarmBreakpoint(breakpoint);
+                breakpoint.rejected = true;
+                JsonValue event = JsonValue::MakeObject();
+                event.Set("reason", "changed").Set("breakpoint", DescribeBreakpoint(breakpoint));
+                m_channel.SendEvent("breakpoint", std::move(event));
+            }
+        }
     }
 
     void DebugSession::OnThreads(const JsonValue& request)
@@ -815,7 +870,14 @@ namespace JBro::DebugAdapter
         }
         else if (command == "resumed")
         {
-            // 에디터가 이어 갔다. 이미 `continue` 뒤라면 상태는 Running 이다.
+            if (m_state == State::Stopped)
+            {
+                m_state = State::Running;
+                m_stoppedContext = 0;
+                JsonValue continued = JsonValue::MakeObject();
+                continued.Set("threadId", Int64(m_stoppedThread)).Set("allThreadsContinued", Bool(true));
+                m_channel.SendEvent("continued", std::move(continued));
+            }
         }
         else if (command == "module")
         {
@@ -841,6 +903,11 @@ namespace JBro::DebugAdapter
                     if (breakpoint.address == ULONG64(address))
                     {
                         breakpoint.armed = ok != 0;
+                        breakpoint.pending = false;
+                        breakpoint.rejected = ok == 0;
+                        JsonValue event = JsonValue::MakeObject();
+                        event.Set("reason", "changed").Set("breakpoint", DescribeBreakpoint(breakpoint));
+                        m_channel.SendEvent("breakpoint", std::move(event));
                     }
                 }
             }
@@ -995,8 +1062,9 @@ namespace JBro::DebugAdapter
         {
             const Int32 before = breakpoint.resolvedLine;
             const ULONG64 beforeAddress = breakpoint.address;
+            const Bool beforeArmed = breakpoint.armed;
             ResolveAndArm(breakpoint);
-            if (before != breakpoint.resolvedLine || beforeAddress != breakpoint.address)
+            if (before != breakpoint.resolvedLine || beforeAddress != breakpoint.address || beforeArmed != breakpoint.armed)
             {
                 JsonValue body = JsonValue::MakeObject();
                 body.Set("reason", "changed").Set("breakpoint", DescribeBreakpoint(breakpoint));
@@ -1095,6 +1163,8 @@ namespace JBro::DebugAdapter
                     // 에디터에게 그 자리에 int 3 을 넣어 달라 한다. 답(`bp`)이 오면 `armed` 가 참이 된다.
                     char command[48] = {};
                     std::snprintf(command, sizeof(command), "setbp %llx", static_cast<unsigned long long>(breakpoint.address));
+                    breakpoint.pending = true;
+                    breakpoint.sentAt = std::chrono::steady_clock::now();
                     PipeSend(command);
                     return true;
                 }
@@ -1107,26 +1177,39 @@ namespace JBro::DebugAdapter
     {
         if (breakpoint.address != 0)
         {
-            char command[48] = {};
-            std::snprintf(command, sizeof(command), "clearbp %llx", static_cast<unsigned long long>(breakpoint.address));
-            PipeSend(command);
+            Bool shared = false;
+            for (const auto& other : m_breakpoints)
+            {
+                shared = shared || (&other != &breakpoint && other.address == breakpoint.address);
+            }
+            if (!shared)
+            {
+                char command[48] = {};
+                std::snprintf(command, sizeof(command), "clearbp %llx", static_cast<unsigned long long>(breakpoint.address));
+                PipeSend(command);
+            }
         }
         breakpoint.address = 0;
+        breakpoint.resolvedLine = 0;
         breakpoint.armed = false;
+        breakpoint.pending = false;
+        breakpoint.rejected = false;
     }
 
     JsonValue DebugSession::DescribeBreakpoint(const SourceBreakpoint& breakpoint) const
     {
         JsonValue result = JsonValue::MakeObject();
-        const Bool verified = breakpoint.resolvedLine > 0 && breakpoint.address != 0;
+        const Bool verified = breakpoint.armed && breakpoint.resolvedLine > 0 && breakpoint.address != 0;
         result.Set("id", breakpoint.id).Set("verified", verified);
-        result.Set("line", verified ? breakpoint.resolvedLine : breakpoint.line);
+        result.Set("line", breakpoint.resolvedLine > 0 ? breakpoint.resolvedLine : breakpoint.line);
         JsonValue source = JsonValue::MakeObject();
         source.Set("name", FileNameOf(breakpoint.path)).Set("path", breakpoint.path);
         result.Set("source", std::move(source));
         if (false == verified)
         {
-            result.Set("message", "No loaded script module has code on this line yet");
+            result.Set("message", breakpoint.rejected ? "The editor could not install this breakpoint"
+                : breakpoint.pending ? "Waiting for the editor to install this breakpoint"
+                : "No loaded script module has code on this line yet");
         }
         return result;
     }

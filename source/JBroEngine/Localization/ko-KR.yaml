@@ -41,11 +41,43 @@ Entries:
   menu.debug_log: 로그
   menu.debug_start: 디버그 실행
   menu.debug_stop: 디버그 중지
-  notify.debug_started: 디버그를 시작했습니다 - 스크립트 편집기에서 붙어 중단점을 거세요
+  notify.debug_started: 디버그를 시작했습니다.
   notify.debug_channel_failed: 디버그 통로를 열지 못했습니다
+  debug_client.queue_full: "디버거 요청 대기열이 가득 찼습니다."
+  debug_client.input_unavailable: "디버거와 통신할 수 없습니다."
+  debug_client.rejected: "디버그 어댑터가 요청을 거부했습니다."
+  debug_client.breakpoint_response_invalid: "디버거의 중단점 설정 응답이 올바르지 않습니다."
+  debug_client.session_closing: "이전 디버그 세션을 종료하고 있습니다."
+  debug_client.invalid_target: "올바른 디버그 어댑터 경로와 에디터 프로세스가 필요합니다."
+  debug_client.start_failed: "JBroDebugAdapter.exe를 실행하지 못했습니다."
+  debug_client.output_limit: "디버거 응답 크기가 허용 범위를 넘었습니다."
+  debug_client.header_invalid: "디버거 응답의 DAP 헤더가 올바르지 않습니다."
+  debug_client.length_invalid: "디버거 응답의 DAP 메시지 길이가 올바르지 않습니다."
+  debug_client.message_invalid: "디버거의 DAP 메시지가 올바르지 않습니다."
+  debug_client.response_malformed: "디버거 응답 형식이 올바르지 않습니다."
+  debug_client.stopped: "디버그 어댑터가 예기치 않게 종료되었습니다."
+  debug_client.startup_timeout: "중단점 설치 대기 시간이 초과되었습니다."
+  language_client.input_unavailable: "언어 서버와 통신할 수 없습니다."
+  language_client.initialization_failed: "언어 서버를 초기화하지 못했습니다."
+  language_client.edit_source_changed: "필드 수정을 확인하는 동안 소스가 변경되었습니다."
+  language_client.edit_rejected: "필드 수정을 적용하지 못했습니다."
+  language_client.edit_version_mismatch: "필드 수정 결과가 현재 소스 버전과 일치하지 않습니다."
+  language_client.semantic_tokens_invalid: "언어 서버의 문법 강조 정보가 올바르지 않습니다."
+  language_client.start_failed: "JBroc.exe를 실행하지 못했습니다."
+  language_client.disconnected: "언어 서버 연결이 끊겼습니다."
+  language_client.header_invalid: "언어 서버 응답의 헤더가 올바르지 않습니다."
+  language_client.length_invalid: "언어 서버 응답의 메시지 길이가 올바르지 않습니다."
+  language_client.message_invalid: "언어 서버의 JSON-RPC 메시지가 올바르지 않습니다."
+  language_client.response_malformed: "언어 서버 응답 형식이 올바르지 않습니다."
+  language_client.stopped: "언어 서버가 종료되었습니다. 다시 연결하면 분석을 재개합니다."
+  language_client.startup_timeout: "언어 서버 초기화 대기 시간이 초과되었습니다."
   menu.exit: 종료
   menu.undo: 실행 취소
   menu.redo: 다시 실행
+  menu.cut: 잘라내기
+  menu.copy: 복사
+  menu.paste: 붙여넣기
+  menu.select_all: 전체 선택
   menu.unsaved: 저장되지 않음
   dialog.save_canvas_title: 캔버스 저장
   dialog.canvas_filter: JBro 캔버스 파일
@@ -633,3 +665,79 @@ Entries:
   guide.build_game_title: 게임 빌드하기
   guide.build_game_step_title: 게임 빌드
   guide.build_game_step_body: 파일 메뉴를 열고 게임 빌드를 누르면 프로젝트를 실행할 수 있는 게임으로 묶습니다.
+
+  # Embedded code editor
+  code_editor.title: "코드 편집기"
+  code_editor.save: "저장"
+  code_editor.reload: "디스크에서 다시 읽기"
+  code_editor.close: "닫기"
+  code_editor.external: "외부 편집기로 열기"
+  code_editor.unsaved: "이 파일에 저장하지 않은 변경 내용이 있습니다."
+  code_editor.read_failed: "코드 파일을 읽을 수 없습니다. UTF-8 텍스트 파일인지 확인하세요."
+  code_editor.save_failed: "코드 파일을 저장하지 못했습니다."
+  code_editor.conflict: "다른 프로그램에서 파일을 변경했습니다. 다시 읽은 뒤 저장하세요."
+  code_editor.server_starting: "JBroScript 분석 연결 중…"
+  code_editor.server_ready: "JBroScript 분석 연결됨"
+  code_editor.server_failed: "JBroScript 분석 연결이 끊겼습니다."
+  code_editor.reconnect: "언어 서버 다시 연결"
+  code_editor.cursor: "%u줄, %u열 | 진단 %u개"
+
+  # Source script summary
+  script_summary.title: "스크립트 요약"
+  script_summary.no_document: "JBroScript 파일을 열면 요약을 볼 수 있습니다"
+  script_summary.waiting: "분석 결과를 기다리고 있습니다."
+  script_summary.unavailable: "언어 서버에 연결할 수 없어 요약을 갱신하지 못했습니다."
+  script_summary.locked: "읽기 전용"
+  script_summary.applying: "수정 내용 확인 중…"
+  script_summary.changed: "소스가 변경되었습니다. 요약이 갱신되면 다시 수정하세요."
+  script_summary.empty: "이 파일에 선언된 타입이 없습니다."
+  script_summary.callback: "콜백"
+  script_summary.property: "프로퍼티"
+  script_summary.range: "표시 범위"
+  script_summary.clamp: "값 제한"
+  script_summary.name: "표시 이름"
+  script_summary.tooltip: "설명"
+  script_summary.category: "분류"
+  script_summary.visible_when: "표시 조건"
+  script_summary.read_only: "읽기 전용"
+  script_summary.no_serialize: "저장"
+  script_summary.hidden: "숨김"
+  script_summary.expression: "표현식"
+  script_summary.minimum: "최솟값"
+  script_summary.maximum: "최댓값"
+  script_summary.default: "저장"
+  script_summary.excluded: "저장 제외"
+
+  # Native script debugger
+  editor.code_editor.debug_build_failed: "스크립트 빌드에 실패해 디버그를 시작하지 못했습니다."
+  editor.code_editor.debug_source_mismatch: "소스와 실행 중인 빌드가 다릅니다. 다시 빌드한 뒤 디버그를 시작하세요."
+  editor.code_editor.debug_busy: "다른 디버거가 연결되어 있습니다. 연결을 종료한 뒤 다시 시작하세요."
+  editor.code_editor.breakpoint_pending: "중단점 설치 대기"
+  editor.code_editor.breakpoint_add: "클릭하여 중단점 추가"
+  editor.code_editor.breakpoint_remove: "클릭하여 중단점 제거"
+  editor.code_editor.read_only: "이 파일은 읽기 전용입니다."
+  editor.code_editor.finish_input: "입력란의 편집을 먼저 마치세요."
+  editor.code_editor.no_changes: "저장할 변경 사항이 없습니다."
+  editor.code_editor.no_selection: "선택한 텍스트가 없습니다."
+  editor.code_editor.empty_document: "문서가 비어 있습니다."
+  editor.code_editor.debug_inactive: "실행 중인 디버깅이 없습니다."
+  editor.code_editor.debug_not_stopped: "스크립트가 중단점에서 멈춘 상태가 아닙니다."
+  editor.code_editor.debug_already_active: "디버깅이 이미 실행 중입니다."
+  editor.code_editor.start_debugging: "디버그 시작"
+  editor.code_editor.continue_debugging: "계속 실행"
+  editor.code_editor.stop_debugging: "디버그 종료"
+
+  script_summary.counts: "멤버 %u개  ·  함수 %u개"
+  script_summary.select_member: "항목을 선택하면 설정을 볼 수 있습니다."
+  script_summary.initializer: "초기값"
+  script_summary.add_initializer: "초기값 추가"
+  script_summary.remove_initializer: "초기값 제거"
+  script_summary.advanced: "범위 및 표시 설정"
+  script_summary.const_rule: "const 필드는 읽기 전용이며 저장에서 제외됩니다."
+  script_summary.static_rule: "static 값은 공유되며 인스턴스 저장에서 제외됩니다."
+  script_summary.implicit_property: "다른 속성이나 타입 규칙으로도 프로퍼티가 표시됩니다."
+  script_summary.automatic_readonly: "자동 적용 (const)"
+  script_summary.explicit_readonly: "직접 지정 [readonly]"
+  script_summary.automatic_exclude: "자동 제외"
+  script_summary.explicit_exclude: "저장 제외 명시"
+  script_summary.edit_rejected: "설정을 적용하지 못했습니다. 입력한 표현식을 확인해 주세요."

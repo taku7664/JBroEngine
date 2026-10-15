@@ -4,9 +4,8 @@
 #include <cstring>
 #include <chrono>
 #include <ctime>
-#include <map>
-#include <string>
-#include <vector>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/Table.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
@@ -25,8 +24,8 @@ namespace JBro::Log
             UInt64 serial = 0;
             UInt64 clearEpoch = 0;
             UInt64 sessionId = 0;
-            std::map<std::string, std::size_t, std::less<>> groupIndex;
-            std::vector<LogGroup> groups;
+            Table<String, std::size_t, Hash<std::string_view>> groupIndex;
+            Array<LogGroup> groups;
             Bool echo = true;
         };
 
@@ -38,8 +37,8 @@ namespace JBro::Log
             {
                 const auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
                 const auto ticks = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
-                ring.sessionId = static_cast<std::uint64_t>(ticks)
-                    ^ static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(&ring));
+                ring.sessionId = static_cast<UInt64>(ticks)
+                    ^ static_cast<UInt64>(reinterpret_cast<std::uintptr_t>(&ring));
                 if (ring.sessionId == 0)
                 {
                     ring.sessionId = 1;
@@ -51,7 +50,7 @@ namespace JBro::Log
         UInt64 NowMilliseconds()
         {
             const auto now = std::chrono::system_clock::now().time_since_epoch();
-            return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now).count());
+            return static_cast<UInt64>(std::chrono::duration_cast<std::chrono::milliseconds>(now).count());
         }
 
         void FormatLocalTime(UInt64 milliseconds, char (&output)[24])
@@ -115,22 +114,22 @@ namespace JBro::Log
         entry.groupId = 0;
         if (key != nullptr && key[0] != '\0')
         {
-            auto found = ring.groupIndex.find(key);
+            const auto* found = ring.groupIndex.Find(std::string_view(key));
             std::size_t index = 0;
-            if (found == ring.groupIndex.end())
+            if (found == nullptr)
             {
-                index = ring.groups.size();
+                index = ring.groups.Size();
                 LogGroup group;
-                group.id = static_cast<std::uint64_t>(index + 1);
+                group.id = static_cast<UInt64>(index + 1);
                 group.key = key;
                 group.firstSerial = entry.serial;
                 group.firstTimestampMs = entry.timestampMs;
-                ring.groups.push_back(std::move(group));
-                ring.groupIndex.emplace(key, index);
+                ring.groups.Add(std::move(group));
+                ring.groupIndex.TryAdd(String(key), index);
             }
             else
             {
-                index = found->second;
+                index = *found;
             }
             LogGroup& group = ring.groups[index];
             ++group.count;
@@ -239,13 +238,13 @@ namespace JBro::Log
 
     std::size_t GetGroupCount()
     {
-        return Get().groups.size();
+        return Get().groups.Size();
     }
 
     const LogGroup* GetGroupAt(std::size_t index)
     {
         const Ring& ring = Get();
-        return index < ring.groups.size() ? &ring.groups[index] : nullptr;
+        return index < ring.groups.Size() ? &ring.groups[index] : nullptr;
     }
 
     UInt64 GetSessionId()
@@ -263,8 +262,8 @@ namespace JBro::Log
         Ring& ring = Get();
         ring.next = 0;
         ring.count = 0;
-        ring.groupIndex.clear();
-        ring.groups.clear();
+        ring.groupIndex.Clear();
+        ring.groups.Clear();
         ++ring.clearEpoch;
         // **판번호는 되돌리지 않는다.** 보던 쪽은 "달라졌다" 로 읽어야 다시 읽는다.
         ++ring.revision;

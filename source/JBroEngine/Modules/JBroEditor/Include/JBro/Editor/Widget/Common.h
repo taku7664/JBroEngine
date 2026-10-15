@@ -25,6 +25,7 @@ namespace JBro::Widget
     };
 
     Bool IsEmptyText(const char* text);
+    Bool IsTextInputActive();
     ImVec4 SeverityColor(Severity severity);
     // 심각도의 아이콘이다(`check-circle`·`alert`·`close-circle`·`information`, D-278). 예전에는 `[!]` 같은 글자로 대신했다.
     const char* SeverityIcon(Severity severity);

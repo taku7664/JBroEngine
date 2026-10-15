@@ -270,7 +270,7 @@ function createEngineLogView(api) {
 			connected = false;
 			view.message = error.code === 'ECONNREFUSED'
 				? t('Engine log is disconnected. Waiting for the engine editor.')
-				: t('Engine log could not be read: {0}', String(error.message));
+				: t('Engine log could not be read: {0}', t(String(error.message)));
 			changed.fire();
 		} finally {
 			busy = false;
@@ -355,7 +355,7 @@ function createEngineLogView(api) {
 		} catch (error) {
 			view.message = error.code === 'ECONNREFUSED'
 				? t('Engine log is disconnected. Waiting for the engine editor.')
-				: t('Engine log could not be read: {0}', String(error.message));
+				: t('Engine log could not be read: {0}', t(String(error.message)));
 		}
 	});
 	const configuration = api.workspace.onDidChangeConfiguration(event => {

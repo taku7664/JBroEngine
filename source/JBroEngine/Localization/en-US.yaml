@@ -41,11 +41,43 @@ Entries:
   menu.debug_log: Log
   menu.debug_start: Start Debugging
   menu.debug_stop: Stop Debugging
-  notify.debug_started: Debugging is on - attach from the script editor to hit breakpoints
+  notify.debug_started: Debugging started.
   notify.debug_channel_failed: The debug channel could not open
+  debug_client.queue_full: "The debugger request queue is full."
+  debug_client.input_unavailable: "The debugger input channel is unavailable."
+  debug_client.rejected: "The debug adapter rejected a request."
+  debug_client.breakpoint_response_invalid: "The debugger sent an invalid breakpoint response."
+  debug_client.session_closing: "The previous debugger session is still closing."
+  debug_client.invalid_target: "A valid debug adapter path and editor process are required."
+  debug_client.start_failed: "JBroDebugAdapter.exe could not be started."
+  debug_client.output_limit: "The debugger output exceeded its frame limit."
+  debug_client.header_invalid: "The debugger sent an invalid DAP header."
+  debug_client.length_invalid: "The debugger sent an invalid DAP frame length."
+  debug_client.message_invalid: "The debugger sent an invalid DAP message."
+  debug_client.response_malformed: "The debugger sent a malformed DAP response."
+  debug_client.stopped: "The debug adapter stopped unexpectedly."
+  debug_client.startup_timeout: "The debug adapter did not finish installing breakpoints in time."
+  language_client.input_unavailable: "The language server input channel is unavailable."
+  language_client.initialization_failed: "Language server initialization failed."
+  language_client.edit_source_changed: "The source changed while the field edit was being checked."
+  language_client.edit_rejected: "The field edit was rejected."
+  language_client.edit_version_mismatch: "The field edit does not match the source version."
+  language_client.semantic_tokens_invalid: "The language server sent invalid semantic tokens."
+  language_client.start_failed: "JBroc.exe could not be started."
+  language_client.disconnected: "The language server disconnected."
+  language_client.header_invalid: "The language server sent an invalid frame header."
+  language_client.length_invalid: "The language server sent an invalid frame length."
+  language_client.message_invalid: "The language server sent an invalid JSON-RPC message."
+  language_client.response_malformed: "The language server sent a malformed response."
+  language_client.stopped: "The language server stopped. Reconnect to resume analysis."
+  language_client.startup_timeout: "The language server did not initialize in time."
   menu.exit: Exit
   menu.undo: Undo
   menu.redo: Redo
+  menu.cut: Cut
+  menu.copy: Copy
+  menu.paste: Paste
+  menu.select_all: Select All
   menu.unsaved: unsaved
   dialog.save_canvas_title: Save Canvas
   dialog.canvas_filter: JBro canvas file
@@ -633,3 +665,79 @@ Entries:
   guide.build_game_title: Building the Game
   guide.build_game_step_title: Build Game
   guide.build_game_step_body: Open the File menu and choose Build Game to pack the project into a game you can run.
+
+  # Embedded code editor
+  code_editor.title: "Code Editor"
+  code_editor.save: "Save"
+  code_editor.reload: "Reload from disk"
+  code_editor.close: "Close"
+  code_editor.external: "Open in external editor"
+  code_editor.unsaved: "This file has unsaved changes."
+  code_editor.read_failed: "The code file could not be read. Check that it is UTF-8 text."
+  code_editor.save_failed: "The code file could not be saved."
+  code_editor.conflict: "The file changed on disk. Reload it before saving."
+  code_editor.server_starting: "Connecting JBroScript analysis…"
+  code_editor.server_ready: "JBroScript analysis connected"
+  code_editor.server_failed: "JBroScript analysis is disconnected."
+  code_editor.reconnect: "Reconnect language server"
+  code_editor.cursor: "Line %u, Column %u | %u diagnostics"
+
+  # Source script summary
+  script_summary.title: "Script Summary"
+  script_summary.no_document: "Open a JBroScript file to see its summary"
+  script_summary.waiting: "Waiting for analysis"
+  script_summary.unavailable: "Summary is unavailable"
+  script_summary.locked: "Source is read only"
+  script_summary.applying: "Checking edit..."
+  script_summary.changed: "The source changed. Refresh the field and try again."
+  script_summary.empty: "No declarations in this file"
+  script_summary.callback: "Callback"
+  script_summary.property: "Property"
+  script_summary.range: "Range"
+  script_summary.clamp: "Clamp"
+  script_summary.name: "Display name"
+  script_summary.tooltip: "Description"
+  script_summary.category: "Category"
+  script_summary.visible_when: "Visibility condition"
+  script_summary.read_only: "Read only"
+  script_summary.no_serialize: "Saving"
+  script_summary.hidden: "Hidden"
+  script_summary.expression: "Expression"
+  script_summary.minimum: "Minimum"
+  script_summary.maximum: "Maximum"
+  script_summary.default: "Save"
+  script_summary.excluded: "Do not save"
+
+  # Native script debugger
+  editor.code_editor.debug_build_failed: "Debugging could not start because the script build failed."
+  editor.code_editor.debug_source_mismatch: "The source differs from the loaded build. Rebuild before debugging."
+  editor.code_editor.debug_busy: "Another debugger is connected. Disconnect it before starting."
+  editor.code_editor.breakpoint_pending: "Breakpoint pending"
+  editor.code_editor.breakpoint_add: "Click to add breakpoint"
+  editor.code_editor.breakpoint_remove: "Click to remove breakpoint"
+  editor.code_editor.read_only: "This file is read only."
+  editor.code_editor.finish_input: "Finish editing the active input field first."
+  editor.code_editor.no_changes: "There are no changes to save."
+  editor.code_editor.no_selection: "No text is selected."
+  editor.code_editor.empty_document: "The document is empty."
+  editor.code_editor.debug_inactive: "No debugging session is running."
+  editor.code_editor.debug_not_stopped: "The script is not stopped at a breakpoint."
+  editor.code_editor.debug_already_active: "A debugging session is already running."
+  editor.code_editor.start_debugging: "Start debugging"
+  editor.code_editor.continue_debugging: "Continue"
+  editor.code_editor.stop_debugging: "Stop debugging"
+
+  script_summary.counts: "%u fields  /  %u functions"
+  script_summary.select_member: "Select a declaration to see its details"
+  script_summary.initializer: "Initial value"
+  script_summary.add_initializer: "Add initial value"
+  script_summary.remove_initializer: "Remove initial value"
+  script_summary.advanced: "More settings"
+  script_summary.const_rule: "const fields are read only and excluded from saving."
+  script_summary.static_rule: "static values are shared and excluded from instance saving."
+  script_summary.implicit_property: "Other attributes also expose this field as a property."
+  script_summary.automatic_readonly: "Automatic (const)"
+  script_summary.explicit_readonly: "Explicit [readonly]"
+  script_summary.automatic_exclude: "Automatically excluded"
+  script_summary.explicit_exclude: "Explicitly excluded"
+  script_summary.edit_rejected: "The setting could not be applied. Check the expression you entered."

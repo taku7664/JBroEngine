@@ -1,7 +1,11 @@
+#pragma warning(push)
+#pragma warning(disable: 4190)
+#define JBRO_GENERATED_PROBE_EXPORTS
+#include "../ProbeExports.h"
 #include "JBroGenerated.h"
 #include <JBro/Runtime/ScriptGuard.h>
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_OwnedValues()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_OwnedValues()
 {
     const auto& recursive = JBro::GetPropertyTable<RecursiveOwned>();
     const auto* nullable = recursive.properties[0].type->element;
@@ -12,7 +16,7 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_OwnedValues()
     return OwnedValueModel::Run().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_NullableFailure()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_NullableFailure()
 {
     NullableFailureProbe script;
     script.OnUpdate();
@@ -20,7 +24,7 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_NullableFailure
     return (script.before * 10 + script.after).Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_CustomOverrides()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_CustomOverrides()
 {
     OverrideChild script;
     script.OnUpdate();
@@ -39,7 +43,7 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_CustomOverrides
     return (script.before * 100 + script.after * 10 + script.result).Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_StaticStartup()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_StaticStartup()
 {
     const auto& fields = JBro::GetPropertyTable<StaticOwned>();
     if (fields.count != 1 || fields.properties[0].type->fields != &fields
@@ -51,14 +55,14 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_StaticStartup()
         + StaticOwned::jbro_gen_static_second() + StaticDependent::jbro_gen_static_value()).Get();
 }
 
-extern "C" __declspec(dllexport) float JBroGeneratedProbe_StaticService()
+extern "C" __declspec(dllexport) JBro::Float JBroGeneratedProbe_StaticService()
 {
     return StaticOwned::jbro_gen_static_scaleAtStartup().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationGuard()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_InitializationGuard()
 {
-    std::int64_t failures = 0;
+    JBro::Int64 failures = 0;
     for (JBro::Int mode = 0; mode < 9; ++mode)
     {
         if (mode == 2)
@@ -95,19 +99,19 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationG
         + derived.third + holder.Change() + nested.owned.second).Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializationCallback(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_InitializationCallback(JBro::GameScriptBase* base)
 {
     auto* probe = static_cast<InitializationProbe*>(base);
     base->OnUpdate();
     return (probe->before * 10 + probe->after).Get();
 }
 
-extern "C" __declspec(dllexport) void JBroGeneratedProbe_InitializationMode(std::int64_t mode)
+extern "C" __declspec(dllexport) void JBroGeneratedProbe_InitializationMode(JBro::Int64 mode)
 {
     InitIndirect::jbro_gen_static_mode() = mode;
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializerScore()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_InitializerScore()
 {
     InitLeft ordinary;
     InitLeft parameterized(JBro::Int(100));
@@ -124,42 +128,45 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_InitializerScor
     return (ordinary.Sum() + parameterized.Sum() + other.value + snapshot.value + holder.owned.value).Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_KeywordScore()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_KeywordScore()
 {
     jbro_gen_template value;
     return value.jbro_gen_virtual(JBro::Int(5)).Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_DerivedRead()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_DerivedRead()
 {
     DerivedCounter counter;
     return counter.Read().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_RequiredRead(JBro::GameScriptBase* script)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_RequiredRead(JBro::GameScriptBase* script)
 {
     RequiredScript* base = static_cast<ConcreteRequiredScript*>(script);
     return base->Read().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_BorrowedInterfaceRead()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_BorrowedInterfaceRead()
 {
     DerivedCounter counter;
     return counter.ReadThroughInterface().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_EqualityScore()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_EqualityScore()
 {
     EqualityScenario scenario;
     return scenario.Score().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_MultipleBaseProperties()
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_MultipleBaseProperties()
 {
     FieldMix value;
     const JBro::PropertyTable& fields = JBro::GetPropertyTable<FieldMix>();
-    if (fields.count != 3) return -1;
-    std::int64_t result = 0;
+    if (fields.count != 3)
+    {
+        return -1;
+    }
+    JBro::Int64 result = 0;
     for (JBro::UInt32 index = 0; index < fields.count; ++index)
     {
         const auto* field = static_cast<const JBro::Int*>(fields.properties[index].ConstAddress(&value));
@@ -168,17 +175,17 @@ extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_MultipleBasePro
     return result;
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ChildResult(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ChildResult(JBro::GameScriptBase* base)
 {
     return static_cast<ChildScript*>(base)->Result().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlCount(JBro::GameScriptBase* base) noexcept
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlCount(JBro::GameScriptBase* base) noexcept
 {
     return static_cast<ControlProbe*>(base)->count.Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlRhsCount(JBro::GameScriptBase* base) noexcept
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlRhsCount(JBro::GameScriptBase* base) noexcept
 {
     return static_cast<ControlProbe*>(base)->rhsCount.Get();
 }
@@ -198,47 +205,47 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlRaiseScores(JBro
     static_cast<ControlProbe*>(base)->RaiseScores();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasOwner(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_ControlHasOwner(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasOwner();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasOwnerExplicit(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_ControlHasOwnerExplicit(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasOwnerExplicit();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasTransform(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_ControlHasTransform(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasTransform();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasNoTransformByEquality(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_ControlHasNoTransformByEquality(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasNoTransformByEquality();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_MissingScriptRefByEquality(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_MissingScriptRefByEquality(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->MissingScriptRefByEquality();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_OwnerIdentityEqual(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_OwnerIdentityEqual(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->OwnerIdentityEqual();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_TransformIdentityEqual(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_TransformIdentityEqual(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->TransformIdentityEqual();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_DerivedScriptReferenceIdentity(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_DerivedScriptReferenceIdentity(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->DerivedScriptReferenceIdentity();
 }
 
-extern "C" __declspec(dllexport) bool JBroGeneratedProbe_ControlHasTransformSafe(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Bool JBroGeneratedProbe_ControlHasTransformSafe(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->HasTransformSafe();
 }
@@ -248,27 +255,27 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlDisableOwnerSafe
     static_cast<ControlProbe*>(base)->DisableOwnerSafe();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlNullFallback(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlNullFallback(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->NullFallback().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlGenericArray(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlGenericArray(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->GenericArray().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlOwnCount(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlOwnCount(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->OwnCount().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlScoreByName(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlScoreByName(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->ScoreByName().Get();
 }
 
-extern "C" __declspec(dllexport) float JBroGeneratedProbe_ControlBrighten(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Float JBroGeneratedProbe_ControlBrighten(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->Brighten().Get();
 }
@@ -278,22 +285,22 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_ControlRenameOwner(JBro
     static_cast<ControlProbe*>(base)->RenameOwner();
 }
 
-extern "C" __declspec(dllexport) float JBroGeneratedProbe_ControlMoveOwner(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Float JBroGeneratedProbe_ControlMoveOwner(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->MoveOwner().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlUseCounter(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlUseCounter(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->UseCounter().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_ControlSwitchScalars(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_ControlSwitchScalars(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->SwitchScalars().Get();
 }
 
-extern "C" __declspec(dllexport) float JBroGeneratedProbe_ControlVectorMath(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Float JBroGeneratedProbe_ControlVectorMath(JBro::GameScriptBase* base)
 {
     return static_cast<ControlProbe*>(base)->VectorMath().Get();
 }
@@ -303,12 +310,12 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetFirstValid(JBro::Gam
     static_cast<GuardProbe*>(base)->target1 = JBro::Nullable<Link>(Link{});
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_TouchFirst(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_TouchFirst(JBro::GameScriptBase* base)
 {
     return static_cast<GuardProbe*>(base)->TouchFirst().Get();
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_TouchFirstSafe(JBro::GameScriptBase* base)
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_TouchFirstSafe(JBro::GameScriptBase* base)
 {
     return static_cast<GuardProbe*>(base)->TouchFirstSafe().Get();
 }
@@ -345,7 +352,7 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_AddValue(JBro::GameScri
     static_cast<GuardProbe*>(base)->values.Add(value);
 }
 
-extern "C" __declspec(dllexport) std::int64_t JBroGeneratedProbe_FirstValue(const JBro::GameScriptBase* base) noexcept
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_FirstValue(const JBro::GameScriptBase* base) noexcept
 {
     return static_cast<const GuardProbe*>(base)->values[0].Get();
 }
@@ -364,3 +371,5 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetOptionalNumbers(JBro
     numbers.value.Add(7);
     numbers.present = true;
 }
+
+#pragma warning(pop)

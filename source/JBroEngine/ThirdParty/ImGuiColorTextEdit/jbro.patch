@@ -1,0 +1,625 @@
+--- a/TextEditor.h
++++ b/TextEditor.h
+@@ -66,6 +66,13 @@
+ 		DocSelection(DocPos start, DocPos end) : start(start), end(end) {}
+ 		DocPos start;
+ 		DocPos end;
++	};
++
++	enum class TransactionKind { Edit, Undo, Redo };
++	struct Replacement {
++		DocPos start;
++		DocPos end;
++		std::string text;
+ 	};
+ 
+ 	struct VisPos {
+@@ -194,6 +201,8 @@
+ 	// replace text in editor (new text must be UTF-8 encoded)
+ 	inline void ReplaceSectionText(DocPos start, DocPos end, const std::string_view& text) { replaceSectionText(normalizePos(start), normalizePos(end), text); }
+ 	inline void ReplaceSectionText(const DocSelection& selection, const std::string_view& text) { ReplaceSectionText(selection.start, selection.end, text); }
++	// Nonoverlapping ranges refer to the document before this single undoable gesture.
++	void ReplaceSectionsText(const std::vector<Replacement>& replacements);
+ 
+ 	// clear the editor
+ 	inline void ClearText() { SetText(""); }
+@@ -221,6 +230,7 @@
+ 	inline bool CanUndo() const { return !config.readOnly && transactions.canUndo(); };
+ 	inline bool CanRedo() const { return !config.readOnly && transactions.canRedo(); };
+ 	inline size_t GetUndoIndex() const { return transactions.getUndoIndex(); };
++	inline TransactionKind GetLastTransactionKind() const { return transactions.getLastKind(); }
+ 
+ 	// manipulate cursors and selections (line numbers are zero-based)
+ 	inline void SelectAll() { selectAll(); }
+@@ -354,6 +364,13 @@
+ 	inline void ClearSquiggles() { clearSquiggles(); }
+ 	inline bool HasSquiggles() const { return squiggles.size() != 0; }
+ 
++	// Optional semantic foreground overlay; lexical coloring remains the fallback.
++	inline void ClearTextColors() { for (auto& line : document) for (auto& glyph : line) glyph.textColor = 0; }
++	inline void SetTextColor(DocPos start, DocPos end, ImU32 color) { document.iterateGlyphs(normalizePos(start), normalizePos(end), [color](Glyph& glyph) { glyph.textColor = color; }); }
++	// Independent source ranges; drawing leaves lexical/semantic foreground and diagnostics intact.
++	inline void SetRangeHighlights(const std::vector<DocSelection>& ranges, ImU32 color) { rangeHighlights = ranges; rangeHighlightColor = color; }
++	inline void ClearRangeHighlights() { rangeHighlights.clear(); }
++
+ 	// specify a change callback (called when changes are made (including undo/redo))
+ 	// the delay parameter specifies a time in miliseconds that the editor will wait for before calling
+ 	// which helps in case you don't need to track every keystroke
+@@ -363,6 +380,8 @@
+ 	}
+ 
+ 	inline void ClearChangeCallback() { SetChangeCallback(nullptr); }
++	inline void SetExternalUndoRedo(bool value) { externalUndoRedo = value; }
++	inline void SetExternalClipboardActions(bool value) { externalClipboardActions = value; }
+ 	inline bool HasChangeCallback() const { return delayedChangeCallback != nullptr; }
+ 
+ 	// detailed change report passed to callback below
+@@ -503,6 +522,8 @@
+ 	inline void SetTextContextMenuCallback(std::function<void(PopupData& data)> callback) { textContextMenuCallback = callback; }
+ 	inline void ClearTextContextMenuCallback() { SetTextContextMenuCallback(nullptr); }
+ 	inline bool HasTextContextMenuCallback() const { return textContextMenuCallback != nullptr; }
++	// Optional owner for the complete popup lifecycle; called each rendered frame.
++	inline void SetTextContextMenuRenderer(std::function<void(bool requested, PopupData& data)> renderer) { textContextMenuRenderer = renderer; textContextMenuRequested = false; }
+ 
+ 	inline void SetTextHoverCallback(std::function<void(PopupData& data)> callback) { textHoverCallback = callback; }
+ 	inline void ClearTextHoverCallback() { SetTextHoverCallback(nullptr); }
+@@ -562,6 +583,7 @@
+ 		currentLineNumber,
+ 		currentLineHighlight,
+ 		currentLineHighlightBorder,
++		lineNumberHover,
+ 		count
+ 	};
+ 
+@@ -598,6 +620,7 @@
+ 		// color for this glyph if a language is specified
+ 		// maintained by the Colorizer and the Bracketeer overlays
+ 		Color color = Color::text;
++		ImU32 textColor = 0;
+ 
+ 		// maintained by the TypeSetter overlay
+ 		BreakOption breakOption = BreakOption::undefined;
+@@ -1267,7 +1290,7 @@
+ 						CodePoint::write(utf8, glyph->codepoint)));
+ 				}
+ 
+-				if (line != std::prev(end()) || line->size()) {
++				if (line != std::prev(end())) {
+ 					text += static_cast<T>('\n');
+ 				}
+ 			}
+@@ -1285,7 +1308,7 @@
+ 					text += static_cast<T>(glyph->codepoint);
+ 				}
+ 
+-				if (line != std::prev(end()) || line->size()) {
++				if (line != std::prev(end())) {
+ 					text += static_cast<T>('\n');
+ 				}
+ 			}
+@@ -1559,6 +1582,7 @@
+ 		inline bool canUndo() const { return undoIndex > 0; }
+ 		inline bool canRedo() const { return undoIndex < size(); }
+ 		inline size_t getVersion() const { return version; }
++		inline TransactionKind getLastKind() const { return lastKind; }
+ 
+ 		// set transaction callback
+ 		inline void setCallback(std::function<void(const std::vector<Change>&)> cb) { callback = cb; }
+@@ -1567,6 +1591,7 @@
+ 	private:
+ 		size_t undoIndex = 0;
+ 		size_t version = 0;
++		TransactionKind lastKind = TransactionKind::Edit;
+ 		std::function<void(std::vector<Change>&)> callback;
+ 	} transactions;
+ 
+@@ -1859,12 +1884,15 @@
+ 	void renderCurrentLineHighlight();
+ 	void renderActiveBracketBackground();
+ 	void renderSelections();
++	void renderRangeHighlights();
+ 	void renderTextMarkers();
+ 	void renderMatchingBracketLines();
+ 	void renderSquiggles();
+ 	void renderText();
+ 	void renderCursorCarets();
+ 	void renderLineNumberMarkers();
++	void renderLineNumberHover();
++	bool isMouseOverLineNumbers() const;
+ 	void renderLineNumbers();
+ 	void renderDecorations();
+ 	void renderFoldIndicators();
+@@ -2019,9 +2047,12 @@
+ 	static constexpr size_t invalidLine = std::numeric_limits<size_t>::max();
+ 
+ 	bool firstFrame = true;
++	bool externalUndoRedo = false;
++	bool externalClipboardActions = false;
+ 	float cursorWidth;
+ 	ImVec2 cursorScreenPos;
+ 	ImVec2 visibleSize;
++	ImVec2 textViewportMin, textViewportMax;
+ 	ImDrawList* drawList;
+ 
+ 	ImFont* font;
+@@ -2070,9 +2101,13 @@
+ 
+ 	std::function<void(const CustomCaret&)> customCaretCallback;
+ 	std::function<void(const CustomLineNumber&)> customLineNumberCallback;
++	std::vector<DocSelection> rangeHighlights;
++	ImU32 rangeHighlightColor = 0;
+ 
+ 	std::function<void(PopupData& data)> lineNumberContextMenuCallback;
+ 	std::function<void(PopupData& data)> textContextMenuCallback;
++	std::function<void(bool requested, PopupData& data)> textContextMenuRenderer;
++	bool textContextMenuRequested = false;
+ 	std::function<void(PopupData& data)> textHoverCallback;
+ 	ImVec2 popupWindowPos;
+ 	DocPos popupDocPos;
+@@ -2100,6 +2135,8 @@
+ 	bool scrolling = false;
+ 	ImVec2 scrollStart;
+ 	bool selectingText = false;
++	bool selectingLines = false;
++	DocPos lineSelectionStart, lineSelectionEnd;
+ 	bool deletesHappened = false;
+ 	std::function<void()> delayedChangeCallback;
+ 	std::chrono::milliseconds delayedChangeDelay;
+--- a/TextEditor.cpp
++++ b/TextEditor.cpp
+@@ -38,6 +38,8 @@
+ 	cursors.clearAll();
+ 	clearMarkers();
+ 	clearSquiggles();
++	ClearRangeHighlights();
++	textContextMenuRequested = false;
+ 	resetScrolling();
+ }
+ 
+@@ -64,6 +66,7 @@
+ 
+ 	// start a new child window
+ 	ImGui::SetNextWindowContentSize(totalSize);
++	const auto callerItemSpacing = ImGui::GetStyle().ItemSpacing;
+ 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+ 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::ColorConvertU32ToFloat4(palette.get(Color::background)));
+ 
+@@ -138,6 +141,9 @@
+ 
+ 		// determine number of columns at which text will wrap
+ 		textSize = ImVec2(textRightOffset - textLeftOffset, visibleSize.y);
++		const auto* currentWindow = ImGui::GetCurrentWindow();
++		textViewportMin = ImVec2(currentWindow->Pos.x + textLeftOffset, currentWindow->InnerClipRect.Min.y);
++		textViewportMax = ImVec2(std::min(currentWindow->Pos.x + textRightOffset, currentWindow->InnerClipRect.Max.x), currentWindow->InnerClipRect.Max.y);
+ 		config.wordWrapColumns = static_cast<size_t>(std::max(std::floor(textSize.x / glyphSize.x), 0.0f));
+ 
+ 		// handle possible state changes caused by API calls before first frame or between frames
+@@ -168,6 +174,7 @@
+ #else
+ 		cursorWidth = 1.0f * fontScaleDpi;
+ #endif
++		renderLineNumberHover();
+ 
+ 		// setup clipping over the text area
+ 		const auto offset = ImGui::GetWindowPos().x;
+@@ -179,6 +186,7 @@
+ 
+ 		// render parts in the text area
+ 		renderCurrentLineHighlight();
++		renderRangeHighlights();
+ 		renderActiveBracketBackground();
+ 		renderSelections();
+ 		renderTextMarkers();
+@@ -198,8 +206,11 @@
+ 		renderMiniMap();
+ 		renderScrollbarMiniMap();
+ 		renderPanScrollIndicator();
++		// Zero spacing belongs to the text canvas, not menus or popup controls.
++		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, callerItemSpacing);
+ 		renderFindReplace();
+ 		renderPopups();
++		ImGui::PopStyleVar();
+ 
+ 		// handle scrolling caused by actions in this frame
+ 		handlePossibleScrolling();
+@@ -325,6 +336,32 @@
+ //	TextEditor::renderSelections
+ //
+ 
++void TextEditor::renderRangeHighlights() {
++	for (const auto& range : rangeHighlights) {
++		for (size_t row = firstVisibleRow; row <= lastVisibleRow; ++row) {
++			const auto& visible = typeSetter[row];
++			if (visible.line < range.start.line || visible.line > range.end.line) {
++				continue;
++			}
++			const auto& line = document[visible.line];
++			const auto* section = line.sections ? &line.sections->at(visible.section) : nullptr;
++			const DocPos rowStart(visible.line, section ? section->startIndex : 0);
++			const DocPos rowEnd(visible.line, section ? section->endIndex : line.size());
++			const auto start = std::max(range.start, rowStart);
++			const auto end = std::min(range.end, rowEnd);
++			if (start < end) {
++				const auto left = docPos2VisPos(start);
++				const auto right = docPos2VisPos(end);
++				const float x = cursorScreenPos.x + textLeftOffset;
++				const float y = cursorScreenPos.y + row * glyphSize.y;
++				drawList->AddRectFilled(ImVec2(x + left.column * glyphSize.x, y),
++					ImVec2(x + (right.row == row ? right.column : visible.columns) * glyphSize.x, y + glyphSize.y),
++					ImGui::GetColorU32(rangeHighlightColor));
++			}
++		}
++	}
++}
++
+ void TextEditor::renderSelections() {
+ 	// draw background for selections
+ 	for (const auto& cursor : cursors) {
+@@ -642,7 +679,7 @@
+ 			// handle regular glyphs
+ 			} else {
+ 				if (column >= firstRenderableColumn) {
+-					font->RenderChar(drawList, fontSize, glyphPos, palette.get(glyph.color), codepoint);
++					font->RenderChar(drawList, fontSize, glyphPos, glyph.textColor != 0 ? glyph.textColor : palette.get(glyph.color), codepoint);
+ 				}
+ 			}
+ 
+@@ -713,6 +750,28 @@
+ //	TextEditor::renderLineNumberMarkers
+ //
+ 
++bool TextEditor::isMouseOverLineNumbers() const {
++	const auto* window = ImGui::GetCurrentWindow();
++	const auto mouse = ImGui::GetMousePos();
++	const auto x = mouse.x - window->Pos.x;
++	const bool overFold = config.lineFolding && std::abs(x - foldIndicatorOffset) <= glyphSize.x * 0.5f;
++	return config.showLineNumbers && ImGui::IsWindowHovered() && window->InnerClipRect.Contains(mouse) &&
++		x >= 0.0f && x < lineNumberRightOffset && !overFold &&
++		mouse.y >= cursorScreenPos.y && mouse.y < cursorScreenPos.y + typeSetter.getRowCount() * glyphSize.y;
++}
++
++void TextEditor::renderLineNumberHover() {
++	if (isMouseOverLineNumbers()) {
++		const auto row = static_cast<size_t>((ImGui::GetMousePos().y - cursorScreenPos.y) / glyphSize.y);
++		const auto& line = document[typeSetter[row].line];
++		const auto* window = ImGui::GetCurrentWindow();
++		const auto top = cursorScreenPos.y + line.row * glyphSize.y;
++		const ImVec2 left(window->InnerClipRect.Min.x, top);
++		const ImVec2 right(std::min(window->InnerClipRect.Max.x, window->Pos.x + textRightOffset), top + line.rows * glyphSize.y);
++		drawList->AddRectFilled(left, right, palette.get(Color::lineNumberHover));
++	}
++}
++
+ void TextEditor::renderLineNumberMarkers() {
+ 	if (markers.size()) {
+ 		for (size_t row = firstVisibleRow; row <= lastVisibleRow; row++) {
+@@ -802,7 +861,8 @@
+ 		for (size_t i = firstVisibleRow; i <= lastVisibleRow; i++) {
+ 			if (typeSetter[i].section == 0) {
+ 				decorator.line = typeSetter[i].line;
+-				decorator.userData = document.getUserData(i);
++				decorator.userData = document.getUserData(decorator.line);
++				position.y = cursorScreenPos.y + glyphSize.y * i;
+ 				ImGui::SetCursorScreenPos(position);
+ 				ImGui::PushID(static_cast<int>(i));
+ 				decoratorCallback(decorator);
+@@ -1100,7 +1160,11 @@
+ 		ImGui::EndPopup();
+ 	}
+ 
+-	if (ImGui::BeginPopup("TextContextMenu")) {
++	if (textContextMenuRenderer) {
++		const bool requested = textContextMenuRequested;
++		textContextMenuRequested = false;
++		textContextMenuRenderer(requested, popupData);
++	} else if (ImGui::BeginPopup("TextContextMenu")) {
+ 		if (textContextMenuCallback) {
+ 			textContextMenuCallback(popupData);
+ 
+@@ -1152,7 +1216,10 @@
+ 
+ 	float unused;
+ 	const auto firstVisibleLineFraction = std::modf(ImGui::GetScrollY() / glyphSize.y, &unused);
+-	const auto previousFirstLine = visPos2DocPos(VisPos(firstVisibleRow, 0)).line;
++	// The old layout may reference lines removed from the changed document.
++	// Preserve its line number without resolving it through that document.
++	const auto previousFirstLine = typeSetter.getRowCount() == 0 ? 0 :
++		typeSetter[std::min(firstVisibleRow, typeSetter.getRowCount() - 1)].line;
+ 
+ 	if (typeSetter.update(config, document, lineFold)) {
+ 		// see if we can scroll to preserve the first visible line
+@@ -1268,7 +1335,7 @@
+ 		else if (ImGui::Shortcut(ImGuiKey_End)) { moveToEndOfLine(false); }
+ 		else if (ImGui::Shortcut(ImGuiMod_Shift | ImGuiKey_End)) { moveToEndOfLine(true); }
+ 
+-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_A)) { selectAll(); }
++		else if (!externalClipboardActions && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_A)) { selectAll(); }
+ 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_D)) { addNextOccurrence(false); }
+ 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_D)) { addNextOccurrence(true); }
+ 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_L)) { addNextOccurrence(true); }
+@@ -1276,18 +1343,18 @@
+ 		else if (cursors.currentCursorHasSelection() && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_D)) { selectAllOccurrences(true); }
+ 
+ 		// clipboard operations
+-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_X)) { cut(); }
+-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Delete)) { cut(); }
+-
+-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C)) { copy(); }
+-		else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Insert)) { copy(); }
+-
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_Repeat)) { paste(); }
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Insert, ImGuiInputFlags_Repeat)) { paste(); }
+-
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { undo(); }
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { redo(); }
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_Repeat)) { redo(); }
++		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_X)) { cut(); }
++		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Delete)) { cut(); }
++
++		else if (!externalClipboardActions && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C)) { copy(); }
++		else if (!externalClipboardActions && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Insert)) { copy(); }
++
++		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_Repeat)) { paste(); }
++		else if (!externalClipboardActions && !config.readOnly && ImGui::Shortcut(ImGuiMod_Shift | ImGuiKey_Insert, ImGuiInputFlags_Repeat)) { paste(); }
++
++		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { undo(); }
++		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { redo(); }
++		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_Repeat)) { redo(); }
+ 
+ 		// remove text
+ 		else if (!config.readOnly && ImGui::Shortcut(ImGuiKey_Delete, ImGuiInputFlags_Repeat)) { handleDelete(false); }
+@@ -1420,10 +1487,7 @@
+ 	const auto mousePos = ImGui::GetMousePos() - cursorScreenPos;
+ 	const auto absoluteMousePos = ImGui::GetMousePos() - ImGui::GetWindowPos();
+ 
+-	const auto overLineNumbers =
+-		config.showLineNumbers &&
+-		(absoluteMousePos.x > lineNumberLeftOffset) &&
+-		(absoluteMousePos.x < lineNumberRightOffset);
++	const auto overLineNumbers = isMouseOverLineNumbers();
+ 
+ 	const auto overText =
+ 		mousePos.x - ImGui::GetScrollX() > textLeftOffset &&
+@@ -1501,11 +1565,15 @@
+ 			scrollY = std::clamp(scrollY, 0.0f, totalSize.y - textSize.y);
+ 			ImGui::SetScrollY(scrollY);
+ 
+-		} else if (selectingText && overLineNumbers) {
++		} else if (selectingText && selectingLines) {
+ 			auto& cursor = cursors.getCurrent();
+ 			const auto start = DocPos(cursorPos.line, 0);
+ 			const auto end = normalizePos(DocPos(cursorPos.line + 1, 0));
+-			cursor.update(cursor.getInteractiveEnd() < cursor.getInteractiveStart() ? start : end);
++			if (start < lineSelectionStart) {
++				cursor.update(lineSelectionEnd, start);
++			} else {
++				cursor.update(lineSelectionStart, end);
++			}
+ 			makeCursorVisible();
+ 
+ 		} else if (selectingText && overText) {
+@@ -1517,6 +1585,7 @@
+ 	} else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+ 		miniMapIsScrollbar = false;
+ 		selectingText = false;
++		selectingLines = false;
+ 
+ 	// ignore other interactions when the editor is not hovered
+ 	} else if (ImGui::IsWindowHovered()) {
+@@ -1541,20 +1610,25 @@
+ 				popupDocPos = glyphPos;
+ 				ImGui::OpenPopup("LineNumberContextMenu");
+ 
+-			} else if (overText && textContextMenuCallback) {
++			} else if (overText && (textContextMenuRenderer || textContextMenuCallback)) {
+ 				popupDocPos = glyphPos;
+-				ImGui::OpenPopup("TextContextMenu");
++				if (textContextMenuRenderer) {
++					textContextMenuRequested = true;
++				} else {
++					ImGui::OpenPopup("TextContextMenu");
++				}
+ 			}
+ 
+ 		} else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+ 			// handle left mouse button actions
+ 			selectingText = overText || overLineNumbers;
++			selectingLines = overLineNumbers;
+ 			const auto doubleClick = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+ 			const auto now = static_cast<float>(ImGui::GetTime());
+ 			const auto tripleClick = !doubleClick && lastClickTime != -1.0f && (now - lastClickTime) < io.MouseDoubleClickTime;
+ 			lastClickTime = tripleClick ? -1.0f : now;
+ 
+-			if (tripleClick) {
++			if (tripleClick && !overLineNumbers) {
+ 				// left mouse button triple click
+ 				if (overText) {
+ 					const auto start = document.getStartOfLine(cursorPos);
+@@ -1562,7 +1636,7 @@
+ 					cursors.updateCurrentCursor(start, end);
+ 				}
+ 
+-			} else if (doubleClick) {
++			} else if (doubleClick && !overLineNumbers) {
+ 				// left mouse button double click
+ 				if (overText) {
+ 					const auto codepoint = document.getCodePoint(glyphPos);
+@@ -1615,10 +1689,18 @@
+ 					// handle line number clicks
+ 					const auto start = DocPos(cursorPos.line, 0);
+ 					const auto end = normalizePos(DocPos(cursorPos.line + 1, 0));
++					lineSelectionStart = start;
++					lineSelectionEnd = end;
+ 
+ 					if (extendCursor) {
+ 						auto& cursor = cursors.getCurrent();
+-						cursor.update(cursor.getInteractiveEnd() < cursor.getInteractiveStart() ? start : end);
++						lineSelectionStart = DocPos(cursor.getInteractiveStart().line, 0);
++						lineSelectionEnd = normalizePos(DocPos(lineSelectionStart.line + 1, 0));
++						if (start < lineSelectionStart) {
++							cursor.update(lineSelectionEnd, start);
++						} else {
++							cursor.update(lineSelectionStart, end);
++						}
+ 						autocomplete.cancel();
+ 
+ 					} else if (addCursor) {
+@@ -1950,7 +2032,7 @@
+ //
+ 
+ bool TextEditor::isMousePosOverGlyph(const ImVec2& mousePos) const {
+-	if (firstFrame) {
++	if (firstFrame || !isMousePosOverTextArea(mousePos)) {
+ 		return false;
+ 
+ 	} else {
+@@ -1978,9 +2060,8 @@
+ 		return false;
+ 
+ 	} else {
+-		// convert mouse position to screen coordinates
+-		const auto local = mousePos - cursorScreenPos;
+-		return local.x > textLeftOffset && local.x < textRightOffset && local.y >= 0 && local.y < textSize.y;
++		return mousePos.x >= textViewportMin.x && mousePos.x < textViewportMax.x &&
++			mousePos.y >= textViewportMin.y && mousePos.y < textViewportMax.y;
+ 	}
+ }
+ 
+@@ -2051,12 +2132,12 @@
+ 
+ void TextEditor::scrollToLine(size_t line, Scroll alignment, float fraction) {
+ 	ensureVisiblePos = DocPos(invalidLine, 0);
+-	scrollToLineNumber = std::min(line, document.size());
++	scrollToLineNumber = normalizeLine(line);
+ 	scrollToAlignment = alignment;
+ 	scrollToFraction = fraction;
+ 
+ 	if (config.lineFolding) {
+-		lineFold.unfoldAroundLine(document, line);
++		lineFold.unfoldAroundLine(document, scrollToLineNumber);
+ 	}
+ }
+ 
+@@ -3118,6 +3199,9 @@
+ bool TextEditor::endTransaction(std::shared_ptr<Transaction> transaction) {
+ 	if (transaction->size() > 0) {
+ 		cursors.update(document);
++		// Edits can move cursors after changing the document. Defer scrolling
++		// until the final cursor positions have been normalized.
++		makeCursorVisible();
+ 		transaction->setAfterState(cursors);
+ 		transactions.add(transaction);
+ 		return true;
+@@ -3240,7 +3324,6 @@
+ 	// this function does not change the cursors
+ 	const auto end = document.insertText(config, start, text);
+ 	transaction->addInsert(start, end, text);
+-	makeCursorVisible();
+ 	return end;
+ }
+ 
+@@ -3255,7 +3338,6 @@
+ 	const auto text = document.getSectionText(start, end);
+ 	document.deleteText(config, start, end);
+ 	transaction->addDelete(start, end, text);
+-	makeCursorVisible();
+ 	resetCursorAnimationTimer();
+ 	deletesHappened = true;
+ }
+@@ -4490,6 +4572,7 @@
+ //
+ 
+ void TextEditor::Transactions::add(std::shared_ptr<Transaction> transaction) {
++	lastKind = TransactionKind::Edit;
+ 	resize(undoIndex);
+ 	push_back(transaction);
+ 	undoIndex++;
+@@ -4516,6 +4599,7 @@
+ //
+ 
+ void TextEditor::Transactions::undo(const Config& config, Document& document, Cursors& cursors) {
++	lastKind = TransactionKind::Undo;
+ 	const auto transaction = at(--undoIndex);
+ 
+ 	for (auto action = transaction->rbegin(); action < transaction->rend(); action++) {
+@@ -4533,12 +4617,12 @@
+ 	if (callback) {
+ 		std::vector<Change> changes;
+ 
+-		for (const auto& action : *transaction) {
++		for (auto action = transaction->rbegin(); action != transaction->rend(); ++action) {
+ 			auto& change = changes.emplace_back();
+-			change.insert = action.type == Action::Type::deleteText;
+-			change.start = action.start;
+-			change.end = action.end;
+-			change.text = action.text;
++			change.insert = action->type == Action::Type::deleteText;
++			change.start = action->start;
++			change.end = action->end;
++			change.text = action->text;
+ 		}
+ 
+ 		callback(changes);
+@@ -4551,6 +4635,7 @@
+ //
+ 
+ void TextEditor::Transactions::redo(const Config& config, Document& document, Cursors& cursors) {
++	lastKind = TransactionKind::Redo;
+ 	const auto transaction = at(undoIndex++);
+ 
+ 	for (auto action = transaction->begin(); action < transaction->end(); action++) {
+@@ -5525,6 +5610,34 @@
+ 	const auto newEnd = insertText(transaction, start, text);
+ 	cursors.clearAdditional();
+ 	cursors.getMain().update(newEnd, newEnd);
++	endTransaction(transaction);
++}
++
++void TextEditor::ReplaceSectionsText(const std::vector<Replacement>& replacements) {
++	if (config.readOnly || replacements.empty()) {
++		return;
++	}
++	auto ordered = replacements;
++	for (auto& replacement : ordered) {
++		replacement.start = normalizePos(replacement.start);
++		replacement.end = normalizePos(replacement.end);
++		if (replacement.end < replacement.start) {
++			return;
++		}
++	}
++	std::sort(ordered.begin(), ordered.end(), [](const auto& a, const auto& b) { return a.start > b.start; });
++	for (size_t i = 1; i < ordered.size(); ++i) {
++		if (ordered[i].end > ordered[i - 1].start || ordered[i].start == ordered[i - 1].start) {
++			return;
++		}
++	}
++	const auto transaction = startTransaction();
++	for (const auto& replacement : ordered) {
++		deleteText(transaction, replacement.start, replacement.end);
++		const auto end = insertText(transaction, replacement.start, replacement.text);
++		cursors.clearAdditional();
++		cursors.getMain().update(end, end);
++	}
+ 	endTransaction(transaction);
+ }
+ 
+@@ -10700,7 +10813,8 @@
+ 		IM_COL32(128, 128, 144, 255),	// line number
+ 		IM_COL32(224, 224, 240, 255),	// current line number
+ 		IM_COL32(255, 255, 255,   8),	// current line highlight
+-		IM_COL32(255, 255, 255,  16)	// current line highlight border
++		IM_COL32(255, 255, 255,  16),	// current line highlight border
++		IM_COL32(255, 255, 255,  24)	// line number hover
+ 	}};
+ 
+ 	return palette;
+@@ -10731,7 +10845,8 @@
+ 		IM_COL32(  0,  80,  80, 255),	// line number
+ 		IM_COL32(  0,   0,   0, 255),	// current line number
+ 		IM_COL32(  0,   0,   0,   8),	// current line highlight
+-		IM_COL32(  0,   0,   0,  16)	// current line highlight border
++		IM_COL32(  0,   0,   0,  16),	// current line highlight border
++		IM_COL32(  0,   0,   0,  24)	// line number hover
+ 	}};
+ 
+ 	return palette;

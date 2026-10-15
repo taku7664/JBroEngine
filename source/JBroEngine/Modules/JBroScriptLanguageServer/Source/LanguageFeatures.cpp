@@ -1,4 +1,5 @@
 #include "Session.h"
+#include <JBro/Types/ValueMath.h>
 #include <JBro/ScriptCompiler/Formatting.h>
 #include <JBro/ScriptCompiler/Lexer.h>
 #include <JBro/Types/Table.h>
@@ -231,7 +232,10 @@ namespace JBro::ScriptLanguageServer::Detail
         {
             return nullptr;
         }
-        const String signature = symbol->Signature.IsEmpty() ? String(symbol->Type).Append(" ").Append(symbol->Name.View()) : symbol->Signature;
+        const Bool type = symbol->Kind == SymbolKind::Type || symbol->Kind == SymbolKind::Class || symbol->Kind == SymbolKind::Struct
+            || symbol->Kind == SymbolKind::Interface || symbol->Kind == SymbolKind::Enum;
+        const String signature = type ? (symbol->Type.IsEmpty() ? symbol->Name : symbol->Type)
+            : symbol->Signature.IsEmpty() ? String(symbol->Type).Append(" ").Append(symbol->Name.View()) : symbol->Signature;
         String description = signature;
         if (m_hoverMarkdown)
         {
@@ -388,7 +392,7 @@ namespace JBro::ScriptLanguageServer::Detail
         const std::size_t count = signatures[activeSignature]["parameters"].size();
         if (count > 0)
         {
-            activeParameter = std::min(activeParameter, static_cast<UInt32>(count - 1));
+            activeParameter = Min(activeParameter, static_cast<UInt32>(count - 1));
         }
         return Json{{"signatures", std::move(signatures)}, {"activeSignature", activeSignature}, {"activeParameter", activeParameter}};
     }
@@ -628,6 +632,10 @@ namespace JBro::ScriptLanguageServer::Detail
             code = -32602;
             error = "The requested document is not part of this workspace.";
             return nullptr;
+        }
+        if (method == "jbro/scriptSummary" || method == "jbro/editFieldSettings")
+        {
+            return ScriptSummaryRequest(*document, params, method == "jbro/editFieldSettings", code, error);
         }
         if (method == "textDocument/documentSymbol")
         {

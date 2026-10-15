@@ -69,14 +69,22 @@ namespace JBro::Icons
     inline constexpr const char* Solo         = "\xF3\xB0\x8B\x8B"; // F02CB headphones - 혼자 듣기
     inline constexpr const char* LightMarker  = "\xF3\xB0\x8C\xB5"; // F0335 lightbulb - 캔버스 뷰의 라이트 표시(D-298)
     inline constexpr const char* CameraMarker = "\xF3\xB0\x95\xA7"; // F0567 video - 캔버스 뷰의 카메라 표시(D-298)
+    inline constexpr const char* ScriptFunction = "\xF3\xB0\x8A\x95"; // F0295 function - 스크립트 함수
+    inline constexpr const char* ScriptVariable = "\xF3\xB0\xAB\xA7"; // F0AE7 variable - 스크립트 멤버 변수
+
+    inline constexpr const char* Undo = "\xF3\xB0\x95\x8C"; // F054C undo - 코드 편집 실행 취소
+    inline constexpr const char* Redo = "\xF3\xB0\x91\x8E"; // F044E redo - 코드 편집 다시 실행
+    inline constexpr const char* Cut = "\xF3\xB0\x86\x90"; // F0190 content-cut - 코드 잘라내기
+    inline constexpr const char* Paste = "\xF3\xB0\x86\x92"; // F0192 content-paste - 코드 붙여넣기
+    inline constexpr const char* SelectAll = "\xF3\xB0\x92\x86"; // F0486 select-all - 코드 전체 선택
 
     // 위의 글리프 전부다. 시험이 이것을 돌며 모두 글꼴 안에 있는지 본다 - 글리프를 더하면 여기에도 더한다.
     inline constexpr const char* All[] = {
         GripLines, Xmark, Eye, EyeSlash, Search, FolderOpen, Move, Rotate, Scale, SpaceLocal, SpaceWorld, Grid, GridSnap,
         Colliders, Lighting, Frame, ViewWorld, ViewScreen, Language, Ruler, EditCollider, Success, Warning, Error, Info, Plus,
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,
-        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, Copy, Play, Stop, Pause, StepFrame,
-        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker
+        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, Copy, Cut, Paste, SelectAll, Undo, Redo, Play, Stop, Pause, StepFrame,
+        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker, ScriptFunction, ScriptVariable
     };
 
     // 아이콘 글꼴이 덮는 유니코드 범위다. 글꼴을 합칠 때 이 범위만 아이콘 글꼴에서 가져온다.

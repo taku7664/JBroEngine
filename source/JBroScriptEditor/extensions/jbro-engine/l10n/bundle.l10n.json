@@ -9,5 +9,17 @@
 	"GitHub sign-in failed. Try again.": "GitHub sign-in failed. Try again.",
 	"Engine log is disconnected. Waiting for the engine editor.": "Engine log is disconnected. Waiting for the engine editor.",
 	"Earlier occurrences were omitted": "Earlier occurrences were omitted",
-	"Engine log could not be read: {0}": "Engine log could not be read: {0}"
+	"Engine log could not be read: {0}": "Engine log could not be read: {0}",
+	"Invalid engine log reply": "Invalid engine log reply",
+	"Unexpected engine log YAML": "Unexpected engine log YAML",
+	"Engine log request timed out": "Engine log request timed out",
+	"Engine log reply is too large": "Engine log reply is too large",
+	"Engine log connection closed": "Engine log connection closed",
+	"Invalid encoded engine log field": "Invalid encoded engine log field",
+	"Incomplete engine log page": "Incomplete engine log page",
+	"Incomplete engine log occurrence": "Incomplete engine log occurrence",
+	"Incomplete engine log group": "Incomplete engine log group",
+	"Unsupported engine log protocol": "Unsupported engine log protocol",
+	"Engine returned an empty group page with more results": "Engine returned an empty group page with more results",
+	"Too many engine log group pages": "Too many engine log group pages"
 }

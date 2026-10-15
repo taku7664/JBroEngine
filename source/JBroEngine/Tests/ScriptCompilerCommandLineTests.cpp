@@ -207,19 +207,33 @@ namespace
                 std::cout << "  missing translation: " << key << '\n';
             }
             Check(nullptr != ko && nullptr != en, "every command line key is in both tables");
-            Check(std::string(ko) != std::string(en), "the Korean and English command line messages differ");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English command line messages differ");
         }
         for (const char* key : GetSemanticDiagnosticKeys())
         {
             const char* ko = korean.Find(key);
             const char* en = english.Find(key);
             Check(nullptr != ko && nullptr != en, "every semantic diagnostic key is in both tables");
-            Check(std::string(ko) != std::string(en), "the Korean and English semantic messages differ");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English semantic messages differ");
+        }
+        const char* summaryKeys[] = {
+            "jbroc.summary.syntax_errors", "jbroc.summary.field_required", "jbroc.summary.invalid_attribute",
+            "jbroc.summary.invalid_attribute_argument", "jbroc.summary.invalid_initializer", "jbroc.summary.unsafe_edit",
+            "jbroc.summary.changes_required", "jbroc.summary.unsupported_change", "jbroc.summary.initializer_type",
+            "jbroc.summary.attributes_type", "jbroc.summary.attribute_shape", "jbroc.summary.attribute_argument_type",
+            "jbroc.summary.version_required", "jbroc.summary.stale_version", "jbroc.summary.selection_required"
+        };
+        for (const char* key : summaryKeys)
+        {
+            const char* ko = korean.Find(key);
+            const char* en = english.Find(key);
+            Check(nullptr != ko && nullptr != en, "every summary editing message key is in both tables");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English summary editing messages differ");
         }
         const std::size_t expected = static_cast<std::size_t>(DiagnosticCode::Count)
-            + std::size(CommandLineKeys) + GetSemanticDiagnosticKeys().Size();
+            + std::size(CommandLineKeys) + GetSemanticDiagnosticKeys().Size() + std::size(summaryKeys);
         Check(korean.GetCount() == expected && english.GetCount() == expected,
-            "the tables hold exactly the parser, lexer, semantic and command line keys");
+            "the tables hold exactly the parser, lexer, semantic, command line and summary keys");
     }
 
     void TestProjectOutputPreservesUnchangedFiles()
@@ -247,7 +261,7 @@ namespace
         fs::path secondHeader;
         for (const auto& file : fs::directory_iterator(output))
         {
-            const std::string contents = ReadBytes(file.path());
+            const JBro::String contents = ReadBytes(file.path());
             if (file.path().extension() == L".h")
             {
                 if (contents.find("class First :") != std::string::npos)

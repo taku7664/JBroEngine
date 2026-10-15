@@ -71,6 +71,9 @@ namespace JBro::DebugAdapter
             String condition;
             // 로그 포인트: 서지 않고 이 글을 출력한다. `{식}` 은 값으로 바꾼다. 비었으면 로그 포인트가 아니다.
             String logMessage;
+            Bool pending = false;
+            Bool rejected = false;
+            std::chrono::steady_clock::time_point sentAt;
         };
 
         struct ScriptModule
@@ -128,6 +131,8 @@ namespace JBro::DebugAdapter
         Bool ResolveAndArm(SourceBreakpoint& breakpoint);
         void DisarmBreakpoint(SourceBreakpoint& breakpoint);
         JsonValue DescribeBreakpoint(const SourceBreakpoint& breakpoint) const;
+        void CompleteConfiguration();
+        void PollBreakpointAcknowledgments();
 
         // ── 변수 ──
         Bool SelectFrame(Int64 frameId);
@@ -168,6 +173,8 @@ namespace JBro::DebugAdapter
         Array<ScriptModule> m_scriptModules;
         Array<SourceBreakpoint> m_breakpoints;
         Int32 m_nextBreakpointId = 1;
+        JsonValue m_configurationRequest;
+        Bool m_configurationPending = false;
 
         // 지금 멈춘 자리.
         ULONG64 m_stoppedContext = 0;

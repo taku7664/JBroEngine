@@ -48,6 +48,8 @@ namespace JBro
         ChildProcess StartProcess(const char* utf8CommandLine, const char* utf8WorkingFolder, const char* utf8OutputFile) override;
         ProcessStatus PollProcess(const ChildProcess& process, Int32& exitCode) override;
         void CloseProcess(ChildProcess& process) override;
+        OwnerPtr<IProcessChannel> StartProcessChannel(const char* command, const char* workingFolder) override;
+        void SetTextInputPosition(WindowHandle window, Float x, Float y, Float lineHeight) override;
         Bool LaunchProcess(const char* utf8CommandLine, const char* utf8WorkingFolder) override;
         String ReadEnvironmentVariable(const char* name) const override;
         Bool FileExists(const char* utf8Path) const override;

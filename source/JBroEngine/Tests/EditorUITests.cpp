@@ -2,11 +2,13 @@
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/String.h>
 
 #include <imgui.h>
 
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -24,6 +26,48 @@ namespace
             std::cout << "test failure: " << message << '\n';
             throw std::runtime_error(message);
         }
+    }
+    void TestScriptOutlineUsesCommonWidgets()
+    {
+        namespace fs = std::filesystem;
+        JBro::WindowsPlatform platform;
+        const auto executable = platform.GetExecutableFolder();
+        fs::path root(reinterpret_cast<const char8_t*>(executable.c_str()));
+        fs::path widget;
+        for (;;)
+        {
+            for (const auto& candidate : {root, root / "source/JBroEngine"})
+            {
+                const auto file = candidate / "Modules/JBroEditor/Source/Widget/ScriptOutline.cpp";
+                if (fs::is_regular_file(file))
+                {
+                    widget = file;
+                    break;
+                }
+            }
+            if (!widget.empty() || root == root.parent_path())
+            {
+                break;
+            }
+            root = root.parent_path();
+        }
+        Check(!widget.empty(), "script outline source guard locates the checkout");
+        std::ifstream file(widget, std::ios::binary);
+        const JBro::String text(std::istreambuf_iterator<char>(file), {});
+        Check(text.find("TreeDrawContext") != JBro::String::npos && text.find("TreeBegin(") != JBro::String::npos
+            && text.find("TreeEnd(") != JBro::String::npos, "script outline uses the existing engine tree row context");
+        for (const auto* forbidden : {"ImGui::TreeNodeEx(", "ImGui::TextDisabled(", "ImGui::TextUnformatted(",
+            "ImGui::TextWrapped(", "ImGui::Button(", "const String tooltip = item.name"})
+        {
+            Check(text.find(forbidden) == JBro::String::npos, "script outline does not replace common widgets or allocate tooltip text per row");
+        }
+        Check(text.find("item.tooltip.c_str()") != JBro::String::npos, "outline uses tooltip text cached with summary data");
+        Check(text.find("IconButton(\"##remove\", Icons::Xmark)") != JBro::String::npos
+            && text.find("LocKeys::ScriptSummaryRemoveInitializer") != JBro::String::npos,
+            "initializer removal uses the common guided icon button and its localized tooltip");
+        std::ifstream panel(widget.parent_path().parent_path() / "Panel/ScriptSummaryPanel.cpp", std::ios::binary);
+        const JBro::String panelText(std::istreambuf_iterator<char>(panel), {});
+        Check(panelText.find("item.tooltip =") != JBro::String::npos, "summary collection caches each outline tooltip with the response");
     }
 
     constexpr JBro::UInt32 SurfaceSize = 512;
@@ -547,6 +591,7 @@ namespace
 
 JBro::Int32 RunEditorUITests()
 {
+    TestScriptOutlineUsesCommonWidgets();
     TestTheDemoWindowPaintsSomething();
     TestInputReachesTheUi();
     TestTheFrameOrderIsEnforced();

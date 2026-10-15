@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -147,6 +147,15 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroPackage\JBroPackage.vcxproj">
       <Project>{1a000034-0000-4000-8000-00000000fa4c}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroThirdPartyDir)ImGuiColorTextEdit\ImGuiColorTextEdit.vcxproj"><Project>{3a97ca11-209a-48a3-8104-641ebc4bc606}</Project></ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroc\JBroc.vcxproj">
+      <Project>{1a000016-0000-4000-8000-00000000b20c}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
