@@ -233,7 +233,11 @@ namespace JBro
                 static_cast<JBro::Int32>(chosen));
         }
 
+        // **스크립트가 중단점에 선 동안은 보기만 한다**(D-325 2 단계). 편집 커맨드가 잠겨 있으니 칸도 잠근다 - 고칠 수 있게 보이는데 되돌아가면 고장으로 보인다.
+        // 접기·펼치기는 그대로 둔다. 둘러보는 것이 선 까닭이다.
+        const Bool atBreak = m_editor->IsAtScriptBreak();
         {
+            Widget::DisableScope breakLock(atBreak);
             Widget::FormLayout header("##object");
             header.Row(
                 Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorActive, "Active")),
@@ -352,7 +356,10 @@ namespace JBro
         ImGui::PopID();
 
         ImGui::Spacing();
-        DrawAddComponent(*object);
+        {
+            Widget::DisableScope breakLock(atBreak);
+            DrawAddComponent(*object);
+        }
     }
 
     Bool InspectorPanel::DrawAttached(Object::GameObject& object, AttachedRef attached, ComponentTypeId typeId,
@@ -2209,7 +2216,7 @@ namespace JBro
             // **원소 안의 저장하지 않는 필드는 잠근다**(D-89). 목록은 전체의 글자로 되돌리는데 그
             // 글자에 이 필드가 없다 - 고쳐도 편집이 빠지고, 목록을 되돌릴 때마다 기본값이 된다.
             const Bool editable = (property.edit == nullptr || property.edit->editable)
-                && (false == inElement || property.serialize);
+                && (false == inElement || property.serialize) && false == m_editor->IsAtScriptBreak();
             const char* tooltip =
                 property.edit != nullptr ? property.edit->tooltip : nullptr;
 
@@ -2325,7 +2332,7 @@ namespace JBro
         const PropertyEditInfo* edit,
         Context& context)
     {
-        const Bool editable = edit == nullptr || edit->editable;
+        const Bool editable = (edit == nullptr || edit->editable) && false == m_editor->IsAtScriptBreak();
         Widget::DisableScope disabled(false == editable);
 
         // enum 은 타입이 이름표를 들고 있다. 이름으로 알아볼 필요가 없다.

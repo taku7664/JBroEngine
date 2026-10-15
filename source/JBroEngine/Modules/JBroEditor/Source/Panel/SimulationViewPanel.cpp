@@ -124,6 +124,24 @@ namespace JBro
                 : Loc::TextOr(LocKeys::SimulationViewNoCamera, "there is no camera");
             icon = unusable ? Icons::Warning : Icons::NoCamera;
         }
+        else if (m_editor->IsAtScriptBreak())
+        {
+            // 스크립트가 중단점에 섰다(D-325). 그냥 일시정지와 가른다 - 어느 줄에 섰는지가 이 화면을 보는 까닭이다.
+            const CodeLocation& location = m_editor->GetScriptBreakLocation();
+            const char* file = location.file.c_str();
+            for (const char* at = file; *at != '\0'; ++at)
+            {
+                if (*at == '/' || *at == '\\')
+                {
+                    file = at + 1;
+                }
+            }
+            std::snprintf(m_breakStatus, sizeof(m_breakStatus), Loc::TextOr(LocKeys::SimulationViewScriptBreak, "Stopped at %s:%u"),
+                location.file.empty() ? "?" : file, static_cast<unsigned int>(location.line.Value));
+            text = m_breakStatus;
+            icon = Icons::Pause;
+            color = IM_COL32(255, 200, 90, 255);
+        }
         else if (playing)
         {
             text = Loc::TextOr(LocKeys::SimulationViewPlaying, "Playing");

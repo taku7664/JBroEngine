@@ -312,8 +312,8 @@ namespace JBro
         }
         Bool CanStep(const EditorActionContext& context)
         {
-            // 도는 게임은 한 프레임씩 나아갈 것이 없다 - 멈춘 동안만이다.
-            return context.editor->IsSimulationPlaying() && context.editor->IsSimulationPaused();
+            // 도는 게임은 한 프레임씩 나아갈 것이 없다 - 멈춘 동안만이다. 스크립트가 중단점에 선 동안은 그 프레임 한가운데라 나아갈 수 없다.
+            return context.editor->IsSimulationPlaying() && context.editor->IsSimulationPaused() && false == context.editor->IsAtScriptBreak();
         }
         const char* WhyNoStep(const EditorActionContext& context)
         {
@@ -321,6 +321,10 @@ namespace JBro
             if (false == context.editor->IsSimulationPlaying())
             {
                 return WhyNoPause(context);
+            }
+            if (context.editor->IsAtScriptBreak())
+            {
+                return Loc::TextOr(LocKeys::BlockedAtScriptBreak, "a script is stopped at a breakpoint - unpause it to go on");
             }
             return Loc::TextOr(LocKeys::BlockedNotPaused, "pause the simulation to step one frame");
         }

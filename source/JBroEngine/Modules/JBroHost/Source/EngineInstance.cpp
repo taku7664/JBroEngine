@@ -896,6 +896,11 @@ namespace JBro
         {
             return false;
         }
+        return RenderFrame();
+    }
+
+    Bool EngineInstance::RenderFrame()
+    {
         WindowState windowState;
         if (false == m_platform->GetWindowState(m_mainWindow, windowState))
         {
@@ -1006,9 +1011,79 @@ namespace JBro
         return endStatus == FrameStatus::Ready || endStatus == FrameStatus::Skipped;
     }
 
+    Bool EngineInstance::AcceptsFrameRequests() const
+    {
+        return m_state != State::Ticking || m_inBreakFrames;
+    }
+
+    Bool EngineInstance::BeginBreakFrames()
+    {
+        if (m_state != State::Ticking || m_inBreakFrames)
+        {
+            return false;
+        }
+        m_inBreakFrames = true;
+        // 그릴 것을 먼저 마련하고 그 뒤를 표시한다. 마련한 목록이 프레임 메모리를 썼다면 선 동안 내내 살아 있어야 한다.
+        if (m_framework != nullptr)
+        {
+            m_framework->PrepareBreakFrames();
+        }
+        if (m_frameMemory)
+        {
+            m_breakFrameMark = m_frameMemory->Mark();
+        }
+        // 멈춘 동안 소리도 선다. 풀면 선 자리에서 이어진다.
+        if (m_audioMixer.Get() != nullptr)
+        {
+            m_breakMixerWasFrozen = m_audioMixer->IsFrozen();
+            m_audioMixer->SetFrozen(true);
+        }
+        return true;
+    }
+
+    Bool EngineInstance::RenderBreakFrame()
+    {
+        if (false == m_inBreakFrames)
+        {
+            return false;
+        }
+        if (m_frameMemory)
+        {
+            m_frameMemory->RewindTo(m_breakFrameMark);
+        }
+        const ProfileScope scope("BreakFrame");
+        return RenderFrame();
+    }
+
+    void EngineInstance::EndBreakFrames()
+    {
+        if (false == m_inBreakFrames)
+        {
+            return;
+        }
+        if (m_frameMemory)
+        {
+            m_frameMemory->RewindTo(m_breakFrameMark);
+        }
+        if (m_audioMixer.Get() != nullptr)
+        {
+            m_audioMixer->SetFrozen(m_breakMixerWasFrozen);
+        }
+        if (m_framework != nullptr)
+        {
+            m_framework->EndBreakFrames();
+        }
+        m_inBreakFrames = false;
+    }
+
+    Bool EngineInstance::IsInBreakFrames() const
+    {
+        return m_inBreakFrames;
+    }
+
     Bool EngineInstance::SetSimulationViewTarget(const FrameTarget& target)
     {
-        if (m_state == State::Ticking)
+        if (false == AcceptsFrameRequests())
         {
             return false;
         }
@@ -1018,7 +1093,7 @@ namespace JBro
 
     Bool EngineInstance::RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail)
     {
-        if (m_state == State::Ticking || m_layerThumbnailCount >= MaxLayerThumbnails
+        if (false == AcceptsFrameRequests() || m_layerThumbnailCount >= MaxLayerThumbnails
             || false == thumbnail.target.IsValid() || thumbnail.extent.width == 0 || thumbnail.extent.height == 0)
         {
             return false;
@@ -1029,7 +1104,7 @@ namespace JBro
 
     Bool EngineInstance::RequestEditorView(const EditorViewDesc& view)
     {
-        if (m_state == State::Ticking)
+        if (false == AcceptsFrameRequests())
         {
             return false;
         }

@@ -49,7 +49,6 @@ namespace
         NullInUpdate,
         DivideInUpdate,
         RecurseInUpdate,
-        BreakInUpdate,
         NullInFixedUpdate,
         NullInCollision,
         WreckThenNullInUpdate,
@@ -163,10 +162,6 @@ namespace
             case FaultMode::RecurseInUpdate:
                 ++g_control.faultsRaised;
                 RecurseForever(0);
-                break;
-            case FaultMode::BreakInUpdate:
-                ++g_control.faultsRaised;
-                __debugbreak();
                 break;
             case FaultMode::WreckThenNullInUpdate:
             {
@@ -377,7 +372,6 @@ namespace
             {"null write in OnUpdate", FaultMode::NullInUpdate, 30, 0xC0000005u, false},
             {"integer divide by zero in OnUpdate", FaultMode::DivideInUpdate, 12, 0xC0000094u, false},
             {"endless recursion in OnUpdate", FaultMode::RecurseInUpdate, 8, 0xC00000FDu, false},
-            {"__debugbreak in OnUpdate with no debugger", FaultMode::BreakInUpdate, 5, 0x80000003u, false},
             {"null write in OnFixedUpdate", FaultMode::NullInFixedUpdate, 3, 0xC0000005u, false},
             {"null write in OnCollisionEnter", FaultMode::NullInCollision, 1, 0xC0000005u, false},
             {"spawn, delete and move, then null write", FaultMode::WreckThenNullInUpdate, 10, 0xC0000005u, false},

@@ -80,6 +80,7 @@ Entries:
   canvas_view.unit_tooltip: read the ruler in world units or in pixels, against the default asset PPU of 100
   simulation_view.playing: Playing
   simulation_view.stopped: Stopped
+  simulation_view.script_break: "Stopped at %s:%u"
   simulation_view.no_canvas: no canvas is open
   simulation_view.no_camera: there is no camera
   simulation_view.camera_unusable: the Camera2D values cannot be drawn
@@ -155,6 +156,7 @@ Entries:
   blocked.clipboard_empty: nothing has been copied
   blocked.not_playing: the simulation is not running
   blocked.not_paused: pause the simulation to step one frame
+  blocked.at_script_break: a script is stopped at a breakpoint - unpause it to go on
   blocked.project_has_no_file: only a project opened from a file can be saved
   blocked.pick_an_image: pick an image asset first
   blocked.last_layer: a canvas needs at least one layer
@@ -394,6 +396,8 @@ Entries:
   notify.script_created: "Created the script %s"
   notify.script_created_next: "Click to open it in your code editor. Once written, build with File > Build Scripts and it shows up in Add Component in the inspector"
   notify.script_fault_stopped: A script error stopped the simulation
+  notify.script_break: A script stopped at a breakpoint
+  notify.script_break_at: "%s:%u  %s - unpause to go on, stop to end the run. Editing waits until then"
   notify.script_fault: A script raised an error
   notify.script_fault_at: "%s - %s:%u (%s). Click to open the line"
   notify.script_fault_in_hook: "%s (%s)"

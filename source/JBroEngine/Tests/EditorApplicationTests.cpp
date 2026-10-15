@@ -16102,6 +16102,75 @@ namespace
         return JBro::EditorActionUi::Execute(*action, context);
     }
 
+    // 시나리오 A 의 9 단계: 스크립트가 선 동안 사용자가 하는 일이다. 처음 서면 둘러보고(화면을 찍고) 도구 모음의 일시정지를 풀고,
+    // 두 번째로 서면 재생 단추로 끝낸다. 선 동안에는 에디터가 `Tick` 이 아니라 이 함수를 매 프레임 부른다.
+    struct ScenarioBreak
+    {
+        JBro::UInt32 line = 0;
+        JBro::Int32 stops = 0;
+        JBro::Bool sawLine = true;
+        JBro::Bool sawNotice = true;
+        JBro::Bool stepRefused = true;
+        JBro::Float firstX = 0.0f;
+        JBro::Bool movedBetween = false;
+    };
+
+    ScenarioBreak g_scenarioBreak;
+
+    void OnScenarioBreakFrame(void*, JBro::EditorApplication& editor)
+    {
+        ScenarioBreak& state = g_scenarioBreak;
+        const JBro::UInt32 frame = editor.GetScriptBreakFrameCount();
+        if (frame == 0)
+        {
+            ++state.stops;
+            const JBro::CodeLocation& location = editor.GetScriptBreakLocation();
+            state.sawLine = state.sawLine && location.line == state.line && std::strstr(location.file.c_str(), "PlayerMover.cpp") != nullptr;
+            state.sawNotice = state.sawNotice && std::strcmp(editor.GetNotifications().GetLastTitle(),
+                JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptBreak, "A script stopped at a breakpoint")) == 0;
+            state.stepRefused = state.stepRefused && false == RunEditorAction(editor, "simulation.step");
+            const JBro::Float x = ScriptedX(*editor.GetCanvas());
+            if (state.stops == 1)
+            {
+                state.firstX = x;
+            }
+            else
+            {
+                state.movedBetween = x > state.firstX + 1.0f;
+            }
+            return;
+        }
+        if (frame < 30)
+        {
+            return;
+        }
+        if (state.stops == 1 && frame == 30)
+        {
+            SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, "a16_script_break");
+            // 선 동안 둘러본다: 오브젝트를 고르고 캔버스 뷰로 간다. 고르기는 편집이 아니다.
+            editor.SetSelectedObject(FindScriptedObject(*editor.GetCanvas()));
+            if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
+            {
+                canvasView->RequestFocus();
+            }
+            return;
+        }
+        if (state.stops == 1)
+        {
+            if (frame < 50)
+            {
+                return;
+            }
+            state.sawNotice = state.sawNotice && editor.GetSelectedObject() == FindScriptedObject(*editor.GetCanvas());
+            SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, "a16b_script_break_canvas");
+            Check(RunEditorAction(editor, "simulation.pause"), "unpausing from the toolbar goes on");
+        }
+        else
+        {
+            Check(RunEditorAction(editor, "simulation.play"), "the play button stops");
+        }
+    }
+
     // **시나리오 A: 처음 쓰는 사용자.** 프로젝트 없이 켠다 → 새 프로젝트 → 새 스크립트 → 코드를 적는다 → 빌드 → 오브젝트를 만들고
     // 컴포넌트 추가로 스크립트를 붙인다 → 실행해 움직이는 것을 본다 → 멈추면 돌아온다 → 오타로 빌드가 깨진다 → 빌드 결과에서 그 줄을 연다
     // → 고쳐 다시 빌드하면 붙은 스크립트가 그대로 이어진다.
@@ -16277,6 +16346,39 @@ namespace
         Check(editor.GetScriptBuildState() == JBro::EditorApplication::ScriptBuildState::Succeeded, "the fixed build succeeds");
         Check(FindScriptedObject(*editor.GetCanvas()) != nullptr, "the script is still on the object after the reload");
         ScenarioShot(editor, "a15_fixed");
+
+        // ── 9. 스크립트의 `__debugbreak()` 에서 선다 → 둘러보고 일시정지를 풀면 이어 간다 → 다시 서면 정지한다 (D-325 2 단계) ─────────────
+        const std::string withBreak = InsertIntoFunction(good, "PlayerMover::OnUpdate()",
+            "\r\n    static Int32 frames = 0;\r\n    frames = frames + 1;\r\n    if (frames == 10 || frames == 40)\r\n    {\r\n        __debugbreak();\r\n    }\r\n");
+        WriteWholeText(source, withBreak);
+        JBro::UInt32 breakLine = 1;
+        for (std::size_t at = 0; at < withBreak.find("__debugbreak"); ++at)
+        {
+            breakLine += withBreak[at] == '\n' ? 1 : 0;
+        }
+        Check(editor.BuildScripts(), "the build with a break starts");
+        Check(WaitForScriptBuild(editor), "and ends");
+        Check(editor.GetScriptBuildState() == JBro::EditorApplication::ScriptBuildState::Succeeded, "a script with __debugbreak builds");
+        g_scenarioBreak = ScenarioBreak{};
+        g_scenarioBreak.line = breakLine;
+        editor.SetScriptBreakFrameHook(&OnScenarioBreakFrame, nullptr);
+        Check(RunEditorAction(editor, "simulation.play"), "play starts");
+        JBro::Int32 played = 0;
+        while (editor.IsSimulationPlaying() && played < 120)
+        {
+            Check(editor.Tick(Frame), "the editor plays through the breaks");
+            ++played;
+        }
+        editor.SetScriptBreakFrameHook(nullptr, nullptr);
+        Check(g_scenarioBreak.stops == 2, "the script stood twice: once to look around, once to stop");
+        Check(g_scenarioBreak.sawLine, "each stop names PlayerMover.cpp and the line with __debugbreak");
+        Check(g_scenarioBreak.sawNotice, "and tells the user how to go on or stop");
+        Check(g_scenarioBreak.stepRefused, "stepping one frame is refused while the script stands");
+        Check(g_scenarioBreak.movedBetween, "the object moved between the two stops - going on really ran the game");
+        Check(false == editor.IsSimulationPlaying(), "stopping at the second break ends play");
+        Check(ScriptedX(*editor.GetCanvas()) == startX, "and puts the object back");
+        Check(editor.GetNotifications().GetLastLevel() != JBro::NotificationLevel::Error, "a stop the user chose is not an error");
+        ScenarioShot(editor, "a17_stopped_from_break");
 
         editor.Shutdown();
     }

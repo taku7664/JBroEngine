@@ -33,6 +33,17 @@ public:
 	// 프레임 경계에서 부른다. 나눠 준 모든 포인터가 이 시점에 무효가 된다.
 	void Reset();
 
+	// 지금까지 나눠 준 자리다. `RewindTo` 가 이 뒤의 것만 거둔다.
+	struct Marker
+	{
+		std::size_t used = 0;
+		std::size_t overflow = 0;
+	};
+	// 프레임 한가운데서 그 안쪽 프레임을 여러 번 돌릴 때 쓴다(D-325: 스크립트가 중단점에 선 동안 화면만 다시 그린다).
+	// 표시 앞의 메모리는 바깥 프레임이 쓰던 것이라 그대로 두고, 안쪽 프레임마다 표시 자리로 되감는다.
+	Marker Mark() const;
+	void RewindTo(const Marker& marker);
+
 	// 값으로 넘길 수 있는 인터페이스다. userData 는 this 이므로
 	// 이 객체보다 오래 사는 곳에 보관하면 안 된다.
 	JAllocator GetInterface();

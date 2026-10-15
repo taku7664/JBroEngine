@@ -65,6 +65,29 @@ namespace JBro
         UInt32 line = 0;
     };
 
+    // 코드의 int 3 에 걸린 자리다(D-325 2 단계). 엔진이 넣은 중단점이거나, 코드에 원래 든 int 3(`__debugbreak`)이다.
+    struct CodeBreak
+    {
+        UInt64 address = 0;
+        // 엔진이 넣은 것이 아니라 코드에 든 int 3 이다.
+        Bool embedded = false;
+        // 멈춘 스레드의 운영체제 문맥(`CONTEXT*`)이다. 디버그 어댑터가 스택과 변수를 이 문맥으로 읽는다.
+        const void* context = nullptr;
+    };
+
+    enum class CodeBreakAction : std::uint8_t
+    {
+        // 받지 않는다. 코드에 든 int 3 은 보통 예외로 나아가고, 넣은 중단점은 `Continue` 와 같다.
+        Pass,
+        // 그 자리에서 이어 간다. 넣은 중단점은 원래 명령 하나를 돌린 뒤 다시 넣고, 코드에 든 int 3 은 건너뛴다.
+        Continue,
+        // 이어 가지 않고 예외로 나아가게 한다. 스크립트를 감싼 보호(`ScriptCallGuard`)가 받아 그 훅을 끝낸다.
+        Stop,
+    };
+
+    // 걸린 자리에서(예외 처리기 안에서) 불린다. 돌아올 때까지 그 스레드는 그 자리에 서 있다.
+    using CodeBreakHandler = CodeBreakAction (*)(void* user, const CodeBreak& hit);
+
     enum class ProcessStatus : std::uint8_t
     {
         Running,
@@ -489,6 +512,31 @@ namespace JBro
             (void)address;
             (void)location;
             return false;
+        }
+
+        // ── 스크립트 중단점 (D-325 2 단계) ──────────────────────────────────────────────────────
+        // **OS 디버거로 붙지 않고 엔진이 중단점을 받는다.** 엔진이 코드에 int 3 을 넣고 빼며, 걸리면 그 스레드의 예외 처리기에서
+        // `handler` 를 부른다. 처리기를 건 스레드에서 난 것만 받는다 - 다른 스레드의 int 3 은 보통 예외로 나아간다.
+        // `nullptr` 로 끄면 넣은 중단점도 모두 뺀다. 없는 플랫폼이면 거짓이다.
+        virtual Bool SetCodeBreakHandler(CodeBreakHandler handler, void* user)
+        {
+            (void)handler;
+            (void)user;
+            return false;
+        }
+        // 실행할 수 있는 코드 주소에 중단점을 넣는다. 이미 있으면 참이다. 그 코드를 내리기(DLL 을 내리기) 전에 뺀다.
+        virtual Bool SetCodeBreakpoint(UInt64 address)
+        {
+            (void)address;
+            return false;
+        }
+        virtual Bool ClearCodeBreakpoint(UInt64 address)
+        {
+            (void)address;
+            return false;
+        }
+        virtual void ClearCodeBreakpoints()
+        {
         }
     };
 }

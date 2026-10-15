@@ -18,6 +18,7 @@ namespace JBro::ScriptCallGuard
         {
             Bool enabled = false;
             Bool faulted = false;
+            UInt32 depth = 0;
             ScriptFaultCapture capture = nullptr;
             void* user = nullptr;
             ScriptFault fault;
@@ -66,6 +67,11 @@ namespace JBro::ScriptCallGuard
         return GetState().enabled;
     }
 
+    Bool IsInCall()
+    {
+        return GetState().depth > 0;
+    }
+
     Bool HasFault()
     {
         return GetState().faulted;
@@ -112,6 +118,20 @@ namespace JBro::ScriptCallGuard
 #else
             return 1;
 #endif
+        }
+
+        void Enter()
+        {
+            ++GetState().depth;
+        }
+
+        void Leave()
+        {
+            State& state = GetState();
+            if (state.depth > 0)
+            {
+                --state.depth;
+            }
         }
 
         void Recover()

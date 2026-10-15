@@ -42,6 +42,8 @@ namespace JBro
         void SetSimulationEnabled(Bool enabled) override;
         void SetScreenSpace(const ScreenSpaceFrame& frame) override;
         const ScreenSpaceFrame& GetScreenSpace() const;
+        void PrepareBreakFrames() override;
+        void EndBreakFrames() override;
         RenderResult Render() override;
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         RenderResult RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail) override;

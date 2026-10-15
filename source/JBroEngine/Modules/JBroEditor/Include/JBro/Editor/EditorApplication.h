@@ -546,6 +546,23 @@ namespace JBro
         Bool IsSimulationPaused() const;
         // 멈춘 재생을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 재생 중이고 멈춰 있을 때만 뜻이 있다.
         void StepSimulation();
+
+        // ── 스크립트 중단점 (D-325 2 단계) ──────────────────────────────────────────────
+        // 재생 중인 스크립트가 중단점(엔진이 넣은 int 3, 또는 스크립트의 `__debugbreak`)에 서면 에디터는 그 자리에서 화면만 그리는 루프를 돈다.
+        // 선 동안 보기·고르기·카메라 이동은 되고 편집(커맨드)은 막히며, 게임 갱신과 소리는 선다. `IsSimulationPaused` 는 참이다.
+        // 일시정지를 풀면(`SetSimulationPaused(false)`·`ContinueScriptBreak`) 선 자리에서 이어 돌고, 정지하면(`StopSimulation`) 그 훅을
+        // 예외로 끝낸 뒤 실행 전 캔버스로 되돌린다.
+        Bool IsAtScriptBreak() const;
+        const CodeLocation& GetScriptBreakLocation() const;
+        // 이번에 선 동안 그린 프레임 수다.
+        UInt32 GetScriptBreakFrameCount() const;
+        void ContinueScriptBreak();
+        // 코드 주소에 중단점을 넣고 뺀다. 디버그 어댑터가 소스 줄을 주소로 바꿔 넘긴다(3 단계). 스크립트 DLL 을 다시 실으면 모두 빠진다.
+        Bool SetScriptBreakpoint(UInt64 address);
+        Bool ClearScriptBreakpoint(UInt64 address);
+        // 선 동안의 프레임마다 부르는 함수다. 시험이 사람 대신 보고 누른다.
+        using ScriptBreakFrameHook = void (*)(void* user, EditorApplication& editor);
+        void SetScriptBreakFrameHook(ScriptBreakFrameHook hook, void* user);
         // 스크립트의 디버그 선을 시뮬레이션 뷰·캔버스 뷰에 그릴지다(D-243). 둘 다 처음에는 켜져 있다.
         void SetSimulationViewDebugDraw(Bool visible);
         Bool IsSimulationViewDebugDrawVisible() const;
@@ -1095,6 +1112,26 @@ namespace JBro
         UInt64 m_scriptErrorLogRevision = 0;
         // 떠 있는 빌드 실패 알림이다. 다음 빌드가 성공하면 닫는다 - 고친 뒤에도 실패 알림이 성공 알림 옆에 남았다(사용자 시나리오 C).
         NotificationHandle m_buildFailedNotification = InvalidNotificationHandle;
+        // 스크립트 중단점(D-325 2 단계). 선 동안 루프가 보는 요청, 정지를 골라 다음 예외가 그 정지인지, 선 자리와 알림이다.
+        enum class ScriptBreakRequest : std::uint8_t
+        {
+            None,
+            Continue,
+            Stop,
+        };
+        static CodeBreakAction OnCodeBreak(void* user, const CodeBreak& hit);
+        CodeBreakAction HandleCodeBreak(const CodeBreak& hit);
+        Bool RunScriptBreakFrame(Float deltaTime);
+        // UI 를 만든 뒤 엔진에 이번 프레임의 시뮬레이션 뷰·캔버스 뷰·썸네일을 건넨다. `Tick` 과 선 동안의 프레임이 함께 쓴다.
+        void SubmitFrameRequests();
+        Bool m_scriptBreakActive = false;
+        ScriptBreakRequest m_scriptBreakRequest = ScriptBreakRequest::None;
+        Bool m_scriptBreakStopped = false;
+        CodeLocation m_scriptBreakLocation;
+        UInt32 m_scriptBreakFrames = 0;
+        NotificationHandle m_scriptBreakNotification = InvalidNotificationHandle;
+        ScriptBreakFrameHook m_scriptBreakHook = nullptr;
+        void* m_scriptBreakHookUser = nullptr;
         UInt64 m_scriptErrorSerial = 0;
         Array<UInt64> m_scriptErrorGroups;
         // 도크 뿌리의 배치는 한 번만 잡는다. 메인 도크가 거기 붙는 것이 전부다.

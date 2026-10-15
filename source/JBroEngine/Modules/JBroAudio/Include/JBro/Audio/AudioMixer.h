@@ -285,6 +285,10 @@ namespace JBro
         // 때 줄이는 정책이 이것을 쓴다 - 게임이 정한 Master 음량과 따로 논다.
         void SetOutputGain(Float gain, Float seconds);
         Float GetOutputGain() const;
+        // 믹서 전체를 세운다(D-325: 스크립트가 중단점에 선 동안). 선 동안 장치에는 0 을 내고 보이스·스트림은 한 표본도 나아가지 않아,
+        // 풀면 선 자리에서 이어진다. 미리 듣기도 함께 선다.
+        void SetFrozen(Bool frozen);
+        Bool IsFrozen() const;
         // 출력 리미터(D-210, 기본 켬). 여러 버스가 겹쳐 `ceiling` 을 넘으면 그 순간에 줄이고 0.1 초에 걸쳐 되돌린다 - 잘라 내어
         // 찌그러지는 것보다 낫다. 끄면 1 에서 잘라 낸다. `Stats::lastPeak` 는 리미터 앞의 값이라 넘친 것이 보인다.
         void SetOutputLimiter(Bool enabled, Float ceiling = 0.98f);

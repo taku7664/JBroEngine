@@ -96,6 +96,7 @@ JBro::Int32 RunScriptBuildTests();
 JBro::Int32 RunDebugAdapterTests();
 JBro::Int32 RunScriptCallGuardTests();
 JBro::Int32 RunScriptFaultTests();
+JBro::Int32 RunScriptBreakTests();
 JBro::Int32 RunUserScenarioTests();
 JBro::Int32 RunScriptHotReloadTests();
 JBro::Int32 RunScriptCompilerLexerTests();
@@ -589,6 +590,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("ScriptFault", &RunScriptFaultTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptBreak", &RunScriptBreakTests))
         {
             return 1;
         }

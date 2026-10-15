@@ -115,6 +115,9 @@ namespace JBro::LocKeys
     inline constexpr const char* NotifyScriptsUnresolvedWhy = "notify.scripts_unresolved_why";
     inline constexpr const char* NotifyScriptCreatedNext = "notify.script_created_next";
     inline constexpr const char* NotifyScriptFaultStopped = "notify.script_fault_stopped";
+    inline constexpr const char* NotifyScriptBreak = "notify.script_break";
+    inline constexpr const char* SimulationViewScriptBreak = "simulation_view.script_break";
+    inline constexpr const char* NotifyScriptBreakAt = "notify.script_break_at";
     inline constexpr const char* NotifyScriptFault = "notify.script_fault";
     inline constexpr const char* NotifyScriptFaultAt = "notify.script_fault_at";
     inline constexpr const char* NotifyScriptFaultInHook = "notify.script_fault_in_hook";
@@ -308,6 +311,7 @@ namespace JBro::LocKeys
     inline constexpr const char* BlockedClipboardEmpty = "blocked.clipboard_empty";
     inline constexpr const char* BlockedNotPlaying = "blocked.not_playing";
     inline constexpr const char* BlockedNotPaused = "blocked.not_paused";
+    inline constexpr const char* BlockedAtScriptBreak = "blocked.at_script_break";
     inline constexpr const char* BlockedProjectHasNoFile = "blocked.project_has_no_file";
     inline constexpr const char* BlockedPickAnImage = "blocked.pick_an_image";
     inline constexpr const char* BlockedLastLayer = "blocked.last_layer";

@@ -133,6 +133,39 @@ namespace
         Check(false == arena.IsInitialized(), "shutdown must release the block");
     }
 
+    // 스크립트가 중단점에 선 동안 안쪽 프레임을 여러 번 돈다(D-325). 바깥 프레임의 메모리는 그대로 두고 안쪽 것만 거둔다.
+    void TestMarkKeepsTheOuterFrame()
+    {
+        JBro::LinearAllocator arena;
+        Check(arena.Initialize(256), "the marked arena must take its block");
+        JBro::JAllocator handle = arena.GetInterface();
+        auto* outer = static_cast<unsigned char*>(handle.allocate(handle.userData, 32, 8));
+        Check(outer != nullptr, "the outer frame takes memory before the mark");
+        outer[0] = 0x5A;
+        const JBro::LinearAllocator::Marker mark = arena.Mark();
+        const std::size_t usedAtMark = arena.GetUsedBytes();
+        for (int inner = 0; inner < 50; ++inner)
+        {
+            arena.RewindTo(mark);
+            Check(arena.GetUsedBytes() == usedAtMark, "each inner frame starts at the mark");
+            void* inside = handle.allocate(handle.userData, 64, 8);
+            void* spilled = handle.allocate(handle.userData, 1024, 8);
+            Check(inside != nullptr && spilled != nullptr && inside != outer, "an inner frame is served after the mark");
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        {
+            CrtFreeProbe probe;
+            arena.RewindTo(mark);
+            Check(crtFrees > 0, "rewinding to a mark hands back the blocks that spilled after it");
+        }
+#else
+        arena.RewindTo(mark);
+#endif
+        Check(arena.GetUsedBytes() == usedAtMark && outer[0] == 0x5A, "the outer frame's memory survives the inner frames");
+        arena.Reset();
+        Check(arena.GetUsedBytes() == 0, "the outer frame still ends with a reset");
+    }
+
     void TestContainersDrawFromTheArena()
     {
         JBro::LinearAllocator arena;
@@ -234,6 +267,7 @@ JBro::Int32 RunFrameMemoryTests()
     TestStatelessPolicyCostsNothing();
     TestLinearAllocatorHandsOutAndRewinds();
     TestArenaOverflowFallsBackAndIsReclaimed();
+    TestMarkKeepsTheOuterFrame();
     TestContainersDrawFromTheArena();
     TestGrowthAndCopyKeepTheRightAllocator();
     TestUnboundReferenceFallsBackToTheHeap();
