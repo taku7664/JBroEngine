@@ -32,7 +32,7 @@
 
 - `[수정·독립 재검증 완료]` **ImGui 내장 코드 편집기 독립 시험.** 삭제 충돌 수정 패치의 10개 회귀·실제 키보드 삭제/Undo/Redo와 한국어 IME·탭/도킹·JBroScript 진단 위치 3항목이 통과했다. [독립 검증 기록](./imgui-code-editor-spike.md). 후속 엔진 통합은 아래 별도 항목이다.
 
-- ~~`[구현·검증 중]` **엔진 내장 코드 편집기 전용 도크·파일 탭·기존 JBroScript LSP를 연결한다.**~~ → 요청 기능 구현·Runtime 검증 완료 2026-10-15 · 이번 통합 커밋 (D-335).
+- ~~`[구현·검증 중]` **엔진 내장 코드 편집기 전용 도크·파일 탭·기존 JBroScript LSP를 연결한다.**~~ → 요청 기능 구현·Runtime 검증 완료 2026-10-15 · `fc592bd6` (D-335).
   `CodeEditorPanel::{Open,Save,OnDraw}`, `Widget::CodeEditor::{SetAnalysis,Undo,Redo}`, `Code::LanguageClient::{Start,Poll}`, `EditorApplication::OpenInScriptEditor`.
   실제 탭·한국어 진단/해제·IME·저장/재불러오기·단일 Undo/Redo·전체 삭제/복구·재연결, 최종 vendor 패치와 관련 10개·긴 회귀 5개를 확인했다. 최종 Debug/Release 전체 빌드와 CodeEditor 시험도 종료 코드 0이다. [통합 기록·검증 범위](./imgui-code-editor-integration.md).
 
