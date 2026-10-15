@@ -74,11 +74,12 @@ D-330 는 이렇게 바꿨다(실측은 [script-debug-plan.md](./script-debug-pl
 
 **확장 쪽 연결도 섰다**(2026-10-15): `source/JBroScriptEditor/extensions/jbro-engine` 가 `jbro` 디버거 타입(`attach` 요청)과 어댑터 서술자(`DebugAdapterExecutable` → `JBroDebugAdapter.exe`), `디버그 실행`(`jbro.debug.start`) 명령·메뉴, 스크립트 언어의 중단점을 기여한다.
 어댑터 실행 파일은 `jbro.engine.debugAdapterPath` 설정, 없으면 확장 옆 `debug-adapter/`, 끝으로 PATH 에서 찾는다. 확장 시험(`extension-host.cjs`)이 기여와 명령을, `check-nls` 가 번역을 본다.
+확장 호스트 시험을 **실제 Code-OSS 개발 빌드**(`F:\Project\JBroScriptEditor\upstream`, 컴파일됨)에서 돌렸다(2026-10-15): `--extensionTestsPath` 로 띄워 `jbro.debug.start` 명령·`jbro` 디버거 기여·중단점 단언을 포함해 지났다(종료 코드 0, "JBro extension-host checks passed").
 
 ## 6. 남은 것
 
 - ~~`.jscript` 소스 맵~~ → 이미 있다(2026-10-15 확인). 이미터가 생성 C++ 에 문장마다 `#line <줄> "<파일>.jscript"` 를 넣어, 컴파일한 PDB 의 줄 기록이 `.jscript` 파일·줄을 가리킨다. 디버거는 그 PDB 로 `.jscript` 줄에 바로 중단점을 건다. `ScriptProject` 시험이 빌드한 DLL 의 PDB 가 `.jscript` 줄을 코드 주소로 매핑하는지 본다(`JScriptLinesAreAddressable`, 11 줄). 빈 콜백은 코드가 없어 매핑도 없다 - 문장이 있는 스크립트만이다.
-- 실제 Script Editor 설치본에서의 확인(설치본은 아직 없다, ide-plan). 어댑터를 설치본 어디에 둘지(`debug-adapter/`)와 설치 빌드가 남았다.
+- **설치본에 어댑터를 넣는 일은 Script Editor 설치본이 선 뒤다 - 디버거 단계가 아니라 IDE 쪽 마일스톤(ide-plan D-102)이다.** 설치본은 아직 없다(Code-OSS 포크를 gulp 로 패키징 + JBro 브랜딩, 수 GB·별도 과제). 설 때 어댑터를 `debug-adapter/` 에 두고 `jbro.engine.debugAdapterPath` 기본을 맞춘다. 디버거 쪽(엔진·어댑터·확장 기여·호스트 시험)은 개발 빌드에서 모두 검증됐다.
 - ~~조건부 중단점·로그 포인트~~ → 섰다(2026-10-15). 어댑터가 `supportsConditionalBreakpoints`·`supportsLogPoints` 를 알리고, 멈춤에서 `.cxr` 뒤 조건을 풀어 거짓이면 서지 않고 이어 간다. 로그 포인트는 `{식}` 을 값으로 바꿔 `output` 으로 내고 이어 간다. `DebugAdapter` 시험이 거짓 조건·참 조건·로그 포인트를 본다.
 - 데이터 중단점·변수 값 바꾸기·예외 거르기 설정은 없다.
 - ~~Release 구성의 스크립트 디버깅은 재지 않았다.~~ → 쟀다(script-debug-plan §4.6): 됨. 줄·지역 가시성은 대상 코드의 최적화에 달렸다.
