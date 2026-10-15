@@ -270,9 +270,9 @@ namespace JBro::ScriptCompiler
                 m_recovering = false;
             }
 
-            NodeIndex ParseTypeDeclaration()
+            NodeIndex ParseTypeDeclaration(std::uint16_t flags = SyntaxFlagNone, const SourceLocation* memberBegin = nullptr)
             {
-                const SourceLocation begin = Current().Range.Begin;
+                const SourceLocation begin = memberBegin == nullptr ? Current().Range.Begin : *memberBegin;
                 const TokenKind keyword = Advance().Kind;
                 SyntaxKind kind = SyntaxKind::ScriptDeclaration;
                 switch (keyword)
@@ -315,10 +315,10 @@ namespace JBro::ScriptCompiler
                 if (false == Expect(TokenKind::LeftBrace, "{"))
                 {
                     SyncStatement();
-                    return Make(kind, begin, name, SyntaxFlagNone, children);
+                    return Make(kind, begin, name, flags, children);
                 }
                 ParseMembers(children);
-                return Make(kind, begin, name, SyntaxFlagNone, children);
+                return Make(kind, begin, name, flags, children);
             }
 
             void ParseMembers(Array<NodeIndex>& children)
@@ -350,9 +350,9 @@ namespace JBro::ScriptCompiler
                 }
             }
 
-            NodeIndex ParseEnumDeclaration()
+            NodeIndex ParseEnumDeclaration(std::uint16_t flags = SyntaxFlagNone, const SourceLocation* memberBegin = nullptr)
             {
-                const SourceLocation begin = Current().Range.Begin;
+                const SourceLocation begin = memberBegin == nullptr ? Current().Range.Begin : *memberBegin;
                 Advance();
                 std::string_view name;
                 if (At(TokenKind::Identifier))
@@ -368,7 +368,7 @@ namespace JBro::ScriptCompiler
                 if (false == Expect(TokenKind::LeftBrace, "{"))
                 {
                     SyncStatement();
-                    return Make(SyntaxKind::EnumDeclaration, begin, name, SyntaxFlagNone, members);
+                    return Make(SyntaxKind::EnumDeclaration, begin, name, flags, members);
                 }
                 while (true)
                 {
@@ -396,7 +396,7 @@ namespace JBro::ScriptCompiler
                     // 멤버는 한 줄에 하나다.
                     ExpectEndOfStatement();
                 }
-                return Make(SyntaxKind::EnumDeclaration, begin, name, SyntaxFlagNone, members);
+                return Make(SyntaxKind::EnumDeclaration, begin, name, flags, members);
             }
 
             NodeIndex ParseMember()
@@ -435,6 +435,15 @@ namespace JBro::ScriptCompiler
                     Advance();
                 }
 
+                if (At(TokenKind::KeywordClass) || At(TokenKind::KeywordStruct) || At(TokenKind::KeywordInterface)
+                    || At(TokenKind::KeywordEnum))
+                {
+                    if (attributes != InvalidNode || (flags & SyntaxFlagStatic) != 0)
+                    {
+                        Report(DiagnosticCode::ExpectedMember);
+                    }
+                    return At(TokenKind::KeywordEnum) ? ParseEnumDeclaration(flags, &begin) : ParseTypeDeclaration(flags, &begin);
+                }
                 if (At(TokenKind::KeywordFn))
                 {
                     return ParseFunction(begin, attributes, flags);
@@ -640,7 +649,29 @@ namespace JBro::ScriptCompiler
                     Report(DiagnosticCode::ExpectedType);
                     return InvalidNode;
                 }
-                const std::string_view name = Advance().Text;
+                const char* nameBegin = Current().Text.data();
+                std::string_view name = Advance().Text;
+                while (true)
+                {
+                    const std::size_t beforeDot = m_position;
+                    const SourceLocation beforeDotEnd = m_lastEnd;
+                    SkipNewlines();
+                    if (false == At(TokenKind::Dot))
+                    {
+                        m_position = beforeDot;
+                        m_lastEnd = beforeDotEnd;
+                        break;
+                    }
+                    Advance();
+                    SkipNewlines();
+                    if (false == At(TokenKind::Identifier))
+                    {
+                        Report(DiagnosticCode::ExpectedName);
+                        break;
+                    }
+                    const std::string_view part = Advance().Text;
+                    name = std::string_view(nameBegin, static_cast<std::size_t>(part.data() + part.size() - nameBegin));
+                }
                 Array<NodeIndex> arguments;
                 if (At(TokenKind::Less))
                 {
@@ -681,7 +712,7 @@ namespace JBro::ScriptCompiler
                 {
                     return true;
                 }
-                if (TokenKind::Less != next && TokenKind::Question != next)
+                if (TokenKind::Less != next && TokenKind::Question != next && TokenKind::Dot != next && TokenKind::Newline != next)
                 {
                     return false;
                 }

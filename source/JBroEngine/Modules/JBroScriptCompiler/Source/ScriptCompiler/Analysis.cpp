@@ -2,6 +2,7 @@
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/Lexer.h>
 #include <JBro/Types/Table.h>
+#include "QualifiedName.h"
 
 #include <algorithm>
 #include <charconv>
@@ -122,7 +123,7 @@ namespace JBro::ScriptCompiler
             const String name = TypeBase(type);
             for (const Symbol& symbol : result.Symbols)
             {
-                if (IsTypeSymbol(symbol.Kind) && symbol.Name == name)
+                if (IsTypeSymbol(symbol.Kind) && symbol.Type == name)
                 {
                     return symbol.Id;
                 }
@@ -157,15 +158,36 @@ namespace JBro::ScriptCompiler
             return Derives(result, type, base, visited);
         }
 
+        Bool LexicalOwner(const AnalysisResult& result, SymbolId ancestor, SymbolId owner)
+        {
+            while (owner != InvalidSymbol)
+            {
+                if (owner == ancestor)
+                {
+                    return true;
+                }
+                owner = result.Symbols[owner].Parent;
+            }
+            return false;
+        }
+
         Bool Accessible(const AnalysisResult& result, const Symbol& member, SymbolId owner)
         {
             if (member.IsPrivate)
             {
-                return member.Parent == owner;
+                return LexicalOwner(result, member.Parent, owner);
             }
             if (member.IsProtected)
             {
-                return Derives(result, owner, member.Parent);
+                while (owner != InvalidSymbol)
+                {
+                    if (Derives(result, owner, member.Parent))
+                    {
+                        return true;
+                    }
+                    owner = result.Symbols[owner].Parent;
+                }
+                return false;
             }
             return true;
         }
@@ -224,6 +246,70 @@ namespace JBro::ScriptCompiler
             Array<SymbolId> visited;
             Members(result, type, name, output, visited);
             return output;
+        }
+
+        String QualifiedSpelling(std::string_view name)
+        {
+            return Internal::QualifiedName(name);
+        }
+
+        SymbolId NestedTypePath(const AnalysisResult& result, SymbolId scope, std::string_view name)
+        {
+            const std::size_t dot = name.find('.');
+            const std::string_view head = name.substr(0, dot);
+            for (SymbolId id : Members(result, scope, head))
+            {
+                if (IsTypeSymbol(result.Symbols[id].Kind))
+                {
+                    return dot == std::string_view::npos ? id : NestedTypePath(result, id, name.substr(dot + 1));
+                }
+            }
+            return InvalidSymbol;
+        }
+
+        SymbolId ResolveTypeId(const AnalysisResult& result, std::string_view spelling, SymbolId owner)
+        {
+            const String name = QualifiedSpelling(spelling);
+            for (SymbolId scope = owner; scope != InvalidSymbol; scope = result.Symbols[scope].Parent)
+            {
+                if (IsTypeSymbol(result.Symbols[scope].Kind))
+                {
+                    if (name == result.Symbols[scope].Name)
+                    {
+                        return scope;
+                    }
+                    const SymbolId nested = NestedTypePath(result, scope, name.View());
+                    if (nested != InvalidSymbol)
+                    {
+                        return nested;
+                    }
+                }
+            }
+            const SymbolId exact = TypeId(result, name.View());
+            if (exact != InvalidSymbol)
+            {
+                return exact;
+            }
+            const std::size_t dot = name.find('.');
+            if (dot != String::npos)
+            {
+                const SymbolId root = TypeId(result, name.substr(0, dot));
+                if (root != InvalidSymbol)
+                {
+                    return NestedTypePath(result, root, name.View().substr(dot + 1));
+                }
+            }
+            return InvalidSymbol;
+        }
+
+        String SymbolPath(const AnalysisResult& result, SymbolId id)
+        {
+            if (id == InvalidSymbol)
+            {
+                return {};
+            }
+            const Symbol& symbol = result.Symbols[id];
+            return symbol.Parent == InvalidSymbol ? symbol.Name : String(SymbolPath(result, symbol.Parent) + "." + symbol.Name);
         }
 
         void VisibleEqualityMembers(const AnalysisResult& result, SymbolId type, std::string_view name,
@@ -330,7 +416,7 @@ namespace JBro::ScriptCompiler
                 return "Void";
             }
             const SyntaxNode& node = tree.Get(index);
-            String type(node.Text);
+            String type = QualifiedSpelling(node.Text);
             const auto arguments = tree.GetChildren(index);
             if (0 != arguments.Size())
             {
@@ -468,13 +554,17 @@ namespace JBro::ScriptCompiler
                 }
                 if (node.Text == "this")
                 {
+                    const Symbol* owner = nullptr;
                     for (const Symbol& symbol : result.Symbols)
                     {
-                        if (IsTypeSymbol(symbol.Kind) && symbol.Uri == document.Input.Uri && Contains(symbol.Range, node.Range.Begin.Offset))
+                        if (IsTypeSymbol(symbol.Kind) && symbol.Uri == document.Input.Uri && Contains(symbol.Range, node.Range.Begin.Offset)
+                            && (owner == nullptr || symbol.Range.End.Offset - symbol.Range.Begin.Offset
+                                < owner->Range.End.Offset - owner->Range.Begin.Offset))
                         {
-                            return symbol.Name;
+                            owner = &symbol;
                         }
                     }
+                    return owner == nullptr ? String() : owner->Type;
                 }
                 return {};
             }
@@ -698,7 +788,7 @@ namespace JBro::ScriptCompiler
                         {
                             return old.Parent == candidate.Parent;
                         }
-                        return m_previous->Symbols[old.Parent].Name == m_result.Symbols[candidate.Parent].Name
+                        return SymbolPath(*m_previous, old.Parent) == SymbolPath(m_result, candidate.Parent)
                             && SameParameters(old, candidate);
                     });
                     if (nullptr != match)
@@ -935,6 +1025,54 @@ namespace JBro::ScriptCompiler
                 return symbol;
             }
 
+            void CollectType(NodeIndex declaration, SymbolId parent)
+            {
+                const SyntaxNode& node = Node(declaration);
+                if (node.Text.empty())
+                {
+                    return;
+                }
+                SymbolKind kind = SymbolKind::Class;
+                switch (node.Kind)
+                {
+                case SyntaxKind::StructDeclaration: kind = SymbolKind::Struct; break;
+                case SyntaxKind::InterfaceDeclaration: kind = SymbolKind::Interface; break;
+                case SyntaxKind::EnumDeclaration: kind = SymbolKind::Enum; break;
+                case SyntaxKind::ScriptDeclaration:
+                case SyntaxKind::ClassDeclaration: break;
+                default: return;
+                }
+                const String qualified = parent == InvalidSymbol ? String(node.Text)
+                    : m_result.Symbols[parent].Type + "." + String(node.Text);
+                if (InvalidSymbol != TypeId(m_result, qualified.View())
+                    || (parent != InvalidSymbol && m_result.Symbols[parent].Name == node.Text))
+                {
+                    Error("JBC3002", "duplicate", NameRange(*m_document, node), {qualified});
+                }
+                Symbol symbol = FromNode(declaration, parent, kind);
+                symbol.Type = qualified;
+                symbol.IsStatic = parent != InvalidSymbol;
+                if (parent == InvalidSymbol)
+                {
+                    symbol.IsPrivate = false;
+                }
+                const SymbolId id = Add(std::move(symbol));
+                m_bindings.Add({m_document, declaration, id});
+                if (SyntaxKind::ScriptDeclaration == node.Kind)
+                {
+                    m_handles.Add(id);
+                    m_scripts.Add(id);
+                }
+                Occur(id, m_result.Symbols[id].SelectionRange, true);
+                for (NodeIndex child : m_document->Tree.GetChildren(declaration))
+                {
+                    if (child != InvalidNode)
+                    {
+                        CollectType(child, id);
+                    }
+                }
+            }
+
             void CollectTypes()
             {
                 for (auto& document : m_result.Documents)
@@ -942,34 +1080,7 @@ namespace JBro::ScriptCompiler
                     m_document = document.Get();
                     for (NodeIndex declaration : m_document->Tree.GetChildren(m_document->Tree.GetRoot()))
                     {
-                        const SyntaxNode& node = Node(declaration);
-                        if (node.Text.empty())
-                        {
-                            continue;
-                        }
-                        SymbolKind kind = SymbolKind::Class;
-                        switch (node.Kind)
-                        {
-                        case SyntaxKind::StructDeclaration: kind = SymbolKind::Struct; break;
-                        case SyntaxKind::InterfaceDeclaration: kind = SymbolKind::Interface; break;
-                        case SyntaxKind::EnumDeclaration: kind = SymbolKind::Enum; break;
-                        default: break;
-                        }
-                        if (InvalidSymbol != TypeId(m_result, node.Text))
-                        {
-                            Error("JBC3002", "duplicate", NameRange(*m_document, node), {String(node.Text)});
-                        }
-                        Symbol symbol = FromNode(declaration, InvalidSymbol, kind);
-                        symbol.Type = symbol.Name;
-                        symbol.IsPrivate = false;
-                        const SymbolId id = Add(std::move(symbol));
-                        m_bindings.Add({m_document, declaration, id});
-                        if (SyntaxKind::ScriptDeclaration == node.Kind)
-                        {
-                            m_handles.Add(id);
-                            m_scripts.Add(id);
-                        }
-                        Occur(id, m_result.Symbols[id].SelectionRange, true);
+                        CollectType(declaration, InvalidSymbol);
                     }
                 }
             }
@@ -981,9 +1092,15 @@ namespace JBro::ScriptCompiler
                 {
                     const Binding binding = m_bindings[bindingIndex];
                     m_document = binding.Document;
+                    m_owner = binding.Id;
                     for (NodeIndex child : m_document->Tree.GetChildren(binding.Node))
                     {
                         if (InvalidNode == child)
+                        {
+                            continue;
+                        }
+                        if (Node(child).Kind == SyntaxKind::ClassDeclaration || Node(child).Kind == SyntaxKind::StructDeclaration
+                            || Node(child).Kind == SyntaxKind::InterfaceDeclaration || Node(child).Kind == SyntaxKind::EnumDeclaration)
                         {
                             continue;
                         }
@@ -991,7 +1108,7 @@ namespace JBro::ScriptCompiler
                         {
                             for (NodeIndex base : m_document->Tree.GetChildren(child))
                             {
-                                m_result.Symbols[binding.Id].BaseTypes.Add(RenderType(m_document->Tree, base));
+                                m_result.Symbols[binding.Id].BaseTypes.Add(TypeName(base));
                             }
                             continue;
                         }
@@ -1027,7 +1144,7 @@ namespace JBro::ScriptCompiler
                         }
                         if (IsFunction(kind))
                         {
-                            symbol.Type = RenderType(m_document->Tree, Child(child, 2));
+                            symbol.Type = TypeName(Child(child, 2));
                             const NodeIndex parameters = Child(child, 1);
                             if (InvalidNode != parameters)
                             {
@@ -1036,7 +1153,7 @@ namespace JBro::ScriptCompiler
                                     const NodeIndex type = Child(parameter, 0);
                                     ParameterInfo info;
                                     info.Name = String(Node(parameter).Text);
-                                    info.Type = RenderType(m_document->Tree, type);
+                                    info.Type = TypeName(type);
                                     info.Borrowed = InvalidNode != type && 0 != (Node(type).Flags & SyntaxFlagRef);
                                     if (info.Borrowed && 0 != (Node(type).Flags & SyntaxFlagConst))
                                     {
@@ -1050,12 +1167,12 @@ namespace JBro::ScriptCompiler
                             symbol.MayInvalidateHandles = true;
                             if (SymbolKind::Constructor == kind)
                             {
-                                symbol.Type = m_result.Symbols[binding.Id].Name;
+                                symbol.Type = m_result.Symbols[binding.Id].Type;
                             }
                         }
                         else if (SymbolKind::EnumMember == kind)
                         {
-                            symbol.Type = m_result.Symbols[binding.Id].Name;
+                            symbol.Type = m_result.Symbols[binding.Id].Type;
                             symbol.Writable = false;
                             symbol.IsStatic = true;
                             symbol.IsPrivate = false;
@@ -1063,7 +1180,7 @@ namespace JBro::ScriptCompiler
                         else
                         {
                             const NodeIndex type = Child(child, 1);
-                            symbol.Type = RenderType(m_document->Tree, type);
+                            symbol.Type = TypeName(type);
                             symbol.Writable = InvalidNode == type || 0 == (Node(type).Flags & SyntaxFlagConst);
                         }
                         const SymbolId id = Add(std::move(symbol));
@@ -1091,6 +1208,78 @@ namespace JBro::ScriptCompiler
                 }
             }
 
+            String TypeName(NodeIndex index) const
+            {
+                if (index == InvalidNode)
+                {
+                    return "Void";
+                }
+                const SyntaxNode& node = Node(index);
+                const SymbolId id = ResolveTypeId(m_result, node.Text, m_owner);
+                String type = id == InvalidSymbol ? QualifiedSpelling(node.Text) : m_result.Symbols[id].Type;
+                const auto arguments = m_document->Tree.GetChildren(index);
+                if (false == arguments.IsEmpty())
+                {
+                    type += "<";
+                    for (std::size_t slot = 0; slot < arguments.Size(); ++slot)
+                    {
+                        if (slot != 0)
+                        {
+                            type += ", ";
+                        }
+                        type += TypeName(arguments[slot]);
+                    }
+                    type += ">";
+                }
+                return (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)) != 0 ? RefType(type) : type;
+            }
+
+            void TypeOccurrences(const SyntaxNode& node)
+            {
+                const std::string_view text = m_document->Source.GetText();
+                String prefix;
+                std::size_t position = 0;
+                while (position < node.Text.size())
+                {
+                    if (node.Text[position] == '/' && position + 1 < node.Text.size() && node.Text[position + 1] == '/')
+                    {
+                        while (position < node.Text.size() && node.Text[position] != '\n')
+                        {
+                            ++position;
+                        }
+                        continue;
+                    }
+                    while (position < node.Text.size() && (node.Text[position] == '.' || node.Text[position] == ' '
+                        || node.Text[position] == '\t' || node.Text[position] == '\r' || node.Text[position] == '\n'))
+                    {
+                        ++position;
+                    }
+                    const std::size_t begin = position;
+                    if (position < node.Text.size() && node.Text[position] == '/')
+                    {
+                        continue;
+                    }
+                    while (position < node.Text.size() && node.Text[position] != '.' && node.Text[position] != ' '
+                        && node.Text[position] != '\t' && node.Text[position] != '\r' && node.Text[position] != '\n'
+                        && node.Text[position] != '/')
+                    {
+                        ++position;
+                    }
+                    if (position == begin)
+                    {
+                        break;
+                    }
+                    if (false == prefix.IsEmpty())
+                    {
+                        prefix += ".";
+                    }
+                    prefix.Append(node.Text.substr(begin, position - begin));
+                    const SymbolId id = ResolveTypeId(m_result, prefix.View(), m_owner);
+                    const std::size_t offset = static_cast<std::size_t>(node.Text.data() - text.data()) + begin;
+                    Occur(id, {Location(m_document->Source, offset), Location(m_document->Source, offset + position - begin)});
+                }
+            }
+
             void ValidateType(NodeIndex index, Bool borrowAllowed, Bool returnType = false, Bool descriptor = false)
             {
                 if (InvalidNode == index)
@@ -1098,14 +1287,23 @@ namespace JBro::ScriptCompiler
                     return;
                 }
                 const SyntaxNode& node = Node(index);
-                const SymbolId id = TypeId(m_result, node.Text);
+                const SymbolId id = ResolveTypeId(m_result, node.Text, m_owner);
                 if (InvalidSymbol == id)
                 {
                     Error("JBC3001", "unknown_type", NameRange(*m_document, node), {String(node.Text)});
                 }
                 else
                 {
-                    Occur(id, NameRange(*m_document, node));
+                    TypeOccurrences(node);
+                    for (SymbolId type = id; type != InvalidSymbol && IsTypeSymbol(m_result.Symbols[type].Kind);
+                        type = m_result.Symbols[type].Parent)
+                    {
+                        if (false == Accessible(m_result, m_result.Symbols[type], m_owner))
+                        {
+                            Error("JBC3005", "inaccessible", NameRange(*m_document, node), {m_result.Symbols[type].Type});
+                            break;
+                        }
+                    }
                     if (false == descriptor && m_handles.Contains(id)
                         && 0 == (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)))
                     {
@@ -1139,7 +1337,7 @@ namespace JBro::ScriptCompiler
                 }
                 if (node.Text == "Table" && children.Size() == 2)
                 {
-                    const String key = RenderType(m_document->Tree, children[0]);
+                    const String key = TypeName(children[0]);
                     if (key != "Int" && key != "String")
                     {
                         Error("JBC3022", "table_key", Node(children[0]).Range);
@@ -1165,6 +1363,31 @@ namespace JBro::ScriptCompiler
                     Ancestors(TypeId(m_result, base), counts, path, cycle);
                 }
                 path.Pop();
+            }
+
+            Bool EngineCallback(const Symbol& method, SymbolId owner, Array<SymbolId>& visited) const
+            {
+                if (owner == InvalidSymbol || visited.Contains(owner))
+                {
+                    return false;
+                }
+                visited.Add(owner);
+                for (const Symbol& member : m_result.Symbols)
+                {
+                    if (member.Parent == owner && member.Api && member.IsCallback && member.Name == method.Name
+                        && SameParameters(member, method) && EqualType(member.Type, method.Type))
+                    {
+                        return true;
+                    }
+                }
+                for (const String& base : m_result.Symbols[owner].BaseTypes)
+                {
+                    if (EngineCallback(method, TypeId(m_result, base), visited))
+                    {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             void ValidateDeclarations()
@@ -1199,14 +1422,23 @@ namespace JBro::ScriptCompiler
                         {
                             for (NodeIndex base : m_document->Tree.GetChildren(bases))
                             {
-                                const SymbolId baseId = TypeId(m_result, Node(base).Text);
+                                const SymbolId baseId = ResolveTypeId(m_result, Node(base).Text, m_owner);
                                 if (InvalidSymbol == baseId)
                                 {
                                     Error("JBC3001", "unknown_type", Node(base).Range, {String(Node(base).Text)});
                                 }
                                 else
                                 {
-                                    Occur(baseId, NameRange(*m_document, Node(base)));
+                                    TypeOccurrences(Node(base));
+                                    for (SymbolId type = baseId; type != InvalidSymbol && IsTypeSymbol(m_result.Symbols[type].Kind);
+                                        type = m_result.Symbols[type].Parent)
+                                    {
+                                        if (false == Accessible(m_result, m_result.Symbols[type], m_owner))
+                                        {
+                                            Error("JBC3005", "inaccessible", Node(base).Range, {m_result.Symbols[type].Type});
+                                            break;
+                                        }
+                                    }
                                     if (SymbolKind::Struct == m_result.Symbols[baseId].Kind || SymbolKind::Enum == m_result.Symbols[baseId].Kind)
                                     {
                                         Error("JBC3023", "invalid_base", Node(base).Range, {String(Node(base).Text)});
@@ -1288,6 +1520,11 @@ namespace JBro::ScriptCompiler
                         return IsFunction(m_result.Symbols[id].Kind) && SameParameters(symbol, m_result.Symbols[id])
                             && EqualType(symbol.Type, m_result.Symbols[id].Type);
                     });
+                    Array<SymbolId> callbackBases;
+                    if (m_scripts.Contains(symbol.Parent) && EngineCallback(symbol, symbol.Parent, callbackBases))
+                    {
+                        m_result.Symbols[binding.Id].IsCallback = true;
+                    }
                     if (symbol.IsCallback && (nullptr == matching || false == m_result.Symbols[*matching].Api
                         || false == m_result.Symbols[*matching].IsCallback || false == m_scripts.Contains(symbol.Parent)))
                     {
@@ -1327,7 +1564,7 @@ namespace JBro::ScriptCompiler
                             continue;
                         }
                         Symbol symbol = FromNode(parameter, m_member, SymbolKind::Parameter);
-                        symbol.Type = RenderType(m_document->Tree, type);
+                        symbol.Type = TypeName(type);
                         symbol.ScopeRange = Node(body).Range;
                         symbol.Writable = 0 == (Node(type).Flags & SyntaxFlagConst);
                         flow.Initialized.Add(AddLocal(std::move(symbol)));
@@ -1375,10 +1612,18 @@ namespace JBro::ScriptCompiler
                         }
                     }
                 }
-                Array<SymbolId> candidates = Members(m_result, m_owner, name);
-                if (false == candidates.IsEmpty())
+                Array<SymbolId> candidates;
+                for (SymbolId scope = m_owner; scope != InvalidSymbol; scope = m_result.Symbols[scope].Parent)
                 {
-                    return candidates;
+                    candidates = Members(m_result, scope, name);
+                    if (false == candidates.IsEmpty())
+                    {
+                        return candidates;
+                    }
+                    if (m_result.Symbols[scope].Name == name)
+                    {
+                        return {scope};
+                    }
                 }
                 for (const Symbol& symbol : m_result.Symbols)
                 {
@@ -1490,6 +1735,12 @@ namespace JBro::ScriptCompiler
                 expression.LValue = SymbolKind::Field == symbol.Kind || SymbolKind::Local == symbol.Kind || SymbolKind::Parameter == symbol.Kind;
                 expression.Writable = symbol.Writable;
                 expression.TypeObject = IsTypeSymbol(symbol.Kind);
+                expression.StaticReceiver = implicit && symbol.Parent != m_owner
+                    && LexicalOwner(m_result, symbol.Parent, m_owner);
+                if (expression.StaticReceiver && false == symbol.IsStatic && false == expression.TypeObject && false == IsFunction(symbol.Kind))
+                {
+                    Error("JBC3028", "static_access", range, {symbol.Name});
+                }
                 if (!write && (implicit || symbol.IsStatic))
                 {
                     CheckFieldInitializationRead(id, range);
@@ -1555,7 +1806,7 @@ namespace JBro::ScriptCompiler
                         {
                             Error("JBC3028", "static_access", NameRange(*m_document, node), {"this"});
                         }
-                        Expression self = Literal(m_result.Symbols[m_owner].Name);
+                        Expression self = Literal(m_result.Symbols[m_owner].Type);
                         self.Target = m_owner;
                         self.LValue = true;
                         self.Writable = true;
@@ -1575,7 +1826,7 @@ namespace JBro::ScriptCompiler
                     if (node.Kind == SyntaxKind::GenericNameExpression && value.TypeObject)
                     {
                         ValidateType(index, false, false, true);
-                        value.Type = RenderType(m_document->Tree, index);
+                        value.Type = TypeName(index);
                         value.DeclaredType = value.Type;
                     }
                     else
@@ -1718,7 +1969,8 @@ namespace JBro::ScriptCompiler
                 {
                     value.Overloads = found;
                 }
-                if (receiver.TypeObject && false == symbol.IsStatic && SymbolKind::EnumMember != symbol.Kind && false == IsFunction(symbol.Kind))
+                if (receiver.TypeObject && false == symbol.IsStatic && SymbolKind::EnumMember != symbol.Kind
+                    && false == IsFunction(symbol.Kind) && false == IsTypeSymbol(symbol.Kind))
                 {
                     Error("JBC3028", "static_access", NameRange(*m_document, node), {symbol.Name});
                 }
@@ -2023,7 +2275,7 @@ namespace JBro::ScriptCompiler
                 const std::size_t genericStart = SyntaxKind::MemberAccessExpression == calleeSyntax.Kind ? 1 : 0;
                 for (std::size_t slot = genericStart; slot < calleeSyntax.ChildCount; ++slot)
                 {
-                    explicitTypes.Add(RenderType(m_document->Tree, Child(calleeNode, slot)));
+                    explicitTypes.Add(TypeName(Child(calleeNode, slot)));
                 }
                 if (explicitTypes.Size() == 1 && InvalidSymbol != callee.Target && m_result.Symbols[callee.Target].Api)
                 {
@@ -2066,7 +2318,7 @@ namespace JBro::ScriptCompiler
                     const Bool implicitCall = SyntaxKind::NameExpression == calleeSyntax.Kind || SyntaxKind::GenericNameExpression == calleeSyntax.Kind;
                     const Bool staticContext = callee.StaticReceiver || (implicitCall && InvalidSymbol != m_member
                         && m_result.Symbols[m_member].IsStatic && Derives(m_result, m_owner, symbol.Parent));
-                    if (staticContext && false == symbol.IsStatic)
+                    if (staticContext && false == symbol.IsStatic && symbol.Kind != SymbolKind::Constructor)
                     {
                         requiresInstance = true;
                         continue;
@@ -2362,7 +2614,7 @@ namespace JBro::ScriptCompiler
                     const NodeIndex typeNode = Child(index, 0);
                     ValidateType(typeNode, false);
                     Symbol symbol = FromNode(index, m_member, SymbolKind::Local);
-                    symbol.Type = RenderType(m_document->Tree, typeNode);
+                    symbol.Type = TypeName(typeNode);
                     symbol.ScopeRange = m_scopes.Last().Range;
                     symbol.Writable = InvalidNode == typeNode || 0 == (Node(typeNode).Flags & SyntaxFlagConst);
                     const NodeIndex initializer = Child(index, 1);
@@ -2981,7 +3233,7 @@ namespace JBro::ScriptCompiler
             }
             if (receiverType.IsEmpty() && receiverEnd >= 4 && text.substr(receiverEnd - 4, 4) == "this" && InvalidSymbol != owner)
             {
-                receiverType = result.Symbols[owner].Name;
+                receiverType = result.Symbols[owner].Type;
             }
             for (SymbolId id : Members(result, TypeId(result, receiverType)))
             {
@@ -3013,17 +3265,25 @@ namespace JBro::ScriptCompiler
                 candidates.Add(id);
             }
         }
-        for (SymbolId id : Members(result, owner))
+        for (SymbolId scope = owner; scope != InvalidSymbol; scope = result.Symbols[scope].Parent)
         {
-            const Symbol& symbol = result.Symbols[id];
-            if (false == Accessible(result, symbol, owner) || (InvalidSymbol != function && result.Symbols[function].IsStatic && false == symbol.IsStatic))
+            for (SymbolId id : Members(result, scope))
             {
-                continue;
-            }
-            const Bool localShadows = nullptr != locals.FindBy([&](SymbolId local) { return result.Symbols[local].Name == symbol.Name; });
-            if (false == localShadows)
-            {
-                candidates.Add(id);
+                const Symbol& symbol = result.Symbols[id];
+                if (false == Accessible(result, symbol, owner)
+                    || (scope != owner && false == symbol.IsStatic && false == IsTypeSymbol(symbol.Kind))
+                    || (InvalidSymbol != function && result.Symbols[function].IsStatic && false == symbol.IsStatic))
+                {
+                    continue;
+                }
+                const Bool shadows = nullptr != candidates.FindBy([&](SymbolId candidate)
+                {
+                    return result.Symbols[candidate].Name == symbol.Name && (scope != owner || locals.Contains(candidate));
+                });
+                if (false == shadows)
+                {
+                    candidates.Add(id);
+                }
             }
         }
         for (const Symbol& symbol : result.Symbols)
@@ -3152,6 +3412,11 @@ namespace JBro::ScriptCompiler
         for (SymbolId memberId : group)
         {
             const Symbol& member = result.Symbols[memberId];
+            if (IsTypeSymbol(member.Kind) && member.Parent != InvalidSymbol && result.Symbols[member.Parent].Name == newName)
+            {
+                error = "A nested type cannot have its enclosing type's name.";
+                return false;
+            }
             if (member.Name == "operator==" || member.Name == "operator!=")
             {
                 error = "Operator declarations cannot be renamed as identifiers.";

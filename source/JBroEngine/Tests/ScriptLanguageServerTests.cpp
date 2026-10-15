@@ -6,6 +6,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 
 namespace
 {
@@ -101,6 +102,88 @@ namespace
                 "client language tags select a supported diagnostic table without using the tag as a file path");
         }
     }
+
+    void TestScriptSummaryProtocol()
+    {
+        using namespace JBro::ScriptLanguageServer;
+        using Json = nlohmann::json;
+        MemoryFiles files;
+        const char* uri = "file:///C:/project/Contents/Summary.jscript";
+        const char* source = "class Counter\r\n{\r\n  [name(\"\xF0\x9F\x98\x80\")] Int count = 1 // keep\r\n}\r\n";
+        String inputFrames;
+        auto send = [&](const Json& message)
+        {
+            inputFrames.Append(Frame(message.dump()));
+        };
+        send(Json{{"jsonrpc", "2.0"}, {"id", 1}, {"method", "initialize"},
+            {"params", Json{{"initializationOptions", Json{{"projectFile", "C:/project/game.jproject"}}}}}});
+        send(Json{{"jsonrpc", "2.0"}, {"method", "initialized"}, {"params", Json::object()}});
+        send(Json{{"jsonrpc", "2.0"}, {"method", "textDocument/didOpen"},
+            {"params", Json{{"textDocument", Json{{"uri", uri}, {"version", 7}, {"text", source}}}}}});
+        auto request = [&](Int32 id, const char* method, Json params)
+        {
+            send(Json{{"jsonrpc", "2.0"}, {"id", id.Get()}, {"method", method}, {"params", std::move(params)}});
+        };
+        const Json current = Json{{"uri", uri}, {"version", 7}};
+        request(20, "jbro/scriptSummary", Json{{"textDocument", current}});
+        request(21, "jbro/editFieldSettings", Json{{"textDocument", Json{{"uri", uri}, {"version", 6}}},
+            {"position", Json{{"line", 2}, {"character", 19}}}, {"changes", Json{{"initializer", "8"}}}});
+        request(22, "jbro/editFieldSettings", Json{{"textDocument", current},
+            {"position", Json{{"line", 2}, {"character", 19}}}, {"changes", Json{{"initializer", "8"}}}});
+        request(23, "jbro/editFieldSettings", Json{{"textDocument", current},
+            {"position", Json{{"line", 2}, {"character", 19}}}, {"changes", Json{{"initializer", "1\nInt injected = 2"}}}});
+        request(24, "jbro/scriptSummary", Json{{"textDocument", Json{{"uri", uri}}}});
+        send(Json{{"jsonrpc", "2.0"}, {"method", "textDocument/didChange"},
+            {"params", Json{{"textDocument", Json{{"uri", uri}, {"version", 8}}},
+                {"contentChanges", Json::array({Json{{"text", "class Counter\n{\nInt count = (\n}\n"}}})}}}});
+        request(25, "jbro/scriptSummary", Json{{"textDocument", Json{{"uri", uri}, {"version", 8}}}});
+        request(26, "jbro/editFieldSettings", Json{{"textDocument", Json{{"uri", uri}, {"version", 8}}},
+            {"position", Json{{"line", 2}, {"character", 4}}}, {"changes", Json{{"initializer", "9"}}}});
+        request(2, "shutdown", Json::object());
+        send(Json{{"jsonrpc", "2.0"}, {"method", "exit"}});
+        ServerOptions options;
+        options.Files = &files;
+        std::istringstream input(inputFrames.Std());
+        std::ostringstream output;
+        std::ostringstream log;
+        Check(Run(input, output, log, std::move(options)) == 0, "script summary protocol session shuts down cleanly");
+        std::istringstream frames(output.str());
+        Array<Json> responses;
+        String header;
+        while (std::getline(frames, header.Std()))
+        {
+            Check(header.StartsWith("Content-Length: "), "summary response framing stays valid");
+            const std::size_t length = std::stoull(header.Substr(16).Std());
+            std::getline(frames, header.Std());
+            String body(length, '\0');
+            frames.read(body.data(), static_cast<std::streamsize>(length));
+            responses.Add(Json::parse(body));
+        }
+        auto response = [&](Int32 id) -> Json
+        {
+            for (const Json& value : responses)
+            {
+                if (value.contains("id") && value["id"] == id.Get())
+                {
+                    return value;
+                }
+            }
+            throw std::runtime_error("missing script summary response");
+        };
+        const Json summary = response(20)["result"];
+        Check(summary["valid"] == true && summary["version"] == 7, "summary echoes the exact unsaved buffer version");
+        Check(summary["types"][0]["members"][0]["selectionRange"]["start"]["character"] == 19,
+            "summary field positions count a preceding emoji as two UTF-16 units");
+        Check(response(21)["error"]["code"] == -32801, "stale summary edits return ContentModified");
+        const Json edit = response(22)["result"];
+        Check(edit["version"] == 7 && edit["edits"].size() == 1 && edit["edits"][0]["newText"] == "8"
+            && edit["edits"][0]["range"]["start"]["character"] == 27,
+            "settings edits return only the initializer span using UTF-16 positions");
+        Check(response(23)["error"]["code"] == -32602 && response(24)["error"]["code"] == -32602,
+            "expression injection and requests without document versions are rejected");
+        Check(response(25)["result"]["valid"] == false && response(25)["result"]["types"].empty()
+            && response(26)["error"]["code"] == -32602, "invalid source has no editable summary or source edits");
+    }
 }
 
 JBro::Int32 RunScriptLanguageServerTests()
@@ -174,6 +257,7 @@ JBro::Int32 RunScriptLanguageServerTests()
     Check(unicodeResult.Contains("\"diagnostics\":[],\"uri\":\"file:///C:/project/Contents/Reader.jscript\""),
         "closing an unsaved file must clear its diagnostics");
     TestClientLocaleTags();
+    TestScriptSummaryProtocol();
     for (const Bool repair : {false, true})
     {
         String ordered = Frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"initializationOptions":{"projectFile":"C:/project/game.jproject"}}})");

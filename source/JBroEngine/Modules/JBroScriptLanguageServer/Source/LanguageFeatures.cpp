@@ -629,6 +629,10 @@ namespace JBro::ScriptLanguageServer::Detail
             error = "The requested document is not part of this workspace.";
             return nullptr;
         }
+        if (method == "jbro/scriptSummary" || method == "jbro/editFieldSettings")
+        {
+            return ScriptSummaryRequest(*document, params, method == "jbro/editFieldSettings", code, error);
+        }
         if (method == "textDocument/documentSymbol")
         {
             return Symbols(params, false);

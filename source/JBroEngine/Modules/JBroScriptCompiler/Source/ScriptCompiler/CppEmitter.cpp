@@ -1,9 +1,11 @@
 #include <JBro/ScriptCompiler/CppEmitter.h>
 #include <JBro/ScriptCompiler/Analysis.h>
+#include <JBro/ScriptCompiler/Summary.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Types/Table.h>
 #include "CppIdentifier.h"
 #include "CppEmitterParts.h"
+#include "QualifiedName.h"
 
 #include <algorithm>
 #include <cctype>
@@ -178,16 +180,25 @@ namespace JBro::ScriptCompiler
                     m_tree = source.Tree;
                     IndexDeclarations(m_tree->GetRoot());
                 }
+                for (const auto& item : m_declarations)
+                {
+                    m_source = item.MappedValue.source;
+                    m_tree = item.MappedValue.tree;
+                    m_owner = item.KeyValue;
+                    for (NodeIndex member : m_tree->GetChildren(item.MappedValue.index))
+                    {
+                        if (member != InvalidNode && Node(member).Kind == SyntaxKind::FieldDeclaration)
+                        {
+                            m_fields[m_owner][String(Node(member).Text)] = ParseType(Child(member, 1));
+                        }
+                    }
+                }
                 Array<DeclarationRef> declarations;
                 for (const CppSource& source : m_sources)
                 {
                     m_source = source.Source;
                     m_tree = source.Tree;
-                    for (NodeIndex child : m_tree->GetChildren(m_tree->GetRoot()))
-                    {
-                        if (child != InvalidNode
-                            && !OrderDeclaration(String(Node(child).Text), declarations)) break;
-                    }
+                    OrderTree(m_tree->GetRoot(), declarations);
                 }
                 if (false == m_errors.IsEmpty())
                 {
@@ -207,7 +218,7 @@ namespace JBro::ScriptCompiler
                     const SyntaxNode& declaration = item.tree->Get(item.index);
                     m_code += String(declaration.Kind == SyntaxKind::EnumDeclaration ? "enum class "
                         : declaration.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
-                        + CppIdentifier(declaration.Text)
+                        + CppIdentifier(DeclarationName(item.tree, item.index))
                         + (declaration.Kind == SyntaxKind::EnumDeclaration ? " : std::int64_t;\n" : ";\n");
                 }
                 m_code += '\n';
@@ -237,7 +248,7 @@ namespace JBro::ScriptCompiler
                     Declaration(item.index);
                     if (m_unit != nullptr)
                     {
-                        m_parts.Add({String(Node(item.index).Text), std::move(m_code)});
+                        m_parts.Add({DeclarationName(item.tree, item.index), std::move(m_code)});
                         m_code.Clear();
                     }
                 }
@@ -249,14 +260,14 @@ namespace JBro::ScriptCompiler
                 {
                     m_source = item.source;
                     m_tree = item.tree;
-                    m_owner = String(Node(item.index).Text);
+                    m_owner = DeclarationName(item.tree, item.index);
                     StaticFields(item.index);
                 }
                 for (const DeclarationRef& item : m_defaultConstructors)
                 {
                     m_source = item.source;
                     m_tree = item.tree;
-                    m_owner = String(Node(item.index).Text);
+                    m_owner = DeclarationName(item.tree, item.index);
                     const String owner = CppIdentifier(m_owner);
                     m_code += owner + "::" + owner + "() try";
                     ConstructorInitializers(item.index);
@@ -267,7 +278,7 @@ namespace JBro::ScriptCompiler
                 {
                     m_source = item.owner.source;
                     m_tree = item.owner.tree;
-                    m_owner = String(Node(item.owner.index).Text);
+                    m_owner = DeclarationName(item.owner.tree, item.owner.index);
                     Function(item.index, item.owner.kind == SyntaxKind::ScriptDeclaration, false);
                 }
                 for (const String& script : m_scripts)
@@ -312,6 +323,80 @@ namespace JBro::ScriptCompiler
             const SyntaxNode& Node(NodeIndex index) const { return m_tree->Get(index); }
             NodeIndex Child(NodeIndex index, std::size_t slot) const { return m_tree->GetChild(index, slot); }
 
+            String DeclarationName(const SyntaxTree* tree, NodeIndex index) const
+            {
+                for (const auto& declaration : m_declarations)
+                {
+                    if (declaration.MappedValue.tree == tree && declaration.MappedValue.index == index)
+                    {
+                        return declaration.KeyValue;
+                    }
+                }
+                return String(tree->Get(index).Text);
+            }
+
+            static String SimpleName(const String& name)
+            {
+                const std::size_t dot = name.rfind('.');
+                return dot == String::npos ? name : name.Substr(dot + 1);
+            }
+
+            String ResolveTypeName(std::string_view spelling, const String* owner = nullptr) const
+            {
+                const String name = Internal::QualifiedName(spelling);
+                for (String scope = owner == nullptr ? m_owner : *owner; false == scope.IsEmpty();)
+                {
+                    const String candidate = scope + "." + name;
+                    if (m_declarations.Contains(candidate))
+                    {
+                        return candidate;
+                    }
+                    const std::size_t dot = scope.rfind('.');
+                    if (dot == String::npos)
+                    {
+                        break;
+                    }
+                    scope.resize(dot);
+                }
+                return name;
+            }
+
+            const Symbol* AnalyzedSymbol(NodeIndex index) const
+            {
+                if (m_analysis == nullptr || Node(index).Text.empty())
+                {
+                    return nullptr;
+                }
+                for (const auto& document : m_analysis->Documents)
+                {
+                    if (&document->Tree != m_tree)
+                    {
+                        continue;
+                    }
+                    const UInt32 begin = static_cast<UInt32>(Node(index).Text.data() - document->Source.GetText().data());
+                    const UInt32 end = begin + static_cast<UInt32>(Node(index).Text.size());
+                    const Symbol* found = nullptr;
+                    UInt32 latest = 0;
+                    for (const Occurrence& occurrence : document->Occurrences)
+                    {
+                        if (occurrence.Range.Begin.Offset >= begin && occurrence.Range.End.Offset <= end
+                            && (found == nullptr || occurrence.Range.Begin.Offset >= latest))
+                        {
+                            found = FindSymbol(*m_analysis, occurrence.Target);
+                            latest = occurrence.Range.Begin.Offset;
+                        }
+                    }
+                    return found;
+                }
+                return nullptr;
+            }
+
+            String BaseTypeName(const DeclarationRef& declaration, NodeIndex base) const
+            {
+                const String owner = DeclarationName(declaration.tree, declaration.index);
+                return ResolveTypeName(declaration.tree->Get(base).Text, &owner);
+            }
+
             CppEmitResult Finish()
             {
                 CppEmitResult result;
@@ -332,7 +417,8 @@ namespace JBro::ScriptCompiler
                     return {"Void", false};
                 }
                 const SyntaxNode& node = Node(index);
-                Type result{String(node.Text), (node.Flags & SyntaxFlagRef) != 0};
+                const Symbol* analyzed = AnalyzedSymbol(index);
+                Type result{analyzed != nullptr ? analyzed->Type : ResolveTypeName(node.Text), (node.Flags & SyntaxFlagRef) != 0};
                 for (NodeIndex child : m_tree->GetChildren(index))
                 {
                     if (child == InvalidNode)
@@ -401,7 +487,7 @@ namespace JBro::ScriptCompiler
                         for (NodeIndex base : declaration->tree->GetChildren(bases))
                         {
                             if (const ApiMember* inherited = ApiMemberInHierarchy(
-                                declaration->tree->Get(base).Text, memberName, depth + 1))
+                                BaseTypeName(*declaration, base).View(), memberName, depth + 1))
                             {
                                 return inherited;
                             }
@@ -470,10 +556,14 @@ namespace JBro::ScriptCompiler
                 return "JBro::Nullable<" + bare + ">";
             }
 
-            void IndexDeclarations(NodeIndex root)
+            void IndexDeclarations(NodeIndex root, const String& parent = {})
             {
                 for (NodeIndex child : m_tree->GetChildren(root))
                 {
+                    if (child == InvalidNode)
+                    {
+                        continue;
+                    }
                     const SyntaxNode& node = Node(child);
                     if (node.Kind != SyntaxKind::ScriptDeclaration
                         && node.Kind != SyntaxKind::ClassDeclaration
@@ -483,20 +573,32 @@ namespace JBro::ScriptCompiler
                     {
                         continue;
                     }
-                    const String name(node.Text);
+                    const String name = parent.IsEmpty() ? String(node.Text) : String(parent + "." + String(node.Text));
                     if (m_declarations.Contains(name))
                     {
                         Error("duplicate C++ declaration across files: " + name);
                         continue;
                     }
                     m_declarations[name] = {m_source, m_tree, child, node.Kind};
-                    auto& fields = m_fields[name];
-                    for (NodeIndex member : m_tree->GetChildren(child))
+                    IndexDeclarations(child, name);
+                }
+            }
+
+            void OrderTree(NodeIndex root, Array<DeclarationRef>& declarations)
+            {
+                for (NodeIndex child : m_tree->GetChildren(root))
+                {
+                    if (child == InvalidNode)
                     {
-                        if (member != InvalidNode && Node(member).Kind == SyntaxKind::FieldDeclaration)
-                        {
-                            fields[String(Node(member).Text)] = ParseType(Child(member, 1));
-                        }
+                        continue;
+                    }
+                    const String name = DeclarationName(m_tree, child);
+                    const SyntaxKind kind = Node(child).Kind;
+                    if (kind == SyntaxKind::ScriptDeclaration || kind == SyntaxKind::ClassDeclaration
+                        || kind == SyntaxKind::StructDeclaration || kind == SyntaxKind::InterfaceDeclaration || kind == SyntaxKind::EnumDeclaration)
+                    {
+                        OrderDeclaration(name, declarations);
+                        OrderTree(child, declarations);
                     }
                 }
             }
@@ -510,7 +612,7 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        AddFieldsFromBases(String(declaration->tree->Get(base).Text), fields);
+                        AddFieldsFromBases(BaseTypeName(*declaration, base), fields);
                     }
                 }
                 if (const auto* owned = m_fields.Find(name))
@@ -548,7 +650,7 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        const Type result = MemberTypeInHierarchy(String(declaration->tree->Get(base).Text), memberName);
+                        const Type result = MemberTypeInHierarchy(BaseTypeName(*declaration, base), memberName);
                         if (!result.name.empty()) return result;
                     }
                 }
@@ -592,7 +694,7 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        const FieldRef field = FindField(String(declaration->tree->Get(base).Text), name);
+                        const FieldRef field = FindField(BaseTypeName(*declaration, base), name);
                         if (field.Owner != nullptr)
                         {
                             return field;
@@ -613,7 +715,7 @@ namespace JBro::ScriptCompiler
                 {
                     return access;
                 }
-                const String owner(field.Owner->tree->Get(field.Owner->index).Text);
+                const String owner = DeclarationName(field.Owner->tree, field.Owner->index);
                 const String key = SiteKey(Node(site));
                 if (field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic)
                 {
@@ -636,7 +738,7 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        count += ReflectedFieldCount(String(declaration->tree->Get(base).Text));
+                        count += ReflectedFieldCount(BaseTypeName(*declaration, base));
                     }
                 }
                 for (NodeIndex field : declaration->tree->GetChildren(declaration->index))
@@ -664,11 +766,11 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : m_tree->GetChildren(bases))
                     {
-                        inherited += ReflectedFieldCount(String(Node(base).Text));
+                        inherited += ReflectedFieldCount(ResolveTypeName(Node(base).Text));
                     }
                 }
-                const String name = CppIdentifier(declaration.Text);
-                const String scriptName(declaration.Text);
+                const String scriptName = DeclarationName(m_tree, index);
+                const String name = CppIdentifier(scriptName);
                 const std::size_t total = ReflectedFieldCount(scriptName);
                 const std::size_t own = total - inherited;
                 if (total == 0)
@@ -693,7 +795,7 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : m_tree->GetChildren(bases))
                     {
-                        const String baseName(Node(base).Text);
+                        const String baseName = ResolveTypeName(Node(base).Text);
                         const std::size_t count = ReflectedFieldCount(baseName);
                         if (count != 0)
                         {
@@ -747,7 +849,10 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : found->tree->GetChildren(bases))
                     {
-                        const String baseName(found->tree->Get(base).Text);
+                        const String previousOwner = m_owner;
+                        m_owner = name;
+                        const String baseName = ResolveTypeName(found->tree->Get(base).Text);
+                        m_owner = previousOwner;
                         if (m_declarations.Contains(baseName) && !OrderDeclaration(baseName, ordered))
                         {
                             return false;
@@ -789,7 +894,7 @@ namespace JBro::ScriptCompiler
                     Error("C++ emitter does not support this declaration yet");
                     return;
                 }
-                m_owner = String(node.Text);
+                m_owner = DeclarationName(m_tree, index);
                 const String nativeOwner = CppIdentifier(m_owner);
                 if (node.Kind == SyntaxKind::EnumDeclaration)
                 {
@@ -867,6 +972,14 @@ namespace JBro::ScriptCompiler
                 }
                 m_code += String(node.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
                     + nativeOwner + (bases.empty() ? "\n" : " : " + bases + "\n") + "{\npublic:\n";
+                for (const auto& nested : m_declarations)
+                {
+                    if (nested.KeyValue.StartsWith(m_owner + ".") && nested.MappedValue.kind != SyntaxKind::EnumDeclaration)
+                    {
+                        m_code += String(nested.MappedValue.kind == SyntaxKind::StructDeclaration ? "    friend struct " : "    friend class ")
+                            + CppIdentifier(nested.KeyValue) + ";\n";
+                    }
+                }
                 if (script)
                 {
                     m_code += "    static constexpr const char* StaticTypeName() { return "
@@ -896,7 +1009,7 @@ namespace JBro::ScriptCompiler
                     }
                     else if (Node(member).Kind == SyntaxKind::FunctionDeclaration)
                     {
-                        hasConstructor = hasConstructor || FunctionName(Node(member)) == m_owner;
+                        hasConstructor = hasConstructor || FunctionName(Node(member)) == SimpleName(m_owner);
                         MemberAccess(member, node.Kind);
                         Function(member, script, true);
                         if (Child(member, 3) != InvalidNode)
@@ -907,6 +1020,13 @@ namespace JBro::ScriptCompiler
                     else if (Node(member).Kind == SyntaxKind::BaseList)
                     {
                         continue;
+                    }
+                    else if (Node(member).Kind == SyntaxKind::ClassDeclaration || Node(member).Kind == SyntaxKind::StructDeclaration
+                        || Node(member).Kind == SyntaxKind::InterfaceDeclaration || Node(member).Kind == SyntaxKind::EnumDeclaration)
+                    {
+                        MemberAccess(member, node.Kind);
+                        m_code += "    using " + CppIdentifier(Node(member).Text) + " = ::"
+                            + CppIdentifier(DeclarationName(m_tree, member)) + ";\n";
                     }
                     else
                     {
@@ -937,7 +1057,10 @@ namespace JBro::ScriptCompiler
                 {
                     m_code.swap(m_implementation);
                 }
-                if (!interfaceType) EmitPropertyTable(index);
+                if (!interfaceType)
+                {
+                    EmitPropertyTable(index);
+                }
                 if (!script && !interfaceType)
                 {
                     m_code += (m_unit != nullptr
@@ -1022,21 +1145,17 @@ namespace JBro::ScriptCompiler
                             if (declaration.ChildCount != 0) Error("prop attribute takes no arguments");
                             continue;
                         }
-                        String native;
-                        std::size_t arity = 0;
-                        if (text == "range") { native = "Range"; arity = 2; }
-                        else if (text == "clamp") { native = "Clamp"; arity = 2; }
-                        else if (text == "name") { native = "Name"; arity = 1; }
-                        else if (text == "tooltip") { native = "Tooltip"; arity = 1; }
-                        else if (text == "category") { native = "Category"; arity = 1; }
-                        else if (text == "visiblewhen") { native = "VisibleWhen"; arity = 1; }
-                        else if (text == "readonly") native = "ReadOnly";
-                        else if (text == "noserialize") { native = "NoSerialize"; explicitNoSerialize = true; }
-                        else if (text == "hidden") native = "Hidden";
-                        else
+                        const FieldAttributeDefinition* definition = FindFieldAttributeDefinition(text);
+                        if (nullptr == definition)
                         {
                             Error("unknown reflected field attribute: " + String(text));
                             continue;
+                        }
+                        const String native = definition->NativeName;
+                        const std::size_t arity = definition->ArgumentCount;
+                        if (text == "noserialize")
+                        {
+                            explicitNoSerialize = true;
                         }
                         if (declaration.ChildCount != arity)
                         {
@@ -1240,7 +1359,7 @@ namespace JBro::ScriptCompiler
             void Function(NodeIndex index, bool script, bool declaration)
             {
                 const SyntaxNode& node = Node(index);
-                const bool constructor = FunctionName(node) == m_owner;
+                const bool constructor = FunctionName(node) == SimpleName(m_owner);
                 const bool staticMethod = (node.Flags & SyntaxFlagStatic) != 0;
                 const DeclarationRef* owner = m_declarations.Find(m_owner);
                 const bool abstractMethod = (node.Flags & SyntaxFlagRequire) != 0
@@ -1449,6 +1568,22 @@ namespace JBro::ScriptCompiler
                 {
                     const String name(node.Text);
                     if (name == "this") return {"(*this)", {m_owner, false}, true};
+                    if (const Symbol* symbol = AnalyzedSymbol(index); symbol != nullptr)
+                    {
+                        if (symbol->Kind == SymbolKind::Class || symbol->Kind == SymbolKind::Struct
+                            || symbol->Kind == SymbolKind::Interface || symbol->Kind == SymbolKind::Enum || symbol->Kind == SymbolKind::Type)
+                        {
+                            const String type = ResolveTypeName(symbol->Type.View());
+                            return {NativeType({type, false}), {type, false}, false, false, {}, true};
+                        }
+                        if (!symbol->Api && symbol->Parent != InvalidSymbol && symbol->IsStatic
+                            && m_analysis->Symbols[symbol->Parent].Type != m_owner)
+                        {
+                            const String owner = m_analysis->Symbols[symbol->Parent].Type;
+                            const String code = CppIdentifier(owner) + "::" + CppIdentifier(name);
+                            return {GuardField(FindField(owner, name), {}, code, index), TextType(symbol->Type), true};
+                        }
+                    }
                     const VariableBinding* found = m_variables.Find(name);
                     if (found != nullptr)
                     {
@@ -1476,9 +1611,10 @@ namespace JBro::ScriptCompiler
                         }
                     }
                     if (name == "Int" || name == "Float" || name == "Bool" || name == "String"
-                        || Api(name) != nullptr || m_declarations.Contains(name))
+                        || Api(name) != nullptr || m_declarations.Contains(ResolveTypeName(name.View())))
                     {
-                        return {NativeType({name, false}), {name, false}, false, false, {}, true};
+                        const String type = ResolveTypeName(name.View());
+                        return {NativeType({type, false}), {type, false}, false, false, {}, true};
                     }
                     if (IsScript({m_owner, false}))
                     {
@@ -1529,6 +1665,17 @@ namespace JBro::ScriptCompiler
                 case SyntaxKind::MemberAccessExpression:
                 {
                     Expression receiver = Expr(Child(index, 0));
+                    if (receiver.isType)
+                    {
+                        const Symbol* symbol = AnalyzedSymbol(index);
+                        const String nested = symbol != nullptr && (symbol->Kind == SymbolKind::Class || symbol->Kind == SymbolKind::Struct
+                            || symbol->Kind == SymbolKind::Interface || symbol->Kind == SymbolKind::Enum)
+                            ? symbol->Type : String(receiver.type.name + "." + String(node.Text));
+                        if (m_declarations.Contains(nested))
+                        {
+                            return {NativeType({nested, false}), {nested, false}, false, false, {}, true};
+                        }
+                    }
                     if (const DeclarationRef* declaration = m_declarations.Find(receiver.type.name);
                         declaration != nullptr && declaration->kind == SyntaxKind::EnumDeclaration)
                     {

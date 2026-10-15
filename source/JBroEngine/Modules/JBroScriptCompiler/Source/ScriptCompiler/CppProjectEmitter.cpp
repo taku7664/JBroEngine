@@ -2,6 +2,7 @@
 #include <JBro/Types/Table.h>
 #include "CppEmitterParts.h"
 #include "CppIdentifier.h"
+#include "QualifiedName.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -56,22 +57,7 @@ namespace JBro::ScriptCompiler
                         m_result.Errors.Add("empty syntax tree");
                         return std::move(m_result);
                     }
-                    for (NodeIndex child : source.Tree->GetChildren(source.Tree->GetRoot()))
-                    {
-                        if (child == InvalidNode)
-                        {
-                            continue;
-                        }
-                        const SyntaxNode& node = source.Tree->Get(child);
-                        const String name(node.Text);
-                        if (m_declarations.Contains(name))
-                        {
-                            m_result.Errors.Add("duplicate project type: " + name);
-                            return std::move(m_result);
-                        }
-                        m_declarations[name] = {&source, child, name, "jbro_gen_type_" + FileId(name.View())};
-                        hasScript = hasScript || node.Kind == SyntaxKind::ScriptDeclaration;
-                    }
+                    Index(source, source.Tree->GetRoot(), {}, hasScript);
                 }
                 if (m_moduleEntry && !hasScript)
                 {
@@ -157,6 +143,100 @@ namespace JBro::ScriptCompiler
             }
 
         private:
+            void Index(const CppSource& source, NodeIndex root, const String& parent, bool& hasScript)
+            {
+                for (NodeIndex child : source.Tree->GetChildren(root))
+                {
+                    if (child == InvalidNode)
+                    {
+                        continue;
+                    }
+                    const SyntaxNode& node = source.Tree->Get(child);
+                    if (node.Kind != SyntaxKind::ScriptDeclaration && node.Kind != SyntaxKind::ClassDeclaration
+                        && node.Kind != SyntaxKind::StructDeclaration && node.Kind != SyntaxKind::InterfaceDeclaration
+                        && node.Kind != SyntaxKind::EnumDeclaration)
+                    {
+                        continue;
+                    }
+                    const String name = parent.IsEmpty() ? String(node.Text) : String(parent + "." + String(node.Text));
+                    if (m_declarations.Contains(name))
+                    {
+                        m_result.Errors.Add("duplicate project type: " + name);
+                        continue;
+                    }
+                    m_declarations[name] = {&source, child, name, "jbro_gen_type_" + FileId(name.View())};
+                    hasScript = hasScript || node.Kind == SyntaxKind::ScriptDeclaration;
+                    Index(source, child, name, hasScript);
+                }
+            }
+
+            const Declaration* TypeDeclaration(const CppSource& source, NodeIndex index) const
+            {
+                const SyntaxNode& node = source.Tree->Get(index);
+                if (m_analysis != nullptr)
+                {
+                    for (const auto& document : m_analysis->Documents)
+                    {
+                        if (&document->Tree != source.Tree || node.Text.empty())
+                        {
+                            continue;
+                        }
+                        const UInt32 begin = static_cast<UInt32>(node.Text.data() - document->Source.GetText().data());
+                        const UInt32 end = begin + static_cast<UInt32>(node.Text.size());
+                        const Declaration* found = nullptr;
+                        UInt32 latest = 0;
+                        for (const Occurrence& occurrence : document->Occurrences)
+                        {
+                            const Symbol* symbol = FindSymbol(*m_analysis, occurrence.Target);
+                            if (symbol != nullptr && occurrence.Range.Begin.Offset >= begin && occurrence.Range.End.Offset <= end
+                                && (found == nullptr || occurrence.Range.Begin.Offset >= latest))
+                            {
+                                if (const Declaration* declaration = m_declarations.Find(symbol->Type))
+                                {
+                                    found = declaration;
+                                    latest = occurrence.Range.Begin.Offset;
+                                }
+                            }
+                        }
+                        if (found != nullptr)
+                        {
+                            return found;
+                        }
+                    }
+                }
+                const Declaration* owner = nullptr;
+                for (const auto& declaration : m_declarations)
+                {
+                    if (declaration.MappedValue.Source->Tree != source.Tree)
+                    {
+                        continue;
+                    }
+                    const SourceRange range = source.Tree->Get(declaration.MappedValue.Index).Range;
+                    if (range.Begin.Offset <= node.Range.Begin.Offset && node.Range.End.Offset <= range.End.Offset
+                        && (owner == nullptr || source.Tree->Get(owner->Index).Range.Begin.Offset < range.Begin.Offset))
+                    {
+                        owner = &declaration.MappedValue;
+                    }
+                }
+                if (owner != nullptr)
+                {
+                    for (String scope = owner->Name; false == scope.IsEmpty();)
+                    {
+                        if (const Declaration* declaration = m_declarations.Find(scope + "." + Internal::QualifiedName(node.Text)))
+                        {
+                            return declaration;
+                        }
+                        const std::size_t dot = scope.rfind('.');
+                        if (dot == String::npos)
+                        {
+                            break;
+                        }
+                        scope.resize(dot);
+                    }
+                }
+                return m_declarations.Find(Internal::QualifiedName(node.Text));
+            }
+
             static String Include(const String& file) { return "#include \"" + file + "\"\n"; }
             static void Sort(Array<String>& names) { std::sort(names.begin(), names.end()); }
 
@@ -223,13 +303,13 @@ namespace JBro::ScriptCompiler
                         continue;
                     }
                     const Symbol* symbol = FindSymbol(*m_analysis, occurrence.Target);
-                    while (symbol != nullptr && symbol->Parent != InvalidSymbol)
+                    while (symbol != nullptr)
                     {
+                        if (!symbol->Api)
+                        {
+                            Add(names, symbol->Type);
+                        }
                         symbol = FindSymbol(*m_analysis, symbol->Parent);
-                    }
-                    if (symbol != nullptr && !symbol->Api)
-                    {
-                        Add(names, symbol->Name);
                     }
                 }
             }
@@ -241,9 +321,20 @@ namespace JBro::ScriptCompiler
                     return;
                 }
                 const SyntaxNode& node = source.Tree->Get(index);
+                for (const auto& declaration : m_declarations)
+                {
+                    if (declaration.MappedValue.Source->Tree == source.Tree && declaration.MappedValue.Index == index)
+                    {
+                        Add(names, declaration.KeyValue);
+                        break;
+                    }
+                }
                 if (node.Kind == SyntaxKind::TypeName || node.Kind == SyntaxKind::GenericNameExpression)
                 {
-                    Add(names, String(node.Text));
+                    if (const Declaration* declaration = TypeDeclaration(source, index))
+                    {
+                        Add(names, declaration->Name);
+                    }
                 }
                 if (document != nullptr && node.Kind >= SyntaxKind::NameExpression)
                 {
@@ -266,7 +357,7 @@ namespace JBro::ScriptCompiler
                     return;
                 }
                 const SyntaxNode& node = source.Tree->Get(index);
-                const Declaration* declaration = m_declarations.Find(String(node.Text));
+                const Declaration* declaration = TypeDeclaration(source, index);
                 if (declaration != nullptr && !(node.Flags & SyntaxFlagRef
                     && declaration->Source->Tree->Get(declaration->Index).Kind == SyntaxKind::ScriptDeclaration))
                 {
