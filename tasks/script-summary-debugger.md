@@ -208,3 +208,13 @@ API 필요성은 기존 호출 경로로 교차 확인했다. vendor의 기존 `
 - 수정 후 시험 대상 Release 빌드는 오류 0개로 통과했다(`final-tests-build.log`). `related-ui-tests.log`에서 `ScriptSummaryPanel`·`CodeEditor`·`EditorWidget`·`EditorGuideFocus` 4개 suite가 종료 코드 0·skip 없이 통과했다. `fixed-host-build.log`의 에디터 Release 빌드도 종료 코드 0·오류 0개·경고 0개다. 모든 빌드와 시험은 낮은 우선순위와 논리 CPU 2개 제한으로 실행했다.
 - 수정 실행 파일은 `source/JBroEngine/Build/x64/Release/JBroEditorHost-DockFocus.exe`다. 실행 중인 기존 파일을 덮지 않도록 외부 스크래치 MSBuild 설정에서 호스트 출력 이름만 바꿨다. 제품 빌드 설정에는 이 우회를 넣지 않았다. `codex/fix-dock-focus`에서 수정과 기록을 커밋하며, 전체 엔진 시험·메인 병합·원격 푸시는 하지 않는다.
 - **[대기] 실행본 반영:** 현재 PID 28236의 기존 에디터에는 미저장 코드·캔버스가 있어 강제 종료·자동 저장하지 않았다. 사용자에게 직접 저장·종료 또는 기존 창 유지·별도 실행을 선택하도록 요청했으며 답변을 기다린다. 수정본의 수동 GUI 실행·기본 실행 파일 교체는 아직 확인하지 않았다. 정식 시험에서 실제 에디터 UI와 마우스 이벤트로 확인한 결과를 현재 실행 중인 구버전에 반영한 것으로 보고하지 않는다.
+
+## 2026-10-16 속성 이름 문법 강조
+
+- 사용자는 런타임 `range`·`clamp` 적용을 보류하고 문법 강조만 변경하도록 지시했다. 범위 제한·대입·컴파일 오류 규칙·저장 동작은 변경하지 않는다.
+- 기존 파서의 `SyntaxKind::Attribute` 노드 시작 위치로 속성 이름만 구분한다. LSP의 기존 의미 토큰 번호 0~16을 유지하고 표준 `decorator`를 17번으로 추가한다. 문자열·숫자·괄호·쉼표, 일반 변수와 배열 인덱스는 기존 분류를 유지한다. 별도 문자열 파서·정규식·키워드 명단은 추가하지 않는다.
+- 색은 공용 `EditorTheme::CodeAttribute`의 연보라 `#C4B5FD`이며 기존 `Widget::CodeEditor`의 의미 색상 경로를 사용한다. 패널에 직접 ImGui 호출이나 별도 색칠 코드를 넣지 않는다.
+- 정식 `ScriptLanguageServer` 시험에서 CRLF·이모지가 있는 소스의 속성 이름 위치와 길이, 문자열·숫자 인자·괄호, 같은 이름의 일반 변수·배열 인덱스·주석을 확인했다. 기존 `CodeEditor` 렌더링 시험에는 속성 토큰의 실제 글리프 색상 검사를 추가했다. `selected-tests.log`에서 `ScriptLanguageServer`·`CodeEditor`·`EditorWidget` 3개 suite가 종료 코드 0·skip 없이 통과했다. 로그는 `source/JBroEngine/Build/Validation/attribute-highlighting-20261016/`에 둔다.
+- `actual-jbroc-stdio.log`는 빌드한 실제 Release `JBroc.exe --lsp`와 통신해 `decorator` 범례와 `prop`·`range` 토큰 2개를 확인한 결과다. 시험 소스는 미저장 LSP 버퍼로만 전달했고 프로젝트 파일·사용자 소스는 쓰지 않았다.
+- 시험 대상 Release 빌드는 종료 코드 0·오류 0개·경고 1개다(`final-release-tests-build.log`). 추가 음성 검사를 빌드 중에 넣어 시험 실행 파일만 한 번 더 빌드했으며 최종 오브젝트가 소스보다 새것임을 확인했다. 프로브 생성의 동일 입력을 다시 실행해 기존 `Attributes.jscript:31`의 의도한 `JBC3041`을 확인했다(`probe-diagnostics.log`).
+- 에디터 실행 파일 Release 빌드는 종료 코드 0·오류 0개·경고 0개다(`release-editor-build.log`). 산출물은 `source/JBroEngine/Build/x64/Release/JBroEditorHost-AttributeColor.exe`다. 기존 실행 파일을 덮지 않도록 외부 스크래치 설정에서 호스트 출력 이름만 바꾸었고 제품 빌드 설정에는 넣지 않았다. `codex/attribute-highlighting`에 변경과 기록을 커밋한다. 기존 실행본 교체·재실행·새 수동 화면 확인·전체 시험·메인 병합·원격 푸시는 하지 않았다.

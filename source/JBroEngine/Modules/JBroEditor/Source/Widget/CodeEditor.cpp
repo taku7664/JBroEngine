@@ -44,6 +44,7 @@ namespace JBro::Widget
             case 13: return IM_COL32(206, 145, 120, 255);
             case 14: return IM_COL32(181, 206, 168, 255);
             case 15: return IM_COL32(106, 153, 85, 255);
+            case 17: return ImGui::ColorConvertFloat4ToU32(EditorTheme::CodeAttribute);
             default: return IM_COL32(212, 212, 212, 255);
             }
         }

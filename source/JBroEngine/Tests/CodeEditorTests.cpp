@@ -985,7 +985,7 @@ namespace
         Ui ui;
         Widget::CodeEditor editor;
         editor.SetJBroScript(true);
-        editor.SetText("script Probe\n{\n  Int value = 1 // comment\n}\n");
+        editor.SetText("script Probe\n{\n  [prop, range(0, 10)]\n  Int value = 1 // comment\n}\n");
         for (Int32 frame = 0; frame < 3; ++frame)
         {
             ui.Render([&] { editor.Render("buffer"); });
@@ -994,15 +994,18 @@ namespace
         Check(ui.HasColor(IM_COL32(78, 201, 176, 255)), "built-in types are highlighted");
         Check(ui.HasColor(IM_COL32(106, 153, 85, 255)), "comments are highlighted");
         Code::Analysis analysis;
-        analysis.tokens.Add({{{2, 6}, {2, 11}}, 8, 0});
+        analysis.tokens.Add({{{2, 3}, {2, 7}}, 17, 0});
+        analysis.tokens.Add({{{2, 9}, {2, 14}}, 17, 0});
+        analysis.tokens.Add({{{3, 6}, {3, 11}}, 8, 0});
         Code::Diagnostic diagnostic;
-        diagnostic.range = {{2, 6}, {2, 11}};
+        diagnostic.range = {{3, 6}, {3, 11}};
         diagnostic.severity = 1;
         diagnostic.message = "Test diagnostic";
         analysis.diagnostics.Add(diagnostic);
         editor.SetAnalysis(analysis);
         ui.Render([&] { editor.Render("buffer"); });
         Check(ui.HasColor(IM_COL32(156, 220, 254, 255)), "semantic property color reaches the renderer");
+        Check(ui.HasColor(IM_COL32(196, 181, 253, 255)), "attribute semantic tokens render in the theme's light purple");
         Check(ui.HasColor(IM_COL32(224, 90, 82, 255)), "diagnostic squiggle reaches the renderer");
         const char* unicode = reinterpret_cast<const char*>(u8"가😀a");
         Check(Widget::CodeEditor::Utf16ToGlyph(unicode, 3) == 2 && Widget::CodeEditor::Utf16ToGlyph(unicode, 2) == 1, "UTF-16 columns respect surrogate pairs");

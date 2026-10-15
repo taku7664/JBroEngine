@@ -49,6 +49,7 @@ namespace JBro
 
         constexpr ImVec4 Ink(0.894f, 0.910f, 0.933f, 1.00f);          // #E4E8EE
         constexpr ImVec4 InkMuted(0.478f, 0.518f, 0.576f, 1.00f);     // #7A8493
+        constexpr ImVec4 CodeAttribute(196.0f / 255.0f, 181.0f / 255.0f, 253.0f / 255.0f, 1.00f); // #C4B5FD
 
         // **파랑은 상호작용에만 쓴다.** 고름·초점·체크·슬라이더·도킹·키보드 탐색,
         // 그리고 주 동작. 장식으로 쓰면 무엇이 눌리는 것인지 알 수 없게 된다.

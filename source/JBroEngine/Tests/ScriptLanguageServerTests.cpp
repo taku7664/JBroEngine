@@ -124,7 +124,9 @@ namespace
         using Json = nlohmann::json;
         MemoryFiles files;
         const char* uri = "file:///C:/project/Contents/Summary.jscript";
-        const char* source = "class Counter\r\n{\r\n  [name(\"\xF0\x9F\x98\x80\")] Int count = 1 // keep\r\n}\r\n";
+        const char* source = "class Counter\r\n{\r\n  [name(\"\xF0\x9F\x98\x80\")] Int count = 1 // keep\r\n"
+            "  [prop, range(0, 10)] Float speed = 3\r\n  Int range = 0\r\n  Array<Int> values\r\n"
+            "  fn Read()\r\n  {\r\n    Int value = values[range] // [prop, range]\r\n  }\r\n}\r\n";
         String inputFrames;
         auto send = [&](const Json& message)
         {
@@ -141,6 +143,7 @@ namespace
         };
         const Json current = Json{{"uri", uri}, {"version", 7}};
         request(20, "jbro/scriptSummary", Json{{"textDocument", current}});
+        request(29, "textDocument/semanticTokens/full", Json{{"textDocument", current}});
         request(27, "textDocument/hover", Json{{"textDocument", current}, {"position", Json{{"line", 2}, {"character", 15}}}});
         request(28, "textDocument/hover", Json{{"textDocument", current}, {"position", Json{{"line", 2}, {"character", 19}}}});
         request(21, "jbro/editFieldSettings", Json{{"textDocument", Json{{"uri", uri}, {"version", 6}}},
@@ -188,6 +191,36 @@ namespace
             throw std::runtime_error("missing script summary response");
         };
         const Json summary = response(20)["result"];
+        const Json legend = response(1)["result"]["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"];
+        Check(legend.size() == 18 && legend[16] == "operator" && legend[17] == "decorator",
+            "attribute tokens append a standard decorator kind without changing existing token numbers");
+        const Json tokenData = response(29)["result"]["data"];
+        UInt32 tokenLine = 0, tokenCharacter = 0, attributes = 0;
+        Bool nameAttribute = false, propAttribute = false, rangeAttribute = false, stringArgument = false;
+        Bool numberArgument = false, bracket = false, rangeVariable = false, rangeIndex = false;
+        for (std::size_t index = 0; index < tokenData.size(); index += 5)
+        {
+            const UInt32 deltaLine = tokenData[index].get<std::uint32_t>();
+            tokenLine += deltaLine;
+            tokenCharacter = (deltaLine == 0 ? tokenCharacter : UInt32(0)) + tokenData[index + 1].get<std::uint32_t>();
+            const UInt32 type = tokenData[index + 3].get<std::uint32_t>();
+            if (type == 17)
+            {
+                ++attributes;
+                nameAttribute |= tokenLine == 2 && tokenCharacter == 3 && tokenData[index + 2] == 4;
+                propAttribute |= tokenLine == 3 && tokenCharacter == 3 && tokenData[index + 2] == 4;
+                rangeAttribute |= tokenLine == 3 && tokenCharacter == 9 && tokenData[index + 2] == 5;
+            }
+            stringArgument |= type == 13 && tokenLine == 2 && tokenCharacter == 8;
+            numberArgument |= type == 14 && tokenLine == 3 && tokenCharacter == 15;
+            bracket |= type == 16 && tokenLine == 3 && tokenCharacter == 2;
+            rangeVariable |= type == 8 && tokenLine == 4 && tokenCharacter == 6;
+            rangeIndex |= type == 8 && tokenLine == 8 && tokenCharacter == 23;
+        }
+        Check(attributes == 3 && nameAttribute && propAttribute && rangeAttribute && stringArgument,
+            "only AST attribute names are decorators; strings, comments, same-name variables and array indexing keep their kinds");
+        Check(numberArgument && bracket && rangeVariable && rangeIndex,
+            "attribute numbers and delimiters retain their colors and range remains a property outside attribute declarations");
         Check(response(27)["result"]["contents"]["value"] == "Int", "primitive type hover shows the type once");
         Check(response(28)["result"]["contents"]["value"].get<std::string>().find("count") != std::string::npos,
             "member hover retains its member signature");

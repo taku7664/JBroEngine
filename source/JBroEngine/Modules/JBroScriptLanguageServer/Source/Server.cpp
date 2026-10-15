@@ -261,7 +261,7 @@ namespace JBro::ScriptLanguageServer
                 {"renameProvider", versionedEdits ? Json{{"prepareProvider", true}} : Json(false)},
                 {"signatureHelpProvider", Json{{"triggerCharacters", Json::array({"(", ","})}, {"retriggerCharacters", Json::array({")"})}}},
                 {"semanticTokensProvider", Json{{"legend", Json{
-                    {"tokenTypes", Json::array({"type", "class", "struct", "interface", "enum", "enumMember", "function", "method", "property", "parameter", "variable", "namespace", "keyword", "string", "number", "comment", "operator"})},
+                    {"tokenTypes", Json::array({"type", "class", "struct", "interface", "enum", "enumMember", "function", "method", "property", "parameter", "variable", "namespace", "keyword", "string", "number", "comment", "operator", "decorator"})},
                     {"tokenModifiers", Json::array({"declaration", "readonly", "static", "defaultLibrary"})}}}, {"full", true}, {"range", false}}},
                 {"foldingRangeProvider", true}, {"documentFormattingProvider", true},
                 {"experimental", Json{{"jbroScriptSummary", true}, {"jbroEditFieldSettings", true}}},

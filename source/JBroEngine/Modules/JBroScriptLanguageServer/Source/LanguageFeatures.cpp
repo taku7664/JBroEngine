@@ -476,6 +476,15 @@ namespace JBro::ScriptLanguageServer::Detail
     {
         struct Highlight { UInt32 Begin; UInt32 End; UInt32 Type; UInt32 Modifiers; };
         Array<Highlight> highlights;
+        Table<UInt32, Bool> attributeAt;
+        for (NodeIndex index = 0; index < document.Tree.GetNodeCount(); ++index)
+        {
+            const SyntaxNode& node = document.Tree.Get(index);
+            if (node.Kind == SyntaxKind::Attribute)
+            {
+                attributeAt.TryAdd(node.Range.Begin.Offset, true);
+            }
+        }
         Table<UInt32, const Occurrence*> occurrenceAt;
         for (const Occurrence& occurrence : document.Occurrences)
         {
@@ -491,7 +500,11 @@ namespace JBro::ScriptLanguageServer::Detail
             }
             UInt32 type = 16;
             UInt32 modifiers = 0;
-            if (token.Kind == TokenKind::Identifier)
+            if (token.Kind == TokenKind::Identifier && attributeAt.Contains(token.Range.Begin.Offset))
+            {
+                type = 17;
+            }
+            else if (token.Kind == TokenKind::Identifier)
             {
                 const Occurrence* const* found = occurrenceAt.Find(token.Range.Begin.Offset);
                 const Occurrence* occurrence = nullptr == found ? nullptr : *found;
