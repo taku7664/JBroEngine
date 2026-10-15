@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <Windows.h>
 #include <cstring>
+#include <string>
 #include <iostream>
 #include <stdexcept>
 #include <JBro/Types/Bool.h>
@@ -357,11 +358,190 @@ namespace
         editor.SetScriptBreakFrameHook(nullptr, nullptr);
         editor.Shutdown();
     }
+
+    // 파이프 끝에서 어댑터 흉내를 낸다. 에디터와 같은 스레드에서 돌리므로(멈춤 루프의 프레임 훅에서 쓴다) 막히지 않게 읽는다.
+    struct PipeClient
+    {
+        HANDLE handle = INVALID_HANDLE_VALUE;
+        std::string buffer;
+
+        Bool Connect(unsigned long pid)
+        {
+            char name[64] = {};
+            std::snprintf(name, sizeof(name), "\\\\.\\pipe\\jbro-debug-%lu", pid);
+            const std::wstring wide(name, name + std::strlen(name));
+            for (int tries = 0; tries < 200; ++tries)
+            {
+                handle = CreateFileW(wide.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+                if (handle != INVALID_HANDLE_VALUE)
+                {
+                    return true;
+                }
+                Sleep(2);
+            }
+            return false;
+        }
+
+        void Write(const std::string& line)
+        {
+            const std::string packet = line + "\n";
+            DWORD written = 0;
+            WriteFile(handle, packet.data(), static_cast<DWORD>(packet.size()), &written, nullptr);
+        }
+
+        // 와 있는 줄 하나를 꺼낸다(막지 않는다). 없으면 비었다.
+        std::string TakeLine()
+        {
+            for (;;)
+            {
+                const std::size_t newline = buffer.find('\n');
+                if (newline != std::string::npos)
+                {
+                    std::string line = buffer.substr(0, newline);
+                    buffer.erase(0, newline + 1);
+                    return line;
+                }
+                DWORD available = 0;
+                if (FALSE == PeekNamedPipe(handle, nullptr, 0, nullptr, &available, nullptr) || available == 0)
+                {
+                    return std::string();
+                }
+                std::string chunk(available, '\0');
+                DWORD read = 0;
+                ReadFile(handle, chunk.data(), available, &read, nullptr);
+                buffer.append(chunk.data(), read);
+            }
+        }
+
+        // 이 글자로 시작하는 줄이 올 때까지 짧게 기다렸다 꺼낸다.
+        std::string WaitLine(const char* prefix)
+        {
+            for (int tries = 0; tries < 400; ++tries)
+            {
+                const std::string line = TakeLine();
+                if (false == line.empty() && line.compare(0, std::strlen(prefix), prefix) == 0)
+                {
+                    return line;
+                }
+                if (line.empty())
+                {
+                    Sleep(2);
+                }
+            }
+            return std::string();
+        }
+
+        void Close()
+        {
+            if (handle != INVALID_HANDLE_VALUE)
+            {
+                CloseHandle(handle);
+                handle = INVALID_HANDLE_VALUE;
+            }
+        }
+    };
+
+    PipeClient* g_client = nullptr;
+
+    // 멈춘 동안 어댑터가 하는 일: `stopped` 를 읽어 두고 두 프레임 뒤 `continue` 를 보낸다.
+    void OnDebugBreakFrame(void*, EditorApplication& editor)
+    {
+        if (editor.GetScriptBreakFrameCount() == 0)
+        {
+            const std::string stopped = g_client->WaitLine("stopped");
+            Check(false == stopped.empty(), "the adapter receives the stopped event over the pipe");
+            // stopped <addr> <ctx> <tid> - 셋 다 0 이 아니어야 한다.
+            unsigned long long address = 0;
+            unsigned long long context = 0;
+            unsigned long thread = 0;
+            Check(::sscanf_s(stopped.c_str(), "stopped %llx %llx %lu", &address, &context, &thread) == 3,
+                "the stopped event carries the address, context and thread");
+            Check(address != 0 && context != 0 && thread != 0, "none of them is empty");
+            g_probe.hits = g_probe.hits + 1;
+            return;
+        }
+        if (editor.GetScriptBreakFrameCount() == 2)
+        {
+            g_client->Write("continue");
+        }
+    }
+
+    // **파이프 통로가 어댑터와 에디터를 잇는다**(D-330 3 단계). 어댑터 흉내가 중단점을 걸고, 멈춤을 받고, 이어 가라 한다.
+    void TestTheDebugServerRelaysAcrossThePipe()
+    {
+        RegisterScriptType<BreakScript>();
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the debug channel is not verified" << std::endl;
+            return;
+        }
+        ProjectDescriptor project;
+        constexpr char name[] = "DebugChannelProbe";
+        project.name = {name, static_cast<UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        Check(editor.StartScriptDebugServer(GetCurrentProcessId()), "the editor opens the debug channel");
+        Check(editor.IsScriptDebugServerActive(), "the channel is active");
+        PipeClient client;
+        g_client = &client;
+        Check(client.Connect(GetCurrentProcessId()), "the adapter connects to the channel");
+
+        Canvas& canvas = *editor.GetCanvas();
+        Object::GameObject* mover = canvas.CreateObject("Mover");
+        canvas.AttachComponent<Component::Transform2D>(mover);
+        Check(canvas.AttachScript(mover, BreakScript::StaticTypeName()) != nullptr, "the break script attaches");
+        Check(editor.Tick(Frame), "the editor ticks before play");
+
+        // setbp / clearbp 왕복: 주소를 걸고 답을 받는다.
+        char setbp[48] = {};
+        const UInt64 address = CodeAddressOf(&BreakTarget);
+        std::snprintf(setbp, sizeof(setbp), "setbp %llx", static_cast<unsigned long long>(address.Value));
+        client.Write(setbp);
+        Check(editor.Tick(Frame), "the editor ticks so the server reads the command");
+        const std::string reply = client.WaitLine("bp");
+        char expected[48] = {};
+        std::snprintf(expected, sizeof(expected), "bp %llx 1", static_cast<unsigned long long>(address.Value));
+        Check(reply == expected, "the server confirms the breakpoint went in");
+        char clearbp[48] = {};
+        std::snprintf(clearbp, sizeof(clearbp), "clearbp %llx", static_cast<unsigned long long>(address.Value));
+        client.Write(clearbp);
+        Check(editor.Tick(Frame), "the editor ticks so the breakpoint comes out");
+
+        // 스크립트의 __debugbreak 에서 선다. 어댑터가 stopped 를 받고 continue 로 이어 가게 한다.
+        g_control = BreakControl{};
+        g_control.breakInUpdate = true;
+        g_control.triggerUpdate = 3;
+        g_probe = BreakProbe{};
+        editor.SetScriptBreakFrameHook(&OnDebugBreakFrame, nullptr);
+        Check(editor.StartSimulation(), "play starts");
+        for (Int32 frame = 0; frame < 12; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor ticks through the break");
+        }
+        editor.SetScriptBreakFrameHook(nullptr, nullptr);
+        Check(g_probe.hits == 1, "the adapter saw exactly one stop over the pipe");
+        Check(false == editor.IsAtScriptBreak() && editor.IsSimulationPlaying(), "the adapter's continue let play go on");
+        Check(false == client.WaitLine("resumed").empty(), "the adapter is told the script resumed");
+
+        editor.StopSimulation();
+        Check(editor.Tick(Frame), "the editor ticks after stopping");
+        client.Close();
+        g_client = nullptr;
+        editor.StopScriptDebugServer();
+        editor.Shutdown();
+    }
 }
 
 JBro::Int32 RunScriptBreakTests()
 {
     TestScriptBreakStopsOnlyTheGame();
+    TestTheDebugServerRelaysAcrossThePipe();
     std::cout << "ScriptBreak tests passed.\n";
     return 0;
 }

@@ -73,6 +73,8 @@ namespace JBro
         Bool embedded = false;
         // 멈춘 스레드의 운영체제 문맥(`CONTEXT*`)이다. 디버그 어댑터가 스택과 변수를 이 문맥으로 읽는다.
         const void* context = nullptr;
+        // 선 스레드의 운영체제 번호다.
+        UInt32 threadId = 0;
     };
 
     enum class CodeBreakAction : std::uint8_t

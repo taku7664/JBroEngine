@@ -4,6 +4,7 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorControlPort.h>
+#include <JBro/Editor/ScriptDebugServer.h>
 #include <JBro/Network/Socket.h>
 #include <JBro/Editor/Command/AssetFileCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
@@ -3318,8 +3319,14 @@ namespace JBro
         m_scriptBreakRequest = ScriptBreakRequest::None;
         m_scriptBreakFrames = 0;
         m_scriptBreakLocation = CodeLocation{};
+        m_scriptBreakContext = hit.context;
+        m_scriptBreakThread = hit.threadId;
         m_platform->DescribeCodeAddress(hit.address, m_scriptBreakLocation);
         m_commands.SetLocked(true);
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->NotifyStopped(hit.address, hit.context, m_scriptBreakThread);
+        }
         Log::Write(LogLevel::Info, "script", "a script stopped at %s:%u (%s)", m_scriptBreakLocation.file.empty() ? "?" : m_scriptBreakLocation.file.c_str(),
             static_cast<unsigned int>(m_scriptBreakLocation.line.Value), m_scriptBreakLocation.function.c_str());
         {
@@ -3343,6 +3350,14 @@ namespace JBro
         auto previous = std::chrono::steady_clock::now();
         while (m_scriptBreakRequest == ScriptBreakRequest::None)
         {
+            if (m_debugServer.Get() != nullptr)
+            {
+                m_debugServer->Poll(*this);
+                if (m_scriptBreakRequest != ScriptBreakRequest::None)
+                {
+                    break;
+                }
+            }
             if (m_scriptBreakHook != nullptr)
             {
                 m_scriptBreakHook(m_scriptBreakHookUser, *this);
@@ -3371,6 +3386,12 @@ namespace JBro
         m_engine->EndBreakFrames();
         m_scriptBreakActive = false;
         m_scriptBreakRequest = ScriptBreakRequest::None;
+        m_scriptBreakContext = nullptr;
+        m_scriptBreakThread = 0;
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->NotifyResumed();
+        }
         Log::Write(LogLevel::Info, "script", stop ? "the stopped script is being ended" : "the stopped script goes on");
         // 정지면 예외로 나아가게 둔다. 스크립트를 감싼 보호가 그 훅을 끝내고, 다음 프레임의 `PollScriptFault` 가 실행을 멈춘다.
         m_scriptBreakStopped = stop;
@@ -3434,6 +3455,42 @@ namespace JBro
     {
         m_scriptBreakHook = hook;
         m_scriptBreakHookUser = user;
+    }
+
+    const void* EditorApplication::GetScriptBreakContext() const
+    {
+        return m_scriptBreakContext;
+    }
+
+    UInt32 EditorApplication::GetScriptBreakThread() const
+    {
+        return m_scriptBreakThread;
+    }
+
+    Bool EditorApplication::StartScriptDebugServer(UInt32 processId)
+    {
+        if (m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        if (m_debugServer.Get() == nullptr)
+        {
+            m_debugServer = MakeOwnerPtr<ScriptDebugServer>();
+        }
+        return m_debugServer->Start(*m_platform, processId);
+    }
+
+    void EditorApplication::StopScriptDebugServer()
+    {
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->Stop();
+        }
+    }
+
+    Bool EditorApplication::IsScriptDebugServerActive() const
+    {
+        return m_debugServer.Get() != nullptr && m_debugServer->IsActive();
     }
 
     void EditorApplication::PollScriptErrors()
@@ -6962,6 +7019,10 @@ namespace JBro
         if (m_controlPort.Get() != nullptr)
         {
             m_controlPort->Poll(*this);
+        }
+        if (m_debugServer.Get() != nullptr)
+        {
+            m_debugServer->Poll(*this);
         }
         // 에셋 폴더의 변경은 프레임 밖, UI 보다 먼저 적용한다(D-121). 재로드는 핸들을 지키므로 화면은 다음 그림부터
         // 새 자료를 보고, 다시 스캔했으면 못 풀렸던 아이디가 풀릴 수 있어 해석을 다시 돌린다.

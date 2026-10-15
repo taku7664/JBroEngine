@@ -66,6 +66,7 @@ namespace JBro
     struct GameBuildReport;
     class IFramework;
     class IPlatform;
+    class ScriptDebugServer;
     struct AudioDeviceInfo;
     class AssetRegistry;
     namespace NodeGraph
@@ -560,6 +561,13 @@ namespace JBro
         // 코드 주소에 중단점을 넣고 뺀다. 디버그 어댑터가 소스 줄을 주소로 바꿔 넘긴다(3 단계). 스크립트 DLL 을 다시 실으면 모두 빠진다.
         Bool SetScriptBreakpoint(UInt64 address);
         Bool ClearScriptBreakpoint(UInt64 address);
+        // 멈춘 스레드의 운영체제 문맥(`CONTEXT*`)과 그 스레드 번호다(D-330 3 단계). 어댑터가 이 문맥으로 스택과 변수를 읽는다. 서 있지 않으면 null·0 이다.
+        const void* GetScriptBreakContext() const;
+        UInt32 GetScriptBreakThread() const;
+        // 디버그 어댑터가 붙는 통로를 연다(D-330 3 단계). `processId` 는 이 프로세스다. 열렸으면 참이다.
+        Bool StartScriptDebugServer(UInt32 processId);
+        void StopScriptDebugServer();
+        Bool IsScriptDebugServerActive() const;
         // 선 동안의 프레임마다 부르는 함수다. 시험이 사람 대신 보고 누른다.
         using ScriptBreakFrameHook = void (*)(void* user, EditorApplication& editor);
         void SetScriptBreakFrameHook(ScriptBreakFrameHook hook, void* user);
@@ -1132,6 +1140,9 @@ namespace JBro
         NotificationHandle m_scriptBreakNotification = InvalidNotificationHandle;
         ScriptBreakFrameHook m_scriptBreakHook = nullptr;
         void* m_scriptBreakHookUser = nullptr;
+        const void* m_scriptBreakContext = nullptr;
+        UInt32 m_scriptBreakThread = 0;
+        OwnerPtr<ScriptDebugServer> m_debugServer;
         UInt64 m_scriptErrorSerial = 0;
         Array<UInt64> m_scriptErrorGroups;
         // 도크 뿌리의 배치는 한 번만 잡는다. 메인 도크가 거기 붙는 것이 전부다.

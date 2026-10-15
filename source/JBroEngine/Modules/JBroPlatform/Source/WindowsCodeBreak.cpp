@@ -127,6 +127,7 @@ namespace JBro
             hit.address = UInt64(address);
             hit.embedded = embedded;
             hit.context = context;
+            hit.threadId = UInt32(static_cast<std::uint32_t>(GetCurrentThreadId()));
             const CodeBreakAction action = state.handler(state.user, hit);
             if (action == CodeBreakAction::Stop || (action == CodeBreakAction::Pass && embedded))
             {
