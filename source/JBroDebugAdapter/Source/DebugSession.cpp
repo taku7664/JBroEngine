@@ -380,6 +380,8 @@ namespace JBro::DebugAdapter
         JsonValue body = JsonValue::MakeObject();
         body.Set("supportsConfigurationDoneRequest", Bool(true));
         body.Set("supportsEvaluateForHovers", Bool(true));
+        body.Set("supportsConditionalBreakpoints", Bool(true));
+        body.Set("supportsLogPoints", Bool(true));
         body.Set("supportTerminateDebuggee", Bool(false));
         body.Set("exceptionBreakpointFilters", JsonValue::MakeArray());
         m_channel.SendResponse(request, true, std::move(body));
@@ -506,6 +508,8 @@ namespace JBro::DebugAdapter
                 SourceBreakpoint breakpoint;
                 breakpoint.path = path;
                 breakpoint.line = Int32(static_cast<std::int32_t>(requested->At(index).GetInt64("line").Value));
+                breakpoint.condition = requested->At(index).GetString("condition", "");
+                breakpoint.logMessage = requested->At(index).GetString("logMessage", "");
                 breakpoint.id = m_nextBreakpointId;
                 m_nextBreakpointId = m_nextBreakpointId + 1;
                 ResolveAndArm(breakpoint);
@@ -856,11 +860,33 @@ namespace JBro::DebugAdapter
 
         JsonValue stopped = JsonValue::MakeObject();
         JsonValue ids = JsonValue::MakeArray();
+        const SourceBreakpoint* matched = nullptr;
         for (const SourceBreakpoint& breakpoint : m_breakpoints)
         {
             if (breakpoint.address == address && breakpoint.address != 0)
             {
                 ids.Add(JsonValue(breakpoint.id));
+                matched = &breakpoint;
+            }
+        }
+        // **로그 포인트와 조건부 중단점**(D-330). 로그 포인트는 글만 내고 이어 간다. 조건이 거짓이면 서지 않고 이어 간다 - 사용자에게는 멈춤이 없다.
+        if (matched != nullptr)
+        {
+            SelectFrame(Int64(0));
+            if (false == matched->logMessage.empty())
+            {
+                EmitLogPoint(*matched);
+                PipeSend("continue");
+                m_state = State::Running;
+                m_stoppedContext = 0;
+                return;
+            }
+            if (false == EvaluateStopCondition(*matched))
+            {
+                PipeSend("continue");
+                m_state = State::Running;
+                m_stoppedContext = 0;
+                return;
             }
         }
         stopped.Set("reason", ids.GetSize() > 0 ? "breakpoint" : "step");
@@ -870,6 +896,90 @@ namespace JBro::DebugAdapter
         }
         stopped.Set("threadId", Int64(threadId)).Set("allThreadsStopped", Bool(true));
         m_channel.SendEvent("stopped", std::move(stopped));
+    }
+
+    Bool DebugSession::EvaluateStopCondition(const SourceBreakpoint& breakpoint)
+    {
+        if (breakpoint.condition.empty())
+        {
+            return true;
+        }
+        ComPtr<IModelObject> result;
+        String error;
+        // 식을 풀지 못하면 서는 쪽이 안전하다 - 조건을 조용히 삼켜 지나치면 사용자가 멈추지 않는 까닭을 모른다.
+        if (false == Evaluate(breakpoint.condition, result, error))
+        {
+            return true;
+        }
+        VARIANT value;
+        VariantInit(&value);
+        if (FAILED(result->GetIntrinsicValue(&value)))
+        {
+            return true;
+        }
+        Bool stop = true;
+        switch (value.vt)
+        {
+        case VT_BOOL: stop = value.boolVal != VARIANT_FALSE; break;
+        case VT_I1: stop = value.cVal != 0; break;
+        case VT_UI1: stop = value.bVal != 0; break;
+        case VT_I2: stop = value.iVal != 0; break;
+        case VT_UI2: stop = value.uiVal != 0; break;
+        case VT_I4: case VT_INT: stop = value.lVal != 0; break;
+        case VT_UI4: case VT_UINT: stop = value.ulVal != 0; break;
+        case VT_I8: stop = value.llVal != 0; break;
+        case VT_UI8: stop = value.ullVal != 0; break;
+        case VT_R4: stop = value.fltVal != 0.0f; break;
+        case VT_R8: stop = value.dblVal != 0.0; break;
+        default: stop = true; break;
+        }
+        VariantClear(&value);
+        return stop;
+    }
+
+    void DebugSession::EmitLogPoint(const SourceBreakpoint& breakpoint)
+    {
+        // `{식}` 을 값으로 바꾼다. 중괄호 밖은 그대로다. `{{`·`}}` 는 글자 중괄호다.
+        String text;
+        const String& message = breakpoint.logMessage;
+        for (std::size_t index = 0; index < message.size();)
+        {
+            const char ch = message[index];
+            if (ch == '{' && index + 1 < message.size() && message[index + 1] == '{')
+            {
+                text.push_back('{');
+                index += 2;
+            }
+            else if (ch == '}' && index + 1 < message.size() && message[index + 1] == '}')
+            {
+                text.push_back('}');
+                index += 2;
+            }
+            else if (ch == '{')
+            {
+                const std::size_t end = message.find('}', index + 1);
+                if (end == String::npos)
+                {
+                    text.push_back(ch);
+                    ++index;
+                    continue;
+                }
+                const String expression = message.Substr(index + 1, end - index - 1);
+                ComPtr<IModelObject> result;
+                String error;
+                text += Evaluate(expression, result, error) ? DisplayOf(result.Get()) : (String("{") + expression + "}");
+                index = end + 1;
+            }
+            else
+            {
+                text.push_back(ch);
+                ++index;
+            }
+        }
+        text.push_back('\n');
+        JsonValue output = JsonValue::MakeObject();
+        output.Set("category", "stdout").Set("output", text);
+        m_channel.SendEvent("output", std::move(output));
     }
 
     void DebugSession::OnModuleFromEditor(Bool loaded, const String& path)

@@ -460,6 +460,102 @@ namespace
         exitCode = 1;
         Check(target.WaitExit(10000, exitCode) && exitCode == 0, "the target ends cleanly when asked");
     }
+
+    // **조건부 중단점과 로그 포인트**(D-330). 조건이 거짓이면 서지 않고, 로그 포인트는 글만 내고 이어 간다. 상수 식으로 메커니즘을 본다.
+    void TestConditionalBreakpointsAndLogpoints()
+    {
+        const fs::path binaries = ExecutableFolder();
+        const fs::path adapterExe = binaries / "DebugAdapter" / "JBroDebugAdapter.exe";
+        const fs::path targetExe = binaries / "JBroDebugAdapterTarget.exe";
+        if (false == fs::exists(adapterExe) || false == fs::exists(targetExe))
+        {
+            std::cout << "  [skip] the debug adapter or its target is not built" << std::endl;
+            return;
+        }
+        WindowsPlatform platform;
+        JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes");
+        const String engineRoot = ScriptProject::FindEngineRoot(platform, platform.GetExecutableFolder().c_str());
+        platform.Shutdown();
+        Check(false == engineRoot.empty(), "the engine sources are found");
+        const fs::path scriptSource = fs::path(std::u8string(reinterpret_cast<const char8_t*>(engineRoot.c_str()))) / "Tests" / "DebugAdapterTarget" / "TargetScript.cpp";
+        const std::string scriptText = ReadAll(scriptSource);
+        Int32 breakLine = 0;
+        {
+            Int32 line = 1;
+            for (std::size_t at = 0; at < scriptText.size() && breakLine == 0; ++at)
+            {
+                if (scriptText.compare(at, 13, "// BREAK_HERE") == 0)
+                {
+                    breakLine = line;
+                }
+                line = line + (scriptText[at] == '\n' ? 1 : 0);
+            }
+        }
+        Check(breakLine > 0, "the target script marks the line to stop at");
+        const std::string sourceJson = "{\"source\":{\"path\":\"" + JsonPath(scriptSource) + "\"},";
+        char lineOnly[32] = {};
+        std::snprintf(lineOnly, sizeof(lineOnly), "%d", static_cast<int>(breakLine.Value));
+
+        const fs::path work = FreshFolder("cond");
+        Process target;
+        Check(target.Start(targetExe, L"\"" + work.wstring() + L"\"", false), "the target starts");
+        Check(WaitForGeneration(work, "1"), "the target loads the script");
+        Process adapter;
+        std::string response = adapter.Start(adapterExe, L"", true) ? adapter.Request("initialize", "{\"adapterID\":\"jbro\"}") : std::string();
+        Check(response.find("\"supportsConditionalBreakpoints\":true") != std::string::npos
+                && response.find("\"supportsLogPoints\":true") != std::string::npos,
+            "the adapter advertises conditional breakpoints and log points");
+        char attachText[160] = {};
+        std::snprintf(attachText, sizeof(attachText), "{\"processId\":%lu,\"scriptModules\":[\"TargetScript\"]}", static_cast<unsigned long>(target.GetId()));
+        Check(adapter.Request("attach", attachText, 60000).find("\"success\":true") != std::string::npos, "the adapter attaches");
+        adapter.WaitEvent("initialized");
+        char threadText[64] = "{\"threadId\":0}";
+
+        // 1. 거짓 조건: 스크립트가 그 줄에 닿아도 서지 않는다 - DAP stopped 가 오지 않는다.
+        adapter.Request("setBreakpoints", sourceJson + "\"breakpoints\":[{\"line\":" + lineOnly + ",\"condition\":\"1==2\"}]}");
+        adapter.Request("configurationDone");
+        Touch(work / "run");
+        Check(adapter.WaitEvent("stopped", 3000).empty(), "a false condition does not stop the script");
+        Check(target.IsRunning(), "and the script keeps running");
+
+        // 2. 참 조건: 선다.
+        fs::remove(work / "run");
+        adapter.Request("setBreakpoints", sourceJson + "\"breakpoints\":[{\"line\":" + lineOnly + ",\"condition\":\"1==1\"}]}");
+        Sleep(100);
+        Touch(work / "run");
+        std::string stopped = adapter.WaitEvent("stopped", 8000);
+        Check(stopped.find("\"reason\":\"breakpoint\"") != std::string::npos, "a true condition stops the script");
+        adapter.Request("continue", threadText);
+
+        // 3. 로그 포인트: 서지 않고 `{식}` 을 값으로 바꿔 출력한다.
+        fs::remove(work / "run");
+        adapter.Request("setBreakpoints", sourceJson + "\"breakpoints\":[{\"line\":" + lineOnly + ",\"logMessage\":\"hit {1+1}\"}]}");
+        Sleep(100);
+        Touch(work / "run");
+        std::string logged;
+        for (Int32 tries = 0; tries < 30 && logged.find("hit 2") == std::string::npos; ++tries)
+        {
+            const std::string event = adapter.WaitEvent("output", 2000);
+            if (false == event.empty())
+            {
+                logged = event;
+            }
+            if (false == adapter.WaitEvent("stopped", 1).empty())
+            {
+                break;
+            }
+        }
+        Check(logged.find("hit 2") != std::string::npos, "a log point prints the interpolated message");
+        Check(adapter.WaitEvent("stopped", 1500).empty(), "and does not stop the script");
+
+        adapter.Request("disconnect", "{}");
+        DWORD exitCode = 1;
+        adapter.WaitExit(10000, exitCode);
+        Touch(work / "quit");
+        target.WaitExit(10000, exitCode);
+    }
+
     // ── 실제 에디터 + 실제 어댑터 한자리 (D-330) ──────────────────────────────
     // 앞의 시험은 어댑터를 에디터 흉내(대상 프로그램)에 붙였다. 이번에는 **진짜**다: 이 시험 프로세스가 진짜 에디터를 돌리고,
     // 진짜 어댑터를 자식으로 띄워 이 프로세스에 세우지 않고 붙인다. 엔진이 넣은 int 3 에 스크립트가 서면, 어댑터가 그 문맥으로 스택을 읽는다.
@@ -629,6 +725,7 @@ JBro::Int32 RunDebugAdapterTests()
     try
     {
         TestTheAdapterDebugsAScriptAcrossAReload();
+        TestConditionalBreakpointsAndLogpoints();
         TestTheRealEditorAndAdapterStopAtABreakpoint();
     }
     catch (const std::exception&)

@@ -67,6 +67,10 @@ namespace JBro::DebugAdapter
             ULONG64 address = 0;
             // 에디터가 이 주소에 중단점을 넣었다고 답했는가.
             Bool armed = false;
+            // 조건부 중단점: 이 식이 참일 때만 선다(D-330). 비었으면 늘 선다.
+            String condition;
+            // 로그 포인트: 서지 않고 이 글을 출력한다. `{식}` 은 값으로 바꾼다. 비었으면 로그 포인트가 아니다.
+            String logMessage;
         };
 
         struct ScriptModule
@@ -111,6 +115,10 @@ namespace JBro::DebugAdapter
         void OnEditorLine(const String& line);
         void OnStoppedFromEditor(ULONG64 address, ULONG64 contextAddress, ULONG threadId);
         void OnModuleFromEditor(Bool loaded, const String& path);
+        // 조건부 중단점·로그 포인트(D-330). 조건이 거짓이면 서지 않고 바로 이어 간다. 로그 포인트는 글을 출력하고 이어 간다.
+        // 선 자리에서 멈춰야 하면 참, 이어 가야 하면 거짓이다.
+        Bool EvaluateStopCondition(const SourceBreakpoint& breakpoint);
+        void EmitLogPoint(const SourceBreakpoint& breakpoint);
 
         // ── 심볼과 중단점 ──
         Bool IsScriptImage(const String& imagePath) const;
