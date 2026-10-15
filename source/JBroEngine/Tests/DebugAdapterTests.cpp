@@ -420,10 +420,15 @@ namespace
         char referenceText[64] = {};
         std::snprintf(referenceText, sizeof(referenceText), "{\"variablesReference\":%lld}", static_cast<long long>(locals.Value));
         response = adapter.Request("variables", referenceText);
+        Check(response.find("\"variables\"") != std::string::npos, "the locals scope answers");
+#if defined(_DEBUG)
+        // **지역 변수의 값은 최적화하지 않은 빌드에서만 믿을 수 있다.** Release 는 옵티마이저가 지역을 지우거나 레지스터로 옮겨
+        // 디버거가 보지 못한다 - 어느 네이티브 디버거나 같다. 그래서 값 검사는 Debug 에서만 한다(멈춤·스택은 두 구성 다 본다).
         Check(VariableNamed(response, "speed").find("\"value\":\"2.5") != std::string::npos, "a Float local shows as its number");
         Check(VariableNamed(response, "name").find("hello") != std::string::npos, "a String local shows its text");
         const std::string numbers = VariableNamed(response, "numbers");
         Check(numbers.find("size=3") != std::string::npos, "an Array local shows its size");
+#endif
 
         // **다시 실은 복사본에서도 선다**(D-330). 스크립트를 멈춰 두고 다음 세대를 싣는다 - 에디터(흉내)가 `module` 로 알리면
         // 어댑터가 새 모듈에서 줄을 다시 풀어 다시 건다. 다시 돌리면 그 복사본에서 멈춘다.
@@ -462,6 +467,13 @@ namespace
 
     int g_coRunUpdates = 0;
 
+    // 중단점을 거는 줄이 Release 에서도 또렷한 명령을 갖도록, 인라인하지 않는 호출을 둔다. 옵티마이저가 그 줄을 지우거나 합치면 줄 → 주소가 풀리지 않는다.
+    __declspec(noinline) void CoRunTouch(float value)
+    {
+        volatile float sink = value;
+        (void)sink;
+    }
+
     class CoRunScript final : public GameScript2D
     {
         JBRO_REFLECT_BODY(CoRunScript)
@@ -473,7 +485,8 @@ namespace
         void OnUpdate() override
         {
             g_coRunUpdates = g_coRunUpdates + 1;
-            speed = speed + 1.0f; // CORUN_BREAK
+            speed = speed + 1.0f;
+            CoRunTouch(speed); // CORUN_BREAK
         }
     };
 

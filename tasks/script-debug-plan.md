@@ -170,7 +170,9 @@
 - 에디터: `ScriptDebugServer` 가 `jbro-debug-<pid>` 를 열고 통로와 중단점·멈춤 API 를 잇는다. 어댑터가 `setbp`·`clearbp`·`continue`·`stop` 을 보내면, 에디터가 `bp`(setbp 답)·`stopped <주소> <문맥주소> <스레드>`·`resumed`·`module`·`exited` 를 보낸다. `Poll` 은 프레임마다, 그리고 멈춤 루프 안에서 돈다 - 멈춘 동안 어댑터가 이어 가게 할 수 있다. 멈춘 스레드 번호는 `CodeBreak` 에 실린다.
 - 어댑터(`source/JBroDebugAdapter`): **세우지 않고 붙는다**(`DEBUG_ATTACH_NONINVASIVE | ..._NO_SUSPEND`) - 메모리와 심볼만 읽고 에디터는 멈추지 않는다. 디버그 이벤트가 오지 않으므로 멈춤·재개·모듈은 통로로 받는다. 중단점은 줄을 주소로 바꿔(`EvaluateWide` `` `모듈!파일:줄` ``) `setbp` 로 넘기고, `stopped` 를 받으면 `.cxr <문맥주소>` 한 뒤 스택·변수를 그 문맥으로 읽는다. 데이터 모델의 `@$curthread` 는 `.cxr` 을 따르지 않아 scope 는 `@$curframe.LocalVariables` 로 읽는다. DbgEng 이벤트 콜백(`SessionEvents`)은 버렸다.
 - 시험(`DebugAdapter`): 대상 프로그램을 **에디터 흉내**로 다시 썼다(`Tests/DebugAdapterTarget`) - 통로를 열고, `setbp` 에 `bp` 로 답하고, 스크립트가 BREAK_HERE 에서 자기 문맥을 떠 `stopped` 를 보내고 `continue` 를 기다린다. 어댑터가 세우지 않고 붙는 동안 대상이 계속 돌고, 줄 → 주소 + `setbp` 로 중단점이 서고, `stopped` 뒤 `.cxr` 로 읽은 스택에 스크립트 파일이 보이고, 스크립트 프레임의 지역 변수가 natvis 값(`Float 2.5`·`String hello`·`Array size=3`)으로 나오고, 이어 가고, 떼어도 대상이 사는 것을 본다.
-- 재지 않은 것: 실제 에디터(+엔진 int 3)와 어댑터를 함께 붙여 돌리기(시험은 대상이 문맥을 직접 뜬다), 다시 실은 복사본에서의 중단점 재배치(에디터의 `module` 알림 경로), Release 구성.
+- **실제 에디터+어댑터 한자리**(2026-10-15, `DebugAdapter` 의 `TestTheRealEditorAndAdapterStopAtABreakpoint`): 시험 프로세스가 진짜 에디터(`EditorApplication`)를 돌리고 진짜 어댑터(`JBroDebugAdapter.exe`)를 자식으로 띄워 세우지 않고 붙인다. 어댑터가 소스 줄을 주소로 바꿔 `setbp` 로 넘기면 엔진이 int 3 을 넣고, 스크립트가 그 자리에 서면 어댑터가 통로로 멈춤을 받아 `.cxr` 로 그 소스 파일까지 스택을 읽고 DAP `continue` 로 이어 가게 한다.
+- **다시 실은 DLL 복사본에서의 재배치**(2026-10-15): 에디터는 리로드가 성공하면 `ScriptDebugServer::NotifyModule` 로 새 복사본 경로를 통로에 보낸다(넣었던 int 3 은 리로드 전에 `ClearCodeBreakpoints` 로 뺀다). 어댑터는 `module` 을 받아 모듈 목록을 다시 읽고 줄을 새 복사본에서 다시 풀어 `setbp` 를 다시 보낸다. `DebugAdapter` 시험이 실제로 다음 세대 DLL 을 싣고 그 복사본에서 다시 서는 것을 본다. 한계: DbgEng 은 noninvasive 로 붙은 채 `.reload` 해도 모듈 **범위**를 갱신하지 않아 스택 프레임의 모듈 **이름**이 이전 세대로 남을 수 있다(소스 파일·줄은 맞다).
+- 재지 않은 것: Release 구성(아래 §4.6).
 
 ### 4.4 한 줄 가기 (4 단계)
 
@@ -188,6 +190,13 @@
 - 플랫폼: `IPlatform::GetProcessId` 가 붙을 번호를 준다.
 - 시험: `ScriptBreak` 의 `TestDebugSessionOpensTheChannelAndPlays` - 디버그 실행이 통로를 열고 재생을 켜며 어댑터(흉내)가 붙을 수 있고, 디버그 중지가 둘 다 닫는다. `EditorLocalization` 이 새 메뉴·알림 키가 두 로케일에 다 있는지 본다.
 - 재지 않은 것: 실제 스크립트 편집기 확장이 어댑터를 띄워 붙는 전체 경로(확장 쪽 연결은 담당자에게 넘긴다, debug-adapter.md §6).
+
+### 4.6 Release 구성 (실측)
+
+2026-10-15 Release 로 전체를 빌드해 디버깅 묶음(`ScriptCallGuard`·`ScriptFault`·`ScriptBreak`·`DebugAdapter`·`PlatformContract`)을 돌렸다. 모두 지난다.
+- **구성과 무관한 것**: 파이프, 세우지 않고 붙기, int 3 과 VEH, `.cxr` 스택, 멈춤·이어 가기·한 줄 가기. 엔진·어댑터의 구조가 최적화에 기대지 않는다.
+- **디버깅 **대상** 코드의 최적화에 달린 것**: 중단점 **줄 → 주소** 해석과 **지역 변수** 값. Release 는 옵티마이저가 그 줄의 명령을 지우거나 합치고 지역을 레지스터로 옮겨, 줄이 풀리지 않거나 값이 보이지 않을 수 있다 - 어느 네이티브 디버거나 같다. 그래서 시험은 지역 값 검사를 `_DEBUG` 에서만 하고, 중단점 줄은 인라인하지 않는 호출로 Release 에서도 또렷하게 뒀다.
+- 뜻: 사용자는 디버깅할 **스크립트**를 최적화 없이(디버그 정보 있게) 빌드하면 Release 엔진에서도 줄과 지역을 본다. 엔진 구성과 스크립트 DLL 구성은 따로다(cpp-script-plan).
 
 ## 5. 대체한 계획
 
