@@ -73,6 +73,7 @@ namespace JBro
         OwnerPtr<ILocalPipe> OpenLocalPipe(const char* name) override;
         // `WindowsCodeBreak.cpp` 의 것이다.
         Bool SetCodeBreakHandler(CodeBreakHandler handler, void* user) override;
+        void RequestCodeStep(CodeStepKind kind) override;
         Bool SetCodeBreakpoint(UInt64 address) override;
         Bool ClearCodeBreakpoint(UInt64 address) override;
         void ClearCodeBreakpoints() override;

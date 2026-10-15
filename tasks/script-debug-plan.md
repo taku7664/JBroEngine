@@ -112,7 +112,7 @@
 1. ~~**스크립트 예외 보호.**~~ → 완료 2026-10-15. 아래 §4.1.
 2. ~~**중단점 루프.**~~ → 완료 2026-10-15. 아래 §4.2.
 3. ~~**어댑터 연결.**~~ → 완료 2026-10-15. 아래 §4.3.
-4. **한 줄 가기.** 들어가기·넘어가기·나가기.
+4. ~~**한 줄 가기.**~~ → 완료 2026-10-15. 아래 §4.4.
 5. **디버그 시작 메뉴.** 어댑터를 띄우고 붙은 뒤 실행한다.
 
 ### 4.1 스크립트 예외 보호 (1 단계)
@@ -171,6 +171,15 @@
 - 어댑터(`source/JBroDebugAdapter`): **세우지 않고 붙는다**(`DEBUG_ATTACH_NONINVASIVE | ..._NO_SUSPEND`) - 메모리와 심볼만 읽고 에디터는 멈추지 않는다. 디버그 이벤트가 오지 않으므로 멈춤·재개·모듈은 통로로 받는다. 중단점은 줄을 주소로 바꿔(`EvaluateWide` `` `모듈!파일:줄` ``) `setbp` 로 넘기고, `stopped` 를 받으면 `.cxr <문맥주소>` 한 뒤 스택·변수를 그 문맥으로 읽는다. 데이터 모델의 `@$curthread` 는 `.cxr` 을 따르지 않아 scope 는 `@$curframe.LocalVariables` 로 읽는다. DbgEng 이벤트 콜백(`SessionEvents`)은 버렸다.
 - 시험(`DebugAdapter`): 대상 프로그램을 **에디터 흉내**로 다시 썼다(`Tests/DebugAdapterTarget`) - 통로를 열고, `setbp` 에 `bp` 로 답하고, 스크립트가 BREAK_HERE 에서 자기 문맥을 떠 `stopped` 를 보내고 `continue` 를 기다린다. 어댑터가 세우지 않고 붙는 동안 대상이 계속 돌고, 줄 → 주소 + `setbp` 로 중단점이 서고, `stopped` 뒤 `.cxr` 로 읽은 스택에 스크립트 파일이 보이고, 스크립트 프레임의 지역 변수가 natvis 값(`Float 2.5`·`String hello`·`Array size=3`)으로 나오고, 이어 가고, 떼어도 대상이 사는 것을 본다.
 - 재지 않은 것: 실제 에디터(+엔진 int 3)와 어댑터를 함께 붙여 돌리기(시험은 대상이 문맥을 직접 뜬다), 다시 실은 복사본에서의 중단점 재배치(에디터의 `module` 알림 경로), Release 구성.
+
+### 4.4 한 줄 가기 (4 단계)
+
+- 플랫폼: `IPlatform::RequestCodeStep(kind)` 를 중단점 처리기 안에서(돌려주기 전에) 부르면, VEH 가 돌아간 뒤 트랩 플래그로 소스 줄이 바뀔 때까지 간다(`WindowsCodeBreak.cpp`).
+  명령마다 dbghelp 로 줄을 읽어 시작 줄과 비교한다. 넘어가기(Over)는 스택이 더 깊으면(부른 함수 안) 멈추지 않고 지나고, 들어가기(Into)는 줄이 바뀌면 멈추며, 나가기(Out)는 스택이 얕아지면(돌아감) 멈춘다. 줄이 바뀌면 처리기를 그 자리에서 다시 부른다 - 에디터가 새 `stopped` 를 보낸다. 2백만 명령을 넘으면 폭주를 막으려 선다.
+- 에디터: 멈춤 루프의 요청에 `Step` 을 더했다. 어댑터가 `step over|into|out` 을 보내면 서버가 `EditorApplication::StepScriptBreak(kind)` 를 부르고, `HandleCodeBreak` 가 `RequestCodeStep` 뒤 `Continue` 를 돌려준다.
+- 어댑터: `next`·`stepIn`·`stepOut` 을 `step over|into|out` 으로 통로에 넘긴다(`OnResume`). "다음 줄" 은 엔진이 판단한다(§3.6).
+- 시험: `ScriptBreak` 의 `TestSteppingAdvancesTheLine` - `__debugbreak` 에서 서서 넘어가기를 두 번 하면 멈춤 줄이 매번 뒤로 간다. 뮤테이션으로 확인: 한 줄 가기 신청을 무시하면 다시 서지 않아 "stopped at the break and after two steps" 가 실패한다.
+- 남은 것: 한 줄 가기 중 정지(`stop`)는 그 자리에 int 3 이 없어 예외로 세우지 못한다 - 이어 가되 다음 보호 경계에서 선다.
 
 ## 5. 대체한 계획
 

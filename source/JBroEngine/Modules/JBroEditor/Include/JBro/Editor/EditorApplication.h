@@ -558,6 +558,8 @@ namespace JBro
         // 이번에 선 동안 그린 프레임 수다.
         UInt32 GetScriptBreakFrameCount() const;
         void ContinueScriptBreak();
+        // 멈춘 스크립트를 한 줄 간다(D-330 4 단계). 엔진이 줄이 바뀔 때까지 가서 그 자리에 다시 선다.
+        void StepScriptBreak(CodeStepKind kind);
         // 코드 주소에 중단점을 넣고 뺀다. 디버그 어댑터가 소스 줄을 주소로 바꿔 넘긴다(3 단계). 스크립트 DLL 을 다시 실으면 모두 빠진다.
         Bool SetScriptBreakpoint(UInt64 address);
         Bool ClearScriptBreakpoint(UInt64 address);
@@ -1126,6 +1128,7 @@ namespace JBro
             None,
             Continue,
             Stop,
+            Step,
         };
         static CodeBreakAction OnCodeBreak(void* user, const CodeBreak& hit);
         CodeBreakAction HandleCodeBreak(const CodeBreak& hit);
@@ -1134,6 +1137,7 @@ namespace JBro
         void SubmitFrameRequests();
         Bool m_scriptBreakActive = false;
         ScriptBreakRequest m_scriptBreakRequest = ScriptBreakRequest::None;
+        CodeStepKind m_scriptBreakStepKind = CodeStepKind::Into;
         Bool m_scriptBreakStopped = false;
         CodeLocation m_scriptBreakLocation;
         UInt32 m_scriptBreakFrames = 0;

@@ -111,6 +111,12 @@ namespace JBro
         {
             editor.ContinueScriptBreak();
         }
+        else if (command == "step")
+        {
+            const CodeStepKind kind = argument == "over" ? CodeStepKind::Over
+                : argument == "out" ? CodeStepKind::Out : CodeStepKind::Into;
+            editor.StepScriptBreak(kind);
+        }
         else if (command == "stop")
         {
             editor.StopSimulation();

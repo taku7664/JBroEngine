@@ -77,6 +77,17 @@ namespace JBro
         UInt32 threadId = 0;
     };
 
+    // 한 줄 가기의 종류다(D-330 4 단계). 엔진이 트랩 플래그로 소스 줄이 바뀔 때까지 간다.
+    enum class CodeStepKind : std::uint8_t
+    {
+        // 다음 줄에 선다. 부르는 함수 안으로 들어간다.
+        Into,
+        // 다음 줄에 선다. 부르는 함수는 건너뛴다(더 깊은 스택은 멈추지 않고 지난다).
+        Over,
+        // 지금 함수에서 돌아간 뒤 선다.
+        Out
+    };
+
     enum class CodeBreakAction : std::uint8_t
     {
         // 받지 않는다. 코드에 든 int 3 은 보통 예외로 나아가고, 넣은 중단점은 `Continue` 와 같다.
@@ -560,6 +571,12 @@ namespace JBro
         }
         virtual void ClearCodeBreakpoints()
         {
+        }
+        // 지금 선 중단점에서 돌아갈 때 한 줄 간다(D-330 4 단계). 중단점 처리기(`CodeBreakHandler`) 안에서, 처리기가 `Continue` 를 돌려주기 전에 부른다.
+        // 돌아가면 엔진이 트랩 플래그로 줄이 바뀔 때까지 가고, 그 자리에서 처리기를 다시 부른다. 디버거가 없는 플랫폼이면 아무 일도 하지 않는다.
+        virtual void RequestCodeStep(CodeStepKind kind)
+        {
+            (void)kind;
         }
     };
 }

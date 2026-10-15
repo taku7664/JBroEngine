@@ -84,6 +84,9 @@ namespace
             if (g_control.breakInUpdate && g_control.updates == g_control.triggerUpdate)
             {
                 __debugbreak();
+                speed = speed + 2.0f;
+                speed = speed + 4.0f;
+                g_control.targetCalls = g_control.targetCalls + 1;
             }
         }
     };
@@ -466,6 +469,80 @@ namespace
         }
     }
 
+    // 한 줄 가기(D-330 4 단계)가 선 자리에서 한 줄씩 나아가는지다. 매 멈춤에서 다음 줄로 넘어가라 한다.
+    struct StepProbe
+    {
+        Int32 stops = 0;
+        UInt32 lines[5] = {};
+    };
+    StepProbe g_stepProbe;
+
+    void OnStepFrame(void*, EditorApplication& editor)
+    {
+        if (editor.GetScriptBreakFrameCount() != 0)
+        {
+            return;
+        }
+        StepProbe& probe = g_stepProbe;
+        if (probe.stops < 5)
+        {
+            probe.lines[probe.stops] = editor.GetScriptBreakLocation().line;
+        }
+        probe.stops = probe.stops + 1;
+        if (probe.stops < 3)
+        {
+            editor.StepScriptBreak(CodeStepKind::Over);
+        }
+        else
+        {
+            editor.SetSimulationPaused(false);
+        }
+    }
+
+    void TestSteppingAdvancesTheLine()
+    {
+        RegisterScriptType<BreakScript>();
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; stepping not verified" << std::endl;
+            return;
+        }
+        ProjectDescriptor project;
+        constexpr char name[] = "StepProbe";
+        project.name = {name, static_cast<UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        editor.SetScriptBreakFrameHook(&OnStepFrame, nullptr);
+
+        Canvas& canvas = *editor.GetCanvas();
+        Object::GameObject* mover = canvas.CreateObject("Mover");
+        canvas.AttachComponent<Component::Transform2D>(mover);
+        Check(canvas.AttachScript(mover, BreakScript::StaticTypeName()) != nullptr, "the break script attaches");
+
+        g_control = BreakControl{};
+        g_control.breakInUpdate = true;
+        g_control.triggerUpdate = 3;
+        g_stepProbe = StepProbe{};
+        Check(editor.StartSimulation(), "play starts");
+        for (Int32 frame = 0; frame < 20 && editor.IsSimulationPlaying() && g_stepProbe.stops < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor ticks through the stepping");
+        }
+        editor.SetScriptBreakFrameHook(nullptr, nullptr);
+        Check(g_stepProbe.stops >= 3, "the script stopped at the break and after two steps");
+        Check(g_stepProbe.lines[1] > g_stepProbe.lines[0] && g_stepProbe.lines[2] > g_stepProbe.lines[1],
+            "each step over moved to a later source line in the same script");
+        Check(false == ScriptCallGuard::HasFault(), "stepping is not a fault");
+        editor.StopSimulation();
+        Check(editor.Tick(Frame), "the editor ticks after stopping");
+        editor.Shutdown();
+    }
+
     // **파이프 통로가 어댑터와 에디터를 잇는다**(D-330 3 단계). 어댑터 흉내가 중단점을 걸고, 멈춤을 받고, 이어 가라 한다.
     void TestTheDebugServerRelaysAcrossThePipe()
     {
@@ -541,6 +618,7 @@ namespace
 JBro::Int32 RunScriptBreakTests()
 {
     TestScriptBreakStopsOnlyTheGame();
+    TestSteppingAdvancesTheLine();
     TestTheDebugServerRelaysAcrossThePipe();
     std::cout << "ScriptBreak tests passed.\n";
     return 0;

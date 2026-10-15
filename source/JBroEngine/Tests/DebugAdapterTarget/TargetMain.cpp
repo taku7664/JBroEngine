@@ -62,8 +62,9 @@ namespace
         {
             g_armed = false;
         }
-        else if (line.rfind("continue", 0) == 0)
+        else if (line.rfind("continue", 0) == 0 || line.rfind("step", 0) == 0)
         {
+            // 대상은 엔진이 아니라 실제로 한 줄 갈 수 없다 - 멈춤에서 풀기만 한다(한 줄 가기 자체는 엔진 쪽 시험이 본다).
             g_continue = true;
         }
         else if (line.rfind("stop", 0) == 0)

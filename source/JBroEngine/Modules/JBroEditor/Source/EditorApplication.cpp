@@ -3380,6 +3380,7 @@ namespace JBro
         }
 
         const Bool stop = m_scriptBreakRequest == ScriptBreakRequest::Stop;
+        const Bool step = m_scriptBreakRequest == ScriptBreakRequest::Step;
         m_notifications.Dismiss(m_scriptBreakNotification);
         m_scriptBreakNotification = InvalidNotificationHandle;
         m_commands.SetLocked(false);
@@ -3395,6 +3396,12 @@ namespace JBro
         Log::Write(LogLevel::Info, "script", stop ? "the stopped script is being ended" : "the stopped script goes on");
         // 정지면 예외로 나아가게 둔다. 스크립트를 감싼 보호가 그 훅을 끝내고, 다음 프레임의 `PollScriptFault` 가 실행을 멈춘다.
         m_scriptBreakStopped = stop;
+        // 한 줄 가기면 엔진에 신청하고 이어 간다. 돌아가면 엔진이 줄이 바뀔 때까지 가서 처리기를 다시 부른다(여기로 다시 온다).
+        if (step)
+        {
+            m_platform->RequestCodeStep(m_scriptBreakStepKind);
+            return CodeBreakAction::Continue;
+        }
         return stop ? CodeBreakAction::Stop : CodeBreakAction::Continue;
     }
 
@@ -3438,6 +3445,15 @@ namespace JBro
         if (m_scriptBreakActive)
         {
             m_scriptBreakRequest = ScriptBreakRequest::Continue;
+        }
+    }
+
+    void EditorApplication::StepScriptBreak(CodeStepKind kind)
+    {
+        if (m_scriptBreakActive)
+        {
+            m_scriptBreakStepKind = kind;
+            m_scriptBreakRequest = ScriptBreakRequest::Step;
         }
     }
 
