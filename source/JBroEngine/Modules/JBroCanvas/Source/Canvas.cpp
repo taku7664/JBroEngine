@@ -644,7 +644,7 @@ namespace JBro
             return false;
         }
 
-        // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325). 예외가 나도 떼기는 마저 한다.
+        // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-330). 예외가 나도 떼기는 마저 한다.
         ScriptCallGuard::Call("OnDetached", [script] { script->OnDetached(); });
         if (false == owner->DetachScript(script))
         {
@@ -873,7 +873,7 @@ namespace JBro
             return nullptr;
         }
 
-        // 소유 오브젝트와 식별자가 모두 확정된 뒤에 부른다(D-48). 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325).
+        // 소유 오브젝트와 식별자가 모두 확정된 뒤에 부른다(D-48). 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-330).
         ScriptCallGuard::Call("OnAttached", [script] { script->OnAttached(); });
         return script;
     }

@@ -1470,7 +1470,7 @@ namespace JBro::System
                     state.hookTargets.Add(static_cast<GameScript2D*>(script));
                 }
             }
-            // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325).
+            // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-330).
             for (GameScript2D* script : state.hookTargets)
             {
                 if (trigger)

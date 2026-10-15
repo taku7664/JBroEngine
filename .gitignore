@@ -23,7 +23,7 @@ mono_crash.*
 [Rr]eleases/
 x64/
 x86/
-# Script SDK header copy made by the engine build (D-329)
+# Script SDK header copy made by the engine build (D-334)
 source/JBroEngine/Build/ScriptSdk/
 [Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/

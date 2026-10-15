@@ -9,7 +9,7 @@
 
 namespace JBro
 {
-    // 스크립트 훅에서 난 예외 하나다(D-325). 엔진이 받은 그 자리의 값만 담는다 - 주소를 파일·줄로 바꾸는 일은 받은 뒤에 한다.
+    // 스크립트 훅에서 난 예외 하나다(D-330). 엔진이 받은 그 자리의 값만 담는다 - 주소를 파일·줄로 바꾸는 일은 받은 뒤에 한다.
     struct ScriptFault
     {
         static constexpr UInt32 MaxFrames = 32;
@@ -29,7 +29,7 @@ namespace JBro
     // `exceptionPointers` 는 운영체제의 예외 정보(`EXCEPTION_POINTERS*`)다. 채운 칸 수를 돌려준다.
     using ScriptFaultCapture = UInt32 (*)(void* user, const void* exceptionPointers, UInt64* frames, UInt32 capacity);
 
-    // **스크립트가 죽어도 에디터는 산다**(D-325). 엔진이 스크립트 코드를 부르는 자리는 모두 `ScriptCallGuard::Call` 을 거친다.
+    // **스크립트가 죽어도 에디터는 산다**(D-330). 엔진이 스크립트 코드를 부르는 자리는 모두 `ScriptCallGuard::Call` 을 거친다.
     //
     // 켜져 있으면 훅을 SEH 로 감싸 예외를 받고, 첫 예외를 적어 둔 뒤 **그다음 훅은 부르지 않는다** - 예외가 난 스크립트의
     // 캔버스는 이미 믿을 수 없다. 호스트(에디터)가 다음 프레임에 적힌 것을 꺼내 실행을 멈추고 되돌린 뒤 `ClearFault` 한다.
@@ -47,7 +47,7 @@ namespace JBro
         const ScriptFault& GetFault();
         void ClearFault();
 
-        // 지금 감싼 훅 안인가. 스크립트 중단점(D-325 2 단계)이 스크립트가 도는 동안의 멈춤인지를 이것으로 가린다. 켜져 있을 때만 센다.
+        // 지금 감싼 훅 안인가. 스크립트 중단점(D-330 2 단계)이 스크립트가 도는 동안의 멈춤인지를 이것으로 가린다. 켜져 있을 때만 센다.
         Bool IsInCall();
 
         namespace Detail

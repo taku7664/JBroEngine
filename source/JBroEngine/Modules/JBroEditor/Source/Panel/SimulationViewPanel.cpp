@@ -126,7 +126,7 @@ namespace JBro
         }
         else if (m_editor->IsAtScriptBreak())
         {
-            // 스크립트가 중단점에 섰다(D-325). 그냥 일시정지와 가른다 - 어느 줄에 섰는지가 이 화면을 보는 까닭이다.
+            // 스크립트가 중단점에 섰다(D-330). 그냥 일시정지와 가른다 - 어느 줄에 섰는지가 이 화면을 보는 까닭이다.
             const CodeLocation& location = m_editor->GetScriptBreakLocation();
             const char* file = location.file.c_str();
             for (const char* at = file; *at != '\0'; ++at)

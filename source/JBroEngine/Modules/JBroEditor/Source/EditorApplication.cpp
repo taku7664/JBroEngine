@@ -108,7 +108,7 @@ namespace JBro
 {
     namespace
     {
-        // 스크립트 예외 자리의 스택을 플랫폼에게 읽힌다(D-325). 아래 알림 도우미들과 함께 있다.
+        // 스크립트 예외 자리의 스택을 플랫폼에게 읽힌다(D-330). 아래 알림 도우미들과 함께 있다.
         UInt32 CaptureScriptFaultFrames(void* user, const void* exceptionPointers, UInt64* frames, UInt32 capacity);
         // 도크 노드가 스스로 그리는 단추를 끈다(ProjectRule §11.3). 왼쪽 위의 창 메뉴와
         // 오른쪽 위의 닫기 단추 둘 다이고, 둘 다 `imgui_internal.h` 의 플래그다 -
@@ -203,9 +203,9 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
-            // **스크립트가 죽어도 에디터는 산다**(D-325). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
+            // **스크립트가 죽어도 에디터는 산다**(D-330). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
             ScriptCallGuard::Enable(&CaptureScriptFaultFrames, m_platform.Get());
-            // 스크립트 중단점은 엔진이 받는다(D-325 2 단계). OS 디버거로 붙지 않으므로 선 동안에도 에디터가 그린다.
+            // 스크립트 중단점은 엔진이 받는다(D-330 2 단계). OS 디버거로 붙지 않으므로 선 동안에도 에디터가 그린다.
             m_platform->SetCodeBreakHandler(&EditorApplication::OnCodeBreak, this);
 
             // **프로그램과 함께 놓인 것은 실행 파일 기준으로 찾는다**(D-176). 현재 작업 폴더로
@@ -3060,7 +3060,7 @@ namespace JBro
             return static_cast<IPlatform*>(user)->CaptureFaultFrames(exceptionPointers, frames, capacity);
         }
 
-        // 누르면 스크립트 파일의 그 줄을 편집기로 연다. 스크립트 예외(D-325)와 새 스크립트 알림이 쓴다.
+        // 누르면 스크립트 파일의 그 줄을 편집기로 연다. 스크립트 예외(D-330)와 새 스크립트 알림이 쓴다.
         class OpenScriptLineAction final : public NotificationAction
         {
         public:
@@ -3304,7 +3304,7 @@ namespace JBro
         return static_cast<EditorApplication*>(user)->HandleCodeBreak(hit);
     }
 
-    // **스크립트가 중단점에 섰다**(D-325 2 단계). 여기는 예외 처리기 안이고, 스크립트는 프레임워크 갱신 한가운데에 서 있다.
+    // **스크립트가 중단점에 섰다**(D-330 2 단계). 여기는 예외 처리기 안이고, 스크립트는 프레임워크 갱신 한가운데에 서 있다.
     // 돌아가기 전까지 이 자리에서 에디터 화면만 그린다 - 게임 갱신·시간·소리는 선다. 편집은 막는다: 스크립트 스택이 쥔 오브젝트를 지우면 이어 갈 때 죽는다.
     CodeBreakAction EditorApplication::HandleCodeBreak(const CodeBreak& hit)
     {
@@ -6987,7 +6987,7 @@ namespace JBro
         PollScriptBuild();
         // DLL 이 바뀌었거나 미룬 리로드가 있으면 다시 싣는다(D-300).
         PollScriptModuleFile(deltaTime);
-        // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-325). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
+        // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-330). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
         PollScriptFault();
         PollScriptErrors();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
@@ -7239,7 +7239,7 @@ namespace JBro
 
     void EditorApplication::ReleaseProcessResources()
     {
-        // 스택을 읽는 플랫폼이 곧 사라진다(D-325). 넣은 중단점도 함께 뺀다.
+        // 스택을 읽는 플랫폼이 곧 사라진다(D-330). 넣은 중단점도 함께 뺀다.
         if (m_platform.Get() != nullptr)
         {
             m_platform->SetCodeBreakHandler(nullptr, nullptr);

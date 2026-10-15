@@ -23,7 +23,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
-// **스크립트가 중단점에 서도 에디터는 선다 - 화면은 돌고 편집만 막힌다**(D-325 2 단계). 시험이 등록한 스크립트를 에디터의 진짜
+// **스크립트가 중단점에 서도 에디터는 선다 - 화면은 돌고 편집만 막힌다**(D-330 2 단계). 시험이 등록한 스크립트를 에디터의 진짜
 // `ScriptSystem` 으로 돌리며 스크립트의 `__debugbreak` 와 엔진이 넣은 int 3 에서 세운다. 선 동안의 프레임마다 시험이 사람 대신 보고 누른다
 // (`SetScriptBreakFrameHook`). 본 것: 선 자리와 그 줄, 선 동안 그린 프레임, 막힌 편집, 이어 가기와 그 뒤의 실행, 정지와 되돌린 캔버스,
 // 넣은 중단점이 매 프레임 다시 걸리고 빼면 원래 코드가 돈다는 것, 실행 밖에서 걸린 중단점이 아무 일 없이 지나가는 것.
@@ -270,7 +270,7 @@ namespace
             Check(g_probe.sawLocation, "the stop names the script's file, line and function");
             Check(g_probe.notified, "and tells the user");
             Check(g_probe.editRefused, "editing is refused while the script stands");
-            // 선 동안의 에디터 프레임은 스크립트 스택 위에 예외 처리기와 함께 얹힌다(D-325 §3.6). 얼마나 깊었는지 남기고, 1 MB 스택의 절반을 넘지 않는지 본다.
+            // 선 동안의 에디터 프레임은 스크립트 스택 위에 예외 처리기와 함께 얹힌다(D-330 §3.6). 얼마나 깊었는지 남기고, 1 MB 스택의 절반을 넘지 않는지 본다.
             ULONG_PTR low = 0;
             ULONG_PTR high = 0;
             GetCurrentThreadStackLimits(&low, &high);

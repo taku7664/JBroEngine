@@ -6871,7 +6871,7 @@ namespace
         *nothing = 1;
     }
 
-    // **스크립트가 죽어도 에디터는 산다**(D-325). 실행 중 훅에서 예외가 나면 다음 프레임에 실행을 멈추고 실행 전 캔버스로 되돌리며,
+    // **스크립트가 죽어도 에디터는 산다**(D-330). 실행 중 훅에서 예외가 나면 다음 프레임에 실행을 멈추고 실행 전 캔버스로 되돌리며,
     // 오류 알림을 띄운다. 실행 중이 아니면 알리기만 한다. 진짜 스크립트 대신 에디터가 켠 보호를 거쳐 null 에 쓴다.
     void TestAScriptFaultStopsPlayAndTellsTheUser()
     {
@@ -16347,7 +16347,7 @@ namespace
         Check(FindScriptedObject(*editor.GetCanvas()) != nullptr, "the script is still on the object after the reload");
         ScenarioShot(editor, "a15_fixed");
 
-        // ── 9. 스크립트의 `__debugbreak()` 에서 선다 → 둘러보고 일시정지를 풀면 이어 간다 → 다시 서면 정지한다 (D-325 2 단계) ─────────────
+        // ── 9. 스크립트의 `__debugbreak()` 에서 선다 → 둘러보고 일시정지를 풀면 이어 간다 → 다시 서면 정지한다 (D-330 2 단계) ─────────────
         const std::string withBreak = InsertIntoFunction(good, "PlayerMover::OnUpdate()",
             "\r\n    static Int32 frames = 0;\r\n    frames = frames + 1;\r\n    if (frames == 10 || frames == 40)\r\n    {\r\n        __debugbreak();\r\n    }\r\n");
         WriteWholeText(source, withBreak);

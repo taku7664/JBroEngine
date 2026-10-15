@@ -54,7 +54,7 @@ namespace JBro
             return;
         }
         m_enabled = enabled;
-        // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325).
+        // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-330).
         if (enabled)
         {
             ScriptCallGuard::Call("OnEnabled", [this] { OnEnabled(); });

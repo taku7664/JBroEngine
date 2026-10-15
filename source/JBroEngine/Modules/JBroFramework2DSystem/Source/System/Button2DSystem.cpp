@@ -269,7 +269,7 @@ namespace JBro::System
         }
         for (GameScript2D* script : m_hookTargets)
         {
-            // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-325).
+            // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-330).
             switch (hook)
             {
             case Hook::Enter:

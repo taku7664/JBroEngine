@@ -53,7 +53,7 @@ namespace JBro
         void* group = nullptr;
     };
 
-    // 코드 주소 하나가 어디인지다(D-325). 스크립트 예외를 사용자에게 알릴 때 쓴다. 모르는 칸은 비어 있다.
+    // 코드 주소 하나가 어디인지다(D-330). 스크립트 예외를 사용자에게 알릴 때 쓴다. 모르는 칸은 비어 있다.
     struct CodeLocation
     {
         // 그 주소가 든 모듈 파일의 경로다.
@@ -65,7 +65,7 @@ namespace JBro
         UInt32 line = 0;
     };
 
-    // 코드의 int 3 에 걸린 자리다(D-325 2 단계). 엔진이 넣은 중단점이거나, 코드에 원래 든 int 3(`__debugbreak`)이다.
+    // 코드의 int 3 에 걸린 자리다(D-330 2 단계). 엔진이 넣은 중단점이거나, 코드에 원래 든 int 3(`__debugbreak`)이다.
     struct CodeBreak
     {
         UInt64 address = 0;
@@ -497,7 +497,7 @@ namespace JBro
             (void)low;
             (void)high;
         }
-        // **스크립트 예외의 자리를 읽는다**(D-325). `exceptionPointers` 는 운영체제의 예외 정보이고, 예외 자리부터 바깥으로
+        // **스크립트 예외의 자리를 읽는다**(D-330). `exceptionPointers` 는 운영체제의 예외 정보이고, 예외 자리부터 바깥으로
         // 명령 주소를 `capacity` 개까지 채워 그 수를 돌려준다. 예외 필터 안에서 불린다 - 할당하지 않는다. 없는 플랫폼이면 0 이다.
         virtual UInt32 CaptureFaultFrames(const void* exceptionPointers, UInt64* frames, UInt32 capacity)
         {
@@ -514,7 +514,7 @@ namespace JBro
             return false;
         }
 
-        // ── 스크립트 중단점 (D-325 2 단계) ──────────────────────────────────────────────────────
+        // ── 스크립트 중단점 (D-330 2 단계) ──────────────────────────────────────────────────────
         // **OS 디버거로 붙지 않고 엔진이 중단점을 받는다.** 엔진이 코드에 int 3 을 넣고 빼며, 걸리면 그 스레드의 예외 처리기에서
         // `handler` 를 부른다. 처리기를 건 스레드에서 난 것만 받는다 - 다른 스레드의 int 3 은 보통 예외로 나아간다.
         // `nullptr` 로 끄면 넣은 중단점도 모두 뺀다. 없는 플랫폼이면 거짓이다.
