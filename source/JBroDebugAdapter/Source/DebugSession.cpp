@@ -6,20 +6,17 @@
 #include <TlHelp32.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cwchar>
 
 namespace JBro::DebugAdapter
 {
     namespace
     {
-        // 한 번에 펴 보이는 자식의 상한이다. 큰 배열을 펴다 클라이언트가 멈추지 않게 한다.
         constexpr std::size_t MaxChildren = 1000;
-        // 스택을 이만큼까지만 읽는다.
         constexpr ULONG MaxFrames = 256;
-        // 프레임 번호 = 스레드 시스템 번호 * 이 수 + 프레임 차례.
         constexpr Int64 FramesPerThread = 1000;
 
-        // 이 실행 파일이 있는 폴더다(끝에 구분자). natvis 와 기본 기호 경로의 자리다.
         String AdapterFolder()
         {
             wchar_t self[MAX_PATH * 2] = {};
@@ -54,7 +51,6 @@ namespace JBro::DebugAdapter
             return true;
         }
 
-        // 실행 파일 이름으로 떠 있는 프로세스를 찾는다. 여럿이면 가장 늦게 뜬 것이다(번호가 늘 늘지는 않지만, 스냅숏 차례는 만든 차례다).
         ULONG FindProcessByName(const String& name)
         {
             const std::wstring wide = ToWide(name);
@@ -147,7 +143,6 @@ namespace JBro::DebugAdapter
             return SUCCEEDED(object->GetTypeInfo(&type)) && type != nullptr && SUCCEEDED(type->GetTypeKind(&kind));
         }
 
-        // 데이터 모델이 이 값을 글자로 보이는 그대로다(`dx` 가 찍는 값, natvis 의 `DisplayString` 포함).
         String DisplayOf(IModelObject* object)
         {
             ComPtr<IUnknown> unknown;
@@ -178,7 +173,7 @@ namespace JBro::DebugAdapter
         }
     }
 
-    // DbgEng 이 찍는 글자를 받는다. `JBRO_DAP_LOG` 가 파일을 가리키면 거기에 적고, 아니면 버린다 - 표준 출력은 DAP 통로라 쓰면 안 된다.
+    // DbgEng 이 찍는 글자를 받는다. `JBRO_DAP_LOG` 가 파일을 가리키면 거기에 적고, 아니면 버린다 - 표준 출력은 DAP 통로다.
     class SessionOutput final : public IDebugOutputCallbacksWide
     {
     public:
@@ -231,7 +226,6 @@ namespace JBro::DebugAdapter
 
         STDMETHOD_(ULONG, Release)() override
         {
-            // 지우지 않는다 - `DebugSession` 이 `OwnerPtr` 로 든다.
             return static_cast<ULONG>(InterlockedDecrement(&m_references));
         }
 
@@ -246,65 +240,6 @@ namespace JBro::DebugAdapter
         LONG m_references = 1;
     };
 
-    // DbgEng 이 부르는 이벤트 콜백이다. 받은 것을 세션에 넘긴다.
-    class SessionEvents final : public DebugBaseEventCallbacksWide
-    {
-    public:
-        explicit SessionEvents(DebugSession& session)
-            : m_session(session)
-        {
-        }
-
-        STDMETHOD_(ULONG, AddRef)() override
-        {
-            return static_cast<ULONG>(InterlockedIncrement(&m_references));
-        }
-
-        STDMETHOD_(ULONG, Release)() override
-        {
-            // 지우지 않는다 - `DebugSession` 이 `OwnerPtr` 로 든다.
-            return static_cast<ULONG>(InterlockedDecrement(&m_references));
-        }
-
-        STDMETHOD(GetInterestMask)(PULONG mask) override
-        {
-            *mask = DEBUG_EVENT_BREAKPOINT | DEBUG_EVENT_EXCEPTION | DEBUG_EVENT_LOAD_MODULE | DEBUG_EVENT_UNLOAD_MODULE
-                | DEBUG_EVENT_EXIT_PROCESS;
-            return S_OK;
-        }
-
-        STDMETHOD(Breakpoint)(PDEBUG_BREAKPOINT2 breakpoint) override
-        {
-            return m_session.OnBreakpoint(breakpoint);
-        }
-
-        STDMETHOD(Exception)(PEXCEPTION_RECORD64 record, ULONG firstChance) override
-        {
-            return m_session.OnException(*record, firstChance != 0);
-        }
-
-        STDMETHOD(LoadModule)(ULONG64, ULONG64 baseOffset, ULONG, PCWSTR, PCWSTR imageName, ULONG, ULONG) override
-        {
-            return m_session.OnLoadModule(imageName, baseOffset);
-        }
-
-        STDMETHOD(UnloadModule)(PCWSTR, ULONG64 baseOffset) override
-        {
-            m_session.OnUnloadModule(baseOffset);
-            return DEBUG_STATUS_NO_CHANGE;
-        }
-
-        STDMETHOD(ExitProcess)(ULONG exitCode) override
-        {
-            m_session.OnExitProcess(exitCode);
-            return DEBUG_STATUS_NO_CHANGE;
-        }
-
-    private:
-        DebugSession& m_session;
-        LONG m_references = 1;
-    };
-
     DebugSession::DebugSession(DapChannel& channel)
         : m_channel(channel)
     {
@@ -314,11 +249,12 @@ namespace JBro::DebugAdapter
     DebugSession::~DebugSession()
     {
         ReleaseHandles();
-        // 콜백 객체(`m_events`·`m_output`)는 멤버라 COM 포인터보다 먼저 지워진다. 엔진이 지워진 콜백을 부르지 않게
-        // 콜백을 떼고 COM 포인터를 여기서 차례대로 놓는다 - 그러지 않아 `IDebugClient` 를 놓다가 죽었다.
+        if (m_pipe != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(m_pipe);
+        }
         if (m_client != nullptr)
         {
-            m_client->SetEventCallbacksWide(nullptr);
             m_client->SetOutputCallbacksWide(nullptr);
             m_client->EndSession(DEBUG_END_ACTIVE_DETACH);
         }
@@ -329,13 +265,8 @@ namespace JBro::DebugAdapter
         m_symbols.Reset();
         m_control.Reset();
         m_client.Reset();
-        if (m_process != nullptr)
-        {
-            CloseHandle(m_process);
-        }
         if (m_reader.joinable())
         {
-            // 읽기 스레드는 표준 입력에서 막혀 있을 수 있다. 끝을 기다리지 않는다 - 프로세스가 끝나며 같이 끝난다.
             m_reader.detach();
         }
     }
@@ -370,7 +301,7 @@ namespace JBro::DebugAdapter
         std::unique_lock<std::mutex> lock(m_queueLock);
         if (wait)
         {
-            m_queueSignal.wait_for(lock, std::chrono::milliseconds(200), [this] { return false == m_queue.empty() || m_inputClosed.load(); });
+            m_queueSignal.wait_for(lock, std::chrono::milliseconds(20), [this] { return false == m_queue.empty() || m_inputClosed.load(); });
         }
         if (m_queue.empty())
         {
@@ -386,69 +317,24 @@ namespace JBro::DebugAdapter
         m_reader = std::thread([this] { ReadLoop(); });
         while (false == m_quit)
         {
-            if (m_state == TargetState::Running)
+            // 에디터가 보낸 멈춤·재개·모듈·끝남을 먼저 본다. noninvasive 라 디버그 이벤트가 없다 - 모든 소식이 파이프로 온다.
+            PumpPipe();
+            if (m_quit)
             {
-                const HRESULT waited = m_control->WaitForEvent(0, 100);
-                if (waited == S_OK)
-                {
-                    HandleBreak();
-                    continue;
-                }
-                if (waited != S_FALSE)
-                {
-                    // 기다릴 대상이 없다 - 대상이 끝났다.
-                    FinishTarget(m_exitCode);
-                    continue;
-                }
-                // 도는 동안 온 요청은 대상을 세운 뒤에 처리한다. `pause` 는 사용자에게 알리는 멈춤이다.
-                JsonValue request;
-                Bool needBreak = false;
-                while (PopRequest(request, false))
-                {
-                    const String command = request.GetString("command");
-                    if (command == "pause")
-                    {
-                        m_pauseRequested = true;
-                        m_channel.SendResponse(request, true, JsonValue());
-                        needBreak = true;
-                        continue;
-                    }
-                    if (command == "continue")
-                    {
-                        JsonValue body = JsonValue::MakeObject();
-                        body.Set("allThreadsContinued", Bool(true));
-                        m_channel.SendResponse(request, true, std::move(body));
-                        continue;
-                    }
-                    m_deferred.Add(std::move(request));
-                    needBreak = true;
-                }
-                if (m_inputClosed && m_deferred.IsEmpty())
-                {
-                    // 클라이언트가 사라졌다. 떼어 내고 끝낸다 - 에디터를 함께 죽이지 않는다.
-                    JsonValue disconnect = JsonValue::MakeObject();
-                    disconnect.Set("type", "request").Set("command", "disconnect").Set("seq", Int64(0));
-                    m_deferred.Add(std::move(disconnect));
-                    needBreak = true;
-                }
-                // 한 줄씩 가는 중이면 걸음이 끝나 멈출 때까지 미룬다(몰래 세우면 걸음을 잃는다). 일시정지만 바로 세운다.
-                if (needBreak && (false == m_stepping || m_pauseRequested))
-                {
-                    RequestBreakIn();
-                }
-                continue;
+                break;
             }
             JsonValue request;
-            if (PopRequest(request, true))
+            // 붙기 전에는 요청을 기다리며 쉰다. 붙은 뒤에는 파이프를 자주 보려고 짧게만 기다린다.
+            if (PopRequest(request, m_state == State::None))
             {
                 Dispatch(request);
                 continue;
             }
-            if (m_inputClosed)
+            if (m_inputClosed && m_queue.empty())
             {
-                if (m_state == TargetState::Stopped)
+                if (m_state == State::Running || m_state == State::Stopped)
                 {
-                    Detach();
+                    PipeSend("stop");
                 }
                 m_quit = true;
             }
@@ -459,77 +345,32 @@ namespace JBro::DebugAdapter
     void DebugSession::Dispatch(const JsonValue& request)
     {
         const String command = request.GetString("command");
-        if (command == "initialize")
-        {
-            OnInitialize(request);
-        }
-        else if (command == "attach")
-        {
-            OnAttach(request);
-        }
-        else if (command == "setBreakpoints")
-        {
-            OnSetBreakpoints(request);
-        }
+        if (command == "initialize") { OnInitialize(request); }
+        else if (command == "attach") { OnAttach(request); }
+        else if (command == "setBreakpoints") { OnSetBreakpoints(request); }
         else if (command == "setExceptionBreakpoints")
         {
             JsonValue body = JsonValue::MakeObject();
             body.Set("breakpoints", JsonValue::MakeArray());
             m_channel.SendResponse(request, true, std::move(body));
         }
-        else if (command == "configurationDone")
-        {
-            OnConfigurationDone(request);
-        }
-        else if (command == "threads")
-        {
-            OnThreads(request);
-        }
-        else if (command == "stackTrace")
-        {
-            OnStackTrace(request);
-        }
-        else if (command == "scopes")
-        {
-            OnScopes(request);
-        }
-        else if (command == "variables")
-        {
-            OnVariables(request);
-        }
-        else if (command == "evaluate")
-        {
-            OnEvaluate(request);
-        }
-        else if (command == "continue")
-        {
-            OnResume(request, ResumeKind::Go);
-        }
-        else if (command == "next")
-        {
-            OnResume(request, ResumeKind::StepOver);
-        }
-        else if (command == "stepIn")
-        {
-            OnResume(request, ResumeKind::StepInto);
-        }
-        else if (command == "stepOut")
-        {
-            OnResume(request, ResumeKind::StepOut);
-        }
+        else if (command == "configurationDone") { OnConfigurationDone(request); }
+        else if (command == "threads") { OnThreads(request); }
+        else if (command == "stackTrace") { OnStackTrace(request); }
+        else if (command == "scopes") { OnScopes(request); }
+        else if (command == "variables") { OnVariables(request); }
+        else if (command == "evaluate") { OnEvaluate(request); }
+        else if (command == "continue") { OnResume(request, "continue"); }
+        else if (command == "next") { OnResume(request, "step over"); }
+        else if (command == "stepIn") { OnResume(request, "step into"); }
+        else if (command == "stepOut") { OnResume(request, "step out"); }
         else if (command == "pause")
         {
-            // 이미 서 있다.
-            m_channel.SendResponse(request, true, JsonValue());
+            // 세우지 않고 붙으므로 어댑터가 일시정지를 걸지 못한다. 사용자가 에디터에서 멈춘다.
+            m_channel.SendResponse(request, false, JsonValue(), "pause the script from the editor");
         }
-        else if (command == "disconnect" || command == "terminate")
-        {
-            OnDisconnect(request);
-        }
-        else
-        {
-            m_channel.SendResponse(request, false, JsonValue(), "unsupported request");
-        }
+        else if (command == "disconnect" || command == "terminate") { OnDisconnect(request); }
+        else { m_channel.SendResponse(request, false, JsonValue(), "unsupported request"); }
     }
 
     // ── 요청 ──────────────────────────────────────────────────────────────
@@ -546,7 +387,7 @@ namespace JBro::DebugAdapter
 
     void DebugSession::OnAttach(const JsonValue& request)
     {
-        if (m_state != TargetState::None)
+        if (m_state != State::None)
         {
             m_channel.SendResponse(request, false, JsonValue(), "already attached");
             return;
@@ -575,8 +416,6 @@ namespace JBro::DebugAdapter
             m_channel.SendResponse(request, false, JsonValue(), "the editor is not running");
             return;
         }
-        // 심볼 서버(인터넷)로 가지 않는다. 스크립트 DLL 은 자기 PDB 의 절대 경로를 품고 있어 그것으로 충분하다.
-        // 다만 기호 경로가 비면 DbgEng 은 심볼을 아예 읽지 않는다("Invalid") - 기본은 어댑터 폴더이고, 스크립트 모듈이 실리면 그 폴더를 더한다.
         String symbolPath = arguments->GetString("symbolPath", "");
         if (symbolPath.empty())
         {
@@ -591,36 +430,25 @@ namespace JBro::DebugAdapter
             m_channel.SendResponse(request, false, JsonValue(), "the debugger engine could not start");
             return;
         }
-        m_events = MakeOwnerPtr<SessionEvents>(*this);
-        m_client->SetEventCallbacksWide(m_events.Get());
         m_output = MakeOwnerPtr<SessionOutput>();
         m_client->SetOutputCallbacksWide(m_output.Get());
-        // 라이브러리로 쓰면 첫 멈춤이 꺼져 있다(cdb 는 켠다). 켜지 않으면 붙어도 멈추지 않는다.
-        m_control->AddEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
         m_symbols->AddSymbolOptions(SYMOPT_LOAD_LINES);
-        // 붙을 때도 엔진이 대상에 끼어들기 스레드를 만든다. 그 int 3 은 첫 멈춤 뒤에 올 수도 있어, 우리가 보낸 끼어들기로 센다.
-        m_pendingBreakIns = 1;
-        if (FAILED(m_client->AttachProcess(0, processId, DEBUG_ATTACH_DEFAULT)) || m_control->WaitForEvent(0, 30000) != S_OK)
+        m_control->SetCodeLevel(DEBUG_LEVEL_SOURCE);
+        // **세우지 않고 붙는다**(D-330). noninvasive 는 메모리와 심볼만 읽고 대상 스레드를 멈추지 않는다 - 에디터가 계속 돈다.
+        if (FAILED(m_client->AttachProcess(0, processId, DEBUG_ATTACH_NONINVASIVE | DEBUG_ATTACH_NONINVASIVE_NO_SUSPEND))
+            || m_control->WaitForEvent(0, 30000) != S_OK)
         {
-            // 다른 디버거가 이미 붙어 있으면 여기다. 엔진을 내려 다음 요청이 반쯤 붙은 세션을 쓰지 않게 한다.
-            m_client->SetEventCallbacksWide(nullptr);
+            m_client->SetOutputCallbacksWide(nullptr);
             m_client->EndSession(DEBUG_END_ACTIVE_DETACH);
             m_system.Reset();
             m_symbols.Reset();
             m_control.Reset();
             m_client.Reset();
-            m_channel.SendResponse(request, false, JsonValue(), "could not attach to the editor (is another debugger attached?)");
+            m_channel.SendResponse(request, false, JsonValue(), "could not read the editor");
             return;
         }
         m_processId = processId;
-        m_process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
-        // 어댑터가 떼지 못하고 끝나도(죽거나 클라이언트가 강제로 닫아도) 에디터는 산다. 기본은 디버거가 끝날 때 대상도 끝낸다 -
-        // 어댑터가 죽자 에디터가 같이 죽는 것을 봤다. `DebugSetProcessKillOnExit` 는 DbgEng 의 디버그 객체에 닿지 않아 듣지 않았다.
-        m_client->AddProcessOptions(DEBUG_PROCESS_DETACH_ON_EXIT);
-        // 한 줄씩 가기는 소스 줄 단위다.
-        m_control->SetCodeLevel(DEBUG_LEVEL_SOURCE);
         m_symbols->SetSymbolPathWide(ToWide(symbolPath).c_str());
-        // JBro 값 타입을 값으로 보인다(`Float` 이 구조체가 아니라 수로). 주지 않으면 어댑터 옆의 `JBro.natvis` 다.
         String natvis = arguments->GetString("natvis", "");
         if (natvis.empty())
         {
@@ -633,30 +461,20 @@ namespace JBro::DebugAdapter
         {
             m_host.As(&m_evaluator);
         }
-        // 이미 실린 스크립트 모듈이다. 붙기 전에 실렸으므로 실림 이벤트가 오지 않는다.
-        ULONG loaded = 0;
-        ULONG unloaded = 0;
-        m_symbols->GetNumberModules(&loaded, &unloaded);
-        for (ULONG index = 0; index < loaded; ++index)
+        EnumerateScriptModules();
+
+        if (false == ConnectEditorPipe(processId))
         {
-            ULONG64 base = 0;
-            wchar_t image[MAX_PATH * 2] = {};
-            if (SUCCEEDED(m_symbols->GetModuleByIndex(index, &base))
-                && SUCCEEDED(m_symbols->GetModuleNameStringWide(DEBUG_MODNAME_IMAGE, index, 0, image, ULONG(MAX_PATH * 2), nullptr))
-                && IsScriptImage(ToUtf8(image)))
-            {
-                AddScriptModule(base);
-            }
+            m_client->EndSession(DEBUG_END_ACTIVE_DETACH);
+            m_client.Reset();
+            m_channel.SendResponse(request, false, JsonValue(), "the editor's debug channel is not open");
+            return;
         }
-        m_loadedScriptBases.Clear();
-        m_hitBreakIn = false;
-        m_hitException = false;
-        m_hitBreakpointId = DEBUG_ANY_ID;
-        m_state = TargetState::Stopped;
+        m_state = State::Running;
         m_channel.SendResponse(request, true, JsonValue());
         JsonValue output = JsonValue::MakeObject();
         char text[96] = {};
-        std::snprintf(text, sizeof(text), "Attached to process %lu (%zu script module(s) loaded)\n", processId, m_scriptModules.Size());
+        std::snprintf(text, sizeof(text), "Attached to process %lu without stopping it (%zu script module(s))\n", processId, m_scriptModules.Size());
         output.Set("category", "console").Set("output", text);
         m_channel.SendEvent("output", std::move(output));
         m_channel.SendEvent("initialized", JsonValue());
@@ -672,12 +490,11 @@ namespace JBro::DebugAdapter
             return;
         }
         const String path = source->GetString("path");
-        // 이 파일의 지난 중단점을 모두 뗀다. 요청은 그 파일의 전체 목록이다.
         for (std::size_t index = m_breakpoints.Size(); index > 0; --index)
         {
             if (_stricmp(m_breakpoints[index - 1].path.c_str(), path.c_str()) == 0)
             {
-                ClearEngineBreakpoints(m_breakpoints[index - 1]);
+                DisarmBreakpoint(m_breakpoints[index - 1]);
                 m_breakpoints.RemoveAt(index - 1);
             }
         }
@@ -691,10 +508,7 @@ namespace JBro::DebugAdapter
                 breakpoint.line = Int32(static_cast<std::int32_t>(requested->At(index).GetInt64("line").Value));
                 breakpoint.id = m_nextBreakpointId;
                 m_nextBreakpointId = m_nextBreakpointId + 1;
-                for (const ScriptModule& module : m_scriptModules)
-                {
-                    PlaceInModule(breakpoint, module);
-                }
+                ResolveAndArm(breakpoint);
                 results.Add(DescribeBreakpoint(breakpoint));
                 m_breakpoints.Add(std::move(breakpoint));
             }
@@ -707,68 +521,38 @@ namespace JBro::DebugAdapter
     void DebugSession::OnConfigurationDone(const JsonValue& request)
     {
         m_channel.SendResponse(request, true, JsonValue());
-        if (m_state == TargetState::Stopped)
-        {
-            // 붙을 때의 첫 멈춤이다. 사용자에게 알리지 않고 다시 돌린다.
-            Resume(ResumeKind::Go);
-        }
     }
 
     void DebugSession::OnThreads(const JsonValue& request)
     {
+        // 멈췄을 때만 스레드를 안다(에디터가 보낸 그 스레드 하나). 돌고 있으면 빈 목록이다.
         JsonValue threads = JsonValue::MakeArray();
-        ULONG count = 0;
-        if (m_system != nullptr && SUCCEEDED(m_system->GetNumberThreads(&count)) && count > 0)
+        if (m_state == State::Stopped && m_stoppedThread != 0)
         {
-            Array<ULONG> engineIds;
-            Array<ULONG> systemIds;
-            engineIds.Resize(count);
-            systemIds.Resize(count);
-            if (SUCCEEDED(m_system->GetThreadIdsByIndex(0, count, engineIds.Data(), systemIds.Data())))
-            {
-                for (ULONG index = 0; index < count; ++index)
-                {
-                    char name[48] = {};
-                    if (index == 0)
-                    {
-                        std::snprintf(name, sizeof(name), "Main Thread (%lu)", systemIds[index]);
-                    }
-                    else
-                    {
-                        std::snprintf(name, sizeof(name), "Thread %lu", systemIds[index]);
-                    }
-                    JsonValue thread = JsonValue::MakeObject();
-                    thread.Set("id", Int64(systemIds[index])).Set("name", name);
-                    threads.Add(std::move(thread));
-                }
-            }
+            char name[48] = {};
+            std::snprintf(name, sizeof(name), "Editor thread %lu", m_stoppedThread);
+            JsonValue thread = JsonValue::MakeObject();
+            thread.Set("id", Int64(m_stoppedThread)).Set("name", name);
+            threads.Add(std::move(thread));
         }
         JsonValue body = JsonValue::MakeObject();
         body.Set("threads", std::move(threads));
         m_channel.SendResponse(request, true, std::move(body));
     }
 
-    Bool DebugSession::SelectThread(Int64 systemId)
-    {
-        ULONG engineId = 0;
-        return m_system != nullptr && SUCCEEDED(m_system->GetThreadIdBySystemId(static_cast<ULONG>(systemId.Value), &engineId))
-            && SUCCEEDED(m_system->SetCurrentThreadId(engineId));
-    }
-
     Bool DebugSession::SelectFrame(Int64 frameId)
     {
-        const Int64 thread = frameId / FramesPerThread;
         const Int64 frame = frameId % FramesPerThread;
-        return SelectThread(thread) && SUCCEEDED(m_symbols->SetScopeFrameByIndex(static_cast<ULONG>(frame.Value)));
+        return m_symbols != nullptr && SUCCEEDED(m_symbols->SetScopeFrameByIndex(static_cast<ULONG>(frame.Value)));
     }
 
     void DebugSession::OnStackTrace(const JsonValue& request)
     {
         const JsonValue* arguments = request.Find("arguments");
         const Int64 threadId = arguments != nullptr ? arguments->GetInt64("threadId") : Int64(0);
-        if (m_state != TargetState::Stopped || false == SelectThread(threadId))
+        if (m_state != State::Stopped)
         {
-            m_channel.SendResponse(request, false, JsonValue(), "the thread is not stopped");
+            m_channel.SendResponse(request, false, JsonValue(), "the script is not stopped");
             return;
         }
         Array<DEBUG_STACK_FRAME> frames;
@@ -805,9 +589,9 @@ namespace JBro::DebugAdapter
             wchar_t file[1024] = {};
             if (SUCCEEDED(m_symbols->GetLineByOffsetWide(offset, &line, file, 1024, nullptr, nullptr)))
             {
-                const String path = ToUtf8(file);
+                const String filePath = ToUtf8(file);
                 JsonValue sourceValue = JsonValue::MakeObject();
-                sourceValue.Set("name", FileNameOf(path)).Set("path", path);
+                sourceValue.Set("name", FileNameOf(filePath)).Set("path", filePath);
                 frame.Set("source", std::move(sourceValue));
                 frame.Set("line", Int64(line)).Set("column", Int64(1));
             }
@@ -826,28 +610,18 @@ namespace JBro::DebugAdapter
     {
         const JsonValue* arguments = request.Find("arguments");
         const Int64 frameId = arguments != nullptr ? arguments->GetInt64("frameId") : Int64(0);
-        const Int64 thread = frameId / FramesPerThread;
-        const Int64 frame = frameId % FramesPerThread;
+        SelectFrame(frameId);
         JsonValue scopes = JsonValue::MakeArray();
+        // `.cxr` 뒤에는 데이터 모델의 `@$curthread` 경로가 비어 있다(실측). 지금 프레임의 지역·매개변수는 `@$curframe` 으로 읽는다.
         const char* const names[] = {"Locals", "Parameters"};
         const char* const members[] = {"LocalVariables", "Parameters"};
         for (std::size_t index = 0; index < 2; ++index)
         {
-            char expression[160] = {};
-            std::snprintf(expression, sizeof(expression), "@$curprocess.Threads[0x%llx].Stack.Frames[%lld].%s",
-                static_cast<unsigned long long>(thread.Value), static_cast<long long>(frame.Value), members[index]);
             VariableHandle handle;
-            handle.expression = expression;
+            handle.expression = String("@$curframe.") + members[index];
             JsonValue scope = JsonValue::MakeObject();
             scope.Set("name", names[index]).Set("variablesReference", AddHandle(std::move(handle))).Set("expensive", Bool(false));
-            if (index == 0)
-            {
-                scope.Set("presentationHint", "locals");
-            }
-            else
-            {
-                scope.Set("presentationHint", "arguments");
-            }
+            scope.Set("presentationHint", index == 0 ? "locals" : "arguments");
             scopes.Add(std::move(scope));
         }
         JsonValue body = JsonValue::MakeObject();
@@ -860,7 +634,7 @@ namespace JBro::DebugAdapter
         const JsonValue* arguments = request.Find("arguments");
         const Int64 reference = arguments != nullptr ? arguments->GetInt64("variablesReference") : Int64(0);
         JsonValue variables = JsonValue::MakeArray();
-        if (m_state == TargetState::Stopped && reference > 0 && static_cast<std::size_t>(reference.Value) <= m_handles.Size())
+        if (m_state == State::Stopped && reference > 0 && static_cast<std::size_t>(reference.Value) <= m_handles.Size())
         {
             VariableHandle& handle = m_handles[static_cast<std::size_t>(reference.Value) - 1];
             if (handle.object == nullptr && false == handle.expression.empty())
@@ -886,7 +660,7 @@ namespace JBro::DebugAdapter
     void DebugSession::OnEvaluate(const JsonValue& request)
     {
         const JsonValue* arguments = request.Find("arguments");
-        if (m_state != TargetState::Stopped || arguments == nullptr)
+        if (m_state != State::Stopped || arguments == nullptr)
         {
             m_channel.SendResponse(request, false, JsonValue(), "not stopped");
             return;
@@ -910,32 +684,43 @@ namespace JBro::DebugAdapter
         m_channel.SendResponse(request, true, std::move(body));
     }
 
-    void DebugSession::OnResume(const JsonValue& request, ResumeKind kind)
+    void DebugSession::OnResume(const JsonValue& request, const char* pipeCommand)
     {
-        if (m_state != TargetState::Stopped)
+        if (m_state != State::Stopped)
         {
             m_channel.SendResponse(request, false, JsonValue(), "not stopped");
             return;
         }
-        const JsonValue* arguments = request.Find("arguments");
-        if (kind != ResumeKind::Go && arguments != nullptr)
-        {
-            SelectThread(arguments->GetInt64("threadId"));
-        }
         JsonValue body = JsonValue::MakeObject();
-        if (kind == ResumeKind::Go)
+        if (std::strcmp(pipeCommand, "continue") == 0)
         {
             body.Set("allThreadsContinued", Bool(true));
         }
         m_channel.SendResponse(request, true, std::move(body));
-        Resume(kind);
+        ReleaseHandles();
+        // 걸음(step)은 엔진이 줄까지 판단한다(D-330 §3.6). 어댑터는 명령만 넘긴다.
+        PipeSend(pipeCommand);
+        m_state = State::Running;
+        m_stoppedContext = 0;
     }
 
     void DebugSession::OnDisconnect(const JsonValue& request)
     {
-        if (m_state == TargetState::Stopped)
+        if (m_state == State::Running || m_state == State::Stopped)
         {
-            Detach();
+            for (SourceBreakpoint& breakpoint : m_breakpoints)
+            {
+                DisarmBreakpoint(breakpoint);
+            }
+            if (m_state == State::Stopped)
+            {
+                PipeSend("continue");
+            }
+            if (m_client != nullptr)
+            {
+                m_client->DetachProcesses();
+            }
+            m_state = State::Gone;
         }
         m_quit = true;
         if (request.GetInt64("seq") > 0)
@@ -944,264 +729,173 @@ namespace JBro::DebugAdapter
         }
     }
 
-    // ── 멈춤과 다시 돌기 ──────────────────────────────────────────────────
+    // ── 에디터와의 파이프 ──────────────────────────────────────────────────
 
-    ULONG DebugSession::OnBreakpoint(IDebugBreakpoint2* breakpoint)
+    Bool DebugSession::ConnectEditorPipe(ULONG processId)
     {
-        ULONG id = DEBUG_ANY_ID;
-        breakpoint->GetId(&id);
-        m_hitBreakpointId = id;
-        return DEBUG_STATUS_BREAK;
-    }
-
-    ULONG DebugSession::OnException(const EXCEPTION_RECORD64& record, Bool firstChance)
-    {
-        // 우리가 보낸 끼어들기다(`DebugBreakProcess` 가 대상에 만든 스레드의 int 3).
-        if (record.ExceptionCode == STATUS_BREAKPOINT && m_pendingBreakIns > 0)
+        wchar_t name[64] = {};
+        std::swprintf(name, 64, L"\\\\.\\pipe\\jbro-debug-%lu", processId);
+        for (int tries = 0; tries < 100; ++tries)
         {
-            m_pendingBreakIns = m_pendingBreakIns - 1;
-            m_hitBreakIn = true;
-            return DEBUG_STATUS_BREAK;
-        }
-        // 나머지는 엔진의 기본 거르기(첫 기회의 접근 위반은 멈춤 따위)에 맡기고 까닭만 적어 둔다.
-        char text[160] = {};
-        std::snprintf(text, sizeof(text), "Exception 0x%08lx at 0x%llx (%s chance)", static_cast<unsigned long>(record.ExceptionCode),
-            static_cast<unsigned long long>(record.ExceptionAddress), firstChance ? "first" : "second");
-        m_hitException = true;
-        m_exceptionText = text;
-        return DEBUG_STATUS_NO_CHANGE;
-    }
-
-    ULONG DebugSession::OnLoadModule(PCWSTR imageName, ULONG64 baseOffset)
-    {
-        if (imageName == nullptr || false == IsScriptImage(ToUtf8(imageName)))
-        {
-            return DEBUG_STATUS_NO_CHANGE;
-        }
-        m_loadedScriptBases.Add(baseOffset);
-        // 새 스크립트 모듈에 중단점을 걸 때까지 세운다 - 그 사이 스크립트가 돌면 첫 중단점을 지나친다.
-        // 한 줄씩 가는 중이면 세우지 않는다(세우면 가던 걸음을 잃는다). 걸음이 끝나 멈출 때 건다.
-        return m_stepping ? DEBUG_STATUS_NO_CHANGE : DEBUG_STATUS_BREAK;
-    }
-
-    void DebugSession::OnUnloadModule(ULONG64 baseOffset)
-    {
-        for (std::size_t index = 0; index < m_scriptModules.Size(); ++index)
-        {
-            if (m_scriptModules[index].base == baseOffset)
+            m_pipe = CreateFileW(name, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+            if (m_pipe != INVALID_HANDLE_VALUE)
             {
-                m_scriptModules.RemoveAt(index);
+                DWORD mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
+                SetNamedPipeHandleState(m_pipe, &mode, nullptr, nullptr);
+                return true;
+            }
+            Sleep(10);
+        }
+        return false;
+    }
+
+    void DebugSession::PipeSend(const String& line)
+    {
+        if (m_pipe == INVALID_HANDLE_VALUE)
+        {
+            return;
+        }
+        String packet = line;
+        packet.push_back('\n');
+        DWORD written = 0;
+        WriteFile(m_pipe, packet.data(), static_cast<DWORD>(packet.size()), &written, nullptr);
+    }
+
+    void DebugSession::PumpPipe()
+    {
+        if (m_pipe == INVALID_HANDLE_VALUE)
+        {
+            return;
+        }
+        char chunk[4096];
+        DWORD read = 0;
+        while (ReadFile(m_pipe, chunk, sizeof(chunk), &read, nullptr) && read > 0)
+        {
+            m_pipeInbox.append(chunk, read);
+            if (read < sizeof(chunk))
+            {
                 break;
             }
         }
-    }
-
-    void DebugSession::OnExitProcess(ULONG exitCode)
-    {
-        m_exited = true;
-        m_exitCode = Int32(static_cast<std::int32_t>(exitCode));
-    }
-
-    void DebugSession::RequestBreakIn()
-    {
-        if (m_process == nullptr || m_pendingBreakIns > 0)
+        std::size_t newline = m_pipeInbox.find('\n');
+        while (newline != String::npos)
         {
-            return;
-        }
-        if (DebugBreakProcess(m_process))
-        {
-            m_pendingBreakIns = m_pendingBreakIns + 1;
-        }
-    }
-
-    void DebugSession::Resume(ResumeKind kind)
-    {
-        ReleaseHandles();
-        m_resumeKind = kind;
-        m_stepping = kind != ResumeKind::Go;
-        if (kind == ResumeKind::StepOut)
-        {
-            // 지금 프레임의 돌아갈 자리에 이 스레드만의 한 번짜리 중단점을 건다.
-            DEBUG_STACK_FRAME frames[2] = {};
-            ULONG filled = 0;
-            ULONG thread = 0;
-            IDebugBreakpoint2* breakpoint = nullptr;
-            if (SUCCEEDED(m_control->GetStackTrace(0, 0, 0, frames, 2, &filled)) && filled > 0
-                && SUCCEEDED(m_control->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID, &breakpoint)))
+            String line = m_pipeInbox.Substr(0, newline);
+            if (false == line.empty() && line[line.size() - 1] == '\r')
             {
-                breakpoint->SetOffset(frames[0].ReturnOffset);
-                if (SUCCEEDED(m_system->GetCurrentThreadId(&thread)))
-                {
-                    breakpoint->SetMatchThreadId(thread);
-                }
-                breakpoint->AddFlags(DEBUG_BREAKPOINT_ENABLED | DEBUG_BREAKPOINT_ONE_SHOT);
-                breakpoint->GetId(&m_stepOutBreakpointId);
+                line.resize(line.size() - 1);
             }
-            m_control->SetExecutionStatus(DEBUG_STATUS_GO);
+            m_pipeInbox.erase(0, newline + 1);
+            if (false == line.empty())
+            {
+                OnEditorLine(line);
+            }
+            newline = m_pipeInbox.find('\n');
         }
-        else if (kind == ResumeKind::StepOver)
-        {
-            m_control->SetExecutionStatus(DEBUG_STATUS_STEP_OVER);
-        }
-        else if (kind == ResumeKind::StepInto)
-        {
-            m_control->SetExecutionStatus(DEBUG_STATUS_STEP_INTO);
-        }
-        else
-        {
-            m_control->SetExecutionStatus(DEBUG_STATUS_GO);
-        }
-        m_state = TargetState::Running;
     }
 
-    void DebugSession::HandleBreak()
+    void DebugSession::OnEditorLine(const String& line)
     {
-        m_state = TargetState::Stopped;
-        if (m_exited)
+        const std::size_t space = line.find(' ');
+        const String command = space == String::npos ? line : line.Substr(0, space);
+        const String rest = space == String::npos ? String() : line.Substr(space + 1);
+        if (command == "stopped")
         {
-            FinishTarget(m_exitCode);
-            return;
-        }
-        // 새 스크립트 모듈에 중단점을 다시 건다.
-        for (const ULONG64 base : m_loadedScriptBases)
-        {
-            AddScriptModule(base);
-        }
-        const Bool modulesLoaded = false == m_loadedScriptBases.IsEmpty();
-        m_loadedScriptBases.Clear();
-
-        const ULONG hit = m_hitBreakpointId;
-        const Bool breakIn = m_hitBreakIn;
-        const Bool exception = m_hitException;
-        const String exceptionText = m_exceptionText;
-        m_hitBreakpointId = DEBUG_ANY_ID;
-        m_hitBreakIn = false;
-        m_hitException = false;
-        m_exceptionText.clear();
-
-        JsonValue stopped = JsonValue::MakeObject();
-        Bool visible = false;
-        if (hit != DEBUG_ANY_ID && hit == m_stepOutBreakpointId)
-        {
-            m_stepOutBreakpointId = DEBUG_ANY_ID;
-            stopped.Set("reason", "step");
-            visible = true;
-        }
-        else if (hit != DEBUG_ANY_ID)
-        {
-            JsonValue ids = JsonValue::MakeArray();
-            for (const SourceBreakpoint& breakpoint : m_breakpoints)
+            unsigned long long address = 0;
+            unsigned long long context = 0;
+            unsigned long thread = 0;
+            if (::sscanf_s(rest.c_str(), "%llx %llx %lu", &address, &context, &thread) == 3)
             {
-                for (const ULONG engineId : breakpoint.engineIds)
+                OnStoppedFromEditor(address, context, thread);
+            }
+        }
+        else if (command == "resumed")
+        {
+            // 에디터가 이어 갔다. 이미 `continue` 뒤라면 상태는 Running 이다.
+        }
+        else if (command == "module")
+        {
+            const std::size_t gap = rest.find(' ');
+            if (gap != String::npos)
+            {
+                OnModuleFromEditor(rest.Substr(0, gap) == "1", rest.Substr(gap + 1));
+            }
+        }
+        else if (command == "exited")
+        {
+            FinishTarget(0);
+        }
+        else if (command == "bp")
+        {
+            // setbp 답이다. `bp <주소> <0|1>`. 걸렸는지만 표식한다.
+            unsigned long long address = 0;
+            int ok = 0;
+            if (::sscanf_s(rest.c_str(), "%llx %d", &address, &ok) == 2)
+            {
+                for (SourceBreakpoint& breakpoint : m_breakpoints)
                 {
-                    if (engineId == hit)
+                    if (breakpoint.address == ULONG64(address))
                     {
-                        ids.Add(JsonValue(breakpoint.id));
+                        breakpoint.armed = ok != 0;
                     }
                 }
             }
-            if (ids.GetSize() > 0)
-            {
-                stopped.Set("reason", "breakpoint").Set("hitBreakpointIds", std::move(ids));
-                visible = true;
-            }
-        }
-        else if (exception)
-        {
-            stopped.Set("reason", "exception").Set("text", exceptionText);
-            visible = true;
-        }
-        else if (m_stepping && false == breakIn && false == modulesLoaded)
-        {
-            stopped.Set("reason", "step");
-            visible = true;
-        }
-        if (false == visible && m_pauseRequested && breakIn)
-        {
-            stopped.Set("reason", "pause");
-            visible = true;
-        }
-
-        if (visible)
-        {
-            m_pauseRequested = false;
-            m_stepping = false;
-            if (m_stepOutBreakpointId != DEBUG_ANY_ID)
-            {
-                // 다른 까닭으로 먼저 섰다. 나가기 중단점은 버린다.
-                IDebugBreakpoint2* stepOut = nullptr;
-                if (SUCCEEDED(m_control->GetBreakpointById2(m_stepOutBreakpointId, &stepOut)))
-                {
-                    m_control->RemoveBreakpoint2(stepOut);
-                }
-                m_stepOutBreakpointId = DEBUG_ANY_ID;
-            }
-            // 끼어들기로 섰으면 지금 스레드는 끼어들기 스레드다. 사용자가 볼 스레드는 첫 스레드(에디터의 메인)다.
-            ULONG engineThread = 0;
-            ULONG systemThread = 0;
-            if (breakIn)
-            {
-                ULONG engineIds[1] = {};
-                ULONG systemIds[1] = {};
-                if (SUCCEEDED(m_system->GetThreadIdsByIndex(0, 1, engineIds, systemIds)))
-                {
-                    m_system->SetCurrentThreadId(engineIds[0]);
-                }
-            }
-            m_system->GetCurrentThreadId(&engineThread);
-            m_system->GetCurrentThreadSystemId(&systemThread);
-            m_stoppedThread = systemThread;
-            stopped.Set("threadId", Int64(systemThread)).Set("allThreadsStopped", Bool(true));
-            m_channel.SendEvent("stopped", std::move(stopped));
-        }
-
-        // 도는 동안 와서 미룬 요청을 처리한다(멈춤을 알렸든 몰래 세웠든).
-        Array<JsonValue> deferred = std::move(m_deferred);
-        m_deferred.Clear();
-        for (const JsonValue& request : deferred)
-        {
-            Dispatch(request);
-            if (m_quit || m_state != TargetState::Stopped)
-            {
-                break;
-            }
-        }
-        if (false == visible && false == m_quit && m_state == TargetState::Stopped)
-        {
-            // 사용자에게 알리지 않은 멈춤이다(스크립트 모듈이 실렸거나 미룬 요청을 처리했다). 다시 돌린다.
-            Resume(ResumeKind::Go);
         }
     }
 
-    void DebugSession::Detach()
+    void DebugSession::OnStoppedFromEditor(ULONG64 address, ULONG64 contextAddress, ULONG threadId)
     {
-        for (SourceBreakpoint& breakpoint : m_breakpoints)
-        {
-            ClearEngineBreakpoints(breakpoint);
-        }
+        m_stoppedContext = contextAddress;
+        m_stoppedThread = threadId;
+        m_state = State::Stopped;
         ReleaseHandles();
-        if (m_client != nullptr)
+        // **멈춘 스레드의 문맥으로 바꾼다**(D-330). 이 뒤의 스택·변수 읽기가 이 문맥을 따른다.
+        char command[48] = {};
+        std::snprintf(command, sizeof(command), ".cxr 0x%llx", static_cast<unsigned long long>(contextAddress));
+        m_control->ExecuteWide(DEBUG_OUTCTL_THIS_CLIENT, ToWide(command).c_str(), DEBUG_EXECUTE_NOT_LOGGED);
+
+        JsonValue stopped = JsonValue::MakeObject();
+        JsonValue ids = JsonValue::MakeArray();
+        for (const SourceBreakpoint& breakpoint : m_breakpoints)
         {
-            m_client->DetachProcesses();
+            if (breakpoint.address == address && breakpoint.address != 0)
+            {
+                ids.Add(JsonValue(breakpoint.id));
+            }
         }
-        m_state = TargetState::Gone;
+        stopped.Set("reason", ids.GetSize() > 0 ? "breakpoint" : "step");
+        if (ids.GetSize() > 0)
+        {
+            stopped.Set("hitBreakpointIds", std::move(ids));
+        }
+        stopped.Set("threadId", Int64(threadId)).Set("allThreadsStopped", Bool(true));
+        m_channel.SendEvent("stopped", std::move(stopped));
     }
 
-    void DebugSession::FinishTarget(Int32 exitCode)
+    void DebugSession::OnModuleFromEditor(Bool loaded, const String& path)
     {
-        if (m_state == TargetState::Gone)
+        if (false == IsScriptImage(path))
         {
             return;
         }
-        m_state = TargetState::Gone;
-        ReleaseHandles();
-        JsonValue exited = JsonValue::MakeObject();
-        exited.Set("exitCode", exitCode);
-        m_channel.SendEvent("exited", std::move(exited));
-        m_channel.SendEvent("terminated", JsonValue());
+        // 새 복사본이 실렸다. 모듈 목록을 다시 읽고 중단점의 주소를 다시 푼다.
+        EnumerateScriptModules();
+        for (SourceBreakpoint& breakpoint : m_breakpoints)
+        {
+            const Int32 before = breakpoint.resolvedLine;
+            const ULONG64 beforeAddress = breakpoint.address;
+            ResolveAndArm(breakpoint);
+            if (before != breakpoint.resolvedLine || beforeAddress != breakpoint.address)
+            {
+                JsonValue body = JsonValue::MakeObject();
+                body.Set("reason", "changed").Set("breakpoint", DescribeBreakpoint(breakpoint));
+                m_channel.SendEvent("breakpoint", std::move(body));
+            }
+        }
+        (void)loaded;
     }
 
-    // ── 스크립트 모듈과 중단점 ────────────────────────────────────────────
+    // ── 심볼과 중단점 ──────────────────────────────────────────────────────
 
     Bool DebugSession::IsScriptImage(const String& imagePath) const
     {
@@ -1216,15 +910,30 @@ namespace JBro::DebugAdapter
         return false;
     }
 
-    void DebugSession::AddScriptModule(ULONG64 base)
+    void DebugSession::EnumerateScriptModules()
     {
-        for (const ScriptModule& module : m_scriptModules)
+        m_scriptModules.Clear();
+        ULONG loaded = 0;
+        ULONG unloaded = 0;
+        if (FAILED(m_symbols->GetNumberModules(&loaded, &unloaded)))
         {
-            if (module.base == base)
+            return;
+        }
+        for (ULONG index = 0; index < loaded; ++index)
+        {
+            ULONG64 base = 0;
+            wchar_t image[MAX_PATH * 2] = {};
+            if (SUCCEEDED(m_symbols->GetModuleByIndex(index, &base))
+                && SUCCEEDED(m_symbols->GetModuleNameStringWide(DEBUG_MODNAME_IMAGE, index, 0, image, ULONG(MAX_PATH * 2), nullptr))
+                && IsScriptImage(ToUtf8(image)))
             {
-                return;
+                AddScriptModule(base);
             }
         }
+    }
+
+    void DebugSession::AddScriptModule(ULONG64 base)
+    {
         ULONG index = 0;
         wchar_t name[256] = {};
         if (FAILED(m_symbols->GetModuleByOffset(base, 0, &index, nullptr))
@@ -1235,7 +944,6 @@ namespace JBro::DebugAdapter
         ScriptModule module;
         module.base = base;
         module.name = ToUtf8(name);
-        // PDB 가 DLL 옆에 상대 이름으로만 있어도 찾게 그 폴더를 기호 경로에 더한다.
         wchar_t image[MAX_PATH * 2] = {};
         if (SUCCEEDED(m_symbols->GetModuleNameStringWide(DEBUG_MODNAME_IMAGE, index, 0, image, ULONG(MAX_PATH * 2), nullptr)))
         {
@@ -1243,83 +951,63 @@ namespace JBro::DebugAdapter
             const String folder = String(imagePath.substr(0, imagePath.find_last_of("\\/")));
             m_symbols->AppendSymbolPathWide(ToWide(folder).c_str());
         }
-        // 스크립트 모듈의 심볼은 미뤄져 있다. 지금 읽어야 소스 줄로 중단점이 풀린다. `.reload /f` 는 모듈 이름이 아니라 이미지 이름을 받아
-        // 복사본의 모듈 이름(`TargetScript_gen1`)으로는 실패했다 - `ld` 는 모듈 이름을 받는다.
-        m_output->Write("script module: " + module.name + "\n");
         const std::wstring load = L"ld " + std::wstring(name);
         m_control->ExecuteWide(DEBUG_OUTCTL_THIS_CLIENT, load.c_str(), DEBUG_EXECUTE_NOT_LOGGED);
-        // 지난 세대의 중단점은 모듈이 내려가며 갈 곳을 잃었다. 떼고 새 모듈에 다시 건다.
-        for (SourceBreakpoint& breakpoint : m_breakpoints)
-        {
-            const Int32 before = breakpoint.resolvedLine;
-            PlaceInModule(breakpoint, module);
-            if (before != breakpoint.resolvedLine)
-            {
-                JsonValue body = JsonValue::MakeObject();
-                body.Set("reason", "changed").Set("breakpoint", DescribeBreakpoint(breakpoint));
-                m_channel.SendEvent("breakpoint", std::move(body));
-            }
-        }
         m_scriptModules.Add(std::move(module));
     }
 
-    Bool DebugSession::PlaceInModule(SourceBreakpoint& breakpoint, const ScriptModule& module)
+    Bool DebugSession::ResolveAndArm(SourceBreakpoint& breakpoint)
     {
-        // 식은 `` `모듈!파일:줄` `` 이다. 전체 경로로 먼저, 안 되면 파일 이름으로 건다(PDB 에 적힌 경로가 대소문자·구분자에서 다를 수 있다).
+        // 지난 복사본에 걸어 둔 것을 뗀다.
+        DisarmBreakpoint(breakpoint);
         const String candidates[] = {breakpoint.path, FileNameOf(breakpoint.path)};
-        for (const String& file : candidates)
+        for (const ScriptModule& module : m_scriptModules)
         {
-            IDebugBreakpoint2* engineBreakpoint = nullptr;
-            if (FAILED(m_control->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID, &engineBreakpoint)))
+            for (const String& file : candidates)
             {
-                return false;
-            }
-            char line[16] = {};
-            std::snprintf(line, sizeof(line), ":%d", static_cast<int>(breakpoint.line.Value));
-            const String expression = "`" + module.name + "!" + file + line + "`";
-            ULONG64 offset = 0;
-            if (SUCCEEDED(engineBreakpoint->SetOffsetExpressionWide(ToWide(expression).c_str()))
-                && SUCCEEDED(engineBreakpoint->GetOffset(&offset)) && offset != 0)
-            {
-                engineBreakpoint->AddFlags(DEBUG_BREAKPOINT_ENABLED);
-                ULONG id = DEBUG_ANY_ID;
-                engineBreakpoint->GetId(&id);
-                breakpoint.engineIds.Add(id);
-                ULONG resolved = 0;
-                if (SUCCEEDED(m_symbols->GetLineByOffsetWide(offset, &resolved, nullptr, 0, nullptr, nullptr)))
+                char line[16] = {};
+                std::snprintf(line, sizeof(line), ":%d", static_cast<int>(breakpoint.line.Value));
+                const std::wstring expression = ToWide("`" + module.name + "!" + file + line + "`");
+                DEBUG_VALUE value = {};
+                if (SUCCEEDED(m_control->EvaluateWide(expression.c_str(), DEBUG_VALUE_INT64, &value, nullptr)) && value.I64 != 0)
                 {
-                    breakpoint.resolvedLine = Int32(static_cast<std::int32_t>(resolved));
+                    breakpoint.address = static_cast<ULONG64>(value.I64);
+                    ULONG resolved = 0;
+                    if (SUCCEEDED(m_symbols->GetLineByOffsetWide(breakpoint.address, &resolved, nullptr, 0, nullptr, nullptr)))
+                    {
+                        breakpoint.resolvedLine = Int32(static_cast<std::int32_t>(resolved));
+                    }
+                    else
+                    {
+                        breakpoint.resolvedLine = breakpoint.line;
+                    }
+                    // 에디터에게 그 자리에 int 3 을 넣어 달라 한다. 답(`bp`)이 오면 `armed` 가 참이 된다.
+                    char command[48] = {};
+                    std::snprintf(command, sizeof(command), "setbp %llx", static_cast<unsigned long long>(breakpoint.address));
+                    PipeSend(command);
+                    return true;
                 }
-                else
-                {
-                    breakpoint.resolvedLine = breakpoint.line;
-                }
-                return true;
             }
-            // 이 모듈에 그 줄이 없다. 미뤄진 중단점으로 남기지 않는다 - 모듈 이름은 다시 오지 않는다.
-            m_output->Write("breakpoint expression did not resolve: " + expression + "\n");
-            m_control->RemoveBreakpoint2(engineBreakpoint);
         }
         return false;
     }
 
-    void DebugSession::ClearEngineBreakpoints(SourceBreakpoint& breakpoint)
+    void DebugSession::DisarmBreakpoint(SourceBreakpoint& breakpoint)
     {
-        for (const ULONG id : breakpoint.engineIds)
+        if (breakpoint.address != 0)
         {
-            IDebugBreakpoint2* engineBreakpoint = nullptr;
-            if (SUCCEEDED(m_control->GetBreakpointById2(id, &engineBreakpoint)))
-            {
-                m_control->RemoveBreakpoint2(engineBreakpoint);
-            }
+            char command[48] = {};
+            std::snprintf(command, sizeof(command), "clearbp %llx", static_cast<unsigned long long>(breakpoint.address));
+            PipeSend(command);
         }
-        breakpoint.engineIds.Clear();
+        breakpoint.address = 0;
+        breakpoint.armed = false;
     }
 
     JsonValue DebugSession::DescribeBreakpoint(const SourceBreakpoint& breakpoint) const
     {
         JsonValue result = JsonValue::MakeObject();
-        const Bool verified = breakpoint.resolvedLine > 0;
+        const Bool verified = breakpoint.resolvedLine > 0 && breakpoint.address != 0;
         result.Set("id", breakpoint.id).Set("verified", verified);
         result.Set("line", verified ? breakpoint.resolvedLine : breakpoint.line);
         JsonValue source = JsonValue::MakeObject();
@@ -1330,6 +1018,20 @@ namespace JBro::DebugAdapter
             result.Set("message", "No loaded script module has code on this line yet");
         }
         return result;
+    }
+
+    void DebugSession::FinishTarget(Int32 exitCode)
+    {
+        if (m_state == State::Gone)
+        {
+            return;
+        }
+        m_state = State::Gone;
+        ReleaseHandles();
+        JsonValue exited = JsonValue::MakeObject();
+        exited.Set("exitCode", exitCode);
+        m_channel.SendEvent("exited", std::move(exited));
+        m_channel.SendEvent("terminated", JsonValue());
     }
 
     // ── 변수 ──────────────────────────────────────────────────────────────
@@ -1359,7 +1061,6 @@ namespace JBro::DebugAdapter
         const HRESULT evaluated = m_evaluator->EvaluateExtendedExpression(context.Get(), wide.c_str(), nullptr, &value, nullptr);
         if (FAILED(evaluated) || value == nullptr)
         {
-            // 실패하면 `value` 에 까닭을 담은 오류 객체가 올 수 있다.
             if (value != nullptr)
             {
                 error = DisplayOf(value.Get());
@@ -1376,14 +1077,12 @@ namespace JBro::DebugAdapter
         TypeKind kind = TypeUDT;
         if (TypeKindOf(object, kind) && kind == TypePointer)
         {
-            // 포인터는 가리키는 것을 편다(`dx` 와 같다).
             ComPtr<IModelObject> pointee;
             if (SUCCEEDED(object->Dereference(&pointee)) && pointee != nullptr)
             {
                 target = pointee;
             }
         }
-        // 키: natvis 의 펼침 항목, 지역 변수 목록 같은 합성 객체의 이름들.
         ComPtr<IKeyEnumerator> keys;
         if (SUCCEEDED(target->EnumerateKeyValues(&keys)) && keys != nullptr)
         {
@@ -1392,7 +1091,6 @@ namespace JBro::DebugAdapter
             while (out.Size() < MaxChildren && keys->GetNext(&key, &value, nullptr) == S_OK)
             {
                 ModelObjectKind valueKind = ObjectNoValue;
-                // 메서드(`ToDisplayString` 따위)는 값이 아니다.
                 if (key != nullptr && value != nullptr && SUCCEEDED(value->GetKind(&valueKind)) && valueKind != ObjectMethod)
                 {
                     out.Add(Child{ToUtf8(key), value});
@@ -1402,7 +1100,6 @@ namespace JBro::DebugAdapter
                 value.Reset();
             }
         }
-        // 차례로 도는 것: natvis 의 `ArrayItems`, 배열.
         ComPtr<IUnknown> unknown;
         ComPtr<IIterableConcept> iterable;
         if (SUCCEEDED(target->GetConcept(__uuidof(IIterableConcept), &unknown, nullptr)) && unknown != nullptr && SUCCEEDED(unknown.As(&iterable)))
@@ -1434,7 +1131,6 @@ namespace JBro::DebugAdapter
         {
             return;
         }
-        // 날것: 부모 클래스와 필드. 대상 메모리의 객체에만 묻는다 - 합성 객체(매개변수 목록 따위)에 물으면 dbgmodel 안에서 죽었다.
         ModelObjectKind targetKind = ObjectNoValue;
         if (FAILED(target->GetKind(&targetKind)) || (targetKind != ObjectTargetObject && targetKind != ObjectTargetObjectReference))
         {
