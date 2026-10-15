@@ -6,9 +6,9 @@
 확정 계약은 [ProjectRule §22](../docs/ProjectRule.md#22-스크립트-요약-패널과-기본-중단점-2026-10-15-d-336)에 둔다.
 이 문서는 [내장 코드 편집기](./imgui-code-editor-integration.md)의 후속 구현이며, 기존 [엔진 중단점·어댑터](./script-debug-plan.md)를 재사용한다.
 
-작업 브랜치는 `codex/imgui-code-editor-spike`다. 기존 편집기와 디버거의 병합 기준은 `35ca1c3d`이며 메인의 별도 작업 중 파일은 이번 변경 대상이 아니다.
-**요청 기능의 구현과 아래 범위의 검증을 마쳤다. Debug/Release 전체 솔루션 빌드와 각 21개 관련 suite가 skip 없이 통과했고, 마지막 선택 위치 수정 뒤 양 구성의 전체 빌드와 UI 관련 5개 suite도 통과했다. 독립 의도 검토와 후속 구성 검토는 PASS다.**
-언어 변경은 `34711c84`, 네이티브 편집기/디버거 변경은 `095e5bf9`에 기록했다. 메인 병합·원격 푸시는 하지 않았으며 메인의 별도 작업 중 파일을 보존했다.
+작업 브랜치는 `codex/imgui-code-editor-spike`다. 기존 편집기와 디버거의 병합 기준은 `35ca1c3d`이며 메인 checkout은 clean이다.
+**D-336 최초 범위의 완료 기록과 감사 전 편집 보조의 22개 회귀·실제 화면 확인은 아래 이력이다. 기존 §11 감사 결함 5건과 추가 반례를 수정한 뒤 Debug/Release 전체 빌드와 각 24개 관련 suite·장기 `EditorApplication` 1개, 구성별 25개가 종료 코드 0으로 통과했다. 요청 기능·감사 수정의 해당 검증을 마쳤고 코드는 `af60d387`로 로컬 커밋했으며 검증 기록을 함께 갱신했다. 앞선 GUI 통과나 유한 회귀를 전체 규칙 준수의 증거로 확대하지 않는다.**
+언어 변경 `34711c84`, 네이티브 변경 `095e5bf9`와 문서 `c9554f9d` 뒤의 후속 코드는 `af60d387`에 로컬 커밋했다. 해당 코드의 검증 기록을 함께 갱신했다. 메인 소스 수정·병합·원격 푸시·기존 에디터 교체는 하지 않았으며 사용자 호스트 74560을 보존했다.
 
 ## 사용 동작과 경계
 
@@ -51,9 +51,9 @@
 
 조건부 중단점·변수 감시·호출 스택 UI·세션 재시작 후 중단점 저장·C++ 요약은 이번 범위 밖이다. 기존 외부 편집기와 어댑터 경로는 유지한다.
 
-## 최종 검증과 확인 범위
+## D-336 최초 완료 당시 검증 (이력)
 
-| 단계 | 현재 확인 결과와 증거 |
+| 단계 | 최초 완료 당시 결과와 증거 |
 |---|---|
 | Debug 빌드·회귀 | 전체 솔루션 빌드와 관련 21개 suite가 종료 코드 0·skip 없이 통과했다([빌드](F:/AI/Temp/script-summary-host-debug-build.log)·[시험](F:/AI/Temp/script-summary-host-debug-tests.log)). Debug 출력은 격리된 `Build/SummaryDebug`다. 기본 Debug 산출물을 덮어쓴 것으로 해석하지 않는다. |
 | Release 빌드·회귀 | 전체 솔루션 빌드와 같은 21개 suite가 종료 코드 0·skip 없이 통과했다([빌드](F:/AI/Temp/script-summary-host-release-build.log)·[시험](F:/AI/Temp/script-summary-host-release-tests.log)). 출력은 `Build/x64/Release`다. |
@@ -61,7 +61,7 @@
 | 실제 JBroScript 전체 시작 | `SourceDebugger`는 실제 JBroScript 저장·빌드·DLL 반영·설정 ACK 뒤 첫 콜백 중단과 계속 실행, 중단 중 편집 잠금·소스 불일치 뒤 설치 해제·재빌드/DLL 교체·종료·외부 통로 충돌·어댑터 비정상 종료 정리를 검사한다. Debug 12.1초·Release 13.6초로 통과했다. `NativeDebug`·`DebugAdapter`도 양 구성 21개 회귀에 포함한다. |
 | 중첩 타입 언어·실행 | `NestedScriptType`가 파서·이름/접근 분석·재귀 요약·C++ 이미터와 실제 게임 DLL 컴파일/실행을 양 구성에서 통과했다(Debug 5.1초·Release 4.5초). 실제 공개 `result`는 **30**을 검사한다. 다단계·동명 타입 구분·외부 비공개 접근 거절·바깥 인스턴스 암묵 캡처 거절·점 주변 공백/주석·생성자 호출을 포함한다. |
 | 줄 앵커 반례 | 전체 텍스트 비교 기반 위치 추정이 동일 줄 앞삽입과 1500줄 내 먼 두 편집 사이 앵커를 잘못 옮겼다. 실제 위젯 트랜잭션 범위를 전달하도록 수정하고 최종 양 구성의 `CodeEditor`에서 반례·Undo/Redo를 확인했다. |
-| 실제 화면 | 아래 표의 목록/상세 분리·초기값 편집/Undo·입력란 이탈 반영·한국어 오류·const 자동/직접 설정·미확정 중단점·파일 전환을 확인했다. 설치 완료·실행 중단 상태의 최종 화면은 미확인이다. |
+| 실제 화면 | 아래 표의 요약 편집 화면을 확인했다. 설치 완료·실행 중단 표시는 당시 미확인이었으며, 아래 후속의 실제 디버그 화면과 stdout 교차 확인으로 갱신됐다. |
 | 독립 검토 | 최신 코드와 이전/현재 실제 화면의 의도 검토 PASS. 후속 빌드 구성·최적화 검토와 마지막 위치 이동의 코드/실제 화면 검토도 PASS. 이 판정을 미실행 회귀나 미확인 화면의 통과로 확대하지 않는다. |
 | 호스트 구성 평가 | [MSBuild 평가 JSON](F:/AI/Temp/script-summary-host-config-evaluation.json)에서 Debug 스크립트+Debug 호스트는 Debug CRT·`_DEBUG`·Debug lib, Debug 스크립트+Release 호스트는 Release CRT·`NDEBUG`·Release lib를 확인했다. 두 Debug 스크립트 구성 모두 최적화 끔·ProgramDatabase를 유지한다. 설정 평가와 실제 실행 시험은 구분한다. |
 
@@ -96,5 +96,63 @@ Release 에디터가 디버깅용 Debug 스크립트 DLL을 만들 때 CRT·공�
 최종 `ScriptSummaryPanel` 회귀와 위 실제 6줄 커서 화면으로 확인했으며 이 마지막 수정 후 양 구성의 전체 빌드·UI 관련 5개 suite를 다시 통과했다.
 
 정식 회귀의 유한 범위는 여러 최상위/중첩 타입과 선언 순서, `static`·`const`·구조체의 유효 속성, 알 수 없는 속성과 주석 보존, BOM/CRLF·한글/UTF-16 좌표, 구문 삽입 거절, 문서 버전 불일치·닫기/재열기 수명, 단일 Undo/Redo, 실제 편집 범위에 따른 중단점 줄 이동·삭제/복구, DAP 설정 응답·오래된 결과·오류·정리와 실제 디버그 시작을 포함한다.
-설치 완료·현재 중단 줄의 색상/아이콘은 별도 실제 화면으로 캡처하지 않았다. 중단점 설치·엔진 멈춤·계속 실행을 실제 DLL로 검증한 것과 그 표시의 시각 검증은 구분한다. 조건부 중단점·변수 감시·호출 스택 UI·재시작 후 저장은 후속 기능이며 이번 미완료 작업이 아니다.
+설치 완료·현재 중단 줄 표시는 최초 완료 때 별도 캡처하지 않았으나 아래 후속에서 확인했다. 기존 실제 DLL 시험과 이후 시각 증거의 시점을 구분한다. 조건부 중단점·변수 감시·호출 스택 UI·재시작 후 저장은 이번 범위 밖이다.
 임시 하네스·화면 캡처·검증 로그는 D-244에 따라 제품 소스나 정식 회귀와 구분하며, 시험용 분기를 커밋·메인 병합하지 않는다.
+
+## 2026-10-15 후속: 편집 보조와 공통 UI
+
+Updates: D-336의 코드 이동·선택·메뉴 경계와 검증 범위. 원계약의 소스 속성/초기값 편집·중단점 수명은 유지한다.
+사용자는 요약 항목을 누를 때 **선언 이름만 선택**하도록 확정했다. 이는 위 최초 완료 화면의 커서 이동보다 구체적인 후속 요구다. 공통 Widget·행동·팝업 경로는 새 규칙이 아니라 기존 §11의 준수 사항이며, 발견한 결함과 현재 점검 상태를 [ProjectRule §23](../docs/ProjectRule.md#23-코드-편집-보조-후속과-기존-ui-규칙-점검-2026-10-15)에 기록한다. 새 결정 번호는 부여하지 않는다.
+
+- 줄 번호 칸을 가리키면 해당 줄의 가로 전체를 강조하고, 누르면 줄 문자열과 줄 끝을 선택하며 드래그로 줄 선택을 늘린다. 중단점 토글 영역과 줄 선택을 구분한다.
+- 요약에서 선택한 선언의 **이름 범위만** 코드에 선택한다. 동일 문서에서 같은 심볼을 실제로 사용하는 위치는 노란 배경으로 표시하며 선언 자체·동명이인은 제외한다.
+- 타입 툴팁은 기존 LSP `textDocument/hover`, 사용 위치는 `textDocument/references`를 재사용한다. `LanguageClient`의 버전이 있는 `HoverResult`·`ReferencesResult`와 위젯의 범위 선택·툴팁·강조 API를 연결하며 JSON은 통신 경계에만 둔다.
+- 우클릭 메뉴의 실행 취소·다시 실행·잘라내기·복사·붙여넣기·전체 선택은 기존 `code_editor.*` 행동 6개를 공유한다. 표시 단축키와 실행 모두 사용자 키 매핑을 따르고, 팝업 열기·시작·끝까지 공용 `Widget` 경로를 거친다. 코드 캔버스의 0 간격·16px 글꼴을 메뉴에 강제하지 않고 호출한 UI의 글꼴·간격을 이어받는다.
+- 실제 텍스트 입력란이 활성화된 동안 편집기 행동이 입력을 가로채지 않는다. 코드 버퍼 자체의 텍스트 입력 요청과 일반 `InputText`의 활성 ID를 구분한다. 붙여넣기는 한 번만 실행하고 한 번의 Undo로 되돌린다.
+
+### 현행 빌드·시험 상태
+
+| 대상 | 현재 상태와 증거 |
+|---|---|
+| 감사 전 이력 | 양 구성 [Debug 빌드](F:/AI/Temp/script-editor-assistance-debug-build.log)·[Release 빌드](F:/AI/Temp/script-editor-assistance-release-build.log)와 [Debug 22개](F:/AI/Temp/script-editor-assistance-debug-tests.log)·[Release 22개](F:/AI/Temp/script-editor-assistance-release-tests.log)는 종료 코드 0이었다. 아래 §11 위반을 검출하지 못했으므로 감사 수정 뒤의 통과로 사용하지 않는다. |
+| 감사 수정 뒤 전체 빌드 | [Debug](F:/AI/Temp/script-editor-final-debug-build.log)·[Release](F:/AI/Temp/script-editor-final-release-build.log) 전체 솔루션 빌드 종료 코드 0이다. 이후 마지막 변경은 CLI 번역 키 coverage 시험 한 곳이며, Release는 [시험 대상 추가 빌드](F:/AI/Temp/script-editor-final-release-tests-build.log) 종료 코드 0을 확인했다. Debug 전체 빌드에는 그 변경도 포함한다. |
+| 최신 관련 24개 회귀 | [Debug](F:/AI/Temp/script-editor-final-debug-regression.log)·[Release](F:/AI/Temp/script-editor-final-release-regression.log)의 suite 목록과 마지막 `selected tests passed (24 suites)`·종료 코드 0을 확인했다. `ScriptSummaryIntegration`의 실제 두 문서·UTF-16/BOM/CRLF·한글/emoji·주석·단일 Undo·저장·재연결·키 재매핑·한 번 붙여넣기·입력란 보호·빠른 포커스 경합, `SourceDebugger`의 5→6줄 해석·256개 설치 거절/실행 미시작과 `EditorWidget`·`EditorGuideFocus`를 포함한다. |
+| 장기 회귀·완료 판단 | `EditorApplication`은 [Debug 410.2초](F:/AI/Temp/script-editor-final-debug-editorapplication.log)·[Release 394.1초](F:/AI/Temp/script-editor-final-release-editorapplication.log) 모두 `selected tests passed (1 suites)`·종료 코드 0이다. 위 24개와 합쳐 구성별 25개이며 네 시험 로그에 skip·시험 실패 표시는 없다. 행동 수 증가로 깨진 첫 화면 가정은 기존 검색 UI에서 안정된 행동 ID로 필터하도록 고쳤고, 원래 클릭·키 재매핑·검색 단언을 유지한 장기 재검사도 통과했다. 코드 로컬 커밋 `af60d387`의 해당 검증과 기록을 마쳤다. |
+| 독립 검토의 한계 | 코사원의 내부 독립 소스 검토는 아래 세 API의 필요성 제한을 확인했지만 공통 프레임워크 전범위 무결함 판정은 아니다. 실제 Claude CLI 소스 검토는 사용량 제한으로 최종 판정 없이 끝났다. 이를 PASS로 세지 않으며 사용자가 추가 호출을 금지했다. |
+
+### 현행 실제 화면과 교차 증거
+
+아래 화면은 감사 전 편집 보조·디버그 기능의 확인 이력이다. 감사 수정 뒤 화면을 다시 촬영·비교한 증거로 세지 않는다.
+
+| 확인 항목 | 확인한 대상과 한계 |
+|---|---|
+| 줄 번호 가리키기·선택 | [가리키기](F:/AI/Temp/script-summary-ui/final-api-gutter-hover-confirmed.png)와 [선택](F:/AI/Temp/script-summary-ui/final-api-gutter-line-selection-confirmed.png)을 비교해 가로 전체 강조·줄 문자열 선택·다음 줄 처음의 커서를 확인했다. |
+| 이름 선택·사용 위치 | [이름/사용 위치](F:/AI/Temp/script-summary-ui/final-api-summary-name-references-confirmed.png)에서 선언의 `speed` 5글자만 선택되고 10줄의 사용 위치가 노란 배경인 것을 확인했다. 동명이인 제외 등 전체 의미 범위는 통합 회귀와 구분한다. |
+| 공통 지연 툴팁 | [표시 전](F:/AI/Temp/script-summary-ui/final-api-float-tooltip-before-confirmed.png)과 [표시 후](F:/AI/Temp/script-summary-ui/final-api-float-tooltip-after-confirmed.png)를 비교해 공통 지연 뒤 `Float` 타입 툴팁이 생기는 것을 확인했다. |
+| 공통 우클릭 메뉴 | [직접 비교](F:/AI/Temp/script-summary-ui/final-common-boundary-menu-comparison.png)에서 기존 편집 메뉴와 코드 메뉴의 6개 행동·단축키·글꼴/간격을 비교했고 첫 두 행의 픽셀 일치를 측정했다. [닫힘](F:/AI/Temp/script-summary-ui/final-boundary-context-closed.png)·[다시 열림](F:/AI/Temp/script-summary-ui/final-boundary-context-reopened.png)도 확인했다. |
+| 속성 입력란 이탈·Undo | [입력 중](F:/AI/Temp/script-summary-ui/assistance-range-draft.png)은 최대값 `12.5` 초안과 소스 `10.0`을 유지한다. [이탈](F:/AI/Temp/script-summary-ui/assistance-range-blur.png)은 소스 `12.5`와 `limit` 이름 선택, [한 번 Undo](F:/AI/Temp/script-summary-ui/assistance-range-single-undo.png)는 `10.0` 복원과 미저장 표시 제거를 보인다. |
+| 속성 Enter·Undo | [Enter](F:/AI/Temp/script-summary-ui/assistance-range-enter.png)는 최대값 `15.0`의 소스 반영, [Undo](F:/AI/Temp/script-summary-ui/assistance-range-enter-undo.png)는 `10.0` 복원과 미저장 표시 제거를 보인다. |
+| 미확정→설치·중단 표시 | [미확정](F:/AI/Temp/script-debug-ui/08-pending-gutter.png)의 5줄 빈 원과 [해석/중단](F:/AI/Temp/script-debug-ui/13-relocation-tooltip.png)의 6줄 설치 위치·금색 실행 화살표·`5 → 6` 툴팁을 나란히 확인했다. |
+| 계속 실행·종료 정리 | [계속 실행 뒤](F:/AI/Temp/script-debug-ui/14-continue-clicked.png) 재중단과 [종료 뒤](F:/AI/Temp/script-debug-ui/23-stopped-cleanup.png) 화살표 제거·5줄 미확정을 확인했다. [stdout](F:/AI/Temp/script-debug-ui/host.stdout.log)의 15줄 재개→16줄 재중단→18~19줄 종료로 교차 확인했으며 한 장의 중단 화면만으로 재개를 추정하지 않았다. |
+| 화면 조작의 원본 보존·종료 | [프로세스/해시 기록](F:/AI/Temp/script-summary-ui/final-boundary-process.json)은 소스 해시 불변·메뉴 닫기/다시 열기·임시 호스트 85760 정상 종료를 기록한다. 기존 호스트 74560은 보존했다. 사용자 메인 창을 새로 배포하거나 종료한 검증이 아니다. |
+
+### 이번 후속에서 드러난 확인 누락
+
+- 코드 캔버스의 간격 0·16px 글꼴이 팝업으로 이어졌고 초기 메뉴는 공용 경로를 쓰지 않았다. 호출 UI의 스타일과 공통 팝업 수명을 연결한 뒤 실제 메뉴를 비교했다.
+- 코드 버퍼도 `WantTextInput`을 요청하지만 일반 입력란의 활성 ID가 있는 상태와 다르다. 둘을 같게 막으면 코드 단축키가 멎거나 입력란이 가로채이므로 실제 활성 입력란을 구분했다.
+- 독립 클립보드 모드 전환 뒤 시험에는 shortcut routing 등록을 위한 두 프레임이 필요했고 처음 설정이 이를 빠뜨렸다. 비활성 메뉴를 누른 후 우클릭으로 확인하던 helper도 메뉴를 다시 닫고 있었다. 제품 실패와 시험 설정·조작 실패를 구분하여 고쳤다.
+
+### 기존 §11 준수 감사의 수정과 추가 반례
+
+새 규칙이나 사용자 결정을 추가하지 않고 기존 §11 감사 결함 5건을 수정했다. 앞선 GUI·22개 기능 회귀는 이를 검출하지 못했다. [수정 전 실패](F:/AI/Temp/script-editor-rule-red-tests.log)는 메뉴/도구 막대의 `WhyBlocked`·아이콘 누락으로 종료 코드 1이었으며, 수정 뒤의 결과는 위 최신 24개 회귀와 구분한다.
+
+1. `Widget/ScriptOutline.cpp`는 `TreeNodeEx` 직접 호출 대신 기존 `TreeBegin`/`TreeDrawContext`와 가이드 포커스를 사용한다. 목록 툴팁은 요약 응답 때 캐시하고, 중단점 툴팁 결합도 `Widget/CodeEditor.cpp::SetDebugMarkers`에서 캐시한다.
+2. 디버그 도구 막대는 기존 공통 아이콘 단추를 사용하고 CodeEditor/Summary 행동에 `WhyBlocked`를 제공한다. 기존 File 메뉴의 Reload/External/Close도 행동 표를 거친다. 이 세 경로는 `35ca1c3d`에도 있던 잔여지만 같은 기능의 감사 범위에 포함했다.
+3. `DebugClient`/`LanguageClient`의 자체 오류 28개를 기존 로컬라이징 경로로 옮겼다. 요약 편집 오류 15개(컴파일러 6개·LSP 9개)는 기존 `DiagnosticMessages::FormatKey`와 ko/en 표를 재사용하며 새 공개 API를 추가하지 않았다. [요약 오류 번역 실패](F:/AI/Temp/script-editor-summary-localization-red-tests.log) 뒤 실제 서버 검증과 `ScriptCompilerCommandLineTests.cpp`의 키 존재·언어 차이·정확한 전체 개수 검사를 보강했다.
+4. `Widget/CodeEditor.cpp` 첫 Render의 중복 `SetChangeCallback`이 새 분석을 지우던 문제는 기존 transaction callback을 재사용해 등록 한 줄을 제거했다. EOL의 폭 0 진단도 기존 위치 변환을 거쳐 밑줄과 툴팁의 끝 범위를 일치시켰다. [진단 툴팁 실패](F:/AI/Temp/script-editor-rules-focus-ui-tests.log)와 최신 `CodeEditor` 결과를 구분한다.
+5. 두 파일을 연 직후 첫 파일→요약으로 포커스를 옮기면 둘째 자식의 오래된 요청이 새 선택을 덮었다([강화 반례 실패](F:/AI/Temp/script-editor-focus-selected-release-tests.log)). `CodeEditorPanel::{FocusAt,SelectDefinition}`의 비공개 `CancelSiblingFocusRequests`는 기존 `TakeFocusRequest`로 형제 요청을 비우며, `EditorApplication::DrawPanels`는 실제 Hidden/도크 선택 상태를 반영하고 버퍼 요청은 visible/focused일 때 소비한다. 실제 선택 탭과 요약 포커스를 함께 검사하는 같은 강화 fixture가 [수정 뒤](F:/AI/Temp/script-editor-focus-request-fix-release-tests.log)와 최신 24개 회귀에서 통과했다.
+6. [빈 초기값 Enter 실패](F:/AI/Temp/script-editor-empty-initializer-red-tests.log)를 확인한 뒤 `ScriptOutline`·`ScriptSummaryPanel`의 빈 문자열 무시 guard 두 개를 제거했다. `present=true`의 빈 식은 서버 오류로 보이고 소스를 유지하며, 제거 동작만 `present=false`/null을 보낸다. Enter·이탈 UI 반례와 실제 `JBroc` 검증을 최신 회귀에 포함했다.
+
+API 필요성은 기존 호출 경로로 교차 확인했다. vendor의 기존 `textContextMenuCallback`은 `BeginPopup` 내부에서 호출돼 공통 팝업 수명을 위임할 수 없고, `ReplaceSectionText`는 범위마다 transaction을 만들어 다중 범위를 한 Undo로 묶지 못한다. `Glyph::squiggle`도 한 슬롯이어서 진단과 노란 사용 위치 배경을 동시에 보존하지 못한다. 이에 현재 `TextEditor::{SetTextContextMenuRenderer,ReplaceSectionsText,SetRangeHighlights}`가 필요한 제한은 확인했으나 다른 공통 API 중복을 추가로 확정하거나 전체 무결함을 주장하지 않는다. 최신 vendor h/cpp는 고정 원본에 패치를 재적용한 [기존 LF 해시](F:/AI/Temp/imgui-code-editor-spike/gutter-reapply-20261015/vendor-hashes.json)와 여전히 일치한다.
+
+사용자는 규칙 미준수를 두 차례 지적했다. 기존 guard가 Panel의 원시 호출을 잡으면서 Widget 안의 재구현을 검출하지 못한 확인 누락은 이 작업 기록에만 남긴다. 별도 메모리·CLAUDE/AGENTS·새 결정 번호는 추가하지 않는다. 요청 기능·감사 수정과 양 구성의 해당 검증을 마쳤고 후속 코드는 `af60d387`로 로컬 커밋했으며 검증 기록을 함께 갱신했다. 감사 수정 뒤 새 화면 확인과 전체 공통 프레임워크 무결함은 미확인 한계로 유지한다. 메인 병합·원격 푸시·기존 에디터 교체 없이 메인 checkout과 사용자 호스트 74560을 보존한다.
