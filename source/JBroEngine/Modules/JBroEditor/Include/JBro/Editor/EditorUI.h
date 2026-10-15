@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Platform/Input.h>
+#include <JBro/Platform/Platform.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
@@ -49,6 +50,7 @@ namespace JBro
         // **시스템 클립보드 대신 이 UI 안의 글자를 쓴다**(D-321). 숨은 창으로 뜬 에디터(시험·도구)가 쓴다 - 사용자가 복사해 둔 것을 덮지 않고,
         // 같은 기계에서 도는 다른 에디터와 섞이지 않는다. `Initialize` 뒤에 부른다.
         void UsePrivateClipboard();
+        void BindPlatformWindow(IPlatform& platform, WindowHandle window);
 
         // 플랫폼이 모은 입력을 넘긴다. **`BeginFrame` 앞에서 부른다** -
         // ImGui 는 `NewFrame` 에서 이번 프레임의 입력 상태를 굳히므로, 그 뒤에
@@ -103,6 +105,8 @@ namespace JBro
         Bool UploadDrawData(UInt32 slot);
 
         IRHIDevice* m_device = nullptr;
+        IPlatform* m_platform = nullptr;
+        WindowHandle m_window;
         GraphicsPipelineHandle m_pipeline;
         SamplerHandle m_sampler;
         BufferHandle m_vertices[MaxFrameSlots];

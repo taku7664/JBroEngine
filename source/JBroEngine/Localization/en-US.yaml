@@ -629,3 +629,19 @@ Entries:
   guide.build_game_title: Building the Game
   guide.build_game_step_title: Build Game
   guide.build_game_step_body: Open the File menu and choose Build Game to pack the project into a game you can run.
+
+  # Embedded code editor
+  code_editor.title: "Code Editor"
+  code_editor.save: "Save"
+  code_editor.reload: "Reload from disk"
+  code_editor.close: "Close"
+  code_editor.external: "Open in external editor"
+  code_editor.unsaved: "This file has unsaved changes."
+  code_editor.read_failed: "The code file could not be read. Check that it is UTF-8 text."
+  code_editor.save_failed: "The code file could not be saved."
+  code_editor.conflict: "The file changed on disk. Reload it before saving."
+  code_editor.server_starting: "Connecting JBroScript analysis…"
+  code_editor.server_ready: "JBroScript analysis connected"
+  code_editor.server_failed: "JBroScript analysis is disconnected."
+  code_editor.reconnect: "Reconnect language server"
+  code_editor.cursor: "Line %u, Column %u | %u diagnostics"

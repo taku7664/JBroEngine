@@ -297,6 +297,8 @@ namespace JBro
                     }
                 }
             }
+            ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
+            EditorTheme::ReleaseCodeFont();
             ImGui::DestroyContext(static_cast<ImGuiContext*>(m_context));
             m_context = nullptr;
         }
@@ -340,6 +342,8 @@ namespace JBro
     {
         if (m_context != nullptr)
         {
+            ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
+            EditorTheme::ReleaseCodeFont();
             ImGui::DestroyContext(static_cast<ImGuiContext*>(m_context));
             m_context = nullptr;
         }
@@ -815,4 +819,24 @@ namespace JBro
         }
         return true;
     }
+    void EditorUI::BindPlatformWindow(IPlatform& platform, WindowHandle window)
+    {
+        m_platform = &platform;
+        m_window = window;
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
+        EditorTheme::LoadCodeFont(platform);
+        ImGui::GetMainViewport()->PlatformHandleRaw = reinterpret_cast<void*>(window.value);
+        auto& io = ImGui::GetPlatformIO();
+        io.Platform_ImeUserData = this;
+        io.Platform_SetImeDataFn = [](ImGuiContext*, ImGuiViewport* viewport, ImGuiPlatformImeData* data)
+        {
+            auto* ui = static_cast<EditorUI*>(ImGui::GetPlatformIO().Platform_ImeUserData);
+            if (ui != nullptr && ui->m_platform != nullptr && data->WantVisible)
+            {
+                ui->m_platform->SetTextInputPosition(ui->m_window, Float(data->InputPos.x - viewport->Pos.x),
+                    Float(data->InputPos.y - viewport->Pos.y), Float(data->InputLineHeight));
+            }
+        };
+    }
+
 }

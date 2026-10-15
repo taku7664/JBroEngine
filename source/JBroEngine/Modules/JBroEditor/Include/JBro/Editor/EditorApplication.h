@@ -16,6 +16,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorUI.h>
+#include <JBro/Editor/Code/LanguageClient.h>
 #include <JBro/Platform/Input.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Host/IFramework.h>
@@ -173,6 +174,11 @@ namespace JBro
         const ProjectFile& GetProjectFile() const;
         // 그 파일의 경로다. 파일로 열지 않았으면 비어 있다.
         const String& GetProjectFilePath() const { return m_projectFilePath; }
+        IPlatform& GetPlatform() { return *m_platform; }
+        Bool OpenCodeFile(const String& path, UInt32 line = 1, UInt32 column = 0);
+        Bool OpenCodeFileExternally(const String& path, UInt32 line = 1);
+        Code::LanguageClient& GetCodeLanguageClient();
+        void ReconnectCodeLanguageClient();
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         Bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
@@ -941,6 +947,7 @@ namespace JBro
         void ReleaseProcessResources();
 
         OwnerPtr<IPlatform> m_platform;
+        OwnerPtr<Code::LanguageClient> m_codeLanguage;
         OwnerPtr<IRHIModule> m_rhiModule;
         OwnerPtr<EngineInstance> m_engine;
         OwnerPtr<IFramework> m_framework;

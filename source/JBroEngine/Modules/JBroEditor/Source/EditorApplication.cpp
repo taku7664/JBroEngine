@@ -16,6 +16,7 @@
 #include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
+#include "Panel/CodeEditorPanel.h"
 #include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/MessagePopup.h>
 
@@ -3570,6 +3571,16 @@ namespace JBro
         {
             return false;
         }
+        Array<EditorPanel*> codePanels;
+        FindPanels(CodeEditorPanel::TypeName, codePanels);
+        for (auto* panel : codePanels)
+        {
+            if (!panel->SaveChanges())
+            {
+                panel->RequestFocus();
+                return false;
+            }
+        }
         const String contents = GetScriptContentsRoot();
         // **스크립트 폴더에 소스가 있는데 프로젝트가 없으면 여기서 만든다**(사용자 시나리오 C). 프로젝트는 `새 스크립트` 가 만들어 왔는데,
         // 그 팝업은 C++ 만 만든다 - `.jscript` 를 편집기에서 바로 쓴 사람은 빌드할 길이 없었다. 엔진 폴더를 못 찾으면 만들지 않는다(아래 알림).
@@ -3772,6 +3783,11 @@ namespace JBro
     }
 
     Bool EditorApplication::OpenInScriptEditor(const String& file, UInt32 line)
+    {
+        return m_uiEnabled ? OpenCodeFile(file, line) : OpenCodeFileExternally(file, line);
+    }
+
+    Bool EditorApplication::OpenCodeFileExternally(const String& file, UInt32 line)
     {
         // 밖의 프로그램을 띄우는 대신 받을 쪽이 있으면(시험) 그쪽에 넘긴다. 없으면 시험이 이 PC 의 편집기를 실제로 띄운다.
         if (m_openPath != nullptr)
@@ -4537,6 +4553,7 @@ namespace JBro
         {
             m_ui.UsePrivateClipboard();
         }
+        m_ui.BindPlatformWindow(*m_platform, m_engine->GetMainWindow());
 
         FrameTarget target;
         target.texture = m_simulationView;
@@ -5627,6 +5644,7 @@ namespace JBro
     void EditorApplication::ReleaseEditorUi()
     {
         DestroyPanels();
+        m_codeLanguage.Reset();
         // **그림을 먼저 내린다.** 장치가 사라진 뒤에 내리면 이미 없는 텍스처를 파괴하려 든다.
         if (m_thumbnails.Get() != nullptr)
         {
@@ -6985,6 +7003,10 @@ namespace JBro
         PollCanvasLoad();
         // 스크립트 빌드가 끝났으면 진단을 모은다(D-299). 기다리지 않는다 - 끝났는지만 본다.
         PollScriptBuild();
+        if (m_codeLanguage.Get() != nullptr)
+        {
+            m_codeLanguage->Poll(deltaTime);
+        }
         // DLL 이 바뀌었거나 미룬 리로드가 있으면 다시 싣는다(D-300).
         PollScriptModuleFile(deltaTime);
         // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-325). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
@@ -7157,6 +7179,7 @@ namespace JBro
                 ClosePanel(*panel);
             }
         }
+        m_codeLanguage = nullptr;
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();
         m_saveRequested = false;
@@ -7274,4 +7297,58 @@ namespace JBro
         }
         m_initialized = false;
     }
+    Bool EditorApplication::OpenCodeFile(const String& path, UInt32 line, UInt32 column)
+    {
+        if (m_openPath != nullptr)
+        {
+            return m_openPath(path.c_str(), m_openPathUser);
+        }
+        if (!m_uiEnabled || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const String normalized = Code::LanguageClient::NormalizePath(path);
+        Array<EditorPanel*> panels;
+        FindPanels(CodeEditorPanel::TypeName, panels);
+        for (auto* panel : panels)
+        {
+            auto* code = static_cast<CodeEditorPanel*>(panel);
+            if (code->GetPath() == normalized)
+            {
+                code->FocusAt(line, column);
+                return true;
+            }
+        }
+        auto* panel = static_cast<CodeEditorPanel*>(CreatePanel(CodeEditorPanel::TypeName));
+        if (panel == nullptr)
+        {
+            return false;
+        }
+        if (!panel->Open(normalized, line, column))
+        {
+            ClosePanel(*panel);
+            Log::Write(LogLevel::Warning, "editor", "The code file could not be opened: %s", normalized.c_str());
+            return false;
+        }
+        return true;
+    }
+    Code::LanguageClient& EditorApplication::GetCodeLanguageClient()
+    {
+        if (m_codeLanguage.Get() == nullptr)
+        {
+            m_codeLanguage = MakeOwnerPtr<Code::LanguageClient>(*m_platform);
+            ReconnectCodeLanguageClient();
+        }
+        return *m_codeLanguage;
+    }
+    void EditorApplication::ReconnectCodeLanguageClient()
+    {
+        if (m_codeLanguage.Get() == nullptr)
+        {
+            return;
+        }
+        const String executable = EditorPaths::JoinPath(m_platform->GetExecutableFolder().c_str(), "JBroc.exe");
+        m_codeLanguage->Start(executable, m_projectFilePath, m_locale);
+    }
+
 }

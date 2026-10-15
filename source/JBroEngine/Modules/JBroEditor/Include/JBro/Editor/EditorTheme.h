@@ -102,3 +102,10 @@ namespace JBro
         void Apply();
     }
 }
+
+namespace JBro::EditorTheme
+{
+    void LoadCodeFont(IPlatform& platform);
+    void ReleaseCodeFont();
+    ImFont* GetCodeFont();
+}

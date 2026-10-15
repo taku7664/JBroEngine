@@ -1,0 +1,132 @@
+--- a/TextEditor.h
++++ b/TextEditor.h
+@@ -354,6 +354,10 @@
+ 	inline void ClearSquiggles() { clearSquiggles(); }
+ 	inline bool HasSquiggles() const { return squiggles.size() != 0; }
+ 
++	// Optional semantic foreground overlay; lexical coloring remains the fallback.
++	inline void ClearTextColors() { for (auto& line : document) for (auto& glyph : line) glyph.textColor = 0; }
++	inline void SetTextColor(DocPos start, DocPos end, ImU32 color) { document.iterateGlyphs(normalizePos(start), normalizePos(end), [color](Glyph& glyph) { glyph.textColor = color; }); }
++
+ 	// specify a change callback (called when changes are made (including undo/redo))
+ 	// the delay parameter specifies a time in miliseconds that the editor will wait for before calling
+ 	// which helps in case you don't need to track every keystroke
+@@ -363,6 +367,7 @@
+ 	}
+ 
+ 	inline void ClearChangeCallback() { SetChangeCallback(nullptr); }
++	inline void SetExternalUndoRedo(bool value) { externalUndoRedo = value; }
+ 	inline bool HasChangeCallback() const { return delayedChangeCallback != nullptr; }
+ 
+ 	// detailed change report passed to callback below
+@@ -598,6 +603,7 @@
+ 		// color for this glyph if a language is specified
+ 		// maintained by the Colorizer and the Bracketeer overlays
+ 		Color color = Color::text;
++		ImU32 textColor = 0;
+ 
+ 		// maintained by the TypeSetter overlay
+ 		BreakOption breakOption = BreakOption::undefined;
+@@ -1267,7 +1273,7 @@
+ 						CodePoint::write(utf8, glyph->codepoint)));
+ 				}
+ 
+-				if (line != std::prev(end()) || line->size()) {
++				if (line != std::prev(end())) {
+ 					text += static_cast<T>('\n');
+ 				}
+ 			}
+@@ -1285,7 +1291,7 @@
+ 					text += static_cast<T>(glyph->codepoint);
+ 				}
+ 
+-				if (line != std::prev(end()) || line->size()) {
++				if (line != std::prev(end())) {
+ 					text += static_cast<T>('\n');
+ 				}
+ 			}
+@@ -2019,6 +2025,7 @@
+ 	static constexpr size_t invalidLine = std::numeric_limits<size_t>::max();
+ 
+ 	bool firstFrame = true;
++	bool externalUndoRedo = false;
+ 	float cursorWidth;
+ 	ImVec2 cursorScreenPos;
+ 	ImVec2 visibleSize;
+--- a/TextEditor.cpp
++++ b/TextEditor.cpp
+@@ -642,7 +642,7 @@
+ 			// handle regular glyphs
+ 			} else {
+ 				if (column >= firstRenderableColumn) {
+-					font->RenderChar(drawList, fontSize, glyphPos, palette.get(glyph.color), codepoint);
++					font->RenderChar(drawList, fontSize, glyphPos, glyph.textColor != 0 ? glyph.textColor : palette.get(glyph.color), codepoint);
+ 				}
+ 			}
+ 
+@@ -1152,7 +1152,10 @@
+ 
+ 	float unused;
+ 	const auto firstVisibleLineFraction = std::modf(ImGui::GetScrollY() / glyphSize.y, &unused);
+-	const auto previousFirstLine = visPos2DocPos(VisPos(firstVisibleRow, 0)).line;
++	// The old layout may reference lines removed from the changed document.
++	// Preserve its line number without resolving it through that document.
++	const auto previousFirstLine = typeSetter.getRowCount() == 0 ? 0 :
++		typeSetter[std::min(firstVisibleRow, typeSetter.getRowCount() - 1)].line;
+ 
+ 	if (typeSetter.update(config, document, lineFold)) {
+ 		// see if we can scroll to preserve the first visible line
+@@ -1285,9 +1288,9 @@
+ 		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_Repeat)) { paste(); }
+ 		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Insert, ImGuiInputFlags_Repeat)) { paste(); }
+ 
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { undo(); }
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { redo(); }
+-		else if (!config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_Repeat)) { redo(); }
++		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { undo(); }
++		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_Repeat)) { redo(); }
++		else if (!externalUndoRedo && !config.readOnly && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_Repeat)) { redo(); }
+ 
+ 		// remove text
+ 		else if (!config.readOnly && ImGui::Shortcut(ImGuiKey_Delete, ImGuiInputFlags_Repeat)) { handleDelete(false); }
+@@ -2051,12 +2054,12 @@
+ 
+ void TextEditor::scrollToLine(size_t line, Scroll alignment, float fraction) {
+ 	ensureVisiblePos = DocPos(invalidLine, 0);
+-	scrollToLineNumber = std::min(line, document.size());
++	scrollToLineNumber = normalizeLine(line);
+ 	scrollToAlignment = alignment;
+ 	scrollToFraction = fraction;
+ 
+ 	if (config.lineFolding) {
+-		lineFold.unfoldAroundLine(document, line);
++		lineFold.unfoldAroundLine(document, scrollToLineNumber);
+ 	}
+ }
+ 
+@@ -3118,6 +3121,9 @@
+ bool TextEditor::endTransaction(std::shared_ptr<Transaction> transaction) {
+ 	if (transaction->size() > 0) {
+ 		cursors.update(document);
++		// Edits can move cursors after changing the document. Defer scrolling
++		// until the final cursor positions have been normalized.
++		makeCursorVisible();
+ 		transaction->setAfterState(cursors);
+ 		transactions.add(transaction);
+ 		return true;
+@@ -3240,7 +3246,6 @@
+ 	// this function does not change the cursors
+ 	const auto end = document.insertText(config, start, text);
+ 	transaction->addInsert(start, end, text);
+-	makeCursorVisible();
+ 	return end;
+ }
+ 
+@@ -3255,7 +3260,6 @@
+ 	const auto text = document.getSectionText(start, end);
+ 	document.deleteText(config, start, end);
+ 	transaction->addDelete(start, end, text);
+-	makeCursorVisible();
+ 	resetCursorAnimationTimer();
+ 	deletesHappened = true;
+ }

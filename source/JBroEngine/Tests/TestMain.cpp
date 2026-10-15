@@ -67,6 +67,7 @@ JBro::Int32 RunGameScriptTests();
 JBro::Int32 RunObjectServiceTests();
 JBro::Int32 RunEditorApplicationTests();
 JBro::Int32 RunEditorUITests();
+JBro::Int32 RunCodeEditorTests();
 JBro::Int32 RunEditorCommandTests();
 JBro::Int32 RunEditorObjectCommandTests();
 JBro::Int32 RunEditorLocalizationTests();
@@ -494,6 +495,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("EditorApplication", &RunEditorApplicationTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("CodeEditor", &RunCodeEditorTests))
         {
             return 1;
         }

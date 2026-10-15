@@ -629,3 +629,19 @@ Entries:
   guide.build_game_title: 게임 빌드하기
   guide.build_game_step_title: 게임 빌드
   guide.build_game_step_body: 파일 메뉴를 열고 게임 빌드를 누르면 프로젝트를 실행할 수 있는 게임으로 묶습니다.
+
+  # Embedded code editor
+  code_editor.title: "코드 편집기"
+  code_editor.save: "저장"
+  code_editor.reload: "디스크에서 다시 읽기"
+  code_editor.close: "닫기"
+  code_editor.external: "외부 편집기로 열기"
+  code_editor.unsaved: "이 파일에 저장하지 않은 변경 내용이 있습니다."
+  code_editor.read_failed: "코드 파일을 읽을 수 없습니다. UTF-8 텍스트 파일인지 확인하세요."
+  code_editor.save_failed: "코드 파일을 저장하지 못했습니다."
+  code_editor.conflict: "다른 프로그램에서 파일을 변경했습니다. 다시 읽은 뒤 저장하세요."
+  code_editor.server_starting: "JBroScript 분석 연결 중…"
+  code_editor.server_ready: "JBroScript 분석 연결됨"
+  code_editor.server_failed: "JBroScript 분석 연결이 끊겼습니다."
+  code_editor.reconnect: "언어 서버 다시 연결"
+  code_editor.cursor: "%u줄, %u열 | 진단 %u개"

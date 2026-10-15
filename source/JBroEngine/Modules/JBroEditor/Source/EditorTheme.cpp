@@ -323,3 +323,52 @@ namespace JBro::EditorTheme
         ApplyFont();
     }
 }
+
+namespace JBro::EditorTheme
+{
+    namespace
+    {
+        ImGuiContext* CodeFontContext = nullptr;
+        ImFont* CodeFont = nullptr;
+    }
+    void LoadCodeFont(IPlatform& platform)
+    {
+        CodeFontContext = ImGui::GetCurrentContext();
+        CodeFont = nullptr;
+        auto load = [&platform](const char* path, ImFontConfig& config) -> ImFont*
+        {
+            Array<std::byte> bytes;
+            if (!platform.ReadWholeFile(path, bytes) || bytes.IsEmpty() || bytes.Size() > 16 * 1024 * 1024)
+            {
+                return nullptr;
+            }
+            void* owned = ImGui::MemAlloc(bytes.Size());
+            if (owned == nullptr)
+            {
+                return nullptr;
+            }
+            std::memcpy(owned, bytes.Data(), bytes.Size());
+            return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(owned, static_cast<int>(bytes.Size()), 16.0f, &config);
+        };
+        ImFontConfig config;
+        std::snprintf(config.Name, sizeof(config.Name), "JBro Code");
+        CodeFont = load("C:/Windows/Fonts/consola.ttf", config);
+        if (CodeFont != nullptr)
+        {
+            config.MergeMode = true;
+            load("C:/Windows/Fonts/malgun.ttf", config);
+        }
+    }
+    ImFont* GetCodeFont()
+    {
+        return CodeFontContext == ImGui::GetCurrentContext() ? CodeFont : nullptr;
+    }
+    void ReleaseCodeFont()
+    {
+        if (CodeFontContext == ImGui::GetCurrentContext())
+        {
+            CodeFontContext = nullptr;
+            CodeFont = nullptr;
+        }
+    }
+}

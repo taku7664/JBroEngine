@@ -708,3 +708,21 @@ namespace JBro::LocKeys
     inline constexpr const char* GuideBuildGameStepTitle = "guide.build_game_step_title";
     inline constexpr const char* GuideBuildGameStepBody = "guide.build_game_step_body";
 }
+
+namespace JBro::LocKeys
+{
+    inline constexpr const char* CodeEditorTitle = "code_editor.title";
+    inline constexpr const char* CodeEditorSave = "code_editor.save";
+    inline constexpr const char* CodeEditorReload = "code_editor.reload";
+    inline constexpr const char* CodeEditorClose = "code_editor.close";
+    inline constexpr const char* CodeEditorExternal = "code_editor.external";
+    inline constexpr const char* CodeEditorUnsaved = "code_editor.unsaved";
+    inline constexpr const char* CodeEditorReadFailed = "code_editor.read_failed";
+    inline constexpr const char* CodeEditorSaveFailed = "code_editor.save_failed";
+    inline constexpr const char* CodeEditorConflict = "code_editor.conflict";
+    inline constexpr const char* CodeEditorServerStarting = "code_editor.server_starting";
+    inline constexpr const char* CodeEditorServerReady = "code_editor.server_ready";
+    inline constexpr const char* CodeEditorServerFailed = "code_editor.server_failed";
+    inline constexpr const char* CodeEditorReconnect = "code_editor.reconnect";
+    inline constexpr const char* CodeEditorCursor = "code_editor.cursor";
+}
