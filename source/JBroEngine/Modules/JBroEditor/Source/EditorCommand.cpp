@@ -12,7 +12,7 @@ namespace JBro
     Bool EditorCommandManager::Execute(OwnerPtr<EditorCommand> command,
         const char* documentKey)
     {
-        if (command.Get() == nullptr || false == command->Execute())
+        if (m_locked || command.Get() == nullptr || false == command->Execute())
         {
             return false;
         }
@@ -88,9 +88,19 @@ namespace JBro
         m_undo.Add(std::move(entry));
     }
 
+    void EditorCommandManager::SetLocked(Bool locked)
+    {
+        m_locked = locked;
+    }
+
+    Bool EditorCommandManager::IsLocked() const
+    {
+        return m_locked;
+    }
+
     Bool EditorCommandManager::Undo()
     {
-        if (m_undo.IsEmpty())
+        if (m_locked || m_undo.IsEmpty())
         {
             return false;
         }
@@ -107,7 +117,7 @@ namespace JBro
 
     Bool EditorCommandManager::Redo()
     {
-        if (m_redo.IsEmpty())
+        if (m_locked || m_redo.IsEmpty())
         {
             return false;
         }

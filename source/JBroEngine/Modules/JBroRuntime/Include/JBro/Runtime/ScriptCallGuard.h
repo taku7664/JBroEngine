@@ -47,12 +47,18 @@ namespace JBro
         const ScriptFault& GetFault();
         void ClearFault();
 
+        // 지금 감싼 훅 안인가. 스크립트 중단점(D-325 2 단계)이 스크립트가 도는 동안의 멈춤인지를 이것으로 가린다. 켜져 있을 때만 센다.
+        Bool IsInCall();
+
         namespace Detail
         {
             // 예외 필터다. 예외를 적고 받겠다고 답한다.
             int Filter(const void* exceptionPointers, const char* hook);
             // 받은 뒤 처리다. 스택 넘침이면 지킴 페이지를 되살린다.
             void Recover();
+            // 감싼 훅의 깊이를 센다. 예외로 나와도 `Leave` 를 부른다.
+            void Enter();
+            void Leave();
         }
 
         // 훅 하나를 부른다. 부르지 않았거나 예외가 났으면 거짓이다. `call` 은 인자 없는 호출 가능한 것이고 소멸자가 있는 값을 만들지 않는다.
@@ -69,15 +75,18 @@ namespace JBro
                 return true;
             }
 #if defined(_MSC_VER)
+            Detail::Enter();
             __try
             {
                 call();
             }
             __except (Detail::Filter(_exception_info(), hook))
             {
+                Detail::Leave();
                 Detail::Recover();
                 return false;
             }
+            Detail::Leave();
             return true;
 #else
             call();

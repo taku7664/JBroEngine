@@ -49,6 +49,28 @@ namespace JBro
 		ReleaseOverflow();
 	}
 
+	LinearAllocator::Marker LinearAllocator::Mark() const
+	{
+		Marker marker;
+		marker.used = m_used;
+		marker.overflow = m_overflow.Size();
+		return marker;
+	}
+
+	void LinearAllocator::RewindTo(const Marker& marker)
+	{
+		if (marker.used <= m_used)
+		{
+			m_used = marker.used;
+		}
+		while (m_overflow.Size() > marker.overflow)
+		{
+			const OverflowBlock block = m_overflow.Last();
+			HeapAllocator{}.Deallocate(block.memory, block.size, block.alignment);
+			m_overflow.Pop();
+		}
+	}
+
 	JAllocator LinearAllocator::GetInterface()
 	{
 		JAllocator result;

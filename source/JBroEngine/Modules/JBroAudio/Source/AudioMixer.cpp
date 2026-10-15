@@ -1621,6 +1621,8 @@ namespace JBro
         // 출력 이득(포커스 정책). 목표와 프레임당 변화량은 메인 스레드가 쓰고 지금 값은 오디오 스레드만 만진다.
         std::atomic<float> outputGainTarget{1.0f};
         std::atomic<float> outputGainRate{1.0f};
+        // 선 믹서(D-325). 메인 스레드가 쓰고 오디오 스레드가 읽는다.
+        std::atomic<bool> frozen{false};
         Float outputGainCurrent = 1.0f;
         // 출력 리미터(D-210). 켬·천장은 메인 스레드가, 지금 이득은 오디오 스레드가 든다.
         std::atomic<bool> limiterEnabled{true};
@@ -2797,6 +2799,11 @@ namespace JBro
         {
             const UInt32 channels = state != nullptr ? state->desc.channels : UInt32(2);
             std::memset(output, 0, sizeof(float) * frameCount * channels);
+            return;
+        }
+        if (state->frozen.load(std::memory_order_relaxed))
+        {
+            std::memset(output, 0, sizeof(float) * frameCount * state->desc.channels);
             return;
         }
         ma_uint64 read = 0;
@@ -3977,6 +3984,19 @@ namespace JBro
     Float AudioMixer::GetOutputGain() const
     {
         return IsInitialized() ? m_state->outputGainTarget.load(std::memory_order_relaxed) : 0.0f;
+    }
+
+    void AudioMixer::SetFrozen(Bool frozen)
+    {
+        if (IsInitialized())
+        {
+            m_state->frozen.store(frozen, std::memory_order_relaxed);
+        }
+    }
+
+    Bool AudioMixer::IsFrozen() const
+    {
+        return IsInitialized() && m_state->frozen.load(std::memory_order_relaxed);
     }
 
     UInt32 AudioMixer::CopyRecentOutput(Float* mono, UInt32 count) const

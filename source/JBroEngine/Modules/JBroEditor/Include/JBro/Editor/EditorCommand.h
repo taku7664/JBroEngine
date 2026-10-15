@@ -84,6 +84,9 @@ namespace JBro
         Bool Execute(OwnerPtr<EditorCommand> command, const char* documentKey = nullptr);
         Bool Undo();
         Bool Redo();
+        // 잠그면 실행·되돌리기·다시하기가 모두 거절된다(D-325: 스크립트가 중단점에 선 동안). 스크립트 스택이 쥔 오브젝트를 지우면 이어 갈 때 죽는다.
+        void SetLocked(Bool locked);
+        Bool IsLocked() const;
         void Clear();
         // **되돌리기 기록만 비운다.** 저장 안 됨은 그대로 둔다 - 재생을 멈추거나 스크립트 필드가 바뀌어 기록을 버려도 캔버스의 편집이
         // 저장된 것은 아니다. `Clear` 는 저장 기준까지 0 으로 돌려, 그 뒤 다른 캔버스를 열 때 묻지 않고 편집을 버렸다(D-324).
@@ -156,5 +159,6 @@ namespace JBro
         UInt64 m_savedCanvasRevision = 0;
         ExecutedCommand m_executed[ExecutedHistory] = {};
         UInt64 m_executeCount = 0;
+        Bool m_locked = false;
     };
 }

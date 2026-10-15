@@ -191,6 +191,14 @@ namespace JBro
         Bool IsGameDebugDrawVisible() const;
 
         Bool Tick(Float deltaTime);
+        // ── 스크립트가 중단점에 선 동안 (D-325 2 단계) ──────────────────────────────────────────────
+        // 프레임워크 갱신 한가운데에서 스크립트가 섰다. 그 자리(예외 처리기 안)에서 화면만 다시 그린다 - 갱신·시간은 돌지 않고
+        // 오디오 믹서는 선다. `BeginBreakFrames` 와 `EndBreakFrames` 사이에서 `RenderBreakFrame` 을 몇 번이고 부르고, 그 사이에는
+        // `Tick` 안이어도 시뮬레이션 뷰·편집 화면·썸네일 요청을 받는다. 프레임 메모리는 선 자리를 표시해 두고 안쪽 프레임마다 거기로 되감는다.
+        Bool BeginBreakFrames();
+        Bool RenderBreakFrame();
+        void EndBreakFrames();
+        Bool IsInBreakFrames() const;
         void RequestExit();
         // Callback calls defer teardown until that callback returns.
         void Shutdown();
@@ -277,6 +285,10 @@ namespace JBro
     private:
         enum class State { Stopped, Initializing, OpeningProject, Running, Ticking, ClosingProject, Stopping };
         Bool TickFrame(Float deltaTime);
+        // 그리기와 제시다. `TickFrame` 의 뒤쪽이고 중단점에 선 동안의 프레임도 이것을 돈다.
+        Bool RenderFrame();
+        // 요청을 받아도 되는가. `Tick` 밖이거나 중단점에 선 동안이다.
+        Bool AcceptsFrameRequests() const;
         void ReleaseProject();
         void ReleaseResources();
         // 프로젝트의 버스 목록·장치·포커스 정책을 오디오 시스템에 건다.
@@ -341,6 +353,10 @@ namespace JBro
 
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
+        // 중단점에 선 동안이다(D-325). 표시는 선 자리의 프레임 메모리, 믹서는 서기 전에 서 있었는지다.
+        Bool m_inBreakFrames = false;
+        LinearAllocator::Marker m_breakFrameMark;
+        Bool m_breakMixerWasFrozen = false;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.
         ScriptDLLLoader m_scripts;
         ScriptErrorContext m_scriptErrorContext;

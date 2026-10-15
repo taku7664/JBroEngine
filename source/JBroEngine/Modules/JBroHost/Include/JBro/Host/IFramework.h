@@ -151,6 +151,15 @@ namespace JBro
         {
             (void)enabled;
         }
+        // **스크립트가 중단점에 선 동안 그릴 것을 마련한다**(D-325 2 단계). 갱신 한가운데라 이번 프레임의 추출이 아직 돌지 않았다 -
+        // 지금 캔버스로 트랜스폼과 추출만 한 번 돌려 둔다. 선 동안의 `Render`·`RenderEditorView` 가 그것을 그린다. 끝나면(`EndBreakFrames`)
+        // 그 목록을 비워, 이어지는 갱신의 추출이 처음부터 채운다. 스크립트 훅이 없는 프레임워크는 할 일이 없다.
+        virtual void PrepareBreakFrames()
+        {
+        }
+        virtual void EndBreakFrames()
+        {
+        }
         // Host opens/closes the Renderer frame. Framework submits its views and packets only.
         virtual RenderResult Render() = 0;
         // 같은 프레임에 **편집 카메라로 한 번 더** 제출한다(D-130). `Render` 바로 뒤에서만

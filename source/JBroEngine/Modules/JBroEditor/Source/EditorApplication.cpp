@@ -205,6 +205,8 @@ namespace JBro
             }
             // **스크립트가 죽어도 에디터는 산다**(D-325). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
             ScriptCallGuard::Enable(&CaptureScriptFaultFrames, m_platform.Get());
+            // 스크립트 중단점은 엔진이 받는다(D-325 2 단계). OS 디버거로 붙지 않으므로 선 동안에도 에디터가 그린다.
+            m_platform->SetCodeBreakHandler(&EditorApplication::OnCodeBreak, this);
 
             // **프로그램과 함께 놓인 것은 실행 파일 기준으로 찾는다**(D-176). 현재 작업 폴더로
             // 찾으면 어디서 띄웠는지에 따라 있다가 없다 - 런처나 바로가기로 띄운 에디터가
@@ -3197,6 +3199,18 @@ namespace JBro
         // 값으로 떠 두고 먼저 푼다. 아래의 되돌리기가 스크립트를 다시 붙이며 훅을 부르는데, 적힌 것이 남아 있으면 그 훅이 막힌다.
         const ScriptFault fault = ScriptCallGuard::GetFault();
         ScriptCallGuard::ClearFault();
+        // 중단점에 선 동안 사용자가 정지를 골랐다. 그 훅을 끝낸 예외는 오류가 아니다 - 알리지 않고 멈춘다.
+        constexpr UInt32 BreakpointCode = 0x80000003u;
+        if (m_scriptBreakStopped)
+        {
+            m_scriptBreakStopped = false;
+            if (fault.code == BreakpointCode)
+            {
+                Log::Write(LogLevel::Info, "script", "the simulation stopped at a script break");
+                StopSimulation();
+                return;
+            }
+        }
 
         // 스크립트 DLL 은 세대마다 다른 이름의 사본으로 실린다. 로더가 아는 것은 원본 경로라, 진입점이 든 모듈에게 실린 경로를 묻는다.
         String scriptModule;
@@ -3283,6 +3297,143 @@ namespace JBro
             desc.action = MakeOwnerPtr<OpenScriptLineAction>(found.file, found.line);
         }
         m_notifications.Notify(std::move(desc));
+    }
+
+    CodeBreakAction EditorApplication::OnCodeBreak(void* user, const CodeBreak& hit)
+    {
+        return static_cast<EditorApplication*>(user)->HandleCodeBreak(hit);
+    }
+
+    // **스크립트가 중단점에 섰다**(D-325 2 단계). 여기는 예외 처리기 안이고, 스크립트는 프레임워크 갱신 한가운데에 서 있다.
+    // 돌아가기 전까지 이 자리에서 에디터 화면만 그린다 - 게임 갱신·시간·소리는 선다. 편집은 막는다: 스크립트 스택이 쥔 오브젝트를 지우면 이어 갈 때 죽는다.
+    CodeBreakAction EditorApplication::HandleCodeBreak(const CodeBreak& hit)
+    {
+        // 재생 중인 스크립트 훅 안에서 선 것만 받는다. 편집 중(`OnAttached`)의 `__debugbreak` 는 지금처럼 스크립트 예외로 간다.
+        if (false == m_simulationPlaying || false == ScriptCallGuard::IsInCall() || m_scriptBreakActive || false == m_uiEnabled
+            || m_engine.Get() == nullptr || false == m_engine->BeginBreakFrames())
+        {
+            return CodeBreakAction::Pass;
+        }
+        m_scriptBreakActive = true;
+        m_scriptBreakRequest = ScriptBreakRequest::None;
+        m_scriptBreakFrames = 0;
+        m_scriptBreakLocation = CodeLocation{};
+        m_platform->DescribeCodeAddress(hit.address, m_scriptBreakLocation);
+        m_commands.SetLocked(true);
+        Log::Write(LogLevel::Info, "script", "a script stopped at %s:%u (%s)", m_scriptBreakLocation.file.empty() ? "?" : m_scriptBreakLocation.file.c_str(),
+            static_cast<unsigned int>(m_scriptBreakLocation.line.Value), m_scriptBreakLocation.function.c_str());
+        {
+            char message[512];
+            std::snprintf(message, sizeof(message), Loc::TextOr(LocKeys::NotifyScriptBreakAt, "%s:%u  %s - unpause to go on, stop to end the run. Editing waits until then"),
+                m_scriptBreakLocation.file.empty() ? "?" : FileNameOf(m_scriptBreakLocation.file), static_cast<unsigned int>(m_scriptBreakLocation.line.Value),
+                m_scriptBreakLocation.function.c_str());
+            NotificationDesc desc;
+            desc.level = NotificationLevel::Info;
+            desc.title = Loc::TextOr(LocKeys::NotifyScriptBreak, "A script stopped at a breakpoint");
+            desc.message = message;
+            desc.id = "script_break";
+            desc.durationSeconds = 0.0f;
+            if (false == m_scriptBreakLocation.file.empty())
+            {
+                desc.action = MakeOwnerPtr<OpenScriptLineAction>(m_scriptBreakLocation.file, m_scriptBreakLocation.line);
+            }
+            m_scriptBreakNotification = m_notifications.Notify(std::move(desc));
+        }
+
+        auto previous = std::chrono::steady_clock::now();
+        while (m_scriptBreakRequest == ScriptBreakRequest::None)
+        {
+            if (m_scriptBreakHook != nullptr)
+            {
+                m_scriptBreakHook(m_scriptBreakHookUser, *this);
+                if (m_scriptBreakRequest != ScriptBreakRequest::None)
+                {
+                    break;
+                }
+            }
+            const auto now = std::chrono::steady_clock::now();
+            const Float deltaTime = std::chrono::duration<float>(now - previous).count();
+            previous = now;
+            // 창을 닫거나 끝내기를 고르면 먼저 그 훅을 끝낸다. 실제 닫기는 이어진 프레임이 묻고 한다.
+            if (false == RunScriptBreakFrame(deltaTime) || m_exitRequested
+                || (m_engine->GetMainWindow().value != 0 && m_platform->ShouldClose(m_engine->GetMainWindow())))
+            {
+                m_scriptBreakRequest = ScriptBreakRequest::Stop;
+                break;
+            }
+            ++m_scriptBreakFrames;
+        }
+
+        const Bool stop = m_scriptBreakRequest == ScriptBreakRequest::Stop;
+        m_notifications.Dismiss(m_scriptBreakNotification);
+        m_scriptBreakNotification = InvalidNotificationHandle;
+        m_commands.SetLocked(false);
+        m_engine->EndBreakFrames();
+        m_scriptBreakActive = false;
+        m_scriptBreakRequest = ScriptBreakRequest::None;
+        Log::Write(LogLevel::Info, "script", stop ? "the stopped script is being ended" : "the stopped script goes on");
+        // 정지면 예외로 나아가게 둔다. 스크립트를 감싼 보호가 그 훅을 끝내고, 다음 프레임의 `PollScriptFault` 가 실행을 멈춘다.
+        m_scriptBreakStopped = stop;
+        return stop ? CodeBreakAction::Stop : CodeBreakAction::Continue;
+    }
+
+    Bool EditorApplication::RunScriptBreakFrame(Float deltaTime)
+    {
+        // 시계가 움직이지 않은 프레임도 그린다. UI 는 0 을 받지 않는다(D-160).
+        const Float frameTime = std::isfinite(deltaTime) && deltaTime > 1.0e-3f ? deltaTime : Float(1.0f / 60.0f);
+        if (m_thumbnails.Get() != nullptr)
+        {
+            m_thumbnails->BeginFrame();
+        }
+        if (m_contours.Get() != nullptr)
+        {
+            m_contours->BeginFrame();
+        }
+        if (false == BuildEditorUi(frameTime))
+        {
+            return false;
+        }
+        SubmitFrameRequests();
+        return m_engine->RenderBreakFrame();
+    }
+
+    Bool EditorApplication::IsAtScriptBreak() const
+    {
+        return m_scriptBreakActive;
+    }
+
+    const CodeLocation& EditorApplication::GetScriptBreakLocation() const
+    {
+        return m_scriptBreakLocation;
+    }
+
+    UInt32 EditorApplication::GetScriptBreakFrameCount() const
+    {
+        return m_scriptBreakFrames;
+    }
+
+    void EditorApplication::ContinueScriptBreak()
+    {
+        if (m_scriptBreakActive)
+        {
+            m_scriptBreakRequest = ScriptBreakRequest::Continue;
+        }
+    }
+
+    Bool EditorApplication::SetScriptBreakpoint(UInt64 address)
+    {
+        return m_platform.Get() != nullptr && m_platform->SetCodeBreakpoint(address);
+    }
+
+    Bool EditorApplication::ClearScriptBreakpoint(UInt64 address)
+    {
+        return m_platform.Get() != nullptr && m_platform->ClearCodeBreakpoint(address);
+    }
+
+    void EditorApplication::SetScriptBreakFrameHook(ScriptBreakFrameHook hook, void* user)
+    {
+        m_scriptBreakHook = hook;
+        m_scriptBreakHookUser = user;
     }
 
     void EditorApplication::PollScriptErrors()
@@ -3770,6 +3921,8 @@ namespace JBro
             }
         }
         const String layoutBefore = DescribeScriptFieldLayout();
+        // 넣은 중단점은 내릴 DLL 의 코드에 있다. 내린 뒤에 원래 바이트를 되돌리려 들면 죽는다.
+        m_platform->ClearCodeBreakpoints();
         const Bool loaded = m_engine->ReloadScriptModule();
         // 필드 모양이 바뀌었으면 되돌리기 기록을 비운다. 순번으로 필드를 가리키는 편집이 엉뚱한 필드를 되돌린다.
         // 코드만 고친 흔한 경우(필드가 그대로)에는 기록이 남는다.
@@ -4981,6 +5134,13 @@ namespace JBro
 
     void EditorApplication::StopSimulation()
     {
+        // 스크립트가 중단점에 서 있으면 지금 캔버스를 버릴 수 없다 - 스크립트 스택이 그 오브젝트를 쥐고 있다. 그 훅을 예외로 끝내 달라고만 하고,
+        // 실제 정지는 그 예외를 받은 다음 프레임(`PollScriptFault`)에 한다.
+        if (m_scriptBreakActive)
+        {
+            m_scriptBreakRequest = ScriptBreakRequest::Stop;
+            return;
+        }
         if (false == m_simulationPlaying)
         {
             return;
@@ -5053,6 +5213,15 @@ namespace JBro
 
     void EditorApplication::SetSimulationPaused(Bool paused)
     {
+        // 중단점에 선 동안의 일시정지 풀기는 그 자리에서 이어 가기다.
+        if (m_scriptBreakActive)
+        {
+            if (false == paused)
+            {
+                m_scriptBreakRequest = ScriptBreakRequest::Continue;
+            }
+            return;
+        }
         if (false == m_simulationPlaying)
         {
             return;
@@ -5066,12 +5235,12 @@ namespace JBro
 
     Bool EditorApplication::IsSimulationPaused() const
     {
-        return m_simulationPaused;
+        return m_simulationPaused || m_scriptBreakActive;
     }
 
     void EditorApplication::StepSimulation()
     {
-        if (false == m_simulationPlaying || false == m_simulationPaused || m_engine.Get() == nullptr)
+        if (m_scriptBreakActive || false == m_simulationPlaying || false == m_simulationPaused || m_engine.Get() == nullptr)
         {
             return;
         }
@@ -6412,7 +6581,8 @@ namespace JBro
         // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 시뮬레이션 뷰가 포커스를 가졌으면.
         // 기존 엔진의 `SetViewportActive` 게이트와 같다. 시뮬레이션 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
         // 그러지 않으면 W 를 누른 채 인스펙터를 누르면 게임 속 캐릭터가 계속 걷는다.
-        const Bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_simulationViewReported && m_simulationViewFocused;
+        const Bool gameInput = m_simulationPlaying && false == m_simulationPaused && false == m_scriptBreakActive
+            && m_simulationViewReported && m_simulationViewFocused;
         if (gameInput)
         {
             m_engine->SubmitHostInput(input, m_simulationViewMapping);
@@ -6836,26 +7006,7 @@ namespace JBro
             Log::Write(LogLevel::Error, "editor", "the editor UI could not build a frame");
             return false;
         }
-        // **시뮬레이션 뷰 렌더는 매 프레임 opt-in 이다**(D-63). UI 를 먼저 만들었으므로 이 프레임에
-        // 시뮬레이션 뷰 패널이 그려졌는지 이미 안다. 패널이 닫히거나 다른 탭에 가려진 프레임에는
-        // 뷰를 기록하지 않고, 텍스처는 파기하지 않아 다시 보일 때 마지막 그림에서 이어진다.
-        if (m_uiEnabled && m_simulationView.IsValid())
-        {
-            FrameTarget target;
-            target.texture = m_simulationView;
-            target.extent = m_simulationViewExtent;
-            target.recordViews = m_simulationViewRequested;
-            m_engine->SetSimulationViewTarget(target);
-        }
-        m_simulationViewRequested = false;
-        // 캔버스 뷰도 같은 규칙이다(D-130). 이 프레임에 패널이 붙였으면 한 번 더 그린다.
-        if (m_uiEnabled && m_canvasViewRequested)
-        {
-            m_engine->RequestEditorView(m_canvasViewRequest);
-        }
-        m_canvasViewRequested = false;
-        // 레이어 썸네일도 같은 규칙이다(D-288) - 이 프레임에 계층 창이 바랐을 때만 그린다.
-        FlushLayerThumbnails();
+        SubmitFrameRequests();
         // 커맨드가 돌았으면 에셋 해석을 다시 한다(D-115·D-116). UI 가 닫힌 뒤라 이 프레임의
         // 편집이 전부 들어 있고, 엔진 프레임 전이라 다음 그림부터 새 핸들이 보인다.
         if (m_framework.Get() != nullptr && m_commands.GetRevision() != m_boundRevision)
@@ -6915,6 +7066,30 @@ namespace JBro
             return false;
         }
         return true;
+    }
+
+    void EditorApplication::SubmitFrameRequests()
+    {
+        // **시뮬레이션 뷰 렌더는 매 프레임 opt-in 이다**(D-63). UI 를 먼저 만들었으므로 이 프레임에
+        // 시뮬레이션 뷰 패널이 그려졌는지 이미 안다. 패널이 닫히거나 다른 탭에 가려진 프레임에는
+        // 뷰를 기록하지 않고, 텍스처는 파기하지 않아 다시 보일 때 마지막 그림에서 이어진다.
+        if (m_uiEnabled && m_simulationView.IsValid())
+        {
+            FrameTarget target;
+            target.texture = m_simulationView;
+            target.extent = m_simulationViewExtent;
+            target.recordViews = m_simulationViewRequested;
+            m_engine->SetSimulationViewTarget(target);
+        }
+        m_simulationViewRequested = false;
+        // 캔버스 뷰도 같은 규칙이다(D-130). 이 프레임에 패널이 붙였으면 한 번 더 그린다.
+        if (m_uiEnabled && m_canvasViewRequested)
+        {
+            m_engine->RequestEditorView(m_canvasViewRequest);
+        }
+        m_canvasViewRequested = false;
+        // 레이어 썸네일도 같은 규칙이다(D-288) - 이 프레임에 계층 창이 바랐을 때만 그린다.
+        FlushLayerThumbnails();
     }
 
     void EditorApplication::CloseProject()
@@ -7064,7 +7239,11 @@ namespace JBro
 
     void EditorApplication::ReleaseProcessResources()
     {
-        // 스택을 읽는 플랫폼이 곧 사라진다(D-325).
+        // 스택을 읽는 플랫폼이 곧 사라진다(D-325). 넣은 중단점도 함께 뺀다.
+        if (m_platform.Get() != nullptr)
+        {
+            m_platform->SetCodeBreakHandler(nullptr, nullptr);
+        }
         ScriptCallGuard::Disable();
         ScriptCallGuard::ClearFault();
         // 제어 포트를 먼저 닫는다 - 소켓은 provider 가, provider 는 플랫폼의 Winsock 이 살아 있어야 닫힌다.

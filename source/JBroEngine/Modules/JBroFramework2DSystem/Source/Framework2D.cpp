@@ -19,6 +19,7 @@
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
+#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
@@ -322,6 +323,42 @@ namespace JBro
                 audio->ReleaseAllSources(*m_canvas);
             }
             audio->SetEnabled(m_simulationEnabled);
+        }
+    }
+
+    void Framework2D::PrepareBreakFrames()
+    {
+        if (false == m_initialized || m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        // 스케줄러는 다시 들어가지 못한다 - 지금 그 안에서 스크립트가 서 있다. 시뮬레이션과 무관한 추출 시스템만 차례대로 직접 부른다.
+        // 스크립트를 부르는 시스템(스크립트·버튼·물리)은 모두 추출보다 앞이라, 선 자리는 늘 이번 프레임의 추출 전이다.
+        SystemScheduler& systems = m_canvas->GetSystems();
+        GameSystem* const extraction[] = {
+            systems.FindSystem<System::Transform2DSystem>(),
+            systems.FindSystem<System::Camera2DSystem>(),
+            systems.FindSystem<System::SpriteRender2DSystem>(),
+            systems.FindSystem<System::Light2DSystem>(),
+            systems.FindSystem<System::ShadowCaster2DSystem>(),
+            systems.FindSystem<System::Text2DSystem>(),
+        };
+        m_renderWorld.BeginFrame();
+        for (GameSystem* system : extraction)
+        {
+            if (system != nullptr)
+            {
+                system->Update(*m_canvas, 0.0f);
+            }
+        }
+        m_renderWorld.EndFrame();
+    }
+
+    void Framework2D::EndBreakFrames()
+    {
+        if (m_initialized)
+        {
+            m_renderWorld.BeginFrame();
         }
     }
 

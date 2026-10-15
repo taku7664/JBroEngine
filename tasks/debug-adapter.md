@@ -66,6 +66,9 @@ D-325 는 이렇게 바꿨다(실측은 [script-debug-plan.md](./script-debug-pl
 - ~~한 줄 가기에서 "다음 줄" 을 누가 판단하는가~~ → 엔진(2026-10-15). 어댑터는 스택·변수 읽기에 남는다.
 - 확장이 붙이는 모양: `attach` 그대로인가, 에디터의 `디버그 시작` 메뉴(5 단계)가 어댑터를 띄우는가.
 
+엔진 쪽은 2026-10-15 에 섰다([script-debug-plan.md](./script-debug-plan.md) §4.2): `EditorApplication::SetScriptBreakpoint`·`ClearScriptBreakpoint` 가 주소에 int 3 을 넣고 빼며,
+설 때 `CodeBreak::context` 가 멈춘 스레드의 `CONTEXT` 주소다. 통로(파이프)와 그 위의 메시지가 3 단계다.
+
 ## 6. 남은 것
 
 - 위 5 절, 그리고 새 방식으로 어댑터를 고치기(D-325 3 단계)·확장 쪽 연결·실제 Script Editor 화면에서의 확인.
