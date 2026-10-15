@@ -6,7 +6,10 @@
 #include <chrono>
 #include <future>
 #include <iostream>
+#include <cstdio>
+#include <cstring>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
@@ -141,10 +144,72 @@ namespace
     }
 }
 
+    // 로컬 파이프로 두 쪽이 글을 주고받는다(D-330 3 단계). 서버는 플랫폼, 클라이언트는 같은 프로세스에서 원시 CreateFile 로 붙는다.
+    void TestLocalPipeCarriesMessagesBothWays()
+    {
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes");
+
+        char name[64] = {};
+        std::snprintf(name, sizeof(name), "jbro-test-pipe-%lu", GetCurrentProcessId());
+        JBro::OwnerPtr<JBro::ILocalPipe> server = platform.OpenLocalPipe(name);
+        Check(server.Get() != nullptr, "the server end opens");
+        Check(platform.OpenLocalPipe(name).Get() == nullptr, "a second server with the same name is refused");
+        Check(false == server->IsConnected(), "no client has connected yet");
+
+        const std::wstring path = L"\\\\.\\pipe\\" + std::wstring(name, name + std::strlen(name));
+        const HANDLE client = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+        Check(client != INVALID_HANDLE_VALUE, "a client connects to the pipe");
+
+        JBro::Bool connected = false;
+        for (JBro::Int32 tries = 0; tries < 100 && false == connected; ++tries)
+        {
+            connected = server->IsConnected();
+            Sleep(2);
+        }
+        Check(connected, "the server sees the client");
+
+        // 서버 → 클라이언트.
+        const char down[] = "setbp 4321\n";
+        Check(server->Send(down, sizeof(down) - 1), "the server sends to the client");
+        char received[64] = {};
+        DWORD read = 0;
+        Check(ReadFile(client, received, sizeof(received) - 1, &read, nullptr) && read == sizeof(down) - 1, "the client reads it");
+        Check(std::strcmp(received, down) == 0, "the bytes match");
+
+        // 클라이언트 → 서버.
+        const char up[] = "stopped 1000 2000\n";
+        DWORD written = 0;
+        Check(WriteFile(client, up, sizeof(up) - 1, &written, nullptr) && written == sizeof(up) - 1, "the client sends to the server");
+        JBro::String into;
+        for (JBro::Int32 tries = 0; tries < 100 && into.size() < sizeof(up) - 1; ++tries)
+        {
+            server->Receive(into);
+            Sleep(2);
+        }
+        Check(into == up, "the server receives it whole");
+
+        // 클라이언트가 끊기면 서버가 안다.
+        CloseHandle(client);
+        JBro::Bool dropped = false;
+        for (JBro::Int32 tries = 0; tries < 100 && false == dropped; ++tries)
+        {
+            JBro::String ignored;
+            server->Receive(ignored);
+            dropped = false == server->IsConnected();
+            Sleep(2);
+        }
+        Check(dropped, "the server sees the client leave");
+        server.Reset();
+        platform.Shutdown();
+    }
+
 JBro::Int32 RunPlatformContractTests()
 {
     TestHiddenWindowLifecycle();
     TestThePlatformThreadStaysSingleThreadedForDialogs();
+    TestLocalPipeCarriesMessagesBothWays();
     std::cout << "Platform contract tests passed.\n";
     return 0;
 }

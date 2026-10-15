@@ -69,6 +69,8 @@ namespace JBro
         // `WindowsCodeAddress.cpp` 의 것이다.
         UInt32 CaptureFaultFrames(const void* exceptionPointers, UInt64* frames, UInt32 capacity) override;
         Bool DescribeCodeAddress(UInt64 address, CodeLocation& location) override;
+        // `WindowsLocalPipe.cpp` 의 것이다.
+        OwnerPtr<ILocalPipe> OpenLocalPipe(const char* name) override;
         // `WindowsCodeBreak.cpp` 의 것이다.
         Bool SetCodeBreakHandler(CodeBreakHandler handler, void* user) override;
         Bool SetCodeBreakpoint(UInt64 address) override;

@@ -216,6 +216,20 @@ namespace JBro
         virtual Int64 GetSize() const = 0;
     };
 
+    // 같은 기계의 다른 프로세스와 글을 주고받는 통로다(D-330 3 단계: 에디터와 디버그 어댑터). 서버 쪽이며 클라이언트는 하나다.
+    // **막히지 않는다** - 메인 스레드가 프레임마다 부른다. 같은 사용자의 프로세스만 열 수 있고 원격 접속은 받지 않는다.
+    class ILocalPipe
+    {
+    public:
+        virtual ~ILocalPipe() = default;
+        // 클라이언트가 붙어 있는가. 끊기면 다음 클라이언트를 기다린다.
+        virtual Bool IsConnected() = 0;
+        // 지금 와 있는 바이트를 `into` 뒤에 붙이고 그 수를 돌려준다. 없으면 0 이다.
+        virtual std::size_t Receive(String& into) = 0;
+        // 다 보내거나 끊길 때까지 쓴다. 끊겼으면 거짓이다.
+        virtual Bool Send(const char* data, std::size_t bytes) = 0;
+    };
+
     // 워커에서 메인 스레드로 값으로 건너가는 POD 다. 할당도 참조도 들지 않는다 - `SafePtr` 는 메인 스레드 전용이다.
     struct FileEvent
     {
@@ -446,6 +460,13 @@ namespace JBro
         // 수명은 호스트가 든다.
         virtual OwnerPtr<Network::ISocketProvider> CreateSocketProvider()
         {
+            return nullptr;
+        }
+
+        // 로컬 파이프를 연다(D-330). `name` 은 이 기계에서 하나여야 하는 이름이다(Windows 는 `\\.\pipe\<name>`). 이미 있거나 없는 플랫폼이면 null 이다.
+        virtual OwnerPtr<ILocalPipe> OpenLocalPipe(const char* name)
+        {
+            (void)name;
             return nullptr;
         }
 
