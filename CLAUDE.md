@@ -93,7 +93,7 @@
 - [tasks/debug-adapter.md](./tasks/debug-adapter.md) — 스크립트 디버그 어댑터(D-319, D-330). `source/JBroDebugAdapter` 가 DAP 로 에디터에 DbgEng 으로 붙는다.
   **지금 코드는 OS 디버거로 붙어 중단점에서 에디터 전체를 세우므로 확장에 붙이지 않는다** - D-330 로 세우지 않는 붙기·엔진이 넣는 중단점으로 바뀐다. 지금 동작의 기록, 바뀌는 것의 표, 정할 것이 있다
 - [tasks/script-debug-plan.md](./tasks/script-debug-plan.md) — 에디터 안의 스크립트 디버깅(D-330, D-320 을 대체). 중단점은 엔진이 int 3 과 VEH 로 받아 그 자리에서 에디터 화면만 그리고,
-  스크립트 예외는 SEH 로 받아 실행을 멈추고 되돌린다. 어댑터는 프로세스를 세우지 않고 붙어 읽는다. **1~3 단계가 섰다** - 엔진이 스크립트를 부르는 자리는 모두 `ScriptCallGuard::Call` 이고, int 3 에 서면 VEH 가 그 자리에서 에디터만 그리며 편집을 잠그고(`ScriptFault`·`ScriptBreak`), 어댑터는 세우지 않고 붙어 파이프(`ScriptDebugServer`)로 중단점·멈춤·한 줄 가기를 주고받는다(`DebugAdapter`). 한 줄 가기는 엔진이 트랩 플래그로 줄까지 가고, `디버그` 메뉴의 `디버그 실행` 이 통로를 열고 재생한다(`ScriptBreak`). 엔진 쪽 1~5 단계가 모두 섰다 - 남은 것은 스크립트 편집기 확장 쪽 연결(debug-adapter.md)
+  스크립트 예외는 SEH 로 받아 실행을 멈추고 되돌린다. 어댑터는 프로세스를 세우지 않고 붙어 읽는다. **1~3 단계가 섰다** - 엔진이 스크립트를 부르는 자리는 모두 `ScriptCallGuard::Call` 이고, int 3 에 서면 VEH 가 그 자리에서 에디터만 그리며 편집을 잠그고(`ScriptFault`·`ScriptBreak`), 어댑터는 세우지 않고 붙어 파이프(`ScriptDebugServer`)로 중단점·멈춤·한 줄 가기를 주고받는다(`DebugAdapter`). 한 줄 가기는 엔진이 트랩 플래그로 줄까지 가고, `디버그` 메뉴의 `디버그 실행` 이 통로를 열고 재생한다(`ScriptBreak`). 엔진 쪽 1~5 단계와 스크립트 편집기 확장 연결(`jbro` 디버거 기여)이 모두 섰다 - 남은 것은 `.jscript` 소스 맵과 설치본 확인(debug-adapter.md §6)
 - [tasks/script-user-scenario.md](./tasks/script-user-scenario.md) — 사용자 시나리오(D-333). 에디터를 켜서 스크립트를 만들어 돌리기까지(A), 일부러 잘못 쓰는 사용자(B), JBroScript 로 쓰는 사용자(C)를 시험 묶음 `UserScenario` 로 세웠다.
   걸은 과정·화면으로 본 것·고친 것·남은 의문이 있다. 흐름을 바꾸면 `JBRO_TESTS=UserScenario` 와 `JBRO_EDITOR_SHOT` 으로 다시 본다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).

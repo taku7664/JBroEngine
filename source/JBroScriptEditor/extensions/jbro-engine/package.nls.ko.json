@@ -30,5 +30,15 @@
 	"showEngineLogs": "엔진 로그 보기",
 	"clearEngineLogs": "엔진 로그 지우기",
 	"engineControlPort": "엔진 편집기의 루프백 제어 포트 번호입니다.",
-	"themeName": "JBroEngine 어두운 테마"
+	"themeName": "JBroEngine 어두운 테마",
+	"debugLabel": "JBro 스크립트 디버그",
+	"debugStart": "디버그 실행",
+	"debugProcessName": "붙을 씬 에디터 실행 파일 이름입니다.",
+	"debugProcessId": "붙을 프로세스 번호입니다. 주면 이름보다 먼저 씁니다.",
+	"debugScriptModules": "스크립트 모듈로 볼 DLL 이름의 머리입니다.",
+	"debugSymbolPath": "심볼(PDB)을 찾을 경로입니다. 비우면 어댑터 폴더입니다.",
+	"debugAttachName": "씬 에디터에 붙기",
+	"debugAttachSnippet": "JBro: 씬 에디터에 붙기",
+	"debugAttachSnippetDesc": "떠 있는 씬 에디터에 세우지 않고 붙어 스크립트를 디버그합니다.",
+	"debugAdapterPath": "JBroDebugAdapter 실행 파일 경로입니다. 비우면 확장 옆이나 PATH 에서 찾습니다."
 }

@@ -67,11 +67,17 @@ D-330 는 이렇게 바꿨다(실측은 [script-debug-plan.md](./script-debug-pl
 - ~~확장이 붙이는 모양: 에디터의 `디버그 시작` 메뉴가 어댑터를 띄우는가~~ → 아니다(2026-10-15). 에디터의 `디버그 실행` 은 통로만 연다. 어댑터는 스크립트 편집기 확장이 띄워 붙인다.
 - 확장이 붙이는 모양: `attach` 그대로인가, 에디터의 `디버그 시작` 메뉴(5 단계)가 어댑터를 띄우는가.
 
+- ~~확장이 붙이는 모양~~ → 정함(2026-10-15). 확장이 어댑터를 띄워 `attach` 로 붙는다. 에디터의 `디버그 실행` 은 통로만 연다(5 단계).
+
 엔진 쪽 1~5 단계가 2026-10-15 에 모두 섰다([script-debug-plan.md](./script-debug-plan.md) §4.2~§4.5): 세우지 않고 붙기, 통로(파이프)로 중단점·멈춤·한 줄 가기, `.cxr` 스택·변수, 디버그 실행 메뉴.
-어댑터는 `source/JBroDebugAdapter` 에서 새로 섰고, 실제 에디터+어댑터를 함께 돌리는 `DebugAdapter` 시험이 지난다. **남은 것은 스크립트 편집기 확장 쪽 연결뿐이다**(아래 §6).
+어댑터는 `source/JBroDebugAdapter` 에서 새로 섰고, 실제 에디터+어댑터를 함께 돌리는 `DebugAdapter` 시험이 지난다.
+
+**확장 쪽 연결도 섰다**(2026-10-15): `source/JBroScriptEditor/extensions/jbro-engine` 가 `jbro` 디버거 타입(`attach` 요청)과 어댑터 서술자(`DebugAdapterExecutable` → `JBroDebugAdapter.exe`), `디버그 실행`(`jbro.debug.start`) 명령·메뉴, 스크립트 언어의 중단점을 기여한다.
+어댑터 실행 파일은 `jbro.engine.debugAdapterPath` 설정, 없으면 확장 옆 `debug-adapter/`, 끝으로 PATH 에서 찾는다. 확장 시험(`extension-host.cjs`)이 기여와 명령을, `check-nls` 가 번역을 본다.
 
 ## 6. 남은 것
 
-- 위 5 절, 그리고 새 방식으로 어댑터를 고치기(D-330 3 단계)·확장 쪽 연결·실제 Script Editor 화면에서의 확인.
+- `.jscript` 소스 맵: 지금 중단점은 생성된 C++(.cpp)의 줄에 선다. `.jscript` 줄에 서려면 컴파일러가 `.jscript` 줄 → 생성 C++ 줄 대응을 내고 어댑터가 그걸 써야 한다. C++ 스크립트(.cpp)는 지금도 바로 선다.
+- 실제 Script Editor 설치본에서의 확인(설치본은 아직 없다, ide-plan). 어댑터를 설치본 어디에 둘지(`debug-adapter/`)와 설치 빌드가 남았다.
 - 조건부 중단점·로그 포인트·데이터 중단점·변수 값 바꾸기·예외 거르기 설정은 없다.
-- Release 구성의 스크립트 디버깅은 재지 않았다.
+- ~~Release 구성의 스크립트 디버깅은 재지 않았다.~~ → 쟀다(script-debug-plan §4.6): 됨. 줄·지역 가시성은 대상 코드의 최적화에 달렸다.

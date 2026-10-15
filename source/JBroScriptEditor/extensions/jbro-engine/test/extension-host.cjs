@@ -11,7 +11,7 @@ async function run() {
 	const commands = await vscode.commands.getCommands(true);
 	for (const command of ['jbro.git.signIn', 'jbro.git.manageAccount', 'workbench.action.manageAccounts',
 		'jbro.layout.showProject', 'jbro.layout.showGit', 'jbro.tools.build', 'jbro.tools.run', 'jbro.layout.showDiagnostics',
-		'jbro.project.openFolder', 'jbro.project.openFile', 'jbro.tools.showOutput', 'jbro.tools.showTerminal',
+		'jbro.project.openFolder', 'jbro.project.openFile', 'jbro.tools.showOutput', 'jbro.tools.showTerminal', 'jbro.debug.start',
 		'jbro.workspace.refresh', 'jbro.workspace.files.focus', 'workbench.view.extension.jbro-workspace',
 		'jbro.engineLogs.show', 'jbro.engineLogs.clear', 'jbro.engineLogs.focus', 'workbench.view.extension.jbro-engine-logs',
 		'workbench.action.files.openFolder', 'workbench.action.files.openFile', 'workbench.action.output.toggleOutput', 'workbench.action.terminal.focus',
@@ -24,6 +24,16 @@ async function run() {
 	assert.equal(manifest.contributes.views['jbro-workspace'].length, 1);
 	assert.equal(manifest.contributes.views['jbro-engine-logs'][0].id, 'jbro.engineLogs');
 	assert.equal(vscode.workspace.getConfiguration('jbro.engine').get('controlPort'), 3663);
+	// 스크립트 디버깅 기여(D-330): `jbro` 디버거 타입, attach 요청, 스크립트 언어의 중단점, 어댑터 경로 설정.
+	assert.equal(manifest.contributes.debuggers.length, 1);
+	assert.equal(manifest.contributes.debuggers[0].type, 'jbro');
+	assert.ok(manifest.contributes.debuggers[0].initialConfigurations.some(config => config.request === 'attach'),
+		'the jbro debugger offers an attach configuration');
+	assert.ok(manifest.contributes.breakpoints.some(entry => entry.language === 'jbroscript'),
+		'breakpoints are allowed in jbroscript files');
+	assert.equal(vscode.workspace.getConfiguration('jbro.engine').get('debugAdapterPath'), '');
+	assert.ok(manifest.contributes.menus['jbro.menu.run'].some(item => item.command === 'jbro.debug.start'),
+		'Start Debugging is in the Run menu');
 	assert.equal(vscode.workspace.getConfiguration('workbench').get('colorTheme'), 'jbro-engine-dark');
 	assert.equal(vscode.workspace.getConfiguration('github-authentication').get('preferDeviceCodeFlow'), true);
 	assert.equal(vscode.workspace.getConfiguration('workbench.activityBar').get('location'), 'hidden');

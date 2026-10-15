@@ -30,5 +30,15 @@
 	"showEngineLogs": "Show Engine Log",
 	"clearEngineLogs": "Clear Engine Log",
 	"engineControlPort": "Loopback control port of the engine editor.",
-	"themeName": "JBroEngine Dark"
+	"themeName": "JBroEngine Dark",
+	"debugLabel": "JBro Script Debug",
+	"debugStart": "Start Debugging",
+	"debugProcessName": "The scene editor executable name to attach to.",
+	"debugProcessId": "The process id to attach to; used before the name when given.",
+	"debugScriptModules": "Name prefixes of the DLLs treated as script modules.",
+	"debugSymbolPath": "Where to find symbols (PDB). Empty means the adapter folder.",
+	"debugAttachName": "Attach to the scene editor",
+	"debugAttachSnippet": "JBro: Attach to the scene editor",
+	"debugAttachSnippetDesc": "Attach to the running scene editor without stopping it and debug scripts.",
+	"debugAdapterPath": "Path to the JBroDebugAdapter executable. Empty looks next to the extension and on PATH."
 }

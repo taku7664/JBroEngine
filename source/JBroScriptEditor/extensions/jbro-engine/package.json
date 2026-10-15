@@ -24,6 +24,7 @@
 			{ "command": "jbro.layout.showGit", "title": "%showGitView%", "category": "JBroEngine" },
 			{ "command": "jbro.tools.build", "title": "%buildTask%", "category": "JBroEngine", "enablement": "isWorkspaceTrusted && workspaceFolderCount > 0" },
 			{ "command": "jbro.tools.run", "title": "%runTask%", "category": "JBroEngine", "enablement": "isWorkspaceTrusted && workspaceFolderCount > 0" },
+			{ "command": "jbro.debug.start", "title": "%debugStart%", "category": "JBroEngine", "enablement": "isWorkspaceTrusted" },
 			{ "command": "jbro.layout.showDiagnostics", "title": "%showProblems%", "category": "JBroEngine" },
 			{ "command": "jbro.project.openFolder", "title": "%openFolder%", "category": "JBroEngine" },
 			{ "command": "jbro.project.openFile", "title": "%openFile%", "category": "JBroEngine" },
@@ -47,6 +48,37 @@
 		},
 		"viewsWelcome": [{ "view": "jbro.workspace.files", "contents": "%workspaceEmpty%", "when": "workspaceFolderCount == 0" }],
 		"themes": [{ "id": "jbro-engine-dark", "label": "%themeName%", "uiTheme": "vs-dark", "path": "themes/jbro-engine-color-theme.json" }],
+		"breakpoints": [
+			{ "language": "jbroscript" },
+			{ "language": "cpp" }
+		],
+		"debuggers": [
+			{
+				"type": "jbro",
+				"label": "%debugLabel%",
+				"languages": ["jbroscript", "cpp"],
+				"configurationAttributes": {
+					"attach": {
+						"properties": {
+							"processName": { "type": "string", "description": "%debugProcessName%", "default": "JBroEditorHost.exe" },
+							"processId": { "type": "number", "description": "%debugProcessId%" },
+							"scriptModules": { "type": "array", "description": "%debugScriptModules%", "default": ["GameScript"] },
+							"symbolPath": { "type": "string", "description": "%debugSymbolPath%" }
+						}
+					}
+				},
+				"initialConfigurations": [
+					{ "type": "jbro", "request": "attach", "name": "%debugAttachName%", "processName": "JBroEditorHost.exe" }
+				],
+				"configurationSnippets": [
+					{
+						"label": "%debugAttachSnippet%",
+						"description": "%debugAttachSnippetDesc%",
+						"body": { "type": "jbro", "request": "attach", "name": "${1:Attach to the scene editor}", "processName": "JBroEditorHost.exe" }
+					}
+				]
+			}
+		],
 		"menus": {
 			"view/title": [
 				{ "command": "jbro.workspace.refresh", "when": "view == jbro.workspace.files", "group": "navigation" },
@@ -74,7 +106,8 @@
 				{ "command": "jbro.tools.showTerminal", "group": "2_view@1" }
 			],
 			"jbro.menu.run": [
-				{ "command": "jbro.tools.run", "group": "1_task@1" }
+				{ "command": "jbro.tools.run", "group": "1_task@1" },
+				{ "command": "jbro.debug.start", "group": "1_task@2" }
 			],
 			"jbro.menu.diagnostics": [
 				{ "command": "jbro.layout.showDiagnostics", "group": "1_view@1" },
@@ -100,7 +133,8 @@
 				"jbro.layout.showBuild": { "type": "boolean", "default": true, "description": "%showBuild%" },
 				"jbro.layout.showRun": { "type": "boolean", "default": true, "description": "%showRun%" },
 				"jbro.layout.showDiagnostics": { "type": "boolean", "default": true, "description": "%showDiagnostics%" },
-				"jbro.engine.controlPort": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 3663, "description": "%engineControlPort%", "scope": "application" }
+				"jbro.engine.controlPort": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 3663, "description": "%engineControlPort%", "scope": "application" },
+				"jbro.engine.debugAdapterPath": { "type": "string", "default": "", "description": "%debugAdapterPath%", "scope": "application" }
 			}
 		},
 		"configurationDefaults": {
