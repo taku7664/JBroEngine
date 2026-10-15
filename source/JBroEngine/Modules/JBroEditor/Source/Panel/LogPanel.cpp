@@ -144,7 +144,7 @@ namespace JBro
             return true;
         }
         const std::size_t index = static_cast<std::size_t>(group.id.Get() - 1);
-        if (index < m_groupOccurrences.size())
+        if (index < m_groupOccurrences.Size())
         {
             for (const std::size_t occurrenceIndex : m_groupOccurrences[index])
             {
@@ -161,31 +161,31 @@ namespace JBro
 
     void LogPanel::RebuildRows()
     {
-        m_rows.clear();
-        m_groupOccurrences.resize(Log::GetGroupCount());
-        for (std::vector<std::size_t>& occurrences : m_groupOccurrences)
+        m_rows.Clear();
+        m_groupOccurrences.Resize(Log::GetGroupCount());
+        for (Array<std::size_t>& occurrences : m_groupOccurrences)
         {
-            occurrences.clear();
+            occurrences.Clear();
         }
-        m_rows.reserve(Log::GetGroupCount() + Log::GetCount());
+        m_rows.Reserve(Log::GetGroupCount() + Log::GetCount());
         for (std::size_t index = 0; index < Log::GetGroupCount(); ++index)
         {
             const LogGroup* group = Log::GetGroupAt(index);
-            m_rows.push_back({group->latestSerial, index, true});
+            m_rows.Add({group->latestSerial, index, true});
         }
         for (std::size_t index = 0; index < Log::GetCount(); ++index)
         {
             const LogEntry* entry = Log::GetAt(index);
             if (entry != nullptr && entry->groupId == 0)
             {
-                m_rows.push_back({entry->serial, index, false});
+                m_rows.Add({entry->serial, index, false});
             }
             else if (entry != nullptr)
             {
                 const std::size_t groupIndex = static_cast<std::size_t>(entry->groupId.Get() - 1);
-                if (groupIndex < m_groupOccurrences.size())
+                if (groupIndex < m_groupOccurrences.Size())
                 {
-                    m_groupOccurrences[groupIndex].push_back(index);
+                    m_groupOccurrences[groupIndex].Add(index);
                 }
             }
         }
@@ -222,8 +222,8 @@ namespace JBro
                 .Draw())
         {
             Log::Clear();
-            m_rows.clear();
-            m_groupOccurrences.clear();
+            m_rows.Clear();
+            m_groupOccurrences.Clear();
             m_seenRevision = Log::GetRevision();
         }
         ImGui::SameLine(0.0f, 6.0f);
@@ -271,7 +271,7 @@ namespace JBro
             return;
         }
 
-        const std::size_t count = m_rows.size();
+        const std::size_t count = m_rows.Size();
         std::size_t shown = 0;
         {
         Widget::IdScope epoch(static_cast<Int32>(Log::GetClearEpoch().Get()));
@@ -290,7 +290,7 @@ namespace JBro
                 style.PushColor(ImGuiCol_Text, LevelColor(group->latestLevel));
                 if (Widget::Tree(group->display, ImGuiTreeNodeFlags_SpanAvailWidth))
                 {
-                    const std::vector<std::size_t>& occurrences = m_groupOccurrences[row.index];
+                    const Array<std::size_t>& occurrences = m_groupOccurrences[row.index];
                     for (const std::size_t index : occurrences)
                     {
                         const LogEntry* occurrence = Log::GetAt(index);
@@ -301,7 +301,7 @@ namespace JBro
                         Widget::IdScope eventId(static_cast<Int32>(occurrence->serial.Get()));
                         Widget::Text(occurrence->display);
                     }
-                    if (group->count > occurrences.size())
+                    if (group->count > occurrences.Size())
                     {
                         Widget::HintText(Loc::TextOr(LocKeys::LogEarlierOmitted,
                             "earlier occurrences were omitted"));

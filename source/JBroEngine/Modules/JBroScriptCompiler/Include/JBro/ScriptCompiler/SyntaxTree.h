@@ -109,8 +109,14 @@ namespace JBro::ScriptCompiler
 
     inline std::string_view FunctionName(const SyntaxNode& node)
     {
-        if (node.Flags & SyntaxFlagOperatorEqual) return "operator==";
-        if (node.Flags & SyntaxFlagOperatorNotEqual) return "operator!=";
+        if (node.Flags & SyntaxFlagOperatorEqual)
+        {
+            return "operator==";
+        }
+        if (node.Flags & SyntaxFlagOperatorNotEqual)
+        {
+            return "operator!=";
+        }
         return node.Text;
     }
 

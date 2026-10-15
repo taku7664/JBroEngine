@@ -25,7 +25,7 @@ namespace JBro::CompilerOutput
             return String(std::string(std::istreambuf_iterator<char>(input), {}));
         }
 
-        bool OwnedName(std::string_view name)
+        Bool OwnedName(std::string_view name)
         {
             if (name == "jbro_gen_module.cpp" || name == "JBroGenerated.h")
             {
@@ -52,14 +52,14 @@ namespace JBro::CompilerOutput
             return extension == ".h" || extension == ".fwd.h" || extension == ".cpp";
         }
 
-        bool SafeTarget(const fs::path& root, const fs::path& file)
+        Bool SafeTarget(const fs::path& root, const fs::path& file)
         {
             std::error_code error;
             const fs::path resolved = fs::weakly_canonical(file, error);
             return !error && resolved.parent_path() == root;
         }
 
-        bool Replace(const fs::path& file, const String& code, String& error)
+        Bool Replace(const fs::path& file, const String& code, String& error)
         {
             if (fs::exists(file) && Read(file) == code)
             {
@@ -107,7 +107,7 @@ namespace JBro::CompilerOutput
             error = "generated metadata must stay inside the output directory";
             return false;
         }
-        Table<String, bool> previous;
+        Table<String, Bool> previous;
         if (fs::exists(manifest))
         {
             const String contents = Read(manifest);
@@ -139,7 +139,7 @@ namespace JBro::CompilerOutput
             error = "existing item list has no generated ownership manifest";
             return false;
         }
-        Table<String, bool> next;
+        Table<String, Bool> next;
         Array<String> allNames;
         Array<String> cppNames;
         for (const auto& file : project.Files)

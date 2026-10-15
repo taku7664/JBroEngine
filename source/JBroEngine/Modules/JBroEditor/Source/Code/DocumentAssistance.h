@@ -9,14 +9,14 @@ namespace JBro::Code
     {
     public:
         explicit DocumentAssistance(Widget::CodeEditor& buffer);
-        void Connect(LanguageClient* language, const String& path);
+        void Connect(SafePtr<LanguageClient> language, const String& path);
         void Invalidate();
         void Update(Float elapsed);
         void AfterDraw();
         void HighlightReferences(Position definition);
     private:
-        Widget::CodeEditor* m_buffer;
-        LanguageClient* m_language = nullptr;
+        Widget::CodeEditor& m_buffer;
+        SafePtr<LanguageClient> m_language;
         String m_path;
         Position m_hoverPosition;
         Range m_hoverRange;

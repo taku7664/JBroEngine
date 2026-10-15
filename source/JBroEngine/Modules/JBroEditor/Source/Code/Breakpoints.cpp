@@ -1,6 +1,7 @@
 #include <JBro/Editor/Code/Breakpoints.h>
 #include <JBro/Editor/Code/LanguageClient.h>
 #include <algorithm>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Code
 {
@@ -8,7 +9,7 @@ namespace JBro::Code
     {
         UInt64 Fingerprint(const String& text)
         {
-            std::uint64_t result = 14695981039346656037ull;
+            UInt64 result = 14695981039346656037ull;
             for (const unsigned char value : text)
             {
                 result = (result ^ value) * 1099511628211ull;
@@ -67,11 +68,11 @@ namespace JBro::Code
         mapping.Resize(oldLines.Size());
         for (std::size_t at = 0; at < prefix; ++at)
         {
-            mapping[at] = static_cast<std::uint32_t>(at + 1);
+            mapping[at] = static_cast<UInt32>(at + 1);
         }
         for (std::size_t at = 0; at < suffix; ++at)
         {
-            mapping[oldLines.Size() - 1 - at] = static_cast<std::uint32_t>(newLines.Size() - at);
+            mapping[oldLines.Size() - 1 - at] = static_cast<UInt32>(newLines.Size() - at);
         }
         const std::size_t oldCount = oldLines.Size() - prefix - suffix, newCount = newLines.Size() - prefix - suffix;
         // Keep unchanged lines inside a multi-range source gesture as well as its edges.
@@ -88,7 +89,7 @@ namespace JBro::Code
                 for (std::size_t column = newCount; column > 0; --column)
                 {
                     cell(row - 1, column - 1) = oldLines[prefix + row - 1] == newLines[prefix + column - 1]
-                        ? cell(row, column) + UInt32(1) : std::max(cell(row, column - 1), cell(row - 1, column));
+                        ? cell(row, column) + UInt32(1) : Max(cell(row, column - 1), cell(row - 1, column));
                 }
             }
             std::size_t row = 0, column = 0;
@@ -111,14 +112,14 @@ namespace JBro::Code
                     row = oldCount;
                     column = newCount;
                 }
-                const auto paired = std::min(row - oldStart, column - newStart);
+                const auto paired = Min(row - oldStart, column - newStart);
                 for (std::size_t at = 0; at < paired; ++at)
                 {
-                    mapping[prefix + oldStart + at] = static_cast<std::uint32_t>(prefix + newStart + at + 1);
+                    mapping[prefix + oldStart + at] = static_cast<UInt32>(prefix + newStart + at + 1);
                 }
                 if (row < oldCount && column < newCount)
                 {
-                    mapping[prefix + row] = static_cast<std::uint32_t>(prefix + column + 1);
+                    mapping[prefix + row] = static_cast<UInt32>(prefix + column + 1);
                     ++row;
                     ++column;
                 }

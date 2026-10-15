@@ -400,7 +400,7 @@ namespace
             {
                 continue;
             }
-            const std::string text = ReadAll(file.path());
+            const JBro::String text = ReadAll(file.path());
             const fs::path object = generatedDirectory.parent_path() / (file.path().stem().native() + L".obj");
             if (text.find("operator()<Guard>()") != std::string::npos)
             {

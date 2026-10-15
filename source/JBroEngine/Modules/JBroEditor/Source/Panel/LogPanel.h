@@ -5,7 +5,7 @@
 #include <JBro/Types/String.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
-#include <vector>
+#include <JBro/Types/Array.h>
 
 namespace JBro
 {
@@ -48,7 +48,7 @@ namespace JBro
         // 마지막으로 본 판번호. 같으면 스크롤을 건드리지 않는다.
         UInt64 m_seenRevision = 0;
         Bool m_scrollToBottom = false;
-        std::vector<Row> m_rows;
-        std::vector<std::vector<std::size_t>> m_groupOccurrences;
+        Array<Row> m_rows;
+        Array<Array<std::size_t>> m_groupOccurrences;
     };
 }

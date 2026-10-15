@@ -9,7 +9,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <imgui_internal.h>
-#include <algorithm>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -37,9 +37,9 @@ namespace JBro::Widget
     }
     void ScriptSummaryHeader(const char* filename, const char* path, UInt32 fields, UInt32 functions, const char* status, Bool warning)
     {
-        const float height = ImGui::GetTextLineHeight();
+        const Float height = ImGui::GetTextLineHeight();
         const ImVec2 at = ImGui::GetCursorScreenPos();
-        const float width = ImGui::GetContentRegionAvail().x;
+        const Float width = ImGui::GetContentRegionAvail().x;
         if (EditorTheme::HasIconFont())
         {
             DrawGlyphCentered(Icons::File, at, ImVec2(at.x + height, at.y + height), ImGui::GetColorU32(EditorTheme::InkMuted));
@@ -59,7 +59,7 @@ namespace JBro::Widget
     }
     Bool BeginScriptOutline()
     {
-        const float height = std::clamp(ImGui::GetContentRegionAvail().y * 0.35f, 140.0f, 240.0f);
+        const Float height = Clamp(ImGui::GetContentRegionAvail().y * 0.35f, 140.0f, 240.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
         ImGui::PushStyleColor(ImGuiCol_ChildBg, EditorTheme::Workspace);
         return ImGui::BeginChild("##scriptOutline", ImVec2(0.0f, height), ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding);
@@ -118,17 +118,17 @@ namespace JBro::Widget
                 {
                     const ImVec2 origin = row.ContentRect.Min;
                     const ImVec2 maximum = row.ContentRect.Max;
-                    const float iconSize = ImGui::GetTextLineHeight();
+                    const Float iconSize = ImGui::GetTextLineHeight();
                     if (EditorTheme::HasIconFont())
                     {
                         DrawGlyphCentered(KindIcon(item.kind), origin, ImVec2(origin.x + iconSize, origin.y + iconSize),
                             ImGui::GetColorU32(EditorTheme::InkMuted));
                     }
-                    const float nameX = origin.x + iconSize + 5.0f;
-                    const float nameWidth = ImGui::CalcTextSize(item.name.c_str()).x;
-                    const float detailWidth = ImGui::CalcTextSize(item.detail.c_str()).x;
-                    const float detailX = std::max(nameX + nameWidth + 12.0f, maximum.x - detailWidth - 8.0f);
-                    ClippedText(item.name.c_str(), ImVec2(nameX, origin.y), ImVec2(std::min(detailX - 8.0f, maximum.x - 6.0f), maximum.y), ImGui::GetColorU32(EditorTheme::Ink));
+                    const Float nameX = origin.x + iconSize + 5.0f;
+                    const Float nameWidth = ImGui::CalcTextSize(item.name.c_str()).x;
+                    const Float detailWidth = ImGui::CalcTextSize(item.detail.c_str()).x;
+                    const Float detailX = Max(nameX + nameWidth + 12.0f, maximum.x - detailWidth - 8.0f);
+                    ClippedText(item.name.c_str(), ImVec2(nameX, origin.y), ImVec2(Min(detailX - 8.0f, maximum.x - 6.0f), maximum.y), ImGui::GetColorU32(EditorTheme::Ink));
                     if (detailX < maximum.x - 25.0f)
                     {
                         ClippedText(item.detail.c_str(), ImVec2(detailX, origin.y), ImVec2(maximum.x - 6.0f, maximum.y), ImGui::GetColorU32(EditorTheme::InkMuted));
@@ -194,8 +194,8 @@ namespace JBro::Widget
             }
             return false;
         }
-        const float buttonWidth = ImGui::GetFrameHeight();
-        const float width = std::max(40.0f, ImGui::GetContentRegionAvail().x - buttonWidth - 4.0f);
+        const Float buttonWidth = ImGui::GetFrameHeight();
+        const Float width = Max(40.0f, ImGui::GetContentRegionAvail().x - buttonWidth - 4.0f);
         const Bool committed = TextField("##value", text).Width(width).CommitOnFinish().Invalid(invalid).Draw();
         ImGui::SameLine(0.0f, 4.0f);
         const Bool removed = IconButton("##remove", Icons::Xmark).Size(ImVec2(buttonWidth, buttonWidth))

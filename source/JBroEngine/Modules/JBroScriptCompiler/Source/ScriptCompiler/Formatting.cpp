@@ -1,4 +1,5 @@
 #include <JBro/ScriptCompiler/Formatting.h>
+#include <JBro/Types/ValueMath.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/Types/Int.h>
 
@@ -51,7 +52,7 @@ namespace JBro::ScriptCompiler
                 }
                 else if (ch == '}')
                 {
-                    braces = std::max(Int32(0), braces - 1);
+                    braces = Max(Int32(0), braces - 1);
                 }
                 else if (ch == '(' || ch == '[')
                 {
@@ -59,7 +60,7 @@ namespace JBro::ScriptCompiler
                 }
                 else if (ch == ')' || ch == ']')
                 {
-                    parentheses = std::max(Int32(0), parentheses - 1);
+                    parentheses = Max(Int32(0), parentheses - 1);
                 }
             }
         }
@@ -81,7 +82,7 @@ namespace JBro::ScriptCompiler
             result.Append(text.substr(0, 3));
             text.remove_prefix(3);
         }
-        const UInt32 width = std::clamp(tabSize, UInt32(1), UInt32(16));
+        const UInt32 width = Clamp(tabSize, UInt32(1), UInt32(16));
         Int32 braces = 0;
         Int32 parentheses = 0;
         std::size_t begin = 0;
@@ -107,7 +108,7 @@ namespace JBro::ScriptCompiler
                     break;
                 }
             }
-            Int32 indentation = std::max(Int32(0), braces - closing);
+            Int32 indentation = Max(Int32(0), braces - closing);
             if (parentheses > 0 && false == line.empty() && line.front() != ')' && line.front() != ']')
             {
                 ++indentation;

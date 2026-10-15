@@ -77,7 +77,7 @@ namespace JBro::Code
         struct Request
         {
             enum class Kind { Semantic, Summary, FieldEdit, Hover, References };
-            int id = 0;
+            Int32 id = 0;
             String uri;
             Int32 version = 0;
             Kind kind = Kind::Semantic;
@@ -89,7 +89,7 @@ namespace JBro::Code
         Array<Request> requests;
         String incoming, error;
         ClientState state = ClientState::Stopped;
-        int nextId = 2;
+        Int32 nextId = 2;
         Int32 nextDocumentVersion = 1;
         UInt64 revision = 0;
         UInt64 editToken = 0;
@@ -168,16 +168,16 @@ namespace JBro::Code
         }
         void Semantic(Document& document)
         {
-            const int id = nextId++;
+            const Int32 id = nextId++;
             requests.Add({id, document.uri, document.version});
-            Send({{"id", id}, {"method", "textDocument/semanticTokens/full"},
+            Send({{"id", id.Get()}, {"method", "textDocument/semanticTokens/full"},
                 {"params", {{"textDocument", {{"uri", document.uri.Std()}}}}}});
         }
         void Summary(Document& document)
         {
-            const int id = nextId++;
+            const Int32 id = nextId++;
             requests.Add({id, document.uri, document.version, Request::Kind::Summary});
-            Send({{"id", id}, {"method", "jbro/scriptSummary"},
+            Send({{"id", id.Get()}, {"method", "jbro/scriptSummary"},
                 {"params", {{"textDocument", {{"uri", document.uri.Std()}, {"version", document.version.Get()}}}}}});
         }
         void Flush(Document& document)
@@ -229,7 +229,7 @@ namespace JBro::Code
             }
             Retire(document, kind);
             const UInt64 token = ++assistanceToken;
-            const int id = nextId++;
+            const Int32 id = nextId++;
             Json params = {{"textDocument", {{"uri", document.uri.Std()}}},
                 {"position", {{"line", position.line.Get()}, {"character", position.character.Get()}}}};
             if (kind == Request::Kind::Hover)
@@ -251,7 +251,7 @@ namespace JBro::Code
                 params["context"] = {{"includeDeclaration", false}};
             }
             requests.Add({id, document.uri, version, kind, token});
-            return Send({{"id", id}, {"method", kind == Request::Kind::Hover ? "textDocument/hover" : "textDocument/references"},
+            return Send({{"id", id.Get()}, {"method", kind == Request::Kind::Hover ? "textDocument/hover" : "textDocument/references"},
                 {"params", std::move(params)}}) ? token : UInt64(0);
         }
         void Reply(const Json& message)
@@ -288,7 +288,7 @@ namespace JBro::Code
             {
                 return;
             }
-            const int id = message["id"].get<int>();
+            const Int32 id = message["id"].get<int>();
             if (id == 1)
             {
                 if (state != ClientState::Starting)
@@ -457,7 +457,7 @@ namespace JBro::Code
                     UInt32 line = 0, character = 0;
                     for (std::size_t i = 0; i + 4 < data.size(); i += 5)
                     {
-                        const auto delta = data[i].get<std::uint32_t>();
+                        const UInt32 delta = data[i].get<std::uint32_t>();
                         line += delta;
                         character = delta != 0 ? UInt32(0) : character;
                         character += data[i + 1].get<std::uint32_t>();
@@ -716,12 +716,12 @@ namespace JBro::Code
         {
             changes["initializer"] = settings.initializerPresent ? Json(settings.initializer.Std()) : Json(nullptr);
         }
-        const int id = m_state->nextId++;
+        const Int32 id = m_state->nextId++;
         document->edit = {};
         document->edit.requestId = ++m_state->editToken;
         document->edit.version = version;
         m_state->requests.Add({id, document->uri, version, State::Request::Kind::FieldEdit, document->edit.requestId});
-        if (!m_state->Send({{"id", id}, {"method", "jbro/editFieldSettings"}, {"params", {
+        if (!m_state->Send({{"id", id.Get()}, {"method", "jbro/editFieldSettings"}, {"params", {
             {"textDocument", {{"uri", document->uri.Std()}, {"version", version.Get()}}},
             {"position", {{"line", position.line.Get()}, {"character", position.character.Get()}}}, {"changes", std::move(changes)}}}}))
         {

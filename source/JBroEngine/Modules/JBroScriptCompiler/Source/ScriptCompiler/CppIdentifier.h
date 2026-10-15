@@ -1,4 +1,5 @@
 #pragma once
+#include <JBro/Types/Bool.h>
 
 #include <JBro/Types/String.h>
 
@@ -30,17 +31,25 @@ namespace JBro::ScriptCompiler
             "GetTypeId", "StaticTypeName", "JBroFieldAt", "JBroFieldBase", "JBroSelf",
             "JBro", "std"
         };
-        bool keyword = false;
+        Bool keyword = false;
         for (std::string_view candidate : keywords)
         {
-            if (name == candidate) { keyword = true; break; }
+            if (name == candidate)
+            {
+                keyword = true;
+                break;
+            }
         }
         for (std::string_view candidate : hiddenNames)
         {
-            if (name == candidate) { keyword = true; break; }
+            if (name == candidate)
+            {
+                keyword = true;
+                break;
+            }
         }
-        const bool generatedPrefix = name.rfind("jbro_gen_", 0) == 0;
-        bool unsafe = name.empty() || name.front() == '_'
+        const Bool generatedPrefix = name.rfind("jbro_gen_", 0) == 0;
+        Bool unsafe = name.empty() || name.front() == '_'
             || (name.front() >= '0' && name.front() <= '9')
             || name.find("__") != std::string_view::npos;
         for (unsigned char character : name)
@@ -52,8 +61,14 @@ namespace JBro::ScriptCompiler
                 unsafe = true;
             }
         }
-        if (!keyword && !generatedPrefix && !unsafe) return String(name);
-        if (!unsafe) return "jbro_gen_" + String(name);
+        if (!keyword && !generatedPrefix && !unsafe)
+        {
+            return String(name);
+        }
+        if (!unsafe)
+        {
+            return "jbro_gen_" + String(name);
+        }
 
         constexpr char hex[] = "0123456789abcdef";
         String escaped = "jbro_gen_hex_";

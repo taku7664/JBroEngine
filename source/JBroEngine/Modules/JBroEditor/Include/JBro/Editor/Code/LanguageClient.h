@@ -12,7 +12,7 @@ namespace JBro
 namespace JBro::Code
 {
     enum class ClientState { Stopped, Starting, Ready, Failed };
-    class LanguageClient final
+    class LanguageClient final : public EnableSafeFromThis<LanguageClient>
     {
     public:
         explicit LanguageClient(IPlatform& platform);

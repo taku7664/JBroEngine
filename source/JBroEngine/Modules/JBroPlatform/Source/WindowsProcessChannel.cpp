@@ -4,11 +4,11 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
-#include <deque>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/ValueMath.h>
 #include <mutex>
 #include <thread>
 #include <system_error>
-#include <vector>
 #pragma comment(lib, "imm32.lib")
 
 namespace JBro
@@ -26,20 +26,23 @@ namespace JBro
                 }
             }
         };
-        std::wstring Wide(const char* text)
+        Array<wchar_t> Wide(const char* text)
         {
             if (text == nullptr || *text == 0)
             {
                 return {};
             }
-            const int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, nullptr, 0);
+            const Int32 size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, nullptr, 0);
             if (size <= 0)
             {
                 return {};
             }
-            std::wstring result(static_cast<std::size_t>(size), L'\0');
-            MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, result.data(), size);
-            result.pop_back();
+            Array<wchar_t> result;
+            result.Resize(static_cast<std::size_t>(size.Get()));
+            if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, result.Data(), size.Get()) == 0)
+            {
+                return {};
+            }
             return result;
         }
 
@@ -73,9 +76,9 @@ namespace JBro
             }
             Bool Start(const char* command, const char* folder)
             {
-                std::wstring wide = Wide(command);
-                const std::wstring working = Wide(folder);
-                if (wide.empty())
+                Array<wchar_t> wide = Wide(command);
+                const Array<wchar_t> working = Wide(folder);
+                if (wide.IsEmpty())
                 {
                     return false;
                 }
@@ -103,8 +106,9 @@ namespace JBro
                 }
                 SIZE_T attributeSize = 0;
                 InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeSize);
-                std::vector<std::byte> storage(attributeSize);
-                auto* attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage.data());
+                Array<std::max_align_t> storage;
+                storage.Resize((attributeSize + sizeof(std::max_align_t) - 1) / sizeof(std::max_align_t));
+                auto* attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage.Data());
                 if (!InitializeProcThreadAttributeList(attributes, 1, 0, &attributeSize))
                 {
                     return false;
@@ -120,9 +124,9 @@ namespace JBro
                 startup.StartupInfo.hStdError = childError.value;
                 startup.lpAttributeList = attributes;
                 PROCESS_INFORMATION process{};
-                const BOOL created = updated && CreateProcessW(nullptr, wide.data(), nullptr, nullptr, TRUE,
+                const BOOL created = updated && CreateProcessW(nullptr, wide.Data(), nullptr, nullptr, TRUE,
                     CREATE_NO_WINDOW | CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT, nullptr,
-                    working.empty() ? nullptr : working.c_str(), &startup.StartupInfo, &process);
+                    working.IsEmpty() ? nullptr : working.Data(), &startup.StartupInfo, &process);
                 DeleteProcThreadAttributeList(attributes);
                 if (!created)
                 {
@@ -147,7 +151,7 @@ namespace JBro
                 {
                     return false;
                 }
-                m_pending.emplace_back(bytes);
+                m_pending.Emplace(bytes);
                 m_pendingBytes += bytes.size();
                 m_wake.notify_one();
                 return true;
@@ -186,29 +190,35 @@ namespace JBro
             {
                 while (!m_stopping)
                 {
-                    String bytes;
+                    Array<String> batch;
                     {
                         std::unique_lock lock(m_mutex);
-                        m_wake.wait(lock, [this] { return m_stopping || !m_pending.empty(); });
+                        m_wake.wait(lock, [this] { return m_stopping || !m_pending.IsEmpty(); });
                         if (m_stopping)
                         {
                             return;
                         }
-                        bytes = std::move(m_pending.front());
-                        m_pending.pop_front();
-                        m_pendingBytes -= bytes.size();
+                        batch = std::move(m_pending);
+                        m_pendingBytes = 0;
                     }
-                    std::size_t offset = 0;
-                    while (offset < bytes.size() && !m_stopping)
+                    for (const String& bytes : batch)
                     {
-                        DWORD written = 0;
-                        const DWORD count = static_cast<DWORD>(std::min<std::size_t>(bytes.size() - offset, 65536));
-                        if (!WriteFile(m_input.value, bytes.data() + offset, count, &written, nullptr) || written == 0)
+                        if (m_stopping)
                         {
-                            m_failed = true;
                             return;
                         }
-                        offset += written;
+                        std::size_t offset = 0;
+                        while (offset < bytes.size() && !m_stopping)
+                        {
+                            DWORD written = 0;
+                            const DWORD count = static_cast<DWORD>(Min<std::size_t>(bytes.size() - offset, 65536));
+                            if (!WriteFile(m_input.value, bytes.data() + offset, count, &written, nullptr) || written == 0)
+                            {
+                                m_failed = true;
+                                return;
+                            }
+                            offset += written;
+                        }
                     }
                 }
             }
@@ -217,9 +227,12 @@ namespace JBro
             std::atomic_bool m_stopping = false, m_failed = false;
             std::mutex m_mutex;
             std::condition_variable m_wake;
-            std::deque<String> m_pending;
+            Array<String> m_pending;
             std::size_t m_pendingBytes = 0;
             String m_received, m_errors;
+            // OS pipe waits last for the child lifetime; using the shared task pool
+            // would occupy its workers indefinitely. Destruction terminates the
+            // owned child and joins these channel-specific workers.
             std::thread m_writer, m_reader, m_errorReader;
         };
     }

@@ -207,14 +207,14 @@ namespace
                 std::cout << "  missing translation: " << key << '\n';
             }
             Check(nullptr != ko && nullptr != en, "every command line key is in both tables");
-            Check(std::string(ko) != std::string(en), "the Korean and English command line messages differ");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English command line messages differ");
         }
         for (const char* key : GetSemanticDiagnosticKeys())
         {
             const char* ko = korean.Find(key);
             const char* en = english.Find(key);
             Check(nullptr != ko && nullptr != en, "every semantic diagnostic key is in both tables");
-            Check(std::string(ko) != std::string(en), "the Korean and English semantic messages differ");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English semantic messages differ");
         }
         const char* summaryKeys[] = {
             "jbroc.summary.syntax_errors", "jbroc.summary.field_required", "jbroc.summary.invalid_attribute",
@@ -228,7 +228,7 @@ namespace
             const char* ko = korean.Find(key);
             const char* en = english.Find(key);
             Check(nullptr != ko && nullptr != en, "every summary editing message key is in both tables");
-            Check(std::string(ko) != std::string(en), "the Korean and English summary editing messages differ");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English summary editing messages differ");
         }
         const std::size_t expected = static_cast<std::size_t>(DiagnosticCode::Count)
             + std::size(CommandLineKeys) + GetSemanticDiagnosticKeys().Size() + std::size(summaryKeys);
@@ -261,7 +261,7 @@ namespace
         fs::path secondHeader;
         for (const auto& file : fs::directory_iterator(output))
         {
-            const std::string contents = ReadBytes(file.path());
+            const JBro::String contents = ReadBytes(file.path());
             if (file.path().extension() == L".h")
             {
                 if (contents.find("class First :") != std::string::npos)

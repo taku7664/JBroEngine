@@ -85,10 +85,10 @@ namespace
         Check(!found.is_null(), command);
         return found;
     }
-    void Respond(MemoryPlatform& platform, Code::DebugClient& client, const Json& request, Json body = Json::object(), bool success = true)
+    void Respond(MemoryPlatform& platform, Code::DebugClient& client, const Json& request, Json body = Json::object(), Bool success = true)
     {
         platform.data.incoming += Frame({{"type", "response"}, {"request_seq", request["seq"]},
-            {"command", request["command"]}, {"success", success}, {"body", std::move(body)}, {"message", "engine rejected breakpoint"}});
+            {"command", request["command"]}, {"success", success.Get()}, {"body", std::move(body)}, {"message", "engine rejected breakpoint"}});
         client.Poll(0.01f);
     }
     void Event(MemoryPlatform& platform, Code::DebugClient& client, const char* event, Json body = Json::object())

@@ -1,4 +1,5 @@
 #include "Session.h"
+#include <JBro/Types/ValueMath.h>
 #include <JBro/ScriptCompiler/Formatting.h>
 #include <JBro/ScriptCompiler/Lexer.h>
 #include <JBro/Types/Table.h>
@@ -391,7 +392,7 @@ namespace JBro::ScriptLanguageServer::Detail
         const std::size_t count = signatures[activeSignature]["parameters"].size();
         if (count > 0)
         {
-            activeParameter = std::min(activeParameter, static_cast<UInt32>(count - 1));
+            activeParameter = Min(activeParameter, static_cast<UInt32>(count - 1));
         }
         return Json{{"signatures", std::move(signatures)}, {"activeSignature", activeSignature}, {"activeParameter", activeParameter}};
     }

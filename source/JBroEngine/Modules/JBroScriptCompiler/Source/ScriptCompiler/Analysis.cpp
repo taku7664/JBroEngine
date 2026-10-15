@@ -1,4 +1,5 @@
 #include <JBro/ScriptCompiler/Analysis.h>
+#include <JBro/Types/ValueMath.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/Lexer.h>
 #include <JBro/Types/Table.h>
@@ -315,20 +316,35 @@ namespace JBro::ScriptCompiler
         void VisibleEqualityMembers(const AnalysisResult& result, SymbolId type, std::string_view name,
             Array<SymbolId>& output, Array<SymbolId>& visited, Bool& multipleBases)
         {
-            if (InvalidSymbol == type || visited.Contains(type)) return;
+            if (InvalidSymbol == type || visited.Contains(type))
+            {
+                return;
+            }
             visited.Add(type);
             for (const Symbol& symbol : result.Symbols)
             {
-                if (symbol.Parent == type && symbol.Name == name) output.Add(symbol.Id);
+                if (symbol.Parent == type && symbol.Name == name)
+                {
+                    output.Add(symbol.Id);
+                }
             }
-            if (!output.IsEmpty()) return;
+            if (!output.IsEmpty())
+            {
+                return;
+            }
             Bool foundBase = false;
             for (const String& base : result.Symbols[type].BaseTypes)
             {
                 Array<SymbolId> branch;
                 VisibleEqualityMembers(result, TypeId(result, base), name, branch, visited, multipleBases);
-                if (branch.IsEmpty()) continue;
-                if (foundBase) multipleBases = true;
+                if (branch.IsEmpty())
+                {
+                    continue;
+                }
+                if (foundBase)
+                {
+                    multipleBases = true;
+                }
                 foundBase = true;
                 output.Append(branch.Data(), branch.Size());
             }
@@ -382,7 +398,7 @@ namespace JBro::ScriptCompiler
         SourceLocation Location(const SourceText& source, std::size_t offset)
         {
             const std::string_view text = source.GetText();
-            offset = std::min(offset, text.size());
+            offset = Min(offset, text.size());
             SourceLocation result;
             result.Offset = static_cast<UInt32>(offset);
             std::size_t lineStart = text.starts_with("\xEF\xBB\xBF") ? 3 : 0;
@@ -581,7 +597,10 @@ namespace JBro::ScriptCompiler
                     if (call.Range.Begin.Offset == node.Range.Begin.Offset && call.Range.End.Offset == node.Range.End.Offset
                         && InvalidSymbol != call.Resolved)
                     {
-                        if (false == call.ResultType.IsEmpty()) return call.ResultType;
+                        if (false == call.ResultType.IsEmpty())
+                        {
+                            return call.ResultType;
+                        }
                         const Symbol& function = result.Symbols[call.Resolved];
                         const NodeIndex callee = tree.GetChild(index, 0);
                         const SyntaxNode& calleeNode = tree.Get(callee);
@@ -1124,14 +1143,17 @@ namespace JBro::ScriptCompiler
                         Symbol symbol = FromNode(child, binding.Id, kind);
                         if (kind == SymbolKind::Field && (Node(child).Flags & SyntaxFlagStatic))
                         {
-                            bool property = false;
-                            bool noSerialize = false;
+                            Bool property = false;
+                            Bool noSerialize = false;
                             const NodeIndex attributes = Child(child, 0);
                             if (attributes != InvalidNode)
                             {
                                 for (NodeIndex attribute : m_document->Tree.GetChildren(attributes))
                                 {
-                                    if (attribute == InvalidNode) continue;
+                                    if (attribute == InvalidNode)
+                                    {
+                                        continue;
+                                    }
                                     property |= Node(attribute).Text == "prop";
                                     noSerialize |= Node(attribute).Text == "noserialize";
                                 }
@@ -3185,7 +3207,7 @@ namespace JBro::ScriptCompiler
             }
         }
         const std::string_view text = document->Source.GetText();
-        std::size_t cursor = std::min(static_cast<std::size_t>(offset), text.size());
+        std::size_t cursor = Min(static_cast<std::size_t>(offset), text.size());
         while (cursor > 0 && (('_' == text[cursor - 1]) || ('a' <= text[cursor - 1] && text[cursor - 1] <= 'z')
             || ('A' <= text[cursor - 1] && text[cursor - 1] <= 'Z') || ('0' <= text[cursor - 1] && text[cursor - 1] <= '9')))
         {

@@ -1,4 +1,5 @@
-﻿#include <JBro/Host/DebugDrawSystem.h>
+﻿#include "JBroScriptGeneratedProbe/ProbeExports.h"
+#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Host/RandomSystem.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Core/Log.h>
@@ -1212,7 +1213,7 @@ namespace
                 && std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[1].name), "extra") == 0,
             "inherited and own property names remain distinct in the derived script table");
         const JBro::ScriptTypeInfo* keywordType = JBro::ScriptRegistry::Local().Find("template");
-        const auto requiredRead = reinterpret_cast<std::int64_t (*)(JBro::GameScriptBase*)>(
+        const auto requiredRead = reinterpret_cast<decltype(&JBroGeneratedProbe_RequiredRead)>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_RequiredRead"));
         Check(JBro::ScriptRegistry::Local().Find("RequiredScript") == nullptr
                 && JBro::ScriptRegistry::Local().Find("InheritedRequiredScript") == nullptr
@@ -1257,8 +1258,8 @@ namespace
                 && !attributeProperties->properties[12].serialize
                 && !attributeProperties->properties[12].edit->editable,
             "noserialize, tooltip, visiblewhen, hidden, readonly and clamp retain their semantics");
-        using DerivedRead = std::int64_t (*)();
-        using ChildResult = std::int64_t (*)(JBro::GameScriptBase*);
+        using DerivedRead = decltype(&JBroGeneratedProbe_DerivedRead);
+        using ChildResult = decltype(&JBroGeneratedProbe_ChildResult);
         const auto derivedRead = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_DerivedRead"));
         const auto multipleBaseProperties = reinterpret_cast<DerivedRead>(
@@ -1287,7 +1288,7 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticStartup"));
         Check(staticStartup != nullptr && staticStartup() == 16,
             "own-type static storage and static initializer dependencies are ready before a script callback");
-        using StaticService = float (*)();
+        using StaticService = decltype(&JBroGeneratedProbe_StaticService);
         const auto staticService = reinterpret_cast<StaticService>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticService"));
         Check(staticService != nullptr && staticService() == 2.25f,
             "static initializers observe the bound host service instead of a DLL-local default context");
@@ -1318,8 +1319,8 @@ namespace
             "indirect field reads and incomplete object copies reach the host engine log before copying");
         Check(JBro::Log::GetGroupAt(0)->count == 2,
             "nested construction failure reuses the field read log and leaves no construction tracking behind");
-        using InitializationCallback = std::int64_t (*)(JBro::GameScriptBase*);
-        using InitializationMode = void (*)(std::int64_t);
+        using InitializationCallback = decltype(&JBroGeneratedProbe_InitializationCallback);
+        using InitializationMode = decltype(&JBroGeneratedProbe_InitializationMode);
         const auto initializationCallback = reinterpret_cast<InitializationCallback>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializationCallback"));
         const auto initializationMode = reinterpret_cast<InitializationMode>(
@@ -1352,10 +1353,10 @@ namespace
                 "the failed script pool slot and construction state permit a later successful attachment");
         }
         JBro::Log::Clear();
-        using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
+        using ControlCount = decltype(&JBroGeneratedProbe_ControlCount);
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
         using ControlAddScore = void (*)(JBro::GameScriptBase*);
-        using ControlHasOwner = bool (*)(JBro::GameScriptBase*);
+        using ControlHasOwner = decltype(&JBroGeneratedProbe_ControlHasOwner);
         const auto controlCount = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlCount"));
         const auto controlRhsCount = reinterpret_cast<ControlCount>(
@@ -1395,7 +1396,7 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlOwnCount"));
         const auto controlScoreByName = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlScoreByName"));
-        using ControlBrighten = float (*)(JBro::GameScriptBase*);
+        using ControlBrighten = decltype(&JBroGeneratedProbe_ControlBrighten);
         const auto controlBrighten = reinterpret_cast<ControlBrighten>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlBrighten"));
         using ControlRenameOwner = void (*)(JBro::GameScriptBase*);
@@ -1588,12 +1589,12 @@ namespace
         using CopyGeneratedCounts = void (*)(const JBro::GameScriptBase*, JBro::Int*, JBro::Int*,
             JBro::Int*, JBro::Int*, JBro::Int*) noexcept;
         using AddGeneratedValue = void (*)(JBro::GameScriptBase*, JBro::Int);
-        using ReadGeneratedValue = std::int64_t (*)(const JBro::GameScriptBase*) noexcept;
+        using ReadGeneratedValue = decltype(&JBroGeneratedProbe_FirstValue);
         using CopyIndexCounts = void (*)(const JBro::GameScriptBase*, JBro::Int*, JBro::Int*) noexcept;
         using SetOptionalNumbers = void (*)(JBro::GameScriptBase*);
         const auto setFirstValid = reinterpret_cast<SetFirstValid>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_SetFirstValid"));
-        using TouchFirst = std::int64_t (*)(JBro::GameScriptBase*);
+        using TouchFirst = decltype(&JBroGeneratedProbe_TouchFirst);
         const auto touchFirst = reinterpret_cast<TouchFirst>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_TouchFirst"));
         const auto touchFirstSafe = reinterpret_cast<TouchFirst>(

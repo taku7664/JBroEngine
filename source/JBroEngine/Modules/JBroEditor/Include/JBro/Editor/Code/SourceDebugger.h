@@ -29,7 +29,7 @@ namespace JBro::Code
         Bool SourcesCurrent(const Array<Source>& sources) const;
         void AcceptBuild();
         void Fail(const String& error);
-        EditorApplication* m_editor;
+        EditorApplication& m_editor;
         Breakpoints m_anchors;
         DebugClient m_client;
         Array<Source> m_sources, m_buildSources;

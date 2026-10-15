@@ -1,4 +1,5 @@
 ﻿#include "CodeEditorPanel.h"
+#include <JBro/Types/ValueMath.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Code/SourceDebugger.h>
 #include "ScriptSummaryPanel.h"
@@ -57,7 +58,7 @@ namespace JBro
                     }
                     Close();
                 }
-                if (Widget::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
+                if (Widget::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel"), Icons::Xmark))
                 {
                     Close();
                 }
@@ -407,7 +408,7 @@ namespace JBro
         }
         if (m_jscript)
         {
-            m_language = &m_editor->GetCodeLanguageClient();
+            m_language = m_editor->GetCodeLanguageClient().SafeFromThis();
             m_language->Open(m_path, m_text);
         }
         m_assistance.Connect(m_language, m_path);
@@ -519,7 +520,7 @@ namespace JBro
             }
             bytes += ch;
         }
-        JArrayView<std::byte> data{reinterpret_cast<const std::byte*>(bytes.data()), static_cast<std::uint32_t>(bytes.size())};
+        JArrayView<std::byte> data{reinterpret_cast<const std::byte*>(bytes.data()), static_cast<UInt32>(bytes.size())};
         char identity[Uuid::TextCapacity]{};
         GetId().ToText(identity, sizeof(identity));
         const String temporary = m_path + ".jbro-save-" + identity + ".tmp";
@@ -598,7 +599,7 @@ namespace JBro
                 m_editor->ReconnectCodeLanguageClient();
             }
         }
-        for (std::size_t i = 0; i < std::min<std::size_t>(m_diagnostics.Size(), 3); ++i)
+        for (std::size_t i = 0; i < Min<std::size_t>(m_diagnostics.Size(), 3); ++i)
         {
             const auto& diagnostic = m_diagnostics[i];
             Widget::SeverityTextF(diagnostic.severity == 1 ? Widget::Severity::Error : Widget::Severity::Warning, "%u: %s %s",
@@ -734,7 +735,7 @@ namespace JBro
         const auto cursor = m_buffer.GetCursor();
         char status[256]{};
         std::snprintf(status, sizeof(status), Loc::TextOr(LocKeys::CodeEditorCursor, "Line %u, Column %u | %u diagnostics"),
-            cursor.line.Get() + 1, cursor.character.Get() + 1, static_cast<std::uint32_t>(m_diagnostics.Size()));
+            cursor.line.Get() + 1, cursor.character.Get() + 1, static_cast<UInt32>(m_diagnostics.Size()).Get());
         const auto state = m_language != nullptr ? m_language->GetState() : Code::ClientState::Stopped;
         const char* analysis = m_language == nullptr ? "" : state == Code::ClientState::Ready
             ? Loc::TextOr(LocKeys::CodeEditorServerReady, "JBroScript analysis connected") : state == Code::ClientState::Starting

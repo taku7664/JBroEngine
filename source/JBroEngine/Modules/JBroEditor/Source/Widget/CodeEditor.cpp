@@ -3,10 +3,11 @@
 #include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorTheme.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <TextEditor.h>
-#include <algorithm>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -58,7 +59,7 @@ namespace JBro::Widget
         UInt32 executionLine = 0, toggledLine = 0;
         Bool mouseOverEditor = false;
         ImFont* menuFont = nullptr;
-        float menuFontBaseSize = 0;
+        Float menuFontBaseSize = 0.0f;
         EditorApplication* menuEditor = nullptr;
         EditorPanel* menuPanel = nullptr;
         Code::Range tooltipRange;
@@ -124,7 +125,7 @@ namespace JBro::Widget
             editor.SetExternalUndoRedo(true);
             editor.SetTransactionCallback([this](const std::vector<TextEditor::Change>& actions) {
                 Code::SourceTransaction transaction;
-                transaction.history = static_cast<std::uint64_t>(editor.GetUndoIndex());
+                transaction.history = static_cast<UInt64>(editor.GetUndoIndex());
                 transaction.empty = editor.IsEmpty();
                 const auto kind = editor.GetLastTransactionKind();
                 transaction.kind = kind == TextEditor::TransactionKind::Undo ? Code::SourceChangeKind::Undo
@@ -139,15 +140,15 @@ namespace JBro::Widget
                         insertion = &actions[++index];
                     }
                     Code::SourceChange change;
-                    change.startLine = static_cast<std::uint32_t>(action.start.line);
-                    change.endLine = static_cast<std::uint32_t>(action.insert ? action.start.line : action.end.line);
+                    change.startLine = static_cast<UInt32>(action.start.line);
+                    change.endLine = static_cast<UInt32>(action.insert ? action.start.line : action.end.line);
                     change.startsAtLineStart = action.start.index == 0;
                     change.endsAtLineStart = (action.insert ? action.start.index : action.end.index) == 0;
                     change.removesText = !action.insert && !action.text.empty();
                     change.insertsText = insertion != nullptr && !insertion->text.empty();
                     if (insertion != nullptr)
                     {
-                        change.insertedLines = static_cast<std::uint32_t>(insertion->end.line - insertion->start.line);
+                        change.insertedLines = static_cast<UInt32>(insertion->end.line - insertion->start.line);
                     }
                     if (change.removesText || change.insertsText)
                     {
@@ -193,31 +194,39 @@ namespace JBro::Widget
                     }
                     else
                     {
-                        const Bool writable = !editor.IsReadOnlyEnabled();
-                        if (MenuItem(Loc::Text(LocKeys::MenuUndo), nullptr, writable && editor.CanUndo()))
+                        const char* readOnly = editor.IsReadOnlyEnabled() ? Loc::Text(LocKeys::CodeEditorReadOnly) : nullptr;
+                        const char* noChanges = Loc::Text(LocKeys::CodeEditorNoChanges);
+                        const char* emptyDocument = editor.IsEmpty() ? Loc::Text(LocKeys::CodeEditorEmptyDocument) : nullptr;
+                        const char* undoBlocked = readOnly != nullptr ? readOnly : !editor.CanUndo() ? noChanges : nullptr;
+                        const char* redoBlocked = readOnly != nullptr ? readOnly : !editor.CanRedo() ? noChanges : nullptr;
+                        const char* cutBlocked = readOnly != nullptr ? readOnly : !editor.AnyCursorHasSelection()
+                            ? Loc::Text(LocKeys::CodeEditorNoSelection) : nullptr;
+                        if (MenuItem(Loc::Text(LocKeys::MenuUndo), nullptr, undoBlocked == nullptr, undoBlocked, Icons::Undo))
                         {
                             editor.Undo();
                         }
-                        if (MenuItem(Loc::Text(LocKeys::MenuRedo), nullptr, writable && editor.CanRedo()))
+                        if (MenuItem(Loc::Text(LocKeys::MenuRedo), nullptr, redoBlocked == nullptr, redoBlocked, Icons::Redo))
                         {
                             editor.Redo();
                         }
                         ImGui::Separator();
-                        if (MenuItem(Loc::Text(LocKeys::MenuCut), nullptr, writable && editor.AnyCursorHasSelection()))
+                        if (MenuItem(Loc::Text(LocKeys::MenuCut), nullptr, cutBlocked == nullptr, cutBlocked, Icons::Cut))
                         {
                             editor.Cut();
                         }
-                        if (MenuItem(Loc::Text(LocKeys::MenuCopy), nullptr, !editor.IsEmpty()))
+                        if (MenuItem(Loc::Text(LocKeys::MenuCopy), nullptr, emptyDocument == nullptr, emptyDocument, Icons::Copy))
                         {
                             editor.Copy();
                         }
                         const char* clipboard = ImGui::GetClipboardText();
-                        if (MenuItem(Loc::Text(LocKeys::MenuPaste), nullptr, writable && clipboard != nullptr && clipboard[0] != '\0'))
+                        const char* pasteBlocked = readOnly != nullptr ? readOnly : clipboard == nullptr || clipboard[0] == '\0'
+                            ? Loc::Text(LocKeys::BlockedClipboardEmpty) : nullptr;
+                        if (MenuItem(Loc::Text(LocKeys::MenuPaste), nullptr, pasteBlocked == nullptr, pasteBlocked, Icons::Paste))
                         {
                             editor.Paste();
                         }
                         ImGui::Separator();
-                        if (MenuItem(Loc::Text(LocKeys::MenuSelectAll), nullptr, !editor.IsEmpty()))
+                        if (MenuItem(Loc::Text(LocKeys::MenuSelectAll), nullptr, emptyDocument == nullptr, emptyDocument, Icons::SelectAll))
                         {
                             editor.SelectAll();
                         }
@@ -227,10 +236,10 @@ namespace JBro::Widget
                 ImGui::PopFont();
             });
             editor.SetLineDecorator(2, [this](TextEditor::Decorator& data) {
-                const UInt32 line = static_cast<std::uint32_t>(data.line + 1);
+                const UInt32 line = static_cast<UInt32>(data.line + 1);
                 const ImVec2 origin = ImGui::GetCursorScreenPos();
                 const ImVec2 center(origin.x + data.width * 0.5f, origin.y + data.height * 0.5f);
-                const float radius = std::min(data.width, data.height) * 0.28f;
+                const Float radius = Min(data.width, data.height) * 0.28f;
                 if (ImGui::InvisibleButton("##breakpoint", {data.width, data.height}))
                 {
                     toggledLine = line;
@@ -278,7 +287,7 @@ namespace JBro::Widget
         }
         Code::Position SourcePosition(TextEditor::DocPos point) const
         {
-            const auto line = Line(static_cast<std::uint32_t>(point.line));
+            const auto line = Line(static_cast<UInt32>(point.line));
             std::size_t offset = 0;
             UInt32 units = 0;
             for (std::size_t glyph = 0; glyph < point.index && offset < line.size(); ++glyph)
@@ -286,9 +295,9 @@ namespace JBro::Widget
                 const auto lead = static_cast<unsigned char>(line[offset]);
                 const std::size_t bytes = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
                 units += bytes == 4 ? 2 : 1;
-                offset += std::min(bytes, line.size() - offset);
+                offset += Min(bytes, line.size() - offset);
             }
-            return {static_cast<std::uint32_t>(point.line), units};
+            return {static_cast<UInt32>(point.line), units};
         }
     };
     CodeEditor::CodeEditor() : m_state(MakeOwnerPtr<State>()) {}
@@ -331,7 +340,7 @@ namespace JBro::Widget
         const char* text = ImGui::GetClipboardText();
         return text != nullptr && text[0] != '\0';
     }
-    UInt64 CodeEditor::GetHistoryIndex() const { return static_cast<std::uint64_t>(m_state->editor.GetUndoIndex()); }
+    UInt64 CodeEditor::GetHistoryIndex() const { return static_cast<UInt64>(m_state->editor.GetUndoIndex()); }
     Code::SourceChanges CodeEditor::TakeChanges()
     {
         Code::SourceChanges changes = std::move(m_state->changes);
@@ -432,9 +441,9 @@ namespace JBro::Widget
         ImFont* font = EditorTheme::GetCodeFont();
         if (font != nullptr)
         {
-            ImGui::PushFont(font, 16.0f);
+            ImGui::PushFont(font, font->LegacySize);
         }
-        const ImVec2 size(0.0f, reserveStatusLine ? std::max(1.0f, ImGui::GetContentRegionAvail().y
+        const ImVec2 size(0.0f, reserveStatusLine ? Max(1.0f, ImGui::GetContentRegionAvail().y
             - ImGui::GetTextLineHeightWithSpacing()) : 0.0f);
         m_state->editor.Render(id, size);
         Internal::ReportLastItem(target, false, m_state->changed || ImGui::IsItemClicked());
@@ -550,7 +559,7 @@ namespace JBro::Widget
             return false;
         }
         const auto native = m_state->editor.GetDocPosAtMousePos(mouse);
-        const auto line = m_state->Line(static_cast<std::uint32_t>(native.line));
+        const auto line = m_state->Line(static_cast<UInt32>(native.line));
         std::size_t offset = 0;
         for (std::size_t glyph = 0; glyph < native.index && offset < line.size(); ++glyph)
         {
@@ -598,7 +607,7 @@ namespace JBro::Widget
                 break;
             }
             units += width;
-            at += std::min(bytes, line.size() - at);
+            at += Min(bytes, line.size() - at);
             ++glyph;
         }
         return glyph;

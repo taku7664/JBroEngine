@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <JBro/Types/Bool.h>
 
 #include <cstdint>
 #include <JBro/Types/UInt.h>
@@ -16,7 +17,7 @@ namespace JBro
             UInt32 hostAbiVersion, UInt32 hostApiSize) noexcept;
         // Generated JBroScript may share a DLL with hand-written C++ scripts.
         // The marker makes the ordinary project entry require the error sink too.
-        bool MarkGeneratedScript2D() noexcept;
+        Bool MarkGeneratedScript2D() noexcept;
     }
 }
 

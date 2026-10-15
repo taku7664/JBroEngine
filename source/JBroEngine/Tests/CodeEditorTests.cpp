@@ -4,6 +4,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/EditorTheme.h>
+#include <JBro/Types/ValueMath.h>
 #include <JBro/Editor/Widget/CodeEditor.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Code/SourceDebugger.h>
@@ -110,9 +111,9 @@ namespace
         ChannelData data;
     };
     String Frame(const String& body) { return "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" + body; }
-    int LatestRequest(const String& framed, const char* method)
+    Int32 LatestRequest(const String& framed, const char* method)
     {
-        int result = 0;
+        Int32 result = 0;
         std::size_t at = 0;
         while (at < framed.size())
         {
@@ -233,7 +234,7 @@ namespace
         Bool HasColor(ImU32 color)
         {
             auto* data = ImGui::GetDrawData();
-            for (int list = 0; list < data->CmdListsCount; ++list)
+            for (Int32 list = 0; list < data->CmdListsCount; ++list)
             {
                 for (const auto& vertex : data->CmdLists[list]->VtxBuffer)
                 {
@@ -249,11 +250,14 @@ namespace
         {
             ImRect result;
             auto* data = ImGui::GetDrawData();
-            for (int list = 0; list < data->CmdListsCount; ++list)
+            for (Int32 list = 0; list < data->CmdListsCount; ++list)
             {
                 for (const auto& vertex : data->CmdLists[list]->VtxBuffer)
                 {
-                    if (vertex.col == color) { result.Add(vertex.pos); }
+                    if (vertex.col == color)
+                    {
+                        result.Add(vertex.pos);
+                    }
                 }
             }
             return result;
@@ -276,7 +280,7 @@ namespace
         Widget::SetGuideFocus(&focus);
         Bool consumed = true;
         ImVec2 minimum, maximum;
-        for (int frame = 0; frame < 3; ++frame)
+        for (Int32 frame = 0; frame < 3; ++frame)
         {
             focus.BeginFrame();
             ui.Render([&] {
@@ -301,13 +305,13 @@ namespace
         first.SetText("first\nlast");
         second.SetText("other");
         Check(first.GetText() == "first\nlast", "loading a file must not add a final newline");
-        for (const std::string text : {std::string(), std::string("\n"), std::string("a\n"), std::string("a\tb\n\n")})
+        for (const String text : {String(), String("\n"), String("a\n"), String("a\tb\n\n")})
         {
             first.SetText(text);
             Check(first.GetText() == text, "exact newline/tab round trip");
         }
-        std::string text;
-        for (int line = 0; line < 200; ++line)
+        String text;
+        for (Int32 line = 0; line < 200; ++line)
         {
             text += "row " + std::to_string(line) + "\n";
         }
@@ -331,16 +335,20 @@ namespace
         editor.SetLineNumberLeftMargin(3);
         editor.SetText("first\n\t\xed\x95\x9c\xea\xb8\x80 second\n\nlast");
         ImGuiWindow* window = nullptr;
-        float scrollX = -1, fontSize = 13;
+        Float scrollX = -1.0f, fontSize = 13.0f;
         editor.SetCustomLineNumberRenderer([&](const TextEditor::CustomLineNumber&) {
             window = ImGui::GetCurrentWindow();
-            if (scrollX >= 0) { ImGui::SetScrollX(scrollX); scrollX = -1; }
+            if (scrollX >= 0)
+            {
+                ImGui::SetScrollX(scrollX);
+                scrollX = -1.0f;
+            }
         });
         const auto draw = [&] { ui.Render([&] { ImGui::PushFont(nullptr, fontSize); editor.Render("gutter", {700, 300}); ImGui::PopFont(); }); };
         draw();
         draw();
         Check(window != nullptr, "gutter test finds the real editor child");
-        const auto rowPoint = [&](std::size_t line, float x) {
+        const auto rowPoint = [&](std::size_t line, Float x) {
             return ImVec2(window->Pos.x + x, editor.DocPos2ScreenPos({line, 0}).y + editor.GetLineHeight() * 0.5f);
         };
         const auto click = [&](ImVec2 point) {
@@ -351,7 +359,10 @@ namespace
             draw();
             io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
             draw();
-            for (int frame = 0; frame < 20; ++frame) { draw(); }
+            for (Int32 frame = 0; frame < 20; ++frame)
+            {
+                draw();
+            }
         };
         auto& io = ImGui::GetIO();
         const ImVec2 second = rowPoint(1, editor.GetGlyphWidth());
@@ -385,22 +396,25 @@ namespace
         io.AddMousePosEvent(first.x + editor.GetGlyphWidth() * 2.5f, first.y + editor.GetLineHeight() * 0.5f); draw();
         io.AddMouseButtonEvent(ImGuiMouseButton_Left, false); draw();
         Check(editor.GetCursorText(0) == editor.GetText(), "upward gutter drag into text still selects complete lines");
-        io.AddMousePosEvent(window->Pos.x + editor.GetGlyphWidth(), rowPoint(3, 0).y + editor.GetLineHeight() * 2.0f); draw();
+        io.AddMousePosEvent(window->Pos.x + editor.GetGlyphWidth(), rowPoint(3, 0.0f).y + editor.GetLineHeight() * 2.0f); draw();
         Check(!ui.HasColor(IM_COL32(255, 255, 255, 24)), "empty space below the last line is not a hover row");
-        std::string longText;
-        for (int row = 0; row < 100; ++row) { longText += "row " + std::to_string(row) + std::string(160, 'x') + "\n"; }
+        String longText;
+        for (Int32 row = 0; row < 100; ++row)
+        {
+            longText += "row " + std::to_string(row) + String(160, 'x') + "\n";
+        }
         editor.SetText(longText);
-        fontSize = 22;
+        fontSize = 22.0f;
         draw(); draw();
         editor.ScrollToLine(60, TextEditor::Scroll::alignTop);
-        scrollX = 250;
+        scrollX = 250.0f;
         draw(); draw(); draw();
         const auto scrolled = rowPoint(60, editor.GetGlyphWidth());
         io.AddMousePosEvent(scrolled.x, scrolled.y); draw();
         Check(window->Scroll.x > 0 && window->Scroll.y > 0 && ui.HasColor(IM_COL32(255, 255, 255, 24)),
             "zoomed, horizontally and vertically scrolled gutter still hovers the requested source line");
         click(scrolled);
-        Check(editor.GetCursorText(0) == "row 60" + std::string(160, 'x') + "\n",
+        Check(editor.GetCursorText(0) == "row 60" + String(160, 'x') + "\n",
             "zoomed scrolled gutter selection targets the actual source line");
     }
     void TestPopupUsesCallerLayout()
@@ -411,11 +425,11 @@ namespace
         auto& style = ImGui::GetStyle();
         style.ItemSpacing = {8, 6};
         ImVec2 popupSpacing;
-        float rowPitch = 0, rowTextHeight = 0, shortcutGap = 0;
-        int popupFrames = 0;
+        Float rowPitch = 0.0f, rowTextHeight = 0.0f, shortcutGap = 0.0f;
+        Int32 popupFrames = 0;
         editor.SetTextContextMenuCallback([&](TextEditor::PopupData&) {
             popupSpacing = ImGui::GetStyle().ItemSpacing;
-            const float top = ImGui::GetCursorScreenPos().y;
+            const Float top = ImGui::GetCursorScreenPos().y;
             ImGui::MenuItem("Copy", "Ctrl+C");
             rowPitch = ImGui::GetCursorScreenPos().y - top;
             rowTextHeight = ImGui::GetTextLineHeight();
@@ -427,7 +441,7 @@ namespace
         const auto draw = [&] {
             ui.Render([&] {
                 const auto incoming = ImGui::GetStyle().ItemSpacing;
-                const int stack = ImGui::GetCurrentContext()->StyleVarStack.Size;
+                const Int32 stack = ImGui::GetCurrentContext()->StyleVarStack.Size;
                 editor.Render("popup-layout", {700, 300});
                 Check(ImGui::GetStyle().ItemSpacing.x == incoming.x && ImGui::GetStyle().ItemSpacing.y == incoming.y
                     && ImGui::GetCurrentContext()->StyleVarStack.Size == stack, "editor restores caller spacing and style stack after rendering");
@@ -455,7 +469,7 @@ namespace
         Ui ui;
         TextEditor editor;
         editor.SetText("Int value");
-        int rendererFrames = 0, requests = 0, legacyFrames = 0;
+        Int32 rendererFrames = 0, requests = 0, legacyFrames = 0;
         editor.SetTextContextMenuCallback([&](TextEditor::PopupData&) { ++legacyFrames; });
         editor.SetTextContextMenuRenderer([&](bool requested, TextEditor::PopupData& data) {
             ++rendererFrames;
@@ -489,21 +503,21 @@ namespace
         buffer.SetText("Int value");
         ImGui::GetStyle().ItemSpacing = {8, 6};
         ImFont* callerFont = ImGui::GetIO().Fonts->Fonts.front();
-        float callerSize = 13, renderedCallerSize = 0, expectedLabelWidth = 0, codeGlyph = 0;
+        Float callerSize = 13.0f, renderedCallerSize = 0.0f, expectedLabelWidth = 0.0f, codeGlyph = 0.0f;
         ImGuiWindow* child = nullptr;
         const auto draw = [&] {
             ui.Render([&] {
                 ImGui::PushFont(callerFont, callerSize);
                 renderedCallerSize = ImGui::GetFontSize();
-                expectedLabelWidth = 0;
+                expectedLabelWidth = 0.0f;
                 for (const auto* key : {LocKeys::MenuUndo, LocKeys::MenuRedo, LocKeys::MenuCut, LocKeys::MenuCopy, LocKeys::MenuPaste, LocKeys::MenuSelectAll})
                 {
-                    expectedLabelWidth = std::max(expectedLabelWidth, ImGui::CalcTextSize(Loc::Text(key)).x);
+                    expectedLabelWidth = JBro::Max(expectedLabelWidth, ImGui::CalcTextSize(Loc::Text(key)).x);
                 }
                 ImGui::PushFont(EditorTheme::GetCodeFont(), 16);
                 codeGlyph = ImGui::CalcTextSize("#").x;
                 ImGui::PopFont();
-                const int stack = ImGui::GetCurrentContext()->FontStack.Size;
+                const Int32 stack = ImGui::GetCurrentContext()->FontStack.Size;
                 buffer.Render("menu-font");
                 child = ImGui::GetCurrentWindow()->DC.ChildWindows.back();
                 Check(ImGui::GetFont() == callerFont && ImGui::GetFontSize() == renderedCallerSize
@@ -522,7 +536,7 @@ namespace
             const auto& popups = ImGui::GetCurrentContext()->OpenPopupStack;
             Check(!popups.empty() && popups.back().Window != nullptr, "font regression opens the real widget context menu");
             const auto* popup = popups.back().Window;
-            const float height = popup->DC.CursorPos.y - popup->DC.CursorStartPos.y;
+            const Float height = popup->DC.CursorPos.y - popup->DC.CursorStartPos.y;
             Check(height == 6 * (renderedCallerSize + 6) + 2 * (1 + 6), "code context menu row height uses the caller UI font size");
             Check(std::abs(popup->DC.MenuColumns.Widths[1] - expectedLabelWidth) <= 1,
                 "code context menu measures captions using the caller UI font");
@@ -531,13 +545,13 @@ namespace
         };
         check();
         callerFont = ui.alternateFont;
-        callerSize = 19;
+        callerSize = 19.0f;
         check();
         callerFont = ImGui::GetIO().Fonts->Fonts.front();
-        callerSize = 21;
+        callerSize = 21.0f;
         check();
         ImGui::GetStyle().FontScaleMain = 1.5f;
-        callerSize = 14;
+        callerSize = 14.0f;
         check();
     }
     void TestExternalClipboardOwnership()
@@ -551,7 +565,7 @@ namespace
         editor.SetFocus(); draw(); draw();
         editor.SelectRegion({0, 1}, {0, 3});
         ui.clipboard = "paste";
-        const auto key = [&](ImGuiKey item, bool ctrl, bool shift) {
+        const auto key = [&](ImGuiKey item, Bool ctrl, Bool shift) {
             auto& io = ImGui::GetIO();
             io.AddKeyEvent(ImGuiMod_Ctrl, ctrl); io.AddKeyEvent(ImGuiMod_Shift, shift); io.AddKeyEvent(item, true); draw();
             io.AddKeyEvent(item, false); io.AddKeyEvent(ImGuiMod_Ctrl, false); io.AddKeyEvent(ImGuiMod_Shift, false); draw();
@@ -568,17 +582,16 @@ namespace
             auto& routes = GImGui->KeysRoutingTable;
             for (auto index = routes.Index[ImGuiKey_C - ImGuiKey_NamedKey_BEGIN]; index != -1; index = routes.Entries[index].NextEntryIndex)
             {
-                if (routes.Entries[index].Mods == ImGuiMod_Ctrl) { return routes.Entries[index].RoutingCurr; }
+                if (routes.Entries[index].Mods == ImGuiMod_Ctrl)
+                {
+                    return routes.Entries[index].RoutingCurr;
+                }
             }
             return ImGuiKeyOwner_NoOwner;
         };
-        const ImGuiID externalCopyRoute = copyRoute();
         editor.SetExternalClipboardActions(false);
         // Shortcut routing is registered during drawing and becomes current on the next frame.
         draw(); draw();
-        std::cout << "  standalone clipboard routing: external=" << externalCopyRoute << " standalone=" << copyRoute()
-            << " focused=" << (GImGui->NavWindow == nullptr ? "none" : GImGui->NavWindow->Name)
-            << " selection=" << editor.GetCursorText(0) << " clipboard=" << ui.clipboard << std::endl;
         key(ImGuiKey_C, true, false);
         if (ui.clipboard != "ir")
         {
@@ -613,7 +626,7 @@ namespace
         buffer.SetAnalysis(analysis);
         buffer.SetHoverTooltip({{1, 4}, {1, 9}}, "semantic message");
         ImGuiWindow* window = nullptr;
-        float glyph = 0, height = 0;
+        Float glyph = 0.0f, height = 0.0f;
         String tooltipText;
         const auto draw = [&] {
             ui.Render([&] {
@@ -627,20 +640,26 @@ namespace
             });
         };
         const auto tooltipCount = [] {
-            int count = 0;
+            Int32 count = 0;
             for (auto* item : ImGui::GetCurrentContext()->Windows)
             {
-                if (item->Active && (item->Flags & ImGuiWindowFlags_Tooltip)) { ++count; }
+                if (item->Active && (item->Flags & ImGuiWindowFlags_Tooltip))
+                {
+                    ++count;
+                }
             }
             return count;
         };
-        const auto hover = [&](float column, std::size_t line) {
+        const auto hover = [&](Float column, std::size_t line) {
             ImGui::GetIO().AddMousePosEvent(window->DC.CursorStartPos.x + glyph * (7.0f + column),
                 window->DC.CursorStartPos.y + height * (line + 0.5f));
             draw();
         };
         const auto waitForTooltip = [&] {
-            for (int frame = 0; frame < 20; ++frame) { draw(); }
+            for (Int32 frame = 0; frame < 20; ++frame)
+            {
+                draw();
+            }
         };
         draw();
         draw();
@@ -692,20 +711,26 @@ namespace
         buffer.SetText(source);
         buffer.SetJBroScript(true);
         ImGuiWindow* window = nullptr;
-        float glyph = 0, height = 0;
+        Float glyph = 0.0f, height = 0.0f;
         const auto draw = [&] {
             ui.Render([&] {
                 const Bool codeFont = EditorTheme::GetCodeFont() != nullptr;
-                if (codeFont) { ImGui::PushFont(EditorTheme::GetCodeFont(), 16.0f); }
+                if (codeFont)
+                {
+                    ImGui::PushFont(EditorTheme::GetCodeFont(), 16.0f);
+                }
                 glyph = ImGui::CalcTextSize("#").x;
                 height = ImGui::GetTextLineHeightWithSpacing();
-                if (codeFont) { ImGui::PopFont(); }
+                if (codeFont)
+                {
+                    ImGui::PopFont();
+                }
                 buffer.Render("assistance");
                 window = ImGui::GetCurrentWindow()->DC.ChildWindows.back();
             });
         };
         draw(); draw();
-        const auto point = [&](float column, std::size_t line) {
+        const auto point = [&](Float column, std::size_t line) {
             return ImVec2(window->DC.CursorStartPos.x + glyph * (7.0f + column), window->DC.CursorStartPos.y + height * (line + 0.5f));
         };
         const auto hover = [&](ImVec2 position) {
@@ -721,23 +746,29 @@ namespace
         const auto hasTooltip = [] {
             for (auto* item : ImGui::GetCurrentContext()->Windows)
             {
-                if (item->Active && (item->Flags & ImGuiWindowFlags_Tooltip)) { return true; }
+                if (item->Active && (item->Flags & ImGuiWindowFlags_Tooltip))
+                {
+                    return true;
+                }
             }
             return false;
         };
         Check(!hasTooltip(), "symbol tooltip waits for the common hover delay");
-        for (int frame = 0; frame < 20; ++frame) { draw(); }
+        for (Int32 frame = 0; frame < 20; ++frame)
+        {
+            draw();
+        }
         Check(hasTooltip(), "matching current symbol displays the supplied plain text tooltip after the common delay");
         hover(point(3.2f, 1));
         Check(!buffer.GetHoveredPosition(hovered) && !hasTooltip(), "whitespace has no symbol hover or stale tooltip");
-        hover({window->Pos.x + glyph * 0.5f, point(0, 1).y});
+        hover({window->Pos.x + glyph * 0.5f, point(0.0f, 1).y});
         Check(!buffer.GetHoveredPosition(hovered), "line numbers never produce symbol hover requests");
         buffer.SelectRange({{0, 3}, {0, 5}});
         const auto selection = buffer.GetSelection();
         Check(buffer.HasSelection() && selection.start.character == 3 && selection.end.character == 5,
             "selection API round trips a complete UTF16 surrogate pair");
         buffer.SelectRange({{1, 4}, {1, 9}});
-        const ImVec2 breakpoint(window->Pos.x + glyph * 4.0f, point(0, 1).y);
+        const ImVec2 breakpoint(window->Pos.x + glyph * 4.0f, point(0.0f, 1).y);
         hover(breakpoint);
         Check(ui.HasColor(ImGui::ColorConvertFloat4ToU32(EditorTheme::Fade(EditorTheme::Danger, 0.45f))) && buffer.TakeBreakpointToggle() == 0,
             "unused breakpoint gutter previews a marker without installing it");
@@ -749,7 +780,7 @@ namespace
         draw();
         Check(ui.HasColor(ImGui::ColorConvertFloat4ToU32(EditorTheme::Danger)) && ui.HasColor(ImGui::ColorConvertFloat4ToU32(EditorTheme::Amber)),
             "pending breakpoint and stopped line retain separate marker colors");
-        hover({window->Pos.x + glyph * 0.5f, point(0, 1).y});
+        hover({window->Pos.x + glyph * 0.5f, point(0.0f, 1).y});
         ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true); draw();
         ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false); draw();
         Check(buffer.TakeBreakpointToggle() == 0 && buffer.GetSelection().start.line == 1 && buffer.GetSelection().start.character == 0
@@ -954,7 +985,7 @@ namespace
         Widget::CodeEditor editor;
         editor.SetJBroScript(true);
         editor.SetText("script Probe\n{\n  Int value = 1 // comment\n}\n");
-        for (int frame = 0; frame < 3; ++frame)
+        for (Int32 frame = 0; frame < 3; ++frame)
         {
             ui.Render([&] { editor.Render("buffer"); });
         }
@@ -985,7 +1016,7 @@ namespace
         Widget::CodeEditor editor;
         editor.SetText("");
         editor.Focus();
-        for (int frame = 0; frame < 3; ++frame)
+        for (Int32 frame = 0; frame < 3; ++frame)
         {
             ui.Render([&] { editor.Render("buffer"); });
         }
@@ -1070,7 +1101,7 @@ namespace
         Check(!first->Save() && files.Read("Contents/Scripts/One.cpp") == "// external edit" && first->HasUnsavedChanges(), "external file changes are not overwritten");
         Check(first->Reload() && !first->HasUnsavedChanges(), "explicit reload replaces buffer");
         Check(editor.OpenCodeFile(files.Path("Contents/Scripts/Probe.jscript")), "script opens using shared server");
-        for (int frame = 0; frame < 8; ++frame)
+        for (Int32 frame = 0; frame < 8; ++frame)
         {
             Check(editor.Tick(0.02f), "engine draws native code tabs");
         }

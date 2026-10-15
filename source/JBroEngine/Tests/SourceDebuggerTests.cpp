@@ -305,7 +305,7 @@ namespace
         }
         UInt64 Address(std::size_t index) const
         {
-            return static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(page + index));
+            return static_cast<UInt64>(reinterpret_cast<std::uintptr_t>(page + index));
         }
         Bool Fill()
         {

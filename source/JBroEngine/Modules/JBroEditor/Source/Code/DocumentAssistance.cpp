@@ -18,8 +18,8 @@ namespace JBro::Code
             return !Before(point, range.start) && Before(point, range.end);
         }
     }
-    DocumentAssistance::DocumentAssistance(Widget::CodeEditor& buffer) : m_buffer(&buffer) {}
-    void DocumentAssistance::Connect(LanguageClient* language, const String& path)
+    DocumentAssistance::DocumentAssistance(Widget::CodeEditor& buffer) : m_buffer(buffer) {}
+    void DocumentAssistance::Connect(SafePtr<LanguageClient> language, const String& path)
     {
         Invalidate();
         m_language = language;
@@ -37,12 +37,12 @@ namespace JBro::Code
         m_hoverAge = 0.0f;
         m_hoverActive = false;
         m_hoverResolved = false;
-        m_buffer->SetHoverTooltip({}, {});
-        m_buffer->SetReferenceHighlights({});
+        m_buffer.SetHoverTooltip({}, {});
+        m_buffer.SetReferenceHighlights({});
     }
     void DocumentAssistance::HighlightReferences(Position definition)
     {
-        m_buffer->SetReferenceHighlights({});
+        m_buffer.SetReferenceHighlights({});
         m_referencesRequest = m_language != nullptr && m_language->GetState() == ClientState::Ready
             ? m_language->RequestReferences(m_path, m_language->GetVersion(m_path), definition) : UInt64(0);
     }
@@ -76,7 +76,7 @@ namespace JBro::Code
                     && Contains(result->range, m_hoverPosition))
                 {
                     m_hoverRange = result->range;
-                    m_buffer->SetHoverTooltip(result->range, result->text);
+                    m_buffer.SetHoverTooltip(result->range, result->text);
                 }
             }
         }
@@ -88,7 +88,7 @@ namespace JBro::Code
                 m_referencesRequest = 0;
                 if (result->success && result->version == m_language->GetVersion(m_path))
                 {
-                    m_buffer->SetReferenceHighlights(result->ranges);
+                    m_buffer.SetReferenceHighlights(result->ranges);
                 }
             }
         }
@@ -97,7 +97,7 @@ namespace JBro::Code
     {
         Position point;
         const Bool active = m_language != nullptr && m_language->GetState() == ClientState::Ready
-            && m_buffer->GetHoveredPosition(point);
+            && m_buffer.GetHoveredPosition(point);
         if (!active)
         {
             if (m_hoverActive)
@@ -106,7 +106,7 @@ namespace JBro::Code
                 m_hoverActive = false;
                 m_hoverResolved = false;
                 m_hoverRequest = 0;
-                m_buffer->SetHoverTooltip({}, {});
+                m_buffer.SetHoverTooltip({}, {});
             }
             return;
         }
@@ -117,7 +117,7 @@ namespace JBro::Code
             m_hoverRequest = 0;
             m_hoverResolved = false;
             m_hoverRange = {};
-            m_buffer->SetHoverTooltip({}, {});
+            m_buffer.SetHoverTooltip({}, {});
         }
         m_hoverActive = true;
         m_hoverPosition = point;

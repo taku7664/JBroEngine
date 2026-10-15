@@ -42,7 +42,7 @@ namespace JBro
         String GetBufferText() const { return m_buffer.GetText(); }
         Bool IsJBroScript() const { return m_jscript; }
         Bool IsReadOnly() const;
-        Code::LanguageClient* GetLanguageClient() { return m_language; }
+        Code::LanguageClient* GetLanguageClient() { return m_language.TryGet(); }
         Bool ApplySourceEdits(Int32 version, const Array<Code::TextEdit>& edits);
         static CodeEditorPanel* FindActive(EditorApplication& editor);
     private:
@@ -50,7 +50,7 @@ namespace JBro
         void Changed();
         void CancelSiblingFocusRequests();
         EditorApplication* m_editor = nullptr;
-        Code::LanguageClient* m_language = nullptr;
+        SafePtr<Code::LanguageClient> m_language;
         Widget::CodeEditor m_buffer;
         Code::DocumentAssistance m_assistance{m_buffer};
         String m_path, m_title, m_text, m_saved, m_diskBytes, m_message;

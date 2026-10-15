@@ -57,10 +57,10 @@ namespace
             entries.Add({"Mover.value" + std::to_string(index), "value" + std::to_string(index), "Float", Code::SummaryKind::Field, 1});
         }
         String selected = "Mover.value0";
-        float outlineHeight = 0.0f, outlineBottom = 0.0f, detailTop = 0.0f;
-        float outlineScroll = 0.0f, detailScroll = 0.0f, outerScroll = 0.0f;
+        Float outlineHeight = 0.0f, outlineBottom = 0.0f, detailTop = 0.0f;
+        Float outlineScroll = 0.0f, detailScroll = 0.0f, outerScroll = 0.0f;
         Bool commonTreeTargetConsumed = true;
-        for (int frame = 0; frame < 3; ++frame)
+        for (Int32 frame = 0; frame < 3; ++frame)
         {
             ImGui::NewFrame();
             ImGui::SetNextWindowPos({0.0f, 0.0f});
@@ -81,7 +81,7 @@ namespace
             {
                 detailTop = ImGui::GetWindowPos().y;
                 Widget::ScriptMemberHeader("value0", "Float", "const", Code::SummaryKind::Field);
-                for (int index = 0; index < 60; ++index)
+                for (Int32 index = 0; index < 60; ++index)
                 {
                     Widget::ScriptSummaryNote("Detail content");
                 }
@@ -129,7 +129,7 @@ namespace
         entries.Add({"Empty", "Empty", "struct", Code::SummaryKind::Type, 0, "Empty\nstruct"});
         String selected = "Outer";
         ImVec2 origin;
-        float totalHeight = 0, width = 340;
+        Float totalHeight = 0.0f, width = 340.0f;
         Bool empty = false;
         const auto draw = [&] {
             ImGui::NewFrame();
@@ -142,7 +142,7 @@ namespace
             ImGui::End();
             ImGui::Render();
         };
-        const auto click = [&](float x, float y) {
+        const auto click = [&](Float x, Float y) {
             auto& io = ImGui::GetIO();
             io.AddMousePosEvent(x, y);
             draw();
@@ -150,15 +150,15 @@ namespace
             draw();
             io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
             draw();
-            for (int frame = 0; frame < 20; ++frame)
+            for (Int32 frame = 0; frame < 20; ++frame)
             {
                 draw();
             }
         };
         draw();
         draw();
-        const float fullHeight = totalHeight;
-        const float rowHeight = fullHeight / static_cast<float>(entries.Size());
+        const Float fullHeight = totalHeight;
+        const Float rowHeight = fullHeight / static_cast<Float>(entries.Size());
         click(origin.x + 130, origin.y + rowHeight * 2.5f);
         Check(selected == "Outer.Inner.value", "nested outline row selects the member source identity");
         click(origin.x + 7, origin.y + rowHeight * 0.5f);
@@ -167,7 +167,7 @@ namespace
         Check(totalHeight == fullHeight, "type arrow restores the nested outline");
         click(origin.x + 19, origin.y + rowHeight * 1.5f);
         Check(totalHeight < fullHeight && totalHeight > rowHeight * 2, "nested type collapse preserves sibling declarations");
-        width = 80;
+        width = 80.0f;
         draw();
         draw();
         Check(selected == "Outer.Inner.value", "narrow outline clips content without changing selection");
@@ -177,7 +177,7 @@ namespace
 
         String initializer = "2";
         Bool present = true;
-        int commits = 0;
+        Int32 commits = 0;
         ImVec2 inputPoint, blurPoint, removePoint;
         ImGuiID inputId = 0;
         const auto drawInitializer = [&] {
@@ -190,7 +190,10 @@ namespace
             ImGui::PushID("initializer");
             inputId = ImGui::GetID("##value");
             ImGui::PopID();
-            if (Widget::ScriptInitializerField("initializer", initializer, present, false)) { ++commits; }
+            if (Widget::ScriptInitializerField("initializer", initializer, present, false))
+            {
+                ++commits;
+            }
             removePoint = (ImGui::GetItemRectMin() + ImGui::GetItemRectMax()) * 0.5f;
             Widget::Button("Finish expression editing");
             blurPoint = (ImGui::GetItemRectMin() + ImGui::GetItemRectMax()) * 0.5f;

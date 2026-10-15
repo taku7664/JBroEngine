@@ -22,7 +22,7 @@ namespace JBro::ScriptCompiler
 
         String FileId(std::string_view text)
         {
-            std::uint64_t hash = 14695981039346656037ull;
+            UInt64 hash = 14695981039346656037ull;
             for (const unsigned char byte : text)
             {
                 hash = (hash ^ byte) * 1099511628211ull;
@@ -41,14 +41,14 @@ namespace JBro::ScriptCompiler
         {
         public:
             ProjectEmitter(ArrayView<const CppSource> sources, const ApiCatalog& api,
-                bool moduleEntry, const AnalysisResult* analysis)
+                Bool moduleEntry, const AnalysisResult* analysis)
                 : m_sources(sources), m_api(api), m_moduleEntry(moduleEntry), m_analysis(analysis)
             {
             }
 
             CppProjectResult Run()
             {
-                bool hasScript = false;
+                Bool hasScript = false;
                 String allHeaders = "#pragma once\n";
                 for (const CppSource& source : m_sources)
                 {
@@ -143,7 +143,7 @@ namespace JBro::ScriptCompiler
             }
 
         private:
-            void Index(const CppSource& source, NodeIndex root, const String& parent, bool& hasScript)
+            void Index(const CppSource& source, NodeIndex root, const String& parent, Bool& hasScript)
             {
                 for (NodeIndex child : source.Tree->GetChildren(root))
                 {
@@ -408,16 +408,16 @@ namespace JBro::ScriptCompiler
 
             ArrayView<const CppSource> m_sources;
             const ApiCatalog& m_api;
-            bool m_moduleEntry;
+            Bool m_moduleEntry;
             const AnalysisResult* m_analysis;
             Table<String, Declaration> m_declarations;
-            Table<String, bool> m_files;
+            Table<String, Bool> m_files;
             CppProjectResult m_result;
         };
     }
 
     CppProjectResult EmitCppProject(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        bool emitModuleEntry, const AnalysisResult* analysis)
+        Bool emitModuleEntry, const AnalysisResult* analysis)
     {
         return ProjectEmitter(sources, api, emitModuleEntry, analysis).Run();
     }

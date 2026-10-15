@@ -5,6 +5,38 @@ const net = require('node:net');
 const { test } = require('node:test');
 const { parseReply, requestLog, createEngineLogView } = require('../engine-logs.cjs');
 
+test('protocol failures localize the detail as well as the view message', async () => {
+	const translations = require('../l10n/bundle.l10n.ko.json');
+	const server = net.createServer(socket => {
+		socket.once('data', () => socket.end('ok\nProtocol: 1\n...\n'));
+	});
+	await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+	const panel = { message: '', dispose() {} };
+	const api = {
+		EventEmitter: class { event = () => ({ dispose() {} }); fire() {} dispose() {} },
+		window: { createTreeView() { return panel; } },
+		workspace: {
+			getConfiguration() { return { get() { return server.address().port; } }; },
+			onDidChangeConfiguration() { return { dispose() {} }; }
+		},
+		commands: { registerCommand() { return { dispose() {} }; }, executeCommand() {} },
+		l10n: { t(message, ...args) {
+			return (translations[message] || message).replace(/\{(\d+)\}/g, (_match, index) => String(args[index]));
+		} }
+	};
+	const controller = createEngineLogView(api);
+	try {
+		for (let attempt = 0; attempt < 50 && !panel.message.includes(translations['Incomplete engine log page']); ++attempt) {
+			await new Promise(resolve => setTimeout(resolve, 25));
+		}
+		assert.ok(panel.message.includes(translations['Incomplete engine log page']), panel.message);
+		assert.ok(!panel.message.includes('Incomplete engine log page'), panel.message);
+	} finally {
+		controller.dispose();
+		await new Promise(resolve => server.close(resolve));
+	}
+});
+
 test('the engine log YAML keeps a grouped occurrence distinct from its summary', () => {
 	const encoded = Buffer.from('line\n...\nend').toString('base64');
 	const reply = parseReply(`ok\nSession: 12\nClear: 3\nEntries:\n  - Serial: 41\n    Message64: ${encoded}\n    GroupId: 2\nMore: false\n...\n`);

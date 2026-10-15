@@ -121,17 +121,12 @@ namespace
         }
     }
     template<class Predicate>
-    void Pump(EditorApplication& editor, Predicate done, const char* message, Bool traceFocus = false)
+    void Pump(EditorApplication& editor, Predicate done, const char* message)
     {
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(25);
-        UInt32 frames = 0;
         while (!done() && std::chrono::steady_clock::now() < deadline)
         {
             Check(editor.Tick(1.0f / 60.0f), "the actual editor draws summary integration frames");
-            if (traceFocus && ++frames <= 3)
-            {
-                ReportCodeFocus(editor, message);
-            }
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
         if (!done())
@@ -327,7 +322,7 @@ namespace
         document.GetBuffer().SelectRange(word);
         const Int32 beforeTyping = language.GetVersion(document.GetPath());
         char field[32] = "summary expression";
-        for (int frame = 0; frame < 4; ++frame)
+        for (Int32 frame = 0; frame < 4; ++frame)
         {
             auto& io = ImGui::GetIO();
             if (frame == 3)
@@ -408,25 +403,21 @@ namespace
         Check(first != nullptr && second != nullptr && summaryPanel != nullptr, "the two buffers and shared summary panel exist");
         first->FocusAt(3);
         Check(editor.Tick(1.0f / 60.0f), "the first source focus request receives one actual frame");
-        ReportCodeFocus(editor, "one frame after rapid first source request");
         summaryPanel->RequestFocus();
         Check(editor.Tick(1.0f / 60.0f), "the immediate summary focus request receives one actual frame");
-        ReportCodeFocus(editor, "one frame after immediate summary request");
         Pump(editor, [&] {
             return SourceTabSelected(*first) && CodeEditorPanel::FindActive(editor) == first
                 && summaryPanel->IsFocused() && NavRootIs(*summaryPanel);
-        }, "rapid source-to-summary focus retains the selected first source tab and actual summary focus", true);
+        }, "rapid source-to-summary focus retains the selected first source tab and actual summary focus");
         CurrentSummary(editor, *second);
-        ReportCodeFocus(editor, "before requesting first source tab");
         first->FocusAt(3);
-        ReportCodeFocus(editor, "after requesting first source tab");
         Pump(editor, [&] { return SourceTabFocused(editor, *first); },
-            "the actual first script tab receives focus before switching to its summary", true);
+            "the actual first script tab receives focus before switching to its summary");
         const auto firstSummary = CurrentSummary(editor, *first);
         Check(first->GetText() == normalized, "the .jscript BOM and CRLF are normalized only in memory");
         Check(SourceTabFocused(editor, *first), "the selected visible source tab and native focus agree before summary focus");
         summaryPanel->RequestFocus();
-        for (int frame = 0; frame < 3; ++frame)
+        for (Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(1.0f / 60.0f), "the summary receives focus");
         }
@@ -459,7 +450,7 @@ namespace
         Check(files.Read("Contents/Scripts/First.jscript") == saved, "summary editing and saving preserve .jscript BOM, CRLF, Unicode and comments");
         second->FocusAt(3);
         Pump(editor, [&] { return SourceTabFocused(editor, *second); },
-            "the actual second script tab receives focus before switching to its summary", true);
+            "the actual second script tab receives focus before switching to its summary");
         summaryPanel->RequestFocus();
         Check(editor.Tick(1.0f / 60.0f) && SourceTabSelected(*second) && CodeEditorPanel::FindActive(editor) == second
             && NavRootIs(*summaryPanel),

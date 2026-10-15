@@ -414,7 +414,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         }
         const ApiCatalog catalog = JBro::ScriptApiCatalog2D::BuildCatalog();
         const OwnerPtr<AnalysisResult> analyzed = AnalyzeProject(inputs.View(), catalog);
-        bool sourceErrors = false;
+        Bool sourceErrors = false;
         Array<CppSource> cppSources;
         for (const auto& ownedDocument : analyzed->Documents)
         {
