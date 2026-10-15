@@ -10,6 +10,9 @@
 #include <JBro/Types/Uuid.h>
 
 #include <Windows.h>
+#include <DbgHelp.h>
+
+#pragma comment(lib, "Dbghelp.lib")
 
 #include <chrono>
 #include <cstring>
@@ -261,6 +264,51 @@ namespace
     }
 
     // 에디터를 거친 길: 스크립트 프로젝트가 없는 프로젝트에서 처음 만들면 프로젝트와 엔진 위치까지 선다.
+    struct LineScan
+    {
+        bool jscript = false;
+        int total = 0;
+        int jscriptLines = 0;
+    };
+
+    BOOL CALLBACK OnSourceLine(PSRCCODEINFOW info, PVOID user)
+    {
+        auto* scan = static_cast<LineScan*>(user);
+        scan->total = scan->total + 1;
+        const std::size_t length = std::wcslen(info->FileName);
+        if (length >= 8 && _wcsicmp(info->FileName + length - 8, L".jscript") == 0)
+        {
+            scan->jscriptLines = scan->jscriptLines + 1;
+            if (info->Address != 0)
+            {
+                scan->jscript = true;
+            }
+        }
+        return TRUE;
+    }
+
+    // **`.jscript` 소스 맵**(D-330): 이미터가 문장마다 `#line <줄> "<파일>.jscript"` 를 넣어, 생성 C++ 를 컴파일한 PDB 의 줄 기록이
+    // `.jscript` 파일·줄을 가리킨다 - `.cpp` 가 아니라. 디버거는 그 PDB 로 `.jscript` 줄에 바로 중단점을 건다. 실제로 그 DLL 의 PDB 가
+    // `.jscript` 줄을 코드 주소로 매핑하는지 본다. 공유 심볼 세션(플랫폼의 `DescribeCodeAddress`)을 건드리지 않게 별도 핸들로 연다.
+    Bool JScriptLinesAreAddressable(const fs::path& dll)
+    {
+        const HANDLE handle = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(0x4a42524f));
+        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_FAIL_CRITICAL_ERRORS);
+        if (FALSE == SymInitializeW(handle, nullptr, FALSE))
+        {
+            return false;
+        }
+        const DWORD64 base = SymLoadModuleExW(handle, nullptr, dll.wstring().c_str(), nullptr, 0, 0, nullptr, 0);
+        LineScan scan;
+        if (base != 0)
+        {
+            SymEnumLinesW(handle, base, nullptr, nullptr, &OnSourceLine, &scan);
+            SymUnloadModule64(handle, base);
+        }
+        SymCleanup(handle);
+        return scan.jscript;
+    }
+
     void TestTheEditorCreatesAScriptAndItsProject()
     {
         const fs::path root = FreshFolder("editor");
@@ -421,6 +469,10 @@ namespace
         Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
                 && fs::last_write_time(guardObject) == guardTime && fs::last_write_time(followerObject) != followerTime,
             "an unrelated script object is not recompiled when one source changes");
+        // **`.jscript` 소스 맵**(D-330): 생성 C++ 의 `#line` 으로 PDB 가 `.jscript` 줄을 코드 주소로 매핑한다 - `.cpp` 가 아니라.
+        // Follower 의 `return 7` 같은 실제 문장이 `.jscript` 줄 기록을 남겨, 디버거가 그 줄에 바로 중단점을 건다.
+        Check(JScriptLinesAreAddressable(root / "x64" / "Debug" / "GameScript.dll"),
+            "the built DLL's PDB maps JBroScript lines to code addresses, so breakpoints sit on .jscript lines");
         fs::remove(follower);
         Check(editor.BuildScripts(), "the editor starts a build after deleting a JBroScript file");
         waitForBuild();

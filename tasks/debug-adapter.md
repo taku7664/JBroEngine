@@ -77,7 +77,7 @@ D-330 는 이렇게 바꿨다(실측은 [script-debug-plan.md](./script-debug-pl
 
 ## 6. 남은 것
 
-- `.jscript` 소스 맵: 지금 중단점은 생성된 C++(.cpp)의 줄에 선다. `.jscript` 줄에 서려면 컴파일러가 `.jscript` 줄 → 생성 C++ 줄 대응을 내고 어댑터가 그걸 써야 한다. C++ 스크립트(.cpp)는 지금도 바로 선다.
+- ~~`.jscript` 소스 맵~~ → 이미 있다(2026-10-15 확인). 이미터가 생성 C++ 에 문장마다 `#line <줄> "<파일>.jscript"` 를 넣어, 컴파일한 PDB 의 줄 기록이 `.jscript` 파일·줄을 가리킨다. 디버거는 그 PDB 로 `.jscript` 줄에 바로 중단점을 건다. `ScriptProject` 시험이 빌드한 DLL 의 PDB 가 `.jscript` 줄을 코드 주소로 매핑하는지 본다(`JScriptLinesAreAddressable`, 11 줄). 빈 콜백은 코드가 없어 매핑도 없다 - 문장이 있는 스크립트만이다.
 - 실제 Script Editor 설치본에서의 확인(설치본은 아직 없다, ide-plan). 어댑터를 설치본 어디에 둘지(`debug-adapter/`)와 설치 빌드가 남았다.
 - 조건부 중단점·로그 포인트·데이터 중단점·변수 값 바꾸기·예외 거르기 설정은 없다.
 - ~~Release 구성의 스크립트 디버깅은 재지 않았다.~~ → 쟀다(script-debug-plan §4.6): 됨. 줄·지역 가시성은 대상 코드의 최적화에 달렸다.
