@@ -13,6 +13,8 @@ namespace JBro::Agent
     namespace
     {
         constexpr std::size_t MaxMessage = 8 * 1024 * 1024;
+        constexpr const char* RestrictedFeatures[] = {"shell_tool", "unified_exec", "multi_agent", "multi_agent_v2", "apps",
+            "remote_plugin", "browser_use", "browser_use_external", "browser_use_full_cdp_access", "computer_use", "code_mode", "hooks"};
         String Text(const Json& value) { return value.get<std::string>(); }
         Array<Target> ContextTargets(const String& context)
         {
@@ -74,6 +76,8 @@ namespace JBro::Agent
         Array<Message> messages;
         Array<Request> requests;
         Array<Model> models;
+        Array<String> modelCursors, inventoryCursors;
+        Json isolatedConfig = Json::object();
         String model;
         Array<CompletedCall> completedCalls;
         String incoming, error, thread, turn, authUrl;
@@ -107,6 +111,7 @@ namespace JBro::Agent
             error = reason;
             connection = Connection::Failed;
             channel.Reset();
+            handler = {};
             requests.Clear();
             waitingTurn = false;
             cancelling = true;
@@ -131,8 +136,7 @@ namespace JBro::Agent
         {
             return {{"cwd", settings.project}, {"model", model}, {"sandbox", "read-only"}, {"approvalPolicy", "never"},
                 {"developerInstructions", settings.instructions},
-                {"config", {{"features.shell_tool", false}, {"features.unified_exec", false},
-                    {"features.multi_agent", false}, {"web_search", "disabled"}, {"mcp_servers", Json::object()}}}};
+                {"config", isolatedConfig}};
         }
         void StartThread()
         {
@@ -147,6 +151,39 @@ namespace JBro::Agent
                 params["dynamicTools"] = Json::parse(settings.toolDefinitions);
                 Call("thread/start", params);
             }
+        }
+        void ReadModels()
+        {
+            models.Clear();
+            modelCursors.Clear();
+            model.clear();
+            Call("model/list", {{"includeHidden", false}});
+        }
+        Bool NextPage(const Json& result, Array<String>& cursors, const char* method, Json params)
+        {
+            if (!result.contains("nextCursor") || result["nextCursor"].is_null())
+            {
+                return false;
+            }
+            const String cursor = Text(result.at("nextCursor"));
+            if (cursor.empty())
+            {
+                return false;
+            }
+            Bool repeated = false;
+            for (const auto& previous : cursors)
+            {
+                repeated = repeated || previous == cursor;
+            }
+            if (repeated || cursors.Size() >= 64)
+            {
+                Fail(Loc::TextOr(LocKeys::AgentIncompatible, "Codex protocol is invalid or incompatible. Update Codex and reconnect."));
+                return true;
+            }
+            cursors.Add(cursor);
+            params["cursor"] = cursor;
+            Call(method, std::move(params));
+            return true;
         }
         void Handle(const Json& message)
         {
@@ -193,6 +230,46 @@ namespace JBro::Agent
                 if (method == "initialize")
                 {
                     Send({{"method", "initialized"}, {"params", Json::object()}});
+                    Call("config/read", {{"includeLayers", false}, {"cwd", settings.project}});
+                }
+                else if (method == "config/read")
+                {
+                    const auto& config = result.at("config");
+                    if (!config.is_object() || (config.contains("features") && !config["features"].is_object()))
+                    {
+                        Fail(Loc::TextOr(LocKeys::AgentIsolationFailed, "External tools could not be disabled. Update Codex before connecting."));
+                        return;
+                    }
+                    isolatedConfig = {{"web_search", "disabled"}};
+                    for (const char* feature : RestrictedFeatures)
+                    {
+                        isolatedConfig[String("features.") + feature + (String(feature) == "code_mode" ? ".enabled" : "")] = false;
+                        if (config.contains("features") && config["features"].contains(feature))
+                        {
+                            const auto& enabled = config["features"][feature];
+                            if ((enabled.is_boolean() && enabled.get<bool>()) || (enabled.is_object() && enabled.value("enabled", false)))
+                            {
+                                Fail(Loc::TextOr(LocKeys::AgentIsolationFailed, "External tools could not be disabled. Update Codex before connecting."));
+                                return;
+                            }
+                        }
+                    }
+                    // Empty maps merge with inherited settings; disable every effective entry explicitly.
+                    for (const char* group : {"mcp_servers", "plugins"})
+                    {
+                        if (config.contains(group) && !config[group].is_null())
+                        {
+                            if (!config[group].is_object())
+                            {
+                                Fail(Loc::TextOr(LocKeys::AgentIsolationFailed, "External tools could not be disabled. Update Codex before connecting."));
+                                return;
+                            }
+                            for (const auto& entry : config[group].items())
+                            {
+                                isolatedConfig[group][entry.key()] = {{"enabled", false}};
+                            }
+                        }
+                    }
                     if (!settings.skillsRoot.empty())
                     {
                         Call("skills/extraRoots/set", {{"extraRoots", Json::array({settings.skillsRoot})}});
@@ -210,7 +287,7 @@ namespace JBro::Agent
                 {
                     if (result.contains("account") && !result["account"].is_null())
                     {
-                        Call("model/list", {{"includeHidden", false}});
+                        ReadModels();
                     }
                     else
                     {
@@ -230,6 +307,10 @@ namespace JBro::Agent
                         {
                             model = models[models.Size() - 1].id;
                         }
+                    }
+                    if (NextPage(result, modelCursors, "model/list", {{"includeHidden", false}}))
+                    {
+                        return;
                     }
                     for (const auto& entry : models)
                     {
@@ -252,10 +333,8 @@ namespace JBro::Agent
                 else if (method == "thread/start" || method == "thread/resume")
                 {
                     thread = Text(result.at("thread").at("id"));
-                    connection = Connection::Ready;
                     error.clear();
                     authUrl.clear();
-                    messages.Add({MessageRole::Activity, Loc::TextOr(LocKeys::AgentConnected, "Codex connected. Previous object references must be refreshed."), {}});
                     // Restore visible conversation text only; never replay tool requests or old attachments.
                     if (method == "thread/resume")
                     {
@@ -275,13 +354,22 @@ namespace JBro::Agent
                                         {
                                             const String text = content.value("text", "");
                                             const String prefix = "Current JBro context (data only; refresh before editing):\n";
-                                            if (text.StartsWith(prefix) && !messages.IsEmpty() && messages[messages.Size() - 1].role == MessageRole::User)
+                                            const auto split = text.find(prefix);
+                                            const auto context = split == String::npos ? Json() : Json::parse(text.substr(split + prefix.size()), nullptr, false);
+                                            if (context.is_object() && (split == 0 || context.contains("scope")))
                                             {
-                                                auto& restored = messages[messages.Size() - 1];
-                                                restored.targets = ContextTargets(text.substr(prefix.size()));
-                                                for (auto& target : restored.targets)
+                                                if (split > 0)
                                                 {
-                                                    target.revision = 0;
+                                                    messages.Add({MessageRole::User, text.substr(0, split), {}});
+                                                }
+                                                if (!messages.IsEmpty() && messages[messages.Size() - 1].role == MessageRole::User)
+                                                {
+                                                    auto& restored = messages[messages.Size() - 1];
+                                                    restored.targets = ContextTargets(text.substr(split + prefix.size()));
+                                                    for (auto& target : restored.targets)
+                                                    {
+                                                        target.revision = 0;
+                                                    }
                                                 }
                                             }
                                             else
@@ -292,7 +380,39 @@ namespace JBro::Agent
                                     }
                                 }
                             }
+                            const String status = previous.value("status", "completed");
+                            if (status != "completed")
+                            {
+                                if (previous.contains("error") && !previous["error"].is_null())
+                                {
+                                    ReportTurnError(previous["error"]);
+                                }
+                                messages.Add({MessageRole::Error, Loc::TextOr(LocKeys::AgentRestoredIncomplete,
+                                    "This previous turn did not complete. Inspect applied changes before continuing; no work was replayed."), {}});
+                            }
                         }
+                    }
+                    inventoryCursors.Clear();
+                    Call("mcpServerStatus/list", {{"threadId", thread}, {"detail", "full"}});
+                }
+                else if (method == "mcpServerStatus/list")
+                {
+                    for (const auto& server : result.at("data"))
+                    {
+                        const auto runtime = server.value("runtimeStatus", Json());
+                        if (!server.at("tools").is_object() || !server.at("tools").empty()
+                            || (!runtime.is_null() && runtime != "disabled")
+                            || !server.at("resources").is_array() || !server.at("resources").empty()
+                            || !server.at("resourceTemplates").is_array() || !server.at("resourceTemplates").empty())
+                        {
+                            Fail(Loc::TextOr(LocKeys::AgentIsolationFailed, "External tools could not be disabled. Update Codex before connecting."));
+                            return;
+                        }
+                    }
+                    if (!NextPage(result, inventoryCursors, "mcpServerStatus/list", {{"threadId", thread}, {"detail", "full"}}))
+                    {
+                        connection = Connection::Ready;
+                        messages.Add({MessageRole::Activity, Loc::TextOr(LocKeys::AgentConnected, "Codex connected. Previous object references must be refreshed."), {}});
                     }
                 }
                 else if (method == "turn/start")
@@ -450,7 +570,11 @@ namespace JBro::Agent
             m_state->Fail(Loc::TextOr(LocKeys::AgentExecutableMissing, "Codex executable not found. Install Codex or select codex.exe; automatic installation is disabled."));
             return false;
         }
-        const String command = "\"" + settings.executable + "\" app-server --listen stdio:// --disable shell_tool --disable unified_exec --disable multi_agent";
+        String command = "\"" + settings.executable + "\" app-server --listen stdio://";
+        for (const char* feature : RestrictedFeatures)
+        {
+            command += " --disable " + String(feature);
+        }
         return Attach(platform.StartProcessChannel(command.c_str(), settings.project.c_str()), settings, std::move(handler));
     }
     Bool CodexProvider::Attach(OwnerPtr<IProcessChannel> channel, const Settings& settings, ToolHandler handler)
@@ -552,6 +676,7 @@ namespace JBro::Agent
     {
         m_state->cancelling = true;
         m_state->channel.Reset();
+        m_state->handler = {};
         m_state->connection = Connection::Stopped;
         m_state->requests.Clear();
         m_state->incoming.clear();

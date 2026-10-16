@@ -53,6 +53,7 @@ namespace JBro
         Bool LaunchProcess(const char* utf8CommandLine, const char* utf8WorkingFolder) override;
         String ReadEnvironmentVariable(const char* name) const override;
         Bool FileExists(const char* utf8Path) const override;
+        Bool IsPathWithinDirectory(const char* root, const char* path) const override;
         Bool ReadFileWriteTime(const char* utf8Path, UInt64& time) const override;
         Bool DirectoryExists(const char* utf8Path) const override;
         Bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;

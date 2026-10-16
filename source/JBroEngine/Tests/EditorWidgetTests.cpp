@@ -129,6 +129,48 @@ namespace
     };
 
     // **스코프는 되돌아 나가도 스택을 되돌린다.** 그것이 존재 이유다.
+    void TestPlainListsClipRowsWithoutOwningTheirStorage()
+    {
+        Stage stage;
+        JBro::Int32 drawn = 0;
+        JBro::Int32 mutations = 0;
+        const auto frame = [&](JBro::UInt32 flags) {
+            drawn = 0;
+            stage.Begin();
+            JBro::Widget::ListVirtual("plain", 100, [&](JBro::Int32) -> JBro::Bool {
+                ++drawn;
+                JBro::Widget::Text("Wrapped conversation row");
+                ImGui::Dummy(ImVec2(1.0f, 70.0f));
+                return false;
+            }, [&] { ++mutations; }, [&](JBro::Int32) { ++mutations; }, [&](JBro::Int32, JBro::Int32) { ++mutations; }, flags);
+            stage.End();
+            Check(stage.IdStackDepth() == 1, "plain list restores the caller's ID stack");
+        };
+        frame(JBro::Widget::ListFlagsPlain);
+        Check(drawn == 100, "unclipped pass measures variable row heights");
+        frame(JBro::Widget::ListFlagsPlain | JBro::Widget::ListFlagsClipRows);
+        // The first scrollbar changes available width and requires one measurement pass.
+        frame(JBro::Widget::ListFlagsPlain | JBro::Widget::ListFlagsClipRows);
+        Check(drawn > 0 && drawn < 10 && mutations == 0, "only visible rows render; a list view never mutates caller storage");
+    }
+    void TestIconActionButtonsReportGuideAvailability()
+    {
+        Stage stage;
+        JBro::EditorGuideFocus focus;
+        JBro::GuideFocusPath path;
+        const auto target = JBro::GuideFocusTargets::Action("test.icon.action");
+        Check(path.Push(target) && focus.Begin(path), "guide targets the icon action button");
+        JBro::Widget::SetGuideFocus(&focus);
+        stage.Begin();
+        focus.BeginFrame();
+        JBro::Widget::SetNextItemTarget(target);
+        JBro::Widget::ActionButton("Disabled icon action", JBro::Widget::Severity::Success, false, "fixture reason", {}, JBro::Icons::Play);
+        Check(focus.IsCurrentDisabled() && std::strcmp(focus.GetDisabledReason(), "fixture reason") == 0,
+            "adding an icon preserves disabled guide state and its reason");
+        stage.End();
+        JBro::Widget::SetGuideFocus(nullptr);
+    }
+
     void TestScopesUnwindThemselves()
     {
         Stage stage;
@@ -1686,6 +1728,8 @@ JBro::Int32 RunEditorWidgetTests()
 {
     TestTheGuideScrollsAHalfHiddenTargetIntoView();
     TestScopesUnwindThemselves();
+    TestPlainListsClipRowsWithoutOwningTheirStorage();
+    TestIconActionButtonsReportGuideAvailability();
     TestTheFormLayoutOpensAndClosesCleanly();
     TestTheListAsksItsCallbacksForEverything();
     TestAListRowIsAsTallAsWhatItDraws();

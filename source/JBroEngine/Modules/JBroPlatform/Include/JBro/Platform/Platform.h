@@ -335,6 +335,13 @@ namespace JBro
             (void)utf8Path;
             return false;
         }
+        // Resolve filesystem aliases before checking containment. Failure denies access.
+        virtual Bool IsPathWithinDirectory(const char* root, const char* path) const
+        {
+            (void)root;
+            (void)path;
+            return false;
+        }
         // 폴더를 만든다(중간 폴더도 함께). **이미 있으면 참이다** - 부르는 쪽이 "있는가" 를
         // 먼저 묻고 만들면 그 사이에 생긴 경우를 다루지 못한다(D-139).
         virtual Bool CreateDirectoryAt(const char* utf8Path)

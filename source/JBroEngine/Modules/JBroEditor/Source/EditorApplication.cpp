@@ -7053,8 +7053,43 @@ namespace JBro
 
     void EditorApplication::SetAgentGuidePaused(Bool paused)
     {
+        if (paused && !m_agentGuidePaused)
+        {
+            m_agentGuideSelection.Clear();
+            for (auto* object : GetSelectedObjects())
+            {
+                m_agentGuideSelection.Add(object->SafeFromThis());
+            }
+        }
+        else if (!paused && m_agentGuidePaused && m_guide.IsRunning() && !m_guide.IsConfirming())
+        {
+            Bool valid = true;
+            for (const auto& object : m_agentGuideSelection)
+            {
+                valid = valid && object != nullptr;
+            }
+            if (valid)
+            {
+                ClearSelection();
+                for (const auto& object : m_agentGuideSelection)
+                {
+                    AddToSelection(object.TryGet());
+                }
+                valid = m_guide.RefreshCurrentStep(*this, m_guideFocus);
+            }
+            if (!valid)
+            {
+                m_guide.Stop(m_guideFocus);
+                m_notifications.Notify(NotificationLevel::Warning,
+                    Loc::TextOr(LocKeys::AgentGuideTargetLost, "The guide target changed. Ask for a new guide."));
+            }
+        }
         m_agentGuidePaused = paused;
         m_guideFocus.SetPaused(paused);
+        if (!paused)
+        {
+            m_agentGuideSelection.Clear();
+        }
     }
 
     EditorGuideFocus& EditorApplication::GetGuideFocus()
@@ -7069,6 +7104,8 @@ namespace JBro
         {
             return false;
         }
+        m_guide.Stop(m_guideFocus);
+        SetAgentGuidePaused(false);
         return m_guide.Start(*guide, *this, m_guideFocus);
     }
 
@@ -7087,6 +7124,7 @@ namespace JBro
         }
         // 돌던 가이드가 옛 글자를 가리키므로 먼저 멈추고 바꾼다.
         m_guide.Stop(m_guideFocus);
+        SetAgentGuidePaused(false);
         m_textGuide = std::move(loaded);
         if (false == m_guide.Start(m_textGuide->Get(), *this, m_guideFocus))
         {

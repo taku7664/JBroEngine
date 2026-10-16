@@ -87,7 +87,7 @@ namespace JBro::Agent
     }
     struct Tools::State
     {
-        struct Snapshot { String path, token, text; };
+        struct Snapshot { String path, token, text; UInt64 revision; };
         EditorApplication& editor;
         Array<Snapshot> snapshots;
         Array<Target> attachments;
@@ -132,12 +132,13 @@ namespace JBro::Agent
         }
         String ScriptPath(const String& relative)
         {
-            if (relative.empty() || relative.find(':') != String::npos || relative[0] == '/' || relative[0] == '\\')
+            if (relative.empty() || relative.find('\0') != String::npos || relative.find(':') != String::npos || relative[0] == '/' || relative[0] == '\\')
             {
                 return {};
             }
             const String path = EditorPaths::Normalize(EditorPaths::JoinPath(editor.GetScriptRoot().c_str(), relative.c_str()));
-            if (!Within(editor.GetScriptRoot(), path) || !(path.EndsWith(".h") || path.EndsWith(".hpp") || path.EndsWith(".cpp") || path.EndsWith(".jscript")))
+            if (!Within(editor.GetScriptRoot(), path) || !editor.GetPlatform().IsPathWithinDirectory(editor.GetScriptRoot().c_str(), path.c_str())
+                || !(path.EndsWith(".h") || path.EndsWith(".hpp") || path.EndsWith(".cpp") || path.EndsWith(".jscript")))
             {
                 return {};
             }
@@ -379,7 +380,6 @@ namespace JBro::Agent
                 {
                     return Ok({{"validated", true}});
                 }
-                editor.SetAgentGuidePaused(false);
                 if (!editor.StartGuideFromText(text.c_str(), text.size(), error))
                 {
                     return {false, error};
@@ -400,19 +400,37 @@ namespace JBro::Agent
             }
             if (name == "jbro_script_list")
             {
-                Json files = Json::array();
-                editor.GetPlatform().EnumerateDirectory(editor.GetScriptRoot().c_str(), [](const char* relative, Bool directory, void* user) -> Bool {
+                struct Collection { State& state; Json files = Json::array(); Array<String> directories; } collection{state};
+                const Bool listed = editor.GetPlatform().EnumerateDirectory(editor.GetScriptRoot().c_str(), [](const char* relative, Bool directory, void* user) -> Bool {
+                    auto& into = *static_cast<Collection*>(user);
+                    const auto& root = into.state.editor.GetScriptRoot();
+                    const String path = EditorPaths::JoinPath(root.c_str(), relative);
+                    if (!Within(root, path) || !into.state.editor.GetPlatform().IsPathWithinDirectory(root.c_str(), path.c_str()))
+                    {
+                        return false;
+                    }
+                    if (directory)
+                    {
+                        for (const auto& previous : into.directories)
+                        {
+                            if (previous == relative)
+                            {
+                                return false;
+                            }
+                        }
+                        into.directories.Add(relative);
+                    }
                     if (!directory)
                     {
                         const String path(relative);
                         if (path.EndsWith(".h") || path.EndsWith(".hpp") || path.EndsWith(".cpp") || path.EndsWith(".jscript"))
                         {
-                            static_cast<Json*>(user)->push_back(path);
+                            into.files.push_back(path);
                         }
                     }
                     return true;
-                }, &files);
-                return Ok(files);
+                }, &collection);
+                return listed ? Ok(collection.files) : Error("The project script directory could not be listed.");
             }
             if (name == "jbro_script_read" || name == "jbro_script_write")
             {
@@ -438,7 +456,7 @@ namespace JBro::Agent
                 if (name == "jbro_script_read")
                 {
                     const String token = state.Scope() + ":" + Digits(state.nextToken++);
-                    state.snapshots.Add({path, token, document->GetBufferText()});
+                    state.snapshots.Add({path, token, document->GetBufferText(), document->GetBuffer().GetRevision()});
                     if (state.snapshots.Size() > 64)
                     {
                         state.snapshots.RemoveAt(0);
@@ -454,7 +472,8 @@ namespace JBro::Agent
                         read = &snapshot;
                     }
                 }
-                if (read == nullptr || read->text != document->GetBufferText() || document->HasUnsavedChanges())
+                if (read == nullptr || read->revision != document->GetBuffer().GetRevision()
+                    || read->text != document->GetBufferText() || document->HasUnsavedChanges())
                 {
                     return Error("Script changed or has unsaved user edits. No overwrite was performed. Read again after resolving the conflict.");
                 }
@@ -473,6 +492,10 @@ namespace JBro::Agent
             if (name == "jbro_script_reference")
             {
                 const String requested = Get(args, "path");
+                if (requested.find('\0') != String::npos)
+                {
+                    return Error("Reference paths cannot contain NUL bytes.");
+                }
                 String root;
                 if (Get(args, "source") == "skill")
                 {
@@ -487,7 +510,8 @@ namespace JBro::Agent
                     return Error("Reference source must be skill or engine.");
                 }
                 const String path = EditorPaths::Normalize(EditorPaths::JoinPath(root.c_str(), requested.c_str()));
-                if (root.empty() || !Within(root, path) || !(path.EndsWith(".md") || path.EndsWith(".h") || path.EndsWith(".hpp") || path.EndsWith(".cpp")))
+                if (root.empty() || !Within(root, path) || !editor.GetPlatform().IsPathWithinDirectory(root.c_str(), path.c_str())
+                    || !(path.EndsWith(".md") || path.EndsWith(".h") || path.EndsWith(".hpp") || path.EndsWith(".cpp")))
                 {
                     return Error("Invalid reference path. Use relative bundled skill/documentation or engine declaration paths.");
                 }
@@ -528,8 +552,25 @@ namespace JBro::Agent
             }
             if (name == "jbro_script_create")
             {
+                const String folder = args.value("folder", "");
+                const String className = Get(args, "name");
+                if (folder.find('\0') != String::npos || className.find('\0') != String::npos)
+                {
+                    return Error("Script paths and names cannot contain NUL bytes.");
+                }
+                const String destination = EditorPaths::JoinPath(editor.GetScriptRoot().c_str(), (folder + "/" + className + ".h").c_str());
+                const String implementation = EditorPaths::JoinPath(editor.GetScriptRoot().c_str(), (folder + "/" + className + ".cpp").c_str());
+                if (!editor.GetPlatform().IsPathWithinDirectory(editor.GetScriptRoot().c_str(), destination.c_str())
+                    || !editor.GetPlatform().IsPathWithinDirectory(editor.GetScriptRoot().c_str(), implementation.c_str()))
+                {
+                    return Error("Script destination resolves outside the project script root.");
+                }
+                if (editor.CheckScriptName(folder.c_str(), className.c_str()) != ScriptProject::NameProblem::None)
+                {
+                    return Error("The script class name is invalid or already exists. No project generation was started.");
+                }
                 String error;
-                const String path = editor.CreateScript(args.value("folder", "").c_str(), Get(args, "name").c_str(), {}, error);
+                const String path = editor.CreateScript(folder.c_str(), className.c_str(), {}, error);
                 return path.empty() ? ToolResult{false, error} : Ok({{"created", path}, {"built", false}});
             }
             if (name == "jbro_object_create")

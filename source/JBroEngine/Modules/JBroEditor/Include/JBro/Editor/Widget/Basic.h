@@ -51,7 +51,7 @@ namespace JBro::Widget
     Bool Button(const char* label);
     // 앞에 아이콘이 붙은 글자 단추다(D-278). **Id 는 글자 단추와 같다**(이름 그대로) - 아이콘을 붙여도 시험·가이드가
     // 찾던 Id 가 바뀌지 않는다. 아이콘은 잉크로 글자와 같은 높이에 놓는다. `icon` 이 널이면 `Button(label)` 이다.
-    Bool Button(const char* label, const char* icon);
+    Bool Button(const char* label, const char* icon, const ImVec2& size = ImVec2(0.0f, 0.0f));
     // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
     Bool SelectableRow(const char* label, Bool selected);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
@@ -61,7 +61,7 @@ namespace JBro::Widget
     // 회색일 때 까닭을 띄우는 것은 메뉴 항목과 같다(`disabledReason`).
     Bool ActionButton(const char* label, Severity severity = Severity::Info,
         Bool enabled = true, const char* disabledReason = nullptr,
-        const ImVec2& size = ImVec2(0.0f, 0.0f));
+        const ImVec2& size = ImVec2(0.0f, 0.0f), const char* icon = nullptr);
     // 보이지 않는 누름 자리다. 그림·칸 위를 누르게 할 때 쓴다. 받을 단추를 고를 수 있다 -
     // 캔버스 뷰는 가운데 단추로 끌어 옮긴다.
     Bool HitArea(const char* id, const ImVec2& size,

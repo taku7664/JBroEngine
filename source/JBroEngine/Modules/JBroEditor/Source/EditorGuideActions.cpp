@@ -384,6 +384,10 @@ namespace JBro
         Bool DoneFocus(GuideStepBinding& binding, EditorApplication& editor, GuideStepMemo& memo)
         {
             auto* focused = editor.GetCanvasViewFocus();
+            if (binding.objectRef != GuideStepBinding::ObjectRef::None && binding.object == nullptr)
+            {
+                return false;
+            }
             return focused != nullptr && (binding.object != nullptr ? focused == binding.object.TryGet()
                 : TrackedId(editor, focused) != memo.values[0]);
         }
@@ -668,6 +672,10 @@ namespace JBro
         Bool FieldHoldsValue(GuideStepBinding& binding, EditorApplication& editor)
         {
             Object::GameObject* object = editor.GetSelectedObject();
+            if (binding.objectRef != GuideStepBinding::ObjectRef::None && object != binding.object.TryGet())
+            {
+                return false;
+            }
             if (object == nullptr || object->GetComponents().Size() == 0)
             {
                 return false;
@@ -693,6 +701,10 @@ namespace JBro
 
         const char* BlockedField(GuideStepBinding& binding, EditorApplication& editor)
         {
+            if (binding.objectRef != GuideStepBinding::ObjectRef::None && editor.GetSelectedObject() != binding.object.TryGet())
+            {
+                return Loc::TextOr(LocKeys::GuideNeedTargetObject, "select the highlighted object first");
+            }
             if (editor.GetSelectedObject() == nullptr)
             {
                 return NeedSelectedObject();

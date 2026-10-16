@@ -174,6 +174,7 @@ namespace JBro
 
         // 한 프레임을 나아간다. 가이드 포커스가 꺼졌으면(Esc) 멈춘다. 경로가 끊긴 단계는 로그를 남기고 건너뛴다.
         void Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action);
+        Bool RefreshCurrentStep(EditorApplication& editor, EditorGuideFocus& focus);
 
     private:
         // `from` 부터 가리킬 것이 있는 첫 단계로 들어간다. 없으면 끝난 것이다.

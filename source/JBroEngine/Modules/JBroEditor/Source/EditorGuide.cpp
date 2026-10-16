@@ -231,6 +231,32 @@ Steps:
         return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting || m_confirming);
     }
 
+    Bool EditorGuide::RefreshCurrentStep(EditorApplication& editor, EditorGuideFocus& focus)
+    {
+        const auto* step = GetStep();
+        if (step == nullptr || m_confirming)
+        {
+            return true;
+        }
+        GuideFocusPath path = step->path;
+        if (step->buildPath.IsBound())
+        {
+            path = {};
+            if (!step->buildPath.Invoke(editor, path))
+            {
+                Stop(focus);
+                return false;
+            }
+        }
+        if (!focus.Begin(path))
+        {
+            Stop(focus);
+            return false;
+        }
+        focus.SetKeyboardAllowed(step->keyboard);
+        return true;
+    }
+
     void EditorGuide::Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action)
     {
         if (m_guide == nullptr)

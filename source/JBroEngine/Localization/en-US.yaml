@@ -800,3 +800,6 @@ Entries:
   agent.remove_attachment: Remove
   agent.drop_here: Drop to attach
   agent.attachment_limit: You can attach up to 16 items per message.
+  agent.guide_target_lost: The guide target changed. Ask for a new guide.
+  agent.isolation_failed: External tools could not be disabled. Update Codex before connecting.
+  agent.restored_incomplete: This previous turn did not complete. Inspect applied changes before continuing; no work was replayed.

@@ -1214,6 +1214,7 @@ namespace JBro
         // 다시 읽으려면 처음에 어디서 읽었는지를 들고 있어야 한다.
         String m_localizationDirectory;
         Bool m_agentGuidePaused = false;
+        Array<SafePtr<Object::GameObject>> m_agentGuideSelection;
         UInt64 m_agentContextRevision = 1;
         // 아이콘 글꼴의 경로다. 실행 파일 기준으로 풀어 둔 값이다(D-176).
         String m_iconFontPath;

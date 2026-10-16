@@ -66,7 +66,7 @@ namespace JBro::Widget
         return pressed;
     }
 
-    Bool Button(const char* label, const char* icon)
+    Bool Button(const char* label, const char* icon, const ImVec2& size)
     {
         if (icon == nullptr)
         {
@@ -78,12 +78,13 @@ namespace JBro::Widget
         const ImVec2 textSize = ImGui::CalcTextSize(label, labelEnd);
         const Float lineHeight = ImGui::GetTextLineHeight();
         const Float iconWidth = lineHeight + style.ItemInnerSpacing.x;
+        const Float buttonWidth = size.x != 0.0f ? Float(size.x) : iconWidth + textSize.x + style.FramePadding.x * 2.0f;
         Bool pressed = false;
         {
             // 이름은 ImGui 가 그리지 않게 하고(Id 만 받는다) 아이콘과 이름을 직접 그린다.
             StyleScope hidden;
             hidden.PushColor(ImGuiCol_Text, ImVec4(0, 0, 0, 0));
-            pressed = ImGui::Button(label, ImVec2(iconWidth + textSize.x + style.FramePadding.x * 2.0f, 0.0f));
+            pressed = ImGui::Button(label, ImVec2(buttonWidth, size.y));
         }
         const ImVec2 min = ImGui::GetItemRectMin();
         const ImVec2 max = ImGui::GetItemRectMax();
@@ -102,8 +103,9 @@ namespace JBro::Widget
     }
 
     Bool ActionButton(const char* label, Severity severity, Bool enabled,
-        const char* disabledReason, const ImVec2& size)
+        const char* disabledReason, const ImVec2& size, const char* icon)
     {
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
         // `Info` 는 테마의 단추 그대로다 - 모든 단추가 물들면 무게가 뜻을 잃는다.
         const Bool tinted = severity != Severity::Info;
         if (tinted)
@@ -117,7 +119,7 @@ namespace JBro::Widget
         {
             ImGui::BeginDisabled();
         }
-        const Bool clicked = ImGui::Button(label, size);
+        const Bool clicked = icon != nullptr ? Button(label, icon, size) : Bool(ImGui::Button(label, size));
         if (false == enabled)
         {
             ImGui::EndDisabled();
@@ -127,6 +129,7 @@ namespace JBro::Widget
             ImGui::PopStyleColor(3);
         }
         DisabledReason(false == enabled, disabledReason);
+        Internal::ReportLastItem(target, false, clicked, enabled, disabledReason);
         return clicked;
     }
 

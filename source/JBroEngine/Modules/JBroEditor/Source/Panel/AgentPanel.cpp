@@ -1,6 +1,7 @@
 #include "AgentPanel.h"
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/AgentChat.h>
@@ -118,9 +119,9 @@ namespace JBro
         {
             m_scopeRevision = m_editor->GetAgentContextRevision();
             m_provider.Interrupt();
-            m_tools = MakeOwnerPtr<Agent::Tools>(*m_editor);
             // The callback must never retain the old Tools instance.
             m_provider.Stop();
+            m_tools = MakeOwnerPtr<Agent::Tools>(*m_editor);
         }
         m_provider.Poll(elapsed);
         if (!m_provider.GetThread().empty() && m_provider.GetThread() != m_thread)
@@ -242,11 +243,11 @@ namespace JBro
         if (connection == Agent::Connection::Stopped || connection == Agent::Connection::Failed)
         {
             if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentConnect, "Connect"), Widget::Severity::Success, !m_project.empty(),
-                Loc::TextOr(LocKeys::AgentProjectRequired, "Open a project first.")))
+                Loc::TextOr(LocKeys::AgentProjectRequired, "Open a project first."), {}, Icons::Play))
             {
                 Connect();
             }
-            if (Widget::Button(Loc::TextOr(LocKeys::AgentInstall, "Codex installation guide")))
+            if (Widget::Button(Loc::TextOr(LocKeys::AgentInstall, "Codex installation guide"), Icons::Question))
             {
                 m_editor->GetPlatform().OpenPathWithShell("https://learn.chatgpt.com/docs/cli");
             }
@@ -257,7 +258,7 @@ namespace JBro
         }
         else if (connection == Agent::Connection::SignedOut)
         {
-            if (Widget::Button(Loc::TextOr(LocKeys::AgentLoginChatgpt, "Sign in with ChatGPT")))
+            if (Widget::Button(Loc::TextOr(LocKeys::AgentLoginChatgpt, "Sign in with ChatGPT"), Icons::OpenExternal))
             {
                 m_provider.LoginChatGPT();
             }
@@ -265,7 +266,7 @@ namespace JBro
             form.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::AgentApiKey, "API key")), [&]() {
                 Widget::TextField("##agent.api_key", m_apiKey).Password().MaxLength(2047)();
             });
-            if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentLoginKey, "Sign in with API key"), Widget::Severity::Info, !m_apiKey.empty()))
+            if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentLoginKey, "Sign in with API key"), Widget::Severity::Info, !m_apiKey.empty(), nullptr, {}, Icons::OpenExternal))
             {
                 m_provider.LoginApiKey(m_apiKey);
                 std::fill(m_apiKey.begin(), m_apiKey.end(), '\0');
@@ -299,20 +300,20 @@ namespace JBro
         }
         if (connection == Agent::Connection::Running)
         {
-            if (Widget::Button(Loc::TextOr(LocKeys::AgentStop, "Stop")))
+            if (Widget::Button(Loc::TextOr(LocKeys::AgentStop, "Stop"), Icons::Stop))
             {
                 m_provider.Interrupt();
             }
         }
-        if (m_editor->IsAgentGuidePaused() && Widget::Button(Loc::TextOr(LocKeys::AgentResumeGuide, "Resume guide")))
+        if (m_editor->IsAgentGuidePaused() && Widget::Button(Loc::TextOr(LocKeys::AgentResumeGuide, "Resume guide"), Icons::Play))
         {
             m_editor->SetAgentGuidePaused(false);
         }
-        if (connection != Agent::Connection::Stopped && Widget::Button(Loc::TextOr(LocKeys::AgentDisconnect, "Disconnect")))
+        if (connection != Agent::Connection::Stopped && Widget::Button(Loc::TextOr(LocKeys::AgentDisconnect, "Disconnect"), Icons::Xmark))
         {
             m_provider.Stop();
         }
-        if (Widget::Button(Loc::TextOr(LocKeys::AgentNewChat, "New conversation")))
+        if (Widget::Button(Loc::TextOr(LocKeys::AgentNewChat, "New conversation"), Icons::Plus))
         {
             m_provider.ClearConversation();
             m_thread.clear();
@@ -347,7 +348,7 @@ namespace JBro
         ReceiveAttachments();
         if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentSend, "Send"), Widget::Severity::Success,
             connection == Agent::Connection::Ready && !m_input.empty() && valid,
-            !valid ? Loc::Text(LocKeys::AgentInvalidTarget) : Loc::TextOr(LocKeys::AgentNotReady, "Connect and sign in before sending a message.")))
+            !valid ? Loc::Text(LocKeys::AgentInvalidTarget) : Loc::TextOr(LocKeys::AgentNotReady, "Connect and sign in before sending a message."), {}, Icons::ArrowUp))
         {
             if (m_provider.Submit(m_input, m_tools->Context(m_attachments.View())))
             {

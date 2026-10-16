@@ -176,7 +176,8 @@ namespace
 JBro::Int32 RunAgentLiveTests()
 {
     using namespace JBro;
-    if (GetEnvironmentVariableW(L"JBRO_AGENT_LIVE", nullptr, 0) == 0)
+    wchar_t enabled[2]{};
+    if (GetEnvironmentVariableW(L"JBRO_AGENT_LIVE", enabled, 2) != 1 || enabled[0] != L'1')
     {
         std::cout << "AgentLive skipped: opt in with JBRO_AGENT_LIVE=1 (uses the installed Codex account)." << std::endl;
         return 0;

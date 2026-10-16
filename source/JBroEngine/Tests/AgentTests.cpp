@@ -24,6 +24,7 @@
 #include <chrono>
 #include <stdexcept>
 #include <cstring>
+#include <thread>
 
 namespace
 {
@@ -68,25 +69,39 @@ namespace
             return {true, "Applied once."};
         }
     };
-    void Ready(Agent::CodexProvider& provider, Channel& channel, Bool resume = false, const Json& turns = Json::array())
+    void Reply(Agent::CodexProvider& provider, Channel& channel, const Json& result)
     {
-        channel.Feed({{"id", 1}, {"result", Json::object()}});
+        channel.Feed({{"id", channel.Last()["id"]}, {"result", result}});
         provider.Poll(0.01f);
+    }
+    void Ready(Agent::CodexProvider& provider, Channel& channel, Bool resume = false, const Json& turns = Json::array(),
+        const Json& inventory = Json::array(), Bool expectReady = true)
+    {
+        Reply(provider, channel, Json::object());
+        Check(channel.Last()["method"] == "config/read", "effective project config is inspected through the official API");
+        Reply(provider, channel, {{"config", {{"mcp_servers", {{"inherited", {{"command", "unused"}, {"enabled", true}}}}},
+            {"plugins", {{"fixture@local", {{"enabled", true}}}}}}}});
         Check(channel.Last()["method"] == "account/read", "initialize must precede account access");
-        channel.Feed({{"id", 2}, {"result", {{"account", {{"type", "chatgpt"}}}}}});
-        provider.Poll(0.01f);
+        Reply(provider, channel, {{"account", {{"type", "chatgpt"}}}});
         Check(channel.Last()["method"] == "model/list", "signed-in account queries its model catalog");
-        channel.Feed({{"id", 3}, {"result", {{"data", Json::array({{{"model", "test-model"}, {"displayName", "Test"}, {"isDefault", true}}})}}}});
-        provider.Poll(0.01f);
+        Reply(provider, channel, {{"data", Json::array({{{"model", "test-model"}, {"displayName", "Test"}, {"isDefault", true}}})}});
         Check(channel.Last()["method"] == (resume ? "thread/resume" : "thread/start") && channel.Last()["params"]["model"] == "test-model", "thread explicitly uses the account catalog default, not an incompatible CLI default");
         Check(channel.Last()["params"]["sandbox"] == "read-only", "built-in filesystem stays read-only");
+        const auto config = channel.Last()["params"]["config"];
+        Check(config["mcp_servers"]["inherited"]["enabled"] == false && config["plugins"]["fixture@local"]["enabled"] == false
+            && config["features.apps"] == false, "inherited MCP/plugin entries and app tools are explicitly disabled");
         if (!resume)
         {
             Check(channel.Last()["params"]["dynamicTools"].is_array(), "thread receives dynamic tool definitions");
         }
-        channel.Feed({{"id", 4}, {"result", {{"thread", {{"id", "thread-test"}, {"turns", turns}}}}}});
-        provider.Poll(0.01f);
-        Check(provider.GetConnection() == Agent::Connection::Ready, "provider becomes ready after thread acknowledgment");
+        Reply(provider, channel, {{"thread", {{"id", "thread-test"}, {"turns", turns}}}});
+        Check(provider.GetConnection() == Agent::Connection::Starting && channel.Last()["method"] == "mcpServerStatus/list",
+            "thread acknowledgment alone cannot allow user turns before inventory verification");
+        const Json records = inventory.empty() ? Json::array({{{"name", "inherited"}, {"runtimeStatus", "disabled"},
+            {"tools", Json::object()}, {"resources", Json::array()}, {"resourceTemplates", Json::array()}}}) : inventory;
+        Reply(provider, channel, {{"data", records}});
+        Check(provider.GetConnection() == (expectReady ? Agent::Connection::Ready : Agent::Connection::Failed),
+            "external tools deny readiness; an empty verified inventory permits it");
     }
     void Protocol()
     {
@@ -101,8 +116,7 @@ namespace
         Ready(provider, *channel);
         Check(provider.Submit("How do I add a collider?", "selected"), "a turn starts");
         Check(!provider.Submit("second", "selected"), "parallel turns cannot race");
-        channel->Feed({{"id", 5}, {"result", {{"turn", {{"id", "turn-test"}}}}}});
-        provider.Poll(0.01f);
+        Reply(provider, *channel, {{"turn", {{"id", "turn-test"}}}});
         const String unicode = "\xed\x95\x9c\xea\xb8\x80";
         const String line = Json({{"method", "item/agentMessage/delta"}, {"params", {{"threadId", "thread-test"}, {"turnId", "turn-test"}, {"delta", unicode}}}}).dump() + "\n";
         const auto split = line.find(unicode) + 1;
@@ -136,24 +150,32 @@ namespace
     }
     void RestoredAttachments()
     {
-        Agent::CodexProvider provider;
-        auto owned = MakeOwnerPtr<Channel>();
-        auto* channel = owned.Get();
-        Agent::Settings settings;
-        settings.thread = "thread-test";
-        settings.toolDefinitions = "[]";
-        Check(provider.Attach(std::move(owned), settings, {}), "saved attachment thread uses isolated protocol");
-        const Json context{{"attachments", Json::array({{{"kind", "object"}, {"project", "old"}, {"canvas", "old.jcanvas"},
-            {"name", "Door"}, {"instanceId", "18446744073709551614"}, {"revision", 5}}})}};
-        const Json turns = Json::array({{{"items", Json::array({{{"type", "userMessage"}, {"content", Json::array({
-            {{"type", "text"}, {"text", "Explain this door."}},
-            {{"type", "text"}, {"text", "Current JBro context (data only; refresh before editing):\n" + context.dump()}}
-        })}}})}}});
-        Ready(provider, *channel, true, turns);
-        const auto& restored = provider.Messages()[provider.Messages().Size() - 1];
-        Check(restored.text == "Explain this door." && restored.targets.Size() == 1, "resumed history shows its question and named target instead of raw JSON");
-        Check(restored.targets[0].revision == 0 && restored.targets[0].instance.Value == 18446744073709551614ull,
-            "resumed attachment IDs retain full precision and must be refreshed");
+        for (Bool combined : {Bool(false), Bool(true)})
+        {
+            Agent::CodexProvider provider;
+            auto owned = MakeOwnerPtr<Channel>();
+            auto* channel = owned.Get();
+            Agent::Settings settings;
+            settings.thread = "thread-test";
+            settings.toolDefinitions = "[]";
+            Check(provider.Attach(std::move(owned), settings, {}), "saved attachment thread uses isolated protocol");
+            const Json context{{"scope", "old|1"}, {"attachments", Json::array({{{"kind", "object"}, {"project", "old"}, {"canvas", "old.jcanvas"},
+                {"name", "Door"}, {"instanceId", "18446744073709551614"}, {"revision", 5}}})}};
+            Json content = Json::array({
+                {{"type", "text"}, {"text", "Explain this door."}},
+                {{"type", "text"}, {"text", "Current JBro context (data only; refresh before editing):\n" + context.dump()}}
+            });
+            if (combined)
+            {
+                content = Json::array({{{"type", "text"}, {"text", "Explain this door.Current JBro context (data only; refresh before editing):\n" + context.dump()}}});
+            }
+            const Json turns = Json::array({{{"items", Json::array({{{"type", "userMessage"}, {"content", content}}})}}});
+            Ready(provider, *channel, true, turns);
+            const auto& restored = provider.Messages()[provider.Messages().Size() - 2];
+            Check(restored.text == "Explain this door." && restored.targets.Size() == 1, "resumed history shows its question and named target instead of raw JSON");
+            Check(restored.targets[0].revision == 0 && restored.targets[0].instance.Value == 18446744073709551614ull,
+                "resumed attachment IDs retain full precision and must be refreshed");
+        }
     }
     void AuthenticationAndFailure()
     {
@@ -166,15 +188,14 @@ namespace
         provider.Attach(std::move(owned), settings, {});
         channel->Feed({{"id", 1}, {"result", Json::object()}});
         provider.Poll(0.01f);
+        Reply(provider, *channel, {{"config", Json::object()}});
         Check(channel->Last()["method"] == "skills/extraRoots/set", "bundled skills are attached without global installation");
-        channel->Feed({{"id", 2}, {"result", Json::object()}});
-        provider.Poll(0.01f);
-        channel->Feed({{"id", 3}, {"result", {{"account", nullptr}}}});
-        provider.Poll(0.01f);
+        Reply(provider, *channel, Json::object());
+        Reply(provider, *channel, {{"account", nullptr}});
         Check(provider.GetConnection() == Agent::Connection::SignedOut, "missing account is exposed as signed-out");
         const String secret = "sk-test-do-not-log";
         provider.LoginApiKey(secret);
-        channel->Feed({{"id", 4}, {"error", {{"message", secret}}}});
+        channel->Feed({{"id", channel->Last()["id"]}, {"error", {{"message", secret}}}});
         provider.Poll(0.01f);
         Check(provider.GetError().find(secret) == String::npos, "authentication error bodies never expose API keys");
         for (const auto& message : provider.Messages())
@@ -188,6 +209,76 @@ namespace
         provider.Attach(std::move(another), settings, {});
         provider.Poll(46.0f);
         Check(provider.GetConnection() == Agent::Connection::Failed, "incompatible or unresponsive startup times out");
+    }
+    void IsolationPaginationAndRestoration()
+    {
+        Agent::CodexProvider blocked;
+        auto owned = MakeOwnerPtr<Channel>();
+        auto* channel = owned.Get();
+        Agent::Settings settings;
+        settings.toolDefinitions = "[]";
+        blocked.Attach(std::move(owned), settings, {});
+        Ready(blocked, *channel, false, Json::array(), Json::array({{{"tools", {{"external_write", Json::object()}}}}}), false);
+        Check(!blocked.Submit("change something", "{}"), "external MCP tools must block model turns");
+        Agent::CodexProvider resources;
+        owned = MakeOwnerPtr<Channel>();
+        channel = owned.Get();
+        resources.Attach(std::move(owned), settings, {});
+        Ready(resources, *channel, false, Json::array(), Json::array({{{"tools", Json::object()}, {"runtimeStatus", "connected"},
+            {"resources", Json::array({{{"uri", "external://write"}}})}, {"resourceTemplates", Json::array()}}}), false);
+        Agent::CodexProvider enforced;
+        owned = MakeOwnerPtr<Channel>();
+        channel = owned.Get();
+        enforced.Attach(std::move(owned), settings, {});
+        Reply(enforced, *channel, Json::object());
+        Reply(enforced, *channel, {{"config", {{"features", {{"hooks", true}}}}}});
+        Check(enforced.GetConnection() == Agent::Connection::Failed, "a feature that remains enabled denies connection before a thread is created");
+
+        Agent::CodexProvider paged;
+        owned = MakeOwnerPtr<Channel>();
+        channel = owned.Get();
+        settings.model = "later";
+        settings.thread = "saved";
+        paged.Attach(std::move(owned), settings, {});
+        Reply(paged, *channel, Json::object());
+        Reply(paged, *channel, {{"config", Json::object()}});
+        Reply(paged, *channel, {{"account", {{"type", "chatgpt"}}}});
+        Reply(paged, *channel, {{"data", Json::array({{{"model", "first"}, {"isDefault", true}}})}, {"nextCursor", "page2"}});
+        Check(channel->Last()["method"] == "model/list" && channel->Last()["params"]["cursor"] == "page2", "model pagination finishes before starting a thread");
+        Reply(paged, *channel, {{"data", Json::array({{{"model", "later"}}})}, {"nextCursor", nullptr}});
+        Check(channel->Last()["params"]["model"] == "later", "saved model on a later page remains selected");
+        const Json turns = Json::array({{{"status", "failed"}, {"error", {{"message", "fixture failure"}}},
+            {"items", Json::array({{{"type", "agentMessage"}, {"text", "Partial response"}}})}},
+            {{"status", "inProgress"}, {"items", Json::array()}}});
+        Reply(paged, *channel, {{"thread", {{"id", "saved"}, {"turns", turns}}}});
+        Reply(paged, *channel, {{"data", Json::array()}, {"nextCursor", "inventory2"}});
+        Check(paged.GetConnection() == Agent::Connection::Starting, "all MCP inventory pages are verified");
+        Reply(paged, *channel, {{"data", Json::array()}});
+        UInt32 errors = 0;
+        for (const auto& message : paged.Messages())
+        {
+            if (message.role == Agent::MessageRole::Error)
+            {
+                ++errors;
+            }
+        }
+        Check(errors == 3, "failed and unfinished restored turns remain explicitly incomplete");
+        Check(paged.GetConnection() == Agent::Connection::Ready, "restored failures allow a new request, never automatic replay");
+        channel->running = false;
+        paged.Poll(0.01f);
+        Check(paged.GetConnection() == Agent::Connection::Failed, "process exit invalidates readiness");
+
+        Agent::CodexProvider cycle;
+        owned = MakeOwnerPtr<Channel>();
+        channel = owned.Get();
+        cycle.Attach(std::move(owned), settings, {});
+        Reply(cycle, *channel, Json::object());
+        Reply(cycle, *channel, {{"config", Json::object()}});
+        Reply(cycle, *channel, {{"account", {{"type", "chatgpt"}}}});
+        const Json repeat{{"data", Json::array()}, {"nextCursor", "same"}};
+        Reply(cycle, *channel, repeat);
+        Reply(cycle, *channel, repeat);
+        Check(cycle.GetConnection() == Agent::Connection::Failed, "repeated cursors cannot loop indefinitely");
     }
     struct Files
     {
@@ -212,6 +303,103 @@ namespace
             file.write(text.data(), static_cast<std::streamsize>(text.size()));
         }
     };
+    void JunctionBoundary(EditorApplication& editor, Files& files, Agent::Tools& tools, const String& scope)
+    {
+        std::filesystem::create_directories(files.root / "Outside");
+        files.Write("Outside/Outside.cpp", "// outside\n");
+        const auto link = files.root / "Contents/Scripts/Linked";
+        struct RemoveLink
+        {
+            std::filesystem::path path;
+            ~RemoveLink()
+            {
+                std::error_code error;
+                std::filesystem::remove(path, error);
+            }
+        } cleanup{link};
+        auto& platform = editor.GetPlatform();
+        Check(platform.IsPathWithinDirectory(files.Path("FutureScripts").c_str(), files.Path("FutureScripts/Deep/New.h").c_str()),
+            "a project can create its first script before the script directory exists");
+        Check(!platform.IsPathWithinDirectory(files.Path("FutureScripts").c_str(), files.Path("FutureScripts/../Outside/Outside.cpp").c_str()),
+            "a missing script directory does not permit parent traversal");
+        const String command = "cmd.exe /d /c mklink /J \"" + files.Path("Contents/Scripts/Linked") + "\" \"" + files.Path("Outside") + "\"";
+        auto process = platform.StartProcess(command.c_str(), files.Path("").c_str(), files.Path("junction.log").c_str());
+        Int32 exit = -1;
+        ProcessStatus status = ProcessStatus::Running;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (status == ProcessStatus::Running && std::chrono::steady_clock::now() < deadline)
+        {
+            status = platform.PollProcess(process, exit);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        platform.CloseProcess(process);
+        Check(status == ProcessStatus::Exited && exit == 0, "isolated Windows junction fixture is created");
+        Check(!tools.Execute("jbro_script_read", Json({{"scope", scope}, {"path", "Linked/Outside.cpp"}}).dump()).success,
+            "script reads cannot follow a junction outside the script root");
+        Check(!tools.Execute("jbro_script_write", Json({{"scope", scope}, {"path", "Linked/Outside.cpp"}, {"token", "any"}, {"text", "overwrite"}}).dump()).success,
+            "script writes cannot follow a junction outside the script root");
+        Check(!tools.Execute("jbro_script_create", Json({{"scope", scope}, {"folder", "Linked"}, {"name", "Escaped"}}).dump()).success,
+            "script creation cannot follow a junction outside the script root");
+        const auto listed = tools.Execute("jbro_script_list", "{}");
+        Check(listed.success && listed.text.find("Outside") == String::npos, "script listing omits external junction targets");
+        std::ifstream outside(files.root / "Outside/Outside.cpp", std::ios::binary);
+        const std::string actual((std::istreambuf_iterator<char>(outside)), std::istreambuf_iterator<char>());
+        Check(actual == "// outside\n" && !std::filesystem::exists(files.root / "Outside/Escaped.h"), "outside script content remains untouched");
+    }
+    void GuideResume(EditorApplication& editor, Agent::Tools& tools, const String& scope, const String& object)
+    {
+        auto* original = editor.GetSelectedObject();
+        const String yaml = "Id: resume\nTitle:\n  Key: test.resume\n  String: Resume\n  Loc: en-US\nSteps:\n"
+            "  - Do: field.edit\n    Object: " + object + "\n    Component: Transform2D\n    Field: rotation\n    Value: 15\n"
+            "    Title:\n      Key: test.resume.title\n      String: Rotate original\n      Loc: en-US\n"
+            "    Body:\n      Key: test.resume.body\n      String: Set the original rotation\n      Loc: en-US\n";
+        Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", yaml}}).dump()).success, "resume guide starts");
+        editor.SetAgentGuidePaused(true);
+        const auto created = tools.Execute("jbro_object_create", Json({{"scope", scope}, {"parent", ""}}).dump());
+        Check(created.success, "another object can be selected while chatting");
+        const String other = Json::parse(created.text)["instanceId"].get<std::string>();
+        const auto detail = tools.Execute("jbro_object_read", Json({{"scope", scope}, {"object", other}}).dump());
+        const auto transform = Json::parse(detail.text)["components"][0];
+        for (const auto& field : transform["fields"])
+        {
+            if (field["name"] == "rotation")
+            {
+                Check(tools.Execute("jbro_field_set", Json({{"scope", scope}, {"object", other}, {"component", transform["instanceId"]},
+                    {"field", "rotation"}, {"expected", field["valueYaml"]}, {"value", "15"}}).dump()).success, "other object holds the target value");
+            }
+        }
+        editor.SetAgentGuidePaused(false);
+        Check(editor.GetSelectedObject() == original && editor.GetGuide().WhyNextBlocked(editor) != nullptr,
+            "resume restores the original object; another object's value cannot complete its step");
+        String selectionYaml = yaml;
+        selectionYaml.replace(selectionYaml.find("Object: ") + 8, object.size(), "Selection");
+        Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", selectionYaml}}).dump()).success, "selection-bound guide starts");
+        Object::GameObject* alternative = nullptr;
+        editor.GetCanvas()->ForEachObject([&](Object::GameObject& candidate) {
+            if (&candidate != original)
+            {
+                alternative = &candidate;
+            }
+        });
+        Check(alternative != nullptr && alternative != original, "alternative selection exists");
+        editor.SetAgentGuidePaused(true);
+        editor.SetSelectedObject(alternative);
+        editor.SetAgentGuidePaused(false);
+        Check(editor.GetSelectedObject() == original && editor.GetGuide().WhyNextBlocked(editor) != nullptr,
+            "Selection is captured for the paused step, not rebound to a later selection");
+        editor.SetAgentGuidePaused(true);
+        String replacement = yaml;
+        replacement.replace(replacement.find("Object: ") + 8, object.size(), other);
+        Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", replacement}}).dump()).success,
+            "a replacement guide can start during chat");
+        Check(!editor.IsAgentGuidePaused() && editor.GetSelectedObject() == alternative, "new guide does not inherit the paused guide's selection");
+        Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", yaml}}).dump()).success, "original target guide restarts");
+        editor.SetAgentGuidePaused(true);
+        Check(tools.Execute("jbro_object_delete", Json({{"scope", scope}, {"object", object}}).dump()).success, "guide target can disappear while chatting");
+        editor.SetAgentGuidePaused(false);
+        Check(!editor.GetGuide().IsRunning(), "a deleted target stops the guide instead of substituting another object");
+        editor.GetCanvas()->ForEachObject([&](Object::GameObject& remaining) { editor.SetSelectedObject(&remaining); });
+    }
     void SaveAttachmentImage(EditorApplication& editor, const char* suffix)
     {
         char* directory = nullptr;
@@ -418,8 +606,7 @@ namespace
         Check(provider.Messages()[provider.Messages().Size() - 1].targets.Size() == 3, "sent message retains typed named references; automatic selection is deduplicated");
         Check(editor.GetCommands().GetRevision() == commandsBefore, "attachments do not change the scene or its undo history");
         renderPanel("sent");
-        channel->Feed({{"id", 5}, {"result", {{"turn", {{"id", "attachments-turn"}}}}}});
-        provider.Poll(0.01f);
+        Reply(provider, *channel, {{"turn", {{"id", "attachments-turn"}}}});
         channel->Feed({{"method", "turn/completed"}, {"params", {{"threadId", "thread-test"}, {"turn", {{"id", "attachments-turn"}, {"status", "completed"}}}}}});
         provider.Poll(0.01f);
         drag(0);
@@ -435,7 +622,8 @@ namespace
         }
         Check(child != nullptr, "pending attachment list is visible");
         const int first = 0;
-        Widget::ItemLocator::Watch(ImHashStr(Loc::Text(LocKeys::AgentRemoveAttachment), 0, ImHashData(&first, sizeof(first), child->ID)));
+        Widget::ItemLocator::Watch(ImHashStr(Loc::Text(LocKeys::AgentRemoveAttachment), 0,
+            ImHashData(&first, sizeof(first), ImHashStr("##attachment.rows", 0, child->ID))));
         frame();
         Widget::ItemLocator::ItemRect remove;
         Check(Widget::ItemLocator::Take(remove), "attachment removal is visible");
@@ -516,6 +704,23 @@ namespace
         Check(!execute("jbro_script_write", {{"scope", scope}, {"path", "Probe.cpp"}, {"token", Json::parse(dirty.text)["token"]}, {"text", "// discard user\n"}}).success,
             "unsaved document edits are not overwritten");
         Check(!execute("jbro_script_read", {{"scope", scope}, {"path", "../../outside.cpp"}}).success, "script paths cannot escape the script root");
+        Check(document->Save(), "dirty fixture is explicitly saved by the test user");
+        const auto versioned = execute("jbro_script_read", {{"scope", scope}, {"path", "Probe.cpp"}});
+        document->GetBuffer().SetText("// transient user change\n");
+        document->GetBuffer().SetText("// original\n");
+        Check(!execute("jbro_script_write", {{"scope", scope}, {"path", "Probe.cpp"}, {"token", Json::parse(versioned.text)["token"]}, {"text", "// stale version\n"}}).success,
+            "returning to equal text does not revive a token from an older document revision");
+        document->OnUpdate(0.01f);
+        JunctionBoundary(editor, files, tools, scope);
+        files.Write("Contents/Scripts/NotSource.txt", "not a script\n");
+        String nulPath = "NotSource.txt";
+        nulPath.push_back('\0');
+        nulPath += ".cpp";
+        Check(!execute("jbro_script_read", {{"scope", scope}, {"path", nulPath}}).success, "NUL cannot bypass the script extension check at a C-string boundary");
+        String nulReference = "jbro-guide/SKILL.md";
+        nulReference.push_back('\0');
+        nulReference += ".h";
+        Check(!execute("jbro_script_reference", {{"source", "skill"}, {"path", nulReference}}).success, "reference paths reject NUL aliases");
         Check(!execute("jbro_guide_start", {{"scope", scope}, {"yaml", "Id: invalid\nSteps: []\n"}}).success, "invalid generated guides are rejected");
         auto* panel = static_cast<AgentPanel*>(editor.CreatePanel(AgentPanel::TypeName));
         Check(panel != nullptr, "AI panel is created by the panel registry");
@@ -524,8 +729,18 @@ namespace
             Check(editor.Tick(0.016f), "real editor draws the AI panel using common widgets");
         }
         AttachmentInput(editor, *panel, tools);
+        GuideResume(editor, tools, scope, object);
         editor.CloseProject();
         Check(!execute("jbro_object_delete", {{"scope", scope}, {"object", object}}).success, "closed-project references are invalid");
+        files.Write("NewGame.jproject", "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\nAssetDirectory: Assets\nScriptSourceDirectory: NewSource\n");
+        Check(editor.OpenProjectFile(files.Path("NewGame.jproject").c_str(), error), "empty script project opens");
+        Check(!std::filesystem::exists(files.root / "NewSource/Scripts"), "first script fixture has no source directory");
+        const String newScope = Json::parse(tools.Context())["scope"].get<std::string>();
+        Check(execute("jbro_script_create", {{"scope", newScope}, {"folder", ""}, {"name", "FirstScript"}}).success,
+            "the engine tool creates a first C++ script in a previously absent source directory");
+        Check(std::filesystem::exists(files.root / "NewSource/Scripts/FirstScript.h")
+            && std::filesystem::exists(files.root / "NewSource/Scripts/FirstScript.cpp"), "first script creation emits the actual C++ source pair");
+        editor.CloseProject();
         editor.Shutdown();
     }
 }
@@ -534,6 +749,7 @@ JBro::Int32 RunAgentTests()
     Protocol();
     RestoredAttachments();
     AuthenticationAndFailure();
+    IsolationPaginationAndRestoration();
     EngineTools();
     return 0;
 }

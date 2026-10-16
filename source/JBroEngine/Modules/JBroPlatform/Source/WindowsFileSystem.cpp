@@ -86,6 +86,39 @@ namespace JBro
         }
     }
 
+    Bool WindowsPlatform::IsPathWithinDirectory(const char* root, const char* path) const
+    {
+        if (root == nullptr || path == nullptr || *root == 0 || *path == 0)
+        {
+            return false;
+        }
+        std::error_code error;
+        const auto directory = fs::weakly_canonical(ToPath(root), error);
+        if (error || !directory.is_absolute())
+        {
+            return false;
+        }
+        const Bool exists = fs::exists(directory, error);
+        if (error || (exists && !fs::is_directory(directory, error)) || error)
+        {
+            return false;
+        }
+        const auto target = fs::weakly_canonical(ToPath(path), error);
+        if (error)
+        {
+            return false;
+        }
+        auto base = directory.native();
+        if (!base.empty() && base.back() != L'\\')
+        {
+            base += L'\\';
+        }
+        const auto resolved = target.native();
+        return resolved.size() > base.size()
+            && CompareStringOrdinal(base.data(), static_cast<int>(base.size()), resolved.data(),
+                static_cast<int>(base.size()), TRUE) == CSTR_EQUAL;
+    }
+
     Bool WindowsPlatform::ReadWholeFile(const char* utf8Path, Array<std::byte>& contents)
     {
         std::ifstream file(ToPath(utf8Path), std::ios::binary | std::ios::ate);

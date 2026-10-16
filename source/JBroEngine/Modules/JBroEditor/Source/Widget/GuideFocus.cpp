@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/Widget/GuideFocus.h>
 
 #include <JBro/Editor/EditorTheme.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Widget/Basic.h>
 
 #include <imgui_internal.h>
@@ -419,7 +420,7 @@ namespace JBro::Widget
                 if (balloon.chatLabel != nullptr)
                 {
                     nextInRow();
-                    if (Button(balloon.chatLabel))
+                    if (Button(balloon.chatLabel, Icons::Question))
                     {
                         action = GuideFocusAction::Chat;
                     }

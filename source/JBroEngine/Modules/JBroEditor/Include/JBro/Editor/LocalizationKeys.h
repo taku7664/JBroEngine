@@ -875,4 +875,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AgentRemoveAttachment = "agent.remove_attachment";
     inline constexpr const char* AgentDropHere = "agent.drop_here";
     inline constexpr const char* AgentAttachmentLimit = "agent.attachment_limit";
+    inline constexpr const char* AgentGuideTargetLost = "agent.guide_target_lost";
+    inline constexpr const char* AgentIsolationFailed = "agent.isolation_failed";
+    inline constexpr const char* AgentRestoredIncomplete = "agent.restored_incomplete";
 }
