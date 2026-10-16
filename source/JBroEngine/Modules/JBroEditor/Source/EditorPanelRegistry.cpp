@@ -18,6 +18,7 @@
 #include "Panel/NodeGraphInspectorPanel.h"
 #include "Panel/SpriteViewerPanel.h"
 #include "Panel/CodeEditorPanel.h"
+#include "Panel/MarkdownPanel.h"
 #include "Panel/ScriptSummaryPanel.h"
 #include "Panel/StatsPanel.h"
 
@@ -164,6 +165,14 @@ namespace JBro
         RegisterEditorPanelType<ScriptSummaryPanel>(false, CodeEditorPanel::DockAreaName);
         ScriptSummaryPanel::RegisterActions();
         CodeEditorPanel::RegisterActions();
+        EditorDockAreaInfo documents;
+        documents.name = MarkdownPanel::DockAreaName;
+        documents.titleKey = LocKeys::MarkdownTitle;
+        documents.fallbackTitle = "Documents";
+        EditorPanelRegistry::Get().RegisterDockArea(documents);
+        RegisterEditorPanelType<MarkdownPanel>(false, MarkdownPanel::DockAreaName);
+        MarkdownPanel::RegisterActions();
+
         // 사운드 이펙트 창도 파일을 여는 창이다(D-306, 기존 `CEffectEditorWindow`). 제 도크에 `.jfx` 마다 열린다.
         EditorDockAreaInfo effects;
         effects.name = SoundEffectPanel::DockAreaName;

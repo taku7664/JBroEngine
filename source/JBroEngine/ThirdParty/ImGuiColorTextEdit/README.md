@@ -15,6 +15,8 @@
 8. 클립보드 행동 소유권: `SetExternalClipboardActions`를 켜면 Ctrl+X/C/V/A·Ctrl+Delete·Ctrl+Insert·Shift+Insert를 vendor에서 실행하거나 소비하지 않는다. 엔진 패널은 행동 표와 사용자 키 설정 한 경로에서 처리하고 우클릭 메뉴도 같은 행동을 표시한다. 외부 행동 관리자가 없는 위젯은 native 편집 기능만 제공하고 고정 단축키를 메뉴에 표시하지 않는다. native 잘라내기는 읽기 전용에서 차단하며, 중복돼 있던 붙여넣기 Ctrl+Insert 분기는 Shift+Insert로 바로잡았다. 심볼·중단점·요약 툴팁은 엔진 래퍼의 공통 `HoveredTooltip` 지연 정책을 따른다.
 9. 팝업 수명 위임: `SetTextContextMenuRenderer`를 설정하면 vendor는 우클릭 요청과 소스 위치만 넘기고, 매 프레임 호출되는 소유자가 팝업의 열기·시작·종료를 맡는다. 엔진 래퍼는 공통 `Widget::OpenContextMenu`·`BeginOpenedContextMenu`·`EndContextMenu`로 전체 수명을 처리한다. renderer를 설정하지 않은 독립 사용자는 기존 upstream callback과 팝업 동작을 유지한다. ThirdParty에 엔진 헤더 의존성은 추가하지 않는다.
 
+10. 읽기 전용 어휘 색상 스냅샷: `GetColorizedSpans`는 기존 Colorizer를 갱신한 뒤 줄·글자 범위·색상 종류를 반환한다. ImGui 렌더링·커서·Undo·편집을 실행하지 않는다. Markdown 코드 블록은 이 API를 사용하며 JBroScript 언어 정의와 팔레트는 기존 `Widget::CodeEditor`와 공유한다.
+
 엔진 패널은 `Widget::CodeEditor`를 통해 이 위젯을 사용한다. LSP 프로세스·파일 저장·도크 수명은 vendor 코드가 맡지 않는다.
 
 ## pin 재현과 유지보수
@@ -34,8 +36,8 @@ upstream pin을 바꿀 때도 로컬 수정의 필요 여부와 패치 문맥을
 
 | 파일 | upstream | 현재 로컬 수정, LF 기준 |
 |---|---|---|
-| `TextEditor.h` | `fb7e3a27c9b1f6a2898f16f69ca415e74267a21e9e3eab0e97599ca689b8e9e3` | `ffa82326ccdd18f41ec5818e3c19d2afe58bfc0a6dd30da88437822d9b4b3363` |
-| `TextEditor.cpp` | `9591def9022bbd5e693b1927955252af95fa980e81741411f1a3951b096733ee` | `97db6f3007b84827bc811bb3a800be9ca5c39b48c4086adbd1af4e4e580a1d8f` |
+| `TextEditor.h` | `fb7e3a27c9b1f6a2898f16f69ca415e74267a21e9e3eab0e97599ca689b8e9e3` | `67b8af31bcc1ca4e6f2cf29a8e0748157ee0ba81a4ccaa4bd80ab4878e88ee41` |
+| `TextEditor.cpp` | `9591def9022bbd5e693b1927955252af95fa980e81741411f1a3951b096733ee` | `7ddc7a5cb112829c2af005f0b8e8b59cf83fcbc141da82f0cda85f239fa5d9c9` |
 
 최초 통합에서는 Debug/Release 전체 빌드·CodeEditor suite, 관련 회귀 10개·긴 회귀 5개와 실제 IME·진단 해제·탭·저장/재불러오기·단일 Undo/Redo·전체 삭제/복구·LSP 재연결을 확인했다. 정확한 편집 통지 확장은 Debug 위젯 회귀에서 동일 줄 삽입, 1,500줄 파일의 떨어진 편집, 중간 이력 복원과 역순 Undo 통지를 검증했다. 정확한 범위와 후속 기능은 [통합 기록](../../../../tasks/imgui-code-editor-integration.md)에 있다.
 줄 번호·참조 배경 확장은 정식 Debug `CodeEditor` 회귀에서 전체 줄 호버, 한글·탭·빈 줄·마지막 줄 선택, 양방향 드래그, 22px 확대와 가로·세로 스크롤, 중단점 프리뷰와 선택의 분리, UTF-16 범위 선택, 툴팁과 참조 배경, 우클릭 메뉴의 단일 Undo/Redo 및 읽기 전용 동작을 검증했다. 실제 호스트의 화면 검증은 엔진 통합 기록에서 별도로 보고한다.

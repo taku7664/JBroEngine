@@ -11,6 +11,20 @@ namespace JBro
     // 에디터의 생김새다. 색·치수·글꼴이 모두 여기서 나온다.
     namespace EditorTheme
     {
+        inline constexpr Float MarkdownLineHeight = 1.4f;
+        inline constexpr Float MarkdownBlockGap = 0.55f;
+        inline constexpr Float MarkdownIndent = 2.0f;
+        inline constexpr Float MarkdownMinimumCellWidth = 9.0f;
+        inline constexpr Float MarkdownTabWidth = 2.4f;
+        inline constexpr Float MarkdownNewlineWidth = 0.35f;
+        inline constexpr Float MarkdownBorderWidth = 1.0f;
+        inline constexpr Float MarkdownBoldOffset = 0.55f;
+        inline constexpr Float MarkdownItalicShear = 0.18f;
+        inline constexpr Float MarkdownSelectionAlpha = 0.35f;
+        inline constexpr Float MarkdownCurrentMatchAlpha = 0.65f;
+        inline constexpr Float MarkdownAutoScrollSpeed = 12.0f;
+        inline constexpr Float MarkdownCopyButtonWidth = 5.0f;
+        inline constexpr Float MarkdownHeadingScale[] = {1.85f, 1.55f, 1.3f, 1.15f, 1.05f, 1.0f};
         // ── 팔레트 ────────────────────────────────────────────────────────
         //
         // **밝기 계층**이다. 깊은 자리에서 얕은 자리로 올라간다. 이 순서가 깨지면

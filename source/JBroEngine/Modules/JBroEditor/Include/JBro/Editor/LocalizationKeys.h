@@ -9,6 +9,18 @@
 // 이름은 `점.으로.구분한.소문자` 다. 앞부분이 화면(패널) 이름이다.
 namespace JBro::LocKeys
 {
+    inline constexpr const char* MarkdownTitle = "markdown.title";
+    inline constexpr const char* MarkdownOpen = "markdown.open";
+    inline constexpr const char* MarkdownReload = "markdown.reload";
+    inline constexpr const char* MarkdownFind = "markdown.find";
+    inline constexpr const char* MarkdownPrevious = "markdown.previous";
+    inline constexpr const char* MarkdownNext = "markdown.next";
+    inline constexpr const char* MarkdownCloseFind = "markdown.closefind";
+    inline constexpr const char* MarkdownLoading = "markdown.loading";
+    inline constexpr const char* MarkdownReadFailed = "markdown.readfailed";
+    inline constexpr const char* MarkdownImageUnavailable = "markdown.imageunavailable";
+    inline constexpr const char* MarkdownUnsupportedLink = "markdown.unsupportedlink";
+
     // ── 패널 제목 ────────────────────────────────────────────────────────
     inline constexpr const char* PanelSimulation = "panel.simulation";
     inline constexpr const char* PanelCanvasView = "panel.canvas_view";

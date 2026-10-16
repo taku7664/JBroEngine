@@ -741,3 +741,15 @@ Entries:
   script_summary.automatic_exclude: "자동 제외"
   script_summary.explicit_exclude: "저장 제외 명시"
   script_summary.edit_rejected: "설정을 적용하지 못했습니다. 입력한 표현식을 확인해 주세요."
+
+  markdown.title: 문서
+  markdown.open: Markdown 문서 열기...
+  markdown.reload: 디스크에서 다시 읽기
+  markdown.find: 문서에서 찾기
+  markdown.previous: 이전
+  markdown.next: 다음
+  markdown.closefind: 찾기 닫기
+  markdown.loading: 문서를 읽는 중...
+  markdown.readfailed: 문서를 읽지 못했습니다. 마지막으로 읽은 내용을 유지합니다.
+  markdown.imageunavailable: 로컬 이미지를 읽지 못했거나 지원하지 않는 형식입니다.
+  markdown.unsupportedlink: 지원하지 않는 링크입니다.

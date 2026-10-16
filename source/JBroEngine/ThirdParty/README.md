@@ -29,6 +29,11 @@ include 경로를 선언해야 하고, 선언하지 않은 모듈에서 include 
 
 ## 들어 있는 것
 
+### MD4C — release-0.5.2, MIT
+
+읽기 전용 Markdown 문서 뷰의 구문 분석에 사용한다. 커밋 `729e6b8b320caa96328968ab27d7db2235e4fb47`의 파서와 엔티티 표를 원본 그대로 보존했다.
+자체 문서 모델·배치·선택·검색은 JBroEditor에 두며 HTML 렌더러를 연결하지 않는다. 출처·해시·빌드 경계는 [md4c/README.md](./md4c/README.md)를 따른다.
+
 ### nlohmann-json — v3.12.0, MIT
 
 `JBroScriptLanguageServer`와 `JBroEditor`의 내장 LSP 클라이언트 내부에서 LSP/JSON-RPC 경계의 직렬화·역직렬화에 사용한다(D-316·D-335). 엔진 프로젝트 파일은 YAML을 유지한다.

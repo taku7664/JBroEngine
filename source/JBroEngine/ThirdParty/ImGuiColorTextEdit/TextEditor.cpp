@@ -14354,3 +14354,22 @@ const TextEditor::Language* TextEditor::Language::Sql() {
 
 	return &language;
 }
+
+// Read-only lexical snapshot. No ImGui context, cursor or undo state is required.
+std::vector<TextEditor::ColoredSpan> TextEditor::GetColorizedSpans() {
+    colorizer.update(config, document);
+    std::vector<ColoredSpan> result;
+    for (size_t row = 0; row < document.size(); ++row) {
+        const auto& line = document[row];
+        size_t first = 0;
+        while (first < line.size()) {
+            size_t last = first + 1;
+            while (last < line.size() && line[last].color == line[first].color) {
+                ++last;
+            }
+            result.push_back({DocPos(row, first), DocPos(row, last), line[first].color});
+            first = last;
+        }
+    }
+    return result;
+}

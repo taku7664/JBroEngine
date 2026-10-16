@@ -741,3 +741,15 @@ Entries:
   script_summary.automatic_exclude: "Automatically excluded"
   script_summary.explicit_exclude: "Explicitly excluded"
   script_summary.edit_rejected: "The setting could not be applied. Check the expression you entered."
+
+  markdown.title: Documents
+  markdown.open: Open Markdown document...
+  markdown.reload: Reload from disk
+  markdown.find: Find in document
+  markdown.previous: Previous
+  markdown.next: Next
+  markdown.closefind: Close find
+  markdown.loading: Reading document...
+  markdown.readfailed: The document could not be read. The last valid contents are retained.
+  markdown.imageunavailable: Local image is unavailable or unsupported.
+  markdown.unsupportedlink: This link is not supported.

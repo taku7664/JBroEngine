@@ -18,6 +18,7 @@
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
 #include "Panel/CodeEditorPanel.h"
+#include "Panel/MarkdownPanel.h"
 #include "Panel/ScriptSummaryPanel.h"
 #include <JBro/Editor/Code/SourceDebugger.h>
 #include <JBro/Editor/ConfirmPopup.h>
@@ -5540,37 +5541,50 @@ namespace JBro
         return false;
     }
 
-    void EditorApplication::RetireLayerThumbnail(TextureHandle texture)
+    void EditorApplication::RetireUiTexture(TextureHandle texture)
     {
         if (texture.IsValid())
         {
-            m_retiredLayerThumbnails.Add(texture);
+            const UInt64 frame = ImGui::GetCurrentContext() != nullptr
+                ? static_cast<UInt64>(ImGui::GetFrameCount()) : UInt64(0);
+            m_retiredUiTextures.Add({texture, frame});
         }
     }
 
-    void EditorApplication::DestroyRetiredLayerThumbnails()
+    void EditorApplication::DestroyRetiredUiTextures(Bool force)
     {
         Renderer* renderer = m_engine ? m_engine->GetRenderer() : nullptr;
         IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
-        for (std::size_t index = 0; index < m_retiredLayerThumbnails.Size() && device != nullptr; ++index)
+        if (device == nullptr)
         {
-            device->DestroyTexture(m_retiredLayerThumbnails[index]);
+            m_retiredUiTextures.Clear();
+            return;
         }
-        m_retiredLayerThumbnails.Clear();
+        const UInt64 frame = ImGui::GetCurrentContext() != nullptr
+            ? static_cast<UInt64>(ImGui::GetFrameCount()) : UInt64(0);
+        const Bool flushAll = force || !m_uiEnabled || ImGui::GetCurrentContext() == nullptr;
+        m_retiredUiTextures.RemoveAll([&](const RetiredUiTexture& retired) {
+            if (!flushAll && retired.frame >= frame)
+            {
+                return false;
+            }
+            device->DestroyTexture(retired.texture);
+            return true;
+        });
     }
 
     void EditorApplication::ReleaseLayerThumbnails(Bool now)
     {
         for (std::size_t index = 0; index < m_layerThumbnails.Size(); ++index)
         {
-            RetireLayerThumbnail(m_layerThumbnails[index].texture);
+            RetireUiTexture(m_layerThumbnails[index].texture);
         }
         m_layerThumbnails.Clear();
         m_layerThumbnailExtent = {};
         m_layerThumbnailCursor = 0;
         if (now)
         {
-            DestroyRetiredLayerThumbnails();
+            DestroyRetiredUiTextures(true);
         }
     }
 
@@ -5582,7 +5596,7 @@ namespace JBro
         const UInt32 height = m_layerThumbnailHeight;
         m_layerThumbnailHeight = 0;
         // 지난 플러시에서 놓은 것은 지난 프레임의 UI 까지만 쓰였다. 이제 지운다(디바이스가 GPU 가 다 쓴 뒤에 놓는다).
-        DestroyRetiredLayerThumbnails();
+        DestroyRetiredUiTextures();
         Canvas* canvas = GetCanvas();
         Renderer* renderer = m_engine ? m_engine->GetRenderer() : nullptr;
         IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
@@ -5611,7 +5625,7 @@ namespace JBro
         {
             if (canvas->FindLayer(m_layerThumbnails[index - 1].layer) == nullptr)
             {
-                RetireLayerThumbnail(m_layerThumbnails[index - 1].texture);
+                RetireUiTexture(m_layerThumbnails[index - 1].texture);
                 m_layerThumbnails.RemoveAt(index - 1);
             }
         }
@@ -5780,6 +5794,7 @@ namespace JBro
         m_canvasView = {};
         m_canvasViewExtent = {};
         m_canvasViewRequested = false;
+        m_retiredUiTextures.Clear();
         ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
@@ -5877,6 +5892,9 @@ namespace JBro
             {
                 RequestOpenProject();
             }
+            EditorActionContext documentContext;
+            documentContext.editor = this;
+            EditorActionUi::DrawItem("markdown.open", documentContext);
             ImGui::Separator();
             DrawShortcutItem(EditorShortcut::SaveCanvas,
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), Icons::Save);
@@ -7473,6 +7491,27 @@ namespace JBro
             m_platform.Reset();
         }
         m_initialized = false;
+    }
+    Bool EditorApplication::OpenMarkdownFile(const String& path, const String& anchor)
+    {
+        if (!m_uiEnabled || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const String normalized = Code::LanguageClient::NormalizePath(path);
+        Array<EditorPanel*> panels;
+        FindPanels(MarkdownPanel::TypeName, panels);
+        for (auto* candidate : panels)
+        {
+            auto* panel = static_cast<MarkdownPanel*>(candidate);
+            if (panel->GetPath() == normalized)
+            {
+                panel->Focus(anchor);
+                return true;
+            }
+        }
+        auto* panel = static_cast<MarkdownPanel*>(CreatePanel(MarkdownPanel::TypeName));
+        return panel != nullptr && panel->Open(normalized, anchor);
     }
     Bool EditorApplication::OpenCodeFile(const String& path, UInt32 line, UInt32 column)
     {

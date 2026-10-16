@@ -593,6 +593,9 @@ public:
 
 	inline void SetPalette(const Palette& newPalette) { paletteBase = newPalette; paletteAlpha = -1.0f; }
 	inline const Palette& GetPalette() const { return paletteBase; }
+	// Snapshot the existing lexical colorizer without rendering or editing the document.
+	struct ColoredSpan { DocPos start, end; Color color; };
+	std::vector<ColoredSpan> GetColorizedSpans();
 	static inline void SetDefaultPalette(const Palette& aValue) { defaultPalette = aValue; }
 	static inline Palette& GetDefaultPalette() { return defaultPalette; }
 

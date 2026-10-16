@@ -226,6 +226,30 @@ namespace JBro::EditorTheme
         Bool g_hasIconFont = false;
         // 글꼴 파일을 읽어 줄 플랫폼이다. 널이면 아이콘 없이 간다.
         IPlatform* g_platform = nullptr;
+        ImFont* LoadPlatformFont(IPlatform& platform, const char* path, Float size, ImFontConfig& config,
+            const ImWchar* ranges = nullptr)
+        {
+            Array<std::byte> bytes;
+            if (!platform.ReadWholeFile(path, bytes) || bytes.IsEmpty() || bytes.Size() > 16 * 1024 * 1024)
+            {
+                return nullptr;
+            }
+            // The atlas takes this buffer and releases it through ImGui's allocator.
+            void* owned = ImGui::MemAlloc(bytes.Size());
+            if (owned == nullptr)
+            {
+                return nullptr;
+            }
+            std::memcpy(owned, bytes.Data(), bytes.Size());
+            return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(owned, static_cast<Int32>(bytes.Size()), size.Get(), &config, ranges);
+        }
+        void MergeSupplementaryFont(IPlatform& platform, Float size)
+        {
+            ImFontConfig config;
+            config.MergeMode = true;
+            config.PixelSnapH = true;
+            LoadPlatformFont(platform, "C:/Windows/Fonts/seguiemj.ttf", size, config);
+        }
     }
 
     void SetIconFontPath(const char* path, IPlatform* platform)
@@ -253,31 +277,18 @@ namespace JBro::EditorTheme
         // 이 기계의 ANSI 코드페이지로 본다 - 사용자 폴더에 한글이 있으면(`C:/Users/박주형/...`)
         // UTF-8 경로가 맞지 않아 **글꼴을 못 찾았다**. 실제로 실행 파일 기준 절대경로로 바꾼
         // 날 그 자리에서 났다. 플랫폼의 읽기는 UTF-8 을 넓은 문자로 제대로 바꾼다.
-        Array<std::byte> bytes;
-        if (g_platform == nullptr || false == g_platform->ReadWholeFile(g_iconFontPath, bytes)
-            || bytes.IsEmpty())
+        if (g_platform == nullptr)
         {
             std::printf("note: icon font not found at %s; icons render as boxes\n", g_iconFontPath);
             return;
         }
-        const std::size_t fileSize = bytes.Size();
-        // 아틀라스가 이 메모리를 물려받아 `IM_FREE` 로 놓는다. 그래서 ImGui 의 할당기로 잡는다.
-        void* fontData = ImGui::MemAlloc(fileSize);
-        if (fontData == nullptr)
-        {
-            std::printf("note: icon font at %s could not be read; icons render as boxes\n", g_iconFontPath);
-            return;
-        }
-        std::memcpy(fontData, bytes.Data(), fileSize);
-
-        ImGuiIO& io = ImGui::GetIO();
         ImFontConfig config;
         config.MergeMode = true;
         config.PixelSnapH = true;
         // 아이콘은 글자보다 조금 작게 그려야 줄 높이를 밀지 않는다.
         config.GlyphMinAdvanceX = 13.0f;
         static const ImWchar ranges[] = {Icons::RangeBegin, Icons::RangeEnd, 0};
-        if (io.Fonts->AddFontFromMemoryTTF(fontData, static_cast<JBro::Int32>(fileSize), 13.0f, &config, ranges)
+        if (LoadPlatformFont(*g_platform, g_iconFontPath, 13.0f, config, ranges)
             != nullptr)
         {
             g_hasIconFont = true;
@@ -303,6 +314,10 @@ namespace JBro::EditorTheme
         if (io.Fonts->AddFontFromFileTTF(
                 "C:\\Windows\\Fonts\\malgun.ttf", 15.0f, &config) != nullptr)
         {
+            if (g_platform != nullptr)
+            {
+                MergeSupplementaryFont(*g_platform, 15.0f);
+            }
             MergeIconFont();
             return true;
         }
@@ -335,28 +350,14 @@ namespace JBro::EditorTheme
     {
         CodeFontContext = ImGui::GetCurrentContext();
         CodeFont = nullptr;
-        auto load = [&platform](const char* path, ImFontConfig& config) -> ImFont*
-        {
-            Array<std::byte> bytes;
-            if (!platform.ReadWholeFile(path, bytes) || bytes.IsEmpty() || bytes.Size() > 16 * 1024 * 1024)
-            {
-                return nullptr;
-            }
-            void* owned = ImGui::MemAlloc(bytes.Size());
-            if (owned == nullptr)
-            {
-                return nullptr;
-            }
-            std::memcpy(owned, bytes.Data(), bytes.Size());
-            return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(owned, static_cast<int>(bytes.Size()), 16.0f, &config);
-        };
         ImFontConfig config;
         std::snprintf(config.Name, sizeof(config.Name), "JBro Code");
-        CodeFont = load("C:/Windows/Fonts/consola.ttf", config);
+        CodeFont = LoadPlatformFont(platform, "C:/Windows/Fonts/consola.ttf", 16.0f, config);
         if (CodeFont != nullptr)
         {
             config.MergeMode = true;
-            load("C:/Windows/Fonts/malgun.ttf", config);
+            LoadPlatformFont(platform, "C:/Windows/Fonts/malgun.ttf", 16.0f, config);
+            MergeSupplementaryFont(platform, 16.0f);
         }
     }
     ImFont* GetCodeFont()

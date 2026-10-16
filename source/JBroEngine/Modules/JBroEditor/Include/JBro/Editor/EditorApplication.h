@@ -177,6 +177,7 @@ namespace JBro
         // 그 파일의 경로다. 파일로 열지 않았으면 비어 있다.
         const String& GetProjectFilePath() const { return m_projectFilePath; }
         IPlatform& GetPlatform() { return *m_platform; }
+        Bool OpenMarkdownFile(const String& path, const String& anchor = {});
         Bool OpenCodeFile(const String& path, UInt32 line = 1, UInt32 column = 0);
         Bool OpenCodeFileExternally(const String& path, UInt32 line = 1);
         Code::LanguageClient& GetCodeLanguageClient();
@@ -876,6 +877,8 @@ namespace JBro
         // 아니다. 프레임을 여닫는 것은 여전히 엔진의 일이다.
         Renderer* GetRenderer();
         const Renderer* GetRenderer() const;
+        // Keep UI-owned images alive until this frame's draw data has been submitted.
+        void RetireUiTexture(TextureHandle texture);
 
         Bool IsInitialized() const;
         Bool HasOpenProject() const;
@@ -1089,8 +1092,7 @@ namespace JBro
         // 썸네일 텍스처를 놓는다. **이 프레임의 UI 가 이미 그 텍스처를 그리기 목록에 얹었을 수 있으므로** 곧바로 지우지 않고 다음
         // `FlushLayerThumbnails` 에서 지운다(`now` 면 곧바로 - UI 를 끌 때다).
         void ReleaseLayerThumbnails(Bool now = false);
-        void RetireLayerThumbnail(TextureHandle texture);
-        void DestroyRetiredLayerThumbnails();
+        void DestroyRetiredUiTextures(Bool force = false);
         struct LayerThumbnailSlot
         {
             LayerId layer = InvalidLayerId;
@@ -1098,7 +1100,12 @@ namespace JBro
             Bool drawn = false;
         };
         Array<LayerThumbnailSlot> m_layerThumbnails;
-        Array<TextureHandle> m_retiredLayerThumbnails;
+        struct RetiredUiTexture
+        {
+            TextureHandle texture;
+            UInt64 frame = 0;
+        };
+        Array<RetiredUiTexture> m_retiredUiTextures;
         Extent2D m_layerThumbnailExtent;
         // 이 프레임에 계층 창이 바란 높이다. 0 이면 바라지 않았다.
         UInt32 m_layerThumbnailHeight = 0;

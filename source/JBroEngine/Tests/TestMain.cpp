@@ -73,6 +73,7 @@ JBro::Int32 RunObjectServiceTests();
 JBro::Int32 RunEditorApplicationTests();
 JBro::Int32 RunEditorUITests();
 JBro::Int32 RunCodeEditorTests();
+JBro::Int32 RunMarkdownTests();
 JBro::Int32 RunScriptSummaryTests();
 JBro::Int32 RunScriptSummaryPanelTests();
 JBro::Int32 RunScriptSummaryIntegrationTests();
@@ -535,6 +536,10 @@ int main()
             || false == RunSuite("NativeDebug", &RunNativeDebugTests)
             || false == RunSuite("SourceDebugger", &RunSourceDebuggerTests)
             || false == RunSuite("NestedScriptType", &RunNestedScriptTypeTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Markdown", &RunMarkdownTests))
         {
             return 1;
         }

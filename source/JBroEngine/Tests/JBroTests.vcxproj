@@ -179,6 +179,7 @@
     <ProjectReference Include="$(JBroModulesDir)JBroScriptApiCatalog2D\JBroScriptApiCatalog2D.vcxproj"><Project>{1a000054-0000-4000-8000-00000000ca72}</Project></ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="$(JBroThirdPartyDir)md4c\md4c.vcxproj"><Project>{aa8e7e65-a7d3-4e51-bc30-a32716e20c01}</Project></ProjectReference>
     <ProjectReference Include="$(JBroThirdPartyDir)ImGuiColorTextEdit\ImGuiColorTextEdit.vcxproj"><Project>{3a97ca11-209a-48a3-8104-641ebc4bc606}</Project></ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
