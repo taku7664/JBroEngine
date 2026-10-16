@@ -9,6 +9,7 @@
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Task/TaskManager.h>
+#include <JBro/Types/ValueMath.h>
 #include <algorithm>
 
 namespace JBro
@@ -131,7 +132,7 @@ namespace JBro
                 std::size_t at = 0;
                 while (at < file.bytes.Size() && !IsCancelRequested())
                 {
-                    const auto read = file.stream->Read(file.bytes.Data() + at, std::min<std::size_t>(file.bytes.Size() - at, 1024 * 1024));
+                    const auto read = file.stream->Read(file.bytes.Data() + at, Min(file.bytes.Size() - at, std::size_t(1024 * 1024)));
                     if (read == 0)
                     {
                         break;

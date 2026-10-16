@@ -127,3 +127,27 @@ Release x64 `JBroTests` 빌드는 성공했다. 최종 DPI 키 회귀와 실제 
 - 모든 빌드는 CPU 두 개·낮은 우선순위·MSBuild/CL 각 1개·노드 재사용 끔으로 제한했다. 최종 확인에서 MSBuild/cl/link/Tracker 프로세스는 남아 있지 않았다. Python/Win32 캡처 보조 도구가 파일 대화상자의 툴팁 창을 잡은 것은 보조 도구에서 툴팁을 제외해 바로잡았으며 엔진 소스 변경과 구분한다.
 
 이 후속 결과는 Release x64 전체 빌드, 위 6 suites, 실제 창의 해당 조작에 한정한다. Debug·전체 suite·모든 UI 상태·메인 병합·푸시 완료로 확대하지 않는다. 소스 수정과 최종 로컬 커밋을 같은 기능 브랜치에 남긴다.
+
+## 검색 재배치와 Min/Max 후속 수정 (2026-10-16)
+
+`3fb68469` 재검토에서 검색 요청 직후 폭 변경과 이미지 크기 반영이 기존 좌표를 사용함을 확인했다. 기존 가로 검색 시험은 폭 변경을 먼저 반영한 뒤 검색하므로 이 순서를 잡지 못했다. 이번에는 두 재현을 정식 `SearchDuringReflow`·`SearchDuringImageUpdate`로 추가한다. 이미 표시한 결과의 뒤늦은 이미지 완료, 검색 후 다시 폭 변경, 사용자가 결과에서 스크롤로 벗어난 경우도 함께 검사한다. 검사는 private 상태 대신 실제 그리기 결과의 검색 강조가 본문 클립 안에 보이는지를 확인한다.
+
+검색 요청은 픽셀 좌표를 미리 확정하지 않고 본문 배치 뒤 해석한다. 이미 보이던 결과는 재배치 때 계속 보이게 하되, 결과를 벗어난 수동 스크롤과 명시적 앵커 이동을 검색으로 덮지 않는다. Markdown 뷰·패널·시험의 남은 `std::min/max`는 기존 엔진 `Min/Max`로 정리하며 새 공개 API·위젯·관리자를 추가하지 않는다.
+
+초기 수정 전 시험 빌드(`search-layout-red-build.log`)는 링크 코드 생성의 C1002/LNK1257 메모리 부족으로 실패했다. 이를 시험 실패로 세지 않는다. 실제 `Hostx64/x64/link.exe`를 지정하는 명령줄 `LinkToolPath`로 전환해 재시도한다. 저장소 툴체인 버전·최적화·프로젝트 설정은 바꾸지 않았으며 CPU 두 개·낮은 우선순위·노드 재사용 끔은 유지한다. 최종 결과는 아래에 확정한다.
+
+- `search-layout-red-x64-link-build.log`: 실제 64비트 링크 도구로 빌드 성공(오류 0, 경고 7). 이전 실패 뒤의 이 중간 빌드 경고를 최종 빌드 경고 수와 섞지 않는다.
+- `search-layout-red.log`: 수정 전 구현에서 `search during reflow`·`search during image update`가 각각 새 폭의 좌표·새 이미지 크기 검사로 실패했고 기존 Markdown 검사는 통과했다. 종료 코드 1.
+- `search-layout-green-build.log`: 수정 후 Release x64 빌드 오류 0·기존 JBC3041 경고 1. `search-layout-green.log`: 두 새 시험과 기존 Markdown·CodeEditor·EditorUI·EditorLocalization·EditorWidget·EditorShortcut **6 suites 통과, 종료 코드 0**.
+- 구현은 검색을 논리 요청으로 보관하고 최신 배치 뒤 같은 글자/이미지 사각형에서 좌표를 구한다. 재배치 전에 결과가 보였는지도 같은 배치에서 판단하므로, 이미 표시한 결과는 유지하면서 결과를 벗어난 수동 스크롤은 되돌리지 않는다. 명시적 앵커 요청은 검색 예약을 취소한다. 새 공개 API나 별도 검색/위치 관리자는 없다.
+- `MarkdownView.cpp`·`MarkdownPanel.cpp`·`Document/Markdown.cpp`·`MarkdownTests.cpp`에서 `std::min/max/clamp` 잔존이 없는 것을 검색과 diff로 대조했다. 뷰 내부 계산은 Float/UInt32를 유지하고, ImGui·파일 스트림 경계에서만 원시 값으로 내린다. 공개 헤더·모듈 의존과 파일/태스크/GPU 수명 계약은 바꾸지 않았다.
+
+### 후속 수정의 최종 결과
+
+- `search-layout-solution.log`: **전체 JBroEngine.slnx Release x64 성공**, 1분 55.50초, 오류 0·기존 JBC3041 경고 1. 검증 명령에 64비트 `LinkToolPath`를 지정했고 프로젝트의 툴체인/최적화 설정은 변경하지 않았다.
+- 전체 빌드 뒤 `search-layout-final.log`: 새 정식 재현 2건을 포함해 **관련 6 suites 통과, 종료 코드 0**. 이미 표시한 결과의 재배치, 이미지 완료 뒤 결과 유지, 결과를 벗어난 수동 스크롤도 두 검사 함수 안에서 통과했다. 이전 6건의 반례 검사도 같은 Markdown suite에 그대로 포함된다.
+- 실제 Windows/D3D12 실행본에서 `SearchReflow.md`의 TARGET을 검색하고 창 폭을 1296→600→1296으로 바꾸어 결과가 계속 보임을 확인했다. 결과에서 위쪽으로 수동 스크롤한 뒤 폭을 다시 바꿨을 때는 문서 위쪽 위치를 유지했고, Enter로 다음 결과 이동을 요청하면 TARGET으로 돌아왔다. 이미지 완료의 정확한 비동기 타이밍은 이 실제 창에서 강제로 재현하지 않았으며 정식 시험의 결정적인 크기 변경으로 검증했다.
+- 이번 실행본은 기존 이름을 덮지 않은 `source/JBroEngine/Build/x64/Release/JBroEditorHost-MarkdownSearch.exe`다. SHA-256 `0b92f5cf01731a03cbe45787d8c7627bbbb2ddca3d7c6be473a79d0bf9d15d00`. 검증용 프로젝트로 열어 두었다. 사진은 [좁은 창의 검색 결과](F:/AI/Temp/jbro-markdown-search-reflow-narrow-20261016.png), [수동 스크롤 유지](F:/AI/Temp/jbro-markdown-search-manual-scroll-20261016.png), [최종 실행 화면](F:/AI/Temp/jbro-markdown-search-reflow-final-20261016.png)에 둔다.
+- 수정·정식 시험·계약/작업 기록만 커밋한다. 임시 캡처/빌드 보조 도구와 검증용 문서는 저장소 밖에 둔다. 중단된 빌드의 실제 프로세스를 먼저 확인해 중복 빌드를 띄우지 않았으며 마지막 확인에서 MSBuild/cl/link/Tracker 프로세스는 남아 있지 않았다.
+
+이 결과는 위 Release x64 전체 빌드·관련 6 suites·실제 창 조작 범위다. Debug·전체 시험 묶음·실제 창의 이미지 로딩 타이밍·메인 병합·푸시 완료로 확대하지 않는다.

@@ -72,6 +72,7 @@ namespace JBro::Widget
         UInt64 layoutRevision = 0;
         Float width = -1.0f, fontSize = 0.0f, extentX = 0.0f, extentY = 0.0f;
         Float dpiScale = 1.0f;
+        Float viewportHeight = 0.0f;
         ImFont* font = nullptr;
         ImFont* codeFont = nullptr;
         Bool dirty = true, find = false, focusFind = false, dragging = false, dragged = false;
@@ -251,7 +252,7 @@ namespace JBro::Widget
                     {
                         x += glyphWidth;
                     }
-                    extentX = std::max(extentX.Get(), x.Get());
+                    extentX = Max(extentX, x);
                     at = next;
                 }
             }
@@ -267,7 +268,7 @@ namespace JBro::Widget
             case Markdown::Kind::Heading:
             {
                 anchors.Add({block.anchor, y});
-                const Float scale = EditorTheme::MarkdownHeadingScale[std::min(block.level.Get(), 6u) - 1];
+                const Float scale = EditorTheme::MarkdownHeadingScale[Min(block.level, UInt32(6)).Get() - 1];
                 return Text(block, left, y + gap, available, fontSize * scale, false) + gap;
             }
             case Markdown::Kind::Paragraph:
@@ -282,7 +283,7 @@ namespace JBro::Widget
                 box.kind = Decoration::Kind::Code;
                 box.x = left;
                 box.y = y;
-                box.width = std::max(available.Get(), (extentX - left + gap).Get());
+                box.width = Max(available, extentX - left + gap);
                 box.height = end - y;
                 box.begin = block.begin;
                 box.end = block.end;
@@ -313,8 +314,8 @@ namespace JBro::Widget
                 for (const auto rowIndex : rows)
                 {
                     const auto& row = document.blocks[rowIndex.Get()];
-                    const Float cellWidth = std::max((fontSize * EditorTheme::MarkdownMinimumCellWidth).Get(),
-                        available.Get() / static_cast<Float>(Max(std::size_t(1), row.children.Size())).Get());
+                    const Float cellWidth = Max(fontSize * EditorTheme::MarkdownMinimumCellWidth,
+                        available / static_cast<Float>(Max(std::size_t(1), row.children.Size())));
                     Float rowEnd = y;
                     const auto firstGlyph = glyphs.Size();
                     std::size_t column = 0;
@@ -332,7 +333,7 @@ namespace JBro::Widget
                             {
                                 if (g == glyphs.Size() || glyphs[g].y != lineY)
                                 {
-                                    const Float shift = std::max(0.0f, (cellLeft + cellWidth - gap - right).Get()) / (cell.alignment == 2 ? 2.0f : 1.0f);
+                                    const Float shift = Max(0.0f, cellLeft + cellWidth - gap - right) / (cell.alignment == 2 ? 2.0f : 1.0f);
                                     for (std::size_t k = lineBegin; k < g; ++k)
                                     {
                                         glyphs[k].x += shift;
@@ -366,7 +367,7 @@ namespace JBro::Widget
                     std::stable_sort(glyphs.begin() + firstGlyph, glyphs.end(), [](const Glyph& a, const Glyph& b) {
                         return a.y == b.y ? a.x < b.x : a.y < b.y;
                     });
-                    extentX = std::max(extentX.Get(), (left + static_cast<Float>(column) * cellWidth).Get());
+                    extentX = Max(extentX, left + static_cast<Float>(column) * cellWidth);
                     y = rowEnd;
                 }
                 return y + gap;
@@ -480,16 +481,12 @@ namespace JBro::Widget
             dpiScale = ImGui::GetWindowViewport()->DpiScale;
             extentX = available;
             extentY = document.blocks.IsEmpty() ? Float(0.0f) : Block(0, fontSize, fontSize,
-                std::max(fontSize.Get(), (available - fontSize * 2).Get()));
+                Max(fontSize, available - fontSize * 2));
             std::stable_sort(glyphs.begin(), glyphs.end(), [](const Glyph& a, const Glyph& b) {
                 return a.y == b.y ? a.x < b.x : a.y < b.y;
             });
             dirty = false;
             ++layoutRevision;
-            if (pendingMatch)
-            {
-                ScrollMatch();
-            }
             if (!pendingAnchor.empty())
             {
                 for (const auto& anchor : anchors)
@@ -552,32 +549,45 @@ namespace JBro::Widget
         }
         void ScrollMatch()
         {
-            pendingMatch = dirty;
-            if (dirty)
+            // Navigation is logical until the next body layout has been finalized.
+            pendingMatch = !matches.IsEmpty();
+            pendingAnchor.clear();
+            scrollTo = scrollToX = -1.0f;
+        }
+        Bool MatchRect(ImRect& rect) const
+        {
+            if (matches.IsEmpty())
             {
-                return;
+                return false;
             }
-            if (!matches.IsEmpty())
+            const auto& match = matches[current.Get()];
+            for (const auto& decoration : decorations)
             {
-                for (const auto& glyph : glyphs)
+                if (decoration.kind == Decoration::Kind::Image && decoration.begin < match.end && decoration.end > match.begin)
                 {
-                    if (glyph.begin >= matches[current.Get()].begin && glyph.begin < matches[current.Get()].end)
-                    {
-                        scrollTo = glyph.y;
-                        scrollToX = glyph.x;
-                        break;
-                    }
+                    rect = ImRect(decoration.x.Get(), decoration.y.Get(),
+                        (decoration.x + decoration.width).Get(), (decoration.y + decoration.height).Get());
+                    return true;
                 }
-                for (const auto& decoration : decorations)
+            }
+            for (const auto& glyph : glyphs)
+            {
+                if (glyph.literal.empty() && glyph.begin >= match.begin && glyph.begin < match.end)
                 {
-                    if (decoration.kind == Decoration::Kind::Image && decoration.begin < matches[current.Get()].end
-                        && decoration.end > matches[current.Get()].begin)
-                    {
-                        scrollTo = decoration.y;
-                        scrollToX = decoration.x;
-                        break;
-                    }
+                    rect = ImRect(glyph.x.Get(), glyph.y.Get(), (glyph.x + glyph.width).Get(), (glyph.y + glyph.height).Get());
+                    return true;
                 }
+            }
+            return false;
+        }
+        void ResolveMatchScroll()
+        {
+            pendingMatch = false;
+            ImRect rect;
+            if (MatchRect(rect))
+            {
+                scrollTo = rect.Min.y;
+                scrollToX = rect.Min.x;
             }
         }
     };
@@ -638,6 +648,8 @@ namespace JBro::Widget
         const String decoded = Markdown::DecodeTarget(anchor);
         if (s.dirty)
         {
+            s.pendingMatch = false;
+            s.scrollTo = s.scrollToX = -1.0f;
             s.pendingAnchor = decoded;
             return true;
         }
@@ -645,6 +657,7 @@ namespace JBro::Widget
         {
             if (position.name == decoded)
             {
+                s.pendingMatch = false;
                 s.scrollTo = position.y;
                 s.scrollToX = 0.0f;
                 return true;
@@ -722,11 +735,24 @@ namespace JBro::Widget
             || s.dpiScale != ImGui::GetWindowViewport()->DpiScale
             || s.codeFont != (EditorTheme::GetCodeFont() ? EditorTheme::GetCodeFont() : ImGui::GetFont()))
         {
+            // Keep a visible result visible after reflow without undoing a user's
+            // manual scroll away from it or an explicit anchor navigation.
+            ImRect match;
+            const ImRect oldViewport(ImGui::GetScrollX(), ImGui::GetScrollY(),
+                ImGui::GetScrollX() + s.width.Get(), ImGui::GetScrollY() + s.viewportHeight.Get());
+            const Bool keepVisible = !s.pendingMatch && s.pendingAnchor.empty() && s.scrollTo < 0.0f
+                && s.MatchRect(match) && match.Overlaps(oldViewport);
             s.Layout(available);
+            s.pendingMatch = s.pendingMatch || keepVisible;
         }
+        if (s.pendingMatch)
+        {
+            s.ResolveMatchScroll();
+        }
+        s.viewportHeight = ImGui::GetCurrentWindow()->InnerRect.GetHeight();
         if (s.scrollTo >= 0)
         {
-            ImGui::SetScrollY(std::max(0.0f, (s.scrollTo - s.fontSize).Get()));
+            ImGui::SetScrollY(Max(0.0f, s.scrollTo - s.fontSize).Get());
             s.scrollTo = -1.0f;
         }
         if (s.scrollToX >= 0)
@@ -740,7 +766,7 @@ namespace JBro::Widget
         const auto mouse = ImGui::GetIO().MousePos;
         auto* draw = ImGui::GetWindowDrawList();
         ImGui::SetNextItemAllowOverlap();
-        ImGui::InvisibleButton("##selection", ImVec2(std::max(available.Get(), s.extentX.Get()), std::max(s.extentY.Get(), ImGui::GetContentRegionAvail().y)));
+        ImGui::InvisibleButton("##selection", ImVec2(Max(available, s.extentX).Get(), Max(s.extentY, ImGui::GetContentRegionAvail().y).Get()));
         const Bool hovered = ImGui::IsItemHovered();
         const auto canvasItem = ImGui::GetCurrentContext()->LastItemData;
         const Float mx = mouse.x - origin.x, my = mouse.y - origin.y;
@@ -768,7 +794,7 @@ namespace JBro::Widget
             }
         }
         const Bool released = s.dragging && ImGui::IsMouseReleased(ImGuiMouseButton_Left);
-        const auto low = std::min(s.first.Get(), s.last.Get()), high = std::max(s.first.Get(), s.last.Get());
+        const auto low = Min(s.first, s.last), high = Max(s.first, s.last);
         for (const auto& decoration : s.decorations)
         {
             const ImVec2 p(origin.x + decoration.x.Get(), origin.y + decoration.y.Get());

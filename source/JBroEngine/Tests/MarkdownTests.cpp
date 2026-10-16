@@ -7,6 +7,7 @@
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Task/TaskManager.h>
+#include <JBro/Types/ValueMath.h>
 #include "../Modules/JBroEditor/Source/Panel/MarkdownPanel.h"
 #include <TextEditor.h>
 #include <imgui.h>
@@ -226,6 +227,95 @@ namespace
         harness.Render();
         Check(harness.Body().Scroll.x > 1000, "a search requested before layout reveals the new document's match");
     }
+    Bool HasVisibleSearchHighlight(ViewHarness& harness)
+    {
+        const auto color = ImGui::ColorConvertFloat4ToU32(EditorTheme::Fade(EditorTheme::Amber, EditorTheme::MarkdownCurrentMatchAlpha));
+        const auto clip = harness.Body().InnerClipRect;
+        for (const auto* list : ImGui::GetDrawData()->CmdLists)
+        {
+            for (const auto& vertex : list->VtxBuffer)
+            {
+                if (vertex.col == color && clip.Contains(vertex.pos))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    String SearchLayoutFixture(const String& prefix)
+    {
+        String source = prefix + "\n\nTARGET\n\n";
+        for (UInt32 row = 0; row < 100; ++row)
+        {
+            source += "tail\n\n";
+        }
+        return source;
+    }
+    void SearchDuringReflow()
+    {
+        ViewHarness harness;
+        String prefix;
+        for (UInt32 word = 0; word < 1000; ++word)
+        {
+            prefix += "padding ";
+        }
+        harness.Load(SearchLayoutFixture(prefix));
+        harness.Render();
+        harness.Render();
+        harness.view.SetSearch("TARGET");
+        harness.Render(300.0f);
+        harness.Render(300.0f);
+        harness.Render(300.0f);
+        Check(HasVisibleSearchHighlight(harness), "a queued search uses the new width's layout rather than stale coordinates");
+        harness.Render();
+        harness.Render();
+        harness.Render();
+        Check(HasVisibleSearchHighlight(harness), "an already visible result remains visible when the width changes again");
+        ImGui::SetScrollY(&harness.Body(), 0.0f);
+        harness.Render();
+        harness.Render();
+        Check(!HasVisibleSearchHighlight(harness), "manual navigation can leave the result");
+        harness.Render(300.0f);
+        harness.Render(300.0f);
+        Check(harness.Body().Scroll.y == 0.0f && !HasVisibleSearchHighlight(harness), "reflow does not pull the user back to a result they scrolled away from");
+    }
+    void SearchDuringImageUpdate()
+    {
+        ViewHarness harness;
+        Widget::MarkdownImage image;
+        Widget::MarkdownCallbacks callbacks;
+        callbacks.user = &image;
+        callbacks.image = [](void* user, const String&) { return *static_cast<Widget::MarkdownImage*>(user); };
+        harness.view.SetCallbacks(callbacks);
+        harness.Load(SearchLayoutFixture("![alt](local.png)"));
+        harness.Render();
+        harness.Render();
+        harness.view.SetSearch("TARGET");
+        image.width = 64;
+        image.height = 2000;
+        harness.view.InvalidateLayout();
+        harness.Render();
+        harness.Render();
+        harness.Render();
+        Check(HasVisibleSearchHighlight(harness), "a queued search resolves after image dimensions change");
+        harness.view.SetSearch("");
+        image = {};
+        harness.view.InvalidateLayout();
+        harness.Render();
+        harness.Render();
+        harness.view.SetSearch("TARGET");
+        harness.Render();
+        harness.Render();
+        Check(HasVisibleSearchHighlight(harness), "result is visible before a delayed image completes");
+        image.width = 64;
+        image.height = 2000;
+        harness.view.InvalidateLayout();
+        harness.Render();
+        harness.Render();
+        harness.Render();
+        Check(HasVisibleSearchHighlight(harness), "a displayed result remains visible when a delayed image completes");
+    }
     void LocalImageSizing()
     {
         ViewHarness harness;
@@ -255,7 +345,7 @@ namespace
                     const auto& first = list->VtxBuffer[list->IdxBuffer[command.IdxOffset] + command.VtxOffset];
                     const auto& opposite = list->VtxBuffer[list->IdxBuffer[command.IdxOffset + 2] + command.VtxOffset];
                     const Float available = harness.Body().InnerRect.GetWidth() - ImGui::GetStyle().WindowPadding.x * 2.0f - ImGui::GetFontSize() * 2.0f;
-                    const ImVec2 box(std::min(available.Get(), static_cast<Float>(image.width).Get()), static_cast<Float>(image.height).Get());
+                    const ImVec2 box(Min(available, static_cast<Float>(image.width)).Get(), static_cast<Float>(image.height).Get());
                     const auto expected = Widget::FitInside(image.width, image.height, box);
                     Check(std::abs(opposite.pos.x - first.pos.x - expected.x) < 0.1f
                         && std::abs(opposite.pos.y - first.pos.y - expected.y) < 0.1f, "Markdown images use common fitting without stretching or upscaling");
@@ -546,7 +636,8 @@ JBro::Int32 RunMarkdownTests()
     struct Case { const char* name; void (*run)(); };
     const Case cases[] = {{"model", Model}, {"lexical snapshot", Snapshot}, {"view", View}, {"panels", Panels},
         {"mixed list blocks", MixedListBlocks}, {"horizontal search", HorizontalSearch}, {"local image sizing", LocalImageSizing},
-        {"deep nesting", DeepNesting}, {"repeated headings", RepeatedHeadings}};
+        {"deep nesting", DeepNesting}, {"repeated headings", RepeatedHeadings},
+        {"search during reflow", SearchDuringReflow}, {"search during image update", SearchDuringImageUpdate}};
     JBro::Int32 failures = 0;
     for (const auto& test : cases)
     {
