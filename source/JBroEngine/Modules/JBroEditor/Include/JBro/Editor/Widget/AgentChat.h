@@ -2,7 +2,7 @@
 #include <JBro/Editor/Agent/Provider.h>
 namespace JBro::Widget
 {
-    enum class AgentChatAction { None, Connect, Disconnect, Install, LoginChatGPT, LoginKey, NewChat, Send, Stop, ResumeGuide, Browse };
+    enum class AgentChatAction { None, Connect, Disconnect, Install, LoginChatGPT, LoginKey, NewChat, Send, Stop, ResumeGuide, Browse, AttachFile };
     struct AgentChatView
     {
         const Array<Agent::Message>& messages;

@@ -1,4 +1,4 @@
-#include <JBro/Editor/Widget/AgentChat.h>
+﻿#include <JBro/Editor/Widget/AgentChat.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/List.h>
@@ -39,7 +39,16 @@ namespace JBro::Widget
             }
             ImGui::PopFont();
         }
-        Bool IconAction(const char* id, const char* icon, const char* tooltip, Float size = 28.0f)
+        void ChatTooltip(const char* text, const ImVec2& padding, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None)
+        {
+            StyleScope style;
+            style.PushVar(ImGuiStyleVar_WindowPadding, padding);
+            style.PushColor(ImGuiCol_Text, EditorTheme::Ink);
+            ImGui::PushFont(nullptr, 13.0f);
+            HoveredTooltip(text, flags);
+            ImGui::PopFont();
+        }
+        Bool IconAction(const char* id, const char* icon, const char* tooltip, const ImVec2& tooltipPadding, Float size = 28.0f)
         {
             StyleScope style;
             style.PushColor(ImGuiCol_Button, EditorTheme::Clear);
@@ -48,7 +57,7 @@ namespace JBro::Widget
             style.PushVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
             const Float extent = size * Scale();
             const Bool pressed = Button(id, icon, ImVec2(extent, extent));
-            HoveredTooltip(tooltip);
+            ChatTooltip(tooltip, tooltipPadding);
             return pressed;
         }
         String FileName(const String& path)
@@ -88,7 +97,7 @@ namespace JBro::Widget
                 detail += " / " + FileName(target.canvas);
             }
         }
-        void ClippedText(const char* text, Float width)
+        void ClippedText(const char* text, Float width, const ImVec2& tooltipPadding)
         {
             const ImVec2 min = ImGui::GetCursorScreenPos();
             const ImVec2 max(min.x + Max(width, Float(1.0f)), min.y + ImGui::GetTextLineHeight());
@@ -96,10 +105,10 @@ namespace JBro::Widget
             ImGui::Dummy(ImVec2(Max(width, Float(1.0f)), ImGui::GetTextLineHeight()));
             if (ImGui::CalcTextSize(text).x > width)
             {
-                HoveredTooltip(text);
+                ChatTooltip(text, tooltipPadding);
             }
         }
-        Int32 Attachments(const AgentChatView& view, Float height)
+        Int32 Attachments(const AgentChatView& view, Float height, const ImVec2& tooltipPadding)
         {
             Int32 removed = -1;
             if (view.targets.IsEmpty())
@@ -145,16 +154,16 @@ namespace JBro::Widget
                             detail = Loc::Text(LocKeys::AgentInvalidTarget);
                         }
                         const Float textWidth = ImGui::GetContentRegionAvail().x;
-                        ClippedText(name.c_str(), textWidth);
+                        ClippedText(name.c_str(), textWidth, tooltipPadding);
                         {
                             ImGui::PushFont(nullptr, 10.0f);
                             StyleScope color;
                             color.PushColor(ImGuiCol_Text, valid ? Muted : EditorTheme::Amber);
-                            ClippedText(detail.c_str(), textWidth);
+                            ClippedText(detail.c_str(), textWidth, tooltipPadding);
                             ImGui::PopFont();
                         }
                         ImGui::TableSetColumnIndex(2);
-                        if (IconAction("##agent.remove", Icons::Xmark, Loc::Text(LocKeys::AgentRemoveAttachment), 24.0f))
+                        if (IconAction("##agent.remove", Icons::Xmark, Loc::Text(LocKeys::AgentRemoveAttachment), tooltipPadding, 24.0f))
                         {
                             removed = index;
                         }
@@ -363,24 +372,26 @@ namespace JBro::Widget
     {
         AgentChatResult result;
         const Float scale = Scale();
+        const ImVec2 popupItemSpacing = ImGui::GetStyle().ItemSpacing;
         ImGui::PushFont(nullptr, 13.0f);
         StyleScope style;
         style.PushVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * scale, 3.0f * scale));
         style.PushVar(ImGuiStyleVar_FrameRounding, 4.0f * scale);
         style.PushColor(ImGuiCol_TextDisabled, Muted);
         const Float width = ImGui::GetContentRegionAvail().x;
+        const ImVec2 tooltipPadding = ImGui::GetStyle().WindowPadding;
         const Float left = ImGui::GetCursorPosX();
         const Float top = ImGui::GetCursorPosY();
-        ClippedText(view.project.empty() ? Loc::Text(LocKeys::PanelAgent) : view.project.c_str(), width - 62.0f * scale);
+        ClippedText(view.project.empty() ? Loc::Text(LocKeys::PanelAgent) : view.project.c_str(), width - 62.0f * scale, tooltipPadding);
         ImGui::SameLine();
         ImGui::SetCursorPos(ImVec2(left + width - 58.0f * scale, top));
-        if (IconAction("##agent.new", Icons::Plus, Loc::Text(LocKeys::AgentNewChat)))
+        if (IconAction("##agent.new", Icons::Plus, Loc::Text(LocKeys::AgentNewChat), tooltipPadding))
         {
             result.action = AgentChatAction::NewChat;
         }
         ImGui::SameLine(0.0f, 2.0f * scale);
         if (IconAction("##agent.settings_toggle", settingsOpen ? Icons::Back : Icons::Settings,
-            Loc::Text(settingsOpen ? LocKeys::AgentBack : LocKeys::AgentSettings)))
+            Loc::Text(settingsOpen ? LocKeys::AgentBack : LocKeys::AgentSettings), tooltipPadding))
         {
             settingsOpen = !settingsOpen;
         }
@@ -401,7 +412,7 @@ namespace JBro::Widget
             ImGui::PushFont(nullptr, 11.0f);
             StyleScope statusStyle;
             statusStyle.PushColor(ImGuiCol_Text, Muted);
-            ClippedText(statusLine.c_str(), width - 12.0f * scale);
+            ClippedText(statusLine.c_str(), width - 12.0f * scale, tooltipPadding);
             ImGui::PopFont();
         }
         Gap(8.0f);
@@ -420,18 +431,29 @@ namespace JBro::Widget
         }
         const Float available = ImGui::GetContentRegionAvail().y;
         TextField inputField("##agent.input", input);
-        inputField.Multiline(true, 2.0f).WordWrap().MaxVisibleLines(8.0f);
-        const Float inputHeight = inputField.GetMultilineHeight(Max(width - 22.0f * scale, Float(1.0f)));
+        const Float inputWidth = Max(width - 20.0f * scale, Float(1.0f));
+        inputField.Multiline(true, 1.0f).WordWrap().MaxVisibleLines(8.0f).Width(inputWidth);
+        const ImVec2 inputPadding(4.0f * scale, 3.0f * scale);
+        const Float composerPaddingY = 6.0f * scale;
+        const Float toolsHeight = 28.0f * scale;
+        const Float inputToTools = 4.0f * scale;
+        Float inputHeight;
+        {
+            StyleScope measurement;
+            measurement.PushVar(ImGuiStyleVar_FramePadding, inputPadding);
+            inputHeight = inputField.GetMultilineHeight(inputWidth);
+        }
         const Float refsHeight = view.targets.IsEmpty() ? Float(0.0f)
             : Min(Float(view.targets.Size()) * 43.0f * scale, Max(Float(43.0f) * scale, available * 0.28f));
-        const Float attachmentHeight = view.targets.IsEmpty() ? Float(0.0f) : refsHeight + 26.0f * scale;
+        const Float attachmentHeight = view.targets.IsEmpty() ? Float(0.0f) : refsHeight + 14.0f * scale + 1.0f;
         const Bool notice = running || !view.attachmentError.empty() || !view.error.empty() || !valid;
         const Float noticeHeight = notice ? 32.0f * scale : Float(0.0f);
         const Bool needsConnection = !view.projectOpen || !connected;
         const Bool canConnect = view.projectOpen && (view.connection == Agent::Connection::Stopped || view.connection == Agent::Connection::Failed);
         const Bool needsLogin = view.projectOpen && view.connection == Agent::Connection::SignedOut;
         const Float connectionHeight = needsConnection ? (canConnect || needsLogin ? Float(54.0f) : Float(32.0f)) * scale : Float(0.0f);
-        const Float composerHeight = inputHeight + 54.0f * scale + attachmentHeight;
+        const Float composerHeight = inputHeight + attachmentHeight + toolsHeight + inputToTools
+            + composerPaddingY * 2.0f + ImGui::GetStyle().ChildBorderSize * 2.0f;
         const Float historyHeight = Max(Float(30.0f) * scale, available - composerHeight - noticeHeight - connectionHeight - 25.0f * scale);
         History(view, historyHeight, input, result);
         if (needsConnection)
@@ -468,14 +490,15 @@ namespace JBro::Widget
         style.PushColor(ImGuiCol_ChildBg, Composer);
         style.PushColor(ImGuiCol_Border, EditorTheme::LineStrong);
         style.PushVar(ImGuiStyleVar_ChildRounding, 7.0f * scale);
-        style.PushVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f * scale, 8.0f * scale));
+        style.PushVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f * scale, composerPaddingY));
         if (ImGui::BeginChild("##agent.composer", ImVec2(0.0f, composerHeight), ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding))
         {
-            result.removed = Attachments(view, refsHeight);
+            result.removed = Attachments(view, refsHeight, tooltipPadding);
             {
                 StyleScope fieldStyle;
                 fieldStyle.PushColor(ImGuiCol_FrameBg, EditorTheme::Clear);
                 fieldStyle.PushColor(ImGuiCol_Border, EditorTheme::Clear);
+                fieldStyle.PushVar(ImGuiStyleVar_FramePadding, inputPadding);
                 DisableScope disabled(running);
                 inputField();
                 if (input.empty() && !ImGui::IsItemActive())
@@ -488,13 +511,25 @@ namespace JBro::Widget
             {
                 view.receiveDrop.Invoke();
             }
-            const Float toolTop = ImGui::GetCursorPosY();
+            const Float toolTop = ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + inputToTools;
             const Float toolLeft = ImGui::GetCursorPosX();
             const Float toolWidth = ImGui::GetContentRegionAvail().x;
+            ImGui::SetCursorPosY(toolTop + 2.0f * scale);
+            ImGui::PushFont(nullptr, 16.0f);
+            if (ActionButton("##agent.attach", Severity::Info, view.projectOpen,
+                nullptr, ImVec2(24.0f * scale, 24.0f * scale), Icons::Plus))
             {
-                ImGui::PushFont(nullptr, 11.0f);
+                result.action = AgentChatAction::AttachFile;
+            }
+            ImGui::PopFont();
+            ChatTooltip(Loc::Text(view.projectOpen ? LocKeys::AgentAttachFile : LocKeys::AgentProjectRequired),
+                tooltipPadding, ImGuiHoveredFlags_AllowWhenDisabled);
+            ImGui::SameLine(0.0f, 6.0f * scale);
+            {
+                ImGui::SetCursorPosY(toolTop + (toolsHeight - ImGui::GetFrameHeight()) * 0.5f);
                 Array<const char*> labels;
                 Int32 selected = -1;
+                Float widestModel = 0.0f;
                 for (const auto& model : view.models)
                 {
                     if (model.id == view.model)
@@ -502,46 +537,51 @@ namespace JBro::Widget
                         selected = static_cast<Int32>(labels.Size());
                     }
                     labels.Add(model.label.c_str());
+                    widestModel = Max(widestModel, Float(ImGui::CalcTextSize(model.label.c_str()).x));
                 }
                 const char* modelLabel = selected >= 0 ? labels[selected.Value] : Loc::Text(LocKeys::AgentModelPlaceholder);
                 if (view.connection == Agent::Connection::Ready && !labels.IsEmpty())
                 {
                     StyleScope modelStyle;
-                    modelStyle.PushColor(ImGuiCol_FrameBg, EditorTheme::Clear);
-                    modelStyle.PushVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f * scale, 4.0f * scale));
-                    const Float modelWidth = Min(Float(ImGui::CalcTextSize(modelLabel).x) + 30.0f * scale,
-                        Min(Float(160.0f) * scale, Max(Float(50.0f) * scale, toolWidth - 40.0f * scale)));
+                    modelStyle.PushVar(ImGuiStyleVar_WindowPadding, tooltipPadding);
+                    modelStyle.PushVar(ImGuiStyleVar_ItemSpacing, popupItemSpacing);
+                    const Float modelWidth = Min(widestModel + 30.0f * scale,
+                        Min(Float(160.0f) * scale, Max(Float(50.0f) * scale, toolWidth - 72.0f * scale)));
                     if (FilterCombo("##agent.model", labels.View(), selected)
                         .EmptyText(Loc::Text(LocKeys::AgentModelPlaceholder)).Width(modelWidth)())
                     {
                         result.model = selected;
                     }
-                    HoveredTooltip(modelLabel);
+                    ChatTooltip(modelLabel, tooltipPadding);
                 }
                 else
                 {
                     StyleScope modelStyle;
                     modelStyle.PushColor(ImGuiCol_Text, Muted);
                     ImGui::AlignTextToFramePadding();
-                    ClippedText(connected ? modelLabel : Loc::Text(LocKeys::AgentModelAfterConnect), toolWidth - 40.0f * scale);
+                    ClippedText(connected ? modelLabel : Loc::Text(LocKeys::AgentModelAfterConnect), toolWidth - 72.0f * scale, tooltipPadding);
                 }
-                ImGui::PopFont();
             }
-            ImGui::SetCursorPos(ImVec2(toolLeft + toolWidth - 28.0f * scale, toolTop));
+            ImGui::SetCursorPos(ImVec2(toolLeft + toolWidth - toolsHeight, toolTop));
             const Bool enabled = running || (view.connection == Agent::Connection::Ready && !input.empty() && valid);
             {
+                ImGui::PushFont(nullptr, 16.0f);
                 StyleScope sendStyle;
                 sendStyle.PushColor(ImGuiCol_Button, SoftAccent);
-                sendStyle.PushColor(ImGuiCol_ButtonHovered, EditorTheme::AccentBright);
+                sendStyle.PushColor(ImGuiCol_ButtonHovered, ImVec4(0.75f, 0.84f, 0.95f, 1.0f));
+                sendStyle.PushColor(ImGuiCol_ButtonActive, ImVec4(0.55f, 0.67f, 0.81f, 1.0f));
                 sendStyle.PushColor(ImGuiCol_Text, Composer);
                 if (ActionButton(running ? "##agent.stop" : "##agent.send", Severity::Info, enabled,
-                    !valid ? Loc::Text(LocKeys::AgentInvalidTarget) : Loc::Text(LocKeys::AgentNotReady),
-                    ImVec2(28.0f * scale, 28.0f * scale), running ? Icons::Stop : Icons::ArrowUp))
+                    nullptr, ImVec2(toolsHeight, toolsHeight), running ? Icons::Stop : Icons::Send))
                 {
                     result.action = running ? AgentChatAction::Stop : AgentChatAction::Send;
                 }
-                HoveredTooltip(Loc::Text(running ? LocKeys::AgentStop : LocKeys::AgentSend), ImGuiHoveredFlags_AllowWhenDisabled);
+                ImGui::PopFont();
             }
+            ChatTooltip(Loc::Text(!valid ? LocKeys::AgentInvalidTarget
+                : !connected ? LocKeys::AgentNotReady
+                : !enabled ? LocKeys::AgentInputHint
+                : running ? LocKeys::AgentStop : LocKeys::AgentSend), tooltipPadding, ImGuiHoveredFlags_AllowWhenDisabled);
             if (enabled && !running && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)
                 && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Enter, false))
             {

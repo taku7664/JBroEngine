@@ -822,3 +822,6 @@ Entries:
   agent.model_placeholder: Select model
   agent.model_after_connect: Model · connect to select
   agent.shortcut_hint: Ctrl + Enter to send
+  agent.attach_file: Attach file
+  agent.attachment_filter: Project assets
+  agent.attachment_unsupported: Only registered project assets can currently be attached from a file.

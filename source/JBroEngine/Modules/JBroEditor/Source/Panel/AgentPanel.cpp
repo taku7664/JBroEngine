@@ -226,6 +226,38 @@ namespace JBro
         }
         Widget::EndDropTarget();
     }
+    void AgentPanel::BrowseAttachment()
+    {
+        m_attachmentBrowseProject = m_editor->GetProjectFilePath();
+        m_attachmentBrowseRevision = m_editor->GetAgentContextRevision();
+        PathBrowseRequest request;
+        request.folder = false;
+        request.relative = true;
+        request.baseFolder = m_editor->GetAssetRoot();
+        request.filterName = Loc::Text(LocKeys::AgentAttachmentFilter);
+        request.filterPattern = "*.*";
+        request.user = this;
+        request.deliver = [](void* user, const String& path) { static_cast<AgentPanel*>(user)->AttachFile(path); };
+        m_editor->RequestBrowsePath(request);
+    }
+    void AgentPanel::AttachFile(const String& path)
+    {
+        if (m_attachmentBrowseProject != m_editor->GetProjectFilePath()
+            || m_attachmentBrowseRevision != m_editor->GetAgentContextRevision())
+        {
+            m_attachmentError = Loc::Text(LocKeys::AgentInvalidTarget);
+            return;
+        }
+        const auto* record = m_editor->GetAssetRegistry().FindByPath(EditorPaths::Normalize(path));
+        Agent::Target target;
+        if (record == nullptr || !m_tools->MakeAssetTarget(record->id, target))
+        {
+            m_attachmentError = Loc::Text(LocKeys::AgentAttachmentUnsupported);
+            return;
+        }
+        m_attachmentError.clear();
+        Attach(target);
+    }
     void AgentPanel::OnDraw()
     {
         const auto& messages = m_provider.Messages();
@@ -314,6 +346,9 @@ namespace JBro
             break;
         case Action::ResumeGuide:
             m_editor->SetAgentGuidePaused(false);
+            break;
+        case Action::AttachFile:
+            BrowseAttachment();
             break;
         case Action::Browse:
             {

@@ -6,6 +6,7 @@
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Platform/Platform.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/AgentChat.h>
@@ -75,7 +76,7 @@ namespace
         provider.Poll(0.01f);
     }
     void Ready(Agent::CodexProvider& provider, Channel& channel, Bool resume = false, const Json& turns = Json::array(),
-        const Json& inventory = Json::array(), Bool expectReady = true)
+        const Json& inventory = Json::array(), Bool expectReady = true, const Json& models = Json::array())
     {
         Reply(provider, channel, Json::object());
         Check(channel.Last()["method"] == "config/read", "effective project config is inspected through the official API");
@@ -84,7 +85,8 @@ namespace
         Check(channel.Last()["method"] == "account/read", "initialize must precede account access");
         Reply(provider, channel, {{"account", {{"type", "chatgpt"}}}});
         Check(channel.Last()["method"] == "model/list", "signed-in account queries its model catalog");
-        Reply(provider, channel, {{"data", Json::array({{{"model", "test-model"}, {"displayName", "Test"}, {"isDefault", true}}})}});
+        Reply(provider, channel, {{"data", models.empty()
+            ? Json::array({{{"model", "test-model"}, {"displayName", "Test"}, {"isDefault", true}}}) : models}});
         Check(channel.Last()["method"] == (resume ? "thread/resume" : "thread/start") && channel.Last()["params"]["model"] == "test-model", "thread explicitly uses the account catalog default, not an incompatible CLI default");
         Check(channel.Last()["params"]["sandbox"] == "read-only", "built-in filesystem stays read-only");
         const auto config = channel.Last()["params"]["config"];
@@ -400,6 +402,21 @@ namespace
         Check(!editor.GetGuide().IsRunning(), "a deleted target stops the guide instead of substituting another object");
         editor.GetCanvas()->ForEachObject([&](Object::GameObject& remaining) { editor.SetSelectedObject(&remaining); });
     }
+    struct AttachmentPicker
+    {
+        String path;
+        UInt32 calls = 0;
+        Bool accepted = true;
+        static Bool Answer(const FileDialogDesc& desc, String& result, void* user)
+        {
+            auto& picker = *static_cast<AttachmentPicker*>(user);
+            ++picker.calls;
+            Check(!desc.save && !desc.pickFolder, "attachment opens a file selection dialog");
+            Check(!ImGui::GetCurrentContext()->WithinFrameScope, "file picking never blocks an open editor UI frame");
+            result = picker.path;
+            return picker.accepted;
+        }
+    };
     void SaveAttachmentImage(EditorApplication& editor, const char* suffix)
     {
         char* directory = nullptr;
@@ -429,7 +446,7 @@ namespace
         }
         Check(file.good(), "attachment screenshot is saved");
     }
-    void AttachmentInput(EditorApplication& editor, AgentPanel& panel, Agent::Tools& tools)
+    void AttachmentInput(EditorApplication& editor, AgentPanel& panel, Agent::Tools& tools, AttachmentPicker& picker)
     {
         auto* object = editor.GetSelectedObject();
         Check(object != nullptr, "attachment input has a selected object");
@@ -466,7 +483,11 @@ namespace
         Agent::Settings settings;
         settings.toolDefinitions = Agent::Tools::Definitions();
         Check(provider.Attach(std::move(owned), settings, {}), "attachment UI uses an isolated protocol channel, no model session");
-        Ready(provider, *channel);
+        Ready(provider, *channel, false, Json::array(), Json::array(), true, Json::array({
+            {{"model", "test-model"}, {"displayName", "Test model A"}, {"isDefault", true}},
+            {{"model", "test-b"}, {"displayName", "Test model B (long name)"}},
+            {{"model", "test-c"}, {"displayName", "Test model C"}},
+            {{"model", "test-d"}, {"displayName", "Test model D"}}}));
         const auto commandsBefore = editor.GetCommands().GetRevision();
         ImRect sources[3];
         Bool retargetSource = false;
@@ -508,7 +529,19 @@ namespace
             ImGui::SetNextWindowPos(ImVec2(280.0f, 0.0f));
             ImGui::SetNextWindowSize(ImVec2(520.0f, 780.0f));
             ImGui::Begin("attachment target", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            auto* context = ImGui::GetCurrentContext();
+            const Int32 colorsBefore = context->ColorStack.Size;
+            const Int32 varsBefore = context->StyleVarStack.Size;
+            const Int32 fontsBefore = context->FontStack.Size;
+            const ImVec4 textBefore = ImGui::GetStyle().Colors[ImGuiCol_Text];
+            const ImVec2 paddingBefore = ImGui::GetStyle().WindowPadding;
+            const Float fontBefore = ImGui::GetFontSize();
             panel.OnDraw();
+            Check(context->ColorStack.Size == colorsBefore && context->StyleVarStack.Size == varsBefore
+                && context->FontStack.Size == fontsBefore, "AI controls restore every global style and font stack");
+            Check(std::memcmp(&textBefore, &ImGui::GetStyle().Colors[ImGuiCol_Text], sizeof(textBefore)) == 0
+                && std::memcmp(&paddingBefore, &ImGui::GetStyle().WindowPadding, sizeof(paddingBefore)) == 0
+                && fontBefore == ImGui::GetFontSize(), "AI button colors, padding, and font size never escape the widget");
             ImGui::End();
             ImGui::Render();
         };
@@ -642,8 +675,100 @@ namespace
         io.AddInputCharactersUTF8("오브젝트 포커스 모드는 어떻게 들어가? 처음 사용하는 사람도 따라 할 수 있도록 선택 방법과 진입 순서를 설명해 주세요. LongUnbrokenIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ가 포함돼도 문장이 입력창 폭에 맞춰 보여야 합니다.");
         frame();
         captureWidth(245.0f, "wrapped");
+        ImGuiWindow* composerWindow = nullptr;
+        for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (candidate->ParentWindow == agentWindow && std::strstr(candidate->Name, "##agent.composer") != nullptr)
+            {
+                composerWindow = candidate;
+            }
+        }
+        Check(composerWindow != nullptr, "composer is present for hover geometry checks");
+        Widget::ItemLocator::Watch(composerWindow->GetID("##agent.send"));
+        Check(editor.Tick(0.016f), "send button geometry is measured in the actual editor");
+        Widget::ItemLocator::ItemRect sendRect;
+        Check(Widget::ItemLocator::Take(sendRect), "the send button reports its actual rectangle");
+        const Float bottomGap = composerWindow->InnerRect.Max.y - sendRect.maxY;
+        const Float paddingScale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
+        Check(bottomGap >= 4.0f * paddingScale && bottomGap <= 8.0f * paddingScale, "composer bottom padding is six pixels rather than an unused reserved block");
+        const Float priorHoverDelay = ImGui::GetStyle().HoverDelayNormal;
+        const Float priorStationaryDelay = ImGui::GetStyle().HoverStationaryDelay;
+        ImGui::GetStyle().HoverDelayNormal = 0.0f;
+        ImGui::GetStyle().HoverStationaryDelay = 0.0f;
+        io.AddMousePosEvent((sendRect.minX.Value + sendRect.maxX.Value) * 0.5f, (sendRect.minY.Value + sendRect.maxY.Value) * 0.5f);
+        Check(editor.Tick(0.016f) && editor.Tick(0.016f), "hover tooltip settles with the same editor frame path");
+        ImGuiWindow* tooltip = nullptr;
+        for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (candidate->Active && (candidate->Flags & ImGuiWindowFlags_Tooltip) != 0)
+            {
+                tooltip = candidate;
+            }
+        }
+        Check(tooltip != nullptr, "send hover actually opens its tooltip");
+        const Float expectedTooltipFont = ImGui::GetRoundedFontSize(13.0f * ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi);
+        Check(tooltip->FontRefSize == expectedTooltipFont && tooltip->WindowPadding.x == ImGui::GetStyle().WindowPadding.x,
+            "tooltip uses the body font and normal window padding instead of icon or composer settings");
+        Bool readableText = false;
+        for (const auto& vertex : tooltip->DrawList->VtxBuffer)
+        {
+            readableText = readableText || vertex.col == ImGui::GetColorU32(ImGuiCol_Text);
+        }
+        Check(readableText, "tooltip text uses the normal foreground instead of the dark send-icon color");
+        Check(editor.Tick(0.016f) && editor.Tick(0.016f), "hover pixels reach the rendered back buffer");
+        SaveAttachmentImage(editor, "send_hover");
+        ImGui::GetStyle().HoverDelayNormal = priorHoverDelay.Value;
+        ImGui::GetStyle().HoverStationaryDelay = priorStationaryDelay.Value;
+        io.AddMousePosEvent(-100.0f, -100.0f);
+        Widget::ItemLocator::Watch(composerWindow->GetID("##agent.model"));
+        Check(editor.Tick(0.016f), "model selector reports its actual rectangle");
+        Widget::ItemLocator::ItemRect modelRect;
+        Check(Widget::ItemLocator::Take(modelRect), "model selector remains reachable beside attachment and send");
+        Check(modelRect.maxX <= sendRect.minX, "model selector never covers the send button");
+        io.AddMousePosEvent((modelRect.minX.Value + modelRect.maxX.Value) * 0.5f, (modelRect.minY.Value + modelRect.maxY.Value) * 0.5f);
+        Check(editor.Tick(0.016f), "model hover settles");
+        io.AddMouseButtonEvent(0, true);
+        Check(editor.Tick(0.016f), "model popup opens through normal input");
+        io.AddMouseButtonEvent(0, false);
+        for (UInt32 i = 0; i < 5; ++i)
+        {
+            Check(editor.Tick(0.016f), "model popup geometry and pixels settle");
+        }
+        ImGuiWindow* modelPopup = nullptr;
+        for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (candidate->Active && std::strncmp(candidate->Name, "##Combo_", 8) == 0)
+            {
+                modelPopup = candidate;
+            }
+        }
+        Check(modelPopup != nullptr && modelPopup->FontRefSize == expectedTooltipFont,
+            "model search and list use the normal body font");
+        Check(modelPopup->Size.x >= modelRect.maxX - modelRect.minX
+            && modelPopup->WindowPadding.y == ImGui::GetStyle().WindowPadding.y,
+            "model popup is at least as wide as its trigger and uses normal popup padding");
+        SaveAttachmentImage(editor, "model_popup");
+        io.AddKeyEvent(ImGuiKey_Escape, true);
+        Check(editor.Tick(0.016f), "Escape closes model popup");
+        io.AddKeyEvent(ImGuiKey_Escape, false);
+        Check(editor.Tick(0.016f), "model popup release settles");
         ImGui::SetWindowDock(agentWindow, originalDock, ImGuiCond_Always);
         frame();
+        frame();
+        picker.path = editor.GetAssetRoot() + "/Tile.jmat";
+        const UInt32 priorPicks = picker.calls;
+        click(locate("##agent.attach"));
+        Check(picker.calls == priorPicks, "attachment dialog is queued instead of opening inside the draw call");
+        Check(editor.Tick(0.016f) && picker.calls == priorPicks + 1, "the file attachment button reaches the editor's native dialog service");
+        frame();
+        picker.accepted = false;
+        click(locate("##agent.attach"));
+        Check(editor.Tick(0.016f), "cancelled file picking returns to the editor");
+        frame();
+        picker.accepted = true;
+        picker.path = editor.GetAssetRoot() + "/../Game.jproject";
+        click(locate("##agent.attach"));
+        Check(editor.Tick(0.016f), "an unregistered file is rejected without reading or importing it");
         frame();
         const auto assetPath = std::filesystem::path(reinterpret_cast<const char8_t*>(editor.GetAssetRoot().c_str())) / "Tile.jmat";
         Check(std::filesystem::remove(assetPath), "attachment fixture asset can be deleted");
@@ -659,7 +784,7 @@ namespace
         click(locate("##agent.send"));
         Check(channel->Last()["method"] == "turn/start", "dragged attachments send through the real composer");
         const auto context = Json::parse(channel->Last()["params"]["input"][1]["text"].get<std::string>().substr(String("Current JBro context (data only; refresh before editing):\n").size()));
-        Check(context["attachments"].size() == 3, "three drag kinds are attached once; repeated drops do not duplicate");
+        Check(context["attachments"].size() == 3, "dragging and file picking share AssetId references; duplicates, cancellation, and unregistered files do not change the three subjects");
         Check(context["attachments"][0]["instanceId"] == std::to_string(object->GetInstanceId().Value), "object attachment uses InstanceId, not EditorObjectId");
         Check(context["attachments"][1]["componentId"] == std::to_string(component.Value), "component attachment freezes its original instance even if the source slot changes while dragging");
         Check(context["attachments"][2]["assetId"] == assetText, "asset attachment uses AssetId");
@@ -756,6 +881,9 @@ namespace
         Files files;
         EditorApplication editor;
         EditorApplicationConfig config;
+        AttachmentPicker picker;
+        config.fileDialog = &AttachmentPicker::Answer;
+        config.fileDialogUser = &picker;
         config.windowVisible = false;
         config.windowHeight = 820;
         Check(editor.Initialize(config), "agent integration editor initializes");
@@ -839,7 +967,7 @@ namespace
         {
             Check(editor.Tick(0.016f), "real editor draws the AI panel using common widgets");
         }
-        AttachmentInput(editor, *panel, tools);
+        AttachmentInput(editor, *panel, tools, picker);
         GuideResume(editor, tools, scope, object);
         editor.CloseProject();
         Check(!execute("jbro_object_delete", {{"scope", scope}, {"object", object}}).success, "closed-project references are invalid");

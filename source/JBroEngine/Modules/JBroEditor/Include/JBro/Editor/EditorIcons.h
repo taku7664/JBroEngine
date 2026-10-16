@@ -6,6 +6,7 @@ namespace JBro::Icons
     inline constexpr const char* Settings = "\xF3\xB0\x92\x93"; // F0493 cog
     inline constexpr const char* Back = "\xF3\xB0\x81\x8D"; // F004D arrow-left
     inline constexpr const char* Attachment = "\xF3\xB0\x8F\xA2"; // F03E2 paperclip
+    inline constexpr const char* Send = "\xF3\xB0\x92\x8A"; // F048A send - AI message submission
     // 에디터가 쓰는 Material Design Icons 글리프다(D-277). UTF-8 로 적어 두어 글자와 이어 붙일 수 있다.
     // 아이콘 글꼴이 없는 기계에서는 네모로 나온다 - 그때도 에디터는 뜬다.
     //
@@ -84,7 +85,7 @@ namespace JBro::Icons
 
     // 위의 글리프 전부다. 시험이 이것을 돌며 모두 글꼴 안에 있는지 본다 - 글리프를 더하면 여기에도 더한다.
     inline constexpr const char* All[] = {
-        Agent, Settings, Back, Attachment,
+        Agent, Settings, Back, Attachment, Send,
         GripLines, Xmark, Eye, EyeSlash, Search, FolderOpen, Move, Rotate, Scale, SpaceLocal, SpaceWorld, Grid, GridSnap,
         Colliders, Lighting, Frame, ViewWorld, ViewScreen, Language, Ruler, EditCollider, Success, Warning, Error, Info, Plus,
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,

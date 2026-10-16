@@ -21,6 +21,8 @@ namespace JBro
         void Connect();
         void Attach(const Agent::Target& target);
         void ReceiveAttachments();
+        void BrowseAttachment();
+        void AttachFile(const String& path);
         void Load();
         void Save();
         EditorApplication* m_editor = nullptr;
@@ -28,6 +30,8 @@ namespace JBro
         Agent::CodexProvider m_provider;
         String m_project, m_executable, m_thread, m_input, m_apiKey, m_settingsPath, m_openedAuth, m_model;
         UInt64 m_scopeRevision = 0;
+        UInt64 m_attachmentBrowseRevision = 0;
+        String m_attachmentBrowseProject;
         Array<Agent::Target> m_attachments;
         String m_attachmentError;
         Bool m_settingsOpen = false;

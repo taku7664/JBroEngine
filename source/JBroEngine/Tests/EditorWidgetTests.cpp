@@ -681,8 +681,11 @@ namespace
         ImVec2 triggerMin;
         ImVec2 triggerMax;
         JBro::Bool triggerKnown = false;
+        JBro::Float requiredPopupWidth = 0.0f;
         const auto frame = [&]() {
             stage.Begin();
+            const auto& style = ImGui::GetStyle();
+            requiredPopupWidth = ImGui::CalcTextSize(items[1]).x + style.FramePadding.x * 4.0f + style.ScrollbarSize;
             const JBro::Bool changed = JBro::Widget::FilterCombo("##probe", items, current)
                 .EmptyText("(none)")
                 .Width(200.0f)
@@ -737,6 +740,17 @@ namespace
         Check(triggerMax.x - triggerMin.x > 100.0f, "the trigger must have the width it was given");
 
         open();
+        const JBro::Float priorScale = ImGui::GetStyle().FontScaleMain;
+        ImGui::GetStyle().FontScaleMain = priorScale.Value * 2.0f;
+        frame();
+        frame();
+        frame();
+        Check(FindComboPopup()->Size.x >= requiredPopupWidth - 1.0f,
+            "an open filtered list remeasures its longest name after a font scale change");
+        ImGui::GetStyle().FontScaleMain = priorScale.Value;
+        frame();
+        frame();
+        frame();
         type("rig");
         pressEnter();
         Check(current == 2, "typing 'rig' and Enter must pick Rigidbody2D");
