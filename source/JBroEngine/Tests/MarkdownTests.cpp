@@ -4,6 +4,8 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/EditorActionRegistry.h>
+#include <JBro/Editor/EditorUI.h>
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Task/TaskManager.h>
 #include "../Modules/JBroEditor/Source/Panel/MarkdownPanel.h"
 #include <TextEditor.h>
@@ -14,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
+#include <cmath>
 #include <Windows.h>
 
 namespace
@@ -116,6 +119,180 @@ namespace
         }
         Check(declaration && comment, "snapshot reuses C++ tokenizer");
         Check(before == editor.GetText() && undo == editor.GetUndoIndex(), "snapshot preserves document and history");
+    }
+    struct ViewContext
+    {
+        ViewContext()
+        {
+            ImGui::CreateContext();
+            auto& io = ImGui::GetIO();
+            io.IniFilename = nullptr;
+            io.DisplaySize = {800, 600};
+            io.DeltaTime = 1.0f / 60.0f;
+            io.Fonts->AddFontDefault();
+            unsigned char* pixels;
+            int width, height;
+            io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+            io.Fonts->SetTexID(1);
+        }
+        ~ViewContext() { ImGui::DestroyContext(); }
+    };
+    struct ViewHarness
+    {
+        ViewContext context;
+        Widget::MarkdownView view;
+        void Load(const String& source)
+        {
+            Markdown::Document document;
+            Check(Markdown::Parse(source, document), "regression document parses");
+            view.SetDocument(std::move(document));
+        }
+        void Render(Float width = 700.0f, Float height = 400.0f)
+        {
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos({0, 0});
+            ImGui::SetNextWindowSize({width.Get(), height.Get()});
+            ImGui::Begin("Markdown regression", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            view.Render("regression");
+            ImGui::End();
+            ImGui::Render();
+        }
+        ImGuiWindow& Body()
+        {
+            for (auto* window : ImGui::GetCurrentContext()->Windows)
+            {
+                if (String(window->Name).Contains("##body"))
+                {
+                    return *window;
+                }
+            }
+            throw std::runtime_error("Markdown body is missing");
+        }
+    };
+    void MixedListBlocks()
+    {
+        ViewHarness harness;
+        const String item = "- BEFORE\n  ```text\n  CODE\n  ```\n  AFTER\n";
+        harness.Load(item);
+        Check(harness.view.GetDocument().text == "BEFORE\nCODE\nAFTER\n", "tight-list copy preserves block boundaries and source order");
+        String source;
+        for (UInt32 row = 0; row < 30; ++row)
+        {
+            source += "padding\n\n";
+        }
+        source += item + "\n";
+        for (UInt32 row = 0; row < 30; ++row)
+        {
+            source += "padding\n\n";
+        }
+        harness.Load(source);
+        harness.Render();
+        harness.Render();
+        const auto position = [&](const String& query) -> Float {
+            harness.view.SetSearch(query);
+            harness.Render();
+            harness.Render();
+            return harness.Body().Scroll.y;
+        };
+        const Float before = position("BEFORE"), code = position("CODE"), after = position("AFTER");
+        Check(before < code && code < after, "tight-list rendering follows before/code/after source order");
+        harness.Load("- **before**\n  > quote\n\n  ![alt](image.png)\n\n  after\n");
+        Check(harness.view.GetDocument().text.Contains("before\nquote\nalt\nafter\n"), "nested quote and image keep their logical boundaries");
+    }
+    void HorizontalSearch()
+    {
+        ViewHarness harness;
+        harness.Load("```text\nSTART" + String(300, 'x') + "NEEDLE\n```\n");
+        harness.Render();
+        harness.Render();
+        harness.view.SetSearch("NEEDLE");
+        harness.Render();
+        harness.Render();
+        Check(harness.view.MatchCount() == 1 && harness.Body().ScrollMax.x > 1000, "long code line has a searchable offscreen match");
+        Check(harness.Body().Scroll.x > 1000, "search reveals the match on the horizontal axis");
+        harness.view.SetSearch("START");
+        harness.Render();
+        harness.Render();
+        Check(harness.Body().Scroll.x < 50, "search returns to a match at the start of the line");
+        harness.Render(430.0f);
+        harness.view.SetSearch("NEEDLE");
+        harness.Render(430.0f);
+        harness.Render(430.0f);
+        Check(harness.Body().Scroll.x > 1000, "horizontal search remains correct after reflow");
+        harness.Load("```text\n" + String(300, 'x') + "NEEDLE\n```\n");
+        harness.view.SetSearch("NEEDLE");
+        harness.Render();
+        harness.Render();
+        harness.Render();
+        Check(harness.Body().Scroll.x > 1000, "a search requested before layout reveals the new document's match");
+    }
+    void LocalImageSizing()
+    {
+        ViewHarness harness;
+        Widget::MarkdownImage image;
+        image.texture = {123, 1};
+        Widget::MarkdownCallbacks callbacks;
+        callbacks.user = &image;
+        callbacks.image = [](void* user, const String&) { return *static_cast<Widget::MarkdownImage*>(user); };
+        harness.view.SetCallbacks(callbacks);
+        harness.Load("![alt](local.png)\n");
+        for (const auto extent : {Extent2D{288, 64}, Extent2D{1200, 300}, Extent2D{32, 256}})
+        {
+            image.width = extent.width;
+            image.height = extent.height;
+            harness.view.InvalidateLayout();
+            harness.Render(430.0f);
+            harness.Render(430.0f);
+            Bool found = false;
+            for (const auto* list : ImGui::GetDrawData()->CmdLists)
+            {
+                for (const auto& command : list->CmdBuffer)
+                {
+                    if (command.GetTexID() != EditorUI::ToTextureId(image.texture).Get() || command.ElemCount < 6)
+                    {
+                        continue;
+                    }
+                    const auto& first = list->VtxBuffer[list->IdxBuffer[command.IdxOffset] + command.VtxOffset];
+                    const auto& opposite = list->VtxBuffer[list->IdxBuffer[command.IdxOffset + 2] + command.VtxOffset];
+                    const Float available = harness.Body().InnerRect.GetWidth() - ImGui::GetStyle().WindowPadding.x * 2.0f - ImGui::GetFontSize() * 2.0f;
+                    const ImVec2 box(std::min(available.Get(), static_cast<Float>(image.width).Get()), static_cast<Float>(image.height).Get());
+                    const auto expected = Widget::FitInside(image.width, image.height, box);
+                    Check(std::abs(opposite.pos.x - first.pos.x - expected.x) < 0.1f
+                        && std::abs(opposite.pos.y - first.pos.y - expected.y) < 0.1f, "Markdown images use common fitting without stretching or upscaling");
+                    found = true;
+                }
+            }
+            Check(found, "local image contributes a textured quad");
+        }
+    }
+    void DeepNesting()
+    {
+        ViewHarness harness;
+        harness.Load(String(16000, '>') + " nested\n");
+        Check(harness.view.GetDocument().blocks.Size() >= 16000, "deep quotes remain supported rather than silently truncated");
+        harness.Render();
+        harness.Render();
+        harness.view.SelectAll();
+        Check(harness.view.SelectedText() == "nested\n", "deep quote layout preserves selectable text without stack recursion");
+    }
+    void RepeatedHeadings()
+    {
+        String source;
+        for (UInt32 heading = 0; heading < 10000; ++heading)
+        {
+            source += "# Same\n\n";
+        }
+        Markdown::Document document;
+        const auto start = std::chrono::steady_clock::now();
+        Check(Markdown::Parse(source, document), "ten thousand repeated headings parse");
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        std::cout << "Markdown 10000 repeated headings: " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms\n";
+        Check(document.blocks[10000].anchor == "same-9999", "repeated heading suffixes stay deterministic");
+        Check(elapsed < std::chrono::seconds(5), "repeated heading allocation must not regress to cubic rescanning");
+        Check(Markdown::Parse("# Same\n\n# Same-1\n\n# Same\n\n# Same-1\n", document), "explicit suffix collisions parse");
+        Check(document.blocks[3].anchor == "same-2" && document.blocks[4].anchor == "same-1-1", "generated and explicit anchor names share one collision domain");
+        Check(Markdown::Parse("&#0; &#128; &#x10FFFF; &#x110000; &#xD800;", document), "numeric entities parse at Unicode boundaries");
+        Check(document.text == "\xef\xbf\xbd \xe2\x82\xac \xf4\x8f\xbf\xbf \xef\xbf\xbd \xef\xbf\xbd\n", "engine integer conversion preserves numeric entity semantics");
     }
     void View()
     {
@@ -367,7 +544,9 @@ namespace
 JBro::Int32 RunMarkdownTests()
 {
     struct Case { const char* name; void (*run)(); };
-    const Case cases[] = {{"model", Model}, {"lexical snapshot", Snapshot}, {"view", View}, {"panels", Panels}};
+    const Case cases[] = {{"model", Model}, {"lexical snapshot", Snapshot}, {"view", View}, {"panels", Panels},
+        {"mixed list blocks", MixedListBlocks}, {"horizontal search", HorizontalSearch}, {"local image sizing", LocalImageSizing},
+        {"deep nesting", DeepNesting}, {"repeated headings", RepeatedHeadings}};
     JBro::Int32 failures = 0;
     for (const auto& test : cases)
     {

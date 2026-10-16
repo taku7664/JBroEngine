@@ -1,5 +1,7 @@
 #include <JBro/Editor/Document/Markdown.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/Table.h>
+#include <JBro/Types/ValueMath.h>
 #include <md4c.h>
 extern "C" {
 #include <entity.h>
@@ -13,7 +15,7 @@ namespace JBro::Markdown
 {
     namespace
     {
-        void Utf8(String& out, unsigned code)
+        void Utf8(String& out, UInt32 code)
         {
             if (code == 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff))
             {
@@ -47,9 +49,9 @@ namespace JBro::Markdown
             String out;
             if (value.size() > 3 && value[1] == '#')
             {
-                unsigned code = 0;
+                UInt32 code = 0;
                 std::size_t at = 2;
-                unsigned base = 10;
+                UInt32 base = 10;
                 if (value[at] == 'x' || value[at] == 'X')
                 {
                     base = 16;
@@ -58,8 +60,8 @@ namespace JBro::Markdown
                 for (; at + 1 < value.size(); ++at)
                 {
                     const char c = value[at];
-                    const unsigned digit = c >= '0' && c <= '9' ? c - '0'
-                        : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : base;
+                    const UInt32 digit = c >= '0' && c <= '9' ? UInt32(c - '0')
+                        : c >= 'a' && c <= 'f' ? UInt32(c - 'a' + 10) : c >= 'A' && c <= 'F' ? UInt32(c - 'A' + 10) : base;
                     if (digit >= base || code > 0x10ffff / base)
                     {
                         code = 0xfffd;
@@ -68,12 +70,12 @@ namespace JBro::Markdown
                     code = code * base + digit;
                 }
                 // CommonMark follows the HTML legacy numeric-reference replacements.
-                constexpr unsigned legacy[] = {0x20ac,0x81,0x201a,0x192,0x201e,0x2026,0x2020,0x2021,
+                constexpr UInt32 legacy[] = {0x20ac,0x81,0x201a,0x192,0x201e,0x2026,0x2020,0x2021,
                     0x2c6,0x2030,0x160,0x2039,0x152,0x8d,0x17d,0x8f,0x90,0x2018,0x2019,0x201c,
                     0x201d,0x2022,0x2013,0x2014,0x2dc,0x2122,0x161,0x203a,0x153,0x9d,0x17e,0x178};
                 if (code >= 0x80 && code <= 0x9f)
                 {
-                    code = legacy[code - 0x80];
+                    code = legacy[(code - 0x80).Get()];
                 }
                 Utf8(out, code);
             }
@@ -94,12 +96,12 @@ namespace JBro::Markdown
         String Attribute(const MD_ATTRIBUTE& value)
         {
             String out;
-            for (unsigned i = 0; value.size && value.substr_offsets[i] < value.size; ++i)
+            for (UInt32 i = 0; value.size && value.substr_offsets[i.Get()] < value.size; ++i)
             {
-                const auto begin = value.substr_offsets[i];
-                const auto size = value.substr_offsets[i + 1] - begin;
-                const auto part = std::string_view(value.text + begin, size);
-                out += value.substr_types[i] == MD_TEXT_ENTITY ? Entity(part) : String(part);
+                const UInt32 begin = value.substr_offsets[i.Get()];
+                const UInt32 size = value.substr_offsets[(i + 1).Get()] - begin;
+                const auto part = std::string_view(value.text + begin.Get(), size.Get());
+                out += value.substr_types[i.Get()] == MD_TEXT_ENTITY ? Entity(part) : String(part);
             }
             return out;
         }
@@ -132,9 +134,54 @@ namespace JBro::Markdown
             Array<UInt32> stack;
             Array<SpanState> spans;
             SpanState span;
+            Table<String, UInt32> anchorSuffixes;
             const char* sourceBegin = nullptr;
             const char* sourceEnd = nullptr;
             UInt32 codeIndent = 0;
+            Bool implicitParagraph = false;
+            String HeadingAnchor(const String& base)
+            {
+                if (anchorSuffixes.TryAdd(base, UInt32(1)))
+                {
+                    return base;
+                }
+                UInt32 suffix = *anchorSuffixes.Find(base);
+                String candidate;
+                do
+                {
+                    candidate = base + "-" + std::to_string((suffix++).Get());
+                } while (!anchorSuffixes.TryAdd(candidate, UInt32(1)));
+                // Insertion can rehash the table, so reacquire the base entry afterwards.
+                anchorSuffixes[base] = suffix;
+                return candidate;
+            }
+            void BeginImplicitParagraph()
+            {
+                if (!stack.IsEmpty() && document.blocks[stack[stack.Size() - 1].Get()].kind == Kind::Item)
+                {
+                    // MD4C omits paragraph callbacks in tight lists. Keep inline sections in
+                    // their own ordered child blocks instead of moving them before all children.
+                    Block block;
+                    block.kind = Kind::Paragraph;
+                    block.parent = stack[stack.Size() - 1];
+                    block.begin = static_cast<UInt32>(document.text.size());
+                    const UInt32 index = static_cast<UInt32>(document.blocks.Size());
+                    document.blocks[block.parent.Get()].children.Add(index);
+                    document.blocks.Add(std::move(block));
+                    stack.Add(index);
+                    implicitParagraph = true;
+                }
+            }
+            void EndImplicitParagraph()
+            {
+                if (implicitParagraph)
+                {
+                    document.blocks[stack[stack.Size() - 1].Get()].end = static_cast<UInt32>(document.text.size());
+                    stack.RemoveAt(stack.Size() - 1);
+                    Separator('\n');
+                    implicitParagraph = false;
+                }
+            }
             void AppendCode(std::string_view value)
             {
                 const auto address = reinterpret_cast<std::uintptr_t>(value.data());
@@ -193,6 +240,7 @@ namespace JBro::Markdown
                 {
                     return;
                 }
+                BeginImplicitParagraph();
                 auto& runs = document.blocks[stack[stack.Size() - 1].Get()].runs;
                 const UInt32 begin = static_cast<UInt32>(document.text.size());
                 document.text.append(value);
@@ -225,6 +273,7 @@ namespace JBro::Markdown
         int EnterBlock(MD_BLOCKTYPE type, void* detail, void* user)
         {
             auto& b = *static_cast<Builder*>(user);
+            b.EndImplicitParagraph();
             Block block;
             block.kind = Convert(type);
             block.begin = static_cast<UInt32>(b.document.text.size());
@@ -260,7 +309,7 @@ namespace JBro::Markdown
             }
             else if (type == MD_BLOCK_TH || type == MD_BLOCK_TD)
             {
-                block.alignment = static_cast<unsigned>(static_cast<MD_BLOCK_TD_DETAIL*>(detail)->align);
+                block.alignment = static_cast<UInt32>(static_cast<MD_BLOCK_TD_DETAIL*>(detail)->align);
             }
             b.document.blocks.Add(std::move(block));
             b.stack.Add(index);
@@ -269,27 +318,12 @@ namespace JBro::Markdown
         int LeaveBlock(MD_BLOCKTYPE type, void*, void* user)
         {
             auto& b = *static_cast<Builder*>(user);
+            b.EndImplicitParagraph();
             auto& block = b.document.blocks[b.stack[b.stack.Size() - 1].Get()];
             block.end = static_cast<UInt32>(b.document.text.size());
             if (type == MD_BLOCK_H)
             {
-                const String base = Anchor(b.document.text.Substr(block.begin.Get(), (block.end - block.begin).Get()));
-                block.anchor = base;
-                UInt32 suffix = 0;
-                Bool duplicate;
-                do
-                {
-                    duplicate = false;
-                    for (const auto& previous : b.document.blocks)
-                    {
-                        if (&previous != &block && previous.kind == Kind::Heading && previous.anchor == block.anchor)
-                        {
-                            duplicate = true;
-                            block.anchor = base + "-" + std::to_string((++suffix).Get());
-                            break;
-                        }
-                    }
-                } while (duplicate);
+                block.anchor = b.HeadingAnchor(Anchor(b.document.text.Substr(block.begin.Get(), (block.end - block.begin).Get())));
             }
             b.stack.RemoveAt(b.stack.Size() - 1);
             if (type == MD_BLOCK_TH || type == MD_BLOCK_TD)
@@ -322,6 +356,7 @@ namespace JBro::Markdown
             case MD_SPAN_CODE: b.span.style |= InlineCode; break;
             case MD_SPAN_A: b.span.target = Attribute(static_cast<MD_SPAN_A_DETAIL*>(detail)->href); break;
             case MD_SPAN_IMG:
+                b.BeginImplicitParagraph();
                 b.span.target = Attribute(static_cast<MD_SPAN_IMG_DETAIL*>(detail)->src);
                 b.span.image = true;
                 {
@@ -365,7 +400,7 @@ namespace JBro::Markdown
     }
     Bool Parse(const String& source, Document& result)
     {
-        if (source.size() > std::numeric_limits<unsigned>::max())
+        if (source.size() > std::numeric_limits<MD_SIZE>::max())
         {
             return false;
         }
@@ -381,7 +416,7 @@ namespace JBro::Markdown
         parser.enter_span = EnterSpan;
         parser.leave_span = LeaveSpan;
         parser.text = Text;
-        if (md_parse(source.data() + bom, static_cast<unsigned>(source.size() - bom), &parser, &builder) != 0)
+        if (md_parse(source.data() + bom, static_cast<MD_SIZE>(source.size() - bom), &parser, &builder) != 0)
         {
             return false;
         }
@@ -390,7 +425,7 @@ namespace JBro::Markdown
     }
     UInt32 Boundary(const String& text, UInt32 offset)
     {
-        offset = static_cast<UInt32>(std::min<std::size_t>(offset.Get(), text.size()));
+        offset = static_cast<UInt32>(Min(offset.Get(), text.size()));
         while (offset > 0 && offset < text.size() && (static_cast<unsigned char>(text[offset.Get()]) & 0xc0) == 0x80)
         {
             --offset;

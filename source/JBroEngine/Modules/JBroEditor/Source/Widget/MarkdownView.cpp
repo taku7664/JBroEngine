@@ -5,6 +5,7 @@
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Types/ValueMath.h>
 #include "CodeHighlighting.h"
 #include <algorithm>
 #include <cmath>
@@ -74,7 +75,9 @@ namespace JBro::Widget
         ImFont* font = nullptr;
         ImFont* codeFont = nullptr;
         Bool dirty = true, find = false, focusFind = false, dragging = false, dragged = false;
+        Bool pendingMatch = false;
         Float scrollTo = -1.0f;
+        Float scrollToX = -1.0f;
         String pendingAnchor;
         void AddLiteral(const String& text, Float x, Float y, Float size, ImU32 color)
         {
@@ -158,8 +161,10 @@ namespace JBro::Widget
                     item.height = lineHeight * 2;
                     if (image.width > 0 && image.height > 0)
                     {
-                        item.width = std::min(available.Get(), static_cast<float>(image.width.Get()));
-                        item.height = item.width * static_cast<Float>(image.height.Get()) / static_cast<Float>(image.width.Get());
+                        const ImVec2 box(Min(available, static_cast<Float>(image.width)).Get(), static_cast<Float>(image.height).Get());
+                        const auto fitted = FitInside(image.width, image.height, box);
+                        item.width = fitted.x;
+                        item.height = fitted.y;
                     }
                     item.image = image;
                     item.begin = run.begin;
@@ -252,11 +257,10 @@ namespace JBro::Widget
             }
             return y + lineHeight;
         }
-        Float Block(UInt32 index, Float left, Float top, Float available)
+        Float Leaf(UInt32 index, Float left, Float top, Float available)
         {
             const auto& block = document.blocks[index.Get()];
             const Float gap = fontSize * EditorTheme::MarkdownBlockGap;
-            const Float indent = fontSize * EditorTheme::MarkdownIndent;
             Float y = top;
             switch (block.kind)
             {
@@ -310,7 +314,7 @@ namespace JBro::Widget
                 {
                     const auto& row = document.blocks[rowIndex.Get()];
                     const Float cellWidth = std::max((fontSize * EditorTheme::MarkdownMinimumCellWidth).Get(),
-                        available.Get() / static_cast<float>(std::max<std::size_t>(1, row.children.Size())));
+                        available.Get() / static_cast<Float>(Max(std::size_t(1), row.children.Size())).Get());
                     Float rowEnd = y;
                     const auto firstGlyph = glyphs.Size();
                     std::size_t column = 0;
@@ -319,7 +323,7 @@ namespace JBro::Widget
                         const auto& cell = document.blocks[cellIndex.Get()];
                         const auto glyphBegin = glyphs.Size();
                         const Float cellLeft = left + static_cast<Float>(column) * cellWidth;
-                        rowEnd = std::max(rowEnd.Get(), Block(cellIndex, cellLeft + gap, y + gap, cellWidth - gap * 2).Get());
+                        rowEnd = Max(rowEnd, Text(cell, cellLeft + gap, y + gap, cellWidth - gap * 2, fontSize, false) + gap);
                         if (cell.alignment == 2 || cell.alignment == 3)
                         {
                             Float lineY = -1.0f, right = cellLeft;
@@ -369,49 +373,96 @@ namespace JBro::Widget
             }
             default: break;
             }
-            Float childLeft = left, childWidth = available;
-            if (block.kind == Markdown::Kind::Quote || block.kind == Markdown::Kind::Item)
+            return -1.0f;
+        }
+        Float Block(UInt32 index, Float left, Float top, Float available)
+        {
+            struct Frame
             {
-                childLeft += indent;
-                childWidth -= indent;
-                if (block.kind == Markdown::Kind::Item)
+                UInt32 index;
+                Float left, top, available;
+                Float y = 0.0f, childLeft = 0.0f, childWidth = 0.0f;
+                std::size_t nextChild = 0;
+                Bool entered = false;
+            };
+            const Float gap = fontSize * EditorTheme::MarkdownBlockGap;
+            const Float indent = fontSize * EditorTheme::MarkdownIndent;
+            Array<Frame> frames;
+            frames.Add({index, left, top, available});
+            Float end = top;
+            while (!frames.IsEmpty())
+            {
+                auto& frame = frames[frames.Size() - 1];
+                const auto& block = document.blocks[frame.index.Get()];
+                if (!frame.entered)
                 {
-                    if (block.task)
+                    end = Leaf(frame.index, frame.left, frame.top, frame.available);
+                    if (end >= 0.0f)
                     {
-                        Decoration task;
-                        task.kind = Decoration::Kind::Task;
-                        task.x = left;
-                        task.y = y + fontSize * (EditorTheme::MarkdownLineHeight - 1.0f) / 2.0f;
-                        task.width = task.height = fontSize;
-                        task.checked = block.checked;
-                        decorations.Add(std::move(task));
+                        frames.RemoveAt(frames.Size() - 1);
+                        if (!frames.IsEmpty())
+                        {
+                            frames[frames.Size() - 1].y = end;
+                        }
+                        continue;
                     }
-                    else
+                    frame.entered = true;
+                    frame.y = frame.top;
+                    frame.childLeft = frame.left;
+                    frame.childWidth = frame.available;
+                    if (block.kind == Markdown::Kind::Quote || block.kind == Markdown::Kind::Item)
                     {
-                        String prefix = document.blocks[block.parent.Get()].kind == Markdown::Kind::OrderedList
-                            ? std::to_string(block.number.Get()) + "." : "\xe2\x80\xa2";
-                        AddLiteral(prefix, left, y, fontSize, Color(EditorTheme::InkMuted));
+                        frame.childLeft += indent;
+                        frame.childWidth -= indent;
+                        if (block.kind == Markdown::Kind::Item)
+                        {
+                            if (block.task)
+                            {
+                                Decoration task;
+                                task.kind = Decoration::Kind::Task;
+                                task.x = frame.left;
+                                task.y = frame.y + fontSize * (EditorTheme::MarkdownLineHeight - 1.0f) / 2.0f;
+                                task.width = task.height = fontSize;
+                                task.checked = block.checked;
+                                decorations.Add(std::move(task));
+                            }
+                            else
+                            {
+                                const String prefix = document.blocks[block.parent.Get()].kind == Markdown::Kind::OrderedList
+                                    ? std::to_string(block.number.Get()) + "." : "\xe2\x80\xa2";
+                                AddLiteral(prefix, frame.left, frame.y, fontSize, Color(EditorTheme::InkMuted));
+                            }
+                        }
+                    }
+                    if (!block.runs.IsEmpty())
+                    {
+                        frame.y = Text(block, frame.childLeft, frame.y, frame.childWidth, fontSize, false) + gap;
                     }
                 }
+                if (frame.nextChild < block.children.Size())
+                {
+                    const Frame child{block.children[frame.nextChild++], frame.childLeft, frame.y, Max(fontSize, frame.childWidth)};
+                    // Array growth may move frames. Do not keep a reference across Add.
+                    frames.Add(child);
+                    continue;
+                }
+                if (block.kind == Markdown::Kind::Quote)
+                {
+                    Decoration quote;
+                    quote.kind = Decoration::Kind::Quote;
+                    quote.x = frame.left + gap;
+                    quote.y = frame.top;
+                    quote.height = frame.y - frame.top;
+                    decorations.Add(std::move(quote));
+                }
+                end = frame.y;
+                frames.RemoveAt(frames.Size() - 1);
+                if (!frames.IsEmpty())
+                {
+                    frames[frames.Size() - 1].y = end;
+                }
             }
-            if (!block.runs.IsEmpty())
-            {
-                y = Text(block, childLeft, y, childWidth, fontSize, false) + gap;
-            }
-            for (const auto child : block.children)
-            {
-                y = Block(child, childLeft, y, std::max(fontSize.Get(), childWidth.Get()));
-            }
-            if (block.kind == Markdown::Kind::Quote)
-            {
-                Decoration quote;
-                quote.kind = Decoration::Kind::Quote;
-                quote.x = left + gap;
-                quote.y = top;
-                quote.height = y - top;
-                decorations.Add(std::move(quote));
-            }
-            return y;
+            return end;
         }
         void Layout(Float available)
         {
@@ -435,6 +486,10 @@ namespace JBro::Widget
             });
             dirty = false;
             ++layoutRevision;
+            if (pendingMatch)
+            {
+                ScrollMatch();
+            }
             if (!pendingAnchor.empty())
             {
                 for (const auto& anchor : anchors)
@@ -442,6 +497,7 @@ namespace JBro::Widget
                     if (anchor.name == pendingAnchor)
                     {
                         scrollTo = anchor.y;
+                        scrollToX = 0.0f;
                         break;
                     }
                 }
@@ -496,6 +552,11 @@ namespace JBro::Widget
         }
         void ScrollMatch()
         {
+            pendingMatch = dirty;
+            if (dirty)
+            {
+                return;
+            }
             if (!matches.IsEmpty())
             {
                 for (const auto& glyph : glyphs)
@@ -503,6 +564,7 @@ namespace JBro::Widget
                     if (glyph.begin >= matches[current.Get()].begin && glyph.begin < matches[current.Get()].end)
                     {
                         scrollTo = glyph.y;
+                        scrollToX = glyph.x;
                         break;
                     }
                 }
@@ -512,6 +574,7 @@ namespace JBro::Widget
                         && decoration.end > matches[current.Get()].begin)
                     {
                         scrollTo = decoration.y;
+                        scrollToX = decoration.x;
                         break;
                     }
                 }
@@ -528,6 +591,8 @@ namespace JBro::Widget
         m_state->first = m_state->last = 0;
         m_state->dragging = false;
         m_state->dirty = true;
+        m_state->scrollTo = m_state->scrollToX = -1.0f;
+        m_state->pendingAnchor.clear();
         SetSearch(m_state->query);
     }
     const Markdown::Document& MarkdownView::GetDocument() const { return m_state->document; }
@@ -581,6 +646,7 @@ namespace JBro::Widget
             if (position.name == decoded)
             {
                 s.scrollTo = position.y;
+                s.scrollToX = 0.0f;
                 return true;
             }
         }
@@ -662,6 +728,11 @@ namespace JBro::Widget
         {
             ImGui::SetScrollY(std::max(0.0f, (s.scrollTo - s.fontSize).Get()));
             s.scrollTo = -1.0f;
+        }
+        if (s.scrollToX >= 0)
+        {
+            ImGui::SetScrollX(Max(0.0f, s.scrollToX - s.fontSize).Get());
+            s.scrollToX = -1.0f;
         }
         const ImVec2 origin = ImGui::GetCursorScreenPos();
         const auto clipMin = ImGui::GetWindowPos();
@@ -766,7 +837,7 @@ namespace JBro::Widget
         s.visible = 0;
         // Sorted visual positions make the skipped prefix logarithmic for large documents.
         const auto start = std::lower_bound(s.glyphs.begin(), s.glyphs.end(), clipMin.y - origin.y - s.fontSize.Get() * EditorTheme::MarkdownHeadingScale[0].Get() * EditorTheme::MarkdownLineHeight.Get(),
-            [](const Glyph& glyph, float y) { return glyph.y < y; });
+            [](const Glyph& glyph, Float y) { return glyph.y < y; });
         for (auto it = start; it != s.glyphs.end(); ++it)
         {
             const auto& glyph = *it;
