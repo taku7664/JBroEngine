@@ -748,6 +748,14 @@ namespace
             && modelPopup->WindowPadding.y == ImGui::GetStyle().WindowPadding.y,
             "model popup is at least as wide as its trigger and uses normal popup padding");
         SaveAttachmentImage(editor, "model_popup");
+        io.AddInputCharactersUTF8("testl");
+        for (UInt32 i = 0; i < 5; ++i)
+        {
+            Check(editor.Tick(0.016f), "empty model search and pixels settle");
+        }
+        Check(modelPopup->ContentSize.x <= modelPopup->WorkRect.GetWidth() + 1.0f,
+            "the localized empty model search message fits inside the popup");
+        SaveAttachmentImage(editor, "model_no_matches");
         io.AddKeyEvent(ImGuiKey_Escape, true);
         Check(editor.Tick(0.016f), "Escape closes model popup");
         io.AddKeyEvent(ImGuiKey_Escape, false);

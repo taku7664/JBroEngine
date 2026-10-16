@@ -30,6 +30,7 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/String.h>
 
 // 공용 위젯 계층이다(ProjectRule §11.1).
 //
@@ -785,6 +786,63 @@ namespace
         type("trans");
         pressEnter();
         Check(current == 0 && changedFrames == 2, "picking the current item again is not a change");
+    }
+
+    void TestFilterComboEmptyResultsFitAndWrapAtTheScreenEdge()
+    {
+        Stage stage;
+        const char* const items[] = { "A" };
+        const char* message = "No matching items are available for this search.";
+        JBro::Int32 current = 0;
+        JBro::Bool edge = false;
+        JBro::Float messageWidth = 0.0f;
+        ImRect trigger;
+        const auto frame = [&]() {
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos(ImVec2(edge ? 650.0f : 40.0f, 30.0f), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(400.0f, 300.0f));
+            ImGui::Begin("Stage");
+            messageWidth = ImGui::CalcTextSize(message).x;
+            JBro::Widget::FilterCombo("##empty_results", items, current)
+                .NoItemsText(message).Width(70.0f).Draw();
+            trigger = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            stage.End();
+        };
+        stage.Settle();
+        frame();
+        frame();
+        auto& io = ImGui::GetIO();
+        io.AddMousePosEvent(trigger.GetCenter().x, trigger.GetCenter().y);
+        frame();
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        frame();
+        io.AddInputCharactersUTF8("zzz");
+        frame();
+        frame();
+        frame();
+        auto* popup = FindComboPopup();
+        Check(popup != nullptr, "a search without matches keeps its popup open");
+        Check(popup->WorkRect.GetWidth() >= messageWidth,
+            "a narrow selector reserves enough popup width for its empty result message");
+        const JBro::Float singleLineHeight = popup->ContentSize.y;
+        edge = true;
+        for (JBro::UInt32 i = 0; i < 5; ++i)
+        {
+            frame();
+        }
+        popup = FindComboPopup();
+        Check(popup != nullptr, "moving the selector to the screen edge keeps its search popup open");
+        const JBro::String widthFailure = JBro::String("screen edge should constrain the popup: content=")
+            + std::to_string(popup->WorkRect.GetWidth()) + ", message=" + std::to_string(messageWidth.Value)
+            + ", trigger=" + std::to_string(trigger.Min.x) + ", viewport=" + std::to_string(ImGui::GetMainViewport()->WorkSize.x);
+        Check(popup->WorkRect.GetWidth() < messageWidth, widthFailure.c_str());
+        Check(popup->ContentSize.y > singleLineHeight && popup->ContentSize.x <= popup->WorkRect.GetWidth() + 1.0f,
+            "the empty message wraps vertically instead of clipping or overflowing horizontally");
+        Check(current == 0, "an empty search never replaces the selected value");
     }
 
     // **갈래로 묶고, 못 고르는 것은 회색으로 둔다**(D-180, 기존 컴포넌트 갈래 메뉴).
@@ -1817,6 +1875,7 @@ JBro::Int32 RunEditorWidgetTests()
     TestABoundedMultilineFieldKeepsItsActionsReachable();
     TestWrappedInputReflowsWithoutChangingItsText();
     TestTheFilterComboPicksByTypingAndEnter();
+    TestFilterComboEmptyResultsFitAndWrapAtTheScreenEdge();
     TestTheFilterComboGroupsItemsAndSkipsTheDisabled();
     TestAnEmptyFilterComboDrawsAndChangesNothing();
     TestTheLayerMaskFieldTogglesNamedBits();

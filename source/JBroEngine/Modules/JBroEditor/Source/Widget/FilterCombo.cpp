@@ -218,7 +218,19 @@ namespace JBro::Widget
             storage->SetVoidPtr(fontKey, ImGui::GetFont());
             storage->SetFloat(fontSizeKey, ImGui::GetFontSize());
         }
+        const char* noItemsText = m_noItemsText != nullptr
+            ? m_noItemsText : Loc::TextOr(LocKeys::CommonNoMatches, "No matches");
+        const char* filterHint = m_filterHint != nullptr
+            ? m_filterHint : Loc::TextOr(LocKeys::CommonSearch, "Search");
         Float popupWidth = std::max(ImGui::CalcTextSize(preview).x, storage->GetFloat(widestKey, 0.0f));
+        if (m_showFilter || itemCount == 0)
+        {
+            popupWidth = JBro::Max(popupWidth, ImGui::CalcTextSize(noItemsText).x);
+        }
+        if (m_showFilter)
+        {
+            popupWidth = JBro::Max(popupWidth, ImGui::CalcTextSize(filterHint).x);
+        }
         popupWidth = JBro::Max(
             popupWidth + style.FramePadding.x * 4.0f + style.ScrollbarSize,
             ImGui::CalcItemWidth());
@@ -276,11 +288,7 @@ namespace JBro::Widget
                 ImGui::SetKeyboardFocusHere();
             }
             ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##filter",
-                m_filterHint != nullptr
-                    ? m_filterHint
-                    : Loc::TextOr(LocKeys::CommonSearch, "Search"),
-                g_filter, sizeof(g_filter));
+            ImGui::InputTextWithHint("##filter", filterHint, g_filter, sizeof(g_filter));
             // Enter 는 글자 칸을 비활성으로 만든다. 그 프레임에 Enter 가 눌려 있었으면
             // 보이는 첫 항목을 고른다. Escape·다른 곳 누르기로 나간 것과 구분한다.
             enterPressed = ImGui::IsItemDeactivated()
@@ -345,10 +353,11 @@ namespace JBro::Widget
         }
         if (false == drewAny)
         {
-            ImGui::TextDisabled("%s",
-                m_noItemsText != nullptr
-                    ? m_noItemsText
-                    : Loc::TextOr(LocKeys::CommonNoMatches, "No matches"));
+            StyleScope emptyStyle;
+            emptyStyle.PushColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextUnformatted(noItemsText);
+            ImGui::PopTextWrapPos();
         }
         // Enter 는 **고를 수 있는** 첫 항목을 고른다. 회색 항목이 맨 위에 있다고 해서
         // Enter 가 아무 일도 하지 않으면, 왜 안 되는지 알 수 없다.
