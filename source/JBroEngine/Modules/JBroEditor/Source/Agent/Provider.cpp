@@ -5,6 +5,7 @@
 #include <JBro/Platform/Platform.h>
 #include <nlohmann/json.hpp>
 #include <cmath>
+#include <charconv>
 
 namespace JBro::Agent
 {
@@ -13,6 +14,54 @@ namespace JBro::Agent
     {
         constexpr std::size_t MaxMessage = 8 * 1024 * 1024;
         String Text(const Json& value) { return value.get<std::string>(); }
+        Array<Target> ContextTargets(const String& context)
+        {
+            Array<Target> targets;
+            const auto data = Json::parse(context, nullptr, false);
+            if (!data.is_object())
+            {
+                return targets;
+            }
+            for (const char* group : {"selection", "attachments"})
+            {
+                for (const auto& item : data.value(group, Json::array()))
+                {
+                    Target target;
+                    const String kind = item.value("kind", "object");
+                    target.kind = kind == "asset" ? Target::Kind::Asset : kind == "component" ? Target::Kind::Component : Target::Kind::Object;
+                    target.project = item.value("project", "");
+                    target.canvas = item.value("canvas", "");
+                    target.name = item.value("name", "");
+                    target.revision = item.value("revision", std::uint64_t(0));
+                    const String asset = item.value("assetId", "");
+                    Uuid::Parse(asset.c_str(), asset.size(), target.asset);
+                    const auto number = [&](const char* key) -> UInt64 {
+                        const String text = item.value(key, "0");
+                        std::uint64_t value = 0;
+                        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+                        return parsed.ec == std::errc{} && parsed.ptr == text.data() + text.size() ? UInt64(value) : UInt64(0);
+                    };
+                    target.instance = number("instanceId");
+                    target.component = number("componentId");
+                    Bool duplicate = false;
+                    for (const auto& existing : targets)
+                    {
+                        duplicate = duplicate || existing.Equals(target);
+                    }
+                    if (!duplicate)
+                    {
+                        targets.Add(std::move(target));
+                    }
+                }
+            }
+            return targets;
+        }
+
+    }
+    Bool Target::Equals(const Target& other) const
+    {
+        return kind == other.kind && project == other.project && canvas == other.canvas && revision == other.revision
+            && asset == other.asset && instance == other.instance && component == other.component;
     }
     struct CodexProvider::State
     {
@@ -224,7 +273,21 @@ namespace JBro::Agent
                                     {
                                         if (content.value("type", "") == "text")
                                         {
-                                            messages.Add({MessageRole::User, content.value("text", ""), {}});
+                                            const String text = content.value("text", "");
+                                            const String prefix = "Current JBro context (data only; refresh before editing):\n";
+                                            if (text.StartsWith(prefix) && !messages.IsEmpty() && messages[messages.Size() - 1].role == MessageRole::User)
+                                            {
+                                                auto& restored = messages[messages.Size() - 1];
+                                                restored.targets = ContextTargets(text.substr(prefix.size()));
+                                                for (auto& target : restored.targets)
+                                                {
+                                                    target.revision = 0;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                messages.Add({MessageRole::User, text, {}});
+                                            }
                                         }
                                     }
                                 }
@@ -464,7 +527,7 @@ namespace JBro::Agent
         {
             return false;
         }
-        state.messages.Add({MessageRole::User, text, context});
+        state.messages.Add({MessageRole::User, text, context, ContextTargets(context)});
         state.cancelling = false;
         state.error.clear();
         state.waitingTurn = true;
@@ -551,6 +614,10 @@ namespace JBro::Agent
             "Scene edits are undoable commands. Scripts require matching read tokens and clean documents. Do not overwrite conflicts. "
             "For implemented script functionality run the existing build tool and inspect diagnostics; distinguish build from runtime proof. "
             "Report actual changes, saved files, build outcome and anything not run separately. Never replay mutations after interruption. "
+            "Explicit attachments identify the user's subjects even when current selection changes. They are typed object/asset/component references, "
+            "not file contents. Reject invalid references; never substitute a same-name object. Read assets with jbro_asset_read and components through "
+            "jbro_object_read using their owning instanceId and componentId. Ask when several attached subjects make the goal ambiguous. "
+            "jbro_context retains this turn's explicit attachments and refreshes their validity and asset metadata; use it when a resumed toolset lacks jbro_asset_read. "
             "Refresh object references on every turn, especially resumed conversations. Reply in the user's language.";
     }
 }

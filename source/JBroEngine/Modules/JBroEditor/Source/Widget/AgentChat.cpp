@@ -2,16 +2,14 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
-#include <nlohmann/json.hpp>
 #include <imgui.h>
-#include <charconv>
 #include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
-    void AgentHistory(const Array<Agent::Message>& messages, Bool changed, const String& currentContext, Delegate<Bool(const Agent::Target&)> validate)
+    void AgentHistory(const Array<Agent::Message>& messages, Bool changed, Delegate<Bool(const Agent::Target&)> validate, Float reservedHeight)
     {
-        const Float height = Max(Float(100.0f), Float(ImGui::GetContentRegionAvail().y - 135.0f));
+        const Float height = Max(Float(100.0f), Float(ImGui::GetContentRegionAvail().y - reservedHeight.Value));
         if (ImGui::BeginChild("##agent.history", ImVec2(0.0f, height), ImGuiChildFlags_Borders))
         {
             const Bool atBottom = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 3.0f;
@@ -23,7 +21,6 @@ namespace JBro::Widget
                 follow = atBottom;
             }
             storage->SetBool(followId, follow.Value);
-            const auto current = nlohmann::json::parse(currentContext, nullptr, false);
             for (const auto& message : messages)
             {
                 const char* key = message.role == Agent::MessageRole::User ? LocKeys::AgentUser : message.role == Agent::MessageRole::Assistant ? LocKeys::AgentAssistant : LocKeys::AgentActivity;
@@ -37,30 +34,15 @@ namespace JBro::Widget
                 {
                     WrappedText(message.text.c_str());
                 }
-                if (!message.context.empty())
+                if (!message.targets.IsEmpty())
                 {
-                    const auto context = nlohmann::json::parse(message.context, nullptr, false);
-                    if (!context.is_discarded())
+                    HintText(Loc::TextOr(LocKeys::AgentAttached, "Included at send time:"));
+                    for (const auto& target : message.targets)
                     {
-                        const Bool stale = current.is_discarded() || context.value("scope", "") != current.value("scope", "");
-                        HintText(Loc::TextOr(stale ? LocKeys::AgentPreviousContext : LocKeys::AgentAttached, stale ? "Previous canvas references; refresh before use." : "Included at send time:"));
-                        for (const auto& object : context.value("selection", nlohmann::json::array()))
+                        WrappedText(target.name.c_str());
+                        if (!validate.IsBound() || !validate.Invoke(target))
                         {
-                            const String label = object.value("name", "");
-                            Agent::Target target;
-                            target.project = object.value("project", "");
-                            target.canvas = object.value("canvas", "");
-                            const String id = object.value("instanceId", "");
-                            std::uint64_t instance = 0;
-                            const auto parsed = std::from_chars(id.data(), id.data() + id.size(), instance);
-                            target.instance = instance;
-                            const Bool valid = !stale && parsed.ec == std::errc{} && parsed.ptr == id.data() + id.size()
-                                && validate.IsBound() && validate.Invoke(target);
-                            HintText(label.c_str());
-                            if (!valid)
-                            {
-                                SeverityTextF(Severity::Warning, "%s", Loc::TextOr(LocKeys::AgentInvalidTarget, "This reference is no longer valid."));
-                            }
+                            SeverityTextF(Severity::Warning, "%s", Loc::TextOr(LocKeys::AgentInvalidTarget, "This reference is no longer valid."));
                         }
                     }
                 }
@@ -74,4 +56,40 @@ namespace JBro::Widget
         }
         ImGui::EndChild();
     }
+    Int32 AgentAttachments(const Array<Agent::Target>& targets, Delegate<Bool(const Agent::Target&)> validate)
+    {
+        Int32 removed = -1;
+        if (!targets.IsEmpty())
+        {
+            HintText(Loc::TextOr(LocKeys::AgentAttachments, "Attachments"));
+            const Float height = Min(Float(166.0f), Float(static_cast<Float>(targets.Size()) * ImGui::GetTextLineHeightWithSpacing() * 4.0f));
+            if (ImGui::BeginChild("##agent.attachments", ImVec2(0.0f, height.Value), ImGuiChildFlags_Borders))
+            {
+                for (std::size_t i = 0; i < targets.Size(); ++i)
+                {
+                    ImGui::PushID(static_cast<int>(i));
+                    const auto& target = targets[i];
+                    const char* kind = target.kind == Agent::Target::Kind::Asset ? LocKeys::AgentAsset
+                        : target.kind == Agent::Target::Kind::Component ? LocKeys::AgentComponent : LocKeys::AgentObject;
+                    HintText(Loc::Text(kind));
+                    ImGui::SameLine();
+                    if (Button(Loc::TextOr(LocKeys::AgentRemoveAttachment, "Remove")))
+                    {
+                        removed = static_cast<Int32>(i);
+                    }
+                    WrappedText(target.name.c_str());
+                    if (!validate.IsBound() || !validate.Invoke(target))
+                    {
+                        SeverityTextF(Severity::Warning, "%s", Loc::TextOr(LocKeys::AgentInvalidTarget, "This reference is no longer valid."));
+                    }
+                    ImGui::PopID();
+                }
+            }
+            ImGui::EndChild();
+        }
+        ActionButton(Loc::TextOr(LocKeys::AgentDropHere, "Drop to attach"), Severity::Info, true, nullptr,
+            ImVec2(-FLT_MIN, ImGui::GetFrameHeight() * 1.5f));
+        return removed;
+    }
+
 }

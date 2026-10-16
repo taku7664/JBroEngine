@@ -19,6 +19,8 @@ namespace JBro
         Agent::CodexProvider& GetProvider() { return m_provider; }
     private:
         void Connect();
+        void Attach(const Agent::Target& target);
+        void ReceiveAttachments();
         void Load();
         void Save();
         EditorApplication* m_editor = nullptr;
@@ -26,6 +28,8 @@ namespace JBro
         Agent::CodexProvider m_provider;
         String m_project, m_executable, m_thread, m_input, m_apiKey, m_settingsPath, m_openedAuth, m_model;
         UInt64 m_scopeRevision = 0;
+        Array<Agent::Target> m_attachments;
+        String m_attachmentError;
         std::size_t m_seenMessages = 0, m_seenTailBytes = 0;
     };
 }

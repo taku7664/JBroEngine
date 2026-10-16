@@ -33,6 +33,7 @@
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Editor/Widget/Waveform.h>
 #include <JBro/Editor/Widget/DragDrop.h>
+#include <JBro/Editor/Widget/ComponentDrag.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioMixer.h>
@@ -75,14 +76,6 @@ namespace JBro
 
     namespace
     {
-        // 컴포넌트 머리를 끌 때 싣는 꾸러미다(D-294). 주소가 아니라 에디터 번호와 슬롯 번호다(D-72).
-        struct ComponentDragPayload
-        {
-            EditorObjectId object = InvalidEditorObjectId;
-            UInt64 slot = 0;
-            AttachedKind kind = AttachedKind::Component;
-        };
-
         // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
         // 그리지 않는다 - 그림이 창을 다 먹으면 정작 고칠 값들이 스크롤 밖으로 나간다.
         constexpr Float PreviewMaxSide = 160.0f;
@@ -754,11 +747,19 @@ namespace JBro
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
         if (Widget::BeginDragSource())
         {
-            ComponentDragPayload payload;
+            Widget::ComponentDragPayload payload;
             payload.object = objectId;
             payload.slot = static_cast<JBro::UInt64>(index);
             payload.kind = kind;
-            Widget::SetDragValue(Widget::DragKind::InspectorComponent, payload);
+            if (kind == AttachedKind::Component && index < object.GetComponents().Size())
+            {
+                payload.instance = object.GetComponents()[index].reference->GetInstanceId();
+            }
+            else if (kind == AttachedKind::Script && index < object.GetScripts().Size())
+            {
+                payload.instance = object.GetScripts()[index].reference->GetInstanceId();
+            }
+            Widget::SetComponentDragPayload(payload);
             Widget::Text(typeName != nullptr ? typeName
                                              : Loc::TextOr(LocKeys::InspectorUnknownComponent, "(unknown component)"));
             Widget::EndDragSource();
@@ -770,7 +771,7 @@ namespace JBro
         Bool moved = false;
         const Widget::DropPayload drop =
             Widget::AcceptDrop(Widget::DragKind::InspectorComponent, Widget::DropFeedback::None);
-        ComponentDragPayload dragged;
+        Widget::ComponentDragPayload dragged;
         // 다른 오브젝트나 다른 목록의 머리에서 온 것은 받지 않는다 - 옮기기는 한 목록 안의 순서다(D-302).
         if (Widget::ReadDropValue(drop, dragged) && dragged.object == objectId && dragged.kind == kind)
         {
@@ -778,6 +779,14 @@ namespace JBro
             const Float height = (std::max)(1.0f, headerMax.y - headerMin.y);
             const Bool above = (ImGui::GetIO().MousePos.y - headerMin.y) / height < 0.5f;
             const std::size_t from = static_cast<std::size_t>(dragged.slot.Get());
+            const Bool matches = kind == AttachedKind::Component
+                ? from < object.GetComponents().Size() && object.GetComponents()[from].reference->GetInstanceId() == dragged.instance
+                : from < object.GetScripts().Size() && object.GetScripts()[from].reference->GetInstanceId() == dragged.instance;
+            if (!matches)
+            {
+                Widget::EndDropTarget();
+                return false;
+            }
             const std::size_t to = ComponentDropSlot(from, index, above);
             if (to != from)
             {

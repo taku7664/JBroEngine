@@ -772,7 +772,6 @@ Entries:
   agent.user: You
   agent.assistant: AI
   agent.activity: Activity
-  agent.previous_context: Previous canvas references; refresh before use.
   agent.attached: Included at send time:
   agent.communication_failed: Codex communication failed. Reconnect; changes are not replayed.
   agent.invalid_protocol: Invalid Codex protocol message.
@@ -794,3 +793,10 @@ Entries:
   agent.model: Model
   agent.no_models: Codex did not return an available model. Check account access.
   agent.invalid_target: This reference is no longer valid.
+  agent.attachments: Attachments
+  agent.asset: Asset
+  agent.object: Object
+  agent.component: Component
+  agent.remove_attachment: Remove
+  agent.drop_here: Drop to attach
+  agent.attachment_limit: You can attach up to 16 items per message.

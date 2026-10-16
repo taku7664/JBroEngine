@@ -2,10 +2,13 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/EditorNames.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Core/Yaml.h>
@@ -45,10 +48,41 @@ namespace JBro::Agent
             return !base.empty() && normalized.size() > base.size() && normalized.compare(0, base.size(), base) == 0
                 && normalized[base.size()] == '/';
         }
+        String AssetText(AssetId asset)
+        {
+            char text[Uuid::TextCapacity]{};
+            asset.ToText(text, sizeof(text));
+            return text;
+        }
+        Json TargetInfo(const Target& target)
+        {
+            const char* kind = target.kind == Target::Kind::Asset ? "asset" : target.kind == Target::Kind::Component ? "component" : "object";
+            return {{"kind", kind}, {"project", target.project}, {"canvas", target.canvas}, {"name", target.name},
+                {"assetId", AssetText(target.asset)}, {"instanceId", Digits(target.instance)},
+                {"componentId", Digits(target.component)}, {"revision", target.revision.Value}};
+        }
+        AttachedRef FindAttached(Object::GameObject& object, UInt64 instance)
+        {
+            for (const auto& slot : object.GetComponents())
+            {
+                if (slot.reference != nullptr && slot.reference->GetInstanceId() == instance)
+                {
+                    return AttachedRef(slot.reference.TryGet());
+                }
+            }
+            for (const auto& slot : object.GetScripts())
+            {
+                if (slot.reference != nullptr && slot.reference->GetInstanceId() == instance)
+                {
+                    return AttachedRef(slot.reference.TryGet());
+                }
+            }
+            return {};
+        }
         Json TargetInfo(EditorApplication& editor, Object::GameObject& object)
         {
             return {{"kind", "object"}, {"project", editor.GetProjectFilePath()}, {"canvas", editor.GetCanvasPath()},
-                {"instanceId", Digits(object.GetInstanceId())}, {"name", object.GetName()}};
+                {"instanceId", Digits(object.GetInstanceId())}, {"name", object.GetName()}, {"revision", editor.GetAgentContextRevision().Value}};
         }
     }
     struct Tools::State
@@ -56,17 +90,17 @@ namespace JBro::Agent
         struct Snapshot { String path, token, text; };
         EditorApplication& editor;
         Array<Snapshot> snapshots;
+        Array<Target> attachments;
         UInt64 nextToken = 1;
         explicit State(EditorApplication& value) : editor(value) {}
         String Scope() const
         {
             return editor.GetProjectFilePath() + "|" + editor.GetCanvasPath() + "|" + Digits(editor.GetAgentContextRevision());
         }
-        Object::GameObject* Find(const String& id)
+        Object::GameObject* Find(UInt64 instance)
         {
             auto* canvas = editor.GetCanvas();
             Object::GameObject* found = nullptr;
-            const UInt64 instance = Number(id);
             if (canvas != nullptr && instance != 0)
             {
                 canvas->ForEachObject([&](Object::GameObject& candidate) {
@@ -77,6 +111,10 @@ namespace JBro::Agent
                 });
             }
             return found;
+        }
+        Object::GameObject* Find(const String& id)
+        {
+            return Find(Number(id));
         }
         CodeEditorPanel* Document(const String& path)
         {
@@ -104,6 +142,22 @@ namespace JBro::Agent
                 return {};
             }
             return path;
+        }
+        Json DescribeAsset(const AssetRecord& record)
+        {
+            const auto& registry = editor.GetAssetRegistry();
+            Array<AssetId> children;
+            registry.CollectOwned(record.id, children);
+            Json owned = Json::array();
+            for (AssetId id : children)
+            {
+                if (const auto* child = registry.Find(id))
+                {
+                    owned.push_back({{"assetId", AssetText(id)}, {"type", AssetTypeRules::GetTypeName(child->type)}});
+                }
+            }
+            return {{"assetId", AssetText(record.id)}, {"path", record.relativePath},
+                {"type", AssetTypeRules::GetTypeName(record.type)}, {"owner", AssetText(record.owner)}, {"owned", owned}};
         }
         Json Describe(Object::GameObject& object)
         {
@@ -146,30 +200,102 @@ namespace JBro::Agent
     };
     Tools::Tools(EditorApplication& editor) : m_state(MakeOwnerPtr<State>(editor)) {}
     Tools::~Tools() = default;
-    Bool Tools::IsTargetValid(const Target& target)
+    Bool Tools::MakeObjectTarget(UInt64 editorObject, Target& target)
     {
         auto& editor = m_state->editor;
-        if (target.project != editor.GetProjectFilePath() || target.canvas != editor.GetCanvasPath()
-            || target.kind != Target::Kind::Object)
+        auto* object = editor.GetObjectIds().Resolve(editorObject);
+        if (object == nullptr)
         {
             return false;
         }
-        return m_state->Find(Digits(target.instance)) != nullptr;
+        target = {};
+        target.project = editor.GetProjectFilePath();
+        target.canvas = editor.GetCanvasPath();
+        target.revision = editor.GetAgentContextRevision();
+        target.instance = object->GetInstanceId();
+        target.name = object->GetName();
+        return true;
+    }
+    Bool Tools::MakeComponentTarget(UInt64 editorObject, UInt64 instance, Target& target)
+    {
+        if (!MakeObjectTarget(editorObject, target))
+        {
+            return false;
+        }
+        auto* object = m_state->editor.GetObjectIds().Resolve(editorObject);
+        const auto attached = FindAttached(*object, instance);
+        if (!attached.IsValid())
+        {
+            return false;
+        }
+        target.kind = Target::Kind::Component;
+        target.component = instance;
+        target.name += " / " + String(EditorNames::DisplayTypeName(NameTable::Get().Resolve(attached.GetTypeId())));
+        return true;
+    }
+    Bool Tools::MakeAssetTarget(AssetId asset, Target& target)
+    {
+        auto& editor = m_state->editor;
+        const auto* record = editor.GetAssetRegistry().Find(asset);
+        if (record == nullptr)
+        {
+            return false;
+        }
+        target = {};
+        target.kind = Target::Kind::Asset;
+        target.project = editor.GetProjectFilePath();
+        target.revision = editor.GetAgentContextRevision();
+        target.asset = asset;
+        target.name = record->relativePath;
+        return true;
+    }
+    Bool Tools::IsTargetValid(const Target& target)
+    {
+        auto& editor = m_state->editor;
+        if (target.project != editor.GetProjectFilePath() || target.revision != editor.GetAgentContextRevision())
+        {
+            return false;
+        }
+        if (target.kind == Target::Kind::Asset)
+        {
+            return !target.asset.IsNull() && editor.GetAssetRegistry().Find(target.asset) != nullptr;
+        }
+        if (target.canvas != editor.GetCanvasPath())
+        {
+            return false;
+        }
+        auto* object = m_state->Find(target.instance);
+        return object != nullptr && (target.kind == Target::Kind::Object || FindAttached(*object, target.component).IsValid());
+    }
+    String Tools::Context(ArrayView<const Target> attachments)
+    {
+        m_state->attachments.Clear();
+        for (const auto& target : attachments)
+        {
+            m_state->attachments.Add(target);
+        }
+        return Context();
     }
     String Tools::Context()
     {
         auto& editor = m_state->editor;
         Json value{{"project", editor.GetProjectFilePath()}, {"canvas", editor.GetCanvasPath()}, {"scope", m_state->Scope()},
-            {"selection", Json::array()}, {"selectedAsset", ""}};
+            {"selection", Json::array()}, {"selectedAsset", AssetText(editor.GetSelectedAsset())}, {"attachments", Json::array()}};
         for (auto* object : editor.GetSelectedObjects())
         {
             value["selection"].push_back(TargetInfo(editor, *object));
         }
-        // Asset identities are formatted by the existing value type, never inferred from display names.
-        const auto asset = editor.GetSelectedAsset();
-        char assetText[Uuid::TextCapacity]{};
-        asset.ToText(assetText, sizeof(assetText));
-        value["selectedAsset"] = assetText;
+        for (const auto& target : m_state->attachments)
+        {
+            auto info = TargetInfo(target);
+            const Bool valid = IsTargetValid(target);
+            info["valid"] = valid.Value;
+            if (valid && target.kind == Target::Kind::Asset)
+            {
+                info["metadata"] = m_state->DescribeAsset(*editor.GetAssetRegistry().Find(target.asset));
+            }
+            value["attachments"].push_back(std::move(info));
+        }
         return value.dump(2);
     }
     ToolResult Tools::Execute(const String& name, const String& arguments)
@@ -187,7 +313,7 @@ namespace JBro::Agent
             {
                 return {true, Context()};
             }
-            const Bool needsScope = name == "jbro_object_read" || name == "jbro_object_create" || name == "jbro_object_delete"
+            const Bool needsScope = name == "jbro_asset_read" || name == "jbro_object_read" || name == "jbro_object_create" || name == "jbro_object_delete"
                 || name == "jbro_component_add" || name == "jbro_field_set" || name == "jbro_script_read" || name == "jbro_script_write"
                 || name == "jbro_script_create" || name == "jbro_script_build" || name == "jbro_guide_validate"
                 || name == "jbro_guide_start" || name == "jbro_guide_stop";
@@ -198,6 +324,22 @@ namespace JBro::Agent
             if (args.contains("scope") && Get(args, "scope") != state.Scope())
             {
                 return Error("Project or canvas changed. Refresh context; old references are invalid.");
+            }
+            if (name == "jbro_asset_read")
+            {
+                const String id = Get(args, "asset");
+                AssetId asset;
+                if (!Uuid::Parse(id.c_str(), id.size(), asset))
+                {
+                    return Error("Invalid asset ID.");
+                }
+                const auto& registry = editor.GetAssetRegistry();
+                const auto* record = registry.Find(asset);
+                if (record == nullptr)
+                {
+                    return Error("This asset no longer exists in this project.");
+                }
+                return Ok(state.DescribeAsset(*record));
             }
             if (name == "jbro_guide_catalog")
             {
@@ -498,6 +640,7 @@ namespace JBro::Agent
             tools.push_back({{"type", "function"}, {"name", name}, {"description", description},
                 {"inputSchema", {{"type", "object"}, {"properties", properties}, {"required", required}, {"additionalProperties", false}}}});
         };
+        add("jbro_asset_read", "Read metadata of an attached asset by AssetId in the current project. Returns its current relative path, asset type name, owner and owned asset IDs (e.g. paired Sprites); does not load file contents.", {"scope", "asset"});
         add("jbro_context", "Read current project/canvas scope, selection and asset ID. Always refresh before using target IDs.", {});
         add("jbro_catalog", "Read available engine tools and attachable component types.", {});
         add("jbro_object_read", "Read an object's components and field YAML. Object is its decimal InstanceId, not EditorObjectId.", {"scope", "object"});

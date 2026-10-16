@@ -4,6 +4,10 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/AgentChat.h>
+#include <JBro/Editor/Widget/DragDrop.h>
+#include <JBro/Editor/Widget/AssetDrag.h>
+#include <JBro/Editor/Widget/ComponentDrag.h>
+#include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
@@ -140,6 +144,92 @@ namespace JBro
             m_editor->SetAgentGuidePaused(false);
         }
     }
+    void AgentPanel::Attach(const Agent::Target& target)
+    {
+        if (!m_tools->IsTargetValid(target))
+        {
+            m_attachmentError = Loc::Text(LocKeys::AgentInvalidTarget);
+            return;
+        }
+        for (const auto& existing : m_attachments)
+        {
+            if (existing.Equals(target))
+            {
+                return;
+            }
+        }
+        if (m_attachments.Size() >= 16)
+        {
+            m_attachmentError = Loc::Text(LocKeys::AgentAttachmentLimit);
+            return;
+        }
+        m_attachments.Add(target);
+    }
+    void AgentPanel::ReceiveAttachments()
+    {
+        if (!Widget::BeginDropTarget())
+        {
+            return;
+        }
+        Agent::Target target;
+        EditorObjectId object = 0;
+        if (Widget::AcceptDropValue(Widget::DragKind::HierarchyObject, object))
+        {
+            m_attachmentError.clear();
+            if (m_tools->MakeObjectTarget(object, target))
+            {
+                Attach(target);
+            }
+            else
+            {
+                m_attachmentError = Loc::Text(LocKeys::AgentInvalidTarget);
+            }
+        }
+        Widget::ComponentDragPayload component;
+        if (Widget::AcceptDropValue(Widget::DragKind::InspectorComponent, component))
+        {
+            m_attachmentError.clear();
+            if (m_tools->MakeComponentTarget(component.object, component.instance, target))
+            {
+                Attach(target);
+            }
+            else
+            {
+                m_attachmentError = Loc::Text(LocKeys::AgentInvalidTarget);
+            }
+        }
+        Widget::AssetDragHeader asset;
+        String paths;
+        if (Widget::AcceptAssetDrop(asset, &paths))
+        {
+            m_attachmentError.clear();
+            if (m_tools->MakeAssetTarget(asset.primary, target))
+            {
+                Attach(target);
+                std::size_t start = 0;
+                while (start < paths.size())
+                {
+                    const auto next = paths.find('\n', start);
+                    const String path = paths.substr(start, next == String::npos ? String::npos : next - start);
+                    const auto* record = m_editor->GetAssetRegistry().FindByPath(path);
+                    if (record != nullptr && m_tools->MakeAssetTarget(record->id, target))
+                    {
+                        Attach(target);
+                    }
+                    if (next == String::npos)
+                    {
+                        break;
+                    }
+                    start = next + 1;
+                }
+            }
+            else
+            {
+                m_attachmentError = Loc::Text(LocKeys::AgentInvalidTarget);
+            }
+        }
+        Widget::EndDropTarget();
+    }
     void AgentPanel::OnDraw()
     {
         const auto connection = m_provider.GetConnection();
@@ -226,21 +316,44 @@ namespace JBro
         {
             m_provider.ClearConversation();
             m_thread.clear();
+            m_attachments.Clear();
+            m_attachmentError.clear();
             Save();
         }
         const auto& messages = m_provider.Messages();
         const auto tailBytes = messages.IsEmpty() ? std::size_t(0) : messages[messages.Size() - 1].text.size();
-        Widget::AgentHistory(messages, m_seenMessages != messages.Size() || m_seenTailBytes != tailBytes, m_tools->Context(),
-            Delegate<Bool(const Agent::Target&)>::Bind<&Agent::Tools::IsTargetValid>(m_tools.Get()));
+        Widget::AgentHistory(messages, m_seenMessages != messages.Size() || m_seenTailBytes != tailBytes,
+            Delegate<Bool(const Agent::Target&)>::Bind<&Agent::Tools::IsTargetValid>(m_tools.Get()), m_attachments.IsEmpty() ? 170.0f : 365.0f);
         m_seenMessages = messages.Size();
         m_seenTailBytes = tailBytes;
-        Widget::TextField("##agent.input", m_input).Multiline(true, 3.0f)();
-        if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentSend, "Send"), Widget::Severity::Success,
-            connection == Agent::Connection::Ready && !m_input.empty(), Loc::TextOr(LocKeys::AgentNotReady, "Connect and sign in before sending a message.")))
+        const Int32 removed = Widget::AgentAttachments(m_attachments,
+            Delegate<Bool(const Agent::Target&)>::Bind<&Agent::Tools::IsTargetValid>(m_tools.Get()));
+        ReceiveAttachments();
+        if (removed >= 0)
         {
-            if (m_provider.Submit(m_input, m_tools->Context()))
+            m_attachments.RemoveAt(static_cast<std::size_t>(removed.Value));
+            m_attachmentError.clear();
+        }
+        if (!m_attachmentError.empty())
+        {
+            Widget::SeverityTextF(Widget::Severity::Warning, "%s", m_attachmentError.c_str());
+        }
+        Bool valid = true;
+        for (const auto& target : m_attachments)
+        {
+            valid = valid && m_tools->IsTargetValid(target);
+        }
+        Widget::TextField("##agent.input", m_input).Multiline(true, 3.0f)();
+        ReceiveAttachments();
+        if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentSend, "Send"), Widget::Severity::Success,
+            connection == Agent::Connection::Ready && !m_input.empty() && valid,
+            !valid ? Loc::Text(LocKeys::AgentInvalidTarget) : Loc::TextOr(LocKeys::AgentNotReady, "Connect and sign in before sending a message.")))
+        {
+            if (m_provider.Submit(m_input, m_tools->Context(m_attachments.View())))
             {
                 m_input.clear();
+                m_attachments.Clear();
+                m_attachmentError.clear();
             }
         }
     }

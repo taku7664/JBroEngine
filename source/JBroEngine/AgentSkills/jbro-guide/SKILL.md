@@ -58,3 +58,9 @@ For objects created during a guide, give the producing step `Id: made` and use `
 - The guide format cannot address a second component of the same type. Do not confuse direct editing tools' component InstanceId with guide component selection.
 - Unsupported menu items, deep fields and script-editor steps cannot be invented as guide actions. Explain the missing coverage and give an accurate textual continuation.
 - Do not fix or bypass the guide engine through shell commands, scene-file edits or new action names.
+
+## Explicit attachments
+
+The turn context includes `attachments` separately from the current `selection`. An explicit attachment identifies the user's subject even if selection later changes. Read its kind and IDs: object `instanceId`, component/script owning `instanceId` plus `componentId`, asset `assetId`. Refresh the context scope and query object details with `jbro_object_read` or asset metadata with `jbro_asset_read`. Attachments are references, not embedded source or image pixels. Reject invalid references instead of substituting an equal name. Ask only if several attached subjects leave the goal ambiguous.
+
+`jbro_context` keeps the current turn's explicit attachments and refreshes their validity and asset metadata. Use that response if a resumed thread does not expose the newer `jbro_asset_read` tool. Do not create another conversation just to access attachment metadata.

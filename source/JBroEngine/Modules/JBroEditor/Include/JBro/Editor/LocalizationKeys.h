@@ -847,7 +847,6 @@ namespace JBro::LocKeys
     inline constexpr const char* AgentUser = "agent.user";
     inline constexpr const char* AgentAssistant = "agent.assistant";
     inline constexpr const char* AgentActivity = "agent.activity";
-    inline constexpr const char* AgentPreviousContext = "agent.previous_context";
     inline constexpr const char* AgentAttached = "agent.attached";
     inline constexpr const char* AgentCommunicationFailed = "agent.communication_failed";
     inline constexpr const char* AgentInvalidProtocol = "agent.invalid_protocol";
@@ -869,4 +868,11 @@ namespace JBro::LocKeys
     inline constexpr const char* AgentModel = "agent.model";
     inline constexpr const char* AgentNoModels = "agent.no_models";
     inline constexpr const char* AgentInvalidTarget = "agent.invalid_target";
+    inline constexpr const char* AgentAttachments = "agent.attachments";
+    inline constexpr const char* AgentAsset = "agent.asset";
+    inline constexpr const char* AgentObject = "agent.object";
+    inline constexpr const char* AgentComponent = "agent.component";
+    inline constexpr const char* AgentRemoveAttachment = "agent.remove_attachment";
+    inline constexpr const char* AgentDropHere = "agent.drop_here";
+    inline constexpr const char* AgentAttachmentLimit = "agent.attachment_limit";
 }

@@ -31,3 +31,9 @@ Do not edit `.jcanvas`, `.jproject`, asset metadata or engine source files. Do n
 JBroScript generation follows the existing engine's availability. Do not assume that an emitter or runtime feature exists without checking this installation. The working default for executable game scripts is the generated C++ project.
 
 Never use a generic shell, external MCP write tools or direct filesystem changes instead of JBro tools. A disconnected/interrupted edit must not be replayed automatically. Tool success confirms that operation only, not the entire user's goal.
+
+## Explicit attachments
+
+The turn context includes `attachments` separately from the current `selection`. An explicit attachment identifies the user's subject even if selection later changes. Read its kind and IDs: object `instanceId`, component/script owning `instanceId` plus `componentId`, asset `assetId`. Refresh the context scope and query object details with `jbro_object_read` or asset metadata with `jbro_asset_read`. Attachments are references, not embedded source or image pixels. Reject invalid references instead of substituting an equal name. Ask only if several attached subjects leave the goal ambiguous.
+
+`jbro_context` keeps the current turn's explicit attachments and refreshes their validity and asset metadata. Use that response if a resumed thread does not expose the newer `jbro_asset_read` tool. Do not create another conversation just to access attachment metadata.

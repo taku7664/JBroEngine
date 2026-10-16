@@ -1,5 +1,6 @@
 #pragma once
 #include <JBro/Platform/ProcessChannel.h>
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Delegate.h>
 #include <JBro/Types/Float.h>
@@ -11,12 +12,6 @@ namespace JBro::Agent
 {
     enum class Connection { Stopped, Starting, SignedOut, Ready, Running, Failed };
     enum class MessageRole { User, Assistant, Activity, Error };
-    struct Message
-    {
-        MessageRole role = MessageRole::Activity;
-        String text;
-        String context;
-    };
     struct ToolResult
     {
         Bool success = false;
@@ -26,9 +21,19 @@ namespace JBro::Agent
     {
         enum class Kind { Object, Asset, Component };
         Kind kind = Kind::Object;
-        String project, canvas, name, asset;
+        String project, canvas, name;
+        AssetId asset;
+        UInt64 revision = 0;
         UInt64 instance = 0;
         UInt64 component = 0;
+        Bool Equals(const Target& other) const;
+    };
+    struct Message
+    {
+        MessageRole role = MessageRole::Activity;
+        String text;
+        String context;
+        Array<Target> targets;
     };
     struct Settings
     {
