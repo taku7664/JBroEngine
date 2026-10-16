@@ -411,6 +411,11 @@ namespace JBro
         // (머리)에 붙으므로, 단추를 먼저 그리면 머리의 우클릭이 단추로 옮겨 간다.
         const ImVec2 headerMin = ImGui::GetItemRectMin();
         const ImVec2 headerMax = ImGui::GetItemRectMax();
+        if (firstOfType)
+        {
+            Widget::ReportGuideTarget(GuideFocusTargets::InspectorComponentMenu(typeId), headerMin, headerMax,
+                ImGui::IsPopupOpen("##ComponentMenu"), false);
+        }
         // **머리를 끌어 순서를 바꾼다**(D-294). 메뉴의 위로·아래로와 같은 커맨드다. 끌기·받기는 직전 항목(머리)에 붙고,
         // 툴팁 창을 닫으면 직전 항목이 머리로 돌아오므로 아래 우클릭 메뉴도 그대로 머리에 붙는다.
         if (DrawComponentDrag(object, kind, index, typeName, headerMin, headerMax))

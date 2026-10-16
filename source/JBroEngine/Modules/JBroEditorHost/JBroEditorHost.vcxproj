@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -166,12 +166,14 @@
     두고 실행해야만 글자와 아이콘이 나온다. 런처는 엔진 설치 폴더 하나만 알면 되어야 한다.
   -->
   <ItemGroup>
+    <JBroAgentSkills Include="$(JBroRoot)AgentSkills\**\*.md" />
     <JBroLocalizationFiles Include="$(JBroRoot)Localization\*.yaml" />
     <JBroIconFontFiles Include="$(JBroThirdPartyDir)MaterialDesignIcons\*.ttf" />
   </ItemGroup>
   <Target Name="JBroCopyEditorContent" AfterTargets="Build"
-          Inputs="@(JBroLocalizationFiles);@(JBroIconFontFiles)"
-          Outputs="@(JBroLocalizationFiles->'$(OutDir)Localization\%(Filename)%(Extension)');@(JBroIconFontFiles->'$(OutDir)ThirdParty\MaterialDesignIcons\%(Filename)%(Extension)')">
+          Inputs="@(JBroLocalizationFiles);@(JBroIconFontFiles);@(JBroAgentSkills)"
+          Outputs="@(JBroAgentSkills->'$(OutDir)AgentSkills\%(RecursiveDir)%(Filename)%(Extension)');@(JBroLocalizationFiles->'$(OutDir)Localization\%(Filename)%(Extension)');@(JBroIconFontFiles->'$(OutDir)ThirdParty\MaterialDesignIcons\%(Filename)%(Extension)')">
+    <Copy SourceFiles="@(JBroAgentSkills)" DestinationFiles="@(JBroAgentSkills->'$(OutDir)AgentSkills\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(JBroLocalizationFiles)" DestinationFolder="$(OutDir)Localization" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(JBroIconFontFiles)" DestinationFolder="$(OutDir)ThirdParty\MaterialDesignIcons" SkipUnchangedFiles="true" />
   </Target>

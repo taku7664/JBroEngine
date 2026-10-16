@@ -753,3 +753,44 @@ Entries:
   markdown.readfailed: The document could not be read. The last valid contents are retained.
   markdown.imageunavailable: Local image is unavailable or unsupported.
   markdown.unsupportedlink: This link is not supported.
+  panel.agent: AI Assistant
+  agent.executable: Codex executable
+  agent.connect: Connect
+  agent.connecting: Connecting to Codex...
+  agent.project_required: Open a project first.
+  agent.install: Codex installation guide
+  agent.login_chatgpt: Sign in with ChatGPT
+  agent.api_key: API key
+  agent.login_key: Sign in with API key
+  agent.stop: Stop
+  agent.disconnect: Disconnect
+  agent.resume_guide: Resume guide
+  agent.open_chat: Ask AI
+  agent.new_chat: New conversation
+  agent.send: Send
+  agent.not_ready: Connect and sign in before sending a message.
+  agent.user: You
+  agent.assistant: AI
+  agent.activity: Activity
+  agent.previous_context: Previous canvas references; refresh before use.
+  agent.attached: Included at send time:
+  agent.communication_failed: Codex communication failed. Reconnect; changes are not replayed.
+  agent.invalid_protocol: Invalid Codex protocol message.
+  agent.login_failed: Codex sign-in failed. Try signing in again.
+  agent.connected: Codex connected. Previous object references must be refreshed.
+  agent.login_cancelled: Codex sign-in was cancelled or failed.
+  agent.turn_stopped: Stopped. Applied changes remain; no changes were replayed.
+  agent.turn_failed: Codex turn failed. Check the recorded tool results; completion is not confirmed.
+  agent.server_error: Codex reported an error. Check connection and account access.
+  agent.executable_missing: Codex executable not found. Install Codex or select codex.exe; automatic installation is disabled.
+  agent.startup_timeout: Codex did not initialize. Check your installation, network and protocol compatibility.
+  agent.message_limit: Codex protocol message exceeds the size limit.
+  agent.incompatible: Codex protocol is invalid or incompatible. Update Codex and reconnect.
+  agent.exited: Codex exited. Reconnect to continue; changes are not replayed.
+  agent.rpc_rejected: Codex rejected the request. Check authentication or update Codex before reconnecting.
+  agent.tool_running: Working with the editor...
+  agent.tool_done: Editor operation completed.
+  agent.tool_failed: The editor rejected the operation. The AI received the reason.
+  agent.model: Model
+  agent.no_models: Codex did not return an available model. Check account access.
+  agent.invalid_target: This reference is no longer valid.

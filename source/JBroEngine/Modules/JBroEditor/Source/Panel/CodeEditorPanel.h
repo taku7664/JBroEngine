@@ -44,6 +44,7 @@ namespace JBro
         Bool IsReadOnly() const;
         Code::LanguageClient* GetLanguageClient() { return m_language.TryGet(); }
         Bool ApplySourceEdits(Int32 version, const Array<Code::TextEdit>& edits);
+        Bool ApplyAgentText(const String& expected, const String& text);
         static CodeEditorPanel* FindActive(EditorApplication& editor);
     private:
         void UpdateTitle();

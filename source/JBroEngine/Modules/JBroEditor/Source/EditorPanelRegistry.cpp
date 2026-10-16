@@ -21,6 +21,7 @@
 #include "Panel/MarkdownPanel.h"
 #include "Panel/ScriptSummaryPanel.h"
 #include "Panel/StatsPanel.h"
+#include "Panel/AgentPanel.h"
 
 #include <cstring>
 #include <JBro/Types/Bool.h>
@@ -147,6 +148,7 @@ namespace JBro
         RegisterEditorPanelType<ProfilerPanel>(true);
         RegisterEditorPanelType<ShortcutPanel>(true);
         RegisterEditorPanelType<EditorSettingsPanel>(true);
+        RegisterEditorPanelType<AgentPanel>(true);
 
         // **파일을 여는 창은 뿌리에 따로 선 도크에 속한다**(D-155·D-284, 기존 `CSpriteViewerDockWindow`). 메인 도크와 나란히
         // 뿌리에 탭으로 서고, 그림마다 비고유 패널이 그 안에 열린다.

@@ -53,6 +53,7 @@ namespace JBro::Widget
         const char* skipLabel = nullptr;
         const char* backLabel = nullptr;
         const char* nextLabel = nullptr;
+        const char* chatLabel = nullptr;
         // 이전 단추를 두었지만 지금은 못 누를 때(첫 단계) 회색으로 두고 까닭을 띄운다(§11.1).
         Bool backEnabled = true;
         const char* backDisabledReason = nullptr;

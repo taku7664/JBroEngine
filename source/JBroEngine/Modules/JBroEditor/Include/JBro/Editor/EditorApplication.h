@@ -482,6 +482,10 @@ namespace JBro
         // 적고 거짓이며, 이미 돌던 가이드는 그대로 둔다. 읽었으면 돌던 가이드를 멈추고 이것을 켠다.
         Bool StartGuideFromText(const char* text, std::size_t length, String& error);
         EditorGuide& GetGuide();
+        void SetAgentGuidePaused(Bool paused);
+        Bool IsAgentGuidePaused() const { return m_agentGuidePaused; }
+        UInt64 GetAgentContextRevision() const { return m_agentContextRevision; }
+        String GetAgentSkillsRoot() const;
         // 제어 포트가 열렸는가(D-270). `controlPort` 를 주었어도 다른 에디터가 그 번호를 쓰고 있으면 열리지 않는다.
         Bool IsControlPortOpen() const;
         // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
@@ -1209,6 +1213,8 @@ namespace JBro
         // 글자 표가 사는 곳과 지금 언어·폴백이다(D-146). 언어를 바꾸려면 다시 읽어야 하고,
         // 다시 읽으려면 처음에 어디서 읽었는지를 들고 있어야 한다.
         String m_localizationDirectory;
+        Bool m_agentGuidePaused = false;
+        UInt64 m_agentContextRevision = 1;
         // 아이콘 글꼴의 경로다. 실행 파일 기준으로 풀어 둔 값이다(D-176).
         String m_iconFontPath;
         String m_locale;

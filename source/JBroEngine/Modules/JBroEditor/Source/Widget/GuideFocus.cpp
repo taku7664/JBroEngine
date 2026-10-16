@@ -416,6 +416,16 @@ namespace JBro::Widget
                     }
                     first = false;
                 };
+                if (balloon.chatLabel != nullptr)
+                {
+                    nextInRow();
+                    if (Button(balloon.chatLabel))
+                    {
+                        action = GuideFocusAction::Chat;
+                    }
+                    first = true;
+                    ImGui::Spacing();
+                }
                 if (balloon.skipLabel != nullptr)
                 {
                     nextInRow();

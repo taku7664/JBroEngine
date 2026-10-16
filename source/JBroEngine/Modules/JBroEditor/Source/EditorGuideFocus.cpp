@@ -84,6 +84,16 @@ namespace JBro
             return { MakeNameId("inspector.component"), componentTypeId };
         }
 
+        GuideFocusTarget InspectorComponentMenu(UInt64 componentTypeId)
+        {
+            return { MakeNameId("inspector.component_menu"), componentTypeId };
+        }
+
+        GuideFocusTarget ScriptsRootMenu()
+        {
+            return { MakeNameId("assets.scripts_root_menu"), 0 };
+        }
+
         GuideFocusTarget InspectorField(UInt64 componentTypeId, NameId fieldName)
         {
             // 타입과 필드 이름을 한 열쇠로 섞는다. 같은 이름의 필드가 다른 컴포넌트에도 있다(`position`).

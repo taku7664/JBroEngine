@@ -51,6 +51,8 @@ namespace JBro
         GuideFocusTarget HierarchyObject(UInt64 editorObjectId);
         // 인스펙터의 컴포넌트 머리, 그 컴포넌트의 맨 위 필드 줄, 컴포넌트 추가 칸.
         GuideFocusTarget InspectorComponent(UInt64 componentTypeId);
+        GuideFocusTarget InspectorComponentMenu(UInt64 componentTypeId);
+        GuideFocusTarget ScriptsRootMenu();
         GuideFocusTarget InspectorField(UInt64 componentTypeId, NameId fieldName);
         GuideFocusTarget InspectorAddComponent();
         // **행동 하나를 부르는 메뉴 항목**이다(D-267). 이름은 가이드의 행동 이름(`object.delete`)이다. 같은 행동이 여러 메뉴에
@@ -110,7 +112,8 @@ namespace JBro
         None,
         Next,
         Back,
-        Skip
+        Skip,
+        Chat
     };
 
     class EditorGuideFocus

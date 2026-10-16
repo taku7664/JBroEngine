@@ -494,6 +494,44 @@ namespace JBro
         }
     }
     Bool CodeEditorPanel::HasUnsavedChanges() const { return !m_readOnly && m_text != m_saved; }
+    Bool CodeEditorPanel::ApplyAgentText(const String& expected, const String& text)
+    {
+        if (m_buffer.GetRevision() != m_revision)
+        {
+            Changed();
+        }
+        String disk;
+        if (IsReadOnly() || HasUnsavedChanges() || m_buffer.GetText() != expected
+            || !Read(m_editor->GetPlatform(), m_path, disk) || disk != m_diskBytes)
+        {
+            return false;
+        }
+        Code::TextEdit replacement;
+        replacement.range.start = {0, 0};
+        replacement.range.end = {0, 0};
+        for (std::size_t at = 0; at < expected.size(); ++at)
+        {
+            const auto byte = static_cast<unsigned char>(expected[at]);
+            if (byte == '\n')
+            {
+                ++replacement.range.end.line;
+                replacement.range.end.character = 0;
+            }
+            else if ((byte & 0xc0) != 0x80)
+            {
+                replacement.range.end.character += byte >= 0xf0 ? 2 : 1;
+            }
+        }
+        replacement.newText = text;
+        Array<Code::TextEdit> edits;
+        edits.Add(std::move(replacement));
+        if (!m_buffer.ApplyEdits(edits))
+        {
+            return false;
+        }
+        Changed();
+        return Save();
+    }
     Bool CodeEditorPanel::SaveChanges() { return !HasUnsavedChanges() || Save(); }
     Bool CodeEditorPanel::Save()
     {

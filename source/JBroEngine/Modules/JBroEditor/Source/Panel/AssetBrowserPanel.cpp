@@ -1,6 +1,7 @@
 ﻿#include "AssetBrowserPanel.h"
 
 #include <JBro/Editor/Widget/AssetDrag.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
@@ -766,6 +767,8 @@ namespace JBro
         Widget::TreeDrawContext row;
         Widget::TreeBegin("##scriptsRoot", flags, &row);
         Widget::TreeEnd();
+        Widget::ReportGuideTarget(GuideFocusTargets::ScriptsRootMenu(), ImGui::GetItemRectMin(),
+            ImGui::GetItemRectMax(), ImGui::IsPopupOpen("##ScriptsRootMenu"), false);
         const bool clicked = ImGui::IsItemClicked();
         if (Widget::BeginContextMenu("##ScriptsRootMenu"))
         {
@@ -897,6 +900,7 @@ namespace JBro
     {
         // 폴더에서 열었으면 그 폴더에, 빈자리에서 열었으면 지금 보는 폴더에 만든다.
         const String folder = relativePath.empty() ? m_scriptFolder : relativePath;
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("script.create"));
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewScript, "New Script")))
         {
             m_inScripts = true;

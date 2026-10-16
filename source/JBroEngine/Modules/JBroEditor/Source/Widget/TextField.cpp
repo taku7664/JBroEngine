@@ -62,6 +62,12 @@ namespace JBro::Widget
     {
     }
 
+    TextField& TextField::Password(Bool password)
+    {
+        m_password = password;
+        return *this;
+    }
+
     TextField& TextField::Hint(const char* text)
     {
         m_hint = text;
@@ -133,7 +139,7 @@ namespace JBro::Widget
             ImGui::SetNextItemWidth(m_width);
         }
 
-        ImGuiInputTextFlags flags = ImGuiInputTextFlags_None;
+        ImGuiInputTextFlags flags = m_password ? ImGuiInputTextFlags_Password : ImGuiInputTextFlags_None;
         if (m_commitOnEnter)
         {
             flags |= ImGuiInputTextFlags_EnterReturnsTrue;

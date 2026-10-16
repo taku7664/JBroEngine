@@ -73,6 +73,8 @@ JBro::Int32 RunObjectServiceTests();
 JBro::Int32 RunEditorApplicationTests();
 JBro::Int32 RunEditorUITests();
 JBro::Int32 RunCodeEditorTests();
+JBro::Int32 RunAgentTests();
+JBro::Int32 RunAgentLiveTests();
 JBro::Int32 RunMarkdownTests();
 JBro::Int32 RunScriptSummaryTests();
 JBro::Int32 RunScriptSummaryPanelTests();
@@ -540,6 +542,14 @@ int main()
             return 1;
         }
         if (false == RunSuite("Markdown", &RunMarkdownTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("AgentLive", &RunAgentLiveTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Agent", &RunAgentTests))
         {
             return 1;
         }

@@ -4423,6 +4423,8 @@ namespace JBro
         SetSelectedAsset({});
         m_commands.Clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
         CancelSpriteFramePick();
         if (false == canvas->Clear())
         {
@@ -5342,6 +5344,8 @@ namespace JBro
         }
         m_simulationSnapshot.clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
         // 재생 중에 쌓인 편집은 되돌릴 대상이 사라졌다. 스택을 비우지 않으면 Ctrl+Z 가
         // 이제 없는 오브젝트를 가리킨다. **저장 안 됨은 남긴다** - 캔버스는 재생 전으로 돌아왔고, 재생 전에 저장하지 않은 편집은
         // 여전히 저장되지 않았다(D-324).
@@ -5798,6 +5802,8 @@ namespace JBro
         ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
         m_uiEnabled = false;
     }
 
@@ -5843,6 +5849,8 @@ namespace JBro
         ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
         m_uiEnabled = false;
     }
 
@@ -6125,9 +6133,10 @@ namespace JBro
     void EditorApplication::DrawGuideFocus(Float deltaTime)
     {
         // 모달이 떠 있으면 막을 걷는다(D-251 (7)). 이 프레임에 그린 팝업을 본다.
-        m_guideFocus.SetPaused(ImGui::GetTopMostPopupModal() != nullptr);
+        m_guideFocus.SetPaused(m_agentGuidePaused || ImGui::GetTopMostPopupModal() != nullptr);
 
         Widget::GuideFocusBalloon balloon;
+        balloon.chatLabel = Loc::TextOr(LocKeys::AgentOpenChat, "Ask AI");
         char progress[32] = {};
         char disabledNote[256] = {};
         const GuideStep* step = m_guide.GetStep();
@@ -6193,10 +6202,19 @@ namespace JBro
             }
         }
         const GuideFocusAction action = Widget::GuideFocus(m_guideFocus, balloon);
+        if (action == GuideFocusAction::Chat)
+        {
+            SetAgentGuidePaused(true);
+            CreatePanel("Agent");
+            return;
+        }
         // 다음 프레임의 Esc 를 가를 것이다 - 글자를 치는 중이면 Esc 는 칸의 것이다.
         m_guideFocus.SetTextInputActive(ImGui::GetIO().WantTextInput);
         m_guideFocus.Update(deltaTime);
-        m_guide.Update(*this, m_guideFocus, action);
+        if (!m_agentGuidePaused)
+        {
+            m_guide.Update(*this, m_guideFocus, action);
+        }
         if (m_guide.ConsumeFinished())
         {
             NotificationDesc done;
@@ -7028,6 +7046,17 @@ namespace JBro
         return m_notifications;
     }
 
+    String EditorApplication::GetAgentSkillsRoot() const
+    {
+        return EditorPaths::JoinPath(EditorPaths::FolderOf(m_localizationDirectory.c_str()).c_str(), "AgentSkills");
+    }
+
+    void EditorApplication::SetAgentGuidePaused(Bool paused)
+    {
+        m_agentGuidePaused = paused;
+        m_guideFocus.SetPaused(paused);
+    }
+
     EditorGuideFocus& EditorApplication::GetGuideFocus()
     {
         return m_guideFocus;
@@ -7345,6 +7374,8 @@ namespace JBro
         // 남은 것이 있으면 여기서 치운다 - 다음 프로젝트가 남의 휴지통을 물려받지 않는다(D-191).
         ClearTrash();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
         // 고르던 프레임은 이 프로젝트의 컴포넌트를 가리킨다. 다음 프로젝트의 같은 번호에 쓰면 안 된다.
         CancelSpriteFramePick();
         // 그림은 이 프로젝트의 것이다. 다음 프로젝트의 같은 아이디는 다른 파일이다. **에셋 시스템과도 끊는다** -
