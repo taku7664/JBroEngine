@@ -1,4 +1,4 @@
-﻿Locale: en-US
+Locale: en-US
 Entries:
   panel.simulation: Simulation
   panel.canvas_view: Canvas
@@ -753,7 +753,7 @@ Entries:
   markdown.readfailed: The document could not be read. The last valid contents are retained.
   markdown.imageunavailable: Local image is unavailable or unsupported.
   markdown.unsupportedlink: This link is not supported.
-  panel.agent: AI Assistant
+  panel.agent: AI Agent
   agent.executable: Codex executable
   agent.connect: Connect
   agent.connecting: Connecting to Codex...
@@ -769,10 +769,6 @@ Entries:
   agent.new_chat: New conversation
   agent.send: Send
   agent.not_ready: Connect and sign in before sending a message.
-  agent.user: You
-  agent.assistant: AI
-  agent.activity: Activity
-  agent.attached: Included at send time:
   agent.communication_failed: Codex communication failed. Reconnect; changes are not replayed.
   agent.invalid_protocol: Invalid Codex protocol message.
   agent.login_failed: Codex sign-in failed. Try signing in again.
@@ -790,16 +786,39 @@ Entries:
   agent.tool_running: Working with the editor...
   agent.tool_done: Editor operation completed.
   agent.tool_failed: The editor rejected the operation. The AI received the reason.
-  agent.model: Model
   agent.no_models: Codex did not return an available model. Check account access.
   agent.invalid_target: This reference is no longer valid.
-  agent.attachments: Attachments
+  agent.attachments: References (%u)
   agent.asset: Asset
   agent.object: Object
   agent.component: Component
   agent.remove_attachment: Remove
-  agent.drop_here: Drop to attach
   agent.attachment_limit: You can attach up to 16 items per message.
   agent.guide_target_lost: The guide target changed. Ask for a new guide.
   agent.isolation_failed: External tools could not be disabled. Update Codex before connecting.
   agent.restored_incomplete: This previous turn did not complete. Inspect applied changes before continuing; no work was replayed.
+
+  agent.settings: Connection settings
+  agent.back: Back to conversation
+  agent.connected_short: Codex connected
+  agent.disconnected_short: Disconnected
+  agent.sign_in_required: Sign-in required
+  agent.welcome: What would you like to create?
+  agent.welcome_hint: Ask for help or request an edit. Drop a subject here to include it.
+  agent.prompt_focus: How do I enter object focus mode?
+  agent.prompt_order: How do I reorder sprites without changing Z?
+  agent.prompt_script: How do I create a script?
+  agent.input_hint: Enter a request…
+  agent.drop_hint: Drop objects, components, or assets
+  agent.executable_hint: Uses your installed Codex.
+  agent.auth_managed: Codex manages account authentication.
+  agent.guide: Guide
+  agent.guide_paused: The guide is paused while you chat.
+  agent.guide_target: Subject
+  agent.prompt_focus_label: Enter object focus mode
+  agent.prompt_order_label: Reorder sprites without Z
+  agent.prompt_script_label: Create a script
+  agent.connect_hint: Connect to Codex to start chatting.
+  agent.model_placeholder: Select model
+  agent.model_after_connect: Model · connect to select
+  agent.shortcut_hint: Ctrl + Enter to send

@@ -90,9 +90,16 @@ namespace JBro::Widget
         const ImVec2 max = ImGui::GetItemRectMax();
         const ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
         const Float lineTop = min.y + (max.y - min.y - lineHeight) * 0.5f;
-        const ImVec2 iconMin(min.x + style.FramePadding.x, lineTop);
-        DrawGlyphCentered(icon, iconMin, ImVec2(iconMin.x + lineHeight, lineTop + lineHeight), color);
-        ImGui::GetWindowDrawList()->AddText(ImVec2(iconMin.x + iconWidth, lineTop), color, label, labelEnd);
+        if (labelEnd == label)
+        {
+            DrawGlyphCentered(icon, min, max, color);
+        }
+        else
+        {
+            const ImVec2 iconMin(min.x + style.FramePadding.x, lineTop);
+            DrawGlyphCentered(icon, iconMin, ImVec2(iconMin.x + lineHeight, lineTop + lineHeight), color);
+            ImGui::GetWindowDrawList()->AddText(ImVec2(iconMin.x + iconWidth, lineTop), color, label, labelEnd);
+        }
         Internal::ReportLastItem(target, false, pressed);
         return pressed;
     }

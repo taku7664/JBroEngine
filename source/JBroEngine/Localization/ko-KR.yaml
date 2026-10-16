@@ -1,4 +1,4 @@
-﻿Locale: ko-KR
+Locale: ko-KR
 Entries:
   panel.simulation: 시뮬레이션 뷰
   panel.canvas_view: 캔버스 뷰
@@ -753,7 +753,7 @@ Entries:
   markdown.readfailed: 문서를 읽지 못했습니다. 마지막으로 읽은 내용을 유지합니다.
   markdown.imageunavailable: 로컬 이미지를 읽지 못했거나 지원하지 않는 형식입니다.
   markdown.unsupportedlink: 지원하지 않는 링크입니다.
-  panel.agent: AI 도우미
+  panel.agent: AI 에이전트
   agent.executable: Codex 실행 파일
   agent.connect: 연결
   agent.connecting: Codex에 연결하는 중...
@@ -769,10 +769,6 @@ Entries:
   agent.new_chat: 새 대화
   agent.send: 전송
   agent.not_ready: 연결과 로그인을 마친 뒤 메시지를 전송할 수 있습니다.
-  agent.user: 사용자
-  agent.assistant: AI
-  agent.activity: 진행 상황
-  agent.attached: 메시지와 함께 전달한 대상:
   agent.communication_failed: Codex 통신이 끊겼습니다. 다시 연결해야 합니다. 변경 작업은 재실행하지 않습니다.
   agent.invalid_protocol: Codex에서 올바르지 않은 응답을 받았습니다.
   agent.login_failed: Codex 로그인에 실패했습니다. 다시 로그인해야 합니다.
@@ -790,16 +786,39 @@ Entries:
   agent.tool_running: 에디터에서 작업하는 중...
   agent.tool_done: 에디터 작업을 처리했습니다.
   agent.tool_failed: 에디터가 작업을 거절했습니다. AI에 원인을 전달했습니다.
-  agent.model: 모델
   agent.no_models: Codex에서 모델 목록을 받지 못했습니다. 계정 사용 권한을 확인해야 합니다.
   agent.invalid_target: 이 대상 참조는 더 이상 유효하지 않습니다.
-  agent.attachments: 첨부
+  agent.attachments: 참조 %u개
   agent.asset: 에셋
   agent.object: 오브젝트
   agent.component: 컴포넌트
   agent.remove_attachment: 제거
-  agent.drop_here: 참조 첨부
   agent.attachment_limit: 한 번에 16개까지 첨부할 수 있습니다.
   agent.guide_target_lost: 가이드 대상이 변경되어 중단되었습니다. 새 가이드를 요청해야 합니다.
   agent.isolation_failed: 외부 도구를 차단하지 못했습니다. Codex 설정과 버전을 확인해야 합니다.
   agent.restored_incomplete: 이전 작업이 완료되지 않았습니다. 반영된 변경을 확인한 뒤 계속해야 합니다. 작업은 재실행하지 않습니다.
+
+  agent.settings: 연결 설정
+  agent.back: 대화로 돌아가기
+  agent.connected_short: Codex 연결됨
+  agent.disconnected_short: 연결 끊김
+  agent.sign_in_required: 로그인 필요
+  agent.welcome: 무엇을 만들어 볼까요?
+  agent.welcome_hint: 작업을 요청하거나 사용법을 물어보세요. 대상을 끌어 놓으면 함께 참조합니다.
+  agent.prompt_focus: 오브젝트 포커스 모드는 어떻게 들어가?
+  agent.prompt_order: Z 값을 바꾸지 않고 스프라이트 순서를 조절하려면?
+  agent.prompt_script: 스크립트는 어떻게 만들어?
+  agent.input_hint: 요청을 입력하세요…
+  agent.drop_hint: 오브젝트·컴포넌트·에셋 끌어 놓기
+  agent.executable_hint: 설치된 Codex를 사용합니다.
+  agent.auth_managed: 계정 인증은 Codex에서 관리합니다.
+  agent.guide: 가이드
+  agent.guide_paused: 대화 중에는 가이드가 일시정지됩니다.
+  agent.guide_target: 대상
+  agent.prompt_focus_label: 오브젝트 포커스 모드 진입
+  agent.prompt_order_label: Z 값 없이 스프라이트 순서 조절
+  agent.prompt_script_label: 새 스크립트 만들기
+  agent.connect_hint: Codex에 연결해 대화를 시작하세요.
+  agent.model_placeholder: 모델 선택
+  agent.model_after_connect: 모델 · 연결 후 선택
+  agent.shortcut_hint: Ctrl + Enter 전송

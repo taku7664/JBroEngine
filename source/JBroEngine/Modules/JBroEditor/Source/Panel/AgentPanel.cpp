@@ -1,7 +1,6 @@
 #include "AgentPanel.h"
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorPaths.h>
-#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/AgentChat.h>
@@ -9,11 +8,7 @@
 #include <JBro/Editor/Widget/AssetDrag.h>
 #include <JBro/Editor/Widget/ComponentDrag.h>
 #include <JBro/Asset/AssetRegistry.h>
-#include <JBro/Editor/Widget/Basic.h>
-#include <JBro/Editor/Widget/TextField.h>
-#include <JBro/Editor/Widget/FilterCombo.h>
-#include <JBro/Editor/Widget/FormLayout.h>
-#include <JBro/Editor/Widget/FieldLabel.h>
+#include <JBro/Runtime/GameObject.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Platform/Platform.h>
 
@@ -233,129 +228,115 @@ namespace JBro
     }
     void AgentPanel::OnDraw()
     {
-        const auto connection = m_provider.GetConnection();
+        const auto& messages = m_provider.Messages();
+        const UInt64 tailBytes = messages.IsEmpty() ? UInt64(0) : UInt64(messages[messages.Size() - 1].text.size());
+        Widget::AgentChatView view{messages, m_attachments, m_provider.GetModels()};
+        const auto fileName = [](const String& path) -> String {
+            const auto at = path.find_last_of("/\\");
+            return at == String::npos ? path : String(path.substr(at + 1));
+        };
+        view.project = fileName(m_project);
+        const auto extension = view.project.find_last_of('.');
+        if (extension != String::npos)
         {
-            Widget::FormLayout form("##agent.connection");
-            form.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::AgentExecutable, "Codex executable")), [&]() {
-                Widget::TextField("##agent.executable", m_executable).MaxLength(2047)();
-            });
+            view.project.resize(extension);
         }
-        if (connection == Agent::Connection::Stopped || connection == Agent::Connection::Failed)
+        view.canvas = fileName(m_editor->GetCanvasPath());
+        view.projectOpen = !m_project.empty();
+        view.connection = m_provider.GetConnection();
+        view.model = m_provider.GetModel();
+        view.error = m_provider.GetError();
+        view.attachmentError = m_attachmentError;
+        view.changed = m_seenMessages != messages.Size() || m_seenTailBytes != tailBytes;
+        view.validate = Delegate<Bool(const Agent::Target&)>::Bind<&Agent::Tools::IsTargetValid>(m_tools.Get());
+        view.receiveDrop = Delegate<void()>::Bind<&AgentPanel::ReceiveAttachments>(this);
+        view.guidePaused = m_editor->IsAgentGuidePaused();
+        if (const auto* guide = m_editor->GetGuide().GetGuide())
         {
-            if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentConnect, "Connect"), Widget::Severity::Success, !m_project.empty(),
-                Loc::TextOr(LocKeys::AgentProjectRequired, "Open a project first."), {}, Icons::Play))
+            view.guideTitle = Loc::TextFor(guide->title.key, guide->title.string, guide->title.locale);
+            const auto& path = m_editor->GetGuideFocus().GetPath();
+            for (UInt32 index = 0; index < path.count; ++index)
             {
-                Connect();
-            }
-            if (Widget::Button(Loc::TextOr(LocKeys::AgentInstall, "Codex installation guide"), Icons::Question))
-            {
-                m_editor->GetPlatform().OpenPathWithShell("https://learn.chatgpt.com/docs/cli");
-            }
-        }
-        else if (connection == Agent::Connection::Starting)
-        {
-            Widget::HintText(Loc::TextOr(LocKeys::AgentConnecting, "Connecting to Codex..."));
-        }
-        else if (connection == Agent::Connection::SignedOut)
-        {
-            if (Widget::Button(Loc::TextOr(LocKeys::AgentLoginChatgpt, "Sign in with ChatGPT"), Icons::OpenExternal))
-            {
-                m_provider.LoginChatGPT();
-            }
-            Widget::FormLayout form("##agent.auth");
-            form.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::AgentApiKey, "API key")), [&]() {
-                Widget::TextField("##agent.api_key", m_apiKey).Password().MaxLength(2047)();
-            });
-            if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentLoginKey, "Sign in with API key"), Widget::Severity::Info, !m_apiKey.empty(), nullptr, {}, Icons::OpenExternal))
-            {
-                m_provider.LoginApiKey(m_apiKey);
-                std::fill(m_apiKey.begin(), m_apiKey.end(), '\0');
-                m_apiKey.clear();
-            }
-        }
-        if (!m_provider.GetError().empty())
-        {
-            Widget::SeverityTextF(Widget::Severity::Error, "%s", m_provider.GetError().c_str());
-        }
-        if (!m_provider.GetModels().IsEmpty())
-        {
-            Array<const char*> labels;
-            Int32 selected = -1;
-            for (const auto& model : m_provider.GetModels())
-            {
-                if (model.id == m_provider.GetModel())
+                const auto& target = path.targets[index.Value];
+                if (target.name == GuideFocusTargets::HierarchyObject(0).name
+                    || target.name == GuideFocusTargets::HierarchyObjectMenu(0).name
+                    || target.name == GuideFocusTargets::CanvasViewObject(0).name)
                 {
-                    selected = static_cast<Int32>(labels.Size());
+                    if (const auto* object = m_editor->GetObjectIds().Resolve(target.key))
+                    {
+                        view.guideTarget = String(Loc::Text(LocKeys::AgentGuideTarget)) + " · " + object->GetName();
+                    }
                 }
-                labels.Add(model.label.c_str());
-            }
-            Widget::DisableScope disabled(connection != Agent::Connection::Ready);
-            Widget::FormLayout form("##agent.model");
-            form.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::AgentModel, "Model")), [&]() {
-                if (Widget::FilterCombo("##agent.model", {labels.Data(), static_cast<UInt32>(labels.Size())}, selected)())
-                {
-                    m_provider.SetModel(m_provider.GetModels()[selected.Value].id);
-                }
-            });
-        }
-        if (connection == Agent::Connection::Running)
-        {
-            if (Widget::Button(Loc::TextOr(LocKeys::AgentStop, "Stop"), Icons::Stop))
-            {
-                m_provider.Interrupt();
             }
         }
-        if (m_editor->IsAgentGuidePaused() && Widget::Button(Loc::TextOr(LocKeys::AgentResumeGuide, "Resume guide"), Icons::Play))
+        m_seenMessages = messages.Size();
+        m_seenTailBytes = tailBytes;
+        const auto result = Widget::AgentChat(view, m_settingsOpen, m_input, m_executable, m_apiKey);
+        if (result.removed >= 0 && static_cast<std::size_t>(result.removed.Value) < m_attachments.Size())
         {
-            m_editor->SetAgentGuidePaused(false);
+            m_attachments.RemoveAt(result.removed.Value);
+            m_attachmentError.clear();
         }
-        if (connection != Agent::Connection::Stopped && Widget::Button(Loc::TextOr(LocKeys::AgentDisconnect, "Disconnect"), Icons::Xmark))
+        if (result.model >= 0 && static_cast<std::size_t>(result.model.Value) < m_provider.GetModels().Size())
         {
+            m_provider.SetModel(m_provider.GetModels()[result.model.Value].id);
+        }
+        using Action = Widget::AgentChatAction;
+        switch (result.action)
+        {
+        case Action::Connect:
+            Connect();
+            break;
+        case Action::Disconnect:
             m_provider.Stop();
-        }
-        if (Widget::Button(Loc::TextOr(LocKeys::AgentNewChat, "New conversation"), Icons::Plus))
-        {
+            break;
+        case Action::Install:
+            m_editor->GetPlatform().OpenPathWithShell("https://learn.chatgpt.com/docs/cli");
+            break;
+        case Action::LoginChatGPT:
+            m_provider.LoginChatGPT();
+            break;
+        case Action::LoginKey:
+            m_provider.LoginApiKey(m_apiKey);
+            std::fill(m_apiKey.begin(), m_apiKey.end(), '\0');
+            m_apiKey.clear();
+            break;
+        case Action::NewChat:
             m_provider.ClearConversation();
             m_thread.clear();
+            m_input.clear();
             m_attachments.Clear();
             m_attachmentError.clear();
             Save();
-        }
-        const auto& messages = m_provider.Messages();
-        const auto tailBytes = messages.IsEmpty() ? std::size_t(0) : messages[messages.Size() - 1].text.size();
-        Widget::AgentHistory(messages, m_seenMessages != messages.Size() || m_seenTailBytes != tailBytes,
-            Delegate<Bool(const Agent::Target&)>::Bind<&Agent::Tools::IsTargetValid>(m_tools.Get()), m_attachments.IsEmpty() ? 170.0f : 365.0f);
-        m_seenMessages = messages.Size();
-        m_seenTailBytes = tailBytes;
-        const Int32 removed = Widget::AgentAttachments(m_attachments,
-            Delegate<Bool(const Agent::Target&)>::Bind<&Agent::Tools::IsTargetValid>(m_tools.Get()));
-        ReceiveAttachments();
-        if (removed >= 0)
-        {
-            m_attachments.RemoveAt(static_cast<std::size_t>(removed.Value));
-            m_attachmentError.clear();
-        }
-        if (!m_attachmentError.empty())
-        {
-            Widget::SeverityTextF(Widget::Severity::Warning, "%s", m_attachmentError.c_str());
-        }
-        Bool valid = true;
-        for (const auto& target : m_attachments)
-        {
-            valid = valid && m_tools->IsTargetValid(target);
-        }
-        Widget::TextField("##agent.input", m_input).Multiline(true, 3.0f)();
-        ReceiveAttachments();
-        if (Widget::ActionButton(Loc::TextOr(LocKeys::AgentSend, "Send"), Widget::Severity::Success,
-            connection == Agent::Connection::Ready && !m_input.empty() && valid,
-            !valid ? Loc::Text(LocKeys::AgentInvalidTarget) : Loc::TextOr(LocKeys::AgentNotReady, "Connect and sign in before sending a message."), {}, Icons::ArrowUp))
-        {
+            break;
+        case Action::Stop:
+            m_provider.Interrupt();
+            break;
+        case Action::ResumeGuide:
+            m_editor->SetAgentGuidePaused(false);
+            break;
+        case Action::Browse:
+            {
+                PathBrowseRequest request;
+                request.folder = false;
+                request.relative = false;
+                request.filterName = Loc::Text(LocKeys::AgentExecutable);
+                request.filterPattern = "*.exe";
+                request.deliver = [](void* user, const String& path) { *static_cast<String*>(user) = path; };
+                request.user = &m_executable;
+                m_editor->RequestBrowsePath(request);
+            }
+            break;
+        case Action::Send:
             if (m_provider.Submit(m_input, m_tools->Context(m_attachments.View())))
             {
                 m_input.clear();
                 m_attachments.Clear();
                 m_attachmentError.clear();
             }
+            break;
+        default:
+            break;
         }
     }
 }

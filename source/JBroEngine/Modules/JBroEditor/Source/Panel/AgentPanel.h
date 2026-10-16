@@ -30,6 +30,7 @@ namespace JBro
         UInt64 m_scopeRevision = 0;
         Array<Agent::Target> m_attachments;
         String m_attachmentError;
-        std::size_t m_seenMessages = 0, m_seenTailBytes = 0;
+        Bool m_settingsOpen = false;
+        UInt64 m_seenMessages = 0, m_seenTailBytes = 0;
     };
 }

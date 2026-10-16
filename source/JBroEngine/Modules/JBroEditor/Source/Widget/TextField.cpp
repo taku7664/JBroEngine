@@ -1,6 +1,8 @@
 ﻿#include <JBro/Editor/Widget/TextField.h>
 
 #include <JBro/Types/Array.h>
+#include <JBro/Types/ValueMath.h>
+#include <imgui_internal.h>
 
 #include <cstring>
 #include <JBro/Types/Bool.h>
@@ -35,9 +37,8 @@ namespace JBro::Widget
         }
 
         // 여러 줄 칸의 높이다. 글자 줄 수를 따라 늘되 `minimum` 아래로는 줄지 않고, 너무 길면 칸 안에서 굴린다.
-        Float MultilineHeightInLines(const String& text, Float minimum)
+        Float MultilineHeightInLines(const String& text, Float minimum, Float maximum)
         {
-            constexpr Float MaximumLines = 16.0f;
             Float lines = 1.0f;
             for (const char c : text)
             {
@@ -52,7 +53,7 @@ namespace JBro::Widget
             {
                 lines = minimum;
             }
-            return lines < MaximumLines ? lines : MaximumLines;
+            return lines < maximum ? lines : maximum;
         }
     }
 
@@ -144,13 +145,18 @@ namespace JBro::Widget
         {
             flags |= ImGuiInputTextFlags_EnterReturnsTrue;
         }
+        if (m_multiline && m_wordWrap)
+        {
+            flags |= ImGuiInputTextFlags_WordWrap;
+        }
 
         Bool changed = false;
         const char* id = m_id != nullptr ? m_id : "##text";
         if (m_multiline)
         {
+            const Float visibleLines = m_maxVisibleLines > 0.0f && m_lines > m_maxVisibleLines ? m_maxVisibleLines : m_lines;
             changed = ImGui::InputTextMultiline(id, buffer, capacity,
-                ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * m_lines), flags);
+                ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * visibleLines), flags);
         }
         else if (m_hint != nullptr)
         {
@@ -173,6 +179,52 @@ namespace JBro::Widget
         return changed;
     }
 
+    TextField& TextField::MaxVisibleLines(Float lines)
+    {
+        m_maxVisibleLines = lines > 1.0f ? lines : Float(1.0f);
+        return *this;
+    }
+
+    TextField& TextField::WordWrap(Bool wrap)
+    {
+        m_wordWrap = wrap;
+        return *this;
+    }
+
+    Float TextField::GetMultilineHeight(Float width) const
+    {
+        const Float maximum = m_maxVisibleLines > 0.0f ? m_maxVisibleLines : Float(16.0f);
+        Float lines = MultilineHeightInLines(m_text, m_lines, maximum);
+        if (m_wordWrap)
+        {
+            const auto& style = ImGui::GetStyle();
+            // Reserve the vertical scrollbar, just as InputTextMultiline does when wrapping.
+            const Float wrapWidth = Max(width - style.FramePadding.x * 2.0f - style.ScrollbarSize - 2.0f, Float(1.0f));
+            lines = 1.0f;
+            const char* at = m_text.data();
+            const char* end = at + m_text.size();
+            while (at < end && lines < maximum)
+            {
+                const char* next = ImFontCalcWordWrapPositionEx(ImGui::GetFont(), ImGui::GetFontSize(),
+                    at, end, wrapWidth.Value, ImDrawTextFlags_WrapKeepBlanks);
+                if (next >= end)
+                {
+                    break;
+                }
+                if (next <= at)
+                {
+                    unsigned int codepoint = 0;
+                    const Int32 bytes = ImTextCharFromUtf8(&codepoint, at, end);
+                    next = at + Max(bytes, Int32(1)).Value;
+                }
+                at = *next == '\n' ? next + 1 : next;
+                lines += 1.0f;
+            }
+            lines = Clamp(lines, Min(m_lines, maximum), maximum);
+        }
+        return ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * 2.0f;
+    }
+
     Bool TextField::DrawGrowable() const
     {
         Array<char>& buffer = GrowableBuffer();
@@ -181,12 +233,12 @@ namespace JBro::Widget
 
         InvalidScope invalid(m_invalid);
         // 여러 줄 칸에서 Enter 는 줄바꿈이다. `CommitOnEnter` 는 여기서 쓰지 않는다 - 확정은 `CommitOnFinish` 로 한다.
-        const ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackResize;
+        const ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackResize
+            | (m_wordWrap ? ImGuiInputTextFlags_WordWrap : ImGuiInputTextFlags_None);
         const char* id = m_id != nullptr ? m_id : "##text";
         const Float width = m_width != 0.0f ? m_width : Float(-FLT_MIN);
         const Bool changed = ImGui::InputTextMultiline(id, buffer.Data(), buffer.Size(),
-            ImVec2(width, ImGui::GetTextLineHeight() * MultilineHeightInLines(m_text, m_lines)
-                + ImGui::GetStyle().FramePadding.y * 2.0f),
+            ImVec2(width, GetMultilineHeight(m_width > 0.0f ? m_width : Float(ImGui::GetContentRegionAvail().x))),
             flags, ResizeBuffer);
         if (changed)
         {

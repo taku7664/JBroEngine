@@ -579,6 +579,66 @@ namespace
 
     // 글자 칸은 `String` 과 ImGui 버퍼 사이를 옮긴다. 아무도 만지지 않으면
     // 값이 그대로여야 한다 - 프레임마다 다시 써 넣으면 되돌리기가 매 프레임 쌓인다.
+    void TestABoundedMultilineFieldKeepsItsActionsReachable()
+    {
+        Stage stage;
+        stage.Begin();
+        JBro::String text;
+        for (JBro::UInt32 i = 0; i < 100; ++i)
+        {
+            text += "line\n";
+        }
+        const JBro::String before = text;
+        JBro::Widget::TextField("##bounded", text).Multiline(true, 4.0f).MaxVisibleLines(4.0f)();
+        const JBro::Float height = ImGui::GetItemRectSize().y;
+        Check(height <= ImGui::GetTextLineHeight() * 4.0f + ImGui::GetStyle().FramePadding.y * 2.0f + 1.0f,
+            "long input scrolls inside its bounded field instead of displacing later actions");
+        Check(text == before, "limiting visible lines never truncates input");
+        JBro::Widget::TextField("##bounded.fixed", text).MaxLength(4096).Multiline(true, 10.0f).MaxVisibleLines(4.0f)();
+        Check(ImGui::GetItemRectSize().y <= ImGui::GetTextLineHeight() * 4.0f + ImGui::GetStyle().FramePadding.y * 2.0f + 1.0f,
+            "the same visible-line limit applies to fixed-capacity fields");
+        Check(text == before, "a fixed field also retains the complete value");
+        JBro::Widget::TextField("##unchanged.fixed", text).MaxLength(4096).Multiline(true, 10.0f)();
+        Check(ImGui::GetItemRectSize().y >= ImGui::GetTextLineHeight() * 10.0f - 1.0f,
+            "fields that do not opt into a limit retain their existing height");
+        stage.End();
+    }
+
+    void TestWrappedInputReflowsWithoutChangingItsText()
+    {
+        Stage stage;
+        JBro::String text;
+        for (JBro::UInt32 i = 0; i < 30; ++i)
+        {
+            text += "한글문장과LongUnbrokenIdentifier0123456789 ";
+        }
+        const JBro::String before = text;
+        for (JBro::UInt32 frame = 0; frame < 3; ++frame)
+        {
+            stage.Begin();
+            JBro::Widget::TextField field("##wrapped", text);
+            field.Multiline(true, 2.0f).WordWrap().MaxVisibleLines(8.0f).Width(150.0f);
+            Check(field.GetMultilineHeight(150.0f) > field.GetMultilineHeight(3000.0f),
+                "soft-wrapped lines grow a narrow field even without newline characters");
+            field();
+            Check(ImGui::GetItemRectSize().y <= ImGui::GetTextLineHeight() * 8.0f + ImGui::GetStyle().FramePadding.y * 2.0f + 1.0f,
+                "wrapped input stops growing at its visible-line limit");
+            stage.End();
+        }
+        auto* parent = ImGui::FindWindowByName("Stage");
+        ImGuiWindow* input = nullptr;
+        for (auto* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->ParentWindow == parent && window->ChildId == parent->GetID("##wrapped"))
+            {
+                input = window;
+            }
+        }
+        Check(input != nullptr && input->ScrollMax.x < 1.0f && input->ScrollMax.y > 0.0f,
+            "long text actually wraps and scrolls vertically instead of extending horizontally");
+        Check(text == before, "visual wrapping never inserts newlines into the user's text");
+    }
+
     void TestTheTextFieldLeavesUntouchedValuesAlone()
     {
         Stage stage;
@@ -1740,6 +1800,8 @@ JBro::Int32 RunEditorWidgetTests()
     TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind();
     TestTheTreeHandsBackItsRowAndContent();
     TestTheTextFieldLeavesUntouchedValuesAlone();
+    TestABoundedMultilineFieldKeepsItsActionsReachable();
+    TestWrappedInputReflowsWithoutChangingItsText();
     TestTheFilterComboPicksByTypingAndEnter();
     TestTheFilterComboGroupsItemsAndSkipsTheDisabled();
     TestAnEmptyFilterComboDrawsAndChangesNothing();

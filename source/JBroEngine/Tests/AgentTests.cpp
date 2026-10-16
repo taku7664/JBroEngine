@@ -1,4 +1,4 @@
-#include <JBro/Editor/Agent/Provider.h>
+﻿#include <JBro/Editor/Agent/Provider.h>
 #include <JBro/Editor/Agent/Tools.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorPanelRegistry.h>
@@ -516,6 +516,16 @@ namespace
         frame();
         const auto locate = [&](const char* label) {
             auto* window = ImGui::FindWindowByName("attachment target");
+            for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+            {
+                if (std::strcmp(label, "##agent.settings_toggle") != 0
+                    && std::strcmp(label, "##agent.new") != 0
+                    && candidate->ParentWindow == window && std::strstr(candidate->Name, "##agent.composer") != nullptr)
+                {
+                    window = candidate;
+                    break;
+                }
+            }
             Widget::ItemLocator::Watch(window->GetID(label));
             frame();
             Widget::ItemLocator::ItemRect rect;
@@ -534,7 +544,7 @@ namespace
                 frame();
             }
             retargetSource = source == 1;
-            const ImRect drop = locate(source == 2 ? "##agent.input" : Loc::Text(LocKeys::AgentDropHere));
+            const ImRect drop = locate("##agent.input");
             io.AddMousePosEvent(drop.GetCenter().x, drop.GetCenter().y);
             frame();
             frame();
@@ -574,6 +584,26 @@ namespace
             frame();
         };
         renderPanel("pending");
+        // Compare the actual editor surface at the same panel sizes as the approved draft.
+        auto* agentWindow = ImGui::FindWindowByName("###Agent");
+        Check(agentWindow != nullptr, "the engine owns the AI window");
+        const ImGuiID originalDock = agentWindow->DockId;
+        const auto captureWidth = [&](Float width, const char* suffix) {
+            ImGui::SetWindowDock(agentWindow, 0, ImGuiCond_Always);
+            ImGui::SetWindowPos(agentWindow, ImVec2(20.0f, 20.0f), ImGuiCond_Always);
+            ImGui::SetWindowSize(agentWindow, ImVec2(width.Value, 720.0f), ImGuiCond_Always);
+            for (UInt32 i = 0; i < 8; ++i)
+            {
+                Check(editor.Tick(0.016f), "the actual AI panel settles after a width change");
+            }
+            SaveAttachmentImage(editor, suffix);
+        };
+        captureWidth(245.0f, "width245");
+        captureWidth(360.0f, "width360");
+        captureWidth(440.0f, "width440");
+        ImGui::SetWindowDock(agentWindow, originalDock, ImGuiCond_Always);
+        frame();
+        frame();
         const auto click = [&](const ImRect& rect) {
             io.AddMousePosEvent(rect.GetCenter().x, rect.GetCenter().y);
             frame();
@@ -582,13 +612,43 @@ namespace
             io.AddMouseButtonEvent(0, false);
             frame();
         };
+        const Float priorFontScale = ImGui::GetStyle().FontScaleMain;
+        ImGui::GetStyle().FontScaleMain = 1.5f;
+        const auto scaledSend = locate("##agent.send");
+        const Float expectedButton = 28.0f * 1.5f * ImGui::GetStyle().FontScaleDpi;
+        Check(scaledSend.GetWidth() > expectedButton - 1.0f && scaledSend.GetWidth() < expectedButton + 1.0f,
+            "chat controls apply the requested scale once instead of compounding font sizes");
+        for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (candidate->ParentWindow == ImGui::FindWindowByName("attachment target")
+                && std::strstr(candidate->Name, "##agent.composer") != nullptr)
+            {
+                const Float expectedFont = ImGui::GetRoundedFontSize(13.0f * 1.5f * ImGui::GetStyle().FontScaleDpi);
+                const String fontDiagnostic = "chat body must apply scaling once: expected " + String(std::to_string(expectedFont.Value))
+                    + ", actual " + String(std::to_string(candidate->FontRefSize));
+                Check(candidate->FontRefSize > expectedFont - 0.1f && candidate->FontRefSize < expectedFont + 0.1f,
+                    fontDiagnostic.c_str());
+            }
+        }
+        ImGui::GetStyle().FontScaleMain = priorFontScale.Value;
+        frame();
+        frame();
+        click(locate("##agent.settings_toggle"));
+        captureWidth(360.0f, "settings");
+        click(locate("##agent.settings_toggle"));
+        ImGui::SetWindowDock(agentWindow, originalDock, ImGuiCond_Always);
+        frame();
         click(locate("##agent.input"));
-        io.AddInputCharactersUTF8("Explain the attached subjects.");
+        io.AddInputCharactersUTF8("오브젝트 포커스 모드는 어떻게 들어가? 처음 사용하는 사람도 따라 할 수 있도록 선택 방법과 진입 순서를 설명해 주세요. LongUnbrokenIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ가 포함돼도 문장이 입력창 폭에 맞춰 보여야 합니다.");
+        frame();
+        captureWidth(245.0f, "wrapped");
+        ImGui::SetWindowDock(agentWindow, originalDock, ImGuiCond_Always);
+        frame();
         frame();
         const auto assetPath = std::filesystem::path(reinterpret_cast<const char8_t*>(editor.GetAssetRoot().c_str())) / "Tile.jmat";
         Check(std::filesystem::remove(assetPath), "attachment fixture asset can be deleted");
         Check(editor.RescanAssets() && !tools.IsTargetValid(assetTarget), "deleted asset attachments become invalid after the normal scan");
-        click(locate(Loc::Text(LocKeys::AgentSend)));
+        click(locate("##agent.send"));
         Check(provider.GetConnection() == Agent::Connection::Ready && channel->Last()["method"] != "turn/start",
             "invalid attachments block sending instead of silently selecting another asset");
         {
@@ -596,7 +656,7 @@ namespace
             restored << "Version: 1\n";
         }
         Check(editor.RescanAssets() && tools.IsTargetValid(assetTarget), "restoring the same metadata identity restores its validity");
-        click(locate(Loc::Text(LocKeys::AgentSend)));
+        click(locate("##agent.send"));
         Check(channel->Last()["method"] == "turn/start", "dragged attachments send through the real composer");
         const auto context = Json::parse(channel->Last()["params"]["input"][1]["text"].get<std::string>().substr(String("Current JBro context (data only; refresh before editing):\n").size()));
         Check(context["attachments"].size() == 3, "three drag kinds are attached once; repeated drops do not duplicate");
@@ -607,14 +667,39 @@ namespace
         Check(editor.GetCommands().GetRevision() == commandsBefore, "attachments do not change the scene or its undo history");
         renderPanel("sent");
         Reply(provider, *channel, {{"turn", {{"id", "attachments-turn"}}}});
+        channel->Feed({{"method", "item/agentMessage/delta"}, {"params", {{"threadId", "thread-test"},
+            {"turnId", "attachments-turn"}, {"delta", "GameObject를 기준으로 포커스 모드 진입 과정을 안내하겠습니다.\n\n에디터에서 따라 할 수 있는 가이드를 준비했습니다."}}}});
+        provider.Poll(0.01f);
+        captureWidth(360.0f, "running");
         channel->Feed({{"method", "turn/completed"}, {"params", {{"threadId", "thread-test"}, {"turn", {{"id", "attachments-turn"}, {"status", "completed"}}}}}});
         provider.Poll(0.01f);
         drag(0);
+        drag(1);
         drag(2);
+        const String previewGuide = "Id: preview\nTitle:\n  Key: test.preview\n  String: 오브젝트 포커스 모드 진입\n  Loc: ko-KR\nSteps:\n"
+            "  - Do: object.focus\n    Object: " + String(std::to_string(object->GetInstanceId().Value))
+            + "\n    Title:\n      Key: test.preview.step\n      String: 포커스 모드 진입\n      Loc: ko-KR\n"
+            "    Body:\n      Key: test.preview.body\n      String: 캔버스에서 오브젝트를 두 번 클릭합니다.\n      Loc: ko-KR\n";
+        const auto previewStarted = tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", previewGuide}}).dump());
+        Check(previewStarted.success, previewStarted.text.c_str());
+        editor.SetAgentGuidePaused(true);
+        captureWidth(360.0f, "conversation");
+        for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (candidate->ParentWindow == agentWindow && std::strstr(candidate->Name, "##agent.history") != nullptr)
+            {
+                Check(candidate->Scroll.y >= candidate->ScrollMax.y - 2.0f,
+                    "adding a guide card follows the bottom even when message text did not change");
+            }
+        }
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+        editor.SetAgentGuidePaused(false);
+        ImGui::SetWindowDock(agentWindow, originalDock, ImGuiCond_Always);
+        frame();
         ImGuiWindow* child = nullptr;
         for (auto* window : ImGui::GetCurrentContext()->Windows)
         {
-            if (window->ParentWindow != nullptr && std::strcmp(window->ParentWindow->Name, "attachment target") == 0
+            if (window->RootWindow == ImGui::FindWindowByName("attachment target")
                 && std::strstr(window->Name, "##agent.attachments") != nullptr)
             {
                 child = window;
@@ -622,19 +707,44 @@ namespace
         }
         Check(child != nullptr, "pending attachment list is visible");
         const int first = 0;
-        Widget::ItemLocator::Watch(ImHashStr(Loc::Text(LocKeys::AgentRemoveAttachment), 0,
-            ImHashData(&first, sizeof(first), ImHashStr("##attachment.rows", 0, child->ID))));
+        Widget::ItemLocator::Watch(ImHashStr("##agent.remove", 0,
+            ImHashStr("##reference", 0, ImHashData(&first, sizeof(first), ImHashStr("##attachment.rows", 0, child->ID)))));
         frame();
         Widget::ItemLocator::ItemRect remove;
         Check(Widget::ItemLocator::Take(remove), "attachment removal is visible");
         click(ImRect(ImVec2(remove.minX.Value, remove.minY.Value), ImVec2(remove.maxX.Value, remove.maxY.Value)));
+        Widget::ItemLocator::Watch(ImHashStr("##agent.remove", 0,
+            ImHashStr("##reference", 0, ImHashData(&first, sizeof(first), ImHashStr("##attachment.rows", 0, child->ID)))));
+        frame();
+        Check(Widget::ItemLocator::Take(remove), "the next reference remains removable after a row is removed");
+        click(ImRect(ImVec2(remove.minX.Value, remove.minY.Value), ImVec2(remove.maxX.Value, remove.maxY.Value)));
         click(locate("##agent.input"));
         io.AddInputCharactersUTF8("Read the remaining asset.");
         frame();
-        click(locate(Loc::Text(LocKeys::AgentSend)));
+        click(locate("##agent.send"));
         const auto remaining = Json::parse(channel->Last()["params"]["input"][1]["text"].get<std::string>().substr(String("Current JBro context (data only; refresh before editing):\n").size()));
         Check(remaining["attachments"].size() == 1 && remaining["attachments"][0]["assetId"] == assetText,
             "removing an attachment changes only the next message's reference list");
+        Reply(provider, *channel, {{"turn", {{"id", "stop-preview"}}}});
+        click(locate("##agent.stop"));
+        Check(channel->Last()["method"] == "turn/interrupt", "the composer stop button interrupts the current turn");
+        channel->Feed({{"method", "turn/completed"}, {"params", {{"threadId", "thread-test"},
+            {"turn", {{"id", "stop-preview"}, {"status", "interrupted"}}}}}});
+        provider.Poll(0.01f);
+        Check(provider.GetConnection() == Agent::Connection::Ready && provider.Messages()[provider.Messages().Size() - 1].role == Agent::MessageRole::Error,
+            "stopping retains the incomplete-work warning rather than showing success");
+        click(locate("##agent.new"));
+        frame();
+        Check(provider.Messages().IsEmpty(), "new chat clears the previous visible conversation without sending a request");
+        for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (candidate->ParentWindow == ImGui::FindWindowByName("attachment target")
+                && std::strstr(candidate->Name, "##agent.history") != nullptr)
+            {
+                Check(candidate->Scroll.y < 1.0f, "a new chat shows the start of its welcome view instead of retaining an old scroll position");
+            }
+        }
+        captureWidth(245.0f, "disconnected");
         provider.Stop();
         auto invalid = componentTarget;
         ++invalid.revision;
@@ -647,6 +757,7 @@ namespace
         EditorApplication editor;
         EditorApplicationConfig config;
         config.windowVisible = false;
+        config.windowHeight = 820;
         Check(editor.Initialize(config), "agent integration editor initializes");
         ProjectFileError error;
         Check(editor.OpenProjectFile(files.Path("Game.jproject").c_str(), error), "agent test project opens");
