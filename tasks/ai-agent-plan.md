@@ -239,7 +239,7 @@ ProjectRule §8.1의 문자열 GUID 두 개 128B와 현 Ref 24B 비교는 구 �
 - 실제 에디터 framebuffer에서 검색어 testl에 대한 한국어 `일치하는 항목이 없습니다` 전체 표시를 확인했다. 원본: F:/AI/Temp/jbro-agent-input-fix/fixed-screens/agent_attachments_model_no_matches.png. 잘라 보기: 같은 폴더의 model-no-matches-detail.png. 이는 모의 모델 목록을 쓰는 실제 엔진 렌더링이며 사용자 계정 모델 연결을 확인한 것은 아니다.
 - 공통 위젯 수정이며 전역 테마/패널 전용 예외를 추가하지 않았다. 엔진 값 타입, 로컬라이징 재사용, 한글 C++ UTF-8 BOM, diff 공백 검사를 확인했다. 일반 Debug 출력으로 빌드했으며 실행 중인 별도 검수용 호스트는 종료하거나 덮어쓰지 않았다. 현재 실행 중인 이전 호스트에는 이 후속이 소급 반영되지 않는다. 원격 푸시/설치/공개 배포는 하지 않았다.
 
-### 메인 병합·Release 빌드·실행 (2026-10-19, 진행 중)
+### 메인 병합·Release 빌드·실행 (2026-10-19, 로컬 main 반영·빌드·실행 확인)
 
 사용자가 현재 브랜치를 메인에 합치고 메인본을 빌드해 실행하라고 지시했다. 시작 main은 b6fa26eb, 작업 브랜치는 codex/markdown-viewer의 f0014344다. main에 없는16커밋은 AI 외에 선행 Markdown/속성 강조/도크 포커스 수정도 포함하며 main은 이 브랜치의 조상이므로 fast-forward 대상이다. 사용자 미추적 파일은 수정/정리하지 않는다. 원격 푸시와 별도 배포 폴더 교체는 요청 범위에 넣지 않는다.
 
@@ -252,3 +252,12 @@ ProjectRule §8.1의 문자열 GUID 두 개 128B와 현 Ref 24B 비교는 구 �
 근거: Microsoft SymRefreshModuleList(현재 모듈을 열거해 SymLoadModule64를 호출)와 SymUnloadModule64(지정 주소의 심볼 모듈 해제): https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symrefreshmodulelist 및 https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symunloadmodule64. 현재 원인은 수정 후 동일 재현 검사의 통과 여부로 확인한다.
 
 심볼 해제 수정 뒤 Release 빌드와 ScriptCallGuard/ScriptFault/ScriptBreak/UserScenario 네 묶음이 모두 통과했다(release-symbol-regressions.log). 기존 Hero.cpp/줄 위치 단언은 변경하지 않았다. 전체 회귀의 마지막 재실행을 진행한 뒤 메인에 합친다.
+
+최종 결과(2026-10-19):
+
+- 마지막 필터 없는 Release 전체 실행 `release-all-tests-verified.log`는 종료 코드0과 `all tests passed.`로 끝났으며 러너 기준 117개 묶음이 종료됐다. EditorApplication은420.9초, UserScenario는43.3초였다. AgentLive(실제 계정), 실제 오디오 장치 opt-in은 실행하지 않았다. Vulkan 시험용 SPIR-V가 없는7개 부분 검증(상수 버퍼·프레임 간 링·mip·깊이·3D 샘플링·compute·render target format)은 로그에서 건너뛰었고 통과로 세지 않는다. D3D12 GPU 기반 검증은 켰다.
+- 최초 기본 패널 목록 누락, 다음 12 고정 개수 누락, 다음 스크립트 진단 줄 위치 오류로 중단된 세 전체 실행과 UserScenario 단독 재현 로그를 보존했다. 패널 기대 목록은 독립된 정식 시험 계약 한곳으로 모았고, DLL 해제 시 해당 심볼 캐시도 제거했다. 수정 후 관련 네 묶음과 마지막 전체 회귀가 통과했다. 임시 분기/시험용 제품 훅은 추가하지 않았다.
+- 사용자 승인에 따라 로컬 main을 b6fa26eb에서 a0f93d078e89f0d66e5a496b9863e1b6c59c04f1으로 fast-forward했다. 충돌 없이18개 커밋(AI·Markdown·속성 강조·도크 포커스 및 통합 회귀 수정)을 반영했다. 병합 로그는 main-merge.log다. 이후 main 브랜치에서 JBroEditorHost Release|x64 Build를 수행해 경고0/오류0으로 통과했다(2분1.74초, main-release-host-build.log). 메인에서 Rebuild나 전체 검사를 다시 중복 실행하지 않았다.
+- 메인의 실제 실행 파일: source/JBroEngine/Build/x64/Release/JBroEditorHost.exe. SHA-256은 404CF7CD4256C78E676BFCEB4882E9DC54580201796D60B7908348B071211268다. 2026-10-19 09:44 한국 시간에 실행했으며 PID51528, 창 JBro Editor, 실행 경로 일치와 응답 상태를 확인했다. 기본 예제 캔버스의4색 오브젝트, 인스펙터, 에셋 브라우저와 AI 탭이 렌더링된 실제 화면을 확인했다. AI 로그인/실제 모델 호출이나 추가 사용자 프로젝트 편집은 하지 않았다.
+- 직접 화면 원본: source/JBroEngine/Build/Validation/ai-agent-main-merge-20261019/main-editor.png(118,626bytes). 기본 Windows.Graphics.Capture가 FrameArrived/window capture timeout으로 두 번 실패해 더 반복하지 않고 기존 capture_engine.py의 PrintWindow 캡처를 사용했다. 설치되어 있던 Python3.14/Pillow를 사용했으며 설치는 하지 않았다. 화면은 실제 메인 실행본에서 캡처한 것이고 formal 모의 모델 캡처와 구분한다.
+- 검증 자료는 같은 Build/Validation/ai-agent-main-merge-20261019 폴더에 로컬 로그/빌드 제어 파일/화면으로 남겼다. 사용자 미추적 파일과 다른 워크트리는 수정·정리하지 않았다. 원격 푸시, 로컬 설치, 루트 build 배포본 교체, 공개 배포는 하지 않았다. 엔진 기능 전체의 무결함이나 UI 시안 최종 승인을 이 결과에 포함하지 않는다.
