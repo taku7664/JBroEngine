@@ -3,6 +3,7 @@
 #include <JBro/Core/Log.h>
 
 #include <Windows.h>
+#include <DbgHelp.h>
 #include <windowsx.h>
 #include <objbase.h>
 #include <shobjidl.h>
@@ -821,6 +822,9 @@ namespace JBro
         auto* nativeLibrary = static_cast<WindowsDynamicLibrary*>(library.opaque);
         if (nativeLibrary->Module != nullptr)
         {
+            // 같은 주소에 다음 DLL이 실려도 이전 PDB를 쓰지 않도록 심볼도 함께 내린다.
+            // 심볼 세션을 열지 않았으면 실패하며, 그 경우에는 정리할 캐시도 없다.
+            SymUnloadModule64(GetCurrentProcess(), reinterpret_cast<DWORD64>(nativeLibrary->Module));
             FreeLibrary(nativeLibrary->Module);
         }
         if (nativeLibrary->ShadowPath != nullptr)
