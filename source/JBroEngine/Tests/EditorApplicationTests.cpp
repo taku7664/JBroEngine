@@ -174,6 +174,10 @@ namespace
     // 가운데가 거의 남지 않아, 게임 화면이 제대로 와도 화면의 몇 퍼센트가 안 된다.
     constexpr JBro::UInt32 WindowWidth = 640;
     constexpr JBro::UInt32 WindowHeight = 480;
+    constexpr const char* DefaultPanelNames[] = {
+        "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+        "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings", "BuildResults", "Agent"};
+    constexpr JBro::UInt32 DefaultPanelCount = static_cast<JBro::UInt32>(sizeof(DefaultPanelNames) / sizeof(DefaultPanelNames[0]));
 
     void Check(JBro::Bool condition, const char* message)
     {
@@ -577,14 +581,11 @@ namespace
         const std::size_t builtin = editor.GetPanelCount();
         // **이름으로 센다.** 숫자만 재면 패널을 더할 때마다 이 줄을 고치게 되고,
         // 정작 무엇이 빠졌는지는 말해 주지 않는다.
-        const char* const expected[] = {
-            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
-            "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings", "BuildResults"};
-        for (const char* title : expected)
+        for (const char* title : DefaultPanelNames)
         {
             Check(editor.FindPanel(title) != nullptr, title);
         }
-        Check(builtin == sizeof(expected) / sizeof(expected[0]),
+        Check(builtin == DefaultPanelCount.Value,
             "and the editor brings exactly those");
         Check(editor.FindPanel("Nothing Like This") == nullptr,
             "and a title nobody has finds nothing");
@@ -755,10 +756,7 @@ namespace
         }
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         constexpr JBro::Float Delta = 1.0f / 60.0f;
-        const char* const builtins[] = {
-            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
-            "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
-        for (const char* name : builtins)
+        for (const char* name : DefaultPanelNames)
         {
             const JBro::EditorPanelTypeInfo* type = types.Find(name);
             Check(type != nullptr && type->kind == JBro::EditorPanelKind::Unique && type->createWithUi,
@@ -5513,7 +5511,7 @@ namespace
 
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
         // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
-        Check(editor.GetPanelCount() == 12, "the default panels must be registered");
+        Check(editor.GetPanelCount() == DefaultPanelCount.Value, "the default panels must be registered");
         Check(editor.FindPanel("Simulation") != nullptr, "the simulation view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");

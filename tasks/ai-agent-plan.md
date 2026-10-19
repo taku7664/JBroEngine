@@ -1,4 +1,4 @@
-﻿# 내장 AI 에이전트
+# 내장 AI 에이전트
 
 사용자 승인: 2026-10-16. Codex app-server를 첫 연결로 사용하고, 요청한 작업은 직접 수행하며 사용법·위치 질문에는 현재 상태에 맞는 가이드를 생성한다. 드래그 첨부 UI는 후속 사용자 요청으로 추가했고 이미지 입력은 후속이다. 결정 D-338.
 
@@ -238,3 +238,17 @@ ProjectRule §8.1의 문자열 GUID 두 개 128B와 현 Ref 24B 비교는 구 �
 - 최종 Agent/EditorWidget/EditorUI/EditorLocalization 네 묶음이 모두 통과했다. AgentLive는 opt-in을 끄고 건너뛰었다. 좁은 선택 칸에서 긴 안내 폭 확보, 화면 가장자리에서 안내 높이 증가와 가로 넘침 없음, 기존 선택 보존을 확인했다. 실제 AI 계정/모델 요청은 하지 않았다.
 - 실제 에디터 framebuffer에서 검색어 testl에 대한 한국어 `일치하는 항목이 없습니다` 전체 표시를 확인했다. 원본: F:/AI/Temp/jbro-agent-input-fix/fixed-screens/agent_attachments_model_no_matches.png. 잘라 보기: 같은 폴더의 model-no-matches-detail.png. 이는 모의 모델 목록을 쓰는 실제 엔진 렌더링이며 사용자 계정 모델 연결을 확인한 것은 아니다.
 - 공통 위젯 수정이며 전역 테마/패널 전용 예외를 추가하지 않았다. 엔진 값 타입, 로컬라이징 재사용, 한글 C++ UTF-8 BOM, diff 공백 검사를 확인했다. 일반 Debug 출력으로 빌드했으며 실행 중인 별도 검수용 호스트는 종료하거나 덮어쓰지 않았다. 현재 실행 중인 이전 호스트에는 이 후속이 소급 반영되지 않는다. 원격 푸시/설치/공개 배포는 하지 않았다.
+
+### 메인 병합·Release 빌드·실행 (2026-10-19, 진행 중)
+
+사용자가 현재 브랜치를 메인에 합치고 메인본을 빌드해 실행하라고 지시했다. 시작 main은 b6fa26eb, 작업 브랜치는 codex/markdown-viewer의 f0014344다. main에 없는16커밋은 AI 외에 선행 Markdown/속성 강조/도크 포커스 수정도 포함하며 main은 이 브랜치의 조상이므로 fast-forward 대상이다. 사용자 미추적 파일은 수정/정리하지 않는다. 원격 푸시와 별도 배포 폴더 교체는 요청 범위에 넣지 않는다.
+
+병합 전 Release 검사 실행 파일 빌드는 오류0/기존 경고1로 통과했다. 필터 없는 전체 회귀 첫 실행은 EditorApplication의 TestThePanelRegistryRefusesWhatItCannotHold에서 중단됐다. AI 패널을 기본 등록하면서 기존 기대 목록에 Agent를 추가하지 않은 누락이다. 기대 목록과 정확한 개수 비교를 유지하며 Agent만 추가한다. Release 출력의 예전 번역표도 확인했으며 기존 호스트 Build 후 콘텐츠 복사 대상이 최신 번역/스킬/글꼴을 준비하도록 검사 전 호스트와 테스트를 함께 빌드한다. 실제 계정/실오디오 opt-in 시험을 켜지 않으며 GPU 기반 검증은 켠다. 최종 통과/병합/실행 결과는 뒤에 기록한다.
+
+준비 스크립트에 쓴 이전 Python 런타임 경로가 없어 한 번 실패했으며 이때 소스 수정/통합 빌드는 시작되지 않았다. 기존 파일을 유지하는 PowerShell 파일 API로 준비한다.
+2차 전체 회귀는 같은 EditorApplication 파일의 다른 기본 패널 수 단언(12 고정)에서 중단됐다. 첫 수정에서 동일 계약의 모든 사용처를 조사하지 못한 추가 누락이다. 기본 패널 기대 이름과 개수를 정식 시험 파일의 한 목록으로 모아 레지스트리 거절/Unique 패널/인스펙터 초기화 검사 세 곳이 공유한다. Agent와 기존 BuildResults의 타입 조건도 함께 검사하며 정확한 개수 비교는 유지한다. 제품 동작이나 레지스트리에서 기대 목록을 역으로 생성해 단언을 무력화하지 않는다.
+3차 전체 회귀에서 EditorApplication(430.4초), Agent, Markdown, CodeEditor와 이후 검사들이 통과했지만 UserScenario의 시나리오B가 스크립트 null 쓰기 위치를 Hero.cpp 대신 Table.h:681로 기록해 중단됐다. UserScenario만 새 프로세스에서 실행해도 동일하게 재현했다. WindowsPlatform의 DLL 해제는 FreeLibrary만 호출하고 DbgHelp의 모듈 심볼을 제거하지 않았다. DLL 주소 재사용 시 예전 PDB를 참조할 수 있으므로 FreeLibrary 직전에 SymUnloadModule64로 해당 주소의 심볼도 제거한다. 심볼 세션이 없으면 제거가 실패하는 기존 무상태 경우는 DLL 해제에 영향을 주지 않는다. 예외를 삼키거나 테스트의 Hero.cpp 줄 단언을 바꾸지 않는다. 이 플랫폼 코드는 이번 브랜치에서 앞서 변경하지 않았던 기존 경로이며, 메인 전체 회귀를 통과시키기 위해 발견된 실제 진단 결함을 함께 고친다.
+
+근거: Microsoft SymRefreshModuleList(현재 모듈을 열거해 SymLoadModule64를 호출)와 SymUnloadModule64(지정 주소의 심볼 모듈 해제): https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symrefreshmodulelist 및 https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symunloadmodule64. 현재 원인은 수정 후 동일 재현 검사의 통과 여부로 확인한다.
+
+심볼 해제 수정 뒤 Release 빌드와 ScriptCallGuard/ScriptFault/ScriptBreak/UserScenario 네 묶음이 모두 통과했다(release-symbol-regressions.log). 기존 Hero.cpp/줄 위치 단언은 변경하지 않았다. 전체 회귀의 마지막 재실행을 진행한 뒤 메인에 합친다.
