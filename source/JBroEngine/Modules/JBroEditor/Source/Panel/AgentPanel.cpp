@@ -366,7 +366,6 @@ namespace JBro
             if (m_provider.Submit(m_input, m_tools->Context(m_attachments.View())))
             {
                 m_input.clear();
-                m_attachments.Clear();
                 m_attachmentError.clear();
             }
             break;

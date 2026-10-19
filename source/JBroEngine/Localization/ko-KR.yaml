@@ -781,6 +781,7 @@ Entries:
   agent.startup_timeout: Codex 연결 준비가 끝나지 않았습니다. 설치 상태와 네트워크, 버전 호환성을 확인해야 합니다.
   agent.message_limit: Codex 응답이 허용 크기를 넘었습니다.
   agent.incompatible: Codex 통신 형식이 맞지 않습니다. Codex를 업데이트하고 다시 연결해야 합니다.
+  agent.path_invalid: 프로젝트 또는 엔진 스킬 폴더의 절대 경로를 구할 수 없습니다. 경로를 확인하고 다시 연결해 주세요.
   agent.exited: Codex가 종료되었습니다. 다시 연결해야 합니다. 변경 작업은 재실행하지 않습니다.
   agent.rpc_rejected: Codex가 요청을 거절했습니다. 로그인 상태와 버전을 확인한 뒤 다시 연결해야 합니다.
   agent.tool_running: 에디터에서 작업하는 중...

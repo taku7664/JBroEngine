@@ -856,6 +856,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AgentStartupTimeout = "agent.startup_timeout";
     inline constexpr const char* AgentMessageLimit = "agent.message_limit";
     inline constexpr const char* AgentIncompatible = "agent.incompatible";
+    inline constexpr const char* AgentPathInvalid = "agent.path_invalid";
     inline constexpr const char* AgentExited = "agent.exited";
     inline constexpr const char* AgentRpcRejected = "agent.rpc_rejected";
     inline constexpr const char* AgentToolRunning = "agent.tool_running";

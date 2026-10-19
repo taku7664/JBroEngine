@@ -186,12 +186,19 @@ namespace
         auto* channel = owned.Get();
         Agent::Settings settings;
         settings.toolDefinitions = "[]";
-        settings.skillsRoot = "C:/engine/AgentSkills";
+        settings.project = ".";
+        settings.skillsRoot = "AgentSkills/../AgentSkills";
         provider.Attach(std::move(owned), settings, {});
         channel->Feed({{"id", 1}, {"result", Json::object()}});
         provider.Poll(0.01f);
+        const auto expectedProject = std::filesystem::current_path().generic_u8string();
+        Check(channel->Last()["params"]["cwd"] == reinterpret_cast<const char*>(expectedProject.c_str()),
+            "relative project directories resolve to UTF-8 absolute paths before protocol requests");
         Reply(provider, *channel, {{"config", Json::object()}});
         Check(channel->Last()["method"] == "skills/extraRoots/set", "bundled skills are attached without global installation");
+        const auto expectedSkills = (std::filesystem::current_path() / "AgentSkills").generic_u8string();
+        Check(channel->Last()["params"]["extraRoots"][0] == reinterpret_cast<const char*>(expectedSkills.c_str()),
+            "bundled skill discovery receives a normalized absolute path, never a relative extra root");
         Reply(provider, *channel, Json::object());
         Reply(provider, *channel, {{"account", nullptr}});
         Check(provider.GetConnection() == Agent::Connection::SignedOut, "missing account is exposed as signed-out");
@@ -645,6 +652,25 @@ namespace
             io.AddMouseButtonEvent(0, false);
             frame();
         };
+        const auto pendingReference = [&]() {
+            ImGuiWindow* child = nullptr;
+            for (auto* window : ImGui::GetCurrentContext()->Windows)
+            {
+                if (window->RootWindow == ImGui::FindWindowByName("attachment target")
+                    && std::strstr(window->Name, "##agent.attachments") != nullptr)
+                {
+                    child = window;
+                }
+            }
+            Check(child != nullptr, "the composer attachment list exists");
+            const Int32 first = 0;
+            Widget::ItemLocator::Watch(ImHashStr("##agent.remove", 0,
+                ImHashStr("##reference", 0, ImHashData(&first.Value, sizeof(first.Value), ImHashStr("##attachment.rows", 0, child->ID)))));
+            frame();
+            Widget::ItemLocator::ItemRect remove;
+            Check(Widget::ItemLocator::Take(remove), "an attachment remains visible and removable in the composer");
+            return ImRect(ImVec2(remove.minX.Value, remove.minY.Value), ImVec2(remove.maxX.Value, remove.maxY.Value));
+        };
         const Float priorFontScale = ImGui::GetStyle().FontScaleMain;
         ImGui::GetStyle().FontScaleMain = 1.5f;
         const auto scaledSend = locate("##agent.send");
@@ -798,6 +824,7 @@ namespace
         Check(context["attachments"][2]["assetId"] == assetText, "asset attachment uses AssetId");
         Check(provider.Messages()[provider.Messages().Size() - 1].targets.Size() == 3, "sent message retains typed named references; automatic selection is deduplicated");
         Check(editor.GetCommands().GetRevision() == commandsBefore, "attachments do not change the scene or its undo history");
+        pendingReference();
         renderPanel("sent");
         Reply(provider, *channel, {{"turn", {{"id", "attachments-turn"}}}});
         channel->Feed({{"method", "item/agentMessage/delta"}, {"params", {{"threadId", "thread-test"},
@@ -806,9 +833,7 @@ namespace
         captureWidth(360.0f, "running");
         channel->Feed({{"method", "turn/completed"}, {"params", {{"threadId", "thread-test"}, {"turn", {{"id", "attachments-turn"}, {"status", "completed"}}}}}});
         provider.Poll(0.01f);
-        drag(0);
-        drag(1);
-        drag(2);
+        pendingReference();
         const String previewGuide = "Id: preview\nTitle:\n  Key: test.preview\n  String: 오브젝트 포커스 모드 진입\n  Loc: ko-KR\nSteps:\n"
             "  - Do: object.focus\n    Object: " + String(std::to_string(object->GetInstanceId().Value))
             + "\n    Title:\n      Key: test.preview.step\n      String: 포커스 모드 진입\n      Loc: ko-KR\n"
@@ -829,28 +854,8 @@ namespace
         editor.SetAgentGuidePaused(false);
         ImGui::SetWindowDock(agentWindow, originalDock, ImGuiCond_Always);
         frame();
-        ImGuiWindow* child = nullptr;
-        for (auto* window : ImGui::GetCurrentContext()->Windows)
-        {
-            if (window->RootWindow == ImGui::FindWindowByName("attachment target")
-                && std::strstr(window->Name, "##agent.attachments") != nullptr)
-            {
-                child = window;
-            }
-        }
-        Check(child != nullptr, "pending attachment list is visible");
-        const int first = 0;
-        Widget::ItemLocator::Watch(ImHashStr("##agent.remove", 0,
-            ImHashStr("##reference", 0, ImHashData(&first, sizeof(first), ImHashStr("##attachment.rows", 0, child->ID)))));
-        frame();
-        Widget::ItemLocator::ItemRect remove;
-        Check(Widget::ItemLocator::Take(remove), "attachment removal is visible");
-        click(ImRect(ImVec2(remove.minX.Value, remove.minY.Value), ImVec2(remove.maxX.Value, remove.maxY.Value)));
-        Widget::ItemLocator::Watch(ImHashStr("##agent.remove", 0,
-            ImHashStr("##reference", 0, ImHashData(&first, sizeof(first), ImHashStr("##attachment.rows", 0, child->ID)))));
-        frame();
-        Check(Widget::ItemLocator::Take(remove), "the next reference remains removable after a row is removed");
-        click(ImRect(ImVec2(remove.minX.Value, remove.minY.Value), ImVec2(remove.maxX.Value, remove.maxY.Value)));
+        click(pendingReference());
+        click(pendingReference());
         click(locate("##agent.input"));
         io.AddInputCharactersUTF8("Read the remaining asset.");
         frame();
@@ -871,6 +876,7 @@ namespace
             "Enter sends the composer text while preserving only the explicit Shift Enter newline");
         io.AddKeyEvent(ImGuiKey_Enter, false);
         frame();
+        pendingReference();
         const auto remaining = Json::parse(channel->Last()["params"]["input"][1]["text"].get<std::string>().substr(String("Current JBro context (data only; refresh before editing):\n").size()));
         Check(remaining["attachments"].size() == 1 && remaining["attachments"][0]["assetId"] == assetText,
             "removing an attachment changes only the next message's reference list");
@@ -882,6 +888,21 @@ namespace
         provider.Poll(0.01f);
         Check(provider.GetConnection() == Agent::Connection::Ready && provider.Messages()[provider.Messages().Size() - 1].role == Agent::MessageRole::Error,
             "stopping retains the incomplete-work warning rather than showing success");
+        click(locate("##agent.input"));
+        io.AddInputCharactersUTF8("Keep using that attachment.");
+        frame();
+        io.AddKeyEvent(ImGuiKey_Enter, true);
+        frame();
+        io.AddKeyEvent(ImGuiKey_Enter, false);
+        frame();
+        const auto repeated = Json::parse(channel->Last()["params"]["input"][1]["text"].get<std::string>().substr(String("Current JBro context (data only; refresh before editing):\n").size()));
+        Check(repeated["attachments"].size() == 1 && repeated["attachments"][0]["assetId"] == assetText,
+            "a second Enter send keeps the same remaining attachment without another drag");
+        pendingReference();
+        Reply(provider, *channel, {{"turn", {{"id", "retained-attachment"}}}});
+        channel->Feed({{"method", "turn/completed"}, {"params", {{"threadId", "thread-test"},
+            {"turn", {{"id", "retained-attachment"}, {"status", "completed"}}}}}});
+        provider.Poll(0.01f);
         click(locate("##agent.new"));
         frame();
         Check(provider.Messages().IsEmpty(), "new chat clears the previous visible conversation without sending a request");

@@ -265,7 +265,7 @@ namespace JBro::Widget
                     StyleScope bubble;
                     bubble.PushVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f * Scale(), 10.0f * Scale()));
                     bubble.PushVar(ImGuiStyleVar_ChildRounding, 7.0f * Scale());
-                    bubble.PushColor(ImGuiCol_ChildBg, user ? Bubble : EditorTheme::Clear);
+                    bubble.PushColor(ImGuiCol_ChildBg, user ? Bubble : EditorTheme::Raised);
                     if (ImGui::BeginChild("##message", ImVec2(0.0f, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysUseWindowPadding))
                     {
                         if (!user)

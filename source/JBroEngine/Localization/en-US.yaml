@@ -781,6 +781,7 @@ Entries:
   agent.startup_timeout: Codex did not initialize. Check your installation, network and protocol compatibility.
   agent.message_limit: Codex protocol message exceeds the size limit.
   agent.incompatible: Codex protocol is invalid or incompatible. Update Codex and reconnect.
+  agent.path_invalid: Could not resolve the project or bundled skill path. Check the paths before reconnecting.
   agent.exited: Codex exited. Reconnect to continue; changes are not replayed.
   agent.rpc_rejected: Codex rejected the request. Check authentication or update Codex before reconnecting.
   agent.tool_running: Working with the editor...

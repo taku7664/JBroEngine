@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <charconv>
+#include <filesystem>
 
 namespace JBro::Agent
 {
@@ -582,6 +583,27 @@ namespace JBro::Agent
         m_state = MakeOwnerPtr<State>();
         auto& state = *m_state;
         state.settings = settings;
+        const auto absolutePath = [](String& path, Bool required) -> Bool {
+            if (path.empty() && !required)
+            {
+                return true;
+            }
+            std::error_code error;
+            const auto native = std::filesystem::path(reinterpret_cast<const char8_t*>(path.empty() ? "." : path.c_str()));
+            const auto absolute = std::filesystem::absolute(native, error);
+            if (error)
+            {
+                return false;
+            }
+            const auto utf8 = absolute.lexically_normal().generic_u8string();
+            path.assign(reinterpret_cast<const char*>(utf8.data()), utf8.size());
+            return true;
+        };
+        if (!absolutePath(state.settings.project, true) || !absolutePath(state.settings.skillsRoot, false))
+        {
+            state.Fail(Loc::TextOr(LocKeys::AgentPathInvalid, "Could not resolve the project or bundled skill path. Check the paths before reconnecting."));
+            return false;
+        }
         state.thread = settings.thread;
         state.handler = std::move(handler);
         state.channel = std::move(channel);

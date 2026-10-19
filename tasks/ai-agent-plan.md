@@ -272,3 +272,35 @@ ProjectRule §8.1의 문자열 GUID 두 개 128B와 현 Ref 24B 비교는 구 �
 - 검증 결과: Release 검사 실행 파일 빌드 오류0/경고1. 경고는 기존 JBroScriptGeneratedProbe Attributes.jscript:31의 JBC3041(static [prop] 저장 제외 안내)이다. 첫 실행에서 Agent와 EditorLocalization이 통과했고 EditorWidget의 확정 후 키패드 Enter 항목이 실패했다. 정식 검사의 포커스 재진입을 실제 마우스 클릭으로 바꾼 뒤 같은 제품 코드에서 EditorWidget 전체가 통과했다. Enter/Shift+Enter의 고정·가변 버퍼, 키패드 Enter, 일반 여러 줄 기본 동작을 확인했다. 실패 때문에 필요한 검사 수정 후 빌드1회 외에 반복 빌드하지 않았다.
 - 근거: source/JBroEngine/Build/Validation/ai-agent-main-merge-20261019/{enter-input-build.log,enter-input-tests.log,enter-input-recheck-build.log,enter-input-widget-recheck.log}. Agent는 실제 작성창과 모의 채널을 사용한 검사이며 실제 계정 AI 호출 검증이 아니다. diff 공백 검사와 한국어 C++ 파일 UTF-8 BOM을 확인했다.
 - 이번에는 검사 실행 파일과 공통 에디터 라이브러리를 빌드했다. 실행 중인 JBroEditorHost를 종료·교체하거나 호스트 실행 파일을 다시 링크하지 않았다. 현재 열린 에디터에는 이번 소스 수정이 아직 반영되지 않았다. Windows IME 조합 확정 직접 입력도 미확인이다. 커밋과 별개로 원격 푸시·배포본 교체는 하지 않는다.
+
+## 작성창 첨부 유지 후속 (2026-10-19)
+
+- 사용자는 전송된 대화의 첨부 표시가 아니라 작성창에서 첨부 정보가 사라지는 것을 지적했다. 첨부는 유지되는 동작이 맞고 Enter 전송 뒤에도 작성창에서 보여야 한다.
+- 확인: AgentPanel의 Send 성공 분기가 입력 글과 m_attachments를 함께 비웠다. Tools::Context는 별도의 해당 턴 참조 사본을 보관하고 전송된 Message도 targets를 보관하므로 작성창 표시만 사라져 보일 수 있었다. 첨부가 영구적으로 유지되는 저장 기능이 이미 있었다는 뜻은 아니다.
+- 수정: 성공 시 m_input만 비우고 m_attachments는 유지한다. Enter와 버튼은 같은 Send 분기를 사용하므로 두 경로에 같이 적용된다. 작성창의 기존 첨부 위젯이 같은 목록을 계속 그리며 다음 전송도 같은 참조를 Context에 전달한다. 개별 제거·새 대화 초기화·무효 참조 표시/전송 차단은 기존 경로를 유지한다. 전역 스타일·공통 입력·식별자 구조는 바꾸지 않는다.
+- 정식 Agent 회귀를 보강했다. 버튼 전송 직후/응답 종료 후/Enter 전송 직후 작성창의 제거 버튼이 실제로 그려지는지 ItemLocator로 확인한다. 첫 전송 후 다시 드래그하던 시험 절차를 제거하고, 개별 제거 뒤 연속 Enter 전송의 모의 프로토콜 첨부 목록이 같은 에셋1개인지 확인한다.
+- 이번 작은 수정은 소스/규칙 대조와 diff 공백 검사까지 수행한다. 사용자 지시대로 빌드는 큰 변경 묶음에서 수행하며 이번 회귀를 아직 실행하지 않았다. 빌드·화면 캡처·실행본 교체·커밋·푸시는 미수행이다. 앞선 입력 키 변경의 통과 결과를 이번 변경의 실행 증거로 재사용하지 않는다.
+
+## AI 답변 말풍선 후속 (2026-10-19)
+
+- 사용자 지시: 사용자 메시지뿐 아니라 AI 답변도 말풍선으로 감싼다.
+- 원인: AgentChat::History는 두 역할 모두 같은 ##message 자식 창과 둥근 모서리7/내부 여백12x10을 사용하지만 AI 배경을 EditorTheme::Clear로 지정했다.
+- 변경: AI 배경을 공통 테마 EditorTheme::Raised(#202731)로 바꿨다. 사용자 배경은 기존 Bubble이며 AI 아이콘과 역할 표시는 유지한다. 재사용할 새 요소가 없으므로 기존 전용 메시지 위젯의 배경만 바꾼다. 스트리밍 중에도 같은 메시지 경로와 AutoResizeY가 적용되며 별도 가이드 카드는 기존 경로다. 전역 스타일은 StyleScope로 복원한다.
+- 검수: 실제 코드에서 배경 분기·자동 높이·줄바꿈·스트리밍 메시지의 공통 경로·가이드 별도 표시·스타일 복원을 확인했다. 시각 차이는 실제 화면으로 아직 비교하지 않았고 보기 좋다거나 시안과 일치한다고 판정하지 않는다. 이번 작은 수정은 별도 빌드/회귀 실행/커밋 없이 앞선 첨부 유지 수정과 함께 다음 큰 변경 묶음에 남긴다. 실행 중인 에디터는 미반영이다.
+
+## TestProject 빌드·실행 검증 (2026-10-19, 빌드·실제 대화 확인)
+
+- 사용자 지정 폴더의 실제 프로젝트는 C:/Users/박주형/Documents/JBroEngine/TestProject/Test/Test.jproject다. 첫 Release 호스트/검사 빌드는 오류0/기존 JBC3041 경고1(58.92초). Agent·EditorUI·EditorLocalization·EditorWidget 네 묶음 통과, AgentLive는 미실행이다. attachment-bubble-build.log/tests.log와 attachment-bubble-screens의 실제 엔진 framebuffer 13장(PPM 및 PNG)에 기록했다.
+- conversation.png에서 사용자/AI 말풍선, 가이드 카드, 빈 작성창에 남은 첨부3개가 함께 보이는 것을 직접 확인했다. 이는 모의 채널/시험 프로젝트 화면이며 사용자 TestProject에서 실제 AI 응답을 받은 증거가 아니다.
+- 한글 절대 경로 인자로 실행한 첫 호스트는 cannot open the project file로 종료했다. 현재 main(char**) 진입점의 인코딩 경계는 이번 소스 수정 범위에 넣지 않았다. 같은 Test 폴더를 작업 디렉터리로 하고 --project Test.jproject, 상대 --content-root를 넘겨 PID66484로 정상 실행했다. 실제 화면의 Test 프로젝트명/연결 버튼과 로그의 opened Test.jproject를 확인했다. 이 프로젝트는 LastOpenedCanvasPath가 비어 기본 빈 캔버스로 열린다. Canvas.jcanvas를 자동으로 연 것으로 보고하지 않는다.
+- 실제 연결 버튼을 눌렀을 때 Codex 요청 거절을 재현했다. 현재 설치 Codex 0.153.4의 생성 JSON 스키마와 공식 https://learn.chatgpt.com/docs/app-server 를 확인했다. 엔진과 같은 제한 플래그로 별도 app-server를 띄워 initialize/config/read는 성공, 상대 skills/extraRoots/set은 -32600 Invalid request: AbsolutePathBuf deserialized without a base path, 같은 절대 경로 요청은 성공함을 확인했다. 진단은 스레드/턴 생성·계정 내용 출력·인증 파일 조회 없이 수행했다. stderr와 설정 본문은 기록하지 않았다.
+- 연결 경계에서 상대 프로젝트와 스킬 루트를 UTF-8 절대 경로로 정규화하도록 Provider를 수정하고 경로 오류 번역을 추가했다. 정식 Agent 회귀에 cwd/extraRoots의 실제 절대 경로를 검사한다. 이 결함 때문에 두 번째 빌드/검증이 필요하다. 기존 실행본은 씬 편집 없이 정상 종료했다. 결과는 아래에 추가한다.
+- 최종 빌드: connection-path-build.log, Release 호스트와 검사 실행 파일 오류0/동일 JBC3041 경고1, 1분58.57초. connection-path-tests.log에서 Agent·EditorUI·EditorLocalization·EditorWidget 네 묶음 통과/종료0을 확인했다. 러너의 selected tests passed(5 suites)는 AgentLive skip 항목을 포함하므로 실제 수행4묶음과 구분한다. 코드 수정 뒤 전체117묶음을 다시 실행한 것은 아니다.
+- 실제 실행: 수정된 메인 Release JBroEditorHost.exe를 같은 Test 프로젝트 상대 인자로 다시 실행했다. PID5212, HWND791576, 응답 정상이다. 실행 파일 SHA-256 ABB0D13731A8221D4DE55628774DC212128AAAE0B3C7BAB00E4A04E2E6156E8B. 테스트용 실행 파일이나 복제 빌드를 사용자 실행본으로 보고하지 않는다.
+- 실제 연결: 화면에서 연결을 눌러 Codex 연결됨(초록색)과 GPT-6-Astra 모델을 확인했다. 오류를 숨기거나 인증/전역 설정을 바꾼 것이 아니라 거절된 상대 경로 요청을 수정했다. 해당 프로젝트 대화에서 실제 모델 요청2회를 수행했으며 자동 AgentLive 묶음 실행과 구분한다. 별도 CLI 진단에서는 스레드/턴을 만들지 않았다.
+- 직접 조작: 기본 빈 캔버스에서 정상 오브젝트 추가 커맨드로 미저장 GameObject1개를 만들고 계층에서 작성창으로 드래그했다. 첫 줄 '첨부한 오브젝트의 이름만 알려주세요.' 뒤 Shift+Enter로 줄바꿈하고 '씬은 변경하지 마세요.'를 입력했다. Shift+Enter 직후 전송되지 않았고 Enter로 전송돼 입력 글은 비워지며 GameObject 첨부1개는 계속 보였다. AI가 실제 조회 후 GameObject라고 답하는 말풍선을 확인했다.
+- 이어서 다시 드래그하지 않고 '현재 첨부된 오브젝트를 다시 조회해서 이름만 알려주세요. 편집하지 마세요.'를 Enter로 전송했다. 두 번째 사용자 메시지의 대상과 작성창의 첨부가 모두 남았고, AI가 다시 조회한 뒤 같은 이름으로 답했다. 현재 선택 대상에만 우연히 기대는 동작이 아님은 정식 모의 프로토콜의 explicit attachments/개별 제거 검사와 함께 판단한다. 실화면만으로 프로토콜 본문 전체를 읽었다고 보고하지 않는다.
+- 화면 근거: 같은 Validation 폴더의 testproject-shift-enter.png, testproject-two-lines.png, testproject-enter-sent.png, testproject-first-answer.png, testproject-second-enter.png, testproject-second-answer.png. 실제 TestProject 호스트의 PrintWindow 원본이며 모의 모델 이미지와 구분한다. 두 답변 말풍선과 작성창 첨부 유지가 함께 보이는 최종 검증 화면은 testproject-second-answer.png다. 최초 형제 AI 말풍선은 중간 안내와 최종 답변 항목이 별도로 오는 기존 표시 동작이며 이번 배경 변경과 별개다.
+- 정리: 미저장 검증용 오브젝트 생성만 Ctrl+Z로 실행 취소해 빈 캔버스로 돌렸다. 삭제된 대상의 첨부가 무효 표시되는 것도 확인한 뒤 작성창의 해당 첨부를 X로 제거했다. 대화 이력은 삭제하지 않았다. 에디터는 TestProject/Codex 연결 상태로 계속 실행 중이며 프로젝트/캔버스 저장을 하지 않았다. 정리 화면은 testproject-object-undone.png/testproject-final.png다.
+- 보존 확인: Test.jproject SHA-256 EFB68E40C6F09217A3F6EAA37BC25BFC2E981A907661652C20BA1B342B5E0703, Canvas.jcanvas SHA-256 C4BF286273481EE2BD7043B0D96B2826CADE62E291AC8C1FAB646A1F36BB00BD. 실행 전후 동일하다. 에디터의 정상 프로젝트별 AI 설정/대화 저장과 레이아웃 저장은 기능 경로로 발생할 수 있으며 프로젝트 데이터 파일 편집과 구분한다. 실제 Windows IME 조합 중 확정 키 검증은 하지 않았다. 한글 입력은 UI 자동화의 텍스트 입력 경로로 수행했다.
+- 남은 별도 현상: 한글이 포함된 절대 CLI 인자로 프로젝트를 열면 main(char**) 인코딩 경계에서 파일 열기에 실패한다. 이번에는 프로젝트 작업 폴더/ASCII 상대 인자로 정상 실행했으며 이 진입점 소스를 수정하지 않았다. 실제 스크립트 DLL은 프로젝트가 지정한 x64/Debug/GameScript.dll에 없어 로드 경고가 있었다. 이번 검증은 AI 입력/첨부/말풍선과 연결이며 게임 스크립트 실행 성공을 포함하지 않는다. 원격 푸시·별도 배포본 교체는 하지 않았다.
