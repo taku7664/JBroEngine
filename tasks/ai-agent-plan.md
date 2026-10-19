@@ -261,3 +261,14 @@ ProjectRule §8.1의 문자열 GUID 두 개 128B와 현 Ref 24B 비교는 구 �
 - 메인의 실제 실행 파일: source/JBroEngine/Build/x64/Release/JBroEditorHost.exe. SHA-256은 404CF7CD4256C78E676BFCEB4882E9DC54580201796D60B7908348B071211268다. 2026-10-19 09:44 한국 시간에 실행했으며 PID51528, 창 JBro Editor, 실행 경로 일치와 응답 상태를 확인했다. 기본 예제 캔버스의4색 오브젝트, 인스펙터, 에셋 브라우저와 AI 탭이 렌더링된 실제 화면을 확인했다. AI 로그인/실제 모델 호출이나 추가 사용자 프로젝트 편집은 하지 않았다.
 - 직접 화면 원본: source/JBroEngine/Build/Validation/ai-agent-main-merge-20261019/main-editor.png(118,626bytes). 기본 Windows.Graphics.Capture가 FrameArrived/window capture timeout으로 두 번 실패해 더 반복하지 않고 기존 capture_engine.py의 PrintWindow 캡처를 사용했다. 설치되어 있던 Python3.14/Pillow를 사용했으며 설치는 하지 않았다. 화면은 실제 메인 실행본에서 캡처한 것이고 formal 모의 모델 캡처와 구분한다.
 - 검증 자료는 같은 Build/Validation/ai-agent-main-merge-20261019 폴더에 로컬 로그/빌드 제어 파일/화면으로 남겼다. 사용자 미추적 파일과 다른 워크트리는 수정·정리하지 않았다. 원격 푸시, 로컬 설치, 루트 build 배포본 교체, 공개 배포는 하지 않았다. 엔진 기능 전체의 무결함이나 UI 시안 최종 승인을 이 결과에 포함하지 않는다.
+
+## 입력 키 후속 (2026-10-19)
+
+- 사용자 지시: Enter는 전송, Shift+Enter는 줄바꿈이다. 기존 입력 전용 코드를 확인한 뒤 수정한다.
+- 기존 엔진 ImItem/ImText.h의 ImInputText와 현재 Widget/TextField의 고정·가변 버퍼 경로를 읽었다. 현재 AI는 공통 TextField를 쓰면서 작성창 전체에서 Ctrl+Enter를 따로 감지했다.
+- 공통 TextField의 기존 CommitOnEnter를 여러 줄 입력에도 적용한다. 번들 ImGui의 EnterReturnsTrue/CtrlEnterForNewLine 조합은 Enter 확정과 Shift+Enter 줄바꿈을 제공하며 Ctrl+Enter도 줄바꿈이다. LiveText로 타이핑 중 값은 유지하고 반환값은 확정 여부로 사용한다. 옵션을 켜지 않은 일반 여러 줄 입력은 바꾸지 않는다.
+- AI 전용 AgentChat은 CommitOnEnter/LiveText를 켜고 입력 위젯의 확정값에 기존 연결·실행·입력·첨부 유효성 검사를 적용해 전송한다. 창 전체 Ctrl+Enter 감지를 제거했다. 번역 안내를 수정하고 긴 안내가 드래그 힌트와 겹치지 않도록 실제 글자 폭으로 표시 여부를 결정한다. 엔진 Bool/Float/String을 사용하고 전역 입력·테마·서드파티 소스는 수정하지 않는다.
+- 정식 회귀에 고정/가변 버퍼의 실시간 입력·Shift+Enter·Enter·키패드 Enter·누른 키 유지·기본 여러 줄 동작, AI 작성창에서 줄바꿈과 전송된 모의 프로토콜 본문 확인을 추가했다. 빌드/실행 결과는 확인 후 아래에 기록한다. 실제 모델 호출이나 인증 파일 조회는 하지 않는다. Windows 한글 IME 조합 확정 동작은 소스 조회만으로 검증됐다고 보고하지 않는다.
+- 검증 결과: Release 검사 실행 파일 빌드 오류0/경고1. 경고는 기존 JBroScriptGeneratedProbe Attributes.jscript:31의 JBC3041(static [prop] 저장 제외 안내)이다. 첫 실행에서 Agent와 EditorLocalization이 통과했고 EditorWidget의 확정 후 키패드 Enter 항목이 실패했다. 정식 검사의 포커스 재진입을 실제 마우스 클릭으로 바꾼 뒤 같은 제품 코드에서 EditorWidget 전체가 통과했다. Enter/Shift+Enter의 고정·가변 버퍼, 키패드 Enter, 일반 여러 줄 기본 동작을 확인했다. 실패 때문에 필요한 검사 수정 후 빌드1회 외에 반복 빌드하지 않았다.
+- 근거: source/JBroEngine/Build/Validation/ai-agent-main-merge-20261019/{enter-input-build.log,enter-input-tests.log,enter-input-recheck-build.log,enter-input-widget-recheck.log}. Agent는 실제 작성창과 모의 채널을 사용한 검사이며 실제 계정 AI 호출 검증이 아니다. diff 공백 검사와 한국어 C++ 파일 UTF-8 BOM을 확인했다.
+- 이번에는 검사 실행 파일과 공통 에디터 라이브러리를 빌드했다. 실행 중인 JBroEditorHost를 종료·교체하거나 호스트 실행 파일을 다시 링크하지 않았다. 현재 열린 에디터에는 이번 소스 수정이 아직 반영되지 않았다. Windows IME 조합 확정 직접 입력도 미확인이다. 커밋과 별개로 원격 푸시·배포본 교체는 하지 않는다.

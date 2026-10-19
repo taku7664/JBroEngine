@@ -640,6 +640,65 @@ namespace
         Check(text == before, "visual wrapping never inserts newlines into the user's text");
     }
 
+    void TestMultilineEnterSubmissionIsOptIn()
+    {
+        for (const JBro::UInt32 capacity : {JBro::UInt32(0), JBro::UInt32(512)})
+        {
+            Stage stage;
+            JBro::String text;
+            JBro::Bool submitOnEnter = true;
+            ImRect rect;
+            const auto frame = [&]() {
+                stage.Begin();
+                const JBro::Bool submitted = JBro::Widget::TextField("##submit", text)
+                    .Multiline().MaxLength(capacity.Value).CommitOnEnter(submitOnEnter).LiveText()();
+                rect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+                stage.End();
+                return submitted;
+            };
+            frame();
+            frame();
+            auto& io = ImGui::GetIO();
+            const auto focus = [&]() {
+                io.AddMousePosEvent(rect.GetCenter().x, rect.GetCenter().y);
+                frame();
+                io.AddMouseButtonEvent(0, true);
+                frame();
+                io.AddMouseButtonEvent(0, false);
+                frame();
+            };
+            focus();
+            io.AddInputCharactersUTF8("first");
+            Check(!frame() && text == "first", "typing updates live text without submitting");
+            io.AddKeyEvent(ImGuiMod_Shift, true);
+            io.AddKeyEvent(ImGuiKey_Enter, true);
+            Check(!frame() && text == "first\n", "Shift Enter inserts a newline without submitting");
+            io.AddKeyEvent(ImGuiKey_Enter, false);
+            io.AddKeyEvent(ImGuiMod_Shift, false);
+            frame();
+            io.AddInputCharactersUTF8("second");
+            Check(!frame() && text == "first\nsecond", "typing after a newline still does not submit");
+            io.AddKeyEvent(ImGuiKey_Enter, true);
+            Check(frame() && text == "first\nsecond", "Enter submits without appending a newline");
+            Check(!frame(), "a held Enter does not submit the inactive field again");
+            io.AddKeyEvent(ImGuiKey_Enter, false);
+            frame();
+            focus();
+            io.AddKeyEvent(ImGuiKey_KeypadEnter, true);
+            Check(frame() && text == "first\nsecond", "keypad Enter also submits without changing text");
+            io.AddKeyEvent(ImGuiKey_KeypadEnter, false);
+            frame();
+            submitOnEnter = false;
+            focus();
+            io.AddKeyEvent(ImGuiKey_Enter, true);
+            frame();
+            Check(text.find('\n', text.find('\n') + 1) != JBro::String::npos,
+                "ordinary multiline fields retain Enter newline behavior");
+            io.AddKeyEvent(ImGuiKey_Enter, false);
+            frame();
+        }
+    }
+
     void TestTheTextFieldLeavesUntouchedValuesAlone()
     {
         Stage stage;
@@ -1874,6 +1933,7 @@ JBro::Int32 RunEditorWidgetTests()
     TestTheTextFieldLeavesUntouchedValuesAlone();
     TestABoundedMultilineFieldKeepsItsActionsReachable();
     TestWrappedInputReflowsWithoutChangingItsText();
+    TestMultilineEnterSubmissionIsOptIn();
     TestTheFilterComboPicksByTypingAndEnter();
     TestFilterComboEmptyResultsFitAndWrapAtTheScreenEdge();
     TestTheFilterComboGroupsItemsAndSkipsTheDisabled();

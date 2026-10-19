@@ -821,7 +821,7 @@ Entries:
   agent.connect_hint: Codex에 연결해 대화를 시작하세요.
   agent.model_placeholder: 모델 선택
   agent.model_after_connect: 모델 · 연결 후 선택
-  agent.shortcut_hint: Ctrl + Enter 전송
+  agent.shortcut_hint: Enter 전송 · Shift + Enter 줄바꿈
   agent.attach_file: 파일 첨부
   agent.attachment_filter: 프로젝트 에셋
   agent.attachment_unsupported: 현재는 등록된 프로젝트 에셋만 파일로 첨부할 수 있습니다.

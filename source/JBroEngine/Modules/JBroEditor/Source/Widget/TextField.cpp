@@ -144,6 +144,10 @@ namespace JBro::Widget
         if (m_commitOnEnter)
         {
             flags |= ImGuiInputTextFlags_EnterReturnsTrue;
+            if (m_multiline)
+            {
+                flags |= ImGuiInputTextFlags_CtrlEnterForNewLine;
+            }
         }
         if (m_multiline && m_wordWrap)
         {
@@ -232,15 +236,16 @@ namespace JBro::Widget
         std::memcpy(buffer.Data(), m_text.c_str(), m_text.size() + 1);
 
         InvalidScope invalid(m_invalid);
-        // 여러 줄 칸에서 Enter 는 줄바꿈이다. `CommitOnEnter` 는 여기서 쓰지 않는다 - 확정은 `CommitOnFinish` 로 한다.
         const ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackResize
-            | (m_wordWrap ? ImGuiInputTextFlags_WordWrap : ImGuiInputTextFlags_None);
+            | (m_wordWrap ? ImGuiInputTextFlags_WordWrap : ImGuiInputTextFlags_None)
+            | (m_commitOnEnter ? ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CtrlEnterForNewLine
+                : ImGuiInputTextFlags_None);
         const char* id = m_id != nullptr ? m_id : "##text";
         const Float width = m_width != 0.0f ? m_width : Float(-FLT_MIN);
         const Bool changed = ImGui::InputTextMultiline(id, buffer.Data(), buffer.Size(),
             ImVec2(width, GetMultilineHeight(m_width > 0.0f ? m_width : Float(ImGui::GetContentRegionAvail().x))),
             flags, ResizeBuffer);
-        if (changed)
+        if (changed || (m_liveText && std::strcmp(buffer.Data(), m_text.c_str()) != 0))
         {
             m_text = buffer.Data();
         }

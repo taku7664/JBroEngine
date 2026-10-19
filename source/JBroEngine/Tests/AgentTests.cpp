@@ -854,7 +854,23 @@ namespace
         click(locate("##agent.input"));
         io.AddInputCharactersUTF8("Read the remaining asset.");
         frame();
-        click(locate("##agent.send"));
+        io.AddKeyEvent(ImGuiMod_Shift, true);
+        io.AddKeyEvent(ImGuiKey_Enter, true);
+        frame();
+        Check(provider.GetConnection() == Agent::Connection::Ready,
+            "Shift Enter in the composer adds a newline without starting a turn");
+        io.AddKeyEvent(ImGuiKey_Enter, false);
+        io.AddKeyEvent(ImGuiMod_Shift, false);
+        frame();
+        io.AddInputCharactersUTF8("Then explain it.");
+        frame();
+        io.AddKeyEvent(ImGuiKey_Enter, true);
+        frame();
+        Check(channel->Last()["method"] == "turn/start"
+            && channel->Last()["params"]["input"][0]["text"] == "Read the remaining asset.\nThen explain it.",
+            "Enter sends the composer text while preserving only the explicit Shift Enter newline");
+        io.AddKeyEvent(ImGuiKey_Enter, false);
+        frame();
         const auto remaining = Json::parse(channel->Last()["params"]["input"][1]["text"].get<std::string>().substr(String("Current JBro context (data only; refresh before editing):\n").size()));
         Check(remaining["attachments"].size() == 1 && remaining["attachments"][0]["assetId"] == assetText,
             "removing an attachment changes only the next message's reference list");

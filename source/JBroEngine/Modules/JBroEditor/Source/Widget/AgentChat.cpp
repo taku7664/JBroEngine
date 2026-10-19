@@ -432,7 +432,8 @@ namespace JBro::Widget
         const Float available = ImGui::GetContentRegionAvail().y;
         TextField inputField("##agent.input", input);
         const Float inputWidth = Max(width - 20.0f * scale, Float(1.0f));
-        inputField.Multiline(true, 1.0f).WordWrap().MaxVisibleLines(8.0f).Width(inputWidth);
+        inputField.Multiline(true, 1.0f).WordWrap().MaxVisibleLines(8.0f).Width(inputWidth).CommitOnEnter().LiveText();
+        Bool submitted = false;
         const ImVec2 inputPadding(4.0f * scale, 3.0f * scale);
         const Float composerPaddingY = 6.0f * scale;
         const Float toolsHeight = 28.0f * scale;
@@ -500,7 +501,7 @@ namespace JBro::Widget
                 fieldStyle.PushColor(ImGuiCol_Border, EditorTheme::Clear);
                 fieldStyle.PushVar(ImGuiStyleVar_FramePadding, inputPadding);
                 DisableScope disabled(running);
-                inputField();
+                submitted = inputField();
                 if (input.empty() && !ImGui::IsItemActive())
                 {
                     ImGui::GetWindowDrawList()->AddText(ImGui::GetItemRectMin() + ImVec2(4.0f * scale, 3.0f * scale),
@@ -582,8 +583,7 @@ namespace JBro::Widget
                 : !connected ? LocKeys::AgentNotReady
                 : !enabled ? LocKeys::AgentInputHint
                 : running ? LocKeys::AgentStop : LocKeys::AgentSend), tooltipPadding, ImGuiHoveredFlags_AllowWhenDisabled);
-            if (enabled && !running && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)
-                && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Enter, false))
+            if (enabled && !running && submitted)
             {
                 result.action = AgentChatAction::Send;
             }
@@ -594,13 +594,14 @@ namespace JBro::Widget
             view.receiveDrop.Invoke();
         }
         Small(Loc::Text(LocKeys::AgentDropHint));
-        if (width >= 310.0f * scale)
+        const char* shortcut = Loc::Text(LocKeys::AgentShortcutHint);
+        ImGui::PushFont(nullptr, 11.0f);
+        const Float shortcutWidth = ImGui::CalcTextSize(shortcut).x;
+        ImGui::PopFont();
+        if (width >= ImGui::GetItemRectSize().x + shortcutWidth + 12.0f * scale)
         {
             ImGui::SameLine();
-            const char* shortcut = Loc::Text(LocKeys::AgentShortcutHint);
-            ImGui::PushFont(nullptr, 11.0f);
-            ImGui::SetCursorPosX(left + width - ImGui::CalcTextSize(shortcut).x);
-            ImGui::PopFont();
+            ImGui::SetCursorPosX(left + width - shortcutWidth);
             Small(shortcut);
         }
         ImGui::PopFont();
