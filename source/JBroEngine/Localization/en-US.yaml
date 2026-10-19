@@ -765,6 +765,9 @@ Entries:
   agent.stop: Stop
   agent.disconnect: Disconnect
   agent.resume_guide: Resume guide
+  guide.open_panel: Click the highlighted tab or Window menu to open the panel.
+  agent.start_guide: Start guide
+  agent.guide_ready: Start the guide when you are ready to follow the steps.
   agent.open_chat: Ask AI
   agent.new_chat: New conversation
   agent.send: Send

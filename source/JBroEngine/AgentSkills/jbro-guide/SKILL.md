@@ -11,8 +11,8 @@ Use when the user wants to learn a workflow or locate a feature. When they ask y
 2. Read `jbro_guide_catalog`. It is the authoritative action/argument/route/ending catalog for this engine version. Select actions that accomplish the goal and compose a new guide. Do not limit yourself to built-in guide examples.
 3. Author YAML using the contract below. Every step must explain the action and its purpose in the user's language. For a location question use the shortest supported path; for a workflow split meaningful actions into steps.
 4. Call `jbro_guide_validate`. Correct errors using the catalog and returned line/reason. If the same cause fails twice, stop retrying and explain the limitation. Do not silently omit required steps.
-5. Call `jbro_guide_start` with the current scope. The user performs the editing steps; you must not perform those same edits through mutation tools. Guide activation itself is allowed.
-6. Use `jbro_guide_status` only when needed for a follow-up. Do not claim completion from parsing or starting the guide. Explain unsupported portions explicitly.
+5. Call `jbro_guide_start` with the current scope to prepare the guide card in chat. The tool returns `prepared: true` and `started: false`; tell the user the guide is ready and they can choose **Start guide**. Do not start it, change selection or open panels on their behalf. After starting, the user also opens highlighted tabs and closed panels themselves; do not use tools to switch panels for them. The user performs the editing steps; do not perform those same edits through mutation tools.
+6. Use `jbro_guide_status` only when needed for a follow-up. Distinguish prepared, running and paused. Do not claim completion from parsing or preparing the guide. Explain unsupported portions explicitly.
 
 ## Guide YAML
 

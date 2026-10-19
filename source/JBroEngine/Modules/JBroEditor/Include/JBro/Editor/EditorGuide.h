@@ -143,7 +143,10 @@ namespace JBro
 
         // 첫 단계로 들어간다. 단계가 없거나 어느 단계도 가리킬 것이 없으면 거짓이고 켜지 않는다.
         // `guide` 는 끝날 때까지 살아 있어야 한다(내장 가이드는 프로세스와 같이 산다).
-        Bool Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus);
+        // AI 가이드는 manualPanels로 패널 열기와 탭 이동까지 사용자 입력을 기다린다.
+        Bool Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus, Bool manualPanels = false);
+        Bool UsesManualPanels() const noexcept { return m_manualPanels; }
+        Bool IsOpeningPanel() const noexcept { return m_openingPanel != nullptr; }
         // 멈추고 가이드 포커스를 끈다.
         void Stop(EditorGuideFocus& focus);
         Bool IsRunning() const noexcept { return m_guide != nullptr; }
@@ -182,6 +185,9 @@ namespace JBro
         // 단계 하나에 들어간다. 가리킬 것이 없으면 거짓이고 아무것도 바꾸지 않는다.
         Bool TryEnter(UInt32 index, EditorApplication& editor, EditorGuideFocus& focus);
 
+        Bool BeginFocus(const GuideFocusPath& path, EditorApplication& editor, EditorGuideFocus& focus);
+        Bool m_manualPanels = false;
+        const char* m_openingPanel = nullptr;
         const Guide* m_guide = nullptr;
         UInt32 m_step = 0;
         Bool m_finished = false;

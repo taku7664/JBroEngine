@@ -355,6 +355,7 @@ namespace
         const std::string actual((std::istreambuf_iterator<char>(outside)), std::istreambuf_iterator<char>());
         Check(actual == "// outside\n" && !std::filesystem::exists(files.root / "Outside/Escaped.h"), "outside script content remains untouched");
     }
+    void SaveAttachmentImage(EditorApplication& editor, const char* suffix);
     void GuideResume(EditorApplication& editor, Agent::Tools& tools, const String& scope, const String& object)
     {
         auto* original = editor.GetSelectedObject();
@@ -363,6 +364,80 @@ namespace
             "    Title:\n      Key: test.resume.title\n      String: Rotate original\n      Loc: en-US\n"
             "    Body:\n      Key: test.resume.body\n      String: Set the original rotation\n      Loc: en-US\n";
         Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", yaml}}).dump()).success, "resume guide starts");
+        Check(editor.IsAgentGuideReady() && !editor.GetGuide().IsRunning() && !editor.GetGuideFocus().IsActive()
+            && editor.GetSelectedObject() == original, "AI prepares a guide without entering a step, changing selection or requesting panel focus");
+        const auto prepared = Json::parse(tools.Execute("jbro_guide_status", "{}").text);
+        Check(prepared["prepared"] == true && prepared["running"] == false, "guide status separates preparation from execution");
+        Check(!tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", "Id: invalid\nSteps: []\n"}}).dump()).success
+            && editor.IsAgentGuideReady(), "invalid replacement YAML preserves the prepared guide");
+        auto* agentPanel = editor.FindPanel("Agent");
+        auto* inspectorPanel = editor.FindPanel("Inspector");
+        Check(agentPanel != nullptr && inspectorPanel != nullptr, "AI and inspector panels exist");
+        const auto tick = [&](UInt32 count) {
+            for (UInt32 index = 0; index < count; ++index)
+            {
+                Check(editor.Tick(0.016f), "manual navigation renders through the editor frame path");
+            }
+        };
+        const auto clickTarget = [&]() {
+            auto& focus = editor.GetGuideFocus();
+            Check(focus.HasHole() && focus.IsHoleSettled(), "manual navigation has a settled clickable target");
+            const auto rect = focus.GetHoleRect();
+            auto& io = ImGui::GetIO();
+            io.AddMousePosEvent(((rect.min.x + rect.max.x) * 0.5f).Get(), ((rect.min.y + rect.max.y) * 0.5f).Get());
+            tick(2);
+            io.AddMouseButtonEvent(0, true);
+            tick(1);
+            io.AddMouseButtonEvent(0, false);
+            tick(80);
+        };
+        auto* agentWindow = ImGui::FindWindowByName("###Agent");
+        auto* inspectorWindow = ImGui::FindWindowByName("###Inspector");
+        Check(agentWindow != nullptr && inspectorWindow != nullptr && inspectorWindow->DockId != 0,
+            "manual-navigation fixture has an inspector dock");
+        ImGui::SetWindowDock(agentWindow, inspectorWindow->DockId, ImGuiCond_Always);
+        agentPanel->RequestFocus();
+        tick(8);
+        Check(agentPanel->IsVisible() && !inspectorPanel->IsVisible(), "AI starts in front of the inspector in the shared dock");
+        editor.ResumeAgentGuide();
+        Check(!editor.IsAgentGuideReady() && editor.GetGuide().IsRunning(), "only the explicit user start enters the prepared guide");
+        const UInt64 navigationRevision = editor.GetCommands().GetRevision();
+        tick(160);
+        auto& focus = editor.GetGuideFocus();
+        Check(agentPanel->IsVisible() && !inspectorPanel->IsVisible() && focus.GetLevel() == 0 && !focus.IsBroken(),
+            "starting and dwelling never switches the inspector tab for the user");
+        Check(focus.GetHoleRect().max.y - focus.GetHoleRect().min.y < 60.0f,
+            "the guide highlights the actual inspector tab rather than the hidden window body");
+        Check(editor.GetCommands().GetRevision() == navigationRevision, "waiting for navigation performs no scene edits");
+        SaveAttachmentImage(editor, "manual_inspector_tab");
+        clickTarget();
+        Check(inspectorPanel->IsVisible() && focus.GetLevel() > 0, "only clicking the highlighted tab reveals the inspector and advances navigation");
+        SaveAttachmentImage(editor, "manual_inspector_field");
+        editor.StopAgentGuide();
+        Check(!editor.GetGuide().UsesManualPanels() && !editor.GetGuide().IsOpeningPanel(),
+            "stopping an active AI guide clears its panel navigation policy");
+        inspectorPanel->SetOpen(false);
+        agentPanel->RequestFocus();
+        tick(8);
+        Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", yaml}}).dump()).success, "a closed-panel guide can be prepared");
+        editor.ResumeAgentGuide();
+        tick(160);
+        Check(!inspectorPanel->IsOpen() && editor.GetGuide().IsOpeningPanel()
+            && focus.GetPath().targets[0] == GuideFocusTargets::Menu("menu.window"),
+            "closed panels remain closed and are reached through the real Window menu");
+        SaveAttachmentImage(editor, "manual_closed_panel");
+        clickTarget();
+        Check(focus.GetLevel() == 1, "the user opens Window");
+        SaveAttachmentImage(editor, "manual_window_menu");
+        clickTarget();
+        Check(focus.GetLevel() == 2, "the user opens the Editor submenu");
+        SaveAttachmentImage(editor, "manual_editor_menu");
+        clickTarget();
+        SaveAttachmentImage(editor, "manual_closed_panel_clicked");
+        Check(inspectorPanel->IsOpen(), "the highlighted Inspector menu toggle opens the panel");
+        Check(!editor.GetGuide().IsOpeningPanel(), "opening Inspector finishes the menu navigation");
+        Check(focus.GetPath().targets[0] == GuideFocusTargets::Panel("Inspector"),
+            "opening Inspector returns to the original field step");
         editor.SetAgentGuidePaused(true);
         const auto created = tools.Execute("jbro_object_create", Json({{"scope", scope}, {"parent", ""}}).dump());
         Check(created.success, "another object can be selected while chatting");
@@ -383,6 +458,7 @@ namespace
         String selectionYaml = yaml;
         selectionYaml.replace(selectionYaml.find("Object: ") + 8, object.size(), "Selection");
         Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", selectionYaml}}).dump()).success, "selection-bound guide starts");
+        editor.ResumeAgentGuide();
         Object::GameObject* alternative = nullptr;
         editor.GetCanvas()->ForEachObject([&](Object::GameObject& candidate) {
             if (&candidate != original)
@@ -401,13 +477,28 @@ namespace
         replacement.replace(replacement.find("Object: ") + 8, object.size(), other);
         Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", replacement}}).dump()).success,
             "a replacement guide can start during chat");
+        Check(editor.IsAgentGuideReady() && !editor.GetGuideFocus().IsActive() && editor.GetSelectedObject() == original,
+            "preparing a guide for another object leaves the user's current selection alone");
+        editor.ResumeAgentGuide();
         Check(!editor.IsAgentGuidePaused() && editor.GetSelectedObject() == alternative, "new guide does not inherit the paused guide's selection");
         Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", yaml}}).dump()).success, "original target guide restarts");
+        editor.ResumeAgentGuide();
         editor.SetAgentGuidePaused(true);
         Check(tools.Execute("jbro_object_delete", Json({{"scope", scope}, {"object", object}}).dump()).success, "guide target can disappear while chatting");
         editor.SetAgentGuidePaused(false);
         Check(!editor.GetGuide().IsRunning(), "a deleted target stops the guide instead of substituting another object");
         editor.GetCanvas()->ForEachObject([&](Object::GameObject& remaining) { editor.SetSelectedObject(&remaining); });
+        auto* remainingSelection = editor.GetSelectedObject();
+        Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", yaml}}).dump()).success,
+            "a guide can be prepared before its target is checked at user start");
+        editor.ResumeAgentGuide();
+        Check(!editor.GetGuide().IsRunning() && !editor.IsAgentGuideReady() && editor.GetSelectedObject() == remainingSelection,
+            "starting revalidates a deleted target without substituting the current selection");
+        Check(tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", replacement}}).dump()).success,
+            "another guide can be prepared for cancellation");
+        Check(tools.Execute("jbro_guide_stop", Json({{"scope", scope}}).dump()).success
+            && !editor.IsAgentGuideReady() && editor.GetAgentGuide() == nullptr
+            && !editor.GetGuide().UsesManualPanels(), "stop cancels preparation and clears the manual navigation policy");
     }
     struct AttachmentPicker
     {
@@ -840,6 +931,10 @@ namespace
             "    Body:\n      Key: test.preview.body\n      String: 캔버스에서 오브젝트를 두 번 클릭합니다.\n      Loc: ko-KR\n";
         const auto previewStarted = tools.Execute("jbro_guide_start", Json({{"scope", scope}, {"yaml", previewGuide}}).dump());
         Check(previewStarted.success, previewStarted.text.c_str());
+        Check(editor.IsAgentGuideReady() && Json::parse(previewStarted.text)["started"] == false,
+            "AI guide preparation is visible without running it");
+        captureWidth(360.0f, "guide_ready");
+        editor.ResumeAgentGuide();
         editor.SetAgentGuidePaused(true);
         captureWidth(360.0f, "conversation");
         for (auto* candidate : ImGui::GetCurrentContext()->Windows)

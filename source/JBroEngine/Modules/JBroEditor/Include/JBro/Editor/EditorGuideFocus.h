@@ -44,6 +44,7 @@ namespace JBro
     {
         // 패널 창. `key` 는 패널의 `GetTitle()`(번역하지 않는 이름)의 `MakeNameId` 다.
         GuideFocusTarget Panel(const char* title);
+        GuideFocusTarget PanelMenu(const char* title);
         // 메뉴 막대의 메뉴와 그 항목. 이름은 로컬라이징 키에서 따온다(`menu.file`, `menu.build_game`).
         GuideFocusTarget Menu(const char* name);
         // 계층의 레이어 줄과 오브젝트 줄.

@@ -840,6 +840,9 @@ namespace JBro::LocKeys
     inline constexpr const char* AgentStop = "agent.stop";
     inline constexpr const char* AgentDisconnect = "agent.disconnect";
     inline constexpr const char* AgentResumeGuide = "agent.resume_guide";
+    inline constexpr const char* GuideOpenPanel = "guide.open_panel";
+    inline constexpr const char* AgentStartGuide = "agent.start_guide";
+    inline constexpr const char* AgentGuideReady = "agent.guide_ready";
     inline constexpr const char* AgentOpenChat = "agent.open_chat";
     inline constexpr const char* AgentNewChat = "agent.new_chat";
     inline constexpr const char* AgentSend = "agent.send";

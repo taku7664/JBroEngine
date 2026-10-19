@@ -283,7 +283,8 @@ namespace JBro
         view.validate = Delegate<Bool(const Agent::Target&)>::Bind<&Agent::Tools::IsTargetValid>(m_tools.Get());
         view.receiveDrop = Delegate<void()>::Bind<&AgentPanel::ReceiveAttachments>(this);
         view.guidePaused = m_editor->IsAgentGuidePaused();
-        if (const auto* guide = m_editor->GetGuide().GetGuide())
+        view.guideReady = m_editor->IsAgentGuideReady();
+        if (const auto* guide = m_editor->GetAgentGuide())
         {
             view.guideTitle = Loc::TextFor(guide->title.key, guide->title.string, guide->title.locale);
             const auto& path = m_editor->GetGuideFocus().GetPath();
@@ -345,7 +346,7 @@ namespace JBro
             m_provider.Interrupt();
             break;
         case Action::ResumeGuide:
-            m_editor->SetAgentGuidePaused(false);
+            m_editor->ResumeAgentGuide();
             break;
         case Action::AttachFile:
             BrowseAttachment();

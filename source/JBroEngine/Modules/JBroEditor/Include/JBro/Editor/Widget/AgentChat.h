@@ -12,6 +12,7 @@ namespace JBro::Widget
         String project, canvas, model, error, attachmentError, guideTitle, guideTarget;
         Bool projectOpen = false;
         Bool guidePaused = false;
+        Bool guideReady = false;
         Bool changed = false;
         Delegate<Bool(const Agent::Target&)> validate;
         Delegate<void()> receiveDrop;

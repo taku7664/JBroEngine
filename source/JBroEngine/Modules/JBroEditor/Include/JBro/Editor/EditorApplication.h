@@ -480,8 +480,13 @@ namespace JBro
         // **글자로 적힌 가이드를 켠다**(D-267). 에이전트가 사용자의 물음에 맞춰 지은 가이드를 이것으로 넘긴다 - 에디터 안에서는
         // 곧장 부르고, 밖의 프로세스는 제어 포트(D-270)의 `guide.start` 로 부른다. 형식은 `EditorGuides::Parse` 다. 읽지 못하면 까닭을 `error` 에
         // 적고 거짓이며, 이미 돌던 가이드는 그대로 둔다. 읽었으면 돌던 가이드를 멈추고 이것을 켠다.
-        Bool StartGuideFromText(const char* text, std::size_t length, String& error);
+        // AI는 prepareOnly로 준비만 한다. 단계 진입·선택·포커스 변경은 사용자가 시작할 때 수행한다.
+        Bool StartGuideFromText(const char* text, std::size_t length, String& error, Bool prepareOnly = false);
         EditorGuide& GetGuide();
+        const Guide* GetAgentGuide() const;
+        Bool IsAgentGuideReady() const { return m_agentGuideReady; }
+        void ResumeAgentGuide();
+        void StopAgentGuide();
         void SetAgentGuidePaused(Bool paused);
         Bool IsAgentGuidePaused() const { return m_agentGuidePaused; }
         UInt64 GetAgentContextRevision() const { return m_agentContextRevision; }
@@ -1000,6 +1005,7 @@ namespace JBro
         EditorGuide m_guide;
         // 글자로 받은 가이드다. `m_guide` 가 가리키므로 다음 가이드를 받을 때까지 들고 있는다.
         OwnerPtr<LoadedGuide> m_textGuide;
+        Bool m_agentGuideReady = false;
         // 제어 포트와 그 소켓을 내준 provider 다(D-270). 포트가 먼저 사라져야 하므로 provider 를 앞에 둔다.
         OwnerPtr<Network::ISocketProvider> m_socketProvider;
         OwnerPtr<EditorControlPort> m_controlPort;

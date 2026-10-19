@@ -765,6 +765,9 @@ Entries:
   agent.stop: 중단
   agent.disconnect: 연결 해제
   agent.resume_guide: 가이드 재개
+  guide.open_panel: 강조된 탭 또는 창 메뉴를 눌러 패널을 여세요.
+  agent.start_guide: 가이드 시작
+  agent.guide_ready: 시작을 누르면 직접 따라 할 수 있는 안내가 열립니다.
   agent.open_chat: AI에게 질문
   agent.new_chat: 새 대화
   agent.send: 전송

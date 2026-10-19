@@ -178,7 +178,7 @@ namespace JBro::Widget
         }
         void GuideCard(const AgentChatView& view, AgentChatResult& result)
         {
-            if (!view.guidePaused)
+            if (!view.guidePaused && !view.guideReady)
             {
                 return;
             }
@@ -199,13 +199,14 @@ namespace JBro::Widget
                 StyleScope actionStyle;
                 actionStyle.PushColor(ImGuiCol_Button, ImVec4(0.161f, 0.243f, 0.333f, 1.0f));
                 actionStyle.PushColor(ImGuiCol_Text, SoftAccent);
-                if (Button(Loc::Text(LocKeys::AgentResumeGuide), Icons::Play, ImVec2(-FLT_MIN, 30.0f * Scale())))
+                if (Button(Loc::Text(view.guideReady ? LocKeys::AgentStartGuide : LocKeys::AgentResumeGuide),
+                    Icons::Play, ImVec2(-FLT_MIN, 30.0f * Scale())))
                 {
                     result.action = AgentChatAction::ResumeGuide;
                 }
             }
             ImGui::EndChild();
-            Small(Loc::Text(LocKeys::AgentGuidePaused), true);
+            Small(Loc::Text(view.guideReady ? LocKeys::AgentGuideReady : LocKeys::AgentGuidePaused), true);
         }
         void History(const AgentChatView& view, Float height, String& input, AgentChatResult& result)
         {
@@ -234,7 +235,7 @@ namespace JBro::Widget
                         visible.Add(static_cast<Int32>(i));
                     }
                 }
-                if (visible.IsEmpty() && !view.guidePaused)
+                if (visible.IsEmpty() && !view.guidePaused && !view.guideReady)
                 {
                     if (view.changed)
                     {
@@ -302,7 +303,7 @@ namespace JBro::Widget
                     return false;
                 }, [] {}, [](Int32) {}, [](Int32, Int32) {}, ListFlagsPlain);
                 GuideCard(view, result);
-                if ((view.changed || heightChanged) && follow && (!visible.IsEmpty() || view.guidePaused))
+                if ((view.changed || heightChanged) && follow && (!visible.IsEmpty() || view.guidePaused || view.guideReady))
                 {
                     ImGui::SetScrollHereY(1.0f);
                 }

@@ -271,6 +271,31 @@ namespace JBro::Widget
         g_focus->Report(target, ToRect(min, max), opened, visible, activated, true, nullptr, round);
     }
 
+    void ReportPanelGuideTarget(const GuideFocusTarget& target, Bool shown, Bool manual)
+    {
+        if (g_focus == nullptr || !g_focus->IsActive())
+        {
+            return;
+        }
+        const ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (manual && !shown && window->DockNode != nullptr && window->DockNode->TabBar != nullptr)
+        {
+            ImGuiTabBar* bar = window->DockNode->TabBar;
+            const ImGuiTabItem* tab = ImGui::TabBarFindTabByID(bar, window->TabId);
+            if (tab != nullptr && bar->CurrFrameVisible == ImGui::GetFrameCount())
+            {
+                const Float left = bar->BarRect.Min.x + IM_TRUNC(tab->Offset - bar->ScrollingAnim);
+                ImRect rect(ImVec2(left.Get(), bar->BarRect.Min.y),
+                    ImVec2((left + tab->Width).Get(), bar->BarRect.Max.y));
+                rect.ClipWith(bar->BarRect);
+                g_focus->Report(target, ToRect(rect.Min, rect.Max), false, rect.GetWidth() > 0.0f, false);
+            }
+            return;
+        }
+        ReportGuideTarget(target, window->Pos,
+            ImVec2(window->Pos.x + window->Size.x, window->Pos.y + window->Size.y), shown, false);
+    }
+
     GuideFocusAction GuideFocus(EditorGuideFocus& focus, const GuideFocusBalloon& balloon)
     {
         ImGuiContext& context = *ImGui::GetCurrentContext();

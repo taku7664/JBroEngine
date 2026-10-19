@@ -4425,6 +4425,7 @@ namespace JBro
         m_objectIds.Clear();
         ++m_agentContextRevision;
         m_agentGuidePaused = false;
+        m_agentGuideReady = false;
         CancelSpriteFramePick();
         if (false == canvas->Clear())
         {
@@ -5346,6 +5347,7 @@ namespace JBro
         m_objectIds.Clear();
         ++m_agentContextRevision;
         m_agentGuidePaused = false;
+        m_agentGuideReady = false;
         // 재생 중에 쌓인 편집은 되돌릴 대상이 사라졌다. 스택을 비우지 않으면 Ctrl+Z 가
         // 이제 없는 오브젝트를 가리킨다. **저장 안 됨은 남긴다** - 캔버스는 재생 전으로 돌아왔고, 재생 전에 저장하지 않은 편집은
         // 여전히 저장되지 않았다(D-324).
@@ -5805,6 +5807,7 @@ namespace JBro
         ++m_agentContextRevision;
         m_agentGuidePaused = false;
         m_uiEnabled = false;
+        m_agentGuideReady = false;
     }
 
     void EditorApplication::ReleaseEditorUi()
@@ -5852,6 +5855,7 @@ namespace JBro
         ++m_agentContextRevision;
         m_agentGuidePaused = false;
         m_uiEnabled = false;
+        m_agentGuideReady = false;
     }
 
     void EditorApplication::DestroyPanels()
@@ -6047,9 +6051,11 @@ namespace JBro
             Widget::EndMenu();
         }
 
+        Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.window"));
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
         {
             // 기존 엔진처럼 한 겹 더 들어간다 - 도구 창 말고도 열 것이 늘어날 자리다.
+            Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.window_editor"));
             if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindowEditor, "Editor")))
             {
                 // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
@@ -6063,6 +6069,7 @@ namespace JBro
                         continue;
                     }
                     Bool open = panel->IsOpen();
+                    Widget::SetNextItemTarget(GuideFocusTargets::PanelMenu(panel->GetTitle()));
                     if (Widget::MenuToggle(panel->GetDisplayTitle(), open))
                     {
                         panel->SetOpen(open);
@@ -6178,6 +6185,12 @@ namespace JBro
                 balloon.progress = Loc::TextOr(LocKeys::GuideProgressDone, "Done");
                 balloon.title = Loc::TextFor(guide.title.key, guide.title.string, guide.title.locale);
                 balloon.body = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
+            }
+            else if (m_guide.UsesManualPanels() && (m_guide.IsOpeningPanel()
+                || (!m_guideFocus.GetPath().IsEmpty()
+                    && m_guideFocus.GetPath().targets[m_guideFocus.GetLevel()].name == GuideFocusTargets::Panel("").name)))
+            {
+                balloon.note = Loc::Text(LocKeys::GuideOpenPanel);
             }
             else if (balloon.nextLabel == nullptr && m_guide.WhyNextBlocked(*this) != nullptr)
             {
@@ -6645,10 +6658,10 @@ namespace JBro
             // 그리지 않으면 포커스도 없다. 열린 창은 아래에서 다시 적는다.
             panel->SetFocused(false);
             panel->SetVisible(false);
-            // **가이드 포커스가 가리키는 패널은 연다**(D-251). 닫혀 있으면 그 안의 대상이 그려지지 않는다. 가려진 탭은
+            // **내장 가이드 포커스가 가리키는 패널은 연다**(D-251). AI 가이드는 사용자 클릭을 기다린다. 닫혀 있으면 그 안의 대상이 그려지지 않는다. 가려진 탭은
             // 머묾이 끝난 뒤 앞으로 꺼낸다 - 매 프레임 꺼내면 그 안에서 연 콤보가 포커스를 잃고 닫힌다.
             const GuideFocusTarget panelTarget = GuideFocusTargets::Panel(panel->GetTitle());
-            if (m_guideFocus.IsActive())
+            if (m_guideFocus.IsActive() && !m_guide.UsesManualPanels())
             {
                 const UInt32 at = m_guideFocus.GetPath().Find(panelTarget);
                 const Bool onPath = at < m_guideFocus.GetPath().count && at <= m_guideFocus.GetLevel();
@@ -6734,11 +6747,7 @@ namespace JBro
             const Bool shown = ImGui::Begin(label.c_str(), closable != nullptr ? &rawOpen : nullptr, flags);
             panelOpen = rawOpen;
             // 창 전체가 대상일 수 있다(레이어 창에서 오브젝트를 고르는 단계). 가려진 탭이면 열리지 않은 것으로 알린다.
-            {
-                const ImVec2 position = ImGui::GetWindowPos();
-                const ImVec2 size = ImGui::GetWindowSize();
-                Widget::ReportGuideTarget(panelTarget, position, ImVec2(position.x + size.x, position.y + size.y), shown, false);
-            }
+            Widget::ReportPanelGuideTarget(panelTarget, shown, m_guide.UsesManualPanels());
             if (shown)
             {
                 const ImGuiWindow* window = ImGui::GetCurrentWindow();
@@ -7106,10 +7115,11 @@ namespace JBro
         }
         m_guide.Stop(m_guideFocus);
         SetAgentGuidePaused(false);
+        m_agentGuideReady = false;
         return m_guide.Start(*guide, *this, m_guideFocus);
     }
 
-    Bool EditorApplication::StartGuideFromText(const char* text, std::size_t length, String& error)
+    Bool EditorApplication::StartGuideFromText(const char* text, std::size_t length, String& error, Bool prepareOnly)
     {
         if (GetCanvas() == nullptr)
         {
@@ -7126,12 +7136,43 @@ namespace JBro
         m_guide.Stop(m_guideFocus);
         SetAgentGuidePaused(false);
         m_textGuide = std::move(loaded);
+        m_agentGuideReady = prepareOnly;
+        if (prepareOnly)
+        {
+            return true;
+        }
         if (false == m_guide.Start(m_textGuide->Get(), *this, m_guideFocus))
         {
             error = "no step of the guide has anything to point at";
             return false;
         }
         return true;
+    }
+
+    const Guide* EditorApplication::GetAgentGuide() const
+    {
+        return m_agentGuideReady && m_textGuide.Get() != nullptr ? &m_textGuide->Get() : m_guide.GetGuide();
+    }
+
+    void EditorApplication::ResumeAgentGuide()
+    {
+        if (m_agentGuideReady)
+        {
+            m_agentGuideReady = false;
+            if (m_textGuide.Get() == nullptr || !m_guide.Start(m_textGuide->Get(), *this, m_guideFocus, true))
+            {
+                m_notifications.Notify(NotificationLevel::Warning, Loc::Text(LocKeys::AgentGuideTargetLost));
+            }
+            return;
+        }
+        SetAgentGuidePaused(false);
+    }
+
+    void EditorApplication::StopAgentGuide()
+    {
+        m_guide.Stop(m_guideFocus);
+        m_agentGuideReady = false;
+        SetAgentGuidePaused(false);
     }
 
     EditorGuide& EditorApplication::GetGuide()
@@ -7414,6 +7455,7 @@ namespace JBro
         m_objectIds.Clear();
         ++m_agentContextRevision;
         m_agentGuidePaused = false;
+        m_agentGuideReady = false;
         // 고르던 프레임은 이 프로젝트의 컴포넌트를 가리킨다. 다음 프로젝트의 같은 번호에 쓰면 안 된다.
         CancelSpriteFramePick();
         // 그림은 이 프로젝트의 것이다. 다음 프로젝트의 같은 아이디는 다른 파일이다. **에셋 시스템과도 끊는다** -

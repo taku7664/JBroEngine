@@ -156,9 +156,9 @@ namespace
             {
                 Click(editor, hwnd, x, y, true);
             }
-            else if (focus.IsAtTarget())
+            else if (focus.GetPath().open[focus.GetLevel().Value] == GuideFocusOpen::User || focus.IsAtTarget())
             {
-                if (action == "object.focus")
+                if (focus.IsAtTarget() && action == "object.focus")
                 {
                     const Int32 awayFromGizmo = static_cast<Int32>(hole.min.x + (hole.max.x - hole.min.x) * 0.25f);
                     Click(editor, hwnd, awayFromGizmo, y);
@@ -260,7 +260,8 @@ JBro::Int32 RunAgentLiveTests()
         guide << bridge.guide;
         guide.close();
         Check(bridge.edits == beforeEdits, "how-to questions must not directly modify the user's project");
-        Check(!bridge.guide.empty(), "AI must create and start a contextual guide, not answer with text only");
+        Check(!bridge.guide.empty() && editor.IsAgentGuideReady() && !editor.GetGuide().IsRunning(),
+            "AI prepares a contextual guide without starting the user's workflow");
         if (i == 0)
         {
             Check(bridge.guide.find("object.focus") != String::npos, "focus-mode guide must enter object focus, not merely frame the camera");
@@ -274,10 +275,18 @@ JBro::Int32 RunAgentLiveTests()
         {
             Check(bridge.guide.find("script.create") != String::npos, "script guide must point to the actual script creation workflow");
         }
-        editor.SetAgentGuidePaused(true);
         panel->RequestFocus();
         Tick(editor, 8);
-        editor.SetAgentGuidePaused(false);
+        ImGuiWindow* readyCard = nullptr;
+        for (auto* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (candidate->Active && std::strstr(candidate->Name, "##agent.guide") != nullptr)
+            {
+                readyCard = candidate;
+            }
+        }
+        Check(readyCard != nullptr && ClickButton(editor, Window(), readyCard, Loc::Text(LocKeys::AgentStartGuide)),
+            "the user starts the prepared guide through its actual button");
         Follow(editor, bridge.guide);
         if (i == 0)
         {

@@ -187,7 +187,13 @@ namespace JBro::Widget
 
     Bool MenuToggle(const char* label, Bool& checked, Bool enabled)
     {
-        return ImGui::MenuItem(label, nullptr, &checked, enabled);
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        // ImGui는 bool*를 받는다. Bool*는 selected(bool) 오버로드로 변환되어 값을 바꾸지 않는다.
+        bool rawChecked = checked.Get();
+        const Bool activated = ImGui::MenuItem(label, nullptr, &rawChecked, enabled);
+        checked = rawChecked;
+        Internal::ReportLastItem(target, checked, activated, enabled);
+        return activated;
     }
 
     Bool BeginMenuBar()

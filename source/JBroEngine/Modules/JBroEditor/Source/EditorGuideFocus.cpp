@@ -64,6 +64,11 @@ namespace JBro
             return { MakeNameId("panel"), MakeNameId(title) };
         }
 
+        GuideFocusTarget PanelMenu(const char* title)
+        {
+            return { MakeNameId("panel.menu"), MakeNameId(title) };
+        }
+
         GuideFocusTarget Menu(const char* name)
         {
             return { MakeNameId(name), 0 };

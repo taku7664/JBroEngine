@@ -380,22 +380,22 @@ namespace JBro::Agent
                 {
                     return Ok({{"validated", true}});
                 }
-                if (!editor.StartGuideFromText(text.c_str(), text.size(), error))
+                if (!editor.StartGuideFromText(text.c_str(), text.size(), error, true))
                 {
                     return {false, error};
                 }
-                return Ok({{"started", true}, {"sceneEdited", false}});
+                return Ok({{"prepared", true}, {"started", false}, {"sceneEdited", false}});
             }
             if (name == "jbro_guide_status")
             {
                 const auto& guide = editor.GetGuide();
                 return Ok({{"running", guide.IsRunning().Value}, {"step", guide.GetStepIndex().Value},
+                    {"prepared", editor.IsAgentGuideReady().Value},
                     {"pausedForChat", editor.IsAgentGuidePaused().Value}});
             }
             if (name == "jbro_guide_stop")
             {
-                editor.GetGuide().Stop(editor.GetGuideFocus());
-                editor.SetAgentGuidePaused(false);
+                editor.StopAgentGuide();
                 return Ok({{"stopped", true}});
             }
             if (name == "jbro_script_list")
@@ -698,9 +698,9 @@ namespace JBro::Agent
         add("jbro_script_diagnostics", "Read script build state (0=Idle, 1=Running, 2=Succeeded, 3=Failed), errors and warnings. Build success is not runtime proof.", {});
         add("jbro_guide_catalog", "Read authoritative YAML actions and arguments supported by this running engine.", {});
         add("jbro_guide_validate", "Validate a newly authored YAML guide without starting it or editing the scene.", {"scope", "yaml"});
-        add("jbro_guide_start", "Start a validated contextual guide. Existing guide is preserved on parse failure. Does not perform user learning steps.", {"scope", "yaml"});
-        add("jbro_guide_status", "Read current guide step and paused status.", {});
-        add("jbro_guide_stop", "Stop the active guide without undoing user edits.", {"scope"});
+        add("jbro_guide_start", "Prepare a validated contextual guide in chat. Only the user can start it with Start guide. Preparation never selects objects or opens panels. Existing guide is preserved on parse failure.", {"scope", "yaml"});
+        add("jbro_guide_status", "Read whether the guide is prepared, running or paused, and its current step.", {});
+        add("jbro_guide_stop", "Cancel the prepared or active guide without undoing user edits.", {"scope"});
         return tools.dump();
     }
 }
