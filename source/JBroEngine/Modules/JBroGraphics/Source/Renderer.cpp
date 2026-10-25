@@ -140,6 +140,17 @@ namespace JBro
             // 메시 슬롯 수만큼 필요하다. 등록할 때 함께 자라므로 프레임 안에서는 할당하지 않는다.
             m_meshHistogram.Reserve(64);
             m_meshResources.Reserve(64);
+            // **렌더 그래프의 저장소도 상한만큼 여기서 잡는다**(D-339). 뷰마다 패스가 여덟을 넘지 않고(라이트맵·본 패스·통째 얹기의 넷·
+            // 외곽선 둘), 레이어 묶음마다 다섯(그리기·대신 그리기·복사·얹기·뒤 구간), 그림자를 드리우는 라이트마다 셋이다.
+            RenderGraphLimits limits;
+            limits.maxPasses = config.maxViews * 8 + config.maxLayerGroups * 5 + config.maxLights2D * 3 + 16;
+            limits.maxTextures = config.maxViews * 8 + config.maxLayerGroups * 2 + config.maxLights2D + 8;
+            limits.maxAccesses = limits.maxPasses * 4;
+            limits.dataBytes = static_cast<std::size_t>(limits.maxPasses.Get()) * 128;
+            if (false == m_graph.Initialize(limits))
+            {
+                return false;
+            }
         }
         catch (const std::bad_alloc&)
         {
@@ -186,6 +197,7 @@ namespace JBro
         m_rhi = &rhi;
         m_device = device;
         m_swapchain = swapchain;
+        m_targetPool.Initialize(*device);
         if (false == CreateBuiltinSpriteResources() || false == CreateBuiltinMeshResources()
             || false == CreateBuiltinWorldTextResources() || false == CreateBuiltinLightResources())
         {
@@ -209,8 +221,7 @@ namespace JBro
             m_device->WaitIdle();
             DestroyMeshResources();
             DestroyTextureResources();
-            DestroyDepthTargets();
-            DestroyLayerTargets();
+            m_targetPool.Shutdown();
             DestroyBuiltinLightResources();
             DestroyBuiltinWorldTextResources();
             DestroyBuiltinMeshResources();
@@ -247,7 +258,7 @@ namespace JBro
         m_gpuShadowEdges = {};
         m_litRanges = {};
         m_openLitRange = NoLayerGroup;
-        m_layerTargetWantCount = 0;
+        m_graph.Shutdown();
         m_meshHistogram = {};
         m_meshResources = {};
         m_currentStats = {};
@@ -517,110 +528,6 @@ namespace JBro
         m_meshResources.Clear();
     }
 
-    Bool Renderer::AcquireDepthTarget(const Extent2D& extent, TextureHandle& depth)
-    {
-        for (DepthTarget& slot : m_depthTargets)
-        {
-            if (slot.texture.IsValid() && slot.extent.width == extent.width && slot.extent.height == extent.height)
-            {
-                slot.idleFrames = 0;
-                depth = slot.texture;
-                return true;
-            }
-        }
-        // 빈 자리가 없으면 가장 오래 안 쓴 것을 내준다. 디바이스가 은퇴 펜스로 지난 프레임이 다 그린 뒤에 놓으므로 여기서
-        // 기다리지 않는다 - 보통 프레임은 GPU 를 기다리지 않는다는 계약이 있다(렌더러 계약 테스트).
-        DepthTarget* chosen = nullptr;
-        for (DepthTarget& slot : m_depthTargets)
-        {
-            if (false == slot.texture.IsValid())
-            {
-                chosen = &slot;
-                break;
-            }
-            if (chosen == nullptr || slot.idleFrames > chosen->idleFrames)
-            {
-                chosen = &slot;
-            }
-        }
-        if (chosen->texture.IsValid())
-        {
-            m_device->DestroyTexture(chosen->texture);
-            *chosen = {};
-        }
-        TextureDesc desc;
-        desc.extent = extent;
-        desc.format = TextureFormat::D32Float;
-        desc.usage = TextureUsage::DepthStencil;
-        chosen->texture = m_device->CreateTexture(desc);
-        if (false == chosen->texture.IsValid())
-        {
-            return false;
-        }
-        chosen->extent = extent;
-        depth = chosen->texture;
-        return true;
-    }
-
-    TextureHandle Renderer::FindDepthTarget(const Extent2D& extent)
-    {
-        for (DepthTarget& slot : m_depthTargets)
-        {
-            if (slot.texture.IsValid() && slot.extent.width == extent.width && slot.extent.height == extent.height)
-            {
-                slot.idleFrames = 0;
-                return slot.texture;
-            }
-        }
-        for (std::size_t at = 0; at < m_depthTargetWantCount; ++at)
-        {
-            if (m_depthTargetWants[at].width == extent.width && m_depthTargetWants[at].height == extent.height)
-            {
-                return {};
-            }
-        }
-        if (m_depthTargetWantCount < MaxDepthTargets)
-        {
-            m_depthTargetWants[m_depthTargetWantCount++] = extent;
-        }
-        return {};
-    }
-
-    void Renderer::PrepareDepthTargets()
-    {
-        for (DepthTarget& slot : m_depthTargets)
-        {
-            if (slot.texture.IsValid() && ++slot.idleFrames > DepthTargetIdleFrames)
-            {
-                m_device->DestroyTexture(slot.texture);
-                slot = {};
-            }
-        }
-        for (std::size_t at = 0; at < m_depthTargetWantCount; ++at)
-        {
-            TextureHandle depth;
-            AcquireDepthTarget(m_depthTargetWants[at], depth);
-        }
-        m_depthTargetWantCount = 0;
-    }
-
-    void Renderer::DestroyDepthTargets()
-    {
-        if (m_device == nullptr)
-        {
-            return;
-        }
-        for (DepthTarget& target : m_depthTargets)
-        {
-            if (target.texture.IsValid())
-            {
-                m_device->DestroyTexture(target.texture);
-            }
-            target = {};
-        }
-        m_depthTargetWantCount = 0;
-    }
-
     FrameStatus Renderer::BeginFrame(const FrameTarget& target)
     {
         if (m_device == nullptr || false == m_swapchain.IsValid() || m_frameActive)
@@ -638,15 +545,13 @@ namespace JBro
         // 만들지 않으므로, 메시가 있는지 알게 되는 `RecordViews` 에서는 늦다. 크기가 같으면 지난
         // 것을 그대로 쓴다 - 2D 프레임이 내는 값은 크기가 바뀔 때의 텍스처 하나뿐이다.
         // 프레임 타깃과 크기가 다른 뷰(편집 화면·레이어 썸네일)의 깊이는 지난 프레임이 바란 크기로 먼저 만든다.
-        PrepareDepthTargets();
-        TextureHandle depth;
+        // 레이어·라이트맵·그림자 마스크 같은 중간 텍스처도 같은 까닭으로 여기서 만든다(D-279·D-339) - 지난 프레임의 그래프가 바란 모양들이다.
+        m_targetPool.Prepare();
         const Extent2D depthExtent = target.texture.IsValid() ? target.extent : m_config.surfaceExtent;
-        if (false == AcquireDepthTarget(depthExtent, depth))
+        if (false == m_targetPool.Ensure({depthExtent, TextureFormat::D32Float, TextureUsage::DepthStencil}))
         {
             return FrameStatus::InvalidState;
         }
-        // 레이어 텍스처도 같은 까닭으로 여기서 만든다(D-279). 지난 프레임이 바란 크기들이다.
-        PrepareLayerTargets();
         const BeginFrameResult result = m_device->BeginFrame(m_swapchain);
         if (result.status != FrameStatus::Ready)
         {
@@ -1184,9 +1089,14 @@ namespace JBro
 
         // 뷰가 갈 곳과 그 크기다. 타깃을 안 준 프레임은 백버퍼로 간다.
         const Bool frameToTexture = m_frameTarget.texture.IsValid();
-        const TextureHandle frameTexture =
-            frameToTexture ? m_frameTarget.texture : m_frame.backBuffer;
+        const TextureHandle frameTexture = frameToTexture ? m_frameTarget.texture : m_frame.backBuffer;
         const Extent2D frameExtent = GetFrameExtent();
+
+        // **뷰를 그래프의 패스로 짓는다**(D-339). 패스는 기록할 순서대로 더하고, 중간 텍스처는 그래프가 만든다 - 컴파일이 풀에서 고르고,
+        // 이 프레임에 없는 모양은 다음 프레임 전에 서도록 바라며, 그 텍스처가 있어야 하는 패스 대신 대신 그리기 패스를 돌린다.
+        m_graph.Reset();
+        const RenderGraphTexture frameTarget =
+            frameToTexture ? m_graph.ImportTexture(frameTexture) : m_graph.ImportBackBuffer(frameTexture);
 
         // **지우는 것은 타깃마다 처음 한 번이다**(D-130). 뷰 번호로 정하면 둘째 타깃의
         // 첫 뷰가 덧그리기가 되어 지난 프레임이 비쳐 남는다.
@@ -1194,440 +1104,599 @@ namespace JBro
 
         for (std::size_t index = 0; index < m_views.Size(); ++index)
         {
-            const ViewPacket& view = m_views[index];
-            const Bool ownTarget = view.camera.target.IsValid();
-            // 프레임 타깃으로 가는 뷰만 이 프레임의 opt-in 을 따른다(D-63·D-130).
-            if (false == ownTarget && false == m_frameTarget.recordViews)
-            {
-                ++m_currentStats.skippedViewCount;
-                continue;
-            }
-            if (ownTarget
-                && (view.camera.targetExtent.width == 0 || view.camera.targetExtent.height == 0))
-            {
-                // 크기를 모르면 뷰포트가 타깃 안에 있는지 잴 수 없다. 짐작하지 않는다.
-                return false;
-            }
-            const TextureHandle target = ownTarget ? view.camera.target : frameTexture;
-            const Extent2D extent = ownTarget ? view.camera.targetExtent : frameExtent;
-
-            Bool alreadyCleared = false;
-            for (std::size_t at = 0; at < m_clearedTargetCount; ++at)
-            {
-                if (m_clearedTargets[at] == target)
-                {
-                    alreadyCleared = true;
-                    break;
-                }
-            }
-            if (false == alreadyCleared && m_clearedTargetCount < MaxClearedTargets)
-            {
-                m_clearedTargets[m_clearedTargetCount++] = target;
-            }
-
-            Viewport viewport = view.camera.viewport;
-            if (viewport.width <= 0.0f || viewport.height <= 0.0f)
-            {
-                viewport.x = 0.0f;
-                viewport.y = 0.0f;
-                viewport.width = static_cast<JBro::Float>(extent.width);
-                viewport.height = static_cast<JBro::Float>(extent.height);
-            }
-
-            const Float right = viewport.x + viewport.width;
-            const Float bottom = viewport.y + viewport.height;
-            if (viewport.x < 0.0f
-                || viewport.y < 0.0f
-                || right > static_cast<JBro::Float>(extent.width)
-                || bottom > static_cast<JBro::Float>(extent.height)
-                || viewport.minDepth < 0.0f
-                || viewport.maxDepth > 1.0f
-                || viewport.minDepth > viewport.maxDepth)
+            if (false == AddViewPasses(static_cast<JBro::UInt32>(index), frameTarget, frameTexture, frameExtent))
             {
                 return false;
             }
+        }
+        return m_graph.Compile(m_targetPool) && m_graph.Execute(*m_frame.commands);
+    }
 
-            // 소수 자리의 뷰포트를 정수 시저로 옮긴다. 안쪽으로 자르면 마지막 열이 잘린다 - 바깥으로 넉넉히 잡는다.
-            const ScissorRect scissor = {
-                static_cast<JBro::Int32>(std::floor(viewport.x)),
-                static_cast<JBro::Int32>(std::floor(viewport.y)),
-                static_cast<JBro::Int32>(std::ceil(right)),
-                static_cast<JBro::Int32>(std::ceil(bottom))};
+    Bool Renderer::AddViewPasses(UInt32 viewIndex, RenderGraphTexture frameTarget, TextureHandle frameTexture, const Extent2D& frameExtent)
+    {
+        const ViewPacket& view = m_views[viewIndex.Get()];
+        const Bool ownTarget = view.camera.target.IsValid();
+        // 프레임 타깃으로 가는 뷰만 이 프레임의 opt-in 을 따른다(D-63·D-130).
+        if (false == ownTarget && false == m_frameTarget.recordViews)
+        {
+            ++m_currentStats.skippedViewCount;
+            return true;
+        }
+        if (ownTarget && (view.camera.targetExtent.width == 0 || view.camera.targetExtent.height == 0))
+        {
+            // 크기를 모르면 뷰포트가 타깃 안에 있는지 잴 수 없다. 짐작하지 않는다.
+            return false;
+        }
+        const TextureHandle targetTexture = ownTarget ? view.camera.target : frameTexture;
+        const RenderGraphTexture target = ownTarget ? m_graph.ImportTexture(targetTexture) : frameTarget;
+        const Extent2D extent = ownTarget ? view.camera.targetExtent : frameExtent;
+        if (false == target.IsValid())
+        {
+            return false;
+        }
 
-            // **라이트맵을 먼저 그린다**(D-291). 빛을 받는 스프라이트가 있고 라이트를 받은 뷰만이다. 타깃과 같은 크기의 RGBA16F 이고, 빛을 받는
-            // 구간이 제 픽셀 자리에서 읽어 곱한다 - 따로 합성하지 않으므로 레이어 묶음 안에서도 같다. 처음 보는 크기는 이 프레임에 빛 없이
-            // 그리고 다음 프레임 전에 선다. 깊이가 달린 뷰(3D)는 라이팅을 보지 않는다.
-            TextureHandle lightMap;
-            if (view.hasLitRun && view.lighting)
+        Bool alreadyCleared = false;
+        for (std::size_t at = 0; at < m_clearedTargetCount; ++at)
+        {
+            if (m_clearedTargets[at] == targetTexture)
             {
-                const Bool depthWork = view.runCount != 0 || view.worldTextRunCount != 0;
-                if (false == depthWork && m_light2DPipeline.IsValid())
-                {
-                    lightMap = FindLayerTarget(extent, LayerTargetRole::LightMap);
-                }
-                if (lightMap.IsValid())
-                {
-                    if (false == RecordLightMap(view, lightMap, extent, viewport, scissor))
-                    {
-                        return false;
-                    }
-                    ++m_currentStats.litViewCount;
-                }
-                else
-                {
-                    ++m_currentStats.viewsWithoutLightMapCount;
-                }
+                alreadyCleared = true;
+                break;
             }
+        }
+        if (false == alreadyCleared && m_clearedTargetCount < MaxClearedTargets)
+        {
+            m_clearedTargets[m_clearedTargetCount++] = targetTexture;
+        }
 
-            // **뷰를 통째로 얹는 경우**(D-280, 3D 레이어). 그릴 곳이 타깃이 아니라 레이어 텍스처다. 텍스처가 아직 없는 크기면 그대로 그린다.
-            const Bool wantsComposite = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
-            TextureHandle viewLayer;
-            if (wantsComposite)
-            {
-                viewLayer = FindLayerTarget(extent);
-                // 아래 그림을 읽는 블렌드면 사본 자리도 같은 프레임에 바란다 - 그래야 둘째 프레임부터 제 식으로 얹힌다(D-283).
-                if (static_cast<JBro::UInt32>(view.camera.composite) >= FirstBackdropBlend)
-                {
-                    FindLayerTarget(extent, LayerTargetRole::Backdrop);
-                }
-                if (false == viewLayer.IsValid())
-                {
-                    ++m_currentStats.uncompositedLayerCount;
-                }
-            }
-            const Bool composited = viewLayer.IsValid();
-            if (composited && false == alreadyCleared)
-            {
-                // 이 타깃의 첫 뷰다. 레이어 텍스처에 그리더라도 타깃은 지워야 지난 프레임이 비치지 않는다.
-                ColorAttachmentDesc clearOnly;
-                clearOnly.texture = target;
-                clearOnly.loadOperation = LoadOperation::Clear;
-                clearOnly.storeOperation = StoreOperation::Store;
-                clearOnly.clearColor = {
-                    view.camera.clearColor[0], view.camera.clearColor[1], view.camera.clearColor[2], view.camera.clearColor[3]};
-                RenderPassDesc clearPass;
-                clearPass.colorAttachments = {&clearOnly, 1};
-                if (false == m_frame.commands->BeginRenderPass(clearPass))
-                {
-                    return false;
-                }
-                m_frame.commands->EndRenderPass();
-            }
+        Viewport viewport = view.camera.viewport;
+        if (viewport.width <= 0.0f || viewport.height <= 0.0f)
+        {
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<JBro::Float>(extent.width);
+            viewport.height = static_cast<JBro::Float>(extent.height);
+        }
 
-            ColorAttachmentDesc colorAttachment;
-            colorAttachment.texture = composited ? viewLayer : target;
-            colorAttachment.loadOperation = alreadyCleared && false == composited
-                ? LoadOperation::Load
-                : LoadOperation::Clear;
-            colorAttachment.storeOperation = StoreOperation::Store;
-            colorAttachment.clearColor = {
-                view.camera.clearColor[0],
-                view.camera.clearColor[1],
-                view.camera.clearColor[2],
-                view.camera.clearColor[3]};
-            if (composited)
-            {
-                colorAttachment.clearColor = {0.0f, 0.0f, 0.0f, 0.0f};
-            }
+        const Float right = viewport.x + viewport.width;
+        const Float bottom = viewport.y + viewport.height;
+        if (viewport.x < 0.0f
+            || viewport.y < 0.0f
+            || right > static_cast<JBro::Float>(extent.width)
+            || bottom > static_cast<JBro::Float>(extent.height)
+            || viewport.minDepth < 0.0f
+            || viewport.maxDepth > 1.0f
+            || viewport.minDepth > viewport.maxDepth)
+        {
+            return false;
+        }
 
-            RenderPassDesc pass;
-            pass.colorAttachments = {&colorAttachment, 1};
-            // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-222). 스프라이트만 있는 2D 프레임은
-            // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이고, 3D 레이어는 레이어마다 뷰라 레이어마다 지운다(D-280).
-            // **처음 보는 크기의 뷰는 그 프레임에 메시·월드 텍스트 없이 그린다**(D-288) - 깊이 텍스처는 다음 프레임 전에 선다.
-            // 프레임을 버리지 않는다. 프레임 타깃의 깊이는 `BeginFrame` 이 이미 만들었으므로 게임 화면은 늘 깊이가 있다.
-            DepthStencilAttachmentDesc depthAttachment;
-            if (view.runCount != 0 || view.worldTextRunCount != 0)
-            {
-                depthAttachment.texture = FindDepthTarget(extent);
-                if (false == depthAttachment.texture.IsValid())
-                {
-                    ++m_currentStats.viewsWithoutDepthCount;
-                }
-            }
-            const Bool withDepth = depthAttachment.texture.IsValid();
-            if (withDepth)
-            {
-                depthAttachment.depthLoadOperation = LoadOperation::Clear;
-                depthAttachment.depthStoreOperation = StoreOperation::Discard;
-                depthAttachment.stencilLoadOperation = LoadOperation::Discard;
-                depthAttachment.stencilStoreOperation = StoreOperation::Discard;
-                pass.depthStencilAttachment = &depthAttachment;
-            }
-            if (false == m_frame.commands->BeginRenderPass(pass))
-            {
-                return false;
-            }
+        // 소수 자리의 뷰포트를 정수 시저로 옮긴다. 안쪽으로 자르면 마지막 열이 잘린다 - 바깥으로 넉넉히 잡는다.
+        const ScissorRect scissor = {
+            static_cast<JBro::Int32>(std::floor(viewport.x)),
+            static_cast<JBro::Int32>(std::floor(viewport.y)),
+            static_cast<JBro::Int32>(std::ceil(right)),
+            static_cast<JBro::Int32>(std::ceil(bottom))};
 
-            m_frame.commands->SetViewport(viewport);
-            m_frame.commands->SetScissor(scissor);
+        // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-222). 스프라이트만 있는 2D 프레임은 깊이 없는 패스다.
+        // 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이고, 3D 레이어는 레이어마다 뷰라 레이어마다 지운다(D-280).
+        // **처음 보는 크기의 뷰는 그 프레임에 메시·월드 텍스트 없이 그린다**(D-288) - 깊이는 선택 첨부라 없으면 패스가 깊이 없이 돈다.
+        // 프레임 타깃 크기의 깊이는 `BeginFrame` 이 풀에 미리 세우므로 게임 화면은 늘 깊이가 있다.
+        const Bool depthWork = view.runCount != 0 || view.worldTextRunCount != 0;
+        RenderGraphTexture depth;
+        if (depthWork)
+        {
+            depth = m_graph.CreateTexture({extent, TextureFormat::D32Float, TextureUsage::DepthStencil});
+        }
 
-            if (view.spriteCount != 0)
-            {
-                const Matrix4x4 viewProjection = Multiply(
-                    view.camera.projection,
-                    view.camera.view);
-                const JArrayView<std::byte> constants = {
-                    reinterpret_cast<const std::byte*>(viewProjection.values),
-                    static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
-                // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
-                // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다. 스프라이트만 있는 뷰는 예전처럼 한 번만 묶는다.
-                const Bool overDepth = withDepth;
-                // 빛을 받는 구간은 라이트맵이 있을 때만 라이트맵을 곱하는 파이프라인이다(D-291). 라이트맵은 깊이가 없는 뷰에만 선다.
-                const auto bindShading = [&](Bool sdf, Bool lit) {
-                    const GraphicsPipelineHandle pipeline = lit
-                        ? (sdf ? m_litSdfTextPipeline : m_litSpritePipeline)
-                        : sdf
-                        ? (overDepth ? m_sdfTextOverDepthPipeline : m_sdfTextPipeline)
-                        : (overDepth ? m_spriteOverDepthPipeline : m_spritePipeline);
-                    return m_frame.commands->SetGraphicsPipeline(pipeline)
-                        && m_frame.commands->SetVertexBuffer(
-                            1,
-                            sdf ? m_textInstanceBuffers[m_frame.slot] : m_spriteInstanceBuffers[m_frame.slot],
-                            sdf ? static_cast<JBro::UInt32>(sizeof(GpuTextInstance))
-                                : static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)),
-                            0)
-                        && m_frame.commands->SetGraphicsConstants(constants);
-                };
-                const auto litOf = [&](const SpriteRun& run) {
-                    return run.lit && lightMap.IsValid();
-                };
-                const Bool firstSdf = view.spriteRunCount != 0 && m_spriteRuns[view.spriteRunOffset].sdf;
-                const Bool firstLit = view.spriteRunCount != 0 && litOf(m_spriteRuns[view.spriteRunOffset]);
-                if (false == bindShading(firstSdf, firstLit)
-                    || false == m_frame.commands->SetVertexBuffer(
-                        0,
-                        m_spriteVertexBuffer,
-                        static_cast<JBro::UInt32>(sizeof(float) * 2),
-                        0)
-                    || false == m_frame.commands->SetIndexBuffer(
-                        m_spriteIndexBuffer,
-                        IndexFormat::UInt16,
-                        0))
-                {
-                    return false;
-                }
-                Bool boundSdf = firstSdf;
-                Bool boundLit = firstLit;
-                // **레이어 묶음은 제 텍스처에 그렸다 얹는다**(D-279). 묶음에 들어가면 타깃의 패스를 닫고 레이어 텍스처를 투명하게 지운
-                // 패스를 열고, 나오면 그 텍스처를 타깃에 얹는다. 패스를 바꾸면 묶어 둔 것이 풀리므로 다시 묶는다. 깊이가 달린 뷰는
-                // 패스를 끊으면 깊이를 다시 실어야 해서 묶음을 보지 않는다.
-                const auto bindAll = [&](Bool sdf, Bool lit) {
-                    return bindShading(sdf, lit)
-                        && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
-                        && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0);
-                };
-                const auto openPass = [&](TextureHandle output, LoadOperation load) {
-                    ColorAttachmentDesc color;
-                    color.texture = output;
-                    color.loadOperation = load;
-                    color.storeOperation = StoreOperation::Store;
-                    color.clearColor = {0.0f, 0.0f, 0.0f, 0.0f};
-                    RenderPassDesc desc;
-                    desc.colorAttachments = {&color, 1};
-                    if (false == m_frame.commands->BeginRenderPass(desc))
-                    {
-                        return false;
-                    }
-                    m_frame.commands->SetViewport(viewport);
-                    m_frame.commands->SetScissor(scissor);
-                    return true;
-                };
-                UInt32 activeGroup = NoLayerGroup;
-                // 텍스처가 없어 그대로 그리는 묶음이다. 묶음 하나가 구간 여럿이어도 한 번만 센다.
-                UInt32 plainGroup = NoLayerGroup;
-                TextureHandle layerTexture;
-                Bool rebind = false;
-                for (UInt32 runIndex = 0; runIndex < view.spriteRunCount; ++runIndex)
-                {
-                    const SpriteRun& run = m_spriteRuns[view.spriteRunOffset + runIndex];
-                    const UInt32 group = withDepth || composited ? NoLayerGroup : run.layerGroup;
-                    if (group != activeGroup)
-                    {
-                        if (activeGroup != NoLayerGroup)
-                        {
-                            m_frame.commands->EndRenderPass();
-                            if (false == RecordLayerComposite(m_layerGroups[activeGroup], layerTexture, target, extent, viewport, scissor))
-                            {
-                                return false;
-                            }
-                            rebind = true;
-                            activeGroup = NoLayerGroup;
-                        }
-                        if (group != NoLayerGroup && group != plainGroup)
-                        {
-                            layerTexture = FindLayerTarget(extent);
-                            if (static_cast<JBro::UInt32>(m_layerGroups[group].blend) >= FirstBackdropBlend)
-                            {
-                                FindLayerTarget(extent, LayerTargetRole::Backdrop);
-                            }
-                            if (layerTexture.IsValid())
-                            {
-                                m_frame.commands->EndRenderPass();
-                                if (false == openPass(layerTexture, LoadOperation::Clear))
-                                {
-                                    return false;
-                                }
-                                rebind = true;
-                                activeGroup = group;
-                            }
-                            else
-                            {
-                                ++m_currentStats.uncompositedLayerCount;
-                                plainGroup = group;
-                            }
-                        }
-                    }
-                    const Bool runLit = litOf(run);
-                    if (rebind)
-                    {
-                        if (false == bindAll(run.sdf, runLit))
-                        {
-                            return false;
-                        }
-                        boundSdf = run.sdf;
-                        boundLit = runLit;
-                        rebind = false;
-                    }
-                    if (run.sdf != boundSdf || runLit != boundLit)
-                    {
-                        if (false == bindShading(run.sdf, runLit))
-                        {
-                            return false;
-                        }
-                        boundSdf = run.sdf;
-                        boundLit = runLit;
-                    }
-                    if ((runLit && false == m_frame.commands->SetTexture(1, lightMap))
-                        || false == m_frame.commands->SetTexture(0, run.texture)
-                        || false == m_frame.commands->SetSampler(0, run.sampler)
-                        || false == m_frame.commands->DrawIndexedInstanced(
-                            6,
-                            run.instanceCount,
-                            0,
-                            0,
-                            run.firstInstance))
-                    {
-                        return false;
-                    }
-                }
-                if (activeGroup != NoLayerGroup)
-                {
-                    m_frame.commands->EndRenderPass();
-                    if (false == RecordLayerComposite(m_layerGroups[activeGroup], layerTexture, target, extent, viewport, scissor))
-                    {
-                        return false;
-                    }
-                }
-                if (withDepth || composited)
-                {
-                    // 3D 뷰와 통째로 얹는 뷰의 묶음은 그대로 그렸다. 그렇다고 센다.
-                    for (UInt32 at = 0; at < view.layerGroupCount; ++at)
-                    {
-                        const LayerGroup& group = m_layerGroups[view.layerGroupOffset + at];
-                        if (group.endSprite > group.firstSprite)
-                        {
-                            ++m_currentStats.uncompositedLayerCount;
-                        }
-                    }
-                }
-            }
-
-            if (withDepth && view.runCount != 0)
-            {
-                const Matrix4x4 viewProjection = Multiply(
-                    view.camera.projection,
-                    view.camera.view);
-                const JArrayView<std::byte> constants = {
-                    reinterpret_cast<const std::byte*>(viewProjection.values),
-                    static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
-                if (false == m_frame.commands->SetGraphicsPipeline(m_meshPipeline)
-                    || false == m_frame.commands->SetVertexBuffer(
-                        1, m_meshInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
-                    || false == m_frame.commands->SetGraphicsConstants(constants))
-                {
-                    return false;
-                }
-                // 메시 종류마다 한 드로우다(D-110). 업로드가 같은 메시를 이어 놓았다.
-                for (UInt32 at = 0; at < view.runCount; ++at)
-                {
-                    const MeshRun& run = m_meshRuns[view.runOffset + at];
-                    const MeshResource* mesh = FindMesh(run.mesh);
-                    if (mesh == nullptr)
-                    {
-                        // 업로드와 기록 사이에 사라질 길은 없지만, 있다면 업로드와 같은 정책이다: 그 묶음만 건너뛴다.
-                        m_currentStats.droppedMeshCount += run.instanceCount;
-                        continue;
-                    }
-                    if (false == m_frame.commands->SetVertexBuffer(
-                            0, mesh->vertexBuffer, static_cast<JBro::UInt32>(sizeof(MeshVertex)), 0)
-                        || false == m_frame.commands->SetIndexBuffer(
-                            mesh->indexBuffer, IndexFormat::UInt32, 0)
-                        || false == m_frame.commands->DrawIndexedInstanced(
-                            mesh->indexCount, run.instanceCount, 0, 0, run.firstInstance))
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            // 월드 텍스트는 메시 **뒤**다 - 메시가 쓴 깊이로 가려진다. 파이프라인은 깊이를 보되 쓰지 않는다.
-            if (withDepth && view.worldTextRunCount != 0)
-            {
-                const Matrix4x4 viewProjection = Multiply(
-                    view.camera.projection,
-                    view.camera.view);
-                const JArrayView<std::byte> constants = {
-                    reinterpret_cast<const std::byte*>(viewProjection.values),
-                    static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
-                if (false == m_frame.commands->SetGraphicsPipeline(m_worldTextPipeline)
-                    || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
-                    || false == m_frame.commands->SetVertexBuffer(
-                        1, m_worldTextInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuWorldTextInstance)), 0)
-                    || false == m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
-                    || false == m_frame.commands->SetGraphicsConstants(constants))
-                {
-                    return false;
-                }
-                for (UInt32 runIndex = 0; runIndex < view.worldTextRunCount; ++runIndex)
-                {
-                    const SpriteRun& run = m_worldTextRuns[view.worldTextRunOffset + runIndex];
-                    if (false == m_frame.commands->SetTexture(0, run.texture)
-                        || false == m_frame.commands->SetSampler(0, run.sampler)
-                        || false == m_frame.commands->DrawIndexedInstanced(6, run.instanceCount, 0, 0, run.firstInstance))
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            m_frame.commands->EndRenderPass();
-
-            if (composited)
-            {
-                LayerGroup whole;
-                whole.blend = view.camera.composite;
-                whole.opacity = view.camera.compositeOpacity;
-                if (false == RecordLayerComposite(whole, viewLayer, target, extent, viewport, scissor))
-                {
-                    return false;
-                }
-                m_frame.commands->EndRenderPass();
-            }
-
-            if (view.camera.outlineMask.IsValid() && view.camera.outlineScratch.IsValid() && view.camera.outlineWidth != 0
-                && false == RecordOutline(view.camera, target, extent))
+        // **라이트맵을 먼저 그린다**(D-291). 빛을 받는 스프라이트가 있고 라이트를 받은 뷰만이다. 타깃과 같은 크기의 RGBA16F 이고, 빛을 받는
+        // 구간이 제 픽셀 자리에서 읽어 곱한다 - 따로 합성하지 않으므로 레이어 묶음 안에서도 같다. 처음 보는 크기는 이 프레임에 빛 없이
+        // 그리고 다음 프레임 전에 선다. 깊이가 달린 뷰(3D)는 라이팅을 보지 않는다.
+        RenderGraphTexture lightMap;
+        if (view.hasLitRun && view.lighting && false == depthWork && m_light2DPipeline.IsValid())
+        {
+            lightMap = m_graph.CreateTexture({extent, TextureFormat::RGBA16Float, TextureUsage::RenderTarget | TextureUsage::Sampled});
+            if (false == AddLightMapPasses(viewIndex, lightMap, extent, viewport, scissor))
             {
                 return false;
             }
         }
 
+        const ClearColor viewClear = {
+            view.camera.clearColor[0], view.camera.clearColor[1], view.camera.clearColor[2], view.camera.clearColor[3]};
+        const ClearColor transparent = {0.0f, 0.0f, 0.0f, 0.0f};
+        const LoadOperation targetLoad = alreadyCleared ? LoadOperation::Load : LoadOperation::Clear;
+        // 레이어를 그려 둘 텍스처와 아래 그림의 사본은 타깃에 얹거나 타깃을 복사하는 자리라 백버퍼 포맷이다.
+        const TransientTextureDesc layerDesc = {
+            extent, m_config.backBufferFormat, TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination};
+
+        SpritePassData sprites;
+        sprites.renderer = this;
+        sprites.viewport = viewport;
+        sprites.scissor = scissor;
+        sprites.view = viewIndex;
+        sprites.lightMap = lightMap;
+        sprites.depth = depth;
+        const UInt32 runBegin = view.spriteRunOffset;
+        const UInt32 runEnd = view.spriteRunOffset + view.spriteRunCount;
+
+        // 스프라이트 구간 하나를 그리는 패스를 더한다. 라이트맵은 선택으로 읽고 깊이는 선택으로 단다.
+        const auto addSpritePass = [&](const char* name, RenderGraphTexture output, LoadOperation load, const ClearColor& clear,
+                                       const SpritePassData& data) -> RenderGraphPass {
+            const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, name, &Renderer::ExecuteSprites);
+            if (false == m_graph.SetColorAttachment(pass, output, load, clear)
+                || (data.depth.IsValid()
+                    && false == m_graph.SetDepthAttachment(pass, data.depth, LoadOperation::Clear, StoreOperation::Discard, true))
+                || (data.lightMap.IsValid() && false == m_graph.Read(pass, data.lightMap, true))
+                || false == m_graph.SetPassData(pass, data))
+            {
+                return {};
+            }
+            return pass;
+        };
+
+        // **뷰를 통째로 얹는 경우**(D-280, 3D 레이어). 그릴 곳이 타깃이 아니라 레이어 텍스처다. 이 뷰 안의 스프라이트 묶음은 보지 않는다.
+        // 텍스처가 아직 없는 크기면 타깃에 그대로 그린다(대신 그리기).
+        const Bool wantsComposite = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
+        if (wantsComposite)
+        {
+            const RenderGraphTexture viewLayer = m_graph.CreateTexture(layerDesc);
+            // 아래 그림을 읽는 블렌드면 사본 자리도 같은 프레임에 바란다 - 그래야 둘째 프레임부터 제 식으로 얹힌다(D-283).
+            const RenderGraphTexture backdrop = static_cast<JBro::UInt32>(view.camera.composite) >= FirstBackdropBlend
+                ? m_graph.CreateTexture(layerDesc)
+                : RenderGraphTexture{};
+            if (false == alreadyCleared)
+            {
+                // 이 타깃의 첫 뷰다. 레이어 텍스처에 그리더라도 타깃은 지워야 지난 프레임이 비치지 않는다.
+                const RenderGraphPass clear = m_graph.AddPass(RenderGraphPassKind::Raster, "ViewClear", &Renderer::ExecuteNothing);
+                if (false == m_graph.SetColorAttachment(clear, target, LoadOperation::Clear, viewClear)
+                    || false == m_graph.RunIfAvailable(clear, viewLayer))
+                {
+                    return false;
+                }
+            }
+            SpritePassData whole = sprites;
+            whole.firstRun = runBegin;
+            whole.endRun = runEnd;
+            whole.drawDepthWork = true;
+            whole.countView = true;
+            if (false == addSpritePass("ViewLayer", viewLayer, LoadOperation::Clear, transparent, whole).IsValid())
+            {
+                return false;
+            }
+            whole.uncomposited = true;
+            const RenderGraphPass direct = addSpritePass("ViewDirect", target, targetLoad, viewClear, whole);
+            if (false == direct.IsValid() || false == m_graph.RunIfMissing(direct, viewLayer)
+                || false == AddCompositePasses(viewLayer, backdrop, target, view.camera.composite, view.camera.compositeOpacity, viewport,
+                    scissor))
+            {
+                return false;
+            }
+        }
+        else if (depthWork)
+        {
+            // 깊이가 달린 뷰는 패스를 끊으면 깊이를 다시 실어야 해서 레이어 묶음을 보지 않고 그대로 그린다.
+            SpritePassData whole = sprites;
+            whole.firstRun = runBegin;
+            whole.endRun = runEnd;
+            whole.drawDepthWork = true;
+            whole.countView = true;
+            if (false == addSpritePass("View", target, targetLoad, viewClear, whole).IsValid())
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // **레이어 묶음은 제 텍스처에 그렸다 얹는다**(D-279). 묶음 밖의 구간은 타깃에 바로 그리고, 묶음마다 레이어 텍스처를 투명하게
+            // 지워 그린 뒤 타깃에 얹는다. 첫 구간 패스는 비어 있어도 둔다 - 타깃을 지우는 자리다.
+            UInt32 run = runBegin;
+            UInt32 segmentEnd = run;
+            while (segmentEnd < runEnd && m_spriteRuns[segmentEnd.Get()].layerGroup == NoLayerGroup)
+            {
+                ++segmentEnd;
+            }
+            SpritePassData segment = sprites;
+            segment.firstRun = run;
+            segment.endRun = segmentEnd;
+            segment.countView = true;
+            if (false == addSpritePass("View", target, targetLoad, viewClear, segment).IsValid())
+            {
+                return false;
+            }
+            run = segmentEnd;
+            while (run < runEnd)
+            {
+                const UInt32 group = m_spriteRuns[run.Get()].layerGroup;
+                UInt32 end = run;
+                while (end < runEnd && m_spriteRuns[end.Get()].layerGroup == group)
+                {
+                    ++end;
+                }
+                SpritePassData part = sprites;
+                part.firstRun = run;
+                part.endRun = end;
+                if (group == NoLayerGroup)
+                {
+                    if (false == addSpritePass("View", target, LoadOperation::Load, viewClear, part).IsValid())
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    const LayerGroup& layerGroup = m_layerGroups[group.Get()];
+                    const RenderGraphTexture layer = m_graph.CreateTexture(layerDesc);
+                    const RenderGraphTexture backdrop = static_cast<JBro::UInt32>(layerGroup.blend) >= FirstBackdropBlend
+                        ? m_graph.CreateTexture(layerDesc)
+                        : RenderGraphTexture{};
+                    if (false == addSpritePass("Layer", layer, LoadOperation::Clear, transparent, part).IsValid())
+                    {
+                        return false;
+                    }
+                    // 텍스처가 없는 묶음은 그대로 그린다. 그 크기의 텍스처는 다음 프레임을 열 때 생긴다.
+                    part.uncomposited = true;
+                    const RenderGraphPass direct = addSpritePass("LayerDirect", target, LoadOperation::Load, viewClear, part);
+                    if (false == direct.IsValid() || false == m_graph.RunIfMissing(direct, layer)
+                        || false == AddCompositePasses(layer, backdrop, target, layerGroup.blend, layerGroup.opacity, viewport, scissor))
+                    {
+                        return false;
+                    }
+                }
+                run = end;
+            }
+        }
+
+        // **이 뷰를 다 그린 뒤 마스크의 둘레를 덧그린다**(D-276). 마스크와 사본 자리는 에디터가 준 텍스처다.
+        if (view.camera.outlineMask.IsValid() && view.camera.outlineScratch.IsValid() && view.camera.outlineWidth != 0)
+        {
+            const RenderGraphTexture mask = m_graph.ImportTexture(view.camera.outlineMask);
+            const RenderGraphTexture scratch = m_graph.ImportTexture(view.camera.outlineScratch);
+            OutlinePassData outline;
+            outline.renderer = this;
+            for (Int32 channel = 0; channel < 4; ++channel)
+            {
+                outline.color[channel] = view.camera.outlineColor[channel];
+            }
+            outline.width = view.camera.outlineWidth;
+            outline.extent = extent;
+            // 첫 패스는 마스크를 가로로 키워 사본에 덮어쓰고, 둘째 패스는 사본을 세로로 키우며 마스크 밖의 둘레만 타깃에 칠한다.
+            // 둘째 패스만 마스크를 t1 로도 읽는다. 두 셰이더 모두 `Load` 로만 읽어 샘플러를 묶지 않고, 첫째 프로그램은 텍스처 하나만
+            // 선언한다(매니페스트, D-329 - 반사 시험이 찾았다).
+            outline.first = mask;
+            const RenderGraphPass grow = m_graph.AddPass(RenderGraphPassKind::Raster, "OutlineGrow", &Renderer::ExecuteOutline);
+            if (false == m_graph.SetColorAttachment(grow, scratch, LoadOperation::Clear, transparent) || false == m_graph.Read(grow, mask)
+                || false == m_graph.SetPassData(grow, outline))
+            {
+                return false;
+            }
+            outline.first = scratch;
+            outline.second = mask;
+            outline.composite = true;
+            const RenderGraphPass edge = m_graph.AddPass(RenderGraphPassKind::Raster, "Outline", &Renderer::ExecuteOutline);
+            if (false == m_graph.SetColorAttachment(edge, target, LoadOperation::Load) || false == m_graph.Read(edge, scratch)
+                || false == m_graph.Read(edge, mask) || false == m_graph.SetPassData(edge, outline))
+            {
+                return false;
+            }
+        }
         return true;
     }
 
-    Bool Renderer::RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent)
+    Bool Renderer::AddCompositePasses(RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target, CompositeBlend blend,
+        Float opacity, const Viewport& viewport, const ScissorRect& scissor)
     {
-        // 화면을 덮는 사각형 하나씩 두 번이다(D-276). 단위 쿼드를 두 배로 펴서 쓴다 - 정점 버퍼를 따로 두지 않는다.
+        // 아래 그림을 읽는 블렌드는 레이어를 얹기 직전의 타깃을 사본에 복사해 두고, 셰이더가 둘을 섞어 그 자리를 덮어쓴다(D-283).
+        if (backdrop.IsValid())
+        {
+            CopyPassData copy;
+            copy.source = target;
+            copy.destination = backdrop;
+            const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Copy, "Backdrop", &Renderer::ExecuteCopy);
+            if (false == m_graph.ReadCopySource(pass, target) || false == m_graph.WriteCopyDestination(pass, backdrop)
+                || false == m_graph.RunIfAvailable(pass, layer) || false == m_graph.SetPassData(pass, copy))
+            {
+                return false;
+            }
+        }
+        CompositePassData composite;
+        composite.renderer = this;
+        composite.viewport = viewport;
+        composite.scissor = scissor;
+        composite.layer = layer;
+        composite.backdrop = backdrop;
+        composite.blend = blend;
+        composite.opacity = opacity;
+        const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, "Composite", &Renderer::ExecuteComposite);
+        return m_graph.SetColorAttachment(pass, target, LoadOperation::Load) && m_graph.Read(pass, layer)
+            && (false == backdrop.IsValid() || m_graph.Read(pass, backdrop, true)) && m_graph.SetPassData(pass, composite);
+    }
+
+    Bool Renderer::AddLightMapPasses(UInt32 viewIndex, RenderGraphTexture lightMap, const Extent2D& extent, const Viewport& viewport,
+        const ScissorRect& scissor)
+    {
+        const ViewPacket& view = m_views[viewIndex.Get()];
+        LightPassData light;
+        light.renderer = this;
+        light.viewport = viewport;
+        light.scissor = scissor;
+        light.view = viewIndex;
+        // 환경광으로 지우고 그림자 없는 라이트를 한 번에 더한다. 알파는 읽지 않는다.
+        const RenderGraphPass ambient = m_graph.AddPass(RenderGraphPassKind::Raster, "LightMap", &Renderer::ExecuteLightMap);
+        if (false == m_graph.SetColorAttachment(ambient, lightMap, LoadOperation::Clear, {view.ambient[0], view.ambient[1], view.ambient[2], 0.0f})
+            || false == m_graph.SetPassData(ambient, light))
+        {
+            return false;
+        }
+        // **그림자를 드리우는 라이트는 하나씩이다**(D-291 3 단계). 마스크를 지우고 그 라이트에서 이 뷰의 변을 밀어내 칠한 뒤, 마스크로 깎으며 그 라이트
+        // 하나를 라이트맵에 더한다. 마스크는 라이트마다 그래프 텍스처이고 수명이 겹치지 않아 실제 텍스처 하나를 나눠 쓴다. 마스크가 아직 없는 크기는
+        // 그 프레임에 그림자 없이 더한다(대신 그리기).
+        const UInt32 shadowedBegin = view.lightOffset + view.plainLightCount;
+        const UInt32 shadowedEnd = view.lightOffset + view.lightCount;
+        for (std::size_t at = 0; at < m_shadowedLights.Size(); ++at)
+        {
+            const ShadowedLight& shadowed = m_shadowedLights[at];
+            if (shadowed.instance < shadowedBegin || shadowed.instance >= shadowedEnd)
+            {
+                continue;
+            }
+            const RenderGraphTexture mask =
+                m_graph.CreateTexture({extent, TextureFormat::RGBA16Float, TextureUsage::RenderTarget | TextureUsage::Sampled});
+            light.shadowedLight = static_cast<JBro::UInt32>(at);
+            light.mask = mask;
+            const RenderGraphPass maskPass = m_graph.AddPass(RenderGraphPassKind::Raster, "ShadowMask", &Renderer::ExecuteShadowMask);
+            if (false == m_graph.SetColorAttachment(maskPass, mask, LoadOperation::Clear, {0.0f, 0.0f, 0.0f, 0.0f})
+                || false == m_graph.SetPassData(maskPass, light))
+            {
+                return false;
+            }
+            const RenderGraphPass shadowedPass =
+                m_graph.AddPass(RenderGraphPassKind::Raster, "ShadowedLight", &Renderer::ExecuteShadowedLight);
+            if (false == m_graph.SetColorAttachment(shadowedPass, lightMap, LoadOperation::Load) || false == m_graph.Read(shadowedPass, mask)
+                || false == m_graph.SetPassData(shadowedPass, light))
+            {
+                return false;
+            }
+            const RenderGraphPass plainPass = m_graph.AddPass(RenderGraphPassKind::Raster, "Light", &Renderer::ExecuteUnshadowedLight);
+            if (false == m_graph.SetColorAttachment(plainPass, lightMap, LoadOperation::Load) || false == m_graph.RunIfMissing(plainPass, mask)
+                || false == m_graph.SetPassData(plainPass, light))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    Bool Renderer::DrawSpriteRuns(IRHICommandContext& commands, const ViewPacket& view, UInt32 firstRun, UInt32 endRun,
+        TextureHandle lightMap, Bool overDepth)
+    {
+        if (firstRun >= endRun)
+        {
+            return true;
+        }
+        const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+        const JArrayView<std::byte> constants = {
+            reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
+        // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
+        // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다.
+        // 빛을 받는 구간은 라이트맵이 있을 때만 라이트맵을 곱하는 파이프라인이다(D-291). 라이트맵은 깊이가 없는 뷰에만 선다.
+        const auto bindShading = [&](Bool sdf, Bool lit) {
+            const GraphicsPipelineHandle pipeline = lit
+                ? (sdf ? m_litSdfTextPipeline : m_litSpritePipeline)
+                : sdf
+                ? (overDepth ? m_sdfTextOverDepthPipeline : m_sdfTextPipeline)
+                : (overDepth ? m_spriteOverDepthPipeline : m_spritePipeline);
+            return commands.SetGraphicsPipeline(pipeline)
+                && commands.SetVertexBuffer(
+                    1,
+                    sdf ? m_textInstanceBuffers[m_frame.slot] : m_spriteInstanceBuffers[m_frame.slot],
+                    sdf ? static_cast<JBro::UInt32>(sizeof(GpuTextInstance)) : static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)),
+                    0)
+                && commands.SetGraphicsConstants(constants);
+        };
+        const auto litOf = [&](const SpriteRun& run) {
+            return run.lit && lightMap.IsValid();
+        };
+        Bool boundSdf = m_spriteRuns[firstRun.Get()].sdf;
+        Bool boundLit = litOf(m_spriteRuns[firstRun.Get()]);
+        if (false == bindShading(boundSdf, boundLit)
+            || false == commands.SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+            || false == commands.SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0))
+        {
+            return false;
+        }
+        for (UInt32 runIndex = firstRun; runIndex < endRun; ++runIndex)
+        {
+            const SpriteRun& run = m_spriteRuns[runIndex.Get()];
+            const Bool runLit = litOf(run);
+            if (run.sdf != boundSdf || runLit != boundLit)
+            {
+                if (false == bindShading(run.sdf, runLit))
+                {
+                    return false;
+                }
+                boundSdf = run.sdf;
+                boundLit = runLit;
+            }
+            if ((runLit && false == commands.SetTexture(1, lightMap))
+                || false == commands.SetTexture(0, run.texture)
+                || false == commands.SetSampler(0, run.sampler)
+                || false == commands.DrawIndexedInstanced(6, run.instanceCount, 0, 0, run.firstInstance))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    Bool Renderer::ExecuteNothing(RenderGraphContext&, const void*)
+    {
+        // 지우기만 하는 패스다. 지우는 것은 그래프가 패스를 열 때 첨부의 `Clear` 로 한다.
+        return true;
+    }
+
+    Bool Renderer::ExecuteSprites(RenderGraphContext& context, const void* data)
+    {
+        const SpritePassData& pass = *static_cast<const SpritePassData*>(data);
+        Renderer& renderer = *pass.renderer;
+        const ViewPacket& view = renderer.m_views[pass.view.Get()];
+        IRHICommandContext& commands = context.GetCommands();
+        commands.SetViewport(pass.viewport);
+        commands.SetScissor(pass.scissor);
+
+        const Bool depthWork = view.runCount != 0 || view.worldTextRunCount != 0;
+        const Bool withDepth = context.GetTexture(pass.depth).IsValid();
+        const TextureHandle lightMap = context.HasTexture(pass.lightMap) ? context.GetTexture(pass.lightMap) : TextureHandle{};
+        if (pass.countView)
+        {
+            if (view.hasLitRun && view.lighting && false == lightMap.IsValid())
+            {
+                ++renderer.m_currentStats.viewsWithoutLightMapCount;
+            }
+            if (depthWork && false == withDepth)
+            {
+                ++renderer.m_currentStats.viewsWithoutDepthCount;
+            }
+            // 3D 뷰와 통째로 얹는 뷰의 묶음은 그대로 그렸다. 그렇다고 센다.
+            const Bool wholeView = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
+            if (depthWork || wholeView)
+            {
+                for (UInt32 at = 0; at < view.layerGroupCount; ++at)
+                {
+                    const LayerGroup& group = renderer.m_layerGroups[(view.layerGroupOffset + at).Get()];
+                    if (group.endSprite > group.firstSprite)
+                    {
+                        ++renderer.m_currentStats.uncompositedLayerCount;
+                    }
+                }
+            }
+        }
+        if (pass.uncomposited)
+        {
+            ++renderer.m_currentStats.uncompositedLayerCount;
+        }
+
+        if (view.spriteCount != 0 && false == renderer.DrawSpriteRuns(commands, view, pass.firstRun, pass.endRun, lightMap, withDepth))
+        {
+            return false;
+        }
+        if (false == pass.drawDepthWork || false == withDepth)
+        {
+            return true;
+        }
+
+        const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+        const JArrayView<std::byte> constants = {
+            reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
+        if (view.runCount != 0)
+        {
+            if (false == commands.SetGraphicsPipeline(renderer.m_meshPipeline)
+                || false == commands.SetVertexBuffer(
+                    1, renderer.m_meshInstanceBuffers[renderer.m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
+                || false == commands.SetGraphicsConstants(constants))
+            {
+                return false;
+            }
+            // 메시 종류마다 한 드로우다(D-110). 업로드가 같은 메시를 이어 놓았다.
+            for (UInt32 at = 0; at < view.runCount; ++at)
+            {
+                const MeshRun& run = renderer.m_meshRuns[(view.runOffset + at).Get()];
+                const MeshResource* mesh = renderer.FindMesh(run.mesh);
+                if (mesh == nullptr)
+                {
+                    // 업로드와 기록 사이에 사라질 길은 없지만, 있다면 업로드와 같은 정책이다: 그 묶음만 건너뛴다.
+                    renderer.m_currentStats.droppedMeshCount += run.instanceCount;
+                    continue;
+                }
+                if (false == commands.SetVertexBuffer(0, mesh->vertexBuffer, static_cast<JBro::UInt32>(sizeof(MeshVertex)), 0)
+                    || false == commands.SetIndexBuffer(mesh->indexBuffer, IndexFormat::UInt32, 0)
+                    || false == commands.DrawIndexedInstanced(mesh->indexCount, run.instanceCount, 0, 0, run.firstInstance))
+                {
+                    return false;
+                }
+            }
+        }
+
+        // 월드 텍스트는 메시 **뒤**다 - 메시가 쓴 깊이로 가려진다. 파이프라인은 깊이를 보되 쓰지 않는다.
+        if (view.worldTextRunCount != 0)
+        {
+            if (false == commands.SetGraphicsPipeline(renderer.m_worldTextPipeline)
+                || false == commands.SetVertexBuffer(0, renderer.m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+                || false == commands.SetVertexBuffer(1, renderer.m_worldTextInstanceBuffers[renderer.m_frame.slot],
+                    static_cast<JBro::UInt32>(sizeof(GpuWorldTextInstance)), 0)
+                || false == commands.SetIndexBuffer(renderer.m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+                || false == commands.SetGraphicsConstants(constants))
+            {
+                return false;
+            }
+            for (UInt32 runIndex = 0; runIndex < view.worldTextRunCount; ++runIndex)
+            {
+                const SpriteRun& run = renderer.m_worldTextRuns[(view.worldTextRunOffset + runIndex).Get()];
+                if (false == commands.SetTexture(0, run.texture)
+                    || false == commands.SetSampler(0, run.sampler)
+                    || false == commands.DrawIndexedInstanced(6, run.instanceCount, 0, 0, run.firstInstance))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    Bool Renderer::ExecuteComposite(RenderGraphContext& context, const void* data)
+    {
+        // 화면을 덮는 사각형 하나다. 레이어 텍스처는 미리 곱한 색이라 `Layer*` 블렌드로 얹고, 불투명도는 색과 알파에 함께 곱한다.
+        // 아래 그림을 읽는 블렌드는 앞의 복사 패스가 채운 사본과 섞어 그 자리를 덮어쓴다(D-283). 사본 자리가 아직 없으면 표준으로 얹는다.
+        const CompositePassData& pass = *static_cast<const CompositePassData*>(data);
+        Renderer& renderer = *pass.renderer;
+        IRHICommandContext& commands = context.GetCommands();
+        const UInt32 blend = static_cast<JBro::UInt32>(pass.blend);
+        GraphicsPipelineHandle pipeline = renderer.m_layerCompositePipelines[(blend < FirstBackdropBlend ? blend : UInt32(0)).Get()];
+        TextureHandle backdrop;
+        if (blend >= FirstBackdropBlend && blend < CompositeBlendCount)
+        {
+            if (context.HasTexture(pass.backdrop))
+            {
+                backdrop = context.GetTexture(pass.backdrop);
+                pipeline = renderer.m_layerBackdropPipeline;
+            }
+            else
+            {
+                // 복사할 자리가 다음 프레임에 선다. 이 프레임은 표준으로 얹는다.
+                ++renderer.m_currentStats.uncompositedLayerCount;
+            }
+        }
+        const Float constants[4] = {
+            pass.opacity, backdrop.IsValid() ? static_cast<JBro::Float>(blend - FirstBackdropBlend) : Float(0.0f), 0.0f, 0.0f};
+        commands.SetViewport(pass.viewport);
+        commands.SetScissor(pass.scissor);
+        if (false == commands.SetGraphicsPipeline(pipeline)
+            || false == commands.SetGraphicsConstants(
+                {reinterpret_cast<const std::byte*>(constants), static_cast<JBro::UInt32>(sizeof(constants))})
+            || false == commands.SetVertexBuffer(0, renderer.m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+            || false == commands.SetIndexBuffer(renderer.m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+            || false == commands.SetTexture(0, context.GetTexture(pass.layer))
+            || (backdrop.IsValid() && false == commands.SetTexture(1, backdrop))
+            || false == commands.DrawIndexedInstanced(6, 1, 0, 0, 0))
+        {
+            return false;
+        }
+        ++renderer.m_currentStats.compositedLayerCount;
+        return true;
+    }
+
+    Bool Renderer::ExecuteCopy(RenderGraphContext& context, const void* data)
+    {
+        const CopyPassData& pass = *static_cast<const CopyPassData*>(data);
+        return context.GetCommands().CopyTexture(context.GetTexture(pass.source), context.GetTexture(pass.destination));
+    }
+
+    Bool Renderer::ExecuteOutline(RenderGraphContext& context, const void* data)
+    {
+        // 화면을 덮는 사각형 하나다(D-276). 단위 쿼드를 두 배로 펴서 쓴다 - 정점 버퍼를 따로 두지 않는다.
+        const OutlinePassData& pass = *static_cast<const OutlinePassData*>(data);
+        Renderer& renderer = *pass.renderer;
+        IRHICommandContext& commands = context.GetCommands();
         struct OutlineConstants
         {
             Float color[4];
@@ -1636,195 +1705,22 @@ namespace JBro
         OutlineConstants constants = {};
         for (Int32 channel = 0; channel < 4; ++channel)
         {
-            constants.color[channel] = camera.outlineColor[channel];
+            constants.color[channel] = pass.color[channel];
         }
-        constants.params[0] = static_cast<JBro::Float>(camera.outlineWidth);
-        const JArrayView<std::byte> bytes = {reinterpret_cast<const std::byte*>(&constants), static_cast<JBro::UInt32>(sizeof(constants))};
+        constants.params[0] = static_cast<JBro::Float>(pass.width);
         Viewport viewport;
-        viewport.width = static_cast<JBro::Float>(extent.width);
-        viewport.height = static_cast<JBro::Float>(extent.height);
-        const ScissorRect scissor = {0, 0, static_cast<JBro::Int32>(extent.width), static_cast<JBro::Int32>(extent.height)};
-
-        const auto pass = [&](TextureHandle output, LoadOperation load, GraphicsPipelineHandle pipeline,
-                              TextureHandle first, TextureHandle second) -> Bool {
-            ColorAttachmentDesc color;
-            color.texture = output;
-            color.loadOperation = load;
-            color.storeOperation = StoreOperation::Store;
-            color.clearColor = {0.0f, 0.0f, 0.0f, 0.0f};
-            RenderPassDesc desc;
-            desc.colorAttachments = {&color, 1};
-            if (false == m_frame.commands->BeginRenderPass(desc))
-            {
-                return false;
-            }
-            m_frame.commands->SetViewport(viewport);
-            m_frame.commands->SetScissor(scissor);
-            const Bool drawn = m_frame.commands->SetGraphicsPipeline(pipeline)
-                && m_frame.commands->SetGraphicsConstants(bytes)
-                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
-                && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
-                && m_frame.commands->SetTexture(0, first)
-                && (false == second.IsValid() || m_frame.commands->SetTexture(1, second))
-                && m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, 0);
-            m_frame.commands->EndRenderPass();
-            return drawn;
-        };
-        // 둘째 패스만 마스크를 t1 로도 읽는다. 두 셰이더 모두 `Load` 로만 읽어 샘플러를 묶지 않고, 첫째 프로그램은 텍스처 하나만
-        // 선언한다(매니페스트, D-329 - 반사 시험이 찾았다).
-        return pass(camera.outlineScratch, LoadOperation::Clear, m_outlineGrowPipeline, camera.outlineMask, TextureHandle{})
-            && pass(target, LoadOperation::Load, m_outlineCompositePipeline, camera.outlineScratch, camera.outlineMask);
-    }
-
-    Bool Renderer::RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
-        const Viewport& viewport, const ScissorRect& scissor)
-    {
-        // 화면을 덮는 사각형 하나다. 레이어 텍스처는 미리 곱한 색이라 `Layer*` 블렌드로 얹고, 불투명도는 색과 알파에 함께 곱한다.
-        // 아래 그림을 읽는 블렌드는 타깃을 복사해 두고, 셰이더가 둘을 섞어 그 자리를 덮어쓴다(D-283).
-        const UInt32 blend = static_cast<JBro::UInt32>(group.blend);
-        GraphicsPipelineHandle pipeline = m_layerCompositePipelines[blend < FirstBackdropBlend ? blend : UInt32(0)];
-        TextureHandle backdrop;
-        if (blend >= FirstBackdropBlend && blend < CompositeBlendCount)
-        {
-            backdrop = FindLayerTarget(extent, LayerTargetRole::Backdrop);
-            if (backdrop.IsValid() && m_frame.commands->CopyTexture(target, backdrop))
-            {
-                pipeline = m_layerBackdropPipeline;
-            }
-            else
-            {
-                // 복사할 자리가 다음 프레임에 선다. 이 프레임은 표준으로 얹는다.
-                backdrop = {};
-                ++m_currentStats.uncompositedLayerCount;
-            }
-        }
-        const Float constants[4] = {
-            group.opacity, backdrop.IsValid() ? static_cast<JBro::Float>(blend - FirstBackdropBlend) : Float(0.0f), 0.0f, 0.0f};
-        ColorAttachmentDesc color;
-        color.texture = target;
-        color.loadOperation = LoadOperation::Load;
-        color.storeOperation = StoreOperation::Store;
-        RenderPassDesc desc;
-        desc.colorAttachments = {&color, 1};
-        if (false == m_frame.commands->BeginRenderPass(desc))
-        {
-            return false;
-        }
-        m_frame.commands->SetViewport(viewport);
-        m_frame.commands->SetScissor(scissor);
-        if (false == m_frame.commands->SetGraphicsPipeline(pipeline)
-            || false == m_frame.commands->SetGraphicsConstants(
-                {reinterpret_cast<const std::byte*>(constants), static_cast<JBro::UInt32>(sizeof(constants))})
-            || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
-            || false == m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
-            || false == m_frame.commands->SetTexture(0, layer)
-            || (backdrop.IsValid() && false == m_frame.commands->SetTexture(1, backdrop))
-            || false == m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, 0))
-        {
-            return false;
-        }
-        ++m_currentStats.compositedLayerCount;
-        return true;
-    }
-
-    TextureHandle Renderer::FindLayerTarget(const Extent2D& extent, LayerTargetRole role)
-    {
-        for (LayerTarget& slot : m_layerTargets)
-        {
-            if (slot.texture.IsValid() && slot.role == role && slot.extent.width == extent.width && slot.extent.height == extent.height)
-            {
-                slot.idleFrames = 0;
-                return slot.texture;
-            }
-        }
-        for (std::size_t at = 0; at < m_layerTargetWantCount; ++at)
-        {
-            const LayerTargetWant& want = m_layerTargetWants[at];
-            if (want.role == role && want.extent.width == extent.width && want.extent.height == extent.height)
-            {
-                return {};
-            }
-        }
-        if (m_layerTargetWantCount < MaxLayerTargets)
-        {
-            m_layerTargetWants[m_layerTargetWantCount++] = {extent, role};
-        }
-        return {};
-    }
-
-    void Renderer::PrepareLayerTargets()
-    {
-        if (m_device == nullptr)
-        {
-            return;
-        }
-        for (LayerTarget& slot : m_layerTargets)
-        {
-            if (false == slot.texture.IsValid())
-            {
-                continue;
-            }
-            ++slot.idleFrames;
-            if (slot.idleFrames > LayerTargetIdleFrames)
-            {
-                // 디바이스가 은퇴 펜스로 지난 프레임이 다 그린 뒤에 놓는다(깊이 텍스처와 같다).
-                m_device->DestroyTexture(slot.texture);
-                slot = {};
-            }
-        }
-        for (std::size_t want = 0; want < m_layerTargetWantCount; ++want)
-        {
-            // 빈 자리가 없으면 가장 오래 안 쓴 것을 내준다.
-            LayerTarget* chosen = nullptr;
-            for (LayerTarget& slot : m_layerTargets)
-            {
-                if (false == slot.texture.IsValid())
-                {
-                    chosen = &slot;
-                    break;
-                }
-                if (chosen == nullptr || slot.idleFrames > chosen->idleFrames)
-                {
-                    chosen = &slot;
-                }
-            }
-            if (chosen->texture.IsValid())
-            {
-                m_device->DestroyTexture(chosen->texture);
-                *chosen = {};
-            }
-            TextureDesc desc;
-            desc.extent = m_layerTargetWants[want].extent;
-            const LayerTargetRole role = m_layerTargetWants[want].role;
-            const Bool lightMap = role == LayerTargetRole::LightMap;
-            const Bool shadowMask = role == LayerTargetRole::ShadowMask;
-            // 라이트맵은 1 을 넘는 빛을 담는다(D-291). 그림자 마스크는 0 과 1 뿐이다. 나머지는 타깃에 얹거나 타깃을 복사해 두는 자리라 백버퍼 포맷이다.
-            desc.format = lightMap || shadowMask ? TextureFormat::RGBA16Float : m_config.backBufferFormat;
-            desc.usage = lightMap || shadowMask ? TextureUsage::RenderTarget | TextureUsage::Sampled
-                                                : TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
-            chosen->texture = m_device->CreateTexture(desc);
-            chosen->extent = chosen->texture.IsValid() ? desc.extent : Extent2D{};
-            chosen->role = m_layerTargetWants[want].role;
-            chosen->idleFrames = 0;
-        }
-        m_layerTargetWantCount = 0;
-    }
-
-    void Renderer::DestroyLayerTargets()
-    {
-        if (m_device == nullptr)
-        {
-            return;
-        }
-        for (LayerTarget& slot : m_layerTargets)
-        {
-            if (slot.texture.IsValid())
-            {
-                m_device->DestroyTexture(slot.texture);
-            }
-            slot = {};
-        }
-        m_layerTargetWantCount = 0;
+        viewport.width = static_cast<JBro::Float>(pass.extent.width);
+        viewport.height = static_cast<JBro::Float>(pass.extent.height);
+        commands.SetViewport(viewport);
+        commands.SetScissor({0, 0, static_cast<JBro::Int32>(pass.extent.width), static_cast<JBro::Int32>(pass.extent.height)});
+        const TextureHandle second = pass.second.IsValid() ? context.GetTexture(pass.second) : TextureHandle{};
+        return commands.SetGraphicsPipeline(pass.composite ? renderer.m_outlineCompositePipeline : renderer.m_outlineGrowPipeline)
+            && commands.SetGraphicsConstants({reinterpret_cast<const std::byte*>(&constants), static_cast<JBro::UInt32>(sizeof(constants))})
+            && commands.SetVertexBuffer(0, renderer.m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+            && commands.SetIndexBuffer(renderer.m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+            && commands.SetTexture(0, context.GetTexture(pass.first))
+            && (false == second.IsValid() || commands.SetTexture(1, second))
+            && commands.DrawIndexedInstanced(6, 1, 0, 0, 0);
     }
 
     Bool Renderer::CreateBuiltinSpriteResources()
@@ -2398,126 +2294,114 @@ namespace JBro
         }
     }
 
-    Bool Renderer::RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Extent2D& extent, const Viewport& viewport,
-        const ScissorRect& scissor)
+    Bool Renderer::ExecuteLightMap(RenderGraphContext& context, const void* data)
     {
-        // 환경광으로 지우고 라이트를 더한다. 알파는 읽지 않는다.
-        ColorAttachmentDesc color;
-        color.texture = lightMap;
-        color.loadOperation = LoadOperation::Clear;
-        color.storeOperation = StoreOperation::Store;
-        color.clearColor = {view.ambient[0], view.ambient[1], view.ambient[2], 0.0f};
-        RenderPassDesc desc;
-        desc.colorAttachments = {&color, 1};
-        if (false == m_frame.commands->BeginRenderPass(desc))
+        // 환경광으로 지운 라이트맵에 그림자 없는 라이트를 한 번에 더한다.
+        const LightPassData& pass = *static_cast<const LightPassData*>(data);
+        Renderer& renderer = *pass.renderer;
+        const ViewPacket& view = renderer.m_views[pass.view.Get()];
+        IRHICommandContext& commands = context.GetCommands();
+        commands.SetViewport(pass.viewport);
+        commands.SetScissor(pass.scissor);
+        ++renderer.m_currentStats.litViewCount;
+        if (view.plainLightCount == 0)
         {
-            return false;
+            return true;
         }
-        m_frame.commands->SetViewport(viewport);
-        m_frame.commands->SetScissor(scissor);
-        Bool drawn = true;
         const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
-        if (view.plainLightCount != 0)
+        return commands.SetGraphicsPipeline(renderer.m_light2DPipeline)
+            && commands.SetGraphicsConstants(
+                {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
+            && commands.SetVertexBuffer(0, renderer.m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+            && commands.SetVertexBuffer(
+                1, renderer.m_lightInstanceBuffers[renderer.m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
+            && commands.SetIndexBuffer(renderer.m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+            && commands.DrawIndexedInstanced(6, view.plainLightCount, 0, 0, view.lightOffset);
+    }
+
+    Bool Renderer::ExecuteShadowMask(RenderGraphContext& context, const void* data)
+    {
+        // 그 라이트에서 이 뷰의 변을 밀어내 마스크에 칠한다.
+        const LightPassData& pass = *static_cast<const LightPassData*>(data);
+        Renderer& renderer = *pass.renderer;
+        const ViewPacket& view = renderer.m_views[pass.view.Get()];
+        const ShadowedLight& light = renderer.m_shadowedLights[pass.shadowedLight.Get()];
+        IRHICommandContext& commands = context.GetCommands();
+        commands.SetViewport(pass.viewport);
+        commands.SetScissor(pass.scissor);
+        struct ShadowConstants
         {
-            drawn = m_frame.commands->SetGraphicsPipeline(m_light2DPipeline)
-                && m_frame.commands->SetGraphicsConstants(
-                    {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
-                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
-                && m_frame.commands->SetVertexBuffer(1, m_lightInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
-                && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
-                && m_frame.commands->DrawIndexedInstanced(6, view.plainLightCount, 0, 0, view.lightOffset);
+            Float viewProjection[16];
+            Float light[4];
+        };
+        const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+        ShadowConstants constants = {};
+        for (Int32 at = 0; at < 16; ++at)
+        {
+            constants.viewProjection[at] = viewProjection.values[at];
         }
-        m_frame.commands->EndRenderPass();
-        if (false == drawn)
+        constants.light[0] = light.position[0];
+        constants.light[1] = light.position[1];
+        // 라이트가 닿는 곳보다 멀리 민다. 변의 끝이 라이트 안쪽에 있어도 바깥 반지름의 두 배면 넘는다.
+        constants.light[2] = light.reach * 2.0f;
+        constants.light[3] = light.softness;
+        if (false == commands.SetGraphicsPipeline(renderer.m_shadowMaskPipeline)
+            || false == commands.SetGraphicsConstants(
+                {reinterpret_cast<const std::byte*>(&constants), static_cast<JBro::UInt32>(sizeof(constants))})
+            || false == commands.SetVertexBuffer(0, renderer.m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+            || false == commands.SetVertexBuffer(
+                1, renderer.m_shadowEdgeBuffers[renderer.m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuShadowEdgeInstance)), 0)
+            || false == commands.SetIndexBuffer(renderer.m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+            || false == commands.DrawIndexedInstanced(6, view.shadowEdgeCount, 0, 0, view.shadowEdgeOffset))
         {
             return false;
         }
-        // **그림자를 드리우는 라이트는 하나씩이다**(D-291 3 단계). 마스크를 지우고 그 라이트에서 이 뷰의 변을 밀어내 칠한 뒤, 마스크로 깎으며 그 라이트
-        // 하나를 라이트맵에 더한다. 마스크가 아직 없는 크기는 그 프레임에 그림자 없이 더한다.
-        const UInt32 shadowedEnd = view.lightOffset + view.lightCount;
-        const TextureHandle mask = view.lightCount > view.plainLightCount ? FindLayerTarget(extent, LayerTargetRole::ShadowMask) : TextureHandle{};
-        for (const ShadowedLight& light : m_shadowedLights)
-        {
-            if (light.instance < view.lightOffset + view.plainLightCount || light.instance >= shadowedEnd)
-            {
-                continue;
-            }
-            if (mask.IsValid())
-            {
-                struct ShadowConstants
-                {
-                    Float viewProjection[16];
-                    Float light[4];
-                };
-                ShadowConstants constants = {};
-                for (Int32 at = 0; at < 16; ++at)
-                {
-                    constants.viewProjection[at] = viewProjection.values[at];
-                }
-                constants.light[0] = light.position[0];
-                constants.light[1] = light.position[1];
-                // 라이트가 닿는 곳보다 멀리 민다. 변의 끝이 라이트 안쪽에 있어도 바깥 반지름의 두 배면 넘는다.
-                constants.light[2] = light.reach * 2.0f;
-                constants.light[3] = light.softness;
-                ColorAttachmentDesc maskColor;
-                maskColor.texture = mask;
-                maskColor.loadOperation = LoadOperation::Clear;
-                maskColor.storeOperation = StoreOperation::Store;
-                maskColor.clearColor = {0.0f, 0.0f, 0.0f, 0.0f};
-                RenderPassDesc maskPass;
-                maskPass.colorAttachments = {&maskColor, 1};
-                if (false == m_frame.commands->BeginRenderPass(maskPass))
-                {
-                    return false;
-                }
-                m_frame.commands->SetViewport(viewport);
-                m_frame.commands->SetScissor(scissor);
-                const Bool masked = m_frame.commands->SetGraphicsPipeline(m_shadowMaskPipeline)
-                    && m_frame.commands->SetGraphicsConstants(
-                        {reinterpret_cast<const std::byte*>(&constants), static_cast<JBro::UInt32>(sizeof(constants))})
-                    && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
-                    && m_frame.commands->SetVertexBuffer(1, m_shadowEdgeBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuShadowEdgeInstance)), 0)
-                    && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
-                    && m_frame.commands->DrawIndexedInstanced(6, view.shadowEdgeCount, 0, 0, view.shadowEdgeOffset);
-                m_frame.commands->EndRenderPass();
-                if (false == masked)
-                {
-                    return false;
-                }
-                ++m_currentStats.shadowedLight2DCount;
-            }
-            else
-            {
-                ++m_currentStats.unshadowedLight2DCount;
-            }
-            ColorAttachmentDesc lightColor;
-            lightColor.texture = lightMap;
-            lightColor.loadOperation = LoadOperation::Load;
-            lightColor.storeOperation = StoreOperation::Store;
-            RenderPassDesc lightPass;
-            lightPass.colorAttachments = {&lightColor, 1};
-            if (false == m_frame.commands->BeginRenderPass(lightPass))
-            {
-                return false;
-            }
-            m_frame.commands->SetViewport(viewport);
-            m_frame.commands->SetScissor(scissor);
-            const Bool lit = m_frame.commands->SetGraphicsPipeline(mask.IsValid() ? m_shadowedLight2DPipeline : m_light2DPipeline)
-                && m_frame.commands->SetGraphicsConstants(
-                    {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
-                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
-                && m_frame.commands->SetVertexBuffer(1, m_lightInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
-                && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
-                && (false == mask.IsValid()
-                    || m_frame.commands->SetTexture(0, mask))
-                && m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, light.instance);
-            m_frame.commands->EndRenderPass();
-            if (false == lit)
-            {
-                return false;
-            }
-        }
+        ++renderer.m_currentStats.shadowedLight2DCount;
         return true;
+    }
+
+    Bool Renderer::ExecuteShadowedLight(RenderGraphContext& context, const void* data)
+    {
+        // 마스크로 깎으며 그 라이트 하나를 라이트맵에 더한다.
+        const LightPassData& pass = *static_cast<const LightPassData*>(data);
+        Renderer& renderer = *pass.renderer;
+        const ViewPacket& view = renderer.m_views[pass.view.Get()];
+        const ShadowedLight& light = renderer.m_shadowedLights[pass.shadowedLight.Get()];
+        IRHICommandContext& commands = context.GetCommands();
+        commands.SetViewport(pass.viewport);
+        commands.SetScissor(pass.scissor);
+        const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+        return commands.SetGraphicsPipeline(renderer.m_shadowedLight2DPipeline)
+            && commands.SetGraphicsConstants(
+                {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
+            && commands.SetVertexBuffer(0, renderer.m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+            && commands.SetVertexBuffer(
+                1, renderer.m_lightInstanceBuffers[renderer.m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
+            && commands.SetIndexBuffer(renderer.m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+            && commands.SetTexture(0, context.GetTexture(pass.mask))
+            && commands.DrawIndexedInstanced(6, 1, 0, 0, light.instance);
+    }
+
+    Bool Renderer::ExecuteUnshadowedLight(RenderGraphContext& context, const void* data)
+    {
+        // 마스크가 아직 없는 크기다. 그 라이트를 그림자 없이 더한다.
+        const LightPassData& pass = *static_cast<const LightPassData*>(data);
+        Renderer& renderer = *pass.renderer;
+        const ViewPacket& view = renderer.m_views[pass.view.Get()];
+        const ShadowedLight& light = renderer.m_shadowedLights[pass.shadowedLight.Get()];
+        IRHICommandContext& commands = context.GetCommands();
+        commands.SetViewport(pass.viewport);
+        commands.SetScissor(pass.scissor);
+        ++renderer.m_currentStats.unshadowedLight2DCount;
+        const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+        return commands.SetGraphicsPipeline(renderer.m_light2DPipeline)
+            && commands.SetGraphicsConstants(
+                {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
+            && commands.SetVertexBuffer(0, renderer.m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+            && commands.SetVertexBuffer(
+                1, renderer.m_lightInstanceBuffers[renderer.m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
+            && commands.SetIndexBuffer(renderer.m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+            && commands.DrawIndexedInstanced(6, 1, 0, 0, light.instance);
     }
 
     Bool Renderer::UploadMeshInstances()

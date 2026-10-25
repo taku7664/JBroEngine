@@ -70,6 +70,7 @@ namespace JBro::Internal
             UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool Barrier(JArrayView<TextureBarrier> barriers) override;
         Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
         Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
@@ -346,6 +347,11 @@ namespace JBro::Internal
         static void TransitionImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect,
             VkImageLayout from, VkImageLayout to, UInt32 baseMip = 0, UInt32 mipCount = AllRemainingMips);
         static constexpr UInt32 AllRemainingMips = ~UInt32{0};
+        // `TransitionImage` 의 배리어 하나를 채운다. 여럿을 한 번에 거는 `Barrier`(D-339)가 같은 스테이지·접근을 쓴다.
+        static void FillTransition(VkImageMemoryBarrier2& barrier, VkImage image, VkImageAspectFlags aspect,
+            VkImageLayout from, VkImageLayout to, UInt32 baseMip, UInt32 mipCount);
+        // 배리어를 걸 텍스처다(D-339). 백버퍼는 받지 않는다. mip 마다의 레이아웃 칸과 설명을 준다.
+        Bool ResolveBarrierImage(TextureHandle texture, VkImage& image, VkImageLayout*& layouts, TextureDesc& desc);
 
     private:
         static constexpr UInt32 MaxSwapchains = 8;

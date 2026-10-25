@@ -587,6 +587,26 @@ namespace JBro::Internal
         return true;
     }
 
+    Bool D3D11Device::ResolveTextureDesc(TextureHandle texture, TextureDesc& desc)
+    {
+        if (false == texture.IsValid() || texture.index < TextureResourceBase)
+        {
+            return false;
+        }
+        const UInt32 slot = texture.index - TextureResourceBase;
+        if (slot >= MaxTextures)
+        {
+            return false;
+        }
+        const D3D11TextureState& state = m_textures[slot];
+        if (false == state.occupied || state.generation != texture.generation)
+        {
+            return false;
+        }
+        desc = state.desc;
+        return true;
+    }
+
     Bool D3D11Device::ResolveShaderResourceView(TextureHandle texture, UInt32 mipLevel, ID3D11ShaderResourceView*& view)
     {
         if (false == texture.IsValid() || texture.index < TextureResourceBase)

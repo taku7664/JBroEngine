@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Graphics/RenderGraph.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Matrix4x4.h>
@@ -495,31 +496,65 @@ namespace JBro
             Float opacity = 1.0f;
         };
 
-        // 레이어를 그려 둘 텍스처다. 뷰의 타깃 크기마다 하나이고 백버퍼 포맷이다. 프레임 안에서는 만들 수 없으므로, 기록 중에
-        // 없는 크기를 만나면 바라는 크기로 적어 두고 다음 `BeginFrame` 이 프레임을 열기 전에 만든다. 오래 안 쓰면 놓는다.
-        // 쓰임은 둘이다: 레이어를 그리는 자리와, 아래 그림을 읽는 블렌드가 대상을 복사해 두는 자리(D-283). 같은 크기라도 따로 든다.
-        // `LightMap` 은 2D 라이트맵이다(D-291) - 백버퍼 포맷이 아니라 RGBA16F 다. `ShadowMask` 는 그림자를 드리우는 라이트 하나의 가림막(RGBA16F)이다.
-        enum class LayerTargetRole : std::uint8_t
+        // ── 렌더 그래프의 패스 자료(D-339) ──
+        // 뷰의 중간 텍스처(레이어·아래 그림 사본·라이트맵·그림자 마스크·깊이)는 그래프가 만들고 풀(`m_targetPool`)에서 나눠 쓴다.
+        // 실행 함수는 렌더러의 정적 함수이고, 자료는 그래프의 프레임 저장소에 복사된다 - 그래서 아래는 모두 복사해도 되는 값이다.
+
+        // 스프라이트 구간 [firstRun, endRun) 을 그리는 패스다. 뷰의 본 패스·레이어 묶음·대신 그리기가 모두 이것이다.
+        struct SpritePassData
         {
-            Layer,
-            Backdrop,
-            LightMap,
-            ShadowMask
+            Renderer* renderer = nullptr;
+            Viewport viewport;
+            ScissorRect scissor;
+            UInt32 view = 0;
+            UInt32 firstRun = 0;
+            UInt32 endRun = 0;
+            // 선택으로 읽는 라이트맵과 선택으로 다는 깊이다. 없으면 빛 없이·깊이 없이 그린다.
+            RenderGraphTexture lightMap;
+            RenderGraphTexture depth;
+            // 메시와 월드 텍스트도 그린다(깊이가 달린 뷰의 본 패스).
+            Bool drawDepthWork = false;
+            // 뷰마다 한 번 세는 것(빛·깊이가 없던 뷰, 보지 않은 레이어 묶음)을 이 패스가 센다.
+            Bool countView = false;
+            // 레이어 텍스처가 없어 대신 그리는 패스다. 얹지 못한 것으로 센다.
+            Bool uncomposited = false;
         };
-        struct LayerTarget
+        // 레이어 텍스처를 타깃에 얹는 패스다. 아래 그림을 읽는 블렌드는 앞의 복사 패스가 채운 사본을 읽는다(D-283).
+        struct CompositePassData
         {
-            TextureHandle texture;
+            Renderer* renderer = nullptr;
+            Viewport viewport;
+            ScissorRect scissor;
+            RenderGraphTexture layer;
+            RenderGraphTexture backdrop;
+            CompositeBlend blend = CompositeBlend::Normal;
+            Float opacity = 1.0f;
+        };
+        struct CopyPassData
+        {
+            RenderGraphTexture source;
+            RenderGraphTexture destination;
+        };
+        // 라이트맵의 패스들이다. `shadowedLight` 는 `m_shadowedLights` 의 자리이고, 그림자 없는 라이트를 한 번에 더하는 패스는 보지 않는다.
+        struct LightPassData
+        {
+            Renderer* renderer = nullptr;
+            Viewport viewport;
+            ScissorRect scissor;
+            UInt32 view = 0;
+            UInt32 shadowedLight = 0;
+            RenderGraphTexture mask;
+        };
+        struct OutlinePassData
+        {
+            Renderer* renderer = nullptr;
+            Float color[4] = {1.0f, 1.0f, 0.0f, 1.0f};
+            UInt32 width = 0;
             Extent2D extent;
-            LayerTargetRole role = LayerTargetRole::Layer;
-            UInt32 idleFrames = 0;
+            RenderGraphTexture first;
+            RenderGraphTexture second;
+            Bool composite = false;
         };
-        struct LayerTargetWant
-        {
-            Extent2D extent;
-            LayerTargetRole role = LayerTargetRole::Layer;
-        };
-        static constexpr std::size_t MaxLayerTargets = 8;
-        static constexpr UInt32 LayerTargetIdleFrames = 300;
 
         // 같은 텍스처와 샘플러로 그리는 스프라이트의 연속 구간이다(D-113). 순서는 제출 순서 그대로다 - 정렬은
         // 프레임워크의 일이고, 여기서는 이웃이 같으면 묶는 것만 한다.
@@ -635,17 +670,6 @@ namespace JBro
             Bool occupied = false;
         };
 
-        // 깊이 텍스처 하나. **크기마다 하나**다 - 한 프레임에 크기가 다른 뷰(시뮬레이션 뷰·편집 화면·레이어 썸네일, D-288)가 섞여도 서로 밀어내지 않는다.
-        // 오래 안 쓴 것은 놓는다.
-        struct DepthTarget
-        {
-            TextureHandle texture;
-            Extent2D extent;
-            UInt32 idleFrames = 0;
-        };
-        static constexpr std::size_t MaxDepthTargets = 4;
-        static constexpr UInt32 DepthTargetIdleFrames = 300;
-
         static constexpr UInt32 InvalidViewIndex = 0xFFFFFFFFu;
         static constexpr UInt32 MaxFrameSlots = 3;
 
@@ -659,17 +683,31 @@ namespace JBro
         void DestroyBuiltinWorldTextResources();
         Bool UploadWorldTextInstances();
         void DestroyMeshResources();
-        // `extent` 크기의 깊이 텍스처를 준다. 없으면 만든다 - 프레임 밖에서만 부른다.
-        Bool AcquireDepthTarget(const Extent2D& extent, TextureHandle& depth);
-        // 프레임 안에서 `extent` 크기의 깊이 텍스처를 찾는다. 없으면 바람으로 적어 두고(다음 `BeginFrame` 이 만든다) 빈 핸들을 준다.
-        TextureHandle FindDepthTarget(const Extent2D& extent);
-        // 프레임을 열기 전에 지난 프레임이 바란 깊이 텍스처를 만들고 오래 안 쓴 것을 놓는다.
-        void PrepareDepthTargets();
-        void DestroyDepthTargets();
         const MeshResource* FindMesh(AssetHandle mesh) const;
         const TextureResource* FindTexture(AssetHandle texture) const;
         void DestroyTextureResources();
+        // 뷰를 그래프의 패스로 짓고, 컴파일해 기록한다(D-339).
         Bool RecordViews();
+        // 뷰 하나의 패스를 더한다. 뷰가 잘못되었으면(타깃 크기를 모름·뷰포트가 타깃 밖) 거짓이다.
+        Bool AddViewPasses(UInt32 viewIndex, RenderGraphTexture frameTarget, TextureHandle frameTexture, const Extent2D& frameExtent);
+        // 그 뷰의 라이트맵을 그리는 패스들이다 - 환경광으로 지우고 그림자 없는 라이트를 더하고, 그림자를 드리우는 라이트는 하나씩 마스크로 깎아 더한다.
+        Bool AddLightMapPasses(UInt32 viewIndex, RenderGraphTexture lightMap, const Extent2D& extent, const Viewport& viewport,
+            const ScissorRect& scissor);
+        // 레이어 텍스처를 타깃에 얹는 패스들이다. 아래 그림을 읽는 블렌드면 그 앞에 타깃을 사본에 복사하는 패스가 붙는다.
+        Bool AddCompositePasses(RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target, CompositeBlend blend,
+            Float opacity, const Viewport& viewport, const ScissorRect& scissor);
+        // 스프라이트 구간을 그린다. 렌더 패스는 열려 있어야 한다.
+        Bool DrawSpriteRuns(IRHICommandContext& commands, const ViewPacket& view, UInt32 firstRun, UInt32 endRun, TextureHandle lightMap,
+            Bool overDepth);
+        static Bool ExecuteNothing(RenderGraphContext& context, const void* data);
+        static Bool ExecuteSprites(RenderGraphContext& context, const void* data);
+        static Bool ExecuteComposite(RenderGraphContext& context, const void* data);
+        static Bool ExecuteCopy(RenderGraphContext& context, const void* data);
+        static Bool ExecuteLightMap(RenderGraphContext& context, const void* data);
+        static Bool ExecuteShadowMask(RenderGraphContext& context, const void* data);
+        static Bool ExecuteShadowedLight(RenderGraphContext& context, const void* data);
+        static Bool ExecuteUnshadowedLight(RenderGraphContext& context, const void* data);
+        static Bool ExecuteOutline(RenderGraphContext& context, const void* data);
         void ResetSubmissionStorage();
 
         RendererConfig m_config;
@@ -707,16 +745,6 @@ namespace JBro
         // 선택 외곽선의 두 패스다(D-276). 가로로 키우기(덮어쓰기)와 세로로 키워 둘레만 칠하기(알파 섞기).
         GraphicsPipelineHandle m_outlineGrowPipeline;
         GraphicsPipelineHandle m_outlineCompositePipeline;
-        Bool RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent);
-        // 레이어 텍스처를 타깃에 얹는다(D-279). 타깃의 패스를 `Load` 로 열고 열린 채로 돌려준다 - 뒤의 구간이 이어 그린다.
-        // 아래 그림을 읽는 블렌드(D-283)는 먼저 타깃을 복사해 둔다 - 부를 때 패스가 닫혀 있어야 한다. 복사할 자리가 아직 없으면 표준으로 얹는다.
-        Bool RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
-            const Viewport& viewport, const ScissorRect& scissor);
-        // 이 크기·쓰임의 텍스처다. 없으면 바라는 것으로 적고 빈 핸들이다.
-        TextureHandle FindLayerTarget(const Extent2D& extent, LayerTargetRole role = LayerTargetRole::Layer);
-        // 프레임을 열기 전에 바라던 크기의 텍스처를 만들고, 오래 안 쓴 것을 놓는다.
-        void PrepareLayerTargets();
-        void DestroyLayerTargets();
         // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
         GraphicsPipelineHandle m_layerCompositePipelines[4];
         // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
@@ -727,9 +755,6 @@ namespace JBro
         Bool UploadLightInstances();
         Bool UploadShadowEdges();
         void WriteLightInstance(const Light2DSubmit& light, GpuLight2DInstance& instance);
-        // 뷰의 라이트맵을 그린다 - 환경광으로 지우고 `Point`·`Spot` 을 더하고, 그림자를 드리우는 라이트는 하나씩 마스크로 깎아 더한다. 패스를 열고 닫는다.
-        Bool RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Extent2D& extent, const Viewport& viewport,
-            const ScissorRect& scissor);
         GraphicsPipelineHandle m_light2DPipeline;
         // 그림자(D-291 3 단계): 변을 밀어내 마스크에 칠하는 것과, 마스크로 깎으며 라이트 하나를 더하는 것이다.
         GraphicsPipelineHandle m_shadowMaskPipeline;
@@ -748,9 +773,10 @@ namespace JBro
         UInt32 m_openLitRange = NoLayerGroup;
         Array<LayerGroup> m_layerGroups;
         UInt32 m_openLayerGroup = NoLayerGroup;
-        LayerTarget m_layerTargets[MaxLayerTargets];
-        LayerTargetWant m_layerTargetWants[MaxLayerTargets];
-        std::size_t m_layerTargetWantCount = 0;
+        // 프레임마다 처음부터 짓는 렌더 그래프와, 그래프가 만드는 중간 텍스처의 풀이다(D-339). 풀은 지난 프레임이 바란 모양을
+        // 다음 `BeginFrame` 이 프레임을 열기 전에 만든다 - 디바이스는 프레임 안에서 자원을 만들지 않는다.
+        RenderGraph m_graph;
+        RenderTargetPool m_targetPool;
         GraphicsPipelineHandle m_spritePipeline;
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
         // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.
@@ -778,9 +804,6 @@ namespace JBro
         Array<UInt32> m_meshHistogram;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
         GraphicsPipelineHandle m_meshPipeline;
-        DepthTarget m_depthTargets[MaxDepthTargets];
-        Extent2D m_depthTargetWants[MaxDepthTargets];
-        std::size_t m_depthTargetWantCount = 0;
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
         CameraParams m_lastViewCamera;

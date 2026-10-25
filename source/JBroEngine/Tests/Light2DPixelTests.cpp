@@ -405,7 +405,8 @@ namespace
     // **그림자 변이 라이트를 가린다**(D-291 3 단계). 흰 바닥을 왼쪽의 라이트(0.8, 화면을 다 덮는다)가 비추고 가운데에 작은 상자(반 너비 0.1)가 있다.
     // 상자 뒤는 어둡고, 상자 옆을 지나는 빛과 앞은 밝다. 상자의 안쪽은 밝다(라이트를 향한 변은 밀어내지 않는다) - `selfShadow` 면 어둡다.
     // 그림자를 드리우지 않는 라이트와, 같은 뷰의 그림자 없는 라이트는 마스크를 보지 않는다. 화면 밖의 상자도 화면 안에 그림자를 드리운다(기존 L1).
-    // 라이트맵이 첫 프레임에, 그림자 마스크가 둘째 프레임에 생기므로 셋째 프레임부터 그림자다.
+    // 처음부터 그림자를 드리우면 라이트맵과 마스크를 첫 프레임에 함께 바라므로 둘째 프레임부터 그림자다(렌더 그래프, D-339).
+    // 마스크만 없는 프레임(대신 그리기)은 라이트맵을 먼저 세운 뒤 그림자를 켜서 만든다.
     template <typename TModule>
     void TestShadowEdgesBlockTheLight()
     {
@@ -439,7 +440,11 @@ namespace
                 Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f)), "the lit ground must submit");
             };
         };
+        // 그림자 없이 두 프레임을 그려 라이트맵 하나만 세운다. 그 뒤 그림자를 켠 첫 프레임은 마스크 자리가 없어 그림자 없이 더한다(대신 그리기).
+        light.castShadows = false;
         stage.Frame(scene(nullptr));
+        stage.Frame(scene(nullptr));
+        light.castShadows = true;
         stage.Frame(scene(nullptr));
         JBro::RendererFrameStats stats = stage.renderer.GetLastFrameStats();
         Check(stats.shadowEdge2DCount == 4 && stats.shadowedLight2DCount == 0 && stats.unshadowedLight2DCount == 1,
@@ -447,7 +452,7 @@ namespace
         stage.Expect(48, 32, 0.8f, 0.8f, 0.8f, "without a mask yet the light reaches behind the box");
         stage.Frame(scene(nullptr));
         stats = stage.renderer.GetLastFrameStats();
-        Check(stats.shadowedLight2DCount == 1 && stats.unshadowedLight2DCount == 0, "from the third frame the light casts its shadow");
+        Check(stats.shadowedLight2DCount == 1 && stats.unshadowedLight2DCount == 0, "from the next frame the light casts its shadow");
         stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "behind the box the light does not reach");
         stage.Expect(48, 13, 0.8f, 0.8f, 0.8f, "light passing beside the box reaches");
         stage.Expect(22, 32, 0.8f, 0.8f, 0.8f, "in front of the box it reaches");
@@ -631,8 +636,55 @@ namespace
     }
 }
 
+namespace
+{
+    // **처음부터 그림자를 드리우면 둘째 프레임부터 그림자다**(D-339). 렌더 그래프가 라이트맵과 그림자 마스크를 첫 프레임에 함께 바란다 -
+    // 둘은 같은 모양이라 풀에서 둘이 선다. 전에는 마스크를 라이트맵이 선 다음 프레임에야 바라서 셋째 프레임이었다.
+    template <typename TModule>
+    void TestAShadowFromTheStartCastsOnTheSecondFrame()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "shadow from the start"))
+        {
+            return;
+        }
+        JBro::Light2DSubmit light;
+        light.kind = JBro::Light2DKind::Point;
+        light.position[0] = -0.6f;
+        light.color[0] = 0.8f;
+        light.color[1] = 0.8f;
+        light.color[2] = 0.8f;
+        light.innerRadius = 2.5f;
+        light.outerRadius = 3.0f;
+        light.castShadows = true;
+        JBro::ShadowEdge2D box[4];
+        BoxEdges(0.0f, 0.0f, 0.1f, false, box);
+        const auto scene = [&]() {
+            Check(stage.renderer.SubmitLight2D(light), "the shadowed light must submit");
+            Check(stage.renderer.SubmitShadowEdges2D({box, 4}), "the box edges must submit");
+            Check(stage.renderer.SetSpriteLighting(true), "lighting must turn on");
+            Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f)), "the lit ground must submit");
+        };
+        stage.Frame(scene);
+        JBro::RendererFrameStats stats = stage.renderer.GetLastFrameStats();
+        Check(stats.viewsWithoutLightMapCount == 1 && stats.shadowedLight2DCount == 0 && stats.unshadowedLight2DCount == 0,
+            "the first frame has neither the light map nor the mask");
+        stage.Frame(scene);
+        stats = stage.renderer.GetLastFrameStats();
+        Check(stats.litViewCount == 1 && stats.shadowedLight2DCount == 1 && stats.unshadowedLight2DCount == 0,
+            "the second frame has both and casts the shadow");
+        stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "behind the box the light does not reach");
+        stage.Expect(22, 32, 0.8f, 0.8f, 0.8f, "in front of the box it reaches");
+        stage.Close(rhi);
+    }
+}
+
 JBro::Int32 RunLight2DPixelTests()
 {
+    TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::D3D12RHIModule>();
+    TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::D3D11RHIModule>();
+    TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::VulkanRHIModule>();
     TestSoftShadowsWidenWithDistance<JBro::D3D12RHIModule>();
     TestSoftShadowsWidenWithDistance<JBro::D3D11RHIModule>();
     TestSoftShadowsWidenWithDistance<JBro::VulkanRHIModule>();

@@ -1096,6 +1096,30 @@ namespace JBro::Internal
         return true;
     }
 
+    Bool D3D12Device::ResolveBarrierTexture(
+        TextureHandle texture, ID3D12Resource*& resource, D3D12_RESOURCE_STATES*& states, TextureDesc& desc)
+    {
+        // 백버퍼는 스왑체인의 제시 상태를 오가므로 받지 않는다(`Barrier` 의 계약).
+        if (m_device == nullptr || false == texture.IsValid() || texture.index < TextureResourceBase)
+        {
+            return false;
+        }
+        const UInt32 slotIndex = texture.index - TextureResourceBase;
+        if (slotIndex >= MaxTextures)
+        {
+            return false;
+        }
+        D3D12TextureState& state = m_textures[slotIndex];
+        if (false == state.occupied || state.generation != texture.generation)
+        {
+            return false;
+        }
+        resource = state.resource.Get();
+        states = state.states;
+        desc = state.desc;
+        return true;
+    }
+
     Bool D3D12Device::ResolveSampledTexture(
         TextureHandle texture,
         UInt32 mipLevel,

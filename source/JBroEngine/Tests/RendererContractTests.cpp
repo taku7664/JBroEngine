@@ -134,6 +134,17 @@ namespace
 
         JBro::UInt32 copyCount = 0;
 
+        // 렌더 그래프가 패스 앞에서 그 패스의 텍스처를 묶어 옮긴다(D-339). 세기만 한다.
+        JBro::Bool Barrier(JBro::JArrayView<JBro::TextureBarrier> barriers) override
+        {
+            ++barrierCallCount;
+            barrierCount += barriers.size;
+            return true;
+        }
+
+        JBro::UInt32 barrierCallCount = 0;
+        JBro::UInt32 barrierCount = 0;
+
         JBro::Bool SetTexture(JBro::UInt32, JBro::TextureHandle) override
         {
             return true;

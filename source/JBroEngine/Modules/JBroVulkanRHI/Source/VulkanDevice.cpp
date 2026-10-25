@@ -646,6 +646,17 @@ namespace JBro::Internal
             return;
         }
         VkImageMemoryBarrier2 barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
+        FillTransition(barrier, image, aspect, from, to, baseMip, mipCount);
+        VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+        dependency.imageMemoryBarrierCount = 1;
+        dependency.pImageMemoryBarriers = &barrier;
+        vk.vkCmdPipelineBarrier2(commands, &dependency);
+    }
+
+    void VulkanDevice::FillTransition(VkImageMemoryBarrier2& barrier, VkImage image, VkImageAspectFlags aspect,
+        VkImageLayout from, VkImageLayout to, UInt32 baseMip, UInt32 mipCount)
+    {
+        barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
         // 출발 쪽은 보수적으로 잡는다: 앞의 모든 명령의 모든 쓰기. 도착 쪽은 레이아웃이 말해 준다.
         barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
         barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
@@ -691,10 +702,6 @@ namespace JBro::Internal
         barrier.subresourceRange.baseMipLevel = baseMip;
         barrier.subresourceRange.levelCount = mipCount == AllRemainingMips ? VK_REMAINING_MIP_LEVELS : mipCount.Get();
         barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-        VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-        dependency.imageMemoryBarrierCount = 1;
-        dependency.pImageMemoryBarriers = &barrier;
-        vk.vkCmdPipelineBarrier2(commands, &dependency);
     }
 
     // ── 스왑체인 ────────────────────────────────────────────────────────────
@@ -1310,6 +1317,29 @@ namespace JBro::Internal
         }
         image = state.image;
         layout = &state.layouts[0];
+        desc = state.desc;
+        return true;
+    }
+
+    Bool VulkanDevice::ResolveBarrierImage(TextureHandle texture, VkImage& image, VkImageLayout*& layouts, TextureDesc& desc)
+    {
+        // 백버퍼는 받지 않는다(`Barrier` 의 계약) - 스왑체인 이미지는 제시 레이아웃을 오간다.
+        if (false == texture.IsValid() || texture.index < TextureResourceBase)
+        {
+            return false;
+        }
+        const UInt32 slot = texture.index - TextureResourceBase;
+        if (slot >= MaxTextures)
+        {
+            return false;
+        }
+        VulkanTextureState& state = m_textures[slot];
+        if (false == state.occupied || state.generation != texture.generation)
+        {
+            return false;
+        }
+        image = state.image;
+        layouts = state.layouts;
         desc = state.desc;
         return true;
     }

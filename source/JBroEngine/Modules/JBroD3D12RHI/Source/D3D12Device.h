@@ -140,6 +140,7 @@ namespace JBro::Internal
             UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool Barrier(JArrayView<TextureBarrier> barriers) override;
         Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
         Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
@@ -373,6 +374,8 @@ namespace JBro::Internal
         // 읽고 쓰는 텍스처의 mip 하나, 구조화 버퍼 하나를 UAV 로 푼다. `Storage` 로 만들지 않은 것은 거절한다.
         Bool ResolveStorageTexture(TextureHandle texture, UInt32 mipLevel, D3D12StorageBinding& binding);
         Bool ResolveStorageBuffer(BufferHandle buffer, D3D12StorageBinding& binding);
+        // 배리어를 걸 텍스처다(D-339). 백버퍼는 받지 않는다. mip 마다의 상태 칸과 설명을 준다.
+        Bool ResolveBarrierTexture(TextureHandle texture, ID3D12Resource*& resource, D3D12_RESOURCE_STATES*& states, TextureDesc& desc);
         // 이번 프레임의 링에서 연속된 자리를 잡아 스테이징 디스크립터를 복사해 넣는다.
         Bool StageShaderResources(
             const D3D12_CPU_DESCRIPTOR_HANDLE* descriptors,

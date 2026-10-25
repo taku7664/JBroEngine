@@ -62,6 +62,7 @@ namespace JBro::Internal
             UInt32 firstVertex,
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
+        Bool Barrier(JArrayView<TextureBarrier> barriers) override;
         Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
         Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
@@ -231,6 +232,8 @@ namespace JBro::Internal
         // `mipLevel` 이 `AllMips` 면 모든 mip 을 보는 뷰다.
         static constexpr UInt32 AllMips = ~UInt32{0};
         Bool ResolveShaderResourceView(TextureHandle texture, UInt32 mipLevel, ID3D11ShaderResourceView*& view);
+        // 배리어를 걸 텍스처의 설명이다(D-339). 백버퍼는 받지 않는다.
+        Bool ResolveTextureDesc(TextureHandle texture, TextureDesc& desc);
         Bool ResolveBuffer(BufferHandle buffer, ID3D11Buffer*& native, BufferDesc& desc);
         Bool ResolveSampler(SamplerHandle sampler, ID3D11SamplerState*& native);
         D3D11PipelineState* ResolvePipeline(GraphicsPipelineHandle pipeline);
