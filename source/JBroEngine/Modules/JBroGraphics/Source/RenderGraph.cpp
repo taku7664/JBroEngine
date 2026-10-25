@@ -117,7 +117,8 @@ namespace JBro
 
     Bool RenderTargetPool::CreateInSlot(const TransientTextureDesc& desc)
     {
-        // 빈 자리가 없으면 가장 오래 쓰지 않은 것을 내준다.
+        // 빈 자리가 없으면 가장 오래 쓰지 않은 것을 내준다. **같은 모양은 내주지 않는다** - 같은 모양을 하나 더 바란 것인데 그 모양을 내주고
+        // 다시 만들면 수가 그대로라, 다음 컴파일이 같은 것을 또 바라고 대신 그리기가 끝나지 않는다(Codex 리뷰).
         Slot* chosen = nullptr;
         for (Slot& slot : m_slots)
         {
@@ -126,10 +127,18 @@ namespace JBro
                 chosen = &slot;
                 break;
             }
+            if (IsSameDesc(slot.desc, desc))
+            {
+                continue;
+            }
             if (chosen == nullptr || slot.idleFrames > chosen->idleFrames)
             {
                 chosen = &slot;
             }
+        }
+        if (chosen == nullptr)
+        {
+            return false;
         }
         if (chosen->texture.IsValid())
         {
@@ -538,9 +547,14 @@ namespace JBro
         for (std::size_t pass = 0; pass < m_passes.Size(); ++pass)
         {
             const PassEntry& entry = m_passes[pass];
-            for (UInt32 at = 0; at < entry.accessCount; ++at)
+            for (UInt32 at = 0; at <= entry.accessCount; ++at)
             {
-                TextureEntry& texture = m_textures[m_accesses[(entry.firstAccess + at).Get()].texture.Get()];
+                const UInt32 index = at < entry.accessCount ? m_accesses[(entry.firstAccess + at).Get()].texture : entry.condition;
+                if (index == RenderGraphTexture::Invalid)
+                {
+                    continue;
+                }
+                TextureEntry& texture = m_textures[index.Get()];
                 if (texture.firstPass == RenderGraphPass::Invalid)
                 {
                     texture.firstPass = static_cast<UInt32>(pass);
@@ -575,9 +589,15 @@ namespace JBro
         for (std::size_t pass = 0; pass < m_passes.Size(); ++pass)
         {
             const PassEntry& entry = m_passes[pass];
-            for (UInt32 at = 0; at < entry.accessCount; ++at)
+            // 조건으로만 가리키는 텍스처도 고른다 - 고르지 않으면 늘 없는 것이라 그 조건이 영영 바뀌지 않는다(Codex 리뷰).
+            for (UInt32 at = 0; at <= entry.accessCount; ++at)
             {
-                TextureEntry& texture = m_textures[m_accesses[(entry.firstAccess + at).Get()].texture.Get()];
+                const UInt32 index = at < entry.accessCount ? m_accesses[(entry.firstAccess + at).Get()].texture : entry.condition;
+                if (index == RenderGraphTexture::Invalid)
+                {
+                    continue;
+                }
+                TextureEntry& texture = m_textures[index.Get()];
                 if (texture.kind != TextureKind::Transient || texture.allocated)
                 {
                     continue;

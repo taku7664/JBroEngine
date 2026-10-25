@@ -768,6 +768,83 @@ namespace
         pool.Shutdown();
     }
 
+    // **조건으로만 가리키는 텍스처도 풀에서 고르고, 없으면 바란다**(Codex 리뷰). 고르지 않으면 늘 없는 것이라 그 조건이 영영 바뀌지 않는다.
+    void TestATextureNamedOnlyByAConditionIsMade(JBro::IRHIDevice& device)
+    {
+        JBro::RenderTargetPool pool;
+        pool.Initialize(device);
+        JBro::RenderGraph graph;
+        Check(graph.Initialize(SmallLimits()), "the graph must initialize");
+        const JBro::TextureHandle output = CreateTarget(device, JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled);
+        Seen seen;
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            graph.Reset();
+            const JBro::RenderGraphTexture target = graph.ImportTexture(output);
+            const JBro::RenderGraphTexture gate = graph.CreateTexture(ColorDesc);
+            const JBro::RenderGraphPass gated = AddNotedPass(graph, JBro::RenderGraphPassKind::Raster, "Gated", seen, 1);
+            Check(graph.SetColorAttachment(gated, target, JBro::LoadOperation::Clear) && graph.RunIfAvailable(gated, gate),
+                "the gated pass must declare");
+            Check(graph.Compile(pool), "the gated graph must compile");
+            if (frame == 0)
+            {
+                Check(graph.GetPassSkip(gated) == JBro::RenderGraphSkip::MissingTexture, "the gate is missing at first");
+                Check(pool.GetWantedCount(ColorDesc) == 1, "a texture named only by a condition is wanted");
+                pool.Prepare();
+            }
+            else
+            {
+                Check(graph.GetPassSkip(gated) == JBro::RenderGraphSkip::None, "once made the gate opens");
+            }
+        }
+        device.DestroyTexture(output);
+        pool.Shutdown();
+    }
+
+    // **가득 찬 풀이 한 모양을 하나 더 만들 때 그 모양을 내주지 않는다**(Codex 리뷰). 모든 칸이 같은 만큼 쉬었으면 첫 칸이 뽑히는데, 그것이 같은
+    // 모양이면 내주고 다시 만들어 수가 그대로였다 - 다음 컴파일이 또 바라고 대신 그리기가 끝나지 않는다.
+    void TestAFullPoolGrowsAShapeWithoutEvictingIt(JBro::IRHIDevice& device)
+    {
+        JBro::RenderTargetPool pool;
+        pool.Initialize(device);
+        for (JBro::UInt32 shape = 0; shape < JBro::RenderTargetPool::Capacity; ++shape)
+        {
+            JBro::TransientTextureDesc desc = ColorDesc;
+            desc.extent.width = SurfaceSize + shape;
+            Check(pool.Ensure(desc), "every shape of the full pool must be made");
+        }
+        Check(pool.GetTextureCount() == JBro::RenderTargetPool::Capacity, "the pool is full");
+        JBro::RenderGraph graph;
+        Check(graph.Initialize(SmallLimits()), "the graph must initialize");
+        const JBro::TextureHandle output = CreateTarget(device, JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled);
+        Seen seen;
+        JBro::RenderGraphTexture a;
+        JBro::RenderGraphTexture b;
+        const auto build = [&]() {
+            graph.Reset();
+            const JBro::RenderGraphTexture target = graph.ImportTexture(output);
+            a = graph.CreateTexture(ColorDesc);
+            b = graph.CreateTexture(ColorDesc);
+            const JBro::RenderGraphPass writeA = AddNotedPass(graph, JBro::RenderGraphPassKind::Raster, "A", seen, 1);
+            Check(graph.SetColorAttachment(writeA, a, JBro::LoadOperation::Clear), "a must declare");
+            const JBro::RenderGraphPass writeB = AddNotedPass(graph, JBro::RenderGraphPassKind::Raster, "B", seen, 2);
+            Check(graph.SetColorAttachment(writeB, b, JBro::LoadOperation::Clear), "b must declare");
+            const JBro::RenderGraphPass both = AddNotedPass(graph, JBro::RenderGraphPassKind::Raster, "Both", seen, 3);
+            Check(graph.SetColorAttachment(both, target, JBro::LoadOperation::Load) && graph.Read(both, a) && graph.Read(both, b),
+                "the reader of both must declare");
+        };
+        build();
+        Check(graph.Compile(pool), "the graph must compile on the full pool");
+        Check(pool.GetWantedCount(ColorDesc) == 1, "one more of the first shape is wanted");
+        pool.Prepare();
+        build();
+        Check(graph.Compile(pool), "the graph must compile after the pool grew the shape");
+        Check(graph.GetCompiledTexture(a).IsValid() && graph.GetCompiledTexture(b).IsValid(),
+            "the pool gave up another shape, not the one it was growing");
+        device.DestroyTexture(output);
+        pool.Shutdown();
+    }
+
     // **상한을 넘는 선언은 거절되고 그 프레임의 컴파일이 실패한다.** 다음 `Reset` 뒤에는 다시 된다.
     void TestTheGraphRefusesPastItsLimits(JBro::IRHIDevice& device)
     {
@@ -851,6 +928,8 @@ namespace
         TestTransientsShareATextureWhenTheirLivesDoNotOverlap(*probe.device);
         TestPassesThatReachNothingAreDropped(*probe.device);
         TestBarriersFollowTheAccess(*probe.device);
+        TestATextureNamedOnlyByAConditionIsMade(*probe.device);
+        TestAFullPoolGrowsAShapeWithoutEvictingIt(*probe.device);
         TestTheGraphRefusesPastItsLimits(*probe.device);
         TestAFrameOfTheGraphDoesNotAllocate(*probe.device);
         probe.Close();
