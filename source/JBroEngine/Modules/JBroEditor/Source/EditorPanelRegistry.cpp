@@ -11,6 +11,7 @@
 #include "Panel/InspectorPanel.h"
 #include "Panel/LogPanel.h"
 #include "Panel/ProfilerPanel.h"
+#include "Panel/RenderGraphPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
 #include "Panel/SoundEffectPanel.h"
@@ -146,6 +147,8 @@ namespace JBro
         RegisterEditorPanelType<BuildResultsPanel>(true);
         RegisterEditorPanelType<ProjectSettingsPanel>(true);
         RegisterEditorPanelType<ProfilerPanel>(true);
+        // 렌더 그래프 창(D-340). 프로파일러처럼 닫힌 채로 서고 디버그 메뉴에서 연다.
+        RegisterEditorPanelType<RenderGraphPanel>(true);
         RegisterEditorPanelType<ShortcutPanel>(true);
         RegisterEditorPanelType<EditorSettingsPanel>(true);
         RegisterEditorPanelType<AgentPanel>(true);

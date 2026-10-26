@@ -829,3 +829,88 @@ Entries:
   agent.attach_file: 파일 첨부
   agent.attachment_filter: 프로젝트 에셋
   agent.attachment_unsupported: 현재는 등록된 프로젝트 에셋만 파일로 첨부할 수 있습니다.
+  panel.render_graph: 렌더 그래프
+  menu.debug_render_graph: 렌더 그래프
+  render_graph.empty: 아직 기록한 렌더 그래프가 없습니다
+  render_graph.pause_tooltip: 지금 그래프를 멈춰 두고 봅니다. 게임은 계속 돕니다
+  render_graph.step_tooltip: 다음 프레임의 그래프를 하나 받습니다
+  render_graph.step_disabled: 그래프를 멈췄을 때만 씁니다
+  render_graph.show_skipped: 건너뛴 패스
+  render_graph.search: 패스·텍스처 찾기
+  render_graph.held: 멈춤
+  render_graph.frame: 프레임
+  render_graph.passes_ran: 돈 패스
+  render_graph.texture_count: 텍스처
+  render_graph.physical_count: 실제 텍스처
+  render_graph.barrier_count: 배리어
+  render_graph.kind_raster: 래스터
+  render_graph.kind_copy: 복사
+  render_graph.kind_compute: 컴퓨트
+  render_graph.status_ran: 돌았음
+  render_graph.status_ran_tip: 이 프레임에 기록한 패스입니다.
+  render_graph.skip_missing: 텍스처 없음
+  render_graph.skip_missing_tip: 이 패스에 꼭 있어야 하는 텍스처가 이 프레임에 없어 돌지 않았습니다. 그 텍스처는 다음 프레임 전에 만듭니다.
+  render_graph.skip_present: 필요 없음
+  render_graph.skip_present_tip: 텍스처가 없을 때만 대신 그리는 패스입니다. 텍스처가 있어 본래 패스가 돌았습니다.
+  render_graph.skip_input: 입력 없음
+  render_graph.skip_input_tip: 꼭 읽어야 하는 텍스처를 쓰는 앞 패스가 돌지 않았습니다.
+  render_graph.skip_unused: 쓰이지 않음
+  render_graph.skip_unused_tip: 이 패스가 그린 것을 읽는 패스가 없어 뺐습니다.
+  render_graph.view: 뷰
+  render_graph.view_frame: 게임 화면
+  render_graph.view_other: 편집용 그림
+  render_graph.view_not_recorded: 이 프레임에는 그리지 않았습니다
+  render_graph.column_pass: 패스
+  render_graph.column_kind: 종류
+  render_graph.column_status: 상태
+  render_graph.column_barriers: 배리어
+  render_graph.column_texture: 텍스처
+  render_graph.column_use: 쓰임
+  render_graph.column_actual: 실제 텍스처
+  render_graph.column_state: 옮길 상태
+  render_graph.column_shape: 모양
+  render_graph.column_source: 출처
+  render_graph.column_lifetime: 수명
+  render_graph.column_slot: 칸
+  render_graph.column_this_frame: 이번 프레임
+  render_graph.column_idle: 안 쓴 프레임
+  render_graph.tab_pass: 패스
+  render_graph.tab_textures: 텍스처
+  render_graph.tab_pool: 풀
+  render_graph.select_pass_hint: 왼쪽에서 패스를 고르세요
+  render_graph.condition: 조건
+  render_graph.condition_available: 있을 때만
+  render_graph.condition_missing: 없을 때만(대신 그리기)
+  render_graph.accesses: 이 패스가 쓰는 텍스처
+  render_graph.access_color: 색 첨부
+  render_graph.access_depth: 깊이 첨부
+  render_graph.access_read: 읽기
+  render_graph.access_read_optional: 읽기(없어도 됨)
+  render_graph.access_copy_source: 복사 원본
+  render_graph.access_copy_destination: 복사 대상
+  render_graph.access_storage: 읽고 쓰기
+  render_graph.optional_suffix: "(없어도 됨)"
+  render_graph.load_load: 이어 그림
+  render_graph.load_clear: 지우고 그림
+  render_graph.load_discard: 버리고 그림
+  render_graph.actual_none: 이번 프레임 없음
+  render_graph.actual_none_tip: 풀에 비어 있는 이 모양의 텍스처가 없었습니다. 이것이 필요한 패스는 대신 그리기로 갔고, 텍스처는 다음 프레임 전에 만듭니다.
+  render_graph.barriers_header: 이 패스 앞의 배리어
+  render_graph.no_barriers: 배리어가 없습니다
+  render_graph.state_shader_read: 셰이더 읽기
+  render_graph.state_render_target: 렌더 타깃
+  render_graph.state_depth_write: 깊이 쓰기
+  render_graph.state_copy_source: 복사 원본
+  render_graph.state_copy_destination: 복사 대상
+  render_graph.state_storage: 읽고 쓰기
+  render_graph.source_transient: 그래프
+  render_graph.source_imported: 가져옴
+  render_graph.source_back_buffer: 백버퍼
+  render_graph.shared_hint: 색이 같은 막대는 실제 텍스처 하나를 나눠 씁니다.
+  render_graph.lifetime_tip: 이 텍스처를 쓰는 첫 패스부터 마지막 패스까지 삽니다
+  render_graph.pool_slots: 쓰는 칸
+  render_graph.pool_hint: 300 프레임 동안 쓰지 않은 텍스처는 놓습니다. 그래프에 모자랐던 모양은 다음 프레임 전에 만듭니다.
+  render_graph.slot_empty: 빈 칸
+  render_graph.slot_used: 씀
+  render_graph.wants: 다음 프레임 전에 만들 것
+  render_graph.wants_none: 만들 것이 없습니다

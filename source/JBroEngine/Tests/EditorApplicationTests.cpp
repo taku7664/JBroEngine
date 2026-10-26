@@ -51,6 +51,7 @@
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Graphics/Renderer.h>
+#include "../Modules/JBroEditor/Source/Panel/RenderGraphPanel.h"
 #include <JBro/Physics2D/World.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
@@ -176,7 +177,7 @@ namespace
     constexpr JBro::UInt32 WindowHeight = 480;
     constexpr const char* DefaultPanelNames[] = {
         "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
-        "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings", "BuildResults", "Agent"};
+        "ProjectSettings", "Profiler", "RenderGraph", "Shortcuts", "EditorSettings", "BuildResults", "Agent"};
     constexpr JBro::UInt32 DefaultPanelCount = static_cast<JBro::UInt32>(sizeof(DefaultPanelNames) / sizeof(DefaultPanelNames[0]));
 
     void Check(JBro::Bool condition, const char* message)
@@ -9953,7 +9954,7 @@ namespace
 
             // **설정·디버그 메뉴가 여는 창들이 실제로 있다**(D-151). 이름이 어긋나면 항목이
             // 잠긴 채로 서 있어, 메뉴는 보이는데 열리지 않는다.
-            for (const char* title : {"ProjectSettings", "Profiler", "Stats", "Log"})
+            for (const char* title : {"ProjectSettings", "Profiler", "RenderGraph", "Stats", "Log"})
             {
                 Check(editor.FindPanel(title) != nullptr, "every panel the menus name must exist");
             }
@@ -10355,6 +10356,139 @@ namespace
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, deleteLabel), item),
             "with the delete item");
         Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled, "but locked, because three points are the least");
+        editor.Shutdown();
+    }
+
+    // **렌더 그래프 창**(D-340). 디버그 메뉴의 창이 지난 프레임의 그래프를 보인다. 아래 그림을 읽는 블렌드(오버레이) 레이어 둘과 라이트가 있는 장면에서
+    //   - 첫 프레임: 레이어 텍스처가 없어 `Layer` 는 텍스처 없음으로 건너뛰고 대신 그리기 `LayerDirect` 가 돈다.
+    //   - 다음 프레임부터: `Layer`·`Backdrop`·`Composite`·`LightMap` 이 돌고 `LayerDirect` 는 필요 없음이며, 두 레이어 텍스처가 실제 텍스처 하나를 나눠 쓴다.
+    //   - 멈추면 프레임이 지나도 떠 둔 그래프가 그대로이고, 한 프레임 받기 단추가 새 그래프 하나만 받는다.
+    // 패스·텍스처·풀 탭을 차례로 찍어 남긴다.
+    void TestTheRenderGraphPanelShowsTheLastFrame()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1600;
+        config.windowHeight = 1200;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the render graph window not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "RenderGraphProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto addLayer = [&](const char* layerName, JBro::Float x) {
+            JBro::Layer& layer = canvas->CreateLayer(layerName);
+            layer.SetBlend(JBro::LayerBlend::Overlay);
+            layer.SetOpacity(0.8f);
+            layer.SetLit(true);
+            JBro::Object::GameObject* object = canvas->CreateObject(layerName);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+            Check(transform != nullptr && canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object) != nullptr,
+                "the layer's sprite needs a transform and a renderer");
+            transform->position = {x, 0.0f};
+            Check(canvas->SetObjectLayer(object, layer.GetId()), "the sprite must move into its layer");
+        };
+        addLayer("Glow", -1.0f);
+        addLayer("Shade", 1.0f);
+        JBro::Object::GameObject* lamp = canvas->CreateObject("Lamp");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(lamp) != nullptr, "the lamp needs a transform");
+        auto* light = canvas->AttachComponent<JBro::Component::Light2D>(lamp);
+        Check(light != nullptr, "and a light");
+        light->type = JBro::Component::Light2DType::Point;
+        light->outerRadius = 4.0f;
+
+        auto* panel = static_cast<JBro::RenderGraphPanel*>(editor.FindPanel(JBro::RenderGraphPanel::TypeName));
+        Check(panel != nullptr, "the render graph window must exist");
+        Check(false == panel->IsOpen(), "it starts closed like the profiler");
+        panel->SetOpen(true);
+        // 메뉴로 열면 앞으로 꺼낸다(DrawPanelMenuItem). 시험도 같은 길이다.
+        panel->RequestFocus();
+
+        // 첫 그림의 그래프는 다음 UI 프레임이 뜬다 - UI 는 엔진 프레임보다 먼저 지어진다.
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick with the window open");
+        Check(panel->GetCapturedSerial() != 0 && panel->GetCapturedPassCount() != 0, "the window must hold the last frame's graph");
+        Check(panel->CountPasses("Layer", JBro::RenderGraphSkip::MissingTexture) >= 2,
+            "on the first frame both layer passes wait for their texture");
+        Check(panel->CountPasses("LayerDirect", JBro::RenderGraphSkip::None) >= 2, "and the fallbacks draw the layers as they are");
+
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(panel->CountPasses("Layer", JBro::RenderGraphSkip::None) >= 2, "from the next frame the layers draw into their texture");
+        Check(panel->CountPasses("LayerDirect", JBro::RenderGraphSkip::TexturePresent) >= 2, "and the fallbacks stand down");
+        Check(panel->CountPasses("Backdrop", JBro::RenderGraphSkip::None) >= 2, "overlay copies what is below");
+        Check(panel->CountPasses("Composite", JBro::RenderGraphSkip::None) >= 2, "and lays each layer on");
+        Check(panel->CountPasses("LightMap", JBro::RenderGraphSkip::None) >= 1, "the lit layers draw a light map");
+        Check(panel->CountSharedTextures() >= 1, "the two layers' textures share one actual texture");
+
+        // 멈추면 떠 둔 그래프가 그대로다.
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        ImGuiWindow* window = ImGui::FindWindowByName(JBro::RenderGraphPanel::TypeName);
+        Check(window != nullptr, "the render graph window must have an ImGui window");
+        Spot pause;
+        Check(FindItemAnywhereInWindow(editor, hwnd, window, LabelId(window->ID, "##render_graph_pause"), pause),
+            "the window must have a hold button");
+        ClickAt(editor, hwnd, pause);
+        Check(editor.Tick(Frame), "the editor must settle after the hold");
+        Check(panel->IsPaused(), "pressing it must hold the graph");
+        const JBro::UInt64 held = panel->GetCapturedSerial();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must keep ticking while held");
+        }
+        Check(panel->GetCapturedSerial() == held, "a held graph does not change as frames pass");
+        Spot step;
+        Check(FindItemAnywhereInWindow(editor, hwnd, window, LabelId(window->ID, "##render_graph_step"), step),
+            "the window must have a step button");
+        ClickAt(editor, hwnd, step);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick after the step");
+        const JBro::UInt64 stepped = panel->GetCapturedSerial();
+        Check(stepped > held, "stepping takes a newer graph");
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick once more");
+        Check(panel->GetCapturedSerial() == stepped, "and only one");
+
+        // 아래 도크는 낮게 선다. 사람이 하듯이 위 경계를 끌어 올려 표가 보이게 한 뒤 찍는다.
+        Check(window->DockNode != nullptr, "the render graph window must be docked");
+        Spot edge;
+        edge.x = static_cast<JBro::Int32>(window->DockNode->Pos.x + window->DockNode->Size.x * 0.5f);
+        edge.y = static_cast<JBro::Int32>(window->DockNode->Pos.y) - 2;
+        Spot raised = edge;
+        raised.y -= 520;
+        const JBro::Float lowHeight = window->DockNode->Size.y;
+        DragTo(editor, hwnd, edge, raised);
+        window = ImGui::FindWindowByName(JBro::RenderGraphPanel::TypeName);
+        Check(window != nullptr && window->DockNode != nullptr && window->DockNode->Size.y > lowHeight + 200.0f,
+            "dragging the dock's edge must make room for the tables");
+
+        // 패스를 골라 세 탭을 찍는다.
+        const JBro::UInt32 composite = panel->FindPass("Composite");
+        Check(composite != JBro::RenderGraphPanel::NoSelection, "the held graph has a composite pass");
+        panel->SelectPass(composite);
+        JBro::Renderer* renderer = editor.GetRenderer();
+        const auto shot = [&](JBro::RenderGraphPanel::Tab tab, const char* suffix) {
+            panel->ShowTab(tab);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must draw the tab");
+            }
+            if (renderer != nullptr)
+            {
+                SaveScreenshot(*renderer, 1600, 1200, suffix);
+            }
+        };
+        shot(JBro::RenderGraphPanel::Tab::Pass, "render_graph_pass");
+        shot(JBro::RenderGraphPanel::Tab::Textures, "render_graph_textures");
+        shot(JBro::RenderGraphPanel::Tab::Pool, "render_graph_pool");
+        Check(panel->GetSelectedPass() == composite, "drawing the tabs keeps the chosen pass");
         editor.Shutdown();
     }
 
@@ -17022,6 +17156,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheCanvasViewDrawsColliderShapes();
     TestTheCanvasViewEditsPolygonColliderPoints();
     TestTheCanvasViewDragsLightHandles();
+    TestTheRenderGraphPanelShowsTheLastFrame();
     TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheCanvasViewGridLabelsStayOnTheirLines();

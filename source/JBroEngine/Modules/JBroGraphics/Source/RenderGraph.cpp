@@ -103,6 +103,34 @@ namespace JBro
         return count;
     }
 
+    Bool RenderTargetPool::GetSlot(UInt32 index, TransientTextureDesc& desc, TextureHandle& texture, UInt32& idleFrames) const noexcept
+    {
+        if (index >= Capacity || false == m_slots[index.Get()].texture.IsValid())
+        {
+            return false;
+        }
+        desc = m_slots[index.Get()].desc;
+        texture = m_slots[index.Get()].texture;
+        idleFrames = m_slots[index.Get()].idleFrames;
+        return true;
+    }
+
+    UInt32 RenderTargetPool::GetWantCount() const noexcept
+    {
+        return m_wantCount;
+    }
+
+    Bool RenderTargetPool::GetWant(UInt32 index, TransientTextureDesc& desc, UInt32& count) const noexcept
+    {
+        if (index >= m_wantCount)
+        {
+            return false;
+        }
+        desc = m_wants[index.Get()].desc;
+        count = m_wants[index.Get()].count;
+        return true;
+    }
+
     UInt32 RenderTargetPool::GetWantedCount(const TransientTextureDesc& desc) const noexcept
     {
         for (UInt32 want = 0; want < m_wantCount; ++want)
@@ -248,7 +276,7 @@ namespace JBro
         m_compiled = false;
     }
 
-    RenderGraphTexture RenderGraph::Import(TextureHandle texture, TextureKind kind)
+    RenderGraphTexture RenderGraph::Import(TextureHandle texture, TextureKind kind, const char* name)
     {
         if (false == texture.IsValid())
         {
@@ -269,21 +297,22 @@ namespace JBro
         TextureEntry entry;
         entry.texture = texture;
         entry.kind = kind;
+        entry.name = name;
         m_textures.Add(entry);
         return {static_cast<UInt32>(m_textures.Size() - 1)};
     }
 
-    RenderGraphTexture RenderGraph::ImportTexture(TextureHandle texture)
+    RenderGraphTexture RenderGraph::ImportTexture(TextureHandle texture, const char* name)
     {
-        return Import(texture, TextureKind::Imported);
+        return Import(texture, TextureKind::Imported, name);
     }
 
-    RenderGraphTexture RenderGraph::ImportBackBuffer(TextureHandle backBuffer)
+    RenderGraphTexture RenderGraph::ImportBackBuffer(TextureHandle backBuffer, const char* name)
     {
-        return Import(backBuffer, TextureKind::BackBuffer);
+        return Import(backBuffer, TextureKind::BackBuffer, name);
     }
 
-    RenderGraphTexture RenderGraph::CreateTexture(const TransientTextureDesc& desc)
+    RenderGraphTexture RenderGraph::CreateTexture(const TransientTextureDesc& desc, const char* name)
     {
         if (desc.extent.width == 0 || desc.extent.height == 0 || desc.format == TextureFormat::Unknown)
         {
@@ -296,12 +325,13 @@ namespace JBro
         }
         TextureEntry entry;
         entry.desc = desc;
+        entry.name = name;
         entry.kind = TextureKind::Transient;
         m_textures.Add(entry);
         return {static_cast<UInt32>(m_textures.Size() - 1)};
     }
 
-    RenderGraphPass RenderGraph::AddPass(RenderGraphPassKind kind, const char* name, RenderGraphExecute execute)
+    RenderGraphPass RenderGraph::AddPass(RenderGraphPassKind kind, const char* name, RenderGraphExecute execute, UInt32 group)
     {
         if (execute == nullptr)
         {
@@ -316,6 +346,7 @@ namespace JBro
         entry.name = name;
         entry.execute = execute;
         entry.kind = kind;
+        entry.group = group;
         entry.firstAccess = static_cast<UInt32>(m_accesses.Size());
         m_passes.Add(entry);
         return {static_cast<UInt32>(m_passes.Size() - 1)};
@@ -965,5 +996,77 @@ namespace JBro
         }
         const PassEntry& entry = m_passes[pass.index.Get()];
         return {m_barriers.Data() + entry.firstBarrier.Get(), entry.barrierCount};
+    }
+
+    Bool RenderGraph::IsCompiled() const noexcept
+    {
+        return m_compiled;
+    }
+
+    RenderGraphPassKind RenderGraph::GetPassKind(RenderGraphPass pass) const noexcept
+    {
+        return pass.index < m_passes.Size() ? m_passes[pass.index.Get()].kind : RenderGraphPassKind::Raster;
+    }
+
+    UInt32 RenderGraph::GetPassGroup(RenderGraphPass pass) const noexcept
+    {
+        return pass.index < m_passes.Size() ? m_passes[pass.index.Get()].group : UInt32(0);
+    }
+
+    UInt32 RenderGraph::GetPassAccessCount(RenderGraphPass pass) const noexcept
+    {
+        return pass.index < m_passes.Size() ? m_passes[pass.index.Get()].accessCount : UInt32(0);
+    }
+
+    RenderGraphAccessInfo RenderGraph::GetPassAccess(RenderGraphPass pass, UInt32 index) const noexcept
+    {
+        RenderGraphAccessInfo info;
+        if (pass.index >= m_passes.Size() || index >= m_passes[pass.index.Get()].accessCount)
+        {
+            return info;
+        }
+        const AccessEntry& access = m_accesses[(m_passes[pass.index.Get()].firstAccess + index).Get()];
+        info.texture = {access.texture};
+        info.access = access.role;
+        info.load = access.load;
+        info.optional = access.optional;
+        return info;
+    }
+
+    RenderGraphTexture RenderGraph::GetPassCondition(RenderGraphPass pass, Bool& runIfMissing) const noexcept
+    {
+        runIfMissing = false;
+        if (pass.index >= m_passes.Size())
+        {
+            return {};
+        }
+        runIfMissing = m_passes[pass.index.Get()].runIfMissing;
+        return {m_passes[pass.index.Get()].condition};
+    }
+
+    const char* RenderGraph::GetTextureName(RenderGraphTexture texture) const noexcept
+    {
+        return texture.index < m_textures.Size() ? m_textures[texture.index.Get()].name : nullptr;
+    }
+
+    RenderGraphTextureKind RenderGraph::GetTextureKind(RenderGraphTexture texture) const noexcept
+    {
+        return texture.index < m_textures.Size() ? m_textures[texture.index.Get()].kind : RenderGraphTextureKind::Transient;
+    }
+
+    TransientTextureDesc RenderGraph::GetTextureDesc(RenderGraphTexture texture) const noexcept
+    {
+        return texture.index < m_textures.Size() ? m_textures[texture.index.Get()].desc : TransientTextureDesc{};
+    }
+
+    Bool RenderGraph::GetTextureLifetime(RenderGraphTexture texture, UInt32& firstPass, UInt32& lastPass) const noexcept
+    {
+        if (texture.index >= m_textures.Size() || m_textures[texture.index.Get()].firstPass == RenderGraphPass::Invalid)
+        {
+            return false;
+        }
+        firstPass = m_textures[texture.index.Get()].firstPass;
+        lastPass = m_textures[texture.index.Get()].lastPass;
+        return true;
     }
 }

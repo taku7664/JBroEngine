@@ -80,6 +80,37 @@ namespace JBro
         Unused
     };
 
+    // 그래프 텍스처가 어디서 왔나다(살펴보기).
+    enum class RenderGraphTextureKind : std::uint8_t
+    {
+        // 그래프가 만들어 풀에서 고른 것이다.
+        Transient,
+        // 밖에서 들인 것이다(뷰의 타깃·외곽선 마스크 같은 에디터 텍스처).
+        Imported,
+        BackBuffer
+    };
+
+    // 패스가 텍스처를 어떻게 쓰나다.
+    enum class RenderGraphAccess : std::uint8_t
+    {
+        Color,
+        Depth,
+        Read,
+        CopySource,
+        CopyDestination,
+        Storage
+    };
+
+    // 패스의 접근 하나다(살펴보기).
+    struct RenderGraphAccessInfo
+    {
+        RenderGraphTexture texture;
+        RenderGraphAccess access = RenderGraphAccess::Read;
+        // 색·깊이 첨부에서만 뜻이 있다.
+        LoadOperation load = LoadOperation::Load;
+        Bool optional = false;
+    };
+
     class RenderGraph;
 
     // 실행 함수가 받는 것이다. 그래프 텍스처를 실제 텍스처로 푼다.
@@ -127,6 +158,11 @@ namespace JBro
         UInt32 GetTextureCount() const noexcept;
         // 이 모양으로 바라는 수다(다음 `Prepare` 가 더 만들 수). 시험이 본다.
         UInt32 GetWantedCount(const TransientTextureDesc& desc) const noexcept;
+        // ── 살펴보기(렌더 그래프 창) ──
+        // 칸 하나다. 빈 칸이면 거짓이다.
+        Bool GetSlot(UInt32 index, TransientTextureDesc& desc, TextureHandle& texture, UInt32& idleFrames) const noexcept;
+        UInt32 GetWantCount() const noexcept;
+        Bool GetWant(UInt32 index, TransientTextureDesc& desc, UInt32& count) const noexcept;
 
     private:
         friend class RenderGraph;
@@ -177,14 +213,16 @@ namespace JBro
 
         // **밖에서 가져온 텍스처**다. 같은 핸들은 같은 그래프 텍스처다. 여기에 쓰는 패스가 그래프의 결과이고, 상태는 RHI 가 맞춘다
         // (그래프는 들인 텍스처에 배리어를 걸지 않는다 - 쓰임을 모른다).
-        RenderGraphTexture ImportTexture(TextureHandle texture);
+        // 이름은 진단용이고 정적 문자열이어야 한다(복사하지 않는다). 같은 핸들을 다시 들이면 처음 이름이 남는다.
+        RenderGraphTexture ImportTexture(TextureHandle texture, const char* name = nullptr);
         // 스왑체인의 백버퍼다. 들인 텍스처와 같고, 배리어를 받지 않는다는 것을 이름으로 남긴다.
-        RenderGraphTexture ImportBackBuffer(TextureHandle backBuffer);
+        RenderGraphTexture ImportBackBuffer(TextureHandle backBuffer, const char* name = nullptr);
         // **그래프가 만드는 텍스처**다. 실제 텍스처는 `Compile` 이 풀에서 고르고, 수명이 겹치지 않는 같은 모양끼리 하나를 나눠 쓴다.
-        RenderGraphTexture CreateTexture(const TransientTextureDesc& desc);
+        RenderGraphTexture CreateTexture(const TransientTextureDesc& desc, const char* name = nullptr);
 
-        // 패스를 더한다. 이름은 진단용이고 정적 문자열이어야 한다(복사하지 않는다).
-        RenderGraphPass AddPass(RenderGraphPassKind kind, const char* name, RenderGraphExecute execute);
+        // 패스를 더한다. 이름은 진단용이고 정적 문자열이어야 한다(복사하지 않는다). `group` 은 부르는 쪽이 정하는 묶음 번호다 -
+        // 렌더러는 뷰 번호를 넣고, 렌더 그래프 창이 그것으로 패스를 묶는다.
+        RenderGraphPass AddPass(RenderGraphPassKind kind, const char* name, RenderGraphExecute execute, UInt32 group = 0);
         // 래스터 패스의 색 첨부다. `Load` 는 앞의 내용을 읽는 것으로 친다(그 앞의 쓰기가 필요하다).
         Bool SetColorAttachment(RenderGraphPass pass, RenderGraphTexture texture, LoadOperation load, const ClearColor& clear = {});
         // 래스터 패스의 깊이 첨부다. `optional` 이면 그 텍스처가 이 프레임에 없어도 패스는 깊이 없이 돈다.
@@ -225,29 +263,31 @@ namespace JBro
         TextureHandle GetCompiledTexture(RenderGraphTexture texture) const noexcept;
         // 그 패스 앞에서 걸 배리어다.
         JArrayView<TextureBarrier> GetPassBarriers(RenderGraphPass pass) const noexcept;
+        // 이 프레임을 컴파일했는가. 짓다가 멈춘 프레임은 거짓이다.
+        Bool IsCompiled() const noexcept;
+        RenderGraphPassKind GetPassKind(RenderGraphPass pass) const noexcept;
+        UInt32 GetPassGroup(RenderGraphPass pass) const noexcept;
+        UInt32 GetPassAccessCount(RenderGraphPass pass) const noexcept;
+        RenderGraphAccessInfo GetPassAccess(RenderGraphPass pass, UInt32 index) const noexcept;
+        // `RunIfAvailable`·`RunIfMissing` 의 텍스처다. 조건이 없으면 무효다.
+        RenderGraphTexture GetPassCondition(RenderGraphPass pass, Bool& runIfMissing) const noexcept;
+        const char* GetTextureName(RenderGraphTexture texture) const noexcept;
+        RenderGraphTextureKind GetTextureKind(RenderGraphTexture texture) const noexcept;
+        // 그래프가 만든 텍스처의 모양이다. 들인 텍스처는 모양을 모른다(빈 모양).
+        TransientTextureDesc GetTextureDesc(RenderGraphTexture texture) const noexcept;
+        // 그 텍스처를 쓰는 첫·끝 패스다(조건 포함). 아무도 쓰지 않으면 거짓이다.
+        Bool GetTextureLifetime(RenderGraphTexture texture, UInt32& firstPass, UInt32& lastPass) const noexcept;
 
     private:
         friend class RenderGraphContext;
 
-        enum class TextureKind : std::uint8_t
-        {
-            Transient,
-            Imported,
-            BackBuffer
-        };
-        enum class AccessRole : std::uint8_t
-        {
-            Color,
-            Depth,
-            Read,
-            CopySource,
-            CopyDestination,
-            Storage
-        };
+        using TextureKind = RenderGraphTextureKind;
+        using AccessRole = RenderGraphAccess;
         struct TextureEntry
         {
             TransientTextureDesc desc;
             TextureHandle texture;
+            const char* name = nullptr;
             TextureKind kind = TextureKind::Transient;
             UInt32 firstPass = RenderGraphPass::Invalid;
             UInt32 lastPass = RenderGraphPass::Invalid;
@@ -279,6 +319,7 @@ namespace JBro
             UInt32 firstBarrier = 0;
             UInt32 barrierCount = 0;
             UInt32 condition = RenderGraphTexture::Invalid;
+            UInt32 group = 0;
             RenderGraphPassKind kind = RenderGraphPassKind::Raster;
             Bool runIfMissing = false;
             RenderGraphSkip skip = RenderGraphSkip::None;
@@ -287,7 +328,7 @@ namespace JBro
         Bool AddAccess(RenderGraphPass pass, const AccessEntry& access);
         Bool IsLastPass(RenderGraphPass pass) const noexcept;
         Bool CopyPassData(RenderGraphPass pass, const void* data, std::size_t size, std::size_t alignment);
-        RenderGraphTexture Import(TextureHandle texture, TextureKind kind);
+        RenderGraphTexture Import(TextureHandle texture, TextureKind kind, const char* name);
         void Allocate(RenderTargetPool& pool);
         void CullPasses();
         void BuildBarriers();

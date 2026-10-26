@@ -151,6 +151,7 @@ namespace JBro
             {
                 return false;
             }
+            m_graphViews.Reserve(config.maxViews);
         }
         catch (const std::bad_alloc&)
         {
@@ -259,6 +260,8 @@ namespace JBro
         m_litRanges = {};
         m_openLitRange = NoLayerGroup;
         m_graph.Shutdown();
+        m_graphViews = {};
+        m_graphSerial = 0;
         m_meshHistogram = {};
         m_meshResources = {};
         m_currentStats = {};
@@ -1025,6 +1028,36 @@ namespace JBro
         return true;
     }
 
+    const RenderGraph* Renderer::GetLastRenderGraph() const
+    {
+        return m_graph.IsCompiled() ? &m_graph : nullptr;
+    }
+
+    UInt64 Renderer::GetLastRenderGraphSerial() const
+    {
+        return m_graphSerial;
+    }
+
+    UInt32 Renderer::GetLastRenderGraphViewCount() const
+    {
+        return static_cast<JBro::UInt32>(m_graphViews.Size());
+    }
+
+    Bool Renderer::GetLastRenderGraphView(UInt32 index, RendererViewDebugInfo& info) const
+    {
+        if (index >= m_graphViews.Size())
+        {
+            return false;
+        }
+        info = m_graphViews[index.Get()];
+        return true;
+    }
+
+    const RenderTargetPool& Renderer::GetRenderTargetPool() const
+    {
+        return m_targetPool;
+    }
+
     Bool Renderer::IsDeviceLost() const
     {
         return m_device != nullptr && m_device->GetStatus() == FrameStatus::DeviceLost;
@@ -1095,8 +1128,9 @@ namespace JBro
         // **뷰를 그래프의 패스로 짓는다**(D-339). 패스는 기록할 순서대로 더하고, 중간 텍스처는 그래프가 만든다 - 컴파일이 풀에서 고르고,
         // 이 프레임에 없는 모양은 다음 프레임 전에 서도록 바라며, 그 텍스처가 있어야 하는 패스 대신 대신 그리기 패스를 돌린다.
         m_graph.Reset();
-        const RenderGraphTexture frameTarget =
-            frameToTexture ? m_graph.ImportTexture(frameTexture) : m_graph.ImportBackBuffer(frameTexture);
+        const RenderGraphTexture frameTarget = frameToTexture ? m_graph.ImportTexture(frameTexture, "FrameTarget")
+                                                              : m_graph.ImportBackBuffer(frameTexture, "BackBuffer");
+        m_graphViews.Clear();
 
         // **지우는 것은 타깃마다 처음 한 번이다**(D-130). 뷰 번호로 정하면 둘째 타깃의
         // 첫 뷰가 덧그리기가 되어 지난 프레임이 비쳐 남는다.
@@ -1109,26 +1143,41 @@ namespace JBro
                 return false;
             }
         }
-        return m_graph.Compile(m_targetPool) && m_graph.Execute(*m_frame.commands);
+        if (false == m_graph.Compile(m_targetPool))
+        {
+            return false;
+        }
+        ++m_graphSerial;
+        return m_graph.Execute(*m_frame.commands);
     }
 
     Bool Renderer::AddViewPasses(UInt32 viewIndex, RenderGraphTexture frameTarget, TextureHandle frameTexture, const Extent2D& frameExtent)
     {
         const ViewPacket& view = m_views[viewIndex.Get()];
         const Bool ownTarget = view.camera.target.IsValid();
+        RendererViewDebugInfo debug;
+        debug.target = ownTarget ? view.camera.target : frameTexture;
+        debug.extent = ownTarget ? view.camera.targetExtent : frameExtent;
+        debug.ownTarget = ownTarget;
+        debug.hasMeshes = view.runCount != 0 || view.worldTextRunCount != 0;
+        debug.lit = view.hasLitRun && view.lighting;
+        debug.layerGroupCount = view.layerGroupCount;
         // 프레임 타깃으로 가는 뷰만 이 프레임의 opt-in 을 따른다(D-63·D-130).
         if (false == ownTarget && false == m_frameTarget.recordViews)
         {
             ++m_currentStats.skippedViewCount;
+            m_graphViews.Add(debug);
             return true;
         }
+        debug.recorded = true;
+        m_graphViews.Add(debug);
         if (ownTarget && (view.camera.targetExtent.width == 0 || view.camera.targetExtent.height == 0))
         {
             // 크기를 모르면 뷰포트가 타깃 안에 있는지 잴 수 없다. 짐작하지 않는다.
             return false;
         }
         const TextureHandle targetTexture = ownTarget ? view.camera.target : frameTexture;
-        const RenderGraphTexture target = ownTarget ? m_graph.ImportTexture(targetTexture) : frameTarget;
+        const RenderGraphTexture target = ownTarget ? m_graph.ImportTexture(targetTexture, "ViewTarget") : frameTarget;
         const Extent2D extent = ownTarget ? view.camera.targetExtent : frameExtent;
         if (false == target.IsValid())
         {
@@ -1186,7 +1235,7 @@ namespace JBro
         RenderGraphTexture depth;
         if (depthWork)
         {
-            depth = m_graph.CreateTexture({extent, TextureFormat::D32Float, TextureUsage::DepthStencil});
+            depth = m_graph.CreateTexture({extent, TextureFormat::D32Float, TextureUsage::DepthStencil}, "Depth");
         }
 
         // **라이트맵을 먼저 그린다**(D-291). 빛을 받는 스프라이트가 있고 라이트를 받은 뷰만이다. 타깃과 같은 크기의 RGBA16F 이고, 빛을 받는
@@ -1195,7 +1244,8 @@ namespace JBro
         RenderGraphTexture lightMap;
         if (view.hasLitRun && view.lighting && false == depthWork && m_light2DPipeline.IsValid())
         {
-            lightMap = m_graph.CreateTexture({extent, TextureFormat::RGBA16Float, TextureUsage::RenderTarget | TextureUsage::Sampled});
+            lightMap = m_graph.CreateTexture(
+                {extent, TextureFormat::RGBA16Float, TextureUsage::RenderTarget | TextureUsage::Sampled}, "LightMap");
             if (false == AddLightMapPasses(viewIndex, lightMap, extent, viewport, scissor))
             {
                 return false;
@@ -1223,7 +1273,7 @@ namespace JBro
         // 스프라이트 구간 하나를 그리는 패스를 더한다. 라이트맵은 선택으로 읽고 깊이는 선택으로 단다.
         const auto addSpritePass = [&](const char* name, RenderGraphTexture output, LoadOperation load, const ClearColor& clear,
                                        const SpritePassData& data) -> RenderGraphPass {
-            const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, name, &Renderer::ExecuteSprites);
+            const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, name, &Renderer::ExecuteSprites, viewIndex);
             if (false == m_graph.SetColorAttachment(pass, output, load, clear)
                 || (data.depth.IsValid()
                     && false == m_graph.SetDepthAttachment(pass, data.depth, LoadOperation::Clear, StoreOperation::Discard, true))
@@ -1240,15 +1290,16 @@ namespace JBro
         const Bool wantsComposite = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
         if (wantsComposite)
         {
-            const RenderGraphTexture viewLayer = m_graph.CreateTexture(layerDesc);
+            const RenderGraphTexture viewLayer = m_graph.CreateTexture(layerDesc, "ViewLayer");
             // 아래 그림을 읽는 블렌드면 사본 자리도 같은 프레임에 바란다 - 그래야 둘째 프레임부터 제 식으로 얹힌다(D-283).
             const RenderGraphTexture backdrop = static_cast<JBro::UInt32>(view.camera.composite) >= FirstBackdropBlend
-                ? m_graph.CreateTexture(layerDesc)
+                ? m_graph.CreateTexture(layerDesc, "Backdrop")
                 : RenderGraphTexture{};
             if (false == alreadyCleared)
             {
                 // 이 타깃의 첫 뷰다. 레이어 텍스처에 그리더라도 타깃은 지워야 지난 프레임이 비치지 않는다.
-                const RenderGraphPass clear = m_graph.AddPass(RenderGraphPassKind::Raster, "ViewClear", &Renderer::ExecuteNothing);
+                const RenderGraphPass clear =
+                    m_graph.AddPass(RenderGraphPassKind::Raster, "ViewClear", &Renderer::ExecuteNothing, viewIndex);
                 if (false == m_graph.SetColorAttachment(clear, target, LoadOperation::Clear, viewClear)
                     || false == m_graph.RunIfAvailable(clear, viewLayer))
                 {
@@ -1267,8 +1318,8 @@ namespace JBro
             whole.uncomposited = true;
             const RenderGraphPass direct = addSpritePass("ViewDirect", target, targetLoad, viewClear, whole);
             if (false == direct.IsValid() || false == m_graph.RunIfMissing(direct, viewLayer)
-                || false == AddCompositePasses(viewLayer, backdrop, target, view.camera.composite, view.camera.compositeOpacity, viewport,
-                    scissor))
+                || false == AddCompositePasses(viewIndex, viewLayer, backdrop, target, view.camera.composite, view.camera.compositeOpacity,
+                    viewport, scissor))
             {
                 return false;
             }
@@ -1326,9 +1377,9 @@ namespace JBro
                 else
                 {
                     const LayerGroup& layerGroup = m_layerGroups[group.Get()];
-                    const RenderGraphTexture layer = m_graph.CreateTexture(layerDesc);
+                    const RenderGraphTexture layer = m_graph.CreateTexture(layerDesc, "Layer");
                     const RenderGraphTexture backdrop = static_cast<JBro::UInt32>(layerGroup.blend) >= FirstBackdropBlend
-                        ? m_graph.CreateTexture(layerDesc)
+                        ? m_graph.CreateTexture(layerDesc, "Backdrop")
                         : RenderGraphTexture{};
                     if (false == addSpritePass("Layer", layer, LoadOperation::Clear, transparent, part).IsValid())
                     {
@@ -1338,7 +1389,8 @@ namespace JBro
                     part.uncomposited = true;
                     const RenderGraphPass direct = addSpritePass("LayerDirect", target, LoadOperation::Load, viewClear, part);
                     if (false == direct.IsValid() || false == m_graph.RunIfMissing(direct, layer)
-                        || false == AddCompositePasses(layer, backdrop, target, layerGroup.blend, layerGroup.opacity, viewport, scissor))
+                        || false == AddCompositePasses(viewIndex, layer, backdrop, target, layerGroup.blend, layerGroup.opacity, viewport,
+                            scissor))
                     {
                         return false;
                     }
@@ -1350,8 +1402,8 @@ namespace JBro
         // **이 뷰를 다 그린 뒤 마스크의 둘레를 덧그린다**(D-276). 마스크와 사본 자리는 에디터가 준 텍스처다.
         if (view.camera.outlineMask.IsValid() && view.camera.outlineScratch.IsValid() && view.camera.outlineWidth != 0)
         {
-            const RenderGraphTexture mask = m_graph.ImportTexture(view.camera.outlineMask);
-            const RenderGraphTexture scratch = m_graph.ImportTexture(view.camera.outlineScratch);
+            const RenderGraphTexture mask = m_graph.ImportTexture(view.camera.outlineMask, "OutlineMask");
+            const RenderGraphTexture scratch = m_graph.ImportTexture(view.camera.outlineScratch, "OutlineScratch");
             OutlinePassData outline;
             outline.renderer = this;
             for (Int32 channel = 0; channel < 4; ++channel)
@@ -1364,7 +1416,7 @@ namespace JBro
             // 둘째 패스만 마스크를 t1 로도 읽는다. 두 셰이더 모두 `Load` 로만 읽어 샘플러를 묶지 않고, 첫째 프로그램은 텍스처 하나만
             // 선언한다(매니페스트, D-329 - 반사 시험이 찾았다).
             outline.first = mask;
-            const RenderGraphPass grow = m_graph.AddPass(RenderGraphPassKind::Raster, "OutlineGrow", &Renderer::ExecuteOutline);
+            const RenderGraphPass grow = m_graph.AddPass(RenderGraphPassKind::Raster, "OutlineGrow", &Renderer::ExecuteOutline, viewIndex);
             if (false == m_graph.SetColorAttachment(grow, scratch, LoadOperation::Clear, transparent) || false == m_graph.Read(grow, mask)
                 || false == m_graph.SetPassData(grow, outline))
             {
@@ -1373,7 +1425,7 @@ namespace JBro
             outline.first = scratch;
             outline.second = mask;
             outline.composite = true;
-            const RenderGraphPass edge = m_graph.AddPass(RenderGraphPassKind::Raster, "Outline", &Renderer::ExecuteOutline);
+            const RenderGraphPass edge = m_graph.AddPass(RenderGraphPassKind::Raster, "Outline", &Renderer::ExecuteOutline, viewIndex);
             if (false == m_graph.SetColorAttachment(edge, target, LoadOperation::Load) || false == m_graph.Read(edge, scratch)
                 || false == m_graph.Read(edge, mask) || false == m_graph.SetPassData(edge, outline))
             {
@@ -1383,8 +1435,8 @@ namespace JBro
         return true;
     }
 
-    Bool Renderer::AddCompositePasses(RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target, CompositeBlend blend,
-        Float opacity, const Viewport& viewport, const ScissorRect& scissor)
+    Bool Renderer::AddCompositePasses(UInt32 viewIndex, RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target,
+        CompositeBlend blend, Float opacity, const Viewport& viewport, const ScissorRect& scissor)
     {
         // 아래 그림을 읽는 블렌드는 레이어를 얹기 직전의 타깃을 사본에 복사해 두고, 셰이더가 둘을 섞어 그 자리를 덮어쓴다(D-283).
         if (backdrop.IsValid())
@@ -1392,7 +1444,7 @@ namespace JBro
             CopyPassData copy;
             copy.source = target;
             copy.destination = backdrop;
-            const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Copy, "Backdrop", &Renderer::ExecuteCopy);
+            const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Copy, "Backdrop", &Renderer::ExecuteCopy, viewIndex);
             if (false == m_graph.ReadCopySource(pass, target) || false == m_graph.WriteCopyDestination(pass, backdrop)
                 || false == m_graph.RunIfAvailable(pass, layer) || false == m_graph.SetPassData(pass, copy))
             {
@@ -1407,7 +1459,7 @@ namespace JBro
         composite.backdrop = backdrop;
         composite.blend = blend;
         composite.opacity = opacity;
-        const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, "Composite", &Renderer::ExecuteComposite);
+        const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, "Composite", &Renderer::ExecuteComposite, viewIndex);
         return m_graph.SetColorAttachment(pass, target, LoadOperation::Load) && m_graph.Read(pass, layer)
             && (false == backdrop.IsValid() || m_graph.Read(pass, backdrop, true)) && m_graph.SetPassData(pass, composite);
     }
@@ -1422,7 +1474,7 @@ namespace JBro
         light.scissor = scissor;
         light.view = viewIndex;
         // 환경광으로 지우고 그림자 없는 라이트를 한 번에 더한다. 알파는 읽지 않는다.
-        const RenderGraphPass ambient = m_graph.AddPass(RenderGraphPassKind::Raster, "LightMap", &Renderer::ExecuteLightMap);
+        const RenderGraphPass ambient = m_graph.AddPass(RenderGraphPassKind::Raster, "LightMap", &Renderer::ExecuteLightMap, viewIndex);
         if (false == m_graph.SetColorAttachment(ambient, lightMap, LoadOperation::Clear, {view.ambient[0], view.ambient[1], view.ambient[2], 0.0f})
             || false == m_graph.SetPassData(ambient, light))
         {
@@ -1440,24 +1492,26 @@ namespace JBro
             {
                 continue;
             }
-            const RenderGraphTexture mask =
-                m_graph.CreateTexture({extent, TextureFormat::RGBA16Float, TextureUsage::RenderTarget | TextureUsage::Sampled});
+            const RenderGraphTexture mask = m_graph.CreateTexture(
+                {extent, TextureFormat::RGBA16Float, TextureUsage::RenderTarget | TextureUsage::Sampled}, "ShadowMask");
             light.shadowedLight = static_cast<JBro::UInt32>(at);
             light.mask = mask;
-            const RenderGraphPass maskPass = m_graph.AddPass(RenderGraphPassKind::Raster, "ShadowMask", &Renderer::ExecuteShadowMask);
+            const RenderGraphPass maskPass =
+                m_graph.AddPass(RenderGraphPassKind::Raster, "ShadowMask", &Renderer::ExecuteShadowMask, viewIndex);
             if (false == m_graph.SetColorAttachment(maskPass, mask, LoadOperation::Clear, {0.0f, 0.0f, 0.0f, 0.0f})
                 || false == m_graph.SetPassData(maskPass, light))
             {
                 return false;
             }
             const RenderGraphPass shadowedPass =
-                m_graph.AddPass(RenderGraphPassKind::Raster, "ShadowedLight", &Renderer::ExecuteShadowedLight);
+                m_graph.AddPass(RenderGraphPassKind::Raster, "ShadowedLight", &Renderer::ExecuteShadowedLight, viewIndex);
             if (false == m_graph.SetColorAttachment(shadowedPass, lightMap, LoadOperation::Load) || false == m_graph.Read(shadowedPass, mask)
                 || false == m_graph.SetPassData(shadowedPass, light))
             {
                 return false;
             }
-            const RenderGraphPass plainPass = m_graph.AddPass(RenderGraphPassKind::Raster, "Light", &Renderer::ExecuteUnshadowedLight);
+            const RenderGraphPass plainPass =
+                m_graph.AddPass(RenderGraphPassKind::Raster, "Light", &Renderer::ExecuteUnshadowedLight, viewIndex);
             if (false == m_graph.SetColorAttachment(plainPass, lightMap, LoadOperation::Load) || false == m_graph.RunIfMissing(plainPass, mask)
                 || false == m_graph.SetPassData(plainPass, light))
             {

@@ -6046,6 +6046,7 @@ namespace JBro
             }
             ImGui::Separator();
             DrawPanelMenuItem("Profiler", Loc::TextOr(LocKeys::MenuDebugCpuProfiler, "CPU Profiler"));
+            DrawPanelMenuItem("RenderGraph", Loc::TextOr(LocKeys::MenuDebugRenderGraph, "Render Graph"));
             DrawPanelMenuItem("Stats", Loc::TextOr(LocKeys::MenuDebugStats, "Statistics"));
             DrawPanelMenuItem("Log", Loc::TextOr(LocKeys::MenuDebugLog, "Log"));
             Widget::EndMenu();

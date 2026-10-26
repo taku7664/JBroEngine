@@ -829,3 +829,88 @@ Entries:
   agent.attach_file: Attach file
   agent.attachment_filter: Project assets
   agent.attachment_unsupported: Only registered project assets can currently be attached from a file.
+  panel.render_graph: Render Graph
+  menu.debug_render_graph: Render Graph
+  render_graph.empty: No render graph has been recorded yet
+  render_graph.pause_tooltip: Hold this graph to inspect it. The game keeps running
+  render_graph.step_tooltip: Take the next frame's graph
+  render_graph.step_disabled: Only while the graph is held
+  render_graph.show_skipped: Skipped passes
+  render_graph.search: Find a pass or texture
+  render_graph.held: Held
+  render_graph.frame: Frame
+  render_graph.passes_ran: Passes run
+  render_graph.texture_count: Textures
+  render_graph.physical_count: Actual textures
+  render_graph.barrier_count: Barriers
+  render_graph.kind_raster: Raster
+  render_graph.kind_copy: Copy
+  render_graph.kind_compute: Compute
+  render_graph.status_ran: Ran
+  render_graph.status_ran_tip: This pass was recorded this frame.
+  render_graph.skip_missing: Texture missing
+  render_graph.skip_missing_tip: A texture this pass needs does not exist this frame. Its shape is made before the next frame.
+  render_graph.skip_present: Not needed
+  render_graph.skip_present_tip: This is a fallback. The texture exists, so the original pass ran instead.
+  render_graph.skip_input: No input
+  render_graph.skip_input_tip: The pass that writes a texture this pass must read did not run.
+  render_graph.skip_unused: Unused
+  render_graph.skip_unused_tip: Nothing reads what this pass writes, so it was dropped.
+  render_graph.view: View
+  render_graph.view_frame: Game screen
+  render_graph.view_other: Editor image
+  render_graph.view_not_recorded: Not drawn this frame
+  render_graph.column_pass: Pass
+  render_graph.column_kind: Kind
+  render_graph.column_status: Status
+  render_graph.column_barriers: Barriers
+  render_graph.column_texture: Texture
+  render_graph.column_use: Use
+  render_graph.column_actual: Actual texture
+  render_graph.column_state: State
+  render_graph.column_shape: Shape
+  render_graph.column_source: Source
+  render_graph.column_lifetime: Lifetime
+  render_graph.column_slot: Slot
+  render_graph.column_this_frame: This frame
+  render_graph.column_idle: Idle frames
+  render_graph.tab_pass: Pass
+  render_graph.tab_textures: Textures
+  render_graph.tab_pool: Pool
+  render_graph.select_pass_hint: Choose a pass on the left
+  render_graph.condition: Condition
+  render_graph.condition_available: available
+  render_graph.condition_missing: missing (fallback)
+  render_graph.accesses: Textures this pass uses
+  render_graph.access_color: Colour attachment
+  render_graph.access_depth: Depth attachment
+  render_graph.access_read: Read
+  render_graph.access_read_optional: Read (may be absent)
+  render_graph.access_copy_source: Copy source
+  render_graph.access_copy_destination: Copy destination
+  render_graph.access_storage: Read and write
+  render_graph.optional_suffix: " (may be absent)"
+  render_graph.load_load: Keep
+  render_graph.load_clear: Clear
+  render_graph.load_discard: Discard
+  render_graph.actual_none: None this frame
+  render_graph.actual_none_tip: The pool had no free texture of this shape. Passes that need it fell back; it is made before the next frame.
+  render_graph.barriers_header: Barriers before this pass
+  render_graph.no_barriers: No barriers
+  render_graph.state_shader_read: Shader read
+  render_graph.state_render_target: Render target
+  render_graph.state_depth_write: Depth write
+  render_graph.state_copy_source: Copy source
+  render_graph.state_copy_destination: Copy destination
+  render_graph.state_storage: Read and write
+  render_graph.source_transient: Graph
+  render_graph.source_imported: Imported
+  render_graph.source_back_buffer: Back buffer
+  render_graph.shared_hint: Bars of one colour share one actual texture.
+  render_graph.lifetime_tip: Lives from the first pass that uses it to the last
+  render_graph.pool_slots: Slots in use
+  render_graph.pool_hint: Textures unused for 300 frames are released. Shapes the graph lacked are made before the next frame.
+  render_graph.slot_empty: Empty
+  render_graph.slot_used: Used
+  render_graph.wants: To make before the next frame
+  render_graph.wants_none: Nothing to make

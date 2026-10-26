@@ -296,6 +296,21 @@ namespace JBro
         UInt32 viewsWithoutLightMapCount = 0;
     };
 
+    // **렌더 그래프 창이 보는 뷰 하나다**(D-339, 진단). 뷰 번호가 그 뷰 패스의 묶음 번호(`RenderGraph::GetPassGroup`)다.
+    struct RendererViewDebugInfo
+    {
+        // 그 뷰가 그린 곳이다. 프레임 타깃으로 간 뷰는 프레임의 텍스처(타깃을 안 준 프레임은 백버퍼)다.
+        TextureHandle target;
+        Extent2D extent;
+        // 자기 타깃을 든 뷰다(캔버스 뷰·레이어 썸네일 같은 편집 화면).
+        Bool ownTarget = false;
+        // 이 프레임에 기록했는가. 프레임 타깃이 뷰를 원하지 않은 프레임(`FrameTarget::recordViews`)의 뷰는 거짓이고 패스가 없다.
+        Bool recorded = false;
+        Bool hasMeshes = false;
+        Bool lit = false;
+        UInt32 layerGroupCount = 0;
+    };
+
     class Renderer final
     {
     public:
@@ -371,6 +386,17 @@ namespace JBro
         // 한쪽만 고쳐졌을 때 손잡이가 그림과 다른 자리에 선다 - 그리는 쪽이 쓴 것을 그대로 내준다.
         // 편집 뷰를 기록한 프레임이 아직 없으면 거짓이다.
         Bool GetLastEditorViewCamera(CameraParams& camera) const;
+
+        // ── 렌더 그래프 진단(D-339, 렌더 그래프 창) ──
+        // **지난 프레임의 렌더 그래프다.** 다음 `EndFrame` 이 다시 짓기 전까지 그대로다 - 에디터는 UI 를 엔진 프레임보다 먼저 지으므로
+        // 그때 읽으면 지난 프레임의 것이다. 컴파일한 그래프가 아직 없거나 짓다가 멈춘 프레임이면 nullptr 이다.
+        const RenderGraph* GetLastRenderGraph() const;
+        // 그래프를 컴파일한 프레임마다 하나씩 는다. 창이 같은 그래프를 다시 읽지 않게, 멈춰 둔 것과 새것을 가르는 데 쓴다.
+        UInt64 GetLastRenderGraphSerial() const;
+        UInt32 GetLastRenderGraphViewCount() const;
+        Bool GetLastRenderGraphView(UInt32 index, RendererViewDebugInfo& info) const;
+        // 그래프가 만드는 중간 텍스처의 풀이다. 바라는 모양은 다음 `BeginFrame` 이 만들고 비운다.
+        const RenderTargetPool& GetRenderTargetPool() const;
 
         // 프레임을 닫기 전에 부를 것을 건다. **프레임 밖에서만 바꾼다** -
         // 프레임 중간에 바뀌면 이미 기록한 것과 어긋난다. nullptr 이면 뗀다.
@@ -694,8 +720,8 @@ namespace JBro
         Bool AddLightMapPasses(UInt32 viewIndex, RenderGraphTexture lightMap, const Extent2D& extent, const Viewport& viewport,
             const ScissorRect& scissor);
         // 레이어 텍스처를 타깃에 얹는 패스들이다. 아래 그림을 읽는 블렌드면 그 앞에 타깃을 사본에 복사하는 패스가 붙는다.
-        Bool AddCompositePasses(RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target, CompositeBlend blend,
-            Float opacity, const Viewport& viewport, const ScissorRect& scissor);
+        Bool AddCompositePasses(UInt32 viewIndex, RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target,
+            CompositeBlend blend, Float opacity, const Viewport& viewport, const ScissorRect& scissor);
         // 스프라이트 구간을 그린다. 렌더 패스는 열려 있어야 한다.
         Bool DrawSpriteRuns(IRHICommandContext& commands, const ViewPacket& view, UInt32 firstRun, UInt32 endRun, TextureHandle lightMap,
             Bool overDepth);
@@ -777,6 +803,9 @@ namespace JBro
         // 다음 `BeginFrame` 이 프레임을 열기 전에 만든다 - 디바이스는 프레임 안에서 자원을 만들지 않는다.
         RenderGraph m_graph;
         RenderTargetPool m_targetPool;
+        // 지난 그래프의 뷰들이다(렌더 그래프 창). 뷰 상한만큼 잡아 두고 그래프를 지을 때 채운다.
+        Array<RendererViewDebugInfo> m_graphViews;
+        UInt64 m_graphSerial = 0;
         GraphicsPipelineHandle m_spritePipeline;
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
         // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.

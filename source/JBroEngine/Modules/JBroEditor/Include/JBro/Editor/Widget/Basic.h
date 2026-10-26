@@ -54,6 +54,8 @@ namespace JBro::Widget
     Bool Button(const char* label, const char* icon, const ImVec2& size = ImVec2(0.0f, 0.0f));
     // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
     Bool SelectableRow(const char* label, Bool selected);
+    // 표의 한 줄을 통째로 고르는 것처럼 줄 모양을 바꿀 때 쓴다(`ImGuiSelectableFlags_SpanAllColumns` 등).
+    Bool SelectableRow(const char* label, Bool selected, ImGuiSelectableFlags flags);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
     // 붉게(`Error`), 저장·만들기처럼 그 자리의 주된 확인은 푸르게(`Success`) 선다 -
     // `Info` 는 보통 단추와 같다. **지우기가 그만두기와 똑같이 생기면 손이 먼저 움직인다.**

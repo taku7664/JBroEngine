@@ -109,6 +109,11 @@ namespace JBro::Widget
         return ImGui::Selectable(label, selected);
     }
 
+    Bool SelectableRow(const char* label, Bool selected, ImGuiSelectableFlags flags)
+    {
+        return ImGui::Selectable(label, selected, flags);
+    }
+
     Bool ActionButton(const char* label, Severity severity, Bool enabled,
         const char* disabledReason, const ImVec2& size, const char* icon)
     {
