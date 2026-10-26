@@ -43,6 +43,7 @@
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -10394,6 +10395,9 @@ namespace
                 "the layer's sprite needs a transform and a renderer");
             transform->position = {x, 0.0f};
             Check(canvas->SetObjectLayer(object, layer.GetId()), "the sprite must move into its layer");
+            auto* caster = canvas->AttachComponent<JBro::Component::ShadowCaster2D>(object);
+            Check(caster != nullptr, "the sprite must cast a shadow");
+            caster->shape = JBro::Component::ShadowShape2D::Sprite;
         };
         addLayer("Glow", -1.0f);
         addLayer("Shade", 1.0f);
@@ -10403,6 +10407,7 @@ namespace
         Check(light != nullptr, "and a light");
         light->type = JBro::Component::Light2DType::Point;
         light->outerRadius = 4.0f;
+        light->castShadows = true;
 
         auto* panel = static_cast<JBro::RenderGraphPanel*>(editor.FindPanel(JBro::RenderGraphPanel::TypeName));
         Check(panel != nullptr, "the render graph window must exist");
@@ -10428,6 +10433,15 @@ namespace
         Check(panel->CountPasses("Composite", JBro::RenderGraphSkip::None) >= 2, "and lays each layer on");
         Check(panel->CountPasses("LightMap", JBro::RenderGraphSkip::None) >= 1, "the lit layers draw a light map");
         Check(panel->CountSharedTextures() >= 1, "the two layers' textures share one actual texture");
+        Check(panel->CountPasses("ShadowedLight", JBro::RenderGraphSkip::None) >= 1, "the light casts its shadow through a mask");
+
+        // 텍스처 이름으로 찾으면 그것을 조건으로만 가리키는 패스도 나온다 - `Light` 는 `ShadowMask` 가 없을 때만 돈다(Codex 리뷰).
+        const JBro::UInt32 fallbackLight = panel->FindPass("Light");
+        Check(fallbackLight != JBro::RenderGraphPanel::NoSelection, "the shadowed light has its fallback pass");
+        panel->SetFilter("ShadowMask");
+        Check(panel->IsPassShownByFilter(fallbackLight), "searching for the mask finds the pass that runs without it");
+        Check(false == panel->IsPassShownByFilter(panel->FindPass("Composite")), "but not passes that never touch it");
+        panel->SetFilter("");
 
         // 멈추면 떠 둔 그래프가 그대로다.
         HWND hwnd = FindOwnEditorWindow();

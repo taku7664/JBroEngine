@@ -565,7 +565,12 @@ namespace JBro
         {
             return true;
         }
-        // 텍스처 이름으로도 찾는다 - "Layer 를 쓰는 패스" 를 찾는 것이 흔한 쓰임이다.
+        // 텍스처 이름으로도 찾는다 - "Layer 를 쓰는 패스" 를 찾는 것이 흔한 쓰임이다. 조건으로만 가리키는 텍스처도 본다 -
+        // `ViewLayer` 로 찾으면 그것이 없을 때만 도는 `ViewDirect` 도 나와야 한다(Codex 리뷰).
+        if (pass.condition < m_textures.Size() && ContainsFold(m_textures[pass.condition.Get()].name, m_filter))
+        {
+            return true;
+        }
         for (UInt32 at = 0; at < pass.accessCount; ++at)
         {
             const UInt32 texture = m_accesses[(pass.firstAccess + at).Get()].texture;

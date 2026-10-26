@@ -41,6 +41,12 @@ namespace JBro
         // 떠 둔 그래프에서 실제 텍스처를 나눠 쓴 그래프 텍스처 묶음의 수(둘 이상이 한 텍스처를 쓴 것)다.
         UInt32 CountSharedTextures() const noexcept;
         void SelectPass(UInt32 index) noexcept { m_selectedPass = index; }
+        // 찾기 칸의 글자다. 패스 이름이나 그 패스가 쓰는(조건으로만 가리키는 것도) 텍스처 이름에 들어 있으면 보인다.
+        void SetFilter(const char* text) { m_filter = text != nullptr ? text : ""; }
+        Bool IsPassShownByFilter(UInt32 index) const noexcept
+        {
+            return index < m_passes.Size() && PassMatchesFilter(m_passes[index.Get()]);
+        }
         UInt32 GetSelectedPass() const noexcept { return m_selectedPass; }
         // 오른쪽 탭이다. 다음 그리기에서 그 탭을 앞으로 꺼낸다.
         enum class Tab : std::uint8_t
