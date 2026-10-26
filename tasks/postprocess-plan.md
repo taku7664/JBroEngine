@@ -503,6 +503,8 @@ GPU 시간(타임스탬프 쿼리가 RHI 에 없다).~~ → §3.8(D-341)
 - 실제 에디터(`JBroEditorHost`, 빈 프로젝트, PostMessage 로 조작): `디버그` → `렌더 그래프` 로 열자 아래 도크가 약 160 → 470 픽셀로 넓어졌고, `GPU ms` 가 나오고, 패스를 골라 `ViewTarget` 줄을 누르니 미리보기가 떴다.
 - 뮤테이션: 넷 - 사본을 다음 패스 뒤에 뜸(`RenderGraph` 의 빨강 검사), 메뉴로 열어도 도크를 넓히지 않음, 창이 시간을 붙이지 않음, 요청이 바뀌어도 상태를 그대로 둠이 모두 각자 맞는 검사에서 죽었다.
 - 리뷰(Claude, `46c9de0b`): 같은 모양의 다른 텍스처를 고르면 상태가 `Captured` 로 남아 한 프레임 동안 앞 사본을 새 이름으로 보였고, 시험의 두 번째 미리보기 검사도 그 상태로 지나고 있었다. 요청이 바뀌면 `Waiting` 으로 돌리고(`3f9af54e`) 위의 검사를 더했다.
+- 전체 시험(Debug, `a4be58cf`, Codex 가 돌림): main 에 원래 있던 `ScriptSummaryPanel` 크래시를 빼고 나머지를 이어 돌렸다. 8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)이
+  Codex 샌드박스 안에서 파이프·디버거 붙기·MSVC 빌드 도구 찾기로 실패했고, 샌드박스 밖에서 그 8 묶음을 다시 돌리니 모두 지났다. 나머지는 모두 지났다. 솔루션 전체가 빌드된다.
 
 남은 것: 시각은 패스 단위다(패스 안의 그리기별은 없다). 미리보기는 한 번에 하나이고 깊이·HDR 의 값 범위 조절(노출·채널 고르기)이 없다.
 
