@@ -336,7 +336,7 @@ namespace JBro
     {
         // 요청이 없다.
         None,
-        // 사본 텍스처를 다음 프레임 전에 만든다(처음이거나 모양이 바뀌었다).
+        // 아직 이 요청의 사본이 없다 - 요청이 처음이거나 바뀌었고, 모양이 바뀌었으면 사본 텍스처를 다음 프레임 전에 만든다.
         Waiting,
         Captured,
         // 요청한 패스·텍스처가 이번 그래프에 없거나 그 패스가 돌지 않았다.
@@ -889,7 +889,7 @@ namespace JBro
         Float m_timingGpuMilliseconds = 0.0f;
         Bool m_timingEnabled = false;
         // ── 패스 직후 미리보기(D-341) ──
-        void PrepareCapture(UInt64 graphSerial);
+        void PrepareCapture();
         RenderGraphCaptureRequest m_captureRequest;
         Bool m_captureRequested = false;
         RenderGraphCaptureStatus m_captureStatus = RenderGraphCaptureStatus::None;

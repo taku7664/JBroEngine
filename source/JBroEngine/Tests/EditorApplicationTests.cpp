@@ -10493,6 +10493,9 @@ namespace
         // 미리보기: 그래프가 만든 텍스처(레이어)와 들여온 텍스처(뷰 타깃)를 그 패스가 끝난 직후로 본다.
         const auto preview = [&](JBro::UInt32 access, const char* what) {
             panel->PreviewAccess(composite, access);
+            Check(editor.Tick(Frame), "the editor must tick after choosing the texture");
+            Check(panel->GetPreviewStatus() == JBro::RenderGraphCaptureStatus::Waiting,
+                "a new choice waits for its own copy instead of showing the previous one");
             for (JBro::Int32 frame = 0; frame < 6 && panel->GetPreviewStatus() != JBro::RenderGraphCaptureStatus::Captured; ++frame)
             {
                 Check(editor.Tick(Frame), "the editor must tick while the preview is taken");

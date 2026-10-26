@@ -1184,7 +1184,7 @@ namespace JBro
         }
         ++m_graphSerial;
         m_graph.SetTimestampCapacity(m_timingEnabled ? m_device->GetCaps().maxTimestampsPerFrame : UInt32(0));
-        PrepareCapture(m_graphSerial);
+        PrepareCapture();
         if (false == m_graph.Execute(*m_frame.commands))
         {
             return false;
@@ -1201,9 +1201,8 @@ namespace JBro
         return true;
     }
 
-    void Renderer::PrepareCapture(UInt64 graphSerial)
+    void Renderer::PrepareCapture()
     {
-        (void)graphSerial;
         if (false == m_captureRequested)
         {
             return;
@@ -1371,8 +1370,11 @@ namespace JBro
 
     void Renderer::RequestRenderGraphCapture(const RenderGraphCaptureRequest& request)
     {
+        // 다른 패스·텍스처를 고르면 지금 사본은 앞 요청의 것이다 - 새로 뜰 때까지 기다리는 중이다.
+        const Bool changed = request.passName != m_captureRequest.passName || request.group != m_captureRequest.group
+            || request.occurrence != m_captureRequest.occurrence || request.access != m_captureRequest.access;
         m_captureRequest = request;
-        if (false == m_captureRequested)
+        if (false == m_captureRequested || changed)
         {
             m_captureStatus = RenderGraphCaptureStatus::Waiting;
         }
