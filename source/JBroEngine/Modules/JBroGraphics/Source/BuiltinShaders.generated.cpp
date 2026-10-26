@@ -23,6 +23,10 @@
 #include "BuiltinLight2DShadowedPS.generated.h"
 #include "BuiltinShadow2DVS.generated.h"
 #include "BuiltinShadow2DPS.generated.h"
+#include "BuiltinPostVS.generated.h"
+#include "BuiltinPostCopyPS.generated.h"
+#include "BuiltinPostExposurePS.generated.h"
+#include "BuiltinPostTonemapPS.generated.h"
 
 // fxc names its bytes BYTE. Give it the name without pulling in Windows.h.
 namespace JBro::BuiltinShaderSm5
@@ -48,6 +52,10 @@ namespace JBro::BuiltinShaderSm5
 #include "BuiltinLight2DShadowedPS_SM5.generated.h"
 #include "BuiltinShadow2DVS_SM5.generated.h"
 #include "BuiltinShadow2DPS_SM5.generated.h"
+#include "BuiltinPostVS_SM5.generated.h"
+#include "BuiltinPostCopyPS_SM5.generated.h"
+#include "BuiltinPostExposurePS_SM5.generated.h"
+#include "BuiltinPostTonemapPS_SM5.generated.h"
 }
 
 namespace JBro::BuiltinShaderSpv
@@ -72,6 +80,10 @@ namespace JBro::BuiltinShaderSpv
 #include "BuiltinLight2DShadowedPS_SPV.generated.h"
 #include "BuiltinShadow2DVS_SPV.generated.h"
 #include "BuiltinShadow2DPS_SPV.generated.h"
+#include "BuiltinPostVS_SPV.generated.h"
+#include "BuiltinPostCopyPS_SPV.generated.h"
+#include "BuiltinPostExposurePS_SPV.generated.h"
+#include "BuiltinPostTonemapPS_SPV.generated.h"
 }
 
 namespace JBro
@@ -153,6 +165,21 @@ namespace JBro
                     {View(JBroBuiltinShadow2DPS, sizeof(JBroBuiltinShadow2DPS)), View(Sm5::JBroBuiltinShadow2DPS_SM5, sizeof(Sm5::JBroBuiltinShadow2DPS_SM5)), View(Spv::JBroBuiltinShadow2DPS_SPV, sizeof(Spv::JBroBuiltinShadow2DPS_SPV))},
                     {}},
                 80, 1, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostCopy",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinPostCopyPS, sizeof(JBroBuiltinPostCopyPS)), View(Sm5::JBroBuiltinPostCopyPS_SM5, sizeof(Sm5::JBroBuiltinPostCopyPS_SM5)), View(Spv::JBroBuiltinPostCopyPS_SPV, sizeof(Spv::JBroBuiltinPostCopyPS_SPV))},
+                    {}},
+                0, 0, {0, 0}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostExposure",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinPostExposurePS, sizeof(JBroBuiltinPostExposurePS)), View(Sm5::JBroBuiltinPostExposurePS_SM5, sizeof(Sm5::JBroBuiltinPostExposurePS_SM5)), View(Spv::JBroBuiltinPostExposurePS_SPV, sizeof(Spv::JBroBuiltinPostExposurePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostTonemap",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinPostTonemapPS, sizeof(JBroBuiltinPostTonemapPS)), View(Sm5::JBroBuiltinPostTonemapPS_SM5, sizeof(Sm5::JBroBuiltinPostTonemapPS_SM5)), View(Spv::JBroBuiltinPostTonemapPS_SPV, sizeof(Spv::JBroBuiltinPostTonemapPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
         };
 
         static_assert(sizeof(Programs) / sizeof(Programs[0]) == static_cast<std::size_t>(BuiltinShader::Count),

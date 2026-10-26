@@ -28,6 +28,7 @@ JBro::Int32 RunBuiltinComponentPropertyTests();
 JBro::Int32 RunScriptSchedulingTests();
 JBro::Int32 RunSpritePixelTests();
 JBro::Int32 RunLight2DPixelTests();
+JBro::Int32 RunPostProcessPixelTests();
 JBro::Int32 RunLight2DFrameworkTests();
 JBro::Int32 RunProjectFileTests();
 JBro::Int32 RunYamlTests();
@@ -489,6 +490,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("Light2DPixel", &RunLight2DPixelTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("PostProcessPixel", &RunPostProcessPixelTests))
         {
             return 1;
         }

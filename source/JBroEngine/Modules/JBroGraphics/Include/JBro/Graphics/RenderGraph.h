@@ -155,6 +155,9 @@ namespace JBro
         void Prepare();
         // 이 모양이 지금 하나는 있게 한다. 프레임 밖에서 부른다. 만들지 못하면 거짓이다.
         Bool Ensure(const TransientTextureDesc& desc);
+        // 이 모양이 `count` 개 있는가. 모자라면 모자란 수를 바라 두고(다음 `Prepare` 가 만든다) 거짓이다. 그래프를 짓기 전에 텍스처가 있어야 길을
+        // 고를 수 있는 쪽(후처리, D-342)이 쓴다 - 없으면 그 프레임은 다른 길로 그린다.
+        Bool Request(const TransientTextureDesc& desc, UInt32 count);
         UInt32 GetTextureCount() const noexcept;
         // 이 모양으로 바라는 수다(다음 `Prepare` 가 더 만들 수). 시험이 본다.
         UInt32 GetWantedCount(const TransientTextureDesc& desc) const noexcept;

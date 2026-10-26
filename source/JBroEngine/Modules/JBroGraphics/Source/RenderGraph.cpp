@@ -90,6 +90,24 @@ namespace JBro
         return CreateInSlot(desc);
     }
 
+    Bool RenderTargetPool::Request(const TransientTextureDesc& desc, UInt32 count)
+    {
+        UInt32 have = 0;
+        for (const Slot& slot : m_slots)
+        {
+            if (slot.texture.IsValid() && IsSameDesc(slot.desc, desc))
+            {
+                ++have;
+            }
+        }
+        if (have >= count)
+        {
+            return true;
+        }
+        AddWant(desc, count - have);
+        return false;
+    }
+
     UInt32 RenderTargetPool::GetTextureCount() const noexcept
     {
         UInt32 count = 0;

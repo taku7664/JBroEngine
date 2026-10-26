@@ -23,6 +23,9 @@ namespace JBro
         Light2D,
         Light2DShadowed,
         Shadow2D,
+        PostCopy,
+        PostExposure,
+        PostTonemap,
         Count
     };
 

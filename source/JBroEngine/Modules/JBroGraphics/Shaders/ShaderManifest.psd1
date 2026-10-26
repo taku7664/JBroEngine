@@ -33,6 +33,10 @@
         @{ Symbol = 'BuiltinLight2DShadowedPS';  File = 'BuiltinLight2D.hlsl';          Entry = 'PSShadowedMain'; Stage = 'Pixel' }
         @{ Symbol = 'BuiltinShadow2DVS';         File = 'BuiltinShadow2D.hlsl';         Entry = 'VSMain';         Stage = 'Vertex' }
         @{ Symbol = 'BuiltinShadow2DPS';         File = 'BuiltinShadow2D.hlsl';         Entry = 'PSMain';         Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinPostVS';             File = 'BuiltinPostProcess.hlsl';      Entry = 'VSMain';         Stage = 'Vertex' }
+        @{ Symbol = 'BuiltinPostCopyPS';         File = 'BuiltinPostProcess.hlsl';      Entry = 'PSCopy';         Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinPostExposurePS';     File = 'BuiltinPostProcess.hlsl';      Entry = 'PSExposure';     Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinPostTonemapPS';      File = 'BuiltinPostProcess.hlsl';      Entry = 'PSTonemap';      Stage = 'Pixel' }
     )
 
     Programs = @(
@@ -52,5 +56,10 @@
         @{ Name = 'Light2D';          Vertex = 'BuiltinLight2DVS';   Pixel = 'BuiltinLight2DPS';          PushConstantBytes = 64; PushConstantStages = 'Vertex' }
         @{ Name = 'Light2DShadowed';  Vertex = 'BuiltinLight2DVS';   Pixel = 'BuiltinLight2DShadowedPS';  PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 1 }
         @{ Name = 'Shadow2D';         Vertex = 'BuiltinShadow2DVS';  Pixel = 'BuiltinShadow2DPS';         PushConstantBytes = 80; PushConstantStages = 'Vertex' }
+        # Post-process (D-342): a full screen triangle from the vertex index; the pass reads its input with Load and the effect's
+        # parameters from b1. No push constants.
+        @{ Name = 'PostCopy';         Vertex = 'BuiltinPostVS';      Pixel = 'BuiltinPostCopyPS';         SampledTextures = 1 }
+        @{ Name = 'PostExposure';     Vertex = 'BuiltinPostVS';      Pixel = 'BuiltinPostExposurePS';     SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostTonemap';      Vertex = 'BuiltinPostVS';      Pixel = 'BuiltinPostTonemapPS';      SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
     )
 }

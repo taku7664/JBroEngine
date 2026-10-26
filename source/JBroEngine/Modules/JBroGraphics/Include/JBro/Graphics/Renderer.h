@@ -1,7 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Graphics/PostProcess.h>
 #include <JBro/Graphics/RenderGraph.h>
+#include <JBro/RHI/ConstantRing.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Matrix4x4.h>
@@ -26,6 +28,9 @@ namespace JBro
         // 3D 는 그릴 것이 있는 레이어마다 뷰 하나다(D-280). 에디터는 시뮬레이션 뷰와 캔버스 뷰가 함께 쓴다.
         UInt32 maxViews = 64;
         UInt32 maxSpriteSubmissions = 65536;
+        // 한 프레임에 모든 뷰가 낸 후처리 효과의 합과, 그 파라미터 블록의 바이트다(D-342). 넘치는 효과는 버리고 센다.
+        UInt32 maxPostProcessEntries = 64;
+        UInt32 postProcessBlockBytes = 4096;
         UInt32 maxMeshSubmissions = 16384;
         // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-222).
         UInt32 maxWorldTextSubmissions = 16384;
@@ -102,7 +107,10 @@ namespace JBro
         Matrix4x4 projection;
         Float clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         Viewport viewport;
-        AssetHandle postProcessProfile;
+        // **이 뷰의 후처리**(D-342, postprocess-plan §2.5). 비어 있으면 지금처럼 타깃에 바로 그린다. 효과가 있으면 장면을 중간 텍스처(`SceneColor`)에
+        // 그리고 효과를 지점 차례로 건 뒤 타깃의 뷰포트 안에 쓴다 - HDR 효과가 있으면 장면은 `RGBA16Float` 이고 톤맵에서 내린다.
+        // `BeginView` 가 블록을 복사하므로 가리키는 곳은 그 뒤 버려도 된다. 통째로 얹는 뷰(`composite`)는 아직 후처리를 받지 않는다(9 단계).
+        PostProcessStack postProcess;
         // **이 뷰만 다른 곳에 그린다**(D-130). 비어 있으면 프레임의 타깃이다.
         //
         // 에디터가 같은 장면을 두 번 그리는 자리다 - 시뮬레이션 뷰는 게임의 카메라가 보는 것이고,
@@ -294,6 +302,14 @@ namespace JBro
         // 라이트맵이 아직 없어 빛을 받는 스프라이트를 빛 없이 그린 뷰다. 그 크기의 라이트맵은 다음 프레임을 열 때 생긴다.
         // 깊이가 달린 뷰(3D)도 여기 든다 - 그 뷰는 라이팅을 보지 않는다.
         UInt32 viewsWithoutLightMapCount = 0;
+        // 후처리를 건 뷰다(D-342).
+        UInt32 postProcessedViewCount = 0;
+        // 후처리할 자리(HDR 파이프라인·장면 텍스처·중간 텍스처)가 아직 없어 후처리 없이 그린 뷰다. 다음 프레임을 열 때 선다.
+        UInt32 postProcessWaitingViewCount = 0;
+        // 상한을 넘었거나 종류·블록이 맞지 않아 버린 효과다.
+        UInt32 droppedPostProcessCount = 0;
+        // 통째로 얹는 뷰라 후처리를 받지 않은 뷰다(9 단계에서 선다).
+        UInt32 unpostprocessedCompositeViewCount = 0;
     };
 
     // **렌더 그래프 창이 보는 뷰 하나다**(D-339, 진단). 뷰 번호가 그 뷰 패스의 묶음 번호(`RenderGraph::GetPassGroup`)다.
@@ -347,6 +363,8 @@ namespace JBro
 
     class Renderer final
     {
+        friend class PostProcessBuilder;
+
     public:
         Renderer() = default;
         ~Renderer();
@@ -463,6 +481,8 @@ namespace JBro
 
         Bool IsDeviceLost() const;
         Bool IsInitialized() const;
+        // 후처리할 파이프라인(HDR 장면 묶음과 전체 화면 패스)이 섰는가(D-342). 처음 후처리를 바란 프레임의 다음 `BeginFrame` 에 선다.
+        Bool IsPostProcessReady() const;
         // 창(스왑체인)의 크기다. 프레임이 텍스처로 가는 동안에도 이것은 창이다.
         Extent2D GetSurfaceExtent() const;
         // **이번 프레임이 실제로 그려지는 크기다.** 타깃을 준 프레임은 그
@@ -522,7 +542,34 @@ namespace JBro
             Bool lighting = false;
             // 빛을 받는 스프라이트 구간이 있는가. 업로드가 채운다.
             Bool hasLitRun = false;
+            // 이 뷰의 후처리 효과(`m_postEntries`)다(D-342).
+            UInt32 postOffset = 0;
+            UInt32 postCount = 0;
         };
+
+        // **장면 포맷 하나에 매인 파이프라인 묶음**(D-342). 장면(뷰의 타깃·레이어 텍스처)에 그리는 것은 모두 그 색 포맷으로 만든다 - D3D12·Vulkan 은
+        // 파이프라인의 포맷이 첨부와 같아야 한다. 0 번은 백버퍼 포맷이고 처음부터 서며, 1 번은 HDR(`PostProcessHdrFormat`)이고 처음 바랄 때 선다.
+        struct ScenePipelines
+        {
+            GraphicsPipelineHandle sprite;
+            // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
+            // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.
+            GraphicsPipelineHandle spriteOverDepth;
+            GraphicsPipelineHandle sdfText;
+            GraphicsPipelineHandle sdfTextOverDepth;
+            // 라이트맵을 곱하는 스프라이트·SDF 텍스트다(D-291).
+            GraphicsPipelineHandle litSprite;
+            GraphicsPipelineHandle litSdfText;
+            GraphicsPipelineHandle worldText;
+            GraphicsPipelineHandle mesh;
+            // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
+            GraphicsPipelineHandle layerComposite[4];
+            // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
+            GraphicsPipelineHandle layerBackdrop;
+        };
+        static constexpr UInt32 SceneFormatCount = 2;
+        static constexpr UInt32 LdrScene = 0;
+        static constexpr UInt32 HdrScene = 1;
 
         // `SetSpriteLighting(true)` 와 `false` 사이에 낸 스프라이트 번호 구간 [first, end) 다(D-291).
         struct LitRange
@@ -593,6 +640,8 @@ namespace JBro
             RenderGraphTexture depth;
             // 메시와 월드 텍스트도 그린다(깊이가 달린 뷰의 본 패스).
             Bool drawDepthWork = false;
+            // 그리는 곳의 포맷 묶음(`m_scene` 의 자리)이다.
+            UInt32 scene = LdrScene;
             // 뷰마다 한 번 세는 것(빛·깊이가 없던 뷰, 보지 않은 레이어 묶음)을 이 패스가 센다.
             Bool countView = false;
             // 레이어 텍스처가 없어 대신 그리는 패스다. 얹지 못한 것으로 센다.
@@ -608,6 +657,40 @@ namespace JBro
             RenderGraphTexture backdrop;
             CompositeBlend blend = CompositeBlend::Normal;
             Float opacity = 1.0f;
+            UInt32 scene = LdrScene;
+        };
+        // 후처리의 전체 화면 패스 하나다(D-342). 상수는 패스 자료에 복사해 두고 기록할 때 상수 링에 올린다.
+        struct PostPassData
+        {
+            Renderer* renderer = nullptr;
+            Viewport viewport;
+            ScissorRect scissor;
+            RenderGraphTexture input;
+            PostProcessProgram program = PostProcessProgram::Copy;
+            UInt32 scene = LdrScene;
+            UInt32 constantBytes = 0;
+            std::byte constants[PostProcessBuilder::MaxConstantBytes] = {};
+        };
+        // 뷰에 낸 효과 하나다. 블록은 `m_postBlocks` 에 복사해 두었다.
+        struct PostEntrySlot
+        {
+            UInt32 type = 0;
+            UInt32 blockOffset = 0;
+        };
+        // 뷰 하나가 받는 효과의 상한이다. 넘는 것은 `BeginView` 가 버리고 센다.
+        static constexpr UInt32 MaxPostProcessPerView = 32;
+        // 뷰 하나의 효과를 건 차례다. 마지막 칸 하나는 넣어 준 톤맵의 자리다.
+        struct PostPlanStep
+        {
+            const PostProcessEffectType* type = nullptr;
+            const void* block = nullptr;
+            TextureFormat output = TextureFormat::Unknown;
+        };
+        struct PostPlan
+        {
+            PostPlanStep steps[MaxPostProcessPerView + 1];
+            UInt32 count = 0;
+            Bool hdr = false;
         };
         struct CopyPassData
         {
@@ -773,11 +856,28 @@ namespace JBro
         Bool AddLightMapPasses(UInt32 viewIndex, RenderGraphTexture lightMap, const Extent2D& extent, const Viewport& viewport,
             const ScissorRect& scissor);
         // 레이어 텍스처를 타깃에 얹는 패스들이다. 아래 그림을 읽는 블렌드면 그 앞에 타깃을 사본에 복사하는 패스가 붙는다.
+        // `scene` 은 `target` 의 포맷 묶음이다.
         Bool AddCompositePasses(UInt32 viewIndex, RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target,
-            CompositeBlend blend, Float opacity, const Viewport& viewport, const ScissorRect& scissor);
+            CompositeBlend blend, Float opacity, const Viewport& viewport, const ScissorRect& scissor, UInt32 scene);
         // 스프라이트 구간을 그린다. 렌더 패스는 열려 있어야 한다.
-        Bool DrawSpriteRuns(IRHICommandContext& commands, const ViewPacket& view, UInt32 firstRun, UInt32 endRun, TextureHandle lightMap,
-            Bool overDepth);
+        Bool DrawSpriteRuns(IRHICommandContext& commands, const ScenePipelines& pipelines, const ViewPacket& view, UInt32 firstRun,
+            UInt32 endRun, TextureHandle lightMap, Bool overDepth);
+        // 장면에 그리는 파이프라인을 그 포맷으로 만든다. 하나라도 못 만들면 거짓이고, 만든 것은 `DestroyScenePipelines` 가 지운다.
+        Bool CreateScenePipelines(TextureFormat format, ScenePipelines& pipelines);
+        void DestroyScenePipelines(ScenePipelines& pipelines);
+        // ── 후처리(D-342) ──
+        // HDR 장면 묶음·전체 화면 패스·상수 링을 만든다. 프레임 밖에서, 처음 후처리를 바란 프레임의 다음 `BeginFrame` 이 부른다.
+        Bool CreatePostProcessResources();
+        void DestroyPostProcessResources();
+        // 뷰 하나의 효과를 지점 차례로 늘어놓는다. 톤맵은 앞의 하나만 쓰고, HDR 인데 톤맵이 없으면 `None` 톤맵을 넣는다.
+        // 받지 않는 지점(`AfterLayer`·`AfterScreenLayers`)의 효과는 버리고 센다. 걸 것이 없으면 거짓이다.
+        Bool PlanPostProcess(const ViewPacket& view, PostPlan& plan);
+        // 계획한 효과를 건다. `scene` 은 그려 둔 장면이고 `output` 은 뷰의 타깃이다 - 마지막 효과가 그 뷰포트 안에 쓴다.
+        Bool AddPostProcessPasses(UInt32 viewIndex, const PostPlan& plan, RenderGraphTexture scene, RenderGraphTexture output,
+            LoadOperation outputLoad, const ClearColor& outputClear, const Extent2D& extent, const Viewport& viewport,
+            const ScissorRect& scissor);
+        Bool AddPostProcessPass(PostProcessBuilder& builder, const char* name, PostProcessProgram program, JArrayView<std::byte> constants);
+        static Bool ExecutePostProcess(RenderGraphContext& context, const void* data);
         static Bool ExecuteNothing(RenderGraphContext& context, const void* data);
         static Bool ExecuteSprites(RenderGraphContext& context, const void* data);
         static Bool ExecuteComposite(RenderGraphContext& context, const void* data);
@@ -788,6 +888,10 @@ namespace JBro
         static Bool ExecuteUnshadowedLight(RenderGraphContext& context, const void* data);
         static Bool ExecuteOutline(RenderGraphContext& context, const void* data);
         void ResetSubmissionStorage();
+        static UInt32 SceneIndexOf(TextureFormat format) noexcept
+        {
+            return format == PostProcessHdrFormat ? HdrScene : LdrScene;
+        }
 
         RendererConfig m_config;
         IRHIModule* m_rhi = nullptr;
@@ -805,7 +909,6 @@ namespace JBro
         Array<SpriteRun> m_worldTextRuns;
         std::size_t m_gpuWorldTextCount = 0;
         BufferHandle m_worldTextInstanceBuffers[MaxFrameSlots];
-        GraphicsPipelineHandle m_worldTextPipeline;
         // 인스턴스 배열은 초기화 때 상한 크기로 한 번 잡고 프레임마다 앞에서부터 채운다 - `Resize` 는 매 프레임
         // 값 초기화(memset)를 하고, 그 비용이 자료를 옮기는 것보다 컸다(D-110 리뷰).
         Array<GpuSpriteInstance> m_gpuSpriteInstances;
@@ -819,15 +922,11 @@ namespace JBro
         BufferHandle m_spriteIndexBuffer;
         BufferHandle m_spriteInstanceBuffers[MaxFrameSlots];
         BufferHandle m_textInstanceBuffers[MaxFrameSlots];
-        GraphicsPipelineHandle m_sdfTextPipeline;
-        GraphicsPipelineHandle m_sdfTextOverDepthPipeline;
+        // 장면 포맷마다의 파이프라인 묶음이다(D-342).
+        ScenePipelines m_scene[SceneFormatCount];
         // 선택 외곽선의 두 패스다(D-276). 가로로 키우기(덮어쓰기)와 세로로 키워 둘레만 칠하기(알파 섞기).
         GraphicsPipelineHandle m_outlineGrowPipeline;
         GraphicsPipelineHandle m_outlineCompositePipeline;
-        // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
-        GraphicsPipelineHandle m_layerCompositePipelines[4];
-        // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
-        GraphicsPipelineHandle m_layerBackdropPipeline;
         // **2D 라이팅**(D-291). 라이트맵에 라이트를 더하는 것(RGBA16F, `One·One`)과, 라이트맵을 곱해 그리는 스프라이트·SDF 텍스트다.
         Bool CreateBuiltinLightResources();
         void DestroyBuiltinLightResources();
@@ -842,8 +941,6 @@ namespace JBro
         Array<ShadowEdge2D> m_shadowEdges;
         Array<GpuShadowEdgeInstance> m_gpuShadowEdges;
         Array<ShadowedLight> m_shadowedLights;
-        GraphicsPipelineHandle m_litSpritePipeline;
-        GraphicsPipelineHandle m_litSdfTextPipeline;
         BufferHandle m_lightInstanceBuffers[MaxFrameSlots];
         Array<Light2DSubmit> m_lights;
         Array<GpuLight2DInstance> m_gpuLightInstances;
@@ -898,10 +995,17 @@ namespace JBro
         TransientTextureDesc m_captureWant;
         Bool m_captureWanted = false;
         UInt64 m_captureSerial = 0;
-        GraphicsPipelineHandle m_spritePipeline;
-        // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
-        // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.
-        GraphicsPipelineHandle m_spriteOverDepthPipeline;
+        // ── 후처리(D-342) ── 뷰가 낸 효과와 블록은 프레임마다 앞에서부터 채운다(상한만큼 `Initialize` 가 잡는다).
+        // 파이프라인은 장면 포맷마다(`SceneIndexOf`) 프로그램마다 하나다. 처음 바란 프레임에는 후처리 없이 그리고 다음 `BeginFrame` 에 만든다.
+        Array<PostEntrySlot> m_postEntries;
+        Array<std::byte> m_postBlocks;
+        UInt32 m_postBlockUsed = 0;
+        GraphicsPipelineHandle m_postPipelines[SceneFormatCount][PostProcessProgramCount];
+        ConstantRing m_postConstants;
+        Bool m_postReady = false;
+        Bool m_postWanted = false;
+        // 만들다 실패했다. 다시 만들지 않는다 - 그 뒤의 후처리는 늘 기다리는 것으로 센다.
+        Bool m_postFailed = false;
         // 텍스처가 없는 스프라이트가 샘플링하는 1x1 흰색이다. 틴트가 그대로 나온다.
         TextureHandle m_whiteTexture;
         SamplerHandle m_nearestSampler;
@@ -924,7 +1028,6 @@ namespace JBro
         // 뷰마다 메시 슬롯별 개수를 세는 작업 배열. 크기는 등록된 메시 슬롯 수다.
         Array<UInt32> m_meshHistogram;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
-        GraphicsPipelineHandle m_meshPipeline;
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
         CameraParams m_lastViewCamera;
