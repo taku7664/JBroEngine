@@ -25,9 +25,12 @@ namespace JBro
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         Bool OnCreate(EditorApplication& editor) override;
+        void OnDestroy() override;
         void OnUpdate(Float deltaTime) override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Bottom; }
+        // 표 셋을 읽으려면 아래 도크가 이만큼은 있어야 한다. 메뉴로 열 때 그보다 낮으면 넓힌다(D-341).
+        Float GetPreferredDockHeight() const override { return 420.0f; }
 
         // ── 시험이 보는 것 ──
         Bool IsPaused() const noexcept { return m_paused; }
@@ -48,6 +51,19 @@ namespace JBro
             return index < m_passes.Size() && PassMatchesFilter(m_passes[index.Get()]);
         }
         UInt32 GetSelectedPass() const noexcept { return m_selectedPass; }
+        // 그 패스의 GPU 시간이다(D-341). 아직 오지 않았으면 음수다.
+        Float GetPassGpuMilliseconds(UInt32 index) const noexcept
+        {
+            return index < m_passes.Size() ? m_passes[index.Get()].gpuMilliseconds : Float(-1.0f);
+        }
+        // 그 패스의 그 접근 텍스처를 미리 본다(패스 탭에서 줄을 누른 것과 같다).
+        void PreviewAccess(UInt32 pass, UInt32 access) noexcept
+        {
+            m_selectedPass = pass;
+            m_previewPass = pass;
+            m_previewAccess = access;
+        }
+        RenderGraphCaptureStatus GetPreviewStatus() const noexcept { return m_previewStatus; }
         // 오른쪽 탭이다. 다음 그리기에서 그 탭을 앞으로 꺼낸다.
         enum class Tab : std::uint8_t
         {
@@ -91,6 +107,9 @@ namespace JBro
             UInt32 barrierCount = 0;
             UInt32 condition = RenderGraphTexture::Invalid;
             Bool runIfMissing = false;
+            // 같은 뷰에서 같은 이름의 몇 번째 패스인가 - 다른 프레임의 시간·미리보기 요청과 짝짓는다.
+            UInt32 occurrence = 0;
+            Float gpuMilliseconds = -1.0f;
         };
         struct AccessRow
         {
@@ -134,6 +153,10 @@ namespace JBro
         static constexpr UInt32 NoShare = 0xFFFFFFFFu;
 
         void Capture(const Renderer& renderer);
+        // 렌더러의 패스별 GPU 시간을 떠 둔 패스에 붙인다.
+        void ApplyTimings(const Renderer& renderer);
+        void UpdatePreview(Renderer& renderer);
+        void DrawPreview();
         void DrawToolBar();
         void DrawPassList();
         void DrawPassDetail();
@@ -167,5 +190,19 @@ namespace JBro
         Float m_listWidth = 460.0f;
         Tab m_requestedTab = Tab::Pass;
         Bool m_tabRequested = false;
+        // GPU 시간(D-341).
+        UInt64 m_timingSerial = 0;
+        // 그 시간을 붙인 떠 둔 그래프의 번호다.
+        UInt64 m_timingAppliedTo = 0;
+        Float m_gpuMilliseconds = 0.0f;
+        Bool m_timingSupported = false;
+        Bool m_timingOn = false;
+        // 미리보기(D-341). 고른 패스의 접근 하나다.
+        UInt32 m_previewPass = NoSelection;
+        UInt32 m_previewAccess = 0;
+        RenderGraphCaptureStatus m_previewStatus = RenderGraphCaptureStatus::None;
+        TextureHandle m_previewTexture;
+        Extent2D m_previewExtent;
+        UInt64 m_previewSerial = 0;
     };
 }

@@ -6239,6 +6239,35 @@ namespace JBro
         }
     }
 
+    void EditorApplication::GrowDockForPanel(const EditorPanel& panel)
+    {
+        // 지금 그리는 창(방금 `Begin` 한 패널)이 붙은 도크 칸이 위아래로 나뉜 칸이면, 그 칸을 바라는 높이까지 넓히고 이웃 칸을 그만큼 줄인다.
+        // 칸 경계를 끄는 것과 같은 값(`SizeRef`)을 고친다. 이웃 칸이 너무 작아지지 않게 나뉜 높이의 60% 까지만 넓힌다.
+        const Float wanted = panel.GetPreferredDockHeight();
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (wanted <= 0.0f || window == nullptr || window->DockNode == nullptr || window->DockNode->ParentNode == nullptr)
+        {
+            return;
+        }
+        ImGuiDockNode* node = window->DockNode;
+        ImGuiDockNode* parent = node->ParentNode;
+        if (parent->SplitAxis != ImGuiAxis_Y || parent->ChildNodes[0] == nullptr || parent->ChildNodes[1] == nullptr)
+        {
+            return;
+        }
+        ImGuiDockNode* other = parent->ChildNodes[0] == node ? parent->ChildNodes[1] : parent->ChildNodes[0];
+        const Float total = parent->Size.y;
+        const Float target = JBro::Min(wanted, total * 0.6f);
+        if (node->Size.y >= target)
+        {
+            return;
+        }
+        node->SizeRef.y = target;
+        other->SizeRef.y = total - target;
+        node->WantLockSizeOnce = true;
+        other->WantLockSizeOnce = true;
+    }
+
     void EditorApplication::DrawPanelMenuItem(const char* panelTitle, const char* label)
     {
         EditorPanel* panel = FindPanel(panelTitle);
@@ -6250,8 +6279,9 @@ namespace JBro
             panel->SetOpen(open);
             if (open)
             {
-                // 다른 탭 뒤에 있으면 연 것이 보이지 않는다. 앞으로 꺼낸다.
+                // 다른 탭 뒤에 있으면 연 것이 보이지 않는다. 앞으로 꺼낸다. 도크가 너무 낮으면 넓힌다(D-341).
                 ImGui::SetWindowFocus(panelTitle);
+                panel->RequestRoom();
             }
         }
     }
@@ -6747,6 +6777,10 @@ namespace JBro
             ImGui::SetNextWindowClass(&panelClass);
             const Bool shown = ImGui::Begin(label.c_str(), closable != nullptr ? &rawOpen : nullptr, flags);
             panelOpen = rawOpen;
+            if (shown && panel->TakeRoomRequest())
+            {
+                GrowDockForPanel(*panel);
+            }
             // 창 전체가 대상일 수 있다(레이어 창에서 오브젝트를 고르는 단계). 가려진 탭이면 열리지 않은 것으로 알린다.
             Widget::ReportPanelGuideTarget(panelTarget, shown, m_guide.UsesManualPanels());
             if (shown)

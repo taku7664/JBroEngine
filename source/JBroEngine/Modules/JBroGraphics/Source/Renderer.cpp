@@ -223,6 +223,10 @@ namespace JBro
             DestroyMeshResources();
             DestroyTextureResources();
             m_targetPool.Shutdown();
+            if (m_captureTexture.IsValid())
+            {
+                m_device->DestroyTexture(m_captureTexture);
+            }
             DestroyBuiltinLightResources();
             DestroyBuiltinWorldTextResources();
             DestroyBuiltinMeshResources();
@@ -262,6 +266,19 @@ namespace JBro
         m_graph.Shutdown();
         m_graphViews = {};
         m_graphSerial = 0;
+        m_timingCount = 0;
+        m_timingSerial = 0;
+        m_timingRhiSerial = 0;
+        m_timingEnabled = false;
+        for (TimingFrame& frame : m_timingRing)
+        {
+            frame.rhiSerial = 0;
+            frame.count = 0;
+        }
+        m_captureRequested = false;
+        m_captureStatus = RenderGraphCaptureStatus::None;
+        m_captureTexture = {};
+        m_captureWanted = false;
         m_meshHistogram = {};
         m_meshResources = {};
         m_currentStats = {};
@@ -555,6 +572,22 @@ namespace JBro
         {
             return FrameStatus::InvalidState;
         }
+        // 미리보기 사본도 프레임 밖에서만 만든다(D-341). 지난 프레임이 바란 모양이다.
+        if (m_captureWanted)
+        {
+            m_captureWanted = false;
+            if (m_captureTexture.IsValid())
+            {
+                m_device->DestroyTexture(m_captureTexture);
+                m_captureTexture = {};
+            }
+            TextureDesc desc;
+            desc.extent = m_captureWant.extent;
+            desc.format = m_captureWant.format;
+            desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
+            m_captureTexture = m_device->CreateTexture(desc);
+            m_captureDesc = m_captureTexture.IsValid() ? m_captureWant : TransientTextureDesc{};
+        }
         const BeginFrameResult result = m_device->BeginFrame(m_swapchain);
         if (result.status != FrameStatus::Ready)
         {
@@ -568,6 +601,8 @@ namespace JBro
         }
 
         m_frame = result.frame;
+        // 장치가 이 슬롯의 앞 프레임을 끝내며 받아 둔 GPU 시각을 패스별 시간으로 바꾼다(D-341).
+        CollectGraphTiming();
         // 프레임마다 여기서 통째로 덮어쓴다. 그래서 프레임을 닫을 때 따로 비울 것이 없다.
         m_frameTarget = target;
         m_frameActive = true;
@@ -1148,7 +1183,226 @@ namespace JBro
             return false;
         }
         ++m_graphSerial;
-        return m_graph.Execute(*m_frame.commands);
+        m_graph.SetTimestampCapacity(m_timingEnabled ? m_device->GetCaps().maxTimestampsPerFrame : UInt32(0));
+        PrepareCapture(m_graphSerial);
+        if (false == m_graph.Execute(*m_frame.commands))
+        {
+            return false;
+        }
+        if (m_captureRequested && m_captureStatus == RenderGraphCaptureStatus::Captured)
+        {
+            m_captureStatus = m_graph.WasCaptured() ? RenderGraphCaptureStatus::Captured : RenderGraphCaptureStatus::NotFound;
+            if (m_graph.WasCaptured())
+            {
+                m_captureSerial = m_graphSerial;
+            }
+        }
+        RecordGraphTiming();
+        return true;
+    }
+
+    void Renderer::PrepareCapture(UInt64 graphSerial)
+    {
+        (void)graphSerial;
+        if (false == m_captureRequested)
+        {
+            return;
+        }
+        // 뷰·이름(포인터)·그 뷰에서의 차례로 패스를 찾는다.
+        RenderGraphPass found;
+        UInt32 seen = 0;
+        for (UInt32 index = 0; index < m_graph.GetPassCount(); ++index)
+        {
+            const RenderGraphPass pass{index};
+            if (m_graph.GetPassGroup(pass) == m_captureRequest.group && m_graph.GetPassName(pass) == m_captureRequest.passName)
+            {
+                if (seen == m_captureRequest.occurrence)
+                {
+                    found = pass;
+                    break;
+                }
+                ++seen;
+            }
+        }
+        if (false == found.IsValid() || m_captureRequest.access >= m_graph.GetPassAccessCount(found)
+            || m_graph.GetPassSkip(found) != RenderGraphSkip::None)
+        {
+            m_captureStatus = RenderGraphCaptureStatus::NotFound;
+            return;
+        }
+        const RenderGraphTexture texture = m_graph.GetPassAccess(found, m_captureRequest.access).texture;
+        TransientTextureDesc desc = m_graph.GetTextureDesc(texture);
+        if (m_graph.GetTextureKind(texture) != RenderGraphTextureKind::Transient)
+        {
+            // 들인 텍스처(뷰의 타깃·외곽선 마스크)는 모양을 모른다. 그 뷰의 크기와 백버퍼 포맷이다 - 렌더러가 그렇게 받는다.
+            desc = {};
+            desc.extent = m_captureRequest.group < m_graphViews.Size() ? m_graphViews[m_captureRequest.group.Get()].extent : Extent2D{};
+            desc.format = m_config.backBufferFormat;
+        }
+        if (desc.format == TextureFormat::D32Float)
+        {
+            m_captureStatus = RenderGraphCaptureStatus::Unsupported;
+            return;
+        }
+        if (desc.extent.width == 0 || desc.extent.height == 0)
+        {
+            m_captureStatus = RenderGraphCaptureStatus::NotFound;
+            return;
+        }
+        const Bool sameShape = m_captureTexture.IsValid() && m_captureDesc.extent.width == desc.extent.width
+            && m_captureDesc.extent.height == desc.extent.height && m_captureDesc.format == desc.format;
+        if (false == sameShape)
+        {
+            // 사본은 프레임 밖에서만 만든다 - 다음 `BeginFrame` 이 만든다.
+            m_captureWant = desc;
+            m_captureWanted = true;
+            m_captureStatus = RenderGraphCaptureStatus::Waiting;
+            return;
+        }
+        m_captureStatus = m_graph.SetCapture(found, texture, m_captureTexture) ? RenderGraphCaptureStatus::Captured
+                                                                            : RenderGraphCaptureStatus::NotFound;
+    }
+
+    void Renderer::RecordGraphTiming()
+    {
+        if (false == m_timingEnabled)
+        {
+            return;
+        }
+        TimingFrame& frame = m_timingRing[m_timingRingNext.Get()];
+        m_timingRingNext = (m_timingRingNext + 1) % TimingRingSize;
+        frame.rhiSerial = m_frame.serial;
+        frame.graphSerial = m_graphSerial;
+        frame.count = 0;
+        for (UInt32 index = 0; index < m_graph.GetPassCount() && frame.count < TimedPassCapacity; ++index)
+        {
+            const RenderGraphPass pass{index};
+            const UInt32 timestamp = m_graph.GetPassTimestamp(pass);
+            if (timestamp == RenderGraphPass::Invalid)
+            {
+                continue;
+            }
+            TimedPass& timed = frame.passes[frame.count.Get()];
+            timed.name = m_graph.GetPassName(pass);
+            timed.group = m_graph.GetPassGroup(pass);
+            timed.pass = index;
+            timed.timestamp = timestamp;
+            ++frame.count;
+        }
+    }
+
+    void Renderer::CollectGraphTiming()
+    {
+        TimestampReadback readback;
+        if (false == m_device->ReadFrameTimestamps(m_timestampScratch, MaxTimestampsPerFrame, readback)
+            || readback.frameSerial == m_timingRhiSerial || readback.ticksPerSecond == 0)
+        {
+            return;
+        }
+        m_timingRhiSerial = readback.frameSerial;
+        for (const TimingFrame& frame : m_timingRing)
+        {
+            if (frame.rhiSerial != readback.frameSerial || frame.count == 0)
+            {
+                continue;
+            }
+            const double toMilliseconds = 1000.0 / static_cast<double>(readback.ticksPerSecond.Get());
+            UInt64 first = 0;
+            UInt64 last = 0;
+            m_timingCount = 0;
+            for (UInt32 at = 0; at < frame.count; ++at)
+            {
+                const TimedPass& timed = frame.passes[at.Get()];
+                if (timed.timestamp + 1 >= readback.count)
+                {
+                    continue;
+                }
+                const UInt64 begin = m_timestampScratch[timed.timestamp.Get()];
+                const UInt64 end = m_timestampScratch[(timed.timestamp + 1).Get()];
+                RenderGraphPassTiming& timing = m_timings[m_timingCount.Get()];
+                timing.name = timed.name;
+                timing.group = timed.group;
+                timing.pass = timed.pass;
+                timing.milliseconds = end > begin ? static_cast<Float>(static_cast<double>((end - begin).Get()) * toMilliseconds) : Float(0.0f);
+                ++m_timingCount;
+                first = first == 0 || begin < first ? begin : first;
+                last = end > last ? end : last;
+            }
+            m_timingGpuMilliseconds = last > first ? static_cast<Float>(static_cast<double>((last - first).Get()) * toMilliseconds) : Float(0.0f);
+            m_timingSerial = frame.graphSerial;
+            return;
+        }
+    }
+
+    void Renderer::SetRenderGraphTimingEnabled(Bool enabled)
+    {
+        m_timingEnabled = enabled;
+    }
+
+    Bool Renderer::IsRenderGraphTimingSupported() const
+    {
+        return m_device != nullptr && m_device->GetCaps().maxTimestampsPerFrame >= 2;
+    }
+
+    UInt64 Renderer::GetRenderGraphTimingSerial() const
+    {
+        return m_timingSerial;
+    }
+
+    UInt32 Renderer::GetRenderGraphTimingCount() const
+    {
+        return m_timingCount;
+    }
+
+    Bool Renderer::GetRenderGraphTiming(UInt32 index, RenderGraphPassTiming& timing) const
+    {
+        if (index >= m_timingCount)
+        {
+            return false;
+        }
+        timing = m_timings[index.Get()];
+        return true;
+    }
+
+    Float Renderer::GetRenderGraphGpuMilliseconds() const
+    {
+        return m_timingGpuMilliseconds;
+    }
+
+    void Renderer::RequestRenderGraphCapture(const RenderGraphCaptureRequest& request)
+    {
+        m_captureRequest = request;
+        if (false == m_captureRequested)
+        {
+            m_captureStatus = RenderGraphCaptureStatus::Waiting;
+        }
+        m_captureRequested = true;
+    }
+
+    void Renderer::ClearRenderGraphCapture()
+    {
+        m_captureRequested = false;
+        m_captureStatus = RenderGraphCaptureStatus::None;
+    }
+
+    RenderGraphCaptureStatus Renderer::GetRenderGraphCaptureStatus() const
+    {
+        return m_captureStatus;
+    }
+
+    TextureHandle Renderer::GetRenderGraphCaptureTexture() const
+    {
+        return m_captureTexture;
+    }
+
+    Extent2D Renderer::GetRenderGraphCaptureExtent() const
+    {
+        return m_captureDesc.extent;
+    }
+
+    UInt64 Renderer::GetRenderGraphCaptureSerial() const
+    {
+        return m_captureSerial;
     }
 
     Bool Renderer::AddViewPasses(UInt32 viewIndex, RenderGraphTexture frameTarget, TextureHandle frameTexture, const Extent2D& frameExtent)

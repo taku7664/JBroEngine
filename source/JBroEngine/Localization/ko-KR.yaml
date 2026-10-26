@@ -914,3 +914,13 @@ Entries:
   render_graph.slot_used: 씀
   render_graph.wants: 다음 프레임 전에 만들 것
   render_graph.wants_none: 만들 것이 없습니다
+  render_graph.column_gpu: GPU ms
+  render_graph.gpu_unsupported: GPU 시간 없음
+  render_graph.gpu_unsupported_tip: 이 장치는 GPU 시각을 적지 못합니다.
+  render_graph.gpu_pending: GPU 시간 재는 중
+  render_graph.gpu_tip: 잰 패스들이 GPU 에서 걸린 시간입니다. 시각은 GPU 가 프레임을 끝낸 뒤 오므로 몇 프레임 늦습니다.
+  render_graph.preview: 미리보기
+  render_graph.preview_hint: 위 표에서 텍스처를 고르면 이 패스 직후의 내용을 봅니다
+  render_graph.preview_waiting: 사본을 만드는 중입니다
+  render_graph.preview_not_found: 이번 프레임에는 이 패스가 돌지 않았습니다
+  render_graph.preview_unsupported: 깊이 텍스처는 미리보기가 없습니다

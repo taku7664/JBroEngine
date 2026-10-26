@@ -946,12 +946,131 @@ namespace
         probe.Close();
     }
 
+    // **GPU 시각은 프레임이 끝난 뒤 온다**(D-341). 패스 앞뒤에 시각을 적으면 끝난 프레임에서 두 시각을 읽고, 뒤의 것이 앞의 것보다 늦다.
+    // 렌더 패스 안과 상한 밖의 자리는 거절한다. 시각을 못 적는 장치(능력 0)는 건너뛴다.
+    template <typename TModule>
+    void TestTimestampsArriveAfterTheFrame()
+    {
+        Probe<TModule> probe;
+        if (false == probe.Open("JBro timestamp probe"))
+        {
+            std::cout << "  [skip] no device for this API; timestamps not verified" << std::endl;
+            return;
+        }
+        JBro::IRHIDevice& device = *probe.device;
+        if (device.GetCaps().maxTimestampsPerFrame == 0)
+        {
+            std::cout << "  [skip] this device cannot write timestamps" << std::endl;
+            probe.Close();
+            return;
+        }
+        Check(device.GetCaps().maxTimestampsPerFrame == JBro::MaxTimestampsPerFrame, "a device that writes timestamps takes the whole range");
+        const JBro::TextureHandle target = CreateTarget(device, JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled);
+        Check(target.IsValid(), "the timestamp target must be created");
+        JBro::UInt64 stamps[4] = {};
+        JBro::TimestampReadback readback;
+        Check(false == device.ReadFrameTimestamps(stamps, 4, readback), "no frame has finished yet");
+        JBro::UInt64 firstSerial = 0;
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            const JBro::BeginFrameResult begun = device.BeginFrame(probe.swapchain);
+            Check(begun.status == JBro::FrameStatus::Ready, "the timestamp frame must begin");
+            if (frame == 0)
+            {
+                firstSerial = begun.frame.serial;
+            }
+            JBro::IRHICommandContext& commands = *begun.frame.commands;
+            Check(commands.WriteTimestamp(0), "a timestamp before the pass must record");
+            JBro::ColorAttachmentDesc attachment;
+            attachment.texture = target;
+            attachment.loadOperation = JBro::LoadOperation::Clear;
+            JBro::RenderPassDesc pass;
+            pass.colorAttachments = {&attachment, 1};
+            Check(commands.BeginRenderPass(pass), "the timed pass must begin");
+            Check(false == commands.WriteTimestamp(1), "timestamps are not written inside a render pass");
+            commands.EndRenderPass();
+            Check(commands.WriteTimestamp(1), "a timestamp after the pass must record");
+            Check(false == commands.WriteTimestamp(JBro::MaxTimestampsPerFrame), "a slot past the range is refused");
+            Check(device.EndFrame(begun.frame) == JBro::FrameStatus::Ready, "the timestamp frame must end");
+        }
+        Check(device.ReadFrameTimestamps(stamps, 4, readback), "a finished frame's timestamps must be readable");
+        Check(readback.frameSerial >= firstSerial && readback.count == 2 && readback.ticksPerSecond != 0,
+            "they name their frame, the two slots written and the clock's rate");
+        Check(stamps[1] >= stamps[0], "the timestamp after the pass is not earlier than the one before");
+        probe.CheckValidationStayedQuiet("the timestamp probe");
+        device.DestroyTexture(target);
+        probe.Close();
+    }
+
+    JBro::Bool RecordNothing(JBro::RenderGraphContext&, const void*)
+    {
+        return true;
+    }
+
+    // **미리보기는 그 패스가 끝난 직후의 내용이다**(D-341). 빨강으로 지운 패스 뒤에 떠 두고 다음 패스가 파랑으로 지우면, 사본은 빨강이고
+    // 타깃은 파랑이다. 사본을 뜨는 복사가 그래프의 상태 전이와 어긋나지 않아야 하므로 검증 레이어도 조용해야 한다.
+    template <typename TModule>
+    void TestTheCaptureHoldsTheTextureRightAfterItsPass()
+    {
+        Probe<TModule> probe;
+        if (false == probe.Open("JBro graph capture probe"))
+        {
+            std::cout << "  [skip] no device for this API; graph captures not verified" << std::endl;
+            return;
+        }
+        JBro::IRHIDevice& device = *probe.device;
+        const JBro::TextureHandle target = CreateTarget(device, JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled);
+        const JBro::TextureHandle capture = CreateTarget(
+            device, JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled | JBro::TextureUsage::CopyDestination);
+        Check(target.IsValid() && capture.IsValid(), "the capture probe textures must be created");
+        JBro::RenderTargetPool pool;
+        pool.Initialize(device);
+        JBro::RenderGraph graph;
+        Check(graph.Initialize(SmallLimits()), "the graph must initialize");
+
+        const JBro::BeginFrameResult begun = device.BeginFrame(probe.swapchain);
+        Check(begun.status == JBro::FrameStatus::Ready, "the capture frame must begin");
+        graph.Reset();
+        const JBro::RenderGraphTexture output = graph.ImportTexture(target);
+        const JBro::RenderGraphPass red = graph.AddPass(JBro::RenderGraphPassKind::Raster, "Red", &RecordNothing);
+        Check(graph.SetColorAttachment(red, output, JBro::LoadOperation::Clear, {1.0f, 0.0f, 0.0f, 1.0f}), "the red pass must declare");
+        const JBro::RenderGraphPass blue = graph.AddPass(JBro::RenderGraphPassKind::Raster, "Blue", &RecordNothing);
+        Check(graph.SetColorAttachment(blue, output, JBro::LoadOperation::Clear, {0.0f, 0.0f, 1.0f, 1.0f}), "the blue pass must declare");
+        Check(graph.Compile(pool), "the capture graph must compile");
+        Check(graph.GetPassSkip(red) == JBro::RenderGraphSkip::None && graph.GetPassSkip(blue) == JBro::RenderGraphSkip::None,
+            "both passes run");
+        Check(graph.SetCapture(red, output, capture), "the capture must be set after compiling");
+        Check(graph.Execute(*begun.frame.commands), "the capture graph must execute");
+        Check(graph.WasCaptured(), "the graph must report the copy");
+        Check(device.EndFrame(begun.frame) == JBro::FrameStatus::Ready, "the capture frame must end");
+
+        JBro::Array<std::byte> image;
+        image.Resize(SurfaceSize * SurfaceSize * 4);
+        JBro::TextureReadback result;
+        Check(device.ReadTexture(capture, image.Data(), image.Size(), result), "the capture must read back");
+        const auto* captured = reinterpret_cast<const unsigned char*>(image.Data() + 32 * result.rowPitch.Get() + 32 * 4);
+        Check(captured[2] > 240 && captured[0] < 16, "the capture holds the red of the pass it follows");
+        Check(device.ReadTexture(target, image.Data(), image.Size(), result), "the target must read back");
+        const auto* ended = reinterpret_cast<const unsigned char*>(image.Data() + 32 * result.rowPitch.Get() + 32 * 4);
+        Check(ended[0] > 240 && ended[2] < 16, "the target ends the frame blue");
+        probe.CheckValidationStayedQuiet("the graph capture probe");
+
+        graph.Reset();
+        Check(false == graph.WasCaptured(), "resetting the graph forgets the capture");
+        pool.Shutdown();
+        device.DestroyTexture(capture);
+        device.DestroyTexture(target);
+        probe.Close();
+    }
+
     template <typename TModule>
     void RunBarrierTestsOn()
     {
         TestBarrierRefusesWhatTheTextureCannotBe<TModule>();
         TestACopyIsReadByTheNextPass<TModule>(false);
         TestACopyIsReadByTheNextPass<TModule>(true);
+        TestTimestampsArriveAfterTheFrame<TModule>();
+        TestTheCaptureHoldsTheTextureRightAfterItsPass<TModule>();
     }
 }
 

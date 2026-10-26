@@ -910,6 +910,8 @@ namespace JBro
         void DrawRootDock(const Extent2D& display);
         // 패널 하나를 여닫는 메뉴 항목이다. 설정·디버그 메뉴가 같은 모양으로 쓴다.
         void DrawPanelMenuItem(const char* panelTitle, const char* label);
+        // 방금 연 패널의 도크 칸이 그 패널이 바라는 높이보다 낮으면 넓힌다(D-341, `EditorPanel::GetPreferredDockHeight`).
+        void GrowDockForPanel(const EditorPanel& panel);
         // 도구 창들이 붙는 안쪽 도크. 자기 메뉴 막대를 가진다.
         void DrawMainDock();
         // 메인 도크가 아닌 도크들(D-284). 열린 패널이 있는 것만 뿌리에 선다. 패널보다 먼저 그려 도크 공간을 낸다.

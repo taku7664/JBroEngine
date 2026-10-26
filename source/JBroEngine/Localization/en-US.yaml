@@ -914,3 +914,13 @@ Entries:
   render_graph.slot_used: Used
   render_graph.wants: To make before the next frame
   render_graph.wants_none: Nothing to make
+  render_graph.column_gpu: GPU ms
+  render_graph.gpu_unsupported: No GPU time
+  render_graph.gpu_unsupported_tip: This device cannot write GPU timestamps.
+  render_graph.gpu_pending: Measuring GPU time
+  render_graph.gpu_tip: GPU time of the measured passes. Timestamps arrive after the GPU finishes a frame, a few frames late.
+  render_graph.preview: Preview
+  render_graph.preview_hint: Choose a texture above to see it right after this pass
+  render_graph.preview_waiting: Making the copy
+  render_graph.preview_not_found: This pass did not run this frame
+  render_graph.preview_unsupported: Depth textures have no preview

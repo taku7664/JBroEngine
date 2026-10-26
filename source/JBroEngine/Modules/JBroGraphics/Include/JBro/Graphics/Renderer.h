@@ -311,6 +311,40 @@ namespace JBro
         UInt32 layerGroupCount = 0;
     };
 
+    // **패스 하나의 GPU 시간이다**(D-341, 렌더 그래프 창). 이름은 그래프의 정적 이름 그대로라 포인터로 견줄 수 있다.
+    struct RenderGraphPassTiming
+    {
+        const char* name = nullptr;
+        // 뷰 번호(패스 묶음)와 그 프레임 그래프에서의 패스 번호다.
+        UInt32 group = 0;
+        UInt32 pass = 0;
+        Float milliseconds = 0.0f;
+    };
+
+    // **패스 직후 미리보기 요청이다**(D-341). 그래프는 프레임마다 다시 지으므로 번호가 아니라 뷰·이름·그 뷰에서 그 이름의 몇 번째인지로 패스를
+    // 가리킨다. 이름은 `RenderGraph::GetPassName` 이 준 포인터 그대로여야 한다(포인터로 견준다 - 프레임 경로에서 글자를 견주지 않는다).
+    struct RenderGraphCaptureRequest
+    {
+        const char* passName = nullptr;
+        UInt32 group = 0;
+        UInt32 occurrence = 0;
+        // 그 패스의 접근 번호(`RenderGraph::GetPassAccess`)다. 그 텍스처를 뜬다.
+        UInt32 access = 0;
+    };
+
+    enum class RenderGraphCaptureStatus : std::uint8_t
+    {
+        // 요청이 없다.
+        None,
+        // 사본 텍스처를 다음 프레임 전에 만든다(처음이거나 모양이 바뀌었다).
+        Waiting,
+        Captured,
+        // 요청한 패스·텍스처가 이번 그래프에 없거나 그 패스가 돌지 않았다.
+        NotFound,
+        // 깊이는 복사하지 못한다.
+        Unsupported
+    };
+
     class Renderer final
     {
     public:
@@ -397,6 +431,25 @@ namespace JBro
         Bool GetLastRenderGraphView(UInt32 index, RendererViewDebugInfo& info) const;
         // 그래프가 만드는 중간 텍스처의 풀이다. 바라는 모양은 다음 `BeginFrame` 이 만들고 비운다.
         const RenderTargetPool& GetRenderTargetPool() const;
+        // **패스마다 GPU 시간을 잰다**(D-341). 켜 둔 동안만 패스 앞뒤에 시각을 적는다 - 렌더 그래프 창이 열려 있을 때다.
+        // 시각은 GPU 가 프레임을 끝낸 뒤 오므로 떠 있는 프레임 수만큼 늦다. 장치가 시각을 못 적으면 켜도 아무 일이 없다.
+        void SetRenderGraphTimingEnabled(Bool enabled);
+        Bool IsRenderGraphTimingSupported() const;
+        // 가장 최근에 시간이 온 그래프의 번호(`GetLastRenderGraphSerial` 과 같은 셈)다. 아직 없으면 0 이다.
+        UInt64 GetRenderGraphTimingSerial() const;
+        UInt32 GetRenderGraphTimingCount() const;
+        Bool GetRenderGraphTiming(UInt32 index, RenderGraphPassTiming& timing) const;
+        // 그 프레임의 첫 시각부터 끝 시각까지다(잰 패스들이 GPU 에서 걸린 전체).
+        Float GetRenderGraphGpuMilliseconds() const;
+        // **패스 직후의 텍스처를 뜬다**(D-341). 요청은 지울 때까지 남아 프레임마다 다시 뜬다. 사본은 렌더러가 들고, 크기·포맷이 바뀌면
+        // 다음 프레임 전에 다시 만든다.
+        void RequestRenderGraphCapture(const RenderGraphCaptureRequest& request);
+        void ClearRenderGraphCapture();
+        RenderGraphCaptureStatus GetRenderGraphCaptureStatus() const;
+        TextureHandle GetRenderGraphCaptureTexture() const;
+        Extent2D GetRenderGraphCaptureExtent() const;
+        // 사본을 뜬 그래프의 번호다.
+        UInt64 GetRenderGraphCaptureSerial() const;
 
         // 프레임을 닫기 전에 부를 것을 건다. **프레임 밖에서만 바꾼다** -
         // 프레임 중간에 바뀌면 이미 기록한 것과 어긋난다. nullptr 이면 뗀다.
@@ -806,6 +859,45 @@ namespace JBro
         // 지난 그래프의 뷰들이다(렌더 그래프 창). 뷰 상한만큼 잡아 두고 그래프를 지을 때 채운다.
         Array<RendererViewDebugInfo> m_graphViews;
         UInt64 m_graphSerial = 0;
+        // ── 패스별 GPU 시간(D-341) ── 프레임마다 잰 패스의 이름·뷰·시각 자리를 RHI 프레임 번호와 함께 고리에 적어 두고, 그 프레임의 시각이
+        // 오면 ms 로 바꾼다. 고리는 떠 있는 프레임보다 하나 크다(D3D11 은 시각 묶음 셋을 돈다).
+        static constexpr UInt32 TimedPassCapacity = MaxTimestampsPerFrame / 2;
+        static constexpr UInt32 TimingRingSize = 4;
+        struct TimedPass
+        {
+            const char* name = nullptr;
+            UInt32 group = 0;
+            UInt32 pass = 0;
+            UInt32 timestamp = 0;
+        };
+        struct TimingFrame
+        {
+            UInt64 rhiSerial = 0;
+            UInt64 graphSerial = 0;
+            UInt32 count = 0;
+            TimedPass passes[TimedPassCapacity];
+        };
+        void RecordGraphTiming();
+        void CollectGraphTiming();
+        TimingFrame m_timingRing[TimingRingSize];
+        UInt32 m_timingRingNext = 0;
+        UInt64 m_timestampScratch[MaxTimestampsPerFrame] = {};
+        RenderGraphPassTiming m_timings[TimedPassCapacity];
+        UInt32 m_timingCount = 0;
+        UInt64 m_timingSerial = 0;
+        UInt64 m_timingRhiSerial = 0;
+        Float m_timingGpuMilliseconds = 0.0f;
+        Bool m_timingEnabled = false;
+        // ── 패스 직후 미리보기(D-341) ──
+        void PrepareCapture(UInt64 graphSerial);
+        RenderGraphCaptureRequest m_captureRequest;
+        Bool m_captureRequested = false;
+        RenderGraphCaptureStatus m_captureStatus = RenderGraphCaptureStatus::None;
+        TextureHandle m_captureTexture;
+        TransientTextureDesc m_captureDesc;
+        TransientTextureDesc m_captureWant;
+        Bool m_captureWanted = false;
+        UInt64 m_captureSerial = 0;
         GraphicsPipelineHandle m_spritePipeline;
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
         // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.

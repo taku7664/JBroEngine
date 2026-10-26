@@ -267,6 +267,10 @@ namespace JBro
 
     void RenderGraph::Reset()
     {
+        m_capturePass = RenderGraphPass::Invalid;
+        m_captureTexture = RenderGraphTexture::Invalid;
+        m_captureDestination = {};
+        m_captured = false;
         m_textures.Clear();
         m_passes.Clear();
         m_accesses.Clear();
@@ -887,11 +891,25 @@ namespace JBro
         RenderGraphContext context;
         context.m_graph = this;
         context.m_commands = &commands;
-        for (const PassEntry& entry : m_passes)
+        m_captured = false;
+        UInt32 nextTimestamp = 0;
+        Bool timing = m_timestampCapacity >= 2;
+        for (std::size_t passIndex = 0; passIndex < m_passes.Size(); ++passIndex)
         {
+            PassEntry& entry = m_passes[passIndex];
+            entry.timestamp = RenderGraphPass::Invalid;
             if (entry.skip != RenderGraphSkip::None)
             {
                 continue;
+            }
+            // 앞 시각은 배리어 앞이다 - 패스가 부른 상태 전이도 그 패스의 시간이다.
+            if (timing && nextTimestamp + 2 <= m_timestampCapacity && commands.WriteTimestamp(nextTimestamp))
+            {
+                entry.timestamp = nextTimestamp;
+            }
+            else
+            {
+                timing = false;
             }
             if (entry.barrierCount != 0
                 && false == commands.Barrier({m_barriers.Data() + entry.firstBarrier.Get(), entry.barrierCount}))
@@ -953,8 +971,57 @@ namespace JBro
                     m_textures[access.texture.Get()].written = true;
                 }
             }
+            if (entry.timestamp != RenderGraphPass::Invalid)
+            {
+                // 뒤 시각을 적지 못하면 앞 시각만 남아 자리가 비므로, 그 패스부터 재지 않은 것으로 친다.
+                if (commands.WriteTimestamp(entry.timestamp + 1))
+                {
+                    nextTimestamp = entry.timestamp + 2;
+                }
+                else
+                {
+                    entry.timestamp = RenderGraphPass::Invalid;
+                    timing = false;
+                }
+            }
+            // 미리보기: 이 패스가 끝난 직후의 그 텍스처다. 복사하지 못해도 프레임은 그대로 간다 - 진단이다.
+            if (passIndex == m_capturePass && m_captureTexture < m_textures.Size())
+            {
+                const TextureEntry& texture = m_textures[m_captureTexture.Get()];
+                if (texture.available && texture.written && m_captureDestination.IsValid())
+                {
+                    m_captured = commands.CopyTexture(texture.texture, m_captureDestination);
+                }
+            }
         }
         return true;
+    }
+
+    void RenderGraph::SetTimestampCapacity(UInt32 capacity) noexcept
+    {
+        m_timestampCapacity = capacity;
+    }
+
+    UInt32 RenderGraph::GetPassTimestamp(RenderGraphPass pass) const noexcept
+    {
+        return pass.index < m_passes.Size() ? m_passes[pass.index.Get()].timestamp : RenderGraphPass::Invalid;
+    }
+
+    Bool RenderGraph::SetCapture(RenderGraphPass pass, RenderGraphTexture texture, TextureHandle destination)
+    {
+        if (pass.index >= m_passes.Size() || texture.index >= m_textures.Size() || false == destination.IsValid())
+        {
+            return false;
+        }
+        m_capturePass = pass.index;
+        m_captureTexture = texture.index;
+        m_captureDestination = destination;
+        return true;
+    }
+
+    Bool RenderGraph::WasCaptured() const noexcept
+    {
+        return m_captured;
     }
 
     // ── 살펴보기 ────────────────────────────────────────────────────────────

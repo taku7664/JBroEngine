@@ -10470,22 +10470,39 @@ namespace
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick once more");
         Check(panel->GetCapturedSerial() == stepped, "and only one");
 
-        // 아래 도크는 낮게 선다. 사람이 하듯이 위 경계를 끌어 올려 표가 보이게 한 뒤 찍는다.
+        // 아래 도크는 낮게 선다. 메뉴로 열면 창이 원하는 높이까지 넓힌다(D-341) - 시험도 메뉴와 같은 길이다.
         Check(window->DockNode != nullptr, "the render graph window must be docked");
-        Spot edge;
-        edge.x = static_cast<JBro::Int32>(window->DockNode->Pos.x + window->DockNode->Size.x * 0.5f);
-        edge.y = static_cast<JBro::Int32>(window->DockNode->Pos.y) - 2;
-        Spot raised = edge;
-        raised.y -= 520;
-        const JBro::Float lowHeight = window->DockNode->Size.y;
-        DragTo(editor, hwnd, edge, raised);
+        panel->RequestRoom();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after making room");
+        }
         window = ImGui::FindWindowByName(JBro::RenderGraphPanel::TypeName);
-        Check(window != nullptr && window->DockNode != nullptr && window->DockNode->Size.y > lowHeight + 200.0f,
-            "dragging the dock's edge must make room for the tables");
+        Check(window != nullptr && window->DockNode != nullptr && window->DockNode->Size.y >= 400.0f,
+            "opening the window from the menu must make room for the tables");
 
-        // 패스를 골라 세 탭을 찍는다.
+        // 멈춘 그래프에도 GPU 시간이 붙는다 - 시각은 몇 프레임 늦게 오므로 짝이 맞는 번호를 찾아 붙인다.
         const JBro::UInt32 composite = panel->FindPass("Composite");
         Check(composite != JBro::RenderGraphPanel::NoSelection, "the held graph has a composite pass");
+        for (JBro::Int32 frame = 0; frame < 6 && panel->GetPassGpuMilliseconds(composite) < 0.0f; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the timings arrive");
+        }
+        Check(panel->GetPassGpuMilliseconds(composite) >= 0.0f, "the composite pass must get its GPU time");
+
+        // 미리보기: 그래프가 만든 텍스처(레이어)와 들여온 텍스처(뷰 타깃)를 그 패스가 끝난 직후로 본다.
+        const auto preview = [&](JBro::UInt32 access, const char* what) {
+            panel->PreviewAccess(composite, access);
+            for (JBro::Int32 frame = 0; frame < 6 && panel->GetPreviewStatus() != JBro::RenderGraphCaptureStatus::Captured; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while the preview is taken");
+            }
+            Check(panel->GetPreviewStatus() == JBro::RenderGraphCaptureStatus::Captured, what);
+        };
+        preview(0, "the view target must be previewed right after the composite pass");
+        preview(1, "the layer texture must be previewed right after the composite pass");
+
+        // 패스를 골라 세 탭을 찍는다.
         panel->SelectPass(composite);
         JBro::Renderer* renderer = editor.GetRenderer();
         const auto shot = [&](JBro::RenderGraphPanel::Tab tab, const char* suffix) {

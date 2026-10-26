@@ -262,30 +262,133 @@ namespace JBro
         return true;
     }
 
-    void RenderGraphPanel::OnUpdate(Float deltaTime)
+    void RenderGraphPanel::OnDestroy()
     {
-        (void)deltaTime;
-        // **창이 보일 때만 뜬다.** 닫아 둔 창을 위해 매 프레임 그래프를 옮겨 적을 까닭이 없다.
-        if (false == IsOpen() || m_editor == nullptr)
+        if (m_editor == nullptr || m_editor->GetRenderer() == nullptr)
         {
             return;
         }
-        const Renderer* renderer = m_editor->GetRenderer();
+        // 창이 사라지면 재는 것과 뜨는 것도 끈다. 둘 다 프레임에 얹히는 일이다.
+        m_editor->GetRenderer()->SetRenderGraphTimingEnabled(false);
+        m_editor->GetRenderer()->ClearRenderGraphCapture();
+    }
+
+    void RenderGraphPanel::OnUpdate(Float deltaTime)
+    {
+        (void)deltaTime;
+        if (m_editor == nullptr)
+        {
+            return;
+        }
+        Renderer* renderer = m_editor->GetRenderer();
         if (renderer == nullptr)
         {
             return;
         }
-        if (m_paused && false == m_stepOnce)
+        // **창이 보일 때만 뜨고 잰다**(D-341, 프로파일러와 같다). 닫아 둔 창을 위해 패스마다 시각을 적을 까닭이 없다.
+        if (IsOpen() != m_timingOn)
+        {
+            m_timingOn = IsOpen();
+            renderer->SetRenderGraphTimingEnabled(m_timingOn);
+            if (false == m_timingOn)
+            {
+                renderer->ClearRenderGraphCapture();
+                m_previewStatus = RenderGraphCaptureStatus::None;
+            }
+        }
+        if (false == IsOpen())
         {
             return;
         }
-        const UInt64 before = m_serial;
-        Capture(*renderer);
-        // 한 프레임 받기는 새 그래프를 받았을 때 끝난다 - 아직 다음 프레임이 기록되지 않았으면 다음 갱신에서 받는다.
-        if (m_serial != before)
+        m_timingSupported = renderer->IsRenderGraphTimingSupported();
+        if (false == m_paused || m_stepOnce)
         {
-            m_stepOnce = false;
+            const UInt64 before = m_serial;
+            Capture(*renderer);
+            // 한 프레임 받기는 새 그래프를 받았을 때 끝난다 - 아직 다음 프레임이 기록되지 않았으면 다음 갱신에서 받는다.
+            if (m_serial != before)
+            {
+                m_stepOnce = false;
+            }
         }
+        // 멈춰 있어도 시간과 미리보기는 따라온다 - 시간은 늦게 오고, 미리보기는 지금 프레임의 내용이다.
+        ApplyTimings(*renderer);
+        UpdatePreview(*renderer);
+    }
+
+    void RenderGraphPanel::ApplyTimings(const Renderer& renderer)
+    {
+        // 새 시간이 왔거나 다른 그래프를 떠 왔을 때만 다시 붙인다.
+        const UInt64 serial = renderer.GetRenderGraphTimingSerial();
+        if (serial == 0 || (serial == m_timingSerial && m_serial == m_timingAppliedTo))
+        {
+            return;
+        }
+        m_timingSerial = serial;
+        m_timingAppliedTo = m_serial;
+        m_gpuMilliseconds = renderer.GetRenderGraphGpuMilliseconds();
+        for (PassRow& pass : m_passes)
+        {
+            pass.gpuMilliseconds = -1.0f;
+        }
+        // 시간이 온 그래프가 떠 둔 그래프이면 패스 번호로, 아니면 뷰·이름·차례로 짝짓는다 - 그래프의 짜임은 프레임마다 거의 같다.
+        const Bool sameGraph = serial == m_serial;
+        for (UInt32 index = 0; index < renderer.GetRenderGraphTimingCount(); ++index)
+        {
+            RenderGraphPassTiming timing;
+            renderer.GetRenderGraphTiming(index, timing);
+            if (sameGraph)
+            {
+                if (timing.pass < m_passes.Size())
+                {
+                    m_passes[timing.pass.Get()].gpuMilliseconds = timing.milliseconds;
+                }
+                continue;
+            }
+            // 이 시간이 그 뷰에서 그 이름의 몇 번째인지 센다.
+            UInt32 rank = 0;
+            for (UInt32 earlier = 0; earlier < index; ++earlier)
+            {
+                RenderGraphPassTiming previous;
+                renderer.GetRenderGraphTiming(earlier, previous);
+                if (previous.group == timing.group && previous.name == timing.name)
+                {
+                    ++rank;
+                }
+            }
+            for (PassRow& pass : m_passes)
+            {
+                if (pass.group == timing.group && pass.name == timing.name && pass.occurrence == rank)
+                {
+                    pass.gpuMilliseconds = timing.milliseconds;
+                    break;
+                }
+            }
+        }
+    }
+
+    void RenderGraphPanel::UpdatePreview(Renderer& renderer)
+    {
+        if (m_previewPass == NoSelection || m_previewPass >= m_passes.Size())
+        {
+            if (m_previewStatus != RenderGraphCaptureStatus::None)
+            {
+                renderer.ClearRenderGraphCapture();
+                m_previewStatus = RenderGraphCaptureStatus::None;
+            }
+            return;
+        }
+        const PassRow& pass = m_passes[m_previewPass.Get()];
+        RenderGraphCaptureRequest request;
+        request.passName = pass.name;
+        request.group = pass.group;
+        request.occurrence = pass.occurrence;
+        request.access = m_previewAccess;
+        renderer.RequestRenderGraphCapture(request);
+        m_previewStatus = renderer.GetRenderGraphCaptureStatus();
+        m_previewTexture = renderer.GetRenderGraphCaptureTexture();
+        m_previewExtent = renderer.GetRenderGraphCaptureExtent();
+        m_previewSerial = renderer.GetRenderGraphCaptureSerial();
     }
 
     void RenderGraphPanel::Capture(const Renderer& renderer)
@@ -397,6 +500,13 @@ namespace JBro
                 ++m_ranCount;
                 m_barrierTotal += row.barrierCount;
             }
+            for (const PassRow& earlier : m_passes)
+            {
+                if (earlier.group == row.group && earlier.name == row.name)
+                {
+                    ++row.occurrence;
+                }
+            }
             m_passes.Add(row);
         }
 
@@ -434,6 +544,10 @@ namespace JBro
         if (m_selectedPass != NoSelection && m_selectedPass >= m_passes.Size())
         {
             m_selectedPass = NoSelection;
+        }
+        if (m_previewPass != NoSelection && m_previewPass >= m_passes.Size())
+        {
+            m_previewPass = NoSelection;
         }
         if (m_selectedTexture != NoSelection && m_selectedTexture >= m_textures.Size())
         {
@@ -541,6 +655,27 @@ namespace JBro
         Widget::HintTextF("%s %u", Loc::TextOr(LocKeys::RenderGraphPhysicalCount, "Actual textures"), m_physicalCount);
         ImGui::SameLine(0.0f, 12.0f);
         Widget::HintTextF("%s %u", Loc::TextOr(LocKeys::RenderGraphBarrierCount, "Barriers"), m_barrierTotal);
+        ImGui::SameLine(0.0f, 12.0f);
+        if (false == m_timingSupported)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::RenderGraphGpuUnsupported, "No GPU time"));
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::RenderGraphGpuUnsupportedTip, "This device cannot write GPU timestamps."));
+        }
+        else if (m_timingSerial == 0)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::RenderGraphGpuPending, "Measuring GPU time"));
+        }
+        else
+        {
+            Widget::HintTextF("GPU %.3f ms", m_gpuMilliseconds);
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::RenderGraphGpuTip,
+                "GPU time of the measured passes. Timestamps arrive after the GPU finishes a frame, a few frames late."));
+            if (m_timingSerial != m_serial)
+            {
+                ImGui::SameLine(0.0f, 6.0f);
+                Widget::HintTextF("(%s %llu)", Loc::TextOr(LocKeys::RenderGraphFrame, "Frame"), m_timingSerial);
+            }
+        }
     }
 
     Bool RenderGraphPanel::PassTouchesTexture(const PassRow& pass, UInt32 texture) const
@@ -609,7 +744,7 @@ namespace JBro
 
     void RenderGraphPanel::DrawPassList()
     {
-        if (false == ImGui::BeginTable("##render_graph_pass_table", 5,
+        if (false == ImGui::BeginTable("##render_graph_pass_table", 6,
                 ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit))
         {
             return;
@@ -620,6 +755,7 @@ namespace JBro
         ImGui::TableSetupColumn(Loc::TextOr(LocKeys::RenderGraphColumnKind, "Kind"), ImGuiTableColumnFlags_WidthFixed, 56.0f);
         ImGui::TableSetupColumn(Loc::TextOr(LocKeys::RenderGraphColumnStatus, "Status"), ImGuiTableColumnFlags_WidthFixed, 96.0f);
         ImGui::TableSetupColumn(Loc::TextOr(LocKeys::RenderGraphColumnBarriers, "Barriers"), ImGuiTableColumnFlags_WidthFixed, 52.0f);
+        ImGui::TableSetupColumn(Loc::TextOr(LocKeys::RenderGraphColumnGpu, "GPU ms"), ImGuiTableColumnFlags_WidthFixed, 60.0f);
         ImGui::TableHeadersRow();
 
         UInt32 shown = 0;
@@ -689,6 +825,15 @@ namespace JBro
                 {
                     Widget::HintText("-");
                 }
+                ImGui::TableSetColumnIndex(5);
+                if (pass.gpuMilliseconds >= 0.0f)
+                {
+                    Widget::TextF("%.3f", pass.gpuMilliseconds);
+                }
+                else
+                {
+                    Widget::HintText("-");
+                }
             }
         }
         ImGui::EndTable();
@@ -743,10 +888,20 @@ namespace JBro
                 Widget::IdScope id(static_cast<Int32>(at.Get()));
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
-                if (Widget::SelectableRow(TextureLabel(access.texture), m_selectedTexture == access.texture,
-                        ImGuiSelectableFlags_SpanAllColumns))
+                const Bool previewing = m_previewPass == m_selectedPass && m_previewAccess == at;
+                if (Widget::SelectableRow(TextureLabel(access.texture), previewing, ImGuiSelectableFlags_SpanAllColumns))
                 {
+                    // 누르면 그 텍스처를 고르고, 이 패스 직후의 내용을 미리 본다. 다시 누르면 미리보기를 끈다.
                     m_selectedTexture = access.texture;
+                    if (previewing)
+                    {
+                        m_previewPass = NoSelection;
+                    }
+                    else
+                    {
+                        m_previewPass = m_selectedPass;
+                        m_previewAccess = at;
+                    }
                 }
                 ImGui::TableSetColumnIndex(1);
                 if (access.access == RenderGraphAccess::Color || access.access == RenderGraphAccess::Depth)
@@ -781,6 +936,8 @@ namespace JBro
         if (pass.barrierCount == 0)
         {
             Widget::HintText(Loc::TextOr(LocKeys::RenderGraphNoBarriers, "No barriers"));
+            ImGui::Spacing();
+            DrawPreview();
             return;
         }
         if (ImGui::BeginTable("##render_graph_barriers", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp))
@@ -799,6 +956,48 @@ namespace JBro
             }
             ImGui::EndTable();
         }
+        ImGui::Spacing();
+        DrawPreview();
+    }
+
+    void RenderGraphPanel::DrawPreview()
+    {
+        Widget::Text(Loc::TextOr(LocKeys::RenderGraphPreview, "Preview"));
+        if (m_previewPass != m_selectedPass || m_previewPass == NoSelection)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::RenderGraphPreviewHint, "Choose a texture above to see it right after this pass"));
+            return;
+        }
+        switch (m_previewStatus)
+        {
+        case RenderGraphCaptureStatus::Captured:
+            break;
+        case RenderGraphCaptureStatus::Unsupported:
+            Widget::HintText(Loc::TextOr(LocKeys::RenderGraphPreviewUnsupported, "Depth textures have no preview"));
+            return;
+        case RenderGraphCaptureStatus::NotFound:
+            Widget::HintText(Loc::TextOr(LocKeys::RenderGraphPreviewNotFound, "This pass did not run this frame"));
+            return;
+        default:
+            Widget::HintText(Loc::TextOr(LocKeys::RenderGraphPreviewWaiting, "Making the copy"));
+            return;
+        }
+        if (false == m_previewTexture.IsValid() || m_previewExtent.width == 0)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::RenderGraphPreviewWaiting, "Making the copy"));
+            return;
+        }
+        const PassRow& pass = m_passes[m_previewPass.Get()];
+        const UInt32 texture = m_previewAccess < pass.accessCount ? m_accesses[(pass.firstAccess + m_previewAccess).Get()].texture
+                                                                  : RenderGraphTexture::Invalid;
+        // 그 패스가 끝난 직후의 사본이다. 텍스처를 여러 패스가 나눠 쓰므로 프레임 끝의 내용과 다를 수 있다.
+        Widget::HintTextF("%s %llu · #%u %s · %s · %u x %u", Loc::TextOr(LocKeys::RenderGraphFrame, "Frame"), m_previewSerial, m_previewPass,
+            pass.name != nullptr ? pass.name : "?", TextureLabel(texture), m_previewExtent.width, m_previewExtent.height);
+        const Float side = JBro::Max(80.0f, ImGui::GetContentRegionAvail().x);
+        // 테두리를 두른다 - 지우기만 한 타깃은 창 바탕과 거의 같은 색이라 그림이 어디까지인지 안 보인다.
+        Widget::StyleScope style;
+        style.PushVar(ImGuiStyleVar_ImageBorderSize, 1.0f);
+        Widget::Image(m_previewTexture, Widget::FitInside(m_previewExtent.width, m_previewExtent.height, ImVec2(side, 240.0f)));
     }
 
     void RenderGraphPanel::DrawTextures()

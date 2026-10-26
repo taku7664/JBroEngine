@@ -165,6 +165,23 @@ namespace JBro
             return requested;
         }
 
+        // **열 때 이만큼의 높이는 있어야 내용이 읽힌다**(D-341, 렌더 그래프 창). 0 이면 바라는 것이 없다. 메뉴로 열 때(`RequestRoom`)
+        // 붙은 도크가 이보다 낮으면 에디터가 그만큼 넓힌다 - 줄이지는 않으므로 사용자가 끌어 넓힌 크기는 그대로다.
+        virtual Float GetPreferredDockHeight() const
+        {
+            return 0.0f;
+        }
+        void RequestRoom()
+        {
+            m_roomRequested = true;
+        }
+        Bool TakeRoomRequest()
+        {
+            const Bool requested = m_roomRequested;
+            m_roomRequested = false;
+            return requested;
+        }
+
         // 이 프레임에 이 패널(또는 그 안의 자식 창)이 키보드 포커스를 가졌는가. 에디터가 창을 열 때마다 적는다 -
         // 그리지 않은 프레임(닫힘·다른 탭에 가림)은 거짓이다. 시뮬레이션 뷰가 이것으로 게임 입력을 켠다(D-214).
         Bool IsFocused() const
@@ -201,6 +218,7 @@ namespace JBro
         Bool m_placed = false;
         Bool m_open = true;
         Bool m_focusRequested = false;
+        Bool m_roomRequested = false;
         Bool m_focused = false;
         Bool m_visible = false;
     };

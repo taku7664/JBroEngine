@@ -254,6 +254,18 @@ namespace JBro
         // 살아남은 패스를 기록한다. 실행 함수나 RHI 가 거절하면 그 자리에서 거짓이다.
         Bool Execute(IRHICommandContext& commands);
 
+        // ── 진단(D-341, 렌더 그래프 창) ──
+        // **패스마다 GPU 시각을 적는다.** 0 이 아니면 `Execute` 가 살아남은 패스 앞뒤에 시각 둘을 0 부터 빈틈없이 적는다(`IRHICommandContext::WriteTimestamp`).
+        // 자리가 모자라거나 RHI 가 거절하면 그 뒤 패스는 재지 않는다. 다음 `Reset` 뒤에도 그대로다.
+        void SetTimestampCapacity(UInt32 capacity) noexcept;
+        // 그 패스의 앞 시각 자리다(뒤 시각은 +1). 재지 않은 패스는 `RenderGraphPass::Invalid` 다.
+        UInt32 GetPassTimestamp(RenderGraphPass pass) const noexcept;
+        // **그 패스가 끝난 직후 텍스처 하나를 `destination` 에 복사한다**(패스 직후 미리보기). 둘은 같은 크기·포맷이고 `destination` 은 `RenderTarget` 으로 만든 것이어야 한다(`CopyTexture`).
+        // 패스가 돌지 않았거나 텍스처가 없으면 복사하지 않는다. 컴파일 뒤·실행 앞에 건다. `Reset` 이 지운다.
+        Bool SetCapture(RenderGraphPass pass, RenderGraphTexture texture, TextureHandle destination);
+        // 지난 `Execute` 가 복사했는가.
+        Bool WasCaptured() const noexcept;
+
         // ── 살펴보기(시험·진단) ──
         UInt32 GetPassCount() const noexcept;
         UInt32 GetTextureCount() const noexcept;
@@ -320,6 +332,7 @@ namespace JBro
             UInt32 barrierCount = 0;
             UInt32 condition = RenderGraphTexture::Invalid;
             UInt32 group = 0;
+            UInt32 timestamp = RenderGraphPass::Invalid;
             RenderGraphPassKind kind = RenderGraphPassKind::Raster;
             Bool runIfMissing = false;
             RenderGraphSkip skip = RenderGraphSkip::None;
@@ -346,6 +359,11 @@ namespace JBro
         UInt32 m_maxAccesses = 0;
         // 상한을 넘은 선언이 있었다. 그 프레임의 `Compile` 은 실패한다.
         Bool m_overflow = false;
+        UInt32 m_timestampCapacity = 0;
+        UInt32 m_capturePass = RenderGraphPass::Invalid;
+        UInt32 m_captureTexture = RenderGraphTexture::Invalid;
+        TextureHandle m_captureDestination;
+        Bool m_captured = false;
         Bool m_compiled = false;
     };
 }

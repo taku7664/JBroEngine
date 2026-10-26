@@ -990,4 +990,14 @@ namespace JBro::LocKeys
     inline constexpr const char* RenderGraphSlotUsed = "render_graph.slot_used";
     inline constexpr const char* RenderGraphWants = "render_graph.wants";
     inline constexpr const char* RenderGraphWantsNone = "render_graph.wants_none";
+    inline constexpr const char* RenderGraphColumnGpu = "render_graph.column_gpu";
+    inline constexpr const char* RenderGraphGpuUnsupported = "render_graph.gpu_unsupported";
+    inline constexpr const char* RenderGraphGpuUnsupportedTip = "render_graph.gpu_unsupported_tip";
+    inline constexpr const char* RenderGraphGpuPending = "render_graph.gpu_pending";
+    inline constexpr const char* RenderGraphGpuTip = "render_graph.gpu_tip";
+    inline constexpr const char* RenderGraphPreview = "render_graph.preview";
+    inline constexpr const char* RenderGraphPreviewHint = "render_graph.preview_hint";
+    inline constexpr const char* RenderGraphPreviewWaiting = "render_graph.preview_waiting";
+    inline constexpr const char* RenderGraphPreviewNotFound = "render_graph.preview_not_found";
+    inline constexpr const char* RenderGraphPreviewUnsupported = "render_graph.preview_unsupported";
 }
