@@ -63,6 +63,7 @@ namespace JBro::Internal
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
         Bool Barrier(JArrayView<TextureBarrier> barriers) override;
+        Bool WriteTimestamp(UInt32 index) override;
         Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
         Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
@@ -224,6 +225,9 @@ namespace JBro::Internal
             TextureReadback& result) override;
         UInt32 GetFramesInFlight() const override;
         UInt32 GetValidationErrorCount() const override;
+        Bool ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result) override;
+        // 컨텍스트의 `WriteTimestamp` 가 부른다(D-341).
+        Bool RecordTimestamp(UInt32 index);
 
         // 컨텍스트가 쓰는 해석 함수들.
         // 텍스처는 그 mip 하나의 뷰와 그 mip 의 크기로 풀린다. 백버퍼는 mip 0 만 있다.
@@ -280,6 +284,30 @@ namespace JBro::Internal
         // 오프셋이 있는 상수 버퍼 구간을 묶을 수 있다. 11.1 의 부분 묶기와 동적 상수 버퍼의 NO_OVERWRITE 가 둘 다 있어야
         // 참이다 - 링은 한 버퍼의 여러 구간을 한 프레임 안에 차례로 쓰고 묶는다.
         Bool m_constantBufferOffsets = false;
+
+        // ── GPU 시각(D-341) ── D3D11 은 프레임 슬롯이 하나라(`GetFramesInFlight`) 슬롯 대신 시각 묶음 셋을 돌려 쓴다. 묶음마다
+        // 시각 쿼리 `MaxTimestampsPerFrame` 개와 그 사이에 시계가 흔들리지 않았는지 묻는 쿼리(`TIMESTAMP_DISJOINT`) 하나다.
+        // 프레임을 열 때 앞 묶음들의 답을 기다리지 않고(`DONOTFLUSH`) 물어, 답이 온 것만 받는다.
+        static constexpr UInt32 TimestampSets = 3;
+        struct TimestampSet
+        {
+            ComPtr<ID3D11Query> disjoint;
+            ComPtr<ID3D11Query> stamps[MaxTimestampsPerFrame];
+            UInt64 serial = 0;
+            UInt32 count = 0;
+            Bool pending = false;
+        };
+        void CollectTimestamps();
+        TimestampSet m_timestampSets[TimestampSets];
+        Bool m_timestampsReady = false;
+        // 이번 프레임이 쓰는 묶음과, 그 묶음의 바깥 쿼리를 열었는지다.
+        UInt32 m_frameTimestampSet = 0;
+        UInt32 m_frameTimestampCount = 0;
+        Bool m_frameTimestampOpen = false;
+        UInt64 m_completedTimestamps[MaxTimestampsPerFrame] = {};
+        UInt32 m_completedTimestampCount = 0;
+        UInt64 m_completedTimestampSerial = 0;
+        UInt64 m_completedTimestampFrequency = 0;
     };
 
     // 두 소스 파일이 함께 쓰는 변환.

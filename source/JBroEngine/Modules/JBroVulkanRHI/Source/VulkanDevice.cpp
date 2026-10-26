@@ -289,6 +289,7 @@ namespace JBro::Internal
                 chosen = devices[index];
                 chosenFamily = family;
                 chosenDiscrete = discrete;
+                m_timestampValidBits = families[family.Get()].timestampValidBits;
             }
         }
         if (chosen == VK_NULL_HANDLE)
@@ -386,11 +387,28 @@ namespace JBro::Internal
                 return false;
             }
         }
+        // GPU 시각(D-341). 못 만들어도 장치는 선다.
+        if (m_timestampValidBits != 0 && m_limits.timestampPeriod > 0.0f)
+        {
+            VkQueryPoolCreateInfo query = {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+            query.queryType = VK_QUERY_TYPE_TIMESTAMP;
+            query.queryCount = (MaxFramesInFlight * MaxTimestampsPerFrame).Get();
+            if (vk.vkCreateQueryPool(m_device, &query, nullptr, &m_timestampPool) != VK_SUCCESS)
+            {
+                m_timestampPool = VK_NULL_HANDLE;
+            }
+        }
         return true;
     }
 
     void VulkanDevice::DestroyFrameSlots()
     {
+        if (m_timestampPool != VK_NULL_HANDLE)
+        {
+            vk.vkDestroyQueryPool(m_device, m_timestampPool, nullptr);
+            m_timestampPool = VK_NULL_HANDLE;
+        }
+        m_completedTimestampCount = 0;
         for (VulkanFrameSlot& slot : m_slots)
         {
             if (slot.descriptorPool != VK_NULL_HANDLE)
@@ -1052,6 +1070,18 @@ namespace JBro::Internal
             m_completedSerial = slot.serial;
         }
         FlushRetired(m_completedSerial);
+        // 이 슬롯의 앞 프레임이 끝났다(위의 펜스). 그 프레임이 적은 GPU 시각을 받아 둔다(D-341).
+        if (slot.timestampCount != 0 && m_timestampPool != VK_NULL_HANDLE)
+        {
+            if (vk.vkGetQueryPoolResults(m_device, m_timestampPool, (m_slot * MaxTimestampsPerFrame).Get(), slot.timestampCount.Get(),
+                    sizeof(m_completedTimestamps), m_completedTimestamps, sizeof(UInt64), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+            {
+                m_completedTimestampCount = slot.timestampCount;
+                m_completedTimestampSerial = slot.serial;
+            }
+            slot.timestampCount = 0;
+        }
+        m_frameTimestampCount = 0;
         // 획득보다 먼저 비운다. 획득 뒤에 실패하면 신호가 걸린 세마포어를 기다릴 곳이 없어지므로, 실패할 수 있는 것은
         // 앞에 두고 획득 뒤에는 펜스 리셋만 남긴다(펜스는 획득 전에 리셋하면 실패 시 다음 프레임이 영원히 기다린다).
         if (vk.vkResetDescriptorPool(m_device, slot.descriptorPool, 0) != VK_SUCCESS
@@ -1066,6 +1096,11 @@ namespace JBro::Internal
         {
             result.status = FrameStatus::InvalidState;
             return result;
+        }
+        // 쿼리는 다시 쓰기 전에 비워야 한다. 렌더 패스 밖인 프레임 머리에서 이 슬롯 몫을 통째로 비운다.
+        if (m_timestampPool != VK_NULL_HANDLE)
+        {
+            vk.vkCmdResetQueryPool(slot.commands, m_timestampPool, (m_slot * MaxTimestampsPerFrame).Get(), MaxTimestampsPerFrame.Get());
         }
         std::uint32_t imageIndex = 0;
         const VkResult acquired = vk.vkAcquireNextImageKHR(m_device, state->swapchain, ~UInt64{0},
@@ -1112,6 +1147,9 @@ namespace JBro::Internal
         VulkanSwapchainState& state = m_swapchains[m_activeSwapchainIndex];
         VulkanFrameSlot& slot = m_slots[m_slot];
         m_frameActive = false;
+        // 버린 프레임도 명령은 제출된다. 그 시각은 받지 않는다.
+        slot.timestampCount = present ? m_frameTimestampCount : UInt32(0);
+        m_frameTimestampCount = 0;
         if (false == state.occupied || state.swapchain == VK_NULL_HANDLE)
         {
             return FrameStatus::InvalidState;
@@ -1245,9 +1283,44 @@ namespace JBro::Internal
         return m_slotCount;
     }
 
+    Bool VulkanDevice::RecordTimestamp(UInt32 index)
+    {
+        if (false == m_frameActive || m_timestampPool == VK_NULL_HANDLE || index >= MaxTimestampsPerFrame)
+        {
+            return false;
+        }
+        // 앞의 모든 명령이 끝난 뒤의 시각이다 - 패스 끝에 적으면 그 패스가 다 끝난 때다.
+        vk.vkCmdWriteTimestamp2(m_slots[m_slot].commands, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, m_timestampPool,
+            (m_slot * MaxTimestampsPerFrame + index).Get());
+        if (index + 1 > m_frameTimestampCount)
+        {
+            m_frameTimestampCount = index + 1;
+        }
+        return true;
+    }
+
+    Bool VulkanDevice::ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result)
+    {
+        if (m_completedTimestampCount == 0 || (destination == nullptr && capacity != 0))
+        {
+            return false;
+        }
+        const UInt32 count = m_completedTimestampCount < capacity ? m_completedTimestampCount : capacity;
+        for (UInt32 at = 0; at < count; ++at)
+        {
+            destination[at.Get()] = m_completedTimestamps[at.Get()];
+        }
+        result.frameSerial = m_completedTimestampSerial;
+        result.count = m_completedTimestampCount;
+        // 장치는 한 칸이 몇 나노초인지(`timestampPeriod`)를 말한다.
+        result.ticksPerSecond = static_cast<std::uint64_t>(1.0e9 / static_cast<double>(m_limits.timestampPeriod) + 0.5);
+        return true;
+    }
+
     DeviceCaps VulkanDevice::GetCaps() const
     {
         DeviceCaps caps;
+        caps.maxTimestampsPerFrame = m_timestampPool != VK_NULL_HANDLE ? MaxTimestampsPerFrame : UInt32(0);
         caps.maxConstantBuffers = MaxBoundConstantBuffers;
         caps.maxSampledTextures = MaxBoundTextures;
         caps.maxSamplers = MaxBoundSamplers;

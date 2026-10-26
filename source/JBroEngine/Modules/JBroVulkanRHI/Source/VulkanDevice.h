@@ -71,6 +71,7 @@ namespace JBro::Internal
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
         Bool Barrier(JArrayView<TextureBarrier> barriers) override;
+        Bool WriteTimestamp(UInt32 index) override;
         Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
         Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
@@ -248,6 +249,8 @@ namespace JBro::Internal
         VkSemaphore imageAvailable = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
         UInt64 serial = 0;
+        // 이 슬롯의 프레임이 적은 GPU 시각의 수다(D-341). 슬롯을 다시 쓸 때 받는다.
+        UInt32 timestampCount = 0;
     };
 
     // 파기가 미뤄진 객체다. 아직 GPU 에 떠 있을 수 있는 프레임이 쓰던 것은 그 프레임의 펜스가 끝난 뒤 지운다.
@@ -309,6 +312,9 @@ namespace JBro::Internal
             TextureReadback& result) override;
         UInt32 GetFramesInFlight() const override;
         UInt32 GetValidationErrorCount() const override;
+        Bool ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result) override;
+        // 컨텍스트의 `WriteTimestamp` 가 부른다(D-341).
+        Bool RecordTimestamp(UInt32 index);
 
         // 컨텍스트가 쓰는 해석 함수들. 백버퍼 핸들은 스왑체인의 이번 이미지로 풀린다.
         struct AttachmentView
@@ -411,6 +417,14 @@ namespace JBro::Internal
         UInt64 m_frameSerial = 0;
         UInt64 m_completedSerial = 0;
         UInt32 m_slotCount = 1;
+        // ── GPU 시각(D-341) ── 슬롯마다 `MaxTimestampsPerFrame` 칸의 쿼리 풀이다. 고른 큐가 시각을 못 적으면(`timestampValidBits` 0)
+        // 만들지 않는다 - 시각만 못 적고 장치는 선다.
+        VkQueryPool m_timestampPool = VK_NULL_HANDLE;
+        UInt32 m_timestampValidBits = 0;
+        UInt32 m_frameTimestampCount = 0;
+        UInt64 m_completedTimestamps[MaxTimestampsPerFrame] = {};
+        UInt32 m_completedTimestampCount = 0;
+        UInt64 m_completedTimestampSerial = 0;
         UInt32 m_slot = 0;
         UInt32 m_activeSwapchainIndex = 0;
         UInt32 m_validationErrors = 0;

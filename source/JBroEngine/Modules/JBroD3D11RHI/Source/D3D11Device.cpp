@@ -73,8 +73,73 @@ namespace JBro::Internal
             }
         }
         m_commandContext.Bind(this, m_context.Get());
+        // GPU 시각(D-341). 쿼리를 다 만들지 못하면 시각만 못 적는다.
+        m_timestampsReady = true;
+        for (TimestampSet& set : m_timestampSets)
+        {
+            D3D11_QUERY_DESC disjointDesc = {};
+            disjointDesc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+            m_timestampsReady = m_timestampsReady && SUCCEEDED(m_device->CreateQuery(&disjointDesc, &set.disjoint));
+            D3D11_QUERY_DESC stampDesc = {};
+            stampDesc.Query = D3D11_QUERY_TIMESTAMP;
+            for (UInt32 at = 0; at < MaxTimestampsPerFrame && m_timestampsReady; ++at)
+            {
+                m_timestampsReady = SUCCEEDED(m_device->CreateQuery(&stampDesc, &set.stamps[at.Get()]));
+            }
+        }
+        if (false == m_timestampsReady)
+        {
+            for (TimestampSet& set : m_timestampSets)
+            {
+                set = {};
+            }
+        }
         m_status = FrameStatus::Ready;
         return true;
+    }
+
+    void D3D11Device::CollectTimestamps()
+    {
+        // 오래된 묶음부터 답을 묻는다. 기다리지 않는다 - 답이 아직이면 다음 프레임에 다시 묻는다.
+        for (UInt32 round = 0; round < TimestampSets; ++round)
+        {
+            TimestampSet* oldest = nullptr;
+            for (TimestampSet& set : m_timestampSets)
+            {
+                if (set.pending && (oldest == nullptr || set.serial < oldest->serial))
+                {
+                    oldest = &set;
+                }
+            }
+            if (oldest == nullptr)
+            {
+                return;
+            }
+            D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjoint = {};
+            if (m_context->GetData(oldest->disjoint.Get(), &disjoint, sizeof(disjoint), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK)
+            {
+                return;
+            }
+            oldest->pending = false;
+            // 그 사이 시계가 흔들렸으면(전원 상태 변화 등) 그 프레임의 시각은 버린다.
+            if (disjoint.Disjoint || disjoint.Frequency == 0)
+            {
+                continue;
+            }
+            Bool complete = true;
+            for (UInt32 at = 0; at < oldest->count && complete; ++at)
+            {
+                UINT64 value = 0;
+                complete = m_context->GetData(oldest->stamps[at.Get()].Get(), &value, sizeof(value), D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK;
+                m_completedTimestamps[at.Get()] = value;
+            }
+            if (complete)
+            {
+                m_completedTimestampCount = oldest->count;
+                m_completedTimestampSerial = oldest->serial;
+                m_completedTimestampFrequency = disjoint.Frequency;
+            }
+        }
     }
 
     void D3D11Device::Shutdown()
@@ -274,6 +339,15 @@ namespace JBro::Internal
         m_commandContext.Reset();
         result.status = FrameStatus::Ready;
         result.frame.serial = ++m_frameSerial;
+        if (m_timestampsReady)
+        {
+            CollectTimestamps();
+            // 이번에 쓸 묶음의 답이 아직이면 버리고 다시 쓴다 - 시각 하나를 위해 GPU 를 기다리지 않는다.
+            m_frameTimestampSet = static_cast<JBro::UInt32>(m_frameSerial % TimestampSets);
+            m_timestampSets[m_frameTimestampSet.Get()].pending = false;
+        }
+        m_frameTimestampCount = 0;
+        m_frameTimestampOpen = false;
         result.frame.slot = 0;
         result.frame.backBuffer = TextureHandle{BackBufferTextureBase + swapchain.index, state->backBufferGeneration};
         result.frame.commands = &m_commandContext;
@@ -292,6 +366,15 @@ namespace JBro::Internal
         }
         D3D11SwapchainState& state = m_swapchains[m_activeSwapchainIndex];
         m_frameActive = false;
+        if (m_frameTimestampOpen)
+        {
+            TimestampSet& set = m_timestampSets[m_frameTimestampSet.Get()];
+            m_context->End(set.disjoint.Get());
+            set.serial = m_frameSerial;
+            set.count = m_frameTimestampCount;
+            set.pending = true;
+            m_frameTimestampOpen = false;
+        }
         if (false == state.occupied || state.swapchain == nullptr)
         {
             return FrameStatus::InvalidState;
@@ -329,6 +412,12 @@ namespace JBro::Internal
             m_commandContext.EndRenderPass();
         }
         // 이미 컨텍스트로 간 명령은 되돌릴 수 없다. 백버퍼는 제시하지 않으니 화면에는 안 나온다.
+        // 연 바깥 쿼리는 닫되, 그 시각은 받지 않는다.
+        if (m_frameTimestampOpen)
+        {
+            m_context->End(m_timestampSets[m_frameTimestampSet.Get()].disjoint.Get());
+            m_frameTimestampOpen = false;
+        }
         m_frameActive = false;
     }
 
@@ -360,7 +449,45 @@ namespace JBro::Internal
         caps.maxSampledTextures = MaxBoundTextures;
         caps.maxSamplers = MaxBoundSamplers;
         caps.constantBufferOffsets = m_constantBufferOffsets;
+        caps.maxTimestampsPerFrame = m_timestampsReady ? MaxTimestampsPerFrame : UInt32(0);
         return caps;
+    }
+
+    Bool D3D11Device::RecordTimestamp(UInt32 index)
+    {
+        if (false == m_frameActive || false == m_timestampsReady || index >= MaxTimestampsPerFrame)
+        {
+            return false;
+        }
+        TimestampSet& set = m_timestampSets[m_frameTimestampSet.Get()];
+        if (false == m_frameTimestampOpen)
+        {
+            m_context->Begin(set.disjoint.Get());
+            m_frameTimestampOpen = true;
+        }
+        m_context->End(set.stamps[index.Get()].Get());
+        if (index + 1 > m_frameTimestampCount)
+        {
+            m_frameTimestampCount = index + 1;
+        }
+        return true;
+    }
+
+    Bool D3D11Device::ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result)
+    {
+        if (m_completedTimestampCount == 0 || (destination == nullptr && capacity != 0))
+        {
+            return false;
+        }
+        const UInt32 count = m_completedTimestampCount < capacity ? m_completedTimestampCount : capacity;
+        for (UInt32 at = 0; at < count; ++at)
+        {
+            destination[at.Get()] = m_completedTimestamps[at.Get()];
+        }
+        result.frameSerial = m_completedTimestampSerial;
+        result.count = m_completedTimestampCount;
+        result.ticksPerSecond = m_completedTimestampFrequency;
+        return true;
     }
 
     UInt32 D3D11Device::GetValidationErrorCount() const

@@ -141,6 +141,7 @@ namespace JBro::Internal
             UInt32 firstInstance) override;
         Bool CopyTexture(TextureHandle source, TextureHandle destination) override;
         Bool Barrier(JArrayView<TextureBarrier> barriers) override;
+        Bool WriteTimestamp(UInt32 index) override;
         Bool SetComputePipeline(ComputePipelineHandle pipeline) override;
         Bool SetStorageTexture(UInt32 slot, TextureHandle texture, UInt32 mipLevel) override;
         Bool SetStorageBuffer(UInt32 slot, BufferHandle buffer) override;
@@ -326,6 +327,9 @@ namespace JBro::Internal
             TextureReadback& result) override;
         UInt32 GetValidationErrorCount() const override;
         UInt32 GetFramesInFlight() const override;
+        Bool ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result) override;
+        // 컨텍스트의 `WriteTimestamp` 가 부른다. 이번 프레임 슬롯 몫의 쿼리 자리에 시각을 적는다(D-341).
+        Bool RecordTimestamp(UInt32 index);
         Bool WriteBuffer(
             BufferHandle buffer,
             std::size_t offset,
@@ -456,6 +460,17 @@ namespace JBro::Internal
         D3D12PipelineState m_computePipelines[MaxComputePipelines];
         D3D12SamplerState m_samplers[MaxSamplers];
         UInt64 m_frameFenceValues[MaxFramesInFlight] = {};
+        // ── GPU 시각(D-341) ── 슬롯마다 `MaxTimestampsPerFrame` 자리의 쿼리 힙과 되읽기 버퍼다. 프레임 끝에 적은 자리까지 되읽기 버퍼로
+        // 풀고, 그 슬롯을 다시 쓸 때(펜스를 기다린 뒤) 받아 둔다. 힙을 못 만들면 시각을 적지 못할 뿐 장치는 선다.
+        ComPtr<ID3D12QueryHeap> m_timestampHeap;
+        ComPtr<ID3D12Resource> m_timestampReadback;
+        UInt64 m_timestampFrequency = 0;
+        UInt32 m_frameTimestampCount = 0;
+        UInt32 m_slotTimestampCount[MaxFramesInFlight] = {};
+        UInt64 m_slotTimestampSerial[MaxFramesInFlight] = {};
+        UInt64 m_completedTimestamps[MaxTimestampsPerFrame] = {};
+        UInt32 m_completedTimestampCount = 0;
+        UInt64 m_completedTimestampSerial = 0;
         UInt64 m_nextFenceValue = 1;
         UInt64 m_lastSubmittedFenceValue = 0;
         UInt64 m_frameSerial = 0;

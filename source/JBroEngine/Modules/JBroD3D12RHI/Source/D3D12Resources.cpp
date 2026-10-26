@@ -323,7 +323,40 @@ namespace JBro::Internal
         caps.maxConstantBuffers = MaxBoundConstantBuffers;
         caps.maxSampledTextures = MaxBoundTextures;
         caps.maxSamplers = MaxBoundSamplers;
+        caps.maxTimestampsPerFrame = m_timestampHeap != nullptr ? MaxTimestampsPerFrame : UInt32(0);
         return caps;
+    }
+
+    Bool D3D12Device::RecordTimestamp(UInt32 index)
+    {
+        if (false == m_frameActive || m_timestampHeap == nullptr || index >= MaxTimestampsPerFrame)
+        {
+            return false;
+        }
+        m_commandList->EndQuery(
+            m_timestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, (m_activeFrameSlot * MaxTimestampsPerFrame + index).Get());
+        if (index + 1 > m_frameTimestampCount)
+        {
+            m_frameTimestampCount = index + 1;
+        }
+        return true;
+    }
+
+    Bool D3D12Device::ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result)
+    {
+        if (m_completedTimestampCount == 0 || (destination == nullptr && capacity != 0))
+        {
+            return false;
+        }
+        const UInt32 count = m_completedTimestampCount < capacity ? m_completedTimestampCount : capacity;
+        for (UInt32 at = 0; at < count; ++at)
+        {
+            destination[at.Get()] = m_completedTimestamps[at.Get()];
+        }
+        result.frameSerial = m_completedTimestampSerial;
+        result.count = m_completedTimestampCount;
+        result.ticksPerSecond = m_timestampFrequency;
+        return true;
     }
 
     UInt32 D3D12Device::GetValidationErrorCount() const

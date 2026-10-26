@@ -562,6 +562,20 @@ namespace JBro
     // `TextureBarrier::mipLevel` 에 넣으면 그 텍스처의 모든 mip 이다.
     inline constexpr UInt32 AllTextureMips = 0xFFFFFFFFu;
 
+    // 한 프레임에 적을 수 있는 GPU 시각의 수다(`IRHICommandContext::WriteTimestamp`, D-341).
+    inline constexpr UInt32 MaxTimestampsPerFrame = 512;
+
+    // 끝난 프레임의 GPU 시각을 읽은 결과다(`IRHIDevice::ReadFrameTimestamps`).
+    struct TimestampReadback
+    {
+        // 그 시각들을 적은 프레임(`FrameContext::serial`)이다.
+        UInt64 frameSerial = 0;
+        // 적힌 자리의 수다 - 그 프레임에 적은 가장 큰 자리 + 1.
+        UInt32 count = 0;
+        // 시각 한 칸이 몇 분의 1 초인가. 두 시각의 차를 이것으로 나누면 초다.
+        UInt64 ticksPerSecond = 0;
+    };
+
     struct TextureBarrier
     {
         TextureHandle texture;
@@ -634,6 +648,15 @@ namespace JBro
         // 옮겨 두고 다른 패스에서 읽으면 그 패스는 읽기 상태가 아닌 것을 읽는다. 복사가 남긴 상태(D3D12 의 복사 원본 등)를 읽기 전에
         // 읽기로 돌려 두는 길도 이것이다. D3D11 은 상태가 없어 검사만 한다.
         virtual Bool Barrier(JArrayView<TextureBarrier> barriers) = 0;
+        // **GPU 가 이 자리에 이르렀을 때의 시각을 적는다**(D-341, 렌더 그래프 창의 패스별 GPU 시간). 자리는 프레임마다 0 부터
+        // `DeviceCaps::maxTimestampsPerFrame` 앞까지이고 **0 부터 빈틈없이** 쓴다 - 사이를 비우면 그 자리의 값은 정해지지 않는다(D3D12 는 검증 오류).
+        // 렌더 패스 밖에서만 부른다. 시각은 프레임이 GPU 에서 끝난 뒤 `IRHIDevice::ReadFrameTimestamps` 로 읽는다.
+        // 백엔드가 못 하면(능력이 0) 거짓이고 아무것도 기록하지 않는다.
+        virtual Bool WriteTimestamp(UInt32 index)
+        {
+            (void)index;
+            return false;
+        }
 
         // ── 컴퓨트(postprocess-plan §2.1) ──
         // 컴퓨트 파이프라인을 건다. **렌더 패스 밖에서만이다** - 패스 안에서는 거절한다. 거는 동안 `SetConstantBuffer`·`SetTexture`·
@@ -695,6 +718,8 @@ namespace JBro
         UInt32 maxTextureMipLevels = MaxTextureMipLevels;
         // 3D 텍스처 한 변의 상한이다. D3D 는 2048 이고 Vulkan 은 장치의 `maxImageDimension3D` 다(명세의 최소는 256).
         UInt32 maxTexture3DSize = 2048;
+        // 한 프레임에 적을 수 있는 GPU 시각의 수다(`WriteTimestamp`). 0 이면 시각을 적지 못한다.
+        UInt32 maxTimestampsPerFrame = 0;
     };
 
     // 텍스처의 차원 규칙이다. 세 백엔드가 같은 것을 거절하도록 한 자리에 둔다(포맷·쓰임의 나머지 검사는 백엔드가 한다).
@@ -866,6 +891,17 @@ namespace JBro
             (void)texture;
             (void)destination;
             (void)destinationSize;
+            (void)result;
+            return false;
+        }
+
+        // **GPU 가 끝낸 가장 최근 프레임의 시각들이다**(D-341). 그 프레임에 `WriteTimestamp` 로 적은 자리 수만큼 `destination` 에
+        // 적는다(`capacity` 를 넘으면 앞쪽만). 기다리지 않는다 - 프레임 슬롯을 다시 쓸 때(`BeginFrame`) 그 슬롯의 앞 프레임이 끝났으므로
+        // 그때 받아 둔 것을 준다. 그래서 시각은 떠 있는 프레임 수만큼 늦게 온다. 아직 끝난 프레임에 적힌 시각이 없으면 거짓이다.
+        virtual Bool ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result)
+        {
+            (void)destination;
+            (void)capacity;
             (void)result;
             return false;
         }

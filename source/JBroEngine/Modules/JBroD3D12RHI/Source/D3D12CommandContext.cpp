@@ -491,6 +491,16 @@ namespace JBro::Internal
         return true;
     }
 
+    Bool D3D12CommandContext::WriteTimestamp(UInt32 index)
+    {
+        // 렌더 패스 밖에서만이다(D-341) - 세 백엔드가 같은 자리에서 받도록 맞춘다.
+        if (m_device == nullptr || m_renderPassActive)
+        {
+            return false;
+        }
+        return m_device->RecordTimestamp(index);
+    }
+
     void D3D12CommandContext::EndRenderPass()
     {
         if (false == m_renderPassActive)
