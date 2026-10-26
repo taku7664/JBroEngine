@@ -544,6 +544,9 @@ GPU 시간(타임스탬프 쿼리가 RHI 에 없다).~~ → §3.8(D-341)
 관련 묶음(TextRender·RendererContract·TextureBinding·RenderGraph·BuiltinShader·RenderTargetFormat·SpritePixel·Light2DPixel·Light2DFramework·Framework2D/3DSystem·MeshPixel·DebugDraw·PublicHeaderComposition)이 그대로 지난다 -
 효과가 없는 뷰는 전과 같은 길이다. 솔루션 전체가 빌드되고 실제 에디터(빈 프로젝트)가 전처럼 뜬다. 에디터에서 효과를 거는 길은 8 단계(프로필 에셋·카메라의 프로필)에서 선다.
 
+전체 시험(Debug, `fecd5152`, Codex 가 돌림): main 에 원래 있던 `ScriptSummaryPanel` 크래시를 빼고 이어 돌려 110 묶음이 지났다. 8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은
+D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다시 돌리니 모두 지났다.
+
 리뷰(Claude)가 하나를 찾아 고쳤다: 후처리 자원을 만들다 실패한 장치는 그 뒤로도 매 프레임 장면 텍스처를 바라 두기만 했다 - 실패한 뒤에는 바라지 않고 그대로 그린다.
 
 남은 것: `AfterLayer`·`AfterScreenLayers` 의 자리, 통째로 얹는 뷰의 후처리, 깊이·히스토리를 바라는 효과의 입력(지금은 HDR 장면 하나만 넘긴다), 에디터에서 걸기(8 단계).
