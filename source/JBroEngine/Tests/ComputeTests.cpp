@@ -24,6 +24,17 @@ namespace Sm5
 #include "SubresourceProbeVS_SM5.generated.h"
 }
 
+// Vulkan SDK 의 dxc 가 구운 SPIR-V 다(`Tests/Shaders/Compile.ps1`).
+namespace Spv
+{
+#include "ComputeProbeFillCS_SPV.generated.h"
+#include "ComputeProbeHalveCS_SPV.generated.h"
+#include "ComputeProbeReadValuesCS_SPV.generated.h"
+#include "ComputeProbeWriteValuesCS_SPV.generated.h"
+#include "SubresourceProbeSamplePS_SPV.generated.h"
+#include "SubresourceProbeVS_SPV.generated.h"
+}
+
 #include <cstddef>
 #include <cstring>
 #include <iostream>
@@ -36,7 +47,7 @@ namespace Sm5
 // 후처리 계획 3 단계(postprocess-plan §3)의 RHI 를 잰다 - 컴퓨트 파이프라인·읽고 쓰는 텍스처·구조화 버퍼·`Dispatch` 의 자동 배리어.
 //
 // D3D12 와 D3D11 은 돌려서 잰다. **D3D12 의 검증 레이어가 배리어를 잰다** - 쓰기 상태로 옮기지 않거나 돈 뒤 읽기 상태로 되돌리지 않으면
-// 그림이 맞아도 검증 오류다. Vulkan 은 SPIR-V 탐침이 없어 돌리지 않고 셰이더 없이 되는 것(만들기·거절)만 잰다.
+// 그림이 맞아도 검증 오류다. Vulkan 도 돌려서 잰다 - SPIR-V 탐침은 2026-10-26 에 구웠다(그 전에는 만들기·거절만 쟀다).
 namespace
 {
     void Check(JBro::Bool condition, const char* message)
@@ -75,7 +86,23 @@ namespace
 
     JBro::Bool HasProbeShaders(JBro::GraphicsApi api)
     {
-        return api == JBro::GraphicsApi::D3D12 || api == JBro::GraphicsApi::D3D11;
+        return api == JBro::GraphicsApi::D3D12 || api == JBro::GraphicsApi::D3D11 || api == JBro::GraphicsApi::Vulkan;
+    }
+
+    // 백엔드마다 읽는 바이트코드다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.
+    template <std::size_t DxilSize, std::size_t DxbcSize, std::size_t SpirvSize>
+    JBro::ShaderBytecode ProbeBytecode(JBro::GraphicsApi api, const unsigned char (&dxil)[DxilSize],
+        const unsigned char (&dxbc)[DxbcSize], const unsigned char (&spirv)[SpirvSize])
+    {
+        if (api == JBro::GraphicsApi::D3D11)
+        {
+            return {dxbc, static_cast<JBro::UInt32>(DxbcSize)};
+        }
+        if (api == JBro::GraphicsApi::Vulkan)
+        {
+            return {spirv, static_cast<JBro::UInt32>(SpirvSize)};
+        }
+        return {dxil, static_cast<JBro::UInt32>(DxilSize)};
     }
 
     enum class Kernel
@@ -88,27 +115,18 @@ namespace
 
     JBro::ShaderBytecode KernelBytecode(JBro::GraphicsApi api, Kernel kernel)
     {
-        const JBro::Bool sm5 = api == JBro::GraphicsApi::D3D11;
         switch (kernel)
         {
         case Kernel::Fill:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeFillCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeFillCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeFillCS, static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeFillCS))};
+            return ProbeBytecode(api, JBroTestComputeProbeFillCS, Sm5::JBroTestComputeProbeFillCS_SM5, Spv::JBroTestComputeProbeFillCS_SPV);
         case Kernel::WriteValues:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeWriteValuesCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeWriteValuesCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeWriteValuesCS,
-                             static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeWriteValuesCS))};
+            return ProbeBytecode(api, JBroTestComputeProbeWriteValuesCS, Sm5::JBroTestComputeProbeWriteValuesCS_SM5,
+                Spv::JBroTestComputeProbeWriteValuesCS_SPV);
         case Kernel::ReadValues:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeReadValuesCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeReadValuesCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeReadValuesCS,
-                             static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeReadValuesCS))};
+            return ProbeBytecode(api, JBroTestComputeProbeReadValuesCS, Sm5::JBroTestComputeProbeReadValuesCS_SM5,
+                Spv::JBroTestComputeProbeReadValuesCS_SPV);
         case Kernel::Halve:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeHalveCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeHalveCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeHalveCS, static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeHalveCS))};
+            return ProbeBytecode(api, JBroTestComputeProbeHalveCS, Sm5::JBroTestComputeProbeHalveCS_SM5, Spv::JBroTestComputeProbeHalveCS_SPV);
         }
         return {};
     }
@@ -350,13 +368,10 @@ namespace
 
         static const JBro::TextureFormat colorFormat = JBro::TextureFormat::BGRA8Unorm;
         JBro::GraphicsPipelineDesc sampleDesc;
-        sampleDesc.vertexShader = api == JBro::GraphicsApi::D3D11
-            ? JBro::ShaderBytecode{Sm5::JBroTestSubresourceProbeVS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestSubresourceProbeVS_SM5))}
-            : JBro::ShaderBytecode{JBroTestSubresourceProbeVS, static_cast<JBro::UInt32>(sizeof(JBroTestSubresourceProbeVS))};
-        sampleDesc.pixelShader = api == JBro::GraphicsApi::D3D11
-            ? JBro::ShaderBytecode{Sm5::JBroTestSubresourceProbeSamplePS_SM5,
-                  static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestSubresourceProbeSamplePS_SM5))}
-            : JBro::ShaderBytecode{JBroTestSubresourceProbeSamplePS, static_cast<JBro::UInt32>(sizeof(JBroTestSubresourceProbeSamplePS))};
+        sampleDesc.vertexShader =
+            ProbeBytecode(api, JBroTestSubresourceProbeVS, Sm5::JBroTestSubresourceProbeVS_SM5, Spv::JBroTestSubresourceProbeVS_SPV);
+        sampleDesc.pixelShader = ProbeBytecode(
+            api, JBroTestSubresourceProbeSamplePS, Sm5::JBroTestSubresourceProbeSamplePS_SM5, Spv::JBroTestSubresourceProbeSamplePS_SPV);
         sampleDesc.colorFormats = {&colorFormat, 1};
         sampleDesc.cull = JBro::CullMode::None;
         sampleDesc.bindings.constantBuffers = {2, JBro::ShaderStage::Vertex | JBro::ShaderStage::Pixel};

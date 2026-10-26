@@ -17,6 +17,13 @@ namespace Sm5
 #include "SubresourceProbeVS_SM5.generated.h"
 }
 
+// Vulkan SDK 의 dxc 가 구운 SPIR-V 다(`Tests/Shaders/Compile.ps1`).
+namespace Spv
+{
+#include "SubresourceProbeSamplePS_SPV.generated.h"
+#include "SubresourceProbeVS_SPV.generated.h"
+}
+
 #include <cstddef>
 #include <cstring>
 #include <iostream>
@@ -31,7 +38,7 @@ namespace Sm5
 
 // 후처리 계획 5 단계(postprocess-plan §3.6, D-339)를 잰다 - RHI 의 명시 배리어와 렌더 그래프.
 //
-// 배리어는 세 백엔드에서 거절 규칙을 재고, D3D12·D3D11 은 복사한 사본을 읽어 그려 검증 레이어로 상태를 잰다. 그래프는 실제 장치의 풀과
+// 배리어는 세 백엔드에서 거절 규칙을 재고, 세 백엔드 모두 복사한 사본을 읽어 그려 검증 레이어로 상태를 잰다. 그래프는 실제 장치의 풀과
 // 기록만 하는 가짜 컨텍스트로 잰다 - 실행 순서·가려진 까닭·텍스처 나눠 쓰기·바람·배리어 목록은 그리지 않고도 보인다.
 namespace
 {
@@ -249,27 +256,36 @@ namespace
         probe.Close();
     }
 
-    JBro::ShaderBytecode SampleVertexShader(JBro::GraphicsApi api)
+    // 백엔드마다 읽는 바이트코드다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.
+    template <std::size_t DxilSize, std::size_t DxbcSize, std::size_t SpirvSize>
+    JBro::ShaderBytecode ProbeBytecode(JBro::GraphicsApi api, const unsigned char (&dxil)[DxilSize],
+        const unsigned char (&dxbc)[DxbcSize], const unsigned char (&spirv)[SpirvSize])
     {
         if (api == JBro::GraphicsApi::D3D11)
         {
-            return {Sm5::JBroTestSubresourceProbeVS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestSubresourceProbeVS_SM5))};
+            return {dxbc, static_cast<JBro::UInt32>(DxbcSize)};
         }
-        return {JBroTestSubresourceProbeVS, static_cast<JBro::UInt32>(sizeof(JBroTestSubresourceProbeVS))};
+        if (api == JBro::GraphicsApi::Vulkan)
+        {
+            return {spirv, static_cast<JBro::UInt32>(SpirvSize)};
+        }
+        return {dxil, static_cast<JBro::UInt32>(DxilSize)};
+    }
+
+    JBro::ShaderBytecode SampleVertexShader(JBro::GraphicsApi api)
+    {
+        return ProbeBytecode(api, JBroTestSubresourceProbeVS, Sm5::JBroTestSubresourceProbeVS_SM5, Spv::JBroTestSubresourceProbeVS_SPV);
     }
 
     JBro::ShaderBytecode SamplePixelShader(JBro::GraphicsApi api)
     {
-        if (api == JBro::GraphicsApi::D3D11)
-        {
-            return {Sm5::JBroTestSubresourceProbeSamplePS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestSubresourceProbeSamplePS_SM5))};
-        }
-        return {JBroTestSubresourceProbeSamplePS, static_cast<JBro::UInt32>(sizeof(JBroTestSubresourceProbeSamplePS))};
+        return ProbeBytecode(
+            api, JBroTestSubresourceProbeSamplePS, Sm5::JBroTestSubresourceProbeSamplePS_SM5, Spv::JBroTestSubresourceProbeSamplePS_SPV);
     }
 
     // **복사한 사본을 다음 패스가 읽는다**(D-283 의 아래 그림 사본, D-339). `CopyTexture` 의 계약은 `Sampled` 로 만든 대상을 다음 패스가 곧바로
     // 읽는 것이고, 그래프는 그 앞에 사본을 읽기로 옮기는 배리어를 건다. 둘 다 검증 레이어가 조용해야 하고 사본의 색이 나와야 한다.
-    // 셰이더 탐침이 DXIL·DXBC 뿐이라 D3D12·D3D11 에서 잰다.
+    // 세 백엔드에서 잰다(Vulkan 의 SPIR-V 탐침은 2026-10-26 에 구웠다).
     template <typename TModule>
     void TestACopyIsReadByTheNextPass(JBro::Bool withBarrier)
     {
@@ -281,11 +297,6 @@ namespace
         }
         JBro::IRHIDevice& device = *probe.device;
         const JBro::GraphicsApi api = probe.rhi.GetApi();
-        if (api == JBro::GraphicsApi::Vulkan)
-        {
-            probe.Close();
-            return;
-        }
         JBro::ConstantRing ring;
         Check(ring.Create(device, 4096), "the constant ring must be created");
         const JBro::TextureFormat colorFormat = JBro::TextureFormat::BGRA8Unorm;
