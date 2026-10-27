@@ -55,7 +55,7 @@ namespace
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
         Check(Table("Component::Button2D").count == 11, "Button2D declares eleven fields - size, offset, two switches, four tints and three states (D-237)");
-        Check(Table("Component::Camera2D").count == 7, "Camera2D declares seven fields (pixelsPerUnit since D-239)");
+        Check(Table("Component::Camera2D").count == 9, "Camera2D declares nine fields - pixelsPerUnit of D-239, then the post-process profile pair of D-344");
         Check(Table("Component::SpriteRenderer2D").count == 14, "SpriteRenderer2D declares fourteen fields - the hidden drawSequence of D-296 is the fourteenth");
         Check(Table("Component::Text2D").count == 23, "Text2D declares twenty-three fields - with the hidden drawSequence of D-296");
         Check(Table("Component::Rigidbody2D").count == 11,
@@ -78,7 +78,7 @@ namespace
 
         // 3D 도 2D 와 같은 모양이 됐다(framework3d-plan §2.1). 저작 값 셋 + 월드 캐시 넷.
         Check(Table("Component::Transform3D").count == 7, "Transform3D declares seven fields");
-        Check(Table("Component::Camera3D").count == 7, "Camera3D declares seven fields");
+        Check(Table("Component::Camera3D").count == 9, "Camera3D declares nine fields - with the post-process profile pair of D-344");
         Check(Table("Component::MeshRenderer3D").count == 6, "MeshRenderer3D declares six fields");
         Check(Table("Component::Text3D").count == 19, "Text3D declares nineteen fields");
         Check(Table("Component::Rigidbody3D").count == 2, "Rigidbody3D declares two fields");
