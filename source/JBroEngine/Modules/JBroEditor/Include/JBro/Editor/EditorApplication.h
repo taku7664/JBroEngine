@@ -78,6 +78,7 @@ namespace JBro
     class AssetSystem;
     struct AssetMetaFile;
     struct AssetMetaTarget;
+    struct AssetSourceTarget;
 
     // `FrameworkKind` 는 `JBro/Host/ProjectFile.h` 에 있다(D-99). 프로젝트 파일이 그 값을
     // 적는 자리이므로 형식과 같이 둔다.
@@ -237,6 +238,9 @@ namespace JBro
         // `.jfx` 의 본문을 읽고 쓴다(D-306). 쓰면 실린 에셋을 제자리에서 다시 읽는다 - 재생 중인 소스의 사슬이 다시 시작하지 않고 바뀐다.
         Bool ReadSoundEffect(AssetId asset, AudioEffectSettings& settings) const;
         Bool WriteSoundEffect(AssetId asset, const AudioEffectSettings& settings);
+        // 에셋 본문 파일의 자리와 글자다(D-344, 인스펙터의 후처리 프로필). 글자는 실린 에셋이 있으면 그것을, 없으면 디스크를 읽는다.
+        Bool DescribeAssetSource(AssetId asset, AssetSourceTarget& target) const;
+        Bool ReadAssetSourceText(AssetId asset, String& text) const;
         // **노드 그래프 창**에서 연다(D-323). 뿌리의 "노드 그래프" 도크에 `.jgraph` 마다 탭이 하나다. 이미 열려 있으면 그 탭을 앞으로 가져온다.
         // `.jgraph` 가 아니거나, 읽지 못하거나, 그래프의 도메인을 모르면 거짓이다.
         Bool OpenNodeGraphEditor(AssetId asset);
@@ -600,6 +604,9 @@ namespace JBro
         Bool IsSimulationViewDebugDrawVisible() const;
         void SetCanvasViewDebugDraw(Bool visible);
         Bool IsCanvasViewDebugDrawVisible() const;
+        // 캔버스 뷰에 게임 카메라의 후처리를 걸지다(D-344). 처음에는 켜져 있다.
+        void SetCanvasViewPostProcess(Bool enabled);
+        Bool IsCanvasViewPostProcessEnabled() const;
         // 엔진의 시계·디버그 선·난수 씨앗이다(D-242, D-243). 통계 창과 시험이 읽는다. 엔진이 없으면 null·0 이다.
         const FrameTime* GetFrameTime() const;
         const System::DebugDrawSystem* GetDebugDraw() const;
@@ -747,6 +754,8 @@ namespace JBro
         // **새 사운드 이펙트를 만든다**(D-306, 기존 `에셋 추가 ▸ Sound Effect`). `NewEffect.jfx`(잔향 기본값)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 편집 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateSoundEffectAsset(const char* folder);
+        // 빈 후처리 프로필(`.jpost`, D-344)을 만들고 고른다. 효과는 인스펙터에서 더한다.
+        String CreatePostProcessProfileAsset(const char* folder);
         // **새 노드 그래프를 만든다**(D-323). `NewGraph.jgraph`(샘플 도메인 `Math`, 결과 노드 하나)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 노드 그래프 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateNodeGraphAsset(const char* folder);
@@ -1136,6 +1145,7 @@ namespace JBro
         Bool m_simulationPaused = false;
         Bool m_simulationViewDebugDraw = true;
         Bool m_canvasViewDebugDraw = true;
+        Bool m_canvasViewPostProcess = true;
         // 게임 입력(D-214). 시뮬레이션 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
         // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(시뮬레이션 뷰를 누르면 포커스부터 온다).
         Bool m_simulationViewFocused = false;

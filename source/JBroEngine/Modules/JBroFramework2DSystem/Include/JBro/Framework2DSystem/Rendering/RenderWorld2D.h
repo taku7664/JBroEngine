@@ -5,6 +5,7 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Graphics/PostProcess.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Math2D.h>
 
@@ -31,6 +32,8 @@ namespace JBro
         Float       nearPlane = -100.0f;
         Float       farPlane = 100.0f;
         Color       clearColor{ 1.0f, 1.0f, 1.0f, 1.0f };
+        // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld2D::SetPostProcess` 로 건다.
+        AssetHandle postProcessProfile;
     };
 
     struct SpriteRenderItem
@@ -114,6 +117,16 @@ namespace JBro
         Bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
+        // **이번 카메라의 후처리**(D-344). 프레임워크가 카메라의 프로필을 풀어 건다 - 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다.
+        // `BeginFrame` 이 비우지 않는다: 멈춘 동안의 추출(중단점)에서도 지난 값이 그대로 산다.
+        void SetPostProcess(const PostProcessStack& stack)
+        {
+            m_postProcess = stack;
+        }
+        const PostProcessStack& GetPostProcess() const
+        {
+            return m_postProcess;
+        }
         // 켜져 있지만 값이 잘못되어 건너뛴 카메라 수다(D-239). 시뮬레이션 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
         void SetUnusableCameraCount(UInt32 count);
         UInt32 GetUnusableCameraCount() const;
@@ -152,6 +165,7 @@ namespace JBro
         static UInt64 MakeSortKey(const SpriteRenderItem& item);
 
         RenderCamera2D          m_camera;
+        PostProcessStack        m_postProcess;
         Bool                    m_hasCamera = false;
         UInt32           m_unusableCameras = 0;
         ScreenSpaceFrame        m_screen;

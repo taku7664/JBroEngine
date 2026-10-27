@@ -59,6 +59,8 @@ namespace JBro
         Bool debugDraw = true;
         // 2D 라이트로 그릴지다(D-291). 거짓이면 빛을 받는 레이어도 원래 색이다. UI 보기는 늘 빛이 없다.
         Bool lighting = true;
+        // 게임 카메라의 후처리 프로필을 걸지다(D-344). 캔버스 뷰의 단추가 끈다. UI 보기는 늘 후처리가 없다(화면 레이어는 게임에서도 후처리 뒤다).
+        Bool postProcess = true;
         // 캔버스 뷰에서 **들어가 있는 오브젝트**다(D-157, D-252). 있으면 장면 위에 반투명 흰 막을 덮고 이 오브젝트와
         // 그 자손만 막 위에 다시 그린다 - 무엇을 고치는 중인지가 화면에서 보인다. 없으면 막이 없다. 2D 만 읽는다.
         InstanceId focusObject = InvalidInstanceId;

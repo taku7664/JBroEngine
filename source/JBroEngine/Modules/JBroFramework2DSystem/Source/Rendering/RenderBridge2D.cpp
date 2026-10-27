@@ -477,6 +477,11 @@ namespace JBro::Internal
 
         parameters.target = view.target;
         parameters.targetExtent = view.extent;
+        // 캔버스 뷰도 게임 카메라의 후처리로 보인다(D-344, 계획 §2.6). 단추로 끄고, UI 보기는 늘 없다. 선택 외곽선은 후처리 뒤다.
+        if (view.postProcess && false == view.screenSpace)
+        {
+            parameters.postProcess = world.GetPostProcess();
+        }
         if (outline)
         {
             constexpr UInt32 OutlinePixels = 2;
@@ -619,6 +624,8 @@ namespace JBro::Internal
         if (camera != nullptr)
         {
             CameraParams parameters;
+            // 카메라의 후처리다(D-344). 화면 레이어는 뒤의 다른 뷰라 후처리를 받지 않는다.
+            parameters.postProcess = world.GetPostProcess();
             // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은
             // 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
             // 에디터 창 모양을 따라가고, 뷰포트가 타깃 밖으로 나간다.

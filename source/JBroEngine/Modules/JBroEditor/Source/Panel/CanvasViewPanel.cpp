@@ -865,6 +865,20 @@ namespace JBro
                 m_showLighting = false == m_showLighting;
             }
         }
+        // **후처리**(D-344). 켜져 있으면 캔버스 뷰도 게임 카메라의 후처리 프로필로 보인다. 끄면 그리는 그대로다. UI 보기는 늘 후처리가 없다.
+        {
+            ImGui::SameLine(0.0f, 6.0f);
+            const Bool postProcess = m_editor->IsCanvasViewPostProcessEnabled();
+            if (Widget::IconButton("##canvas_post_process", Icons::PostProcess)
+                    .Selected(postProcess)
+                    .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewPostProcess, "Post-processing"),
+                        Loc::TextOr(LocKeys::CanvasViewPostProcessTooltip,
+                            "show the canvas view through the game camera's post-process profile, or without it")))
+                    .Draw())
+            {
+                m_editor->SetCanvasViewPostProcess(false == postProcess);
+            }
+        }
         if (false == Is3D())
         {
             // **월드 / UI 보기**(D-237). 아이콘이 지금 보기다 - 로컬·월드 단추와 같은 모양이다.

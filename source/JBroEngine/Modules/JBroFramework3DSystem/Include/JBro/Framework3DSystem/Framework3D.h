@@ -9,6 +9,7 @@
 #include <JBro/Framework3D/Internal/SystemContext.h>
 #include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Graphics/PostProcessLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Framework3DSystem/System/Camera3DSystem.h>
 #include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
@@ -54,6 +55,8 @@ namespace JBro
         Array<AssetHandle> m_canvasAssets;
         RenderWorld3D m_renderWorld;
         MeshLibrary m_meshes;
+        // 카메라의 후처리 프로필을 푼다(D-344).
+        PostProcessLibrary m_postProcess;
         Bool m_initialized = false;
         Bool m_simulationEnabled = true;
         // 스크립트에 건네는 3D 컨텍스트다(D-224). 2D 의 `Framework2D` 와 같은 자리다.

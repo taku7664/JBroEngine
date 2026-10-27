@@ -34,6 +34,8 @@
 #include <JBro/Editor/Widget/Waveform.h>
 #include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Editor/Widget/ComponentDrag.h>
+#include <JBro/Editor/Command/SetAssetSourceCommand.h>
+#include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioMixer.h>
@@ -1623,6 +1625,11 @@ namespace JBro
             }
             ImGui::Spacing();
         }
+        if (meta.type == AssetType::PostProcessProfile)
+        {
+            DrawPostProcessProfile(meta);
+            ImGui::Spacing();
+        }
         if (AssetTypeRules::IsImageType(meta.type))
         {
             if (Widget::IconButton("##open_in_viewer", Icons::OpenExternal)
@@ -1700,8 +1707,238 @@ namespace JBro
         }
     }
 
+    void InspectorPanel::DrawPostProcessProfile(const AssetMetaFile& meta)
+    {
+        // **후처리 프로필은 인스펙터에서 고친다**(D-344, 사용자 결정 "인스펙터"). 고치면 바로 파일에 적고 실린 에셋을 제자리에서 다시 읽는다 -
+        // 그 프로필을 쓰는 카메라가 다음 프레임에 바뀐다. 되돌리기는 에디터의 것이다.
+        String text;
+        if (false == m_editor->ReadAssetSourceText(meta.id, text))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessUnreadable, "This profile could not be read"));
+            return;
+        }
+        if (m_profileAsset != meta.id || m_profileText != text)
+        {
+            m_profileAsset = meta.id;
+            m_profileText = text;
+            m_profileError.clear();
+            if (false == ParsePostProcessProfile(text.data(), text.size(), m_profileDocument, &m_profileError))
+            {
+                m_profileDocument = {};
+            }
+        }
+        if (false == m_profileError.empty())
+        {
+            // 깨진 YAML 을 덮어쓰면 손으로 고친 것을 잃는다. 고칠 때까지 손대지 않는다.
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessBroken, "The profile's text is broken. Fix the file to edit it here"));
+            Widget::WrappedText(m_profileError.c_str());
+            return;
+        }
+
+        // 편집본이다. 위젯이 고친 값은 커밋이 파일에 쓰고, 다음 프레임에 그 글자를 다시 읽는다 - 쓰는 길이 하나다.
+        PostProcessProfileDocument scratch = m_profileDocument;
+        AssetEditScope scope;
+        scope.profile = &scratch;
+        Context context;
+        context.asset = &scope;
+        const Bool editable = false == m_editor->IsAtScriptBreak();
+
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorPostProcessEffects, "Post-Process Effects")).Draw();
+        if (scratch.entries.IsEmpty())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessEmpty, "No effects yet"));
+        }
+        const ImGuiID listOwner = ImGui::GetID("##post_effects");
+        for (std::size_t index = 0; index < scratch.entries.Size(); ++index)
+        {
+            PostProcessProfileEntry& entry = scratch.entries[index];
+            ImGui::PushID(static_cast<JBro::Int32>(index));
+            // 종류 이름은 번역하지 않는다(컴포넌트 이름과 같다).
+            const Bool opened = Widget::CollapsingSection(entry.typeName.c_str(), true, true);
+            const ImVec2 headerMin = ImGui::GetItemRectMin();
+            const ImVec2 headerMax = ImGui::GetItemRectMax();
+            // **머리를 끌어 순서를 바꾼다**(컴포넌트 머리와 같은 손짓, D-307). 같은 지점의 효과끼리만 차례가 뜻이 있다.
+            if (editable && Widget::BeginDragSource())
+            {
+                Widget::ListReorderPayload payload;
+                payload.owner = listOwner;
+                payload.index = static_cast<JBro::Int32>(index);
+                Widget::SetDragValue(Widget::DragKind::ListReorder, payload);
+                Widget::Text(entry.typeName.c_str());
+                Widget::EndDragSource();
+            }
+            if (editable && Widget::BeginDropTarget())
+            {
+                const Widget::DropPayload drop = Widget::AcceptDrop(Widget::DragKind::ListReorder, Widget::DropFeedback::None);
+                Widget::ListReorderPayload dragged;
+                if (Widget::ReadDropValue(drop, dragged) && dragged.owner == listOwner && dragged.index >= 0
+                    && static_cast<std::size_t>(dragged.index.Get()) < scratch.entries.Size())
+                {
+                    const Float height = (std::max)(1.0f, headerMax.y - headerMin.y);
+                    const Bool above = (ImGui::GetIO().MousePos.y - headerMin.y) / height < 0.5f;
+                    const std::size_t from = static_cast<std::size_t>(dragged.index.Get());
+                    const std::size_t to = ComponentDropSlot(from, index, above);
+                    if (to != from)
+                    {
+                        Widget::DrawDropLine(headerMin.x, headerMax.x, above ? headerMin.y : headerMax.y);
+                    }
+                    if (drop.delivered && to != from)
+                    {
+                        PostProcessProfileEntry moved = std::move(scratch.entries[from]);
+                        scratch.entries.RemoveAt(from);
+                        scratch.entries.Insert(to, std::move(moved));
+                        Widget::EndDropTarget();
+                        ImGui::PopID();
+                        CommitProfile(meta.id, scratch);
+                        return;
+                    }
+                }
+                Widget::EndDropTarget();
+            }
+            Bool removed = false;
+            if (Widget::BeginContextMenu("##PostEffectMenu"))
+            {
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPostProcessRemove, "Remove Effect"), nullptr, editable, nullptr, Icons::Delete))
+                {
+                    removed = true;
+                }
+                Widget::EndContextMenu();
+            }
+            {
+                const ImVec2 cursor = ImGui::GetCursorScreenPos();
+                const Float side = headerMax.y - headerMin.y;
+                ImGui::SetCursorScreenPos(ImVec2(headerMax.x - side, headerMin.y));
+                if (Widget::IconButton("##post_effect_menu", Icons::Menu)
+                        .Size(ImVec2(side, side))
+                        .Flat()
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorPostProcessMenu, "Effect menu"))
+                        .Draw())
+                {
+                    Widget::OpenContextMenu("##PostEffectMenu");
+                }
+                ImGui::SetCursorScreenPos(cursor);
+            }
+            if (removed)
+            {
+                scratch.entries.RemoveAt(index);
+                ImGui::PopID();
+                CommitProfile(meta.id, scratch);
+                return;
+            }
+            if (opened)
+            {
+                Widget::FormLayout layout("##post_effect");
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled")), [&]() {
+                    Widget::DisableScope locked(false == editable);
+                    Bool enabled = entry.enabled;
+                    if (Widget::Checkbox("##enabled", enabled))
+                    {
+                        entry.enabled = enabled;
+                        CommitProfile(meta.id, scratch);
+                    }
+                });
+                const PostProcessEffectType* type = PostProcessEffectRegistry::Get(entry.type);
+                if (type == nullptr || type->parameters == nullptr)
+                {
+                    if (type == nullptr)
+                    {
+                        layout.FullRow([&]() {
+                            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessUnknown,
+                                "This engine does not know this effect. It is kept as it was read"));
+                        });
+                    }
+                }
+                else
+                {
+                    const PropertyTable& table = *type->parameters;
+                    for (UInt32 field = 0; field < table.count; ++field)
+                    {
+                        const PropertyInfo& property = table.properties[field.Get()];
+                        if (false == IsPostProcessFieldEditable(entry.type, field)
+                            || (property.edit != nullptr && false == property.edit->visible))
+                        {
+                            continue;
+                        }
+                        const char* label = NameTable::Get().Resolve(property.name);
+                        const Bool overridden = (entry.overrides & (UInt64(1) << field.Get())) != 0;
+                        Widget::IdScope id(static_cast<JBro::Int32>(field.Get()));
+                        // **필드 앞의 체크가 덮어쓰기다.** 켠 필드만 파일에 적히고, 끈 필드는 효과의 기본값이다 - 볼륨이 섞을 때도 켠 필드만 섞는다.
+                        layout.Row(Widget::FieldLabel(label != nullptr ? label : "?").Disabled(false == overridden), [&]() {
+                            Widget::DisableScope locked(false == editable);
+                            Bool on = overridden;
+                            if (Widget::Checkbox("##override", on))
+                            {
+                                SetPostProcessOverride(entry, field, on);
+                                CommitProfile(meta.id, scratch);
+                                return;
+                            }
+                            Widget::HoveredTooltip(Loc::TextOr(LocKeys::InspectorPostProcessOverrideTooltip,
+                                "Write this value into the profile. Off uses the effect's default"));
+                            ImGui::SameLine();
+                            Widget::DisableScope unset(false == overridden);
+                            scope.profileEntry = static_cast<JBro::UInt32>(index);
+                            scope.profileField = field;
+                            DrawValue(label != nullptr ? label : "?", *property.type, property.Address(entry.block.Data()), property.edit, context);
+                        });
+                    }
+                }
+            }
+            ImGui::PopID();
+        }
+
+        // **효과 추가**(컴포넌트 추가와 같은 자리). 종류는 효과 종류 표의 것이다 - 사용자 효과도 표에 들면 여기 나온다.
+        ImGui::Spacing();
+        Widget::DisableScope locked(false == editable);
+        if (Widget::IconButton("##add_post_effect", Icons::Plus)
+                .Caption(Loc::TextOr(LocKeys::InspectorPostProcessAdd, "Add Effect"))
+                .Draw())
+        {
+            Widget::OpenContextMenu("##AddPostEffect");
+        }
+        if (Widget::BeginContextMenu("##AddPostEffect"))
+        {
+            for (UInt32 type = 0; type < PostProcessEffectRegistry::GetCount(); ++type)
+            {
+                const PostProcessEffectType* effect = PostProcessEffectRegistry::Get(type);
+                if (effect != nullptr && Widget::MenuItem(effect->name))
+                {
+                    scratch.entries.Add(MakePostProcessProfileEntry(type));
+                    CommitProfile(meta.id, scratch);
+                }
+            }
+            Widget::EndContextMenu();
+        }
+    }
+
+    void InspectorPanel::CommitProfile(AssetId asset, const PostProcessProfileDocument& document)
+    {
+        AssetSourceTarget target;
+        if (false == m_editor->DescribeAssetSource(asset, target))
+        {
+            return;
+        }
+        const String after = WritePostProcessProfile(document);
+        if (after == m_profileText)
+        {
+            return;
+        }
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, m_profileText, after, "Edit Post-Process Profile"));
+    }
+
     void InspectorPanel::CommitAssetEdit(Context& context)
     {
+        // 후처리 프로필의 필드다(D-344). 값을 고친 필드는 덮어쓴 필드가 된다.
+        if (context.asset != nullptr && context.asset->profile != nullptr)
+        {
+            PostProcessProfileDocument& profile = *context.asset->profile;
+            if (context.asset->profileEntry < profile.entries.Size())
+            {
+                PostProcessProfileEntry& entry = profile.entries[context.asset->profileEntry.Get()];
+                entry.overrides = entry.overrides | (UInt64(1) << context.asset->profileField.Get());
+                CommitProfile(m_profileAsset, profile);
+            }
+            return;
+        }
         const AssetMetaFile* original = m_editor->GetSelectedAssetMeta();
         AssetMetaTarget target;
         if (original == nullptr || context.asset == nullptr || context.asset->scratch == nullptr

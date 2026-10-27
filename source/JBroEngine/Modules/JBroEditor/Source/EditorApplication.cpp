@@ -58,6 +58,8 @@
 #include <JBro/Editor/Widget/TaskProgress.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
+#include <JBro/Editor/Command/SetAssetSourceCommand.h>
+#include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -2765,6 +2767,61 @@ namespace JBro
         return created;
     }
 
+    String EditorApplication::CreatePostProcessProfileAsset(const char* folder)
+    {
+        // 효과가 없는 프로필이다. 카메라에 걸어도 그림이 바뀌지 않는다 - 효과는 인스펙터의 `효과 추가` 로 더한다.
+        const String created = WriteNewAssetFile(folder, "NewPostProcess", ".jpost", WritePostProcessProfile({}));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    Bool EditorApplication::DescribeAssetSource(AssetId asset, AssetSourceTarget& target) const
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (record == nullptr || GetAssetRoot().empty() || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        target.platform = m_platform.Get();
+        target.assets = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
+        target.path = EditorPaths::JoinPath(GetAssetRoot().c_str(), record->relativePath.c_str());
+        target.id = record->id;
+        return true;
+    }
+
+    Bool EditorApplication::ReadAssetSourceText(AssetId asset, String& text) const
+    {
+        // 실린 프로필은 커맨드와 파일 감시가 제자리에서 다시 읽어 둔다 - 디스크를 다시 읽지 않는다.
+        if (AssetSystem* assets = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr)
+        {
+            if (const PostProcessProfileData* profile = assets->GetPostProcessProfile(assets->Find(asset)))
+            {
+                text = profile->text;
+                return true;
+            }
+        }
+        AssetSourceTarget target;
+        if (false == DescribeAssetSource(asset, target))
+        {
+            return false;
+        }
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(target.path.c_str(), bytes))
+        {
+            return false;
+        }
+        text.assign(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        return true;
+    }
+
     String EditorApplication::CreateNodeGraphAsset(const char* folder)
     {
         // 샘플 도메인의 빈 그래프에 결과 노드 하나를 둔다 - 열자마자 무엇을 이을지 보인다.
@@ -5440,6 +5497,16 @@ namespace JBro
         return m_canvasViewDebugDraw;
     }
 
+    void EditorApplication::SetCanvasViewPostProcess(Bool enabled)
+    {
+        m_canvasViewPostProcess = enabled;
+    }
+
+    Bool EditorApplication::IsCanvasViewPostProcessEnabled() const
+    {
+        return m_canvasViewPostProcess;
+    }
+
     const FrameTime* EditorApplication::GetFrameTime() const
     {
         EngineInstance* engine = m_engine.Get();
@@ -5728,6 +5795,7 @@ namespace JBro
         m_canvasViewRequest.screenSpace = screenSpace;
         m_canvasViewRequest.focusObject = focusObject;
         m_canvasViewRequest.lighting = lighting;
+        m_canvasViewRequest.postProcess = m_canvasViewPostProcess;
         // 고른 것의 번호를 실어 보낸다(D-276). 요청은 값으로 복사되므로 가리키는 배열은 이 멤버다.
         m_canvasViewSelection.Clear();
         const Array<Object::GameObject*> selected = GetSelectedObjects();

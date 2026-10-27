@@ -294,7 +294,7 @@ namespace JBro::Internal
         // `onlyLayer` 가 0 이상이면 그 레이어 차례 하나만 블렌드 없이 그린다(썸네일, D-288).
         Bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, Bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
-            const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1)
+            const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1, Bool postProcess = false)
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
@@ -398,6 +398,20 @@ namespace JBro::Internal
                     return false;
                 }
             }
+            // **후처리는 레이어를 다 얹은 뒤 한 번이다**(D-344). 3D 는 레이어마다 뷰라 뷰마다 걸면 노출·톤맵이 겹친다 - 그릴 것 없는 뷰 하나가
+            // 얹힌 그림을 장면으로 옮겨(렌더러의 `SceneLoad`) 효과를 건다. 그래서 3D 의 장면은 백버퍼 포맷까지만 밝다.
+            const PostProcessStack& post = world.GetPostProcess();
+            if (postProcess && post.entries.size != 0)
+            {
+                CameraParams finish = camera;
+                finish.composite = CompositeBlend::Normal;
+                finish.compositeOpacity = 1.0f;
+                finish.postProcess = post;
+                if (false == renderer.BeginView(finish) || false == renderer.EndView())
+                {
+                    return false;
+                }
+            }
             return accepted;
         }
     }
@@ -438,7 +452,7 @@ namespace JBro::Internal
         parameters.target = view.target;
         parameters.targetExtent = view.extent;
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
-            view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height));
+            view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height), -1, view.postProcess);
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 
@@ -485,7 +499,7 @@ namespace JBro::Internal
         }
         const Bool showLines = debugDraw != nullptr && debugDraw->IsSimulationViewVisible();
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
-            showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(renderer.GetFrameExtent().height));
+            showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(renderer.GetFrameExtent().height), -1, true);
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 }

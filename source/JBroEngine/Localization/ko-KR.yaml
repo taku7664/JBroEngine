@@ -97,6 +97,18 @@ Entries:
   canvas_view.colliders_tooltip: 콜라이더 모양을 보이거나 감춥니다
   canvas_view.lighting: 라이팅
   canvas_view.lighting_tooltip: 2D 라이트로 비춰 보거나, 빛 없이 원래 색으로 봅니다
+  canvas_view.post_process: "후처리"
+  canvas_view.post_process_tooltip: "게임 카메라의 후처리 프로필을 걸어 보거나, 끄고 봅니다"
+  assets.new_post_process_profile: "새 후처리 프로필"
+  inspector.post_process_effects: "후처리 효과"
+  inspector.post_process_empty: "효과가 없습니다"
+  inspector.post_process_add: "효과 추가"
+  inspector.post_process_remove: "효과 제거"
+  inspector.post_process_menu: "효과 메뉴"
+  inspector.post_process_unknown: "이 엔진에 없는 효과입니다. 읽은 그대로 둡니다"
+  inspector.post_process_override_tooltip: "켜면 이 값을 프로필에 적습니다. 끄면 효과의 기본값을 씁니다"
+  inspector.post_process_unreadable: "프로필을 읽지 못했습니다"
+  inspector.post_process_broken: "프로필 글자가 깨져 있습니다. 파일을 고친 뒤에 여기서 고칠 수 있습니다"
   canvas_view.edit_collider: 콜라이더 편집
   canvas_view.edit_collider_tooltip: 고른 오브젝트의 폴리곤 콜라이더를 고칩니다. 포인트를 끌어 옮기고, 변을 누르면 포인트가 생기고, 포인트를 우클릭하면 지울 수 있습니다
   canvas_view.point_delete: 포인트 삭제

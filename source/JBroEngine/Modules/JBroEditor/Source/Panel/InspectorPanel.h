@@ -9,6 +9,8 @@
 #include <JBro/Editor/EditorPanel.h>
 
 #include <JBro/Asset/AssetMetaFile.h>
+#include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/Types/String.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
@@ -45,6 +47,9 @@ namespace JBro
         // `SpriteImportOptionsEditor` 처럼 두 창이 같은 값을 같은 길로 고친다. 각자 그리면
         // 한쪽의 편집이 다른 쪽에서 조용히 사라진다. 쓰는 길은 고른 에셋의 메타 하나다.
         void DrawAssetOptions(const AssetMetaFile& meta);
+        // 후처리 프로필(`.jpost`)의 효과 목록이다(D-344). 고치면 본문을 커맨드로 쓴다.
+        void DrawPostProcessProfile(const AssetMetaFile& meta);
+        void CommitProfile(AssetId asset, const PostProcessProfileDocument& document);
 
         // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
         static constexpr const char* TypeName = "Inspector";
@@ -81,6 +86,10 @@ namespace JBro
             Bool fontBlock = false;
             Bool fontFamilyBlock = false;
             Bool stringTableBlock = false;
+            // 후처리 프로필의 편집본이다(D-344). 있으면 잎사귀 편집은 메타가 아니라 프로필 본문으로 간다. 그리는 중인 항목과 필드다.
+            PostProcessProfileDocument* profile = nullptr;
+            UInt32 profileEntry = 0;
+            UInt32 profileField = 0;
         };
 
         struct Context
@@ -232,6 +241,11 @@ namespace JBro
             Context& context);
 
         EditorApplication* m_editor = nullptr;
+        // 인스펙터가 보고 있는 후처리 프로필의 글자와 그것을 읽은 것이다. 글자가 바뀔 때만 다시 읽는다(D-344).
+        AssetId m_profileAsset;
+        String m_profileText;
+        String m_profileError;
+        PostProcessProfileDocument m_profileDocument;
 
         // 이름 칸이 들고 있는 글자와, 그것이 누구의 것인지. 고른 것이 바뀌면 다시 든다 -
         // 치던 글자를 그대로 두면 다음 오브젝트의 이름이 엉뚱한 것으로 보인다.

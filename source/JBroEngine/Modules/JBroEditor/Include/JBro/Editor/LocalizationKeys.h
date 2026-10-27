@@ -58,6 +58,18 @@ namespace JBro::LocKeys
     // 캔버스 뷰를 2D 라이트로 그릴지(D-291).
     inline constexpr const char* CanvasViewLighting = "canvas_view.lighting";
     inline constexpr const char* CanvasViewLightingTooltip = "canvas_view.lighting_tooltip";
+    inline constexpr const char* CanvasViewPostProcess = "canvas_view.post_process";
+    inline constexpr const char* CanvasViewPostProcessTooltip = "canvas_view.post_process_tooltip";
+    inline constexpr const char* AssetsNewPostProcessProfile = "assets.new_post_process_profile";
+    inline constexpr const char* InspectorPostProcessEffects = "inspector.post_process_effects";
+    inline constexpr const char* InspectorPostProcessEmpty = "inspector.post_process_empty";
+    inline constexpr const char* InspectorPostProcessAdd = "inspector.post_process_add";
+    inline constexpr const char* InspectorPostProcessRemove = "inspector.post_process_remove";
+    inline constexpr const char* InspectorPostProcessMenu = "inspector.post_process_menu";
+    inline constexpr const char* InspectorPostProcessUnknown = "inspector.post_process_unknown";
+    inline constexpr const char* InspectorPostProcessOverrideTooltip = "inspector.post_process_override_tooltip";
+    inline constexpr const char* InspectorPostProcessUnreadable = "inspector.post_process_unreadable";
+    inline constexpr const char* InspectorPostProcessBroken = "inspector.post_process_broken";
     // 폴리곤 콜라이더의 포인트 편집(physics-plan §4 의 5). 필드 이름(`points`)과 같은 말을 쓴다 - 기존 엔진의 `버텍스` 는 따르지 않았다.
     inline constexpr const char* CanvasViewEditCollider = "canvas_view.edit_collider";
     inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";

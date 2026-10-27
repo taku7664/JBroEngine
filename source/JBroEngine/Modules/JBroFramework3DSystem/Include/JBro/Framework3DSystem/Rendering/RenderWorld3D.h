@@ -3,6 +3,7 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Graphics/PostProcess.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Color.h>
 #include <JBro/Types/Math3D.h>
@@ -31,6 +32,8 @@ namespace JBro
         Float nearPlane = 0.1f;
         Float farPlane = 1000.0f;
         Color clearColor{0.08f, 0.09f, 0.11f, 1.0f};
+        // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld3D::SetPostProcess` 로 건다.
+        AssetHandle postProcessProfile;
     };
 
     struct MeshRenderItem
@@ -86,6 +89,16 @@ namespace JBro
         Bool ReserveMeshes(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera3D& camera);
+        // **이번 카메라의 후처리**(D-344). 프레임워크가 카메라의 프로필을 풀어 건다 - 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다.
+        // `BeginFrame` 이 비우지 않는다: 멈춘 동안의 추출(중단점)에서도 지난 값이 그대로 산다.
+        void SetPostProcess(const PostProcessStack& stack)
+        {
+            m_postProcess = stack;
+        }
+        const PostProcessStack& GetPostProcess() const
+        {
+            return m_postProcess;
+        }
         Bool SubmitMesh(const MeshRenderItem& item);
         // 3D 텍스트의 글자다. 용량(`ReserveTexts`)을 넘으면 세고 버린다.
         Bool ReserveTexts(std::size_t capacity);
@@ -107,6 +120,7 @@ namespace JBro
 
     private:
         RenderCamera3D m_camera;
+        PostProcessStack m_postProcess;
         Bool m_hasCamera = false;
         Array<MeshRenderItem> m_meshes;
         std::size_t m_droppedMeshCount = 0;

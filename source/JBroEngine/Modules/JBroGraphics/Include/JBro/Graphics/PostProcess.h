@@ -261,7 +261,7 @@ namespace JBro
         JBRO_FIELD(Float, scatter, Range(0.0f, 1.0f)) = 0.7f;
         JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         // 거른 빛의 상한(선형)이다. 아주 밝은 점 하나가 화면을 덮지 않게 한다.
-        JBRO_FIELD(Float, clamp, Range(1.0f, 65504.0f)) = 65472.0f;
+        JBRO_FIELD(Float, clamp) = 65472.0f;
         JBRO_FIELD(Int32, iterations, Range(1.0f, 8.0f)) = 6;
     };
 

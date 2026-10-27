@@ -46,6 +46,8 @@
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/Editor/Command/SetAssetSourceCommand.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
@@ -10365,6 +10367,191 @@ namespace
     //   - 다음 프레임부터: `Layer`·`Backdrop`·`Composite`·`LightMap` 이 돌고 `LayerDirect` 는 필요 없음이며, 두 레이어 텍스처가 실제 텍스처 하나를 나눠 쓴다.
     //   - 멈추면 프레임이 지나도 떠 둔 그래프가 그대로이고, 한 프레임 받기 단추가 새 그래프 하나만 받는다.
     // 패스·텍스처·풀 탭을 차례로 찍어 남긴다.
+    // **후처리 프로필을 인스펙터에서 만들고 고쳐 카메라에 건다**(D-344, 사용자 시나리오). 빈 프로필을 만들어 카메라에 걸고, 인스펙터의
+    // `효과 추가` 로 기본 조정을 더하고, 채도의 덮어쓰기를 켜고 슬라이더를 왼쪽 끝 가까이 눌러 낮춘다. 그때마다 파일이 바뀌고 캔버스 뷰의
+    // 초록이 회색 쪽으로 간다. 되돌리기는 파일과 그림을 함께 돌린다. 캔버스 뷰의 후처리 단추를 끄면 원래 색이다. 프로필에 `.cube` 를 건
+    // LUT 효과를 쓰면 라이브러리가 3D 텍스처를 올려 초록이 뒤집힌다(자홍).
+    void TestThePostProcessProfileIsEditedInTheInspector()
+    {
+        namespace fs = std::filesystem;
+        JBro::String probeFolder("JBroPostProfileProbe");
+        probeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(probeFolder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        {
+            // 뒤집는 LUT(크기 2). 빨강이 가장 빨리 돈다.
+            std::ofstream cube(root / "Assets" / "invert.cube", std::ios::binary);
+            cube << "TITLE \"invert\"\nLUT_3D_SIZE 2\n";
+            for (int b = 0; b < 2; ++b)
+            {
+                for (int g = 0; g < 2; ++g)
+                {
+                    for (int r = 0; r < 2; ++r)
+                    {
+                        cube << (1 - r) << ' ' << (1 - g) << ' ' << (1 - b) << '\n';
+                    }
+                }
+            }
+        }
+        JBro::String projectName(probeFolder);
+        projectName.append("\\Post.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath,
+                  "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\nAssetDirectory: Assets\nResolutionWidth: 64\nResolutionHeight: 32\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the post-process profile inspector not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* eye = canvas->CreateObject("Camera");
+        canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        camera->primary = true;
+        JBro::Object::GameObject* field = canvas->CreateObject("Field");
+        canvas->AttachComponent<JBro::Component::Transform2D>(field);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(field);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {1000.0f, 1000.0f};
+        sprite->tint = {0.0f, 1.0f, 0.0f, 1.0f};
+
+        // ── 만들기: 효과가 없는 프로필이 서고 골라진다 ──
+        const JBro::String created = editor.CreatePostProcessProfileAsset("");
+        Check(created == "NewPostProcess.jpost", "a new profile gets its name");
+        const JBro::AssetRecord* profileRecord = editor.GetAssetRegistry().FindByPath("NewPostProcess.jpost");
+        Check(profileRecord != nullptr && profileRecord->type == JBro::AssetType::PostProcessProfile, "it registers as a post-process profile");
+        const JBro::AssetId profileId = profileRecord->id;
+        Check(editor.GetSelectedAsset() == profileId, "making it selects it");
+        camera->postProcessProfileId = profileId;
+        // 해석은 커맨드가 돌 때 따라 도는데 여기서는 값을 손으로 놓았다. 다시 훑으면 해석도 함께 돈다.
+        Check(editor.RescanAssets(), "the registry must rescan so the profile resolves");
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(camera->postProcessProfile.generation != 0, "the camera's profile id resolves to a handle");
+
+        const auto readFile = [&]() {
+            JBro::String text;
+            Check(editor.ReadAssetSourceText(profileId, text), "the profile must read");
+            return text;
+        };
+        const auto centre = [&]() {
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            JBro::Array<std::byte> image;
+            image.Resize(static_cast<std::size_t>(extent.width + 64) * (extent.height + 64) * 4);
+            JBro::TextureReadback readback;
+            Check(editor.GetRenderer()->GetDevice()->ReadTexture(editor.GetCanvasViewTexture(), image.Data(), image.Size(), readback),
+                "the canvas view must read back");
+            const auto* bytes = reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(extent.height / 2) * readback.rowPitch)
+                + static_cast<std::size_t>(extent.width / 2) * 4;
+            return JBro::Color{bytes[2] / 255.0f, bytes[1] / 255.0f, bytes[0] / 255.0f, 1.0f};
+        };
+        const auto settle = [&]() {
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+        };
+        JBro::Color colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "with no effects the field is green");
+
+        // ── 효과 추가: 인스펙터의 단추와 종류 표의 메뉴 ──
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot add;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(inspector->ID, "##add_post_effect"), add), "the inspector offers to add an effect");
+        ClickAt(editor, hwnd, add);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "the add button opens the list of effect types");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "ColorAdjustments"), item), "the list names the colour adjustments");
+        ClickAt(editor, hwnd, item);
+        settle();
+        JBro::String text = readFile();
+        Check(text.find("Type: ColorAdjustments") != JBro::String::npos && text.find("Parameters") == JBro::String::npos,
+            "the effect is written with no overridden field");
+        colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "an effect at its defaults leaves the field green");
+
+        // ── 덮어쓰기: 채도(필드 3)의 체크를 켠다 ──
+        inspector = ImGui::FindWindowByName("Inspector");
+        const ImGuiID table = LabelId(PushedId(inspector->ID, 0), "##post_effect");
+        Spot overrideBox;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(PushedId(table, 3), "##override"), overrideBox), "saturation has its override box");
+        ClickAt(editor, hwnd, overrideBox);
+        settle();
+        text = readFile();
+        Check(text.find("saturation: 0") != JBro::String::npos, "overriding saturation writes its default into the profile");
+
+        // ── 값: 슬라이더의 왼쪽 가까이를 누르면 채도가 내려간다 ──
+        Spot slider;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(PushedId(table, 3), "##value"), slider), "saturation has its slider");
+        // 찾은 자리는 슬라이더 가운데(0)다. 왼쪽으로 조금 비켜 누른다.
+        slider.x -= 25;
+        ClickAt(editor, hwnd, slider);
+        settle();
+        text = readFile();
+        Check(text.find("saturation: -") != JBro::String::npos, "pressing the slider's left part lowers saturation in the file");
+        colour = centre();
+        Check(colour.R > 0.2f && colour.G - colour.R < 0.6f, "the canvas view turns towards grey");
+        const JBro::Color lowered = colour;
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "post_process_inspector");
+
+        // ── 되돌리기·다시 하기: 파일과 그림이 함께 간다 ──
+        Check(editor.GetCommands().Undo(), "the slider edit undoes");
+        settle();
+        Check(readFile().find("saturation: 0") != JBro::String::npos, "undo puts the file back");
+        colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "and the field is green again");
+        Check(editor.GetCommands().Redo(), "and redoes");
+        settle();
+        colour = centre();
+        Check(std::fabs(colour.R - lowered.R) < 0.02f, "redo brings the grey back");
+
+        // ── 캔버스 뷰의 단추 ──
+        editor.SetCanvasViewPostProcess(false);
+        settle();
+        colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "with post-processing off the canvas view is drawn as it is");
+        editor.SetCanvasViewPostProcess(true);
+        settle();
+
+        // ── LUT: 프로필의 `colorLutId` 를 라이브러리가 3D 텍스처로 올린다 ──
+        const JBro::AssetRecord* lutRecord = editor.GetAssetRegistry().FindByPath("invert.cube");
+        Check(lutRecord != nullptr && lutRecord->type == JBro::AssetType::ColorLut, "the .cube registers as a colour LUT");
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry lookup = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::ColorLookup);
+        reinterpret_cast<JBro::ColorLookupEffect*>(lookup.block.Data())->colorLutId = lutRecord->id;
+        lookup.overrides = 1;
+        document.entries.Add(std::move(lookup));
+        JBro::AssetSourceTarget target;
+        Check(editor.DescribeAssetSource(profileId, target), "the profile's file is described");
+        Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetAssetSourceCommand>(
+                  target, readFile(), JBro::WritePostProcessProfile(document), "Edit Post-Process Profile")),
+            "the profile takes a LUT effect");
+        settle();
+        colour = centre();
+        Check(colour.R > 0.9f && colour.G < 0.1f && colour.B > 0.9f, "the inverting LUT turns the green field magenta");
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestTheRenderGraphPanelShowsTheLastFrame()
     {
         JBro::EditorApplication editor;
@@ -17191,6 +17378,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheCanvasViewEditsPolygonColliderPoints();
     TestTheCanvasViewDragsLightHandles();
     TestTheRenderGraphPanelShowsTheLastFrame();
+    TestThePostProcessProfileIsEditedInTheInspector();
     TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheCanvasViewGridLabelsStayOnTheirLines();

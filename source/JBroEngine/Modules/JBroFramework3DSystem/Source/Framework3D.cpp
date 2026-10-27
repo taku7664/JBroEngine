@@ -58,6 +58,7 @@ namespace JBro
                 Shutdown();
                 return false;
             }
+            m_postProcess.Initialize(context.assets, context.renderer);
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
@@ -144,6 +145,9 @@ namespace JBro
         m_canvas->GetSystems().Update(*m_canvas, simulating ? m_context.time->GetFrameTime().deltaTime : Float(0.0f));
         m_canvas->FlushPendingDestroy();
         m_renderWorld.EndFrame();
+        // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다(D-344).
+        const RenderCamera3D* camera = m_renderWorld.GetCamera();
+        m_renderWorld.SetPostProcess(camera != nullptr ? m_postProcess.Resolve(camera->postProcessProfile) : PostProcessStack{});
     }
 
     RenderResult Framework3D::Render()
@@ -219,6 +223,7 @@ namespace JBro
         m_canvasAssets.Clear();
         m_canvas.Reset();
         m_meshes.Shutdown();
+        m_postProcess.Shutdown();
         m_renderWorld = {};
         m_context = {};
         m_initialized = false;

@@ -97,6 +97,18 @@ Entries:
   canvas_view.colliders_tooltip: show or hide collider shapes
   canvas_view.lighting: Lighting
   canvas_view.lighting_tooltip: draw the canvas view with the scene's 2D lights, or in the sprites' own colours
+  canvas_view.post_process: "Post-processing"
+  canvas_view.post_process_tooltip: "show the canvas view through the game camera's post-process profile, or without it"
+  assets.new_post_process_profile: "New Post-Process Profile"
+  inspector.post_process_effects: "Post-Process Effects"
+  inspector.post_process_empty: "No effects yet"
+  inspector.post_process_add: "Add Effect"
+  inspector.post_process_remove: "Remove Effect"
+  inspector.post_process_menu: "Effect menu"
+  inspector.post_process_unknown: "This engine does not know this effect. It is kept as it was read"
+  inspector.post_process_override_tooltip: "Write this value into the profile. Off uses the effect's default"
+  inspector.post_process_unreadable: "This profile could not be read"
+  inspector.post_process_broken: "The profile's text is broken. Fix the file to edit it here"
   canvas_view.edit_collider: Edit Collider
   canvas_view.edit_collider_tooltip: edit the selected object's polygon collider - drag a point to move it, click an edge to add one, right-click a point to delete it
   canvas_view.point_delete: Delete Point

@@ -50,6 +50,7 @@ namespace JBro::System
             item.nearPlane = camera.nearPlane;
             item.farPlane = camera.farPlane;
             item.clearColor = camera.clearColor;
+            item.postProcessProfile = camera.postProcessProfile;
             m_renderWorld->SetCamera(item);
             selected = true;
         });

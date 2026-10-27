@@ -111,6 +111,7 @@ namespace JBro::System
             item.nearPlane = camera.nearPlane;
             item.farPlane = camera.farPlane;
             item.clearColor = camera.clearColor;
+            item.postProcessProfile = camera.postProcessProfile;
             // 그릴 수 없는 값이면 고르지 않는다(D-239). 그 전에는 뽑힌 뒤 렌더 브리지가 거절해 프레임이 실패했고, 에디터가 꺼졌다.
             if (false == IsDrawableCamera2D(item))
             {

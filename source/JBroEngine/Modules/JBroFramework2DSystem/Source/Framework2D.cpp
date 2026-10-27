@@ -88,6 +88,7 @@ namespace JBro
                 m_context.network->RegisterPool(m_networkBinding->transforms);
             }
             m_spriteLibrary.Initialize(context.assets, context.renderer);
+            m_postProcess.Initialize(context.assets, context.renderer);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
         }
@@ -236,6 +237,14 @@ namespace JBro
             SetSteppedSystemsEnabled(false);
         }
         m_renderWorld.EndFrame();
+        ResolvePostProcess();
+    }
+
+    void Framework2D::ResolvePostProcess()
+    {
+        // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다. 카메라가 없으면 후처리도 없다.
+        const RenderCamera2D* camera = m_renderWorld.GetCamera();
+        m_renderWorld.SetPostProcess(camera != nullptr ? m_postProcess.Resolve(camera->postProcessProfile) : PostProcessStack{});
     }
 
     void Framework2D::SetPhysicsWorkerCount(UInt32 count)
@@ -352,6 +361,7 @@ namespace JBro
             }
         }
         m_renderWorld.EndFrame();
+        ResolvePostProcess();
     }
 
     void Framework2D::EndBreakFrames()
@@ -444,6 +454,7 @@ namespace JBro
         m_layer2DStates.Clear();
         m_canvas.Reset();
         m_spriteLibrary.Shutdown();
+        m_postProcess.Shutdown();
         m_renderWorld = {};
         m_context     = {};
         m_initialized = false;
