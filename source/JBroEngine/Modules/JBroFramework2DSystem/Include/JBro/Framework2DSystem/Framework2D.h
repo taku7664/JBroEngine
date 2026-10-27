@@ -102,6 +102,8 @@ namespace JBro
         static constexpr UInt32 PostMixerEntries = 32;
         static constexpr UInt32 PostMixerBlockBytes = 4096;
         static constexpr UInt32 MaxVolumes = 64;
+        // 레이어 효과 자리의 처음 크기다(레이어 수). 넘으면 그때 늘린다.
+        static constexpr UInt32 LayerPostProcessCapacity = 64;
         void ResolvePostProcess();
         // 복제 풀 어댑터들(D-122). 네트워크가 있을 때만 있고, 캔버스와 함께 죽는다.
         OwnerPtr<Framework2DNetworkBinding> m_networkBinding;

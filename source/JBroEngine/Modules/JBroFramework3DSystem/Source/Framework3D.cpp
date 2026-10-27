@@ -64,6 +64,7 @@ namespace JBro
             m_postProcess.Initialize(context.assets, context.renderer);
             m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
             m_volumes.Reserve(MaxVolumes);
+            m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
             m_postProcessSystem.Bind(&m_postMixer);
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
             CreateDefaultSystems();

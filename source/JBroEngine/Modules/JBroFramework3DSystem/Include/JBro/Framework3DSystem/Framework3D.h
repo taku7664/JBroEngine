@@ -72,6 +72,8 @@ namespace JBro
         static constexpr UInt32 PostMixerEntries = 32;
         static constexpr UInt32 PostMixerBlockBytes = 4096;
         static constexpr UInt32 MaxVolumes = 64;
+        // 레이어 효과 자리의 처음 크기다(레이어 수). 넘으면 그때 늘린다.
+        static constexpr UInt32 LayerPostProcessCapacity = 64;
         Bool m_initialized = false;
         Bool m_simulationEnabled = true;
         // 스크립트에 건네는 3D 컨텍스트다(D-224). 2D 의 `Framework2D` 와 같은 자리다.

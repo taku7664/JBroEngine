@@ -100,7 +100,12 @@ namespace JBro
             return m_postProcess;
         }
         // **레이어 차례마다의 후처리**(D-345). 프레임워크가 레이어의 프로필을 풀어 차례(`LayerOrder`) 자리에 건다. 프로필이 없는 레이어는 빈 목록이다.
-        // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리 수는 레이어 수를 따라 늘기만 한다 - 프레임 밖(추출 뒤)에서 부른다.
+        // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리는 프레임워크를 세울 때 잡고(`ReserveLayerPostProcess`), 레이어가 그보다 많아질 때만
+        // 늘린다 - 프레임 밖(추출 뒤)에서 부른다.
+        void ReserveLayerPostProcess(std::size_t capacity)
+        {
+            m_layerPostProcess.Reserve(capacity);
+        }
         void SetLayerPostProcessCount(std::size_t count)
         {
             if (m_layerPostProcess.Size() < count)
