@@ -111,7 +111,8 @@
 - **Shader 에셋.** 백엔드마다 바이트코드 + 바인딩 레이아웃 + 파라미터 블록 레이아웃(셰이더 리플렉션에서 뽑는다). 빌트인 셰이더도 Shader 에셋이다(D-111).
   셰이더 목록은 한 곳(매니페스트)에 두고 세 바이트코드와 메타를 만든다 - 배열 셋·include 셋을 따로 고치는 지금 방식을 걷는다.
   에디터는 dxc·d3dcompiler 로 그 자리에서 굽고(셰이더 그래프의 실시간 편집), 게임은 `.jpak` 에 미리 구운 것만 싣는다(D-322 (3)).
-- **Material 에셋**(`.jmat`). `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }`(D-111). 셰이더 그래프의 결과물이 이것이다.
+  → 사용자 셰이더는 `.hlsl` 파일이 곧 에셋이다(`.jshader` 감싸개를 두지 않는다, D-347, §3.14).
+- **Material 에셋**(`.jmat`). `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }`(D-111). 셰이더 그래프의 결과물이 이것이다. → 섰다(D-347, §3.14).
 - **에셋 타입 자리.** 핸들의 타입 비트를 4 에서 8 로 넓혔다(`TypeShift` 28 → 24, D-322 (2), 2026-10-07 섰다). 타입 256, 타입마다 슬롯 1,600 만이다.
 
 ### 2.5 적용
@@ -145,7 +146,7 @@
 8. `PostProcessProfile` 에셋·카메라의 프로필·에디터 인스펙터. **섰다(D-344, 2026-10-27, §3.11).**
 9. 레이어 프로필과 `AfterLayer`. **섰다(D-345, 2026-10-27, §3.12) - 블러·외곽선·그림자와 색 효과(기본 조정·LUT)가 레이어에 걸린다.**
 10. 볼륨과 섞기·스크립트 서비스. **섰다(D-346, 2026-10-27, §3.13) - `PostProcessVolume2D`·`3D`(모양은 볼륨이 든다), 리플렉션 종류로 섞기, 공통 서비스 `PostProcess`.**
-11. Material 에셋과 범용 머티리얼 효과(셰이더 그래프 앞의 마지막 칸).
+11. Material 에셋과 범용 머티리얼 효과(셰이더 그래프 앞의 마지막 칸). **섰다(D-347, 2026-10-27, §3.14) - `.hlsl` Shader 에셋·`.jmat` Material 에셋·에디터의 즉석 굽기(`JBroShaderCompiler`)·후처리 효과 `Material`·스프라이트 머티리얼·게임 패키지의 구운 셰이더.**
 
 ### 3.1 1 단계 - 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷 (D-325)
 
@@ -394,7 +395,7 @@ Vulkan 은 `VK_PIPELINE_BIND_POINT_COMPUTE`, `STORAGE_IMAGE`(GENERAL 레이아�
 
 전체 시험(Debug, 2026-10-26, `e1129837`): 73 묶음이 지난 뒤(EditorApplication 포함) `ScriptSummaryPanel` 에서 크래시(종료 코드 139)로 멈췄다. 그 묶음은 혼자 돌리면 지나고,
 **main `33445212` 의 Debug 에서도 `JBRO_TESTS=EditorApplication,ScriptSummaryPanel` 로 같은 자리에서 죽는다** - 이 단계와 상관없이 원래 있던 결함이다(그 묶음은 ImGui 만 쓰고 렌더러를 쓰지 않는다,
-원인은 보지 않았다). 그 뒤의 49 묶음은 따로 돌려 모두 지났다. 에디터 화면(`JBRO_EDITOR_SHOT`)의 선택 외곽선은 그래프의 외곽선 패스로 그대로 그려졌다.
+원인은 보지 않았다 → 2026-10-27 에 찾아 고쳤다, §3.14 끝). 그 뒤의 49 묶음은 따로 돌려 모두 지났다. 에디터 화면(`JBRO_EDITOR_SHOT`)의 선택 외곽선은 그래프의 외곽선 패스로 그대로 그려졌다.
 
 Codex 리뷰(`codex review --commit 8ec09d84`)가 둘을 찾았고 코드로 확인해 고쳤다. ① 가득 찬 풀이 한 모양을 하나 더 만들 때 모든 칸이 같은 만큼 쉬었으면 첫 칸을 내주는데,
 그것이 같은 모양이면 수가 그대로라 매 프레임 같은 바람과 대신 그리기가 이어졌다 - 같은 모양은 내주지 않는다. ② 조건(`RunIfAvailable`·`RunIfMissing`)으로만 가리키는 텍스처는
@@ -652,6 +653,43 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 보고 안 것: 손으로 쓴 `.jpost` 의 흐름 표기 `[1, 0, 0, 1]` 은 엔진 YAML 이 읽지 않아 그 필드가 기본값이 된다 - 엔진이 쓰는 파일은 블록 표기라 맞다.
 
 남은 것: 3D 캔버스 뷰의 볼륨 기즈모. 3D 프레임워크의 레이어 효과와 볼륨 섞기는 렌더러 픽셀 시험(뷰의 `layerPostProcess`)과 무게 단위 시험으로만 쟀고 3D 에디터 시나리오는 없다. JBroScript 카탈로그(`JBroScriptApiCatalog2D`)에 볼륨 핸들과 후처리 서비스가 없다 - C++ 스크립트는 쓰지만 `.jscript` 의 언어 서버는 모른다. 볼륨을 뷰마다(캔버스 뷰는 편집 카메라 자리) 따로 섞는 일은 하지 않았다. `AfterScreenLayers`(화면 레이어까지 얹은 뒤)는 여전히 자리가 없다.
+
+### 3.14 11 단계 - Shader·Material 에셋과 범용 머티리얼 (D-347)
+
+사용자 결정(2026-10-27): Shader 에셋은 "`.hlsl` 이 곧 에셋"(`.jshader` 감싸개를 두지 않는다), 범위는 "스프라이트까지", 효과 `Material` 은 "톤맵 뒤 + 레이어".
+
+| 것 | 모양 |
+|---|---|
+| Shader 에셋 | `.hlsl`(이미 등록된 확장자). 사용자는 픽셀 단계 `PSMain` 하나만 적고 `#include "JBro/Material.hlsli"` 로 엔진의 머리글을 넣는다. 정점 단계는 엔진의 빌트인(전체 화면 삼각형·스프라이트)이다. 같은 파일을 자리마다 따로 굽는다(`JBRO_MATERIAL_POSTPROCESS`·`JBRO_MATERIAL_SPRITE`) - 입력 구조가 자리마다 다르다 |
+| 머리글 | `GetMaterialPrelude()`(`<JBro/Asset/MaterialShader.h>`). b0 엔진 값(뷰포트·대상 크기·시각·곱한 알파 표시, 스프라이트는 앞에 뷰-투영 행렬이 붙어 128 B), b1 `cbuffer Material`, t0 자리의 입력(앞 효과의 결과·스프라이트 텍스처), t1..t7 머티리얼 텍스처, s0 입력의 샘플러·s1 선형 자르기·s2 점 자르기·s3 선형 되풀이, 도우미(`JBroLoadSource`·`JBroSampleSource`·`JBroUV`·`JBroSampleSprite`·`JBroSeconds`·`JBroUnpremultiply`) |
+| 굽기 | 새 Tier E 모듈 `JBroShaderCompiler`(Windows, `ShaderCompiler : IShaderCompiler`). DXBC 와 반사는 `d3dcompiler_47.dll`, DXIL·SPIR-V 는 `dxcompiler.dll` 을 실행 중에 연다. 모듈의 빌드가 Vulkan SDK 의 `dxcompiler.dll` 을 출력 폴더에 옮긴다 - 1.9 판이라 SPIR-V 를 굽고 DXIL 을 스스로 서명한다(2026-10-27 실측, `dxil.dll` 없이 구운 컨테이너의 해시가 0 이 아니다). Vulkan SDK 가 없으면 Windows SDK 의 것과 `dxil.dll` 이고 SPIR-V 칸은 빈다(`HasFormat`) |
+| 반사 | DXBC 에서 한다. `cbuffer Material` 의 스칼라·벡터(`float`..`float4`·`int`·`uint`·`bool`)가 파라미터이고 HLSL 초기값이 기본값이다. 이름이 `...Color` 인 `float3`·`float4` 는 색이다. t1.. 의 `Texture2D` 가 텍스처다. 다른 cbuffer·행렬·배열(상수로 읽으면 원소마다 `layers[0]` 로 반사된다)·t0 의 다른 이름·UAV·s3 넘는 샘플러·머리글 밖의 include 는 거절한다. 쓰지 않는 텍스처는 fxc 가 지워 반사에 나오지 않는다. 오류 글자의 앞에 fxc 가 붙이는 작업 폴더는 뗀다 |
+| 구운 묶음 | `CompiledShaderSet`(자리마다 세 백엔드 바이트코드 + 반사). 블롭은 `JMSH` 판 1 이고 읽기는 잘린 것·블록 밖을 가리키는 파라미터를 거절한다 |
+| Material 에셋 | `.jmat` YAML: `Shader`(아이디)·`Domain`(`PostProcess`·`Sprite`)·`Parameters`(적은 것만 - 나머지는 HLSL 초기값, 벡터는 블록 시퀀스)·`Textures`(이름 → 텍스처 아이디). 에셋 모듈이 읽고 쓴다(`MaterialFile.h`) - 셰이더를 모르고 이름과 숫자만 든다. 모르는 `Domain`·깨진 YAML 은 거절하고, 숫자가 아닌 값은 경고로 버린다 |
+| 에셋 시스템 | Shader(`ShaderAssetData` - 느슨한 폴더면 본문, 패키지면 구운 묶음)와 Material(`MaterialAssetData` - 본문)이 실리고 제자리에서 다시 읽힌다 |
+| 렌더러 | `RegisterMaterial`·`UpdateMaterial`·`UnregisterMaterial`(`MaterialDesc`). 장면 포맷(출력·HDR)마다 파이프라인을 미리 만든다 - 스프라이트는 깊이 쌍둥이까지 넷, 후처리는 둘. 파라미터는 후처리와 같은 상수 링에 올린다(이제 먼저 바란 쪽이 만들고 한 프레임 128 KiB). 스프라이트 구간은 머티리얼에서도 끊기고, 머티리얼 스프라이트는 빛을 받지 않는다. 후처리는 `PostProcessPassDesc::material`. 시각은 `SetMaterialTime` 을 부르지 않으면 렌더러를 연 뒤의 실제 시간이다. 지운 머티리얼을 든 스프라이트는 빌트인으로, 효과는 그대로 옮기기로 그리고 센다(`staleMaterialCount`). `materialSpriteCount` |
+| 라이브러리 | `MaterialLibrary`(그래픽): 머티리얼 에셋 → 렌더러 머티리얼. 셰이더는 셰이더·자리마다 한 번 굽는다. 본문·셰이더·텍스처 픽셀의 세대가 바뀌면 프레임마다 한 번 `Update` 가 다시 짓는다 - 셰이더가 같으면 렌더러 핸들을 두고 파라미터·텍스처만 갈아 끼운다. 짓지 못하면 빈 핸들이고(빌트인으로 그린다) 까닭은 `GetError`·로그다. 2D·3D 프레임워크가 하나씩 들고 `SpriteRender2DSystem` 이 스프라이트의 머티리얼을 푼다. 컴파일러는 `EngineConfig::shaderCompiler` → `FrameworkContext::shaderCompiler` 로 오며 에디터만 준다 |
+| 효과 | `Material`(번호 8, `AfterTonemap`, `onLayer`). 블록은 `materialId` 뿐이고 파라미터는 머티리얼 파일이 든다. 프로필 라이브러리가 머티리얼 라이브러리로 렌더러 머티리얼을 채우고, 렌더러 핸들이 바뀌면(셰이더가 바뀌었다) 프로필을 다시 푼다 |
+| 게임 빌드 | 패키지 모으기가 `.jmat` 본문에서 아이디를 찾는다(셰이더·텍스처가 따라간다). 쿡은 셰이더를 두 자리 모두 구워 되는 것을 `CompiledShader` 블롭으로만 싣는다 - 원본은 싣지 않는다. 컴파일러가 없거나 DXIL·SPIR-V 를 굽지 못하면 그 셰이더는 실패다. 게임은 굽지 않는다(`GameBuildOptions::shaderCompiler` 는 에디터가 준다) |
+| 에디터 | 에셋 브라우저 `새 셰이더`(두 자리에서 다 구워지는 틀)·`새 머티리얼`(셰이더 없음), 아이콘 `sphere`·`file-code-outline`. 머티리얼 인스펙터: `Shader`·`Domain` 줄(키 이름 그대로), `파라미터`(덮어쓰기 체크 + 값 - 색·숫자·벡터·체크), `텍스처`(텍스처 고르기). 셰이더를 굽지 못하면 그 글자를 보인다. 편집은 `SetAssetSourceCommand`. 에디터가 `ShaderCompiler` 와 굽기만 하는 `MaterialLibrary` 를 든다 |
+
+시험:
+- `Material`(새 묶음): `.jmat` 왕복(블록 시퀀스만, 같은 글자로 되쓰기)·거절과 경고, 구운 묶음 왕복과 깨진 블롭 거절, 두 자리의 반사(자리·초기값·색·텍스처 번호, 틀도 두 자리에서 구워짐), 거절 다섯(오류 줄·다른 cbuffer·행렬·텍스처 배열·다른 include), 파라미터 블록(초기값·벡터·반올림·bool), 패키지(머티리얼이 셰이더를 끌고 오고, 컴파일러 없이는 굽지 않으며, 원본 대신 구운 묶음이 실리고, 컴파일러 없는 라이브러리가 그것을 쓴다).
+- `PostProcessPixel`(세 백엔드, 디버그 레이어): 효과 `Material` 이 장면을 반전하고 파라미터와 머티리얼 텍스처를 읽음, `UpdateMaterial` 이 다음 프레임에 걸림, 지운 머티리얼은 그대로 옮기며 셈. 머티리얼 스프라이트가 초록(LDR·HDR 장면), 옆 스프라이트는 흰색, 파라미터만 바꾸면 같은 핸들이 빨강, 지우면 빌트인으로 그리며 셈.
+- `EditorApplication` 의 `TestAMaterialShadesASpriteAndTheView`(사용자 시나리오): `새 셰이더`·`새 머티리얼` 로 만들고, 머티리얼 인스펙터의 `Shader`·`Domain` 칸에서 고르면 흰 사각형이 초록이 되고, `brightness` 의 덮어쓰기를 켜고 아래 단추를 누르면 파일과 그림이 함께 어두워지며 되돌리기가 따라간다. 셰이더를 깨뜨리면 빌트인(흰색), 고치면 다시 초록. 자리 `PostProcess` 머티리얼을 프로필의 `Material` 효과에 걸면 초록이 자홍이 된다.
+- `Framework2DSystem`: 라이브러리가 없으면 스프라이트의 머티리얼이 비어 렌더러로 가지 않는다(전에는 에셋 핸들이 그대로 갔다 - 렌더러는 보지 않았다). `HeaderSelfContainment` 에 새 머리글 넷.
+
+실제 에디터(`JBroEditorHost`, PostMessage): 셰이더·머티리얼·캔버스를 손으로 쓴 프로젝트를 열고 캔버스를 여니 머티리얼 스프라이트가 줄무늬(머티리얼 파일의 `stripes: 4`)로 그려졌고, 0.37 초 사이에 줄무늬가 옮겨 갔다(시각이 셰이더에 든다). 에셋 목록에 셰이더·머티리얼 아이콘, 인스펙터에 `Shader`·`Domain`·`파라미터`(적힌 `stripes` 만 덮어쓰기가 켜짐)가 섰고, `stripes` 의 위 단추가 파일과 그림을 함께 바꿨다(누르는 동안 되풀이돼 9 가 됐다 - 기존 단추의 동작). 에셋 브라우저 배경 메뉴의 `새 셰이더` 가 틀을, `새 머티리얼` 이 `Domain: PostProcess` 만 든 파일을 쓰고 인스펙터가 `셰이더를 고르면 파라미터와 텍스처가 나옵니다` 를 보였다.
+보고 안 것: 인스펙터가 좁으면 색 칸의 숫자가 잘린다 - 컴포넌트 인스펙터와 같은 위젯(`Widget::ColorField`)이라 이 단계에서 고치지 않았다.
+
+뮤테이션 다섯(2026-10-27)이 모두 겨냥한 검사에서 죽었다: 렌더러가 스프라이트 구간의 머티리얼을 버림(초록 검사), 반사가 HLSL 초기값을 버림(초기값 검사), 라이브러리가 바뀐 머티리얼을 다시 짓지 않음(셰이더를 고른 뒤의 초록 검사), 에디터가 가이드 알림 자리를 떼지 않음(아래 크래시의 회귀 검사), 쿡이 셰이더 원본을 실음(구운 묶음 검사).
+
+**`ScriptSummaryPanel` 크래시(§3.6 부터 전체 시험마다 건너뛴 것)의 원인과 수정.** 시험 실행 파일에 임시로 SEH 필터와 스택을 찍는 훅을 걸고(커밋하지 않았다) `JBRO_TESTS=EditorApplication,ScriptSummaryPanel` 로 다시 냈다.
+`ScriptSummaryPanel` 의 첫 시험이 트리를 그리다 `EditorGuideFocus::Report` → `GuideFocusPath::Find` 에서 접근 위반(0xC0000005)으로 죽었다. 위젯 계층의 전역 알림 자리(`Widget::SetGuideFocus`)에 에디터가 프레임마다 자기 `m_guideFocus` 를 걸 뿐 떼는 곳이 없어서,
+`EditorApplication` 묶음의 에디터들이 사라진 뒤 같은 프로세스의 다른 ImGui 화면이 해제된 메모리를 읽었다. 실제 에디터는 프로세스에 에디터가 하나라 겪지 않는다. 에디터의 자원 해제(`ReleaseProcessResources`)가 그 자리가 자기 것이면 뗀다.
+회귀 검사는 `TestAClosedPanelKeepsUpdatingButStopsDrawing` 끝의 "끈 에디터는 알림을 받지 않는다" 이고, 위의 두 묶음을 이어 돌리면 지난다.
+
+남은 것: 메시 머티리얼(3D 의 `MeshRenderer3D.materialId` - 렌더러가 아직 보지 않는다). 머티리얼 파라미터의 볼륨 섞기·스크립트 덮어쓰기(지금은 머티리얼 파일만 바꾼다). 머티리얼 스프라이트의 라이팅. 셰이더 에셋 자체의 인스펙터(오류는 그 셰이더를 쓰는 머티리얼에서 보인다). 셰이더 그래프(이 계획 밖).
 
 ## 4. 정한 것과 미정
 

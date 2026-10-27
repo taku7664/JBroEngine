@@ -119,6 +119,9 @@
   적는다. `Compile.ps1` 이 그것을 읽어 바이트코드 헤더와 프로그램 표(`BuiltinShaders.generated.h/.cpp`)를 만들고, 렌더러는
   `GetBuiltinShader` 의 `ShaderData` 로 파이프라인을 채운다 - 셰이더 헤더를 직접 include 하거나 자리 개수를 손으로 적지 않는다.
   자리표는 셰이더가 실제로 읽는 자리와 같아야 하며 `BuiltinShaderTests` 가 반사로 잰다. (MUST) (D-329)
+- 사용자 셰이더(머티리얼, D-347)는 `.hlsl` 파일이 곧 Shader 에셋이고 픽셀 단계 하나만 적는다 - 정점 단계와 입력·엔진 값은 엔진의 머리글(`JBro/Material.hlsli`)이 자리
+  (`PostProcess`·`Sprite`)마다 준다. 에디터가 그 자리에서 굽고, 게임 패키지는 구운 묶음만 싣는다 - 게임은 셰이더를 굽지 않는다. 머티리얼(`.jmat`)은 셰이더·자리·
+  적은 파라미터·텍스처만 들고, 적지 않은 파라미터는 HLSL 초기값이다. (MUST)
 - 상수 버퍼는 b1..b7 이고 슬롯 번호가 곧 `b` 레지스터 번호다. b0 은 푸시 상수 자리라 상수 버퍼를 두지 않으며, SPIR-V 는
   b# 를 옮기지 않아 binding 1..7 이다. 파이프라인은 읽는 자원을 `GraphicsPipelineDesc::bindings` 에 종류마다 개수와 단계로
   적고, 상한은 `IRHIDevice::GetCaps()` 로 묻는다. 푸시 상수는 128 B 까지다. (MUST) (D-325)
@@ -279,6 +282,7 @@
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | 렉서·파서·의미 분석·공용 API DTO·들여쓰기 포맷·2D C++ 이미터. `JBroCore` 에만 기댄다 (D-104·D-316·D-317) |
+  | Tier E | `JBroShaderCompiler` | 머티리얼 셰이더를 그 자리에서 굽는 `ShaderCompiler`(`IShaderCompiler` 구현). Windows 전용이고 `d3dcompiler_47.dll`·`dxcompiler.dll` 을 실행 중에 연다. Core·Asset 에 기대고 에디터·시험·게임 빌드가 든다 - 게임 실행 파일은 들지 않는다 (D-347) |
   | Tier E | `JBroNodeGraph` | 노드 그래프 모델(노드·핀·링크·도메인·YAML)과 샘플 도메인 `Math`. `JBroCore` 에만 기대고 에디터·셰이더 그래프 컴파일러가 함께 쓴다 (D-323) |
   | Tier E | `JBroScriptApiCatalog2D` | 실제 공용/2D Tier S 타입과 명시적 공개 선언을 분석용 카탈로그로 변환. 엔진 호스트는 실행하지 않는다 (D-316) |
   | Tier E | `JBroScriptLanguageServer` | LSP 프로토콜·문서 상태·공용 분석 조회. Core·ScriptCompiler·nlohmann-json에 기댄다 (D-316) |
