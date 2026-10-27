@@ -601,6 +601,9 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 
 뮤테이션 넷(2026-10-27)이 모두 죽었다: 라이브러리가 바뀐 프로필을 다시 풀지 않음(회색 검사), 덮어쓰기와 상관없이 모든 필드를 적음(기본값 필드 검사), 캔버스 뷰 단추를 무시함(단추 검사), LUT 를 올리지 않음(자홍 검사).
 
+전체 시험(Debug, `736c984b`, Codex 가 돌림): main 에 원래 있던 `ScriptSummaryPanel` 크래시를 빼고 이어 돌려 111 묶음이 지났다. 새로 하나가 실패했다 - `BuiltinComponentProperty` 가 `Camera2D`·`Camera3D` 의 필드 수를 7 로 적고 있었다. 프로필 필드 둘(`postProcessProfileId`·숨긴 `postProcessProfile`)을 더했으니 9 로 고쳤다(Claude 가 다시 돌려 지남).
+8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은 D-342 때와 같이 Codex 샌드박스 안에서만 실패했고, Claude 가 밖에서 다시 돌리니 모두 지났다.
+
 남은 것: 레이어 프로필(9 단계)·볼륨과 섞기·스크립트 서비스(10 단계). 인스펙터는 실리지 않은 프로필을 고를 때 디스크를 매 프레임 읽는다(에디터 화면이라 권고 수준, D-274). 3D 의 HDR 장면(레이어 합성까지 HDR 로 두는 일)은 `AfterScreenLayers` 와 함께 볼 일이다.
 
 ## 4. 정한 것과 미정
