@@ -684,6 +684,9 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 
 뮤테이션 다섯(2026-10-27)이 모두 겨냥한 검사에서 죽었다: 렌더러가 스프라이트 구간의 머티리얼을 버림(초록 검사), 반사가 HLSL 초기값을 버림(초기값 검사), 라이브러리가 바뀐 머티리얼을 다시 짓지 않음(셰이더를 고른 뒤의 초록 검사), 에디터가 가이드 알림 자리를 떼지 않음(아래 크래시의 회귀 검사), 쿡이 셰이더 원본을 실음(구운 묶음 검사).
 
+전체 시험(Debug, `ad6aaafd`, Codex 가 돌림): 처음으로 `ScriptSummaryPanel` 에서 멈추지 않고 끝까지 갔다(1.5 초에 지남). 115 묶음이 지났고, 8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은
+전과 같이 Codex 샌드박스 안에서만 실패했다(COM 스레드·v145 빌드 도구·디버그 통로). Claude 가 밖에서 그 8 묶음을 다시 돌리니 모두 지났다.
+
 **`ScriptSummaryPanel` 크래시(§3.6 부터 전체 시험마다 건너뛴 것)의 원인과 수정.** 시험 실행 파일에 임시로 SEH 필터와 스택을 찍는 훅을 걸고(커밋하지 않았다) `JBRO_TESTS=EditorApplication,ScriptSummaryPanel` 로 다시 냈다.
 `ScriptSummaryPanel` 의 첫 시험이 트리를 그리다 `EditorGuideFocus::Report` → `GuideFocusPath::Find` 에서 접근 위반(0xC0000005)으로 죽었다. 위젯 계층의 전역 알림 자리(`Widget::SetGuideFocus`)에 에디터가 프레임마다 자기 `m_guideFocus` 를 걸 뿐 떼는 곳이 없어서,
 `EditorApplication` 묶음의 에디터들이 사라진 뒤 같은 프로세스의 다른 ImGui 화면이 해제된 메모리를 읽었다. 실제 에디터는 프로세스에 에디터가 하나라 겪지 않는다. 에디터의 자원 해제(`ReleaseProcessResources`)가 그 자리가 자기 것이면 뗀다.
