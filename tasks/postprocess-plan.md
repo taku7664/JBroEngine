@@ -645,6 +645,12 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 
 뮤테이션 넷(2026-10-27)이 모두 죽었다: 브리지가 레이어 효과를 보지 않음(캔버스 뷰의 빨간 외곽선 검사), 레이어의 색 효과가 곱한 알파를 풀지 않음(대비 검사), 프레임워크가 스크립트의 덮어쓰기를 얹지 않음(서비스 검사), 무게가 섞는 거리를 보지 않음(상자 밖 반 무게 검사).
 
+전체 시험(Debug, `c0b70a77`, Codex 가 돌림): main 에 원래 있던 `ScriptSummaryPanel` 크래시를 빼고 이어 돌려 112 묶음이 지났다. 새로 하나가 실패했다 - `RendererContract` 의 프레임 힙 검사다.
+첫 프레임에 레이어 효과 자리(`RenderWorld2D::SetLayerPostProcessCount`)를 처음 늘리며 할당했다. 프레임워크를 세울 때 자리를 잡게 고쳤고(`ReserveLayerPostProcess`), Claude 가 다시 돌려 지났다.
+8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은 전과 같이 Codex 샌드박스 안에서만 실패했고, Claude 가 밖에서 다시 돌리니 모두 지났다.
+실제 에디터(`JBroEditorHost`, PostMessage): 레이어 인스펙터의 `후처리 프로필` 칸에서 `Outline.jpost` 를 고르고 스프라이트를 붙이니 4 픽셀 빨간 외곽선이 섰고, 파일을 고치면 감시가 다시 읽었다. 컴포넌트 추가의 `렌더링` 에 `PostProcessVolume2D` 가 선다.
+보고 안 것: 손으로 쓴 `.jpost` 의 흐름 표기 `[1, 0, 0, 1]` 은 엔진 YAML 이 읽지 않아 그 필드가 기본값이 된다 - 엔진이 쓰는 파일은 블록 표기라 맞다.
+
 남은 것: 3D 캔버스 뷰의 볼륨 기즈모. 3D 프레임워크의 레이어 효과와 볼륨 섞기는 렌더러 픽셀 시험(뷰의 `layerPostProcess`)과 무게 단위 시험으로만 쟀고 3D 에디터 시나리오는 없다. JBroScript 카탈로그(`JBroScriptApiCatalog2D`)에 볼륨 핸들과 후처리 서비스가 없다 - C++ 스크립트는 쓰지만 `.jscript` 의 언어 서버는 모른다. 볼륨을 뷰마다(캔버스 뷰는 편집 카메라 자리) 따로 섞는 일은 하지 않았다. `AfterScreenLayers`(화면 레이어까지 얹은 뒤)는 여전히 자리가 없다.
 
 ## 4. 정한 것과 미정
