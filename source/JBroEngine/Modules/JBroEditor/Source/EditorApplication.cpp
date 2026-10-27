@@ -7678,6 +7678,12 @@ namespace JBro
         }
         ScriptCallGuard::Disable();
         ScriptCallGuard::ClearFault();
+        // **위젯의 가이드 알림 자리를 뗀다**(D-251). 프레임마다 이 에디터의 `m_guideFocus` 를 걸 뿐 떼는 곳이 없어, 에디터가 사라진 뒤 같은 프로세스의
+        // 다른 ImGui 화면(시험의 `ScriptSummaryPanel`)이 해제된 메모리를 읽고 죽었다.
+        if (Widget::GetGuideFocus() == &m_guideFocus)
+        {
+            Widget::SetGuideFocus(nullptr);
+        }
         // 제어 포트를 먼저 닫는다 - 소켓은 provider 가, provider 는 플랫폼의 Winsock 이 살아 있어야 닫힌다.
         m_controlPort.Reset();
         m_socketProvider.Reset();

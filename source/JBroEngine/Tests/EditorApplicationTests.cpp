@@ -40,6 +40,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
@@ -686,7 +687,10 @@ namespace
         Check(editor.Tick(Delta), "the editor must tick");
         Check(panel->draws == drawsWhenClosed + 1, "opening it again must draw it");
 
+        Check(JBro::Widget::GetGuideFocus() != nullptr, "a ticking editor receives the widgets' guide reports");
         editor.Shutdown();
+        // 위젯의 전역 알림 자리가 사라질 에디터를 가리키면 뒤의 ImGui 화면이 해제된 메모리를 밟는다(ScriptSummaryPanel 묶음의 크래시).
+        Check(JBro::Widget::GetGuideFocus() == nullptr, "a shut-down editor no longer receives the widgets' guide reports");
     }
 
     // 만들 때마다 새로 서는 시험용 패널이다(D-284). 그리는 중에 스스로 닫을 수 있다.
