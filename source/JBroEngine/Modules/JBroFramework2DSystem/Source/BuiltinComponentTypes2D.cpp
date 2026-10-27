@@ -7,6 +7,7 @@
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -28,6 +29,9 @@ namespace JBro::Component
             all = RegisterComponentType<Transform2D>(
                       ComponentCategory::Transform, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Camera2D>(
+                      ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
+            // 볼륨은 오브젝트에 하나다 - 모양이 오브젝트의 트랜스폼에 놓이므로 둘이면 같은 자리의 두 프로필이다(D-346).
+            all = RegisterComponentType<PostProcessVolume2D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<SpriteRenderer2D>(ComponentCategory::Rendering) && all;
             // 기존 엔진 표와 같다: Rendering, 여럿 붙는다(D-200).

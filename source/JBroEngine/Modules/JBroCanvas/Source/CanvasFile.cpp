@@ -249,6 +249,13 @@ namespace JBro
             {
                 writer.WriteBool("Lit", false);
             }
+            // 프로필은 레이어의 내용이라 레이어 에셋에도 적는다(D-345).
+            if (false == layer.GetPostProcessProfile().IsNull())
+            {
+                char id[Uuid::TextCapacity] = {};
+                layer.GetPostProcessProfile().ToText(id, sizeof(id));
+                writer.WriteString("PostProcessProfile", id);
+            }
             if (inCanvas && false == layer.GetSourceAsset().IsNull())
             {
                 char id[Uuid::TextCapacity] = {};
@@ -268,6 +275,7 @@ namespace JBro
             Float parallax = 1.0f;
             Bool lit = true;
             Uuid sourceAsset;
+            Uuid postProcessProfile;
         };
 
         Bool ReadLayerNode(const YamlDocument& document, UInt32 entry, LayerNodeValues& values, CanvasFileError& error)
@@ -301,6 +309,12 @@ namespace JBro
             {
                 return Fail(error, "a layer names its source asset with an id that does not read");
             }
+            String profile;
+            if (document.FindScalar(entry, "PostProcessProfile", profile)
+                && false == Uuid::Parse(profile.c_str(), profile.size(), values.postProcessProfile))
+            {
+                return Fail(error, "a layer names its post-process profile with an id that does not read");
+            }
             return true;
         }
 
@@ -315,6 +329,7 @@ namespace JBro
             layer.SetParallax(values.parallax);
             layer.SetLit(values.lit);
             layer.SetSourceAsset(values.sourceAsset);
+            layer.SetPostProcessProfile(values.postProcessProfile);
         }
 
         // 오브젝트 목록을 적는다. `ordered` 는 부모가 자식보다 앞이다. `writeLayer` 면 오브젝트마다 레이어 번호를 적는다(캔버스 파일) - 레이어 에셋은

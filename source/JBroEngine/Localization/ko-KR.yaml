@@ -363,6 +363,8 @@ Entries:
   layer_asset.load_failed: 레이어 에셋을 읽지 못했습니다
   inspector.layer_parallax: 패럴랙스 계수
   inspector.layer_parallax_tooltip: 카메라가 움직일 때 이 레이어가 움직이는 비율입니다. 1 은 카메라와 같이, 0.5 는 절반 빠르기의 원경이고 0 은 월드에 고정됩니다. 게임 화면에서만 보이고 캔버스 뷰에는 적용되지 않습니다
+  inspector.layer_post_process: 후처리 프로필
+  inspector.layer_post_process_tooltip: 레이어를 한 장으로 그린 뒤, 아래에 얹기 전에 프로필의 레이어 효과(블러·외곽선·그림자·기본 조정·LUT)를 겁니다. 노출·블룸·톤맵은 카메라에서 거는 효과라 여기서는 건너뜁니다
   inspector.layer_lit: 라이팅 사용
   inspector.layer_lit_tooltip: 이 레이어의 오브젝트가 캔버스의 라이트를 받습니다. 끄면 라이트와 상관없이 원래 색으로 그립니다
   inspector.layer_space: 공간

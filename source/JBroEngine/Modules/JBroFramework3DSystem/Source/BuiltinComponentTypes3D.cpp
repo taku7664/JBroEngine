@@ -6,6 +6,7 @@
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
+#include <JBro/Framework3D/Component/PostProcessVolume3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Types/Bool.h>
@@ -23,6 +24,8 @@ namespace JBro::Component
             all = RegisterComponentType<Transform3D>(
                       ComponentCategory::Transform, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Camera3D>(
+                      ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<PostProcessVolume3D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<MeshRenderer3D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Text3D>(ComponentCategory::Rendering) && all;

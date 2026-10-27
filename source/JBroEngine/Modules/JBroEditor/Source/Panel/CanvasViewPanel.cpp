@@ -25,6 +25,7 @@
 #include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
@@ -727,6 +728,7 @@ namespace JBro
             DrawSelectionOutlines(rect);
             DrawPivotMarkers(rect);
             DrawCameraAreas(rect);
+            DrawPostProcessVolumes(rect);
             DrawObjectMarkers(rect);
             DrawCameraIndicator(rect);
             DrawOverlay(rect);
@@ -1353,6 +1355,102 @@ namespace JBro
                     draw->AddCircle(ImVec2(other.x, other.y), 3.0f, color, 12, thickness);
                 }
             }
+        });
+    }
+
+    void CanvasViewPanel::DrawPostProcessVolumes(const ViewRect& rect)
+    {
+        // **볼륨이 어디서부터 섞이는지**(D-346, 계획 §2.6). 모양은 진하게, 섞는 거리의 끝은 옅게 그린다 - 카메라가 옅은 선 안에 들어오면 섞이기
+        // 시작하고 진한 선 안이면 다 섞인다. 고르지 않아도 늘 보인다(카메라 영역과 같다). `Global` 은 어디서나라 그리지 않는다.
+        // 셈은 무게와 같다: 모양은 오브젝트의 월드 위치·회전·크기를 따르고, 섞는 거리는 월드 단위로 모양 둘레에 둥글게 붙는다.
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 shapeColor = IM_COL32(200, 120, 255, 210);
+        const ImU32 blendColor = IM_COL32(200, 120, 255, 90);
+        const Object::GameObject* focus = GetFocus();
+        constexpr Int32 ArcSegments = 8;
+        canvas->ForEachObject([&](Object::GameObject& object) {
+            if (object.IsEditorHidden() || false == InViewSpace(object))
+            {
+                return;
+            }
+            if (focus != nullptr)
+            {
+                const Object::GameObject* at = &object;
+                while (at != nullptr && at != focus)
+                {
+                    at = at->GetParent();
+                }
+                if (at == nullptr)
+                {
+                    return;
+                }
+            }
+            const auto* volume = canvas->FindComponentRaw<Component::PostProcessVolume2D>(&object);
+            const auto* transform = canvas->FindComponentRaw<Component::Transform2D>(&object);
+            if (volume == nullptr || transform == nullptr || false == volume->IsEnabled()
+                || volume->shape == Component::PostProcessVolumeShape2D::Global)
+            {
+                return;
+            }
+            const Vector2 center = transform->worldValid ? transform->worldPosition : transform->position;
+            const Vector2 scale = transform->worldValid ? transform->worldScale : transform->scale;
+            const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
+            const Float cosine = std::cos(angle.Get());
+            const Float sine = std::sin(angle.Get());
+            const Float thickness = m_editor->IsSelected(&object) ? 2.0f : 1.0f;
+            const Float blend = volume->blendDistance > 0.0f ? volume->blendDistance : Float(0.0f);
+            const auto toScreen = [&](Float localX, Float localY) {
+                Vector2 screen;
+                WorldToScreen(rect, center.x + localX * cosine - localY * sine, center.y + localX * sine + localY * cosine, screen.x, screen.y);
+                return ImVec2(screen.x, screen.y);
+            };
+            if (volume->shape == Component::PostProcessVolumeShape2D::Circle)
+            {
+                const Float scaleX = std::fabs(scale.x);
+                const Float scaleY = std::fabs(scale.y);
+                const Float radius = std::fabs(volume->radius) * (scaleX > scaleY ? scaleX : scaleY);
+                const ImVec2 middle = toScreen(0.0f, 0.0f);
+                const ImVec2 edge = toScreen(radius, 0.0f);
+                const ImVec2 far = toScreen(radius + blend, 0.0f);
+                const auto length = [&](const ImVec2& point) {
+                    return std::sqrt((point.x - middle.x) * (point.x - middle.x) + (point.y - middle.y) * (point.y - middle.y));
+                };
+                draw->AddCircle(middle, length(edge), shapeColor, 48, thickness);
+                if (blend > 0.0f)
+                {
+                    draw->AddCircle(middle, length(far), blendColor, 48, 1.0f);
+                }
+                return;
+            }
+            const Float halfX = std::fabs(volume->size.x * scale.x) * 0.5f;
+            const Float halfY = std::fabs(volume->size.y * scale.y) * 0.5f;
+            const ImVec2 corners[4] = {toScreen(-halfX, -halfY), toScreen(halfX, -halfY), toScreen(halfX, halfY), toScreen(-halfX, halfY)};
+            draw->AddPolyline(corners, 4, shapeColor, ImDrawFlags_Closed, thickness);
+            if (blend <= 0.0f)
+            {
+                return;
+            }
+            // 섞는 거리의 끝은 상자를 그만큼 부풀리고 모서리를 둥글린 모양이다(무게의 거리 셈과 같다).
+            ImVec2 rounded[4 * (ArcSegments + 1)];
+            Int32 count = 0;
+            const Float signX[4] = {1.0f, -1.0f, -1.0f, 1.0f};
+            const Float signY[4] = {1.0f, 1.0f, -1.0f, -1.0f};
+            for (Int32 corner = 0; corner < 4; ++corner)
+            {
+                const Float start = 0.5f * Pi * static_cast<JBro::Float>(corner);
+                for (Int32 step = 0; step <= ArcSegments; ++step)
+                {
+                    const Float turn = start + 0.5f * Pi * static_cast<JBro::Float>(step) / static_cast<JBro::Float>(ArcSegments);
+                    rounded[count.Get()] = toScreen(signX[corner.Get()] * halfX + blend * std::cos(turn), signY[corner.Get()] * halfY + blend * std::sin(turn));
+                    ++count;
+                }
+            }
+            draw->AddPolyline(rounded, static_cast<int>(count.Get()), blendColor, ImDrawFlags_Closed, 1.0f);
         });
     }
 

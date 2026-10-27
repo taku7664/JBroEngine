@@ -21,6 +21,8 @@
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
 #include <JBro/Graphics/PostProcessLibrary.h>
+#include <JBro/Graphics/PostProcessMixer.h>
+#include <JBro/Host/PostProcessSystem.h>
 #include <JBro/Types/Table.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
@@ -86,6 +88,20 @@ namespace JBro
         SpriteLibrary    m_spriteLibrary;
         // 카메라의 후처리 프로필을 푼다(D-344). 추출 뒤에 이번 카메라의 것을 렌더 월드에 건다.
         PostProcessLibrary m_postProcess;
+        // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 덮어쓰기는 스크립트 컨텍스트의 `PostProcess` 로 들어온다.
+        PostProcessMixer m_postMixer;
+        PostProcessSystem m_postProcessSystem;
+        // 이번 프레임에 섞을 볼륨이다. 자리는 처음에 잡는다.
+        struct VolumeSample
+        {
+            Int32 priority = 0;
+            Float weight = 0.0f;
+            AssetHandle profile;
+        };
+        Array<VolumeSample> m_volumes;
+        static constexpr UInt32 PostMixerEntries = 32;
+        static constexpr UInt32 PostMixerBlockBytes = 4096;
+        static constexpr UInt32 MaxVolumes = 64;
         void ResolvePostProcess();
         // 복제 풀 어댑터들(D-122). 네트워크가 있을 때만 있고, 캔버스와 함께 죽는다.
         OwnerPtr<Framework2DNetworkBinding> m_networkBinding;

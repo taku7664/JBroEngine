@@ -33,6 +33,7 @@
 // 빌트인 컴포넌트는 핸들로만 보인다(D-302). 데이터 헤더(`Component/*.h`)는 스크립트 대상 빌드에서 `#error` 다.
 #include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Framework2D/Handle/AudioListener2D.h>
+#include <JBro/Framework2D/Handle/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Handle/Button2D.h>
 #include <JBro/Framework2D/Handle/Camera2D.h>
 #include <JBro/Framework2D/Handle/Collider2D.h>

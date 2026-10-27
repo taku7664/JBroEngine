@@ -99,6 +99,31 @@ namespace JBro
         {
             return m_postProcess;
         }
+        // **레이어 차례마다의 후처리**(D-345). 프레임워크가 레이어의 프로필을 풀어 차례(`LayerOrder`) 자리에 건다. 프로필이 없는 레이어는 빈 목록이다.
+        // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리 수는 레이어 수를 따라 늘기만 한다 - 프레임 밖(추출 뒤)에서 부른다.
+        void SetLayerPostProcessCount(std::size_t count)
+        {
+            if (m_layerPostProcess.Size() < count)
+            {
+                m_layerPostProcess.Resize(count);
+            }
+            for (std::size_t at = 0; at < m_layerPostProcess.Size(); ++at)
+            {
+                m_layerPostProcess[at] = {};
+            }
+        }
+        void SetLayerPostProcess(std::size_t order, const PostProcessStack& stack)
+        {
+            if (order < m_layerPostProcess.Size())
+            {
+                m_layerPostProcess[order] = stack;
+            }
+        }
+        const PostProcessStack& GetLayerPostProcess(std::size_t order) const
+        {
+            static const PostProcessStack Empty{};
+            return order < m_layerPostProcess.Size() ? m_layerPostProcess[order] : Empty;
+        }
         Bool SubmitMesh(const MeshRenderItem& item);
         // 3D 텍스트의 글자다. 용량(`ReserveTexts`)을 넘으면 세고 버린다.
         Bool ReserveTexts(std::size_t capacity);
@@ -121,6 +146,7 @@ namespace JBro
     private:
         RenderCamera3D m_camera;
         PostProcessStack m_postProcess;
+        Array<PostProcessStack> m_layerPostProcess;
         Bool m_hasCamera = false;
         Array<MeshRenderItem> m_meshes;
         std::size_t m_droppedMeshCount = 0;

@@ -631,8 +631,8 @@ namespace
         stage.Close(rhi);
     }
 
-    // **걸 수 없는 효과는 버리고 센다 - 뷰는 그린다.** 모르는 종류, 배열 밖의 블록, 받을 자리가 아직 없는 지점(`AfterLayer`)이다. 꺼진 효과는
-    // 버린 것이 아니다. 통째로 얹는 뷰는 후처리를 받지 않는다(9 단계).
+    // **걸 수 없는 효과는 버리고 센다 - 뷰는 그린다.** 모르는 종류, 배열 밖의 블록, 뷰가 받지 않는 지점(`AfterLayer` - 레이어의 프로필에 든다)이다.
+    // 꺼진 효과는 버린 것이 아니다. 통째로 얹는 뷰는 장면의 후처리를 받지 않는다(그 뷰의 레이어 효과는 `layerPostProcess`, D-345).
     template <typename TModule>
     void TestEntriesThatCannotRunAreCounted()
     {
@@ -679,7 +679,7 @@ namespace
         Check(stage.renderer.BeginView(faded), "the faded view must open");
         Check(stage.renderer.EndView(), "the faded view must close");
         Check(stage.renderer.EndFrame() == JBro::FrameStatus::Ready, "the composite frame must present");
-        Check(stage.renderer.GetLastFrameStats().unpostprocessedCompositeViewCount == 1, "a view laid on as a whole does not take a post-process yet");
+        Check(stage.renderer.GetLastFrameStats().unpostprocessedCompositeViewCount == 1, "a view laid on as a whole does not take the scene's post-process");
         stage.Close(rhi);
     }
 
@@ -698,13 +698,21 @@ namespace
         effects.AddExposure(1.0f);
         effects.AddTonemap(JBro::Tonemapper::AgX);
         effects.Add(HalveType(), DefaultHalve);
+        // 레이어 효과(D-345)도 같은 프레임에 든다 - 묶음의 효과 복사와 그 패스도 힙을 잡지 않는다.
+        Effects layerEffects;
+        layerEffects.Add(JBro::PostProcessEffects::Outline, JBro::OutlineEffect{});
         const auto submit = [&]() {
             Check(stage.renderer.SubmitLight2D(GlobalLight(1.2f)), "the ambient light must submit");
             Check(stage.renderer.SetSpriteLighting(true), "lighting must turn on");
             Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, 0.8f)), "the lit grey must submit");
+            Check(stage.renderer.BeginLayer(JBro::CompositeBlend::Normal, 1.0f, layerEffects.Stack()), "the outlined layer must open");
+            Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 0.5f, 0.5f, 1.0f)), "the square must submit into it");
+            Check(stage.renderer.EndLayer(), "the outlined layer must close");
         };
-        stage.Frame(effects, submit);
-        stage.Frame(effects, submit);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            stage.Frame(effects, submit);
+        }
         const JBro::PostProcessStack stack = effects.Stack();
         const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountPostFrameAllocations);
         postFrameAllocations = 0;
@@ -724,6 +732,7 @@ namespace
         }
         Check(postFrameAllocations == 0, "a post-processed frame does not allocate on the CRT heap");
         Check(stage.renderer.GetLastFrameStats().postProcessedViewCount == 1, "and it was post-processed");
+        Check(stage.renderer.GetLastFrameStats().layerPostProcessedCount == 1, "with its layer effect");
         stage.Close(rhi);
 #endif
     }
@@ -961,6 +970,159 @@ namespace
         stage.Close(rhi);
     }
 
+    // ── 9 단계: 레이어 효과(D-345) ──
+
+    // 레이어 하나를 효과와 함께 그리는 한 프레임이다. 바탕(`backdrop` 회색, 0 이면 검정 지우기)을 깔고 그 위에 레이어를 얹는다.
+    void LayerFrame(Stage& stage, const Effects& view, const Effects& layer, JBro::Float backdrop, const JBro::SpriteSubmit& sprite)
+    {
+        stage.Frame(view, [&]() {
+            if (backdrop > 0.0f)
+            {
+                Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, backdrop)), "the backdrop must submit");
+            }
+            Check(stage.renderer.BeginLayer(JBro::CompositeBlend::Normal, 1.0f, layer.Stack()), "the layer with effects must open");
+            Check(stage.renderer.SubmitSprite(sprite), "the layer's sprite must submit");
+            Check(stage.renderer.EndLayer(), "the layer must close");
+        });
+    }
+
+    // **외곽선·그림자·블러가 레이어에 그려진다.** 흰 사각형은 픽셀 24..39 다(가운데 16 픽셀). 효과의 반경과 굵기는 대상 픽셀이다.
+    // `Normal`·1 인 레이어도 효과가 있으면 제 텍스처를 거친다. 장면이 HDR 이면 레이어 텍스처도 HDR 이고 같은 효과가 같은 그림을 낸다.
+    template <typename TModule>
+    void TestLayerEffectsShapeTheLayer()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "layer effects"))
+        {
+            return;
+        }
+        const JBro::SpriteSubmit square = Quad(0.0f, 0.0f, 0.5f, 0.5f, 1.0f);
+        const auto settle = [&](const Effects& view, const Effects& layer, JBro::Float backdrop) {
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                LayerFrame(stage, view, layer, backdrop, square);
+            }
+            Check(stage.renderer.GetLastFrameStats().layerPostProcessedCount == 1, "the layer takes its effects");
+            Check(stage.renderer.GetLastFrameStats().layerPostProcessWaitingCount == 0, "once their textures stand");
+        };
+
+        // 외곽선: 굵기 2 의 빨강. 덮인 픽셀에서 두 픽셀 안은 다 칠하고 셋째는 비운다. 앞에 반경 0 의 블러(그대로 옮기기)를 두어 효과 사이의
+        // 중간 텍스처도 지난다.
+        Effects none;
+        Effects outline;
+        JBro::BlurEffect still;
+        still.radius = 0.0f;
+        outline.Add(JBro::PostProcessEffects::Blur, still);
+        JBro::OutlineEffect red;
+        red.color = {1.0f, 0.0f, 0.0f, 1.0f};
+        red.width = 2.0f;
+        outline.Add(JBro::PostProcessEffects::Outline, red);
+        Effects hdr;
+        hdr.AddExposure(0.0f);
+        for (const Effects* view : {&none, &hdr})
+        {
+            settle(*view, outline, 0.0f);
+            stage.Expect(32, 32, 1.0f, 1.0f, 1.0f, "the square stays white inside its outline");
+            stage.Expect(23, 32, 1.0f, 0.0f, 0.0f, "the pixel next to the square is outlined");
+            stage.Expect(22, 32, 1.0f, 0.0f, 0.0f, "so is the second");
+            stage.Expect(21, 32, 0.0f, 0.0f, 0.0f, "but not the third");
+            stage.Expect(32, 41, 1.0f, 0.0f, 0.0f, "below the square too");
+        }
+
+        // 그림자: 검정, 오른쪽 4 · 아래 4(위가 + 라 -4), 흐림 없음. 회색 바탕 위에서 옮긴 사각형 자리(28..43)만 검고 사각형은 그 위다.
+        Effects shadow;
+        JBro::DropShadowEffect black;
+        black.color = {0.0f, 0.0f, 0.0f, 1.0f};
+        black.offset = {4.0f, -4.0f};
+        black.softness = 0.0f;
+        shadow.Add(JBro::PostProcessEffects::DropShadow, black);
+        settle(none, shadow, 0.5f);
+        const JBro::Float grey = Quantized(0.5f);
+        stage.Expect(41, 41, 0.0f, 0.0f, 0.0f, "the shadow falls right and down");
+        stage.Expect(26, 26, 1.0f, 1.0f, 1.0f, "the square sits on its shadow");
+        stage.Expect(41, 26, grey, grey, grey, "the shadow does not reach above its offset");
+        stage.Expect(20, 41, grey, grey, grey, "nor left of it");
+
+        // 블러: 반경 4(시그마 2). 가장자리는 반쯤, 네 픽셀 밖은 아주 조금, 다섯 픽셀 밖은 0 이다.
+        Effects blur;
+        JBro::BlurEffect soft;
+        soft.radius = 4.0f;
+        blur.Add(JBro::PostProcessEffects::Blur, soft);
+        settle(none, blur, 0.0f);
+        const Pixel edge = stage.Read(24, 32);
+        Check(edge.r > 0.3f && edge.r < 0.75f, "the square's edge is blurred to about half");
+        Check(stage.Read(20, 32).r > 0.0f && stage.Read(20, 32).r < 0.1f, "four pixels out a little light reaches");
+        Check(stage.Read(18, 32).r == 0.0f, "six pixels out none does");
+        Check(stage.Read(32, 32).r > 0.97f, "the middle stays white");
+        stage.Close(rhi);
+    }
+
+    // **레이어의 색 효과는 곱한 알파를 풀어 바꾼다.** 0.75 회색을 알파 0.5 로 그린 레이어에 대비 +100(2 배)을 건다. 풀어 바꾸면 0.75 → 1 이고
+    // 알파 0.5 로 검정 위에 얹혀 0.5 다 - 풀지 않으면 0.375 → 0.25 였다. 레이어에 걸리지 않는 종류(노출)는 버리고 센다.
+    template <typename TModule>
+    void TestALayersColourEffectSeesStraightColour()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "colour effects on a layer"))
+        {
+            return;
+        }
+        JBro::SpriteSubmit faint = Quad(0.0f, 0.0f, 2.0f, 2.0f, 0.75f);
+        faint.tint[3] = 0.5f;
+        Effects none;
+        Effects layer;
+        layer.AddExposure(2.2f);
+        JBro::ColorAdjustmentsEffect contrast;
+        contrast.contrast = 100.0f;
+        layer.Add(JBro::PostProcessEffects::ColorAdjustments, contrast);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            LayerFrame(stage, none, layer, 0.0f, faint);
+        }
+        Check(stage.renderer.GetLastFrameStats().layerPostProcessedCount == 1, "the faint layer takes the adjustment");
+        Check(stage.renderer.GetLastFrameStats().droppedPostProcessCount == 1, "exposure does not run on a layer and is counted");
+        const JBro::Float expected = 1.0f * Quantized(0.5f);
+        stage.Expect(32, 32, expected, expected, expected, "the contrast works on the straight colour");
+        stage.Close(rhi);
+    }
+
+    // **통째로 얹는 뷰의 레이어 효과**(3D 레이어). 뷰의 `layerPostProcess` 는 `Normal`·1 이어도 그 뷰를 제 텍스처에 그려 효과를 건 뒤 얹는다.
+    template <typename TModule>
+    void TestAViewLaidOnAsALayerTakesItsEffects()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "a view's layer effects"))
+        {
+            return;
+        }
+        Effects layer;
+        JBro::OutlineEffect red;
+        red.color = {1.0f, 0.0f, 0.0f, 1.0f};
+        red.width = 2.0f;
+        layer.Add(JBro::PostProcessEffects::Outline, red);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(stage.renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
+            JBro::CameraParams below = stage.camera;
+            Check(stage.renderer.BeginView(below), "the first view clears the target");
+            Check(stage.renderer.EndView(), "and closes");
+            JBro::CameraParams above = stage.camera;
+            above.layerPostProcess = layer.Stack();
+            Check(stage.renderer.BeginView(above), "the outlined view must open");
+            Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 0.5f, 0.5f, 1.0f)), "the square must submit");
+            Check(stage.renderer.EndView(), "the outlined view must close");
+            Check(stage.renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must present");
+        }
+        Check(stage.renderer.ReadBackBuffer(stage.image.Data(), stage.image.Size(), stage.readback), "the back buffer must read");
+        Check(stage.renderer.GetLastFrameStats().layerPostProcessedCount == 1, "the view is laid on with its effect");
+        stage.Expect(23, 32, 1.0f, 0.0f, 0.0f, "the view's square is outlined");
+        stage.Expect(32, 32, 1.0f, 1.0f, 1.0f, "and stays white inside");
+        stage.Close(rhi);
+    }
+
     template <typename TModule>
     void RunOn()
     {
@@ -976,6 +1138,9 @@ namespace
         TestBloomSpreadsBrightLight<TModule>();
         TestColorAdjustmentsFollowTheirFormulas<TModule>();
         TestALookupTableGradesTheView<TModule>();
+        TestLayerEffectsShapeTheLayer<TModule>();
+        TestALayersColourEffectSeesStraightColour<TModule>();
+        TestAViewLaidOnAsALayerTakesItsEffects<TModule>();
     }
 }
 

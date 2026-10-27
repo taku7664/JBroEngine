@@ -58,6 +58,20 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 후처리 볼륨의 모양이다(D-346). `Global` 은 캔버스 어디서나, `Box`·`Circle` 은 오브젝트의 트랜스폼에 놓인 모양 안이다.
+    enum class PostProcessVolumeShape2D : std::uint8_t { Global, Box, Circle };
+}
+
+namespace JBro
+{
+    JBRO_DEFINE_ENUM_TYPE(Component::PostProcessVolumeShape2D, "Component::PostProcessVolumeShape2D",
+        { Component::PostProcessVolumeShape2D::Global, "Global" },
+        { Component::PostProcessVolumeShape2D::Box,    "Box" },
+        { Component::PostProcessVolumeShape2D::Circle, "Circle" });
+}
+
+namespace JBro::Component
+{
     enum class BodyType2D      : std::uint8_t { Static, Kinematic, Dynamic };
     enum class ColliderShape2D : std::uint8_t { Box, Circle, Capsule, Polygon, Chain };
 }

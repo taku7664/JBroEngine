@@ -360,6 +360,11 @@ namespace JBro::Internal
                 CameraParams layerCamera = camera;
                 layerCamera.composite = onlyLayer >= 0 ? CompositeBlend::Normal : ToCompositeBlend3D(blend);
                 layerCamera.compositeOpacity = onlyLayer >= 0 ? Float(1.0f) : opacity;
+                // 레이어의 프로필 효과(D-345)는 그 뷰를 한 장으로 얹으며 건다. 썸네일과 후처리를 끈 캔버스 뷰는 걸지 않는다.
+                if (onlyLayer < 0 && postProcess)
+                {
+                    layerCamera.layerPostProcess = world.GetLayerPostProcess(orders[at]);
+                }
                 // **패럴랙스는 그 레이어 뷰의 카메라 위치만 계수배다**(D-286, 기존 `ApplyLayerSpace`). 회전과 투영은 그대로다. 게임 화면만이다 -
                 // 캔버스 뷰는 배치하는 자리라 걸지 않는다.
                 if (false == editorView && parallax != 1.0f)
@@ -372,7 +377,8 @@ namespace JBro::Internal
                 }
                 accepted = PushMeshes(world, renderer, editorView, orders[at]) && accepted;
                 accepted = PushWorldTexts(world, renderer, cameraRotation, orders[at]) && accepted;
-                const Bool plain = onlyLayer >= 0 || (blend == LayerBlend::Normal && opacity >= 1.0f);
+                const Bool plain = onlyLayer >= 0
+                    || (blend == LayerBlend::Normal && opacity >= 1.0f && layerCamera.layerPostProcess.entries.size == 0);
                 if (at + 1 == orders.Size() && plain && false == linesDrawn)
                 {
                     PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);

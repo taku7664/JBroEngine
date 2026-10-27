@@ -39,6 +39,13 @@
 
 namespace
 {
+    // 레이어 프로필 시험의 아이디다(D-345). 실행마다 하나다.
+    const JBro::Uuid& LayerProfileId()
+    {
+        static const JBro::Uuid id = JBro::Uuid::Generate();
+        return id;
+    }
+
     void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
@@ -943,6 +950,7 @@ namespace
             fog.SetParallax(0.5f);
             // 빛을 받지 않는 레이어는 `Lit: false` 다(D-291).
             fog.SetLit(false);
+            fog.SetPostProcessProfile(LayerProfileId());
             // 아래 그림을 읽는 블렌드도 이름으로 적힌다(D-283).
             canvas.CreateLayer("Tint").SetBlend(JBro::LayerBlend::ColorDodge);
             text = Save(canvas);
@@ -969,6 +977,9 @@ namespace
         Check(text.find("Lit: false") != JBro::String::npos && text.find("Lit: true") == JBro::String::npos
                 && false == fog->IsLit() && base->IsLit() && glow->IsLit(),
             "a layer that is not lit writes so and comes back unlit, and lit layers write nothing (D-291)");
+        Check(text.find("PostProcessProfile:") != JBro::String::npos && fog->GetPostProcessProfile() == LayerProfileId()
+                && base->GetPostProcessProfile().IsNull(),
+            "a layer's post-process profile is written by id and comes back, and a layer without one writes nothing (D-345)");
         Check(Save(reopened) == text, "and saving it again writes the same bytes");
 
         // 모르는 블렌드는 추측하지 않고 거절한다.
@@ -1093,6 +1104,7 @@ namespace
             props.SetBlend(JBro::LayerBlend::Screen);
             props.SetParallax(0.5f);
             props.SetLit(false);
+            props.SetPostProcessProfile(LayerProfileId());
             JBro::Object::GameObject* crate = canvas.CreateObject("Crate");
             JBro::Object::GameObject* lid = canvas.CreateObject("Lid");
             canvas.SetObjectLayer(crate, props.GetId());
@@ -1118,6 +1130,7 @@ namespace
         Check(target.GetLayerCount() == 2 && target.GetLayerAt(1)->GetId() == first, "it lands on top as a new layer");
         const JBro::Layer* landed = target.FindLayer(first);
         Check(false == landed->IsLit(), "a layer asset carries whether the layer is lit (D-291)");
+        Check(landed->GetPostProcessProfile() == LayerProfileId(), "and its post-process profile (D-345)");
         Check(std::strcmp(landed->GetName(), "Props") == 0 && landed->GetBlend() == JBro::LayerBlend::Screen && landed->GetParallax() == 0.5f
                 && landed->GetSourceAsset().IsNull(),
             "with the layer's own values and no source until the caller links one");

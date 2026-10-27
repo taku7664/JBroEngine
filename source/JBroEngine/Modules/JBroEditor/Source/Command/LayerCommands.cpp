@@ -123,6 +123,7 @@ namespace JBro
         m_parallax = found->GetParallax();
         m_lit = found->IsLit();
         m_sourceAsset = found->GetSourceAsset();
+        m_postProcessProfile = found->GetPostProcessProfile();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
         canvas.ForEachObject([this, layer](Object::GameObject& object)
         {
@@ -165,6 +166,7 @@ namespace JBro
         restored.SetParallax(m_parallax);
         restored.SetLit(m_lit);
         restored.SetSourceAsset(m_sourceAsset);
+        restored.SetPostProcessProfile(m_postProcessProfile);
         m_layerId = restored.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
@@ -504,6 +506,52 @@ namespace JBro
         }
     }
 
+    // ── SetLayerPostProcessProfileCommand ────────────────────────────────
+
+    SetLayerPostProcessProfileCommand::SetLayerPostProcessProfileCommand(Canvas& canvas, LayerId layer, const Uuid& profile)
+        : m_canvas(&canvas)
+        , m_layerId(layer)
+        , m_after(profile)
+    {
+        if (const Layer* found = canvas.FindLayer(layer))
+        {
+            m_before = found->GetPostProcessProfile();
+            m_captured = true;
+        }
+    }
+
+    const char* SetLayerPostProcessProfileCommand::GetName() const
+    {
+        return "Set Layer Post-Process Profile";
+    }
+
+    Bool SetLayerPostProcessProfileCommand::Execute()
+    {
+        Layer* layer = m_captured ? m_canvas->FindLayer(m_layerId) : nullptr;
+        if (layer == nullptr || m_before == m_after)
+        {
+            return false;
+        }
+        layer->SetPostProcessProfile(m_after);
+        return true;
+    }
+
+    void SetLayerPostProcessProfileCommand::Undo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetPostProcessProfile(m_before);
+        }
+    }
+
+    void SetLayerPostProcessProfileCommand::Redo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetPostProcessProfile(m_after);
+        }
+    }
+
     // ── AddLayerFromAssetCommand ─────────────────────────────────────────
 
     AddLayerFromAssetCommand::AddLayerFromAssetCommand(Canvas& canvas, EditorObjectRegistry& registry, const String& text, const Uuid& asset)
@@ -549,6 +597,7 @@ namespace JBro
         m_opacity = layer->GetOpacity();
         m_parallax = layer->GetParallax();
         m_lit = layer->IsLit();
+        m_postProcessProfile = layer->GetPostProcessProfile();
         // **되살릴 값을 뜨지 못하면 넣은 것도 거둔다**(§11.5). 반쪽 스냅샷으로는 되돌리기·다시 하기가 오브젝트를 잃는다.
         Array<Object::GameObject*> roots;
         m_canvas->GetRootObjects(roots);
@@ -617,6 +666,7 @@ namespace JBro
         layer.SetParallax(m_parallax);
         layer.SetLit(m_lit);
         layer.SetSourceAsset(m_asset);
+        layer.SetPostProcessProfile(m_postProcessProfile);
         m_layerId = layer.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_trees.Size(); ++index)

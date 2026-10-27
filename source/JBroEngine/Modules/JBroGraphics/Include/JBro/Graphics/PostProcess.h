@@ -3,6 +3,7 @@
 #include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Graphics/RenderGraph.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
+#include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Field.h>
@@ -24,7 +25,7 @@ namespace JBro
     {
         // HDR 장면과 깊이(3D 의 SSAO·포그). 지금은 장면을 다 그린 뒤라 `BeforeTonemap` 과 같은 자리다.
         AfterOpaque,
-        // 레이어마다의 프로필(9 단계). 지금은 받지 않는다.
+        // 레이어마다의 프로필(D-345). 레이어를 제 텍스처에 그린 뒤, 아래에 얹기 전이다. 뷰(카메라·볼륨)의 프로필에 든 것은 버리고 센다.
         AfterLayer,
         // HDR 장면(블룸·DoF·노출).
         BeforeTonemap,
@@ -74,8 +75,15 @@ namespace JBro
         // 컬러 그레이딩(D-343). 기본 조정과 3D LUT 읽기다.
         ColorAdjust,
         ColorLookup,
+        // 레이어 효과(D-345). 레이어 텍스처는 곱한 알파라 셋 모두 곱한 알파를 읽고 쓴다. 블러는 가로·세로 두 번, 외곽선은 가로 거리를 재고
+        // 세로로 둘레를 칠해 얹기, 그림자는 옮긴 알파를 가로로 흐리고 세로로 흐려 밑에 깔기다.
+        LayerBlur,
+        LayerOutlineDistance,
+        LayerOutlineComposite,
+        LayerShadowBlur,
+        LayerShadowComposite,
     };
-    inline constexpr UInt32 PostProcessProgramCount = 9;
+    inline constexpr UInt32 PostProcessProgramCount = 14;
 
     // **효과의 패스 하나**(D-343). `AddFullscreenPass` 는 입력 하나를 읽어 출력의 뷰포트 안을 쓰는 흔한 모양이고, 이것은 밉 체인처럼
     // 입력이 둘이거나 효과가 만든 텍스처 전체를 쓰는 패스를 위한 것이다.
@@ -134,6 +142,11 @@ namespace JBro
         {
             return m_viewport;
         }
+        // 입력이 곱한 알파인가 - 레이어 텍스처(D-345)다. 색을 바꾸는 효과는 알파로 나눠 바꾸고 다시 곱한다. 장면은 거짓이다.
+        Bool IsPremultiplied() const noexcept
+        {
+            return m_premultiplied;
+        }
 
         // 입력을 읽어 출력에 쓰는 전체 화면 패스 하나를 더한다. `constants` 는 b1 에 올라가는 상수이고 `MaxConstantBytes` 까지다.
         Bool AddFullscreenPass(const char* name, PostProcessProgram program, JArrayView<std::byte> constants);
@@ -170,6 +183,7 @@ namespace JBro
         Extent2D m_extent;
         Viewport m_viewport;
         ScissorRect m_scissor;
+        Bool m_premultiplied = false;
     };
 
     // 효과의 패스를 짓는다. `parameters` 는 그 종류의 파라미터 블록(`blockSize` 바이트)이다. 거짓이면 그 뷰의 그래프를 버린다.
@@ -182,6 +196,9 @@ namespace JBro
         const char* name = nullptr;
         PostProcessStage stage = PostProcessStage::BeforeTonemap;
         PostProcessNeeds needs = PostProcessNeeds::None;
+        // **레이어 프로필에 걸리는가**(D-345). `AfterLayer` 종류는 늘 참이고, 화면 값만 바꾸는 색 효과(기본 조정·LUT)도 참이다. 장면 전체를 보는
+        // 효과(노출·블룸·톤맵)는 거짓이다 - 레이어 프로필에 든 거짓 종류는 버리고 센다. 레이어 텍스처는 장면 포맷의 곱한 알파다.
+        Bool onLayer = false;
         // 파라미터 블록의 리플렉션 표다. 인스펙터·저장·섞기가 이것을 본다. 블록이 없으면 nullptr 이다.
         const PropertyTable* parameters = nullptr;
         UInt32 blockSize = 0;
@@ -213,6 +230,9 @@ namespace JBro
         inline constexpr UInt32 Bloom = 2;
         inline constexpr UInt32 ColorAdjustments = 3;
         inline constexpr UInt32 ColorLookup = 4;
+        inline constexpr UInt32 Blur = 5;
+        inline constexpr UInt32 Outline = 6;
+        inline constexpr UInt32 DropShadow = 7;
     }
 
     // 톤 곡선이다(D-342, 사용자 결정 "고점 높은 것으로" - 넷을 모두 둔다). 기본은 `None` 이다.
@@ -290,6 +310,35 @@ namespace JBro
         JBRO_FIELD(AssetHandle, lutTexture, NoSerialize() | ReadOnly() | Hidden());
         JBRO_FIELD(Vector3, lutDomainMin, NoSerialize() | ReadOnly() | Hidden()) { 0.0f, 0.0f, 0.0f };
         JBRO_FIELD(Vector3, lutDomainMax, NoSerialize() | ReadOnly() | Hidden()) { 1.0f, 1.0f, 1.0f };
+    };
+
+    // **블러**(`AfterLayer`, D-345). 가우스 블러이고 `radius` 는 대상 픽셀이다(시그마는 그 절반). 0 이면 그대로다.
+    struct BlurEffect
+    {
+        JBRO_REFLECT_BODY(BlurEffect)
+
+        JBRO_FIELD(Float, radius, Range(0.0f, 32.0f)) = 4.0f;
+    };
+
+    // **외곽선**(`AfterLayer`, D-345). 레이어의 알파 바깥으로 `width` 픽셀 둘레를 칠해 레이어 밑에 깐다. 알파 절반을 경계로 보고, 덮인 픽셀에서
+    // `width` 픽셀 안은 다 칠하고 그다음 한 픽셀에 걸쳐 흐려진다. 화면 픽셀이라 캔버스 뷰를 키워도 굵기가 같다.
+    struct OutlineEffect
+    {
+        JBRO_REFLECT_BODY(OutlineEffect)
+
+        JBRO_FIELD(Color, color) { 0.0f, 0.0f, 0.0f, 1.0f };
+        JBRO_FIELD(Float, width, Range(0.0f, 32.0f)) = 2.0f;
+    };
+
+    // **그림자**(`AfterLayer`, D-345). 레이어의 알파를 `offset` 픽셀 옮기고 `softness` 픽셀 흐려 `color` 로 레이어 밑에 깐다. `offset` 은
+    // 화면 픽셀이고 y 는 위가 + 다(월드와 같은 쪽).
+    struct DropShadowEffect
+    {
+        JBRO_REFLECT_BODY(DropShadowEffect)
+
+        JBRO_FIELD(Color, color) { 0.0f, 0.0f, 0.0f, 0.5f };
+        JBRO_FIELD(Vector2, offset) { 4.0f, -4.0f };
+        JBRO_FIELD(Float, softness, Range(0.0f, 32.0f)) = 4.0f;
     };
 
     // **뷰에 낼 효과 하나**(D-342). `blockOffset` 은 `PostProcessStack::blocks` 안에서 그 종류의 블록이 시작하는 자리다.

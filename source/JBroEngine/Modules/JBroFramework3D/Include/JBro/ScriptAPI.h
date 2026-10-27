@@ -39,6 +39,7 @@
 #include <JBro/Framework3D/Handle/Camera3D.h>
 #include <JBro/Framework3D/Handle/Collider3D.h>
 #include <JBro/Framework3D/Handle/MeshRenderer3D.h>
+#include <JBro/Framework3D/Handle/PostProcessVolume3D.h>
 #include <JBro/Framework3D/Handle/Rigidbody3D.h>
 #include <JBro/Framework3D/Handle/Text3D.h>
 #include <JBro/Framework3D/Handle/Transform3D.h>

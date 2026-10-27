@@ -12,6 +12,9 @@
 #include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Host/TimeSystem.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
+#include <JBro/Framework3D/Component/PostProcessVolume3D.h>
+#include <JBro/Framework3DSystem/Rendering/PostProcessVolume3DWeight.h>
 
 #include <cmath>
 #include <new>
@@ -59,6 +62,9 @@ namespace JBro
                 return false;
             }
             m_postProcess.Initialize(context.assets, context.renderer);
+            m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
+            m_volumes.Reserve(MaxVolumes);
+            m_postProcessSystem.Bind(&m_postMixer);
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
@@ -93,6 +99,7 @@ namespace JBro
         {
             SystemContext systems = GetSystemContext();
             systems.Objects = &m_objects;
+            systems.PostProcess = &m_postProcessSystem;
             BindSystemContext(systems);
         }
         m_scriptBlockCount = 2;
@@ -111,6 +118,12 @@ namespace JBro
         {
             SystemContext systems = GetSystemContext();
             systems.Objects = nullptr;
+            BindSystemContext(systems);
+        }
+        if (GetSystemContext().PostProcess == &m_postProcessSystem)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.PostProcess = nullptr;
             BindSystemContext(systems);
         }
         m_objects.Bind(nullptr, nullptr);
@@ -147,7 +160,61 @@ namespace JBro
         m_renderWorld.EndFrame();
         // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다(D-344).
         const RenderCamera3D* camera = m_renderWorld.GetCamera();
-        m_renderWorld.SetPostProcess(camera != nullptr ? m_postProcess.Resolve(camera->postProcessProfile) : PostProcessStack{});
+        if (camera == nullptr)
+        {
+            m_renderWorld.SetPostProcess({});
+        }
+        else
+        {
+            // 카메라의 프로필이 기준이고, 카메라 자리의 볼륨을 우선순위가 낮은 것부터 섞은 뒤 스크립트의 덮어쓰기를 얹는다(D-346).
+            m_postMixer.Begin(m_postProcess.Resolve(camera->postProcessProfile));
+            m_volumes.Clear();
+            Canvas& canvas = *m_canvas;
+            canvas.ForEach<Component::PostProcessVolume3D>([&](Component::PostProcessVolume3D& volume) {
+                if (false == volume.IsActiveComponent() || volume.postProcessProfile.generation == 0)
+                {
+                    return;
+                }
+                Object::GameObject* owner = Internal::CanvasAccess::GetOwner(volume);
+                const auto* transform = canvas.FindComponentRaw<Component::Transform3D>(owner);
+                const Bool placed = transform != nullptr && transform->IsActiveComponent() && transform->worldValid;
+                const Float weight = ComputePostProcessVolumeWeight3D(volume, placed ? transform : nullptr, camera->position);
+                if (weight <= 0.0f || m_volumes.Size() >= m_volumes.Capacity())
+                {
+                    return;
+                }
+                m_volumes.Add({volume.priority, weight, volume.postProcessProfile});
+            });
+            for (std::size_t at = 1; at < m_volumes.Size(); ++at)
+            {
+                const VolumeSample moving = m_volumes[at];
+                std::size_t to = at;
+                while (to > 0 && m_volumes[to - 1].priority > moving.priority)
+                {
+                    m_volumes[to] = m_volumes[to - 1];
+                    --to;
+                }
+                m_volumes[to] = moving;
+            }
+            for (const VolumeSample& sample : m_volumes)
+            {
+                m_postMixer.Blend(m_postProcess.ResolveProfile(sample.profile), sample.weight);
+            }
+            m_postMixer.ApplyOverrides();
+            m_renderWorld.SetPostProcess(m_postMixer.GetResult());
+        }
+        // 레이어의 프로필(D-345)은 차례 자리에 건다. 3D 레이어는 레이어마다 뷰라 그 뷰를 한 장으로 얹으며 건다.
+        const std::size_t layerCount = m_canvas->GetLayerCount();
+        m_renderWorld.SetLayerPostProcessCount(layerCount);
+        for (std::size_t index = 0; index < layerCount; ++index)
+        {
+            const Layer* layer = m_canvas->GetLayerAt(index);
+            if (layer == nullptr || layer->GetPostProcessProfile().IsNull())
+            {
+                continue;
+            }
+            m_renderWorld.SetLayerPostProcess(layer->GetOrder(), m_postProcess.Resolve(m_postProcess.FindOrLoad(layer->GetPostProcessProfile())));
+        }
     }
 
     RenderResult Framework3D::Render()

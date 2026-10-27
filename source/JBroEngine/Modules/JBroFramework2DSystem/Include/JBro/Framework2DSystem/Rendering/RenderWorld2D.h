@@ -34,6 +34,8 @@ namespace JBro
         Color       clearColor{ 1.0f, 1.0f, 1.0f, 1.0f };
         // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld2D::SetPostProcess` 로 건다.
         AssetHandle postProcessProfile;
+        // 카메라의 월드 위치다. 후처리 볼륨(D-346)의 무게를 이 자리에서 잰다.
+        Vector2 position;
     };
 
     struct SpriteRenderItem
@@ -127,6 +129,31 @@ namespace JBro
         {
             return m_postProcess;
         }
+        // **레이어 차례마다의 후처리**(D-345). 프레임워크가 레이어의 프로필을 풀어 차례(`LayerOrder`) 자리에 건다. 프로필이 없는 레이어는 빈 목록이다.
+        // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리 수는 레이어 수를 따라 늘기만 한다 - 프레임 밖(추출 뒤)에서 부른다.
+        void SetLayerPostProcessCount(std::size_t count)
+        {
+            if (m_layerPostProcess.Size() < count)
+            {
+                m_layerPostProcess.Resize(count);
+            }
+            for (std::size_t at = 0; at < m_layerPostProcess.Size(); ++at)
+            {
+                m_layerPostProcess[at] = {};
+            }
+        }
+        void SetLayerPostProcess(std::size_t order, const PostProcessStack& stack)
+        {
+            if (order < m_layerPostProcess.Size())
+            {
+                m_layerPostProcess[order] = stack;
+            }
+        }
+        const PostProcessStack& GetLayerPostProcess(std::size_t order) const
+        {
+            static const PostProcessStack Empty{};
+            return order < m_layerPostProcess.Size() ? m_layerPostProcess[order] : Empty;
+        }
         // 켜져 있지만 값이 잘못되어 건너뛴 카메라 수다(D-239). 시뮬레이션 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
         void SetUnusableCameraCount(UInt32 count);
         UInt32 GetUnusableCameraCount() const;
@@ -166,6 +193,7 @@ namespace JBro
 
         RenderCamera2D          m_camera;
         PostProcessStack        m_postProcess;
+        Array<PostProcessStack> m_layerPostProcess;
         Bool                    m_hasCamera = false;
         UInt32           m_unusableCameras = 0;
         ScreenSpaceFrame        m_screen;

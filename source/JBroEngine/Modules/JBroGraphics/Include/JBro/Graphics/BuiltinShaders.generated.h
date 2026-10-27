@@ -32,6 +32,11 @@ namespace JBro
         PostBloomComposite,
         PostColorAdjust,
         PostColorLookup,
+        PostLayerBlur,
+        PostLayerOutlineDistance,
+        PostLayerOutlineComposite,
+        PostLayerShadowBlur,
+        PostLayerShadowComposite,
         Count
     };
 

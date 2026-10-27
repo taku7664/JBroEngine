@@ -6,6 +6,7 @@
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -27,6 +28,7 @@ namespace JBro::Component
             Bool all = true;
             all = RegisterBuiltinProperties<Transform2D>()      && all;
             all = RegisterBuiltinProperties<Camera2D>()         && all;
+            all = RegisterBuiltinProperties<PostProcessVolume2D>() && all;
             all = RegisterBuiltinProperties<SpriteRenderer2D>() && all;
             all = RegisterBuiltinProperties<Light2D>() && all;
             all = RegisterBuiltinProperties<ShadowCaster2D>() && all;

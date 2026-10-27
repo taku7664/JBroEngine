@@ -118,6 +118,8 @@ namespace JBro
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);
+        // 후처리 볼륨의 모양과 섞는 거리의 끝이다(D-346).
+        void DrawPostProcessVolumes(const ViewRect& rect);
         void DrawJoints(const ViewRect& rect);
 
         // ── 폴리곤 콜라이더 편집(physics-plan §4 의 5, 기존 `CCanvasViewTool` 의 버텍스 편집) ─────────

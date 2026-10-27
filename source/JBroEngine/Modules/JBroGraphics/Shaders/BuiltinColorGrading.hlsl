@@ -48,10 +48,21 @@ float3 FromHsv(float3 hsv)
     return hsv.z * lerp(float3(1.0f, 1.0f, 1.0f), k, hsv.y);
 }
 
-// params[0]: contrast factor, saturation factor, hue shift in turns. params[1]: colour filter (rgb).
+// A layer's texture holds premultiplied colour (D-345). The flag divides by alpha before the change and multiplies after.
+float4 Straight(float4 input, float premultiplied)
+{
+    return premultiplied > 0.5f && input.a > 1e-6f ? float4(input.rgb / input.a, input.a) : input;
+}
+
+float4 Rejoin(float3 colour, float alpha, float premultiplied)
+{
+    return float4(premultiplied > 0.5f ? colour * alpha : colour, alpha);
+}
+
+// params[0]: contrast factor, saturation factor, hue shift in turns, premultiplied flag. params[1]: colour filter (rgb).
 float4 PSAdjust(float4 position : SV_POSITION) : SV_TARGET
 {
-    const float4 input = gInput.Load(int3(position.xy, 0));
+    const float4 input = Straight(gInput.Load(int3(position.xy, 0)), gParams[0].w);
     float3 c = saturate(input.rgb);
     c = saturate((c - 0.5f) * gParams[0].x + 0.5f);
     c *= gParams[1].rgb;
@@ -60,17 +71,17 @@ float4 PSAdjust(float4 position : SV_POSITION) : SV_TARGET
     c = FromHsv(hsv);
     const float luma = dot(c, float3(0.2126f, 0.7152f, 0.0722f));
     c = saturate(lerp(float3(luma, luma, luma), c, gParams[0].y));
-    return float4(c, input.a);
+    return Rejoin(c, input.a, gParams[0].w);
 }
 
-// params[0]: contribution (x), LUT size (y). params[1]: domain min (rgb). params[2]: domain max (rgb).
+// params[0]: contribution (x), LUT size (y), premultiplied flag (z). params[1]: domain min (rgb). params[2]: domain max (rgb).
 float4 PSLookup(float4 position : SV_POSITION) : SV_TARGET
 {
-    const float4 input = gInput.Load(int3(position.xy, 0));
+    const float4 input = Straight(gInput.Load(int3(position.xy, 0)), gParams[0].z);
     const float size = gParams[0].y;
     const float3 x = saturate((input.rgb - gParams[1].rgb) / max(gParams[2].rgb - gParams[1].rgb, 1e-6f));
     // Texel centres: 0 lands on the first texel, 1 on the last.
     const float3 uvw = x * ((size - 1.0f) / size) + 0.5f / size;
     const float3 graded = gLut.SampleLevel(gLinear, uvw, 0.0f).rgb;
-    return float4(lerp(input.rgb, graded, gParams[0].x), input.a);
+    return Rejoin(lerp(input.rgb, graded, gParams[0].x), input.a, gParams[0].z);
 }

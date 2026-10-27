@@ -43,6 +43,11 @@
         @{ Symbol = 'BuiltinBloomCompositePS';   File = 'BuiltinBloom.hlsl';            Entry = 'PSComposite';    Stage = 'Pixel' }
         @{ Symbol = 'BuiltinColorAdjustPS';      File = 'BuiltinColorGrading.hlsl';     Entry = 'PSAdjust';       Stage = 'Pixel' }
         @{ Symbol = 'BuiltinColorLookupPS';      File = 'BuiltinColorGrading.hlsl';     Entry = 'PSLookup';       Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinLayerBlurPS';              File = 'BuiltinLayerEffects.hlsl'; Entry = 'PSBlur';             Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinLayerOutlineDistancePS';   File = 'BuiltinLayerEffects.hlsl'; Entry = 'PSOutlineDistance';  Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinLayerOutlineCompositePS';  File = 'BuiltinLayerEffects.hlsl'; Entry = 'PSOutlineComposite'; Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinLayerShadowBlurPS';        File = 'BuiltinLayerEffects.hlsl'; Entry = 'PSShadowBlur';       Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinLayerShadowCompositePS';   File = 'BuiltinLayerEffects.hlsl'; Entry = 'PSShadowComposite';  Stage = 'Pixel' }
     )
 
     Programs = @(
@@ -75,5 +80,11 @@
         # Colour grading (D-343): adjustments read the input with Load; the lookup samples a 3D LUT at t1.
         @{ Name = 'PostColorAdjust';     Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinColorAdjustPS';      SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
         @{ Name = 'PostColorLookup';     Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinColorLookupPS';      SampledTextures = 2; Samplers = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        # Layer effects (D-345): blur, outline and drop shadow on a layer's premultiplied texture, read with Load. The composites read the layer at t1.
+        @{ Name = 'PostLayerBlur';             Vertex = 'BuiltinPostVS'; Pixel = 'BuiltinLayerBlurPS';             SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostLayerOutlineDistance';  Vertex = 'BuiltinPostVS'; Pixel = 'BuiltinLayerOutlineDistancePS';  SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostLayerOutlineComposite'; Vertex = 'BuiltinPostVS'; Pixel = 'BuiltinLayerOutlineCompositePS'; SampledTextures = 2; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostLayerShadowBlur';       Vertex = 'BuiltinPostVS'; Pixel = 'BuiltinLayerShadowBlurPS';       SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostLayerShadowComposite';  Vertex = 'BuiltinPostVS'; Pixel = 'BuiltinLayerShadowCompositePS';  SampledTextures = 2; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
     )
 }

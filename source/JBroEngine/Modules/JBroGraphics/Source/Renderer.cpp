@@ -716,37 +716,11 @@ namespace JBro
         packet.lightOffset = static_cast<JBro::UInt32>(m_lights.Size());
         packet.litRangeOffset = static_cast<JBro::UInt32>(m_litRanges.Size());
         packet.shadowEdgeOffset = static_cast<JBro::UInt32>(m_shadowEdges.Size());
-        // 후처리 효과를 프레임 저장소에 옮긴다(D-342). 부르는 쪽의 배열은 이 함수가 돌아온 뒤 버려도 된다. 꺼진 효과는 옮기지 않는다.
-        // 종류를 모르거나 블록이 배열 밖이거나 상한을 넘는 효과는 버리고 센다 - 뷰 자체는 받는다.
+        // 후처리 효과를 프레임 저장소에 옮긴다(D-342). 부르는 쪽의 배열은 이 함수가 돌아온 뒤 버려도 된다 - 뷰 자체는 받는다.
         packet.camera.postProcess = {};
-        packet.postOffset = static_cast<JBro::UInt32>(m_postEntries.Size());
-        for (UInt32 at = 0; at < camera.postProcess.entries.size; ++at)
-        {
-            const PostProcessEntry& entry = camera.postProcess.entries.data[at.Get()];
-            if (false == entry.enabled)
-            {
-                continue;
-            }
-            const PostProcessEffectType* type = PostProcessEffectRegistry::Get(entry.type);
-            const std::size_t blockEnd = static_cast<std::size_t>(entry.blockOffset.Get()) + (type != nullptr ? type->blockSize.Get() : 0u);
-            const std::size_t blockAt = (static_cast<std::size_t>(m_postBlockUsed.Get()) + 15u) & ~static_cast<std::size_t>(15u);
-            if (type == nullptr || blockEnd > static_cast<std::size_t>(camera.postProcess.blocks.size.Get()) || packet.postCount >= MaxPostProcessPerView
-                || m_postEntries.Size() >= m_postEntries.Capacity() || blockAt + type->blockSize.Get() > m_postBlocks.Size())
-            {
-                ++m_currentStats.droppedPostProcessCount;
-                continue;
-            }
-            if (type->blockSize != 0)
-            {
-                std::memcpy(m_postBlocks.Data() + blockAt, camera.postProcess.blocks.data + entry.blockOffset.Get(), type->blockSize.Get());
-            }
-            PostEntrySlot slot;
-            slot.type = entry.type;
-            slot.blockOffset = static_cast<JBro::UInt32>(blockAt);
-            m_postEntries.Add(slot);
-            m_postBlockUsed = static_cast<JBro::UInt32>(blockAt + type->blockSize.Get());
-            ++packet.postCount;
-        }
+        packet.camera.layerPostProcess = {};
+        CopyPostEntries(camera.postProcess, packet.postOffset, packet.postCount);
+        CopyPostEntries(camera.layerPostProcess, packet.layerPostOffset, packet.layerPostCount);
         m_views.Add(packet);
         m_activeView = static_cast<JBro::UInt32>(m_views.Size() - 1);
         ++m_currentStats.viewCount;
@@ -843,7 +817,40 @@ namespace JBro
         return true;
     }
 
-    Bool Renderer::BeginLayer(CompositeBlend blend, Float opacity)
+    void Renderer::CopyPostEntries(const PostProcessStack& stack, UInt32& offset, UInt32& count)
+    {
+        offset = static_cast<JBro::UInt32>(m_postEntries.Size());
+        count = 0;
+        for (UInt32 at = 0; at < stack.entries.size; ++at)
+        {
+            const PostProcessEntry& entry = stack.entries.data[at.Get()];
+            if (false == entry.enabled)
+            {
+                continue;
+            }
+            const PostProcessEffectType* type = PostProcessEffectRegistry::Get(entry.type);
+            const std::size_t blockEnd = static_cast<std::size_t>(entry.blockOffset.Get()) + (type != nullptr ? type->blockSize.Get() : 0u);
+            const std::size_t blockAt = (static_cast<std::size_t>(m_postBlockUsed.Get()) + 15u) & ~static_cast<std::size_t>(15u);
+            if (type == nullptr || blockEnd > static_cast<std::size_t>(stack.blocks.size.Get()) || count >= MaxPostProcessPerView
+                || m_postEntries.Size() >= m_postEntries.Capacity() || blockAt + type->blockSize.Get() > m_postBlocks.Size())
+            {
+                ++m_currentStats.droppedPostProcessCount;
+                continue;
+            }
+            if (type->blockSize != 0)
+            {
+                std::memcpy(m_postBlocks.Data() + blockAt, stack.blocks.data + entry.blockOffset.Get(), type->blockSize.Get());
+            }
+            PostEntrySlot slot;
+            slot.type = entry.type;
+            slot.blockOffset = static_cast<JBro::UInt32>(blockAt);
+            m_postEntries.Add(slot);
+            m_postBlockUsed = static_cast<JBro::UInt32>(blockAt + type->blockSize.Get());
+            ++count;
+        }
+    }
+
+    Bool Renderer::BeginLayer(CompositeBlend blend, Float opacity, const PostProcessStack& post)
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex || m_openLayerGroup != NoLayerGroup)
         {
@@ -869,6 +876,7 @@ namespace JBro
         {
             group.opacity = opacity;
         }
+        CopyPostEntries(post, group.postOffset, group.postCount);
         m_layerGroups.Add(group);
         m_openLayerGroup = static_cast<JBro::UInt32>(m_layerGroups.Size() - 1);
         ++m_views[m_activeView].layerGroupCount;
@@ -1632,7 +1640,8 @@ namespace JBro
             view.camera.clearColor[0], view.camera.clearColor[1], view.camera.clearColor[2], view.camera.clearColor[3]};
         const ClearColor transparent = {0.0f, 0.0f, 0.0f, 0.0f};
         const LoadOperation targetLoad = alreadyCleared ? LoadOperation::Load : LoadOperation::Clear;
-        const Bool wantsComposite = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
+        const Bool wantsComposite =
+            view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f || view.layerPostCount != 0;
 
         // **후처리를 거는 뷰는 장면을 제 텍스처(`SceneColor`)에 그린다**(D-342). 효과가 HDR 을 바라면 그 텍스처는 `RGBA16Float` 이고, 레이어 텍스처와
         // 아래 그림 사본도 같은 포맷이다. 그 타깃에 앞 뷰가 이미 그렸으면 그것을 장면에 옮겨 두고 이어 그린다. 다 그린 장면에 효과를 지점 차례로
@@ -1660,7 +1669,8 @@ namespace JBro
             // 효과가 만들 텍스처를 센다(효과 사이의 중간 텍스처와 블룸의 밉 체인 같은 효과 안의 것).
             PostProcessBuilder::TextureCount counts[PostProcessBuilder::MaxCountedShapes];
             UInt32 countSize = 0;
-            const Bool counted = CountPostProcessTextures(viewIndex, postPlan, extent, viewport, scissor, counts, countSize);
+            const Bool counted = CountPostProcessTextures(viewIndex, postPlan, plannedFormat, m_config.backBufferFormat, false, false, extent,
+                viewport, scissor, counts, countSize);
             Bool ready = m_postReady && counted;
             if (false == m_postReady)
             {
@@ -1779,8 +1789,11 @@ namespace JBro
             }
             whole.uncomposited = true;
             const RenderGraphPass direct = addSpritePass("ViewDirect", target, targetLoad, viewClear, whole);
+            // 레이어 효과(D-345)를 건 뒤 얹는다. 레이어 텍스처가 없는 프레임에는 효과 패스도 돌지 않고 대신 그리기만 돈다.
+            RenderGraphTexture composited = viewLayer;
             if (false == direct.IsValid() || false == m_graph.RunIfMissing(direct, viewLayer)
-                || false == AddCompositePasses(viewIndex, viewLayer, backdrop, target, view.camera.composite, view.camera.compositeOpacity,
+                || false == AddLayerPostPasses(viewIndex, view.layerPostOffset, view.layerPostCount, sceneFormat, extent, composited)
+                || false == AddCompositePasses(viewIndex, composited, backdrop, target, view.camera.composite, view.camera.compositeOpacity,
                     viewport, scissor, LdrScene))
             {
                 return false;
@@ -1850,9 +1863,11 @@ namespace JBro
                     // 텍스처가 없는 묶음은 그대로 그린다. 그 크기의 텍스처는 다음 프레임을 열 때 생긴다.
                     part.uncomposited = true;
                     const RenderGraphPass direct = addSpritePass("LayerDirect", drawTarget, LoadOperation::Load, viewClear, part);
+                    RenderGraphTexture composited = layer;
                     if (false == direct.IsValid() || false == m_graph.RunIfMissing(direct, layer)
-                        || false == AddCompositePasses(viewIndex, layer, backdrop, drawTarget, layerGroup.blend, layerGroup.opacity, viewport,
-                            scissor, SceneIndexOf(sceneFormat)))
+                        || false == AddLayerPostPasses(viewIndex, layerGroup.postOffset, layerGroup.postCount, sceneFormat, extent, composited)
+                        || false == AddCompositePasses(viewIndex, composited, backdrop, drawTarget, layerGroup.blend, layerGroup.opacity,
+                            viewport, scissor, SceneIndexOf(sceneFormat)))
                     {
                         return false;
                     }
@@ -2085,7 +2100,8 @@ namespace JBro
                 ++renderer.m_currentStats.viewsWithoutDepthCount;
             }
             // 3D 뷰와 통째로 얹는 뷰의 묶음은 그대로 그렸다. 그렇다고 센다.
-            const Bool wholeView = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
+            const Bool wholeView =
+                view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f || view.layerPostCount != 0;
             if (depthWork || wholeView)
             {
                 for (UInt32 at = 0; at < view.layerGroupCount; ++at)
@@ -3434,7 +3450,9 @@ namespace JBro
         }
         const BuiltinShader programs[PostProcessProgramCount] = {BuiltinShader::PostCopy, BuiltinShader::PostExposure,
             BuiltinShader::PostTonemap, BuiltinShader::PostBloomPrefilter, BuiltinShader::PostBloomDownsample, BuiltinShader::PostBloomUpsample,
-            BuiltinShader::PostBloomComposite, BuiltinShader::PostColorAdjust, BuiltinShader::PostColorLookup};
+            BuiltinShader::PostBloomComposite, BuiltinShader::PostColorAdjust, BuiltinShader::PostColorLookup, BuiltinShader::PostLayerBlur,
+            BuiltinShader::PostLayerOutlineDistance, BuiltinShader::PostLayerOutlineComposite, BuiltinShader::PostLayerShadowBlur,
+            BuiltinShader::PostLayerShadowComposite};
         for (UInt32 scene = 0; scene < SceneFormatCount; ++scene)
         {
             const TextureFormat colorFormats[] = {scene == HdrScene ? PostProcessHdrFormat : m_config.backBufferFormat};
@@ -3604,8 +3622,9 @@ namespace JBro
         return true;
     }
 
-    Bool Renderer::CountPostProcessTextures(UInt32 viewIndex, const PostPlan& plan, const Extent2D& extent, const Viewport& viewport,
-        const ScissorRect& scissor, PostProcessBuilder::TextureCount* counts, UInt32& countSize)
+    Bool Renderer::CountPostProcessTextures(UInt32 viewIndex, const PostPlan& plan, TextureFormat inputFormat, TextureFormat finalFormat,
+        Bool finalIsTexture, Bool premultiplied, const Extent2D& extent, const Viewport& viewport, const ScissorRect& scissor,
+        PostProcessBuilder::TextureCount* counts, UInt32& countSize)
     {
         countSize = 0;
         Bool overflow = false;
@@ -3628,10 +3647,12 @@ namespace JBro
             counts[countSize.Get()] = {desc, count};
             ++countSize;
         };
-        // 효과 사이의 중간 텍스처는 앞뒤 둘이 번갈아 쓴다(앞의 출력이 뒤의 입력이다). 포맷마다 많아야 둘이다.
+        // 효과 사이의 중간 텍스처는 앞뒤 둘이 번갈아 쓴다(앞의 출력이 뒤의 입력이다). 포맷마다 많아야 둘이다. 레이어는 마지막 효과도
+        // 텍스처에 쓴다(`finalIsTexture`).
         UInt32 hdrSteps = 0;
         UInt32 ldrSteps = 0;
-        for (UInt32 at = 0; at + 1 < plan.count; ++at)
+        const UInt32 textureSteps = finalIsTexture ? plan.count : (plan.count != 0 ? plan.count - 1 : UInt32(0));
+        for (UInt32 at = 0; at < textureSteps; ++at)
         {
             if (plan.steps[at.Get()].output == PostProcessHdrFormat)
             {
@@ -3651,11 +3672,10 @@ namespace JBro
             add({extent, m_config.backBufferFormat, TextureUsage::RenderTarget | TextureUsage::Sampled}, ldrSteps < 2 ? ldrSteps : UInt32(2));
         }
         // 효과 안의 텍스처는 패스 함수를 셈으로만 돌려 얻는다 - 그래프에는 아무것도 더하지 않는다.
-        TextureFormat inputFormat = plan.hdr ? PostProcessHdrFormat : m_config.backBufferFormat;
         for (UInt32 at = 0; at < plan.count; ++at)
         {
             const PostPlanStep& step = plan.steps[at.Get()];
-            const TextureFormat outputFormat = at + 1 == plan.count ? m_config.backBufferFormat : step.output;
+            const TextureFormat outputFormat = at + 1 == plan.count ? finalFormat : step.output;
             PostProcessBuilder counter;
             counter.m_renderer = this;
             counter.m_view = viewIndex;
@@ -3666,6 +3686,7 @@ namespace JBro
             counter.m_extent = extent;
             counter.m_viewport = viewport;
             counter.m_scissor = scissor;
+            counter.m_premultiplied = premultiplied;
             counter.m_counting = true;
             PostProcessBuilder::TextureCount local[PostProcessBuilder::MaxCountedShapes];
             UInt32 localSize = 0;
@@ -3682,6 +3703,90 @@ namespace JBro
             inputFormat = outputFormat;
         }
         return false == overflow;
+    }
+
+    Bool Renderer::PlanLayerPostProcess(UInt32 offset, UInt32 count, TextureFormat format, PostPlan& plan)
+    {
+        plan.count = 0;
+        plan.hdr = format == PostProcessHdrFormat;
+        for (UInt32 at = 0; at < count; ++at)
+        {
+            const PostEntrySlot& slot = m_postEntries[(offset + at).Get()];
+            const PostProcessEffectType* type = PostProcessEffectRegistry::Get(slot.type);
+            if (type == nullptr || false == type->onLayer)
+            {
+                ++m_currentStats.droppedPostProcessCount;
+                continue;
+            }
+            PostPlanStep& step = plan.steps[plan.count.Get()];
+            step.type = type;
+            step.block = m_postBlocks.Data() + slot.blockOffset.Get();
+            step.output = format;
+            ++plan.count;
+        }
+        return plan.count != 0;
+    }
+
+    Bool Renderer::AddLayerPostPasses(UInt32 viewIndex, UInt32 offset, UInt32 count, TextureFormat format, const Extent2D& extent,
+        RenderGraphTexture& layer)
+    {
+        PostPlan plan;
+        if (count == 0 || false == PlanLayerPostProcess(offset, count, format, plan))
+        {
+            return true;
+        }
+        if (m_postFailed)
+        {
+            ++m_currentStats.layerPostProcessWaitingCount;
+            return true;
+        }
+        // 효과는 레이어 텍스처 전체를 덮는다. 뷰포트 밖은 투명하게 지워 둔 자리라 그림이 바뀌지 않고, 다음 효과가 둘레를 읽어도 빈 값을 본다.
+        Viewport whole;
+        whole.width = static_cast<JBro::Float>(extent.width);
+        whole.height = static_cast<JBro::Float>(extent.height);
+        const ScissorRect wholeScissor = {0, 0, static_cast<JBro::Int32>(extent.width), static_cast<JBro::Int32>(extent.height)};
+        PostProcessBuilder::TextureCount counts[PostProcessBuilder::MaxCountedShapes];
+        UInt32 countSize = 0;
+        const Bool counted =
+            CountPostProcessTextures(viewIndex, plan, format, format, true, true, extent, whole, wholeScissor, counts, countSize);
+        Bool ready = m_postReady && counted;
+        if (false == m_postReady)
+        {
+            m_postWanted = true;
+        }
+        for (UInt32 at = 0; at < countSize; ++at)
+        {
+            ready = m_targetPool.Request(counts[at.Get()].desc, counts[at.Get()].count) && ready;
+        }
+        if (false == ready)
+        {
+            ++m_currentStats.layerPostProcessWaitingCount;
+            return true;
+        }
+        RenderGraphTexture input = layer;
+        for (UInt32 at = 0; at < plan.count; ++at)
+        {
+            PostProcessBuilder builder;
+            builder.m_renderer = this;
+            builder.m_view = viewIndex;
+            builder.m_input = input;
+            builder.m_inputFormat = format;
+            builder.m_output = m_graph.CreateTexture({extent, format, TextureUsage::RenderTarget | TextureUsage::Sampled}, "LayerEffect");
+            builder.m_outputFormat = format;
+            builder.m_outputLoad = LoadOperation::Discard;
+            builder.m_extent = extent;
+            builder.m_viewport = whole;
+            builder.m_scissor = wholeScissor;
+            builder.m_premultiplied = true;
+            if (false == plan.steps[at.Get()].type->addPasses(builder, plan.steps[at.Get()].block))
+            {
+                return false;
+            }
+            input = builder.m_output;
+        }
+        layer = input;
+        ++m_currentStats.layerPostProcessedCount;
+        return true;
     }
 
     Bool Renderer::AddPostProcessPass(PostProcessBuilder& builder, const PostProcessPassDesc& desc)
@@ -3759,7 +3864,8 @@ namespace JBro
     {
         // 화면을 덮는 삼각형 하나다(D-342). 그래프 텍스처를 t0 부터, 그래프 밖의 텍스처(LUT)를 그다음 자리에 묶고, 상수는 b1 이다.
         // 선형 샘플러는 입력을 샘플링하는 프로그램만 묶는다(블룸·LUT, D-343).
-        static constexpr Bool Samples[PostProcessProgramCount] = {false, false, false, true, true, true, true, false, true};
+        static constexpr Bool Samples[PostProcessProgramCount] = {
+            false, false, false, true, true, true, true, false, true, false, false, false, false, false};
         const PostPassData& pass = *static_cast<const PostPassData*>(data);
         Renderer& renderer = *pass.renderer;
         IRHICommandContext& commands = context.GetCommands();

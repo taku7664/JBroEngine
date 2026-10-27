@@ -47,6 +47,8 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
+#include <JBro/Runtime/PostProcessService.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -10552,6 +10554,286 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // 후처리 시험의 프로젝트(캔버스 뷰가 작은 2D 프로젝트)를 열고 카메라와 큰 초록 바탕을 세운다. 프로필 하나를 만들어 그 아이디를 준다.
+    struct PostProbe
+    {
+        std::filesystem::path root;
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        JBro::Canvas* canvas = nullptr;
+        JBro::Component::Camera2D* camera = nullptr;
+        JBro::AssetId profileId;
+
+        JBro::Bool Open(const char* folder, const char* what)
+        {
+            namespace fs = std::filesystem;
+            JBro::String probeFolder(folder);
+            probeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+            root = fs::path(TempPath(probeFolder.c_str()).c_str());
+            std::error_code ignored;
+            fs::remove_all(root, ignored);
+            fs::create_directories(root / "Assets", ignored);
+            JBro::String projectName(probeFolder);
+            projectName.append("\\Post.jproject");
+            const JBro::String projectPath = TempPath(projectName.c_str());
+            Check(WriteTextFile(projectPath,
+                      "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\nAssetDirectory: Assets\nResolutionWidth: 64\nResolutionHeight: 32\n"),
+                "the test must be able to write its own project file");
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.windowWidth = 1024;
+            config.windowHeight = 768;
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device; " << what << " not verified" << std::endl;
+                return false;
+            }
+            JBro::ProjectFileError error;
+            Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+            Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+            hwnd = FindOwnEditorWindow();
+            Check(hwnd != nullptr, "the editor window must be findable");
+            canvas = editor.GetCanvas();
+            JBro::Object::GameObject* eye = canvas->CreateObject("Camera");
+            canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+            camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+            camera->primary = true;
+            camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            const JBro::String created = editor.CreatePostProcessProfileAsset("");
+            const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(created.c_str());
+            Check(record != nullptr && record->type == JBro::AssetType::PostProcessProfile, "the probe profile must register");
+            profileId = record->id;
+            return true;
+        }
+
+        void Close()
+        {
+            editor.Shutdown();
+            std::error_code ignored;
+            std::filesystem::remove_all(root, ignored);
+        }
+
+        void Settle()
+        {
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+        }
+
+        // 프로필 본문을 커맨드로 바꾼다(인스펙터가 쓰는 같은 길).
+        void WriteProfile(const JBro::PostProcessProfileDocument& document)
+        {
+            JBro::AssetSourceTarget target;
+            Check(editor.DescribeAssetSource(profileId, target), "the profile's file is described");
+            JBro::String before;
+            Check(editor.ReadAssetSourceText(profileId, before), "the profile must read");
+            Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetAssetSourceCommand>(
+                      target, before, JBro::WritePostProcessProfile(document), "Edit Post-Process Profile")),
+                "the profile takes its effects");
+            Settle();
+        }
+
+        // 캔버스 뷰를 되읽어 픽셀마다 본다.
+        template <typename TVisit>
+        void ReadCanvasView(TVisit&& visit)
+        {
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            JBro::Array<std::byte> image;
+            image.Resize(static_cast<std::size_t>(extent.width + 64) * (extent.height + 64) * 4);
+            JBro::TextureReadback readback;
+            Check(editor.GetRenderer()->GetDevice()->ReadTexture(editor.GetCanvasViewTexture(), image.Data(), image.Size(), readback),
+                "the canvas view must read back");
+            for (JBro::UInt32 y = 0; y < extent.height; ++y)
+            {
+                for (JBro::UInt32 x = 0; x < extent.width; ++x)
+                {
+                    const auto* bytes = reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(y.Get()) * readback.rowPitch)
+                        + static_cast<std::size_t>(x.Get()) * 4;
+                    visit(x, y, JBro::Color{bytes[2] / 255.0f, bytes[1] / 255.0f, bytes[0] / 255.0f, 1.0f});
+                }
+            }
+        }
+
+        JBro::Color Centre()
+        {
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            JBro::Color centre;
+            ReadCanvasView([&](JBro::UInt32 x, JBro::UInt32 y, const JBro::Color& colour) {
+                if (x == extent.width / 2 && y == extent.height / 2)
+                {
+                    centre = colour;
+                }
+            });
+            return centre;
+        }
+    };
+
+    // **레이어에 프로필을 걸면 그 레이어에 외곽선이 선다**(D-345, 사용자 시나리오). 검은 바탕에 흰 사각형이 든 레이어를 고르고, 인스펙터의
+    // `후처리 프로필` 칸에서 빨간 외곽선 프로필을 고른다. 캔버스 뷰에 빨간 둘레가 생기고, 되돌리면 사라지고, 캔버스 뷰의 후처리 단추를 끄면 레이어
+    // 효과도 꺼진다. 레이어 아래의 오브젝트(다른 레이어)에는 외곽선이 없다.
+    void TestALayerProfileOutlinesItsLayer()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroLayerProfileProbe", "the layer profile"))
+        {
+            return;
+        }
+        JBro::Canvas* canvas = probe.canvas;
+        JBro::Layer& fx = canvas->CreateLayer("FX");
+        JBro::Object::GameObject* square = canvas->CreateObject("Square");
+        canvas->AttachComponent<JBro::Component::Transform2D>(square);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(square);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {2.0f, 2.0f};
+        Check(canvas->SetObjectLayer(square, fx.GetId()), "the square must move into the effect layer");
+        const JBro::LayerId fxId = fx.GetId();
+
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry outline = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::Outline);
+        auto* values = reinterpret_cast<JBro::OutlineEffect*>(outline.block.Data());
+        values->color = {1.0f, 0.0f, 0.0f, 1.0f};
+        values->width = 4.0f;
+        outline.overrides = 3;
+        document.entries.Add(std::move(outline));
+        probe.WriteProfile(document);
+
+        const auto countRed = [&]() {
+            JBro::UInt32 red = 0;
+            probe.ReadCanvasView([&](JBro::UInt32, JBro::UInt32, const JBro::Color& colour) {
+                if (colour.R > 0.8f && colour.G < 0.2f && colour.B < 0.2f)
+                {
+                    ++red;
+                }
+            });
+            return red;
+        };
+        probe.Settle();
+        Check(countRed() == 0, "without a profile the layer has no outline");
+
+        // ── 인스펙터: 레이어를 고르고 프로필 칸에서 고른다 ──
+        probe.editor.SetSelectedLayer(fxId);
+        probe.Settle();
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot field;
+        // 레이어의 칸은 창 바로 아래 표 `##layer` 안이다.
+        Check(FindItemAnywhereInWindow(probe.editor, probe.hwnd, inspector, LabelId(LabelId(inspector->ID, "##layer"), "##layerPostProcess"), field),
+            "the layer inspector offers a post-process profile");
+        ClickAt(probe.editor, probe.hwnd, field);
+        ImGuiWindow* popup = nullptr;
+        for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(candidate->Name, "##Combo_") != nullptr && candidate->Active)
+            {
+                popup = candidate;
+            }
+        }
+        Check(popup != nullptr, "the profile field opens its list");
+        Spot item;
+        JBro::Bool listed = false;
+        for (JBro::Int32 index = 0; index < 4 && false == listed; ++index)
+        {
+            listed = FindItemAnywhereInWindow(probe.editor, probe.hwnd, popup, LabelId(PushedId(popup->ID, index), "NewPostProcess.jpost"), item);
+        }
+        Check(listed, "the list names the profile");
+        ClickAt(probe.editor, probe.hwnd, item);
+        probe.Settle();
+        Check(canvas->FindLayer(fxId)->GetPostProcessProfile() == probe.profileId, "choosing it sets the layer's profile");
+        const JBro::UInt32 outlined = countRed();
+        Check(outlined > 0, "the canvas view draws a red outline round the square");
+        SaveScreenshot(*probe.editor.GetRenderer(), 1024, 768, "layer_post_process");
+
+        // ── 캔버스 뷰의 단추는 레이어 효과도 끈다 ──
+        probe.editor.SetCanvasViewPostProcess(false);
+        probe.Settle();
+        Check(countRed() == 0, "with post-processing off the layer has no outline");
+        probe.editor.SetCanvasViewPostProcess(true);
+        probe.Settle();
+        Check(countRed() == outlined, "and turning it on brings it back");
+
+        // ── 되돌리기 ──
+        Check(probe.editor.GetCommands().Undo(), "choosing the profile undoes");
+        probe.Settle();
+        Check(canvas->FindLayer(fxId)->GetPostProcessProfile().IsNull() && countRed() == 0, "undo takes the profile and its outline away");
+        Check(probe.editor.GetCommands().Redo(), "and redoes");
+        probe.Settle();
+        Check(countRed() == outlined, "redo brings the outline back");
+        probe.Close();
+    }
+
+    // **카메라가 볼륨 안에 들어가면 그 프로필이 섞이고, 스크립트가 그 위를 덮는다**(D-346, 사용자 시나리오). 채도를 -100 으로 덮어쓴 프로필의
+    // 상자 볼륨을 카메라에서 떨어뜨려 두면 초록이 거의 그대로이고, 볼륨을 카메라 쪽으로 옮기면 회색이 된다. 무게를 반으로 내리면 반쯤 회색이다.
+    // 스크립트의 후처리 서비스로 채도를 0 으로 덮어쓰면 볼륨 안에서도 초록이고, 지우면 다시 회색이다.
+    void TestAVolumeBlendsAroundTheCamera()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroVolumeProbe", "the post-process volume"))
+        {
+            return;
+        }
+        JBro::Canvas* canvas = probe.canvas;
+        JBro::Object::GameObject* field = canvas->CreateObject("Field");
+        canvas->AttachComponent<JBro::Component::Transform2D>(field);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(field);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {1000.0f, 1000.0f};
+        sprite->tint = {0.0f, 1.0f, 0.0f, 1.0f};
+
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry adjustments = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::ColorAdjustments);
+        reinterpret_cast<JBro::ColorAdjustmentsEffect*>(adjustments.block.Data())->saturation = -100.0f;
+        adjustments.overrides = JBro::UInt64(1) << 3;
+        document.entries.Add(std::move(adjustments));
+        probe.WriteProfile(document);
+
+        JBro::Object::GameObject* cave = canvas->CreateObject("Cave");
+        auto* place = canvas->AttachComponent<JBro::Component::Transform2D>(cave);
+        place->position = {30.0f, 0.0f};
+        auto* volume = canvas->AttachComponent<JBro::Component::PostProcessVolume2D>(cave);
+        Check(volume != nullptr, "a post-process volume attaches");
+        volume->shape = JBro::Component::PostProcessVolumeShape2D::Box;
+        volume->size = {2.0f, 2.0f};
+        volume->blendDistance = 30.0f;
+        volume->postProcessProfileId = probe.profileId;
+        Check(probe.editor.RescanAssets(), "the registry must rescan so the volume's profile resolves");
+        probe.Settle();
+        Check(volume->postProcessProfile.generation != 0, "the volume's profile id resolves to a handle");
+
+        // 상자 끝(x 29)에서 카메라(0)까지 29 - 섞는 거리 30 이라 무게는 1/30 이다.
+        JBro::Color colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.1f, "far from the volume the field stays nearly green");
+        place->position = {0.0f, 0.0f};
+        probe.Settle();
+        colour = probe.Centre();
+        const JBro::Float grey = colour.R;
+        Check(colour.R > 0.6f && std::fabs(colour.R - colour.G) < 0.03f, "inside the volume the field is grey");
+        // 캔버스 뷰는 볼륨의 상자(진하게)와 섞는 거리의 끝(옅게)을 그린다. 끝이 화면 안에 들도록 거리를 줄여 찍는다 - 안에서는 무게가 같다.
+        volume->blendDistance = 2.0f;
+        probe.Settle();
+        SaveScreenshot(*probe.editor.GetRenderer(), 1024, 768, "post_process_volume");
+        volume->weight = 0.5f;
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.2f && colour.R < grey - 0.1f && colour.G > colour.R + 0.1f, "at half the weight it is half way");
+        volume->weight = 1.0f;
+
+        // ── 스크립트의 서비스 ──
+        const JBro::Service::PostProcessService service;
+        const JBro::Service::PostProcessField saturation = service.FindField("ColorAdjustments", "saturation");
+        Check(saturation.IsValid(), "the service finds the saturation field");
+        Check(false == service.SetInt(saturation, 3), "a value of the wrong type is refused");
+        Check(service.SetFloat(saturation, 0.0f), "the service overrides saturation");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "the script's value sits over the volume");
+        service.Clear(saturation);
+        probe.Settle();
+        colour = probe.Centre();
+        Check(std::fabs(colour.R - grey) < 0.02f, "clearing it lets the volume show again");
+        probe.Close();
+    }
+
     void TestTheRenderGraphPanelShowsTheLastFrame()
     {
         JBro::EditorApplication editor;
@@ -17379,6 +17661,8 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheCanvasViewDragsLightHandles();
     TestTheRenderGraphPanelShowsTheLastFrame();
     TestThePostProcessProfileIsEditedInTheInspector();
+    TestALayerProfileOutlinesItsLayer();
+    TestAVolumeBlendsAroundTheCamera();
     TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheCanvasViewGridLabelsStayOnTheirLines();

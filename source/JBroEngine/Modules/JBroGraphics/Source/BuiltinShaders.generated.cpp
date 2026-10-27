@@ -33,6 +33,11 @@
 #include "BuiltinBloomCompositePS.generated.h"
 #include "BuiltinColorAdjustPS.generated.h"
 #include "BuiltinColorLookupPS.generated.h"
+#include "BuiltinLayerBlurPS.generated.h"
+#include "BuiltinLayerOutlineDistancePS.generated.h"
+#include "BuiltinLayerOutlineCompositePS.generated.h"
+#include "BuiltinLayerShadowBlurPS.generated.h"
+#include "BuiltinLayerShadowCompositePS.generated.h"
 
 // fxc names its bytes BYTE. Give it the name without pulling in Windows.h.
 namespace JBro::BuiltinShaderSm5
@@ -68,6 +73,11 @@ namespace JBro::BuiltinShaderSm5
 #include "BuiltinBloomCompositePS_SM5.generated.h"
 #include "BuiltinColorAdjustPS_SM5.generated.h"
 #include "BuiltinColorLookupPS_SM5.generated.h"
+#include "BuiltinLayerBlurPS_SM5.generated.h"
+#include "BuiltinLayerOutlineDistancePS_SM5.generated.h"
+#include "BuiltinLayerOutlineCompositePS_SM5.generated.h"
+#include "BuiltinLayerShadowBlurPS_SM5.generated.h"
+#include "BuiltinLayerShadowCompositePS_SM5.generated.h"
 }
 
 namespace JBro::BuiltinShaderSpv
@@ -102,6 +112,11 @@ namespace JBro::BuiltinShaderSpv
 #include "BuiltinBloomCompositePS_SPV.generated.h"
 #include "BuiltinColorAdjustPS_SPV.generated.h"
 #include "BuiltinColorLookupPS_SPV.generated.h"
+#include "BuiltinLayerBlurPS_SPV.generated.h"
+#include "BuiltinLayerOutlineDistancePS_SPV.generated.h"
+#include "BuiltinLayerOutlineCompositePS_SPV.generated.h"
+#include "BuiltinLayerShadowBlurPS_SPV.generated.h"
+#include "BuiltinLayerShadowCompositePS_SPV.generated.h"
 }
 
 namespace JBro
@@ -228,6 +243,31 @@ namespace JBro
                     {View(JBroBuiltinColorLookupPS, sizeof(JBroBuiltinColorLookupPS)), View(Sm5::JBroBuiltinColorLookupPS_SM5, sizeof(Sm5::JBroBuiltinColorLookupPS_SM5)), View(Spv::JBroBuiltinColorLookupPS_SPV, sizeof(Spv::JBroBuiltinColorLookupPS_SPV))},
                     {}},
                 0, 0, {1, 2}, {2, 2}, {1, 2}, {0, 0}, {0, 0}},
+            {"PostLayerBlur",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerBlurPS, sizeof(JBroBuiltinLayerBlurPS)), View(Sm5::JBroBuiltinLayerBlurPS_SM5, sizeof(Sm5::JBroBuiltinLayerBlurPS_SM5)), View(Spv::JBroBuiltinLayerBlurPS_SPV, sizeof(Spv::JBroBuiltinLayerBlurPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerOutlineDistance",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerOutlineDistancePS, sizeof(JBroBuiltinLayerOutlineDistancePS)), View(Sm5::JBroBuiltinLayerOutlineDistancePS_SM5, sizeof(Sm5::JBroBuiltinLayerOutlineDistancePS_SM5)), View(Spv::JBroBuiltinLayerOutlineDistancePS_SPV, sizeof(Spv::JBroBuiltinLayerOutlineDistancePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerOutlineComposite",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerOutlineCompositePS, sizeof(JBroBuiltinLayerOutlineCompositePS)), View(Sm5::JBroBuiltinLayerOutlineCompositePS_SM5, sizeof(Sm5::JBroBuiltinLayerOutlineCompositePS_SM5)), View(Spv::JBroBuiltinLayerOutlineCompositePS_SPV, sizeof(Spv::JBroBuiltinLayerOutlineCompositePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerShadowBlur",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerShadowBlurPS, sizeof(JBroBuiltinLayerShadowBlurPS)), View(Sm5::JBroBuiltinLayerShadowBlurPS_SM5, sizeof(Sm5::JBroBuiltinLayerShadowBlurPS_SM5)), View(Spv::JBroBuiltinLayerShadowBlurPS_SPV, sizeof(Spv::JBroBuiltinLayerShadowBlurPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerShadowComposite",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerShadowCompositePS, sizeof(JBroBuiltinLayerShadowCompositePS)), View(Sm5::JBroBuiltinLayerShadowCompositePS_SM5, sizeof(Sm5::JBroBuiltinLayerShadowCompositePS_SM5)), View(Spv::JBroBuiltinLayerShadowCompositePS_SPV, sizeof(Spv::JBroBuiltinLayerShadowCompositePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}},
         };
 
         static_assert(sizeof(Programs) / sizeof(Programs[0]) == static_cast<std::size_t>(BuiltinShader::Count),

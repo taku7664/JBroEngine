@@ -37,6 +37,18 @@ namespace JBro
             ReleaseProfile(profile);
         }
         m_profiles = {};
+        if (m_assets != nullptr)
+        {
+            for (const AssetHandle handle : m_loadedHandles)
+            {
+                if (handle.generation != 0)
+                {
+                    m_assets->Release(handle);
+                }
+            }
+        }
+        m_loadedIds = {};
+        m_loadedHandles = {};
         if (m_renderer != nullptr)
         {
             for (const LutTexture& lut : m_luts)
@@ -73,6 +85,7 @@ namespace JBro
         }
         profile.acquired.Clear();
         profile.entries.Clear();
+        profile.overrides.Clear();
         profile.blocks.Clear();
         profile.luts.Clear();
         profile.lutGenerations.Clear();
@@ -205,11 +218,46 @@ namespace JBro
             resolved.blockOffset = static_cast<JBro::UInt32>(offset);
             resolved.enabled = true;
             profile.entries.Add(resolved);
+            profile.overrides.Add(entry.overrides);
             offset += (entry.block.Size() + 15u) & ~static_cast<std::size_t>(15u);
         }
     }
 
+    AssetHandle PostProcessLibrary::FindOrLoad(AssetId profile)
+    {
+        if (m_assets == nullptr || profile.IsNull())
+        {
+            return {};
+        }
+        for (std::size_t at = 0; at < m_loadedIds.Size(); ++at)
+        {
+            if (m_loadedIds[at] == profile)
+            {
+                return m_loadedHandles[at];
+            }
+        }
+        AssetHandle handle = m_assets->Load(profile);
+        if (handle.generation != 0 && m_assets->GetPostProcessProfile(handle) == nullptr)
+        {
+            // 다른 종류의 에셋이다(손으로 고친 파일). 프로필이 아니면 들지 않는다.
+            m_assets->Release(handle);
+            handle = {};
+        }
+        if (handle.generation == 0)
+        {
+            Log::Write(LogLevel::Warning, "post-process", "a layer names a post-process profile that could not be loaded");
+        }
+        m_loadedIds.Add(profile);
+        m_loadedHandles.Add(handle);
+        return handle;
+    }
+
     PostProcessStack PostProcessLibrary::Resolve(AssetHandle profileAsset)
+    {
+        return ResolveProfile(profileAsset).stack;
+    }
+
+    PostProcessProfileView PostProcessLibrary::ResolveProfile(AssetHandle profileAsset)
     {
         if (m_assets == nullptr || profileAsset.generation == 0 || m_assets->GetPostProcessProfile(profileAsset) == nullptr)
         {
@@ -250,7 +298,10 @@ namespace JBro
             Build(*found);
             ++m_resolveCount;
         }
-        return {{found->entries.Data(), static_cast<JBro::UInt32>(found->entries.Size())},
+        PostProcessProfileView view;
+        view.stack = {{found->entries.Data(), static_cast<JBro::UInt32>(found->entries.Size())},
             {found->blocks.Data(), static_cast<JBro::UInt32>(found->blocks.Size())}};
+        view.overrides = {found->overrides.Data(), static_cast<JBro::UInt32>(found->overrides.Size())};
+        return view;
     }
 }

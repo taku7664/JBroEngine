@@ -126,6 +126,8 @@ namespace JBro::Internal
             UInt32 selectionCount = 0;
             // 레이어의 블렌드와 불투명도를 렌더러의 묶음으로 낸다(D-279). 선택 외곽선의 마스크는 그린 그대로의 모양이어야 하므로 끈다.
             Bool composite = true;
+            // 레이어의 프로필 효과(D-345)를 묶음에 건다. 캔버스 뷰의 후처리 단추를 끄면 레이어 효과도 꺼진다. `composite` 가 거짓이면 보지 않는다.
+            Bool layerPostProcess = true;
             // 있으면 월드 레이어의 패럴랙스를 이 뷰(월드 → 뷰)로 건다(D-286). 게임 화면만 준다 - 캔버스 뷰는 패럴랙스 없이 배치하는 자리다.
             const Matrix3x2* parallaxView = nullptr;
             // 빛을 받는 레이어의 아이템을 렌더러의 빛을 받는 구간으로 낸다(D-291). 라이트를 낸 월드 뷰만 켠다 - 선택 외곽선의 마스크·레이어 썸네일·
@@ -225,8 +227,10 @@ namespace JBro::Internal
                 {
                     continue;
                 }
+                const PostProcessStack* layerPost =
+                    rule.composite && rule.layerPostProcess ? &world.GetLayerPostProcess(item.layerOrder) : nullptr;
                 const Bool needsComposite = rule.composite
-                    && (item.layerBlend != LayerBlend::Normal || item.layerOpacity < 1.0f);
+                    && (item.layerBlend != LayerBlend::Normal || item.layerOpacity < 1.0f || (layerPost != nullptr && layerPost->entries.size != 0));
                 const Bool wantLit = rule.lighting && item.layerLit && false == item.screenSpace;
                 if (wantLit != lit)
                 {
@@ -243,7 +247,8 @@ namespace JBro::Internal
                         renderer.EndLayer();
                     }
                     layerBegun = wanted != NoLayer
-                        && renderer.BeginLayer(ToCompositeBlend(item.layerBlend), item.layerOpacity);
+                        && renderer.BeginLayer(ToCompositeBlend(item.layerBlend), item.layerOpacity,
+                            layerPost != nullptr ? *layerPost : PostProcessStack{});
                     openLayer = wanted;
                 }
                 Float offsetX = 0.0f;
@@ -443,6 +448,7 @@ namespace JBro::Internal
         // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 안 된다.
         SpriteFilterRule rule;
         rule.screenSpace = view.screenSpace;
+        rule.layerPostProcess = view.postProcess;
         Bool accepted = true;
 
         // **선택 외곽선의 마스크를 먼저 그린다**(D-276, 기존 `COutlineRenderer2D::RenderMask`). 같은 카메라로 고른 것의 스프라이트만

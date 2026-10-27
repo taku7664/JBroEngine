@@ -109,8 +109,12 @@ namespace JBro
         Viewport viewport;
         // **이 뷰의 후처리**(D-342, postprocess-plan §2.5). 비어 있으면 지금처럼 타깃에 바로 그린다. 효과가 있으면 장면을 중간 텍스처(`SceneColor`)에
         // 그리고 효과를 지점 차례로 건 뒤 타깃의 뷰포트 안에 쓴다 - HDR 효과가 있으면 장면은 `RGBA16Float` 이고 톤맵에서 내린다.
-        // `BeginView` 가 블록을 복사하므로 가리키는 곳은 그 뒤 버려도 된다. 통째로 얹는 뷰(`composite`)는 아직 후처리를 받지 않는다(9 단계).
+        // `BeginView` 가 블록을 복사하므로 가리키는 곳은 그 뒤 버려도 된다. 통째로 얹는 뷰(`composite`)는 장면의 후처리를 받지 않는다 -
+        // 3D 는 레이어를 다 얹은 뒤의 빈 뷰 하나에 건다(D-344). 그런 뷰의 레이어 효과는 아래 `layerPostProcess` 다.
         PostProcessStack postProcess;
+        // **이 뷰를 한 장의 레이어로 보고 거는 효과**(D-345, 3D 레이어의 프로필). 비어 있지 않으면 `composite` 가 `Normal` 이고 1 이어도 뷰를
+        // 제 텍스처에 그려 얹고, 얹기 전에 효과(`PostProcessEffectType::onLayer`)를 낸 차례로 건다. 레이어에 걸리지 않는 종류는 버리고 센다.
+        PostProcessStack layerPostProcess;
         // **이 뷰만 다른 곳에 그린다**(D-130). 비어 있으면 프레임의 타깃이다.
         //
         // 에디터가 같은 장면을 두 번 그리는 자리다 - 시뮬레이션 뷰는 게임의 카메라가 보는 것이고,
@@ -308,8 +312,12 @@ namespace JBro
         UInt32 postProcessWaitingViewCount = 0;
         // 상한을 넘었거나 종류·블록이 맞지 않아 버린 효과다.
         UInt32 droppedPostProcessCount = 0;
-        // 통째로 얹는 뷰라 후처리를 받지 않은 뷰다(9 단계에서 선다).
+        // 통째로 얹는 뷰라 장면의 후처리를 받지 않은 뷰다. 그런 뷰의 레이어 효과는 `layerPostProcess` 로 낸다(D-345).
         UInt32 unpostprocessedCompositeViewCount = 0;
+        // 레이어 효과를 건 레이어(2D 의 레이어 묶음과 통째로 얹는 뷰)다(D-345).
+        UInt32 layerPostProcessedCount = 0;
+        // 레이어 효과를 걸 자리(파이프라인·중간 텍스처)가 아직 없어 효과 없이 얹은 레이어다. 다음 프레임을 열 때 선다.
+        UInt32 layerPostProcessWaitingCount = 0;
     };
 
     // **렌더 그래프 창이 보는 뷰 하나다**(D-339, 진단). 뷰 번호가 그 뷰 패스의 묶음 번호(`RenderGraph::GetPassGroup`)다.
@@ -390,7 +398,9 @@ namespace JBro
         // 레이어 안의 스프라이트끼리는 서로 비치지 않고 레이어 전체가 한 번에 옅어진다. 뷰 안에서만 열고, 겹쳐 열지 않는다.
         // `Normal` 이고 불투명도 1 인 레이어는 열 필요가 없다(열어도 그림은 같고 텍스처만 든다). `EndView` 는 열린 것을 닫는다.
         // 깊이가 달린 뷰(메시·월드 텍스트가 있는 3D 뷰)에서는 묶음을 보지 않고 그대로 그린다.
-        Bool BeginLayer(CompositeBlend blend, Float opacity);
+        // `post` 는 그 레이어의 효과다(D-345, 레이어의 프로필). 얹기 전에 레이어 텍스처에 낸 차례로 걸고, 레이어에 걸리지 않는 종류는 버리고 센다.
+        // 블록은 여기서 복사하므로 가리키는 곳은 돌아온 뒤 버려도 된다. 효과가 있으면 `Normal`·1 이어도 열어야 걸린다.
+        Bool BeginLayer(CompositeBlend blend, Float opacity, const PostProcessStack& post = {});
         Bool EndLayer();
         // **2D 라이트를 낸다**(D-291). 뷰 안에서만 받는다. `Global` 은 색을 뷰의 환경광에 더하고, `Point`·`Spot` 은 라이트맵에 그린다.
         Bool SubmitLight2D(const Light2DSubmit& light);
@@ -549,6 +559,9 @@ namespace JBro
             // 이 뷰의 후처리 효과(`m_postEntries`)다(D-342).
             UInt32 postOffset = 0;
             UInt32 postCount = 0;
+            // 통째로 얹을 때 거는 레이어 효과(`CameraParams::layerPostProcess`, D-345)다.
+            UInt32 layerPostOffset = 0;
+            UInt32 layerPostCount = 0;
         };
 
         // **장면 포맷 하나에 매인 파이프라인 묶음**(D-342). 장면(뷰의 타깃·레이어 텍스처)에 그리는 것은 모두 그 색 포맷으로 만든다 - D3D12·Vulkan 은
@@ -624,6 +637,9 @@ namespace JBro
             UInt32 endSprite = 0;
             CompositeBlend blend = CompositeBlend::Normal;
             Float opacity = 1.0f;
+            // 얹기 전에 거는 효과(`m_postEntries`)다(D-345).
+            UInt32 postOffset = 0;
+            UInt32 postCount = 0;
         };
 
         // ── 렌더 그래프의 패스 자료(D-339) ──
@@ -881,6 +897,15 @@ namespace JBro
         // 뷰 하나의 효과를 지점 차례로 늘어놓는다. 톤맵은 앞의 하나만 쓰고, HDR 인데 톤맵이 없으면 `None` 톤맵을 넣는다.
         // 받지 않는 지점(`AfterLayer`·`AfterScreenLayers`)의 효과는 버리고 센다. 걸 것이 없으면 거짓이다.
         Bool PlanPostProcess(const ViewPacket& view, PostPlan& plan);
+        // 낸 효과를 프레임 저장소(`m_postEntries`·`m_postBlocks`)에 옮긴다. 꺼진 효과는 옮기지 않고, 종류를 모르거나 블록이 배열 밖이거나
+        // 상한을 넘는 효과는 버리고 센다.
+        void CopyPostEntries(const PostProcessStack& stack, UInt32& offset, UInt32& count);
+        // **레이어 효과**(D-345). 레이어에 걸리는 종류만 낸 차례로 늘어놓고 나머지는 버리고 센다. 모든 효과가 `format` 에 쓴다.
+        Bool PlanLayerPostProcess(UInt32 offset, UInt32 count, TextureFormat format, PostPlan& plan);
+        // 레이어 텍스처에 효과를 걸고 `layer` 를 마지막 효과의 텍스처로 바꾼다. 효과는 텍스처 전체를 덮는다 - 다음 효과가 뷰포트 둘레를
+        // 읽어도 비어 있지 않다. 걸 자리(파이프라인·텍스처)가 없으면 바라 두고 `layer` 를 그대로 둔다. 그래프에 더하다 실패하면 거짓이다.
+        Bool AddLayerPostPasses(UInt32 viewIndex, UInt32 offset, UInt32 count, TextureFormat format, const Extent2D& extent,
+            RenderGraphTexture& layer);
         // 계획한 효과를 건다. `scene` 은 그려 둔 장면이고 `output` 은 뷰의 타깃이다 - 마지막 효과가 그 뷰포트 안에 쓴다.
         Bool AddPostProcessPasses(UInt32 viewIndex, const PostPlan& plan, RenderGraphTexture scene, RenderGraphTexture output,
             LoadOperation outputLoad, const ClearColor& outputClear, const Extent2D& extent, const Viewport& viewport,
@@ -888,8 +913,10 @@ namespace JBro
         Bool AddPostProcessPass(PostProcessBuilder& builder, const PostProcessPassDesc& desc);
         // 계획한 효과가 만들 텍스처를 센다. 효과 사이의 중간 텍스처(포맷마다 많아야 둘)와, 패스 함수를 셈으로만 돌려 얻은 효과 안의
         // 텍스처다. 셀 모양이 너무 많거나 패스 함수가 거절하면 거짓이다.
-        Bool CountPostProcessTextures(UInt32 viewIndex, const PostPlan& plan, const Extent2D& extent, const Viewport& viewport,
-            const ScissorRect& scissor, PostProcessBuilder::TextureCount* counts, UInt32& countSize);
+        // 뷰는 마지막 효과가 타깃에 쓰고(`finalIsTexture` 거짓), 레이어는 마지막 효과도 텍스처에 쓴다.
+        Bool CountPostProcessTextures(UInt32 viewIndex, const PostPlan& plan, TextureFormat inputFormat, TextureFormat finalFormat,
+            Bool finalIsTexture, Bool premultiplied, const Extent2D& extent, const Viewport& viewport, const ScissorRect& scissor,
+            PostProcessBuilder::TextureCount* counts, UInt32& countSize);
         // 그 텍스처 자리가 있는가(렌더 그래프 밖의 텍스처, 빌더가 묻는다).
         Bool GetRegisteredTextureSize(AssetHandle texture, UInt32& width, UInt32& height, UInt32& depth) const;
         static Bool ExecutePostProcess(RenderGraphContext& context, const void* data);

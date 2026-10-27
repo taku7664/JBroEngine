@@ -59,8 +59,10 @@ namespace
         static_assert(std::is_same_v<decltype(JBro::SystemContext::Random), JBro::System::IRandomSystem*>);
         static_assert(std::is_same_v<decltype(JBro::SystemContext::DebugDraw), JBro::System::IDebugDrawSystem*>);
         static_assert(std::is_same_v<decltype(JBro::SystemContext::Objects), JBro::System::IObjectSystem*>);
-        // 오브젝트 만들기·찾기(D-301)도 차원과 무관하다 - 캔버스를 가진 프레임워크가 꽂는다.
-        static_assert(sizeof(JBro::SystemContext) == sizeof(void*) * 5);
+        // 오브젝트 만들기·찾기(D-301)와 후처리 덮어쓰기(D-346)도 차원과 무관하다 - 캔버스를 가진 프레임워크가 꽂는다.
+        static_assert(std::is_same_v<decltype(JBro::SystemContext::PostProcess), JBro::System::IPostProcessSystem*>);
+        static_assert(sizeof(JBro::SystemContext) == sizeof(void*) * 6);
+        static_assert(false == std::is_polymorphic_v<JBro::Service::PostProcessService>);
         static_assert(false == std::is_polymorphic_v<JBro::Service::DebugDraw2DService>);
         static_assert(false == std::is_polymorphic_v<JBro::Service::DebugDraw3DService>);
         static_assert(std::is_same_v<decltype(JBro::ServiceContext::Time), JBro::Service::TimeService>);

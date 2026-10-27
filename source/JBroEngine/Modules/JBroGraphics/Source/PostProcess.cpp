@@ -185,6 +185,7 @@ namespace JBro
             constants.params[1][0] = effect.colorFilter.R;
             constants.params[1][1] = effect.colorFilter.G;
             constants.params[1][2] = effect.colorFilter.B;
+            constants.params[0][3] = builder.IsPremultiplied() ? 1.0f : 0.0f;
             return builder.AddFullscreenPass("ColorAdjustments", PostProcessProgram::ColorAdjust, AsBytes(constants));
         }
 
@@ -202,6 +203,7 @@ namespace JBro
             WideConstants constants;
             constants.params[0][0] = effect.contribution;
             constants.params[0][1] = static_cast<JBro::Float>(width.Get());
+            constants.params[0][2] = builder.IsPremultiplied() ? 1.0f : 0.0f;
             constants.params[1][0] = effect.lutDomainMin.x;
             constants.params[1][1] = effect.lutDomainMin.y;
             constants.params[1][2] = effect.lutDomainMin.z;
@@ -216,11 +218,155 @@ namespace JBro
             return builder.AddPass(pass);
         }
 
+        // ── 레이어 효과(D-345) ── 반경과 굵기는 대상 픽셀이고 셰이더의 탭 상한(33)까지다.
+        constexpr Float MaxLayerReach = 32.0f;
+
+        Float ClampReach(Float value)
+        {
+            // 유한하지 않은 값(NaN)은 0 이다 - 비교가 둘 다 거짓이라 처음 값이 남는다.
+            Float reach = 0.0f;
+            if (value > MaxLayerReach)
+            {
+                reach = MaxLayerReach;
+            }
+            else if (value > 0.0f)
+            {
+                reach = value;
+            }
+            return reach;
+        }
+
+        // 가우스의 탭 수와 시그마다. 반경의 절반이 시그마이고 반경을 올린 만큼 탭을 둔다.
+        void GaussianTaps(Float radius, Float& taps, Float& sigma)
+        {
+            const Float reach = ClampReach(radius);
+            taps = static_cast<JBro::Float>(std::ceil(static_cast<double>(reach.Get())));
+            sigma = reach * 0.5f > 0.5f ? reach * 0.5f : Float(0.5f);
+        }
+
+        Float RoundPixel(Float value)
+        {
+            return static_cast<JBro::Float>(std::lround(static_cast<double>(value.Get())));
+        }
+
+        // 효과 안의 중간 텍스처에 쓰는 패스다. 뷰와 같은 크기·입력 포맷이고 전체를 쓴다.
+        PostProcessPassDesc WholeTexturePass(PostProcessBuilder& builder, const char* name, PostProcessProgram program)
+        {
+            PostProcessPassDesc pass;
+            pass.name = name;
+            pass.program = program;
+            pass.outputExtent = builder.GetExtent();
+            pass.outputFormat = builder.GetInputFormat();
+            pass.output = builder.CreateTexture(pass.outputExtent, pass.outputFormat, name);
+            return pass;
+        }
+
+        Bool AddBlurPasses(PostProcessBuilder& builder, const void* parameters)
+        {
+            const BlurEffect& effect = *static_cast<const BlurEffect*>(parameters);
+            WideConstants across;
+            GaussianTaps(effect.radius, across.params[0][2], across.params[0][3]);
+            if (across.params[0][2] == 0.0f)
+            {
+                return builder.AddFullscreenPass("Blur", PostProcessProgram::Copy, {});
+            }
+            across.params[0][0] = 1.0f;
+            PostProcessPassDesc first = WholeTexturePass(builder, "BlurAcross", PostProcessProgram::LayerBlur);
+            first.constants = AsBytes(across);
+            if (false == builder.AddPass(first))
+            {
+                return false;
+            }
+            WideConstants down = across;
+            down.params[0][0] = 0.0f;
+            down.params[0][1] = 1.0f;
+            PostProcessPassDesc second;
+            second.name = "BlurDown";
+            second.program = PostProcessProgram::LayerBlur;
+            second.inputs[0] = first.output;
+            second.inputCount = 1;
+            second.constants = AsBytes(down);
+            return builder.AddPass(second);
+        }
+
+        Bool AddOutlinePasses(PostProcessBuilder& builder, const void* parameters)
+        {
+            const OutlineEffect& effect = *static_cast<const OutlineEffect*>(parameters);
+            const Float width = ClampReach(effect.width);
+            if (width == 0.0f || effect.color.A <= 0.0f)
+            {
+                return builder.AddFullscreenPass("Outline", PostProcessProgram::Copy, {});
+            }
+            // 끝을 한 픽셀에 걸쳐 흐리므로 굵기보다 한 칸 더 본다.
+            const Float reach = static_cast<JBro::Float>(std::ceil(static_cast<double>(width.Get()))) + 1.0f;
+            WideConstants distance;
+            distance.params[0][0] = reach;
+            PostProcessPassDesc first = WholeTexturePass(builder, "OutlineDistance", PostProcessProgram::LayerOutlineDistance);
+            first.constants = AsBytes(distance);
+            if (false == builder.AddPass(first))
+            {
+                return false;
+            }
+            WideConstants ring;
+            ring.params[0][0] = width;
+            ring.params[0][1] = reach;
+            ring.params[1][0] = effect.color.R;
+            ring.params[1][1] = effect.color.G;
+            ring.params[1][2] = effect.color.B;
+            ring.params[1][3] = effect.color.A;
+            PostProcessPassDesc second;
+            second.name = "OutlineComposite";
+            second.program = PostProcessProgram::LayerOutlineComposite;
+            second.inputs[0] = first.output;
+            second.inputs[1] = builder.GetInput();
+            second.inputCount = 2;
+            second.constants = AsBytes(ring);
+            return builder.AddPass(second);
+        }
+
+        Bool AddDropShadowPasses(PostProcessBuilder& builder, const void* parameters)
+        {
+            const DropShadowEffect& effect = *static_cast<const DropShadowEffect*>(parameters);
+            if (effect.color.A <= 0.0f)
+            {
+                return builder.AddFullscreenPass("DropShadow", PostProcessProgram::Copy, {});
+            }
+            // 옮김은 화면 픽셀이고 y 는 위가 + 다. 텍스처의 줄은 아래로 늘어나므로 y 를 뒤집는다. 픽셀 단위로 반올림한다.
+            WideConstants across;
+            across.params[0][0] = RoundPixel(effect.offset.x);
+            across.params[0][1] = -RoundPixel(effect.offset.y);
+            GaussianTaps(effect.softness, across.params[0][2], across.params[0][3]);
+            PostProcessPassDesc first = WholeTexturePass(builder, "ShadowAcross", PostProcessProgram::LayerShadowBlur);
+            first.constants = AsBytes(across);
+            if (false == builder.AddPass(first))
+            {
+                return false;
+            }
+            WideConstants down;
+            down.params[0][2] = across.params[0][2];
+            down.params[0][3] = across.params[0][3];
+            down.params[1][0] = effect.color.R;
+            down.params[1][1] = effect.color.G;
+            down.params[1][2] = effect.color.B;
+            down.params[1][3] = effect.color.A;
+            PostProcessPassDesc second;
+            second.name = "ShadowComposite";
+            second.program = PostProcessProgram::LayerShadowComposite;
+            second.inputs[0] = first.output;
+            second.inputs[1] = builder.GetInput();
+            second.inputCount = 2;
+            second.constants = AsBytes(down);
+            return builder.AddPass(second);
+        }
+
         const ExposureEffect DefaultExposure = {};
         const TonemapEffect DefaultTonemap = {};
         const BloomEffect DefaultBloom = {};
         const ColorAdjustmentsEffect DefaultColorAdjustments = {};
         const ColorLookupEffect DefaultColorLookup = {};
+        const BlurEffect DefaultBlur = {};
+        const OutlineEffect DefaultOutline = {};
+        const DropShadowEffect DefaultDropShadow = {};
 
         struct RegistryStorage
         {
@@ -305,6 +451,7 @@ namespace JBro
                 PostProcessEffectType adjustments;
                 adjustments.name = "ColorAdjustments";
                 adjustments.stage = PostProcessStage::AfterTonemap;
+                adjustments.onLayer = true;
                 adjustments.parameters = &GetPropertyTable<ColorAdjustmentsEffect>();
                 adjustments.blockSize = static_cast<JBro::UInt32>(sizeof(ColorAdjustmentsEffect));
                 adjustments.defaults = &DefaultColorAdjustments;
@@ -314,11 +461,42 @@ namespace JBro
                 PostProcessEffectType lookup;
                 lookup.name = "ColorLookup";
                 lookup.stage = PostProcessStage::AfterTonemap;
+                lookup.onLayer = true;
                 lookup.parameters = &GetPropertyTable<ColorLookupEffect>();
                 lookup.blockSize = static_cast<JBro::UInt32>(sizeof(ColorLookupEffect));
                 lookup.defaults = &DefaultColorLookup;
                 lookup.addPasses = &AddColorLookupPasses;
                 AddTo(built, lookup);
+
+                PostProcessEffectType blur;
+                blur.name = "Blur";
+                blur.stage = PostProcessStage::AfterLayer;
+                blur.onLayer = true;
+                blur.parameters = &GetPropertyTable<BlurEffect>();
+                blur.blockSize = static_cast<JBro::UInt32>(sizeof(BlurEffect));
+                blur.defaults = &DefaultBlur;
+                blur.addPasses = &AddBlurPasses;
+                AddTo(built, blur);
+
+                PostProcessEffectType outline;
+                outline.name = "Outline";
+                outline.stage = PostProcessStage::AfterLayer;
+                outline.onLayer = true;
+                outline.parameters = &GetPropertyTable<OutlineEffect>();
+                outline.blockSize = static_cast<JBro::UInt32>(sizeof(OutlineEffect));
+                outline.defaults = &DefaultOutline;
+                outline.addPasses = &AddOutlinePasses;
+                AddTo(built, outline);
+
+                PostProcessEffectType shadow;
+                shadow.name = "DropShadow";
+                shadow.stage = PostProcessStage::AfterLayer;
+                shadow.onLayer = true;
+                shadow.parameters = &GetPropertyTable<DropShadowEffect>();
+                shadow.blockSize = static_cast<JBro::UInt32>(sizeof(DropShadowEffect));
+                shadow.defaults = &DefaultDropShadow;
+                shadow.addPasses = &AddDropShadowPasses;
+                AddTo(built, shadow);
                 return built;
             }();
             return storage;

@@ -10,6 +10,8 @@
 #include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Graphics/PostProcessLibrary.h>
+#include <JBro/Graphics/PostProcessMixer.h>
+#include <JBro/Host/PostProcessSystem.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Framework3DSystem/System/Camera3DSystem.h>
 #include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
@@ -57,6 +59,19 @@ namespace JBro
         MeshLibrary m_meshes;
         // 카메라의 후처리 프로필을 푼다(D-344).
         PostProcessLibrary m_postProcess;
+        // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 2D 와 같다.
+        PostProcessMixer m_postMixer;
+        PostProcessSystem m_postProcessSystem;
+        struct VolumeSample
+        {
+            Int32 priority = 0;
+            Float weight = 0.0f;
+            AssetHandle profile;
+        };
+        Array<VolumeSample> m_volumes;
+        static constexpr UInt32 PostMixerEntries = 32;
+        static constexpr UInt32 PostMixerBlockBytes = 4096;
+        static constexpr UInt32 MaxVolumes = 64;
         Bool m_initialized = false;
         Bool m_simulationEnabled = true;
         // 스크립트에 건네는 3D 컨텍스트다(D-224). 2D 의 `Framework2D` 와 같은 자리다.

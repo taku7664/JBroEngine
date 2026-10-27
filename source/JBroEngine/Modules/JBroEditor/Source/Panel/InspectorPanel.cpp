@@ -639,6 +639,22 @@ namespace JBro
                         MakeOwnerPtr<SetLayerCompositeCommand>(*canvas, layerId, layer->GetBlend(), opacity));
                 }
             });
+        // **레이어의 후처리 프로필**(D-345). 프로필 에셋 중에서 고른다 - 효과는 그 프로필 에셋을 고르면 인스펙터가 고친다.
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerPostProcess, "Post-Process Profile"))
+                .Tooltip(Loc::TextOr(LocKeys::InspectorLayerPostProcessTooltip,
+                    "the profile's layer effects are applied before the layer is laid onto what is below")),
+            [&]() {
+                const AssetChoices& choices = ChoicesFor(AssetType::PostProcessProfile);
+                AssetId profile = layer->GetPostProcessProfile();
+                if (Widget::AssetField("##layerPostProcess",
+                        ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
+                        ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()), profile)
+                        .Draw())
+                {
+                    m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerPostProcessProfileCommand>(*canvas, layerId, profile));
+                }
+            });
         // 패럴랙스는 월드 레이어에만 뜻이 있다(D-286). 끄는 동안 커맨드가 합쳐진다.
         if (layer->GetSpace() == LayerSpace::World)
         {

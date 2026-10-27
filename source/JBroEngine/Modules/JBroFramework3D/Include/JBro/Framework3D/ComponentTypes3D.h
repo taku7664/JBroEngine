@@ -20,6 +20,20 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 후처리 볼륨의 모양이다(D-346). `Global` 은 캔버스 어디서나, `Box`·`Sphere` 는 오브젝트의 트랜스폼에 놓인 모양 안이다.
+    enum class PostProcessVolumeShape3D : std::uint8_t { Global, Box, Sphere };
+}
+
+namespace JBro
+{
+    JBRO_DEFINE_ENUM_TYPE(Component::PostProcessVolumeShape3D, "Component::PostProcessVolumeShape3D",
+        { Component::PostProcessVolumeShape3D::Global, "Global" },
+        { Component::PostProcessVolumeShape3D::Box,    "Box" },
+        { Component::PostProcessVolumeShape3D::Sphere, "Sphere" });
+}
+
+namespace JBro::Component
+{
     // 글자 판이 어디를 보나(D-222). Transform 은 오브젝트의 회전을 따르는 판(간판·벽의 글씨), Billboard 는 늘 카메라를 보는 판(이름표)이다.
     // Billboard 는 오브젝트의 위치와 크기만 쓰고 회전은 뷰마다 카메라의 것으로 바꾼다 - 시뮬레이션 뷰와 편집 뷰가 각자 제 카메라를 본다.
     enum class TextFacing3D : std::uint8_t { Transform, Billboard };
