@@ -96,6 +96,38 @@ namespace JBro
         profile.rendererMaterials.Clear();
     }
 
+    void PostProcessLibrary::RefreshMaterialParameters(Profile& profile)
+    {
+        profile.parameterStamp = m_materials != nullptr ? m_materials->GetParameterStamp() : UInt32(0);
+        for (const PostProcessEntry& entry : profile.entries)
+        {
+            if (entry.type != PostProcessEffects::Material
+                || static_cast<std::size_t>(entry.blockOffset.Get()) + sizeof(MaterialEffect) > profile.blocks.Size())
+            {
+                continue;
+            }
+            MaterialEffect& material = *reinterpret_cast<MaterialEffect*>(profile.blocks.Data() + entry.blockOffset.Get());
+            material.shaderId = {};
+            material.parameterBytes = 0;
+            material.mixed = false;
+            AssetId shader;
+            JArrayView<std::byte> block;
+            JArrayView<std::uint8_t> kinds;
+            if (m_materials == nullptr || false == m_materials->DescribeParameters(material.material, shader, block, kinds)
+                || block.size > MaxMaterialParameterBytes || kinds.size * 4 != block.size)
+            {
+                continue;
+            }
+            material.shaderId = shader;
+            material.parameterBytes = block.size;
+            if (block.size != 0)
+            {
+                std::memcpy(material.parameters, block.data, block.size.Get());
+                std::memcpy(material.cellKinds, kinds.data, kinds.size.Get());
+            }
+        }
+    }
+
     Bool PostProcessLibrary::IsStale(const Profile& profile) const
     {
         const PostProcessProfileData* data = m_assets->GetPostProcessProfile(profile.asset);
@@ -167,6 +199,8 @@ namespace JBro
     void PostProcessLibrary::Build(Profile& profile)
     {
         ReleaseProfile(profile);
+        // 새로 뜬 블록에는 섞기 자료가 없다 - 다음 찾기가 다시 뜬다(D-348).
+        profile.parameterStamp = 0;
         const PostProcessProfileData* data = m_assets->GetPostProcessProfile(profile.asset);
         if (data == nullptr)
         {
@@ -320,6 +354,10 @@ namespace JBro
         {
             Build(*found);
             ++m_resolveCount;
+        }
+        if (m_materials != nullptr && found->parameterStamp != m_materials->GetParameterStamp())
+        {
+            RefreshMaterialParameters(*found);
         }
         PostProcessProfileView view;
         view.stack = {{found->entries.Data(), static_cast<JBro::UInt32>(found->entries.Size())},

@@ -4,7 +4,10 @@
 #include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Core/Core.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/NameTable.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/UInt.h>
@@ -45,6 +48,24 @@ namespace JBro
         // **셰이더 에셋을 그 자리로 구운 것**이다(반사 포함). 에디터의 머티리얼 인스펙터가 파라미터·텍스처 이름을 이것으로 안다. 실패하면 nullptr 이고
         // `error` 에 까닭을 준다. 셰이더 본문이 바뀌면 다시 굽는다.
         const CompiledMaterialShader* GetCompiledShader(AssetHandle shaderAsset, MaterialDomain domain, const String** error = nullptr);
+
+        // **스크립트의 파라미터 덮어쓰기**(D-348, `MaterialService`). 머티리얼 아이디와 셰이더의 변수 이름으로 자리를 잡고 번호를 준다 - 같은 둘이면
+        // 같은 번호다. 아직 실리지 않은 머티리얼도 잡을 수 있다(실리면 얹힌다). 자리가 차면 `InvalidParameter` 다. 덮어쓴 값은 그 머티리얼의 파일 값 위에
+        // 얹혀 다음 `Update` 에서 렌더러에 올라간다. 셰이더의 형과 칸 수가 맞지 않으면 얹지 않는다(`float3` 은 넷을 받아 넷째를 버린다).
+        static constexpr UInt32 MaxParameterOverrides = 64;
+        static constexpr UInt32 InvalidParameter = 0xFFFFFFFFu;
+        UInt32 FindParameter(AssetId material, const char* parameter);
+        Bool SetParameter(UInt32 parameter, const Float* values, UInt32 count, Bool integer);
+        void ClearParameter(UInt32 parameter);
+        void ClearParameters();
+        // 머티리얼의 파라미터가 바뀔 때마다(다시 짓기·덮어쓰기) 오르는 수다. 후처리 프로필 라이브러리가 이것으로 볼륨 섞기의 값을 다시 뜬다.
+        UInt32 GetParameterStamp() const noexcept
+        {
+            return m_parameterStamp;
+        }
+        // **볼륨 섞기에 쓸 지금의 파라미터**(D-348). 지은 머티리얼의 셰이더 아이디·지금의 파라미터 블록(덮어쓰기 포함)·4 바이트 칸마다의 종류
+        // (`MaterialCellKind`)다. 짓지 못한 머티리얼이면 거짓이다. 가리키는 곳은 다음 `Update` 까지 산다.
+        Bool DescribeParameters(AssetHandle materialAsset, AssetId& shader, JArrayView<std::byte>& block, JArrayView<std::uint8_t>& kinds) const;
 
         // **머티리얼 문서를 셰이더의 파라미터 블록으로 옮긴다.** 적히지 않은 파라미터는 HLSL 초기값이다. 칸 수가 모자라면 0, 넘치면 버린다.
         // `blocks` 는 `shader.parameterBytes` 바이트로 맞춘다. 에디터·시험도 쓴다.
@@ -94,6 +115,25 @@ namespace JBro
             MaterialDomain registeredDomain = MaterialDomain::PostProcess;
             String error;
             Bool hasError = false;
+            // 지은 셰이더(주소는 `m_compiled` 칸이라 살아 있다)와 그때의 블록이다. `baseBlock` 은 파일의 값, `liveBlock` 은 덮어쓰기를 얹은 것이다.
+            // 덮어쓰기가 바뀌면 다시 짓지 않고 `liveBlock` 만 다시 떠 올린다 - 프레임 안에서 할당하지 않는다.
+            const Compiled* compiled = nullptr;
+            AssetId shaderId;
+            Array<std::byte> baseBlock;
+            Array<std::byte> liveBlock;
+            Array<std::uint8_t> cellKinds;
+            Array<NameId> parameterNames;
+            AssetHandle rendererTextures[MaxMaterialTextures];
+            UInt32 appliedOverrideStamp = 0;
+        };
+        struct ParameterOverride
+        {
+            AssetId material;
+            NameId name = InvalidNameId;
+            Float values[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            UInt32 count = 0;
+            Bool integer = false;
+            Bool set = false;
         };
 
         Bool IsStale(const Material& material) const;
@@ -101,6 +141,9 @@ namespace JBro
         void ReleaseAssets(Material& material);
         AssetHandle EnsureTexture(AssetHandle textureAsset);
         Compiled* Compile(AssetHandle shaderAsset, MaterialDomain domain);
+        // `baseBlock` 위에 이 머티리얼의 덮어쓰기를 얹어 `liveBlock` 을 뜬다.
+        void ApplyOverrides(Material& material);
+        void Refresh(Material& material);
 
         AssetSystem* m_assets = nullptr;
         Renderer* m_renderer = nullptr;
@@ -111,5 +154,20 @@ namespace JBro
         Array<TextureSlot> m_textures;
         UInt32 m_compileCount = 0;
         UInt32 m_buildCount = 0;
+        ParameterOverride m_overrides[MaxParameterOverrides];
+        UInt32 m_overrideCount = 0;
+        // 덮어쓰기를 고칠 때마다 오른다. 머티리얼은 얹은 때의 값을 들고 다르면 다시 얹는다.
+        UInt32 m_overrideStamp = 1;
+        UInt32 m_parameterStamp = 1;
+    };
+
+    // 볼륨 섞기가 파라미터 블록의 4 바이트 칸을 무엇으로 읽는가다(D-348). `Unused` 는 파라미터가 아닌 채움 칸이다.
+    enum class MaterialCellKind : std::uint8_t
+    {
+        Float,
+        Int,
+        UInt,
+        Bool,
+        Unused = 0xFF,
     };
 }

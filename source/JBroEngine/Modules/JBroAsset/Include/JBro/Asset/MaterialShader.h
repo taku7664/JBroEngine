@@ -22,12 +22,16 @@ namespace JBro
         PostProcess,
         // 스프라이트 사각형이다(`SpriteRenderer2D.materialId`). t0 이 스프라이트의 텍스처, 입력에 틴트와 UV 가 온다.
         Sprite,
+        // 3D 메시다(`MeshRenderer3D.materialId`, D-348). t0 은 없고, 입력에 월드 위치·법선·UV·틴트가 온다. 셰이더가 최종 색을 낸다 - 엔진의 빛은
+        // `JBroMeshLight(normal)` 로 곱한다.
+        Mesh,
     };
-    inline constexpr UInt32 MaterialDomainCount = 2;
+    inline constexpr UInt32 MaterialDomainCount = 3;
 
     JBRO_DEFINE_ENUM_TYPE(MaterialDomain, "JBro.MaterialDomain",
         { MaterialDomain::PostProcess, "PostProcess" },
-        { MaterialDomain::Sprite,      "Sprite" });
+        { MaterialDomain::Sprite,      "Sprite" },
+        { MaterialDomain::Mesh,        "Mesh" });
 
     // 머티리얼 파라미터(셰이더의 `cbuffer Material : register(b1)` 의 변수 하나)의 모양이다. 스칼라와 벡터만 받는다 - 행렬·배열·구조체가 든
     // 셰이더는 굽기에서 거절한다.
@@ -77,9 +81,13 @@ namespace JBro
         const MaterialTextureInfo* FindTexture(std::string_view name) const noexcept;
     };
 
-    // 머티리얼의 상한이다. 파라미터 블록은 한 번에 묶는 상수 버퍼 하나이고, 텍스처는 t1..t7(t0 은 자리의 입력, 렌더러의 텍스처 자리는 8)이다.
+    // 머티리얼의 상한이다. 파라미터 블록은 한 번에 묶는 상수 버퍼 하나이고, 텍스처는 t1..t6 이다(t0 은 자리의 입력, t7 은 엔진의 라이트맵 -
+    // 렌더러의 텍스처 자리가 세 백엔드 모두 8 이다, D-348).
     inline constexpr UInt32 MaxMaterialParameterBytes = 256;
-    inline constexpr UInt32 MaxMaterialTextures = 7;
+    inline constexpr UInt32 MaxMaterialTextures = 6;
+    // **스프라이트 자리의 라이트맵**(D-348). 엔진의 입구(`GetMaterialEntryPoint`)가 사용자 `PSMain` 의 색에 이 자리의 빛을 곱한다. 빛을 받지 않는
+    // 스프라이트는 렌더러가 흰 텍스처를 묶는다 - 셰이더는 하나다.
+    inline constexpr UInt32 MaterialLightMapSlot = 7;
     // 머티리얼 셰이더가 쓰는 샘플러 넷이다(s0 자리의 입력·s1 선형 자르기·s2 점 자르기·s3 선형 되풀이).
     inline constexpr UInt32 MaterialSamplerCount = 4;
 
@@ -117,4 +125,8 @@ namespace JBro
     inline constexpr const char* MaterialPreludeName = "JBro/Material.hlsli";
     // 새 셰이더 파일의 처음 글자다. 에디터의 `새 셰이더` 가 쓴다.
     const char* GetMaterialShaderTemplate() noexcept;
+    // **자리의 입구와 맺음말**(D-348). 사용자는 언제나 `PSMain` 을 적는다. 엔진이 그 뒤에 덧붙이는 맺음말이 있으면(스프라이트) 입구는 맺음말의 함수이고
+    // 그것이 `PSMain` 을 부른다. 맺음말은 `#line` 으로 제 이름을 달아 사용자 파일의 줄 번호를 밀지 않는다. 없으면 빈 글자다.
+    const char* GetMaterialEntryPoint(MaterialDomain domain) noexcept;
+    const char* GetMaterialEpilogue(MaterialDomain domain) noexcept;
 }

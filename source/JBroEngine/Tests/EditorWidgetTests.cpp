@@ -1764,6 +1764,48 @@ namespace
         Check(value == 9 && changedFrames == before, "a click on the middle of the field is not an arrow");
     }
 
+    // **좁은 색 칸은 채널을 접는다**(D-348). 넓으면 R·G·B·A 네 칸, 넷이 들어가지 않으면 16 진수 한 칸, 그것도 들어가지 않으면 견본만이다.
+    // 칸의 왼쪽 끝을 가리켜 그 자리에 선 것이 무엇인지 본다 - 네 칸이면 첫 채널, 16 진수면 글자 칸, 견본뿐이면 견본이다.
+    void TestANarrowColorFieldFoldsItsChannels()
+    {
+        Stage stage;
+        JBro::EditorTheme::ApplyLayout();
+        ImGuiIO& io = ImGui::GetIO();
+        JBro::Float rgba[4] = {1.0f, 0.5f, 0.25f, 1.0f};
+        const auto hoveredPart = [&](JBro::Float width) {
+            ImVec2 fieldMin;
+            ImGuiID hovered = 0;
+            ImGuiID channel = 0;
+            ImGuiID hex = 0;
+            ImGuiID swatch = 0;
+            JBro::Float fieldWidth = 0.0f;
+            const auto frame = [&]() {
+                stage.Begin();
+                ImGui::SetNextItemWidth(width);
+                JBro::Widget::ColorField("##tint", rgba);
+                fieldMin = ImGui::GetItemRectMin();
+                fieldWidth = ImGui::GetItemRectMax().x - fieldMin.x;
+                hovered = ImGui::GetHoveredID();
+                ImGui::PushID("##tint");
+                channel = ImGui::GetID("##X");
+                hex = ImGui::GetID("##Text");
+                swatch = ImGui::GetID("##ColorButton");
+                ImGui::PopID();
+                stage.End();
+            };
+            stage.Settle();
+            frame();
+            io.AddMousePosEvent(fieldMin.x + 3.0f, fieldMin.y + ImGui::GetFrameHeight() * 0.5f);
+            frame();
+            frame();
+            Check(fieldWidth <= width + 1.0f, "the colour field keeps to the width it is given");
+            return hovered == channel ? 4 : hovered == hex ? 1 : hovered == swatch ? 0 : -1;
+        };
+        Check(hoveredPart(320.0f) == 4, "a wide colour field shows the four channels");
+        Check(hoveredPart(130.0f) == 1, "a narrow colour field folds the channels into one hex field");
+        Check(hoveredPart(60.0f) == 0, "a very narrow colour field keeps only the swatch");
+    }
+
     // **실수·부호 없는 정수·64 비트 칸도 같은 ▲▼ 다**(D-290). 실수는 `Step` 만큼, 부호 없는 값은 0 아래로 감기지 않고,
     // 64 비트 정수는 32 비트를 넘는 값도 그대로 한 칸씩 움직인다. 슬라이더도 엔진 타입을 바로 잡는다.
     void TestEveryNumberTypeSpinsTheSameWay()
@@ -1947,6 +1989,7 @@ JBro::Int32 RunEditorWidgetTests()
     TestSeverityColoursDiffer();
     TestATooltipWaitsForTheMouseToRest();
     TestTheNumberFieldSpinsWithStackedArrowsInsideIt();
+    TestANarrowColorFieldFoldsItsChannels();
     TestEveryNumberTypeSpinsTheSameWay();
     std::cout << "Editor widget tests passed.\n";
     return 0;

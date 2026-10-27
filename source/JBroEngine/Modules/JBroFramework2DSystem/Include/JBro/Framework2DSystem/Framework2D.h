@@ -23,6 +23,7 @@
 #include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessLibrary.h>
 #include <JBro/Graphics/PostProcessMixer.h>
+#include <JBro/Host/MaterialSystem.h>
 #include <JBro/Host/PostProcessSystem.h>
 #include <JBro/Types/Table.h>
 #include <JBro/Types/Bool.h>
@@ -94,6 +95,8 @@ namespace JBro
         // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 덮어쓰기는 스크립트 컨텍스트의 `PostProcess` 로 들어온다.
         PostProcessMixer m_postMixer;
         PostProcessSystem m_postProcessSystem;
+        // 스크립트의 머티리얼 파라미터 덮어쓰기(D-348). `m_materials` 에 묶인다.
+        MaterialSystem m_materialSystem;
         // 이번 프레임에 섞을 볼륨이다. 자리는 처음에 잡는다.
         struct VolumeSample
         {

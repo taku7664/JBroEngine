@@ -6,6 +6,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
+#include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -25,6 +26,11 @@ namespace JBro::System
     void MeshRender3DSystem::SetMeshLibrary(const MeshLibrary* library)
     {
         m_library = library;
+    }
+
+    void MeshRender3DSystem::SetMaterialLibrary(MaterialLibrary* library)
+    {
+        m_materialLibrary = library;
     }
 
     void MeshRender3DSystem::ExtractRenderWorld(Canvas& canvas)
@@ -65,7 +71,8 @@ namespace JBro::System
             item.rotation = world->worldRotation;
             item.scale = world->worldScale;
             item.mesh = renderer.mesh;
-            item.material = renderer.material;
+            // `material` 은 에셋 핸들이다. 렌더러에 가는 것은 라이브러리가 지은 렌더러 머티리얼이다(스프라이트와 같다).
+            item.material = m_materialLibrary != nullptr ? m_materialLibrary->Resolve(renderer.material) : AssetHandle{};
             item.tint = renderer.tint;
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;

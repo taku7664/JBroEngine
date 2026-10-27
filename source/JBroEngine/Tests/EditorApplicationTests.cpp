@@ -50,13 +50,16 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Framework2D/Component/PostProcessVolume2D.h>
+#include <JBro/Runtime/MaterialService.h>
 #include <JBro/Runtime/PostProcessService.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Graphics/Renderer.h>
 #include "../Modules/JBroEditor/Source/Panel/RenderGraphPanel.h"
 #include <JBro/Physics2D/World.h>
@@ -10884,14 +10887,40 @@ namespace
         Check(readMaterial().Contains("brightness: 1") && probe.Centre().G > 0.95f, "undo brings the file and the green back");
 
         // ── 셰이더 고치기: 깨뜨리면 빌트인, 고치면 다시 머티리얼 ──
-        Check(editor.WriteAssetText(shaderId, "float4 PSMain( : SV_TARGET { broken }\n"), "the shader is broken on disk");
+        Check(editor.WriteAssetText(shaderId, "#include \"JBro/Material.hlsli\"\n\nfloat4 PSMain( : SV_TARGET { broken }\n"), "the shader is broken on disk");
         probe.Settle();
         colour = probe.Centre();
         Check(colour.R > 0.95f && colour.G > 0.95f && colour.B > 0.95f, "a material whose shader does not compile falls back to the built-in shader");
+
+        // ── 셰이더 인스펙터(D-348): 자리마다 굽기 결과를 보이고, 파일을 편집기에서 연다 ──
+        // 반사 표는 그 자리에서 구워졌을 때만 선다(`##shader_reflection`, 자리 번호 아래). 표는 한 번 서면 ImGui 가 기억하므로 깨진 셰이더부터 본다.
+        editor.SetSelectedAsset(shaderId);
+        probe.Settle();
+        inspector = ImGui::FindWindowByName("Inspector");
+        const auto reflectionTable = [&](JBro::Int32 domain) {
+            return ImGui::TableFindByID(LabelId(PushedId(inspector->ID, domain), "##shader_reflection"));
+        };
+        Check(reflectionTable(0) == nullptr && reflectionTable(1) == nullptr, "a broken shader shows no reflection in any domain");
+        Spot openShader;
+        Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, LabelId(inspector->ID, "##open_shader"), openShader),
+            "the shader inspector offers to open the file");
+        ClickAt(editor, probe.hwnd, openShader);
+        probe.Settle();
+        JBro::EditorPanel* code = editor.FindPanel("CodeEditor");
+        Check(code != nullptr && JBro::String(code->GetDisplayTitle()) == "NewShader.hlsl", "Open in Editor opens the shader in the code editor");
+        // 코드 편집기는 캔버스 뷰의 탭 자리에 열린다 - 닫아야 아래의 그림을 캔버스 뷰에서 읽는다.
+        code->SetOpen(false);
+        probe.Settle();
         Check(editor.WriteAssetText(shaderId, fill), "the shader is fixed on disk");
         probe.Settle();
         colour = probe.Centre();
         Check(colour.G > 0.95f && colour.R < 0.05f, "fixing the shader brings the material back");
+        // 이 셰이더는 스프라이트 입력을 받으므로 후처리 자리로는 굽지 못한다 - 자리마다 따로 보인다.
+        Check(reflectionTable(1) != nullptr, "the fixed shader shows its sprite parameters");
+        Check(reflectionTable(0) == nullptr, "the sprite-only shader still fails in the post-process domain");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "shader_inspector");
+        editor.SetSelectedAsset(materialId);
+        probe.Settle();
 
         // ── 후처리 효과 `Material`: 자리가 PostProcess 인 머티리얼로 화면을 반전한다 ──
         const char* invert = "#include \"JBro/Material.hlsli\"\n"
@@ -10917,6 +10946,208 @@ namespace
         probe.Settle();
         colour = probe.Centre();
         Check(colour.R > 0.95f && colour.G < 0.05f && colour.B > 0.95f, "the Material effect inverts the green sprite to magenta");
+        probe.Close();
+    }
+
+    // **3D 프로젝트의 메시가 머티리얼로 그려진다**(D-348, 사용자 시나리오). 3D 프로젝트에서 `새 셰이더`·`새 머티리얼` 로 자리 `Mesh` 의 머티리얼을 만들어
+    // 정육면체의 `materialId` 에 걸면, 3D 프레임워크가 머티리얼 라이브러리로 풀어 렌더러가 그 메시를 머티리얼로 그린다(통계로 본다 - 편집 카메라의
+    // 자리에 기대지 않는다). 머티리얼의 자리를 `Sprite` 로 바꾸면 이 셰이더(메시 입력)는 굽히지 않아 머티리얼이 비고 메시는 빌트인으로 그린다.
+    void TestAMeshMaterialDrawsInA3DProject()
+    {
+        namespace fs = std::filesystem;
+        JBro::String folder("JBroMeshMaterialProbe");
+        folder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(folder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        JBro::String projectName(folder);
+        projectName.append("\\Mesh.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath, "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\nAssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the 3D mesh material not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        if (editor.GetShaderCompiler() == nullptr || false == editor.GetShaderCompiler()->HasFormat(JBro::ShaderCodeFormat::Dxil))
+        {
+            std::cout << "  [skip] no shader compiler here; the 3D mesh material is not verified" << std::endl;
+            editor.Shutdown();
+            fs::remove_all(root, ignored);
+            return;
+        }
+        const JBro::String shaderPath = editor.CreateShaderAsset("");
+        const JBro::AssetId shaderId = editor.GetAssetRegistry().FindByPath(shaderPath.c_str())->id;
+        Check(editor.WriteAssetText(shaderId, "#include \"JBro/Material.hlsli\"\n"
+                                              "float4 PSMain(JBroMeshInput input) : SV_TARGET\n{\n"
+                                              "    return float4(float3(1.0f, 0.0f, 1.0f) * JBroMeshLight(input.normal), 1.0f);\n}\n"),
+            "the mesh shader is written");
+        const JBro::String materialPath = editor.CreateMaterialAsset("");
+        const JBro::AssetId materialId = editor.GetAssetRegistry().FindByPath(materialPath.c_str())->id;
+        JBro::MaterialDocument document;
+        document.shader = shaderId;
+        document.domain = JBro::MaterialDomain::Mesh;
+        Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the mesh material is written");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* box = canvas->CreateObject("Box");
+        Check(canvas->AttachComponent<JBro::Component::Transform3D>(box) != nullptr, "the box needs a 3D transform");
+        auto* renderer = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(box);
+        Check(renderer != nullptr, "the box takes a mesh renderer");
+        renderer->meshId = JBro::MeshLibrary::BuiltinCubeId();
+        renderer->materialId = materialId;
+        Check(editor.RescanAssets(), "the registry must rescan so the material resolves");
+        const auto settle = [&]() {
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+        };
+        settle();
+        Check(renderer->material.generation != 0, "the mesh's material id resolves to a material asset");
+        JBro::RendererFrameStats stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.materialMeshCount >= 1 && stats.staleMaterialCount == 0, "the cube is drawn with its mesh material");
+
+        document.domain = JBro::MaterialDomain::Sprite;
+        Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the material becomes a sprite material");
+        settle();
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.materialMeshCount == 0, "a material that no longer builds leaves the mesh to the built-in shader");
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+        std::remove(projectPath.c_str());
+    }
+
+    // **스크립트와 볼륨이 머티리얼의 파라미터를 바꾼다**(D-348, 사용자 시나리오). 초록 머티리얼 스프라이트의 `fillColor` 를 스크립트의 머티리얼 서비스로
+    // 빨강으로 덮어쓰면 빨갛고, 지우면 다시 초록이다(형이 맞지 않는 값은 얹지 않는다). 후처리는 `scale` 파라미터 하나로 화면을 곱하는 셰이더의
+    // 머티리얼 둘(밝음 1·어둠 0)을 카메라 프로필과 볼륨 프로필에 건다 - 같은 셰이더라 볼륨의 무게대로 파라미터가 섞여 반이면 반쯤 어둡다.
+    // 스크립트가 어둠 머티리얼의 `scale` 을 1 로 덮으면 볼륨 안에서도 밝다 - 덮어쓴 값이 섞기에도 든다.
+    void TestAScriptAndAVolumeChangeAMaterial()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroMaterialOverrideProbe", "the material overrides"))
+        {
+            return;
+        }
+        JBro::EditorApplication& editor = probe.editor;
+        if (editor.GetShaderCompiler() == nullptr || false == editor.GetShaderCompiler()->HasFormat(JBro::ShaderCodeFormat::Dxil))
+        {
+            std::cout << "  [skip] no shader compiler here; the material overrides are not verified" << std::endl;
+            probe.Close();
+            return;
+        }
+        const auto createShader = [&](const char* text) {
+            const JBro::String path = editor.CreateShaderAsset("");
+            const JBro::AssetId id = editor.GetAssetRegistry().FindByPath(path.c_str())->id;
+            Check(editor.WriteAssetText(id, text), "the test writes its shader");
+            return id;
+        };
+        const auto createMaterial = [&](const JBro::MaterialDocument& document) {
+            const JBro::String path = editor.CreateMaterialAsset("");
+            const JBro::AssetId id = editor.GetAssetRegistry().FindByPath(path.c_str())->id;
+            Check(editor.WriteAssetText(id, JBro::WriteMaterial(document)), "the test writes its material");
+            return id;
+        };
+        const JBro::AssetId fillShader = createShader("#include \"JBro/Material.hlsli\"\n"
+                                                      "cbuffer Material : register(b1)\n{\n    float4 fillColor = float4(0.0f, 1.0f, 0.0f, 1.0f);\n};\n"
+                                                      "float4 PSMain(JBroSpriteInput input) : SV_TARGET\n{\n    return float4(fillColor.rgb, 1.0f);\n}\n");
+        JBro::MaterialDocument fill;
+        fill.shader = fillShader;
+        fill.domain = JBro::MaterialDomain::Sprite;
+        const JBro::AssetId fillMaterial = createMaterial(fill);
+        JBro::Object::GameObject* square = probe.canvas->CreateObject("Square");
+        probe.canvas->AttachComponent<JBro::Component::Transform2D>(square);
+        auto* sprite = probe.canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(square);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {2.0f, 2.0f};
+        sprite->materialId = fillMaterial;
+        Check(editor.RescanAssets(), "the registry must rescan so the sprite's material resolves");
+        probe.Settle();
+        JBro::Color colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "the material sprite starts green");
+
+        // ── 스크립트의 머티리얼 서비스 ──
+        const JBro::Service::MaterialService service;
+        Check(false == service.FindParameter(fillMaterial, "").IsValid() && false == service.FindParameter({}, "fillColor").IsValid(),
+            "an empty name or an empty material finds nothing");
+        const JBro::Service::MaterialParameter fillColor = service.FindParameter(fillMaterial, "fillColor");
+        Check(fillColor.IsValid() && service.FindParameter(fillMaterial, "fillColor").value == fillColor.value,
+            "the service finds the parameter, the same one each time");
+        Check(service.SetFloat(fillColor, 1.0f), "a value is taken");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "but a float is not laid on a float4");
+        Check(service.SetColor(fillColor, JBro::Color{1.0f, 0.0f, 0.0f, 1.0f}), "the service overrides the colour");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G < 0.05f, "the sprite turns red without its file changing");
+        JBro::String fillText;
+        Check(editor.ReadAssetSourceText(fillMaterial, fillText) && false == fillText.Contains("fillColor"), "the material file is untouched");
+        service.Clear(fillColor);
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "clearing it brings the file's green back");
+
+        // ── 볼륨: 같은 셰이더의 두 머티리얼이 무게대로 섞인다 ──
+        const JBro::AssetId scaleShader = createShader("#include \"JBro/Material.hlsli\"\n"
+                                                       "cbuffer Material : register(b1)\n{\n    float scale = 1.0f;\n};\n"
+                                                       "float4 PSMain(JBroPostProcessInput input) : SV_TARGET\n{\n"
+                                                       "    const float4 color = JBroLoadSource(input);\n    return float4(color.rgb * scale, color.a);\n}\n");
+        JBro::MaterialDocument bright;
+        bright.shader = scaleShader;
+        bright.domain = JBro::MaterialDomain::PostProcess;
+        const JBro::AssetId brightMaterial = createMaterial(bright);
+        JBro::MaterialDocument dark = bright;
+        const JBro::Float zero = 0.0f;
+        dark.SetParameter("scale", &zero, 1);
+        const JBro::AssetId darkMaterial = createMaterial(dark);
+        const auto profileOf = [](JBro::AssetId material) {
+            JBro::PostProcessProfileDocument document;
+            JBro::PostProcessProfileEntry entry = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::Material);
+            reinterpret_cast<JBro::MaterialEffect*>(entry.block.Data())->materialId = material;
+            entry.overrides = 1;
+            document.entries.Add(std::move(entry));
+            return document;
+        };
+        probe.WriteProfile(profileOf(brightMaterial));
+        probe.camera->postProcessProfileId = probe.profileId;
+        const JBro::String volumeProfilePath = editor.CreatePostProcessProfileAsset("");
+        const JBro::AssetId volumeProfile = editor.GetAssetRegistry().FindByPath(volumeProfilePath.c_str())->id;
+        Check(editor.WriteAssetText(volumeProfile, JBro::WritePostProcessProfile(profileOf(darkMaterial))), "the volume's profile is written");
+        JBro::Object::GameObject* cave = probe.canvas->CreateObject("Cave");
+        probe.canvas->AttachComponent<JBro::Component::Transform2D>(cave);
+        auto* volume = probe.canvas->AttachComponent<JBro::Component::PostProcessVolume2D>(cave);
+        volume->shape = JBro::Component::PostProcessVolumeShape2D::Box;
+        volume->size = {4.0f, 4.0f};
+        volume->blendDistance = 1.0f;
+        volume->postProcessProfileId = volumeProfile;
+        volume->weight = 0.5f;
+        Check(editor.RescanAssets(), "the profiles resolve");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.4f && colour.G < 0.6f && colour.R < 0.05f, "at half the weight the two materials' scale mixes to a half");
+        volume->weight = 1.0f;
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G < 0.05f, "at full weight the volume's dark material wins");
+        const JBro::Service::MaterialParameter darkScale = service.FindParameter(darkMaterial, "scale");
+        Check(service.SetFloat(darkScale, 1.0f), "the script brightens the dark material");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f, "and the volume mixes the script's value");
+        service.ClearAll();
+        probe.Settle();
+        Check(probe.Centre().G < 0.05f, "clearing every override leaves the file's dark again");
         probe.Close();
     }
 
@@ -17822,6 +18053,8 @@ JBro::Int32 RunEditorApplicationTests()
     TestALayerProfileOutlinesItsLayer();
     TestAVolumeBlendsAroundTheCamera();
     TestAMaterialShadesASpriteAndTheView();
+    TestAScriptAndAVolumeChangeAMaterial();
+    TestAMeshMaterialDrawsInA3DProject();
     TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheCanvasViewGridLabelsStayOnTheirLines();

@@ -67,6 +67,7 @@ namespace JBro
             m_volumes.Reserve(MaxVolumes);
             m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
             m_postProcessSystem.Bind(&m_postMixer);
+            m_materialSystem.Bind(&m_materials);
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
@@ -102,6 +103,7 @@ namespace JBro
             SystemContext systems = GetSystemContext();
             systems.Objects = &m_objects;
             systems.PostProcess = &m_postProcessSystem;
+            systems.Material = &m_materialSystem;
             BindSystemContext(systems);
         }
         m_scriptBlockCount = 2;
@@ -126,6 +128,12 @@ namespace JBro
         {
             SystemContext systems = GetSystemContext();
             systems.PostProcess = nullptr;
+            BindSystemContext(systems);
+        }
+        if (GetSystemContext().Material == &m_materialSystem)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.Material = nullptr;
             BindSystemContext(systems);
         }
         m_objects.Bind(nullptr, nullptr);
@@ -329,6 +337,7 @@ namespace JBro
         auto& meshes = systems.AddSystem<System::MeshRender3DSystem>();
         meshes.SetRenderWorld(&m_renderWorld);
         meshes.SetMeshLibrary(&m_meshes);
+        meshes.SetMaterialLibrary(&m_materials);
         // 3D 텍스트(D-222). 폰트는 에셋 시스템에서, 페이지는 렌더러로 간다 - 둘 중 하나가 없으면(시스템 테스트) 그리지 않는다.
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);

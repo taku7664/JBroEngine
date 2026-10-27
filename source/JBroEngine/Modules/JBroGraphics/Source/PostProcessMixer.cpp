@@ -171,6 +171,11 @@ namespace JBro
                 continue;
             }
             const std::byte* source = profile.stack.blocks.data + entry.blockOffset.Get();
+            // 블록을 스스로 섞는 종류(머티리얼의 파라미터, D-348)는 그 함수가 섞는다.
+            if (effect->mix != nullptr && effect->mix(target, source, overrides, w))
+            {
+                continue;
+            }
             const PropertyTable& table = *effect->parameters;
             Bool assetSwitched = false;
             for (UInt32 field = 0; field < table.count && field < 64; ++field)

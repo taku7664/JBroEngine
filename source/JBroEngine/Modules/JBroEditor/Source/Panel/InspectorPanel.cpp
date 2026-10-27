@@ -1651,6 +1651,11 @@ namespace JBro
             DrawMaterial(meta);
             ImGui::Spacing();
         }
+        if (meta.type == AssetType::Shader)
+        {
+            DrawShader(meta);
+            ImGui::Spacing();
+        }
         if (AssetTypeRules::IsImageType(meta.type))
         {
             if (Widget::IconButton("##open_in_viewer", Icons::OpenExternal)
@@ -2141,6 +2146,81 @@ namespace JBro
             return;
         }
         m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, m_materialText, after, "Edit Material"));
+    }
+
+    void InspectorPanel::DrawShader(const AssetMetaFile& meta)
+    {
+        // **셰이더 에셋 자체를 본다**(D-348). 전에는 굽기 오류가 그 셰이더를 쓰는 머티리얼에서만 보여, 머티리얼을 만들기 전에는 셰이더가 되는지 알 길이 없었다.
+        // 자리마다 따로 굽는다 - 스프라이트로는 되고 후처리로는 안 되는 셰이더가 있다. 고치는 것은 편집기다(인스펙터는 글자를 고치지 않는다).
+        static const char* const TypeNames[] = {"float", "float2", "float3", "float4", "int", "uint", "bool"};
+        UInt32 errorLine = 0;
+        const EnumNames& domains = *TypeDescriptorOf<MaterialDomain>::Get().enumNames;
+        for (UInt32 domain = 0; domain < MaterialDomainCount; ++domain)
+        {
+            const char* domainName = domain < domains.count ? domains.names[domain.Get()] : nullptr;
+            Widget::IdScope id(static_cast<JBro::Int32>(domain.Get()));
+            // 자리 이름은 머티리얼 파일의 `Domain` 값 그대로다(번역하지 않는다).
+            Widget::SectionHeader(domainName != nullptr ? domainName : "?").Draw();
+            const String* error = nullptr;
+            const CompiledMaterialShader* shader = m_editor->GetMaterialShader(meta.id, static_cast<MaterialDomain>(domain.Get()), &error);
+            if (shader == nullptr)
+            {
+                Widget::HintText(Loc::TextOr(LocKeys::InspectorShaderDomainError, "Could not be compiled for this domain"));
+                if (error != nullptr)
+                {
+                    Widget::WrappedText(error->c_str());
+                    // fxc 의 오류는 `경로(줄,칸): error ...` 다. 첫 오류의 줄을 편집기에서 연다.
+                    const std::size_t open = error->find('(');
+                    if (errorLine == 0 && open != String::npos)
+                    {
+                        UInt32 line = 0;
+                        for (std::size_t at = open + 1; at < error->size() && (*error)[at] >= '0' && (*error)[at] <= '9'; ++at)
+                        {
+                            line = line * 10u + static_cast<std::uint32_t>((*error)[at] - '0');
+                        }
+                        errorLine = line;
+                    }
+                }
+                continue;
+            }
+            if (shader->parameters.IsEmpty() && shader->textures.IsEmpty())
+            {
+                Widget::HintText(Loc::TextOr(LocKeys::InspectorShaderEmpty, "No parameters or textures"));
+                continue;
+            }
+            // 이름은 셰이더의 변수 이름이고, 값은 HLSL 의 형과 초기값이다 - 머티리얼이 덮어쓰지 않으면 이 값으로 그린다.
+            Widget::FormLayout layout("##shader_reflection");
+            for (std::size_t index = 0; index < shader->parameters.Size(); ++index)
+            {
+                const MaterialParameterInfo& parameter = shader->parameters[index];
+                const UInt32 components = GetMaterialParameterComponents(parameter.type);
+                char text[160] = {};
+                JBro::Int32 written = std::snprintf(text, sizeof(text), "%s ", TypeNames[static_cast<std::size_t>(parameter.type)]);
+                for (UInt32 at = 0; at < components && written > 0 && written < static_cast<JBro::Int32>(sizeof(text)); ++at)
+                {
+                    written += std::snprintf(text + written, sizeof(text) - static_cast<std::size_t>(written), at == 0 ? "%g" : ", %g",
+                        static_cast<double>(parameter.defaults[at.Get()].Get()));
+                }
+                layout.Row(Widget::FieldLabel(parameter.name.c_str()), [&]() { Widget::Text(text); });
+            }
+            for (std::size_t index = 0; index < shader->textures.Size(); ++index)
+            {
+                const MaterialTextureInfo& slot = shader->textures[index];
+                char text[32] = {};
+                std::snprintf(text, sizeof(text), "Texture2D t%u", static_cast<unsigned>(slot.slot.Get()));
+                layout.Row(Widget::FieldLabel(slot.name.c_str()), [&]() { Widget::Text(text); });
+            }
+        }
+        AssetSourceTarget target;
+        if (m_editor->DescribeAssetSource(meta.id, target))
+        {
+            if (Widget::IconButton("##open_shader", Icons::OpenExternal)
+                    .Caption(Loc::TextOr(LocKeys::InspectorShaderOpen, "Open in Editor"))
+                    .Draw())
+            {
+                m_editor->OpenScriptAt(target.path, errorLine == 0 ? UInt32(1) : errorLine);
+            }
+        }
     }
 
     void InspectorPanel::CommitAssetEdit(Context& context)

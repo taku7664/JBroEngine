@@ -60,7 +60,7 @@ namespace
         return std::fabs(a - b) < 1e-5f;
     }
 
-    // 파라미터 둘(색 하나·실수 하나)과 텍스처 하나를 쓰는 스프라이트·후처리 겸용 셰이더다. 쓰지 않는 텍스처는 fxc 가 지우므로 둘 다 읽는다.
+    // 파라미터 넷과 텍스처 하나를 쓰는 세 자리 겸용 셰이더다. 쓰지 않는 텍스처는 fxc 가 지우므로 자리마다 읽는다.
     constexpr const char* TintShader = R"hlsl(#include "JBro/Material.hlsli"
 cbuffer Material : register(b1)
 {
@@ -74,6 +74,12 @@ Texture2D noise : register(t2);
 float4 PSMain(JBroSpriteInput input) : SV_TARGET
 {
     const float4 color = JBroSampleSprite(input) * input.tint * noise.Sample(JBroLinearRepeat, input.uv);
+    return lerp(color, color * tintColor, strength) + (invert ? 1.0f : 0.0f) * steps;
+}
+#elif defined(JBRO_MATERIAL_MESH)
+float4 PSMain(JBroMeshInput input) : SV_TARGET
+{
+    const float4 color = input.tint * JBroMeshLight(input.normal) * noise.Sample(JBroLinearRepeat, input.uv);
     return lerp(color, color * tintColor, strength) + (invert ? 1.0f : 0.0f) * steps;
 }
 #else
@@ -118,8 +124,11 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
         MaterialDocument empty;
         Check(ParseMaterial("", 0, empty) && empty.shader.IsNull() && empty.domain == MaterialDomain::PostProcess,
             "an empty file is a material without a shader");
-        const char* unknownDomain = "Domain: Mesh\n";
-        Check(false == ParseMaterial(unknownDomain, std::strlen(unknownDomain), empty, &error) && error.Contains("Mesh"),
+        const char* mesh = "Domain: Mesh\n";
+        Check(ParseMaterial(mesh, std::strlen(mesh), empty, &error) && empty.domain == MaterialDomain::Mesh && WriteMaterial(empty).Contains("Domain: Mesh"),
+            "the mesh domain reads and writes back (D-348)");
+        const char* unknownDomain = "Domain: Volume\n";
+        Check(false == ParseMaterial(unknownDomain, std::strlen(unknownDomain), empty, &error) && error.Contains("Volume"),
             "an unknown domain is refused with its name");
         const char* broken = "Shader: \"unclosed\n";
         Check(false == ParseMaterial(broken, std::strlen(broken), empty, &error), "broken YAML is refused");
@@ -187,11 +196,16 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
 
     void TestTheCompilerReflectsTheShader(ShaderCompiler& compiler)
     {
-        for (const MaterialDomain domain : {MaterialDomain::PostProcess, MaterialDomain::Sprite})
+        // 스프라이트의 입구가 읽는 라이트맵(t7)은 엔진의 것이라 텍스처에 나오지 않는다(D-348) - 아래의 "텍스처 하나" 가 그것을 본다.
+        for (const MaterialDomain domain : {MaterialDomain::PostProcess, MaterialDomain::Sprite, MaterialDomain::Mesh})
         {
             CompiledMaterialShader shader;
             String error;
-            Check(compiler.Compile(TintShader, "Tint.hlsl", domain, shader, error), "the tint shader compiles for both domains");
+            if (false == compiler.Compile(TintShader, "Tint.hlsl", domain, shader, error))
+            {
+                std::cout << "  compiler said: " << error.c_str() << '\n';
+            }
+            Check(error.empty() && shader.domain == domain && false == shader.pixel[0].IsEmpty(), "the tint shader compiles for every domain");
             Check(shader.domain == domain, "the result knows its domain");
             Check(false == shader.pixel[static_cast<std::size_t>(ShaderCodeFormat::Dxbc)].IsEmpty(), "with D3D11 code");
             Check(compiler.HasFormat(ShaderCodeFormat::Dxil) == (false == shader.pixel[static_cast<std::size_t>(ShaderCodeFormat::Dxil)].IsEmpty()),
@@ -215,14 +229,21 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
             Check(shader.textures.Size() == 1 && shader.textures[0].name == "noise" && shader.textures[0].slot == 2,
                 "the texture is found by name at its register");
         }
-        // 틀은 두 자리에서 다 구워진다(에디터의 `새 셰이더`).
-        for (const MaterialDomain domain : {MaterialDomain::PostProcess, MaterialDomain::Sprite})
+        // 틀은 모든 자리에서 구워진다(에디터의 `새 셰이더`).
+        for (const MaterialDomain domain : {MaterialDomain::PostProcess, MaterialDomain::Sprite, MaterialDomain::Mesh})
         {
             CompiledMaterialShader shader;
             String error;
             Check(compiler.Compile(GetMaterialShaderTemplate(), "NewShader.hlsl", domain, shader, error) && shader.parameters.Size() == 2,
-                "the new shader template compiles for both domains");
+                "the new shader template compiles for every domain");
         }
+        // 사용자 파일의 줄 번호는 엔진이 뒤에 붙이는 입구에 밀리지 않는다(스프라이트의 맺음말은 제 `#line` 이다).
+        CompiledMaterialShader broken;
+        String error;
+        Check(false == compiler.Compile("#include \"JBro/Material.hlsli\"\n\nfloat4 PSMain(JBroSpriteInput input) : SV_TARGET { return nothing; }\n",
+                  "Broken.hlsl", MaterialDomain::Sprite, broken, error)
+                && error.Contains("Broken.hlsl(3"),
+            "a sprite shader's error keeps the user's line");
     }
 
     void TestTheCompilerRefusesWhatAMaterialCannotHold(ShaderCompiler& compiler)
@@ -250,6 +271,18 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
             "layers", "a texture array is refused");
         refuses("#include \"JBro/Missing.hlsli\"\nfloat4 PSMain(float4 position : SV_POSITION) : SV_TARGET { return 0; }\n",
             "Missing", "an include other than the prelude is refused");
+        // t7 은 엔진의 라이트맵 자리다 - 머티리얼 텍스처는 t6 까지다(D-348).
+        refuses("#include \"JBro/Material.hlsli\"\nTexture2D last : register(t7);\n"
+                "float4 PSMain(JBroPostProcessInput input) : SV_TARGET { return last.Load(int3(0, 0, 0)); }\n",
+            "t1..t6", "a texture at t7 is refused");
+        // 메시에는 t0 의 입력이 없다.
+        CompiledMaterialShader mesh;
+        String error;
+        Check(false == compiler.Compile("#include \"JBro/Material.hlsli\"\nTexture2D base : register(t0);\n"
+                                         "float4 PSMain(JBroMeshInput input) : SV_TARGET { return base.Sample(JBroLinearRepeat, input.uv); }\n",
+                  "Bad.hlsl", MaterialDomain::Mesh, mesh, error)
+                && error.Contains("no input at t0"),
+            "a mesh shader that reads t0 is refused");
     }
 
     void TestTheParameterBlockFollowsTheDocument(ShaderCompiler& compiler)
@@ -376,7 +409,8 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
         const AssetHandle shaderHandle = packagedAssets.Load(shaderId);
         const ShaderAssetData* shader = packagedAssets.GetShader(shaderHandle);
         Check(shader != nullptr && shader->hasCompiled && shader->source.empty(), "the packaged shader holds the compiled set");
-        Check(shader->compiled.Find(MaterialDomain::Sprite) != nullptr && shader->compiled.Find(MaterialDomain::PostProcess) != nullptr,
+        Check(shader->compiled.Find(MaterialDomain::Sprite) != nullptr && shader->compiled.Find(MaterialDomain::PostProcess) != nullptr
+                && shader->compiled.Find(MaterialDomain::Mesh) != nullptr,
             "both domains were compiled");
         MaterialLibrary library;
         library.Initialize(&packagedAssets, nullptr, nullptr);

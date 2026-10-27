@@ -137,11 +137,11 @@ namespace JBro::Package
                     Fail(report, *record, "the shader compiler cannot write every backend (is the Vulkan SDK's dxcompiler.dll next to the editor?)");
                     continue;
                 }
-                // 셰이더는 어느 자리로 쓰일지 모른다(머티리얼이 정한다). 두 자리를 모두 구워 되는 것만 싣는다.
+                // 셰이더는 어느 자리로 쓰일지 모른다(머티리얼이 정한다). 모든 자리를 구워 되는 것만 싣는다.
                 CompiledShaderSet set;
                 String errors;
                 const std::string_view text(reinterpret_cast<const char*>(source.Data()), source.Size());
-                for (const MaterialDomain domain : {MaterialDomain::PostProcess, MaterialDomain::Sprite})
+                for (const MaterialDomain domain : {MaterialDomain::PostProcess, MaterialDomain::Sprite, MaterialDomain::Mesh})
                 {
                     CompiledMaterialShader compiled;
                     String error;

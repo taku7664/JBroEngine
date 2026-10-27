@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Graphics/RenderGraph.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
@@ -107,6 +108,9 @@ namespace JBro
         TextureFormat outputFormat = TextureFormat::Unknown;
         // b1 에 올라가는 상수다. `PostProcessBuilder::MaxConstantBytes` 까지다.
         JArrayView<std::byte> constants;
+        // 머티리얼 패스의 파라미터 블록을 갈음한다(볼륨이 섞은 것, D-348). 머티리얼의 블록과 크기가 같아야 하고, 효과 블록(프레임 동안 사는 렌더러의
+        // 사본) 안을 가리켜야 한다. 비면 머티리얼의 블록이다.
+        JArrayView<std::byte> materialParameters;
     };
 
     // **효과 하나의 패스를 짓는 자리**(D-342). 효과 종류의 `addPasses` 가 받는다. 입력은 앞 효과(또는 장면)의 결과이고, 효과는 출력의 뷰포트 안
@@ -191,6 +195,8 @@ namespace JBro
 
     // 효과의 패스를 짓는다. `parameters` 는 그 종류의 파라미터 블록(`blockSize` 바이트)이다. 거짓이면 그 뷰의 그래프를 버린다.
     using PostProcessAddPasses = Bool (*)(PostProcessBuilder& builder, const void* parameters);
+    // 블록을 스스로 섞는 함수다(`PostProcessEffectType::mix`, D-348).
+    using PostProcessMix = Bool (*)(void* target, const void* source, UInt64 overrides, Float weight);
 
     // **효과 종류 하나**(D-342). 빌트인 효과와 나중의 셰이더 그래프 효과가 같은 모양으로 들어온다(D-33).
     struct PostProcessEffectType
@@ -208,6 +214,9 @@ namespace JBro
         // 블록의 기본값(`blockSize` 바이트)이다. 블록이 없으면 nullptr 이다.
         const void* defaults = nullptr;
         PostProcessAddPasses addPasses = nullptr;
+        // **블록을 스스로 섞는 종류**(D-348). 있으면 섞는 쪽(`PostProcessMixer::Blend`)이 필드마다 섞는 대신 이것을 부른다 - `target` 을 `source`
+        // 쪽으로 `weight`(0..1) 만큼 옮긴다. `overrides` 는 프로필이 덮어쓴 필드의 비트다. 참이면 다 섞은 것이고, 거짓이면 필드마다 섞는다.
+        PostProcessMix mix = nullptr;
     };
 
     // **효과 종류 표**(D-342). 프로세스에 하나이고 빌트인(`Exposure`·`Tonemap`)이 먼저 든다. 번호가 곧 종류의 아이디다 - 뷰에 낼 때
@@ -355,6 +364,15 @@ namespace JBro
         JBRO_FIELD(AssetId, materialId);
         JBRO_FIELD(AssetHandle, material, NoSerialize() | ReadOnly() | Hidden());
         JBRO_FIELD(AssetHandle, rendererMaterial, NoSerialize() | ReadOnly() | Hidden());
+
+        // **볼륨 섞기의 자료**(D-348). 리플렉션에 들지 않는다(저장·인스펙터 밖) - 프로필 라이브러리가 머티리얼 라이브러리에서 그 머티리얼의 셰이더와
+        // 지금의 파라미터 블록을 떠 채운다. 카메라와 볼륨의 `Material` 이 **같은 셰이더**의 머티리얼이면 섞는 쪽이 칸마다 보간하고 `mixed` 를 켠다 -
+        // 렌더러는 그때만 머티리얼의 블록 대신 이 블록을 올린다. 셰이더가 다르면 반에서 바뀐다(LUT 와 같다).
+        AssetId shaderId;
+        UInt32 parameterBytes = 0;
+        Bool mixed = false;
+        std::uint8_t cellKinds[MaxMaterialParameterBytes / 4] = {};
+        std::byte parameters[MaxMaterialParameterBytes] = {};
     };
 
     // **뷰에 낼 효과 하나**(D-342). `blockOffset` 은 `PostProcessStack::blocks` 안에서 그 종류의 블록이 시작하는 자리다.

@@ -80,6 +80,9 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorMaterialOverrideTooltip = "inspector.material_override_tooltip";
     inline constexpr const char* InspectorMaterialUnreadable = "inspector.material_unreadable";
     inline constexpr const char* InspectorMaterialBroken = "inspector.material_broken";
+    inline constexpr const char* InspectorShaderOpen = "inspector.shader_open";
+    inline constexpr const char* InspectorShaderDomainError = "inspector.shader_domain_error";
+    inline constexpr const char* InspectorShaderEmpty = "inspector.shader_empty";
     // 폴리곤 콜라이더의 포인트 편집(physics-plan §4 의 5). 필드 이름(`points`)과 같은 말을 쓴다 - 기존 엔진의 `버텍스` 는 따르지 않았다.
     inline constexpr const char* CanvasViewEditCollider = "canvas_view.edit_collider";
     inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";

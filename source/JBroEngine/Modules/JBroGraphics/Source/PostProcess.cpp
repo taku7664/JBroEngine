@@ -1,5 +1,6 @@
 ﻿#include <JBro/Graphics/PostProcess.h>
 
+#include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/Renderer.h>
 
 #include <cmath>
@@ -367,7 +368,91 @@ namespace JBro
             pass.name = "Material";
             pass.program = PostProcessProgram::Copy;
             pass.material = effect.rendererMaterial;
+            // 볼륨이 같은 셰이더의 두 머티리얼을 섞었으면 섞인 파라미터로 그린다(D-348).
+            if (effect.mixed && effect.parameterBytes <= MaxMaterialParameterBytes)
+            {
+                pass.materialParameters = {effect.parameters, effect.parameterBytes};
+            }
             return builder.AddPass(pass);
+        }
+
+        // **머티리얼 효과를 섞는다**(D-348). 같은 셰이더면 파라미터 칸을 종류대로 보간한다 - 실수는 잇고, 정수는 이어서 반올림하며, 참거짓은 반에서
+        // 바뀐다. 머티리얼(과 그 텍스처)은 반에서 바뀐다. 셰이더가 다르면 블록 전체가 반에서 바뀐다.
+        Bool MixMaterial(void* targetBlock, const void* sourceBlock, UInt64 overrides, Float weight)
+        {
+            MaterialEffect& target = *static_cast<MaterialEffect*>(targetBlock);
+            const MaterialEffect& source = *static_cast<const MaterialEffect*>(sourceBlock);
+            // 첫 필드(`materialId`)를 덮어쓰지 않은 항목은 섞을 것이 없다.
+            if ((overrides & 1u) == 0)
+            {
+                return true;
+            }
+            const UInt32 cells = source.parameterBytes / 4;
+            const Bool sameShader = false == source.shaderId.IsNull() && target.shaderId == source.shaderId
+                && target.parameterBytes == source.parameterBytes && source.parameterBytes <= MaxMaterialParameterBytes
+                && std::memcmp(target.cellKinds, source.cellKinds, cells.Get()) == 0;
+            if (false == sameShader)
+            {
+                if (weight >= 0.5f)
+                {
+                    std::memcpy(&target, &source, sizeof(MaterialEffect));
+                }
+                return true;
+            }
+            for (UInt32 cell = 0; cell < cells; ++cell)
+            {
+                std::byte* to = target.parameters + cell.Get() * 4;
+                const std::byte* from = source.parameters + cell.Get() * 4;
+                switch (static_cast<MaterialCellKind>(source.cellKinds[cell.Get()]))
+                {
+                case MaterialCellKind::Float:
+                {
+                    float a = 0.0f;
+                    float b = 0.0f;
+                    std::memcpy(&a, to, 4);
+                    std::memcpy(&b, from, 4);
+                    const float mixed = a + (b - a) * weight.Get();
+                    std::memcpy(to, &mixed, 4);
+                    break;
+                }
+                case MaterialCellKind::Int:
+                {
+                    std::int32_t a = 0;
+                    std::int32_t b = 0;
+                    std::memcpy(&a, to, 4);
+                    std::memcpy(&b, from, 4);
+                    const std::int32_t mixed = static_cast<std::int32_t>(std::lround(a + (static_cast<double>(b) - a) * weight.Get()));
+                    std::memcpy(to, &mixed, 4);
+                    break;
+                }
+                case MaterialCellKind::UInt:
+                {
+                    std::uint32_t a = 0;
+                    std::uint32_t b = 0;
+                    std::memcpy(&a, to, 4);
+                    std::memcpy(&b, from, 4);
+                    const std::uint32_t mixed = static_cast<std::uint32_t>(std::llround(a + (static_cast<double>(b) - a) * weight.Get()));
+                    std::memcpy(to, &mixed, 4);
+                    break;
+                }
+                case MaterialCellKind::Bool:
+                    if (weight >= 0.5f)
+                    {
+                        std::memcpy(to, from, 4);
+                    }
+                    break;
+                case MaterialCellKind::Unused:
+                    break;
+                }
+            }
+            target.mixed = true;
+            if (weight >= 0.5f)
+            {
+                target.materialId = source.materialId;
+                target.material = source.material;
+                target.rendererMaterial = source.rendererMaterial;
+            }
+            return true;
         }
 
         const ExposureEffect DefaultExposure = {};
@@ -518,6 +603,7 @@ namespace JBro
                 material.blockSize = static_cast<JBro::UInt32>(sizeof(MaterialEffect));
                 material.defaults = &DefaultMaterial;
                 material.addPasses = &AddMaterialPasses;
+                material.mix = &MixMaterial;
                 AddTo(built, material);
                 return built;
             }();

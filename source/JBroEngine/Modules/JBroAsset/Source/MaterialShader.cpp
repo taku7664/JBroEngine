@@ -8,12 +8,12 @@ namespace JBro
     {
         // 셰이더 글자는 ASCII 만 쓴다 - fxc 는 UTF-8 BOM 을, dxc 는 BOM 없는 한국어를 거절한다(`Compile.ps1`).
         constexpr const char Prelude[] = R"hlsl(// JBro material prelude (D-347). The engine supplies the vertex stage; a material shader writes PSMain only.
-// The compiler defines JBRO_MATERIAL_POSTPROCESS or JBRO_MATERIAL_SPRITE, and JBRO_SPIRV for Vulkan.
+// The compiler defines JBRO_MATERIAL_POSTPROCESS, JBRO_MATERIAL_SPRITE or JBRO_MATERIAL_MESH, and JBRO_SPIRV for Vulkan.
 //
-//   b0  engine values (push constants). Sprite: the view-projection matrix first (the vertex stage reads it).
+//   b0  engine values (push constants). Sprite and mesh: the view-projection matrix first (the vertex stage reads it).
 //   b1  cbuffer Material - the material's parameters (the inspector edits them by name).
-//   t0  the input: the previous effect's result (post-process) or the sprite's texture (sprite).
-//   t1.. the material's textures (Texture2D, by name).
+//   t0  the input: the previous effect's result (post-process) or the sprite's texture (sprite). A mesh has none.
+//   t1..t6 the material's textures (Texture2D, by name). t7 is the engine's: the sprite's light map.
 //   s0  the input's sampler (post-process: linear clamp, sprite: the sprite's filter), s1 linear clamp, s2 point clamp, s3 linear repeat.
 #ifndef JBRO_MATERIAL_PRELUDE
 #define JBRO_MATERIAL_PRELUDE
@@ -21,7 +21,7 @@ namespace JBro
 #if defined(JBRO_SPIRV)
 struct JBroEngineValues
 {
-#if defined(JBRO_MATERIAL_SPRITE)
+#if defined(JBRO_MATERIAL_SPRITE) || defined(JBRO_MATERIAL_MESH)
     row_major float4x4 viewProjection;
 #endif
     float4 viewport;
@@ -37,7 +37,7 @@ struct JBroEngineValues
 #else
 cbuffer JBroEngine : register(b0)
 {
-#if defined(JBRO_MATERIAL_SPRITE)
+#if defined(JBRO_MATERIAL_SPRITE) || defined(JBRO_MATERIAL_MESH)
     row_major float4x4 JBroViewProjection;
 #endif
     // The view's viewport in target pixels: x, y, width, height.
@@ -82,10 +82,39 @@ struct JBroSpriteInput
 };
 
 Texture2D JBroSpriteTexture : register(t0);
+// The view's light map, the size of the target (BuiltinSprite.hlsl PSLitMain). An unlit sprite gets a 1x1 white texture instead.
+Texture2D JBroLightMap : register(t7);
 
 float4 JBroSampleSprite(JBroSpriteInput input)
 {
     return JBroSpriteTexture.Sample(JBroSourceSampler, input.uv);
+}
+
+// The 2D light on this pixel. The engine multiplies PSMain's colour by it already; a shader calls it only to light something else.
+// Read through the point clamp sampler at the pixel centre over the target size: the texel under the pixel in the light map, the one white
+// texel otherwise (a Load at the pixel position would fall outside the 1x1 texture and read black).
+float3 JBroSpriteLight(JBroSpriteInput input)
+{
+    return JBroLightMap.SampleLevel(JBroPointClamp, input.position.xy * JBroTarget.zw, 0.0f).rgb;
+}
+
+#elif defined(JBRO_MATERIAL_MESH)
+
+// The mesh vertex stage's output (BuiltinMesh.hlsl VertexOutput), in the same order: Vulkan links the stages by position.
+struct JBroMeshInput
+{
+    float4 position : SV_POSITION;
+    float3 normal : NORMAL0;
+    float4 tint : COLOR0;
+    float2 uv : TEXCOORD0;
+    float3 worldPosition : TEXCOORD1;
+};
+
+// The engine's light on a surface (BuiltinMesh.hlsl PSMain): one fixed directional light plus ambient. Multiply a colour by it to light it.
+float JBroMeshLight(float3 normal)
+{
+    const float3 lightDirection = normalize(float3(0.4f, 0.8f, 0.45f));
+    return 0.25f + 0.75f * saturate(dot(normalize(normal), lightDirection));
 }
 
 #else
@@ -144,6 +173,14 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
     return lerp(color, color * tintColor, strength);
 }
 
+#elif defined(JBRO_MATERIAL_MESH)
+
+float4 PSMain(JBroMeshInput input) : SV_TARGET
+{
+    const float4 color = float4(input.tint.rgb * JBroMeshLight(input.normal), input.tint.a);
+    return lerp(color, color * tintColor, strength);
+}
+
 #else
 
 float4 PSMain(JBroPostProcessInput input) : SV_TARGET
@@ -153,6 +190,16 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
 }
 
 #endif
+)hlsl";
+
+        // 스프라이트의 입구다. 사용자 `PSMain` 의 색에 라이트맵을 곱한다 - 빌트인 스프라이트의 `PSLitMain` 과 같은 셈이다.
+        constexpr const char SpriteEpilogue[] = R"hlsl(
+#line 1 "JBro/MaterialEntry.hlsli"
+float4 JBroSpriteMain(JBroSpriteInput input) : SV_TARGET
+{
+    const float4 color = PSMain(input);
+    return float4(color.rgb * JBroSpriteLight(input), color.a);
+}
 )hlsl";
 
         constexpr std::uint32_t Magic = 0x48534D4Au; // "JMSH"
@@ -433,6 +480,16 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
             set.variants.Add(std::move(variant));
         }
         return reader.AtEnd();
+    }
+
+    const char* GetMaterialEntryPoint(MaterialDomain domain) noexcept
+    {
+        return domain == MaterialDomain::Sprite ? "JBroSpriteMain" : "PSMain";
+    }
+
+    const char* GetMaterialEpilogue(MaterialDomain domain) noexcept
+    {
+        return domain == MaterialDomain::Sprite ? SpriteEpilogue : "";
     }
 
     const char* GetMaterialPrelude() noexcept

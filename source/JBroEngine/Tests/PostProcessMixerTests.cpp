@@ -4,6 +4,7 @@
 #include <JBro/Framework3D/Component/PostProcessVolume3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/PostProcessVolume3DWeight.h>
+#include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessMixer.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 
@@ -176,6 +177,90 @@ namespace
             "over half the LUT switches and its texture and domain follow");
     }
 
+    // 머티리얼 효과의 섞기 자료를 세운다: 칸 넷(실수·정수·참거짓·빈 칸).
+    void SetMaterialCells(JBro::MaterialEffect& effect, const char* shader, float number, std::int32_t integer, std::uint32_t flag)
+    {
+        effect.shaderId = JBro::Uuid::FromName(shader);
+        effect.parameterBytes = 16;
+        effect.cellKinds[0] = static_cast<std::uint8_t>(JBro::MaterialCellKind::Float);
+        effect.cellKinds[1] = static_cast<std::uint8_t>(JBro::MaterialCellKind::Int);
+        effect.cellKinds[2] = static_cast<std::uint8_t>(JBro::MaterialCellKind::Bool);
+        effect.cellKinds[3] = static_cast<std::uint8_t>(JBro::MaterialCellKind::Unused);
+        std::memcpy(effect.parameters, &number, 4);
+        std::memcpy(effect.parameters + 4, &integer, 4);
+        std::memcpy(effect.parameters + 8, &flag, 4);
+    }
+
+    struct MaterialCells
+    {
+        float number = 0.0f;
+        std::int32_t integer = 0;
+        std::uint32_t flag = 0;
+    };
+
+    MaterialCells ReadMaterialCells(const JBro::MaterialEffect& effect)
+    {
+        MaterialCells cells;
+        std::memcpy(&cells.number, effect.parameters, 4);
+        std::memcpy(&cells.integer, effect.parameters + 4, 4);
+        std::memcpy(&cells.flag, effect.parameters + 8, 4);
+        return cells;
+    }
+
+    // **같은 셰이더의 두 머티리얼은 파라미터로 섞인다**(D-348). 칸마다 종류대로다 - 실수는 잇고, 정수는 이어서 반올림하고, 참거짓과 머티리얼(렌더러의 것)은
+    // 반에서 바뀐다. 섞였으면 `mixed` 가 켜져 렌더러가 섞인 블록을 올린다. 셰이더가 다르면 블록 전체가 반에서 바뀌고 섞이지 않는다.
+    void TestMaterialsOfOneShaderMixTheirParameters()
+    {
+        JBro::PostProcessMixer mixer;
+        mixer.Reserve(8, 1024);
+        Profile base;
+        JBro::MaterialEffect& calm = base.Add<JBro::MaterialEffect>(JBro::PostProcessEffects::Material, 1);
+        calm.materialId = JBro::Uuid::FromName("calm material");
+        calm.rendererMaterial = {1, 1};
+        SetMaterialCells(calm, "fog shader", 0.0f, 2, 0);
+        Profile volume;
+        JBro::MaterialEffect& storm = volume.Add<JBro::MaterialEffect>(JBro::PostProcessEffects::Material, 1);
+        storm.materialId = JBro::Uuid::FromName("storm material");
+        storm.rendererMaterial = {2, 1};
+        SetMaterialCells(storm, "fog shader", 1.0f, 6, 1);
+
+        mixer.Begin(base.Stack());
+        mixer.Blend(volume.View(), 0.25f);
+        const auto* quarter = Find<JBro::MaterialEffect>(mixer.GetResult(), JBro::PostProcessEffects::Material);
+        MaterialCells cells = ReadMaterialCells(*quarter);
+        Check(quarter->mixed && Near(cells.number, 0.25f) && cells.integer == 3 && cells.flag == 0,
+            "a quarter of the way: the float moves, the int rounds (2 + 4 / 4) and the bool stays");
+        Check(quarter->rendererMaterial.index == 1 && quarter->materialId == calm.materialId, "under half the base material draws");
+
+        mixer.Begin(base.Stack());
+        mixer.Blend(volume.View(), 0.75f);
+        const auto* most = Find<JBro::MaterialEffect>(mixer.GetResult(), JBro::PostProcessEffects::Material);
+        cells = ReadMaterialCells(*most);
+        Check(most->mixed && Near(cells.number, 0.75f) && cells.integer == 5 && cells.flag == 1, "three quarters: the bool has switched too");
+        Check(most->rendererMaterial.index == 2 && most->materialId == storm.materialId, "over half the volume's material draws");
+
+        // 다른 셰이더: 섞지 않고 반에서 통째로 바뀐다.
+        SetMaterialCells(storm, "other shader", 1.0f, 6, 1);
+        mixer.Begin(base.Stack());
+        mixer.Blend(volume.View(), 0.25f);
+        const auto* kept = Find<JBro::MaterialEffect>(mixer.GetResult(), JBro::PostProcessEffects::Material);
+        Check(false == kept->mixed && Near(ReadMaterialCells(*kept).number, 0.0f) && kept->rendererMaterial.index == 1,
+            "a material of another shader does not mix under half");
+        mixer.Begin(base.Stack());
+        mixer.Blend(volume.View(), 0.75f);
+        const auto* switched = Find<JBro::MaterialEffect>(mixer.GetResult(), JBro::PostProcessEffects::Material);
+        Check(false == switched->mixed && switched->rendererMaterial.index == 2 && switched->shaderId == JBro::Uuid::FromName("other shader"),
+            "and switches whole over half");
+
+        // 머티리얼을 덮어쓰지 않은 항목은 섞을 것이 없다.
+        volume.overrides[0] = 0;
+        SetMaterialCells(storm, "fog shader", 1.0f, 6, 1);
+        mixer.Begin(base.Stack());
+        mixer.Blend(volume.View(), 1.0f);
+        const auto* untouched = Find<JBro::MaterialEffect>(mixer.GetResult(), JBro::PostProcessEffects::Material);
+        Check(false == untouched->mixed && untouched->rendererMaterial.index == 1, "an entry that did not override the material mixes nothing");
+    }
+
     void TestScriptOverridesSitOnTop()
     {
         JBro::PostProcessMixer mixer;
@@ -286,6 +371,7 @@ JBro::Int32 RunPostProcessMixerTests()
     TestFieldsMixByTheirKind();
     TestAVolumeAddsWhatTheBaseLacks();
     TestAnAssetSwitchCarriesItsResolvedValues();
+    TestMaterialsOfOneShaderMixTheirParameters();
     TestScriptOverridesSitOnTop();
     TestTheMixerDropsWhatDoesNotFit();
     TestA2DVolumeWeighsByDistance();

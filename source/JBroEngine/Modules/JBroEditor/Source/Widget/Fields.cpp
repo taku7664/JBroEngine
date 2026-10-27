@@ -407,8 +407,38 @@ namespace JBro::Widget
     {
         // ImGui 는 float[4] 를 받는다. 떠서 넘기고 바뀌었을 때만 되돌려 쓴다.
         float raw[4] = {rgba[0], rgba[1], rgba[2], rgba[3]};
-        const bool changed = ImGui::ColorEdit4(id != nullptr ? id : "##color", raw,
-            ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+        // **칸이 좁으면 네 채널을 접는다**(D-348). ImGui 는 폭을 넷으로 나눌 뿐이라, 좁은 인스펙터에서는 채널마다 `255` 가 잘려 값을 읽을 수 없었다.
+        // 넷이 다 들어가지 않으면 한 칸의 16 진수(`#RRGGBBAA`)로, 그것도 들어가지 않으면 칸 폭만큼의 색 막대만 둔다 - 막대를 누르면 고르기 창이 열린다.
+        const char* label = id != nullptr ? id : "##color";
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const Float width = ImGui::CalcItemWidth();
+        const Float swatch = ImGui::GetFrameHeight() + style.ItemInnerSpacing.x;
+        const Float channel = ImGui::CalcTextSize("255").x + style.FramePadding.x * 2.0f;
+        const Float hex = ImGui::CalcTextSize("#FFFFFFFF").x + style.FramePadding.x * 2.0f;
+        const ImGuiColorEditFlags flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf;
+        bool changed = false;
+        if (width < swatch + hex)
+        {
+            // ImGui 의 `NoInputs` 는 정사각형 견본 하나라 칸이 비어 보였다. 같은 이름(`##ColorButton`)의 막대를 칸 폭으로 그린다.
+            ImGui::PushID(label);
+            const ImVec4 colour(raw[0], raw[1], raw[2], raw[3]);
+            if (ImGui::ColorButton("##ColorButton", colour, ImGuiColorEditFlags_AlphaPreviewHalf, ImVec2(width.Get(), ImGui::GetFrameHeight())))
+            {
+                ImGui::OpenPopup("##picker");
+            }
+            if (ImGui::BeginPopup("##picker"))
+            {
+                changed = ImGui::ColorPicker4("##picker", raw, flags);
+                ImGui::EndPopup();
+            }
+            ImGui::PopID();
+        }
+        else
+        {
+            const ImGuiColorEditFlags display =
+                width < swatch + channel * 4.0f + style.ItemInnerSpacing.x * 3.0f ? ImGuiColorEditFlags_DisplayHex : ImGuiColorEditFlags_None;
+            changed = ImGui::ColorEdit4(label, raw, flags | display);
+        }
         if (changed)
         {
             for (int channel = 0; channel < 4; ++channel)

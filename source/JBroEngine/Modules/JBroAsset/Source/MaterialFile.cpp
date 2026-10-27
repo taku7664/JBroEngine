@@ -188,6 +188,10 @@ namespace JBro
             {
                 document.domain = MaterialDomain::Sprite;
             }
+            else if (domain == "Mesh")
+            {
+                document.domain = MaterialDomain::Mesh;
+            }
             else
             {
                 if (error != nullptr)
@@ -261,7 +265,7 @@ namespace JBro
         {
             writer.WriteString("Shader", IdText(document.shader).c_str());
         }
-        writer.WriteString("Domain", document.domain == MaterialDomain::Sprite ? "Sprite" : "PostProcess");
+        writer.WriteString("Domain", document.domain == MaterialDomain::Sprite ? "Sprite" : document.domain == MaterialDomain::Mesh ? "Mesh" : "PostProcess");
         if (false == document.parameters.IsEmpty())
         {
             writer.BeginMap("Parameters");

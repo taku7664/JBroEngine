@@ -53,6 +53,7 @@ namespace JBro
         void CommitProfile(AssetId asset, const PostProcessProfileDocument& document);
         // 머티리얼(`.jmat`)의 셰이더·자리·파라미터·텍스처다(D-347). 파라미터와 텍스처의 이름은 셰이더를 구워 반사한 것이다. 고치면 본문을 커맨드로 쓴다.
         void DrawMaterial(const AssetMetaFile& meta);
+        void DrawShader(const AssetMetaFile& meta);
         void CommitMaterial(AssetId asset, const MaterialDocument& document);
 
         // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.

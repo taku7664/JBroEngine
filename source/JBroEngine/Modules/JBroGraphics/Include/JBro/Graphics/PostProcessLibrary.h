@@ -72,6 +72,8 @@ namespace JBro
             // `Material` 효과의 머티리얼 에셋과 그때 받은 렌더러 머티리얼이다(D-347). 셰이더가 바뀌어 렌더러 핸들이 바뀌면 다시 푼다.
             Array<AssetHandle> materials;
             Array<AssetHandle> rendererMaterials;
+            // 머티리얼 효과의 섞기 자료를 뜬 때의 머티리얼 라이브러리 판이다(D-348). 다르면 블록 안의 그 자료만 다시 뜬다.
+            UInt32 parameterStamp = 0;
             Bool used = false;
         };
         struct LutTexture
@@ -83,6 +85,8 @@ namespace JBro
 
         Bool IsStale(const Profile& profile) const;
         void Build(Profile& profile);
+        // 프로필의 `Material` 항목마다 볼륨 섞기 자료(셰이더·파라미터)를 머티리얼 라이브러리에서 다시 뜬다. 할당하지 않는다.
+        void RefreshMaterialParameters(Profile& profile);
         AssetHandle EnsureLut(AssetHandle lutAsset);
         void ReleaseProfile(Profile& profile);
 

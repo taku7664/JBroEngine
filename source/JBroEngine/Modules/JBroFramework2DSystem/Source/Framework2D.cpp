@@ -98,6 +98,7 @@ namespace JBro
             m_volumes.Reserve(MaxVolumes);
             m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
             m_postProcessSystem.Bind(&m_postMixer);
+            m_materialSystem.Bind(&m_materials);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
         }
@@ -143,6 +144,7 @@ namespace JBro
             SystemContext systems = GetSystemContext();
             systems.Objects = &m_objects;
             systems.PostProcess = &m_postProcessSystem;
+            systems.Material = &m_materialSystem;
             BindSystemContext(systems);
         }
         m_scriptBlockCount = 2;
@@ -167,6 +169,12 @@ namespace JBro
         {
             SystemContext systems = GetSystemContext();
             systems.PostProcess = nullptr;
+            BindSystemContext(systems);
+        }
+        if (GetSystemContext().Material == &m_materialSystem)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.Material = nullptr;
             BindSystemContext(systems);
         }
         m_objects.Bind(nullptr, nullptr);

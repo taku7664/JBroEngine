@@ -136,6 +136,8 @@ namespace JBro
             m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Reserve(config.maxMeshSubmissions);
             m_meshRuns.Reserve(config.maxMeshSubmissions);
+            m_meshMaterialOf.Resize(config.maxMeshSubmissions);
+            m_meshMaterialOrder.Reserve(config.maxMeshSubmissions);
             // 묶음은 많아도 스프라이트 수를 넘지 않는다. 프레임 안에서 자라지 않게 여기서 잡는다.
             m_spriteRuns.Reserve(config.maxSpriteSubmissions);
             // 레이어 묶음도 프레임 안에서 자라지 않는다. 넘치면 묶지 않고 센다.
@@ -279,6 +281,8 @@ namespace JBro
         m_gpuSpriteCount = 0;
         m_gpuMeshCount = 0;
         m_meshRuns = {};
+        m_meshMaterialOf = {};
+        m_meshMaterialOrder = {};
         m_layerGroups = {};
         m_openLayerGroup = NoLayerGroup;
         m_lights = {};
@@ -600,6 +604,21 @@ namespace JBro
         layout.buffers[1] = {static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)), VertexStepMode::Instance, {layout.instance, 4}};
     }
 
+    void Renderer::MakeMeshVertexLayout(MeshVertexLayout& layout)
+    {
+        layout.vertex[0] = {0, static_cast<JBro::UInt32>(offsetof(MeshVertex, position)), VertexFormat::Float3};
+        layout.vertex[1] = {1, static_cast<JBro::UInt32>(offsetof(MeshVertex, normal)), VertexFormat::Float3};
+        layout.vertex[2] = {7, static_cast<JBro::UInt32>(offsetof(MeshVertex, uv)), VertexFormat::Float2};
+        // 월드 행렬은 행 넷으로 쪼개 넘긴다. 정점 포맷에 4x4 가 없다.
+        layout.instance[0] = {2, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 0, VertexFormat::Float4};
+        layout.instance[1] = {3, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 16, VertexFormat::Float4};
+        layout.instance[2] = {4, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 32, VertexFormat::Float4};
+        layout.instance[3] = {5, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 48, VertexFormat::Float4};
+        layout.instance[4] = {6, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, tint)), VertexFormat::Float4};
+        layout.buffers[0] = {static_cast<JBro::UInt32>(sizeof(MeshVertex)), VertexStepMode::Vertex, {layout.vertex, 3}};
+        layout.buffers[1] = {static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), VertexStepMode::Instance, {layout.instance, 5}};
+    }
+
     Bool Renderer::CreateMaterialPipelines(MaterialResource& resource, const CompiledMaterialShader& shader)
     {
         const ShaderCodeFormat format = CodeFormatOf(m_config.api);
@@ -609,7 +628,8 @@ namespace JBro
             return false;
         }
         const Bool sprite = shader.domain == MaterialDomain::Sprite;
-        const ShaderData& builtin = GetBuiltinShader(sprite ? BuiltinShader::Sprite : BuiltinShader::PostCopy);
+        const Bool mesh = shader.domain == MaterialDomain::Mesh;
+        const ShaderData& builtin = GetBuiltinShader(sprite ? BuiltinShader::Sprite : mesh ? BuiltinShader::Mesh : BuiltinShader::PostCopy);
         const JArrayView<std::byte>& vertex = builtin.Code(ShaderProgramStage::Vertex, format);
         if (vertex.size == 0)
         {
@@ -618,18 +638,29 @@ namespace JBro
         GraphicsPipelineDesc desc;
         desc.vertexShader = {vertex.data, vertex.size};
         desc.pixelShader = {pixel.Data(), static_cast<JBro::UInt32>(pixel.Size())};
-        desc.pushConstantBytes = sprite ? SpriteMaterialPushBytes : PostMaterialPushBytes;
-        desc.pushConstantStages = sprite ? (ShaderStage::Vertex | ShaderStage::Pixel) : ShaderStage::Pixel;
+        // 스프라이트와 메시는 정점 단계가 앞의 뷰-투영 행렬을 읽는다 - 둘 다 128 B 다.
+        desc.pushConstantBytes = sprite || mesh ? SpriteMaterialPushBytes : PostMaterialPushBytes;
+        desc.pushConstantStages = sprite || mesh ? (ShaderStage::Vertex | ShaderStage::Pixel) : ShaderStage::Pixel;
         desc.bindings.constantBuffers = {shader.parameterBytes != 0 ? 1u : 0u, ShaderStage::Pixel};
         desc.bindings.sampledTextures = {resource.textureSlots, ShaderStage::Pixel};
         desc.bindings.samplers = {MaterialSamplerCount, ShaderStage::Pixel};
         desc.cull = CullMode::None;
         SpriteVertexLayout layout;
+        MeshVertexLayout meshLayout;
         if (sprite)
         {
             MakeSpriteVertexLayout(layout);
             desc.vertexBuffers = {layout.buffers, 2};
             desc.blend = BlendMode::Alpha;
+        }
+        else if (mesh)
+        {
+            // 빌트인 메시와 같다: 불투명, 깊이를 보고 쓰며, 뒷면을 버린다.
+            MakeMeshVertexLayout(meshLayout);
+            desc.vertexBuffers = {meshLayout.buffers, 2};
+            desc.blend = BlendMode::Opaque;
+            desc.cull = CullMode::Back;
+            desc.depthFormat = TextureFormat::D32Float;
         }
         else
         {
@@ -659,6 +690,7 @@ namespace JBro
             }
             else
             {
+                // 메시와 후처리는 장면 포맷마다 하나다(메시는 언제나 깊이가 달린 패스다).
                 resource.pipelines[scene.Get()] = m_device->CreateGraphicsPipeline(desc);
                 if (false == resource.pipelines[scene.Get()].IsValid())
                 {
@@ -703,6 +735,11 @@ namespace JBro
                 return {};
             }
             resource.textureSlots = texture.slot + 1 > resource.textureSlots ? texture.slot + 1 : resource.textureSlots;
+        }
+        // 스프라이트의 입구는 언제나 t7 의 라이트맵을 읽는다(D-348).
+        if (resource.domain == MaterialDomain::Sprite)
+        {
+            resource.textureSlots = MaterialLightMapSlot + 1;
         }
         if (false == CreateMaterialPipelines(resource, *desc.shader))
         {
@@ -822,9 +859,10 @@ namespace JBro
         return values;
     }
 
-    Bool Renderer::BindMaterialResources(IRHICommandContext& commands, const MaterialResource& material, SamplerHandle sourceSampler)
+    Bool Renderer::BindMaterialResources(IRHICommandContext& commands, const MaterialResource& material, SamplerHandle sourceSampler,
+        const std::byte* parameters)
     {
-        for (UInt32 slot = 1; slot < material.textureSlots; ++slot)
+        for (UInt32 slot = 1; slot < material.textureSlots && slot <= MaxMaterialTextures; ++slot)
         {
             const TextureResource* texture = FindTexture(material.textures[(slot - 1).Get()]);
             if (false == commands.SetTexture(slot, texture != nullptr ? texture->texture : m_whiteTexture))
@@ -841,7 +879,8 @@ namespace JBro
         {
             return true;
         }
-        const ConstantRange range = m_postConstants.Push(JArrayView<std::byte>{material.parameters, material.parameterBytes});
+        const ConstantRange range =
+            m_postConstants.Push(JArrayView<std::byte>{parameters != nullptr ? parameters : material.parameters, material.parameterBytes});
         return range.IsValid() && commands.SetConstantBuffer(1, range.buffer, range.offset, range.size);
     }
 
@@ -2334,7 +2373,7 @@ namespace JBro
         const auto litOf = [&](const SpriteRun& run) {
             return run.lit && lightMap.IsValid();
         };
-        // 머티리얼 구간은 그 머티리얼의 파이프라인을 걸고, 그 뒤의 빌트인 구간은 다시 건다.
+        // 머티리얼 구간은 그 머티리얼의 파이프라인을 걸고, 그 뒤의 빌트인 구간은 다시 건다. 머티리얼 스프라이트도 빛을 받는다(D-348).
         const auto bindMaterial = [&](UInt32 material) {
             const MaterialResource& resource = m_materials[(material - 1).Get()];
             return commands.SetGraphicsPipeline(resource.pipelines[(scene * 2 + (overDepth ? 1u : 0u)).Get()])
@@ -2361,7 +2400,9 @@ namespace JBro
                     return false;
                 }
                 boundMaterial = run.material;
+                // 빛을 받는 구간이면 이 뷰의 라이트맵, 아니면 흰 텍스처다 - 입구가 곱해도 그대로다(D-348).
                 if (false == BindMaterialResources(commands, m_materials[(run.material - 1).Get()], run.sampler)
+                    || false == commands.SetTexture(MaterialLightMapSlot, litOf(run) ? lightMap : m_whiteTexture)
                     || false == commands.SetTexture(0, run.texture)
                     || false == commands.DrawIndexedInstanced(6, run.instanceCount, 0, 0, run.firstInstance))
                 {
@@ -2456,10 +2497,30 @@ namespace JBro
             reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
         if (view.runCount != 0)
         {
-            if (false == commands.SetGraphicsPipeline(pipelines.mesh)
-                || false == commands.SetVertexBuffer(
-                    1, renderer.m_meshInstanceBuffers[renderer.m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
-                || false == commands.SetGraphicsConstants(constants))
+            // 머티리얼 메시의 푸시 상수다(D-348) - 스프라이트와 같이 뷰-투영 행렬 뒤에 엔진 값이 붙는다.
+            std::byte materialConstants[SpriteMaterialPushBytes.Get()] = {};
+            const MaterialEngineValues engine = renderer.MakeMaterialEngineValues(pass.viewport, pass.targetExtent, false);
+            std::memcpy(materialConstants, viewProjection.values, sizeof(viewProjection.values));
+            std::memcpy(materialConstants + sizeof(viewProjection.values), &engine, sizeof(engine));
+            // 구간은 머티리얼마다 이어 놓였다. 머티리얼이 바뀔 때만 파이프라인과 머티리얼 자원을 다시 건다.
+            const auto bindMaterial = [&](UInt32 material) {
+                const BufferHandle instances = renderer.m_meshInstanceBuffers[renderer.m_frame.slot];
+                if (material == 0)
+                {
+                    return commands.SetGraphicsPipeline(pipelines.mesh)
+                        && commands.SetVertexBuffer(1, instances, static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
+                        && commands.SetGraphicsConstants(constants);
+                }
+                // 메시에는 t0 의 입력이 없다. 파이프라인이 선언한 자리는 흰 텍스처로 채운다.
+                const MaterialResource& resource = renderer.m_materials[(material - 1).Get()];
+                return commands.SetGraphicsPipeline(resource.pipelines[pass.scene.Get()])
+                    && commands.SetVertexBuffer(1, instances, static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
+                    && commands.SetGraphicsConstants({materialConstants, SpriteMaterialPushBytes})
+                    && commands.SetTexture(0, renderer.m_whiteTexture)
+                    && renderer.BindMaterialResources(commands, resource, renderer.m_linearSampler);
+            };
+            UInt32 boundMaterial = renderer.m_meshRuns[view.runOffset.Get()].material;
+            if (false == bindMaterial(boundMaterial))
             {
                 return false;
             }
@@ -2473,6 +2534,14 @@ namespace JBro
                     // 업로드와 기록 사이에 사라질 길은 없지만, 있다면 업로드와 같은 정책이다: 그 묶음만 건너뛴다.
                     renderer.m_currentStats.droppedMeshCount += run.instanceCount;
                     continue;
+                }
+                if (run.material != boundMaterial)
+                {
+                    if (false == bindMaterial(run.material))
+                    {
+                        return false;
+                    }
+                    boundMaterial = run.material;
                 }
                 if (false == commands.SetVertexBuffer(0, mesh->vertexBuffer, static_cast<JBro::UInt32>(sizeof(MeshVertex)), 0)
                     || false == commands.SetIndexBuffer(mesh->indexBuffer, IndexFormat::UInt32, 0)
@@ -3156,48 +3225,93 @@ namespace JBro
                 m_meshHistogram[slot] = 0;
             }
             const UInt32 end = view.meshOffset + view.meshCount;
+            // **머티리얼을 먼저 푼다**(D-348). 메시 자리의 것만 보고, 죽은 핸들은 빌트인으로 그리고 센다. 뷰에 나온 머티리얼의 차례를 적는다 -
+            // 머티리얼은 몇 안 되므로 차례 찾기는 그 목록을 훑는다.
+            m_meshMaterialOrder.Clear();
             for (UInt32 at = view.meshOffset; at < end; ++at)
             {
-                const AssetHandle handle = m_meshes[at].mesh;
-                if (FindMesh(handle) == nullptr)
+                const MeshSubmit& mesh = m_meshes[at];
+                if (FindMesh(mesh.mesh) == nullptr)
                 {
                     // 등록되지 않은 메시다. 프레임을 버리지 않고 그 항목만 건너뛴다 - 핸들이 아직 해석되지
                     // 않은 첫 프레임이 그렇다.
                     ++m_currentStats.droppedMeshCount;
                     continue;
                 }
-                ++m_meshHistogram[handle.index];
+                UInt32 material = 0;
+                if (mesh.material.generation != 0)
+                {
+                    material = FindMaterialSlot(mesh.material);
+                    if (material != 0 && m_materials[(material - 1).Get()].domain != MaterialDomain::Mesh)
+                    {
+                        material = 0;
+                    }
+                    if (material == 0)
+                    {
+                        ++m_currentStats.staleMaterialCount;
+                    }
+                    else
+                    {
+                        ++m_currentStats.materialMeshCount;
+                    }
+                }
+                m_meshMaterialOf[at] = material;
+                Bool listed = false;
+                for (std::size_t order = 0; order < m_meshMaterialOrder.Size() && false == listed; ++order)
+                {
+                    listed = m_meshMaterialOrder[order] == material;
+                }
+                if (false == listed)
+                {
+                    m_meshMaterialOrder.Add(material);
+                }
             }
-            // 개수를 시작 자리로 바꾸고, 종류마다 드로우 구간을 하나 낸다.
+            // 머티리얼마다: 메시 슬롯으로 세고, 개수를 시작 자리로 바꾸고, 종류마다 드로우 구간을 하나 낸다.
             UInt32 cursor = written;
-            for (std::size_t slot = 0; slot < slotCount; ++slot)
+            for (std::size_t order = 0; order < m_meshMaterialOrder.Size(); ++order)
             {
-                const UInt32 count = m_meshHistogram[slot];
-                m_meshHistogram[slot] = cursor;
-                if (count != 0)
+                const UInt32 material = m_meshMaterialOrder[order];
+                for (std::size_t slot = 0; slot < slotCount; ++slot)
                 {
-                    MeshRun run;
-                    run.mesh = AssetHandle{static_cast<JBro::UInt32>(slot), m_meshResources[slot].generation};
-                    run.firstInstance = cursor;
-                    run.instanceCount = count;
-                    m_meshRuns.Add(run);
-                    ++view.runCount;
-                    cursor += count;
+                    m_meshHistogram[slot] = 0;
                 }
-            }
-            for (UInt32 at = view.meshOffset; at < end; ++at)
-            {
-                const MeshSubmit& mesh = m_meshes[at];
-                if (FindMesh(mesh.mesh) == nullptr)
+                for (UInt32 at = view.meshOffset; at < end; ++at)
                 {
-                    continue;
+                    if (FindMesh(m_meshes[at].mesh) != nullptr && m_meshMaterialOf[at] == material)
+                    {
+                        ++m_meshHistogram[m_meshes[at].mesh.index];
+                    }
                 }
-                GpuMeshInstance& instance = m_gpuMeshInstances[m_meshHistogram[mesh.mesh.index]++];
-                instance.world = mesh.world;
-                instance.tint[0] = mesh.tint[0];
-                instance.tint[1] = mesh.tint[1];
-                instance.tint[2] = mesh.tint[2];
-                instance.tint[3] = mesh.tint[3];
+                for (std::size_t slot = 0; slot < slotCount; ++slot)
+                {
+                    const UInt32 count = m_meshHistogram[slot];
+                    m_meshHistogram[slot] = cursor;
+                    if (count != 0)
+                    {
+                        MeshRun run;
+                        run.mesh = AssetHandle{static_cast<JBro::UInt32>(slot), m_meshResources[slot].generation};
+                        run.material = material;
+                        run.firstInstance = cursor;
+                        run.instanceCount = count;
+                        m_meshRuns.Add(run);
+                        ++view.runCount;
+                        cursor += count;
+                    }
+                }
+                for (UInt32 at = view.meshOffset; at < end; ++at)
+                {
+                    const MeshSubmit& mesh = m_meshes[at];
+                    if (FindMesh(mesh.mesh) == nullptr || m_meshMaterialOf[at] != material)
+                    {
+                        continue;
+                    }
+                    GpuMeshInstance& instance = m_gpuMeshInstances[m_meshHistogram[mesh.mesh.index]++];
+                    instance.world = mesh.world;
+                    instance.tint[0] = mesh.tint[0];
+                    instance.tint[1] = mesh.tint[1];
+                    instance.tint[2] = mesh.tint[2];
+                    instance.tint[3] = mesh.tint[3];
+                }
             }
             written = cursor;
         }
@@ -3698,26 +3812,15 @@ namespace JBro
             return false;
         }
 
-        // 메시(D-110).
-        const VertexAttributeDesc meshAttributes[] = {
-            {0, static_cast<JBro::UInt32>(offsetof(MeshVertex, position)), VertexFormat::Float3},
-            {1, static_cast<JBro::UInt32>(offsetof(MeshVertex, normal)), VertexFormat::Float3}};
-        // 월드 행렬은 행 넷으로 쪼개 넘긴다. 정점 포맷에 4x4 가 없다.
-        const VertexAttributeDesc meshInstanceAttributes[] = {
-            {2, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 0, VertexFormat::Float4},
-            {3, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 16, VertexFormat::Float4},
-            {4, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 32, VertexFormat::Float4},
-            {5, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 48, VertexFormat::Float4},
-            {6, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, tint)), VertexFormat::Float4}};
-        const VertexBufferLayoutDesc meshLayouts[] = {
-            {static_cast<JBro::UInt32>(sizeof(MeshVertex)), VertexStepMode::Vertex, {meshAttributes, 2}},
-            {static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), VertexStepMode::Instance, {meshInstanceAttributes, 5}}};
+        // 메시(D-110). 정점 배치는 머티리얼 메시와 같다(D-348).
+        MeshVertexLayout meshLayout;
+        MakeMeshVertexLayout(meshLayout);
         GraphicsPipelineDesc meshDesc;
         if (false == ApplyShader(meshDesc, BuiltinShader::Mesh, m_config.api, sizeof(Matrix4x4)))
         {
             return false;
         }
-        meshDesc.vertexBuffers = {meshLayouts, 2};
+        meshDesc.vertexBuffers = {meshLayout.buffers, 2};
         meshDesc.colorFormats = {colorFormats, 1};
         meshDesc.depthFormat = TextureFormat::D32Float;
         meshDesc.blend = BlendMode::Opaque;
@@ -4146,6 +4249,10 @@ namespace JBro
             if (material != 0 && m_materials[(material - 1).Get()].domain == MaterialDomain::PostProcess)
             {
                 data.material = material;
+                if (desc.materialParameters.size != 0 && desc.materialParameters.size == m_materials[(material - 1).Get()].parameterBytes)
+                {
+                    data.materialParameters = desc.materialParameters.data;
+                }
             }
             else
             {
@@ -4236,7 +4343,7 @@ namespace JBro
             return commands.SetGraphicsPipeline(material.pipelines[pass.scene.Get()])
                 && commands.SetGraphicsConstants({reinterpret_cast<const std::byte*>(&engine), static_cast<JBro::UInt32>(sizeof(engine))})
                 && commands.SetTexture(0, context.GetTexture(pass.inputs[0]))
-                && renderer.BindMaterialResources(commands, material, renderer.m_linearSampler)
+                && renderer.BindMaterialResources(commands, material, renderer.m_linearSampler, pass.materialParameters)
                 && commands.DrawInstanced(3, 1, 0, 0);
         }
         if (false == commands.SetGraphicsPipeline(renderer.m_postPipelines[pass.scene.Get()][program]))

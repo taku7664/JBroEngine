@@ -24,13 +24,17 @@ struct VertexInput
     float4 worldRow2 : ATTRIBUTE4;
     float4 worldRow3 : ATTRIBUTE5;
     float4 tint : ATTRIBUTE6;
+    float2 uv : ATTRIBUTE7;
 };
 
+// Mesh materials (D-348) read the same output: the prelude's JBroMeshInput lists these in this order, which is how Vulkan links the stages.
 struct VertexOutput
 {
     float4 position : SV_POSITION;
     float3 normal : NORMAL0;
     float4 tint : COLOR0;
+    float2 uv : TEXCOORD0;
+    float3 worldPosition : TEXCOORD1;
 };
 
 VertexOutput VSMain(VertexInput input)
@@ -43,12 +47,14 @@ VertexOutput VSMain(VertexInput input)
     // a proper inverse transpose comes with materials.
     output.normal = normalize(mul((float3x3)world, input.normal));
     output.tint = input.tint;
+    output.uv = input.uv;
+    output.worldPosition = worldPosition.xyz;
     return output;
 }
 
 float4 PSMain(VertexOutput input) : SV_TARGET
 {
-    // One fixed directional light plus ambient. Materials replace this later (framework3d-plan §3).
+    // One fixed directional light plus ambient. A mesh material gets the same through JBroMeshLight (D-348).
     const float3 lightDirection = normalize(float3(0.4f, 0.8f, 0.45f));
     const float lambert = saturate(dot(normalize(input.normal), lightDirection));
     const float lighting = 0.25f + 0.75f * lambert;

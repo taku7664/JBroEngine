@@ -263,12 +263,13 @@ namespace JBro
         std::uint8_t outlineColor[4] = {0, 0, 0, 0};
     };
 
-    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치와 법선만 있다 - 재질이 생기면 UV 가 붙는다
-    // (framework3d-plan §2.4). 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
+    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV 다 - UV 는 메시 머티리얼(D-348)이 읽는다(빌트인 셰이더는 보지 않는다).
+    // 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
     struct MeshVertex
     {
         Float position[3] = {0.0f, 0.0f, 0.0f};
         Float normal[3] = {0.0f, 0.0f, 1.0f};
+        Float uv[2] = {0.0f, 0.0f};
     };
 
     // **머티리얼 하나를 올릴 것**(D-347, `Renderer::RegisterMaterial`). 셰이더는 자리(`shader->domain`)로 구운 것이고, 렌더러의 API 에 맞는 바이트코드가
@@ -334,6 +335,8 @@ namespace JBro
         UInt32 layerPostProcessWaitingCount = 0;
         // 머티리얼로 그린 스프라이트다(D-347).
         UInt32 materialSpriteCount = 0;
+        // 머티리얼로 그린 메시다(D-348).
+        UInt32 materialMeshCount = 0;
         // 죽은(빈 것이 아니라 지워진) 머티리얼을 든 스프라이트·효과다. 빌트인 셰이더(효과는 그대로 옮기기)로 그리고 센다.
         UInt32 staleMaterialCount = 0;
     };
@@ -725,6 +728,8 @@ namespace JBro
             std::byte constants[PostProcessBuilder::MaxConstantBytes] = {};
             // 머티리얼로 그리는 패스면 그 자리 + 1 이다(D-347). 입력의 크기와 곱한 알파 표시는 셰이더의 엔진 값이다.
             UInt32 material = 0;
+            // 볼륨이 섞은 파라미터 블록이다(D-348). 프레임 동안 사는 효과 블록 사본(`m_postBlocks`) 안을 가리킨다. 없으면 머티리얼의 블록이다.
+            const std::byte* materialParameters = nullptr;
             Extent2D targetExtent;
             Bool premultiplied = false;
         };
@@ -821,6 +826,8 @@ namespace JBro
         struct MeshRun
         {
             AssetHandle mesh;
+            // 렌더러 머티리얼 자리 + 1 이다. 0 이면 빌트인 셰이더다(D-348).
+            UInt32 material = 0;
             UInt32 firstInstance = 0;
             UInt32 instanceCount = 0;
         };
@@ -874,8 +881,9 @@ namespace JBro
             Matrix4x4 world;
             Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         };
-        static_assert(sizeof(MeshVertex) == 24, "mesh vertex stride is part of the shader ABI");
+        static_assert(sizeof(MeshVertex) == 32, "mesh vertex stride is part of the shader ABI");
         static_assert(offsetof(MeshVertex, normal) == 12, "attribute 1 reads the normal from offset 12");
+        static_assert(offsetof(MeshVertex, uv) == 24, "attribute 7 reads the uv from offset 24");
         static_assert(sizeof(GpuMeshInstance) == 80, "mesh instance stride is part of the shader ABI");
         static_assert(offsetof(GpuMeshInstance, tint) == 64, "attribute 6 reads the tint from offset 64");
 
@@ -946,8 +954,18 @@ namespace JBro
             VertexBufferLayoutDesc buffers[2];
         };
         static void MakeSpriteVertexLayout(SpriteVertexLayout& layout);
+        // 메시의 정점 배치다. 빌트인 메시와 머티리얼 메시가 같은 것을 쓴다.
+        struct MeshVertexLayout
+        {
+            VertexAttributeDesc vertex[3];
+            VertexAttributeDesc instance[5];
+            VertexBufferLayoutDesc buffers[2];
+        };
+        static void MakeMeshVertexLayout(MeshVertexLayout& layout);
         // 머티리얼의 텍스처(t1..)·샘플러 넷·파라미터(b1)를 묶는다. t0 은 부르는 쪽이 묶는다.
-        Bool BindMaterialResources(IRHICommandContext& commands, const MaterialResource& material, SamplerHandle sourceSampler);
+        // `parameters` 를 주면 머티리얼의 블록 대신 그것(같은 크기)을 올린다(볼륨이 섞은 것, D-348).
+        Bool BindMaterialResources(IRHICommandContext& commands, const MaterialResource& material, SamplerHandle sourceSampler,
+            const std::byte* parameters = nullptr);
         // 뷰를 그래프의 패스로 짓고, 컴파일해 기록한다(D-339).
         Bool RecordViews();
         // 뷰 하나의 패스를 더한다. 뷰가 잘못되었으면(타깃 크기를 모름·뷰포트가 타깃 밖) 거짓이다.
@@ -1153,6 +1171,9 @@ namespace JBro
         std::size_t m_clearedTargetCount = 0;
         // 뷰마다 메시 슬롯별 개수를 세는 작업 배열. 크기는 등록된 메시 슬롯 수다.
         Array<UInt32> m_meshHistogram;
+        // 제출 하나마다 푼 머티리얼 자리(+1, 0 은 빌트인)와, 뷰에 나온 머티리얼의 차례다(D-348). 제출 상한만큼 미리 잡는다.
+        Array<UInt32> m_meshMaterialOf;
+        Array<UInt32> m_meshMaterialOrder;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;

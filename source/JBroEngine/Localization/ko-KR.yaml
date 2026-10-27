@@ -119,6 +119,9 @@ Entries:
   inspector.material_override_tooltip: "켜면 이 값을 머티리얼에 적습니다. 끄면 셰이더의 초기값을 씁니다"
   inspector.material_unreadable: "머티리얼을 읽지 못했습니다"
   inspector.material_broken: "머티리얼 글자가 깨져 있습니다. 파일을 고친 뒤에 여기서 고칠 수 있습니다"
+  inspector.shader_open: 편집기에서 열기
+  inspector.shader_domain_error: "이 자리로는 굽지 못했습니다"
+  inspector.shader_empty: "파라미터와 텍스처가 없습니다"
   canvas_view.edit_collider: 콜라이더 편집
   canvas_view.edit_collider_tooltip: 고른 오브젝트의 폴리곤 콜라이더를 고칩니다. 포인트를 끌어 옮기고, 변을 누르면 포인트가 생기고, 포인트를 우클릭하면 지울 수 있습니다
   canvas_view.point_delete: 포인트 삭제

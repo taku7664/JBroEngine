@@ -249,6 +249,7 @@ namespace
         auto* unnamedMesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(unnamed);
         shownMesh->meshId = JBro::MeshLibrary::BuiltinCubeId();
         shownMesh->tint = {0.25f, 0.5f, 0.75f, 1.0f};
+        shownMesh->material = {5, 9};
         hiddenMesh->meshId = JBro::MeshLibrary::BuiltinCubeId();
         hiddenMesh->visible = false;
         placelessMesh->meshId = JBro::MeshLibrary::BuiltinCubeId();
@@ -270,6 +271,8 @@ namespace
             "with its handle resolved from the id");
         Check(shownMesh->mesh.index == 7, "and the resolved handle written back so it is not looked up again");
         Check(Near(world.GetMesh(0).tint.G, 0.5f), "carrying the tint");
+        // 머티리얼은 라이브러리가 렌더러의 것으로 풀어야 한다(D-348). 라이브러리가 없으면 비어 빌트인으로 그린다 - 에셋 핸들이 렌더러로 새지 않는다.
+        Check(world.GetMesh(0).material.generation == 0, "without a material library the material asset handle does not reach the renderer");
         Check(hiddenMesh->mesh.generation == 0, "a hidden mesh is not even resolved");
 
         // 용량을 넘으면 세기만 한다.

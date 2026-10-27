@@ -154,12 +154,31 @@ namespace JBro
 
         const char* DomainDefine(MaterialDomain domain)
         {
-            return domain == MaterialDomain::Sprite ? "JBRO_MATERIAL_SPRITE" : "JBRO_MATERIAL_POSTPROCESS";
+            switch (domain)
+            {
+            case MaterialDomain::Sprite:
+                return "JBRO_MATERIAL_SPRITE";
+            case MaterialDomain::Mesh:
+                return "JBRO_MATERIAL_MESH";
+            case MaterialDomain::PostProcess:
+                break;
+            }
+            return "JBRO_MATERIAL_POSTPROCESS";
         }
 
+        // t0 자리의 입력 이름이다. 메시는 입력이 없다(빈 값).
         const char* InputName(MaterialDomain domain)
         {
-            return domain == MaterialDomain::Sprite ? "JBroSpriteTexture" : "JBroSource";
+            switch (domain)
+            {
+            case MaterialDomain::Sprite:
+                return "JBroSpriteTexture";
+            case MaterialDomain::Mesh:
+                return nullptr;
+            case MaterialDomain::PostProcess:
+                break;
+            }
+            return "JBroSource";
         }
 
         void Append(String& error, const char* text)
@@ -206,13 +225,14 @@ namespace JBro
             }
             const std::wstring name = Widen(sourceName != nullptr ? sourceName : "material.hlsl");
             const std::wstring define = Widen(DomainDefine(domain)) + L"=1";
+            const std::wstring entry = Widen(GetMaterialEntryPoint(domain));
             const wchar_t* arguments[24] = {};
             UINT32 count = 0;
             arguments[count++] = name.c_str();
             arguments[count++] = L"-T";
             arguments[count++] = L"ps_6_0";
             arguments[count++] = L"-E";
-            arguments[count++] = L"PSMain";
+            arguments[count++] = entry.c_str();
             arguments[count++] = L"-D";
             arguments[count++] = define.c_str();
             if (spirvTarget)
@@ -229,6 +249,8 @@ namespace JBro
                 arguments[count++] = L"-fvk-u-shift";
                 arguments[count++] = L"24";
                 arguments[count++] = L"0";
+                // Vulkan 백엔드는 픽셀 단계를 `PSMain` 으로 부른다. 자리의 입구가 다르면(스프라이트의 `JBroSpriteMain`, D-348) SPIR-V 의 이름만 맞춘다.
+                arguments[count++] = L"-fspv-entrypoint-name=PSMain";
             }
             DxcBuffer buffer = {};
             buffer.Ptr = source.data();
@@ -300,12 +322,25 @@ namespace JBro
                 case D3D_SIT_TEXTURE:
                     if (bind.BindPoint == 0)
                     {
-                        if (std::strcmp(bind.Name, InputName(domain)) != 0)
+                        const char* input = InputName(domain);
+                        if (input == nullptr)
                         {
-                            std::snprintf(line, sizeof(line), "%s: t0 is the domain's input (%s)", bind.Name, InputName(domain));
+                            std::snprintf(line, sizeof(line), "%s: a mesh material has no input at t0; its textures start at t1", bind.Name);
                             Append(error, line);
                             good = false;
                         }
+                        else if (std::strcmp(bind.Name, input) != 0)
+                        {
+                            std::snprintf(line, sizeof(line), "%s: t0 is the domain's input (%s)", bind.Name, input);
+                            Append(error, line);
+                            good = false;
+                        }
+                        break;
+                    }
+                    // 스프라이트의 t7 은 엔진의 라이트맵이다(머리글이 선언하고 입구가 읽는다).
+                    if (domain == MaterialDomain::Sprite && bind.BindPoint == MaterialLightMapSlot.Get()
+                        && std::strcmp(bind.Name, "JBroLightMap") == 0)
+                    {
                         break;
                     }
                     // 배열은 상수로 읽으면 원소마다 따로(`layers[0]`) 반사된다 - 이름으로 고를 수 없으니 받지 않는다.
@@ -514,12 +549,16 @@ namespace JBro
             return false;
         }
         Impl& impl = *m_impl;
+        // 자리의 맺음말(스프라이트의 입구)을 사용자 글자 뒤에 붙인다. 맺음말은 제 `#line` 을 달아 사용자 줄 번호가 그대로다.
+        String full(source);
+        full.append(GetMaterialEpilogue(domain));
+        source = full.View();
         const D3D_SHADER_MACRO defines[] = {{DomainDefine(domain), "1"}, {nullptr, nullptr}};
         FxcInclude include;
         ID3DBlob* code = nullptr;
         ID3DBlob* messages = nullptr;
-        const HRESULT result = impl.compile(source.data(), source.size(), sourceName, defines, &include, "PSMain", "ps_5_0",
-            D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &messages);
+        const HRESULT result = impl.compile(source.data(), source.size(), sourceName, defines, &include, GetMaterialEntryPoint(domain),
+            "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &messages);
         if (FAILED(result) || code == nullptr)
         {
             if (messages != nullptr && messages->GetBufferSize() != 0)

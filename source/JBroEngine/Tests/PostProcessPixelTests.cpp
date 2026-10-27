@@ -1129,6 +1129,7 @@ namespace
     {
         JBro::CompiledMaterialShader post;
         JBro::CompiledMaterialShader sprite;
+        JBro::CompiledMaterialShader mesh;
         JBro::Bool ready = false;
     };
     MaterialShaders materialShaders;
@@ -1162,6 +1163,23 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
 }
 )hlsl";
 
+    // 메시(D-348): UV 의 왼쪽 절반은 `fillColor` 에 틴트와 엔진의 빛을 곱하고, 오른쪽 절반은 머티리얼 텍스처(t1)를 UV 로 점 샘플한다.
+    constexpr const char* SurfaceShader = R"hlsl(#include "JBro/Material.hlsli"
+cbuffer Material : register(b1)
+{
+    float4 fillColor = float4(0.0f, 1.0f, 0.0f, 1.0f);
+};
+Texture2D shade : register(t1);
+float4 PSMain(JBroMeshInput input) : SV_TARGET
+{
+    if (input.uv.x < 0.5f)
+    {
+        return float4(fillColor.rgb * input.tint.rgb * JBroMeshLight(input.normal), 1.0f);
+    }
+    return float4(shade.Sample(JBroPointClamp, input.uv).rgb, 1.0f);
+}
+)hlsl";
+
     void CompileMaterialShaders()
     {
         JBro::WindowsPlatform platform;
@@ -1174,6 +1192,8 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
             "the post-process material compiles");
         Check(compiler.Compile(FillShader, "Fill.hlsl", JBro::MaterialDomain::Sprite, materialShaders.sprite, error),
             "the sprite material compiles");
+        Check(compiler.Compile(SurfaceShader, "Surface.hlsl", JBro::MaterialDomain::Mesh, materialShaders.mesh, error),
+            "the mesh material compiles");
         materialShaders.ready = compiler.HasFormat(JBro::ShaderCodeFormat::SpirV) && compiler.HasFormat(JBro::ShaderCodeFormat::Dxil);
         compiler.Shutdown();
         platform.Shutdown();
@@ -1274,6 +1294,19 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
             stage.Expect(48, 32, 1.0f, 1.0f, 1.0f, "the plain sprite stays white");
         }
 
+        // 빛(D-348): 빛을 받는 구간의 머티리얼 스프라이트는 엔진의 입구가 라이트맵을 곱한다 - 옆의 빌트인 스프라이트와 같은 빛이다.
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            stage.Frame(none, [&]() {
+                Check(stage.renderer.SubmitLight2D(GlobalLight(0.5f)), "the ambient light must submit");
+                Check(stage.renderer.SetSpriteLighting(true), "lighting must turn on");
+                Check(stage.renderer.SubmitSprite(left), "the lit material sprite must submit");
+                Check(stage.renderer.SubmitSprite(right), "the lit plain sprite must submit");
+            });
+        }
+        stage.Expect(16, 32, 0.0f, 0.5f, 0.0f, "a lit material sprite takes the light like a built-in one");
+        stage.Expect(48, 32, 0.5f, 0.5f, 0.5f, "the built-in sprite beside it takes the same light");
+
         // 파라미터만 바꾼다 - 같은 핸들이 다음 프레임에 빨강이다.
         const float red[4] = {1.0f, 0.0f, 0.0f, 1.0f};
         std::memcpy(parameters.Data(), red, sizeof(red));
@@ -1287,6 +1320,73 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
         Check(stage.renderer.GetLastFrameStats().staleMaterialCount == 1 && stage.renderer.GetLastFrameStats().materialSpriteCount == 0,
             "a sprite with a removed material is counted");
         stage.Expect(16, 32, 1.0f, 1.0f, 1.0f, "and drawn with the built-in shader");
+        stage.Close(rhi);
+    }
+
+    // **머티리얼 메시는 그 셰이더로 그려진다**(D-348). 위 띠는 머티리얼을 건 판, 아래 띠는 같은 메시의 빌트인 판이다 - 한 뷰에서 머티리얼마다 구간이 나뉜다.
+    // 머티리얼은 UV 의 왼쪽 절반을 빛을 받은 초록으로, 오른쪽 절반을 텍스처(2x1, 왼쪽 파랑·오른쪽 빨강)의 빨강으로 칠한다 - UV 와 머티리얼 텍스처가 온다.
+    // 머티리얼을 지우면 빌트인으로 그리고 센다.
+    template <typename TModule>
+    void TestAMeshMaterialShadesItsSurface()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == materialShaders.ready || false == stage.Open(rhi, "the mesh material"))
+        {
+            return;
+        }
+        const JBro::MeshVertex vertices[] = {
+            {{-1.0f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}, {{1.0f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+            {{1.0f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}}, {{-1.0f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}}};
+        const JBro::UInt32 indices[] = {0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2};
+        const JBro::AssetHandle mesh = stage.renderer.RegisterMesh({vertices, 4}, {indices, 12});
+        const std::byte texels[8] = {std::byte{0}, std::byte{0}, std::byte{255}, std::byte{255}, std::byte{255}, std::byte{0}, std::byte{0}, std::byte{255}};
+        const JBro::AssetHandle texture = stage.renderer.RegisterTexture({2, 1}, {texels, 8});
+        Check(mesh.generation != 0 && texture.generation != 0, "the plate and the texture must register");
+        JBro::MaterialDesc desc;
+        desc.shader = &materialShaders.mesh;
+        JBro::Array<std::byte> parameters;
+        parameters.Resize(materialShaders.mesh.parameterBytes);
+        const float green[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+        std::memcpy(parameters.Data(), green, sizeof(green));
+        desc.parameters = {parameters.Data(), static_cast<JBro::UInt32>(parameters.Size())};
+        desc.textures[0] = texture;
+        const JBro::AssetHandle material = stage.renderer.RegisterMaterial(desc);
+        Check(material.generation != 0, "the mesh material is registered");
+
+        // 판을 세로로 반 접어 위(y +0.25)와 아래(y -0.25)에 둔다. 행 우선 4x4, 열 벡터라 이동은 넷째 열이다.
+        JBro::MeshSubmit top;
+        top.mesh = mesh;
+        top.material = material;
+        top.world = {{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.0f, 0.25f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}};
+        JBro::MeshSubmit bottom = top;
+        bottom.material = {};
+        bottom.world.values[7] = -0.25f;
+        Effects hdr;
+        hdr.AddExposure(0.0f);
+        const auto draw = [&]() {
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                stage.Frame(hdr, [&]() {
+                    Check(stage.renderer.SubmitMesh(top), "the material plate must submit");
+                    Check(stage.renderer.SubmitMesh(bottom), "the built-in plate must submit");
+                });
+            }
+        };
+        draw();
+        Check(stage.renderer.GetLastFrameStats().materialMeshCount == 1, "one plate is drawn with its material");
+        // 셰이더의 고정 빛: 0.25f + 0.75f · dot(+z, normalize(0.4f, 0.8f, 0.45f)) - 빌트인 메시와 머리글의 `JBroMeshLight` 가 같다.
+        const JBro::Float lambert = 0.45f / std::sqrt(0.4f * 0.4f + 0.8f * 0.8f + 0.45f * 0.45f);
+        const JBro::Float light = 0.25f + 0.75f * lambert;
+        stage.Expect(16, 24, 0.0f, light, 0.0f, "the left half of the material plate is the parameter's green under the engine's light");
+        stage.Expect(48, 24, 1.0f, 0.0f, 0.0f, "the right half reads the material texture at its UV");
+        stage.Expect(16, 40, light, light, light, "the built-in plate below is the plain lit white");
+
+        stage.renderer.UnregisterMaterial(material);
+        draw();
+        Check(stage.renderer.GetLastFrameStats().staleMaterialCount == 1 && stage.renderer.GetLastFrameStats().materialMeshCount == 0,
+            "a mesh with a removed material is counted");
+        stage.Expect(48, 24, light, light, light, "and drawn with the built-in shader");
         stage.Close(rhi);
     }
 
@@ -1310,6 +1410,7 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
         TestAViewLaidOnAsALayerTakesItsEffects<TModule>();
         TestAMaterialEffectDrawsTheView<TModule>();
         TestASpriteMaterialShadesItsQuad<TModule>();
+        TestAMeshMaterialShadesItsSurface<TModule>();
     }
 }
 

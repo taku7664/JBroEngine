@@ -119,6 +119,9 @@ Entries:
   inspector.material_override_tooltip: "Write this value into the material. Off uses the shader's initial value"
   inspector.material_unreadable: "This material could not be read"
   inspector.material_broken: "The material's text is broken. Fix the file to edit it here"
+  inspector.shader_open: "Open in Editor"
+  inspector.shader_domain_error: "Could not be compiled for this domain"
+  inspector.shader_empty: "No parameters or textures"
   canvas_view.edit_collider: Edit Collider
   canvas_view.edit_collider_tooltip: edit the selected object's polygon collider - drag a point to move it, click an edge to add one, right-click a point to delete it
   canvas_view.point_delete: Delete Point

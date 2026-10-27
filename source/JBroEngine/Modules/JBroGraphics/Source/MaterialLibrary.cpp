@@ -154,8 +154,10 @@ namespace JBro
             }
             else
             {
-                slot->error = domain == MaterialDomain::Sprite ? "the package has no Sprite build of this shader"
-                                                               : "the package has no PostProcess build of this shader";
+                const EnumNames& names = *TypeDescriptorOf<MaterialDomain>::Get().enumNames;
+                slot->error = "the package has no ";
+                slot->error.append(static_cast<std::uint32_t>(domain) < names.count ? names.names[static_cast<std::size_t>(domain)] : "?");
+                slot->error.append(" build of this shader");
             }
             return slot;
         }
@@ -257,6 +259,7 @@ namespace JBro
         ReleaseAssets(material);
         material.error.clear();
         material.hasError = true;
+        material.compiled = nullptr;
         const auto fail = [&](const char* why) {
             material.error = why;
             if (material.renderer.generation != 0)
@@ -315,9 +318,35 @@ namespace JBro
         }
         MaterialDesc desc;
         desc.shader = &compiled->result;
-        Array<std::byte> block;
-        BuildParameterBlock(compiled->result, document, block);
-        desc.parameters = {block.Data(), static_cast<JBro::UInt32>(block.Size())};
+        BuildParameterBlock(compiled->result, document, material.baseBlock);
+        // 덮어쓰기와 볼륨 섞기가 쓸 것을 지을 때 한 번 떠 둔다 - 이름은 번호로, 칸은 종류로.
+        material.compiled = compiled;
+        material.shaderId = document.shader;
+        material.parameterNames.Clear();
+        material.cellKinds.Resize(material.baseBlock.Size() / 4);
+        for (std::size_t cell = 0; cell < material.cellKinds.Size(); ++cell)
+        {
+            material.cellKinds[cell] = static_cast<std::uint8_t>(MaterialCellKind::Unused);
+        }
+        for (const MaterialParameterInfo& parameter : compiled->result.parameters)
+        {
+            material.parameterNames.Add(MakeNameId(parameter.name.c_str()));
+            const UInt32 components = GetMaterialParameterComponents(parameter.type);
+            const MaterialCellKind kind = parameter.type == MaterialParameterType::Int ? MaterialCellKind::Int
+                : parameter.type == MaterialParameterType::UInt                         ? MaterialCellKind::UInt
+                : parameter.type == MaterialParameterType::Bool                         ? MaterialCellKind::Bool
+                                                                                        : MaterialCellKind::Float;
+            for (UInt32 at = 0; at < components; ++at)
+            {
+                const std::size_t cell = (parameter.offset.Get() / 4) + at.Get();
+                if (cell < material.cellKinds.Size())
+                {
+                    material.cellKinds[cell] = static_cast<std::uint8_t>(kind);
+                }
+            }
+        }
+        ApplyOverrides(material);
+        desc.parameters = {material.liveBlock.Data(), static_cast<JBro::UInt32>(material.liveBlock.Size())};
         for (const MaterialTextureInfo& slot : compiled->result.textures)
         {
             const MaterialTextureValue* value = document.FindTexture(slot.name.View());
@@ -335,6 +364,11 @@ namespace JBro
             material.textureGenerations.Add(pixels != nullptr ? pixels->pixelGeneration : UInt32(0));
             desc.textures[(slot.slot - 1).Get()] = EnsureTexture(texture);
         }
+        for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
+        {
+            material.rendererTextures[at.Get()] = desc.textures[at.Get()];
+        }
+        ++m_parameterStamp;
         const Bool sameShader = material.renderer.generation != 0 && SameHandle(material.registeredShader, material.shader)
             && material.registeredGeneration == material.shaderGeneration && material.registeredDomain == material.domain;
         if (sameShader && m_renderer->UpdateMaterial(material.renderer, desc))
@@ -356,6 +390,164 @@ namespace JBro
         material.registeredGeneration = material.shaderGeneration;
         material.registeredDomain = material.domain;
         material.hasError = false;
+    }
+
+    void MaterialLibrary::ApplyOverrides(Material& material)
+    {
+        material.liveBlock.Resize(material.baseBlock.Size());
+        if (false == material.baseBlock.IsEmpty())
+        {
+            std::memcpy(material.liveBlock.Data(), material.baseBlock.Data(), material.baseBlock.Size());
+        }
+        material.appliedOverrideStamp = m_overrideStamp;
+        if (material.compiled == nullptr || m_assets == nullptr)
+        {
+            return;
+        }
+        const Array<MaterialParameterInfo>& parameters = material.compiled->result.parameters;
+        for (UInt32 at = 0; at < m_overrideCount; ++at)
+        {
+            const ParameterOverride& entry = m_overrides[at.Get()];
+            if (false == entry.set || false == SameHandle(m_assets->Find(entry.material), material.asset))
+            {
+                continue;
+            }
+            for (std::size_t index = 0; index < parameters.Size() && index < material.parameterNames.Size(); ++index)
+            {
+                if (material.parameterNames[index] != entry.name)
+                {
+                    continue;
+                }
+                const MaterialParameterInfo& parameter = parameters[index];
+                const UInt32 components = GetMaterialParameterComponents(parameter.type);
+                const Bool integer = parameter.type == MaterialParameterType::Int || parameter.type == MaterialParameterType::UInt
+                    || parameter.type == MaterialParameterType::Bool;
+                const Bool fits = entry.count == components || (parameter.type == MaterialParameterType::Float3 && entry.count == 4);
+                if (integer != entry.integer || false == fits || parameter.offset + components * 4 > material.liveBlock.Size())
+                {
+                    break;
+                }
+                for (UInt32 component = 0; component < components; ++component)
+                {
+                    WriteComponent(material.liveBlock.Data() + parameter.offset.Get() + component.Get() * 4, parameter.type,
+                        entry.values[component.Get()]);
+                }
+                break;
+            }
+        }
+    }
+
+    void MaterialLibrary::Refresh(Material& material)
+    {
+        ApplyOverrides(material);
+        if (material.compiled == nullptr || material.renderer.generation == 0)
+        {
+            return;
+        }
+        MaterialDesc desc;
+        desc.shader = &material.compiled->result;
+        desc.parameters = {material.liveBlock.Data(), static_cast<JBro::UInt32>(material.liveBlock.Size())};
+        for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
+        {
+            desc.textures[at.Get()] = material.rendererTextures[at.Get()];
+        }
+        m_renderer->UpdateMaterial(material.renderer, desc);
+        ++m_parameterStamp;
+    }
+
+    UInt32 MaterialLibrary::FindParameter(AssetId material, const char* parameter)
+    {
+        if (material.IsNull() || parameter == nullptr || parameter[0] == '\0')
+        {
+            return InvalidParameter;
+        }
+        const NameId name = MakeNameId(parameter);
+        for (UInt32 at = 0; at < m_overrideCount; ++at)
+        {
+            if (m_overrides[at.Get()].material == material && m_overrides[at.Get()].name == name)
+            {
+                return at;
+            }
+        }
+        if (m_overrideCount >= MaxParameterOverrides)
+        {
+            return InvalidParameter;
+        }
+        ParameterOverride& entry = m_overrides[m_overrideCount.Get()];
+        entry = {};
+        entry.material = material;
+        entry.name = name;
+        return m_overrideCount++;
+    }
+
+    Bool MaterialLibrary::SetParameter(UInt32 parameter, const Float* values, UInt32 count, Bool integer)
+    {
+        if (parameter >= m_overrideCount || values == nullptr || count == 0 || count > 4)
+        {
+            return false;
+        }
+        ParameterOverride& entry = m_overrides[parameter.Get()];
+        Bool same = entry.set && entry.count == count && entry.integer == integer;
+        for (UInt32 at = 0; at < count && same; ++at)
+        {
+            same = entry.values[at.Get()] == values[at.Get()];
+        }
+        if (same)
+        {
+            return true;
+        }
+        for (UInt32 at = 0; at < 4; ++at)
+        {
+            entry.values[at.Get()] = at < count ? values[at.Get()] : Float(0.0f);
+        }
+        entry.count = count;
+        entry.integer = integer;
+        entry.set = true;
+        ++m_overrideStamp;
+        return true;
+    }
+
+    void MaterialLibrary::ClearParameter(UInt32 parameter)
+    {
+        if (parameter < m_overrideCount && m_overrides[parameter.Get()].set)
+        {
+            m_overrides[parameter.Get()].set = false;
+            ++m_overrideStamp;
+        }
+    }
+
+    void MaterialLibrary::ClearParameters()
+    {
+        Bool any = false;
+        for (UInt32 at = 0; at < m_overrideCount; ++at)
+        {
+            any = any || m_overrides[at.Get()].set;
+            m_overrides[at.Get()].set = false;
+        }
+        if (any)
+        {
+            ++m_overrideStamp;
+        }
+    }
+
+    Bool MaterialLibrary::DescribeParameters(AssetHandle materialAsset, AssetId& shader, JArrayView<std::byte>& block,
+        JArrayView<std::uint8_t>& kinds) const
+    {
+        for (const Material& material : m_materials)
+        {
+            if (SameHandle(material.asset, materialAsset))
+            {
+                if (material.hasError || material.compiled == nullptr)
+                {
+                    return false;
+                }
+                shader = material.shaderId;
+                block = {material.liveBlock.Data(), static_cast<JBro::UInt32>(material.liveBlock.Size())};
+                kinds = {material.cellKinds.Data(), static_cast<JBro::UInt32>(material.cellKinds.Size())};
+                return true;
+            }
+        }
+        return false;
     }
 
     AssetHandle MaterialLibrary::Resolve(AssetHandle materialAsset)
@@ -392,6 +584,10 @@ namespace JBro
             if (IsStale(material))
             {
                 Build(material);
+            }
+            else if (material.appliedOverrideStamp != m_overrideStamp)
+            {
+                Refresh(material);
             }
         }
     }
