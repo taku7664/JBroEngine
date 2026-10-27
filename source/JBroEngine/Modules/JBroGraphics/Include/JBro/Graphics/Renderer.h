@@ -414,6 +414,10 @@ namespace JBro
         // 준다. 프레임 밖에서만 부른다. 크기가 0 이거나 바이트 수가 맞지 않거나 프레임 안이면 빈 핸들이다(D-113).
         // 발급자가 렌더러라는 것은 `SpriteLibrary`(Framework2DSystem)만 안다 - `MeshLibrary` 와 같다.
         AssetHandle RegisterTexture(const Extent2D& extent, JArrayView<std::byte> rgba8);
+        // **3D 텍스처를 올린다**(D-343, 컬러 그레이딩의 LUT). `RGBA16Float` 텍셀(채널마다 반정밀 실수 넷, x 가 가장 빨리 돈다)이고 깊이 조각을
+        // 차례로 이어 준다. 프레임 밖에서만 부른다. 크기가 0 이거나 장치 상한을 넘거나 바이트 수가 맞지 않으면 빈 핸들이다.
+        // 지우기는 `UnregisterTexture` 다. `UpdateTexture`·`UpdateTextureRegion` 은 3D 를 받지 않는다.
+        AssetHandle RegisterVolumeTexture(UInt32 width, UInt32 height, UInt32 depth, JArrayView<std::byte> rgba16f);
         // 같은 크기의 새 픽셀로 갈아 끼운다(에셋의 in-place 재로드). 크기가 다르면 거짓이다 - 새로 등록한다.
         Bool UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8);
         // 사각형 하나만 갈아 끼운다(글리프 아틀라스의 새 칸). rgba8 은 사각형 왼쪽 위 텍셀부터이고 행 간격은 rowPitch 바이트다.
@@ -665,7 +669,10 @@ namespace JBro
             Renderer* renderer = nullptr;
             Viewport viewport;
             ScissorRect scissor;
-            RenderGraphTexture input;
+            RenderGraphTexture inputs[PostProcessPassDesc::MaxInputs];
+            UInt32 inputCount = 0;
+            // 그래프 밖의 텍스처(LUT)다. 그래프 입력 다음 자리에 묶는다.
+            AssetHandle external;
             PostProcessProgram program = PostProcessProgram::Copy;
             UInt32 scene = LdrScene;
             UInt32 constantBytes = 0;
@@ -828,6 +835,8 @@ namespace JBro
         {
             TextureHandle texture;
             Extent2D extent;
+            // 3D 텍스처(LUT)의 깊이다. 2D 는 1 이다.
+            UInt32 depth = 1;
             UInt32 generation = 1;
             Bool occupied = false;
         };
@@ -876,7 +885,13 @@ namespace JBro
         Bool AddPostProcessPasses(UInt32 viewIndex, const PostPlan& plan, RenderGraphTexture scene, RenderGraphTexture output,
             LoadOperation outputLoad, const ClearColor& outputClear, const Extent2D& extent, const Viewport& viewport,
             const ScissorRect& scissor);
-        Bool AddPostProcessPass(PostProcessBuilder& builder, const char* name, PostProcessProgram program, JArrayView<std::byte> constants);
+        Bool AddPostProcessPass(PostProcessBuilder& builder, const PostProcessPassDesc& desc);
+        // 계획한 효과가 만들 텍스처를 센다. 효과 사이의 중간 텍스처(포맷마다 많아야 둘)와, 패스 함수를 셈으로만 돌려 얻은 효과 안의
+        // 텍스처다. 셀 모양이 너무 많거나 패스 함수가 거절하면 거짓이다.
+        Bool CountPostProcessTextures(UInt32 viewIndex, const PostPlan& plan, const Extent2D& extent, const Viewport& viewport,
+            const ScissorRect& scissor, PostProcessBuilder::TextureCount* counts, UInt32& countSize);
+        // 그 텍스처 자리가 있는가(렌더 그래프 밖의 텍스처, 빌더가 묻는다).
+        Bool GetRegisteredTextureSize(AssetHandle texture, UInt32& width, UInt32& height, UInt32& depth) const;
         static Bool ExecutePostProcess(RenderGraphContext& context, const void* data);
         static Bool ExecuteNothing(RenderGraphContext& context, const void* data);
         static Bool ExecuteSprites(RenderGraphContext& context, const void* data);

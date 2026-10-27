@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include <JBro/Asset/ColorLutFile.h>
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Graphics/PostProcess.h>
@@ -12,6 +13,7 @@
 #include <functional>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -726,6 +728,239 @@ namespace
 #endif
     }
 
+    // ── 7 단계: 블룸·컬러 그레이딩(D-343) ──
+
+    // **블룸이 밝은 빛을 번지게 한다.** 검은 바탕 가운데의 흰 사각형(4x4 픽셀)을 노출 +2.2 EV 로 1 위로 올리고 블룸을 건다. 사각형 밖 3 픽셀은
+    // 블룸이 없으면 검고 있으면 밝으며, 더 먼 10 픽셀보다 밝고, 좌우·상하가 같다. 문턱을 빛보다 높이면 번지지 않는다.
+    template <typename TModule>
+    void TestBloomSpreadsBrightLight()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "bloom"))
+        {
+            return;
+        }
+        const auto submit = [&]() {
+            Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 4.0f / 32.0f, 4.0f / 32.0f, 1.0f)), "the bright square must submit");
+        };
+        const auto withBloom = [&](JBro::Float intensity, JBro::Float threshold) {
+            Effects effects;
+            effects.AddExposure(2.2f);
+            JBro::BloomEffect bloom;
+            bloom.intensity = intensity;
+            bloom.threshold = threshold;
+            effects.Add(JBro::PostProcessEffects::Bloom, bloom);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                stage.Frame(effects, submit);
+            }
+            Check(stage.renderer.GetLastFrameStats().postProcessedViewCount == 1, "the bloom view is post-processed");
+        };
+        // 사각형은 픽셀 30..33 이다. 3 픽셀 밖은 36(오른쪽)·27(왼쪽)이다.
+        withBloom(0.0f, 0.9f);
+        Check(stage.Read(36, 32).r < 0.01f, "without intensity nothing spreads");
+        withBloom(1.0f, 0.9f);
+        const Pixel right = stage.Read(36, 32);
+        const Pixel left = stage.Read(27, 32);
+        const Pixel up = stage.Read(32, 27);
+        const Pixel down = stage.Read(32, 36);
+        const Pixel far = stage.Read(43, 32);
+        Check(right.r > 0.05f && right.r == right.g && right.g == right.b, "bright light spreads past the square as white");
+        Check(right.r > far.r, "the glow fades with distance");
+        Check(std::fabs(right.r - left.r) < 0.03f && std::fabs(up.r - down.r) < 0.03f && std::fabs(right.r - up.r) < 0.03f,
+            "the glow is the same on every side");
+        Check(stage.Read(32, 32).r > 0.99f, "the square itself stays white");
+        withBloom(1.0f, 100.0f);
+        Check(stage.Read(36, 32).r < 0.01f, "light under the threshold does not spread");
+        stage.Close(rhi);
+    }
+
+    // 셰이더와 같은 뜻을 적은 기준값이다: 대비(가운데 회색 둘레) → 컬러 필터 → HSV 의 색조 돌리기 → Rec.709 밝기 쪽으로 채도.
+    void Adjust(const JBro::Float in[3], JBro::Float contrast, const JBro::Float filter[3], JBro::Float hueDegrees, JBro::Float saturation,
+        JBro::Float out[3])
+    {
+        JBro::Float c[3];
+        for (JBro::Int32 at = 0; at < 3; ++at)
+        {
+            c[at.Get()] = JBro::Float::Clamp((in[at.Get()] - 0.5f) * ((contrast + 100.0f) / 100.0f) + 0.5f, 0.0f, 1.0f) * filter[at.Get()];
+        }
+        const JBro::Float maxValue = std::fmax(c[0], std::fmax(c[1], c[2]));
+        const JBro::Float minValue = std::fmin(c[0], std::fmin(c[1], c[2]));
+        const JBro::Float delta = maxValue - minValue;
+        JBro::Float hue = 0.0f;
+        if (delta > 1e-6f)
+        {
+            if (maxValue == c[0])
+            {
+                hue = (c[1] - c[2]) / delta;
+            }
+            else if (maxValue == c[1])
+            {
+                hue = 2.0f + (c[2] - c[0]) / delta;
+            }
+            else
+            {
+                hue = 4.0f + (c[0] - c[1]) / delta;
+            }
+        }
+        hue = hue / 6.0f + hueDegrees / 360.0f;
+        hue = hue - std::floor(hue);
+        const JBro::Float sat = maxValue > 1e-6f ? delta / maxValue : JBro::Float(0.0f);
+        // HSV → RGB 는 육각뿔의 면마다 직선이다.
+        const JBro::Float offsets[3] = {1.0f, 2.0f / 3.0f, 1.0f / 3.0f};
+        for (JBro::Int32 at = 0; at < 3; ++at)
+        {
+            JBro::Float k = hue + offsets[at.Get()];
+            k = k - std::floor(k);
+            k = JBro::Float::Clamp(std::fabs(k * 6.0f - 3.0f) - 1.0f, 0.0f, 1.0f);
+            c[at.Get()] = maxValue * (1.0f + (k - 1.0f) * sat);
+        }
+        const JBro::Float luma = 0.2126f * c[0] + 0.7152f * c[1] + 0.0722f * c[2];
+        for (JBro::Int32 at = 0; at < 3; ++at)
+        {
+            out[at.Get()] = JBro::Float::Clamp(luma + (c[at.Get()] - luma) * ((saturation + 100.0f) / 100.0f), 0.0f, 1.0f);
+        }
+    }
+
+    // **기본 조정이 뜻대로 바꾼다.** HDR 효과가 없는 뷰(백버퍼 포맷 장면)에 주황 하나를 깔고 대비·필터·색조·채도를 건다.
+    template <typename TModule>
+    void TestColorAdjustmentsFollowTheirFormulas()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "colour adjustments"))
+        {
+            return;
+        }
+        JBro::SpriteSubmit orange = Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f);
+        orange.tint[0] = 0.8f;
+        orange.tint[1] = 0.4f;
+        orange.tint[2] = 0.2f;
+        const auto submit = [&]() {
+            Check(stage.renderer.SubmitSprite(orange), "the orange must submit");
+        };
+        const JBro::Float in[3] = {Quantized(0.8f), Quantized(0.4f), Quantized(0.2f)};
+        struct Case
+        {
+            JBro::Float contrast;
+            JBro::Float filter[3];
+            JBro::Float hue;
+            JBro::Float saturation;
+            const char* what;
+        };
+        const Case cases[] = {
+            {0.0f, {1.0f, 1.0f, 1.0f}, 0.0f, 0.0f, "the defaults leave the colour as it is"},
+            {50.0f, {1.0f, 1.0f, 1.0f}, 0.0f, 0.0f, "contrast pushes away from mid grey"},
+            {0.0f, {1.0f, 0.5f, 0.25f}, 0.0f, 0.0f, "the colour filter multiplies"},
+            {0.0f, {1.0f, 1.0f, 1.0f}, 180.0f, 0.0f, "the hue turns half way round"},
+            {0.0f, {1.0f, 1.0f, 1.0f}, 0.0f, -100.0f, "no saturation is grey"},
+            {-30.0f, {0.9f, 1.0f, 0.8f}, 45.0f, 40.0f, "all four together"},
+        };
+        for (const Case& item : cases)
+        {
+            Effects effects;
+            JBro::ColorAdjustmentsEffect adjust;
+            adjust.contrast = item.contrast;
+            adjust.colorFilter = {item.filter[0], item.filter[1], item.filter[2], 1.0f};
+            adjust.hueShift = item.hue;
+            adjust.saturation = item.saturation;
+            effects.Add(JBro::PostProcessEffects::ColorAdjustments, adjust);
+            stage.Frame(effects, submit);
+            stage.Frame(effects, submit);
+            Check(stage.renderer.GetLastFrameStats().postProcessedViewCount == 1, "the adjusted view is post-processed");
+            JBro::Float want[3];
+            Adjust(in, item.contrast, item.filter, item.hue, item.saturation, want);
+            stage.Expect(32, 32, want[0], want[1], want[2], item.what);
+        }
+        stage.Close(rhi);
+    }
+
+    // 크기 `size` 의 `.cube` 글자다. `invert` 면 1 - 입력이다.
+    JBro::String MakeCube(JBro::UInt32 size, JBro::Bool invert)
+    {
+        JBro::String text = "TITLE \"probe\"\n# a comment\nLUT_3D_SIZE ";
+        text.append(std::to_string(size.Get()));
+        text.append("\n");
+        const JBro::Float last = static_cast<JBro::Float>(size.Get() - 1u);
+        for (JBro::UInt32 b = 0; b < size; ++b)
+        {
+            for (JBro::UInt32 g = 0; g < size; ++g)
+            {
+                for (JBro::UInt32 r = 0; r < size; ++r)
+                {
+                    const JBro::Float values[3] = {static_cast<JBro::Float>(r.Get()) / last, static_cast<JBro::Float>(g.Get()) / last,
+                        static_cast<JBro::Float>(b.Get()) / last};
+                    for (JBro::Int32 at = 0; at < 3; ++at)
+                    {
+                        text.append(std::to_string(invert ? 1.0f - values[at.Get()].Get() : values[at.Get()].Get()));
+                        text.append(at < 2 ? " " : "\n");
+                    }
+                }
+            }
+        }
+        return text;
+    }
+
+    JBro::AssetHandle RegisterCube(JBro::Renderer& renderer, JBro::UInt32 size, JBro::Bool invert)
+    {
+        const JBro::String text = MakeCube(size, invert);
+        JBro::ColorLut lut;
+        JBro::String error;
+        Check(JBro::ParseColorLut(text.data(), text.size(), lut, &error), "the probe cube must parse");
+        JBro::Array<std::byte> texels;
+        JBro::PackColorLutRgba16(lut, texels);
+        return renderer.RegisterVolumeTexture(lut.size, lut.size, lut.size, {texels.Data(), static_cast<JBro::UInt32>(texels.Size())});
+    }
+
+    // **LUT 가 뷰를 바꾼다.** 같음 LUT 는 그대로, 뒤집는 LUT 는 1 - 입력, 반만 섞으면 그 가운데다. 정의역을 0..2 로 넓히면 같음 LUT 가 값을 반으로
+    // 읽는다. LUT 텍스처가 없으면 그대로 옮긴다.
+    template <typename TModule>
+    void TestALookupTableGradesTheView()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "colour lookup"))
+        {
+            return;
+        }
+        const JBro::AssetHandle identity = RegisterCube(stage.renderer, 8, false);
+        const JBro::AssetHandle invert = RegisterCube(stage.renderer, 17, true);
+        Check(identity.generation != 0 && invert.generation != 0, "the LUTs must register as volume textures");
+        JBro::SpriteSubmit colour = Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f);
+        colour.tint[0] = 0.7f;
+        colour.tint[1] = 0.3f;
+        colour.tint[2] = 0.1f;
+        const auto submit = [&]() {
+            Check(stage.renderer.SubmitSprite(colour), "the colour must submit");
+        };
+        const JBro::Float in[3] = {Quantized(0.7f), Quantized(0.3f), Quantized(0.1f)};
+        const auto run = [&](JBro::AssetHandle lut, JBro::Float contribution, JBro::Float domainMax) {
+            Effects effects;
+            JBro::ColorLookupEffect lookup;
+            lookup.lutTexture = lut;
+            lookup.contribution = contribution;
+            lookup.lutDomainMax = {domainMax, domainMax, domainMax};
+            effects.Add(JBro::PostProcessEffects::ColorLookup, lookup);
+            stage.Frame(effects, submit);
+            stage.Frame(effects, submit);
+            Check(stage.renderer.GetLastFrameStats().postProcessedViewCount == 1, "the graded view is post-processed");
+        };
+        run(identity, 1.0f, 1.0f);
+        stage.Expect(32, 32, in[0], in[1], in[2], "the identity LUT leaves the colour");
+        run(invert, 1.0f, 1.0f);
+        stage.Expect(32, 32, 1.0f - in[0], 1.0f - in[1], 1.0f - in[2], "the inverting LUT turns the colour over");
+        run(invert, 0.5f, 1.0f);
+        stage.Expect(32, 32, 0.5f, 0.5f, 0.5f, "half the contribution is half way");
+        run(identity, 1.0f, 2.0f);
+        stage.Expect(32, 32, in[0] * 0.5f, in[1] * 0.5f, in[2] * 0.5f, "a wider domain reads the LUT at half the value");
+        run({}, 1.0f, 1.0f);
+        stage.Expect(32, 32, in[0], in[1], in[2], "without a LUT the colour passes through");
+        stage.renderer.UnregisterTexture(identity);
+        stage.renderer.UnregisterTexture(invert);
+        stage.Close(rhi);
+    }
+
     template <typename TModule>
     void RunOn()
     {
@@ -738,6 +973,9 @@ namespace
         TestAUserEffectRunsAfterTheTonemap<TModule>();
         TestEntriesThatCannotRunAreCounted<TModule>();
         TestAPostProcessFrameDoesNotAllocate<TModule>();
+        TestBloomSpreadsBrightLight<TModule>();
+        TestColorAdjustmentsFollowTheirFormulas<TModule>();
+        TestALookupTableGradesTheView<TModule>();
     }
 }
 

@@ -31,6 +31,8 @@ namespace JBro
             {AssetType::Layer, "Layer"},
             {AssetType::AudioEffect, "AudioEffect"},
             {AssetType::NodeGraph, "NodeGraph"},
+            {AssetType::ColorLut, "ColorLut"},
+            {AssetType::PostProcessProfile, "PostProcessProfile"},
         };
 
         struct Extension
@@ -65,6 +67,8 @@ namespace JBro
             {".jlayer", AssetType::Layer},
             {".jfx", AssetType::AudioEffect},
             {".jgraph", AssetType::NodeGraph},
+            {".cube", AssetType::ColorLut},
+            {".jpost", AssetType::PostProcessProfile},
         };
 
         constexpr char MetaExtension[] = ".jmeta";

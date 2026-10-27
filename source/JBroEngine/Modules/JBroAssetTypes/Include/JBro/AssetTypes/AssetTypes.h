@@ -49,7 +49,12 @@ namespace JBro
         // 소리 이펙트 하나다(D-306, 기존 `.jfx`). 본문은 `Effect: { Kind, Parameters }` YAML 이고 `AudioSource.audioEffectIds` 가 차례로 건다.
         AudioEffect,
         // 노드 그래프 하나다(D-323). 본문이 그래프 YAML 이고 첫 키 `Domain` 이 어느 도메인의 그래프인지 정한다. 에디터의 노드 그래프 창이 연다.
-        NodeGraph
+        NodeGraph,
+        // 컬러 그레이딩의 3D LUT 다(D-343). 본문이 `.cube` 글자이고 후처리 효과 `ColorLookup` 의 `colorLutId` 가 가리킨다.
+        ColorLut,
+        // 후처리 프로필이다(D-344). 본문(`.jpost`)이 효과 목록 YAML 이고 카메라의 `postProcessProfileId` 가 가리킨다. 효과의 뜻은 그래픽 모듈의
+        // 효과 종류 표가 알므로 에셋은 글자만 든다.
+        PostProcessProfile
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반

@@ -3,6 +3,7 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetSource.h>
+#include <JBro/Asset/ColorLutFile.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -115,6 +116,20 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
+    // 로드된 3D LUT(`.cube`, D-343)다. `dataGeneration` 은 in-place 재로드마다 오른다 - 후처리 라이브러리가 그것을 보고 텍스처를 다시 올린다.
+    struct ColorLutData
+    {
+        ColorLut lut;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 후처리 프로필(`.jpost`, D-344)의 본문 글자다. 풀어 쓰는 것은 그래픽 모듈의 `PostProcessLibrary` 다(효과 종류 표가 거기 있다).
+    struct PostProcessProfileData
+    {
+        String text;
+        UInt32 dataGeneration = 1;
+    };
+
     // 워커에서 디코드할 에셋 하나다(D-236). `AssetSystem::PrepareDecode`(메인)가 경로와 옵션을 채우고, `DecodeAssetFile`
     // (어느 스레드든)이 파일을 읽어 자료를 채우며, `AssetSystem::AdoptDecoded`(메인)가 풀에 넣는다. 텍스처와 오디오만 이 길로
     // 간다 - 스프라이트는 주인 텍스처가 무거운 몫이라 그 텍스처가 대신 가고, 폰트·문자열 표는 파일을 한 번 읽을 뿐이라 동기
@@ -203,6 +218,8 @@ namespace JBro
         const FontFamilyData* GetFontFamily(AssetHandle handle) const;
         const StringTableData* GetStringTable(AssetHandle handle) const;
         const AudioEffectData* GetAudioEffect(AssetHandle handle) const;
+        const ColorLutData* GetColorLut(AssetHandle handle) const;
+        const PostProcessProfileData* GetPostProcessProfile(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
@@ -271,6 +288,8 @@ namespace JBro
         void ReleaseFamilyFonts(FontFamilyData& data);
         Bool ReadStringTable(const AssetRecord& record, StringTableData& data);
         Bool ReadAudioEffect(const AssetRecord& record, AudioEffectData& data);
+        Bool ReadColorLut(const AssetRecord& record, ColorLutData& data);
+        Bool ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data);
         void NotifyAudioRelease(UInt32 slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
@@ -297,6 +316,8 @@ namespace JBro
         Pool<FontFamilyData> m_fontFamilies;
         Pool<StringTableData> m_stringTables;
         Pool<AudioEffectData> m_audioEffects;
+        Pool<ColorLutData> m_colorLuts;
+        Pool<PostProcessProfileData> m_postProcessProfiles;
         AudioReleaseCallback m_audioRelease = nullptr;
         UInt32 m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;

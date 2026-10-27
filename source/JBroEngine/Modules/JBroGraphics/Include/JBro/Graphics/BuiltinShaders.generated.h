@@ -26,6 +26,12 @@ namespace JBro
         PostCopy,
         PostExposure,
         PostTonemap,
+        PostBloomPrefilter,
+        PostBloomDownsample,
+        PostBloomUpsample,
+        PostBloomComposite,
+        PostColorAdjust,
+        PostColorLookup,
         Count
     };
 

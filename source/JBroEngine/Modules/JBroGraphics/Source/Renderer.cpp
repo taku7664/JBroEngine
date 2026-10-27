@@ -464,10 +464,66 @@ namespace JBro
         return AssetHandle{static_cast<JBro::UInt32>(m_textureResources.Size() - 1), resource.generation};
     }
 
+    AssetHandle Renderer::RegisterVolumeTexture(UInt32 width, UInt32 height, UInt32 depth, JArrayView<std::byte> rgba16f)
+    {
+        // 텍셀 하나가 반정밀 실수 넷(8 바이트)이다.
+        const std::size_t expected = static_cast<std::size_t>(width.Get()) * height.Get() * depth.Get() * 8u;
+        if (m_device == nullptr || m_frameActive || width == 0 || height == 0 || depth == 0
+            || depth > m_device->GetCaps().maxTexture3DSize || width > m_device->GetCaps().maxTexture3DSize
+            || height > m_device->GetCaps().maxTexture3DSize || rgba16f.data == nullptr || rgba16f.size != expected)
+        {
+            return {};
+        }
+        TextureDesc desc;
+        desc.extent = {width, height};
+        desc.depthOrLayers = depth;
+        desc.dimension = TextureDimension::Texture3D;
+        desc.format = TextureFormat::RGBA16Float;
+        desc.usage = TextureUsage::Sampled | TextureUsage::CopyDestination;
+        TextureResource resource;
+        resource.texture = m_device->CreateTexture(desc);
+        if (false == resource.texture.IsValid())
+        {
+            return {};
+        }
+        if (false == m_device->WriteTexture(resource.texture, 0, rgba16f))
+        {
+            m_device->DestroyTexture(resource.texture);
+            return {};
+        }
+        resource.extent = desc.extent;
+        resource.depth = depth;
+        resource.occupied = true;
+        for (std::size_t slot = 0; slot < m_textureResources.Size(); ++slot)
+        {
+            if (false == m_textureResources[slot].occupied)
+            {
+                resource.generation = m_textureResources[slot].generation + 1;
+                m_textureResources[slot] = resource;
+                return AssetHandle{static_cast<JBro::UInt32>(slot), resource.generation};
+            }
+        }
+        m_textureResources.Add(resource);
+        return AssetHandle{static_cast<JBro::UInt32>(m_textureResources.Size() - 1), resource.generation};
+    }
+
+    Bool Renderer::GetRegisteredTextureSize(AssetHandle texture, UInt32& width, UInt32& height, UInt32& depth) const
+    {
+        const TextureResource* resource = FindTexture(texture);
+        if (resource == nullptr)
+        {
+            return false;
+        }
+        width = resource->extent.width;
+        height = resource->extent.height;
+        depth = resource->depth;
+        return true;
+    }
+
     Bool Renderer::UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8)
     {
         const TextureResource* resource = FindTexture(texture);
-        if (resource == nullptr || m_frameActive || rgba8.data == nullptr
+        if (resource == nullptr || m_frameActive || rgba8.data == nullptr || resource->depth != 1
             || rgba8.size != static_cast<std::size_t>(resource->extent.width) * resource->extent.height * 4u)
         {
             return false;
@@ -480,7 +536,7 @@ namespace JBro
     {
         const TextureResource* resource = FindTexture(texture);
         // 텍스처 밖·짧은 행 간격은 백엔드가 거절한다(RHI 계약, D-216) - 여기서 한 번 더 재지 않는다.
-        if (resource == nullptr || m_frameActive || rgba8.data == nullptr || width == 0 || height == 0)
+        if (resource == nullptr || m_frameActive || rgba8.data == nullptr || width == 0 || height == 0 || resource->depth != 1)
         {
             return false;
         }
@@ -1601,21 +1657,11 @@ namespace JBro
                 extent, plannedFormat, TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination};
             const TransientTextureDesc loadDesc = {
                 extent, m_config.backBufferFormat, TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination};
-            // 중간 텍스처는 효과 둘이 앞뒤로 나눠 쓴다(앞의 출력이 뒤의 입력이다). 포맷마다 많아야 둘이다.
-            UInt32 hdrSteps = 0;
-            UInt32 ldrSteps = 0;
-            for (UInt32 at = 0; at + 1 < postPlan.count; ++at)
-            {
-                if (postPlan.steps[at.Get()].output == PostProcessHdrFormat)
-                {
-                    ++hdrSteps;
-                }
-                else
-                {
-                    ++ldrSteps;
-                }
-            }
-            Bool ready = m_postReady;
+            // 효과가 만들 텍스처를 센다(효과 사이의 중간 텍스처와 블룸의 밉 체인 같은 효과 안의 것).
+            PostProcessBuilder::TextureCount counts[PostProcessBuilder::MaxCountedShapes];
+            UInt32 countSize = 0;
+            const Bool counted = CountPostProcessTextures(viewIndex, postPlan, extent, viewport, scissor, counts, countSize);
+            Bool ready = m_postReady && counted;
             if (false == m_postReady)
             {
                 m_postWanted = true;
@@ -1625,17 +1671,9 @@ namespace JBro
             {
                 ready = m_targetPool.Request(loadDesc, 1) && ready;
             }
-            if (hdrSteps != 0)
+            for (UInt32 at = 0; at < countSize; ++at)
             {
-                ready = m_targetPool.Request({extent, PostProcessHdrFormat, TextureUsage::RenderTarget | TextureUsage::Sampled},
-                            hdrSteps < 2 ? hdrSteps : UInt32(2))
-                    && ready;
-            }
-            if (ldrSteps != 0)
-            {
-                ready = m_targetPool.Request({extent, m_config.backBufferFormat, TextureUsage::RenderTarget | TextureUsage::Sampled},
-                            ldrSteps < 2 ? ldrSteps : UInt32(2))
-                    && ready;
+                ready = m_targetPool.Request(counts[at.Get()].desc, counts[at.Get()].count) && ready;
             }
             if (ready)
             {
@@ -1668,7 +1706,7 @@ namespace JBro
                         convert.m_viewport.width = static_cast<JBro::Float>(extent.width);
                         convert.m_viewport.height = static_cast<JBro::Float>(extent.height);
                         convert.m_scissor = {0, 0, static_cast<JBro::Int32>(extent.width), static_cast<JBro::Int32>(extent.height)};
-                        if (false == AddPostProcessPass(convert, "SceneConvert", PostProcessProgram::Copy, {}))
+                        if (false == convert.AddFullscreenPass("SceneConvert", PostProcessProgram::Copy, {}))
                         {
                             return false;
                         }
@@ -3394,8 +3432,9 @@ namespace JBro
         {
             return false;
         }
-        const BuiltinShader programs[PostProcessProgramCount] = {
-            BuiltinShader::PostCopy, BuiltinShader::PostExposure, BuiltinShader::PostTonemap};
+        const BuiltinShader programs[PostProcessProgramCount] = {BuiltinShader::PostCopy, BuiltinShader::PostExposure,
+            BuiltinShader::PostTonemap, BuiltinShader::PostBloomPrefilter, BuiltinShader::PostBloomDownsample, BuiltinShader::PostBloomUpsample,
+            BuiltinShader::PostBloomComposite, BuiltinShader::PostColorAdjust, BuiltinShader::PostColorLookup};
         for (UInt32 scene = 0; scene < SceneFormatCount; ++scene)
         {
             const TextureFormat colorFormats[] = {scene == HdrScene ? PostProcessHdrFormat : m_config.backBufferFormat};
@@ -3565,40 +3604,169 @@ namespace JBro
         return true;
     }
 
-    Bool Renderer::AddPostProcessPass(PostProcessBuilder& builder, const char* name, PostProcessProgram program,
-        JArrayView<std::byte> constants)
+    Bool Renderer::CountPostProcessTextures(UInt32 viewIndex, const PostPlan& plan, const Extent2D& extent, const Viewport& viewport,
+        const ScissorRect& scissor, PostProcessBuilder::TextureCount* counts, UInt32& countSize)
     {
-        if (constants.size > PostProcessBuilder::MaxConstantBytes || static_cast<JBro::UInt32>(program) >= PostProcessProgramCount
-            || false == builder.m_input.IsValid() || false == builder.m_output.IsValid())
+        countSize = 0;
+        Bool overflow = false;
+        const auto add = [&](const TransientTextureDesc& desc, UInt32 count) {
+            for (UInt32 at = 0; at < countSize; ++at)
+            {
+                PostProcessBuilder::TextureCount& entry = counts[at.Get()];
+                if (entry.desc.extent.width == desc.extent.width && entry.desc.extent.height == desc.extent.height
+                    && entry.desc.format == desc.format && entry.desc.usage == desc.usage)
+                {
+                    entry.count += count;
+                    return;
+                }
+            }
+            if (countSize >= PostProcessBuilder::MaxCountedShapes)
+            {
+                overflow = true;
+                return;
+            }
+            counts[countSize.Get()] = {desc, count};
+            ++countSize;
+        };
+        // 효과 사이의 중간 텍스처는 앞뒤 둘이 번갈아 쓴다(앞의 출력이 뒤의 입력이다). 포맷마다 많아야 둘이다.
+        UInt32 hdrSteps = 0;
+        UInt32 ldrSteps = 0;
+        for (UInt32 at = 0; at + 1 < plan.count; ++at)
+        {
+            if (plan.steps[at.Get()].output == PostProcessHdrFormat)
+            {
+                ++hdrSteps;
+            }
+            else
+            {
+                ++ldrSteps;
+            }
+        }
+        if (hdrSteps != 0)
+        {
+            add({extent, PostProcessHdrFormat, TextureUsage::RenderTarget | TextureUsage::Sampled}, hdrSteps < 2 ? hdrSteps : UInt32(2));
+        }
+        if (ldrSteps != 0)
+        {
+            add({extent, m_config.backBufferFormat, TextureUsage::RenderTarget | TextureUsage::Sampled}, ldrSteps < 2 ? ldrSteps : UInt32(2));
+        }
+        // 효과 안의 텍스처는 패스 함수를 셈으로만 돌려 얻는다 - 그래프에는 아무것도 더하지 않는다.
+        TextureFormat inputFormat = plan.hdr ? PostProcessHdrFormat : m_config.backBufferFormat;
+        for (UInt32 at = 0; at < plan.count; ++at)
+        {
+            const PostPlanStep& step = plan.steps[at.Get()];
+            const TextureFormat outputFormat = at + 1 == plan.count ? m_config.backBufferFormat : step.output;
+            PostProcessBuilder counter;
+            counter.m_renderer = this;
+            counter.m_view = viewIndex;
+            counter.m_input = RenderGraphTexture{0};
+            counter.m_output = RenderGraphTexture{0};
+            counter.m_inputFormat = inputFormat;
+            counter.m_outputFormat = outputFormat;
+            counter.m_extent = extent;
+            counter.m_viewport = viewport;
+            counter.m_scissor = scissor;
+            counter.m_counting = true;
+            PostProcessBuilder::TextureCount local[PostProcessBuilder::MaxCountedShapes];
+            UInt32 localSize = 0;
+            counter.m_counts = local;
+            counter.m_countSize = &localSize;
+            if (false == step.type->addPasses(counter, step.block) || counter.m_countOverflow)
+            {
+                return false;
+            }
+            for (UInt32 shape = 0; shape < localSize; ++shape)
+            {
+                add(local[shape.Get()].desc, local[shape.Get()].count);
+            }
+            inputFormat = outputFormat;
+        }
+        return false == overflow;
+    }
+
+    Bool Renderer::AddPostProcessPass(PostProcessBuilder& builder, const PostProcessPassDesc& desc)
+    {
+        if (desc.constants.size > PostProcessBuilder::MaxConstantBytes || static_cast<JBro::UInt32>(desc.program) >= PostProcessProgramCount
+            || desc.inputCount > PostProcessPassDesc::MaxInputs || desc.name == nullptr)
         {
             return false;
         }
         PostPassData data;
         data.renderer = this;
-        data.viewport = builder.m_viewport;
-        data.scissor = builder.m_scissor;
-        data.input = builder.m_input;
-        data.program = program;
-        data.scene = SceneIndexOf(builder.m_outputFormat);
-        data.constantBytes = constants.size;
-        if (constants.size != 0)
+        data.program = desc.program;
+        data.external = desc.externalTexture;
+        if (desc.inputCount == 0)
         {
-            std::memcpy(data.constants, constants.data, constants.size.Get());
+            data.inputs[0] = builder.m_input;
+            data.inputCount = 1;
         }
-        const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, name, &Renderer::ExecutePostProcess, builder.m_view);
-        return m_graph.SetColorAttachment(pass, builder.m_output, builder.m_outputLoad, builder.m_outputClear)
-            && m_graph.Read(pass, builder.m_input) && m_graph.SetPassData(pass, data);
+        else
+        {
+            for (UInt32 at = 0; at < desc.inputCount; ++at)
+            {
+                data.inputs[at.Get()] = desc.inputs[at.Get()];
+            }
+            data.inputCount = desc.inputCount;
+        }
+        // 텍스처를 주면 그 전체를, 아니면 뷰의 타깃(또는 중간 텍스처)의 뷰포트 안을 쓴다.
+        const Bool whole = desc.output.IsValid();
+        const RenderGraphTexture output = whole ? desc.output : builder.m_output;
+        const TextureFormat format = whole ? desc.outputFormat : builder.m_outputFormat;
+        if (whole)
+        {
+            data.viewport.width = static_cast<JBro::Float>(desc.outputExtent.width);
+            data.viewport.height = static_cast<JBro::Float>(desc.outputExtent.height);
+            data.scissor = {0, 0, static_cast<JBro::Int32>(desc.outputExtent.width), static_cast<JBro::Int32>(desc.outputExtent.height)};
+        }
+        else
+        {
+            data.viewport = builder.m_viewport;
+            data.scissor = builder.m_scissor;
+        }
+        data.scene = SceneIndexOf(format);
+        data.constantBytes = desc.constants.size;
+        if (desc.constants.size != 0)
+        {
+            std::memcpy(data.constants, desc.constants.data, desc.constants.size.Get());
+        }
+        for (UInt32 at = 0; at < data.inputCount; ++at)
+        {
+            if (false == data.inputs[at.Get()].IsValid())
+            {
+                return false;
+            }
+        }
+        if (false == output.IsValid())
+        {
+            return false;
+        }
+        const RenderGraphPass pass = m_graph.AddPass(RenderGraphPassKind::Raster, desc.name, &Renderer::ExecutePostProcess, builder.m_view);
+        if (false == m_graph.SetColorAttachment(pass, output, whole ? LoadOperation::Discard : builder.m_outputLoad, builder.m_outputClear))
+        {
+            return false;
+        }
+        for (UInt32 at = 0; at < data.inputCount; ++at)
+        {
+            if (false == m_graph.Read(pass, data.inputs[at.Get()]))
+            {
+                return false;
+            }
+        }
+        return m_graph.SetPassData(pass, data);
     }
 
     Bool Renderer::ExecutePostProcess(RenderGraphContext& context, const void* data)
     {
-        // 화면을 덮는 삼각형 하나다(D-342). 입력은 제 픽셀 자리에서 `Load` 로 읽고, 상수는 b1 이다.
+        // 화면을 덮는 삼각형 하나다(D-342). 그래프 텍스처를 t0 부터, 그래프 밖의 텍스처(LUT)를 그다음 자리에 묶고, 상수는 b1 이다.
+        // 선형 샘플러는 입력을 샘플링하는 프로그램만 묶는다(블룸·LUT, D-343).
+        static constexpr Bool Samples[PostProcessProgramCount] = {false, false, false, true, true, true, true, false, true};
         const PostPassData& pass = *static_cast<const PostPassData*>(data);
         Renderer& renderer = *pass.renderer;
         IRHICommandContext& commands = context.GetCommands();
+        const std::size_t program = static_cast<std::size_t>(pass.program);
         commands.SetViewport(pass.viewport);
         commands.SetScissor(pass.scissor);
-        if (false == commands.SetGraphicsPipeline(renderer.m_postPipelines[pass.scene.Get()][static_cast<std::size_t>(pass.program)]))
+        if (false == commands.SetGraphicsPipeline(renderer.m_postPipelines[pass.scene.Get()][program]))
         {
             return false;
         }
@@ -3610,7 +3778,26 @@ namespace JBro
                 return false;
             }
         }
-        return commands.SetTexture(0, context.GetTexture(pass.input)) && commands.DrawInstanced(3, 1, 0, 0);
+        for (UInt32 at = 0; at < pass.inputCount; ++at)
+        {
+            if (false == commands.SetTexture(at, context.GetTexture(pass.inputs[at.Get()])))
+            {
+                return false;
+            }
+        }
+        if (pass.external.generation != 0)
+        {
+            const TextureResource* external = renderer.FindTexture(pass.external);
+            if (external == nullptr || false == commands.SetTexture(pass.inputCount, external->texture))
+            {
+                return false;
+            }
+        }
+        if (Samples[program] && false == commands.SetSampler(0, renderer.m_linearSampler))
+        {
+            return false;
+        }
+        return commands.DrawInstanced(3, 1, 0, 0);
     }
 
     void Renderer::ResetSubmissionStorage()

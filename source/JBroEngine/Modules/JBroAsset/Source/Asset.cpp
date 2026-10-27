@@ -5,6 +5,7 @@
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Asset/AudioEffectFile.h>
+#include <JBro/Asset/ColorLutFile.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -174,6 +175,8 @@ namespace JBro
         m_fontFamilies = {};
         m_stringTables = {};
         m_audioEffects = {};
+        m_colorLuts = {};
+        m_postProcessProfiles = {};
         m_fonts = {};
         m_textures = {};
         m_sprites = {};
@@ -761,6 +764,47 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
+    Bool AssetSystem::ReadColorLut(const AssetRecord& record, ColorLutData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        ColorLutData read;
+        String error;
+        if (false == ParseColorLut(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), read.lut, &error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a colour LUT could not be read (%s): %s", record.relativePath.c_str(), error.c_str());
+            return false;
+        }
+        data = std::move(read);
+        return true;
+    }
+
+    const ColorLutData* AssetSystem::GetColorLut(AssetHandle handle) const
+    {
+        const Slot<ColorLutData>* slot = FindSlot(m_colorLuts, handle, AssetType::ColorLut);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        data.text.assign(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        return true;
+    }
+
+    const PostProcessProfileData* AssetSystem::GetPostProcessProfile(AssetHandle handle) const
+    {
+        const Slot<PostProcessProfileData>* slot = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     const StringTableData* AssetSystem::GetStringTable(AssetHandle handle) const
     {
         const Slot<StringTableData>* slot = FindSlot(m_stringTables, handle, AssetType::StringTable);
@@ -960,6 +1004,20 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::ColorLut:
+                if (Slot<ColorLutData>* slot = FindSlot(m_colorLuts, handle, AssetType::ColorLut))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
+            case AssetType::PostProcessProfile:
+                if (Slot<PostProcessProfileData>* slot = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -1057,6 +1115,26 @@ namespace JBro
             handle = Occupy(m_audioEffects, AssetType::AudioEffect, id, std::move(data));
             break;
         }
+        case AssetType::ColorLut:
+        {
+            ColorLutData data;
+            if (false == ReadColorLut(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_colorLuts, AssetType::ColorLut, id, std::move(data));
+            break;
+        }
+        case AssetType::PostProcessProfile:
+        {
+            PostProcessProfileData data;
+            if (false == ReadPostProcessProfile(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_postProcessProfiles, AssetType::PostProcessProfile, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -1124,6 +1202,22 @@ namespace JBro
             {
                 --effect->referenceCount;
             }
+            return;
+        }
+        if (Slot<ColorLutData>* lut = FindSlot(m_colorLuts, handle, AssetType::ColorLut))
+        {
+            if (lut->referenceCount != 0)
+            {
+                --lut->referenceCount;
+            }
+            return;
+        }
+        if (Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
+        {
+            if (profile->referenceCount != 0)
+            {
+                --profile->referenceCount;
+            }
         }
     }
 
@@ -1141,7 +1235,9 @@ namespace JBro
             || FindSlot(m_fonts, handle, AssetType::Font) != nullptr
             || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr
             || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr
-            || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr;
+            || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr
+            || FindSlot(m_colorLuts, handle, AssetType::ColorLut) != nullptr
+            || FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile) != nullptr;
     }
 
     UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -1173,6 +1269,14 @@ namespace JBro
         if (const Slot<AudioEffectData>* effect = FindSlot(m_audioEffects, handle, AssetType::AudioEffect))
         {
             return effect->referenceCount;
+        }
+        if (const Slot<ColorLutData>* lut = FindSlot(m_colorLuts, handle, AssetType::ColorLut))
+        {
+            return lut->referenceCount;
+        }
+        if (const Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
+        {
+            return profile->referenceCount;
         }
         return 0;
     }
@@ -1295,6 +1399,28 @@ namespace JBro
             effect->data = fresh;
             return true;
         }
+        if (Slot<ColorLutData>* lut = FindSlot(m_colorLuts, *loaded, AssetType::ColorLut))
+        {
+            ColorLutData fresh;
+            if (false == ReadColorLut(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = lut->data.dataGeneration + 1;
+            lut->data = std::move(fresh);
+            return true;
+        }
+        if (Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, *loaded, AssetType::PostProcessProfile))
+        {
+            PostProcessProfileData fresh;
+            if (false == ReadPostProcessProfile(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = profile->data.dataGeneration + 1;
+            profile->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -1386,6 +1512,24 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_audioEffects, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_colorLuts.slots.Size(); ++index)
+        {
+            Slot<ColorLutData>& slot = m_colorLuts.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_colorLuts, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_postProcessProfiles.slots.Size(); ++index)
+        {
+            Slot<PostProcessProfileData>& slot = m_postProcessProfiles.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_postProcessProfiles, index);
                 ++freed;
             }
         }

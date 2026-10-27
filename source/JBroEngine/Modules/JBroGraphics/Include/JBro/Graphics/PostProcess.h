@@ -1,7 +1,9 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Graphics/RenderGraph.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
+#include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/RHI/RHI.h>
@@ -64,8 +66,37 @@ namespace JBro
         Exposure,
         // 톤 곡선. 상수 x 가 곡선 번호다(`Tonemapper`).
         Tonemap,
+        // 블룸(D-343). 밉 체인의 네 패스다 - 문턱으로 거르며 절반으로 줄이기, 줄이기, 키우며 섞기, 장면에 더하기. 입력을 선형 샘플러로 읽는다.
+        BloomPrefilter,
+        BloomDownsample,
+        BloomUpsample,
+        BloomComposite,
+        // 컬러 그레이딩(D-343). 기본 조정과 3D LUT 읽기다.
+        ColorAdjust,
+        ColorLookup,
     };
-    inline constexpr UInt32 PostProcessProgramCount = 3;
+    inline constexpr UInt32 PostProcessProgramCount = 9;
+
+    // **효과의 패스 하나**(D-343). `AddFullscreenPass` 는 입력 하나를 읽어 출력의 뷰포트 안을 쓰는 흔한 모양이고, 이것은 밉 체인처럼
+    // 입력이 둘이거나 효과가 만든 텍스처 전체를 쓰는 패스를 위한 것이다.
+    struct PostProcessPassDesc
+    {
+        // 패스 이름이다. 정적 글자여야 한다(렌더 그래프 창이 포인터로 든다).
+        const char* name = nullptr;
+        PostProcessProgram program = PostProcessProgram::Copy;
+        // 읽는 그래프 텍스처다. t0 부터 차례로 묶는다. 하나도 주지 않으면 빌더의 입력 하나다.
+        static constexpr UInt32 MaxInputs = 2;
+        RenderGraphTexture inputs[MaxInputs];
+        UInt32 inputCount = 0;
+        // 그래프 밖의 텍스처(렌더러가 발급한 것 - `Renderer::RegisterVolumeTexture` 의 LUT)다. 그래프 입력 다음 자리에 묶는다.
+        AssetHandle externalTexture;
+        // 쓰는 곳이다. 비어 있으면 빌더의 출력이고 뷰의 뷰포트 안을 쓴다. 주면 그 텍스처 전체(`outputExtent`)를 쓴다 - `CreateTexture` 로 만든 것이다.
+        RenderGraphTexture output;
+        Extent2D outputExtent;
+        TextureFormat outputFormat = TextureFormat::Unknown;
+        // b1 에 올라가는 상수다. `PostProcessBuilder::MaxConstantBytes` 까지다.
+        JArrayView<std::byte> constants;
+    };
 
     // **효과 하나의 패스를 짓는 자리**(D-342). 효과 종류의 `addPasses` 가 받는다. 입력은 앞 효과(또는 장면)의 결과이고, 효과는 출력의 뷰포트 안
     // 모든 픽셀을 써야 한다 - 마지막 효과의 출력은 뷰의 타깃이라 뷰포트 밖은 그대로 남아야 하므로(`GetOutputLoad`) 덮어쓰지 않는다.
@@ -99,12 +130,35 @@ namespace JBro
             return m_extent;
         }
 
+        Viewport GetViewport() const noexcept
+        {
+            return m_viewport;
+        }
+
         // 입력을 읽어 출력에 쓰는 전체 화면 패스 하나를 더한다. `constants` 는 b1 에 올라가는 상수이고 `MaxConstantBytes` 까지다.
         Bool AddFullscreenPass(const char* name, PostProcessProgram program, JArrayView<std::byte> constants);
+        Bool AddPass(const PostProcessPassDesc& desc);
+        // 효과 안에서 쓰는 텍스처(밉 체인의 한 칸)를 만든다. 크기는 자유이고 쓰임은 `RenderTarget | Sampled` 다.
+        // **렌더러는 효과를 걸기 전에 효과가 만들 텍스처를 센다** - 패스 함수를 한 번 셈으로만 돌리고, 풀에 모자라면 바라 둔 뒤 그 프레임은
+        // 후처리 없이 그린다. 그래서 패스 함수는 같은 파라미터에 같은 텍스처를 같은 차례로 만들어야 한다.
+        RenderGraphTexture CreateTexture(const Extent2D& extent, TextureFormat format, const char* name);
+        // 렌더러가 발급한 텍스처(`externalTexture`)의 크기다. 없는 핸들이면 거짓이다.
+        Bool GetTextureSize(AssetHandle texture, UInt32& width, UInt32& height, UInt32& depth) const;
         static constexpr UInt32 MaxConstantBytes = 64;
 
     private:
         friend class Renderer;
+        // 셈만 하는 차례다(위). 텍스처 모양마다 수를 센다.
+        struct TextureCount
+        {
+            TransientTextureDesc desc;
+            UInt32 count = 0;
+        };
+        static constexpr UInt32 MaxCountedShapes = 24;
+        Bool m_counting = false;
+        TextureCount* m_counts = nullptr;
+        UInt32* m_countSize = nullptr;
+        Bool m_countOverflow = false;
         Renderer* m_renderer = nullptr;
         UInt32 m_view = 0;
         RenderGraphTexture m_input;
@@ -156,6 +210,9 @@ namespace JBro
     {
         inline constexpr UInt32 Exposure = 0;
         inline constexpr UInt32 Tonemap = 1;
+        inline constexpr UInt32 Bloom = 2;
+        inline constexpr UInt32 ColorAdjustments = 3;
+        inline constexpr UInt32 ColorLookup = 4;
     }
 
     // 톤 곡선이다(D-342, 사용자 결정 "고점 높은 것으로" - 넷을 모두 둔다). 기본은 `None` 이다.
@@ -191,6 +248,48 @@ namespace JBro
         JBRO_REFLECT_BODY(TonemapEffect)
 
         JBRO_FIELD(Tonemapper, curve) = Tonemapper::None;
+    };
+
+    // **블룸**(`BeforeTonemap`, HDR, D-343). 문턱보다 밝은 빛(선형 세기, 무릎은 문턱의 절반)을 밉 체인으로 번지게 해 장면에 더한다.
+    // `scatter` 는 키울 때 작은 밉을 얼마나 섞는가다 - 클수록 넓게 번진다. `iterations` 는 밉 수이고 화면이 작으면 그보다 적다.
+    struct BloomEffect
+    {
+        JBRO_REFLECT_BODY(BloomEffect)
+
+        JBRO_FIELD(Float, threshold, Range(0.0f, 16.0f)) = 0.9f;
+        JBRO_FIELD(Float, intensity, Range(0.0f, 16.0f)) = 1.0f;
+        JBRO_FIELD(Float, scatter, Range(0.0f, 1.0f)) = 0.7f;
+        JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
+        // 거른 빛의 상한(선형)이다. 아주 밝은 점 하나가 화면을 덮지 않게 한다.
+        JBRO_FIELD(Float, clamp, Range(1.0f, 65504.0f)) = 65472.0f;
+        JBRO_FIELD(Int32, iterations, Range(1.0f, 8.0f)) = 6;
+    };
+
+    // **기본 조정**(`AfterTonemap`, D-343). 화면 값에서 대비(가운데 회색 둘레)·컬러 필터·색조 돌리기·채도 차례로 건다. 범위는 Unity 의
+    // Color Adjustments 와 같다 - 대비·채도는 -100..100(0 이 그대로), 색조는 도(-180..180).
+    struct ColorAdjustmentsEffect
+    {
+        JBRO_REFLECT_BODY(ColorAdjustmentsEffect)
+
+        JBRO_FIELD(Float, contrast, Range(-100.0f, 100.0f)) = 0.0f;
+        JBRO_FIELD(Color, colorFilter) { 1.0f, 1.0f, 1.0f, 1.0f };
+        JBRO_FIELD(Float, hueShift, Range(-180.0f, 180.0f)) = 0.0f;
+        JBRO_FIELD(Float, saturation, Range(-100.0f, 100.0f)) = 0.0f;
+    };
+
+    // **LUT**(`AfterTonemap`, D-343). `.cube` 에셋(`colorLutId`)의 3D LUT 로 화면 값을 바꾸고 `contribution` 만큼 섞는다. 에셋 핸들과
+    // 렌더러 텍스처·정의역은 프로필을 푸는 쪽(`PostProcessLibrary`, 8 단계)이 채운다. LUT 가 없으면 그대로 옮긴다.
+    struct ColorLookupEffect
+    {
+        JBRO_REFLECT_BODY(ColorLookupEffect)
+
+        JBRO_FIELD(AssetId, colorLutId);
+        JBRO_FIELD(AssetHandle, colorLut, NoSerialize() | ReadOnly() | Hidden());
+        JBRO_FIELD(Float, contribution, Range(0.0f, 1.0f)) = 1.0f;
+        // 렌더러가 발급한 3D 텍스처(`Renderer::RegisterVolumeTexture`)와 `.cube` 의 정의역이다.
+        JBRO_FIELD(AssetHandle, lutTexture, NoSerialize() | ReadOnly() | Hidden());
+        JBRO_FIELD(Vector3, lutDomainMin, NoSerialize() | ReadOnly() | Hidden()) { 0.0f, 0.0f, 0.0f };
+        JBRO_FIELD(Vector3, lutDomainMax, NoSerialize() | ReadOnly() | Hidden()) { 1.0f, 1.0f, 1.0f };
     };
 
     // **뷰에 낼 효과 하나**(D-342). `blockOffset` 은 `PostProcessStack::blocks` 안에서 그 종류의 블록이 시작하는 자리다.

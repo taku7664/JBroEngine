@@ -141,7 +141,8 @@ namespace JBro
     class RenderTargetPool
     {
     public:
-        static constexpr UInt32 Capacity = 12;
+        // 블룸의 밉 체인이 뷰마다 열 칸 남짓을 쓴다(D-343). 에디터는 캔버스 뷰와 시뮬레이션 뷰가 함께 든다.
+        static constexpr UInt32 Capacity = 48;
         static constexpr UInt32 IdleFrames = 300;
 
         RenderTargetPool() = default;

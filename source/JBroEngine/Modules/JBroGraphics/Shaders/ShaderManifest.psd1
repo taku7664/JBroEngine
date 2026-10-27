@@ -37,6 +37,12 @@
         @{ Symbol = 'BuiltinPostCopyPS';         File = 'BuiltinPostProcess.hlsl';      Entry = 'PSCopy';         Stage = 'Pixel' }
         @{ Symbol = 'BuiltinPostExposurePS';     File = 'BuiltinPostProcess.hlsl';      Entry = 'PSExposure';     Stage = 'Pixel' }
         @{ Symbol = 'BuiltinPostTonemapPS';      File = 'BuiltinPostProcess.hlsl';      Entry = 'PSTonemap';      Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinBloomPrefilterPS';   File = 'BuiltinBloom.hlsl';            Entry = 'PSPrefilter';    Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinBloomDownsamplePS';  File = 'BuiltinBloom.hlsl';            Entry = 'PSDownsample';   Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinBloomUpsamplePS';    File = 'BuiltinBloom.hlsl';            Entry = 'PSUpsample';     Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinBloomCompositePS';   File = 'BuiltinBloom.hlsl';            Entry = 'PSComposite';    Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinColorAdjustPS';      File = 'BuiltinColorGrading.hlsl';     Entry = 'PSAdjust';       Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinColorLookupPS';      File = 'BuiltinColorGrading.hlsl';     Entry = 'PSLookup';       Stage = 'Pixel' }
     )
 
     Programs = @(
@@ -61,5 +67,13 @@
         @{ Name = 'PostCopy';         Vertex = 'BuiltinPostVS';      Pixel = 'BuiltinPostCopyPS';         SampledTextures = 1 }
         @{ Name = 'PostExposure';     Vertex = 'BuiltinPostVS';      Pixel = 'BuiltinPostExposurePS';     SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
         @{ Name = 'PostTonemap';      Vertex = 'BuiltinPostVS';      Pixel = 'BuiltinPostTonemapPS';      SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        # Bloom (D-343): a raster mip chain sampled with a linear clamp sampler; the upsample and composite read two textures.
+        @{ Name = 'PostBloomPrefilter';  Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinBloomPrefilterPS';   SampledTextures = 1; Samplers = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostBloomDownsample'; Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinBloomDownsamplePS';  SampledTextures = 1; Samplers = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostBloomUpsample';   Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinBloomUpsamplePS';    SampledTextures = 2; Samplers = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostBloomComposite';  Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinBloomCompositePS';   SampledTextures = 2; Samplers = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        # Colour grading (D-343): adjustments read the input with Load; the lookup samples a 3D LUT at t1.
+        @{ Name = 'PostColorAdjust';     Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinColorAdjustPS';      SampledTextures = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        @{ Name = 'PostColorLookup';     Vertex = 'BuiltinPostVS';   Pixel = 'BuiltinColorLookupPS';      SampledTextures = 2; Samplers = 1; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
     )
 }
