@@ -727,6 +727,9 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 
 뮤테이션 여섯(2026-10-28)이 모두 겨냥한 검사에서 죽었다: 색 칸이 접지 않음(견본 검사), 빛을 받는 머티리얼 스프라이트에 늘 흰 텍스처(빛 검사), 메시 업로드가 머티리얼을 버림(머티리얼 판의 초록 검사), 라이브러리가 덮어쓰기를 얹지 않음(빨강 검사), 머티리얼 섞기가 보간 대신 반에서 바꿈(4 분의 1 검사), 3D 메시 시스템이 머티리얼을 풀지 않음(정육면체 검사).
 
+전체 시험(Debug, `0ca303ce`, Codex 가 돌림): 115 묶음이 지났고(`EditorApplication` 1980 초·`PostProcessPixel`·`Material`·`ScriptSummaryPanel` 포함), 8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은
+D-347 때와 같이 Codex 샌드박스 안에서만 실패했다(COM 스레드·v145 빌드 도구·디버그 통로). Claude 가 밖에서 그 8 묶음을 다시 돌리니 모두 지났다.
+
 ## 4. 정한 것과 미정
 
 정한 것(2026-10-07 사용자 확인, D-322):
