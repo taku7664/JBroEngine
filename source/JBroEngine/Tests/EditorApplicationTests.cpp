@@ -41,6 +41,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
@@ -10766,6 +10767,159 @@ namespace
         probe.Close();
     }
 
+    // **머티리얼을 만들어 스프라이트와 효과에 건다**(D-347, 사용자 시나리오). 에셋 브라우저의 `새 셰이더`·`새 머티리얼` 길로 파일을 만들고, 머티리얼을 골라
+    // 인스펙터의 `Shader` 칸에서 셰이더를, `Domain` 칸에서 `Sprite` 를 고른다. 그 머티리얼을 건 흰 사각형이 셰이더의 초록이 되고, 파라미터의 덮어쓰기
+    // 체크를 켜 `brightness` 를 한 칸 내리면 어두워지며, 되돌리기가 따라간다. 셰이더를 깨뜨리면 사각형은 빌트인(흰색)으로 돌아가고, 고치면 다시 초록이다.
+    // 자리가 `PostProcess` 인 머티리얼을 프로필의 `Material` 효과에 걸면 화면이 그 셰이더(반전)로 그려진다.
+    void TestAMaterialShadesASpriteAndTheView()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroMaterialProbe", "the material"))
+        {
+            return;
+        }
+        JBro::EditorApplication& editor = probe.editor;
+        if (editor.GetShaderCompiler() == nullptr || false == editor.GetShaderCompiler()->HasFormat(JBro::ShaderCodeFormat::Dxil))
+        {
+            std::cout << "  [skip] no shader compiler here; the material is not verified" << std::endl;
+            probe.Close();
+            return;
+        }
+        const char* fill = "#include \"JBro/Material.hlsli\"\n"
+                           "cbuffer Material : register(b1)\n{\n    float4 fillColor = float4(0.0f, 1.0f, 0.0f, 1.0f);\n    float brightness = 1.0f;\n};\n"
+                           "float4 PSMain(JBroSpriteInput input) : SV_TARGET\n{\n"
+                           "    return float4(JBroSampleSprite(input).rgb * input.tint.rgb * fillColor.rgb * brightness, 1.0f);\n}\n";
+        const JBro::String shaderPath = editor.CreateShaderAsset("");
+        const JBro::AssetRecord* shaderRecord = editor.GetAssetRegistry().FindByPath(shaderPath.c_str());
+        Check(shaderRecord != nullptr && shaderRecord->type == JBro::AssetType::Shader, "New Shader writes a .hlsl shader asset");
+        const JBro::AssetId shaderId = shaderRecord->id;
+        JBro::String templateText;
+        Check(editor.ReadAssetText(shaderId, templateText) && templateText.Contains("JBro/Material.hlsli"), "the new shader is the material template");
+        Check(editor.WriteAssetText(shaderId, fill), "the test writes its own pixel stage");
+        const JBro::String materialPath = editor.CreateMaterialAsset("");
+        const JBro::AssetRecord* materialRecord = editor.GetAssetRegistry().FindByPath(materialPath.c_str());
+        Check(materialRecord != nullptr && materialRecord->type == JBro::AssetType::Material, "New Material writes a .jmat material asset");
+        const JBro::AssetId materialId = materialRecord->id;
+
+        JBro::Canvas* canvas = probe.canvas;
+        JBro::Object::GameObject* square = canvas->CreateObject("Square");
+        canvas->AttachComponent<JBro::Component::Transform2D>(square);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(square);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {2.0f, 2.0f};
+        sprite->materialId = materialId;
+        Check(editor.RescanAssets(), "the registry must rescan so the sprite's material resolves");
+        probe.Settle();
+        Check(sprite->material.generation != 0, "the sprite's material id resolves to a material asset");
+        JBro::Color colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G > 0.95f && colour.B > 0.95f, "a material without a shader draws the sprite as it is");
+
+        const auto readMaterial = [&]() {
+            JBro::String text;
+            Check(editor.ReadAssetSourceText(materialId, text), "the material's text reads");
+            return text;
+        };
+        const auto pick = [&](ImGuiID field, const char* name, const char* what) {
+            Spot spot;
+            ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+            Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, field, spot), what);
+            ClickAt(editor, probe.hwnd, spot);
+            ImGuiWindow* popup = nullptr;
+            for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+            {
+                if (std::strstr(candidate->Name, "##Combo_") != nullptr && candidate->Active)
+                {
+                    popup = candidate;
+                }
+            }
+            Check(popup != nullptr, "the field opens its list");
+            Spot item;
+            JBro::Bool listed = false;
+            for (JBro::Int32 index = 0; index < 4 && false == listed; ++index)
+            {
+                listed = FindItemAnywhereInWindow(editor, probe.hwnd, popup, LabelId(PushedId(popup->ID, index), name), item);
+            }
+            if (false == listed)
+            {
+                listed = FindItemAnywhereInWindow(editor, probe.hwnd, popup, LabelId(popup->ID, name), item);
+            }
+            Check(listed, "the list names the choice");
+            ClickAt(editor, probe.hwnd, item);
+            probe.Settle();
+        };
+
+        // ── 인스펙터: 셰이더와 자리를 고른다 ──
+        editor.SetSelectedAsset(materialId);
+        probe.Settle();
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID table = LabelId(inspector->ID, "##material");
+        pick(LabelId(table, "##shader"), "NewShader.hlsl", "the material inspector offers a shader field");
+        Check(readMaterial().Contains("Shader: "), "choosing the shader writes it into the material");
+        pick(LabelId(table, "##domain"), "Sprite", "the material inspector offers a domain field");
+        Check(readMaterial().Contains("Domain: Sprite"), "choosing Sprite writes the domain");
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f && colour.B < 0.05f, "the sprite is drawn green by its material's shader");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "material_sprite");
+
+        // ── 파라미터: brightness(둘째)의 덮어쓰기를 켜고 한 칸 내린다 ──
+        inspector = ImGui::FindWindowByName("Inspector");
+        const ImGuiID parameters = LabelId(inspector->ID, "##material_parameters");
+        Spot overrideBox;
+        Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, LabelId(PushedId(parameters, 1), "##override"), overrideBox),
+            "brightness has its override box");
+        ClickAt(editor, probe.hwnd, overrideBox);
+        probe.Settle();
+        Check(readMaterial().Contains("brightness: 1"), "overriding brightness writes its initial value");
+        Spot down;
+        Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, LabelId(LabelId(PushedId(parameters, 1), "##value"), "##down"), down),
+            "brightness has its step buttons");
+        ClickAt(editor, probe.hwnd, down);
+        probe.Settle();
+        Check(false == readMaterial().Contains("brightness: 1"), "the step button lowers brightness in the file");
+        colour = probe.Centre();
+        Check(colour.G < 0.9f && colour.R < 0.05f, "the canvas view darkens the sprite");
+        Check(editor.GetCommands().Undo(), "the step undoes");
+        probe.Settle();
+        Check(readMaterial().Contains("brightness: 1") && probe.Centre().G > 0.95f, "undo brings the file and the green back");
+
+        // ── 셰이더 고치기: 깨뜨리면 빌트인, 고치면 다시 머티리얼 ──
+        Check(editor.WriteAssetText(shaderId, "float4 PSMain( : SV_TARGET { broken }\n"), "the shader is broken on disk");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G > 0.95f && colour.B > 0.95f, "a material whose shader does not compile falls back to the built-in shader");
+        Check(editor.WriteAssetText(shaderId, fill), "the shader is fixed on disk");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "fixing the shader brings the material back");
+
+        // ── 후처리 효과 `Material`: 자리가 PostProcess 인 머티리얼로 화면을 반전한다 ──
+        const char* invert = "#include \"JBro/Material.hlsli\"\n"
+                             "float4 PSMain(JBroPostProcessInput input) : SV_TARGET\n{\n"
+                             "    const float4 color = JBroLoadSource(input);\n    return float4(1.0f - color.rgb, color.a);\n}\n";
+        const JBro::String invertShaderPath = editor.CreateShaderAsset("");
+        const JBro::AssetId invertShaderId = editor.GetAssetRegistry().FindByPath(invertShaderPath.c_str())->id;
+        Check(editor.WriteAssetText(invertShaderId, invert), "the inverting shader is written");
+        const JBro::String invertPath = editor.CreateMaterialAsset("");
+        const JBro::AssetId invertId = editor.GetAssetRegistry().FindByPath(invertPath.c_str())->id;
+        JBro::MaterialDocument invertMaterial;
+        invertMaterial.shader = invertShaderId;
+        invertMaterial.domain = JBro::MaterialDomain::PostProcess;
+        Check(editor.WriteAssetText(invertId, JBro::WriteMaterial(invertMaterial)), "the inverting material is written");
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry entry = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::Material);
+        reinterpret_cast<JBro::MaterialEffect*>(entry.block.Data())->materialId = invertId;
+        entry.overrides = 1;
+        document.entries.Add(std::move(entry));
+        probe.WriteProfile(document);
+        probe.camera->postProcessProfileId = probe.profileId;
+        Check(editor.RescanAssets(), "the camera's profile resolves");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G < 0.05f && colour.B > 0.95f, "the Material effect inverts the green sprite to magenta");
+        probe.Close();
+    }
+
     // **카메라가 볼륨 안에 들어가면 그 프로필이 섞이고, 스크립트가 그 위를 덮는다**(D-346, 사용자 시나리오). 채도를 -100 으로 덮어쓴 프로필의
     // 상자 볼륨을 카메라에서 떨어뜨려 두면 초록이 거의 그대로이고, 볼륨을 카메라 쪽으로 옮기면 회색이 된다. 무게를 반으로 내리면 반쯤 회색이다.
     // 스크립트의 후처리 서비스로 채도를 0 으로 덮어쓰면 볼륨 안에서도 초록이고, 지우면 다시 회색이다.
@@ -17667,6 +17821,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestThePostProcessProfileIsEditedInTheInspector();
     TestALayerProfileOutlinesItsLayer();
     TestAVolumeBlendsAroundTheCamera();
+    TestAMaterialShadesASpriteAndTheView();
     TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheCanvasViewGridLabelsStayOnTheirLines();

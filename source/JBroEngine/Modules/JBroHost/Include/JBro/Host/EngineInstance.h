@@ -94,6 +94,8 @@ namespace JBro
         String saveFolder;
         // 참이면 에디터에서 재생한 게임의 세이브다. 실제 게임의 세이브를 덮지 않게 다른 폴더에 쓴다. **에디터만 참이다.**
         Bool editorSaves = false;
+        // 머티리얼 셰이더를 그 자리에서 굽는 곳이다(D-347). **에디터만 준다** - 수명은 부르는 쪽이 지키고 엔진보다 오래 살아야 한다.
+        IShaderCompiler* shaderCompiler = nullptr;
         WindowDesc window;
         JMemoryContext memory;
     };

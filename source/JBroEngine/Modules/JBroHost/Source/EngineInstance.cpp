@@ -241,6 +241,7 @@ namespace JBro
             }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.tasks = m_tasks.Get();
+            m_frameworkContext.shaderCompiler = config.shaderCompiler;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
             m_watchAssetDirectory = config.watchAssetDirectory;
             if (m_exitRequested)

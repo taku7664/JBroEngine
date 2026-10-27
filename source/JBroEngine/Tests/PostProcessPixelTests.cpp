@@ -5,6 +5,7 @@
 #include <JBro/Graphics/PostProcess.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/ShaderCompiler/ShaderCompiler.h>
 #include <JBro/Types/Array.h>
 
 #include <cmath>
@@ -1123,6 +1124,172 @@ namespace
         stage.Close(rhi);
     }
 
+    // ── 머티리얼(D-347) ── 셰이더는 시험이 한 번 굽는다. 그리는 것은 세 백엔드에서 같아야 한다.
+    struct MaterialShaders
+    {
+        JBro::CompiledMaterialShader post;
+        JBro::CompiledMaterialShader sprite;
+        JBro::Bool ready = false;
+    };
+    MaterialShaders materialShaders;
+
+    // 후처리: 왼쪽 절반은 반전에 `tintColor` 를 곱하고, 오른쪽 절반은 반전에 머티리얼 텍스처(t1)의 빨강을 곱한다. `strength` 가 0 이면 그대로다.
+    constexpr const char* InvertShader = R"hlsl(#include "JBro/Material.hlsli"
+cbuffer Material : register(b1)
+{
+    float4 tintColor = float4(1.0f, 0.5f, 0.0f, 1.0f);
+    float strength = 1.0f;
+};
+Texture2D shade : register(t1);
+float4 PSMain(JBroPostProcessInput input) : SV_TARGET
+{
+    const float4 color = JBroLoadSource(input);
+    const float2 uv = JBroUV(input);
+    const float3 inverted = (1.0f - color.rgb) * (uv.x < 0.5f ? tintColor.rgb : shade.SampleLevel(JBroPointClamp, uv, 0.0f).rrr);
+    return float4(lerp(color.rgb, inverted, strength), color.a);
+}
+)hlsl";
+
+    // 스프라이트: 틴트에 `fillColor` 를 곱한다(텍스처는 흰색이라 틴트만 보인다).
+    constexpr const char* FillShader = R"hlsl(#include "JBro/Material.hlsli"
+cbuffer Material : register(b1)
+{
+    float4 fillColor = float4(0.0f, 1.0f, 0.0f, 1.0f);
+};
+float4 PSMain(JBroSpriteInput input) : SV_TARGET
+{
+    return float4(JBroSampleSprite(input).rgb * input.tint.rgb * fillColor.rgb, 1.0f);
+}
+)hlsl";
+
+    void CompileMaterialShaders()
+    {
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes for the material shaders");
+        JBro::ShaderCompiler compiler;
+        Check(compiler.Initialize(platform.GetExecutableFolder().View()), "the shader compiler opens");
+        JBro::String error;
+        Check(compiler.Compile(InvertShader, "Invert.hlsl", JBro::MaterialDomain::PostProcess, materialShaders.post, error),
+            "the post-process material compiles");
+        Check(compiler.Compile(FillShader, "Fill.hlsl", JBro::MaterialDomain::Sprite, materialShaders.sprite, error),
+            "the sprite material compiles");
+        materialShaders.ready = compiler.HasFormat(JBro::ShaderCodeFormat::SpirV) && compiler.HasFormat(JBro::ShaderCodeFormat::Dxil);
+        compiler.Shutdown();
+        platform.Shutdown();
+    }
+
+    // **후처리 효과 `Material` 이 머티리얼의 셰이더로 화면을 그린다.** 0.25 회색 장면에서 왼쪽은 (1 - 0.25) x (1, 0.5, 0), 오른쪽은 (1 - 0.25) x 텍스처의 빨강
+    // (128/255)이다. 파라미터를 갈아 끼우면(`strength` 0) 다음 프레임은 그대로이고, 머티리얼을 지우면 그대로 옮기며 센다.
+    template <typename TModule>
+    void TestAMaterialEffectDrawsTheView()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == materialShaders.ready || false == stage.Open(rhi, "the material effect"))
+        {
+            return;
+        }
+        const std::byte grey[4] = {std::byte{128}, std::byte{128}, std::byte{128}, std::byte{255}};
+        const JBro::AssetHandle texture = stage.renderer.RegisterTexture({1, 1}, {grey, 4});
+        JBro::MaterialDesc desc;
+        desc.shader = &materialShaders.post;
+        JBro::Array<std::byte> parameters;
+        parameters.Resize(materialShaders.post.parameterBytes);
+        const float values[5] = {1.0f, 0.5f, 0.0f, 1.0f, 1.0f};
+        std::memcpy(parameters.Data(), values, sizeof(values));
+        desc.parameters = {parameters.Data(), static_cast<JBro::UInt32>(parameters.Size())};
+        desc.textures[0] = texture;
+        const JBro::AssetHandle material = stage.renderer.RegisterMaterial(desc);
+        Check(material.generation != 0 && stage.renderer.GetMaterialCount() == 1, "the post-process material is registered");
+
+        Effects effects;
+        JBro::MaterialEffect effect;
+        effect.rendererMaterial = material;
+        effects.Add(JBro::PostProcessEffects::Material, effect);
+        const auto draw = [&]() {
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                stage.Frame(effects, [&]() { Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, 0.25f)), "the scene must submit"); });
+            }
+        };
+        draw();
+        Check(stage.renderer.GetLastFrameStats().postProcessedViewCount == 1, "the view takes the material effect");
+        const JBro::Float scene = Quantized(0.25f);
+        const JBro::Float shade = 128.0f / 255.0f;
+        stage.Expect(16, 32, 1.0f - scene, (1.0f - scene) * 0.5f, 0.0f, "the left half is inverted and tinted by the parameter");
+        stage.Expect(48, 32, (1.0f - scene) * shade, (1.0f - scene) * shade, (1.0f - scene) * shade,
+            "the right half is inverted and scaled by the material's texture");
+
+        const float still[5] = {1.0f, 0.5f, 0.0f, 1.0f, 0.0f};
+        std::memcpy(parameters.Data(), still, sizeof(still));
+        Check(stage.renderer.UpdateMaterial(material, desc), "the parameters are replaced in place");
+        draw();
+        stage.Expect(16, 32, scene, scene, scene, "with strength 0 the view is as it was");
+
+        stage.renderer.UnregisterMaterial(material);
+        draw();
+        Check(stage.renderer.GetLastFrameStats().staleMaterialCount == 1, "an effect with a removed material is counted");
+        stage.Expect(48, 32, scene, scene, scene, "and copies the view");
+        stage.Close(rhi);
+    }
+
+    // **머티리얼 스프라이트는 그 셰이더로 그려진다.** 흰 사각형 둘 중 왼쪽만 초록 머티리얼이다. HDR 장면(노출 0)에서도 같다 - 장면 포맷마다 파이프라인이 있다.
+    // 머티리얼을 지우면 그 스프라이트는 빌트인으로 그려지고 센다.
+    template <typename TModule>
+    void TestASpriteMaterialShadesItsQuad()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == materialShaders.ready || false == stage.Open(rhi, "the sprite material"))
+        {
+            return;
+        }
+        JBro::MaterialDesc desc;
+        desc.shader = &materialShaders.sprite;
+        JBro::Array<std::byte> parameters;
+        parameters.Resize(materialShaders.sprite.parameterBytes);
+        const float green[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+        std::memcpy(parameters.Data(), green, sizeof(green));
+        desc.parameters = {parameters.Data(), static_cast<JBro::UInt32>(parameters.Size())};
+        const JBro::AssetHandle material = stage.renderer.RegisterMaterial(desc);
+        Check(material.generation != 0, "the sprite material is registered");
+        JBro::SpriteSubmit left = Quad(-0.5f, 0.0f, 0.5f, 0.5f, 1.0f);
+        left.material = material;
+        const JBro::SpriteSubmit right = Quad(0.5f, 0.0f, 0.5f, 0.5f, 1.0f);
+        Effects none;
+        Effects hdr;
+        hdr.AddExposure(0.0f);
+        for (const Effects* view : {&none, &hdr})
+        {
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                stage.Frame(*view, [&]() {
+                    Check(stage.renderer.SubmitSprite(left), "the material sprite must submit");
+                    Check(stage.renderer.SubmitSprite(right), "the plain sprite must submit");
+                });
+            }
+            Check(stage.renderer.GetLastFrameStats().materialSpriteCount == 1, "one sprite is drawn with its material");
+            stage.Expect(16, 32, 0.0f, 1.0f, 0.0f, "the material sprite is green");
+            stage.Expect(48, 32, 1.0f, 1.0f, 1.0f, "the plain sprite stays white");
+        }
+
+        // 파라미터만 바꾼다 - 같은 핸들이 다음 프레임에 빨강이다.
+        const float red[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+        std::memcpy(parameters.Data(), red, sizeof(red));
+        Check(stage.renderer.UpdateMaterial(material, desc), "the sprite material's parameters are replaced");
+        stage.Frame(none, [&]() { Check(stage.renderer.SubmitSprite(left), "the material sprite must submit"); });
+        stage.Expect(16, 32, 1.0f, 0.0f, 0.0f, "the same handle draws the new colour");
+
+        stage.renderer.UnregisterMaterial(material);
+        Check(stage.renderer.GetMaterialCount() == 0, "the material is gone");
+        stage.Frame(none, [&]() { Check(stage.renderer.SubmitSprite(left), "the sprite with a removed material must submit"); });
+        Check(stage.renderer.GetLastFrameStats().staleMaterialCount == 1 && stage.renderer.GetLastFrameStats().materialSpriteCount == 0,
+            "a sprite with a removed material is counted");
+        stage.Expect(16, 32, 1.0f, 1.0f, 1.0f, "and drawn with the built-in shader");
+        stage.Close(rhi);
+    }
+
     template <typename TModule>
     void RunOn()
     {
@@ -1141,12 +1308,19 @@ namespace
         TestLayerEffectsShapeTheLayer<TModule>();
         TestALayersColourEffectSeesStraightColour<TModule>();
         TestAViewLaidOnAsALayerTakesItsEffects<TModule>();
+        TestAMaterialEffectDrawsTheView<TModule>();
+        TestASpriteMaterialShadesItsQuad<TModule>();
     }
 }
 
 JBro::Int32 RunPostProcessPixelTests()
 {
     TestTheEffectRegistry();
+    CompileMaterialShaders();
+    if (false == materialShaders.ready)
+    {
+        std::cout << "  [skip] the shader compiler writes no DXIL or SPIR-V here; the material frames are not verified" << std::endl;
+    }
     RunOn<JBro::D3D12RHIModule>();
     RunOn<JBro::D3D11RHIModule>();
     RunOn<JBro::VulkanRHIModule>();

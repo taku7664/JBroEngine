@@ -9,6 +9,7 @@
 #include <JBro/Editor/EditorPanel.h>
 
 #include <JBro/Asset/AssetMetaFile.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Bool.h>
@@ -50,6 +51,9 @@ namespace JBro
         // 후처리 프로필(`.jpost`)의 효과 목록이다(D-344). 고치면 본문을 커맨드로 쓴다.
         void DrawPostProcessProfile(const AssetMetaFile& meta);
         void CommitProfile(AssetId asset, const PostProcessProfileDocument& document);
+        // 머티리얼(`.jmat`)의 셰이더·자리·파라미터·텍스처다(D-347). 파라미터와 텍스처의 이름은 셰이더를 구워 반사한 것이다. 고치면 본문을 커맨드로 쓴다.
+        void DrawMaterial(const AssetMetaFile& meta);
+        void CommitMaterial(AssetId asset, const MaterialDocument& document);
 
         // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
         static constexpr const char* TypeName = "Inspector";
@@ -246,6 +250,11 @@ namespace JBro
         String m_profileText;
         String m_profileError;
         PostProcessProfileDocument m_profileDocument;
+        // 인스펙터가 보고 있는 머티리얼의 글자와 그것을 읽은 것이다. 글자가 바뀔 때만 다시 읽는다(D-347).
+        AssetId m_materialAsset;
+        String m_materialText;
+        String m_materialError;
+        MaterialDocument m_materialDocument;
 
         // 이름 칸이 들고 있는 글자와, 그것이 누구의 것인지. 고른 것이 바뀌면 다시 든다 -
         // 치던 글자를 그대로 두면 다음 오브젝트의 이름이 엉뚱한 것으로 보인다.

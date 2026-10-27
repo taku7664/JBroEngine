@@ -59,7 +59,10 @@
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
+#include <JBro/Asset/MaterialFile.h>
+#include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/ShaderCompiler/ShaderCompiler.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -283,8 +286,16 @@ namespace JBro
                 return false;
             }
 
+            // 머티리얼 셰이더를 그 자리에서 굽는다(D-347). 컴파일러 DLL 이 없으면 머티리얼이 서지 않을 뿐 에디터는 뜬다.
+            m_shaderCompiler = MakeOwnerPtr<ShaderCompiler>();
+            if (false == m_shaderCompiler->Initialize(m_platform->GetExecutableFolder().View()))
+            {
+                m_shaderCompiler.Reset();
+            }
+
             EngineConfig engineConfig;
             engineConfig.graphicsApi = config.graphicsApi;
+            engineConfig.shaderCompiler = m_shaderCompiler.Get();
             engineConfig.time = config.time;
             // 시뮬레이션 뷰의 디버그 선은 에디터의 토글이 정한다(D-243). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
             engineConfig.gameDebugDrawFromProject = false;
@@ -2783,6 +2794,94 @@ namespace JBro
         return created;
     }
 
+    String EditorApplication::CreateShaderAsset(const char* folder)
+    {
+        // 머티리얼 셰이더의 틀이다(D-347). 두 자리(후처리·스프라이트)에서 다 구워진다.
+        const String created = WriteNewAssetFile(folder, "NewShader", ".hlsl", String(GetMaterialShaderTemplate()));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    String EditorApplication::CreateMaterialAsset(const char* folder)
+    {
+        // 셰이더가 없는 머티리얼이다. 셰이더는 인스펙터에서 고른다 - 고르기 전에는 그려도 빌트인과 같다.
+        const String created = WriteNewAssetFile(folder, "NewMaterial", ".jmat", WriteMaterial({}));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    IShaderCompiler* EditorApplication::GetShaderCompiler()
+    {
+        return m_shaderCompiler.Get();
+    }
+
+    const CompiledMaterialShader* EditorApplication::GetMaterialShader(AssetId shader, MaterialDomain domain, const String** error)
+    {
+        static const String NoCompiler("no shader compiler: d3dcompiler_47.dll could not be opened");
+        static const String NoShader("the shader could not be loaded");
+        if (error != nullptr)
+        {
+            *error = nullptr;
+        }
+        AssetSystem* assets = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
+        if (assets == nullptr || shader.IsNull())
+        {
+            return nullptr;
+        }
+        if (m_shaderCompiler.Get() == nullptr)
+        {
+            if (error != nullptr)
+            {
+                *error = &NoCompiler;
+            }
+            return nullptr;
+        }
+        // 렌더러 없이 굽기만 하는 라이브러리다. 프로젝트(에셋 시스템)가 바뀌면 처음부터 선다.
+        if (m_materialInspection.Get() == nullptr || m_materialInspectionAssets != assets)
+        {
+            m_materialInspection = MakeOwnerPtr<MaterialLibrary>();
+            m_materialInspection->Initialize(assets, nullptr, m_shaderCompiler.Get());
+            m_materialInspectionAssets = assets;
+            m_inspectedShaderId = {};
+            m_inspectedShader = {};
+        }
+        // 보는 셰이더 하나를 잡는다. 다른 셰이더로 넘어가면 앞의 것을 놓는다.
+        if (m_inspectedShaderId != shader || false == assets->IsLoaded(m_inspectedShader))
+        {
+            if (m_inspectedShader.generation != 0 && assets->IsLoaded(m_inspectedShader))
+            {
+                assets->Release(m_inspectedShader);
+            }
+            m_inspectedShaderId = shader;
+            m_inspectedShader = assets->Load(shader);
+        }
+        if (assets->GetShader(m_inspectedShader) == nullptr)
+        {
+            if (error != nullptr)
+            {
+                *error = &NoShader;
+            }
+            return nullptr;
+        }
+        return m_materialInspection->GetCompiledShader(m_inspectedShader, domain, error);
+    }
+
     Bool EditorApplication::DescribeAssetSource(AssetId asset, AssetSourceTarget& target) const
     {
         const AssetRecord* record = GetAssetRegistry().Find(asset);
@@ -2805,6 +2904,11 @@ namespace JBro
             if (const PostProcessProfileData* profile = assets->GetPostProcessProfile(assets->Find(asset)))
             {
                 text = profile->text;
+                return true;
+            }
+            if (const MaterialAssetData* material = assets->GetMaterial(assets->Find(asset)))
+            {
+                text = material->text;
                 return true;
             }
         }
@@ -4377,6 +4481,7 @@ namespace JBro
         }
         GameBuildOptions options;
         options.gameHostPath = FindGameHostExecutable();
+        options.shaderCompiler = m_shaderCompiler.Get();
         // 게임은 패키지에서 캔버스를 세어 볼 수 없으므로 물리 워커 수는 여기서 정해 적는다(D-223).
         if (m_frameworkKind == FrameworkKind::Framework2D)
         {
@@ -7696,7 +7801,16 @@ namespace JBro
             m_lastFrameStatus = m_engine->GetLastFrameStatus();
         }
         DestroySelectedFramework();
+        if (m_materialInspection.Get() != nullptr)
+        {
+            m_materialInspection->Shutdown();
+            m_materialInspection.Reset();
+        }
+        m_materialInspectionAssets = nullptr;
+        m_inspectedShaderId = {};
+        m_inspectedShader = {};
         m_engine.Reset();
+        m_shaderCompiler.Reset();
         if (m_rhiModule)
         {
             m_rhiModule->Shutdown();

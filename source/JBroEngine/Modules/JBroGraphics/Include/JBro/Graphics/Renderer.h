@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Graphics/PostProcess.h>
 #include <JBro/Graphics/RenderGraph.h>
@@ -12,6 +13,7 @@
 #include <JBro/Types/Angle.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
 namespace JBro
@@ -176,6 +178,8 @@ namespace JBro
         SpriteTransform2D world;
         // 렌더러가 `RegisterTexture` 로 발급한 텍스처다. 비어 있으면 1x1 흰색이라 틴트만 보인다.
         AssetHandle texture;
+        // 렌더러가 `RegisterMaterial` 로 발급한 스프라이트 자리의 머티리얼이다(D-347). 비어 있으면 빌트인 스프라이트 셰이더다. 머티리얼 스프라이트는
+        // 빛을 받지 않는다(라이트맵을 곱하지 않는다). SDF 텍스트는 보지 않는다.
         AssetHandle material;
         Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         // 텍스처의 어느 부분인가: uMin, vMin, uScale, vScale. 기본은 전체다. 시트의 한 칸이 이것으로 온다(D-113).
@@ -267,6 +271,16 @@ namespace JBro
         Float normal[3] = {0.0f, 0.0f, 1.0f};
     };
 
+    // **머티리얼 하나를 올릴 것**(D-347, `Renderer::RegisterMaterial`). 셰이더는 자리(`shader->domain`)로 구운 것이고, 렌더러의 API 에 맞는 바이트코드가
+    // 있어야 한다. 파라미터는 `shader->parameterBytes` 바이트(셰이더의 `cbuffer Material` 그대로의 배치)다. 텍스처는 t 자리 - 1 의 칸에 렌더러가
+    // 발급한 텍스처(`RegisterTexture`)다. 비면 1x1 흰색이다.
+    struct MaterialDesc
+    {
+        const CompiledMaterialShader* shader = nullptr;
+        JArrayView<std::byte> parameters;
+        AssetHandle textures[MaxMaterialTextures];
+    };
+
     struct RendererFrameStats
     {
         UInt32 viewCount = 0;
@@ -318,6 +332,10 @@ namespace JBro
         UInt32 layerPostProcessedCount = 0;
         // 레이어 효과를 걸 자리(파이프라인·중간 텍스처)가 아직 없어 효과 없이 얹은 레이어다. 다음 프레임을 열 때 선다.
         UInt32 layerPostProcessWaitingCount = 0;
+        // 머티리얼로 그린 스프라이트다(D-347).
+        UInt32 materialSpriteCount = 0;
+        // 죽은(빈 것이 아니라 지워진) 머티리얼을 든 스프라이트·효과다. 빌트인 셰이더(효과는 그대로 옮기기)로 그리고 센다.
+        UInt32 staleMaterialCount = 0;
     };
 
     // **렌더 그래프 창이 보는 뷰 하나다**(D-339, 진단). 뷰 번호가 그 뷰 패스의 묶음 번호(`RenderGraph::GetPassGroup`)다.
@@ -436,6 +454,16 @@ namespace JBro
             JArrayView<std::byte> rgba8, UInt32 rowPitch);
         void UnregisterTexture(AssetHandle texture);
         UInt32 GetTextureCount() const;
+        // **머티리얼을 올린다**(D-347). 자리마다 파이프라인을 장면 포맷(출력·HDR)마다 미리 만든다 - 스프라이트는 깊이가 달린 패스의 쌍둥이까지
+        // 넷, 후처리는 둘이다. 프레임 밖에서만 부른다. 셰이더가 없거나 이 API 의 바이트코드가 없거나 파라미터 크기가 맞지 않거나 파이프라인을
+        // 만들지 못하면 빈 핸들이다. `SpriteSubmit::material`·`PostProcessPassDesc::material` 에 넣는다.
+        AssetHandle RegisterMaterial(const MaterialDesc& desc);
+        // 같은 셰이더의 파라미터·텍스처만 갈아 끼운다(머티리얼 파일의 재로드). 셰이더가 바뀌면 지우고 다시 올린다. 프레임 밖에서만 부른다.
+        Bool UpdateMaterial(AssetHandle material, const MaterialDesc& desc);
+        void UnregisterMaterial(AssetHandle material);
+        UInt32 GetMaterialCount() const;
+        // 머티리얼 셰이더가 읽는 시각(`JBroTime`, 초)이다. 부르지 않으면 렌더러를 연 뒤로 흐른 실제 시간이다. 프레임 밖에서 부른다.
+        void SetMaterialTime(Float seconds, Float delta);
         Bool EndView();
         FrameStatus EndFrame();
         void AbortFrame();
@@ -662,6 +690,8 @@ namespace JBro
             Bool drawDepthWork = false;
             // 그리는 곳의 포맷 묶음(`m_scene` 의 자리)이다.
             UInt32 scene = LdrScene;
+            // 그리는 곳의 크기다. 머티리얼 셰이더의 `JBroTarget` 이다.
+            Extent2D targetExtent;
             // 뷰마다 한 번 세는 것(빛·깊이가 없던 뷰, 보지 않은 레이어 묶음)을 이 패스가 센다.
             Bool countView = false;
             // 레이어 텍스처가 없어 대신 그리는 패스다. 얹지 못한 것으로 센다.
@@ -693,7 +723,34 @@ namespace JBro
             UInt32 scene = LdrScene;
             UInt32 constantBytes = 0;
             std::byte constants[PostProcessBuilder::MaxConstantBytes] = {};
+            // 머티리얼로 그리는 패스면 그 자리 + 1 이다(D-347). 입력의 크기와 곱한 알파 표시는 셰이더의 엔진 값이다.
+            UInt32 material = 0;
+            Extent2D targetExtent;
+            Bool premultiplied = false;
         };
+        // **올라간 머티리얼 하나**(D-347). 핸들의 index 가 자리이고 generation 이 재사용을 가른다(`TextureResource` 와 같다).
+        // 파이프라인은 후처리면 [장면 포맷], 스프라이트면 [장면 포맷 * 2 + 깊이 쌍둥이] 다.
+        struct MaterialResource
+        {
+            MaterialDomain domain = MaterialDomain::PostProcess;
+            GraphicsPipelineHandle pipelines[SceneFormatCount * 2];
+            // 셰이더가 선언한 텍스처 자리 수(t0 포함)다. 그만큼 묶어야 그린다(D-325).
+            UInt32 textureSlots = 1;
+            AssetHandle textures[MaxMaterialTextures];
+            UInt32 parameterBytes = 0;
+            std::byte parameters[MaxMaterialParameterBytes] = {};
+            UInt32 generation = 1;
+            Bool occupied = false;
+        };
+        // 머티리얼 셰이더의 엔진 값(b0, `MaterialPrelude` 의 `JBroEngine`)이다. 스프라이트는 앞에 뷰-투영 행렬이 더 붙는다.
+        struct MaterialEngineValues
+        {
+            Float viewport[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            Float target[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            Float time[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            Float flags[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        };
+        static_assert(sizeof(MaterialEngineValues) == 64, "the material engine values are the prelude's cbuffer JBroEngine");
         // 뷰에 낸 효과 하나다. 블록은 `m_postBlocks` 에 복사해 두었다.
         struct PostEntrySlot
         {
@@ -747,6 +804,8 @@ namespace JBro
         {
             TextureHandle texture;
             SamplerHandle sampler;
+            // 머티리얼 스프라이트의 구간이면 그 머티리얼(`m_materials` 의 자리 + 1)이다. 0 이면 빌트인이다.
+            UInt32 material = 0;
             UInt32 firstInstance = 0;
             UInt32 instanceCount = 0;
             // SDF 텍스트 구간이면 참이다. 인스턴스는 텍스트 버퍼의 같은 번호에 있다.
@@ -873,6 +932,22 @@ namespace JBro
         const MeshResource* FindMesh(AssetHandle mesh) const;
         const TextureResource* FindTexture(AssetHandle texture) const;
         void DestroyTextureResources();
+        // 핸들의 머티리얼 자리 + 1 이다. 빈 핸들·죽은 핸들은 0 이다.
+        UInt32 FindMaterialSlot(AssetHandle material) const;
+        Bool CreateMaterialPipelines(MaterialResource& resource, const CompiledMaterialShader& shader);
+        void DestroyMaterialPipelines(MaterialResource& resource);
+        void DestroyMaterialResources();
+        MaterialEngineValues MakeMaterialEngineValues(const Viewport& viewport, const Extent2D& target, Bool premultiplied) const;
+        // 스프라이트 인스턴스의 정점 배치다. 빌트인 스프라이트와 머티리얼 스프라이트가 같은 것을 쓴다.
+        struct SpriteVertexLayout
+        {
+            VertexAttributeDesc quad[1];
+            VertexAttributeDesc instance[4];
+            VertexBufferLayoutDesc buffers[2];
+        };
+        static void MakeSpriteVertexLayout(SpriteVertexLayout& layout);
+        // 머티리얼의 텍스처(t1..)·샘플러 넷·파라미터(b1)를 묶는다. t0 은 부르는 쪽이 묶는다.
+        Bool BindMaterialResources(IRHICommandContext& commands, const MaterialResource& material, SamplerHandle sourceSampler);
         // 뷰를 그래프의 패스로 짓고, 컴파일해 기록한다(D-339).
         Bool RecordViews();
         // 뷰 하나의 패스를 더한다. 뷰가 잘못되었으면(타깃 크기를 모름·뷰포트가 타깃 밖) 거짓이다.
@@ -885,8 +960,8 @@ namespace JBro
         Bool AddCompositePasses(UInt32 viewIndex, RenderGraphTexture layer, RenderGraphTexture backdrop, RenderGraphTexture target,
             CompositeBlend blend, Float opacity, const Viewport& viewport, const ScissorRect& scissor, UInt32 scene);
         // 스프라이트 구간을 그린다. 렌더 패스는 열려 있어야 한다.
-        Bool DrawSpriteRuns(IRHICommandContext& commands, const ScenePipelines& pipelines, const ViewPacket& view, UInt32 firstRun,
-            UInt32 endRun, TextureHandle lightMap, Bool overDepth);
+        Bool DrawSpriteRuns(IRHICommandContext& commands, UInt32 scene, const ViewPacket& view, UInt32 firstRun, UInt32 endRun,
+            TextureHandle lightMap, Bool overDepth, const Viewport& viewport, const Extent2D& target);
         // 장면에 그리는 파이프라인을 그 포맷으로 만든다. 하나라도 못 만들면 거짓이고, 만든 것은 `DestroyScenePipelines` 가 지운다.
         Bool CreateScenePipelines(TextureFormat format, ScenePipelines& pipelines);
         void DestroyScenePipelines(ScenePipelines& pipelines);
@@ -1052,7 +1127,16 @@ namespace JBro
         TextureHandle m_whiteTexture;
         SamplerHandle m_nearestSampler;
         SamplerHandle m_linearSampler;
+        // 머티리얼 셰이더의 s3 다(D-347).
+        SamplerHandle m_linearRepeatSampler;
         Array<TextureResource> m_textureResources;
+        Array<MaterialResource> m_materials;
+        // 머티리얼 셰이더의 시각이다. `SetMaterialTime` 을 부르지 않았으면 `BeginFrame` 이 실제 시간으로 채운다.
+        Float m_materialTime = 0.0f;
+        Float m_materialDelta = 0.0f;
+        Bool m_materialTimeSet = false;
+        // 실제 시간의 시작(steady_clock, 나노초)이다. 0 이면 아직 재지 않았다.
+        Int64 m_materialClockStart = 0;
         Array<SpriteRun> m_spriteRuns;
         Array<MeshResource> m_meshResources;
         Array<GpuMeshInstance> m_gpuMeshInstances;

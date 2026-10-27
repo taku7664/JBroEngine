@@ -1646,6 +1646,11 @@ namespace JBro
             DrawPostProcessProfile(meta);
             ImGui::Spacing();
         }
+        if (meta.type == AssetType::Material)
+        {
+            DrawMaterial(meta);
+            ImGui::Spacing();
+        }
         if (AssetTypeRules::IsImageType(meta.type))
         {
             if (Widget::IconButton("##open_in_viewer", Icons::OpenExternal)
@@ -1939,6 +1944,203 @@ namespace JBro
             return;
         }
         m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, m_profileText, after, "Edit Post-Process Profile"));
+    }
+
+    void InspectorPanel::DrawMaterial(const AssetMetaFile& meta)
+    {
+        // **머티리얼은 인스펙터에서 고친다**(D-347, 프로필과 같은 길). 고치면 바로 파일에 적고 실린 에셋을 제자리에서 다시 읽는다 - 그 머티리얼을 쓰는
+        // 스프라이트·효과가 다음 프레임에 바뀐다.
+        String text;
+        if (false == m_editor->ReadAssetSourceText(meta.id, text))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialUnreadable, "This material could not be read"));
+            return;
+        }
+        if (m_materialAsset != meta.id || m_materialText != text)
+        {
+            m_materialAsset = meta.id;
+            m_materialText = text;
+            m_materialError.clear();
+            if (false == ParseMaterial(text.data(), text.size(), m_materialDocument, &m_materialError))
+            {
+                m_materialDocument = {};
+            }
+        }
+        if (false == m_materialError.empty())
+        {
+            // 깨진 YAML 을 덮어쓰면 손으로 고친 것을 잃는다. 고칠 때까지 손대지 않는다.
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialBroken, "The material's text is broken. Fix the file to edit it here"));
+            Widget::WrappedText(m_materialError.c_str());
+            return;
+        }
+
+        // 편집본이다. 위젯이 고친 값은 커밋이 파일에 쓰고, 다음 프레임에 그 글자를 다시 읽는다 - 쓰는 길이 하나다.
+        MaterialDocument scratch = m_materialDocument;
+        const Bool editable = false == m_editor->IsAtScriptBreak();
+        // 줄 이름은 파일의 키다(필드 이름처럼 번역하지 않는다).
+        {
+            Widget::FormLayout layout("##material");
+            layout.Row(Widget::FieldLabel("Shader"), [&]() {
+                Widget::DisableScope locked(false == editable);
+                const AssetChoices& choices = ChoicesFor(AssetType::Shader);
+                AssetId shader = scratch.shader;
+                if (Widget::AssetField("##shader", ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
+                        ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()), shader)
+                        .Draw())
+                {
+                    scratch.shader = shader;
+                    CommitMaterial(meta.id, scratch);
+                }
+            });
+            layout.Row(Widget::FieldLabel("Domain"), [&]() {
+                Widget::DisableScope locked(false == editable);
+                MaterialDomain domain = scratch.domain;
+                if (Widget::EnumCombo("##domain", *TypeDescriptorOf<MaterialDomain>::Get().enumNames, &domain))
+                {
+                    scratch.domain = domain;
+                    CommitMaterial(meta.id, scratch);
+                }
+            });
+        }
+        if (scratch.shader.IsNull())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialNoShader, "Pick a shader to see its parameters and textures"));
+            return;
+        }
+        const String* error = nullptr;
+        const CompiledMaterialShader* shader = m_editor->GetMaterialShader(scratch.shader, scratch.domain, &error);
+        if (shader == nullptr)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialShaderError, "The shader could not be compiled"));
+            if (error != nullptr)
+            {
+                Widget::WrappedText(error->c_str());
+            }
+            return;
+        }
+
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorMaterialParameters, "Parameters")).Draw();
+        if (shader->parameters.IsEmpty())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialNoParameters, "The shader has no parameters"));
+        }
+        else
+        {
+            Widget::FormLayout layout("##material_parameters");
+            for (std::size_t index = 0; index < shader->parameters.Size(); ++index)
+            {
+                const MaterialParameterInfo& parameter = shader->parameters[index];
+                const UInt32 components = GetMaterialParameterComponents(parameter.type);
+                const MaterialParameterValue* written = scratch.FindParameter(parameter.name.View());
+                const Bool overridden = written != nullptr;
+                Float values[4] = {parameter.defaults[0], parameter.defaults[1], parameter.defaults[2], parameter.defaults[3]};
+                if (overridden)
+                {
+                    for (UInt32 at = 0; at < 4; ++at)
+                    {
+                        values[at.Get()] = at < written->count ? written->values[at.Get()] : Float(0.0f);
+                    }
+                }
+                Widget::IdScope id(static_cast<JBro::Int32>(index));
+                // **이름 앞의 체크가 덮어쓰기다**(프로필과 같다). 켠 파라미터만 파일에 적히고, 끈 것은 셰이더의 초기값이다.
+                layout.Row(Widget::FieldLabel(parameter.name.c_str()).Disabled(false == overridden), [&]() {
+                    Widget::DisableScope locked(false == editable);
+                    Bool on = overridden;
+                    if (Widget::Checkbox("##override", on))
+                    {
+                        if (on)
+                        {
+                            scratch.SetParameter(parameter.name.View(), parameter.defaults, components);
+                        }
+                        else
+                        {
+                            scratch.RemoveParameter(parameter.name.View());
+                        }
+                        CommitMaterial(meta.id, scratch);
+                        return;
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::InspectorMaterialOverrideTooltip,
+                        "Write this value into the material. Off uses the shader's initial value"));
+                    ImGui::SameLine();
+                    Widget::DisableScope unset(false == overridden);
+                    Bool changed = false;
+                    if (parameter.color)
+                    {
+                        if (components == 3)
+                        {
+                            values[3] = 1.0f;
+                        }
+                        changed = Widget::ColorField("##value", values);
+                    }
+                    else if (parameter.type == MaterialParameterType::Bool)
+                    {
+                        Bool flag = values[0] > 0.0f;
+                        changed = Widget::Checkbox("##value", flag);
+                        values[0] = flag ? 1.0f : 0.0f;
+                    }
+                    else if (parameter.type == MaterialParameterType::Int || parameter.type == MaterialParameterType::UInt)
+                    {
+                        Int32 integer = static_cast<JBro::Int32>(values[0].Get() < 0.0f ? values[0].Get() - 0.5f : values[0].Get() + 0.5f);
+                        changed = parameter.type == MaterialParameterType::UInt
+                            ? Widget::DragField<Int32>("##value", integer).Range(0, 2147483647).Draw()
+                            : Widget::DragField<Int32>("##value", integer).Draw();
+                        values[0] = static_cast<JBro::Float>(integer.Get());
+                    }
+                    else if (components == 1)
+                    {
+                        changed = Widget::DragField<Float>("##value", values[0]).Speed(0.01f).Draw();
+                    }
+                    else
+                    {
+                        changed = Widget::ScalarRunField("##value", values, static_cast<JBro::Int32>(components.Get()), 0.01f, false, 0.0f, 0.0f);
+                    }
+                    if (changed)
+                    {
+                        scratch.SetParameter(parameter.name.View(), values, components);
+                        CommitMaterial(meta.id, scratch);
+                    }
+                });
+            }
+        }
+        if (shader->textures.IsEmpty())
+        {
+            return;
+        }
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorMaterialTextures, "Textures")).Draw();
+        Widget::FormLayout layout("##material_textures");
+        for (std::size_t index = 0; index < shader->textures.Size(); ++index)
+        {
+            const MaterialTextureInfo& slot = shader->textures[index];
+            Widget::IdScope id(static_cast<JBro::Int32>(index));
+            layout.Row(Widget::FieldLabel(slot.name.c_str()), [&]() {
+                Widget::DisableScope locked(false == editable);
+                const AssetChoices& choices = ChoicesFor(AssetType::Texture);
+                const MaterialTextureValue* written = scratch.FindTexture(slot.name.View());
+                AssetId texture = written != nullptr ? written->texture : AssetId{};
+                if (Widget::AssetField("##texture", ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
+                        ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()), texture)
+                        .Draw())
+                {
+                    scratch.SetTexture(slot.name.View(), texture);
+                    CommitMaterial(meta.id, scratch);
+                }
+            });
+        }
+    }
+
+    void InspectorPanel::CommitMaterial(AssetId asset, const MaterialDocument& document)
+    {
+        AssetSourceTarget target;
+        if (false == m_editor->DescribeAssetSource(asset, target))
+        {
+            return;
+        }
+        const String after = WriteMaterial(document);
+        if (after == m_materialText)
+        {
+            return;
+        }
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, m_materialText, after, "Edit Material"));
     }
 
     void InspectorPanel::CommitAssetEdit(Context& context)

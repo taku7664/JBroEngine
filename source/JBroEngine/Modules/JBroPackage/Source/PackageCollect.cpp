@@ -101,7 +101,9 @@ namespace JBro::Package
                 FindIdsInText(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), found);
             }
             // 본문이 다른 에셋을 아이디로 가리키는 것: 캔버스, 후처리 프로필(효과의 `colorLutId`, D-344).
-            if ((record.type == AssetType::Canvas || record.type == AssetType::PostProcessProfile) && loose.Read(record, AssetBlob::Source, bytes))
+            // 머티리얼(D-347)은 셰이더와 텍스처 아이디를 본문에 든다.
+            if ((record.type == AssetType::Canvas || record.type == AssetType::PostProcessProfile || record.type == AssetType::Material)
+                && loose.Read(record, AssetBlob::Source, bytes))
             {
                 FindIdsInText(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), found);
             }

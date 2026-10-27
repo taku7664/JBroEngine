@@ -67,6 +67,10 @@ namespace JBro
                 return Icons::PostProcess;
             case AssetType::ColorLut:
                 return Icons::ColorLut;
+            case AssetType::Material:
+                return Icons::Material;
+            case AssetType::Shader:
+                return Icons::Shader;
             default:
                 return Icons::File;
             }
@@ -1064,6 +1068,15 @@ namespace JBro
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewPostProcessProfile, "New Post-Process Profile")))
         {
             m_editor->CreatePostProcessProfileAsset(m_openFolder.c_str());
+        }
+        // **새 셰이더·새 머티리얼**(D-347). 셰이더는 픽셀 단계 하나를 적는 틀(`.hlsl`)이고, 머티리얼은 셰이더를 고르고 파라미터를 적는 파일(`.jmat`)이다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewShader, "New Shader")))
+        {
+            m_editor->CreateShaderAsset(m_openFolder.c_str());
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewMaterial, "New Material")))
+        {
+            m_editor->CreateMaterialAsset(m_openFolder.c_str());
         }
         // **새 노드 그래프**(D-323). 샘플 도메인 `Math` 의 그래프를 만들고 노드 그래프 창에서 연다.
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewNodeGraph, "New Node Graph")))

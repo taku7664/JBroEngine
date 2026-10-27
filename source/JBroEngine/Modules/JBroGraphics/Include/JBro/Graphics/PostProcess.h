@@ -98,6 +98,9 @@ namespace JBro
         UInt32 inputCount = 0;
         // 그래프 밖의 텍스처(렌더러가 발급한 것 - `Renderer::RegisterVolumeTexture` 의 LUT)다. 그래프 입력 다음 자리에 묶는다.
         AssetHandle externalTexture;
+        // **머티리얼로 그린다**(D-347). 렌더러가 `RegisterMaterial` 로 발급한 후처리 자리의 머티리얼이면 `program`·`constants`·`externalTexture` 대신
+        // 그 셰이더·파라미터·텍스처로 그린다. 입력은 하나만(t0) 읽는다. 없는 머티리얼이면 그대로 옮긴다(`Copy`)고 센다.
+        AssetHandle material;
         // 쓰는 곳이다. 비어 있으면 빌더의 출력이고 뷰의 뷰포트 안을 쓴다. 주면 그 텍스처 전체(`outputExtent`)를 쓴다 - `CreateTexture` 로 만든 것이다.
         RenderGraphTexture output;
         Extent2D outputExtent;
@@ -233,6 +236,7 @@ namespace JBro
         inline constexpr UInt32 Blur = 5;
         inline constexpr UInt32 Outline = 6;
         inline constexpr UInt32 DropShadow = 7;
+        inline constexpr UInt32 Material = 8;
     }
 
     // 톤 곡선이다(D-342, 사용자 결정 "고점 높은 것으로" - 넷을 모두 둔다). 기본은 `None` 이다.
@@ -339,6 +343,18 @@ namespace JBro
         JBRO_FIELD(Color, color) { 0.0f, 0.0f, 0.0f, 0.5f };
         JBRO_FIELD(Vector2, offset) { 4.0f, -4.0f };
         JBRO_FIELD(Float, softness, Range(0.0f, 32.0f)) = 4.0f;
+    };
+
+    // **머티리얼**(`AfterTonemap`, 레이어에도 걸린다, D-347). 머티리얼 에셋(`.jmat`, 자리 `PostProcess`)의 셰이더로 화면 전체를 그린다 - 셰이더 그래프의
+    // 결과가 들어올 범용 효과다(D-33). 셰이더의 파라미터는 머티리얼 파일이 들고, 여기는 어느 머티리얼인지만 든다. 렌더러의 머티리얼은 프로필을 푸는 쪽
+    // (`PostProcessLibrary` 가 `MaterialLibrary` 로)이 채운다. 머티리얼이 없거나 짓지 못했으면 그대로 옮긴다.
+    struct MaterialEffect
+    {
+        JBRO_REFLECT_BODY(MaterialEffect)
+
+        JBRO_FIELD(AssetId, materialId);
+        JBRO_FIELD(AssetHandle, material, NoSerialize() | ReadOnly() | Hidden());
+        JBRO_FIELD(AssetHandle, rendererMaterial, NoSerialize() | ReadOnly() | Hidden());
     };
 
     // **뷰에 낼 효과 하나**(D-342). `blockOffset` 은 `PostProcessStack::blocks` 안에서 그 종류의 블록이 시작하는 자리다.

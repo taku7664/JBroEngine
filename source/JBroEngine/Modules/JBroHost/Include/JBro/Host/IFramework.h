@@ -12,6 +12,7 @@
 namespace JBro
 {
     class AssetSystem;
+    class IShaderCompiler;
     class NetworkHost;
     class TaskManager;
     namespace System
@@ -119,6 +120,9 @@ namespace JBro
         // 호스트가 소유하는 게임 입력(D-214). 프레임워크는 스크립트의 레이어 체인을 이것에 내려보낸다.
         // 없으면(테스트의 가짜) 체인을 돌리지 않고, 스크립트의 폴링은 빈 입력을 본다.
         System::InputSystem* input = nullptr;
+        // 호스트가 넘겨받은 머티리얼 셰이더 컴파일러(D-347). 에디터만 준다 - 게임은 패키지의 구운 셰이더만 싣고, 없으면 굽지 않은 셰이더의 머티리얼은
+        // 서지 않는다(빌트인으로 그린다).
+        IShaderCompiler* shaderCompiler = nullptr;
     };
 
     class IFramework

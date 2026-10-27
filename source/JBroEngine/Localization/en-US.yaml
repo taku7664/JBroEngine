@@ -109,6 +109,16 @@ Entries:
   inspector.post_process_override_tooltip: "Write this value into the profile. Off uses the effect's default"
   inspector.post_process_unreadable: "This profile could not be read"
   inspector.post_process_broken: "The profile's text is broken. Fix the file to edit it here"
+  assets.new_material: "New Material"
+  assets.new_shader: "New Shader"
+  inspector.material_parameters: "Parameters"
+  inspector.material_textures: "Textures"
+  inspector.material_no_shader: "Pick a shader to see its parameters and textures"
+  inspector.material_shader_error: "The shader could not be compiled"
+  inspector.material_no_parameters: "The shader has no parameters"
+  inspector.material_override_tooltip: "Write this value into the material. Off uses the shader's initial value"
+  inspector.material_unreadable: "This material could not be read"
+  inspector.material_broken: "The material's text is broken. Fix the file to edit it here"
   canvas_view.edit_collider: Edit Collider
   canvas_view.edit_collider_tooltip: edit the selected object's polygon collider - drag a point to move it, click an edge to add one, right-click a point to delete it
   canvas_view.point_delete: Delete Point

@@ -406,10 +406,11 @@ namespace
                 && NearlyEqual(item.pivot.x, 0.1f) && NearlyEqual(item.pivot.y, 0.8f),
                 "an unresolved sprite keeps its authored size and pivot");
             Check(item.renderOrder == -4 && world.GetSpriteCapacity() == capacity, "extraction must preserve order and reuse storage");
-            // 라이브러리가 없으면 스프라이트 에셋은 풀리지 않는다 - 텍스처는 비고(흰색) UV 는 전체다(D-113).
+            // 라이브러리가 없으면 스프라이트 에셋은 풀리지 않는다 - 텍스처는 비고(흰색) UV 는 전체다(D-113). 머티리얼도 라이브러리가 렌더러의 것으로
+            // 풀어야 하므로(D-347) 없으면 비고 빌트인 셰이더로 그린다 - 에셋 핸들이 렌더러로 새어 나가지 않는다.
             Check(item.texture.generation == 0
                 && item.uvRect[0] == 0.0f && item.uvRect[1] == 0.0f && item.uvRect[2] == 1.0f && item.uvRect[3] == 1.0f
-                && item.material.index == 5 && item.material.generation == 9
+                && item.material.generation == 0
                 && NearlyEqual(item.pivot.x, 0.1f) && NearlyEqual(item.pivot.y, 0.8f)
                 && NearlyEqual(item.tint.A, 0.8f), "sprite assets and appearance must survive extraction");
         }

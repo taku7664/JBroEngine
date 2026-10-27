@@ -11,6 +11,7 @@
 namespace JBro
 {
     class AssetSystem;
+    class MaterialLibrary;
     class Renderer;
 
     // **풀린 프로필 하나와 항목마다 덮어쓴 필드**(D-346). 볼륨이 섞을 때 덮어쓴 필드만 섞는다. `overrides` 는 `stack.entries` 와 같은 차례다.
@@ -34,7 +35,8 @@ namespace JBro
         PostProcessLibrary& operator=(const PostProcessLibrary&) = delete;
         ~PostProcessLibrary();
 
-        void Initialize(AssetSystem* assets, Renderer* renderer);
+        // `materials` 는 `Material` 효과의 머티리얼을 렌더러의 것으로 푸는 곳이다(D-347). 없으면 그 효과는 그대로 옮긴다.
+        void Initialize(AssetSystem* assets, Renderer* renderer, MaterialLibrary* materials = nullptr);
         void Shutdown();
 
         // 프로필 에셋의 효과 목록이다. 가리키는 곳은 그 프로필을 다시 풀 때(본문이 바뀐 뒤의 `Resolve`)와 `Shutdown` 까지 산다 - 다른 프로필을
@@ -67,6 +69,9 @@ namespace JBro
             // 이 프로필이 쓰는 LUT 와 그 세대다. 세대가 오르면 다시 푼다.
             Array<AssetHandle> luts;
             Array<UInt32> lutGenerations;
+            // `Material` 효과의 머티리얼 에셋과 그때 받은 렌더러 머티리얼이다(D-347). 셰이더가 바뀌어 렌더러 핸들이 바뀌면 다시 푼다.
+            Array<AssetHandle> materials;
+            Array<AssetHandle> rendererMaterials;
             Bool used = false;
         };
         struct LutTexture
@@ -83,6 +88,7 @@ namespace JBro
 
         AssetSystem* m_assets = nullptr;
         Renderer* m_renderer = nullptr;
+        MaterialLibrary* m_materials = nullptr;
         Array<Profile> m_profiles;
         Array<LutTexture> m_luts;
         // `FindOrLoad` 가 실은 프로필이다. 핸들은 `Shutdown` 이 놓는다.

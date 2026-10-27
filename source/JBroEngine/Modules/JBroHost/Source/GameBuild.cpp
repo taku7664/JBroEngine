@@ -151,7 +151,7 @@ namespace JBro
         Package::PackageWriter writer(key);
         Package::CookReport cooked;
         if (false == Package::CookAssets(platform, registry, assetRoot.c_str(), ArrayView<const AssetId>(included.Data(), included.Size()),
-                writer, cooked))
+                writer, cooked, options.shaderCompiler))
         {
             report.error = "an asset could not be cooked: ";
             report.error.append(cooked.failures.IsEmpty() ? String() : cooked.failures[0]);

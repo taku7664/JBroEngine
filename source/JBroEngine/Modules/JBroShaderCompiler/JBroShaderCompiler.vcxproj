@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a000056-0000-4000-8000-00000005ade7}</ProjectGuid>
+    <RootNamespace>JBroShaderCompiler</RootNamespace>
+    <ProjectName>JBroShaderCompiler</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!--
+    머티리얼 셰이더를 그 자리에서 굽는다(D-347). Tier E 이고 Windows 전용이다. 에디터·시험·게임 빌드가 들고 게임 실행 파일은 들지 않는다.
+    컴파일러 DLL 은 실행 중에 연다(d3dcompiler_47.dll 은 Windows 에 있고, dxcompiler.dll 은 아래 복사가 실행 파일 옆에 둔다).
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroShaderCompiler\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Include\**\*.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
+      <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAsset\JBroAsset.vcxproj">
+      <Project>{1a000002-0000-4000-8000-0000000a5537}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <!--
+    dxcompiler.dll 을 출력 폴더에 둔다. Vulkan SDK 의 것은 SPIR-V 를 굽고 DXIL 을 스스로 서명한다(1.9, 2026-10-27 실측). 없으면 Windows SDK 의
+    dxcompiler.dll 과 서명용 dxil.dll 이다 - 그때는 SPIR-V 를 굽지 못한다.
+  -->
+  <PropertyGroup>
+    <JBroVulkanDxc>$(VULKAN_SDK)\Bin\dxcompiler.dll</JBroVulkanDxc>
+    <JBroWindowsSdkBin>$(WindowsSdkDir)bin\$(WindowsTargetPlatformVersion)\x64\</JBroWindowsSdkBin>
+  </PropertyGroup>
+  <Target Name="JBroCopyShaderCompiler" AfterTargets="Build">
+    <Copy Condition="'$(VULKAN_SDK)' != '' And Exists('$(JBroVulkanDxc)')" SourceFiles="$(JBroVulkanDxc)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy Condition="('$(VULKAN_SDK)' == '' Or !Exists('$(JBroVulkanDxc)')) And Exists('$(JBroWindowsSdkBin)dxcompiler.dll')" SourceFiles="$(JBroWindowsSdkBin)dxcompiler.dll;$(JBroWindowsSdkBin)dxil.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

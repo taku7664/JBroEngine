@@ -70,6 +70,16 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorPostProcessOverrideTooltip = "inspector.post_process_override_tooltip";
     inline constexpr const char* InspectorPostProcessUnreadable = "inspector.post_process_unreadable";
     inline constexpr const char* InspectorPostProcessBroken = "inspector.post_process_broken";
+    inline constexpr const char* AssetsNewMaterial = "assets.new_material";
+    inline constexpr const char* AssetsNewShader = "assets.new_shader";
+    inline constexpr const char* InspectorMaterialParameters = "inspector.material_parameters";
+    inline constexpr const char* InspectorMaterialTextures = "inspector.material_textures";
+    inline constexpr const char* InspectorMaterialNoShader = "inspector.material_no_shader";
+    inline constexpr const char* InspectorMaterialShaderError = "inspector.material_shader_error";
+    inline constexpr const char* InspectorMaterialNoParameters = "inspector.material_no_parameters";
+    inline constexpr const char* InspectorMaterialOverrideTooltip = "inspector.material_override_tooltip";
+    inline constexpr const char* InspectorMaterialUnreadable = "inspector.material_unreadable";
+    inline constexpr const char* InspectorMaterialBroken = "inspector.material_broken";
     // 폴리곤 콜라이더의 포인트 편집(physics-plan §4 의 5). 필드 이름(`points`)과 같은 말을 쓴다 - 기존 엔진의 `버텍스` 는 따르지 않았다.
     inline constexpr const char* CanvasViewEditCollider = "canvas_view.edit_collider";
     inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";

@@ -92,7 +92,8 @@ namespace JBro
                 m_context.network->RegisterPool(m_networkBinding->transforms);
             }
             m_spriteLibrary.Initialize(context.assets, context.renderer);
-            m_postProcess.Initialize(context.assets, context.renderer);
+            m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
+            m_postProcess.Initialize(context.assets, context.renderer, &m_materials);
             m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
             m_volumes.Reserve(MaxVolumes);
             m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
@@ -190,6 +191,8 @@ namespace JBro
         }
         const FrameTime& time = m_context.time->GetFrameTime();
         m_renderWorld.BeginFrame();
+        // 바뀐 머티리얼(본문·셰이더·텍스처)을 추출 전에 다시 짓는다(D-347). 렌더러 프레임 밖이다.
+        m_materials.Update();
         m_canvas->BeginFrame();
         {
             // 화면 기준을 갱신 전에 건다 - 트랜스폼이 이번 프레임의 앵커를 잰다(D-237).
@@ -423,6 +426,7 @@ namespace JBro
             systems.FindSystem<System::Text2DSystem>(),
         };
         m_renderWorld.BeginFrame();
+        m_materials.Update();
         for (GameSystem* system : extraction)
         {
             if (system != nullptr)
@@ -525,6 +529,7 @@ namespace JBro
         m_canvas.Reset();
         m_spriteLibrary.Shutdown();
         m_postProcess.Shutdown();
+        m_materials.Shutdown();
         m_renderWorld = {};
         m_context     = {};
         m_initialized = false;
@@ -639,6 +644,7 @@ namespace JBro
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();
         sprites.SetRenderWorld(&m_renderWorld);
         sprites.SetSpriteLibrary(&m_spriteLibrary);
+        sprites.SetMaterialLibrary(&m_materials);
         // 라이트도 스프라이트와 같은 차례에 담는다(D-291).
         systems.AddSystem<System::Light2DSystem>().SetRenderWorld(&m_renderWorld);
         // 그림자 변은 스프라이트 크기가 풀린 뒤에 담는다(D-291 3 단계).

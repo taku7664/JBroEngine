@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/Command/ComponentAddress.h>
@@ -34,6 +35,8 @@
 
 namespace JBro
 {
+    class MaterialLibrary;
+    class ShaderCompiler;
     struct RenderCamera2D;
     namespace System
     {
@@ -756,6 +759,15 @@ namespace JBro
         String CreateSoundEffectAsset(const char* folder);
         // 빈 후처리 프로필(`.jpost`, D-344)을 만들고 고른다. 효과는 인스펙터에서 더한다.
         String CreatePostProcessProfileAsset(const char* folder);
+        // **새 셰이더**(`NewShader.hlsl`, D-347)를 머티리얼 셰이더의 틀로 쓰고 고른다. **새 머티리얼**(`NewMaterial.jmat`)은 셰이더 없이 쓰고 고른다 -
+        // 셰이더는 인스펙터에서 고른다. 만든 파일의 경로이고 실패하면 빈 글자다.
+        String CreateShaderAsset(const char* folder);
+        String CreateMaterialAsset(const char* folder);
+        // **머티리얼 인스펙터가 보는 셰이더**(D-347). 셰이더 에셋을 그 자리로 구운 것(파라미터·텍스처 이름)이다. 에디터의 컴파일러로 굽고 본문이
+        // 바뀌면 다시 굽는다. 실패하면 nullptr 이고 `error` 가 까닭이다(컴파일러가 없으면 그 까닭도).
+        const CompiledMaterialShader* GetMaterialShader(AssetId shader, MaterialDomain domain, const String** error);
+        // 에디터가 든 셰이더 컴파일러다. 열지 못했으면 null 이다.
+        IShaderCompiler* GetShaderCompiler();
         // **새 노드 그래프를 만든다**(D-323). `NewGraph.jgraph`(샘플 도메인 `Math`, 결과 노드 하나)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 노드 그래프 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateNodeGraphAsset(const char* folder);
@@ -989,6 +1001,13 @@ namespace JBro
         OwnerPtr<Code::LanguageClient> m_codeLanguage;
         OwnerPtr<Code::SourceDebugger> m_sourceDebugger;
         OwnerPtr<IRHIModule> m_rhiModule;
+        // 머티리얼 셰이더 컴파일러(D-347)다. 엔진보다 먼저 서고 늦게 내려간다 - 엔진의 프레임워크가 빌려 쓴다.
+        OwnerPtr<ShaderCompiler> m_shaderCompiler;
+        // 머티리얼 인스펙터가 셰이더를 굽는 자리다(렌더러 없이 컴파일만). 인스펙터가 보는 셰이더 에셋을 하나 잡는다.
+        OwnerPtr<MaterialLibrary> m_materialInspection;
+        AssetSystem* m_materialInspectionAssets = nullptr;
+        AssetId m_inspectedShaderId;
+        AssetHandle m_inspectedShader;
         OwnerPtr<EngineInstance> m_engine;
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;

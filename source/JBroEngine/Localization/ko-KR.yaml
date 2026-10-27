@@ -109,6 +109,16 @@ Entries:
   inspector.post_process_override_tooltip: "켜면 이 값을 프로필에 적습니다. 끄면 효과의 기본값을 씁니다"
   inspector.post_process_unreadable: "프로필을 읽지 못했습니다"
   inspector.post_process_broken: "프로필 글자가 깨져 있습니다. 파일을 고친 뒤에 여기서 고칠 수 있습니다"
+  assets.new_material: "새 머티리얼"
+  assets.new_shader: "새 셰이더"
+  inspector.material_parameters: "파라미터"
+  inspector.material_textures: "텍스처"
+  inspector.material_no_shader: "셰이더를 고르면 파라미터와 텍스처가 나옵니다"
+  inspector.material_shader_error: "셰이더를 굽지 못했습니다"
+  inspector.material_no_parameters: "셰이더에 파라미터가 없습니다"
+  inspector.material_override_tooltip: "켜면 이 값을 머티리얼에 적습니다. 끄면 셰이더의 초기값을 씁니다"
+  inspector.material_unreadable: "머티리얼을 읽지 못했습니다"
+  inspector.material_broken: "머티리얼 글자가 깨져 있습니다. 파일을 고친 뒤에 여기서 고칠 수 있습니다"
   canvas_view.edit_collider: 콜라이더 편집
   canvas_view.edit_collider_tooltip: 고른 오브젝트의 폴리곤 콜라이더를 고칩니다. 포인트를 끌어 옮기고, 변을 누르면 포인트가 생기고, 포인트를 우클릭하면 지울 수 있습니다
   canvas_view.point_delete: 포인트 삭제

@@ -22,6 +22,7 @@ namespace JBro
         Source = 2,        // 원본 파일
         CookedTexture = 3, // 빌드가 디코드해 둔 RGBA8 - 있으면 디코드를 건너뛴다
         FontAtlas = 4,     // 빌드가 미리 떠 둔 글리프 아틀라스
+        CompiledShader = 5, // 빌드가 구운 머티리얼 셰이더 묶음(`WriteCompiledShaderSet`, D-347) - 게임은 굽지 않는다
     };
 
     // `CookedTexture` 블롭의 모양이다: 16 바이트 머리(`JTEX`·폭·높이·0) 뒤에 `폭 * 높이 * 4` 바이트의 RGBA8(왼쪽 위 원점).

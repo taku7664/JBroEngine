@@ -24,6 +24,11 @@ namespace JBro::System
         m_spriteLibrary = library;
     }
 
+    void SpriteRender2DSystem::SetMaterialLibrary(MaterialLibrary* library)
+    {
+        m_materialLibrary = library;
+    }
+
     void SpriteRender2DSystem::ExtractRenderWorld(Canvas& canvas)
     {
         if (m_renderWorld == nullptr)
@@ -73,7 +78,8 @@ namespace JBro::System
                 item.uvRect[3] = 1.0f;
             }
             item.filter = resolved ? frame.filter : TextureFilter::Nearest;
-            item.material = sprite.material;
+            // 해석 패스가 채운 머티리얼 에셋을 렌더러 머티리얼로 푼다(D-347). 처음 보는 머티리얼은 여기서 셰이더를 굽고 올린다.
+            item.material = m_materialLibrary != nullptr ? m_materialLibrary->Resolve(sprite.material) : AssetHandle{};
             item.tint = sprite.tint;
             // 크기와 피벗은 에셋이 정한다(D-117). 풀리지 않은 스프라이트와 `Custom` 만 저작 값이다. 둘은 따로 고른다.
             // 화면 레이어의 좌표는 기준 픽셀이라 에셋 크기도 픽셀이다(D-237).

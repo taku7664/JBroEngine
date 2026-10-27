@@ -20,6 +20,7 @@
 #include <JBro/Canvas/CanvasObjectSystem.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
+#include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessLibrary.h>
 #include <JBro/Graphics/PostProcessMixer.h>
 #include <JBro/Host/PostProcessSystem.h>
@@ -86,6 +87,8 @@ namespace JBro
         ScreenSpaceFrame m_screenSpace;
         // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
         SpriteLibrary    m_spriteLibrary;
+        // 머티리얼 에셋 → 렌더러 머티리얼(D-347). 스프라이트의 `materialId` 와 후처리 효과 `Material` 이 쓴다. 프로필 라이브러리보다 먼저 서고 늦게 내려간다.
+        MaterialLibrary  m_materials;
         // 카메라의 후처리 프로필을 푼다(D-344). 추출 뒤에 이번 카메라의 것을 렌더 월드에 건다.
         PostProcessLibrary m_postProcess;
         // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 덮어쓰기는 스크립트 컨텍스트의 `PostProcess` 로 들어온다.

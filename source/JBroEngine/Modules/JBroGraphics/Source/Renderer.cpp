@@ -3,6 +3,7 @@
 // 빌트인 셰이더는 매니페스트(Shaders/ShaderManifest.psd1) 한 곳에서 굽고, 바이트코드 셋과 자리표를 표 하나로 받는다(D-329).
 #include <JBro/Graphics/BuiltinShaders.generated.h>
 
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -42,12 +43,24 @@ namespace JBro
         // 빌트인 프로그램의 셰이더 둘·푸시 상수·자리표를 파이프라인 서술자에 옮긴다(D-329). 나머지(포맷·블렌드·정점 배치)는
         // 부르는 쪽이 정한다. 그 API 의 바이트코드가 없거나, 렌더러가 올리는 푸시 상수 크기가 매니페스트와 다르면 거짓이다 -
         // 매니페스트를 고치고 C++ 구조체를 잊은 것이 그리기 자리가 아니라 여기서 드러난다.
+        ShaderCodeFormat CodeFormatOf(GraphicsApi api)
+        {
+            return api == GraphicsApi::D3D11 ? ShaderCodeFormat::Dxbc
+                : api == GraphicsApi::Vulkan ? ShaderCodeFormat::SpirV
+                                             : ShaderCodeFormat::Dxil;
+        }
+
+        // 머티리얼 셰이더의 푸시 상수다(`MaterialPrelude` 의 `JBroEngine`). 스프라이트는 뷰-투영 행렬(64 B)이 앞에 붙어 128 B 로 상한을 채운다.
+        constexpr UInt32 PostMaterialPushBytes = 64;
+        // 후처리 효과와 머티리얼의 상수가 함께 쓰는 링의 한 프레임 크기다. 효과의 상수는 패스마다 float4 몇 개이고, 머티리얼은 그리는 구간마다
+        // 256 B 까지다. 한 프레임에 효과가 상한만큼 오고 머티리얼 구간이 이백 남짓이어도 남는다.
+        constexpr std::size_t PostConstantRingBytes = 128 * 1024;
+        constexpr UInt32 SpriteMaterialPushBytes = 128;
+
         Bool ApplyShader(GraphicsPipelineDesc& desc, BuiltinShader program, GraphicsApi api, std::size_t pushConstantBytes)
         {
             const ShaderData& shader = GetBuiltinShader(program);
-            const ShaderCodeFormat format = api == GraphicsApi::D3D11 ? ShaderCodeFormat::Dxbc
-                : api == GraphicsApi::Vulkan                       ? ShaderCodeFormat::SpirV
-                                                                   : ShaderCodeFormat::Dxil;
+            const ShaderCodeFormat format = CodeFormatOf(api);
             const JArrayView<std::byte>& vertex = shader.Code(ShaderProgramStage::Vertex, format);
             const JArrayView<std::byte>& pixel = shader.Code(ShaderProgramStage::Pixel, format);
             if (vertex.size == 0 || pixel.size == 0 || shader.pushConstantBytes != pushConstantBytes)
@@ -228,6 +241,7 @@ namespace JBro
         {
             m_device->WaitIdle();
             DestroyMeshResources();
+            DestroyMaterialResources();
             DestroyTextureResources();
             m_targetPool.Shutdown();
             if (m_captureTexture.IsValid())
@@ -235,6 +249,8 @@ namespace JBro
                 m_device->DestroyTexture(m_captureTexture);
             }
             DestroyPostProcessResources();
+            // 머티리얼도 쓰는 링이라 후처리와 따로 지운다(D-347).
+            m_postConstants.Destroy();
             DestroyScenePipelines(m_scene[LdrScene]);
             DestroyBuiltinLightResources();
             DestroyBuiltinWorldTextResources();
@@ -571,6 +587,264 @@ namespace JBro
         return count;
     }
 
+    void Renderer::MakeSpriteVertexLayout(SpriteVertexLayout& layout)
+    {
+        // 오프셋을 손으로 적지 않는다. 구조체와 정점 속성이 따로 놀 수 있는 틈을 없앤다.
+        constexpr std::size_t TransformOffset = offsetof(GpuSpriteInstance, world);
+        layout.quad[0] = {0, 0, VertexFormat::Float2};
+        layout.instance[0] = {1, static_cast<JBro::UInt32>(TransformOffset + offsetof(SpriteTransform2D, linear)), VertexFormat::Float4};
+        layout.instance[1] = {2, static_cast<JBro::UInt32>(TransformOffset + offsetof(SpriteTransform2D, translation)), VertexFormat::Float3};
+        layout.instance[2] = {3, static_cast<JBro::UInt32>(offsetof(GpuSpriteInstance, tint)), VertexFormat::UByte4Norm};
+        layout.instance[3] = {4, static_cast<JBro::UInt32>(offsetof(GpuSpriteInstance, uvRect)), VertexFormat::UShort4Norm};
+        layout.buffers[0] = {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {layout.quad, 1}};
+        layout.buffers[1] = {static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)), VertexStepMode::Instance, {layout.instance, 4}};
+    }
+
+    Bool Renderer::CreateMaterialPipelines(MaterialResource& resource, const CompiledMaterialShader& shader)
+    {
+        const ShaderCodeFormat format = CodeFormatOf(m_config.api);
+        const Array<std::byte>& pixel = shader.pixel[static_cast<std::size_t>(format)];
+        if (pixel.IsEmpty())
+        {
+            return false;
+        }
+        const Bool sprite = shader.domain == MaterialDomain::Sprite;
+        const ShaderData& builtin = GetBuiltinShader(sprite ? BuiltinShader::Sprite : BuiltinShader::PostCopy);
+        const JArrayView<std::byte>& vertex = builtin.Code(ShaderProgramStage::Vertex, format);
+        if (vertex.size == 0)
+        {
+            return false;
+        }
+        GraphicsPipelineDesc desc;
+        desc.vertexShader = {vertex.data, vertex.size};
+        desc.pixelShader = {pixel.Data(), static_cast<JBro::UInt32>(pixel.Size())};
+        desc.pushConstantBytes = sprite ? SpriteMaterialPushBytes : PostMaterialPushBytes;
+        desc.pushConstantStages = sprite ? (ShaderStage::Vertex | ShaderStage::Pixel) : ShaderStage::Pixel;
+        desc.bindings.constantBuffers = {shader.parameterBytes != 0 ? 1u : 0u, ShaderStage::Pixel};
+        desc.bindings.sampledTextures = {resource.textureSlots, ShaderStage::Pixel};
+        desc.bindings.samplers = {MaterialSamplerCount, ShaderStage::Pixel};
+        desc.cull = CullMode::None;
+        SpriteVertexLayout layout;
+        if (sprite)
+        {
+            MakeSpriteVertexLayout(layout);
+            desc.vertexBuffers = {layout.buffers, 2};
+            desc.blend = BlendMode::Alpha;
+        }
+        else
+        {
+            desc.blend = BlendMode::Opaque;
+            desc.depthTest = false;
+            desc.depthWrite = false;
+        }
+        for (UInt32 scene = 0; scene < SceneFormatCount; ++scene)
+        {
+            const TextureFormat colorFormats[] = {scene == HdrScene ? PostProcessHdrFormat : m_config.backBufferFormat};
+            desc.colorFormats = {colorFormats, 1};
+            if (sprite)
+            {
+                desc.depthFormat = TextureFormat::Unknown;
+                resource.pipelines[(scene * 2).Get()] = m_device->CreateGraphicsPipeline(desc);
+                // 깊이가 달린 패스용 쌍둥이(빌트인 스프라이트와 같다). 포맷만 맞추고 깊이는 끈다.
+                desc.depthFormat = TextureFormat::D32Float;
+                desc.depthTest = false;
+                desc.depthWrite = false;
+                resource.pipelines[(scene * 2 + 1).Get()] = m_device->CreateGraphicsPipeline(desc);
+                desc.depthTest = true;
+                desc.depthWrite = true;
+                if (false == resource.pipelines[(scene * 2).Get()].IsValid() || false == resource.pipelines[(scene * 2 + 1).Get()].IsValid())
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                resource.pipelines[scene.Get()] = m_device->CreateGraphicsPipeline(desc);
+                if (false == resource.pipelines[scene.Get()].IsValid())
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    void Renderer::DestroyMaterialPipelines(MaterialResource& resource)
+    {
+        // 지난 프레임이 아직 쓸 수 있다. 백엔드의 지연 파기가 그것을 든다(RHI 계약).
+        for (GraphicsPipelineHandle& pipeline : resource.pipelines)
+        {
+            if (pipeline.IsValid())
+            {
+                m_device->DestroyGraphicsPipeline(pipeline);
+                pipeline = {};
+            }
+        }
+    }
+
+    AssetHandle Renderer::RegisterMaterial(const MaterialDesc& desc)
+    {
+        if (m_device == nullptr || m_frameActive || desc.shader == nullptr || desc.parameters.size != desc.shader->parameterBytes
+            || desc.shader->parameterBytes > MaxMaterialParameterBytes)
+        {
+            return {};
+        }
+        // 파라미터는 후처리의 상수 링에 올린다. 후처리를 아직 쓰지 않았으면 여기서 만든다.
+        if (false == m_postConstants.IsCreated() && false == m_postConstants.Create(*m_device, PostConstantRingBytes))
+        {
+            return {};
+        }
+        MaterialResource resource;
+        resource.domain = desc.shader->domain;
+        for (const MaterialTextureInfo& texture : desc.shader->textures)
+        {
+            if (texture.slot == 0 || texture.slot > MaxMaterialTextures)
+            {
+                return {};
+            }
+            resource.textureSlots = texture.slot + 1 > resource.textureSlots ? texture.slot + 1 : resource.textureSlots;
+        }
+        if (false == CreateMaterialPipelines(resource, *desc.shader))
+        {
+            DestroyMaterialPipelines(resource);
+            return {};
+        }
+        resource.parameterBytes = desc.shader->parameterBytes;
+        if (desc.parameters.size != 0)
+        {
+            std::memcpy(resource.parameters, desc.parameters.data, desc.parameters.size.Get());
+        }
+        for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
+        {
+            resource.textures[at.Get()] = desc.textures[at.Get()];
+        }
+        resource.occupied = true;
+        for (std::size_t slot = 0; slot < m_materials.Size(); ++slot)
+        {
+            if (false == m_materials[slot].occupied)
+            {
+                resource.generation = m_materials[slot].generation + 1;
+                m_materials[slot] = resource;
+                return AssetHandle{static_cast<JBro::UInt32>(slot), resource.generation};
+            }
+        }
+        m_materials.Add(resource);
+        return AssetHandle{static_cast<JBro::UInt32>(m_materials.Size() - 1), resource.generation};
+    }
+
+    Bool Renderer::UpdateMaterial(AssetHandle material, const MaterialDesc& desc)
+    {
+        const UInt32 slot = FindMaterialSlot(material);
+        if (slot == 0 || m_frameActive || desc.shader == nullptr || desc.parameters.size != m_materials[(slot - 1).Get()].parameterBytes)
+        {
+            return false;
+        }
+        MaterialResource& resource = m_materials[(slot - 1).Get()];
+        if (desc.parameters.size != 0)
+        {
+            std::memcpy(resource.parameters, desc.parameters.data, desc.parameters.size.Get());
+        }
+        for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
+        {
+            resource.textures[at.Get()] = desc.textures[at.Get()];
+        }
+        return true;
+    }
+
+    void Renderer::UnregisterMaterial(AssetHandle material)
+    {
+        const UInt32 slot = FindMaterialSlot(material);
+        if (slot == 0 || m_frameActive)
+        {
+            return;
+        }
+        MaterialResource& resource = m_materials[(slot - 1).Get()];
+        DestroyMaterialPipelines(resource);
+        const UInt32 generation = resource.generation;
+        resource = {};
+        resource.generation = generation;
+    }
+
+    UInt32 Renderer::GetMaterialCount() const
+    {
+        UInt32 count = 0;
+        for (const MaterialResource& resource : m_materials)
+        {
+            count += resource.occupied ? 1u : 0u;
+        }
+        return count;
+    }
+
+    void Renderer::SetMaterialTime(Float seconds, Float delta)
+    {
+        m_materialTimeSet = true;
+        m_materialTime = seconds;
+        m_materialDelta = delta;
+    }
+
+    UInt32 Renderer::FindMaterialSlot(AssetHandle material) const
+    {
+        if (material.generation == 0 || material.index >= m_materials.Size())
+        {
+            return 0;
+        }
+        const MaterialResource& resource = m_materials[material.index];
+        return resource.occupied && resource.generation == material.generation ? material.index + 1 : UInt32(0);
+    }
+
+    void Renderer::DestroyMaterialResources()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+        for (MaterialResource& resource : m_materials)
+        {
+            DestroyMaterialPipelines(resource);
+        }
+        m_materials.Clear();
+    }
+
+    Renderer::MaterialEngineValues Renderer::MakeMaterialEngineValues(const Viewport& viewport, const Extent2D& target, Bool premultiplied) const
+    {
+        MaterialEngineValues values;
+        values.viewport[0] = viewport.x;
+        values.viewport[1] = viewport.y;
+        values.viewport[2] = viewport.width;
+        values.viewport[3] = viewport.height;
+        values.target[0] = static_cast<JBro::Float>(target.width);
+        values.target[1] = static_cast<JBro::Float>(target.height);
+        values.target[2] = target.width != 0 ? Float(1.0f / static_cast<float>(target.width.Get())) : Float(0.0f);
+        values.target[3] = target.height != 0 ? Float(1.0f / static_cast<float>(target.height.Get())) : Float(0.0f);
+        values.time[0] = m_materialTime;
+        values.time[1] = m_materialDelta;
+        values.flags[0] = premultiplied ? 1.0f : 0.0f;
+        return values;
+    }
+
+    Bool Renderer::BindMaterialResources(IRHICommandContext& commands, const MaterialResource& material, SamplerHandle sourceSampler)
+    {
+        for (UInt32 slot = 1; slot < material.textureSlots; ++slot)
+        {
+            const TextureResource* texture = FindTexture(material.textures[(slot - 1).Get()]);
+            if (false == commands.SetTexture(slot, texture != nullptr ? texture->texture : m_whiteTexture))
+            {
+                return false;
+            }
+        }
+        if (false == commands.SetSampler(0, sourceSampler) || false == commands.SetSampler(1, m_linearSampler)
+            || false == commands.SetSampler(2, m_nearestSampler) || false == commands.SetSampler(3, m_linearRepeatSampler))
+        {
+            return false;
+        }
+        if (material.parameterBytes == 0)
+        {
+            return true;
+        }
+        const ConstantRange range = m_postConstants.Push(JArrayView<std::byte>{material.parameters, material.parameterBytes});
+        return range.IsValid() && commands.SetConstantBuffer(1, range.buffer, range.offset, range.size);
+    }
+
     const Renderer::TextureResource* Renderer::FindTexture(AssetHandle texture) const
     {
         if (texture.generation == 0 || texture.index >= m_textureResources.Size())
@@ -642,6 +916,18 @@ namespace JBro
         {
             return FrameStatus::InvalidState;
         }
+        // 머티리얼 셰이더의 시각(D-347). 부르는 쪽이 정하지 않았으면 렌더러를 연 뒤로 흐른 실제 시간이다.
+        if (false == m_materialTimeSet)
+        {
+            const Int64 now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            if (m_materialClockStart == 0)
+            {
+                m_materialClockStart = now;
+            }
+            const Float seconds = static_cast<JBro::Float>(static_cast<double>((now - m_materialClockStart).Get()) * 1e-9);
+            m_materialDelta = seconds - m_materialTime;
+            m_materialTime = seconds;
+        }
         // 미리보기 사본도 프레임 밖에서만 만든다(D-341). 지난 프레임이 바란 모양이다.
         if (m_captureWanted)
         {
@@ -681,7 +967,8 @@ namespace JBro
         }
 
         m_frame = result.frame;
-        if (m_postReady)
+        // 상수 링은 후처리와 머티리얼(D-347)이 함께 쓴다. 먼저 바란 쪽이 만든다.
+        if (m_postConstants.IsCreated())
         {
             m_postConstants.BeginFrame(m_frame.slot);
         }
@@ -1740,6 +2027,7 @@ namespace JBro
         sprites.lightMap = lightMap;
         sprites.depth = depth;
         sprites.scene = SceneIndexOf(sceneFormat);
+        sprites.targetExtent = extent;
         const UInt32 runBegin = view.spriteRunOffset;
         const UInt32 runEnd = view.spriteRunOffset + view.spriteRunCount;
 
@@ -2009,16 +2297,23 @@ namespace JBro
         return true;
     }
 
-    Bool Renderer::DrawSpriteRuns(IRHICommandContext& commands, const ScenePipelines& pipelines, const ViewPacket& view, UInt32 firstRun,
-        UInt32 endRun, TextureHandle lightMap, Bool overDepth)
+    Bool Renderer::DrawSpriteRuns(IRHICommandContext& commands, UInt32 scene, const ViewPacket& view, UInt32 firstRun, UInt32 endRun,
+        TextureHandle lightMap, Bool overDepth, const Viewport& viewport, const Extent2D& target)
     {
         if (firstRun >= endRun)
         {
             return true;
         }
+        const ScenePipelines& pipelines = m_scene[scene.Get()];
         const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
         const JArrayView<std::byte> constants = {
             reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
+        // 머티리얼 스프라이트의 푸시 상수다(D-347) - 뷰-투영 행렬 뒤에 엔진 값이 붙는다(`MaterialPrelude`).
+        std::byte materialConstants[SpriteMaterialPushBytes.Get()] = {};
+        const MaterialEngineValues engine = MakeMaterialEngineValues(viewport, target, false);
+        std::memcpy(materialConstants, viewProjection.values, sizeof(viewProjection.values));
+        std::memcpy(materialConstants + sizeof(viewProjection.values), &engine, sizeof(engine));
+        static_assert(sizeof(Matrix4x4::values) + sizeof(MaterialEngineValues) == 128, "the sprite material push block is 128 bytes");
         // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
         // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다.
         // 빛을 받는 구간은 라이트맵이 있을 때만 라이트맵을 곱하는 파이프라인이다(D-291). 라이트맵은 깊이가 없는 뷰에만 선다.
@@ -2039,9 +2334,18 @@ namespace JBro
         const auto litOf = [&](const SpriteRun& run) {
             return run.lit && lightMap.IsValid();
         };
-        Bool boundSdf = m_spriteRuns[firstRun.Get()].sdf;
-        Bool boundLit = litOf(m_spriteRuns[firstRun.Get()]);
-        if (false == bindShading(boundSdf, boundLit)
+        // 머티리얼 구간은 그 머티리얼의 파이프라인을 걸고, 그 뒤의 빌트인 구간은 다시 건다.
+        const auto bindMaterial = [&](UInt32 material) {
+            const MaterialResource& resource = m_materials[(material - 1).Get()];
+            return commands.SetGraphicsPipeline(resource.pipelines[(scene * 2 + (overDepth ? 1u : 0u)).Get()])
+                && commands.SetVertexBuffer(1, m_spriteInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)), 0)
+                && commands.SetGraphicsConstants({materialConstants, SpriteMaterialPushBytes});
+        };
+        const SpriteRun& first = m_spriteRuns[firstRun.Get()];
+        Bool boundSdf = first.sdf;
+        Bool boundLit = litOf(first);
+        UInt32 boundMaterial = first.material;
+        if (false == (boundMaterial != 0 ? bindMaterial(boundMaterial) : bindShading(boundSdf, boundLit))
             || false == commands.SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
             || false == commands.SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0))
         {
@@ -2050,8 +2354,23 @@ namespace JBro
         for (UInt32 runIndex = firstRun; runIndex < endRun; ++runIndex)
         {
             const SpriteRun& run = m_spriteRuns[runIndex.Get()];
+            if (run.material != 0)
+            {
+                if (run.material != boundMaterial && false == bindMaterial(run.material))
+                {
+                    return false;
+                }
+                boundMaterial = run.material;
+                if (false == BindMaterialResources(commands, m_materials[(run.material - 1).Get()], run.sampler)
+                    || false == commands.SetTexture(0, run.texture)
+                    || false == commands.DrawIndexedInstanced(6, run.instanceCount, 0, 0, run.firstInstance))
+                {
+                    return false;
+                }
+                continue;
+            }
             const Bool runLit = litOf(run);
-            if (run.sdf != boundSdf || runLit != boundLit)
+            if (boundMaterial != 0 || run.sdf != boundSdf || runLit != boundLit)
             {
                 if (false == bindShading(run.sdf, runLit))
                 {
@@ -2059,6 +2378,7 @@ namespace JBro
                 }
                 boundSdf = run.sdf;
                 boundLit = runLit;
+                boundMaterial = 0;
             }
             if ((runLit && false == commands.SetTexture(1, lightMap))
                 || false == commands.SetTexture(0, run.texture)
@@ -2121,7 +2441,8 @@ namespace JBro
 
         const ScenePipelines& pipelines = renderer.m_scene[pass.scene.Get()];
         if (view.spriteCount != 0
-            && false == renderer.DrawSpriteRuns(commands, pipelines, view, pass.firstRun, pass.endRun, lightMap, withDepth))
+            && false == renderer.DrawSpriteRuns(commands, pass.scene, view, pass.firstRun, pass.endRun, lightMap, withDepth, pass.viewport,
+                pass.targetExtent))
         {
             return false;
         }
@@ -2351,7 +2672,11 @@ namespace JBro
             m_nearestSampler = m_device->CreateSampler(nearest);
             SamplerDesc linear;
             m_linearSampler = m_device->CreateSampler(linear);
-            if (false == m_nearestSampler.IsValid() || false == m_linearSampler.IsValid())
+            SamplerDesc repeat;
+            repeat.addressU = AddressMode::Repeat;
+            repeat.addressV = AddressMode::Repeat;
+            m_linearRepeatSampler = m_device->CreateSampler(repeat);
+            if (false == m_nearestSampler.IsValid() || false == m_linearSampler.IsValid() || false == m_linearRepeatSampler.IsValid())
             {
                 return false;
             }
@@ -3049,6 +3374,11 @@ namespace JBro
             m_device->DestroySampler(m_linearSampler);
             m_linearSampler = {};
         }
+        if (m_linearRepeatSampler.IsValid())
+        {
+            m_device->DestroySampler(m_linearRepeatSampler);
+            m_linearRepeatSampler = {};
+        }
         for (BufferHandle& buffer : m_spriteInstanceBuffers)
         {
             if (buffer.IsValid())
@@ -3177,14 +3507,33 @@ namespace JBro
                 }
                 const Bool linear = item.filter == SpriteFilter::Linear;
                 const UInt64 samplerKey = linear ? linearKey : nearestKey;
+                // 머티리얼(D-347)은 스프라이트 자리의 것만 본다. 죽은 핸들은 빌트인으로 그리고 센다.
+                UInt32 material = 0;
+                if (item.material.generation != 0 && false == sdf)
+                {
+                    material = FindMaterialSlot(item.material);
+                    if (material != 0 && m_materials[(material - 1).Get()].domain != MaterialDomain::Sprite)
+                    {
+                        material = 0;
+                    }
+                    if (material == 0)
+                    {
+                        ++m_currentStats.staleMaterialCount;
+                    }
+                    else
+                    {
+                        ++m_currentStats.materialSpriteCount;
+                    }
+                }
                 if (last != nullptr && lastTextureKey == textureKey && lastSamplerKey == samplerKey && last->sdf == sdf
-                    && last->layerGroup == layerGroup && last->lit == lit)
+                    && last->layerGroup == layerGroup && last->lit == lit && last->material == material)
                 {
                     ++last->instanceCount;
                     continue;
                 }
                 SpriteRun run;
                 run.texture = texture;
+                run.material = material;
                 run.sampler = linear ? m_linearSampler : m_nearestSampler;
                 run.firstInstance = index;
                 run.instanceCount = 1;
@@ -3233,23 +3582,15 @@ namespace JBro
         // 장면에 그리는 것은 모두 여기서 그 포맷으로 만든다(D-342). 버퍼·텍스처는 `CreateBuiltin*Resources` 가 한 번 만든다.
         const TextureFormat colorFormats[] = {format};
         const VertexAttributeDesc quadAttributes[] = {{0, 0, VertexFormat::Float2}};
-        // 오프셋을 손으로 적지 않는다. 구조체와 정점 속성이 따로 놀 수 있는 틈을 없앤다.
-        constexpr std::size_t TransformOffset = offsetof(GpuSpriteInstance, world);
-        const VertexAttributeDesc spriteAttributes[] = {
-            {1, static_cast<JBro::UInt32>(TransformOffset + offsetof(SpriteTransform2D, linear)), VertexFormat::Float4},
-            {2, static_cast<JBro::UInt32>(TransformOffset + offsetof(SpriteTransform2D, translation)), VertexFormat::Float3},
-            {3, static_cast<JBro::UInt32>(offsetof(GpuSpriteInstance, tint)), VertexFormat::UByte4Norm},
-            {4, static_cast<JBro::UInt32>(offsetof(GpuSpriteInstance, uvRect)), VertexFormat::UShort4Norm}};
-        const VertexBufferLayoutDesc spriteLayouts[] = {
-            {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {quadAttributes, 1}},
-            {static_cast<JBro::UInt32>(sizeof(GpuSpriteInstance)), VertexStepMode::Instance, {spriteAttributes, 4}}};
+        SpriteVertexLayout spriteLayout;
+        MakeSpriteVertexLayout(spriteLayout);
 
         GraphicsPipelineDesc spriteDesc;
         if (false == ApplyShader(spriteDesc, BuiltinShader::Sprite, m_config.api, sizeof(Matrix4x4)))
         {
             return false;
         }
-        spriteDesc.vertexBuffers = {spriteLayouts, 2};
+        spriteDesc.vertexBuffers = {spriteLayout.buffers, 2};
         spriteDesc.colorFormats = {colorFormats, 1};
         spriteDesc.blend = BlendMode::Alpha;
         spriteDesc.cull = CullMode::None;
@@ -3442,8 +3783,7 @@ namespace JBro
 
     Bool Renderer::CreatePostProcessResources()
     {
-        // 효과의 상수는 패스마다 float4 몇 개다. 한 프레임에 효과가 상한만큼 와도 남는 크기다.
-        if (m_device == nullptr || false == m_postConstants.Create(*m_device, 64 * 1024)
+        if (m_device == nullptr || (false == m_postConstants.IsCreated() && false == m_postConstants.Create(*m_device, PostConstantRingBytes))
             || false == CreateScenePipelines(PostProcessHdrFormat, m_scene[HdrScene]))
         {
             return false;
@@ -3499,7 +3839,6 @@ namespace JBro
             }
         }
         DestroyScenePipelines(m_scene[HdrScene]);
-        m_postConstants.Destroy();
     }
 
     Bool Renderer::PlanPostProcess(const ViewPacket& view, PostPlan& plan)
@@ -3800,6 +4139,22 @@ namespace JBro
         data.renderer = this;
         data.program = desc.program;
         data.external = desc.externalTexture;
+        // 머티리얼로 그리는 패스(D-347). 후처리 자리의 것이 아니거나 죽은 핸들이면 그대로 옮긴다.
+        if (desc.material.generation != 0)
+        {
+            const UInt32 material = FindMaterialSlot(desc.material);
+            if (material != 0 && m_materials[(material - 1).Get()].domain == MaterialDomain::PostProcess)
+            {
+                data.material = material;
+            }
+            else
+            {
+                ++m_currentStats.staleMaterialCount;
+                data.program = PostProcessProgram::Copy;
+            }
+            data.external = {};
+            data.premultiplied = builder.m_premultiplied;
+        }
         if (desc.inputCount == 0)
         {
             data.inputs[0] = builder.m_input;
@@ -3829,8 +4184,9 @@ namespace JBro
             data.scissor = builder.m_scissor;
         }
         data.scene = SceneIndexOf(format);
-        data.constantBytes = desc.constants.size;
-        if (desc.constants.size != 0)
+        data.targetExtent = whole ? desc.outputExtent : builder.m_extent;
+        data.constantBytes = desc.material.generation != 0 ? UInt32(0) : desc.constants.size;
+        if (data.constantBytes != 0)
         {
             std::memcpy(data.constants, desc.constants.data, desc.constants.size.Get());
         }
@@ -3872,6 +4228,17 @@ namespace JBro
         const std::size_t program = static_cast<std::size_t>(pass.program);
         commands.SetViewport(pass.viewport);
         commands.SetScissor(pass.scissor);
+        if (pass.material != 0)
+        {
+            // 머티리얼 셰이더(D-347): 엔진 값은 푸시 상수, 입력은 t0, 머티리얼의 텍스처·샘플러·파라미터는 그 뒤다.
+            const MaterialResource& material = renderer.m_materials[(pass.material - 1).Get()];
+            const MaterialEngineValues engine = renderer.MakeMaterialEngineValues(pass.viewport, pass.targetExtent, pass.premultiplied);
+            return commands.SetGraphicsPipeline(material.pipelines[pass.scene.Get()])
+                && commands.SetGraphicsConstants({reinterpret_cast<const std::byte*>(&engine), static_cast<JBro::UInt32>(sizeof(engine))})
+                && commands.SetTexture(0, context.GetTexture(pass.inputs[0]))
+                && renderer.BindMaterialResources(commands, material, renderer.m_linearSampler)
+                && commands.DrawInstanced(3, 1, 0, 0);
+        }
         if (false == commands.SetGraphicsPipeline(renderer.m_postPipelines[pass.scene.Get()][program]))
         {
             return false;

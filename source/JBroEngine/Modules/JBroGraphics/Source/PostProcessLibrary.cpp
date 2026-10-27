@@ -3,6 +3,7 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/ColorLutFile.h>
 #include <JBro/Core/Log.h>
+#include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Graphics/Renderer.h>
 
@@ -23,11 +24,12 @@ namespace JBro
         Shutdown();
     }
 
-    void PostProcessLibrary::Initialize(AssetSystem* assets, Renderer* renderer)
+    void PostProcessLibrary::Initialize(AssetSystem* assets, Renderer* renderer, MaterialLibrary* materials)
     {
         Shutdown();
         m_assets = assets;
         m_renderer = renderer;
+        m_materials = materials;
     }
 
     void PostProcessLibrary::Shutdown()
@@ -62,6 +64,7 @@ namespace JBro
         m_luts = {};
         m_assets = nullptr;
         m_renderer = nullptr;
+        m_materials = nullptr;
     }
 
     UInt32 PostProcessLibrary::GetLutTextureCount() const noexcept
@@ -89,6 +92,8 @@ namespace JBro
         profile.blocks.Clear();
         profile.luts.Clear();
         profile.lutGenerations.Clear();
+        profile.materials.Clear();
+        profile.rendererMaterials.Clear();
     }
 
     Bool PostProcessLibrary::IsStale(const Profile& profile) const
@@ -102,6 +107,14 @@ namespace JBro
         {
             const ColorLutData* lut = m_assets->GetColorLut(profile.luts[at]);
             if (lut == nullptr || lut->dataGeneration != profile.lutGenerations[at])
+            {
+                return true;
+            }
+        }
+        for (std::size_t at = 0; at < profile.materials.Size(); ++at)
+        {
+            const AssetHandle current = m_materials != nullptr ? m_materials->Resolve(profile.materials[at]) : AssetHandle{};
+            if (false == SameHandle(current, profile.rendererMaterials[at]))
             {
                 return true;
             }
@@ -211,6 +224,16 @@ namespace JBro
                     lookup->lutDomainMax = {lut->lut.domainMax[0], lut->lut.domainMax[1], lut->lut.domainMax[2]};
                     profile.luts.Add(lookup->colorLut);
                     profile.lutGenerations.Add(lut->dataGeneration);
+                }
+            }
+            if (entry.type == PostProcessEffects::Material)
+            {
+                MaterialEffect* material = reinterpret_cast<MaterialEffect*>(block);
+                material->rendererMaterial = m_materials != nullptr ? m_materials->Resolve(material->material) : AssetHandle{};
+                if (material->material.generation != 0)
+                {
+                    profile.materials.Add(material->material);
+                    profile.rendererMaterials.Add(material->rendererMaterial);
                 }
             }
             PostProcessEntry resolved;

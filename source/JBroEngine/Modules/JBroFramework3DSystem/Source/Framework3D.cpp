@@ -61,7 +61,8 @@ namespace JBro
                 Shutdown();
                 return false;
             }
-            m_postProcess.Initialize(context.assets, context.renderer);
+            m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
+            m_postProcess.Initialize(context.assets, context.renderer, &m_materials);
             m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
             m_volumes.Reserve(MaxVolumes);
             m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
@@ -149,6 +150,8 @@ namespace JBro
 
         m_canvas->BeginFrame();
         m_renderWorld.BeginFrame();
+        // 바뀐 머티리얼을 다시 짓는다(D-347). 렌더러 프레임 밖이다.
+        m_materials.Update();
         // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-242). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
         // 한 프레임 진행은 3D 에 켤 스크립트·물리가 아직 없어 시간만 한 스텝 간다.
         const Bool simulating = m_simulationEnabled || m_context.time->IsStepFrame();
@@ -292,6 +295,7 @@ namespace JBro
         m_canvas.Reset();
         m_meshes.Shutdown();
         m_postProcess.Shutdown();
+        m_materials.Shutdown();
         m_renderWorld = {};
         m_context = {};
         m_initialized = false;

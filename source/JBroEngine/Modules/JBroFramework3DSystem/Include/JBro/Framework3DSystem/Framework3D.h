@@ -9,6 +9,7 @@
 #include <JBro/Framework3D/Internal/SystemContext.h>
 #include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessLibrary.h>
 #include <JBro/Graphics/PostProcessMixer.h>
 #include <JBro/Host/PostProcessSystem.h>
@@ -57,6 +58,8 @@ namespace JBro
         Array<AssetHandle> m_canvasAssets;
         RenderWorld3D m_renderWorld;
         MeshLibrary m_meshes;
+        // 후처리 효과 `Material` 의 머티리얼을 푼다(D-347). 메시의 머티리얼은 아직 보지 않는다.
+        MaterialLibrary m_materials;
         // 카메라의 후처리 프로필을 푼다(D-344).
         PostProcessLibrary m_postProcess;
         // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 2D 와 같다.

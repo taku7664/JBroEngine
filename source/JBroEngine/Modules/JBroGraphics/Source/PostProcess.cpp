@@ -359,6 +359,17 @@ namespace JBro
             return builder.AddPass(second);
         }
 
+        // 머티리얼(D-347). 렌더러의 머티리얼이 없으면 패스 서술이 그대로 옮기기로 남는다.
+        Bool AddMaterialPasses(PostProcessBuilder& builder, const void* parameters)
+        {
+            const MaterialEffect& effect = *static_cast<const MaterialEffect*>(parameters);
+            PostProcessPassDesc pass;
+            pass.name = "Material";
+            pass.program = PostProcessProgram::Copy;
+            pass.material = effect.rendererMaterial;
+            return builder.AddPass(pass);
+        }
+
         const ExposureEffect DefaultExposure = {};
         const TonemapEffect DefaultTonemap = {};
         const BloomEffect DefaultBloom = {};
@@ -367,6 +378,7 @@ namespace JBro
         const BlurEffect DefaultBlur = {};
         const OutlineEffect DefaultOutline = {};
         const DropShadowEffect DefaultDropShadow = {};
+        const MaterialEffect DefaultMaterial = {};
 
         struct RegistryStorage
         {
@@ -497,6 +509,16 @@ namespace JBro
                 shadow.defaults = &DefaultDropShadow;
                 shadow.addPasses = &AddDropShadowPasses;
                 AddTo(built, shadow);
+
+                PostProcessEffectType material;
+                material.name = "Material";
+                material.stage = PostProcessStage::AfterTonemap;
+                material.onLayer = true;
+                material.parameters = &GetPropertyTable<MaterialEffect>();
+                material.blockSize = static_cast<JBro::UInt32>(sizeof(MaterialEffect));
+                material.defaults = &DefaultMaterial;
+                material.addPasses = &AddMaterialPasses;
+                AddTo(built, material);
                 return built;
             }();
             return storage;
