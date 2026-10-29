@@ -1130,8 +1130,8 @@ namespace
         context.renderer = &renderer;
         Check(framework.Initialize(context), "framework must bind a ready renderer");
         auto* canvas = framework.GetCanvas();
-        Check(canvas->GetSystems().GetSystemCount() == 9,
-            "canvas must own the nine implemented default systems (text since D-200, buttons since D-237, 2D lights and shadow casters since D-291)");
+        Check(canvas->GetSystems().GetSystemCount() == 10,
+            "canvas must own the ten implemented default systems (text since D-200, buttons since D-237, 2D lights and shadow casters since D-291, masks since D-351)");
         auto* cameraObject = canvas->CreateObject("camera");
         auto* cameraTransform = canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
         cameraTransform->position = {2.0f, 3.0f};
