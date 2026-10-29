@@ -39,6 +39,8 @@
 #include <JBro/Framework2D/Handle/Collider2D.h>
 #include <JBro/Framework2D/Handle/DistanceJoint2D.h>
 #include <JBro/Framework2D/Handle/HingeJoint2D.h>
+#include <JBro/Framework2D/Handle/InputField2D.h>
+#include <JBro/Framework2D/Handle/Layout2D.h>
 #include <JBro/Framework2D/Handle/Light2D.h>
 #include <JBro/Framework2D/Handle/Mask2D.h>
 #include <JBro/Framework2D/Handle/ScrollView2D.h>

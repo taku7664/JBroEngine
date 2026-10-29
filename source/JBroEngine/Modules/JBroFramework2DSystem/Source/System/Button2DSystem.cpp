@@ -4,10 +4,12 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
@@ -15,10 +17,12 @@
 #include <JBro/Framework2DSystem/Rendering/ClipRect2D.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
+#include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/InputTypes/InputView.h>
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
+#include <JBro/Runtime/TextStore.h>
 
 #include <algorithm>
 #include <cmath>
@@ -64,7 +68,8 @@ namespace JBro::System
 
         enum class ButtonState : std::uint8_t { Normal, Hover, Pressed, Disabled };
 
-        ButtonState StateOf(const Component::Button2D& button)
+        // 게임패드·키보드로 받은 포커스가 있는 버튼은 호버와 같이 보인다(D-352) - 고른 것을 눈으로 알아야 한다.
+        ButtonState StateOf(const Component::Button2D& button, Bool focusVisible)
         {
             if (false == button.interactable)
             {
@@ -74,7 +79,7 @@ namespace JBro::System
             {
                 return ButtonState::Pressed;
             }
-            if (button.hovered)
+            if (button.hovered || (button.focused && focusVisible))
             {
                 return ButtonState::Hover;
             }
@@ -135,10 +140,10 @@ namespace JBro::System
             button.normalSprite = {};
         }
 
-        void ApplyTransition(Canvas& canvas, Component::Button2D& button, Object::GameObject* owner)
+        void ApplyTransition(Canvas& canvas, Component::Button2D& button, Object::GameObject* owner, Bool focusVisible)
         {
             Component::SpriteRenderer2D* graphic = TargetGraphic(canvas, button, owner);
-            const ButtonState state = StateOf(button);
+            const ButtonState state = StateOf(button, focusVisible);
             switch (button.transition)
             {
             case Component::ButtonTransition::ColorTint:
@@ -238,6 +243,61 @@ namespace JBro::System
             }
             return false;
         }
+
+        // **UTF-8**(D-352). 코드포인트 하나를 붙이고, 마지막 코드포인트를 뗀다. 글자 수는 코드포인트 수다.
+        void AppendCodePoint(String& text, UInt32 codePoint)
+        {
+            const std::uint32_t value = codePoint.Get();
+            if (value < 0x80)
+            {
+                text.push_back(static_cast<char>(value));
+            }
+            else if (value < 0x800)
+            {
+                text.push_back(static_cast<char>(0xC0 | (value >> 6)));
+                text.push_back(static_cast<char>(0x80 | (value & 0x3F)));
+            }
+            else if (value < 0x10000)
+            {
+                text.push_back(static_cast<char>(0xE0 | (value >> 12)));
+                text.push_back(static_cast<char>(0x80 | ((value >> 6) & 0x3F)));
+                text.push_back(static_cast<char>(0x80 | (value & 0x3F)));
+            }
+            else if (value < 0x110000)
+            {
+                text.push_back(static_cast<char>(0xF0 | (value >> 18)));
+                text.push_back(static_cast<char>(0x80 | ((value >> 12) & 0x3F)));
+                text.push_back(static_cast<char>(0x80 | ((value >> 6) & 0x3F)));
+                text.push_back(static_cast<char>(0x80 | (value & 0x3F)));
+            }
+        }
+
+        void RemoveLastCodePoint(String& text)
+        {
+            while (false == text.empty())
+            {
+                const unsigned char last = static_cast<unsigned char>(text.back());
+                text.pop_back();
+                // 이어지는 바이트(10xxxxxx)가 아니면 글자의 첫 바이트다.
+                if ((last & 0xC0) != 0x80)
+                {
+                    break;
+                }
+            }
+        }
+
+        UInt32 CountCodePoints(const String& text)
+        {
+            UInt32 count = 0;
+            for (const char character : text)
+            {
+                if ((static_cast<unsigned char>(character) & 0xC0) != 0x80)
+                {
+                    ++count;
+                }
+            }
+            return count;
+        }
     }
 
     Int32 Button2DSystem::GetExecutionOrder() const
@@ -283,6 +343,11 @@ namespace JBro::System
         m_pressed = InvalidInstanceId;
         m_pressedKind = WidgetKind::None;
         m_pointerOver = false;
+        m_focused = InvalidInstanceId;
+        m_focusedKind = WidgetKind::None;
+        m_padPressed = false;
+        m_stickX = 0.0f;
+        m_stickY = 0.0f;
         m_scrollCandidate = InvalidInstanceId;
         m_scrollDragging = false;
         m_dragDelta = {};
@@ -439,6 +504,13 @@ namespace JBro::System
         return false == ComputeClipRect2D(*m_canvas, &owner, clip) || ClipRectContains(clip, point);
     }
 
+    Bool Button2DSystem::WidgetPixel(Object::GameObject& owner, Float& pixelX, Float& pixelY) const
+    {
+        const auto* transform = m_canvas->FindComponentRaw<Component::Transform2D>(&owner);
+        const Layer* layer = owner.GetLayer();
+        return transform != nullptr && transform->worldValid && layer != nullptr && LayerToPixel(*layer, transform->worldPosition, pixelX, pixelY);
+    }
+
     void Button2DSystem::CallHook(Object::GameObject* object, Hook hook)
     {
         if (object == nullptr || false == object->IsActiveInHierarchy())
@@ -475,6 +547,9 @@ namespace JBro::System
                 break;
             case Hook::ValueChanged:
                 ScriptCallGuard::Call("OnValueChanged", [script] { script->OnValueChanged(); });
+                break;
+            case Hook::Submit:
+                ScriptCallGuard::Call("OnSubmit", [script] { script->OnSubmit(); });
                 break;
             case Hook::Click:
             default:
@@ -521,7 +596,188 @@ namespace JBro::System
         }
     }
 
-    void Button2DSystem::PlaceWidgets(Canvas& canvas)
+    void Button2DSystem::SetFocus(Object::GameObject* object, WidgetKind kind, Bool visible)
+    {
+        m_focused = object != nullptr ? object->GetInstanceId() : InvalidInstanceId;
+        m_focusedKind = object != nullptr ? kind : WidgetKind::None;
+        m_focusVisible = object != nullptr && visible;
+        m_padPressed = false;
+    }
+
+    void Button2DSystem::NavigateFocus(Int32 directionX, Int32 directionY)
+    {
+        // 지금 포커스의 자리. 없으면 왼쪽 위의 위젯부터다.
+        Float fromX = 0.0f;
+        Float fromY = 0.0f;
+        Bool hasFrom = false;
+        Object::GameObject* best = nullptr;
+        WidgetKind bestKind = WidgetKind::None;
+        Float bestScore = 0.0f;
+        const auto consider = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Bool active) {
+            if (owner == nullptr || false == active || false == interactable || false == owner->IsActiveInHierarchy()
+                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible())
+            {
+                return;
+            }
+            if (owner->GetInstanceId() == m_focused && kind == m_focusedKind)
+            {
+                hasFrom = WidgetPixel(*owner, fromX, fromY);
+                return;
+            }
+            Float x = 0.0f;
+            Float y = 0.0f;
+            if (false == WidgetPixel(*owner, x, y))
+            {
+                return;
+            }
+            Float score = 0.0f;
+            if (m_focused == InvalidInstanceId)
+            {
+                // 왼쪽 위가 먼저다 - 줄(y)이 먼저고 같은 줄에서는 왼쪽이다.
+                score = y * 4096.0f + x;
+            }
+            else
+            {
+                // 그 방향으로 간 거리에 옆으로 벗어난 거리를 두 배로 더한다. 뒤는 안 된다. 자리는 아래에서 채운다.
+                score = -1.0f;
+                (void)score;
+            }
+            struct Candidate { Object::GameObject* owner; WidgetKind kind; Float x; Float y; Float score; };
+            Candidate candidate{ owner, kind, x, y, score };
+            if (m_focused == InvalidInstanceId)
+            {
+                if (best == nullptr || candidate.score < bestScore)
+                {
+                    best = owner;
+                    bestKind = kind;
+                    bestScore = candidate.score;
+                }
+                return;
+            }
+            // 포커스가 있으면 두 번째 걸음에서 센다 - 지금 자리를 먼저 알아야 한다. 후보는 다시 돌며 본다.
+        };
+        const auto considerAll = [&]() {
+            m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button) {
+                consider(Internal::CanvasAccess::GetOwner(button), WidgetKind::Button, button.interactable, button.IsActiveComponent());
+            });
+            m_canvas->ForEach<Component::Toggle2D>([&](Component::Toggle2D& toggle) {
+                consider(Internal::CanvasAccess::GetOwner(toggle), WidgetKind::Toggle, toggle.interactable, toggle.IsActiveComponent());
+            });
+            m_canvas->ForEach<Component::Slider2D>([&](Component::Slider2D& slider) {
+                consider(Internal::CanvasAccess::GetOwner(slider), WidgetKind::Slider, slider.interactable, slider.IsActiveComponent());
+            });
+            m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field) {
+                consider(Internal::CanvasAccess::GetOwner(field), WidgetKind::Field, field.interactable, field.IsActiveComponent());
+            });
+        };
+        considerAll();
+        if (m_focused == InvalidInstanceId)
+        {
+            SetFocus(best, bestKind, true);
+            return;
+        }
+        if (false == hasFrom)
+        {
+            // 포커스 위젯이 사라졌거나 자리를 모른다 - 비우고 다음에 왼쪽 위부터다.
+            SetFocus(nullptr, WidgetKind::None);
+            return;
+        }
+        // 두 번째 걸음: 방향의 가장 가까운 것.
+        best = nullptr;
+        const Float dirX = static_cast<JBro::Float>(directionX.Get());
+        const Float dirY = static_cast<JBro::Float>(directionY.Get());
+        const auto pick = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Bool active) {
+            if (owner == nullptr || false == active || false == interactable || false == owner->IsActiveInHierarchy()
+                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible()
+                || (owner->GetInstanceId() == m_focused && kind == m_focusedKind))
+            {
+                return;
+            }
+            Float x = 0.0f;
+            Float y = 0.0f;
+            if (false == WidgetPixel(*owner, x, y))
+            {
+                return;
+            }
+            const Float along = (x - fromX) * dirX + (y - fromY) * dirY;
+            if (along <= 0.5f)
+            {
+                return;
+            }
+            const Float across = std::fabs((x - fromX) * dirY - (y - fromY) * dirX);
+            const Float score = along + across * 2.0f;
+            if (best == nullptr || score < bestScore)
+            {
+                best = owner;
+                bestKind = kind;
+                bestScore = score;
+            }
+        };
+        m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button) {
+            pick(Internal::CanvasAccess::GetOwner(button), WidgetKind::Button, button.interactable, button.IsActiveComponent());
+        });
+        m_canvas->ForEach<Component::Toggle2D>([&](Component::Toggle2D& toggle) {
+            pick(Internal::CanvasAccess::GetOwner(toggle), WidgetKind::Toggle, toggle.interactable, toggle.IsActiveComponent());
+        });
+        m_canvas->ForEach<Component::Slider2D>([&](Component::Slider2D& slider) {
+            pick(Internal::CanvasAccess::GetOwner(slider), WidgetKind::Slider, slider.interactable, slider.IsActiveComponent());
+        });
+        m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field) {
+            pick(Internal::CanvasAccess::GetOwner(field), WidgetKind::Field, field.interactable, field.IsActiveComponent());
+        });
+        if (best != nullptr)
+        {
+            SetFocus(best, bestKind, true);
+        }
+    }
+
+    void Button2DSystem::TypeInto(Object::GameObject& owner, Component::InputField2D& field, InputView& input)
+    {
+        const KeyboardState& keyboard = input.Keyboard();
+        TextStore& store = TextStore::Get();
+        const ArrayView<const char> current = store.GetText(field.text);
+        m_textScratch.assign(current.Data() != nullptr ? current.Data() : "", current.Size());
+        Bool changed = false;
+        UInt32 count = CountCodePoints(m_textScratch);
+        for (UInt32 index = 0; index < keyboard.GetTextLength(); ++index)
+        {
+            const UInt32 codePoint = keyboard.GetText(index);
+            // 제어 글자(개행·탭 포함)는 글자가 아니다 - Enter 는 키로 본다.
+            if (codePoint < 0x20 || codePoint == 0x7F)
+            {
+                continue;
+            }
+            if (field.maxLength > 0 && count >= static_cast<JBro::UInt32>(field.maxLength.Get()))
+            {
+                break;
+            }
+            AppendCodePoint(m_textScratch, codePoint);
+            ++count;
+            changed = true;
+        }
+        if (keyboard.IsPressed(Key::Backspace) && false == m_textScratch.empty())
+        {
+            RemoveLastCodePoint(m_textScratch);
+            changed = true;
+        }
+        if (changed)
+        {
+            store.Assign(field.text, m_textScratch.data(), m_textScratch.size());
+            field.changed = true;
+            CallHook(&owner, Hook::ValueChanged);
+        }
+        if (keyboard.IsPressed(Key::Enter))
+        {
+            field.submitted = true;
+            CallHook(&owner, Hook::Submit);
+        }
+        if (keyboard.IsPressed(Key::Escape))
+        {
+            SetFocus(nullptr, WidgetKind::None);
+        }
+    }
+
+    void Button2DSystem::PlaceWidgets(Canvas& canvas, Float deltaTime)
     {
         // 슬라이더: 손잡이(자식 오브젝트)를 값의 자리에, 채우기 스프라이트의 비율을 값으로.
         canvas.ForEach<Component::Slider2D>([&](Component::Slider2D& slider)
@@ -554,11 +810,61 @@ namespace JBro::System
                 mark->visible = toggle.isOn;
             }
         });
+        // 글자 칸: 글자가 바뀌었으면 보이는 텍스트에 옮기고, 커서는 글자 끝에서 깜빡인다(D-352).
+        System::Text2DSystem* texts = canvas.GetSystems().FindSystem<System::Text2DSystem>();
+        canvas.ForEach<Component::InputField2D>([&](Component::InputField2D& field)
+        {
+            if (false == field.IsActiveComponent())
+            {
+                return;
+            }
+            TextStore& store = TextStore::Get();
+            const UInt32 revision = store.GetRevision(field.text);
+            auto* display = Internal::ComponentHandleAccess::ResolveAs<Component::Text2D>(field.display);
+            if (display != nullptr && revision != field.mirroredRevision)
+            {
+                const ArrayView<const char> text = store.GetText(field.text);
+                store.Assign(display->text, text.Data() != nullptr ? text.Data() : "", text.Size());
+                field.mirroredRevision = revision;
+            }
+            auto* caret = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.caret);
+            if (caret == nullptr)
+            {
+                return;
+            }
+            if (false == field.focused)
+            {
+                caret->visible = false;
+                field.blinkTime = 0.0f;
+                return;
+            }
+            field.blinkTime += deltaTime;
+            const Float rate = field.blinkRate;
+            caret->visible = rate <= 0.0f || std::fmod(field.blinkTime.Get(), rate.Get() * 2.0f) < rate.Get();
+            // 커서는 보이는 텍스트의 오른쪽 끝, 세로 가운데다(그 오브젝트의 로컬 - 커서는 그 자식이어야 한다).
+            Float minX = 0.0f;
+            Float minY = 0.0f;
+            Float maxX = 0.0f;
+            Float maxY = 0.0f;
+            Object::GameObject* caretObject = Internal::CanvasAccess::GetOwner(*caret);
+            auto* place = caretObject != nullptr ? canvas.FindComponentRaw<Component::Transform2D>(caretObject) : nullptr;
+            if (place != nullptr)
+            {
+                if (display != nullptr && texts != nullptr && texts->GetLocalBounds(display->GetInstanceId(), minX, minY, maxX, maxY))
+                {
+                    place->position = { maxX, (minY + maxY) * 0.5f };
+                }
+                else
+                {
+                    place->position = {};
+                }
+            }
+        });
     }
 
     void Button2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
-        PlaceWidgets(canvas);
+        PlaceWidgets(canvas, deltaTime);
         // 스크롤: 끄는 중이면 이번 프레임에 끈 양이 속도이고, 놓았으면 속도로 미끄러지다 멈춘다. 끝에 닿은 축은 속도가 0 이다.
         canvas.ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
         {
@@ -610,6 +916,17 @@ namespace JBro::System
         }
         const Pointer pointer = ReadPointer(input);
 
+        // 0. 스크립트가 글자 칸에 포커스를 줬으면 받는다(`focused` 를 참으로 쓴 것).
+        m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(field);
+            if (owner != nullptr && field.focused && field.IsActiveComponent()
+                && (owner->GetInstanceId() != m_focused || m_focusedKind != WidgetKind::Field))
+            {
+                SetFocus(owner, WidgetKind::Field);
+            }
+        });
+
         // 1. 포인터 아래의 가장 위 위젯, 그리고 지난 프레임의 호버·누름 오브젝트를 찾는다. 이번 프레임의 `clicked`·`changed` 는 여기서 지운다.
         struct Top
         {
@@ -625,6 +942,7 @@ namespace JBro::System
         Top top;
         Object::GameObject* hoveredBefore = nullptr;
         Object::GameObject* pressedBefore = nullptr;
+        Object::GameObject* focusedObject = nullptr;
         const auto consider = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Vector2 size, Vector2 offset, Bool active) {
             if (owner == nullptr)
             {
@@ -638,6 +956,10 @@ namespace JBro::System
             if (id == m_pressed && kind == m_pressedKind)
             {
                 pressedBefore = owner;
+            }
+            if (id == m_focused && kind == m_focusedKind && active && owner->IsActiveInHierarchy())
+            {
+                focusedObject = owner;
             }
             const Layer* layer = owner->GetLayer();
             // 꺼진 위젯·감춘 레이어는 없는 것이다. 꺼진 위젯(`interactable` 거짓)은 보이므로 포인터를 받는다.
@@ -684,6 +1006,12 @@ namespace JBro::System
             slider.changed = false;
             consider(Internal::CanvasAccess::GetOwner(slider), WidgetKind::Slider, slider.interactable, slider.size, slider.offset, slider.IsActiveComponent());
         });
+        m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field)
+        {
+            field.changed = false;
+            field.submitted = false;
+            consider(Internal::CanvasAccess::GetOwner(field), WidgetKind::Field, field.interactable, field.size, field.offset, field.IsActiveComponent());
+        });
         // 스크롤 뷰의 사각형은 같은 오브젝트의 마스크다. 안의 위젯이 위에 있으면 그쪽이 먼저고, 빈 곳이면 스크롤 뷰다.
         m_canvas->ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
         {
@@ -694,6 +1022,11 @@ namespace JBro::System
                 consider(owner, WidgetKind::Scroll, true, mask->size, mask->offset, scroll.IsActiveComponent() && mask->IsActiveComponent());
             }
         });
+        if (m_focused != InvalidInstanceId && focusedObject == nullptr)
+        {
+            // 포커스 위젯이 사라졌다.
+            SetFocus(nullptr, WidgetKind::None);
+        }
 
         // 2. 호버가 바뀌면 떠난 쪽이 먼저다. 들어옴·나감 훅은 버튼의 것이다.
         if (hoveredBefore != top.owner || m_hoveredKind != top.kind)
@@ -713,6 +1046,18 @@ namespace JBro::System
         // 3. 누르기·끌기·떼기. 누른 위젯은 포인터가 벗어나도 뗄 때까지 쥔다 - 떼는 자리가 그 위젯 위여야 누름이다.
         Object::GameObject* pressed = pressedBefore;
         WidgetKind pressedKind = pressedBefore != nullptr ? m_pressedKind : WidgetKind::None;
+        if (pointer.pressed)
+        {
+            // 누른 위젯이 포커스를 받는다. 빈 곳이나 스크롤 뷰의 빈 자리를 누르면 포커스가 없다(글자 칸은 키보드를 놓는다).
+            if (top.owner != nullptr && top.interactable && top.kind != WidgetKind::Scroll)
+            {
+                SetFocus(top.owner, top.kind);
+            }
+            else
+            {
+                SetFocus(nullptr, WidgetKind::None);
+            }
+        }
         if (pointer.pressed && top.owner != nullptr && top.interactable)
         {
             pressed = top.owner;
@@ -723,7 +1068,7 @@ namespace JBro::System
             m_lastPixelY = pointer.y;
             m_scrollDragging = false;
             m_dragDelta = {};
-            // 누른 것이 스크롤 뷰거나 그 안의 버튼·토글이면 끌기가 스크롤이 된다. 슬라이더는 제 끌기가 먼저다.
+            // 누른 것이 스크롤 뷰거나 그 안의 버튼·토글·글자 칸이면 끌기가 스크롤이 된다. 슬라이더는 제 끌기가 먼저다.
             Object::GameObject* scrollOwner = top.kind == WidgetKind::Scroll ? top.owner
                 : top.kind == WidgetKind::Slider ? nullptr : FindScrollAncestor(top.owner);
             m_scrollCandidate = scrollOwner != nullptr ? scrollOwner->GetInstanceId() : InvalidInstanceId;
@@ -853,16 +1198,124 @@ namespace JBro::System
             }
         }
 
-        // 4. 상태 필드와 전이. 훅이 위젯을 지웠을 수 있으니 다시 돈다.
+        // 4. 게임패드(D-352): 십자키·왼쪽 스틱이 포커스를 옮기고 `South` 가 누름이다. 슬라이더에 포커스가 있으면 좌우가 값이다.
+        // 어느 패드든 하나만 본다 - 연결된 것 모두의 합이다.
+        Bool usedGamepad = false;
+        {
+            Int32 directionX = 0;
+            Int32 directionY = 0;
+            Bool confirmPressed = false;
+            Bool confirmReleased = false;
+            Float stickX = 0.0f;
+            Float stickY = 0.0f;
+            for (UInt32 index = 0; index < MaxGamepads; ++index)
+            {
+                const GamepadState& pad = input.Gamepad(index);
+                if (false == pad.connected)
+                {
+                    continue;
+                }
+                if (pad.IsPressed(GamepadButton::DPadLeft)) { directionX = -1; }
+                if (pad.IsPressed(GamepadButton::DPadRight)) { directionX = 1; }
+                if (pad.IsPressed(GamepadButton::DPadUp)) { directionY = -1; }
+                if (pad.IsPressed(GamepadButton::DPadDown)) { directionY = 1; }
+                confirmPressed = confirmPressed || pad.IsPressed(GamepadButton::South);
+                confirmReleased = confirmReleased || pad.IsReleased(GamepadButton::South);
+                const Float x = pad.GetAxis(GamepadAxis::LeftX);
+                const Float y = pad.GetAxis(GamepadAxis::LeftY);
+                stickX = std::fabs(x) > std::fabs(stickX) ? x : stickX;
+                stickY = std::fabs(y) > std::fabs(stickY) ? y : stickY;
+            }
+            // 스틱은 문턱을 넘는 순간이 한 번이다(위가 +y 라 화면의 아래 방향과 반대다).
+            if (stickX >= StickThreshold && m_stickX < StickThreshold) { directionX = 1; }
+            if (stickX <= -StickThreshold && m_stickX > -StickThreshold) { directionX = -1; }
+            if (stickY >= StickThreshold && m_stickY < StickThreshold) { directionY = -1; }
+            if (stickY <= -StickThreshold && m_stickY > -StickThreshold) { directionY = 1; }
+            m_stickX = stickX;
+            m_stickY = stickY;
+
+            if (directionX != 0 || directionY != 0)
+            {
+                usedGamepad = true;
+                auto* slider = focusedObject != nullptr && m_focusedKind == WidgetKind::Slider
+                    ? m_canvas->FindComponentRaw<Component::Slider2D>(focusedObject) : nullptr;
+                if (slider != nullptr && directionX != 0)
+                {
+                    const Float value = Float::Clamp(slider->value + SliderStep * static_cast<JBro::Float>(directionX.Get()), 0.0f, 1.0f);
+                    if (value != slider->value)
+                    {
+                        slider->value = value;
+                        slider->changed = true;
+                        CallHook(focusedObject, Hook::ValueChanged);
+                    }
+                }
+                else
+                {
+                    NavigateFocus(directionX, directionY);
+                }
+            }
+            if (confirmPressed && focusedObject != nullptr)
+            {
+                usedGamepad = true;
+                m_padPressed = true;
+                if (m_focusedKind == WidgetKind::Button)
+                {
+                    CallHook(focusedObject, Hook::Down);
+                }
+            }
+            if (confirmReleased && m_padPressed && focusedObject != nullptr)
+            {
+                usedGamepad = true;
+                m_padPressed = false;
+                if (m_focusedKind == WidgetKind::Button)
+                {
+                    CallHook(focusedObject, Hook::Up);
+                    if (auto* button = m_canvas->FindComponentRaw<Component::Button2D>(focusedObject))
+                    {
+                        button->clicked = true;
+                    }
+                    CallHook(focusedObject, Hook::Click);
+                }
+                else if (m_focusedKind == WidgetKind::Toggle)
+                {
+                    if (auto* toggle = m_canvas->FindComponentRaw<Component::Toggle2D>(focusedObject))
+                    {
+                        toggle->isOn = false == toggle->isOn;
+                        toggle->changed = true;
+                        CallHook(focusedObject, Hook::ValueChanged);
+                    }
+                }
+            }
+            // 포커스가 바뀌었을 수 있다 - 뒤의 상태 칸은 번호로 본다.
+        }
+
+        // 5. 키보드(D-352): 글자 칸에 포커스가 있으면 글자를 받고 키보드를 소비한다.
+        Bool usedKeyboard = false;
+        if (m_focused != InvalidInstanceId && m_focusedKind == WidgetKind::Field)
+        {
+            m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field)
+            {
+                Object::GameObject* owner = Internal::CanvasAccess::GetOwner(field);
+                if (owner != nullptr && owner->GetInstanceId() == m_focused && field.IsActiveComponent() && field.interactable)
+                {
+                    TypeInto(*owner, field, input);
+                    usedKeyboard = true;
+                }
+            });
+        }
+
+        // 6. 상태 필드와 전이. 훅이 위젯을 지웠을 수 있으니 다시 돈다.
         m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(button);
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
             button.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Button;
-            button.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Button;
+            button.pressed = id != InvalidInstanceId && ((id == m_pressed && m_pressedKind == WidgetKind::Button)
+                || (m_padPressed && id == m_focused && m_focusedKind == WidgetKind::Button));
+            button.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Button;
             if (button.IsActiveComponent())
             {
-                ApplyTransition(*m_canvas, button, owner);
+                ApplyTransition(*m_canvas, button, owner, m_focusVisible);
             }
             else
             {
@@ -875,6 +1328,7 @@ namespace JBro::System
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
             toggle.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Toggle;
             toggle.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Toggle;
+            toggle.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Toggle;
         });
         m_canvas->ForEach<Component::Slider2D>([&](Component::Slider2D& slider)
         {
@@ -882,15 +1336,30 @@ namespace JBro::System
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
             slider.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Slider;
             slider.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Slider;
+            slider.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Slider;
+        });
+        m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(field);
+            const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
+            field.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Field;
         });
 
-        // 5. 위젯 위거나 쥐고 있으면 그 장치를 아래에서 지운다. 입력은 막지 않는다 - 키보드·게임패드는 지나간다.
+        // 7. 위젯 위거나 쥐고 있으면 그 장치를 아래에서 지운다. 입력은 막지 않는다 - UI 가 쓴 게임패드·키보드만 지운다.
         m_pointerOver = top.owner != nullptr || m_pressed != InvalidInstanceId;
         // 둘 다 지운다 - 터치를 마우스로도 흉내 내는 플랫폼에서 같은 손가락이 마우스로 새어 나가지 않게.
         if (m_pointerOver)
         {
             input.Consume(InputDevice::Mouse);
             input.Consume(InputDevice::Touch);
+        }
+        if (usedGamepad)
+        {
+            input.Consume(InputDevice::Gamepad);
+        }
+        if (usedKeyboard)
+        {
+            input.Consume(InputDevice::Keyboard);
         }
         return InputResult::Pass;
     }

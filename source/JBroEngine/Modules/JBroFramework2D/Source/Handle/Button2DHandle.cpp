@@ -45,6 +45,12 @@ namespace JBro::Handle
 
 #undef JBRO_BUTTON2D_ACCESSOR
 
+    Bool Button2D::GetFocused() const
+    {
+        const Component::Button2D* component = Resolve("GetFocused");
+        return component != nullptr ? component->focused : Bool(false);
+    }
+
     Bool Button2D::GetHovered() const
     {
         const Component::Button2D* component = Resolve("GetHovered");

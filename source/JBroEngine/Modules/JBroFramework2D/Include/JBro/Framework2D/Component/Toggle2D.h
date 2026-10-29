@@ -42,5 +42,6 @@ namespace JBro::Component
         JBRO_FIELD(Bool, hovered, NoSerialize() | ReadOnly() | Category("State")) = false;
         JBRO_FIELD(Bool, pressed, NoSerialize() | ReadOnly() | Category("State")) = false;
         JBRO_FIELD(Bool, changed, NoSerialize() | ReadOnly() | Category("State")) = false;
+        JBRO_FIELD(Bool, focused, NoSerialize() | ReadOnly() | Category("State")) = false;
     };
 }

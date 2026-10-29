@@ -60,6 +60,7 @@ namespace JBro::Handle
         AssetHandle GetDisabledSprite() const;
         void SetDisabledSprite(AssetHandle value);
         Bool GetHovered() const;
+        Bool GetFocused() const;
         Bool GetPressed() const;
 
         // 버튼 위에서 눌렀다가 버튼 위에서 뗀 그 프레임에만 참이다.

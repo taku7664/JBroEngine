@@ -5,6 +5,7 @@
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
@@ -40,6 +41,13 @@ namespace JBro
             auto& mask = static_cast<Component::Mask2D&>(component);
             size = &mask.size;
             offset = &mask.offset;
+            return true;
+        }
+        if (typeId == MakeStableTypeId(Component::InputField2D::StaticTypeName()))
+        {
+            auto& field = static_cast<Component::InputField2D&>(component);
+            size = &field.size;
+            offset = &field.offset;
             return true;
         }
         return false;

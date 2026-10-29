@@ -2,6 +2,8 @@
 
 #include <JBro/AudioTypes/BuiltinAudioComponents.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
+#include <JBro/Framework2D/Component/Layout2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/ScrollView2D.h>
@@ -39,6 +41,8 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Toggle2D>() && all;
             all = RegisterBuiltinProperties<Mask2D>() && all;
             all = RegisterBuiltinProperties<ScrollView2D>() && all;
+            all = RegisterBuiltinProperties<InputField2D>() && all;
+            all = RegisterBuiltinProperties<Layout2D>() && all;
             all = RegisterBuiltinProperties<ShadowCaster2D>() && all;
             all = RegisterBuiltinProperties<Text2D>()           && all;
             all = RegisterBuiltinProperties<Button2D>()         && all;

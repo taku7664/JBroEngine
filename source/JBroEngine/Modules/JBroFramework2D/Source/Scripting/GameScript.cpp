@@ -49,4 +49,8 @@ namespace JBro
     void GameScript2D::OnValueChanged()
     {
     }
+
+    void GameScript2D::OnSubmit()
+    {
+    }
 }

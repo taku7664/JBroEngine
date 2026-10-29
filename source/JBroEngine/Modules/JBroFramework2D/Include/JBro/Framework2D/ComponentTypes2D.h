@@ -53,6 +53,8 @@ namespace JBro::Component
     enum class ButtonTransition : std::uint8_t { None, ColorTint, SpriteSwap };
     // 슬라이더의 어느 변이 0 인가(D-351).
     enum class SliderDirection : std::uint8_t { LeftToRight, RightToLeft, BottomToTop, TopToBottom };
+    // 레이아웃이 자식을 늘어놓는 방향이다(D-352). `Grid` 는 `columns` 열로 줄을 바꾼다.
+    enum class LayoutMode : std::uint8_t { Horizontal, Vertical, Grid };
 }
 
 namespace JBro
@@ -76,6 +78,10 @@ namespace JBro
         { Component::SliderDirection::RightToLeft, "RightToLeft" },
         { Component::SliderDirection::BottomToTop, "BottomToTop" },
         { Component::SliderDirection::TopToBottom, "TopToBottom" });
+    JBRO_DEFINE_ENUM_TYPE(Component::LayoutMode, "Component::LayoutMode",
+        { Component::LayoutMode::Horizontal, "Horizontal" },
+        { Component::LayoutMode::Vertical,   "Vertical" },
+        { Component::LayoutMode::Grid,       "Grid" });
 }
 
 namespace JBro::Component

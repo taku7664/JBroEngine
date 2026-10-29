@@ -40,6 +40,12 @@ namespace JBro::Handle
 
 #undef JBRO_SLIDER2D_ACCESSOR
 
+    Bool Slider2D::GetFocused() const
+    {
+        const Component::Slider2D* component = Resolve("GetFocused");
+        return component != nullptr ? component->focused : Bool(false);
+    }
+
     Bool Slider2D::GetHovered() const
     {
         const Component::Slider2D* component = Resolve("GetHovered");

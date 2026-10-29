@@ -38,6 +38,12 @@ namespace JBro::Handle
 
 #undef JBRO_TOGGLE2D_ACCESSOR
 
+    Bool Toggle2D::GetFocused() const
+    {
+        const Component::Toggle2D* component = Resolve("GetFocused");
+        return component != nullptr ? component->focused : Bool(false);
+    }
+
     Bool Toggle2D::GetHovered() const
     {
         const Component::Toggle2D* component = Resolve("GetHovered");

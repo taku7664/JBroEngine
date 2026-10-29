@@ -54,12 +54,14 @@ namespace
         // 개수를 적어 두면 필드를 더하거나 지울 때 테스트가 먼저 운다.
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
-        Check(Table("Component::Button2D").count == 20,
-            "Button2D declares twenty fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, three states and the swap latch");
-        Check(Table("Component::Slider2D").count == 10, "Slider2D declares ten fields - the rect, interactable, direction, value, handle, fill and three states (D-351)");
+        Check(Table("Component::Button2D").count == 21,
+            "Button2D declares twenty-one fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, four states and the swap latch");
+        Check(Table("Component::InputField2D").count == 13, "InputField2D declares thirteen fields - the rect, interactable, text, display, caret, maxLength, blinkRate, three states and two hidden values (D-352)");
+        Check(Table("Component::Layout2D").count == 8, "Layout2D declares eight fields - mode, cell, spacing, padding, columns, pivot and the block size (D-352)");
+        Check(Table("Component::Slider2D").count == 11, "Slider2D declares eleven fields - the rect, interactable, direction, value, handle, fill and four states (D-351, focused of D-352)");
         Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
         Check(Table("Component::ScrollView2D").count == 8, "ScrollView2D declares eight fields - content, its size, two axes, sensitivity, deceleration and two states (D-351)");
-        Check(Table("Component::Toggle2D").count == 8, "Toggle2D declares eight fields - the rect, interactable, isOn, checkmark and three states (D-351)");
+        Check(Table("Component::Toggle2D").count == 9, "Toggle2D declares nine fields - the rect, interactable, isOn, checkmark and four states (D-351, focused of D-352)");
         Check(Table("Component::Camera2D").count == 9, "Camera2D declares nine fields - pixelsPerUnit of D-239, then the post-process profile pair of D-344");
         Check(Table("Component::SpriteRenderer2D").count == 17,
             "SpriteRenderer2D declares seventeen fields - the hidden drawSequence of D-296, then drawMode, fillAmount and fillOrigin of D-351");

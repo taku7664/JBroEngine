@@ -44,6 +44,7 @@ namespace JBro::Handle
         SpriteRenderer2D GetFill() const;
         void SetFill(SpriteRenderer2D value);
         Bool GetHovered() const;
+        Bool GetFocused() const;
         Bool GetPressed() const;
 
         // 포인터가 값을 바꾼 그 프레임에만 참이다.

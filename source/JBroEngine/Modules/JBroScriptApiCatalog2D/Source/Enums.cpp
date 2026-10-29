@@ -44,6 +44,14 @@ void AddEnums(ApiCatalog& catalog)
     }
     }
     {
+    auto& type = AddType(catalog, "LayoutMode", "JBro::Component::LayoutMode", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::LayoutMode>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
     auto& type = AddType(catalog, "SliderDirection", "JBro::Component::SliderDirection", ApiTypeKind::Enum);
     const auto& descriptor = TypeDescriptorOf<Component::SliderDirection>::Get();
     for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)

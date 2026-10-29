@@ -66,6 +66,8 @@ namespace JBro::Component
         JBRO_FIELD(Bool, hovered, NoSerialize() | ReadOnly() | Category("State")) = false;
         JBRO_FIELD(Bool, pressed, NoSerialize() | ReadOnly() | Category("State")) = false;
         JBRO_FIELD(Bool, clicked, NoSerialize() | ReadOnly() | Category("State")) = false;
+        // 포커스(D-352) - 게임패드·키보드가 가리키는 위젯이다. 호버와 같이 보인다.
+        JBRO_FIELD(Bool, focused, NoSerialize() | ReadOnly() | Category("State")) = false;
 
         // `SpriteSwap` 이 대상의 스프라이트를 바꾸기 전에 떠 둔 보통 스프라이트다(기존 엔진의 normal 래치). `swapped` 가 참인 동안만 뜻이 있다.
         JBRO_FIELD(AssetHandle, normalSprite, NoSerialize() | ReadOnly() | Hidden());

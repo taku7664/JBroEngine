@@ -361,6 +361,10 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Button2D::*)() const>(&Handle::Button2D::GetFocused)>("GetFocused", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareFunction<static_cast<Bool (Handle::Button2D::*)() const>(&Handle::Button2D::GetPressed)>("GetPressed", Parameters());
         type.Members.Add(std::move(member));
     }
@@ -430,6 +434,10 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Button2D::GetHovered>("hovered");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Button2D::GetFocused>("focused");
         type.Members.Add(std::move(member));
     }
     {
@@ -536,6 +544,10 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetFocused)>("GetFocused", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareFunction<static_cast<Bool (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetPressed)>("GetPressed", Parameters());
         type.Members.Add(std::move(member));
     }
@@ -585,6 +597,10 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Slider2D::GetHovered>("hovered");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetFocused>("focused");
         type.Members.Add(std::move(member));
     }
     {
@@ -671,6 +687,10 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetFocused)>("GetFocused", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareFunction<static_cast<Bool (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetPressed)>("GetPressed", Parameters());
         type.Members.Add(std::move(member));
     }
@@ -712,6 +732,10 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Toggle2D::GetHovered>("hovered");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetFocused>("focused");
         type.Members.Add(std::move(member));
     }
     {
@@ -914,6 +938,314 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::ScrollView2D::GetVelocity>("velocity");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "InputField2D", "JBro::Handle::InputField2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Bool)>(&Handle::InputField2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetSize)>("GetSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Vector2)>(&Handle::InputField2D::SetSize)>("SetSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetOffset)>("GetOffset", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Vector2)>(&Handle::InputField2D::SetOffset)>("SetOffset", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetInteractable)>("GetInteractable", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Bool)>(&Handle::InputField2D::SetInteractable)>("SetInteractable", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<const char* (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetText)>("GetText", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(const char*)>(&Handle::InputField2D::SetText)>("SetText", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::Text2D (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetDisplay)>("GetDisplay", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Handle::Text2D)>(&Handle::InputField2D::SetDisplay)>("SetDisplay", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::SpriteRenderer2D (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetCaret)>("GetCaret", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Handle::SpriteRenderer2D)>(&Handle::InputField2D::SetCaret)>("SetCaret", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetMaxLength)>("GetMaxLength", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Int32)>(&Handle::InputField2D::SetMaxLength)>("SetMaxLength", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetBlinkRate)>("GetBlinkRate", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Float)>(&Handle::InputField2D::SetBlinkRate)>("SetBlinkRate", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetFocused)>("GetFocused", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Bool)>(&Handle::InputField2D::SetFocused)>("SetFocused", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetChanged)>("GetChanged", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetSubmitted)>("GetSubmitted", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::IsEnabled, &Handle::InputField2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetSize, &Handle::InputField2D::SetSize>("size");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetOffset, &Handle::InputField2D::SetOffset>("offset");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetInteractable, &Handle::InputField2D::SetInteractable>("interactable");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetText, &Handle::InputField2D::SetText>("text");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetDisplay, &Handle::InputField2D::SetDisplay>("display");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetCaret, &Handle::InputField2D::SetCaret>("caret");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetMaxLength, &Handle::InputField2D::SetMaxLength>("maxLength");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetBlinkRate, &Handle::InputField2D::SetBlinkRate>("blinkRate");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetFocused, &Handle::InputField2D::SetFocused>("focused");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetChanged>("changed");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetSubmitted>("submitted");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "Layout2D", "JBro::Handle::Layout2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Layout2D::*)() const>(&Handle::Layout2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Layout2D::*)() const>(&Handle::Layout2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Bool)>(&Handle::Layout2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Component::LayoutMode (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetMode)>("GetMode", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Component::LayoutMode)>(&Handle::Layout2D::SetMode)>("SetMode", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetCellSize)>("GetCellSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Vector2)>(&Handle::Layout2D::SetCellSize)>("SetCellSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetSpacing)>("GetSpacing", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Vector2)>(&Handle::Layout2D::SetSpacing)>("SetSpacing", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetPadding)>("GetPadding", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Vector2)>(&Handle::Layout2D::SetPadding)>("SetPadding", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetColumns)>("GetColumns", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Int32)>(&Handle::Layout2D::SetColumns)>("SetColumns", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetPivot)>("GetPivot", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Vector2)>(&Handle::Layout2D::SetPivot)>("SetPivot", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetContentWidth)>("GetContentWidth", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetContentHeight)>("GetContentHeight", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::IsEnabled, &Handle::Layout2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetMode, &Handle::Layout2D::SetMode>("mode");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetCellSize, &Handle::Layout2D::SetCellSize>("cellSize");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetSpacing, &Handle::Layout2D::SetSpacing>("spacing");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetPadding, &Handle::Layout2D::SetPadding>("padding");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetColumns, &Handle::Layout2D::SetColumns>("columns");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetPivot, &Handle::Layout2D::SetPivot>("pivot");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetContentWidth>("contentWidth");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetContentHeight>("contentHeight");
         type.Members.Add(std::move(member));
     }
     }
