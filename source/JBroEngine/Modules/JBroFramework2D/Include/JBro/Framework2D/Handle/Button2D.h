@@ -1,5 +1,8 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Framework2D/ComponentTypes2D.h>
+#include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/ComponentHandleReflection.h>
 #include <JBro/Types/Bool.h>
@@ -20,6 +23,7 @@ namespace JBro::Handle
 {
     // 스크립트가 보는 `Button2D` 다(D-302). 데이터는 엔진의 `Component::Button2D` 에 있고, 이것은 그 자리를 가리키는 24B 값이다.
     // 누를 수 있는 사각형이다(D-237). 이번 프레임의 상태(`GetHovered`·`GetPressed`·`GetClicked`)는 시스템이 채우고 읽기만 한다.
+    // 전이(`GetTransition`)는 대상 그림(`GetTargetGraphic`, 비면 같은 오브젝트의 스프라이트)의 색이나 스프라이트를 상태마다 바꾼다(D-351).
     // 무효한 핸들의 멤버는 경고를 남기고 아무것도 하지 않으며, 값을 돌려주는 멤버는 그 타입의 기본값을 준다.
     class Button2D final : public Internal::ComponentHandle
     {
@@ -36,8 +40,10 @@ namespace JBro::Handle
         void SetOffset(Vector2 value);
         Bool GetInteractable() const;
         void SetInteractable(Bool value);
-        Bool GetTintSprite() const;
-        void SetTintSprite(Bool value);
+        Component::ButtonTransition GetTransition() const;
+        void SetTransition(Component::ButtonTransition value);
+        SpriteRenderer2D GetTargetGraphic() const;
+        void SetTargetGraphic(SpriteRenderer2D value);
         Color GetNormalTint() const;
         void SetNormalTint(Color value);
         Color GetHoverTint() const;
@@ -46,6 +52,13 @@ namespace JBro::Handle
         void SetPressedTint(Color value);
         Color GetDisabledTint() const;
         void SetDisabledTint(Color value);
+        // `SpriteSwap` 의 상태 스프라이트다. 에셋은 이번 실행의 자리(`AssetHandle`)로 바꾼다 - 저장되는 id 는 캔버스 파일의 것이다.
+        AssetHandle GetHoverSprite() const;
+        void SetHoverSprite(AssetHandle value);
+        AssetHandle GetPressedSprite() const;
+        void SetPressedSprite(AssetHandle value);
+        AssetHandle GetDisabledSprite() const;
+        void SetDisabledSprite(AssetHandle value);
         Bool GetHovered() const;
         Bool GetPressed() const;
 

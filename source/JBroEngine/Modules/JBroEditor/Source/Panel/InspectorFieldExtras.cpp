@@ -9,9 +9,17 @@
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/FormLayout.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Asset/Asset.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
+#include <JBro/Editor/Command/ButtonRectEdit.h>
+#include <JBro/Editor/Gizmo/ButtonRectModel.h>
+#include <JBro/Editor/SpriteVisual.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Runtime/ComponentHandle.h>
+#include <JBro/Types/String.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -160,6 +168,50 @@ namespace JBro
             }
         }
 
+        // **스프라이트에 맞추기**(D-351 1 단계, 기존 엔진의 `ButtonRectFit`). 누름 사각형은 그림을 따라가지 않으므로(상태 그림이 작으면
+        // 들어왔다 나갔다 한다) 저작 때 한 번 복사한다. 대상은 전이 대상(`targetGraphic`, 비면 같은 오브젝트의 스프라이트)이고,
+        // 그 그림의 보이는 크기와 피벗으로 `size`·`offset` 을 커맨드 하나로 쓴다.
+        void DrawButtonFitSprite(Widget::FormLayout& layout, const FieldExtraContext& context)
+        {
+            const auto& button = *static_cast<const Component::Button2D*>(context.component);
+            ComponentAddress address;
+            Canvas* canvas = context.editor->GetCanvas();
+            if (canvas == nullptr || false == MakeComponentAddress(context.editor->GetObjectIds(), *context.owner, *context.component, address))
+            {
+                return;
+            }
+            const Component::SpriteRenderer2D* graphic = button.targetGraphic.IsValid()
+                ? Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(button.targetGraphic)
+                : canvas->FindComponentRaw<Component::SpriteRenderer2D>(context.owner);
+            Vector2 size;
+            Vector2 offset;
+            Bool fits = false;
+            if (graphic != nullptr)
+            {
+                // 그림이 다른 오브젝트에 있으면 그 오브젝트의 레이어가 픽셀인지 유닛인지를 정한다.
+                const Object::GameObject* graphicOwner = Internal::CanvasAccess::GetOwner(*graphic);
+                const Layer* layer = graphicOwner != nullptr ? graphicOwner->GetLayer() : context.owner->GetLayer();
+                const SpriteVisual visual = ResolveSpriteVisual(context.editor->GetAssetSystem(), *graphic, layer);
+                fits = ButtonRectModel::FitToSprite(visual.size, visual.pivot, size, offset);
+            }
+            layout.Row([]() {}, [&]() {
+                {
+                    Widget::DisableScope disabled(false == fits);
+                    // 글자는 번역이고 Id 는 고정이다 - 시험이 번역 글자에 기대지 않는다.
+                    const String label = String(Loc::TextOr(LocKeys::InspectorFitSprite, "Fit to Sprite")) + "###fit_sprite";
+                    if (Widget::Button(label.c_str()) && fits)
+                    {
+                        SetButtonRect(*context.editor, address, size, offset);
+                    }
+                }
+                if (false == fits)
+                {
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::InspectorFitSpriteNoSprite, "no sprite to fit"),
+                        ImGuiHoveredFlags_AllowWhenDisabled);
+                }
+            });
+        }
+
         struct Entry
         {
             ComponentTypeId typeId;
@@ -174,6 +226,7 @@ namespace JBro
             {MakeStableTypeId(Component::Camera2D::StaticTypeName()), "pixelsPerUnit", &DrawCameraPpuHint},
             {MakeStableTypeId(Component::Text2D::StaticTypeName()), "fontId", &DrawTextFontWarning},
             {MakeStableTypeId(Component::Text3D::StaticTypeName()), "fontId", &DrawText3DFontWarning},
+            {MakeStableTypeId(Component::Button2D::StaticTypeName()), "size", &DrawButtonFitSprite},
         };
         constexpr std::size_t EntryCount = sizeof(Entries) / sizeof(Entries[0]);
     }

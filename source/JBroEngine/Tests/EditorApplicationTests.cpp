@@ -44,6 +44,7 @@
 #include <JBro/Asset/MaterialFile.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -11524,6 +11525,106 @@ namespace
         editor.Shutdown();
     }
 
+    // **버튼 누름 사각형**(D-351 1 단계). 인스펙터에서 `Button2D` 를 고르면 캔버스 뷰에 사각형과 손잡이가 서고, 변 손잡이를 끌면 그 변만
+    // 움직이며(맞은편은 그대로) 되돌리기는 하나다. 가운데 손잡이는 통째로 옮긴다. `스프라이트에 맞추기` 는 그림의 크기와 피벗으로 사각형을 쓴다.
+    void TestTheCanvasViewEditsButtonRects()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; button rect handles not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ButtonRectProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* play = canvas->CreateObject("Play");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(play) != nullptr, "the button needs a transform");
+        auto* button = canvas->AttachComponent<JBro::Component::Button2D>(play);
+        Check(button != nullptr, "and a button");
+        button->size = {2.0f, 1.0f};
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(play);
+        Check(sprite != nullptr, "and a sprite to fit to");
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {3.0f, 1.5f};
+        sprite->pivotMode = JBro::Component::SpritePivotMode::Custom;
+        sprite->pivot = {0.0f, 0.0f};
+        editor.SetSelectedObject(play);
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
+            return spot;
+        };
+        const auto hoveredAt = [&](const Spot& spot) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+            Check(editor.Tick(Frame), "the editor must tick while hovering");
+            Check(editor.Tick(Frame), "and once more for the hover to settle");
+            return ImGui::GetHoveredID();
+        };
+        const auto closeTo = [](JBro::Float got, JBro::Float want) { return std::fabs(got - want) < 0.1f; };
+        const Spot middle = at(0.0f, 0.0f);
+        Check(at(1.0f, 0.0f).x - middle.x > 20, "a unit must span enough pixels to tell the handles apart");
+
+        // 인스펙터에서 트랜스폼을 고른 동안은 손잡이가 없다. 버튼 영역을 누르면 선다.
+        Check(hoveredAt(at(1.0f, 0.0f)) != LabelId(view->ID, "##button_right"), "with the transform chosen the button has no handles");
+        SelectInspectorComponent(editor, hwnd, 1, "Button2D");
+        Check(hoveredAt(at(1.0f, 0.0f)) == LabelId(view->ID, "##button_right"), "the right edge of the hit box has a handle");
+        Check(hoveredAt(at(0.0f, 0.5f)) == LabelId(view->ID, "##button_top"), "and so does the top edge");
+        Check(hoveredAt(at(-1.0f, 0.0f)) == LabelId(view->ID, "##button_left"), "and the left edge");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, at(1.0f, 0.0f), at(2.0f, 0.0f));
+        Check(closeTo(button->size.x, 3.0f) && closeTo(button->offset.x, 0.5f), "pulling the right edge out by a unit widens the box to 3 and keeps the left edge at -1");
+        Check(button->size.y == 1.0f && button->offset.y == 0.0f, "and leaves the height alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one undo step even though it wrote two fields");
+        Check(editor.GetSelectedObject() == play, "grabbing a handle does not change the selection");
+        Check(editor.GetCommands().Undo() && button->size.x == 2.0f && button->offset.x == 0.0f, "undo puts both fields back");
+
+        // 가운데 손잡이는 크기를 두고 통째로 옮긴다.
+        Check(hoveredAt(middle) == LabelId(view->ID, "##button_center"), "the middle of the box is the move handle");
+        DragTo(editor, hwnd, middle, at(0.5f, 0.5f));
+        Check(closeTo(button->offset.x, 0.5f) && closeTo(button->offset.y, 0.5f) && button->size.x == 2.0f && button->size.y == 1.0f,
+            "dragging the center moves the box without resizing it");
+        Check(editor.GetCommands().Undo() && button->offset.x == 0.0f && button->offset.y == 0.0f, "undo puts the offset back");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "button_rect");
+
+        // 스프라이트에 맞추기: 피벗 (0, 0) 의 3 x 1.5 그림은 원점에서 오른쪽 위로 뻗으므로 사각형은 (1.5, 0.75) 가운데의 3 x 1.5 다.
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(JBro::NameTable::Get().Intern("Component::Button2D"));
+        Check(table != nullptr, "the button must have registered its properties");
+        Spot fit;
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(*table, "size"), "###fit_sprite"), fit),
+            "the fit button sits under the size field");
+        ClickAt(editor, hwnd, fit);
+        Check(editor.Tick(Frame), "the editor must run the fit");
+        Check(closeTo(button->size.x, 3.0f) && closeTo(button->size.y, 1.5f) && closeTo(button->offset.x, 1.5f) && closeTo(button->offset.y, 0.75f),
+            "fitting copies the sprite's size and moves the box to the sprite's pivot");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "the fit is one undo step");
+        Check(editor.GetCommands().Undo() && button->size.x == 2.0f && button->offset.x == 0.0f, "undo puts the box back");
+        editor.Shutdown();
+    }
+
     // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글). 그림은 픽셀로
     // 그려 오는데 씬은 유닛으로 세므로, 스프라이트를 자리에 맞출 때 그 둘을 머리로 곱하고
     // 있어야 했다. 곱하는 값은 에셋 PPU 의 기본값(100)이다 - 프로젝트에는 PPU 가 없다(D-117).
@@ -18048,6 +18149,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheCanvasViewDrawsColliderShapes();
     TestTheCanvasViewEditsPolygonColliderPoints();
     TestTheCanvasViewDragsLightHandles();
+    TestTheCanvasViewEditsButtonRects();
     TestTheRenderGraphPanelShowsTheLastFrame();
     TestThePostProcessProfileIsEditedInTheInspector();
     TestALayerProfileOutlinesItsLayer();

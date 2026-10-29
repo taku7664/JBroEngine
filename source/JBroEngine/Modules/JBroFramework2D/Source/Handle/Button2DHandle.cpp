@@ -9,165 +9,41 @@ namespace JBro::Handle
         return static_cast<Component::Button2D*>(ResolveComponent(StaticTypeName(), operation));
     }
 
-    Vector2 Button2D::GetSize() const
-    {
-        const Component::Button2D* component = Resolve("GetSize");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->size;
+// 읽기·쓰기 멤버는 모두 같은 꼴이다 - 풀리지 않으면 기본값을 주거나 아무것도 하지 않는다.
+#define JBRO_BUTTON2D_ACCESSOR(Type, Getter, Setter, field)        \
+    Type Button2D::Getter() const                                   \
+    {                                                               \
+        const Component::Button2D* component = Resolve(#Getter);    \
+        if (component == nullptr)                                   \
+        {                                                           \
+            return {};                                              \
+        }                                                           \
+        return component->field;                                    \
+    }                                                               \
+    void Button2D::Setter(Type value)                               \
+    {                                                               \
+        Component::Button2D* component = Resolve(#Setter);          \
+        if (component == nullptr)                                   \
+        {                                                           \
+            return;                                                 \
+        }                                                           \
+        component->field = value;                                   \
     }
 
-    void Button2D::SetSize(Vector2 value)
-    {
-        Component::Button2D* component = Resolve("SetSize");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->size = value;
-    }
+    JBRO_BUTTON2D_ACCESSOR(Vector2, GetSize, SetSize, size)
+    JBRO_BUTTON2D_ACCESSOR(Vector2, GetOffset, SetOffset, offset)
+    JBRO_BUTTON2D_ACCESSOR(Bool, GetInteractable, SetInteractable, interactable)
+    JBRO_BUTTON2D_ACCESSOR(Component::ButtonTransition, GetTransition, SetTransition, transition)
+    JBRO_BUTTON2D_ACCESSOR(SpriteRenderer2D, GetTargetGraphic, SetTargetGraphic, targetGraphic)
+    JBRO_BUTTON2D_ACCESSOR(Color, GetNormalTint, SetNormalTint, normalTint)
+    JBRO_BUTTON2D_ACCESSOR(Color, GetHoverTint, SetHoverTint, hoverTint)
+    JBRO_BUTTON2D_ACCESSOR(Color, GetPressedTint, SetPressedTint, pressedTint)
+    JBRO_BUTTON2D_ACCESSOR(Color, GetDisabledTint, SetDisabledTint, disabledTint)
+    JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetHoverSprite, SetHoverSprite, hoverSprite)
+    JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetPressedSprite, SetPressedSprite, pressedSprite)
+    JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetDisabledSprite, SetDisabledSprite, disabledSprite)
 
-    Vector2 Button2D::GetOffset() const
-    {
-        const Component::Button2D* component = Resolve("GetOffset");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->offset;
-    }
-
-    void Button2D::SetOffset(Vector2 value)
-    {
-        Component::Button2D* component = Resolve("SetOffset");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->offset = value;
-    }
-
-    Bool Button2D::GetInteractable() const
-    {
-        const Component::Button2D* component = Resolve("GetInteractable");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->interactable;
-    }
-
-    void Button2D::SetInteractable(Bool value)
-    {
-        Component::Button2D* component = Resolve("SetInteractable");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->interactable = value;
-    }
-
-    Bool Button2D::GetTintSprite() const
-    {
-        const Component::Button2D* component = Resolve("GetTintSprite");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->tintSprite;
-    }
-
-    void Button2D::SetTintSprite(Bool value)
-    {
-        Component::Button2D* component = Resolve("SetTintSprite");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->tintSprite = value;
-    }
-
-    Color Button2D::GetNormalTint() const
-    {
-        const Component::Button2D* component = Resolve("GetNormalTint");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->normalTint;
-    }
-
-    void Button2D::SetNormalTint(Color value)
-    {
-        Component::Button2D* component = Resolve("SetNormalTint");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->normalTint = value;
-    }
-
-    Color Button2D::GetHoverTint() const
-    {
-        const Component::Button2D* component = Resolve("GetHoverTint");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->hoverTint;
-    }
-
-    void Button2D::SetHoverTint(Color value)
-    {
-        Component::Button2D* component = Resolve("SetHoverTint");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->hoverTint = value;
-    }
-
-    Color Button2D::GetPressedTint() const
-    {
-        const Component::Button2D* component = Resolve("GetPressedTint");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->pressedTint;
-    }
-
-    void Button2D::SetPressedTint(Color value)
-    {
-        Component::Button2D* component = Resolve("SetPressedTint");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->pressedTint = value;
-    }
-
-    Color Button2D::GetDisabledTint() const
-    {
-        const Component::Button2D* component = Resolve("GetDisabledTint");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->disabledTint;
-    }
-
-    void Button2D::SetDisabledTint(Color value)
-    {
-        Component::Button2D* component = Resolve("SetDisabledTint");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->disabledTint = value;
-    }
+#undef JBRO_BUTTON2D_ACCESSOR
 
     Bool Button2D::GetHovered() const
     {

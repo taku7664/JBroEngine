@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
+#include <JBro/Editor/Gizmo/ButtonRectModel.h>
 #include <JBro/Editor/Gizmo/LightGizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -27,6 +28,7 @@ namespace JBro
     }
     namespace Component
     {
+        class Button2D;
         class Text2D;
     }
 
@@ -174,6 +176,19 @@ namespace JBro
         void DrawLightEditor(const ViewRect& rect);
         // 손잡이 하나가 고친 필드를 커맨드 하나로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값(`before`)으로 되돌린 뒤 커맨드가 쓴다.
         void CommitLightField(const ComponentAddress& address, LightGizmoModel::Handle handle, const String& before);
+        // **버튼 누름 사각형**(D-351 1 단계). 인스펙터에서 고른 `Button2D` 의 사각형을 그리고, 변과 가운데의 손잡이를 끌어 `size`·`offset` 을 고친다.
+        // 라이트와 달리 UI 보기에서도 선다(버튼은 화면 레이어에 많다). 콜라이더를 고치는 동안은 없다.
+        struct ButtonTarget
+        {
+            Object::GameObject*     object = nullptr;
+            Component::Button2D*    button = nullptr;
+            ComponentAddress        address;
+            Matrix3x2               world;
+        };
+        Bool FindButtonTarget(ButtonTarget& target);
+        void DrawButtonEditor(const ViewRect& rect);
+        // 끌기 하나가 고친 `size`·`offset` 을 커맨드 하나(`CompoundCommand`)로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값으로 되돌린 뒤 커맨드가 쓴다.
+        void CommitButtonRect(const ComponentAddress& address, const String& beforeSize, const String& beforeOffset);
         void DrawGizmo(const ViewRect& rect);
         // 몸통 누르기를 무장하고, 고르지 않은 것을 눌러 끌면 그것을 고른다(D-298).
         void ArmBodyDrag(const ViewRect& rect);
@@ -277,6 +292,16 @@ namespace JBro
         String m_lightDragBefore;
         Float m_lightDragStart = 0.0f;
         Vector2 m_lightGrabWorld;
+        // 버튼 사각형 손잡이. 라이트와 같은 꼴이다 - 끄는 동안 필드에 바로 쓰고, 놓을 때 되돌린 뒤 커맨드로 쓴다.
+        ButtonRectModel::Handle m_buttonHover = ButtonRectModel::Handle::None;
+        ButtonRectModel::Handle m_buttonDragHandle = ButtonRectModel::Handle::None;
+        Bool m_buttonDragging = false;
+        ComponentAddress m_buttonDragAddress;
+        String m_buttonDragBeforeSize;
+        String m_buttonDragBeforeOffset;
+        Vector2 m_buttonDragStartOffset;
+        Vector2 m_buttonDragStartSize;
+        Vector2 m_buttonGrabLocal;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
         Array<Component::DistanceJoint2D*> m_distanceJointScratch;

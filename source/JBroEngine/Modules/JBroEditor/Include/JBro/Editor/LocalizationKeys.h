@@ -584,6 +584,9 @@ namespace JBro::LocKeys
     inline constexpr const char* SpriteViewerPickHint = "sprite_viewer.pick_hint";
     inline constexpr const char* InspectorPickFrame = "inspector.pick_frame";
     inline constexpr const char* InspectorPickFrameNoSprite = "inspector.pick_frame_no_sprite";
+    // 버튼의 스프라이트에 맞추기(D-351)
+    inline constexpr const char* InspectorFitSprite = "inspector.fit_sprite";
+    inline constexpr const char* InspectorFitSpriteNoSprite = "inspector.fit_sprite_no_sprite";
     inline constexpr const char* InspectorTextNoFont = "inspector.text_no_font";
     inline constexpr const char* InspectorCameraSizeUnused = "inspector.camera_size_unused";
     inline constexpr const char* InspectorCameraPpuUnused = "inspector.camera_ppu_unused";

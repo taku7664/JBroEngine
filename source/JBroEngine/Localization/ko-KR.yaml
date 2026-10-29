@@ -630,6 +630,8 @@ Entries:
   sprite_viewer.pick_hint: 시트에서 칸을 누르면 그 프레임이 스프라이트에 들어갑니다
   inspector.pick_frame: 프레임 고르기
   inspector.pick_frame_no_sprite: 스프라이트를 먼저 지정하세요
+  inspector.fit_sprite: 스프라이트에 맞추기
+  inspector.fit_sprite_no_sprite: 맞출 스프라이트가 없습니다
   inspector.text_no_font: "쓸 수 있는 폰트가 없어 이 텍스트는 그려지지 않습니다. fontId 를 지정하거나 프로젝트 설정에서 폰트를 추가하세요."
   inspector.camera_size_unused: "PixelPerfect 에서는 쓰지 않습니다. 보이는 범위는 기준 해상도와 pixelsPerUnit 으로 정해집니다."
   inspector.camera_ppu_unused: PixelPerfect 에서만 씁니다.

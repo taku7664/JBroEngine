@@ -44,6 +44,20 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 버튼이 상태를 그림에 어떻게 보이는가(D-351). `ColorTint` 는 대상 스프라이트의 `tint`, `SpriteSwap` 은 `sprite` 를 상태마다 바꾼다.
+    enum class ButtonTransition : std::uint8_t { None, ColorTint, SpriteSwap };
+}
+
+namespace JBro
+{
+    JBRO_DEFINE_ENUM_TYPE(Component::ButtonTransition, "Component::ButtonTransition",
+        { Component::ButtonTransition::None,       "None" },
+        { Component::ButtonTransition::ColorTint,  "ColorTint" },
+        { Component::ButtonTransition::SpriteSwap, "SpriteSwap" });
+}
+
+namespace JBro::Component
+{
     enum class CameraProjection2D { Orthographic, PixelPerfect };
 }
 

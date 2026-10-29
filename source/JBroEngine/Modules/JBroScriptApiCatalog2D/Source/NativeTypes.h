@@ -102,6 +102,7 @@ namespace JBro::ScriptApiCatalog2D::Internal
     JBRO_LANGUAGE_TYPE(GameScriptBase, "GameScriptBase")
     JBRO_LANGUAGE_TYPE(GameScript2D, "GameScript2D")
     JBRO_LANGUAGE_TYPE(Component::SpriteFlip, "SpriteFlip")
+    JBRO_LANGUAGE_TYPE(Component::ButtonTransition, "ButtonTransition")
     JBRO_LANGUAGE_TYPE(Component::SpriteSizeMode, "SpriteSizeMode")
     JBRO_LANGUAGE_TYPE(Component::SpritePivotMode, "SpritePivotMode")
     JBRO_LANGUAGE_TYPE(Component::CameraProjection2D, "CameraProjection2D")

@@ -678,6 +678,45 @@ namespace
             "a world point goes back to its pixel");
         Check(false == screen.ScreenToLayer({1.0f, 1.0f}, Handle::GameObject{}, point), "an empty handle has no layer");
 
+        // **전이 대상**(D-351): 다른 오브젝트의 그림을 가리키면 그쪽 색이 바뀌고 같은 오브젝트의 스프라이트는 그대로다.
+        Object::GameObject* face = canvas->CreateObject("face");
+        canvas->AttachComponent<Component::Transform2D>(face);
+        auto* faceSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(face);
+        playButton->targetGraphic = face->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
+        playSprite->tint = { 1.0f, 1.0f, 1.0f, 1.0f };
+        frameWith({MouseAt(180.0f, 10.0f)});
+        Check(playButton->hovered && faceSprite->tint.R == playButton->hoverTint.R && playSprite->tint.R == 1.0f,
+            "a target graphic takes the state tint instead of the button's own sprite");
+
+        // `SpriteSwap` 은 상태 스프라이트로 바꾸고 보통 상태에서 떠 둔 원래 스프라이트를 되돌린다. 비운 칸은 보통 그림 그대로다.
+        const auto sameAsset = [](AssetHandle a, AssetHandle b) { return a.index == b.index && a.generation == b.generation; };
+        playButton->transition = Component::ButtonTransition::SpriteSwap;
+        faceSprite->sprite = AssetHandle{ 3, 1 };
+        playButton->hoverSprite = AssetHandle{ 7, 1 };
+        playButton->disabledSprite = AssetHandle{ 9, 1 };
+        faceSprite->tint = { 0.25f, 0.25f, 0.25f, 1.0f };
+        frameWith({});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 7, 1 }) && playButton->swapped, "hovering swaps in the hover sprite");
+        Check(faceSprite->tint.R == 0.25f, "and a swap transition leaves the tint alone");
+        frameWith({HeldButton(MouseButton::Left)});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }) && false == playButton->swapped,
+            "an empty pressed slot shows the normal sprite again");
+        frameWith({Released(MouseButton::Left)});
+        frameWith({MouseAt(10.0f, 90.0f)});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }) && false == playButton->hovered, "leaving the button restores the normal sprite");
+        playButton->interactable = false;
+        frameWith({});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 9, 1 }), "a disabled button shows the disabled sprite even without the pointer");
+        playButton->interactable = true;
+        frameWith({});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }), "enabling it again restores the normal sprite");
+
+        // `None` 은 그림을 건드리지 않는다.
+        playButton->transition = Component::ButtonTransition::None;
+        frameWith({MouseAt(180.0f, 10.0f)});
+        Check(playButton->hovered && faceSprite->tint.R == 0.25f && sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }),
+            "a button without a transition changes neither tint nor sprite");
+
         framework.UnbindScriptContexts();
         framework.Shutdown();
         BindInputSystemContext({});

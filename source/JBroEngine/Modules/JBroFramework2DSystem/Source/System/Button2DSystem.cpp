@@ -11,6 +11,7 @@
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/InputTypes/InputView.h>
+#include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 
@@ -56,21 +57,113 @@ namespace JBro::System
             return layer.GetSpace() == LayerSpace::Screen;
         }
 
-        const Color& TintFor(const Component::Button2D& button)
+        enum class ButtonState : std::uint8_t { Normal, Hover, Pressed, Disabled };
+
+        ButtonState StateOf(const Component::Button2D& button)
         {
             if (false == button.interactable)
             {
-                return button.disabledTint;
+                return ButtonState::Disabled;
             }
             if (button.pressed)
             {
-                return button.pressedTint;
+                return ButtonState::Pressed;
             }
             if (button.hovered)
             {
-                return button.hoverTint;
+                return ButtonState::Hover;
             }
-            return button.normalTint;
+            return ButtonState::Normal;
+        }
+
+        const Color& TintFor(const Component::Button2D& button, ButtonState state)
+        {
+            switch (state)
+            {
+            case ButtonState::Disabled:
+                return button.disabledTint;
+            case ButtonState::Pressed:
+                return button.pressedTint;
+            case ButtonState::Hover:
+                return button.hoverTint;
+            case ButtonState::Normal:
+            default:
+                return button.normalTint;
+            }
+        }
+
+        // 상태 칸이 비었으면(해석되지 않았으면) 보통 그림 그대로다.
+        AssetHandle SpriteFor(const Component::Button2D& button, ButtonState state)
+        {
+            switch (state)
+            {
+            case ButtonState::Disabled:
+                return button.disabledSprite;
+            case ButtonState::Pressed:
+                return button.pressedSprite;
+            case ButtonState::Hover:
+                return button.hoverSprite;
+            case ButtonState::Normal:
+            default:
+                return {};
+            }
+        }
+
+        // 전이를 거는 그림이다(D-351). `targetGraphic` 이 비면 같은 오브젝트의 스프라이트다.
+        Component::SpriteRenderer2D* TargetGraphic(Canvas& canvas, Component::Button2D& button, Object::GameObject* owner)
+        {
+            if (button.targetGraphic.IsValid())
+            {
+                return Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(button.targetGraphic);
+            }
+            return owner != nullptr ? canvas.FindComponentRaw<Component::SpriteRenderer2D>(owner) : nullptr;
+        }
+
+        // 보통 상태로 돌아오면 떠 둔 스프라이트를 되돌린다. 전이가 `SpriteSwap` 이 아니게 되어도 같다.
+        void RestoreSwap(Component::Button2D& button, Component::SpriteRenderer2D* graphic)
+        {
+            if (button.swapped && graphic != nullptr)
+            {
+                graphic->sprite = button.normalSprite;
+            }
+            button.swapped = false;
+            button.normalSprite = {};
+        }
+
+        void ApplyTransition(Canvas& canvas, Component::Button2D& button, Object::GameObject* owner)
+        {
+            Component::SpriteRenderer2D* graphic = TargetGraphic(canvas, button, owner);
+            const ButtonState state = StateOf(button);
+            switch (button.transition)
+            {
+            case Component::ButtonTransition::ColorTint:
+                RestoreSwap(button, graphic);
+                if (graphic != nullptr)
+                {
+                    graphic->tint = TintFor(button, state);
+                }
+                break;
+            case Component::ButtonTransition::SpriteSwap:
+            {
+                const AssetHandle wanted = SpriteFor(button, state);
+                if (graphic == nullptr || wanted.generation == 0)
+                {
+                    RestoreSwap(button, graphic);
+                    break;
+                }
+                if (false == button.swapped)
+                {
+                    button.normalSprite = graphic->sprite;
+                    button.swapped = true;
+                }
+                graphic->sprite = wanted;
+                break;
+            }
+            case Component::ButtonTransition::None:
+            default:
+                RestoreSwap(button, graphic);
+                break;
+            }
         }
     }
 
@@ -388,12 +481,13 @@ namespace JBro::System
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
             button.hovered = id != InvalidInstanceId && id == m_hovered;
             button.pressed = id != InvalidInstanceId && id == m_pressed;
-            if (button.tintSprite && owner != nullptr && button.IsActiveComponent())
+            if (button.IsActiveComponent())
             {
-                if (auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(owner))
-                {
-                    sprite->tint = TintFor(button);
-                }
+                ApplyTransition(*m_canvas, button, owner);
+            }
+            else
+            {
+                RestoreSwap(button, TargetGraphic(*m_canvas, button, owner));
             }
         });
 

@@ -24,6 +24,9 @@
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Editor/Command/ButtonRectEdit.h>
+#include <JBro/Editor/SpriteVisual.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -691,6 +694,7 @@ namespace JBro
                 ImVec2(rect.left + rect.width, rect.top + rect.height), true);
             DrawPolygonEditor(rect);
             DrawLightEditor(rect);
+            DrawButtonEditor(rect);
             draw->PopClipRect();
         }
         DrawGizmo(rect);
@@ -1199,41 +1203,12 @@ namespace JBro
             // **에셋이 정한 크기를 에셋에게 묻는다**(D-148). `sizeMode` 가 `FromSprite` 면
             // 실제 크기는 스프라이트의 칸 픽셀을 그 에셋의 PPU 로 나눈 값이고, 그리는 쪽도
             // 그렇게 푼다(D-117). 선언된 `size` 를 대신 쓰면 집는 칸이 그림과 어긋나,
-            // 눈에 보이는 그림의 가장자리를 눌러도 잡히지 않는다.
-            Float widthUnits = sprite->size.x;
-            Float heightUnits = sprite->size.y;
-            Float pivotX = sprite->pivot.x;
-            Float pivotY = sprite->pivot.y;
-            const AssetSystem* assets = m_editor->GetAssetSystem();
-            const SpriteData* data =
-                assets != nullptr ? assets->GetSprite(sprite->sprite) : nullptr;
-            if (data != nullptr && false == data->frames.IsEmpty()
-                && data->options.pixelsPerUnit > 0.0f)
+            // 눈에 보이는 그림의 가장자리를 눌러도 잡히지 않는다. 셈은 `ResolveSpriteVisual` 하나다(D-351).
+            const SpriteVisual visual = ResolveSpriteVisual(m_editor->GetAssetSystem(), *sprite, object.GetLayer());
+            if (std::fabs(visual.size.x) > 0.001f && std::fabs(visual.size.y) > 0.001f)
             {
-                // 칸 번호가 넘치면 마지막 칸이다. 그리는 쪽(`SpriteLibrary::Resolve`)과 같다.
-                const std::size_t frameIndex =
-                    sprite->frameIndex < data->frames.Size()
-                        ? static_cast<std::size_t>(sprite->frameIndex.Get())
-                        : data->frames.Size() - 1;
-                const SpriteFrame& frame = data->frames[frameIndex];
-                if (sprite->sizeMode == Component::SpriteSizeMode::FromSprite)
-                {
-                    // 화면 레이어는 PPU 대신 픽셀이다 - 그리는 쪽과 같다(D-237).
-                    const Layer* layer = object.GetLayer();
-                    const Float ppu = layer != nullptr && layer->GetSpace() == LayerSpace::Screen ? Float(1.0f) : data->options.pixelsPerUnit;
-                    widthUnits = static_cast<JBro::Float>(frame.width) / ppu;
-                    heightUnits = static_cast<JBro::Float>(frame.height) / ppu;
-                }
-                if (sprite->pivotMode == Component::SpritePivotMode::FromSprite)
-                {
-                    pivotX = frame.pivotX;
-                    pivotY = frame.pivotY;
-                }
-            }
-            if (std::fabs(widthUnits) > 0.001f && std::fabs(heightUnits) > 0.001f)
-            {
-                enclose(-pivotX * widthUnits, -pivotY * heightUnits,
-                    (1.0f - pivotX) * widthUnits, (1.0f - pivotY) * heightUnits);
+                enclose(-visual.pivot.x * visual.size.x, -visual.pivot.y * visual.size.y,
+                    (1.0f - visual.pivot.x) * visual.size.x, (1.0f - visual.pivot.y) * visual.size.y);
             }
         }
 
@@ -2243,6 +2218,220 @@ namespace JBro
         }
     }
 
+    namespace
+    {
+        Vector2 ApplyMatrix3x2(const Matrix3x2& m, Vector2 point)
+        {
+            return { point.x * m.m11 + point.y * m.m21 + m.m31, point.x * m.m12 + point.y * m.m22 + m.m32 };
+        }
+
+        Bool InvertMatrix3x2(const Matrix3x2& m, Matrix3x2& inverse)
+        {
+            const double determinant = static_cast<double>(m.m11) * m.m22 - static_cast<double>(m.m12) * m.m21;
+            if (determinant == 0.0 || false == std::isfinite(determinant))
+            {
+                return false;
+            }
+            inverse.m11 = static_cast<JBro::Float>(m.m22 / determinant);
+            inverse.m12 = static_cast<JBro::Float>(-m.m12 / determinant);
+            inverse.m21 = static_cast<JBro::Float>(-m.m21 / determinant);
+            inverse.m22 = static_cast<JBro::Float>(m.m11 / determinant);
+            inverse.m31 = static_cast<JBro::Float>((static_cast<double>(m.m21) * m.m32 - static_cast<double>(m.m22) * m.m31) / determinant);
+            inverse.m32 = static_cast<JBro::Float>((static_cast<double>(m.m12) * m.m31 - static_cast<double>(m.m11) * m.m32) / determinant);
+            return true;
+        }
+
+        // 끌기 전 두 값으로 되돌린다. 끌던 버튼이 사라졌거나 다른 것을 골랐을 때와 커맨드를 올리기 직전에 쓴다.
+        void RestoreButtonRect(ComponentBase* component, const ComponentAddress& address, const String& beforeSize, const String& beforeOffset)
+        {
+            SetPropertyCommand::Path path;
+            if (SetPropertyCommand::MakeFieldPath(address.typeId, "size", path))
+            {
+                SetPropertyCommand::ApplyValue(component, address.typeId, path, beforeSize);
+            }
+            if (SetPropertyCommand::MakeFieldPath(address.typeId, "offset", path))
+            {
+                SetPropertyCommand::ApplyValue(component, address.typeId, path, beforeOffset);
+            }
+        }
+    }
+
+    Bool CanvasViewPanel::FindButtonTarget(ButtonTarget& target)
+    {
+        target = {};
+        Canvas* canvas = m_editor->GetCanvas();
+        Object::GameObject* object = m_editor->GetSelectedObject();
+        if (canvas == nullptr || object == nullptr || object->IsEditorHidden() || false == InViewSpace(*object))
+        {
+            return false;
+        }
+        // 콜라이더를 고치는 동안은 그 손잡이만 둔다.
+        PolygonTarget polygon;
+        if (FindPolygonTarget(polygon))
+        {
+            return false;
+        }
+        const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(object);
+        // **인스펙터에서 고른 버튼이다**(D-304 와 같은 규칙).
+        const AttachedRef inspected = m_editor->GetInspectedAttached();
+        Component::Button2D* button = inspected.component != nullptr
+                && inspected.component->GetTypeId() == MakeStableTypeId(Component::Button2D::StaticTypeName())
+            ? static_cast<Component::Button2D*>(inspected.component)
+            : nullptr;
+        if (transform == nullptr || button == nullptr || false == button->IsEnabled()
+            || false == MakeComponentAddress(m_editor->GetObjectIds(), *object, *button, target.address))
+        {
+            return false;
+        }
+        target.object = object;
+        target.button = button;
+        // 판정(`Button2DSystem::HitTest`)과 같은 월드 행렬이다. 캐시가 아직 안 섰으면 로컬로 짓는다(`GetWorldBounds` 와 같다).
+        target.world = transform->worldValid
+            ? transform->world
+            : MakeTransformMatrix2D(transform->position, transform->GetRotationRadian(), transform->scale);
+        return true;
+    }
+
+    void CanvasViewPanel::CommitButtonRect(const ComponentAddress& address, const String& beforeSize, const String& beforeOffset)
+    {
+        ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), address);
+        if (component == nullptr || address.typeId != MakeStableTypeId(Component::Button2D::StaticTypeName()))
+        {
+            return;
+        }
+        // 끄는 동안 바로 쓴 값을 뜨고 끌기 전으로 되돌린 뒤, 커맨드 하나(`SetButtonRect`)가 쓴다.
+        const auto& button = *static_cast<const Component::Button2D*>(component);
+        const Vector2 size = button.size;
+        const Vector2 offset = button.offset;
+        RestoreButtonRect(component, address, beforeSize, beforeOffset);
+        SetButtonRect(*m_editor, address, size, offset);
+    }
+
+    void CanvasViewPanel::DrawButtonEditor(const ViewRect& rect)
+    {
+        using ButtonRectModel::Handle;
+        ButtonTarget target;
+        const Bool hasTarget = FindButtonTarget(target);
+        if (m_buttonDragging && (false == hasTarget || false == target.address.Equals(m_buttonDragAddress)))
+        {
+            // 끌던 버튼이 사라졌거나 다른 것을 골랐다. 남은 것이 있으면 끌기 전 값으로 되돌린다.
+            if (ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), m_buttonDragAddress))
+            {
+                RestoreButtonRect(component, m_buttonDragAddress, m_buttonDragBeforeSize, m_buttonDragBeforeOffset);
+            }
+            Widget::OverlayHandle(ButtonRectModel::HandleId(m_buttonDragHandle), false, false, false);
+            m_buttonDragging = false;
+        }
+        m_buttonHover = Handle::None;
+        if (false == hasTarget)
+        {
+            return;
+        }
+        Component::Button2D& button = *target.button;
+        Matrix3x2 inverse;
+        const Bool invertible = InvertMatrix3x2(target.world, inverse);
+        const ImGuiIO& io = ImGui::GetIO();
+        Vector2 mouseWorld;
+        ScreenToWorld(rect, io.MousePos.x, io.MousePos.y, mouseWorld.x, mouseWorld.y);
+        const Vector2 mouseLocal = invertible ? ApplyMatrix3x2(inverse, mouseWorld) : Vector2{};
+
+        if (m_buttonDragging)
+        {
+            ButtonRectModel::Drag(m_buttonDragHandle, m_buttonDragStartOffset, m_buttonDragStartSize, m_buttonGrabLocal, mouseLocal,
+                button.offset, button.size);
+            const char* id = ButtonRectModel::HandleId(m_buttonDragHandle);
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                Widget::OverlayHandle(id, true, true, false);
+            }
+            else
+            {
+                Widget::OverlayHandle(id, false, false, false);
+                m_buttonDragging = false;
+                CommitButtonRect(m_buttonDragAddress, m_buttonDragBeforeSize, m_buttonDragBeforeOffset);
+            }
+        }
+
+        constexpr Handle Handles[] = { Handle::Left, Handle::Right, Handle::Bottom, Handle::Top, Handle::Center };
+        constexpr std::size_t HandleCount = sizeof(Handles) / sizeof(Handles[0]);
+        Vector2 screen[HandleCount];
+        for (std::size_t index = 0; index < HandleCount; ++index)
+        {
+            const Vector2 world = ApplyMatrix3x2(target.world, ButtonRectModel::HandleLocal(button.offset, button.size, Handles[index]));
+            WorldToScreen(rect, world.x, world.y, screen[index].x, screen[index].y);
+        }
+
+        if (false == m_buttonDragging && false == m_gizmoState.dragging && false == m_editing.IsActive() && invertible
+            && PointerInView(rect) && false == ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            Float best = ButtonRectModel::HandlePickRadius * ButtonRectModel::HandlePickRadius;
+            for (std::size_t index = 0; index < HandleCount; ++index)
+            {
+                const Float dx = io.MousePos.x - screen[index].x;
+                const Float dy = io.MousePos.y - screen[index].y;
+                const Float distance = dx * dx + dy * dy;
+                if (distance <= best)
+                {
+                    best = distance;
+                    m_buttonHover = Handles[index];
+                }
+            }
+        }
+        if (m_buttonHover != Handle::None)
+        {
+            const Bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            Widget::OverlayHandle(ButtonRectModel::HandleId(m_buttonHover), true, pressed, pressed);
+            SetPropertyCommand::Path sizePath;
+            SetPropertyCommand::Path offsetPath;
+            if (pressed && SetPropertyCommand::MakeFieldPath(target.address.typeId, "size", sizePath)
+                && SetPropertyCommand::MakeFieldPath(target.address.typeId, "offset", offsetPath)
+                && SetPropertyCommand::ReadValue(&button, target.address.typeId, sizePath, m_buttonDragBeforeSize)
+                && SetPropertyCommand::ReadValue(&button, target.address.typeId, offsetPath, m_buttonDragBeforeOffset))
+            {
+                m_buttonDragHandle = m_buttonHover;
+                m_buttonDragAddress = target.address;
+                m_buttonDragStartOffset = button.offset;
+                m_buttonDragStartSize = button.size;
+                m_buttonGrabLocal = mouseLocal;
+                m_buttonDragging = true;
+            }
+        }
+
+        // 그리기: 사각형 테두리와 변의 손잡이(네모), 가운데 손잡이(동그라미). 가리킨 것·끄는 것은 희다.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 line = IM_COL32(90, 220, 255, 230);
+        const ImU32 hotColor = IM_COL32(255, 255, 255, 255);
+        const ImU32 shadow = IM_COL32(0, 0, 0, 120);
+        Vector2 corners[4];
+        ButtonRectModel::Corners(button.offset, button.size, corners);
+        ImVec2 points[4];
+        for (std::size_t index = 0; index < 4; ++index)
+        {
+            const Vector2 world = ApplyMatrix3x2(target.world, corners[index]);
+            Float x = 0.0f;
+            Float y = 0.0f;
+            WorldToScreen(rect, world.x, world.y, x, y);
+            points[index] = ImVec2(x, y);
+        }
+        draw->AddPolyline(points, 4, line, ImDrawFlags_Closed, 1.5f);
+        constexpr Float HandleHalf = 4.0f;
+        for (std::size_t index = 0; index < HandleCount; ++index)
+        {
+            const Bool hot = (m_buttonDragging && Handles[index] == m_buttonDragHandle) || Handles[index] == m_buttonHover;
+            const ImVec2 at(screen[index].x, screen[index].y);
+            if (Handles[index] == Handle::Center)
+            {
+                draw->AddCircleFilled(ImVec2(at.x + 1.0f, at.y + 1.0f), HandleHalf, shadow);
+                draw->AddCircleFilled(at, HandleHalf, hot ? hotColor : line);
+            }
+            else
+            {
+                draw->AddRectFilled(ImVec2(at.x - HandleHalf + 1.0f, at.y - HandleHalf + 1.0f), ImVec2(at.x + HandleHalf + 1.0f, at.y + HandleHalf + 1.0f), shadow);
+                draw->AddRectFilled(ImVec2(at.x - HandleHalf, at.y - HandleHalf), ImVec2(at.x + HandleHalf, at.y + HandleHalf), hot ? hotColor : line);
+            }
+        }
+    }
+
     Bool CanvasViewPanel::DrawVertexMenu(const ViewRect& rect)
     {
         // 버텍스 위에서 우클릭하면 그 버텍스의 메뉴다. 캔버스의 오브젝트 메뉴 대신 연다.
@@ -2601,8 +2790,8 @@ namespace JBro
             m_vertexPressed = m_vertexPressed && ImGui::IsMouseDown(ImGuiMouseButton_Left);
             return;
         }
-        // 라이트 손잡이 위에서 누르고 놓은 것도 고르기가 아니다. 끌었으면 아래의 끌기 검사가 막는다.
-        if (m_lightHover != LightGizmoModel::Handle::None)
+        // 라이트·버튼 손잡이 위에서 누르고 놓은 것도 고르기가 아니다. 끌었으면 아래의 끌기 검사가 막는다.
+        if (m_lightHover != LightGizmoModel::Handle::None || m_buttonHover != ButtonRectModel::Handle::None)
         {
             return;
         }
@@ -2779,7 +2968,8 @@ namespace JBro
         // 기즈모를 잡고 있으면 상자를 시작하지 않는다. 손잡이를 끄는 것이 곧 상자가 되면
         // 옮길 때마다 선택이 통째로 바뀐다.
         if (m_gizmoState.dragging || m_editing.IsActive() || m_panning || m_vertexDragging || m_vertexPressed
-            || m_lightDragging || m_lightHover != LightGizmoModel::Handle::None)
+            || m_lightDragging || m_lightHover != LightGizmoModel::Handle::None
+            || m_buttonDragging || m_buttonHover != ButtonRectModel::Handle::None)
         {
             m_boxSelecting = false;
             return;
@@ -3538,7 +3728,8 @@ namespace JBro
         {
             m_bodyPressArmed = false == Is3D() && PointerInView(rect) && false == m_gizmoState.dragging
                 && m_gizmoState.hovered == GizmoAxis::None && false == m_lightDragging
-                && m_lightHover == LightGizmoModel::Handle::None && false == m_boxSelecting;
+                && m_lightHover == LightGizmoModel::Handle::None && false == m_buttonDragging
+                && m_buttonHover == ButtonRectModel::Handle::None && false == m_boxSelecting;
         }
         if (false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
@@ -3615,7 +3806,8 @@ namespace JBro
         // 같은 단추가 돌리기도 15 도씩 끊는다(사용자 결정) - 기존 엔진은 Shift 로 따로 켰다.
         const Bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
         // 라이트 손잡이를 가리키거나 끄는 동안은 기즈모가 마우스를 받지 않는다 - 안쪽 반지름 손잡이는 가운데 가까이 있다.
-        const Bool lightHandleHot = m_lightDragging || m_lightHover != LightGizmoModel::Handle::None;
+        const Bool lightHandleHot = m_lightDragging || m_lightHover != LightGizmoModel::Handle::None
+            || m_buttonDragging || m_buttonHover != ButtonRectModel::Handle::None;
         // 무장한 몸통 누르기가 고른 오브젝트 위였으면 끌기 문턱을 넘는 이 프레임에 그 모드의 중립 손잡이를 잡는다(위 `ArmBodyDrag`).
         Bool bodyDragStarted = false;
         if (m_bodyPressArmed && false == m_gizmoState.dragging && Widget::MouseWasDragged(ImGuiMouseButton_Left))

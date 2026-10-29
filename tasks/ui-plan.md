@@ -112,3 +112,94 @@
    - **뮤테이션 12 개가 모두 죽는다**(`tools/mutations-ui3.txt`): 소비 빼기·월드를 위로·누름 사각형 1/10·아무 데서나 떼도 누름·꺼진 버튼 누르기·`clicked` 남기기·
      쥐기 빼기·카메라 무시·터치 무시·색 빼기·y 뒤집기 빼기·버튼에 화면 기준 안 주기. 처음에는 누름 사각형 1/10 과 "아무 데서나 떼도 누름" 이 살았다 - 시험이
      가운데만 누르고 버튼 밖에서만 뗐다. 가장자리 네 점과 "다른 버튼 위에서 떼기" 를 더해 죽였다.
+
+## 6. 2 부 - 위젯 (D-351)
+
+> 상태: **진행** (2026-10-29 시작). 사용자 확인(2026-10-29): 범위는 1~3 단계(버튼 보강과 저작 보조 · 그림 위젯 · 클리핑과 스크롤).
+> 텍스트 입력·게임패드 포커스 이동·레이아웃 컨테이너는 이번에도 §4 의 `[열림]` 으로 남긴다.
+> 1 부(§1~§5)가 세운 뼈대(화면 레이어·앵커·`Button2D`·포인터 소비)는 그대로이고, 이 2 부는 그 위에 위젯을 얹는다.
+
+### 6.1 기존 엔진과 지금 엔진에서 없는 것
+
+기존 엔진도 `Button2D` 에서 멈췄다(`tasks/UISystemDesign.md` §6, `_TEMP_RendererBaseAndButton.md` §5-11 이 "안 하는 것" 으로 포커스·스크롤·마스크·
+드래그 위젯·텍스트 입력을 미뤘다). 지금 엔진에서 `grep` 으로 확인한 것:
+
+| 항목 | 지금 |
+|---|---|
+| 버튼의 전이 대상·스프라이트 바꾸기 | 없다. `tintSprite` 로 **같은 오브젝트**의 스프라이트 틴트만 바꾼다. 기존 엔진은 `TargetGraphic` 참조와 `SpriteSwap` 이 있었다 |
+| 버튼 저작 보조 | 없다. 캔버스 뷰에 누름 사각형이 보이지 않고, 기존 엔진의 "렌더러에서 사각형 맞추기"(`ButtonRectFit`) 도 없다 |
+| 9-슬라이스·타일·채우기 | 없다. `SpriteSizeMode` 는 `FromSprite`·`Custom` 뿐이고 에셋에 테두리 값이 없다 |
+| 슬라이더·토글·진행 막대·스크롤·마스크 | 없다 |
+| 클리핑 | RHI 세 백엔드에 `SetScissor` 가 있고 렌더러는 **패스마다 뷰포트 시저 한 번**이다(`Renderer.cpp` `ExecuteSprites`). 아이템 단위는 없다 |
+| 샘플 | 화면 레이어·버튼을 쓰는 `.jcanvas` 가 저장소에 없다 |
+
+### 6.2 설계
+
+공통 제약은 1 부와 같다. 별도 UI 트리를 두지 않고(D-237 MUST), 위젯은 `JBroFramework2D` 의 컴포넌트와 `JBroFramework2DSystem` 의 시스템이며,
+포인터는 `"UI"` 입력 체인의 **시스템 핸들러 하나**(`Button2DSystem`)가 버튼·토글·슬라이더·스크롤 뷰를 모두 본다 - 한 프레임에 포인터를 받는 위젯은
+가장 위 **하나**다(화면 레이어 → 레이어 차례 → `renderOrder` → `drawSequence`, 1 부와 같다). 매 프레임 경로에 할당·문자열이 없다.
+
+**1 단계 - 버튼 보강과 저작 보조**
+
+- `Button2D` 에 `transition { None, ColorTint, SpriteSwap }`(기본 `ColorTint`)과 `targetGraphic`(`Handle::SpriteRenderer2D`, 비면 같은 오브젝트의 스프라이트)을
+  둔다. `tintSprite` 는 `transition` 으로 바뀐다(옛 파일의 `tintSprite` 는 D-349 의 빌트인 엄격 규칙대로 거절되지 않도록 읽어서 `None`/`ColorTint` 로 옮긴다).
+  `SpriteSwap` 은 `hoverSpriteId`·`pressedSpriteId`·`disabledSpriteId`(짝 핸들은 해석 패스가 채운다)로 대상의 `sprite` 핸들을 바꾸고, 보통 상태로 돌아올 때
+  **떠 둔 원래 핸들**을 되돌린다(기존 엔진의 normal 래치). 비운 칸은 보통 스프라이트 그대로다. 누름 사각형은 그대로 버튼의 것이고 그림을 보지 않는다(기존 엔진 §5-1).
+- 캔버스 뷰는 인스펙터에서 고른 `Button2D` 의 누름 사각형을 그린다(D-304 규칙과 같다 - 고른 컴포넌트만). 네 변의 손잡이로 `size` 를, 가운데 손잡이로 `offset` 을
+  끈다. 끄는 동안 값을 바로 보여 주고 놓을 때 `SetPropertyCommand` 하나다(라이트 손잡이와 같은 틀). UI 보기에서도 선다(라이트와 다르다).
+- 인스펙터의 `size` 아래에 `스프라이트에 맞추기`(필드 덧줄) - 대상 그림(`targetGraphic`, 비면 같은 오브젝트)의 보이는 크기와 피벗으로 `size` 와
+  `offset = (0.5 - pivot) x size` 를 한 커맨드(`CompoundCommand`)로 쓴다. 그림이 없으면 눌리지 않고 까닭을 툴팁으로 적는다.
+- 시험 데이터에 화면 레이어·버튼·슬라이더·토글·마스크가 든 캔버스 파일을 두고 왕복한다.
+
+**2 단계 - 그림 위젯**
+
+- 스프라이트 임포트 옵션에 테두리 `borderLeft`·`borderTop`·`borderRight`·`borderBottom`(픽셀, 기본 0)을 더한다. 시트의 모든 칸이 같은 테두리다.
+  옛 `.jmeta` 는 키가 없어 0 으로 읽힌다.
+- `SpriteRenderer2D.drawMode { Simple, Sliced, Tiled, Filled }` 와 `fillAmount`(0..1)·`fillOrigin { Left, Right, Bottom, Top }`. `Sliced`·`Tiled` 는 `size` 를
+  채운다(`sizeMode` 가 `FromSprite` 면 `Simple` 과 같은 그림이다). 테두리는 화면 레이어에서 픽셀, 월드 레이어에서 픽셀 / PPU 다. 렌더 브리지가 아이템 하나를
+  조각 여럿(`Sliced` 9, `Tiled` 는 타일 수)의 `SpriteSubmit` 으로 편다 - 렌더 월드의 아이템 수·정렬·선택 마스크는 그대로다. `Filled` 는 쿼드와 uv 를 비례로 자른다.
+  **진행 막대는 `Filled` 스프라이트다** - 별도 컴포넌트를 두지 않는다(값 하나가 두 자리에 살지 않게).
+  기각: 인스턴스에 테두리를 실어 셰이더에서 uv 를 다시 매핑하기(인스턴스 40 B·`SpriteSubmit` 84 B 단언, 세 백엔드 셰이더, 머티리얼·SDF 파이프라인까지 번진다).
+- `Slider2D`: `value`(0..1)·`direction { LeftToRight, RightToLeft, BottomToTop, TopToBottom }`·누름 사각형(`size`·`offset`)·`handle`(`Handle::GameObject`, 자식
+  오브젝트를 사각형의 그 축 끝에서 끝으로 옮긴다)·`fill`(`Handle::SpriteRenderer2D`, `Filled` 면 `fillAmount` 를 값으로)·`interactable`·`changed`(한 프레임).
+  누르면 그 자리의 값으로 뛰고 끌면 따라오며 떼면 끝난다. 값은 스크립트가 써도 된다 - 손잡이·채우기는 매 프레임 값에서 다시 놓는다.
+- `Toggle2D`: `isOn`·`checkmark`(`Handle::SpriteRenderer2D`, `visible` 을 `isOn` 으로)·누름 사각형·`interactable`·`changed`. 누르고 떼면 뒤집힌다.
+  같은 오브젝트에 `Button2D` 를 요구하지 않는다(사각형이 둘이 된다).
+- 스크립트 훅 `OnValueChanged()` 하나를 슬라이더·토글이 같은 오브젝트의 스크립트에 부른다(인자 없음 - 핸들로 읽는다, 1 부의 다섯과 같은 꼴).
+
+**3 단계 - 클리핑과 스크롤**
+
+- `Mask2D`(`size`·`offset`): 자손의 스프라이트·글자를 그 사각형 안에서만 그린다. 사각형은 오브젝트 월드 행렬로 놓고 **축 정렬 사각형으로 근사**한다
+  (회전한 마스크는 둘러싼 사각형이다 - 스텐실이 아니라 시저). 렌더러에 조명 구간(`SetSpriteLighting`)과 같은 꼴의 **클립 구간**(`SetSpriteClip`)을 두고,
+  업로드가 구간을 run 으로 가르며 그릴 때 run 마다 `SetScissor` 를 부른다(패스·파이프라인은 그대로). 좌표는 아이템과 같은 공간(월드 또는 기준 픽셀)이고
+  렌더러가 그 뷰의 투영으로 픽셀 사각형을 센다 - 게임 뷰·캔버스 뷰·썸네일이 각자 맞게 잘린다. 포인터 판정도 마스크 밖이면 없는 것이다.
+- `ScrollView2D`: 같은 오브젝트의 `Mask2D` 가 뷰포트, `content`(`Handle::GameObject`, 자식)가 움직이는 쪽이다. `contentSize`·`horizontal`·`vertical`·
+  `scrollSensitivity`(휠)·`decelerationRate`(관성). 누르고 끌면 내용이 따라오고 놓으면 관성으로 미끄러지다 멈추며, 끝을 넘지 않는다. 끌기가 시작되면 안의
+  버튼 누름은 취소된다(뗌만 있고 누름은 없다). 휠은 포인터가 뷰포트 안일 때다.
+
+### 6.3 단계와 완료 조건
+
+1. **버튼 보강과 저작 보조**: 전이 대상·`SpriteSwap`·캔버스 뷰 사각형과 손잡이·`스프라이트에 맞추기`·시험 캔버스. 완료 조건: `InputChainTests` 에 대상 그림의
+   틴트·스프라이트 바꾸기와 되돌림, 에디터 시험에 손잡이 끌기(되돌리기 하나)와 맞추기, 캔버스 파일 왕복.
+2. **그림 위젯**: 테두리 옵션·`drawMode`·`Slider2D`·`Toggle2D`·`OnValueChanged`. 완료 조건: 픽셀 시험(9-슬라이스의 모서리 보존·타일 수·채우기 비율),
+   `InputChainTests` 에 슬라이더 끌기·토글 뒤집기·가장 위 하나, 인스펙터의 새 필드와 옵션 창의 테두리.
+3. **클리핑과 스크롤**: `Mask2D`·렌더러 클립 구간·`ScrollView2D`. 완료 조건: 픽셀 시험(마스크 밖 픽셀이 바탕색, 세 백엔드), `InputChainTests` 에 마스크 밖
+   버튼 무시·끌어 스크롤·관성·끝 멈춤·끌기가 버튼 누름을 취소함.
+
+### 6.4 진행 기록 (2 부)
+
+1. ~~**버튼 보강과 저작 보조**~~ → 완료 2026-10-29 · `Button2D` 의 `transition`(`ButtonTransition`)·`targetGraphic`(`Handle::SpriteRenderer2D`)·
+   `hoverSpriteId`·`pressedSpriteId`·`disabledSpriteId`(짝 핸들은 해석 패스), `Button2DSystem` 의 전이(틴트는 대상의 `tint`, 바꾸기는 대상의 `sprite` 와
+   `normalSprite`·`swapped` 래치), 에디터의 `ButtonRectModel`(화면을 모르는 셈)·`CanvasViewPanel::DrawButtonEditor`(네 변·가운데 손잡이, 끌기 하나 =
+   `CompoundCommand` 하나)·`SetButtonRect`(캔버스 뷰와 인스펙터가 함께 쓰는 커맨드)·`ResolveSpriteVisual`(집기 사각형과 맞추기가 같은 셈)·인스펙터 `size`
+   덧줄 `스프라이트에 맞추기`(`###fit_sprite`), 캔버스 파일 왕복 시험 ·
+   - **잰 것**: `InputChainTests` - 다른 오브젝트의 그림을 가리키면 그쪽 틴트만 바뀌고 같은 오브젝트의 스프라이트는 그대로, `SpriteSwap` 은 호버에 `{7,1}`,
+     빈 눌림 칸은 보통 `{3,1}`, 벗어나면 되돌림, 꺼지면 `{9,1}`, 다시 켜면 되돌림, `None` 은 틴트도 스프라이트도 그대로. `CanvasFileTests` - `transition: SpriteSwap` 과
+     아이디는 적히고 해석된 핸들은 적히지 않으며, 다른 오브젝트의 그림을 가리키는 핸들이 되읽힌다. `EditorApplicationTests`(1280 x 720) - 트랜스폼을 고른 동안 손잡이
+     없음, `Button2D` 를 고르면 `##button_right`·`##button_top`·`##button_left`·`##button_center`, 오른쪽 변을 한 유닛 끌면 크기 2 → 3 과 자리 0 → 0.5(왼쪽 변 그대로)
+     이고 되돌리기 하나, 가운데를 끌면 크기 그대로 자리만, 피벗 (0, 0) 의 3 x 1.5 그림에 맞추면 크기 (3, 1.5)·자리 (1.5, 0.75) 이고 되돌리기 하나. 스크린숏 `button_rect`.
+     묶음: `InputChain`·`BuiltinComponentProperty`·`CanvasFile`·`ScriptApiCatalog`·`ButtonRectModel`·`EditorLocalization` 통과, `EditorApplication` 472.5 초 통과.
+   - 정한 것: 옛 파일의 `tintSprite` 키는 읽지 않는다(빌트인은 엄격하다, D-349) - 저장소에 버튼을 쓴 캔버스가 없어 옮기는 길을 두지 않았다. 변 손잡이는 `size` 와
+     `offset` 을 함께 바꾼다(맞은편 변이 그대로). `Button2D` 를 고른 동안 가운데 손잡이가 이동 기즈모의 가운데를 가린다(축 손잡이는 그대로다). API 목록의
+     위치표(`Definitions.cpp`)는 헤더를 고칠 때마다 손으로 옮긴다 - 같은 글자의 줄이 여럿이면(`Collision2D::other`·`RaycastHit2D::other`) 가장 가까운 줄로
+     잇는 셈이 틀리고, 구간 대응(difflib)으로 이어야 한다(처음에 틀려 `ScriptApiCatalog` 가 떨어졌다).

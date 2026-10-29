@@ -267,11 +267,51 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
-        auto member = DeclareFunction<static_cast<Bool (Handle::Button2D::*)() const>(&Handle::Button2D::GetTintSprite)>("GetTintSprite", Parameters());
+        auto member = DeclareFunction<static_cast<Component::ButtonTransition (Handle::Button2D::*)() const>(&Handle::Button2D::GetTransition)>("GetTransition", Parameters());
         type.Members.Add(std::move(member));
     }
     {
-        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(Bool)>(&Handle::Button2D::SetTintSprite)>("SetTintSprite", Parameters(In("value")));
+        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(Component::ButtonTransition)>(&Handle::Button2D::SetTransition)>("SetTransition", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::SpriteRenderer2D (Handle::Button2D::*)() const>(&Handle::Button2D::GetTargetGraphic)>("GetTargetGraphic", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(Handle::SpriteRenderer2D)>(&Handle::Button2D::SetTargetGraphic)>("SetTargetGraphic", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Button2D::*)() const>(&Handle::Button2D::GetHoverSprite)>("GetHoverSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(AssetHandle)>(&Handle::Button2D::SetHoverSprite)>("SetHoverSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Button2D::*)() const>(&Handle::Button2D::GetPressedSprite)>("GetPressedSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(AssetHandle)>(&Handle::Button2D::SetPressedSprite)>("SetPressedSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Button2D::*)() const>(&Handle::Button2D::GetDisabledSprite)>("GetDisabledSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(AssetHandle)>(&Handle::Button2D::SetDisabledSprite)>("SetDisabledSprite", Parameters(In("value")));
         member.MutatesReceiver = true;
         member.MayInvalidateHandles = true;
         type.Members.Add(std::move(member));
@@ -353,7 +393,23 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
-        auto member = DeclareProperty<&Handle::Button2D::GetTintSprite, &Handle::Button2D::SetTintSprite>("tintSprite");
+        auto member = DeclareProperty<&Handle::Button2D::GetTransition, &Handle::Button2D::SetTransition>("transition");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Button2D::GetTargetGraphic, &Handle::Button2D::SetTargetGraphic>("targetGraphic");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Button2D::GetHoverSprite, &Handle::Button2D::SetHoverSprite>("hoverSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Button2D::GetPressedSprite, &Handle::Button2D::SetPressedSprite>("pressedSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Button2D::GetDisabledSprite, &Handle::Button2D::SetDisabledSprite>("disabledSprite");
         type.Members.Add(std::move(member));
     }
     {

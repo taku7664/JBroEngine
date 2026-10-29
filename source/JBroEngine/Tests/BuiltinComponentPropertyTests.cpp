@@ -54,7 +54,8 @@ namespace
         // 개수를 적어 두면 필드를 더하거나 지울 때 테스트가 먼저 운다.
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
-        Check(Table("Component::Button2D").count == 11, "Button2D declares eleven fields - size, offset, two switches, four tints and three states (D-237)");
+        Check(Table("Component::Button2D").count == 20,
+            "Button2D declares twenty fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, three states and the swap latch");
         Check(Table("Component::Camera2D").count == 9, "Camera2D declares nine fields - pixelsPerUnit of D-239, then the post-process profile pair of D-344");
         Check(Table("Component::SpriteRenderer2D").count == 14, "SpriteRenderer2D declares fourteen fields - the hidden drawSequence of D-296 is the fourteenth");
         Check(Table("Component::Text2D").count == 23, "Text2D declares twenty-three fields - with the hidden drawSequence of D-296");

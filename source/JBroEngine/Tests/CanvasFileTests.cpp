@@ -8,6 +8,7 @@
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -895,6 +896,16 @@ namespace
     }
 
     // **화면 레이어가 파일을 오간다**(D-237). 공간과 맞춤 방식을 적고, 기본값(월드·FixedHeight)이면 적지 않는다. 앵커도 오간다.
+    // 오브젝트의 컴포넌트를 가리키는 핸들을 만든다(캔버스 파일 시험 공용).
+    template<typename THandle>
+    THandle HandleTo(const JBro::Object::GameObject& owner, const JBro::ComponentBase& component)
+    {
+        JBro::InstanceRef reference;
+        reference.ObjectId = owner.GetInstanceId();
+        reference.ComponentId = component.GetInstanceId();
+        return JBro::Internal::ComponentHandleAccess::FromReference<THandle>(reference);
+    }
+
     void TestScreenLayersComeBack()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
@@ -909,8 +920,19 @@ namespace
             JBro::Object::GameObject* object = canvas.CreateObject("Badge");
             canvas.SetObjectLayer(object, ui.GetId());
             canvas.AttachComponent<JBro::Component::Transform2D>(object)->anchor = {1.0f, 0.25f};
+            // 버튼의 전이(D-351): 다른 오브젝트의 그림을 가리키는 핸들과 상태 스프라이트의 아이디가 함께 저장된다.
+            JBro::Object::GameObject* face = canvas.CreateObject("Face");
+            canvas.SetObjectLayer(face, ui.GetId());
+            auto* faceSprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(face);
+            auto* button = canvas.AttachComponent<JBro::Component::Button2D>(object);
+            button->transition = JBro::Component::ButtonTransition::SpriteSwap;
+            button->targetGraphic = HandleTo<JBro::Handle::SpriteRenderer2D>(*face, *faceSprite);
+            button->hoverSpriteId = JBro::Uuid::FromName("sprite/hover");
+            button->hoverSprite = JBro::AssetHandle{ 5, 1 };
             text = Save(canvas);
         }
+        Check(text.find("transition: SpriteSwap") != JBro::String::npos && text.find("hoverSprite:") == JBro::String::npos,
+            "the button writes its transition by name and not the resolved sprite handle");
         Check(text.find("Space: Screen") != JBro::String::npos && text.find("ScaleMode: Contain") != JBro::String::npos,
             "a screen layer writes its space and scale mode");
         Check(text.find("Space: World") == JBro::String::npos && text.find("ScaleMode: FixedHeight") == JBro::String::npos,
@@ -919,12 +941,22 @@ namespace
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, text);
         JBro::Object::GameObject* object = nullptr;
-        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
+        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { if (std::strcmp(found.GetName(), "Badge") == 0) { object = &found; } });
+        Check(object != nullptr, "the badge comes back");
         JBro::Layer* layer = object->GetLayer();
         Check(layer != nullptr && layer->GetSpace() == JBro::LayerSpace::Screen && layer->GetScaleMode() == JBro::ScreenScaleMode::Contain,
             "the screen layer comes back with its scale mode");
         const auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
         Check(transform != nullptr && transform->anchor.x == 1.0f && transform->anchor.y == 0.25f, "and the anchor with it");
+        const auto* button = reopened.FindComponentRaw<JBro::Component::Button2D>(object);
+        Check(button != nullptr && button->transition == JBro::Component::ButtonTransition::SpriteSwap
+                && button->hoverSpriteId == JBro::Uuid::FromName("sprite/hover") && button->hoverSprite.generation == 0,
+            "the button comes back with its transition and sprite id, and the handle waits for the resolve pass");
+        JBro::Object::GameObject* face = nullptr;
+        reopened.ForEachObject([&face](JBro::Object::GameObject& found) { if (std::strcmp(found.GetName(), "Face") == 0) { face = &found; } });
+        Check(face != nullptr && button->targetGraphic.IsValid()
+                && button->targetGraphic.GetGameObject().GetInstanceId() == face->GetInstanceId(),
+            "and its target graphic points at the other object's sprite again");
         Check(reopened.FindLayer(reopened.GetDefaultLayer())->GetSpace() == JBro::LayerSpace::World, "the default layer stays in the world");
 
         // 모르는 공간은 추측하지 않고 거절한다.
@@ -1545,15 +1577,6 @@ namespace
         JBRO_FIELD(JBro::Handle::Rigidbody2D, gone);
         JBRO_FIELD(JBro::Handle::Transform2D, empty);
     };
-
-    template<typename THandle>
-    THandle HandleTo(const JBro::Object::GameObject& owner, const JBro::ComponentBase& component)
-    {
-        JBro::InstanceRef reference;
-        reference.ObjectId = owner.GetInstanceId();
-        reference.ComponentId = component.GetInstanceId();
-        return JBro::Internal::ComponentHandleAccess::FromReference<THandle>(reference);
-    }
 
     JBro::Bool HasValue(const JBro::String& text, const char* field, const char* value)
     {
