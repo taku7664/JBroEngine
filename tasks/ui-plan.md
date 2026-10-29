@@ -328,4 +328,5 @@
 - **묻는 것**: 리뷰가 Backspace·십자키·스틱의 **자동 반복이 없다**고 지적했다(§7.1 "자동 반복은 누름이 아니다" 를 그대로 따라, 누르고 있어도 한 글자·한 칸이다). 일반 UI 와
   다르므로 의도인지 확인이 필요하다 - 반복을 넣으려면 시스템이 누른 시간을 들고 초기 지연·간격으로 다시 내는 길이다. 정할 때까지 지금대로다.
 - **묶음**: `UiScenario`·`InputChain`·`Layout2D`·`SpriteDrawMode`·`ButtonRectModel`·`CanvasFile`·`BuiltinComponentProperty`·`ScriptApiCatalog`·`RendererContract`·`EditorLocalization`·
-  `UserScenario` 통과. 전체는 아래 기록.
+  `UserScenario` 통과.
+- **전체**(2026-10-30, D-353 뒤, 이 PC 의 main 폴더, Debug, 기준 main 685ff96a): 솔루션 빌드 경고 0, 전체 시험 127 묶음 `all tests passed.`(`EditorApplication` 467.7 초, `UserScenario` 41.5 초).
