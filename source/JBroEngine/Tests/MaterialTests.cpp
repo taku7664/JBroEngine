@@ -244,6 +244,22 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
                   "Broken.hlsl", MaterialDomain::Sprite, broken, error)
                 && error.Contains("Broken.hlsl(3"),
             "a sprite shader's error keeps the user's line");
+
+        // **작업 폴더에 한글이 있어도 오류는 에셋 경로로 시작한다**(D-350). fxc 는 이름 앞에 작업 폴더를 ANSI 로 붙여 `박주형` 이 `??????` 로 깨졌고,
+        // 폴더 글자와 맞대 떼던 것이 맞지 않아 긴 경로가 남았다. 시험 기계의 폴더와 무관하게 재도록 한글 폴더로 옮겨 굽는다.
+        const fs::path previous = fs::current_path();
+        const fs::path korean = fs::temp_directory_path() / fs::path(u8"JBro셰이더경로");
+        std::error_code ignored;
+        fs::create_directories(korean, ignored);
+        fs::current_path(korean);
+        String inKorean;
+        CompiledMaterialShader alsoBroken;
+        const JBro::Bool refused = false == compiler.Compile("#include \"JBro/Material.hlsli\"\n\nfloat4 PSMain(JBroSpriteInput input) : SV_TARGET { return nothing; }\n",
+            "Shaders/Broken.hlsl", MaterialDomain::Sprite, alsoBroken, inKorean);
+        fs::current_path(previous);
+        Check(refused, "the broken shader is refused from a Korean working folder");
+        Check(inKorean.rfind("Shaders/Broken.hlsl(3", 0) == 0, "the error starts with the asset path, not the working folder");
+        Check(false == inKorean.Contains(":\\") && false == inKorean.Contains("?"), "no folder and no broken letters are left in it");
     }
 
     void TestTheCompilerRefusesWhatAMaterialCannotHold(ShaderCompiler& compiler)

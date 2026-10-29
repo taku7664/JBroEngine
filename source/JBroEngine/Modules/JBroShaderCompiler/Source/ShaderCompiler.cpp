@@ -36,6 +36,51 @@ namespace JBro
             return result;
         }
 
+        // **fxc 는 상대 이름 앞에 작업 폴더를 붙인다** - 그 폴더는 에셋 폴더가 아니라 엉뚱한 곳을 가리킨다. 에셋 경로만 남긴다.
+        // 폴더 글자와 맞대 떼지 않는다: fxc 는 ANSI 로 적어 한글 폴더(`C:\Users\박주형`)가 `??????` 로 깨져 나와 맞지 않았고, 긴 경로가 그대로 남아
+        // 셰이더 인스펙터의 `편집기에서 열기` 를 화면 밖으로 밀었다(D-350). 절대 경로로 시작하는 줄은 `: error`·`: warning` 앞의 `(줄,칸)` 까지를 소스 이름으로 바꾼다.
+        String StripWorkingFolder(const String& messages, const char* sourceName)
+        {
+            if (sourceName == nullptr || sourceName[0] == '\0')
+            {
+                return messages;
+            }
+            String result;
+            result.reserve(messages.size());
+            std::size_t start = 0;
+            while (start < messages.size())
+            {
+                std::size_t end = messages.find('\n', start);
+                if (end == String::npos)
+                {
+                    end = messages.size();
+                }
+                const std::string_view line(messages.data() + start, end - start);
+                const Bool absolute = line.size() > 2 && line[1] == ':' && (line[2] == '\\' || line[2] == '/');
+                std::size_t kind = line.find(": error");
+                if (kind == std::string_view::npos)
+                {
+                    kind = line.find(": warning");
+                }
+                const std::size_t location = kind == std::string_view::npos ? std::string_view::npos : line.rfind('(', kind);
+                if (absolute && location != std::string_view::npos)
+                {
+                    result.append(sourceName);
+                    result.append(line.substr(location));
+                }
+                else
+                {
+                    result.append(line);
+                }
+                if (end < messages.size())
+                {
+                    result.push_back('\n');
+                }
+                start = end + 1;
+            }
+            return result;
+        }
+
         // 머리글 하나만 준다. dxc 는 include 를 소스 파일의 폴더 기준으로 묻는다(`./Shaders/JBro/Material.hlsli`) - 끝이 머리글 이름이고
         // 그 앞이 경로 구분자(또는 처음)면 머리글이다.
         Bool IsPrelude(std::string_view name)
@@ -568,15 +613,7 @@ namespace JBro
                 {
                     error.pop_back();
                 }
-                // fxc 는 상대 이름 앞에 작업 폴더를 붙인다 - 그 폴더는 에셋 폴더가 아니라 엉뚱한 곳을 가리킨다. 떼어 에셋 경로만 남긴다.
-                char folder[MAX_PATH] = {};
-                const DWORD length = GetCurrentDirectoryA(MAX_PATH, folder);
-                if (length != 0 && length < MAX_PATH)
-                {
-                    String prefix(folder, length);
-                    prefix.append("\\");
-                    error.ReplaceAll(prefix.View(), "");
-                }
+                error = StripWorkingFolder(error, sourceName);
             }
             else
             {

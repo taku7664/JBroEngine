@@ -730,6 +730,9 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 전체 시험(Debug, `0ca303ce`, Codex 가 돌림): 115 묶음이 지났고(`EditorApplication` 1980 초·`PostProcessPixel`·`Material`·`ScriptSummaryPanel` 포함), 8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은
 D-347 때와 같이 Codex 샌드박스 안에서만 실패했다(COM 스레드·v145 빌드 도구·디버그 통로). Claude 가 밖에서 그 8 묶음을 다시 돌리니 모두 지났다.
 
+**한글 작업 폴더의 셰이더 오류 경로(D-350, 2026-10-29).** 위의 통과는 한글이 없는 경로였다. 한글 사용자 폴더 아래에서는 fxc 가 붙인 작업 폴더가 `??????` 로 깨져 떼지 못했고, 긴 오류가
+셰이더 인스펙터의 `편집기에서 열기` 를 화면 밖으로 밀어 `EditorApplication` 이 멈췄다. 이제 절대 경로로 시작하는 오류 줄의 `(줄,칸)` 앞을 에셋 경로로 바꾼다.
+
 ## 4. 정한 것과 미정
 
 정한 것(2026-10-07 사용자 확인, D-322):
