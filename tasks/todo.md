@@ -3065,8 +3065,10 @@ EditorApplication::Tick
   (4) **알림.** 에디터는 캔버스를 열 때 필드마다 로그 한 줄과 경고 알림 하나(`저장된 스크립트 필드 값 N개를 불러오지 못했습니다`)를 낸다. 여는 것만으로 저장 안 됨으로 만들지 않는다 - 저장하면 버린 값이 파일에서도 빠지고, 저장하지 않으면 다음에 열 때 다시 알린다. 게임 실행 파일은 로그에만 남긴다(게임 빌드는 캔버스 파일을 그대로 묶는다).
   (5) 시험: `ScriptHotReload` 의 `TestACanvasOpensAfterItsScriptLostAField` - 한 판으로 저장한 캔버스를 필드를 지우고 타입을 바꾸고 더한 판으로 읽어, 남은 값·기본값·켜짐·오브젝트 참조·알림 둘·다시 저장한 글자에서 빠진 필드·목록 없이 부르는 쪽을 본다. 빌트인이 여전히 멈추는 것은 `CanvasFile` 의 `TestReadingRefusesRatherThanGuessing` 이 본다.
   (6) 검증(2026-10-29, 브랜치 `claude/script-fields-on-open`): Debug·Debug_Game2D 솔루션 빌드 경고 0, `JBRO_TESTS=ScriptHotReload,CanvasFile` 통과. 파일 읽기를 엄격하게 되돌린 변이(`ReadObjects` 에 목록 대신 nullptr)를 새 시험이 "the canvas opens although a field is gone" 에서 잡았다.
-  **전체 시험은 이 PC 에서 끝까지 돌지 못했다** - 같은 날 Windows SDK 10.0.22621.0 의 레지스트리 키(`Microsoft SDKs\Windows\v10.0`)와 `System32\ucrtbased.dll` 이 없어져, 스크립트를 MSBuild 로 빌드하는 시험(MSB8036)과 실행 파일을 다른 폴더에 복사해 띄우는 시험(`0xC0000135`)이 실패한다. 이 변경이 닿지 않는 자리다. SDK 를 고친 뒤 전체 시험을 다시 돌리고 main 에 합친다.
-  **섰다 - 레이어 에셋·클립보드의 스크립트 필드, 실제 에디터 창에서의 확인, 전체 시험이 남았다.**
+  전체 시험: 처음에는 2026-10-28 Windows 업데이트가 깐 VS 18.11.2 가 SDK 22621 의 레지스트리 키와 `System32\ucrtbased.dll` 을 지워 스크립트 빌드 시험(MSB8036)과 실행 파일을 옮겨 띄우는 시험(`0xC0000135`)이 실패했다. SDK 를 다시 깐 뒤
+  `EditorApplication` 앞의 묶음 77 개와 뒤의 묶음 51 개(`UserScenario`·`ScriptBuild`·`EditorLocalization` 포함)가 지났다. `EditorApplication` 은 셰이더 인스펙터 시험의 "the shader inspector offers to open the file" 에서 멈춘다 -
+  **main(72f500f2)도 같은 자리에서 같이 멈춘다**(같은 날 같은 PC 에서 잼). D-348 의 전체 통과 뒤에 바뀐 것은 이 PC 의 VS·SDK 뿐이라 그쪽을 의심하지만 원인은 확인하지 않았다. 그 묶음에서 셰이더 인스펙터 뒤의 시험은 이번에 돌지 않았다.
+  **섰다 - 레이어 에셋·클립보드의 스크립트 필드, 실제 에디터 창에서의 확인, 셰이더 인스펙터 시험의 실패 원인이 남았다.**
 
 - **D-348. 머티리얼의 자리에 `Mesh` 가 는다. 머티리얼 스프라이트는 엔진의 입구가 라이트맵을 곱해 빛을 받는다(머티리얼 텍스처는 t1..t6, t7 은 라이트맵). 스크립트는 공통 서비스 `Material` 로 머티리얼 에셋의 파라미터를 덮어쓰고, 볼륨은 같은 셰이더의 두 머티리얼을 파라미터로 섞는다. 셰이더 에셋에도 인스펙터가 선다.**
   (2026-10-28, [postprocess-plan.md](./postprocess-plan.md) §3.15. 사용자 지시 "남은작업 순차적으로 전부 진행 ㄱㄱ"·"위키제외", 사용자 결정: 메시 머티리얼 "최종 색 + 빛 도우미", 스프라이트 빛 "엔진이 자동으로 곱함", 파라미터 "에셋 단위 + 볼륨 섞기")
