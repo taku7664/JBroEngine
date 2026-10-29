@@ -59,6 +59,19 @@ namespace JBro::System
         return true;
     }
 
+    Bool Text2DSystem::GetLocalCaret(InstanceId text, UInt32 byteOffset, Float& x, Float& y) const
+    {
+        const Entry* entry = m_entries.Find(text);
+        if (entry == nullptr || false == entry->block.GetCaret(byteOffset, x, y))
+        {
+            return false;
+        }
+        const Float ppu = entry->screenSpace ? Float(1.0f) : entry->block.GetPixelsPerUnit();
+        x /= ppu;
+        y /= ppu;
+        return true;
+    }
+
     Float Text2DSystem::GetLaidOutFontSize(InstanceId text) const
     {
         const Entry* entry = m_entries.Find(text);

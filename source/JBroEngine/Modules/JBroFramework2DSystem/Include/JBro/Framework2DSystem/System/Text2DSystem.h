@@ -52,6 +52,8 @@ namespace JBro::System
 
         // 마지막으로 레이아웃한 블록 사각형이다(유닛, 오브젝트 로컬). 에디터의 선택과 외곽선이 쓴다. 아직 없으면 거짓이다.
         Bool GetLocalBounds(InstanceId text, Float& minX, Float& minY, Float& maxX, Float& maxY) const;
+        // 글자 칸의 커서 자리(그 오브젝트의 로컬)다(D-354). `byteOffset` 은 보이는 글자의 UTF-8 바이트 위치다. 레이아웃이 없으면 거짓이다.
+        Bool GetLocalCaret(InstanceId text, UInt32 byteOffset, Float& x, Float& y) const;
         // 쓸 수 있는 폰트가 없어 그리지 못하는 텍스트인가. 에디터 인스펙터가 경고로 보인다 - 그리는 쪽과 같은 판단을
         // 따로 흉내 내지 않고 여기서 묻는다. 아직 한 번도 돌지 않은 텍스트는 거짓이다.
         Bool IsMissingFont(InstanceId text) const;

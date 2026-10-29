@@ -32,8 +32,8 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(Mask2D)
 
-        JBRO_FIELD(Vector2, size) { 320.0f, 240.0f };
-        JBRO_FIELD(Vector2, offset);
+        JBRO_FIELD(Vector2, size, Pixels()) { 320.0f, 240.0f };
+        JBRO_FIELD(Vector2, offset, Pixels());
 
         // 시스템이 채우는 이번 프레임의 사각형이다(레이어 좌표 - 화면 레이어는 기준 픽셀, 월드는 유닛). `clipValid` 가 거짓이면 자르지 않는다.
         JBRO_FIELD(Bool, clipValid, NoSerialize() | ReadOnly() | Hidden()) = false;

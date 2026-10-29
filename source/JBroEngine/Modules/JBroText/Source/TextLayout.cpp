@@ -896,6 +896,7 @@ namespace JBro::Text
             {
                 shift += blockWidth - line.width;
             }
+            line.shift = shift;
             for (UInt32 glyphIndex = 0; glyphIndex < line.glyphCount; ++glyphIndex)
             {
                 PositionedGlyph& glyph = m_glyphs[line.firstGlyph + glyphIndex];
@@ -1021,6 +1022,69 @@ namespace JBro::Text
     ArrayView<const LineInfo> TextLayout::GetLines() const
     {
         return ArrayView<const LineInfo>(m_lines.Data(), m_lines.Size());
+    }
+
+    Bool TextLayout::GetCaretPosition(UInt32 byteOffset, Float& x, Float& y) const
+    {
+        if (m_lines.IsEmpty())
+        {
+            return false;
+        }
+        // 그 위치에서 시작하는(또는 그 뒤의 첫) 글자다. 없으면 글자 끝이다.
+        std::size_t at = m_items.Size();
+        for (std::size_t index = 0; index < m_items.Size(); ++index)
+        {
+            if (m_items[index].offset.Get() >= byteOffset.Get())
+            {
+                at = index;
+                break;
+            }
+        }
+        // 그 글자가 든 줄이다. 줄은 바이트 구간 [begin, end) 으로 알고, 줄을 닫은 개행 글자는 그 구간 밖(offset == end)이라 따로 본다. 글자 끝은 마지막 줄이다.
+        std::size_t lineIndex = m_lines.Size() - 1;
+        if (at < m_items.Size())
+        {
+            const Item& item = m_items[at];
+            for (std::size_t index = 0; index < m_lines.Size(); ++index)
+            {
+                const Bool inside = item.offset.Get() < m_lines[index].sourceEnd.Get();
+                const Bool closes = item.kind == ItemKind::Newline && item.offset.Get() == m_lines[index].sourceEnd.Get();
+                if (inside || closes || index + 1 == m_lines.Size())
+                {
+                    lineIndex = index;
+                    break;
+                }
+            }
+        }
+        const LineInfo& line = m_lines[lineIndex];
+        // 개행 글자는 자리를 받지 않는다 - 그 앞은 같은 줄 앞 글자의 전진 폭 끝이고, 줄의 첫 글자면 줄의 시작이다.
+        const auto endOfPrevious = [&](std::size_t index) {
+            if (index > 0 && m_items[index - 1].kind != ItemKind::Newline && m_items[index - 1].offset.Get() >= line.sourceBegin.Get())
+            {
+                return m_items[index - 1].x + m_items[index - 1].advance;
+            }
+            return Float(0.0f);
+        };
+        if (at < m_items.Size())
+        {
+            x = (m_items[at].kind == ItemKind::Newline ? endOfPrevious(at) : m_items[at].x) + line.shift;
+        }
+        else if (m_items.Size() > 0)
+        {
+            x = endOfPrevious(m_items.Size()) + line.shift;
+        }
+        else
+        {
+            x = line.shift;
+        }
+        // 줄은 블록 위에서 높이만큼씩 쌓인다 - 그 줄의 세로 가운데다.
+        Float top = m_maxY;
+        for (std::size_t index = 0; index < lineIndex; ++index)
+        {
+            top -= m_lines[index].height;
+        }
+        y = top - line.height * 0.5f;
+        return true;
     }
 
     Float TextLayout::GetMinX() const

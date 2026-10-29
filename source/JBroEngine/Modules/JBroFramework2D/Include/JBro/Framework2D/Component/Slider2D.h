@@ -39,13 +39,13 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(Slider2D)
 
-        JBRO_FIELD(Vector2, size) { 160.0f, 24.0f };
-        JBRO_FIELD(Vector2, offset);
+        JBRO_FIELD(Vector2, size, Pixels()) { 160.0f, 24.0f };
+        JBRO_FIELD(Vector2, offset, Pixels());
         JBRO_FIELD(Bool, interactable) = true;
         JBRO_FIELD(SliderDirection, direction) = SliderDirection::LeftToRight;
         JBRO_FIELD(Float, value, Range(0.0f, 1.0f)) = 0.0f;
-        JBRO_FIELD(Handle::GameObject, handle);
-        JBRO_FIELD(Handle::SpriteRenderer2D, fill);
+        JBRO_FIELD(Handle::GameObject, handle, Tooltip("값의 자리에 놓는 손잡이. 이 오브젝트의 자식이어야 한다"));
+        JBRO_FIELD(Handle::SpriteRenderer2D, fill, Tooltip("채우기 비율(fillAmount)을 값으로 덮는 스프라이트"));
 
         // 시스템이 채우는 이번 프레임의 상태다. `changed` 는 포인터가 값을 바꾼 그 프레임에만 참이다.
         JBRO_FIELD(Bool, hovered, NoSerialize() | ReadOnly() | Category("State")) = false;

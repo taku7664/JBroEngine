@@ -173,6 +173,13 @@ namespace JBro
             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(this)),
             static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count()));
         m_clipboardSession = session;
+        // 재생 오류 알림은 이 에디터가 생긴 뒤의 로그만 본다 - 같은 프로세스에서 앞서 돈 에디터(시험)의 스크립트 오류를 다시 알리지 않는다.
+        const std::size_t logged = Log::GetCount();
+        const LogEntry* last = logged > 0 ? Log::GetAt(logged - 1) : nullptr;
+        if (last != nullptr)
+        {
+            m_scriptErrorSerial = last->serial;
+        }
     }
 
     NodeGraph::DomainRegistry& EditorApplication::GetNodeGraphDomains()

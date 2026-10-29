@@ -42,13 +42,13 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(Button2D)
 
-        JBRO_FIELD(Vector2, size) { 160.0f, 48.0f };
-        JBRO_FIELD(Vector2, offset);
+        JBRO_FIELD(Vector2, size, Pixels()) { 160.0f, 48.0f };
+        JBRO_FIELD(Vector2, offset, Pixels());
         // 꺼져 있으면 누르지 못하고 꺼진 상태로 보인다. 포인터는 그래도 소비한다 - 꺼진 단추 뒤의 게임이 눌리면 안 된다.
         JBRO_FIELD(Bool, interactable) = true;
         JBRO_FIELD(ButtonTransition, transition) = ButtonTransition::ColorTint;
         // 전이를 거는 그림이다. 비면 같은 오브젝트의 스프라이트다.
-        JBRO_FIELD(Handle::SpriteRenderer2D, targetGraphic);
+        JBRO_FIELD(Handle::SpriteRenderer2D, targetGraphic, Tooltip("전이를 거는 스프라이트. 비면 같은 오브젝트의 SpriteRenderer2D 다"));
         JBRO_FIELD(Color, normalTint) { 1.0f, 1.0f, 1.0f, 1.0f };
         JBRO_FIELD(Color, hoverTint) { 0.9f, 0.9f, 0.9f, 1.0f };
         JBRO_FIELD(Color, pressedTint) { 0.7f, 0.7f, 0.7f, 1.0f };

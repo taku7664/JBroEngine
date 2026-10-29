@@ -317,6 +317,19 @@ namespace
         }
     };
 
+    UInt32 CountCodePoints(ArrayView<const char> text)
+    {
+        UInt32 count = 0;
+        for (std::size_t at = 0; at < text.Size(); ++at)
+        {
+            if ((static_cast<unsigned char>(text.Data()[at]) & 0xC0) != 0x80)
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+
     JBro::Bool TextIs(TextId id, const char* expected)
     {
         const ArrayView<const char> text = TextStore::Get().GetText(id);
@@ -747,6 +760,100 @@ namespace
         Check(false == fieldA->focused && false == fieldB->focused && poller->sawW, "writing false drops the focus and frees the keyboard");
         stage.Frame({ReleasedKey(Key::W)});
     }
+
+    // **자동 반복과 가운데 편집**(D-354): ←·→·Home·End 가 커서를 옮기고 글자는 커서 자리에 끼며 Delete 는 뒤 글자를 지운다. 쥔 Backspace 와
+    // 십자키는 지연(0.4 초) 동안 한 번이고 그 뒤 간격(0.05 초·0.1 초)마다 되풀이한다. 놓으면 멈춘다.
+    void TestHeldKeysRepeatAndTheCaretMoves()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        Object::GameObject* name = stage.Make("name", {0.0f, -30.0f});
+        auto* field = canvas->AttachComponent<Component::InputField2D>(name);
+        field->size = {120.0f, 30.0f};
+        stage.Frames(2);
+        stage.Frame({MouseAt(100.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(field->focused && field->caretIndex == 0, "the empty field takes focus with the caret at the front");
+        stage.Frame({Typed('a'), Typed('b'), Typed('c')});
+        Check(TextIs(field->text, "abc") && field->caretIndex == 3, "typing leaves the caret at the end");
+        stage.Frame({Pressed(Key::Left)});
+        stage.Frame({ReleasedKey(Key::Left), Pressed(Key::Left)});
+        stage.Frame({ReleasedKey(Key::Left)});
+        Check(field->caretIndex == 1, "left moves the caret back one code point per press");
+        stage.Frame({Typed('X')});
+        Check(TextIs(field->text, "aXbc") && field->caretIndex == 2, "a typed character goes in at the caret");
+        stage.Frame({Pressed(Key::Delete)});
+        stage.Frame({ReleasedKey(Key::Delete)});
+        Check(TextIs(field->text, "aXc") && field->caretIndex == 2, "delete removes the code point after the caret");
+        stage.Frame({Pressed(Key::Home)});
+        stage.Frame({ReleasedKey(Key::Home), Pressed(Key::Backspace)});
+        stage.Frame({ReleasedKey(Key::Backspace)});
+        Check(TextIs(field->text, "aXc") && field->caretIndex == 0, "backspace at the front removes nothing");
+        stage.Frame({Pressed(Key::Right)});
+        stage.Frame({ReleasedKey(Key::Right), Typed(0xD55C)});
+        Check(TextIs(field->text, "a\xED\x95\x9CXc") && field->caretIndex == 2, "a multi-byte character goes in after the moved caret as one code point");
+        stage.Frame({Pressed(Key::End)});
+        stage.Frame({ReleasedKey(Key::End)});
+        Check(field->caretIndex == 4, "end moves the caret to the end");
+        field->caretIndex = 99;
+        stage.Frame({Typed('!')});
+        Check(TextIs(field->text, "a\xED\x95\x9CXc!") && field->caretIndex == 5, "a caret written past the end is clamped to the end");
+
+        // 쥔 Backspace: 누른 프레임에 한 글자, 0.4 초 동안은 그대로, 그 뒤 0.05 초(3 프레임)마다 한 글자.
+        stage.Frame({Pressed(Key::Backspace)});
+        Check(TextIs(field->text, "a\xED\x95\x9CXc"), "the press removes one code point");
+        stage.Frames(20);
+        Check(TextIs(field->text, "a\xED\x95\x9CXc"), "holding it does nothing before the delay");
+        stage.Frames(10);
+        const ArrayView<const char> afterHold = TextStore::Get().GetText(field->text);
+        const UInt32 leftOver = CountCodePoints(afterHold);
+        Check(leftOver == 1 || leftOver == 2, "after half a second the held key has repeated two or three times");
+        stage.Frame({ReleasedKey(Key::Backspace)});
+        stage.Frames(30);
+        Check(CountCodePoints(TextStore::Get().GetText(field->text)) == leftOver, "letting go stops the repeat");
+
+        // 쥔 십자키: 누른 프레임에 한 칸, 0.4 초 뒤부터 0.1 초(6 프레임)마다 한 칸.
+        stage.Frame({Pressed(Key::Escape)});
+        stage.Frame({ReleasedKey(Key::Escape)});
+        Check(false == field->focused, "escape clears the focus");
+        Object::GameObject* first = stage.Make("first", {-60.0f, 30.0f});
+        auto* firstButton = canvas->AttachComponent<Component::Button2D>(first);
+        firstButton->size = {30.0f, 20.0f};
+        Object::GameObject* second = stage.Make("second", {0.0f, 30.0f});
+        auto* secondButton = canvas->AttachComponent<Component::Button2D>(second);
+        secondButton->size = {30.0f, 20.0f};
+        Object::GameObject* third = stage.Make("third", {60.0f, 30.0f});
+        auto* thirdButton = canvas->AttachComponent<Component::Button2D>(third);
+        thirdButton->size = {30.0f, 20.0f};
+        stage.Frames(2);
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        stage.Frame({});
+        Check(firstButton->focused, "the press focuses the top-left button");
+        stage.Frames(20);
+        Check(firstButton->focused, "holding right does nothing before the delay");
+        stage.Frames(8);
+        Check(secondButton->focused, "then it moves one widget per interval");
+        stage.Frames(6);
+        Check(thirdButton->focused, "and again after the next interval");
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadLeft);
+        stage.Frame({});
+        Check(secondButton->focused, "a fresh press moves at once");
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        // 스틱도 같다 - 문턱을 넘긴 채 두면 지연 뒤 되풀이한다.
+        stage.platform.pads[0].axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = -1.0f;
+        stage.Frame({});
+        Check(firstButton->focused, "the stick moves once when it crosses the threshold");
+        stage.platform.pads[0].axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = 1.0f;
+        stage.Frame({});
+        Check(secondButton->focused, "and once more when it crosses the other way");
+        stage.Frames(28);
+        Check(thirdButton->focused, "holding it past the delay repeats");
+        stage.platform.pads[0].axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = 0.0f;
+        stage.Frame({});
+    }
 }
 
 JBro::Int32 RunUiScenarioTests()
@@ -757,6 +864,7 @@ JBro::Int32 RunUiScenarioTests()
     TestHostileValuesStayFinite();
     TestDestroyingWidgetsMidInteraction();
     TestFocusChangesInsideOneFrame();
+    TestHeldKeysRepeatAndTheCaretMoves();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

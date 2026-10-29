@@ -1253,7 +1253,7 @@ namespace
         frameWith({});
         Check(closeToValue(slider->value, 0.0f) && volumeProbe->values == 2, "the stick does the same once per push");
         frameWith({});
-        Check(closeToValue(slider->value, 0.0f) && volumeProbe->values == 2, "holding the stick does not repeat");
+        Check(closeToValue(slider->value, 0.0f) && volumeProbe->values == 2, "holding the stick does not repeat before the delay (D-354)");
         platform.pads[0].axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = 0.0f;
         platform.pads[0].buttons = PadBit(GamepadButton::DPadUp);
         frameWith({});

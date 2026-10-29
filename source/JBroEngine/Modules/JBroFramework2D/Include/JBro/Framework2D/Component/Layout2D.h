@@ -37,9 +37,9 @@ namespace JBro::Component
         JBRO_REFLECT_BODY(Layout2D)
 
         JBRO_FIELD(LayoutMode, mode) = LayoutMode::Vertical;
-        JBRO_FIELD(Vector2, cellSize) { 100.0f, 40.0f };
-        JBRO_FIELD(Vector2, spacing) { 4.0f, 4.0f };
-        JBRO_FIELD(Vector2, padding);
+        JBRO_FIELD(Vector2, cellSize, Pixels()) { 100.0f, 40.0f };
+        JBRO_FIELD(Vector2, spacing, Pixels()) { 4.0f, 4.0f };
+        JBRO_FIELD(Vector2, padding, Pixels());
         JBRO_FIELD(Int32, columns, Range(1.0f, 64.0f)) = 2;
         JBRO_FIELD(Vector2, pivot, Range(0.0f, 1.0f)) { 0.0f, 1.0f };
 

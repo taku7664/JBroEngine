@@ -32,11 +32,11 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(Toggle2D)
 
-        JBRO_FIELD(Vector2, size) { 24.0f, 24.0f };
-        JBRO_FIELD(Vector2, offset);
+        JBRO_FIELD(Vector2, size, Pixels()) { 24.0f, 24.0f };
+        JBRO_FIELD(Vector2, offset, Pixels());
         JBRO_FIELD(Bool, interactable) = true;
         JBRO_FIELD(Bool, isOn) = false;
-        JBRO_FIELD(Handle::SpriteRenderer2D, checkmark);
+        JBRO_FIELD(Handle::SpriteRenderer2D, checkmark, Tooltip("켜졌을 때만 보이는 스프라이트"));
 
         // 시스템이 채우는 이번 프레임의 상태다. `changed` 는 포인터가 뒤집은 그 프레임에만 참이다.
         JBRO_FIELD(Bool, hovered, NoSerialize() | ReadOnly() | Category("State")) = false;

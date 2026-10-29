@@ -119,6 +119,7 @@ namespace JBro::Text
         Float         baseline = 0.0f; // 기준선의 y
         Float         size = 0.0f;     // 줄에서 가장 큰 글자의 em 크기(픽셀). 줄 높이와 기준선은 이 크기로 잰다
         Float         height = 0.0f;   // 줄 높이(픽셀, 줄 간격 배율을 곱한 것)
+        Float         shift = 0.0f;    // 가로 정렬로 줄이 밀린 양(픽셀). 글리프의 x 에는 이미 더해져 있다
         UInt32 sourceBegin = 0;
         UInt32 sourceEnd = 0;
     };
@@ -153,6 +154,10 @@ namespace JBro::Text
 
         ArrayView<const PositionedGlyph> GetGlyphs() const;
         ArrayView<const LineInfo> GetLines() const;
+
+        // **커서 자리**(D-354). UTF-8 바이트 위치 `byteOffset` 앞에 서는 커서의 x 와 그 줄의 세로 가운데 y(픽셀, 정렬 기준점 원점, y 위쪽)다.
+        // 글자 사이는 그 글자의 왼쪽(공백·탭도 글자다), 글자 끝은 마지막 글자의 전진 폭 끝이다. 레이아웃이 없으면 거짓이다.
+        Bool GetCaretPosition(UInt32 byteOffset, Float& x, Float& y) const;
 
         // 블록 사각형이다(정렬 기준점 기준 픽셀). 에디터의 선택과 컬링이 쓴다.
         Float GetMinX() const;

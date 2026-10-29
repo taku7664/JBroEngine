@@ -326,7 +326,43 @@
   - [의문] 같은 프로세스에서 앞 시나리오(C)의 알림과 상태 줄(`스크립트 오류로 그 콜백을 멈췄습니다`)이 다음 `EditorApplication` 에도 남아 보였다(`d00`~`d09`). 알림 저장소가
     인스턴스 밖에 있는 것으로 보이나 확인하지 않았다 - UI 와 무관해 손대지 않았다.
 - **묻는 것**: 리뷰가 Backspace·십자키·스틱의 **자동 반복이 없다**고 지적했다(§7.1 "자동 반복은 누름이 아니다" 를 그대로 따라, 누르고 있어도 한 글자·한 칸이다). 일반 UI 와
-  다르므로 의도인지 확인이 필요하다 - 반복을 넣으려면 시스템이 누른 시간을 들고 초기 지연·간격으로 다시 내는 길이다. 정할 때까지 지금대로다.
+  다르므로 의도인지 확인이 필요하다 - 반복을 넣으려면 시스템이 누른 시간을 들고 초기 지연·간격으로 다시 내는 길이다. → 사용자 지시 "남은거 작업 ㄱ" 으로 §6.6 에서 넣었다(D-354).
 - **묶음**: `UiScenario`·`InputChain`·`Layout2D`·`SpriteDrawMode`·`ButtonRectModel`·`CanvasFile`·`BuiltinComponentProperty`·`ScriptApiCatalog`·`RendererContract`·`EditorLocalization`·
   `UserScenario` 통과.
 - **전체**(2026-10-30, D-353 뒤, 이 PC 의 main 폴더, Debug, 기준 main 685ff96a): 솔루션 빌드 경고 0, 전체 시험 127 묶음 `all tests passed.`(`EditorApplication` 467.7 초, `UserScenario` 41.5 초).
+
+### 6.6 남은 것 처리 (D-354)
+
+2026-10-30. 사용자 지시 "남은거 작업 ㄱ" - §6.5 가 남긴 것(묻는 것 하나, `[의문]` 셋, 가운데 편집)을 처리했다.
+
+- **자동 반복**(`Button2DSystem`): 입력 상태의 눌림 수는 §7.1 대로 OS 반복을 세지 않는다. 대신 시스템이 쥔 시간을 든다 - `RepeatDelay` 0.4 초 뒤 처음 되풀이하고,
+  글자 칸의 Backspace·Delete·←·→ 는 `KeyRepeatInterval` 0.05 초, 십자키·스틱은 `NavigateRepeatInterval` 0.1 초마다다. 시간은 지난 갱신 훅의 델타(`m_frameDelta`)라
+  입력 체인이 갱신보다 앞인 차례를 바꾸지 않고, 편집 중(델타 0)에는 반복하지 않는다. 새로 누르거나 방향이 바뀌면 처음부터 센다. 스틱은 문턱을 넘긴 채 두면 같다.
+  상수는 시스템의 것이다 - 컴포넌트 필드로 올릴 까닭이 보이면 그때 올린다.
+- **가운데 편집**: `InputField2D.caretIndex`(코드포인트 번호, `State` 의 읽기 전용) 가 섰다. 포커스를 받으면 글자 끝이고, ←·→·Home·End 가 옮기며, 글자는 커서 자리에 끼고
+  Backspace 는 앞 글자·Delete 는 뒤 글자를 지운다. 고치거나 옮기면 커서가 바로 보인다(`blinkTime` 0). 스크립트가 글자를 통째로 바꾸면 글자 수 안으로 가둔다.
+  커서 자리는 `TextLayout::GetCaretPosition`(바이트 위치 → 그 글자의 왼쪽, 공백·탭도 글자, 끝은 마지막 글자의 전진 폭 끝, 세로는 그 줄의 가운데 - `LineInfo.shift` 로
+  정렬을 더한다) → `TextBlock::GetCaret` → `Text2DSystem::GetLocalCaret`(PPU 로 나눔) 이고, 레이아웃이 아직 없으면 전처럼 오른쪽 끝이다.
+  한 프레임에 글자와 화살표가 같이 오면 **글자가 먼저**다(이벤트 차례는 접힌 상태에 없다).
+- **월드 레이어의 위젯 기본 크기**: 리플렉션 어트리뷰트 `Pixels()`(`FieldAttributes.pixels` → `PropertyEditInfo.pixels`, 48 바이트 그대로)를 위젯의 픽셀 값 필드에 붙였다
+  (`Button2D`·`Toggle2D`·`Slider2D`·`InputField2D`·`Mask2D` 의 `size`·`offset`, `ScrollView2D` 의 `contentSize`·`scrollSensitivity`, `Layout2D` 의 `cellSize`·`spacing`·`padding`).
+  에디터의 `AddComponentCommand` 가 **맨** 컴포넌트를 월드 레이어의 오브젝트에 붙일 때만 그 필드를 `DefaultPixelsPerUnit`(100, D-184)으로 나눈다 - 160 x 48 픽셀 버튼이
+  1.6 x 0.48 유닛이다. 값을 들고 붙이는 길(붙여넣기·다시 하기의 값)과 스크립트의 `AttachComponent` 는 그대로다(스크립트가 월드 레이어에 만드는 위젯은 픽셀 값 그대로 - 열림).
+  대안으로 본 것: 컴포넌트에 레이어별 기본값(컴포넌트가 레이어를 모른다), 월드 레이어의 UI 를 막기(§2.1 이 허용한다).
+- **빈 핸들의 `없음`**: 글자는 두고 툴팁으로 뜻을 적었다 - `targetGraphic`("비면 같은 오브젝트의 SpriteRenderer2D 다"), `handle`·`content`("이 오브젝트의 자식이어야 한다"),
+  `fill`·`checkmark`·`display`·`caret`. 글자를 바꾸면 모든 핸들 칸의 `없음` 이 흔들린다.
+- **알림 누수**: `EditorApplication::PollScriptErrors` 가 로그를 serial 0 부터 훑어 같은 프로세스의 앞선 에디터(시나리오 C)가 남긴 `JBroScript` 오류를 새 에디터가 다시 알렸다
+  → 생성 때 로그의 마지막 serial 로 시작한다. 시나리오 D 가 첫 프레임 뒤 마지막 알림 제목이 스크립트 오류가 아님을 본다.
+- **잰 것**: `UiScenario` 에 `TestHeldKeysRepeatAndTheCaretMoves`(←·→·Home·End·Delete·가운데 끼우기·한글 한 글자·범위 밖 커서 가두기, 쥔 Backspace 가 20 프레임 동안 한 글자·30 프레임에
+  두세 글자·놓으면 멈춤, 쥔 십자키가 20 프레임 동안 한 칸·28 프레임에 두 칸·34 프레임에 세 칸·새 누름은 바로, 스틱도 같음). `EditorObjectCommand` 에
+  `TestPixelDefaultsShrinkOnAWorldLayer`(월드 1.6 x 0.48, 화면 160 x 48, 다시 하기도 같음, 붙여넣기는 그대로). `BuiltinComponentProperty` 의 `InputField2D` 열넷.
+  `TextLayout` 의 `TestCaretPositionFollowsTheGlyphs`(A·공백·V 의 전진 폭 608·224·575 로 자리 넷, 오른쪽 정렬의 밀림, 두 줄에서 개행 앞은 첫 줄 끝·뒤는 둘째 줄 머리 -
+  개행 글자는 줄 구간 [begin, end) 밖(offset == end)이라 처음엔 둘째 줄로 갔다).
+  `InputChain` 의 "holding the stick does not repeat" 는 지연 전이라는 뜻으로 글자만 고쳤다.
+- **열림**: IME 조합 표시(플랫폼이 `WM_IME_COMPOSITION` 을 입력 이벤트로 주지 않는다 - 조합이 끝난 글자만 `Text` 로 온다. 조합 창 자리(`SetTextInputPosition`)도 걸지 않았다),
+  포인터로 커서 놓기, 선택·복사·붙여넣기, 커서의 스크립트 API(`caretIndex` 는 핸들에 없다), 스크립트가 월드 레이어에 만드는 위젯의 기본값.
+- **전체**(2026-10-30, D-354 코드 뒤, 이 PC 의 main 폴더, Debug, 기준 main 94db5045): 솔루션 빌드 경고 0, 전체 시험 127 묶음 `all tests passed.`(`EditorApplication` 1504.8 초 -
+  앞 실행 467.7 초보다 느린데 같은 PC 의 다른 작업과 겹친 것으로 보인다, 재지 않았다. `UserScenario` 92.6 초). 스크린숏 `d05` 에서 월드 레이어의 글자 칸이 1.6 x 0.32 로 붙고
+  `State` 가 접히며, `d00` 의 상태 줄에 앞 시나리오의 스크립트 오류가 없다. **실제 `JBroEditorHost.exe`** 를 시나리오 D 의 프로젝트(`ui.jcanvas`)로 띄워 PostMessage 로 글자 칸
+  오브젝트를 고르고 `caret` 라벨의 툴팁("커서 스프라이트. display 의 자식이어야 한다 - 커서 자리에 놓는다")과 펼친 `State` 의 `caretIndex 0`, 캔버스 뷰의 사각형 손잡이를 눈으로 봤다.
+  재생 중 글자 입력·반복은 실제 창에서 보지 않았다(PostMessage 키 입력은 포커스 없는 창에서 믿을 수 없다 - `UiScenario` 가 잰다).

@@ -333,6 +333,11 @@ namespace JBro
         return m_fittedSize;
     }
 
+    Bool TextBlock::GetCaret(UInt32 byteOffset, Float& x, Float& y) const
+    {
+        return m_hasBounds && m_layout.GetCaretPosition(byteOffset, x, y);
+    }
+
     Bool TextBlock::GetBounds(Float& minX, Float& minY, Float& maxX, Float& maxY) const
     {
         if (false == m_hasBounds)

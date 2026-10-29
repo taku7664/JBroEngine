@@ -48,6 +48,8 @@ namespace JBro::System
     //
     // **포커스**(D-352)는 위젯 하나다. 포인터로 누른 위젯이 포커스를 받고, 게임패드의 십자키·왼쪽 스틱이 그 방향의 가장 가까운 위젯으로 옮기며 `South` 가
     // 누름이다(슬라이더는 좌우가 값이다). 글자 칸에 포커스가 있으면 키보드를 받고 소비한다. 게임패드는 UI 가 쓴 프레임에만 소비한다.
+    // 쥔 십자키·스틱과 글자 칸의 Backspace·Delete·←·→ 는 **자동 반복**한다(D-354) - 입력 상태의 눌림 수는 §7.1 대로 OS 반복을 세지 않으므로
+    // 이 시스템이 쥔 시간을 들고 `RepeatDelay` 뒤 간격마다 다시 누른 것으로 본다. 시간은 지난 갱신 훅의 델타다(편집 중에는 0 이라 반복하지 않는다).
     //
     // 스크롤 뷰는 뷰포트 안에서 누르고 몇 픽셀 끌면 끌기가 되고, 그때 안의 버튼 누름은 취소된다. 갱신 훅(`OnUpdate`, 트랜스폼 전파보다 먼저)은
     // 값에서 그림을 놓고(슬라이더 손잡이·채우기, 토글 표시, 글자 칸의 글자·커서) 스크롤의 관성을 돌린다.
@@ -62,6 +64,10 @@ namespace JBro::System
         static constexpr Float StickThreshold = 0.5f;
         // 게임패드로 슬라이더를 한 번 움직이는 양이다.
         static constexpr Float SliderStep = 0.1f;
+        // 자동 반복(D-354): 쥔 지 이만큼 지나면 처음 되풀이하고, 그 뒤로는 글자 키는 `KeyRepeatInterval`, 십자키·스틱은 `NavigateRepeatInterval` 마다다.
+        static constexpr Float RepeatDelay = 0.4f;
+        static constexpr Float KeyRepeatInterval = 0.05f;
+        static constexpr Float NavigateRepeatInterval = 0.1f;
 
         Int32 GetExecutionOrder() const override;
 
@@ -118,6 +124,8 @@ namespace JBro::System
         void NavigateFocus(Int32 directionX, Int32 directionY);
         // 글자 칸에 이번 프레임의 키보드를 넣는다.
         void TypeInto(Object::GameObject& owner, Component::InputField2D& field, InputView& input);
+        // 쥔 키·버튼의 자동 반복이다. 이번 프레임에 눌렀으면 참이고 시간을 처음부터 세며, 쥐고 있으면 `RepeatDelay` 뒤 `interval` 마다 참이다.
+        Bool Repeats(Bool down, Bool pressed, Float& held, Float interval);
         // 포커스 위젯의 자리(화면 픽셀)다. 없으면 거짓이다.
         Bool WidgetPixel(Object::GameObject& owner, Float& pixelX, Float& pixelY) const;
 
@@ -137,6 +145,12 @@ namespace JBro::System
         Bool             m_focusVisible = false;
         Float            m_stickX = 0.0f;
         Float            m_stickY = 0.0f;
+        // 자동 반복의 쥔 시간(D-354). 키는 Backspace·Delete·←·→ 차례, 탐색은 쥔 방향과 시간이다. 델타는 지난 갱신 훅의 것이다.
+        Float            m_keyHeld[4] = {};
+        Float            m_navigateHeld = 0.0f;
+        Int32            m_navigateHeldX = 0;
+        Int32            m_navigateHeldY = 0;
+        Float            m_frameDelta = 0.0f;
         // 스크롤 끌기. 누른 자리와, 누른 위젯을 품은 스크롤 뷰, 끌기가 시작됐는가, 지난 포인터 자리, 이번 프레임에 끈 양(레이어 단위).
         Float            m_pressPixelX = 0.0f;
         Float            m_pressPixelY = 0.0f;

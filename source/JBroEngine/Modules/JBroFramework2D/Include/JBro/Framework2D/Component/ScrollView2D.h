@@ -36,12 +36,12 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(ScrollView2D)
 
-        JBRO_FIELD(Handle::GameObject, content);
-        JBRO_FIELD(Vector2, contentSize) { 320.0f, 480.0f };
+        JBRO_FIELD(Handle::GameObject, content, Tooltip("끌면 옮기는 내용 오브젝트. 이 오브젝트의 자식이어야 한다"));
+        JBRO_FIELD(Vector2, contentSize, Pixels()) { 320.0f, 480.0f };
         JBRO_FIELD(Bool, horizontal) = false;
         JBRO_FIELD(Bool, vertical) = true;
         // 휠 한 칸에 움직이는 양(레이어 단위 - 화면 레이어는 기준 픽셀).
-        JBRO_FIELD(Float, scrollSensitivity) = 40.0f;
+        JBRO_FIELD(Float, scrollSensitivity, Pixels()) = 40.0f;
         // 놓은 뒤 1 초에 남는 속도의 비율이다. 0 이면 바로 멈춘다.
         JBRO_FIELD(Float, decelerationRate, Range(0.0f, 1.0f)) = 0.135f;
 

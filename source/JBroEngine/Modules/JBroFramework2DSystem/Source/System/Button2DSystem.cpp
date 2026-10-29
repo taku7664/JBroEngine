@@ -244,8 +244,8 @@ namespace JBro::System
             return false;
         }
 
-        // **UTF-8**(D-352). 코드포인트 하나를 붙이고, 마지막 코드포인트를 뗀다. 글자 수는 코드포인트 수다.
-        void AppendCodePoint(String& text, UInt32 codePoint)
+        // **UTF-8**(D-352·D-354). 코드포인트 하나를 바이트 자리 `at` 에 끼운다. 글자 수는 코드포인트 수이고, 글자 번호는 바이트 자리로 옮겨 쓴다.
+        void InsertCodePoint(String& text, std::size_t at, UInt32 codePoint)
         {
             const std::uint32_t value = codePoint.Get();
             // 짝 없는 서러게이트(플랫폼이 UTF-16 한 단위를 그대로 보낸 것)는 UTF-8 에 없는 값이다 - 버린다.
@@ -253,55 +253,88 @@ namespace JBro::System
             {
                 return;
             }
+            char bytes[4] = {};
+            std::size_t length = 0;
             if (value < 0x80)
             {
-                text.push_back(static_cast<char>(value));
+                bytes[length++] = static_cast<char>(value);
             }
             else if (value < 0x800)
             {
-                text.push_back(static_cast<char>(0xC0 | (value >> 6)));
-                text.push_back(static_cast<char>(0x80 | (value & 0x3F)));
+                bytes[length++] = static_cast<char>(0xC0 | (value >> 6));
+                bytes[length++] = static_cast<char>(0x80 | (value & 0x3F));
             }
             else if (value < 0x10000)
             {
-                text.push_back(static_cast<char>(0xE0 | (value >> 12)));
-                text.push_back(static_cast<char>(0x80 | ((value >> 6) & 0x3F)));
-                text.push_back(static_cast<char>(0x80 | (value & 0x3F)));
+                bytes[length++] = static_cast<char>(0xE0 | (value >> 12));
+                bytes[length++] = static_cast<char>(0x80 | ((value >> 6) & 0x3F));
+                bytes[length++] = static_cast<char>(0x80 | (value & 0x3F));
             }
             else if (value < 0x110000)
             {
-                text.push_back(static_cast<char>(0xF0 | (value >> 18)));
-                text.push_back(static_cast<char>(0x80 | ((value >> 12) & 0x3F)));
-                text.push_back(static_cast<char>(0x80 | ((value >> 6) & 0x3F)));
-                text.push_back(static_cast<char>(0x80 | (value & 0x3F)));
+                bytes[length++] = static_cast<char>(0xF0 | (value >> 18));
+                bytes[length++] = static_cast<char>(0x80 | ((value >> 12) & 0x3F));
+                bytes[length++] = static_cast<char>(0x80 | ((value >> 6) & 0x3F));
+                bytes[length++] = static_cast<char>(0x80 | (value & 0x3F));
             }
-        }
-
-        void RemoveLastCodePoint(String& text)
-        {
-            while (false == text.empty())
+            if (length > 0)
             {
-                const unsigned char last = static_cast<unsigned char>(text.back());
-                text.pop_back();
-                // 이어지는 바이트(10xxxxxx)가 아니면 글자의 첫 바이트다.
-                if ((last & 0xC0) != 0x80)
-                {
-                    break;
-                }
+                text.insert(at <= text.size() ? at : text.size(), bytes, length);
             }
         }
 
-        UInt32 CountCodePoints(const String& text)
+        UInt32 CountCodePoints(const char* data, std::size_t size)
         {
             UInt32 count = 0;
-            for (const char character : text)
+            for (std::size_t at = 0; at < size; ++at)
             {
-                if ((static_cast<unsigned char>(character) & 0xC0) != 0x80)
+                // 이어지는 바이트(10xxxxxx)가 아니면 글자의 첫 바이트다.
+                if ((static_cast<unsigned char>(data[at]) & 0xC0) != 0x80)
                 {
                     ++count;
                 }
             }
             return count;
+        }
+
+        UInt32 CountCodePoints(const String& text)
+        {
+            return CountCodePoints(text.data(), text.size());
+        }
+
+        // 코드포인트 번호 `index` 의 글자가 시작하는 바이트 자리다. 글자 수 이상이면 끝이다.
+        std::size_t ByteOffsetOf(const char* data, std::size_t size, UInt32 index)
+        {
+            UInt32 seen = 0;
+            for (std::size_t at = 0; at < size; ++at)
+            {
+                if ((static_cast<unsigned char>(data[at]) & 0xC0) != 0x80)
+                {
+                    if (seen == index)
+                    {
+                        return at;
+                    }
+                    ++seen;
+                }
+            }
+            return size;
+        }
+
+        std::size_t ByteOffsetOf(const String& text, UInt32 index)
+        {
+            return ByteOffsetOf(text.data(), text.size(), index);
+        }
+
+        // 글자 칸의 커서 번호를 글자 수 안으로 가둔 값이다.
+        UInt32 ClampCaret(const Component::InputField2D& field, UInt32 count)
+        {
+            const std::int32_t raw = field.caretIndex.Get();
+            if (raw <= 0)
+            {
+                return 0;
+            }
+            const std::uint32_t wanted = static_cast<std::uint32_t>(raw);
+            return wanted < count.Get() ? UInt32(wanted) : count;
         }
     }
 
@@ -611,6 +644,38 @@ namespace JBro::System
         m_focusedKind = object != nullptr ? kind : WidgetKind::None;
         m_focusVisible = object != nullptr && visible;
         m_padPressed = false;
+        // 글자 칸이 포커스를 받으면 커서는 글자 끝이고 바로 보인다(D-354).
+        if (object != nullptr && kind == WidgetKind::Field && m_canvas != nullptr)
+        {
+            if (auto* field = m_canvas->FindComponentRaw<Component::InputField2D>(object))
+            {
+                const ArrayView<const char> text = TextStore::Get().GetText(field->text);
+                const UInt32 count = CountCodePoints(text.Data(), text.Size());
+                field->caretIndex = Int32(static_cast<std::int32_t>(count.Get()));
+                field->blinkTime = 0.0f;
+            }
+        }
+    }
+
+    Bool Button2DSystem::Repeats(Bool down, Bool pressed, Float& held, Float interval)
+    {
+        if (pressed)
+        {
+            held = 0.0f;
+            return true;
+        }
+        if (false == down)
+        {
+            held = 0.0f;
+            return false;
+        }
+        held = held + m_frameDelta;
+        if (held >= RepeatDelay)
+        {
+            held = held - interval;
+            return true;
+        }
+        return false;
     }
 
     void Button2DSystem::NavigateFocus(Int32 directionX, Int32 directionY)
@@ -735,6 +800,9 @@ namespace JBro::System
         m_textScratch.assign(current.Data() != nullptr ? current.Data() : "", current.Size());
         Bool changed = false;
         UInt32 count = CountCodePoints(m_textScratch);
+        // 커서는 글자 번호다(D-354). 스크립트가 글자를 통째로 바꿨을 수 있으니 글자 수 안으로 가둔다.
+        UInt32 caret = ClampCaret(field, count);
+        const UInt32 caretBefore = caret;
         for (UInt32 index = 0; index < keyboard.GetTextLength(); ++index)
         {
             const UInt32 codePoint = keyboard.GetText(index);
@@ -747,14 +815,58 @@ namespace JBro::System
             {
                 break;
             }
-            AppendCodePoint(m_textScratch, codePoint);
-            ++count;
+            const std::size_t before = m_textScratch.size();
+            InsertCodePoint(m_textScratch, ByteOffsetOf(m_textScratch, caret), codePoint);
+            if (m_textScratch.size() != before)
+            {
+                ++count;
+                ++caret;
+                changed = true;
+            }
+        }
+        // 쥔 Backspace·Delete·←·→ 는 지연 뒤 간격마다 되풀이한다(D-354).
+        const Bool backspace = Repeats(keyboard.IsDown(Key::Backspace), keyboard.IsPressed(Key::Backspace), m_keyHeld[0], KeyRepeatInterval);
+        const Bool erase = Repeats(keyboard.IsDown(Key::Delete), keyboard.IsPressed(Key::Delete), m_keyHeld[1], KeyRepeatInterval);
+        const Bool left = Repeats(keyboard.IsDown(Key::Left), keyboard.IsPressed(Key::Left), m_keyHeld[2], KeyRepeatInterval);
+        const Bool right = Repeats(keyboard.IsDown(Key::Right), keyboard.IsPressed(Key::Right), m_keyHeld[3], KeyRepeatInterval);
+        if (backspace && caret > 0)
+        {
+            const std::size_t begin = ByteOffsetOf(m_textScratch, caret - 1);
+            const std::size_t end = ByteOffsetOf(m_textScratch, caret);
+            m_textScratch.erase(begin, end - begin);
+            --caret;
+            --count;
             changed = true;
         }
-        if (keyboard.IsPressed(Key::Backspace) && false == m_textScratch.empty())
+        if (erase && caret < count)
         {
-            RemoveLastCodePoint(m_textScratch);
+            const std::size_t begin = ByteOffsetOf(m_textScratch, caret);
+            const std::size_t end = ByteOffsetOf(m_textScratch, caret + 1);
+            m_textScratch.erase(begin, end - begin);
+            --count;
             changed = true;
+        }
+        if (left && caret > 0)
+        {
+            --caret;
+        }
+        if (right && caret < count)
+        {
+            ++caret;
+        }
+        if (keyboard.IsPressed(Key::Home))
+        {
+            caret = 0;
+        }
+        if (keyboard.IsPressed(Key::End))
+        {
+            caret = count;
+        }
+        field.caretIndex = Int32(static_cast<std::int32_t>(caret.Get()));
+        if (changed || caret != caretBefore)
+        {
+            // 고치거나 옮긴 커서는 바로 보인다.
+            field.blinkTime = 0.0f;
         }
         if (changed)
         {
@@ -840,7 +952,8 @@ namespace JBro::System
             // 시계는 한 주기(켜짐 + 꺼짐) 안에 둔다 - 몇 시간을 켜 둬도 정밀도가 깎이지 않는다.
             field.blinkTime = rate > 0.0f ? Float(std::fmod((field.blinkTime + deltaTime).Get(), rate.Get() * 2.0f)) : Float(0.0f);
             caret->visible = rate <= 0.0f || field.blinkTime < rate;
-            // 커서는 보이는 텍스트의 오른쪽 끝, 세로 가운데다(그 오브젝트의 로컬). 커서는 `display` 의 **자식**이어야 한다 - 아니면 놓지 않는다.
+            // 커서는 보이는 텍스트의 `caretIndex` 번째 글자 앞, 그 줄의 세로 가운데다(그 오브젝트의 로컬, D-354). 레이아웃이 아직 없으면 오른쪽 끝이다.
+            // 커서는 `display` 의 **자식**이어야 한다 - 아니면 놓지 않는다.
             Float minX = 0.0f;
             Float minY = 0.0f;
             Float maxX = 0.0f;
@@ -851,7 +964,17 @@ namespace JBro::System
                 ? canvas.FindComponentRaw<Component::Transform2D>(caretObject) : nullptr;
             if (place != nullptr)
             {
-                if (display != nullptr && texts != nullptr && texts->GetLocalBounds(display->GetInstanceId(), minX, minY, maxX, maxY))
+                const ArrayView<const char> text = store.GetText(field.text);
+                const UInt32 count = CountCodePoints(text.Data(), text.Size());
+                const std::size_t byteOffset = ByteOffsetOf(text.Data(), text.Size(), ClampCaret(field, count));
+                Float caretX = 0.0f;
+                Float caretY = 0.0f;
+                if (display != nullptr && texts != nullptr
+                    && texts->GetLocalCaret(display->GetInstanceId(), UInt32(static_cast<std::uint32_t>(byteOffset)), caretX, caretY))
+                {
+                    place->position = { caretX, caretY };
+                }
+                else if (display != nullptr && texts != nullptr && texts->GetLocalBounds(display->GetInstanceId(), minX, minY, maxX, maxY))
                 {
                     place->position = { maxX, (minY + maxY) * 0.5f };
                 }
@@ -865,6 +988,12 @@ namespace JBro::System
 
     void Button2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
+        // 다음 프레임의 자동 반복이 쓰는 시간이다(입력 체인은 갱신 훅보다 앞이다).
+        m_frameDelta = 0.0f;
+        if (std::isfinite(deltaTime.Get()) && deltaTime > 0.0f)
+        {
+            m_frameDelta = deltaTime;
+        }
         PlaceWidgets(canvas, deltaTime);
         // 스크롤: 끄는 중이면 이번 프레임에 끈 양이 속도이고, 놓았으면 속도로 미끄러지다 멈춘다. 끝에 닿은 축은 속도가 0 이다.
         canvas.ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
@@ -1277,6 +1406,9 @@ namespace JBro::System
             Bool confirmReleased = false;
             Float stickX = 0.0f;
             Float stickY = 0.0f;
+            // 쥐고 있는 방향이다(자동 반복, D-354). 십자키가 스틱보다 먼저다.
+            Int32 heldX = 0;
+            Int32 heldY = 0;
             for (UInt32 index = 0; index < MaxGamepads; ++index)
             {
                 const GamepadState& pad = input.Gamepad(index);
@@ -1299,6 +1431,22 @@ namespace JBro::System
                 if (pad.IsPressed(GamepadButton::DPadDown))
                 {
                     directionY = 1;
+                }
+                if (pad.IsDown(GamepadButton::DPadLeft))
+                {
+                    heldX = -1;
+                }
+                if (pad.IsDown(GamepadButton::DPadRight))
+                {
+                    heldX = 1;
+                }
+                if (pad.IsDown(GamepadButton::DPadUp))
+                {
+                    heldY = -1;
+                }
+                if (pad.IsDown(GamepadButton::DPadDown))
+                {
+                    heldY = 1;
                 }
                 confirmPressed = confirmPressed || pad.IsPressed(GamepadButton::South);
                 confirmReleased = confirmReleased || pad.IsReleased(GamepadButton::South);
@@ -1326,6 +1474,45 @@ namespace JBro::System
             }
             m_stickX = stickX;
             m_stickY = stickY;
+            if (heldX == 0 && stickX >= StickThreshold)
+            {
+                heldX = 1;
+            }
+            if (heldX == 0 && stickX <= -StickThreshold)
+            {
+                heldX = -1;
+            }
+            if (heldY == 0 && stickY >= StickThreshold)
+            {
+                heldY = -1;
+            }
+            if (heldY == 0 && stickY <= -StickThreshold)
+            {
+                heldY = 1;
+            }
+            // 자동 반복(D-354): 같은 방향을 쥐고 있으면 `RepeatDelay` 뒤 `NavigateRepeatInterval` 마다 다시 옮긴다. 새로 누르거나 방향이 바뀌면 처음부터 센다.
+            if (heldX == 0 && heldY == 0)
+            {
+                m_navigateHeld = 0.0f;
+                m_navigateHeldX = 0;
+                m_navigateHeldY = 0;
+            }
+            else if (directionX != 0 || directionY != 0 || heldX != m_navigateHeldX || heldY != m_navigateHeldY)
+            {
+                m_navigateHeld = 0.0f;
+                m_navigateHeldX = heldX;
+                m_navigateHeldY = heldY;
+            }
+            else
+            {
+                m_navigateHeld = m_navigateHeld + m_frameDelta;
+                if (m_navigateHeld >= RepeatDelay)
+                {
+                    m_navigateHeld = m_navigateHeld - NavigateRepeatInterval;
+                    directionX = heldX;
+                    directionY = heldY;
+                }
+            }
 
             if (directionX != 0 || directionY != 0)
             {
@@ -1398,6 +1585,13 @@ namespace JBro::System
             {
                 TypeInto(*focusedObject, *field, input);
                 usedKeyboard = true;
+            }
+        }
+        if (false == usedKeyboard)
+        {
+            for (Float& held : m_keyHeld)
+            {
+                held = 0.0f;
             }
         }
 

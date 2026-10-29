@@ -18132,6 +18132,10 @@ namespace
         }
         Check(editor.HasOpenProject() && editor.GetCanvas() != nullptr, "the project is open with a canvas");
         JBro::Canvas* canvas = editor.GetCanvas();
+        // 같은 프로세스에서 앞서 돈 시나리오 C 의 스크립트 오류를 이 에디터가 다시 알리지 않는다(D-354).
+        Check(std::strcmp(editor.GetNotifications().GetLastTitle(),
+                  JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptError, "A script error stopped that callback")) != 0,
+            "a new editor does not announce the script errors an earlier editor logged");
 
         // 인스펙터의 `컴포넌트 추가` 로 타입 이름을 쳐서 붙인다 - 사용자가 하는 그대로다.
         ImGuiWindow* inspector = nullptr;
