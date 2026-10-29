@@ -90,6 +90,21 @@ namespace JBro::System
                 ? Vector2{ frame.pivotX, frame.pivotY } : sprite.pivot;
             item.renderOrder = sprite.renderOrder;
             item.drawSequence = sprite.drawSequence;
+            // 펴 그리기(D-351). 테두리와 칸 크기는 `size` 와 같은 단위로 넘긴다. 풀리지 않은 스프라이트는 0 이라 `Simple` 로 그려진다.
+            item.drawMode = sprite.drawMode;
+            item.fillAmount = sprite.fillAmount;
+            item.fillOrigin = sprite.fillOrigin;
+            if (resolved)
+            {
+                const Float unitsPerPixel = item.screenSpace ? Float(1.0f)
+                    : (frame.widthPixels > 0.0f ? frame.widthUnits / frame.widthPixels : Float(0.0f));
+                item.tileWidth = item.screenSpace ? frame.widthPixels : frame.widthUnits;
+                item.tileHeight = item.screenSpace ? frame.heightPixels : frame.heightUnits;
+                item.border[0] = frame.borderLeft * unitsPerPixel;
+                item.border[1] = frame.borderTop * unitsPerPixel;
+                item.border[2] = frame.borderRight * unitsPerPixel;
+                item.border[3] = frame.borderBottom * unitsPerPixel;
+            }
             if (sprite.flip == Component::SpriteFlip::Horizontal || sprite.flip == Component::SpriteFlip::Both)
             {
                 item.size.x = -item.size.x;

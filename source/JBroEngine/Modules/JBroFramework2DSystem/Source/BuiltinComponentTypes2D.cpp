@@ -4,6 +4,8 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/Slider2D.h>
+#include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -50,6 +52,11 @@ namespace JBro::Component
                       ComponentCategory::Audio, ComponentMultiplicity::Single) && all;
             // 누름 사각형은 하나다 - 둘이면 어느 것이 훅을 부르는지 사용자가 알 수 없다(D-237).
             all = RegisterComponentType<Button2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            // 토글·슬라이더도 누름 사각형 하나다(D-351).
+            all = RegisterComponentType<Toggle2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<Slider2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();

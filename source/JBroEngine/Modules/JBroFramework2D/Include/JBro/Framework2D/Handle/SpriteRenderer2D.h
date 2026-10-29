@@ -65,6 +65,13 @@ namespace JBro::Handle
         void SetRenderOrder(Int32 value);
         Bool GetVisible() const;
         void SetVisible(Bool value);
+        // 펴 그리는 방식과 `Filled` 의 비율·시작 변이다(D-351).
+        Component::SpriteDrawMode GetDrawMode() const;
+        void SetDrawMode(Component::SpriteDrawMode value);
+        Float GetFillAmount() const;
+        void SetFillAmount(Float value);
+        Component::SpriteFillOrigin GetFillOrigin() const;
+        void SetFillOrigin(Component::SpriteFillOrigin value);
 
     private:
         Component::SpriteRenderer2D* Resolve(const char* operation) const;

@@ -37,6 +37,8 @@ namespace JBro
         virtual void OnPointerDown();
         virtual void OnPointerUp();
         virtual void OnClick();
+        // **같은 오브젝트의 `Slider2D`·`Toggle2D` 가 부른다**(D-351). 포인터가 값을 바꾼 프레임에, 입력 체인 안에서. 스크립트가 쓴 값은 알리지 않는다.
+        virtual void OnValueChanged();
     };
 
     // 2D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다. `GameScriptBase` 에서 바로 파생한 타입은 여기서

@@ -56,8 +56,11 @@ namespace
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
         Check(Table("Component::Button2D").count == 20,
             "Button2D declares twenty fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, three states and the swap latch");
+        Check(Table("Component::Slider2D").count == 10, "Slider2D declares ten fields - the rect, interactable, direction, value, handle, fill and three states (D-351)");
+        Check(Table("Component::Toggle2D").count == 8, "Toggle2D declares eight fields - the rect, interactable, isOn, checkmark and three states (D-351)");
         Check(Table("Component::Camera2D").count == 9, "Camera2D declares nine fields - pixelsPerUnit of D-239, then the post-process profile pair of D-344");
-        Check(Table("Component::SpriteRenderer2D").count == 14, "SpriteRenderer2D declares fourteen fields - the hidden drawSequence of D-296 is the fourteenth");
+        Check(Table("Component::SpriteRenderer2D").count == 17,
+            "SpriteRenderer2D declares seventeen fields - the hidden drawSequence of D-296, then drawMode, fillAmount and fillOrigin of D-351");
         Check(Table("Component::Text2D").count == 23, "Text2D declares twenty-three fields - with the hidden drawSequence of D-296");
         Check(Table("Component::Rigidbody2D").count == 11,
             "Rigidbody2D declares eleven fields - the seven of D-199, then angular damping, the axis locks of D-227 and canSleep of D-229");

@@ -56,6 +56,11 @@ namespace JBro::Component
         JBRO_FIELD(Vector2,  pivot) { 0.5f, 0.5f };
         JBRO_FIELD(Vector2,  size)  { 1.0f, 1.0f };
         JBRO_FIELD(SpriteFlip,   flip)        = SpriteFlip::None;
+        // 펴 그리는 방식이다(D-351). `Sliced`·`Tiled` 는 `sizeMode` 가 `Custom` 일 때 뜻이 있다 - 에셋 크기 그대로면 `Simple` 과 같은 그림이다.
+        JBRO_FIELD(SpriteDrawMode, drawMode) = SpriteDrawMode::Simple;
+        // `Filled` 가 그리는 비율(0..1)과 시작하는 변이다. 진행 막대는 이 값 하나다.
+        JBRO_FIELD(Float, fillAmount, Range(0.0f, 1.0f)) = 1.0f;
+        JBRO_FIELD(SpriteFillOrigin, fillOrigin) = SpriteFillOrigin::Left;
         // 시트의 어느 칸인가(D-113). 슬라이싱이 없는 스프라이트는 언제나 0 이고, 넘치면 마지막 칸이다.
         JBRO_FIELD(UInt32, frameIndex) = 0;
         JBRO_FIELD(Int32, renderOrder) = 0;

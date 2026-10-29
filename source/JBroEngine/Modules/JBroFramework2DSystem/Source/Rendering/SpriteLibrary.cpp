@@ -144,6 +144,15 @@ namespace JBro
             frameView->heightPixels = static_cast<JBro::Float>(frame.height);
             frameView->pivotX = frame.pivotX;
             frameView->pivotY = frame.pivotY;
+            // 테두리는 칸 안에 든다 - 양쪽이 겹치면 왼쪽·위가 먼저 가져간다.
+            const UInt32 left = sprite->options.borderLeft < frame.width ? sprite->options.borderLeft : frame.width;
+            const UInt32 right = sprite->options.borderRight < frame.width - left ? sprite->options.borderRight : frame.width - left;
+            const UInt32 top = sprite->options.borderTop < frame.height ? sprite->options.borderTop : frame.height;
+            const UInt32 bottom = sprite->options.borderBottom < frame.height - top ? sprite->options.borderBottom : frame.height - top;
+            frameView->borderLeft = static_cast<JBro::Float>(left);
+            frameView->borderTop = static_cast<JBro::Float>(top);
+            frameView->borderRight = static_cast<JBro::Float>(right);
+            frameView->borderBottom = static_cast<JBro::Float>(bottom);
             frameView->filter = texture->filter;
         }
         return true;

@@ -45,6 +45,7 @@
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -11622,6 +11623,22 @@ namespace
             "fitting copies the sprite's size and moves the box to the sprite's pivot");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "the fit is one undo step");
         Check(editor.GetCommands().Undo() && button->size.x == 2.0f && button->offset.x == 0.0f, "undo puts the box back");
+
+        // 토글도 같은 손잡이다(D-351 2 단계) - 사각형을 가진 위젯은 타입을 가리지 않는다.
+        JBro::Object::GameObject* mute = canvas->CreateObject("Mute");
+        canvas->AttachComponent<JBro::Component::Transform2D>(mute)->position = {-3.0f, 0.0f};
+        auto* toggle = canvas->AttachComponent<JBro::Component::Toggle2D>(mute);
+        toggle->size = {1.0f, 1.0f};
+        editor.SetSelectedObject(mute);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the toggle");
+        }
+        SelectInspectorComponent(editor, hwnd, 1, "Toggle2D");
+        Check(hoveredAt(at(-2.5f, 0.0f)) == LabelId(view->ID, "##button_right"), "a toggle's hit box has the same handles");
+        DragTo(editor, hwnd, at(-2.5f, 0.0f), at(-2.0f, 0.0f));
+        Check(closeTo(toggle->size.x, 1.5f) && closeTo(toggle->offset.x, 0.25f), "dragging the toggle's right edge widens it");
+        Check(editor.GetCommands().Undo() && toggle->size.x == 1.0f, "and undo puts it back");
         editor.Shutdown();
     }
 

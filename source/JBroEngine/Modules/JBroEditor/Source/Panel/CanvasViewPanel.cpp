@@ -2272,19 +2272,21 @@ namespace JBro
             return false;
         }
         const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(object);
-        // **인스펙터에서 고른 버튼이다**(D-304 와 같은 규칙).
+        // **인스펙터에서 고른 위젯이다**(D-304 와 같은 규칙). 사각형을 가진 타입이면 무엇이든 같은 손잡이다.
         const AttachedRef inspected = m_editor->GetInspectedAttached();
-        Component::Button2D* button = inspected.component != nullptr
-                && inspected.component->GetTypeId() == MakeStableTypeId(Component::Button2D::StaticTypeName())
-            ? static_cast<Component::Button2D*>(inspected.component)
-            : nullptr;
-        if (transform == nullptr || button == nullptr || false == button->IsEnabled()
-            || false == MakeComponentAddress(m_editor->GetObjectIds(), *object, *button, target.address))
+        ComponentBase* component = inspected.component;
+        Vector2* size = nullptr;
+        Vector2* offset = nullptr;
+        if (transform == nullptr || component == nullptr || false == component->IsEnabled()
+            || false == RectFieldsOf(*component, component->GetTypeId(), size, offset)
+            || false == MakeComponentAddress(m_editor->GetObjectIds(), *object, *component, target.address))
         {
             return false;
         }
         target.object = object;
-        target.button = button;
+        target.component = component;
+        target.size = size;
+        target.offset = offset;
         // 판정(`Button2DSystem::HitTest`)과 같은 월드 행렬이다. 캐시가 아직 안 섰으면 로컬로 짓는다(`GetWorldBounds` 와 같다).
         target.world = transform->worldValid
             ? transform->world
@@ -2295,14 +2297,15 @@ namespace JBro
     void CanvasViewPanel::CommitButtonRect(const ComponentAddress& address, const String& beforeSize, const String& beforeOffset)
     {
         ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), address);
-        if (component == nullptr || address.typeId != MakeStableTypeId(Component::Button2D::StaticTypeName()))
+        Vector2* sizeField = nullptr;
+        Vector2* offsetField = nullptr;
+        if (component == nullptr || false == RectFieldsOf(*component, address.typeId, sizeField, offsetField))
         {
             return;
         }
         // 끄는 동안 바로 쓴 값을 뜨고 끌기 전으로 되돌린 뒤, 커맨드 하나(`SetButtonRect`)가 쓴다.
-        const auto& button = *static_cast<const Component::Button2D*>(component);
-        const Vector2 size = button.size;
-        const Vector2 offset = button.offset;
+        const Vector2 size = *sizeField;
+        const Vector2 offset = *offsetField;
         RestoreButtonRect(component, address, beforeSize, beforeOffset);
         SetButtonRect(*m_editor, address, size, offset);
     }
@@ -2327,7 +2330,8 @@ namespace JBro
         {
             return;
         }
-        Component::Button2D& button = *target.button;
+        Vector2& size = *target.size;
+        Vector2& offset = *target.offset;
         Matrix3x2 inverse;
         const Bool invertible = InvertMatrix3x2(target.world, inverse);
         const ImGuiIO& io = ImGui::GetIO();
@@ -2338,7 +2342,7 @@ namespace JBro
         if (m_buttonDragging)
         {
             ButtonRectModel::Drag(m_buttonDragHandle, m_buttonDragStartOffset, m_buttonDragStartSize, m_buttonGrabLocal, mouseLocal,
-                button.offset, button.size);
+                offset, size);
             const char* id = ButtonRectModel::HandleId(m_buttonDragHandle);
             if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
@@ -2357,7 +2361,7 @@ namespace JBro
         Vector2 screen[HandleCount];
         for (std::size_t index = 0; index < HandleCount; ++index)
         {
-            const Vector2 world = ApplyMatrix3x2(target.world, ButtonRectModel::HandleLocal(button.offset, button.size, Handles[index]));
+            const Vector2 world = ApplyMatrix3x2(target.world, ButtonRectModel::HandleLocal(offset, size, Handles[index]));
             WorldToScreen(rect, world.x, world.y, screen[index].x, screen[index].y);
         }
 
@@ -2385,13 +2389,13 @@ namespace JBro
             SetPropertyCommand::Path offsetPath;
             if (pressed && SetPropertyCommand::MakeFieldPath(target.address.typeId, "size", sizePath)
                 && SetPropertyCommand::MakeFieldPath(target.address.typeId, "offset", offsetPath)
-                && SetPropertyCommand::ReadValue(&button, target.address.typeId, sizePath, m_buttonDragBeforeSize)
-                && SetPropertyCommand::ReadValue(&button, target.address.typeId, offsetPath, m_buttonDragBeforeOffset))
+                && SetPropertyCommand::ReadValue(target.component, target.address.typeId, sizePath, m_buttonDragBeforeSize)
+                && SetPropertyCommand::ReadValue(target.component, target.address.typeId, offsetPath, m_buttonDragBeforeOffset))
             {
                 m_buttonDragHandle = m_buttonHover;
                 m_buttonDragAddress = target.address;
-                m_buttonDragStartOffset = button.offset;
-                m_buttonDragStartSize = button.size;
+                m_buttonDragStartOffset = offset;
+                m_buttonDragStartSize = size;
                 m_buttonGrabLocal = mouseLocal;
                 m_buttonDragging = true;
             }
@@ -2403,7 +2407,7 @@ namespace JBro
         const ImU32 hotColor = IM_COL32(255, 255, 255, 255);
         const ImU32 shadow = IM_COL32(0, 0, 0, 120);
         Vector2 corners[4];
-        ButtonRectModel::Corners(button.offset, button.size, corners);
+        ButtonRectModel::Corners(offset, size, corners);
         ImVec2 points[4];
         for (std::size_t index = 0; index < 4; ++index)
         {

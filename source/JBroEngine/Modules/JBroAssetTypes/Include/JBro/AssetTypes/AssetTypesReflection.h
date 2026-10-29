@@ -36,8 +36,12 @@ namespace JBro
                 MakeFieldEntry<&SpriteImportOptions::pivotX>(Attribute::Range(0.0f, 1.0f)),
                 MakeFieldEntry<&SpriteImportOptions::pivotY>(Attribute::Range(0.0f, 1.0f)),
                 MakeFieldEntry<&SpriteImportOptions::pixelsPerUnit>(),
+                MakeFieldEntry<&SpriteImportOptions::borderLeft>(),
+                MakeFieldEntry<&SpriteImportOptions::borderTop>(),
+                MakeFieldEntry<&SpriteImportOptions::borderRight>(),
+                MakeFieldEntry<&SpriteImportOptions::borderBottom>(),
             };
-            static const StaticPropertyTable<12> fields { entries };
+            static const StaticPropertyTable<16> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<SpriteImportOptions>("JBro.SpriteImportOptions", fields.Get());
             return descriptor;

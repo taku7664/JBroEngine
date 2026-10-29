@@ -4,7 +4,9 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
@@ -165,12 +167,56 @@ namespace JBro::System
                 break;
             }
         }
+
+        // **슬라이더의 셈**(D-351). 값은 사각형의 그 축에서 0 인 변에서 1 인 변까지의 비율이다.
+        Float SliderValueAt(const Component::Slider2D& slider, Vector2 local)
+        {
+            const Float width = std::fabs(slider.size.x);
+            const Float height = std::fabs(slider.size.y);
+            Float value = 0.0f;
+            switch (slider.direction)
+            {
+            case Component::SliderDirection::RightToLeft:
+                value = Float(width > 0.0f ? (((slider.offset.x + width * 0.5f) - local.x) / width).Get() : 0.0f);
+                break;
+            case Component::SliderDirection::BottomToTop:
+                value = Float(height > 0.0f ? ((local.y - (slider.offset.y - height * 0.5f)) / height).Get() : 0.0f);
+                break;
+            case Component::SliderDirection::TopToBottom:
+                value = Float(height > 0.0f ? (((slider.offset.y + height * 0.5f) - local.y) / height).Get() : 0.0f);
+                break;
+            case Component::SliderDirection::LeftToRight:
+            default:
+                value = Float(width > 0.0f ? ((local.x - (slider.offset.x - width * 0.5f)) / width).Get() : 0.0f);
+                break;
+            }
+            return Float(std::isfinite(value.Get()) ? Float::Clamp(value, 0.0f, 1.0f) : 0.0f);
+        }
+
+        Vector2 SliderHandleAt(const Component::Slider2D& slider)
+        {
+            const Float width = std::fabs(slider.size.x);
+            const Float height = std::fabs(slider.size.y);
+            const Float value = Float(std::isfinite(slider.value.Get()) ? Float::Clamp(slider.value, 0.0f, 1.0f) : 0.0f);
+            switch (slider.direction)
+            {
+            case Component::SliderDirection::RightToLeft:
+                return { slider.offset.x + width * 0.5f - value * width, slider.offset.y };
+            case Component::SliderDirection::BottomToTop:
+                return { slider.offset.x, slider.offset.y - height * 0.5f + value * height };
+            case Component::SliderDirection::TopToBottom:
+                return { slider.offset.x, slider.offset.y + height * 0.5f - value * height };
+            case Component::SliderDirection::LeftToRight:
+            default:
+                return { slider.offset.x - width * 0.5f + value * width, slider.offset.y };
+            }
+        }
     }
 
     Int32 Button2DSystem::GetExecutionOrder() const
     {
-        // 갱신 훅은 쓰지 않는다 - 일은 입력 체인(`OnInput`) 안에서 한다.
-        return 150;
+        // 갱신 훅은 값에서 그림을 놓는다 - 트랜스폼 전파(100)보다 먼저여야 같은 프레임에 보인다. 포인터 일은 입력 체인(`OnInput`) 안에서 한다.
+        return 50;
     }
 
     void Button2DSystem::SetScriptSystem(ScriptSystem* scripts)
@@ -206,7 +252,9 @@ namespace JBro::System
         SetScriptSystem(nullptr);
         m_canvas = nullptr;
         m_hovered = InvalidInstanceId;
+        m_hoveredKind = WidgetKind::None;
         m_pressed = InvalidInstanceId;
+        m_pressedKind = WidgetKind::None;
         m_pointerOver = false;
         m_hookTargets.Clear();
     }
@@ -322,7 +370,7 @@ namespace JBro::System
         return pointer;
     }
 
-    Bool Button2DSystem::HitTest(const Component::Button2D& button, Object::GameObject& owner, const Layer& layer, const Pointer& pointer) const
+    Bool Button2DSystem::PointerToLocal(Object::GameObject& owner, const Layer& layer, const Pointer& pointer, Vector2& local) const
     {
         const auto* transform = m_canvas->FindComponentRaw<Component::Transform2D>(&owner);
         if (transform == nullptr || false == transform->worldValid)
@@ -331,16 +379,19 @@ namespace JBro::System
         }
         Vector2 point;
         Matrix3x2 inverse;
-        Float localX = 0.0f;
-        Float localY = 0.0f;
-        if (false == PixelToLayer(layer, pointer.x, pointer.y, point) || false == Invert(transform->world, inverse)
-            || false == Apply(inverse, point.x, point.y, localX, localY))
+        return PixelToLayer(layer, pointer.x, pointer.y, point) && Invert(transform->world, inverse)
+            && Apply(inverse, point.x, point.y, local.x, local.y);
+    }
+
+    Bool Button2DSystem::HitRect(Object::GameObject& owner, const Layer& layer, Vector2 size, Vector2 offset, const Pointer& pointer, Vector2& local) const
+    {
+        if (false == PointerToLocal(owner, layer, pointer, local))
         {
             return false;
         }
-        const Float halfWidth = std::fabs(button.size.x) * 0.5f;
-        const Float halfHeight = std::fabs(button.size.y) * 0.5f;
-        return std::fabs(localX - button.offset.x) <= halfWidth && std::fabs(localY - button.offset.y) <= halfHeight;
+        const Float halfWidth = std::fabs(size.x) * 0.5f;
+        const Float halfHeight = std::fabs(size.y) * 0.5f;
+        return std::fabs(local.x - offset.x) <= halfWidth && std::fabs(local.y - offset.y) <= halfHeight;
     }
 
     void Button2DSystem::CallHook(Object::GameObject* object, Hook hook)
@@ -377,12 +428,56 @@ namespace JBro::System
             case Hook::Up:
                 ScriptCallGuard::Call("OnPointerUp", [script] { script->OnPointerUp(); });
                 break;
+            case Hook::ValueChanged:
+                ScriptCallGuard::Call("OnValueChanged", [script] { script->OnValueChanged(); });
+                break;
             case Hook::Click:
             default:
                 ScriptCallGuard::Call("OnClick", [script] { script->OnClick(); });
                 break;
             }
         }
+    }
+
+    void Button2DSystem::PlaceWidgets(Canvas& canvas)
+    {
+        // 슬라이더: 손잡이(자식 오브젝트)를 값의 자리에, 채우기 스프라이트의 비율을 값으로.
+        canvas.ForEach<Component::Slider2D>([&](Component::Slider2D& slider)
+        {
+            if (false == slider.IsActiveComponent())
+            {
+                return;
+            }
+            if (Object::GameObject* handle = Internal::GameObjectHandleAccess::Resolve(slider.handle))
+            {
+                if (auto* place = canvas.FindComponentRaw<Component::Transform2D>(handle))
+                {
+                    place->position = SliderHandleAt(slider);
+                }
+            }
+            if (auto* fill = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(slider.fill))
+            {
+                fill->fillAmount = Float(std::isfinite(slider.value.Get()) ? Float::Clamp(slider.value, 0.0f, 1.0f) : 0.0f);
+            }
+        });
+        // 토글: 표시 스프라이트는 켜졌을 때만 보인다.
+        canvas.ForEach<Component::Toggle2D>([&](Component::Toggle2D& toggle)
+        {
+            if (false == toggle.IsActiveComponent())
+            {
+                return;
+            }
+            if (auto* mark = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(toggle.checkmark))
+            {
+                mark->visible = toggle.isOn;
+            }
+        });
+    }
+
+    void Button2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
+    {
+        (void)deltaTime;
+        PlaceWidgets(canvas);
     }
 
     InputResult Button2DSystem::OnInput(InputView& input)
@@ -394,36 +489,40 @@ namespace JBro::System
         }
         const Pointer pointer = ReadPointer(input);
 
-        // 1. 포인터 아래의 가장 위 버튼, 그리고 지난 프레임의 호버·누름 오브젝트를 찾는다. 이번 프레임의 `clicked` 는 여기서 지운다.
-        Object::GameObject* top = nullptr;
-        Component::Button2D* topButton = nullptr;
-        Bool topScreen = false;
-        LayerOrder topLayer = 0;
-        Int32 topOrder = 0;
-        Int32 topSequence = 0;
+        // 1. 포인터 아래의 가장 위 위젯, 그리고 지난 프레임의 호버·누름 오브젝트를 찾는다. 이번 프레임의 `clicked`·`changed` 는 여기서 지운다.
+        struct Top
+        {
+            Object::GameObject* owner = nullptr;
+            WidgetKind kind = WidgetKind::None;
+            Bool interactable = true;
+            Bool screen = false;
+            LayerOrder layer = 0;
+            Int32 order = 0;
+            Int32 sequence = 0;
+            Vector2 local;
+        };
+        Top top;
         Object::GameObject* hoveredBefore = nullptr;
         Object::GameObject* pressedBefore = nullptr;
-        m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
-        {
-            button.clicked = false;
-            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(button);
+        const auto consider = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Vector2 size, Vector2 offset, Bool active) {
             if (owner == nullptr)
             {
                 return;
             }
             const InstanceId id = owner->GetInstanceId();
-            if (id == m_hovered)
+            if (id == m_hovered && kind == m_hoveredKind)
             {
                 hoveredBefore = owner;
             }
-            if (id == m_pressed)
+            if (id == m_pressed && kind == m_pressedKind)
             {
                 pressedBefore = owner;
             }
             const Layer* layer = owner->GetLayer();
-            // 꺼진 버튼·감춘 레이어는 없는 것이다. 꺼진 버튼(`interactable` 거짓)은 보이므로 포인터를 받는다.
-            if (false == pointer.present || false == button.IsActiveComponent() || false == owner->IsActiveInHierarchy() || layer == nullptr
-                || false == layer->IsVisible() || false == HitTest(button, *owner, *layer, pointer))
+            // 꺼진 위젯·감춘 레이어는 없는 것이다. 꺼진 위젯(`interactable` 거짓)은 보이므로 포인터를 받는다.
+            Vector2 local;
+            if (false == pointer.present || false == active || false == owner->IsActiveInHierarchy() || layer == nullptr
+                || false == layer->IsVisible() || false == HitRect(*owner, *layer, size, offset, pointer, local))
             {
                 return;
             }
@@ -431,56 +530,121 @@ namespace JBro::System
             const auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(owner);
             const Int32 order = sprite != nullptr ? sprite->renderOrder : Int32(0);
             const Int32 sequence = sprite != nullptr ? sprite->drawSequence : Int32(0);
-            const Bool above = top == nullptr || (screen != topScreen ? screen
-                : layer->GetOrder() != topLayer ? Bool(layer->GetOrder() > topLayer)
-                : order != topOrder ? Bool(order > topOrder)
-                : Bool(sequence >= topSequence));
+            const Bool above = top.owner == nullptr || (screen != top.screen ? screen
+                : layer->GetOrder() != top.layer ? Bool(layer->GetOrder() > top.layer)
+                : order != top.order ? Bool(order > top.order)
+                : Bool(sequence >= top.sequence));
             if (above)
             {
-                top = owner;
-                topButton = &button;
-                topScreen = screen;
-                topLayer = layer->GetOrder();
-                topOrder = order;
-                topSequence = sequence;
+                top.owner = owner;
+                top.kind = kind;
+                top.interactable = interactable;
+                top.screen = screen;
+                top.layer = layer->GetOrder();
+                top.order = order;
+                top.sequence = sequence;
+                top.local = local;
             }
+        };
+        m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
+        {
+            button.clicked = false;
+            consider(Internal::CanvasAccess::GetOwner(button), WidgetKind::Button, button.interactable, button.size, button.offset, button.IsActiveComponent());
+        });
+        m_canvas->ForEach<Component::Toggle2D>([&](Component::Toggle2D& toggle)
+        {
+            toggle.changed = false;
+            consider(Internal::CanvasAccess::GetOwner(toggle), WidgetKind::Toggle, toggle.interactable, toggle.size, toggle.offset, toggle.IsActiveComponent());
+        });
+        m_canvas->ForEach<Component::Slider2D>([&](Component::Slider2D& slider)
+        {
+            slider.changed = false;
+            consider(Internal::CanvasAccess::GetOwner(slider), WidgetKind::Slider, slider.interactable, slider.size, slider.offset, slider.IsActiveComponent());
         });
 
-        // 2. 호버가 바뀌면 떠난 쪽이 먼저다.
-        if (hoveredBefore != top)
+        // 2. 호버가 바뀌면 떠난 쪽이 먼저다. 들어옴·나감 훅은 버튼의 것이다.
+        if (hoveredBefore != top.owner || m_hoveredKind != top.kind)
         {
-            CallHook(hoveredBefore, Hook::Exit);
-            CallHook(top, Hook::Enter);
+            if (m_hoveredKind == WidgetKind::Button)
+            {
+                CallHook(hoveredBefore, Hook::Exit);
+            }
+            if (top.kind == WidgetKind::Button)
+            {
+                CallHook(top.owner, Hook::Enter);
+            }
         }
-        m_hovered = top != nullptr ? top->GetInstanceId() : InvalidInstanceId;
+        m_hovered = top.owner != nullptr ? top.owner->GetInstanceId() : InvalidInstanceId;
+        m_hoveredKind = top.kind;
 
-        // 3. 누르기와 떼기. 누른 버튼은 포인터가 벗어나도 뗄 때까지 쥔다 - 떼는 자리가 그 버튼 위여야 누름이다.
+        // 3. 누르기·끌기·떼기. 누른 위젯은 포인터가 벗어나도 뗄 때까지 쥔다 - 떼는 자리가 그 위젯 위여야 누름이다.
         Object::GameObject* pressed = pressedBefore;
-        if (pointer.pressed && topButton != nullptr && topButton->interactable)
+        WidgetKind pressedKind = pressedBefore != nullptr ? m_pressedKind : WidgetKind::None;
+        if (pointer.pressed && top.owner != nullptr && top.interactable)
         {
-            pressed = top;
-            CallHook(pressed, Hook::Down);
+            pressed = top.owner;
+            pressedKind = top.kind;
+            if (top.kind == WidgetKind::Button)
+            {
+                CallHook(pressed, Hook::Down);
+            }
+        }
+        // 슬라이더는 쥔 동안 포인터의 자리가 곧 값이다 - 사각형을 벗어나도 그 축의 끝에 붙는다.
+        if (pressed != nullptr && pressedKind == WidgetKind::Slider && pointer.present && pointer.down)
+        {
+            auto* slider = m_canvas->FindComponentRaw<Component::Slider2D>(pressed);
+            const Layer* layer = pressed->GetLayer();
+            Vector2 local;
+            if (slider != nullptr && layer != nullptr && PointerToLocal(*pressed, *layer, pointer, local))
+            {
+                const Float value = SliderValueAt(*slider, local);
+                if (value != slider->value)
+                {
+                    slider->value = value;
+                    slider->changed = true;
+                    CallHook(pressed, Hook::ValueChanged);
+                }
+            }
         }
         if (pressed != nullptr && (pointer.released || false == pointer.present || false == pointer.down))
         {
             Object::GameObject* released = pressed;
+            const WidgetKind releasedKind = pressedKind;
             pressed = nullptr;
-            CallHook(released, Hook::Up);
-            if (pointer.released && released == top && topButton != nullptr && topButton->interactable)
+            pressedKind = WidgetKind::None;
+            if (releasedKind == WidgetKind::Button)
             {
-                topButton->clicked = true;
+                CallHook(released, Hook::Up);
+            }
+            const Bool onTop = pointer.released && released == top.owner && releasedKind == top.kind && top.interactable;
+            if (onTop && releasedKind == WidgetKind::Button)
+            {
+                if (auto* button = m_canvas->FindComponentRaw<Component::Button2D>(released))
+                {
+                    button->clicked = true;
+                }
                 CallHook(released, Hook::Click);
+            }
+            else if (onTop && releasedKind == WidgetKind::Toggle)
+            {
+                if (auto* toggle = m_canvas->FindComponentRaw<Component::Toggle2D>(released))
+                {
+                    toggle->isOn = false == toggle->isOn;
+                    toggle->changed = true;
+                    CallHook(released, Hook::ValueChanged);
+                }
             }
         }
         m_pressed = pressed != nullptr ? pressed->GetInstanceId() : InvalidInstanceId;
+        m_pressedKind = pressedKind;
 
-        // 4. 상태 필드와 색. 훅이 버튼을 지웠을 수 있으니 다시 돈다.
+        // 4. 상태 필드와 전이. 훅이 위젯을 지웠을 수 있으니 다시 돈다.
         m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(button);
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
-            button.hovered = id != InvalidInstanceId && id == m_hovered;
-            button.pressed = id != InvalidInstanceId && id == m_pressed;
+            button.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Button;
+            button.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Button;
             if (button.IsActiveComponent())
             {
                 ApplyTransition(*m_canvas, button, owner);
@@ -490,9 +654,23 @@ namespace JBro::System
                 RestoreSwap(button, TargetGraphic(*m_canvas, button, owner));
             }
         });
+        m_canvas->ForEach<Component::Toggle2D>([&](Component::Toggle2D& toggle)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(toggle);
+            const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
+            toggle.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Toggle;
+            toggle.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Toggle;
+        });
+        m_canvas->ForEach<Component::Slider2D>([&](Component::Slider2D& slider)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(slider);
+            const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
+            slider.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Slider;
+            slider.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Slider;
+        });
 
-        // 5. 버튼 위거나 쥐고 있으면 그 장치를 아래에서 지운다. 입력은 막지 않는다 - 키보드·게임패드는 지나간다.
-        m_pointerOver = top != nullptr || m_pressed != InvalidInstanceId;
+        // 5. 위젯 위거나 쥐고 있으면 그 장치를 아래에서 지운다. 입력은 막지 않는다 - 키보드·게임패드는 지나간다.
+        m_pointerOver = top.owner != nullptr || m_pressed != InvalidInstanceId;
         // 둘 다 지운다 - 터치를 마우스로도 흉내 내는 플랫폼에서 같은 손가락이 마우스로 새어 나가지 않게.
         if (m_pointerOver)
         {

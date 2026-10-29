@@ -203,3 +203,21 @@
      `offset` 을 함께 바꾼다(맞은편 변이 그대로). `Button2D` 를 고른 동안 가운데 손잡이가 이동 기즈모의 가운데를 가린다(축 손잡이는 그대로다). API 목록의
      위치표(`Definitions.cpp`)는 헤더를 고칠 때마다 손으로 옮긴다 - 같은 글자의 줄이 여럿이면(`Collision2D::other`·`RaycastHit2D::other`) 가장 가까운 줄로
      잇는 셈이 틀리고, 구간 대응(difflib)으로 이어야 한다(처음에 틀려 `ScriptApiCatalog` 가 떨어졌다).
+2. ~~**그림 위젯**~~ → 완료 2026-10-29 · 스프라이트 임포트 옵션의 `borderLeft`·`borderTop`·`borderRight`·`borderBottom`(픽셀, `SpriteLibrary::Resolve` 가 칸 안으로
+   줄여 `SpriteFrameView` 에 넘긴다), `SpriteRenderer2D.drawMode`(`SpriteDrawMode`)·`fillAmount`·`fillOrigin`(`SpriteFillOrigin`), 렌더 아이템의 테두리·칸 크기(`size`
+   와 같은 단위), **조각 셈 `BuildSpritePieces`**(`Framework2DSystem/Rendering/SpritePieces.h`, 렌더러를 모른다)와 브리지의 조각마다 `SpriteSubmit`(`BuildSprite` 가 조각의
+   비율로 기하와 uv 를 줄인다, 상한 256 조각), 스프라이트 뷰어의 테두리 안내선, `Slider2D`(`SliderDirection`·`handle`·`fill`)·`Toggle2D`(`checkmark`)와 핸들,
+   `GameScript2D::OnValueChanged`, `Button2DSystem` 이 세 위젯을 모두 본다(`WidgetKind`, 갱신 훅 50 에서 손잡이·채우기·표시를 값에서 놓는다), 캔버스 뷰 사각형
+   손잡이가 타입을 가리지 않는다(`RectFieldsOf`) ·
+   - **잰 것**: `SpriteDrawMode`(조각 셈) - 4 x 4 칸·테두리 1 을 16 x 16 으로 펴면 9 조각이고 모서리는 1/16 x 1/4, 가운데는 14/16 x 1/2, 테두리 합이 폭을 넘으면
+     비례로 줄며 가운데 열이 빠진다(6 조각), 타일 10 x 10 은 한 줄 셋에 마지막이 반 칸, 4000 x 4000 은 상한 256 에서 끊긴다, 채우기는 네 변에서 비율만큼 한 조각이고
+     0 이면 없다. **픽셀**(D3D12, 64 x 64 화면 레이어, 4 x 4 PNG 의 아홉 색) - 9-슬라이스 16 x 16 의 네 모서리가 한 픽셀 색 그대로, 변은 제 쪽으로 늘고 가운데는
+     희며 밖은 검다. 타일 10 x 10 은 첫 칸이 온전하고 셋째가 2 픽셀, 위의 잘린 칸은 칸의 아래 반을 보인다(타일은 왼쪽 아래부터). 채우기 왼쪽 절반은 x 24..31 만,
+     위 절반은 위만. `InputChainTests` - 토글은 누르고 떼면 뒤집히고 `OnValueChanged` 한 번, 벗어나 떼면 그대로, 꺼지면 안 뒤집히되 포인터는 가져가며, 표시
+     스프라이트의 `visible` 이 `isOn` 을 따른다. 슬라이더는 픽셀 75 에서 0.25, 끌어 100 에서 0.5(손잡이 0·채우기 0.5), 축 밖으로 가도 값 그대로, 170 은 1 로 붙고,
+     스크립트가 쓴 0.3 은 손잡이(-20)·채우기만 옮기고 알리지 않으며, `RightToLeft` 는 같은 자리가 0.75 다. `EditorApplicationTests` - 토글의 사각형도
+     `##button_right` 이고 끌면 1 → 1.5. 묶음: `SpriteDrawMode` 0.7 초, `InputChain`·`BuiltinComponentProperty`·`CanvasFile`·`AssetSystem`·`EditorLocalization`
+     통과, `EditorApplication` 통과.
+   - 정한 것: 타일은 왼쪽 아래(y 위 좌표의 원점 쪽)부터 깐다 - 위가 잘린다. 슬라이더의 손잡이는 **자식 오브젝트**여야 한다(로컬 자리를 쓴다). 토글·슬라이더는
+     `OnPointerEnter` 같은 버튼 훅을 부르지 않는다 - 값 훅 하나다. 포인터가 바꾼 값만 알린다. `Button2DSystem` 의 갱신 순서를 150 → 50 으로 옮겼다(트랜스폼 전파보다
+     먼저 손잡이를 놓아야 같은 프레임에 보인다). 스프라이트 뷰어의 테두리 안내선은 화면으로 보지 않았다(미확인).

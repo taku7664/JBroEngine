@@ -93,6 +93,12 @@ namespace JBro
         // 한 유닛에 드는 픽셀 수다(D-117). 프로젝트 기본값은 없다 - 에셋이 전부 말한다. 0 이하나 비유한으로 적힌 값은
         // 로드 때 `DefaultPixelsPerUnit` 으로 바로잡는다.
         Float pixelsPerUnit = DefaultPixelsPerUnit;
+        // 9-슬라이스의 테두리다(픽셀, D-351). 시트의 모든 칸이 같은 테두리다. 0 이면 테두리가 없다 - 옛 `.jmeta` 는 키가 없어 0 으로 읽힌다.
+        // 칸보다 크면 풀 때 칸 크기로 줄인다.
+        UInt32 borderLeft = 0;
+        UInt32 borderTop = 0;
+        UInt32 borderRight = 0;
+        UInt32 borderBottom = 0;
     };
 
     // 텍스처를 어떻게 샘플링하는가(D-117). `Nearest` 는 텍셀 그대로(픽셀 아트), `Linear` 는 이웃과 섞는다.

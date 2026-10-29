@@ -52,6 +52,7 @@ JBro::Int32 RunNodeGraphTests();
 JBro::Int32 RunNodeGraphViewTests();
 JBro::Int32 RunLightGizmoModelTests();
 JBro::Int32 RunButtonRectModelTests();
+JBro::Int32 RunSpriteDrawModeTests();
 JBro::Int32 RunGameHostArgumentTests();
 JBro::Int32 RunPlatformFileTests();
 JBro::Int32 RunReflectedYamlTests();
@@ -297,6 +298,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("ButtonRectModel", &RunButtonRectModelTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("SpriteDrawMode", &RunSpriteDrawModeTests))
         {
             return 1;
         }

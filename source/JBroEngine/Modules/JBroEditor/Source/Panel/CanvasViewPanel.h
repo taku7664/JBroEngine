@@ -176,12 +176,14 @@ namespace JBro
         void DrawLightEditor(const ViewRect& rect);
         // 손잡이 하나가 고친 필드를 커맨드 하나로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값(`before`)으로 되돌린 뒤 커맨드가 쓴다.
         void CommitLightField(const ComponentAddress& address, LightGizmoModel::Handle handle, const String& before);
-        // **버튼 누름 사각형**(D-351 1 단계). 인스펙터에서 고른 `Button2D` 의 사각형을 그리고, 변과 가운데의 손잡이를 끌어 `size`·`offset` 을 고친다.
-        // 라이트와 달리 UI 보기에서도 선다(버튼은 화면 레이어에 많다). 콜라이더를 고치는 동안은 없다.
+        // **위젯 사각형**(D-351). 인스펙터에서 고른 버튼·토글·슬라이더(`RectFieldsOf`)의 사각형을 그리고, 변과 가운데의 손잡이를 끌어
+        // `size`·`offset` 을 고친다. 라이트와 달리 UI 보기에서도 선다(위젯은 화면 레이어에 많다). 콜라이더를 고치는 동안은 없다.
         struct ButtonTarget
         {
             Object::GameObject*     object = nullptr;
-            Component::Button2D*    button = nullptr;
+            ComponentBase*          component = nullptr;
+            Vector2*                size = nullptr;
+            Vector2*                offset = nullptr;
             ComponentAddress        address;
             Matrix3x2               world;
         };

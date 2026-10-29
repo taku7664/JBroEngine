@@ -345,6 +345,20 @@ namespace JBro
                 const Bool hovered = static_cast<JBro::Int32>(index) == m_hoveredFrame;
                 const ImU32 color = hovered ? hoverColor : (chosen ? chosenColor : cellColor);
                 draw->AddRect(min, max, color, 0.0f, 0, (hovered || chosen) ? 2.0f : 1.0f);
+                // 9-슬라이스의 테두리(D-351). 칸 안의 선 넷이다 - 어디서 늘어나는지 보여야 테두리를 고칠 수 있다.
+                const SpriteImportOptions& options = data->options;
+                if (options.borderLeft != 0 || options.borderTop != 0 || options.borderRight != 0 || options.borderBottom != 0)
+                {
+                    const ImU32 borderColor = IM_COL32(120, 255, 160, 170);
+                    const Float left = min.x + static_cast<JBro::Float>(options.borderLeft) * zoom;
+                    const Float right = max.x - static_cast<JBro::Float>(options.borderRight) * zoom;
+                    const Float top = min.y + static_cast<JBro::Float>(options.borderTop) * zoom;
+                    const Float bottom = max.y - static_cast<JBro::Float>(options.borderBottom) * zoom;
+                    draw->AddLine(ImVec2(left, min.y), ImVec2(left, max.y), borderColor);
+                    draw->AddLine(ImVec2(right, min.y), ImVec2(right, max.y), borderColor);
+                    draw->AddLine(ImVec2(min.x, top), ImVec2(max.x, top), borderColor);
+                    draw->AddLine(ImVec2(min.x, bottom), ImVec2(max.x, bottom), borderColor);
+                }
                 // 피벗은 **칸마다** 다를 수 있다. 시트에서 한눈에 견주려면 다 그려야 한다.
                 if (m_showPivot)
                 {

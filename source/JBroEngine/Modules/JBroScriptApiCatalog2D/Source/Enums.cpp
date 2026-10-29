@@ -28,6 +28,30 @@ void AddEnums(ApiCatalog& catalog)
     }
     }
     {
+    auto& type = AddType(catalog, "SpriteDrawMode", "JBro::Component::SpriteDrawMode", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::SpriteDrawMode>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "SpriteFillOrigin", "JBro::Component::SpriteFillOrigin", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::SpriteFillOrigin>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "SliderDirection", "JBro::Component::SliderDirection", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::SliderDirection>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
     auto& type = AddType(catalog, "ButtonTransition", "JBro::Component::ButtonTransition", ApiTypeKind::Enum);
     const auto& descriptor = TypeDescriptorOf<Component::ButtonTransition>::Get();
     for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)

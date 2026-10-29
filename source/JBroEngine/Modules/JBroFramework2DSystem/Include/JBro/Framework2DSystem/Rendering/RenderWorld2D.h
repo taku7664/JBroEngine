@@ -55,6 +55,14 @@ namespace JBro
         Color         tint{ 1.0f, 1.0f, 1.0f, 1.0f };
         Vector2          pivot;
         Vector2          size;
+        // 펴 그리는 방식이다(D-351). 브리지가 `Simple` 이 아닌 아이템을 조각 여럿의 제출로 편다 - 아이템 수·정렬은 그대로다.
+        // 테두리(왼쪽·위·오른쪽·아래)와 칸의 자연 크기는 `size` 와 같은 단위다(화면 레이어는 픽셀, 월드는 유닛).
+        Component::SpriteDrawMode drawMode = Component::SpriteDrawMode::Simple;
+        Float            fillAmount = 1.0f;
+        Component::SpriteFillOrigin fillOrigin = Component::SpriteFillOrigin::Left;
+        Float            border[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        Float            tileWidth = 0.0f;
+        Float            tileHeight = 0.0f;
         Int32  renderOrder = 0;
         // 같은 레이어·같은 `renderOrder` 끼리의 차례다(D-296). 키에 넣지 않고 키가 같을 때 견준다 - 키의 예약 16 비트로는 스크립트가 준 값이 넘친다.
         Int32  drawSequence = 0;

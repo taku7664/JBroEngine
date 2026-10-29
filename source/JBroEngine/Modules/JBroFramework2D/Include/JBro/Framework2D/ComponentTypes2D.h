@@ -44,16 +44,38 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 스프라이트를 어떻게 펴 그리는가(D-351). `Simple` 은 쿼드 하나, `Sliced` 는 에셋의 테두리로 9 조각(모서리는 그대로, 변과 가운데가 늘어난다),
+    // `Tiled` 는 칸 크기로 되풀이, `Filled` 는 `fillAmount` 만큼만 `fillOrigin` 쪽에서부터 그린다(진행 막대). `Sliced`·`Tiled` 는 `size` 를 채운다.
+    enum class SpriteDrawMode : std::uint8_t { Simple, Sliced, Tiled, Filled };
+    // `Filled` 가 채우기를 시작하는 변이다.
+    enum class SpriteFillOrigin : std::uint8_t { Left, Right, Bottom, Top };
     // 버튼이 상태를 그림에 어떻게 보이는가(D-351). `ColorTint` 는 대상 스프라이트의 `tint`, `SpriteSwap` 은 `sprite` 를 상태마다 바꾼다.
     enum class ButtonTransition : std::uint8_t { None, ColorTint, SpriteSwap };
+    // 슬라이더의 어느 변이 0 인가(D-351).
+    enum class SliderDirection : std::uint8_t { LeftToRight, RightToLeft, BottomToTop, TopToBottom };
 }
 
 namespace JBro
 {
+    JBRO_DEFINE_ENUM_TYPE(Component::SpriteDrawMode, "Component::SpriteDrawMode",
+        { Component::SpriteDrawMode::Simple, "Simple" },
+        { Component::SpriteDrawMode::Sliced, "Sliced" },
+        { Component::SpriteDrawMode::Tiled,  "Tiled" },
+        { Component::SpriteDrawMode::Filled, "Filled" });
+    JBRO_DEFINE_ENUM_TYPE(Component::SpriteFillOrigin, "Component::SpriteFillOrigin",
+        { Component::SpriteFillOrigin::Left,   "Left" },
+        { Component::SpriteFillOrigin::Right,  "Right" },
+        { Component::SpriteFillOrigin::Bottom, "Bottom" },
+        { Component::SpriteFillOrigin::Top,    "Top" });
     JBRO_DEFINE_ENUM_TYPE(Component::ButtonTransition, "Component::ButtonTransition",
         { Component::ButtonTransition::None,       "None" },
         { Component::ButtonTransition::ColorTint,  "ColorTint" },
         { Component::ButtonTransition::SpriteSwap, "SpriteSwap" });
+    JBRO_DEFINE_ENUM_TYPE(Component::SliderDirection, "Component::SliderDirection",
+        { Component::SliderDirection::LeftToRight, "LeftToRight" },
+        { Component::SliderDirection::RightToLeft, "RightToLeft" },
+        { Component::SliderDirection::BottomToTop, "BottomToTop" },
+        { Component::SliderDirection::TopToBottom, "TopToBottom" });
 }
 
 namespace JBro::Component

@@ -29,6 +29,11 @@ namespace JBro
         Float heightPixels = 0.0f;
         Float pivotX = 0.5f;
         Float pivotY = 0.5f;
+        // 9-슬라이스의 테두리다(픽셀, D-351). 에셋 옵션의 값을 칸 크기 안으로 줄인 것이다.
+        Float borderLeft = 0.0f;
+        Float borderTop = 0.0f;
+        Float borderRight = 0.0f;
+        Float borderBottom = 0.0f;
         // 텍스처의 유효 샘플러다(프로젝트 기본이 이미 적용된 값, D-117). `Default` 는 오지 않는다.
         TextureFilter filter = TextureFilter::Nearest;
     };

@@ -2,6 +2,7 @@
 
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
+#include <JBro/Framework2DSystem/Rendering/SpritePieces.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Runtime/GameObject.h>
@@ -62,12 +63,14 @@ namespace JBro::Internal
         }
 
         // `offsetX`·`offsetY` 는 월드에서 옮길 양이다(패럴랙스, D-286). 오브젝트 변환 뒤에 더한다 - 레이어 전체가 같이 움직인다.
-        SpriteSubmit BuildSprite(const SpriteRenderItem& source, Float offsetX = 0.0f, Float offsetY = 0.0f)
+        // `piece` 는 아이템의 어느 조각인가다(D-351). 온 조각이면 쿼드 하나가 아이템 전체다.
+        SpriteSubmit BuildSprite(const SpriteRenderItem& source, Float offsetX, Float offsetY, const SpritePiece& piece)
         {
             // Built-in geometry is a centered unit quad. Apply pivot/size before the object transform.
-            const Matrix3x2 geometry{source.size.x, 0.0f, 0.0f, source.size.y,
-                (0.5f - source.pivot.x) * source.size.x,
-                (0.5f - source.pivot.y) * source.size.y};
+            // 조각은 그려지는 사각형 안의 비율(왼쪽 아래 원점)이라, 크기를 조각만큼 줄이고 가운데를 조각의 가운데로 옮긴다.
+            const Matrix3x2 geometry{(piece.gu1 - piece.gu0) * source.size.x, 0.0f, 0.0f, (piece.gv1 - piece.gv0) * source.size.y,
+                ((piece.gu0 + piece.gu1) * 0.5f - source.pivot.x) * source.size.x,
+                ((piece.gv0 + piece.gv1) * 0.5f - source.pivot.y) * source.size.y};
             const Matrix3x2 world = MultiplyMatrix3x2(geometry, source.world);
             SpriteSubmit result;
             // Framework uses row vectors; Graphics/HLSL uses column vectors.
@@ -81,10 +84,11 @@ namespace JBro::Internal
             // 이 값은 그 정렬을 GPU 로 옮기기 전까지 평면을 유지한다.
             result.world.depth = 0.0f;
             result.texture = source.texture;
-            result.uvRect[0] = source.uvRect[0];
-            result.uvRect[1] = source.uvRect[1];
-            result.uvRect[2] = source.uvRect[2];
-            result.uvRect[3] = source.uvRect[3];
+            // 텍스처 비율은 왼쪽 아래 원점이고 uv 의 v 는 위가 0 이라 세로는 뒤집어 잰다.
+            result.uvRect[0] = source.uvRect[0] + piece.tu0 * source.uvRect[2];
+            result.uvRect[1] = source.uvRect[1] + (1.0f - piece.tv1) * source.uvRect[3];
+            result.uvRect[2] = (piece.tu1 - piece.tu0) * source.uvRect[2];
+            result.uvRect[3] = (piece.tv1 - piece.tv0) * source.uvRect[3];
             // 에셋의 `TextureFilter` 가 렌더러의 `SpriteFilter` 로 간다(D-117). `Default` 는 라이브러리가 이미 풀었다.
             result.filter = source.filter == TextureFilter::Linear ? SpriteFilter::Linear : SpriteFilter::Nearest;
             result.material = source.material;
@@ -259,11 +263,27 @@ namespace JBro::Internal
                     offsetX = 0.0f;
                     offsetY = 0.0f;
                 }
-                batch[count] = BuildSprite(item, offsetX, offsetY);
-                ++count;
-                if (count == BatchSize)
+                if (item.drawMode == Component::SpriteDrawMode::Simple)
                 {
-                    flush();
+                    batch[count] = BuildSprite(item, offsetX, offsetY, WholeSpritePiece());
+                    ++count;
+                    if (count == BatchSize)
+                    {
+                        flush();
+                    }
+                    continue;
+                }
+                // 9-슬라이스·타일·채우기는 조각 여럿이다(D-351). 묶음이 차면 그때그때 낸다.
+                SpritePiece pieces[MaxSpritePieces];
+                const UInt32 pieceCount = BuildSpritePieces(item, pieces, MaxSpritePieces);
+                for (UInt32 index = 0; index < pieceCount; ++index)
+                {
+                    batch[count] = BuildSprite(item, offsetX, offsetY, pieces[index]);
+                    ++count;
+                    if (count == BatchSize)
+                    {
+                        flush();
+                    }
                 }
             }
             flush();
