@@ -55,6 +55,24 @@ namespace JBro
     Bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error,
         CanvasWriteMode mode = CanvasWriteMode::Editor);
 
+    // 스크립트의 필드 값을 잇지 못한 자리다. 파일을 읽을 때(`ReadCanvasText`)와 핫 리로드로 되살릴 때(`ResolveKeptScripts`) 같은 것을 남긴다.
+    struct ScriptResolveNote
+    {
+        enum class Kind : std::uint8_t
+        {
+            // 새 코드에 그 이름의 필드가 없다. 값은 버렸다.
+            FieldDropped,
+            // 필드는 있는데 값을 읽지 못했다(타입이 바뀌었다). 기본값으로 두었다.
+            FieldUnreadable,
+            // 타입은 아는데 붙이지 못했다. 모르는 스크립트로 남겼다.
+            NotAttached,
+        };
+        Kind kind = Kind::FieldDropped;
+        String objectName;
+        String typeName;
+        String fieldName;
+    };
+
     // 텍스트를 **빈 캔버스에** 읽어 넣는다. 이미 내용이 있으면 거절한다 —
     // 섞으면 무엇이 파일에서 온 것인지 알 수 없고, 되돌릴 방법도 없다.
     //
@@ -64,10 +82,13 @@ namespace JBro
     // 게임으로 묶는 쓰기(`Package`)는 그런 스크립트를 만나면 실패한다.
     // **모르는 컴포넌트는 실패다** - 빌트인은 엔진이 모두 안다. 스크립트가 `Components` 에 섞인 파일(D-302 전)도 실패다. 옮겨 읽지 않는다.
     //
-    // **파일에 있는데 코드에 없는 필드는 실패다.** 그 반대(코드에 있는데 파일에 없는 필드)는
+    // **빌트인 컴포넌트에서 파일에 있는데 코드에 없는 필드는 실패다.** 그 반대(코드에 있는데 파일에 없는 필드)는
     // 기본값으로 두고 넘어간다 — 필드를 더한 것은 예전 씬을 못 읽을 이유가 아니지만,
     // 필드를 지운 것은 그 씬이 들고 있던 값을 버린다는 뜻이라 사람이 알아야 한다.
-    Bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error);
+    // **스크립트는 핫 리로드와 같이 이름이 맞고 읽히는 필드만 잇는다**(D-349, D-300 (2)). 코드에서 지운 필드의 값은 버리고, 타입이 바뀌어
+    // 못 읽는 값은 기본값으로 두고, 둘 다 `scriptNotes` 에 남긴다. 사용자는 에디터를 끈 채 스크립트를 고치므로, 멈추면 그 캔버스를 다시 열 길이 없다.
+    Bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error,
+        Array<ScriptResolveNote>* scriptNotes = nullptr);
 
     // **레이어 에셋**(`.jlayer`, D-287, 기존 `LayerSerializer`). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적는다:
     // `Version`·`Layer`(캔버스 파일의 `Layers` 항목과 같은 함수로 쓴 노드, 캔버스 안 번호와 원본 에셋은 빠진다)·`Objects`(부모는 파일 안 번호).
@@ -113,25 +134,8 @@ namespace JBro
     Bool KeepScriptsAsText(Canvas& canvas, std::size_t& kept, CanvasFileError& error);
 
     // 되살리면서 값을 잇지 못한 것이다. 되살리기는 멈추지 않는다 - 스크립트는 붙고 그 필드만 기본값이다.
-    struct ScriptResolveNote
-    {
-        enum class Kind : std::uint8_t
-        {
-            // 새 코드에 그 이름의 필드가 없다. 값은 버렸다.
-            FieldDropped,
-            // 필드는 있는데 값을 읽지 못했다(타입이 바뀌었다). 기본값으로 두었다.
-            FieldUnreadable,
-            // 타입은 아는데 붙이지 못했다. 모르는 스크립트로 남겼다.
-            NotAttached,
-        };
-        Kind kind = Kind::FieldDropped;
-        String objectName;
-        String typeName;
-        String fieldName;
-    };
-
     // 모르는 스크립트 가운데 이제 이름을 아는 것을 되살린다. 같은 자리에, 들고 있던 스크립트 번호로 붙인다.
-    // 필드는 이름이 맞고 읽히는 것만 잇는다(사용자 결정 2026-09-29: "맞는 것만 잇고 나머지는 경고"). 파일을 읽는 `ReadCanvasText` 와 달리
-    // 코드에 없는 필드로 멈추지 않는다. 되살린 개수다. 모르는 채인 것은 그대로 남는다.
+    // 필드는 이름이 맞고 읽히는 것만 잇는다(사용자 결정 2026-09-29: "맞는 것만 잇고 나머지는 경고"). 파일을 읽는 `ReadCanvasText` 의 스크립트와
+    // 같은 규칙이다. 되살린 개수다. 모르는 채인 것은 그대로 남는다.
     std::size_t ResolveKeptScripts(Canvas& canvas, Array<ScriptResolveNote>& notes);
 }

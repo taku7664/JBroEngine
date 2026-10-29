@@ -213,6 +213,50 @@ namespace JBro
             return true;
         }
 
+        const PropertyInfo* FindSerializedProperty(const PropertyTable& table, const char* key)
+        {
+            const NameId name = MakeNameId(key);
+            for (UInt32 index = 0; index < table.count; ++index)
+            {
+                const PropertyInfo& property = table.properties[index];
+                if (property.name == name && property.serialize && property.type != nullptr)
+                {
+                    return &property;
+                }
+            }
+            return nullptr;
+        }
+
+        // **스크립트 필드는 이름이 맞고 읽히는 것만 잇는다**(D-300 (2), D-349). 코드에서 지운 필드의 값은 버리고, 못 읽는 값은 기본값으로 두며,
+        // 둘 다 `notes` 에 남긴다. 파일을 읽을 때와 핫 리로드로 되살릴 때가 같은 함수를 쓴다 - 둘이 갈리면 같은 스크립트가 여는 길에 따라 다르게 읽힌다.
+        void ReadScriptFieldsLenient(const YamlDocument& document, UInt32 saved, const PropertyTable& table, GameScriptBase* script,
+            const String& objectName, const String& typeName, Array<ScriptResolveNote>& notes)
+        {
+            for (std::size_t key = 0; key < document.GetCount(saved); ++key)
+            {
+                const char* fieldName = document.GetKey(saved, key);
+                if (std::strcmp(fieldName, "Type") == 0 || std::strcmp(fieldName, "IsEnabled") == 0)
+                {
+                    continue;
+                }
+                const PropertyInfo* property = FindSerializedProperty(table, fieldName);
+                ReflectedYamlError reflected;
+                if (property != nullptr
+                    && ReadReflectedValue(document, document.GetValue(saved, key), *property->type,
+                        property->Address(script), reflected))
+                {
+                    continue;
+                }
+                ScriptResolveNote note;
+                note.kind = property == nullptr ? ScriptResolveNote::Kind::FieldDropped
+                                                : ScriptResolveNote::Kind::FieldUnreadable;
+                note.objectName = objectName;
+                note.typeName = typeName;
+                note.fieldName = fieldName;
+                notes.Add(std::move(note));
+            }
+        }
+
         // **레이어 노드는 캔버스 파일과 레이어 에셋이 같은 함수로 쓰고 읽는다**(D-287). 둘이 갈리면 같은 레이어가 저장한 곳에 따라 다르게 읽힌다
         // (기존 엔진 `LayerSerializer.h` 의 경고). `inCanvas` 면 캔버스 안 번호(`Id`)와 원본 에셋(`SourceAsset`)도 적는다 - 레이어 에셋은 제 자신을
         // 가리키지 않는다. 기본값인 값은 적지 않는다(D-237·D-279·D-286).
@@ -432,8 +476,9 @@ namespace JBro
 
         // 오브젝트를 만든다. **모두 만든 뒤 컴포넌트를 읽는다**(D-233) - 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다. 실패해도 만든 것은
         // `created` 에 남는다 - 거두는 것은 부르는 쪽이다.
+        // `scriptNotes` 가 있으면 스크립트 필드를 너그럽게 읽고(`ReadScriptFieldsLenient`) 잇지 못한 것을 거기 남긴다. 없으면 빌트인과 같이 엄격하다.
         Bool ReadObjects(Canvas& canvas, const YamlDocument& document, UInt32 objects, const ObjectLayerRule& rule,
-            Array<Object::GameObject*>& created, CanvasFileError& error)
+            Array<Object::GameObject*>& created, CanvasFileError& error, Array<ScriptResolveNote>* scriptNotes = nullptr)
         {
             // **뿌리 차례는 파일 차례다.** 이미 있던 뿌리는 먼저 자리를 잡게 하고(지금의 보이는 순서 그대로), 읽은 뿌리는 아래에서 파일 차례로 뒤에 붙인다.
             Array<Object::GameObject*> existingRoots;
@@ -616,12 +661,23 @@ namespace JBro
             {
                 error.objectName = created[fields.object]->GetName();
                 document.FindScalar(fields.saved, "Type", error.typeName);
-                void* instance = fields.component != nullptr
-                    ? static_cast<void*>(fields.component)
-                    : static_cast<void*>(fields.script);
-                if (false == ReadFields(document, fields.saved, fields.typeId, instance, error))
+                const PropertyTable* scriptTable = fields.script != nullptr && scriptNotes != nullptr
+                    ? PropertyRegistry::Lookup(fields.typeId)
+                    : nullptr;
+                if (scriptTable != nullptr)
                 {
-                    return false;
+                    ReadScriptFieldsLenient(document, fields.saved, *scriptTable, fields.script,
+                        error.objectName, error.typeName, *scriptNotes);
+                }
+                else
+                {
+                    void* instance = fields.component != nullptr
+                        ? static_cast<void*>(fields.component)
+                        : static_cast<void*>(fields.script);
+                    if (false == ReadFields(document, fields.saved, fields.typeId, instance, error))
+                    {
+                        return false;
+                    }
                 }
                 Bool enabled = true;
                 if (document.FindBool(fields.saved, "IsEnabled", enabled))
@@ -744,9 +800,14 @@ namespace JBro
     // 읽기
     // -----------------------------------------------------------------------
 
-    Bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error)
+    Bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error,
+        Array<ScriptResolveNote>* scriptNotes)
     {
         error = CanvasFileError{};
+        // 부르는 쪽이 목록을 넘기지 않아도 스크립트는 너그럽게 읽는다 - 목록이 없다고 캔버스를 못 여는 길이 생기지 않게 한다.
+        Array<ScriptResolveNote> discardedNotes;
+        Array<ScriptResolveNote>& notes = scriptNotes != nullptr ? *scriptNotes : discardedNotes;
+        notes.Clear();
         if (canvas.GetObjectCount() != 0)
         {
             return Fail(error, "a canvas must be empty before a file is read into it");
@@ -819,7 +880,7 @@ namespace JBro
         Array<Object::GameObject*> created;
         ObjectLayerRule rule;
         rule.layerOf = &layerOf;
-        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error))
+        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error, &notes))
         {
             return false;
         }
@@ -1094,19 +1155,6 @@ namespace JBro
             }
         }
 
-        const PropertyInfo* FindSerializedProperty(const PropertyTable& table, const char* key)
-        {
-            const NameId name = MakeNameId(key);
-            for (UInt32 index = 0; index < table.count; ++index)
-            {
-                const PropertyInfo& property = table.properties[index];
-                if (property.name == name && property.serialize && property.type != nullptr)
-                {
-                    return &property;
-                }
-            }
-            return nullptr;
-        }
     }
 
     Bool KeepScriptsAsText(Canvas& canvas, std::size_t& kept, CanvasFileError& error)
@@ -1258,29 +1306,7 @@ namespace JBro
                 }
 
                 const UInt32 root = document.GetRoot();
-                for (std::size_t key = 0; key < document.GetCount(root); ++key)
-                {
-                    const char* fieldName = document.GetKey(root, key);
-                    if (std::strcmp(fieldName, "Type") == 0 || std::strcmp(fieldName, "IsEnabled") == 0)
-                    {
-                        continue;
-                    }
-                    const PropertyInfo* property = FindSerializedProperty(*table, fieldName);
-                    ReflectedYamlError reflected;
-                    if (property != nullptr
-                        && ReadReflectedValue(document, document.GetValue(root, key), *property->type,
-                            property->Address(script), reflected))
-                    {
-                        continue;
-                    }
-                    ScriptResolveNote note;
-                    note.kind = property == nullptr ? ScriptResolveNote::Kind::FieldDropped
-                                                    : ScriptResolveNote::Kind::FieldUnreadable;
-                    note.objectName = object->GetName();
-                    note.typeName = kept.typeName;
-                    note.fieldName = fieldName;
-                    notes.Add(std::move(note));
-                }
+                ReadScriptFieldsLenient(document, root, *table, script, object->GetName(), kept.typeName, notes);
                 Bool enabled = true;
                 if (document.FindBool(root, "IsEnabled", enabled))
                 {

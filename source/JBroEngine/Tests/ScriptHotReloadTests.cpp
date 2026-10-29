@@ -424,6 +424,72 @@ namespace
         canvas.ReleaseModuleScripts();
     }
 
+    // **에디터를 끈 채 필드를 지우고 빌드해도 캔버스가 열린다**(D-349). 파일을 읽을 때도 핫 리로드와 같이 맞는 것만 잇고 나머지는 알린다.
+    // 빌트인 컴포넌트는 그대로 엄격하다(`CanvasFileTests` 의 `TestReadingRefusesRatherThanGuessing`).
+    void TestACanvasOpensAfterItsScriptLostAField()
+    {
+        ScopedScriptTables tables;
+        Check(RegisterScriptType<First::HotProbe>(), "the first version registers");
+        String text;
+        {
+            Canvas canvas(CreateDefaultAllocator());
+            Object::GameObject* target = canvas.CreateObject("Target");
+            Object::GameObject* holder = canvas.CreateObject("Holder");
+            auto* script = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
+            script->Speed = 4.5f;
+            script->Lives = 7.5f;
+            script->Gone = 2.0f;
+            script->Target = Internal::GameObjectHandleAccess::FromId(target->GetInstanceId());
+            script->SetEnabled(false);
+            CanvasFileError error;
+            Check(WriteCanvasText(canvas, text, error), "the canvas saves");
+            canvas.ReleaseModuleScripts();
+        }
+        tables.Clear();
+
+        // 다음에 에디터를 켜면 고친 판이 먼저 실린다.
+        Check(RegisterScriptType<Second::HotProbe>(), "the edited version registers");
+        Canvas canvas(CreateDefaultAllocator());
+        CanvasFileError error;
+        Array<ScriptResolveNote> notes;
+        Check(ReadCanvasText(canvas, text.c_str(), text.size(), error, &notes), "the canvas opens although a field is gone");
+        Check(canvas.GetUnresolvedScriptCount() == 0, "the script is attached, not set aside");
+        auto* script = FindScript<Second::HotProbe>(canvas);
+        Check(script != nullptr, "the edited script is on the object");
+        Check(script->Speed == 4.5f, "a field that still reads keeps its value");
+        Check(script->Lives == 0, "a field whose value no longer reads goes back to its default");
+        Check(script->Jump == 9.0f, "a new field starts at its default");
+        Check(false == script->IsEnabled(), "switched off as it was saved");
+        const Object::GameObject* found = Internal::GameObjectHandleAccess::Resolve(script->Target);
+        Check(found != nullptr && std::strcmp(found->GetName(), "Target") == 0, "an object reference points where it did");
+
+        std::size_t dropped = 0;
+        std::size_t unreadable = 0;
+        for (const ScriptResolveNote& note : notes)
+        {
+            Check(note.objectName == "Holder" && note.typeName == "Test::HotProbe", "each note names the object and the script");
+            dropped += note.kind == ScriptResolveNote::Kind::FieldDropped && note.fieldName == "Gone" ? 1 : 0;
+            unreadable += note.kind == ScriptResolveNote::Kind::FieldUnreadable && note.fieldName == "Lives" ? 1 : 0;
+        }
+        Check(notes.Size() == 2 && dropped == 1 && unreadable == 1, "the removed field and the changed one are each reported once");
+
+        // 다시 저장하면 버린 필드는 빠지고, 그 글자는 알림 없이 읽힌다.
+        String again;
+        Check(WriteCanvasText(canvas, again, error), "the canvas saves again");
+        Check(false == Contains(again, "Gone"), "the dropped field is not written back");
+        canvas.ReleaseModuleScripts();
+        Canvas reopened(CreateDefaultAllocator());
+        Check(ReadCanvasText(reopened, again.c_str(), again.size(), error, &notes) && notes.IsEmpty(),
+            "the saved canvas reads with nothing to report");
+
+        // 목록을 넘기지 않는 쪽(물리 워커 세기 등)도 연다.
+        Canvas quiet(CreateDefaultAllocator());
+        Check(ReadCanvasText(quiet, text.c_str(), text.size(), error), "a caller that asks for no notes opens it too");
+        tables.Clear();
+        reopened.ReleaseModuleScripts();
+        quiet.ReleaseModuleScripts();
+    }
+
     // ── 에디터와 실제 시험 DLL ──────────────────────────────────────────────
 
     // 되돌리기 기록에 한 칸을 남기는 것뿐인 커맨드다. 기록이 남는지 비는지를 본다.
@@ -599,6 +665,7 @@ Int32 RunScriptHotReloadTests()
     TestAScriptSurvivesANewVersionOfItself();
     TestAScriptTheNewVersionLacksKeepsItsValues();
     TestAScriptReadBeforeItsLibraryPointsAtTheRightObject();
+    TestACanvasOpensAfterItsScriptLostAField();
     TestTheEditorReloadsTheLibraryUnderItsScripts();
     std::cout << "Script hot reload tests passed.\n";
     return 0;

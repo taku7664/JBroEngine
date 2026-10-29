@@ -71,13 +71,23 @@ namespace
         }
         JBro::Canvas* canvas = framework.GetCanvas();
         JBro::CanvasFileError error;
+        JBro::Array<JBro::ScriptResolveNote> notes;
         if (canvas == nullptr
-            || false == JBro::ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error))
+            || false == JBro::ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error, &notes))
         {
             JBro::Log::Write(JBro::LogLevel::Info, "canvas",
                 "the startup canvas could not be loaded: %s (%s)",
                 path.c_str(), error.message.c_str());
             return;
+        }
+        // 게임 빌드는 캔버스 파일을 그대로 묶는다. 스크립트에서 지운 필드가 남은 파일도 연다(D-349) - 버린 값은 로그에 남긴다.
+        for (const JBro::ScriptResolveNote& note : notes)
+        {
+            JBro::Log::Write(JBro::LogLevel::Warning, "canvas",
+                "%s on '%s', field %s: %s", note.typeName.c_str(), note.objectName.c_str(), note.fieldName.c_str(),
+                note.kind == JBro::ScriptResolveNote::Kind::FieldDropped
+                    ? "the field is gone from the code, so its value was dropped"
+                    : "the value no longer reads as the field's type, so it went back to the default");
         }
         // 게임에서는 빠진 스크립트다(D-264). 캔버스는 열되, 그 스크립트가 돌지 않는다는 것을 남긴다.
         if (const std::size_t unresolved = canvas->GetUnresolvedScriptCount(); unresolved != 0)

@@ -1937,6 +1937,24 @@ namespace JBro
         m_canvasLoadGroup = InvalidTaskGroupId;
     }
 
+    namespace
+    {
+        // 스크립트 필드를 잇지 못한 자리를 하나씩 로그에 적는다. 캔버스를 열 때와 스크립트를 다시 실을 때 같은 글로 적는다.
+        void LogScriptResolveNotes(const Array<ScriptResolveNote>& notes)
+        {
+            for (const ScriptResolveNote& note : notes)
+            {
+                const char* what = note.kind == ScriptResolveNote::Kind::FieldDropped
+                    ? "the field is gone from the code, so its value was dropped"
+                    : (note.kind == ScriptResolveNote::Kind::FieldUnreadable
+                        ? "the value no longer reads as the field's type, so it went back to the default"
+                        : "the script could not be attached again, so it stays set aside with its values");
+                Log::Write(LogLevel::Warning, "script", "%s on '%s'%s%s: %s", note.typeName.c_str(), note.objectName.c_str(),
+                    note.fieldName.empty() ? "" : ", field ", note.fieldName.c_str(), what);
+            }
+        }
+    }
+
     Bool EditorApplication::ReadCanvasFile(const char* path, CanvasFileError& error)
     {
         error = CanvasFileError{};
@@ -1958,9 +1976,26 @@ namespace JBro
             error.message = "cannot open the file";
             return false;
         }
-        if (false == ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error))
+        Array<ScriptResolveNote> notes;
+        if (false == ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error, &notes))
         {
             return false;
+        }
+        // **에디터를 끈 채 스크립트 필드를 지우거나 타입을 바꿨다**(D-349). 캔버스는 열고, 잇지 못한 값을 알린다 - 저장하면 버린 값은 파일에서도 빠진다.
+        if (false == notes.IsEmpty())
+        {
+            LogScriptResolveNotes(notes);
+            char title[160];
+            std::snprintf(title, sizeof(title),
+                Loc::TextOr(LocKeys::NotifyScriptFieldsNotRead, "%zu saved script field value(s) could not be read"), notes.Size());
+            NotificationDesc desc;
+            desc.level = NotificationLevel::Warning;
+            desc.title = title;
+            desc.message = Loc::TextOr(LocKeys::NotifyScriptFieldsNotReadWhy,
+                "Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. "
+                "See the log for each field. Saving leaves them out of the file");
+            desc.id = "script_fields_not_read";
+            m_notifications.Notify(std::move(desc));
         }
         // 모르는 스크립트는 들고만 있고 돌지 않는다(D-264). 스크립트 DLL 을 빌드하지 않았거나 타입을 지운 것이다.
         if (const std::size_t unresolved = canvas->GetUnresolvedScriptCount(); unresolved != 0)
@@ -4248,16 +4283,7 @@ namespace JBro
         }
         Array<ScriptResolveNote> notes;
         const std::size_t resolved = canvas != nullptr ? ResolveKeptScripts(*canvas, notes) : 0;
-        for (const ScriptResolveNote& note : notes)
-        {
-            const char* what = note.kind == ScriptResolveNote::Kind::FieldDropped
-                ? "the field is gone from the code, so its value was dropped"
-                : (note.kind == ScriptResolveNote::Kind::FieldUnreadable
-                    ? "the value no longer reads as the field's type, so it went back to the default"
-                    : "the script could not be attached again, so it stays set aside with its values");
-            Log::Write(LogLevel::Warning, "script", "%s on '%s'%s%s: %s", note.typeName.c_str(), note.objectName.c_str(),
-                note.fieldName.empty() ? "" : ", field ", note.fieldName.c_str(), what);
-        }
+        LogScriptResolveNotes(notes);
         if (m_framework.Get() != nullptr)
         {
             m_framework->BindCanvasAssets();
