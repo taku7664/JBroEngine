@@ -3,6 +3,8 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
@@ -872,6 +874,142 @@ namespace
         BindInputSystemContext({});
         BindInputServiceContext({});
     }
+
+    InputEvent Wheel(JBro::Float notches)
+    {
+        InputEvent event;
+        event.kind = InputEventKind::MouseWheel;
+        event.y = notches;
+        return event;
+    }
+
+    // **마스크 밖의 위젯은 없는 것이고, 스크롤 뷰는 끌기·관성·휠로 내용을 옮긴다**(D-351 3 단계). 화면 200 x 100 = 기준.
+    // 창(마스크 100 x 60)이 가운데, 내용(100 x 200)은 처음에 위가 맞춰져(-70) 있고, 안의 버튼 `item` 은 창 안(픽셀 y 30), `hidden` 은 창 밖(픽셀 y 90)이다.
+    void TestMasksAndScrollViewsTakeThePointer()
+    {
+        System::InputSystem input;
+        BindInputSystemContext(input.GetSystemContext());
+        BindInputServiceContext(input.GetServiceContext());
+        Framework2D framework;
+        FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.input = &input;
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Check(framework.BindScriptContexts(), "the script contexts bind");
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = 200.0f;
+        frame.referenceHeight = 100.0f;
+        frame.targetWidth = 200.0f;
+        frame.targetHeight = 100.0f;
+        framework.SetScreenSpace(frame);
+        Canvas* canvas = framework.GetCanvas();
+        Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(LayerSpace::Screen);
+
+        Object::GameObject* window = canvas->CreateObject("window");
+        canvas->SetObjectLayer(window, hud.GetId());
+        canvas->AttachComponent<Component::Transform2D>(window);
+        auto* mask = canvas->AttachComponent<Component::Mask2D>(window);
+        mask->size = {100.0f, 60.0f};
+        auto* scroll = canvas->AttachComponent<Component::ScrollView2D>(window);
+        scroll->contentSize = {100.0f, 200.0f};
+        Object::GameObject* list = canvas->CreateObject("list");
+        canvas->SetObjectLayer(list, hud.GetId());
+        list->SetParent(window);
+        auto* listPlace = canvas->AttachComponent<Component::Transform2D>(list);
+        listPlace->position = {0.0f, -70.0f};
+        scroll->content = list->GetScriptHandle();
+        const auto makeItem = [&](const char* name, JBro::Float localY) {
+            Object::GameObject* object = canvas->CreateObject(name);
+            canvas->SetObjectLayer(object, hud.GetId());
+            object->SetParent(list);
+            canvas->AttachComponent<Component::Transform2D>(object)->position = {0.0f, localY};
+            canvas->AttachComponent<Component::Button2D>(object)->size = {40.0f, 20.0f};
+            return object;
+        };
+        Object::GameObject* item = makeItem("item", 90.0f);
+        Object::GameObject* hidden = makeItem("hidden", 30.0f);
+        auto* itemProbe = canvas->AttachScript<ButtonProbe>(item);
+        auto* hiddenProbe = canvas->AttachScript<ButtonProbe>(hidden);
+        auto* poller = canvas->AttachScript<PollingProbe>(canvas->CreateObject("poller"));
+
+        const auto frameWith = [&](std::initializer_list<InputEvent> events) {
+            Array<InputEvent> list;
+            for (const InputEvent& event : events)
+            {
+                list.Add(event);
+            }
+            input.BeginFrame({list.Data(), static_cast<JBro::UInt32>(list.Size())});
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
+        };
+        const auto closeTo = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.01f; };
+        frameWith({});
+        frameWith({});
+        Check(mask->clipValid && closeTo(mask->clipMinY, -30.0f) && closeTo(mask->clipMaxY, 30.0f) && closeTo(mask->clipMinX, -50.0f),
+            "the mask system measures the window's rectangle in layer units");
+
+        // 마스크 밖의 버튼은 없는 것이다 - 포인터가 게임까지 내려간다.
+        frameWith({MouseAt(100.0f, 90.0f), HeldButton(MouseButton::Left)});
+        Check(false == canvas->FindComponentRaw<Component::Button2D>(hidden)->hovered && hiddenProbe->downs == 0 && poller->sawMouse,
+            "a button outside its mask is not there and the press reaches the game");
+        frameWith({Released(MouseButton::Left)});
+        Check(hiddenProbe->clicks == 0, "and it does not click");
+
+        // 마스크 안의 버튼은 보통대로 눌린다.
+        frameWith({MouseAt(100.0f, 30.0f), HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(itemProbe->clicks == 1, "a button inside the mask clicks");
+
+        // 창의 빈 곳을 누르고 문턱(8 px)을 넘게 끌면 내용이 따라온다. 떼는 자리가 버튼 위여도 누름이 아니다.
+        frameWith({MouseAt(100.0f, 55.0f), HeldButton(MouseButton::Left)});
+        Check(false == scroll->dragging, "a press alone is not a drag");
+        frameWith({MouseAt(100.0f, 45.0f)});
+        Check(scroll->dragging && closeTo(listPlace->position.y, -60.0f), "ten pixels up starts the drag and moves the content up by ten");
+        frameWith({MouseAt(100.0f, 25.0f)});
+        Check(closeTo(listPlace->position.y, -40.0f) && closeTo(scroll->velocity.y, 1200.0f), "the content follows the pointer and the velocity is the frame's move");
+        frameWith({Released(MouseButton::Left)});
+        Check(itemProbe->clicks == 1 && false == scroll->dragging, "releasing a drag over a button is not a click");
+        // 놓으면 미끄러지다 끝에서 멈춘다. 내용의 아래 끝이 창의 아래에 닿는 자리는 70 이다.
+        Check(listPlace->position.y > -40.0f, "the content keeps sliding after the release");
+        for (JBro::Int32 index = 0; index < 120; ++index)
+        {
+            frameWith({});
+        }
+        Check(closeTo(listPlace->position.y, 70.0f) && scroll->velocity.y == 0.0f, "it slides to the end and stops there");
+
+        // 휠: 위로 한 칸이면 위의 내용이 보인다 - 내용은 `scrollSensitivity` 만큼 아래로 간다.
+        frameWith({MouseAt(100.0f, 50.0f), Wheel(1.0f)});
+        Check(closeTo(listPlace->position.y, 30.0f), "one wheel notch up moves the content down by the sensitivity");
+        frameWith({Wheel(-10.0f)});
+        Check(closeTo(listPlace->position.y, 70.0f), "wheeling past the end stops at the end");
+
+        // 버튼 위에서 누른 뒤 끌면 버튼은 떼기만 받고 스크롤이 쥔다.
+        listPlace->position = {0.0f, -70.0f};
+        frameWith({});
+        frameWith({MouseAt(100.0f, 30.0f), HeldButton(MouseButton::Left)});
+        Check(itemProbe->downs == 2 && canvas->FindComponentRaw<Component::Button2D>(item)->pressed, "pressing the button inside holds it");
+        frameWith({MouseAt(100.0f, 10.0f)});
+        Check(itemProbe->ups == 2 && false == canvas->FindComponentRaw<Component::Button2D>(item)->pressed && scroll->dragging
+                && closeTo(listPlace->position.y, -50.0f),
+            "dragging past the threshold cancels the button and scrolls instead");
+        frameWith({Released(MouseButton::Left)});
+        Check(itemProbe->clicks == 1, "and releasing is still not a click");
+        // 가로가 꺼진 창은 가로로 끌어도 움직이지 않는다.
+        for (JBro::Int32 index = 0; index < 120; ++index)
+        {
+            frameWith({});
+        }
+        const JBro::Float settledX = listPlace->position.x;
+        frameWith({MouseAt(100.0f, 55.0f), HeldButton(MouseButton::Left)});
+        frameWith({MouseAt(130.0f, 55.0f)});
+        frameWith({Released(MouseButton::Left)});
+        Check(closeTo(listPlace->position.x, settledX), "a vertical-only scroll view ignores sideways drags");
+
+        framework.UnbindScriptContexts();
+        framework.Shutdown();
+        BindInputSystemContext({});
+        BindInputServiceContext({});
+    }
 }
 
 JBro::Int32 RunInputChainTests()
@@ -890,6 +1028,7 @@ JBro::Int32 RunInputChainTests()
     TestTheFrameworkDispatchesBeforeTheFixedSteps();
     TestButtonsTakeThePointerOnTheUiLayer();
     TestTogglesAndSlidersTakeThePointer();
+    TestMasksAndScrollViewsTakeThePointer();
     Log::SetEchoToConsole(echo);
     g_dispatchLog.Clear();
     std::cout << "Input chain tests passed.\n";

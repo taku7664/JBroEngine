@@ -5,6 +5,7 @@
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Types/String.h>
@@ -32,6 +33,13 @@ namespace JBro
             auto& slider = static_cast<Component::Slider2D&>(component);
             size = &slider.size;
             offset = &slider.offset;
+            return true;
+        }
+        if (typeId == MakeStableTypeId(Component::Mask2D::StaticTypeName()))
+        {
+            auto& mask = static_cast<Component::Mask2D&>(component);
+            size = &mask.size;
+            offset = &mask.offset;
             return true;
         }
         return false;

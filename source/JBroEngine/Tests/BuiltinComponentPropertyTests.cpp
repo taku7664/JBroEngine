@@ -57,6 +57,8 @@ namespace
         Check(Table("Component::Button2D").count == 20,
             "Button2D declares twenty fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, three states and the swap latch");
         Check(Table("Component::Slider2D").count == 10, "Slider2D declares ten fields - the rect, interactable, direction, value, handle, fill and three states (D-351)");
+        Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
+        Check(Table("Component::ScrollView2D").count == 8, "ScrollView2D declares eight fields - content, its size, two axes, sensitivity, deceleration and two states (D-351)");
         Check(Table("Component::Toggle2D").count == 8, "Toggle2D declares eight fields - the rect, interactable, isOn, checkmark and three states (D-351)");
         Check(Table("Component::Camera2D").count == 9, "Camera2D declares nine fields - pixelsPerUnit of D-239, then the post-process profile pair of D-344");
         Check(Table("Component::SpriteRenderer2D").count == 17,

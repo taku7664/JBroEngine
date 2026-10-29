@@ -1,5 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/System/Text2DSystem.h>
 
+#include <JBro/Framework2DSystem/Rendering/ClipRect2D.h>
+
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Core/Log.h>
@@ -139,6 +141,9 @@ namespace JBro::System
         const Float ppu = entry.screenSpace ? Float(1.0f) : block.GetPixelsPerUnit();
         // 외곽선 폭(글자 픽셀)의 문턱은 글자마다다 - 리치 텍스트의 `<size>` 가 섞이면 거리장 픽셀 / 글자 픽셀이 글자마다 다르다.
         const Bool outlined = block.IsSdf() && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f;
+        // 마스크는 글자마다가 아니라 텍스트마다 한 번 센다(D-351).
+        Float clip[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        const Bool clipped = ComputeClipRect2D(canvas, owner, clip);
         for (const GlyphQuad& quad : block.GetQuads())
         {
             const AssetHandle page = m_library.GetPageTexture(block.GetFont(quad.face), quad.page);
@@ -157,6 +162,11 @@ namespace JBro::System
             item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
             item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
             item.layerLit = layer == nullptr || layer->IsLit();
+            item.clipped = clipped;
+            for (UInt32 edge = 0; edge < 4; ++edge)
+            {
+                item.clip[edge] = clip[edge];
+            }
             // 글리프 쿼드의 왼쪽 위를 오브젝트 로컬에 두고(피벗 {0, 1}), 오브젝트 월드로 옮긴다.
             Matrix3x2 local;
             local.m31 = quad.left / ppu;

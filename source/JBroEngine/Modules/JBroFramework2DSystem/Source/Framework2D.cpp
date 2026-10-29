@@ -18,6 +18,7 @@
 #include <JBro/Framework2DSystem/System/ShadowCaster2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
+#include <JBro/Framework2DSystem/System/Mask2DSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
@@ -642,6 +643,7 @@ namespace JBro
     {
         auto& systems = m_canvas->GetSystems();
         systems.AddSystem<System::Transform2DSystem>();
+        systems.AddSystem<System::Mask2DSystem>();
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
         System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
         scripts.SetInputSystem(m_context.input);

@@ -63,6 +63,9 @@ namespace JBro
         Float            border[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         Float            tileWidth = 0.0f;
         Float            tileHeight = 0.0f;
+        // 마스크가 자르는 사각형이다(D-351 3 단계, `ComputeClipRect2D`). `world` 와 같은 공간의 {minX, minY, maxX, maxY} 이고 `clipped` 가 거짓이면 없다.
+        Bool             clipped = false;
+        Float            clip[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         Int32  renderOrder = 0;
         // 같은 레이어·같은 `renderOrder` 끼리의 차례다(D-296). 키에 넣지 않고 키가 같을 때 견준다 - 키의 예약 16 비트로는 스크립트가 준 값이 넘친다.
         Int32  drawSequence = 0;

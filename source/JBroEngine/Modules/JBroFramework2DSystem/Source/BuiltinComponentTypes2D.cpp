@@ -4,6 +4,8 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
@@ -57,6 +59,11 @@ namespace JBro::Component
             all = RegisterComponentType<Toggle2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Slider2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            // 마스크와 스크롤 뷰도 오브젝트에 하나다 - 사각형이 하나다.
+            all = RegisterComponentType<Mask2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<ScrollView2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();

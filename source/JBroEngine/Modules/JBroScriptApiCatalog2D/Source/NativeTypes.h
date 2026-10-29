@@ -84,6 +84,8 @@ namespace JBro::ScriptApiCatalog2D::Internal
     JBRO_LANGUAGE_TYPE(Handle::ShadowCaster2D, "ref ShadowCaster2D")
     JBRO_LANGUAGE_TYPE(Handle::SpriteRenderer2D, "ref SpriteRenderer2D")
     JBRO_LANGUAGE_TYPE(Handle::Slider2D, "ref Slider2D")
+    JBRO_LANGUAGE_TYPE(Handle::Mask2D, "ref Mask2D")
+    JBRO_LANGUAGE_TYPE(Handle::ScrollView2D, "ref ScrollView2D")
     JBRO_LANGUAGE_TYPE(Handle::Toggle2D, "ref Toggle2D")
     JBRO_LANGUAGE_TYPE(Handle::Text2D, "ref Text2D")
     JBRO_LANGUAGE_TYPE(Handle::Transform2D, "ref Transform2D")

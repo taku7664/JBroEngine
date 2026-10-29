@@ -6,6 +6,7 @@
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
@@ -372,6 +373,32 @@ namespace
             sprite->fillAmount = 1.0f;
             gpu.Paint(framework);
             Check(gpu.Is(24, 24, 255, 0, 0) && gpu.Is(27, 27, 255, 0, 0) && gpu.Is(28, 28, 255, 255, 255), "a simple sprite stretches every pixel alike");
+
+            // **마스크**(D-351 3 단계): 가운데 16 x 8 창 안의 32 x 32 흰 사각형은 창만큼만 보인다 - x 24..39, y 28..35.
+            sprite->visible = false;
+            Object::GameObject* window = canvas->CreateObject("window");
+            Check(canvas->SetObjectLayer(window, ui.GetId()), "the window goes on the screen layer");
+            canvas->AttachComponent<Component::Transform2D>(window);
+            auto* mask = canvas->AttachComponent<Component::Mask2D>(window);
+            mask->size = {16.0f, 8.0f};
+            Object::GameObject* paper = canvas->CreateObject("paper");
+            Check(canvas->SetObjectLayer(paper, ui.GetId()), "the paper goes on the screen layer");
+            paper->SetParent(window);
+            canvas->AttachComponent<Component::Transform2D>(paper);
+            auto* white = canvas->AttachComponent<Component::SpriteRenderer2D>(paper);
+            white->sizeMode = Component::SpriteSizeMode::Custom;
+            white->size = {32.0f, 32.0f};
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(gpu.Is(31, 31, 255, 255, 255) && gpu.Is(24, 28, 255, 255, 255) && gpu.Is(39, 35, 255, 255, 255), "inside the mask the paper is drawn");
+            Check(gpu.Is(31, 27, 0, 0, 0) && gpu.Is(31, 36, 0, 0, 0) && gpu.Is(23, 31, 0, 0, 0) && gpu.Is(40, 31, 0, 0, 0),
+                "outside the mask nothing of the paper is drawn");
+            // 마스크를 옮기면 잘리는 자리도 따라간다.
+            canvas->FindComponentRaw<Component::Transform2D>(window)->position = {8.0f, 0.0f};
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(gpu.Is(32, 31, 255, 255, 255) && gpu.Is(47, 31, 255, 255, 255) && gpu.Is(31, 31, 0, 0, 0) && gpu.Is(48, 31, 0, 0, 0),
+                "moving the mask moves the clip");
             framework.Shutdown();
         }
         gpu.Close();

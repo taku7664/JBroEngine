@@ -1041,6 +1041,7 @@ namespace JBro
         packet.layerGroupOffset = static_cast<JBro::UInt32>(m_layerGroups.Size());
         packet.lightOffset = static_cast<JBro::UInt32>(m_lights.Size());
         packet.litRangeOffset = static_cast<JBro::UInt32>(m_litRanges.Size());
+        packet.clipRangeOffset = static_cast<JBro::UInt32>(m_clipRanges.Size());
         packet.shadowEdgeOffset = static_cast<JBro::UInt32>(m_shadowEdges.Size());
         // 후처리 효과를 프레임 저장소에 옮긴다(D-342). 부르는 쪽의 배열은 이 함수가 돌아온 뒤 버려도 된다 - 뷰 자체는 받는다.
         packet.camera.postProcess = {};
@@ -1313,6 +1314,41 @@ namespace JBro
         return true;
     }
 
+    Bool Renderer::SetSpriteClip(const Float* rect)
+    {
+        if (false == m_frameActive || m_activeView == InvalidViewIndex)
+        {
+            return false;
+        }
+        // 열린 구간이 있으면 먼저 닫는다 - 사각형이 바뀌면 새 구간이다.
+        if (m_openClipRange != NoLayerGroup)
+        {
+            m_clipRanges[m_openClipRange].endSprite = static_cast<JBro::UInt32>(m_sprites.Size());
+            m_openClipRange = NoLayerGroup;
+        }
+        if (rect == nullptr)
+        {
+            return true;
+        }
+        if (m_clipRanges.Size() >= m_config.maxLayerGroups)
+        {
+            // 구간을 열지 못하면 자르지 않고 그린다. 레이어 묶음과 같은 정책이다.
+            ++m_currentStats.droppedLayerCount;
+            return false;
+        }
+        ClipRange range;
+        range.firstSprite = static_cast<JBro::UInt32>(m_sprites.Size());
+        range.endSprite = range.firstSprite;
+        for (UInt32 index = 0; index < 4; ++index)
+        {
+            range.rect[index] = rect[index];
+        }
+        m_clipRanges.Add(range);
+        m_openClipRange = static_cast<JBro::UInt32>(m_clipRanges.Size() - 1);
+        ++m_views[m_activeView].clipRangeCount;
+        return true;
+    }
+
     Bool Renderer::EndView()
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex)
@@ -1326,6 +1362,10 @@ namespace JBro
         if (m_openLitRange != NoLayerGroup)
         {
             SetSpriteLighting(false);
+        }
+        if (m_openClipRange != NoLayerGroup)
+        {
+            SetSpriteClip(nullptr);
         }
 
         m_activeView = InvalidViewIndex;
@@ -2337,7 +2377,7 @@ namespace JBro
     }
 
     Bool Renderer::DrawSpriteRuns(IRHICommandContext& commands, UInt32 scene, const ViewPacket& view, UInt32 firstRun, UInt32 endRun,
-        TextureHandle lightMap, Bool overDepth, const Viewport& viewport, const Extent2D& target)
+        TextureHandle lightMap, Bool overDepth, const Viewport& viewport, const Extent2D& target, const ScissorRect& viewScissor)
     {
         if (firstRun >= endRun)
         {
@@ -2345,6 +2385,60 @@ namespace JBro
         }
         const ScenePipelines& pipelines = m_scene[scene.Get()];
         const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+        // **클립 구간의 시저**(D-351). 사각형의 네 꼭짓점을 뷰-투영으로 보내 픽셀로 옮기고(돌린 뷰는 둘러싼 사각형), 뷰의 시저와 교집합을 낸다.
+        // 넓이가 없으면 왼쪽 위에 닿은 빈 사각형이다 - 아무것도 그리지 않는다.
+        const auto scissorOf = [&](UInt32 clip) -> ScissorRect {
+            if (clip == NoLayerGroup)
+            {
+                return viewScissor;
+            }
+            const ClipRange& range = m_clipRanges[clip.Get()];
+            Float minX = 0.0f;
+            Float minY = 0.0f;
+            Float maxX = 0.0f;
+            Float maxY = 0.0f;
+            for (UInt32 corner = 0; corner < 4; ++corner)
+            {
+                const Float x = (corner & 1u) != 0 ? range.rect[2] : range.rect[0];
+                const Float y = (corner & 2u) != 0 ? range.rect[3] : range.rect[1];
+                const Float* m = viewProjection.values;
+                const Float cx = m[0] * x + m[1] * y + m[3];
+                const Float cy = m[4] * x + m[5] * y + m[7];
+                const Float cw = m[12] * x + m[13] * y + m[15];
+                const Float ndcX = cw != 0.0f ? cx / cw : cx;
+                const Float ndcY = cw != 0.0f ? cy / cw : cy;
+                const Float px = viewport.x + (ndcX * 0.5f + 0.5f) * viewport.width;
+                const Float py = viewport.y + (0.5f - ndcY * 0.5f) * viewport.height;
+                if (corner == 0)
+                {
+                    minX = px;
+                    maxX = px;
+                    minY = py;
+                    maxY = py;
+                }
+                else
+                {
+                    minX = px < minX ? px : minX;
+                    maxX = px > maxX ? px : maxX;
+                    minY = py < minY ? py : minY;
+                    maxY = py > maxY ? py : maxY;
+                }
+            }
+            ScissorRect result;
+            result.left = std::max(viewScissor.left, Int32(static_cast<std::int32_t>(std::floor(minX.Get()))));
+            result.top = std::max(viewScissor.top, Int32(static_cast<std::int32_t>(std::floor(minY.Get()))));
+            result.right = std::min(viewScissor.right, Int32(static_cast<std::int32_t>(std::ceil(maxX.Get()))));
+            result.bottom = std::min(viewScissor.bottom, Int32(static_cast<std::int32_t>(std::ceil(maxY.Get()))));
+            if (result.right < result.left)
+            {
+                result.right = result.left;
+            }
+            if (result.bottom < result.top)
+            {
+                result.bottom = result.top;
+            }
+            return result;
+        };
         const JArrayView<std::byte> constants = {
             reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))};
         // 머티리얼 스프라이트의 푸시 상수다(D-347) - 뷰-투영 행렬 뒤에 엔진 값이 붙는다(`MaterialPrelude`).
@@ -2384,6 +2478,11 @@ namespace JBro
         Bool boundSdf = first.sdf;
         Bool boundLit = litOf(first);
         UInt32 boundMaterial = first.material;
+        UInt32 boundClip = first.clip;
+        if (boundClip != NoLayerGroup)
+        {
+            commands.SetScissor(scissorOf(boundClip));
+        }
         if (false == (boundMaterial != 0 ? bindMaterial(boundMaterial) : bindShading(boundSdf, boundLit))
             || false == commands.SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
             || false == commands.SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0))
@@ -2393,6 +2492,11 @@ namespace JBro
         for (UInt32 runIndex = firstRun; runIndex < endRun; ++runIndex)
         {
             const SpriteRun& run = m_spriteRuns[runIndex.Get()];
+            if (run.clip != boundClip)
+            {
+                commands.SetScissor(scissorOf(run.clip));
+                boundClip = run.clip;
+            }
             if (run.material != 0)
             {
                 if (run.material != boundMaterial && false == bindMaterial(run.material))
@@ -2428,6 +2532,11 @@ namespace JBro
             {
                 return false;
             }
+        }
+        // 뒤의 메시·월드 텍스트는 뷰의 시저로 그린다.
+        if (boundClip != NoLayerGroup)
+        {
+            commands.SetScissor(viewScissor);
         }
         return true;
     }
@@ -2483,7 +2592,7 @@ namespace JBro
         const ScenePipelines& pipelines = renderer.m_scene[pass.scene.Get()];
         if (view.spriteCount != 0
             && false == renderer.DrawSpriteRuns(commands, pass.scene, view, pass.firstRun, pass.endRun, lightMap, withDepth, pass.viewport,
-                pass.targetExtent))
+                pass.targetExtent, pass.scissor))
         {
             return false;
         }
@@ -3558,6 +3667,9 @@ namespace JBro
             // 빛을 받는 구간도 같은 걸음으로 찾는다(D-291).
             UInt32 litCursor = view.litRangeOffset;
             const UInt32 litEnd = view.litRangeOffset + view.litRangeCount;
+            // 클립 구간도 같은 걸음이다(D-351).
+            UInt32 clipCursor = view.clipRangeOffset;
+            const UInt32 clipEnd = view.clipRangeOffset + view.clipRangeCount;
             const UInt32 viewEnd = view.spriteOffset + view.spriteCount;
             for (UInt32 index = view.spriteOffset; index < viewEnd; ++index)
             {
@@ -3573,6 +3685,11 @@ namespace JBro
                     ++litCursor;
                 }
                 const Bool lit = litCursor < litEnd && index >= m_litRanges[litCursor].firstSprite;
+                while (clipCursor < clipEnd && index >= m_clipRanges[clipCursor].endSprite)
+                {
+                    ++clipCursor;
+                }
+                const UInt32 clip = clipCursor < clipEnd && index >= m_clipRanges[clipCursor].firstSprite ? clipCursor : NoLayerGroup;
                 const Bool sdf = item.shading == SpriteShading::SdfText;
                 if (sdf)
                 {
@@ -3640,7 +3757,7 @@ namespace JBro
                     }
                 }
                 if (last != nullptr && lastTextureKey == textureKey && lastSamplerKey == samplerKey && last->sdf == sdf
-                    && last->layerGroup == layerGroup && last->lit == lit && last->material == material)
+                    && last->layerGroup == layerGroup && last->lit == lit && last->material == material && last->clip == clip)
                 {
                     ++last->instanceCount;
                     continue;
@@ -3654,6 +3771,7 @@ namespace JBro
                 run.sdf = sdf;
                 run.layerGroup = layerGroup;
                 run.lit = lit;
+                run.clip = clip;
                 view.hasLitRun = view.hasLitRun || lit;
                 last = &m_spriteRuns.Add(run);
                 lastTextureKey = textureKey;
@@ -4394,6 +4512,8 @@ namespace JBro
         m_shadowEdges.Clear();
         m_litRanges.Clear();
         m_openLitRange = NoLayerGroup;
+        m_clipRanges.Clear();
+        m_openClipRange = NoLayerGroup;
         m_worldTexts.Clear();
         m_worldTextRuns.Clear();
         m_postEntries.Clear();

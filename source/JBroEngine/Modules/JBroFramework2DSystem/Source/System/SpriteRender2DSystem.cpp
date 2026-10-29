@@ -1,5 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
 
+#include <JBro/Framework2DSystem/Rendering/ClipRect2D.h>
+
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -64,6 +66,7 @@ namespace JBro::System
             item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
             item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
             item.layerLit = layer == nullptr || layer->IsLit();
+            item.clipped = ComputeClipRect2D(canvas, owner, item.clip);
             // 해석 패스가 채운 에셋 핸들을 렌더러 텍스처와 칸으로 푼다. 이 시점은 렌더러 프레임 밖(Update)이라
             // 처음 만난 텍스처의 업로드가 여기서 일어난다. 풀리지 않으면 흰색이다.
             SpriteFrameView frame;

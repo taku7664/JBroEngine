@@ -4,12 +4,15 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
+#include <JBro/Framework2DSystem/Rendering/ClipRect2D.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/InputTypes/InputView.h>
@@ -211,6 +214,30 @@ namespace JBro::System
                 return { slider.offset.x - width * 0.5f + value * width, slider.offset.y };
             }
         }
+
+        // 한 축을 뷰포트가 늘 내용 안에 들게 가둔다. 내용이 뷰포트보다 작은 축은 건드리지 않는다.
+        Bool ClampAxis(Float& position, Float center, Float viewport, Float content)
+        {
+            const Float half = std::fabs(viewport) * 0.5f;
+            const Float contentHalf = std::fabs(content) * 0.5f;
+            if (contentHalf <= half)
+            {
+                return false;
+            }
+            const Float low = center + half - contentHalf;
+            const Float high = center - half + contentHalf;
+            if (position < low)
+            {
+                position = low;
+                return true;
+            }
+            if (position > high)
+            {
+                position = high;
+                return true;
+            }
+            return false;
+        }
     }
 
     Int32 Button2DSystem::GetExecutionOrder() const
@@ -256,6 +283,9 @@ namespace JBro::System
         m_pressed = InvalidInstanceId;
         m_pressedKind = WidgetKind::None;
         m_pointerOver = false;
+        m_scrollCandidate = InvalidInstanceId;
+        m_scrollDragging = false;
+        m_dragDelta = {};
         m_hookTargets.Clear();
     }
 
@@ -370,7 +400,7 @@ namespace JBro::System
         return pointer;
     }
 
-    Bool Button2DSystem::PointerToLocal(Object::GameObject& owner, const Layer& layer, const Pointer& pointer, Vector2& local) const
+    Bool Button2DSystem::PointerToLocal(Object::GameObject& owner, const Layer& layer, const Pointer& pointer, Vector2& local, Vector2* layerPoint) const
     {
         const auto* transform = m_canvas->FindComponentRaw<Component::Transform2D>(&owner);
         if (transform == nullptr || false == transform->worldValid)
@@ -379,19 +409,34 @@ namespace JBro::System
         }
         Vector2 point;
         Matrix3x2 inverse;
-        return PixelToLayer(layer, pointer.x, pointer.y, point) && Invert(transform->world, inverse)
-            && Apply(inverse, point.x, point.y, local.x, local.y);
+        if (false == PixelToLayer(layer, pointer.x, pointer.y, point) || false == Invert(transform->world, inverse)
+            || false == Apply(inverse, point.x, point.y, local.x, local.y))
+        {
+            return false;
+        }
+        if (layerPoint != nullptr)
+        {
+            *layerPoint = point;
+        }
+        return true;
     }
 
     Bool Button2DSystem::HitRect(Object::GameObject& owner, const Layer& layer, Vector2 size, Vector2 offset, const Pointer& pointer, Vector2& local) const
     {
-        if (false == PointerToLocal(owner, layer, pointer, local))
+        Vector2 point;
+        if (false == PointerToLocal(owner, layer, pointer, local, &point))
         {
             return false;
         }
         const Float halfWidth = std::fabs(size.x) * 0.5f;
         const Float halfHeight = std::fabs(size.y) * 0.5f;
-        return std::fabs(local.x - offset.x) <= halfWidth && std::fabs(local.y - offset.y) <= halfHeight;
+        if (std::fabs(local.x - offset.x) > halfWidth || std::fabs(local.y - offset.y) > halfHeight)
+        {
+            return false;
+        }
+        // **마스크 밖은 없는 것이다**(D-351 3 단계). 그리는 쪽과 같은 사각형이다.
+        Float clip[4];
+        return false == ComputeClipRect2D(*m_canvas, &owner, clip) || ClipRectContains(clip, point);
     }
 
     void Button2DSystem::CallHook(Object::GameObject* object, Hook hook)
@@ -439,6 +484,43 @@ namespace JBro::System
         }
     }
 
+    Object::GameObject* Button2DSystem::FindScrollAncestor(Object::GameObject* object) const
+    {
+        for (Object::GameObject* at = object; at != nullptr; at = at->GetParent())
+        {
+            const auto* scroll = m_canvas->FindComponentRaw<Component::ScrollView2D>(at);
+            if (scroll != nullptr && scroll->IsActiveComponent() && m_canvas->FindComponentRaw<Component::Mask2D>(at) != nullptr)
+            {
+                return at;
+            }
+        }
+        return nullptr;
+    }
+
+    void Button2DSystem::ScrollBy(Object::GameObject& owner, Component::ScrollView2D& scroll, Vector2 delta, Bool& clampedX, Bool& clampedY)
+    {
+        clampedX = false;
+        clampedY = false;
+        const auto* mask = m_canvas->FindComponentRaw<Component::Mask2D>(&owner);
+        Object::GameObject* content = Internal::GameObjectHandleAccess::Resolve(scroll.content);
+        auto* place = content != nullptr ? m_canvas->FindComponentRaw<Component::Transform2D>(content) : nullptr;
+        if (mask == nullptr || place == nullptr)
+        {
+            return;
+        }
+        // 내용은 스크롤 뷰의 자식이다 - 자리는 뷰포트와 같은 로컬 좌표다.
+        if (scroll.horizontal)
+        {
+            place->position.x += delta.x;
+            clampedX = ClampAxis(place->position.x, mask->offset.x, mask->size.x, scroll.contentSize.x);
+        }
+        if (scroll.vertical)
+        {
+            place->position.y += delta.y;
+            clampedY = ClampAxis(place->position.y, mask->offset.y, mask->size.y, scroll.contentSize.y);
+        }
+    }
+
     void Button2DSystem::PlaceWidgets(Canvas& canvas)
     {
         // 슬라이더: 손잡이(자식 오브젝트)를 값의 자리에, 채우기 스프라이트의 비율을 값으로.
@@ -476,8 +558,47 @@ namespace JBro::System
 
     void Button2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
-        (void)deltaTime;
         PlaceWidgets(canvas);
+        // 스크롤: 끄는 중이면 이번 프레임에 끈 양이 속도이고, 놓았으면 속도로 미끄러지다 멈춘다. 끝에 닿은 축은 속도가 0 이다.
+        canvas.ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(scroll);
+            if (owner == nullptr || false == scroll.IsActiveComponent())
+            {
+                return;
+            }
+            const Bool dragging = m_scrollDragging && owner->GetInstanceId() == m_pressed && m_pressedKind == WidgetKind::Scroll;
+            scroll.dragging = dragging;
+            if (dragging)
+            {
+                if (deltaTime > 0.0f)
+                {
+                    scroll.velocity = { m_dragDelta.x / deltaTime, m_dragDelta.y / deltaTime };
+                }
+                m_dragDelta = {};
+                return;
+            }
+            if ((scroll.velocity.x == 0.0f && scroll.velocity.y == 0.0f) || deltaTime <= 0.0f)
+            {
+                return;
+            }
+            Bool clampedX = false;
+            Bool clampedY = false;
+            ScrollBy(*owner, scroll, { scroll.velocity.x * deltaTime, scroll.velocity.y * deltaTime }, clampedX, clampedY);
+            const Float rate = Float::Clamp(scroll.decelerationRate, 0.0f, 1.0f);
+            const Float keep = rate > 0.0f ? Float(std::pow(rate.Get(), deltaTime.Get())) : Float(0.0f);
+            scroll.velocity.x = clampedX || false == scroll.horizontal ? Float(0.0f) : scroll.velocity.x * keep;
+            scroll.velocity.y = clampedY || false == scroll.vertical ? Float(0.0f) : scroll.velocity.y * keep;
+            // 느려지면 멈춘다 - 영원히 꼬물거리지 않는다.
+            if (std::fabs(scroll.velocity.x) < 1.0f)
+            {
+                scroll.velocity.x = 0.0f;
+            }
+            if (std::fabs(scroll.velocity.y) < 1.0f)
+            {
+                scroll.velocity.y = 0.0f;
+            }
+        });
     }
 
     InputResult Button2DSystem::OnInput(InputView& input)
@@ -530,10 +651,12 @@ namespace JBro::System
             const auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(owner);
             const Int32 order = sprite != nullptr ? sprite->renderOrder : Int32(0);
             const Int32 sequence = sprite != nullptr ? sprite->drawSequence : Int32(0);
+            // 차례가 같으면 뒤에 온 것이 위다. 다만 스크롤 뷰는 제 안의 위젯 밑이다 - 빈 곳이어야 스크롤 뷰다.
             const Bool above = top.owner == nullptr || (screen != top.screen ? screen
                 : layer->GetOrder() != top.layer ? Bool(layer->GetOrder() > top.layer)
                 : order != top.order ? Bool(order > top.order)
-                : Bool(sequence >= top.sequence));
+                : sequence != top.sequence ? Bool(sequence > top.sequence)
+                : Bool(kind != WidgetKind::Scroll || top.kind == WidgetKind::Scroll));
             if (above)
             {
                 top.owner = owner;
@@ -561,6 +684,16 @@ namespace JBro::System
             slider.changed = false;
             consider(Internal::CanvasAccess::GetOwner(slider), WidgetKind::Slider, slider.interactable, slider.size, slider.offset, slider.IsActiveComponent());
         });
+        // 스크롤 뷰의 사각형은 같은 오브젝트의 마스크다. 안의 위젯이 위에 있으면 그쪽이 먼저고, 빈 곳이면 스크롤 뷰다.
+        m_canvas->ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(scroll);
+            const auto* mask = owner != nullptr ? m_canvas->FindComponentRaw<Component::Mask2D>(owner) : nullptr;
+            if (mask != nullptr)
+            {
+                consider(owner, WidgetKind::Scroll, true, mask->size, mask->offset, scroll.IsActiveComponent() && mask->IsActiveComponent());
+            }
+        });
 
         // 2. 호버가 바뀌면 떠난 쪽이 먼저다. 들어옴·나감 훅은 버튼의 것이다.
         if (hoveredBefore != top.owner || m_hoveredKind != top.kind)
@@ -584,9 +717,53 @@ namespace JBro::System
         {
             pressed = top.owner;
             pressedKind = top.kind;
+            m_pressPixelX = pointer.x;
+            m_pressPixelY = pointer.y;
+            m_lastPixelX = pointer.x;
+            m_lastPixelY = pointer.y;
+            m_scrollDragging = false;
+            m_dragDelta = {};
+            // 누른 것이 스크롤 뷰거나 그 안의 버튼·토글이면 끌기가 스크롤이 된다. 슬라이더는 제 끌기가 먼저다.
+            Object::GameObject* scrollOwner = top.kind == WidgetKind::Scroll ? top.owner
+                : top.kind == WidgetKind::Slider ? nullptr : FindScrollAncestor(top.owner);
+            m_scrollCandidate = scrollOwner != nullptr ? scrollOwner->GetInstanceId() : InvalidInstanceId;
             if (top.kind == WidgetKind::Button)
             {
                 CallHook(pressed, Hook::Down);
+            }
+        }
+        // 끌기 문턱을 넘으면 스크롤이 쥔다 - 누르고 있던 버튼은 뗌만 받고 누름은 아니다.
+        if (pressed != nullptr && false == m_scrollDragging && m_scrollCandidate != InvalidInstanceId && pointer.present && pointer.down)
+        {
+            const Float dx = pointer.x - m_pressPixelX;
+            const Float dy = pointer.y - m_pressPixelY;
+            if (dx * dx + dy * dy > ScrollDragThreshold * ScrollDragThreshold)
+            {
+                Object::GameObject* scrollOwner = nullptr;
+                m_canvas->ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
+                {
+                    Object::GameObject* owner = Internal::CanvasAccess::GetOwner(scroll);
+                    if (owner != nullptr && owner->GetInstanceId() == m_scrollCandidate)
+                    {
+                        scrollOwner = owner;
+                    }
+                });
+                if (scrollOwner != nullptr)
+                {
+                    if (pressedKind == WidgetKind::Button)
+                    {
+                        CallHook(pressed, Hook::Up);
+                    }
+                    pressed = scrollOwner;
+                    pressedKind = WidgetKind::Scroll;
+                    m_scrollDragging = true;
+                    m_lastPixelX = m_pressPixelX;
+                    m_lastPixelY = m_pressPixelY;
+                }
+                else
+                {
+                    m_scrollCandidate = InvalidInstanceId;
+                }
             }
         }
         // 슬라이더는 쥔 동안 포인터의 자리가 곧 값이다 - 사각형을 벗어나도 그 축의 끝에 붙는다.
@@ -606,12 +783,33 @@ namespace JBro::System
                 }
             }
         }
+        // 스크롤은 쥔 동안 포인터가 간 만큼 내용이 따라온다(레이어 단위).
+        if (pressed != nullptr && pressedKind == WidgetKind::Scroll && m_scrollDragging && pointer.present && pointer.down)
+        {
+            auto* scroll = m_canvas->FindComponentRaw<Component::ScrollView2D>(pressed);
+            const Layer* layer = pressed->GetLayer();
+            Vector2 from;
+            Vector2 to;
+            if (scroll != nullptr && layer != nullptr && PixelToLayer(*layer, m_lastPixelX, m_lastPixelY, from) && PixelToLayer(*layer, pointer.x, pointer.y, to))
+            {
+                const Vector2 delta{ to.x - from.x, to.y - from.y };
+                Bool clampedX = false;
+                Bool clampedY = false;
+                ScrollBy(*pressed, *scroll, delta, clampedX, clampedY);
+                m_dragDelta.x += clampedX ? Float(0.0f) : delta.x;
+                m_dragDelta.y += clampedY ? Float(0.0f) : delta.y;
+            }
+            m_lastPixelX = pointer.x;
+            m_lastPixelY = pointer.y;
+        }
         if (pressed != nullptr && (pointer.released || false == pointer.present || false == pointer.down))
         {
             Object::GameObject* released = pressed;
             const WidgetKind releasedKind = pressedKind;
             pressed = nullptr;
             pressedKind = WidgetKind::None;
+            m_scrollDragging = false;
+            m_scrollCandidate = InvalidInstanceId;
             if (releasedKind == WidgetKind::Button)
             {
                 CallHook(released, Hook::Up);
@@ -637,6 +835,23 @@ namespace JBro::System
         }
         m_pressed = pressed != nullptr ? pressed->GetInstanceId() : InvalidInstanceId;
         m_pressedKind = pressedKind;
+
+        // 휠: 포인터 아래의 위젯이 스크롤 뷰거나 그 안의 것이면 그 스크롤 뷰가 받는다.
+        const MouseState& mouse = input.Mouse();
+        if (top.owner != nullptr && false == pointer.touch && (mouse.wheelY != 0.0f || mouse.wheelX != 0.0f))
+        {
+            if (Object::GameObject* scrollOwner = top.kind == WidgetKind::Scroll ? top.owner : FindScrollAncestor(top.owner))
+            {
+                if (auto* scroll = m_canvas->FindComponentRaw<Component::ScrollView2D>(scrollOwner))
+                {
+                    Bool clampedX = false;
+                    Bool clampedY = false;
+                    // 휠을 위로 굴리면 위의 내용이 보인다 - 내용은 아래로 간다.
+                    ScrollBy(*scrollOwner, *scroll, { mouse.wheelX * scroll->scrollSensitivity, -mouse.wheelY * scroll->scrollSensitivity }, clampedX, clampedY);
+                    scroll->velocity = {};
+                }
+            }
+        }
 
         // 4. 상태 필드와 전이. 훅이 위젯을 지웠을 수 있으니 다시 돈다.
         m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)

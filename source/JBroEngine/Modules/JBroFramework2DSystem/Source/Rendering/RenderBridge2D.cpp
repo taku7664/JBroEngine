@@ -197,6 +197,9 @@ namespace JBro::Internal
             Bool layerBegun = false;
             // 열린 빛을 받는 구간이 있는가(D-291). 레이어 묶음과 따로 논다 - 렌더러가 둘을 겹쳐 받는다.
             Bool lit = false;
+            // 열린 클립 구간(D-351). 마스크가 같은 아이템은 정렬상 대개 이어져 오므로 구간이 적다. 사각형은 패럴랙스만큼 같이 옮긴다.
+            Bool clipOpen = false;
+            Float openClip[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
             std::size_t count = 0;
             // 렌더러가 하나라도 거절하면 그 뒤는 내지 않는다(제출 상한). 앞에서 버린 아이템이 있었던 것은 결과만 바꾼다.
             Bool refused = false;
@@ -263,6 +266,18 @@ namespace JBro::Internal
                     offsetX = 0.0f;
                     offsetY = 0.0f;
                 }
+                Float clip[4] = { item.clip[0] + offsetX, item.clip[1] + offsetY, item.clip[2] + offsetX, item.clip[3] + offsetY };
+                const Bool sameClip = item.clipped == clipOpen
+                    && (false == clipOpen || (clip[0] == openClip[0] && clip[1] == openClip[1] && clip[2] == openClip[2] && clip[3] == openClip[3]));
+                if (false == sameClip)
+                {
+                    flush();
+                    clipOpen = item.clipped && renderer.SetSpriteClip(item.clipped ? clip : nullptr);
+                    for (UInt32 edge = 0; edge < 4; ++edge)
+                    {
+                        openClip[edge] = clip[edge];
+                    }
+                }
                 if (item.drawMode == Component::SpriteDrawMode::Simple)
                 {
                     batch[count] = BuildSprite(item, offsetX, offsetY, WholeSpritePiece());
@@ -287,6 +302,10 @@ namespace JBro::Internal
                 }
             }
             flush();
+            if (clipOpen)
+            {
+                renderer.SetSpriteClip(nullptr);
+            }
             if (layerBegun)
             {
                 renderer.EndLayer();

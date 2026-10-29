@@ -40,6 +40,8 @@
 #include <JBro/Framework2D/Handle/DistanceJoint2D.h>
 #include <JBro/Framework2D/Handle/HingeJoint2D.h>
 #include <JBro/Framework2D/Handle/Light2D.h>
+#include <JBro/Framework2D/Handle/Mask2D.h>
+#include <JBro/Framework2D/Handle/ScrollView2D.h>
 #include <JBro/Framework2D/Handle/Slider2D.h>
 #include <JBro/Framework2D/Handle/Toggle2D.h>
 #include <JBro/Framework2D/Handle/Rigidbody2D.h>

@@ -432,6 +432,10 @@ namespace JBro
         // 곱해 그린다 - 빛을 받는 레이어의 구간이다. 뷰마다 거짓으로 시작한다. 레이어 묶음(`BeginLayer`)과 겹쳐도 된다.
         // 깊이가 달린 뷰(3D)에서는 보지 않는다.
         Bool SetSpriteLighting(Bool lit);
+        // **이 뒤로 낸 스프라이트를 사각형 안에서만 그린다**(D-351). `rect` 는 제출한 월드와 같은 공간의 {minX, minY, maxX, maxY} 이고
+        // nullptr 이면 끈다. 뷰마다 꺼진 채 시작한다. 그릴 때 뷰의 투영으로 픽셀 시저가 되고(돌린 뷰는 둘러싼 사각형), 뷰의 시저와 교집합이다.
+        // 구간 상한은 레이어 묶음과 같다(`maxLayerGroups`) - 넘치면 자르지 않고 센다.
+        Bool SetSpriteClip(const Float* rect);
 
         // 메시 지오메트리를 GPU 에 올리고 `MeshSubmit::mesh` 에 넣을 핸들을 준다. 프레임 밖에서만
         // 부른다. 빈 배열·너무 큰 배열·프레임 안이면 빈 핸들이다.
@@ -581,6 +585,9 @@ namespace JBro
             UInt32 shadowEdgeCount = 0;
             UInt32 litRangeOffset = 0;
             UInt32 litRangeCount = 0;
+            // 이 뷰의 클립 구간(`m_clipRanges`)이다(D-351).
+            UInt32 clipRangeOffset = 0;
+            UInt32 clipRangeCount = 0;
             // `Global` 라이트의 합이다. 라이트맵을 지우는 색이다.
             Float ambient[3] = {0.0f, 0.0f, 0.0f};
             // 라이트를 하나라도 받았는가(`Global` 포함). 거짓이면 빛을 받는 구간도 그대로 그린다.
@@ -624,6 +631,14 @@ namespace JBro
         {
             UInt32 firstSprite = 0;
             UInt32 endSprite = 0;
+        };
+
+        // `SetSpriteClip(rect)` 와 `SetSpriteClip(nullptr)` 사이에 낸 스프라이트 번호 구간 [first, end) 과 그 사각형이다(D-351).
+        struct ClipRange
+        {
+            UInt32 firstSprite = 0;
+            UInt32 endSprite = 0;
+            Float rect[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         };
 
         // 라이트 하나의 인스턴스다. `BuiltinLight2D.hlsl` 의 ATTRIBUTE1..3 이 읽는다.
@@ -819,6 +834,8 @@ namespace JBro
             UInt32 layerGroup = NoLayerGroup;
             // 빛을 받는 구간이면 참이다(D-291). 빛을 받는 구간의 경계에서 끊긴다.
             Bool lit = false;
+            // 이 구간이 든 클립 구간(`m_clipRanges` 의 자리)이다(D-351). 경계에서 끊기고, 그릴 때 그 사각형이 시저가 된다.
+            UInt32 clip = NoLayerGroup;
         };
 
         // 같은 메시를 그리는 인스턴스들의 연속 구간이다(D-110). 업로드가 뷰 안에서 메시별로 모아 놓으므로
@@ -979,7 +996,7 @@ namespace JBro
             CompositeBlend blend, Float opacity, const Viewport& viewport, const ScissorRect& scissor, UInt32 scene);
         // 스프라이트 구간을 그린다. 렌더 패스는 열려 있어야 한다.
         Bool DrawSpriteRuns(IRHICommandContext& commands, UInt32 scene, const ViewPacket& view, UInt32 firstRun, UInt32 endRun,
-            TextureHandle lightMap, Bool overDepth, const Viewport& viewport, const Extent2D& target);
+            TextureHandle lightMap, Bool overDepth, const Viewport& viewport, const Extent2D& target, const ScissorRect& viewScissor);
         // 장면에 그리는 파이프라인을 그 포맷으로 만든다. 하나라도 못 만들면 거짓이고, 만든 것은 `DestroyScenePipelines` 가 지운다.
         Bool CreateScenePipelines(TextureFormat format, ScenePipelines& pipelines);
         void DestroyScenePipelines(ScenePipelines& pipelines);
@@ -1082,6 +1099,8 @@ namespace JBro
         Array<LitRange> m_litRanges;
         // 열린 빛을 받는 구간(`m_litRanges` 의 자리)이다. 없으면 `NoLayerGroup` 이다.
         UInt32 m_openLitRange = NoLayerGroup;
+        Array<ClipRange> m_clipRanges;
+        UInt32 m_openClipRange = NoLayerGroup;
         Array<LayerGroup> m_layerGroups;
         UInt32 m_openLayerGroup = NoLayerGroup;
         // 프레임마다 처음부터 짓는 렌더 그래프와, 그래프가 만드는 중간 텍스처의 풀이다(D-339). 풀은 지난 프레임이 바란 모양을

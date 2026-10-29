@@ -724,6 +724,200 @@ void AddHandles(ApiCatalog& catalog)
     }
     }
     {
+    auto& type = AddType(catalog, "Mask2D", "JBro::Handle::Mask2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Mask2D::*)() const>(&Handle::Mask2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Mask2D::*)() const>(&Handle::Mask2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Mask2D::*)() const>(&Handle::Mask2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Mask2D::*)(Bool)>(&Handle::Mask2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Mask2D::*)() const>(&Handle::Mask2D::GetSize)>("GetSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Mask2D::*)(Vector2)>(&Handle::Mask2D::SetSize)>("SetSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Mask2D::*)() const>(&Handle::Mask2D::GetOffset)>("GetOffset", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Mask2D::*)(Vector2)>(&Handle::Mask2D::SetOffset)>("SetOffset", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Mask2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Mask2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Mask2D::IsEnabled, &Handle::Mask2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Mask2D::GetSize, &Handle::Mask2D::SetSize>("size");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Mask2D::GetOffset, &Handle::Mask2D::SetOffset>("offset");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "ScrollView2D", "JBro::Handle::ScrollView2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Bool)>(&Handle::ScrollView2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetContent)>("GetContent", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Handle::GameObject)>(&Handle::ScrollView2D::SetContent)>("SetContent", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetContentSize)>("GetContentSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Vector2)>(&Handle::ScrollView2D::SetContentSize)>("SetContentSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetHorizontal)>("GetHorizontal", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Bool)>(&Handle::ScrollView2D::SetHorizontal)>("SetHorizontal", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetVertical)>("GetVertical", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Bool)>(&Handle::ScrollView2D::SetVertical)>("SetVertical", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetScrollSensitivity)>("GetScrollSensitivity", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Float)>(&Handle::ScrollView2D::SetScrollSensitivity)>("SetScrollSensitivity", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetDecelerationRate)>("GetDecelerationRate", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Float)>(&Handle::ScrollView2D::SetDecelerationRate)>("SetDecelerationRate", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetDragging)>("GetDragging", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetVelocity)>("GetVelocity", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::IsEnabled, &Handle::ScrollView2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetContent, &Handle::ScrollView2D::SetContent>("content");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetContentSize, &Handle::ScrollView2D::SetContentSize>("contentSize");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetHorizontal, &Handle::ScrollView2D::SetHorizontal>("horizontal");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetVertical, &Handle::ScrollView2D::SetVertical>("vertical");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetScrollSensitivity, &Handle::ScrollView2D::SetScrollSensitivity>("scrollSensitivity");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetDecelerationRate, &Handle::ScrollView2D::SetDecelerationRate>("decelerationRate");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetDragging>("dragging");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetVelocity>("velocity");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
     auto& type = AddType(catalog, "Camera2D", "JBro::Handle::Camera2D", ApiTypeKind::Handle);
     {
         auto member = DeclareFunction<static_cast<Bool (Handle::Camera2D::*)() const>(&Handle::Camera2D::IsValid)>("IsValid", Parameters());
