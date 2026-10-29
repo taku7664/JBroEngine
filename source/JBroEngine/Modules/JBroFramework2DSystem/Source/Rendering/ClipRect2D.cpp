@@ -38,6 +38,11 @@ namespace JBro
 
     Bool ClipRectContains(const Float rect[4], Vector2 point)
     {
+        // 넓이 0 의 사각형(어긋난 마스크의 교집합)은 아무것도 담지 않는다 - 경계 위의 점도 밖이다.
+        if (rect[2] <= rect[0] || rect[3] <= rect[1])
+        {
+            return false;
+        }
         return point.x >= rect[0] && point.x <= rect[2] && point.y >= rect[1] && point.y <= rect[3];
     }
 }

@@ -3,7 +3,7 @@
 > 2026-10-15 작성. 처음 쓰는 사용자(시나리오 A), 일부러 잘못 쓰는 사용자(시나리오 B), JBroScript 로 쓰는 사용자(시나리오 C)가 에디터를 켜서 스크립트를 만들고 돌리기까지의 흐름을 걸으며 적은 메모다.
 > 문서를 보고 확신하지 않았다 - 화면으로 본 것은 **[봄]**, 코드로만 안 것은 **[코드]**, 확인하지 못한 것은 **[의문]**, 고친 것은 **[고침]** 으로 적는다.
 > A·B 의 스크립트는 **C++**(`.h`·`.cpp`, `JBRO_SCRIPT_BODY`), C 는 **JBroScript**(`.jscript`)다. C 는 main 에 JBroScript 컴파일러와 빌드 타깃(`JBro.GameScript.targets` 가 `jbroc --emit-project` 로 C++ 을 만든다)이 들어온 뒤에 걸었다.
-> 세 시나리오는 시험 묶음 `UserScenario`(`Tests/EditorApplicationTests.cpp` 의 `TestScenarioAFirstScript`·`TestScenarioBHostileUser`·`TestScenarioCJBroScript`)로 서 있고 모두 지난다.
+> 네 시나리오는 시험 묶음 `UserScenario`(`Tests/EditorApplicationTests.cpp` 의 `TestScenarioAFirstScript`·`TestScenarioBHostileUser`·`TestScenarioCJBroScript`·`TestScenarioDUiBuilder`)로 서 있고 모두 지난다. D(UI 를 만드는 사용자)는 2026-10-30 에 더했다(D-353).
 
 ## 1. 어떻게 걸었나
 
@@ -74,6 +74,20 @@ C++ 사용자와 같은 길을 `.jscript` 로 걷는다. 걷기 전의 상태는
 - [의문] JBroScript 예약어(`fn`·`script`·`ref` 등)를 이름으로 넣으면 이름 검사는 C++ 기준이라 통과하고 빌드에서 걸린다. 확인하지 않았다.
 - [의문] 3D 프로젝트에서는 언어 줄을 두지 않는다(빌드 타깃이 2D 만 받는다). 3D 사용자가 `.jscript` 를 손으로 넣으면 빌드가 영어 오류로 거절한다.
 
+## 3.2 시나리오 D - UI 를 만드는 사용자 (D-353)
+
+스크립트 빌드 없이 위젯만 쓴다. 자세한 것은 [ui-plan.md](./ui-plan.md) §6.5.
+
+1. 새 프로젝트 `UI Game` **[봄 d00]**. 이름 칸이 포커스를 받으려면 팝업이 뜬 뒤 프레임이 몇 개 필요하다(시나리오 A 가 화면을 찍는 자리) - 바로 치면 글자가 들어가지 않는다 **[코드]**.
+2. 오브젝트를 만들고 `컴포넌트 추가` 목록을 본다. `UI` 갈래에 `Button2D`·`Toggle2D`·`Slider2D`·`InputField2D`·`Mask2D`·`ScrollView2D`·`Layout2D` 일곱이 붙일 수 있는 것으로 선다 **[코드]**.
+3. 마스크 + 스크롤 뷰 **[봄 d01]**, 그 자식에 버튼 + 스프라이트 **[봄 d02]**, 따로 슬라이더·토글·글자 칸·레이아웃 **[봄 d03~d06]**, 글자 칸의 자식에 `Text2D` 를 표시 텍스트로.
+4. 버튼을 고르고 인스펙터에서 `Button2D` 를 고르면 캔버스 뷰에 사각형 손잡이가 선다 **[봄 d07]**.
+5. 일부러 잘못 잇는다 - 스크롤 내용 = 창 자신, 손잡이 = 슬라이더 자신, 표시 텍스트를 지운다. 재생 30 프레임에 둘은 제자리다 **[봄 d08]**.
+6. 캔버스를 저장하고 프로젝트를 닫은 뒤 `.jproject` 로 다시 열어 되읽는다 - 오브젝트 수가 같다 **[봄 d09]**. 파일은 빈 캔버스에만 읽힌다(처음엔 열린 캔버스에 바로 읽으려다 거절당했다).
+7. 되돌리기를 끝까지 누른다.
+- **[고침]** `InputField2D` 의 `State` 가 접히지 않고 평평했다 → `focused` 를 인스펙터에서 읽기 전용으로.
+- **[의문]** 월드 레이어의 위젯 기본 크기가 픽셀 값이다, 빈 핸들의 `없음` 글자, 앞 시나리오의 알림·상태 줄이 다음 에디터에 남는다(ui-plan §6.5).
+
 ## 4. 고친 것
 
 | 무엇 | 전 | 후 |
@@ -118,5 +132,5 @@ C++ 사용자와 같은 길을 `.jscript` 로 걷는다. 걷기 전의 상태는
 
 ## 6. 이 문서로 할 수 있는 것
 
-- 흐름을 바꾸면 `JBRO_TESTS=UserScenario` 로 두 시나리오를 돌리고, `JBRO_EDITOR_SHOT` 을 주어 단계별 화면을 다시 본다.
+- 흐름을 바꾸면 `JBRO_TESTS=UserScenario` 로 네 시나리오를 돌리고, `JBRO_EDITOR_SHOT` 을 주어 단계별 화면을 다시 본다. 위젯만의 적대 시험은 `JBRO_TESTS=UiScenario` 다.
 - 새 실패 경우를 찾으면 시나리오 B 표에 줄을 더하고 같은 시험에 단계를 넣는다.

@@ -12,7 +12,6 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Asset/Asset.h>
-#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Editor/Command/ButtonRectEdit.h>
 #include <JBro/Editor/Gizmo/ButtonRectModel.h>
 #include <JBro/Editor/SpriteVisual.h>

@@ -93,7 +93,12 @@ namespace JBro::System
         {
             m_ordered.Clear();
             m_started.Clear();
+            // 시스템 핸들러(`Button2DSystem`)는 스크립트가 없어도 체인에 선다 - 위젯만 있는 캔버스도 포인터를 받아야 한다.
             m_inputChain.Clear();
+            for (const InputEntry& entry : m_systemHandlers)
+            {
+                m_inputChain.Add(entry);
+            }
             return;
         }
 

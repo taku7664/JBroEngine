@@ -105,6 +105,7 @@ JBro::Int32 RunGizmoModelTests();
 JBro::Int32 RunInputTests();
 JBro::Int32 RunInputSystemTests();
 JBro::Int32 RunInputChainTests();
+JBro::Int32 RunUiScenarioTests();
 JBro::Int32 RunInputActionTests();
 JBro::Int32 RunSaveStorageTests();
 JBro::Int32 RunPackageTests();
@@ -341,6 +342,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("InputChain", &RunInputChainTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("UiScenario", &RunUiScenarioTests))
         {
             return 1;
         }

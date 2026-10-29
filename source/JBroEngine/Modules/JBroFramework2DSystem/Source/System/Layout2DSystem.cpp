@@ -6,7 +6,8 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
-#include <algorithm>
+#include <JBro/Types/ValueMath.h>
+
 #include <cmath>
 
 namespace JBro::System
@@ -36,28 +37,43 @@ namespace JBro::System
                     ++count;
                 }
             }
+            // 유한하지 않은 값이 하나라도 있으면 이번 프레임은 놓지 않는다 - 자식의 자리를 NaN 으로 만들지 않는다.
+            const Float fields[] = { layout.cellSize.x, layout.cellSize.y, layout.spacing.x, layout.spacing.y,
+                layout.padding.x, layout.padding.y, layout.pivot.x, layout.pivot.y };
+            for (const Float field : fields)
+            {
+                if (false == std::isfinite(field.Get()))
+                {
+                    return;
+                }
+            }
             const Float cellWidth = std::fabs(layout.cellSize.x);
             const Float cellHeight = std::fabs(layout.cellSize.y);
-            const UInt32 columns = static_cast<JBro::UInt32>(std::max<std::int32_t>(1, layout.columns.Get()));
-            UInt32 across = 1;
-            UInt32 down = 1;
+            const UInt32 columns = static_cast<JBro::UInt32>(Max(Int32(1), layout.columns).Get());
+            // 자식이 없으면 블록은 여백뿐이다.
+            UInt32 across = 0;
+            UInt32 down = 0;
             switch (layout.mode)
             {
             case Component::LayoutMode::Horizontal:
-                across = count > 0 ? count : UInt32(1);
+                across = count;
+                down = count > 0 ? UInt32(1) : UInt32(0);
                 break;
             case Component::LayoutMode::Grid:
-                across = count > 0 ? std::min(count, columns) : UInt32(1);
-                down = count > 0 ? (count + columns - 1) / columns : UInt32(1);
+                across = Min(count, columns);
+                down = (count + columns - 1) / columns;
                 break;
             case Component::LayoutMode::Vertical:
             default:
-                down = count > 0 ? count : UInt32(1);
+                across = count > 0 ? UInt32(1) : UInt32(0);
+                down = count;
                 break;
             }
             // 2. 블록의 크기와 원점. 블록의 `pivot` 이 이 오브젝트의 원점에 온다 - (0, 1) 이면 왼쪽 위다.
-            const Float width = layout.padding.x * 2.0f + static_cast<JBro::Float>(across) * cellWidth + static_cast<JBro::Float>(across - 1) * layout.spacing.x;
-            const Float height = layout.padding.y * 2.0f + static_cast<JBro::Float>(down) * cellHeight + static_cast<JBro::Float>(down - 1) * layout.spacing.y;
+            const Float width = layout.padding.x * 2.0f + static_cast<JBro::Float>(across) * cellWidth
+                + (across > 0 ? static_cast<JBro::Float>(across - 1) * layout.spacing.x : Float(0.0f));
+            const Float height = layout.padding.y * 2.0f + static_cast<JBro::Float>(down) * cellHeight
+                + (down > 0 ? static_cast<JBro::Float>(down - 1) * layout.spacing.y : Float(0.0f));
             layout.contentWidth = width;
             layout.contentHeight = height;
             const Float left = -layout.pivot.x * width;

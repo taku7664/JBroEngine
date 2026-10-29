@@ -46,6 +46,11 @@
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
+#include <JBro/Framework2D/Component/Layout2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
+#include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -18083,6 +18088,251 @@ namespace
         ScenarioShot(editor, "b15_closed_mid_build");
         editor.Shutdown();
     }
+
+    // ── 시나리오 D: UI 를 만드는 사용자(D-351·D-352, ui-plan §6.4) ─────────────
+    // 새 프로젝트에서 스크롤 창·버튼·슬라이더·토글·글자 칸·레이아웃을 `컴포넌트 추가` 로 붙이고, 인스펙터와 캔버스 뷰를 화면으로 보고
+    // (`JBRO_EDITOR_SHOT`), 일부러 잘못 잇고(스크롤 내용 = 자기 자신, 표시 텍스트를 지움) 재생해 보고, 저장해 되읽고, 되돌린다. 스크립트 빌드는 없다.
+    void TestScenarioDUiBuilder()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroUserScenarioD").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root, ignored);
+
+        DialogProbe dialog;
+        dialog.path = JBro::String(root.string().c_str());
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario D not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        // ── 1. 새 프로젝트 ─────────────
+        editor.RequestNewProject();
+        Check(editor.Tick(Frame), "the folder dialog runs outside the frame");
+        Check(editor.IsPopupOpenById("new_project"), "then the name popup");
+        // 이름 칸이 포커스를 받을 프레임을 준다(시나리오 A 가 화면을 찍는 자리).
+        ScenarioShot(editor, "d00_new_project");
+        TypeText(editor, "UI Game");
+        PressKey(editor, ImGuiKey_Enter);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor switches to the new project");
+        }
+        Check(editor.HasOpenProject() && editor.GetCanvas() != nullptr, "the project is open with a canvas");
+        JBro::Canvas* canvas = editor.GetCanvas();
+
+        // 인스펙터의 `컴포넌트 추가` 로 타입 이름을 쳐서 붙인다 - 사용자가 하는 그대로다.
+        ImGuiWindow* inspector = nullptr;
+        const auto addComponent = [&](const char* search) {
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the inspector shows the chosen object");
+            }
+            inspector = ImGui::FindWindowByName("Inspector");
+            Check(inspector != nullptr, "the inspector must have a window");
+            Spot add;
+            Check(FindInspectorItem(editor, hwnd, LabelId(inspector->ID, "##AddComponent"), add), "the add component button is there");
+            ClickAt(editor, hwnd, add);
+            Check(editor.Tick(Frame), "the list opens");
+            Check(editor.Tick(Frame), "its search box takes focus");
+            TypeText(editor, search);
+            PressKey(editor, ImGuiKey_Enter);
+            Check(editor.Tick(Frame), "the component is attached");
+        };
+
+        // ── 2. 목록에서 UI 갈래가 한데 모여 있다 ─────────────
+        Check(RunEditorAction(editor, "object.create"), "a window object is created");
+        JBro::Object::GameObject* window = editor.GetSelectedObject();
+        Check(window != nullptr, "and chosen");
+        {
+            JBro::EditorActions::AddComponentList list;
+            JBro::EditorActions::BuildAddComponentList(*window, list);
+            JBro::Int32 uiCount = 0;
+            for (std::size_t index = 0; index < list.names.Size(); ++index)
+            {
+                if (std::strcmp(list.categories[index], "UI") == 0)
+                {
+                    ++uiCount;
+                    Check(list.addable[index], "every UI component can be added to a fresh object");
+                }
+            }
+            Check(uiCount == 7, "the UI group lists the seven widgets (button, toggle, slider, field, mask, scroll view, layout)");
+        }
+
+        // ── 3. 스크롤 창: 마스크 + 스크롤 뷰, 그 자식 버튼 ─────────────
+        addComponent("Mask2D");
+        addComponent("ScrollView2D");
+        auto* mask = canvas->FindComponentRaw<JBro::Component::Mask2D>(window);
+        auto* scroll = canvas->FindComponentRaw<JBro::Component::ScrollView2D>(window);
+        Check(mask != nullptr && scroll != nullptr, "the window has a mask and a scroll view");
+        ScenarioShot(editor, "d01_scroll_window");
+        JBro::Object::GameObject* play = JBro::EditorActions::CreateObject(editor, window);
+        Check(play != nullptr && play->GetParent() == window && editor.GetSelectedObject() == play, "a child object is created under the window and chosen");
+        addComponent("Button2D");
+        addComponent("SpriteRenderer2D");
+        auto* button = canvas->FindComponentRaw<JBro::Component::Button2D>(play);
+        auto* sprite = canvas->FindComponentRaw<JBro::Component::SpriteRenderer2D>(play);
+        Check(button != nullptr && sprite != nullptr, "the child is a button with a sprite");
+        ScenarioShot(editor, "d02_button_inspector");
+
+        // ── 4. 나머지 위젯을 각자 오브젝트에 ─────────────
+        const auto makeWidget = [&](const char* type) {
+            Check(RunEditorAction(editor, "object.create"), "an object is created for the widget");
+            JBro::Object::GameObject* object = editor.GetSelectedObject();
+            Check(object != nullptr, "and chosen");
+            addComponent(type);
+            return object;
+        };
+        JBro::Object::GameObject* volume = makeWidget("Slider2D");
+        ScenarioShot(editor, "d03_slider_inspector");
+        JBro::Object::GameObject* mute = makeWidget("Toggle2D");
+        ScenarioShot(editor, "d04_toggle_inspector");
+        JBro::Object::GameObject* name = makeWidget("InputField2D");
+        ScenarioShot(editor, "d05_field_inspector");
+        JBro::Object::GameObject* list = makeWidget("Layout2D");
+        ScenarioShot(editor, "d06_layout_inspector");
+        auto* slider = canvas->FindComponentRaw<JBro::Component::Slider2D>(volume);
+        auto* toggle = canvas->FindComponentRaw<JBro::Component::Toggle2D>(mute);
+        auto* field = canvas->FindComponentRaw<JBro::Component::InputField2D>(name);
+        auto* layout = canvas->FindComponentRaw<JBro::Component::Layout2D>(list);
+        Check(slider != nullptr && toggle != nullptr && field != nullptr && layout != nullptr, "all four widgets are attached");
+        // 글자 칸의 표시 텍스트: 자식 오브젝트의 Text2D 를 잇는다.
+        JBro::Object::GameObject* label = JBro::EditorActions::CreateObject(editor, name);
+        addComponent("Text2D");
+        auto* labelText = canvas->FindComponentRaw<JBro::Component::Text2D>(label);
+        Check(labelText != nullptr, "the label has a text");
+        field->display = label->GetScriptHandle().GetComponent<JBro::Handle::Text2D>();
+
+        // ── 5. 캔버스 뷰: 버튼의 누름 사각형 손잡이 ─────────────
+        button->size = {2.0f, 1.0f};
+        editor.SetSelectedObject(play);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles on the button");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
+            return spot;
+        };
+        SelectInspectorComponent(editor, hwnd, 1, "Button2D");
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(at(1.0f, 0.0f).x, at(1.0f, 0.0f).y));
+        Check(editor.Tick(Frame), "the editor ticks while hovering");
+        Check(editor.Tick(Frame), "and once more for the hover to settle");
+        Check(ImGui::GetHoveredID() == LabelId(view->ID, "##button_right"), "the right edge of the hit box has a handle in a real project");
+        ScenarioShot(editor, "d07_canvas_handles");
+
+        // ── 6. 일부러 잘못 잇고 재생한다 ─────────────
+        // 스크롤 내용 = 창 자신, 손잡이 = 슬라이더 자신. 재생해도 둘은 제자리다.
+        scroll->content = window->GetScriptHandle();
+        slider->handle = volume->GetScriptHandle();
+        auto* windowPlace = canvas->FindComponentRaw<JBro::Component::Transform2D>(window);
+        auto* volumePlace = canvas->FindComponentRaw<JBro::Component::Transform2D>(volume);
+        Check(windowPlace != nullptr && volumePlace != nullptr, "the widgets have transforms");
+        windowPlace->position = {1.0f, 2.0f};
+        volumePlace->position = {-3.0f, 0.5f};
+        // 표시 텍스트를 지운다 - 글자 칸의 핸들이 끊긴다.
+        Check(JBro::EditorActions::DeleteObject(editor, *label), "the label is deleted");
+        Check(editor.StartSimulation(), "play starts with the broken wiring");
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the game runs");
+        }
+        {
+            JBro::Canvas* playing = editor.GetCanvas();
+            JBro::Array<JBro::Object::GameObject*> roots;
+            playing->GetRootObjects(roots);
+            for (JBro::Object::GameObject* each : roots)
+            {
+                auto* place = playing->FindComponentRaw<JBro::Component::Transform2D>(each);
+                if (place == nullptr)
+                {
+                    continue;
+                }
+                if (playing->FindComponentRaw<JBro::Component::ScrollView2D>(each) != nullptr)
+                {
+                    Check(place->position.x == 1.0f && place->position.y == 2.0f, "a scroll view that points at itself stays put while playing");
+                }
+                if (playing->FindComponentRaw<JBro::Component::Slider2D>(each) != nullptr)
+                {
+                    Check(place->position.x == -3.0f && place->position.y == 0.5f, "a slider that is its own handle stays put while playing");
+                }
+            }
+        }
+        ScenarioShot(editor, "d08_playing_broken_wiring");
+        editor.StopSimulation();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor returns from play");
+        }
+        canvas = editor.GetCanvas();
+
+        // ── 7. 저장하고 되읽는다 - 끊긴 핸들·자기 참조가 파일을 막지 않는다 ─────────────
+        const fs::path saved = root / "ui.jcanvas";
+        JBro::CanvasFileError error;
+        if (false == editor.SaveCanvas(saved.string().c_str(), error))
+        {
+            std::cout << "  save failed: " << error.message.c_str() << std::endl;
+            Check(false, "the canvas with every widget saves");
+        }
+        const std::string text = ReadWholeText(saved);
+        Check(text.find("Component::ScrollView2D") != std::string::npos && text.find("Component::InputField2D") != std::string::npos
+                && text.find("Component::Layout2D") != std::string::npos,
+            "the file names the widget components");
+        const std::size_t objectsBefore = canvas->GetObjectCount();
+        // 파일은 빈 캔버스에만 읽힌다 - 프로젝트를 닫고 프로젝트 파일로 다시 연다(사용자가 에디터를 껐다 켠 것).
+        editor.CloseProject();
+        JBro::ProjectFileError projectError;
+        const fs::path projectFile = root / "UI Game" / "UI Game.jproject";
+        if (false == editor.OpenProjectFile(projectFile.string().c_str(), projectError))
+        {
+            std::cout << "  reopen failed: " << projectError.message.c_str() << std::endl;
+            Check(false, "the project file opens again");
+        }
+        canvas = editor.GetCanvas();
+        Check(canvas != nullptr && canvas->GetObjectCount() == 0, "a reopened project starts with an empty canvas");
+        if (false == editor.LoadCanvas(saved.string().c_str(), error))
+        {
+            std::cout << "  load failed: " << error.message.c_str() << " (object " << error.objectName.c_str() << ", type " << error.typeName.c_str() << ")" << std::endl;
+            Check(false, "the editor reads the canvas it wrote");
+        }
+        canvas = editor.GetCanvas();
+        Check(canvas->GetObjectCount() == objectsBefore, "every object comes back");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor draws the reopened canvas");
+        }
+        ScenarioShot(editor, "d09_reopened");
+
+        // ── 8. 되돌리기를 끝까지 누른다 ─────────────
+        JBro::Int32 undone = 0;
+        while (editor.GetCommands().GetUndoCount() > 0 && undone < 64)
+        {
+            Check(RunEditorAction(editor, "editor.undo"), "undo runs");
+            Check(editor.Tick(Frame), "and the editor draws after each undo");
+            ++undone;
+        }
+        Check(editor.GetCommands().GetUndoCount() == 0, "undo reaches the beginning");
+        editor.Shutdown();
+    }
 }
 
 JBro::Int32 RunEditorApplicationTests()
@@ -18236,6 +18486,7 @@ JBro::Int32 RunUserScenarioTests()
     TestScenarioAFirstScript();
     TestScenarioBHostileUser();
     TestScenarioCJBroScript();
+    TestScenarioDUiBuilder();
     std::cout << "User scenario tests passed.\n";
     return 0;
 }

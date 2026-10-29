@@ -2424,11 +2424,20 @@ namespace JBro
                     maxY = py > maxY ? py : maxY;
                 }
             }
+            // 유한하지 않은 사각형(호출자가 넣은 NaN·무한)은 자르지 않는다. 유한하면 `int32` 안으로 가둔 뒤 캐스팅한다 - 극단의 줌이 UB 가 되지 않게.
+            if (false == std::isfinite(minX.Get()) || false == std::isfinite(minY.Get()) || false == std::isfinite(maxX.Get()) || false == std::isfinite(maxY.Get()))
+            {
+                return viewScissor;
+            }
+            static constexpr float PixelLimit = 1.0e9f;
+            const auto toPixel = [](float value) {
+                return Int32(static_cast<std::int32_t>(std::clamp(value, -PixelLimit, PixelLimit)));
+            };
             ScissorRect result;
-            result.left = std::max(viewScissor.left, Int32(static_cast<std::int32_t>(std::floor(minX.Get()))));
-            result.top = std::max(viewScissor.top, Int32(static_cast<std::int32_t>(std::floor(minY.Get()))));
-            result.right = std::min(viewScissor.right, Int32(static_cast<std::int32_t>(std::ceil(maxX.Get()))));
-            result.bottom = std::min(viewScissor.bottom, Int32(static_cast<std::int32_t>(std::ceil(maxY.Get()))));
+            result.left = std::max(viewScissor.left, toPixel(std::floor(minX.Get())));
+            result.top = std::max(viewScissor.top, toPixel(std::floor(minY.Get())));
+            result.right = std::min(viewScissor.right, toPixel(std::ceil(maxX.Get())));
+            result.bottom = std::min(viewScissor.bottom, toPixel(std::ceil(maxY.Get())));
             if (result.right < result.left)
             {
                 result.right = result.left;

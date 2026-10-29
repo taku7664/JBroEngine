@@ -4,17 +4,6 @@
 
 #include <cstring>
 
-namespace JBro::Component
-{
-    void InputField2D::OnDetached()
-    {
-        // 컴포넌트는 호스트의 캔버스만 만들고 떼므로 여기의 저장소는 호스트의 것이다.
-        TextStore::Get().Destroy(text);
-        text = {};
-        ComponentBase::OnDetached();
-    }
-}
-
 namespace JBro::Handle
 {
     Component::InputField2D* InputField2D::Resolve(const char* operation) const

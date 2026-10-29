@@ -199,6 +199,7 @@ namespace JBro::Internal
             Bool lit = false;
             // 열린 클립 구간(D-351). 마스크가 같은 아이템은 정렬상 대개 이어져 오므로 구간이 적다. 사각형은 패럴랙스만큼 같이 옮긴다.
             Bool clipOpen = false;
+            Bool clipRefused = false;
             Float openClip[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
             std::size_t count = 0;
             // 렌더러가 하나라도 거절하면 그 뒤는 내지 않는다(제출 상한). 앞에서 버린 아이템이 있었던 것은 결과만 바꾼다.
@@ -267,12 +268,19 @@ namespace JBro::Internal
                     offsetY = 0.0f;
                 }
                 Float clip[4] = { item.clip[0] + offsetX, item.clip[1] + offsetY, item.clip[2] + offsetX, item.clip[3] + offsetY };
-                const Bool sameClip = item.clipped == clipOpen
+                // 구간 상한을 넘어 한 번 거절당하면 이 뷰에서는 더 묻지 않는다 - 아이템마다 묶음을 끊고 다시 묻는 일이 없다.
+                const Bool wantClip = item.clipped && false == clipRefused;
+                const Bool sameClip = wantClip == clipOpen
                     && (false == clipOpen || (clip[0] == openClip[0] && clip[1] == openClip[1] && clip[2] == openClip[2] && clip[3] == openClip[3]));
                 if (false == sameClip)
                 {
                     flush();
-                    clipOpen = item.clipped && renderer.SetSpriteClip(item.clipped ? clip : nullptr);
+                    clipOpen = wantClip && renderer.SetSpriteClip(clip);
+                    clipRefused = wantClip && false == clipOpen;
+                    if (false == wantClip)
+                    {
+                        renderer.SetSpriteClip(nullptr);
+                    }
                     for (UInt32 edge = 0; edge < 4; ++edge)
                     {
                         openClip[edge] = clip[edge];
