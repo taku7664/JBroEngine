@@ -275,6 +275,7 @@
    - 정한 것: 게임패드 시험의 빈 자리는 2 초(120 프레임)에 한 번만 다시 묻는다 - 패드는 처음부터 꽂아 둔다. 버튼의 포커스 표시는 게임패드·키보드로 받은 것만이다
      (처음엔 포인터 포커스도 호버로 보여 1 단계의 `SpriteSwap` 되돌림 시험이 떨어졌다). 글자 칸의 커서 자리는 `Text2DSystem::GetLocalBounds` 의 오른쪽 끝이다 -
      폰트가 없으면 원점이다. 레이아웃은 자식의 크기를 보지 않는다. IME 조합 중 글자 표시와 플랫폼의 `SetTextInputPosition` 호출은 하지 않았다(미확인·미지원).
-   - **전체**(2026-10-30, 이 PC 의 main 폴더, Debug): 솔루션 빌드 경고 0. 전체 시험은 `RendererContract` 의 기본 시스템 수(9 → 10, `Mask2DSystem`)에서 한 번
+   - **전체**(2026-10-30, 4~6 단계 뒤, 이 PC 의 main 폴더, Debug): 솔루션 빌드 경고 0, 전체 시험 126 묶음 `all tests passed.`(`EditorApplication` 526.9 초).
+   - **전체**(2026-10-30, 1~3 단계 뒤, 이 PC 의 main 폴더, Debug): 솔루션 빌드 경고 0. 전체 시험은 `RendererContract` 의 기본 시스템 수(9 → 10, `Mask2DSystem`)에서 한 번
      멈춰 그 단언을 고친 뒤 멈춘 자리부터 남은 82 묶음을 돌렸다(`EditorApplication` 466.8 초) - 앞의 48 묶음과 합쳐 전부 지났다. 실제 에디터 실행 파일은 띄워 보지
      않았다(미확인) - 화면은 `EditorApplication` 시험의 스크린숏(`button_rect`)으로 봤다.
