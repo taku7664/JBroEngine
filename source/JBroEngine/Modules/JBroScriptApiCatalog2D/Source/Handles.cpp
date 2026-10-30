@@ -2782,6 +2782,32 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetVariableSize)>("GetVariableSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)(Bool)>(&Handle::ListView2D::SetVariableSize)>("SetVariableSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetMeasuredSize)>("GetMeasuredSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)(Float)>(&Handle::ListView2D::SetMeasuredSize)>("SetMeasuredSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)()>(&Handle::ListView2D::Remeasure)>("Remeasure", Parameters());
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::ListView2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }

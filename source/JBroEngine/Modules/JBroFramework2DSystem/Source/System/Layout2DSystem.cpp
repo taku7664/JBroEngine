@@ -26,6 +26,7 @@
 
 #include <JBro/Types/ValueMath.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace JBro::System
@@ -132,11 +133,42 @@ namespace JBro::System
         m_spriteLibrary = library;
     }
 
+    Layout2DSystem::ListCache& Layout2DSystem::CacheFor(InstanceId owner)
+    {
+        for (ListCache& cache : m_listCaches)
+        {
+            if (cache.owner == owner)
+            {
+                return cache;
+            }
+        }
+        ListCache cache;
+        cache.owner = owner;
+        return m_listCaches.Add(std::move(cache));
+    }
+
+    void Layout2DSystem::CollectHooks(Object::GameObject& owner)
+    {
+        m_hookTargets.Clear();
+        for (const ScriptSlot& scriptSlot : owner.GetScripts())
+        {
+            GameScriptBase* script = scriptSlot.reference.TryGet();
+            if (script != nullptr && script->IsActiveScript())
+            {
+                m_hookTargets.Add(static_cast<GameScript2D*>(script));
+            }
+        }
+    }
+
     void Layout2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
         (void)deltaTime;
         const Text2DSystem* texts = canvas.GetSystems().FindSystem<Text2DSystem>();
         // 가상화 목록(D-357): 뷰포트에 걸치는 항목만 풀에 묶어 놓는다. 풀 = 스크롤 내용의 자식(계층 차례).
+        for (ListCache& cache : m_listCaches)
+        {
+            cache.seen = false;
+        }
         canvas.ForEach<Component::ListView2D>([&](Component::ListView2D& list)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(list);
@@ -158,7 +190,58 @@ namespace JBro::System
                 return;
             }
             const Float pitch = itemAlong + spacing;
-            const Float total = count > 0 ? Float(static_cast<JBro::Float>(count.Get()) * pitch - spacing) : Float(0.0f);
+            // 가변 크기(D-360): 누적 자리를 들고, 처음·개수가 바뀜·`remeasure` 에 다시 잰다 - 항목마다 `OnListMeasure`.
+            ListCache* cache = nullptr;
+            if (list.variableSize)
+            {
+                cache = &CacheFor(owner->GetInstanceId());
+                cache->seen = true;
+                if (list.measuredCount != count || list.remeasure || Int32(static_cast<std::int32_t>(cache->ends.Size())) != count)
+                {
+                    cache->ends.Clear();
+                    cache->ends.Reserve(static_cast<std::size_t>(count.Get()));
+                    Float end = 0.0f;
+                    for (Int32 index = 0; index < count; ++index)
+                    {
+                        list.boundItem = {};
+                        list.boundIndex = index;
+                        list.measuredSize = itemAlong;
+                        CollectHooks(*owner);
+                        for (GameScript2D* script : m_hookTargets)
+                        {
+                            ScriptCallGuard::Call("OnListMeasure", [script] { script->OnListMeasure(); });
+                        }
+                        const Float size = Float(std::isfinite(list.measuredSize.Get()) && list.measuredSize >= 0.0f ? list.measuredSize.Get() : itemAlong.Get());
+                        end = (index > 0 ? Float(end + spacing) : Float(0.0f)) + size;
+                        cache->ends.Add(end);
+                    }
+                    list.boundIndex = -1;
+                    list.measuredCount = count;
+                    list.remeasure = false;
+                }
+            }
+            // 항목 i 의 시작·끝 오프셋(진행 축, 내용의 위·왼쪽에서).
+            const auto startOf = [&](Int32 index) -> Float
+            {
+                if (cache != nullptr)
+                {
+                    return index > 0 ? Float(cache->ends[static_cast<std::size_t>(index.Get()) - 1] + spacing) : Float(0.0f);
+                }
+                return static_cast<JBro::Float>(index.Get()) * pitch;
+            };
+            const auto endOf = [&](Int32 index) -> Float
+            {
+                if (cache != nullptr)
+                {
+                    return cache->ends[static_cast<std::size_t>(index.Get())];
+                }
+                return static_cast<JBro::Float>(index.Get()) * pitch + itemAlong;
+            };
+            Float total = count > 0 ? endOf(Int32(count - 1)) : Float(0.0f);
+            if (false == std::isfinite(total.Get()))
+            {
+                total = 0.0f;
+            }
             scroll->contentSize = list.vertical ? Vector2{ itemAcross, total } : Vector2{ total, itemAcross };
             // 뷰포트의 양 끝을 내용 좌표로 옮겨 걸치는 번호 범위를 센다. 세로는 위에서 아래로, 가로는 왼쪽에서 오른쪽으로 번호가 는다.
             const Float position = list.vertical ? place->position.y : place->position.x;
@@ -166,15 +249,32 @@ namespace JBro::System
             const Float half = std::fabs(list.vertical ? mask->size.y : mask->size.x) * 0.5f;
             Int32 firstIndex = -1;
             Int32 lastIndex = -2;
-            if (count > 0 && std::isfinite(position.Get()) && std::isfinite(center.Get()) && std::isfinite(half.Get()))
+            if (count > 0 && total > 0.0f && std::isfinite(position.Get()) && std::isfinite(center.Get()) && std::isfinite(half.Get()))
             {
-                // 항목 i 의 내용 좌표 구간: 세로는 [total/2 - i·pitch - item, total/2 - i·pitch], 가로는 [-total/2 + i·pitch, -total/2 + i·pitch + item].
+                // 항목 i 의 내용 좌표 구간: 세로는 [total/2 - end_i, total/2 - start_i], 가로는 [-total/2 + start_i, -total/2 + end_i].
+                // 뷰포트를 오프셋(위·왼쪽에서)으로 옮기면 [lo, hi) 이고, end_i > lo 이고 start_i < hi 인 항목이 걸친다.
                 const Float nearEdge = list.vertical ? Float(center + half - position) : Float(center - half - position);
                 const Float farEdge = list.vertical ? Float(center - half - position) : Float(center + half - position);
-                const Float firstRaw = list.vertical ? Float((total * 0.5f - itemAlong - nearEdge) / pitch) : Float((nearEdge - total * 0.5f - itemAlong) / pitch);
-                const Float lastRaw = list.vertical ? Float((total * 0.5f - farEdge) / pitch) : Float((farEdge + total * 0.5f) / pitch);
-                const Int32 first = Int32(static_cast<std::int32_t>(std::ceil(firstRaw.Get())));
-                const Int32 last = Int32(static_cast<std::int32_t>(std::floor(lastRaw.Get())));
+                const Float lo = list.vertical ? Float(total * 0.5f - nearEdge) : Float(nearEdge + total * 0.5f);
+                const Float hi = list.vertical ? Float(total * 0.5f - farEdge) : Float(farEdge + total * 0.5f);
+                Int32 first = 0;
+                Int32 last = -1;
+                if (cache != nullptr)
+                {
+                    // 끝 오프셋은 오름차순이다 - 이분 탐색. 고정 크기와 같은 경계다: end_i >= lo 인 첫 항목부터 start_i <= hi 인 마지막 항목까지.
+                    const Float* begin = cache->ends.Data();
+                    const Float* end = begin + cache->ends.Size();
+                    first = Int32(static_cast<std::int32_t>(std::lower_bound(begin, end, lo) - begin));
+                    // start_i <= hi (i > 0)  <=>  end_{i-1} <= hi - spacing. 그런 i-1 의 수가 n 이면 마지막은 n 이다(항목 0 은 hi >= 0 이면 든다).
+                    last = hi >= 0.0f ? Int32(static_cast<std::int32_t>(std::upper_bound(begin, end, Float(hi - spacing)) - begin)) : Int32(-1);
+                }
+                else
+                {
+                    const Float firstRaw = Float((lo - itemAlong) / pitch);
+                    const Float lastRaw = Float(hi / pitch);
+                    first = Int32(static_cast<std::int32_t>(std::ceil(firstRaw.Get())));
+                    last = Int32(static_cast<std::int32_t>(std::floor(lastRaw.Get())));
+                }
                 firstIndex = first < 0 ? Int32(0) : first;
                 lastIndex = last >= count ? Int32(count - 1) : last;
             }
@@ -206,7 +306,7 @@ namespace JBro::System
                 }
                 if (auto* itemPlace = canvas.FindComponentRaw<Component::Transform2D>(item))
                 {
-                    const Float along = static_cast<JBro::Float>(index.Get()) * pitch + itemAlong * 0.5f;
+                    const Float along = (startOf(index) + endOf(index)) * 0.5f;
                     itemPlace->position = list.vertical ? Vector2{ 0.0f, total * 0.5f - along } : Vector2{ along - total * 0.5f, 0.0f };
                 }
                 if (false == item->IsActiveSelf())
@@ -218,15 +318,7 @@ namespace JBro::System
                     list.boundItem = item->GetScriptHandle();
                     list.boundIndex = index;
                     // 먼저 모은 뒤 부른다. 훅이 스크립트를 붙이거나 떼면 목록이 흔들린다.
-                    m_hookTargets.Clear();
-                    for (const ScriptSlot& scriptSlot : owner->GetScripts())
-                    {
-                        GameScriptBase* script = scriptSlot.reference.TryGet();
-                        if (script != nullptr && script->IsActiveScript())
-                        {
-                            m_hookTargets.Add(static_cast<GameScript2D*>(script));
-                        }
-                    }
+                    CollectHooks(*owner);
                     for (GameScript2D* script : m_hookTargets)
                     {
                         ScriptCallGuard::Call("OnListItem", [script] { script->OnListItem(); });
@@ -240,6 +332,14 @@ namespace JBro::System
             list.shownVisible = visible;
             list.shownPool = pool;
         });
+        // 이번 갱신에 쓰지 않은 누적 자리는 버린다(목록이 사라졌거나 고정 크기로 돌아갔다).
+        for (std::size_t index = m_listCaches.Size(); index > 0; --index)
+        {
+            if (false == m_listCaches[index - 1].seen)
+            {
+                m_listCaches.RemoveAt(index - 1);
+            }
+        }
         canvas.ForEach<Component::Layout2D>([&](Component::Layout2D& layout)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(layout);

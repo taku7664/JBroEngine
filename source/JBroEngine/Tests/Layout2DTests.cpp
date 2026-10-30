@@ -180,10 +180,25 @@ namespace
             lastItem = list != nullptr ? list->boundItem.GetInstanceId() : InvalidInstanceId;
         }
 
+        // 가변 크기(D-360): 짝수 항목은 `evenSize`, 홀수는 `oddSize`. `leaveAlone` 이면 쓰지 않는다(기본 = itemSize).
+        void OnListMeasure() override
+        {
+            ++measures;
+            if (list == nullptr || leaveAlone)
+            {
+                return;
+            }
+            list->measuredSize = list->boundIndex % 2 == 0 ? evenSize : oddSize;
+        }
+
         Component::ListView2D* list = nullptr;
         JBro::Int32 binds = 0;
+        JBro::Int32 measures = 0;
         JBro::Int32 lastIndex = -1;
         InstanceId lastItem = InvalidInstanceId;
+        JBro::Float evenSize = 10.0f;
+        JBro::Float oddSize = 30.0f;
+        JBro::Bool leaveAlone = false;
     };
 
     // **가상화 목록**(D-357). 창(마스크 100 x 60)에 20 x 100 의 항목 20 개, 풀 다섯. 내용은 위가 맞춰져(-170) 있다.
@@ -250,6 +265,84 @@ namespace
         scroll->content = window->GetScriptHandle();
         tick();
         Check(list->visibleCount == 0, "a content that is the window itself is left alone");
+        framework.Shutdown();
+    }
+
+    // **가변 크기 목록**(D-360). 창(마스크 100 x 60)에 항목 여섯(짝수 10, 홀수 30, 간격 0 → 끝 10·40·50·80·90·120), 풀 넷. 내용은 위가 맞춰져(-30) 있다.
+    void TestListItemsCanVaryInSize()
+    {
+        Framework2D framework;
+        FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Canvas* canvas = framework.GetCanvas();
+        Object::GameObject* window = canvas->CreateObject("window");
+        canvas->AttachComponent<Component::Transform2D>(window);
+        auto* mask = canvas->AttachComponent<Component::Mask2D>(window);
+        mask->size = {100.0f, 60.0f};
+        auto* scroll = canvas->AttachComponent<Component::ScrollView2D>(window);
+        auto* list = canvas->AttachComponent<Component::ListView2D>(window);
+        list->count = 6;
+        list->itemSize = {100.0f, 20.0f};
+        list->spacing = 0.0f;
+        list->variableSize = true;
+        auto* probe = canvas->AttachScript<ListProbe>(window);
+        probe->list = list;
+        Object::GameObject* content = canvas->CreateObject("content");
+        content->SetParent(window);
+        auto* contentPlace = canvas->AttachComponent<Component::Transform2D>(content);
+        contentPlace->position = {0.0f, -30.0f};
+        scroll->content = content->GetScriptHandle();
+        Object::GameObject* pool[4] = {};
+        Component::Transform2D* places[4] = {};
+        for (JBro::Int32 index = 0; index < 4; ++index)
+        {
+            pool[index] = canvas->CreateObject("item");
+            pool[index]->SetParent(content);
+            places[index] = canvas->AttachComponent<Component::Transform2D>(pool[index]);
+        }
+        const auto tick = [&]() { JBro::Testing::Tick(framework, 1.0f / 60.0f); };
+        tick();
+        Check(probe->measures == 6 && list->measuredCount == 6 && false == list->remeasure, "the first update measures every item once");
+        Check(scroll->contentSize.y == 120.0f, "the content is the sum of the measured sizes");
+        Check(list->firstVisible == 0 && list->visibleCount == 4, "with the top aligned items zero to three are in view");
+        Check(At(places[0], 0.0f, 55.0f) && At(places[1], 0.0f, 35.0f) && At(places[2], 0.0f, 15.0f) && At(places[3], 0.0f, -5.0f), "each item sits at the middle of its own span");
+        Check(probe->binds == 4, "the four visible items were bound");
+        tick();
+        Check(probe->measures == 6 && probe->binds == 4, "nothing is measured or bound again while nothing changes");
+        contentPlace->position.y = 30.0f;
+        tick();
+        Check(list->firstVisible == 3 && list->visibleCount == 3, "scrolled to the bottom items three to five are in view");
+        Check(At(places[3], 0.0f, -5.0f) && At(places[0], 0.0f, -25.0f) && At(places[1], 0.0f, -45.0f), "items four and five reuse pool slots zero and one at their own spans");
+        // 개수가 바뀌면 다시 재고, `remeasure` 를 세우면 다시 잰다. 수가 아니거나 음수인 길이는 itemSize 다.
+        list->count = 4;
+        tick();
+        Check(probe->measures == 10 && scroll->contentSize.y == 80.0f, "changing the count measures again and the content shrinks");
+        probe->evenSize = 5.0f;
+        probe->oddSize = 15.0f;
+        list->remeasure = true;
+        tick();
+        Check(probe->measures == 14 && false == list->remeasure && scroll->contentSize.y == 40.0f, "remeasure runs the hook again and the content follows");
+        probe->evenSize = std::numeric_limits<float>::quiet_NaN();
+        probe->oddSize = -5.0f;
+        list->remeasure = true;
+        tick();
+        Check(scroll->contentSize.y == 80.0f, "a NaN or negative measured size falls back to the item size");
+        probe->leaveAlone = true;
+        list->remeasure = true;
+        tick();
+        Check(scroll->contentSize.y == 80.0f, "a hook that writes nothing leaves the item size");
+        // 고정 크기로 돌아가면 재지 않고 itemSize 다. 다시 켜면 다시 잰다.
+        list->variableSize = false;
+        probe->measures = 0;
+        tick();
+        Check(probe->measures == 0 && scroll->contentSize.y == 80.0f, "fixed size uses the item size without measuring");
+        list->variableSize = true;
+        tick();
+        Check(probe->measures == 4, "turning variable size back on measures again");
+        list->count = 0;
+        tick();
+        Check(list->visibleCount == 0 && scroll->contentSize.y == 0.0f, "an empty variable list has no content");
         framework.Shutdown();
     }
 
@@ -375,6 +468,7 @@ JBro::Int32 RunLayout2DTests()
     TestListViewsBindPoolItems();
     TestTweensMoveOverTime();
     TestAspectRatioFittersKeepTheRatio();
+    TestListItemsCanVaryInSize();
     std::cout << "Layout2D tests passed." << std::endl;
     return 0;
 }

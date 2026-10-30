@@ -20,6 +20,8 @@ namespace JBro::Component
     // 돌려 쓴다 - `count` 개 가운데 뷰포트에 걸치는 것만 풀의 오브젝트에 묶어 제 자리에 놓고 켜며, 나머지 풀은 끈다. 항목 `i` 는 풀의 `i % 풀 크기` 번째다. 묶임이 바뀐
     // 항목마다 이 오브젝트의 스크립트가 `OnListItem` 을 받는다 - 그때 `boundItem`·`boundIndex` 가 그 오브젝트와 번호다. 스크롤 뷰의 `contentSize` 는 여기서 쓴다.
     // 내용에 `Layout2D` 를 두지 않는다(자리가 둘이 된다). 항목의 크기·간격은 고정이다. `Layout2DSystem` 이 돈다.
+    // `variableSize` 면(D-360) 항목마다 진행 축의 길이가 다르다 - 처음과 `count` 가 바뀔 때, 그리고 `remeasure` 를 세운 뒤에 한 번, 항목마다 `boundIndex` 를 두고 이 오브젝트의 스크립트가
+    // `OnListMeasure` 를 받으며 그때 스크립트가 `measuredSize`(기본은 `itemSize` 의 진행 축)를 쓴다. 누적 자리는 시스템이 들고(리플렉션 밖) 걸치는 범위는 이분 탐색이다.
     class ListView2D final : public ComponentBase
     {
     public:
@@ -39,12 +41,20 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, itemSize, Pixels()) { 100.0f, 40.0f };
         JBRO_FIELD(Float, spacing, Pixels()) = 4.0f;
         JBRO_FIELD(Bool, vertical) = true;
+        // 항목마다 길이가 다른가(D-360). 참이면 `OnListMeasure` 가 잰 길이, 거짓이면 모두 `itemSize` 다.
+        JBRO_FIELD(Bool, variableSize) = false;
 
         // 시스템이 채우는 상태다. `boundItem`·`boundIndex` 는 `OnListItem` 을 부르는 동안 그 항목이다.
         JBRO_FIELD(Int32, firstVisible, NoSerialize() | ReadOnly() | Category("State")) = -1;
         JBRO_FIELD(Int32, visibleCount, NoSerialize() | ReadOnly() | Category("State")) = 0;
         JBRO_FIELD(Handle::GameObject, boundItem, NoSerialize() | ReadOnly() | Category("State"));
         JBRO_FIELD(Int32, boundIndex, NoSerialize() | ReadOnly() | Category("State")) = -1;
+        // `OnListMeasure` 동안 스크립트가 쓰는 `boundIndex` 항목의 진행 축 길이다(D-360). 들어갈 때 `itemSize` 의 진행 축이고, 수가 아니거나 음수면 그대로 둔 것으로 본다.
+        JBRO_FIELD(Float, measuredSize, NoSerialize() | ReadOnly() | Category("State")) = 0.0f;
+        // 스크립트가 세우면 다음 갱신에 모든 항목을 다시 재고 내린다(D-360).
+        JBRO_FIELD(Bool, remeasure, NoSerialize() | ReadOnly() | Category("State")) = false;
+        // 마지막으로 잰 항목 수다 - `count` 와 다르면 다시 잰다.
+        JBRO_FIELD(Int32, measuredCount, NoSerialize() | ReadOnly() | Hidden()) = -1;
         // 지난 갱신의 범위와 풀 크기다 - 이것으로 풀의 칸마다 전에 묶였던 번호를 되센다(`SlotIndex`).
         JBRO_FIELD(Int32, shownFirst, NoSerialize() | ReadOnly() | Hidden()) = -1;
         JBRO_FIELD(Int32, shownVisible, NoSerialize() | ReadOnly() | Hidden()) = 0;

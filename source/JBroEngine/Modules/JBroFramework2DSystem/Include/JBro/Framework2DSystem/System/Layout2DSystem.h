@@ -2,7 +2,9 @@
 
 #include <JBro/Canvas/GameSystem.h>
 
+#include <JBro/Core/Core.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 
@@ -10,6 +12,10 @@ namespace JBro
 {
     class GameScript2D;
     class SpriteLibrary;
+    namespace Object
+    {
+        class GameObject;
+    }
 }
 
 namespace JBro::System
@@ -19,6 +25,7 @@ namespace JBro::System
     // `fitChildren` 이면 칸을 자식의 보이는 크기로 재고(D-355), 레이아웃 뒤에 `ContentSizeFitter2D` 가 같은 오브젝트의 내용 크기로 스프라이트·마스크·위젯 사각형을
     // 맞춘다. 글자의 크기는 지난 프레임의 레이아웃이다(글자는 추출 때 레이아웃한다) - 한 프레임 늦다.
     // 가상화 목록(`ListView2D`, D-357)도 여기서 돈다 - 레이아웃보다 먼저, 뷰포트에 걸치는 항목만 풀의 오브젝트에 묶어 놓는다.
+    // 가변 크기 목록(D-360)의 누적 자리(항목마다 끝 오프셋)는 목록마다 여기 든다 - 잴 때만 할당하고, 사라진 목록의 것은 다음 갱신에 버린다.
     class Layout2DSystem final : public GameSystem
     {
     public:
@@ -32,8 +39,20 @@ namespace JBro::System
         void OnUpdate(Canvas& canvas, Float deltaTime) override;
 
     private:
+        // 가변 크기 목록 하나의 누적 자리다(D-360). `ends[i]` 는 항목 i 의 끝 오프셋(진행 축, 시작에서)이고 시작은 `ends[i - 1] + spacing` 이다.
+        struct ListCache
+        {
+            InstanceId   owner = InvalidInstanceId;
+            Array<Float> ends;
+            Bool         seen = false;
+        };
+        // 이 목록의 자리 저장소다. 없으면 만든다.
+        ListCache& CacheFor(InstanceId owner);
+        // 목록의 스크립트를 모은다(`m_hookTargets`).
+        void CollectHooks(Object::GameObject& owner);
         // 목록이 항목을 묶을 때 부를 스크립트를 먼저 모으는 자리다. 멤버로 두어 부를 때마다 할당하지 않는다.
         Array<GameScript2D*> m_hookTargets;
+        Array<ListCache>     m_listCaches;
         SpriteLibrary* m_spriteLibrary = nullptr;
     };
 }

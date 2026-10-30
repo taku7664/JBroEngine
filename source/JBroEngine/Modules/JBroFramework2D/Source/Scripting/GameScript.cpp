@@ -69,4 +69,8 @@ namespace JBro
     void GameScript2D::OnListItem()
     {
     }
+
+    void GameScript2D::OnListMeasure()
+    {
+    }
 }

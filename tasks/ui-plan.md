@@ -578,3 +578,12 @@
    - **잰 것**: `UiScenario` `TestSafeAreaGroupsKeyboardAndLinks` - 칸을 눌러 포커스(커서 2), 십자키 위·왼쪽 둘로 `keyA` 에 포커스(칸은 포커스를 잃는다), `South` 가 클릭이고 `AA` → `AAA`,
      `East` 가 `AA`, 오른쪽 둘이 `enter` 키이고 `South` 가 제출, 마지막 칸이 꺼져 있으면 `East` 는 아무것도 안 함, 포인터로 누른 키는 포커스 칸이 없으면 그대로.
    - 정한 것: 게임패드로 치는 동안 칸은 포커스가 없다(커서가 보이지 않고 `focused` 거짓) - 글자는 떠 둔 커서 자리에 들어간다. `East` 는 키보드 안에 포커스가 있을 때만 UI 의 것이다.
+5. ~~**가변 크기 목록 항목**~~ → 완료 2026-10-30 · `ListView2D.variableSize`·`measuredSize`(State, 훅이 쓴다)·`remeasure`(State, 스크립트가 세운다)·`measuredCount`(Hidden), 스크립트 훅
+   `GameScript2D::OnListMeasure`(카탈로그·위치표), 핸들 `GetVariableSize`·`SetVariableSize`·`GetMeasuredSize`·`SetMeasuredSize`·`Remeasure`. `Layout2DSystem` 이 목록마다 `ListCache`(오브젝트 번호와
+   끝 오프셋 배열)를 들고 - 처음·`count` 가 다름·`remeasure`·배열 길이가 다름에 항목마다 `boundIndex` 를 두고 훅을 불러 `measuredSize`(수가 아니거나 음수면 `itemSize`)를 누적한다. 걸치는 범위는
+   `lower_bound`(end_i >= lo)·`upper_bound`(start_i <= hi) 이고 고정 크기와 같은 경계다. 항목 자리는 (start + end)/2. 이번 갱신에 쓰지 않은 캐시(목록이 사라졌거나 고정으로 돌아감)는 버린다.
+   - **잰 것**: `Layout2D` `TestListItemsCanVaryInSize` - 여섯(10·30·…, 끝 10·40·50·80·90·120)은 첫 갱신에 여섯 번 재고 내용 120, 위 맞춤에서 0~3 이 보이며 자리는 55·35·15·-5, 묶임 넷, 가만히
+     있으면 더 재지 않고, 아래로 가면 3~5(4·5 는 풀 0·1 에 -25·-45), 개수 4 는 다시 재어 80, `remeasure` 와 5/15 는 40, NaN·음수는 20 씩 80, 훅이 안 쓰면 80, 고정으로 돌리면 재지 않고 80,
+     다시 켜면 넷 재고, 0 은 내용 0. `UiScenario`·`BuiltinComponentProperty`(15)·`ScriptApiCatalog`·`PublicHeaderComposition` 통과.
+   - 정한 것: 재는 동안의 훅마다 스크립트 목록을 다시 모은다(훅이 스크립트를 떼도 된다). 100 만 항목이면 재는 데 훅 100 만 번이다 - 한 번이고 `count` 를 바꿀 때마다다(열림: 바뀐 뒤만 재기).
+     항목의 가로(진행 축과 수직) 길이는 전처럼 `itemSize` 하나다.

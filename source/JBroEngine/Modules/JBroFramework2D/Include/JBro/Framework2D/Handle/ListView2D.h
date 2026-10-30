@@ -35,6 +35,12 @@ namespace JBro::Handle
         void SetSpacing(Float value);
         Bool GetVertical() const;
         void SetVertical(Bool value);
+        // 항목마다 길이가 다른가(D-360). 참이면 `OnListMeasure` 안에서 `SetMeasuredSize` 로 `GetBoundIndex` 항목의 길이를 쓴다. `Remeasure` 는 다음 갱신에 모두 다시 잰다.
+        Bool GetVariableSize() const;
+        void SetVariableSize(Bool value);
+        Float GetMeasuredSize() const;
+        void SetMeasuredSize(Float value);
+        void Remeasure();
         Int32 GetFirstVisible() const;
         Int32 GetVisibleCount() const;
         GameObject GetBoundItem() const;

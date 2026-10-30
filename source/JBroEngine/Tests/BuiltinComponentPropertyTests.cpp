@@ -67,7 +67,7 @@ namespace
         Check(Table("Component::Draggable2D").count == 10, "Draggable2D declares ten fields - the rect, interactable, snapBack, liftOrder, two states, the hidden start and the lift taken (D-357, D-360)");
         Check(Table("Component::DropTarget2D").count == 4, "DropTarget2D declares four fields - the rect and two states (D-357)");
         Check(Table("Component::Tween2D").count == 15, "Tween2D declares fifteen fields - target, ease, duration, loop, playOnStart, three from/to pairs, three states and the hidden start (D-357)");
-        Check(Table("Component::ListView2D").count == 11, "ListView2D declares eleven fields - count, item size, spacing, axis, four states and three hidden ranges (D-357)");
+        Check(Table("Component::ListView2D").count == 15, "ListView2D declares fifteen fields - count, item size, spacing, axis, variableSize, six states, three hidden ranges and the measured count (D-357, D-360)");
         Check(Table("Component::SafeArea2D").count == 2, "SafeArea2D declares two axes (D-358)");
         Check(Table("Component::CanvasGroup2D").count == 2, "CanvasGroup2D declares alpha and interactable (D-358)");
         Check(Table("Component::AspectRatioFitter2D").count == 2, "AspectRatioFitter2D declares mode and aspect (D-358)");

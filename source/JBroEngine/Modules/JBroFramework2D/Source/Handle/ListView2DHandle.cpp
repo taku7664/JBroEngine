@@ -36,8 +36,19 @@ namespace JBro::Handle
     JBRO_LISTVIEW2D_ACCESSOR(Vector2, GetItemSize, SetItemSize, itemSize)
     JBRO_LISTVIEW2D_ACCESSOR(Float, GetSpacing, SetSpacing, spacing)
     JBRO_LISTVIEW2D_ACCESSOR(Bool, GetVertical, SetVertical, vertical)
+    JBRO_LISTVIEW2D_ACCESSOR(Bool, GetVariableSize, SetVariableSize, variableSize)
+    JBRO_LISTVIEW2D_ACCESSOR(Float, GetMeasuredSize, SetMeasuredSize, measuredSize)
 
 #undef JBRO_LISTVIEW2D_ACCESSOR
+
+    void ListView2D::Remeasure()
+    {
+        Component::ListView2D* component = Resolve("Remeasure");
+        if (component != nullptr)
+        {
+            component->remeasure = true;
+        }
+    }
 
     Int32 ListView2D::GetFirstVisible() const
     {
