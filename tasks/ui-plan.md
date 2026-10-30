@@ -1,4 +1,4 @@
-# 화면 공간 UI 계획 (D-237)
+﻿# 화면 공간 UI 계획 (D-237)
 
 > 상태: **진행** (2026-09-27 시작). 사용자 확인(2026-09-27): 화면 레이어 + 앵커 방식, 좌표 단위는 기준 해상도의 픽셀, 레이어의 Space·ScaleMode 는
 > 캔버스의 `Layer` 로 옮긴다, 캔버스 뷰는 월드/UI 보기 전환, 범위는 1~3 단계 모두. 동기는 text-plan §5 5 단계가 남긴 "화면 공간 UI 텍스트" 다.
@@ -116,7 +116,7 @@
 ## 6. 2 부 - 위젯 (D-351)
 
 > 상태: **완료** (2026-10-29 시작, 2026-10-30 끝). 사용자 확인(2026-10-29): 범위는 1~3 단계(버튼 보강과 저작 보조 · 그림 위젯 · 클리핑과 스크롤).
-> 사용자 지시(2026-10-30 "나머지 단계 진행")로 4~6 단계(텍스트 입력 · 게임패드 포커스 · 레이아웃 컨테이너, D-352)까지 했다. §4 의 `[열림]` 가운데 안전 영역·분할 화면·3D 의 화면 레이어만 남는다.
+> 사용자 지시(2026-10-30 "나머지 단계 진행")로 4~6 단계(텍스트 입력 · 게임패드 포커스 · 레이아웃 컨테이너, D-352)까지 했다. §4 의 `[열림]` 가운데 안전 영역·분할 화면·3D 의 화면 레이어만 남는다 → 3 부(§7, D-355)가 맡는다.
 > 1 부(§1~§5)가 세운 뼈대(화면 레이어·앵커·`Button2D`·포인터 소비)는 그대로이고, 이 2 부는 그 위에 위젯을 얹는다.
 
 ### 6.1 기존 엔진과 지금 엔진에서 없는 것
@@ -366,3 +366,69 @@
   `State` 가 접히며, `d00` 의 상태 줄에 앞 시나리오의 스크립트 오류가 없다. **실제 `JBroEditorHost.exe`** 를 시나리오 D 의 프로젝트(`ui.jcanvas`)로 띄워 PostMessage 로 글자 칸
   오브젝트를 고르고 `caret` 라벨의 툴팁("커서 스프라이트. display 의 자식이어야 한다 - 커서 자리에 놓는다")과 펼친 `State` 의 `caretIndex 0`, 캔버스 뷰의 사각형 손잡이를 눈으로 봤다.
   재생 중 글자 입력·반복은 실제 창에서 보지 않았다(PostMessage 키 입력은 포커스 없는 창에서 믿을 수 없다 - `UiScenario` 가 잰다).
+
+## 7. 3 부 - 남은 것 모두 (D-355)
+
+> 상태: **진행** (2026-10-30 시작). 사용자 지시 "C까지 ㄱㄱ. 단위작업별 커밋. 큰 기능 단위별 적대적 테스트를 포함한 검증. 사용성 평가 및 수정까지."
+> 범위 셋: **A** §6.6 이 열림으로 남긴 글자 칸 마무리와 IME, **B** 새 위젯(1~3 순위), **C** §4 의 오래된 열림(안전 영역·분할 화면·3D 의 화면 레이어·조명 차례).
+> 차례는 A → B 1 순위 → B 2 순위 → B 3 순위 → C 다. 단위마다 커밋하고, 묶음(A·B 순위마다·C)마다 적대 시나리오(`UiScenario`)와 사용성 점검(스크린숏)을 넣는다.
+> 1·2 부의 뼈대(화면 레이어·앵커·`"UI"` 체인의 시스템 핸들러 하나·포인터는 가장 위 하나)는 그대로다.
+
+### 7.1 A - 글자 칸 마무리
+
+- **포인터로 커서 놓기**: 글자 칸을 누른 자리를 `display` 오브젝트의 로컬로 옮기고 `TextLayout::GetCaretOffsetAt(x, y)`(y 로 줄을, x 로 글자 경계를 - 글자의 가운데를 넘으면
+  그 뒤)로 바이트 위치를 얻어 코드포인트 번호로 센다. 길은 `TextBlock::HitCaret` → `Text2DSystem::GetLocalCaretAt`(PPU 를 곱해 레이아웃 단위로). 레이아웃이 없으면 끝이다.
+  누른 채 끌면 선택이다.
+- **선택**: `selectionAnchor`(코드포인트 번호, -1 은 없음, `State`). Shift+←·→·Home·End 가 늘리고, 포인터 끌기가 고르며, Ctrl+A 는 전부다. 글자가 들어오거나
+  Backspace·Delete 가 오면 선택 구간을 지우고 그 자리다. 보이는 것은 `selection`(`Handle::SpriteRenderer2D`, `display` 의 자식) - 시스템이 두 커서 자리 사이로 늘린다
+  (`sizeMode = Custom`, 높이는 그 줄의 높이. 여러 줄에 걸치면 둘러싼 사각형이다 - 줄마다 조각은 두지 않는다).
+- **복사·잘라내기·붙여넣기**: Ctrl+C/X/V. 클립보드는 **OS 의 것**이다 - `IPlatform::ReadClipboardText`·`WriteClipboardText`(Windows 는 `CF_UNICODETEXT`). 프레임워크는 플랫폼을
+  모르므로 `FrameworkContext.textInput`(`ITextInputHost`, 호스트 구현)으로 묻는다. 붙여넣기는 제어 글자를 버리고 `maxLength` 를 지킨다(넘치는 뒤는 버린다). 에디터 ImGui 의
+  사설 클립보드와는 별개다.
+- **IME 조합 표시**: 플랫폼이 `WM_IME_COMPOSITION` 의 조합 글자(`GCS_COMPSTR`)를 `CompositionBegin`(비움)·`Composition`(코드포인트 하나씩 차례로)·`CompositionEnd` 이벤트로
+  준다. 입력 상태의 `KeyboardState.composition`(상한 `MaxTextPerFrame`, **프레임을 넘어 남는다** - 끝 이벤트가 비운다)에 접힌다. 글자 칸은 포커스가 있으면 커서 자리에 조합 글자를
+  끼워 `display` 에 보이고(저장 글자 `text` 는 그대로) 커서는 조합 뒤다. 조합이 끝난 글자는 전처럼 `Text` 로 온다.
+  **조합 창은 게임이 들고 있을 때 띄우지 않는다**: 글자 칸이 포커스를 가진 프레임마다 시스템이 `ITextInputHost::SetTextInputArea(픽셀 x, y, 줄 높이)` 를 부르고 호스트가 플랫폼의
+  `SetTextInputPosition` 과 `SetCompositionInline(window, true)` 로 옮긴다 - 인라인이면 플랫폼은 `WM_IME_COMPOSITION` 을 `DefWindowProc` 에 넘기지 않고(시스템 조합 창 없음)
+  결과 글자(`GCS_RESULTSTR`)도 제가 `Text` 로 낸다. 포커스가 없는 프레임은 `ClearTextInput` 으로 돌린다(ImGui 의 글자 칸은 전처럼 시스템 조합 창이다).
+- **커서 스크립트 API**: 핸들에 `GetCaretIndex`·`SetCaretIndex`·`GetSelectionAnchor`·`SetSelection(anchor, caret)`·`IsComposing`. 위치표(`Definitions.cpp`)를 함께 옮긴다.
+- **스크립트가 월드 레이어에 만드는 위젯**: 픽셀 기본값 나누기를 `JBroCanvas` 의 `ScalePixelFields(table, instance, factor)` 로 옮기고 에디터와 `CanvasObjectSystem::AddComponent`
+  (스크립트의 `AddComponent`)가 같이 쓴다. 비율은 프레임워크가 `SetWorldPixelsPerUnit` 으로 준다(캔버스는 에셋 타입의 상수를 모른다).
+
+### 7.2 B - 새 위젯
+
+지금 없는 것(§6.1 뒤 기준)과 우선순위. 모두 같은 틀이다 - 컴포넌트는 `JBroFramework2D`, 시스템은 `Button2DSystem`(포인터·포커스) 또는 제 시스템, 핸들·위치표·인스펙터 손잡이·캔버스
+파일 왕복·시험 캔버스가 따라온다.
+
+- **1 순위**: `Selectable2D` 는 **두지 않는다** - 토글·슬라이더·글자 칸의 호버·포커스 표시는 각 위젯에 `transition`·`targetGraphic`(버튼과 같은 꼴)을 더해 푼다(공통 뼈대를 두면
+  사각형이 둘이 된다, §6.2 와 같은 까닭). `ToggleGroup2D`(같은 오브젝트나 자손의 토글 가운데 하나만, `allowOff`), `Dropdown2D`(누르면 자식 `list` 오브젝트를 펴고 항목 토글로
+  고른다 - `options` 는 글자 목록, `value` 는 번호, `caption` 텍스트에 고른 글자), `Scrollbar2D`(`ScrollView2D` 의 `horizontalBar`·`verticalBar` 가 가리키는 슬라이더 - 내용 비율로
+  손잡이 길이를 잰다), `ContentSizeFitter2D`(`Text2D` 의 내용 크기나 `Layout2D` 의 블록 크기로 같은 오브젝트의 스프라이트 `size` 나 마스크를 맞춘다)와 `Layout2D.fitChildren`
+  (자식의 보이는 크기로 칸을 잰다).
+- **2 순위**: `Tooltip2D`(머문 시간 뒤 자식 오브젝트를 보인다), `Modal2D`(켜져 있으면 제 자손 밖의 위젯이 포인터를 받지 않는다 - 시스템이 가장 위 모달 하나만 본다), 드래그 앤 드롭
+  (`Draggable2D`·`DropTarget2D`, 훅 `OnDragBegin`·`OnDrop`), 탭(`TabGroup2D` = 토글 그룹 + 페이지 오브젝트 보이기), 가상화 `ListView2D`(보이는 칸만 자식으로 재사용 - 내용 수는
+  스크립트가 준다), UI 트윈(`Tween2D` - 위치·크기·틴트를 곡선으로, 스크립트 서비스 `Tween`). 진행 막대는 §6.2 대로 `Filled` 스프라이트라 없다.
+- **3 순위**: `SafeArea2D`(루트의 앵커를 안전 영역으로 - C 의 안전 영역과 함께), `CanvasGroup2D`(자손의 알파·`interactable` 한꺼번에), `AspectRatioFitter2D`, 렌더 텍스처 이미지,
+  호버·클릭 사운드(`Button2D` 의 `hoverSound`·`clickSound`), 가상 키보드(화면 버튼 묶음이 포커스 칸에 글자를 넣는 `VirtualKeyboard2D`).
+- **기반**: 내비게이션 명시 연결(`navigationUp/Down/Left/Right` 핸들 - 비면 지금의 방향 자동 탐색).
+
+### 7.3 C - §4 의 오래된 열림 `[제안]`
+
+- **안전 영역**: 값은 D-249 로 이미 온다(`ScreenSpaceFrame.safeArea`, 데스크톱 0). 남은 것은 쓰는 쪽 - `Layer.anchorToSafeArea`(화면 레이어, 기본 거짓)가 참이면 루트의 앵커를
+  안전 영역의 사각형으로 잰다. 시험은 띠를 넣은 프레임으로 앵커 자리를 본다.
+- **분할 화면**: `Camera2D.viewport`(정규화 사각형, 기본 전체)와 `primary` 둘 이상 - 브리지가 켜진 카메라마다 월드 뷰를 연다(뷰포트 차례는 `renderOrder`). 화면 레이어는 그대로 전체
+  하나다(U2 - 영역 함수 하나). 포인터 역투영은 픽셀이 든 뷰포트의 카메라다.
+- **3D 의 화면 레이어**: `Framework3D` 가 화면 레이어를 그리는지(§2.1 은 "값만 같이 쓴다") 를 보고, 3D 캔버스의 화면 레이어에 `Text3D`·스프라이트가 서는 최소 길을 잡는다.
+- **조명 차례**: 조명이 선 지금(D-345 뒤) 화면 레이어가 광원 맵 뒤에 그려지는지 픽셀 시험으로 본다 - 틀리면 화면 뷰를 조명 합성 뒤로.
+
+### 7.4 단계와 완료 조건
+
+1. **A**: 7.1 전부. 완료 조건: `TextLayout` 에 자리 → 바이트 위치, `UiScenario`·`InputChain` 에 누른 자리의 커서·끌어 고르기·Shift 선택·선택 지우기·Ctrl+A/C/X/V(가짜 호스트)·조합
+   표시와 끝·`maxLength` 를 넘는 붙여넣기·NaN 자리 누름, `InputSystem` 에 조합 접기, 스크립트 `AddComponent` 의 월드 레이어 나누기, `ScriptApiCatalog` 통과. 실제 창에서 한글 조합이
+   칸 안에 보이는지 눈으로 본다.
+2. **B 1 순위** → 3. **B 2 순위** → 4. **B 3 순위**: 위젯마다 `InputChain` 또는 제 묶음, `BuiltinComponentProperty` 수, 캔버스 파일 왕복, 인스펙터 스크린숏. 순위마다 `UiScenario` 의
+   적대 시나리오(잘못 이음·NaN·도중 삭제)와 사용자 시나리오 D 확장.
+5. **C**: 넷 각각 픽셀·입력 시험. 끝에 솔루션 빌드·전체 시험·실제 에디터.
+
+### 7.5 진행 기록 (3 부)
+
