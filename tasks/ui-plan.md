@@ -701,4 +701,8 @@
      `ScriptApiCatalog`·`ContextBoundary` 통과.
    - 정한 것: 화면 레이어에서 3D 스크립트가 UI 핸들·훅을 쓰는 것과 3D 캔버스 뷰(에디터)에서 화면 레이어를 보이고 고치는 것은 열림이다 - 지금은 게임 화면(시뮬레이션 뷰)에만 보인다.
      3D 카메라에는 `PixelPerfect` 레터박스가 없어 화면 레이어는 늘 대상 전체를 잰다.
+   - **실제 에디터**(`JBroEditorHost.exe`, 3D 프로젝트 `HUD 3D`): 캔버스 파일의 HUD 화면 레이어에 둔 `Transform2D`·`SpriteRenderer2D`·`Button2D` 가 읽히고 인스펙터에 보인다.
+     시뮬레이션 뷰에서 정육면체 위 오른쪽 위 구석에 흰 사각형이 서고, `컴포넌트 추가` 에는 `UI 배치`·`UI` 갈래만 나온다(붙은 `Button2D` 는 회색). 스크린숏을 봤다.
+- **전체**(2026-10-31, 6 부 뒤, 이 PC 의 main 폴더, Debug, 기준 main 572320da): 솔루션 빌드 Debug·Debug_Game2D·Debug_Game3D C++ 경고 0, 전체 시험 127 묶음 `all tests passed.`
+  (`EditorApplication` 1502.7 초, `UserScenario` 95.5 초, `PostProcessPixel` 14.7 초, `MeshPixel` 4.0 초).
 
