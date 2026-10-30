@@ -32,7 +32,7 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Framework2D/Component/Physics2D.h>

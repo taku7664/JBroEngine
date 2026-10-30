@@ -66,8 +66,8 @@
 #include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
-#include <JBro/Framework2DSystem/System/Button2DSystem.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>

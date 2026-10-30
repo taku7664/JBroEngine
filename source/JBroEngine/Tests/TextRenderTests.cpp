@@ -13,10 +13,10 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Handle/Text2D.h>
 #include <JBro/Framework2D/ServiceContext.h>
-#include <JBro/Framework2DSystem/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>

@@ -3071,6 +3071,16 @@ EditorApplication::Tick
       그리기·샘플링)·`GetRenderTargetTexture`, `SpriteLibrary::ResolveRenderTexture`(처음 만날 때 만들고 재로드면 다시 만든다). `Camera2D.renderTextureId` 면 그 카메라는 화면 대신 그 텍스처에 그린다 -
       주 카메라·포인터 카메라가 아니고, 브리지가 화면 카메라보다 먼저 그리며, 그 뷰는 제 텍스처를 쓰는 스프라이트를 빼고 그린다(그리는 텍스처를 같은 패스에서 읽을 수 없다).
       `SpriteRenderer2D.renderTextureId` 면 스프라이트 대신 그 텍스처 전체를 보인다(크기는 픽셀 / 100 유닛, 화면 레이어는 픽셀). 에디터는 `새 렌더 텍스처` 메뉴와 인스펙터의 `width`·`height`·`filter` 를 준다.
+  (5) 화면 UI 모듈: 화면 UI 시스템(`Transform2DSystem`·`Mask2DSystem`·`Layout2DSystem`·`Tween2DSystem`·`Button2DSystem`·`SpriteRender2DSystem`·`Text2DSystem`)과 그 렌더 조각(`RenderWorld2D`·
+      `SpriteLibrary`·`SpritePieces`·`ClipRect2D`·`GroupState2D`, 브리지에서 떼어 낸 `SpriteSubmit2D`(`BuildSprite`·`PushSprites`·`BuildScreenCamera`·`SubmitScreenViews`), `Parallax2D`)을 새 Tier E 모듈
+      `JBroScreenUi` 로 옮긴다. 네임스페이스는 그대로(`JBro::System`·`JBro::Internal`)이고 공개 헤더만 `<JBro/ScreenUi/...>` 가 된다. 이 모듈은 2D·3D 프레임워크 시스템 모듈을 모른다 -
+      차원의 것은 `UiHost.h` 의 인터페이스로 받는다: 스크립트 훅(`IUiHookDispatcher`, 2D 는 `GameScript2D` 로 부르는 `UiHookDispatcher2D`), 월드 레이어의 픽셀 ↔ 레이어 좌표(`IWorldLayerMapper`,
+      2D 는 카메라 고르기와 패럴랙스를 아는 `WorldLayerMapper2D`), 입력 레이어 체인(`IUiInputChain`, 2D 는 `ScriptSystem`). 넘겨받지 못한 자리는 비어 있는 채로 돈다(훅 없음·화면 레이어만·
+      체인 없이 부르는 쪽이 입력을 직접 넘김).
+      3D 는 같은 모듈의 시스템을 제 캔버스의 화면 레이어에 돌린다: 3D 캔버스의 `Space = Screen` 레이어에만 2D 컴포넌트(`Transform2D`·`SpriteRenderer2D`·`Text2D`·위젯)를 허용하고, 3D 브리지는 제 뷰를
+      다 그린 뒤 같은 `SubmitScreenViews` 로 화면 뷰를 붙인다. 이 때문에 Tier E 인 `JBroFramework3DSystem` 이 Tier S 인 `JBroFramework2D` 의 컴포넌트 타입을 본다 - Tier S 의 `JBroFramework2D` 와
+      `JBroFramework3D` 는 여전히 서로 모르고, 3D 스크립트 SDK 에 2D 헤더는 들지 않는다(3D 스크립트에서 UI 핸들·훅을 쓰는 것은 열림). 2D·3D 시스템이 서로를 모른다는 §4 의 문장은 Tier S 두 모듈과
+      두 프레임워크 시스템 모듈 사이의 것으로 좁힌다.
 
 - **D-361. 3·4 부가 열림으로 남긴 것 가운데 엔진 안에서 되는 것을 세운다 - 끌기 올리기는 올린 오브젝트만 내리고, 가변 목록은 늘어난 항목만 재며, 글자 칸은 조합 밑줄·더블 클릭 단어 선택·Ctrl+Z 한 단계를 얻고, 그룹은 `blocksRaycasts` 로 포인터만 막을 수 있고, 후처리 프로필은 카메라마다 풀며, 컴포넌트 추가 목록의 UI 갈래를 `UI`·`UI 배치` 로 나눈다. 3D 의 화면 레이어·렌더 텍스처·둘째 뷰의 지우기·실제 IME 실측은 남긴다.**
   (2026-10-30, [ui-plan.md](./ui-plan.md) §7.7. 사용자 지시 "남은거 해")

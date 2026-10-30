@@ -103,6 +103,9 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(JBroScriptDimension)' == '2D'">
+    <ProjectReference Include="$(JBroModulesDir)JBroScreenUi\JBroScreenUi.vcxproj">
+      <Project>{1a000057-0000-4000-8000-00000005c0e1}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
       <Project>{1a000008-0000-4000-8000-000000000f2d}</Project>
     </ProjectReference>
@@ -114,6 +117,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(JBroScriptDimension)' == '3D'">
+    <ProjectReference Include="$(JBroModulesDir)JBroScreenUi\JBroScreenUi.vcxproj">
+      <Project>{1a000057-0000-4000-8000-00000005c0e1}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
+      <Project>{1a000008-0000-4000-8000-000000000f2d}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
       <Project>{1a000009-0000-4000-8000-000000000f3d}</Project>
     </ProjectReference>

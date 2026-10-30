@@ -680,4 +680,11 @@
      인스펙터의 안내 글이 한 줄로 잘렸다 - 줄바꿈하는 `WrappedHintText` 로 바꿨다. 헤더 자기완결 생성기를 돌리니 3 부의 새 헤더 셋이 빠져 있었다 - 함께 넣었다.
    - 정한 것: 렌더 텍스처를 보이는 스프라이트의 기본 크기는 픽셀 / 100 이다(스프라이트 에셋의 기본 PPU 와 같다). 자기 그림을 다시 비추는 거울(같은 텍스처를 읽고 그리기)은 되지 않는다 - 한 프레임 늦은
      사본이 든다(열림).
+5. **3D 의 화면 레이어** → 진행 · 앞 절반(모듈 떼기)이 섰다: 새 Tier E 모듈 `JBroScreenUi`(정적 라이브러리)로 화면 UI 시스템 일곱과 렌더 조각을 `git mv` 로 옮겼다. 브리지에서 스프라이트 제출
+   (`BuildSprite`·`PushSprites`·`BuildScreenCamera`·`SubmitScreenViews`)을 `SpriteSubmit2D` 로, 패럴랙스 계산을 `Parallax2D` 로 떼었다. 버튼·레이아웃이 `GameScript2D`·`ScriptSystem`·`Camera2DSystem` 을
+   직접 부르던 자리는 `UiHost.h` 의 `IUiHookDispatcher`·`IWorldLayerMapper`·`IUiInputChain` 으로 바꿨고, 2D 의 구현은 `JBroFramework2DSystem` 의 `UiBindings2D`(`UiHookDispatcher2D`·`WorldLayerMapper2D`)와
+   `ScriptSystem` 이다. 모듈의 포함 경로에는 프레임워크 시스템 모듈이 없다 - 그 헤더를 부르면 컴파일이 실패한다. 2D·3D 시스템·에디터·에디터 호스트·게임 호스트(두 차원)·시험이 참조하고,
+   `JBro.Common.props` 의 호스트 포함 경로에 더했다. 헤더 자기완결 단위는 옮긴 열둘을 지우고 새 열여섯을 만들었다.
+   - **잰 것**(모듈 떼기): 새 모듈 단독 빌드, 시험·에디터 호스트 빌드 경고 0, `Framework2DSystem`·`UiScenario`·`SpriteDrawMode`·`TextRender`·`CameraView2D`·`SpriteLibrary`·`RendererContract`·`UserScenario` 통과. 음성: `UiHost.cpp` 첫 줄에
+     `<JBro/Framework2DSystem/Scripting/ScriptSystem.h>` 를 넣으면 새 모듈 빌드가 C1083 으로 실패한다(되돌림).
 

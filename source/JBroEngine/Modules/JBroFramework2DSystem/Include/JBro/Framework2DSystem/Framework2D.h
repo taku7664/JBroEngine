@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Framework2DSystem/Scripting/UiBindings2D.h>
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -7,19 +8,19 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Prefab/Prefab.h>
-#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
+#include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
-#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
-#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
+#include <JBro/ScreenUi/System/SpriteRender2DSystem.h>
+#include <JBro/ScreenUi/System/Transform2DSystem.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasObjectSystem.h>
 #include <JBro/Canvas/SystemScheduler.h>
-#include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
+#include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
 #include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessLibrary.h>
 #include <JBro/Graphics/PostProcessMixer.h>
@@ -88,6 +89,9 @@ namespace JBro
         ScreenSpaceFrame m_screenSpace;
         // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
         SpriteLibrary    m_spriteLibrary;
+        // 화면 UI 의 연결(D-362): 훅은 `GameScript2D` 로, 월드 레이어는 카메라 2D 로.
+        System::UiHookDispatcher2D m_uiHooks;
+        System::WorldLayerMapper2D m_worldLayers;
         // 머티리얼 에셋 → 렌더러 머티리얼(D-347). 스프라이트의 `materialId` 와 후처리 효과 `Material` 이 쓴다. 프로필 라이브러리보다 먼저 서고 늦게 내려간다.
         MaterialLibrary  m_materials;
         // 카메라의 후처리 프로필을 푼다(D-344). 추출 뒤에 이번 카메라의 것을 렌더 월드에 건다.

@@ -3,6 +3,7 @@
 #include <JBro/Canvas/GameSystem.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/ScreenUi/UiHost.h>
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
@@ -16,7 +17,7 @@ namespace JBro::System
     class InputSystem;
 
     // 스크립트의 실행 순서와 수명 훅을 돌린다(D-45). 이름으로 붙인 스크립트(DLL)와 정적으로 붙인 스크립트(`AttachScript<T>`)를 함께 돈다.
-    class ScriptSystem final : public GameSystem
+    class ScriptSystem final : public GameSystem, public IUiInputChain
     {
     public:
         Int32 GetExecutionOrder() const override;
@@ -38,8 +39,8 @@ namespace JBro::System
         std::size_t GetInputHandlerCount() const;
         // **엔진 시스템도 체인에 선다**(D-236). 버튼 시스템이 `"UI"` 레이어에서 포인터를 소비하는 길이다. 스크립트와 같은 규칙으로
         // 줄 서고(레이어 순위, `order` 내림차순), 같은 자리면 스크립트보다 먼저다. 시스템이 살아 있는 동안만 둔다 - 내릴 때 뺀다.
-        void AddSystemInputHandler(IInputHandler& handler, const char* layer, Int32 order);
-        void RemoveSystemInputHandler(IInputHandler& handler);
+        void AddSystemInputHandler(IInputHandler& handler, const char* layer, Int32 order) override;
+        void RemoveSystemInputHandler(IInputHandler& handler) override;
 
     protected:
         void OnInitialize (Canvas& canvas) override;

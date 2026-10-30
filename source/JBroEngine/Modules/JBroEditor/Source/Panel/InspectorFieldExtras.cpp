@@ -20,9 +20,9 @@
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Types/String.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
-#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
+#include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Runtime/GameObject.h>

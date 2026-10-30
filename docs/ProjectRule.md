@@ -328,6 +328,7 @@
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-232) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
+  | Tier E | `JBroScreenUi` | 화면 UI 공용: `Transform2DSystem`·`Mask2DSystem`·`Layout2DSystem`·`Tween2DSystem`·`Button2DSystem`·`SpriteRender2DSystem`·`Text2DSystem` 과 `RenderWorld2D`·`SpriteLibrary`·`SpriteSubmit2D`·`Parallax2D`. Framework2D(컴포넌트)·Canvas·Host·Runtime·Asset·Graphics·Input·TextRendering 에 기대고 두 프레임워크 시스템 모듈을 모른다 - 스크립트 훅·월드 레이어 좌표·입력 체인은 `UiHost.h` 의 인터페이스로 받는다. 2D·3D 프레임워크가 같이 쓴다 (D-362) |
   | Tier E | `JBroTextRendering` | 텍스트 렌더링 공용: `TextLibrary`(폰트·아틀라스·페이지 텍스처)·`GlyphMesh`(글리프 쿼드)·`TextBlock`(레이아웃 캐시). Core·Text·AssetTypes·Asset·RHI·Graphics·Task·Platform·Runtime 에 기대고 캔버스·컴포넌트·프레임워크를 모른다. 2D·3D 텍스트 시스템이 쓴다 (D-222) |
   | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
 
@@ -365,6 +366,8 @@
   그 프로젝트의 스크립트 타깃 include 경로에 넣지 않는다. (MUST)
 - 차원에 종속되는 타입은 각 Framework가 소유한다. `Transform2D`와 `Transform3D`를 하나로 합치지 않는다. (MUST)
 - Framework2D와 Framework3D는 서로 직접 의존하지 않는다. (MUST)
+  Tier S 의 `JBroFramework2D`·`JBroFramework3D` 사이, 그리고 `JBroFramework2DSystem`·`JBroFramework3DSystem` 사이의 규칙이다. 화면 UI 는 두 차원이 공용 모듈 `JBroScreenUi` 로 함께 쓰며,
+  3D 캔버스의 화면 레이어가 2D UI 컴포넌트를 쓰므로 `JBroFramework3DSystem`(Tier E)은 `JBroFramework2D` 의 컴포넌트 타입을 본다. 3D 스크립트 SDK 에는 2D 헤더를 넣지 않는다. (D-362)
 - 차원 독립 `Canvas` 본체와 `Layer` 정체성은 공통 Tier E 모듈(`JBroCanvas`)에 한 번만 정의한다. (MUST)
   Framework별 Canvas 복제본을 만들지 않으며, 패럴랙스·별도 합성 텍스처처럼 2D 렌더 합성에만 필요한 상태는
   `JBroFramework2D`가 소유한다. 공간·맞춤 방식(D-237)과 블렌드·불투명도(D-279)는 캔버스 파일과 에디터 커맨드가 읽고 쓰는

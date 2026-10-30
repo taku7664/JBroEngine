@@ -29,7 +29,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
-#include <JBro/Framework2DSystem/Rendering/GroupState2D.h>
+#include <JBro/ScreenUi/Rendering/GroupState2D.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Input/InputSystem.h>
 #include <JBro/InputTypes/InputState.h>

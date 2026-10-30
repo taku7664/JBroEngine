@@ -1,6 +1,6 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Runtime/SystemContext.h>
-#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
+#include <JBro/ScreenUi/System/Transform2DSystem.h>
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Profiler.h>
@@ -16,13 +16,13 @@
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
 #include <JBro/Framework2DSystem/System/Light2DSystem.h>
 #include <JBro/Framework2DSystem/System/ShadowCaster2DSystem.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
-#include <JBro/Framework2DSystem/System/Button2DSystem.h>
-#include <JBro/Framework2DSystem/System/Layout2DSystem.h>
-#include <JBro/Framework2DSystem/System/Tween2DSystem.h>
-#include <JBro/Framework2DSystem/System/Mask2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Layout2DSystem.h>
+#include <JBro/ScreenUi/System/Tween2DSystem.h>
+#include <JBro/ScreenUi/System/Mask2DSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
-#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
+#include <JBro/ScreenUi/System/SpriteRender2DSystem.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/Rendering/PostProcessVolume2DWeight.h>
 #include <JBro/Framework2D/Component/PostProcessVolume2D.h>
@@ -707,7 +707,11 @@ namespace JBro
         systems.AddSystem<System::Transform2DSystem>();
         systems.AddSystem<System::Mask2DSystem>();
         // 레이아웃은 에셋 크기의 스프라이트를 재는 데 스프라이트 라이브러리를 쓴다(D-355).
-        systems.AddSystem<System::Layout2DSystem>().SetSpriteLibrary(&m_spriteLibrary);
+        {
+            auto& layout = systems.AddSystem<System::Layout2DSystem>();
+            layout.SetSpriteLibrary(&m_spriteLibrary);
+            layout.SetHookDispatcher(&m_uiHooks);
+        }
         // 트윈은 위젯 뒤, 레이아웃 앞이다(D-357).
         systems.AddSystem<System::Tween2DSystem>();
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
@@ -716,7 +720,10 @@ namespace JBro
         // 버튼은 입력 체인의 `"UI"` 레이어에 선다(D-237).
         {
             auto& buttons = systems.AddSystem<System::Button2DSystem>();
-            buttons.SetScriptSystem(&scripts);
+            buttons.SetInputChain(&scripts);
+            buttons.SetHookDispatcher(&m_uiHooks);
+            m_worldLayers.SetCanvas(m_canvas.Get());
+            buttons.SetWorldLayerMapper(&m_worldLayers);
             // 글자 칸의 IME 조합 창과 클립보드는 호스트의 것이다(D-355). 없으면(시험) 조합 창을 옮기지 않고 클립보드가 비어 있다.
             buttons.SetTextInputHost(m_context.textInput);
         }

@@ -16,8 +16,8 @@
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Graphics/PostProcess.h>
 #include <JBro/Graphics/PostProcessProfile.h>
-#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
-#include <JBro/Framework2DSystem/Rendering/SpritePieces.h>
+#include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
+#include <JBro/ScreenUi/Rendering/SpritePieces.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Runtime/GameObject.h>
