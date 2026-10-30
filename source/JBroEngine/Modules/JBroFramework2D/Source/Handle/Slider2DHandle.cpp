@@ -38,6 +38,15 @@ namespace JBro::Handle
     JBRO_SLIDER2D_ACCESSOR(GameObject, GetHandle, SetHandle, handle)
     JBRO_SLIDER2D_ACCESSOR(SpriteRenderer2D, GetFill, SetFill, fill)
 
+    JBRO_SLIDER2D_ACCESSOR(Component::ButtonTransition, GetTransition, SetTransition, transition)
+    JBRO_SLIDER2D_ACCESSOR(SpriteRenderer2D, GetTargetGraphic, SetTargetGraphic, targetGraphic)
+    JBRO_SLIDER2D_ACCESSOR(Color, GetNormalTint, SetNormalTint, normalTint)
+    JBRO_SLIDER2D_ACCESSOR(Color, GetHoverTint, SetHoverTint, hoverTint)
+    JBRO_SLIDER2D_ACCESSOR(Color, GetPressedTint, SetPressedTint, pressedTint)
+    JBRO_SLIDER2D_ACCESSOR(Color, GetDisabledTint, SetDisabledTint, disabledTint)
+    JBRO_SLIDER2D_ACCESSOR(AssetHandle, GetHoverSprite, SetHoverSprite, hoverSprite)
+    JBRO_SLIDER2D_ACCESSOR(AssetHandle, GetPressedSprite, SetPressedSprite, pressedSprite)
+    JBRO_SLIDER2D_ACCESSOR(AssetHandle, GetDisabledSprite, SetDisabledSprite, disabledSprite)
 #undef JBRO_SLIDER2D_ACCESSOR
 
     Bool Slider2D::GetFocused() const

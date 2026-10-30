@@ -9,6 +9,8 @@
 #include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -39,6 +41,8 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Light2D>() && all;
             all = RegisterBuiltinProperties<Slider2D>() && all;
             all = RegisterBuiltinProperties<Toggle2D>() && all;
+            all = RegisterBuiltinProperties<ToggleGroup2D>() && all;
+            all = RegisterBuiltinProperties<Dropdown2D>() && all;
             all = RegisterBuiltinProperties<Mask2D>() && all;
             all = RegisterBuiltinProperties<ScrollView2D>() && all;
             all = RegisterBuiltinProperties<InputField2D>() && all;

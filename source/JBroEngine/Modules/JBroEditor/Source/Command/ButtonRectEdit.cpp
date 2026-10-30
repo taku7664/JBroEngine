@@ -5,6 +5,7 @@
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
@@ -48,6 +49,13 @@ namespace JBro
             auto& field = static_cast<Component::InputField2D&>(component);
             size = &field.size;
             offset = &field.offset;
+            return true;
+        }
+        if (typeId == MakeStableTypeId(Component::Dropdown2D::StaticTypeName()))
+        {
+            auto& dropdown = static_cast<Component::Dropdown2D&>(component);
+            size = &dropdown.size;
+            offset = &dropdown.offset;
             return true;
         }
         return false;

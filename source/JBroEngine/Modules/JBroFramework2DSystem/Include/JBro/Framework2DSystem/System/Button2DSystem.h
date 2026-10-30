@@ -29,10 +29,12 @@ namespace JBro
 namespace JBro::Component
 {
     class Button2D;
+    class Dropdown2D;
     class InputField2D;
     class ScrollView2D;
     class Slider2D;
     class Toggle2D;
+    class ToggleGroup2D;
     class Transform2D;
 }
 
@@ -55,6 +57,10 @@ namespace JBro::System
     // 글자 칸을 누른 자리에 커서가 서고 끌면 선택이며, Shift+화살표가 선택을 늘리고 Ctrl+A/C/X/V 가 호스트의 클립보드로 복사·붙여넣기다(D-355).
     // IME 조합 글자는 입력 상태에서 떠 두었다가 갱신 훅이 보이는 텍스트의 커서 자리에 끼우고, 포커스 칸의 커서 자리를 호스트(`ITextInputHost`)에 알려
     // 조합 창이 따라오게 한다.
+    // 토글 그룹(`ToggleGroup2D`)은 조상의 토글 가운데 하나만 켜지게 하고, 드롭다운(`Dropdown2D`)은 누르면 목록을 펴 그 아래의 토글로 고른다(D-355) - 전이는
+    // 버튼·토글·슬라이더·글자 칸·드롭다운이 모두 같은 셈(`ApplyTransition`)이다.
+    // 토글 그룹(`ToggleGroup2D`)은 조상의 토글 가운데 하나만 켜지게 하고, 드롭다운(`Dropdown2D`)은 누르면 목록을 펴 그 아래의 토글로 고른다(D-355) - 전이는
+    // 버튼·토글·슬라이더·글자 칸·드롭다운이 모두 같은 셈(`ApplyTransition`)이다.
     //
     // 스크롤 뷰는 뷰포트 안에서 누르고 몇 픽셀 끌면 끌기가 되고, 그때 안의 버튼 누름은 취소된다. 갱신 훅(`OnUpdate`, 트랜스폼 전파보다 먼저)은
     // 값에서 그림을 놓고(슬라이더 손잡이·채우기, 토글 표시, 글자 칸의 글자·커서) 스크롤의 관성을 돌린다.
@@ -110,7 +116,7 @@ namespace JBro::System
             Bool  released = false;
         };
 
-        enum class WidgetKind : std::uint8_t { None, Button, Toggle, Slider, Field, Scroll };
+        enum class WidgetKind : std::uint8_t { None, Button, Toggle, Slider, Field, Scroll, Dropdown };
         enum class Hook : std::uint8_t { Enter, Exit, Down, Up, Click, ValueChanged, Submit };
 
         static Pointer ReadPointer(InputView& input);
@@ -123,6 +129,15 @@ namespace JBro::System
         void PlaceWidgets(Canvas& canvas, Float deltaTime);
         // 이 오브젝트나 조상의 스크롤 뷰(가장 가까운 것)다. 없으면 nullptr.
         Object::GameObject* FindScrollAncestor(Object::GameObject* object) const;
+        // 이 오브젝트나 조상의 토글 그룹(가장 가까운 것)이다(D-355). 없으면 nullptr.
+        Object::GameObject* FindToggleGroup(Object::GameObject* object) const;
+        // 포인터·게임패드가 토글을 뒤집는다(D-355). 드롭다운의 항목이면 뒤집지 않고 고르며(값·접기), 그룹의 켜진 토글은 `allowOff` 가 아니면 그대로다.
+        // 켜지면 같은 그룹의 나머지를 끈다. 바뀌었으면 참이고 `changed`·`OnValueChanged` 는 여기서 낸다.
+        Bool FlipToggle(Object::GameObject& owner, Component::Toggle2D& toggle);
+        // 이 토글이 어느 드롭다운의 항목인가(목록 오브젝트의 자손). 찾으면 그 드롭다운의 오브젝트와 항목 번호다.
+        Object::GameObject* FindDropdownOfOption(Object::GameObject* option, UInt32& index) const;
+        // 열린 드롭다운을 접는다 - `pressed` 가 그 드롭다운이나 그 목록 안이면 둔다. `nullptr` 이면 모두 접는다.
+        void CloseDropdownsOutside(Object::GameObject* pressed);
         // 스크롤 뷰의 내용을 옮기고 가둔다. 가둬진 축은 `clampedX`·`clampedY` 가 참이다.
         void ScrollBy(Object::GameObject& owner, Component::ScrollView2D& scroll, Vector2 delta, Bool& clampedX, Bool& clampedY);
         // 포커스를 옮긴다. `nullptr` 은 비우기다. `visible` 은 게임패드·키보드로 옮긴 포커스다 - 그때만 버튼이 호버처럼 보인다(포인터로 누른 것은 포인터가 떠나면 보통이다).

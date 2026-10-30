@@ -36,6 +36,15 @@ namespace JBro::Handle
     JBRO_TOGGLE2D_ACCESSOR(Bool, GetIsOn, SetIsOn, isOn)
     JBRO_TOGGLE2D_ACCESSOR(SpriteRenderer2D, GetCheckmark, SetCheckmark, checkmark)
 
+    JBRO_TOGGLE2D_ACCESSOR(Component::ButtonTransition, GetTransition, SetTransition, transition)
+    JBRO_TOGGLE2D_ACCESSOR(SpriteRenderer2D, GetTargetGraphic, SetTargetGraphic, targetGraphic)
+    JBRO_TOGGLE2D_ACCESSOR(Color, GetNormalTint, SetNormalTint, normalTint)
+    JBRO_TOGGLE2D_ACCESSOR(Color, GetHoverTint, SetHoverTint, hoverTint)
+    JBRO_TOGGLE2D_ACCESSOR(Color, GetPressedTint, SetPressedTint, pressedTint)
+    JBRO_TOGGLE2D_ACCESSOR(Color, GetDisabledTint, SetDisabledTint, disabledTint)
+    JBRO_TOGGLE2D_ACCESSOR(AssetHandle, GetHoverSprite, SetHoverSprite, hoverSprite)
+    JBRO_TOGGLE2D_ACCESSOR(AssetHandle, GetPressedSprite, SetPressedSprite, pressedSprite)
+    JBRO_TOGGLE2D_ACCESSOR(AssetHandle, GetDisabledSprite, SetDisabledSprite, disabledSprite)
 #undef JBRO_TOGGLE2D_ACCESSOR
 
     Bool Toggle2D::GetFocused() const

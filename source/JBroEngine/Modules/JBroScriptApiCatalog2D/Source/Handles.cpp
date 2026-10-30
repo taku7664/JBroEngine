@@ -556,6 +556,96 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Component::ButtonTransition (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetTransition)>("GetTransition", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(Component::ButtonTransition)>(&Handle::Slider2D::SetTransition)>("SetTransition", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::SpriteRenderer2D (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetTargetGraphic)>("GetTargetGraphic", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(Handle::SpriteRenderer2D)>(&Handle::Slider2D::SetTargetGraphic)>("SetTargetGraphic", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetNormalTint)>("GetNormalTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(Color)>(&Handle::Slider2D::SetNormalTint)>("SetNormalTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetHoverTint)>("GetHoverTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(Color)>(&Handle::Slider2D::SetHoverTint)>("SetHoverTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetPressedTint)>("GetPressedTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(Color)>(&Handle::Slider2D::SetPressedTint)>("SetPressedTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetDisabledTint)>("GetDisabledTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(Color)>(&Handle::Slider2D::SetDisabledTint)>("SetDisabledTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetHoverSprite)>("GetHoverSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(AssetHandle)>(&Handle::Slider2D::SetHoverSprite)>("SetHoverSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetPressedSprite)>("GetPressedSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(AssetHandle)>(&Handle::Slider2D::SetPressedSprite)>("SetPressedSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Slider2D::*)() const>(&Handle::Slider2D::GetDisabledSprite)>("GetDisabledSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Slider2D::*)(AssetHandle)>(&Handle::Slider2D::SetDisabledSprite)>("SetDisabledSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Slider2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -609,6 +699,42 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Slider2D::GetChanged>("changed");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetTransition, &Handle::Slider2D::SetTransition>("transition");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetTargetGraphic, &Handle::Slider2D::SetTargetGraphic>("targetGraphic");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetNormalTint, &Handle::Slider2D::SetNormalTint>("normalTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetHoverTint, &Handle::Slider2D::SetHoverTint>("hoverTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetPressedTint, &Handle::Slider2D::SetPressedTint>("pressedTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetDisabledTint, &Handle::Slider2D::SetDisabledTint>("disabledTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetHoverSprite, &Handle::Slider2D::SetHoverSprite>("hoverSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetPressedSprite, &Handle::Slider2D::SetPressedSprite>("pressedSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Slider2D::GetDisabledSprite, &Handle::Slider2D::SetDisabledSprite>("disabledSprite");
         type.Members.Add(std::move(member));
     }
     }
@@ -699,6 +825,96 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Component::ButtonTransition (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetTransition)>("GetTransition", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(Component::ButtonTransition)>(&Handle::Toggle2D::SetTransition)>("SetTransition", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::SpriteRenderer2D (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetTargetGraphic)>("GetTargetGraphic", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(Handle::SpriteRenderer2D)>(&Handle::Toggle2D::SetTargetGraphic)>("SetTargetGraphic", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetNormalTint)>("GetNormalTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(Color)>(&Handle::Toggle2D::SetNormalTint)>("SetNormalTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetHoverTint)>("GetHoverTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(Color)>(&Handle::Toggle2D::SetHoverTint)>("SetHoverTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetPressedTint)>("GetPressedTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(Color)>(&Handle::Toggle2D::SetPressedTint)>("SetPressedTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetDisabledTint)>("GetDisabledTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(Color)>(&Handle::Toggle2D::SetDisabledTint)>("SetDisabledTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetHoverSprite)>("GetHoverSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(AssetHandle)>(&Handle::Toggle2D::SetHoverSprite)>("SetHoverSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetPressedSprite)>("GetPressedSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(AssetHandle)>(&Handle::Toggle2D::SetPressedSprite)>("SetPressedSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Toggle2D::*)() const>(&Handle::Toggle2D::GetDisabledSprite)>("GetDisabledSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Toggle2D::*)(AssetHandle)>(&Handle::Toggle2D::SetDisabledSprite)>("SetDisabledSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Toggle2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -744,6 +960,42 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Toggle2D::GetChanged>("changed");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetTransition, &Handle::Toggle2D::SetTransition>("transition");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetTargetGraphic, &Handle::Toggle2D::SetTargetGraphic>("targetGraphic");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetNormalTint, &Handle::Toggle2D::SetNormalTint>("normalTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetHoverTint, &Handle::Toggle2D::SetHoverTint>("hoverTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetPressedTint, &Handle::Toggle2D::SetPressedTint>("pressedTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetDisabledTint, &Handle::Toggle2D::SetDisabledTint>("disabledTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetHoverSprite, &Handle::Toggle2D::SetHoverSprite>("hoverSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetPressedSprite, &Handle::Toggle2D::SetPressedSprite>("pressedSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Toggle2D::GetDisabledSprite, &Handle::Toggle2D::SetDisabledSprite>("disabledSprite");
         type.Members.Add(std::move(member));
     }
     }
@@ -1084,6 +1336,104 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Component::ButtonTransition (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetTransition)>("GetTransition", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Component::ButtonTransition)>(&Handle::InputField2D::SetTransition)>("SetTransition", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::SpriteRenderer2D (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetTargetGraphic)>("GetTargetGraphic", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Handle::SpriteRenderer2D)>(&Handle::InputField2D::SetTargetGraphic)>("SetTargetGraphic", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetNormalTint)>("GetNormalTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Color)>(&Handle::InputField2D::SetNormalTint)>("SetNormalTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetHoverTint)>("GetHoverTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Color)>(&Handle::InputField2D::SetHoverTint)>("SetHoverTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetPressedTint)>("GetPressedTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Color)>(&Handle::InputField2D::SetPressedTint)>("SetPressedTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetDisabledTint)>("GetDisabledTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Color)>(&Handle::InputField2D::SetDisabledTint)>("SetDisabledTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetHoverSprite)>("GetHoverSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(AssetHandle)>(&Handle::InputField2D::SetHoverSprite)>("SetHoverSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetPressedSprite)>("GetPressedSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(AssetHandle)>(&Handle::InputField2D::SetPressedSprite)>("SetPressedSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetDisabledSprite)>("GetDisabledSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(AssetHandle)>(&Handle::InputField2D::SetDisabledSprite)>("SetDisabledSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetHovered)>("GetHovered", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetPressed)>("GetPressed", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::InputField2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -1149,6 +1499,394 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::InputField2D::IsComposing>("composing");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetTransition, &Handle::InputField2D::SetTransition>("transition");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetTargetGraphic, &Handle::InputField2D::SetTargetGraphic>("targetGraphic");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetNormalTint, &Handle::InputField2D::SetNormalTint>("normalTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetHoverTint, &Handle::InputField2D::SetHoverTint>("hoverTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetPressedTint, &Handle::InputField2D::SetPressedTint>("pressedTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetDisabledTint, &Handle::InputField2D::SetDisabledTint>("disabledTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetHoverSprite, &Handle::InputField2D::SetHoverSprite>("hoverSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetPressedSprite, &Handle::InputField2D::SetPressedSprite>("pressedSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetDisabledSprite, &Handle::InputField2D::SetDisabledSprite>("disabledSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetHovered>("hovered");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetPressed>("pressed");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "ToggleGroup2D", "JBro::Handle::ToggleGroup2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ToggleGroup2D::*)() const>(&Handle::ToggleGroup2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ToggleGroup2D::*)() const>(&Handle::ToggleGroup2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ToggleGroup2D::*)() const>(&Handle::ToggleGroup2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ToggleGroup2D::*)(Bool)>(&Handle::ToggleGroup2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ToggleGroup2D::*)() const>(&Handle::ToggleGroup2D::GetAllowOff)>("GetAllowOff", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ToggleGroup2D::*)(Bool)>(&Handle::ToggleGroup2D::SetAllowOff)>("SetAllowOff", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::ToggleGroup2D::*)() const>(&Handle::ToggleGroup2D::GetValue)>("GetValue", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ToggleGroup2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ToggleGroup2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ToggleGroup2D::IsEnabled, &Handle::ToggleGroup2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ToggleGroup2D::GetAllowOff, &Handle::ToggleGroup2D::SetAllowOff>("allowOff");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ToggleGroup2D::GetValue>("value");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "Dropdown2D", "JBro::Handle::Dropdown2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Bool)>(&Handle::Dropdown2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetSize)>("GetSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Vector2)>(&Handle::Dropdown2D::SetSize)>("SetSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetOffset)>("GetOffset", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Vector2)>(&Handle::Dropdown2D::SetOffset)>("SetOffset", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetInteractable)>("GetInteractable", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Bool)>(&Handle::Dropdown2D::SetInteractable)>("SetInteractable", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Component::ButtonTransition (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetTransition)>("GetTransition", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Component::ButtonTransition)>(&Handle::Dropdown2D::SetTransition)>("SetTransition", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::SpriteRenderer2D (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetTargetGraphic)>("GetTargetGraphic", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Handle::SpriteRenderer2D)>(&Handle::Dropdown2D::SetTargetGraphic)>("SetTargetGraphic", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetNormalTint)>("GetNormalTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Color)>(&Handle::Dropdown2D::SetNormalTint)>("SetNormalTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetHoverTint)>("GetHoverTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Color)>(&Handle::Dropdown2D::SetHoverTint)>("SetHoverTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetPressedTint)>("GetPressedTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Color)>(&Handle::Dropdown2D::SetPressedTint)>("SetPressedTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetDisabledTint)>("GetDisabledTint", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Color)>(&Handle::Dropdown2D::SetDisabledTint)>("SetDisabledTint", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetHoverSprite)>("GetHoverSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(AssetHandle)>(&Handle::Dropdown2D::SetHoverSprite)>("SetHoverSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetPressedSprite)>("GetPressedSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(AssetHandle)>(&Handle::Dropdown2D::SetPressedSprite)>("SetPressedSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetDisabledSprite)>("GetDisabledSprite", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(AssetHandle)>(&Handle::Dropdown2D::SetDisabledSprite)>("SetDisabledSprite", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetList)>("GetList", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Handle::GameObject)>(&Handle::Dropdown2D::SetList)>("SetList", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::Text2D (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetCaption)>("GetCaption", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Handle::Text2D)>(&Handle::Dropdown2D::SetCaption)>("SetCaption", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetValue)>("GetValue", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Int32)>(&Handle::Dropdown2D::SetValue)>("SetValue", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetOpen)>("GetOpen", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Dropdown2D::*)(Bool)>(&Handle::Dropdown2D::SetOpen)>("SetOpen", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetHovered)>("GetHovered", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetPressed)>("GetPressed", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetFocused)>("GetFocused", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetChanged)>("GetChanged", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::IsEnabled, &Handle::Dropdown2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetSize, &Handle::Dropdown2D::SetSize>("size");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetOffset, &Handle::Dropdown2D::SetOffset>("offset");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetInteractable, &Handle::Dropdown2D::SetInteractable>("interactable");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetTransition, &Handle::Dropdown2D::SetTransition>("transition");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetTargetGraphic, &Handle::Dropdown2D::SetTargetGraphic>("targetGraphic");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetNormalTint, &Handle::Dropdown2D::SetNormalTint>("normalTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetHoverTint, &Handle::Dropdown2D::SetHoverTint>("hoverTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetPressedTint, &Handle::Dropdown2D::SetPressedTint>("pressedTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetDisabledTint, &Handle::Dropdown2D::SetDisabledTint>("disabledTint");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetHoverSprite, &Handle::Dropdown2D::SetHoverSprite>("hoverSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetPressedSprite, &Handle::Dropdown2D::SetPressedSprite>("pressedSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetDisabledSprite, &Handle::Dropdown2D::SetDisabledSprite>("disabledSprite");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetList, &Handle::Dropdown2D::SetList>("list");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetCaption, &Handle::Dropdown2D::SetCaption>("caption");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetValue, &Handle::Dropdown2D::SetValue>("value");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetOpen, &Handle::Dropdown2D::SetOpen>("open");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetHovered>("hovered");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetPressed>("pressed");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetFocused>("focused");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Dropdown2D::GetChanged>("changed");
         type.Members.Add(std::move(member));
     }
     }

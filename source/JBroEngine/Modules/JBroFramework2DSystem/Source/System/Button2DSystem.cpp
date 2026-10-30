@@ -4,6 +4,7 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/ScrollView2D.h>
@@ -11,6 +12,7 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
@@ -70,7 +72,9 @@ namespace JBro::System
         enum class ButtonState : std::uint8_t { Normal, Hover, Pressed, Disabled };
 
         // 게임패드·키보드로 받은 포커스가 있는 버튼은 호버와 같이 보인다(D-352) - 고른 것을 눈으로 알아야 한다.
-        ButtonState StateOf(const Component::Button2D& button, Bool focusVisible)
+        // 전이 셈은 위젯 다섯이 같다(D-355) - 필드 이름(`interactable`·`pressed`·`hovered`·`focused`·`transition`·`targetGraphic`·틴트·상태 스프라이트·래치)이 같다.
+        template<typename TWidget>
+        ButtonState StateOf(const TWidget& button, Bool focusVisible)
         {
             if (false == button.interactable)
             {
@@ -87,7 +91,8 @@ namespace JBro::System
             return ButtonState::Normal;
         }
 
-        const Color& TintFor(const Component::Button2D& button, ButtonState state)
+        template<typename TWidget>
+        const Color& TintFor(const TWidget& button, ButtonState state)
         {
             switch (state)
             {
@@ -104,7 +109,8 @@ namespace JBro::System
         }
 
         // 상태 칸이 비었으면(해석되지 않았으면) 보통 그림 그대로다.
-        AssetHandle SpriteFor(const Component::Button2D& button, ButtonState state)
+        template<typename TWidget>
+        AssetHandle SpriteFor(const TWidget& button, ButtonState state)
         {
             switch (state)
             {
@@ -121,7 +127,8 @@ namespace JBro::System
         }
 
         // 전이를 거는 그림이다(D-351). `targetGraphic` 이 비면 같은 오브젝트의 스프라이트다.
-        Component::SpriteRenderer2D* TargetGraphic(Canvas& canvas, Component::Button2D& button, Object::GameObject* owner)
+        template<typename TWidget>
+        Component::SpriteRenderer2D* TargetGraphic(Canvas& canvas, TWidget& button, Object::GameObject* owner)
         {
             if (button.targetGraphic.IsValid())
             {
@@ -131,7 +138,8 @@ namespace JBro::System
         }
 
         // 보통 상태로 돌아오면 떠 둔 스프라이트를 되돌린다. 전이가 `SpriteSwap` 이 아니게 되어도 같다.
-        void RestoreSwap(Component::Button2D& button, Component::SpriteRenderer2D* graphic)
+        template<typename TWidget>
+        void RestoreSwap(TWidget& button, Component::SpriteRenderer2D* graphic)
         {
             if (button.swapped && graphic != nullptr)
             {
@@ -141,7 +149,8 @@ namespace JBro::System
             button.normalSprite = {};
         }
 
-        void ApplyTransition(Canvas& canvas, Component::Button2D& button, Object::GameObject* owner, Bool focusVisible)
+        template<typename TWidget>
+        void ApplyTransition(Canvas& canvas, TWidget& button, Object::GameObject* owner, Bool focusVisible)
         {
             Component::SpriteRenderer2D* graphic = TargetGraphic(canvas, button, owner);
             const ButtonState state = StateOf(button, focusVisible);
@@ -241,6 +250,35 @@ namespace JBro::System
             {
                 position = high;
                 return true;
+            }
+            return false;
+        }
+
+        // 오브젝트와 자손의 토글을 계층 차례로 돈다(D-355, 토글 그룹·드롭다운 항목). 켜짐과 무관하게 모두 센다 - 번호가 흔들리면 안 된다.
+        template<typename Visit>
+        void VisitToggles(Canvas& canvas, Object::GameObject& object, Visit& visit)
+        {
+            if (auto* toggle = canvas.FindComponentRaw<Component::Toggle2D>(&object))
+            {
+                visit(object, *toggle);
+            }
+            for (const SafePtr<Object::GameObject>& child : object.GetChildren())
+            {
+                if (Object::GameObject* next = child.TryGet())
+                {
+                    VisitToggles(canvas, *next, visit);
+                }
+            }
+        }
+
+        Bool IsSelfOrDescendantOf(const Object::GameObject* object, const Object::GameObject* ancestor)
+        {
+            for (const Object::GameObject* at = object; at != nullptr; at = at->GetParent())
+            {
+                if (at == ancestor)
+                {
+                    return true;
+                }
             }
             return false;
         }
@@ -649,6 +687,119 @@ namespace JBro::System
         return nullptr;
     }
 
+    Object::GameObject* Button2DSystem::FindToggleGroup(Object::GameObject* object) const
+    {
+        for (Object::GameObject* at = object; at != nullptr; at = at->GetParent())
+        {
+            const auto* group = m_canvas->FindComponentRaw<Component::ToggleGroup2D>(at);
+            if (group != nullptr && group->IsActiveComponent())
+            {
+                return at;
+            }
+        }
+        return nullptr;
+    }
+
+    Object::GameObject* Button2DSystem::FindDropdownOfOption(Object::GameObject* option, UInt32& index) const
+    {
+        for (Object::GameObject* at = option != nullptr ? option->GetParent() : nullptr; at != nullptr; at = at->GetParent())
+        {
+            Object::GameObject* found = nullptr;
+            UInt32 position = 0;
+            m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
+            {
+                if (found != nullptr || false == dropdown.IsActiveComponent() || Internal::GameObjectHandleAccess::Resolve(dropdown.list) != at)
+                {
+                    return;
+                }
+                UInt32 counted = 0;
+                Bool hit = false;
+                auto count = [&](Object::GameObject& object, Component::Toggle2D&)
+                {
+                    if (&object == option)
+                    {
+                        position = counted;
+                        hit = true;
+                    }
+                    ++counted;
+                };
+                VisitToggles(*m_canvas, *at, count);
+                if (hit)
+                {
+                    found = Internal::CanvasAccess::GetOwner(dropdown);
+                }
+            });
+            if (found != nullptr)
+            {
+                index = position;
+                return found;
+            }
+        }
+        return nullptr;
+    }
+
+    Bool Button2DSystem::FlipToggle(Object::GameObject& owner, Component::Toggle2D& toggle)
+    {
+        // 드롭다운의 항목: 뒤집지 않고 고른다. 열려 있을 때만이다.
+        UInt32 index = 0;
+        if (Object::GameObject* dropdownOwner = FindDropdownOfOption(&owner, index))
+        {
+            auto* dropdown = m_canvas->FindComponentRaw<Component::Dropdown2D>(dropdownOwner);
+            if (dropdown == nullptr || false == dropdown->open)
+            {
+                return false;
+            }
+            const Int32 chosen = Int32(static_cast<std::int32_t>(index.Get()));
+            dropdown->open = false;
+            if (dropdown->value != chosen)
+            {
+                dropdown->value = chosen;
+                dropdown->changed = true;
+                CallHook(dropdownOwner, Hook::ValueChanged);
+            }
+            return true;
+        }
+        Object::GameObject* groupOwner = FindToggleGroup(&owner);
+        const auto* group = groupOwner != nullptr ? m_canvas->FindComponentRaw<Component::ToggleGroup2D>(groupOwner) : nullptr;
+        if (toggle.isOn && group != nullptr && false == group->allowOff)
+        {
+            return false;
+        }
+        toggle.isOn = false == toggle.isOn;
+        toggle.changed = true;
+        if (toggle.isOn && groupOwner != nullptr)
+        {
+            auto turnOffOthers = [&](Object::GameObject&, Component::Toggle2D& other)
+            {
+                if (&other != &toggle)
+                {
+                    other.isOn = false;
+                }
+            };
+            VisitToggles(*m_canvas, *groupOwner, turnOffOthers);
+        }
+        CallHook(&owner, Hook::ValueChanged);
+        return true;
+    }
+
+    void Button2DSystem::CloseDropdownsOutside(Object::GameObject* pressed)
+    {
+        m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
+        {
+            if (false == dropdown.open)
+            {
+                return;
+            }
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(dropdown);
+            Object::GameObject* list = Internal::GameObjectHandleAccess::Resolve(dropdown.list);
+            const Bool inside = pressed != nullptr && (pressed == owner || (list != nullptr && IsSelfOrDescendantOf(pressed, list)));
+            if (false == inside)
+            {
+                dropdown.open = false;
+            }
+        });
+    }
+
     void Button2DSystem::ScrollBy(Object::GameObject& owner, Component::ScrollView2D& scroll, Vector2 delta, Bool& clampedX, Bool& clampedY)
     {
         clampedX = false;
@@ -798,6 +949,9 @@ namespace JBro::System
             m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field) {
                 consider(Internal::CanvasAccess::GetOwner(field), WidgetKind::Field, field.interactable, field.IsActiveComponent());
             });
+            m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown) {
+                consider(Internal::CanvasAccess::GetOwner(dropdown), WidgetKind::Dropdown, dropdown.interactable, dropdown.IsActiveComponent());
+            });
         };
         considerAll();
         if (m_focused == InvalidInstanceId)
@@ -853,6 +1007,9 @@ namespace JBro::System
         });
         m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field) {
             pick(Internal::CanvasAccess::GetOwner(field), WidgetKind::Field, field.interactable, field.IsActiveComponent());
+        });
+        m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown) {
+            pick(Internal::CanvasAccess::GetOwner(dropdown), WidgetKind::Dropdown, dropdown.interactable, dropdown.IsActiveComponent());
         });
         if (best != nullptr)
         {
@@ -1121,6 +1278,93 @@ namespace JBro::System
             if (auto* mark = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(toggle.checkmark))
             {
                 mark->visible = toggle.isOn;
+            }
+        });
+        // 토글 그룹(D-355): 하나만 켜진다. 둘 이상이면 전에 켜져 있지 않던 쪽(번호가 `value` 와 다른 첫 것)을 남긴다. 스크립트가 켠 것도 여기서 정리된다.
+        canvas.ForEach<Component::ToggleGroup2D>([&](Component::ToggleGroup2D& group)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(group);
+            if (owner == nullptr || false == group.IsActiveComponent())
+            {
+                return;
+            }
+            Int32 index = 0;
+            Int32 firstOn = -1;
+            Int32 newOn = -1;
+            Int32 onCount = 0;
+            auto survey = [&](Object::GameObject&, Component::Toggle2D& toggle)
+            {
+                if (toggle.isOn)
+                {
+                    ++onCount;
+                    if (firstOn < 0)
+                    {
+                        firstOn = index;
+                    }
+                    if (newOn < 0 && index != group.value)
+                    {
+                        newOn = index;
+                    }
+                }
+                ++index;
+            };
+            VisitToggles(canvas, *owner, survey);
+            const Int32 keep = onCount > 1 && newOn >= 0 ? newOn : firstOn;
+            if (onCount > 1)
+            {
+                index = 0;
+                auto settle = [&](Object::GameObject&, Component::Toggle2D& toggle)
+                {
+                    toggle.isOn = index == keep;
+                    ++index;
+                };
+                VisitToggles(canvas, *owner, settle);
+            }
+            group.value = keep;
+        });
+        // 드롭다운(D-355): 목록(자식)의 켜짐은 `open`, 항목 토글의 켜짐은 `value`, 캡션은 고른 항목의 글자다.
+        canvas.ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(dropdown);
+            if (owner == nullptr || false == dropdown.IsActiveComponent())
+            {
+                return;
+            }
+            Object::GameObject* list = Internal::GameObjectHandleAccess::Resolve(dropdown.list);
+            // 목록은 드롭다운의 **자식**이어야 켜고 끈다 - 자기 자신이나 남을 가리키면 손대지 않는다.
+            if (list != nullptr && list->GetParent() == owner && list->IsActiveSelf() != dropdown.open)
+            {
+                list->SetActive(dropdown.open);
+            }
+            Int32 index = 0;
+            Component::Text2D* chosenLabel = nullptr;
+            if (list != nullptr && list != owner)
+            {
+                auto mark = [&](Object::GameObject& option, Component::Toggle2D& toggle)
+                {
+                    const Bool on = index == dropdown.value;
+                    toggle.isOn = on;
+                    if (on)
+                    {
+                        chosenLabel = canvas.FindComponentRaw<Component::Text2D>(&option);
+                    }
+                    ++index;
+                };
+                VisitToggles(canvas, *list, mark);
+            }
+            auto* caption = Internal::ComponentHandleAccess::ResolveAs<Component::Text2D>(dropdown.caption);
+            if (caption == nullptr || caption == chosenLabel)
+            {
+                return;
+            }
+            TextStore& store = TextStore::Get();
+            const UInt32 revision = chosenLabel != nullptr ? store.GetRevision(chosenLabel->text) : UInt32(0);
+            if (dropdown.value != dropdown.shownValue || revision != dropdown.shownRevision)
+            {
+                const ArrayView<const char> label = chosenLabel != nullptr ? store.GetText(chosenLabel->text) : ArrayView<const char>{};
+                store.Assign(caption->text, label.Data() != nullptr ? label.Data() : "", label.Size());
+                dropdown.shownValue = dropdown.value;
+                dropdown.shownRevision = revision;
             }
         });
         // 글자 칸: 글자가 바뀌었으면 보이는 텍스트에 옮기고(조합 중이면 조합 글자를 커서 자리에 끼워서), 커서는 커서 자리에서 깜빡이며, 선택 구간을
@@ -1462,6 +1706,11 @@ namespace JBro::System
             field.submitted = false;
             consider(Internal::CanvasAccess::GetOwner(field), WidgetKind::Field, field.interactable, field.size, field.offset, field.IsActiveComponent());
         });
+        m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
+        {
+            dropdown.changed = false;
+            consider(Internal::CanvasAccess::GetOwner(dropdown), WidgetKind::Dropdown, dropdown.interactable, dropdown.size, dropdown.offset, dropdown.IsActiveComponent());
+        });
         // 스크롤 뷰의 사각형은 같은 오브젝트의 마스크다. 안의 위젯이 위에 있으면 그쪽이 먼저고, 빈 곳이면 스크롤 뷰다.
         m_canvas->ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
         {
@@ -1519,6 +1768,11 @@ namespace JBro::System
                     take(Internal::CanvasAccess::GetOwner(field), field.IsActiveComponent());
                 });
                 break;
+            case WidgetKind::Dropdown:
+                m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown) {
+                    take(Internal::CanvasAccess::GetOwner(dropdown), dropdown.IsActiveComponent());
+                });
+                break;
             default:
                 break;
             }
@@ -1562,6 +1816,8 @@ namespace JBro::System
                     PlaceCaretAt(*field, pointer, false);
                 }
             }
+            // 열린 드롭다운은 제 사각형·목록 밖을 누르면 접힌다(D-355).
+            CloseDropdownsOutside(top.owner);
         }
         if (pointer.pressed && top.owner != nullptr && top.interactable)
         {
@@ -1686,9 +1942,14 @@ namespace JBro::System
             {
                 if (auto* toggle = m_canvas->FindComponentRaw<Component::Toggle2D>(released))
                 {
-                    toggle->isOn = false == toggle->isOn;
-                    toggle->changed = true;
-                    CallHook(released, Hook::ValueChanged);
+                    FlipToggle(*released, *toggle);
+                }
+            }
+            else if (onTop && releasedKind == WidgetKind::Dropdown)
+            {
+                if (auto* dropdown = m_canvas->FindComponentRaw<Component::Dropdown2D>(released))
+                {
+                    dropdown->open = false == dropdown->open;
                 }
             }
         }
@@ -1882,9 +2143,14 @@ namespace JBro::System
                 {
                     if (auto* toggle = m_canvas->FindComponentRaw<Component::Toggle2D>(focusedObject))
                     {
-                        toggle->isOn = false == toggle->isOn;
-                        toggle->changed = true;
-                        CallHook(focusedObject, Hook::ValueChanged);
+                        FlipToggle(*focusedObject, *toggle);
+                    }
+                }
+                else if (m_focusedKind == WidgetKind::Dropdown)
+                {
+                    if (auto* dropdown = m_canvas->FindComponentRaw<Component::Dropdown2D>(focusedObject))
+                    {
+                        dropdown->open = false == dropdown->open;
                     }
                 }
             }
@@ -1919,6 +2185,11 @@ namespace JBro::System
                 held = 0.0f;
             }
             m_compositionLength = 0;
+            // Esc 는 열린 드롭다운을 접는다(D-355). 소비하지는 않는다.
+            if (input.Keyboard().IsPressed(Key::Escape))
+            {
+                CloseDropdownsOutside(nullptr);
+            }
         }
 
         // 6. 상태 필드와 전이. 훅이 위젯을 지웠을 수 있으니 다시 돈다.
@@ -1946,6 +2217,14 @@ namespace JBro::System
             toggle.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Toggle;
             toggle.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Toggle;
             toggle.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Toggle;
+            if (toggle.IsActiveComponent())
+            {
+                ApplyTransition(*m_canvas, toggle, owner, m_focusVisible);
+            }
+            else
+            {
+                RestoreSwap(toggle, TargetGraphic(*m_canvas, toggle, owner));
+            }
         });
         m_canvas->ForEach<Component::Slider2D>([&](Component::Slider2D& slider)
         {
@@ -1954,17 +2233,52 @@ namespace JBro::System
             slider.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Slider;
             slider.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Slider;
             slider.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Slider;
+            if (slider.IsActiveComponent())
+            {
+                ApplyTransition(*m_canvas, slider, owner, m_focusVisible);
+            }
+            else
+            {
+                RestoreSwap(slider, TargetGraphic(*m_canvas, slider, owner));
+            }
         });
         m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(field);
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
+            field.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Field;
+            field.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Field;
             field.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Field;
             if (false == field.focused)
             {
                 // 포커스를 잃으면 선택도 조합도 없다.
                 field.composing = false;
                 field.selectionAnchor = -1;
+            }
+            if (field.IsActiveComponent())
+            {
+                ApplyTransition(*m_canvas, field, owner, m_focusVisible);
+            }
+            else
+            {
+                RestoreSwap(field, TargetGraphic(*m_canvas, field, owner));
+            }
+        });
+        m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(dropdown);
+            const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
+            dropdown.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Dropdown;
+            dropdown.pressed = id != InvalidInstanceId && ((id == m_pressed && m_pressedKind == WidgetKind::Dropdown)
+                || (m_padPressed && id == m_focused && m_focusedKind == WidgetKind::Dropdown));
+            dropdown.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Dropdown;
+            if (dropdown.IsActiveComponent())
+            {
+                ApplyTransition(*m_canvas, dropdown, owner, m_focusVisible);
+            }
+            else
+            {
+                RestoreSwap(dropdown, TargetGraphic(*m_canvas, dropdown, owner));
             }
         });
 

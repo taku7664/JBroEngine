@@ -5,9 +5,12 @@
 #error "A script reaches Component::InputField2D through its handle in <JBro/ScriptAPI.h>, not the component data header."
 #endif
 
+#include <JBro/AssetTypes/AssetTypesReflection.h>
+#include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Handle/Text2D.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
+#include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/TextStore.h>
@@ -51,6 +54,19 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, size, Pixels()) { 160.0f, 32.0f };
         JBRO_FIELD(Vector2, offset, Pixels());
         JBRO_FIELD(Bool, interactable) = true;
+        // 전이(D-355): 버튼과 같다 - 상태(보통·호버·눌림·꺼짐)를 대상 그림에 보인다. `targetGraphic` 이 비면 같은 오브젝트의 스프라이트다.
+        JBRO_FIELD(ButtonTransition, transition) = ButtonTransition::ColorTint;
+        JBRO_FIELD(Handle::SpriteRenderer2D, targetGraphic, Tooltip("전이를 거는 스프라이트. 비면 같은 오브젝트의 SpriteRenderer2D 다"));
+        JBRO_FIELD(Color, normalTint) { 1.0f, 1.0f, 1.0f, 1.0f };
+        JBRO_FIELD(Color, hoverTint) { 0.9f, 0.9f, 0.9f, 1.0f };
+        JBRO_FIELD(Color, pressedTint) { 0.7f, 0.7f, 0.7f, 1.0f };
+        JBRO_FIELD(Color, disabledTint) { 0.5f, 0.5f, 0.5f, 0.6f };
+        JBRO_FIELD(AssetId, hoverSpriteId);
+        JBRO_FIELD(AssetHandle, hoverSprite, NoSerialize() | ReadOnly() | Tooltip("hoverSpriteId 에서 해석된 값") | Hidden());
+        JBRO_FIELD(AssetId, pressedSpriteId);
+        JBRO_FIELD(AssetHandle, pressedSprite, NoSerialize() | ReadOnly() | Tooltip("pressedSpriteId 에서 해석된 값") | Hidden());
+        JBRO_FIELD(AssetId, disabledSpriteId);
+        JBRO_FIELD(AssetHandle, disabledSprite, NoSerialize() | ReadOnly() | Tooltip("disabledSpriteId 에서 해석된 값") | Hidden());
         JBRO_FIELD(TextId, text);
         JBRO_FIELD(Handle::Text2D, display, Tooltip("글자를 보이는 텍스트. 바뀔 때마다 그 글자를 덮어쓴다"));
         JBRO_FIELD(Handle::SpriteRenderer2D, caret, Tooltip("커서 스프라이트. display 의 자식이어야 한다 - 커서 자리에 놓는다"));
@@ -60,6 +76,8 @@ namespace JBro::Component
         JBRO_FIELD(Float, blinkRate, Range(0.0f, 5.0f)) = 0.5f;
 
         // 시스템이 채우는 이번 프레임의 상태다. `focused` 는 스크립트가 써도 된다(핸들의 `SetFocused`) - 다음 프레임에 시스템이 받는다. 인스펙터에서는 읽기만이다.
+        JBRO_FIELD(Bool, hovered, NoSerialize() | ReadOnly() | Category("State")) = false;
+        JBRO_FIELD(Bool, pressed, NoSerialize() | ReadOnly() | Category("State")) = false;
         JBRO_FIELD(Bool, focused, NoSerialize() | ReadOnly() | Category("State")) = false;
         JBRO_FIELD(Bool, changed, NoSerialize() | ReadOnly() | Category("State")) = false;
         JBRO_FIELD(Bool, submitted, NoSerialize() | ReadOnly() | Category("State")) = false;
@@ -73,5 +91,8 @@ namespace JBro::Component
         JBRO_FIELD(UInt32, mirroredRevision, NoSerialize() | ReadOnly() | Hidden()) = 0;
         JBRO_FIELD(Bool, mirroredComposition, NoSerialize() | ReadOnly() | Hidden()) = false;
         JBRO_FIELD(Float, blinkTime, NoSerialize() | ReadOnly() | Hidden()) = 0.0f;
+        // `SpriteSwap` 이 바꾸기 전에 떠 둔 보통 스프라이트와 바꿨는가(D-355, 버튼과 같다).
+        JBRO_FIELD(AssetHandle, normalSprite, NoSerialize() | ReadOnly() | Hidden());
+        JBRO_FIELD(Bool, swapped, NoSerialize() | ReadOnly() | Hidden()) = false;
     };
 }

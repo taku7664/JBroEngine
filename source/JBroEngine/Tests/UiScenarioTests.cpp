@@ -2,6 +2,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Layout2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
@@ -10,6 +11,7 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Handle/Button2D.h>
 #include <JBro/Framework2D/Handle/InputField2D.h>
@@ -1076,6 +1078,134 @@ namespace
         stage.Frame({Composition(InputEventKind::CompositionEnd)});
         Check(false == handle.IsComposing(), "and its end");
     }
+
+    // **토글 그룹·드롭다운·전이**(D-355, B 1 순위). 화면 200 x 100 = 기준. 그룹의 토글 셋은 y 30(픽셀 y 20)에 20 x 16, 드롭다운은 (0, -40)(픽셀 (100, 90))에 100 x 16 이고
+    // 목록은 그 자식 (0, 45) 에, 항목 둘은 목록의 자식 (0, 8)·(0, -8) 에 100 x 14(픽셀 y 37·53)다.
+    void TestToggleGroupsDropdownsAndTransitions()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        Object::GameObject* tabs = stage.Make("tabs", {});
+        auto* group = canvas->AttachComponent<Component::ToggleGroup2D>(tabs);
+        Object::GameObject* first = stage.Make("first", {-60.0f, 30.0f}, tabs);
+        auto* toggle1 = canvas->AttachComponent<Component::Toggle2D>(first);
+        toggle1->size = {20.0f, 16.0f};
+        auto* sprite1 = canvas->AttachComponent<Component::SpriteRenderer2D>(first);
+        Object::GameObject* second = stage.Make("second", {0.0f, 30.0f}, tabs);
+        auto* toggle2 = canvas->AttachComponent<Component::Toggle2D>(second);
+        toggle2->size = {20.0f, 16.0f};
+        Object::GameObject* third = stage.Make("third", {60.0f, 30.0f}, tabs);
+        auto* toggle3 = canvas->AttachComponent<Component::Toggle2D>(third);
+        toggle3->size = {20.0f, 16.0f};
+        stage.Frames(2);
+        Check(group->value == -1, "an empty group has no value");
+
+        // 전이: 토글도 버튼처럼 호버·눌림·꺼짐 색을 대상 그림에 보인다.
+        stage.Frame({MouseAt(40.0f, 20.0f)});
+        Check(toggle1->hovered && CloseTo(sprite1->tint.R, 0.9f), "hovering a toggle tints its sprite like a button");
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Check(toggle1->pressed && CloseTo(sprite1->tint.R, 0.7f), "pressing shows the pressed tint");
+        stage.Frame({Released(MouseButton::Left)});
+        Check(toggle1->isOn && group->value == 0, "releasing turns the first toggle on and the group reports it");
+        stage.Frame({MouseAt(100.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(toggle2->isOn && false == toggle1->isOn && group->value == 1, "turning on the second turns off the first");
+        Check(CloseTo(sprite1->tint.R, 1.0f), "the first toggle's sprite is back to normal once the pointer left");
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(toggle2->isOn && false == toggle2->changed && group->value == 1, "pressing the on toggle again leaves it on while allowOff is false");
+        group->allowOff = true;
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(false == toggle2->isOn && toggle2->changed && group->value == -1, "with allowOff the on toggle turns off");
+        toggle1->isOn = true;
+        toggle3->isOn = true;
+        stage.Frame({});
+        Check(toggle1->isOn && false == toggle3->isOn && group->value == 0, "two scripted on toggles settle to the first when neither was on");
+        toggle3->isOn = true;
+        stage.Frame({});
+        Check(false == toggle1->isOn && toggle3->isOn && group->value == 2, "a newly turned-on toggle wins over the current one");
+        toggle1->interactable = false;
+        stage.Frame({MouseAt(40.0f, 20.0f)});
+        Check(CloseTo(sprite1->tint.A, 0.6f), "a disabled toggle shows the disabled tint");
+        toggle1->interactable = true;
+        toggle1->transition = Component::ButtonTransition::None;
+        sprite1->tint = {0.2f, 0.2f, 0.2f, 1.0f};
+        stage.Frame({});
+        Check(CloseTo(sprite1->tint.R, 0.2f), "with no transition the sprite's tint is left alone");
+        stage.Frame({MouseAt(190.0f, 95.0f)});
+
+        // 드롭다운: 누르면 목록이 펴지고, 항목을 고르면 값·캡션이 바뀌며 접힌다.
+        g_hookCalls = 0;
+        Object::GameObject* pick = stage.Make("pick", {0.0f, -40.0f});
+        auto* dropdown = canvas->AttachComponent<Component::Dropdown2D>(pick);
+        dropdown->size = {100.0f, 16.0f};
+        auto* pickScript = canvas->AttachScript<SelfDestructor>(pick);
+        (void)pickScript;
+        Object::GameObject* cap = stage.Make("cap", {}, pick);
+        auto* caption = canvas->AttachComponent<Component::Text2D>(cap);
+        dropdown->caption = cap->GetScriptHandle().GetComponent<Handle::Text2D>();
+        Object::GameObject* list = stage.Make("list", {0.0f, 45.0f}, pick);
+        dropdown->list = list->GetScriptHandle();
+        Object::GameObject* one = stage.Make("one", {0.0f, 8.0f}, list);
+        auto* option1 = canvas->AttachComponent<Component::Toggle2D>(one);
+        option1->size = {100.0f, 14.0f};
+        auto* label1 = canvas->AttachComponent<Component::Text2D>(one);
+        TextStore::Get().Assign(label1->text, "One", 3);
+        Object::GameObject* two = stage.Make("two", {0.0f, -8.0f}, list);
+        auto* option2 = canvas->AttachComponent<Component::Toggle2D>(two);
+        option2->size = {100.0f, 14.0f};
+        auto* label2 = canvas->AttachComponent<Component::Text2D>(two);
+        TextStore::Get().Assign(label2->text, "Two", 3);
+        stage.Frames(2);
+        Check(false == list->IsActiveSelf() && false == dropdown->open && TextIs(caption->text, ""), "a closed dropdown hides its list and shows no caption");
+        stage.Frame({MouseAt(100.0f, 53.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(false == option2->isOn && dropdown->value == -1, "a hidden option cannot be pressed");
+        stage.Frame({MouseAt(100.0f, 90.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(dropdown->open && list->IsActiveSelf(), "pressing the dropdown opens its list");
+        stage.Frame({MouseAt(100.0f, 53.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(dropdown->value == 1 && dropdown->changed && false == dropdown->open && g_hookCalls == 1, "picking the second option sets the value, closes and tells the script");
+        stage.Frame({});
+        Check(false == list->IsActiveSelf() && TextIs(caption->text, "Two") && option2->isOn && false == option1->isOn && false == dropdown->changed,
+            "the caption shows the chosen label and only that option is on");
+        stage.Frame({MouseAt(100.0f, 90.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(190.0f, 95.0f), HeldButton(MouseButton::Left)});
+        Check(false == dropdown->open, "pressing outside closes it");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(100.0f, 90.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(dropdown->open, "it opens again");
+        stage.Frame({Pressed(Key::Escape)});
+        stage.Frame({ReleasedKey(Key::Escape)});
+        Check(false == dropdown->open, "escape closes it");
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(100.0f, 53.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(dropdown->value == 1 && false == dropdown->changed && false == dropdown->open && g_hookCalls == 1, "picking the chosen option again closes without telling");
+        dropdown->value = 0;
+        stage.Frame({});
+        Check(TextIs(caption->text, "One") && option1->isOn && false == option2->isOn, "a scripted value moves the caption and the options");
+        dropdown->value = 7;
+        stage.Frame({});
+        Check(TextIs(caption->text, "") && false == option1->isOn && false == option2->isOn, "a value past the options clears the caption");
+        dropdown->value = 0;
+        stage.Frame({});
+        TextStore::Get().Assign(label1->text, "Uno", 3);
+        stage.Frame({});
+        Check(TextIs(caption->text, "Uno"), "a renamed label reaches the caption");
+        dropdown->open = true;
+        stage.Frame({});
+        Check(list->IsActiveSelf(), "a scripted open shows the list");
+        dropdown->list = pick->GetScriptHandle();
+        dropdown->open = false;
+        stage.Frame({});
+        Check(pick->IsActiveSelf() && list->IsActiveSelf(), "a list that is the dropdown itself is left alone");
+    }
 }
 
 JBro::Int32 RunUiScenarioTests()
@@ -1089,6 +1219,7 @@ JBro::Int32 RunUiScenarioTests()
     TestHeldKeysRepeatAndTheCaretMoves();
     TestSelectionClipboardAndComposition();
     TestScriptMadeWidgetsAndCaretApi();
+    TestToggleGroupsDropdownsAndTransitions();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

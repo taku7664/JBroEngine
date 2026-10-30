@@ -38,6 +38,7 @@
 #include <JBro/Framework2D/Handle/Camera2D.h>
 #include <JBro/Framework2D/Handle/Collider2D.h>
 #include <JBro/Framework2D/Handle/DistanceJoint2D.h>
+#include <JBro/Framework2D/Handle/Dropdown2D.h>
 #include <JBro/Framework2D/Handle/HingeJoint2D.h>
 #include <JBro/Framework2D/Handle/InputField2D.h>
 #include <JBro/Framework2D/Handle/Layout2D.h>
@@ -46,6 +47,7 @@
 #include <JBro/Framework2D/Handle/ScrollView2D.h>
 #include <JBro/Framework2D/Handle/Slider2D.h>
 #include <JBro/Framework2D/Handle/Toggle2D.h>
+#include <JBro/Framework2D/Handle/ToggleGroup2D.h>
 #include <JBro/Framework2D/Handle/Rigidbody2D.h>
 #include <JBro/Framework2D/Handle/ShadowCaster2D.h>
 #include <JBro/Framework2D/Handle/SpriteRenderer2D.h>

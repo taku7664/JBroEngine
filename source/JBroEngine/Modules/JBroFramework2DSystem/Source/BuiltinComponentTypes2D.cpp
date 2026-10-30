@@ -10,6 +10,8 @@
 #include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -70,6 +72,11 @@ namespace JBro::Component
             all = RegisterComponentType<InputField2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Layout2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            // 토글 그룹은 오브젝트에 하나(어느 그룹인지 하나여야 한다), 드롭다운은 누름 사각형 하나다(D-355).
+            all = RegisterComponentType<ToggleGroup2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<Dropdown2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();

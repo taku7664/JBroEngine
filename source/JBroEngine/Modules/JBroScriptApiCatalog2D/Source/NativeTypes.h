@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <JBro/ScriptAPI.h>
 #include "ProjectedValues.h"
 #include <JBro/Reflection/CoreTypeDescriptors.h>
@@ -89,6 +89,8 @@ namespace JBro::ScriptApiCatalog2D::Internal
     JBRO_LANGUAGE_TYPE(Handle::Layout2D, "ref Layout2D")
     JBRO_LANGUAGE_TYPE(Handle::ScrollView2D, "ref ScrollView2D")
     JBRO_LANGUAGE_TYPE(Handle::Toggle2D, "ref Toggle2D")
+    JBRO_LANGUAGE_TYPE(Handle::ToggleGroup2D, "ref ToggleGroup2D")
+    JBRO_LANGUAGE_TYPE(Handle::Dropdown2D, "ref Dropdown2D")
     JBRO_LANGUAGE_TYPE(Handle::Text2D, "ref Text2D")
     JBRO_LANGUAGE_TYPE(Handle::Transform2D, "ref Transform2D")
     JBRO_LANGUAGE_TYPE(Handle::AudioSource, "ref AudioSource")

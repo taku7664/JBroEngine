@@ -42,6 +42,15 @@ namespace JBro::Handle
     JBRO_INPUTFIELD2D_ACCESSOR(Bool, GetFocused, SetFocused, focused)
     JBRO_INPUTFIELD2D_ACCESSOR(Int32, GetCaretIndex, SetCaretIndex, caretIndex)
 
+    JBRO_INPUTFIELD2D_ACCESSOR(Component::ButtonTransition, GetTransition, SetTransition, transition)
+    JBRO_INPUTFIELD2D_ACCESSOR(SpriteRenderer2D, GetTargetGraphic, SetTargetGraphic, targetGraphic)
+    JBRO_INPUTFIELD2D_ACCESSOR(Color, GetNormalTint, SetNormalTint, normalTint)
+    JBRO_INPUTFIELD2D_ACCESSOR(Color, GetHoverTint, SetHoverTint, hoverTint)
+    JBRO_INPUTFIELD2D_ACCESSOR(Color, GetPressedTint, SetPressedTint, pressedTint)
+    JBRO_INPUTFIELD2D_ACCESSOR(Color, GetDisabledTint, SetDisabledTint, disabledTint)
+    JBRO_INPUTFIELD2D_ACCESSOR(AssetHandle, GetHoverSprite, SetHoverSprite, hoverSprite)
+    JBRO_INPUTFIELD2D_ACCESSOR(AssetHandle, GetPressedSprite, SetPressedSprite, pressedSprite)
+    JBRO_INPUTFIELD2D_ACCESSOR(AssetHandle, GetDisabledSprite, SetDisabledSprite, disabledSprite)
 #undef JBRO_INPUTFIELD2D_ACCESSOR
 
     const char* InputField2D::GetText() const
@@ -65,6 +74,18 @@ namespace JBro::Handle
         }
         const char* safe = utf8 != nullptr ? utf8 : "";
         TextStore::Get().Assign(component->text, safe, std::strlen(safe));
+    }
+
+    Bool InputField2D::GetHovered() const
+    {
+        const Component::InputField2D* component = Resolve("GetHovered");
+        return component != nullptr ? component->hovered : Bool(false);
+    }
+
+    Bool InputField2D::GetPressed() const
+    {
+        const Component::InputField2D* component = Resolve("GetPressed");
+        return component != nullptr ? component->pressed : Bool(false);
     }
 
     Bool InputField2D::GetChanged() const

@@ -1,9 +1,12 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/ComponentHandleReflection.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Color.h>
 #include <JBro/Types/Math2D.h>
 
 #include <type_traits>
@@ -32,6 +35,25 @@ namespace JBro::Handle
         void SetOffset(Vector2 value);
         Bool GetInteractable() const;
         void SetInteractable(Bool value);
+        // 전이(D-355) - 버튼과 같다. 상태 스프라이트의 에셋은 이번 실행의 자리(`AssetHandle`)로 바꾼다.
+        Component::ButtonTransition GetTransition() const;
+        void SetTransition(Component::ButtonTransition value);
+        SpriteRenderer2D GetTargetGraphic() const;
+        void SetTargetGraphic(SpriteRenderer2D value);
+        Color GetNormalTint() const;
+        void SetNormalTint(Color value);
+        Color GetHoverTint() const;
+        void SetHoverTint(Color value);
+        Color GetPressedTint() const;
+        void SetPressedTint(Color value);
+        Color GetDisabledTint() const;
+        void SetDisabledTint(Color value);
+        AssetHandle GetHoverSprite() const;
+        void SetHoverSprite(AssetHandle value);
+        AssetHandle GetPressedSprite() const;
+        void SetPressedSprite(AssetHandle value);
+        AssetHandle GetDisabledSprite() const;
+        void SetDisabledSprite(AssetHandle value);
         Bool GetIsOn() const;
         void SetIsOn(Bool value);
         SpriteRenderer2D GetCheckmark() const;
