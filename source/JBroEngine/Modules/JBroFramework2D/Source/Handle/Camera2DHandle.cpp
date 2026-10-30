@@ -209,6 +209,22 @@ namespace JBro::Handle
         component->depth = value;
     }
 
+    AssetHandle Camera2D::GetRenderTexture() const
+    {
+        const Component::Camera2D* component = Resolve("GetRenderTexture");
+        return component != nullptr ? component->renderTexture : AssetHandle{};
+    }
+
+    void Camera2D::SetRenderTexture(AssetHandle value)
+    {
+        Component::Camera2D* component = Resolve("SetRenderTexture");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->renderTexture = value;
+    }
+
     Bool Camera2D::GetClearViewport() const
     {
         const Component::Camera2D* component = Resolve("GetClearViewport");

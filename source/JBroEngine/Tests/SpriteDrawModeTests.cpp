@@ -2,6 +2,9 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/RenderTextureFile.h>
+#include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
@@ -530,6 +533,132 @@ namespace
     }
 }
 
+namespace
+{
+    using namespace JBro;
+
+    // **렌더 텍스처**(D-362). 규칙과 파일: `.jrt` 는 RenderTexture 이고 `renderTextureId` 가 그것을 가리킨다. 크기는 1..4096 으로 갇히고 필터는 Nearest·Linear 다.
+    // 그림(D3D12, 64 x 64): 카메라 C(월드 (100, 0), 반높이 1)가 32 x 32 렌더 텍스처에 초록 바탕의 빨강 1 x 1 사각형을 그리고, 주 카메라(원점, 반높이 1 → 1 유닛 32 픽셀)
+    // 앞의 1 x 1 스프라이트가 그 텍스처를 보인다 - 화면 가운데 32 x 32 가 그 그림이고(가운데 빨강, 가장자리 초록) 밖은 주 카메라의 검정이다. C 를 `primary` 로 해도 화면의 주
+    // 카메라가 되지 않는다. 파일의 크기를 바꿔 다시 읽으면 타깃을 다시 만든다.
+    void TestRenderTexturesShowWhatTheirCameraDrew()
+    {
+        Check(AssetTypeRules::DetectTypeFromPath("minimap.jrt") == AssetType::RenderTexture, "a .jrt file is a render texture");
+        Check(AssetTypeRules::TypeOfIdFieldName("renderTextureId") == AssetType::RenderTexture, "renderTextureId picks render textures");
+        RenderTextureSettings read;
+        Check(ParseRenderTexture("", 0, read) && read.width == 256 && read.height == 256 && read.filter == TextureFilter::Linear, "an empty file is 256 x 256 linear");
+        const char* odd = "Width: 0\nHeight: 99999\nFilter: Nearest\n";
+        Check(ParseRenderTexture(odd, std::strlen(odd), read) && read.width == 1 && read.height == RenderTextureSettings::MaxSide && read.filter == TextureFilter::Nearest,
+            "sizes clamp to 1..4096 and the filter reads");
+        RenderTextureSettings written;
+        written.width = 32;
+        written.height = 16;
+        written.filter = TextureFilter::Nearest;
+        const String text = WriteRenderTexture(written);
+        Check(ParseRenderTexture(text.data(), text.size(), read) && read.width == 32 && read.height == 16 && read.filter == TextureFilter::Nearest, "writing and reading round-trips");
+        const char* broken = "Filter: \"unclosed\n";
+        String error;
+        Check(false == ParseRenderTexture(broken, std::strlen(broken), read, &error) && false == error.empty(), "broken YAML is refused with a reason");
+
+        SliceProject project;
+        project.Open();
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; render textures not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            RenderTextureSettings settings;
+            settings.width = 32;
+            settings.height = 32;
+            settings.filter = TextureFilter::Nearest;
+            const String body = WriteRenderTexture(settings);
+            WriteBytes(project.root / "minimap.jrt", body.data(), body.size());
+            AssetScanOptions options;
+            options.createMissingMeta = true;
+            AssetScanReport report;
+            Check(project.registry.Scan(project.platform, Utf8(project.root).c_str(), options, report), "the render texture scans in");
+            AssetId targetId;
+            for (std::size_t index = 0; index < project.registry.GetCount(); ++index)
+            {
+                if (project.registry.GetRecord(index).type == AssetType::RenderTexture)
+                {
+                    targetId = project.registry.GetRecord(index).id;
+                }
+            }
+            Check(false == targetId.IsNull(), "the render texture has an id");
+
+            Framework2D framework;
+            FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            ScreenSpaceFrame screen;
+            screen.referenceWidth = 64.0f;
+            screen.referenceHeight = 64.0f;
+            screen.targetWidth = 64.0f;
+            screen.targetHeight = 64.0f;
+            framework.SetScreenSpace(screen);
+            Canvas* canvas = framework.GetCanvas();
+            Object::GameObject* mainObject = canvas->CreateObject("main");
+            canvas->AttachComponent<Component::Transform2D>(mainObject);
+            auto* mainCamera = canvas->AttachComponent<Component::Camera2D>(mainObject);
+            mainCamera->orthographicSize = 1.0f;
+            mainCamera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            Object::GameObject* minimapObject = canvas->CreateObject("minimap camera");
+            canvas->AttachComponent<Component::Transform2D>(minimapObject)->position = {100.0f, 0.0f};
+            auto* minimapCamera = canvas->AttachComponent<Component::Camera2D>(minimapObject);
+            minimapCamera->primary = true;
+            minimapCamera->orthographicSize = 1.0f;
+            minimapCamera->clearColor = {0.0f, 1.0f, 0.0f, 1.0f};
+            minimapCamera->renderTextureId = targetId;
+            Object::GameObject* square = canvas->CreateObject("square");
+            canvas->AttachComponent<Component::Transform2D>(square)->position = {100.0f, 0.0f};
+            auto* squareSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(square);
+            squareSprite->sizeMode = Component::SpriteSizeMode::Custom;
+            squareSprite->size = {1.0f, 1.0f};
+            squareSprite->tint = {1.0f, 0.0f, 0.0f, 1.0f};
+            Object::GameObject* screenObject = canvas->CreateObject("screen");
+            canvas->AttachComponent<Component::Transform2D>(screenObject);
+            auto* screenSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(screenObject);
+            screenSprite->sizeMode = Component::SpriteSizeMode::Custom;
+            screenSprite->size = {1.0f, 1.0f};
+            screenSprite->renderTextureId = targetId;
+            framework.BindCanvasAssets();
+            Check(minimapCamera->renderTexture.generation != 0 && screenSprite->renderTexture.generation != 0, "both fields resolve to the loaded render texture");
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            // 트랜스폼은 첫 갱신에 계산된다 - 그 뒤에 묻는다.
+            RenderCamera2D chosen;
+            Check(System::Camera2DSystem::SelectCamera(*canvas, chosen) && chosen.owner == mainObject, "a camera drawing into a texture is never the screen's primary camera");
+            Check(gpu.Is(32, 32, 255, 0, 0), "the middle of the screen shows the red square the minimap camera drew");
+            Check(gpu.Is(19, 19, 0, 255, 0) && gpu.Is(44, 44, 0, 255, 0), "around it the minimap camera's green clear shows through the sprite");
+            Check(gpu.Is(5, 5, 0, 0, 0) && gpu.Is(58, 32, 0, 0, 0), "outside the sprite is the main camera's black - the minimap camera did not draw on the screen");
+            // 크기를 바꿔 다시 읽으면 타깃을 다시 만든다: 64 x 64 에서도 같은 그림이다.
+            settings.width = 64;
+            settings.height = 64;
+            const String bigger = WriteRenderTexture(settings);
+            WriteBytes(project.root / "minimap.jrt", bigger.data(), bigger.size());
+            Check(project.assets.ReloadInPlace(targetId), "the render texture reloads in place");
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(gpu.Is(32, 32, 255, 0, 0) && gpu.Is(19, 19, 0, 255, 0) && gpu.Is(5, 5, 0, 0, 0), "after the resize the picture is the same");
+            // 렌더 텍스처를 떼면 카메라는 화면에 돌아와 주 카메라가 된다(primary).
+            minimapCamera->renderTexture = {};
+            gpu.Paint(framework);
+            Check(gpu.Is(5, 5, 0, 255, 0), "without the texture the primary minimap camera draws the screen again");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+}
+
 JBro::Int32 RunSpriteDrawModeTests()
 {
     TestSlicedPiecesKeepTheCorners();
@@ -537,6 +666,7 @@ JBro::Int32 RunSpriteDrawModeTests()
     TestFilledPiecesStartAtTheOrigin();
     TestDrawModesReachTheScreen();
     TestSplitScreenCamerasAndTheScreenLayerStaysUnlit();
+    TestRenderTexturesShowWhatTheirCameraDrew();
     std::cout << "Sprite draw mode tests passed." << std::endl;
     return 0;
 }

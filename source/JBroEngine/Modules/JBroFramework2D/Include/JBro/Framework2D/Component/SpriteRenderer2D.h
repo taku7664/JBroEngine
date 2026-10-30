@@ -48,6 +48,10 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, sprite,     NoSerialize() | ReadOnly() | Tooltip("spriteId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(AssetId,     materialId);
         JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
+        // **렌더 텍스처를 보인다**(D-362). 있으면 `spriteId` 대신 그 텍스처 전체를 그린다 - 카메라가 같은 에셋에 그린 그림이다. 크기는 `FromSprite` 면 텍스처 픽셀 / 100(유닛),
+        // 화면 레이어면 픽셀이다. 피벗은 가운데다.
+        JBRO_FIELD(AssetId,     renderTextureId);
+        JBRO_FIELD(AssetHandle, renderTexture, NoSerialize() | ReadOnly() | Tooltip("renderTextureId 에서 해석된 값") | Hidden());
 
         JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         // `Custom` 일 때만 `pivot`·`size` 가 쓰인다(D-117). 기본은 에셋이 정한다.

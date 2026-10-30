@@ -461,6 +461,11 @@ namespace JBro
             JArrayView<std::byte> rgba8, UInt32 rowPitch);
         void UnregisterTexture(AssetHandle texture);
         UInt32 GetTextureCount() const;
+        // **렌더 타깃 텍스처**(D-362, 렌더 텍스처). 백버퍼 포맷이고 그리기·샘플링 둘 다 된다. 스프라이트 텍스처로 쓰는 핸들(`SpriteSubmit::texture`)을 주고,
+        // `GetRenderTargetTexture` 가 뷰의 `CameraParams::target` 이다. 프레임 밖에서만 부른다. 지우기는 `UnregisterTexture` 다. 크기가 0 이거나 장치가 거절하면 빈 핸들이다.
+        AssetHandle RegisterRenderTarget(const Extent2D& extent);
+        // `RegisterRenderTarget` 이 준 핸들의 텍스처다. 렌더 타깃이 아니거나 풀린 핸들이면 빈 핸들이다.
+        TextureHandle GetRenderTargetTexture(AssetHandle texture) const;
         // **머티리얼을 올린다**(D-347). 자리마다 파이프라인을 장면 포맷(출력·HDR)마다 미리 만든다 - 스프라이트는 깊이가 달린 패스의 쌍둥이까지
         // 넷, 후처리는 둘이다. 프레임 밖에서만 부른다. 셰이더가 없거나 이 API 의 바이트코드가 없거나 파라미터 크기가 맞지 않거나 파이프라인을
         // 만들지 못하면 빈 핸들이다. `SpriteSubmit::material`·`PostProcessPassDesc::material` 에 넣는다.
@@ -939,6 +944,8 @@ namespace JBro
             UInt32 depth = 1;
             UInt32 generation = 1;
             Bool occupied = false;
+            // 뷰의 대상으로 쓸 수 있는가(D-362).
+            Bool renderTarget = false;
         };
 
         static constexpr UInt32 InvalidViewIndex = 0xFFFFFFFFu;

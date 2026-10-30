@@ -139,6 +139,16 @@ namespace JBro
         m_hasCamera = true;
     }
 
+    void RenderWorld2D::SetCameraTarget(std::size_t index, TextureHandle target, const Extent2D& extent, AssetHandle targetSprite)
+    {
+        if (index < m_cameras.Size())
+        {
+            m_cameras[index].target = target;
+            m_cameras[index].targetExtent = extent;
+            m_cameras[index].targetSprite = targetSprite;
+        }
+    }
+
     void RenderWorld2D::ClearCameras()
     {
         m_cameras.Clear();

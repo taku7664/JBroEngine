@@ -42,6 +42,15 @@ namespace JBro::Widget
         ImGui::TextDisabled("%s", text != nullptr ? text : "");
     }
 
+    void WrappedHintText(const char* text)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextUnformatted(text != nullptr ? text : "");
+        ImGui::PopTextWrapPos();
+        ImGui::PopStyleColor();
+    }
+
     void HintTextFormatted(const char* format, ...)
     {
         va_list args;

@@ -33,6 +33,7 @@ namespace JBro
             {AssetType::NodeGraph, "NodeGraph"},
             {AssetType::ColorLut, "ColorLut"},
             {AssetType::PostProcessProfile, "PostProcessProfile"},
+            {AssetType::RenderTexture, "RenderTexture"},
         };
 
         struct Extension
@@ -69,6 +70,7 @@ namespace JBro
             {".jgraph", AssetType::NodeGraph},
             {".cube", AssetType::ColorLut},
             {".jpost", AssetType::PostProcessProfile},
+            {".jrt", AssetType::RenderTexture},
         };
 
         constexpr char MetaExtension[] = ".jmeta";

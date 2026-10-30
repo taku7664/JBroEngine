@@ -54,7 +54,9 @@ namespace JBro
         ColorLut,
         // 후처리 프로필이다(D-344). 본문(`.jpost`)이 효과 목록 YAML 이고 카메라의 `postProcessProfileId` 가 가리킨다. 효과의 뜻은 그래픽 모듈의
         // 효과 종류 표가 알므로 에셋은 글자만 든다.
-        PostProcessProfile
+        PostProcessProfile,
+        // 렌더 텍스처다(D-362). 본문(`.jrt`)이 폭·높이·필터 YAML 이고, 카메라의 `renderTextureId` 가 그리는 곳으로, 스프라이트의 `renderTextureId` 가 보이는 것으로 가리킨다.
+        RenderTexture
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반

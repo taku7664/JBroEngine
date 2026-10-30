@@ -67,6 +67,8 @@ namespace JBro
                 return Icons::PostProcess;
             case AssetType::ColorLut:
                 return Icons::ColorLut;
+            case AssetType::RenderTexture:
+                return Icons::FileImage;
             case AssetType::Material:
                 return Icons::Material;
             case AssetType::Shader:
@@ -1068,6 +1070,11 @@ namespace JBro
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewPostProcessProfile, "New Post-Process Profile")))
         {
             m_editor->CreatePostProcessProfileAsset(m_openFolder.c_str());
+        }
+        // **새 렌더 텍스처**(D-362). 256 x 256 을 만들고 고른다 - 카메라와 스프라이트의 `renderTextureId` 에 같은 것을 건다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewRenderTexture, "New Render Texture")))
+        {
+            m_editor->CreateRenderTextureAsset(m_openFolder.c_str());
         }
         // **새 셰이더·새 머티리얼**(D-347). 셰이더는 픽셀 단계 하나를 적는 틀(`.hlsl`)이고, 머티리얼은 셰이더를 고르고 파라미터를 적는 파일(`.jmat`)이다.
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewShader, "New Shader")))

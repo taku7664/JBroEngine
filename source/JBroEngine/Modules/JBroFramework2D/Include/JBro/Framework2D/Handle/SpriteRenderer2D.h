@@ -41,6 +41,9 @@ namespace JBro::Handle
         AssetId GetMaterialId() const;
         AssetHandle GetMaterial() const;
         void SetMaterial(AssetHandle value);
+        // 보이는 렌더 텍스처(D-362)다. 있으면 스프라이트 대신 그 텍스처를 그린다.
+        AssetHandle GetRenderTexture() const;
+        void SetRenderTexture(AssetHandle value);
         Color GetTint() const;
         void SetTint(Color value);
         Component::SpriteSizeMode GetSizeMode() const;

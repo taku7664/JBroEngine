@@ -807,6 +807,30 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
+    Bool AssetSystem::ReadRenderTexture(const AssetRecord& record, RenderTextureData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        RenderTextureData read;
+        String error;
+        if (false == ParseRenderTexture(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), read.settings, &error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a render texture could not be read (%s): %s", record.relativePath.c_str(), error.c_str());
+            return false;
+        }
+        data = read;
+        return true;
+    }
+
+    const RenderTextureData* AssetSystem::GetRenderTexture(AssetHandle handle) const
+    {
+        const Slot<RenderTextureData>* slot = FindSlot(m_renderTextures, handle, AssetType::RenderTexture);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     Bool AssetSystem::ReadShader(const AssetRecord& record, ShaderAssetData& data)
     {
         if (m_source == nullptr)
@@ -1072,6 +1096,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::RenderTexture:
+                if (Slot<RenderTextureData>* slot = FindSlot(m_renderTextures, handle, AssetType::RenderTexture))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             case AssetType::Shader:
                 if (Slot<ShaderAssetData>* slot = FindSlot(m_shaders, handle, AssetType::Shader))
                 {
@@ -1203,6 +1234,16 @@ namespace JBro
             handle = Occupy(m_postProcessProfiles, AssetType::PostProcessProfile, id, std::move(data));
             break;
         }
+        case AssetType::RenderTexture:
+        {
+            RenderTextureData data;
+            if (false == ReadRenderTexture(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_renderTextures, AssetType::RenderTexture, id, std::move(data));
+            break;
+        }
         case AssetType::Shader:
         {
             ShaderAssetData data;
@@ -1308,6 +1349,14 @@ namespace JBro
             }
             return;
         }
+        if (Slot<RenderTextureData>* target = FindSlot(m_renderTextures, handle, AssetType::RenderTexture))
+        {
+            if (target->referenceCount != 0)
+            {
+                --target->referenceCount;
+            }
+            return;
+        }
         if (Slot<ShaderAssetData>* shader = FindSlot(m_shaders, handle, AssetType::Shader))
         {
             if (shader->referenceCount != 0)
@@ -1342,6 +1391,7 @@ namespace JBro
             || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr
             || FindSlot(m_colorLuts, handle, AssetType::ColorLut) != nullptr
             || FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile) != nullptr
+            || FindSlot(m_renderTextures, handle, AssetType::RenderTexture) != nullptr
             || FindSlot(m_shaders, handle, AssetType::Shader) != nullptr
             || FindSlot(m_materials, handle, AssetType::Material) != nullptr;
     }
@@ -1383,6 +1433,10 @@ namespace JBro
         if (const Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
         {
             return profile->referenceCount;
+        }
+        if (const Slot<RenderTextureData>* target = FindSlot(m_renderTextures, handle, AssetType::RenderTexture))
+        {
+            return target->referenceCount;
         }
         if (const Slot<ShaderAssetData>* shader = FindSlot(m_shaders, handle, AssetType::Shader))
         {
@@ -1535,6 +1589,17 @@ namespace JBro
             profile->data = std::move(fresh);
             return true;
         }
+        if (Slot<RenderTextureData>* target = FindSlot(m_renderTextures, *loaded, AssetType::RenderTexture))
+        {
+            RenderTextureData fresh;
+            if (false == ReadRenderTexture(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = target->data.dataGeneration + 1;
+            target->data = std::move(fresh);
+            return true;
+        }
         if (Slot<ShaderAssetData>* shader = FindSlot(m_shaders, *loaded, AssetType::Shader))
         {
             ShaderAssetData fresh;
@@ -1666,6 +1731,15 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_postProcessProfiles, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_renderTextures.slots.Size(); ++index)
+        {
+            Slot<RenderTextureData>& slot = m_renderTextures.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_renderTextures, index);
                 ++freed;
             }
         }

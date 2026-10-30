@@ -665,4 +665,19 @@
    - 찾은 것: 시나리오의 합성 Ctrl+V 가 V 를 뗀 이벤트(Ctrl 붙음)만 넣어 입력 상태에 Ctrl 이 남았고, 그 뒤 실제 확정 글자가 단축키로 읽혀 버려졌다 - 실제 키보드는 Ctrl 을 떼는 이벤트가
      오므로 시험이 Ctrl 뗌을 더 넣었다(엔진은 고치지 않았다).
    - 열림: 후보 창(한자 변환 따위)의 모양과 자리는 사람이 봐야 한다 - `SetTextInputArea` 가 주는 자리는 시험이 숫자로 본다(D-355).
+4. ~~**렌더 텍스처**~~ → 완료 2026-10-31 · 에셋 `RenderTexture`(`.jrt`)·`RenderTextureFile`(`ParseRenderTexture`·`WriteRenderTexture`)·`AssetSystem` 의 풀(`RenderTextureData`, 로드·참조·재로드·정리),
+   렌더러 `RegisterRenderTarget`·`GetRenderTargetTexture`(`TextureResource.renderTarget`), `SpriteLibrary::ResolveRenderTexture`(에셋 슬롯마다, `dataGeneration` 이 오르면 지우고 다시 만듦),
+   `RenderCamera2D.renderTexture`·`target`·`targetExtent`·`targetSprite`, `Framework2D::ResolveCameraTargets`(추출 뒤), 브리지(렌더 텍스처 카메라가 먼저, 대상 크기로 잰 뷰포트, 디버그 선 없음,
+   `excludeTexture` 로 제 텍스처의 스프라이트를 뺌, 첫 화면 카메라가 지움), `Camera2DSystem` 의 주·포인터 카메라 고르기에서 뺌, `SpriteRender2DSystem` 의 렌더 텍스처 먼저 풀기,
+   `Camera2D.renderTextureId`·`SpriteRenderer2D.renderTextureId`(핸들 `GetRenderTexture`·`SetRenderTexture`). 에디터: 에셋 브라우저 아이콘·`새 렌더 텍스처`(256 x 256)·인스펙터의 `width`·`height`·
+   `filter`(파일에 적는 커맨드, 실행 취소 됨, 제자리 재로드), 공용 위젯 `WrappedHintText`.
+   - **잰 것**: `SpriteDrawMode` `TestRenderTexturesShowWhatTheirCameraDrew` - `.jrt` 는 RenderTexture, `renderTextureId` 도, 빈 글자는 256 x 256 Linear, 0·99999 는 1·4096, 왕복, 깨진 YAML 은 까닭과 함께 거절.
+     그림(D3D12 64 x 64): 미니맵 카메라(primary 로 둬도)는 화면의 주 카메라가 아니고, 화면 가운데 (32, 32) 가 미니맵이 그린 빨강, (19, 19)·(44, 44) 가 미니맵의 초록 바탕, (5, 5)·(58, 32) 는 주 카메라의
+     검정(미니맵 카메라는 화면에 그리지 않음), 파일을 64 x 64 로 바꿔 제자리 재로드해도 같은 그림, 렌더 텍스처를 떼면 미니맵 카메라가 화면으로 돌아와 (5, 5) 가 초록. `HeaderSelfContainment`(새 헤더와
+     앞서 빠진 셋 - `PixelFields`·`GroupState2D`·`Tween2DSystem`)·`BuiltinComponentProperty`(카메라 15·스프라이트 19)·`ScriptApiCatalog`·`EditorLocalization`·`Asset`·`AssetRegistry`·`CanvasFile`·`RendererContract` 통과.
+     **실제 에디터**: 에셋 목록 우클릭 메뉴에 `새 렌더 텍스처`가 서고, 누르면 `NewRenderTexture.jrt` 가 생겨 골라지며 인스펙터에 `width 256`·`height 256`·`filter Linear` 와 안내가 보인다(스크린숏을 봤다).
+   - 찾은 것: 처음 판은 미니맵 텍스처를 보이는 스프라이트가 미니맵 카메라의 뷰에도 제출되어, 그 뷰가 그리는 텍스처를 읽으려다 RHI 가 거절해 프레임이 실패했다 - 브리지가 그 뷰에서 그 텍스처의 스프라이트를 뺀다.
+     인스펙터의 안내 글이 한 줄로 잘렸다 - 줄바꿈하는 `WrappedHintText` 로 바꿨다. 헤더 자기완결 생성기를 돌리니 3 부의 새 헤더 셋이 빠져 있었다 - 함께 넣었다.
+   - 정한 것: 렌더 텍스처를 보이는 스프라이트의 기본 크기는 픽셀 / 100 이다(스프라이트 에셋의 기본 PPU 와 같다). 자기 그림을 다시 비추는 거울(같은 텍스처를 읽고 그리기)은 되지 않는다 - 한 프레임 늦은
+     사본이 든다(열림).
 

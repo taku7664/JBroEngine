@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
@@ -51,6 +52,10 @@ namespace JBro
             SpriteFrameView* frameView = nullptr);
 
         UInt32 GetUploadedTextureCount() const;
+        // **렌더 텍스처 에셋을 렌더러의 렌더 타깃으로 푼다**(D-362). 처음 만날 때 만들고, 에셋이 재로드되면(크기·필터) 지우고 다시 만든다. 스프라이트에 넣을 텍스처
+        // 핸들, 뷰의 대상, 크기(픽셀), 샘플러를 준다. 풀리지 않으면 거짓이고 출력은 손대지 않는다. 렌더러 프레임 밖에서만 부른다.
+        Bool ResolveRenderTexture(AssetHandle renderTextureAsset, AssetHandle& spriteTexture, TextureHandle& target, Extent2D& extent, TextureFilter& filter);
+        UInt32 GetRenderTargetCount() const;
 
     private:
         struct TextureEntry
@@ -70,5 +75,16 @@ namespace JBro
         Renderer* m_renderer = nullptr;
         // 텍스처 에셋의 슬롯 번호로 찍는다.
         Array<TextureEntry> m_textures;
+        // 렌더 텍스처 에셋의 슬롯 번호로 찍는다(D-362).
+        struct RenderTargetEntry
+        {
+            AssetHandle asset;
+            AssetHandle spriteTexture;
+            Extent2D extent;
+            TextureFilter filter = TextureFilter::Linear;
+            UInt32 dataGeneration = 0;
+            UInt32 failedGeneration = 0;
+        };
+        Array<RenderTargetEntry> m_renderTargets;
     };
 }

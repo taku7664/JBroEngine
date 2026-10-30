@@ -53,5 +53,9 @@ namespace JBro::Component
         // **이 카메라의 후처리 프로필**(`.jpost`, D-344). 비어 있으면 후처리가 없다. 게임 화면과 캔버스 뷰(단추로 끌 수 있다)가 이 프로필을 건다.
         JBRO_FIELD(AssetId, postProcessProfileId);
         JBRO_FIELD(AssetHandle, postProcessProfile, NoSerialize() | ReadOnly() | Hidden());
+        // **렌더 텍스처**(`.jrt`, D-362). 있으면 이 카메라는 화면 대신 그 텍스처에 그린다(뷰포트는 텍스처 안의 비율) - 스프라이트의 `renderTextureId` 가 같은 에셋을 보이면
+        // 미니맵·초상화가 된다. 그런 카메라는 주 카메라·포인터의 카메라가 되지 않고, 화면의 카메라보다 먼저 그린다.
+        JBRO_FIELD(AssetId, renderTextureId);
+        JBRO_FIELD(AssetHandle, renderTexture, NoSerialize() | ReadOnly() | Tooltip("renderTextureId 에서 해석된 값") | Hidden());
     };
 }

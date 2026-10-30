@@ -6,6 +6,7 @@
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Graphics/PostProcess.h>
+#include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Math2D.h>
 
@@ -42,6 +43,13 @@ namespace JBro
         Int32 depth = 0;
         // 앞 뷰가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
         Bool clearViewport = true;
+        // **렌더 텍스처**(D-362). 에셋이 있으면 이 카메라는 화면이 아니라 그 텍스처에 그린다 - 프레임워크가 `target`·`targetExtent` 를 채우고, 브리지는 화면의 카메라보다 먼저 그린다.
+        // 그런 카메라는 주 카메라·포인터의 카메라가 아니다.
+        AssetHandle renderTexture;
+        TextureHandle target;
+        Extent2D targetExtent;
+        // 그 렌더 타깃의 스프라이트 텍스처 핸들이다 - 이 카메라의 뷰는 이것을 쓰는 스프라이트를 그리지 않는다(제 대상을 읽을 수 없다).
+        AssetHandle targetSprite;
     };
 
     struct SpriteRenderItem
@@ -140,6 +148,8 @@ namespace JBro
         void ClearCameras();
         void AddCamera(const RenderCamera2D& camera);
         ArrayView<const RenderCamera2D> GetCameras() const;
+        // 카메라의 렌더 텍스처 대상을 채운다(D-362). 프레임워크가 추출 뒤 렌더러 프레임 밖에서 부른다. 자리 밖이면 아무것도 하지 않는다.
+        void SetCameraTarget(std::size_t index, TextureHandle target, const Extent2D& extent, AssetHandle targetSprite);
         // **이번 카메라의 후처리**(D-344). 프레임워크가 카메라의 프로필을 풀어 건다 - 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다.
         // `BeginFrame` 이 비우지 않는다: 멈춘 동안의 추출(중단점)에서도 지난 값이 그대로 산다.
         void SetPostProcess(const PostProcessStack& stack)

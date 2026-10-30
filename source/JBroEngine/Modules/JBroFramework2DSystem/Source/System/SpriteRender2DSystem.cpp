@@ -71,8 +71,33 @@ namespace JBro::System
             // 해석 패스가 채운 에셋 핸들을 렌더러 텍스처와 칸으로 푼다. 이 시점은 렌더러 프레임 밖(Update)이라
             // 처음 만난 텍스처의 업로드가 여기서 일어난다. 풀리지 않으면 흰색이다.
             SpriteFrameView frame;
-            Bool resolved = m_spriteLibrary != nullptr && sprite.sprite.generation != 0
-                && m_spriteLibrary->Resolve(sprite.sprite, sprite.frameIndex, item.texture, item.uvRect, &frame);
+            Bool resolved = false;
+            // 렌더 텍스처(D-362)가 먼저다 - 카메라가 그린 텍스처 전체를 보인다. 크기는 픽셀 / 100 유닛(화면 레이어는 픽셀), 피벗은 가운데다.
+            if (m_spriteLibrary != nullptr && sprite.renderTexture.generation != 0)
+            {
+                TextureHandle target;
+                Extent2D extent;
+                TextureFilter filter = TextureFilter::Linear;
+                if (m_spriteLibrary->ResolveRenderTexture(sprite.renderTexture, item.texture, target, extent, filter))
+                {
+                    constexpr Float RenderTexturePixelsPerUnit = 100.0f;
+                    item.uvRect[0] = 0.0f;
+                    item.uvRect[1] = 0.0f;
+                    item.uvRect[2] = 1.0f;
+                    item.uvRect[3] = 1.0f;
+                    frame.widthPixels = static_cast<JBro::Float>(extent.width);
+                    frame.heightPixels = static_cast<JBro::Float>(extent.height);
+                    frame.widthUnits = frame.widthPixels / RenderTexturePixelsPerUnit;
+                    frame.heightUnits = frame.heightPixels / RenderTexturePixelsPerUnit;
+                    frame.filter = filter;
+                    resolved = true;
+                }
+            }
+            if (false == resolved)
+            {
+                resolved = m_spriteLibrary != nullptr && sprite.sprite.generation != 0
+                    && m_spriteLibrary->Resolve(sprite.sprite, sprite.frameIndex, item.texture, item.uvRect, &frame);
+            }
             if (false == resolved)
             {
                 item.texture = {};

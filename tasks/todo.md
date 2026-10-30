@@ -3067,6 +3067,10 @@ EditorApplication::Tick
       `display` 의 강조 범위로 선택을 보인다.
   (3) 실제 IME: 시험 프로세스 안에서 한국어 자판을 올리고(`LoadKeyboardLayoutW("00000412")`) IMM(`ImmSetCompositionStringW`·`ImmNotifyIME`)으로 조합·확정·취소하면 IME 가 진짜
       `WM_IME_*` 를 보낸다. 플랫폼 시험(보통·인라인)과 사용자 시나리오 E(실제 에디터 창 → 글자 칸)가 이것을 쓴다. 한국어 IME 가 없는 기계는 건너뛴다. 후보 창의 모양·자리는 사람이 본다.
+  (4) 렌더 텍스처: 새 에셋 종류 `RenderTexture`(`.jrt`, 본문은 `Width`·`Height`(1..4096)·`Filter`(Nearest·Linear) YAML, `RenderTextureFile`). 렌더러 `RegisterRenderTarget`(백버퍼 포맷,
+      그리기·샘플링)·`GetRenderTargetTexture`, `SpriteLibrary::ResolveRenderTexture`(처음 만날 때 만들고 재로드면 다시 만든다). `Camera2D.renderTextureId` 면 그 카메라는 화면 대신 그 텍스처에 그린다 -
+      주 카메라·포인터 카메라가 아니고, 브리지가 화면 카메라보다 먼저 그리며, 그 뷰는 제 텍스처를 쓰는 스프라이트를 빼고 그린다(그리는 텍스처를 같은 패스에서 읽을 수 없다).
+      `SpriteRenderer2D.renderTextureId` 면 스프라이트 대신 그 텍스처 전체를 보인다(크기는 픽셀 / 100 유닛, 화면 레이어는 픽셀). 에디터는 `새 렌더 텍스처` 메뉴와 인스펙터의 `width`·`height`·`filter` 를 준다.
 
 - **D-361. 3·4 부가 열림으로 남긴 것 가운데 엔진 안에서 되는 것을 세운다 - 끌기 올리기는 올린 오브젝트만 내리고, 가변 목록은 늘어난 항목만 재며, 글자 칸은 조합 밑줄·더블 클릭 단어 선택·Ctrl+Z 한 단계를 얻고, 그룹은 `blocksRaycasts` 로 포인터만 막을 수 있고, 후처리 프로필은 카메라마다 풀며, 컴포넌트 추가 목록의 UI 갈래를 `UI`·`UI 배치` 로 나눈다. 3D 의 화면 레이어·렌더 텍스처·둘째 뷰의 지우기·실제 IME 실측은 남긴다.**
   (2026-10-30, [ui-plan.md](./ui-plan.md) §7.7. 사용자 지시 "남은거 해")

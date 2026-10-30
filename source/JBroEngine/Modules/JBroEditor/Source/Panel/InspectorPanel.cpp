@@ -36,6 +36,7 @@
 #include <JBro/Editor/Widget/ComponentDrag.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
 #include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/Asset/RenderTextureFile.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioMixer.h>
@@ -1656,6 +1657,11 @@ namespace JBro
             DrawShader(meta);
             ImGui::Spacing();
         }
+        if (meta.type == AssetType::RenderTexture)
+        {
+            DrawRenderTexture(meta);
+            ImGui::Spacing();
+        }
         if (AssetTypeRules::IsImageType(meta.type))
         {
             if (Widget::IconButton("##open_in_viewer", Icons::OpenExternal)
@@ -1949,6 +1955,46 @@ namespace JBro
             return;
         }
         m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, m_profileText, after, "Edit Post-Process Profile"));
+    }
+
+    void InspectorPanel::DrawRenderTexture(const AssetMetaFile& meta)
+    {
+        String text;
+        RenderTextureSettings settings;
+        if (false == m_editor->ReadAssetSourceText(meta.id, text) || false == ParseRenderTexture(text.data(), text.size(), settings))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorRenderTextureUnreadable, "This render texture could not be read"));
+            return;
+        }
+        Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorRenderTextureHint, "Set it as a camera's renderTextureId to draw into it, and as a sprite's renderTextureId to show it"));
+        Bool changed = false;
+        {
+            Widget::FormLayout layout("##render_texture");
+            // 필드 이름 그대로 보인다(컴포넌트 필드와 같다).
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorRenderTextureWidth, "width")), [&]() {
+                changed = Widget::DragField<UInt32>("##width", settings.width).Range(1u, RenderTextureSettings::MaxSide).Draw() || changed;
+            });
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorRenderTextureHeight, "height")), [&]() {
+                changed = Widget::DragField<UInt32>("##height", settings.height).Range(1u, RenderTextureSettings::MaxSide).Draw() || changed;
+            });
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorRenderTextureFilter, "filter")), [&]() {
+                changed = Widget::EnumCombo("##filter", *TypeDescriptorOf<TextureFilter>::Get().enumNames, &settings.filter) || changed;
+            });
+        }
+        if (false == changed)
+        {
+            return;
+        }
+        AssetSourceTarget target;
+        if (false == m_editor->DescribeAssetSource(meta.id, target))
+        {
+            return;
+        }
+        const String after = WriteRenderTexture(settings);
+        if (after != text)
+        {
+            m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, text, after, "Edit Render Texture"));
+        }
     }
 
     void InspectorPanel::DrawMaterial(const AssetMetaFile& meta)

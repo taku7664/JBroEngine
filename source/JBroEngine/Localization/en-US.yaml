@@ -100,6 +100,7 @@ Entries:
   canvas_view.post_process: "Post-processing"
   canvas_view.post_process_tooltip: "show the canvas view through the game camera's post-process profile, or without it"
   assets.new_post_process_profile: "New Post-Process Profile"
+  assets.new_render_texture: "New Render Texture"
   inspector.post_process_effects: "Post-Process Effects"
   inspector.post_process_empty: "No effects yet"
   inspector.post_process_add: "Add Effect"
@@ -118,6 +119,11 @@ Entries:
   inspector.material_no_parameters: "The shader has no parameters"
   inspector.material_override_tooltip: "Write this value into the material. Off uses the shader's initial value"
   inspector.material_unreadable: "This material could not be read"
+  inspector.render_texture_unreadable: "This render texture could not be read"
+  inspector.render_texture_hint: "Set it as a camera's renderTextureId to draw into it, and as a sprite's renderTextureId to show it"
+  inspector.render_texture_width: width
+  inspector.render_texture_height: height
+  inspector.render_texture_filter: filter
   inspector.material_broken: "The material's text is broken. Fix the file to edit it here"
   inspector.shader_open: "Open in Editor"
   inspector.shader_domain_error: "Could not be compiled for this domain"

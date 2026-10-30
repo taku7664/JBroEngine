@@ -114,6 +114,8 @@ namespace JBro
         // 레이어 효과 자리의 처음 크기다(레이어 수). 넘으면 그때 늘린다.
         static constexpr UInt32 LayerPostProcessCapacity = 64;
         void ResolvePostProcess();
+        // 렌더 텍스처에 그리는 카메라(D-362)의 대상을 스프라이트 라이브러리로 풀어 렌더 월드에 건다. 추출 뒤, 렌더러 프레임 밖이다.
+        void ResolveCameraTargets();
         // 카메라 하나의 프로필에 그 자리의 볼륨을 섞고 덮어쓰기를 얹는다(D-346·D-361). `overridesFrom` 이 있으면 그 섞기의 덮어쓰기를 받는다.
         void MixPostProcessFor(const RenderCamera2D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom);
         // 복제 풀 어댑터들(D-122). 네트워크가 있을 때만 있고, 캔버스와 함께 죽는다.

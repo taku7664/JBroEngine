@@ -49,6 +49,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
+#include <JBro/Asset/RenderTextureFile.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -2824,6 +2825,21 @@ namespace JBro
     {
         // 효과가 없는 프로필이다. 카메라에 걸어도 그림이 바뀌지 않는다 - 효과는 인스펙터의 `효과 추가` 로 더한다.
         const String created = WriteNewAssetFile(folder, "NewPostProcess", ".jpost", WritePostProcessProfile({}));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    String EditorApplication::CreateRenderTextureAsset(const char* folder)
+    {
+        const String created = WriteNewAssetFile(folder, "NewRenderTexture", ".jrt", WriteRenderTexture({}));
         if (created.empty())
         {
             return created;

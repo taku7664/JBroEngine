@@ -4,6 +4,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ColorLutFile.h>
+#include <JBro/Asset/RenderTextureFile.h>
 #include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
@@ -124,6 +125,13 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
+    // 로드된 렌더 텍스처(`.jrt`, D-362)의 크기와 샘플러다. `dataGeneration` 은 in-place 재로드마다 오른다 - 스프라이트 라이브러리가 그것을 보고 타깃을 다시 만든다.
+    struct RenderTextureData
+    {
+        RenderTextureSettings settings;
+        UInt32 dataGeneration = 1;
+    };
+
     // 로드된 후처리 프로필(`.jpost`, D-344)의 본문 글자다. 풀어 쓰는 것은 그래픽 모듈의 `PostProcessLibrary` 다(효과 종류 표가 거기 있다).
     struct PostProcessProfileData
     {
@@ -240,6 +248,7 @@ namespace JBro
         const AudioEffectData* GetAudioEffect(AssetHandle handle) const;
         const ColorLutData* GetColorLut(AssetHandle handle) const;
         const PostProcessProfileData* GetPostProcessProfile(AssetHandle handle) const;
+        const RenderTextureData* GetRenderTexture(AssetHandle handle) const;
         const ShaderAssetData* GetShader(AssetHandle handle) const;
         const MaterialAssetData* GetMaterial(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
@@ -312,6 +321,7 @@ namespace JBro
         Bool ReadAudioEffect(const AssetRecord& record, AudioEffectData& data);
         Bool ReadColorLut(const AssetRecord& record, ColorLutData& data);
         Bool ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data);
+        Bool ReadRenderTexture(const AssetRecord& record, RenderTextureData& data);
         Bool ReadShader(const AssetRecord& record, ShaderAssetData& data);
         Bool ReadMaterial(const AssetRecord& record, MaterialAssetData& data);
         void NotifyAudioRelease(UInt32 slotIndex);
@@ -342,6 +352,7 @@ namespace JBro
         Pool<AudioEffectData> m_audioEffects;
         Pool<ColorLutData> m_colorLuts;
         Pool<PostProcessProfileData> m_postProcessProfiles;
+        Pool<RenderTextureData> m_renderTextures;
         Pool<ShaderAssetData> m_shaders;
         Pool<MaterialAssetData> m_materials;
         AudioReleaseCallback m_audioRelease = nullptr;

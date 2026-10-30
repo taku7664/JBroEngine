@@ -61,6 +61,7 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewPostProcess = "canvas_view.post_process";
     inline constexpr const char* CanvasViewPostProcessTooltip = "canvas_view.post_process_tooltip";
     inline constexpr const char* AssetsNewPostProcessProfile = "assets.new_post_process_profile";
+    inline constexpr const char* AssetsNewRenderTexture = "assets.new_render_texture";
     inline constexpr const char* InspectorPostProcessEffects = "inspector.post_process_effects";
     inline constexpr const char* InspectorPostProcessEmpty = "inspector.post_process_empty";
     inline constexpr const char* InspectorPostProcessAdd = "inspector.post_process_add";
@@ -79,6 +80,11 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorMaterialNoParameters = "inspector.material_no_parameters";
     inline constexpr const char* InspectorMaterialOverrideTooltip = "inspector.material_override_tooltip";
     inline constexpr const char* InspectorMaterialUnreadable = "inspector.material_unreadable";
+    inline constexpr const char* InspectorRenderTextureUnreadable = "inspector.render_texture_unreadable";
+    inline constexpr const char* InspectorRenderTextureHint = "inspector.render_texture_hint";
+    inline constexpr const char* InspectorRenderTextureWidth = "inspector.render_texture_width";
+    inline constexpr const char* InspectorRenderTextureHeight = "inspector.render_texture_height";
+    inline constexpr const char* InspectorRenderTextureFilter = "inspector.render_texture_filter";
     inline constexpr const char* InspectorMaterialBroken = "inspector.material_broken";
     inline constexpr const char* InspectorShaderOpen = "inspector.shader_open";
     inline constexpr const char* InspectorShaderDomainError = "inspector.shader_domain_error";

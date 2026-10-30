@@ -3521,6 +3521,16 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Camera2D::*)() const>(&Handle::Camera2D::GetRenderTexture)>("GetRenderTexture", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Camera2D::*)(AssetHandle)>(&Handle::Camera2D::SetRenderTexture)>("SetRenderTexture", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Camera2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -4739,6 +4749,16 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<void (Handle::SpriteRenderer2D::*)(Component::SpriteFillOrigin)>(&Handle::SpriteRenderer2D::SetFillOrigin)>("SetFillOrigin", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::SpriteRenderer2D::*)() const>(&Handle::SpriteRenderer2D::GetRenderTexture)>("GetRenderTexture", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::SpriteRenderer2D::*)(AssetHandle)>(&Handle::SpriteRenderer2D::SetRenderTexture)>("SetRenderTexture", Parameters(In("value")));
         member.MutatesReceiver = true;
         member.MayInvalidateHandles = true;
         type.Members.Add(std::move(member));

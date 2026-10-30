@@ -77,9 +77,8 @@ namespace
         Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
         Check(Table("Component::ScrollView2D").count == 10, "ScrollView2D declares ten fields - content, its size, two scrollbars, two axes, sensitivity, deceleration and two states (D-351, D-355)");
         Check(Table("Component::Toggle2D").count == 23, "Toggle2D declares twenty-three fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), isOn, checkmark and four states (D-351, focused of D-352)");
-        Check(Table("Component::Camera2D").count == 13, "Camera2D declares thirteen fields - pixelsPerUnit of D-239, the post-process profile pair of D-344, then the viewport and depth of D-359, and clearViewport (D-362)");
-        Check(Table("Component::SpriteRenderer2D").count == 17,
-            "SpriteRenderer2D declares seventeen fields - the hidden drawSequence of D-296, then drawMode, fillAmount and fillOrigin of D-351");
+        Check(Table("Component::Camera2D").count == 15, "Camera2D declares fifteen fields - pixelsPerUnit of D-239, the post-process profile pair of D-344, then the viewport and depth of D-359, and clearViewport (D-362), and the render texture id and handle (D-362)");
+        Check(Table("Component::SpriteRenderer2D").count == 19, "SpriteRenderer2D declares nineteen fields - the hidden drawSequence of D-296, then drawMode, fillAmount and fillOrigin of D-351, and the render texture id and handle (D-362)");
         Check(Table("Component::Text2D").count == 26, "Text2D declares twenty-six fields - with the hidden drawSequence of D-296, and the highlight range and colour (D-362)");
         Check(Table("Component::Rigidbody2D").count == 11,
             "Rigidbody2D declares eleven fields - the seven of D-199, then angular damping, the axis locks of D-227 and canSleep of D-229");

@@ -32,8 +32,16 @@ namespace JBro
                     m_renderer->UnregisterTexture(m_textures[index].rendererTexture);
                 }
             }
+            for (std::size_t index = 0; index < m_renderTargets.Size(); ++index)
+            {
+                if (m_renderTargets[index].spriteTexture.generation != 0)
+                {
+                    m_renderer->UnregisterTexture(m_renderTargets[index].spriteTexture);
+                }
+            }
         }
         m_textures.Clear();
+        m_renderTargets.Clear();
         m_assets = nullptr;
         m_renderer = nullptr;
     }
@@ -156,6 +164,70 @@ namespace JBro
             frameView->filter = texture->filter;
         }
         return true;
+    }
+
+    Bool SpriteLibrary::ResolveRenderTexture(AssetHandle renderTextureAsset, AssetHandle& spriteTexture, TextureHandle& target, Extent2D& extent,
+        TextureFilter& filter)
+    {
+        if (m_assets == nullptr || m_renderer == nullptr || renderTextureAsset.generation == 0)
+        {
+            return false;
+        }
+        const RenderTextureData* data = m_assets->GetRenderTexture(renderTextureAsset);
+        if (data == nullptr)
+        {
+            return false;
+        }
+        const std::size_t slot = renderTextureAsset.index;
+        if (slot >= m_renderTargets.Size())
+        {
+            m_renderTargets.Resize(slot + 1);
+        }
+        RenderTargetEntry& entry = m_renderTargets[slot];
+        const Bool same = entry.asset.index == renderTextureAsset.index && entry.asset.generation == renderTextureAsset.generation;
+        if (false == same || entry.dataGeneration != data->dataGeneration)
+        {
+            // 다른 에셋이 슬롯을 쓰거나 크기가 바뀌었다 - 지우고 다시 만든다. 같은 세대가 한 번 실패했으면 다시 해 보지 않는다.
+            if (same && entry.failedGeneration == data->dataGeneration)
+            {
+                return false;
+            }
+            if (entry.spriteTexture.generation != 0)
+            {
+                m_renderer->UnregisterTexture(entry.spriteTexture);
+            }
+            entry = RenderTargetEntry{};
+            entry.asset = renderTextureAsset;
+            entry.extent = Extent2D{data->settings.width.Get(), data->settings.height.Get()};
+            entry.filter = data->settings.filter == TextureFilter::Nearest ? TextureFilter::Nearest : TextureFilter::Linear;
+            entry.spriteTexture = m_renderer->RegisterRenderTarget(entry.extent);
+            entry.dataGeneration = data->dataGeneration;
+            if (entry.spriteTexture.generation == 0)
+            {
+                entry.failedGeneration = data->dataGeneration;
+                return false;
+            }
+        }
+        const TextureHandle texture = m_renderer->GetRenderTargetTexture(entry.spriteTexture);
+        if (false == texture.IsValid())
+        {
+            return false;
+        }
+        spriteTexture = entry.spriteTexture;
+        target = texture;
+        extent = entry.extent;
+        filter = entry.filter;
+        return true;
+    }
+
+    UInt32 SpriteLibrary::GetRenderTargetCount() const
+    {
+        UInt32 count = 0;
+        for (const RenderTargetEntry& entry : m_renderTargets)
+        {
+            count += entry.spriteTexture.generation != 0 ? 1u : 0u;
+        }
+        return count;
     }
 
     UInt32 SpriteLibrary::GetUploadedTextureCount() const

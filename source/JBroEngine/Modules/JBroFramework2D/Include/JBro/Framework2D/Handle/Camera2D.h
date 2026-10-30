@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Framework2D/ComponentTypes2D.h>
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/ComponentHandleReflection.h>
@@ -58,6 +59,9 @@ namespace JBro::Handle
         // 앞 카메라가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
         Bool GetClearViewport() const;
         void SetClearViewport(Bool value);
+        // 그리는 렌더 텍스처(D-362)다. 이번 실행의 에셋 자리(`AssetHandle`)이고 비면 화면에 그린다.
+        AssetHandle GetRenderTexture() const;
+        void SetRenderTexture(AssetHandle value);
 
     private:
         Component::Camera2D* Resolve(const char* operation) const;

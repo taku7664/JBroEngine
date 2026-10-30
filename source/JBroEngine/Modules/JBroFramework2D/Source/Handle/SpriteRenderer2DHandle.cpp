@@ -49,6 +49,22 @@ namespace JBro::Handle
         return component->materialId;
     }
 
+    AssetHandle SpriteRenderer2D::GetRenderTexture() const
+    {
+        const Component::SpriteRenderer2D* component = Resolve("GetRenderTexture");
+        return component != nullptr ? component->renderTexture : AssetHandle{};
+    }
+
+    void SpriteRenderer2D::SetRenderTexture(AssetHandle value)
+    {
+        Component::SpriteRenderer2D* component = Resolve("SetRenderTexture");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->renderTexture = value;
+    }
+
     AssetHandle SpriteRenderer2D::GetMaterial() const
     {
         const Component::SpriteRenderer2D* component = Resolve("GetMaterial");

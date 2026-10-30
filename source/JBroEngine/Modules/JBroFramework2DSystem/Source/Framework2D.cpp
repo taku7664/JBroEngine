@@ -274,6 +274,7 @@ namespace JBro
             SetSteppedSystemsEnabled(false);
         }
         m_renderWorld.EndFrame();
+        ResolveCameraTargets();
         ResolvePostProcess();
     }
 
@@ -319,6 +320,31 @@ namespace JBro
             mixer.CopyOverridesFrom(*overridesFrom);
         }
         mixer.ApplyOverrides();
+    }
+
+    void Framework2D::ResolveCameraTargets()
+    {
+        const ArrayView<const RenderCamera2D> cameras = m_renderWorld.GetCameras();
+        for (std::size_t index = 0; index < cameras.Size(); ++index)
+        {
+            const RenderCamera2D& camera = cameras[static_cast<UInt32>(index)];
+            if (camera.renderTexture.generation == 0)
+            {
+                continue;
+            }
+            AssetHandle spriteTexture;
+            TextureHandle target;
+            Extent2D extent;
+            TextureFilter filter = TextureFilter::Linear;
+            if (m_spriteLibrary.ResolveRenderTexture(camera.renderTexture, spriteTexture, target, extent, filter))
+            {
+                m_renderWorld.SetCameraTarget(index, target, extent, spriteTexture);
+            }
+            else
+            {
+                m_renderWorld.SetCameraTarget(index, {}, {}, {});
+            }
+        }
     }
 
     void Framework2D::ResolvePostProcess()
@@ -479,6 +505,7 @@ namespace JBro
             }
         }
         m_renderWorld.EndFrame();
+        ResolveCameraTargets();
         ResolvePostProcess();
     }
 

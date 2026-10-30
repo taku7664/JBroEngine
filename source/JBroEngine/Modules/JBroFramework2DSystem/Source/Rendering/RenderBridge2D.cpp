@@ -139,6 +139,8 @@ namespace JBro::Internal
             Bool lighting = false;
             // 0 이상이면 이 레이어 차례의 아이템만 넣는다(썸네일, D-288).
             Int32 layerOrder = -1;
+            // 이 텍스처를 쓰는 아이템은 넣지 않는다(D-362). 렌더 텍스처 카메라의 뷰는 제 대상을 읽을 수 없다 - 그 텍스처를 보이는 스프라이트를 뺀다.
+            AssetHandle excludeTexture;
         };
 
         // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
@@ -220,6 +222,11 @@ namespace JBro::Internal
                     continue;
                 }
                 if (item.screenSpace != rule.screenSpace || (false == rule.anyScaleMode && item.scaleMode != rule.scaleMode))
+                {
+                    continue;
+                }
+                if (rule.excludeTexture.generation != 0 && item.texture.index == rule.excludeTexture.index
+                    && item.texture.generation == rule.excludeTexture.generation)
                 {
                     continue;
                 }
@@ -719,8 +726,20 @@ namespace JBro::Internal
         const auto drawCamera = [&](const RenderCamera2D& camera, Bool first, std::size_t index) -> RenderResult
         {
             ScreenSpaceFrame frame = base;
+            // 렌더 텍스처에 그리는 카메라(D-362)는 그 텍스처가 대상이다 - 크기·뷰포트를 그 텍스처로 잰다.
+            const Bool toTexture = camera.target.IsValid() && camera.targetExtent.width != 0 && camera.targetExtent.height != 0;
+            if (toTexture)
+            {
+                frame.targetWidth = static_cast<JBro::Float>(camera.targetExtent.width);
+                frame.targetHeight = static_cast<JBro::Float>(camera.targetExtent.height);
+            }
             ApplyCameraViewport(camera, frame);
             CameraParams parameters;
+            if (toTexture)
+            {
+                parameters.target = camera.target;
+                parameters.targetExtent = camera.targetExtent;
+            }
             // 카메라의 후처리다(D-344). 화면 레이어는 뒤의 다른 뷰라 후처리를 받지 않는다. 분할 화면은 카메라마다 제 프로필이다(D-361) - 자리가 없으면 주 카메라의 것.
             parameters.postProcess = world.GetCameraPostProcess(index);
             // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
@@ -746,9 +765,13 @@ namespace JBro::Internal
             PushLights(world, renderer, rule.parallaxView);
             PushShadowEdges(world, renderer, rule.parallaxView);
             rule.lighting = true;
+            if (toTexture)
+            {
+                rule.excludeTexture = camera.targetSprite;
+            }
             const Bool accepted = PushSprites(world, renderer, false, rule);
-            // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
-            if (first && debugDraw != nullptr && debugDraw->IsSimulationViewVisible())
+            // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다. 렌더 텍스처에는 그리지 않는다.
+            if (first && false == toTexture && debugDraw != nullptr && debugDraw->IsSimulationViewVisible())
             {
                 PushDebugLines2D(*debugDraw, renderer,
                     2.0f * camera.orthographicSize / static_cast<JBro::Float>(renderer.GetFrameExtent().height));
@@ -759,14 +782,32 @@ namespace JBro::Internal
         const ArrayView<const RenderCamera2D> cameras = world.GetCameras();
         if (cameras.Size() > 0)
         {
+            // 렌더 텍스처에 그리는 카메라가 먼저다(D-362) - 같은 프레임에 화면의 스프라이트가 그 그림을 본다. 대상이 풀리지 않은 것은 그리지 않는다.
             for (UInt32 index = 0; index < cameras.Size(); ++index)
             {
-                if (drawCamera(cameras[index], index == 0, static_cast<std::size_t>(index.Get())) == RenderResult::Failed)
+                const RenderCamera2D& camera = cameras[index];
+                if (camera.renderTexture.generation != 0 && camera.target.IsValid()
+                    && drawCamera(camera, true, static_cast<std::size_t>(index.Get())) == RenderResult::Failed)
                 {
                     return RenderResult::Failed;
                 }
             }
-            worldSubmitted = true;
+            // 화면의 카메라다. 첫 화면 카메라가 대상을 지운다(`first`).
+            Bool firstScreen = true;
+            for (UInt32 index = 0; index < cameras.Size(); ++index)
+            {
+                const RenderCamera2D& camera = cameras[index];
+                if (camera.renderTexture.generation != 0)
+                {
+                    continue;
+                }
+                if (drawCamera(camera, firstScreen, static_cast<std::size_t>(index.Get())) == RenderResult::Failed)
+                {
+                    return RenderResult::Failed;
+                }
+                firstScreen = false;
+                worldSubmitted = true;
+            }
         }
         else if (primary != nullptr)
         {

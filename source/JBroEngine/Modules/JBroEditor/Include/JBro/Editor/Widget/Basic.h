@@ -32,6 +32,8 @@ namespace JBro::Widget
     void WrappedText(const char* text);
     // **흐린 안내 글자**다. "선택한 것이 없습니다" 처럼 값이 아니라 상태를 말하는 자리에 쓴다.
     void HintText(const char* text);
+    // 흐린 안내 글자인데 칸 끝에서 줄을 바꾼다(D-362). 문장 하나짜리 안내가 좁은 인스펙터에서 잘리지 않게 한다.
+    void WrappedHintText(const char* text);
     void HintTextFormatted(const char* format, ...) IM_FMTARGS(1);
     template<typename... Args>
     void HintTextF(const char* format, const Args&... args)

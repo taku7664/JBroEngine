@@ -764,6 +764,8 @@ namespace JBro
         String CreateSoundEffectAsset(const char* folder);
         // 빈 후처리 프로필(`.jpost`, D-344)을 만들고 고른다. 효과는 인스펙터에서 더한다.
         String CreatePostProcessProfileAsset(const char* folder);
+        // **새 렌더 텍스처**(`NewRenderTexture.jrt`, D-362)를 256 x 256 으로 쓰고 고른다. 만든 파일의 경로이고 실패하면 빈 글자다.
+        String CreateRenderTextureAsset(const char* folder);
         // **새 셰이더**(`NewShader.hlsl`, D-347)를 머티리얼 셰이더의 틀로 쓰고 고른다. **새 머티리얼**(`NewMaterial.jmat`)은 셰이더 없이 쓰고 고른다 -
         // 셰이더는 인스펙터에서 고른다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateShaderAsset(const char* folder);

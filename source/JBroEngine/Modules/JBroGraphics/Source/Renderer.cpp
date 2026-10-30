@@ -484,6 +484,52 @@ namespace JBro
         return AssetHandle{static_cast<JBro::UInt32>(m_textureResources.Size() - 1), resource.generation};
     }
 
+    AssetHandle Renderer::RegisterRenderTarget(const Extent2D& extent)
+    {
+        if (m_device == nullptr || m_frameActive || extent.width == 0 || extent.height == 0)
+        {
+            return {};
+        }
+        TextureDesc desc;
+        desc.extent = extent;
+        desc.format = m_config.backBufferFormat;
+        desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
+        TextureResource resource;
+        resource.texture = m_device->CreateTexture(desc);
+        if (false == resource.texture.IsValid())
+        {
+            return {};
+        }
+        resource.extent = extent;
+        resource.occupied = true;
+        resource.renderTarget = true;
+        for (std::size_t slot = 0; slot < m_textureResources.Size(); ++slot)
+        {
+            if (false == m_textureResources[slot].occupied)
+            {
+                resource.generation = m_textureResources[slot].generation + 1;
+                m_textureResources[slot] = resource;
+                return AssetHandle{static_cast<JBro::UInt32>(slot), resource.generation};
+            }
+        }
+        m_textureResources.Add(resource);
+        return AssetHandle{static_cast<JBro::UInt32>(m_textureResources.Size() - 1), resource.generation};
+    }
+
+    TextureHandle Renderer::GetRenderTargetTexture(AssetHandle texture) const
+    {
+        if (texture.index >= m_textureResources.Size())
+        {
+            return {};
+        }
+        const TextureResource& resource = m_textureResources[texture.index];
+        if (false == resource.occupied || false == resource.renderTarget || resource.generation != texture.generation)
+        {
+            return {};
+        }
+        return resource.texture;
+    }
+
     AssetHandle Renderer::RegisterVolumeTexture(UInt32 width, UInt32 height, UInt32 depth, JArrayView<std::byte> rgba16f)
     {
         // 텍셀 하나가 반정밀 실수 넷(8 바이트)이다.
@@ -579,6 +625,7 @@ namespace JBro
         resource.texture = {};
         resource.extent = {};
         resource.occupied = false;
+        resource.renderTarget = false;
     }
 
     UInt32 Renderer::GetTextureCount() const
