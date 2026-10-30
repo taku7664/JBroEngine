@@ -15,6 +15,17 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/PostProcessVolume3D.h>
 #include <JBro/Framework3DSystem/Rendering/PostProcessVolume3DWeight.h>
+#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Input/InputSystem.h>
+#include <JBro/ScreenUi/Rendering/SpriteSubmit2D.h>
+#include <JBro/ScreenUi/ScreenUiComponentTypes.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Layout2DSystem.h>
+#include <JBro/ScreenUi/System/Mask2DSystem.h>
+#include <JBro/ScreenUi/System/SpriteRender2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Transform2DSystem.h>
+#include <JBro/ScreenUi/System/Tween2DSystem.h>
 
 #include <cmath>
 #include <new>
@@ -44,6 +55,9 @@ namespace JBro
         Component::RegisterBuiltinComponentProperties3D();
         // 이름으로 붙이는 길도 함께 연다. 씬 파일을 읽는 쪽이 이것을 쓴다.
         Component::RegisterBuiltinComponentTypes3D();
+        // 화면 레이어의 2D 컴포넌트(D-362). 프로퍼티는 2D 의 것 전부이고(이름표일 뿐이다), 붙이는 길은 화면 UI 묶음만이다.
+        Component::RegisterBuiltinComponentProperties2D();
+        Component::RegisterScreenUiComponentTypes();
         JAllocator allocator = context.memory.persistent;
         if (allocator.allocate == nullptr || allocator.free == nullptr)
         {
@@ -61,6 +75,14 @@ namespace JBro
                 Shutdown();
                 return false;
             }
+            // 화면 레이어의 스프라이트는 렌더러가 한 프레임에 받는 만큼이다 - 2D 와 같다.
+            const auto sprites = context.renderer != nullptr ? context.renderer->GetSpriteSubmissionLimit() : UInt32(0);
+            if (false == m_screenWorld.ReserveSprites(sprites))
+            {
+                Shutdown();
+                return false;
+            }
+            m_sprites.Initialize(context.assets, context.renderer);
             m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
             m_postProcess.Initialize(context.assets, context.renderer, &m_materials);
             m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
@@ -158,11 +180,41 @@ namespace JBro
 
         m_canvas->BeginFrame();
         m_renderWorld.BeginFrame();
+        m_screenWorld.BeginFrame();
         // 바뀐 머티리얼을 다시 짓는다(D-347). 렌더러 프레임 밖이다.
         m_materials.Update();
+        System::Button2DSystem* buttons = m_canvas->GetSystems().FindSystem<System::Button2DSystem>();
+        {
+            // 화면 기준을 갱신 전에 건다 - 트랜스폼이 이번 프레임의 앵커를 잰다(D-237). 3D 카메라에는 레터박스가 없어 화면 전체다.
+            ScreenSpaceFrame frame = m_screenSpace;
+            if ((false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f)) && m_context.renderer != nullptr)
+            {
+                const Extent2D extent = m_context.renderer->GetFrameExtent();
+                frame.targetWidth = static_cast<JBro::Float>(extent.width);
+                frame.targetHeight = static_cast<JBro::Float>(extent.height);
+            }
+            m_screenWorld.SetScreenSpace(frame);
+            if (System::Transform2DSystem* transforms = m_canvas->GetSystems().FindSystem<System::Transform2DSystem>())
+            {
+                transforms->SetScreenSpace(frame);
+            }
+            if (buttons != nullptr)
+            {
+                buttons->SetScreenSpace(frame);
+            }
+        }
         // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-242). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
         // 한 프레임 진행은 3D 에 켤 스크립트·물리가 아직 없어 시간만 한 스텝 간다.
         const Bool simulating = m_simulationEnabled || m_context.time->IsStepFrame();
+        // **위젯은 고정 스텝보다 먼저 입력을 받는다**(D-214·D-362). 3D 에는 스크립트의 입력 체인이 없어 위젯 하나에 직접 넘긴다 - 위젯이 쓴 장치는
+        // 소비되어 `InputService` 의 폴링이 빈 포인터를 본다. 2D 처럼 멈춰 있으면 돌지 않는다.
+        if (simulating && buttons != nullptr && m_context.input != nullptr)
+        {
+            Canvas::IterationGuard guard(*m_canvas);
+            m_context.input->BeginDispatch();
+            m_context.input->Deliver(*buttons);
+            m_context.input->EndDispatch();
+        }
         if (simulating)
         {
             RunFixedSteps();
@@ -170,6 +222,7 @@ namespace JBro
         m_canvas->GetSystems().Update(*m_canvas, simulating ? m_context.time->GetFrameTime().deltaTime : Float(0.0f));
         m_canvas->FlushPendingDestroy();
         m_renderWorld.EndFrame();
+        m_screenWorld.EndFrame();
         // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다(D-344).
         const RenderCamera3D* camera = m_renderWorld.GetCamera();
         if (camera == nullptr)
@@ -235,7 +288,23 @@ namespace JBro
         {
             return RenderResult::Failed;
         }
-        return Internal::SubmitRenderWorld3D(m_renderWorld, *m_context.renderer, m_context.debugDraw);
+        const RenderResult world = Internal::SubmitRenderWorld3D(m_renderWorld, *m_context.renderer, m_context.debugDraw);
+        if (world == RenderResult::Failed)
+        {
+            return world;
+        }
+        // **화면 레이어는 3D 뷰를 다 그린 뒤다**(D-362). 후처리도 끝난 위라 노출·톤맵을 받지 않고, 빛도 받지 않는다. 카메라가 없어도 그린다.
+        Bool screenSubmitted = false;
+        if (false == Internal::SubmitScreenViews(m_screenWorld, *m_context.renderer, m_screenWorld.GetScreenSpace(), screenSubmitted))
+        {
+            return RenderResult::Failed;
+        }
+        return world == RenderResult::Submitted || screenSubmitted ? RenderResult::Submitted : RenderResult::NothingToSubmit;
+    }
+
+    void Framework3D::SetScreenSpace(const ScreenSpaceFrame& frame)
+    {
+        m_screenSpace = frame;
     }
 
     RenderResult Framework3D::RenderEditorView(const EditorViewDesc& view)
@@ -302,6 +371,8 @@ namespace JBro
         m_canvasAssets.Clear();
         m_canvas.Reset();
         m_meshes.Shutdown();
+        m_sprites.Shutdown();
+        m_screenWorld = {};
         m_postProcess.Shutdown();
         m_materials.Shutdown();
         m_renderWorld = {};
@@ -329,6 +400,11 @@ namespace JBro
         return m_meshes;
     }
 
+    RenderWorld2D* Framework3D::GetScreenRenderWorld()
+    {
+        return &m_screenWorld;
+    }
+
     void Framework3D::CreateDefaultSystems()
     {
         auto& systems = m_canvas->GetSystems();
@@ -342,6 +418,20 @@ namespace JBro
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);
         texts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);
+        // **화면 레이어의 화면 UI**(D-362). 2D 와 같은 시스템이다. 스크립트 훅과 월드 레이어의 역투영은 넘기지 않는다 - 3D 스크립트는 UI 핸들·훅을
+        // 아직 받지 않고(열림), 2D 컴포넌트는 화면 레이어에만 둔다.
+        systems.AddSystem<System::Transform2DSystem>();
+        systems.AddSystem<System::Mask2DSystem>();
+        systems.AddSystem<System::Layout2DSystem>().SetSpriteLibrary(&m_sprites);
+        systems.AddSystem<System::Tween2DSystem>();
+        systems.AddSystem<System::Button2DSystem>().SetTextInputHost(m_context.textInput);
+        System::SpriteRender2DSystem& screenSprites = systems.AddSystem<System::SpriteRender2DSystem>();
+        screenSprites.SetRenderWorld(&m_screenWorld);
+        screenSprites.SetSpriteLibrary(&m_sprites);
+        screenSprites.SetMaterialLibrary(&m_materials);
+        System::Text2DSystem& screenTexts = systems.AddSystem<System::Text2DSystem>();
+        screenTexts.SetRenderWorld(&m_screenWorld);
+        screenTexts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);
         // 오디오가 있으면 소스·리스너 시스템을 세운다(D-197).
         if (m_context.audio != nullptr)
         {

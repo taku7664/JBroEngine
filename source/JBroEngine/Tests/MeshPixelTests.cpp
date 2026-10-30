@@ -9,6 +9,11 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Input/InputSystem.h>
+#include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -593,8 +598,110 @@ namespace
     }
 }
 
+namespace
+{
+    // **3D 캔버스의 화면 레이어는 화면 UI 다**(D-362). 정육면체는 빛을 받고, 화면 레이어의 흰 사각형은 3D 뷰 위에 빛 없이 흰색 그대로다. 화면 레이어의
+    // 정육면체는 그려지지 않는다. 버튼은 3D 에도 입력을 받아 누르면 색이 바뀐다 - 스크립트의 입력 체인이 없는 3D 는 프레임워크가 위젯에 직접 넘긴다.
+    template <typename TModule>
+    void TestScreenLayersDrawScreenUiOverThe3DView()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; 3D screen UI not verified" << std::endl;
+            return;
+        }
+        JBro::System::InputSystem input;
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.input = &input;
+        Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
+        Check(JBro::ComponentRegistry::Get().Find(JBro::Component::Button2D::StaticTypeName()) != nullptr
+                && JBro::ComponentRegistry::Get().Find(JBro::Component::Transform2D::StaticTypeName()) != nullptr,
+            "a 3D framework opens the screen UI components by name");
+        JBro::ScreenSpaceFrame screen;
+        screen.referenceWidth = static_cast<JBro::Float>(TargetWidth);
+        screen.referenceHeight = static_cast<JBro::Float>(TargetHeight);
+        screen.targetWidth = static_cast<JBro::Float>(TargetWidth);
+        screen.targetHeight = static_cast<JBro::Float>(TargetHeight);
+        framework.SetScreenSpace(screen);
+        JBro::Canvas& canvas = *framework.GetCanvas();
+
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        PlaceCube(canvas, "box", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
+
+        JBro::Layer& hud = canvas.CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        // 화면 레이어에 둔 정육면체는 3D 카메라로 그리지 않는다 - 왼쪽(-1.5) 자리가 비어 있어야 한다.
+        JBro::Object::GameObject* stray = PlaceCube(canvas, "stray", {-1.5f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
+        Check(canvas.SetObjectLayer(stray, hud.GetId()), "the stray cube goes on the screen layer");
+        // 오른쪽 위 구석의 12 x 12 사각형: 화면 픽셀 x 78..89, y 2..13.
+        JBro::Object::GameObject* panel = canvas.CreateObject("panel");
+        Check(canvas.SetObjectLayer(panel, hud.GetId()), "the panel goes on the screen layer");
+        auto* place = canvas.AttachComponent<JBro::Component::Transform2D>(panel);
+        place->anchor = {1.0f, 1.0f};
+        place->position = {-12.0f, -8.0f};
+        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(panel);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {12.0f, 12.0f};
+        auto* button = canvas.AttachComponent<JBro::Component::Button2D>(panel);
+        button->size = {12.0f, 12.0f};
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        input.BeginFrame({});
+        stage.RenderOnce(framework, image, readback);
+        const Pixel cube = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(cube.r > 0.2f && cube.r < 0.999f, "the cube is drawn and lit");
+        const Pixel hudPixel = ReadPixel(image, readback.rowPitch, 84, 8);
+        Check(Near(hudPixel.r, 1.0f) && Near(hudPixel.g, 1.0f) && Near(hudPixel.b, 1.0f), "the screen square is white - over the 3D view and unlit");
+        const Pixel outside = ReadPixel(image, readback.rowPitch, 84, 20);
+        Check(outside.r < 0.05f, "nothing is drawn below the square");
+        const Pixel strayPixel = ReadPixel(image, readback.rowPitch, 12, TargetHeight / 2);
+        Check(strayPixel.r < 0.05f, "a cube on the screen layer is not drawn by the 3D camera");
+
+        // 마우스를 사각형 위에서 누르면 버튼이 눌리고 색이 pressedTint(0.7) 가 된다.
+        JBro::InputEvent move;
+        move.kind = JBro::InputEventKind::MouseMove;
+        move.x = 84.0f;
+        move.y = 8.0f;
+        JBro::InputEvent down;
+        down.kind = JBro::InputEventKind::MouseButtonDown;
+        down.button = JBro::MouseButton::Left;
+        const JBro::InputEvent press[] = {move, down};
+        input.BeginFrame({press, 2});
+        stage.RenderOnce(framework, image, readback);
+        Check(button->pressed, "the button takes the press through the 3D framework");
+        const Pixel pressed = ReadPixel(image, readback.rowPitch, 84, 8);
+        Check(Near(pressed.r, 0.7f, 0.02f) && Near(pressed.b, 0.7f, 0.02f), "the pressed tint shows on the screen square");
+
+        // 멈추면 위젯도 입력을 받지 않는다(2D 와 같다).
+        JBro::InputEvent up;
+        up.kind = JBro::InputEventKind::MouseButtonUp;
+        up.button = JBro::MouseButton::Left;
+        framework.SetSimulationEnabled(false);
+        input.BeginFrame({&up, 1});
+        stage.RenderOnce(framework, image, readback);
+        Check(button->pressed, "paused, the button does not see the release");
+        framework.SetSimulationEnabled(true);
+        input.BeginFrame({});
+        stage.RenderOnce(framework, image, readback);
+        Check(false == button->pressed, "running again, the button sees the mouse is up");
+
+        framework.Shutdown();
+        stage.Close();
+    }
+}
+
 JBro::Int32 RunMeshPixelTests()
 {
+    TestScreenLayersDrawScreenUiOverThe3DView<JBro::D3D12RHIModule>();
     TestLayersStackAndBlendIn3D<JBro::D3D12RHIModule>();
     TestLayersStackAndBlendIn3D<JBro::D3D11RHIModule>();
     TestLayersStackAndBlendIn3D<JBro::VulkanRHIModule>();

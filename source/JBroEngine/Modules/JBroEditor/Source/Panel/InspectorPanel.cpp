@@ -734,7 +734,7 @@ namespace JBro
         // 목록은 오브젝트 메뉴와 **같은 것**을 쓴다(D-180). 갈래로 묶이고, 이미 붙어 있어
         // 더 붙일 수 없는 것은 회색으로 남는다 - 목록에서 빼 버리면 찾던 이름이 사라진다.
         EditorActions::AddComponentList list;
-        EditorActions::BuildAddComponentList(object, list);
+        EditorActions::BuildAddComponentList(*m_editor, object, list);
         Int32 chosen = -1;
         // + 는 버튼 **안에** 선다(D-308, 기존 `+ 컴포넌트 추가`). 밖에 두면 버튼과 따로 노는 글자처럼 보인다.
         Widget::SetNextItemTarget(GuideFocusTargets::InspectorAddComponent());

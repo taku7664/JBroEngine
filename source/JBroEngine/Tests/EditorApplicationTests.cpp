@@ -7194,6 +7194,43 @@ namespace
         std::cout << "  the 3D floor grid painted " << gridPixels << " pixels" << std::endl;
         Check(gridPixels > 500, "the floor grid must paint something the empty view does not");
 
+        // **3D 캔버스의 화면 레이어는 화면 UI 다**(D-362). 거기서 만든 오브젝트는 `Transform2D` 를 갖고, 붙이기 목록은 화면 UI 컴포넌트만 담는다.
+        // 월드 레이어의 오브젝트는 `Transform3D` 이고 목록에 화면 UI 컴포넌트가 없다.
+        JBro::Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        JBro::ObjectPlacement onHud;
+        onHud.layer = hud.GetId();
+        JBro::Object::GameObject* panel = JBro::EditorActions::CreateObject(editor, nullptr, onHud);
+        Check(panel != nullptr && canvas->FindComponentRaw<JBro::Component::Transform2D>(panel) != nullptr
+                && canvas->FindComponentRaw<JBro::Component::Transform3D>(panel) == nullptr,
+            "an object made on a 3D canvas's screen layer is born with a 2D transform");
+        const auto lists = [](const JBro::EditorActions::AddComponentList& list, const char* typeName) {
+            const JBro::NameId wanted = JBro::MakeNameId(typeName);
+            for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+            {
+                if (list.typeNames[index] == wanted)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        JBro::EditorActions::AddComponentList hudList;
+        JBro::EditorActions::BuildAddComponentList(editor, *panel, hudList);
+        Check(lists(hudList, JBro::Component::Button2D::StaticTypeName()) && lists(hudList, JBro::Component::Text2D::StaticTypeName()),
+            "the screen layer offers the screen UI components");
+        Check(false == lists(hudList, JBro::Component::MeshRenderer3D::StaticTypeName()), "and not the 3D ones");
+        JBro::EditorActions::AddComponentList worldList;
+        JBro::EditorActions::BuildAddComponentList(editor, *box, worldList);
+        Check(lists(worldList, JBro::Component::MeshRenderer3D::StaticTypeName()) && false == lists(worldList, JBro::Component::Button2D::StaticTypeName()),
+            "a world layer offers the 3D components and not the screen UI ones");
+        // 놓을 레이어를 대지 않으면 고른 오브젝트(방금 만든 HUD 의 것)의 레이어로 가므로 상자의 레이어를 댄다.
+        JBro::ObjectPlacement onWorld;
+        onWorld.layer = box->GetLayerId();
+        JBro::Object::GameObject* prop = JBro::EditorActions::CreateObject(editor, nullptr, onWorld);
+        Check(prop != nullptr && canvas->FindComponentRaw<JBro::Component::Transform3D>(prop) != nullptr,
+            "an object made on a world layer still gets a 3D transform");
+
         editor.Shutdown();
     }
 

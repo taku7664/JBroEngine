@@ -368,14 +368,16 @@
 - Framework2D와 Framework3D는 서로 직접 의존하지 않는다. (MUST)
   Tier S 의 `JBroFramework2D`·`JBroFramework3D` 사이, 그리고 `JBroFramework2DSystem`·`JBroFramework3DSystem` 사이의 규칙이다. 화면 UI 는 두 차원이 공용 모듈 `JBroScreenUi` 로 함께 쓰며,
   3D 캔버스의 화면 레이어가 2D UI 컴포넌트를 쓰므로 `JBroFramework3DSystem`(Tier E)은 `JBroFramework2D` 의 컴포넌트 타입을 본다. 3D 스크립트 SDK 에는 2D 헤더를 넣지 않는다. (D-362)
+- **3D 캔버스의 화면 레이어는 화면 UI 시스템(`JBroScreenUi`)이 그리고, 3D 의 메시·월드 텍스트는 화면 레이어를 그리지 않는다.** 화면 뷰는 3D 뷰와 후처리를 다 그린 뒤에 얹는다.
+  2D 컴포넌트는 3D 캔버스의 화면 레이어에만 둔다 - 에디터의 붙이기 목록이 이것을 지킨다. (MUST) (D-362)
 - 차원 독립 `Canvas` 본체와 `Layer` 정체성은 공통 Tier E 모듈(`JBroCanvas`)에 한 번만 정의한다. (MUST)
   Framework별 Canvas 복제본을 만들지 않으며, 패럴랙스·별도 합성 텍스처처럼 2D 렌더 합성에만 필요한 상태는
   `JBroFramework2D`가 소유한다. 공간·맞춤 방식(D-237)과 블렌드·불투명도(D-279)는 캔버스 파일과 에디터 커맨드가 읽고 쓰는
   값이라 공통 `Layer`가 든다 - 같은 값을 `Layer2D`에 두 번째로 두지 않는다.
 
 > **구현 근거:** `Canvas`와 공통 `Layer`는 한 번만 정의하며, Framework2D는 별도
-> `Layer2D`에 2D 합성 상태를 보관한다. Framework3D는 Framework2D를 링크하지 않고 공통 Canvas의
-> 오브젝트·컴포넌트·시스템 실행 경계를 사용한다. 3D 는 `Transform3DSystem`·`Camera3DSystem`·
+> `Layer2D`에 2D 합성 상태를 보관한다. Framework3D는 2D 프레임워크 시스템을 링크하지 않고 공통 Canvas의
+> 오브젝트·컴포넌트·시스템 실행 경계를 사용한다. 화면 레이어의 UI 만은 공용 모듈 `JBroScreenUi` 와 `JBroFramework2D` 의 컴포넌트 타입을 쓴다(D-362). 3D 는 `Transform3DSystem`·`Camera3DSystem`·
 > `MeshRender3DSystem` 과 `RenderWorld3D`·`RenderBridge3D` 로 2D 와 같은 뼈대를 갖고, 렌더러의 메시
 > 파이프라인과 깊이 버퍼로 그린다(D-106, `tasks/framework3d-plan.md`). 물리·스크립트 시스템은 3D 에 아직 없다.
 > D-42 이전 트리에서는 이 정의가 `JBroRuntime`에 있다.

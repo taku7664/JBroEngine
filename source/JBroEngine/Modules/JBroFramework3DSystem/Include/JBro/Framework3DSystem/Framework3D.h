@@ -19,6 +19,8 @@
 #include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
 #include <JBro/Framework3DSystem/System/Transform3DSystem.h>
 #include <JBro/Host/IFramework.h>
+#include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
+#include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
 
@@ -26,6 +28,8 @@ namespace JBro
 {
     // 3D 프레임워크다. 2D 와 같은 뼈대(캔버스·시스템·렌더 월드·브리지)이고, 스크립트 시스템과
     // 물리는 아직 없다(framework3d-plan §3).
+    // **화면 레이어는 화면 UI 다**(D-362). `Space = Screen` 레이어의 2D 컴포넌트(트랜스폼·스프라이트·텍스트·위젯)를 공용 모듈 `JBroScreenUi` 의
+    // 시스템이 제 렌더 월드(`m_screenWorld`)에 담고, 3D 뷰를 다 그린 뒤 화면 뷰로 얹는다. 위젯은 입력 체인 대신 이 프레임워크가 입력을 직접 넘긴다.
     class Framework3D final : public IFramework
     {
     public:
@@ -40,6 +44,7 @@ namespace JBro
         RenderResult Render() override;
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         RenderResult RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail) override;
+        void SetScreenSpace(const ScreenSpaceFrame& frame) override;
         void Shutdown() override;
         void BindCanvasAssets() override;
         std::size_t ReleaseModuleScripts() override;
@@ -48,6 +53,8 @@ namespace JBro
         Canvas* GetCanvas();
         RenderWorld3D* GetRenderWorld();
         MeshLibrary& GetMeshLibrary();
+        // 화면 레이어의 그릴 것이다(D-362).
+        RenderWorld2D* GetScreenRenderWorld();
 
     private:
         void CreateDefaultSystems();
@@ -58,6 +65,11 @@ namespace JBro
         // 열린 캔버스가 잡은 에셋 핸들이다. 다음 해석과 종료 때 놓는다(D-115).
         Array<AssetHandle> m_canvasAssets;
         RenderWorld3D m_renderWorld;
+        // 화면 레이어의 스프라이트·글자다(D-362). 월드 레이어의 아이템은 담기지만 그리지 않는다 - 3D 캔버스의 2D 컴포넌트는 화면 레이어에만 둔다.
+        RenderWorld2D m_screenWorld;
+        SpriteLibrary m_sprites;
+        // 호스트가 프레임마다 거는 화면 기준이다(D-237).
+        ScreenSpaceFrame m_screenSpace;
         MeshLibrary m_meshes;
         // 후처리 효과 `Material` 의 머티리얼을 푼다(D-347). 메시의 머티리얼은 아직 보지 않는다.
         MaterialLibrary m_materials;

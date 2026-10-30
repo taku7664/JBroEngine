@@ -1,5 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 
+#include <JBro/ScreenUi/ScreenUiComponentTypes.h>
+
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
@@ -47,16 +49,13 @@ namespace JBro::Component
             // 콜라이더와 스프라이트는 한 오브젝트에 여럿 붙지만, 위치·카메라·강체는
             // 하나뿐이다 - 둘씩 있으면 어느 쪽이 쓰이는지 사용자가 알 수 없다.
             Bool all = true;
-            all = RegisterComponentType<Transform2D>(
-                      ComponentCategory::Transform, ComponentMultiplicity::Single) && all;
+            // 트랜스폼·스프라이트·텍스트·위젯은 화면 UI 묶음이다(D-362) - 3D 캔버스의 화면 레이어와 같이 쓴다.
+            all = RegisterScreenUiComponentTypes() && all;
             all = RegisterComponentType<Camera2D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             // 볼륨은 오브젝트에 하나다 - 모양이 오브젝트의 트랜스폼에 놓이므로 둘이면 같은 자리의 두 프로필이다(D-346).
             all = RegisterComponentType<PostProcessVolume2D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<SpriteRenderer2D>(ComponentCategory::Rendering) && all;
-            // 기존 엔진 표와 같다: Rendering, 여럿 붙는다(D-200).
-            all = RegisterComponentType<Text2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Light2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<ShadowCaster2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody2D>(
@@ -69,56 +68,6 @@ namespace JBro::Component
             all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
             all = RegisterComponentType<AudioListener2D>(
                       ComponentCategory::Audio, ComponentMultiplicity::Single) && all;
-            // 누름 사각형은 하나다 - 둘이면 어느 것이 훅을 부르는지 사용자가 알 수 없다(D-237).
-            all = RegisterComponentType<Button2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            // 토글·슬라이더도 누름 사각형 하나다(D-351).
-            all = RegisterComponentType<Toggle2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<Slider2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            // 마스크와 스크롤 뷰도 오브젝트에 하나다 - 사각형이 하나다.
-            all = RegisterComponentType<Mask2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<ScrollView2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<InputField2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<Layout2D>(
-                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
-            // 토글 그룹은 오브젝트에 하나(어느 그룹인지 하나여야 한다), 드롭다운은 누름 사각형 하나다(D-355).
-            all = RegisterComponentType<ToggleGroup2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<Dropdown2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<ContentSizeFitter2D>(
-                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
-            // B 2 순위(D-357): 툴팁·모달·탭·끌기·놓을 자리. 사각형이 있는 것은 하나, 나머지도 오브젝트에 하나다.
-            all = RegisterComponentType<Tooltip2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<Modal2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<TabGroup2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<Draggable2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<DropTarget2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            // 트윈은 한 오브젝트에 여럿이다(자리와 알파를 같이). 목록은 스크롤 뷰 하나에 하나다.
-            all = RegisterComponentType<Tween2D>(ComponentCategory::UI) && all;
-            all = RegisterComponentType<ListView2D>(
-                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
-            // B 3 순위(D-358): 안전 영역·그룹·가로세로비·가상 키보드·탐색 연결. 모두 오브젝트에 하나다.
-            all = RegisterComponentType<SafeArea2D>(
-                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<CanvasGroup2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<AspectRatioFitter2D>(
-                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<VirtualKeyboard2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<Navigation2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();
         return registered;

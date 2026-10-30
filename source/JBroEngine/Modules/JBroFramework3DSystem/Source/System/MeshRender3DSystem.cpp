@@ -47,7 +47,8 @@ namespace JBro::System
             }
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(renderer);
             const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
-            if (layer != nullptr && false == layer->IsVisible())
+            // 화면 레이어는 화면 UI 의 것이다(D-362) - 3D 카메라로 그리지 않는다.
+            if (layer != nullptr && (false == layer->IsVisible() || layer->GetSpace() == LayerSpace::Screen))
             {
                 return;
             }

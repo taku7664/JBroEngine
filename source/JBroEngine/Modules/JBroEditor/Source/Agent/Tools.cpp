@@ -1,4 +1,4 @@
-#include <JBro/Editor/Agent/Tools.h>
+﻿#include <JBro/Editor/Agent/Tools.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorPaths.h>
@@ -354,7 +354,7 @@ namespace JBro::Agent
                 EditorActions::AddComponentList list;
                 if (auto* selected = editor.GetSelectedObject())
                 {
-                    EditorActions::BuildAddComponentList(*selected, list);
+                    EditorActions::BuildAddComponentList(editor, *selected, list);
                 }
                 for (std::size_t i = 0; i < list.names.Size(); ++i)
                 {
@@ -599,7 +599,7 @@ namespace JBro::Agent
             if (name == "jbro_component_add")
             {
                 EditorActions::AddComponentList list;
-                EditorActions::BuildAddComponentList(*object, list);
+                EditorActions::BuildAddComponentList(editor, *object, list);
                 const String requested = Get(args, "type");
                 NameId type = InvalidNameId;
                 for (std::size_t i = 0; i < list.typeNames.Size(); ++i)

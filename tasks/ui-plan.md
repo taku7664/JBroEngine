@@ -638,7 +638,7 @@
 
 ### 7.8 6 부 - 남긴 다섯 (D-362)
 
-> 상태: **진행** (2026-10-31 시작). 사용자 지시 "1~5까지 작업 진행. 1번은 제안대로. 모듈을 뗌." 다섯은 3D 의 화면 레이어(새 모듈 `JBroScreenUi`), 렌더 텍스처, 둘째 뷰의 지우기,
+> 상태: **완료** (2026-10-31). 사용자 지시 "1~5까지 작업 진행. 1번은 제안대로. 모듈을 뗌." 다섯은 3D 의 화면 레이어(새 모듈 `JBroScreenUi`), 렌더 텍스처, 둘째 뷰의 지우기,
 > 실제 IME 실측, 여러 줄 선택의 줄마다 조각이다. 차례는 작은 것부터 - 둘째 뷰 → 여러 줄 선택 → IME → 렌더 텍스처 → 3D 화면 레이어. 단위마다 커밋한다.
 
 1. ~~**둘째 뷰의 지우기**~~ → 완료 2026-10-31 · `Camera2D.clearViewport`(기본 참, 핸들 `GetClearViewport`·`SetClearViewport`), `RenderCamera2D.clearViewport`, 렌더 브리지의 `BuildViewFill`(뷰 행렬의
@@ -680,11 +680,25 @@
      인스펙터의 안내 글이 한 줄로 잘렸다 - 줄바꿈하는 `WrappedHintText` 로 바꿨다. 헤더 자기완결 생성기를 돌리니 3 부의 새 헤더 셋이 빠져 있었다 - 함께 넣었다.
    - 정한 것: 렌더 텍스처를 보이는 스프라이트의 기본 크기는 픽셀 / 100 이다(스프라이트 에셋의 기본 PPU 와 같다). 자기 그림을 다시 비추는 거울(같은 텍스처를 읽고 그리기)은 되지 않는다 - 한 프레임 늦은
      사본이 든다(열림).
-5. **3D 의 화면 레이어** → 진행 · 앞 절반(모듈 떼기)이 섰다: 새 Tier E 모듈 `JBroScreenUi`(정적 라이브러리)로 화면 UI 시스템 일곱과 렌더 조각을 `git mv` 로 옮겼다. 브리지에서 스프라이트 제출
+5. ~~**3D 의 화면 레이어**~~ → 완료 2026-10-31 · 앞 절반(모듈 떼기): 새 Tier E 모듈 `JBroScreenUi`(정적 라이브러리)로 화면 UI 시스템 일곱과 렌더 조각을 `git mv` 로 옮겼다. 브리지에서 스프라이트 제출
    (`BuildSprite`·`PushSprites`·`BuildScreenCamera`·`SubmitScreenViews`)을 `SpriteSubmit2D` 로, 패럴랙스 계산을 `Parallax2D` 로 떼었다. 버튼·레이아웃이 `GameScript2D`·`ScriptSystem`·`Camera2DSystem` 을
    직접 부르던 자리는 `UiHost.h` 의 `IUiHookDispatcher`·`IWorldLayerMapper`·`IUiInputChain` 으로 바꿨고, 2D 의 구현은 `JBroFramework2DSystem` 의 `UiBindings2D`(`UiHookDispatcher2D`·`WorldLayerMapper2D`)와
    `ScriptSystem` 이다. 모듈의 포함 경로에는 프레임워크 시스템 모듈이 없다 - 그 헤더를 부르면 컴파일이 실패한다. 2D·3D 시스템·에디터·에디터 호스트·게임 호스트(두 차원)·시험이 참조하고,
    `JBro.Common.props` 의 호스트 포함 경로에 더했다. 헤더 자기완결 단위는 옮긴 열둘을 지우고 새 열여섯을 만들었다.
    - **잰 것**(모듈 떼기): 새 모듈 단독 빌드, 시험·에디터 호스트 빌드 경고 0, `Framework2DSystem`·`UiScenario`·`SpriteDrawMode`·`TextRender`·`CameraView2D`·`SpriteLibrary`·`RendererContract`·`UserScenario` 통과. 음성: `UiHost.cpp` 첫 줄에
      `<JBro/Framework2DSystem/Scripting/ScriptSystem.h>` 를 넣으면 새 모듈 빌드가 C1083 으로 실패한다(되돌림).
+   뒤 절반(3D 에 붙이기): `Framework3D` 가 제 화면 렌더 월드(`m_screenWorld`)·스프라이트 라이브러리를 들고, 화면 UI 시스템 일곱(트랜스폼·마스크·레이아웃·트윈·버튼·스프라이트·텍스트)을
+   세우며, `SetScreenSpace` 로 받은 화면 기준을 렌더러 크기로 채워 트랜스폼·버튼·렌더 월드에 건다. 시뮬레이션 중에는 고정 스텝 전에 입력을 버튼 시스템에 직접 넘기고
+   (`BeginDispatch`·`Deliver`·`EndDispatch`), `Render` 는 3D 뷰(후처리 포함) 뒤에 `SubmitScreenViews` 로 화면 뷰를 얹는다(3D 카메라가 없어도 그린다). `MeshRender3DSystem`·`Text3DSystem` 은
+   화면 레이어를 건너뛴다. 화면 UI 컴포넌트 등록은 `JBroScreenUi` 의 `RegisterScreenUiComponentTypes`(`IsScreenUiComponentType` 과 함께)로 옮겨 2D 등록이 부른다.
+   에디터: 3D 캔버스의 화면 레이어에서 만든 오브젝트는 `Transform2D`, 붙이기 목록(`BuildAddComponentList(editor, …)`, 인스펙터·오브젝트 메뉴·에이전트 도구)은 3D 에서 레이어 공간으로 가른다.
+   - **잰 것**(3D 에 붙이기): `MeshPixel` `TestScreenLayersDrawScreenUiOverThe3DView`(D3D12 96 x 64) - 3D 프레임워크만으로 `Button2D`·`Transform2D` 가 이름으로 붙고, 가운데 정육면체는 빛을
+     받아 (0.2, 1) 사이, 화면 레이어의 오른쪽 위 12 x 12 사각형은 흰색 그대로(빛·후처리 없음), 그 아래는 검정, 화면 레이어에 둔 정육면체 자리(12, 32)는 검정. 사각형 위에서 마우스를 누르면
+     버튼이 눌리고 색이 0.7(`pressedTint`), 멈춘 동안의 놓기는 보지 않고 다시 켜면 놓인 것을 본다. 뮤테이션 셋(화면 뷰를 내지 않음·메시가 화면 레이어를 그림·버튼에 입력을 넘기지 않음)이
+     각각 그 검사(흰 사각형·화면 레이어 정육면체·누름)에서 떨어졌다(되돌림). `EditorApplication` `TestTheCanvasViewDrawsInA3DProject` - 3D 프로젝트의 HUD 화면 레이어에서 만든 오브젝트는
+     `Transform2D` 만, 그 붙이기 목록에 `Button2D`·`Text2D` 는 있고 `MeshRenderer3D` 는 없으며, 월드 레이어의 상자 목록은 그 반대이고 월드 레이어에서 만든 오브젝트는 `Transform3D`.
+     `CanvasFoundation`·`BuiltinComponentProperty`·`Framework2DSystem`·`Framework3DSystem`·`EditorObjectCommand`·`EditorGuide`·`EditorGuideFocus`·`ComponentMenuTable`·`CanvasFile`·`UiScenario`·
+     `ScriptApiCatalog`·`ContextBoundary` 통과.
+   - 정한 것: 화면 레이어에서 3D 스크립트가 UI 핸들·훅을 쓰는 것과 3D 캔버스 뷰(에디터)에서 화면 레이어를 보이고 고치는 것은 열림이다 - 지금은 게임 화면(시뮬레이션 뷰)에만 보인다.
+     3D 카메라에는 `PixelPerfect` 레터박스가 없어 화면 레이어는 늘 대상 전체를 잰다.
 

@@ -17,6 +17,7 @@
 #include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/ScreenUi/ScreenUiComponentTypes.h>
 
 #include <imgui.h>
 
@@ -245,14 +246,21 @@ namespace JBro::EditorActions
         EditorObjectRegistry& ids = editor.GetObjectIds();
         const EditorObjectId parentId = parent != nullptr
             ? ids.Track(parent) : InvalidEditorObjectId;
-        // **트랜스폼을 갖고 태어난다**(D-158). 없으면 캔버스 뷰에 보이지도 않고 옮길 수도 없다.
-        const char* transform = editor.GetFrameworkKind() == FrameworkKind::Framework3D
-            ? "Component::Transform3D"
-            : "Component::Transform2D";
         // 부르는 쪽이 레이어를 대지 않았으면 규칙이 정한다(D-168).
         const LayerId layer = placement.layer != InvalidLayerId
             ? placement.layer
             : ResolveTargetLayer(editor, parent);
+        // **트랜스폼을 갖고 태어난다**(D-158). 없으면 캔버스 뷰에 보이지도 않고 옮길 수도 없다.
+        // 3D 캔버스라도 화면 레이어의 오브젝트는 화면 UI 라 `Transform2D` 다(D-362).
+        const char* transform = "Component::Transform2D";
+        if (editor.GetFrameworkKind() == FrameworkKind::Framework3D)
+        {
+            const Layer* target = canvas->FindLayer(layer);
+            if (target == nullptr || target->GetSpace() != LayerSpace::Screen)
+            {
+                transform = "Component::Transform3D";
+            }
+        }
         auto command = MakeOwnerPtr<CreateObjectCommand>(
             *canvas, ids, "GameObject", parentId, transform,
             placement.hasPosition ? placement.position : nullptr, layer);
@@ -339,7 +347,13 @@ namespace JBro::EditorActions
         return any;
     }
 
-    void BuildAddComponentList(const Object::GameObject& object, AddComponentList& out)
+    namespace
+    {
+        // 레이어 공간으로 가르는 규칙이다(D-362). `None` 이면 모두 담는다.
+        enum class SpaceRule : std::uint8_t { None, WorldLayer, ScreenLayer };
+    }
+
+    static void BuildAddComponentListWithRule(const Object::GameObject& object, AddComponentList& out, SpaceRule rule)
     {
         out.typeNames.Clear();
         out.names.Clear();
@@ -381,6 +395,12 @@ namespace JBro::EditorActions
                 }
                 const char* name = NameTable::Get().Resolve(types[index]->name);
                 if (name == nullptr)
+                {
+                    continue;
+                }
+                // 3D 캔버스는 화면 레이어에 화면 UI 만, 월드 레이어에 그 밖의 것만 붙인다(D-362). 회색으로 남기지 않고 뺀다 - 그 자리에 쓸 수 없는 것이다.
+                if (rule != SpaceRule::None
+                    && Component::IsScreenUiComponentType(types[index]->name) != (rule == SpaceRule::ScreenLayer))
                 {
                     continue;
                 }
@@ -434,6 +454,22 @@ namespace JBro::EditorActions
             *canvas, editor.GetObjectIds(), objectId, typeName));
     }
 
+    void BuildAddComponentList(const Object::GameObject& object, AddComponentList& out)
+    {
+        BuildAddComponentListWithRule(object, out, SpaceRule::None);
+    }
+
+    void BuildAddComponentList(const EditorApplication& editor, const Object::GameObject& object, AddComponentList& out)
+    {
+        SpaceRule rule = SpaceRule::None;
+        if (editor.GetFrameworkKind() == FrameworkKind::Framework3D)
+        {
+            const Layer* layer = object.GetLayer();
+            rule = layer != nullptr && layer->GetSpace() == LayerSpace::Screen ? SpaceRule::ScreenLayer : SpaceRule::WorldLayer;
+        }
+        BuildAddComponentListWithRule(object, out, rule);
+    }
+
     Bool DrawAddComponentMenu(EditorApplication& editor, Object::GameObject& object)
     {
         // 가이드가 하위 메뉴 · 갈래 · 항목을 차례로 가리킨다(반례 ④). 인스펙터의 목록과 항목 표식이 같다.
@@ -444,7 +480,7 @@ namespace JBro::EditorActions
             return false;
         }
         AddComponentList list;
-        BuildAddComponentList(object, list);
+        BuildAddComponentList(editor, object, list);
         Bool added = false;
         const char* drawnGroup = nullptr;
         Bool inGroup = false;
