@@ -647,7 +647,8 @@ namespace JBro
         auto& systems = m_canvas->GetSystems();
         systems.AddSystem<System::Transform2DSystem>();
         systems.AddSystem<System::Mask2DSystem>();
-        systems.AddSystem<System::Layout2DSystem>();
+        // 레이아웃은 에셋 크기의 스프라이트를 재는 데 스프라이트 라이브러리를 쓴다(D-355).
+        systems.AddSystem<System::Layout2DSystem>().SetSpriteLibrary(&m_spriteLibrary);
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
         System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
         scripts.SetInputSystem(m_context.input);

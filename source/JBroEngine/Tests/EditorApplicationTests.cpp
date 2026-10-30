@@ -60,7 +60,10 @@
 #include <JBro/Runtime/MaterialService.h>
 #include <JBro/Runtime/PostProcessService.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
+#include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
@@ -18174,7 +18177,7 @@ namespace
                     Check(list.addable[index], "every UI component can be added to a fresh object");
                 }
             }
-            Check(uiCount == 9, "the UI group lists the nine widgets (button, toggle, slider, field, mask, scroll view, layout, toggle group, dropdown)");
+            Check(uiCount == 10, "the UI group lists the ten widgets (button, toggle, slider, field, mask, scroll view, layout, toggle group, dropdown, content size fitter)");
         }
 
         // ── 3. 스크롤 창: 마스크 + 스크롤 뷰, 그 자식 버튼 ─────────────
@@ -18209,6 +18212,15 @@ namespace
         ScenarioShot(editor, "d05_field_inspector");
         JBro::Object::GameObject* list = makeWidget("Layout2D");
         ScenarioShot(editor, "d06_layout_inspector");
+        // B 1 순위의 셋(D-355): 드롭다운·토글 그룹·내용 크기 맞추기도 같은 목록에서 붙는다.
+        JBro::Object::GameObject* choose = makeWidget("Dropdown2D");
+        ScenarioShot(editor, "d06b_dropdown_inspector");
+        JBro::Object::GameObject* tabs = makeWidget("ToggleGroup2D");
+        JBro::Object::GameObject* fitted = makeWidget("ContentSizeFitter2D");
+        ScenarioShot(editor, "d06c_fitter_inspector");
+        Check(canvas->FindComponentRaw<JBro::Component::Dropdown2D>(choose) != nullptr && canvas->FindComponentRaw<JBro::Component::ToggleGroup2D>(tabs) != nullptr
+                && canvas->FindComponentRaw<JBro::Component::ContentSizeFitter2D>(fitted) != nullptr,
+            "the dropdown, toggle group and content size fitter are attached");
         auto* slider = canvas->FindComponentRaw<JBro::Component::Slider2D>(volume);
         auto* toggle = canvas->FindComponentRaw<JBro::Component::Toggle2D>(mute);
         auto* field = canvas->FindComponentRaw<JBro::Component::InputField2D>(name);
@@ -18301,7 +18313,8 @@ namespace
         }
         const std::string text = ReadWholeText(saved);
         Check(text.find("Component::ScrollView2D") != std::string::npos && text.find("Component::InputField2D") != std::string::npos
-                && text.find("Component::Layout2D") != std::string::npos,
+                && text.find("Component::Layout2D") != std::string::npos && text.find("Component::Dropdown2D") != std::string::npos
+                && text.find("Component::ToggleGroup2D") != std::string::npos && text.find("Component::ContentSizeFitter2D") != std::string::npos,
             "the file names the widget components");
         const std::size_t objectsBefore = canvas->GetObjectCount();
         // 파일은 빈 캔버스에만 읽힌다 - 프로젝트를 닫고 프로젝트 파일로 다시 연다(사용자가 에디터를 껐다 켠 것).

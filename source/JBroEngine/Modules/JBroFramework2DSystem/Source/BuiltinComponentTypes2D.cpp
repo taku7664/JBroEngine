@@ -12,6 +12,7 @@
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
+#include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -77,6 +78,8 @@ namespace JBro::Component
             all = RegisterComponentType<ToggleGroup2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Dropdown2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<ContentSizeFitter2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();

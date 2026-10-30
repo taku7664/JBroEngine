@@ -37,6 +37,8 @@ namespace JBro::Handle
     JBRO_LAYOUT2D_ACCESSOR(Int32, GetColumns, SetColumns, columns)
     JBRO_LAYOUT2D_ACCESSOR(Vector2, GetPivot, SetPivot, pivot)
 
+    JBRO_LAYOUT2D_ACCESSOR(Bool, GetFitChildren, SetFitChildren, fitChildren)
+
 #undef JBRO_LAYOUT2D_ACCESSOR
 
     Float Layout2D::GetContentWidth() const

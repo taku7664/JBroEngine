@@ -5,18 +5,30 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 
+namespace JBro
+{
+    class SpriteLibrary;
+}
+
 namespace JBro::System
 {
     // **자식을 칸에 놓는다**(D-352 6 단계). 위젯 시스템(50) 뒤, 트랜스폼 전파(100) 앞에 돌아 같은 프레임에 보인다.
     // 자식의 `position` 을 매 프레임 쓴다 - 손으로 옮긴 자리는 남지 않는다.
+    // `fitChildren` 이면 칸을 자식의 보이는 크기로 재고(D-355), 레이아웃 뒤에 `ContentSizeFitter2D` 가 같은 오브젝트의 내용 크기로 스프라이트·마스크·위젯 사각형을
+    // 맞춘다. 글자의 크기는 지난 프레임의 레이아웃이다(글자는 추출 때 레이아웃한다) - 한 프레임 늦다.
     class Layout2DSystem final : public GameSystem
     {
     public:
         static constexpr Int32 ExecutionOrder = 60;
 
         Int32 GetExecutionOrder() const override;
+        // 에셋 크기(`FromSprite`)의 스프라이트를 재는 데 쓴다. 없으면 그 스프라이트는 `cellSize` 다.
+        void SetSpriteLibrary(SpriteLibrary* library);
 
     protected:
         void OnUpdate(Canvas& canvas, Float deltaTime) override;
+
+    private:
+        SpriteLibrary* m_spriteLibrary = nullptr;
     };
 }

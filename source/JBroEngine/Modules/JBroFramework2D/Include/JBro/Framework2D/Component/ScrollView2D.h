@@ -38,6 +38,10 @@ namespace JBro::Component
 
         JBRO_FIELD(Handle::GameObject, content, Tooltip("끌면 옮기는 내용 오브젝트. 이 오브젝트의 자식이어야 한다"));
         JBRO_FIELD(Vector2, contentSize, Pixels()) { 320.0f, 480.0f };
+        // 스크롤바(D-355): `Slider2D` 가 붙은 오브젝트다. 값 0 이 위·왼쪽이고 시스템이 매 프레임 내용 자리와 맞춘다 - 막대를 끌면 내용이, 내용이 움직이면 막대가 따라온다.
+        // 막대의 손잡이 스프라이트가 `Custom` 크기면 그 축 길이를 뷰포트/내용 비율로 둔다(최소 트랙의 1/10). 내용이 뷰포트보다 작으면 값 0 이고 손잡이는 트랙 전체다.
+        JBRO_FIELD(Handle::GameObject, horizontalBar, Tooltip("가로 스크롤바 - Slider2D 가 붙은 오브젝트. 값 0 이 왼쪽이다"));
+        JBRO_FIELD(Handle::GameObject, verticalBar, Tooltip("세로 스크롤바 - Slider2D 가 붙은 오브젝트. 값 0 이 위다"));
         JBRO_FIELD(Bool, horizontal) = false;
         JBRO_FIELD(Bool, vertical) = true;
         // 휠 한 칸에 움직이는 양(레이어 단위 - 화면 레이어는 기준 픽셀).

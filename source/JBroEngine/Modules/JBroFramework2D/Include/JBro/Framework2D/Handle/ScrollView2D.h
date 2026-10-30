@@ -28,6 +28,11 @@ namespace JBro::Handle
 
         GameObject GetContent() const;
         void SetContent(GameObject value);
+        // 스크롤바(D-355) - `Slider2D` 가 붙은 오브젝트다.
+        GameObject GetHorizontalBar() const;
+        void SetHorizontalBar(GameObject value);
+        GameObject GetVerticalBar() const;
+        void SetVerticalBar(GameObject value);
         Vector2 GetContentSize() const;
         void SetContentSize(Vector2 value);
         Bool GetHorizontal() const;

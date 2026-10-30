@@ -46,19 +46,19 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, offset, Pixels());
         // 꺼져 있으면 누르지 못하고 꺼진 상태로 보인다. 포인터는 그래도 소비한다 - 꺼진 단추 뒤의 게임이 눌리면 안 된다.
         JBRO_FIELD(Bool, interactable) = true;
-        JBRO_FIELD(ButtonTransition, transition) = ButtonTransition::ColorTint;
+        JBRO_FIELD(ButtonTransition, transition, Category("Transition")) = ButtonTransition::ColorTint;
         // 전이를 거는 그림이다. 비면 같은 오브젝트의 스프라이트다.
-        JBRO_FIELD(Handle::SpriteRenderer2D, targetGraphic, Tooltip("전이를 거는 스프라이트. 비면 같은 오브젝트의 SpriteRenderer2D 다"));
-        JBRO_FIELD(Color, normalTint) { 1.0f, 1.0f, 1.0f, 1.0f };
-        JBRO_FIELD(Color, hoverTint) { 0.9f, 0.9f, 0.9f, 1.0f };
-        JBRO_FIELD(Color, pressedTint) { 0.7f, 0.7f, 0.7f, 1.0f };
-        JBRO_FIELD(Color, disabledTint) { 0.5f, 0.5f, 0.5f, 0.6f };
+        JBRO_FIELD(Handle::SpriteRenderer2D, targetGraphic, Tooltip("전이를 거는 스프라이트. 비면 같은 오브젝트의 SpriteRenderer2D 다") | Category("Transition"));
+        JBRO_FIELD(Color, normalTint, Category("Transition")) { 1.0f, 1.0f, 1.0f, 1.0f };
+        JBRO_FIELD(Color, hoverTint, Category("Transition")) { 0.9f, 0.9f, 0.9f, 1.0f };
+        JBRO_FIELD(Color, pressedTint, Category("Transition")) { 0.7f, 0.7f, 0.7f, 1.0f };
+        JBRO_FIELD(Color, disabledTint, Category("Transition")) { 0.5f, 0.5f, 0.5f, 0.6f };
         // `SpriteSwap` 의 상태 스프라이트다. 아이디가 저장되는 쪽이고 핸들은 해석 패스가 채운다(`SpriteRenderer2D::spriteId` 와 같다).
-        JBRO_FIELD(AssetId, hoverSpriteId);
+        JBRO_FIELD(AssetId, hoverSpriteId, Category("Transition"));
         JBRO_FIELD(AssetHandle, hoverSprite, NoSerialize() | ReadOnly() | Tooltip("hoverSpriteId 에서 해석된 값") | Hidden());
-        JBRO_FIELD(AssetId, pressedSpriteId);
+        JBRO_FIELD(AssetId, pressedSpriteId, Category("Transition"));
         JBRO_FIELD(AssetHandle, pressedSprite, NoSerialize() | ReadOnly() | Tooltip("pressedSpriteId 에서 해석된 값") | Hidden());
-        JBRO_FIELD(AssetId, disabledSpriteId);
+        JBRO_FIELD(AssetId, disabledSpriteId, Category("Transition"));
         JBRO_FIELD(AssetHandle, disabledSprite, NoSerialize() | ReadOnly() | Tooltip("disabledSpriteId 에서 해석된 값") | Hidden());
 
         // 시스템이 채우는 이번 프레임의 상태다. 스크립트가 훅 대신 읽어도 된다.

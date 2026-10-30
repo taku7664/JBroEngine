@@ -91,6 +91,7 @@ namespace JBro::ScriptApiCatalog2D::Internal
     JBRO_LANGUAGE_TYPE(Handle::Toggle2D, "ref Toggle2D")
     JBRO_LANGUAGE_TYPE(Handle::ToggleGroup2D, "ref ToggleGroup2D")
     JBRO_LANGUAGE_TYPE(Handle::Dropdown2D, "ref Dropdown2D")
+    JBRO_LANGUAGE_TYPE(Handle::ContentSizeFitter2D, "ref ContentSizeFitter2D")
     JBRO_LANGUAGE_TYPE(Handle::Text2D, "ref Text2D")
     JBRO_LANGUAGE_TYPE(Handle::Transform2D, "ref Transform2D")
     JBRO_LANGUAGE_TYPE(Handle::AudioSource, "ref AudioSource")

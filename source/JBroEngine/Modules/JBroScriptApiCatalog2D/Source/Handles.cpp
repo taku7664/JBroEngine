@@ -1149,6 +1149,26 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetHorizontalBar)>("GetHorizontalBar", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Handle::GameObject)>(&Handle::ScrollView2D::SetHorizontalBar)>("SetHorizontalBar", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ScrollView2D::*)() const>(&Handle::ScrollView2D::GetVerticalBar)>("GetVerticalBar", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ScrollView2D::*)(Handle::GameObject)>(&Handle::ScrollView2D::SetVerticalBar)>("SetVerticalBar", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::ScrollView2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -1190,6 +1210,14 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::ScrollView2D::GetVelocity>("velocity");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetHorizontalBar, &Handle::ScrollView2D::SetHorizontalBar>("horizontalBar");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ScrollView2D::GetVerticalBar, &Handle::ScrollView2D::SetVerticalBar>("verticalBar");
         type.Members.Add(std::move(member));
     }
     }
@@ -1891,6 +1919,111 @@ void AddHandles(ApiCatalog& catalog)
     }
     }
     {
+    auto& type = AddType(catalog, "ContentSizeFitter2D", "JBro::Handle::ContentSizeFitter2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ContentSizeFitter2D::*)(Bool)>(&Handle::ContentSizeFitter2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::GetFitWidth)>("GetFitWidth", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ContentSizeFitter2D::*)(Bool)>(&Handle::ContentSizeFitter2D::SetFitWidth)>("SetFitWidth", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::GetFitHeight)>("GetFitHeight", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ContentSizeFitter2D::*)(Bool)>(&Handle::ContentSizeFitter2D::SetFitHeight)>("SetFitHeight", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::GetPadding)>("GetPadding", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ContentSizeFitter2D::*)(Vector2)>(&Handle::ContentSizeFitter2D::SetPadding)>("SetPadding", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::GetMinSize)>("GetMinSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ContentSizeFitter2D::*)(Vector2)>(&Handle::ContentSizeFitter2D::SetMinSize)>("SetMinSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::GetContentWidth)>("GetContentWidth", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::ContentSizeFitter2D::*)() const>(&Handle::ContentSizeFitter2D::GetContentHeight)>("GetContentHeight", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::IsEnabled, &Handle::ContentSizeFitter2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::GetFitWidth, &Handle::ContentSizeFitter2D::SetFitWidth>("fitWidth");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::GetFitHeight, &Handle::ContentSizeFitter2D::SetFitHeight>("fitHeight");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::GetPadding, &Handle::ContentSizeFitter2D::SetPadding>("padding");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::GetMinSize, &Handle::ContentSizeFitter2D::SetMinSize>("minSize");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::GetContentWidth>("contentWidth");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ContentSizeFitter2D::GetContentHeight>("contentHeight");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
     auto& type = AddType(catalog, "Layout2D", "JBro::Handle::Layout2D", ApiTypeKind::Handle);
     {
         auto member = DeclareFunction<static_cast<Bool (Handle::Layout2D::*)() const>(&Handle::Layout2D::IsValid)>("IsValid", Parameters());
@@ -1979,6 +2112,16 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Layout2D::*)() const>(&Handle::Layout2D::GetFitChildren)>("GetFitChildren", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Layout2D::*)(Bool)>(&Handle::Layout2D::SetFitChildren)>("SetFitChildren", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Layout2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -2020,6 +2163,10 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Layout2D::GetContentHeight>("contentHeight");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Layout2D::GetFitChildren, &Handle::Layout2D::SetFitChildren>("fitChildren");
         type.Members.Add(std::move(member));
     }
     }

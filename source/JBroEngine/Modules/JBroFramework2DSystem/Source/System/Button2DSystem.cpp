@@ -1247,6 +1247,77 @@ namespace JBro::System
 
     void Button2DSystem::PlaceWidgets(Canvas& canvas, Float deltaTime)
     {
+        // 스크롤바(D-355): 막대(슬라이더)와 내용 자리를 맞춘다. 막대가 이번 프레임에 끌렸으면 내용이, 아니면 막대가 따라온다. 손잡이 길이는 뷰포트/내용 비율이다.
+        // 슬라이더 자리 놓기보다 먼저다 - 같은 프레임에 손잡이가 따라온다.
+        canvas.ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(scroll);
+            if (owner == nullptr || false == scroll.IsActiveComponent())
+            {
+                return;
+            }
+            const auto* mask = canvas.FindComponentRaw<Component::Mask2D>(owner);
+            Object::GameObject* content = Internal::GameObjectHandleAccess::Resolve(scroll.content);
+            auto* place = content != nullptr && content->GetParent() == owner ? canvas.FindComponentRaw<Component::Transform2D>(content) : nullptr;
+            if (mask == nullptr || place == nullptr)
+            {
+                return;
+            }
+            // 값 0 은 위·왼쪽이다. 세로는 내용 자리의 낮은 끝(`low`)이 위이고, 가로는 높은 끝(`high`)이 왼쪽이다(내용이 오른쪽으로 밀려 왼쪽 끝이 보인다).
+            const auto sync = [&](const Handle::GameObject& barHandle, Bool enabled, Float& position, Float center, Float viewport, Float contentSize, Bool startIsHigh)
+            {
+                Object::GameObject* barObject = Internal::GameObjectHandleAccess::Resolve(barHandle);
+                auto* bar = barObject != nullptr ? canvas.FindComponentRaw<Component::Slider2D>(barObject) : nullptr;
+                if (bar == nullptr)
+                {
+                    return;
+                }
+                const Float half = std::fabs(viewport) * 0.5f;
+                const Float contentHalf = std::fabs(contentSize) * 0.5f;
+                Float ratio = Float(contentHalf > 0.0f && std::isfinite(contentHalf.Get()) ? Float::Clamp(half / contentHalf, 0.0f, 1.0f) : 1.0f);
+                if (false == enabled || contentHalf <= half || false == std::isfinite(position.Get()) || false == std::isfinite(half.Get()))
+                {
+                    bar->value = 0.0f;
+                    ratio = 1.0f;
+                }
+                else
+                {
+                    const Float low = center + half - contentHalf;
+                    const Float high = center - half + contentHalf;
+                    const Float start = startIsHigh ? high : low;
+                    const Float end = startIsHigh ? low : high;
+                    const Float span = end - start;
+                    if (bar->changed)
+                    {
+                        position = start + span * Float::Clamp(Float(std::isfinite(bar->value.Get()) ? bar->value.Get() : 0.0f), 0.0f, 1.0f);
+                        scroll.velocity = {};
+                    }
+                    else
+                    {
+                        bar->value = Float(span != 0.0f ? Float::Clamp((position - start) / span, 0.0f, 1.0f) : 0.0f);
+                    }
+                }
+                // 손잡이(막대의 자식)의 `Custom` 크기 스프라이트는 그 축 길이가 비율이다. 트랙의 1/10 보다 짧아지지 않는다.
+                Object::GameObject* knobObject = Internal::GameObjectHandleAccess::Resolve(bar->handle);
+                auto* knob = knobObject != nullptr && knobObject->GetParent() == barObject ? canvas.FindComponentRaw<Component::SpriteRenderer2D>(knobObject) : nullptr;
+                if (knob != nullptr && knob->sizeMode == Component::SpriteSizeMode::Custom)
+                {
+                    const Bool along = bar->direction == Component::SliderDirection::LeftToRight || bar->direction == Component::SliderDirection::RightToLeft;
+                    const Float track = std::fabs(along ? bar->size.x : bar->size.y);
+                    const Float length = track * (ratio < 0.1f ? Float(0.1f) : ratio);
+                    if (along)
+                    {
+                        knob->size.x = length;
+                    }
+                    else
+                    {
+                        knob->size.y = length;
+                    }
+                }
+            };
+            sync(scroll.horizontalBar, scroll.horizontal, place->position.x, mask->offset.x, mask->size.x, scroll.contentSize.x, true);
+            sync(scroll.verticalBar, scroll.vertical, place->position.y, mask->offset.y, mask->size.y, scroll.contentSize.y, false);
+        });
         // 슬라이더: 손잡이(자식 오브젝트)를 값의 자리에, 채우기 스프라이트의 비율을 값으로.
         canvas.ForEach<Component::Slider2D>([&](Component::Slider2D& slider)
         {

@@ -37,6 +37,7 @@
 #include <JBro/Framework2D/Handle/Button2D.h>
 #include <JBro/Framework2D/Handle/Camera2D.h>
 #include <JBro/Framework2D/Handle/Collider2D.h>
+#include <JBro/Framework2D/Handle/ContentSizeFitter2D.h>
 #include <JBro/Framework2D/Handle/DistanceJoint2D.h>
 #include <JBro/Framework2D/Handle/Dropdown2D.h>
 #include <JBro/Framework2D/Handle/HingeJoint2D.h>

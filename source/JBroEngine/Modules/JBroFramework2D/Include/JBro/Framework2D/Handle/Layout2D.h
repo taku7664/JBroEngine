@@ -37,6 +37,8 @@ namespace JBro::Handle
         void SetColumns(Int32 value);
         Vector2 GetPivot() const;
         void SetPivot(Vector2 value);
+        Bool GetFitChildren() const;
+        void SetFitChildren(Bool value);
         Float GetContentWidth() const;
         Float GetContentHeight() const;
 

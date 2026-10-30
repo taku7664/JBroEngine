@@ -1,12 +1,17 @@
 ﻿#include "TestClock.h"
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
 #include <JBro/Framework2D/Component/Layout2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cmath>
+#include <limits>
 #include <iostream>
 #include <stdexcept>
 #include <JBro/Types/Bool.h>
@@ -81,11 +86,79 @@ namespace
         Check(At(places[2], 154.0f, -20.0f), "an inactive child gives its cell to the next one");
         framework.Shutdown();
     }
+
+    // **자식 크기에 맞추기와 내용 크기 맞추기**(D-355). 스프라이트 30 x 10, 버튼 50 x 20, 아무것도 없는 자식은 칸(100 x 40)이다.
+    void TestFittedChildrenAndContentSize()
+    {
+        Framework2D framework;
+        FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Canvas* canvas = framework.GetCanvas();
+        Object::GameObject* list = canvas->CreateObject("list");
+        canvas->AttachComponent<Component::Transform2D>(list);
+        auto* layout = canvas->AttachComponent<Component::Layout2D>(list);
+        layout->fitChildren = true;
+        Object::GameObject* picture = canvas->CreateObject("picture");
+        picture->SetParent(list);
+        auto* picturePlace = canvas->AttachComponent<Component::Transform2D>(picture);
+        auto* sprite = canvas->AttachComponent<Component::SpriteRenderer2D>(picture);
+        sprite->sizeMode = Component::SpriteSizeMode::Custom;
+        sprite->size = {30.0f, 10.0f};
+        Object::GameObject* press = canvas->CreateObject("press");
+        press->SetParent(list);
+        auto* pressPlace = canvas->AttachComponent<Component::Transform2D>(press);
+        canvas->AttachComponent<Component::Button2D>(press)->size = {50.0f, 20.0f};
+        Object::GameObject* blank = canvas->CreateObject("blank");
+        blank->SetParent(list);
+        auto* blankPlace = canvas->AttachComponent<Component::Transform2D>(blank);
+        const auto tick = [&]() { JBro::Testing::Tick(framework, 1.0f / 60.0f); };
+        tick();
+        Check(At(picturePlace, 50.0f, -5.0f) && At(pressPlace, 50.0f, -24.0f) && At(blankPlace, 50.0f, -58.0f),
+            "a fitted vertical layout gives each child its own height and centers it in the widest column");
+        Check(layout->contentWidth == 100.0f && layout->contentHeight == 78.0f, "and the block is the widest child by the sum of heights and gaps");
+        layout->mode = Component::LayoutMode::Horizontal;
+        tick();
+        Check(At(picturePlace, 15.0f, -20.0f) && At(pressPlace, 59.0f, -20.0f) && At(blankPlace, 138.0f, -20.0f), "a fitted horizontal layout gives each child its own width");
+        Check(layout->contentWidth == 188.0f && layout->contentHeight == 40.0f, "with the block as wide as the sum and as tall as the tallest");
+        layout->mode = Component::LayoutMode::Grid;
+        layout->columns = 2;
+        tick();
+        Check(At(picturePlace, 50.0f, -20.0f) && At(pressPlace, 154.0f, -20.0f) && At(blankPlace, 50.0f, -64.0f), "a fitted grid uses the largest child as its one cell");
+        // 아무것도 안 보이는 자식의 스프라이트(에셋 크기, 풀리지 않음)는 칸 크기다.
+        auto* blankSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(blank);
+        layout->mode = Component::LayoutMode::Vertical;
+        tick();
+        Check(At(blankPlace, 50.0f, -58.0f), "an unresolved asset-sized sprite falls back to the cell size");
+        blankSprite->size = {std::numeric_limits<float>::quiet_NaN(), 5.0f};
+        blankSprite->sizeMode = Component::SpriteSizeMode::Custom;
+        tick();
+        Check(At(blankPlace, 50.0f, -58.0f), "a NaN custom size falls back to the cell size too");
+
+        // 내용 크기 맞추기: 레이아웃 블록에 여백을 두른 크기가 같은 오브젝트의 스프라이트·마스크·버튼에 간다.
+        auto* panel = canvas->AttachComponent<Component::SpriteRenderer2D>(list);
+        auto* mask = canvas->AttachComponent<Component::Mask2D>(list);
+        auto* fitter = canvas->AttachComponent<Component::ContentSizeFitter2D>(list);
+        fitter->padding = {5.0f, 5.0f};
+        tick();
+        Check(panel->sizeMode == Component::SpriteSizeMode::Custom && panel->size.x == 110.0f && panel->size.y == 88.0f, "the fitter sizes the sprite to the block plus padding");
+        Check(mask->size.x == 110.0f && mask->size.y == 88.0f && fitter->contentWidth == 110.0f && fitter->contentHeight == 88.0f, "and the mask, and reports the size");
+        fitter->fitWidth = false;
+        fitter->minSize = {0.0f, 300.0f};
+        panel->size.x = 7.0f;
+        tick();
+        Check(panel->size.x == 7.0f && panel->size.y == 300.0f, "a disabled axis is left alone and minSize wins");
+        fitter->padding = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+        tick();
+        Check(panel->size.y == 300.0f, "a NaN padding changes nothing");
+        framework.Shutdown();
+    }
 }
 
 JBro::Int32 RunLayout2DTests()
 {
     TestChildrenLineUpInCells();
+    TestFittedChildrenAndContentSize();
     std::cout << "Layout2D tests passed." << std::endl;
     return 0;
 }

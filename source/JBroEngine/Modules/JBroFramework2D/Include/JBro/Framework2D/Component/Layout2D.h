@@ -42,6 +42,9 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, padding, Pixels());
         JBRO_FIELD(Int32, columns, Range(1.0f, 64.0f)) = 2;
         JBRO_FIELD(Vector2, pivot, Range(0.0f, 1.0f)) { 0.0f, 1.0f };
+        // 참이면 칸을 자식의 보이는 크기로 잰다(D-355): 레이아웃 블록·글자(지난 프레임의 레이아웃)·스프라이트(`Custom` 크기나 에셋 칸)·위젯 사각형 차례이고 없으면
+        // `cellSize` 다. 세로는 줄 높이가 제각각이고 폭은 가장 넓은 것, 가로는 반대, 격자는 가장 큰 것 하나다.
+        JBRO_FIELD(Bool, fitChildren) = false;
 
         // 시스템이 채우는 블록의 크기다(여백 포함).
         JBRO_FIELD(Float, contentWidth, NoSerialize() | ReadOnly() | Category("State")) = 0.0f;

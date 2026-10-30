@@ -59,10 +59,11 @@ namespace
         Check(Table("Component::InputField2D").count == 34, "InputField2D declares thirty-four fields - the rect, interactable, the transition set of D-355 (twelve), text, display, caret, selection, maxLength, blinkRate, five states, the caret index, the selection anchor, composing and five hidden values (D-352, D-354, D-355)");
         Check(Table("Component::ToggleGroup2D").count == 2, "ToggleGroup2D declares two fields - allowOff and the value state (D-355)");
         Check(Table("Component::Dropdown2D").count == 27, "Dropdown2D declares twenty-seven fields - the rect, interactable, the transition set (twelve), list, caption, value, five states, two shown values and the swap latch (D-355)");
-        Check(Table("Component::Layout2D").count == 8, "Layout2D declares eight fields - mode, cell, spacing, padding, columns, pivot and the block size (D-352)");
+        Check(Table("Component::Layout2D").count == 9, "Layout2D declares nine fields - mode, cell, spacing, padding, columns, pivot, fitChildren and the block size (D-352, D-355)");
+        Check(Table("Component::ContentSizeFitter2D").count == 6, "ContentSizeFitter2D declares six fields - two axes, padding, minSize and the fitted size (D-355)");
         Check(Table("Component::Slider2D").count == 25, "Slider2D declares twenty-five fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), direction, value, handle, fill and four states (D-351, focused of D-352)");
         Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
-        Check(Table("Component::ScrollView2D").count == 8, "ScrollView2D declares eight fields - content, its size, two axes, sensitivity, deceleration and two states (D-351)");
+        Check(Table("Component::ScrollView2D").count == 10, "ScrollView2D declares ten fields - content, its size, two scrollbars, two axes, sensitivity, deceleration and two states (D-351, D-355)");
         Check(Table("Component::Toggle2D").count == 23, "Toggle2D declares twenty-three fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), isOn, checkmark and four states (D-351, focused of D-352)");
         Check(Table("Component::Camera2D").count == 9, "Camera2D declares nine fields - pixelsPerUnit of D-239, then the post-process profile pair of D-344");
         Check(Table("Component::SpriteRenderer2D").count == 17,

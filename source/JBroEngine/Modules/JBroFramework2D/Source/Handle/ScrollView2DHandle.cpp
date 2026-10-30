@@ -37,6 +37,9 @@ namespace JBro::Handle
     JBRO_SCROLLVIEW2D_ACCESSOR(Float, GetScrollSensitivity, SetScrollSensitivity, scrollSensitivity)
     JBRO_SCROLLVIEW2D_ACCESSOR(Float, GetDecelerationRate, SetDecelerationRate, decelerationRate)
 
+    JBRO_SCROLLVIEW2D_ACCESSOR(GameObject, GetHorizontalBar, SetHorizontalBar, horizontalBar)
+    JBRO_SCROLLVIEW2D_ACCESSOR(GameObject, GetVerticalBar, SetVerticalBar, verticalBar)
+
 #undef JBRO_SCROLLVIEW2D_ACCESSOR
 
     Bool ScrollView2D::GetDragging() const

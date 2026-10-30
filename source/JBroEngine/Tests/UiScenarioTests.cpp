@@ -1206,6 +1206,63 @@ namespace
         stage.Frame({});
         Check(pick->IsActiveSelf() && list->IsActiveSelf(), "a list that is the dropdown itself is left alone");
     }
+
+    // **스크롤바**(D-355). 창(마스크 100 x 60)이 가운데, 내용(100 x 200)은 위가 맞춰져(-70) 있고, 세로 막대는 (60, 0) 의 10 x 60 슬라이더(위에서 아래로)다.
+    void TestScrollbarsFollowTheContent()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        Object::GameObject* window = stage.Make("window", {});
+        auto* mask = canvas->AttachComponent<Component::Mask2D>(window);
+        mask->size = {100.0f, 60.0f};
+        auto* scroll = canvas->AttachComponent<Component::ScrollView2D>(window);
+        scroll->contentSize = {100.0f, 200.0f};
+        Object::GameObject* content = stage.Make("content", {0.0f, -70.0f}, window);
+        scroll->content = content->GetScriptHandle();
+        auto* contentPlace = stage.PlaceOf(content);
+        Object::GameObject* bar = stage.Make("bar", {60.0f, 0.0f});
+        auto* slider = canvas->AttachComponent<Component::Slider2D>(bar);
+        slider->direction = Component::SliderDirection::TopToBottom;
+        slider->size = {10.0f, 60.0f};
+        Object::GameObject* knob = stage.Make("knob", {}, bar);
+        auto* knobSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(knob);
+        knobSprite->sizeMode = Component::SpriteSizeMode::Custom;
+        knobSprite->size = {10.0f, 10.0f};
+        slider->handle = knob->GetScriptHandle();
+        scroll->verticalBar = bar->GetScriptHandle();
+        stage.Frames(2);
+        Check(CloseTo(slider->value, 0.0f) && CloseTo(knobSprite->size.y, 18.0f) && CloseTo(stage.PlaceOf(knob)->position.y, 30.0f),
+            "with the content at the top the bar reads zero and the knob is the viewport's share of the track");
+        // 휠로 내용이 40 내려가면 막대가 따라온다(140 가운데 40).
+        stage.Frame({MouseAt(100.0f, 50.0f), Wheel(-1.0f)});
+        Check(CloseTo(contentPlace->position.y, -30.0f) && CloseTo(slider->value, 40.0f / 140.0f), "scrolling the content moves the bar");
+        // 막대를 끌면 내용이 따라온다: 막대 가운데(픽셀 (160, 50))는 0.5 → 내용 0.
+        stage.Frame({MouseAt(160.0f, 50.0f), HeldButton(MouseButton::Left)});
+        Check(CloseTo(slider->value, 0.5f) && CloseTo(contentPlace->position.y, 0.0f), "dragging the bar moves the content");
+        stage.Frame({MouseAt(160.0f, 80.0f)});
+        Check(CloseTo(slider->value, 1.0f) && CloseTo(contentPlace->position.y, 70.0f), "the bottom of the bar is the bottom of the content");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frames(2);
+        Check(CloseTo(slider->value, 1.0f) && CloseTo(contentPlace->position.y, 70.0f), "letting go keeps both where they are");
+        // 내용이 뷰포트보다 작으면 막대는 0 이고 손잡이가 트랙 전체다.
+        scroll->contentSize = {100.0f, 30.0f};
+        stage.Frame({});
+        Check(CloseTo(slider->value, 0.0f) && CloseTo(knobSprite->size.y, 60.0f), "content smaller than the viewport parks the bar at zero with a full-length knob");
+        // 가로 막대는 가로 스크롤이 꺼져 있으면 0 이다. NaN 내용 크기는 자리를 흔들지 않는다.
+        scroll->verticalBar = {};
+        scroll->horizontalBar = bar->GetScriptHandle();
+        scroll->contentSize = {NaN, 200.0f};
+        stage.Frame({});
+        Check(Finite(contentPlace->position) && CloseTo(slider->value, 0.0f), "a disabled axis and a NaN content size leave the bar at zero and the content finite");
+        scroll->horizontalBar = {};
+        scroll->verticalBar = bar->GetScriptHandle();
+        scroll->contentSize = {100.0f, 200.0f};
+        // 막대가 자기 자신이나 내용이 자식이 아니면 아무것도 하지 않는다.
+        scroll->content = window->GetScriptHandle();
+        slider->value = 0.3f;
+        stage.Frame({});
+        Check(CloseTo(slider->value, 0.3f), "a content that is the window itself leaves the bar alone");
+    }
 }
 
 JBro::Int32 RunUiScenarioTests()
@@ -1220,6 +1277,7 @@ JBro::Int32 RunUiScenarioTests()
     TestSelectionClipboardAndComposition();
     TestScriptMadeWidgetsAndCaretApi();
     TestToggleGroupsDropdownsAndTransitions();
+    TestScrollbarsFollowTheContent();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

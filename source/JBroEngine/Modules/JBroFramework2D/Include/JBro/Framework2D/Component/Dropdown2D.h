@@ -44,17 +44,17 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, offset, Pixels());
         JBRO_FIELD(Bool, interactable) = true;
         // 전이(D-355): 버튼과 같다 - 상태(보통·호버·눌림·꺼짐)를 대상 그림에 보인다. `targetGraphic` 이 비면 같은 오브젝트의 스프라이트다.
-        JBRO_FIELD(ButtonTransition, transition) = ButtonTransition::ColorTint;
-        JBRO_FIELD(Handle::SpriteRenderer2D, targetGraphic, Tooltip("전이를 거는 스프라이트. 비면 같은 오브젝트의 SpriteRenderer2D 다"));
-        JBRO_FIELD(Color, normalTint) { 1.0f, 1.0f, 1.0f, 1.0f };
-        JBRO_FIELD(Color, hoverTint) { 0.9f, 0.9f, 0.9f, 1.0f };
-        JBRO_FIELD(Color, pressedTint) { 0.7f, 0.7f, 0.7f, 1.0f };
-        JBRO_FIELD(Color, disabledTint) { 0.5f, 0.5f, 0.5f, 0.6f };
-        JBRO_FIELD(AssetId, hoverSpriteId);
+        JBRO_FIELD(ButtonTransition, transition, Category("Transition")) = ButtonTransition::ColorTint;
+        JBRO_FIELD(Handle::SpriteRenderer2D, targetGraphic, Tooltip("전이를 거는 스프라이트. 비면 같은 오브젝트의 SpriteRenderer2D 다") | Category("Transition"));
+        JBRO_FIELD(Color, normalTint, Category("Transition")) { 1.0f, 1.0f, 1.0f, 1.0f };
+        JBRO_FIELD(Color, hoverTint, Category("Transition")) { 0.9f, 0.9f, 0.9f, 1.0f };
+        JBRO_FIELD(Color, pressedTint, Category("Transition")) { 0.7f, 0.7f, 0.7f, 1.0f };
+        JBRO_FIELD(Color, disabledTint, Category("Transition")) { 0.5f, 0.5f, 0.5f, 0.6f };
+        JBRO_FIELD(AssetId, hoverSpriteId, Category("Transition"));
         JBRO_FIELD(AssetHandle, hoverSprite, NoSerialize() | ReadOnly() | Tooltip("hoverSpriteId 에서 해석된 값") | Hidden());
-        JBRO_FIELD(AssetId, pressedSpriteId);
+        JBRO_FIELD(AssetId, pressedSpriteId, Category("Transition"));
         JBRO_FIELD(AssetHandle, pressedSprite, NoSerialize() | ReadOnly() | Tooltip("pressedSpriteId 에서 해석된 값") | Hidden());
-        JBRO_FIELD(AssetId, disabledSpriteId);
+        JBRO_FIELD(AssetId, disabledSpriteId, Category("Transition"));
         JBRO_FIELD(AssetHandle, disabledSprite, NoSerialize() | ReadOnly() | Tooltip("disabledSpriteId 에서 해석된 값") | Hidden());
         JBRO_FIELD(Handle::GameObject, list, Tooltip("펼칠 목록 오브젝트. 이 오브젝트의 자식이어야 한다 - 항목은 그 아래의 Toggle2D 다"));
         JBRO_FIELD(Handle::Text2D, caption, Tooltip("고른 항목의 글자를 보이는 텍스트"));
