@@ -601,7 +601,7 @@
 
 ### 7.7 5 부 - 남은 열림 (D-361)
 
-> 상태: **진행** (2026-10-30 시작). 사용자 지시 "남은거 해". 3·4 부의 열림 가운데 엔진 안에서 되는 것: 끌기 올리기 보완, 가변 목록 부분 재기, 글자 칸 셋(조합 밑줄·더블 클릭·Ctrl+Z),
+> 상태: **완료** (2026-10-30 시작, 같은 날 끝). 사용자 지시 "남은거 해". 3·4 부의 열림 가운데 엔진 안에서 되는 것: 끌기 올리기 보완, 가변 목록 부분 재기, 글자 칸 셋(조합 밑줄·더블 클릭·Ctrl+Z),
 > 그룹 `blocksRaycasts`, 카메라마다 후처리, 컴포넌트 갈래 나누기. 남기는 것과 까닭은 D-361 (7). 단위마다 커밋한다.
 
 1. ~~**끌기는 올린 것만 내린다**~~ → 완료 2026-10-30 · `Button2DSystem::m_lifted`(`Array<Handle::GameObject>`, 64 예약)에 `LiftSubtree` 가 올린 오브젝트를 적고 `LowerLifted` 가 그것만 내린다.
@@ -630,3 +630,8 @@
 6. ~~**컴포넌트 갈래 나누기**~~ → 완료 2026-10-30 · `ComponentCategory::UiLayout`("UiLayout"), 로컬라이징 키 `component_category.UiLayout`(`UI 배치` / `UI Layout`, `LocalizationKeys.h` 의
    `ComponentCategoryUiLayout`). `Layout2D`·`ContentSizeFitter2D`·`ListView2D`·`SafeArea2D`·`AspectRatioFitter2D` 가 간다.
    - **잰 것**: `UserScenario` 시나리오 D - `UI` 열일곱·`UiLayout` 다섯이 모두 붙일 수 있다. `EditorLocalization`(두 언어의 키가 맞고 헤더가 선언한다)·`BuiltinComponentProperty` 통과.
+   - **실제 에디터**(`JBroEditorHost.exe`, `UI Game` 프로젝트): `컴포넌트 추가` 에 `UI 배치` 갈래 다섯(붙은 `Layout2D` 는 회색)과 `UI` 열일곱이 서고, 갈래 차례는 이름 순으로 처음 만난 차례라
+     `UI 배치` → `오디오` → `UI` 다(스크린숏을 봤다). 갈래 차례를 정하는 것은 열림.
+- **전체**(2026-10-30, 5 부 뒤, 이 PC 의 main 폴더, Debug, 기준 main 72a4aaf0): 솔루션 빌드 C++ 경고 0, 전체 시험 127 묶음 `all tests passed.`(`EditorApplication` 1504.9 초,
+  `UserScenario` 99.5 초, `PostProcessPixel` 15.1 초).
+- 5 부 끝(2026-10-30). 남긴 것과 까닭은 D-361 (7) - 3D 의 화면 레이어, 렌더 텍스처, 둘째 뷰의 지우기, 실제 IME 실측, 여러 줄 선택 조각, 버튼 소리 재생. 더한 열림: 갈래 차례.
