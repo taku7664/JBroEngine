@@ -60,7 +60,8 @@ namespace JBro::System
     // IME 조합 글자는 입력 상태에서 떠 두었다가 갱신 훅이 보이는 텍스트의 커서 자리에 끼우고, 포커스 칸의 커서 자리를 호스트(`ITextInputHost`)에 알려
     // 조합 창이 따라오게 한다.
     // 토글 그룹(`ToggleGroup2D`)은 조상의 토글 가운데 하나만 켜지게 하고, 드롭다운(`Dropdown2D`)은 누르면 목록을 펴 그 아래의 토글로 고른다(D-355) - 전이는
-    // 버튼·토글·슬라이더·글자 칸·드롭다운이 모두 같은 셈(`ApplyTransition`)이다.
+    // 버튼·토글·슬라이더·글자 칸·드롭다운이 모두 같은 셈(`ApplyTransition`)이다. 포커스가 있는 드롭다운은 Enter·`South` 가 펴고, 펴진 동안 ↑·↓·십자키가 항목을
+    // 돋우며(`highlighted`, 호버처럼 보인다) Enter·`South` 가 고른다(D-360).
     // 모달(`Modal2D`)이 켜져 있으면 그 안의 위젯만 후보이고 밖은 없는 것이다(D-357). 툴팁(`Tooltip2D`)은 포인터를 잡지 않고 머문 시간만 센다. 끌기(`Draggable2D`)는
     // 쥔 동안 오브젝트를 포인터만큼 옮기고 놓은 자리(`DropTarget2D`)에 떨어뜨린다 - 훅 `OnDragBegin`·`OnDragEnd`·`OnDrop`.
     //
@@ -140,6 +141,14 @@ namespace JBro::System
         Object::GameObject* FindDropdownOfOption(Object::GameObject* option, UInt32& index) const;
         // 열린 드롭다운을 접는다 - `pressed` 가 그 드롭다운이나 그 목록 안이면 둔다. `nullptr` 이면 모두 접는다.
         void CloseDropdownsOutside(Object::GameObject* pressed);
+        // 드롭다운의 항목 수(목록 아래의 토글 수)다(D-360).
+        Int32 CountOptions(const Component::Dropdown2D& dropdown) const;
+        // 드롭다운을 편다 - 돋운 항목은 고른 것, 없으면 첫 항목이다(D-360).
+        void OpenDropdown(Component::Dropdown2D& dropdown);
+        // 돋운 항목을 `delta` 만큼 옮긴다. 끝에서 멈추고, 없던 돋움은 방향의 첫 끝이다(D-360).
+        void MoveHighlight(Component::Dropdown2D& dropdown, Int32 delta);
+        // 돋운 항목을 고르고 접는다(값·`changed`·`OnValueChanged`). 돋운 것이 없으면 접기만이다(D-360).
+        void PickHighlight(Object::GameObject& owner, Component::Dropdown2D& dropdown);
         // 켜진 모달이 없거나, 켜진 어느 모달의 오브젝트나 그 자손이면 참이다(D-357). 밖의 위젯은 후보가 아니다.
         Bool InsideModal(Object::GameObject* object) const;
         // 끌던 것을 놓는다(D-357): 포인터 아래의 놓을 자리에 떨어뜨리고(`dropped`·`droppedOn`·`OnDrop`), 없고 `snapBack` 이면 제자리로, 그리고 `OnDragEnd`.
@@ -187,6 +196,8 @@ namespace JBro::System
         Float            m_stickY = 0.0f;
         // 자동 반복의 쥔 시간(D-354). 키는 Backspace·Delete·←·→ 차례, 탐색은 쥔 방향과 시간이다. 델타는 지난 갱신 훅의 것이다.
         Float            m_keyHeld[4] = {};
+        // 드롭다운의 ↑·↓ 쥔 시간(D-360).
+        Float            m_dropdownHeld[2] = {};
         Float            m_navigateHeld = 0.0f;
         Int32            m_navigateHeldX = 0;
         Int32            m_navigateHeldY = 0;

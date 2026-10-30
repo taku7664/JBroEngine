@@ -1854,6 +1854,10 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::Dropdown2D::*)() const>(&Handle::Dropdown2D::GetHighlighted)>("GetHighlighted", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Dropdown2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }

@@ -67,6 +67,12 @@ namespace JBro::Handle
         return component != nullptr ? component->focused : Bool(false);
     }
 
+    Int32 Dropdown2D::GetHighlighted() const
+    {
+        const Component::Dropdown2D* component = Resolve("GetHighlighted");
+        return component != nullptr ? component->highlighted : Int32(-1);
+    }
+
     Bool Dropdown2D::GetChanged() const
     {
         const Component::Dropdown2D* component = Resolve("GetChanged");

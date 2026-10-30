@@ -1257,6 +1257,112 @@ namespace
         Check(pick->IsActiveSelf() && list->IsActiveSelf(), "a list that is the dropdown itself is left alone");
     }
 
+    // **드롭다운의 키보드·게임패드**(D-360). 드롭다운 `pick` 은 (0, -40) 100 x 16(픽셀 (100, 90)), 목록은 (0, 45) 아래 항목 둘(`one` y 8, `two` y -8) 이다.
+    void TestDropdownsMoveByKeyboardAndGamepad()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        g_hookCalls = 0;
+        Object::GameObject* pick = stage.Make("pick", {0.0f, -40.0f});
+        auto* dropdown = canvas->AttachComponent<Component::Dropdown2D>(pick);
+        dropdown->size = {100.0f, 16.0f};
+        canvas->AttachScript<SelfDestructor>(pick);
+        Object::GameObject* list = stage.Make("list", {0.0f, 45.0f}, pick);
+        dropdown->list = list->GetScriptHandle();
+        Object::GameObject* one = stage.Make("one", {0.0f, 8.0f}, list);
+        auto* option1 = canvas->AttachComponent<Component::Toggle2D>(one);
+        option1->size = {100.0f, 14.0f};
+        auto* sprite1 = canvas->AttachComponent<Component::SpriteRenderer2D>(one);
+        Object::GameObject* two = stage.Make("two", {0.0f, -8.0f}, list);
+        auto* option2 = canvas->AttachComponent<Component::Toggle2D>(two);
+        option2->size = {100.0f, 14.0f};
+        auto* sprite2 = canvas->AttachComponent<Component::SpriteRenderer2D>(two);
+        stage.Frames(2);
+        Check(dropdown->highlighted == -1, "a closed dropdown highlights nothing");
+        // 키보드: 누르면 펴지고 첫 항목이 돋아 있다. ↓ 가 둘째로, Enter 가 고른다.
+        stage.Frame({MouseAt(100.0f, 90.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(190.0f, 2.0f)});
+        Check(dropdown->open && dropdown->highlighted == 0 && option1->hovered && CloseTo(sprite1->tint.R, 0.9f),
+            "opening with no value highlights the first option and it looks hovered");
+        stage.Frame({Pressed(Key::Down)});
+        stage.Frame({ReleasedKey(Key::Down)});
+        Check(dropdown->highlighted == 1 && option2->hovered && false == option1->hovered && CloseTo(sprite2->tint.R, 0.9f) && CloseTo(sprite1->tint.R, 1.0f),
+            "down moves the highlight to the second option");
+        stage.Frame({Pressed(Key::Down)});
+        stage.Frame({ReleasedKey(Key::Down)});
+        Check(dropdown->highlighted == 1, "down at the last option stays");
+        stage.Frame({Pressed(Key::Enter)});
+        Check(dropdown->value == 1 && dropdown->changed && false == dropdown->open && dropdown->highlighted == -1 && g_hookCalls == 1,
+            "enter picks the highlighted option, closes and tells the script");
+        stage.Frame({ReleasedKey(Key::Enter)});
+        Check(false == option2->hovered && CloseTo(sprite2->tint.R, 1.0f), "once closed nothing looks hovered");
+        stage.Frame({Pressed(Key::Enter)});
+        stage.Frame({ReleasedKey(Key::Enter)});
+        Check(dropdown->open && dropdown->highlighted == 1, "enter on a closed dropdown opens it at the chosen option");
+        stage.Frame({Pressed(Key::Up)});
+        stage.Frame({ReleasedKey(Key::Up)});
+        stage.Frame({Pressed(Key::Up)});
+        stage.Frame({ReleasedKey(Key::Up)});
+        Check(dropdown->highlighted == 0, "up stops at the first option");
+        stage.Frame({Pressed(Key::Escape)});
+        stage.Frame({ReleasedKey(Key::Escape)});
+        Check(false == dropdown->open && dropdown->highlighted == -1 && dropdown->value == 1, "escape closes without picking");
+        // 쥐면 되풀이: Space 로 펴고 ↓ 를 쥐면 0.4 초 뒤 0.1 초마다 옮긴다 - 항목이 둘이라 끝에서 멈춘다.
+        stage.Frame({Pressed(Key::Space)});
+        stage.Frame({ReleasedKey(Key::Space)});
+        dropdown->value = -1;
+        stage.Frame({Pressed(Key::Up)});
+        Check(dropdown->open && dropdown->highlighted == 0, "space opens and up from the top stays at the top");
+        stage.Frame({ReleasedKey(Key::Up)});
+        stage.Frame({Pressed(Key::Down)});
+        stage.Frames(30);
+        Check(dropdown->highlighted == 1, "a held down key repeats and stops at the end");
+        stage.Frame({ReleasedKey(Key::Down)});
+        stage.Frame({Pressed(Key::Escape)});
+        stage.Frame({ReleasedKey(Key::Escape)});
+        // 게임패드: South 가 펴고, 십자키가 돋움을 옮기며, South 가 고른다. 좌우는 포커스를 옮기지 않는다.
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::South);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(dropdown->open && dropdown->highlighted == 0, "the south button opens it at the first option");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadDown);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(dropdown->highlighted == 1 && option2->hovered, "the d-pad moves the highlight");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadLeft);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(dropdown->open && dropdown->focused && dropdown->highlighted == 1, "left and right do nothing while the list is open");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::South);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(dropdown->value == 1 && false == dropdown->open && g_hookCalls == 2, "south picks the highlighted option");
+        // 항목이 없으면 돋움도 없고 Enter 는 접기만 한다. 목록이 사라지면 -1 이다.
+        dropdown->list = {};
+        stage.Frame({Pressed(Key::Enter)});
+        stage.Frame({ReleasedKey(Key::Enter)});
+        Check(dropdown->open && dropdown->highlighted == -1, "with no list it opens with nothing highlighted");
+        stage.Frame({Pressed(Key::Down)});
+        stage.Frame({ReleasedKey(Key::Down)});
+        stage.Frame({Pressed(Key::Enter)});
+        stage.Frame({ReleasedKey(Key::Enter)});
+        Check(false == dropdown->open && dropdown->value == 1 && g_hookCalls == 2, "enter with nothing highlighted only closes");
+        dropdown->list = list->GetScriptHandle();
+        dropdown->value = 9;
+        stage.Frame({Pressed(Key::Enter)});
+        stage.Frame({ReleasedKey(Key::Enter)});
+        Check(dropdown->open && dropdown->highlighted == 0, "a value past the options highlights the first");
+        dropdown->interactable = false;
+        stage.Frame({Pressed(Key::Down)});
+        stage.Frame({ReleasedKey(Key::Down)});
+        Check(dropdown->highlighted == 0, "a disabled dropdown ignores the keys");
+    }
+
     // **스크롤바**(D-355). 창(마스크 100 x 60)이 가운데, 내용(100 x 200)은 위가 맞춰져(-70) 있고, 세로 막대는 (60, 0) 의 10 x 60 슬라이더(위에서 아래로)다.
     void TestScrollbarsFollowTheContent()
     {
@@ -1670,6 +1776,7 @@ JBro::Int32 RunUiScenarioTests()
     TestTooltipsModalsTabsAndDragging();
     TestSafeAreaGroupsKeyboardAndLinks();
     TestSplitCamerasMapThePointer();
+    TestDropdownsMoveByKeyboardAndGamepad();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

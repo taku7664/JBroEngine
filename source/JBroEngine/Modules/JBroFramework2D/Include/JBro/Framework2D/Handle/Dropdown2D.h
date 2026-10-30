@@ -68,6 +68,8 @@ namespace JBro::Handle
         Bool GetPressed() const;
         Bool GetFocused() const;
         Bool GetChanged() const;
+        // 키보드·게임패드가 돋운 항목의 번호다(D-360). 접혀 있으면 -1 이다.
+        Int32 GetHighlighted() const;
 
     private:
         Component::Dropdown2D* Resolve(const char* operation) const;

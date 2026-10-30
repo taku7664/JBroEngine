@@ -838,6 +838,67 @@ namespace JBro::System
         });
     }
 
+    Int32 Button2DSystem::CountOptions(const Component::Dropdown2D& dropdown) const
+    {
+        Object::GameObject* list = Internal::GameObjectHandleAccess::Resolve(dropdown.list);
+        if (list == nullptr)
+        {
+            return 0;
+        }
+        Int32 count = 0;
+        auto tally = [&](Object::GameObject&, Component::Toggle2D&)
+        {
+            ++count;
+        };
+        VisitToggles(*m_canvas, *list, tally);
+        return count;
+    }
+
+    void Button2DSystem::OpenDropdown(Component::Dropdown2D& dropdown)
+    {
+        const Int32 count = CountOptions(dropdown);
+        dropdown.open = true;
+        dropdown.highlighted = count <= 0 ? Int32(-1) : (dropdown.value >= 0 && dropdown.value < count ? dropdown.value : Int32(0));
+    }
+
+    void Button2DSystem::MoveHighlight(Component::Dropdown2D& dropdown, Int32 delta)
+    {
+        const Int32 count = CountOptions(dropdown);
+        if (count <= 0)
+        {
+            dropdown.highlighted = -1;
+            return;
+        }
+        Int32 next = dropdown.highlighted < 0 ? (delta > 0 ? Int32(0) : Int32(count - 1)) : Int32(dropdown.highlighted + delta);
+        if (next < 0)
+        {
+            next = 0;
+        }
+        if (next >= count)
+        {
+            next = count - 1;
+        }
+        dropdown.highlighted = next;
+    }
+
+    void Button2DSystem::PickHighlight(Object::GameObject& owner, Component::Dropdown2D& dropdown)
+    {
+        const Int32 count = CountOptions(dropdown);
+        const Int32 chosen = dropdown.highlighted;
+        dropdown.open = false;
+        dropdown.highlighted = -1;
+        if (chosen < 0 || chosen >= count)
+        {
+            return;
+        }
+        if (dropdown.value != chosen)
+        {
+            dropdown.value = chosen;
+            dropdown.changed = true;
+            CallHook(&owner, Hook::ValueChanged);
+        }
+    }
+
     Bool Button2DSystem::InsideModal(Object::GameObject* object) const
     {
         if (false == m_modalActive)
@@ -2441,7 +2502,14 @@ namespace JBro::System
             {
                 if (auto* dropdown = m_canvas->FindComponentRaw<Component::Dropdown2D>(released))
                 {
-                    dropdown->open = false == dropdown->open;
+                    if (dropdown->open)
+                    {
+                        dropdown->open = false;
+                    }
+                    else
+                    {
+                        OpenDropdown(*dropdown);
+                    }
                 }
             }
             else if (releasedKind == WidgetKind::Draggable)
@@ -2593,7 +2661,21 @@ namespace JBro::System
                 usedGamepad = true;
                 auto* slider = focusedObject != nullptr && m_focusedKind == WidgetKind::Slider
                     ? m_canvas->FindComponentRaw<Component::Slider2D>(focusedObject) : nullptr;
-                if (slider != nullptr && directionX != 0)
+                auto* openDropdown = focusedObject != nullptr && m_focusedKind == WidgetKind::Dropdown
+                    ? m_canvas->FindComponentRaw<Component::Dropdown2D>(focusedObject) : nullptr;
+                if (openDropdown != nullptr && false == openDropdown->open)
+                {
+                    openDropdown = nullptr;
+                }
+                if (openDropdown != nullptr)
+                {
+                    // 펴진 드롭다운(D-360): 위아래가 돋움이고 좌우는 아무것도 아니다 - 포커스는 목록에 머문다.
+                    if (directionY != 0)
+                    {
+                        MoveHighlight(*openDropdown, directionY);
+                    }
+                }
+                else if (slider != nullptr && directionX != 0)
                 {
                     const Float value = Float::Clamp(slider->value + SliderStep * static_cast<JBro::Float>(directionX.Get()), 0.0f, 1.0f);
                     if (value != slider->value)
@@ -2647,7 +2729,14 @@ namespace JBro::System
                 {
                     if (auto* dropdown = m_canvas->FindComponentRaw<Component::Dropdown2D>(focusedObject))
                     {
-                        dropdown->open = false == dropdown->open;
+                        if (dropdown->open)
+                        {
+                            PickHighlight(*focusedObject, *dropdown);
+                        }
+                        else
+                        {
+                            OpenDropdown(*dropdown);
+                        }
                     }
                 }
             }
@@ -2674,6 +2763,49 @@ namespace JBro::System
                 TypeInto(*focusedObject, *field, input);
                 usedKeyboard = true;
             }
+        }
+        // 포커스 드롭다운(D-360): Enter·Space 가 펴고, 펴진 동안 ↑·↓ 가 돋움을 옮기며(쥐면 되풀이) Enter 가 고르고 Esc 가 접는다. 펴진 동안만 키보드를 소비한다.
+        if (m_focusedKind == WidgetKind::Dropdown)
+        {
+            resolveFocused();
+            auto* dropdown = focusedObject != nullptr ? m_canvas->FindComponentRaw<Component::Dropdown2D>(focusedObject) : nullptr;
+            const KeyboardState& keyboard = input.Keyboard();
+            if (dropdown != nullptr && dropdown->interactable && dropdown->IsActiveComponent())
+            {
+                const Bool confirm = keyboard.IsPressed(Key::Enter) || keyboard.IsPressed(Key::Space);
+                if (dropdown->open)
+                {
+                    usedKeyboard = true;
+                    const Bool up = Repeats(keyboard.IsDown(Key::Up), keyboard.IsPressed(Key::Up), m_dropdownHeld[0], NavigateRepeatInterval);
+                    const Bool down = Repeats(keyboard.IsDown(Key::Down), keyboard.IsPressed(Key::Down), m_dropdownHeld[1], NavigateRepeatInterval);
+                    if (up)
+                    {
+                        MoveHighlight(*dropdown, -1);
+                    }
+                    if (down)
+                    {
+                        MoveHighlight(*dropdown, 1);
+                    }
+                    if (confirm)
+                    {
+                        PickHighlight(*focusedObject, *dropdown);
+                    }
+                    else if (keyboard.IsPressed(Key::Escape))
+                    {
+                        dropdown->open = false;
+                    }
+                }
+                else if (confirm)
+                {
+                    usedKeyboard = true;
+                    OpenDropdown(*dropdown);
+                }
+            }
+        }
+        if (m_focusedKind != WidgetKind::Dropdown)
+        {
+            m_dropdownHeld[0] = 0.0f;
+            m_dropdownHeld[1] = 0.0f;
         }
         if (false == usedKeyboard)
         {
@@ -2707,11 +2839,36 @@ namespace JBro::System
                 RestoreSwap(button, TargetGraphic(*m_canvas, button, owner));
             }
         });
+        // 펴진 드롭다운의 돋운 항목은 호버처럼 보인다(D-360). 접힌 드롭다운의 돋움은 지운다.
+        InstanceId highlightedOption = InvalidInstanceId;
+        m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
+        {
+            if (false == dropdown.open)
+            {
+                dropdown.highlighted = -1;
+                return;
+            }
+            Object::GameObject* list = Internal::GameObjectHandleAccess::Resolve(dropdown.list);
+            if (list == nullptr || dropdown.highlighted < 0 || highlightedOption != InvalidInstanceId)
+            {
+                return;
+            }
+            Int32 index = 0;
+            auto find = [&](Object::GameObject& option, Component::Toggle2D&)
+            {
+                if (index == dropdown.highlighted)
+                {
+                    highlightedOption = option.GetInstanceId();
+                }
+                ++index;
+            };
+            VisitToggles(*m_canvas, *list, find);
+        });
         m_canvas->ForEach<Component::Toggle2D>([&](Component::Toggle2D& toggle)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(toggle);
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
-            toggle.hovered = id != InvalidInstanceId && id == m_hovered && m_hoveredKind == WidgetKind::Toggle;
+            toggle.hovered = id != InvalidInstanceId && ((id == m_hovered && m_hoveredKind == WidgetKind::Toggle) || id == highlightedOption);
             toggle.pressed = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Toggle;
             toggle.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Toggle;
             if (toggle.IsActiveComponent())

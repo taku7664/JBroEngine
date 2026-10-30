@@ -58,7 +58,7 @@ namespace
             "Button2D declares twenty-five fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, two sound pairs of D-358, four states and the swap latch");
         Check(Table("Component::InputField2D").count == 34, "InputField2D declares thirty-four fields - the rect, interactable, the transition set of D-355 (twelve), text, display, caret, selection, maxLength, blinkRate, five states, the caret index, the selection anchor, composing and five hidden values (D-352, D-354, D-355)");
         Check(Table("Component::ToggleGroup2D").count == 2, "ToggleGroup2D declares two fields - allowOff and the value state (D-355)");
-        Check(Table("Component::Dropdown2D").count == 27, "Dropdown2D declares twenty-seven fields - the rect, interactable, the transition set (twelve), list, caption, value, five states, two shown values and the swap latch (D-355)");
+        Check(Table("Component::Dropdown2D").count == 28, "Dropdown2D declares twenty-eight fields - the rect, interactable, the transition set (twelve), list, caption, value, six states, two shown values and the swap latch (D-355, D-360)");
         Check(Table("Component::Layout2D").count == 9, "Layout2D declares nine fields - mode, cell, spacing, padding, columns, pivot, fitChildren and the block size (D-352, D-355)");
         Check(Table("Component::ContentSizeFitter2D").count == 6, "ContentSizeFitter2D declares six fields - two axes, padding, minSize and the fitted size (D-355)");
         Check(Table("Component::Tooltip2D").count == 6, "Tooltip2D declares six fields - the rect, delay, target, shown and the hover time (D-357)");
