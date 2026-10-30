@@ -23,8 +23,14 @@ namespace JBro
     // 장치 오류가 아니므로 프레임을 실패시키지 않는다.
     Bool IsDrawableCamera2D(const RenderCamera2D& camera);
 
-    // `PixelPerfect` 카메라면 `frame` 의 그려지는 사각형을 레터박스로 건다(`ComputePixelPerfectArea`). 아니면(널 포함) 사각형을
-    // 비워 대상 전체로 둔다. 화면 레이어도 이 사각형 안에 그려지고 포인터도 이 사각형으로 역투영된다.
+    // 뷰포트가 대상 전체인가(D-359). 비율이 0 이하·수가 아니면 거짓이다(그릴 수 없다).
+    Bool HasFullViewport(const RenderCamera2D& camera);
+    Bool HasDrawableViewport(const RenderCamera2D& camera);
+    // **카메라가 그리는 사각형**(D-359)을 `frame` 에 건다 - 뷰포트(대상의 0..1 비율, 왼쪽 위 원점)를 대상 픽셀로 옮기고, `PixelPerfect` 면 그 안에서 레터박스를 센다.
+    // 뷰마다 하나씩 부른다. 그릴 수 없는 카메라는 사각형을 비운다(대상 전체).
+    void ApplyCameraViewport(const RenderCamera2D& camera, ScreenSpaceFrame& frame);
+    // 화면 레이어·앵커·포인터의 화면 기준이 쓰는 사각형이다. 카메라의 뷰포트가 **대상 전체일 때만** `ApplyCameraViewport` 와 같고(`PixelPerfect` 의 레터박스),
+    // 뷰포트가 일부이거나 카메라가 없으면 사각형을 비워 대상 전체로 둔다 - 분할 화면에서 HUD 는 화면 전체다.
     void ApplyCameraArea(const RenderCamera2D* camera, ScreenSpaceFrame& frame);
 
     // **카메라가 화면에 무엇을 보이는지는 이것 하나로 잰다.** 그리기(렌더 브리지)·버튼의 월드 역투영·에디터의 레이어 공간

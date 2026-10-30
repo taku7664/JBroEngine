@@ -14,6 +14,8 @@ namespace JBro
             m_sprites.Reserve(capacity);
             // 정렬 키도 같이 잡는다. Sort 가 프레임 중에 할당하면 안 된다.
             m_order.Reserve(capacity);
+            // 카메라 목록도 미리 잡는다(D-359) - 분할 화면이 여덟을 넘기 전에는 프레임 중에 할당하지 않는다.
+            m_cameras.Reserve(8);
         }
         catch (const std::bad_alloc&)
         {
@@ -134,6 +136,28 @@ namespace JBro
     {
         m_camera = camera;
         m_hasCamera = true;
+    }
+
+    void RenderWorld2D::ClearCameras()
+    {
+        m_cameras.Clear();
+    }
+
+    void RenderWorld2D::AddCamera(const RenderCamera2D& camera)
+    {
+        // `depth` 차례로 끼운다(같으면 들어온 차례). 용량은 한 번 자라면 남는다.
+        m_cameras.Add(camera);
+        for (std::size_t index = m_cameras.Size() - 1; index > 0 && m_cameras[index - 1].depth > m_cameras[index].depth; --index)
+        {
+            const RenderCamera2D swapped = m_cameras[index - 1];
+            m_cameras[index - 1] = m_cameras[index];
+            m_cameras[index] = swapped;
+        }
+    }
+
+    ArrayView<const RenderCamera2D> RenderWorld2D::GetCameras() const
+    {
+        return { m_cameras.Data(), static_cast<JBro::UInt32>(m_cameras.Size()) };
     }
 
     void RenderWorld2D::SetUnusableCameraCount(UInt32 count)

@@ -2,6 +2,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/CanvasGroup2D.h>
 #include <JBro/Framework2D/Component/Draggable2D.h>
 #include <JBro/Framework2D/Component/DropTarget2D.h>
@@ -1598,6 +1599,59 @@ namespace
         stage.Frame({});
         Check(topButton->focused, "a link to itself goes nowhere");
     }
+
+    // **분할 화면의 포인터**(D-359). 왼쪽 절반의 카메라 A(월드 (-10, 0), 반높이 50)와 오른쪽 절반의 카메라 B((10, 0)). 왼쪽 절반의 가운데 픽셀은 A 로 (-10, 0),
+    // 오른쪽 절반의 가운데는 B 로 (10, 0) 이고, 월드 버튼은 제 카메라의 절반에서만 눌린다.
+    void TestSplitCamerasMapThePointer()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        const auto makeCamera = [&](const char* name, JBro::Float x, JBro::Float originX, JBro::Bool primary) {
+            Object::GameObject* object = canvas->CreateObject(name);
+            canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(object);
+            camera->primary = primary;
+            camera->orthographicSize = 50.0f;
+            camera->viewportOrigin = {originX, 0.0f};
+            camera->viewportSize = {0.5f, 1.0f};
+            return camera;
+        };
+        auto* left = makeCamera("left", -10.0f, 0.0f, true);
+        makeCamera("right", 10.0f, 0.5f, false);
+        Object::GameObject* world = canvas->CreateObject("world");
+        canvas->AttachComponent<Component::Transform2D>(world)->position = {10.0f, 0.0f};
+        auto* button = canvas->AttachComponent<Component::Button2D>(world);
+        button->size = {20.0f, 20.0f};
+        stage.Frames(2);
+        const Service::Screen2DService& screen = GetFramework2DServices().Screen2D;
+        Vector2 point;
+        Check(screen.ScreenToLayer({50.0f, 50.0f}, world->GetScriptHandle(), point) && CloseTo(point.x, -10.0f) && CloseTo(point.y, 0.0f),
+            "the middle of the left half maps through the left camera");
+        Check(screen.ScreenToLayer({150.0f, 50.0f}, world->GetScriptHandle(), point) && CloseTo(point.x, 10.0f) && CloseTo(point.y, 0.0f),
+            "the middle of the right half maps through the right camera");
+        Check(screen.ScreenToLayer({175.0f, 25.0f}, world->GetScriptHandle(), point) && CloseTo(point.x, 35.0f) && CloseTo(point.y, 25.0f),
+            "a quarter into the right half is a quarter of the camera's width");
+        // 버튼은 (10, 0) - 오른쪽 절반의 가운데에서 눌리고 왼쪽 절반의 가운데에서는 아니다.
+        stage.Frame({MouseAt(150.0f, 50.0f), HeldButton(MouseButton::Left)});
+        Check(button->pressed, "the world button is pressed through the camera that shows it");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(50.0f, 50.0f), HeldButton(MouseButton::Left)});
+        Check(false == button->pressed, "and not through the other camera");
+        stage.Frame({Released(MouseButton::Left)});
+        // 월드 → 픽셀은 주 카메라다.
+        Vector2 pixel;
+        Check(screen.LayerToScreen({-10.0f, 0.0f}, world->GetScriptHandle(), pixel) && CloseTo(pixel.x, 50.0f) && CloseTo(pixel.y, 50.0f),
+            "layer to screen goes through the primary camera's viewport");
+        // 겹치면 depth 가 큰 카메라가 받는다. 빈 뷰포트의 카메라는 없는 것이다.
+        left->viewportSize = {1.0f, 1.0f};
+        left->depth = 5;
+        stage.Frame({});
+        Check(screen.ScreenToLayer({150.0f, 50.0f}, world->GetScriptHandle(), point) && CloseTo(point.x, 40.0f),
+            "a deeper full-screen camera takes the right half from the shallower one");
+        left->viewportSize = {0.0f, 1.0f};
+        stage.Frame({});
+        Check(screen.ScreenToLayer({150.0f, 50.0f}, world->GetScriptHandle(), point) && CloseTo(point.x, 10.0f), "an empty viewport is skipped");
+    }
 }
 
 JBro::Int32 RunUiScenarioTests()
@@ -1615,6 +1669,7 @@ JBro::Int32 RunUiScenarioTests()
     TestScrollbarsFollowTheContent();
     TestTooltipsModalsTabsAndDragging();
     TestSafeAreaGroupsKeyboardAndLinks();
+    TestSplitCamerasMapThePointer();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

@@ -664,33 +664,37 @@ namespace JBro::Internal
 
     RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw)
     {
-        const RenderCamera2D* camera = world.GetCamera();
+        const RenderCamera2D* primary = world.GetCamera();
         // **이번 프레임이 그려지는 크기로 사각형을 다시 잰다**(D-239). 뷰포트가 대상 밖으로 나가면 렌더러가 프레임을 거절하므로 대상은 렌더러의
         // 것을 쓴다. 레터박스는 앵커를 잰 것과 같은 함수로 이번에 뽑힌 카메라에서 다시 건다 - 첫 프레임에는 앵커 쪽이 카메라를 아직 몰랐다.
-        ScreenSpaceFrame frame = world.GetScreenSpace();
+        ScreenSpaceFrame base = world.GetScreenSpace();
         const Extent2D target = renderer.GetFrameExtent();
-        frame.targetWidth = static_cast<JBro::Float>(target.width);
-        frame.targetHeight = static_cast<JBro::Float>(target.height);
-        ApplyCameraArea(camera, frame);
+        base.targetWidth = static_cast<JBro::Float>(target.width);
+        base.targetHeight = static_cast<JBro::Float>(target.height);
+        base.areaX = 0.0f;
+        base.areaY = 0.0f;
+        base.areaWidth = 0.0f;
+        base.areaHeight = 0.0f;
         Bool worldSubmitted = false;
-        // 카메라가 없는 것은 오류가 아니다. 월드를 그리지 않을 뿐이다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
-        if (camera != nullptr)
+        // **카메라마다 뷰 하나다**(D-359, 분할 화면). `depth` 차례이고 각자 제 뷰포트(와 그 안의 레터박스)에 그린다. 조명·그림자·패럴랙스는 그 뷰의 카메라로 다시 건다.
+        // 디버그 선은 첫 뷰에만 그린다. 카메라가 없는 것은 오류가 아니다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
+        const auto drawCamera = [&](const RenderCamera2D& camera, Bool first) -> RenderResult
         {
+            ScreenSpaceFrame frame = base;
+            ApplyCameraViewport(camera, frame);
             CameraParams parameters;
-            // 카메라의 후처리다(D-344). 화면 레이어는 뒤의 다른 뷰라 후처리를 받지 않는다.
+            // 카메라의 후처리다(D-344). 화면 레이어는 뒤의 다른 뷰라 후처리를 받지 않는다. 분할 화면도 주 카메라의 프로필 하나다.
             parameters.postProcess = world.GetPostProcess();
-            // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은
-            // 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
+            // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
             // 에디터 창 모양을 따라가고, 뷰포트가 타깃 밖으로 나간다.
-            if (false == BuildCamera(*camera, frame, parameters)
-                || false == renderer.BeginView(parameters))
+            if (false == BuildCamera(camera, frame, parameters) || false == renderer.BeginView(parameters))
             {
                 return RenderResult::Failed;
             }
             // 패럴랙스는 그리는 카메라와 같은 뷰로 건다(D-286). 그 뷰를 못 재면(그릴 수 없는 카메라) 위에서 이미 실패했다.
             CameraView2D cameraView;
             SpriteFilterRule rule;
-            if (ComputeCameraView2D(*camera, frame, cameraView))
+            if (ComputeCameraView2D(camera, frame, cameraView))
             {
                 rule.parallaxView = &cameraView.view;
             }
@@ -699,21 +703,40 @@ namespace JBro::Internal
             rule.lighting = true;
             const Bool accepted = PushSprites(world, renderer, false, rule);
             // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
-            if (debugDraw != nullptr && debugDraw->IsSimulationViewVisible())
+            if (first && debugDraw != nullptr && debugDraw->IsSimulationViewVisible())
             {
                 PushDebugLines2D(*debugDraw, renderer,
-                    2.0f * camera->orthographicSize / static_cast<JBro::Float>(renderer.GetFrameExtent().height));
+                    2.0f * camera.orthographicSize / static_cast<JBro::Float>(renderer.GetFrameExtent().height));
             }
             const Bool closed = renderer.EndView();
-            if (false == accepted || false == closed)
+            return accepted && closed ? RenderResult::Submitted : RenderResult::Failed;
+        };
+        const ArrayView<const RenderCamera2D> cameras = world.GetCameras();
+        if (cameras.Size() > 0)
+        {
+            for (UInt32 index = 0; index < cameras.Size(); ++index)
+            {
+                if (drawCamera(cameras[index], index == 0) == RenderResult::Failed)
+                {
+                    return RenderResult::Failed;
+                }
+            }
+            worldSubmitted = true;
+        }
+        else if (primary != nullptr)
+        {
+            // 카메라를 직접 건 쪽(시험)이다 - 주 카메라 하나.
+            if (drawCamera(*primary, true) == RenderResult::Failed)
             {
                 return RenderResult::Failed;
             }
             worldSubmitted = true;
         }
-        // 화면 레이어는 월드 위에 그린다(D-237). 렌더러는 대상을 첫 뷰에서만 지운다.
+        // 화면 레이어는 월드 위에 그린다(D-237). 렌더러는 대상을 첫 뷰에서만 지운다. 사각형은 주 카메라의 뷰포트가 전체일 때만 그 레터박스다 - 분할 화면의 HUD 는 화면 전체다.
+        ScreenSpaceFrame screenFrame = base;
+        ApplyCameraArea(primary, screenFrame);
         Bool screenSubmitted = false;
-        if (false == SubmitScreenViews(world, renderer, frame, screenSubmitted))
+        if (false == SubmitScreenViews(world, renderer, screenFrame, screenSubmitted))
         {
             return RenderResult::Failed;
         }

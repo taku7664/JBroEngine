@@ -42,6 +42,12 @@ namespace JBro::Component
         JBRO_FIELD(Float, farPlane)  =  100.0f;
         JBRO_FIELD(Color, clearColor) { 0.08f, 0.09f, 0.11f, 1.0f };
         JBRO_FIELD(Bool,  primary) = false;
+        // **뷰포트**(D-359, 분할 화면). 대상의 어느 사각형에 그리는가 - 왼쪽 위 원점의 0..1 비율이다. 기본은 전체다. 켜진 카메라마다 제 뷰포트에 한 번씩 그리고
+        // `depth` 가 작은 것부터다(같으면 계층 차례). 화면 레이어·앵커는 뷰포트와 무관하게 대상 전체다. `PixelPerfect` 의 레터박스는 뷰포트 안에서 센다.
+        // 포인터는 그 픽셀이 든 뷰포트의 카메라(겹치면 `depth` 가 큰 것)로 역투영한다. 비율이 0 이거나 뷰포트가 비면 그 카메라는 그리지 않는다.
+        JBRO_FIELD(Vector2, viewportOrigin, Range(0.0f, 1.0f));
+        JBRO_FIELD(Vector2, viewportSize, Range(0.0f, 1.0f)) { 1.0f, 1.0f };
+        JBRO_FIELD(Int32, depth) = 0;
         // **이 카메라의 후처리 프로필**(`.jpost`, D-344). 비어 있으면 후처리가 없다. 게임 화면과 캔버스 뷰(단추로 끌 수 있다)가 이 프로필을 건다.
         JBRO_FIELD(AssetId, postProcessProfileId);
         JBRO_FIELD(AssetHandle, postProcessProfile, NoSerialize() | ReadOnly() | Hidden());

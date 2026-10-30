@@ -36,6 +36,10 @@ namespace JBro
         AssetHandle postProcessProfile;
         // 카메라의 월드 위치다. 후처리 볼륨(D-346)의 무게를 이 자리에서 잰다.
         Vector2 position;
+        // 뷰포트(D-359): 대상 안의 사각형(왼쪽 위 원점, 0..1)과 그리는 차례다.
+        Vector2 viewportOrigin;
+        Vector2 viewportSize{ 1.0f, 1.0f };
+        Int32 depth = 0;
     };
 
     struct SpriteRenderItem
@@ -130,6 +134,10 @@ namespace JBro
         Bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
+        // **이번 프레임에 그릴 카메라 모두**(D-359, 분할 화면). `depth` 차례다. 비어 있으면 브리지는 `GetCamera` 하나를 그린다(카메라를 직접 건 시험).
+        void ClearCameras();
+        void AddCamera(const RenderCamera2D& camera);
+        ArrayView<const RenderCamera2D> GetCameras() const;
         // **이번 카메라의 후처리**(D-344). 프레임워크가 카메라의 프로필을 풀어 건다 - 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다.
         // `BeginFrame` 이 비우지 않는다: 멈춘 동안의 추출(중단점)에서도 지난 값이 그대로 산다.
         void SetPostProcess(const PostProcessStack& stack)
@@ -208,6 +216,7 @@ namespace JBro
         static UInt64 MakeSortKey(const SpriteRenderItem& item);
 
         RenderCamera2D          m_camera;
+        Array<RenderCamera2D>   m_cameras;
         PostProcessStack        m_postProcess;
         Array<PostProcessStack> m_layerPostProcess;
         Bool                    m_hasCamera = false;

@@ -485,8 +485,18 @@ namespace JBro::System
         Float ny = 0.0f;
         RenderCamera2D camera;
         CameraView2D view;
-        if (m_canvas == nullptr || false == ScreenPixelToNormalized(m_screen, pixelX, pixelY, nx, ny)
-            || false == Camera2DSystem::SelectCamera(*m_canvas, camera) || false == ComputeCameraView2D(camera, m_screen, view))
+        // 그 픽셀이 든 뷰포트의 카메라로 그 뷰포트 안에서 역투영한다(D-359). 사각형은 그 카메라의 것으로 다시 건다.
+        ScreenSpaceFrame frame = m_screen;
+        frame.areaX = 0.0f;
+        frame.areaY = 0.0f;
+        frame.areaWidth = 0.0f;
+        frame.areaHeight = 0.0f;
+        if (m_canvas == nullptr || false == Camera2DSystem::SelectCameraAt(*m_canvas, frame, pixelX, pixelY, camera))
+        {
+            return false;
+        }
+        ApplyCameraViewport(camera, frame);
+        if (false == ScreenPixelToNormalized(frame, pixelX, pixelY, nx, ny) || false == ComputeCameraView2D(camera, frame, view))
         {
             return false;
         }
@@ -516,8 +526,18 @@ namespace JBro::System
         }
         RenderCamera2D camera;
         CameraView2D view;
-        if (m_canvas == nullptr || false == Camera2DSystem::SelectCamera(*m_canvas, camera)
-            || false == ComputeCameraView2D(camera, m_screen, view))
+        // 월드 → 픽셀은 주 카메라의 뷰포트다(D-359).
+        ScreenSpaceFrame frame = m_screen;
+        frame.areaX = 0.0f;
+        frame.areaY = 0.0f;
+        frame.areaWidth = 0.0f;
+        frame.areaHeight = 0.0f;
+        if (m_canvas == nullptr || false == Camera2DSystem::SelectCamera(*m_canvas, camera))
+        {
+            return false;
+        }
+        ApplyCameraViewport(camera, frame);
+        if (false == ComputeCameraView2D(camera, frame, view))
         {
             return false;
         }
@@ -534,7 +554,7 @@ namespace JBro::System
         {
             return false;
         }
-        return NormalizedToScreenPixel(m_screen, vx / view.halfWidth, vy / view.halfHeight, pixelX, pixelY);
+        return NormalizedToScreenPixel(frame, vx / view.halfWidth, vy / view.halfHeight, pixelX, pixelY);
     }
 
     Bool Button2DSystem::ScreenToLayer(Vector2 pixel, Handle::GameObject object, Vector2& point) const

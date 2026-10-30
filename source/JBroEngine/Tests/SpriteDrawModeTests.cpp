@@ -6,6 +6,7 @@
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -404,6 +405,90 @@ namespace
         gpu.Close();
         project.Close();
     }
+
+    // **분할 화면과 조명 뒤의 화면 레이어**(D-359, ui-plan §7.3). 64 x 64 대상에 왼쪽 절반의 카메라 A(월드 (-10, 0))와 오른쪽 절반의 카메라 B((10, 0)). A 앞에 빨강, B 앞에 파랑
+    // 1 x 1 스프라이트가 있고 월드는 0.2 의 환경광뿐이라 빛을 받는 스프라이트는 어둡다. 화면 레이어의 흰 8 x 8 은 오른쪽 위에서 빛과 무관하게 희다(두 번째 프레임부터 광원 맵).
+    void TestSplitScreenCamerasAndTheScreenLayerStaysUnlit()
+    {
+        SliceProject project;
+        project.Open();
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; split screen not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            ScreenSpaceFrame screen;
+            screen.referenceWidth = 64.0f;
+            screen.referenceHeight = 64.0f;
+            screen.targetWidth = 64.0f;
+            screen.targetHeight = 64.0f;
+            framework.SetScreenSpace(screen);
+            Canvas* canvas = framework.GetCanvas();
+            const auto makeCamera = [&](const char* name, JBro::Float x, JBro::Float originX, JBro::Bool primary) {
+                Object::GameObject* object = canvas->CreateObject(name);
+                canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
+                auto* camera = canvas->AttachComponent<Component::Camera2D>(object);
+                camera->primary = primary;
+                camera->orthographicSize = 1.0f;
+                camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+                camera->viewportOrigin = {originX, 0.0f};
+                camera->viewportSize = {0.5f, 1.0f};
+                return camera;
+            };
+            makeCamera("left", -10.0f, 0.0f, true);
+            makeCamera("right", 10.0f, 0.5f, false);
+            const auto makeSquare = [&](const char* name, JBro::Float x, Color tint) {
+                Object::GameObject* object = canvas->CreateObject(name);
+                canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
+                auto* sprite = canvas->AttachComponent<Component::SpriteRenderer2D>(object);
+                sprite->sizeMode = Component::SpriteSizeMode::Custom;
+                sprite->size = {1.0f, 1.0f};
+                sprite->tint = tint;
+                return sprite;
+            };
+            makeSquare("red", -10.0f, {1.0f, 0.0f, 0.0f, 1.0f});
+            makeSquare("blue", 10.0f, {0.0f, 0.0f, 1.0f, 1.0f});
+            Object::GameObject* lightObject = canvas->CreateObject("ambient");
+            canvas->AttachComponent<Component::Transform2D>(lightObject);
+            auto* light = canvas->AttachComponent<Component::Light2D>(lightObject);
+            light->type = Component::Light2DType::Global;
+            light->color = {0.2f, 0.2f, 0.2f, 1.0f};
+            Layer& ui = canvas->CreateLayer("UI");
+            ui.SetSpace(LayerSpace::Screen);
+            Object::GameObject* panel = canvas->CreateObject("panel");
+            Check(canvas->SetObjectLayer(panel, ui.GetId()), "the panel goes on the screen layer");
+            auto* panelPlace = canvas->AttachComponent<Component::Transform2D>(panel);
+            panelPlace->anchor = {1.0f, 1.0f};
+            panelPlace->position = {-4.0f, -4.0f};
+            auto* panelSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(panel);
+            panelSprite->sizeMode = Component::SpriteSizeMode::Custom;
+            panelSprite->size = {8.0f, 8.0f};
+            framework.BindCanvasAssets();
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            // 왼쪽 절반은 카메라 A: 가운데(16, 32)에 빨강(어둡게), 오른쪽 절반의 가운데(48, 32)에 파랑(어둡게). 서로의 스프라이트는 보이지 않는다.
+            Check(gpu.Is(16, 32, 51, 0, 0), "the left camera shows the red square, darkened by the ambient light");
+            Check(gpu.Is(48, 32, 0, 0, 51), "the right camera shows the blue square");
+            Check(gpu.Is(16, 4, 0, 0, 0) && gpu.Is(48, 60, 0, 0, 0), "away from the squares both halves are clear colour");
+            // 화면 레이어는 대상 전체이고 빛을 받지 않는다 - 오른쪽 위 8 x 8 이 희다.
+            Check(gpu.Is(60, 4, 255, 255, 255) && gpu.Is(57, 7, 255, 255, 255), "the screen-layer square (x 56..63, y 0..7) stays white over the lit world");
+            Check(gpu.Is(53, 11, 0, 0, 0) && gpu.Is(50, 14, 0, 0, 0), "just outside it the clear colour shows");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
 }
 
 JBro::Int32 RunSpriteDrawModeTests()
@@ -412,6 +497,7 @@ JBro::Int32 RunSpriteDrawModeTests()
     TestTiledPiecesRepeatTheCell();
     TestFilledPiecesStartAtTheOrigin();
     TestDrawModesReachTheScreen();
+    TestSplitScreenCamerasAndTheScreenLayerStaysUnlit();
     std::cout << "Sprite draw mode tests passed." << std::endl;
     return 0;
 }

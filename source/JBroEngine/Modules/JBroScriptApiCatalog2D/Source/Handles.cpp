@@ -3391,6 +3391,36 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Camera2D::*)() const>(&Handle::Camera2D::GetViewportOrigin)>("GetViewportOrigin", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Camera2D::*)(Vector2)>(&Handle::Camera2D::SetViewportOrigin)>("SetViewportOrigin", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Camera2D::*)() const>(&Handle::Camera2D::GetViewportSize)>("GetViewportSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Camera2D::*)(Vector2)>(&Handle::Camera2D::SetViewportSize)>("SetViewportSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::Camera2D::*)() const>(&Handle::Camera2D::GetDepth)>("GetDepth", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Camera2D::*)(Int32)>(&Handle::Camera2D::SetDepth)>("SetDepth", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Camera2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -3428,6 +3458,18 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Camera2D::GetPrimary, &Handle::Camera2D::SetPrimary>("primary");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Camera2D::GetViewportOrigin, &Handle::Camera2D::SetViewportOrigin>("viewportOrigin");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Camera2D::GetViewportSize, &Handle::Camera2D::SetViewportSize>("viewportSize");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Camera2D::GetDepth, &Handle::Camera2D::SetDepth>("depth");
         type.Members.Add(std::move(member));
     }
     }

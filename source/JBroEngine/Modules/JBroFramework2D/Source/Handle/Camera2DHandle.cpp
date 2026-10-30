@@ -148,4 +148,64 @@ namespace JBro::Handle
         }
         component->primary = value;
     }
+
+    Vector2 Camera2D::GetViewportOrigin() const
+    {
+        const Component::Camera2D* component = Resolve("GetViewportOrigin");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->viewportOrigin;
+    }
+
+    void Camera2D::SetViewportOrigin(Vector2 value)
+    {
+        Component::Camera2D* component = Resolve("SetViewportOrigin");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->viewportOrigin = value;
+    }
+
+    Vector2 Camera2D::GetViewportSize() const
+    {
+        const Component::Camera2D* component = Resolve("GetViewportSize");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->viewportSize;
+    }
+
+    void Camera2D::SetViewportSize(Vector2 value)
+    {
+        Component::Camera2D* component = Resolve("SetViewportSize");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->viewportSize = value;
+    }
+
+    Int32 Camera2D::GetDepth() const
+    {
+        const Component::Camera2D* component = Resolve("GetDepth");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->depth;
+    }
+
+    void Camera2D::SetDepth(Int32 value)
+    {
+        Component::Camera2D* component = Resolve("SetDepth");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->depth = value;
+    }
 }

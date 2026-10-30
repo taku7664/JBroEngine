@@ -48,6 +48,13 @@ namespace JBro::Handle
         void SetClearColor(Color value);
         Bool GetPrimary() const;
         void SetPrimary(Bool value);
+        // 뷰포트(D-359): 대상 안의 사각형(왼쪽 위 원점, 0..1)과 그리는 차례다.
+        Vector2 GetViewportOrigin() const;
+        void SetViewportOrigin(Vector2 value);
+        Vector2 GetViewportSize() const;
+        void SetViewportSize(Vector2 value);
+        Int32 GetDepth() const;
+        void SetDepth(Int32 value);
 
     private:
         Component::Camera2D* Resolve(const char* operation) const;
