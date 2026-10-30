@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 > 글로벌 지침(`~/.claude/CLAUDE.md`) 상속: 사고규율(Before/After Acting), 행동규율(Break/Cross/Ground), 환경식별, 호칭, Python/uv 규칙 등.
 
@@ -140,7 +140,8 @@
   새 Tier E 모듈 `JBroPackage`, 에셋 시스템의 바이트 출처 `IAssetSource`, 호스트의 `BuildGame` 과 패키지로 여는 프로젝트(`AssetPackage`), 에디터 파일 메뉴 "게임 빌드".
   기존 엔진 `.jbpack` 의 구조와 아팠던 것 K1~K6(쓰는 곳 둘·색인의 임포트 옵션·`ifstream`·고정 키)이 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4, 실측이 §5 에 있다
 - [tasks/ui-plan.md](./tasks/ui-plan.md) — 화면 공간 UI(D-237). UI 트리 대신 캔버스 레이어의 `Space = Screen`·맞춤 방식과 `Transform2D.anchor`, 좌표는 기준 해상도의 픽셀.
-  세 단계(그리기·에디터의 월드/UI 보기·입력의 `Button2D` 와 `Screen2DService`)가 섰다.
+  세 단계(그리기·에디터의 월드/UI 보기·입력의 `Button2D` 와 `Screen2DService`)가 섰다. 2 부(§6, D-351~D-354: 위젯 시스템 - `Toggle2D`·`Slider2D`·`InputField2D`·`ScrollView2D`·`Layout2D`·
+  `Mask2D`·게임패드 포커스)와 3 부(§7, D-355~D-359: 글자 칸의 선택·클립보드·IME, `ToggleGroup2D`~`Navigation2D` 의 새 위젯 열다섯, 카메라 뷰포트의 분할 화면)도 섰다 - 열림은 §7.5 각 항목 끝.
   기존 엔진 UI 의 구조와 아팠던 것 U1~U4(첫 프레임 앵커 0·분할 화면 어긋남·버튼의 직접 폴링)가 §1, 설계가 §2, 단계(그리기·에디터·입력)가 §3, 실측이 §5 에 있다
 - [tasks/layer-plan.md](./tasks/layer-plan.md) — 캔버스 레이어의 남은 기능. 기존 엔진 `CGameLayer` 의 필드별 상태(패럴랙스 D-286·레이어 에셋·썸네일 이식,
   안전 영역은 뺐고 `KeepOnCanvasChange`·런타임 레이어 불러오기는 런타임 캔버스 전환이 없어 막혔다)와 포토샵식 다음 후보(그룹·클리핑 마스크·잠금·솔로·색 조정)
