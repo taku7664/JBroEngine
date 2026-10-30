@@ -1392,14 +1392,53 @@ namespace
         // 휠로 내용이 40 내려가면 막대가 따라온다(140 가운데 40).
         stage.Frame({MouseAt(100.0f, 50.0f), Wheel(-1.0f)});
         Check(CloseTo(contentPlace->position.y, -30.0f) && CloseTo(slider->value, 40.0f / 140.0f), "scrolling the content moves the bar");
-        // 막대를 끌면 내용이 따라온다: 막대 가운데(픽셀 (160, 50))는 0.5 → 내용 0.
+        // 손잡이 밖의 트랙을 누르면 한 페이지(뷰포트 60 / 남은 140 = 0.4286)씩이다(D-360): 막대 가운데(픽셀 (160, 50))는 0.5, 손잡이(0.2857 ± 0.15) 밖 → 0.7143, 내용 30.
         stage.Frame({MouseAt(160.0f, 50.0f), HeldButton(MouseButton::Left)});
-        Check(CloseTo(slider->value, 0.5f) && CloseTo(contentPlace->position.y, 0.0f), "dragging the bar moves the content");
+        Check(CloseTo(slider->value, 40.0f / 140.0f + 60.0f / 140.0f) && CloseTo(contentPlace->position.y, 30.0f), "pressing the track below the knob pages the content down by one viewport");
+        stage.Frames(5);
+        Check(CloseTo(slider->value, 100.0f / 140.0f), "having passed the pointer holding does not page again");
+        stage.Frame({Released(MouseButton::Left)});
+        // 손잡이 위(0.7143 → 로컬 y -12.9, 픽셀 y 62.9)를 누르면 끌기다: 포인터의 자리가 값이다.
+        stage.Frame({MouseAt(160.0f, 63.0f), HeldButton(MouseButton::Left)});
+        Check(CloseTo(slider->value, 43.0f / 60.0f) && CloseTo(contentPlace->position.y, -70.0f + 140.0f * 43.0f / 60.0f), "pressing on the knob drags it");
         stage.Frame({MouseAt(160.0f, 80.0f)});
         Check(CloseTo(slider->value, 1.0f) && CloseTo(contentPlace->position.y, 70.0f), "the bottom of the bar is the bottom of the content");
         stage.Frame({Released(MouseButton::Left)});
         stage.Frames(2);
         Check(CloseTo(slider->value, 1.0f) && CloseTo(contentPlace->position.y, 70.0f), "letting go keeps both where they are");
+        // 트랙 위쪽(픽셀 y 25 → 값 0.0833)을 쥐면 0.4 초 뒤 0.1 초마다 한 페이지씩 - 1 → 0.5714 → 0.1429 에서 손잡이가 포인터에 닿아 멈춘다.
+        stage.Frame({MouseAt(160.0f, 25.0f), HeldButton(MouseButton::Left)});
+        Check(CloseTo(slider->value, 1.0f - 60.0f / 140.0f) && CloseTo(contentPlace->position.y, 10.0f), "pressing the track above the knob pages up");
+        stage.Frames(23);
+        Check(CloseTo(slider->value, 1.0f - 60.0f / 140.0f), "before the repeat delay nothing more happens");
+        stage.Frame({});
+        Check(CloseTo(slider->value, 1.0f - 120.0f / 140.0f) && CloseTo(contentPlace->position.y, -50.0f), "after the delay it pages once more");
+        stage.Frames(12);
+        Check(CloseTo(slider->value, 1.0f - 120.0f / 140.0f), "once the knob reaches the pointer the repeat stops");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(160.0f, 78.0f), HeldButton(MouseButton::Left)});
+        stage.Frames(60);
+        Check(CloseTo(slider->value, 1.0f) && CloseTo(contentPlace->position.y, 70.0f), "paging past the end clamps at the end");
+        stage.Frame({Released(MouseButton::Left)});
+        // 가운데(값 0.5)를 누르면 1 → 0.5714 에서 손잡이가 포인터를 덮어 멈추고, 쥔 채 포인터를 더 위로(y 25, 값 0.0833) 옮기면 다시 한 페이지(0.1429)다. 반대쪽으로 옮기면 그대로다.
+        stage.Frame({MouseAt(160.0f, 50.0f), HeldButton(MouseButton::Left)});
+        stage.Frames(30);
+        Check(CloseTo(slider->value, 1.0f - 60.0f / 140.0f), "a page that lands on the pointer stops there");
+        stage.Frame({MouseAt(160.0f, 25.0f)});
+        stage.Frames(7);
+        Check(CloseTo(slider->value, 1.0f - 120.0f / 140.0f) && CloseTo(contentPlace->position.y, -50.0f), "moving the held pointer further pages again");
+        stage.Frame({MouseAt(160.0f, 70.0f)});
+        stage.Frames(7);
+        Check(CloseTo(slider->value, 1.0f - 120.0f / 140.0f), "moving the held pointer to the other side of the knob does nothing");
+        stage.Frame({Released(MouseButton::Left)});
+        // 스크롤 뷰의 막대가 아닌 슬라이더는 전처럼 포인터 자리로 뛴다.
+        scroll->verticalBar = {};
+        stage.Frame({MouseAt(160.0f, 50.0f), HeldButton(MouseButton::Left)});
+        Check(CloseTo(slider->value, 0.5f), "a plain slider still jumps to the pointer");
+        stage.Frame({Released(MouseButton::Left)});
+        scroll->verticalBar = bar->GetScriptHandle();
+        slider->value = 1.0f;
+        stage.Frame({});
         // 내용이 뷰포트보다 작으면 막대는 0 이고 손잡이가 트랙 전체다.
         scroll->contentSize = {100.0f, 30.0f};
         stage.Frame({});

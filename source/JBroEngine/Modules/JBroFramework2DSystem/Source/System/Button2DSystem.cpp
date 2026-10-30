@@ -961,6 +961,64 @@ namespace JBro::System
         CallHook(&released, Hook::DragEnd);
     }
 
+    Bool Button2DSystem::ScrollbarPage(Object::GameObject& barOwner, Float& step, Float& knobHalf) const
+    {
+        Bool found = false;
+        m_canvas->ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
+        {
+            if (found || false == scroll.IsActiveComponent())
+            {
+                return;
+            }
+            const Bool vertical = Internal::GameObjectHandleAccess::Resolve(scroll.verticalBar) == &barOwner;
+            const Bool horizontal = Internal::GameObjectHandleAccess::Resolve(scroll.horizontalBar) == &barOwner;
+            if (false == vertical && false == horizontal)
+            {
+                return;
+            }
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(scroll);
+            const auto* mask = owner != nullptr ? m_canvas->FindComponentRaw<Component::Mask2D>(owner) : nullptr;
+            if (mask == nullptr || (vertical && false == scroll.vertical) || (horizontal && false == scroll.horizontal))
+            {
+                return;
+            }
+            const Float viewport = std::fabs(vertical ? mask->size.y : mask->size.x);
+            const Float content = std::fabs(vertical ? scroll.contentSize.y : scroll.contentSize.x);
+            if (false == std::isfinite(viewport.Get()) || false == std::isfinite(content.Get()) || content <= viewport || viewport <= 0.0f)
+            {
+                return;
+            }
+            const Float ratio = viewport / content;
+            step = viewport / (content - viewport);
+            knobHalf = (ratio < 0.1f ? Float(0.1f) : ratio) * 0.5f;
+            found = std::isfinite(step.Get()) && step > 0.0f;
+        });
+        return found;
+    }
+
+    void Button2DSystem::PageScrollbar(Object::GameObject& barOwner, Component::Slider2D& slider, Float pointerValue, Bool forward)
+    {
+        Float step = 0.0f;
+        Float knobHalf = 0.0f;
+        if (false == ScrollbarPage(barOwner, step, knobHalf) || false == std::isfinite(pointerValue.Get()))
+        {
+            return;
+        }
+        const Float value = Float(std::isfinite(slider.value.Get()) ? Float::Clamp(slider.value, 0.0f, 1.0f) : 0.0f);
+        // 손잡이가 포인터에 닿았거나 포인터가 처음 방향의 반대쪽이면 그대로다 - 쥔 채 포인터를 옮기면 다시 간다.
+        if (std::fabs(pointerValue - value) <= knobHalf || (pointerValue > value) != forward)
+        {
+            return;
+        }
+        const Float next = Float::Clamp(forward ? Float(value + step) : Float(value - step), 0.0f, 1.0f);
+        if (next != slider.value)
+        {
+            slider.value = next;
+            slider.changed = true;
+            CallHook(&barOwner, Hook::ValueChanged);
+        }
+    }
+
     Object::GameObject* Button2DSystem::FindKeyboardAncestor(Object::GameObject* object) const
     {
         for (Object::GameObject* at = object; at != nullptr; at = at->GetParent())
@@ -2338,6 +2396,24 @@ namespace JBro::System
             m_lastPixelY = pointer.y;
             m_scrollDragging = false;
             m_dragDelta = {};
+            m_sliderPaging = false;
+            m_pageHeld = 0.0f;
+            // 스크롤바의 손잡이 밖을 눌렀으면 한 페이지씩이다(D-360) - 포인터를 따라가지 않는다.
+            if (top.kind == WidgetKind::Slider)
+            {
+                if (auto* slider = m_canvas->FindComponentRaw<Component::Slider2D>(pressed))
+                {
+                    Float step = 0.0f;
+                    Float knobHalf = 0.0f;
+                    const Float pointerValue = SliderValueAt(*slider, top.local);
+                    if (ScrollbarPage(*pressed, step, knobHalf) && std::fabs(pointerValue - Float::Clamp(slider->value, 0.0f, 1.0f)) > knobHalf)
+                    {
+                        m_sliderPaging = true;
+                        m_pageForward = pointerValue > slider->value;
+                        PageScrollbar(*pressed, *slider, pointerValue, m_pageForward);
+                    }
+                }
+            }
             // 누른 것이 스크롤 뷰거나 그 안의 버튼·토글·글자 칸이면 끌기가 스크롤이 된다. 슬라이더는 제 끌기가 먼저다.
             Object::GameObject* scrollOwner = top.kind == WidgetKind::Scroll ? top.owner
                 : (top.kind == WidgetKind::Slider || top.kind == WidgetKind::Draggable) ? nullptr : FindScrollAncestor(top.owner);
@@ -2395,13 +2471,22 @@ namespace JBro::System
                 }
             }
         }
-        // 슬라이더는 쥔 동안 포인터의 자리가 곧 값이다 - 사각형을 벗어나도 그 축의 끝에 붙는다.
+        // 슬라이더는 쥔 동안 포인터의 자리가 곧 값이다 - 사각형을 벗어나도 그 축의 끝에 붙는다. 트랙 누름은 쥔 동안 되풀이해 한 페이지씩이다(D-360).
         if (pressed != nullptr && pressedKind == WidgetKind::Slider && pointer.present && pointer.down)
         {
             auto* slider = m_canvas->FindComponentRaw<Component::Slider2D>(pressed);
             const Layer* layer = pressed->GetLayer();
             Vector2 local;
-            if (slider != nullptr && layer != nullptr && PointerToLocal(*pressed, *layer, pointer, local))
+            if (m_sliderPaging)
+            {
+                // 쥔 동안 되풀이한다 - 손잡이가 닿으면 `PageScrollbar` 가 멈추고, 포인터가 더 가면 다시 간다. 놓기 전에는 끌기로 바뀌지 않는다.
+                if (slider != nullptr && layer != nullptr && false == pointer.pressed && PointerToLocal(*pressed, *layer, pointer, local)
+                    && Repeats(true, false, m_pageHeld, NavigateRepeatInterval))
+                {
+                    PageScrollbar(*pressed, *slider, SliderValueAt(*slider, local), m_pageForward);
+                }
+            }
+            else if (slider != nullptr && layer != nullptr && PointerToLocal(*pressed, *layer, pointer, local))
             {
                 const Float value = SliderValueAt(*slider, local);
                 if (value != slider->value)
@@ -2472,6 +2557,7 @@ namespace JBro::System
             pressedKind = WidgetKind::None;
             m_scrollDragging = false;
             m_scrollCandidate = InvalidInstanceId;
+            m_sliderPaging = false;
             if (releasedKind == WidgetKind::Button)
             {
                 CallHook(released, Hook::Up);

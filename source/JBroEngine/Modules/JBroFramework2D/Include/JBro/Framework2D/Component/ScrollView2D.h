@@ -40,6 +40,7 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, contentSize, Pixels()) { 320.0f, 480.0f };
         // 스크롤바(D-355): `Slider2D` 가 붙은 오브젝트다. 값 0 이 위·왼쪽이고 시스템이 매 프레임 내용 자리와 맞춘다 - 막대를 끌면 내용이, 내용이 움직이면 막대가 따라온다.
         // 막대의 손잡이 스프라이트가 `Custom` 크기면 그 축 길이를 뷰포트/내용 비율로 둔다(최소 트랙의 1/10). 내용이 뷰포트보다 작으면 값 0 이고 손잡이는 트랙 전체다.
+        // 손잡이 밖의 트랙을 누르면 포인터 쪽으로 뷰포트 하나만큼 가고, 쥐고 있으면 손잡이가 포인터에 닿을 때까지 되풀이한다(D-360). 손잡이 위를 누르면 끌기다.
         JBRO_FIELD(Handle::GameObject, horizontalBar, Tooltip("가로 스크롤바 - Slider2D 가 붙은 오브젝트. 값 0 이 왼쪽이다"));
         JBRO_FIELD(Handle::GameObject, verticalBar, Tooltip("세로 스크롤바 - Slider2D 가 붙은 오브젝트. 값 0 이 위다"));
         JBRO_FIELD(Bool, horizontal) = false;

@@ -161,6 +161,10 @@ namespace JBro::System
         void EditField(Object::GameObject& owner, Component::InputField2D& field, const char* utf8, std::size_t size, Bool backspace);
         // 이 오브젝트에 켜진 위젯이 있으면 그 종류다(버튼·토글·슬라이더·글자 칸·드롭다운 차례). 없으면 `None`.
         WidgetKind WidgetKindOf(Object::GameObject* object) const;
+        // 이 슬라이더가 어느 스크롤 뷰의 막대면 참이고, 한 페이지(뷰포트 하나)가 값으로 얼마인지와 손잡이 반 길이(트랙 비율)를 준다(D-360).
+        Bool ScrollbarPage(Object::GameObject& barOwner, Float& step, Float& knobHalf) const;
+        // 막대를 `forward` 쪽으로 한 페이지 옮긴다. 손잡이가 포인터에 닿았거나 포인터가 반대쪽이면(지나쳤거나 포인터가 옮겨 갔다) 아무것도 하지 않는다(D-360).
+        void PageScrollbar(Object::GameObject& barOwner, Component::Slider2D& slider, Float pointerValue, Bool forward);
         // 소리 한 번(D-358). 핸들이 비면 없다. 오디오가 없는 호스트에서는 아무 일도 없다.
         static void PlayUiSound(AssetHandle sound);
         // 스크롤 뷰의 내용을 옮기고 가둔다. 가둬진 축은 `clampedX`·`clampedY` 가 참이다.
@@ -218,6 +222,10 @@ namespace JBro::System
         Float            m_lastPixelX = 0.0f;
         Float            m_lastPixelY = 0.0f;
         Vector2          m_dragDelta;
+        // 스크롤바의 트랙 누름(D-360): 손잡이 밖을 눌러 한 페이지씩 가는 중인가, 그 쥔 시간.
+        Bool             m_sliderPaging = false;
+        Bool             m_pageForward = false;
+        Float            m_pageHeld = 0.0f;
 
         // 훅을 부를 스크립트를 먼저 모으는 자리다. 멤버로 두어 부를 때마다 할당하지 않는다.
         Array<GameScript2D*>         m_hookTargets;
