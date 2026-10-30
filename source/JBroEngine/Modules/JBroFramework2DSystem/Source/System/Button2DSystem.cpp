@@ -2090,7 +2090,27 @@ namespace JBro::System
                     ? canvas.FindComponentRaw<Component::Transform2D>(object) : nullptr;
             };
             // 선택 구간(D-355): 두 커서 자리 사이의 사각형이다. 여러 줄에 걸치면 둘러싼 사각형이다. 조합 중에는 선택이 없다.
-            if (auto* selection = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.selection))
+            // `selection` 스프라이트가 없으면 보이는 텍스트의 강조 범위(D-362)로 줄마다 칠한다.
+            auto* selectionSprite = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.selection);
+            if (selectionSprite == nullptr && display != nullptr)
+            {
+                const Bool selectedRange = field.focused && false == composing && field.selectionAnchor >= 0
+                    && UInt32(static_cast<std::uint32_t>(field.selectionAnchor.Get())) != caretIndex;
+                if (selectedRange)
+                {
+                    const Int32 anchorIndex = UInt32(static_cast<std::uint32_t>(field.selectionAnchor.Get())) < count
+                        ? field.selectionAnchor : Int32(static_cast<std::int32_t>(count.Get()));
+                    const Int32 caretAt = Int32(static_cast<std::int32_t>(caretIndex.Get()));
+                    display->highlightBegin = anchorIndex < caretAt ? anchorIndex : caretAt;
+                    display->highlightEnd = anchorIndex < caretAt ? caretAt : anchorIndex;
+                }
+                else
+                {
+                    display->highlightBegin = 0;
+                    display->highlightEnd = 0;
+                }
+            }
+            if (auto* selection = selectionSprite)
             {
                 Bool shown = false;
                 const Bool selected = field.focused && false == composing && field.selectionAnchor >= 0

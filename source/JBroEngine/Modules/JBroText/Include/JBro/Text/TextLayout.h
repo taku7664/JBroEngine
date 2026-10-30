@@ -124,6 +124,15 @@ namespace JBro::Text
         UInt32 sourceEnd = 0;
     };
 
+    // **글자 구간이 한 줄에서 차지하는 사각형**(D-362). 레이아웃 좌표(픽셀, 정렬 기준점 원점, y 위쪽)다.
+    struct RangeRect
+    {
+        Float left = 0.0f;
+        Float right = 0.0f;
+        Float top = 0.0f;
+        Float bottom = 0.0f;
+    };
+
     enum class LayoutError : std::uint8_t
     {
         None,
@@ -164,6 +173,9 @@ namespace JBro::Text
         // 마지막 줄 아래는 마지막 줄), 그 줄에서 x 가 글자의 가운데를 넘으면 그 글자의 뒤다. 줄 끝 뒤는 그 줄의 끝(개행 앞, 접힌 줄은 다음 줄의 머리)이다.
         // 결합 표시는 제 받침과 한 글자다. 레이아웃이 없으면 거짓이다.
         Bool GetCaretOffsetAt(Float x, Float y, UInt32& byteOffset) const;
+        // **구간의 줄마다 사각형**(D-362). UTF-8 바이트 구간 [begin, end) 가 걸친 줄마다 하나 - 그 줄에서 구간의 첫 글자 왼쪽부터 마지막 글자 끝까지,
+        // 높이는 그 줄의 높이다. 개행만 든 줄·폭이 0 인 조각은 건너뛴다. `capacity` 를 넘는 줄은 버린다. 낸 수를 준다.
+        UInt32 GetRangeRects(UInt32 begin, UInt32 end, RangeRect* out, UInt32 capacity) const;
 
         // 블록 사각형이다(정렬 기준점 기준 픽셀). 에디터의 선택과 컬링이 쓴다.
         Float GetMinX() const;

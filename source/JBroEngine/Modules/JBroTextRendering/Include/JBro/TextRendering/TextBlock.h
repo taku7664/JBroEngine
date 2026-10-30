@@ -108,6 +108,8 @@ namespace JBro
         Bool GetCaret(UInt32 byteOffset, Float& x, Float& y, Float& lineHeight) const;
         // 자리(레이아웃 픽셀) → 커서의 바이트 위치다(D-355). 레이아웃이 없으면 거짓이다.
         Bool HitCaret(Float x, Float y, UInt32& byteOffset) const;
+        // 바이트 구간의 줄마다 사각형(글자 픽셀)이다(D-362). 레이아웃이 없으면 0 이다.
+        UInt32 GetRangeRects(UInt32 begin, UInt32 end, Text::RangeRect* out, UInt32 capacity) const;
 
         static UInt64 MakeOptionsKey(const TextBlockSettings& settings);
 

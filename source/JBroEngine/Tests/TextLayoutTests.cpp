@@ -255,6 +255,36 @@ namespace
         Check(false == layout.GetCaretOffsetAt(std::numeric_limits<float>::quiet_NaN(), 0.0f, offset), "a NaN point hits nothing");
     }
 
+    // **구간의 줄마다 사각형**(D-362). A 608 · 공백 224 · V 575.
+    void TestRangeRectsFollowTheLines()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        RangeRect rects[4];
+        Check(layout.GetRangeRects(0, 3, rects, 4) == 0, "without a layout there are no rectangles");
+        Check(layout.Build(Utf8("A V"), faces, Unscaled()) == LayoutError::None, "A V lays out");
+        Check(layout.GetRangeRects(0, 3, rects, 4) == 1 && Near(rects[0].left, 0.0f) && Near(rects[0].right, 608.0f + 224.0f + 575.0f)
+                && Near(rects[0].top, layout.GetMaxY()) && Near(rects[0].top - rects[0].bottom, layout.GetLines()[0].height),
+            "the whole of one line is one rectangle of the line's height");
+        Check(layout.GetRangeRects(1, 2, rects, 4) == 1 && Near(rects[0].left, 608.0f) && Near(rects[0].right, 608.0f + 224.0f), "a space alone is its advance");
+        Check(layout.GetRangeRects(2, 2, rects, 4) == 0 && layout.GetRangeRects(3, 1, rects, 4) == 0, "an empty or reversed range has none");
+        Check(layout.GetRangeRects(2, 99, rects, 4) == 1 && Near(rects[0].right, 608.0f + 224.0f + 575.0f), "an end past the text stops at the text");
+
+        Check(layout.Build(Utf8("A\nV\nA"), faces, Unscaled()) == LayoutError::None, "three lines lay out");
+        const JBro::Float h0 = layout.GetLines()[0].height;
+        const JBro::Float h1 = layout.GetLines()[1].height;
+        Check(layout.GetRangeRects(0, 5, rects, 4) == 3, "a range over three lines is three rectangles");
+        Check(Near(rects[0].left, 0.0f) && Near(rects[0].right, 608.0f) && Near(rects[1].right, 575.0f) && Near(rects[2].right, 608.0f),
+            "each covers its own line's letters");
+        Check(Near(rects[1].top, layout.GetMaxY() - h0) && Near(rects[2].top, layout.GetMaxY() - h0 - h1), "and stacks down by line height");
+        Check(layout.GetRangeRects(0, 5, rects, 2) == 2, "the capacity caps the count");
+        Check(layout.GetRangeRects(1, 3, rects, 4) == 1 && Near(rects[0].left, 0.0f) && Near(rects[0].right, 575.0f),
+            "the newline alone draws nothing and the V on the next line does");
+        Check(layout.Build(Utf8("A\n\nV"), faces, Unscaled()) == LayoutError::None, "an empty middle line lays out");
+        Check(layout.GetRangeRects(0, 4, rects, 4) == 2, "an empty line in the range has no rectangle");
+    }
+
     // **stb 가 건너뛰던 GPOS 모양**(text-plan §7). 같은 서브셋을 확장 조회(형식 9)로 감싼 것과, 쌍 조정의 첫 값 형식을
     // XPlacement|XAdvance 로 넓힌 것이다(MakeGposVariants.py). stb 는 둘 다 커닝을 0 으로 읽었다. 우리 읽기는 ASCII 의 모든 쌍에서
     // 원본과 같은 값을 준다.
@@ -943,6 +973,7 @@ JBro::Int32 RunTextLayoutTests()
         TestKerningIsAppliedAcrossTheRun();
         TestCaretPositionFollowsTheGlyphs();
         TestCaretOffsetFollowsThePointer();
+        TestRangeRectsFollowTheLines();
         TestKerningSurvivesGposShapesStbSkipped();
         TestCombiningMarksAttachToTheirBase();
         TestOldHangulJoinsThroughGsub();

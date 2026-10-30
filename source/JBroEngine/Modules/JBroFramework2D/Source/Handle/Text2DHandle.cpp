@@ -239,6 +239,45 @@ namespace JBro::Handle
         component->renderOrder = value;
     }
 
+    Int32 Text2D::GetHighlightBegin() const
+    {
+        const Component::Text2D* component = Resolve("GetHighlightBegin");
+        return component != nullptr ? component->highlightBegin : Int32(0);
+    }
+
+    Int32 Text2D::GetHighlightEnd() const
+    {
+        const Component::Text2D* component = Resolve("GetHighlightEnd");
+        return component != nullptr ? component->highlightEnd : Int32(0);
+    }
+
+    void Text2D::SetHighlight(Int32 begin, Int32 end)
+    {
+        Component::Text2D* component = Resolve("SetHighlight");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->highlightBegin = begin;
+        component->highlightEnd = end;
+    }
+
+    Color Text2D::GetHighlightColor() const
+    {
+        const Component::Text2D* component = Resolve("GetHighlightColor");
+        return component != nullptr ? component->highlightColor : Color{};
+    }
+
+    void Text2D::SetHighlightColor(Color value)
+    {
+        Component::Text2D* component = Resolve("SetHighlightColor");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->highlightColor = value;
+    }
+
     Bool Text2D::GetVisible() const
     {
         const Component::Text2D* component = Resolve("GetVisible");

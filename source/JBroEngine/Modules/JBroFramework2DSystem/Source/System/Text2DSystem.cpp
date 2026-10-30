@@ -185,6 +185,67 @@ namespace JBro::System
         const Bool clipped = ComputeClipRect2D(canvas, owner, clip);
         // 그룹의 알파도 텍스트마다 한 번이다(D-358).
         const Float groupAlpha = ComputeGroupAlpha2D(canvas, owner);
+        // 강조 범위(D-362): 줄마다 사각형을 글자보다 먼저 낸다 - 같은 소스는 낸 차례로 그려져 글자 뒤에 깔린다. 텍스처가 없어 흰색에 틴트다.
+        if (text.highlightEnd > text.highlightBegin && text.highlightColor.A > 0.0f && false == text.richText && false == text.textKey.IsValid())
+        {
+            const ArrayView<const char> source = TextStore::Get().GetText(text.text);
+            const char* bytes = source.Data();
+            const std::size_t size = source.Size();
+            // 코드포인트 번호 → 바이트 위치(이어지는 바이트는 세지 않는다). 글자 수를 넘으면 끝이다.
+            const auto byteOf = [&](Int32 index) -> UInt32 {
+                Int32 seen = 0;
+                for (std::size_t at = 0; at < size; ++at)
+                {
+                    if ((static_cast<unsigned char>(bytes[at]) & 0xC0u) == 0x80u)
+                    {
+                        continue;
+                    }
+                    if (seen == index)
+                    {
+                        return UInt32(static_cast<std::uint32_t>(at));
+                    }
+                    ++seen;
+                }
+                return UInt32(static_cast<std::uint32_t>(size));
+            };
+            const Int32 first = text.highlightBegin < 0 ? Int32(0) : text.highlightBegin;
+            constexpr UInt32 MaxHighlightLines = 64;
+            Text::RangeRect rects[MaxHighlightLines.Get()];
+            const UInt32 lines = bytes != nullptr ? block.GetRangeRects(byteOf(first), byteOf(text.highlightEnd), rects, MaxHighlightLines) : UInt32(0);
+            for (UInt32 index = 0; index < lines; ++index)
+            {
+                const Text::RangeRect& rect = rects[index.Get()];
+                SpriteRenderItem item;
+                item.owner = owner;
+                item.sourceId = text.GetInstanceId();
+                item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
+                item.screenSpace = entry.screenSpace;
+                item.scaleMode = layer != nullptr ? layer->GetScaleMode() : ScreenScaleMode::FixedHeight;
+                item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
+                item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);
+                item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
+                item.layerLit = layer == nullptr || layer->IsLit();
+                item.clipped = clipped;
+                for (UInt32 edge = 0; edge < 4; ++edge)
+                {
+                    item.clip[edge.Get()] = clip[edge.Get()];
+                }
+                Matrix3x2 local;
+                local.m31 = rect.left / ppu;
+                local.m32 = rect.top / ppu;
+                item.world = MultiplyMatrix3x2(local, transform->world);
+                item.tint = text.highlightColor;
+                item.tint.A = item.tint.A * groupAlpha;
+                item.pivot = Vector2{ 0.0f, 1.0f };
+                item.size = Vector2{ (rect.right - rect.left) / ppu, (rect.top - rect.bottom) / ppu };
+                item.renderOrder = text.renderOrder;
+                item.drawSequence = text.drawSequence;
+                if (false == m_renderWorld->SubmitSprite(item))
+                {
+                    ++m_droppedGlyphsThisFrame;
+                }
+            }
+        }
         for (const GlyphQuad& quad : block.GetQuads())
         {
             const AssetHandle page = m_library.GetPageTexture(block.GetFont(quad.face), quad.page);

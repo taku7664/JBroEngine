@@ -1120,6 +1120,19 @@ namespace
         stage.Frame({PressedWith(Key::Z, KeyModifierControl)});
         Check(TextIs(field->text, "ab ") && field->caretIndex == 3, "undo after a typed character restores the text");
         stage.Frame({ReleasedKey(Key::Z)});
+        // 선택 스프라이트가 없으면 보이는 텍스트의 강조 범위가 선택을 따른다(D-362) - 줄마다 칠하는 쪽이다.
+        Check(text->highlightEnd <= text->highlightBegin, "with a selection sprite the display's highlight is left alone");
+        field->selection = {};
+        // 앞에서 Esc 로 끊긴 조합이 입력 상태에 남아 있다 - 끝내야 선택이 보인다(조합 중에는 선택이 없다).
+        stage.Frame({Composition(InputEventKind::CompositionEnd)});
+        stage.Frame({PressedWith(Key::Left, KeyModifierShift)});
+        stage.Frame({ReleasedKey(Key::Left), PressedWith(Key::Left, KeyModifierShift)});
+        stage.Frame({ReleasedKey(Key::Left)});
+        Check(field->selectionAnchor == 3 && field->caretIndex == 1 && text->highlightBegin == 1 && text->highlightEnd == 3,
+            "without one the display highlights the selected code points");
+        stage.Frame({Pressed(Key::End)});
+        stage.Frame({ReleasedKey(Key::End)});
+        Check(text->highlightEnd <= text->highlightBegin, "collapsing the selection clears the highlight");
     }
 
     // **스크립트가 만드는 위젯과 커서 API**(D-355). 월드 레이어에 붙인 위젯은 픽셀 기본값을 유닛으로 나눈다. 핸들로 커서·선택을 쓴다.

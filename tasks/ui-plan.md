@@ -647,4 +647,13 @@
      26 그대로(칠한 사각형이 빛을 받지 않는다), 화면 레이어 흰색 그대로, `clearViewport` 를 끄면 오른쪽 빈 곳은 앞 뷰의 검정. `BuiltinComponentProperty`(카메라 13)·`CameraView2D`·`Framework2DSystem`·
      `UiScenario`·`CanvasFile`·`ScriptApiCatalog` 통과.
    - 정한 것: 칠하기는 카메라의 담는 영역이다 - `PixelPerfect` 의 레터박스 띠는 앞 뷰의 것이 남는다(첫 뷰처럼 띠까지 칠하려면 렌더러의 사각형 지우기가 든다, 열림).
+2. ~~**여러 줄 선택의 줄마다 조각**~~ → 완료 2026-10-31 · `Text::RangeRect`·`TextLayout::GetRangeRects`(줄마다 [max(begin, 줄 시작), min(end, 줄 끝)) 의 첫 글자 왼쪽 ~ 마지막 글자 끝, 높이는 줄 높이;
+   개행만 든 줄·폭 0 은 없음; `capacity` 로 자름), `TextBlock::GetRangeRects`, `Text2D.highlightBegin`·`highlightEnd`·`highlightColor`(기본 반투명 파랑, 핸들 `GetHighlightBegin`·`GetHighlightEnd`·
+   `SetHighlight(begin, end)`·`GetHighlightColor`·`SetHighlightColor`). Text2DSystem 은 코드포인트 번호를 `text` 의 바이트로 옮겨(이어지는 바이트를 건너 셈) 줄마다(최대 64) 흰 스프라이트를 글리프보다 먼저 낸다.
+   글자 칸은 `selection` 이 비면 선택 구간을 `display` 의 강조 범위로 쓴다(조합 중·포커스 없음이면 0).
+   - **잰 것**: `TextLayout` `TestRangeRectsFollowTheLines` - 한 줄 전체는 0 ~ 1407·줄 높이, 공백 하나는 그 전진 폭, 빈·뒤집힌 구간 없음, 끝 너머는 글자 끝, 세 줄은 셋이고 줄 높이만큼 내려가며 용량 2 는 둘,
+     개행만은 없고 다음 줄 V 만, 빈 가운데 줄은 없음. `TextRender` `TestHighlightRangesPaintEachLine`(D3D12 64 x 64) - `AA\nAA` 의 [1, 4) 는 윗줄 오른쪽·아랫줄 왼쪽만 파랑(> 20 픽셀)이고 윗줄 왼쪽·
+     아랫줄 오른쪽은 4 픽셀 아래(한 사각형이면 생긴다), 글자는 그 위에 검다, 리치 텍스트는 칠하지 않음, 뒤집힌 범위 없음, 범위 밖 번호는 글자 전체로. `UiScenario` - 선택 스프라이트가 있으면 강조 범위는 그대로,
+     없으면 Shift+← 둘의 [1, 3) 이 강조 범위이고 접으면 지워진다. `UserScenario`·`BuiltinComponentProperty`(Text2D 26)·`ScriptApiCatalog` 통과.
+   - 시험을 쓰다 본 것: 앞 단계가 Esc 로 끊은 조합이 입력 상태에 남아 칸이 "조합 중" 이었다(실제 Windows 에서는 Esc 를 IME 가 먼저 받아 조합을 끝낸다 - 4 번 IME 실측에서 확인).
 

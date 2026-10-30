@@ -348,6 +348,11 @@ namespace JBro
         return m_hasBounds && m_layout.GetCaretOffsetAt(x, y, byteOffset);
     }
 
+    UInt32 TextBlock::GetRangeRects(UInt32 begin, UInt32 end, Text::RangeRect* out, UInt32 capacity) const
+    {
+        return m_hasBounds ? m_layout.GetRangeRects(begin, end, out, capacity) : UInt32(0);
+    }
+
     Bool TextBlock::GetBounds(Float& minX, Float& minY, Float& maxX, Float& maxY) const
     {
         if (false == m_hasBounds)

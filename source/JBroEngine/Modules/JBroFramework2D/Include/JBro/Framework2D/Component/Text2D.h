@@ -79,5 +79,10 @@ namespace JBro::Component
         // **리치 텍스트**다(D-221). 켜면 글자 속의 `<color=#RRGGBB>`·`<color=#RRGGBBAA>` ... `</color>` 와 `<size=픽셀>` ... `</size>` 를
         // 태그로 읽는다. `<` 자체는 `<<` 로 쓴다. 태그 색은 RGB 와 알파를 정하고 `color` 의 알파를 곱한다.
         JBRO_FIELD(Bool, richText) = false;
+        // **강조 범위**(D-362). `text` 의 코드포인트 번호 구간 [highlightBegin, highlightEnd) 를 줄마다 `highlightColor` 사각형으로 글자 뒤에 칠한다 - 여러 줄 선택이
+        // 줄마다 조각이 된다. 끝이 시작보다 크지 않으면 없다. `textKey` 를 쓰는 텍스트·리치 텍스트에서는 칠하지 않는다(번호가 보이는 글자와 어긋난다).
+        JBRO_FIELD(Int32, highlightBegin) = 0;
+        JBRO_FIELD(Int32, highlightEnd) = 0;
+        JBRO_FIELD(Color, highlightColor) = { 0.3f, 0.5f, 1.0f, 0.5f };
     };
 }

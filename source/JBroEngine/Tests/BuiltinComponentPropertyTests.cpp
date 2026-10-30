@@ -80,7 +80,7 @@ namespace
         Check(Table("Component::Camera2D").count == 13, "Camera2D declares thirteen fields - pixelsPerUnit of D-239, the post-process profile pair of D-344, then the viewport and depth of D-359, and clearViewport (D-362)");
         Check(Table("Component::SpriteRenderer2D").count == 17,
             "SpriteRenderer2D declares seventeen fields - the hidden drawSequence of D-296, then drawMode, fillAmount and fillOrigin of D-351");
-        Check(Table("Component::Text2D").count == 23, "Text2D declares twenty-three fields - with the hidden drawSequence of D-296");
+        Check(Table("Component::Text2D").count == 26, "Text2D declares twenty-six fields - with the hidden drawSequence of D-296, and the highlight range and colour (D-362)");
         Check(Table("Component::Rigidbody2D").count == 11,
             "Rigidbody2D declares eleven fields - the seven of D-199, then angular damping, the axis locks of D-227 and canSleep of D-229");
         Check(Table("Component::Collider2D").count == 12,

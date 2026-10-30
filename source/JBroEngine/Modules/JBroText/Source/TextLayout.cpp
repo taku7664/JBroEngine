@@ -1158,6 +1158,57 @@ namespace JBro::Text
         return true;
     }
 
+    UInt32 TextLayout::GetRangeRects(UInt32 begin, UInt32 end, RangeRect* out, UInt32 capacity) const
+    {
+        if (m_lines.IsEmpty() || out == nullptr || capacity == 0 || begin >= end)
+        {
+            return 0;
+        }
+        // 줄 안에서 바이트 위치 `offset` 앞의 x 다 - 그 줄에서 offset 이상인 첫 글자의 왼쪽, 없으면 그 줄 마지막 글자의 끝.
+        const auto xInLine = [&](const LineInfo& line, UInt32 offset) -> Float {
+            Float lastEnd = 0.0f;
+            for (std::size_t index = 0; index < m_items.Size(); ++index)
+            {
+                const Item& item = m_items[index];
+                if (item.offset.Get() < line.sourceBegin.Get() || item.offset.Get() >= line.sourceEnd.Get())
+                {
+                    continue;
+                }
+                if (item.kind == ItemKind::Mark || item.kind == ItemKind::Newline)
+                {
+                    continue;
+                }
+                if (item.offset.Get() >= offset.Get())
+                {
+                    return item.x + line.shift;
+                }
+                lastEnd = item.x + item.advance;
+            }
+            return lastEnd + line.shift;
+        };
+        UInt32 count = 0;
+        Float top = m_maxY;
+        for (std::size_t index = 0; index < m_lines.Size() && count < capacity; ++index)
+        {
+            const LineInfo& line = m_lines[index];
+            const Float bottom = top - line.height;
+            const UInt32 from = begin > line.sourceBegin ? begin : line.sourceBegin;
+            const UInt32 to = end < line.sourceEnd ? end : line.sourceEnd;
+            if (from < to)
+            {
+                const Float left = xInLine(line, from);
+                const Float right = xInLine(line, to);
+                if (right > left)
+                {
+                    out[count.Get()] = {left, right, top, bottom};
+                    ++count;
+                }
+            }
+            top = bottom;
+        }
+        return count;
+    }
+
     Float TextLayout::GetMinX() const
     {
         return m_minX;

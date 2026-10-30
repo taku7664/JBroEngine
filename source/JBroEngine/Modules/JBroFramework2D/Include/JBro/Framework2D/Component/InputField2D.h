@@ -70,7 +70,8 @@ namespace JBro::Component
         JBRO_FIELD(TextId, text);
         JBRO_FIELD(Handle::Text2D, display, Tooltip("글자를 보이는 텍스트. 바뀔 때마다 그 글자를 덮어쓴다"));
         JBRO_FIELD(Handle::SpriteRenderer2D, caret, Tooltip("커서 스프라이트. display 의 자식이어야 한다 - 커서 자리에 놓는다"));
-        JBRO_FIELD(Handle::SpriteRenderer2D, selection, Tooltip("선택 구간 스프라이트. display 의 자식이어야 한다 - 고른 글자 사이로 늘린다"));
+        // 선택 구간 스프라이트다. 비어 있으면 `display` 텍스트의 강조 범위(D-362)로 줄마다 칠한다 - 여러 줄 선택은 이쪽이 맞다.
+        JBRO_FIELD(Handle::SpriteRenderer2D, selection, Tooltip("선택 구간 스프라이트. 비면 display 텍스트의 강조 범위로 줄마다 칠한다"));
         // 조합 중인 글자의 밑줄 스프라이트다(D-361). display 의 자식이어야 한다 - 조합 글자 구간의 아래에 글자 높이의 1/10 두께로 늘린다.
         JBRO_FIELD(Handle::SpriteRenderer2D, composition, Tooltip("조합 중인 글자의 밑줄 스프라이트. display 의 자식이어야 한다"));
         // 글자 수(코드포인트)의 상한이다. 0 이면 없다.

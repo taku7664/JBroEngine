@@ -5035,6 +5035,30 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::Text2D::*)() const>(&Handle::Text2D::GetHighlightBegin)>("GetHighlightBegin", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::Text2D::*)() const>(&Handle::Text2D::GetHighlightEnd)>("GetHighlightEnd", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Text2D::*)(Int32, Int32)>(&Handle::Text2D::SetHighlight)>("SetHighlight", Parameters(In("begin"), In("end")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Text2D::*)() const>(&Handle::Text2D::GetHighlightColor)>("GetHighlightColor", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Text2D::*)(Color)>(&Handle::Text2D::SetHighlightColor)>("SetHighlightColor", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Text2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
