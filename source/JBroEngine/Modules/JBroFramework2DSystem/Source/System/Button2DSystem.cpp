@@ -4,15 +4,20 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Draggable2D.h>
+#include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/Modal2D.h>
 #include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2D/Component/TabGroup2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/ToggleGroup2D.h>
+#include <JBro/Framework2D/Component/Tooltip2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
@@ -666,6 +671,15 @@ namespace JBro::System
             case Hook::Submit:
                 ScriptCallGuard::Call("OnSubmit", [script] { script->OnSubmit(); });
                 break;
+            case Hook::DragBegin:
+                ScriptCallGuard::Call("OnDragBegin", [script] { script->OnDragBegin(); });
+                break;
+            case Hook::DragEnd:
+                ScriptCallGuard::Call("OnDragEnd", [script] { script->OnDragEnd(); });
+                break;
+            case Hook::Drop:
+                ScriptCallGuard::Call("OnDrop", [script] { script->OnDrop(); });
+                break;
             case Hook::Click:
             default:
                 ScriptCallGuard::Call("OnClick", [script] { script->OnClick(); });
@@ -800,6 +814,68 @@ namespace JBro::System
         });
     }
 
+    Bool Button2DSystem::InsideModal(Object::GameObject* object) const
+    {
+        if (false == m_modalActive)
+        {
+            return true;
+        }
+        Bool inside = false;
+        m_canvas->ForEach<Component::Modal2D>([&](Component::Modal2D& modal)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(modal);
+            if (false == inside && owner != nullptr && modal.IsActiveComponent() && owner->IsActiveInHierarchy() && IsSelfOrDescendantOf(object, owner))
+            {
+                inside = true;
+            }
+        });
+        return inside;
+    }
+
+    void Button2DSystem::DropDraggable(Object::GameObject& released, const Pointer& pointer)
+    {
+        auto* draggable = m_canvas->FindComponentRaw<Component::Draggable2D>(&released);
+        if (draggable == nullptr)
+        {
+            return;
+        }
+        // 포인터 아래의 놓을 자리 - 먼저 찾은 것이다(한 자리에 여럿을 겹쳐 두지 않는다). 모달 밖은 없는 것이다.
+        Object::GameObject* targetOwner = nullptr;
+        Component::DropTarget2D* target = nullptr;
+        m_canvas->ForEach<Component::DropTarget2D>([&](Component::DropTarget2D& candidate)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(candidate);
+            const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
+            Vector2 local;
+            if (target == nullptr && owner != nullptr && layer != nullptr && candidate.IsActiveComponent() && owner->IsActiveInHierarchy() && layer->IsVisible()
+                && pointer.present && InsideModal(owner) && HitRect(*owner, *layer, candidate.size, candidate.offset, pointer, local))
+            {
+                targetOwner = owner;
+                target = &candidate;
+            }
+        });
+        draggable->dragging = false;
+        if (target != nullptr)
+        {
+            target->dropped = released.GetScriptHandle();
+            target->hovering = false;
+            draggable->droppedOn = targetOwner->GetScriptHandle();
+        }
+        else if (draggable->snapBack && draggable->startValid)
+        {
+            if (auto* place = m_canvas->FindComponentRaw<Component::Transform2D>(&released))
+            {
+                place->position = draggable->startPosition;
+            }
+        }
+        draggable->startValid = false;
+        if (targetOwner != nullptr)
+        {
+            CallHook(targetOwner, Hook::Drop);
+        }
+        CallHook(&released, Hook::DragEnd);
+    }
+
     void Button2DSystem::ScrollBy(Object::GameObject& owner, Component::ScrollView2D& scroll, Vector2 delta, Bool& clampedX, Bool& clampedY)
     {
         clampedX = false;
@@ -908,7 +984,7 @@ namespace JBro::System
         Float bestScore = 0.0f;
         const auto consider = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Bool active) {
             if (owner == nullptr || false == active || false == interactable || false == owner->IsActiveInHierarchy()
-                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible())
+                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible() || false == InsideModal(owner))
             {
                 return;
             }
@@ -971,7 +1047,7 @@ namespace JBro::System
         const Float dirY = static_cast<JBro::Float>(directionY.Get());
         const auto pick = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Bool active) {
             if (owner == nullptr || false == active || false == interactable || false == owner->IsActiveInHierarchy()
-                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible()
+                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible() || false == InsideModal(owner)
                 || (owner->GetInstanceId() == m_focused && kind == m_focusedKind))
             {
                 return;
@@ -1393,6 +1469,51 @@ namespace JBro::System
             }
             group.value = keep;
         });
+        // 탭(D-357): 같은 오브젝트의 토글 그룹이 고른 번호의 페이지(`content` 의 자식)만 켠다.
+        canvas.ForEach<Component::TabGroup2D>([&](Component::TabGroup2D& tabs)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(tabs);
+            if (owner == nullptr || false == tabs.IsActiveComponent())
+            {
+                return;
+            }
+            const auto* group = canvas.FindComponentRaw<Component::ToggleGroup2D>(owner);
+            Object::GameObject* content = Internal::GameObjectHandleAccess::Resolve(tabs.content);
+            const Int32 page = group != nullptr && group->IsActiveComponent() ? group->value : Int32(-1);
+            tabs.page = page;
+            if (content == nullptr || content == owner)
+            {
+                return;
+            }
+            Int32 index = 0;
+            for (const SafePtr<Object::GameObject>& child : content->GetChildren())
+            {
+                Object::GameObject* object = child.TryGet();
+                if (object != nullptr && object->IsActiveSelf() != (index == page))
+                {
+                    object->SetActive(index == page);
+                }
+                ++index;
+            }
+            if (page >= index)
+            {
+                tabs.page = -1;
+            }
+        });
+        // 툴팁(D-357): 머문 시간이 찼으면 대상을 켠다. 대상이 자기 자신이면 손대지 않는다.
+        canvas.ForEach<Component::Tooltip2D>([&](Component::Tooltip2D& tooltip)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(tooltip);
+            Object::GameObject* target = Internal::GameObjectHandleAccess::Resolve(tooltip.target);
+            if (owner == nullptr || target == nullptr || target == owner || false == tooltip.IsActiveComponent())
+            {
+                return;
+            }
+            if (target->IsActiveSelf() != tooltip.shown)
+            {
+                target->SetActive(tooltip.shown);
+            }
+        });
         // 드롭다운(D-355): 목록(자식)의 켜짐은 `open`, 항목 토글의 켜짐은 `value`, 캡션은 고른 항목의 글자다.
         canvas.ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
         {
@@ -1661,6 +1782,19 @@ namespace JBro::System
         }
         const Pointer pointer = ReadPointer(input);
 
+        // 모달(D-357): 켜진 것이 있으면 그 안의 위젯만 후보이고, 게임까지 막는 것이 있으면 이번 프레임의 장치를 모두 지운다.
+        m_modalActive = false;
+        m_modalBlocks = false;
+        m_canvas->ForEach<Component::Modal2D>([&](Component::Modal2D& modal)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(modal);
+            if (owner != nullptr && modal.IsActiveComponent() && owner->IsActiveInHierarchy())
+            {
+                m_modalActive = true;
+                m_modalBlocks = m_modalBlocks || modal.blockGame;
+            }
+        });
+
         // 0. 스크립트가 글자 칸의 `focused` 를 썼으면 받는다 - 참이면 그 칸이 포커스를 받고(여럿이면 첫 것만), 지금 포커스인 칸이 거짓이면 놓는다.
         {
             Object::GameObject* wanted = nullptr;
@@ -1709,7 +1843,7 @@ namespace JBro::System
         Object::GameObject* pressedBefore = nullptr;
         Object::GameObject* focusedObject = nullptr;
         const auto consider = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Vector2 size, Vector2 offset, Bool active) {
-            if (owner == nullptr)
+            if (owner == nullptr || false == InsideModal(owner))
             {
                 return;
             }
@@ -1782,6 +1916,16 @@ namespace JBro::System
             dropdown.changed = false;
             consider(Internal::CanvasAccess::GetOwner(dropdown), WidgetKind::Dropdown, dropdown.interactable, dropdown.size, dropdown.offset, dropdown.IsActiveComponent());
         });
+        m_canvas->ForEach<Component::Draggable2D>([&](Component::Draggable2D& draggable)
+        {
+            draggable.droppedOn = {};
+            consider(Internal::CanvasAccess::GetOwner(draggable), WidgetKind::Draggable, draggable.interactable, draggable.size, draggable.offset, draggable.IsActiveComponent());
+        });
+        m_canvas->ForEach<Component::DropTarget2D>([&](Component::DropTarget2D& target)
+        {
+            target.dropped = {};
+            target.hovering = false;
+        });
         // 스크롤 뷰의 사각형은 같은 오브젝트의 마스크다. 안의 위젯이 위에 있으면 그쪽이 먼저고, 빈 곳이면 스크롤 뷰다.
         m_canvas->ForEach<Component::ScrollView2D>([&](Component::ScrollView2D& scroll)
         {
@@ -1844,6 +1988,11 @@ namespace JBro::System
                     take(Internal::CanvasAccess::GetOwner(dropdown), dropdown.IsActiveComponent());
                 });
                 break;
+            case WidgetKind::Draggable:
+                m_canvas->ForEach<Component::Draggable2D>([&](Component::Draggable2D& draggable) {
+                    take(Internal::CanvasAccess::GetOwner(draggable), draggable.IsActiveComponent());
+                });
+                break;
             default:
                 break;
             }
@@ -1902,11 +2051,25 @@ namespace JBro::System
             m_dragDelta = {};
             // 누른 것이 스크롤 뷰거나 그 안의 버튼·토글·글자 칸이면 끌기가 스크롤이 된다. 슬라이더는 제 끌기가 먼저다.
             Object::GameObject* scrollOwner = top.kind == WidgetKind::Scroll ? top.owner
-                : top.kind == WidgetKind::Slider ? nullptr : FindScrollAncestor(top.owner);
+                : (top.kind == WidgetKind::Slider || top.kind == WidgetKind::Draggable) ? nullptr : FindScrollAncestor(top.owner);
             m_scrollCandidate = scrollOwner != nullptr ? scrollOwner->GetInstanceId() : InvalidInstanceId;
             if (top.kind == WidgetKind::Button)
             {
                 CallHook(pressed, Hook::Down);
+            }
+            // 끌기 시작(D-357): 제자리를 떠 두고 알린다.
+            if (top.kind == WidgetKind::Draggable)
+            {
+                if (auto* draggable = m_canvas->FindComponentRaw<Component::Draggable2D>(pressed))
+                {
+                    if (auto* place = m_canvas->FindComponentRaw<Component::Transform2D>(pressed))
+                    {
+                        draggable->startPosition = place->position;
+                        draggable->startValid = true;
+                    }
+                    draggable->dragging = true;
+                    CallHook(pressed, Hook::DragBegin);
+                }
             }
         }
         // 끌기 문턱을 넘으면 스크롤이 쥔다 - 누르고 있던 버튼은 뗌만 받고 누름은 아니다.
@@ -1959,6 +2122,30 @@ namespace JBro::System
                     CallHook(pressed, Hook::ValueChanged);
                 }
             }
+        }
+        // 끌기(D-357): 쥔 동안 포인터가 간 만큼 오브젝트가 따라온다(레이어 단위). 놓을 자리의 `hovering` 은 끌리는 동안 포인터가 그 사각형 안인가다.
+        if (pressed != nullptr && pressedKind == WidgetKind::Draggable && pointer.present && pointer.down)
+        {
+            const Layer* layer = pressed->GetLayer();
+            auto* place = m_canvas->FindComponentRaw<Component::Transform2D>(pressed);
+            Vector2 from;
+            Vector2 to;
+            if (false == pointer.pressed && place != nullptr && layer != nullptr
+                && PixelToLayer(*layer, m_lastPixelX, m_lastPixelY, from) && PixelToLayer(*layer, pointer.x, pointer.y, to))
+            {
+                place->position.x += to.x - from.x;
+                place->position.y += to.y - from.y;
+            }
+            m_lastPixelX = pointer.x;
+            m_lastPixelY = pointer.y;
+            m_canvas->ForEach<Component::DropTarget2D>([&](Component::DropTarget2D& target)
+            {
+                Object::GameObject* owner = Internal::CanvasAccess::GetOwner(target);
+                const Layer* targetLayer = owner != nullptr ? owner->GetLayer() : nullptr;
+                Vector2 local;
+                target.hovering = owner != nullptr && targetLayer != nullptr && target.IsActiveComponent() && owner->IsActiveInHierarchy() && InsideModal(owner)
+                    && HitRect(*owner, *targetLayer, target.size, target.offset, pointer, local);
+            });
         }
         // 글자 칸은 쥔 동안 포인터가 가리키는 글자까지 선택이다(D-355). 스크롤 뷰 안의 글자 칸은 끌기가 스크롤이라 선택하지 않는다.
         if (pressed != nullptr && pressedKind == WidgetKind::Field && pointer.present && pointer.down && false == pointer.pressed
@@ -2022,6 +2209,10 @@ namespace JBro::System
                 {
                     dropdown->open = false == dropdown->open;
                 }
+            }
+            else if (releasedKind == WidgetKind::Draggable)
+            {
+                DropDraggable(*released, pointer);
             }
         }
         m_pressed = pressed != nullptr ? pressed->GetInstanceId() : InvalidInstanceId;
@@ -2335,6 +2526,24 @@ namespace JBro::System
                 RestoreSwap(field, TargetGraphic(*m_canvas, field, owner));
             }
         });
+        m_canvas->ForEach<Component::Draggable2D>([&](Component::Draggable2D& draggable)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(draggable);
+            const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
+            draggable.dragging = id != InvalidInstanceId && id == m_pressed && m_pressedKind == WidgetKind::Draggable;
+        });
+        // 툴팁(D-357): 포인터를 잡지 않는다 - 누르지 않은 포인터가 사각형 위에 머문 시간을 센다(지난 갱신 훅의 델타). `delay` 를 넘기면 보인다.
+        m_canvas->ForEach<Component::Tooltip2D>([&](Component::Tooltip2D& tooltip)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(tooltip);
+            const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
+            Vector2 local;
+            const Bool hovered = owner != nullptr && layer != nullptr && tooltip.IsActiveComponent() && owner->IsActiveInHierarchy() && layer->IsVisible()
+                && pointer.present && false == pointer.down && InsideModal(owner) && HitRect(*owner, *layer, tooltip.size, tooltip.offset, pointer, local);
+            tooltip.hoverTime = hovered ? Float(tooltip.hoverTime + m_frameDelta) : Float(0.0f);
+            const Float delay = Float(std::isfinite(tooltip.delay.Get()) && tooltip.delay > 0.0f ? tooltip.delay.Get() : 0.0f);
+            tooltip.shown = hovered && tooltip.hoverTime >= delay;
+        });
         m_canvas->ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(dropdown);
@@ -2354,7 +2563,7 @@ namespace JBro::System
         });
 
         // 7. 위젯 위거나 쥐고 있으면 그 장치를 아래에서 지운다. 입력은 막지 않는다 - UI 가 쓴 게임패드·키보드만 지운다.
-        m_pointerOver = top.owner != nullptr || m_pressed != InvalidInstanceId;
+        m_pointerOver = top.owner != nullptr || m_pressed != InvalidInstanceId || m_modalBlocks;
         // 둘 다 지운다 - 터치를 마우스로도 흉내 내는 플랫폼에서 같은 손가락이 마우스로 새어 나가지 않게.
         if (m_pointerOver)
         {
@@ -2365,9 +2574,13 @@ namespace JBro::System
         {
             input.Consume(InputDevice::Gamepad);
         }
-        if (usedKeyboard)
+        if (usedKeyboard || m_modalBlocks)
         {
             input.Consume(InputDevice::Keyboard);
+        }
+        if (m_modalBlocks)
+        {
+            input.Consume(InputDevice::Gamepad);
         }
         return InputResult::Pass;
     }

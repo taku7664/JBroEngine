@@ -41,6 +41,10 @@ namespace JBro
         virtual void OnValueChanged();
         // **같은 오브젝트의 `InputField2D` 가 부른다**(D-352). 포커스가 있는 칸에서 Enter 를 누른 프레임에.
         virtual void OnSubmit();
+        // **같은 오브젝트의 `Draggable2D` 가 부른다**(D-357). 끌기가 시작된 프레임과 놓은 프레임에. `OnDrop` 은 놓인 자리의 `DropTarget2D` 가 제 오브젝트의 스크립트에 부른다.
+        virtual void OnDragBegin();
+        virtual void OnDragEnd();
+        virtual void OnDrop();
     };
 
     // 2D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다. `GameScriptBase` 에서 바로 파생한 타입은 여기서

@@ -39,12 +39,15 @@
 #include <JBro/Framework2D/Handle/Collider2D.h>
 #include <JBro/Framework2D/Handle/ContentSizeFitter2D.h>
 #include <JBro/Framework2D/Handle/DistanceJoint2D.h>
+#include <JBro/Framework2D/Handle/Draggable2D.h>
+#include <JBro/Framework2D/Handle/DropTarget2D.h>
 #include <JBro/Framework2D/Handle/Dropdown2D.h>
 #include <JBro/Framework2D/Handle/HingeJoint2D.h>
 #include <JBro/Framework2D/Handle/InputField2D.h>
 #include <JBro/Framework2D/Handle/Layout2D.h>
 #include <JBro/Framework2D/Handle/Light2D.h>
 #include <JBro/Framework2D/Handle/Mask2D.h>
+#include <JBro/Framework2D/Handle/Modal2D.h>
 #include <JBro/Framework2D/Handle/ScrollView2D.h>
 #include <JBro/Framework2D/Handle/Slider2D.h>
 #include <JBro/Framework2D/Handle/Toggle2D.h>
@@ -52,7 +55,9 @@
 #include <JBro/Framework2D/Handle/Rigidbody2D.h>
 #include <JBro/Framework2D/Handle/ShadowCaster2D.h>
 #include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Handle/TabGroup2D.h>
 #include <JBro/Framework2D/Handle/Text2D.h>
+#include <JBro/Framework2D/Handle/Tooltip2D.h>
 #include <JBro/Framework2D/Handle/Transform2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework2D/Prefab/Prefab.h>

@@ -2,7 +2,12 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Draggable2D.h>
+#include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
+#include <JBro/Framework2D/Component/Modal2D.h>
+#include <JBro/Framework2D/Component/TabGroup2D.h>
+#include <JBro/Framework2D/Component/Tooltip2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Layout2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
@@ -287,6 +292,45 @@ namespace
         JBro::Bool onClick = false;
         JBro::Bool onValue = false;
         JBro::Bool onSubmit = false;
+    };
+
+    // 끌어 놓기의 훅을 센다(D-357). `destroyOnEnd` 면 끌기가 끝나는 훅에서 제 오브젝트를 지운다.
+    class DragProbe final : public GameScript2D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "UiScenarioTests::DragProbe";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnDragBegin() override
+        {
+            ++begins;
+        }
+
+        void OnDragEnd() override
+        {
+            ++ends;
+            if (destroyOnEnd)
+            {
+                GetGameObject().Destroy();
+            }
+        }
+
+        void OnDrop() override
+        {
+            ++drops;
+        }
+
+        JBro::Int32 begins = 0;
+        JBro::Int32 ends = 0;
+        JBro::Int32 drops = 0;
+        JBro::Bool destroyOnEnd = false;
     };
 
     // 화면 레이어 하나와 입력·게임패드가 있는 프레임워크다. 시험마다 하나씩 만든다.
@@ -1263,6 +1307,145 @@ namespace
         stage.Frame({});
         Check(CloseTo(slider->value, 0.3f), "a content that is the window itself leaves the bar alone");
     }
+
+    // **툴팁·모달·탭·끌어 놓기**(D-357, B 2 순위). 화면 200 x 100 = 기준. 툴팁 `help` 는 (0, 0) 40 x 20(픽셀 (100, 50)), 모달 밖 버튼 `under` 는 (-60, -30)(픽셀 (40, 80)),
+    // 모달 안 버튼 `ok` 는 (60, -30)(픽셀 (160, 80)), 탭 토글은 (-60, 30)·(0, 30), 끌 것 `card` 는 (-20, -30)(픽셀 (80, 80)) 20 x 20, 놓을 자리 `slot` 은 (30, -30)(픽셀 (130, 80)) 30 x 30 이다.
+    void TestTooltipsModalsTabsAndDragging()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        auto* poller = canvas->AttachScript<GamePoller>(canvas->CreateObject("poller"));
+
+        // 툴팁: 0.2 초(12 프레임) 머물면 대상이 켜지고, 누르거나 떠나면 꺼진다.
+        Object::GameObject* help = stage.Make("help", {});
+        auto* tooltip = canvas->AttachComponent<Component::Tooltip2D>(help);
+        tooltip->size = {40.0f, 20.0f};
+        tooltip->delay = 0.2f;
+        Object::GameObject* tip = stage.Make("tip", {0.0f, 20.0f}, help);
+        tooltip->target = tip->GetScriptHandle();
+        stage.Frames(2);
+        Check(false == tip->IsActiveSelf() && false == tooltip->shown, "the tooltip target starts hidden");
+        stage.Frame({MouseAt(100.0f, 50.0f)});
+        stage.Frames(5);
+        Check(false == tooltip->shown, "hovering for less than the delay shows nothing");
+        stage.Frames(10);
+        Check(tooltip->shown && tip->IsActiveSelf(), "after the delay the target shows");
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Check(false == tooltip->shown && false == tip->IsActiveSelf() && poller->sawMouse, "pressing hides it and the press reaches the game");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(190.0f, 95.0f)});
+        stage.Frames(15);
+        Check(false == tooltip->shown, "away from it nothing shows");
+        tooltip->target = help->GetScriptHandle();
+        stage.Frame({MouseAt(100.0f, 50.0f)});
+        stage.Frames(15);
+        Check(help->IsActiveSelf() && tooltip->shown, "a target that is the tooltip itself is left alone");
+        tooltip->target = tip->GetScriptHandle();
+        tooltip->delay = NaN;
+        stage.Frame({MouseAt(190.0f, 95.0f)});
+        stage.Frame({MouseAt(100.0f, 50.0f)});
+        Check(tooltip->shown, "a NaN delay shows at once");
+        tooltip->delay = 0.2f;
+        stage.Frame({MouseAt(190.0f, 95.0f)});
+
+        // 모달: 켜져 있으면 안의 위젯만 받고 게임은 아무것도 보지 못한다.
+        Object::GameObject* under = stage.Make("under", {-60.0f, -30.0f});
+        auto* underButton = canvas->AttachComponent<Component::Button2D>(under);
+        underButton->size = {30.0f, 20.0f};
+        Object::GameObject* dialog = stage.Make("dialog", {});
+        auto* modal = canvas->AttachComponent<Component::Modal2D>(dialog);
+        Object::GameObject* ok = stage.Make("ok", {60.0f, -30.0f}, dialog);
+        auto* okButton = canvas->AttachComponent<Component::Button2D>(ok);
+        okButton->size = {30.0f, 20.0f};
+        stage.Frames(2);
+        stage.Frame({MouseAt(40.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(false == underButton->clicked && false == underButton->hovered && false == poller->sawMouse, "with a modal up a button outside it is neither hovered nor clicked and the game sees no mouse");
+        stage.Frame({MouseAt(160.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(okButton->clicked, "a button inside the modal works");
+        stage.Frame({MouseAt(100.0f, 50.0f)});
+        stage.Frames(15);
+        Check(false == tooltip->shown, "a tooltip outside the modal does not show");
+        stage.Frame({MouseAt(190.0f, 95.0f)});
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(okButton->focused && false == underButton->focused, "gamepad navigation only lands inside the modal");
+        modal->blockGame = false;
+        stage.Frame({MouseAt(40.0f, 80.0f), HeldButton(MouseButton::Left)});
+        Check(poller->sawMouse && false == underButton->pressed, "with blockGame off the game sees the mouse but the outside button still does not");
+        stage.Frame({Released(MouseButton::Left)});
+        dialog->SetActive(false);
+        stage.Frame({MouseAt(40.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(underButton->clicked, "closing the modal frees the outside button");
+
+        // 탭: 그룹이 고른 번호의 페이지만 켜진다.
+        Object::GameObject* tabs = stage.Make("tabs", {});
+        canvas->AttachComponent<Component::ToggleGroup2D>(tabs);
+        auto* tabGroup = canvas->AttachComponent<Component::TabGroup2D>(tabs);
+        Object::GameObject* pages = stage.Make("pages", {}, tabs);
+        tabGroup->content = pages->GetScriptHandle();
+        Object::GameObject* first = stage.Make("first", {-60.0f, 30.0f}, tabs);
+        canvas->AttachComponent<Component::Toggle2D>(first)->size = {20.0f, 16.0f};
+        Object::GameObject* second = stage.Make("second", {0.0f, 30.0f}, tabs);
+        canvas->AttachComponent<Component::Toggle2D>(second)->size = {20.0f, 16.0f};
+        Object::GameObject* pageOne = stage.Make("pageOne", {}, pages);
+        Object::GameObject* pageTwo = stage.Make("pageTwo", {}, pages);
+        stage.Frames(2);
+        Check(false == pageOne->IsActiveSelf() && false == pageTwo->IsActiveSelf() && tabGroup->page == -1, "no tab chosen hides every page");
+        stage.Frame({MouseAt(100.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(pageTwo->IsActiveSelf() && false == pageOne->IsActiveSelf() && tabGroup->page == 1, "choosing the second tab shows the second page");
+        stage.Frame({MouseAt(40.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(pageOne->IsActiveSelf() && false == pageTwo->IsActiveSelf() && tabGroup->page == 0, "choosing the first tab switches the page");
+        tabGroup->content = tabs->GetScriptHandle();
+        stage.Frame({});
+        Check(tabs->IsActiveSelf() && first->IsActiveSelf() && second->IsActiveSelf(), "a content that is the tab group itself is left alone");
+        tabGroup->content = pages->GetScriptHandle();
+
+        // 끌어 놓기.
+        Object::GameObject* card = stage.Make("card", {-20.0f, -30.0f});
+        auto* draggable = canvas->AttachComponent<Component::Draggable2D>(card);
+        draggable->size = {20.0f, 20.0f};
+        auto* cardProbe = canvas->AttachScript<DragProbe>(card);
+        Object::GameObject* slot = stage.Make("slot", {30.0f, -30.0f});
+        auto* target = canvas->AttachComponent<Component::DropTarget2D>(slot);
+        target->size = {30.0f, 30.0f};
+        auto* slotProbe = canvas->AttachScript<DragProbe>(slot);
+        stage.Frames(2);
+        stage.Frame({MouseAt(80.0f, 80.0f), HeldButton(MouseButton::Left)});
+        Check(draggable->dragging && cardProbe->begins == 1 && false == poller->sawMouse, "pressing a draggable starts a drag and takes the pointer");
+        stage.Frame({MouseAt(105.0f, 80.0f)});
+        Check(CloseTo(stage.PlaceOf(card)->position.x, 5.0f) && false == target->hovering, "the object follows the pointer");
+        stage.Frame({MouseAt(130.0f, 80.0f)});
+        Check(CloseTo(stage.PlaceOf(card)->position.x, 30.0f) && target->hovering, "over the slot the target reports hovering");
+        stage.Frame({Released(MouseButton::Left)});
+        Check(target->dropped.GetInstanceId() == card->GetInstanceId() && draggable->droppedOn.GetInstanceId() == slot->GetInstanceId()
+                && slotProbe->drops == 1 && cardProbe->ends == 1 && false == draggable->dragging,
+            "releasing drops it on the slot and tells both scripts");
+        stage.Frame({});
+        Check(false == target->dropped.IsValid() && false == draggable->droppedOn.IsValid() && false == target->hovering, "the drop lasts one frame");
+        draggable->snapBack = true;
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({MouseAt(170.0f, 95.0f)});
+        Check(CloseTo(stage.PlaceOf(card)->position.x, 70.0f) && CloseTo(stage.PlaceOf(card)->position.y, -45.0f), "dragging again moves it");
+        stage.Frame({Released(MouseButton::Left)});
+        Check(CloseTo(stage.PlaceOf(card)->position.x, 30.0f) && CloseTo(stage.PlaceOf(card)->position.y, -30.0f) && slotProbe->drops == 1 && cardProbe->ends == 2,
+            "released over nothing it snaps back");
+        // 놓는 훅에서 제 오브젝트를 지워도 다음 누름은 게임에 간다.
+        cardProbe->destroyOnEnd = true;
+        stage.Frame({MouseAt(130.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({MouseAt(150.0f, 80.0f)});
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({});
+        stage.Frame({MouseAt(150.0f, 80.0f), HeldButton(MouseButton::Left)});
+        Check(poller->sawMouse, "after the dragged object destroyed itself the next press reaches the game");
+        stage.Frame({Released(MouseButton::Left)});
+    }
 }
 
 JBro::Int32 RunUiScenarioTests()
@@ -1278,6 +1461,7 @@ JBro::Int32 RunUiScenarioTests()
     TestScriptMadeWidgetsAndCaretApi();
     TestToggleGroupsDropdownsAndTransitions();
     TestScrollbarsFollowTheContent();
+    TestTooltipsModalsTabsAndDragging();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

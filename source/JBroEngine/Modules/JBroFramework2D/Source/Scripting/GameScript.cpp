@@ -53,4 +53,16 @@ namespace JBro
     void GameScript2D::OnSubmit()
     {
     }
+
+    void GameScript2D::OnDragBegin()
+    {
+    }
+
+    void GameScript2D::OnDragEnd()
+    {
+    }
+
+    void GameScript2D::OnDrop()
+    {
+    }
 }

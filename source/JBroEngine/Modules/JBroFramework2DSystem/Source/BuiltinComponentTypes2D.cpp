@@ -13,6 +13,11 @@
 #include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
+#include <JBro/Framework2D/Component/Tooltip2D.h>
+#include <JBro/Framework2D/Component/Modal2D.h>
+#include <JBro/Framework2D/Component/TabGroup2D.h>
+#include <JBro/Framework2D/Component/Draggable2D.h>
+#include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -80,6 +85,17 @@ namespace JBro::Component
             all = RegisterComponentType<Dropdown2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<ContentSizeFitter2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            // B 2 순위(D-357): 툴팁·모달·탭·끌기·놓을 자리. 사각형이 있는 것은 하나, 나머지도 오브젝트에 하나다.
+            all = RegisterComponentType<Tooltip2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<Modal2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<TabGroup2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<Draggable2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<DropTarget2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();

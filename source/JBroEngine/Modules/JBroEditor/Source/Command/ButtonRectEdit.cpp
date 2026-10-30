@@ -5,11 +5,14 @@
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Draggable2D.h>
+#include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/Tooltip2D.h>
 #include <JBro/Types/String.h>
 
 namespace JBro
@@ -56,6 +59,27 @@ namespace JBro
             auto& dropdown = static_cast<Component::Dropdown2D&>(component);
             size = &dropdown.size;
             offset = &dropdown.offset;
+            return true;
+        }
+        if (typeId == MakeStableTypeId(Component::Tooltip2D::StaticTypeName()))
+        {
+            auto& tooltip = static_cast<Component::Tooltip2D&>(component);
+            size = &tooltip.size;
+            offset = &tooltip.offset;
+            return true;
+        }
+        if (typeId == MakeStableTypeId(Component::Draggable2D::StaticTypeName()))
+        {
+            auto& draggable = static_cast<Component::Draggable2D&>(component);
+            size = &draggable.size;
+            offset = &draggable.offset;
+            return true;
+        }
+        if (typeId == MakeStableTypeId(Component::DropTarget2D::StaticTypeName()))
+        {
+            auto& target = static_cast<Component::DropTarget2D&>(component);
+            size = &target.size;
+            offset = &target.offset;
             return true;
         }
         return false;

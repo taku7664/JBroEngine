@@ -12,6 +12,11 @@
 #include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
+#include <JBro/Framework2D/Component/Tooltip2D.h>
+#include <JBro/Framework2D/Component/Modal2D.h>
+#include <JBro/Framework2D/Component/TabGroup2D.h>
+#include <JBro/Framework2D/Component/Draggable2D.h>
+#include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -45,6 +50,11 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<ToggleGroup2D>() && all;
             all = RegisterBuiltinProperties<Dropdown2D>() && all;
             all = RegisterBuiltinProperties<ContentSizeFitter2D>() && all;
+            all = RegisterBuiltinProperties<Tooltip2D>() && all;
+            all = RegisterBuiltinProperties<Modal2D>() && all;
+            all = RegisterBuiltinProperties<TabGroup2D>() && all;
+            all = RegisterBuiltinProperties<Draggable2D>() && all;
+            all = RegisterBuiltinProperties<DropTarget2D>() && all;
             all = RegisterBuiltinProperties<Mask2D>() && all;
             all = RegisterBuiltinProperties<ScrollView2D>() && all;
             all = RegisterBuiltinProperties<InputField2D>() && all;
