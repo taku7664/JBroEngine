@@ -18169,6 +18169,7 @@ namespace
             JBro::EditorActions::AddComponentList list;
             JBro::EditorActions::BuildAddComponentList(*window, list);
             JBro::Int32 uiCount = 0;
+            JBro::Int32 layoutCount = 0;
             for (std::size_t index = 0; index < list.names.Size(); ++index)
             {
                 if (std::strcmp(list.categories[index], "UI") == 0)
@@ -18176,8 +18177,14 @@ namespace
                     ++uiCount;
                     Check(list.addable[index], "every UI component can be added to a fresh object");
                 }
+                if (std::strcmp(list.categories[index], "UiLayout") == 0)
+                {
+                    ++layoutCount;
+                    Check(list.addable[index], "every UI layout component can be added to a fresh object");
+                }
             }
-            Check(uiCount == 22, "the UI group lists the twenty-two widgets (button, toggle, slider, field, mask, scroll view, layout, toggle group, dropdown, content size fitter, tooltip, modal, tab group, draggable, drop target, tween, list view, safe area, canvas group, aspect ratio fitter, virtual keyboard, navigation)");
+            Check(uiCount == 17, "the UI group lists the seventeen widgets (button, toggle, slider, field, mask, scroll view, toggle group, dropdown, tooltip, modal, tab group, draggable, drop target, tween, canvas group, virtual keyboard, navigation)");
+            Check(layoutCount == 5, "the UI layout group lists the five placers (layout, content size fitter, list view, safe area, aspect ratio fitter) (D-361)");
         }
 
         // ── 3. 스크롤 창: 마스크 + 스크롤 뷰, 그 자식 버튼 ─────────────

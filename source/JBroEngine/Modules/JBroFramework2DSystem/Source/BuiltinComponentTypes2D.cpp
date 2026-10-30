@@ -85,14 +85,14 @@ namespace JBro::Component
             all = RegisterComponentType<InputField2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Layout2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
             // 토글 그룹은 오브젝트에 하나(어느 그룹인지 하나여야 한다), 드롭다운은 누름 사각형 하나다(D-355).
             all = RegisterComponentType<ToggleGroup2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Dropdown2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<ContentSizeFitter2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
             // B 2 순위(D-357): 툴팁·모달·탭·끌기·놓을 자리. 사각형이 있는 것은 하나, 나머지도 오브젝트에 하나다.
             all = RegisterComponentType<Tooltip2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
@@ -107,14 +107,14 @@ namespace JBro::Component
             // 트윈은 한 오브젝트에 여럿이다(자리와 알파를 같이). 목록은 스크롤 뷰 하나에 하나다.
             all = RegisterComponentType<Tween2D>(ComponentCategory::UI) && all;
             all = RegisterComponentType<ListView2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
             // B 3 순위(D-358): 안전 영역·그룹·가로세로비·가상 키보드·탐색 연결. 모두 오브젝트에 하나다.
             all = RegisterComponentType<SafeArea2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<CanvasGroup2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<AspectRatioFitter2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+                      ComponentCategory::UiLayout, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<VirtualKeyboard2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Navigation2D>(

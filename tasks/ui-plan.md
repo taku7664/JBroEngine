@@ -627,3 +627,6 @@
    - **잰 것**: `SpriteDrawMode` 분할 화면 픽셀 시험 - 오른쪽 카메라에만 노출 -2.2 의 `dark.jpost`(파일을 쓰고 메타를 만들며 다시 스캔) → 오른쪽 파랑 51 → 26, 왼쪽 빨강 51 그대로,
      후처리된 뷰 1. `RendererContract`·`CameraView2D`·`Framework2DSystem`·`UiScenario` 통과.
    - 정한 것: 카메라가 여덟을 넘으면 그 뒤는 주 카메라의 것이다. 메타 없는 파일은 스캔이 등록하지 않는다(시험은 `createMissingMeta`).
+6. ~~**컴포넌트 갈래 나누기**~~ → 완료 2026-10-30 · `ComponentCategory::UiLayout`("UiLayout"), 로컬라이징 키 `component_category.UiLayout`(`UI 배치` / `UI Layout`, `LocalizationKeys.h` 의
+   `ComponentCategoryUiLayout`). `Layout2D`·`ContentSizeFitter2D`·`ListView2D`·`SafeArea2D`·`AspectRatioFitter2D` 가 간다.
+   - **잰 것**: `UserScenario` 시나리오 D - `UI` 열일곱·`UiLayout` 다섯이 모두 붙일 수 있다. `EditorLocalization`(두 언어의 키가 맞고 헤더가 선언한다)·`BuiltinComponentProperty` 통과.

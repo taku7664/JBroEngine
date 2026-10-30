@@ -1,4 +1,4 @@
-Locale: en-US
+﻿Locale: en-US
 Entries:
   panel.simulation: Simulation
   panel.canvas_view: Canvas
@@ -234,6 +234,7 @@ Entries:
   component_category.Physics: Physics
   component_category.Audio: Audio
   component_category.UI: UI
+  component_category.UiLayout: UI Layout
   component_category.Components: Components
   component_category.Scripts: Scripts
   asset.none: (None)

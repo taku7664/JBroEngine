@@ -1,4 +1,4 @@
-Locale: ko-KR
+﻿Locale: ko-KR
 Entries:
   panel.simulation: 시뮬레이션 뷰
   panel.canvas_view: 캔버스 뷰
@@ -234,6 +234,7 @@ Entries:
   component_category.Physics: 물리
   component_category.Audio: 오디오
   component_category.UI: UI
+  component_category.UiLayout: UI 배치
   component_category.Components: 컴포넌트
   component_category.Scripts: 스크립트
   asset.none: (없음)

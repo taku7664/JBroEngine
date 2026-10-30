@@ -411,6 +411,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ComponentCategoryPhysics = "component_category.Physics";
     inline constexpr const char* ComponentCategoryAudio = "component_category.Audio";
     inline constexpr const char* ComponentCategoryUi = "component_category.UI";
+    inline constexpr const char* ComponentCategoryUiLayout = "component_category.UiLayout";
     inline constexpr const char* ComponentCategoryDefault = "component_category.Components";
     inline constexpr const char* ComponentCategoryScripts = "component_category.Scripts";
 

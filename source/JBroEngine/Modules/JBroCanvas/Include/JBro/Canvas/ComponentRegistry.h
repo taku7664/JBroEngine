@@ -42,6 +42,8 @@ namespace JBro
         inline constexpr const char* Physics = "Physics";
         inline constexpr const char* Audio = "Audio";
         inline constexpr const char* UI = "UI";
+        // 배치·크기를 맞추는 UI(D-361): 레이아웃·크기 맞춤·가로세로비·안전 영역·목록.
+        inline constexpr const char* UiLayout = "UiLayout";
         // 갈래를 대지 않은 타입이 묶이는 자리다.
         inline constexpr const char* Default = "Components";
     }
