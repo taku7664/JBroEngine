@@ -3065,6 +3065,8 @@ EditorApplication::Tick
   (2) 여러 줄 선택: `TextLayout::GetRangeRects(begin, end)`(바이트 구간이 걸친 줄마다 사각형) → `TextBlock::GetRangeRects` → `Text2D.highlightBegin`·`highlightEnd`(코드포인트 번호)·`highlightColor`.
       Text2DSystem 이 글리프보다 먼저 흰 스프라이트를 내 글자 뒤에 깐다(같은 소스는 낸 차례). 리치 텍스트·`textKey` 텍스트는 칠하지 않는다. 글자 칸은 `selection` 스프라이트가 비어 있으면
       `display` 의 강조 범위로 선택을 보인다.
+  (3) 실제 IME: 시험 프로세스 안에서 한국어 자판을 올리고(`LoadKeyboardLayoutW("00000412")`) IMM(`ImmSetCompositionStringW`·`ImmNotifyIME`)으로 조합·확정·취소하면 IME 가 진짜
+      `WM_IME_*` 를 보낸다. 플랫폼 시험(보통·인라인)과 사용자 시나리오 E(실제 에디터 창 → 글자 칸)가 이것을 쓴다. 한국어 IME 가 없는 기계는 건너뛴다. 후보 창의 모양·자리는 사람이 본다.
 
 - **D-361. 3·4 부가 열림으로 남긴 것 가운데 엔진 안에서 되는 것을 세운다 - 끌기 올리기는 올린 오브젝트만 내리고, 가변 목록은 늘어난 항목만 재며, 글자 칸은 조합 밑줄·더블 클릭 단어 선택·Ctrl+Z 한 단계를 얻고, 그룹은 `blocksRaycasts` 로 포인터만 막을 수 있고, 후처리 프로필은 카메라마다 풀며, 컴포넌트 추가 목록의 UI 갈래를 `UI`·`UI 배치` 로 나눈다. 3D 의 화면 레이어·렌더 텍스처·둘째 뷰의 지우기·실제 IME 실측은 남긴다.**
   (2026-10-30, [ui-plan.md](./ui-plan.md) §7.7. 사용자 지시 "남은거 해")

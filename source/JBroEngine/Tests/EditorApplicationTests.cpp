@@ -99,6 +99,7 @@
 #include "TestFontNotoSansKR.generated.h"
 
 #include <windows.h>
+#include <imm.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -18624,6 +18625,55 @@ namespace
             platform.WriteClipboardText(savedClipboard.c_str(), savedClipboard.size());
         }
         ScenarioShot(editor, "e04_pasted");
+
+        // 4b. **실제 IME**(D-362). 한국어 IME 를 이 스레드에 올리고 IMM 으로 `글` 을 조합하면 IME 가 진짜 `WM_IME_*` 를 에디터 창에 보낸다 - 플랫폼·입력·위젯을 지나
+        // 칸의 커서 자리에 조합 글자와 밑줄이 보이고, 확정하면 저장 글자가 된다. 한국어 IME 가 없는 기계는 건너뛴다.
+        {
+            const HKL before = GetKeyboardLayout(0);
+            const HKL korean = LoadKeyboardLayoutW(L"00000412", KLF_ACTIVATE);
+            if (korean == nullptr || LOWORD(reinterpret_cast<UINT_PTR>(korean)) != 0x0412)
+            {
+                std::cout << "  [skip] no Korean IME on this machine; the real composition in the editor was not verified" << std::endl;
+            }
+            else
+            {
+                // 앞의 Ctrl+V 는 V 를 뗀 것까지만 흉내 냈다 - 실제 키보드처럼 Ctrl 도 뗀다. 남아 있으면 확정 글자가 단축키로 읽혀 버려진다.
+                record(JBro::InputEventKind::KeyUp, JBro::Key::LeftControl, 0, JBro::KeyModifierNone);
+                Check(editor.Tick(Frame), "ctrl is released");
+                SetForegroundWindow(hwnd);
+                SetFocus(hwnd);
+                ActivateKeyboardLayout(korean, 0);
+                HIMC context = ImmGetContext(hwnd);
+                Check(context != nullptr, "the editor window has an input context");
+                ImmSetOpenStatus(context, TRUE);
+                DWORD conversion = 0;
+                DWORD sentence = 0;
+                ImmGetConversionStatus(context, &conversion, &sentence);
+                ImmSetConversionStatus(context, conversion | IME_CMODE_HANGUL, sentence);
+                const wchar_t syllable[] = L"\uAE00";
+                ImmSetCompositionStringW(context, SCS_SETSTR, const_cast<wchar_t*>(syllable), sizeof(wchar_t), nullptr, 0);
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the real composition reaches the game");
+                Check(playingField->composing && textOf(playingField->text) == "Helo\xED\x95\x9C"
+                        && textOf(playingText->text) == "Helo\xED\x95\x9C\xEA\xB8\x80",
+                    "a real IME composition shows at the caret but is not stored");
+                Check(playingUnderline->visible, "and is underlined");
+                ScenarioShot(editor, "e05_real_ime");
+                ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the completed syllable reaches the game");
+                Check(false == playingField->composing && textOf(playingField->text) == "Helo\xED\x95\x9C\xEA\xB8\x80" && playingField->caretIndex == 6
+                        && false == playingUnderline->visible,
+                    "completing stores the syllable at the caret and drops the underline");
+                ImmSetCompositionStringW(context, SCS_SETSTR, const_cast<wchar_t*>(syllable), sizeof(wchar_t), nullptr, 0);
+                Check(editor.Tick(Frame), "a second composition starts");
+                ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the cancel reaches the game");
+                Check(false == playingField->composing && textOf(playingField->text) == "Helo\xED\x95\x9C\xEA\xB8\x80"
+                        && textOf(playingText->text) == "Helo\xED\x95\x9C\xEA\xB8\x80",
+                    "cancelling leaves the stored text as it was");
+                ImmReleaseContext(hwnd, context);
+                ActivateKeyboardLayout(before, 0);
+            }
+        }
 
         // 5. Esc 로 포커스를 놓으면 커서·선택이 사라진다. 멈추면 편집 캔버스의 글자 칸은 비어 있다.
         pressKey(JBro::Key::Escape, JBro::KeyModifierNone);

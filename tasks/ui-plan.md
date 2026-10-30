@@ -655,5 +655,14 @@
      개행만은 없고 다음 줄 V 만, 빈 가운데 줄은 없음. `TextRender` `TestHighlightRangesPaintEachLine`(D3D12 64 x 64) - `AA\nAA` 의 [1, 4) 는 윗줄 오른쪽·아랫줄 왼쪽만 파랑(> 20 픽셀)이고 윗줄 왼쪽·
      아랫줄 오른쪽은 4 픽셀 아래(한 사각형이면 생긴다), 글자는 그 위에 검다, 리치 텍스트는 칠하지 않음, 뒤집힌 범위 없음, 범위 밖 번호는 글자 전체로. `UiScenario` - 선택 스프라이트가 있으면 강조 범위는 그대로,
      없으면 Shift+← 둘의 [1, 3) 이 강조 범위이고 접으면 지워진다. `UserScenario`·`BuiltinComponentProperty`(Text2D 26)·`ScriptApiCatalog` 통과.
-   - 시험을 쓰다 본 것: 앞 단계가 Esc 로 끊은 조합이 입력 상태에 남아 칸이 "조합 중" 이었다(실제 Windows 에서는 Esc 를 IME 가 먼저 받아 조합을 끝낸다 - 4 번 IME 실측에서 확인).
+   - 시험을 쓰다 본 것: 앞 단계가 Esc 로 끊은 조합이 입력 상태에 남아 칸이 "조합 중" 이었다(실제 Windows 에서는 Esc 를 IME 가 먼저 받아 조합을 끝낸다).
+3. ~~**실제 IME 실측**~~ → 완료 2026-10-31 · `InputTests` `TestARealImeComposesThroughThePlatform` - 보이는 창에 포커스를 주고 한국어 자판·한글 모드를 켠 뒤 `ImmSetCompositionStringW(SCS_SETSTR, "한")` →
+   `CompositionBegin`·`Composition`(U+D55C), `ImmNotifyIME(CPS_COMPLETE)` → `CompositionEnd`·`Text`(U+D55C), `CPS_CANCEL` → 끝만, 인라인 모드(`SetCompositionInline`)도 같다. `UserScenario` 시나리오 E 4b -
+   실제 에디터 창에서 같은 IMM 으로 `글` 을 조합하면 칸의 커서 자리에 끼고 저장 글자는 그대로이며 밑줄이 서고(**[봄 e05]**, `Helo한글` 에 주황 밑줄), 확정하면 `Helo한글`·커서 6·밑줄 없음,
+   다시 조합하고 취소하면 그대로다.
+   - **잰 것**(실제 IME 메시지 차례, 이 PC 의 Microsoft 한국어 IME): 조합 시작은 `WM_IME_COMPOSITION`(lParam 0x1B8 = 조합 글자·속성·커서), 확정은 `WM_IME_ENDCOMPOSITION` **뒤에**
+     `WM_IME_COMPOSITION`(0x800 = 결과 글자)이 온다 - 끝 이벤트 뒤에 `Text` 가 와도 입력 상태가 둘 다 받는다(조합은 비고 글자는 들어간다).
+   - 찾은 것: 시나리오의 합성 Ctrl+V 가 V 를 뗀 이벤트(Ctrl 붙음)만 넣어 입력 상태에 Ctrl 이 남았고, 그 뒤 실제 확정 글자가 단축키로 읽혀 버려졌다 - 실제 키보드는 Ctrl 을 떼는 이벤트가
+     오므로 시험이 Ctrl 뗌을 더 넣었다(엔진은 고치지 않았다).
+   - 열림: 후보 창(한자 변환 따위)의 모양과 자리는 사람이 봐야 한다 - `SetTextInputArea` 가 주는 자리는 시험이 숫자로 본다(D-355).
 

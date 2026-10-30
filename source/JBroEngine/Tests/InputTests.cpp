@@ -249,6 +249,106 @@ namespace
         probe.Close();
     }
 
+    // **실제 IME 로 조합한다**(D-362). 한국어 IME 를 이 스레드에 올리고 IMM 으로 조합 글자를 넣으면 IME 가 진짜 `WM_IME_*` 를 창에 보낸다 - 플랫폼이
+    // 조합 시작·조합 글자·끝 이벤트와 확정 글자(`Text`)를 내는지 본다. 한국어 IME 가 없는 기계는 건너뛴다. 끝나면 원래 자판을 돌려놓는다.
+    // 창은 보이고 포커스가 있어야 IME 가 그 창에 메시지를 보낸다.
+    void TestARealImeComposesThroughThePlatform()
+    {
+        const HKL before = GetKeyboardLayout(0);
+        const HKL korean = LoadKeyboardLayoutW(L"00000412", KLF_ACTIVATE);
+        if (korean == nullptr || LOWORD(reinterpret_cast<UINT_PTR>(korean)) != 0x0412)
+        {
+            std::cout << "  [skip] no Korean IME on this machine; a real composition was not verified" << std::endl;
+            return;
+        }
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
+        JBro::WindowDesc desc;
+        const char title[] = "JBro real ime probe";
+        desc.title = {title, static_cast<JBro::UInt32>(sizeof(title) - 1)};
+        desc.width = 320;
+        desc.height = 240;
+        desc.visible = true;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(desc);
+        Check(window.value != 0, "the probe window must open");
+        const HWND native = reinterpret_cast<HWND>(window.value);
+        SetForegroundWindow(native);
+        SetFocus(native);
+        ActivateKeyboardLayout(korean, 0);
+        platform.PumpEvents();
+        platform.ClearInputEvents();
+        HIMC context = ImmGetContext(native);
+        Check(context != nullptr, "the window has an input context");
+        ImmSetOpenStatus(context, TRUE);
+        DWORD conversion = 0;
+        DWORD sentence = 0;
+        ImmGetConversionStatus(context, &conversion, &sentence);
+        ImmSetConversionStatus(context, conversion | IME_CMODE_HANGUL, sentence);
+        const wchar_t composing[] = L"\uD55C";
+        Check(ImmSetCompositionStringW(context, SCS_SETSTR, const_cast<wchar_t*>(composing), sizeof(wchar_t), nullptr, 0) != FALSE, "the IME takes a composition string");
+        for (JBro::Int32 pump = 0; pump < 5; ++pump)
+        {
+            platform.PumpEvents();
+        }
+        const auto events = platform.GetInputEvents();
+        JBro::UInt32 composedCodePoint = 0;
+        for (JBro::UInt32 index = 0; index < events.size; ++index)
+        {
+            if (events.data[index].kind == JBro::InputEventKind::Composition)
+            {
+                composedCodePoint = events.data[index].codePoint;
+            }
+        }
+        Check(FindFirst(events, JBro::InputEventKind::CompositionBegin) != nullptr, "a real composition starts");
+        Check(composedCodePoint == 0xD55C, "and carries the composed syllable");
+        platform.ClearInputEvents();
+        ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
+        for (JBro::Int32 pump = 0; pump < 5; ++pump)
+        {
+            platform.PumpEvents();
+        }
+        const auto finished = platform.GetInputEvents();
+        const JBro::InputEvent* typed = FindFirst(finished, JBro::InputEventKind::Text);
+        Check(FindFirst(finished, JBro::InputEventKind::CompositionEnd) != nullptr, "completing ends the composition");
+        Check(typed != nullptr && typed->codePoint == 0xD55C, "and types the finished syllable");
+        // 취소: 다시 조합하고 취소하면 끝 이벤트만 오고 글자는 없다.
+        ImmSetCompositionStringW(context, SCS_SETSTR, const_cast<wchar_t*>(composing), sizeof(wchar_t), nullptr, 0);
+        platform.PumpEvents();
+        platform.ClearInputEvents();
+        ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+        for (JBro::Int32 pump = 0; pump < 5; ++pump)
+        {
+            platform.PumpEvents();
+        }
+        const auto cancelled = platform.GetInputEvents();
+        Check(FindFirst(cancelled, JBro::InputEventKind::CompositionEnd) != nullptr && FindFirst(cancelled, JBro::InputEventKind::Text) == nullptr,
+            "cancelling ends the composition without typing");
+        // 인라인 조합(글자 칸에 포커스가 있을 때, D-355): 플랫폼 조합 창을 띄우지 않고 결과 글자를 `WM_IME_COMPOSITION` 에서 읽는다.
+        platform.SetCompositionInline(window, true);
+        platform.ClearInputEvents();
+        ImmSetCompositionStringW(context, SCS_SETSTR, const_cast<wchar_t*>(composing), sizeof(wchar_t), nullptr, 0);
+        for (JBro::Int32 pump = 0; pump < 5; ++pump)
+        {
+            platform.PumpEvents();
+        }
+        Check(FindFirst(platform.GetInputEvents(), JBro::InputEventKind::Composition) != nullptr, "an inline composition reports its syllable");
+        platform.ClearInputEvents();
+        ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
+        for (JBro::Int32 pump = 0; pump < 5; ++pump)
+        {
+            platform.PumpEvents();
+        }
+        const auto inlineFinished = platform.GetInputEvents();
+        const JBro::InputEvent* inlineTyped = FindFirst(inlineFinished, JBro::InputEventKind::Text);
+        Check(inlineTyped != nullptr && inlineTyped->codePoint == 0xD55C, "an inline composition also types the finished syllable");
+        platform.SetCompositionInline(window, false);
+        ImmReleaseContext(native, context);
+        ActivateKeyboardLayout(before, 0);
+        platform.ClosePlatformWindow(window);
+        platform.Shutdown();
+    }
+
     void TestTheMouseComesOut()
     {
         Probe probe;
@@ -373,6 +473,7 @@ JBro::Int32 RunInputTests()
     TestKeysComeOutAsKeys();
     TestTextComesOutSeparately();
     TestCompositionAndTheClipboardComeThroughThePlatform();
+    TestARealImeComposesThroughThePlatform();
     TestTheMouseComesOut();
     TestTheThumbButtonsComeOut();
     TestThePumpOwnsTheList();
