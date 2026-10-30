@@ -32,6 +32,7 @@ namespace JBro::Handle
 
     JBRO_CANVASGROUP2D_ACCESSOR(Float, GetAlpha, SetAlpha, alpha)
     JBRO_CANVASGROUP2D_ACCESSOR(Bool, GetInteractable, SetInteractable, interactable)
+    JBRO_CANVASGROUP2D_ACCESSOR(Bool, GetBlocksRaycasts, SetBlocksRaycasts, blocksRaycasts)
 
 #undef JBRO_CANVASGROUP2D_ACCESSOR
 }

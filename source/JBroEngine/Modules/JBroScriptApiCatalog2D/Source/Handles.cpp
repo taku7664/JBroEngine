@@ -2974,6 +2974,16 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::CanvasGroup2D::*)() const>(&Handle::CanvasGroup2D::GetBlocksRaycasts)>("GetBlocksRaycasts", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::CanvasGroup2D::*)(Bool)>(&Handle::CanvasGroup2D::SetBlocksRaycasts)>("SetBlocksRaycasts", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::CanvasGroup2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }

@@ -2371,10 +2371,11 @@ namespace JBro::System
                 focusedObject = owner;
             }
             const Layer* layer = owner->GetLayer();
-            // 꺼진 위젯·감춘 레이어는 없는 것이다. 꺼진 위젯(`interactable` 거짓)은 보이므로 포인터를 받는다.
+            // 꺼진 위젯·감춘 레이어는 없는 것이다. 꺼진 위젯(`interactable` 거짓)은 보이므로 포인터를 받는다. 그룹이 포인터를 지나가게 하면(`blocksRaycasts` 거짓)
+            // 후보가 아니다(D-361) - 포커스는 위에서 이미 지켰다.
             Vector2 local;
             if (false == pointer.present || false == active || false == owner->IsActiveInHierarchy() || layer == nullptr
-                || false == layer->IsVisible() || false == HitRect(*owner, *layer, size, offset, pointer, local))
+                || false == layer->IsVisible() || false == IsGroupBlockingRaycasts2D(*m_canvas, owner) || false == HitRect(*owner, *layer, size, offset, pointer, local))
             {
                 return;
             }
@@ -3229,6 +3230,7 @@ namespace JBro::System
             const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
             Vector2 local;
             const Bool hovered = owner != nullptr && layer != nullptr && tooltip.IsActiveComponent() && owner->IsActiveInHierarchy() && layer->IsVisible()
+                && IsGroupBlockingRaycasts2D(*m_canvas, owner)
                 && pointer.present && false == pointer.down && InsideModal(owner) && HitRect(*owner, *layer, tooltip.size, tooltip.offset, pointer, local);
             tooltip.hoverTime = hovered ? Float(tooltip.hoverTime + m_frameDelta) : Float(0.0f);
             const Float delay = Float(std::isfinite(tooltip.delay.Get()) && tooltip.delay > 0.0f ? tooltip.delay.Get() : 0.0f);

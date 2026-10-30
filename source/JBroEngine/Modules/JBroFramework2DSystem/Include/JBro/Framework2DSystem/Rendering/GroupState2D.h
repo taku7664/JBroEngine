@@ -15,4 +15,6 @@ namespace JBro
     Float ComputeGroupAlpha2D(Canvas& canvas, Object::GameObject* object);
     // 조상 그룹이 하나라도 `interactable` 이 아니면 거짓이다.
     Bool IsGroupInteractable2D(Canvas& canvas, Object::GameObject* object);
+    // 조상 그룹이 하나라도 `blocksRaycasts` 가 아니면 거짓이다(D-361) - 포인터가 지나간다.
+    Bool IsGroupBlockingRaycasts2D(Canvas& canvas, Object::GameObject* object);
 }

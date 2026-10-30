@@ -22,6 +22,19 @@ namespace JBro
         return alpha;
     }
 
+    Bool IsGroupBlockingRaycasts2D(Canvas& canvas, Object::GameObject* object)
+    {
+        for (Object::GameObject* at = object; at != nullptr; at = at->GetParent())
+        {
+            const auto* group = canvas.FindComponentRaw<Component::CanvasGroup2D>(at);
+            if (group != nullptr && group->IsActiveComponent() && false == group->blocksRaycasts)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     Bool IsGroupInteractable2D(Canvas& canvas, Object::GameObject* object)
     {
         for (Object::GameObject* at = object; at != nullptr; at = at->GetParent())

@@ -27,6 +27,9 @@ namespace JBro::Handle
         void SetAlpha(Float value);
         Bool GetInteractable() const;
         void SetInteractable(Bool value);
+        // 거짓이면 아래 위젯을 포인터가 지나간다(D-361). 포커스는 그대로다.
+        Bool GetBlocksRaycasts() const;
+        void SetBlocksRaycasts(Bool value);
 
     private:
         Component::CanvasGroup2D* Resolve(const char* operation) const;

@@ -69,7 +69,7 @@ namespace
         Check(Table("Component::Tween2D").count == 16, "Tween2D declares sixteen fields - target, ease, duration, loop, playOnStart, next, three from/to pairs, three states and the hidden start (D-357, D-360)");
         Check(Table("Component::ListView2D").count == 15, "ListView2D declares fifteen fields - count, item size, spacing, axis, variableSize, six states, three hidden ranges and the measured count (D-357, D-360)");
         Check(Table("Component::SafeArea2D").count == 2, "SafeArea2D declares two axes (D-358)");
-        Check(Table("Component::CanvasGroup2D").count == 2, "CanvasGroup2D declares alpha and interactable (D-358)");
+        Check(Table("Component::CanvasGroup2D").count == 3, "CanvasGroup2D declares alpha, interactable and blocksRaycasts (D-358, D-361)");
         Check(Table("Component::AspectRatioFitter2D").count == 2, "AspectRatioFitter2D declares mode and aspect (D-358)");
         Check(Table("Component::VirtualKeyboard2D").count == 4, "VirtualKeyboard2D declares the target and three special keys (D-358)");
         Check(Table("Component::Navigation2D").count == 4, "Navigation2D declares four directions (D-358)");

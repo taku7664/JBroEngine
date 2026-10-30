@@ -617,3 +617,7 @@
      `ab cd` 끝을 두 번 누르면 [3, 5), 0.33 초 뒤의 누름은 한 번 누름, 4 픽셀 안은 더블 클릭, 공백에서는 없음, 글자 한 자 뒤의 Ctrl+Z. `UserScenario` 시나리오 E - 조합 `한` 아래에 밑줄이
      늘어난다(폭 > 10, 두께 > 1, 스크린숏 e01 을 봤다 - 글자 아래 주황 선).
    - 정한 것: 되돌리기는 한 단계다(둘째 Ctrl+Z 는 다시 하기). 더블 클릭은 단어까지다(세 번은 없다). 밑줄의 두께는 글자 높이의 1/10 이고 색·그림은 사용자의 스프라이트다.
+4. ~~**그룹 `blocksRaycasts`**~~ → 완료 2026-10-30 · `CanvasGroup2D.blocksRaycasts`(기본 참), `IsGroupBlockingRaycasts2D`(GroupState2D). 포인터 후보 판정(`consider` 의 사각형 검사 앞)과 툴팁의 머무름에서만
+   본다 - 포커스 탐색·게임패드는 전처럼 `interactable` 만 본다. 핸들 `GetBlocksRaycasts`·`SetBlocksRaycasts`.
+   - **잰 것**: `UiScenario` `TestSafeAreaGroupsKeyboardAndLinks` - 거짓이면 누름이 게임에 가고 버튼은 눌리지도 호버되지도 않으며, 십자키가 포커스를 주고 `South` 가 클릭한다. `BuiltinComponentProperty`(3).
+   - 처음엔 검사를 후보 판정의 맨 앞에 두었더니 포커스 장부(`focusedObject`)를 적지 못해 "포커스 위젯이 사라졌다" 로 포커스가 지워졌다 - 사각형 검사 앞으로 옮겼다.

@@ -1735,6 +1735,27 @@ namespace
             "a button under a non-interactable group is nothing and the press reaches the game");
         stage.Frame({Released(MouseButton::Left)});
         group->interactable = true;
+        // blocksRaycasts(D-361): 거짓이면 포인터만 지나간다 - 게임패드 포커스와 누름은 그대로다.
+        group->blocksRaycasts = false;
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Check(false == pressButton->pressed && false == pressButton->hovered && poller->sawMouse && IsGroupInteractable2D(*canvas, press)
+                && false == IsGroupBlockingRaycasts2D(*canvas, press),
+            "a button under a group that does not block raycasts is passed over by the pointer");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(pressButton->focused, "but the gamepad still reaches it");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::South);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(pressButton->clicked, "and clicks it");
+        group->blocksRaycasts = true;
+        stage.Frame({MouseAt(190.0f, 2.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(false == pressButton->focused, "pressing empty space drops the focus again");
 
         // 가상 키보드: 키 버튼은 포커스를 가져가지 않고 글자를 칸에 넣는다.
         Object::GameObject* board = stage.Make("board", {});
