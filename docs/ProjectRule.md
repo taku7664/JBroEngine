@@ -1,4 +1,4 @@
-# JBroEngine Project Rules
+﻿# JBroEngine Project Rules
 
 이 문서는 JBroEngine 작업에서 계속 지켜야 하는 프로젝트 규칙을 정리한다.
 아키텍처 초안과 내용이 다를 경우 이 문서를 우선하며, 아직 합의되지 않은 설계는 강제 규칙으로 취급하지 않는다.
@@ -187,7 +187,10 @@
   접고, 훅은 풀 순회 밖에서 부르며 같은 프레임에 옮겨진 포커스를 번호에서 다시 푼다. (MUST) (D-353)
 - **UI 의 자동 반복은 `Button2DSystem` 이 쥔 시간으로 한다.** 입력 상태(§7.1)는 OS 반복을 누름으로 세지 않는다 - 쥔 십자키·스틱과 글자 칸의 Backspace·Delete·←·→ 는 시스템이
   지난 갱신 훅의 델타로 `RepeatDelay` 뒤 간격마다 다시 누른 것으로 본다. 위젯의 픽셀 값 필드는 `Pixels()` 로 표시하고, 에디터는 맨 컴포넌트를 월드 레이어에 붙일 때만 그 기본값을
-  `DefaultPixelsPerUnit` 으로 나눈다 - 값을 들고 붙이는 길과 스크립트는 나누지 않는다. (MUST) (D-354)
+  `DefaultPixelsPerUnit` 으로 나눈다 - 값을 들고 붙이는 길은 나누지 않는다(스크립트의 `AddComponent` 는 D-355 로 같이 나눈다). (MUST) (D-354)
+- **글자 칸의 선택·클립보드·IME 는 `Button2DSystem` 과 호스트 사이의 `ITextInputHost` 로 한다.** 포인터가 놓는 커서는 `TextLayout::GetCaretOffsetAt` 하나로 재고, IME 조합 글자는 입력 상태의
+  `composition`(프레임을 넘어 남는다)으로 와 보이는 텍스트에만 끼운다 - 저장 글자에 넣지 않는다. 클립보드는 OS 의 것이고 프레임워크는 플랫폼을 직접 부르지 않는다. 게임의 글자 칸이 포커스를
+  가진 프레임에만 플랫폼의 조합 창을 끈다(인라인). 픽셀 기본값 나누기는 `ScalePixelFields` 하나다(에디터·스크립트가 같은 셈). (MUST) (D-355)
 - **캔버스의 값이 잘못된 것은 프레임 실패가 아니다.** 그릴 수 없는 카메라(`IsDrawableCamera2D` 가 거짓)는 고르지 않고 건너뛴다 - 렌더 브리지가
   `RenderResult::Failed` 를 내면 호스트가 멈추고 에디터가 꺼진다. `Failed` 는 렌더러·장치가 실제로 실패했을 때만이다. (MUST) (D-239)
 - **게임 빌드는 참조를 따라간다.** 씨는 시작 캔버스·빌드 캔버스·프로젝트 폰트·모든 문자열 표이고, 메타와 캔버스 원문의 32 자리 아이디를 따라간다.
@@ -729,7 +732,7 @@
 
 - **게임 입력은 플랫폼 이벤트(D-62)를 프레임마다 한 번 접은 상태다.** 키 상태를 폴링(`GetAsyncKeyState` 따위)하지 않는다. (MUST) (D-214)
   폴링은 한 프레임 안에 눌렀다 뗀 키를 잃는다. 키·버튼마다 지금 눌림과 이번 프레임의 눌림 수·뗌 수를 두고, 자동 반복은 누름이 아니며(UI 가 필요로 하는 반복은
-  `Button2DSystem` 이 쥔 시간으로 한다, D-354),
+  `Button2DSystem` 이 쥔 시간으로 한다, D-354), IME 조합 글자는 `composition` 으로 프레임을 넘어 남고(끝·포커스 잃음이 비운다, D-355),
   `FocusLost` 는 눌린 것을 모두 뗀 것으로 접는다. 접는 것은 `System::InputSystem`(Tier E `JBroInput`)이고 `EngineInstance` 가 소유한다.
   키 이름(`Key`·`MouseButton`·`KeyModifiers`)은 `JBroCore` 의 `<JBro/Core/InputKeys.h>` 에 한 번 둔다. 상태·뷰·핸들러·서비스는 Tier S `JBroInputTypes` 다.
 - **입력 블로킹은 레이어 체인 하나로 한다.** 스크립트는 `InputHandler<"레이어", Order>` 를 상속해 `OnInput(InputView&)` 을 쓰고, `InputResult::Block` 을

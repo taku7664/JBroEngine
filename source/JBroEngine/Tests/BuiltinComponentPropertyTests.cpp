@@ -56,7 +56,7 @@ namespace
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
         Check(Table("Component::Button2D").count == 21,
             "Button2D declares twenty-one fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, four states and the swap latch");
-        Check(Table("Component::InputField2D").count == 14, "InputField2D declares fourteen fields - the rect, interactable, text, display, caret, maxLength, blinkRate, three states, the caret index and two hidden values (D-352, D-354)");
+        Check(Table("Component::InputField2D").count == 18, "InputField2D declares eighteen fields - the rect, interactable, text, display, caret, selection, maxLength, blinkRate, three states, the caret index, the selection anchor, composing and three hidden values (D-352, D-354, D-355)");
         Check(Table("Component::Layout2D").count == 8, "Layout2D declares eight fields - mode, cell, spacing, padding, columns, pivot and the block size (D-352)");
         Check(Table("Component::Slider2D").count == 11, "Slider2D declares eleven fields - the rect, interactable, direction, value, handle, fill and four states (D-351, focused of D-352)");
         Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");

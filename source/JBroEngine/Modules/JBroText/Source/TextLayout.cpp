@@ -1026,6 +1026,76 @@ namespace JBro::Text
 
     Bool TextLayout::GetCaretPosition(UInt32 byteOffset, Float& x, Float& y) const
     {
+        Float lineHeight = 0.0f;
+        return GetCaretPosition(byteOffset, x, y, lineHeight);
+    }
+
+    Bool TextLayout::GetCaretOffsetAt(Float x, Float y, UInt32& byteOffset) const
+    {
+        if (m_lines.IsEmpty() || false == std::isfinite(x.Get()) || false == std::isfinite(y.Get()))
+        {
+            return false;
+        }
+        // 줄은 블록 위에서 높이만큼씩 쌓인다 - y 가 그 줄의 아래를 넘지 않는 첫 줄이고, 다 넘으면 마지막 줄이다.
+        std::size_t lineIndex = m_lines.Size() - 1;
+        Float top = m_maxY;
+        for (std::size_t index = 0; index < m_lines.Size(); ++index)
+        {
+            const Float bottom = top - m_lines[index].height;
+            if (y >= bottom)
+            {
+                lineIndex = index;
+                break;
+            }
+            top = bottom;
+        }
+        const LineInfo& line = m_lines[lineIndex];
+        // 그 줄의 글자(개행·결합 표시는 자리가 아니다)를 차례로 보며 x 가 글자의 가운데 앞이면 그 글자 앞이다.
+        std::size_t lastInLine = m_items.Size();
+        for (std::size_t index = 0; index < m_items.Size(); ++index)
+        {
+            const Item& item = m_items[index];
+            if (item.offset.Get() < line.sourceBegin.Get() || item.offset.Get() >= line.sourceEnd.Get())
+            {
+                continue;
+            }
+            if (item.kind == ItemKind::Mark || item.kind == ItemKind::Newline)
+            {
+                continue;
+            }
+            if (x < item.x + item.advance * 0.5f + line.shift)
+            {
+                byteOffset = item.offset;
+                return true;
+            }
+            lastInLine = index;
+        }
+        // 줄 끝 뒤다. 개행이 닫은 줄은 개행 앞이고, 접힌 줄은 다음 줄의 머리(= 이 줄의 끝)이며, 마지막 줄은 글자 끝이다.
+        if (lineIndex + 1 < m_lines.Size())
+        {
+            byteOffset = line.sourceEnd;
+            return true;
+        }
+        if (lastInLine < m_items.Size())
+        {
+            const char32_t codepoint = m_items[lastInLine].codepoint;
+            const UInt32 bytes = codepoint < 0x80 ? 1u : codepoint < 0x800 ? 2u : codepoint < 0x10000 ? 3u : 4u;
+            // 받침 뒤의 결합 표시는 받침과 한 글자다 - 그 뒤로 간다.
+            UInt32 end = m_items[lastInLine].offset + bytes;
+            for (std::size_t index = lastInLine + 1; index < m_items.Size() && m_items[index].kind == ItemKind::Mark; ++index)
+            {
+                const char32_t mark = m_items[index].codepoint;
+                end = m_items[index].offset + (mark < 0x80 ? 1u : mark < 0x800 ? 2u : mark < 0x10000 ? 3u : 4u);
+            }
+            byteOffset = end;
+            return true;
+        }
+        byteOffset = line.sourceBegin;
+        return true;
+    }
+
+    Bool TextLayout::GetCaretPosition(UInt32 byteOffset, Float& x, Float& y, Float& lineHeight) const
+    {
         if (m_lines.IsEmpty())
         {
             return false;
@@ -1084,6 +1154,7 @@ namespace JBro::Text
             top -= m_lines[index].height;
         }
         y = top - line.height * 0.5f;
+        lineHeight = line.height;
         return true;
     }
 

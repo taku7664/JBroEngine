@@ -1,6 +1,7 @@
 ﻿#include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
+#include <imm.h>
 
 #include <cstring>
 #include <iostream>
@@ -210,6 +211,44 @@ namespace
         probe.Close();
     }
 
+    // **IME 조합과 클립보드**(D-355). 조합 메시지는 이벤트로 오고(이 창에는 IME 가 없어 조합 글자는 비어 있다 - 시작·끝만 본다),
+    // OS 클립보드에 쓴 UTF-8 이 그대로 되읽힌다. 시험이 끝나면 전에 있던 글자를 되돌린다.
+    void TestCompositionAndTheClipboardComeThroughThePlatform()
+    {
+        Probe probe;
+        probe.Open("JBro input ime probe");
+
+        probe.PostAndPump(WM_IME_COMPOSITION, 0, GCS_COMPSTR);
+        Check(FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::CompositionBegin) != nullptr,
+            "a composition message starts (or restarts) the composition");
+        Check(FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::Text) == nullptr, "composing is not typing");
+        probe.platform.ClearInputEvents();
+        probe.PostAndPump(WM_IME_ENDCOMPOSITION, 0, 0);
+        Check(FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::CompositionEnd) != nullptr, "the end message ends it");
+        // 인라인이어도 끝 이벤트는 온다. 시작 메시지는 삼켜져 플랫폼 조합 창이 뜨지 않는다(관찰할 수 없어 돌아오는 것만 본다).
+        probe.platform.SetCompositionInline(probe.window, true);
+        probe.platform.ClearInputEvents();
+        probe.PostAndPump(WM_IME_STARTCOMPOSITION, 0, 0);
+        probe.PostAndPump(WM_IME_ENDCOMPOSITION, 0, 0);
+        Check(FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::CompositionEnd) != nullptr, "inline composition still reports its end");
+        probe.platform.SetCompositionInline(probe.window, false);
+
+        JBro::String saved;
+        const JBro::Bool hadText = probe.platform.ReadClipboardText(saved);
+        const char sample[] = "oí";
+        Check(probe.platform.WriteClipboardText(sample, sizeof(sample) - 1), "writing text to the clipboard succeeds");
+        JBro::String read;
+        Check(probe.platform.ReadClipboardText(read), "and it reads back");
+        Check(read == sample, "as the same UTF-8");
+        Check(probe.platform.WriteClipboardText("", 0), "an empty text can be written");
+        Check(false == probe.platform.ReadClipboardText(read), "and reads back as nothing");
+        if (hadText)
+        {
+            probe.platform.WriteClipboardText(saved.c_str(), saved.size());
+        }
+        probe.Close();
+    }
+
     void TestTheMouseComesOut()
     {
         Probe probe;
@@ -333,6 +372,7 @@ JBro::Int32 RunInputTests()
     TestUnreadInputSurvivesAnotherPump();
     TestKeysComeOutAsKeys();
     TestTextComesOutSeparately();
+    TestCompositionAndTheClipboardComeThroughThePlatform();
     TestTheMouseComesOut();
     TestTheThumbButtonsComeOut();
     TestThePumpOwnsTheList();

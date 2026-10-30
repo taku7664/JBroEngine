@@ -40,6 +40,7 @@ namespace JBro::Handle
     JBRO_INPUTFIELD2D_ACCESSOR(Int32, GetMaxLength, SetMaxLength, maxLength)
     JBRO_INPUTFIELD2D_ACCESSOR(Float, GetBlinkRate, SetBlinkRate, blinkRate)
     JBRO_INPUTFIELD2D_ACCESSOR(Bool, GetFocused, SetFocused, focused)
+    JBRO_INPUTFIELD2D_ACCESSOR(Int32, GetCaretIndex, SetCaretIndex, caretIndex)
 
 #undef JBRO_INPUTFIELD2D_ACCESSOR
 
@@ -76,5 +77,28 @@ namespace JBro::Handle
     {
         const Component::InputField2D* component = Resolve("GetSubmitted");
         return component != nullptr ? component->submitted : Bool(false);
+    }
+
+    Int32 InputField2D::GetSelectionAnchor() const
+    {
+        const Component::InputField2D* component = Resolve("GetSelectionAnchor");
+        return component != nullptr ? component->selectionAnchor : Int32(-1);
+    }
+
+    void InputField2D::SetSelection(Int32 anchor, Int32 caret)
+    {
+        Component::InputField2D* component = Resolve("SetSelection");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->selectionAnchor = anchor < 0 ? Int32(-1) : anchor;
+        component->caretIndex = caret < 0 ? Int32(0) : caret;
+    }
+
+    Bool InputField2D::IsComposing() const
+    {
+        const Component::InputField2D* component = Resolve("IsComposing");
+        return component != nullptr ? component->composing : Bool(false);
     }
 }

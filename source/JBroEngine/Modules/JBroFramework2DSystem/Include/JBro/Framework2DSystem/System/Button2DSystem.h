@@ -4,6 +4,7 @@
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Framework2D/System/IScreen2DSystem.h>
 #include <JBro/InputTypes/InputHandler.h>
+#include <JBro/InputTypes/InputState.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
@@ -20,6 +21,7 @@ namespace JBro
     {
         class GameObject;
     }
+    class ITextInputHost;
     class Layer;
     class GameScript2D;
 }
@@ -50,6 +52,9 @@ namespace JBro::System
     // 누름이다(슬라이더는 좌우가 값이다). 글자 칸에 포커스가 있으면 키보드를 받고 소비한다. 게임패드는 UI 가 쓴 프레임에만 소비한다.
     // 쥔 십자키·스틱과 글자 칸의 Backspace·Delete·←·→ 는 **자동 반복**한다(D-354) - 입력 상태의 눌림 수는 §7.1 대로 OS 반복을 세지 않으므로
     // 이 시스템이 쥔 시간을 들고 `RepeatDelay` 뒤 간격마다 다시 누른 것으로 본다. 시간은 지난 갱신 훅의 델타다(편집 중에는 0 이라 반복하지 않는다).
+    // 글자 칸을 누른 자리에 커서가 서고 끌면 선택이며, Shift+화살표가 선택을 늘리고 Ctrl+A/C/X/V 가 호스트의 클립보드로 복사·붙여넣기다(D-355).
+    // IME 조합 글자는 입력 상태에서 떠 두었다가 갱신 훅이 보이는 텍스트의 커서 자리에 끼우고, 포커스 칸의 커서 자리를 호스트(`ITextInputHost`)에 알려
+    // 조합 창이 따라오게 한다.
     //
     // 스크롤 뷰는 뷰포트 안에서 누르고 몇 픽셀 끌면 끌기가 되고, 그때 안의 버튼 누름은 취소된다. 갱신 훅(`OnUpdate`, 트랜스폼 전파보다 먼저)은
     // 값에서 그림을 놓고(슬라이더 손잡이·채우기, 토글 표시, 글자 칸의 글자·커서) 스크롤의 관성을 돌린다.
@@ -73,6 +78,8 @@ namespace JBro::System
 
         // 입력 체인에 선다. 없으면 위젯은 눌리지 않는다(입력이 없는 호스트).
         void SetScriptSystem(ScriptSystem* scripts);
+        // 글자 칸의 IME 조합 창 자리와 클립보드를 맡는 호스트다(D-355). 없으면 조합 창을 옮기지 않고 복사·붙여넣기가 비어 있다.
+        void SetTextInputHost(ITextInputHost* host);
         // 이번 프레임의 화면 기준이다. 프레임워크가 입력 체인보다 먼저 건다.
         void SetScreenSpace(const ScreenSpaceFrame& frame);
 
@@ -124,6 +131,8 @@ namespace JBro::System
         void NavigateFocus(Int32 directionX, Int32 directionY);
         // 글자 칸에 이번 프레임의 키보드를 넣는다.
         void TypeInto(Object::GameObject& owner, Component::InputField2D& field, InputView& input);
+        // 포인터가 가리키는 글자에 커서를 놓는다(D-355). `extend` 면 누른 자리(`m_fieldPressCaret`)부터 선택이다. 레이아웃이 없으면 글자 끝이다.
+        void PlaceCaretAt(Component::InputField2D& field, const Pointer& pointer, Bool extend);
         // 쥔 키·버튼의 자동 반복이다. 이번 프레임에 눌렀으면 참이고 시간을 처음부터 세며, 쥐고 있으면 `RepeatDelay` 뒤 `interval` 마다 참이다.
         Bool Repeats(Bool down, Bool pressed, Float& held, Float interval);
         // 포커스 위젯의 자리(화면 픽셀)다. 없으면 거짓이다.
@@ -151,6 +160,11 @@ namespace JBro::System
         Int32            m_navigateHeldX = 0;
         Int32            m_navigateHeldY = 0;
         Float            m_frameDelta = 0.0f;
+        // 누른 자리의 커서(끌어 선택의 기준)와 이번 프레임에 떠 둔 IME 조합 글자다(D-355).
+        Int32            m_fieldPressCaret = 0;
+        UInt32           m_compositionLength = 0;
+        UInt32           m_composition[MaxTextPerFrame] = {};
+        ITextInputHost*  m_textInput = nullptr;
         // 스크롤 끌기. 누른 자리와, 누른 위젯을 품은 스크롤 뷰, 끌기가 시작됐는가, 지난 포인터 자리, 이번 프레임에 끈 양(레이어 단위).
         Float            m_pressPixelX = 0.0f;
         Float            m_pressPixelY = 0.0f;
@@ -162,7 +176,8 @@ namespace JBro::System
 
         // 훅을 부를 스크립트를 먼저 모으는 자리다. 멤버로 두어 부를 때마다 할당하지 않는다.
         Array<GameScript2D*>         m_hookTargets;
-        // 글자를 고치는 자리다. 멤버로 두어 프레임마다 할당하지 않는다.
+        // 글자를 고치는 자리와 붙여넣기로 읽은 클립보드다. 멤버로 두어 프레임마다 할당하지 않는다.
         String                       m_textScratch;
+        String                       m_clipScratch;
     };
 }

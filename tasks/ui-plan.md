@@ -432,3 +432,29 @@
 
 ### 7.5 진행 기록 (3 부)
 
+1. ~~**A - 글자 칸 마무리**~~ → 완료 2026-10-30 · `TextLayout::GetCaretOffsetAt`·`GetCaretPosition(…, lineHeight)` → `TextBlock::HitCaret`·`GetCaret` → `Text2DSystem::GetLocalCaretAt`·
+   `GetLocalCaret(…, lineHeight)`, `InputField2D` 의 `selection`(스프라이트 핸들)·`selectionAnchor`·`composing`(State)·`mirroredComposition`(Hidden), `Button2DSystem` 의 `PlaceCaretAt`(누름·끌기)·
+   `TypeInto`(선택·Shift·Ctrl+A/C/X/V·붙여넣기 UTF-8 풀기)·조합 떠 두기와 끼워 보이기·선택 사각형·`ITextInputHost` 호출, 플랫폼 이벤트 `CompositionBegin`·`Composition`·`CompositionEnd` 와
+   `KeyboardState.composition`(프레임을 넘어 남는다), `IPlatform::SetCompositionInline`·`ReadClipboardText`·`WriteClipboardText`(Windows: `WM_IME_*` 처리와 `CF_UNICODETEXT`),
+   `FrameworkContext.textInput`(`ITextInputHost`)과 `EngineInstance::TextInputBridge`(게임 픽셀 → 창 픽셀, 포커스 칸이 있는 프레임에만 인라인 조합), 핸들의 `GetCaretIndex`·
+   `SetCaretIndex`·`GetSelectionAnchor`·`SetSelection`·`IsComposing`, `JBroCanvas` 의 `ScalePixelFields` 와 `CanvasObjectSystem::SetWorldPixelsPerUnit`·`AddComponent` 의 나누기(에디터도 같은 함수),
+   에디터의 `GetSimulationViewMapping` ·
+   - **잰 것**: `TextLayout` - `A V` 에서 x 300 은 0, 310 은 1(A 의 가운데 304 를 넘으면 뒤), 공백의 반, 5000 은 끝 3, 첫 줄 위·마지막 줄 아래는 그 줄, 오른쪽 정렬의 밀림, 두 줄에서 첫 줄 끝은
+     개행 앞 1 이고 둘째 줄 왼쪽은 2, 두 바이트 글자의 끝은 바이트 3, NaN 점은 거짓. `InputSystem` - 조합이 차례대로 접히고 프레임을 넘어 남으며 새 시작이 바꾸고 끝·포커스 잃음이 비우며
+     32 에서 잘린다. `UiScenario`(레이아웃 없는 칸) - 포커스 칸은 호스트에 (50, 80) 픽셀을 알린다, Shift+← 둘이 [4, 6), 글자가 선택을 대신, Ctrl+A·C(제어 글자 0x03 은 안 들어감)·→ 접기·
+     V 끼우기·X 자르기, 상한 3 에서 `a\nb\tcd` 붙여넣기는 `abc`, 깨진 바이트 뒤의 `é` 는 들어감, Shift+Home 뒤 Backspace·Shift+End 뒤 Delete 가 선택을 지움, 기준점 99 는 글자 수로·커서와
+     같으면 없음, 조합 `ㄱ` 은 보이는 텍스트에만·프레임을 넘어 남고·바뀌면 대신·끝나면 결과가 저장되고·커서 자리에 끼며·Esc 가 지움, 레이아웃 없는 누름은 끝이고 끌어도 선택 없음, NaN 누름은
+     유한. 스크립트 `AddComponent` 의 월드 버튼 1.6 x 0.48·화면 160 x 48·레이아웃 칸 1·간격 0.04·피벗 그대로, 핸들의 커서·선택 읽고 쓰기(음수 커서는 0, 음수 기준점은 없음, 99 는 가둠)·조합.
+     `EditorApplication`(`UserScenario` 시나리오 E, 1280 x 720, Noto 48 px) - 재생 중 창에서 칸을 눌러 `Hello`, 조합 `한` 이 보이는 텍스트에만(**[봄 e01]**), Shift+← 둘의 선택 사각형(**[봄 e02]**),
+     Ctrl+C 가 OS 클립보드에 `o한`, 셋째 글자 경계 + 3 px 누름이 커서 3 이고 끝까지 끌면 [3, 6)(**[봄 e03]**), Ctrl+V 가 선택을 대신해 `Helo한`(**[봄 e04]**), Esc·멈춤. `ScriptApiCatalog`·
+     `BuiltinComponentProperty`(글자 칸 열여덟)·`CanvasFile`·`RendererContract`·`EditorObjectCommand`·`InputChain` 통과.
+   - 정한 것: 스크롤 뷰 안의 글자 칸은 끌기가 스크롤이라 끌어 고르지 않는다(Shift+화살표로 고른다). 여러 줄에 걸친 선택은 둘러싼 사각형이다. 조합 중에는 선택이 없다. Alt 가 같이 눌린
+     Ctrl(AltGr)은 글자다. 붙여넣기는 상한에서 멈추고 제어 글자·깨진 바이트를 버린다. 포커스를 잃으면 선택·조합이 없다. 인라인 조합은 `WM_IME_STARTCOMPOSITION`·`WM_IME_COMPOSITION` 을
+     `DefWindowProc` 에 넘기지 않고 `WM_IME_SETCONTEXT` 의 조합 창 비트를 끈다 - 후보 창은 그대로다(`SetTextInputPosition` 이 자리를 준다). 시험은 OS 클립보드를 쓴 뒤 전 글자를
+     되돌린다(글자가 아니던 내용은 되돌리지 못한다).
+   - **사용성**(스크린숏 e01~e04 를 봤다): 조합 글자가 보통 글자와 같은 모양이라 조합 중임을 알 길이 커서 자리뿐이다 - 밑줄·색은 넣지 않았다(열림). 선택 사각형은 글자 위에 반투명으로
+     겹쳐 글자가 읽힌다. 글자의 세로 자리는 `display` 텍스트의 `alignY` 에 달렸다(글자 칸은 표시 텍스트의 자리를 정하지 않는다). 처음 돌린 시험에서 Ctrl+C 직후의 클립보드 읽기가 한 번
+     떨어졌다(글자는 쓰여 있었다) - 다른 프로그램이 바뀐 직후 잠깐 쥐는 것으로 보고 `OpenClipboard` 를 몇 번 두드리게 했다(원인은 재지 않았다).
+   - 열림: 실제 IME 로 조합하는 모습은 Windows 메시지 길을 코드로만 봤다 - 시험은 이벤트를 플랫폼의 자리에 바로 넣는다(플랫폼 시험은 `WM_IME_COMPOSITION`·`WM_IME_ENDCOMPOSITION` 이 이벤트가
+     되는 것과 클립보드 왕복만 본다). 조합 글자의 구분 표시, 더블 클릭 단어 선택, Ctrl+Z 되돌리기, 여러 줄 선택의 줄마다 조각은 없다.
+

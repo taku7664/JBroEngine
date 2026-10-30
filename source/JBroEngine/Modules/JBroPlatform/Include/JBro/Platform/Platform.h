@@ -421,6 +421,26 @@ namespace JBro
             (void)y;
             (void)lineHeight;
         }
+        // **IME 조합을 창 안에서 보인다**(D-355). 참이면 플랫폼의 조합 창을 띄우지 않고 조합 글자(`CompositionBegin`·`Composition`·`CompositionEnd`)와
+        // 결과 글자(`Text`)만 준다 - 게임의 글자 칸이 제 자리에 조합을 그린다. 거짓이면 전처럼 플랫폼의 조합 창이다(에디터의 ImGui 글자 칸).
+        // 조합 이벤트는 어느 쪽이든 온다. 없는 플랫폼은 무시한다.
+        virtual void SetCompositionInline(WindowHandle window, Bool inlineComposition)
+        {
+            (void)window;
+            (void)inlineComposition;
+        }
+        // **OS 클립보드의 글자**(D-355). 읽기는 글자가 없으면 거짓이고, 쓰기는 못 쓰면 거짓이다. UTF-8 이다. 없는 플랫폼은 늘 거짓이다.
+        virtual Bool ReadClipboardText(String& utf8)
+        {
+            (void)utf8;
+            return false;
+        }
+        virtual Bool WriteClipboardText(const char* utf8, std::size_t size)
+        {
+            (void)utf8;
+            (void)size;
+            return false;
+        }
         virtual ProcessStatus PollProcess(const ChildProcess& process, Int32& exitCode)
         {
             (void)process;

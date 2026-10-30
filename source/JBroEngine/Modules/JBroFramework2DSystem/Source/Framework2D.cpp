@@ -142,6 +142,8 @@ namespace JBro
         m_scriptBlocks[1] = MakeFramework2DServiceContextBlock(m_scriptServices);
         // 오브젝트 서비스(D-301). 공통 시스템 컨텍스트의 이 모듈 사본에 꽂는다 - DLL 은 싣는 순간 이 컨텍스트를 받아 간다.
         m_objects.Bind(m_canvas.Get(), "Component::Transform2D");
+        // 스크립트가 월드 레이어에 붙이는 위젯의 픽셀 기본값은 유닛으로 나눈다(D-355, 에디터의 D-354 와 같다).
+        m_objects.SetWorldPixelsPerUnit(DefaultPixelsPerUnit);
         {
             SystemContext systems = GetSystemContext();
             systems.Objects = &m_objects;
@@ -650,7 +652,12 @@ namespace JBro
         System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
         scripts.SetInputSystem(m_context.input);
         // 버튼은 입력 체인의 `"UI"` 레이어에 선다(D-237).
-        systems.AddSystem<System::Button2DSystem>().SetScriptSystem(&scripts);
+        {
+            auto& buttons = systems.AddSystem<System::Button2DSystem>();
+            buttons.SetScriptSystem(&scripts);
+            // 글자 칸의 IME 조합 창과 클립보드는 호스트의 것이다(D-355). 없으면(시험) 조합 창을 옮기지 않고 클립보드가 비어 있다.
+            buttons.SetTextInputHost(m_context.textInput);
+        }
         systems.AddSystem<System::Physics2DSystem>();
         systems.AddSystem<System::Camera2DSystem>().SetRenderWorld(&m_renderWorld);
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();

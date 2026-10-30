@@ -371,6 +371,18 @@ namespace JBro
         Bool m_hasEditorView = false;
         LayerThumbnailDesc m_layerThumbnails[MaxLayerThumbnails];
         std::size_t m_layerThumbnailCount = 0;
+        // 글자 입력(D-355). 프레임워크가 글자 칸의 커서 자리를 알린 프레임에만 IME 조합이 인라인이다.
+        class TextInputBridge final : public ITextInputHost
+        {
+        public:
+            void SetTextInputArea(Float pixelX, Float pixelY, Float lineHeight) override;
+            Bool ReadClipboardText(String& utf8) override;
+            Bool WriteClipboardText(const char* utf8, std::size_t size) override;
+            EngineInstance* engine = nullptr;
+        };
+        TextInputBridge m_textInput;
+        Bool m_textInputWanted = false;
+        Bool m_compositionInline = false;
         Bool m_inputOwnedByHost = false;
         Bool m_hostGameInputActive = false;
         Array<InputEvent> m_hostInput;

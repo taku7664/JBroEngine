@@ -63,6 +63,7 @@
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
+#include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -81,6 +82,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/NameTable.h>
@@ -18337,6 +18339,274 @@ namespace
         Check(editor.GetCommands().GetUndoCount() == 0, "undo reaches the beginning");
         editor.Shutdown();
     }
+
+    // **시나리오 E - 글자를 치는 사용자**(D-355, script-user-scenario §3.3). 폰트가 있는 프로젝트에서 글자 칸(표시 텍스트·커서·선택 스프라이트)을 만들고
+    // 재생 중에 친다 - 누른 자리의 커서, 끌어 고르기, Shift 선택, Ctrl+C/V, IME 조합 표시를 화면으로 본다. 키보드는 플랫폼의 이벤트 자리에 바로 넣는다
+    // (WndProc 이 넣는 것과 같은 길 - 조합키는 실제 키보드 상태라 PostMessage 로는 Shift 를 누를 수 없다). 마우스는 창에 PostMessage 로 누른다.
+    void TestScenarioETextEntry()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroUserScenarioE").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "Fonts", ignored);
+        {
+            std::ofstream font(root / "Assets" / "Fonts" / "sans.otf", std::ios::binary);
+            font.write(reinterpret_cast<const char*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR));
+        }
+        const JBro::String projectPath = TempPath("JBroUserScenarioE\\Text.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario E not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError projectError;
+        Check(editor.OpenProjectFile(projectPath.c_str(), projectError), "the text project must open");
+        // 시뮬레이션 뷰를 크게 그린다 - 글자가 보여야 사람이 스크린숏으로 본다.
+        Check(editor.EnableEditorUi({640, 360}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        const JBro::AssetRecord* fontRecord = editor.GetAssetRegistry().FindByPath("Fonts/sans.otf");
+        Check(fontRecord != nullptr && fontRecord->type == JBro::AssetType::Font, "the scan registers the font");
+
+        // 화면 레이어에 글자 칸: 바탕 스프라이트 + 칸, 자식 `label`(표시 텍스트), 그 자식에 커서와 선택 스프라이트.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        const auto make = [&](const char* name, JBro::Vector2 position, JBro::Object::GameObject* parent) {
+            JBro::Object::GameObject* object = canvas->CreateObject(name);
+            canvas->SetObjectLayer(object, hud.GetId());
+            if (parent != nullptr)
+            {
+                object->SetParent(parent);
+            }
+            canvas->AttachComponent<JBro::Component::Transform2D>(object)->position = position;
+            return object;
+        };
+        JBro::Object::GameObject* name = make("name", {0.0f, 0.0f}, nullptr);
+        auto* backdrop = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(name);
+        backdrop->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        backdrop->size = {600.0f, 80.0f};
+        backdrop->tint = {0.18f, 0.2f, 0.26f, 1.0f};
+        auto* field = canvas->AttachComponent<JBro::Component::InputField2D>(name);
+        field->size = {600.0f, 80.0f};
+        JBro::Object::GameObject* label = make("label", {-280.0f, 0.0f}, name);
+        auto* text = canvas->AttachComponent<JBro::Component::Text2D>(label);
+        text->fontId = fontRecord->id;
+        text->fontSize = 48.0f;
+        // 폰트 번호는 해석 패스가 핸들로 푼다 - 다시 훑어 푼다(인스펙터로 고르면 커맨드가 한다).
+        Check(editor.RescanAssets(), "the rescan resolves the font handle");
+        field->display = label->GetScriptHandle().GetComponent<JBro::Handle::Text2D>();
+        JBro::Object::GameObject* caretObject = make("caret", {}, label);
+        auto* caretSprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(caretObject);
+        caretSprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        caretSprite->size = {4.0f, 52.0f};
+        caretSprite->renderOrder = 2;
+        field->caret = caretObject->GetScriptHandle().GetComponent<JBro::Handle::SpriteRenderer2D>();
+        JBro::Object::GameObject* highlightObject = make("highlight", {}, label);
+        auto* highlightSprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(highlightObject);
+        highlightSprite->tint = {0.3f, 0.5f, 1.0f, 0.6f};
+        highlightSprite->renderOrder = 1;
+        field->selection = highlightObject->GetScriptHandle().GetComponent<JBro::Handle::SpriteRenderer2D>();
+        JBro::EditorPanel* game = editor.FindPanel("Simulation");
+        Check(game != nullptr, "the simulation view is a default panel");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles");
+        }
+
+        // 재생하고 시뮬레이션 뷰에 포커스를 준다. 글자 칸을 창에서 누른다 - 게임 픽셀 → 창 픽셀은 시뮬레이션 뷰의 매핑을 거꾸로 센다.
+        Check(editor.StartSimulation(), "play starts");
+        game->RequestFocus();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the playing editor settles");
+        }
+        Check(game->IsFocused(), "the simulation view holds the focus");
+        JBro::Canvas* playing = editor.GetCanvas();
+        JBro::Component::InputField2D* playingField = nullptr;
+        JBro::Component::Text2D* playingText = nullptr;
+        JBro::Component::SpriteRenderer2D* playingHighlight = nullptr;
+        JBro::Layer* playingHud = nullptr;
+        playing->ForEach<JBro::Component::InputField2D>([&](JBro::Component::InputField2D& each) { playingField = &each; });
+        playing->ForEach<JBro::Component::Text2D>([&](JBro::Component::Text2D& each) { playingText = &each; });
+        playing->ForEach<JBro::Component::SpriteRenderer2D>([&](JBro::Component::SpriteRenderer2D& each) {
+            if (each.renderOrder == 1)
+            {
+                playingHighlight = &each;
+            }
+        });
+        Check(playingField != nullptr && playingText != nullptr && playingHighlight != nullptr, "the playing canvas has the field, its text and the highlight");
+        {
+            JBro::Array<JBro::Object::GameObject*> roots;
+            playing->GetRootObjects(roots);
+            for (JBro::Object::GameObject* each : roots)
+            {
+                if (playing->FindComponentRaw<JBro::Component::InputField2D>(each) != nullptr)
+                {
+                    playingHud = each->GetLayer();
+                }
+            }
+        }
+        Check(playingHud != nullptr, "the field sits on the HUD layer while playing");
+        auto* widgets = playing->GetSystems().FindSystem<JBro::System::Button2DSystem>();
+        auto* texts = playing->GetSystems().FindSystem<JBro::System::Text2DSystem>();
+        Check(widgets != nullptr && texts != nullptr, "the widget and text systems are there");
+        const auto gameToClient = [&](JBro::Float gameX, JBro::Float gameY, JBro::Int32& clientX, JBro::Int32& clientY) {
+            const JBro::InputSurfaceMapping& mapping = editor.GetSimulationViewMapping();
+            clientX = static_cast<JBro::Int32>(std::lround((gameX / mapping.scaleX + mapping.originX).Get()));
+            clientY = static_cast<JBro::Int32>(std::lround((gameY / mapping.scaleY + mapping.originY).Get()));
+        };
+        // 레이어 좌표(기준 픽셀, 가운데 원점)의 점을 창에서 누른다.
+        const auto clickLayer = [&](JBro::Float layerX, JBro::Float layerY, JBro::Bool release) {
+            JBro::Float gameX = 0.0f;
+            JBro::Float gameY = 0.0f;
+            Check(widgets->LayerToPixel(*playingHud, {layerX, layerY}, gameX, gameY), "the layer point maps to a game pixel");
+            JBro::Int32 x = 0;
+            JBro::Int32 y = 0;
+            gameToClient(gameX, gameY, x, y);
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the pointer moves");
+            PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the press reaches the game");
+            if (release)
+            {
+                PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the release reaches the game");
+            }
+        };
+        const auto dragLayerTo = [&](JBro::Float layerX, JBro::Float layerY) {
+            JBro::Float gameX = 0.0f;
+            JBro::Float gameY = 0.0f;
+            Check(widgets->LayerToPixel(*playingHud, {layerX, layerY}, gameX, gameY), "the drag target maps to a game pixel");
+            JBro::Int32 x = 0;
+            JBro::Int32 y = 0;
+            gameToClient(gameX, gameY, x, y);
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the drag reaches the game");
+            PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the drop reaches the game");
+        };
+        auto& platform = static_cast<JBro::WindowsPlatform&>(editor.GetPlatform());
+        const auto record = [&](JBro::InputEventKind kind, JBro::Key key, JBro::UInt32 codePoint, JBro::KeyModifiers modifiers) {
+            JBro::InputEvent event;
+            event.kind = kind;
+            event.key = key;
+            event.codePoint = codePoint;
+            event.modifiers = modifiers;
+            platform.RecordInputEvent(event);
+        };
+        const auto typeText = [&](const char* ascii) {
+            for (const char* at = ascii; *at != '\0'; ++at)
+            {
+                record(JBro::InputEventKind::Text, JBro::Key::Unknown, static_cast<JBro::UInt32>(static_cast<unsigned char>(*at)), JBro::KeyModifierNone);
+            }
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the typed text reaches the game");
+        };
+        const auto pressKey = [&](JBro::Key key, JBro::KeyModifiers modifiers) {
+            record(JBro::InputEventKind::KeyDown, key, 0, modifiers);
+            Check(editor.Tick(Frame), "the key goes down");
+            record(JBro::InputEventKind::KeyUp, key, 0, modifiers);
+            Check(editor.Tick(Frame), "the key comes up");
+        };
+        const auto textOf = [&](JBro::TextId id) {
+            const JBro::ArrayView<const char> bytes = JBro::TextStore::Get().GetText(id);
+            return std::string(bytes.Data() != nullptr ? bytes.Data() : "", bytes.Size());
+        };
+
+        // 1. 칸을 누르면 포커스. 글자를 치면 들어간다.
+        clickLayer(-250.0f, 0.0f, true);
+        Check(playingField->focused && playingField->caretIndex == 0, "pressing the empty field focuses it with the caret at the front");
+        typeText("Hello");
+        Check(textOf(playingField->text) == "Hello" && playingField->caretIndex == 5, "typing fills the field");
+
+        // 2. IME 조합: 조합 글자는 보이는 텍스트에만 있고 저장 글자에는 없다 **[봄 e01]**. 끝나면 결과 글자가 들어간다.
+        record(JBro::InputEventKind::CompositionBegin, JBro::Key::Unknown, 0, JBro::KeyModifierNone);
+        record(JBro::InputEventKind::Composition, JBro::Key::Unknown, 0xD55C, JBro::KeyModifierNone);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the composition reaches the game");
+        Check(playingField->composing && textOf(playingField->text) == "Hello" && textOf(playingText->text) == "Hello\xED\x95\x9C",
+            "the composed syllable shows after the caret but is not stored");
+        ScenarioShot(editor, "e01_composing");
+        record(JBro::InputEventKind::CompositionEnd, JBro::Key::Unknown, 0, JBro::KeyModifierNone);
+        record(JBro::InputEventKind::Text, JBro::Key::Unknown, 0xD55C, JBro::KeyModifierNone);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the result reaches the game");
+        Check(false == playingField->composing && textOf(playingField->text) == "Hello\xED\x95\x9C" && textOf(playingText->text) == "Hello\xED\x95\x9C",
+            "the finished syllable is stored and shown");
+
+        // 3. Shift+← 둘: 선택 [4, 6) 이 파랗게 선다 **[봄 e02]**. Ctrl+C 가 OS 클립보드에 쓴다(시험이 끝나면 전 글자를 되돌린다).
+        pressKey(JBro::Key::Left, JBro::KeyModifierShift);
+        pressKey(JBro::Key::Left, JBro::KeyModifierShift);
+        Check(editor.Tick(Frame), "the selection settles");
+        Check(playingField->caretIndex == 4 && playingField->selectionAnchor == 6, "shift+left twice selects the last two characters");
+        Check(playingHighlight->visible && playingHighlight->size.x > 10.0f && playingHighlight->size.y > 10.0f, "the highlight sprite is stretched over the selection");
+        ScenarioShot(editor, "e02_selection");
+        JBro::String savedClipboard;
+        const JBro::Bool hadClipboard = platform.ReadClipboardText(savedClipboard);
+        record(JBro::InputEventKind::KeyDown, JBro::Key::C, 0, JBro::KeyModifierControl);
+        record(JBro::InputEventKind::Text, JBro::Key::Unknown, 0x03, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame), "ctrl+c goes down");
+        record(JBro::InputEventKind::KeyUp, JBro::Key::C, 0, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame), "ctrl+c comes up");
+        JBro::String clipboard;
+        const JBro::Bool readBack = platform.ReadClipboardText(clipboard);
+        if (false == readBack || clipboard != "o\xED\x95\x9C")
+        {
+            // 떨어지면 무엇이 읽혔는지 남긴다 - 클립보드는 바깥 상태라 까닭이 여럿이다.
+            std::cout << "  clipboard read=" << (readBack ? 1 : 0) << " bytes=" << clipboard.size() << " caret=" << playingField->caretIndex.Get()
+                << " anchor=" << playingField->selectionAnchor.Get() << " text=" << textOf(playingField->text) << std::endl;
+        }
+        Check(readBack && clipboard == "o\xED\x95\x9C", "ctrl+c puts the selection on the OS clipboard");
+        Check(textOf(playingField->text) == "Hello\xED\x95\x9C", "and the control character is not typed");
+
+        // 4. 포인터로 커서 놓기: 셋째 글자 앞 자리의 조금 오른쪽을 누르면 커서는 3 이다. 끌어 끝까지 가면 [3, 6) 이 선택이다 **[봄 e03]**. Ctrl+V 가 선택을 대신한다.
+        JBro::Float caretX = 0.0f;
+        JBro::Float caretY = 0.0f;
+        Check(texts->GetLocalCaret(playingText->GetInstanceId(), 3, caretX, caretY), "the laid-out text knows where its third glyph starts");
+        clickLayer(-280.0f + caretX + 3.0f, caretY, false);
+        Check(playingField->focused && playingField->caretIndex == 3 && playingField->selectionAnchor == -1, "a press just right of a glyph boundary puts the caret there");
+        dragLayerTo(200.0f, 0.0f);
+        Check(playingField->caretIndex == 6 && playingField->selectionAnchor == 3, "dragging to the end selects from the pressed glyph to the end");
+        ScenarioShot(editor, "e03_drag_selection");
+        record(JBro::InputEventKind::KeyDown, JBro::Key::V, 0, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame), "ctrl+v goes down");
+        record(JBro::InputEventKind::KeyUp, JBro::Key::V, 0, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "ctrl+v comes up");
+        Check(textOf(playingField->text) == "Helo\xED\x95\x9C" && playingField->caretIndex == 5 && playingField->selectionAnchor == -1,
+            "ctrl+v replaces the selection with the clipboard");
+        if (hadClipboard)
+        {
+            platform.WriteClipboardText(savedClipboard.c_str(), savedClipboard.size());
+        }
+        ScenarioShot(editor, "e04_pasted");
+
+        // 5. Esc 로 포커스를 놓으면 커서·선택이 사라진다. 멈추면 편집 캔버스의 글자 칸은 비어 있다.
+        pressKey(JBro::Key::Escape, JBro::KeyModifierNone);
+        Check(editor.Tick(Frame), "the escape settles");
+        Check(false == playingField->focused && playingField->selectionAnchor == -1, "escape drops the focus and the selection");
+        editor.StopSimulation();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor returns from play");
+        }
+        canvas = editor.GetCanvas();
+        JBro::Component::InputField2D* restored = nullptr;
+        canvas->ForEach<JBro::Component::InputField2D>([&](JBro::Component::InputField2D& each) { restored = &each; });
+        Check(restored != nullptr && textOf(restored->text).empty(), "stopping puts the empty field back");
+        editor.Shutdown();
+    }
 }
 
 JBro::Int32 RunEditorApplicationTests()
@@ -18491,6 +18761,7 @@ JBro::Int32 RunUserScenarioTests()
     TestScenarioBHostileUser();
     TestScenarioCJBroScript();
     TestScenarioDUiBuilder();
+    TestScenarioETextEntry();
     std::cout << "User scenario tests passed.\n";
     return 0;
 }

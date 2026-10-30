@@ -5,6 +5,8 @@
 #include <JBro/Core/Core.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/String.h>
+#include <cstddef>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
@@ -98,6 +100,18 @@ namespace JBro
         Float clearColor[4] = {0.08f, 0.09f, 0.11f, 1.0f};
     };
 
+    // **글자 입력 호스트**(D-355). 글자 칸이 포커스를 가진 프레임마다 프레임워크가 커서의 자리(게임 화면 픽셀, 세로는 줄의 가운데)를 알리고, 복사·붙여넣기에
+    // 클립보드를 묻는다. 호스트(엔진 인스턴스)가 플랫폼의 IME 조합 창 자리·인라인 조합과 OS 클립보드로 옮긴다 - 프레임워크는 플랫폼을 모른다.
+    // 없으면(시험의 가짜) 글자 칸은 조합 창을 옮기지 않고 복사·붙여넣기가 비어 있다.
+    class ITextInputHost
+    {
+    public:
+        virtual ~ITextInputHost() = default;
+        virtual void SetTextInputArea(Float pixelX, Float pixelY, Float lineHeight) = 0;
+        virtual Bool ReadClipboardText(String& utf8) = 0;
+        virtual Bool WriteClipboardText(const char* utf8, std::size_t size) = 0;
+    };
+
     struct FrameworkContext
     {
         JMemoryContext memory;
@@ -123,6 +137,8 @@ namespace JBro
         // 호스트가 넘겨받은 머티리얼 셰이더 컴파일러(D-347). 에디터만 준다 - 게임은 패키지의 구운 셰이더만 싣고, 없으면 굽지 않은 셰이더의 머티리얼은
         // 서지 않는다(빌트인으로 그린다).
         IShaderCompiler* shaderCompiler = nullptr;
+        // 호스트의 글자 입력(D-355). 없으면(시험의 가짜) 글자 칸은 IME 조합 창을 옮기지 않고 클립보드가 비어 있다.
+        ITextInputHost* textInput = nullptr;
     };
 
     class IFramework

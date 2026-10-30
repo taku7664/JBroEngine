@@ -11,6 +11,9 @@
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Handle/Button2D.h>
+#include <JBro/Framework2D/Handle/InputField2D.h>
+#include <JBro/Framework2D/Handle/Layout2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
@@ -140,6 +143,58 @@ namespace
         return event;
     }
 
+    InputEvent PressedWith(Key key, KeyModifiers modifiers)
+    {
+        InputEvent event = Pressed(key);
+        event.modifiers = modifiers;
+        return event;
+    }
+
+    InputEvent Composition(InputEventKind kind, JBro::UInt32 codePoint = 0)
+    {
+        InputEvent event;
+        event.kind = kind;
+        event.codePoint = codePoint;
+        return event;
+    }
+
+    // 글자 입력 호스트의 가짜다(D-355) - 조합 창 자리를 받아 두고 클립보드 글자를 든다.
+    class FakeTextInput final : public ITextInputHost
+    {
+    public:
+        void SetTextInputArea(JBro::Float pixelX, JBro::Float pixelY, JBro::Float lineHeight) override
+        {
+            ++areaCalls;
+            lastX = pixelX;
+            lastY = pixelY;
+            lastHeight = lineHeight;
+        }
+
+        JBro::Bool ReadClipboardText(String& utf8) override
+        {
+            if (clipboard.empty())
+            {
+                return false;
+            }
+            utf8 = clipboard;
+            return true;
+        }
+
+        JBro::Bool WriteClipboardText(const char* utf8, std::size_t size) override
+        {
+            clipboard.assign(utf8, size);
+            ++writes;
+            return true;
+        }
+
+        JBro::Int32 areaCalls = 0;
+        JBro::Int32 writes = 0;
+        JBro::Float lastX = 0.0f;
+        JBro::Float lastY = 0.0f;
+        JBro::Float lastHeight = 0.0f;
+        String clipboard;
+    };
+
     InputEvent ReleasedKey(Key key)
     {
         InputEvent event;
@@ -247,6 +302,7 @@ namespace
     {
         System::InputSystem input;
         PadPlatform platform;
+        FakeTextInput textInput;
         BoundInput bound{input};
         Framework2D framework;
         FrameworkContext context;
@@ -258,6 +314,7 @@ namespace
             platform.pads[0].connected = true;
             JBro::Testing::AttachClock(context);
             context.input = &input;
+            context.textInput = &textInput;
             Check(framework.Initialize(context), "the framework must initialize without a renderer");
             Check(framework.BindScriptContexts(), "the script contexts bind");
             ScreenSpaceFrame frame;
@@ -854,6 +911,171 @@ namespace
         stage.platform.pads[0].axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = 0.0f;
         stage.Frame({});
     }
+
+    // **선택·클립보드·조합**(D-355). 폰트가 없어 레이아웃이 없는 칸이다 - 포인터는 글자 끝에 커서를 두고, 선택은 키보드로 한다.
+    void TestSelectionClipboardAndComposition()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        Object::GameObject* name = stage.Make("name", {0.0f, -30.0f});
+        auto* field = canvas->AttachComponent<Component::InputField2D>(name);
+        field->size = {120.0f, 30.0f};
+        Object::GameObject* label = stage.Make("label", {-50.0f, 0.0f}, name);
+        auto* text = canvas->AttachComponent<Component::Text2D>(label);
+        field->display = label->GetScriptHandle().GetComponent<Handle::Text2D>();
+        Object::GameObject* highlight = stage.Make("highlight", {}, label);
+        auto* highlightSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(highlight);
+        field->selection = highlight->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
+        stage.Frames(2);
+        stage.Frame({MouseAt(100.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(field->focused && field->caretIndex == 0 && field->selectionAnchor == -1, "the field takes focus without a selection");
+        Check(stage.textInput.areaCalls > 0 && CloseTo(stage.textInput.lastX, 50.0f) && CloseTo(stage.textInput.lastY, 80.0f),
+            "a focused field tells the host where its text is, in screen pixels");
+        stage.Frame({Typed('a'), Typed('b'), Typed('c'), Typed('d'), Typed('e'), Typed('f')});
+        Check(TextIs(field->text, "abcdef") && field->caretIndex == 6, "typing fills the field");
+
+        // Shift+← 둘: 선택 [4, 6). 글자가 오면 선택을 대신한다.
+        stage.Frame({PressedWith(Key::Left, KeyModifierShift)});
+        stage.Frame({ReleasedKey(Key::Left), PressedWith(Key::Left, KeyModifierShift)});
+        stage.Frame({ReleasedKey(Key::Left)});
+        Check(field->caretIndex == 4 && field->selectionAnchor == 6, "shift+left extends the selection from the caret");
+        Check(highlightSprite->visible == false, "without a layout the selection sprite stays hidden");
+        stage.Frame({Typed('X')});
+        Check(TextIs(field->text, "abcdX") && field->caretIndex == 5 && field->selectionAnchor == -1, "a typed character replaces the selection");
+
+        // Ctrl+A 전부, Ctrl+C 복사, → 로 접기, Ctrl+V 붙여넣기.
+        stage.Frame({PressedWith(Key::A, KeyModifierControl)});
+        stage.Frame({ReleasedKey(Key::A)});
+        Check(field->selectionAnchor == 0 && field->caretIndex == 5, "ctrl+a selects everything");
+        stage.Frame({PressedWith(Key::C, KeyModifierControl), Typed(0x03)});
+        stage.Frame({ReleasedKey(Key::C)});
+        Check(stage.textInput.clipboard == "abcdX" && TextIs(field->text, "abcdX"), "ctrl+c copies the selection and the control character is not typed");
+        stage.Frame({Pressed(Key::Right)});
+        stage.Frame({ReleasedKey(Key::Right)});
+        Check(field->selectionAnchor == -1 && field->caretIndex == 5, "right without shift collapses the selection to its end");
+        stage.Frame({PressedWith(Key::V, KeyModifierControl)});
+        stage.Frame({ReleasedKey(Key::V)});
+        Check(TextIs(field->text, "abcdXabcdX") && field->caretIndex == 10, "ctrl+v pastes at the caret");
+        stage.Frame({PressedWith(Key::A, KeyModifierControl)});
+        stage.Frame({ReleasedKey(Key::A), PressedWith(Key::X, KeyModifierControl)});
+        stage.Frame({ReleasedKey(Key::X)});
+        Check(TextIs(field->text, "") && stage.textInput.clipboard == "abcdXabcdX" && field->caretIndex == 0, "ctrl+x cuts the selection to the clipboard");
+
+        // 상한과 제어 글자: 붙여넣기는 상한에서 멈추고 개행·탭을 버린다. 깨진 UTF-8 은 건너뛴다.
+        field->maxLength = 3;
+        stage.textInput.clipboard = "a\nb\tcd";
+        stage.Frame({PressedWith(Key::V, KeyModifierControl)});
+        stage.Frame({ReleasedKey(Key::V)});
+        Check(TextIs(field->text, "abc") && field->caretIndex == 3, "pasting drops control characters and stops at maxLength");
+        field->maxLength = 0;
+        stage.textInput.clipboard = "\xFF\xC3\xA9";
+        stage.Frame({PressedWith(Key::V, KeyModifierControl)});
+        stage.Frame({ReleasedKey(Key::V)});
+        Check(TextIs(field->text, "abc\xC3\xA9"), "a broken byte is skipped and the valid glyph after it is pasted");
+
+        // Shift+Home 으로 앞까지 고르고 Backspace 로 지운다. Shift+End 는 뒤까지.
+        stage.Frame({PressedWith(Key::Left, KeyModifierNone)});
+        stage.Frame({ReleasedKey(Key::Left), PressedWith(Key::Home, KeyModifierShift)});
+        stage.Frame({ReleasedKey(Key::Home)});
+        Check(field->caretIndex == 0 && field->selectionAnchor == 3, "shift+home selects back to the front");
+        stage.Frame({Pressed(Key::Backspace)});
+        stage.Frame({ReleasedKey(Key::Backspace)});
+        Check(TextIs(field->text, "\xC3\xA9") && field->caretIndex == 0 && field->selectionAnchor == -1, "backspace removes the selection");
+        stage.Frame({PressedWith(Key::End, KeyModifierShift)});
+        stage.Frame({ReleasedKey(Key::End), Pressed(Key::Delete)});
+        stage.Frame({ReleasedKey(Key::Delete)});
+        Check(TextIs(field->text, "") && field->selectionAnchor == -1, "delete removes the selection too");
+
+        // 스크립트가 쓴 선택은 글자 수 안으로 가둔다. 같은 자리면 선택이 없다.
+        stage.Frame({Typed('x'), Typed('y')});
+        field->selectionAnchor = 99;
+        field->caretIndex = 0;
+        stage.Frame({});
+        Check(field->selectionAnchor == 2 && field->caretIndex == 0, "a selection anchor past the end is clamped");
+        field->selectionAnchor = 0;
+        stage.Frame({});
+        Check(field->selectionAnchor == -1, "an anchor at the caret is no selection");
+
+        // 조합: 조합 글자는 보이는 텍스트에만 끼고 저장 글자는 그대로다. 끝나면 결과 글자가 글자로 온다.
+        stage.Frame({Pressed(Key::End)});
+        stage.Frame({ReleasedKey(Key::End), Composition(InputEventKind::CompositionBegin), Composition(InputEventKind::Composition, 0x3131)});
+        Check(field->composing && TextIs(field->text, "xy") && TextIs(text->text, "xy\xE3\x84\xB1"), "the composition shows after the caret but is not stored");
+        stage.Frame({});
+        Check(field->composing && TextIs(text->text, "xy\xE3\x84\xB1"), "it stays while the composition lasts");
+        stage.Frame({Composition(InputEventKind::CompositionBegin), Composition(InputEventKind::Composition, 0xAC00)});
+        Check(TextIs(text->text, "xy\xEA\xB0\x80"), "a changed composition replaces the shown one");
+        stage.Frame({Composition(InputEventKind::CompositionEnd), Typed(0xAC00)});
+        Check(false == field->composing && TextIs(field->text, "xy\xEA\xB0\x80") && TextIs(text->text, "xy\xEA\xB0\x80") && field->caretIndex == 3,
+            "the finished character is stored and the display matches");
+        stage.Frame({Pressed(Key::Home)});
+        stage.Frame({ReleasedKey(Key::Home), Composition(InputEventKind::CompositionBegin), Composition(InputEventKind::Composition, 0x3134)});
+        Check(TextIs(text->text, "\xE3\x84\xB4xy\xEA\xB0\x80") && TextIs(field->text, "xy\xEA\xB0\x80"), "the composition sits at the caret, not at the end");
+        stage.Frame({Pressed(Key::Escape)});
+        stage.Frame({ReleasedKey(Key::Escape)});
+        Check(false == field->focused && false == field->composing && TextIs(text->text, "xy\xEA\xB0\x80"), "losing focus drops the shown composition");
+        const JBro::Int32 callsBefore = stage.textInput.areaCalls;
+        stage.Frames(2);
+        Check(stage.textInput.areaCalls == callsBefore, "an unfocused field does not tell the host anything");
+
+        // 포인터: 레이아웃이 없으면 누른 자리의 커서는 글자 끝이고, 끌어도 선택이 없다.
+        stage.Frame({MouseAt(60.0f, 80.0f), HeldButton(MouseButton::Left)});
+        Check(field->focused && field->caretIndex == 3 && field->selectionAnchor == -1, "a press without a layout puts the caret at the end");
+        stage.Frame({MouseAt(120.0f, 80.0f)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(field->caretIndex == 3 && field->selectionAnchor == -1, "dragging without a layout selects nothing");
+        stage.Frame({MouseAt(NaN, NaN), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(field->caretIndex == 3 && Finite(stage.PlaceOf(highlight)->position), "a NaN press leaves the caret and the highlight finite");
+    }
+
+    // **스크립트가 만드는 위젯과 커서 API**(D-355). 월드 레이어에 붙인 위젯은 픽셀 기본값을 유닛으로 나눈다. 핸들로 커서·선택을 쓴다.
+    void TestScriptMadeWidgetsAndCaretApi()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        Layer* world = &canvas->CreateLayer("World");
+        Object::GameObject* ground = canvas->CreateObject("ground");
+        canvas->SetObjectLayer(ground, world->GetId());
+        canvas->AttachComponent<Component::Transform2D>(ground);
+        Object::GameObject* panel = stage.Make("panel", {});
+        stage.Frames(1);
+        Handle::Button2D worldButton = ground->GetScriptHandle().AddComponent<Handle::Button2D>();
+        Handle::Button2D screenButton = panel->GetScriptHandle().AddComponent<Handle::Button2D>();
+        Check(worldButton.IsValid() && CloseTo(worldButton.GetSize().x, 1.6f) && CloseTo(worldButton.GetSize().y, 0.48f),
+            "a script-made button on a world layer is 1.6 x 0.48 units");
+        Check(screenButton.IsValid() && CloseTo(screenButton.GetSize().x, 160.0f) && CloseTo(screenButton.GetSize().y, 48.0f),
+            "and 160 x 48 pixels on a screen layer");
+        Handle::Layout2D worldLayout = ground->GetScriptHandle().AddComponent<Handle::Layout2D>();
+        Check(worldLayout.IsValid() && CloseTo(worldLayout.GetCellSize().x, 1.0f) && CloseTo(worldLayout.GetSpacing().x, 0.04f),
+            "the layout's cell size and spacing are divided too");
+        Check(CloseTo(worldLayout.GetPivot().y, 1.0f), "non-pixel fields are untouched");
+
+        Object::GameObject* name = stage.Make("name", {0.0f, -30.0f});
+        auto* field = canvas->AttachComponent<Component::InputField2D>(name);
+        field->size = {120.0f, 30.0f};
+        Handle::InputField2D handle = name->GetScriptHandle().GetComponent<Handle::InputField2D>();
+        stage.Frames(2);
+        handle.SetFocused(true);
+        stage.Frame({});
+        stage.Frame({Typed('a'), Typed('b'), Typed('c'), Typed('d')});
+        Check(handle.GetCaretIndex() == 4 && handle.GetSelectionAnchor() == -1 && false == handle.IsComposing(), "the handle reads the caret");
+        handle.SetSelection(1, 3);
+        stage.Frame({});
+        Check(field->selectionAnchor == 1 && field->caretIndex == 3, "the handle writes a selection");
+        stage.Frame({Typed('Z')});
+        Check(TextIs(field->text, "aZd") && handle.GetCaretIndex() == 2, "typing replaces the scripted selection");
+        handle.SetCaretIndex(-5);
+        stage.Frame({});
+        Check(handle.GetCaretIndex() == 0, "a negative caret is the front");
+        handle.SetSelection(-3, 99);
+        stage.Frame({});
+        Check(handle.GetSelectionAnchor() == -1 && handle.GetCaretIndex() == 3, "a negative anchor is no selection and the caret is clamped");
+        stage.Frame({Composition(InputEventKind::CompositionBegin), Composition(InputEventKind::Composition, 0x3131)});
+        Check(handle.IsComposing(), "the handle sees the composition");
+        stage.Frame({Composition(InputEventKind::CompositionEnd)});
+        Check(false == handle.IsComposing(), "and its end");
+    }
 }
 
 JBro::Int32 RunUiScenarioTests()
@@ -865,6 +1087,8 @@ JBro::Int32 RunUiScenarioTests()
     TestDestroyingWidgetsMidInteraction();
     TestFocusChangesInsideOneFrame();
     TestHeldKeysRepeatAndTheCaretMoves();
+    TestSelectionClipboardAndComposition();
+    TestScriptMadeWidgetsAndCaretApi();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

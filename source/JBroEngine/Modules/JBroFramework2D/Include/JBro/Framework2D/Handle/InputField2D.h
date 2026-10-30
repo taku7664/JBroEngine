@@ -20,6 +20,7 @@ namespace JBro::Handle
 {
     // 스크립트가 보는 `InputField2D` 다(D-302·D-352). 글자를 받는 칸이다. `GetText` 는 다음 쓰기까지 유효한 UTF-8 이고, `SetText` 는 글자를 통째로 바꾼다.
     // `SetFocused(true)` 로 포커스를 줄 수 있다(다음 프레임부터 키보드를 받는다). 이번 프레임의 상태(`GetChanged`·`GetSubmitted`)는 시스템이 채우고 읽기만 한다.
+    // 커서(`GetCaretIndex`, 코드포인트 번호)와 선택(`GetSelectionAnchor`, -1 은 없음)은 써도 된다(D-355) - 시스템이 글자 수 안으로 가둔다.
     class InputField2D final : public Internal::ComponentHandle
     {
     public:
@@ -48,6 +49,11 @@ namespace JBro::Handle
         void SetFocused(Bool value);
         Bool GetChanged() const;
         Bool GetSubmitted() const;
+        Int32 GetCaretIndex() const;
+        void SetCaretIndex(Int32 value);
+        Int32 GetSelectionAnchor() const;
+        void SetSelection(Int32 anchor, Int32 caret);
+        Bool IsComposing() const;
 
     private:
         Component::InputField2D* Resolve(const char* operation) const;

@@ -431,6 +431,20 @@ namespace JBro::System
             }
             break;
 
+        // IME 조합(D-355)은 프레임을 넘어 남는다 - 비우는 것은 시작·끝 이벤트와 포커스 잃음뿐이다.
+        case InputEventKind::CompositionBegin:
+        case InputEventKind::CompositionEnd:
+            m_frame.keyboard.compositionLength = 0;
+            break;
+
+        case InputEventKind::Composition:
+            if (m_frame.keyboard.compositionLength < MaxTextPerFrame)
+            {
+                m_frame.keyboard.composition[m_frame.keyboard.compositionLength] = event.codePoint;
+                ++m_frame.keyboard.compositionLength;
+            }
+            break;
+
         case InputEventKind::MouseMove:
         {
             const Float x = (event.x - mapping.originX) * mapping.scaleX;
@@ -470,6 +484,7 @@ namespace JBro::System
 
         case InputEventKind::FocusLost:
             ReleaseAll();
+            m_frame.keyboard.compositionLength = 0;
             m_focused = false;
             break;
 

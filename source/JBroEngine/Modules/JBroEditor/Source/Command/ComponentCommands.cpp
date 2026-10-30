@@ -4,9 +4,9 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Canvas/PixelFields.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
-#include <JBro/Reflection/TypeDescriptorOf.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Runtime/ScriptRegistry.h>
@@ -15,33 +15,9 @@ namespace JBro
 {
     namespace
     {
-        // 타입 안의 `Float` 잎사귀를 모두 `factor` 배 한다. `Vector2` 는 x·y 로 내려간다.
-        void ScaleFloats(const TypeDescriptor& type, void* address, Float factor)
-        {
-            if (&type == &TypeDescriptorOf<Float>::Get())
-            {
-                Float& value = *static_cast<Float*>(address);
-                value = value * factor;
-                return;
-            }
-            if (type.fields == nullptr)
-            {
-                return;
-            }
-            for (UInt32 index = 0; index < type.fields->count; ++index)
-            {
-                const PropertyInfo& property = type.fields->properties[index];
-                void* inner = property.type != nullptr && property.Address != nullptr ? property.Address(address) : nullptr;
-                if (inner != nullptr)
-                {
-                    ScaleFloats(*property.type, inner, factor);
-                }
-            }
-        }
-
         // **월드 레이어의 픽셀 기본값**(D-354). `Pixels()` 필드는 화면 레이어의 픽셀이고 월드 레이어에서는 유닛이다 - 맨 컴포넌트를 월드 레이어의
         // 오브젝트에 붙일 때 그 필드의 기본값을 `DefaultPixelsPerUnit`(D-184 의 100)으로 나눈다. 160 x 48 픽셀 버튼이 1.6 x 0.48 유닛이 된다.
-        // 값을 들고 붙이는 길(붙여넣기)은 그 값이 이미 그 레이어의 것이라 지나간다.
+        // 값을 들고 붙이는 길(붙여넣기)은 그 값이 이미 그 레이어의 것이라 지나간다. 나누는 셈은 스크립트의 `AddComponent` 와 같은 것이다(`ScalePixelFields`, D-355).
         void ScalePixelDefaults(const Object::GameObject& object, AttachedRef attached)
         {
             const Layer* layer = object.GetLayer();
@@ -50,24 +26,9 @@ namespace JBro
                 return;
             }
             const PropertyTable* table = PropertyRegistry::Lookup(attached.GetTypeId());
-            void* instance = attached.GetInstance();
-            if (table == nullptr || instance == nullptr)
+            if (table != nullptr)
             {
-                return;
-            }
-            const Float factor = Float(1.0f) / DefaultPixelsPerUnit;
-            for (UInt32 index = 0; index < table->count; ++index)
-            {
-                const PropertyInfo& property = table->properties[index];
-                if (property.edit == nullptr || false == property.edit->pixels || property.type == nullptr || property.Address == nullptr)
-                {
-                    continue;
-                }
-                void* address = property.Address(instance);
-                if (address != nullptr)
-                {
-                    ScaleFloats(*property.type, address, factor);
-                }
+                ScalePixelFields(*table, attached.GetInstance(), Float(1.0f) / DefaultPixelsPerUnit);
             }
         }
     }

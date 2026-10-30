@@ -18,6 +18,7 @@
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Host/IFramework.h>
 #include <JBro/InputTypes/InputView.h>
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/GameObject.h>
@@ -326,6 +327,36 @@ namespace JBro::System
         }
 
         // 글자 칸의 커서 번호를 글자 수 안으로 가둔 값이다.
+        // UTF-8 한 글자를 푼다(D-355, 붙여넣기). 깨진 바이트는 1 바이트를 건너뛰고 거짓이다.
+        Bool DecodeCodePoint(const char* data, std::size_t size, std::size_t at, UInt32& codePoint, std::size_t& length)
+        {
+            const unsigned char lead = static_cast<unsigned char>(data[at]);
+            length = 1;
+            if (lead < 0x80)
+            {
+                codePoint = lead;
+                return true;
+            }
+            const std::size_t needed = (lead & 0xE0) == 0xC0 ? 2 : (lead & 0xF0) == 0xE0 ? 3 : (lead & 0xF8) == 0xF0 ? 4 : 0;
+            if (needed == 0 || at + needed > size)
+            {
+                return false;
+            }
+            UInt32 value = lead & (needed == 2 ? 0x1Fu : needed == 3 ? 0x0Fu : 0x07u);
+            for (std::size_t index = 1; index < needed; ++index)
+            {
+                const unsigned char trail = static_cast<unsigned char>(data[at + index]);
+                if ((trail & 0xC0) != 0x80)
+                {
+                    return false;
+                }
+                value = (value << 6) | (trail & 0x3Fu);
+            }
+            length = needed;
+            codePoint = value;
+            return true;
+        }
+
         UInt32 ClampCaret(const Component::InputField2D& field, UInt32 count)
         {
             const std::int32_t raw = field.caretIndex.Get();
@@ -359,6 +390,11 @@ namespace JBro::System
         {
             m_scripts->AddSystemInputHandler(*this, "UI", ButtonInputOrder);
         }
+    }
+
+    void Button2DSystem::SetTextInputHost(ITextInputHost* host)
+    {
+        m_textInput = host;
     }
 
     void Button2DSystem::SetScreenSpace(const ScreenSpaceFrame& frame)
@@ -652,9 +688,41 @@ namespace JBro::System
                 const ArrayView<const char> text = TextStore::Get().GetText(field->text);
                 const UInt32 count = CountCodePoints(text.Data(), text.Size());
                 field->caretIndex = Int32(static_cast<std::int32_t>(count.Get()));
+                field->selectionAnchor = -1;
                 field->blinkTime = 0.0f;
             }
         }
+    }
+
+    void Button2DSystem::PlaceCaretAt(Component::InputField2D& field, const Pointer& pointer, Bool extend)
+    {
+        auto* display = Internal::ComponentHandleAccess::ResolveAs<Component::Text2D>(field.display);
+        Object::GameObject* displayObject = display != nullptr ? Internal::CanvasAccess::GetOwner(*display) : nullptr;
+        const Layer* layer = displayObject != nullptr ? displayObject->GetLayer() : nullptr;
+        const System::Text2DSystem* texts = m_canvas->GetSystems().FindSystem<System::Text2DSystem>();
+        const ArrayView<const char> text = TextStore::Get().GetText(field.text);
+        const UInt32 count = CountCodePoints(text.Data(), text.Size());
+        UInt32 caret = count;
+        Vector2 local;
+        UInt32 byteOffset = 0;
+        if (display != nullptr && layer != nullptr && texts != nullptr && PointerToLocal(*displayObject, *layer, pointer, local)
+            && texts->GetLocalCaretAt(display->GetInstanceId(), local.x, local.y, byteOffset))
+        {
+            const std::size_t clamped = static_cast<std::size_t>(byteOffset.Get()) < text.Size() ? static_cast<std::size_t>(byteOffset.Get()) : text.Size();
+            caret = CountCodePoints(text.Data(), clamped);
+        }
+        const Int32 index = Int32(static_cast<std::int32_t>(caret.Get()));
+        if (extend)
+        {
+            field.selectionAnchor = m_fieldPressCaret != index ? m_fieldPressCaret : Int32(-1);
+        }
+        else
+        {
+            field.selectionAnchor = -1;
+            m_fieldPressCaret = index;
+        }
+        field.caretIndex = index;
+        field.blinkTime = 0.0f;
     }
 
     Bool Button2DSystem::Repeats(Bool down, Bool pressed, Float& held, Float interval)
@@ -803,17 +871,38 @@ namespace JBro::System
         // 커서는 글자 번호다(D-354). 스크립트가 글자를 통째로 바꿨을 수 있으니 글자 수 안으로 가둔다.
         UInt32 caret = ClampCaret(field, count);
         const UInt32 caretBefore = caret;
-        for (UInt32 index = 0; index < keyboard.GetTextLength(); ++index)
+        // 선택의 다른 끝이다(D-355). 커서와 다를 때만 선택이다. 스크립트가 썼을 수 있으니 글자 수 안으로 가둔다.
+        Int32 anchor = field.selectionAnchor < 0 ? Int32(-1) : field.selectionAnchor;
+        if (anchor >= 0 && UInt32(static_cast<std::uint32_t>(anchor.Get())) > count)
         {
-            const UInt32 codePoint = keyboard.GetText(index);
-            // 제어 글자(개행·탭 포함)는 글자가 아니다 - Enter 는 키로 본다.
+            anchor = Int32(static_cast<std::int32_t>(count.Get()));
+        }
+        const auto anchorIndex = [&]() { return UInt32(static_cast<std::uint32_t>(anchor.Get())); };
+        const auto hasSelection = [&]() { return anchor >= 0 && anchorIndex() != caret; };
+        const auto selectionBegin = [&]() { return anchorIndex() < caret ? anchorIndex() : caret; };
+        const auto selectionEnd = [&]() { return anchorIndex() < caret ? caret : anchorIndex(); };
+        const auto eraseSelection = [&]()
+        {
+            const UInt32 begin = selectionBegin();
+            const UInt32 end = selectionEnd();
+            const std::size_t from = ByteOffsetOf(m_textScratch, begin);
+            const std::size_t to = ByteOffsetOf(m_textScratch, end);
+            m_textScratch.erase(from, to - from);
+            count -= end - begin;
+            caret = begin;
+            anchor = -1;
+            changed = true;
+        };
+        // 글자 하나를 커서 자리에 끼운다. 제어 글자는 글자가 아니고, 상한에 닿으면 거짓이다.
+        const auto insert = [&](UInt32 codePoint)
+        {
             if (codePoint < 0x20 || codePoint == 0x7F)
             {
-                continue;
+                return true;
             }
             if (field.maxLength > 0 && count >= static_cast<JBro::UInt32>(field.maxLength.Get()))
             {
-                break;
+                return false;
             }
             const std::size_t before = m_textScratch.size();
             InsertCodePoint(m_textScratch, ByteOffsetOf(m_textScratch, caret), codePoint);
@@ -823,46 +912,160 @@ namespace JBro::System
                 ++caret;
                 changed = true;
             }
+            return true;
+        };
+        const Bool shift = (keyboard.modifiers & KeyModifierShift) != 0;
+        // Alt 가 같이 눌린 Ctrl 은 AltGr 이라 글자다 - 단축키가 아니다.
+        const Bool control = (keyboard.modifiers & KeyModifierControl) != 0 && (keyboard.modifiers & KeyModifierAlt) == 0;
+        // Ctrl 단축키(D-355): A 전부, C 복사, X 잘라내기, V 붙여넣기. 클립보드는 호스트의 것이고 없으면 비어 있다.
+        if (control && keyboard.IsPressed(Key::A))
+        {
+            anchor = 0;
+            caret = count;
+        }
+        if (control && (keyboard.IsPressed(Key::C) || keyboard.IsPressed(Key::X)) && hasSelection())
+        {
+            const std::size_t from = ByteOffsetOf(m_textScratch, selectionBegin());
+            const std::size_t to = ByteOffsetOf(m_textScratch, selectionEnd());
+            if (m_textInput != nullptr)
+            {
+                m_textInput->WriteClipboardText(m_textScratch.data() + from, to - from);
+            }
+            if (keyboard.IsPressed(Key::X))
+            {
+                eraseSelection();
+            }
+        }
+        if (control && keyboard.IsPressed(Key::V) && m_textInput != nullptr)
+        {
+            m_clipScratch.clear();
+            if (m_textInput->ReadClipboardText(m_clipScratch) && false == m_clipScratch.empty())
+            {
+                if (hasSelection())
+                {
+                    eraseSelection();
+                }
+                // 클립보드의 UTF-8 을 글자마다 끼운다 - 제어 글자는 버리고 상한에서 멈춘다.
+                std::size_t at = 0;
+                while (at < m_clipScratch.size())
+                {
+                    UInt32 codePoint = 0;
+                    std::size_t length = 1;
+                    const Bool decoded = DecodeCodePoint(m_clipScratch.data(), m_clipScratch.size(), at, codePoint, length);
+                    at += length;
+                    if (decoded && false == insert(codePoint))
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        // 글자(D-352). Ctrl 이 눌린 동안의 글자는 단축키의 것이라 끼우지 않는다. 선택이 있으면 그 자리를 대신한다.
+        if (false == control)
+        {
+            for (UInt32 index = 0; index < keyboard.GetTextLength(); ++index)
+            {
+                const UInt32 codePoint = keyboard.GetText(index);
+                if (codePoint < 0x20 || codePoint == 0x7F)
+                {
+                    continue;
+                }
+                if (hasSelection())
+                {
+                    eraseSelection();
+                }
+                if (false == insert(codePoint))
+                {
+                    break;
+                }
+            }
         }
         // 쥔 Backspace·Delete·←·→ 는 지연 뒤 간격마다 되풀이한다(D-354).
         const Bool backspace = Repeats(keyboard.IsDown(Key::Backspace), keyboard.IsPressed(Key::Backspace), m_keyHeld[0], KeyRepeatInterval);
         const Bool erase = Repeats(keyboard.IsDown(Key::Delete), keyboard.IsPressed(Key::Delete), m_keyHeld[1], KeyRepeatInterval);
         const Bool left = Repeats(keyboard.IsDown(Key::Left), keyboard.IsPressed(Key::Left), m_keyHeld[2], KeyRepeatInterval);
         const Bool right = Repeats(keyboard.IsDown(Key::Right), keyboard.IsPressed(Key::Right), m_keyHeld[3], KeyRepeatInterval);
-        if (backspace && caret > 0)
+        if (backspace)
         {
-            const std::size_t begin = ByteOffsetOf(m_textScratch, caret - 1);
-            const std::size_t end = ByteOffsetOf(m_textScratch, caret);
-            m_textScratch.erase(begin, end - begin);
-            --caret;
-            --count;
-            changed = true;
+            if (hasSelection())
+            {
+                eraseSelection();
+            }
+            else if (caret > 0)
+            {
+                const std::size_t begin = ByteOffsetOf(m_textScratch, caret - 1);
+                const std::size_t end = ByteOffsetOf(m_textScratch, caret);
+                m_textScratch.erase(begin, end - begin);
+                --caret;
+                --count;
+                changed = true;
+            }
         }
-        if (erase && caret < count)
+        if (erase)
         {
-            const std::size_t begin = ByteOffsetOf(m_textScratch, caret);
-            const std::size_t end = ByteOffsetOf(m_textScratch, caret + 1);
-            m_textScratch.erase(begin, end - begin);
-            --count;
-            changed = true;
+            if (hasSelection())
+            {
+                eraseSelection();
+            }
+            else if (caret < count)
+            {
+                const std::size_t begin = ByteOffsetOf(m_textScratch, caret);
+                const std::size_t end = ByteOffsetOf(m_textScratch, caret + 1);
+                m_textScratch.erase(begin, end - begin);
+                --count;
+                changed = true;
+            }
         }
-        if (left && caret > 0)
+        // 옮기기(D-354·D-355). Shift 면 선택을 늘리고(기준이 없으면 지금 커서가 기준), 아니면 선택을 접는다 - ←·→ 는 선택의 그쪽 끝으로.
+        const auto moveTo = [&](UInt32 target)
         {
-            --caret;
+            if (shift)
+            {
+                if (anchor < 0)
+                {
+                    anchor = Int32(static_cast<std::int32_t>(caret.Get()));
+                }
+            }
+            else
+            {
+                anchor = -1;
+            }
+            caret = target;
+        };
+        if (left)
+        {
+            if (false == shift && hasSelection())
+            {
+                caret = selectionBegin();
+                anchor = -1;
+            }
+            else if (caret > 0)
+            {
+                moveTo(caret - 1);
+            }
         }
-        if (right && caret < count)
+        if (right)
         {
-            ++caret;
+            if (false == shift && hasSelection())
+            {
+                caret = selectionEnd();
+                anchor = -1;
+            }
+            else if (caret < count)
+            {
+                moveTo(caret + 1);
+            }
         }
         if (keyboard.IsPressed(Key::Home))
         {
-            caret = 0;
+            moveTo(0);
         }
         if (keyboard.IsPressed(Key::End))
         {
-            caret = count;
+            moveTo(count);
         }
         field.caretIndex = Int32(static_cast<std::int32_t>(caret.Get()));
+        field.selectionAnchor = hasSelection() ? anchor : Int32(-1);
         if (changed || caret != caretBefore)
         {
             // 고치거나 옮긴 커서는 바로 보인다.
@@ -920,7 +1123,8 @@ namespace JBro::System
                 mark->visible = toggle.isOn;
             }
         });
-        // 글자 칸: 글자가 바뀌었으면 보이는 텍스트에 옮기고, 커서는 글자 끝에서 깜빡인다(D-352).
+        // 글자 칸: 글자가 바뀌었으면 보이는 텍스트에 옮기고(조합 중이면 조합 글자를 커서 자리에 끼워서), 커서는 커서 자리에서 깜빡이며, 선택 구간을
+        // 두 커서 사이로 늘린다(D-352·D-354·D-355). 포커스 칸의 커서 자리는 호스트에 알려 IME 조합 창이 따라오게 한다.
         System::Text2DSystem* texts = canvas.GetSystems().FindSystem<System::Text2DSystem>();
         canvas.ForEach<Component::InputField2D>([&](Component::InputField2D& field)
         {
@@ -931,56 +1135,152 @@ namespace JBro::System
             TextStore& store = TextStore::Get();
             const UInt32 revision = store.GetRevision(field.text);
             auto* display = Internal::ComponentHandleAccess::ResolveAs<Component::Text2D>(field.display);
-            if (display != nullptr && revision != field.mirroredRevision)
+            const ArrayView<const char> text = store.GetText(field.text);
+            const UInt32 count = CountCodePoints(text.Data(), text.Size());
+            const UInt32 caretIndex = ClampCaret(field, count);
+            const std::size_t caretByte = ByteOffsetOf(text.Data(), text.Size(), caretIndex);
+            // 조합 중인 글자는 저장 글자에 넣지 않고 보이는 텍스트에만 끼운다. 조합이 끝나면 저장 글자를 다시 옮긴다.
+            const Bool composing = field.focused && field.composing && m_compositionLength > 0;
+            std::size_t compositionBytes = 0;
+            if (display != nullptr && composing)
             {
-                const ArrayView<const char> text = store.GetText(field.text);
+                m_textScratch.assign(text.Data() != nullptr ? text.Data() : "", text.Size());
+                std::size_t at = caretByte;
+                for (UInt32 index = 0; index < m_compositionLength; ++index)
+                {
+                    const std::size_t before = m_textScratch.size();
+                    InsertCodePoint(m_textScratch, at, m_composition[index]);
+                    at += m_textScratch.size() - before;
+                }
+                compositionBytes = at - caretByte;
+                store.Assign(display->text, m_textScratch.data(), m_textScratch.size());
+                field.mirroredRevision = revision;
+                field.mirroredComposition = true;
+            }
+            else if (display != nullptr && (revision != field.mirroredRevision || field.mirroredComposition))
+            {
                 store.Assign(display->text, text.Data() != nullptr ? text.Data() : "", text.Size());
                 field.mirroredRevision = revision;
+                field.mirroredComposition = false;
             }
-            auto* caret = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.caret);
-            if (caret == nullptr)
-            {
-                return;
-            }
-            if (false == field.focused)
-            {
-                caret->visible = false;
-                field.blinkTime = 0.0f;
-                return;
-            }
-            const Float rate = Float(std::isfinite(field.blinkRate.Get()) && field.blinkRate > 0.0f ? field.blinkRate.Get() : 0.0f);
-            // 시계는 한 주기(켜짐 + 꺼짐) 안에 둔다 - 몇 시간을 켜 둬도 정밀도가 깎이지 않는다.
-            field.blinkTime = rate > 0.0f ? Float(std::fmod((field.blinkTime + deltaTime).Get(), rate.Get() * 2.0f)) : Float(0.0f);
-            caret->visible = rate <= 0.0f || field.blinkTime < rate;
-            // 커서는 보이는 텍스트의 `caretIndex` 번째 글자 앞, 그 줄의 세로 가운데다(그 오브젝트의 로컬, D-354). 레이아웃이 아직 없으면 오른쪽 끝이다.
-            // 커서는 `display` 의 **자식**이어야 한다 - 아니면 놓지 않는다.
-            Float minX = 0.0f;
-            Float minY = 0.0f;
-            Float maxX = 0.0f;
-            Float maxY = 0.0f;
-            Object::GameObject* caretObject = Internal::CanvasAccess::GetOwner(*caret);
             Object::GameObject* displayObject = display != nullptr ? Internal::CanvasAccess::GetOwner(*display) : nullptr;
-            auto* place = caretObject != nullptr && displayObject != nullptr && caretObject->GetParent() == displayObject
-                ? canvas.FindComponentRaw<Component::Transform2D>(caretObject) : nullptr;
-            if (place != nullptr)
+            // 보이는 텍스트의 커서 자리(그 오브젝트의 로컬)다. 레이아웃이 아직 없으면 거짓이다.
+            const auto caretAt = [&](std::size_t byteOffset, Float& x, Float& y, Float& height)
             {
-                const ArrayView<const char> text = store.GetText(field.text);
-                const UInt32 count = CountCodePoints(text.Data(), text.Size());
-                const std::size_t byteOffset = ByteOffsetOf(text.Data(), text.Size(), ClampCaret(field, count));
-                Float caretX = 0.0f;
-                Float caretY = 0.0f;
-                if (display != nullptr && texts != nullptr
-                    && texts->GetLocalCaret(display->GetInstanceId(), UInt32(static_cast<std::uint32_t>(byteOffset)), caretX, caretY))
+                return display != nullptr && texts != nullptr
+                    && texts->GetLocalCaret(display->GetInstanceId(), UInt32(static_cast<std::uint32_t>(byteOffset)), x, y, height);
+            };
+            // `display` 의 **자식**일 때만 놓는다 - 아니면 놓지 않는다.
+            const auto childPlace = [&](Object::GameObject* object) -> Component::Transform2D*
+            {
+                return object != nullptr && displayObject != nullptr && object->GetParent() == displayObject
+                    ? canvas.FindComponentRaw<Component::Transform2D>(object) : nullptr;
+            };
+            // 선택 구간(D-355): 두 커서 자리 사이의 사각형이다. 여러 줄에 걸치면 둘러싼 사각형이다. 조합 중에는 선택이 없다.
+            if (auto* selection = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.selection))
+            {
+                Bool shown = false;
+                const Bool selected = field.focused && false == composing && field.selectionAnchor >= 0
+                    && UInt32(static_cast<std::uint32_t>(field.selectionAnchor.Get())) != caretIndex;
+                Component::Transform2D* place = childPlace(Internal::CanvasAccess::GetOwner(*selection));
+                if (selected && place != nullptr)
                 {
-                    place->position = { caretX, caretY };
+                    const UInt32 anchorIndex = UInt32(static_cast<std::uint32_t>(field.selectionAnchor.Get())) < count
+                        ? UInt32(static_cast<std::uint32_t>(field.selectionAnchor.Get())) : count;
+                    Float x1 = 0.0f;
+                    Float y1 = 0.0f;
+                    Float h1 = 0.0f;
+                    Float x2 = 0.0f;
+                    Float y2 = 0.0f;
+                    Float h2 = 0.0f;
+                    if (caretAt(ByteOffsetOf(text.Data(), text.Size(), anchorIndex), x1, y1, h1) && caretAt(caretByte, x2, y2, h2))
+                    {
+                        const Float left = x1 < x2 ? x1 : x2;
+                        const Float right = x1 < x2 ? x2 : x1;
+                        const Float top1 = y1 + h1 * 0.5f;
+                        const Float top2 = y2 + h2 * 0.5f;
+                        const Float bottom1 = y1 - h1 * 0.5f;
+                        const Float bottom2 = y2 - h2 * 0.5f;
+                        const Float top = top1 > top2 ? top1 : top2;
+                        const Float bottom = bottom1 < bottom2 ? bottom1 : bottom2;
+                        place->position = { (left + right) * 0.5f, (top + bottom) * 0.5f };
+                        selection->sizeMode = Component::SpriteSizeMode::Custom;
+                        selection->pivotMode = Component::SpritePivotMode::Custom;
+                        selection->pivot = { 0.5f, 0.5f };
+                        selection->size = { right - left, top - bottom };
+                        shown = true;
+                    }
                 }
-                else if (display != nullptr && texts != nullptr && texts->GetLocalBounds(display->GetInstanceId(), minX, minY, maxX, maxY))
+                selection->visible = shown;
+            }
+            // 커서: 포커스가 있을 때만 보이고 `blinkRate` 초마다 깜빡인다. 커서 자리는 조합 글자 뒤다. 레이아웃이 아직 없으면 오른쪽 끝이다.
+            if (auto* caret = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.caret))
+            {
+                if (false == field.focused)
                 {
-                    place->position = { maxX, (minY + maxY) * 0.5f };
+                    caret->visible = false;
+                    field.blinkTime = 0.0f;
                 }
                 else
                 {
-                    place->position = {};
+                    const Float rate = Float(std::isfinite(field.blinkRate.Get()) && field.blinkRate > 0.0f ? field.blinkRate.Get() : 0.0f);
+                    // 시계는 한 주기(켜짐 + 꺼짐) 안에 둔다 - 몇 시간을 켜 둬도 정밀도가 깎이지 않는다.
+                    field.blinkTime = rate > 0.0f ? Float(std::fmod((field.blinkTime + deltaTime).Get(), rate.Get() * 2.0f)) : Float(0.0f);
+                    caret->visible = rate <= 0.0f || field.blinkTime < rate;
+                    if (Component::Transform2D* place = childPlace(Internal::CanvasAccess::GetOwner(*caret)))
+                    {
+                        Float caretX = 0.0f;
+                        Float caretY = 0.0f;
+                        Float lineHeight = 0.0f;
+                        Float minX = 0.0f;
+                        Float minY = 0.0f;
+                        Float maxX = 0.0f;
+                        Float maxY = 0.0f;
+                        if (caretAt(caretByte + compositionBytes, caretX, caretY, lineHeight))
+                        {
+                            place->position = { caretX, caretY };
+                        }
+                        else if (display != nullptr && texts != nullptr && texts->GetLocalBounds(display->GetInstanceId(), minX, minY, maxX, maxY))
+                        {
+                            place->position = { maxX, (minY + maxY) * 0.5f };
+                        }
+                        else
+                        {
+                            place->position = {};
+                        }
+                    }
+                }
+            }
+            // IME 조합 창(D-355): 포커스 칸의 커서 자리를 화면 픽셀로 호스트에 알린다 - 호스트가 플랫폼의 조합 창을 옮기고 인라인 조합을 켠다.
+            if (field.focused && m_textInput != nullptr && displayObject != nullptr)
+            {
+                const auto* transform = canvas.FindComponentRaw<Component::Transform2D>(displayObject);
+                const Layer* layer = displayObject->GetLayer();
+                Float caretX = 0.0f;
+                Float caretY = 0.0f;
+                Float lineHeight = 0.0f;
+                if (transform != nullptr && transform->worldValid && layer != nullptr)
+                {
+                    Float topX = 0.0f;
+                    Float topY = 0.0f;
+                    Float bottomX = 0.0f;
+                    Float bottomY = 0.0f;
+                    Float topPixelX = 0.0f;
+                    Float topPixelY = 0.0f;
+                    Float bottomPixelX = 0.0f;
+                    Float bottomPixelY = 0.0f;
+                    if (caretAt(caretByte + compositionBytes, caretX, caretY, lineHeight)
+                        && Apply(transform->world, caretX, caretY + lineHeight * 0.5f, topX, topY)
+                        && Apply(transform->world, caretX, caretY - lineHeight * 0.5f, bottomX, bottomY)
+                        && LayerToPixel(*layer, { topX, topY }, topPixelX, topPixelY)
+                        && LayerToPixel(*layer, { bottomX, bottomY }, bottomPixelX, bottomPixelY))
+                    {
+                        m_textInput->SetTextInputArea(topPixelX, (topPixelY + bottomPixelY) * 0.5f, Float(std::fabs((bottomPixelY - topPixelY).Get())));
+                    }
+                    else if (LayerToPixel(*layer, transform->worldPosition, topPixelX, topPixelY))
+                    {
+                        m_textInput->SetTextInputArea(topPixelX, topPixelY, 0.0f);
+                    }
                 }
             }
         });
@@ -1254,6 +1554,14 @@ namespace JBro::System
                 SetFocus(nullptr, WidgetKind::None);
             }
             resolveFocused();
+            // 글자 칸을 누르면 누른 자리에 커서가 선다(D-355).
+            if (top.owner != nullptr && top.kind == WidgetKind::Field && top.interactable)
+            {
+                if (auto* field = m_canvas->FindComponentRaw<Component::InputField2D>(top.owner))
+                {
+                    PlaceCaretAt(*field, pointer, false);
+                }
+            }
         }
         if (pointer.pressed && top.owner != nullptr && top.interactable)
         {
@@ -1323,6 +1631,15 @@ namespace JBro::System
                     slider->changed = true;
                     CallHook(pressed, Hook::ValueChanged);
                 }
+            }
+        }
+        // 글자 칸은 쥔 동안 포인터가 가리키는 글자까지 선택이다(D-355). 스크롤 뷰 안의 글자 칸은 끌기가 스크롤이라 선택하지 않는다.
+        if (pressed != nullptr && pressedKind == WidgetKind::Field && pointer.present && pointer.down && false == pointer.pressed
+            && m_scrollCandidate == InvalidInstanceId)
+        {
+            if (auto* field = m_canvas->FindComponentRaw<Component::InputField2D>(pressed))
+            {
+                PlaceCaretAt(*field, pointer, true);
             }
         }
         // 스크롤은 쥔 동안 포인터가 간 만큼 내용이 따라온다(레이어 단위).
@@ -1583,6 +1900,14 @@ namespace JBro::System
             auto* field = focusedObject != nullptr ? m_canvas->FindComponentRaw<Component::InputField2D>(focusedObject) : nullptr;
             if (field != nullptr && field->interactable)
             {
+                // 조합 중인 글자를 떠 둔다(D-355) - 갱신 훅이 보이는 텍스트의 커서 자리에 끼운다.
+                const KeyboardState& keyboard = input.Keyboard();
+                m_compositionLength = keyboard.GetCompositionLength() < MaxTextPerFrame ? keyboard.GetCompositionLength() : MaxTextPerFrame;
+                for (UInt32 index = 0; index < m_compositionLength; ++index)
+                {
+                    m_composition[index] = keyboard.GetComposition(index);
+                }
+                field->composing = m_compositionLength > 0;
                 TypeInto(*focusedObject, *field, input);
                 usedKeyboard = true;
             }
@@ -1593,6 +1918,7 @@ namespace JBro::System
             {
                 held = 0.0f;
             }
+            m_compositionLength = 0;
         }
 
         // 6. 상태 필드와 전이. 훅이 위젯을 지웠을 수 있으니 다시 돈다.
@@ -1634,6 +1960,12 @@ namespace JBro::System
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(field);
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
             field.focused = id != InvalidInstanceId && id == m_focused && m_focusedKind == WidgetKind::Field;
+            if (false == field.focused)
+            {
+                // 포커스를 잃으면 선택도 조합도 없다.
+                field.composing = false;
+                field.selectionAnchor = -1;
+            }
         });
 
         // 7. 위젯 위거나 쥐고 있으면 그 장치를 아래에서 지운다. 입력은 막지 않는다 - UI 가 쓴 게임패드·키보드만 지운다.

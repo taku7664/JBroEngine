@@ -1,4 +1,4 @@
-#include "CatalogBuilder.h"
+﻿#include "CatalogBuilder.h"
 namespace JBro::ScriptApiCatalog2D::Internal
 {
 void AddHandles(ApiCatalog& catalog)
@@ -1060,6 +1060,30 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetCaretIndex)>("GetCaretIndex", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Int32)>(&Handle::InputField2D::SetCaretIndex)>("SetCaretIndex", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetSelectionAnchor)>("GetSelectionAnchor", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Int32, Int32)>(&Handle::InputField2D::SetSelection)>("SetSelection", Parameters(In("anchor"), In("caret")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::InputField2D::*)() const>(&Handle::InputField2D::IsComposing)>("IsComposing", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::InputField2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -1113,6 +1137,18 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::InputField2D::GetSubmitted>("submitted");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetCaretIndex, &Handle::InputField2D::SetCaretIndex>("caretIndex");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::GetSelectionAnchor>("selectionAnchor");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::InputField2D::IsComposing>("composing");
         type.Members.Add(std::move(member));
     }
     }

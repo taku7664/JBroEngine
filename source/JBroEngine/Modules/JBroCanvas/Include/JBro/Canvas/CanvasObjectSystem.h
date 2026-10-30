@@ -2,6 +2,7 @@
 
 #include <JBro/Runtime/IObjectSystem.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Float.h>
 #include <JBro/Types/String.h>
 
 namespace JBro
@@ -27,6 +28,9 @@ namespace JBro
 
         // `canvas` 가 null 이면 모든 질의가 빈 값이다. `defaultComponent` 는 `ComponentRegistry` 의 타입 이름이고 비워도 된다.
         void Bind(Canvas* canvas, const char* defaultComponent);
+        // 월드 레이어의 1 유닛이 몇 픽셀인가(D-355). 0 보다 크면 스크립트가 월드 레이어의 오브젝트에 붙인 컴포넌트의 `Pixels()` 기본값을 이것으로 나눈다
+        // (에디터의 컴포넌트 추가와 같다, D-354). 프레임워크가 에셋 타입의 기본 PPU 를 준다 - 캔버스는 그 상수를 모른다.
+        void SetWorldPixelsPerUnit(Float pixelsPerUnit);
 
         Handle::GameObject Create(const char* name, const Handle::GameObject& parent, UInt32 layer) override;
         Handle::GameObject Find(NameId name, Bool byTag) override;
@@ -44,6 +48,7 @@ namespace JBro
         void Walk(Visit&& visit);
 
         Canvas* m_canvas = nullptr;
+        Float m_worldPixelsPerUnit = 0.0f;
         String m_defaultComponent;
         Array<Object::GameObject*> m_roots;
     };

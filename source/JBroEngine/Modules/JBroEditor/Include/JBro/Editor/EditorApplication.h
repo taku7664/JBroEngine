@@ -533,6 +533,11 @@ namespace JBro
         UInt32 GetUnusableGameCameraCount() const;
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetSimulationViewExtent() const;
+        // 창 클라이언트 픽셀 → 게임 화면 픽셀의 매핑이다(D-214). 시험이 게임 화면의 한 점을 창 어디에서 눌러야 하는지 거꾸로 센다.
+        const InputSurfaceMapping& GetSimulationViewMapping() const
+        {
+            return m_simulationViewMapping;
+        }
         // 시뮬레이션 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
         // 그 패널이 포커스를 가졌는지다. 게임 입력의 마우스를 게임 화면 픽셀로 옮기는 데 쓴다(D-214).
         void ReportSimulationView(Bool focused, Float left, Float top, Float width, Float height);

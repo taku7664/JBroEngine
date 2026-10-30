@@ -1,4 +1,4 @@
-# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
+﻿# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
 
 폐기된 World/ECS 단계 기록은 [canvas-world-foundation.md](./canvas-world-foundation.md)에 남아 있다.
 이 문서는 현재 설계나 작업 지시가 아니다.
@@ -3055,6 +3055,23 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-355. 글자 칸은 누른 자리에 커서를 두고 끌어·Shift 로 고르며 Ctrl+A/C/X/V 를 호스트의 OS 클립보드로 한다. IME 조합은 플랫폼의 조합 이벤트로 받아 보이는 텍스트에만 끼우고, 게임의 글자 칸이 포커스를 가진 프레임에는 플랫폼의 조합 창을 띄우지 않는다. 스크립트가 월드 레이어에 붙이는 위젯도 픽셀 기본값을 나눈다.**
+  (2026-10-30, [ui-plan.md](./ui-plan.md) §7(3 부)·§7.1·§7.5. 사용자 지시 "C까지 ㄱㄱ. 단위작업별 커밋. 큰 기능 단위별 적대적 테스트를 포함한 검증. 사용성 평가 및 수정까지" - A·B·C 가운데 A)
+  Updates: D-354 (2)(5)(열림 다섯 - 포인터 커서·선택·커서 API·IME·스크립트 기본값 - 이 모두 섰다), D-352 (1)(커서는 늘 끝 → 누른 자리와 선택), D-214·§7.1(입력 상태에 조합 글자 `composition` 이
+  는다 - 프레임을 넘어 남는다), D-62(플랫폼 이벤트에 `CompositionBegin`·`Composition`·`CompositionEnd`).
+  (1) 포인터 → 커서는 `TextLayout::GetCaretOffsetAt`(y 로 줄, x 가 글자의 가운데를 넘으면 뒤) → `TextBlock::HitCaret` → `Text2DSystem::GetLocalCaretAt` 하나다. 레이아웃이 없으면 끝이다.
+  스크롤 뷰 안의 글자 칸은 끌기가 스크롤이라 끌어 고르지 않는다.
+  (2) 선택은 `selectionAnchor`(-1 없음)와 `caretIndex` 사이이고 `selection` 스프라이트(`display` 의 자식)를 두 커서 자리 사이로 늘린다(여러 줄은 둘러싼 사각형). 조합 중에는 선택이 없고,
+  포커스를 잃으면 선택·조합이 없다. Alt 가 같이 눌린 Ctrl(AltGr)은 단축키가 아니다. 붙여넣기는 제어 글자·깨진 바이트를 버리고 상한에서 멈춘다.
+  (3) 프레임워크는 플랫폼을 모른다 - `FrameworkContext.textInput`(`ITextInputHost`)으로 커서 자리(게임 픽셀)와 클립보드를 호스트에 넘기고, 호스트(`EngineInstance`)는 글자 칸이 포커스를 가진
+  프레임에만 `SetCompositionInline(true)` 다. 플랫폼은 인라인이면 `WM_IME_COMPOSITION` 을 `DefWindowProc` 에 넘기지 않고 결과 글자를 제가 `Text` 로 낸다(아니면 `WM_CHAR` 가 온다).
+  에디터 ImGui 의 글자 칸은 전처럼 플랫폼의 조합 창이고, ImGui 의 사설 클립보드와 OS 클립보드는 별개다.
+  (4) 픽셀 기본값 나누기는 `JBroCanvas` 의 `ScalePixelFields` 하나이고 에디터의 컴포넌트 추가와 `CanvasObjectSystem::AddComponent`(스크립트)가 같이 쓴다. 비율은 프레임워크가
+  `SetWorldPixelsPerUnit` 으로 준다(캔버스는 에셋 타입의 상수를 모른다).
+  (5) 핸들에 `GetCaretIndex`·`SetCaretIndex`·`GetSelectionAnchor`·`SetSelection`·`IsComposing`, `KeyboardState` 에 `GetCompositionLength`·`GetComposition`. 에디터에 `GetSimulationViewMapping`(시험이
+  게임 픽셀을 창 픽셀로 거꾸로 센다).
+  (6) 열림: 실제 IME 로 조합하는 모습은 Windows 메시지 길을 코드로만 확인했다 - 시험은 이벤트를 플랫폼의 자리에 바로 넣는다(시나리오 E). 더블 클릭 단어 선택·Ctrl+Z 는 없다.
 
 - **D-354. 쥔 키·십자키·스틱은 UI 시스템이 쥔 시간으로 되풀이한다(지연 0.4 초, 글자 키 0.05 초·탐색 0.1 초). 글자 칸의 커서(`caretIndex`)는 옮기고 그 자리에 끼우고 지운다. `Pixels()` 필드의 기본값은 에디터가 월드 레이어에 맨 컴포넌트를 붙일 때 PPU 로 나눈다. 새 에디터는 앞선 로그의 스크립트 오류를 알리지 않는다.**
   (2026-10-30, [ui-plan.md](./ui-plan.md) §6.6. 사용자 지시 "남은거 작업 ㄱ" - D-353 이 남긴 것을 모두 처리)

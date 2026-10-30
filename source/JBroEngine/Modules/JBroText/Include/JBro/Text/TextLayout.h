@@ -158,6 +158,12 @@ namespace JBro::Text
         // **커서 자리**(D-354). UTF-8 바이트 위치 `byteOffset` 앞에 서는 커서의 x 와 그 줄의 세로 가운데 y(픽셀, 정렬 기준점 원점, y 위쪽)다.
         // 글자 사이는 그 글자의 왼쪽(공백·탭도 글자다), 글자 끝은 마지막 글자의 전진 폭 끝이다. 레이아웃이 없으면 거짓이다.
         Bool GetCaretPosition(UInt32 byteOffset, Float& x, Float& y) const;
+        // 같은 것에 그 줄의 높이(픽셀)를 더 준다 - 선택 사각형의 높이다(D-355).
+        Bool GetCaretPosition(UInt32 byteOffset, Float& x, Float& y, Float& lineHeight) const;
+        // **자리 → 커서**(D-355). 레이아웃 좌표(정렬 기준점 원점, y 위쪽)의 점이 가리키는 커서의 바이트 위치다. y 로 줄을 고르고(첫 줄 위는 첫 줄,
+        // 마지막 줄 아래는 마지막 줄), 그 줄에서 x 가 글자의 가운데를 넘으면 그 글자의 뒤다. 줄 끝 뒤는 그 줄의 끝(개행 앞, 접힌 줄은 다음 줄의 머리)이다.
+        // 결합 표시는 제 받침과 한 글자다. 레이아웃이 없으면 거짓이다.
+        Bool GetCaretOffsetAt(Float x, Float y, UInt32& byteOffset) const;
 
         // 블록 사각형이다(정렬 기준점 기준 픽셀). 에디터의 선택과 컬링이 쓴다.
         Float GetMinX() const;

@@ -122,6 +122,8 @@ JBroHost                 EngineInstance 가 InputSystem 을 소유하고(Project
   `IsPressed` 와 `IsReleased` 가 **둘 다 참**이다. prev/current 비교로는 이것을 나타낼 수 없다.
 - 자동 반복(`repeat = true`)은 눌림 수에 넣지 않는다. 텍스트 칸이 필요로 하는 글자의 반복은 `Text` 이벤트가 따로 준다. 키(Backspace·화살표)와 십자키·스틱의 반복은
   UI 시스템(`Button2DSystem`)이 쥔 시간으로 한다(D-354) - 상태에 반복 수를 두지 않는다.
+- IME 조합 글자(플랫폼의 `CompositionBegin`·`Composition`·`CompositionEnd`)는 `composition` 에 접혀 **프레임을 넘어 남고**, 새 시작이 바꾸며 끝·포커스 잃음이 비운다(D-355).
+  결과 글자는 전처럼 `Text` 다.
 - `FocusLost` 는 눌린 것을 **모두 뗀 것으로** 접는다(그 프레임에 `IsReleased` 가 참). 기존처럼 조용히 지우면 "떼면 멈춘다" 를
   기다리는 스크립트가 영영 멈추지 못한다. `FocusGained` 는 아무것도 누르지 않은 상태에서 시작한다.
 - 마우스 위치는 `float` 게임 화면 픽셀, 이동량은 이벤트 합이다(P8). 휠은 칸 수의 합이다.
