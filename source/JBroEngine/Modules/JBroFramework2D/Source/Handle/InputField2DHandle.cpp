@@ -37,6 +37,7 @@ namespace JBro::Handle
     JBRO_INPUTFIELD2D_ACCESSOR(Bool, GetInteractable, SetInteractable, interactable)
     JBRO_INPUTFIELD2D_ACCESSOR(Text2D, GetDisplay, SetDisplay, display)
     JBRO_INPUTFIELD2D_ACCESSOR(SpriteRenderer2D, GetCaret, SetCaret, caret)
+    JBRO_INPUTFIELD2D_ACCESSOR(SpriteRenderer2D, GetComposition, SetComposition, composition)
     JBRO_INPUTFIELD2D_ACCESSOR(Int32, GetMaxLength, SetMaxLength, maxLength)
     JBRO_INPUTFIELD2D_ACCESSOR(Float, GetBlinkRate, SetBlinkRate, blinkRate)
     JBRO_INPUTFIELD2D_ACCESSOR(Bool, GetFocused, SetFocused, focused)

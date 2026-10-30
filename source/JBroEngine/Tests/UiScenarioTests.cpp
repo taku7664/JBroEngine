@@ -978,6 +978,9 @@ namespace
         Object::GameObject* highlight = stage.Make("highlight", {}, label);
         auto* highlightSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(highlight);
         field->selection = highlight->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
+        Object::GameObject* underline = stage.Make("underline", {}, label);
+        auto* underlineSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(underline);
+        field->composition = underline->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
         stage.Frames(2);
         stage.Frame({MouseAt(100.0f, 80.0f), HeldButton(MouseButton::Left)});
         stage.Frame({Released(MouseButton::Left)});
@@ -986,6 +989,15 @@ namespace
             "a focused field tells the host where its text is, in screen pixels");
         stage.Frame({Typed('a'), Typed('b'), Typed('c'), Typed('d'), Typed('e'), Typed('f')});
         Check(TextIs(field->text, "abcdef") && field->caretIndex == 6, "typing fills the field");
+        // 되돌리기(D-361): Ctrl+Z 가 마지막 고치기 전으로, 다시 누르면 다시 한다. 고친 적이 없으면 아무것도 아니다.
+        Check(field->undoValid && TextIs(field->undoText, "") && field->undoCaret == 0, "the edit kept the text before it");
+        stage.Frame({PressedWith(Key::Z, KeyModifierControl)});
+        Check(TextIs(field->text, "") && field->caretIndex == 0 && field->changed, "ctrl+z undoes the last edit");
+        stage.Frame({ReleasedKey(Key::Z), PressedWith(Key::Z, KeyModifierControl)});
+        Check(TextIs(field->text, "abcdef") && field->caretIndex == 6, "ctrl+z again redoes it with the caret where it was");
+        stage.Frame({ReleasedKey(Key::Z), Pressed(Key::End)});
+        stage.Frame({ReleasedKey(Key::End)});
+        Check(field->caretIndex == 6, "end goes back to the end");
 
         // Shift+← 둘: 선택 [4, 6). 글자가 오면 선택을 대신한다.
         stage.Frame({PressedWith(Key::Left, KeyModifierShift)});
@@ -1060,6 +1072,7 @@ namespace
         stage.Frame({Composition(InputEventKind::CompositionEnd), Typed(0xAC00)});
         Check(false == field->composing && TextIs(field->text, "xy\xEA\xB0\x80") && TextIs(text->text, "xy\xEA\xB0\x80") && field->caretIndex == 3,
             "the finished character is stored and the display matches");
+        Check(false == underlineSprite->visible, "without a layout the composition underline stays hidden");
         stage.Frame({Pressed(Key::Home)});
         stage.Frame({ReleasedKey(Key::Home), Composition(InputEventKind::CompositionBegin), Composition(InputEventKind::Composition, 0x3134)});
         Check(TextIs(text->text, "\xE3\x84\xB4xy\xEA\xB0\x80") && TextIs(field->text, "xy\xEA\xB0\x80"), "the composition sits at the caret, not at the end");
@@ -1079,6 +1092,34 @@ namespace
         stage.Frame({MouseAt(NaN, NaN), HeldButton(MouseButton::Left)});
         stage.Frame({Released(MouseButton::Left)});
         Check(field->caretIndex == 3 && Finite(stage.PlaceOf(highlight)->position), "a NaN press leaves the caret and the highlight finite");
+        // 더블 클릭(D-361): 레이아웃이 없어 커서는 끝이다 - 끝의 단어(공백 뒤)를 고른다. 0.3 초가 지난 두 번째 누름은 더블 클릭이 아니다.
+        TextStore::Get().Assign(field->text, "ab cd", 5);
+        field->caretIndex = 5;
+        stage.Frame({MouseAt(100.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(field->caretIndex == 5 && field->selectionAnchor == -1, "the first press only places the caret");
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Check(field->caretIndex == 5 && field->selectionAnchor == 3, "the second press right after selects the word at the caret");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frames(20);
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Check(field->selectionAnchor == -1, "a press a third of a second later is a single press again");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(104.0f, 83.0f), HeldButton(MouseButton::Left)});
+        Check(field->selectionAnchor == 3, "a second press within four pixels still counts");
+        stage.Frame({Released(MouseButton::Left)});
+        TextStore::Get().Assign(field->text, "ab ", 3);
+        field->caretIndex = 3;
+        stage.Frames(20);
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Check(field->selectionAnchor == -1, "a double click on a space selects nothing");
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({Typed('q')});
+        stage.Frame({PressedWith(Key::Z, KeyModifierControl)});
+        Check(TextIs(field->text, "ab ") && field->caretIndex == 3, "undo after a typed character restores the text");
+        stage.Frame({ReleasedKey(Key::Z)});
     }
 
     // **스크립트가 만드는 위젯과 커서 API**(D-355). 월드 레이어에 붙인 위젯은 픽셀 기본값을 유닛으로 나눈다. 핸들로 커서·선택을 쓴다.

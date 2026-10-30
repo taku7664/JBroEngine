@@ -63,6 +63,9 @@ namespace JBro::Handle
         void SetDisplay(Text2D value);
         SpriteRenderer2D GetCaret() const;
         void SetCaret(SpriteRenderer2D value);
+        // 조합 중인 글자의 밑줄 스프라이트다(D-361).
+        SpriteRenderer2D GetComposition() const;
+        void SetComposition(SpriteRenderer2D value);
         Int32 GetMaxLength() const;
         void SetMaxLength(Int32 value);
         Float GetBlinkRate() const;

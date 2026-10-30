@@ -1490,6 +1490,16 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Handle::SpriteRenderer2D (Handle::InputField2D::*)() const>(&Handle::InputField2D::GetComposition)>("GetComposition", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::InputField2D::*)(Handle::SpriteRenderer2D)>(&Handle::InputField2D::SetComposition)>("SetComposition", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::InputField2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }

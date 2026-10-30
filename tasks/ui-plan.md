@@ -609,3 +609,11 @@
    - 정한 것: 끌리는 동안 지워진 오브젝트는 핸들이 풀리지 않아 건너뛴다.
 2. ~~**가변 목록은 늘어난 항목만 잰다**~~ → 완료 2026-10-30 · `Layout2DSystem` 의 재기 앞에 `known`(= `remeasure` 아님·`measuredCount` 가 끝 배열 길이·0 아님): 줄면 `Resize`, 늘면 끝에서 이어 잰다.
    - **잰 것**: `Layout2D` `TestListItemsCanVaryInSize` - 6 → 4 는 재지 않고 내용 80, 4 → 7 은 셋만 재고(마지막 번호 6) 내용 130, 7 → 4 는 재지 않고 80, `remeasure` 는 넷 모두(13).
+3. ~~**글자 칸 셋**~~ → 완료 2026-10-30 · `InputField2D.composition`(스프라이트, `display` 의 자식)은 `PlaceWidgets` 가 조합 구간([커서, 커서 + 조합 바이트))의 아래에 글자 높이의 1/10 두께로 늘린다.
+   더블 클릭은 `Button2DSystem` 의 시계(`m_clock`, 지난 델타의 합)로 - 같은 칸을 `DoubleClickTime` 0.3 초 안·`DoubleClickDistance` 4 픽셀 안에서 다시 누르면 `SelectWordAtCaret`(공백이 아닌 글자의
+   이어짐; 커서가 공백이면 없음). 되돌리기는 `undoText`·`undoCaret`·`undoValid`(Hidden): `TypeInto`·`EditField` 가 글자를 쓰기 직전에 `KeepUndo` 로 떠 두고, Ctrl+Z 가 떠 둔 글자를 지금 것으로 쓰며
+   그때 지금 것이 다시 떠 둔 것이 된다(다시 누르면 다시 하기). 핸들 `GetComposition`·`SetComposition`. `OnDetached` 가 `undoText` 도 지운다.
+   - **잰 것**: `UiScenario` `TestSelectionClipboardAndComposition` - 여섯 글자 뒤 떠 둔 것은 빈 글자·커서 0, Ctrl+Z 가 비우고 다시 누르면 `abcdef` 에 커서 6, 레이아웃 없는 밑줄은 숨김,
+     `ab cd` 끝을 두 번 누르면 [3, 5), 0.33 초 뒤의 누름은 한 번 누름, 4 픽셀 안은 더블 클릭, 공백에서는 없음, 글자 한 자 뒤의 Ctrl+Z. `UserScenario` 시나리오 E - 조합 `한` 아래에 밑줄이
+     늘어난다(폭 > 10, 두께 > 1, 스크린숏 e01 을 봤다 - 글자 아래 주황 선).
+   - 정한 것: 되돌리기는 한 단계다(둘째 Ctrl+Z 는 다시 하기). 더블 클릭은 단어까지다(세 번은 없다). 밑줄의 두께는 글자 높이의 1/10 이고 색·그림은 사용자의 스프라이트다.

@@ -56,7 +56,7 @@ namespace
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
         Check(Table("Component::Button2D").count == 25,
             "Button2D declares twenty-five fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, two sound pairs of D-358, four states and the swap latch");
-        Check(Table("Component::InputField2D").count == 34, "InputField2D declares thirty-four fields - the rect, interactable, the transition set of D-355 (twelve), text, display, caret, selection, maxLength, blinkRate, five states, the caret index, the selection anchor, composing and five hidden values (D-352, D-354, D-355)");
+        Check(Table("Component::InputField2D").count == 38, "InputField2D declares thirty-eight fields - the rect, interactable, the transition set of D-355 (twelve), text, display, caret, selection, maxLength, blinkRate, five states, the caret index, the selection anchor, composing and five hidden values (D-352, D-354, D-355), the composition underline and the undo text, caret and flag (D-361)");
         Check(Table("Component::ToggleGroup2D").count == 2, "ToggleGroup2D declares two fields - allowOff and the value state (D-355)");
         Check(Table("Component::Dropdown2D").count == 28, "Dropdown2D declares twenty-eight fields - the rect, interactable, the transition set (twelve), list, caption, value, six states, two shown values and the swap latch (D-355, D-360)");
         Check(Table("Component::Layout2D").count == 9, "Layout2D declares nine fields - mode, cell, spacing, padding, columns, pivot, fitChildren and the block size (D-352, D-355)");

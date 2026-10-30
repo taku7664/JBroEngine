@@ -1130,6 +1130,7 @@ namespace JBro::System
         m_textScratch.assign(current.Data() != nullptr ? current.Data() : "", current.Size());
         UInt32 count = CountCodePoints(m_textScratch);
         UInt32 caret = ClampCaret(field, count);
+        const UInt32 caretBefore = caret;
         Bool changed = false;
         // 선택이 있으면 먼저 지운다 - 글자는 그 자리에, 지우기는 그것으로 끝이다.
         const Int32 anchor = field.selectionAnchor;
@@ -1184,6 +1185,9 @@ namespace JBro::System
         field.blinkTime = 0.0f;
         if (changed)
         {
+            // 고치기 전 글자를 떠 둔다(D-361) - Ctrl+Z 한 단계.
+            m_undoScratch.assign(current.Data() != nullptr ? current.Data() : "", current.Size());
+            KeepUndo(field, m_undoScratch.data(), m_undoScratch.size(), caretBefore);
             store.Assign(field.text, m_textScratch.data(), m_textScratch.size());
             field.changed = true;
             CallHook(&owner, Hook::ValueChanged);
@@ -1326,6 +1330,56 @@ namespace JBro::System
         }
         field.caretIndex = index;
         field.blinkTime = 0.0f;
+    }
+
+    void Button2DSystem::SelectWordAtCaret(Component::InputField2D& field)
+    {
+        const ArrayView<const char> text = TextStore::Get().GetText(field.text);
+        const char* data = text.Data();
+        const std::size_t size = text.Size();
+        if (data == nullptr || size == 0)
+        {
+            return;
+        }
+        const UInt32 count = CountCodePoints(data, size);
+        const UInt32 caret = ClampCaret(field, count);
+        const auto isSpace = [](UInt32 codePoint) { return codePoint == 0x20 || codePoint == 0x09 || codePoint == 0x0A || codePoint == 0x0D || codePoint == 0x3000; };
+        const auto codePointAt = [&](UInt32 index, UInt32& codePoint) -> Bool
+        {
+            if (index >= count)
+            {
+                return false;
+            }
+            std::size_t length = 0;
+            return DecodeCodePoint(data, size, ByteOffsetOf(data, size, index), codePoint, length);
+        };
+        // 커서 양쪽을 본다 - 왼쪽 글자가 단어면 거기서, 아니면 오른쪽 글자가 단어여야 한다.
+        UInt32 probe = 0;
+        UInt32 begin = caret;
+        UInt32 end = caret;
+        while (begin > 0 && codePointAt(begin - 1, probe) && false == isSpace(probe))
+        {
+            --begin;
+        }
+        while (end < count && codePointAt(end, probe) && false == isSpace(probe))
+        {
+            ++end;
+        }
+        if (end == begin)
+        {
+            return;
+        }
+        field.selectionAnchor = Int32(static_cast<std::int32_t>(begin.Get()));
+        field.caretIndex = Int32(static_cast<std::int32_t>(end.Get()));
+        m_fieldPressCaret = field.selectionAnchor;
+        field.blinkTime = 0.0f;
+    }
+
+    void Button2DSystem::KeepUndo(Component::InputField2D& field, const char* utf8, std::size_t size, UInt32 caret)
+    {
+        TextStore::Get().Assign(field.undoText, utf8 != nullptr ? utf8 : "", size);
+        field.undoCaret = Int32(static_cast<std::int32_t>(caret.Get()));
+        field.undoValid = true;
     }
 
     Bool Button2DSystem::Repeats(Bool down, Bool pressed, Float& held, Float interval)
@@ -1546,11 +1600,21 @@ namespace JBro::System
         const Bool shift = (keyboard.modifiers & KeyModifierShift) != 0;
         // Alt 가 같이 눌린 Ctrl 은 AltGr 이라 글자다 - 단축키가 아니다.
         const Bool control = (keyboard.modifiers & KeyModifierControl) != 0 && (keyboard.modifiers & KeyModifierAlt) == 0;
-        // Ctrl 단축키(D-355): A 전부, C 복사, X 잘라내기, V 붙여넣기. 클립보드는 호스트의 것이고 없으면 비어 있다.
+        // Ctrl 단축키(D-355): A 전부, C 복사, X 잘라내기, V 붙여넣기. 클립보드는 호스트의 것이고 없으면 비어 있다. Z 는 되돌리기 한 단계다(D-361) - 떠 둔 글자와 지금 것을 바꾼다.
         if (control && keyboard.IsPressed(Key::A))
         {
             anchor = 0;
             caret = count;
+        }
+        if (control && keyboard.IsPressed(Key::Z) && field.undoValid)
+        {
+            const ArrayView<const char> undo = store.GetText(field.undoText);
+            m_textScratch.assign(undo.Data() != nullptr ? undo.Data() : "", undo.Size());
+            count = CountCodePoints(m_textScratch);
+            const Int32 wanted = field.undoCaret < 0 ? Int32(0) : field.undoCaret;
+            caret = UInt32(static_cast<std::uint32_t>(wanted.Get())) < count ? UInt32(static_cast<std::uint32_t>(wanted.Get())) : count;
+            anchor = -1;
+            changed = true;
         }
         if (control && (keyboard.IsPressed(Key::C) || keyboard.IsPressed(Key::X)) && hasSelection())
         {
@@ -1702,6 +1766,9 @@ namespace JBro::System
         }
         if (changed)
         {
+            // 고치기 전 글자를 떠 둔다(D-361) - Ctrl+Z 한 단계.
+            m_undoScratch.assign(current.Data() != nullptr ? current.Data() : "", current.Size());
+            KeepUndo(field, m_undoScratch.data(), m_undoScratch.size(), caretBefore);
             store.Assign(field.text, m_textScratch.data(), m_textScratch.size());
             field.changed = true;
             CallHook(&owner, Hook::ValueChanged);
@@ -2059,6 +2126,37 @@ namespace JBro::System
                 }
                 selection->visible = shown;
             }
+            // 조합 밑줄(D-361): 조합 글자 구간 아래의 선이다. 조합이 없거나 레이아웃이 없으면 숨긴다.
+            if (auto* underline = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.composition))
+            {
+                Bool shown = false;
+                Component::Transform2D* place = childPlace(Internal::CanvasAccess::GetOwner(*underline));
+                Float x1 = 0.0f;
+                Float y1 = 0.0f;
+                Float h1 = 0.0f;
+                Float x2 = 0.0f;
+                Float y2 = 0.0f;
+                Float h2 = 0.0f;
+                if (composing && compositionBytes > 0 && place != nullptr && caretAt(caretByte, x1, y1, h1) && caretAt(caretByte + compositionBytes, x2, y2, h2))
+                {
+                    const Float left = x1 < x2 ? x1 : x2;
+                    const Float right = x1 < x2 ? x2 : x1;
+                    const Float bottom1 = y1 - h1 * 0.5f;
+                    const Float bottom2 = y2 - h2 * 0.5f;
+                    const Float bottom = bottom1 < bottom2 ? bottom1 : bottom2;
+                    const Float thickness = (h1 > h2 ? h1 : h2) * 0.1f;
+                    if (right > left && thickness > 0.0f)
+                    {
+                        place->position = { (left + right) * 0.5f, bottom + thickness * 0.5f };
+                        underline->sizeMode = Component::SpriteSizeMode::Custom;
+                        underline->pivotMode = Component::SpritePivotMode::Custom;
+                        underline->pivot = { 0.5f, 0.5f };
+                        underline->size = { right - left, thickness };
+                        shown = true;
+                    }
+                }
+                underline->visible = shown;
+            }
             // 커서: 포커스가 있을 때만 보이고 `blinkRate` 초마다 깜빡인다. 커서 자리는 조합 글자 뒤다. 레이아웃이 아직 없으면 오른쪽 끝이다.
             if (auto* caret = Internal::ComponentHandleAccess::ResolveAs<Component::SpriteRenderer2D>(field.caret))
             {
@@ -2192,6 +2290,7 @@ namespace JBro::System
         }
         const Pointer pointer = ReadPointer(input);
         m_pointer = pointer;
+        m_clock = m_clock + m_frameDelta;
 
         // 모달(D-357): 켜진 것이 있으면 그 안의 위젯만 후보이고, 게임까지 막는 것이 있으면 이번 프레임의 장치를 모두 지운다.
         m_modalActive = false;
@@ -2449,12 +2548,27 @@ namespace JBro::System
                 SetFocus(nullptr, WidgetKind::None);
             }
             resolveFocused();
-            // 글자 칸을 누르면 누른 자리에 커서가 선다(D-355).
+            // 글자 칸을 누르면 누른 자리에 커서가 선다(D-355). 같은 칸을 바로 다시 누르면(더블 클릭) 그 자리의 단어를 고른다(D-361).
             if (top.owner != nullptr && top.kind == WidgetKind::Field && top.interactable)
             {
                 if (auto* field = m_canvas->FindComponentRaw<Component::InputField2D>(top.owner))
                 {
                     PlaceCaretAt(*field, pointer, false);
+                    const InstanceId id = top.owner->GetInstanceId();
+                    const Bool again = id == m_lastFieldPress && m_clock - m_lastFieldPressTime <= DoubleClickTime
+                        && std::fabs(pointer.x - m_lastFieldPressX) <= DoubleClickDistance && std::fabs(pointer.y - m_lastFieldPressY) <= DoubleClickDistance;
+                    if (again)
+                    {
+                        SelectWordAtCaret(*field);
+                        m_lastFieldPress = InvalidInstanceId;
+                    }
+                    else
+                    {
+                        m_lastFieldPress = id;
+                        m_lastFieldPressTime = m_clock;
+                        m_lastFieldPressX = pointer.x;
+                        m_lastFieldPressY = pointer.y;
+                    }
                 }
             }
             // 열린 드롭다운은 제 사각형·목록 밖을 누르면 접힌다(D-355).

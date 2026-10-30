@@ -82,6 +82,9 @@ namespace JBro::System
         static constexpr Float RepeatDelay = 0.4f;
         static constexpr Float KeyRepeatInterval = 0.05f;
         static constexpr Float NavigateRepeatInterval = 0.1f;
+        // 더블 클릭(D-361): 같은 글자 칸을 이 시간 안에 이 거리(게임 화면 픽셀) 안에서 다시 누르면 단어 선택이다.
+        static constexpr Float DoubleClickTime = 0.3f;
+        static constexpr Float DoubleClickDistance = 4.0f;
 
         Int32 GetExecutionOrder() const override;
 
@@ -182,6 +185,10 @@ namespace JBro::System
         void TypeInto(Object::GameObject& owner, Component::InputField2D& field, InputView& input);
         // 포인터가 가리키는 글자에 커서를 놓는다(D-355). `extend` 면 누른 자리(`m_fieldPressCaret`)부터 선택이다. 레이아웃이 없으면 글자 끝이다.
         void PlaceCaretAt(Component::InputField2D& field, const Pointer& pointer, Bool extend);
+        // 커서 자리의 단어(공백이 아닌 글자의 이어짐)를 고른다(D-361, 더블 클릭). 커서가 공백에 있으면 아무것도 고르지 않는다.
+        void SelectWordAtCaret(Component::InputField2D& field);
+        // 글자를 고치기 전의 글자·커서를 떠 둔다(D-361, Ctrl+Z 한 단계).
+        void KeepUndo(Component::InputField2D& field, const char* utf8, std::size_t size, UInt32 caret);
         // 쥔 키·버튼의 자동 반복이다. 이번 프레임에 눌렀으면 참이고 시간을 처음부터 세며, 쥐고 있으면 `RepeatDelay` 뒤 `interval` 마다 참이다.
         Bool Repeats(Bool down, Bool pressed, Float& held, Float interval);
         // 포커스 위젯의 자리(화면 픽셀)다. 없으면 거짓이다.
@@ -218,6 +225,12 @@ namespace JBro::System
         Bool             m_modalBlocks = false;
         // 누른 자리의 커서(끌어 선택의 기준)와 이번 프레임에 떠 둔 IME 조합 글자다(D-355).
         Int32            m_fieldPressCaret = 0;
+        // 더블 클릭(D-361): 입력 체인의 시계(지난 갱신 델타의 합)와 마지막으로 누른 글자 칸·때·자리.
+        Float            m_clock = 0.0f;
+        InstanceId       m_lastFieldPress = InvalidInstanceId;
+        Float            m_lastFieldPressTime = 0.0f;
+        Float            m_lastFieldPressX = 0.0f;
+        Float            m_lastFieldPressY = 0.0f;
         UInt32           m_compositionLength = 0;
         UInt32           m_composition[MaxTextPerFrame] = {};
         ITextInputHost*  m_textInput = nullptr;
@@ -243,5 +256,6 @@ namespace JBro::System
         // 글자를 고치는 자리와 붙여넣기로 읽은 클립보드다. 멤버로 두어 프레임마다 할당하지 않는다.
         String                       m_textScratch;
         String                       m_clipScratch;
+        String                       m_undoScratch;
     };
 }

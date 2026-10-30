@@ -18434,6 +18434,11 @@ namespace
         highlightSprite->tint = {0.3f, 0.5f, 1.0f, 0.6f};
         highlightSprite->renderOrder = 1;
         field->selection = highlightObject->GetScriptHandle().GetComponent<JBro::Handle::SpriteRenderer2D>();
+        JBro::Object::GameObject* underlineObject = make("underline", {}, label);
+        auto* underlineSprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(underlineObject);
+        underlineSprite->tint = {1.0f, 0.4f, 0.2f, 1.0f};
+        underlineSprite->renderOrder = 3;
+        field->composition = underlineObject->GetScriptHandle().GetComponent<JBro::Handle::SpriteRenderer2D>();
         JBro::EditorPanel* game = editor.FindPanel("Simulation");
         Check(game != nullptr, "the simulation view is a default panel");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
@@ -18453,6 +18458,7 @@ namespace
         JBro::Component::InputField2D* playingField = nullptr;
         JBro::Component::Text2D* playingText = nullptr;
         JBro::Component::SpriteRenderer2D* playingHighlight = nullptr;
+        JBro::Component::SpriteRenderer2D* playingUnderline = nullptr;
         JBro::Layer* playingHud = nullptr;
         playing->ForEach<JBro::Component::InputField2D>([&](JBro::Component::InputField2D& each) { playingField = &each; });
         playing->ForEach<JBro::Component::Text2D>([&](JBro::Component::Text2D& each) { playingText = &each; });
@@ -18460,6 +18466,10 @@ namespace
             if (each.renderOrder == 1)
             {
                 playingHighlight = &each;
+            }
+            if (each.renderOrder == 3)
+            {
+                playingUnderline = &each;
             }
         });
         Check(playingField != nullptr && playingText != nullptr && playingHighlight != nullptr, "the playing canvas has the field, its text and the highlight");
@@ -18552,6 +18562,9 @@ namespace
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the composition reaches the game");
         Check(playingField->composing && textOf(playingField->text) == "Hello" && textOf(playingText->text) == "Hello\xED\x95\x9C",
             "the composed syllable shows after the caret but is not stored");
+        Check(playingUnderline != nullptr && playingUnderline->visible && playingUnderline->size.x > 10.0f && playingUnderline->size.y > 1.0f
+                && playingUnderline->size.y < playingUnderline->size.x,
+            "the composition underline is stretched under the composed syllable (D-361)");
         ScenarioShot(editor, "e01_composing");
         record(JBro::InputEventKind::CompositionEnd, JBro::Key::Unknown, 0, JBro::KeyModifierNone);
         record(JBro::InputEventKind::Text, JBro::Key::Unknown, 0xD55C, JBro::KeyModifierNone);
