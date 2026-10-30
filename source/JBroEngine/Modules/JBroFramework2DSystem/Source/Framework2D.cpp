@@ -98,6 +98,12 @@ namespace JBro
             m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
             m_postProcess.Initialize(context.assets, context.renderer, &m_materials);
             m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
+            m_cameraMixers.Reserve(MaxCameraMixers);
+            for (UInt32 index = 0; index < MaxCameraMixers; ++index)
+            {
+                PostProcessMixer& mixer = m_cameraMixers.Add(PostProcessMixer{});
+                mixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
+            }
             m_volumes.Reserve(MaxVolumes);
             m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
             m_postProcessSystem.Bind(&m_postMixer);
@@ -271,6 +277,50 @@ namespace JBro
         ResolvePostProcess();
     }
 
+    void Framework2D::MixPostProcessFor(const RenderCamera2D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom)
+    {
+        // 카메라의 프로필이 기준이고, 카메라 자리의 볼륨을 우선순위가 낮은 것부터 섞은 뒤 스크립트의 덮어쓰기를 얹는다(D-346).
+        mixer.Begin(m_postProcess.Resolve(camera.postProcessProfile));
+        m_volumes.Clear();
+        Canvas& canvas = *m_canvas;
+        canvas.ForEach<Component::PostProcessVolume2D>([&](Component::PostProcessVolume2D& volume) {
+            if (false == volume.IsActiveComponent() || volume.postProcessProfile.generation == 0)
+            {
+                return;
+            }
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(volume);
+            const auto* transform = canvas.FindComponentRaw<Component::Transform2D>(owner);
+            const Bool placed = transform != nullptr && transform->IsActiveComponent() && transform->worldValid;
+            const Float weight = ComputePostProcessVolumeWeight2D(volume, placed ? transform : nullptr, camera.position);
+            if (weight <= 0.0f || m_volumes.Size() >= m_volumes.Capacity())
+            {
+                return;
+            }
+            m_volumes.Add({volume.priority, weight, volume.postProcessProfile});
+        });
+        // 우선순위가 같으면 캔버스의 차례 그대로다(안정 정렬). 볼륨은 몇 개뿐이라 끼워 넣기로 한다.
+        for (std::size_t at = 1; at < m_volumes.Size(); ++at)
+        {
+            const VolumeSample moving = m_volumes[at];
+            std::size_t to = at;
+            while (to > 0 && m_volumes[to - 1].priority > moving.priority)
+            {
+                m_volumes[to] = m_volumes[to - 1];
+                --to;
+            }
+            m_volumes[to] = moving;
+        }
+        for (const VolumeSample& sample : m_volumes)
+        {
+            mixer.Blend(m_postProcess.ResolveProfile(sample.profile), sample.weight);
+        }
+        if (overridesFrom != nullptr)
+        {
+            mixer.CopyOverridesFrom(*overridesFrom);
+        }
+        mixer.ApplyOverrides();
+    }
+
     void Framework2D::ResolvePostProcess()
     {
         // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다. 카메라가 없으면 후처리도 없다.
@@ -278,46 +328,27 @@ namespace JBro
         if (camera == nullptr)
         {
             m_renderWorld.SetPostProcess({});
+            m_renderWorld.SetCameraPostProcessCount(0);
         }
         else
         {
-            // 카메라의 프로필이 기준이고, 카메라 자리의 볼륨을 우선순위가 낮은 것부터 섞은 뒤 스크립트의 덮어쓰기를 얹는다(D-346).
-            m_postMixer.Begin(m_postProcess.Resolve(camera->postProcessProfile));
-            m_volumes.Clear();
-            Canvas& canvas = *m_canvas;
-            canvas.ForEach<Component::PostProcessVolume2D>([&](Component::PostProcessVolume2D& volume) {
-                if (false == volume.IsActiveComponent() || volume.postProcessProfile.generation == 0)
-                {
-                    return;
-                }
-                Object::GameObject* owner = Internal::CanvasAccess::GetOwner(volume);
-                const auto* transform = canvas.FindComponentRaw<Component::Transform2D>(owner);
-                const Bool placed = transform != nullptr && transform->IsActiveComponent() && transform->worldValid;
-                const Float weight = ComputePostProcessVolumeWeight2D(volume, placed ? transform : nullptr, camera->position);
-                if (weight <= 0.0f || m_volumes.Size() >= m_volumes.Capacity())
-                {
-                    return;
-                }
-                m_volumes.Add({volume.priority, weight, volume.postProcessProfile});
-            });
-            // 우선순위가 같으면 캔버스의 차례 그대로다(안정 정렬). 볼륨은 몇 개뿐이라 끼워 넣기로 한다.
-            for (std::size_t at = 1; at < m_volumes.Size(); ++at)
-            {
-                const VolumeSample moving = m_volumes[at];
-                std::size_t to = at;
-                while (to > 0 && m_volumes[to - 1].priority > moving.priority)
-                {
-                    m_volumes[to] = m_volumes[to - 1];
-                    --to;
-                }
-                m_volumes[to] = moving;
-            }
-            for (const VolumeSample& sample : m_volumes)
-            {
-                m_postMixer.Blend(m_postProcess.ResolveProfile(sample.profile), sample.weight);
-            }
-            m_postMixer.ApplyOverrides();
+            MixPostProcessFor(*camera, m_postMixer, nullptr);
             m_renderWorld.SetPostProcess(m_postMixer.GetResult());
+            // 분할 화면(D-361): 그릴 카메라마다 제 프로필과 제 자리의 볼륨으로 섞는다. 주 카메라는 위의 것이고, 자리를 넘는 카메라는 주 카메라의 것을 받는다.
+            const ArrayView<const RenderCamera2D> cameras = m_renderWorld.GetCameras();
+            const std::size_t count = cameras.Size() < m_cameraMixers.Size() ? static_cast<std::size_t>(cameras.Size()) : m_cameraMixers.Size();
+            m_renderWorld.SetCameraPostProcessCount(count);
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                const RenderCamera2D& each = cameras[static_cast<UInt32>(index)];
+                if (each.owner == camera->owner)
+                {
+                    m_renderWorld.SetCameraPostProcess(index, m_postMixer.GetResult());
+                    continue;
+                }
+                MixPostProcessFor(each, m_cameraMixers[index], &m_postMixer);
+                m_renderWorld.SetCameraPostProcess(index, m_cameraMixers[index].GetResult());
+            }
         }
         // 레이어의 프로필(D-345)은 차례 자리에 건다. 처음 보는 프로필만 싣는다.
         const std::size_t layerCount = m_canvas->GetLayerCount();

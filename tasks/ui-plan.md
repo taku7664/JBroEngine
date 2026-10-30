@@ -621,3 +621,9 @@
    본다 - 포커스 탐색·게임패드는 전처럼 `interactable` 만 본다. 핸들 `GetBlocksRaycasts`·`SetBlocksRaycasts`.
    - **잰 것**: `UiScenario` `TestSafeAreaGroupsKeyboardAndLinks` - 거짓이면 누름이 게임에 가고 버튼은 눌리지도 호버되지도 않으며, 십자키가 포커스를 주고 `South` 가 클릭한다. `BuiltinComponentProperty`(3).
    - 처음엔 검사를 후보 판정의 맨 앞에 두었더니 포커스 장부(`focusedObject`)를 적지 못해 "포커스 위젯이 사라졌다" 로 포커스가 지워졌다 - 사각형 검사 앞으로 옮겼다.
+5. ~~**카메라마다 후처리 프로필**~~ → 완료 2026-10-30 · `RenderWorld2D::SetCameraPostProcessCount`·`SetCameraPostProcess(index)`·`GetCameraPostProcess(index)`(자리 밖은 `GetPostProcess`),
+   `Framework2D::MixPostProcessFor(camera, mixer, overridesFrom)` 로 섞기를 떼어 주 카메라는 `m_postMixer`, 나머지는 `m_cameraMixers`(`MaxCameraMixers` 8, 처음에 잡는다)로 제 프로필·제 자리의
+   볼륨을 섞고 스크립트 덮어쓰기는 `PostProcessMixer::CopyOverridesFrom` 으로 주 카메라의 것을 받는다. 브리지의 `drawCamera` 가 카메라 번호의 것을 뷰에 건다.
+   - **잰 것**: `SpriteDrawMode` 분할 화면 픽셀 시험 - 오른쪽 카메라에만 노출 -2.2 의 `dark.jpost`(파일을 쓰고 메타를 만들며 다시 스캔) → 오른쪽 파랑 51 → 26, 왼쪽 빨강 51 그대로,
+     후처리된 뷰 1. `RendererContract`·`CameraView2D`·`Framework2DSystem`·`UiScenario` 통과.
+   - 정한 것: 카메라가 여덟을 넘으면 그 뒤는 주 카메라의 것이다. 메타 없는 파일은 스캔이 등록하지 않는다(시험은 `createMissingMeta`).

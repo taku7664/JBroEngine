@@ -16,6 +16,7 @@ namespace JBro
             m_order.Reserve(capacity);
             // 카메라 목록도 미리 잡는다(D-359) - 분할 화면이 여덟을 넘기 전에는 프레임 중에 할당하지 않는다.
             m_cameras.Reserve(8);
+            m_cameraPostProcess.Reserve(8);
         }
         catch (const std::bad_alloc&)
         {

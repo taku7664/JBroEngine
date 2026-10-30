@@ -299,6 +299,19 @@ namespace JBro
         }
     }
 
+    void PostProcessMixer::CopyOverridesFrom(const PostProcessMixer& other)
+    {
+        if (&other == this)
+        {
+            return;
+        }
+        for (UInt32 index = 0; index < other.m_overrideCount; ++index)
+        {
+            m_overrides[index.Get()] = other.m_overrides[index.Get()];
+        }
+        m_overrideCount = other.m_overrideCount;
+    }
+
     void PostProcessMixer::ClearOverrides()
     {
         m_overrideCount = 0;

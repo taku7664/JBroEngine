@@ -11,6 +11,8 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Graphics/PostProcess.h>
+#include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2DSystem/Rendering/SpritePieces.h>
 #include <JBro/Graphics/Renderer.h>
@@ -447,7 +449,32 @@ namespace
                 return camera;
             };
             makeCamera("left", -10.0f, 0.0f, true);
-            makeCamera("right", 10.0f, 0.5f, false);
+            auto* rightCamera = makeCamera("right", 10.0f, 0.5f, false);
+            // 오른쪽 카메라만 노출 -2.2 의 프로필(D-361). 파일을 쓰고 다시 스캔해 번호를 받는다.
+            {
+                PostProcessProfileDocument document;
+                PostProcessProfileEntry exposure = MakePostProcessProfileEntry(PostProcessEffects::Exposure);
+                reinterpret_cast<ExposureEffect*>(exposure.block.Data())->exposure = -2.2f;
+                exposure.overrides = JBro::UInt64(1);
+                document.entries.Add(exposure);
+                const String yaml = WritePostProcessProfile(document);
+                WriteBytes(project.root / "dark.jpost", yaml.data(), yaml.size());
+                AssetScanOptions options;
+                // 메타가 없는 파일은 등록하지 않는다 - 시험이라 메타를 만들게 한다(에디터와 같다).
+                options.createMissingMeta = true;
+                AssetScanReport report;
+                Check(project.registry.Scan(project.platform, Utf8(project.root).c_str(), options, report), "the profile scans in");
+                AssetId profileId;
+                for (std::size_t index = 0; index < project.registry.GetCount(); ++index)
+                {
+                    if (project.registry.GetRecord(index).type == AssetType::PostProcessProfile)
+                    {
+                        profileId = project.registry.GetRecord(index).id;
+                    }
+                }
+                Check(false == profileId.IsNull(), "the profile has an id");
+                rightCamera->postProcessProfileId = profileId;
+            }
             const auto makeSquare = [&](const char* name, JBro::Float x, Color tint) {
                 Object::GameObject* object = canvas->CreateObject(name);
                 canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
@@ -479,7 +506,9 @@ namespace
             gpu.Paint(framework);
             // 왼쪽 절반은 카메라 A: 가운데(16, 32)에 빨강(어둡게), 오른쪽 절반의 가운데(48, 32)에 파랑(어둡게). 서로의 스프라이트는 보이지 않는다.
             Check(gpu.Is(16, 32, 51, 0, 0), "the left camera shows the red square, darkened by the ambient light");
-            Check(gpu.Is(48, 32, 0, 0, 51), "the right camera shows the blue square");
+            // 오른쪽은 제 프로필의 노출(-2.2 EV → 표시값 x 0.5)을 받는다 - 51 → 약 26. 후처리된 뷰는 하나다(D-361).
+            Check(gpu.Is(48, 32, 0, 0, 26), "the right camera shows the blue square through its own exposure profile");
+            Check(gpu.renderer.GetLastFrameStats().postProcessedViewCount == 1, "only the right camera's view is post-processed");
             Check(gpu.Is(16, 4, 0, 0, 0) && gpu.Is(48, 60, 0, 0, 0), "away from the squares both halves are clear colour");
             // 화면 레이어는 대상 전체이고 빛을 받지 않는다 - 오른쪽 위 8 x 8 이 희다.
             Check(gpu.Is(60, 4, 255, 255, 255) && gpu.Is(57, 7, 255, 255, 255), "the screen-layer square (x 56..63, y 0..7) stays white over the lit world");

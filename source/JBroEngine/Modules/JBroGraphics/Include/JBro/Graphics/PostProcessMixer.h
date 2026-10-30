@@ -51,6 +51,8 @@ namespace JBro
         Bool SetOverride(UInt32 field, const TypeDescriptor& type, const void* value);
         void ClearOverride(UInt32 field);
         void ClearOverrides();
+        // 다른 섞기의 덮어쓰기를 그대로 받는다(D-361) - 카메라마다 섞을 때 스크립트의 덮어쓰기는 하나다.
+        void CopyOverridesFrom(const PostProcessMixer& other);
         UInt32 GetOverrideCount() const noexcept
         {
             return m_overrideCount;

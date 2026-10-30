@@ -678,13 +678,13 @@ namespace JBro::Internal
         Bool worldSubmitted = false;
         // **카메라마다 뷰 하나다**(D-359, 분할 화면). `depth` 차례이고 각자 제 뷰포트(와 그 안의 레터박스)에 그린다. 조명·그림자·패럴랙스는 그 뷰의 카메라로 다시 건다.
         // 디버그 선은 첫 뷰에만 그린다. 카메라가 없는 것은 오류가 아니다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
-        const auto drawCamera = [&](const RenderCamera2D& camera, Bool first) -> RenderResult
+        const auto drawCamera = [&](const RenderCamera2D& camera, Bool first, std::size_t index) -> RenderResult
         {
             ScreenSpaceFrame frame = base;
             ApplyCameraViewport(camera, frame);
             CameraParams parameters;
-            // 카메라의 후처리다(D-344). 화면 레이어는 뒤의 다른 뷰라 후처리를 받지 않는다. 분할 화면도 주 카메라의 프로필 하나다.
-            parameters.postProcess = world.GetPostProcess();
+            // 카메라의 후처리다(D-344). 화면 레이어는 뒤의 다른 뷰라 후처리를 받지 않는다. 분할 화면은 카메라마다 제 프로필이다(D-361) - 자리가 없으면 주 카메라의 것.
+            parameters.postProcess = world.GetCameraPostProcess(index);
             // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
             // 에디터 창 모양을 따라가고, 뷰포트가 타깃 밖으로 나간다.
             if (false == BuildCamera(camera, frame, parameters) || false == renderer.BeginView(parameters))
@@ -716,7 +716,7 @@ namespace JBro::Internal
         {
             for (UInt32 index = 0; index < cameras.Size(); ++index)
             {
-                if (drawCamera(cameras[index], index == 0) == RenderResult::Failed)
+                if (drawCamera(cameras[index], index == 0, static_cast<std::size_t>(index.Get())) == RenderResult::Failed)
                 {
                     return RenderResult::Failed;
                 }
@@ -726,7 +726,7 @@ namespace JBro::Internal
         else if (primary != nullptr)
         {
             // 카메라를 직접 건 쪽(시험)이다 - 주 카메라 하나.
-            if (drawCamera(*primary, true) == RenderResult::Failed)
+            if (drawCamera(*primary, true, static_cast<std::size_t>(-1)) == RenderResult::Failed)
             {
                 return RenderResult::Failed;
             }

@@ -94,6 +94,9 @@ namespace JBro
         PostProcessLibrary m_postProcess;
         // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 덮어쓰기는 스크립트 컨텍스트의 `PostProcess` 로 들어온다.
         PostProcessMixer m_postMixer;
+        // 분할 화면의 다른 카메라마다의 섞기(D-361). 주 카메라는 `m_postMixer` 다. 자리는 처음에 `MaxCameraMixers` 만큼 잡는다.
+        Array<PostProcessMixer> m_cameraMixers;
+        static constexpr UInt32 MaxCameraMixers = 8;
         PostProcessSystem m_postProcessSystem;
         // 스크립트의 머티리얼 파라미터 덮어쓰기(D-348). `m_materials` 에 묶인다.
         MaterialSystem m_materialSystem;
@@ -111,6 +114,8 @@ namespace JBro
         // 레이어 효과 자리의 처음 크기다(레이어 수). 넘으면 그때 늘린다.
         static constexpr UInt32 LayerPostProcessCapacity = 64;
         void ResolvePostProcess();
+        // 카메라 하나의 프로필에 그 자리의 볼륨을 섞고 덮어쓰기를 얹는다(D-346·D-361). `overridesFrom` 이 있으면 그 섞기의 덮어쓰기를 받는다.
+        void MixPostProcessFor(const RenderCamera2D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom);
         // 복제 풀 어댑터들(D-122). 네트워크가 있을 때만 있고, 캔버스와 함께 죽는다.
         OwnerPtr<Framework2DNetworkBinding> m_networkBinding;
         // 스크립트 DLL 에 넘길 블록과 그 실체다. 블록이 이것들을 가리키므로

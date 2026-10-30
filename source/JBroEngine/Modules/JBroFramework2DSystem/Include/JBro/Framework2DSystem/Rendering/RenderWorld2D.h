@@ -148,6 +148,29 @@ namespace JBro
         {
             return m_postProcess;
         }
+        // **카메라마다의 후처리**(D-361). `GetCameras` 의 차례와 같다. 자리가 없는 카메라(목록이 비었거나 더 많다)는 `GetPostProcess` 다.
+        void SetCameraPostProcessCount(std::size_t count)
+        {
+            if (m_cameraPostProcess.Size() < count)
+            {
+                m_cameraPostProcess.Resize(count);
+            }
+            while (m_cameraPostProcess.Size() > count)
+            {
+                m_cameraPostProcess.RemoveAt(m_cameraPostProcess.Size() - 1);
+            }
+        }
+        void SetCameraPostProcess(std::size_t index, const PostProcessStack& stack)
+        {
+            if (index < m_cameraPostProcess.Size())
+            {
+                m_cameraPostProcess[index] = stack;
+            }
+        }
+        const PostProcessStack& GetCameraPostProcess(std::size_t index) const
+        {
+            return index < m_cameraPostProcess.Size() ? m_cameraPostProcess[index] : m_postProcess;
+        }
         // **레이어 차례마다의 후처리**(D-345). 프레임워크가 레이어의 프로필을 풀어 차례(`LayerOrder`) 자리에 건다. 프로필이 없는 레이어는 빈 목록이다.
         // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리는 프레임워크를 세울 때 잡고(`ReserveLayerPostProcess`), 레이어가 그보다 많아질 때만
         // 늘린다 - 프레임 밖(추출 뒤)에서 부른다.
@@ -218,6 +241,7 @@ namespace JBro
         RenderCamera2D          m_camera;
         Array<RenderCamera2D>   m_cameras;
         PostProcessStack        m_postProcess;
+        Array<PostProcessStack> m_cameraPostProcess;
         Array<PostProcessStack> m_layerPostProcess;
         Bool                    m_hasCamera = false;
         UInt32           m_unusableCameras = 0;
