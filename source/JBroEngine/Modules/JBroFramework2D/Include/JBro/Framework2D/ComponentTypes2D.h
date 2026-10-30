@@ -55,6 +55,10 @@ namespace JBro::Component
     enum class SliderDirection : std::uint8_t { LeftToRight, RightToLeft, BottomToTop, TopToBottom };
     // 레이아웃이 자식을 늘어놓는 방향이다(D-352). `Grid` 는 `columns` 열로 줄을 바꾼다.
     enum class LayoutMode : std::uint8_t { Horizontal, Vertical, Grid };
+    // 트윈이 움직이는 것(D-357). `Position`·`Scale` 은 `fromVector`·`toVector`, `Rotation`(도)·`Alpha` 는 `fromValue`·`toValue`, `Tint` 는 `fromColor`·`toColor` 다.
+    enum class TweenTarget : std::uint8_t { Position, Scale, Rotation, Tint, Alpha };
+    // 트윈이 끝에 닿으면(D-357). `Once` 는 멈추고, `Loop` 는 처음부터, `PingPong` 은 되돌아온다.
+    enum class TweenLoop : std::uint8_t { Once, Loop, PingPong };
 }
 
 namespace JBro
@@ -78,6 +82,16 @@ namespace JBro
         { Component::SliderDirection::RightToLeft, "RightToLeft" },
         { Component::SliderDirection::BottomToTop, "BottomToTop" },
         { Component::SliderDirection::TopToBottom, "TopToBottom" });
+    JBRO_DEFINE_ENUM_TYPE(Component::TweenTarget, "Component::TweenTarget",
+        { Component::TweenTarget::Position, "Position" },
+        { Component::TweenTarget::Scale,    "Scale" },
+        { Component::TweenTarget::Rotation, "Rotation" },
+        { Component::TweenTarget::Tint,     "Tint" },
+        { Component::TweenTarget::Alpha,    "Alpha" });
+    JBRO_DEFINE_ENUM_TYPE(Component::TweenLoop, "Component::TweenLoop",
+        { Component::TweenLoop::Once,     "Once" },
+        { Component::TweenLoop::Loop,     "Loop" },
+        { Component::TweenLoop::PingPong, "PingPong" });
     JBRO_DEFINE_ENUM_TYPE(Component::LayoutMode, "Component::LayoutMode",
         { Component::LayoutMode::Horizontal, "Horizontal" },
         { Component::LayoutMode::Vertical,   "Vertical" },

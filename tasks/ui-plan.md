@@ -482,3 +482,25 @@
    - **사용성**(스크린숏 d06b·d06c 를 봤다): 월드 레이어의 드롭다운 기본 크기가 1.6 x 0.32 로 나뉘어 붙고, 새 셋이 `UI` 갈래에서 붙는다. 전이 필드 열둘이 위젯마다 인스펙터를 길게
      차지해 `Category("Transition")` 로 묶어 접었다(버튼도 같이) - `State` 와 같은 접는 갈래다. 맞추기의 인스펙터는 넷뿐이라 그대로다.
    - 열림: 드롭다운의 키보드 조작(위·아래로 항목 옮기기)은 게임패드 탐색이 대신한다. 스크롤바의 트랙 누름(손잡이 밖)은 슬라이더의 뜀 그대로다(한 페이지씩 가지 않는다).
+3. ~~**B 2 순위**~~ → 완료 2026-10-30 · **`Tooltip2D`**(사각형·`delay`·`target`, State `shown`): `Button2DSystem` 이 누르지 않은 포인터가 사각형에 머문 시간을 세어(지난 갱신 훅의
+   델타) `delay` 를 넘기면 대상을 켠다 - 포인터를 잡지 않는다. **`Modal2D`**(`blockGame`): 켜진 모달이 있으면 그 안의 위젯만 포인터·탐색 후보(`InsideModal`)이고, `blockGame` 이면
+   마우스·터치·키보드·게임패드를 모두 지운다. **`TabGroup2D`**(`content`, State `page`): 같은 오브젝트의 토글 그룹 값과 짝인 페이지(`content` 의 자식)만 켠다. **`Draggable2D`**
+   (사각형·`snapBack`, State `dragging`·`droppedOn`)·**`DropTarget2D`**(사각형, State `hovering`·`dropped`): 누르면 제자리를 떠 두고 `OnDragBegin`, 쥔 동안 레이어 단위로 따라오며
+   놓을 자리의 `hovering`, 놓으면 포인터 아래의 첫 자리에 떨어져 한 프레임 서로를 가리키고 `OnDrop`(자리)·`OnDragEnd`(끌던 것), 자리가 없고 `snapBack` 이면 제자리로. 스크롤 뷰 안이어도
+   끌기가 가진다. **`Tween2D`**(`target`·`ease`·`duration`·`loop`·`playOnStart`·from/to 셋, State `playing`·`time`·`finished`)와 새 **`Tween2DSystem`**(55): 자리·크기·회전·틴트·알파를
+   `EaseKind` 모양으로, `Once`·`Loop`·`PingPong`. `EaseKind` 에 리플렉션(`JBRO_DEFINE_ENUM_TYPE`, Core)을 더했다. **`ListView2D`**(`count`·`itemSize`·`spacing`·`vertical`, State
+   `firstVisible`·`visibleCount`·`boundItem`·`boundIndex`): 같은 오브젝트의 스크롤 뷰 내용 아래 사용자가 둔 풀(자식)에 뷰포트에 걸치는 항목만 묶는다(`SlotIndex` - 항목 `i` 는 풀의
+   `i % 풀` 번째) - 범위는 내용 자리에서 셈으로 재고(순회 없음), 묶임이 바뀐 칸마다 `OnListItem`. 지난 범위를 셋(`shownFirst`·`shownVisible`·`shownPool`)으로 되세어 배열을 들지
+   않는다. 훅 넷(`OnDragBegin`·`OnDragEnd`·`OnDrop`·`OnListItem`)이 `GameScript2D`·콜백 표·위치표에 섰다. 핸들 일곱, 열거형 셋(`TweenTarget`·`TweenLoop`·`EaseKind`)의 카탈로그, `UI`
+   갈래 등록(트윈은 여럿), 사각형 손잡이에 툴팁·끌기·자리 ·
+   - **잰 것**: `UiScenario` - 툴팁은 12 프레임 전엔 안 보이고 뒤엔 대상이 켜지며 누르면 꺼지고 누름은 게임에 가며 떠나면 안 보이고 대상이 자신이면 그대로, NaN 지연은 바로. 모달이 켜지면
+     밖 버튼은 호버·클릭이 없고 게임은 마우스를 못 보며 안 버튼은 눌리고 밖 툴팁은 안 보이며 탐색은 안에만 내리고, `blockGame` 을 끄면 게임이 마우스를 보되 밖 버튼은 그대로, 끄면 풀린다.
+     탭은 고른 번호의 페이지만 켜지고 내용이 자신이면 그대로. 끌기는 누르면 시작(`OnDragBegin` 1·게임은 마우스 못 봄), 25 px 끌면 5 에, 자리 위에서 `hovering`, 놓으면 `dropped`·
+     `droppedOn`·훅 각 1·한 프레임, `snapBack` 이면 빈 곳에 놓아 제자리, 끝 훅에서 제 오브젝트를 지워도 다음 누름은 게임에. `Layout2D` 묶음 - 목록 20 개·풀 다섯·창 60 에서 넷이 보이고
+     190·130 에 서며 훅 넷, 20 내리면 1~5 가 보이고 항목 5 가 풀 0 에·4 가 풀 4 에(훅 여섯), 맨 아래 16~19, 수를 줄이면 내용도, 0 이면 모두 꺼짐, NaN 크기·내용이 창 자신이면 안 묶음.
+     트윈 - 첫 갱신에 1/60, 0.5 초에 30, 끝에서 멈추며 `finished` 한 프레임, 핑퐁 1.5 초에 30, 알파 0.5, `QuadIn` 0.75, NaN 길이는 바로 끝, NaN 목표는 그대로. `RendererContract` 기본
+     시스템 열둘, `BuiltinComponentProperty`(툴팁 6·모달 1·탭 2·끌기 8·자리 4·트윈 15·목록 11), `ScriptApiCatalog`·`InputChain`·`CanvasFile` 통과.
+   - 정한 것: 가상화 목록의 풀은 사용자가 만든다(런타임 복제 없음 - 프리팹은 에셋에서만 뜬다). 항목의 크기·간격은 고정이다. 끌기는 레이어 단위라 부모가 돌거나 늘어나 있으면 포인터와
+     어긋난다. 놓을 자리가 겹치면 먼저 찾은 것이다. 모달은 그리기를 손대지 않는다(막은 스프라이트로). 트윈은 같은 오브젝트에 여럿이다. 트윈 서비스는 두지 않았다 - 핸들의 `Play`·`Stop`·
+     `Restart` 다. 툴팁의 머문 시간은 지난 갱신 훅의 델타다(편집 중에는 늘지 않는다).
+   - 열림: 끌기 중 그림을 맨 위로 올리기(renderOrder 는 손대지 않는다), 목록 항목의 가변 크기, 트윈의 사슬(끝나면 다음), 툴팁 자리 따라가기(대상은 제자리다).

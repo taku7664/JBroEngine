@@ -45,6 +45,8 @@ namespace JBro
         virtual void OnDragBegin();
         virtual void OnDragEnd();
         virtual void OnDrop();
+        // **같은 오브젝트의 `ListView2D` 가 부른다**(D-357). 풀의 오브젝트에 다른 항목이 묶이는 프레임에 - 그 오브젝트와 번호는 `boundItem`·`boundIndex` 다.
+        virtual void OnListItem();
     };
 
     // 2D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다. `GameScriptBase` 에서 바로 파생한 타입은 여기서

@@ -18,6 +18,8 @@
 #include <JBro/Framework2D/Component/TabGroup2D.h>
 #include <JBro/Framework2D/Component/Draggable2D.h>
 #include <JBro/Framework2D/Component/DropTarget2D.h>
+#include <JBro/Framework2D/Component/Tween2D.h>
+#include <JBro/Framework2D/Component/ListView2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -96,6 +98,10 @@ namespace JBro::Component
             all = RegisterComponentType<Draggable2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<DropTarget2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            // 트윈은 한 오브젝트에 여럿이다(자리와 알파를 같이). 목록은 스크롤 뷰 하나에 하나다.
+            all = RegisterComponentType<Tween2D>(ComponentCategory::UI) && all;
+            all = RegisterComponentType<ListView2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <cstdint>
+#include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Types/Float.h>
 
 namespace JBro
@@ -43,4 +44,29 @@ namespace JBro
 
     // 두 값 사이를 고른 모양으로 오간다. `Ease` 를 부른 뒤 섞는 것과 같다.
     Float EaseBetween(EaseKind kind, Float from, Float to, Float t) noexcept;
+
+    // 리플렉션(D-357) - 트윈 컴포넌트의 필드이고 인스펙터의 드롭다운이다.
+    JBRO_DEFINE_ENUM_TYPE(EaseKind, "EaseKind",
+        { EaseKind::Linear, "Linear" },
+        { EaseKind::SineIn, "SineIn" },
+        { EaseKind::SineOut, "SineOut" },
+        { EaseKind::SineInOut, "SineInOut" },
+        { EaseKind::QuadIn, "QuadIn" },
+        { EaseKind::QuadOut, "QuadOut" },
+        { EaseKind::QuadInOut, "QuadInOut" },
+        { EaseKind::CubicIn, "CubicIn" },
+        { EaseKind::CubicOut, "CubicOut" },
+        { EaseKind::CubicInOut, "CubicInOut" },
+        { EaseKind::ExpoIn, "ExpoIn" },
+        { EaseKind::ExpoOut, "ExpoOut" },
+        { EaseKind::ExpoInOut, "ExpoInOut" },
+        { EaseKind::BackIn, "BackIn" },
+        { EaseKind::BackOut, "BackOut" },
+        { EaseKind::BackInOut, "BackInOut" },
+        { EaseKind::ElasticIn, "ElasticIn" },
+        { EaseKind::ElasticOut, "ElasticOut" },
+        { EaseKind::ElasticInOut, "ElasticInOut" },
+        { EaseKind::BounceIn, "BounceIn" },
+        { EaseKind::BounceOut, "BounceOut" },
+        { EaseKind::BounceInOut, "BounceInOut" });
 }

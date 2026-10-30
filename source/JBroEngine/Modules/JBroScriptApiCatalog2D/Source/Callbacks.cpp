@@ -156,6 +156,11 @@ void AddCallbacks(ApiCatalog& catalog)
         member.IsCallback = true;
         type.Members.Add(std::move(member));
     }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnListItem)>("OnListItem", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
     }
     {
     auto& type = AddType(catalog, "IInputHandler", "JBro::IInputHandler", ApiTypeKind::Interface);

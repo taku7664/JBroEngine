@@ -17,6 +17,8 @@
 #include <JBro/Framework2D/Component/TabGroup2D.h>
 #include <JBro/Framework2D/Component/Draggable2D.h>
 #include <JBro/Framework2D/Component/DropTarget2D.h>
+#include <JBro/Framework2D/Component/Tween2D.h>
+#include <JBro/Framework2D/Component/ListView2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -55,6 +57,8 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<TabGroup2D>() && all;
             all = RegisterBuiltinProperties<Draggable2D>() && all;
             all = RegisterBuiltinProperties<DropTarget2D>() && all;
+            all = RegisterBuiltinProperties<Tween2D>() && all;
+            all = RegisterBuiltinProperties<ListView2D>() && all;
             all = RegisterBuiltinProperties<Mask2D>() && all;
             all = RegisterBuiltinProperties<ScrollView2D>() && all;
             all = RegisterBuiltinProperties<InputField2D>() && all;

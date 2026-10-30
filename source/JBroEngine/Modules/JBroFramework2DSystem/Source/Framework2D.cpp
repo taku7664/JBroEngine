@@ -19,6 +19,7 @@
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/System/Layout2DSystem.h>
+#include <JBro/Framework2DSystem/System/Tween2DSystem.h>
 #include <JBro/Framework2DSystem/System/Mask2DSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
@@ -649,6 +650,8 @@ namespace JBro
         systems.AddSystem<System::Mask2DSystem>();
         // 레이아웃은 에셋 크기의 스프라이트를 재는 데 스프라이트 라이브러리를 쓴다(D-355).
         systems.AddSystem<System::Layout2DSystem>().SetSpriteLibrary(&m_spriteLibrary);
+        // 트윈은 위젯 뒤, 레이아웃 앞이다(D-357).
+        systems.AddSystem<System::Tween2DSystem>();
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
         System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
         scripts.SetInputSystem(m_context.input);

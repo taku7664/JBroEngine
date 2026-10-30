@@ -8,15 +8,20 @@
 #include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Layout2D.h>
+#include <JBro/Framework2D/Component/ListView2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 
 #include <JBro/Types/ValueMath.h>
 
@@ -130,6 +135,110 @@ namespace JBro::System
     {
         (void)deltaTime;
         const Text2DSystem* texts = canvas.GetSystems().FindSystem<Text2DSystem>();
+        // 가상화 목록(D-357): 뷰포트에 걸치는 항목만 풀에 묶어 놓는다. 풀 = 스크롤 내용의 자식(계층 차례).
+        canvas.ForEach<Component::ListView2D>([&](Component::ListView2D& list)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(list);
+            if (owner == nullptr || false == list.IsActiveComponent())
+            {
+                return;
+            }
+            auto* scroll = canvas.FindComponentRaw<Component::ScrollView2D>(owner);
+            const auto* mask = canvas.FindComponentRaw<Component::Mask2D>(owner);
+            Object::GameObject* content = scroll != nullptr ? Internal::GameObjectHandleAccess::Resolve(scroll->content) : nullptr;
+            auto* place = content != nullptr && content->GetParent() == owner ? canvas.FindComponentRaw<Component::Transform2D>(content) : nullptr;
+            const Float itemAlong = std::fabs(list.vertical ? list.itemSize.y : list.itemSize.x);
+            const Float itemAcross = std::fabs(list.vertical ? list.itemSize.x : list.itemSize.y);
+            const Float spacing = std::fabs(list.spacing);
+            const Int32 count = list.count < 0 ? Int32(0) : list.count;
+            if (scroll == nullptr || mask == nullptr || place == nullptr || false == std::isfinite(itemAlong.Get()) || false == std::isfinite(itemAcross.Get())
+                || false == std::isfinite(spacing.Get()) || itemAlong + spacing <= 0.0f)
+            {
+                return;
+            }
+            const Float pitch = itemAlong + spacing;
+            const Float total = count > 0 ? Float(static_cast<JBro::Float>(count.Get()) * pitch - spacing) : Float(0.0f);
+            scroll->contentSize = list.vertical ? Vector2{ itemAcross, total } : Vector2{ total, itemAcross };
+            // 뷰포트의 양 끝을 내용 좌표로 옮겨 걸치는 번호 범위를 센다. 세로는 위에서 아래로, 가로는 왼쪽에서 오른쪽으로 번호가 는다.
+            const Float position = list.vertical ? place->position.y : place->position.x;
+            const Float center = list.vertical ? mask->offset.y : mask->offset.x;
+            const Float half = std::fabs(list.vertical ? mask->size.y : mask->size.x) * 0.5f;
+            Int32 firstIndex = -1;
+            Int32 lastIndex = -2;
+            if (count > 0 && std::isfinite(position.Get()) && std::isfinite(center.Get()) && std::isfinite(half.Get()))
+            {
+                // 항목 i 의 내용 좌표 구간: 세로는 [total/2 - i·pitch - item, total/2 - i·pitch], 가로는 [-total/2 + i·pitch, -total/2 + i·pitch + item].
+                const Float nearEdge = list.vertical ? Float(center + half - position) : Float(center - half - position);
+                const Float farEdge = list.vertical ? Float(center - half - position) : Float(center + half - position);
+                const Float firstRaw = list.vertical ? Float((total * 0.5f - itemAlong - nearEdge) / pitch) : Float((nearEdge - total * 0.5f - itemAlong) / pitch);
+                const Float lastRaw = list.vertical ? Float((total * 0.5f - farEdge) / pitch) : Float((farEdge + total * 0.5f) / pitch);
+                const Int32 first = Int32(static_cast<std::int32_t>(std::ceil(firstRaw.Get())));
+                const Int32 last = Int32(static_cast<std::int32_t>(std::floor(lastRaw.Get())));
+                firstIndex = first < 0 ? Int32(0) : first;
+                lastIndex = last >= count ? Int32(count - 1) : last;
+            }
+            const Int32 visible = lastIndex >= firstIndex ? Int32(lastIndex - firstIndex + 1) : Int32(0);
+            list.firstVisible = visible > 0 ? firstIndex : Int32(-1);
+            list.visibleCount = visible;
+            // 풀: 내용의 자식들. 항목 i 는 i % 풀 크기 번째다 - 걸치는 것이 풀보다 많으면 앞의 것만 보인다. 전에 묶였던 번호는 지난 범위로 되센다.
+            const Int32 pool = Int32(static_cast<std::int32_t>(content->GetChildren().Size()));
+            const Int32 first = visible > 0 ? firstIndex : Int32(-1);
+            Int32 slot = 0;
+            for (const SafePtr<Object::GameObject>& child : content->GetChildren())
+            {
+                Object::GameObject* item = child.TryGet();
+                if (item == nullptr)
+                {
+                    ++slot;
+                    continue;
+                }
+                const Int32 index = Component::ListView2D::SlotIndex(first, visible, pool, slot);
+                const Int32 before = Component::ListView2D::SlotIndex(list.shownFirst, list.shownVisible, list.shownPool, slot);
+                if (index < 0)
+                {
+                    if (item->IsActiveSelf())
+                    {
+                        item->SetActive(false);
+                    }
+                    ++slot;
+                    continue;
+                }
+                if (auto* itemPlace = canvas.FindComponentRaw<Component::Transform2D>(item))
+                {
+                    const Float along = static_cast<JBro::Float>(index.Get()) * pitch + itemAlong * 0.5f;
+                    itemPlace->position = list.vertical ? Vector2{ 0.0f, total * 0.5f - along } : Vector2{ along - total * 0.5f, 0.0f };
+                }
+                if (false == item->IsActiveSelf())
+                {
+                    item->SetActive(true);
+                }
+                if (before != index)
+                {
+                    list.boundItem = item->GetScriptHandle();
+                    list.boundIndex = index;
+                    // 먼저 모은 뒤 부른다. 훅이 스크립트를 붙이거나 떼면 목록이 흔들린다.
+                    m_hookTargets.Clear();
+                    for (const ScriptSlot& scriptSlot : owner->GetScripts())
+                    {
+                        GameScriptBase* script = scriptSlot.reference.TryGet();
+                        if (script != nullptr && script->IsActiveScript())
+                        {
+                            m_hookTargets.Add(static_cast<GameScript2D*>(script));
+                        }
+                    }
+                    for (GameScript2D* script : m_hookTargets)
+                    {
+                        ScriptCallGuard::Call("OnListItem", [script] { script->OnListItem(); });
+                    }
+                }
+                ++slot;
+            }
+            list.boundItem = {};
+            list.boundIndex = -1;
+            list.shownFirst = first;
+            list.shownVisible = visible;
+            list.shownPool = pool;
+        });
         canvas.ForEach<Component::Layout2D>([&](Component::Layout2D& layout)
         {
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(layout);

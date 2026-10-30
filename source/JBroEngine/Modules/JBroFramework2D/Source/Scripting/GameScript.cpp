@@ -65,4 +65,8 @@ namespace JBro
     void GameScript2D::OnDrop()
     {
     }
+
+    void GameScript2D::OnListItem()
+    {
+    }
 }

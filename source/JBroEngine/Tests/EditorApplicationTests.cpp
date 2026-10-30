@@ -18177,7 +18177,7 @@ namespace
                     Check(list.addable[index], "every UI component can be added to a fresh object");
                 }
             }
-            Check(uiCount == 15, "the UI group lists the fifteen widgets (button, toggle, slider, field, mask, scroll view, layout, toggle group, dropdown, content size fitter, tooltip, modal, tab group, draggable, drop target)");
+            Check(uiCount == 17, "the UI group lists the seventeen widgets (button, toggle, slider, field, mask, scroll view, layout, toggle group, dropdown, content size fitter, tooltip, modal, tab group, draggable, drop target, tween, list view)");
         }
 
         // ── 3. 스크롤 창: 마스크 + 스크롤 뷰, 그 자식 버튼 ─────────────

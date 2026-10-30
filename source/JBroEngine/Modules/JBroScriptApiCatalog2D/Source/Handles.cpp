@@ -2405,6 +2405,366 @@ void AddHandles(ApiCatalog& catalog)
     }
     }
     {
+    auto& type = AddType(catalog, "Tween2D", "JBro::Handle::Tween2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Tween2D::*)() const>(&Handle::Tween2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Tween2D::*)() const>(&Handle::Tween2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Bool)>(&Handle::Tween2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Component::TweenTarget (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetTarget)>("GetTarget", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Component::TweenTarget)>(&Handle::Tween2D::SetTarget)>("SetTarget", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<EaseKind (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetEase)>("GetEase", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(EaseKind)>(&Handle::Tween2D::SetEase)>("SetEase", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetDuration)>("GetDuration", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Float)>(&Handle::Tween2D::SetDuration)>("SetDuration", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Component::TweenLoop (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetLoop)>("GetLoop", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Component::TweenLoop)>(&Handle::Tween2D::SetLoop)>("SetLoop", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetPlayOnStart)>("GetPlayOnStart", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Bool)>(&Handle::Tween2D::SetPlayOnStart)>("SetPlayOnStart", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetFromVector)>("GetFromVector", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Vector2)>(&Handle::Tween2D::SetFromVector)>("SetFromVector", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetToVector)>("GetToVector", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Vector2)>(&Handle::Tween2D::SetToVector)>("SetToVector", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetFromColor)>("GetFromColor", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Color)>(&Handle::Tween2D::SetFromColor)>("SetFromColor", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Color (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetToColor)>("GetToColor", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Color)>(&Handle::Tween2D::SetToColor)>("SetToColor", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetFromValue)>("GetFromValue", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Float)>(&Handle::Tween2D::SetFromValue)>("SetFromValue", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetToValue)>("GetToValue", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Float)>(&Handle::Tween2D::SetToValue)>("SetToValue", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetPlaying)>("GetPlaying", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Bool)>(&Handle::Tween2D::SetPlaying)>("SetPlaying", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetTime)>("GetTime", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetFinished)>("GetFinished", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)()>(&Handle::Tween2D::Play)>("Play", Parameters());
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)()>(&Handle::Tween2D::Stop)>("Stop", Parameters());
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)()>(&Handle::Tween2D::Restart)>("Restart", Parameters());
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::IsEnabled, &Handle::Tween2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetTarget, &Handle::Tween2D::SetTarget>("target");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetEase, &Handle::Tween2D::SetEase>("ease");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetDuration, &Handle::Tween2D::SetDuration>("duration");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetLoop, &Handle::Tween2D::SetLoop>("loop");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetPlayOnStart, &Handle::Tween2D::SetPlayOnStart>("playOnStart");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetFromVector, &Handle::Tween2D::SetFromVector>("fromVector");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetToVector, &Handle::Tween2D::SetToVector>("toVector");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetFromColor, &Handle::Tween2D::SetFromColor>("fromColor");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetToColor, &Handle::Tween2D::SetToColor>("toColor");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetFromValue, &Handle::Tween2D::SetFromValue>("fromValue");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetToValue, &Handle::Tween2D::SetToValue>("toValue");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetPlaying, &Handle::Tween2D::SetPlaying>("playing");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetTime>("time");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Tween2D::GetFinished>("finished");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "ListView2D", "JBro::Handle::ListView2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ListView2D::*)() const>(&Handle::ListView2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ListView2D::*)() const>(&Handle::ListView2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)(Bool)>(&Handle::ListView2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetCount)>("GetCount", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)(Int32)>(&Handle::ListView2D::SetCount)>("SetCount", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetItemSize)>("GetItemSize", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)(Vector2)>(&Handle::ListView2D::SetItemSize)>("SetItemSize", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetSpacing)>("GetSpacing", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)(Float)>(&Handle::ListView2D::SetSpacing)>("SetSpacing", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetVertical)>("GetVertical", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::ListView2D::*)(Bool)>(&Handle::ListView2D::SetVertical)>("SetVertical", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetFirstVisible)>("GetFirstVisible", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetVisibleCount)>("GetVisibleCount", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetBoundItem)>("GetBoundItem", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::ListView2D::*)() const>(&Handle::ListView2D::GetBoundIndex)>("GetBoundIndex", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::ListView2D::*)(Handle::GameObject) const>(&Handle::ListView2D::GetItemIndex)>("GetItemIndex", Parameters(In("item")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::IsEnabled, &Handle::ListView2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetCount, &Handle::ListView2D::SetCount>("count");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetItemSize, &Handle::ListView2D::SetItemSize>("itemSize");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetSpacing, &Handle::ListView2D::SetSpacing>("spacing");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetVertical, &Handle::ListView2D::SetVertical>("vertical");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetFirstVisible>("firstVisible");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetVisibleCount>("visibleCount");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetBoundItem>("boundItem");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::ListView2D::GetBoundIndex>("boundIndex");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
     auto& type = AddType(catalog, "Layout2D", "JBro::Handle::Layout2D", ApiTypeKind::Handle);
     {
         auto member = DeclareFunction<static_cast<Bool (Handle::Layout2D::*)() const>(&Handle::Layout2D::IsValid)>("IsValid", Parameters());

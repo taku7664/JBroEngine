@@ -66,6 +66,8 @@ namespace
         Check(Table("Component::TabGroup2D").count == 2, "TabGroup2D declares two fields - content and the page state (D-357)");
         Check(Table("Component::Draggable2D").count == 8, "Draggable2D declares eight fields - the rect, interactable, snapBack, two states and the hidden start (D-357)");
         Check(Table("Component::DropTarget2D").count == 4, "DropTarget2D declares four fields - the rect and two states (D-357)");
+        Check(Table("Component::Tween2D").count == 15, "Tween2D declares fifteen fields - target, ease, duration, loop, playOnStart, three from/to pairs, three states and the hidden start (D-357)");
+        Check(Table("Component::ListView2D").count == 11, "ListView2D declares eleven fields - count, item size, spacing, axis, four states and three hidden ranges (D-357)");
         Check(Table("Component::Slider2D").count == 25, "Slider2D declares twenty-five fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), direction, value, handle, fill and four states (D-351, focused of D-352)");
         Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
         Check(Table("Component::ScrollView2D").count == 10, "ScrollView2D declares ten fields - content, its size, two scrollbars, two axes, sensitivity, deceleration and two states (D-351, D-355)");
