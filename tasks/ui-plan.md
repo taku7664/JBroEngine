@@ -635,3 +635,16 @@
 - **전체**(2026-10-30, 5 부 뒤, 이 PC 의 main 폴더, Debug, 기준 main 72a4aaf0): 솔루션 빌드 C++ 경고 0, 전체 시험 127 묶음 `all tests passed.`(`EditorApplication` 1504.9 초,
   `UserScenario` 99.5 초, `PostProcessPixel` 15.1 초).
 - 5 부 끝(2026-10-30). 남긴 것과 까닭은 D-361 (7) - 3D 의 화면 레이어, 렌더 텍스처, 둘째 뷰의 지우기, 실제 IME 실측, 여러 줄 선택 조각, 버튼 소리 재생. 더한 열림: 갈래 차례.
+
+### 7.8 6 부 - 남긴 다섯 (D-362)
+
+> 상태: **진행** (2026-10-31 시작). 사용자 지시 "1~5까지 작업 진행. 1번은 제안대로. 모듈을 뗌." 다섯은 3D 의 화면 레이어(새 모듈 `JBroScreenUi`), 렌더 텍스처, 둘째 뷰의 지우기,
+> 실제 IME 실측, 여러 줄 선택의 줄마다 조각이다. 차례는 작은 것부터 - 둘째 뷰 → 여러 줄 선택 → IME → 렌더 텍스처 → 3D 화면 레이어. 단위마다 커밋한다.
+
+1. ~~**둘째 뷰의 지우기**~~ → 완료 2026-10-31 · `Camera2D.clearViewport`(기본 참, 핸들 `GetClearViewport`·`SetClearViewport`), `RenderCamera2D.clearViewport`, 렌더 브리지의 `BuildViewFill`(뷰 행렬의
+   역행렬로 뷰 공간 [-반폭, 반폭] x [-반높이, 반높이] 를 월드로) - `drawCamera` 가 첫 뷰가 아니면 라이트보다 먼저 낸다.
+   - **잰 것**: `SpriteDrawMode` 분할 화면 픽셀 시험 - 오른쪽 카메라의 지우기 색이 초록이면 오른쪽 빈 곳이 (0, 128, 0)(노출 -2.2 를 받아 절반), 왼쪽은 검정·빨강 51 그대로, 오른쪽 파랑 사각형은
+     26 그대로(칠한 사각형이 빛을 받지 않는다), 화면 레이어 흰색 그대로, `clearViewport` 를 끄면 오른쪽 빈 곳은 앞 뷰의 검정. `BuiltinComponentProperty`(카메라 13)·`CameraView2D`·`Framework2DSystem`·
+     `UiScenario`·`CanvasFile`·`ScriptApiCatalog` 통과.
+   - 정한 것: 칠하기는 카메라의 담는 영역이다 - `PixelPerfect` 의 레터박스 띠는 앞 뷰의 것이 남는다(첫 뷰처럼 띠까지 칠하려면 렌더러의 사각형 지우기가 든다, 열림).
+

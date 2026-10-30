@@ -110,6 +110,7 @@ namespace JBro::System
         item.viewportOrigin = camera.viewportOrigin;
         item.viewportSize = camera.viewportSize;
         item.depth = camera.depth;
+        item.clearViewport = camera.clearViewport;
         return IsDrawableCamera2D(item) && HasDrawableViewport(item);
     }
 
@@ -175,6 +176,7 @@ namespace JBro::System
             item.viewportOrigin = camera.viewportOrigin;
             item.viewportSize = camera.viewportSize;
             item.depth = camera.depth;
+            item.clearViewport = camera.clearViewport;
             // 그릴 수 없는 값이면 고르지 않는다(D-239). 그 전에는 뽑힌 뒤 렌더 브리지가 거절해 프레임이 실패했고, 에디터가 꺼졌다. 빈 뷰포트도 같다(D-359).
             if (false == IsDrawableCamera2D(item) || false == HasDrawableViewport(item))
             {

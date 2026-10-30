@@ -208,4 +208,24 @@ namespace JBro::Handle
         }
         component->depth = value;
     }
+
+    Bool Camera2D::GetClearViewport() const
+    {
+        const Component::Camera2D* component = Resolve("GetClearViewport");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->clearViewport;
+    }
+
+    void Camera2D::SetClearViewport(Bool value)
+    {
+        Component::Camera2D* component = Resolve("SetClearViewport");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->clearViewport = value;
+    }
 }

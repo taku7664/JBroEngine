@@ -662,6 +662,44 @@ namespace JBro::Internal
         }
     }
 
+    namespace
+    {
+        // **뷰의 담는 영역을 덮는 빛 안 받는 사각형**(D-362, 둘째 뷰의 지우기). 렌더러는 대상을 첫 뷰에서만 지우므로, 앞 뷰가 그린 대상에 그리는 카메라는
+        // 이것을 맨 먼저 내 제 뷰포트를 제 지우기 색으로 칠한다. 뷰(월드 → 뷰)를 뒤집어 뷰 공간 [-반폭, 반폭] x [-반높이, 반높이] 를 월드로 옮긴다.
+        // 뒤집을 수 없으면 거짓이다. 알파는 1 이다(지우기는 덮어쓴다).
+        Bool BuildViewFill(const CameraView2D& cameraView, const Color& color, SpriteSubmit& result)
+        {
+            const Matrix3x2& view = cameraView.view;
+            const Float determinant = view.m11 * view.m22 - view.m12 * view.m21;
+            if (false == std::isfinite(determinant.Get()) || std::fabs(determinant) < 1e-12f || cameraView.halfWidth <= 0.0f || cameraView.halfHeight <= 0.0f)
+            {
+                return false;
+            }
+            // 행 벡터의 역행렬이다.
+            Matrix3x2 inverse;
+            inverse.m11 = view.m22 / determinant;
+            inverse.m12 = -view.m12 / determinant;
+            inverse.m21 = -view.m21 / determinant;
+            inverse.m22 = view.m11 / determinant;
+            inverse.m31 = -(view.m31 * inverse.m11 + view.m32 * inverse.m21);
+            inverse.m32 = -(view.m31 * inverse.m12 + view.m32 * inverse.m22);
+            const Matrix3x2 geometry{cameraView.halfWidth * 2.0f, 0.0f, 0.0f, cameraView.halfHeight * 2.0f, 0.0f, 0.0f};
+            const Matrix3x2 world = MultiplyMatrix3x2(geometry, inverse);
+            result = SpriteSubmit{};
+            result.world.linear[0] = world.m11;
+            result.world.linear[1] = world.m21;
+            result.world.linear[2] = world.m12;
+            result.world.linear[3] = world.m22;
+            result.world.translation[0] = world.m31;
+            result.world.translation[1] = world.m32;
+            result.tint[0] = color.R;
+            result.tint[1] = color.G;
+            result.tint[2] = color.B;
+            result.tint[3] = 1.0f;
+            return true;
+        }
+    }
+
     RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw)
     {
         const RenderCamera2D* primary = world.GetCamera();
@@ -697,6 +735,13 @@ namespace JBro::Internal
             if (ComputeCameraView2D(camera, frame, cameraView))
             {
                 rule.parallaxView = &cameraView.view;
+                // 앞 뷰가 이미 지운 대상이면 제 뷰포트를 제 지우기 색으로 먼저 칠한다(D-362). 빛을 받지 않는다 - 뷰는 빛을 끈 채 시작한다.
+                SpriteSubmit fill;
+                if (false == first && camera.clearViewport && BuildViewFill(cameraView, camera.clearColor, fill) && false == renderer.SubmitSprite(fill))
+                {
+                    renderer.EndView();
+                    return RenderResult::Failed;
+                }
             }
             PushLights(world, renderer, rule.parallaxView);
             PushShadowEdges(world, renderer, rule.parallaxView);

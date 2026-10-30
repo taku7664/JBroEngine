@@ -48,6 +48,8 @@ namespace JBro::Component
         JBRO_FIELD(Vector2, viewportOrigin, Range(0.0f, 1.0f));
         JBRO_FIELD(Vector2, viewportSize, Range(0.0f, 1.0f)) { 1.0f, 1.0f };
         JBRO_FIELD(Int32, depth) = 0;
+        // 앞 카메라가 이미 그린 대상에 그릴 때 제 뷰포트를 `clearColor` 로 먼저 칠하는가(D-362). 첫 카메라는 언제나 대상 전체를 지운다. 끄면 앞 그림 위에 겹쳐 그린다.
+        JBRO_FIELD(Bool, clearViewport) = true;
         // **이 카메라의 후처리 프로필**(`.jpost`, D-344). 비어 있으면 후처리가 없다. 게임 화면과 캔버스 뷰(단추로 끌 수 있다)가 이 프로필을 건다.
         JBRO_FIELD(AssetId, postProcessProfileId);
         JBRO_FIELD(AssetHandle, postProcessProfile, NoSerialize() | ReadOnly() | Hidden());

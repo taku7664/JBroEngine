@@ -40,6 +40,8 @@ namespace JBro
         Vector2 viewportOrigin;
         Vector2 viewportSize{ 1.0f, 1.0f };
         Int32 depth = 0;
+        // 앞 뷰가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
+        Bool clearViewport = true;
     };
 
     struct SpriteRenderItem

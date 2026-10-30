@@ -55,6 +55,9 @@ namespace JBro::Handle
         void SetViewportSize(Vector2 value);
         Int32 GetDepth() const;
         void SetDepth(Int32 value);
+        // 앞 카메라가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
+        Bool GetClearViewport() const;
+        void SetClearViewport(Bool value);
 
     private:
         Component::Camera2D* Resolve(const char* operation) const;

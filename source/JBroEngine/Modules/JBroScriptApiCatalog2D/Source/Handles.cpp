@@ -3511,6 +3511,16 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Camera2D::*)() const>(&Handle::Camera2D::GetClearViewport)>("GetClearViewport", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Camera2D::*)(Bool)>(&Handle::Camera2D::SetClearViewport)>("SetClearViewport", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Camera2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }

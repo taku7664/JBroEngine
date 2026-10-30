@@ -509,6 +509,16 @@ namespace
             // 오른쪽은 제 프로필의 노출(-2.2 EV → 표시값 x 0.5)을 받는다 - 51 → 약 26. 후처리된 뷰는 하나다(D-361).
             Check(gpu.Is(48, 32, 0, 0, 26), "the right camera shows the blue square through its own exposure profile");
             Check(gpu.renderer.GetLastFrameStats().postProcessedViewCount == 1, "only the right camera's view is post-processed");
+            // 둘째 뷰의 지우기(D-362): 오른쪽 카메라의 지우기 색을 초록으로 하면 오른쪽 절반의 빈 곳이 초록(노출로 약 128)이고 왼쪽은 그대로 검다. 끄면 앞 뷰의 검정 위에 그린다.
+            rightCamera->clearColor = {0.0f, 1.0f, 0.0f, 1.0f};
+            gpu.Paint(framework);
+            Check(gpu.Is(48, 60, 0, 128, 0) && gpu.Is(40, 4, 0, 128, 0), "the second camera paints its viewport with its own clear colour, through its exposure");
+            Check(gpu.Is(16, 4, 0, 0, 0) && gpu.Is(16, 32, 51, 0, 0), "the first camera's half keeps its own clear colour and square");
+            Check(gpu.Is(48, 32, 0, 0, 26), "the square still draws over the fill and the fill takes no light");
+            Check(gpu.Is(60, 4, 255, 255, 255), "the screen layer stays on top");
+            rightCamera->clearViewport = false;
+            gpu.Paint(framework);
+            Check(gpu.Is(48, 60, 0, 0, 0), "with clearViewport off the second camera draws over the first view's clear");
             Check(gpu.Is(16, 4, 0, 0, 0) && gpu.Is(48, 60, 0, 0, 0), "away from the squares both halves are clear colour");
             // 화면 레이어는 대상 전체이고 빛을 받지 않는다 - 오른쪽 위 8 x 8 이 희다.
             Check(gpu.Is(60, 4, 255, 255, 255) && gpu.Is(57, 7, 255, 255, 255), "the screen-layer square (x 56..63, y 0..7) stays white over the lit world");
