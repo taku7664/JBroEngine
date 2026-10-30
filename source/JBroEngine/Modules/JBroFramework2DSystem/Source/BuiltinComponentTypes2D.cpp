@@ -20,6 +20,11 @@
 #include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/Tween2D.h>
 #include <JBro/Framework2D/Component/ListView2D.h>
+#include <JBro/Framework2D/Component/SafeArea2D.h>
+#include <JBro/Framework2D/Component/CanvasGroup2D.h>
+#include <JBro/Framework2D/Component/AspectRatioFitter2D.h>
+#include <JBro/Framework2D/Component/VirtualKeyboard2D.h>
+#include <JBro/Framework2D/Component/Navigation2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -102,6 +107,17 @@ namespace JBro::Component
             // 트윈은 한 오브젝트에 여럿이다(자리와 알파를 같이). 목록은 스크롤 뷰 하나에 하나다.
             all = RegisterComponentType<Tween2D>(ComponentCategory::UI) && all;
             all = RegisterComponentType<ListView2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            // B 3 순위(D-358): 안전 영역·그룹·가로세로비·가상 키보드·탐색 연결. 모두 오브젝트에 하나다.
+            all = RegisterComponentType<SafeArea2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<CanvasGroup2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<AspectRatioFitter2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<VirtualKeyboard2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<Navigation2D>(
                       ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();

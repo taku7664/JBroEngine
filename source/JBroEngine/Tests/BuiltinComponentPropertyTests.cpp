@@ -54,8 +54,8 @@ namespace
         // 개수를 적어 두면 필드를 더하거나 지울 때 테스트가 먼저 운다.
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
-        Check(Table("Component::Button2D").count == 21,
-            "Button2D declares twenty-one fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, four states and the swap latch");
+        Check(Table("Component::Button2D").count == 25,
+            "Button2D declares twenty-five fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, two sound pairs of D-358, four states and the swap latch");
         Check(Table("Component::InputField2D").count == 34, "InputField2D declares thirty-four fields - the rect, interactable, the transition set of D-355 (twelve), text, display, caret, selection, maxLength, blinkRate, five states, the caret index, the selection anchor, composing and five hidden values (D-352, D-354, D-355)");
         Check(Table("Component::ToggleGroup2D").count == 2, "ToggleGroup2D declares two fields - allowOff and the value state (D-355)");
         Check(Table("Component::Dropdown2D").count == 27, "Dropdown2D declares twenty-seven fields - the rect, interactable, the transition set (twelve), list, caption, value, five states, two shown values and the swap latch (D-355)");
@@ -68,6 +68,11 @@ namespace
         Check(Table("Component::DropTarget2D").count == 4, "DropTarget2D declares four fields - the rect and two states (D-357)");
         Check(Table("Component::Tween2D").count == 15, "Tween2D declares fifteen fields - target, ease, duration, loop, playOnStart, three from/to pairs, three states and the hidden start (D-357)");
         Check(Table("Component::ListView2D").count == 11, "ListView2D declares eleven fields - count, item size, spacing, axis, four states and three hidden ranges (D-357)");
+        Check(Table("Component::SafeArea2D").count == 2, "SafeArea2D declares two axes (D-358)");
+        Check(Table("Component::CanvasGroup2D").count == 2, "CanvasGroup2D declares alpha and interactable (D-358)");
+        Check(Table("Component::AspectRatioFitter2D").count == 2, "AspectRatioFitter2D declares mode and aspect (D-358)");
+        Check(Table("Component::VirtualKeyboard2D").count == 4, "VirtualKeyboard2D declares the target and three special keys (D-358)");
+        Check(Table("Component::Navigation2D").count == 4, "Navigation2D declares four directions (D-358)");
         Check(Table("Component::Slider2D").count == 25, "Slider2D declares twenty-five fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), direction, value, handle, fill and four states (D-351, focused of D-352)");
         Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
         Check(Table("Component::ScrollView2D").count == 10, "ScrollView2D declares ten fields - content, its size, two scrollbars, two axes, sensitivity, deceleration and two states (D-351, D-355)");

@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/GameSystem.h>
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Framework2D/System/IScreen2DSystem.h>
@@ -143,6 +144,16 @@ namespace JBro::System
         Bool InsideModal(Object::GameObject* object) const;
         // 끌던 것을 놓는다(D-357): 포인터 아래의 놓을 자리에 떨어뜨리고(`dropped`·`droppedOn`·`OnDrop`), 없고 `snapBack` 이면 제자리로, 그리고 `OnDragEnd`.
         void DropDraggable(Object::GameObject& released, const Pointer& pointer);
+        // 이 오브젝트나 조상의 가상 키보드(가장 가까운 것)다(D-358). 없으면 nullptr.
+        Object::GameObject* FindKeyboardAncestor(Object::GameObject* object) const;
+        // 가상 키보드의 버튼이 눌렸다(D-358): 대상 칸(없으면 포커스 칸)에 글자·지우기·제출을 넣는다.
+        void PressVirtualKey(Object::GameObject& keyboardOwner, Object::GameObject& key);
+        // 글자 칸에 글자를 끼우거나(`utf8`, 선택을 대신한다) 앞 글자를 지운다(`backspace`). 바뀌면 `changed`·`OnValueChanged` 다.
+        void EditField(Object::GameObject& owner, Component::InputField2D& field, const char* utf8, std::size_t size, Bool backspace);
+        // 이 오브젝트에 켜진 위젯이 있으면 그 종류다(버튼·토글·슬라이더·글자 칸·드롭다운 차례). 없으면 `None`.
+        WidgetKind WidgetKindOf(Object::GameObject* object) const;
+        // 소리 한 번(D-358). 핸들이 비면 없다. 오디오가 없는 호스트에서는 아무 일도 없다.
+        static void PlayUiSound(AssetHandle sound);
         // 스크롤 뷰의 내용을 옮기고 가둔다. 가둬진 축은 `clampedX`·`clampedY` 가 참이다.
         void ScrollBy(Object::GameObject& owner, Component::ScrollView2D& scroll, Vector2 delta, Bool& clampedX, Bool& clampedY);
         // 포커스를 옮긴다. `nullptr` 은 비우기다. `visible` 은 게임패드·키보드로 옮긴 포커스다 - 그때만 버튼이 호버처럼 보인다(포인터로 누른 것은 포인터가 떠나면 보통이다).

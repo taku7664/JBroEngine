@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Framework2D/Component/AspectRatioFitter2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
@@ -416,6 +417,46 @@ namespace JBro::System
             {
                 sprite->sizeMode = Component::SpriteSizeMode::Custom;
                 apply(sprite->size);
+            }
+            if (auto* mask = canvas.FindComponentRaw<Component::Mask2D>(owner))
+            {
+                apply(mask->size);
+            }
+            Vector2* rect = nullptr;
+            if (WidgetRect(canvas, *owner, rect))
+            {
+                apply(*rect);
+            }
+        });
+        // 가로세로비 맞추기(D-358): 내용 크기 맞추기 뒤에, 같은 오브젝트의 사각형 한 변을 다른 변과 비율로 맞춘다.
+        canvas.ForEach<Component::AspectRatioFitter2D>([&](Component::AspectRatioFitter2D& fitter)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(fitter);
+            if (owner == nullptr || false == fitter.IsActiveComponent() || false == std::isfinite(fitter.aspect.Get()) || fitter.aspect <= 0.0f)
+            {
+                return;
+            }
+            const auto apply = [&](Vector2& target)
+            {
+                if (false == Finite(target))
+                {
+                    return;
+                }
+                if (fitter.mode == Component::AspectMode::HeightControlsWidth)
+                {
+                    target.x = std::fabs(target.y) * fitter.aspect;
+                }
+                else
+                {
+                    target.y = std::fabs(target.x) / fitter.aspect;
+                }
+            };
+            if (auto* sprite = canvas.FindComponentRaw<Component::SpriteRenderer2D>(owner))
+            {
+                if (sprite->sizeMode == Component::SpriteSizeMode::Custom)
+                {
+                    apply(sprite->size);
+                }
             }
             if (auto* mask = canvas.FindComponentRaw<Component::Mask2D>(owner))
             {

@@ -504,3 +504,19 @@
      어긋난다. 놓을 자리가 겹치면 먼저 찾은 것이다. 모달은 그리기를 손대지 않는다(막은 스프라이트로). 트윈은 같은 오브젝트에 여럿이다. 트윈 서비스는 두지 않았다 - 핸들의 `Play`·`Stop`·
      `Restart` 다. 툴팁의 머문 시간은 지난 갱신 훅의 델타다(편집 중에는 늘지 않는다).
    - 열림: 끌기 중 그림을 맨 위로 올리기(renderOrder 는 손대지 않는다), 목록 항목의 가변 크기, 트윈의 사슬(끝나면 다음), 툴팁 자리 따라가기(대상은 제자리다).
+4. ~~**B 3 순위**~~ → 완료 2026-10-30 · **`SafeArea2D`**(`horizontal`·`vertical`): 화면 레이어의 루트에 두면 `Transform2DSystem` 이 앵커를 `ComputeSafeAnchorPoint`(새 `ScreenSpace` 함수 -
+   띠를 보이는 영역의 비율로 기준 픽셀로 옮긴다)로 잰다 - §4·§7.3 의 "안전 영역" 이 이것으로 섰다. **`CanvasGroup2D`**(`alpha`·`interactable`): 새 `GroupState2D`(`ComputeGroupAlpha2D`·
+   `IsGroupInteractable2D`, 조상을 모두 본다)를 스프라이트·글자 추출(알파 곱)과 위젯 판정·탐색(후보 제외)이 같이 쓴다. **`AspectRatioFitter2D`**(`mode`·`aspect`): `Layout2DSystem` 이 내용
+   크기 맞추기 뒤에 같은 오브젝트의 `Custom` 스프라이트·마스크·위젯 사각형의 한 변을 맞춘다. **`VirtualKeyboard2D`**(`target`·`backspace`·`enter`·`space`): 아래의 버튼은 포커스를 가져가지
+   않고, 클릭이 대상 칸(없으면 포커스 칸)에 제 `Text2D` 글자를 끼운다(`EditField` - 선택 대신·상한·`OnValueChanged`), 특수 키 셋은 핸들로 가리킨다. **`Navigation2D`**(`up`·`down`·
+   `left`·`right`): `NavigateFocus` 가 방향 탐색 앞에 본다 - 가리킨 곳에 켜진 위젯(`WidgetKindOf`)이 없거나 자기 자신·모달·그룹 밖이면 그 방향은 없다. **버튼 소리**: `Button2D.hoverSoundId`·
+   `clickSoundId`(핸들은 해석 패스) - 들어올 때·클릭(포인터·게임패드)에 `GetAudioServices().Audio.PlayOneShot` 한 번. 핸들 다섯과 버튼의 새 멤버, 열거형 `AspectMode`, `UI` 갈래 등록 ·
+   - **잰 것**: `UiScenario` - 왼쪽 20·위 10 의 띠에서 왼쪽 위 앵커의 `SafeArea2D` 루트는 (-80, 40)·보통 루트는 (-100, 50), 가로를 끄면 (-100, 40), 띠가 없으면 (-100, 50). 그룹 알파는
+     0.5 x 0.5 = 0.25 이고 밖은 1, NaN 은 1, 켜진 그룹 아래 버튼은 눌리고 `interactable` 이 거짓이면 호버·눌림이 없고 게임이 마우스를 본다. 가상 키보드 - 포커스 칸에 `A`·`AA`,
+     지우기 `A`, 제출, Esc 뒤엔 안 들어가고, `target` 을 주면 포커스 없이 들어가며, 상한이 지켜진다. 연결 - 포커스 없이 맨 위가 먼저, `down` 연결이 방향 탐색 대신 가고, 꺼진 위젯·자기
+     자신을 가리키면 그대로. `Layout2D` - 가로세로비 2 에서 100 x 30 → 100 x 50(마스크도), 높이 주인이면 60 x 30, 0·NaN 은 그대로, 에셋 크기 스프라이트는 두고 마스크만.
+     `BuiltinComponentProperty`(버튼 25·안전 영역 2·그룹 2·비율 2·키보드 4·연결 4), `RendererContract`·`ScriptApiCatalog`·`InputChain`·`CanvasFile`·`TextRender`·`SpritePixel` 통과.
+   - 정한 것: 렌더 텍스처 이미지(3 순위)는 **넣지 않았다** - 텍스처는 호스트·RHI 가 만들고(에디터의 편집 뷰처럼) 프레임워크에는 텍스처 수명과 같은 프레임의 순서를 다루는 자리가 없다.
+     렌더러 쪽 일(카메라의 대상 텍스처)로 남긴다. 버튼 소리의 실제 재생은 오디오 없는 시험에서 보지 않았다(서비스는 시스템이 없으면 아무 일도 않는다 - 코드로 확인). 가상 키보드의
+     버튼은 게임패드로는 누를 수 없다(포커스를 가져가지 않는 길이 포인터뿐이다). 그룹의 알파는 추출 때 곱한다 - 틴트 값은 그대로다.
+   - 열림: 렌더 텍스처 이미지(렌더러), 가상 키보드의 게임패드 조작, 그룹의 `blocksRaycasts` 같은 세분(지금은 `interactable` 하나).

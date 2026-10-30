@@ -1,5 +1,6 @@
 ﻿#include "TestClock.h"
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Framework2D/Component/AspectRatioFitter2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
 #include <JBro/Framework2D/Component/Layout2D.h>
@@ -325,6 +326,46 @@ namespace
         Check(near(place->position.x, 30.0f), "a NaN target leaves the position where the ping-pong left it");
         framework.Shutdown();
     }
+
+    // **가로세로비 맞추기**(D-358). 폭이 주인이면 높이가 폭/비율, 높이가 주인이면 폭이 높이 x 비율이다.
+    void TestAspectRatioFittersKeepTheRatio()
+    {
+        Framework2D framework;
+        FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Canvas* canvas = framework.GetCanvas();
+        Object::GameObject* frame = canvas->CreateObject("frame");
+        canvas->AttachComponent<Component::Transform2D>(frame);
+        auto* sprite = canvas->AttachComponent<Component::SpriteRenderer2D>(frame);
+        sprite->sizeMode = Component::SpriteSizeMode::Custom;
+        sprite->size = {100.0f, 30.0f};
+        auto* mask = canvas->AttachComponent<Component::Mask2D>(frame);
+        mask->size = {100.0f, 30.0f};
+        auto* fitter = canvas->AttachComponent<Component::AspectRatioFitter2D>(frame);
+        fitter->aspect = 2.0f;
+        const auto tick = [&]() { JBro::Testing::Tick(framework, 1.0f / 60.0f); };
+        tick();
+        Check(sprite->size.x == 100.0f && sprite->size.y == 50.0f && mask->size.y == 50.0f, "width controls height: the height becomes width over aspect");
+        fitter->mode = Component::AspectMode::HeightControlsWidth;
+        mask->size = {100.0f, 30.0f};
+        sprite->size = {100.0f, 30.0f};
+        tick();
+        Check(sprite->size.x == 60.0f && sprite->size.y == 30.0f && mask->size.x == 60.0f, "height controls width: the width becomes height times aspect");
+        fitter->aspect = 0.0f;
+        sprite->size = {100.0f, 30.0f};
+        tick();
+        Check(sprite->size.x == 100.0f && sprite->size.y == 30.0f, "a zero aspect changes nothing");
+        fitter->aspect = std::numeric_limits<float>::quiet_NaN();
+        tick();
+        Check(sprite->size.x == 100.0f, "a NaN aspect changes nothing");
+        fitter->aspect = 2.0f;
+        sprite->sizeMode = Component::SpriteSizeMode::FromSprite;
+        sprite->size = {100.0f, 30.0f};
+        tick();
+        Check(sprite->size.y == 30.0f && mask->size.x == 60.0f, "an asset-sized sprite is left alone while the mask still follows");
+        framework.Shutdown();
+    }
 }
 
 JBro::Int32 RunLayout2DTests()
@@ -333,6 +374,7 @@ JBro::Int32 RunLayout2DTests()
     TestFittedChildrenAndContentSize();
     TestListViewsBindPoolItems();
     TestTweensMoveOverTime();
+    TestAspectRatioFittersKeepTheRatio();
     std::cout << "Layout2D tests passed." << std::endl;
     return 0;
 }

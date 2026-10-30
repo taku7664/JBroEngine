@@ -59,6 +59,8 @@ namespace JBro::Component
     enum class TweenTarget : std::uint8_t { Position, Scale, Rotation, Tint, Alpha };
     // 트윈이 끝에 닿으면(D-357). `Once` 는 멈추고, `Loop` 는 처음부터, `PingPong` 은 되돌아온다.
     enum class TweenLoop : std::uint8_t { Once, Loop, PingPong };
+    // 가로세로비 맞추기가 어느 변을 따르는가(D-358). `WidthControlsHeight` 는 폭이 주인이고 높이를 `aspect` 로 센다.
+    enum class AspectMode : std::uint8_t { WidthControlsHeight, HeightControlsWidth };
 }
 
 namespace JBro
@@ -92,6 +94,9 @@ namespace JBro
         { Component::TweenLoop::Once,     "Once" },
         { Component::TweenLoop::Loop,     "Loop" },
         { Component::TweenLoop::PingPong, "PingPong" });
+    JBRO_DEFINE_ENUM_TYPE(Component::AspectMode, "Component::AspectMode",
+        { Component::AspectMode::WidthControlsHeight, "WidthControlsHeight" },
+        { Component::AspectMode::HeightControlsWidth, "HeightControlsWidth" });
     JBRO_DEFINE_ENUM_TYPE(Component::LayoutMode, "Component::LayoutMode",
         { Component::LayoutMode::Horizontal, "Horizontal" },
         { Component::LayoutMode::Vertical,   "Vertical" },

@@ -373,6 +373,26 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Button2D::*)() const>(&Handle::Button2D::GetHoverSound)>("GetHoverSound", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(AssetHandle)>(&Handle::Button2D::SetHoverSound)>("SetHoverSound", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Handle::Button2D::*)() const>(&Handle::Button2D::GetClickSound)>("GetClickSound", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Button2D::*)(AssetHandle)>(&Handle::Button2D::SetClickSound)>("SetClickSound", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Button2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -446,6 +466,14 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::Button2D::GetClicked>("clicked");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Button2D::GetHoverSound, &Handle::Button2D::SetHoverSound>("hoverSound");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Button2D::GetClickSound, &Handle::Button2D::SetClickSound>("clickSound");
         type.Members.Add(std::move(member));
     }
     }
@@ -2761,6 +2789,367 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::ListView2D::GetBoundIndex>("boundIndex");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "SafeArea2D", "JBro::Handle::SafeArea2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::SafeArea2D::*)() const>(&Handle::SafeArea2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::SafeArea2D::*)() const>(&Handle::SafeArea2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::SafeArea2D::*)() const>(&Handle::SafeArea2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::SafeArea2D::*)(Bool)>(&Handle::SafeArea2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::SafeArea2D::*)() const>(&Handle::SafeArea2D::GetHorizontal)>("GetHorizontal", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::SafeArea2D::*)(Bool)>(&Handle::SafeArea2D::SetHorizontal)>("SetHorizontal", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::SafeArea2D::*)() const>(&Handle::SafeArea2D::GetVertical)>("GetVertical", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::SafeArea2D::*)(Bool)>(&Handle::SafeArea2D::SetVertical)>("SetVertical", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::SafeArea2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::SafeArea2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::SafeArea2D::IsEnabled, &Handle::SafeArea2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::SafeArea2D::GetHorizontal, &Handle::SafeArea2D::SetHorizontal>("horizontal");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::SafeArea2D::GetVertical, &Handle::SafeArea2D::SetVertical>("vertical");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "CanvasGroup2D", "JBro::Handle::CanvasGroup2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::CanvasGroup2D::*)() const>(&Handle::CanvasGroup2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::CanvasGroup2D::*)() const>(&Handle::CanvasGroup2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::CanvasGroup2D::*)() const>(&Handle::CanvasGroup2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::CanvasGroup2D::*)(Bool)>(&Handle::CanvasGroup2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::CanvasGroup2D::*)() const>(&Handle::CanvasGroup2D::GetAlpha)>("GetAlpha", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::CanvasGroup2D::*)(Float)>(&Handle::CanvasGroup2D::SetAlpha)>("SetAlpha", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::CanvasGroup2D::*)() const>(&Handle::CanvasGroup2D::GetInteractable)>("GetInteractable", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::CanvasGroup2D::*)(Bool)>(&Handle::CanvasGroup2D::SetInteractable)>("SetInteractable", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::CanvasGroup2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::CanvasGroup2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::CanvasGroup2D::IsEnabled, &Handle::CanvasGroup2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::CanvasGroup2D::GetAlpha, &Handle::CanvasGroup2D::SetAlpha>("alpha");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::CanvasGroup2D::GetInteractable, &Handle::CanvasGroup2D::SetInteractable>("interactable");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "AspectRatioFitter2D", "JBro::Handle::AspectRatioFitter2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::AspectRatioFitter2D::*)() const>(&Handle::AspectRatioFitter2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::AspectRatioFitter2D::*)() const>(&Handle::AspectRatioFitter2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::AspectRatioFitter2D::*)() const>(&Handle::AspectRatioFitter2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::AspectRatioFitter2D::*)(Bool)>(&Handle::AspectRatioFitter2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Component::AspectMode (Handle::AspectRatioFitter2D::*)() const>(&Handle::AspectRatioFitter2D::GetMode)>("GetMode", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::AspectRatioFitter2D::*)(Component::AspectMode)>(&Handle::AspectRatioFitter2D::SetMode)>("SetMode", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::AspectRatioFitter2D::*)() const>(&Handle::AspectRatioFitter2D::GetAspect)>("GetAspect", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::AspectRatioFitter2D::*)(Float)>(&Handle::AspectRatioFitter2D::SetAspect)>("SetAspect", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::AspectRatioFitter2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::AspectRatioFitter2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::AspectRatioFitter2D::IsEnabled, &Handle::AspectRatioFitter2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::AspectRatioFitter2D::GetMode, &Handle::AspectRatioFitter2D::SetMode>("mode");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::AspectRatioFitter2D::GetAspect, &Handle::AspectRatioFitter2D::SetAspect>("aspect");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "VirtualKeyboard2D", "JBro::Handle::VirtualKeyboard2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::VirtualKeyboard2D::*)() const>(&Handle::VirtualKeyboard2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::VirtualKeyboard2D::*)() const>(&Handle::VirtualKeyboard2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::VirtualKeyboard2D::*)() const>(&Handle::VirtualKeyboard2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::VirtualKeyboard2D::*)(Bool)>(&Handle::VirtualKeyboard2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::VirtualKeyboard2D::*)() const>(&Handle::VirtualKeyboard2D::GetTarget)>("GetTarget", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::VirtualKeyboard2D::*)(Handle::GameObject)>(&Handle::VirtualKeyboard2D::SetTarget)>("SetTarget", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::VirtualKeyboard2D::*)() const>(&Handle::VirtualKeyboard2D::GetBackspace)>("GetBackspace", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::VirtualKeyboard2D::*)(Handle::GameObject)>(&Handle::VirtualKeyboard2D::SetBackspace)>("SetBackspace", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::VirtualKeyboard2D::*)() const>(&Handle::VirtualKeyboard2D::GetEnter)>("GetEnter", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::VirtualKeyboard2D::*)(Handle::GameObject)>(&Handle::VirtualKeyboard2D::SetEnter)>("SetEnter", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::VirtualKeyboard2D::*)() const>(&Handle::VirtualKeyboard2D::GetSpace)>("GetSpace", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::VirtualKeyboard2D::*)(Handle::GameObject)>(&Handle::VirtualKeyboard2D::SetSpace)>("SetSpace", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::VirtualKeyboard2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::VirtualKeyboard2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::VirtualKeyboard2D::IsEnabled, &Handle::VirtualKeyboard2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::VirtualKeyboard2D::GetTarget, &Handle::VirtualKeyboard2D::SetTarget>("target");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::VirtualKeyboard2D::GetBackspace, &Handle::VirtualKeyboard2D::SetBackspace>("backspace");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::VirtualKeyboard2D::GetEnter, &Handle::VirtualKeyboard2D::SetEnter>("enter");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::VirtualKeyboard2D::GetSpace, &Handle::VirtualKeyboard2D::SetSpace>("space");
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
+    auto& type = AddType(catalog, "Navigation2D", "JBro::Handle::Navigation2D", ApiTypeKind::Handle);
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Navigation2D::*)() const>(&Handle::Navigation2D::IsValid)>("IsValid", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Navigation2D::*)() const>(&Handle::Navigation2D::GetGameObject)>("GetGameObject", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Navigation2D::*)() const>(&Handle::Navigation2D::IsEnabled)>("IsEnabled", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Navigation2D::*)(Bool)>(&Handle::Navigation2D::SetEnabled)>("SetEnabled", Parameters(In("enabled")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Navigation2D::*)() const>(&Handle::Navigation2D::GetUp)>("GetUp", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Navigation2D::*)(Handle::GameObject)>(&Handle::Navigation2D::SetUp)>("SetUp", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Navigation2D::*)() const>(&Handle::Navigation2D::GetDown)>("GetDown", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Navigation2D::*)(Handle::GameObject)>(&Handle::Navigation2D::SetDown)>("SetDown", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Navigation2D::*)() const>(&Handle::Navigation2D::GetLeft)>("GetLeft", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Navigation2D::*)(Handle::GameObject)>(&Handle::Navigation2D::SetLeft)>("SetLeft", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Navigation2D::*)() const>(&Handle::Navigation2D::GetRight)>("GetRight", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Navigation2D::*)(Handle::GameObject)>(&Handle::Navigation2D::SetRight)>("SetRight", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Navigation2D::IsValid>("valid");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Navigation2D::GetGameObject>("gameObject");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Navigation2D::IsEnabled, &Handle::Navigation2D::SetEnabled>("enabled");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Navigation2D::GetUp, &Handle::Navigation2D::SetUp>("up");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Navigation2D::GetDown, &Handle::Navigation2D::SetDown>("down");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Navigation2D::GetLeft, &Handle::Navigation2D::SetLeft>("left");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::Navigation2D::GetRight, &Handle::Navigation2D::SetRight>("right");
         type.Members.Add(std::move(member));
     }
     }

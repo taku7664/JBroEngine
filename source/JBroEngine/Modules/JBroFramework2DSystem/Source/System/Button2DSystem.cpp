@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
+#include <JBro/AudioTypes/ServiceContext.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Draggable2D.h>
 #include <JBro/Framework2D/Component/DropTarget2D.h>
@@ -10,6 +11,7 @@
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
 #include <JBro/Framework2D/Component/Modal2D.h>
+#include <JBro/Framework2D/Component/Navigation2D.h>
 #include <JBro/Framework2D/Component/ScrollView2D.h>
 #include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -18,10 +20,12 @@
 #include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Tooltip2D.h>
+#include <JBro/Framework2D/Component/VirtualKeyboard2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/Rendering/ClipRect2D.h>
+#include <JBro/Framework2DSystem/Rendering/GroupState2D.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
@@ -876,6 +880,180 @@ namespace JBro::System
         CallHook(&released, Hook::DragEnd);
     }
 
+    Object::GameObject* Button2DSystem::FindKeyboardAncestor(Object::GameObject* object) const
+    {
+        for (Object::GameObject* at = object; at != nullptr; at = at->GetParent())
+        {
+            const auto* keyboard = m_canvas->FindComponentRaw<Component::VirtualKeyboard2D>(at);
+            if (keyboard != nullptr && keyboard->IsActiveComponent())
+            {
+                return at;
+            }
+        }
+        return nullptr;
+    }
+
+    Button2DSystem::WidgetKind Button2DSystem::WidgetKindOf(Object::GameObject* object) const
+    {
+        if (object == nullptr || false == object->IsActiveInHierarchy())
+        {
+            return WidgetKind::None;
+        }
+        if (const auto* button = m_canvas->FindComponentRaw<Component::Button2D>(object); button != nullptr && button->IsActiveComponent() && button->interactable)
+        {
+            return WidgetKind::Button;
+        }
+        if (const auto* toggle = m_canvas->FindComponentRaw<Component::Toggle2D>(object); toggle != nullptr && toggle->IsActiveComponent() && toggle->interactable)
+        {
+            return WidgetKind::Toggle;
+        }
+        if (const auto* slider = m_canvas->FindComponentRaw<Component::Slider2D>(object); slider != nullptr && slider->IsActiveComponent() && slider->interactable)
+        {
+            return WidgetKind::Slider;
+        }
+        if (const auto* field = m_canvas->FindComponentRaw<Component::InputField2D>(object); field != nullptr && field->IsActiveComponent() && field->interactable)
+        {
+            return WidgetKind::Field;
+        }
+        if (const auto* dropdown = m_canvas->FindComponentRaw<Component::Dropdown2D>(object); dropdown != nullptr && dropdown->IsActiveComponent() && dropdown->interactable)
+        {
+            return WidgetKind::Dropdown;
+        }
+        return WidgetKind::None;
+    }
+
+    void Button2DSystem::PlayUiSound(AssetHandle sound)
+    {
+        if (sound.generation != 0)
+        {
+            GetAudioServices().Audio.PlayOneShot(sound);
+        }
+    }
+
+    void Button2DSystem::EditField(Object::GameObject& owner, Component::InputField2D& field, const char* utf8, std::size_t size, Bool backspace)
+    {
+        TextStore& store = TextStore::Get();
+        const ArrayView<const char> current = store.GetText(field.text);
+        m_textScratch.assign(current.Data() != nullptr ? current.Data() : "", current.Size());
+        UInt32 count = CountCodePoints(m_textScratch);
+        UInt32 caret = ClampCaret(field, count);
+        Bool changed = false;
+        // 선택이 있으면 먼저 지운다 - 글자는 그 자리에, 지우기는 그것으로 끝이다.
+        const Int32 anchor = field.selectionAnchor;
+        if (anchor >= 0 && UInt32(static_cast<std::uint32_t>(anchor.Get())) != caret)
+        {
+            const UInt32 anchorIndex = UInt32(static_cast<std::uint32_t>(anchor.Get())) < count ? UInt32(static_cast<std::uint32_t>(anchor.Get())) : count;
+            const UInt32 begin = anchorIndex < caret ? anchorIndex : caret;
+            const UInt32 end = anchorIndex < caret ? caret : anchorIndex;
+            const std::size_t from = ByteOffsetOf(m_textScratch, begin);
+            const std::size_t to = ByteOffsetOf(m_textScratch, end);
+            m_textScratch.erase(from, to - from);
+            count -= end - begin;
+            caret = begin;
+            changed = true;
+            backspace = false;
+        }
+        if (backspace && caret > 0)
+        {
+            const std::size_t begin = ByteOffsetOf(m_textScratch, caret - 1);
+            const std::size_t end = ByteOffsetOf(m_textScratch, caret);
+            m_textScratch.erase(begin, end - begin);
+            --caret;
+            --count;
+            changed = true;
+        }
+        std::size_t at = 0;
+        while (utf8 != nullptr && at < size)
+        {
+            UInt32 codePoint = 0;
+            std::size_t length = 1;
+            const Bool decoded = DecodeCodePoint(utf8, size, at, codePoint, length);
+            at += length;
+            if (false == decoded || codePoint < 0x20 || codePoint == 0x7F)
+            {
+                continue;
+            }
+            if (field.maxLength > 0 && count >= static_cast<JBro::UInt32>(field.maxLength.Get()))
+            {
+                break;
+            }
+            const std::size_t before = m_textScratch.size();
+            InsertCodePoint(m_textScratch, ByteOffsetOf(m_textScratch, caret), codePoint);
+            if (m_textScratch.size() != before)
+            {
+                ++count;
+                ++caret;
+                changed = true;
+            }
+        }
+        field.caretIndex = Int32(static_cast<std::int32_t>(caret.Get()));
+        field.selectionAnchor = -1;
+        field.blinkTime = 0.0f;
+        if (changed)
+        {
+            store.Assign(field.text, m_textScratch.data(), m_textScratch.size());
+            field.changed = true;
+            CallHook(&owner, Hook::ValueChanged);
+        }
+    }
+
+    void Button2DSystem::PressVirtualKey(Object::GameObject& keyboardOwner, Object::GameObject& key)
+    {
+        const auto* keyboard = m_canvas->FindComponentRaw<Component::VirtualKeyboard2D>(&keyboardOwner);
+        if (keyboard == nullptr)
+        {
+            return;
+        }
+        // 대상 칸: 적힌 것, 없으면 포커스 칸.
+        Object::GameObject* fieldOwner = Internal::GameObjectHandleAccess::Resolve(keyboard->target);
+        if (fieldOwner == nullptr && m_focusedKind == WidgetKind::Field)
+        {
+            m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field)
+            {
+                Object::GameObject* owner = Internal::CanvasAccess::GetOwner(field);
+                if (owner != nullptr && owner->GetInstanceId() == m_focused)
+                {
+                    fieldOwner = owner;
+                }
+            });
+        }
+        auto* field = fieldOwner != nullptr ? m_canvas->FindComponentRaw<Component::InputField2D>(fieldOwner) : nullptr;
+        if (field == nullptr || false == field->IsActiveComponent() || false == field->interactable)
+        {
+            return;
+        }
+        if (Internal::GameObjectHandleAccess::Resolve(keyboard->backspace) == &key)
+        {
+            EditField(*fieldOwner, *field, nullptr, 0, true);
+            return;
+        }
+        if (Internal::GameObjectHandleAccess::Resolve(keyboard->enter) == &key)
+        {
+            field->submitted = true;
+            CallHook(fieldOwner, Hook::Submit);
+            return;
+        }
+        if (Internal::GameObjectHandleAccess::Resolve(keyboard->space) == &key)
+        {
+            EditField(*fieldOwner, *field, " ", 1, false);
+            return;
+        }
+        // 나머지 버튼은 제 오브젝트의 글자다.
+        const auto* label = m_canvas->FindComponentRaw<Component::Text2D>(&key);
+        if (label == nullptr)
+        {
+            return;
+        }
+        const ArrayView<const char> text = TextStore::Get().GetText(label->text);
+        if (text.Data() == nullptr || text.Size() == 0)
+        {
+            return;
+        }
+        // 글자를 넣는 동안 저장소가 움직일 수 있다 - 라벨을 먼저 떠 둔다.
+        m_clipScratch.assign(text.Data(), text.Size());
+        EditField(*fieldOwner, *field, m_clipScratch.data(), m_clipScratch.size(), false);
+    }
+
     void Button2DSystem::ScrollBy(Object::GameObject& owner, Component::ScrollView2D& scroll, Vector2 delta, Bool& clampedX, Bool& clampedY)
     {
         clampedX = false;
@@ -982,15 +1160,18 @@ namespace JBro::System
         Object::GameObject* best = nullptr;
         WidgetKind bestKind = WidgetKind::None;
         Float bestScore = 0.0f;
+        Object::GameObject* fromOwner = nullptr;
         const auto consider = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Bool active) {
             if (owner == nullptr || false == active || false == interactable || false == owner->IsActiveInHierarchy()
-                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible() || false == InsideModal(owner))
+                || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible() || false == InsideModal(owner)
+                || false == IsGroupInteractable2D(*m_canvas, owner))
             {
                 return;
             }
             if (owner->GetInstanceId() == m_focused && kind == m_focusedKind)
             {
                 hasFrom = WidgetPixel(*owner, fromX, fromY);
+                fromOwner = owner;
                 return;
             }
             Float x = 0.0f;
@@ -1041,6 +1222,22 @@ namespace JBro::System
             SetFocus(nullptr, WidgetKind::None);
             return;
         }
+        // 명시 연결(D-358): 포커스 오브젝트의 `Navigation2D` 가 그 방향을 가리키면 그리로 간다. 가리킨 곳에 켜진 위젯이 없거나 모달·그룹 밖이면 그 방향은 없는 것이다.
+        if (const auto* links = fromOwner != nullptr ? m_canvas->FindComponentRaw<Component::Navigation2D>(fromOwner) : nullptr; links != nullptr && links->IsActiveComponent())
+        {
+            const Handle::GameObject& link = directionY < 0 ? links->up : directionY > 0 ? links->down : directionX < 0 ? links->left : links->right;
+            if (link.IsValid())
+            {
+                Object::GameObject* target = Internal::GameObjectHandleAccess::Resolve(link);
+                const WidgetKind kind = WidgetKindOf(target);
+                if (kind != WidgetKind::None && target != fromOwner && InsideModal(target) && IsGroupInteractable2D(*m_canvas, target)
+                    && target->GetLayer() != nullptr && target->GetLayer()->IsVisible())
+                {
+                    SetFocus(target, kind, true);
+                }
+                return;
+            }
+        }
         // 두 번째 걸음: 방향의 가장 가까운 것.
         best = nullptr;
         const Float dirX = static_cast<JBro::Float>(directionX.Get());
@@ -1048,6 +1245,7 @@ namespace JBro::System
         const auto pick = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Bool active) {
             if (owner == nullptr || false == active || false == interactable || false == owner->IsActiveInHierarchy()
                 || owner->GetLayer() == nullptr || false == owner->GetLayer()->IsVisible() || false == InsideModal(owner)
+                || false == IsGroupInteractable2D(*m_canvas, owner)
                 || (owner->GetInstanceId() == m_focused && kind == m_focusedKind))
             {
                 return;
@@ -1843,7 +2041,7 @@ namespace JBro::System
         Object::GameObject* pressedBefore = nullptr;
         Object::GameObject* focusedObject = nullptr;
         const auto consider = [&](Object::GameObject* owner, WidgetKind kind, Bool interactable, Vector2 size, Vector2 offset, Bool active) {
-            if (owner == nullptr || false == InsideModal(owner))
+            if (owner == nullptr || false == InsideModal(owner) || false == IsGroupInteractable2D(*m_canvas, owner))
             {
                 return;
             }
@@ -2007,6 +2205,10 @@ namespace JBro::System
             }
             if (top.kind == WidgetKind::Button)
             {
+                if (const auto* button = m_canvas->FindComponentRaw<Component::Button2D>(top.owner))
+                {
+                    PlayUiSound(button->hoverSound);
+                }
                 CallHook(top.owner, Hook::Enter);
             }
         }
@@ -2019,7 +2221,13 @@ namespace JBro::System
         if (pointer.pressed)
         {
             // 누른 위젯이 포커스를 받는다. 빈 곳이나 스크롤 뷰의 빈 자리를 누르면 포커스가 없다(글자 칸은 키보드를 놓는다).
-            if (top.owner != nullptr && top.interactable && top.kind != WidgetKind::Scroll)
+            // 가상 키보드의 버튼은 포커스를 가져가지 않는다(D-358) - 칸이 포커스를 지켜야 글자가 들어간다.
+            const Bool onKeyboard = top.owner != nullptr && top.kind == WidgetKind::Button && FindKeyboardAncestor(top.owner) != nullptr;
+            if (onKeyboard)
+            {
+                // 그대로 둔다.
+            }
+            else if (top.owner != nullptr && top.interactable && top.kind != WidgetKind::Scroll)
             {
                 SetFocus(top.owner, top.kind);
             }
@@ -2193,8 +2401,14 @@ namespace JBro::System
                 if (auto* button = m_canvas->FindComponentRaw<Component::Button2D>(released))
                 {
                     button->clicked = true;
+                    PlayUiSound(button->clickSound);
                 }
                 CallHook(released, Hook::Click);
+                // 가상 키보드의 버튼이면 글자 칸에 넣는다(D-358). 훅이 버튼을 지웠을 수 있으니 번호로 다시 찾는다.
+                if (Object::GameObject* keyboardOwner = FindKeyboardAncestor(released))
+                {
+                    PressVirtualKey(*keyboardOwner, *released);
+                }
             }
             else if (onTop && releasedKind == WidgetKind::Toggle)
             {
@@ -2398,6 +2612,7 @@ namespace JBro::System
                     if (auto* button = m_canvas->FindComponentRaw<Component::Button2D>(focusedObject))
                     {
                         button->clicked = true;
+                        PlayUiSound(button->clickSound);
                     }
                     CallHook(focusedObject, Hook::Click);
                 }

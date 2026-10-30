@@ -92,6 +92,14 @@ void AddEnums(ApiCatalog& catalog)
     }
     }
     {
+    auto& type = AddType(catalog, "AspectMode", "JBro::Component::AspectMode", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::AspectMode>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
     auto& type = AddType(catalog, "CameraProjection2D", "JBro::Component::CameraProjection2D", ApiTypeKind::Enum);
     const auto& descriptor = TypeDescriptorOf<Component::CameraProjection2D>::Get();
     for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)

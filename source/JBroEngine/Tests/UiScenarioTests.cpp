@@ -2,12 +2,16 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/CanvasGroup2D.h>
 #include <JBro/Framework2D/Component/Draggable2D.h>
 #include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/Modal2D.h>
+#include <JBro/Framework2D/Component/Navigation2D.h>
+#include <JBro/Framework2D/Component/SafeArea2D.h>
 #include <JBro/Framework2D/Component/TabGroup2D.h>
 #include <JBro/Framework2D/Component/Tooltip2D.h>
+#include <JBro/Framework2D/Component/VirtualKeyboard2D.h>
 #include <JBro/Framework2D/Component/InputField2D.h>
 #include <JBro/Framework2D/Component/Layout2D.h>
 #include <JBro/Framework2D/Component/Mask2D.h>
@@ -24,6 +28,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework2DSystem/Rendering/GroupState2D.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Input/InputSystem.h>
 #include <JBro/InputTypes/InputState.h>
@@ -1446,6 +1451,153 @@ namespace
         Check(poller->sawMouse, "after the dragged object destroyed itself the next press reaches the game");
         stage.Frame({Released(MouseButton::Left)});
     }
+
+    // **안전 영역·그룹·가상 키보드·탐색 연결**(D-358, B 3 순위). 화면 200 x 100 = 기준(띠는 대상 픽셀 = 기준 픽셀). 글자 칸은 (-40, -30) 60 x 20(픽셀 (60, 80)),
+    // 키는 y 30(픽셀 y 20)에 (-60)·(0)·(60), 그룹 아래 버튼은 (60, -30)(픽셀 (160, 80)), 연결 시험의 버튼은 (0, 45)·(-80, -45)·(80, -45) 다.
+    void TestSafeAreaGroupsKeyboardAndLinks()
+    {
+        Stage stage;
+        Canvas* canvas = stage.canvas;
+        auto* poller = canvas->AttachScript<GamePoller>(canvas->CreateObject("poller"));
+
+        // 안전 영역: 왼쪽 20·위 10 의 띠. 왼쪽 위 앵커의 루트는 안으로 들어온다.
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = 200.0f;
+        frame.referenceHeight = 100.0f;
+        frame.targetWidth = 200.0f;
+        frame.targetHeight = 100.0f;
+        frame.safeArea.left = 20.0f;
+        frame.safeArea.top = 10.0f;
+        stage.framework.SetScreenSpace(frame);
+        Object::GameObject* corner = stage.Make("corner", {});
+        stage.PlaceOf(corner)->anchor = {0.0f, 1.0f};
+        auto* safe = canvas->AttachComponent<Component::SafeArea2D>(corner);
+        Object::GameObject* plain = stage.Make("plain", {});
+        stage.PlaceOf(plain)->anchor = {0.0f, 1.0f};
+        stage.Frames(2);
+        Check(CloseTo(stage.PlaceOf(corner)->worldPosition.x, -80.0f) && CloseTo(stage.PlaceOf(corner)->worldPosition.y, 40.0f), "a safe-area root anchors inside the insets");
+        Check(CloseTo(stage.PlaceOf(plain)->worldPosition.x, -100.0f) && CloseTo(stage.PlaceOf(plain)->worldPosition.y, 50.0f), "a plain root anchors at the screen corner");
+        safe->horizontal = false;
+        stage.Frame({});
+        Check(CloseTo(stage.PlaceOf(corner)->worldPosition.x, -100.0f) && CloseTo(stage.PlaceOf(corner)->worldPosition.y, 40.0f), "a disabled axis uses the full screen on that axis");
+        frame.safeArea = {};
+        stage.framework.SetScreenSpace(frame);
+        stage.Frame({});
+        Check(CloseTo(stage.PlaceOf(corner)->worldPosition.x, -100.0f) && CloseTo(stage.PlaceOf(corner)->worldPosition.y, 50.0f), "without insets the safe area is the screen");
+
+        // 그룹: 알파는 곱이고, interactable 이 거짓이면 아래 버튼이 눌리지 않는다.
+        Object::GameObject* panel = stage.Make("panel", {});
+        auto* group = canvas->AttachComponent<Component::CanvasGroup2D>(panel);
+        group->alpha = 0.5f;
+        Object::GameObject* inner = stage.Make("inner", {}, panel);
+        auto* innerGroup = canvas->AttachComponent<Component::CanvasGroup2D>(inner);
+        innerGroup->alpha = 0.5f;
+        Object::GameObject* press = stage.Make("press", {60.0f, -30.0f}, inner);
+        auto* pressButton = canvas->AttachComponent<Component::Button2D>(press);
+        pressButton->size = {30.0f, 20.0f};
+        Check(CloseTo(ComputeGroupAlpha2D(*canvas, press), 0.25f) && CloseTo(ComputeGroupAlpha2D(*canvas, panel), 0.5f) && CloseTo(ComputeGroupAlpha2D(*canvas, corner), 1.0f),
+            "nested group alphas multiply and an object outside any group is opaque");
+        innerGroup->alpha = NaN;
+        Check(CloseTo(ComputeGroupAlpha2D(*canvas, press), 0.5f), "a NaN alpha counts as one");
+        stage.Frames(2);
+        stage.Frame({MouseAt(160.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(pressButton->clicked, "a button under interactable groups clicks");
+        group->interactable = false;
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Check(false == pressButton->pressed && false == pressButton->hovered && poller->sawMouse && false == IsGroupInteractable2D(*canvas, press),
+            "a button under a non-interactable group is nothing and the press reaches the game");
+        stage.Frame({Released(MouseButton::Left)});
+        group->interactable = true;
+
+        // 가상 키보드: 키 버튼은 포커스를 가져가지 않고 글자를 칸에 넣는다.
+        Object::GameObject* board = stage.Make("board", {});
+        auto* keyboard = canvas->AttachComponent<Component::VirtualKeyboard2D>(board);
+        Object::GameObject* keyA = stage.Make("keyA", {-60.0f, 30.0f}, board);
+        canvas->AttachComponent<Component::Button2D>(keyA)->size = {20.0f, 16.0f};
+        auto* labelA = canvas->AttachComponent<Component::Text2D>(keyA);
+        TextStore::Get().Assign(labelA->text, "A", 1);
+        Object::GameObject* back = stage.Make("back", {0.0f, 30.0f}, board);
+        canvas->AttachComponent<Component::Button2D>(back)->size = {20.0f, 16.0f};
+        keyboard->backspace = back->GetScriptHandle();
+        Object::GameObject* enter = stage.Make("enter", {60.0f, 30.0f}, board);
+        canvas->AttachComponent<Component::Button2D>(enter)->size = {20.0f, 16.0f};
+        keyboard->enter = enter->GetScriptHandle();
+        Object::GameObject* name = stage.Make("name", {-40.0f, -30.0f});
+        auto* field = canvas->AttachComponent<Component::InputField2D>(name);
+        field->size = {60.0f, 20.0f};
+        stage.Frames(2);
+        stage.Frame({MouseAt(60.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(field->focused, "the field takes focus");
+        stage.Frame({MouseAt(40.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(TextIs(field->text, "A") && field->focused && field->caretIndex == 1, "a virtual key types into the focused field and leaves its focus alone");
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(TextIs(field->text, "AA"), "and again");
+        stage.Frame({MouseAt(100.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(TextIs(field->text, "A") && field->caretIndex == 1, "the backspace key erases before the caret");
+        stage.Frame({MouseAt(160.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(field->submitted, "the enter key submits");
+        stage.Frame({Pressed(Key::Escape)});
+        stage.Frame({ReleasedKey(Key::Escape)});
+        stage.Frame({MouseAt(40.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(TextIs(field->text, "A") && false == field->focused, "without a focused field a key types nowhere");
+        keyboard->target = name->GetScriptHandle();
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(TextIs(field->text, "AA"), "a keyboard with a target types into it without focus");
+        field->maxLength = 2;
+        stage.Frame({HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(TextIs(field->text, "AA"), "the field's limit holds for virtual keys too");
+        keyboard->target = {};
+
+        // 탐색 연결: 맨 위의 버튼이 먼저 포커스를 받고, 그 `down` 연결이 방향 탐색 대신 간다. 꺼진 위젯을 가리키면 그 방향은 없다.
+        Object::GameObject* top = stage.Make("top", {0.0f, 45.0f});
+        auto* topButton = canvas->AttachComponent<Component::Button2D>(top);
+        topButton->size = {20.0f, 8.0f};
+        auto* links = canvas->AttachComponent<Component::Navigation2D>(top);
+        Object::GameObject* farLeft = stage.Make("farLeft", {-80.0f, -45.0f});
+        auto* farLeftButton = canvas->AttachComponent<Component::Button2D>(farLeft);
+        farLeftButton->size = {20.0f, 8.0f};
+        Object::GameObject* farRight = stage.Make("farRight", {80.0f, -45.0f});
+        auto* farRightButton = canvas->AttachComponent<Component::Button2D>(farRight);
+        farRightButton->size = {20.0f, 8.0f};
+        links->down = farRight->GetScriptHandle();
+        stage.Frame({MouseAt(190.0f, 2.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadDown);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(topButton->focused, "with no focus the top-most widget is picked");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadDown);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(farRightButton->focused && false == topButton->focused, "an explicit down link wins over the direction search");
+        links->down = farLeft->GetScriptHandle();
+        farLeftButton->interactable = false;
+        stage.Frame({MouseAt(100.0f, 5.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(topButton->focused, "pressing the top button focuses it again");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadDown);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(topButton->focused && false == farLeftButton->focused, "a link to a disabled widget goes nowhere");
+        links->down = top->GetScriptHandle();
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadDown);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(topButton->focused, "a link to itself goes nowhere");
+    }
 }
 
 JBro::Int32 RunUiScenarioTests()
@@ -1462,6 +1614,7 @@ JBro::Int32 RunUiScenarioTests()
     TestToggleGroupsDropdownsAndTransitions();
     TestScrollbarsFollowTheContent();
     TestTooltipsModalsTabsAndDragging();
+    TestSafeAreaGroupsKeyboardAndLinks();
     Log::SetEchoToConsole(echo);
     std::cout << "UI scenario tests passed.\n";
     return 0;

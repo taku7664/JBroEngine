@@ -1,6 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
 
 #include <JBro/Canvas/Internal/CanvasAccess.h>
+#include <JBro/Framework2D/Component/SafeArea2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/Float.h>
@@ -118,7 +119,16 @@ namespace JBro::System
             if (layer != nullptr && layer->GetSpace() == LayerSpace::Screen
                 && ComputeScreenExtent(layer->GetScaleMode(), m_screen, extent))
             {
-                ComputeAnchorPoint(extent, transform.anchor.x, transform.anchor.y, parent.m31, parent.m32);
+                // 루트에 `SafeArea2D` 가 있으면 안전 영역에서 잰다(D-358).
+                const auto* safe = canvas.FindComponentRaw<Component::SafeArea2D>(owner);
+                if (safe != nullptr && safe->IsActiveComponent())
+                {
+                    ComputeSafeAnchorPoint(extent, m_screen, safe->horizontal, safe->vertical, transform.anchor.x, transform.anchor.y, parent.m31, parent.m32);
+                }
+                else
+                {
+                    ComputeAnchorPoint(extent, transform.anchor.x, transform.anchor.y, parent.m31, parent.m32);
+                }
             }
             PropagateWorldTransform(
                 canvas,

@@ -19,6 +19,11 @@
 #include <JBro/Framework2D/Component/DropTarget2D.h>
 #include <JBro/Framework2D/Component/Tween2D.h>
 #include <JBro/Framework2D/Component/ListView2D.h>
+#include <JBro/Framework2D/Component/SafeArea2D.h>
+#include <JBro/Framework2D/Component/CanvasGroup2D.h>
+#include <JBro/Framework2D/Component/AspectRatioFitter2D.h>
+#include <JBro/Framework2D/Component/VirtualKeyboard2D.h>
+#include <JBro/Framework2D/Component/Navigation2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -59,6 +64,11 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<DropTarget2D>() && all;
             all = RegisterBuiltinProperties<Tween2D>() && all;
             all = RegisterBuiltinProperties<ListView2D>() && all;
+            all = RegisterBuiltinProperties<SafeArea2D>() && all;
+            all = RegisterBuiltinProperties<CanvasGroup2D>() && all;
+            all = RegisterBuiltinProperties<AspectRatioFitter2D>() && all;
+            all = RegisterBuiltinProperties<VirtualKeyboard2D>() && all;
+            all = RegisterBuiltinProperties<Navigation2D>() && all;
             all = RegisterBuiltinProperties<Mask2D>() && all;
             all = RegisterBuiltinProperties<ScrollView2D>() && all;
             all = RegisterBuiltinProperties<InputField2D>() && all;

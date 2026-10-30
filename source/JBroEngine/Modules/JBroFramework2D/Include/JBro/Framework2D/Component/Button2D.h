@@ -60,6 +60,11 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, pressedSprite, NoSerialize() | ReadOnly() | Tooltip("pressedSpriteId 에서 해석된 값") | Hidden());
         JBRO_FIELD(AssetId, disabledSpriteId, Category("Transition"));
         JBRO_FIELD(AssetHandle, disabledSprite, NoSerialize() | ReadOnly() | Tooltip("disabledSpriteId 에서 해석된 값") | Hidden());
+        // 소리(D-358): 포인터가 들어올 때와 클릭에 한 번 울린다. 비면 없다. 핸들은 해석 패스가 채운다.
+        JBRO_FIELD(AssetId, hoverSoundId);
+        JBRO_FIELD(AssetHandle, hoverSound, NoSerialize() | ReadOnly() | Tooltip("hoverSoundId 에서 해석된 값") | Hidden());
+        JBRO_FIELD(AssetId, clickSoundId);
+        JBRO_FIELD(AssetHandle, clickSound, NoSerialize() | ReadOnly() | Tooltip("clickSoundId 에서 해석된 값") | Hidden());
 
         // 시스템이 채우는 이번 프레임의 상태다. 스크립트가 훅 대신 읽어도 된다.
         // `clicked` 는 버튼 위에서 눌렀다가 버튼 위에서 뗀 그 프레임에만 참이다.

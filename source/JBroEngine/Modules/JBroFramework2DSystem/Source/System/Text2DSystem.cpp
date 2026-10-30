@@ -1,6 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/System/Text2DSystem.h>
 
 #include <JBro/Framework2DSystem/Rendering/ClipRect2D.h>
+#include <JBro/Framework2DSystem/Rendering/GroupState2D.h>
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
@@ -182,6 +183,8 @@ namespace JBro::System
         // 마스크는 글자마다가 아니라 텍스트마다 한 번 센다(D-351).
         Float clip[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         const Bool clipped = ComputeClipRect2D(canvas, owner, clip);
+        // 그룹의 알파도 텍스트마다 한 번이다(D-358).
+        const Float groupAlpha = ComputeGroupAlpha2D(canvas, owner);
         for (const GlyphQuad& quad : block.GetQuads())
         {
             const AssetHandle page = m_library.GetPageTexture(block.GetFont(quad.face), quad.page);
@@ -223,6 +226,7 @@ namespace JBro::System
                 item.tint = Color{ quad.tint[0] / 255.0f, quad.tint[1] / 255.0f, quad.tint[2] / 255.0f,
                     quad.tint[3] / 255.0f * text.color.A };
             }
+            item.tint.A = item.tint.A * groupAlpha;
             item.pivot = Vector2{ 0.0f, 1.0f };
             item.size = Vector2{ quad.width / ppu, quad.height / ppu };
             item.renderOrder = text.renderOrder;

@@ -42,6 +42,8 @@ namespace JBro::Handle
     JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetHoverSprite, SetHoverSprite, hoverSprite)
     JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetPressedSprite, SetPressedSprite, pressedSprite)
     JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetDisabledSprite, SetDisabledSprite, disabledSprite)
+    JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetHoverSound, SetHoverSound, hoverSound)
+    JBRO_BUTTON2D_ACCESSOR(AssetHandle, GetClickSound, SetClickSound, clickSound)
 
 #undef JBRO_BUTTON2D_ACCESSOR
 

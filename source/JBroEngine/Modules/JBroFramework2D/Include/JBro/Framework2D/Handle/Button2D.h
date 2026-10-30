@@ -59,6 +59,11 @@ namespace JBro::Handle
         void SetPressedSprite(AssetHandle value);
         AssetHandle GetDisabledSprite() const;
         void SetDisabledSprite(AssetHandle value);
+        // 들어올 때·클릭에 한 번 울리는 소리다(D-358).
+        AssetHandle GetHoverSound() const;
+        void SetHoverSound(AssetHandle value);
+        AssetHandle GetClickSound() const;
+        void SetClickSound(AssetHandle value);
         Bool GetHovered() const;
         Bool GetFocused() const;
         Bool GetPressed() const;
