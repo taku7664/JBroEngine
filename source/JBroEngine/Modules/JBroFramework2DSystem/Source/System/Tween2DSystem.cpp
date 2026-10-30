@@ -6,6 +6,7 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Component/Tween2D.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Types/Angle.h>
 #include <JBro/Types/Easing.h>
 
@@ -99,6 +100,15 @@ namespace JBro::System
                     tween.time = duration;
                     tween.playing = false;
                     tween.finished = true;
+                    // 사슬(D-360): 다음 오브젝트의 트윈을 처음부터. 자기 자신은 무시한다.
+                    Object::GameObject* nextOwner = Internal::GameObjectHandleAccess::Resolve(tween.next);
+                    auto* chained = nextOwner != nullptr && nextOwner != owner ? canvas.FindComponentRaw<Component::Tween2D>(nextOwner) : nullptr;
+                    if (chained != nullptr)
+                    {
+                        chained->time = 0.0f;
+                        chained->playing = true;
+                        chained->started = true;
+                    }
                 }
                 break;
             }

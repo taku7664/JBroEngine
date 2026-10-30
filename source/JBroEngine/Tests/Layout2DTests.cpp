@@ -346,7 +346,14 @@ namespace
         framework.Shutdown();
     }
 
-    // **트윈**(D-357). 자리·알파가 시간에 따라 간다.
+    Object::GameObject* window_like_object_without_tween(Canvas* canvas)
+    {
+        Object::GameObject* plain = canvas->CreateObject("plain");
+        canvas->AttachComponent<Component::Transform2D>(plain);
+        return plain;
+    }
+
+    // **트윈**(D-357). 자리·알파가 시간에 따라 간다. 사슬은 D-360.
     void TestTweensMoveOverTime()
     {
         Framework2D framework;
@@ -417,6 +424,67 @@ namespace
         tween->playing = true;
         tick();
         Check(near(place->position.x, 30.0f), "a NaN target leaves the position where the ping-pong left it");
+        // 사슬(D-360): 끝에 닿으면 `next` 의 트윈이 처음부터 돈다. 자기 자신은 무시하고, 트윈이 없는 오브젝트는 아무것도 아니며, 고리는 돈다.
+        Object::GameObject* follower = canvas->CreateObject("follower");
+        auto* followerPlace = canvas->AttachComponent<Component::Transform2D>(follower);
+        auto* followerTween = canvas->AttachComponent<Component::Tween2D>(follower);
+        followerTween->playOnStart = false;
+        followerTween->toVector = {0.0f, 40.0f};
+        followerTween->duration = 0.5f;
+        // 풀이 늘어나 옮겨졌을 수 있다 - 처음 것의 포인터를 다시 받는다.
+        place = canvas->FindComponentRaw<Component::Transform2D>(mover);
+        tween = canvas->FindComponentRaw<Component::Tween2D>(mover);
+        tween->next = follower->GetScriptHandle();
+        tween->toVector = {60.0f, 0.0f};
+        tween->duration = 1.0f;
+        tween->ease = EaseKind::Linear;
+        tween->time = 0.0f;
+        tween->playing = true;
+        for (JBro::Int32 frame = 0; frame < 59; ++frame)
+        {
+            tick();
+        }
+        Check(false == followerTween->playing && near(followerPlace->position.y, 0.0f), "the next tween waits until the first ends");
+        tick();
+        Check(tween->finished && followerTween->playing && followerTween->time <= 1.0f / 60.0f + 0.001f, "when the first ends the next starts from the beginning");
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        {
+            tick();
+        }
+        Check(near(followerPlace->position.y, 40.0f) && false == followerTween->playing, "the chained tween runs its own course");
+        followerTween->next = mover->GetScriptHandle();
+        followerTween->time = 0.0f;
+        followerTween->playing = true;
+        place->position.x = 0.0f;
+        for (JBro::Int32 frame = 0; frame < 29; ++frame)
+        {
+            tick();
+        }
+        Check(false == tween->playing && near(place->position.x, 0.0f), "before the follower ends the first tween is still stopped");
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            tick();
+        }
+        // 풀 차례에 따라 되돌아온 트윈이 같은 프레임에 한 번 더 갈 수 있다 - 한두 프레임(1 또는 2)이다.
+        Check(tween->playing && place->position.x > 0.5f && place->position.x < 2.5f, "a chain can loop back and restart the first tween");
+        tween->next = mover->GetScriptHandle();
+        tween->time = 0.0f;
+        for (JBro::Int32 frame = 0; frame < 61; ++frame)
+        {
+            tick();
+        }
+        Check(false == tween->playing && near(place->position.x, 60.0f), "a tween that names itself as next just stops");
+        Object::GameObject* plain = window_like_object_without_tween(canvas);
+        place = canvas->FindComponentRaw<Component::Transform2D>(mover);
+        tween = canvas->FindComponentRaw<Component::Tween2D>(mover);
+        tween->next = plain->GetScriptHandle();
+        tween->time = 0.0f;
+        tween->playing = true;
+        for (JBro::Int32 frame = 0; frame < 61; ++frame)
+        {
+            tick();
+        }
+        Check(false == tween->playing && tween->finished == false, "a next without a tween is nothing");
         framework.Shutdown();
     }
 

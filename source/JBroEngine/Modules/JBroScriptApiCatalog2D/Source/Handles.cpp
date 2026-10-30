@@ -2633,6 +2633,16 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Tween2D::*)() const>(&Handle::Tween2D::GetNext)>("GetNext", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tween2D::*)(Handle::GameObject)>(&Handle::Tween2D::SetNext)>("SetNext", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Tween2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }

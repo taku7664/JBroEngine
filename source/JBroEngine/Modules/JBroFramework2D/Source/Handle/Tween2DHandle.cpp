@@ -42,6 +42,7 @@ namespace JBro::Handle
     JBRO_TWEEN2D_ACCESSOR(Float, GetFromValue, SetFromValue, fromValue)
     JBRO_TWEEN2D_ACCESSOR(Float, GetToValue, SetToValue, toValue)
     JBRO_TWEEN2D_ACCESSOR(Bool, GetPlaying, SetPlaying, playing)
+    JBRO_TWEEN2D_ACCESSOR(GameObject, GetNext, SetNext, next)
 
 #undef JBRO_TWEEN2D_ACCESSOR
 

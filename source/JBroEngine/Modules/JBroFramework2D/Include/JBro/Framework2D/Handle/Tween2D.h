@@ -8,6 +8,7 @@
 #include <JBro/Types/Math2D.h>
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/ComponentHandleReflection.h>
+#include <JBro/Runtime/GameObjectHandle.h>
 
 #include <type_traits>
 
@@ -49,6 +50,9 @@ namespace JBro::Handle
         void SetFromValue(Float value);
         Float GetToValue() const;
         void SetToValue(Float value);
+        // 끝나면 돌릴 다음 트윈의 오브젝트다(D-360). 자기 자신은 무시한다.
+        GameObject GetNext() const;
+        void SetNext(GameObject value);
         Bool GetPlaying() const;
         void SetPlaying(Bool value);
         Float GetTime() const;

@@ -587,3 +587,10 @@
      다시 켜면 넷 재고, 0 은 내용 0. `UiScenario`·`BuiltinComponentProperty`(15)·`ScriptApiCatalog`·`PublicHeaderComposition` 통과.
    - 정한 것: 재는 동안의 훅마다 스크립트 목록을 다시 모은다(훅이 스크립트를 떼도 된다). 100 만 항목이면 재는 데 훅 100 만 번이다 - 한 번이고 `count` 를 바꿀 때마다다(열림: 바뀐 뒤만 재기).
      항목의 가로(진행 축과 수직) 길이는 전처럼 `itemSize` 하나다.
+6. ~~**트윈 사슬**~~ → 완료 2026-10-30 · `Tween2D.next`(`Handle::GameObject`), 핸들 `GetNext`·`SetNext`. `Tween2DSystem` 이 `Once` 가 끝에 닿은 프레임에 `next` 오브젝트의 `Tween2D` 를
+   처음부터(`time` 0·`playing`·`started`) 돌린다 - 자기 자신은 무시, 트윈이 없는 오브젝트는 아무것도 아니다.
+   - **잰 것**: `Layout2D` `TestTweensMoveOverTime` 끝 - 다음 트윈은 첫 것이 끝나기 전엔 서 있고(59 프레임), 끝나는 프레임에 처음부터 돌며(`time` ≤ 1/60), 제 길이(0.5 초)를 다 가고,
+     되돌아오는 고리(B → A)는 A 를 다시 돌리며(풀 차례에 따라 같은 프레임에 한 번 더 가므로 x 는 1 또는 2), 자기 자신을 `next` 로 둔 트윈은 그냥 서고, 트윈 없는 `next` 는 아무것도 아니다.
+     `BuiltinComponentProperty`(16)·`ScriptApiCatalog`·`PublicHeaderComposition`·`UiScenario` 통과.
+   - 정한 것: 사슬은 `Once` 만 잇는다(`Loop`·`PingPong` 은 끝이 없다). 같은 프레임에 풀 차례가 뒤인 트윈이 이어지면 그 프레임에 바로 한 걸음 간다(한 프레임 차이, 열림으로 두지 않는다).
+   - 시험을 쓰다 두 번 헛짚었다: 풀이 늘어 옛 컴포넌트 포인터가 다른 자리를 가리켰고(새 오브젝트를 만든 뒤 `FindComponentRaw` 로 다시 받는다), 앞 단계가 둔 `QuadIn` 이 남아 첫 프레임 값이 1/3600 이었다.
