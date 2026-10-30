@@ -1725,6 +1725,62 @@ namespace
         stage.Frame({Released(MouseButton::Left)});
         Check(TextIs(field->text, "AA"), "the field's limit holds for virtual keys too");
         keyboard->target = {};
+        // 게임패드(D-360): 칸에 포커스를 두고 십자키로 키에 가서 South 를 누르면 마지막 포커스 칸에 들어간다. East 는 지우기, Enter 키는 제출이다.
+        field->maxLength = 0;
+        field->submitted = false;
+        stage.Frame({MouseAt(60.0f, 80.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        stage.Frame({MouseAt(190.0f, 2.0f)});
+        Check(field->focused && field->caretIndex == 2, "the field is focused again with the caret at the end");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadUp);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        for (JBro::Int32 step = 0; step < 2; ++step)
+        {
+            stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadLeft);
+            stage.Frame({});
+            stage.platform.pads[0].buttons = 0;
+            stage.Frame({});
+        }
+        auto* keyAButton = canvas->FindComponentRaw<Component::Button2D>(keyA);
+        Check(keyAButton->focused && false == field->focused, "the d-pad walks from the field onto the left-most key");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::South);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(keyAButton->clicked && keyAButton->focused, "south on a key is a click and the key keeps focus");
+        Check(TextIs(field->text, "AAA"), "south on a key types into the last focused field");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::East);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(TextIs(field->text, "AA"), "east erases before the caret");
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::South);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        Check(canvas->FindComponentRaw<Component::Button2D>(enter)->focused && field->submitted, "two steps right is the enter key and south submits");
+        // 마지막 포커스 칸이 사라지면 아무 데도 넣지 않는다. 포인터로 누른 키는 전처럼 포커스 칸이 있어야 한다.
+        name->SetActive(false);
+        stage.platform.pads[0].buttons = PadBit(GamepadButton::East);
+        stage.Frame({});
+        stage.platform.pads[0].buttons = 0;
+        stage.Frame({});
+        name->SetActive(true);
+        stage.Frame({});
+        Check(TextIs(field->text, "AA"), "a hidden last field is left alone");
+        stage.Frame({MouseAt(40.0f, 20.0f), HeldButton(MouseButton::Left)});
+        stage.Frame({Released(MouseButton::Left)});
+        Check(TextIs(field->text, "AA"), "a pointer press on a key still needs a focused field");
 
         // 탐색 연결: 맨 위의 버튼이 먼저 포커스를 받고, 그 `down` 연결이 방향 탐색 대신 간다. 꺼진 위젯을 가리키면 그 방향은 없다.
         Object::GameObject* top = stage.Make("top", {0.0f, 45.0f});

@@ -157,8 +157,9 @@ namespace JBro::System
         void LiftSubtree(Object::GameObject& root, Int32 delta);
         // 이 오브젝트나 조상의 가상 키보드(가장 가까운 것)다(D-358). 없으면 nullptr.
         Object::GameObject* FindKeyboardAncestor(Object::GameObject* object) const;
-        // 가상 키보드의 버튼이 눌렸다(D-358): 대상 칸(없으면 포커스 칸)에 글자·지우기·제출을 넣는다.
-        void PressVirtualKey(Object::GameObject& keyboardOwner, Object::GameObject& key);
+        // 가상 키보드의 버튼이 눌렸다(D-358): 대상 칸(없으면 포커스 칸)에 글자·지우기·제출을 넣는다. 게임패드로 눌렀으면(D-360) 포커스가 키에 있으니 마지막 포커스 칸까지 본다.
+        // `key` 가 nullptr 이면 지우기다(`East`).
+        void PressVirtualKey(Object::GameObject& keyboardOwner, Object::GameObject* key, Bool fromGamepad);
         // 글자 칸에 글자를 끼우거나(`utf8`, 선택을 대신한다) 앞 글자를 지운다(`backspace`). 바뀌면 `changed`·`OnValueChanged` 다.
         void EditField(Object::GameObject& owner, Component::InputField2D& field, const char* utf8, std::size_t size, Bool backspace);
         // 이 오브젝트에 켜진 위젯이 있으면 그 종류다(버튼·토글·슬라이더·글자 칸·드롭다운 차례). 없으면 `None`.
@@ -196,6 +197,8 @@ namespace JBro::System
         // 포커스 위젯과 게임패드의 누름·스틱 상태.
         InstanceId       m_focused = InvalidInstanceId;
         WidgetKind       m_focusedKind = WidgetKind::None;
+        // 마지막으로 포커스였던 글자 칸이다(D-360) - 게임패드로 가상 키보드를 누를 때의 대상.
+        InstanceId       m_lastField = InvalidInstanceId;
         Bool             m_padPressed = false;
         Bool             m_focusVisible = false;
         Float            m_stickX = 0.0f;

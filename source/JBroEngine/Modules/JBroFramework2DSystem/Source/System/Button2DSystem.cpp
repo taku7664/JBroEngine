@@ -1161,21 +1161,22 @@ namespace JBro::System
         }
     }
 
-    void Button2DSystem::PressVirtualKey(Object::GameObject& keyboardOwner, Object::GameObject& key)
+    void Button2DSystem::PressVirtualKey(Object::GameObject& keyboardOwner, Object::GameObject* key, Bool fromGamepad)
     {
         const auto* keyboard = m_canvas->FindComponentRaw<Component::VirtualKeyboard2D>(&keyboardOwner);
         if (keyboard == nullptr)
         {
             return;
         }
-        // 대상 칸: 적힌 것, 없으면 포커스 칸.
+        // 대상 칸: 적힌 것, 없으면 포커스 칸, 게임패드면(포커스가 키에 있다) 마지막 포커스 칸까지(D-360).
         Object::GameObject* fieldOwner = Internal::GameObjectHandleAccess::Resolve(keyboard->target);
-        if (fieldOwner == nullptr && m_focusedKind == WidgetKind::Field)
+        const InstanceId wanted = m_focusedKind == WidgetKind::Field ? m_focused : (fromGamepad ? m_lastField : InvalidInstanceId);
+        if (fieldOwner == nullptr && wanted != InvalidInstanceId)
         {
             m_canvas->ForEach<Component::InputField2D>([&](Component::InputField2D& field)
             {
                 Object::GameObject* owner = Internal::CanvasAccess::GetOwner(field);
-                if (owner != nullptr && owner->GetInstanceId() == m_focused)
+                if (owner != nullptr && owner->GetInstanceId() == wanted)
                 {
                     fieldOwner = owner;
                 }
@@ -1186,24 +1187,24 @@ namespace JBro::System
         {
             return;
         }
-        if (Internal::GameObjectHandleAccess::Resolve(keyboard->backspace) == &key)
+        if (key == nullptr || Internal::GameObjectHandleAccess::Resolve(keyboard->backspace) == key)
         {
             EditField(*fieldOwner, *field, nullptr, 0, true);
             return;
         }
-        if (Internal::GameObjectHandleAccess::Resolve(keyboard->enter) == &key)
+        if (Internal::GameObjectHandleAccess::Resolve(keyboard->enter) == key)
         {
             field->submitted = true;
             CallHook(fieldOwner, Hook::Submit);
             return;
         }
-        if (Internal::GameObjectHandleAccess::Resolve(keyboard->space) == &key)
+        if (Internal::GameObjectHandleAccess::Resolve(keyboard->space) == key)
         {
             EditField(*fieldOwner, *field, " ", 1, false);
             return;
         }
         // 나머지 버튼은 제 오브젝트의 글자다.
-        const auto* label = m_canvas->FindComponentRaw<Component::Text2D>(&key);
+        const auto* label = m_canvas->FindComponentRaw<Component::Text2D>(key);
         if (label == nullptr)
         {
             return;
@@ -1249,6 +1250,10 @@ namespace JBro::System
         m_focusedKind = object != nullptr ? kind : WidgetKind::None;
         m_focusVisible = object != nullptr && visible;
         m_padPressed = false;
+        if (object != nullptr && kind == WidgetKind::Field)
+        {
+            m_lastField = m_focused;
+        }
         // 글자 칸이 포커스를 받으면 커서는 글자 끝이고 바로 보인다(D-354).
         if (object != nullptr && kind == WidgetKind::Field && m_canvas != nullptr)
         {
@@ -2620,7 +2625,7 @@ namespace JBro::System
                 // 가상 키보드의 버튼이면 글자 칸에 넣는다(D-358). 훅이 버튼을 지웠을 수 있으니 번호로 다시 찾는다.
                 if (Object::GameObject* keyboardOwner = FindKeyboardAncestor(released))
                 {
-                    PressVirtualKey(*keyboardOwner, *released);
+                    PressVirtualKey(*keyboardOwner, released, false);
                 }
             }
             else if (onTop && releasedKind == WidgetKind::Toggle)
@@ -2678,6 +2683,7 @@ namespace JBro::System
             Int32 directionY = 0;
             Bool confirmPressed = false;
             Bool confirmReleased = false;
+            Bool erasePressed = false;
             Float stickX = 0.0f;
             Float stickY = 0.0f;
             // 쥐고 있는 방향이다(자동 반복, D-354). 십자키가 스틱보다 먼저다.
@@ -2724,6 +2730,7 @@ namespace JBro::System
                 }
                 confirmPressed = confirmPressed || pad.IsPressed(GamepadButton::South);
                 confirmReleased = confirmReleased || pad.IsReleased(GamepadButton::South);
+                erasePressed = erasePressed || pad.IsPressed(GamepadButton::East);
                 const Float x = pad.GetAxis(GamepadAxis::LeftX);
                 const Float y = pad.GetAxis(GamepadAxis::LeftY);
                 stickX = std::fabs(x) > std::fabs(stickX) ? x : stickX;
@@ -2849,6 +2856,12 @@ namespace JBro::System
                         PlayUiSound(button->clickSound);
                     }
                     CallHook(focusedObject, Hook::Click);
+                    // 가상 키보드의 키였으면 글자를 넣는다(D-360). 훅이 키를 지웠을 수 있으니 번호로 다시 찾는다.
+                    resolveFocused();
+                    if (Object::GameObject* keyboardOwner = focusedObject != nullptr ? FindKeyboardAncestor(focusedObject) : nullptr)
+                    {
+                        PressVirtualKey(*keyboardOwner, focusedObject, true);
+                    }
                 }
                 else if (m_focusedKind == WidgetKind::Toggle)
                 {
@@ -2870,6 +2883,15 @@ namespace JBro::System
                             OpenDropdown(*dropdown);
                         }
                     }
+                }
+            }
+            // 키보드 안에 포커스가 있으면 `East` 가 지우기다(D-360).
+            if (erasePressed && focusedObject != nullptr)
+            {
+                if (Object::GameObject* keyboardOwner = FindKeyboardAncestor(focusedObject))
+                {
+                    usedGamepad = true;
+                    PressVirtualKey(*keyboardOwner, nullptr, true);
                 }
             }
             // 포커스가 바뀌었을 수 있다 - 뒤의 상태 칸은 번호로 본다.

@@ -572,3 +572,9 @@
      `BuiltinComponentProperty`(툴팁 8·끌기 10)·`ScriptApiCatalog`·`PublicHeaderComposition` 통과.
    - 정한 것: 올리는 것은 스프라이트·글자의 `renderOrder` 다(`drawSequence` 는 손대지 않는다 - 같은 `renderOrder` 안의 차례는 그대로). 끌리는 동안 붙인 그림은 올리지 않고 뗀 그림은
      되돌리지 않는다(놓을 때 `lifted` 를 빼는 대상은 그때의 자손이다 - 끌리는 동안 붙인 자식 그림은 놓을 때 `lifted` 만큼 **내려간다**, 열림). 툴팁의 자리는 스크립트가 같은 프레임에 써도 시스템이 덮는다.
+4. ~~**가상 키보드의 게임패드**~~ → 완료 2026-10-30 · `PressVirtualKey(keyboardOwner, key, fromGamepad)` - 대상 칸은 `target` → 포커스 칸 → (게임패드면) `m_lastField`(`SetFocus` 가 글자 칸에
+   포커스를 줄 때마다 적는다). 게임패드 `South` 로 포커스 버튼을 클릭한 뒤 그 버튼이 가상 키보드 안이면 키를 누르고, 포커스가 키보드 안에 있을 때 `East` 가 지우기(`key` 가 nullptr)다.
+   포인터로 누른 키는 전처럼 포커스 칸까지다(`fromGamepad` 거짓).
+   - **잰 것**: `UiScenario` `TestSafeAreaGroupsKeyboardAndLinks` - 칸을 눌러 포커스(커서 2), 십자키 위·왼쪽 둘로 `keyA` 에 포커스(칸은 포커스를 잃는다), `South` 가 클릭이고 `AA` → `AAA`,
+     `East` 가 `AA`, 오른쪽 둘이 `enter` 키이고 `South` 가 제출, 마지막 칸이 꺼져 있으면 `East` 는 아무것도 안 함, 포인터로 누른 키는 포커스 칸이 없으면 그대로.
+   - 정한 것: 게임패드로 치는 동안 칸은 포커스가 없다(커서가 보이지 않고 `focused` 거짓) - 글자는 떠 둔 커서 자리에 들어간다. `East` 는 키보드 안에 포커스가 있을 때만 UI 의 것이다.
