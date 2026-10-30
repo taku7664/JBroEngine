@@ -597,3 +597,15 @@
 - **전체**(2026-10-30, 4 부 뒤, 이 PC 의 main 폴더, Debug, 기준 main 27352ae4): 솔루션 빌드 C++ 경고 0, 전체 시험 127 묶음 `all tests passed.`(`EditorApplication` 1505.2 초, `UserScenario` 100.1 초).
   스크린숏 d06b(`Dropdown2D` 인스펙터)는 3 부와 같다 - 새 필드(`highlighted`·`liftOrder`·`follow`·`variableSize`·`next`)는 State 갈래거나 아래쪽이라 화면이 바뀌지 않았다.
 - 4 부 끝(2026-10-30). 남은 것: 끌리는 동안 붙인 자식 그림의 내려감(3), 가변 목록은 `count` 가 바뀌면 전부 다시 잼(5), 3 부의 열림 가운데 3D 화면 레이어·실제 IME·렌더 텍스처·카메라마다 후처리.
+  → 5 부(§7.7)에서 (3)·(5)·카메라마다 후처리를 세웠다.
+
+### 7.7 5 부 - 남은 열림 (D-361)
+
+> 상태: **진행** (2026-10-30 시작). 사용자 지시 "남은거 해". 3·4 부의 열림 가운데 엔진 안에서 되는 것: 끌기 올리기 보완, 가변 목록 부분 재기, 글자 칸 셋(조합 밑줄·더블 클릭·Ctrl+Z),
+> 그룹 `blocksRaycasts`, 카메라마다 후처리, 컴포넌트 갈래 나누기. 남기는 것과 까닭은 D-361 (7). 단위마다 커밋한다.
+
+1. ~~**끌기는 올린 것만 내린다**~~ → 완료 2026-10-30 · `Button2DSystem::m_lifted`(`Array<Handle::GameObject>`, 64 예약)에 `LiftSubtree` 가 올린 오브젝트를 적고 `LowerLifted` 가 그것만 내린다.
+   - **잰 것**: `UiScenario` `TestTooltipsModalsTabsAndDragging` - 끌리는 중에 붙인 자식 스프라이트(5)는 그대로 5 이고, 끌리는 중에 부모를 뗀 자식 글자는 놓을 때 100 → 0 으로 돌아오며 카드는 103 → 3.
+   - 정한 것: 끌리는 동안 지워진 오브젝트는 핸들이 풀리지 않아 건너뛴다.
+2. ~~**가변 목록은 늘어난 항목만 잰다**~~ → 완료 2026-10-30 · `Layout2DSystem` 의 재기 앞에 `known`(= `remeasure` 아님·`measuredCount` 가 끝 배열 길이·0 아님): 줄면 `Resize`, 늘면 끝에서 이어 잰다.
+   - **잰 것**: `Layout2D` `TestListItemsCanVaryInSize` - 6 → 4 는 재지 않고 내용 80, 4 → 7 은 셋만 재고(마지막 번호 6) 내용 130, 7 → 4 는 재지 않고 80, `remeasure` 는 넷 모두(13).

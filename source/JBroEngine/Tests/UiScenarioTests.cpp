@@ -1596,6 +1596,22 @@ namespace
                 && slotProbe->drops == 1 && cardProbe->ends == 1 && false == draggable->dragging,
             "releasing drops it on the slot and tells both scripts");
         Check(cardSprite->renderOrder == 3 && cardText->renderOrder == 0 && draggable->lifted == 0, "dropping puts the render orders back");
+        // 끌리는 동안 붙인 자식 그림은 놓을 때 내려가지 않는다(D-361). 끌리는 동안 뗀 자식은 그대로 둔다. 빈 곳에 놓아 제자리로 돌아온다.
+        draggable->snapBack = true;
+        stage.Frame({HeldButton(MouseButton::Left)});
+        Object::GameObject* badge = stage.Make("badge", {}, card);
+        auto* badgeSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(badge);
+        badgeSprite->renderOrder = 5;
+        stage.Frame({MouseAt(170.0f, 95.0f)});
+        Check(draggable->dragging && badgeSprite->renderOrder == 5 && cardSprite->renderOrder == 103, "a sprite attached mid-drag is not lifted");
+        cardLabel->SetParent(nullptr);
+        stage.Frame({Released(MouseButton::Left)});
+        Check(badgeSprite->renderOrder == 5 && cardSprite->renderOrder == 3 && cardText->renderOrder == 0, "dropping lowers only what was lifted, including a child moved away meanwhile");
+        Check(CloseTo(stage.PlaceOf(card)->position.x, 30.0f) && cardProbe->ends == 2, "and it snapped back");
+        draggable->snapBack = false;
+        cardLabel->SetParent(card);
+        canvas->DestroyObject(badge);
+        stage.Frame({MouseAt(130.0f, 80.0f)});
         stage.Frame({});
         Check(false == target->dropped.IsValid() && false == draggable->droppedOn.IsValid() && false == target->hovering, "the drop lasts one frame");
         draggable->snapBack = true;
@@ -1608,7 +1624,7 @@ namespace
         stage.Frame({Released(MouseButton::Left)});
         Check(cardSprite->renderOrder == 3, "changing liftOrder mid-drag does not change what is taken back");
         draggable->liftOrder = 100;
-        Check(CloseTo(stage.PlaceOf(card)->position.x, 30.0f) && CloseTo(stage.PlaceOf(card)->position.y, -30.0f) && slotProbe->drops == 1 && cardProbe->ends == 2,
+        Check(CloseTo(stage.PlaceOf(card)->position.x, 30.0f) && CloseTo(stage.PlaceOf(card)->position.y, -30.0f) && slotProbe->drops == 1 && cardProbe->ends == 3,
             "released over nothing it snaps back");
         // 놓는 훅에서 제 오브젝트를 지워도 다음 누름은 게임에 간다.
         cardProbe->destroyOnEnd = true;

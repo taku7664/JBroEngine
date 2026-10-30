@@ -452,6 +452,7 @@ namespace JBro::System
     void Button2DSystem::OnInitialize(Canvas& canvas)
     {
         m_canvas = &canvas;
+        m_lifted.Reserve(64);
     }
 
     void Button2DSystem::OnShutdown(Canvas& canvas)
@@ -919,13 +920,20 @@ namespace JBro::System
 
     void Button2DSystem::LiftSubtree(Object::GameObject& root, Int32 delta)
     {
+        Bool lifted = false;
         if (auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(&root))
         {
             sprite->renderOrder = sprite->renderOrder + delta;
+            lifted = true;
         }
         if (auto* text = m_canvas->FindComponentRaw<Component::Text2D>(&root))
         {
             text->renderOrder = text->renderOrder + delta;
+            lifted = true;
+        }
+        if (lifted)
+        {
+            m_lifted.Add(root.GetScriptHandle());
         }
         for (const SafePtr<Object::GameObject>& child : root.GetChildren())
         {
@@ -936,6 +944,27 @@ namespace JBro::System
         }
     }
 
+    void Button2DSystem::LowerLifted(Int32 delta)
+    {
+        for (const Handle::GameObject& handle : m_lifted)
+        {
+            Object::GameObject* object = Internal::GameObjectHandleAccess::Resolve(handle);
+            if (object == nullptr)
+            {
+                continue;
+            }
+            if (auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(object))
+            {
+                sprite->renderOrder = sprite->renderOrder + delta;
+            }
+            if (auto* text = m_canvas->FindComponentRaw<Component::Text2D>(object))
+            {
+                text->renderOrder = text->renderOrder + delta;
+            }
+        }
+        m_lifted.Clear();
+    }
+
     void Button2DSystem::DropDraggable(Object::GameObject& released, const Pointer& pointer)
     {
         auto* draggable = m_canvas->FindComponentRaw<Component::Draggable2D>(&released);
@@ -943,10 +972,10 @@ namespace JBro::System
         {
             return;
         }
-        // 올렸던 만큼 내린다(D-360).
+        // 올렸던 것만 올렸던 만큼 내린다(D-360·D-361).
         if (draggable->lifted != 0)
         {
-            LiftSubtree(released, Int32(-draggable->lifted));
+            LowerLifted(Int32(-draggable->lifted));
             draggable->lifted = 0;
         }
         // 포인터 아래의 놓을 자리 - 먼저 찾은 것이다(한 자리에 여럿을 겹쳐 두지 않는다). 모달 밖은 없는 것이다.
@@ -2480,6 +2509,7 @@ namespace JBro::System
                     draggable->dragging = true;
                     // 끌리는 동안 맨 위에(D-360).
                     draggable->lifted = draggable->liftOrder;
+                    m_lifted.Clear();
                     if (draggable->lifted != 0)
                     {
                         LiftSubtree(*pressed, draggable->lifted);
