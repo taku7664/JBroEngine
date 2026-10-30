@@ -917,12 +917,37 @@ namespace JBro::System
         return inside;
     }
 
+    void Button2DSystem::LiftSubtree(Object::GameObject& root, Int32 delta)
+    {
+        if (auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(&root))
+        {
+            sprite->renderOrder = sprite->renderOrder + delta;
+        }
+        if (auto* text = m_canvas->FindComponentRaw<Component::Text2D>(&root))
+        {
+            text->renderOrder = text->renderOrder + delta;
+        }
+        for (const SafePtr<Object::GameObject>& child : root.GetChildren())
+        {
+            if (Object::GameObject* next = child.TryGet())
+            {
+                LiftSubtree(*next, delta);
+            }
+        }
+    }
+
     void Button2DSystem::DropDraggable(Object::GameObject& released, const Pointer& pointer)
     {
         auto* draggable = m_canvas->FindComponentRaw<Component::Draggable2D>(&released);
         if (draggable == nullptr)
         {
             return;
+        }
+        // 올렸던 만큼 내린다(D-360).
+        if (draggable->lifted != 0)
+        {
+            LiftSubtree(released, Int32(-draggable->lifted));
+            draggable->lifted = 0;
         }
         // 포인터 아래의 놓을 자리 - 먼저 찾은 것이다(한 자리에 여럿을 겹쳐 두지 않는다). 모달 밖은 없는 것이다.
         Object::GameObject* targetOwner = nullptr;
@@ -1850,6 +1875,20 @@ namespace JBro::System
             {
                 target->SetActive(tooltip.shown);
             }
+            // 따라가기(D-360): 대상을 포인터 자리 + 오프셋에 - 대상 부모의 좌표로.
+            if (tooltip.follow && tooltip.shown && m_pointer.present)
+            {
+                auto* place = canvas.FindComponentRaw<Component::Transform2D>(target);
+                Object::GameObject* parent = target->GetParent();
+                const Layer* layer = target->GetLayer();
+                Vector2 at;
+                const Bool mapped = place != nullptr && layer != nullptr
+                    && (parent != nullptr ? PointerToLocal(*parent, *layer, m_pointer, at) : PixelToLayer(*layer, m_pointer.x, m_pointer.y, at));
+                if (mapped && std::isfinite(tooltip.followOffset.x.Get()) && std::isfinite(tooltip.followOffset.y.Get()))
+                {
+                    place->position = { at.x + tooltip.followOffset.x, at.y + tooltip.followOffset.y };
+                }
+            }
         });
         // 드롭다운(D-355): 목록(자식)의 켜짐은 `open`, 항목 토글의 켜짐은 `value`, 캡션은 고른 항목의 글자다.
         canvas.ForEach<Component::Dropdown2D>([&](Component::Dropdown2D& dropdown)
@@ -2118,6 +2157,7 @@ namespace JBro::System
             return InputResult::Pass;
         }
         const Pointer pointer = ReadPointer(input);
+        m_pointer = pointer;
 
         // 모달(D-357): 켜진 것이 있으면 그 안의 위젯만 후보이고, 게임까지 막는 것이 있으면 이번 프레임의 장치를 모두 지운다.
         m_modalActive = false;
@@ -2433,6 +2473,12 @@ namespace JBro::System
                         draggable->startValid = true;
                     }
                     draggable->dragging = true;
+                    // 끌리는 동안 맨 위에(D-360).
+                    draggable->lifted = draggable->liftOrder;
+                    if (draggable->lifted != 0)
+                    {
+                        LiftSubtree(*pressed, draggable->lifted);
+                    }
                     CallHook(pressed, Hook::DragBegin);
                 }
             }

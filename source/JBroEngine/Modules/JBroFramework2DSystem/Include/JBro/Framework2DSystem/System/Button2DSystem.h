@@ -153,6 +153,8 @@ namespace JBro::System
         Bool InsideModal(Object::GameObject* object) const;
         // 끌던 것을 놓는다(D-357): 포인터 아래의 놓을 자리에 떨어뜨리고(`dropped`·`droppedOn`·`OnDrop`), 없고 `snapBack` 이면 제자리로, 그리고 `OnDragEnd`.
         void DropDraggable(Object::GameObject& released, const Pointer& pointer);
+        // 이 오브젝트와 자손의 스프라이트·글자 `renderOrder` 에 `delta` 를 더한다(D-360, 끌리는 동안 맨 위에).
+        void LiftSubtree(Object::GameObject& root, Int32 delta);
         // 이 오브젝트나 조상의 가상 키보드(가장 가까운 것)다(D-358). 없으면 nullptr.
         Object::GameObject* FindKeyboardAncestor(Object::GameObject* object) const;
         // 가상 키보드의 버튼이 눌렸다(D-358): 대상 칸(없으면 포커스 칸)에 글자·지우기·제출을 넣는다.
@@ -222,6 +224,8 @@ namespace JBro::System
         Float            m_lastPixelX = 0.0f;
         Float            m_lastPixelY = 0.0f;
         Vector2          m_dragDelta;
+        // 이번 프레임의 포인터다(D-360) - 갱신 훅의 툴팁 따라가기가 쓴다.
+        Pointer          m_pointer;
         // 스크롤바의 트랙 누름(D-360): 손잡이 밖을 눌러 한 페이지씩 가는 중인가, 그 쥔 시간.
         Bool             m_sliderPaging = false;
         Bool             m_pageForward = false;

@@ -563,3 +563,12 @@
      0.1429, 반대쪽으로 옮기면 그대로, 막대가 아닌 슬라이더는 전처럼 뜀.
    - 정한 것: 손잡이 길이는 스프라이트가 `Custom` 이 아니어도 같은 셈이다(보이는 손잡이와 다를 수 있다). 트랙 누름 중에는 끌기로 바뀌지 않는다(놓고 손잡이를 다시 누른다).
    - 처음 판은 손잡이가 닿으면 `m_sliderPaging` 을 끄게 했더니 그 프레임부터 끌기가 되어 포인터 자리로 뛰었다 - 놓을 때까지 페이지 모드로 두고 `PageScrollbar` 가 스스로 그대로 있게 바꿨다.
+3. ~~**끌리는 동안 맨 위에, 툴팁 따라가기**~~ → 완료 2026-10-30 · `Draggable2D.liftOrder`(기본 100)·`lifted`(Hidden): 끌기 시작에 `Button2DSystem::LiftSubtree` 가 이 오브젝트와 자손의
+   `SpriteRenderer2D`·`Text2D` 의 `renderOrder` 에 더하고 `lifted` 에 적으며, `DropDraggable` 이 `lifted` 만큼 뺀다(포인터가 사라져 놓일 때도). `Tooltip2D.follow`·`followOffset`(기본 (12, -12) 픽셀):
+   `PlaceWidgets` 의 툴팁 단계가 보이는 동안 대상을 포인터(대상 부모의 로컬, 부모가 없으면 레이어) + 오프셋에 둔다 - 포인터는 입력 체인이 `m_pointer` 에 떠 둔 것이다. 핸들 `GetLiftOrder`·
+   `SetLiftOrder`·`GetFollow`·`SetFollow`·`GetFollowOffset`·`SetFollowOffset`.
+   - **잰 것**: `UiScenario` `TestTooltipsModalsTabsAndDragging` - 끌면 카드 스프라이트 3 → 103 과 자식 글자 0 → 100 이고 `lifted` 100, 놓으면 3·0·0, `liftOrder` 0 이면 그대로, 끌리는 중에 7 로
+     바꿔도 놓을 때 되돌리는 값은 0(그대로 3). 툴팁은 `follow` 없이 (0, 20) 그대로, 켜면 포인터 (100, 50) 에서 (12, -12), (110, 42) 에서 (22, -4), NaN 오프셋은 그 프레임 그대로.
+     `BuiltinComponentProperty`(툴팁 8·끌기 10)·`ScriptApiCatalog`·`PublicHeaderComposition` 통과.
+   - 정한 것: 올리는 것은 스프라이트·글자의 `renderOrder` 다(`drawSequence` 는 손대지 않는다 - 같은 `renderOrder` 안의 차례는 그대로). 끌리는 동안 붙인 그림은 올리지 않고 뗀 그림은
+     되돌리지 않는다(놓을 때 `lifted` 를 빼는 대상은 그때의 자손이다 - 끌리는 동안 붙인 자식 그림은 놓을 때 `lifted` 만큼 **내려간다**, 열림). 툴팁의 자리는 스크립트가 같은 프레임에 써도 시스템이 덮는다.

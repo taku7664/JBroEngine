@@ -1496,6 +1496,18 @@ namespace
         stage.Frame({MouseAt(190.0f, 95.0f)});
         stage.Frame({MouseAt(100.0f, 50.0f)});
         Check(tooltip->shown, "a NaN delay shows at once");
+        // 따라가기(D-360): 대상은 포인터 + (12, -12) 에 있고 포인터를 따라 움직인다. 끄면 제자리다.
+        Check(CloseTo(stage.PlaceOf(tip)->position.y, 20.0f), "without follow the target stays where it was put");
+        tooltip->follow = true;
+        stage.Frame({MouseAt(100.0f, 50.0f)});
+        Check(tooltip->shown && CloseTo(stage.PlaceOf(tip)->position.x, 12.0f) && CloseTo(stage.PlaceOf(tip)->position.y, -12.0f), "with follow the target sits at the pointer plus the offset");
+        stage.Frame({MouseAt(110.0f, 42.0f)});
+        Check(tooltip->shown && CloseTo(stage.PlaceOf(tip)->position.x, 22.0f) && CloseTo(stage.PlaceOf(tip)->position.y, -4.0f), "it follows the pointer while shown");
+        tooltip->followOffset = {NaN, 0.0f};
+        stage.Frame({MouseAt(112.0f, 42.0f)});
+        Check(CloseTo(stage.PlaceOf(tip)->position.x, 22.0f), "a NaN offset leaves the target where it was");
+        tooltip->followOffset = {12.0f, -12.0f};
+        tooltip->follow = false;
         tooltip->delay = 0.2f;
         stage.Frame({MouseAt(190.0f, 95.0f)});
 
@@ -1562,6 +1574,10 @@ namespace
         Object::GameObject* card = stage.Make("card", {-20.0f, -30.0f});
         auto* draggable = canvas->AttachComponent<Component::Draggable2D>(card);
         draggable->size = {20.0f, 20.0f};
+        auto* cardSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(card);
+        cardSprite->renderOrder = 3;
+        Object::GameObject* cardLabel = stage.Make("cardLabel", {}, card);
+        auto* cardText = canvas->AttachComponent<Component::Text2D>(cardLabel);
         auto* cardProbe = canvas->AttachScript<DragProbe>(card);
         Object::GameObject* slot = stage.Make("slot", {30.0f, -30.0f});
         auto* target = canvas->AttachComponent<Component::DropTarget2D>(slot);
@@ -1570,6 +1586,7 @@ namespace
         stage.Frames(2);
         stage.Frame({MouseAt(80.0f, 80.0f), HeldButton(MouseButton::Left)});
         Check(draggable->dragging && cardProbe->begins == 1 && false == poller->sawMouse, "pressing a draggable starts a drag and takes the pointer");
+        Check(cardSprite->renderOrder == 103 && cardText->renderOrder == 100 && draggable->lifted == 100, "while dragging the sprite and the child text are lifted by liftOrder");
         stage.Frame({MouseAt(105.0f, 80.0f)});
         Check(CloseTo(stage.PlaceOf(card)->position.x, 5.0f) && false == target->hovering, "the object follows the pointer");
         stage.Frame({MouseAt(130.0f, 80.0f)});
@@ -1578,13 +1595,19 @@ namespace
         Check(target->dropped.GetInstanceId() == card->GetInstanceId() && draggable->droppedOn.GetInstanceId() == slot->GetInstanceId()
                 && slotProbe->drops == 1 && cardProbe->ends == 1 && false == draggable->dragging,
             "releasing drops it on the slot and tells both scripts");
+        Check(cardSprite->renderOrder == 3 && cardText->renderOrder == 0 && draggable->lifted == 0, "dropping puts the render orders back");
         stage.Frame({});
         Check(false == target->dropped.IsValid() && false == draggable->droppedOn.IsValid() && false == target->hovering, "the drop lasts one frame");
         draggable->snapBack = true;
+        draggable->liftOrder = 0;
         stage.Frame({HeldButton(MouseButton::Left)});
+        Check(draggable->dragging && cardSprite->renderOrder == 3 && draggable->lifted == 0, "a lift of zero leaves the orders alone");
+        draggable->liftOrder = 7;
         stage.Frame({MouseAt(170.0f, 95.0f)});
         Check(CloseTo(stage.PlaceOf(card)->position.x, 70.0f) && CloseTo(stage.PlaceOf(card)->position.y, -45.0f), "dragging again moves it");
         stage.Frame({Released(MouseButton::Left)});
+        Check(cardSprite->renderOrder == 3, "changing liftOrder mid-drag does not change what is taken back");
+        draggable->liftOrder = 100;
         Check(CloseTo(stage.PlaceOf(card)->position.x, 30.0f) && CloseTo(stage.PlaceOf(card)->position.y, -30.0f) && slotProbe->drops == 1 && cardProbe->ends == 2,
             "released over nothing it snaps back");
         // 놓는 훅에서 제 오브젝트를 지워도 다음 누름은 게임에 간다.

@@ -31,6 +31,11 @@ namespace JBro::Handle
         void SetOffset(Vector2 value);
         Float GetDelay() const;
         void SetDelay(Float value);
+        // 보이는 동안 대상을 포인터 자리 + 오프셋에 둔다(D-360).
+        Bool GetFollow() const;
+        void SetFollow(Bool value);
+        Vector2 GetFollowOffset() const;
+        void SetFollowOffset(Vector2 value);
         GameObject GetTarget() const;
         void SetTarget(GameObject value);
         Bool GetShown() const;

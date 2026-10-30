@@ -33,6 +33,8 @@ namespace JBro::Handle
     JBRO_TOOLTIP2D_ACCESSOR(Vector2, GetSize, SetSize, size)
     JBRO_TOOLTIP2D_ACCESSOR(Vector2, GetOffset, SetOffset, offset)
     JBRO_TOOLTIP2D_ACCESSOR(Float, GetDelay, SetDelay, delay)
+    JBRO_TOOLTIP2D_ACCESSOR(Bool, GetFollow, SetFollow, follow)
+    JBRO_TOOLTIP2D_ACCESSOR(Vector2, GetFollowOffset, SetFollowOffset, followOffset)
     JBRO_TOOLTIP2D_ACCESSOR(GameObject, GetTarget, SetTarget, target)
 
 #undef JBRO_TOOLTIP2D_ACCESSOR

@@ -32,6 +32,9 @@ namespace JBro::Handle
         void SetInteractable(Bool value);
         Bool GetSnapBack() const;
         void SetSnapBack(Bool value);
+        // 끌리는 동안 그림의 `renderOrder` 에 더하는 값이다(D-360). 0 이면 올리지 않는다.
+        Int32 GetLiftOrder() const;
+        void SetLiftOrder(Int32 value);
         Bool GetDragging() const;
         GameObject GetDroppedOn() const;
 

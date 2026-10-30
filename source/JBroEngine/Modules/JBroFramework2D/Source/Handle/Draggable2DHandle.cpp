@@ -34,6 +34,7 @@ namespace JBro::Handle
     JBRO_DRAGGABLE2D_ACCESSOR(Vector2, GetOffset, SetOffset, offset)
     JBRO_DRAGGABLE2D_ACCESSOR(Bool, GetInteractable, SetInteractable, interactable)
     JBRO_DRAGGABLE2D_ACCESSOR(Bool, GetSnapBack, SetSnapBack, snapBack)
+    JBRO_DRAGGABLE2D_ACCESSOR(Int32, GetLiftOrder, SetLiftOrder, liftOrder)
 
 #undef JBRO_DRAGGABLE2D_ACCESSOR
 

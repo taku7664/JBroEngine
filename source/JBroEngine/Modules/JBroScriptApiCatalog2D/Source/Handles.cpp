@@ -2120,6 +2120,26 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Bool (Handle::Tooltip2D::*)() const>(&Handle::Tooltip2D::GetFollow)>("GetFollow", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tooltip2D::*)(Bool)>(&Handle::Tooltip2D::SetFollow)>("SetFollow", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Handle::Tooltip2D::*)() const>(&Handle::Tooltip2D::GetFollowOffset)>("GetFollowOffset", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Tooltip2D::*)(Vector2)>(&Handle::Tooltip2D::SetFollowOffset)>("SetFollowOffset", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::Tooltip2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -2320,6 +2340,16 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<Handle::GameObject (Handle::Draggable2D::*)() const>(&Handle::Draggable2D::GetDroppedOn)>("GetDroppedOn", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Handle::Draggable2D::*)() const>(&Handle::Draggable2D::GetLiftOrder)>("GetLiftOrder", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::Draggable2D::*)(Int32)>(&Handle::Draggable2D::SetLiftOrder)>("SetLiftOrder", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
         type.Members.Add(std::move(member));
     }
     {

@@ -61,10 +61,10 @@ namespace
         Check(Table("Component::Dropdown2D").count == 28, "Dropdown2D declares twenty-eight fields - the rect, interactable, the transition set (twelve), list, caption, value, six states, two shown values and the swap latch (D-355, D-360)");
         Check(Table("Component::Layout2D").count == 9, "Layout2D declares nine fields - mode, cell, spacing, padding, columns, pivot, fitChildren and the block size (D-352, D-355)");
         Check(Table("Component::ContentSizeFitter2D").count == 6, "ContentSizeFitter2D declares six fields - two axes, padding, minSize and the fitted size (D-355)");
-        Check(Table("Component::Tooltip2D").count == 6, "Tooltip2D declares six fields - the rect, delay, target, shown and the hover time (D-357)");
+        Check(Table("Component::Tooltip2D").count == 8, "Tooltip2D declares eight fields - the rect, delay, target, follow and its offset, shown and the hover time (D-357, D-360)");
         Check(Table("Component::Modal2D").count == 1, "Modal2D declares one field - blockGame (D-357)");
         Check(Table("Component::TabGroup2D").count == 2, "TabGroup2D declares two fields - content and the page state (D-357)");
-        Check(Table("Component::Draggable2D").count == 8, "Draggable2D declares eight fields - the rect, interactable, snapBack, two states and the hidden start (D-357)");
+        Check(Table("Component::Draggable2D").count == 10, "Draggable2D declares ten fields - the rect, interactable, snapBack, liftOrder, two states, the hidden start and the lift taken (D-357, D-360)");
         Check(Table("Component::DropTarget2D").count == 4, "DropTarget2D declares four fields - the rect and two states (D-357)");
         Check(Table("Component::Tween2D").count == 15, "Tween2D declares fifteen fields - target, ease, duration, loop, playOnStart, three from/to pairs, three states and the hidden start (D-357)");
         Check(Table("Component::ListView2D").count == 11, "ListView2D declares eleven fields - count, item size, spacing, axis, four states and three hidden ranges (D-357)");
