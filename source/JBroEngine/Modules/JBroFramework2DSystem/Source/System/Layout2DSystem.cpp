@@ -196,12 +196,29 @@ namespace JBro::System
             {
                 cache = &CacheFor(owner->GetInstanceId());
                 cache->seen = true;
-                if (list.measuredCount != count || list.remeasure || Int32(static_cast<std::int32_t>(cache->ends.Size())) != count)
+                const Int32 have = Int32(static_cast<std::int32_t>(cache->ends.Size()));
+                if (list.measuredCount != count || list.remeasure || have != count)
                 {
-                    cache->ends.Clear();
-                    cache->ends.Reserve(static_cast<std::size_t>(count.Get()));
+                    // 전부 다시 재는 것은 `remeasure` 와 처음뿐이다(D-361). 개수만 늘었으면 늘어난 항목만 재고, 줄었으면 잘라 낸다.
+                    const Bool known = false == list.remeasure && list.measuredCount == have && have > 0;
+                    Int32 from = 0;
                     Float end = 0.0f;
-                    for (Int32 index = 0; index < count; ++index)
+                    if (known && count < have)
+                    {
+                        cache->ends.Resize(static_cast<std::size_t>(count.Get()));
+                        from = count;
+                    }
+                    else if (known && count > have)
+                    {
+                        from = have;
+                        end = cache->ends[static_cast<std::size_t>(have.Get()) - 1];
+                    }
+                    else
+                    {
+                        cache->ends.Clear();
+                    }
+                    cache->ends.Reserve(static_cast<std::size_t>(count.Get()));
+                    for (Int32 index = from; index < count; ++index)
                     {
                         list.boundItem = {};
                         list.boundIndex = index;

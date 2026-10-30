@@ -317,12 +317,18 @@ namespace
         // 개수가 바뀌면 다시 재고, `remeasure` 를 세우면 다시 잰다. 수가 아니거나 음수인 길이는 itemSize 다.
         list->count = 4;
         tick();
-        Check(probe->measures == 10 && scroll->contentSize.y == 80.0f, "changing the count measures again and the content shrinks");
+        Check(probe->measures == 6 && scroll->contentSize.y == 80.0f, "shrinking the count measures nothing and the content shrinks");
+        list->count = 7;
+        tick();
+        Check(probe->measures == 9 && probe->lastIndex == 6 && scroll->contentSize.y == 130.0f, "growing the count measures only the new items (four to six)");
+        list->count = 4;
+        tick();
+        Check(probe->measures == 9 && scroll->contentSize.y == 80.0f, "shrinking again keeps the first four as measured");
         probe->evenSize = 5.0f;
         probe->oddSize = 15.0f;
         list->remeasure = true;
         tick();
-        Check(probe->measures == 14 && false == list->remeasure && scroll->contentSize.y == 40.0f, "remeasure runs the hook again and the content follows");
+        Check(probe->measures == 13 && false == list->remeasure && scroll->contentSize.y == 40.0f, "remeasure runs the hook for every item and the content follows");
         probe->evenSize = std::numeric_limits<float>::quiet_NaN();
         probe->oddSize = -5.0f;
         list->remeasure = true;

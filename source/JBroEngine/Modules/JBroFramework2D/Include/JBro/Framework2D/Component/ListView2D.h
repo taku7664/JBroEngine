@@ -20,7 +20,7 @@ namespace JBro::Component
     // 돌려 쓴다 - `count` 개 가운데 뷰포트에 걸치는 것만 풀의 오브젝트에 묶어 제 자리에 놓고 켜며, 나머지 풀은 끈다. 항목 `i` 는 풀의 `i % 풀 크기` 번째다. 묶임이 바뀐
     // 항목마다 이 오브젝트의 스크립트가 `OnListItem` 을 받는다 - 그때 `boundItem`·`boundIndex` 가 그 오브젝트와 번호다. 스크롤 뷰의 `contentSize` 는 여기서 쓴다.
     // 내용에 `Layout2D` 를 두지 않는다(자리가 둘이 된다). 항목의 크기·간격은 고정이다. `Layout2DSystem` 이 돈다.
-    // `variableSize` 면(D-360) 항목마다 진행 축의 길이가 다르다 - 처음과 `count` 가 바뀔 때, 그리고 `remeasure` 를 세운 뒤에 한 번, 항목마다 `boundIndex` 를 두고 이 오브젝트의 스크립트가
+    // `variableSize` 면(D-360) 항목마다 진행 축의 길이가 다르다 - 처음과 `remeasure` 를 세운 뒤에 한 번 모두, `count` 가 늘면 늘어난 항목만(D-361), 항목마다 `boundIndex` 를 두고 이 오브젝트의 스크립트가
     // `OnListMeasure` 를 받으며 그때 스크립트가 `measuredSize`(기본은 `itemSize` 의 진행 축)를 쓴다. 누적 자리는 시스템이 들고(리플렉션 밖) 걸치는 범위는 이분 탐색이다.
     class ListView2D final : public ComponentBase
     {
