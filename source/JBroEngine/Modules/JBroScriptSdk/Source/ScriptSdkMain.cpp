@@ -285,6 +285,12 @@ namespace
         roots.Add({engine / ".." / "JBroNetwork" / "JBroNetwork" / "Include", String("JBroNetwork/JBroNetwork/Include/")});
         const String framework = String("JBroFramework") + dimension;
         roots.Add({engine / "Modules" / framework.Std() / "Include", String("JBroEngine/Modules/") + framework + "/Include/"});
+        // 3D 캔버스의 화면 레이어는 2D 의 화면 UI 다(D-363). 3D 프렐류드가 그 핸들을 include 하므로 2D 모듈도 뿌리에 두지만, 사본에는 입구에서 닿는
+        // 헤더만 들어간다 - 2D 의 월드 컴포넌트 핸들·서비스는 3D 사본에 없다.
+        if (String(dimension) == "3D")
+        {
+            roots.Add({engine / "Modules" / "JBroFramework2D" / "Include", String("JBroEngine/Modules/JBroFramework2D/Include/")});
+        }
         return roots;
     }
 

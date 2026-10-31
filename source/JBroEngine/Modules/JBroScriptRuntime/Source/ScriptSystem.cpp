@@ -1,4 +1,4 @@
-﻿#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+﻿#include <JBro/ScriptRuntime/ScriptSystem.h>
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>

@@ -111,11 +111,16 @@ namespace
         // 다른 차원의 핸들은 그 프렐류드에 없어 컴파일되지 않는다 - 그 프로젝트에는 내놓지 않는다.
         using ScriptProject::FieldType;
         using ScriptProject::IsFieldTypeOffered;
-        Check(IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework2D)
-                && false == IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework3D)
+        Check(IsFieldTypeOffered(FieldType::Camera2D, FrameworkKind::Framework2D)
+                && false == IsFieldTypeOffered(FieldType::Camera2D, FrameworkKind::Framework3D)
                 && IsFieldTypeOffered(FieldType::Transform3D, FrameworkKind::Framework3D)
                 && false == IsFieldTypeOffered(FieldType::Transform3D, FrameworkKind::Framework2D),
-            "a 2D handle is offered only to 2D projects and a 3D handle only to 3D ones");
+            "a 2D world handle is offered only to 2D projects and a 3D handle only to 3D ones");
+        // 화면 UI 의 핸들은 3D 프로젝트에도 내놓는다 - 3D 캔버스의 화면 레이어가 쓴다(D-363).
+        Check(IsFieldTypeOffered(FieldType::Button2D, FrameworkKind::Framework3D) && IsFieldTypeOffered(FieldType::Text2D, FrameworkKind::Framework3D)
+                && IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework3D)
+                && false == IsFieldTypeOffered(FieldType::Rigidbody2D, FrameworkKind::Framework3D),
+            "the screen UI handles are offered to 3D projects too, the 2D world ones are not");
         Check(IsFieldTypeOffered(FieldType::AudioSource, FrameworkKind::Framework2D)
                 && IsFieldTypeOffered(FieldType::AudioSource, FrameworkKind::Framework3D)
                 && IsFieldTypeOffered(FieldType::GameObject, FrameworkKind::Framework3D),
@@ -137,7 +142,7 @@ namespace
 
         const String header3D = ScriptProject::MakeScriptHeader("Orbit", {}, FrameworkKind::Framework3D);
         const String source3D = ScriptProject::MakeScriptSource("Orbit", FrameworkKind::Framework3D);
-        Check(Contains(header3D, ": public GameScriptBase") && Contains(source3D, "JBRO_REGISTER_SCRIPT_3D(Orbit);"),
+        Check(Contains(header3D, ": public GameScript3D") && Contains(source3D, "JBRO_REGISTER_SCRIPT_3D(Orbit);"),
             "a 3D script uses the 3D base and registration");
         Check(Contains(ScriptProject::MakeModuleSource(FrameworkKind::Framework3D), "JBRO_SCRIPT_MODULE_3D()"),
             "and the 3D entry point");
@@ -516,6 +521,130 @@ namespace
     }
 }
 
+namespace
+{
+    // **3D 스크립트가 화면 UI 를 쓴다**(D-363). 3D 프로젝트의 사용자 스크립트가 `GameScript3D` 의 UI 훅과 화면 UI 핸들로 MSBuild 를 통과하고, 3D 스크립트 SDK 에는
+    // 2D 의 월드 핸들이 없으며, `GameScriptBase` 에서 바로 파생한 3D 스크립트는 등록에서 막힌다.
+    void TestA3DScriptBuildsAgainstTheScreenUi()
+    {
+        const fs::path root = FreshFolder("editor3d");
+        fs::create_directories(root / "Contents" / "Assets");
+        const fs::path projectPath = root / "Scripted3D.jproject";
+        std::ofstream(projectPath, std::ios::binary) <<
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Contents/Assets\n"
+            "ScriptSourceDirectory: Contents\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: Scripted3D\n";
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; a 3D script build not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the 3D project opens");
+        Array<ScriptProject::FieldSpec> fields;
+        fields.Add({String("Target"), ScriptProject::FieldType::Button2D});
+        String failure;
+        Check(false == editor.CreateScript("", "Clicker", fields, failure).empty(), "the editor creates a 3D script with a button field");
+        const fs::path scripts = root / "Contents" / "Scripts";
+        Check(ReadAll(scripts / "Clicker.h").find("class Clicker final : public GameScript3D") != std::string::npos
+                && ReadAll(scripts / "Clicker.h").find("JBRO_FIELD(Button2D, Target)") != std::string::npos,
+            "the 3D script derives from GameScript3D and holds a Button2D handle");
+        // 버튼의 훅을 쓰는 스크립트로 바꾼다.
+        std::ofstream(scripts / "Clicker.h", std::ios::trunc) <<
+            "#pragma once\n"
+            "#include <JBro/ScriptAPI.h>\n"
+            "class Clicker final : public GameScript3D\n"
+            "{\n"
+            "    JBRO_SCRIPT_BODY(Clicker)\n"
+            "public:\n"
+            "    JBRO_FIELD(Button2D, Target) = {};\n"
+            "    JBRO_FIELD(Text2D, Label) = {};\n"
+            "    JBRO_FIELD(Int32, Clicks) = 0;\n"
+            "protected:\n"
+            "    void OnClick() override;\n"
+            "    void OnValueChanged() override;\n"
+            "};\n";
+        std::ofstream(scripts / "Clicker.cpp", std::ios::trunc) <<
+            "#include \"Clicker.h\"\n"
+            "JBRO_REGISTER_SCRIPT_3D(Clicker);\n"
+            "void Clicker::OnClick()\n"
+            "{\n"
+            "    Clicks = Clicks + 1;\n"
+            "    Target.SetInteractable(false);\n"
+            "    Label.SetRichText(true);\n"
+            "}\n"
+            "void Clicker::OnValueChanged()\n"
+            "{\n"
+            "}\n";
+        const auto waitForBuild = [&editor]() {
+            for (Int32 step = 0; step < 6000; ++step)
+            {
+                Check(editor.Tick(1.0f / 60.0f), "the editor keeps ticking while scripts build");
+                if (editor.GetScriptBuildState() != EditorApplication::ScriptBuildState::Running)
+                {
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            Check(false, "the editor's script build finishes within a minute");
+        };
+        Check(editor.BuildScripts(), "the editor starts the 3D script build");
+        waitForBuild();
+        for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+        {
+            std::cout << "  " << diagnostic.file.c_str() << ": " << diagnostic.code.c_str() << " " << diagnostic.message.c_str() << std::endl;
+        }
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
+            "a 3D script using the screen UI handles and hooks builds into the game DLL");
+
+        const fs::path leak = scripts / "Leak.cpp";
+        const auto buildFailsWith = [&](const char* text, const char* code, const char* where) {
+            std::ofstream(leak, std::ios::trunc) << text;
+            Check(editor.BuildScripts(), "the editor starts a build that should fail");
+            waitForBuild();
+            Bool found = false;
+            for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+            {
+                found = found || (diagnostic.code == code && diagnostic.file.find(where) != String::npos);
+            }
+            return editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Failed && found;
+        };
+        Check(buildFailsWith("#include <JBro/Framework2D/Handle/Rigidbody2D.h>\n", "C1083", "Leak.cpp"),
+            "a 2D world handle is not in the 3D script SDK");
+        Check(buildFailsWith("#include <JBro/Framework2D/ServiceContext.h>\n", "C1083", "Leak.cpp"),
+            "nor are the 2D services");
+        Check(buildFailsWith(
+                  "#include <JBro/ScriptAPI.h>\n"
+                  "class Bare final : public GameScriptBase\n"
+                  "{\n"
+                  "    JBRO_SCRIPT_BODY(Bare)\n"
+                  "};\n"
+                  "JBRO_REGISTER_SCRIPT_3D(Bare);\n",
+                  "C2338", "GameScript.h"),
+            "a 3D script that skips GameScript3D is refused at registration");
+        fs::remove(leak);
+        Check(editor.BuildScripts(), "the editor builds again without the leak");
+        waitForBuild();
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded, "and the 3D build is clean again");
+        editor.Shutdown();
+    }
+}
+
 Int32 RunScriptProjectTests()
 {
     TestTheScriptFilesSayWhatTheUserAskedFor();
@@ -524,6 +653,7 @@ Int32 RunScriptProjectTests()
     TestTheEnginePropsFollowTheEngine();
     TestTheEngineIsFoundFromWhereTheEditorRuns();
     TestTheEditorCreatesAScriptAndItsProject();
+    TestA3DScriptBuildsAgainstTheScreenUi();
     std::cout << "Script project tests passed.\n";
     return 0;
 }

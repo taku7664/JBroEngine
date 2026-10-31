@@ -17,6 +17,7 @@ namespace JBro::System
     class InputSystem;
 
     // 스크립트의 실행 순서와 수명 훅을 돌린다(D-45). 이름으로 붙인 스크립트(DLL)와 정적으로 붙인 스크립트(`AttachScript<T>`)를 함께 돈다.
+    // **2D·3D 프레임워크가 같이 쓴다**(D-363). 차원의 훅(충돌·UI)은 이 시스템이 아니라 그 훅을 내는 시스템이 차원의 스크립트 타입으로 부른다.
     class ScriptSystem final : public GameSystem, public IUiInputChain
     {
     public:

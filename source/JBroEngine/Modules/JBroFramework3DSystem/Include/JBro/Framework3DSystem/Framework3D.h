@@ -21,13 +21,14 @@
 #include <JBro/Host/IFramework.h>
 #include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
 #include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
+#include <JBro/Framework3DSystem/Scripting/UiBindings3D.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
 
 namespace JBro
 {
-    // 3D 프레임워크다. 2D 와 같은 뼈대(캔버스·시스템·렌더 월드·브리지)이고, 스크립트 시스템과
-    // 물리는 아직 없다(framework3d-plan §3).
+    // 3D 프레임워크다. 2D 와 같은 뼈대(캔버스·시스템·렌더 월드·브리지)이고, 물리는 아직 없다(framework3d-plan §3).
+    // 스크립트는 2D 와 같은 `ScriptSystem`(공용 모듈 `JBroScriptRuntime`)이 돌린다(D-363).
     // **화면 레이어는 화면 UI 다**(D-362). `Space = Screen` 레이어의 2D 컴포넌트(트랜스폼·스프라이트·텍스트·위젯)를 공용 모듈 `JBroScreenUi` 의
     // 시스템이 제 렌더 월드(`m_screenWorld`)에 담고, 3D 뷰를 다 그린 뒤 화면 뷰로 얹는다. 위젯은 입력 체인 대신 이 프레임워크가 입력을 직접 넘긴다.
     class Framework3D final : public IFramework
@@ -39,8 +40,10 @@ namespace JBro
         void UnbindScriptContexts() noexcept override;
         JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept override;
         void Update() override;
-        // 3D 에 스크립트·물리 시스템은 아직 없다. 지금 세우는 것은 소리뿐이다(D-197).
+        // 멈추면 스크립트와 소리를 세운다(D-197·D-363). 물리는 3D 에 아직 없다.
         void SetSimulationEnabled(Bool enabled) override;
+        void PrepareBreakFrames() override;
+        void EndBreakFrames() override;
         RenderResult Render() override;
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         RenderResult RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail) override;
@@ -59,6 +62,10 @@ namespace JBro
     private:
         void CreateDefaultSystems();
         void RunFixedSteps();
+        // 시뮬레이션에 따라 스크립트를 켜고 끈다(소리는 `SetSimulationEnabled` 가 따로 다룬다). 한 프레임 진행은 그 프레임만 켠다.
+        void ApplySimulationEnabled(Bool enabled);
+        // 카메라의 프로필과 볼륨·덮어쓰기를 섞고 레이어 프로필을 건다(D-344~D-346). 추출 뒤에 부른다.
+        void ResolvePostProcess();
 
         FrameworkContext m_context;
         OwnerPtr<Canvas> m_canvas;
@@ -68,6 +75,8 @@ namespace JBro
         // 화면 레이어의 스프라이트·글자다(D-362). 월드 레이어의 아이템은 담기지만 그리지 않는다 - 3D 캔버스의 2D 컴포넌트는 화면 레이어에만 둔다.
         RenderWorld2D m_screenWorld;
         SpriteLibrary m_sprites;
+        // 화면 UI 가 3D 스크립트의 훅을 부르는 자리다(D-363).
+        System::UiHookDispatcher3D m_uiHooks;
         // 호스트가 프레임마다 거는 화면 기준이다(D-237).
         ScreenSpaceFrame m_screenSpace;
         MeshLibrary m_meshes;

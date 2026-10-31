@@ -16,7 +16,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
-#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Input/InputSystem.h>
 #include <JBro/Runtime/GameObject.h>

@@ -3,7 +3,7 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
-#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/Array.h>
 

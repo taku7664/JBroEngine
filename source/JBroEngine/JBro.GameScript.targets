@@ -10,7 +10,7 @@
   -->
   <PropertyGroup>
     <JBroGameScriptFrameworkLib Condition="'$(JBroScriptDimension)' == '2D'">JBroFramework2D.lib</JBroGameScriptFrameworkLib>
-    <JBroGameScriptFrameworkLib Condition="'$(JBroScriptDimension)' == '3D'">JBroFramework3D.lib</JBroGameScriptFrameworkLib>
+    <JBroGameScriptFrameworkLib Condition="'$(JBroScriptDimension)' == '3D'">JBroFramework3D.lib;JBroFramework2D.lib</JBroGameScriptFrameworkLib>
     <!--
       **PDB 는 빌드마다 다른 이름이다**(D-319). 디버거가 붙어 있으면 지금 PDB 를 쥐고 있어, 같은 이름으로 다시 쓰면 링커가 LNK1201 로 실패하고
       DLL 까지 지웠다. 이름에 빌드 시각을 붙이면 새 PDB 는 늘 새 파일이고, DLL 이 새 이름을 가리키므로 디버거는 새 복사본에서 새 PDB 를 읽는다.

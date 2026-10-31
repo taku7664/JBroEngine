@@ -33,7 +33,7 @@ namespace JBro::ScriptProject
             "typeid", "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while",
             "OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy", "OnAttached", "OnDetached",
             "OnEnabled", "OnDisabled", "GetOwner", "GetTypeId", "StaticTypeName", "IsEnabled", "SetEnabled",
-            "JBroSelf", "JBroFieldBase", "JBroFieldAt", "JBro", "GameScript2D", "GameScriptBase", "ScriptModule",
+            "JBroSelf", "JBroFieldBase", "JBroFieldAt", "JBro", "GameScript2D", "GameScript3D", "GameScriptBase", "ScriptModule",
         };
 
         Bool IsIdentifier(const char* text)
@@ -271,15 +271,17 @@ namespace JBro::ScriptProject
     {
         switch (type)
         {
+        // 화면 UI 의 핸들은 두 차원 모두다 - 3D 캔버스의 화면 레이어도 2D 의 화면 UI 를 쓴다(D-363).
         case FieldType::Transform2D:
         case FieldType::SpriteRenderer2D:
+        case FieldType::Text2D:
+        case FieldType::Button2D:
+            return true;
         case FieldType::Camera2D:
         case FieldType::Rigidbody2D:
         case FieldType::Collider2D:
         case FieldType::DistanceJoint2D:
         case FieldType::HingeJoint2D:
-        case FieldType::Text2D:
-        case FieldType::Button2D:
         case FieldType::AudioListener2D:
         case FieldType::Light2D:
         case FieldType::ShadowCaster2D:
@@ -317,7 +319,7 @@ namespace JBro::ScriptProject
         }
         Line(out);
         LineF(out, "class %s final : public %s", className,
-            framework == FrameworkKind::Framework3D ? "GameScriptBase" : "GameScript2D");
+            framework == FrameworkKind::Framework3D ? "GameScript3D" : "GameScript2D");
         Line(out, "{");
         LineF(out, "    JBRO_SCRIPT_BODY(%s)", className);
         Line(out, "public:");

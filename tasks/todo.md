@@ -3056,6 +3056,19 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-363. 3D 스크립트를 돌리고 화면 UI 를 연다 - 스크립트 시스템을 새 공용 모듈 `JBroScriptRuntime` 으로 옮겨 3D 프레임워크도 세우고, 3D 스크립트의 기반 타입 `GameScript3D` 에 화면 UI 훅을 두며, 3D 스크립트 SDK 에 화면 UI 핸들만 연다.**
+  (2026-11-01, [ui-plan.md](./ui-plan.md) §7.9. 사용자 지시 "열어줘", "둘 다 권고안대로" - 권고안은 런타임을 먼저 세우고 UI 훅·핸들을 여는 것이다.)
+  Updates: D-362 (5)(3D 스크립트의 UI 핸들·훅은 열림 → 엶), D-207(2D 의 `GameScript2D` 규칙을 3D 의 `GameScript3D` 에도 둔다), ProjectRule §4 의 "선택하지 않은 Framework 의 헤더는 스크립트 타깃 include 경로에 넣지 않는다"(3D 는 화면 UI 핸들에 한해 2D 를 본다).
+  찾은 것: 그때까지 3D 스크립트는 등록하고 붙일 수만 있고 돌지 않았다 - 수명 훅을 부르는 것은 2D 의 `ScriptSystem` 하나였다.
+  (1) 런타임: `ScriptSystem` 은 차원 코드가 없어 그대로 새 Tier E 모듈 `JBroScriptRuntime` 으로 옮긴다(`<JBro/ScriptRuntime/ScriptSystem.h>`, 입력 체인 인터페이스만 `JBroScreenUi` 의 `UiHost.h` 에서 받는다).
+      `Framework3D` 가 이것을 세운다: 시뮬레이션 켜고 끄기·한 프레임 진행·입력 체인(고정 스텝 앞)·중단점 프레임(`PrepareBreakFrames`·`EndBreakFrames`, 3D·화면 추출만 다시 돈다)이 2D 와 같다.
+      화면 UI 의 버튼은 3D 에서도 이 체인의 `"UI"` 레이어에 선다(D-362 의 직접 넘기기를 대신한다).
+  (2) `GameScript3D`(`Framework3D/Scripting/GameScript.h`): `GameScriptBase` 에서 파생하고 화면 UI 훅 열둘(`OnPointerEnter`~`OnListMeasure`, 2D 와 같은 이름·때)을 둔다. `RegisterScriptType3D` 는 `GameScriptBase` 에서 바로
+      파생한 타입을 `static_assert` 로 거절한다. 가상 함수 표가 바뀌어 `Framework3DServiceContextAbiVersion` 을 3 으로 올린다. 훅은 `UiHookDispatcher3D` 가 `GameScript3D` 로 부른다. 3D 의 충돌 훅은 아직 없다.
+  (3) 3D 스크립트 SDK: 3D 프렐류드가 `ComponentTypes2D.h` 와 화면 UI 핸들 스물다섯(트랜스폼·스프라이트·텍스트·위젯)을 include 하고, 3D 스크립트 타깃과 SDK 생성기의 뿌리에 `JBroFramework2D` 를 더하며,
+      3D 스크립트 DLL 은 `JBroFramework2D.lib` 도 링크한다(핸들 구현). 사본에는 입구에서 닿는 헤더만 들어가므로 2D 의 월드 핸들(카메라·라이트·물리·오디오 리스너)과 2D 서비스는 3D 사본에 없다.
+      2D 의 `Screen2DService`(`ScreenToLayer`·`IsPointerOverButton`)는 3D 에 열지 않았다(열림). 에디터의 3D 새 스크립트는 `GameScript3D` 에서 파생하고, 필드 종류는 화면 UI 핸들 넷(`Transform2D`·`SpriteRenderer2D`·
+      `Text2D`·`Button2D`)을 3D 에도 내놓는다.
 - **D-362. 5 부가 남긴 다섯을 세운다 - 둘째 뷰의 지우기는 브리지가 뷰포트를 덮는 빛 안 받는 사각형으로, 여러 줄 선택은 `Text2D` 의 강조 범위로, IME 는 실제 IMM 을 부르는 프로브로, 렌더 텍스처는 `.jrt` 에셋과 카메라의 대상으로, 3D 의 화면 레이어는 화면 UI 시스템을 새 모듈 `JBroScreenUi` 로 떼어 2D·3D 프레임워크가 같이 쓰게 한다.**
   (2026-10-31, [ui-plan.md](./ui-plan.md) §7.8. 사용자 지시 "1~5까지 작업 진행. 1번은 제안대로. 모듈을 뗌.")
   Updates: D-359 (2)(둘째 카메라의 지우기 색은 쓰이지 않음 → `clearViewport` 면 제 뷰포트를 칠한다), D-361 (7)(남긴 다섯 → 세움), D-237(3D 는 화면 레이어를 그리지 않음 → 그린다).

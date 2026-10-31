@@ -11,7 +11,7 @@
 #include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
-#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/ScreenUi/System/SpriteRender2DSystem.h>

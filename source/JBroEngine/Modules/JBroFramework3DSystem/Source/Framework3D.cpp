@@ -19,6 +19,7 @@
 #include <JBro/Input/InputSystem.h>
 #include <JBro/ScreenUi/Rendering/SpriteSubmit2D.h>
 #include <JBro/ScreenUi/ScreenUiComponentTypes.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/ScreenUi/System/Button2DSystem.h>
 #include <JBro/ScreenUi/System/Layout2DSystem.h>
 #include <JBro/ScreenUi/System/Mask2DSystem.h>
@@ -204,16 +205,21 @@ namespace JBro
             }
         }
         // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-242). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
-        // 한 프레임 진행은 3D 에 켤 스크립트·물리가 아직 없어 시간만 한 스텝 간다.
-        const Bool simulating = m_simulationEnabled || m_context.time->IsStepFrame();
-        // **위젯은 고정 스텝보다 먼저 입력을 받는다**(D-214·D-362). 3D 에는 스크립트의 입력 체인이 없어 위젯 하나에 직접 넘긴다 - 위젯이 쓴 장치는
-        // 소비되어 `InputService` 의 폴링이 빈 포인터를 본다. 2D 처럼 멈춰 있으면 돌지 않는다.
-        if (simulating && buttons != nullptr && m_context.input != nullptr)
+        // **한 프레임 진행**(D-242). 멈춘 동안 이 프레임만 스크립트를 켰다가 끝에 다시 끈다(2D 와 같다). 소리는 멈춘 그대로다.
+        const Bool stepping = false == m_simulationEnabled && m_context.time->IsStepFrame();
+        const Bool simulating = m_simulationEnabled || stepping;
+        if (stepping)
         {
-            Canvas::IterationGuard guard(*m_canvas);
-            m_context.input->BeginDispatch();
-            m_context.input->Deliver(*buttons);
-            m_context.input->EndDispatch();
+            ApplySimulationEnabled(true);
+        }
+        // **입력 체인은 고정 스텝보다 먼저다**(D-214·D-363). 스크립트의 핸들러와 위젯(`"UI"` 레이어의 버튼 시스템)이 한 체인에 선다 - 위젯이 쓴 장치는
+        // 소비되어 아래 레이어와 `InputService` 의 폴링이 빈 포인터를 본다. 멈춰 있으면 돌지 않는다.
+        if (simulating)
+        {
+            if (System::ScriptSystem* scripts = m_canvas->GetSystems().FindSystem<System::ScriptSystem>())
+            {
+                scripts->DispatchInput(*m_canvas);
+            }
         }
         if (simulating)
         {
@@ -221,8 +227,17 @@ namespace JBro
         }
         m_canvas->GetSystems().Update(*m_canvas, simulating ? m_context.time->GetFrameTime().deltaTime : Float(0.0f));
         m_canvas->FlushPendingDestroy();
+        if (stepping)
+        {
+            ApplySimulationEnabled(false);
+        }
         m_renderWorld.EndFrame();
         m_screenWorld.EndFrame();
+        ResolvePostProcess();
+    }
+
+    void Framework3D::ResolvePostProcess()
+    {
         // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다(D-344).
         const RenderCamera3D* camera = m_renderWorld.GetCamera();
         if (camera == nullptr)
@@ -418,13 +433,25 @@ namespace JBro
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);
         texts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);
-        // **화면 레이어의 화면 UI**(D-362). 2D 와 같은 시스템이다. 스크립트 훅과 월드 레이어의 역투영은 넘기지 않는다 - 3D 스크립트는 UI 핸들·훅을
-        // 아직 받지 않고(열림), 2D 컴포넌트는 화면 레이어에만 둔다.
+        // **스크립트**(D-363). 2D 와 같은 시스템이다 - 실행 순서·수명 훅·입력 레이어 체인을 돈다.
+        System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
+        scripts.SetInputSystem(m_context.input);
+        // **화면 레이어의 화면 UI**(D-362). 2D 와 같은 시스템이다. 위젯은 스크립트의 입력 체인 `"UI"` 레이어에 서고, 훅은 `GameScript3D` 로 부른다(D-363).
+        // 월드 레이어의 역투영은 넘기지 않는다 - 3D 캔버스의 2D 컴포넌트는 화면 레이어에만 둔다.
         systems.AddSystem<System::Transform2DSystem>();
         systems.AddSystem<System::Mask2DSystem>();
-        systems.AddSystem<System::Layout2DSystem>().SetSpriteLibrary(&m_sprites);
+        {
+            auto& layout = systems.AddSystem<System::Layout2DSystem>();
+            layout.SetSpriteLibrary(&m_sprites);
+            layout.SetHookDispatcher(&m_uiHooks);
+        }
         systems.AddSystem<System::Tween2DSystem>();
-        systems.AddSystem<System::Button2DSystem>().SetTextInputHost(m_context.textInput);
+        {
+            auto& buttons = systems.AddSystem<System::Button2DSystem>();
+            buttons.SetTextInputHost(m_context.textInput);
+            buttons.SetInputChain(&scripts);
+            buttons.SetHookDispatcher(&m_uiHooks);
+        }
         System::SpriteRender2DSystem& screenSprites = systems.AddSystem<System::SpriteRender2DSystem>();
         screenSprites.SetRenderWorld(&m_screenWorld);
         screenSprites.SetSpriteLibrary(&m_sprites);
@@ -437,6 +464,65 @@ namespace JBro
         {
             systems.AddSystem<System::Audio3DSystem>(*m_context.audio).SetEnabled(m_simulationEnabled);
         }
+        // 시스템이 막 섰다. 지금 정해져 있는 값을 그대로 적용한다 - 프로젝트를 열기 전에 꺼 두었으면 첫 프레임부터 꺼져 있어야 한다.
+        if (System::ScriptSystem* created = systems.FindSystem<System::ScriptSystem>())
+        {
+            created->SetEnabled(m_simulationEnabled);
+        }
+    }
+
+    void Framework3D::ApplySimulationEnabled(Bool enabled)
+    {
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        if (System::ScriptSystem* scripts = m_canvas->GetSystems().FindSystem<System::ScriptSystem>())
+        {
+            scripts->SetEnabled(enabled);
+        }
+    }
+
+    void Framework3D::PrepareBreakFrames()
+    {
+        if (false == m_initialized || m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        // 스케줄러는 다시 들어가지 못한다 - 지금 그 안에서 스크립트가 서 있다(D-330). 시뮬레이션과 무관한 추출 시스템만 차례대로 직접 부른다.
+        // 스크립트를 부르는 시스템(스크립트·버튼)은 모두 추출보다 앞이라, 선 자리는 늘 이번 프레임의 추출 전이다.
+        SystemScheduler& systems = m_canvas->GetSystems();
+        GameSystem* const extraction[] = {
+            systems.FindSystem<System::Transform3DSystem>(),
+            systems.FindSystem<System::Transform2DSystem>(),
+            systems.FindSystem<System::Camera3DSystem>(),
+            systems.FindSystem<System::MeshRender3DSystem>(),
+            systems.FindSystem<System::Text3DSystem>(),
+            systems.FindSystem<System::SpriteRender2DSystem>(),
+            systems.FindSystem<System::Text2DSystem>(),
+        };
+        m_renderWorld.BeginFrame();
+        m_screenWorld.BeginFrame();
+        m_materials.Update();
+        for (GameSystem* system : extraction)
+        {
+            if (system != nullptr)
+            {
+                system->Update(*m_canvas, 0.0f);
+            }
+        }
+        m_renderWorld.EndFrame();
+        m_screenWorld.EndFrame();
+        ResolvePostProcess();
+    }
+
+    void Framework3D::EndBreakFrames()
+    {
+        if (m_initialized)
+        {
+            m_renderWorld.BeginFrame();
+            m_screenWorld.BeginFrame();
+        }
     }
 
     void Framework3D::SetSimulationEnabled(Bool enabled)
@@ -446,6 +532,7 @@ namespace JBro
         {
             return;
         }
+        ApplySimulationEnabled(enabled);
         // 멈추면 보이스를 멈추고 소스를 처음으로 되돌린다 - 다시 켜면 `playOnStart` 가 한 번 다시 울린다.
         if (System::Audio3DSystem* audio = m_canvas->GetSystems().FindSystem<System::Audio3DSystem>())
         {

@@ -328,6 +328,7 @@
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-232) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
+  | Tier E | `JBroScriptRuntime` | 스크립트 시스템(`ScriptSystem`: 실행 순서·수명 훅·입력 레이어 체인). Canvas·Runtime·Input 에 기대고 입력 체인 인터페이스만 `JBroScreenUi` 의 `UiHost.h` 에서 받는다. 2D·3D 프레임워크가 같이 쓴다 (D-363) |
   | Tier E | `JBroScreenUi` | 화면 UI 공용: `Transform2DSystem`·`Mask2DSystem`·`Layout2DSystem`·`Tween2DSystem`·`Button2DSystem`·`SpriteRender2DSystem`·`Text2DSystem` 과 `RenderWorld2D`·`SpriteLibrary`·`SpriteSubmit2D`·`Parallax2D`. Framework2D(컴포넌트)·Canvas·Host·Runtime·Asset·Graphics·Input·TextRendering 에 기대고 두 프레임워크 시스템 모듈을 모른다 - 스크립트 훅·월드 레이어 좌표·입력 체인은 `UiHost.h` 의 인터페이스로 받는다. 2D·3D 프레임워크가 같이 쓴다 (D-362) |
   | Tier E | `JBroTextRendering` | 텍스트 렌더링 공용: `TextLibrary`(폰트·아틀라스·페이지 텍스처)·`GlyphMesh`(글리프 쿼드)·`TextBlock`(레이아웃 캐시). Core·Text·AssetTypes·Asset·RHI·Graphics·Task·Platform·Runtime 에 기대고 캔버스·컴포넌트·프레임워크를 모른다. 2D·3D 텍스트 시스템이 쓴다 (D-222) |
   | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
@@ -364,6 +365,8 @@
   제품 플로우가 "엔진 1회 설치 → 새 프로젝트 → 2D/3D 선택 → 생성"이기 때문이다.
 - 프로젝트는 2D 또는 3D 중 하나를 선택하며, 선택하지 않은 Framework의 헤더는
   그 프로젝트의 스크립트 타깃 include 경로에 넣지 않는다. (MUST)
+  예외는 하나다: 3D 캔버스의 화면 레이어는 2D 의 화면 UI 를 쓰므로 3D 스크립트 타깃은 `JBroFramework2D` 를 보고, 3D 프렐류드가 화면 UI 핸들(트랜스폼·스프라이트·텍스트·위젯)만
+  include 한다. 사용자 프로젝트가 받는 3D 스크립트 SDK 사본에는 그 입구에서 닿는 2D 헤더만 들어간다 - 2D 의 월드 핸들과 서비스는 없다. (D-363)
 - 차원에 종속되는 타입은 각 Framework가 소유한다. `Transform2D`와 `Transform3D`를 하나로 합치지 않는다. (MUST)
 - Framework2D와 Framework3D는 서로 직접 의존하지 않는다. (MUST)
   Tier S 의 `JBroFramework2D`·`JBroFramework3D` 사이, 그리고 `JBroFramework2DSystem`·`JBroFramework3DSystem` 사이의 규칙이다. 화면 UI 는 두 차원이 공용 모듈 `JBroScreenUi` 로 함께 쓰며,
@@ -379,7 +382,7 @@
 > `Layer2D`에 2D 합성 상태를 보관한다. Framework3D는 2D 프레임워크 시스템을 링크하지 않고 공통 Canvas의
 > 오브젝트·컴포넌트·시스템 실행 경계를 사용한다. 화면 레이어의 UI 만은 공용 모듈 `JBroScreenUi` 와 `JBroFramework2D` 의 컴포넌트 타입을 쓴다(D-362). 3D 는 `Transform3DSystem`·`Camera3DSystem`·
 > `MeshRender3DSystem` 과 `RenderWorld3D`·`RenderBridge3D` 로 2D 와 같은 뼈대를 갖고, 렌더러의 메시
-> 파이프라인과 깊이 버퍼로 그린다(D-106, `tasks/framework3d-plan.md`). 물리·스크립트 시스템은 3D 에 아직 없다.
+> 파이프라인과 깊이 버퍼로 그린다(D-106, `tasks/framework3d-plan.md`). 스크립트는 2D 와 같은 `ScriptSystem`(공용 모듈 `JBroScriptRuntime`)이 돌린다(D-363). 물리는 3D 에 아직 없다.
 > D-42 이전 트리에서는 이 정의가 `JBroRuntime`에 있다.
 
 ## 5. 엔진과 게임 코드의 경계
@@ -812,6 +815,10 @@
   물리 시스템은 오브젝트에 붙은 스크립트를 `GameScript2D` 로 여기고 충돌·트리거 훅을 부른다(프레임 경로에 `dynamic_cast` 금지).
   `RegisterScriptType2D` 는 `GameScriptBase` 에서 바로 파생한 타입을 컴파일 시간에 거절한다(`static_assert`).
   `GameScript2D` 의 가상 함수 표는 `Framework2DServiceContextAbiVersion` 이 대표한다 - 훅을 더하면 그 값을 올린다.
+- **3D 스크립트는 모두 `GameScript3D` 에서 파생하고, 3D 스크립트 모듈은 `RegisterScriptType3D<T>` 로만 타입을 등록한다.** (MUST) (D-363)
+  화면 UI 는 3D 캔버스의 화면 레이어에 붙은 스크립트를 `GameScript3D` 로 여기고 UI 훅을 부른다. `RegisterScriptType3D` 는 `GameScriptBase` 에서 바로 파생한 타입을 컴파일 시간에 거절하고,
+  `GameScript3D` 의 가상 함수 표는 `Framework3DServiceContextAbiVersion` 이 대표한다.
+- **스크립트 시스템(`ScriptSystem`)은 두 차원이 공용 모듈 `JBroScriptRuntime` 으로 같이 쓴다.** 차원의 훅(충돌·UI)은 스크립트 시스템이 아니라 그 훅을 내는 시스템이 차원의 스크립트 타입으로 부른다. (MUST) (D-363)
   형제 컴포넌트 캐시는 `OnAttached`에서 잡고 `InstanceHandle`과 함께 저장해 프레임 시작에 세대 비교로 검증한다. (D-48)
 - `GameObject`는 `m_activeInHierarchy`를 캐시하고 `SetActive`·`SetParent`가 하위 트리에 전파한다.
   `IsActiveInHierarchy()`는 O(1)이다. (MUST) (D-54)

@@ -7,13 +7,44 @@
 
 namespace JBro
 {
-    // 3D 스크립트 모듈이 타입을 호스트에 알리는 길이다(cpp-script-plan §3.2). 3D 에는 아직 차원 훅(충돌 등)이 없어
-    // 스크립트가 `GameScriptBase` 에서 바로 파생한다. 훅이 생기면 2D 의 `GameScript2D` 처럼 기반 타입을 두고 여기서 검사한다.
+    // **3D 프로젝트의 스크립트는 모두 이 타입에서 파생한다**(D-363). 공통 생명주기는 Runtime 의 `GameScriptBase` 에 있고, 여기에는 3D 캔버스의
+    // 화면 레이어 UI 가 부르는 훅이 있다 - 화면 UI 시스템은 오브젝트에 붙은 스크립트를 이 타입으로 여기고 훅을 부른다(프레임 경로에서 dynamic_cast 를
+    // 쓰지 않는다). 그래서 등록은 `RegisterScriptType3D` 로만 하고, 그것이 파생 관계를 컴파일할 때 검사한다.
+    //
+    // 가상 함수 표는 스크립트 DLL 과의 ABI 다. 훅을 더하면 `Framework3DServiceContextAbiVersion` 을 올린다. 3D 의 충돌 훅은 아직 없다.
+    class GameScript3D : public GameScriptBase
+    {
+    public:
+        ~GameScript3D() override = default;
+
+        // **같은 오브젝트의 `Button2D` 가 부른다**(D-237·D-363). 3D 캔버스의 화면 레이어에 둔 위젯이고, 2D 의 `GameScript2D` 와 같은 때에 불린다 -
+        // 입력 체인 안에서(고정 스텝·`OnUpdate` 보다 먼저). 들어옴·나감은 포인터가 그 버튼의 가장 위에 오고 갈 때, 누름·뗌은 그 버튼에서 누른 것에만,
+        // `OnClick` 은 버튼 위에서 누르고 뗐을 때다.
+        virtual void OnPointerEnter();
+        virtual void OnPointerExit();
+        virtual void OnPointerDown();
+        virtual void OnPointerUp();
+        virtual void OnClick();
+        // 같은 오브젝트의 `Slider2D`·`Toggle2D` 가 포인터로 값을 바꾼 프레임에.
+        virtual void OnValueChanged();
+        // 같은 오브젝트의 `InputField2D` 에서 Enter 를 누른 프레임에.
+        virtual void OnSubmit();
+        // 같은 오브젝트의 `Draggable2D` 가 끌기를 시작하고 놓은 프레임에. `OnDrop` 은 놓인 자리의 `DropTarget2D` 가 제 오브젝트의 스크립트에 부른다.
+        virtual void OnDragBegin();
+        virtual void OnDragEnd();
+        virtual void OnDrop();
+        // 같은 오브젝트의 `ListView2D` 가 항목을 묶을 때와 `variableSize` 목록이 항목을 잴 때.
+        virtual void OnListItem();
+        virtual void OnListMeasure();
+    };
+
+    // 3D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다(cpp-script-plan §3.2). `GameScriptBase` 에서 바로 파생한 타입은 여기서
+    // 컴파일이 실패한다 - 통과시키면 화면 UI 가 그 객체를 `GameScript3D` 로 불러 정의되지 않은 동작이 된다.
     template<typename T>
     Bool RegisterScriptType3D()
     {
-        static_assert(std::is_base_of_v<GameScriptBase, T>,
-            "a 3D script must derive from JBro::GameScriptBase");
+        static_assert(std::is_base_of_v<GameScript3D, T>,
+            "a 3D script must derive from JBro::GameScript3D, not GameScriptBase");
         return RegisterScriptType<T>();
     }
 }

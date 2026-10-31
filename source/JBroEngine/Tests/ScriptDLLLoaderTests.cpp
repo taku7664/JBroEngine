@@ -7,7 +7,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
-#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>

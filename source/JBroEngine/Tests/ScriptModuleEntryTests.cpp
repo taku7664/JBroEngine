@@ -27,7 +27,7 @@ namespace
         }
     }
 
-    class EntryProbe3D final : public JBro::GameScriptBase
+    class EntryProbe3D final : public JBro::GameScript3D
     {
         JBRO_SCRIPT_BODY(EntryProbe3D)
     public:

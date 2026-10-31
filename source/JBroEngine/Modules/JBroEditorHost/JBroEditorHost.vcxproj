@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroPackage\Include;$(JBroModulesDir)JBroShaderCompiler\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroScriptRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroPackage\Include;$(JBroModulesDir)JBroShaderCompiler\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <!-- 창 프로그램이다. 진입점은 그대로 `main` 이고, 터미널에서 띄우면 `ParentConsole.cpp` 가 부모 콘솔에 붙는다. -->
@@ -84,6 +84,9 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
       <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptRuntime\JBroScriptRuntime.vcxproj">
+      <Project>{1a000058-0000-4000-8000-0000000a5c11}</Project>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroScreenUi\JBroScreenUi.vcxproj">
       <Project>{1a000057-0000-4000-8000-00000005c0e1}</Project>

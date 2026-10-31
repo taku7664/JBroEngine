@@ -14,6 +14,8 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Input/InputSystem.h>
 #include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Framework3D/Scripting/GameScript.h>
+#include <JBro/InputTypes/InputHandler.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -600,6 +602,71 @@ namespace
 
 namespace
 {
+    // 3D 스크립트 런타임(D-363)의 손잡이다. 수명 훅과 화면 레이어 버튼의 UI 훅을 센다.
+    class UiProbe3D final : public JBro::GameScript3D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::UiProbe3D";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnStart() override
+        {
+            ++starts;
+        }
+
+        void OnUpdate() override
+        {
+            ++updates;
+        }
+
+        void OnPointerDown() override
+        {
+            ++downs;
+        }
+
+        void OnClick() override
+        {
+            ++clicks;
+        }
+
+        JBro::Int32 starts = 0;
+        JBro::Int32 updates = 0;
+        JBro::Int32 downs = 0;
+        JBro::Int32 clicks = 0;
+    };
+
+    // `"Game"` 레이어의 3D 스크립트 핸들러다. `"UI"` 의 위젯이 마우스를 쓰면 빈 마우스를 본다.
+    class GameInputProbe3D final : public JBro::GameScript3D, public JBro::InputHandler<"Game", 0>
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::GameInputProbe3D";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBro::InputResult OnInput(JBro::InputView& input) override
+        {
+            ++calls;
+            sawMouse = input.Mouse().IsDown(JBro::MouseButton::Left);
+            return JBro::InputResult::Pass;
+        }
+
+        JBro::Int32 calls = 0;
+        JBro::Bool sawMouse = false;
+    };
+
     // **3D 캔버스의 화면 레이어는 화면 UI 다**(D-362). 정육면체는 빛을 받고, 화면 레이어의 흰 사각형은 3D 뷰 위에 빛 없이 흰색 그대로다. 화면 레이어의
     // 정육면체는 그려지지 않는다. 버튼은 3D 에도 입력을 받아 누르면 색이 바뀐다 - 스크립트의 입력 체인이 없는 3D 는 프레임워크가 위젯에 직접 넘긴다.
     template <typename TModule>
@@ -652,6 +719,9 @@ namespace
         sprite->size = {12.0f, 12.0f};
         auto* button = canvas.AttachComponent<JBro::Component::Button2D>(panel);
         button->size = {12.0f, 12.0f};
+        // 3D 스크립트도 돈다(D-363): 버튼의 오브젝트에 붙은 스크립트가 수명 훅과 UI 훅을 받고, 아래 레이어의 핸들러는 위젯이 쓴 마우스를 보지 못한다.
+        UiProbe3D* probe = canvas.AttachScript<UiProbe3D>(panel);
+        GameInputProbe3D* gameInput = canvas.AttachScript<GameInputProbe3D>(eye);
 
         JBro::Array<std::byte> image;
         JBro::TextureReadback readback;
@@ -665,6 +735,9 @@ namespace
         Check(outside.r < 0.05f, "nothing is drawn below the square");
         const Pixel strayPixel = ReadPixel(image, readback.rowPitch, 12, TargetHeight / 2);
         Check(strayPixel.r < 0.05f, "a cube on the screen layer is not drawn by the 3D camera");
+        Check(probe->starts == 1 && probe->updates == 1, "a 3D script starts and updates in its first frame");
+        // 입력 체인은 시작 훅보다 먼저 돌고 시작한 스크립트만 부른다(2D 와 같다) - 첫 프레임에는 아직 부르지 않는다.
+        Check(gameInput->calls == 0, "the input chain waits for the script to start");
 
         // 마우스를 사각형 위에서 누르면 버튼이 눌리고 색이 pressedTint(0.7) 가 된다.
         JBro::InputEvent move;
@@ -678,6 +751,8 @@ namespace
         input.BeginFrame({press, 2});
         stage.RenderOnce(framework, image, readback);
         Check(button->pressed, "the button takes the press through the 3D framework");
+        Check(probe->downs == 1 && probe->clicks == 0, "the 3D script on the button hears the press");
+        Check(gameInput->calls == 1 && false == gameInput->sawMouse, "the game layer below sees no mouse the button took");
         const Pixel pressed = ReadPixel(image, readback.rowPitch, 84, 8);
         Check(Near(pressed.r, 0.7f, 0.02f) && Near(pressed.b, 0.7f, 0.02f), "the pressed tint shows on the screen square");
 
@@ -686,13 +761,23 @@ namespace
         up.kind = JBro::InputEventKind::MouseButtonUp;
         up.button = JBro::MouseButton::Left;
         framework.SetSimulationEnabled(false);
+        const JBro::Int32 updatesBeforePause = probe->updates;
         input.BeginFrame({&up, 1});
         stage.RenderOnce(framework, image, readback);
         Check(button->pressed, "paused, the button does not see the release");
+        Check(probe->updates == updatesBeforePause, "paused, the 3D script does not update");
         framework.SetSimulationEnabled(true);
         input.BeginFrame({});
         stage.RenderOnce(framework, image, readback);
         Check(false == button->pressed, "running again, the button sees the mouse is up");
+        Check(probe->updates == updatesBeforePause + 1 && probe->clicks == 0, "and the script runs again; a release seen only after the pause is no click");
+
+        // 누르고 떼면 `OnClick` 이다.
+        input.BeginFrame({press, 2});
+        stage.RenderOnce(framework, image, readback);
+        input.BeginFrame({&up, 1});
+        stage.RenderOnce(framework, image, readback);
+        Check(probe->clicks == 1, "pressing and releasing on the button clicks it for the 3D script");
 
         framework.Shutdown();
         stage.Close();

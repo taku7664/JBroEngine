@@ -699,10 +699,32 @@
      `Transform2D` 만, 그 붙이기 목록에 `Button2D`·`Text2D` 는 있고 `MeshRenderer3D` 는 없으며, 월드 레이어의 상자 목록은 그 반대이고 월드 레이어에서 만든 오브젝트는 `Transform3D`.
      `CanvasFoundation`·`BuiltinComponentProperty`·`Framework2DSystem`·`Framework3DSystem`·`EditorObjectCommand`·`EditorGuide`·`EditorGuideFocus`·`ComponentMenuTable`·`CanvasFile`·`UiScenario`·
      `ScriptApiCatalog`·`ContextBoundary` 통과.
-   - 정한 것: 화면 레이어에서 3D 스크립트가 UI 핸들·훅을 쓰는 것과 3D 캔버스 뷰(에디터)에서 화면 레이어를 보이고 고치는 것은 열림이다 - 지금은 게임 화면(시뮬레이션 뷰)에만 보인다.
+   - 정한 것: 화면 레이어에서 3D 스크립트가 UI 핸들·훅을 쓰는 것(→ §7.9, D-363 으로 섰다)과 3D 캔버스 뷰(에디터)에서 화면 레이어를 보이고 고치는 것은 열림이다 - 지금은 게임 화면(시뮬레이션 뷰)에만 보인다.
      3D 카메라에는 `PixelPerfect` 레터박스가 없어 화면 레이어는 늘 대상 전체를 잰다.
    - **실제 에디터**(`JBroEditorHost.exe`, 3D 프로젝트 `HUD 3D`): 캔버스 파일의 HUD 화면 레이어에 둔 `Transform2D`·`SpriteRenderer2D`·`Button2D` 가 읽히고 인스펙터에 보인다.
      시뮬레이션 뷰에서 정육면체 위 오른쪽 위 구석에 흰 사각형이 서고, `컴포넌트 추가` 에는 `UI 배치`·`UI` 갈래만 나온다(붙은 `Button2D` 는 회색). 스크린숏을 봤다.
 - **전체**(2026-10-31, 6 부 뒤, 이 PC 의 main 폴더, Debug, 기준 main 572320da): 솔루션 빌드 Debug·Debug_Game2D·Debug_Game3D C++ 경고 0, 전체 시험 127 묶음 `all tests passed.`
   (`EditorApplication` 1502.7 초, `UserScenario` 95.5 초, `PostProcessPixel` 14.7 초, `MeshPixel` 4.0 초).
 
+### 7.9 3D 스크립트의 UI (D-363)
+
+> 상태: **완료** (2026-11-01). 사용자 지시 "열어줘", "둘 다 권고안대로". 3D 스크립트는 그때까지 돌지 않았다(훅을 부르는 것이 2D 의 `ScriptSystem` 뿐) - 런타임을 먼저 세우고 UI 를 열었다.
+
+1. ~~**3D 스크립트 런타임**~~ → 완료 2026-11-01 · `ScriptSystem` 을 새 Tier E 모듈 `JBroScriptRuntime` 으로 `git mv`(차원 코드 없음, 포함 경로만 `<JBro/ScriptRuntime/...>`), `Framework3D` 가 세운다:
+   시뮬레이션 켜고 끄기(`ApplySimulationEnabled`), 한 프레임 진행, 고정 스텝 앞의 입력 체인(`DispatchInput`), 중단점 프레임(`PrepareBreakFrames`·`EndBreakFrames` - 3D·화면 추출만 다시 돌고
+   후처리를 다시 섞는다, 후처리 섞기는 `ResolvePostProcess` 로 뗐다). 화면 UI 의 버튼·레이아웃은 3D 에서도 스크립트의 입력 체인과 훅 디스패처(`UiHookDispatcher3D`)를 받는다.
+2. ~~**`GameScript3D` 와 UI 훅**~~ → 완료 2026-11-01 · `Framework3D/Scripting/GameScript.h` 의 `GameScript3D`(UI 훅 열둘), `RegisterScriptType3D` 의 `static_assert`, `Framework3DServiceContextAbiVersion` 3,
+   `Framework3DSystem/Scripting/UiBindings3D`. 에디터의 3D 새 스크립트 템플릿은 `GameScript3D`.
+3. ~~**3D 스크립트 SDK 의 화면 UI 핸들**~~ → 완료 2026-11-01 · 3D 프렐류드(`Framework3D/ScriptAPI.h`)가 `ComponentTypes2D.h` 와 화면 UI 핸들 스물다섯을 include, `JBro.Common.props` 의 3D 스크립트 포함 경로·
+   SDK 생성기(`ScriptSdkMain.cpp` 의 `RootsFor`)·`JBro.GameScript.targets` 의 3D 링크 목록에 `JBroFramework2D`. 3D 필드 종류에 `Transform2D`·`SpriteRenderer2D`·`Text2D`·`Button2D`.
+   - **잰 것**: `MeshPixel` `TestScreenLayersDrawScreenUiOverThe3DView` - 화면 레이어 버튼의 오브젝트에 붙인 `GameScript3D` 가 첫 프레임에 `OnStart`·`OnUpdate` 하나씩, 입력 체인은 시작한 다음 프레임부터
+     `"Game"` 레이어 핸들러를 부르고, 누르면 `OnPointerDown` 이 오며 아래 `"Game"` 핸들러는 빈 마우스를 본다, 멈추면 `OnUpdate` 가 없고, 누르고 떼면 `OnClick`. `ScriptProject`
+     `TestA3DScriptBuildsAgainstTheScreenUi` - 에디터로 3D 프로젝트에 `Button2D` 필드를 가진 스크립트를 만들면 `GameScript3D` 이고, `OnClick`·`OnValueChanged` 와 `Button2D`·`Text2D` 핸들을 쓴 스크립트가
+     MSBuild 로 3D 스크립트 SDK 에 대해 빌드된다. 음성: `<JBro/Framework2D/Handle/Rigidbody2D.h>`·`<JBro/Framework2D/ServiceContext.h>` 는 C1083(3D 사본에 없다), `GameScriptBase` 에서 바로 파생해
+     `JBRO_REGISTER_SCRIPT_3D` 하면 C2338. 3D 사본의 `Framework2D/Handle` 에는 화면 UI 핸들 스물다섯만 있다(눈으로 봤다). `ScriptScheduling`·`InputChain`·`ScriptDLLLoader`·`ScriptModuleEntry`·
+     `ScriptFault`·`ScriptBreak`·`ScriptHotReload`·`ScriptCallGuard`·`GameScript`·`Framework2DSystem`·`Framework3DSystem`·`UiScenario`·`ContextBoundary`·`ScriptApiCatalog`·`ScriptApiPrelude`·
+     `BuiltinComponentProperty`·`CanvasFoundation`·`UserScenario` 통과.
+   - **실제 에디터**(`JBroEditorHost.exe`, 3D 프로젝트 `HUD 3D`): `GameScript3D` 를 상속한 `Clicker` 를 MSBuild 로 빌드해 HUD 화면 레이어의 버튼 오브젝트에 붙이니 인스펙터에 `Clicker`·`Clicks 0` 이 서고,
+     실행 뒤 시뮬레이션 뷰의 버튼을 누를 때마다 `OnClick` 이 불려 `Clicks` 가 1·2 로 오르고 패널이 빨강·초록으로 바뀌었다(스크린숏과 픽셀 (51, 255, 51) 을 봤다).
+   - 찾은 것: 처음 시험은 첫 프레임에 입력 핸들러가 불릴 것으로 썼다 - 입력 체인은 시작 훅보다 앞이고 시작한 스크립트만 부른다(2D 와 같은 계약)라 기대값을 고쳤다.
+   - 열림: 2D 의 `Screen2DService`(`ScreenToLayer`·`IsPointerOverButton`)를 3D 서비스에 여는 것, 3D 의 충돌 훅(3D 물리가 없다), JBroScript(`.jscript`) 의 3D 생성.
