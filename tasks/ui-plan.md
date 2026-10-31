@@ -728,3 +728,7 @@
      실행 뒤 시뮬레이션 뷰의 버튼을 누를 때마다 `OnClick` 이 불려 `Clicks` 가 1·2 로 오르고 패널이 빨강·초록으로 바뀌었다(스크린숏과 픽셀 (51, 255, 51) 을 봤다).
    - 찾은 것: 처음 시험은 첫 프레임에 입력 핸들러가 불릴 것으로 썼다 - 입력 체인은 시작 훅보다 앞이고 시작한 스크립트만 부른다(2D 와 같은 계약)라 기대값을 고쳤다.
    - 열림: 2D 의 `Screen2DService`(`ScreenToLayer`·`IsPointerOverButton`)를 3D 서비스에 여는 것, 3D 의 충돌 훅(3D 물리가 없다), JBroScript(`.jscript`) 의 3D 생성.
+- **전체**(2026-11-01, §7.9 뒤, 이 PC 의 main 폴더, Debug, 기준 main a669d516): 솔루션 빌드 Debug·Debug_Game2D·Debug_Game3D C++ 경고 0, 전체 시험 127 묶음 `all tests passed.`
+  (`EditorApplication` 1540.6 초, `UserScenario` 95.8 초, `ScriptProject` 22.5 초, `MeshPixel` 4.6 초). 앞선 전체 실행 한 번은 `PostProcessPixel` 의 힙 검사(CRT 할당 3)에서 멈췄고, 같은 앞 묶음을 다시 돌린
+  한 번은 `AudioMixer` 의 힙 검사에서 멈췄다 - 두 묶음 단독·앞 31 묶음 차례 실행은 다섯 번 모두 통과했고 다시 돌린 전체도 통과했다. 이번 변경이 닿지 않는 렌더러·오디오 시험이고 실패한 검사가 매번 달라,
+  CRT 할당 훅이 프로세스 전체를 세는 동안 다른 스레드(오디오 장치·드라이버)가 할당한 것으로 추정한다(재지 않았다, 열림).
