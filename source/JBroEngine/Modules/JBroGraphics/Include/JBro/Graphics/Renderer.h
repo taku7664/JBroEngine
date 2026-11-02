@@ -239,7 +239,7 @@ namespace JBro
         Bool selfShadow = false;
     };
 
-    // 3D 라이트의 종류다(D-366). 캔버스의 `Light3DType` 과 같은 셋이고, 렌더러는 컴포넌트를 모르므로 제 이름을 둔다.
+    // 3D 라이트의 종류다(D-367). 캔버스의 `Light3DType` 과 같은 셋이고, 렌더러는 컴포넌트를 모르므로 제 이름을 둔다.
     enum class Light3DKind : std::uint8_t
     {
         Directional,
@@ -247,7 +247,7 @@ namespace JBro
         Ambient,
     };
 
-    // 열린 뷰에 내는 3D 라이트 하나다(D-366). `Directional` 은 `direction`(빛이 가는 쪽)으로, `Point` 는 `position` 에서 `range` 까지 비춘다.
+    // 열린 뷰에 내는 3D 라이트 하나다(D-367). `Directional` 은 `direction`(빛이 가는 쪽)으로, `Point` 는 `position` 에서 `range` 까지 비춘다.
     // 라이트를 하나라도 낸 뷰의 메시는 이 라이트들로 비추고, 안 낸 뷰는 고정 방향광이다. 그림자는 없다.
     struct Light3DSubmit
     {
@@ -357,7 +357,7 @@ namespace JBro
         UInt32 materialSpriteCount = 0;
         // 머티리얼로 그린 메시다(D-348).
         UInt32 materialMeshCount = 0;
-        // 뷰에 낸 3D 라이트(환경광 포함)와 뷰의 상한을 넘어 버린 것이다(D-366).
+        // 뷰에 낸 3D 라이트(환경광 포함)와 뷰의 상한을 넘어 버린 것이다(D-367).
         UInt32 light3DCount = 0;
         UInt32 droppedLight3DCount = 0;
         // 죽은(빈 것이 아니라 지워진) 머티리얼을 든 스프라이트·효과다. 빌트인 셰이더(효과는 그대로 옮기기)로 그리고 센다.
@@ -434,7 +434,7 @@ namespace JBro
         Bool SubmitSprite(const SpriteSubmit& item);
         Bool SubmitSprites(JArrayView<SpriteSubmit> items);
         Bool SubmitMesh(const MeshSubmit& item);
-        // 열린 뷰에 3D 라이트를 낸다(D-366). 뷰마다 `MaxLights3D` 개까지이고(`Ambient` 는 세지 않는다) 넘치면 버리고 센다.
+        // 열린 뷰에 3D 라이트를 낸다(D-367). 뷰마다 `MaxLights3D` 개까지이고(`Ambient` 는 세지 않는다) 넘치면 버리고 센다.
         static constexpr UInt32 MaxLights3D = 16;
         Bool SubmitLight3D(const Light3DSubmit& light);
         Bool SubmitMeshes(JArrayView<MeshSubmit> items);
@@ -498,7 +498,7 @@ namespace JBro
         AssetHandle RegisterMaterial(const MaterialDesc& desc);
         // 같은 셰이더의 파라미터·텍스처만 갈아 끼운다(머티리얼 파일의 재로드). 셰이더가 바뀌면 지우고 다시 올린다. 프레임 밖에서만 부른다.
         Bool UpdateMaterial(AssetHandle material, const MaterialDesc& desc);
-        // **머티리얼 인스턴스를 올린다**(D-367). `base` 의 파이프라인을 나눠 쓰고 파라미터와 텍스처만 제 것이다 - 오브젝트마다 값이 다른 머티리얼이 파이프라인을
+        // **머티리얼 인스턴스를 올린다**(D-368). `base` 의 파이프라인을 나눠 쓰고 파라미터와 텍스처만 제 것이다 - 오브젝트마다 값이 다른 머티리얼이 파이프라인을
         // 늘리지 않는다. 핸들은 머티리얼과 같이 스프라이트·메시·`UpdateMaterial`·`UnregisterMaterial` 에 쓴다. `base` 를 지우면 그 인스턴스도 함께 지워진다.
         AssetHandle RegisterMaterialInstance(AssetHandle base, const MaterialDesc& desc);
         void UnregisterMaterial(AssetHandle material);
@@ -795,7 +795,7 @@ namespace JBro
             std::byte parameters[MaxMaterialParameterBytes] = {};
             UInt32 generation = 1;
             Bool occupied = false;
-            // 인스턴스면 원본의 자리 + 1 이다(D-367). 파이프라인은 원본의 것이라 파기하지 않는다.
+            // 인스턴스면 원본의 자리 + 1 이다(D-368). 파이프라인은 원본의 것이라 파기하지 않는다.
             UInt32 instanceOf = 0;
         };
         // 머티리얼 셰이더의 엔진 값(b0, `MaterialPrelude` 의 `JBroEngine`)이다. 스프라이트는 앞에 뷰-투영 행렬이 더 붙는다.
@@ -928,7 +928,7 @@ namespace JBro
         static_assert(offsetof(GpuTextInstance, outline) == 40, "text attribute 5 reads the outline colour from offset 40");
         static_assert(offsetof(GpuTextInstance, params) == 44, "text attribute 6 reads the params from offset 44");
 
-        // 뷰 하나의 3D 라이트 블록이다(D-366). `BuiltinMesh.hlsl` 의 `MeshLights`(b1)·머리글의 `JBroLights`(b2)와 같은 배치다.
+        // 뷰 하나의 3D 라이트 블록이다(D-367). `BuiltinMesh.hlsl` 의 `MeshLights`(b1)·머리글의 `JBroLights`(b2)와 같은 배치다.
         struct GpuMeshLights
         {
             Float count[4] = {0.0f, 0.0f, 0.0f, 0.0f};

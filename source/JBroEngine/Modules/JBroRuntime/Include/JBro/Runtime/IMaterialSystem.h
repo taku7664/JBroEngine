@@ -20,7 +20,7 @@ namespace JBro::System
         virtual ~IMaterialSystem() = default;
 
         virtual UInt32 FindParameter(Uuid material, const char* parameter) = 0;
-        // 그 오브젝트(컴포넌트의 인스턴스 아이디)만의 파라미터다(D-367).
+        // 그 오브젝트(컴포넌트의 인스턴스 아이디)만의 파라미터다(D-368).
         virtual UInt32 FindObjectParameter(UInt64 owner, Uuid material, const char* parameter) = 0;
         // `values` 의 `count`(1..4) 칸을 넣는다. `integer` 면 `int`·`uint`·`bool` 파라미터의 값이다.
         virtual Bool SetValues(UInt32 parameter, const Float* values, UInt32 count, Bool integer) = 0;

@@ -37,7 +37,7 @@ namespace JBro
         AssetHandle postProcessProfile;
     };
 
-    // 이번 프레임에 뜬 3D 라이트다(D-366).
+    // 이번 프레임에 뜬 3D 라이트다(D-367).
     struct LightRenderItem3D
     {
         Object::GameObject* owner = nullptr;

@@ -63,7 +63,7 @@ namespace JBro::NodeGraph
         Array<PinInfo> outputs;
         // 그래프에 하나만 둘 수 있다(결과 노드).
         Bool unique = false;
-        // 인스펙터에서 노드의 이름(`Node::label`)을 고친다(셰이더 그래프의 파라미터, D-368).
+        // 인스펙터에서 노드의 이름(`Node::label`)을 고친다(셰이더 그래프의 파라미터, D-369).
         Bool hasLabel = false;
     };
 

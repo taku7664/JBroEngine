@@ -16,7 +16,7 @@
 
 namespace JBro::Component
 {
-    // 3D 라이트의 종류다(D-366). `Directional` 은 오브젝트의 앞(-Z)으로 비추고, `Point` 는 오브젝트 자리에서 사방으로 `range` 까지 비추며, `Ambient` 는
+    // 3D 라이트의 종류다(D-367). `Directional` 은 오브젝트의 앞(-Z)으로 비추고, `Point` 는 오브젝트 자리에서 사방으로 `range` 까지 비추며, `Ambient` 는
     // 어디든 같은 밝기를 더한다.
     enum class Light3DType : std::uint8_t
     {
@@ -37,7 +37,7 @@ namespace JBro
 
 namespace JBro::Component
 {
-    // **3D 라이트**(D-366). 켜진 라이트가 하나라도 있는 뷰는 메시를 이 라이트들로 비춘다. 하나도 없으면 렌더러의 고정 방향광이다. 그림자는 아직 없다.
+    // **3D 라이트**(D-367). 켜진 라이트가 하나라도 있는 뷰는 메시를 이 라이트들로 비춘다. 하나도 없으면 렌더러의 고정 방향광이다. 그림자는 아직 없다.
     class Light3D final : public ComponentBase
     {
     public:

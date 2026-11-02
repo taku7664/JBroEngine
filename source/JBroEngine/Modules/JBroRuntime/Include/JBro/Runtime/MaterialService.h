@@ -33,7 +33,7 @@ namespace JBro::Service
     // `SetColor`·`SetVector4` 는 `float3`·`float4`(`float3` 이면 넷째 칸은 버린다). 찾기는 이름을 견주므로 `OnStart` 에서 찾아 필드에 든다.
     // 캔버스가 묶이지 않은 자리에서는 아무것도 하지 않는다.
     //
-    // **오브젝트 하나만 바꾸려면**(D-367) 렌더러 핸들을 함께 넘긴다 - 같은 머티리얼의 다른 오브젝트는 그대로이고, 그 오브젝트는 따로 그려진다(배치가 끊긴다).
+    // **오브젝트 하나만 바꾸려면**(D-368) 렌더러 핸들을 함께 넘긴다 - 같은 머티리얼의 다른 오브젝트는 그대로이고, 그 오브젝트는 따로 그려진다(배치가 끊긴다).
     //
     //   MaterialParameter glow = GetServiceContext().Material.FindParameter(GetComponent<SpriteRenderer2D>(), material, "glowColor");
     class MaterialService

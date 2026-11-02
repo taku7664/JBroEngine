@@ -22,7 +22,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
-// **메시 에셋**(D-365): glTF 읽기(임베드·GLB·바깥 버퍼·노드 변환·감김·법선 만들기·거절), 에셋 시스템의 싣기와 다시 읽기, 패키지의 푼 메시.
+// **메시 에셋**(D-366): glTF 읽기(임베드·GLB·바깥 버퍼·노드 변환·감김·법선 만들기·거절), 에셋 시스템의 싣기와 다시 읽기, 패키지의 푼 메시.
 // 렌더러에 올려 그리는 것은 `EditorApplication` 의 3D 시나리오가 본다.
 namespace
 {

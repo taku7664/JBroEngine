@@ -690,7 +690,7 @@ namespace JBro
         // 스프라이트와 메시는 정점 단계가 앞의 뷰-투영 행렬을 읽는다 - 둘 다 128 B 다.
         desc.pushConstantBytes = sprite || mesh ? SpriteMaterialPushBytes : PostMaterialPushBytes;
         desc.pushConstantStages = sprite || mesh ? (ShaderStage::Vertex | ShaderStage::Pixel) : ShaderStage::Pixel;
-        // 메시는 b2 의 라이트 블록까지 든다(D-366). 파라미터가 없어도 b1 자리는 묶는다(`BindMaterialResources` 가 라이트 블록으로 채운다).
+        // 메시는 b2 의 라이트 블록까지 든다(D-367). 파라미터가 없어도 b1 자리는 묶는다(`BindMaterialResources` 가 라이트 블록으로 채운다).
         desc.bindings.constantBuffers = {mesh ? 2u : shader.parameterBytes != 0 ? 1u : 0u, ShaderStage::Pixel};
         desc.bindings.sampledTextures = {resource.textureSlots, ShaderStage::Pixel};
         desc.bindings.samplers = {MaterialSamplerCount, ShaderStage::Pixel};
@@ -932,7 +932,7 @@ namespace JBro
         }
         for (MaterialResource& resource : m_materials)
         {
-            // 인스턴스의 파이프라인은 원본의 것이다(D-367).
+            // 인스턴스의 파이프라인은 원본의 것이다(D-368).
             if (resource.instanceOf == 0)
             {
                 DestroyMaterialPipelines(resource);
@@ -2757,7 +2757,7 @@ namespace JBro
             const MaterialEngineValues engine = renderer.MakeMaterialEngineValues(pass.viewport, pass.targetExtent, false);
             std::memcpy(materialConstants, viewProjection.values, sizeof(viewProjection.values));
             std::memcpy(materialConstants + sizeof(viewProjection.values), &engine, sizeof(engine));
-            // 이 뷰의 라이트 블록이다(D-366). 패스에 한 번 올린다.
+            // 이 뷰의 라이트 블록이다(D-367). 패스에 한 번 올린다.
             const GpuMeshLights& lights = renderer.m_viewLights3D[pass.view.Get()];
             const ConstantRange lightRange = renderer.m_postConstants.Push(
                 JArrayView<std::byte>{reinterpret_cast<const std::byte*>(&lights), static_cast<JBro::UInt32>(sizeof(lights))});
@@ -3058,7 +3058,7 @@ namespace JBro
 
     Bool Renderer::CreateBuiltinMeshResources()
     {
-        // 메시마다 라이트 블록을 상수 링에 올린다(D-366).
+        // 메시마다 라이트 블록을 상수 링에 올린다(D-367).
         if (false == m_postConstants.IsCreated() && false == m_postConstants.Create(*m_device, PostConstantRingBytes))
         {
             return false;

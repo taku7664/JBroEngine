@@ -11,7 +11,7 @@ namespace JBro
 
 namespace JBro::System
 {
-    // 켜진 `Light3D` 를 렌더 월드에 뜬다(D-366). 자리와 방향은 오브젝트의 `Transform3D` 에서 온다 - 없으면 `Ambient` 만 뜬다.
+    // 켜진 `Light3D` 를 렌더 월드에 뜬다(D-367). 자리와 방향은 오브젝트의 `Transform3D` 에서 온다 - 없으면 `Ambient` 만 뜬다.
     class Light3DSystem final : public GameSystem
     {
     public:

@@ -96,7 +96,7 @@
 
 이 문서를 읽고 나면 노드 그래프의 어느 층이 어디에 있는지와, 새 도메인을 더할 때 무엇을 등록하면 되는지 알 수 있어야 한다.
 
-## 5. 셰이더 그래프 (2026-11-03, D-368)
+## 5. 셰이더 그래프 (2026-11-03, D-369)
 
 도메인 `Shader`(`<JBro/NodeGraph/ShaderDomain.h>`)와 `GenerateShaderHlsl`. 에디터의 에셋 브라우저 `새 셰이더 그래프` 가 `Source → Output` 그래프와 옆의 `.hlsl` 을 만들고 창을 연다. 창의 저장이 `EditorApplication::RegenerateShaderFromGraph` 를 불러 `.hlsl` 을 다시 쓰고, 실린 셰이더는 제자리에서 다시 읽힌다. 노드에 이름 `label` 이 늘었다(`NodeTypeInfo::hasLabel` 이면 노드 인스펙터에 `이름` 칸, 파일에는 비었을 때 적지 않는다).
 시험: `Material` 의 `TestAShaderGraphCompiles` - 파라미터 넷·텍스처·넓히기와 좁히기가 든 그래프가 세 자리에서 구워지고, 반사에 라벨·색 이름·초기값이 나오며, 결과에 닿지 않는 노드는 빠진다. 글자 왕복, 이름 겹침·`Output` 없음·텍스처 일곱 거절. `EditorApplication` 의 3D 시나리오 - 만든 `.hlsl` 을 머티리얼이 쓰고, 그래프를 고치면 파일과 반사가 함께 바뀌며, 깨진 그래프는 마지막 셰이더를 둔다.

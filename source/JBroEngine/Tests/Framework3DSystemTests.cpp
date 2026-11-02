@@ -277,7 +277,7 @@ namespace
         Check(world.GetMesh(0).material.generation == 0, "without a material library the material asset handle does not reach the renderer");
         Check(hiddenMesh->mesh.generation == 0, "a hidden mesh is not even resolved");
 
-        // 켜진 `Light3D` 를 뜬다(D-366). 방향은 오브젝트의 앞(-Z)을 회전한 것이다.
+        // 켜진 `Light3D` 를 뜬다(D-367). 방향은 오브젝트의 앞(-Z)을 회전한 것이다.
         auto* sunLight = canvas.AttachComponent<JBro::Component::Light3D>(shown);
         Check(sunLight != nullptr, "a light attaches");
         sunLight->intensity = 2.0f;

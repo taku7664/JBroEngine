@@ -14,7 +14,7 @@ namespace JBro::Component
 
 namespace JBro::Handle
 {
-    // 스크립트가 보는 `Light3D` 다(D-302, D-366). 데이터는 엔진의 `Component::Light3D` 에 있고, 이것은 그 자리를 가리키는 24B 값이다.
+    // 스크립트가 보는 `Light3D` 다(D-302, D-367). 데이터는 엔진의 `Component::Light3D` 에 있고, 이것은 그 자리를 가리키는 24B 값이다.
     // 무효한 핸들의 멤버는 경고를 남기고 아무것도 하지 않으며, 값을 돌려주는 멤버는 그 타입의 기본값을 준다.
     class Light3D final : public Internal::ComponentHandle
     {

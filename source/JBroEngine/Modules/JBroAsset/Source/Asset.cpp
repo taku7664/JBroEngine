@@ -885,7 +885,7 @@ namespace JBro
             return false;
         }
         Array<std::byte> bytes;
-        // 패키지는 빌드가 푼 것을 든다(D-365).
+        // 패키지는 빌드가 푼 것을 든다(D-366).
         if (m_source->Has(record, AssetBlob::CookedMesh))
         {
             if (false == m_source->Read(record, AssetBlob::CookedMesh, bytes) || false == ReadCookedMesh(bytes.Data(), bytes.Size(), data))

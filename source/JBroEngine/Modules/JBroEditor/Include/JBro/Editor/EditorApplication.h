@@ -778,7 +778,7 @@ namespace JBro
         // **새 노드 그래프를 만든다**(D-323). `NewGraph.jgraph`(샘플 도메인 `Math`, 결과 노드 하나)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 노드 그래프 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateNodeGraphAsset(const char* folder);
-        // 셰이더 그래프(도메인 `Shader`, D-368)를 만들어 연다. 저장하면 옆에 `.hlsl` 이 생긴다.
+        // 셰이더 그래프(도메인 `Shader`, D-369)를 만들어 연다. 저장하면 옆에 `.hlsl` 이 생긴다.
         String CreateShaderGraphAsset(const char* folder);
         // 그래프 에셋 옆(`이름.hlsl`)에 만든 셰이더를 쓴다. 처음이면 레지스트리에 들이고, 실려 있으면 제자리에서 다시 읽는다.
         Bool WriteGeneratedShader(AssetId graph, const String& hlsl);

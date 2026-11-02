@@ -66,7 +66,7 @@ namespace JBro::System
             {
                 return;
             }
-            // 메시 에셋이면 렌더러 메시로 푼다(D-365). 빌트인은 이미 렌더러 핸들이다. 아직 못 올렸으면 이번 프레임은 건너뛴다.
+            // 메시 에셋이면 렌더러 메시로 푼다(D-366). 빌트인은 이미 렌더러 핸들이다. 아직 못 올렸으면 이번 프레임은 건너뛴다.
             const AssetHandle gpuMesh = m_library != nullptr ? m_library->ResolveHandle(renderer.mesh) : renderer.mesh;
             if (gpuMesh.generation == 0)
             {

@@ -52,7 +52,7 @@ VertexOutput VSMain(VertexInput input)
     return output;
 }
 
-// The view's 3D lights (D-366), the renderer's GpuMeshLights. A mesh material reads the same block at b2 through JBroMeshLight.
+// The view's 3D lights (D-367), the renderer's GpuMeshLights. A mesh material reads the same block at b2 through JBroMeshLight.
 cbuffer MeshLights : register(b1)
 {
     // x: the light count. y: 1 when the view has lights at all (an ambient light counts); 0 means the fixed light below.

@@ -40,7 +40,7 @@ namespace JBro
         // 머티리얼 에셋(로드된 핸들)의 렌더러 머티리얼이다. 빈 핸들·머티리얼이 아닌 에셋·짓지 못한 머티리얼은 빈 핸들이다(그 까닭은 `GetError`).
         // 렌더러 핸들은 머티리얼의 셰이더가 바뀌기 전까지 그대로다.
         AssetHandle Resolve(AssetHandle materialAsset);
-        // **그 오브젝트의 렌더러 머티리얼이다**(D-367). `owner`(컴포넌트의 인스턴스 아이디)가 이 머티리얼의 파라미터를 덮어썼으면 그 인스턴스, 아니면 `Resolve` 와 같다.
+        // **그 오브젝트의 렌더러 머티리얼이다**(D-368). `owner`(컴포넌트의 인스턴스 아이디)가 이 머티리얼의 파라미터를 덮어썼으면 그 인스턴스, 아니면 `Resolve` 와 같다.
         // 덮어쓴 오브젝트가 없으면 찾기가 늘지 않는다.
         AssetHandle Resolve(AssetHandle materialAsset, InstanceId owner);
         // 바뀐 머티리얼을 다시 짓는다. 프레임워크의 Update 가 프레임마다 한 번 부른다.
@@ -58,7 +58,7 @@ namespace JBro
         static constexpr UInt32 MaxParameterOverrides = 64;
         static constexpr UInt32 InvalidParameter = 0xFFFFFFFFu;
         UInt32 FindParameter(AssetId material, const char* parameter);
-        // **오브젝트 하나의 파라미터**(D-367). 같은 머티리얼을 쓰는 다른 오브젝트는 바뀌지 않는다. 값을 얹는 자리는 에셋의 덮어쓰기 위다. 그 오브젝트의 값을 모두
+        // **오브젝트 하나의 파라미터**(D-368). 같은 머티리얼을 쓰는 다른 오브젝트는 바뀌지 않는다. 값을 얹는 자리는 에셋의 덮어쓰기 위다. 그 오브젝트의 값을 모두
         // 지우면 인스턴스도 사라져 다시 한 배치로 그려진다. 오브젝트마다 배치가 끊긴다.
         UInt32 FindParameter(AssetId material, const char* parameter, InstanceId owner);
         Bool SetParameter(UInt32 parameter, const Float* values, UInt32 count, Bool integer);
@@ -136,7 +136,7 @@ namespace JBro
         {
             AssetId material;
             NameId name = InvalidNameId;
-            // 0 이면 에셋 전체이고, 아니면 그 오브젝트(컴포넌트 인스턴스 아이디)만이다(D-367).
+            // 0 이면 에셋 전체이고, 아니면 그 오브젝트(컴포넌트 인스턴스 아이디)만이다(D-368).
             InstanceId owner = InvalidInstanceId;
             Float values[4] = {0.0f, 0.0f, 0.0f, 0.0f};
             UInt32 count = 0;
@@ -149,7 +149,7 @@ namespace JBro
         void ReleaseAssets(Material& material);
         AssetHandle EnsureTexture(AssetHandle textureAsset);
         Compiled* Compile(AssetHandle shaderAsset, MaterialDomain domain);
-        // 오브젝트 하나가 덮어쓴 머티리얼이다(D-367).
+        // 오브젝트 하나가 덮어쓴 머티리얼이다(D-368).
         struct Instance
         {
             InstanceId owner = InvalidInstanceId;

@@ -126,7 +126,7 @@ namespace JBro::Package
                 AddBlob(writer, report, *record, BlobKind::Source, font.bytes);
                 continue;
             }
-            // 메시는 glTF 와 그 바깥 버퍼를 풀어 한 블롭으로 싣는다(D-365). 게임은 glTF 를 읽지 않는다.
+            // 메시는 glTF 와 그 바깥 버퍼를 풀어 한 블롭으로 싣는다(D-366). 게임은 glTF 를 읽지 않는다.
             if (record->type == AssetType::Mesh)
             {
                 struct Siblings

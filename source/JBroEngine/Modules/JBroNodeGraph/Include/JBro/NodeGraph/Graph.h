@@ -32,7 +32,7 @@ namespace JBro::NodeGraph
         Vector2 position;
         // 입력마다 이어지지 않았을 때의 값이다. 종류의 입력 수와 같다.
         Array<PinValue> inputs;
-        // 사용자가 붙인 이름이다(셰이더 그래프의 파라미터 이름, D-368). 비어 있어도 된다.
+        // 사용자가 붙인 이름이다(셰이더 그래프의 파라미터 이름, D-369). 비어 있어도 된다.
         String label;
     };
 

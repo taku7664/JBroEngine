@@ -11053,7 +11053,7 @@ namespace
         document.domain = JBro::MaterialDomain::Mesh;
         Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the mesh material is written");
 
-        // ── 메시 에셋(D-365): 삼각형 하나인 glTF. 인덱스 없이 base64 임베드다. ──
+        // ── 메시 에셋(D-366): 삼각형 하나인 glTF. 인덱스 없이 base64 임베드다. ──
         const JBro::String meshName = JBro::String(root.generic_string().c_str()) + "/Assets/Triangle.gltf";
         Check(WriteTextFile(meshName,
                   "{\"asset\":{\"version\":\"2.0\"},\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
@@ -11086,7 +11086,7 @@ namespace
         Check(stats.materialMeshCount >= 1 && stats.staleMaterialCount == 0, "the cube is drawn with its mesh material");
         Check(stats.light3DCount == 0, "the canvas has no lights yet");
 
-        // 라이트(D-366)는 렌더러의 뷰까지 간다.
+        // 라이트(D-367)는 렌더러의 뷰까지 간다.
         JBro::Object::GameObject* lamp = canvas->CreateObject("Lamp");
         Check(canvas->AttachComponent<JBro::Component::Transform3D>(lamp) != nullptr, "the lamp needs a transform");
         Check(canvas->AttachComponent<JBro::Component::Light3D>(lamp) != nullptr, "the lamp takes a light");
@@ -11120,7 +11120,7 @@ namespace
             library.Shutdown();
         }
 
-        // ── 셰이더 그래프(D-368): 새 그래프의 저장이 옆에 .hlsl 을 만들고, 그것을 머티리얼이 쓴다. ──
+        // ── 셰이더 그래프(D-369): 새 그래프의 저장이 옆에 .hlsl 을 만들고, 그것을 머티리얼이 쓴다. ──
         const JBro::String graphPath = editor.CreateShaderGraphAsset("");
         const JBro::AssetRecord* graphRecord = editor.GetAssetRegistry().FindByPath(graphPath.c_str());
         Check(graphRecord != nullptr && graphRecord->type == JBro::AssetType::NodeGraph, "New Shader Graph writes a graph asset");
@@ -11245,7 +11245,7 @@ namespace
         colour = probe.Centre();
         Check(colour.G > 0.95f && colour.R < 0.05f, "clearing it brings the file's green back");
 
-        // ── 오브젝트 하나의 파라미터(D-367) ──
+        // ── 오브젝트 하나의 파라미터(D-368) ──
         // 둘째 사각형은 왼쪽에 둔다. 같은 머티리얼이고, 첫째만 빨강으로 덮어쓴다. 다른 오브젝트를 만들면 풀이 늘 수 있어 다시 찾는다.
         {
             JBro::Object::GameObject* neighbour = probe.canvas->CreateObject("Neighbour");

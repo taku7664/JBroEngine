@@ -23,7 +23,7 @@ namespace JBro
         CookedTexture = 3, // 빌드가 디코드해 둔 RGBA8 - 있으면 디코드를 건너뛴다
         FontAtlas = 4,     // 빌드가 미리 떠 둔 글리프 아틀라스
         CompiledShader = 5, // 빌드가 구운 머티리얼 셰이더 묶음(`WriteCompiledShaderSet`, D-347) - 게임은 굽지 않는다
-        CookedMesh = 6,     // 빌드가 푼 메시(`WriteCookedMesh`, D-365) - 게임은 glTF 를 읽지 않는다
+        CookedMesh = 6,     // 빌드가 푼 메시(`WriteCookedMesh`, D-366) - 게임은 glTF 를 읽지 않는다
     };
 
     // `CookedTexture` 블롭의 모양이다: 16 바이트 머리(`JTEX`·폭·높이·0) 뒤에 `폭 * 높이 * 4` 바이트의 RGBA8(왼쪽 위 원점).
@@ -48,7 +48,7 @@ namespace JBro
         virtual ~IAssetSource() = default;
 
         virtual Bool Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const = 0;
-        // 에셋 파일 옆의 파일을 읽는다(glTF 의 바깥 버퍼, D-365). `relative` 는 그 파일 기준이고 폴더 밖으로 나가면 거짓이다. 패키지에는 옆 파일이 없다.
+        // 에셋 파일 옆의 파일을 읽는다(glTF 의 바깥 버퍼, D-366). `relative` 는 그 파일 기준이고 폴더 밖으로 나가면 거짓이다. 패키지에는 옆 파일이 없다.
         virtual Bool ReadSibling(const AssetRecord& record, const char* relative, Array<std::byte>& out) const
         {
             (void)record;

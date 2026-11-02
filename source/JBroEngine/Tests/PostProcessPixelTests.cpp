@@ -1382,7 +1382,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         stage.Expect(16, 32, 0.0f, 0.5f, 0.0f, "a lit material sprite takes the light like a built-in one");
         stage.Expect(48, 32, 0.5f, 0.5f, 0.5f, "the built-in sprite beside it takes the same light");
 
-        // 인스턴스(D-367): 파이프라인을 나눠 쓰고 파라미터만 제 것이다. 같은 셰이더의 두 스프라이트가 다른 색이고, 원본을 고쳐도 인스턴스는 그대로다.
+        // 인스턴스(D-368): 파이프라인을 나눠 쓰고 파라미터만 제 것이다. 같은 셰이더의 두 스프라이트가 다른 색이고, 원본을 고쳐도 인스턴스는 그대로다.
         {
             const float blue[4] = {0.0f, 0.0f, 1.0f, 1.0f};
             JBro::Array<std::byte> own;
@@ -1493,7 +1493,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         stage.Close(rhi);
     }
 
-    // **3D 라이트가 메시를 비춘다**(D-366). 법선 +z 인 판(z 0.5)에 라이트를 바꿔 가며 잰다. 라이트가 없으면 고정 방향광이고, 방향광은 법선과의 각으로, 점광은
+    // **3D 라이트가 메시를 비춘다**(D-367). 법선 +z 인 판(z 0.5)에 라이트를 바꿔 가며 잰다. 라이트가 없으면 고정 방향광이고, 방향광은 법선과의 각으로, 점광은
     // 거리로 줄며(1 - d / range)^2, 환경광은 더한다. 머티리얼의 `JBroMeshLight` 가 빌트인과 같은 값을 낸다. 상한을 넘은 라이트는 버리고 센다.
     template <typename TModule>
     void TestLight3DLightsAMesh()

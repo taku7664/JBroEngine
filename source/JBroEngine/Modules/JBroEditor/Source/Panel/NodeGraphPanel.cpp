@@ -387,7 +387,7 @@ namespace JBro
         m_messageIsError = false;
         m_dirtyRevision = static_cast<std::uint64_t>(-1);
         UpdateTitle();
-        // **셰이더 그래프는 옆에 `.hlsl` 을 쓴다**(D-368). 머티리얼·패키지는 그 파일만 본다. 그래프 자체는 저장됐으므로 만들지 못해도 저장은 성공이고 까닭을 보인다.
+        // **셰이더 그래프는 옆에 `.hlsl` 을 쓴다**(D-369). 머티리얼·패키지는 그 파일만 본다. 그래프 자체는 저장됐으므로 만들지 못해도 저장은 성공이고 까닭을 보인다.
         String why;
         if (!m_editor->RegenerateShaderFromGraph(m_asset, &why))
         {

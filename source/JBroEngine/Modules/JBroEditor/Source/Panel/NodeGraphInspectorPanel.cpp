@@ -81,7 +81,7 @@ namespace JBro
             Widget::SeverityTextF(Widget::Severity::Warning, "%s", Loc::TextOr(LocKeys::NodeGraphUnknownType, "This domain has no node of this type"));
             return;
         }
-        // 이름을 드는 노드(셰이더 그래프의 파라미터, D-368)다. 머티리얼 인스펙터에 이 이름으로 나온다.
+        // 이름을 드는 노드(셰이더 그래프의 파라미터, D-369)다. 머티리얼 인스펙터에 이 이름으로 나온다.
         if (type->hasLabel)
         {
             if (m_labelNode.Get() != node->id.Get() || (m_label != node->label && false == ImGui::IsAnyItemActive()))

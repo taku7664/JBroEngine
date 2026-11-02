@@ -36,7 +36,7 @@ namespace JBro::Package
         CookedTexture = 3, // 디코드한 RGBA8(`JBro::WriteCookedTexture` 의 모양)
         FontAtlas = 4,     // 미리 뜬 글리프 아틀라스(D-232 4 단계)
         CompiledShader = 5, // 구운 머티리얼 셰이더 묶음(D-347). 셰이더는 원본을 싣지 않는다
-        CookedMesh = 6,     // 푼 메시(`JBro::WriteCookedMesh`, D-365). 메시는 원본을 싣지 않는다
+        CookedMesh = 6,     // 푼 메시(`JBro::WriteCookedMesh`, D-366). 메시는 원본을 싣지 않는다
     };
 
     inline constexpr std::uint8_t BlobKindCount = 7;
