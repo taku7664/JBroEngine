@@ -79,7 +79,7 @@ namespace JBro::System
             item.scale = world->worldScale;
             item.mesh = gpuMesh;
             // `material` 은 에셋 핸들이다. 렌더러에 가는 것은 라이브러리가 지은 렌더러 머티리얼이다(스프라이트와 같다).
-            item.material = m_materialLibrary != nullptr ? m_materialLibrary->Resolve(renderer.material) : AssetHandle{};
+            item.material = m_materialLibrary != nullptr ? m_materialLibrary->Resolve(renderer.material, renderer.GetInstanceId()) : AssetHandle{};
             item.tint = renderer.tint;
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;

@@ -57,6 +57,7 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Framework2D/Component/PostProcessVolume2D.h>
+#include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
 #include <JBro/Runtime/MaterialService.h>
 #include <JBro/Runtime/PostProcessService.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
@@ -11147,6 +11148,43 @@ namespace
         probe.Settle();
         colour = probe.Centre();
         Check(colour.G > 0.95f && colour.R < 0.05f, "clearing it brings the file's green back");
+
+        // ── 오브젝트 하나의 파라미터(D-367) ──
+        // 둘째 사각형은 왼쪽에 둔다. 같은 머티리얼이고, 첫째만 빨강으로 덮어쓴다. 다른 오브젝트를 만들면 풀이 늘 수 있어 다시 찾는다.
+        {
+            JBro::Object::GameObject* neighbour = probe.canvas->CreateObject("Neighbour");
+            auto* neighbourPlace = probe.canvas->AttachComponent<JBro::Component::Transform2D>(neighbour);
+            neighbourPlace->position = {-3.0f, 0.0f};
+            auto* neighbourSprite = probe.canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(neighbour);
+            neighbourSprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+            neighbourSprite->size = {2.0f, 2.0f};
+            neighbourSprite->materialId = fillMaterial;
+            sprite = probe.canvas->FindComponentRaw<JBro::Component::SpriteRenderer2D>(square);
+            Check(editor.RescanAssets(), "the neighbour's material resolves");
+            probe.Settle();
+            const auto squareHandle = JBro::Internal::ComponentHandleAccess::FromReference<JBro::Handle::SpriteRenderer2D>(
+                JBro::InstanceRef{square->GetInstanceId(), sprite->GetInstanceId(), {}});
+            const JBro::Service::MaterialParameter own = service.FindParameter(squareHandle, fillMaterial, "fillColor");
+            Check(own.IsValid() && own.value != fillColor.value, "one object's parameter is its own");
+            const JBro::UInt32 drawnBefore = editor.GetRenderer()->GetLastFrameStats().materialSpriteCount;
+            Check(service.SetColor(own, JBro::Color{1.0f, 0.0f, 0.0f, 1.0f}), "the object's colour is overridden");
+            probe.Settle();
+            colour = probe.Centre();
+            Check(colour.R > 0.95f && colour.G < 0.05f, "that object turns red");
+            JBro::Bool neighbourStaysGreen = false;
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            probe.ReadCanvasView([&](JBro::UInt32 x, JBro::UInt32 y, JBro::Color pixel) {
+                neighbourStaysGreen = neighbourStaysGreen || (x < extent.width / 2 && y == extent.height / 2 && pixel.G > 0.95f && pixel.R < 0.05f);
+            });
+            Check(neighbourStaysGreen, "the other object with the same material stays green");
+            Check(editor.GetRenderer()->GetLastFrameStats().materialSpriteCount == drawnBefore, "both are still drawn with a material");
+            service.Clear(own);
+            probe.Settle();
+            colour = probe.Centre();
+            Check(colour.G > 0.95f && colour.R < 0.05f, "clearing it brings the object back to the material");
+            probe.canvas->DestroyObject(neighbour);
+            probe.Settle();
+        }
 
         // ── 볼륨: 같은 셰이더의 두 머티리얼이 무게대로 섞인다 ──
         const JBro::AssetId scaleShader = createShader("#include \"JBro/Material.hlsli\"\n"

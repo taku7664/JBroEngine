@@ -19,6 +19,10 @@ namespace JBro
         {
             return m_library != nullptr ? m_library->FindParameter(material, parameter) : InvalidParameter;
         }
+        UInt32 FindObjectParameter(UInt64 owner, Uuid material, const char* parameter) override
+        {
+            return m_library != nullptr ? m_library->FindParameter(material, parameter, owner) : InvalidParameter;
+        }
         Bool SetValues(UInt32 parameter, const Float* values, UInt32 count, Bool integer) override
         {
             return m_library != nullptr && m_library->SetParameter(parameter, values, count, integer);

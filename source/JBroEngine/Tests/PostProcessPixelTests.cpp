@@ -1382,6 +1382,34 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         stage.Expect(16, 32, 0.0f, 0.5f, 0.0f, "a lit material sprite takes the light like a built-in one");
         stage.Expect(48, 32, 0.5f, 0.5f, 0.5f, "the built-in sprite beside it takes the same light");
 
+        // 인스턴스(D-367): 파이프라인을 나눠 쓰고 파라미터만 제 것이다. 같은 셰이더의 두 스프라이트가 다른 색이고, 원본을 고쳐도 인스턴스는 그대로다.
+        {
+            const float blue[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+            JBro::Array<std::byte> own;
+            own.Resize(parameters.Size());
+            std::memcpy(own.Data(), blue, sizeof(blue));
+            JBro::MaterialDesc ownDesc;
+            ownDesc.shader = &materialShaders.sprite;
+            ownDesc.parameters = {own.Data(), static_cast<JBro::UInt32>(own.Size())};
+            const JBro::AssetHandle instance = stage.renderer.RegisterMaterialInstance(material, ownDesc);
+            Check(instance.generation != 0 && stage.renderer.GetMaterialCount() == 2, "an instance of the material is registered");
+            JBro::SpriteSubmit other = right;
+            other.material = instance;
+            stage.Frame(none, [&]() {
+                Check(stage.renderer.SubmitSprite(left), "the material sprite must submit");
+                Check(stage.renderer.SubmitSprite(other), "the instance sprite must submit");
+            });
+            Check(stage.renderer.GetLastFrameStats().materialSpriteCount == 2, "both are drawn with a material");
+            stage.Expect(16, 32, 0.0f, 1.0f, 0.0f, "the material's sprite keeps its green");
+            stage.Expect(48, 32, 0.0f, 0.0f, 1.0f, "the instance's sprite is its own blue");
+            stage.renderer.UnregisterMaterial(instance);
+            Check(stage.renderer.GetMaterialCount() == 1, "the instance goes away alone");
+            stage.Frame(none, [&]() { Check(stage.renderer.SubmitSprite(left), "the material sprite must submit"); });
+            stage.Expect(16, 32, 0.0f, 1.0f, 0.0f, "and the material still draws: its pipelines stayed");
+            // 다른 인스턴스를 남겨 둔다 - 아래에서 원본을 지울 때 함께 사라져야 한다(머티리얼 수 0).
+            Check(stage.renderer.RegisterMaterialInstance(material, ownDesc).generation != 0, "another instance is registered");
+        }
+
         // 파라미터만 바꾼다 - 같은 핸들이 다음 프레임에 빨강이다.
         const float red[4] = {1.0f, 0.0f, 0.0f, 1.0f};
         std::memcpy(parameters.Data(), red, sizeof(red));

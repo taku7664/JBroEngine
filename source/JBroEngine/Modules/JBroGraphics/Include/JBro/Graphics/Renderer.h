@@ -498,6 +498,9 @@ namespace JBro
         AssetHandle RegisterMaterial(const MaterialDesc& desc);
         // 같은 셰이더의 파라미터·텍스처만 갈아 끼운다(머티리얼 파일의 재로드). 셰이더가 바뀌면 지우고 다시 올린다. 프레임 밖에서만 부른다.
         Bool UpdateMaterial(AssetHandle material, const MaterialDesc& desc);
+        // **머티리얼 인스턴스를 올린다**(D-367). `base` 의 파이프라인을 나눠 쓰고 파라미터와 텍스처만 제 것이다 - 오브젝트마다 값이 다른 머티리얼이 파이프라인을
+        // 늘리지 않는다. 핸들은 머티리얼과 같이 스프라이트·메시·`UpdateMaterial`·`UnregisterMaterial` 에 쓴다. `base` 를 지우면 그 인스턴스도 함께 지워진다.
+        AssetHandle RegisterMaterialInstance(AssetHandle base, const MaterialDesc& desc);
         void UnregisterMaterial(AssetHandle material);
         UInt32 GetMaterialCount() const;
         // 머티리얼 셰이더가 읽는 시각(`JBroTime`, 초)이다. 부르지 않으면 렌더러를 연 뒤로 흐른 실제 시간이다. 프레임 밖에서 부른다.
@@ -792,6 +795,8 @@ namespace JBro
             std::byte parameters[MaxMaterialParameterBytes] = {};
             UInt32 generation = 1;
             Bool occupied = false;
+            // 인스턴스면 원본의 자리 + 1 이다(D-367). 파이프라인은 원본의 것이라 파기하지 않는다.
+            UInt32 instanceOf = 0;
         };
         // 머티리얼 셰이더의 엔진 값(b0, `MaterialPrelude` 의 `JBroEngine`)이다. 스프라이트는 앞에 뷰-투영 행렬이 더 붙는다.
         struct MaterialEngineValues

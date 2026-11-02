@@ -51,6 +51,17 @@ namespace JBro
 
     void MaterialLibrary::Shutdown()
     {
+        if (m_renderer != nullptr)
+        {
+            for (const Instance& instance : m_instances)
+            {
+                if (instance.renderer.generation != 0)
+                {
+                    m_renderer->UnregisterMaterial(instance.renderer);
+                }
+            }
+        }
+        m_instances = {};
         for (Material& material : m_materials)
         {
             ReleaseAssets(material);
@@ -404,11 +415,16 @@ namespace JBro
         {
             return;
         }
+        LayOverrides(material, InvalidInstanceId, material.liveBlock);
+    }
+
+    void MaterialLibrary::LayOverrides(const Material& material, InstanceId owner, Array<std::byte>& block) const
+    {
         const Array<MaterialParameterInfo>& parameters = material.compiled->result.parameters;
         for (UInt32 at = 0; at < m_overrideCount; ++at)
         {
             const ParameterOverride& entry = m_overrides[at.Get()];
-            if (false == entry.set || false == SameHandle(m_assets->Find(entry.material), material.asset))
+            if (false == entry.set || entry.owner != owner || false == SameHandle(m_assets->Find(entry.material), material.asset))
             {
                 continue;
             }
@@ -423,13 +439,13 @@ namespace JBro
                 const Bool integer = parameter.type == MaterialParameterType::Int || parameter.type == MaterialParameterType::UInt
                     || parameter.type == MaterialParameterType::Bool;
                 const Bool fits = entry.count == components || (parameter.type == MaterialParameterType::Float3 && entry.count == 4);
-                if (integer != entry.integer || false == fits || parameter.offset + components * 4 > material.liveBlock.Size())
+                if (integer != entry.integer || false == fits || parameter.offset + components * 4 > block.Size())
                 {
                     break;
                 }
                 for (UInt32 component = 0; component < components; ++component)
                 {
-                    WriteComponent(material.liveBlock.Data() + parameter.offset.Get() + component.Get() * 4, parameter.type,
+                    WriteComponent(block.Data() + parameter.offset.Get() + component.Get() * 4, parameter.type,
                         entry.values[component.Get()]);
                 }
                 break;
@@ -455,7 +471,113 @@ namespace JBro
         ++m_parameterStamp;
     }
 
+    void MaterialLibrary::SyncInstances()
+    {
+        if (m_syncedOverrideStamp == m_overrideStamp && m_syncedParameterStamp == m_parameterStamp)
+        {
+            return;
+        }
+        m_syncedOverrideStamp = m_overrideStamp;
+        m_syncedParameterStamp = m_parameterStamp;
+        // 오브젝트의 값이 있는 (주인, 머티리얼)마다 인스턴스를 둔다.
+        for (UInt32 at = 0; at < m_overrideCount; ++at)
+        {
+            const ParameterOverride& entry = m_overrides[at.Get()];
+            if (false == entry.set || entry.owner == InvalidInstanceId)
+            {
+                continue;
+            }
+            const AssetHandle asset = m_assets->Find(entry.material);
+            Bool found = false;
+            for (const Instance& instance : m_instances)
+            {
+                found = found || (instance.owner == entry.owner && SameHandle(instance.asset, asset));
+            }
+            if (false == found && asset.generation != 0)
+            {
+                Instance added;
+                added.owner = entry.owner;
+                added.asset = asset;
+                m_instances.Add(std::move(added));
+            }
+        }
+        for (std::size_t index = m_instances.Size(); index > 0; --index)
+        {
+            Instance& instance = m_instances[index - 1];
+            const Material* material = nullptr;
+            for (const Material& candidate : m_materials)
+            {
+                if (SameHandle(candidate.asset, instance.asset))
+                {
+                    material = &candidate;
+                }
+            }
+            Bool wanted = false;
+            for (UInt32 at = 0; at < m_overrideCount; ++at)
+            {
+                const ParameterOverride& entry = m_overrides[at.Get()];
+                wanted = wanted || (entry.set && entry.owner == instance.owner && SameHandle(m_assets->Find(entry.material), instance.asset));
+            }
+            // 값이 모두 지워졌으면 인스턴스도 없앤다. 다시 한 배치로 그려진다.
+            if (false == wanted)
+            {
+                if (instance.renderer.generation != 0)
+                {
+                    m_renderer->UnregisterMaterial(instance.renderer);
+                }
+                m_instances.RemoveAt(index - 1);
+                continue;
+            }
+            // 원본을 아직 못 지었으면(지을 때 실패했거나 아직 쓰이지 않았다) 원본이 설 때 다시 온다.
+            if (material == nullptr || material->renderer.generation == 0 || material->compiled == nullptr)
+            {
+                instance.renderer = {};
+                continue;
+            }
+            instance.block.Resize(material->liveBlock.Size());
+            if (false == material->liveBlock.IsEmpty())
+            {
+                std::memcpy(instance.block.Data(), material->liveBlock.Data(), material->liveBlock.Size());
+            }
+            LayOverrides(*material, instance.owner, instance.block);
+            MaterialDesc desc;
+            desc.shader = &material->compiled->result;
+            desc.parameters = {instance.block.Data(), static_cast<JBro::UInt32>(instance.block.Size())};
+            for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
+            {
+                desc.textures[at.Get()] = material->rendererTextures[at.Get()];
+            }
+            // 원본이 다시 올라가면 렌더러가 옛 인스턴스를 함께 지웠다.
+            if (false == SameHandle(instance.base, material->renderer) || instance.renderer.generation == 0)
+            {
+                instance.renderer = m_renderer->RegisterMaterialInstance(material->renderer, desc);
+                instance.base = material->renderer;
+            }
+            else
+            {
+                m_renderer->UpdateMaterial(instance.renderer, desc);
+            }
+        }
+    }
+
+    AssetHandle MaterialLibrary::Resolve(AssetHandle materialAsset, InstanceId owner)
+    {
+        for (const Instance& instance : m_instances)
+        {
+            if (instance.owner == owner && SameHandle(instance.asset, materialAsset) && instance.renderer.generation != 0)
+            {
+                return instance.renderer;
+            }
+        }
+        return Resolve(materialAsset);
+    }
+
     UInt32 MaterialLibrary::FindParameter(AssetId material, const char* parameter)
+    {
+        return FindParameter(material, parameter, InvalidInstanceId);
+    }
+
+    UInt32 MaterialLibrary::FindParameter(AssetId material, const char* parameter, InstanceId owner)
     {
         if (material.IsNull() || parameter == nullptr || parameter[0] == '\0')
         {
@@ -464,7 +586,7 @@ namespace JBro
         const NameId name = MakeNameId(parameter);
         for (UInt32 at = 0; at < m_overrideCount; ++at)
         {
-            if (m_overrides[at.Get()].material == material && m_overrides[at.Get()].name == name)
+            if (m_overrides[at.Get()].material == material && m_overrides[at.Get()].name == name && m_overrides[at.Get()].owner == owner)
             {
                 return at;
             }
@@ -477,6 +599,7 @@ namespace JBro
         entry = {};
         entry.material = material;
         entry.name = name;
+        entry.owner = owner;
         return m_overrideCount++;
     }
 
@@ -590,6 +713,7 @@ namespace JBro
                 Refresh(material);
             }
         }
+        SyncInstances();
     }
 
     const String* MaterialLibrary::GetError(AssetHandle materialAsset) const

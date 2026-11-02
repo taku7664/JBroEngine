@@ -108,7 +108,7 @@ namespace JBro::System
             }
             item.filter = resolved ? frame.filter : TextureFilter::Nearest;
             // 해석 패스가 채운 머티리얼 에셋을 렌더러 머티리얼로 푼다(D-347). 처음 보는 머티리얼은 여기서 셰이더를 굽고 올린다.
-            item.material = m_materialLibrary != nullptr ? m_materialLibrary->Resolve(sprite.material) : AssetHandle{};
+            item.material = m_materialLibrary != nullptr ? m_materialLibrary->Resolve(sprite.material, sprite.GetInstanceId()) : AssetHandle{};
             item.tint = sprite.tint;
             // 그룹의 알파를 곱한다(D-358). 틴트 값은 손대지 않는다.
             item.tint.A = item.tint.A * ComputeGroupAlpha2D(canvas, owner);

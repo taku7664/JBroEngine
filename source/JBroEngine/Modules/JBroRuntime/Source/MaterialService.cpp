@@ -29,6 +29,17 @@ namespace JBro::Service
         return {system->FindParameter(material, parameter)};
     }
 
+    MaterialParameter MaterialService::FindParameter(const Internal::ComponentHandle& renderer, Uuid material, const char* parameter) const
+    {
+        System::IMaterialSystem* system = Materials();
+        const InstanceId owner = Internal::ComponentHandleAccess::GetReference(renderer).ComponentId;
+        if (system == nullptr || owner == InvalidInstanceId || material.IsNull() || parameter == nullptr)
+        {
+            return {};
+        }
+        return {system->FindObjectParameter(owner, material, parameter)};
+    }
+
     Bool MaterialService::SetFloat(MaterialParameter parameter, Float value) const
     {
         return Set(parameter, &value, 1, false);

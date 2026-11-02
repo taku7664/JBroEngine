@@ -819,6 +819,38 @@ namespace JBro
         return AssetHandle{static_cast<JBro::UInt32>(m_materials.Size() - 1), resource.generation};
     }
 
+    AssetHandle Renderer::RegisterMaterialInstance(AssetHandle base, const MaterialDesc& desc)
+    {
+        const UInt32 baseSlot = FindMaterialSlot(base);
+        if (baseSlot == 0 || m_frameActive || desc.parameters.size != m_materials[(baseSlot - 1).Get()].parameterBytes)
+        {
+            return {};
+        }
+        // 다른 칸을 잡는 동안 배열이 옮겨질 수 있어 값으로 뜬다.
+        MaterialResource resource = m_materials[(baseSlot - 1).Get()];
+        resource.instanceOf = baseSlot;
+        if (desc.parameters.size != 0)
+        {
+            std::memcpy(resource.parameters, desc.parameters.data, desc.parameters.size.Get());
+        }
+        for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
+        {
+            resource.textures[at.Get()] = desc.textures[at.Get()];
+        }
+        for (std::size_t slot = 0; slot < m_materials.Size(); ++slot)
+        {
+            if (false == m_materials[slot].occupied)
+            {
+                resource.generation = m_materials[slot].generation + 1;
+                m_materials[slot] = resource;
+                return AssetHandle{static_cast<JBro::UInt32>(slot), resource.generation};
+            }
+        }
+        resource.generation = 1;
+        m_materials.Add(resource);
+        return AssetHandle{static_cast<JBro::UInt32>(m_materials.Size() - 1), resource.generation};
+    }
+
     Bool Renderer::UpdateMaterial(AssetHandle material, const MaterialDesc& desc)
     {
         const UInt32 slot = FindMaterialSlot(material);
@@ -846,7 +878,20 @@ namespace JBro
             return;
         }
         MaterialResource& resource = m_materials[(slot - 1).Get()];
-        DestroyMaterialPipelines(resource);
+        if (resource.instanceOf == 0)
+        {
+            DestroyMaterialPipelines(resource);
+            // 파이프라인을 나눠 쓰던 인스턴스는 함께 사라진다.
+            for (MaterialResource& other : m_materials)
+            {
+                if (other.occupied && other.instanceOf == slot)
+                {
+                    const UInt32 otherGeneration = other.generation;
+                    other = {};
+                    other.generation = otherGeneration;
+                }
+            }
+        }
         const UInt32 generation = resource.generation;
         resource = {};
         resource.generation = generation;
@@ -887,7 +932,11 @@ namespace JBro
         }
         for (MaterialResource& resource : m_materials)
         {
-            DestroyMaterialPipelines(resource);
+            // 인스턴스의 파이프라인은 원본의 것이다(D-367).
+            if (resource.instanceOf == 0)
+            {
+                DestroyMaterialPipelines(resource);
+            }
         }
         m_materials.Clear();
     }
