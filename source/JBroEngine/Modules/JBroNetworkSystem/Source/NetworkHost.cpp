@@ -387,6 +387,24 @@ namespace JBro
         return false;
     }
 
+    Network::ReplicationServerDiagnostics NetworkHost::GetServerDiagnostics() const
+    {
+        if (m_transport.GetRole() != Network::NetworkRole::Server || nullptr == m_server.Get())
+        {
+            return {};
+        }
+        return m_server->GetDiagnostics();
+    }
+
+    void NetworkHost::StepClient()
+    {
+        EnsureSession();
+        if (m_transport.GetRole() == Network::NetworkRole::Client && nullptr != m_client.Get())
+        {
+            m_client->StepOwned();
+        }
+    }
+
     Network::ConnectionId NetworkHost::GetLocalConnectionId() const
     {
         return m_transport.GetLocalConnectionId();

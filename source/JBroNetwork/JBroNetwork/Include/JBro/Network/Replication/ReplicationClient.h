@@ -42,6 +42,8 @@ namespace JBro::Network
         std::uint8_t RegisterPool(IReplicatedPool& pool);
 
         Bool HandleMessage(const MessageView& view);
+        // **내가 가진 오브젝트의 값을 서버에 올린다.** 고정 스텝마다 부른다(송신 시스템 자리). 가진 것이 없으면 아무것도 하지 않는다.
+        void StepOwned();
         // 매 프레임 부른다. 보간 계수는 스스로 정한다.
         void Apply();
         // `alpha` 를 직접 주는 자리. 테스트와, 시각을 스스로 아는 호출자를 위한 것이다.
@@ -58,6 +60,8 @@ namespace JBro::Network
     private:
         void HandleSpawn(const MessageView& view);
         void HandleOwner(const MessageView& view);
+        Bool OwnsLocal(InstanceId local) const;
+        NetworkObjectId FindNetworkIdOfLocal(InstanceId local) const;
         void HandleDespawn(const MessageView& view);
         void HandleDelta(const MessageView& view);
         void ApplyObjectFromLatest(NetworkObjectId id, InstanceId local);
@@ -86,6 +90,8 @@ namespace JBro::Network
         Array<DeltaCodec::Removal> m_removals;
         UInt32 m_removalCount = 0;
         Array<const std::uint8_t*> m_changedScratch;
+        // 내 것을 올릴 때 쓰는 고정 버퍼. 역할이 생긴 뒤에 잡는다.
+        Array<std::uint8_t> m_uploadBuffer;
         ReplicationClientDiagnostics m_diagnostics;
     };
 }
