@@ -668,7 +668,7 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 | 구운 묶음 | `CompiledShaderSet`(자리마다 세 백엔드 바이트코드 + 반사). 블롭은 `JMSH` 판 1 이고 읽기는 잘린 것·블록 밖을 가리키는 파라미터를 거절한다 |
 | Material 에셋 | `.jmat` YAML: `Shader`(아이디)·`Domain`(`PostProcess`·`Sprite`)·`Parameters`(적은 것만 - 나머지는 HLSL 초기값, 벡터는 블록 시퀀스)·`Textures`(이름 → 텍스처 아이디). 에셋 모듈이 읽고 쓴다(`MaterialFile.h`) - 셰이더를 모르고 이름과 숫자만 든다. 모르는 `Domain`·깨진 YAML 은 거절하고, 숫자가 아닌 값은 경고로 버린다 |
 | 에셋 시스템 | Shader(`ShaderAssetData` - 느슨한 폴더면 본문, 패키지면 구운 묶음)와 Material(`MaterialAssetData` - 본문)이 실리고 제자리에서 다시 읽힌다 |
-| 렌더러 | `RegisterMaterial`·`UpdateMaterial`·`UnregisterMaterial`(`MaterialDesc`). 장면 포맷(출력·HDR)마다 파이프라인을 미리 만든다 - 스프라이트는 깊이 쌍둥이까지 넷, 후처리는 둘. 파라미터는 후처리와 같은 상수 링에 올린다(이제 먼저 바란 쪽이 만들고 한 프레임 128 KiB). 스프라이트 구간은 머티리얼에서도 끊기고, 머티리얼 스프라이트는 빛을 받지 않는다. 후처리는 `PostProcessPassDesc::material`. 시각은 `SetMaterialTime` 을 부르지 않으면 렌더러를 연 뒤의 실제 시간이다. 지운 머티리얼을 든 스프라이트는 빌트인으로, 효과는 그대로 옮기기로 그리고 센다(`staleMaterialCount`). `materialSpriteCount` |
+| 렌더러 | `RegisterMaterial`·`UpdateMaterial`·`UnregisterMaterial`(`MaterialDesc`). 장면 포맷(출력·HDR)마다 파이프라인을 미리 만든다 - 스프라이트는 깊이 쌍둥이까지 넷, 후처리는 둘. 파라미터는 후처리와 같은 상수 링에 올린다(이제 먼저 바란 쪽이 만들고 한 프레임 128 KiB). 스프라이트 구간은 머티리얼에서도 끊기고, ~~머티리얼 스프라이트는 빛을 받지 않는다~~(→ 빛과 그림자를 받는다, §3.15). 후처리는 `PostProcessPassDesc::material`. 시각은 `SetMaterialTime` 을 부르지 않으면 렌더러를 연 뒤의 실제 시간이다. 지운 머티리얼을 든 스프라이트는 빌트인으로, 효과는 그대로 옮기기로 그리고 센다(`staleMaterialCount`). `materialSpriteCount` |
 | 라이브러리 | `MaterialLibrary`(그래픽): 머티리얼 에셋 → 렌더러 머티리얼. 셰이더는 셰이더·자리마다 한 번 굽는다. 본문·셰이더·텍스처 픽셀의 세대가 바뀌면 프레임마다 한 번 `Update` 가 다시 짓는다 - 셰이더가 같으면 렌더러 핸들을 두고 파라미터·텍스처만 갈아 끼운다. 짓지 못하면 빈 핸들이고(빌트인으로 그린다) 까닭은 `GetError`·로그다. 2D·3D 프레임워크가 하나씩 들고 `SpriteRender2DSystem` 이 스프라이트의 머티리얼을 푼다. 컴파일러는 `EngineConfig::shaderCompiler` → `FrameworkContext::shaderCompiler` 로 오며 에디터만 준다 |
 | 효과 | `Material`(번호 8, `AfterTonemap`, `onLayer`). 블록은 `materialId` 뿐이고 파라미터는 머티리얼 파일이 든다. 프로필 라이브러리가 머티리얼 라이브러리로 렌더러 머티리얼을 채우고, 렌더러 핸들이 바뀌면(셰이더가 바뀌었다) 프로필을 다시 푼다 |
 | 게임 빌드 | 패키지 모으기가 `.jmat` 본문에서 아이디를 찾는다(셰이더·텍스처가 따라간다). 쿡은 셰이더를 두 자리 모두 구워 되는 것을 `CompiledShader` 블롭으로만 싣는다 - 원본은 싣지 않는다. 컴파일러가 없거나 DXIL·SPIR-V 를 굽지 못하면 그 셰이더는 실패다. 게임은 굽지 않는다(`GameBuildOptions::shaderCompiler` 는 에디터가 준다) |
@@ -729,6 +729,11 @@ D-341 때와 같이 Codex 샌드박스 안에서만 실패했고, 밖에서 다�
 
 전체 시험(Debug, `0ca303ce`, Codex 가 돌림): 115 묶음이 지났고(`EditorApplication` 1980 초·`PostProcessPixel`·`Material`·`ScriptSummaryPanel` 포함), 8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은
 D-347 때와 같이 Codex 샌드박스 안에서만 실패했다(COM 스레드·v145 빌드 도구·디버그 통로). Claude 가 밖에서 그 8 묶음을 다시 돌리니 모두 지났다.
+
+**머티리얼 스프라이트의 그림자(2026-11-03 확인).** D-348 끝에 남은 일로 적었으나 따로 만들 것이 없었다 - 2D 그림자는 라이트맵을 깎고(`ShadowMask`·`ShadowedLight` 패스) 입구가 그 라이트맵을 곱한다.
+`PostProcessPixel` 의 `TestAMaterialSpriteFallsInShadow`(세 백엔드, 디버그 레이어, LDR·HDR 장면): 왼쪽 라이트가 비추는 초록 머티리얼 바닥에서 상자 뒤는 검고 옆과 앞은 초록 0.8 이며, 빌트인 바닥과 같은 자리가 어둡다. 머티리얼 스프라이트에 라이트맵 대신 흰 텍스처를 묶는 뮤테이션은 "상자 뒤" 검사에서 죽었다(읽은 값 0, 1, 0).
+실제 에디터(`JBroEditorHost`, PostMessage): 빛을 받는 레이어에 머티리얼 바닥과 빌트인 바닥을 위아래로 놓고 `Light2D`(그림자 켬)와 `ShadowCaster2D`(`Sprite`) 상자를 두니, 캔버스 뷰와 시뮬레이션 뷰 모두 두 바닥의 그림자 모양이 위아래 대칭이었다. 셰이더 인스펙터(`PostProcess`·`Mesh` 는 오류, `Sprite` 는 `파라미터와 텍스처가 없습니다`, `편집기에서 열기`)와 머티리얼 인스펙터도 같은 프로젝트에서 봤다.
+캔버스 파일 더블 클릭은 PostMessage 조작으로 열리지 않아 우클릭 `캔버스 열기` 로 열었다 - 조작 스크립트 탓인지 제품 탓인지는 가르지 않았다. 시험만 더한 일이라 전체 시험은 돌리지 않았고 `PostProcessPixel` 만 돌렸다.
 
 **한글 작업 폴더의 셰이더 오류 경로(D-350, 2026-10-29).** 위의 통과는 한글이 없는 경로였다. 한글 사용자 폴더 아래에서는 fxc 가 붙인 작업 폴더가 `??????` 로 깨져 떼지 못했고, 긴 오류가
 셰이더 인스펙터의 `편집기에서 열기` 를 화면 밖으로 밀어 `EditorApplication` 이 멈췄다. 이제 절대 경로로 시작하는 오류 줄의 `(줄,칸)` 앞을 에셋 경로로 바꾼다.
