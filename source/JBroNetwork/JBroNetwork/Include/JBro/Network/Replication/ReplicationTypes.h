@@ -29,6 +29,9 @@ namespace JBro::Network
     inline constexpr MessageId ReplicationDespawnMessage = 0xFE02;
     inline constexpr MessageId ReplicationDeltaMessage = 0xFE03;
     inline constexpr MessageId ReplicationAckMessage = 0xFE04;
+    // 서버 → 클라이언트. 이 오브젝트의 소유자가 바뀌었다. 스폰에는 `SpawnDesc::owner` 로 이미 실려 있으므로,
+    // 이 메시지는 **스폰 뒤에 바뀐 것**을 알린다. [u32 networkId][u64 owner] - 연결 번호는 64 비트다.
+    inline constexpr MessageId ReplicationOwnerMessage = 0xFE05;
 
     inline Bool IsReplicationMessage(MessageId id)
     {
@@ -40,7 +43,8 @@ namespace JBro::Network
     {
         // 어떤 프리팹인가. 에셋 `Uuid` 다.
         Uuid prefab;
-        // 소유 클라이언트. 서버 소유면 `InvalidConnectionId`.
+        // 소유 클라이언트. 서버 소유면 `InvalidConnectionId`. 소유자는 그 오브젝트에 권한을 갖는다
+        // (`NetworkService::HasAuthority`) - 서버가 `SetOwner` 로 정하고 스폰과 `ReplicationOwnerMessage` 로 알린다.
         ConnectionId owner = InvalidConnectionId;
         UInt32 flags = 0;
         UInt32 reserved = 0;

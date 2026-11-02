@@ -371,11 +371,47 @@ namespace JBro
         return m_client->FindLocal(id);
     }
 
+    // **권한은 오브젝트마다다**(network-plan §3-9 1 단계). 서버는 자기가 가진 것에, 클라이언트는 서버가 넘긴 것에 참이다.
+    // 아직 남은 것: 소유자가 쓴 값을 서버가 받아 다른 클라이언트에 퍼뜨리는 길(2 단계)과 예측·되감기.
     Bool NetworkHost::HasAuthority(InstanceId object) const
     {
-        (void)object;
-        // 서버가 모든 권한을 갖는다. 소유 위임과 예측은 열어 둔 것이다(network-plan §3-7).
-        return m_transport.GetRole() == Network::NetworkRole::Server;
+        if (m_transport.GetRole() == Network::NetworkRole::Server)
+        {
+            // 서버는 넘기지 않은 것만 갖는다.
+            return nullptr == m_server.Get() || m_server->GetOwner(object) == Network::InvalidConnectionId;
+        }
+        if (m_transport.GetRole() == Network::NetworkRole::Client && nullptr != m_client.Get())
+        {
+            return m_client->HasAuthority(object);
+        }
+        return false;
+    }
+
+    Network::ConnectionId NetworkHost::GetLocalConnectionId() const
+    {
+        return m_transport.GetLocalConnectionId();
+    }
+
+    Bool NetworkHost::SetObjectOwner(InstanceId object, Network::ConnectionId owner)
+    {
+        if (m_transport.GetRole() != Network::NetworkRole::Server || nullptr == m_server.Get())
+        {
+            return false;
+        }
+        return m_server->SetOwner(object, owner);
+    }
+
+    Network::ConnectionId NetworkHost::GetObjectOwner(InstanceId object) const
+    {
+        if (m_transport.GetRole() == Network::NetworkRole::Server && nullptr != m_server.Get())
+        {
+            return m_server->GetOwner(object);
+        }
+        if (m_transport.GetRole() == Network::NetworkRole::Client && nullptr != m_client.Get())
+        {
+            return m_client->GetOwner(object);
+        }
+        return Network::InvalidConnectionId;
     }
 
     // ── IReplicationHost ────────────────────────────────────────────────────────────────────────

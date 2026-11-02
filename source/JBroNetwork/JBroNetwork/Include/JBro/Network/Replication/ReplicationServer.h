@@ -47,6 +47,11 @@ namespace JBro::Network
         // 트랜스포트에서 꺼낸 메시지 가운데 복제 것이면 처리하고 참을 돌려준다.
         Bool HandleMessage(const MessageView& view);
 
+        // **이 오브젝트를 어느 연결이 갖는가.** `InvalidConnectionId` 면 서버다. 복제 표에 없는 오브젝트는 거짓이다
+        // (아직 스냅숏에 들지 않았다 - 다음 스텝에 들어온 뒤 다시 부른다). 바뀌면 모든 클라이언트에 알린다.
+        Bool SetOwner(InstanceId object, ConnectionId owner);
+        ConnectionId GetOwner(InstanceId object) const;
+
         const ReplicationServerDiagnostics& GetDiagnostics() const;
         NetworkObjectId FindNetworkId(InstanceId object) const;
         UInt32 GetObjectCount() const;
@@ -84,6 +89,7 @@ namespace JBro::Network
         };
 
         ObjectRecord* FindRecord(InstanceId instance);
+        void SendOwner(ConnectionId connection, const ObjectRecord& record);
         ObjectRecord* FindRecordByNetworkId(NetworkObjectId id);
         ObjectRecord* AddRecord(InstanceId instance, const SpawnDesc& desc);
         void RemoveRecordAt(std::size_t index);

@@ -850,8 +850,10 @@ namespace
             loader.GetSymbol("JBroScriptProbe_GetRevision"));
         Check(getReloadedRevision != nullptr && getReloadedRevision() == 2,
             "reload must execute code from the replacement script DLL");
-        Check(JBro::PropertyRegistry::ScriptLocal().GetCount() == 1
-                && JBro::PropertyRegistry::Lookup("ProbeRegisteredScript") != nullptr,
+        // 프로브는 스크립트 둘을 등록한다 - 필드 표를 보는 `ProbeRegisteredScript` 와 네트워크 예시 `ProbeNetworkedScript` 다.
+        Check(JBro::PropertyRegistry::ScriptLocal().GetCount() == 2
+                && JBro::PropertyRegistry::Lookup("ProbeRegisteredScript") != nullptr
+                && JBro::PropertyRegistry::Lookup("ProbeNetworkedScript") != nullptr,
             "reload must clear the old property tables and take the replacement's");
         Check(CountShadowLibraries(files) == 1,
             "reload must delete the old shadow DLL before retaining its replacement");

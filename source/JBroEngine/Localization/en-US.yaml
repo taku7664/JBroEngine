@@ -663,6 +663,7 @@ Entries:
   notify.scripts_reload_pending: The new scripts load when play stops
   notify.script_fields_not_read: "%zu saved script field value(s) could not be read"
   notify.script_fields_not_read_why: Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. See the log for each field. Saving leaves them out of the file
+  notify.script_fields_not_read_inserted: Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. See the log for each field
   editor_settings.search_hint: Search by name or key
   editor_settings.press_key: Press a key
   editor_settings.capture_hint: Press Esc to cancel

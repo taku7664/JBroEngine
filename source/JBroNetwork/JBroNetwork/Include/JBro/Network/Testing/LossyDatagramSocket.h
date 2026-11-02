@@ -56,6 +56,11 @@ namespace JBro::Network::Testing
             return nullptr != m_inner.Get() && m_inner->Bind(port);
         }
 
+        Bool BindLoopback(std::uint16_t port) override
+        {
+            return nullptr != m_inner.Get() && m_inner->BindLoopback(port);
+        }
+
         Bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) override
         {
             return nullptr != m_inner.Get() && m_inner->Resolve(host, port, outEndpoint);

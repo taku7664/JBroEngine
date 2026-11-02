@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
@@ -258,6 +259,8 @@ namespace JBro
         LayerId GetLayerId() const { return m_layerId; }
         // 읽지 못했을 때의 까닭이다.
         const String& GetError() const { return m_error; }
+        // 처음 읽을 때 잇지 못한 스크립트 필드다(D-364). 다시 하기는 떠 둔 것을 되살리므로 새로 생기지 않는다.
+        const Array<ScriptResolveNote>& GetScriptNotes() const { return m_scriptNotes; }
 
     private:
         Canvas* m_canvas = nullptr;
@@ -266,6 +269,7 @@ namespace JBro
         Uuid m_asset;
         LayerId m_layerId = InvalidLayerId;
         String m_error;
+        Array<ScriptResolveNote> m_scriptNotes;
         // 처음 실행 뒤에 뜬다 - 레이어의 값(레이어 에셋 글자의 레이어 노드)과 자리, 뿌리 나무들.
         Bool m_captured = false;
         std::size_t m_index = 0;

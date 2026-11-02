@@ -8,6 +8,7 @@
 #include <JBro/Network/Transport.h>
 
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <thread>
@@ -52,7 +53,8 @@ namespace
         JBro::Bool listening = false;
         for (JBro::Int32 attempt = 0; attempt < 16 && false == listening; ++attempt)
         {
-            listening = server.Listen(static_cast<std::uint16_t>(port + attempt));
+            // 루프백 시험이므로 루프백에만 묶는다. 망에 열면 Windows 가 방화벽을 묻고, 묻는 동안 시험이 멈춘다.
+            listening = server.ListenLoopback(static_cast<std::uint16_t>(port + attempt));
             if (listening)
             {
                 port = static_cast<std::uint16_t>(port + attempt);
@@ -166,15 +168,17 @@ namespace
     }
 
     // **`ListenLoopback` 은 이 기계에서 오는 접속만 받는다**(D-270). 에디터 제어 포트가 같은 망의 다른 기계에 열리면 안 된다.
-    // 대조로 `Listen` 한 포트는 바깥 주소로도 붙는 것을 먼저 본다 - 그래야 "안 붙는다" 가 재기의 고장이 아니다.
+    //
+    // 대조(`Listen` 한 포트는 바깥 주소로도 붙는다)는 **망에 포트를 실제로 열어야** 볼 수 있고, 그때 Windows 가 방화벽
+    // 허용을 묻는다. 물음은 관리자 권한이라 자동으로 답할 수 없고 시험이 그 자리에서 멈춘다. 그래서 대조는 평소에는
+    // 건너뛰고 `JBRO_NET_OPEN_PORT=1` 일 때만 본다. 대조가 없으면 "안 붙는다" 가 방화벽이 막아서일 수도 있으므로,
+    // 건너뛸 때 그 사실을 줄로 남긴다.
     void TestListenLoopbackStaysOnThisMachine()
     {
         Native::WinsockSocketProvider provider;
         std::uint16_t localPort = 0;
-        std::uint16_t openPort = 0;
         JBro::OwnerPtr<IStreamSocket> local = OpenListener(provider, true, 27817, localPort);
-        JBro::OwnerPtr<IStreamSocket> open = OpenListener(provider, false, 27917, openPort);
-        Check(nullptr != local.Get() && nullptr != open.Get(), "both listeners open");
+        Check(nullptr != local.Get(), "the loopback listener opens");
 
         JBro::OwnerPtr<IStreamSocket> fromLoopback = provider.CreateStreamSocket();
         Check(fromLoopback->Connect("127.0.0.1", localPort), "connecting over loopback starts");
@@ -186,9 +190,29 @@ namespace
             std::cout << "  [skip] no non-loopback address; the loopback-only listener was not probed from outside\n";
             return;
         }
-        JBro::OwnerPtr<IStreamSocket> toOpen = provider.CreateStreamSocket();
-        Check(toOpen->Connect(address, openPort), "connecting to the open listener starts");
-        Check(WaitConnected(*toOpen) == ConnectionState::Connected, "a listener on every address takes this machine's outside address");
+
+        // 환경 변수 읽기는 리포의 다른 시험과 같은 모양이다(`_dupenv_s` 로 받아 쓰고 돌려준다).
+        char* openPortAllowed = nullptr;
+        std::size_t openPortLength = 0;
+        const JBro::Bool openPortWanted = _dupenv_s(&openPortAllowed, &openPortLength, "JBRO_NET_OPEN_PORT") == 0
+            && openPortAllowed != nullptr && openPortAllowed[0] == '1';
+        std::free(openPortAllowed);
+        if (openPortWanted)
+        {
+            std::uint16_t openPort = 0;
+            JBro::OwnerPtr<IStreamSocket> open = OpenListener(provider, false, 27917, openPort);
+            Check(nullptr != open.Get(), "the listener on every address opens");
+            JBro::OwnerPtr<IStreamSocket> toOpen = provider.CreateStreamSocket();
+            Check(toOpen->Connect(address, openPort), "connecting to the open listener starts");
+            Check(WaitConnected(*toOpen) == ConnectionState::Connected,
+                "a listener on every address takes this machine's outside address");
+        }
+        else
+        {
+            std::cout << "  [skip] the open-port control needs JBRO_NET_OPEN_PORT=1 (it opens a port to the network,"
+                         " which asks for a firewall exception)\n";
+        }
+
         JBro::OwnerPtr<IStreamSocket> toLocal = provider.CreateStreamSocket();
         if (toLocal->Connect(address, localPort))
         {

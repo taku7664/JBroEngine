@@ -50,9 +50,14 @@ namespace JBro::Network
         const ReplicationClientDiagnostics& GetDiagnostics() const;
         InstanceId FindLocal(NetworkObjectId id) const;
         UInt32 GetObjectCount() const;
+        // **이 지역 오브젝트가 내 것인가.** 서버가 소유자로 지목한 연결이 내 번호와 같을 때 참이다.
+        // 클라이언트는 자기 번호를 핸드셰이크에서 받는다(`Transport::GetLocalConnectionId`).
+        Bool HasAuthority(InstanceId local) const;
+        ConnectionId GetOwner(InstanceId local) const;
 
     private:
         void HandleSpawn(const MessageView& view);
+        void HandleOwner(const MessageView& view);
         void HandleDespawn(const MessageView& view);
         void HandleDelta(const MessageView& view);
         void ApplyObjectFromLatest(NetworkObjectId id, InstanceId local);
@@ -67,6 +72,8 @@ namespace JBro::Network
         Array<UInt32> m_typeSizes;
 
         Table<NetworkObjectId, InstanceId> m_objects;
+        // 지역 오브젝트마다 서버가 말한 소유 연결. 없으면 서버 소유다.
+        Table<InstanceId, ConnectionId> m_owners;
         SnapshotHistory m_history;
         ReplicationTick m_latestTick = 0;
         ReplicationTick m_previousTick = NoBaselineTick;

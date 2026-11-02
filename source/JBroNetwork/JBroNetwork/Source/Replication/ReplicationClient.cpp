@@ -14,6 +14,7 @@ namespace JBro::Network
         constexpr UInt32 SpawnMessageBytes = static_cast<JBro::UInt32>(4 + sizeof(SpawnDesc));
         constexpr UInt32 DespawnMessageBytes = 4;
         constexpr UInt32 AckMessageBytes = 4;
+        constexpr UInt32 OwnerMessageBytes = 12;
     }
 
     ReplicationClient::ReplicationClient(Transport& transport, IReplicationHost& host, const ReplicationConfig& config)
@@ -63,6 +64,11 @@ namespace JBro::Network
             HandleDelta(view);
             return true;
         }
+        case ReplicationOwnerMessage:
+        {
+            HandleOwner(view);
+            return true;
+        }
         default:
         {
             return true;
@@ -89,9 +95,44 @@ namespace JBro::Network
             return;
         }
         m_objects.InsertOrAssign(id, local);
+        // 스폰이 소유자를 들고 온다. 뒤에 바뀌면 `ReplicationOwnerMessage` 가 온다.
+        m_owners.InsertOrAssign(local, desc.owner);
         // 델타가 먼저 와 있었을 수 있다. 최신 스냅숏의 것을 바로 입힌다.
         ApplyObjectFromLatest(id, local);
         m_diagnostics.objects = static_cast<JBro::UInt32>(m_objects.Size());
+    }
+
+    void ReplicationClient::HandleOwner(const MessageView& view)
+    {
+        if (view.size != OwnerMessageBytes)
+        {
+            return;
+        }
+        const NetworkObjectId id = UdpProto::ReadU32(view.data);
+        const ConnectionId owner = UdpProto::ReadU64(view.data + 4);
+        const InstanceId* local = m_objects.Find(id);
+        if (nullptr == local)
+        {
+            // 아직 스폰을 못 받았다. 스폰이 오면 `SpawnDesc::owner` 가 그 값을 들고 온다.
+            return;
+        }
+        m_owners.InsertOrAssign(*local, owner);
+    }
+
+    Bool ReplicationClient::HasAuthority(InstanceId local) const
+    {
+        const ConnectionId owner = GetOwner(local);
+        if (InvalidConnectionId == owner)
+        {
+            return false;
+        }
+        return owner == m_transport.GetLocalConnectionId();
+    }
+
+    ConnectionId ReplicationClient::GetOwner(InstanceId local) const
+    {
+        const ConnectionId* owner = m_owners.Find(local);
+        return nullptr != owner ? *owner : InvalidConnectionId;
     }
 
     void ReplicationClient::HandleDespawn(const MessageView& view)
@@ -107,6 +148,7 @@ namespace JBro::Network
             return;
         }
         m_host.DespawnObject(*local);
+        m_owners.Remove(*local);
         m_objects.Remove(id);
         m_diagnostics.objects = static_cast<JBro::UInt32>(m_objects.Size());
     }

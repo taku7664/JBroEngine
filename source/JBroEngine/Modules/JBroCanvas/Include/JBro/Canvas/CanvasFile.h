@@ -97,8 +97,9 @@ namespace JBro
 
     // 레이어 에셋을 캔버스의 **맨 위에 새 레이어로** 읽어 넣는다(기존 엔진과 같다). 오브젝트는 새로 만들어지고 파일 안 참조는 그 오브젝트끼리 이어진다 -
     // 같은 에셋을 두 번 넣으면 서로 다른 두 벌이다(기존 엔진은 오브젝트 GUID 를 되살려 두 번 넣지 못했다). 원본 에셋 표시는 부르는 쪽이 단다.
-    // 읽다 실패하면 만든 것을 모두 거두고 거짓이다 - 캔버스는 읽기 전 그대로다.
-    Bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error);
+    // 읽다 실패하면 만든 것을 모두 거두고 거짓이다 - 캔버스는 읽기 전 그대로다. 스크립트 필드는 `ReadCanvasText` 와 같이 읽는다(D-364).
+    Bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error,
+        Array<ScriptResolveNote>* scriptNotes = nullptr);
     // 글자가 레이어 에셋의 모양인가. 첫 키 둘만 본다 - 메뉴가 프레임마다 묻는다.
     Bool IsLayerText(const char* text);
 
@@ -119,9 +120,9 @@ namespace JBro
     };
 
     // 오브젝트 클립보드 글자를 새 오브젝트로 읽어 넣는다. 만든 뿌리를 글자의 차례로 `roots` 에 둔다.
-    // 읽다 실패하면 만든 것을 모두 거두고 거짓이다 - 캔버스는 읽기 전 그대로다.
+    // 읽다 실패하면 만든 것을 모두 거두고 거짓이다 - 캔버스는 읽기 전 그대로다. 스크립트 필드는 `ReadCanvasText` 와 같이 읽는다(D-364).
     Bool ReadObjectsText(Canvas& canvas, const char* text, std::size_t length, const ObjectsTextTarget& target,
-        Array<Object::GameObject*>& roots, CanvasFileError& error);
+        Array<Object::GameObject*>& roots, CanvasFileError& error, Array<ScriptResolveNote>* scriptNotes = nullptr);
     // ── 스크립트 핫 리로드의 두 걸음(cpp-script-plan §3.5, D-300) ────────────────────────────
     //
     // DLL 을 내리기 전에 `KeepScriptsAsText` 로 이름으로 붙인 스크립트를 모두 글자로 떠서 모르는 스크립트(D-264)로 옮기고,
