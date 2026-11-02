@@ -58,6 +58,8 @@
 #include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/Framework2D/Component/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
+#include <JBro/NodeGraph/GraphYaml.h>
+#include <JBro/NodeGraph/ShaderDomain.h>
 #include <JBro/Runtime/MaterialService.h>
 #include <JBro/Runtime/PostProcessService.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
@@ -69,6 +71,7 @@
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/ScreenUi/System/Button2DSystem.h>
 #include <JBro/ScreenUi/System/Text2DSystem.h>
+#include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
@@ -11050,6 +11053,19 @@ namespace
         document.domain = JBro::MaterialDomain::Mesh;
         Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the mesh material is written");
 
+        // ── 메시 에셋(D-365): 삼각형 하나인 glTF. 인덱스 없이 base64 임베드다. ──
+        const JBro::String meshName = JBro::String(root.generic_string().c_str()) + "/Assets/Triangle.gltf";
+        Check(WriteTextFile(meshName,
+                  "{\"asset\":{\"version\":\"2.0\"},\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+                  "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"}],"
+                  "\"bufferViews\":[{\"buffer\":0,\"byteLength\":36}],"
+                  "\"buffers\":[{\"byteLength\":36,\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAA\"}]}"),
+            "the test writes its glTF");
+        Check(editor.RescanAssets(), "the registry finds the glTF");
+        const JBro::AssetRecord* meshRecord = editor.GetAssetRegistry().FindByPath("Triangle.gltf");
+        Check(meshRecord != nullptr && meshRecord->type == JBro::AssetType::Mesh, "a .gltf is a mesh asset");
+        const JBro::AssetId meshAssetId = meshRecord->id;
+
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::Object::GameObject* box = canvas->CreateObject("Box");
         Check(canvas->AttachComponent<JBro::Component::Transform3D>(box) != nullptr, "the box needs a 3D transform");
@@ -11068,6 +11084,86 @@ namespace
         Check(renderer->material.generation != 0, "the mesh's material id resolves to a material asset");
         JBro::RendererFrameStats stats = editor.GetRenderer()->GetLastFrameStats();
         Check(stats.materialMeshCount >= 1 && stats.staleMaterialCount == 0, "the cube is drawn with its mesh material");
+        Check(stats.light3DCount == 0, "the canvas has no lights yet");
+
+        // 라이트(D-366)는 렌더러의 뷰까지 간다.
+        JBro::Object::GameObject* lamp = canvas->CreateObject("Lamp");
+        Check(canvas->AttachComponent<JBro::Component::Transform3D>(lamp) != nullptr, "the lamp needs a transform");
+        Check(canvas->AttachComponent<JBro::Component::Light3D>(lamp) != nullptr, "the lamp takes a light");
+        renderer = canvas->FindComponentRaw<JBro::Component::MeshRenderer3D>(box);
+        settle();
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.light3DCount >= 1 && stats.droppedLight3DCount == 0, "the light reaches the view");
+
+        // 메시 에셋을 건다: 렌더러에 올라가 떨어지는 메시 없이 그려진다.
+        const JBro::UInt32 meshesBefore = editor.GetRenderer()->GetLastFrameStats().meshCount;
+        renderer->meshId = meshAssetId;
+        renderer->mesh = {};
+        Check(editor.RescanAssets(), "the mesh id resolves");
+        settle();
+        Check(renderer->mesh.generation != 0, "the mesh id resolves to an asset");
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.droppedMeshCount == 0 && stats.meshCount == meshesBefore && stats.materialMeshCount >= 1, "the glTF mesh is drawn with its material");
+        // 파일이 다시 읽히면 렌더러에 다시 올린다. 시험의 라이브러리로 핸들이 바뀌는 것을 본다(같은 세대면 그대로다).
+        {
+            JBro::AssetSystem* assets = editor.GetAssetSystem();
+            JBro::MeshLibrary library;
+            Check(library.Initialize(editor.GetRenderer(), assets), "a mesh library opens over the editor's renderer");
+            const JBro::AssetHandle asset = assets->Find(meshAssetId);
+            const JBro::AssetHandle first = library.ResolveHandle(asset);
+            const JBro::AssetHandle same = library.ResolveHandle(asset);
+            Check(first.generation != 0 && first.index == same.index && first.generation == same.generation, "an unchanged mesh keeps its renderer handle");
+            JBro::String gltf;
+            Check(editor.ReadAssetText(meshAssetId, gltf) && editor.WriteAssetText(meshAssetId, gltf), "the glTF is written again and reloads");
+            const JBro::AssetHandle fresh = library.ResolveHandle(asset);
+            Check(fresh.generation != 0 && (fresh.index != first.index || fresh.generation != first.generation), "a reloaded mesh is uploaded again");
+            library.Shutdown();
+        }
+
+        // ── 셰이더 그래프(D-368): 새 그래프의 저장이 옆에 .hlsl 을 만들고, 그것을 머티리얼이 쓴다. ──
+        const JBro::String graphPath = editor.CreateShaderGraphAsset("");
+        const JBro::AssetRecord* graphRecord = editor.GetAssetRegistry().FindByPath(graphPath.c_str());
+        Check(graphRecord != nullptr && graphRecord->type == JBro::AssetType::NodeGraph, "New Shader Graph writes a graph asset");
+        JBro::Array<JBro::EditorPanel*> graphPanels;
+        Check(editor.FindPanels("NodeGraph", graphPanels) == 1, "and opens it");
+        // 그래프 창은 캔버스 뷰의 탭 자리에 열린다 - 닫아야 캔버스 뷰가 그려진다.
+        graphPanels[0]->SetOpen(false);
+        const JBro::AssetRecord* generatedRecord = editor.GetAssetRegistry().FindByPath("NewShaderGraph.hlsl");
+        Check(generatedRecord != nullptr && generatedRecord->type == JBro::AssetType::Shader, "a shader file is made beside the graph");
+        const JBro::AssetId generatedId = generatedRecord->id;
+        JBro::MaterialDocument graphDocument;
+        graphDocument.shader = generatedId;
+        graphDocument.domain = JBro::MaterialDomain::Mesh;
+        Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(graphDocument)), "the material takes the generated shader");
+        settle();
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.materialMeshCount >= 1, "the mesh is drawn with the graph's shader");
+        JBro::String generatedText;
+        Check(editor.ReadAssetText(generatedId, generatedText) && generatedText.Contains("Generated from a shader graph"), "the file says it is generated");
+        // 그래프를 고쳐 저장하면(패널의 저장이 부르는 길) 파일과 실린 셰이더가 함께 바뀌고, 머티리얼이 새 파라미터를 본다.
+        const JBro::AssetId graphId = editor.GetAssetRegistry().FindByPath(graphPath.c_str())->id;
+        {
+            const JBro::OwnerPtr<JBro::NodeGraph::Domain> shaderDomain = JBro::NodeGraph::MakeShaderDomain();
+            JBro::NodeGraph::Graph edited;
+            edited.SetDomain(shaderDomain->GetName());
+            const JBro::NodeGraph::NodeId output = edited.AddNode(*shaderDomain, "Output", {});
+            const JBro::NodeGraph::NodeId colour = edited.AddNode(*shaderDomain, "ColorParameter", {});
+            Check(edited.SetLabel(colour, "body") && edited.Connect(*shaderDomain, {colour, 0}, {output, 0}) == JBro::NodeGraph::ConnectResult::Connected, "the test edits the graph");
+            Check(editor.WriteAssetText(graphId, JBro::NodeGraph::WriteGraph(edited, shaderDomain.Get())), "the graph is written");
+            JBro::String why;
+            Check(editor.RegenerateShaderFromGraph(graphId, &why), "the shader file is made again");
+            Check(editor.ReadAssetText(generatedId, generatedText) && generatedText.Contains("bodyColor"), "with the new parameter");
+            settle();
+            const JBro::String* error = nullptr;
+            const JBro::CompiledMaterialShader* compiled = editor.GetMaterialShader(generatedId, JBro::MaterialDomain::Mesh, &error);
+            Check(compiled != nullptr && compiled->FindParameter("bodyColor") != nullptr, "the inspector's shader shows the new parameter");
+
+            JBro::NodeGraph::Graph broken;
+            broken.SetDomain(shaderDomain->GetName());
+            Check(editor.WriteAssetText(graphId, JBro::NodeGraph::WriteGraph(broken, shaderDomain.Get())), "a graph without an output is written");
+            Check(false == editor.RegenerateShaderFromGraph(graphId, &why) && why.Contains("Output"), "it is refused with its reason");
+            Check(editor.ReadAssetText(generatedId, generatedText) && generatedText.Contains("bodyColor"), "and the last good shader stays");
+        }
 
         document.domain = JBro::MaterialDomain::Sprite;
         Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the material becomes a sprite material");

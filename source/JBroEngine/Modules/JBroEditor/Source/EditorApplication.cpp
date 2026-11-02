@@ -78,6 +78,7 @@
 #include <JBro/NodeGraph/Domain.h>
 #include <JBro/NodeGraph/GraphYaml.h>
 #include <JBro/NodeGraph/MathDomain.h>
+#include <JBro/NodeGraph/ShaderDomain.h>
 #include <JBro/Asset/AudioEffectFile.h>
 #include "Panel/SpriteViewerPanel.h"
 
@@ -168,6 +169,7 @@ namespace JBro
     {
         // 노드 그래프의 도메인이다(D-323). 셰이더 그래프가 서면 여기에 더한다.
         m_nodeGraphDomains->Add(NodeGraph::MakeMathDomain());
+        m_nodeGraphDomains->Add(NodeGraph::MakeShaderDomain());
         // 프로세스마다 다르면 된다 - 이 객체의 주소와 지금 시각이다(D-321).
         char session[64];
         std::snprintf(session, sizeof(session), "%llx-%llx",
@@ -3007,6 +3009,105 @@ namespace JBro
             OpenNodeGraphEditor(record->id);
         }
         return created;
+    }
+
+    String EditorApplication::CreateShaderGraphAsset(const char* folder)
+    {
+        // 소스 색을 그대로 내는 그래프다 - 처음부터 세 자리에서 구워진다.
+        const NodeGraph::Domain* domain = m_nodeGraphDomains->Find(NodeGraph::ShaderDomainName);
+        if (domain == nullptr)
+        {
+            return String();
+        }
+        NodeGraph::Graph graph;
+        graph.SetDomain(domain->GetName());
+        const NodeGraph::NodeId output = graph.AddNode(*domain, "Output", Vector2{320.0f, 0.0f});
+        const NodeGraph::NodeId source = graph.AddNode(*domain, "Source", Vector2{0.0f, 0.0f});
+        graph.Connect(*domain, NodeGraph::PinRef{source, 0}, NodeGraph::PinRef{output, 0});
+        const String created = WriteNewAssetFile(folder, "NewShaderGraph", ".jgraph", NodeGraph::WriteGraph(graph, domain));
+        if (created.empty())
+        {
+            return created;
+        }
+        const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str());
+        if (record == nullptr)
+        {
+            return created;
+        }
+        const AssetId id = record->id;
+        String hlsl;
+        String why;
+        if (NodeGraph::GenerateShaderHlsl(graph, *domain, hlsl, why))
+        {
+            WriteGeneratedShader(id, hlsl);
+        }
+        SetSelectedAsset(id);
+        RevealAssetInBrowser(id);
+        OpenNodeGraphEditor(id);
+        return created;
+    }
+
+    Bool EditorApplication::RegenerateShaderFromGraph(AssetId graph, String* why)
+    {
+        String text;
+        if (false == ReadAssetText(graph, text))
+        {
+            return false;
+        }
+        String domainName;
+        if (false == NodeGraph::ReadGraphDomain(text.View(), domainName) || domainName.View() != NodeGraph::ShaderDomainName)
+        {
+            return true;
+        }
+        const NodeGraph::Domain* domain = m_nodeGraphDomains->Find(NodeGraph::ShaderDomainName);
+        NodeGraph::Graph parsed;
+        Array<String> problems;
+        String hlsl;
+        String error;
+        if (domain == nullptr || false == NodeGraph::ReadGraph(text.View(), domain, parsed, problems)
+            || false == NodeGraph::GenerateShaderHlsl(parsed, *domain, hlsl, error) || false == WriteGeneratedShader(graph, hlsl))
+        {
+            if (why != nullptr)
+            {
+                *why = error;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    Bool EditorApplication::WriteGeneratedShader(AssetId graph, const String& hlsl)
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(graph);
+        if (record == nullptr || GetAssetRoot().empty() || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        String relative = record->relativePath;
+        const std::size_t dot = relative.find_last_of('.');
+        if (dot == String::npos)
+        {
+            return false;
+        }
+        relative.resize(dot);
+        relative.append(".hlsl");
+        const String path = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
+        if (false == m_platform->WriteWholeFile(path.c_str(), {reinterpret_cast<const std::byte*>(hlsl.c_str()), static_cast<JBro::UInt32>(hlsl.size())}))
+        {
+            Log::Write(LogLevel::Error, "editor", "the generated shader could not be written: %s", path.c_str());
+            return false;
+        }
+        // 처음 만든 파일이면 등록한다(메타가 생긴다). 이미 있으면 실린 셰이더를 제자리에서 다시 읽는다.
+        const AssetRecord* shader = GetAssetRegistry().FindByPath(relative.c_str());
+        if (shader == nullptr)
+        {
+            return RescanAssets();
+        }
+        if (AssetSystem* assets = GetAssetSystem(); assets != nullptr && assets->IsLoaded(assets->Find(shader->id)))
+        {
+            assets->ReloadInPlace(shader->id);
+        }
+        return true;
     }
 
     String EditorApplication::CreateFontFamilyAsset(const char* folder)

@@ -79,6 +79,10 @@ namespace JBro::NodeGraph
             writer.WriteString("Type", node.type.c_str());
             writer.WriteFloat("X", node.position.x);
             writer.WriteFloat("Y", node.position.y);
+            if (!node.label.empty())
+            {
+                writer.WriteString("Label", node.label.c_str());
+            }
             if (!node.inputs.IsEmpty())
             {
                 writer.BeginSequence("Inputs");
@@ -217,6 +221,7 @@ namespace JBro::NodeGraph
                     continue;
                 }
                 document.FindScalar(entry, "Type", node.type);
+                document.FindScalar(entry, "Label", node.label);
                 Float x = 0.0f;
                 Float y = 0.0f;
                 document.FindFloat(entry, "X", x);

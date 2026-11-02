@@ -99,6 +99,7 @@ namespace JBro
         NodeGraph::CommentId AddComment(Vector2 at);
         Bool ResizeComment(NodeGraph::CommentId comment, Vector2 size);
         Bool SetCommentTitle(NodeGraph::CommentId comment, const String& title);
+        Bool SetNodeLabel(NodeGraph::NodeId node, const String& label);
         // 색 칸을 끄는 동안은 커맨드 하나로 합친다.
         Bool SetCommentColor(NodeGraph::CommentId comment, const Color& color);
         // ── 경유점(D-321) ──

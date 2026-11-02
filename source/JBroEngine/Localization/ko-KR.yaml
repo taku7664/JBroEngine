@@ -509,6 +509,9 @@ Entries:
   file_window.save_and_close: 저장하고 닫기
   file_window.close_without_saving: 저장하지 않고 닫기
   assets.new_node_graph: 새 노드 그래프
+  assets.new_shader_graph: 새 셰이더 그래프
+  node_graph.node_label: 이름
+  node_graph.shader_failed: 셰이더 파일을 만들지 못했습니다
   node_graph.save: 저장
   node_graph.nothing_to_save: 바뀐 것이 없습니다
   node_graph.reload: 디스크에서 다시 읽기

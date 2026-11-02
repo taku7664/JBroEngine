@@ -477,6 +477,9 @@ namespace JBro::LocKeys
     inline constexpr const char* FileWindowCloseWithoutSaving = "file_window.close_without_saving";
     inline constexpr const char* NodeGraphTitle = "node_graph.title";
     inline constexpr const char* AssetsNewNodeGraph = "assets.new_node_graph";
+    inline constexpr const char* AssetsNewShaderGraph = "assets.new_shader_graph";
+    inline constexpr const char* NodeGraphNodeLabel = "node_graph.node_label";
+    inline constexpr const char* NodeGraphShaderFailed = "node_graph.shader_failed";
     inline constexpr const char* NodeGraphSave = "node_graph.save";
     inline constexpr const char* NodeGraphNothingToSave = "node_graph.nothing_to_save";
     inline constexpr const char* NodeGraphReload = "node_graph.reload";

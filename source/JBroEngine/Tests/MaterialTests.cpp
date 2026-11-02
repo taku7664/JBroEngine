@@ -3,6 +3,8 @@
 #include <JBro/Asset/MaterialFile.h>
 #include <JBro/Asset/MaterialShader.h>
 #include <JBro/Graphics/MaterialLibrary.h>
+#include <JBro/NodeGraph/GraphYaml.h>
+#include <JBro/NodeGraph/ShaderDomain.h>
 #include <JBro/Package/PackageAssetSource.h>
 #include <JBro/Package/PackageCollect.h>
 #include <JBro/Package/PackageCook.h>
@@ -337,6 +339,106 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
 
     // **게임 패키지는 구운 셰이더만 싣는다.** 머티리얼에서 따라가면 셰이더와 텍스처가 함께 오고, 셰이더는 원본 대신 두 자리를 구운 묶음이다.
     // 패키지로 연 에셋 시스템은 그 묶음을 들고, 컴파일러 없는 머티리얼 라이브러리가 그것을 쓴다. 컴파일러 없이는 굽지 않는다.
+    // **셰이더 그래프가 머티리얼 셰이더가 된다**(D-368). 파라미터 넷(색·실수·텍스처·이름 없는 실수)을 쓰는 그래프가 세 자리에서 구워지고, 라벨이 파라미터 이름이며
+    // 칸의 값이 HLSL 초기값이다. 이름 겹침·`Output` 없음·텍스처 일곱은 만들지 않는다. 그래프 글자를 왕복해도 라벨이 남는다.
+    void TestAShaderGraphCompiles(ShaderCompiler& compiler)
+    {
+        namespace Node = JBro::NodeGraph;
+        const OwnerPtr<Node::Domain> domain = Node::MakeShaderDomain();
+        Node::Graph graph;
+        graph.SetDomain(domain->GetName());
+        const Vector2 at{0.0f, 0.0f};
+        const Node::NodeId output = graph.AddNode(*domain, "Output", at);
+        const Node::NodeId source = graph.AddNode(*domain, "Source", at);
+        const Node::NodeId tint = graph.AddNode(*domain, "ColorParameter", at);
+        const Node::NodeId amount = graph.AddNode(*domain, "FloatParameter", at);
+        const Node::NodeId anonymous = graph.AddNode(*domain, "FloatParameter", at);
+        const Node::NodeId noise = graph.AddNode(*domain, "TextureParameter", at);
+        const Node::NodeId uv = graph.AddNode(*domain, "UV", at);
+        const Node::NodeId multiply = graph.AddNode(*domain, "Multiply", at);
+        const Node::NodeId lerp = graph.AddNode(*domain, "Lerp", at);
+        const Node::NodeId light = graph.AddNode(*domain, "Light", at);
+        const Node::NodeId lit = graph.AddNode(*domain, "Multiply", at);
+        const Node::NodeId sum = graph.AddNode(*domain, "Add", at);
+        const Node::NodeId unused = graph.AddNode(*domain, "TextureParameter", at);
+        Check(graph.SetLabel(tint, "glow") && graph.SetLabel(amount, "strength") && graph.SetLabel(noise, "noise") && graph.SetLabel(unused, "unused"), "the parameters are named");
+        Node::PinValue half;
+        half.values[0] = 0.5f;
+        Check(graph.SetInput(amount, 0, half), "the float's default is set");
+        Node::PinValue red;
+        red.values[0] = 1.0f;
+        red.values[3] = 1.0f;
+        Check(graph.SetInput(tint, 0, red), "the colour's default is set");
+        const auto link = [&](Node::NodeId from, std::size_t out, Node::NodeId to, std::size_t in) {
+            Check(graph.Connect(*domain, Node::PinRef{from, out}, Node::PinRef{to, in}) == Node::ConnectResult::Connected, "the pins connect");
+        };
+        link(uv, 0, noise, 0);
+        link(source, 0, multiply, 0);
+        link(tint, 0, multiply, 1);
+        link(source, 0, lerp, 0);
+        link(multiply, 0, lerp, 1);
+        link(amount, 0, lerp, 2);
+        link(lerp, 0, lit, 0);
+        link(light, 0, lit, 1);
+        link(lit, 0, sum, 0);
+        link(noise, 0, sum, 1);
+        link(sum, 0, output, 0);
+        // 넓히고 좁히는 잇기: 실수 하나를 더한다(이름 없는 파라미터는 번호 이름이다).
+        const Node::NodeId extra = graph.AddNode(*domain, "Add", at);
+        link(anonymous, 0, extra, 0);
+        link(sum, 0, extra, 1);
+        link(extra, 0, output, 0);
+
+        String hlsl;
+        String error;
+        Check(Node::GenerateShaderHlsl(graph, *domain, hlsl, error), "the graph generates");
+        Check(false == hlsl.Contains("unused"), "a node the output does not reach is left out");
+        for (const MaterialDomain place : {MaterialDomain::PostProcess, MaterialDomain::Sprite, MaterialDomain::Mesh})
+        {
+            CompiledMaterialShader shader;
+            if (false == compiler.Compile(hlsl.View(), "Graph.hlsl", place, shader, error))
+            {
+                std::cout << "  compiler said: " << error.c_str() << '\n' << hlsl.c_str() << '\n';
+            }
+            Check(error.empty(), "the generated shader compiles in every domain");
+            const MaterialParameterInfo* glow = shader.FindParameter("glowColor");
+            const MaterialParameterInfo* strength = shader.FindParameter("strength");
+            Check(glow != nullptr && glow->color && Near(glow->defaults[0], 1.0f) && Near(glow->defaults[1], 0.0f), "a colour parameter takes its label, a colour name and its default");
+            Check(strength != nullptr && Near(strength->defaults[0], 0.5f), "a float parameter takes its label and default");
+            Check(shader.parameters.Size() == 3, "the unnamed parameter gets a name of its own");
+            Check(shader.textures.Size() == 1 && shader.textures[0].name == "noise" && shader.textures[0].slot == 1, "the texture takes its label and t1");
+        }
+
+        const String text = Node::WriteGraph(graph, domain.Get());
+        Node::Graph back;
+        Array<String> problems;
+        Check(Node::ReadGraph(text.View(), domain.Get(), back, problems) && problems.IsEmpty(), "the graph reads back");
+        Check(back.FindNode(tint) != nullptr && back.FindNode(tint)->label == "glow", "with its labels");
+        Check(Node::WriteGraph(back, domain.Get()) == text, "and writes the same text");
+
+        Node::Graph same = graph;
+        Check(same.SetLabel(amount, "noise"), "a label is changed");
+        Check(false == Node::GenerateShaderHlsl(same, *domain, hlsl, error) && error.Contains("noise"), "two parameters with one name are refused");
+        Node::Graph none;
+        none.SetDomain(domain->GetName());
+        Check(false == Node::GenerateShaderHlsl(none, *domain, hlsl, error) && error.Contains("Output"), "a graph without an output is refused");
+        Node::Graph many;
+        many.SetDomain(domain->GetName());
+        const Node::NodeId end = many.AddNode(*domain, "Output", at);
+        Node::NodeId previous = many.AddNode(*domain, "Source", at);
+        for (JBro::Int32 index = 0; index < 7; ++index)
+        {
+            const Node::NodeId texture = many.AddNode(*domain, "TextureParameter", at);
+            const Node::NodeId add = many.AddNode(*domain, "Add", at);
+            Check(many.Connect(*domain, Node::PinRef{previous, 0}, Node::PinRef{add, 0}) == Node::ConnectResult::Connected
+                    && many.Connect(*domain, Node::PinRef{texture, 0}, Node::PinRef{add, 1}) == Node::ConnectResult::Connected,
+                "the textures chain");
+            previous = add;
+        }
+        Check(many.Connect(*domain, Node::PinRef{previous, 0}, Node::PinRef{end, 0}) == Node::ConnectResult::Connected, "the chain reaches the output");
+        Check(false == Node::GenerateShaderHlsl(many, *domain, hlsl, error) && error.Contains("six"), "seven textures are refused");
+    }
+
     void TestAPackageShipsCompiledShaders(ShaderCompiler& compiler)
     {
         WindowsPlatform platform;
@@ -454,7 +556,8 @@ JBro::Int32 RunMaterialTests()
     TestTheCompilerReflectsTheShader(compiler);
     TestTheCompilerRefusesWhatAMaterialCannotHold(compiler);
     TestTheParameterBlockFollowsTheDocument(compiler);
-    TestAPackageShipsCompiledShaders(compiler);
+    TestAShaderGraphCompiles(compiler);
+        TestAPackageShipsCompiledShaders(compiler);
     compiler.Shutdown();
     platform.Shutdown();
     std::cout << "Material tests passed.\n";

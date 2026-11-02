@@ -101,7 +101,7 @@
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
   엔진 버전은 `JBro.Common.props` 한 곳에 있고 실행 파일의 버전 리소스가 말한다(D-101)
 - [tasks/framework3d-plan.md](./tasks/framework3d-plan.md) — 3D 프레임워크·D3D11/Vulkan 백엔드·트랜스폼 기즈모(D-106~D-109).
-  네 단계가 모두 섰다. 실측·가정·열린 것이 §2.6~§2.9·§3 에 있다
+  네 단계가 모두 섰다. 실측·가정·열린 것이 §2.6~§2.9·§3 에 있다. glTF 메시 에셋(D-365)과 `Light3D`(D-366)가 §4 다
 - [tasks/asset-plan.md](./tasks/asset-plan.md) — 에셋 시스템 계획(D-111~D-113). 1 단계(`Uuid`·레지스트리·`.jmeta`·스캔),
   2 단계(타입별 풀·텍스처와 스프라이트 로드·해석 패스), 3 단계(텍스처 있는 스프라이트·UV 사각형·`SpriteLibrary`)가 섰다.
   4 단계(에디터: 검색 드롭다운·에셋 필드·에셋 크기와 샘플러·에셋 브라우저와 옵션 편집·파일 감시, D-118~D-121)까지 섰다.
@@ -153,9 +153,9 @@
   효과 종류 표와 주입 지점·프로필·Shader·Material 에셋·카메라·레이어·볼륨 적용을 깐다. 지금 상태(기존 엔진은 Reinhard 톤맵뿐)가 §1, 설계가 §2, 단계가 §3, 정한 것과 미정이 §4. **1~11 단계가 섰다** -
   RHI 확장(D-325~D-328)·셰이더 매니페스트(D-329)·렌더 그래프와 명시 배리어(D-339, 렌더러의 지금 패스가 모두 그래프 패스다)·디버그 메뉴의 `렌더 그래프` 창과 Vulkan 그리기 시험(D-340)·창의 패스별 GPU 시간과 패스 직후 미리보기(D-341)·효과 종류 표·주입 지점·`RGBA16Float` HDR 장면·노출과 톤맵(None·Reinhard·ACES·AgX, D-342)·래스터 밉 체인 블룸·기본 조정·`.cube` LUT(D-343)·`.jpost` 프로필과 카메라의 `postProcessProfileId`·인스펙터 편집(D-344)·레이어 프로필과 레이어 효과 블러·외곽선·그림자(D-345)·볼륨 `PostProcessVolume2D`·`3D` 와 섞기·공통 서비스 `PostProcess`(D-346).
   11 단계(D-347)로 `.hlsl` Shader 에셋·`.jmat` Material 에셋·에디터의 즉석 굽기(`JBroShaderCompiler`)·후처리 효과 `Material`·스프라이트 머티리얼이 섰고, 계획의 단계는 끝났다.
-  D-348(§3.15)로 메시 머티리얼·머티리얼 스프라이트의 빛·스크립트 서비스 `Material` 의 파라미터 덮어쓰기·같은 셰이더 머티리얼의 볼륨 섞기·셰이더 인스펙터가 섰다
+  D-348(§3.15)로 메시 머티리얼·머티리얼 스프라이트의 빛·스크립트 서비스 `Material` 의 파라미터 덮어쓰기·같은 셰이더 머티리얼의 볼륨 섞기·셰이더 인스펙터가, D-367(§3.16)로 오브젝트 하나의 파라미터(머티리얼 인스턴스)가 섰다
 - [tasks/node-graph-plan.md](./tasks/node-graph-plan.md) — 노드 그래프 프레임워크(D-323). 모델은 Tier E 모듈 `JBroNodeGraph`(노드·핀·링크·도메인·YAML), 화면은 `JBroEditor` 의 화면 모델·`Widget::NodeGraphCanvas`·`NodeGraphPanel`,
-  편집은 그래프 창마다 커맨드 스택, 다듬기는 샘플 도메인 `Math` 와 `.jgraph` 에셋. 층이 §2, 단계가 §3, 미정이 §4
+  편집은 그래프 창마다 커맨드 스택, 다듬기는 샘플 도메인 `Math` 와 `.jgraph` 에셋. 층이 §2, 단계가 §3, 미정이 §4. 셰이더 그래프(도메인 `Shader`, 저장하면 옆에 `.hlsl`, D-368)가 §5 다
 - [tasks/guide-focus-plan.md](./tasks/guide-focus-plan.md) — 에디터 가이드 포커스(D-251). 반투명 막에 대상 위젯만 뚫고 그 위젯만 입력을 받게 하며,
   닫힌 패널·트리를 부모부터 한 칸씩 연다. 기구 `EditorGuideFocus`·`Widget::GuideFocus` 와 내용 `Guide`·`GuideStep`·`EditorGuide` 로 나눈다.
   **열두 단계가 섰다** - 입력 문·표식·막과 애니메이션·부모부터 열기·가이드 둘(`도움말` → `가이드`)·글자로 적는 가이드(D-267: 단계는 `Do: object.delete`

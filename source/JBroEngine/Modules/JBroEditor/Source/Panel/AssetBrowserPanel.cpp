@@ -1092,6 +1092,11 @@ namespace JBro
         {
             m_editor->CreateNodeGraphAsset(m_openFolder.c_str());
         }
+        // **새 셰이더 그래프**(D-368). 저장하면 그래프 옆에 `.hlsl` 이 생겨 머티리얼이 그것을 고른다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewShaderGraph, "New Shader Graph")))
+        {
+            m_editor->CreateShaderGraphAsset(m_openFolder.c_str());
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewCanvas, "New Canvas")))
         {
             const String created = m_editor->CreateCanvasAsset(m_openFolder.c_str());

@@ -3056,6 +3056,40 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-368. 셰이더 그래프는 노드 그래프 도메인 `Shader` 이고, 저장하면 그래프 옆에 `.hlsl` 을 쓴다. 머티리얼·패키지·렌더러는 그 파일만 본다.**
+  (2026-11-03, [node-graph-plan.md](./node-graph-plan.md) §5. 사용자 지시 "남은거 전부 구현 ㄱ", 권고안대로 라이트 뒤에 했다)
+  Updates: D-323(도메인이 하나 는다, 노드에 이름 `label` 이 는다), D-347(셰이더를 만드는 길이 하나 더 는다 - 계획이 말한 "그래프의 결과물").
+  (1) 원본은 `.jgraph`(첫 키 `Domain: Shader`)이고 결과는 같은 이름의 `.hlsl` 이다. 머티리얼은 `.hlsl` 을 고른다. 만든 파일 첫 줄이 생성물임을 말하고, 저장할 때마다 덮어쓴다. 새 에셋 형식·새 로더를 두지 않아 패키지와 게임이 달라지지 않는다.
+  (2) 노드: 입력 `UV`·`Tint`·`Source`·`Time`·`Normal`·`WorldPosition`·`Light`, 상수 `Float`·`Vector2`·`Vector3`·`Color`, 파라미터 `FloatParameter`·`ColorParameter`·`TextureParameter`, 수식 `Add`·`Subtract`·`Multiply`·`Divide`·`Lerp`·`Power`·`Sin`·`Cos`·`Saturate`·`Dot`, 벡터 `Combine`·`Split`, 결과 `Output`. 핀은 HLSL 처럼 서로 넓히고 좁혀 잇는다.
+  (3) 만든 글자는 세 자리에서 모두 구워진다 - 자리에 없는 입력은 정해진 값이다(후처리의 `Normal` 은 +Z, `Light` 는 1). 결과에 닿지 않는 노드는 쓰지 않는다.
+  (4) 파라미터 이름은 노드의 `label`(그래프 인스펙터의 `이름`)이고, 없으면 `param<번호>` 다. `ColorParameter` 는 이름이 `Color` 로 끝나도록 붙인다(머티리얼 인스펙터가 색 칸으로 보인다). 이름 겹침·`Output` 없음·텍스처 일곱은 만들지 않고 마지막 `.hlsl` 을 둔다. 까닭은 그래프 창에 보인다.
+  **섰다 - 그래프 창 안의 미리보기와 셰이더 인스펙터에서 그래프로 가는 길은 없다.**
+
+- **D-367. 오브젝트 하나의 머티리얼 파라미터는 렌더러의 머티리얼 인스턴스다. 파이프라인은 원본 것을 나눠 쓰고, 값을 모두 지우면 인스턴스도 사라진다.**
+  (2026-11-03, [postprocess-plan.md](./postprocess-plan.md) §3.16. 사용자 지시 "남은거 전부 구현 ㄱ" - 권고안은 필요할 때까지 미루는 것이었으나 지시가 "전부" 였다)
+  Updates: D-348(3)(덮어쓰기가 에셋 단위만이던 것), `SystemContextAbiVersion` 9.
+  (1) 스크립트: `GetServiceContext().Material.FindParameter(렌더러 핸들, 머티리얼 아이디, 이름)`. 나머지 `Set*`·`Clear`·`ClearAll` 은 D-348 과 같다. 값은 파일 값 → 에셋 덮어쓰기 → 오브젝트 덮어쓰기 차례로 얹힌다.
+  (2) 렌더러: `RegisterMaterialInstance(base, desc)`. 원본을 지우면 인스턴스도 사라진다. 스프라이트·메시는 인스턴스 핸들을 머티리얼처럼 내므로 오브젝트마다 배치가 끊긴다.
+  (3) 라이브러리: `Resolve(asset, owner)` 는 인스턴스가 없으면 찾기가 늘지 않는다. 짓고 지우는 것은 `Update` 의 `SyncInstances` 가 덮어쓰기와 파라미터 판이 바뀔 때만 한다.
+  **섰다 - 컴포넌트가 사라져도 그 오브젝트의 인스턴스는 `Clear`·`ClearAll` 전까지 남는다(자리 64 안에서). 인스펙터에서 오브젝트별 값을 고치는 길은 없다.**
+
+- **D-366. `Light3D`(`Directional`·`Point`·`Ambient`) 컴포넌트가 뷰마다 라이트 블록으로 메시를 비춘다. 라이트가 하나도 없는 뷰는 지금까지의 고정 방향광이다.**
+  (2026-11-03, [framework3d-plan.md](./framework3d-plan.md) §4. 사용자 지시 "남은거 전부 구현 ㄱ", 권고안 "방향광과 점광부터, 그림자는 뒤로")
+  Updates: D-348(1)(`JBroMeshLight(normal)` 이 `JBroMeshLight(normal, worldPosition)` 으로 바뀌고 `float3` 을 낸다 - 쓰던 셰이더는 호출을 고쳐야 한다), D-110.
+  (1) 렌더러 `SubmitLight3D`, 뷰마다 16 개까지(넘치면 버리고 `droppedLight3DCount`). 블록은 빌트인 메시의 b1, 메시 머티리얼의 b2 이고 패스마다 상수 링에 올린다. 환경광만 있어도 고정 방향광을 쓰지 않는다.
+  (2) 점광은 `(1 - 거리 / range)^2` 로 준다. 그림자는 없다.
+  (3) 컴포넌트 `Component::Light3D`(오브젝트에 하나)·핸들 `Handle::Light3D`·`Light3DSystem`·`RenderWorld3D::SubmitLight`. 방향은 오브젝트의 앞(-Z)이다.
+  **섰다 - 3D 그림자와 캔버스 뷰의 라이트 표시(2D 의 손잡이 같은 것)가 없다.**
+
+- **D-365. 메시 에셋은 glTF(`.gltf`·`.glb`)다. 노드 변환까지 구워 한 덩어리로 싣고, 게임 패키지에는 푼 메시만 싣는다.**
+  (2026-11-03, [framework3d-plan.md](./framework3d-plan.md) §4. 사용자 지시 "남은거 전부 구현 ㄱ", 권고안 "glTF 만")
+  Updates: D-111(`Mesh` 에셋이 실린다), D-232(패키지 블롭 `CookedMesh`), framework3d-plan §2.3.
+  (1) 읽는 것: 기본 장면의 삼각형 프리미티브, POSITION·NORMAL·TEXCOORD_0, 임베드·GLB·바깥 버퍼. 법선이 없으면 면에서 만들고, 감김은 엔진의 앞면으로 뒤집으며, 음의 크기는 한 번 더 뒤집는다. 재질·스킨·애니메이션은 읽지 않는다. `.obj` 는 확장자만 `Mesh` 이고 읽기는 실패한다.
+  (2) 서드파티를 새로 들이지 않았다 - 이미 있는 `nlohmann-json` 으로 직접 읽는다(cgltf 를 받지 않았다). `JBroAsset` 이 그 헤더에 기댄다.
+  (3) 바깥 버퍼는 `IAssetSource::ReadSibling` 이고 에셋 폴더 밖(절대 경로·`..`)은 거절한다.
+  (4) `MeshLibrary::ResolveHandle` 이 에셋을 렌더러에 올리고, 다시 읽히면(`dataGeneration`) 다시 올린다. 빌트인 정육면체는 그대로다.
+  **섰다 - 메시마다 하나의 덩어리라 glTF 의 노드 나무는 오브젝트로 펼쳐지지 않는다. 에셋 썸네일도 없다.**
+
 - **D-363. 3D 스크립트를 돌리고 화면 UI 를 연다 - 스크립트 시스템을 새 공용 모듈 `JBroScriptRuntime` 으로 옮겨 3D 프레임워크도 세우고, 3D 스크립트의 기반 타입 `GameScript3D` 에 화면 UI 훅을 두며, 3D 스크립트 SDK 에 화면 UI 핸들만 연다.**
   (2026-11-01, [ui-plan.md](./ui-plan.md) §7.9. 사용자 지시 "열어줘", "둘 다 권고안대로" - 권고안은 런타임을 먼저 세우고 UI 훅·핸들을 여는 것이다.)
   Updates: D-362 (5)(3D 스크립트의 UI 핸들·훅은 열림 → 엶), D-207(2D 의 `GameScript2D` 규칙을 3D 의 `GameScript3D` 에도 둔다), ProjectRule §4 의 "선택하지 않은 Framework 의 헤더는 스크립트 타깃 include 경로에 넣지 않는다"(3D 는 화면 UI 핸들에 한해 2D 를 본다).
@@ -3261,7 +3295,7 @@ EditorApplication::Tick
   (3) 스크립트: 공통 서비스 `Service::MaterialService`(`GetServiceContext().Material`) - `FindParameter(머티리얼 아이디, 이름)`·`SetFloat`·`SetInt`·`SetBool`·`SetVector2`·`SetColor`·`SetVector4`·`Clear`·`ClearAll`. 덮어쓰기는 **머티리얼 에셋 단위**(그 머티리얼을 쓰는 모든 것)이고 파일은 바뀌지 않는다. 형과 칸 수가 맞지 않으면 얹지 않는다. 구현은 `MaterialLibrary` 가 들고(자리 64), 머티리얼마다 파일의 블록과 얹은 블록을 따로 들어 덮어쓰기가 바뀌면 다시 짓지 않고 얹은 블록만 렌더러에 올린다. 시스템 인터페이스 `System::IMaterialSystem`(`SystemContext::Material`, 구현은 호스트의 `MaterialSystem`). `SystemContextAbiVersion` 8, `ServiceContextAbiVersion` 6.
   (4) 볼륨: 효과 종류가 블록을 스스로 섞는 고리(`PostProcessEffectType::mix`)를 가질 수 있다. `Material` 효과는 리플렉션 밖의 섞기 자료(셰이더 아이디·지금의 파라미터 블록·칸 종류)를 들고, 프로필 라이브러리가 머티리얼 라이브러리에서 떠 채운다(파라미터가 바뀌면 다시 뜬다). 같은 셰이더면 칸마다 보간(실수는 잇고, 정수는 반올림, 참거짓과 머티리얼은 반에서)하고 렌더러는 섞인 블록을 올린다. 셰이더가 다르면 반에서 통째로 바뀐다.
   (5) 에디터: 셰이더 에셋 인스펙터가 자리마다 구워 파라미터(형·초기값)와 텍스처(자리)를, 실패하면 그 오류를 보이고, `편집기에서 열기` 가 첫 오류 줄로 연다. 좁은 인스펙터의 색 칸은 네 채널이 들어가지 않으면 16 진수 한 칸, 그것도 안 되면 견본만 보인다(`Widget::ColorField`, 모든 인스펙터 공통).
-  **섰다 - ~~머티리얼 스프라이트의 그림자 받기~~·메시의 실제 라이트(빛은 여전히 고정 방향광 하나)·오브젝트마다의 파라미터(머티리얼 인스턴스)·셰이더 그래프가 남았다.**
+  **섰다 - ~~머티리얼 스프라이트의 그림자 받기~~·~~메시의 실제 라이트(빛은 여전히 고정 방향광 하나)·오브젝트마다의 파라미터(머티리얼 인스턴스)·셰이더 그래프가 남았다.~~ → D-366·D-367·D-368.**
   (2026-11-03 고침) 그림자 받기는 남은 일이 아니었다 - 그림자가 라이트맵을 깎고 (2)의 입구가 라이트맵을 곱하므로 D-348 로 이미 된다. `PostProcessPixel` 의 `TestAMaterialSpriteFallsInShadow` 와 실제 에디터로 확인했다(postprocess-plan §3.15 끝).
 
 - **D-347. 사용자 셰이더는 `.hlsl` 이 곧 Shader 에셋이고 픽셀 단계 하나만 적는다. 머티리얼(`.jmat`)은 셰이더·자리·적은 파라미터·텍스처를 들고, 후처리 효과 `Material` 과 스프라이트가 쓴다. 에디터가 그 자리에서 굽고 게임은 패키지의 구운 셰이더만 싣는다.**
