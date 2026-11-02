@@ -1,5 +1,7 @@
 ﻿#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 
+#include <JBro/Asset/Asset.h>
+#include <JBro/Asset/MeshFile.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Types/Bool.h>
@@ -49,9 +51,11 @@ namespace JBro
         return Uuid::FromName("builtin/cube");
     }
 
-    Bool MeshLibrary::Initialize(Renderer* renderer)
+    Bool MeshLibrary::Initialize(Renderer* renderer, AssetSystem* assets)
     {
         m_renderer = renderer;
+        m_assets = assets;
+        m_assetEntries.Clear();
         m_entries.Clear();
         if (renderer == nullptr || false == renderer->IsInitialized())
         {
@@ -74,8 +78,14 @@ namespace JBro
             {
                 m_renderer->UnregisterMesh(m_entries[index].handle);
             }
+            for (const AssetEntry& entry : m_assetEntries)
+            {
+                m_renderer->UnregisterMesh(entry.renderer);
+            }
         }
         m_entries.Clear();
+        m_assetEntries.Clear();
+        m_assets = nullptr;
         m_renderer = nullptr;
     }
 
@@ -89,6 +99,47 @@ namespace JBro
             }
         }
         return {};
+    }
+
+    AssetHandle MeshLibrary::ResolveHandle(AssetHandle handle)
+    {
+        const MeshAssetData* data = m_assets != nullptr ? m_assets->GetMesh(handle) : nullptr;
+        if (data == nullptr)
+        {
+            return handle;
+        }
+        AssetEntry* found = nullptr;
+        for (AssetEntry& entry : m_assetEntries)
+        {
+            if (entry.asset.index == handle.index && entry.asset.generation == handle.generation)
+            {
+                found = &entry;
+                break;
+            }
+        }
+        if (found != nullptr && found->dataGeneration == data->dataGeneration)
+        {
+            return found->renderer;
+        }
+        if (m_renderer == nullptr || false == m_renderer->IsInitialized())
+        {
+            return {};
+        }
+        static_assert(sizeof(MeshVertex) == sizeof(Float) * MeshVertexFloats.Get(), "the mesh asset's floats are the renderer's vertices");
+        const AssetHandle uploaded = m_renderer->RegisterMesh(
+            {reinterpret_cast<const MeshVertex*>(data->vertices.Data()), static_cast<JBro::UInt32>(data->vertices.Size() / MeshVertexFloats.Get())},
+            {data->indices.Data(), static_cast<JBro::UInt32>(data->indices.Size())});
+        if (found == nullptr)
+        {
+            found = &m_assetEntries.Add(AssetEntry{handle, 0, {}});
+        }
+        else if (found->renderer.generation != 0)
+        {
+            m_renderer->UnregisterMesh(found->renderer);
+        }
+        found->dataGeneration = data->dataGeneration;
+        found->renderer = uploaded;
+        return uploaded;
     }
 
     void MeshLibrary::Register(AssetId id, AssetHandle handle)

@@ -71,6 +71,8 @@ namespace JBro
                 return Icons::FileImage;
             case AssetType::Material:
                 return Icons::Material;
+            case AssetType::Mesh:
+                return Icons::Mesh;
             case AssetType::Shader:
                 return Icons::Shader;
             default:

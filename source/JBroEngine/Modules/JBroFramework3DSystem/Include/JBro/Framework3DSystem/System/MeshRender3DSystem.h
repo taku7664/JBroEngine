@@ -19,7 +19,7 @@ namespace JBro::System
     public:
         Int32 GetExecutionOrder() const override;
         void SetRenderWorld(RenderWorld3D* renderWorld);
-        void SetMeshLibrary(const MeshLibrary* library);
+        void SetMeshLibrary(MeshLibrary* library);
         // 머티리얼 에셋 → 렌더러 머티리얼(D-348). 없으면 메시는 빌트인 셰이더로 그린다.
         void SetMaterialLibrary(MaterialLibrary* library);
         void ExtractRenderWorld(Canvas& canvas);
@@ -29,7 +29,7 @@ namespace JBro::System
 
     private:
         RenderWorld3D* m_renderWorld = nullptr;
-        const MeshLibrary* m_library = nullptr;
+        MeshLibrary* m_library = nullptr;
         MaterialLibrary* m_materialLibrary = nullptr;
     };
 }

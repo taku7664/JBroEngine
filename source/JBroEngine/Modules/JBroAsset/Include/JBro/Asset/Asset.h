@@ -6,6 +6,7 @@
 #include <JBro/Asset/ColorLutFile.h>
 #include <JBro/Asset/RenderTextureFile.h>
 #include <JBro/Asset/MaterialShader.h>
+#include <JBro/Asset/MeshFile.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -251,6 +252,7 @@ namespace JBro
         const RenderTextureData* GetRenderTexture(AssetHandle handle) const;
         const ShaderAssetData* GetShader(AssetHandle handle) const;
         const MaterialAssetData* GetMaterial(AssetHandle handle) const;
+        const MeshAssetData* GetMesh(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
@@ -324,6 +326,7 @@ namespace JBro
         Bool ReadRenderTexture(const AssetRecord& record, RenderTextureData& data);
         Bool ReadShader(const AssetRecord& record, ShaderAssetData& data);
         Bool ReadMaterial(const AssetRecord& record, MaterialAssetData& data);
+        Bool ReadMesh(const AssetRecord& record, MeshAssetData& data);
         void NotifyAudioRelease(UInt32 slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
@@ -355,6 +358,7 @@ namespace JBro
         Pool<RenderTextureData> m_renderTextures;
         Pool<ShaderAssetData> m_shaders;
         Pool<MaterialAssetData> m_materials;
+        Pool<MeshAssetData> m_meshes;
         AudioReleaseCallback m_audioRelease = nullptr;
         UInt32 m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;

@@ -4,6 +4,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ImageDecoder.h>
+#include <JBro/Asset/MeshFile.h>
 #include <JBro/TextRendering/TextLibrary.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
@@ -123,6 +124,31 @@ namespace JBro::Package
                     ++report.bakedAtlases;
                 }
                 AddBlob(writer, report, *record, BlobKind::Source, font.bytes);
+                continue;
+            }
+            // 메시는 glTF 와 그 바깥 버퍼를 풀어 한 블롭으로 싣는다(D-365). 게임은 glTF 를 읽지 않는다.
+            if (record->type == AssetType::Mesh)
+            {
+                struct Siblings
+                {
+                    const LooseAssetSource* source;
+                    const AssetRecord* record;
+                } siblings{&loose, record};
+                MeshAssetData mesh;
+                String why;
+                if (false == ParseGltfMesh(source.Data(), source.Size(),
+                        [](const char* uri, Array<std::byte>& out, void* user) -> Bool {
+                            const Siblings& found = *static_cast<const Siblings*>(user);
+                            return found.source->ReadSibling(*found.record, uri, out);
+                        },
+                        &siblings, mesh, &why))
+                {
+                    Fail(report, *record, why.c_str());
+                    continue;
+                }
+                Array<std::byte> blob;
+                WriteCookedMesh(mesh, blob);
+                AddBlob(writer, report, *record, BlobKind::CookedMesh, blob);
                 continue;
             }
             if (record->type == AssetType::Shader)

@@ -71,7 +71,7 @@ namespace JBro
             // 렌더러가 없으면(시스템 테스트) 용량 하나는 두어 제출이 곧장 버려지지 않게 한다.
             const std::size_t capacity = context.renderer != nullptr ? 16384 : 64;
             if (false == m_renderWorld.ReserveMeshes(capacity) || false == m_renderWorld.ReserveTexts(capacity)
-                || false == m_meshes.Initialize(context.renderer))
+                || false == m_meshes.Initialize(context.renderer, context.assets))
             {
                 Shutdown();
                 return false;

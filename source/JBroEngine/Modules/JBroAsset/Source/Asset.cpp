@@ -179,6 +179,7 @@ namespace JBro
         m_postProcessProfiles = {};
         m_shaders = {};
         m_materials = {};
+        m_meshes = {};
         m_fonts = {};
         m_textures = {};
         m_sprites = {};
@@ -877,6 +878,52 @@ namespace JBro
         return true;
     }
 
+    Bool AssetSystem::ReadMesh(const AssetRecord& record, MeshAssetData& data)
+    {
+        if (m_source == nullptr)
+        {
+            return false;
+        }
+        Array<std::byte> bytes;
+        // 패키지는 빌드가 푼 것을 든다(D-365).
+        if (m_source->Has(record, AssetBlob::CookedMesh))
+        {
+            if (false == m_source->Read(record, AssetBlob::CookedMesh, bytes) || false == ReadCookedMesh(bytes.Data(), bytes.Size(), data))
+            {
+                Log::Write(LogLevel::Warning, "asset", "a cooked mesh is broken: %s", record.relativePath.c_str());
+                return false;
+            }
+            return true;
+        }
+        if (false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        struct Siblings
+        {
+            const IAssetSource* source;
+            const AssetRecord* record;
+        } siblings{m_source, &record};
+        String why;
+        if (false == ParseGltfMesh(bytes.Data(), bytes.Size(),
+                [](const char* uri, Array<std::byte>& out, void* user) -> Bool {
+                    const Siblings& found = *static_cast<const Siblings*>(user);
+                    return found.source->ReadSibling(*found.record, uri, out);
+                },
+                &siblings, data, &why))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a mesh could not be read: %s: %s", record.relativePath.c_str(), why.c_str());
+            return false;
+        }
+        return true;
+    }
+
+    const MeshAssetData* AssetSystem::GetMesh(AssetHandle handle) const
+    {
+        const Slot<MeshAssetData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     const MaterialAssetData* AssetSystem::GetMaterial(AssetHandle handle) const
     {
         const Slot<MaterialAssetData>* slot = FindSlot(m_materials, handle, AssetType::Material);
@@ -1117,6 +1164,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::Mesh:
+                if (Slot<MeshAssetData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -1264,6 +1318,16 @@ namespace JBro
             handle = Occupy(m_materials, AssetType::Material, id, std::move(data));
             break;
         }
+        case AssetType::Mesh:
+        {
+            MeshAssetData data;
+            if (false == ReadMesh(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_meshes, AssetType::Mesh, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -1372,6 +1436,13 @@ namespace JBro
                 --material->referenceCount;
             }
         }
+        if (Slot<MeshAssetData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        {
+            if (mesh->referenceCount != 0)
+            {
+                --mesh->referenceCount;
+            }
+        }
     }
 
     AssetHandle AssetSystem::Find(AssetId id) const
@@ -1393,7 +1464,8 @@ namespace JBro
             || FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile) != nullptr
             || FindSlot(m_renderTextures, handle, AssetType::RenderTexture) != nullptr
             || FindSlot(m_shaders, handle, AssetType::Shader) != nullptr
-            || FindSlot(m_materials, handle, AssetType::Material) != nullptr;
+            || FindSlot(m_materials, handle, AssetType::Material) != nullptr
+            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr;
     }
 
     UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -1445,6 +1517,10 @@ namespace JBro
         if (const Slot<MaterialAssetData>* material = FindSlot(m_materials, handle, AssetType::Material))
         {
             return material->referenceCount;
+        }
+        if (const Slot<MeshAssetData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        {
+            return mesh->referenceCount;
         }
         return 0;
     }
@@ -1622,6 +1698,17 @@ namespace JBro
             material->data = std::move(fresh);
             return true;
         }
+        if (Slot<MeshAssetData>* mesh = FindSlot(m_meshes, *loaded, AssetType::Mesh))
+        {
+            MeshAssetData fresh;
+            if (false == ReadMesh(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = mesh->data.dataGeneration + 1;
+            mesh->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -1759,6 +1846,15 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_shaders, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_meshes.slots.Size(); ++index)
+        {
+            Slot<MeshAssetData>& slot = m_meshes.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_meshes, index);
                 ++freed;
             }
         }

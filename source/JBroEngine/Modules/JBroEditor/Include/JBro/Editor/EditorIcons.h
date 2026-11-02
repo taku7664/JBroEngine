@@ -34,6 +34,7 @@ namespace JBro::Icons
     inline constexpr const char* ColorLut     = "\xF3\xB0\x8F\x98"; // F03D8 palette - 컬러 LUT 에셋
     inline constexpr const char* Material     = "\xF3\xB1\xA5\x94"; // F1954 sphere - 머티리얼 에셋
     inline constexpr const char* Shader       = "\xF3\xB1\x80\xAB"; // F102B file-code-outline - 셰이더 에셋
+    inline constexpr const char* Mesh         = "\xF3\xB0\x86\xA7"; // F01A7 cube-outline - 메시 에셋
     inline constexpr const char* Frame        = "\xF3\xB1\xA3\xB5"; // F18F5 fit-to-screen-outline - 선택에 맞추기
     inline constexpr const char* ViewWorld    = "\xF3\xB0\xA6\x82"; // F0982 map-outline - 월드 레이어 보기
     inline constexpr const char* ViewScreen   = "\xF3\xB0\xA8\x87"; // F0A07 monitor-dashboard - 화면(UI) 레이어 보기·UI 태그

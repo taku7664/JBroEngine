@@ -82,6 +82,45 @@ namespace JBro
         return false;
     }
 
+    Bool LooseAssetSource::ReadSibling(const AssetRecord& record, const char* relative, Array<std::byte>& out) const
+    {
+        out.Clear();
+        if (m_platform == nullptr || relative == nullptr || relative[0] == '\0')
+        {
+            return false;
+        }
+        // 에셋 폴더 밖을 읽지 않는다: 절대 경로·드라이브·`..` 는 거절한다. URI 의 %XX 는 푼다.
+        String name;
+        for (const char* at = relative; *at != '\0'; ++at)
+        {
+            if (*at == '%' && at[1] != '\0' && at[2] != '\0')
+            {
+                const auto digit = [](char c) -> int {
+                    return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+                };
+                const int high = digit(at[1]);
+                const int low = digit(at[2]);
+                if (high < 0 || low < 0)
+                {
+                    return false;
+                }
+                name.push_back(static_cast<char>(high * 16 + low));
+                at += 2;
+                continue;
+            }
+            name.push_back(*at);
+        }
+        if (name[0] == '/' || name[0] == '\\' || name.find(':') != String::npos || name.find("..") != String::npos)
+        {
+            return false;
+        }
+        String path = SourcePathOf(record);
+        const std::size_t slash = path.find_last_of("/\\");
+        path.resize(slash == String::npos ? 0 : slash + 1);
+        path.append(name);
+        return m_platform->ReadWholeFile(path.c_str(), out);
+    }
+
     Bool LooseAssetSource::Has(const AssetRecord& record, AssetBlob blob) const
     {
         (void)record;

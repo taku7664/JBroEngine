@@ -23,7 +23,7 @@ namespace JBro::System
         m_renderWorld = renderWorld;
     }
 
-    void MeshRender3DSystem::SetMeshLibrary(const MeshLibrary* library)
+    void MeshRender3DSystem::SetMeshLibrary(MeshLibrary* library)
     {
         m_library = library;
     }
@@ -66,12 +66,18 @@ namespace JBro::System
             {
                 return;
             }
+            // 메시 에셋이면 렌더러 메시로 푼다(D-365). 빌트인은 이미 렌더러 핸들이다. 아직 못 올렸으면 이번 프레임은 건너뛴다.
+            const AssetHandle gpuMesh = m_library != nullptr ? m_library->ResolveHandle(renderer.mesh) : renderer.mesh;
+            if (gpuMesh.generation == 0)
+            {
+                return;
+            }
             MeshRenderItem item;
             item.owner = owner;
             item.position = world->worldPosition;
             item.rotation = world->worldRotation;
             item.scale = world->worldScale;
-            item.mesh = renderer.mesh;
+            item.mesh = gpuMesh;
             // `material` 은 에셋 핸들이다. 렌더러에 가는 것은 라이브러리가 지은 렌더러 머티리얼이다(스프라이트와 같다).
             item.material = m_materialLibrary != nullptr ? m_materialLibrary->Resolve(renderer.material) : AssetHandle{};
             item.tint = renderer.tint;
