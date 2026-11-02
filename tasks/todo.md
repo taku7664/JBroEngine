@@ -3261,7 +3261,8 @@ EditorApplication::Tick
   (3) 스크립트: 공통 서비스 `Service::MaterialService`(`GetServiceContext().Material`) - `FindParameter(머티리얼 아이디, 이름)`·`SetFloat`·`SetInt`·`SetBool`·`SetVector2`·`SetColor`·`SetVector4`·`Clear`·`ClearAll`. 덮어쓰기는 **머티리얼 에셋 단위**(그 머티리얼을 쓰는 모든 것)이고 파일은 바뀌지 않는다. 형과 칸 수가 맞지 않으면 얹지 않는다. 구현은 `MaterialLibrary` 가 들고(자리 64), 머티리얼마다 파일의 블록과 얹은 블록을 따로 들어 덮어쓰기가 바뀌면 다시 짓지 않고 얹은 블록만 렌더러에 올린다. 시스템 인터페이스 `System::IMaterialSystem`(`SystemContext::Material`, 구현은 호스트의 `MaterialSystem`). `SystemContextAbiVersion` 8, `ServiceContextAbiVersion` 6.
   (4) 볼륨: 효과 종류가 블록을 스스로 섞는 고리(`PostProcessEffectType::mix`)를 가질 수 있다. `Material` 효과는 리플렉션 밖의 섞기 자료(셰이더 아이디·지금의 파라미터 블록·칸 종류)를 들고, 프로필 라이브러리가 머티리얼 라이브러리에서 떠 채운다(파라미터가 바뀌면 다시 뜬다). 같은 셰이더면 칸마다 보간(실수는 잇고, 정수는 반올림, 참거짓과 머티리얼은 반에서)하고 렌더러는 섞인 블록을 올린다. 셰이더가 다르면 반에서 통째로 바뀐다.
   (5) 에디터: 셰이더 에셋 인스펙터가 자리마다 구워 파라미터(형·초기값)와 텍스처(자리)를, 실패하면 그 오류를 보이고, `편집기에서 열기` 가 첫 오류 줄로 연다. 좁은 인스펙터의 색 칸은 네 채널이 들어가지 않으면 16 진수 한 칸, 그것도 안 되면 견본만 보인다(`Widget::ColorField`, 모든 인스펙터 공통).
-  **섰다 - 머티리얼 스프라이트의 그림자 받기·메시의 실제 라이트(빛은 여전히 고정 방향광 하나)·오브젝트마다의 파라미터(머티리얼 인스턴스)·셰이더 그래프가 남았다.**
+  **섰다 - ~~머티리얼 스프라이트의 그림자 받기~~·메시의 실제 라이트(빛은 여전히 고정 방향광 하나)·오브젝트마다의 파라미터(머티리얼 인스턴스)·셰이더 그래프가 남았다.**
+  (2026-11-03 고침) 그림자 받기는 남은 일이 아니었다 - 그림자가 라이트맵을 깎고 (2)의 입구가 라이트맵을 곱하므로 D-348 로 이미 된다. `PostProcessPixel` 의 `TestAMaterialSpriteFallsInShadow` 와 실제 에디터로 확인했다(postprocess-plan §3.15 끝).
 
 - **D-347. 사용자 셰이더는 `.hlsl` 이 곧 Shader 에셋이고 픽셀 단계 하나만 적는다. 머티리얼(`.jmat`)은 셰이더·자리·적은 파라미터·텍스처를 들고, 후처리 효과 `Material` 과 스프라이트가 쓴다. 에디터가 그 자리에서 굽고 게임은 패키지의 구운 셰이더만 싣는다.**
   (2026-10-27, [postprocess-plan.md](./postprocess-plan.md) §3.14, 후처리 계획 11 단계. 사용자 지시 "11단계랑 ScriptSummaryPanel 크래시 조사해봐", 사용자 결정: Shader 에셋 "`.hlsl` 이 곧 에셋", 범위 "스프라이트까지", 효과 지점 "톤맵 뒤 + 레이어")
@@ -3269,7 +3270,7 @@ EditorApplication::Tick
   (1) Shader: 사용자는 `PSMain` 과 `cbuffer Material : register(b1)`·`Texture2D`(t1..t7)를 적고, 정점 단계·입력·엔진 값(b0)·샘플러 넷은 엔진 머리글 `JBro/Material.hlsli` 가 자리(`PostProcess`·`Sprite`)마다 준다. 같은 파일을 자리마다 따로 굽는다.
   (2) 굽기: 새 Tier E 모듈 `JBroShaderCompiler` 가 `d3dcompiler_47.dll`(DXBC·반사)과 `dxcompiler.dll`(DXIL·SPIR-V)을 실행 중에 연다. 빌드는 Vulkan SDK 의 `dxcompiler.dll`(SPIR-V 를 굽고 DXIL 을 스스로 서명한다, 실측)을, 없으면 Windows SDK 의 것을 출력 폴더에 둔다. 반사는 DXBC 에서 하고 머티리얼이 담지 못하는 것(다른 cbuffer·행렬·배열·UAV)은 거절한다.
   (3) Material: `.jmat` 는 `Shader`·`Domain`·`Parameters`(적은 것만, 나머지는 HLSL 초기값)·`Textures` 이고 에셋 모듈이 셰이더를 모르고 읽는다. `MaterialLibrary`(그래픽)가 렌더러 머티리얼로 풀고 바뀐 것을 프레임마다 한 번 다시 짓는다. 2D·3D 프레임워크가 하나씩 든다. 렌더러는 머티리얼마다 장면 포맷별 파이프라인을 미리 만든다.
-  (4) 쓰는 곳: 후처리 효과 `Material`(`AfterTonemap`, 레이어에도 걸린다)과 `SpriteRenderer2D.materialId`(머티리얼 스프라이트는 빛을 받지 않는다). 메시는 아직 아니다.
+  (4) 쓰는 곳: 후처리 효과 `Material`(`AfterTonemap`, 레이어에도 걸린다)과 `SpriteRenderer2D.materialId`(~~머티리얼 스프라이트는 빛을 받지 않는다. 메시는 아직 아니다.~~ → 빛과 메시 모두 D-348).
   (5) 게임 빌드: 쿡이 셰이더를 두 자리 모두 구워 구운 묶음만 싣는다(원본 없음). 게임 실행 파일은 컴파일러를 들지 않는다.
   (6) 에디터: `새 셰이더`·`새 머티리얼`, 머티리얼 인스펙터(`Shader`·`Domain`·덮어쓰기 체크가 붙은 파라미터·텍스처, 굽지 못한 까닭).
   함께 고친 것: 에디터가 위젯의 가이드 알림 자리(`Widget::SetGuideFocus`)를 걸기만 하고 떼지 않아, 에디터가 사라진 뒤 같은 프로세스의 ImGui 화면이 해제된 메모리를 읽었다 - 전체 시험마다 `ScriptSummaryPanel` 에서 죽던 까닭이다. 에디터의 자원 해제가 뗀다.
