@@ -110,11 +110,42 @@ struct JBroMeshInput
     float3 worldPosition : TEXCOORD1;
 };
 
-// The engine's light on a surface (BuiltinMesh.hlsl PSMain): one fixed directional light plus ambient. Multiply a colour by it to light it.
-float JBroMeshLight(float3 normal)
+// The view's 3D lights (BuiltinMesh.hlsl MeshLights).
+cbuffer JBroLights : register(b2)
 {
-    const float3 lightDirection = normalize(float3(0.4f, 0.8f, 0.45f));
-    return 0.25f + 0.75f * saturate(dot(normalize(normal), lightDirection));
+    float4 JBroLightCount;
+    float4 JBroLightAmbient;
+    float4 JBroLightPosition[16];
+    float4 JBroLightColor[16];
+};
+
+// The engine's light on a surface: the view's Light3D components, or one fixed directional light plus ambient when it has none.
+// Multiply a colour by it to light it.
+float3 JBroMeshLight(float3 normal, float3 worldPosition)
+{
+    const float3 n = normalize(normal);
+    const int count = (int)JBroLightCount.x;
+    if (JBroLightCount.y < 0.5f)
+    {
+        const float3 lightDirection = normalize(float3(0.4f, 0.8f, 0.45f));
+        return (0.25f + 0.75f * saturate(dot(n, lightDirection))).xxx;
+    }
+    float3 light = JBroLightAmbient.rgb;
+    for (int at = 0; at < count; ++at)
+    {
+        float3 towards = JBroLightPosition[at].xyz;
+        float attenuation = 1.0f;
+        if (JBroLightPosition[at].w > 0.5f)
+        {
+            const float3 offset = JBroLightPosition[at].xyz - worldPosition;
+            const float distance = length(offset);
+            towards = offset / max(distance, 0.0001f);
+            const float fade = saturate(1.0f - distance / max(JBroLightColor[at].a, 0.0001f));
+            attenuation = fade * fade;
+        }
+        light += JBroLightColor[at].rgb * saturate(dot(n, towards)) * attenuation;
+    }
+    return light;
 }
 
 #else
@@ -177,7 +208,7 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
 
 float4 PSMain(JBroMeshInput input) : SV_TARGET
 {
-    const float4 color = float4(input.tint.rgb * JBroMeshLight(input.normal), input.tint.a);
+    const float4 color = float4(input.tint.rgb * JBroMeshLight(input.normal, input.worldPosition), input.tint.a);
     return lerp(color, color * tintColor, strength);
 }
 

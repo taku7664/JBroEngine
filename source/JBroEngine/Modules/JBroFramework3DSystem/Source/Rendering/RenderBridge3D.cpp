@@ -73,6 +73,30 @@ namespace JBro::Internal
         // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 시뮬레이션 뷰는 보지 않는다.
         Bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, Bool editorView, std::uint16_t layerOrder)
         {
+            // 메시를 받는 뷰마다 라이트를 낸다(D-366). 넘친 라이트는 렌더러가 센다.
+            for (std::size_t at = 0; at < world.GetLightCount(); ++at)
+            {
+                const LightRenderItem3D& light = world.GetLight(at);
+                if (editorView && light.owner != nullptr && light.owner->IsEditorHidden())
+                {
+                    continue;
+                }
+                Light3DSubmit submit;
+                submit.kind = light.type == Component::Light3DType::Point ? Light3DKind::Point
+                    : light.type == Component::Light3DType::Ambient       ? Light3DKind::Ambient
+                                                                          : Light3DKind::Directional;
+                submit.position[0] = light.position.x;
+                submit.position[1] = light.position.y;
+                submit.position[2] = light.position.z;
+                submit.direction[0] = light.forward.x;
+                submit.direction[1] = light.forward.y;
+                submit.direction[2] = light.forward.z;
+                submit.color[0] = light.color.R * light.intensity;
+                submit.color[1] = light.color.G * light.intensity;
+                submit.color[2] = light.color.B * light.intensity;
+                submit.range = light.range;
+                renderer.SubmitLight3D(submit);
+            }
             constexpr std::size_t BatchSize = 64;
             MeshSubmit batch[BatchSize];
             Bool accepted = world.GetDroppedMeshCount() == 0;

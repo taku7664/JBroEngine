@@ -138,6 +138,7 @@ namespace JBro
             m_meshRuns.Reserve(config.maxMeshSubmissions);
             m_meshMaterialOf.Resize(config.maxMeshSubmissions);
             m_meshMaterialOrder.Reserve(config.maxMeshSubmissions);
+            m_viewLights3D.Resize(config.maxViews);
             // 묶음은 많아도 스프라이트 수를 넘지 않는다. 프레임 안에서 자라지 않게 여기서 잡는다.
             m_spriteRuns.Reserve(config.maxSpriteSubmissions);
             // 레이어 묶음도 프레임 안에서 자라지 않는다. 넘치면 묶지 않고 센다.
@@ -283,6 +284,7 @@ namespace JBro
         m_meshRuns = {};
         m_meshMaterialOf = {};
         m_meshMaterialOrder = {};
+        m_viewLights3D = {};
         m_layerGroups = {};
         m_openLayerGroup = NoLayerGroup;
         m_lights = {};
@@ -688,7 +690,8 @@ namespace JBro
         // 스프라이트와 메시는 정점 단계가 앞의 뷰-투영 행렬을 읽는다 - 둘 다 128 B 다.
         desc.pushConstantBytes = sprite || mesh ? SpriteMaterialPushBytes : PostMaterialPushBytes;
         desc.pushConstantStages = sprite || mesh ? (ShaderStage::Vertex | ShaderStage::Pixel) : ShaderStage::Pixel;
-        desc.bindings.constantBuffers = {shader.parameterBytes != 0 ? 1u : 0u, ShaderStage::Pixel};
+        // 메시는 b2 의 라이트 블록까지 든다(D-366). 파라미터가 없어도 b1 자리는 묶는다(`BindMaterialResources` 가 라이트 블록으로 채운다).
+        desc.bindings.constantBuffers = {mesh ? 2u : shader.parameterBytes != 0 ? 1u : 0u, ShaderStage::Pixel};
         desc.bindings.sampledTextures = {resource.textureSlots, ShaderStage::Pixel};
         desc.bindings.samplers = {MaterialSamplerCount, ShaderStage::Pixel};
         desc.cull = CullMode::None;
@@ -1097,6 +1100,7 @@ namespace JBro
         CopyPostEntries(camera.layerPostProcess, packet.layerPostOffset, packet.layerPostCount);
         m_views.Add(packet);
         m_activeView = static_cast<JBro::UInt32>(m_views.Size() - 1);
+        m_viewLights3D[m_activeView] = {};
         ++m_currentStats.viewCount;
         return true;
     }
@@ -1265,6 +1269,43 @@ namespace JBro
         }
         m_layerGroups[m_openLayerGroup].endSprite = static_cast<JBro::UInt32>(m_sprites.Size());
         m_openLayerGroup = NoLayerGroup;
+        return true;
+    }
+
+    Bool Renderer::SubmitLight3D(const Light3DSubmit& light)
+    {
+        if (false == m_frameActive || m_activeView == InvalidViewIndex)
+        {
+            return false;
+        }
+        GpuMeshLights& block = m_viewLights3D[m_activeView];
+        ++m_currentStats.light3DCount;
+        // 환경광 하나여도 그 뷰는 고정 방향광을 쓰지 않는다.
+        block.count[1] = 1.0f;
+        if (light.kind == Light3DKind::Ambient)
+        {
+            for (Int32 channel = 0; channel < 3; ++channel)
+            {
+                block.ambient[channel.Get()] += light.color[channel.Get()];
+            }
+            return true;
+        }
+        const UInt32 at = static_cast<JBro::UInt32>(block.count[0].Get());
+        if (at >= MaxLights3D)
+        {
+            ++m_currentStats.droppedLight3DCount;
+            return false;
+        }
+        const Bool point = light.kind == Light3DKind::Point;
+        for (Int32 axis = 0; axis < 3; ++axis)
+        {
+            // 셰이더는 빛을 향하는 쪽을 읽는다.
+            block.position[at.Get()][axis.Get()] = point ? light.position[axis.Get()] : Float(-light.direction[axis.Get()]);
+            block.color[at.Get()][axis.Get()] = light.color[axis.Get()];
+        }
+        block.position[at.Get()][3] = point ? 1.0f : 0.0f;
+        block.color[at.Get()][3] = light.range;
+        block.count[0] = static_cast<float>(at.Get() + 1u);
         return true;
     }
 
@@ -2667,6 +2708,14 @@ namespace JBro
             const MaterialEngineValues engine = renderer.MakeMaterialEngineValues(pass.viewport, pass.targetExtent, false);
             std::memcpy(materialConstants, viewProjection.values, sizeof(viewProjection.values));
             std::memcpy(materialConstants + sizeof(viewProjection.values), &engine, sizeof(engine));
+            // 이 뷰의 라이트 블록이다(D-366). 패스에 한 번 올린다.
+            const GpuMeshLights& lights = renderer.m_viewLights3D[pass.view.Get()];
+            const ConstantRange lightRange = renderer.m_postConstants.Push(
+                JArrayView<std::byte>{reinterpret_cast<const std::byte*>(&lights), static_cast<JBro::UInt32>(sizeof(lights))});
+            if (false == lightRange.IsValid())
+            {
+                return false;
+            }
             // 구간은 머티리얼마다 이어 놓였다. 머티리얼이 바뀔 때만 파이프라인과 머티리얼 자원을 다시 건다.
             const auto bindMaterial = [&](UInt32 material) {
                 const BufferHandle instances = renderer.m_meshInstanceBuffers[renderer.m_frame.slot];
@@ -2674,7 +2723,8 @@ namespace JBro
                 {
                     return commands.SetGraphicsPipeline(pipelines.mesh)
                         && commands.SetVertexBuffer(1, instances, static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
-                        && commands.SetGraphicsConstants(constants);
+                        && commands.SetGraphicsConstants(constants)
+                        && commands.SetConstantBuffer(1, lightRange.buffer, lightRange.offset, lightRange.size);
                 }
                 // 메시에는 t0 의 입력이 없다. 파이프라인이 선언한 자리는 흰 텍스처로 채운다.
                 const MaterialResource& resource = renderer.m_materials[(material - 1).Get()];
@@ -2682,7 +2732,9 @@ namespace JBro
                     && commands.SetVertexBuffer(1, instances, static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
                     && commands.SetGraphicsConstants({materialConstants, SpriteMaterialPushBytes})
                     && commands.SetTexture(0, renderer.m_whiteTexture)
-                    && renderer.BindMaterialResources(commands, resource, renderer.m_linearSampler);
+                    && renderer.BindMaterialResources(commands, resource, renderer.m_linearSampler)
+                    && (resource.parameterBytes != 0 || commands.SetConstantBuffer(1, lightRange.buffer, lightRange.offset, lightRange.size))
+                    && commands.SetConstantBuffer(2, lightRange.buffer, lightRange.offset, lightRange.size);
             };
             UInt32 boundMaterial = renderer.m_meshRuns[view.runOffset.Get()].material;
             if (false == bindMaterial(boundMaterial))
@@ -2957,6 +3009,11 @@ namespace JBro
 
     Bool Renderer::CreateBuiltinMeshResources()
     {
+        // 메시마다 라이트 블록을 상수 링에 올린다(D-366).
+        if (false == m_postConstants.IsCreated() && false == m_postConstants.Create(*m_device, PostConstantRingBytes))
+        {
+            return false;
+        }
         if (m_device == nullptr
             || m_config.maxMeshSubmissions == 0
             || m_config.maxMeshSubmissions

@@ -6,6 +6,7 @@
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 #include <JBro/Framework3D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework3DSystem/System/Audio3DSystem.h>
+#include <JBro/Framework3DSystem/System/Light3DSystem.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
 #include <JBro/Asset/Asset.h>
@@ -429,6 +430,7 @@ namespace JBro
         meshes.SetRenderWorld(&m_renderWorld);
         meshes.SetMeshLibrary(&m_meshes);
         meshes.SetMaterialLibrary(&m_materials);
+        systems.AddSystem<System::Light3DSystem>().SetRenderWorld(&m_renderWorld);
         // 3D 텍스트(D-222). 폰트는 에셋 시스템에서, 페이지는 렌더러로 간다 - 둘 중 하나가 없으면(시스템 테스트) 그리지 않는다.
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);

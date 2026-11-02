@@ -239,6 +239,26 @@ namespace JBro
         Bool selfShadow = false;
     };
 
+    // 3D 라이트의 종류다(D-366). 캔버스의 `Light3DType` 과 같은 셋이고, 렌더러는 컴포넌트를 모르므로 제 이름을 둔다.
+    enum class Light3DKind : std::uint8_t
+    {
+        Directional,
+        Point,
+        Ambient,
+    };
+
+    // 열린 뷰에 내는 3D 라이트 하나다(D-366). `Directional` 은 `direction`(빛이 가는 쪽)으로, `Point` 는 `position` 에서 `range` 까지 비춘다.
+    // 라이트를 하나라도 낸 뷰의 메시는 이 라이트들로 비추고, 안 낸 뷰는 고정 방향광이다. 그림자는 없다.
+    struct Light3DSubmit
+    {
+        Light3DKind kind = Light3DKind::Directional;
+        Float position[3] = {0.0f, 0.0f, 0.0f};
+        Float direction[3] = {0.0f, 0.0f, -1.0f};
+        // 색 x 세기다. 1 을 넘어도 된다.
+        Float color[3] = {1.0f, 1.0f, 1.0f};
+        Float range = 10.0f;
+    };
+
     struct MeshSubmit
     {
         Matrix4x4 world;
@@ -337,6 +357,9 @@ namespace JBro
         UInt32 materialSpriteCount = 0;
         // 머티리얼로 그린 메시다(D-348).
         UInt32 materialMeshCount = 0;
+        // 뷰에 낸 3D 라이트(환경광 포함)와 뷰의 상한을 넘어 버린 것이다(D-366).
+        UInt32 light3DCount = 0;
+        UInt32 droppedLight3DCount = 0;
         // 죽은(빈 것이 아니라 지워진) 머티리얼을 든 스프라이트·효과다. 빌트인 셰이더(효과는 그대로 옮기기)로 그리고 센다.
         UInt32 staleMaterialCount = 0;
     };
@@ -411,6 +434,9 @@ namespace JBro
         Bool SubmitSprite(const SpriteSubmit& item);
         Bool SubmitSprites(JArrayView<SpriteSubmit> items);
         Bool SubmitMesh(const MeshSubmit& item);
+        // 열린 뷰에 3D 라이트를 낸다(D-366). 뷰마다 `MaxLights3D` 개까지이고(`Ambient` 는 세지 않는다) 넘치면 버리고 센다.
+        static constexpr UInt32 MaxLights3D = 16;
+        Bool SubmitLight3D(const Light3DSubmit& light);
         Bool SubmitMeshes(JArrayView<MeshSubmit> items);
         Bool SubmitWorldText(const WorldTextSubmit& item);
         Bool SubmitWorldTexts(JArrayView<WorldTextSubmit> items);
@@ -897,6 +923,15 @@ namespace JBro
         static_assert(offsetof(GpuTextInstance, outline) == 40, "text attribute 5 reads the outline colour from offset 40");
         static_assert(offsetof(GpuTextInstance, params) == 44, "text attribute 6 reads the params from offset 44");
 
+        // 뷰 하나의 3D 라이트 블록이다(D-366). `BuiltinMesh.hlsl` 의 `MeshLights`(b1)·머리글의 `JBroLights`(b2)와 같은 배치다.
+        struct GpuMeshLights
+        {
+            Float count[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            Float ambient[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            Float position[MaxLights3D.Get()][4] = {};
+            Float color[MaxLights3D.Get()][4] = {};
+        };
+        static_assert(sizeof(GpuMeshLights) == 544, "the light block is part of the shader ABI");
         // 메시 인스턴스 하나. 월드 4x4(행 넷)와 tint. `BuiltinMesh.hlsl` 의 ATTRIBUTE2..6 이 이것을 읽는다.
         struct GpuMeshInstance
         {
@@ -1200,6 +1235,8 @@ namespace JBro
         // 제출 하나마다 푼 머티리얼 자리(+1, 0 은 빌트인)와, 뷰에 나온 머티리얼의 차례다(D-348). 제출 상한만큼 미리 잡는다.
         Array<UInt32> m_meshMaterialOf;
         Array<UInt32> m_meshMaterialOrder;
+        // 뷰마다 하나다. `BeginView` 가 비우고 `SubmitLight3D` 가 채운다.
+        Array<GpuMeshLights> m_viewLights3D;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;

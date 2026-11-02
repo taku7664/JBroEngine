@@ -79,7 +79,7 @@ float4 PSMain(JBroSpriteInput input) : SV_TARGET
 #elif defined(JBRO_MATERIAL_MESH)
 float4 PSMain(JBroMeshInput input) : SV_TARGET
 {
-    const float4 color = input.tint * JBroMeshLight(input.normal) * noise.Sample(JBroLinearRepeat, input.uv);
+    const float4 color = float4(input.tint.rgb * JBroMeshLight(input.normal, input.worldPosition), input.tint.a) * noise.Sample(JBroLinearRepeat, input.uv);
     return lerp(color, color * tintColor, strength) + (invert ? 1.0f : 0.0f) * steps;
 }
 #else

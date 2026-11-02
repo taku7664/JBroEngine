@@ -11040,7 +11040,7 @@ namespace
         const JBro::AssetId shaderId = editor.GetAssetRegistry().FindByPath(shaderPath.c_str())->id;
         Check(editor.WriteAssetText(shaderId, "#include \"JBro/Material.hlsli\"\n"
                                               "float4 PSMain(JBroMeshInput input) : SV_TARGET\n{\n"
-                                              "    return float4(float3(1.0f, 0.0f, 1.0f) * JBroMeshLight(input.normal), 1.0f);\n}\n"),
+                                              "    return float4(float3(1.0f, 0.0f, 1.0f) * JBroMeshLight(input.normal, input.worldPosition), 1.0f);\n}\n"),
             "the mesh shader is written");
         const JBro::String materialPath = editor.CreateMaterialAsset("");
         const JBro::AssetId materialId = editor.GetAssetRegistry().FindByPath(materialPath.c_str())->id;

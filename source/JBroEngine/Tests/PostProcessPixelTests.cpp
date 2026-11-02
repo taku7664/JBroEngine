@@ -1174,7 +1174,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
 {
     if (input.uv.x < 0.5f)
     {
-        return float4(fillColor.rgb * input.tint.rgb * JBroMeshLight(input.normal), 1.0f);
+        return float4(fillColor.rgb * input.tint.rgb * JBroMeshLight(input.normal, input.worldPosition), 1.0f);
     }
     return float4(shade.Sample(JBroPointClamp, input.uv).rgb, 1.0f);
 }
@@ -1465,6 +1465,115 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         stage.Close(rhi);
     }
 
+    // **3D 라이트가 메시를 비춘다**(D-366). 법선 +z 인 판(z 0.5)에 라이트를 바꿔 가며 잰다. 라이트가 없으면 고정 방향광이고, 방향광은 법선과의 각으로, 점광은
+    // 거리로 줄며(1 - d / range)^2, 환경광은 더한다. 머티리얼의 `JBroMeshLight` 가 빌트인과 같은 값을 낸다. 상한을 넘은 라이트는 버리고 센다.
+    template <typename TModule>
+    void TestLight3DLightsAMesh()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == materialShaders.ready || false == stage.Open(rhi, "the 3D lights"))
+        {
+            return;
+        }
+        const JBro::MeshVertex vertices[] = {
+            {{-1.0f, -1.0f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}, {{1.0f, -1.0f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+            {{1.0f, 1.0f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}}, {{-1.0f, 1.0f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}}};
+        const JBro::UInt32 indices[] = {0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2};
+        const JBro::AssetHandle mesh = stage.renderer.RegisterMesh({vertices, 4}, {indices, 12});
+        Check(mesh.generation != 0, "the plate must register");
+        JBro::MaterialDesc desc;
+        desc.shader = &materialShaders.mesh;
+        JBro::Array<std::byte> parameters;
+        parameters.Resize(materialShaders.mesh.parameterBytes);
+        const float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        std::memcpy(parameters.Data(), white, sizeof(white));
+        desc.parameters = {parameters.Data(), static_cast<JBro::UInt32>(parameters.Size())};
+        const JBro::AssetHandle material = stage.renderer.RegisterMaterial(desc);
+        Check(material.generation != 0, "the mesh material is registered");
+
+        JBro::MeshSubmit plate;
+        plate.mesh = mesh;
+        plate.world = {{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}};
+        Effects hdr;
+        hdr.AddExposure(0.0f);
+        const auto expect = [&](const JBro::Array<JBro::Light3DSubmit>& lights, JBro::Float level, const char* message) {
+            for (const JBro::Bool useMaterial : {false, true})
+            {
+                plate.material = useMaterial ? material : JBro::AssetHandle{};
+                for (JBro::Int32 frame = 0; frame < 3; ++frame)
+                {
+                    stage.Frame(hdr, [&]() {
+                        for (const JBro::Light3DSubmit& light : lights)
+                        {
+                            stage.renderer.SubmitLight3D(light);
+                        }
+                        Check(stage.renderer.SubmitMesh(plate), "the plate must submit");
+                    });
+                }
+                // 머티리얼 셰이더는 UV 왼쪽 절반에 빛을 곱한다. 16 은 왼쪽이고 빌트인도 같은 값이다.
+                stage.Expect(16, 32, level, level, level, message);
+            }
+        };
+        JBro::Array<JBro::Light3DSubmit> lights;
+        const JBro::Float lambert = 0.45f / std::sqrt(0.4f * 0.4f + 0.8f * 0.8f + 0.45f * 0.45f);
+        expect(lights, 0.25f + 0.75f * lambert, "a view without lights keeps the fixed light");
+        Check(stage.renderer.GetLastFrameStats().light3DCount == 0, "and counts none");
+
+        // 정면(-z 로 가는 빛)은 온전히, 60 도는 반이다.
+        JBro::Light3DSubmit sun;
+        sun.direction[0] = 0.0f;
+        sun.direction[1] = 0.0f;
+        sun.direction[2] = -1.0f;
+        sun.color[0] = 0.6f;
+        sun.color[1] = 0.6f;
+        sun.color[2] = 0.6f;
+        lights.Add(sun);
+        expect(lights, 0.6f, "a directional light straight on is its colour");
+        Check(stage.renderer.GetLastFrameStats().light3DCount == 1, "the light is counted");
+        lights[0].direction[0] = std::sqrt(3.0f) * 0.5f;
+        lights[0].direction[2] = -0.5f;
+        expect(lights, 0.3f, "at sixty degrees it is half");
+        lights[0].direction[2] = 0.5f;
+        expect(lights, 0.0f, "from behind it does nothing and nothing replaces it");
+
+        // 환경광은 더한다.
+        JBro::Light3DSubmit ambient;
+        ambient.kind = JBro::Light3DKind::Ambient;
+        ambient.color[0] = 0.2f;
+        ambient.color[1] = 0.2f;
+        ambient.color[2] = 0.2f;
+        lights.Add(ambient);
+        expect(lights, 0.2f, "an ambient light adds everywhere");
+
+        // 점광: 판 바로 앞 1 만큼(가운데 픽셀 16, 32 는 x -0.5 다), range 4.
+        JBro::Light3DSubmit point;
+        point.kind = JBro::Light3DKind::Point;
+        point.position[0] = -0.5f;
+        point.position[2] = 1.5f;
+        point.color[0] = 0.8f;
+        point.color[1] = 0.8f;
+        point.color[2] = 0.8f;
+        point.range = 4.0f;
+        lights.Clear();
+        lights.Add(point);
+        expect(lights, 0.8f * 0.75f * 0.75f, "a point light fades with the square of the distance's remainder");
+
+        // 상한을 넘으면 버리고 센다.
+        lights.Clear();
+        for (JBro::UInt32 at = 0; at < JBro::Renderer::MaxLights3D + 2; ++at)
+        {
+            JBro::Light3DSubmit weak = sun;
+            weak.color[0] = 0.01f;
+            weak.color[1] = 0.01f;
+            weak.color[2] = 0.01f;
+            lights.Add(weak);
+        }
+        expect(lights, 0.16f, "sixteen lights reach the surface");
+        Check(stage.renderer.GetLastFrameStats().droppedLight3DCount == 2, "the rest are dropped and counted");
+        stage.Close(rhi);
+    }
+
     template <typename TModule>
     void RunOn()
     {
@@ -1487,6 +1596,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         TestAMaterialSpriteFallsInShadow<TModule>();
         TestASpriteMaterialShadesItsQuad<TModule>();
         TestAMeshMaterialShadesItsSurface<TModule>();
+        TestLight3DLightsAMesh<TModule>();
     }
 }
 

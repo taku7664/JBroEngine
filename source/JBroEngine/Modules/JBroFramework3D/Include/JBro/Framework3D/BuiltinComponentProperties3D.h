@@ -4,6 +4,7 @@
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/PostProcessVolume3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
@@ -32,6 +33,7 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Camera3D>()       && all;
             all = RegisterBuiltinProperties<PostProcessVolume3D>() && all;
             all = RegisterBuiltinProperties<MeshRenderer3D>() && all;
+            all = RegisterBuiltinProperties<Light3D>() && all;
             all = RegisterBuiltinProperties<Text3D>()         && all;
             all = RegisterBuiltinProperties<Rigidbody3D>()    && all;
             all = RegisterBuiltinProperties<Collider3D>()     && all;

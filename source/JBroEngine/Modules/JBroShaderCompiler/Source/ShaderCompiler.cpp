@@ -360,6 +360,11 @@ namespace JBro
                     {
                         break;
                     }
+                    // 메시의 라이트 블록은 엔진의 것이다(D-366).
+                    if (domain == MaterialDomain::Mesh && std::strcmp(bind.Name, "JBroLights") == 0 && bind.BindPoint == 2)
+                    {
+                        break;
+                    }
                     std::snprintf(line, sizeof(line), "cbuffer %s: a material reads only cbuffer Material at b1", bind.Name);
                     Append(error, line);
                     good = false;

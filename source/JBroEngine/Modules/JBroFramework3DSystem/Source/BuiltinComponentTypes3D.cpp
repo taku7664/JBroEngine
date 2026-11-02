@@ -4,6 +4,7 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/PostProcessVolume3D.h>
@@ -28,6 +29,7 @@ namespace JBro::Component
             all = RegisterComponentType<PostProcessVolume3D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<MeshRenderer3D>(ComponentCategory::Rendering) && all;
+            all = RegisterComponentType<Light3D>(ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Text3D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody3D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;

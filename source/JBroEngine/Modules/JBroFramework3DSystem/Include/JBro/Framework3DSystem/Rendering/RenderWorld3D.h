@@ -3,6 +3,7 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Graphics/PostProcess.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Color.h>
@@ -34,6 +35,18 @@ namespace JBro
         Color clearColor{0.08f, 0.09f, 0.11f, 1.0f};
         // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld3D::SetPostProcess` 로 건다.
         AssetHandle postProcessProfile;
+    };
+
+    // 이번 프레임에 뜬 3D 라이트다(D-366).
+    struct LightRenderItem3D
+    {
+        Object::GameObject* owner = nullptr;
+        Component::Light3DType type = Component::Light3DType::Directional;
+        Vector3 position;
+        Vector3 forward{0.0f, 0.0f, -1.0f};
+        Color color{1.0f, 1.0f, 1.0f, 1.0f};
+        Float intensity = 1.0f;
+        Float range = 10.0f;
     };
 
     struct MeshRenderItem
@@ -130,6 +143,9 @@ namespace JBro
             return order < m_layerPostProcess.Size() ? m_layerPostProcess[order] : Empty;
         }
         Bool SubmitMesh(const MeshRenderItem& item);
+        Bool SubmitLight(const LightRenderItem3D& item);
+        std::size_t GetLightCount() const;
+        const LightRenderItem3D& GetLight(std::size_t index) const;
         // 3D 텍스트의 글자다. 용량(`ReserveTexts`)을 넘으면 세고 버린다.
         Bool ReserveTexts(std::size_t capacity);
         Bool SubmitText(const WorldTextRenderItem& item);
@@ -155,6 +171,7 @@ namespace JBro
         Bool m_hasCamera = false;
         Array<MeshRenderItem> m_meshes;
         std::size_t m_droppedMeshCount = 0;
+        Array<LightRenderItem3D> m_lights;
         Array<WorldTextRenderItem> m_texts;
         std::size_t m_droppedTextCount = 0;
         mutable Array<UInt32> m_textOrder;

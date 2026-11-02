@@ -38,6 +38,7 @@
 #include <JBro/Framework3D/Handle/AudioListener3D.h>
 #include <JBro/Framework3D/Handle/Camera3D.h>
 #include <JBro/Framework3D/Handle/Collider3D.h>
+#include <JBro/Framework3D/Handle/Light3D.h>
 #include <JBro/Framework3D/Handle/MeshRenderer3D.h>
 #include <JBro/Framework3D/Handle/PostProcessVolume3D.h>
 #include <JBro/Framework3D/Handle/Rigidbody3D.h>

@@ -162,7 +162,7 @@ namespace JBro
                 {{View(JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS)), View(Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5)), View(Spv::JBroBuiltinMeshVS_SPV, sizeof(Spv::JBroBuiltinMeshVS_SPV))},
                     {View(JBroBuiltinMeshPS, sizeof(JBroBuiltinMeshPS)), View(Sm5::JBroBuiltinMeshPS_SM5, sizeof(Sm5::JBroBuiltinMeshPS_SM5)), View(Spv::JBroBuiltinMeshPS_SPV, sizeof(Spv::JBroBuiltinMeshPS_SPV))},
                     {}},
-                64, 1, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                64, 1, {1, 2}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
             {"OutlineGrow",
                 {{View(JBroBuiltinOutlineVS, sizeof(JBroBuiltinOutlineVS)), View(Sm5::JBroBuiltinOutlineVS_SM5, sizeof(Sm5::JBroBuiltinOutlineVS_SM5)), View(Spv::JBroBuiltinOutlineVS_SPV, sizeof(Spv::JBroBuiltinOutlineVS_SPV))},
                     {View(JBroBuiltinOutlineGrowPS, sizeof(JBroBuiltinOutlineGrowPS)), View(Sm5::JBroBuiltinOutlineGrowPS_SM5, sizeof(Sm5::JBroBuiltinOutlineGrowPS_SM5)), View(Spv::JBroBuiltinOutlineGrowPS_SPV, sizeof(Spv::JBroBuiltinOutlineGrowPS_SPV))},

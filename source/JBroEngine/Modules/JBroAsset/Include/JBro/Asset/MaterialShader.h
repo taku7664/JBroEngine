@@ -23,7 +23,7 @@ namespace JBro
         // 스프라이트 사각형이다(`SpriteRenderer2D.materialId`). t0 이 스프라이트의 텍스처, 입력에 틴트와 UV 가 온다.
         Sprite,
         // 3D 메시다(`MeshRenderer3D.materialId`, D-348). t0 은 없고, 입력에 월드 위치·법선·UV·틴트가 온다. 셰이더가 최종 색을 낸다 - 엔진의 빛은
-        // `JBroMeshLight(normal)` 로 곱한다.
+        // `JBroMeshLight(normal, worldPosition)` 로 곱한다(뷰의 `Light3D`, 없으면 고정 방향광, D-366).
         Mesh,
     };
     inline constexpr UInt32 MaterialDomainCount = 3;

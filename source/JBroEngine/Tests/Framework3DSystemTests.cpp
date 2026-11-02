@@ -9,6 +9,8 @@
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Framework3DSystem/System/Camera3DSystem.h>
+#include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Framework3DSystem/System/Light3DSystem.h>
 #include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
 #include <JBro/Framework3DSystem/System/Transform3DSystem.h>
 #include <JBro/Graphics/Renderer.h>
@@ -274,6 +276,20 @@ namespace
         // 머티리얼은 라이브러리가 렌더러의 것으로 풀어야 한다(D-348). 라이브러리가 없으면 비어 빌트인으로 그린다 - 에셋 핸들이 렌더러로 새지 않는다.
         Check(world.GetMesh(0).material.generation == 0, "without a material library the material asset handle does not reach the renderer");
         Check(hiddenMesh->mesh.generation == 0, "a hidden mesh is not even resolved");
+
+        // 켜진 `Light3D` 를 뜬다(D-366). 방향은 오브젝트의 앞(-Z)을 회전한 것이다.
+        auto* sunLight = canvas.AttachComponent<JBro::Component::Light3D>(shown);
+        Check(sunLight != nullptr, "a light attaches");
+        sunLight->intensity = 2.0f;
+        auto* hiddenLight = canvas.AttachComponent<JBro::Component::Light3D>(hidden);
+        hiddenLight->SetEnabled(false);
+        JBro::System::Light3DSystem lights;
+        lights.SetRenderWorld(&world);
+        lights.Initialize(canvas);
+        lights.Update(canvas, 1.0f / 60.0f);
+        Check(world.GetLightCount() == 1 && world.GetLight(0).owner == shown && Near(world.GetLight(0).intensity, 2.0f),
+            "only the enabled light is extracted with its values");
+        Check(Near(world.GetLight(0).forward.z, -1.0f), "an unturned object's light goes along -Z");
 
         // 용량을 넘으면 세기만 한다.
         world.BeginFrame();
