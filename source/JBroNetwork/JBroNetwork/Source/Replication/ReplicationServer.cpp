@@ -308,6 +308,40 @@ namespace JBro::Network
         m_transport.Send(connection, ReplicationSpawnMessage, message, SpawnMessageBytes, NetChannel::ReliableOrdered);
     }
 
+    Bool ReplicationServer::SetOwner(InstanceId object, ConnectionId owner)
+    {
+        ObjectRecord* record = FindRecord(object);
+        if (nullptr == record)
+        {
+            return false;
+        }
+        if (record->desc.owner == owner)
+        {
+            return true;
+        }
+        record->desc.owner = owner;
+        // 이미 스폰을 받은 클라이언트들에게는 바뀐 사실만 보낸다. 앞으로 붙는 클라이언트는 스폰에 실려 받는다.
+        for (const ClientState& client : m_clients)
+        {
+            SendOwner(client.connection, *record);
+        }
+        return true;
+    }
+
+    ConnectionId ReplicationServer::GetOwner(InstanceId object) const
+    {
+        const ObjectRecord* record = const_cast<ReplicationServer*>(this)->FindRecord(object);
+        return nullptr != record ? record->desc.owner : InvalidConnectionId;
+    }
+
+    void ReplicationServer::SendOwner(ConnectionId connection, const ObjectRecord& record)
+    {
+        std::uint8_t message[12];
+        UdpProto::WriteU32(message, record.id);
+        UdpProto::WriteU64(message + 4, record.desc.owner);
+        m_transport.Send(connection, ReplicationOwnerMessage, message, 12, NetChannel::ReliableOrdered);
+    }
+
     void ReplicationServer::SendDespawn(ConnectionId connection, NetworkObjectId id)
     {
         std::uint8_t message[DespawnMessageBytes];

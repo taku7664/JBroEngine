@@ -19,7 +19,8 @@ namespace JBro::Network
 
     // 세션 와이어 프로토콜 버전. 와이어(hello·프레이밍·데이터그램 헤더)가 바뀌면 올린다.
     // hello 때 양쪽이 교환·검증하고, 다르면 `VersionMismatch` 로 즉시 거부한다.
-    inline constexpr UInt32 ProtocolVersion = 1;
+    // 와이어가 바뀔 때마다 올린다. 2: HelloAck 이 클라이언트에게 그 연결의 번호를 알린다(소유 위임의 전제).
+    inline constexpr UInt32 ProtocolVersion = 2;
 
     // ── 열거 ───────────────────────────────────────────────────────────────────────────────────
 

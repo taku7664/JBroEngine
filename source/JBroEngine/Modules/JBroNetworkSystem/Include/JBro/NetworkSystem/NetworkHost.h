@@ -69,6 +69,7 @@ namespace JBro
         Bool IsConnected() const override;
         UInt32 GetConnectionCount() const override;
         Network::ConnectionId GetConnectionAt(UInt32 index) const override;
+        Network::ConnectionId GetLocalConnectionId() const override;
         double GetRoundTripMilliseconds(Network::ConnectionId connection) const override;
         double GetUdpLossRate(Network::ConnectionId connection) const override;
         Bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, UInt32 size,
@@ -79,6 +80,8 @@ namespace JBro
         Network::NetworkObjectId FindNetworkId(InstanceId object) const override;
         InstanceId FindLocalObject(Network::NetworkObjectId id) const override;
         Bool HasAuthority(InstanceId object) const override;
+        Bool SetObjectOwner(InstanceId object, Network::ConnectionId owner) override;
+        Network::ConnectionId GetObjectOwner(InstanceId object) const override;
 
         // ── IReplicationHost ──
         Bool DescribeObject(InstanceId object, Network::SpawnDesc& outDesc) override;

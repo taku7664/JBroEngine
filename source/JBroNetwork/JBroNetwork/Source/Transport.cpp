@@ -30,6 +30,13 @@ namespace JBro::Network
             UInt32 protocolVersion = 0;
         };
 
+        // 서버 → 클라이언트. 버전과 **그 연결의 번호**다(프로토콜 2).
+        struct HelloAckPayload
+        {
+            UInt32 protocolVersion = 0;
+            ConnectionId connection = InvalidConnectionId;
+        };
+
         struct ByePayload
         {
             std::uint8_t reason = 0;
@@ -251,6 +258,7 @@ namespace JBro::Network
             m_udpSocket = nullptr;
         }
         m_role = NetworkRole::None;
+        m_localConnectionId = InvalidConnectionId;
         m_udpUnavailable = false;
         m_nextClientId = ServerConnectionId + 1;
         // 꺼낸 적 없는 메시지 뷰는 여기서 무효가 된다 - `Update` 가 무효로 만드는 것과 같은 규약이다.
@@ -347,6 +355,11 @@ namespace JBro::Network
     NetworkRole Transport::GetRole() const
     {
         return m_role;
+    }
+
+    ConnectionId Transport::GetLocalConnectionId() const
+    {
+        return m_role == NetworkRole::Client ? m_localConnectionId : InvalidConnectionId;
     }
 
     Bool Transport::IsListening() const
@@ -1162,8 +1175,9 @@ namespace JBro::Network
                 SendSystem(connection, SystemBye, bye);
                 return;
             }
-            HelloPayload ack;
+            HelloAckPayload ack;
             ack.protocolVersion = m_config.protocolVersion;
+            ack.connection = connection.id;
             SendSystem(connection, SystemHelloAck, ack);
             PromoteToReady(connection);
             return;
@@ -1174,6 +1188,12 @@ namespace JBro::Network
             {
                 RequestClose(connection, DisconnectReason::Error);
                 return;
+            }
+            if (sizeof(HelloAckPayload) == size)
+            {
+                HelloAckPayload ack;
+                std::memcpy(&ack, payload, sizeof(ack));
+                m_localConnectionId = ack.connection;
             }
             PromoteToReady(connection);
             return;
@@ -1443,6 +1463,7 @@ namespace JBro::Network
         if (m_role == NetworkRole::Client && m_connections.IsEmpty())
         {
             m_role = NetworkRole::None;
+            m_localConnectionId = InvalidConnectionId;
             if (nullptr != m_udpSocket.Get())
             {
                 m_udpSocket->Close();

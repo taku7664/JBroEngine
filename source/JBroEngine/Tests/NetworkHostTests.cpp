@@ -348,6 +348,95 @@ namespace
         JBro::BindNetworkServiceContext({});
     }
 
+    // **소유권을 넘기면 권한이 그 클라이언트로 간다**(network-plan §3-9, 1 단계). 서버가 `SetObjectOwner` 로 지목하고,
+    // 클라이언트는 핸드셰이크에서 받은 자기 연결 번호로 "내 것" 을 가린다. 스폰에는 `SpawnDesc::owner` 로 실리고,
+    // 스폰 뒤에 바뀌면 `ReplicationOwnerMessage` 가 알린다.
+    //
+    // 아직 남은 것: 소유자가 쓴 값을 서버가 받아 다른 클라이언트에 퍼뜨리는 길(2 단계)과 예측·되감기다. 그래서 지금
+    // 권한은 "써도 되는가" 를 말해 주는 표식이고, 쓴 값이 망을 타고 가지는 않는다.
+    void TestOwnershipMovesAuthorityToTheClient()
+    {
+        JBro::Network::Testing::MemorySocketProvider provider;
+        JBro::Network::Testing::ManualClock clock;
+        Side server(provider, clock);
+        Side client(provider, clock);
+        Check(server.host.StartServer(7911), "the server starts");
+        Check(client.host.Connect("memory", 7911), "the client connects");
+        for (JBro::Int32 frame = 0; frame < 16; ++frame)
+        {
+            server.Frame();
+            client.Frame();
+            clock.Advance(5.0);
+        }
+        Check(server.host.GetConnectionCount() == 1, "they are connected");
+
+        // 클라이언트가 자기 번호를 배웠다 - 소유권 판정의 전제다(프로토콜 2 의 HelloAck).
+        const JBro::Network::ConnectionId mine = client.host.GetLocalConnectionId();
+        Check(JBro::Network::InvalidConnectionId != mine, "the client learned its own connection id");
+        Check(mine == server.host.GetConnectionAt(0), "and it is the number the server gave it");
+
+        JBro::Object::GameObject* object = server.canvas.CreateObject(nullptr);
+        Check(nullptr != object, "the server makes an object");
+        Check(nullptr != server.canvas.AttachComponent<JBro::Component::Transform2D>(object), "with a transform");
+        for (JBro::Int32 frame = 0; frame < 16; ++frame)
+        {
+            server.Frame();
+            client.Frame();
+            clock.Advance(5.0);
+        }
+        const JBro::Network::NetworkObjectId networkId = server.host.FindNetworkId(object->GetInstanceId());
+        Check(JBro::Network::InvalidNetworkObjectId != networkId, "the object replicates");
+        const JBro::InstanceId replica = client.host.FindLocalObject(networkId);
+        Check(JBro::InvalidInstanceId != replica, "and the client has it");
+
+        // 넘기기 전: 서버가 갖고 클라이언트는 없다.
+        Check(server.host.HasAuthority(object->GetInstanceId()), "the server starts with authority");
+        Check(false == client.host.HasAuthority(replica), "and the client has none");
+        Check(server.host.GetObjectOwner(object->GetInstanceId()) == JBro::Network::InvalidConnectionId,
+            "the owner is the server");
+
+        // 넘긴다.
+        Check(server.host.SetObjectOwner(object->GetInstanceId(), mine), "the server hands the object over");
+        for (JBro::Int32 frame = 0; frame < 16; ++frame)
+        {
+            server.Frame();
+            client.Frame();
+            clock.Advance(5.0);
+        }
+        Check(client.host.HasAuthority(replica), "now the client has authority");
+        Check(client.host.GetObjectOwner(replica) == mine, "and knows it owns it");
+        Check(false == server.host.HasAuthority(object->GetInstanceId()),
+            "and the server no longer claims what it gave away");
+
+        // 되찾는다.
+        Check(server.host.SetObjectOwner(object->GetInstanceId(), JBro::Network::InvalidConnectionId),
+            "the server takes it back");
+        for (JBro::Int32 frame = 0; frame < 16; ++frame)
+        {
+            server.Frame();
+            client.Frame();
+            clock.Advance(5.0);
+        }
+        Check(false == client.host.HasAuthority(replica), "the client's authority is gone");
+        Check(server.host.HasAuthority(object->GetInstanceId()), "and the server has it again");
+
+        // 늦게 온 클라이언트는 스폰에 실린 소유자를 그대로 받는다.
+        Check(server.host.SetObjectOwner(object->GetInstanceId(), mine), "hand it over once more");
+        Side late(provider, clock);
+        Check(late.host.Connect("memory", 7911), "a late client connects");
+        for (JBro::Int32 frame = 0; frame < 24; ++frame)
+        {
+            server.Frame();
+            client.Frame();
+            late.Frame();
+            clock.Advance(5.0);
+        }
+        const JBro::InstanceId lateReplica = late.host.FindLocalObject(networkId);
+        Check(JBro::InvalidInstanceId != lateReplica, "the late client has the object");
+        Check(late.host.GetObjectOwner(lateReplica) == mine, "and was told who owns it");
+        Check(false == late.host.HasAuthority(lateReplica), "which is not itself");
+    }
+
     void TestNoSocketsFailsQuietly()
     {
         JBro::Network::Testing::ManualClock clock;
@@ -374,6 +463,7 @@ JBro::Int32 RunNetworkHostTests()
         TestNothingIsBuiltUntilTheGameAsks();
         TestNoSocketsFailsQuietly();
         TestScriptServicesDriveASession();
+        TestOwnershipMovesAuthorityToTheClient();
     }
     catch (const std::exception& error)
     {

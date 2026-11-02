@@ -22,6 +22,8 @@ namespace JBro::Service
         Bool IsConnected() const;
         UInt32 GetConnectionCount() const;
         Network::ConnectionId GetConnectionAt(UInt32 index) const;
+        // **내 번호다.** 클라이언트에서만 뜻이 있다 - 소유권이 연결 번호로 오므로 "내 것" 을 가리는 데 쓴다.
+        Network::ConnectionId GetLocalConnectionId() const;
         // 아직 재지 않았거나 모르면 -1.
         double GetRoundTripMilliseconds(Network::ConnectionId connection) const;
         // 표본이 없거나 UDP 가 없으면 -1.

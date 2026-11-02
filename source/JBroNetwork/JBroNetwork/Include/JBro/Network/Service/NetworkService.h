@@ -44,6 +44,11 @@ namespace JBro::Service
         // 복제 표. 없으면 `InvalidNetworkObjectId` / `InvalidInstanceId`.
         Network::NetworkObjectId FindNetworkId(InstanceId object) const;
         InstanceId FindLocalObject(Network::NetworkObjectId id) const;
+        // **이 오브젝트를 내가 쓸 수 있는가.** 서버는 자기가 가진 것에, 클라이언트는 서버가 자기에게 넘긴 것에 참이다.
+        // 거짓인 쪽에서 상태를 바꾸면 다음 스냅숏이 덮어쓴다.
         Bool HasAuthority(InstanceId object) const;
+        // 서버 전용. 오브젝트를 어느 연결에 넘긴다. `InvalidConnectionId` 면 서버가 되찾는다.
+        Bool SetObjectOwner(InstanceId object, Network::ConnectionId owner) const;
+        Network::ConnectionId GetObjectOwner(InstanceId object) const;
     };
 }

@@ -104,6 +104,9 @@ namespace JBro::Network
 
         NetworkRole GetRole() const;
         Bool IsListening() const;
+        // **서버가 이 연결에 붙인 번호다.** 클라이언트만 뜻이 있다(서버·역할 없음은 `InvalidConnectionId`).
+        // 소유권이 "이 오브젝트는 3 번 연결의 것" 으로 오므로, 클라이언트가 자기 번호를 알아야 제 것인지 가린다.
+        ConnectionId GetLocalConnectionId() const;
         // hello 가 끝나기 전까지는 `Connecting` 이다.
         ConnectionState GetConnectionState(ConnectionId connection) const;
         UInt32 GetConnectionCount() const;
@@ -271,6 +274,7 @@ namespace JBro::Network
 
         // ── UDP ──
         Bool ListenOn(std::uint16_t port, Bool loopbackOnly);
+        ConnectionId m_localConnectionId = InvalidConnectionId;
         void OpenServerUdp(std::uint16_t port, Bool loopbackOnly);
         void AttachClientUdp(Connection& connection, UInt64 token);
         void AttachUdpPeer(Connection& connection);
