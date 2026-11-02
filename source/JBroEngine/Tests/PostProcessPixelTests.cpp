@@ -1254,6 +1254,81 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         stage.Close(rhi);
     }
 
+    // **머티리얼 스프라이트도 그림자를 받는다.** 그림자는 라이트맵을 깎고 엔진의 입구가 그 라이트맵을 곱하므로 별도의 길이 없다. 왼쪽의 라이트(0.8)가 비추는
+    // 초록 머티리얼 바닥 가운데에 작은 상자(그림자 변 넷)가 있다 - 상자 뒤는 검고, 옆을 지나는 빛과 앞은 초록 0.8 이다. HDR 장면(노출 0)에서도 같다.
+    // 같은 자리를 빌트인 바닥으로 그려 머티리얼이 빌트인과 같은 그림자를 받는지 견준다.
+    template <typename TModule>
+    void TestAMaterialSpriteFallsInShadow()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == materialShaders.ready || false == stage.Open(rhi, "the shadow on a material sprite"))
+        {
+            return;
+        }
+        JBro::MaterialDesc desc;
+        desc.shader = &materialShaders.sprite;
+        JBro::Array<std::byte> parameters;
+        parameters.Resize(materialShaders.sprite.parameterBytes);
+        const float green[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+        std::memcpy(parameters.Data(), green, sizeof(green));
+        desc.parameters = {parameters.Data(), static_cast<JBro::UInt32>(parameters.Size())};
+        const JBro::AssetHandle material = stage.renderer.RegisterMaterial(desc);
+        Check(material.generation != 0, "the sprite material is registered");
+
+        JBro::Light2DSubmit light;
+        light.kind = JBro::Light2DKind::Point;
+        light.position[0] = -0.6f;
+        light.color[0] = 0.8f;
+        light.color[1] = 0.8f;
+        light.color[2] = 0.8f;
+        light.innerRadius = 2.5f;
+        light.outerRadius = 3.0f;
+        light.castShadows = true;
+        const JBro::Float corners[4][2] = {{-0.1f, -0.1f}, {0.1f, -0.1f}, {0.1f, 0.1f}, {-0.1f, 0.1f}};
+        JBro::ShadowEdge2D box[4];
+        for (JBro::Int32 at = 0; at < 4; ++at)
+        {
+            const JBro::Int32 next = (at + 1) % 4;
+            box[at].from[0] = corners[at][0];
+            box[at].from[1] = corners[at][1];
+            box[at].to[0] = corners[next][0];
+            box[at].to[1] = corners[next][1];
+        }
+        JBro::SpriteSubmit ground = Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f);
+        const auto draw = [&](const Effects& view) {
+            // 라이트맵과 마스크, HDR 장면은 처음 바란 프레임의 다음부터 선다.
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                stage.Frame(view, [&]() {
+                    Check(stage.renderer.SubmitLight2D(light), "the shadowed light must submit");
+                    Check(stage.renderer.SubmitShadowEdges2D({box, 4}), "the box edges must submit");
+                    Check(stage.renderer.SetSpriteLighting(true), "lighting must turn on");
+                    Check(stage.renderer.SubmitSprite(ground), "the ground must submit");
+                });
+            }
+            Check(stage.renderer.GetLastFrameStats().shadowedLight2DCount == 1, "the light casts its shadow");
+        };
+        Effects none;
+        Effects hdr;
+        hdr.AddExposure(0.0f);
+        for (const Effects* view : {&none, &hdr})
+        {
+            ground.material = material;
+            draw(*view);
+            Check(stage.renderer.GetLastFrameStats().materialSpriteCount == 1, "the ground is drawn with its material");
+            stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "behind the box the material ground is dark");
+            stage.Expect(48, 13, 0.0f, 0.8f, 0.0f, "light passing beside the box reaches the material ground");
+            stage.Expect(22, 32, 0.0f, 0.8f, 0.0f, "in front of the box it reaches too");
+
+            ground.material = {};
+            draw(*view);
+            stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "the built-in ground is dark in the same place");
+            stage.Expect(48, 13, 0.8f, 0.8f, 0.8f, "and lit in the same place");
+        }
+        stage.Close(rhi);
+    }
+
     // **머티리얼 스프라이트는 그 셰이더로 그려진다.** 흰 사각형 둘 중 왼쪽만 초록 머티리얼이다. HDR 장면(노출 0)에서도 같다 - 장면 포맷마다 파이프라인이 있다.
     // 머티리얼을 지우면 그 스프라이트는 빌트인으로 그려지고 센다.
     template <typename TModule>
@@ -1409,6 +1484,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         TestALayersColourEffectSeesStraightColour<TModule>();
         TestAViewLaidOnAsALayerTakesItsEffects<TModule>();
         TestAMaterialEffectDrawsTheView<TModule>();
+        TestAMaterialSpriteFallsInShadow<TModule>();
         TestASpriteMaterialShadesItsQuad<TModule>();
         TestAMeshMaterialShadesItsSurface<TModule>();
     }
