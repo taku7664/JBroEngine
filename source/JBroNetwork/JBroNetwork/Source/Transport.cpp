@@ -62,7 +62,7 @@ namespace JBro::Network
             return channel == NetChannel::ReliableOrdered || channel == NetChannel::ReliableUnordered;
         }
 
-        // `ws://` 접두를 벗긴다. `wss://` 는 아직 받지 않는다(TLS 는 §3-9).
+        // `ws://` 접두를 벗긴다. `wss://` 는 아직 받지 않는다(TLS 는 §3-11).
         const char* StripScheme(const char* host)
         {
             if (0 == std::strncmp(host, "ws://", 5))

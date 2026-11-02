@@ -371,8 +371,8 @@ namespace JBro
         return m_client->FindLocal(id);
     }
 
-    // **권한은 오브젝트마다다**(network-plan §3-9 1 단계). 서버는 자기가 가진 것에, 클라이언트는 서버가 넘긴 것에 참이다.
-    // 아직 남은 것: 소유자가 쓴 값을 서버가 받아 다른 클라이언트에 퍼뜨리는 길(2 단계)과 예측·되감기.
+    // **권한은 오브젝트마다다**(network-plan §3-9). 서버는 자기가 가진 것에, 클라이언트는 서버가 넘긴 것에 참이다.
+    // 아직 남은 것은 예측·되감기다(§3-11) - 소유자의 쓰기는 서버를 거쳐 퍼진다.
     Bool NetworkHost::HasAuthority(InstanceId object) const
     {
         if (m_transport.GetRole() == Network::NetworkRole::Server)
