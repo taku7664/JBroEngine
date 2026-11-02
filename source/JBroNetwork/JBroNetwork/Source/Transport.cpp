@@ -55,7 +55,7 @@ namespace JBro::Network
             return channel == NetChannel::ReliableOrdered || channel == NetChannel::ReliableUnordered;
         }
 
-        // `ws://` 접두를 벗긴다. `wss://` 는 아직 받지 않는다(TLS 는 §3-7).
+        // `ws://` 접두를 벗긴다. `wss://` 는 아직 받지 않는다(TLS 는 §3-9).
         const char* StripScheme(const char* host)
         {
             if (0 == std::strncmp(host, "ws://", 5))
@@ -163,6 +163,16 @@ namespace JBro::Network
 
     Bool Transport::Listen(std::uint16_t port)
     {
+        return ListenOn(port, false);
+    }
+
+    Bool Transport::ListenLoopback(std::uint16_t port)
+    {
+        return ListenOn(port, true);
+    }
+
+    Bool Transport::ListenOn(std::uint16_t port, Bool loopbackOnly)
+    {
         if (m_role != NetworkRole::None)
         {
             return false;
@@ -172,14 +182,14 @@ namespace JBro::Network
         {
             return false;
         }
-        if (false == listener->Listen(port))
+        if (false == (loopbackOnly ? listener->ListenLoopback(port) : listener->Listen(port)))
         {
             return false;
         }
         EnsureBuffers();
         m_listener = std::move(listener);
         m_role = NetworkRole::Server;
-        OpenServerUdp(port);
+        OpenServerUdp(port, loopbackOnly);
         return true;
     }
 
@@ -1443,7 +1453,7 @@ namespace JBro::Network
 
     // ── UDP ─────────────────────────────────────────────────────────────────────────────────────
 
-    void Transport::OpenServerUdp(std::uint16_t port)
+    void Transport::OpenServerUdp(std::uint16_t port, Bool loopbackOnly)
     {
         if (false == m_config.udpEnabled)
         {
@@ -1455,7 +1465,12 @@ namespace JBro::Network
             return;
         }
         // WS 와 같은 번호다. 포트 이름 공간이 다르니 겹치지 않고, 방화벽에는 둘 다 열어야 한다. 못 잡으면 UDP 없이 간다.
-        if (false == socket->Open() || false == socket->Bind(port))
+        // WS 를 루프백에만 열었으면 UDP 도 루프백에만 연다 - 한쪽만 망에 열리면 루프백 전용이라는 말이 거짓이 된다.
+        if (false == socket->Open())
+        {
+            return;
+        }
+        if (false == (loopbackOnly ? socket->BindLoopback(port) : socket->Bind(port)))
         {
             return;
         }

@@ -352,13 +352,23 @@ namespace JBro::Network::Native
 
     Bool WinsockDatagramSocket::Bind(std::uint16_t port)
     {
+        return BindOn(INADDR_ANY, port);
+    }
+
+    Bool WinsockDatagramSocket::BindLoopback(std::uint16_t port)
+    {
+        return BindOn(INADDR_LOOPBACK, port);
+    }
+
+    Bool WinsockDatagramSocket::BindOn(UInt32 hostAddress, std::uint16_t port)
+    {
         if (InvalidHandle == m_socket && false == Open())
         {
             return false;
         }
         sockaddr_in address = {};
         address.sin_family = AF_INET;
-        address.sin_addr.s_addr = INADDR_ANY;
+        address.sin_addr.s_addr = htonl(hostAddress);
         address.sin_port = htons(port);
         return 0 == bind(ToSocket(m_socket), reinterpret_cast<sockaddr*>(&address), sizeof(address));
     }

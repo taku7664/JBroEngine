@@ -374,7 +374,7 @@ namespace JBro
     Bool NetworkHost::HasAuthority(InstanceId object) const
     {
         (void)object;
-        // 서버가 모든 권한을 갖는다. 소유 위임과 예측은 열어 둔 것이다(network-plan §3-7).
+        // 서버가 모든 권한을 갖는다. 소유 위임과 예측은 열어 둔 것이다(network-plan §3-9).
         return m_transport.GetRole() == Network::NetworkRole::Server;
     }
 
