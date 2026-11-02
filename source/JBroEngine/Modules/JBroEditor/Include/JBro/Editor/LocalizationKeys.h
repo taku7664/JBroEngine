@@ -738,6 +738,7 @@ namespace JBro::LocKeys
     inline constexpr const char* NotifyScriptsReloadPending = "notify.scripts_reload_pending";
     inline constexpr const char* NotifyScriptFieldsNotRead = "notify.script_fields_not_read";
     inline constexpr const char* NotifyScriptFieldsNotReadWhy = "notify.script_fields_not_read_why";
+    inline constexpr const char* NotifyScriptFieldsNotReadInserted = "notify.script_fields_not_read_inserted";
     inline constexpr const char* EditorSettingsSearchHint = "editor_settings.search_hint";
     inline constexpr const char* EditorSettingsPressKey = "editor_settings.press_key";
     inline constexpr const char* EditorSettingsCaptureHint = "editor_settings.capture_hint";

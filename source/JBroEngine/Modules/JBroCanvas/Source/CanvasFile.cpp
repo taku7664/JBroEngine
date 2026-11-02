@@ -476,10 +476,14 @@ namespace JBro
 
         // 오브젝트를 만든다. **모두 만든 뒤 컴포넌트를 읽는다**(D-233) - 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다. 실패해도 만든 것은
         // `created` 에 남는다 - 거두는 것은 부르는 쪽이다.
-        // `scriptNotes` 가 있으면 스크립트 필드를 너그럽게 읽고(`ReadScriptFieldsLenient`) 잇지 못한 것을 거기 남긴다. 없으면 빌트인과 같이 엄격하다.
+        // 스크립트 필드는 언제나 너그럽게 읽고(`ReadScriptFieldsLenient`) 잇지 못한 것을 `scriptNotes` 에 남긴다(D-349, D-364). 목록은 없어도 된다 -
+        // 목록을 받지 않는 쪽만 못 여는 길이 생기지 않게 한다.
         Bool ReadObjects(Canvas& canvas, const YamlDocument& document, UInt32 objects, const ObjectLayerRule& rule,
-            Array<Object::GameObject*>& created, CanvasFileError& error, Array<ScriptResolveNote>* scriptNotes = nullptr)
+            Array<Object::GameObject*>& created, CanvasFileError& error, Array<ScriptResolveNote>* scriptNotes)
         {
+            Array<ScriptResolveNote> discardedNotes;
+            Array<ScriptResolveNote>& notes = scriptNotes != nullptr ? *scriptNotes : discardedNotes;
+            notes.Clear();
             // **뿌리 차례는 파일 차례다.** 이미 있던 뿌리는 먼저 자리를 잡게 하고(지금의 보이는 순서 그대로), 읽은 뿌리는 아래에서 파일 차례로 뒤에 붙인다.
             Array<Object::GameObject*> existingRoots;
             canvas.GetRootObjects(existingRoots);
@@ -661,13 +665,11 @@ namespace JBro
             {
                 error.objectName = created[fields.object]->GetName();
                 document.FindScalar(fields.saved, "Type", error.typeName);
-                const PropertyTable* scriptTable = fields.script != nullptr && scriptNotes != nullptr
-                    ? PropertyRegistry::Lookup(fields.typeId)
-                    : nullptr;
+                const PropertyTable* scriptTable = fields.script != nullptr ? PropertyRegistry::Lookup(fields.typeId) : nullptr;
                 if (scriptTable != nullptr)
                 {
                     ReadScriptFieldsLenient(document, fields.saved, *scriptTable, fields.script,
-                        error.objectName, error.typeName, *scriptNotes);
+                        error.objectName, error.typeName, notes);
                 }
                 else
                 {
@@ -804,10 +806,6 @@ namespace JBro
         Array<ScriptResolveNote>* scriptNotes)
     {
         error = CanvasFileError{};
-        // 부르는 쪽이 목록을 넘기지 않아도 스크립트는 너그럽게 읽는다 - 목록이 없다고 캔버스를 못 여는 길이 생기지 않게 한다.
-        Array<ScriptResolveNote> discardedNotes;
-        Array<ScriptResolveNote>& notes = scriptNotes != nullptr ? *scriptNotes : discardedNotes;
-        notes.Clear();
         if (canvas.GetObjectCount() != 0)
         {
             return Fail(error, "a canvas must be empty before a file is read into it");
@@ -880,7 +878,7 @@ namespace JBro
         Array<Object::GameObject*> created;
         ObjectLayerRule rule;
         rule.layerOf = &layerOf;
-        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error, &notes))
+        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error, scriptNotes))
         {
             return false;
         }
@@ -944,7 +942,8 @@ namespace JBro
         return true;
     }
 
-    Bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error)
+    Bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error,
+        Array<ScriptResolveNote>* scriptNotes)
     {
         error = CanvasFileError{};
         created = InvalidLayerId;
@@ -981,7 +980,7 @@ namespace JBro
         Array<Object::GameObject*> objects;
         ObjectLayerRule rule;
         rule.fixedLayer = layer.GetId();
-        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, objects, error))
+        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, objects, error, scriptNotes))
         {
             // **반쯤 들어온 것을 남기지 않는다.** 만든 오브젝트와 레이어를 거둔다 - 캔버스는 읽기 전 그대로다.
             for (std::size_t i = objects.Size(); i > 0; --i)
@@ -1057,7 +1056,7 @@ namespace JBro
     }
 
     Bool ReadObjectsText(Canvas& canvas, const char* text, std::size_t length, const ObjectsTextTarget& target,
-        Array<Object::GameObject*>& roots, CanvasFileError& error)
+        Array<Object::GameObject*>& roots, CanvasFileError& error, Array<ScriptResolveNote>* scriptNotes)
     {
         error = CanvasFileError{};
         roots.Clear();
@@ -1105,7 +1104,7 @@ namespace JBro
         rule.dropInstanceRefs = target.session == nullptr || session.empty() || session != target.session;
 
         Array<Object::GameObject*> created;
-        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error))
+        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error, scriptNotes))
         {
             // **반쯤 들어온 것을 남기지 않는다.** 레이어 에셋 읽기와 같다.
             for (std::size_t i = created.Size(); i > 0; --i)

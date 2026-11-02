@@ -3056,6 +3056,17 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-364. 레이어 에셋과 오브젝트 클립보드의 스크립트 필드도 캔버스 파일과 같이 읽는다. 에디터는 넣을 때 잇지 못한 필드를 로그와 경고 알림으로 알린다.**
+  (2026-11-03, [cpp-script-plan.md](./cpp-script-plan.md) §3.5 남은 것. 사용자 지시 "고쳐" - D-349 가 남긴 것)
+  Updates: D-349 (3)(둘을 엄격한 채로 둔 것), D-287(레이어 에셋 읽기), D-321(오브젝트 클립보드 읽기).
+  (1) `ReadLayerText`·`ReadObjectsText` 도 `scriptNotes` 를 받는다. `ReadObjects` 가 스크립트 필드를 언제나 `ReadScriptFieldsLenient` 로 읽어, 엄격한 길이 없어졌다. 빌트인 컴포넌트는 그대로 엄격하다.
+  (2) D-349 가 둘을 넓히지 않은 까닭은 알림을 받을 자리가 없어서였다. `AddLayerFromAssetCommand`·`PasteObjectsTextCommand` 가 첫 실행의 목록을 들고(`GetScriptNotes`) 에디터의 `AddLayerFromAsset`·`PasteLayer`·`PasteClipboard` 가 `NotifyScriptFieldsNotRead` 로 알린다. 다시 하기는 떠 둔 스냅샷을 되살리므로 다시 알리지 않는다.
+  (3) 알림의 설명은 캔버스 열기와 다르다(`notify.script_fields_not_read_inserted`). 에셋과 클립보드의 글자는 그대로이고 값이 빠지는 것은 넣은 사본이라 "저장하면 파일에서 빠진다" 를 쓰지 않는다.
+  (4) 시험(`ScriptHotReload`): `TestALayerAndTheClipboardReadAScriptThatLostAField` 가 한 판으로 쓴 레이어·오브젝트 글자를 필드를 지우고 타입을 바꾸고 더한 판으로 읽어 남은 값·기본값·켜짐·오브젝트 참조·알림 둘을 본다. `TestTheEditorWarnsWhenWhatItInsertsLostAField` 는 시험 DLL 을 실은 에디터에서 글자에 코드에 없는 필드를 넣어 붙여넣기·레이어 붙여넣기·레이어 에셋이 각각 경고하는지, 그대로인 글자와 다시 하기는 알리지 않는지 본다.
+  뮤테이션 셋이 겨냥한 검사에서 죽었다: 레이어 에셋의 알림을 뺌("and the lost field is announced"), 레이어 붙여넣기의 알림을 뺌(같은 검사), 클립보드 읽기에 목록을 넘기지 않음("the removed field and the changed one are each reported once"). 붙여넣기의 알림을 뺀 변이는 돌리지 않았다.
+  전체 시험(Debug, 이 PC 의 main 폴더, 기준 3c374755): 127 묶음이 모두 지났다(`all tests passed.`). Debug·Debug_Game2D 빌드 경고 0. 그 뒤 main 에 들어온 시험 `PostProcessPixel` 과의 합친 판은 그 묶음과 `ScriptHotReload` 만 다시 돌렸다.
+  **섰다 - 실제 에디터 창에서 알림을 보는 확인은 남았다(시험은 알림의 무게와 제목까지 본다).**
+
 - **D-363. 3D 스크립트를 돌리고 화면 UI 를 연다 - 스크립트 시스템을 새 공용 모듈 `JBroScriptRuntime` 으로 옮겨 3D 프레임워크도 세우고, 3D 스크립트의 기반 타입 `GameScript3D` 에 화면 UI 훅을 두며, 3D 스크립트 SDK 에 화면 UI 핸들만 연다.**
   (2026-11-01, [ui-plan.md](./ui-plan.md) §7.9. 사용자 지시 "열어줘", "둘 다 권고안대로" - 권고안은 런타임을 먼저 세우고 UI 훅·핸들을 여는 것이다.)
   Updates: D-362 (5)(3D 스크립트의 UI 핸들·훅은 열림 → 엶), D-207(2D 의 `GameScript2D` 규칙을 3D 의 `GameScript3D` 에도 둔다), ProjectRule §4 의 "선택하지 않은 Framework 의 헤더는 스크립트 타깃 include 경로에 넣지 않는다"(3D 는 화면 UI 핸들에 한해 2D 를 본다).
@@ -3244,14 +3255,14 @@ EditorApplication::Tick
   Updates: D-300 (2)(파일 읽기는 여전히 멈춘다던 것), D-264, cpp-script-plan §3.5·§4.
   (1) **왜.** 사용자는 에디터를 끈 채 스크립트를 고친다. 다음에 켜면 새 DLL 이 먼저 실려 캔버스의 스크립트가 곧바로 붙고, 그때 `JBRO_FIELD` 하나를 지웠거나 이름을 바꿨으면 `ReadCanvasText` 가 "this file has a field the engine no longer knows" 로 멈춰 **그 캔버스를 열 길이 없었다**. 에디터를 켠 채 빌드하면 핫 리로드가 경고만 하고 넘어가 같은 변경인데 여는 길에 따라 결과가 달랐다.
   (2) **한 함수.** 캔버스 모듈의 `ReadScriptFieldsLenient` 를 파일 읽기(`ReadCanvasText`)와 핫 리로드(`ResolveKeptScripts`)가 함께 쓴다. 잇지 못한 자리는 `ScriptResolveNote`(`FieldDropped`·`FieldUnreadable`)로 돌려준다 - `ReadCanvasText` 의 새 인자 `scriptNotes`(없으면 버린다).
-  (3) **엄격한 채로 둔 것.** 빌트인 컴포넌트(엔진이 모두 안다 - 지운 필드는 엔진 개발자의 일이고 사람이 알아야 한다), 레이어 에셋(`ReadLayerText`)과 오브젝트 클립보드(`ReadObjectsText`)의 스크립트. 뒤의 둘은 이번에 넓히지 않았다 - 알림을 받을 자리가 없어 조용히 버리게 된다.
+  (3) **엄격한 채로 둔 것.** 빌트인 컴포넌트(엔진이 모두 안다 - 지운 필드는 엔진 개발자의 일이고 사람이 알아야 한다), 레이어 에셋(`ReadLayerText`)과 오브젝트 클립보드(`ReadObjectsText`)의 스크립트. 뒤의 둘은 이번에 넓히지 않았다 - 알림을 받을 자리가 없어 조용히 버리게 된다. → 뒤의 둘은 D-364 가 알림과 함께 넓혔다.
   (4) **알림.** 에디터는 캔버스를 열 때 필드마다 로그 한 줄과 경고 알림 하나(`저장된 스크립트 필드 값 N개를 불러오지 못했습니다`)를 낸다. 여는 것만으로 저장 안 됨으로 만들지 않는다 - 저장하면 버린 값이 파일에서도 빠지고, 저장하지 않으면 다음에 열 때 다시 알린다. 게임 실행 파일은 로그에만 남긴다(게임 빌드는 캔버스 파일을 그대로 묶는다).
   (5) 시험: `ScriptHotReload` 의 `TestACanvasOpensAfterItsScriptLostAField` - 한 판으로 저장한 캔버스를 필드를 지우고 타입을 바꾸고 더한 판으로 읽어, 남은 값·기본값·켜짐·오브젝트 참조·알림 둘·다시 저장한 글자에서 빠진 필드·목록 없이 부르는 쪽을 본다. 빌트인이 여전히 멈추는 것은 `CanvasFile` 의 `TestReadingRefusesRatherThanGuessing` 이 본다.
   (6) 검증(2026-10-29, 브랜치 `claude/script-fields-on-open`): Debug·Debug_Game2D 솔루션 빌드 경고 0, `JBRO_TESTS=ScriptHotReload,CanvasFile` 통과. 파일 읽기를 엄격하게 되돌린 변이(`ReadObjects` 에 목록 대신 nullptr)를 새 시험이 "the canvas opens although a field is gone" 에서 잡았다.
   전체 시험: 처음에는 2026-10-28 Windows 업데이트가 깐 VS 18.11.2 가 SDK 22621 의 레지스트리 키와 `System32\ucrtbased.dll` 을 지워 스크립트 빌드 시험(MSB8036)과 실행 파일을 옮겨 띄우는 시험(`0xC0000135`)이 실패했다. SDK 를 다시 깐 뒤
   `EditorApplication` 앞의 묶음 77 개와 뒤의 묶음 51 개(`UserScenario`·`ScriptBuild`·`EditorLocalization` 포함)가 지났다. `EditorApplication` 은 셰이더 인스펙터 시험의 "the shader inspector offers to open the file" 에서 멈춘다 -
   **main(72f500f2)도 같은 자리에서 같이 멈춘다**(같은 날 같은 PC 에서 잼). ~~D-348 의 전체 통과 뒤에 바뀐 것은 이 PC 의 VS·SDK 뿐이라 그쪽을 의심하지만 원인은 확인하지 않았다.~~ VS·SDK 탓이 아니었다 - 한글 작업 폴더에서 셰이더 오류의 경로를 떼지 못한 결함이다(D-350).
-  **섰다 - 레이어 에셋·클립보드의 스크립트 필드와 실제 에디터 창에서의 확인이 남았다.**
+  **섰다 - ~~레이어 에셋·클립보드의 스크립트 필드와~~ 실제 에디터 창에서의 확인이 남았다(앞의 것은 D-364).**
 
 - **D-348. 머티리얼의 자리에 `Mesh` 가 는다. 머티리얼 스프라이트는 엔진의 입구가 라이트맵을 곱해 빛을 받는다(머티리얼 텍스처는 t1..t6, t7 은 라이트맵). 스크립트는 공통 서비스 `Material` 로 머티리얼 에셋의 파라미터를 덮어쓰고, 볼륨은 같은 셰이더의 두 머티리얼을 파라미터로 섞는다. 셰이더 에셋에도 인스펙터가 선다.**
   (2026-10-28, [postprocess-plan.md](./postprocess-plan.md) §3.15. 사용자 지시 "남은작업 순차적으로 전부 진행 ㄱㄱ"·"위키제외", 사용자 결정: 메시 머티리얼 "최종 색 + 빛 도우미", 스프라이트 빛 "엔진이 자동으로 곱함", 파라미터 "에셋 단위 + 볼륨 섞기")

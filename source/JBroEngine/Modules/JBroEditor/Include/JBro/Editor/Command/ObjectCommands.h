@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/ComponentSnapshot.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
@@ -282,6 +283,11 @@ namespace JBro
         {
             return m_error;
         }
+        // 처음 읽을 때 잇지 못한 스크립트 필드다(D-364). 다시 하기는 떠 둔 것을 되살리므로 새로 생기지 않는다.
+        const Array<ScriptResolveNote>& GetScriptNotes() const
+        {
+            return m_scriptNotes;
+        }
 
     private:
         Canvas* m_canvas = nullptr;
@@ -294,5 +300,6 @@ namespace JBro
         Bool m_captured = false;
         Bool m_present = false;
         String m_error;
+        Array<ScriptResolveNote> m_scriptNotes;
     };
 }

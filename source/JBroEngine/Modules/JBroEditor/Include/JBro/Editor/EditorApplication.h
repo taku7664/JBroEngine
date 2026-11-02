@@ -833,6 +833,8 @@ namespace JBro
         void NotifyScriptCreated(const String& headerPath, const char* className);
         // 캔버스에 모르는 스크립트(타입이 스크립트 DLL 에 없는 것)가 있으면 경고 알림을 띄운다. 그 스크립트는 저장된 그대로 남고 돌지 않는다.
         void NotifyUnresolvedScripts();
+        // 레이어 에셋·클립보드에서 넣은 스크립트의 필드를 잇지 못했다고 알린다(D-364). 필드마다 로그에 적는다. 없으면 아무것도 하지 않는다.
+        void NotifyScriptFieldsNotRead(const Array<ScriptResolveNote>& notes);
         // 새 프로젝트 이름을 검사한다(`CheckProjectName`). 새 프로젝트 팝업이 치는 동안 묻는다.
         ProjectCreateFailure CheckProjectName(const char* parentFolder, const char* name);
         // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 비어 있지 않으면 아무것도 하지 않는다.

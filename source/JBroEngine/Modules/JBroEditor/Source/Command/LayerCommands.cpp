@@ -576,7 +576,7 @@ namespace JBro
         }
         CanvasFileError error;
         LayerId created = InvalidLayerId;
-        if (false == ReadLayerText(*m_canvas, m_text.c_str(), m_text.size(), created, error))
+        if (false == ReadLayerText(*m_canvas, m_text.c_str(), m_text.size(), created, error, &m_scriptNotes))
         {
             m_error = error.message;
             return false;

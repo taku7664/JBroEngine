@@ -1963,6 +1963,26 @@ namespace JBro
         }
     }
 
+    void EditorApplication::NotifyScriptFieldsNotRead(const Array<ScriptResolveNote>& notes)
+    {
+        if (notes.IsEmpty())
+        {
+            return;
+        }
+        LogScriptResolveNotes(notes);
+        char title[160];
+        std::snprintf(title, sizeof(title),
+            Loc::TextOr(LocKeys::NotifyScriptFieldsNotRead, "%zu saved script field value(s) could not be read"), notes.Size());
+        NotificationDesc desc;
+        desc.level = NotificationLevel::Warning;
+        desc.title = title;
+        // 레이어 에셋과 클립보드의 글자는 그대로다 - 빠지는 것은 넣은 사본이다. 파일에서 빠진다는 캔버스의 말을 쓰지 않는다.
+        desc.message = Loc::TextOr(LocKeys::NotifyScriptFieldsNotReadInserted,
+            "Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. See the log for each field");
+        desc.id = "script_fields_not_read";
+        m_notifications.Notify(std::move(desc));
+    }
+
     Bool EditorApplication::ReadCanvasFile(const char* path, CanvasFileError& error)
     {
         error = CanvasFileError{};
@@ -2127,6 +2147,7 @@ namespace JBro
             Log::Write(LogLevel::Error, "editor", "the copied layer could not be pasted: %s", raw->GetError().c_str());
             return InvalidLayerId;
         }
+        NotifyScriptFieldsNotRead(raw->GetScriptNotes());
         SetSelectedLayer(raw->GetLayerId());
         return raw->GetLayerId();
     }
@@ -2182,6 +2203,7 @@ namespace JBro
             }
             return false;
         }
+        NotifyScriptFieldsNotRead(raw->GetScriptNotes());
         const Array<EditorObjectId> pasted = raw->GetPastedRootIds();
         Array<Object::GameObject*> objects;
         for (std::size_t index = 0; index < pasted.Size(); ++index)
@@ -3093,6 +3115,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::LayerAssetLoadFailed, "the layer asset could not be read"), record->relativePath.c_str());
             return false;
         }
+        NotifyScriptFieldsNotRead(raw->GetScriptNotes());
         SetSelectedLayer(raw->GetLayerId());
         return true;
     }

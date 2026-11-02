@@ -660,6 +660,7 @@ Entries:
   notify.scripts_reload_pending: 실행을 멈추면 새 스크립트를 불러옵니다
   notify.script_fields_not_read: "저장된 스크립트 필드 값 %zu개를 불러오지 못했습니다"
   notify.script_fields_not_read_why: 코드에서 지운 필드의 값은 버렸고, 타입이 바뀐 필드는 기본값으로 두었습니다. 필드별 내용은 로그에 있습니다. 저장하면 이 값은 파일에서 빠집니다
+  notify.script_fields_not_read_inserted: 코드에서 지운 필드의 값은 버렸고, 타입이 바뀐 필드는 기본값으로 두었습니다. 필드별 내용은 로그에 있습니다
   editor_settings.search_hint: 이름이나 키로 검색
   editor_settings.press_key: 키를 누르세요
   editor_settings.capture_hint: Esc 를 누르면 취소합니다
